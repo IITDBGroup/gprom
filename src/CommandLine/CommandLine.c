@@ -10,51 +10,27 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "CommandLine/OptionParser.h"
-
-void mallocOptions(Options** options);
-void freeOptions(Options* options);
-void printHelp();
+#include "CommandLine/CommandLine.h"
+#include "Configuration/OptionParser.h"
 
 int main(int argc, char* argv[]) {
-	Options* options;
-	mallocOptions(&options);
-	int rc=parseOption(argc,argv,options);
+	mallocOptions();
+	int rc=parseOption(argc,argv);
+
 	if(rc<0)
-		printf("Parameters Errors\n");
+		printError();
 	else if(rc>0)
 		printHelp();
 	else
-	{
-		printf("Options Parsed successfully\n");
-		printf("host:%s\n",options->optionConnection->host);
-		printf("db:%s\n",options->optionConnection->db);
-		printf("port:%d\n",options->optionConnection->port);
-		printf("user:%s\n",options->optionConnection->user);
-		printf("passwd:%s\n",options->optionConnection->passwd);
-		printf("log:%d\n",options->optionDebug->log);
-		printf("loglevel:%d\n",options->optionDebug->loglevel);
-		printf("debugmemory:%d\n",options->optionDebug->debugMemory);
-		printf("alternative:%d\n",options->optionRewrite->alternative);
-	}
-	freeOptions(options);
+		printSuccess();
+
+	freeOptions();
 	return EXIT_SUCCESS;
 }
 
-void mallocOptions(Options** options)
+void printError()
 {
-	(*options)=MakeOptions();
-	(*options)->optionConnection=MakeOptionConnection();
-	(*options)->optionDebug=MakeOptionDebug();
-	(*options)->optionRewrite=MakeOptionRewrite();
-}
-
-void freeOptions(Options* options)
-{
-	free(options->optionConnection);
-	free(options->optionDebug);
-	free(options->optionRewrite);
-	free(options);
+	printf("Parameters Errors\n");
 }
 
 void printHelp()
@@ -69,5 +45,21 @@ void printHelp()
 	printf("-loglevel, level of log for output, default is 0\n");
 	printf("-debugmemory, set to use debug implementation of memory management, default is off\n");
 	printf("-alternative, set to activate certain types of alternative rewrites, default is off\n");
+}
+
+
+void printSuccess()
+{
+	Options* options=getOptions();
+	printf("Options Parsed successfully\n");
+	printf("host:%s\n",options->optionConnection->host);
+	printf("db:%s\n",options->optionConnection->db);
+	printf("port:%d\n",options->optionConnection->port);
+	printf("user:%s\n",options->optionConnection->user);
+	printf("passwd:%s\n",options->optionConnection->passwd);
+	printf("log:%d\n",options->optionDebug->log);
+	printf("loglevel:%d\n",options->optionDebug->loglevel);
+	printf("debugmemory:%d\n",options->optionDebug->debugMemory);
+	printf("alternative:%d\n",options->optionRewrite->alternative);
 }
 
