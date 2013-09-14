@@ -18,9 +18,14 @@ typedef struct OptionDebug{
 	boolean debugMemory;
 } OptionDebug;
 
-typedef struct OptionRewrite{
-	boolean alternative;
+typedef struct RewriteMethod{
+	char* name;
+	boolean isActive;
+} RewriteMethod;
 
+typedef struct OptionRewrite{
+	RewriteMethod** rewriteMethods;
+	int size;
 } OptionRewrite;
 
 typedef struct Options{

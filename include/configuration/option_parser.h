@@ -5,5 +5,6 @@
 
 int parseOption(int const argc, char* const argv[]);
 boolean isOption(char* const value);
+int getNumberOfRewrite(int const argc, char* const argv[]);
 
 #endif

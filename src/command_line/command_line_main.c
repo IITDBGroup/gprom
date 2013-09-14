@@ -1,11 +1,13 @@
-/*
- ============================================================================
- Name        : CommandLine.c
- Author      : Zephyr
- Version     :
- Copyright   : Your copyright notice
- Description : Hello World in C, Ansi-style
- ============================================================================
+/*-------------------------------------------------------------------------
+ *
+ * command_line_main.c
+ *    commandline interface for user
+ *
+ *        This file includes main method for the program. It takes a query
+ *   	  and database connection parameters as input, parses the options,
+ *   	  and print out some help information.
+ *
+ *-------------------------------------------------------------------------
  */
 
 #include <stdio.h>
@@ -16,6 +18,7 @@
 int
 main(int argc, char* argv[]) {
 	mallocOptions();
+
 	int rc=parseOption(argc,argv);
 
 	if(rc<0)
@@ -23,7 +26,10 @@ main(int argc, char* argv[]) {
 	else if(rc>0)
 		printHelp();
 	else
+	{
 		printSuccess();
+		inputSQL();
+	}
 
 	freeOptions();
 	return EXIT_SUCCESS;
@@ -47,7 +53,8 @@ printHelp()
 	printf("-log, set to use log output, default is off\n");
 	printf("-loglevel, level of log for output, default is 0\n");
 	printf("-debugmemory, set to use debug implementation of memory management, default is off\n");
-	printf("-alternative, set to activate certain types of alternative rewrites, default is off\n");
+	printf("-activate, set to activate certain types of alternative rewrites\n");
+	printf("===================================================================\n");
 }
 
 
@@ -55,7 +62,7 @@ void
 printSuccess()
 {
 	Options* options=getOptions();
-	printf("Options Parsed successfully\n");
+	printf("=====================Options Parsed successfully===================\n");
 	printf("host:%s\n",options->optionConnection->host);
 	printf("db:%s\n",options->optionConnection->db);
 	printf("port:%d\n",options->optionConnection->port);
@@ -64,6 +71,26 @@ printSuccess()
 	printf("log:%d\n",options->optionDebug->log);
 	printf("loglevel:%d\n",options->optionDebug->loglevel);
 	printf("debugmemory:%d\n",options->optionDebug->debugMemory);
-	printf("alternative:%d\n",options->optionRewrite->alternative);
+	int i,size=options->optionRewrite->size;
+	for(i=0;i<size;i++)
+		printf("activated rewrite:%s\n",options->optionRewrite->rewriteMethods[i]->name);
+	printf("===================================================================\n");
 }
 
+void
+inputSQL()
+{
+	char* sql=(char*)malloc(sizeof(char)*999);
+	while(TRUE)
+	{
+		printf("Please input a SQL or 'q' to exit the program\n");
+		scanf("%s",sql);
+		if(*sql=='q')
+		{
+			printf("Client Exit.\n");
+			break;
+		}
+		printf("Rewrite SQL is:%s\n",sql);
+	}
+	free(sql);
+}

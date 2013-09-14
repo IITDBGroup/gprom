@@ -4,5 +4,6 @@
 void printError();
 void printHelp();
 void printSuccess();
+void inputSQL();
 
 #endif
