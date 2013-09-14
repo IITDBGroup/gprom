@@ -10,10 +10,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "CommandLine/CommandLine.h"
-#include "Configuration/OptionParser.h"
+#include "command_line/command_line_main.h"
+#include "configuration/option_parser.h"
 
-int main(int argc, char* argv[]) {
+int
+main(int argc, char* argv[]) {
 	mallocOptions();
 	int rc=parseOption(argc,argv);
 
@@ -28,12 +29,14 @@ int main(int argc, char* argv[]) {
 	return EXIT_SUCCESS;
 }
 
-void printError()
+void
+printError()
 {
 	printf("Parameters Errors\n");
 }
 
-void printHelp()
+void
+printHelp()
 {
 	printf("================================HELP===============================\n");
 	printf("-host, host address of the machine where oracle server runs on\n");
@@ -48,7 +51,8 @@ void printHelp()
 }
 
 
-void printSuccess()
+void
+printSuccess()
 {
 	Options* options=getOptions();
 	printf("Options Parsed successfully\n");

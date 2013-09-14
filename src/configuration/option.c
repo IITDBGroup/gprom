@@ -1,16 +1,18 @@
-#include "Configuration/Option.h"
+#include "configuration/option.h"
 
 Options* options;
 
-void mallocOptions()
+void
+mallocOptions()
 {
-	options=MakeOptions();
-	options->optionConnection=MakeOptionConnection();
-	options->optionDebug=MakeOptionDebug();
-	options->optionRewrite=MakeOptionRewrite();
+	options=MAKE_OPTIONS();
+	options->optionConnection=MAKE_OPTION_CONNECTION();
+	options->optionDebug=MAKE_OPTION_DEBUG();
+	options->optionRewrite=MAKE_OPTION_REWRITE();
 }
 
-void freeOptions()
+void
+freeOptions()
 {
 	free(options->optionConnection->host);
 	free(options->optionConnection->db);
@@ -22,7 +24,8 @@ void freeOptions()
 	free(options);
 }
 
-Options* getOptions()
+Options*
+getOptions()
 {
 	return options;
 }

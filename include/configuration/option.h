@@ -1,7 +1,8 @@
 #ifndef OPTION_H
 #define OPTION_H
 
-#include "Common.h"
+#include "common.h"
+#include <stdlib.h>
 
 typedef struct OptionConnection{
 	char* host;
@@ -28,16 +29,16 @@ typedef struct Options{
 	OptionRewrite* optionRewrite;
 } Options;
 
-#define MakeOptions()		\
+#define MAKE_OPTIONS()		\
 	((Options*)malloc(sizeof(Options)))
 
-#define MakeOptionConnection()		\
+#define MAKE_OPTION_CONNECTION()		\
 	((OptionConnection*)malloc(sizeof(OptionConnection)))
 
-#define MakeOptionDebug()		\
+#define MAKE_OPTION_DEBUG()		\
 	((OptionDebug*)malloc(sizeof(OptionDebug)))
 
-#define MakeOptionRewrite()			\
+#define MAKE_OPTION_REWRITE()			\
 	((OptionRewrite*)malloc(sizeof(OptionRewrite)))
 
 extern void mallocOptions();

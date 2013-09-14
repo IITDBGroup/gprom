@@ -1,6 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
-#include "Configuration/OptionParser.h"
+#include "configuration/option_parser.h"
 
 /*
  * Input: argc, argv
@@ -8,7 +8,8 @@
  * Memory allocation for options and parameters in here
  * return 1 if user asks for help, return 0 if no error, -1 if errors occur
  */
-int parseOption(int const argc, char* const argv[])
+int
+parseOption(int const argc, char* const argv[])
 {
 	Options* options=getOptions();
 	int i;
@@ -75,7 +76,8 @@ int parseOption(int const argc, char* const argv[])
 	return 0;
 }
 
-boolean isOption(char* const value)
+boolean
+isOption(char* const value)
 {
 	if(value[0]=='-')
 		return TRUE;
