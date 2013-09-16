@@ -5,4 +5,4 @@ typedef short boolean;
 #define TRUE 1
 #define FALSE 0
 
-#endif
+#endif /* COMMON_H */
