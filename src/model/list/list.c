@@ -1,8 +1,8 @@
 /*************************************************************************
-	> File Name: list.c
-	> Author: skxie
+    > File Name: list.c
+    > Author: skxie
     > Descriptions: implement the functions for list usage.
-	> 
+    > 
  ************************************************************************/
 
 #inlcude "include/nodetype/list.h"
