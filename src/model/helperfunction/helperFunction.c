@@ -10,9 +10,9 @@
  	
  ************************************************************************/
 
-
-#include "include/model/expression/list.h"
-#include "include/model/node/nodetype.h"
+#include "common.h"
+#include "model/list/list.h"
+#include "model/node/nodetype.h"
 
 
 
