@@ -11,14 +11,14 @@
  */
 
 #include "logger.h"
-#include "Configuration/Option.h"
+#include "configuration/option.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 
 static char *h[] =
     {"Fatal: ", "Error: ", "Warn: ", "Info: ", "Debug: ", "Trace: "};
-static Options *option;
+static Options *options;
 
 inline char *
 getHead(LogLevel level)
@@ -35,8 +35,8 @@ getOutput(LogLevel level)
 void
 log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
 {
-    option = getOptions();
-    if (level <= option->optionDebug->loglevel)
+    options = getOptions();
+    if (options->optionDebug->log && level <= options->optionDebug->loglevel)
     {
         va_list args;
         va_start(args, template);
