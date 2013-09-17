@@ -1,21 +1,66 @@
 /*************************************************************************
     > File Name: list.c
-    > Author: skxie
+    > Author: Shukun Xie
     > Descriptions: implement the functions for list usage.
-    > 
  ************************************************************************/
 
 #include "common.h"
 #include "model/list/list.h"
+#include "modle/node/nodetype.h"
+
+#define isPtrList(list)     ((list) == NIL || isA(list, List))
+#define isIntList(list)     ((list) == NIL || isA(list, IntList))
+
+void
+checkList(const List *list)
+{
+    if (list == NIL)
+        return;
+
+    assert(list->length > 0);
+    assert(list->head != NULL);
+    assert(list->tail != NULL);
+    assert(list->type == T_List || list->type == T_IntList);
+
+    if (list->length == 1)
+        assert(list->head == list->tail);
+    if (list->length == 2)
+        assert(list->head->next == list->tail);
+
+    assert(lsit->tail->next == NULL);
+}
+
+List *
+newList(NodeTag type)
+{
+    List *newList;
+    ListCell *newListHead;
+
+    newListHead = (ListCell *)malloc(sizeof(ListCell));
+    newListHead->next = NULL;
+
+    newList = (List *)malloc(sizeof(List));
+    newList->type = type;
+    newList->length = 1;
+    newList->head = newListHead;
+    newlist->tail = newListHead;
+
+    checkList(newList);
+
+    return newList;
+}
 
 int
-getListLength(List *list) // should just return the list length. Empty lists should have length 0 not -1
+getListLength(List *list) 
 {
-	if (list == NULL)
+	if (list == NIL)
 		return 0;
 	if (list->length != -1)
 		return list->length;
-	ListCell *node = list->head;
+
+	ListCell *node; 
+    
+    node = list->head;
 	list->length = 0;
 
 	if (node != NULL)
@@ -28,21 +73,20 @@ getListLength(List *list) // should just return the list length. Empty lists sho
 	return list->length;
 }
 
-int
-getHeadOfListInt (List *list)
-{
-	ListCell *head = getHeadOfList(list);
-	if (head == NULL)
-		return -1;
-	return head->data.value;
-}
-
 ListCell *
 getHeadOfList(List *list)
 {
-	if (getListLength(list) == 0)
-		return NULL;
-	return  list->head;
+    return  list ? list->head : NULL;
+}
+
+int
+getHeadOfListInt (List *list)
+{
+	assert(isIntList(List));
+    ListCell *head;
+    
+    head = getHeadOfList(list);
+    return head ? head->data.value : -1;
 }
 
 // If you use a parameter to return a value of a function then it needs to be a pointer to the type you want to return because C is pass-by value. You
@@ -52,9 +96,18 @@ getHeadOfList(List *list)
 ListCell *
 getTailOfList(List *list)
 {
-	if (getListLength(list) == 0)
-		return NULL;
-	return  list->head;
+    return list ? list->tail : NULL;
+}
+
+int
+getTailOfListInt(List *list)
+{
+    assert(isIntList(list));
+    
+    ListCell *tail;
+    
+    tail = getTailOfList(list);
+    return tail ? tail->data.value : -1;
 }
 
 // If you use a parameter to return a value of a function then it needs to be a pointer to the type you want to return because C is pass-by value. You
@@ -64,85 +117,120 @@ getTailOfList(List *list)
 ListCell *
 getNthOfList(List *list, int n)
 {
-	if (list == NULL)
+	if (list == NIL)
 		return NULL;
-	int counter = 0;
-	ListCell * node = list->head;
-	assert(list_length(list) > n);
+	assert(getListLength(list) >= n);
+    
+    int counter = 0;
+	ListCell * node;
+    
+    node = list->head;
 	while (node != NULL && counter < n)
 	{
 		counter++;
-		if (counter == n) // simpler to not check anything here and just return the current "node" after traversing (need right condition in while)
-		{
-			element = node;
-			return;
-		}
 		node = node->next;
 	}
-	// need a return here for case where n >= list->length, but better to check this before looping ;-)
-	return NULL;
+    
+    return node ? node : NULL;
 }
 
 // we need convienience wrappers for appending and int or void * value to the end or start of a list 
 
-List *
-appendToTailOfList(List *list, ListCell *node) 
+void
+newListTail(List *list)
 {
-	if (list == NULL) //create singleton instead
-		return singleton(node);
-	if (list->length == 0)
-	{
-		list->head = node;
-		list->tail = node;
-		list->length = 1;
-		return list;
-	}
-	//	else // why if list is not empty tail should always point to the last cell in the list
-	//	{
-	//		ListCell *curr = list->head;
-	//		while (curr->next != NULL)
-	//		{
-	//			curr = curr->next;
-	//		}
-	//		tail = curr;
-	//	}
-	list->tail->next = node;
-	list->tail = node;
-	list->length++;
-	return list;
+    ListCell *newTail;
+    
+    newTail = (ListCell *)malloc(sizeof(List));
+    newTail->next = NULL;
+    
+    list->tail->next = newTail;
+    list->tail = newTail;
+    list->length++;
 }
 
 List *
-appendIntToHeadOfList (List *list, int value)
+appendToTailOfList(List *list, void *value)
 {
+    assert(isPtrList(list));
+	
+    if (list == NIL) 
+		list = newList(T_List);
+	else
+        newListTail(list);
+    
+    list->tail.data = value;
+    assert(checkList(list));
+    return list;
+}
 
+List *
+appendToTailOfListInt(List *list, int value)
+{
+    assert(isIntList(list));
+    
+    if (list == NIL)
+        list = newList(T_IntList);
+    else
+        newListTail(list);
+    
+    list->tail.data = value;
+    assert(checkList(list));
+    return list;
 }
 
 void
-appendToHeadOfList(List *list, ListCell *node)
+newListHead(List *list)
 {
-	if (list == NULL) // no should return new list
-		return; 
-	if (list->head == NULL) // create singleton list from empty list
-		return;
-	ListCell * head = list->head;
-	node->next = head;
-	head = node;
-	list->head = head;
-	list->length++;
+    ListCel *newHead;
+
+    newHead = (ListCell *)malloc(sizeof(ListCell));
+    newHead->next = list->head;
+    list->head = newHead;
+    list->length++;
+}
+
+List *
+appendToHeadOfList(List *list, void *value)
+{
+    assert(isPtrList(list));
+
+    if (list == NIL)
+        list = newList(T_List);
+    else
+        newListHead(list);
+    
+    list->head.data = value;
+    assert(checkList(list));
+    return list;
+}
+
+List *
+appendToHeadOfListInt (List *list, int value)
+{
+    assert(isIntList(list));
+
+    if (list == NIL)
+        list = newList(T_IntList);
+    else
+        newListHead(list);
+
+    list->head.data = value;
+    assert(checkList(list));
+    return list;
 }
 
 void
 reverseList(List *list)
 {
-	if (list == NULL || list->length == 0)
+	if (list == NULL || getListLength(list) == 0)
 		return;
 
 	ListCell *tail  = list->head;
 	ListCell *prev  = list->head;
 	ListCell *curr  = list->head->next;
 
-	tail->next      = NULL;
+	tail->next = NULL;
 	while (curr != NULL)
 	{
 		ListCell *temp = curr->next;
@@ -152,6 +240,7 @@ reverseList(List *list)
 	}
 	list->head = prev;
 	list->tail = tail;
+    assert(checkList(list));
 }
 
 void
@@ -160,8 +249,8 @@ sortList(List *list)
 
 }
 
-void
-copyList(List *lista, List *listb)
+List *
+copyList(List *list)
 {
 
 }
@@ -169,49 +258,86 @@ copyList(List *lista, List *listb)
 void
 freeList(List *list)
 {
-
+    if (list == NIL)
+        return;
+    free(list);
 }
 
 void
 deepFreeList(List *list)
 {
+    if (list == NIL)
+        return;
+    
+    ListCell *node;
 
+    node = list->head;
+    while (node != NULL)
+    {
+        ListCell *temp = node;
+        node = node->next;
+        free(temp);
+    }
+    free(list);
 }
 
 List *
-concatenateTwoLists(List *lista, List*listb)
+concatTwoLists(List *lista, List*listb)
 {
-	if (lista == NULL && listb == NULL) // make sure they are of same type
-		return NULL;
-	if (lista == NULL)
-		return  listb; // wouldn't work if lista = NULL
-	if (listb == NULL)
+	if (lista == NIL)
+		return  listb;
+	if (listb == NIL)
 		return lista;
+
+    assert(lista->type == listb->type);
 
 	lista->tail->next = listb->head;
 	lista->tail = listb->tail;
 	lista->length += listb->length; // destroys both original list. listb should consequently be free'd
+
+    assert(checkList(lista));
+    freeList(listb);
+    return lista;
+}
+
+bool
+searchList(List *list, void *value)
+{
+    assert(isPtrList(list));
+
+    if (list == NIL)
+        return FALSE;
+
+    ListCell *lc;
+
+    lc = list->head;
+    while (lc != NULL)
+    {
+        if (lc->data.value == vale)
+            return TRUE;
+        lc = lc->next;
+    }
+
+    return FALSE;
 }
 
 bool
 searchListInt(List *list, int value)
 {
-	ListCell *lc;
+    assert(isIntList(list));
 
-	if (list == NULL)
+    if (list == NIL)
 		return FALSE;
 
-	for(lc = list->head; lc != NULL; lc = lc->next)
+	ListCell *lc;
+
+    lc = list->head;
+    while (lc != NULL)
 	{
 		if (lc->data.value == value)
 			return TRUE;
-	}
+        lc = lc->next;
+    }
 
 	return FALSE;
-}
-
-bool
-searchListPointer(List *list, void *value)
-{
-
 }
