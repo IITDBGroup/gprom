@@ -107,7 +107,68 @@ reverseList(List *list)
 {
 	if (list == NULL)
 		return;
-	if (list->head == NULL || list->length)
+	if (list->head == NULL || list->length <= 1)
 		return;
+    ListCell *tail  = list->head;
+    ListCell *prev  = list->head;
+    ListCell *curr  = list->head->next;
+    tail->next      = NULL;
+    while (curr != NULL)
+    {
+        ListCell *temp = curr->next;
+        curr->next = prev;
+        prev = curr;
+        curr = temp;
+    }
+    list->head = prev;
+    list->tail = tail;
+}
 
+void
+sortList(List *list)
+{
+    
+}
+
+void
+copyList(List *lista, List *listb)
+{
+    
+}
+
+void
+freeList(List *list)
+{
+    
+}
+
+void
+deepFreeList(List *list)
+{
+
+}
+
+void 
+concatenateTwoLists(List *lista, List*listb)
+{
+    if (lista == NULL && listb == NULL)
+        return;
+    if (lista == NULL)
+    {
+        lista = listb;
+        return;
+    }
+    if (listb == NULL)
+    {
+        return;
+    }
+    lista->tail->next = listb->head;
+    lista->tail = listb->tail;
+    lista->length += listb->length;
+}
+
+void 
+searchList(List *list, )
+{
+    
 }
