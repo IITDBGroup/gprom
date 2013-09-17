@@ -14,7 +14,7 @@
 #define MEM_MGR_H_
 
 #include <stdlib.h>
-#include "Common.h"
+#include "common.h"
 #include "uthash.h"
 
 typedef struct Allocation
@@ -33,12 +33,9 @@ typedef struct MemContext
 
 MemContext *curMemContext;
 
-extern void *
-malloc_(size_t bytes, char *file, unsigned line);
-extern void *
-calloc_(size_t bytes, unsigned count, char *file, unsigned line);
-extern void
-free_(void *mem, char *file, unsigned line);
+extern void *malloc_(size_t bytes, char *file, unsigned line);
+extern void *calloc_(size_t bytes, unsigned count, char *file, unsigned line);
+extern void free_(void *mem, char *file, unsigned line);
 
 #define MALLOC(bytes) malloc_((bytes), __FILE__, __LINE__)
 #define CALLOC(bytes, count) calloc_((bytes), (count), __FILE__, __LINE__)
@@ -46,17 +43,11 @@ free_(void *mem, char *file, unsigned line);
 #define CNEW(type, count) CALLOC(sizeof(type), (count))
 #define FREE(pointer) free_((void *) (pointer), __FILE__, __LINE__)
 
-extern MemContext *
-newMemContext(char *contextName);
-extern int
-memContextSize(MemContext *mc);
-extern Allocation *
-findAlloc(const MemContext *mc, const void *addr);
-extern void
-delMemContext(MemContext *mc);
-extern void
-setCurMemContext(MemContext *mc);
-extern MemContext *
-getCurMemContext(void);
+extern MemContext *newMemContext(char *contextName);
+extern int memContextSize(MemContext *mc);
+extern Allocation *findAlloc(const MemContext *mc, const void *addr);
+extern void delMemContext(MemContext *mc);
+extern void setCurMemContext(MemContext *mc);
+extern MemContext *getCurMemContext(void);
 
 #endif
