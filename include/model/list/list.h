@@ -4,6 +4,9 @@
     > Descriptions: Head file for the list.c
  ************************************************************************/
 
+#ifndef LIST_H
+#define LIST_H
+
 #include "common.h"
 #include "model/node/nodetype.h"
 
@@ -58,6 +61,6 @@ extern List *copyList(List *list);
 extern void freeList(List *list);
 extern void deepFreeList(List *list);
 
-extern bool searchList(List *list, void *value);
-extern bool searchListInt(List *list, int value);
+extern boolean searchList(List *list, void *value);
+extern boolean searchListInt(List *list, int value);
 

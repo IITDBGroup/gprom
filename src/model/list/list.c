@@ -4,12 +4,7 @@
     > Descriptions: implement the functions for list usage.
  ************************************************************************/
 
-#include "common.h"
 #include "model/list/list.h"
-#include "model/node/nodetype.h"
-
-//#define isPtrList(list)     ((list) == NIL || isA(list, T_List))
-//#define isIntList(list)     ((list) == NIL || isA(list, T_IntList))
 
 void
 checkList(const List *list)
@@ -109,10 +104,6 @@ getHeadOfListInt (List *list)
     return head ? head->data.int_value : -1;
 }
 
-// If you use a parameter to return a value of a function then it needs to be a pointer to the type you want to return because C is pass-by value. You
-// want to return a pointer to a ListCell, so the parameter should be ListCell **element. However, since you do not have any other return value, there
-// is no need to have the return value as an argument. Just change the return type to ListCell * and remove the parameter
-
 ListCell *
 getTailOfList(List *list)
 {
@@ -129,10 +120,6 @@ getTailOfListInt(List *list)
     tail = getTailOfList(list);
     return tail ? tail->data.int_value : -1;
 }
-
-// If you use a parameter to return a value of a function then it needs to be a pointer to the type you want to return because C is pass-by value. You
-// want to return a pointer to a ListCell, so the parameter should be ListCell **element. However, since you do not have any other return value, there
-// is no need to have the return value as an argument. Just change the return type to ListCell * and remove the parameter
 
 ListCell *
 getNthOfList(List *list, int n)
@@ -154,7 +141,6 @@ getNthOfList(List *list, int n)
     return node ? node : NULL;
 }
 
-// we need convienience wrappers for appending and int or void * value to the end or start of a list 
 
 void
 newListTail(List *list)
@@ -272,6 +258,9 @@ sortList(List *list)
 List *
 copyList(List *list)
 {
+	List *listCopy;
+
+	listCopy = newList(list->type);
 
 }
 
