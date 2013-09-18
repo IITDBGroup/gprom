@@ -4,6 +4,9 @@
     > Descriptions: Head file for the list.c
  ************************************************************************/
 
+#include "common.h"
+#include "model/node/nodetype.h"
+
 typedef struct ListCell
 {
     union
@@ -11,7 +14,7 @@ typedef struct ListCell
         void *ptr_value;
         int  int_value;
     } data;
-    ListCell *next;
+    struct ListCell *next;
 } ListCell;
 
 typedef struct List

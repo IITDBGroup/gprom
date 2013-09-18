@@ -1,27 +1,10 @@
 #ifndef NODETYPE_H
 #define NODETYPE_H
 
+#include "common.h"
 
-
-typedef enum NodeTag{
+typedef enum NodeTag {
     T_Invalid=0,
-
-    /*tags for exe nodes*/
-    T_IndexInfo,
-    T_ResultInfo,
- 
-    /*tags for prim nodes*/
-    T_Alias = 100,
-    T_Var,
-    T_Const,
-    T_FuncExpr,
-    
-    /*tags for plan nodes*/
-    T_Result,
-    T_Join,
-    T_Merge,
-    T_Sort,
-    T_Group,
 
     /*tags for value nodes*/
     T_Value = 200,
@@ -40,13 +23,11 @@ typedef enum NodeTag{
     T_AttributeReference,
     T_FunctionCall,
     T_Operator
-
-}NodeTag;
+} NodeTag;
 
 typedef struct Node{
     NodeTag type;
-
-}Node;
+} Node;
 
 
 #define nodeTag(nodeptr) (((Node*)(nodeptr))->type)
@@ -56,61 +37,17 @@ typedef struct Node{
 #define isA(nodeptr, type)  (nodeTag(nodeptr)) == T_type)
 
 /*extern declaration */
-
-typedef struct StringInfoData{
-     char *data;
-     int len;
-     int maxlen;
-     int cursor;
-
-}StringInfoData;
-
-typedef StringInfoData *StringInfo;
-
 extern char *nodeToString(void *obj);
-extern void outNode(StringInfo str, void *obj);
-extern void outBitmapset(StringInfo str, Bitmapset *bms);
-extern void outData(StringInfo str, Data value, int typlen, bool typbyval);
+extern void outNode(/* TODO */ void *obj);
 
 /*readfun.c*/
-
 extern void *stringToNode(char *str);
-extern Data readData(bool typbyval);
 
 /*copyfun.c*/
-
 extern void *copyObject(void *obj);
 
 /*equalfun.c*/
-
 extern bool equal(void *a, void *b);
 
-/*CmdType for type of operation represented by a Query*/
-
-typedef enum CmdType{
-     CMD_UNKNOWN,
-     CMD_SELECT,
-     CMD_UPDATE,
-     CMD_INSERT,
-     CMD_DELETE,
-     CMD_UTILITY,
-     CMD_NOTHING
-}CmdType;
-
-/*JoinType enums for types of relation joins*/
-
-typedef enum JoinType{
-     JOIN_INNER,      /*tuple pairs only*/
-     JOIN_LEFT,
-     JOIN_RIGHT,
-     JOIN_FULL,
-     JOIN_IN,          /*at most one result per outer row*/
-     JOIN_REVERSE_IN,  /*at most one result per inner row*/
-     JOIN_UNIQUE_OUTER,/*outer path must be made unique*/
-     JOIN_UNIQUE_INNER /*inner path must be made unique*/
-
-}JoinType;
-
-#define IS_OUTER_JOIN(jointype) ((jointype)==JOIN_LEFT||(jointype)==JOIN_FULL||(jointype)==JOIN_RIGHT)
 
 #endif /*NODETYPE_H*/
