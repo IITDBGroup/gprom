@@ -6,10 +6,10 @@
 
 #include "common.h"
 #include "model/list/list.h"
-#include "modle/node/nodetype.h"
+#include "model/node/nodetype.h"
 
-#define isPtrList(list)     ((list) == NIL || isA(list, List))
-#define isIntList(list)     ((list) == NIL || isA(list, IntList))
+//#define isPtrList(list)     ((list) == NIL || isA(list, T_List))
+//#define isIntList(list)     ((list) == NIL || isA(list, T_IntList))
 
 void
 checkList(const List *list)
@@ -27,7 +27,27 @@ checkList(const List *list)
     if (list->length == 2)
         assert(list->head->next == list->tail);
 
-    assert(lsit->tail->next == NULL);
+    assert(list->tail->next == NULL);
+}
+
+boolean
+isPtrList(List *list)
+{
+	if (list == NIL)
+		return TRUE;
+	if (list->type == T_List)
+		return TRUE;
+	return FALSE;
+}
+
+boolean
+isIntList(List *list)
+{
+	if (list == NIL)
+		return TRUE;
+	if (list->type == T_IntList)
+		return TRUE;
+	return FALSE;
 }
 
 List *
@@ -43,7 +63,7 @@ newList(NodeTag type)
     newList->type = type;
     newList->length = 1;
     newList->head = newListHead;
-    newlist->tail = newListHead;
+    newList->tail = newListHead;
 
     checkList(newList);
 
@@ -82,11 +102,11 @@ getHeadOfList(List *list)
 int
 getHeadOfListInt (List *list)
 {
-	assert(isIntList(List));
+	assert(isIntList(list));
     ListCell *head;
     
     head = getHeadOfList(list);
-    return head ? head->data.value : -1;
+    return head ? head->data.int_value : -1;
 }
 
 // If you use a parameter to return a value of a function then it needs to be a pointer to the type you want to return because C is pass-by value. You
@@ -107,7 +127,7 @@ getTailOfListInt(List *list)
     ListCell *tail;
     
     tail = getTailOfList(list);
-    return tail ? tail->data.value : -1;
+    return tail ? tail->data.int_value : -1;
 }
 
 // If you use a parameter to return a value of a function then it needs to be a pointer to the type you want to return because C is pass-by value. You
@@ -182,7 +202,7 @@ appendToTailOfListInt(List *list, int value)
 void
 newListHead(List *list)
 {
-    ListCel *newHead;
+    ListCell *newHead;
 
     newHead = (ListCell *)malloc(sizeof(ListCell));
     newHead->next = list->head;
@@ -300,7 +320,7 @@ concatTwoLists(List *lista, List*listb)
     return lista;
 }
 
-bool
+boolean
 searchList(List *list, void *value)
 {
     assert(isPtrList(list));
@@ -313,7 +333,7 @@ searchList(List *list, void *value)
     lc = list->head;
     while (lc != NULL)
     {
-        if (lc->data.value == vale)
+        if (lc->data.ptr_value == value)
             return TRUE;
         lc = lc->next;
     }
@@ -321,7 +341,7 @@ searchList(List *list, void *value)
     return FALSE;
 }
 
-bool
+boolean
 searchListInt(List *list, int value)
 {
     assert(isIntList(list));
@@ -334,7 +354,7 @@ searchListInt(List *list, int value)
     lc = list->head;
     while (lc != NULL)
 	{
-		if (lc->data.value == value)
+		if (lc->data.int_value == value)
 			return TRUE;
         lc = lc->next;
     }
