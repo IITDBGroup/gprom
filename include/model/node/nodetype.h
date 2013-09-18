@@ -47,7 +47,7 @@ extern void *stringToNode(char *str);
 extern void *copyObject(void *obj);
 
 /*equalfun.c*/
-extern bool equal(void *a, void *b);
+extern boolean equal(void *a, void *b);
 
 
 #endif /*NODETYPE_H*/

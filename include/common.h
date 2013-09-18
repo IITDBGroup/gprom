@@ -2,6 +2,7 @@
 #define COMMON_H
 
 #include <stddef.h>
+#include <assert.h>
 
 typedef short boolean;
 #define TRUE 1
