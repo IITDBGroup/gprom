@@ -10,9 +10,9 @@
  *-------------------------------------------------------------------------
  */
 
-#include "mem_mgr.h"
+#include "mem_manager/mem_mgr.h"
 #include <stdlib.h>
-#include "logger.h"
+#include "log/logger.h"
 #include "uthash.h"
 
 static void
@@ -23,9 +23,8 @@ addAlloc(MemContext *mc, void *addr, char *file, unsigned line)
     newAlloc->file = file;
     newAlloc->line = line;
     HASH_ADD_PTR(mc->hashAlloc, address, newAlloc);
-    log_(DEBUG, __FILE__, __LINE__,
-            "Added [addr:%p, file:'%s', line:%u] to memory context '%s'.", addr,
-            file, line, mc->contextName);
+    DEBUG_LOG("Added [addr:%p, file:'%s', line:%u] to memory context '%s'.",
+            addr, file, line, mc->contextName);
 }
 
 static void
@@ -37,11 +36,9 @@ delAlloc(MemContext *mc, void *addr, char *file, unsigned line)
     {
         char *tmpfile = alloc->file;
         int tmpline = alloc->line;
-        free(addr);
-        log_(TRACE, file, line, "Memory @%p freed.", addr);
         HASH_DEL(mc->hashAlloc, alloc);
         free(alloc);
-        log_(DEBUG, file, line,
+        DEBUG_LOG(
                 "Deleted [addr:%p, file:'%s', line:%d] from memory context '%s'.",
                 addr, tmpfile, tmpline, mc->contextName);
     }
@@ -53,6 +50,7 @@ newMemContext(char *contextName)
     MemContext *mc = (MemContext *) malloc(sizeof(MemContext));
     mc->contextName = contextName;
     mc->hashAlloc = NULL;
+    setCurMemContext(mc);
     return mc;
 }
 
@@ -73,13 +71,13 @@ findAlloc(const MemContext *mc, const void *addr)
     HASH_FIND_PTR(mc->hashAlloc, &addr, alloc);
     if (alloc)
     {
-        log_(DEBUG, __FILE__, __LINE__,
+        DEBUG_LOG(
                 "Found [addr:%p, file:'%s', line:%d] in memory context '%s'.",
                 alloc->address, alloc->file, alloc->line, mc->contextName);
     }
     else
     {
-        log_(DEBUG, __FILE__, __LINE__,
+        DEBUG_LOG(
                 "Could not find address=%p in memory context '%s'.", addr,
                 mc->contextName);
     }
@@ -100,7 +98,7 @@ clearMemContext(MemContext *mc)
 }
 
 void
-delMemContext(MemContext *mc)
+freeMemContext(MemContext *mc)
 {
     int size = memContextSize(mc);
     if (size > 0)
@@ -116,13 +114,13 @@ delMemContext(MemContext *mc)
 
 extern MemContext *curMemContext;
 
-void
+inline void
 setCurMemContext(MemContext *mc)
 {
     curMemContext = mc;
 }
 
-MemContext *
+inline MemContext *
 getCurMemContext(void)
 {
     return curMemContext;
@@ -134,11 +132,12 @@ malloc_(size_t bytes, char *file, unsigned line)
     void *mem = malloc(bytes);
     if (mem == NULL)
     {
-        log_(ERROR, file, line, "Fail to malloc.");
+        log_(LOG_ERROR, file, line, "Fail to malloc.");
     }
     else
     {
-        log_(TRACE, file, line, "%ld bytes memory @%p allocated.", bytes, mem);
+        log_(LOG_TRACE, file, line, "%ld bytes memory @%p allocated.", bytes,
+                mem);
     }
 
     addAlloc(curMemContext, mem, file, line);
@@ -152,11 +151,11 @@ calloc_(size_t bytes, unsigned count, char *file, unsigned line)
     void *mem = calloc(count, bytes);
     if (mem == NULL)
     {
-        log_(ERROR, file, line, "Fail to calloc.");
+        log_(LOG_ERROR, file, line, "Fail to calloc.");
     }
     else
     {
-        log_(TRACE, file, line,
+        log_(LOG_TRACE, file, line,
                 "%ldx%ld bytes memory @%p allocated and initialized with 0.",
                 bytes, count, mem);
     }
@@ -172,6 +171,8 @@ free_(void *mem, char *file, unsigned line)
     if (mem)
     {
         delAlloc(curMemContext, mem, file, line);
+        free(mem);
+        log_(LOG_TRACE, file, line, "Memory @%p freed.", mem);
     }
 }
 

@@ -12,7 +12,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "mem_mgr.h"
+#include "mem_manager/mem_mgr.h"
 #include <string.h>
 #include "test_main.h"
 #include "configuration/option.h"

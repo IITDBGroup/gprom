@@ -38,13 +38,13 @@ typedef struct Options{
 	((Options*)malloc(sizeof(Options)))
 
 #define MAKE_OPTION_CONNECTION()		\
-	((OptionConnection*)malloc(sizeof(OptionConnection)))
+	((OptionConnection*)calloc(1, sizeof(OptionConnection)))
 
 #define MAKE_OPTION_DEBUG()		\
-	((OptionDebug*)malloc(sizeof(OptionDebug)))
+	((OptionDebug*)calloc(1, sizeof(OptionDebug)))
 
 #define MAKE_OPTION_REWRITE()			\
-	((OptionRewrite*)malloc(sizeof(OptionRewrite)))
+	((OptionRewrite*)calloc(1, sizeof(OptionRewrite)))
 
 extern void mallocOptions();
 extern void freeOptions();
