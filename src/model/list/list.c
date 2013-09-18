@@ -4,12 +4,9 @@
     > Descriptions: implement the functions for list usage.
  ************************************************************************/
 
-<<<<<<< HEAD
-=======
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
->>>>>>> 24f3da700dcc7bf12a511fe4ac5964d479bd6669
 #include "model/list/list.h"
 
 boolean
