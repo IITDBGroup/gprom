@@ -10,7 +10,7 @@
  *-------------------------------------------------------------------------
  */
 
-#include "logger.h"
+#include "log/logger.h"
 #include "configuration/option.h"
 #include <stdio.h>
 #include <stdlib.h>

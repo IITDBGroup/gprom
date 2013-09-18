@@ -10,7 +10,7 @@
  *-------------------------------------------------------------------------
  */
 
-#include "mem_mgr.h"
+#include "mem_manager/mem_mgr.h"
 #include "assert.h"
 #include "string.h"
 #include <stdio.h>

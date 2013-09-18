@@ -10,18 +10,18 @@
  *-------------------------------------------------------------------------
  */
 
-#include "logger.h"
+#include "log/logger.h"
 #include "test_main.h"
 
 rc
 testLogger(void)
 {
-    log_(FATAL, __FILE__, __LINE__, "this is %s msg, level=%d", "fatal", FATAL);
-    log_(ERROR, __FILE__, __LINE__, "this is %s msg, level=%d", "error", ERROR);
-    log_(WARN, __FILE__, __LINE__, "this is %s msg, level=%d", "warning", WARN);
-    log_(INFO, __FILE__, __LINE__, "this is %s msg, level=%d", "info", INFO);
-    log_(DEBUG, __FILE__, __LINE__, "this is %s msg, level=%d", "debug", DEBUG);
-    log_(TRACE, __FILE__, __LINE__, "this is %s msg, level=%d", "trace", TRACE);
+    FATAL_LOG("this is %s msg, level=%d", "fatal", LOG_FATAL);
+    ERROR_LOG("this is %s msg, level=%d", "fatal", LOG_ERROR);
+    WARN_LOG("this is %s msg, level=%d", "fatal", LOG_WARN);
+    INFO_LOG("this is %s msg, level=%d", "fatal", LOG_INFO);
+    DEBUG_LOG("this is %s msg, level=%d", "fatal", LOG_DEBUG);
+    TRACE_LOG("this is %s msg, level=%d", "fatal", LOG_TRACE);
 
     return PASS;
 }
