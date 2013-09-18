@@ -30,7 +30,7 @@ typedef struct List
 
 #define NIL ((List *)NULL)
 
-extern void checkList(const List *list);
+extern boolean checkList(const List *list);
 
 extern List *newList(NodeTag type);
 
@@ -64,3 +64,4 @@ extern void deepFreeList(List *list);
 extern boolean searchList(List *list, void *value);
 extern boolean searchListInt(List *list, int value);
 
+#endif /* LIST_H */

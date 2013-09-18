@@ -4,13 +4,19 @@
     > Descriptions: implement the functions for list usage.
  ************************************************************************/
 
+<<<<<<< HEAD
+=======
+#include "common.h"
+#include "mem_manager/mem_mgr.h"
+#include "log/logger.h"
+>>>>>>> 24f3da700dcc7bf12a511fe4ac5964d479bd6669
 #include "model/list/list.h"
 
-void
+boolean
 checkList(const List *list)
 {
     if (list == NIL)
-        return;
+        return TRUE;
 
     assert(list->length > 0);
     assert(list->head != NULL);
@@ -23,6 +29,8 @@ checkList(const List *list)
         assert(list->head->next == list->tail);
 
     assert(list->tail->next == NULL);
+
+    return TRUE;
 }
 
 boolean
@@ -165,7 +173,7 @@ appendToTailOfList(List *list, void *value)
 	else
         newListTail(list);
     
-    list->tail.data = value;
+    list->tail->data.ptr_value = value;
     assert(checkList(list));
     return list;
 }
@@ -180,7 +188,7 @@ appendToTailOfListInt(List *list, int value)
     else
         newListTail(list);
     
-    list->tail.data = value;
+    list->tail->data.int_value = value;
     assert(checkList(list));
     return list;
 }
@@ -206,7 +214,7 @@ appendToHeadOfList(List *list, void *value)
     else
         newListHead(list);
     
-    list->head.data = value;
+    list->head->data.ptr_value = value;
     assert(checkList(list));
     return list;
 }
@@ -221,7 +229,7 @@ appendToHeadOfListInt (List *list, int value)
     else
         newListHead(list);
 
-    list->head.data = value;
+    list->head->data.int_value = value;
     assert(checkList(list));
     return list;
 }
@@ -262,6 +270,7 @@ copyList(List *list)
 
 	listCopy = newList(list->type);
 
+	return NULL; /* keep compiler quiet for now */
 }
 
 void
