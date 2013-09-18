@@ -11,7 +11,8 @@ TEST_OBJS=$(filter-out ./src/command_line/command_line_main.o, $(OBJECTS))
 CMD=test/CommandLine/CommandLine
 TEST=test/test
 
-all: $(CMD) $(TEST)
+all: $(CMD) 
+test: $(TEST)
 
 $(CMD): $(CMD_OBJS)
 	$(CC) $(LDFLAGS) $(CMD_OBJS) -o $@

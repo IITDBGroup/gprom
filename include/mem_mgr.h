@@ -46,7 +46,8 @@ extern void free_(void *mem, char *file, unsigned line);
 extern MemContext *newMemContext(char *contextName);
 extern int memContextSize(MemContext *mc);
 extern Allocation *findAlloc(const MemContext *mc, const void *addr);
-extern void delMemContext(MemContext *mc);
+void clearMemContext(MemContext *mc);
+extern void freeMemContext(MemContext *mc);
 extern void setCurMemContext(MemContext *mc);
 extern MemContext *getCurMemContext(void);
 

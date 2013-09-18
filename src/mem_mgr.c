@@ -37,8 +37,6 @@ delAlloc(MemContext *mc, void *addr, char *file, unsigned line)
     {
         char *tmpfile = alloc->file;
         int tmpline = alloc->line;
-        free(addr);
-        log_(TRACE, file, line, "Memory @%p freed.", addr);
         HASH_DEL(mc->hashAlloc, alloc);
         free(alloc);
         log_(DEBUG, file, line,
@@ -53,6 +51,7 @@ newMemContext(char *contextName)
     MemContext *mc = (MemContext *) malloc(sizeof(MemContext));
     mc->contextName = contextName;
     mc->hashAlloc = NULL;
+    setCurMemContext(mc);
     return mc;
 }
 
@@ -100,7 +99,7 @@ clearMemContext(MemContext *mc)
 }
 
 void
-delMemContext(MemContext *mc)
+freeMemContext(MemContext *mc)
 {
     int size = memContextSize(mc);
     if (size > 0)
@@ -116,13 +115,13 @@ delMemContext(MemContext *mc)
 
 extern MemContext *curMemContext;
 
-void
+inline void
 setCurMemContext(MemContext *mc)
 {
     curMemContext = mc;
 }
 
-MemContext *
+inline MemContext *
 getCurMemContext(void)
 {
     return curMemContext;
@@ -172,6 +171,8 @@ free_(void *mem, char *file, unsigned line)
     if (mem)
     {
         delAlloc(curMemContext, mem, file, line);
+        free(mem);
+        log_(TRACE, file, line, "Memory @%p freed.", mem);
     }
 }
 
