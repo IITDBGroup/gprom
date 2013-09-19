@@ -65,7 +65,7 @@ newList(NodeTag type)
     newList->head = newListHead;
     newList->tail = newListHead;
 
-    checkList(newList);
+    assert(checkList(newList));
 
     return newList;
 }
@@ -146,6 +146,28 @@ getNthOfList(List *list, int n)
     return node ? node : NULL;
 }
 
+
+List *
+singletonInt(int value)
+{
+	List *list;
+
+	list = newList(T_List);
+	list->head->data.int_value = value;
+
+	return list;
+}
+
+List *
+singleton(void *value)
+{
+	List *list;
+
+	list = newList(T_IntList);
+	list->head->data.ptr_value = value;
+
+	return list;
+}
 
 void
 newListTail(List *list)

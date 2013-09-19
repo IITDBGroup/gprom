@@ -35,7 +35,7 @@ extern boolean checkList(const List *list);
 extern List *newList(NodeTag type);
 
 extern List *singletonInt(int value);
-extern List *singletonP(void *value);
+extern List *singleton(void *value);
 
 extern int getListLength(List *list);
 
