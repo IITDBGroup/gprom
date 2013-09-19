@@ -7,4 +7,13 @@
 #ifndef QUERY_BLOCK_H
 #define QUERY_BLOCK_H
 
+#include "model/list/list.h"
+
+typedef struct QueryBlock
+{
+    struct List *selectCause;
+    struct List *fromCause;
+
+} QureyBlock;
+
 #endif /* QUERY_BLOCK_H */
