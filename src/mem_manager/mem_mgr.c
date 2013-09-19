@@ -17,6 +17,24 @@
 #include "log/logger.h"
 #include "uthash.h"
 
+static void addAlloc(MemContext *mc, void *addr, char *file, unsigned line);
+static void delAlloc(MemContext *mc, void *addr, char *file, unsigned line);
+
+
+extern MemContext *curMemContext;
+
+inline void
+setCurMemContext(MemContext *mc)
+{
+    curMemContext = mc;
+}
+
+inline MemContext *
+getCurMemContext(void)
+{
+    return curMemContext;
+}
+
 /*
  * Adds allocated memory information to a memory context.
  */
@@ -136,19 +154,7 @@ freeMemContext(MemContext *mc)
     }
 }
 
-extern MemContext *curMemContext;
 
-inline void
-setCurMemContext(MemContext *mc)
-{
-    curMemContext = mc;
-}
-
-inline MemContext *
-getCurMemContext(void)
-{
-    return curMemContext;
-}
 
 /*
  * Allocates memory and records it in the current memory context.

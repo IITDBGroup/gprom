@@ -6,3 +6,5 @@
 
 #ifndef QUERY_BLOCK_H
 #define QUERY_BLOCK_H
+
+#endif /* QUERY_BLOCK_H */
