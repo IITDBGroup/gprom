@@ -2,10 +2,18 @@
  *
  * logger.c
  *    Author: Ying Ni yni6@hawk.iit.edu
- *    One-line description
+ *    This module is for providing uniform logging for the whole system.
  *
- *        Here starts the more detailed description where we
- *        explain in more detail how this works.
+ *        XXX_LOG() macros work like printf() in C. The first argument is a
+ *        format string. Additional optional arguments are parameters
+ *        substituted in the format string. For example:
+ *        int t = 5;
+ *        DEBUG_LOG("value of "%s" is %d", "t", t);
+ *        There are six log levels: 0-FATAL, 1-ERROR, 2-WARN, 3-INFO, 4-DEBUG,
+ *        5-TRACE. Logs of the levels below or equal to the log level value
+ *        set from the command line will be printed. For example, if log level
+ *        is set to 3 by command line, then logs from FATAL to INFO level will
+ *        be printed while logs at DEBUG and TRACE level will not be printed.
  *
  *-------------------------------------------------------------------------
  */

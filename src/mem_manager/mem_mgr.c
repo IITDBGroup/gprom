@@ -2,10 +2,12 @@
  *
  * mem_mgr.c
  *    Author: Ying Ni yni6@hawk.iit.edu
- *    One-line description
+ *    This module is developed to provide memory management that organizes
+ *    and reduces the work of allocating and freeing memory.
  *
- *        Here starts the more detailed description where we
- *        explain in more detail how this works.
+ *        A memory context can be created to record the allocated memories
+ *        and be destroyed to batch free all the memories recorded in it.
+ *        The allocated memories information can be traced in logs.
  *
  *-------------------------------------------------------------------------
  */
@@ -15,6 +17,9 @@
 #include "log/logger.h"
 #include "uthash.h"
 
+/*
+ * Adds allocated memory information to a memory context.
+ */
 static void
 addAlloc(MemContext *mc, void *addr, char *file, unsigned line)
 {
@@ -22,21 +27,24 @@ addAlloc(MemContext *mc, void *addr, char *file, unsigned line)
     newAlloc->address = addr;
     newAlloc->file = file;
     newAlloc->line = line;
-    HASH_ADD_PTR(mc->hashAlloc, address, newAlloc);
+    HASH_ADD_PTR(mc->hashAlloc, address, newAlloc); // add to hash table. Use address as key
     DEBUG_LOG("Added [addr:%p, file:'%s', line:%u] to memory context '%s'.",
             addr, file, line, mc->contextName);
 }
 
+/*
+ * Removes memory allocation information from a memory context.
+ */
 static void
 delAlloc(MemContext *mc, void *addr, char *file, unsigned line)
 {
     Allocation *alloc = NULL;
-    HASH_FIND_PTR(mc->hashAlloc, &addr, alloc);
+    HASH_FIND_PTR(mc->hashAlloc, &addr, alloc); // find allocation info by address first
     if (alloc)
     {
         char *tmpfile = alloc->file;
         int tmpline = alloc->line;
-        HASH_DEL(mc->hashAlloc, alloc);
+        HASH_DEL(mc->hashAlloc, alloc); // remove the allocation info
         free(alloc);
         DEBUG_LOG(
                 "Deleted [addr:%p, file:'%s', line:%d] from memory context '%s'.",
@@ -44,6 +52,9 @@ delAlloc(MemContext *mc, void *addr, char *file, unsigned line)
     }
 }
 
+/*
+ * Creates a new memory context.
+ */
 MemContext *
 newMemContext(char *contextName)
 {
@@ -54,12 +65,19 @@ newMemContext(char *contextName)
     return mc;
 }
 
+/*
+ * Gets context size.
+ */
 int
 memContextSize(MemContext *mc)
 {
     return mc ? HASH_COUNT(mc->hashAlloc) : -1;
 }
 
+/*
+ * Finds memory allocation information in the memory context by address.
+ * Returns NULL if not found.
+ */
 Allocation *
 findAlloc(const MemContext *mc, const void *addr)
 {
@@ -71,19 +89,21 @@ findAlloc(const MemContext *mc, const void *addr)
     HASH_FIND_PTR(mc->hashAlloc, &addr, alloc);
     if (alloc)
     {
-        DEBUG_LOG(
-                "Found [addr:%p, file:'%s', line:%d] in memory context '%s'.",
+        DEBUG_LOG("Found [addr:%p, file:'%s', line:%d] in memory context '%s'.",
                 alloc->address, alloc->file, alloc->line, mc->contextName);
     }
     else
     {
-        DEBUG_LOG(
-                "Could not find address=%p in memory context '%s'.", addr,
+        DEBUG_LOG("Could not find address %p in memory context '%s'.", addr,
                 mc->contextName);
     }
     return alloc;
 }
 
+/*
+ * Removes all the memory allocation records from the specified memory context
+ * and free those memories. Will not destroy the memory context itself.
+ */
 void
 clearMemContext(MemContext *mc)
 {
@@ -97,6 +117,10 @@ clearMemContext(MemContext *mc)
     }
 }
 
+/*
+ * Removes all the memory allocation records from the specified memory context
+ * and free those memories and finally destroy the memory context.
+ */
 void
 freeMemContext(MemContext *mc)
 {
@@ -126,6 +150,9 @@ getCurMemContext(void)
     return curMemContext;
 }
 
+/*
+ * Allocates memory and records it in the current memory context.
+ */
 void *
 malloc_(size_t bytes, char *file, unsigned line)
 {
@@ -145,6 +172,10 @@ malloc_(size_t bytes, char *file, unsigned line)
     return mem;
 }
 
+/*
+ * Allocates memory and initializes it with 0 and records it in the current
+ * memory context.
+ */
 void *
 calloc_(size_t bytes, unsigned count, char *file, unsigned line)
 {
@@ -165,6 +196,10 @@ calloc_(size_t bytes, unsigned count, char *file, unsigned line)
     return mem;
 }
 
+/*
+ * Removes the specified memory allocation record from the current memory context
+ * and then free the memory at the address.
+ */
 void
 free_(void *mem, char *file, unsigned line)
 {
