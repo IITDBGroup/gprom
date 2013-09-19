@@ -6,9 +6,9 @@
 %{
 #include <stdio.h>
 #include <conio.h>
-#include <exprssion.h>
-#include <list.h>
-#include <node.h>
+#include "model/expression/expression.h"
+#include "model/list/list.h"
+#include "model/node/nodetype.h"
 
 int yylex(void);
 void yyerror (char const *);
@@ -21,7 +21,7 @@ void yyerror (char const *);
 	 */
 	 Node *node;
 	 List *list;
-	 Expression *expr;
+//	 Expression *expr; Expressions are just nodes
 	 char *stringVal;
 	 int intVal;
 	 double floatVal;
@@ -31,12 +31,11 @@ void yyerror (char const *);
  * Declare tokens for name and literal values
  * Declare tokens for user variables
  */
-%token <*expr> expression
-%token <*stringVal> aliasName
-%token <*stringVal> tableName
+%token <node> expression // you already have declared these things to be pointers
+%token <stringVal> aliasName tableName // not sure whether these should both be tokes
 %token <intVal> intConst
 %token <floatVal> floatConst
-%token <*stringVal> stringConst
+%token <stringVal> stringConst
 %token <*node> indentifier
 %token <*node> argument
 
@@ -77,175 +76,187 @@ void yyerror (char const *);
  *		Currently few simple functions are considered.
  *		Later on other functions will be added too.
  */
-%token COUNT
+%token COUNT //defining each function as a token  would be cumbersome
 %token AVG
 %token MIN
 %token MAX
 
-%type <*queryBlockModel> mainSelectQuery			
+%type <node> stmt provStmt // can be any type of node, but for now only mainSelectQuery
+%type <queryBlockModel> mainSelectQuery			
 		// Its a query block model that defines the structure of query.
-%type <*node> selectClause fromClause whereClause
-%type <*list> exprList argList
-%type <*node> selectItem whereExpression
+%type <node> whereClause 
+%type <list> selectClause fromClause exprList // select and from clauses are lists
+%type <node> selectItem optionalDistinct
+%type <node> expression constant attributeRef operatorExpression sqlFunctionCall
 
-%start mainSelectQuery
+%start stmt
 
 %%
+
+/* Rule for all types of statements */
+stmt: 
+		provStmt ';'
+    	| mainSelectQuery ';'
+    ;
+
+/* 
+ * Rule to parse a query asking for provenance
+ */
+ provStmt: 
+ 		PROVENANCE OF '(' mainSelectQuery ')' 	{ $$ = createProvStmt($1); }
+ 	;
+
 /*
  * Rule to parse select query
  * Currently it will parse following type of select query:
- * 			'SELECT [DISTINCT clause] selectClause FROM fromClause WHERE whereClause;'
- * It will also parse queries asking provenance, like:
- * PROVENANCE OF (query);
+ * 			'SELECT [DISTINCT clause] selectClause FROM fromClause WHERE whereClause'
  */
-mainSelectQuery: optionalProvKeyWord SELECT optionalDistinctKeyWord selectClause \
-			optionlFrom optionalWhere optinalClosingBracket ';'
-			{$$ = callToFunctionThatDefineQueryBlockModel}
-			;
+mainSelectQuery: 
+		SELECT optionalDistinct selectClause optionlFrom optionalWhere
+			{
+				$$ = createQueryBlock($1,$2,$3,$4);
+			}
+	;
 
-/*
- * GR 2: Parse keyword 'Provenance of (' which is optional.
- */
-optionalProvKeyWord: /* empty */
-					| PROVENANCE OF '('
-					;
 
 /*
  * GR 3: For parsing optional distinct clause.
  */ 
-optionalDistinctKeyWord: /* empty */
-						| DISTINCT
-						| DISTINCT ON '(' exprList ')'
-						;
+optionalDistinct: 
+		/* empty */ 					{ $$ = NULL; }
+		| DISTINCT						{ $$ = createDistinct(NULL); }
+		| DISTINCT ON '(' exprList ')'	{ $$ = createDistinct($4); }
+	;
 						
-/*
- * GR 4: Parse the expression list of distinct clause.
- */
-exprList: expression
-		 | exprList ',' expression /* Alias used for the attribute/expression 
-									* selected Leaf data type.
-									*/
-		 ;
 
 /*
  * GR 5: parse the select clause items.
  */
-selectClause: selectItem optionalAs {$$ = createProjectionNode($1, $2)}
-			 | selectClause ',' selectItem optionalAs
-			 {$$ = createProjectionNode($1, $3, $4)}
-			 ;
-			 
+selectClause: 
+		selectItem 						{ $$ = $1; }
+		| selectClause ',' selectItem 
+			{ 
+				$$ = appendToTailOfList($1, $3); 
+			}
+	;
+
 /*
- * GR 6: Parse the alias given for the selected attribute or expression.
+ *
  */
-optionalAs: /* empty */
-			| AS aliasName /* Alias used for the attribute/expression 
-			                * selected Leaf data type.
-							*/
-			;
+ selectItem:
+ 		expression							
+ 			{ 
+ 				$$ = createProjectionNode($1, NULL); 
+ 			}
+ 		| expression AS aliasName 			
+ 			{ 
+ 				$$ = createProjectionNode($1, $3);
+			}
+	; 
+
+/*
+ * GR 4: Parse an expression list
+ */
+exprList: 
+		expression						{ $$ = singletonP($1); }		
+		 | exprList ',' expression 		{ $$ = appendToTailOfList($1, $3); }
+	;
+		 
 
 /*
  * GR 7: Parse expressions/attributes/functions used in the select clause.
  */
-selectItem: constant
-			| attributeRef 
-			| operatorExpression
-			| sqlFunctionCall
-			| STARALL		/* this token is for '*' */
-			;
+expression: 
+		constant
+		| attributeRef 
+		| operatorExpression
+		| sqlFunctionCall
+		| STARALL		/* this token is for '*' */
+	;
 			
 /*
  * GR 8: constant parsing
  */
-constant: intConst
-		  | floatConst
-		  | stringConst
-		  ;
+constant: 
+		intConst			{ $$ = createIntConst($1); }
+		| floatConst		{ $$ = createFloatConst($1); }
+		| stringConst		{ $$ = createStringConst($1); }
+	;
 			
 /*
  * GR 9: parse attribute reference
  */
-attributeRef: identifier {$$ = $1};
+attributeRef: 
+		identifier 		{ $$ = createAttributeReference($1); }
+	;
 
 /*
  * GR 10: parse operator expression
  */
-operatorExpression: selectItem operator selectItem
-					{$$ = createExpression($1,$2,$3)}
-					;
+operatorExpression: 
+		expression operator expression 		{ $$ = createOpExpression($1,$2,$3) }
+	;
 
-operator: '+' | '-' | '*' | '/' | '%' | '||' | '&&' | '!' | '^'
-		{$$ = $1}
-		;
+operator: 
+		'+' | '-' | '*' | '/' | '%' | '||' | '&&' | '!' | '^' 		{$$ = $1}
+	;
 		
 /*
  * GR 11: Function call parser
  */
-sqlFunctionCall: sqlFunctionName '(' argList ')' 
-				{$$ = functionCall($1, $3)} /* Call a function that will create
+ 
+// This does not allow for UDFs. Similar to programming language parsers we need to have a token IDENT that can be used as a function name or attribute reference
+sqlFunctionCall: 
+		sqlFunctionName '(' exprList ')'  		{ $$ = createFunctionCall($1, $3); } /* Call a function that will create
 											 * a function node.
 											 */
-				;
+	;
 
 /* 
  * This grammar rule is a sample grammar rule to identify functions.
  * Later on other functions of Oracle will be added. 
  */
-sqlFunctionName: COUNT
-				| AVG
-				| MAX
-				| MIN
-				;
+sqlFunctionName:  
+		COUNT
+		| AVG
+		| MAX
+		| MIN
+	;
 				
-argList: /* empty */
-		| argument
-		| argList ',' argument
-		| STARALL
-		;
 
 /*
  * GR 12: Parser to parse from clause
  *			Currently implemented for basic from clause.
  *			Later on other forms of from clause will be added.
  */
-optionlFrom: /* empty */
-			| FROM fromClause
-			{$$ = createFromCluaseNode($1, $2)} /* Call a function that will
-												 * create a from clause node.
-												 */
-			;
+optionlFrom: 
+		/* empty */ 		 	{ $$ = NULL; }
+		| FROM fromClause		{ $$ = $2; }
+	;
 			
-fromClause: tableName optionalAlias {$$ = crateTableNode($1, $2)}
-
-optionalAlias: aliasName
-			  | AS aliasName
-			  ;
+fromClause: 
+		fromClauseItem					{ $$ = singeltonP($1); }
+		| fromClause ',' fromClauseItem { $$ = appendToTailOfList($1, $3); }
+	;
+	
+fromClauseItem:
+		tableName optionalAlias { $$ = crateTableNode($1, $2); }
+	;
+	
+optionalAlias: 
+		aliasName				{ $$ = $1; }
+		| AS aliasName			{ $$ = $2; }
+	;
 		  
 /*
- * GR 13: Rule to parse the where clause.
+ * Rule to parse the where clause.
  * 			Currently only simple where clause is considered.
  *				e.g.   table1.col1 == table2.col1
  *			Later on, other arguments will be considered.
  */
-optionalWhere: /* empty */ {$$ = NULL}
-			| WHERE whereClause
-			{$$ = createWhereNode($1, $2)} /* Call a function that will create
-											* where clause node.
-											*/
-			;
+optionalWhere: 
+		/* empty */ 			{ $$ = NULL}
+		| WHERE expr 			{ $$ = $1 } 
+	;
 			
-whereClause: whereExpression comparatorOperator whereExpression
-			{$$ = compareExpressionFunction($1, $2, $3)}
-			/* Call a function that will embed comparator in where clause
-			 * in a structure node.
-			 */
-
-whereExpression: constant
-				| attributeRef
-				{$$ = $1}
-				;
-				
-comparatorOperator: '==' | '<' | '>' | '<=' | '>=' | '!='
-				  {$$ = $1}
-				  ;
 %%
