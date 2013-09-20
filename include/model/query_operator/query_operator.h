@@ -18,6 +18,8 @@ typedef struct QueryOperator
 {
     NodeTag type;
     List *inputs;
+    List *schema;
+    List *provAttrs;
 } QueryOperator;
 
 typedef struct SelectionOperator
