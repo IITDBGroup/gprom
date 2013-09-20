@@ -23,7 +23,15 @@ typedef enum NodeTag {
     T_FromTableRef,
     T_FromSubquery,
     T_FromJoinExpr,
-    T_DistinctClause
+    T_DistinctClause,
+
+    /* query operator model nodes */
+    T_QueryOperator,
+    T_SelectionOperator,
+    T_ProjectionOperator,
+    T_JoinOperator,
+    T_AggregationOperator,
+    T_ProvenanceComputation
 
 } NodeTag;
 
@@ -89,9 +97,9 @@ extern void appendBinaryStringInfo(StringInfo str, const char *data, int datalen
 extern void enlargeStringInfo(StringInfo str, int needed);
 
 #define nodeTag(nodeptr) (((Node*)(nodeptr))->type)
-#define makeNode(type)  ((type*)newNode(sizeof(type),T_type)
+#define makeNode(type)  ((type*)newNode(sizeof(type),T_##type))
 #define nodeSetTag(nodeptr,t) (((Node*)(nodeptr))->type = (t))
-#define isA(nodeptr, type)  (nodeTag(nodeptr)) == T_type)
+#define isA(nodeptr, type)  (nodeTag(nodeptr) == T_##type)
 
 /*extern declaration */
 extern char *nodeToString(void *obj);
