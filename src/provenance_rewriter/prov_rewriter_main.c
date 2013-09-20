@@ -34,8 +34,6 @@ provRewriteQuery (QueryOperator *input)
 QueryOperator *
 findProvenanceComputations (QueryOperator *op)
 {
-    ListCell *lc;
-
     // is provenance computation? then rewrite
     if (isA(op, List))
         return rewriteProvenanceComputation((ProvenanceComputation *) op);
@@ -55,9 +53,9 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     switch(op->provType)
     {
         case PI_CS:
-            return rewritePI_CS(op);
+            return rewritePI_CS((QueryOperator *) op);
         case TRANSFORMATION:
-            return rewriteTransformation(op);
+            return rewriteTransformationProvenance((QueryOperator *) op);
     }
-    return op;
+    return NULL;
 }

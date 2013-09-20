@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-c -Wall -Iinclude
+CFLAGS=-c -g -Wall -Iinclude -std=c99
 LDFLAGS=
 SRCDIR=./src
 TESTDIR=./test

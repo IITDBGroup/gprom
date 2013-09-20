@@ -20,21 +20,22 @@ rewritePI_CS (QueryOperator *op)
     {
         case T_SelectionOperator:
             rewritePI_CS(OP_LCHILD(op));
-            addProvenanceAttrsToSchema(op, OP_LCHILD(op));
+//            addProvenanceAttrsToSchema(op, OP_LCHILD(op));
             return op;
             break;
         case T_ProjectionOperator:
             rewritePI_CS(OP_LCHILD(op));
-            addProvenanceAttrsToSchema(op, OP_LCHILD(op));
-            addProvenanceAttrsToProjection((ProjectionOperator *)op);
+//            addProvenanceAttrsToSchema(op, OP_LCHILD(op));
+//            addProvenanceAttrsToProjection((ProjectionOperator *)op);
             return op;
         case T_AggregationOperator:
-            return rewritePI_CSAggregation (op);
+//            return rewritePI_CSAggregation (op);
+            return op;
         case T_JoinOperator:
             rewritePI_CS(OP_LCHILD(op));
             rewritePI_CS(OP_RCHILD(op));
-            addProvenanceAttrsToSchema(op, OP_LCHILD(op));
-            addProvenanceAttrsToSchema(op, OP_RCHILD(op));
+//            addProvenanceAttrsToSchema(op, OP_LCHILD(op));
+//            addProvenanceAttrsToSchema(op, OP_RCHILD(op));
             return op;
         default:
             return NULL;

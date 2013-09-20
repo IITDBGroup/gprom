@@ -11,7 +11,7 @@
 #ifndef TRANSFORMATION_PROV_MAIN_H_
 #define TRANSFORMATION_PROV_MAIN_H_
 
-#include "model/operator/query_operator.h"
+#include "model/query_operator/query_operator.h"
 
 extern QueryOperator *rewriteTransformationProvenance (QueryOperator *op);
 

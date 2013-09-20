@@ -17,7 +17,7 @@
 #ifndef PROV_REWRITTER_H_
 #define PROV_REWRITTER_H_
 
-#include "model/operator/query_operator.h"
+#include "model/query_operator/query_operator.h"
 
 extern QueryOperator *provRewriteQuery (QueryOperator *input);
 
