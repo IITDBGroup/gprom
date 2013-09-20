@@ -6,14 +6,6 @@
 typedef enum NodeTag {
     T_Invalid=0,
 
-    /*tags for value nodes*/
-    T_Value = 200,
-    T_Integer,
-    T_Float,
-    T_String,
-    T_BitString,
-    T_Null,
-    
     /* lists */
     T_List,
     T_IntList,
@@ -28,7 +20,11 @@ typedef enum NodeTag {
     T_QueryBlock,
     T_SelectItem,
     T_FromItem,
-    T_Distinct
+    T_FromTableRef,
+    T_FromSubquery,
+    T_FromJoinExpr,
+    T_DistinctClause
+
 } NodeTag;
 
 typedef struct Node{
@@ -93,14 +89,14 @@ extern void appendBinaryStringInfo(StringInfo str, const char *data, int datalen
 extern void enlargeStringInfo(StringInfo str, int needed);
 
 #define nodeTag(nodeptr) (((Node*)(nodeptr))->type)
-#define newNode(size, tag)
-#define makeNode()  ((type*)newNode(sizeof(type),T_type)
+#define makeNode(type)  ((type*)newNode(sizeof(type),T_type)
 #define nodeSetTag(nodeptr,t) (((Node*)(nodeptr))->type = (t))
 #define isA(nodeptr, type)  (nodeTag(nodeptr)) == T_type)
 
 /*extern declaration */
 extern char *nodeToString(void *obj);
 extern void outNode(/* TODO */ void *obj);
+extern Node *newNode(size_t size, NodeTag type);
 
 /*readfun.c*/
 extern void *stringToNode(char *str);
