@@ -14,7 +14,7 @@
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 
-#include "model/operator/query_operator.h"
+#include "model/query_operator/query_operator.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 
@@ -34,16 +34,17 @@ provRewriteQuery (QueryOperator *input)
 QueryOperator *
 findProvenanceComputations (QueryOperator *op)
 {
+    ListCell *lc;
+
     // is provenance computation? then rewrite
     if (isA(op, List))
         return rewriteProvenanceComputation((ProvenanceComputation *) op);
 
     // else search for children with provenance
-    FOREACH_NODE(QueryOperator, x, op->inputs)
+    FOREACH(QueryOperator, x, op->inputs)
     {
         findProvenanceComputations(x);
     }
-    ENDFOR
 
     return op;
 }

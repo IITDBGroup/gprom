@@ -67,4 +67,8 @@ typedef struct ProvenanceComputation
 #define OP_RCHILD(op) \
     ((QueryOperator *) ((QueryOperator*) op)->inputs->head->next->data.ptr_value)
 
+/* access functions */
+extern List *getProvenanceAttrs(QueryOperator *op);
+extern List *getNormalAttrs(QueryOperator *op);
+
 #endif /* QUERY_OPERATOR_H_ */

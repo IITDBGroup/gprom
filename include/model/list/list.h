@@ -30,23 +30,38 @@ typedef struct List
 
 #define NIL ((List *)NULL)
 
-#define FOREACH_NODE(_type_,_node_,_list_) \
-	{ \
-	    ListCell *__cell__; \
-	    _type_ *_node_; \
-	    for(__cell__ = (_list_)->head; __cell__ != NULL; __cell__ = __cell__->next) \
-	    {
-	       // _node_ = __cell__->data.ptr_value;
 
-#define FOREACH_INT(_list_, _ival_) \
-    { \
-        ListCell *__cell__; \
-        int _ival_; \
-        for(__cell__ = (_list_)->head; __cell__ != NULL; __cell__ = __cell__->next) \
-        { \
-           _ival_ = __cell__->data.int_value;
+/*
+ * Loop through list _list_ and access each element of type _type_ using name
+ * _node_. _cell_ has to be an existing variable of type ListCell *.
+ */
+#define DUMMY_INT_FOR_COND(_name_) _name_##_stupid_int_
+#define DUMMY_LC(_name_) _name_##_his_cell
+#define INJECT_VAR(type,name) \
+	for(int DUMMY_INT_FOR_COND(name) = 0; DUMMY_INT_FOR_COND(name) == 0; DUMMY_INT_FOR_COND(name)++) \
+		for(type name = NULL; DUMMY_INT_FOR_COND(name) == 0;) \
 
-#define ENDFOR }}
+#define FOREACH(_type_,_node_,_list_) \
+    INJECT_VAR(ListCell*,DUMMY_LC(_node_)) \
+        for(_type_ *_node_ = (_type_ *)(((DUMMY_LC(_node_) = \
+        		(_list_)->head) != NULL) ? \
+        				DUMMY_LC(_node_)->data.ptr_value : NULL); \
+        		DUMMY_LC(_node_) != NULL; \
+               _node_ = (_type_ *)(((DUMMY_LC(_node_) = \
+                        DUMMY_LC(_node_)->next) != NULL) ? \
+                        DUMMY_LC(_node_)->data.ptr_value : NULL))
+
+/*
+ * Loop through integer list _list_ and access each element using name _ival_.
+ * _cell_ has to be an existing variable of type ListCell *.
+ */
+#define FOREACH_INT(_ival_,_list_) \
+    INJECT_VAR(ListCell*,DUMMY_LC(_ival_)) \
+	    for(int _ival_ = (((DUMMY_LC(_ival_) = (_list_)->head) != NULL)  ? \
+                            DUMMY_LC(_ival_)->data.int_value : -1); \
+                    DUMMY_LC(_ival_) != NULL; \
+                    _ival_ = (((DUMMY_LC(_ival_) = DUMMY_LC(_ival_)->next) != NULL) ? \
+                            DUMMY_LC(_ival_)->data.int_value: -1))
 
 extern boolean checkList(const List *list);
 
