@@ -14,15 +14,21 @@ typedef enum NodeTag {
     T_BitString,
     T_Null,
     
-    /*tags for list nodes*/
+    /* lists */
     T_List,
     T_IntList,
 
-    /*tags for we now use*/
+    /* expression nodes */
     T_Constant,
     T_AttributeReference,
     T_FunctionCall,
-    T_Operator
+    T_Operator,
+
+    /* query block model nodes */
+    T_QueryBlock,
+    T_SelectItem,
+    T_FromItem,
+    T_Distinct
 } NodeTag;
 
 typedef struct Node{

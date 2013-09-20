@@ -163,7 +163,7 @@ singleton(void *value)
 {
 	List *list;
 
-	list = newList(T_IntList);
+	list = newList(T_List);
 	list->head->data.ptr_value = value;
 
 	return list;
@@ -174,7 +174,7 @@ newListTail(List *list)
 {
     ListCell *newTail;
     
-    newTail = (ListCell *)malloc(sizeof(List));
+    newTail = (ListCell *)malloc(sizeof(ListCell));
     newTail->next = NULL;
     
     list->tail->next = newTail;
@@ -333,7 +333,7 @@ concatTwoLists(List *lista, List*listb)
 	lista->length += listb->length; // destroys both original list. listb should consequently be free'd
 
     assert(checkList(lista));
-    freeList(listb);
+    deepFreeList(listb);
     return lista;
 }
 

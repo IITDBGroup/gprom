@@ -14,6 +14,10 @@ int yylex(void);
 void yyerror (char const *);
 %}
 
+/******************************************************************************
+ * UNION
+ *****************************************************************************/
+
 %union {
 	/* 
 	 * Declare some C structure those will be used as data type
@@ -27,6 +31,10 @@ void yyerror (char const *);
 	 double floatVal;
 }
 
+/******************************************************************************
+ * TOKENS AND PREFERENCE RULES
+ *****************************************************************************/
+
 /*
  * Declare tokens for name and literal values
  * Declare tokens for user variables
@@ -36,8 +44,8 @@ void yyerror (char const *);
 %token <intVal> intConst
 %token <floatVal> floatConst
 %token <stringVal> stringConst
-%token <*node> indentifier
-%token <*node> argument
+%token <node> indentifier
+%token <node> argument
 
 /*
  * Declare token for operators specify their associativity and precedence
@@ -81,6 +89,10 @@ void yyerror (char const *);
 %token MIN
 %token MAX
 
+/******************************************************************************
+ * TYPES OF NON-TERMINALS AND START SYMBOL
+ *****************************************************************************/
+
 %type <node> stmt provStmt // can be any type of node, but for now only mainSelectQuery
 %type <queryBlockModel> mainSelectQuery			
 		// Its a query block model that defines the structure of query.
@@ -91,9 +103,18 @@ void yyerror (char const *);
 
 %start stmt
 
+/******************************************************************************
+ * GRAMMAR RULES
+ *****************************************************************************/
 %%
 
-/* Rule for all types of statements */
+/******************************************************************************
+ * SQL STATEMENTS
+ *****************************************************************************/
+
+/* 
+ * Rule for all types of statements 
+ */
 stmt: 
 		provStmt ';'
     	| mainSelectQuery ';'
@@ -112,28 +133,35 @@ stmt:
  * 			'SELECT [DISTINCT clause] selectClause FROM fromClause WHERE whereClause'
  */
 mainSelectQuery: 
-		SELECT optionalDistinct selectClause optionlFrom optionalWhere
+		SELECT optionalDistinct selectClause optionalFrom optionalWhere
 			{
-				$$ = createQueryBlock($1,$2,$3,$4);
+				$$ = createQueryBlock();
+				$$->distinct = $2;
+				$$->selectClause = $3;
+				$$->fromClause = $4;
+				$$->whereClause = $5;
 			}
 	;
 
+/******************************************************************************
+ * SELECT CLAUSE
+ *****************************************************************************/
 
 /*
- * GR 3: For parsing optional distinct clause.
+ * For parsing optional distinct clause.
  */ 
 optionalDistinct: 
 		/* empty */ 					{ $$ = NULL; }
-		| DISTINCT						{ $$ = createDistinct(NULL); }
-		| DISTINCT ON '(' exprList ')'	{ $$ = createDistinct($4); }
+		| DISTINCT						{ $$ = createDistinctClause(NULL); }
+		| DISTINCT ON '(' exprList ')'	{ $$ = createDistinctClause($4); }
 	;
 						
 
 /*
- * GR 5: parse the select clause items.
+ * parse the select clause items.
  */
 selectClause: 
-		selectItem 						{ $$ = $1; }
+		selectItem 						{ $$ = singleton($1); }
 		| selectClause ',' selectItem 
 			{ 
 				$$ = appendToTailOfList($1, $3); 
@@ -146,16 +174,63 @@ selectClause:
  selectItem:
  		expression							
  			{ 
- 				$$ = createProjectionNode($1, NULL); 
+ 				$$ = createSelectItem($1, NULL); 
  			}
  		| expression AS aliasName 			
  			{ 
- 				$$ = createProjectionNode($1, $3);
+ 				$$ = createSelectItem($1, $3);
 			}
 	; 
 
+/******************************************************************************
+ * QUERY FROM CLAUSE
+ *****************************************************************************/		
+
 /*
- * GR 4: Parse an expression list
+ * Parser to parse from clause
+ *			Currently implemented for basic from clause.
+ *			Later on other forms of from clause will be added.
+ */
+optionlFrom: 
+		/* empty */ 		 	{ $$ = NULL; }
+		| FROM fromClause		{ $$ = $2; }
+	;
+			
+fromClause: 
+		fromClauseItem					{ $$ = singleton($1); }
+		| fromClause ',' fromClauseItem { $$ = appendToTailOfList($1, $3); }
+	;
+	
+fromClauseItem:
+		tableName optionalAlias { $$ = createFromTableRef($2, NULL, $1); }
+	;
+	
+optionalAlias: 
+		aliasName				{ $$ = $1; }
+		| AS aliasName			{ $$ = $2; }
+	;
+
+/******************************************************************************
+ * WHERE AND HAVING CLAUSES
+ *****************************************************************************/
+		  
+/*
+ * Rule to parse the where clause.
+ * 			Currently only simple where clause is considered.
+ *				e.g.   table1.col1 == table2.col1
+ *			Later on, other arguments will be considered.
+ */
+optionalWhere: 
+		/* empty */ 			{ $$ = NULL}
+		| WHERE expression		{ $$ = $1 } 
+	;
+	
+/******************************************************************************
+ * EXPRESSIONS
+ *****************************************************************************/
+
+/*
+ * Parse an expression list
  */
 exprList: 
 		expression						{ $$ = singletonP($1); }		
@@ -164,7 +239,7 @@ exprList:
 		 
 
 /*
- * GR 7: Parse expressions/attributes/functions used in the select clause.
+ * Parse expressions/attributes/functions used in the select clause.
  */
 expression: 
 		constant
@@ -175,7 +250,7 @@ expression:
 	;
 			
 /*
- * GR 8: constant parsing
+ * constant parsing
  */
 constant: 
 		intConst			{ $$ = createIntConst($1); }
@@ -184,17 +259,17 @@ constant:
 	;
 			
 /*
- * GR 9: parse attribute reference
+ * parse attribute reference
  */
 attributeRef: 
 		identifier 		{ $$ = createAttributeReference($1); }
 	;
 
 /*
- * GR 10: parse operator expression
+ * parse operator expression
  */
 operatorExpression: 
-		expression operator expression 		{ $$ = createOpExpression($1,$2,$3) }
+		expression operator expression 		{ $$ = createOpExpression($2,$1,$3) }
 	;
 
 operator: 
@@ -202,7 +277,7 @@ operator:
 	;
 		
 /*
- * GR 11: Function call parser
+ * Function call parser
  */
  
 // This does not allow for UDFs. Similar to programming language parsers we need to have a token IDENT that can be used as a function name or attribute reference
@@ -222,41 +297,6 @@ sqlFunctionName:
 		| MAX
 		| MIN
 	;
-				
-
-/*
- * GR 12: Parser to parse from clause
- *			Currently implemented for basic from clause.
- *			Later on other forms of from clause will be added.
- */
-optionlFrom: 
-		/* empty */ 		 	{ $$ = NULL; }
-		| FROM fromClause		{ $$ = $2; }
-	;
-			
-fromClause: 
-		fromClauseItem					{ $$ = singeltonP($1); }
-		| fromClause ',' fromClauseItem { $$ = appendToTailOfList($1, $3); }
-	;
 	
-fromClauseItem:
-		tableName optionalAlias { $$ = crateTableNode($1, $2); }
-	;
-	
-optionalAlias: 
-		aliasName				{ $$ = $1; }
-		| AS aliasName			{ $$ = $2; }
-	;
-		  
-/*
- * Rule to parse the where clause.
- * 			Currently only simple where clause is considered.
- *				e.g.   table1.col1 == table2.col1
- *			Later on, other arguments will be considered.
- */
-optionalWhere: 
-		/* empty */ 			{ $$ = NULL}
-		| WHERE expr 			{ $$ = $1 } 
-	;
 			
 %%
