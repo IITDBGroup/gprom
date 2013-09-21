@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/expression/expression.h"
 #include <assert.h>
 
 
@@ -110,7 +111,7 @@ bool equal(void *a, void *b)
                /*something different cases this, and we have*/
                /*different types of T_Node       */
                default:
-                   retval = nodeEquals(a,b);
+                   retval = nodesEquals(a,b);
                    break;
          }
          
