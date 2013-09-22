@@ -1,7 +1,10 @@
 #ifndef NODETYPE_H
 #define NODETYPE_H
 
+#include <stdarg.h>
+
 #include "common.h"
+
 
 typedef enum NodeTag {
     T_Invalid=0,
@@ -79,6 +82,13 @@ extern void resetStringInfo(StringInfo str);
 extern void appendStringInfoString(StringInfo str, const char *s);
 
 /*------------------------------------------------------------------
+* The function is append to a StringInfo using a format string and a variable
+* length parameter list.
+*-------------------------------------------------------------------*/
+extern void appendStringInfo(StringInfo str, const char *format, ...);
+
+
+/*------------------------------------------------------------------
 *appendStringInfoChar
 *The function is append byte to str.
 *-------------------------------------------------------------------*/
@@ -102,9 +112,10 @@ extern void enlargeStringInfo(StringInfo str, int needed);
 #define isA(nodeptr, type)  (nodeTag(nodeptr) == T_##type)
 
 /*extern declaration */
-extern char *nodeToString(void *obj);
-extern void outNode(/* TODO */ void *obj);
 extern Node *newNode(size_t size, NodeTag type);
+
+/* get a string representation of a node */
+extern char *nodeToString(void *obj);
 
 /*readfun.c*/
 extern void *stringToNode(char *str);

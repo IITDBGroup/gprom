@@ -4,36 +4,36 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 
-typedef struct FunctionCall{
-	NodeTag type;
-	char *functionname;
-	List *args;
+typedef struct FunctionCall {
+    NodeTag type;
+    char *functionname;
+    List *args;
 } FunctionCall;
 
-typedef struct Operator{
-	NodeTag type;
-	char *name;
-	List *args;
+typedef struct Operator {
+    NodeTag type;
+    char *name;
+    List *args;
 } Operator;
 
 
 typedef enum DataType
 {
-	DT_INT,
-	DT_STRING,
-	DT_FLOAT,
-	DT_BOOL
+    DT_INT,
+    DT_STRING,
+    DT_FLOAT,
+    DT_BOOL
 } DataType;
 
-typedef struct Constant{
-	NodeTag type;
-	DataType constType;
-	void *value;
+typedef struct Constant {
+    NodeTag type;
+    DataType constType;
+    void *value;
 } Constant;
 
-typedef struct AttributeReference{
-	NodeTag type;
-	char *name;
+typedef struct AttributeReference {
+    NodeTag type;
+    char *name;
 } AttributeReference;
 
 /* functions to create expression nodes */

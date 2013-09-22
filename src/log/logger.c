@@ -28,13 +28,17 @@ static char *h[] =
     {"Fatal: ", "Error: ", "Warn: ", "Info: ", "Debug: ", "Trace: "};
 static Options *options;
 
-inline char *
+/* internal inlined functions */
+static inline char *getHead(LogLevel level);
+static inline FILE *getOutput(LogLevel level);
+
+static inline char *
 getHead(LogLevel level)
 {
     return *(h + level);
 }
 
-inline FILE *
+static inline FILE *
 getOutput(LogLevel level)
 {
     return stdout;

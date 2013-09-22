@@ -23,7 +23,7 @@
 
 #include <stdio.h>
 
-typedef enum
+typedef enum LogLevel
 {
     LOG_FATAL = 0,
     LOG_ERROR = 1,

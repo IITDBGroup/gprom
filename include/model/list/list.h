@@ -79,7 +79,7 @@ typedef struct List
     for(_type_ *_node1_ = (_type_ *)(((DUMMY_LC(_node1_) = \
             (_list1_)->head) != NULL) ? \
                     DUMMY_LC(_node1_)->data.ptr_value : NULL), \
-        _node2_ = (_type_ *)(((DUMMY_LC(_node2_) = \
+        *_node2_ = (_type_ *)(((DUMMY_LC(_node2_) = \
             (_list1_)->head) != NULL) ? \
             		DUMMY_LC(_node2_)->data.ptr_value : NULL) \
         ; \
@@ -91,6 +91,26 @@ typedef struct List
                     DUMMY_LC(_node2_)->next) != NULL) ? \
                     DUMMY_LC(_node2_)->data.ptr_value : NULL))
 
+/*
+ * Loop through two integer lists simultaneously
+ */
+#define FORBOTH_INT(_ival1_,_ival2_,_list1_,_list2_) \
+    INJECT_VAR(ListCell*,DUMMY_LC(_ival1_)) \
+    INJECT_VAR(ListCell*,DUMMY_LC(_ival2_)) \
+    for(int _ival1_ = (((DUMMY_LC(_ival1_) = \
+            (_list1_)->head) != NULL) ? \
+                    DUMMY_LC(_ival1_)->data.int_value : -1), \
+        _ival2_ = (((DUMMY_LC(_ival2_) = \
+            (_list1_)->head) != NULL) ? \
+                    DUMMY_LC(_ival2_)->data.int_value : -1) \
+        ; \
+            DUMMY_LC(_ival1_) != NULL && DUMMY_LC(_ival2_) != NULL; \
+           _ival1_ = (((DUMMY_LC(_ival1_) = \
+                    DUMMY_LC(_ival1_)->next) != NULL) ? \
+                    DUMMY_LC(_ival1_)->data.int_value : -1), \
+           _ival2_ = (((DUMMY_LC(_ival2_) = \
+                    DUMMY_LC(_ival2_)->next) != NULL) ? \
+                    DUMMY_LC(_ival2_)->data.int_value : -1))
 
 extern boolean checkList(const List *list);
 

@@ -1,130 +1,142 @@
 /*************************************
-*         equal.c
-*    Author: Hao Guo
-*    One-line description
-*    
-*   
-*
-**************************************/
+ *         equal.c
+ *    Author: Hao Guo
+ *    One-line description
+ *
+ *
+ *
+ **************************************/
 
-
-
-
+#include <string.h>
 
 #include "common.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
 
+/* equal functions for specific node types */
+static boolean equalFunctionCall(FunctionCall *a, FunctionCall *b);
+static boolean equalAttributeReference (AttributeReference *a,
+        AttributeReference *b);
+static boolean equalList(List *a, List *b);
 
 
-/*use the Macros*/
+/*use these macros to compare fields */
 
-/*compare one simple scalar field(int, bool, float, etc)*/
+/*compare one simple scalar field(int, boolean, float, etc)*/
 #define COMPARE_SCALAR_FIELD(fldname)  \
-      do{  \
-           if (a->fldname != b->fldname)  \
-                return false;  \
-        } while (0) 
+		do{  \
+			if (a->fldname != b->fldname)  \
+			return FALSE;  \
+		} while (0)
 
 /*compare a field pointer to Node tree*/
 #define COMPARE_NODE_FIELD(fldname)  \
-      do{  \
-           if(!equal(a->fldname, b->fldname))  \
-              return false;  \
-        } while (0)
+		do{  \
+			if(!equal(a->fldname, b->fldname))  \
+			return FALSE;  \
+		} while (0)
 
 /*compare a field that is a pointer to a C string or maybe NULL*/
 #define COMPARE_STRING_FIELD(fldname)  \
-      do{  \
-           if(!equal(a->fldname, b->fldname))  \
-              return false;  \
-        } while (0)
+		do{  \
+			if(!equalstr(a->fldname, b->fldname))  \
+			return FALSE;  \
+		} while (0)
 
 /*compare a string field that maybe NULL*/
 #define equalstr(a, b)  \
-(((a) != NULL && (b) != NULL) ? (strcmp(a, b) == 0) : (a) ==(b))
+		(((a) != NULL && (b) != NULL) ? (strcmp(a, b) == 0) : (a) == (b))
 
+/* */
+static boolean
+equalAttributeReference (AttributeReference *a,
+        AttributeReference *b)
+{
+    COMPARE_STRING_FIELD(name);
 
-static bool equalFunctionCall(FunctionCall *a, FunctionCall *b)
+    return TRUE;
+}
+
+/* */
+static boolean
+equalFunctionCall(FunctionCall *a, FunctionCall *b)
 {
     COMPARE_NODE_FIELD(functionname);
     COMPARE_NODE_FIELD(args);
-    COMPARE_SCALAR_FIELD(agg_star);
-    COMPARE_SCALAR_FIELD(agg_distinct);
-    COMPARE_SCALAR_FIELD(location);
 
-    return ture;
+    return TRUE;
 }
 
 /*equal list fun */
-static bool equalList(List *a, List *b)
+static boolean
+equalList(List *a, List *b)
 {
-   ListCell *item_a;
-   ListCell *item_b;
-   COMPARE_SCALAR_FIELD(type);
-   COMPARE_SCALAR_FIELD(length);
+    COMPARE_SCALAR_FIELD(type);
+    COMPARE_SCALAR_FIELD(length);
 
-   switch(a->type)
-     {
-       case T_List:
-           {
-                if(!equal(lfirst(item_a), lfirst(item_b)))
-                    return false;
-           }
-           break;
+    // lists have same type and length
 
-       default:
-           return false;
-     }
+    switch(a->type)
+    {
+        case T_List:
+        {
+            FORBOTH(Node,l,r,a,b)
+            {
+                if (!equal(a,b))
+                    return FALSE;
+            }
+        }
+        break;
+        case T_IntList:
+        {
+            FORBOTH_INT(i,j,a,b)
+            {
+                if (i != j)
+                    return FALSE;
+            }
+        }
+        break;
+        default:
+            return FALSE;
+    }
 
-/*if it works, the elements of both lists should run out*/
-
-Assert(item_a == NULL);
-Assert(item_b == NULL);
-
-return true;
+    return TRUE;
 }
 
 
 /*equalfun returns  whether two nodes are equal*/
-extern bool nodesEquals(void *a, void *b);
-bool equal(void *a, void *b)
+boolean
+equal(void *a, void *b)
 {
-       bool retval;
-       if (a == b)
-            return true;
-       
-       if (a == NULL || b == NULL)
-            return false;
-        
-       if (nodeTag(a) !=nodeTag(b))
-            return false;
+    boolean retval;
+    if (a == b)
+        return TRUE;
 
-       switch(nodeTag(a))
-         {
-               //case T_Integer:
-                 //COMPARE_SCALAR_FIELD();
-                   // break;
-               /*something different cases this, and we have*/
-               /*different types of T_Node       */
-               default:
-                   retval = nodesEquals(a,b);
-                   break;
-         }
-         
-         return retval;
+    if (a == NULL || b == NULL)
+        return FALSE;
+
+    if (nodeTag(a) !=nodeTag(b))
+        return FALSE;
+
+    switch(nodeTag(a))
+    {
+        case T_List:
+        case T_IntList:
+            retval = equalList(a,b);
+            break;
+        case T_FunctionCall:
+            retval = equalFunctionCall(a,b);
+            break;
+        case T_AttributeReference:
+            retval = equalAttributeReference(a,b);
+            break;
+            /*something different cases this, and we have*/
+            /*different types of T_Node       */
+        default:
+            retval = FALSE;
+            break;
+    }
+
+    return retval;
 }
-
-
-
-
-
-
-
-
-
-
-
