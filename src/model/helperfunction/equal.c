@@ -17,7 +17,7 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
-#include <assert.h>
+
 
 
 /*use the Macros*/

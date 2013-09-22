@@ -13,7 +13,7 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
-#include <assert.h>
+
 
 
 /*use the Macros(the varibles are 'newnode' and 'from')*/
