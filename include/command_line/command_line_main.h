@@ -1,9 +1,9 @@
 #ifndef COMMANDLINE_H
 #define COMMANDLINE_H
 
-void printError();
-void printHelp();
-void printSuccess();
-void inputSQL();
+extern void printError();
+extern void printHelp();
+extern void printSuccess();
+extern void inputSQL();
 
 #endif

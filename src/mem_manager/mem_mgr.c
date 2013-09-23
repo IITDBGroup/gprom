@@ -12,16 +12,17 @@
  *-------------------------------------------------------------------------
  */
 
-#include "mem_manager/mem_mgr.h"
 #include <stdlib.h>
+
+#include "common.h"
+#include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "uthash.h"
 
 static void addAlloc(MemContext *mc, void *addr, char *file, unsigned line);
 static void delAlloc(MemContext *mc, void *addr, char *file, unsigned line);
 
-
-extern MemContext *curMemContext;
+MemContext *curMemContext;
 
 inline void
 setCurMemContext(MemContext *mc)
@@ -42,6 +43,7 @@ static void
 addAlloc(MemContext *mc, void *addr, char *file, unsigned line)
 {
     Allocation *newAlloc = (Allocation *) malloc(sizeof(Allocation));
+    assert(mc != NULL);
     newAlloc->address = addr;
     newAlloc->file = file;
     newAlloc->line = line;

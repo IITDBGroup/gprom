@@ -84,7 +84,7 @@ typedef struct MemContext
 } MemContext;
 
 /* global pointer to current memory context */
-MemContext *curMemContext;
+extern MemContext *curMemContext;
 
 extern void *malloc_(size_t bytes, char *file, unsigned line);
 extern void *calloc_(size_t bytes, unsigned count, char *file, unsigned line);

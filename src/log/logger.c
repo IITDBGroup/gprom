@@ -25,7 +25,7 @@
 #include <stdarg.h>
 
 static char *h[] =
-    {"Fatal: ", "Error: ", "Warn: ", "Info: ", "Debug: ", "Trace: "};
+    {"FATAL: ", "ERROR: ", "WARN: ", "INFO: ", "DEBUG: ", "TRACE: "};
 static Options *options;
 
 /* internal inlined functions */

@@ -20,27 +20,46 @@
 
 static int count = 0;
 
+int test_rec_depth = 0;
+
 void
-checkResult(int r, char *msg)
+checkResult(int r, char *msg, const char *file, const char *func, int line)
 {
+    char *indentation = getIndent(test_rec_depth);
+
     if (r == PASS)
     {
-        printf("TEST PASS: %s\n\n", msg);
+        printf("%sTEST PASS [%s-%s-%u]: %s\n", indentation, file, func, line, msg);
         count++;
+        free(indentation);
         return;
     }
     else
     {
-        printf("TEST FAIL: %s\n\n", msg);
+        printf("%sTEST FAIL [%s-%s-%u]: %s\n", indentation, file, func, line, msg);
+        free(indentation);
         exit(1);
     }
+}
+
+char *
+getIndent(int depth)
+{
+    char *result = malloc(depth + 1);
+
+    for(int i = 0; i < depth; i++)
+        result[i] = '\t';
+    result[depth] = '\0';
+
+    return result;
 }
 
 void
 testSuites(void)
 {
-    checkResult(testLogger(), "Logger test.");
-    checkResult(testMemManager(), "Memory manager test.");
+    RUN_TEST(testLogger(), "Logger test.");
+    RUN_TEST(testMemManager(), "Memory manager test.");
+    RUN_TEST(testExpr(), "Expression model.");
     printf("Total %d Test(s) Passed\n\n", count);
 }
 
@@ -48,11 +67,12 @@ int
 main(int argc, char* argv[])
 {
     mallocOptions();
+    MemContext *testContext = newMemContext("TEST CONTEXT");
 
     parseOption(argc, argv);
-
     testSuites();
 
-    freeOptions();
+    freeMemContext(testContext);
+
     return EXIT_SUCCESS;
 }
