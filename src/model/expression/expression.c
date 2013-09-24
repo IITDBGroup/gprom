@@ -34,23 +34,19 @@ createAttributeReference (char *name)
 
 
 FunctionCall *
-createFunctionCall(char *fName, List *args);
+createFunctionCall(char *fName, List *args)
 {
     FunctionCall *result = makeNode(FunctionCall);
     
     if(fName != NULL)
     {
-        result->fName = (char *) MALLOC(strlen(name) + 1);
-        strcpy(result->fName, fName);
-    }
-    else if(args != NULL)
-    {
-        result->args = (char *) MALLOC(strlen(name) + 1);
-        strcpy(result->args, args);
+        result->functionname = (char *) MALLOC(strlen(fName) + 1);
+        strcpy(result->functionname, fName);
     }
     else
-        result->fName = NULL;
-        result->args = NULL;
+        result->functionname = NULL;
+
+    result->args = args; //should we copy?
 
     return result; 
 }

@@ -16,6 +16,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/expression/expression.h"
 #include "model/node/nodetype.h"
+#include "model/list/list.h"
 
 /* internal tests */
 static rc testequalFunctionCall (void);
@@ -25,7 +26,7 @@ static rc testequalList (void);
 
 /* check equal model */
 rc
-testequal (void)
+testEqual (void)
 {
     RUN_TEST(testequalFunctionCall (), "test equal FunctionCall");
     RUN_TEST(testequalAttributeReference(), "test equal AttibuteReference");
@@ -34,22 +35,25 @@ testequal (void)
     return PASS;
 }
 
-static rc testequalFunctionCall (void);
+static rc
+testequalFunctionCall (void)
 {
   FunctionCall *a, *b;
-  a = createFunctionCall("test");
-  b = makenode(FunctionCall);
-  b->name = "test";
+  a = createFunctionCall("test", NIL);
+  b = makeNode(FunctionCall);
+  b->args = NIL;
+  b->functionname = "test";
   
   ASSERT_EQUALS_INT(a->type, T_FunctionCall, "type is a FunctionCall");
   ASSERT_EQUALS_INT(a->type, b->type, "types are the same");
-  ASSERT_EQUALS_STRINGP(a->fName, b->fName, "names are the same");
+  ASSERT_EQUALS_STRINGP(a->functionname, b->functionname, "names are the same");
   ASSERT_EQUALS_NODE(a->args,b->args,"both args are same");
 
   return PASS;
 }
 
-static rc testequalAttributeReference (void);
+static rc
+testequalAttributeReference (void)
 {
   AttributeReference *a, *b;
 
@@ -65,9 +69,10 @@ static rc testequalAttributeReference (void);
   return PASS;  
 }
 
-static rc testequalList (void);
+static rc
+testequalList (void)
 {
-  return PASS;‭
+  return PASS;
 }
 
 

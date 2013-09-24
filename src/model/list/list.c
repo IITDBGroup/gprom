@@ -330,7 +330,7 @@ concatTwoLists(List *lista, List*listb)
 
 	lista->tail->next = listb->head;
 	lista->tail = listb->tail;
-	lista->length += listb->length; // destroys both original list. listb should consequently be free'd
+	lista->length += listb->length;
 
     assert(checkList(lista));
     deepFreeList(listb);

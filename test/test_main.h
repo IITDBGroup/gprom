@@ -93,6 +93,8 @@ extern char *getIndent(int depth);
 
 /* individual tests */
 extern rc testExpr(void);
+extern rc testCopy(void);
+extern rc testEqual(void);
 extern rc testLogger(void);
 extern rc testMemManager(void);
 

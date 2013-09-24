@@ -60,6 +60,9 @@ testSuites(void)
     RUN_TEST(testLogger(), "Logger test.");
     RUN_TEST(testMemManager(), "Memory manager test.");
     RUN_TEST(testExpr(), "Expression model.");
+    RUN_TEST(testCopy(), "Test generic copy function.");
+    RUN_TEST(testEqual(), "Test generic equality function.");
+
     printf("Total %d Test(s) Passed\n\n", count);
 }
 
