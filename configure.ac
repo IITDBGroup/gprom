@@ -1,0 +1,31 @@
+AC_INIT([tprov],[0.0.1],[bglavic@iit.edu])
+AC_CONFIG_AUX_DIR(config)
+AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AC_CONFIG_MACRO_DIR([m4])
+AC_SUBST([ACLOCAL_AMFLAGS],[-I m4])
+AC_PROG_CC
+AC_PROG_CC_STDC
+AM_PROG_AR
+AC_PROG_YACC
+AC_PROG_LEX
+LT_INIT
+AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_FILES([
+	Makefile
+	src/Makefile
+	src/command_line/Makefile
+	src/configuration/Makefile
+	src/log/Makefile
+	src/mem_manager/Makefile
+	src/model/Makefile
+	src/model/expression/Makefile
+	src/model/helperfunction/Makefile
+	src/model/list/Makefile
+	src/model/node/Makefile
+	src/parser/Makefile
+	src/provenance_rewriter/Makefile
+	src/provenance_rewriter/pi_cs_rewrites/Makefile
+	src/provenance_rewriter/transformation_rewrites/Makefile
+	test/Makefile
+])
+AC_OUTPUT
