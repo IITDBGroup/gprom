@@ -24,12 +24,36 @@ typedef struct TestStruct
     float c;
 } TestStruct;
 
+static MemContext *context1;
+
+void module_Func1(void) {
+    context1 = NEW_MEM_CONTEXT("TEST_CONTEXT_1");
+    AQUIRE_MEM_CONTEXT(context1); // switch to context1
+
+    NEW(int);
+    CNEW(TestStruct, 5);
+    NEW(TestStruct);
+    ASSERT_EQUALS_INT(3,memContextSize(context1), "context1 size is now 3");
+
+    RELEASE_MEM_CONTEXT(); // set back curMemContext to previous one. context1 still exists.
+}
+
+void module_Func2(void) {
+    AQUIRE_MEM_CONTEXT(context1); // switch to context1
+
+    ASSERT_EQUALS_INT(3,memContextSize(context1), "context1 size is still 3");
+    FREE_CUR_MEM_CONTEXT(); // free context1
+
+    RELEASE_MEM_CONTEXT(); // set back curMemContext to previous one.
+}
+
 rc
 testMemManager(void)
 {
-    MemContext *oldContext = getCurMemContext();
-    MemContext *context1 = newMemContext("test context 1");
-    MemContext *context2 = newMemContext("test context 2");
+
+    MemContext *context2 = NEW_MEM_CONTEXT("TEST_CONTEXT_2");
+
+    AQUIRE_MEM_CONTEXT(context2);
 
     // test MALLOC
     int* i = MALLOC(sizeof(int));
@@ -58,19 +82,15 @@ testMemManager(void)
     ASSERT_EQUALS_INT(3,memContextSize(context2), "context2 size is now 3");
 
     // test clearing memory context
-    clearMemContext(context2);
+    CLEAR_CUR_MEM_CONTEXT();
     ASSERT_EQUALS_INT(0,memContextSize(context2), "context2 size is now 0");
 
-    // test switching memory context
-    setCurMemContext(context1);
-    i = NEW(int);
-    ts1 = CNEW(TestStruct, 5);
-    ts2 = NEW(TestStruct);
-    ASSERT_EQUALS_INT(3,memContextSize(context1), "context1 size is now 3");
-    freeMemContext(context1);
+    module_Func1();
 
-    freeMemContext(context2);
-    setCurMemContext(oldContext);
+    FREE_CUR_MEM_CONTEXT();
+    RELEASE_MEM_CONTEXT();
+
+    module_Func2();
 
     return PASS;
 }

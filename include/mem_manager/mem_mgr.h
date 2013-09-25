@@ -72,7 +72,7 @@
 typedef struct Allocation
 {
     void *address; // the allocated memory address
-    char *file; // the file where the allocating code is
+    const char *file; // the file where the allocating code is
     int line; // the line at which the allocating code is
     UT_hash_handle hh;
 } Allocation;
@@ -83,12 +83,12 @@ typedef struct MemContext
     Allocation *hashAlloc;
 } MemContext;
 
-/* global pointer to current memory context */
-extern MemContext *curMemContext;
+extern void initMemManager(void);
+extern void destroyMemManager(void);
 
-extern void *malloc_(size_t bytes, char *file, unsigned line);
-extern void *calloc_(size_t bytes, unsigned count, char *file, unsigned line);
-extern void free_(void *mem, char *file, unsigned line);
+extern void *malloc_(size_t bytes, const char *file, unsigned line);
+extern void *calloc_(size_t bytes, unsigned count, const char *file, unsigned line);
+extern void free_(void *mem, const char *file, unsigned line);
 
 /*
  * Is similar to malloc(size) but will also record the allocated memory
@@ -118,7 +118,7 @@ extern void free_(void *mem, char *file, unsigned line);
 /*
  * Creates a new memory context.
  */
-extern MemContext *newMemContext(char *contextName);
+extern MemContext *newMemContext(char *contextName, const char *file, unsigned line);
 /*
  * Gets context size.
  */
@@ -129,19 +129,29 @@ extern int memContextSize(MemContext *mc);
  */
 extern Allocation *findAlloc(const MemContext *mc, const void *addr);
 /*
+ * Switches current memory context to another one.
+ */
+extern void setCurMemContext(MemContext *mc, const char *file, unsigned line);
+extern MemContext *getCurMemContext(void);
+/*
  * Removes all the memory allocation records from the specified memory context
  * and free those memories. Will not destroy the memory context itself.
  */
-extern void clearMemContext(MemContext *mc);
+extern void clearCurMemContext(const char *file, unsigned line);
+/*
+ *
+ */
+extern void releaseCurMemContext(const char *file, unsigned line);
 /*
  * Removes all the memory allocation records from the specified memory context
  * and free those memories and finally destroy the memory context.
  */
-extern void freeMemContext(MemContext *mc);
-/*
- * Switches current memory context to another one.
- */
-extern void setCurMemContext(MemContext *mc);
-extern MemContext *getCurMemContext(void);
+extern void freeCurMemContext(const char *file, unsigned line);
+
+#define NEW_MEM_CONTEXT(name) newMemContext((name), __FILE__, __LINE__)
+#define AQUIRE_MEM_CONTEXT(context) setCurMemContext((context), __FILE__, __LINE__)
+#define CLEAR_CUR_MEM_CONTEXT() clearCurMemContext(__FILE__, __LINE__)
+#define FREE_CUR_MEM_CONTEXT() freeCurMemContext(__FILE__, __LINE__)
+#define RELEASE_MEM_CONTEXT() releaseCurMemContext(__FILE__, __LINE__)
 
 #endif

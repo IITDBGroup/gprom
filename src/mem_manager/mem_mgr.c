@@ -13,21 +13,79 @@
  */
 
 #include <stdlib.h>
-
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "uthash.h"
+#include <assert.h>
 
-static void addAlloc(MemContext *mc, void *addr, char *file, unsigned line);
-static void delAlloc(MemContext *mc, void *addr, char *file, unsigned line);
+#define DEFAULT_MEM_CONTEXT_NAME "DEFAULT_MEMORY_CONTEXT"
 
-MemContext *curMemContext;
-
-inline void
-setCurMemContext(MemContext *mc)
+typedef struct MemContextNode
 {
-    curMemContext = mc;
+    MemContext *mc;
+    struct MemContextNode *next;
+} MemContextNode;
+
+static void
+addAlloc(MemContext *mc, void *addr, const char *file, unsigned line);
+static void
+delAlloc(MemContext *mc, void *addr, const char *file, unsigned line);
+
+static MemContext *curMemContext = NULL; // global pointer to current memory context
+static MemContext *defaultMemContext = NULL;
+static MemContextNode *topContextNode = NULL;
+static int contextStackSize = 0;
+
+void
+initMemManager(void)
+{
+    defaultMemContext = NEW_MEM_CONTEXT(DEFAULT_MEM_CONTEXT_NAME);
+    AQUIRE_MEM_CONTEXT(defaultMemContext);
+    // default context always lies on the bottom of the stack
+}
+
+void
+destroyMemManager(void)
+{
+    while (topContextNode->next)
+    {
+        FREE_CUR_MEM_CONTEXT();
+        RELEASE_MEM_CONTEXT();
+    }
+
+    assert(topContextNode->mc == defaultMemContext);
+    assert(curMemContext == defaultMemContext);
+    int size = memContextSize(curMemContext);
+    if (size > 0)
+    {
+        CLEAR_CUR_MEM_CONTEXT();
+        free(curMemContext);
+    }
+    else if (size == 0)
+    {
+        free(curMemContext);
+    }
+
+    free(topContextNode);
+    DEBUG_LOG("Freed memory context '%s'.", DEFAULT_MEM_CONTEXT_NAME);
+}
+
+void
+setCurMemContext(MemContext *mc, const char *file, unsigned line)
+{
+    if (mc)
+    {
+        MemContextNode *node = calloc(1, sizeof(MemContextNode));
+        node->mc = mc;
+        node->next = topContextNode;
+        topContextNode = node;
+        contextStackSize++;
+        curMemContext = topContextNode->mc;
+        log_(LOG_DEBUG, file, line, "Set current memory context to '%s'@%p.",
+                curMemContext->contextName, curMemContext);
+    }
+
 }
 
 inline MemContext *
@@ -36,11 +94,27 @@ getCurMemContext(void)
     return curMemContext;
 }
 
+void
+releaseCurMemContext(const char *file, unsigned line)
+{
+    if (topContextNode->next) // Does not free the bottom node holding default context
+    {
+        MemContextNode *oldTop = topContextNode;
+        topContextNode = oldTop->next;
+        free(oldTop);
+        contextStackSize--;
+        curMemContext = topContextNode->mc;
+        log_(LOG_DEBUG, file, line,
+                "Set back current memory context to '%s'@%p.",
+                curMemContext->contextName, curMemContext);
+    }
+}
+
 /*
  * Adds allocated memory information to a memory context.
  */
 static void
-addAlloc(MemContext *mc, void *addr, char *file, unsigned line)
+addAlloc(MemContext *mc, void *addr, const char *file, unsigned line)
 {
     Allocation *newAlloc = (Allocation *) malloc(sizeof(Allocation));
     assert(mc != NULL);
@@ -48,25 +122,26 @@ addAlloc(MemContext *mc, void *addr, char *file, unsigned line)
     newAlloc->file = file;
     newAlloc->line = line;
     HASH_ADD_PTR(mc->hashAlloc, address, newAlloc); // add to hash table. Use address as key
-    DEBUG_LOG("Added [addr:%p, file:'%s', line:%u] to memory context '%s'.",
-            addr, file, line, mc->contextName);
+    log_(LOG_DEBUG, file, line,
+            "Added [addr:%p, file:'%s', line:%u] to memory context '%s'.", addr,
+            file, line, mc->contextName);
 }
 
 /*
  * Removes memory allocation information from a memory context.
  */
 static void
-delAlloc(MemContext *mc, void *addr, char *file, unsigned line)
+delAlloc(MemContext *mc, void *addr, const char *file, unsigned line)
 {
     Allocation *alloc = NULL;
     HASH_FIND_PTR(mc->hashAlloc, &addr, alloc); // find allocation info by address first
     if (alloc)
     {
-        char *tmpfile = alloc->file;
+        const char *tmpfile = alloc->file;
         int tmpline = alloc->line;
         HASH_DEL(mc->hashAlloc, alloc); // remove the allocation info
         free(alloc);
-        DEBUG_LOG(
+        log_(LOG_DEBUG, file, line,
                 "Deleted [addr:%p, file:'%s', line:%d] from memory context '%s'.",
                 addr, tmpfile, tmpline, mc->contextName);
     }
@@ -76,12 +151,13 @@ delAlloc(MemContext *mc, void *addr, char *file, unsigned line)
  * Creates a new memory context.
  */
 MemContext *
-newMemContext(char *contextName)
+newMemContext(char *contextName, const char *file, unsigned line)
 {
     MemContext *mc = (MemContext *) malloc(sizeof(MemContext));
     mc->contextName = contextName;
     mc->hashAlloc = NULL;
-    setCurMemContext(mc);
+    log_(LOG_DEBUG, file, line, "Created memory context '%s'.",
+            mc->contextName);
     return mc;
 }
 
@@ -125,15 +201,12 @@ findAlloc(const MemContext *mc, const void *addr)
  * and free those memories. Will not destroy the memory context itself.
  */
 void
-clearMemContext(MemContext *mc)
+clearCurMemContext(const char *file, unsigned line)
 {
-    if (mc)
+    Allocation *curAlloc, *tmp;
+    HASH_ITER(hh, curMemContext->hashAlloc, curAlloc, tmp)
     {
-        Allocation *curAlloc, *tmp;
-        HASH_ITER(hh, mc->hashAlloc, curAlloc, tmp)
-        {
-            free_(curAlloc->address, __FILE__, __LINE__);
-        }
+        free_(curAlloc->address, file, line);
     }
 }
 
@@ -142,27 +215,32 @@ clearMemContext(MemContext *mc)
  * and free those memories and finally destroy the memory context.
  */
 void
-freeMemContext(MemContext *mc)
+freeCurMemContext(const char *file, unsigned line)
 {
-    int size = memContextSize(mc);
-    if (size > 0)
+    if (topContextNode->next) // Does not free default context and its node
     {
-        clearMemContext(mc);
-        free(mc);
-    }
-    else if (size == 0)
-    {
-        free(mc);
+        int size = memContextSize(curMemContext);
+        char *name = curMemContext->contextName;
+        if (size > 0)
+        {
+            clearCurMemContext(file, line);
+            free(curMemContext);
+            curMemContext = NULL;
+        }
+        else if (size == 0)
+        {
+            free(curMemContext);
+            curMemContext = NULL;
+        }
+        log_(LOG_DEBUG, file, line, "Freed memory context '%s'.", name);
     }
 }
-
-
 
 /*
  * Allocates memory and records it in the current memory context.
  */
 void *
-malloc_(size_t bytes, char *file, unsigned line)
+malloc_(size_t bytes, const char *file, unsigned line)
 {
     void *mem = malloc(bytes);
     if (mem == NULL)
@@ -185,7 +263,7 @@ malloc_(size_t bytes, char *file, unsigned line)
  * memory context.
  */
 void *
-calloc_(size_t bytes, unsigned count, char *file, unsigned line)
+calloc_(size_t bytes, unsigned count, const char *file, unsigned line)
 {
     void *mem = calloc(count, bytes);
     if (mem == NULL)
@@ -209,7 +287,7 @@ calloc_(size_t bytes, unsigned count, char *file, unsigned line)
  * and then free the memory at the address.
  */
 void
-free_(void *mem, char *file, unsigned line)
+free_(void *mem, const char *file, unsigned line)
 {
     if (mem)
     {

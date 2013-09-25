@@ -94,12 +94,13 @@ int
 main(int argc, char* argv[])
 {
     mallocOptions();
-    MemContext *testContext = newMemContext("TEST CONTEXT");
-
     parseOption(argc, argv);
+    initMemManager();
+
     testSuites();
 
-    freeMemContext(testContext);
+    destroyMemManager();
+    freeOptions();
 
     return EXIT_SUCCESS;
 }
