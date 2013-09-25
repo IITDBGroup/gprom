@@ -1,6 +1,6 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include
 
-SUBDIRS = configuration log mem_manager model  provenance_rewriter . command_line
+SUBDIRS = configuration log mem_manager model provenance_rewriter . command_line
 
 noinst_LTLIBRARIES 		= libsrc.la
 libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \

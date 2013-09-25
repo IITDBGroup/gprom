@@ -4,5 +4,5 @@ BUILT_SOURCES = sql_parser.h
 AM_YFLAGS = -d
 
 noinst_LTLIBRARIES        	= libparser.la
-libparser_la_SOURCES		= sql_parser.y sql_parser.l
+libparser_la_SOURCES		= parser.c sql_parser.y sql_parser.l
 libparser_la_LIBADD      	= 

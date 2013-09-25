@@ -18,27 +18,51 @@
 #include "configuration/option.h"
 #include "configuration/option_parser.h"
 
-static int count = 0;
 
+int test_count = 0;
 int test_rec_depth = 0;
 
 void
-checkResult(int r, char *msg, const char *file, const char *func, int line)
+checkResult(int r, char *msg, const char *file, const char *func, int line,
+        int tests_passed)
 {
     char *indentation = getIndent(test_rec_depth);
 
-    if (r == PASS)
+    if (tests_passed == -1)
     {
-        printf("%sTEST PASS [%s-%s-%u]: %s\n", indentation, file, func, line, msg);
-        count++;
-        free(indentation);
-        return;
+        if (r == PASS)
+        {
+            printf("%sTEST PASS [%s-%s-%u]: %s\n", indentation, file, func,
+                    line, msg);
+            test_count++;
+            free(indentation);
+            return;
+        }
+        else
+        {
+            printf("%sTEST FAIL [%s-%s-%u]: %s\n", indentation, file, func,
+                    line, msg);
+            free(indentation);
+            exit(1);
+        }
     }
     else
     {
-        printf("%sTEST FAIL [%s-%s-%u]: %s\n", indentation, file, func, line, msg);
-        free(indentation);
-        exit(1);
+        if (r == PASS)
+        {
+            printf("%sTEST SUITE [%s-%s-%u]: %s - PASSED %u TESTS\n",
+                    indentation, file, func, line, msg, tests_passed);
+            test_count++;
+            free(indentation);
+            return;
+        }
+        else
+        {
+            printf("%sTEST SUITE FAILED [%s-%s-%u]: %s AFTER %u TESTS\n",
+                    indentation, file, func, line, msg, tests_passed);
+            free(indentation);
+            exit(1);
+        }
     }
 }
 
@@ -63,7 +87,7 @@ testSuites(void)
     RUN_TEST(testCopy(), "Test generic copy function.");
     RUN_TEST(testEqual(), "Test generic equality function.");
 
-    printf("Total %d Test(s) Passed\n\n", count);
+    printf("Total %d Test(s) Passed\n\n", test_count);
 }
 
 int
