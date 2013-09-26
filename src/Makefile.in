@@ -94,7 +94,8 @@ CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libsrc_la_DEPENDENCIES = configuration/libconfiguration.la \
 	log/liblog.la mem_manager/libmem_manager.la model/libmodel.la \
-	provenance_rewriter/libprovenance_rewriter.la
+	provenance_rewriter/libprovenance_rewriter.la \
+	parser/libparser.la
 am_libsrc_la_OBJECTS =
 libsrc_la_OBJECTS = $(am_libsrc_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
@@ -322,16 +323,15 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include
-SUBDIRS = configuration log mem_manager model provenance_rewriter . command_line
+SUBDIRS = configuration log mem_manager model provenance_rewriter parser . command_line
 noinst_LTLIBRARIES = libsrc.la
 libsrc_la_LIBADD = configuration/libconfiguration.la \
 						log/liblog.la \
 						mem_manager/libmem_manager.la \
 						model/libmodel.la \
-						provenance_rewriter/libprovenance_rewriter.la						
+						provenance_rewriter/libprovenance_rewriter.la \
+						parser/libparser.la 
 
-
-#						parser/libparser.la 
 libsrc_la_SOURCES = 
 all: all-recursive
 
