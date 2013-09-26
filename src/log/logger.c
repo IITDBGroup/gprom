@@ -26,11 +26,13 @@
 
 static char *h[] =
     {"FATAL: ", "ERROR: ", "WARN: ", "INFO: ", "DEBUG: ", "TRACE: "};
-static Options *options;
+static int maxLevel = LOG_INFO;
 
 /* internal inlined functions */
-static inline char *getHead(LogLevel level);
-static inline FILE *getOutput(LogLevel level);
+static inline char *
+getHead(LogLevel level);
+static inline FILE *
+getOutput(LogLevel level);
 
 static inline char *
 getHead(LogLevel level)
@@ -45,10 +47,17 @@ getOutput(LogLevel level)
 }
 
 void
+initLogger(void)
+{
+    Options *options = getOptions();
+    if (options && options->optionDebug)
+        maxLevel = options->optionDebug->loglevel;
+}
+
+void
 log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
 {
-    options = getOptions();
-    if (options->optionDebug->log && level <= options->optionDebug->loglevel)
+    if (level <= maxLevel)
     {
         va_list args;
         va_start(args, template);

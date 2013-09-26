@@ -33,6 +33,7 @@ typedef enum LogLevel
     LOG_TRACE = 5
 } LogLevel;
 
+extern void initLogger(void);
 extern void log_(LogLevel level, const char *file, unsigned line, const char *template, ...);
 
 #define FATAL_LOG(template, ...) \

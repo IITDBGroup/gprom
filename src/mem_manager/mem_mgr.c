@@ -2,7 +2,7 @@
  *
  * mem_mgr.c
  *    Author: Ying Ni yni6@hawk.iit.edu
- *    This module is developed to provide memory management that organizes
+ *    This module is to provide memory management tool that organizes
  *    and reduces the work of allocating and freeing memory.
  *
  *        A memory context can be created to record the allocated memories
@@ -25,7 +25,7 @@ typedef struct MemContextNode
 {
     MemContext *mc;
     struct MemContextNode *next;
-} MemContextNode;
+} MemContextNode; // context stack node
 
 static void
 addAlloc(MemContext *mc, void *addr, const char *file, unsigned line);
@@ -37,6 +37,9 @@ static MemContext *defaultMemContext = NULL;
 static MemContextNode *topContextNode = NULL;
 static int contextStackSize = 0;
 
+/*
+ * Creates default memory context and pushes it into context stack.
+ */
 void
 initMemManager(void)
 {
@@ -45,6 +48,9 @@ initMemManager(void)
     // default context always lies on the bottom of the stack
 }
 
+/*
+ * Free all contexts in the context stack and clear the stack.
+ */
 void
 destroyMemManager(void)
 {
@@ -53,24 +59,29 @@ destroyMemManager(void)
         FREE_CUR_MEM_CONTEXT();
         RELEASE_MEM_CONTEXT();
     }
+    // free all contexts in the context stack except default context
 
     assert(topContextNode->mc == defaultMemContext);
     assert(curMemContext == defaultMemContext);
-    int size = memContextSize(curMemContext);
+    int size = memContextSize(defaultMemContext);
     if (size > 0)
     {
         CLEAR_CUR_MEM_CONTEXT();
-        free(curMemContext);
+        free(defaultMemContext);
     }
     else if (size == 0)
     {
-        free(curMemContext);
+        free(defaultMemContext);
     }
+    // free default context
 
-    free(topContextNode);
+    free(topContextNode); // free default context node
     DEBUG_LOG("Freed memory context '%s'.", DEFAULT_MEM_CONTEXT_NAME);
 }
 
+/*
+ * Sets current context and pushes it into context stack.
+ */
 void
 setCurMemContext(MemContext *mc, const char *file, unsigned line)
 {
@@ -81,6 +92,8 @@ setCurMemContext(MemContext *mc, const char *file, unsigned line)
         node->next = topContextNode;
         topContextNode = node;
         contextStackSize++;
+        // push the passed-in context into context stack
+
         curMemContext = topContextNode->mc;
         log_(LOG_DEBUG, file, line, "Set current memory context to '%s'@%p.",
                 curMemContext->contextName, curMemContext);
@@ -94,16 +107,22 @@ getCurMemContext(void)
     return curMemContext;
 }
 
+/*
+ * Pops current context and returns to the previous context. Will not free
+ * the current context.
+ */
 void
 releaseCurMemContext(const char *file, unsigned line)
 {
-    if (topContextNode->next) // Does not free the bottom node holding default context
+    if (topContextNode->next) // does not free the bottom node holding default context
     {
         MemContextNode *oldTop = topContextNode;
         topContextNode = oldTop->next;
         free(oldTop);
         contextStackSize--;
-        curMemContext = topContextNode->mc;
+        // pop current context from context stack
+
+        curMemContext = topContextNode->mc; // switch to previous context
         log_(LOG_DEBUG, file, line,
                 "Set back current memory context to '%s'@%p.",
                 curMemContext->contextName, curMemContext);
@@ -148,7 +167,7 @@ delAlloc(MemContext *mc, void *addr, const char *file, unsigned line)
 }
 
 /*
- * Creates a new memory context.
+ * Creates a memory context.
  */
 MemContext *
 newMemContext(char *contextName, const char *file, unsigned line)
@@ -197,7 +216,7 @@ findAlloc(const MemContext *mc, const void *addr)
 }
 
 /*
- * Removes all the memory allocation records from the specified memory context
+ * Removes all the memory allocation records from the current context
  * and free those memories. Will not destroy the memory context itself.
  */
 void
@@ -211,13 +230,13 @@ clearCurMemContext(const char *file, unsigned line)
 }
 
 /*
- * Removes all the memory allocation records from the specified memory context
- * and free those memories and finally destroy the memory context.
+ * Removes all the memory allocation records from the current context
+ * and free those memories and finally destroy the memory context itself.
  */
 void
 freeCurMemContext(const char *file, unsigned line)
 {
-    if (topContextNode->next) // Does not free default context and its node
+    if (topContextNode->next) // does not free default context and its node
     {
         int size = memContextSize(curMemContext);
         char *name = curMemContext->contextName;

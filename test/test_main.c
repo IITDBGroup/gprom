@@ -93,14 +93,15 @@ testSuites(void)
 int
 main(int argc, char* argv[])
 {
+    initMemManager();
     mallocOptions();
     parseOption(argc, argv);
-    initMemManager();
 
+    initLogger();
     testSuites();
 
-    destroyMemManager();
     freeOptions();
+    destroyMemManager();
 
     return EXIT_SUCCESS;
 }

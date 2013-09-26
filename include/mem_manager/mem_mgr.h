@@ -2,62 +2,34 @@
  *
  * mem_mgr.h
  *    Author: Ying Ni yni6@hawk.iit.edu
- *    This module is developed to provide memory management that organizes
+ *    This module is to provide memory management tool that organizes
  *    and reduces the work of allocating and freeing memory.
  *
  *        A memory context can be created to record the allocated memories
  *        and be destroyed to batch free all the memories recorded in it.
  *        The allocated memories information can be traced in logs.
  *
- *        1. Create a memory context:
- *        MemContext *context = newMemContext("Context Name");
- *        The global variable 'curMemContext' is by default set to the latest
- *        created context.
+ *        AQUIRE_MEM_CONTEXT(yourContext) MUST be invoked before yourContext
+ *        is used.
+ *        RELEASE_MEM_CONTEXT() and AQUIRE_MEM_CONTEXT(yourContext) MUST
+ *        appear in pair.
  *
- *        2. Use one of the following macros to allocate memory:
- *        MALLOC, CALLOC, NEW and CNEW.
- *        The allocated memory will be remembered by the current memory context.
- *        NEW and CNEW is recommended to make the code clean.
- *        e.g.,
- *        int *i = MALLOC(sizeof(int));
- *        char *s = MALLOC(100);
- *        char *s = CALLOC(sizeof(char), 100); // *s initialized to an empty string
- *        int *i = NEW(int); // *i is initialized to 0
- *        typedef struct MyStruct{...} MyStruct;
- *        MyStruct *t = NEW(MyStruct); // members of MyStruct initialized to 0
- *        int *i = CNEW(int, 10); // allocates an integer array with length 10.
- *        MyStruct *t = CNEW(MyStruct, 5); // allocates a struct array with length 5.
+ *        Examples:
+ *        1.
+ *        MemContext *mc = NEW_MEM_CONTEXT("name");
+ *        AQUIRE_MEM_CONTEXT(mc);
+ *        NEW(int);
+ *        NEW(MyStructType);
+ *        CNEW(MyStructType, 10);
+ *        ...
+ *        RELEASE_MEM_CONTEXT();
  *
- *        3. Use setCurMemContext(MemContext *mc) to switch among multiple memory
- *        contexts. And get the current memory context by invoking getCurMemContext().
- *
- *        4. Freeing allocated memories one by one is NOT necessary. Simply
- *        invoking freeMemContext(MemContext *mc) at the end will free all the
- *        allocated memory recorded by the specified memory context. For example:
- *        MemContext *context = newMemContext("Context Name");
+ *        2.
+ *        AQUIRE_MEM_CONTEXT(yourContext);
+ *        int size = memContextSize(yourContext);
  *        ...
- *        ...MALLOC(...); // line 21
- *        ...NEW(...); // line 22
- *        ...
- *        freeMemContext(context);
- *        will free the memory allocated by the code at line 21 and 22.
- *
- *        5. Please be careful of switching memory context. For example:
- *        MemContext *context1 = newMemContext("Context Name1");
- *        MemContext *context2 = newMemContext("Context Name2");
- *        ...
- *        ...NEW(...); // line 21
- *        ...CNEW(...); // line 22
- *        ...
- *        setCurMemContext(context1);
- *        ...
- *        ...NEW(...); // line 33
- *        ...NEW(...); // line 34
- *        ...
- *        freeMemContext(context1);
- *        freeMemContext(context2);
- *        The memories allocated at line 21 and 22 are recorded by context2
- *        and the memories allocated at line 33 and 34 are recorded by context1.
+ *        FREE_CUR_MEM_CONTEXT();
+ *        RELEASE_MEM_CONTEXT();
  *
  *-------------------------------------------------------------------------
  */
@@ -83,7 +55,13 @@ typedef struct MemContext
     Allocation *hashAlloc;
 } MemContext;
 
+/*
+ * Creates default memory context and pushes it into context stack.
+ */
 extern void initMemManager(void);
+/*
+ * Free all contexts in the context stack and clear the stack.
+ */
 extern void destroyMemManager(void);
 
 extern void *malloc_(size_t bytes, const char *file, unsigned line);
@@ -115,10 +93,13 @@ extern void free_(void *mem, const char *file, unsigned line);
  */
 #define FREE(pointer) free_((void *) (pointer), __FILE__, __LINE__)
 
-/*
- * Creates a new memory context.
- */
+
 extern MemContext *newMemContext(char *contextName, const char *file, unsigned line);
+extern void setCurMemContext(MemContext *mc, const char *file, unsigned line);
+extern MemContext *getCurMemContext(void);
+extern void clearCurMemContext(const char *file, unsigned line);
+extern void releaseCurMemContext(const char *file, unsigned line);
+extern void freeCurMemContext(const char *file, unsigned line);
 /*
  * Gets context size.
  */
@@ -128,30 +109,29 @@ extern int memContextSize(MemContext *mc);
  * Returns NULL if not found.
  */
 extern Allocation *findAlloc(const MemContext *mc, const void *addr);
+
 /*
- * Switches current memory context to another one.
+ * Creates a memory context.
  */
-extern void setCurMemContext(MemContext *mc, const char *file, unsigned line);
-extern MemContext *getCurMemContext(void);
+#define NEW_MEM_CONTEXT(name) newMemContext((name), __FILE__, __LINE__)
 /*
- * Removes all the memory allocation records from the specified memory context
+ * Sets current context and pushes it into context stack.
+ */
+#define AQUIRE_MEM_CONTEXT(context) setCurMemContext((context), __FILE__, __LINE__)
+/*
+ * Removes all the memory allocation records from the current context
  * and free those memories. Will not destroy the memory context itself.
  */
-extern void clearCurMemContext(const char *file, unsigned line);
-/*
- *
- */
-extern void releaseCurMemContext(const char *file, unsigned line);
-/*
- * Removes all the memory allocation records from the specified memory context
- * and free those memories and finally destroy the memory context.
- */
-extern void freeCurMemContext(const char *file, unsigned line);
-
-#define NEW_MEM_CONTEXT(name) newMemContext((name), __FILE__, __LINE__)
-#define AQUIRE_MEM_CONTEXT(context) setCurMemContext((context), __FILE__, __LINE__)
 #define CLEAR_CUR_MEM_CONTEXT() clearCurMemContext(__FILE__, __LINE__)
+/*
+ * Removes all the memory allocation records from the current context
+ * and free those memories and finally destroy the memory context itself.
+ */
 #define FREE_CUR_MEM_CONTEXT() freeCurMemContext(__FILE__, __LINE__)
+/*
+ * Pops current context and returns to the previous context. Will not free
+ * the current context.
+ */
 #define RELEASE_MEM_CONTEXT() releaseCurMemContext(__FILE__, __LINE__)
 
 #endif
