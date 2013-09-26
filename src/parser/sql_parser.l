@@ -2,34 +2,42 @@
  *This is the lexer file which defines tokens
  *
  *
-*/
+ */
 
+
+/*******************************************************************************
+ * options section 
+ ******************************************************************************/
+
+/* set lexer options */
+%option noyywrap nodefault yylineno reentrant bison-bridge
+%option header-file="sql_parser.lex.h"
+
+/* includes */
 %{
 
 #include <stdio.h>
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
+#include "sql_parser.tab.h"
+
 
 int lineno = 1;
-void yyerror(char *s);
-int yywarp(void);
-int yylex(void);
+// void yyerror(char *s);
+// int yywarp(void);
+// int yylex(void);
 
 #define SV save_str(yytext)
-#define TOK(name) { return name; }
-#define TOKSAVE(name,field) { yylval.field = yytext; return name; }
+#define TOK(name) { yylval->stringVal = yytext; return name; }
+#define TOKSAVE(name,field,function) { yylval->field = function(yytext); return name; }
 %}
-
-/*******************************************************************************
- * options section 
- ******************************************************************************/
-
-%s SQL
 
 /********************************************************************
  * lexer states 
  */
+
+%s SQL
 
 /********************************************************************
  * predefined regular expressions 
@@ -52,19 +60,23 @@ float 			(({integer}|{decimal})([eE][+-]?{integer})?)
 /* names (e.g., tables, attributes) */
 identStart		[A-Za-z]
 identContinue	[A-Za-z0-9_]
-identifier		({identStart}{identContinue}+)
+identifiers		({identStart}{identContinue}+)
+
+/* operators */
+comparisonops	("="|"<>"|"!="|"<"|">"|"<="|">=")
+arithmeticops	("+"|"-"|"/"|"*"|"%"|"&"|"|"|"^")
 
 /*******************************************************************************
  * Token definitions and actions 
  ******************************************************************************/
 %%
 
-EXEC[ \t]+SQL	{BEGIN SQL; yylval.clear(); start_save();}
+EXEC[ \t]+SQL	{BEGIN SQL; start_save();}
 
-/* ignore all whitespace */
+	/* ignore all whitespace */
 {whitespace}	 { /* ignore it */ }
 
-/* literal keyword tokens */
+	/* literal keyword tokens */
 <SQL>SELECT      TOK(SELECT)
 <SQL>PROVENANCE  TOK(PROVENANCE)
 <SQL>OF          TOK(OF)
@@ -84,35 +96,30 @@ EXEC[ \t]+SQL	{BEGIN SQL; yylval.clear(); start_save();}
 <SQL>ANY		 TOK(ANY)
 <SQL>BETWEEN	 TOK(BETWEEN)
 <SQL>BY			 TOK(BY)
+<SQL>UPDATE		 TOK(UPDATE)
+<SQL>DELETE	     TOK(DELETE)
 
 	/* punctuation */
+<SQL>[(),.;] TOK(yytext[0])
 
-<SQL>"="	|
-<SQL>"<>" 	|
-<SQL>"<"	|
-<SQL>">"	|
-<SQL>"<="	|
-<SQL>">="		TOK(COMPARISON)
-
-<SQL>[-+*/(),.;] TOK(yytext[0])
-
+	/* operators */
+<SQL>{comparisonops}		TOK(comparisonop)
+<SQL>{arithmeticops}		TOK(arithmeticop)
+	
 	/* names */
-<SQL>identifier	TOK(IDENTIFIER)
+<SQL>{identifiers}	TOK(identifier,stringVal)
 
-/* numbers */
+	/* numbers */
+<SQL>{integer}	TOKSAVE(intConst,intVal,atoi)
+<SQL>{float}	TOKSAVE(floatConst,floatVal)
 
-<SQL>{integer}	TOK(intConst)
-
-<SQL>{float}	TOK(floatConst)
-
-/* strings */
-
+	/* strings */
 <SQL>'[^'\n]*'	{
 		int c = input();
 		unput(c);	
 		if(c != '\'') {
 			 SV;
-			yylval.strval = strdup(yytext);
+			yylval->strval = strdup(yytext);
 			return STRING;
 		} else
 			yymore();
@@ -121,30 +128,29 @@ EXEC[ \t]+SQL	{BEGIN SQL; yylval.clear(); start_save();}
 		
 <SQL>'[^'\n]*$	{yyerror("Unterminated string"); }
 
-<SQL>\n		{ save_str(" ");lineno++; }
-\n		{ lineno++; ECHO; }
-
-<SQL>[ \t\r]+	save_str(" ");	/* white space */
-
-/* failure - no token matched */
+	/* failure - no token matched */
 .		ECHO;	/* random non-SQL text */
+
+%%
 
 /*******************************************************************************
  * Literal C code to include
  ******************************************************************************/
-%%
 
+
+/* */
 int yywarp(void)
 {
 	return 1;
 }
 
-
+/* use logging framework in the future */
 void yyerror(char *s)
 {
 	printf("%d: %s at %s\n", lineno, s, yytext);
 }
 
+/* dummy main method for testing */
 int main()
 {
 	if(!yyparse())
@@ -152,10 +158,10 @@ int main()
 	else
 		fprintf(stderr, "SQL parse failed\n");
 	return 0;
-} /* main */
+}
 
 /* leave SQL lexing mode */
 un_sql()
 {
 	BEGIN INITIAL;
-} /* un_sql */
+}

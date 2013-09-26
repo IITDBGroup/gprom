@@ -95,7 +95,8 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libparser_la_DEPENDENCIES =
-am_libparser_la_OBJECTS = parser.lo sql_parser.lo sql_parser.lo
+am_libparser_la_OBJECTS = parser.lo sql_parser.tab.lo \
+	sql_parser.lex.lo sql_parser.lo sql_parser.lo
 libparser_la_OBJECTS = $(am_libparser_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -303,7 +304,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/include
 BUILT_SOURCES = sql_parser.h
 AM_YFLAGS = -d
 noinst_LTLIBRARIES = libparser.la
-libparser_la_SOURCES = parser.c sql_parser.y sql_parser.l
+libparser_la_SOURCES = parser.c sql_parser.tab.c sql_parser.lex.c sql_parser.y sql_parser.l
 libparser_la_LIBADD = 
 all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-am
@@ -366,6 +367,8 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parser.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sql_parser.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sql_parser.lex.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sql_parser.tab.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

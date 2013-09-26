@@ -5,13 +5,13 @@
 
 %{
 #include <stdio.h>
-#include <conio.h>
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
+#include "sql_parser.lex.h"
 
-int yylex(void);
-void yyerror (char const *);
+//int yylex(void);
+//void yyerror (char const *);
 %}
 
 %union {
@@ -30,58 +30,62 @@ void yyerror (char const *);
  * Declare tokens for name and literal values
  * Declare tokens for user variables
  */
-%token <node> expression
-%token <stringVal> aliasName tableName
 %token <intVal> intConst
 %token <floatVal> floatConst
 %token <stringVal> stringConst
-%token <node> identifier		// Already node was declared as pointer so removed *
-%token <node> argument			// Already node was declared as pointer so removed *
-
-/*
- * Declare token for operators specify their associativity and precedence
- */
-/* Logical Operators */
-%left '||'
-%left XOR
-%left '&&'
-%right ':='
-%left '!'
-/* Comparison operator */
-%left '==' '<' '>' '<=' '>=' '<>' '!='
-
-/* Arithmetic operators */
-%left '+' '-'
-%left '*' '/' '%'
-%left '^'
+%token <stringVal> identifier
+%token <stringVal> comparisonop arithmeticop
 
 /*
  * Tokens for in-built keywords
  *		Currently keywords related to basic query are considered.
  *		Later on other keywords will be added.
  */
-%token SELECT
-%token PROVENANCE OF
-%token FROM
-%token AS
-%token WHERE
-%token DISTINCT
-%token ON
-%token STARALL
-%token AND OR LIKE NOT IN NULL BETWEEN
+%token <stringVal> SELECT
+%token <stringVal> PROVENANCE OF
+%token <stringVal> FROM
+%token <stringVal> AS
+%token <stringVal> WHERE
+%token <stringVal> DISTINCT
+%token <stringVal> ON
+%token <stringVal> STARALL
+%token <StringVal> UPDATE DELETE
+%token <stringVal> AND OR LIKE NOT IN NULL BETWEEN
+
+/*
+ * Declare token for operators specify their associativity and precedence
+ */
+/* Comparison operator */
+%left comparisonop arithmeticop
+%left AND OR NOT IN NULL BETWEEN LIKE
+
+/* Arithmetic operators : FOR TESTING 
+%left operator
+%left '&' '|'
+%left '+' '-'
+%left '*' '/' '%'
+%left '^'
+*/
+
 
 /*
  * Tokens for functions
-*/
-%token FUNCIDENTIFIER	
+ */
+//%token FUNCIDENTIFIER	
 		// Added a token for all functions inbuilt and user defined functions.
 
+/*
+ * Types of non-terminal symbols
+ */
 %type <node> stmt provStmt dmlStmt
-%type <queryBlockModel> selectQuery	deleteQuery updateQuery
+%type <node> selectQuery deleteQuery updateQuery
 		// Its a query block model that defines the structure of query.
-%type <list> selectClause fromClause exprList // select and from clauses are lists
-%type <node> selectItem optionalDistinct whereClause
-%type <node> expression constant attributeRef operatorExpression sqlFunctionCall
+%type <list> selectClause optionlFrom fromClause exprList // select and from clauses are lists
+%type <node> selectItem fromClauseItem optionalDistinct optionalWhere
+%type <node> expression constant attributeRef sqlFunctionCall
+//%type <stringVal> operatorExpression operator arithmaticOperator comparisonOperator sqlOperators
+
+%type <stringVal> optionalAlias
 
 %start stmt
 
@@ -108,6 +112,20 @@ dmlStmt:
 		| deleteQuery
 		| updateQuery
 	;
+	
+	
+/*
+ * Rule to parse delete query
+ */ 
+ deleteQuery: 
+ 		DELETE 		{ $$ = NULL; }
+ 		
+ /*
+  * Rules to parse update query
+  */
+updateQuery:
+		UPDATE		{ $$ = NULL; }
+ 
 /*
  * Rule to parse select query
  * Currently it will parse following type of select query:
@@ -116,7 +134,7 @@ dmlStmt:
 selectQuery: 
 		SELECT optionalDistinct selectClause optionlFrom optionalWhere
 			{
-				$$ = createQueryBlock($2,$3,$4,$5);
+				$$ = (Node *) createQueryBlock($2,$3,$4,$5);
 			}
 	;
 
@@ -147,7 +165,7 @@ selectItem:
  			{ 
  				$$ = createProjectionNode($1, NULL); 
  			}
- 		| expression AS aliasName 			
+ 		| expression AS identifier 			
  			{ 
  				$$ = createProjectionNode($1, $3);
 			}
@@ -168,9 +186,9 @@ exprList:
 expression: 
 		constant
 		| attributeRef 
-		| operatorExpression
+/*		| operatorExpression */
 		| sqlFunctionCall
-		| STARALL		/* this token is for '*' */
+/*		| STARALL				{ return NULL;} //TODO /* this token is for '*' */
 	;
 			
 /*
@@ -192,38 +210,40 @@ attributeRef:
 /*
  * Parse operator expression
  */
-operatorExpression: 
+/* operatorExpression: 
 		expression operator expression 		{ $$ = createOpExpression($1,$2,$3) }
 	;
 
 operator: 
 		arithmaticOperator
-		| logicalOperator
+		| logicalOperator 
 		| comparisonOperator
 		| sqlOperators
 	;
 	
 arithmaticOperator:
-		'+' | '-' | '*' | '/' | '%' | '^' 		{ $$ = $1; }
+		arithmeticop 		{ $$ = $1; }
 	;
 
 logicalOperator:
 		'&&' | '||' | '!'		{ $$ = $1; }
 	;
+
 	
 comparisonOperator:
-		'==' | '<' | '>' | '<=' | '>=' | '!='		{ $$ = $1; }
+		comparisonop		{ $$ = $1; }
 	;
 	
 sqlOperators:
 		AND | OR | NOT | IN | NULL | BETWEEN | LIKE 	{ $$ = $1; }
 	;
+*/
 	
 /*
  * Rule to parse function calls
  */
 sqlFunctionCall: 
-		FUNCIDENTIFIER '(' exprList ')'  		
+		identifier '(' exprList ')'  		
 			{ 
 				$$ = createFunctionCall($1, $3); 
 			}
@@ -245,12 +265,12 @@ fromClause:
 	;
 	
 fromClauseItem:
-		tableName optionalAlias { $$ = crateTableNode($1, $2); }
+		identifier optionalAlias { $$ = createTableNode($1, $2); }
 	;
 	
 optionalAlias: 
-		aliasName				{ $$ = $1; }
-		| AS aliasName			{ $$ = $2; }
+		identifier				{ $$ = $1; }
+		| AS identifier			{ $$ = $2; }
 	;
 		  
 /*
@@ -258,7 +278,7 @@ optionalAlias:
  */
 optionalWhere: 
 		/* empty */ 			{ $$ = NULL; }
-		| WHERE expression			{ $$ = $1; } 
+		| WHERE expression			{ $$ = $2; } 
 	;
 
 %%
