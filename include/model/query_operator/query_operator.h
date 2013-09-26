@@ -13,40 +13,73 @@
 
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/expression/expression.h"
+#include "model/query_block/query_block.h"
+
+typedef struct AttributeDef
+{
+    DataType dataType;
+    AttributeReference attrRef;
+} AttributeDef;
+
+typedef struct Schema
+{
+    char *name;
+    List *attrDefs; // AttributeDef type
+} Schema;
 
 typedef struct QueryOperator
 {
     NodeTag type;
-    List *inputs;
-    List *schema;
-    List *provAttrs;
-} QueryOperator;
+    List *inputs; // children of the operator node, QueryOperator type
+    List *schema; // attributes and their data types of result tables, Schema type
+    List *parents; // direct parents of the operator node, QueryOperator type
+    List *provAttrs; // provenance attributes, AttributeReference type
+} QueryOperator; // common fields that all operators have
+
+typedef struct TableAccessOperator
+{
+    QueryOperator op;
+    char *tableName;
+} TableAccessOperator;
 
 typedef struct SelectionOperator
 {
     QueryOperator op;
-    Node *cond;
+    Node *cond; // condition expression, Operator or FunctionCall type
 } SelectionOperator;
 
 typedef struct ProjectionOperator
 {
     QueryOperator op;
-    Node *cond;
+    List *projExprs; // projection expressions, AttributeReference type
 } ProjectionOperator;
 
 typedef struct JoinOperator
 {
     QueryOperator op;
-    Node *cond;
+    JoinType joinType;
+    Node *cond; // join condition expression, Operator type
 } JoinOperator;
 
 typedef struct AggregationOperator
 {
     QueryOperator op;
-    List *aggs;
-    List *groupBy;
+    List *aggrs; // aggregation expressions, FunctionCall type
+    List *groupBy; // group by expressions, AttributeReference type
 } AggregationOperator;
 
+typedef struct SetOperator
+{
+    QueryOperator op;
+    SetOpType setOpType;
+} SetOperator;
+
+typedef struct DuplicateRemoval
+{
+    QueryOperator op;
+    List *attrs; // attributes that need duplicate removal, AttributeReference type
+} DuplicateRemoval;
 
 typedef enum ProvenanceType
 {
@@ -61,6 +94,15 @@ typedef struct ProvenanceComputation
 } ProvenanceComputation;
 
 /* create functions */
+extern Schema *createSchema(char *name, List *attrDefs);
+extern TableAccessOperator *createTableAccessOp (char *tableName, Schema *schema, List *parents, List *attrNames);
+extern SelectionOperator *createSelectionOp (Node *cond, QueryOperator *input, List *parents, List *attrNames);
+extern ProjectionOperator *createProjectionOp (List *projExprs, QueryOperator *input, Schema *schema, List *parents, List *attrNames);
+extern JoinOperator *createJoinOp (JoinType joinType, Node *cond, List *inputs, List *parents, List *attrNames);
+extern AggregationOperator *createAggregationOp (List *aggrs, List *groupBy, QueryOperator *input, List *schema, List *parents, List *attrNames);
+extern SetOperator *createSetOperator (SetOpType setOpType, List *inputs, List *parents, List *attrNames);
+extern DuplicateRemoval *createDuplicateRemovalOp (List *attrs, QueryOperator *input, List *parents, List *attrNames);
+extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, List *parents, List *attrNames);
 
 /* navigation functions */
 #define OP_LCHILD(op) \
