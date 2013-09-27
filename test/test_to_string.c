@@ -42,7 +42,7 @@ testStringInfo(void)
     for(int i = 0; i < 256; i++)
         appendStringInfoChar(str, 'b');
     ASSERT_EQUALS_INT(6 + 256, str->len, "length is 6 + 256");
-    for(int i = 6; i < 256 + 6; i++)
+    for(int i = 255; i < 256 + 6; i++)
        ASSERT_EQUALS_INT('b', str->data[i], "chars are all b");
 
     resetStringInfo(str);
@@ -67,7 +67,7 @@ testQueryBlockToString(void)
     q->whereClause = NULL;
 
     toString = nodeToString(q);
-    ASSERT_EQUALS_STRING("{QUERYBLOCK:distinct <>:selectClause <>:fromClause <>:whereClause <>:havingClause <>}", toString, "");
+    ASSERT_EQUALS_STRING("{QUERYBLOCK:distinct|<>:selectClause|<>:fromClause|<>:whereClause|<>:havingClause|<>}", toString, "");
 
     return PASS;
 }

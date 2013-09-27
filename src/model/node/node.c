@@ -127,9 +127,6 @@ appendStringInfo(StringInfo str, const char *format, ...)
 static void
 makeStringInfoSpace(StringInfo str, int neededSize)
 {
-    TRACE_LOG("current length is <%u> need <%u/%u> more", str->len, neededSize,
-            str->maxlen);
-
     while(str->len + neededSize >= str->maxlen)
     {
         char *newData;
