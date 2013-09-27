@@ -15,6 +15,7 @@
 /* includes */
 %{
 #include <stdio.h>
+#include "common.h"
 #include "log/logger.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
