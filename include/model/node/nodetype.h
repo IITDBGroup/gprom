@@ -125,6 +125,9 @@ extern char *beatify(char *input);
 extern void *stringToNode(char *str);
 
 /*copyfun.c*/
+//#define COPY_OBJECT_TO_CONTEXT(obj, result, context) \
+//
+//    (AQUIRE_MEM_CONTEXT(context,))
 extern void *copyObject(void *obj);
 
 /*equalfun.c*/

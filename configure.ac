@@ -23,6 +23,7 @@ AC_CONFIG_FILES([
 	src/model/list/Makefile
 	src/model/node/Makefile
 	src/model/query_block/Makefile
+	src/model/query_operator/Makefile
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile
 	src/provenance_rewriter/pi_cs_rewrites/Makefile
