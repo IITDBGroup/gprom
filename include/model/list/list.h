@@ -38,13 +38,13 @@ typedef struct List
 #define DUMMY_INT_FOR_COND(_name_) _name_##_stupid_int_
 #define DUMMY_LC(_name_) _name_##_his_cell
 #define INJECT_VAR(type,name) \
-	for(int DUMMY_INT_FOR_COND(name) = 0; DUMMY_INT_FOR_COND(name) == 0; DUMMY_INT_FOR_COND(name)++) \
-		for(type name = NULL; DUMMY_INT_FOR_COND(name) == 0;) \
+	for(int DUMMY_INT_FOR_COND(name) = 0; DUMMY_INT_FOR_COND(name) == 0;) \
+		for(type name = NULL; DUMMY_INT_FOR_COND(name) == 0; DUMMY_INT_FOR_COND(name)++) \
 
 #define FOREACH(_type_,_node_,_list_) \
     INJECT_VAR(ListCell*,DUMMY_LC(_node_)) \
     for(_type_ *_node_ = (_type_ *)(((DUMMY_LC(_node_) = \
-            (_list_)->head) != NULL) ? \
+    		getHeadOfList(_list_)) != NULL) ? \
                     DUMMY_LC(_node_)->data.ptr_value : NULL); \
             DUMMY_LC(_node_) != NULL; \
            _node_ = (_type_ *)(((DUMMY_LC(_node_) = \
@@ -57,7 +57,7 @@ typedef struct List
  */
 #define FOREACH_INT(_ival_,_list_) \
     INJECT_VAR(ListCell*,DUMMY_LC(_ival_)) \
-	for(int _ival_ = (((DUMMY_LC(_ival_) = (_list_)->head) != NULL)  ? \
+	for(int _ival_ = (((DUMMY_LC(_ival_) = getHeadOfList(_list_)) != NULL)  ? \
                         DUMMY_LC(_ival_)->data.int_value : -1); \
                 DUMMY_LC(_ival_) != NULL; \
                 _ival_ = (((DUMMY_LC(_ival_) = DUMMY_LC(_ival_)->next) != NULL) ? \
@@ -67,7 +67,7 @@ typedef struct List
  * Loop through the cells of two lists simultaneously
  */
 #define FORBOTH_LC(lc1,lc2,l1,l2) \
-    for(ListCell *lc1 = l1->head, *lc2 = l2->head; lc1 != NULL && lc2 != NULL; \
+    for(ListCell *lc1 = getHeadOfList(l1), *lc2 = getHeadOfList(l2); lc1 != NULL && lc2 != NULL; \
             lc1 = lc1->next, lc2 = lc2->next)
 
 /*
@@ -77,10 +77,10 @@ typedef struct List
 	INJECT_VAR(ListCell*,DUMMY_LC(_node1_)) \
 	INJECT_VAR(ListCell*,DUMMY_LC(_node2_)) \
     for(_type_ *_node1_ = (_type_ *)(((DUMMY_LC(_node1_) = \
-            (_list1_)->head) != NULL) ? \
+    		getHeadOfList(_list1_)) != NULL) ? \
                     DUMMY_LC(_node1_)->data.ptr_value : NULL), \
         *_node2_ = (_type_ *)(((DUMMY_LC(_node2_) = \
-            (_list1_)->head) != NULL) ? \
+        	getHeadOfList(_list1_)) != NULL) ? \
             		DUMMY_LC(_node2_)->data.ptr_value : NULL) \
         ; \
             DUMMY_LC(_node1_) != NULL && DUMMY_LC(_node2_) != NULL; \

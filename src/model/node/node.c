@@ -13,6 +13,7 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 
@@ -70,6 +71,16 @@ resetStringInfo(StringInfo str)
     str->len = 0;
 }
 
+void
+appendStringInfoChar(StringInfo str, const char c)
+{
+    makeStringInfoSpace(str, 1);
+
+    str->data[str->len] = c;
+    str->len++;
+    str->data[str->len] = '\0';
+}
+
 /*------------------------------------------------------------------
 *appendStringInfoString
 *The function is append a string to str.
@@ -99,7 +110,10 @@ appendStringInfo(StringInfo str, const char *format, ...)
         va_end(args);
 
         if (needed >= 0 && needed < have - 1)
+        {
+            str->len += needed;
             break;
+        }
 
         makeStringInfoSpace(str, needed);
     }
@@ -113,6 +127,9 @@ appendStringInfo(StringInfo str, const char *format, ...)
 static void
 makeStringInfoSpace(StringInfo str, int neededSize)
 {
+    TRACE_LOG("current length is <%u> need <%u/%u> more", str->len, neededSize,
+            str->maxlen);
+
     while(str->len + neededSize >= str->maxlen)
     {
         char *newData;
@@ -122,5 +139,10 @@ makeStringInfoSpace(StringInfo str, int neededSize)
         memcpy(newData, str->data, str->len + 1);
         FREE(str->data);
         str->data = newData;
+
+        TRACE_LOG("increased maxlen to <%u> total requirement was <%u>",
+                str->maxlen, str->len + neededSize);
+        if (str->maxlen > 512)
+            exit(1);
     }
 }

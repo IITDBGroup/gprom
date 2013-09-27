@@ -71,7 +71,9 @@
 #include "model/query_block/query_block.h"
 #include "parser/parse_internal.h"
 
-#line 75 "sql_parser.tab.c" /* yacc.c:339  */
+Node *bisonParseResult = NULL;
+
+#line 77 "sql_parser.tab.c" /* yacc.c:339  */
 
 # ifndef YY_NULL
 #  if defined __cplusplus && 201103L <= __cplusplus
@@ -144,7 +146,7 @@ extern int yydebug;
 typedef union YYSTYPE YYSTYPE;
 union YYSTYPE
 {
-#line 15 "sql_parser.y" /* yacc.c:355  */
+#line 17 "sql_parser.y" /* yacc.c:355  */
 
 	/* 
 	 * Declare some C structure those will be used as data type
@@ -156,7 +158,7 @@ union YYSTYPE
 	 int intVal;
 	 double floatVal;
 
-#line 160 "sql_parser.tab.c" /* yacc.c:355  */
+#line 162 "sql_parser.tab.c" /* yacc.c:355  */
 };
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1
@@ -171,7 +173,7 @@ int yyparse (void);
 
 /* Copy the second part of user declarations.  */
 
-#line 175 "sql_parser.tab.c" /* yacc.c:358  */
+#line 177 "sql_parser.tab.c" /* yacc.c:358  */
 
 #ifdef short
 # undef short
@@ -452,10 +454,10 @@ static const yytype_uint8 yytranslate[] =
   /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,    95,    95,    96,   103,   110,   111,   112,   120,   126,
-     134,   152,   153,   154,   162,   163,   170,   174,   184,   185,
-     193,   194,   196,   204,   205,   206,   213,   252,   264,   265,
-     269,   270,   274,   278,   279,   280,   287,   288
+       0,    97,    97,    98,   105,   112,   113,   114,   122,   128,
+     136,   154,   155,   156,   164,   165,   172,   176,   186,   187,
+     195,   196,   198,   206,   207,   208,   215,   254,   266,   267,
+     271,   272,   276,   280,   281,   282,   289,   290
 };
 #endif
 
@@ -1262,26 +1264,38 @@ yyreduce:
   YY_REDUCE_PRINT (yyn);
   switch (yyn)
     {
-        case 4:
-#line 103 "sql_parser.y" /* yacc.c:1646  */
+        case 2:
+#line 97 "sql_parser.y" /* yacc.c:1646  */
+    { (yyval.node) = (yyvsp[-1].node); bisonParseResult = (Node *) (yyval.node); }
+#line 1271 "sql_parser.tab.c" /* yacc.c:1646  */
+    break;
+
+  case 3:
+#line 98 "sql_parser.y" /* yacc.c:1646  */
+    { (yyval.node) = (yyvsp[-1].node); bisonParseResult = (Node *) (yyval.node); }
+#line 1277 "sql_parser.tab.c" /* yacc.c:1646  */
+    break;
+
+  case 4:
+#line 105 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.node) = (Node *) createProvenanceStmt((yyvsp[-1].node)); }
-#line 1269 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1283 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 8:
-#line 120 "sql_parser.y" /* yacc.c:1646  */
+#line 122 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.node) = NULL; }
-#line 1275 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1289 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 9:
-#line 126 "sql_parser.y" /* yacc.c:1646  */
+#line 128 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.node) = NULL; }
-#line 1281 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1295 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 10:
-#line 135 "sql_parser.y" /* yacc.c:1646  */
+#line 137 "sql_parser.y" /* yacc.c:1646  */
     {
 				QueryBlock *q =  createQueryBlock();
 				
@@ -1292,163 +1306,163 @@ yyreduce:
 				
 				(yyval.node) = (Node *) q; 
 			}
-#line 1296 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1310 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 11:
-#line 152 "sql_parser.y" /* yacc.c:1646  */
+#line 154 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.node) = NULL; }
-#line 1302 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1316 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 12:
-#line 153 "sql_parser.y" /* yacc.c:1646  */
+#line 155 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.node) = (Node *) createDistinctClause(NULL); }
-#line 1308 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1322 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 13:
-#line 154 "sql_parser.y" /* yacc.c:1646  */
+#line 156 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.node) = (Node *) createDistinctClause((yyvsp[-1].list)); }
-#line 1314 "sql_parser.tab.c" /* yacc.c:1646  */
-    break;
-
-  case 14:
-#line 162 "sql_parser.y" /* yacc.c:1646  */
-    { (yyval.list) = singleton((yyvsp[0].node)); }
-#line 1320 "sql_parser.tab.c" /* yacc.c:1646  */
-    break;
-
-  case 15:
-#line 164 "sql_parser.y" /* yacc.c:1646  */
-    { 
-				(yyval.list) = appendToTailOfList((yyvsp[-2].list), (yyvsp[0].node)); 
-			}
 #line 1328 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
+  case 14:
+#line 164 "sql_parser.y" /* yacc.c:1646  */
+    { (yyval.list) = singleton((yyvsp[0].node)); }
+#line 1334 "sql_parser.tab.c" /* yacc.c:1646  */
+    break;
+
+  case 15:
+#line 166 "sql_parser.y" /* yacc.c:1646  */
+    { 
+				(yyval.list) = appendToTailOfList((yyvsp[-2].list), (yyvsp[0].node)); 
+			}
+#line 1342 "sql_parser.tab.c" /* yacc.c:1646  */
+    break;
+
   case 16:
-#line 171 "sql_parser.y" /* yacc.c:1646  */
+#line 173 "sql_parser.y" /* yacc.c:1646  */
     { 
  				(yyval.node) = (Node *) createSelectItem(NULL, (yyvsp[0].node)); 
  			}
-#line 1336 "sql_parser.tab.c" /* yacc.c:1646  */
-    break;
-
-  case 17:
-#line 175 "sql_parser.y" /* yacc.c:1646  */
-    { 
- 				(yyval.node) = (Node *) createSelectItem((yyvsp[0].stringVal), (yyvsp[-2].node));
-			}
-#line 1344 "sql_parser.tab.c" /* yacc.c:1646  */
-    break;
-
-  case 18:
-#line 184 "sql_parser.y" /* yacc.c:1646  */
-    { (yyval.list) = singleton((yyvsp[0].node)); }
 #line 1350 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
+  case 17:
+#line 177 "sql_parser.y" /* yacc.c:1646  */
+    { 
+ 				(yyval.node) = (Node *) createSelectItem((yyvsp[0].stringVal), (yyvsp[-2].node));
+			}
+#line 1358 "sql_parser.tab.c" /* yacc.c:1646  */
+    break;
+
+  case 18:
+#line 186 "sql_parser.y" /* yacc.c:1646  */
+    { (yyval.list) = singleton((yyvsp[0].node)); }
+#line 1364 "sql_parser.tab.c" /* yacc.c:1646  */
+    break;
+
   case 19:
-#line 185 "sql_parser.y" /* yacc.c:1646  */
+#line 187 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.list) = appendToTailOfList((yyvsp[-2].list), (yyvsp[0].node)); }
-#line 1356 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1370 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 23:
-#line 204 "sql_parser.y" /* yacc.c:1646  */
+#line 206 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.node) = (Node *) createConstInt((yyvsp[0].intVal)); }
-#line 1362 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1376 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 24:
-#line 205 "sql_parser.y" /* yacc.c:1646  */
+#line 207 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.node) = (Node *) createConstFloat((yyvsp[0].floatVal)); }
-#line 1368 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1382 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 25:
-#line 206 "sql_parser.y" /* yacc.c:1646  */
+#line 208 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.node) = (Node *) createConstString((yyvsp[0].stringVal)); }
-#line 1374 "sql_parser.tab.c" /* yacc.c:1646  */
-    break;
-
-  case 26:
-#line 213 "sql_parser.y" /* yacc.c:1646  */
-    { (yyval.node) = (Node *) createAttributeReference((yyvsp[0].stringVal)); }
-#line 1380 "sql_parser.tab.c" /* yacc.c:1646  */
-    break;
-
-  case 27:
-#line 253 "sql_parser.y" /* yacc.c:1646  */
-    { 
-				(yyval.node) = (Node *) createFunctionCall((yyvsp[-3].stringVal), (yyvsp[-1].list)); 
-			}
 #line 1388 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
-  case 28:
-#line 264 "sql_parser.y" /* yacc.c:1646  */
-    { (yyval.list) = NULL; }
+  case 26:
+#line 215 "sql_parser.y" /* yacc.c:1646  */
+    { (yyval.node) = (Node *) createAttributeReference((yyvsp[0].stringVal)); }
 #line 1394 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
+  case 27:
+#line 255 "sql_parser.y" /* yacc.c:1646  */
+    { 
+				(yyval.node) = (Node *) createFunctionCall((yyvsp[-3].stringVal), (yyvsp[-1].list)); 
+			}
+#line 1402 "sql_parser.tab.c" /* yacc.c:1646  */
+    break;
+
+  case 28:
+#line 266 "sql_parser.y" /* yacc.c:1646  */
+    { (yyval.list) = NULL; }
+#line 1408 "sql_parser.tab.c" /* yacc.c:1646  */
+    break;
+
   case 29:
-#line 265 "sql_parser.y" /* yacc.c:1646  */
+#line 267 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.list) = (yyvsp[0].list); }
-#line 1400 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1414 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 30:
-#line 269 "sql_parser.y" /* yacc.c:1646  */
+#line 271 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.list) = singleton((yyvsp[0].node)); }
-#line 1406 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1420 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 31:
-#line 270 "sql_parser.y" /* yacc.c:1646  */
+#line 272 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.list) = appendToTailOfList((yyvsp[-2].list), (yyvsp[0].node)); }
-#line 1412 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1426 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 32:
-#line 274 "sql_parser.y" /* yacc.c:1646  */
+#line 276 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.node) = (Node *) createFromTableRef((yyvsp[0].stringVal), NIL, (yyvsp[-1].stringVal)); }
-#line 1418 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1432 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 33:
-#line 278 "sql_parser.y" /* yacc.c:1646  */
+#line 280 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.stringVal) = NULL; }
-#line 1424 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1438 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 34:
-#line 279 "sql_parser.y" /* yacc.c:1646  */
+#line 281 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.stringVal) = (yyvsp[0].stringVal); }
-#line 1430 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1444 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 35:
-#line 280 "sql_parser.y" /* yacc.c:1646  */
+#line 282 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.stringVal) = (yyvsp[0].stringVal); }
-#line 1436 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1450 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 36:
-#line 287 "sql_parser.y" /* yacc.c:1646  */
+#line 289 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.node) = NULL; }
-#line 1442 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1456 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 37:
-#line 288 "sql_parser.y" /* yacc.c:1646  */
+#line 290 "sql_parser.y" /* yacc.c:1646  */
     { (yyval.node) = (yyvsp[0].node); }
-#line 1448 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1462 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
 
 
-#line 1452 "sql_parser.tab.c" /* yacc.c:1646  */
+#line 1466 "sql_parser.tab.c" /* yacc.c:1646  */
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -1676,4 +1690,4 @@ yyreturn:
 #endif
   return yyresult;
 }
-#line 291 "sql_parser.y" /* yacc.c:1906  */
+#line 293 "sql_parser.y" /* yacc.c:1906  */

@@ -96,10 +96,13 @@ extern void checkResult(rc r, char *msg, const char *file, const char *func,
 extern char *getIndent(int depth);
 
 /* individual tests */
+extern rc testList(void);
 extern rc testExpr(void);
 extern rc testCopy(void);
 extern rc testEqual(void);
+extern rc testToString(void);
 extern rc testLogger(void);
 extern rc testMemManager(void);
+extern rc testParse(void);
 
 #endif

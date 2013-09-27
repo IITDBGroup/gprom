@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------
  *
- * parser.c
+ * test_parse.c
  *			  
  *		
  *		AUTHOR: lord_pretzel
@@ -10,18 +10,22 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "test_main.h"
 #include "parser/parser.h"
-#include "sql_parser.tab.h"
 
-List *
-parserStmts (char *input)
+static rc testParseSimpleSQL(void);
+
+rc
+testParse(void)
 {
-    return NIL;
+    RUN_TEST(testParseSimpleSQL(), "Test simple SQL queries");
+
+    return PASS;
 }
 
-Node *
-parseSingleQuery (char *input)
+
+static rc
+testParseSimpleSQL(void)
 {
-    yyparse();
-    return NULL;
+    return PASS;
 }

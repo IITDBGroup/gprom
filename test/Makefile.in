@@ -97,7 +97,8 @@ am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
 am_testmain_OBJECTS = test_main.$(OBJEXT) test_copy.$(OBJEXT) \
 	test_equal.$(OBJEXT) test_expr.$(OBJEXT) test_logger.$(OBJEXT) \
-	test_mem_mgr.$(OBJEXT)
+	test_mem_mgr.$(OBJEXT) test_to_string.$(OBJEXT) \
+	test_parse.$(OBJEXT) test_list.$(OBJEXT)
 testmain_OBJECTS = $(am_testmain_OBJECTS)
 testmain_DEPENDENCIES = ../src/libsrc.la
 AM_V_lt = $(am__v_lt_@AM_V@)
@@ -289,7 +290,10 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include -I.
-testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c test_logger.c test_mem_mgr.c test_main.h
+testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
+					test_logger.c test_mem_mgr.c test_to_string.c \
+					test_parse.c test_list.c test_main.h
+
 testmain_LDADD = ../src/libsrc.la
 testparser_SOURCES = test_parser.c
 testparser_LDADD = ../src/libsrc.la
@@ -394,10 +398,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_copy.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_equal.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_expr.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_list.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_logger.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_main.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_mem_mgr.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_parse.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_parser.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_to_string.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

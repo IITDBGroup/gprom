@@ -10,6 +10,8 @@
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "parser/parse_internal.h"
+
+Node *bisonParseResult = NULL;
 %}
 
 %union {
@@ -92,8 +94,8 @@
 
 /* Rule for all types of statements */
 stmt: 
-		provStmt ';'
-    	| dmlStmt ';'		// DML statement can be select, update, insert, delete
+		provStmt ';'	{ $$ = $1; bisonParseResult = (Node *) $$; }
+    	| dmlStmt ';'	{ $$ = $1; bisonParseResult = (Node *) $$; }	// DML statement can be select, update, insert, delete
     ;
 
 /* 
@@ -285,7 +287,7 @@ optionalAlias:
  */
 optionalWhere: 
 		/* empty */ 			{ $$ = NULL; }
-		| WHERE expression			{ $$ = $2; } 
+		| WHERE expression		{ $$ = $2; } 
 	;
 
 %%

@@ -13,10 +13,13 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
+#include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
 
 /* functions to output specific node types */
 static void outList(StringInfo str, List *node);
 static void outNode(StringInfo, void *node);
+static void outQueryBlock (StringInfo str, QueryBlock *node);
 
 /*define macros*/
 /*label for the node type*/
@@ -24,8 +27,9 @@ static void outNode(StringInfo, void *node);
 		((a) ? "true" : "false")
 
 #define WRITE_NODE_TYPE(nodelabel)  \
-		appendStringInfoString(str, nodelabel)
+		appendStringInfoString(str,  CppAsString(nodelabel));
 
+#define CppAsString(token) #token
 
 /*int field*/
 #define WRITE_INT_FIELD(fldname)  \
@@ -53,9 +57,7 @@ static void outNode(StringInfo, void *node);
 
 /*node field*/
 #define WRITE_NODE_FIELD(fldname)  \
-		appendStringInfo((str, ":" CppAsString(fldname) " "), outNode(str, node->fldname))
-
-
+		appendStringInfoString(str, ":" CppAsString(fldname) " "); outNode(str, node->fldname);
 
 /*outNode from node append it to string*/
 static void
@@ -82,6 +84,18 @@ outList(StringInfo str, List *node)
         }
     }
     appendStringInfo(str, ")");
+}
+
+static void
+outQueryBlock (StringInfo str, QueryBlock *node)
+{
+    WRITE_NODE_TYPE(QUERYBLOCK);
+
+    WRITE_NODE_FIELD(distinct);
+    WRITE_NODE_FIELD(selectClause);
+    WRITE_NODE_FIELD(fromClause);
+    WRITE_NODE_FIELD(whereClause);
+    WRITE_NODE_FIELD(havingClause);
 }
 
 //typedef struct Value
@@ -116,7 +130,7 @@ outList(StringInfo str, List *node)
 void outNode(StringInfo str, void *obj)
 {
     if(obj == NULL)
-        appendStringInfo(str, "<>");
+        appendStringInfoString(str, "<>");
     else if(isA(obj, List) || isA(obj, IntList))
         outList(str, obj);
     else
@@ -124,7 +138,13 @@ void outNode(StringInfo str, void *obj)
         appendStringInfoString(str, "{");
         switch (nodeTag(obj))
         {
-
+            case T_List:
+            case T_IntList:
+                outList(str, (List *) obj);
+                break;
+            case T_QueryBlock:
+                outQueryBlock(str, (QueryBlock *) obj);
+                break;
             //different case
             //query operator model nodes
             //T_QueryOperator,
@@ -146,8 +166,8 @@ void outNode(StringInfo str, void *obj)
 
 char *nodeToString(void *obj)
 {
-    StringInfoData str;
-    initStringInfo(&str);
-    outNode(&str, obj);
-    return str.data;
+    StringInfo str;
+    str = makeStringInfo();
+    outNode(str, obj);
+    return str->data;
 }

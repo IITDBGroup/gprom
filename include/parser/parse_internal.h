@@ -23,8 +23,12 @@
 //    Node *why;
 //} ScanContext;
 
+/* for storing results */
+extern Node *bisonParseResult;
+
 /* interface to the lexer */
 extern int yylineno; /* from lexer */
+int yylex(void);
 void yyerror(char *s);
 
 

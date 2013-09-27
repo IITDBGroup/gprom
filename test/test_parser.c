@@ -19,6 +19,7 @@
 #include "configuration/option.h"
 #include "configuration/option_parser.h"
 #include "model/list/list.h"
+#include "model/node/nodetype.h"
 #include "parser/parse_internal.h"
 #include "../src/parser/sql_parser.tab.h"
 
@@ -26,13 +27,22 @@
 int
 main (int argc, char* argv[])
 {
+    Node *result;
+
     initMemManager();
     mallocOptions();
     parseOption(argc, argv);
 
     initLogger();
-    yyparse();
 
+    if (yyparse())
+        FATAL_LOG("PARSE ERROR!");
+    else
+    {
+        ERROR_LOG("ADDRESS OF PARSE RESULT: %p", bisonParseResult);
+        ERROR_LOG("%u", isA(bisonParseResult, QueryBlock));
+        ERROR_LOG("PARSE RESULT TO AS STRING <%s>", nodeToString(bisonParseResult));
+    }
     freeOptions();
     destroyMemManager();
 
