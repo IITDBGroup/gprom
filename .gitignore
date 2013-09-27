@@ -1,0 +1,14 @@
+*.o
+*.lo
+*.la
+.deps
+.libs
+Makefile
+test/testmain
+src/command_line/CommandLine
+autom4te.cache
+config.h
+stamp-h1
+config.log
+config.status
+*~

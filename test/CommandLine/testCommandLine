@@ -1,0 +1,3 @@
+./CommandLine -help
+./CommandLine -host localhost -db xe -port 1521 -user zephyr -passwd zephyr -log -loglevel 2 -debugmemory -activate a b c
+./CommandLine -hs
