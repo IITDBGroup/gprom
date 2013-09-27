@@ -9,6 +9,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "common.h"
 #include "configuration/option.h"
 
 Options* options;
@@ -18,6 +19,7 @@ mallocOptions()
 {
 	options=MAKE_OPTIONS();
 	options->optionConnection=MAKE_OPTION_CONNECTION();
+	memset(options->optionConnection, 0, sizeof(OptionConnection));
 	options->optionDebug=MAKE_OPTION_DEBUG();
 	options->optionRewrite=MAKE_OPTION_REWRITE();
 }
@@ -29,6 +31,7 @@ freeOptions()
 	free(options->optionConnection->db);
 	free(options->optionConnection->user);
 	free(options->optionConnection->passwd);
+	free(options->optionConnection->sql);
 	free(options->optionConnection);
 	free(options->optionDebug);
 	int i,size=options->optionRewrite->size;

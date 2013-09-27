@@ -10,6 +10,7 @@ typedef struct OptionConnection{
 	int port;
 	char* user;
 	char* passwd;
+	char *sql;
 } OptionConnection;
 
 typedef struct OptionDebug{

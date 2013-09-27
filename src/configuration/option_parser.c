@@ -105,6 +105,14 @@ parseOption(int const argc, char* const argv[])
 				}
 				i+=size;
 			}
+			else if (strcmp(value, "-sql") == 0)
+			{
+			    if(i+1>=argc)
+                    return -1;
+                options->optionConnection->sql=(char*)malloc(sizeof(argv[i+1]));
+                strcpy(options->optionConnection->sql,argv[i+1]);
+                i++;
+			}
 			else
 				return -1;
 		}

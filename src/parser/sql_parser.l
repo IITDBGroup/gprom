@@ -136,3 +136,8 @@ void yyerror(char *s)
 {
 	ERROR_LOG("%s at %s\n", s, yytext);
 }
+
+void setupStringInput(char *input)
+{
+	yy_scan_string(input);
+}

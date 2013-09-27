@@ -11,25 +11,38 @@
  */
 
 #include "parser/parser.h"
-#include "parser/parse_internal.h"
 #include "sql_parser.tab.h"
+#include "parser/parse_internal.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 
-List *
-parseStmts (char *input)
+static Node *parseInternal (void);
+
+Node *
+parseStream (FILE *stream)
 {
-    return NIL;
+    yyin = stream;
+
+    return parseInternal();
 }
 
 Node *
-parseSingleQuery (char *input)
+parseFromString (char *input)
 {
-    MemContext *parseContext = NEW_MEM_CONTEXT("PARSER_CONTEXT");
-    Node *result;
-    AQUIRE_MEM_CONTEXT(parseContext);
+    setupStringInput(input);
+
+    return parseInternal();
+}
+
+static Node *
+parseInternal (void) //TODO make copyObject work first
+{
+//    MemContext *parseContext = NEW_MEM_CONTEXT("PARSER_CONTEXT");
+//    Node *result;
+//    AQUIRE_MEM_CONTEXT(parseContext);
 
     // parse
+
     int rc = yyparse();
     if (rc)
     {
@@ -37,11 +50,12 @@ parseSingleQuery (char *input)
         return NULL;
     }
 
-    // create copy of parse result in parent context
-    RELEASE_MEM_CONTEXT();
-    result = copyObject(bisonParseResult);
-
-    // clean up
-    FREE_MEM_CONTEXT(parseContext);
-    return result;
+    return bisonParseResult;
+//    // create copy of parse result in parent context
+//    RELEASE_MEM_CONTEXT();
+//    result = copyObject(bisonParseResult);
+//
+//    // clean up
+//    FREE_MEM_CONTEXT(parseContext);
+//    return result;
 }

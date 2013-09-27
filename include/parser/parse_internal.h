@@ -30,6 +30,11 @@ extern Node *bisonParseResult;
 extern int yylineno; /* from lexer */
 int yylex(void);
 void yyerror(char *s);
+extern FILE *yyin;
+extern void setupStringInput(char *input);
+//extern yy_buffer_state;
+//typedef struct yy_buffer_state YY_BUFFER_STATE;
+//extern YY_BUFFER_STATE yy_scan_buffer(char *, size_t);
 
 
 #endif /* PARSE_INTERNAL_H_ */
