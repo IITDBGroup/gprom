@@ -12,8 +12,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "mem_manager/mem_mgr.h"
 #include <string.h>
+
+#include "mem_manager/mem_mgr.h"
 #include "test_main.h"
 #include "configuration/option.h"
 #include "configuration/option_parser.h"

@@ -20,6 +20,9 @@ typedef enum NodeTag {
     T_Operator,
 
     /* query block model nodes */
+    T_SetOp,
+    T_SetQuery,
+    T_ProvenanceStmt,
     T_QueryBlock,
     T_SelectItem,
     T_FromItem,

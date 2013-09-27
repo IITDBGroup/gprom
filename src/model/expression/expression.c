@@ -51,6 +51,43 @@ createFunctionCall(char *fName, List *args)
     return result; 
 }
 
+Constant *
+createConstInt (int value)
+{
+    Constant *result = makeNode(Constant);
+    int *v = NEW(int);
 
+    *v = value;
+    result->constType = DT_INT;
+    result->value = v;
+
+    return result;
+}
+
+Constant *
+createConstString (char *value)
+{
+    Constant *result = makeNode(Constant);
+    char *v = MALLOC(strlen(value) + 1);
+
+    v = strcpy(v,value);
+    result->constType = DT_FLOAT;
+    result->value = v;
+
+    return result;
+}
+
+Constant *
+createConstFloat (float value)
+{
+    Constant *result = makeNode(Constant);
+    double *v = NEW(double);
+
+    *v = value;
+    result->constType = DT_FLOAT;
+    result->value = v;
+
+    return result;
+}
 
 

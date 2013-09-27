@@ -15,14 +15,16 @@
 /* includes */
 %{
 #include <stdio.h>
+#include "log/logger.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "parser/parse_internal.h"
 #include "sql_parser.tab.h"
 
-#define TOK(name) { yylval.stringVal = yytext; return name; }
-#define TOKSAVE(name,field,function) { yylval.field = function(yytext); return name; }
+#define TOKSELF() { TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", yytext[0], yytext[0]); return yytext[0]; }
+#define TOK(name) { TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, yytext); yylval.stringVal = yytext; return name; }
+#define TOKSAVE(name,field,function) { TRACE_LOG("Lexed TOKEN <%s> of TYPE <%s>", #name, #field); yylval.field = function(yytext); return name; }
 %}
 
 /********************************************************************
@@ -52,7 +54,7 @@ float 			(({integer}|{decimal})([eE][+-]?{integer})?)
 /* names (e.g., tables, attributes) */
 identStart		[A-Za-z]
 identContinue	[A-Za-z0-9_]
-identifiers		({identStart}{identContinue}+)
+identifiers		({identStart}{identContinue}*)
 
 /* operators */
 comparisonops	("="|"<>"|"!="|"<"|">"|"<="|">=")
@@ -63,52 +65,50 @@ arithmeticops	("+"|"-"|"/"|"*"|"%"|"&"|"|"|"^")
  ******************************************************************************/
 %%
 
-EXEC[ \t]+SQL	{ BEGIN SQL; }
-
 	/* ignore all whitespace */
-{whitespace}	 { /* ignore it */ }
+{whitespace}	 { TRACE_LOG("Lexed whitespace <%s>", yytext); /* ignore it */ }
 
 	/* literal keyword tokens */
-<SQL>SELECT      TOK(SELECT)
-<SQL>PROVENANCE  TOK(PROVENANCE)
-<SQL>OF          TOK(OF)
-<SQL>FROM        TOK(FROM)
-<SQL>AS          TOK(AS)
-<SQL>WHERE       TOK(WHERE)
-<SQL>DISTINCT    TOK(DISTINCT)
-<SQL>ON          TOK(ON)
-<SQL>STARLL      TOK(STARALL)
-<SQL>ALL		 TOK(ALL)
-<SQL>AND		 TOK(AND)
-<SQL>AVG		 TOK(AMMSC)
-<SQL>MIN		 TOK(AMMSC)
-<SQL>MAX		 TOK(AMMSC)
-<SQL>SUM		 TOK(AMMSC)
-<SQL>COUNT		 TOK(AMMSC)
-<SQL>ANY		 TOK(ANY)
-<SQL>BETWEEN	 TOK(BETWEEN)
-<SQL>BY			 TOK(BY)
-<SQL>UPDATE		 TOK(UPDATE)
-<SQL>DELETE	     TOK(DELETE)
-<SQL>IS		     TOK(IS)
-<SQL>NULL	     TOK(NULLVAL)
+SELECT      TOK(SELECT)
+PROVENANCE  TOK(PROVENANCE)
+OF          TOK(OF)
+FROM        TOK(FROM)
+AS          TOK(AS)
+WHERE       TOK(WHERE)
+DISTINCT    TOK(DISTINCT)
+ON          TOK(ON)
+STARLL      TOK(STARALL)
+ALL		 TOK(ALL)
+AND		 TOK(AND)
+AVG		 TOK(AMMSC)
+MIN		 TOK(AMMSC)
+MAX		 TOK(AMMSC)
+SUM		 TOK(AMMSC)
+COUNT		 TOK(AMMSC)
+ANY		 TOK(ANY)
+BETWEEN	 TOK(BETWEEN)
+BY			 TOK(BY)
+UPDATE		 TOK(UPDATE)
+DELETE	     TOK(DELETE)
+IS		     TOK(IS)
+NULL	     TOK(NULLVAL)
 
 	/* punctuation */
-<SQL>[(),.;] TOK(yytext[0])
+[(),.;] TOKSELF()
 
 	/* operators */
-<SQL>{comparisonops}		TOK(comparisonop)
-<SQL>{arithmeticops}		TOK(arithmeticop)
+{comparisonops}		TOK(comparisonop)
+{arithmeticops}		TOK(arithmeticop)
 	
 	/* names */
-<SQL>{identifiers}	TOK(identifier)
+{identifiers}	TOK(identifier)
 
 	/* numbers */
-<SQL>{integer}	TOKSAVE(intConst,intVal,atoi)
-<SQL>{float}	TOKSAVE(floatConst,floatVal,atof)
+{integer}	TOKSAVE(intConst,intVal,atoi)
+{float}	TOKSAVE(floatConst,floatVal,atof)
 
 	/* strings */
-<SQL>'[^'\n]*'	{
+'[^'\n]*'	{
 		int c = input();
 		unput(c);	
 		if(c != '\'') {
@@ -119,10 +119,10 @@ EXEC[ \t]+SQL	{ BEGIN SQL; }
 	}
 
 		
-<SQL>'[^'\n]*$	{yyerror("Unterminated string"); }
+'[^'\n]*$	{yyerror("Unterminated string"); }
 
 	/* failure - no token matched */
-.		ECHO;	/* random non-SQL text */
+.		{ yyerror("Unknown symbol"); }	/* random non-SQL text */
 
 %%
 
@@ -130,25 +130,8 @@ EXEC[ \t]+SQL	{ BEGIN SQL; }
  * Literal C code to include
  ******************************************************************************/
 
-
-/* */
-int yywarp(void)
-{
-	return 1;
-}
-
 /* use logging framework in the future */
 void yyerror(char *s)
 {
-	printf("%s at %s\n", s, yytext);
-}
-
-/* dummy main method for testing */
-int main()
-{
-	if(!yyparse())
-		fprintf(stderr, "SQL parse worked\n");
-	else
-		fprintf(stderr, "SQL parse failed\n");
-	return 0;
+	ERROR_LOG("%s at %s\n", s, yytext);
 }

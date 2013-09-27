@@ -274,8 +274,9 @@ fromClauseItem:
 		identifier optionalAlias { $$ = (Node *) createFromTableRef($2, NIL, $1); }
 	;
 	
-optionalAlias: 
-		identifier				{ $$ = $1; }
+optionalAlias:
+		/* empty */				{ $$ = NULL; } 
+		| identifier			{ $$ = $1; }
 		| AS identifier			{ $$ = $2; }
 	;
 		  
