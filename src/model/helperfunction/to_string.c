@@ -20,6 +20,10 @@
 static void outList(StringInfo str, List *node);
 static void outNode(StringInfo, void *node);
 static void outQueryBlock (StringInfo str, QueryBlock *node);
+static void outConstant (StringInfo str, Constant *node);
+static void outSelectItem (StringInfo str, SelectItem *node);
+static void writeCommonFromItemFields(StringInfo str, FromItem *node);
+static void outFromTableRef (StringInfo str, FromTableRef *node);
 
 /*define macros*/
 /*label for the node type*/
@@ -33,19 +37,24 @@ static void outQueryBlock (StringInfo str, QueryBlock *node);
 
 /*int field*/
 #define WRITE_INT_FIELD(fldname)  \
-		appendStringInfo(str, ":" CppAsString(fldname) "%d", node->fldname)
+		appendStringInfo(str, ":" CppAsString(fldname) " %d", node->fldname)
 
 /*long-int field*/
 #define WRITE_LONG_FIELD(fldname)  \
-		appendStringInfo(str, ":" CppAsString(fldname) "%ld", node->fldname)
+		appendStringInfo(str, ":" CppAsString(fldname) " %ld", node->fldname)
 
 /*char field*/
 #define WRITE_CHAR_FIELD(fldname)  \
-		appendStringInfo(str, ":" CppAsString(fldname) "%c", node->fldname)
+		appendStringInfo(str, ":" CppAsString(fldname) " %c", node->fldname)
+
+/*string field*/
+#define WRITE_STRING_FIELD(fldname)  \
+        appendStringInfo(str, ":" CppAsString(fldname) " %s", node->fldname)
+
 
 /*enum-type field as integer*/
 #define WRITE_ENUM_FIELD(fldname, enumtype)  \
-		appendStringInfo(str, ":" CppAsString(fldname) "%d", (int)node->fldname)
+		appendStringInfo(str, ":" CppAsString(fldname) " %d", (int)node->fldname)
 
 /*float field*/
 #define WRITE_FLOAT_FIELD(fldname, format)  \
@@ -53,7 +62,7 @@ static void outQueryBlock (StringInfo str, QueryBlock *node);
 
 /*bool field*/
 #define WRITE_BOOL_FIELD(fldname)  \
-		appendStringInfo(str, ":" CppAsString(fldname) "%s", booltostr(node->fldname))
+		appendStringInfo(str, ":" CppAsString(fldname) " %s", booltostr(node->fldname))
 
 /*node field*/
 #define WRITE_NODE_FIELD(fldname)  \
@@ -83,7 +92,7 @@ outList(StringInfo str, List *node)
                 appendStringInfoString(str, " ");
         }
     }
-    appendStringInfo(str, ")");
+    appendStringInfoString(str, ")");
 }
 
 static void
@@ -98,34 +107,54 @@ outQueryBlock (StringInfo str, QueryBlock *node)
     WRITE_NODE_FIELD(havingClause);
 }
 
-//typedef struct Value
-//{
-//   NodeTag type;
-//
-//   union ValUnion
-//     {
-//        long   ival; /*integer*/
-//        char   *str;   /*string*/
-//
-//     }val;
-//}Value;
+void
+outConstant (StringInfo str, Constant *node)
+{
+    WRITE_NODE_TYPE(CONSTANT);
 
-//static void outValue(StringInfo str, Value *value)
-//{
-//        switch (value->type)
-//           {
-////              case T_Integer:
-////                   appendStringInfo(str, "%ld", value->val.ival);
-////                   break;
-////
-////              case T_NULL:
-////                   appendStringInfoString(str, "NULL");
-////                   break;
-//
-//              default :
-//                   break;
-//           }
-//}
+    WRITE_ENUM_FIELD(constType, DataType);
+    appendStringInfoString(str, ":value ");
+    switch(node->constType)
+    {
+        case DT_INT:
+            appendStringInfo(str, "%u", *((int *) node->value));
+            break;
+        case DT_FLOAT:
+            appendStringInfo(str, "%f", *((double *) node->value));
+            break;
+        case DT_STRING:
+            appendStringInfoString(str, (char *) node->value);
+            break;
+        case DT_BOOL:
+            appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
+            break;
+    }
+}
+
+static void
+outSelectItem (StringInfo str, SelectItem *node)
+{
+    WRITE_NODE_TYPE(SELECT_ITEM);
+
+    WRITE_STRING_FIELD(alias);
+    WRITE_NODE_FIELD(expr);
+}
+
+static void
+writeCommonFromItemFields(StringInfo str, FromItem *node)
+{
+    WRITE_STRING_FIELD(name);
+    WRITE_NODE_FIELD(attrNames);
+}
+
+static void
+outFromTableRef (StringInfo str, FromTableRef *node)
+{
+    WRITE_NODE_TYPE(FROM_TABLE_REF);
+
+    writeCommonFromItemFields(str, (FromItem *) node);
+    WRITE_STRING_FIELD(tableId);
+}
 
 void outNode(StringInfo str, void *obj)
 {
@@ -144,6 +173,15 @@ void outNode(StringInfo str, void *obj)
                 break;
             case T_QueryBlock:
                 outQueryBlock(str, (QueryBlock *) obj);
+                break;
+            case T_Constant:
+                outConstant(str, (Constant *) obj);
+                break;
+            case T_SelectItem:
+                outSelectItem(str, (SelectItem *) obj);
+                break;
+            case T_FromTableRef:
+                outFromTableRef(str, (FromTableRef *) obj);
                 break;
             //different case
             //query operator model nodes
