@@ -46,13 +46,13 @@ typedef struct TableAccessOperator
 typedef struct SelectionOperator
 {
     QueryOperator op;
-    Node *cond; // condition expression, Operator or FunctionCall type
+    Node *cond; // condition expression, Expr type
 } SelectionOperator;
 
 typedef struct ProjectionOperator
 {
     QueryOperator op;
-    List *projExprs; // projection expressions, AttributeReference type
+    List *projExprs; // projection expressions, Expression type
 } ProjectionOperator;
 
 typedef struct JoinOperator
