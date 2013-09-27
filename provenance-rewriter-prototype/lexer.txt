@@ -1,32 +1,27 @@
 /*
  *This is the lexer file which defines tokens
  *
+ *
 */
 
 %{
-#include "express.h"
-#include "list.h"
-#include "expression.h"	
-#include "list.h"
-#include <string.h>
 #include <stdio.h>
-
+#include <conio.h>
+#include "model/expression/expression.h"
+#include "model/list/list.h"
+#include "model/node/nodetype.h"
 int lineno = 1;
 void yyerror(char *s);
 int yywarp(void);
 int yylex(void);
-
-	/* macro to save the text of a SQL token */
 #define SV save_str(yytext)
-
-	/* macro to save the text and return a token */
-#define TOK(name) { SV;return name; }
+#define TOK(name) { SV; return name; }
 %}
 
 %s SQL
 %%
 
-EXEC[ \t]+SQL	{BEGIN SQL; yylval.clear(); start_save();}
+EXEC[ \t]+SQL	{BEGIN SQL;}
 
 	/* literal keyword tokens */
 <SQL>SELECT      TOK(SELECT)
@@ -61,17 +56,17 @@ EXEC[ \t]+SQL	{BEGIN SQL; yylval.clear(); start_save();}
 <SQL>[-+*/(),.;] TOK(yytext[0])
 
 	/* names */
-<SQL>[A-Za-z][A-Za-z0-9_]*	TOK(tableName)
+<SQL>[A-Za-z][A-Za-z0-9_]*	 {yyval.strval = strdup(yytext); return tablename}
 
 	/* numbers */
 
 <SQL>[0-9]+	|
 <SQL>[0-9]+"."[0-9]* |
-<SQL>"."[0-9]*		TOK(intConst)
+<SQL>"."[0-9]* {yylval.intval = atoi(yytext); return intConst}
 
 <SQL>[0-9]+[eE][+-]?[0-9]+	|
 <SQL>[0-9]+"."[0-9]*[eE][+-]?[0-9]+ |
-<SQL>"."[0-9]*[eE][+-]?[0-9]+	TOK(floatConst)
+<SQL>"."[0-9]*[eE][+-]?[0-9]+	{yylval.floatval = atof(yyteext); return floatConst}
 
 	/* strings */
 
@@ -110,6 +105,7 @@ void yyerror(char *s)
 {
 	printf("%d: %s at %s\n", lineno, s, yytext);
 }
+
 
 int main()
 {
