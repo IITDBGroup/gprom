@@ -142,7 +142,7 @@ makeStringInfoSpace(StringInfo str, int neededSize)
 
         TRACE_LOG("increased maxlen to <%u> total requirement was <%u>",
                 str->maxlen, str->len + neededSize);
-        if (str->maxlen > 512)
-            exit(1);
+//        if (str->maxlen > 512)
+//            exit(1);
     }
 }

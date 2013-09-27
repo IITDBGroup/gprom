@@ -40,8 +40,7 @@ main (int argc, char* argv[])
     else
     {
         ERROR_LOG("ADDRESS OF PARSE RESULT: %p", bisonParseResult);
-        ERROR_LOG("%u", isA(bisonParseResult, QueryBlock));
-        ERROR_LOG("PARSE RESULT TO AS STRING <%s>", nodeToString(bisonParseResult));
+        ERROR_LOG("PARSE RESULT TO AS STRING <%s>", beatify(nodeToString(bisonParseResult)));
     }
     freeOptions();
     destroyMemManager();
