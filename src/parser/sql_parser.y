@@ -8,10 +8,8 @@
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "sql_parser.lex.h"
-
-//int yylex(void);
-//void yyerror (char const *);
+#include "model/query_block/query_block.h"
+#include "parser/parse_internal.h"
 %}
 
 %union {
@@ -49,15 +47,16 @@
 %token <stringVal> DISTINCT
 %token <stringVal> ON
 %token <stringVal> STARALL
-%token <StringVal> UPDATE DELETE
-%token <stringVal> AND OR LIKE NOT IN NULL BETWEEN
+%token <stringVal> UPDATE DELETE
+%token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN
+%token <stringVal> AMMSC NULLVAL ALL ANY BY IS
 
 /*
  * Declare token for operators specify their associativity and precedence
  */
 /* Comparison operator */
 %left comparisonop arithmeticop
-%left AND OR NOT IN NULL BETWEEN LIKE
+%left AND OR NOT IN ISNULL BETWEEN LIKE
 
 /* Arithmetic operators : FOR TESTING 
 %left operator
@@ -80,7 +79,7 @@
 %type <node> stmt provStmt dmlStmt
 %type <node> selectQuery deleteQuery updateQuery
 		// Its a query block model that defines the structure of query.
-%type <list> selectClause optionlFrom fromClause exprList // select and from clauses are lists
+%type <list> selectClause optionalFrom fromClause exprList // select and from clauses are lists
 %type <node> selectItem fromClauseItem optionalDistinct optionalWhere
 %type <node> expression constant attributeRef sqlFunctionCall
 //%type <stringVal> operatorExpression operator arithmaticOperator comparisonOperator sqlOperators
@@ -101,7 +100,7 @@ stmt:
  * Rule to parse a query asking for provenance
  */
 provStmt: 
- 		PROVENANCE OF '(' dmlStmt ')' 	{ $$ = createProvStmt($4); }
+ 		PROVENANCE OF '(' dmlStmt ')' 	{ $$ = (Node *) createProvenanceStmt($4); }
  	;
 
 /*
@@ -132,9 +131,16 @@ updateQuery:
  * 			'SELECT [DISTINCT clause] selectClause FROM fromClause WHERE whereClause'
  */
 selectQuery: 
-		SELECT optionalDistinct selectClause optionlFrom optionalWhere
+		SELECT optionalDistinct selectClause optionalFrom optionalWhere
 			{
-				$$ = (Node *) createQueryBlock($2,$3,$4,$5);
+				QueryBlock *q =  createQueryBlock();
+				
+				q->distinct = $2;
+				q->selectClause = $3;
+				q->fromClause = $4;
+				q->whereClause = $5;
+				
+				$$ = (Node *) q; 
 			}
 	;
 
@@ -144,8 +150,8 @@ selectQuery:
  */ 
 optionalDistinct: 
 		/* empty */ 					{ $$ = NULL; }
-		| DISTINCT						{ $$ = createDistinct(NULL); }
-		| DISTINCT ON '(' exprList ')'	{ $$ = createDistinct($4); }
+		| DISTINCT						{ $$ = (Node *) createDistinctClause(NULL); }
+		| DISTINCT ON '(' exprList ')'	{ $$ = (Node *) createDistinctClause($4); }
 	;
 						
 
@@ -153,7 +159,7 @@ optionalDistinct:
  * Rule to parse the select clause items.
  */
 selectClause: 
-		selectItem 						{ $$ = $1; }
+		selectItem 						{ $$ = singleton($1); }
 		| selectClause ',' selectItem 
 			{ 
 				$$ = appendToTailOfList($1, $3); 
@@ -163,11 +169,11 @@ selectClause:
 selectItem:
  		expression							
  			{ 
- 				$$ = createProjectionNode($1, NULL); 
+ 				$$ = (Node *) createSelectItem(NULL, $1); 
  			}
  		| expression AS identifier 			
  			{ 
- 				$$ = createProjectionNode($1, $3);
+ 				$$ = (Node *) createSelectItem($3, $1);
 			}
 	; 
 
@@ -195,16 +201,16 @@ expression:
  * Constant parsing
  */
 constant: 
-		intConst			{ $$ = createIntConst($1); }
-		| floatConst		{ $$ = createFloatConst($1); }
-		| stringConst		{ $$ = createStringConst($1); }
+		intConst			{ $$ = (Node *) createConstInt($1); }
+		| floatConst		{ $$ = (Node *) createConstFloat($1); }
+		| stringConst		{ $$ = (Node *) createConstString($1); }
 	;
 			
 /*
  * Parse attribute reference
  */
 attributeRef: 
-		identifier 		{ $$ = createAttributeReference($1); }
+		identifier 		{ $$ = (Node *) createAttributeReference($1); }
 	;
 
 /*
@@ -235,7 +241,7 @@ comparisonOperator:
 	;
 	
 sqlOperators:
-		AND | OR | NOT | IN | NULL | BETWEEN | LIKE 	{ $$ = $1; }
+		AND | OR | NOT | IN | isnull | BETWEEN | LIKE 	{ $$ = $1; }
 	;
 */
 	
@@ -245,7 +251,7 @@ sqlOperators:
 sqlFunctionCall: 
 		identifier '(' exprList ')'  		
 			{ 
-				$$ = createFunctionCall($1, $3); 
+				$$ = (Node *) createFunctionCall($1, $3); 
 			}
 	;
 
@@ -254,18 +260,18 @@ sqlFunctionCall:
  *			Currently implemented for basic from clause.
  *			Later on other forms of from clause will be added.
  */
-optionlFrom: 
+optionalFrom: 
 		/* empty */ 		 	{ $$ = NULL; }
 		| FROM fromClause		{ $$ = $2; }
 	;
 			
 fromClause: 
-		fromClauseItem					{ $$ = singeltonP($1); }
+		fromClauseItem					{ $$ = singleton($1); }
 		| fromClause ',' fromClauseItem { $$ = appendToTailOfList($1, $3); }
 	;
 	
 fromClauseItem:
-		identifier optionalAlias { $$ = createTableNode($1, $2); }
+		identifier optionalAlias { $$ = (Node *) createFromTableRef($2, NIL, $1); }
 	;
 	
 optionalAlias: 

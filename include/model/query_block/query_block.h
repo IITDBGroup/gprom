@@ -37,12 +37,18 @@ typedef struct SetQuery
 typedef struct QueryBlock
 {
     NodeTag type;
-    List *selectCause;
+    List *selectClause;
     Node *distinct;
-    List *fromCause;
+    List *fromClause;
     Node *whereClause;
     Node *havingClause;
 } QueryBlock;
+
+typedef struct ProvenanceStmt
+{
+    NodeTag type;
+    Node *query;
+} ProvenanceStmt;
 
 typedef struct SelectItem
 {
@@ -94,7 +100,7 @@ typedef struct FromJoinExpr
     JoinType joinType;
     JoinConditionType joinCond;
     Node *cond;
-};
+} FromJoinExpr;
 
 typedef struct DistinctClause
 {
@@ -107,6 +113,7 @@ extern SetQuery *createSetQuery(List *selectClause, SetOp *root);
 extern SetOp *createSetOp(SetOpType opType, boolean all, Node *lChild,
         Node *rChild);
 extern QueryBlock *createQueryBlock(void);
+extern ProvenanceStmt *createProvenanceStmt(Node *query);
 extern SelectItem *createSelectItem(char *alias, Node *expr);
 extern FromItem *createFromTableRef(char *alias, List *attrNames,
         char *tableId);

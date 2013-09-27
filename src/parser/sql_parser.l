@@ -10,27 +10,19 @@
  ******************************************************************************/
 
 /* set lexer options */
-%option noyywrap nodefault yylineno reentrant bison-bridge
-%option header-file="sql_parser.lex.h"
+%option noyywrap nodefault yylineno
 
 /* includes */
 %{
-
 #include <stdio.h>
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
+#include "parser/parse_internal.h"
 #include "sql_parser.tab.h"
 
-
-int lineno = 1;
-// void yyerror(char *s);
-// int yywarp(void);
-// int yylex(void);
-
-#define SV save_str(yytext)
-#define TOK(name) { yylval->stringVal = yytext; return name; }
-#define TOKSAVE(name,field,function) { yylval->field = function(yytext); return name; }
+#define TOK(name) { yylval.stringVal = yytext; return name; }
+#define TOKSAVE(name,field,function) { yylval.field = function(yytext); return name; }
 %}
 
 /********************************************************************
@@ -71,7 +63,7 @@ arithmeticops	("+"|"-"|"/"|"*"|"%"|"&"|"|"|"^")
  ******************************************************************************/
 %%
 
-EXEC[ \t]+SQL	{BEGIN SQL; start_save();}
+EXEC[ \t]+SQL	{ BEGIN SQL; }
 
 	/* ignore all whitespace */
 {whitespace}	 { /* ignore it */ }
@@ -98,6 +90,8 @@ EXEC[ \t]+SQL	{BEGIN SQL; start_save();}
 <SQL>BY			 TOK(BY)
 <SQL>UPDATE		 TOK(UPDATE)
 <SQL>DELETE	     TOK(DELETE)
+<SQL>IS		     TOK(IS)
+<SQL>NULL	     TOK(NULLVAL)
 
 	/* punctuation */
 <SQL>[(),.;] TOK(yytext[0])
@@ -107,20 +101,19 @@ EXEC[ \t]+SQL	{BEGIN SQL; start_save();}
 <SQL>{arithmeticops}		TOK(arithmeticop)
 	
 	/* names */
-<SQL>{identifiers}	TOK(identifier,stringVal)
+<SQL>{identifiers}	TOK(identifier)
 
 	/* numbers */
 <SQL>{integer}	TOKSAVE(intConst,intVal,atoi)
-<SQL>{float}	TOKSAVE(floatConst,floatVal)
+<SQL>{float}	TOKSAVE(floatConst,floatVal,atof)
 
 	/* strings */
 <SQL>'[^'\n]*'	{
 		int c = input();
 		unput(c);	
 		if(c != '\'') {
-			 SV;
-			yylval->strval = strdup(yytext);
-			return STRING;
+			yylval.stringVal = strdup(yytext);
+			return stringConst;
 		} else
 			yymore();
 	}
@@ -147,7 +140,7 @@ int yywarp(void)
 /* use logging framework in the future */
 void yyerror(char *s)
 {
-	printf("%d: %s at %s\n", lineno, s, yytext);
+	printf("%s at %s\n", s, yytext);
 }
 
 /* dummy main method for testing */
@@ -158,10 +151,4 @@ int main()
 	else
 		fprintf(stderr, "SQL parse failed\n");
 	return 0;
-}
-
-/* leave SQL lexing mode */
-un_sql()
-{
-	BEGIN INITIAL;
 }
