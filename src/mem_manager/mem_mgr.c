@@ -316,3 +316,16 @@ free_(void *mem, const char *file, unsigned line)
     }
 }
 
+/*
+ *
+ */
+char *
+contextStringDup(char *input)
+{
+    if (input == NULL)
+        return NULL;
+    char *result = MALLOC(strlen(input) + 1);
+    result = strcpy(result, input);
+
+    return result;
+}

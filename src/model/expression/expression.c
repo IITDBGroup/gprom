@@ -12,6 +12,7 @@
 
 #include <string.h>
 
+#include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
@@ -68,11 +69,9 @@ Constant *
 createConstString (char *value)
 {
     Constant *result = makeNode(Constant);
-    char *v = MALLOC(strlen(value) + 1);
 
-    v = strcpy(v,value);
-    result->constType = DT_FLOAT;
-    result->value = v;
+    result->constType = DT_STRING;
+    result->value = strdup(value);
 
     return result;
 }

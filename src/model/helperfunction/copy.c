@@ -7,8 +7,6 @@
  *
  **************************************/
 
-#include <string.h>
-
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
@@ -22,7 +20,7 @@ static List *deepCopyList(List *from);
 static AttributeReference *copyAttributeReference(AttributeReference *from);
 static QueryBlock *copyQueryBlock(QueryBlock *from);
 static SelectItem *copySelectItem(SelectItem *from);
-
+static Constant *copyConstant(Constant *from);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -41,8 +39,20 @@ static SelectItem *copySelectItem(SelectItem *from);
 
 /*copy a field that is a pointer to C string or NULL*/
 #define COPY_STRING_FIELD(fldname) \
-		new->fldname = (from->fldname != NULL ? strcpy((char *) MALLOC(strlen(from->fldname) + 1), \
-				from->fldname) : NULL)
+		new->fldname = (from->fldname != NULL ? strdup(from->fldname) : NULL)
+
+#define GET_FIRST_ARG(first, ...) (first)
+
+/* creates copy expressions for all fields */
+#define CREATE_COPY_FIELDS(...) \
+
+
+#define CREATE_COPY_FUNCTION(type, ...) \
+	static type *copy ## type () \
+	{ \
+        COPY_INIT(type); \
+        CREATE_COPY_FIELDS(GET_FIRST_TWO_ARGS(__VA_ARGS__)); \
+    }
 
 /*deep copy for List operation*/
 static List *
@@ -103,6 +113,35 @@ copySelectItem(SelectItem *from)
     return new;
 }
 
+static Constant *
+copyConstant(Constant *from)
+{
+    COPY_INIT(Constant);
+
+    COPY_SCALAR_FIELD(constType);
+
+    switch (from->constType)
+    {
+        case DT_INT:
+            new->value = NEW(int);
+            *((int *) new->value) = *((int *) from->value);
+            break;
+        case DT_FLOAT:
+            new->value = NEW(double);
+            *((double *) new->value) = *((double *) from->value);
+            break;
+        case DT_BOOL:
+            new->value = NEW(boolean);
+            *((boolean *) new->value) = *((boolean *) from->value);
+            break;
+        case DT_STRING:
+            new->value = strdup(from->value);
+            break;
+    }
+
+    return new;
+}
+
 /*copyObject copy of a Node tree or list and all substructure copied too */
 /*this is a deep copy & with recursive*/
 
@@ -137,6 +176,9 @@ void *copyObject(void *from)
             break;
         case T_SelectItem:
             retval = copySelectItem(from);
+            break;
+        case T_Constant:
+            retval = copyConstant(from);
             break;
         default:
             retval = NULL;

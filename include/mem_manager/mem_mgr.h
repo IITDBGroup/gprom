@@ -100,6 +100,8 @@ extern MemContext *getCurMemContext(void);
 extern void clearCurMemContext(const char *file, unsigned line);
 extern void releaseCurMemContext(const char *file, unsigned line);
 extern void freeCurMemContext(const char *file, unsigned line);
+extern char *contextStringDup(char *input);
+
 /*
  * Gets context size.
  */

@@ -51,13 +51,10 @@
 
 /* strdup function */
 #if HAVE_STRDUP
+#undef strdup
+#define strdup(input) contextStringDup(input)
 #else
-    char *strdup(const char *input)
-    {
-        char *result = malloc(strlen(input) + 1);
-        result = strcpy(result,input);
-        return result;
-    }
+#define strdup(input) contextStringDup(input)
 #endif
 
 /* exit for main function */
