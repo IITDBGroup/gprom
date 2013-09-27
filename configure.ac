@@ -46,6 +46,7 @@ AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([
 	Makefile
 	src/Makefile
+	src/analysis_and_translate/Makefile
 	src/command_line/Makefile
 	src/configuration/Makefile
 	src/log/Makefile
@@ -61,6 +62,7 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/Makefile
 	src/provenance_rewriter/pi_cs_rewrites/Makefile
 	src/provenance_rewriter/transformation_rewrites/Makefile
+	src/sql_serializer/Makefile
 	test/Makefile
 ])
 AC_OUTPUT
