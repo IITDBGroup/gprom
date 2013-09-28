@@ -13,6 +13,9 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
+#include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
+
 
 /* equal functions for specific node types */
 static boolean equalFunctionCall(FunctionCall *a, FunctionCall *b);

@@ -14,6 +14,9 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
+#include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
+
 
 /* functions to copy specific node types */
 static AttributeReference *copyAttributeReference(AttributeReference *from);
@@ -33,6 +36,7 @@ static ProvenanceComputation *copyProvenanceComputOp(ProvenanceComputation *from
 static SetQuery *copySetQuery(SetQuery *from);
 static SetOp *copySetOp(SetOp *from);
 static QueryBlock *copyQueryBlock(QueryBlock *from);
+static Constant *copyConstant(Constant *from);
 static ProvenanceStmt *copyProvenanceStmt(ProvenanceStmt *from);
 static SelectItem *copySelectItem(SelectItem  *from);
 static FromTableRef *copyFromTableRef(FromTableRef *from);
@@ -57,8 +61,19 @@ static DistinctClause *copyDistinctClause(DistinctClause *from);
 
 /*copy a field that is a pointer to C string or NULL*/
 #define COPY_STRING_FIELD(fldname) \
+                 new->fldname = (from->fldname !=NULL ? strdup(from->fldname) : NULL)  \
 		(new->fldname = (strcpy((char *) MALLOC(strlen(from->fldname) + 1), \
 				from->fldname)))
+#define GET_FIRST_ARG(first, ...) (first)
+
+#define CREATE_COPY_FUNCTION(type, ...)  \
+    static type *copy ##type()  \
+    {   \
+       COPY_INIT(type);  \
+       CREATE_COPY_FIELDS(GET_FIRST_TWO_ARGS(__VA_ARGS__));  \
+        
+
+    }
 
 /*deep copy for List operation*/
 static List *
@@ -217,7 +232,7 @@ copyProvenanceStmt(ProvenanceStmt *from)
     return new;
 }
 static SelectItem *
-copySelectItem(SelectIt  *from)
+copySelectItem(SelectItem  *from)
 {
     COPY_INIT(SelectItem);
     COPY_STRING_FIELD(alias);
@@ -226,15 +241,43 @@ copySelectItem(SelectIt  *from)
     return new;
 }
 static FromTableRef *
-copyFromTableRef(FromItem *from)
+copyFromTableRef(FromTableRef *from)
 {
     COPY_INIT(FromTableRef);
     COPY_STRING_FIELD(tableId);
 
     return new;
 }
+
+static Constant *
+copyConstant(Constant *from)
+{
+      COPY_INIT(Constant);
+      COPY_SCALAR_FIELD(constType); 
+	   
+      switch (from->constType)	 
+  {	 
+      case DT_INT:	 
+           new->value = NEW(int);	 
+           *((int *) new->value) = *((int *) from->value);	 
+           break;	 
+      case DT_FLOAT: 
+           new->value = NEW(double);	 
+           *((double *) new->value) = *((double *) from->value);
+           break;	 
+      case DT_BOOL: 
+           new->value = NEW(boolean); 
+           *((boolean *) new->value) = *((boolean *) from->value); 
+           break;	 
+      case DT_STRING:	 
+        new->value = strdup(from->value); 
+        break; 
+   } 	 
+      return new;
+}
+
 static FromSubquery *
-copyFromSubquery(FromItem *from)
+copyFromSubquery(FromSubquery *from)
 {
     COPY_INIT(FromSubquery);
     COPY_NODE_FIELD(subquery);
@@ -242,7 +285,7 @@ copyFromSubquery(FromItem *from)
     return new;
 }
 static FromJoinExpr *
-copyFromJoin(FromItem *from)
+copyFromJoin(FromJoinExpr *from)
 {
     COPY_INIT(FromJoinExpr);
     COPY_SCALAR_FIELD(left);
@@ -298,6 +341,9 @@ void *copyObject(void *from)
             break;
         case T_SelectItem:
             retval = copySelectItem(from);
+            break;
+        case T_copyConstant:
+            retval = copyConstant(from);
             break;
         case T_FromItem:
             retval = copyFromItem(from);
