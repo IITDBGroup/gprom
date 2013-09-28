@@ -208,7 +208,7 @@ outJoinOperator(StringInfo str, JoinOperator *node)
 {
     WRITE_NODE_TYPE(JOIN_OPERATOR);
 
-    WRITE_ENUM_FIELD(joinType);
+    WRITE_ENUM_FIELD(joinType, JoinType);
     WRITE_NODE_FIELD(cond);
 }
 
@@ -226,7 +226,7 @@ outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
 {
     WRITE_NODE_TYPE(PROVENANCE_COMPUTATION);
 
-    WRITE_ENUM_FIELD(provType);
+    WRITE_ENUM_FIELD(provType,ProvenanceType);
 }
 
 static void outTableAccessOperator(StringInfo str, TableAccessOperator *node)
@@ -240,7 +240,7 @@ static void outSetOperator(StringInfo str, SetOperator *node)
 {
     WRITE_NODE_TYPE(SET_OPERATOR);
 
-    WRITE_ENUM_FIELD(setOpType);
+    WRITE_ENUM_FIELD(setOpType,SetOpType);
 }
 
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node)

@@ -57,23 +57,11 @@ static DistinctClause *copyDistinctClause(DistinctClause *from);
 
 /*copy a field that is a pointer to Node or Node tree*/
 #define COPY_NODE_FIELD(fldname)  \
-		(new->fldname = (copyObject(from->fldname))
+		(new->fldname) = (copyObject(from->fldname))
 
 /*copy a field that is a pointer to C string or NULL*/
 #define COPY_STRING_FIELD(fldname) \
-                 new->fldname = (from->fldname !=NULL ? strdup(from->fldname) : NULL)  \
-		(new->fldname = (strcpy((char *) MALLOC(strlen(from->fldname) + 1), \
-				from->fldname)))
-#define GET_FIRST_ARG(first, ...) (first)
-
-#define CREATE_COPY_FUNCTION(type, ...)  \
-    static type *copy ##type()  \
-    {   \
-       COPY_INIT(type);  \
-       CREATE_COPY_FIELDS(GET_FIRST_TWO_ARGS(__VA_ARGS__));  \
-        
-
-    }
+                 new->fldname = (from->fldname !=NULL ? strdup(from->fldname) : NULL)
 
 /*deep copy for List operation*/
 static List *
@@ -152,7 +140,7 @@ static JoinOperator *
 copyJoinOp(JoinOperator *from)
 {
     COPY_INIT(JoinOperator);
-    COPY_SCALAR_FIELD(joinType)
+    COPY_SCALAR_FIELD(joinType);
     COPY_NODE_FIELD(cond);
 
     return new;
@@ -170,7 +158,7 @@ static SetOperator *
 copySetOperator(SetOperator *from)
 {
     COPY_INIT(SetOperator);
-    COPY_SCALAR_FIELD(SetOpType);
+    COPY_SCALAR_FIELD(setOpType);
 
     return new;
 }
@@ -284,10 +272,12 @@ copyFromSubquery(FromSubquery *from)
     
     return new;
 }
+
 static FromJoinExpr *
-copyFromJoin(FromJoinExpr *from)
+copyFromJoinExpr(FromJoinExpr *from)
 {
     COPY_INIT(FromJoinExpr);
+
     COPY_SCALAR_FIELD(left);
     COPY_SCALAR_FIELD(right);
     COPY_SCALAR_FIELD(joinType);
@@ -296,9 +286,12 @@ copyFromJoin(FromJoinExpr *from)
 
     return new;
 }
+
 static DistinctClause *
 copyDistinctClause(DistinctClause *from)
 {
+    COPY_INIT(DistinctClause);
+
     COPY_NODE_FIELD(distinctExprs);
 
     return new;
@@ -342,11 +335,8 @@ void *copyObject(void *from)
         case T_SelectItem:
             retval = copySelectItem(from);
             break;
-        case T_copyConstant:
+        case T_Constant:
             retval = copyConstant(from);
-            break;
-        case T_FromItem:
-            retval = copyFromItem(from);
             break;
         case T_FromTableRef:
             retval = copyFromTableRef(from);
