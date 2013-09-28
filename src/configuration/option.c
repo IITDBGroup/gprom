@@ -19,7 +19,6 @@ mallocOptions()
 {
 	options=MAKE_OPTIONS();
 	options->optionConnection=MAKE_OPTION_CONNECTION();
-	memset(options->optionConnection, 0, sizeof(OptionConnection));
 	options->optionDebug=MAKE_OPTION_DEBUG();
 	options->optionRewrite=MAKE_OPTION_REWRITE();
 }

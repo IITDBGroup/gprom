@@ -36,7 +36,7 @@ typedef struct Options{
 } Options;
 
 #define MAKE_OPTIONS()		\
-	((Options*)malloc(sizeof(Options)))
+	((Options*)calloc(1,sizeof(Options)))
 
 #define MAKE_OPTION_CONNECTION()		\
 	((OptionConnection*)calloc(1, sizeof(OptionConnection)))
