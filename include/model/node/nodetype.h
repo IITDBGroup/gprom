@@ -37,7 +37,10 @@ typedef enum NodeTag {
     T_ProjectionOperator,
     T_JoinOperator,
     T_AggregationOperator,
-    T_ProvenanceComputation
+    T_ProvenanceComputation,
+    T_TableAccessOperator,
+    T_SetOperator,
+    T_DuplicateRemoval
 
 } NodeTag;
 

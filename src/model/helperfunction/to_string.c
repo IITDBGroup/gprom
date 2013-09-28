@@ -28,6 +28,15 @@ static void writeCommonFromItemFields(StringInfo str, FromItem *node);
 static void outFromTableRef (StringInfo str, FromTableRef *node);
 static void outAttributeReference (StringInfo str, AttributeReference *node);
 static void indentString(StringInfo str, int level);
+static void outQueryOperator(StringInfo str, QueryOperator *node);
+static void outProjectionOperator(StringInfo str, ProjectionOperator *node);
+static void outSelectionOperator(StringInfo str, SelectionOperator *node);
+static void outJoinOperator(StringInfo str, JoinOperator *node);
+static void outAggregationOperator(StringInfo str, AggregationOperator *node);
+static void outProvenanceComputation(StringInfo str, ProvenanceComputation *node);
+static void outTableAccessOperator(StringInfo str, TableAccessOperator *node);
+static void outSetOperator(StringInfo str, SetOperator *node);
+static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
 
 /*define macros*/
 /*label for the node type*/
@@ -168,6 +177,79 @@ outAttributeReference (StringInfo str, AttributeReference *node)
     WRITE_STRING_FIELD(name);
 }
 
+static void
+outQueryOperator (StringInfo str, QueryOperator *node)
+{
+    WRITE_NODE_TYPE(QUERY_OPERATOR);
+
+    WRITE_NODE_FIELD(inputs);
+    WRITE_NODE_FIELD(schema);
+    WRITE_NODE_FIELD(parents);
+    WRITE_NODE_FIELD(provAttrs);
+}
+
+static void 
+outProjectionOperator(StringInfo str, ProjectionOperator *node)
+{
+    WRITE_NODE_TYPE(PROJECTION_OPERATOR);
+    
+    WRITE_NODE_FIELD(projExprs); // projection expressions, Expression type
+}
+static void 
+outSelectionOperator (StringInfo str, SelectionOperator *node)
+{
+    WRITE_NODE_TYPE(SELECTION_OPERATOR);
+
+    WRITE_NODE_FIELD(cond); //  condition expression, Expr type
+}
+
+static void 
+outJoinOperator(StringInfo str, JoinOperator *node)
+{
+    WRITE_NODE_TYPE(JOIN_OPERATOR);
+
+    WRITE_ENUM_FIELD(joinType);
+    WRITE_NODE_FIELD(cond);
+}
+
+static void 
+outAggregationOperator(StringInfo str, AggregationOperator *node)
+{
+    WRITE_NODE_TYPE(AGGREGATION_OPERATOR);
+
+    WRITE_NODE_FIELD(aggrs);
+    WRITE_NODE_FIELD(groupBy);
+}
+
+static void 
+outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
+{
+    WRITE_NODE_TYPE(PROVENANCE_COMPUTATION);
+
+    WRITE_ENUM_FIELD(provType);
+}
+
+static void outTableAccessOperator(StringInfo str, TableAccessOperator *node)
+{
+    WRITE_NODE_TYPE(TABLE_ACCESS_OPERATOR);
+
+    WRITE_STRING_FIELD(tableName);
+}
+
+static void outSetOperator(StringInfo str, SetOperator *node)
+{
+    WRITE_NODE_TYPE(SET_OPERATOR);
+
+    WRITE_ENUM_FIELD(setOpType);
+}
+
+static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node)
+{
+    WRITE_NODE_TYPE(DUPLICATE_REMOVAL);
+
+    WRITE_NODE_FIELD(attrs); // attributes that need duplicate removal, AttributeReference type
+
+}
 void outNode(StringInfo str, void *obj)
 {
     if(obj == NULL)
@@ -200,13 +282,33 @@ void outNode(StringInfo str, void *obj)
                 break;
             //different case
             //query operator model nodes
-            //T_QueryOperator,
-            //T_SelectionOperator,
-            //T_ProjectionOperator,
-            //T_JoinOperator,
-            //T_AggregationOperator,
-            //T_ProvenanceComputation
-
+            case T_QueryOperator:
+                outQueryOperator(str, (QueryOperator *) obj);
+                break;
+            case T_SelectionOperator:
+                outSelectionOperator(str, (SelectionOperator *) obj);
+                break;
+            case T_ProjectionOperator:
+                outProjectionOperator(str, (ProjectionOperator *) obj);
+                break;
+            case T_JoinOperator:
+                outJoinOperator(str, (JoinOperator *) obj);
+                break;
+            case T_AggregationOperator:
+                outAggregationOperator(str, (AggregationOperator *) obj);
+                break;
+            case T_ProvenanceComputation:
+                outProvenanceComputation(str, (ProvenanceComputation *) obj);
+                break;
+            case T_TableAccessOperator:
+                outTableAccessOperator(str, (TableAccessOperator *) obj);
+                break;
+            case T_SetOperator:
+                outSetOperator(str, (SetOperator *) obj);
+                break;
+            case T_DuplicateRemoval:
+                outDuplicateRemoval(str, (DuplicateRemoval *) obj);
+                break;
             default :
                 //outNode(str, obj);
                 break;
