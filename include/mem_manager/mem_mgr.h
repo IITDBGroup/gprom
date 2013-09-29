@@ -115,15 +115,15 @@ extern Allocation *findAlloc(const MemContext *mc, const void *addr);
 /*
  * Sets current context and pushes it into context stack.
  */
-#define AQUIRE_MEM_CONTEXT(context) setCurMemContext((context), __FILE__, __LINE__)
+#define ACQUIRE_MEM_CONTEXT(context) setCurMemContext((context), __FILE__, __LINE__)
 /*
  * Creates a memory context. The second version also aquires the new context.
  */
 #define NEW_MEM_CONTEXT(name) newMemContext((name), __FILE__, __LINE__)
-#define NEW_AND_AQUIRE_MEMCONTEXT(name) \
+#define NEW_AND_ACQUIRE_MEMCONTEXT(name) \
     do { \
         MemoryContext *_newcontext_ = NEW_MEM_CONTEXT(name); \
-        AQUIRE_MEM_CONTEXT(_newcontext_); \
+        ACQUIRE_MEM_CONTEXT(_newcontext_); \
     } while (0);
 /*
  * Removes all the memory allocation records from the current context
@@ -149,7 +149,7 @@ extern Allocation *findAlloc(const MemContext *mc, const void *addr);
 
 #define FREE_MEM_CONTEXT(context) \
     do { \
-        AQUIRE_MEM_CONTEXT(context); \
+        ACQUIRE_MEM_CONTEXT(context); \
         FREE_AND_RELEASE_CUR_MEM_CONTEXT(); \
     } while (0)
 

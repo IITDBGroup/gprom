@@ -44,7 +44,7 @@ void
 initMemManager(void)
 {
     defaultMemContext = NEW_MEM_CONTEXT(DEFAULT_MEM_CONTEXT_NAME);
-    AQUIRE_MEM_CONTEXT(defaultMemContext);
+    ACQUIRE_MEM_CONTEXT(defaultMemContext);
     // default context always lies on the bottom of the stack
 }
 
