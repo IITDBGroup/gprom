@@ -1,0 +1,96 @@
+/*
+ * metadata_lookup.c
+ *
+ *      Author: zephyr
+ */
+
+#include <ocilib.h>
+#include "configuration/option.h"
+#include "metadata_lookup/metadata_lookup.h"
+#include "mem_manager/mem_mgr.h"
+#include "model/list/list.h"
+
+/*
+ * functions and variables for internal use
+ */
+static OCI_Connection* conn=NULL;
+static OCI_TypeInfo* tInfo=NULL;
+static MemContext* context=NULL;
+static int initConnection();
+static boolean isConnected();
+
+static int
+initConnection()
+{
+	NEW_AND_ACQUIRE_MEM_CONTEXT("metadataContext");
+	context=getCurMemContext();
+	Options* options=getOptions();
+	char* user=options->optionConnection->user;
+	char* passwd=options->optionConnection->passwd;
+	char* db=options->optionConnection->db;
+
+	if(!OCI_Initialize(NULL, NULL, OCI_ENV_DEFAULT))
+		return EXIT_FAILURE;
+
+	conn=OCI_ConnectionCreate(db,user,passwd,OCI_SESSION_DEFAULT);
+	return EXIT_SUCCESS;
+}
+
+static boolean isConnected()
+{
+	if(OCI_isConnected(conn))
+		return TRUE;
+	else
+	{
+		FATAL_LOG("OCI connection lost");
+		return FALSE;
+	}
+}
+
+boolean catalogTableExists(char* tableName)
+{
+	if(NULL==tableName)
+		return FALSE;
+	if(conn==NULL)
+		initConnection();
+	if(isConnected())
+		return tInfo=OCI_TypeInfoGet(conn,tableName,OCI_TIF_TABLE)==NULL?FALSE:TRUE;
+	return FALSE;
+}
+
+List* getAttributes(char* tableName)
+{
+	if(tableName==NULL)
+		return NIL;
+	if(conn==NULL)
+		initConnection();
+	if(isConnected())
+	{
+		int i,n;
+		n = OCI_TypeInfoGetColumnCount(tInfo);
+		List* attrList=NIL;
+		for(i = 1; i <= n; i++)
+		{
+			OCI_Column *col = OCI_TypeInfoGetColumn(tInfo, i);
+			AttributeReference* a=createAttributeReference(OCI_GetColumnName(col));
+			attrList=appendToTailOfList(attrList,a);
+		}
+		return attrList;
+	}
+	return NIL;
+}
+
+int databaseConnectionClose()
+{
+	if(context==NULL)
+	{
+		ERROR_LOG("Metadata context already freed.");
+		return EXIT_FAILURE;
+	}
+	else
+	{
+		FREE_MEM_CONTEXT(context);
+		OCI_Cleanup();
+	}
+	return EXIT_SUCCESS;
+}
