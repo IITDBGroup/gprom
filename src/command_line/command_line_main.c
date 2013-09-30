@@ -54,6 +54,7 @@ printHelp()
 	printf("-loglevel, level of log for output, default is 0\n");
 	printf("-debugmemory, set to use debug implementation of memory management, default is off\n");
 	printf("-activate, set to activate certain types of alternative rewrites\n");
+	printf("-sql, SQL you want to input\n");
 	printf("===================================================================\n");
 }
 
@@ -74,6 +75,7 @@ printSuccess()
 	int i,size=options->optionRewrite->size;
 	for(i=0;i<size;i++)
 		printf("activated rewrite:%s\n",options->optionRewrite->rewriteMethods[i]->name);
+	printf("SQL:%s\n",options->optionConnection->sql);
 	printf("===================================================================\n");
 }
 

@@ -100,6 +100,8 @@ extern MemContext *getCurMemContext(void);
 extern void clearCurMemContext(const char *file, unsigned line);
 extern void releaseCurMemContext(const char *file, unsigned line);
 extern void freeCurMemContext(const char *file, unsigned line);
+extern char *contextStringDup(char *input);
+
 /*
  * Gets context size.
  */
@@ -111,27 +113,44 @@ extern int memContextSize(MemContext *mc);
 extern Allocation *findAlloc(const MemContext *mc, const void *addr);
 
 /*
- * Creates a memory context.
- */
-#define NEW_MEM_CONTEXT(name) newMemContext((name), __FILE__, __LINE__)
-/*
  * Sets current context and pushes it into context stack.
  */
-#define AQUIRE_MEM_CONTEXT(context) setCurMemContext((context), __FILE__, __LINE__)
+#define ACQUIRE_MEM_CONTEXT(context) setCurMemContext((context), __FILE__, __LINE__)
+/*
+ * Creates a memory context. The second version also aquires the new context.
+ */
+#define NEW_MEM_CONTEXT(name) newMemContext((name), __FILE__, __LINE__)
+#define NEW_AND_ACQUIRE_MEMCONTEXT(name) \
+    do { \
+        MemoryContext *_newcontext_ = NEW_MEM_CONTEXT(name); \
+        ACQUIRE_MEM_CONTEXT(_newcontext_); \
+    } while (0);
 /*
  * Removes all the memory allocation records from the current context
  * and free those memories. Will not destroy the memory context itself.
  */
 #define CLEAR_CUR_MEM_CONTEXT() clearCurMemContext(__FILE__, __LINE__)
 /*
- * Removes all the memory allocation records from the current context
- * and free those memories and finally destroy the memory context itself.
- */
-#define FREE_CUR_MEM_CONTEXT() freeCurMemContext(__FILE__, __LINE__)
-/*
  * Pops current context and returns to the previous context. Will not free
  * the current context.
  */
 #define RELEASE_MEM_CONTEXT() releaseCurMemContext(__FILE__, __LINE__)
+/*
+ * Removes all the memory allocation records from the current context
+ * and free those memories and finally destroy the memory context itself.
+ * The second version also releases the context.
+ */
+#define FREE_CUR_MEM_CONTEXT() freeCurMemContext(__FILE__, __LINE__)
+#define FREE_AND_RELEASE_CUR_MEM_CONTEXT() \
+    do { \
+        FREE_CUR_MEM_CONTEXT(); \
+        RELEASE_MEM_CONTEXT(); \
+    } while(0)
+
+#define FREE_MEM_CONTEXT(context) \
+    do { \
+        ACQUIRE_MEM_CONTEXT(context); \
+        FREE_AND_RELEASE_CUR_MEM_CONTEXT(); \
+    } while (0)
 
 #endif

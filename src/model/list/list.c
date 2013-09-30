@@ -56,10 +56,10 @@ newList(NodeTag type)
     List *newList;
     ListCell *newListHead;
 
-    newListHead = (ListCell *)malloc(sizeof(ListCell));
+    newListHead = (ListCell *)MALLOC(sizeof(ListCell));
     newListHead->next = NULL;
 
-    newList = (List *)malloc(sizeof(List));
+    newList = (List *)MALLOC(sizeof(List));
     newList->type = type;
     newList->length = 1;
     newList->head = newListHead;
@@ -174,7 +174,7 @@ newListTail(List *list)
 {
     ListCell *newTail;
     
-    newTail = (ListCell *)malloc(sizeof(ListCell));
+    newTail = (ListCell *)MALLOC(sizeof(ListCell));
     newTail->next = NULL;
     
     list->tail->next = newTail;
@@ -217,7 +217,7 @@ newListHead(List *list)
 {
     ListCell *newHead;
 
-    newHead = (ListCell *)malloc(sizeof(ListCell));
+    newHead = (ListCell *)MALLOC(sizeof(ListCell));
     newHead->next = list->head;
     list->head = newHead;
     list->length++;
@@ -297,7 +297,7 @@ freeList(List *list)
 {
     if (list == NIL)
         return;
-    free(list);
+    FREE(list);
 }
 
 void
@@ -313,9 +313,9 @@ deepFreeList(List *list)
     {
         ListCell *temp = node;
         node = node->next;
-        free(temp);
+        FREE(temp);
     }
-    free(list);
+    FREE(list);
 }
 
 List *

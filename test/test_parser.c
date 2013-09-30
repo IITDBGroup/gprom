@@ -21,6 +21,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "parser/parse_internal.h"
+#include "parser/parser.h"
 #include "../src/parser/sql_parser.tab.h"
 
 
@@ -35,12 +36,21 @@ main (int argc, char* argv[])
 
     initLogger();
 
-    if (yyparse())
-        FATAL_LOG("PARSE ERROR!");
+    // read from terminal
+    if (getOptions()->optionConnection->sql == NULL)
+    {
+        result = parseStream(stdin);
+
+        DEBUG_LOG("Address of returned node is <%p>", result);
+        ERROR_LOG("PARSE RESULT FROM STREAM IS <%s>", beatify(nodeToString(bisonParseResult)));
+    }
+    // parse input string
     else
     {
-        ERROR_LOG("ADDRESS OF PARSE RESULT: %p", bisonParseResult);
-        ERROR_LOG("PARSE RESULT TO AS STRING <%s>", beatify(nodeToString(bisonParseResult)));
+        result = parseFromString(getOptions()->optionConnection->sql);
+
+        DEBUG_LOG("Address of returned node is <%p>", result);
+        ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(bisonParseResult)));
     }
     freeOptions();
     destroyMemManager();

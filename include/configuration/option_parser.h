@@ -3,8 +3,8 @@
 
 #include "configuration/option.h"
 
-int parseOption(int const argc, char* const argv[]);
-boolean isOption(char* const value);
-int getNumberOfRewrite(int const argc, char* const argv[]);
+extern int parseOption(int const argc, char* const argv[]);
+extern boolean isOption(char* const value);
+extern int getNumberOfRewrite(int const argc, char* const argv[]);
 
 #endif

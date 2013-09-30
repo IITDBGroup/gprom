@@ -5,6 +5,7 @@
 
 %{
 #include <stdio.h>
+#include "common.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"

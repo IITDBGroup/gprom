@@ -15,7 +15,9 @@
 /* includes */
 %{
 #include <stdio.h>
+#include "common.h"
 #include "log/logger.h"
+#include "mem_manager/mem_mgr.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
@@ -134,4 +136,9 @@ NULL	     TOK(NULLVAL)
 void yyerror(char *s)
 {
 	ERROR_LOG("%s at %s\n", s, yytext);
+}
+
+void setupStringInput(char *input)
+{
+	yy_scan_string(input);
 }

@@ -44,7 +44,7 @@ void
 initMemManager(void)
 {
     defaultMemContext = NEW_MEM_CONTEXT(DEFAULT_MEM_CONTEXT_NAME);
-    AQUIRE_MEM_CONTEXT(defaultMemContext);
+    ACQUIRE_MEM_CONTEXT(defaultMemContext);
     // default context always lies on the bottom of the stack
 }
 
@@ -316,3 +316,16 @@ free_(void *mem, const char *file, unsigned line)
     }
 }
 
+/*
+ *
+ */
+char *
+contextStringDup(char *input)
+{
+    if (input == NULL)
+        return NULL;
+    char *result = MALLOC(strlen(input) + 1);
+    result = strcpy(result, input);
+
+    return result;
+}

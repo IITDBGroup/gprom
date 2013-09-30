@@ -28,7 +28,7 @@ static MemContext *context1;
 
 void module_Func1(void) {
     context1 = NEW_MEM_CONTEXT("TEST_CONTEXT_1");
-    AQUIRE_MEM_CONTEXT(context1); // switch to context1
+    ACQUIRE_MEM_CONTEXT(context1); // switch to context1
 
     NEW(int);
     CNEW(TestStruct, 5);
@@ -39,7 +39,7 @@ void module_Func1(void) {
 }
 
 void module_Func2(void) {
-    AQUIRE_MEM_CONTEXT(context1); // switch to context1
+    ACQUIRE_MEM_CONTEXT(context1); // switch to context1
 
     ASSERT_EQUALS_INT(3,memContextSize(context1), "context1 size is still 3");
     FREE_CUR_MEM_CONTEXT(); // free context1
@@ -53,7 +53,7 @@ testMemManager(void)
 
     MemContext *context2 = NEW_MEM_CONTEXT("TEST_CONTEXT_2");
 
-    AQUIRE_MEM_CONTEXT(context2);
+    ACQUIRE_MEM_CONTEXT(context2);
 
     // test MALLOC
     int* i = MALLOC(sizeof(int));

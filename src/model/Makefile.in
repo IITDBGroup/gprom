@@ -47,7 +47,8 @@ CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libmodel_la_DEPENDENCIES = expression/libexpression.la \
 	helperfunction/libhelperfunction.la list/liblist.la \
-	node/libnode.la query_block/libquery_block.la
+	node/libnode.la query_block/libquery_block.la \
+	query_operator/libquery_operator.la
 am_libmodel_la_OBJECTS =
 libmodel_la_OBJECTS = $(am_libmodel_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
@@ -105,6 +106,7 @@ am__relativize = \
   reldir="$$dir2"
 ACLOCAL = @ACLOCAL@
 ACLOCAL_AMFLAGS = @ACLOCAL_AMFLAGS@
+ALLOCA = @ALLOCA@
 AMTAR = @AMTAR@
 AR = @AR@
 AUTOCONF = @AUTOCONF@
@@ -223,13 +225,14 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include
-SUBDIRS = expression helperfunction list node query_block
+SUBDIRS = expression helperfunction list node query_block query_operator
 noinst_LTLIBRARIES = libmodel.la
 libmodel_la_LIBADD = expression/libexpression.la \
 						helperfunction/libhelperfunction.la \
 						list/liblist.la \
 						node/libnode.la \
-						query_block/libquery_block.la
+						query_block/libquery_block.la \
+						query_operator/libquery_operator.la
 
 libmodel_la_SOURCES = 
 all: all-recursive

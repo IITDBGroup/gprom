@@ -9,6 +9,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "common.h"
 #include "configuration/option.h"
 
 Options* options;
@@ -29,6 +30,7 @@ freeOptions()
 	free(options->optionConnection->db);
 	free(options->optionConnection->user);
 	free(options->optionConnection->passwd);
+	free(options->optionConnection->sql);
 	free(options->optionConnection);
 	free(options->optionDebug);
 	int i,size=options->optionRewrite->size;

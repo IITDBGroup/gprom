@@ -37,7 +37,10 @@ typedef enum NodeTag {
     T_ProjectionOperator,
     T_JoinOperator,
     T_AggregationOperator,
-    T_ProvenanceComputation
+    T_ProvenanceComputation,
+    T_TableAccessOperator,
+    T_SetOperator,
+    T_DuplicateRemoval
 
 } NodeTag;
 
@@ -125,6 +128,9 @@ extern char *beatify(char *input);
 extern void *stringToNode(char *str);
 
 /*copyfun.c*/
+//#define COPY_OBJECT_TO_CONTEXT(obj, result, context) \
+//
+//    (AQUIRE_MEM_CONTEXT(context,))
 extern void *copyObject(void *obj);
 
 /*equalfun.c*/

@@ -42,7 +42,7 @@ parseOption(int const argc, char* const argv[])
 			{
 				if(i+1>=argc)
 					return -1;
-				options->optionConnection->host=(char*)malloc(sizeof(argv[i+1]));
+				options->optionConnection->host=(char*)malloc(strlen(argv[i+1])+1);
 				strcpy(options->optionConnection->host,argv[i+1]);
 				i++;
 			}
@@ -50,7 +50,7 @@ parseOption(int const argc, char* const argv[])
 			{
 				if(i+1>=argc)
 					return -1;
-				options->optionConnection->db=(char*)malloc(sizeof(argv[i+1]));
+				options->optionConnection->db=(char*)malloc(strlen(argv[i+1])+1);
 				strcpy(options->optionConnection->db,argv[i+1]);
 				i++;
 			}
@@ -65,7 +65,7 @@ parseOption(int const argc, char* const argv[])
 			{
 				if(i+1>=argc)
 					return -1;
-				options->optionConnection->user=(char*)malloc(sizeof(argv[i+1]));
+				options->optionConnection->user=(char*)malloc(strlen(argv[i+1])+1);
 				strcpy(options->optionConnection->user,argv[i+1]);
 				i++;
 			}
@@ -73,7 +73,7 @@ parseOption(int const argc, char* const argv[])
 			{
 				if(i+1>=argc)
 					return -1;
-				options->optionConnection->passwd=(char*)malloc(sizeof(argv[i+1]));
+				options->optionConnection->passwd=(char*)malloc(strlen(argv[i+1])+1);
 				strcpy(options->optionConnection->passwd,argv[i+1]);
 				i++;
 			}
@@ -99,11 +99,19 @@ parseOption(int const argc, char* const argv[])
 				for(j=0;j<size;j++)
 				{
 					options->optionRewrite->rewriteMethods[j]=(RewriteMethod*)malloc(sizeof(RewriteMethod));
-					options->optionRewrite->rewriteMethods[j]->name=(char*)malloc(sizeof(argv[i+1+j]));
+					options->optionRewrite->rewriteMethods[j]->name=(char*)malloc(strlen(argv[i+1+j])+1);
 					strcpy(options->optionRewrite->rewriteMethods[j]->name,argv[i+1+j]);
 					options->optionRewrite->rewriteMethods[j]->isActive=TRUE;
 				}
 				i+=size;
+			}
+			else if (strcmp(value, "-sql") == 0)
+			{
+			    if(i+1>=argc)
+                    return -1;
+                options->optionConnection->sql=(char*)malloc(strlen(argv[i+1])+1);
+                strcpy(options->optionConnection->sql,argv[i+1]);
+                i++;
 			}
 			else
 				return -1;
