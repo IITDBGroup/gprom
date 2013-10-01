@@ -64,15 +64,17 @@ static DistinctClause *copyDistinctClause(DistinctClause *from);
                  new->fldname = (from->fldname !=NULL ? strdup(from->fldname) : NULL)  \
 		(new->fldname = (strcpy((char *) MALLOC(strlen(from->fldname) + 1), \
 				from->fldname)))
-#define GET_FIRST_ARG(first, ...) (first)
+
+#define GET_FIRST_ARG(first, ...)  \
+
+/*creates copy expressions for all fields*/
+#define CREATE_COPY_FIELD(...) \
 
 #define CREATE_COPY_FUNCTION(type, ...)  \
     static type *copy ##type()  \
     {   \
        COPY_INIT(type);  \
        CREATE_COPY_FIELDS(GET_FIRST_TWO_ARGS(__VA_ARGS__));  \
-        
-
     }
 
 /*deep copy for List operation*/
@@ -152,7 +154,7 @@ static JoinOperator *
 copyJoinOp(JoinOperator *from)
 {
     COPY_INIT(JoinOperator);
-    COPY_SCALAR_FIELD(joinType)
+    COPY_SCALAR_FIELD(joinType);
     COPY_NODE_FIELD(cond);
 
     return new;
