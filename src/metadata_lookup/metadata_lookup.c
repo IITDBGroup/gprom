@@ -30,9 +30,12 @@ initConnection()
 	char* db=options->optionConnection->db;
 
 	if(!OCI_Initialize(NULL, NULL, OCI_ENV_DEFAULT))
+	{
+	    FATAL_LOG("Cannot connect to Oracle database"); //TODO print error type
 		return EXIT_FAILURE;
+	}
 
-	conn=OCI_ConnectionCreate(db,user,passwd,OCI_SESSION_DEFAULT);
+	conn = OCI_ConnectionCreate(db,user,passwd,OCI_SESSION_DEFAULT);
 	return EXIT_SUCCESS;
 }
 
@@ -77,6 +80,7 @@ List* getAttributes(char* tableName)
 		}
 		return attrList;
 	}
+	ERROR_LOG("Not connected to database.");
 	return NIL;
 }
 
