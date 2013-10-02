@@ -11,7 +11,7 @@
 #include "model/list/list.h"
 
 /* If OCILIB is available then use it */
-#if HAVE_OCILIB
+#if HAVE_LIBOCILIB
 
 /*
  * functions and variables for internal use
