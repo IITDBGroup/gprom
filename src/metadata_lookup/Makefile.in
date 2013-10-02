@@ -34,7 +34,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-subdir = src/log
+subdir = src/metadata_lookup
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -45,9 +45,9 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
-liblog_la_LIBADD =
-am_liblog_la_OBJECTS = logger.lo
-liblog_la_OBJECTS = $(am_liblog_la_OBJECTS)
+libmetadata_lookup_la_LIBADD =
+am_libmetadata_lookup_la_OBJECTS = metadata_lookup.lo
+libmetadata_lookup_la_OBJECTS = $(am_libmetadata_lookup_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -61,8 +61,8 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(liblog_la_SOURCES)
-DIST_SOURCES = $(liblog_la_SOURCES)
+SOURCES = $(libmetadata_lookup_la_SOURCES)
+DIST_SOURCES = $(libmetadata_lookup_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -187,8 +187,8 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include
-noinst_LTLIBRARIES = liblog.la
-liblog_la_SOURCES = logger.c
+noinst_LTLIBRARIES = libmetadata_lookup.la
+libmetadata_lookup_la_SOURCES = metadata_lookup.c
 all: all-am
 
 .SUFFIXES:
@@ -202,9 +202,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign src/log/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign src/metadata_lookup/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign src/log/Makefile
+	  $(AUTOMAKE) --foreign src/metadata_lookup/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -232,8 +232,8 @@ clean-noinstLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-liblog.la: $(liblog_la_OBJECTS) $(liblog_la_DEPENDENCIES) $(EXTRA_liblog_la_DEPENDENCIES) 
-	$(LINK)  $(liblog_la_OBJECTS) $(liblog_la_LIBADD) $(LIBS)
+libmetadata_lookup.la: $(libmetadata_lookup_la_OBJECTS) $(libmetadata_lookup_la_DEPENDENCIES) $(EXTRA_libmetadata_lookup_la_DEPENDENCIES) 
+	$(LINK)  $(libmetadata_lookup_la_OBJECTS) $(libmetadata_lookup_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -241,7 +241,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/logger.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/metadata_lookup.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
