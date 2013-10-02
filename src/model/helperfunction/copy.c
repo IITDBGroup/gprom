@@ -65,10 +65,10 @@ static DistinctClause *copyDistinctClause(DistinctClause *from);
 		(new->fldname = (strcpy((char *) MALLOC(strlen(from->fldname) + 1), \
 				from->fldname)))
 
-#define GET_FIRST_ARG(first, ...)  \
+#define GET_FIRST_ARG(first, ...)  
 
 /*creates copy expressions for all fields*/
-#define CREATE_COPY_FIELD(...) \
+#define CREATE_COPY_FIELD(...) 
 
 #define CREATE_COPY_FUNCTION(type, ...)  \
     static type *copy ##type()  \
