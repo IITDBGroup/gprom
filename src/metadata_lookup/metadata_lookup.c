@@ -4,11 +4,14 @@
  *      Author: zephyr
  */
 
-#include <ocilib.h>
+#include "common.h"
 #include "configuration/option.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/list/list.h"
+
+/* If OCILIB is available then use it */
+#if HAVE_OCILIB
 
 /*
  * functions and variables for internal use
@@ -39,7 +42,8 @@ initConnection()
 	return EXIT_SUCCESS;
 }
 
-static boolean isConnected()
+static boolean
+isConnected()
 {
 	if(OCI_isConnected(conn))
 		return TRUE;
@@ -50,7 +54,8 @@ static boolean isConnected()
 	}
 }
 
-boolean catalogTableExists(char* tableName)
+boolean
+catalogTableExists(char* tableName)
 {
 	if(NULL==tableName)
 		return FALSE;
@@ -61,7 +66,8 @@ boolean catalogTableExists(char* tableName)
 	return FALSE;
 }
 
-List* getAttributes(char* tableName)
+List*
+getAttributes(char* tableName)
 {
 	if(tableName==NULL)
 		return NIL;
@@ -84,7 +90,8 @@ List* getAttributes(char* tableName)
 	return NIL;
 }
 
-int databaseConnectionClose()
+int
+databaseConnectionClose()
 {
 	if(context==NULL)
 	{
@@ -98,3 +105,26 @@ int databaseConnectionClose()
 	}
 	return EXIT_SUCCESS;
 }
+
+/* OCILIB is not available, fake functions */
+#else
+
+boolean
+catalogTableExists(char *table)
+{
+    return FALSE;
+}
+
+List *
+getAttributes (char *table)
+{
+    return NIL;
+}
+
+int
+databaseConnectionClose ()
+{
+    return EXIT_SUCCESS;
+}
+
+#endif

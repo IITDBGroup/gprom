@@ -16,6 +16,8 @@
 #ifndef METADATA_LOOKUP_H_
 #define METADATA_LOOKUP_H_
 
+#include "model/list/list.h"
+
 extern boolean catalogTableExists (char * tableName);
 extern List *getAttributes (char *tableName);
 extern int databaseConnectionClose();

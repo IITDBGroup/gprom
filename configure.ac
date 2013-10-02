@@ -39,6 +39,10 @@ AC_FUNC_REALLOC
 AC_CHECK_FUNCS([memset])
 AC_CHECK_FUNCS([strdup])
 ################################################################################
+# Oracle access libraries (OCI and OCILIB)
+AC_CHECK_LIB([ociei],[__ZTVN6oracle4occi9StatementE],[],[AC_MSG_WARN([missing OCI library])])
+AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[AC_MSG_WARN([missing OCILIB])])
+################################################################################
 # OUTPUT HEADER
 AC_CONFIG_HEADERS([config.h])
 ################################################################################
@@ -51,6 +55,7 @@ AC_CONFIG_FILES([
 	src/configuration/Makefile
 	src/log/Makefile
 	src/mem_manager/Makefile
+	src/metadata_lookup/Makefile
 	src/model/Makefile
 	src/model/expression/Makefile
 	src/model/helperfunction/Makefile

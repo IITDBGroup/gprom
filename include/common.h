@@ -63,7 +63,10 @@
 #define EXIT_FAILURE  1
 #endif
 
-
+/* OCI stuff */
+#if HAVE_OCILIB
+#include <ocilib.h>
+#endif
 
 /*******************************************************************************
  * Definitions
