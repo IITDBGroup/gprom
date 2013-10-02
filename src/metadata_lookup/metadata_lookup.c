@@ -9,6 +9,9 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/list/list.h"
+#include "model/node/nodetype.h"
+#include "model/expression/expression.h"
+#include "log/logger.h"
 
 /* If OCILIB is available then use it */
 #if HAVE_LIBOCILIB
@@ -25,7 +28,7 @@ static boolean isConnected();
 static int
 initConnection()
 {
-	NEW_AND_ACQUIRE_MEM_CONTEXT("metadataContext");
+    NEW_AND_ACQUIRE_MEMCONTEXT("metadataContext");
 	context=getCurMemContext();
 	Options* options=getOptions();
 	char* user=options->optionConnection->user;
@@ -45,7 +48,7 @@ initConnection()
 static boolean
 isConnected()
 {
-	if(OCI_isConnected(conn))
+	if(OCI_IsConnected(conn))
 		return TRUE;
 	else
 	{
@@ -62,7 +65,7 @@ catalogTableExists(char* tableName)
 	if(conn==NULL)
 		initConnection();
 	if(isConnected())
-		return tInfo=OCI_TypeInfoGet(conn,tableName,OCI_TIF_TABLE)==NULL?FALSE:TRUE;
+		return (OCI_TypeInfoGet(conn,tableName,OCI_TIF_TABLE)==NULL)? FALSE : TRUE;
 	return FALSE;
 }
 
@@ -81,7 +84,7 @@ getAttributes(char* tableName)
 		for(i = 1; i <= n; i++)
 		{
 			OCI_Column *col = OCI_TypeInfoGetColumn(tInfo, i);
-			AttributeReference* a=createAttributeReference(OCI_GetColumnName(col));
+			AttributeReference* a = createAttributeReference((char *) OCI_GetColumnName(col));
 			attrList=appendToTailOfList(attrList,a);
 		}
 		return attrList;

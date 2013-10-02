@@ -766,6 +766,7 @@ enable_fast_install
 with_gnu_ld
 with_sysroot
 enable_libtool_lock
+with_oci
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1416,6 +1417,7 @@ Optional Packages:
   --with-gnu-ld           assume the C compiler uses GNU ld [default=no]
   --with-sysroot=DIR Search for dependent libraries within DIR
                         (or the compiler's sysroot if not specified).
+  --with-oci
 
 Some influential environment variables:
   CC          C compiler command
@@ -12343,6 +12345,11 @@ CC="$lt_save_CC"
 
 
 ################################################################################
+# DEFINTIONS OF HELPER FUNCTIONS FOR GETTING USER OPTIONS
+
+
+
+################################################################################
 # DATA TYPES
 ac_fn_c_check_type "$LINENO" "size_t" "ac_cv_type_size_t" "$ac_includes_default"
 if test "x$ac_cv_type_size_t" = xyes; then :
@@ -12837,13 +12844,41 @@ done
 
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for __ZTVN6oracle4occi9StatementE in -lociei" >&5
-$as_echo_n "checking for __ZTVN6oracle4occi9StatementE in -lociei... " >&6; }
-if ${ac_cv_lib_ociei___ZTVN6oracle4occi9StatementE+:} false; then :
+# check if user has provided us with non-standard locations for OCI libraries
+
+# Check whether --with-oci was given.
+if test "${with_oci+set}" = set; then :
+  withval=$with_oci;
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for OCILOC" >&5
+$as_echo_n "checking for OCILOC... " >&6; }
+
+# sensible default if nothing specified
+if test "x$with_oci" = x; then
+    with_oci=/usr/local/oracle
+fi
+
+if test -d "$with_oci"; then
+	LDFLAGS="$LDFLAGS -L$with_oci"
+    CPPFLAGS="$CPPFLAGS -I$with_oci/include"
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes, $with_oci" >&5
+$as_echo "yes, $with_oci" >&6; }
+else
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: no library found in location $with_oci for oracle library" >&5
+$as_echo "$as_me: WARNING: no library found in location $with_oci for oracle library" >&2;}
+fi
+
+# check for the libraries
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for OCIInitialize in -lclntsh" >&5
+$as_echo_n "checking for OCIInitialize in -lclntsh... " >&6; }
+if ${ac_cv_lib_clntsh_OCIInitialize+:} false; then :
   $as_echo_n "(cached) " >&6
 else
   ac_check_lib_save_LIBS=$LIBS
-LIBS="-lociei  $LIBS"
+LIBS="-lclntsh  $LIBS"
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -12853,32 +12888,80 @@ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 #ifdef __cplusplus
 extern "C"
 #endif
-char __ZTVN6oracle4occi9StatementE ();
+char OCIInitialize ();
 int
 main ()
 {
-return __ZTVN6oracle4occi9StatementE ();
+return OCIInitialize ();
   ;
   return 0;
 }
 _ACEOF
 if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_lib_ociei___ZTVN6oracle4occi9StatementE=yes
+  ac_cv_lib_clntsh_OCIInitialize=yes
 else
-  ac_cv_lib_ociei___ZTVN6oracle4occi9StatementE=no
+  ac_cv_lib_clntsh_OCIInitialize=no
 fi
 rm -f core conftest.err conftest.$ac_objext \
     conftest$ac_exeext conftest.$ac_ext
 LIBS=$ac_check_lib_save_LIBS
 fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_ociei___ZTVN6oracle4occi9StatementE" >&5
-$as_echo "$ac_cv_lib_ociei___ZTVN6oracle4occi9StatementE" >&6; }
-if test "x$ac_cv_lib_ociei___ZTVN6oracle4occi9StatementE" = xyes; then :
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_clntsh_OCIInitialize" >&5
+$as_echo "$ac_cv_lib_clntsh_OCIInitialize" >&6; }
+if test "x$ac_cv_lib_clntsh_OCIInitialize" = xyes; then :
   cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBOCIEI 1
+#define HAVE_LIBCLNTSH 1
 _ACEOF
 
-  LIBS="-lociei $LIBS"
+  LIBS="-lclntsh $LIBS"
+
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: missing OCI library" >&5
+$as_echo "$as_me: WARNING: missing OCI library" >&2;}
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for OCIHandleFree in -locci" >&5
+$as_echo_n "checking for OCIHandleFree in -locci... " >&6; }
+if ${ac_cv_lib_occi_OCIHandleFree+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-locci  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char OCIHandleFree ();
+int
+main ()
+{
+return OCIHandleFree ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_occi_OCIHandleFree=yes
+else
+  ac_cv_lib_occi_OCIHandleFree=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_occi_OCIHandleFree" >&5
+$as_echo "$ac_cv_lib_occi_OCIHandleFree" >&6; }
+if test "x$ac_cv_lib_occi_OCIHandleFree" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBOCCI 1
+_ACEOF
+
+  LIBS="-locci $LIBS"
 
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: missing OCI library" >&5
