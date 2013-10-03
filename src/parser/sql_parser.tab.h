@@ -1,19 +1,19 @@
-/* A Bison parser, made by GNU Bison 3.0.  */
+/* A Bison parser, made by GNU Bison 2.5.  */
 
 /* Bison interface for Yacc-like parsers in C
-
-   Copyright (C) 1984, 1989-1990, 2000-2013 Free Software Foundation, Inc.
-
+   
+      Copyright (C) 1984, 1989-1990, 2000-2011 Free Software Foundation, Inc.
+   
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
-
+   
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-
+   
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
@@ -26,84 +26,79 @@
    special exception, which will cause the skeleton and the resulting
    Bison output files to be licensed under the GNU General Public
    License without this special exception.
-
+   
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
-#ifndef YY_YY_SQL_PARSER_TAB_H_INCLUDED
-# define YY_YY_SQL_PARSER_TAB_H_INCLUDED
-/* Debug traces.  */
-#ifndef YYDEBUG
-# define YYDEBUG 0
-#endif
-#if YYDEBUG
-extern int yydebug;
-#endif
 
-/* Token type.  */
+/* Tokens.  */
 #ifndef YYTOKENTYPE
 # define YYTOKENTYPE
-  enum yytokentype
-  {
-    intConst = 258,
-    floatConst = 259,
-    stringConst = 260,
-    identifier = 261,
-    comparisonop = 262,
-    arithmeticop = 263,
-    SELECT = 264,
-    PROVENANCE = 265,
-    OF = 266,
-    FROM = 267,
-    AS = 268,
-    WHERE = 269,
-    DISTINCT = 270,
-    ON = 271,
-    STARALL = 272,
-    UPDATE = 273,
-    DELETE = 274,
-    AND = 275,
-    OR = 276,
-    LIKE = 277,
-    NOT = 278,
-    IN = 279,
-    ISNULL = 280,
-    BETWEEN = 281,
-    AMMSC = 282,
-    NULLVAL = 283,
-    ALL = 284,
-    ANY = 285,
-    BY = 286,
-    IS = 287
-  };
+   /* Put the tokens into the symbol table, so that GDB and other debuggers
+      know about them.  */
+   enum yytokentype {
+     intConst = 258,
+     floatConst = 259,
+     stringConst = 260,
+     identifier = 261,
+     comparisonop = 262,
+     SELECT = 263,
+     PROVENANCE = 264,
+     OF = 265,
+     FROM = 266,
+     AS = 267,
+     WHERE = 268,
+     DISTINCT = 269,
+     ON = 270,
+     STARALL = 271,
+     UPDATE = 272,
+     DELETE = 273,
+     AND = 274,
+     OR = 275,
+     LIKE = 276,
+     NOT = 277,
+     IN = 278,
+     ISNULL = 279,
+     BETWEEN = 280,
+     AMMSC = 281,
+     NULLVAL = 282,
+     ALL = 283,
+     ANY = 284,
+     BY = 285,
+     IS = 286,
+     XOR = 287
+   };
 #endif
 
-/* Value type.  */
+
+
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-typedef union YYSTYPE YYSTYPE;
-union YYSTYPE
+typedef union YYSTYPE
 {
-#line 18 "sql_parser.y" /* yacc.c:1909  */
 
-	/* 
-	 * Declare some C structure those will be used as data type
+/* Line 2068 of yacc.c  */
+#line 24 "sql_parser.y"
+
+    /* 
+     * Declare some C structure those will be used as data type
      * for various tokens used in grammar rules.
-	 */
-	 Node *node;
-	 List *list;
-	 char *stringVal;
-	 int intVal;
-	 double floatVal;
+     */
+     Node *node;
+     List *list;
+     char *stringVal;
+     int intVal;
+     double floatVal;
 
-#line 99 "sql_parser.tab.h" /* yacc.c:1909  */
-};
+
+
+/* Line 2068 of yacc.c  */
+#line 96 "sql_parser.tab.h"
+} YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
+# define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1
 #endif
 
-
 extern YYSTYPE yylval;
 
-int yyparse (void);
 
-#endif /* !YY_YY_SQL_PARSER_TAB_H_INCLUDED  */

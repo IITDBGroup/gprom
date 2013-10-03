@@ -99,8 +99,8 @@ NULL	     TOK(NULLVAL)
 [(),.;] TOKSELF()
 
 	/* operators */
-{comparisonops}		TOKSELF(comparisonop)
-[+-*%/^~&|!]		TOKSELF(yytext[0])
+{comparisonops}		TOKSELF()
+[-+*%/^~&|!]    TOKSELF()	
 	
 	/* names */
 {identifiers}	TOK(identifier)
@@ -135,7 +135,8 @@ NULL	     TOK(NULLVAL)
 /* use logging framework in the future */
 void yyerror(char *s)
 {
-	ERROR_LOG("%s at %s\n", s, yytext);
+        extern yylineno;
+	ERROR_LOG("%s at %s on line no. %d \n", s, yytext, yylineno);
 }
 
 void setupStringInput(char *input)
