@@ -60,7 +60,7 @@ identifiers		({identStart}{identContinue}*)
 
 /* operators */
 comparisonops	("="|"<>"|"!="|"<"|">"|"<="|">=")
-arithmeticops	("+"|"-"|"/"|"*"|"%"|"&"|"|"|"^")
+/* arithmeticops	("+"|"-"|"/"|"*"|"%"|"&"|"|"|"^") */
 
 /*******************************************************************************
  * Token definitions and actions 
@@ -99,8 +99,8 @@ NULL	     TOK(NULLVAL)
 [(),.;] TOKSELF()
 
 	/* operators */
-{comparisonops}		TOK(comparisonop)
-{arithmeticops}		TOK(arithmeticop)
+{comparisonops}		TOKSELF(comparisonop)
+[+-*%/^~&|!]		TOKSELF(yytext[0])
 	
 	/* names */
 {identifiers}	TOK(identifier)
