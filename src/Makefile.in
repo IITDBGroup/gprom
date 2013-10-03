@@ -49,7 +49,8 @@ libsrc_la_DEPENDENCIES = configuration/libconfiguration.la \
 	log/liblog.la mem_manager/libmem_manager.la model/libmodel.la \
 	provenance_rewriter/libprovenance_rewriter.la \
 	parser/libparser.la analysis_and_translate/libanalysis.la \
-	sql_serializer/libserializer.la
+	sql_serializer/libserializer.la \
+	metadata_lookup/libmetadata_lookup.la
 am_libsrc_la_OBJECTS = rewriter.lo
 libsrc_la_OBJECTS = $(am_libsrc_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
@@ -229,7 +230,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include
-SUBDIRS = configuration log mem_manager model provenance_rewriter parser analysis_and_translate sql_serializer . command_line
+SUBDIRS = configuration log mem_manager model provenance_rewriter parser analysis_and_translate sql_serializer metadata_lookup . command_line
 noinst_LTLIBRARIES = libsrc.la
 libsrc_la_LIBADD = configuration/libconfiguration.la \
 						log/liblog.la \
@@ -238,7 +239,8 @@ libsrc_la_LIBADD = configuration/libconfiguration.la \
 						provenance_rewriter/libprovenance_rewriter.la \
 						parser/libparser.la \
 						analysis_and_translate/libanalysis.la \
-						sql_serializer/libserializer.la
+						sql_serializer/libserializer.la \
+						metadata_lookup/libmetadata_lookup.la
 
 libsrc_la_SOURCES = rewriter.c
 all: all-recursive

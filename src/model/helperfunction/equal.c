@@ -245,7 +245,8 @@ equalFromItem(FromItem *a, FromItem *b)
 static boolean 
 equalFromTableRef(FromTableRef *a, FromTableRef *b)
 {
-    COMPARE_SCALAR_FIELD(from);
+    if (!equalFromItem((FromItem *) a, (FromItem *) b))
+        return FALSE;
     COMPARE_STRING_FIELD(tableId);
     
     return TRUE;
@@ -254,7 +255,8 @@ equalFromTableRef(FromTableRef *a, FromTableRef *b)
 static boolean 
 equalFromSubquery(FromSubquery *a, FromSubquery *b)
 {
-    COMPARE_SCALAR_FIELD(from);
+    if (!equalFromItem((FromItem *) a, (FromItem *) b))
+        return FALSE;
     COMPARE_NODE_FIELD(subquery);
    
     return TRUE;
@@ -263,6 +265,8 @@ equalFromSubquery(FromSubquery *a, FromSubquery *b)
 static boolean 
 equalFromJoinExpr(FromJoinExpr *a, FromJoinExpr *b)
 {
+    if (!equalFromItem((FromItem *) a, (FromItem *) b))
+        return FALSE;
     COMPARE_NODE_FIELD(left);
     COMPARE_NODE_FIELD(right);
     COMPARE_SCALAR_FIELD(joinType);
@@ -340,7 +344,7 @@ equal(void *a, void *b)
             retval = equalQueryBlock(a,b);
             break;
         case T_ProvenanceStmt:
-            retval = ProvenanceStmt(a,b);
+            retval = equalProvenanceStmt(a,b);
             break;
         case T_SelectItem:
             retval = equalSelectItem(a,b);

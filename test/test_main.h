@@ -35,7 +35,7 @@ extern int test_count;
     do { \
         char *indentation = getIndent(test_rec_depth); \
         int prev_count = test_count; \
-    	printf("%sTEST SUITED STARTED [%s-%s-%u]: %s\n", indentation, __FILE__, \
+    	printf("%sTEST SUITE STARTED [%s-%s-%u]: %s\n", indentation, __FILE__, \
     	        __func__, __LINE__, msg); \
     	free(indentation); \
     	test_rec_depth++; \
