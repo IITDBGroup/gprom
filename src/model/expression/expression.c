@@ -14,8 +14,11 @@
 
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
+#include "log/logger.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+
+
 
 AttributeReference *
 createAttributeReference (char *name)
@@ -90,3 +93,33 @@ createConstFloat (float value)
 }
 
 
+DataType
+typeOf (Node *expr)
+{
+    switch(expr->type)
+    {
+        case T_Constant:
+        {
+            Constant *c = (Constant *) expr;
+            return c->constType;
+        }
+        //TODO use metadata lookup
+        case T_FunctionCall:
+        case T_Operator:
+            return DT_STRING;
+        default:
+             ERROR_LOG("unkown expression type for node: %s", nodeToString(expr));
+             break;
+    }
+    return DT_STRING;
+}
+
+DataType
+typeOfInOpModel (Node *expr, List *inputOperators)
+{
+    if (isA(expr, AttributeReference)) // need to figure out type
+    {
+        return DT_STRING;
+    }
+    return DT_STRING;
+}

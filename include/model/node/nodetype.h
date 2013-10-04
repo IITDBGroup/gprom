@@ -32,6 +32,8 @@ typedef enum NodeTag {
     T_DistinctClause,
 
     /* query operator model nodes */
+    T_Schema,
+    T_AttributeDef,
     T_QueryOperator,
     T_SelectionOperator,
     T_ProjectionOperator,

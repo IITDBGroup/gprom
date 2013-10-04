@@ -13,8 +13,12 @@
 #include "model/query_operator/query_operator.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
+#include "model/list/list.h"
 
-extern Schema *
+static Schema *mergeSchemas (List *inputs);
+static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
+
+Schema *
 createSchema(char *name, List *attrDefs)
 {
     Schema *s = NEW(Schema);
@@ -23,118 +27,199 @@ createSchema(char *name, List *attrDefs)
     return s;
 }
 
-extern TableAccessOperator *
-createTableAccessOp(char *tableName, Schema *schema, List *parents,
-        List *attrNames)
+Schema *
+createSchemaFromLists (char *name, List *attrNames, List *dataTypes)
+{
+    Schema *result = makeNode(Schema);
+
+    result->name = strdup(name);
+    result->attrDefs = NIL;
+
+    int i = 0;
+    if (dataTypes == NULL)
+    {
+        FOREACH(char,n,attrNames)
+        {
+            AttributeDef *a = makeNode(AttributeDef);
+            a->attrName = strdup(n);
+            a->dataType = DT_STRING;
+
+            result->attrDefs = appendToTailOfList(result->attrDefs, a);
+        }
+    }
+    else
+    {
+        FORBOTH_LC(n,dt,attrNames,dataTypes)
+        {
+            AttributeDef *a = makeNode(AttributeDef);
+            a->attrName = strdup(LC_P_VAL(n));
+            a->dataType = LC_INT_VAL(dt);
+
+            result->attrDefs = appendToTailOfList(result->attrDefs, a);
+        }
+    }
+    return result;
+}
+
+static Schema *
+schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs)
+{
+    List *dataTypes = NIL;
+
+    FOREACH(Node,n,exprs)
+        dataTypes = appendToHeadOfListInt(dataTypes, typeOfInOpModel(n, inputs));
+
+    return createSchemaFromLists(name, attributeNames, dataTypes);
+}
+
+List *
+getDataTypes (Schema *schema)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeDef,a,schema->attrDefs)
+    {
+        result = appendToTailOfListInt(result, a->dataType);
+    }
+
+    return result;
+}
+
+TableAccessOperator *
+createTableAccessOp(char *tableName, char *alias, List *parents,
+        List *attrNames, List *dataTypes)
 {
     TableAccessOperator *ta = NEW(TableAccessOperator);
+
     ta->tableName = tableName;
     ta->op.type = T_TableAccessOperator;
     ta->op.inputs = NULL;
-    ta->op.schema = newList(T_Invalid);
-    appendToTailOfList(ta->op.schema, schema);
+    ta->op.schema = createSchemaFromLists(alias, attrNames, dataTypes);
     ta->op.parents = parents;
-    ta->op.provAttrs = attrNames;
+    ta->op.provAttrs = NIL;
+
     return ta;
 }
 
-extern SelectionOperator *
+SelectionOperator *
 createSelectionOp(Node *cond, QueryOperator *input, List *parents,
         List *attrNames)
 {
     SelectionOperator *sel = NEW(SelectionOperator);
+
     sel->cond = cond;
     sel->op.type = T_SelectionOperator;
-    sel->op.inputs = newList(T_QueryOperator);
-    appendToTailOfList(sel->op.inputs, input);
-    sel->op.schema = newList(T_Invalid);
-    appendToTailOfList(sel->op.schema, getHeadOfListP(input->schema));
+    sel->op.inputs = singleton(input);
+    sel->op.schema = createSchemaFromLists("SELECT", attrNames, getDataTypes(input->schema));
     sel->op.parents = parents;
-    sel->op.provAttrs = attrNames;
+    sel->op.provAttrs = NIL;
+
     return sel;
 }
 
-extern ProjectionOperator *
+ProjectionOperator *
 createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
         List *attrNames)
 {
     ProjectionOperator *prj = NEW(ProjectionOperator);
+
     prj->projExprs = projExprs;
     prj->op.type = T_ProjectionOperator;
-    prj->op.inputs = newList(T_QueryOperator);
-    appendToTailOfList(prj->op.inputs, input);
-    prj->op.schema = newList(T_Invalid);
-    appendToTailOfList(prj->op.schema, getHeadOfListP(input->schema));
+    prj->op.inputs = singleton(input);
+    prj->op.schema = schemaFromExpressions("PROJECTION", attrNames, projExprs,
+            singleton(input));
+
     prj->op.parents = parents;
-    prj->op.provAttrs = attrNames;
+    prj->op.provAttrs = NIL;
+
     return prj;
 }
 
-extern JoinOperator *
+JoinOperator *
 createJoinOp(JoinType joinType, Node *cond, List *inputs, List *parents,
         List *attrNames)
 {
     JoinOperator *join = NEW(JoinOperator);
+
     join->cond = cond;
     join->joinType = joinType;
     join->op.type = T_JoinOperator;
     join->op.inputs = inputs;
-    join->op.schema = newList(T_Invalid);
-    appendToTailOfList(join->op.schema,
-            getHeadOfListP(((QueryOperator *) getHeadOfListP(inputs))->schema));
-    appendToTailOfList(join->op.schema,
-            getHeadOfListP(
-                    ((QueryOperator *) getNthOfList(inputs, 2)->data.ptr_value)->schema));
+    /* get data types from inputs and attribute names from parameter to create
+     * schema */
+    List *lDT, *rDT;
+    lDT = getDataTypes(OP_LCHILD(join)->schema);
+    rDT = getDataTypes(OP_RCHILD(join)->schema);
+    join->op.schema = createSchemaFromLists("JOIN", attrNames, concatTwoLists(lDT, rDT));
+
     join->op.parents = parents;
-    join->op.provAttrs = attrNames;
+    join->op.provAttrs = NULL;
+
     return join;
 }
 
-extern AggregationOperator *
+AggregationOperator *
 createAggregationOp(List *aggrs, List *groupBy, QueryOperator *input,
         List *parents, List *attrNames)
 {
     AggregationOperator *aggr = NEW(AggregationOperator);
+
     aggr->aggrs = aggrs;
     aggr->groupBy = groupBy;
     aggr->op.type = T_AggregationOperator;
-    aggr->op.inputs = newList(T_QueryOperator);
-    appendToTailOfList(aggr->op.inputs, input);
-    aggr->op.schema = newList(T_Invalid);
-    appendToTailOfList(aggr->op.schema, getHeadOfListP(input->schema));
+    aggr->op.inputs = singleton(input);
+    aggr->op.schema = schemaFromExpressions("AGG", attrNames,
+            concatTwoLists(copyList(aggrs),copyList(groupBy)), singleton(input));
     aggr->op.parents = parents;
-    aggr->op.provAttrs = attrNames;
+    aggr->op.provAttrs = NULL;
+
     return aggr;
 }
 
-extern SetOperator *
+SetOperator *
 createSetOperator(SetOpType setOpType, List *inputs, List *parents,
         List *attrNames)
 {
     SetOperator *set = NEW(SetOperator);
+
     set->setOpType = setOpType;
     set->op.type = T_SetOperator;
     set->op.inputs = inputs;
-    set->op.schema = newList(T_Invalid);
-    appendToTailOfList(set->op.schema,
-            getHeadOfListP(((QueryOperator *) getHeadOfListP(inputs))->schema));
+    set->op.schema = createSchemaFromLists("SET", attrNames, getDataTypes(OP_LCHILD(set)->schema));
     set->op.parents = parents;
-    set->op.provAttrs = attrNames;
+    set->op.provAttrs = NULL;
+
     return set;
 }
 
-extern DuplicateRemoval *
+DuplicateRemoval *
 createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
         List *attrNames)
 {
     DuplicateRemoval *dr = NEW(DuplicateRemoval);
+
     dr->attrs = attrs;
     dr->op.type = T_DuplicateRemoval;
-    dr->op.inputs = newList(T_QueryOperator);
-    appendToTailOfList(dr->op.inputs, input);
-    dr->op.schema = newList(T_Invalid);
-    appendToTailOfList(dr->op.schema, getHeadOfListP(input->schema));
+    dr->op.inputs = singleton(input);
+    dr->op.schema = createSchemaFromLists("DUPREM", attrNames, getDataTypes(input->schema));
     dr->op.parents = parents;
-    dr->op.provAttrs = attrNames;
+    dr->op.provAttrs = NULL;
+
     return dr;
+}
+
+static Schema *
+mergeSchemas (List *inputs)
+{
+    Schema *result = NULL;
+
+    FOREACH(QueryOperator,O,inputs)
+    {
+        if (result == NULL)
+            result = (Schema *) copyObject(O->schema);
+        else
+            result->attrDefs = concatTwoLists(result->attrDefs, copyObject(O->schema->attrDefs));
+    }
+
+    return result;
 }

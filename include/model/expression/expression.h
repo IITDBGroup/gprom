@@ -46,4 +46,7 @@ extern Constant *createConstInt (int value);
 extern Constant *createConstString (char *value);
 extern Constant *createConstFloat (float value);
 
+extern DataType typeOf (Node *expr);
+extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
+
 #endif /* EXPRESSION_H */

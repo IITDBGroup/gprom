@@ -18,12 +18,15 @@
 
 typedef struct AttributeDef
 {
+    NodeTag type;
     DataType dataType;
-    AttributeReference attrRef;
+    char *attrName;
+    int pos;
 } AttributeDef;
 
 typedef struct Schema
 {
+    NodeTag type;
     char *name;
     List *attrDefs; // AttributeDef type
 } Schema;
@@ -32,7 +35,7 @@ typedef struct QueryOperator
 {
     NodeTag type;
     List *inputs; // children of the operator node, QueryOperator type
-    List *schema; // attributes and their data types of result tables, Schema type
+    Schema *schema; // attributes and their data types of result tables, Schema type
     List *parents; // direct parents of the operator node, QueryOperator type
     List *provAttrs; // provenance attributes, AttributeReference type
 } QueryOperator; // common fields that all operators have
@@ -95,7 +98,8 @@ typedef struct ProvenanceComputation
 
 /* create functions */
 extern Schema *createSchema(char *name, List *attrDefs);
-extern TableAccessOperator *createTableAccessOp (char *tableName, Schema *schema, List *parents, List *attrNames);
+extern Schema *createSchemaFromLists (char *name, List *attrNames, List *dataTypes);
+extern TableAccessOperator *createTableAccessOp (char *tableName, char *alias, List *parents, List *attrNames, List *dataTypes);
 extern SelectionOperator *createSelectionOp (Node *cond, QueryOperator *input, List *parents, List *attrNames);
 extern ProjectionOperator *createProjectionOp (List *projExprs, QueryOperator *input, List *parents, List *attrNames);
 extern JoinOperator *createJoinOp (JoinType joinType, Node *cond, List *inputs, List *parents, List *attrNames);

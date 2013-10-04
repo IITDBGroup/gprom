@@ -126,6 +126,19 @@ getTailOfListInt(List *list)
     return tail ? tail->data.int_value : -1;
 }
 
+void *
+getNthOfListP(List *list, int n)
+{
+    return getNthOfList(list,n)->data.ptr_value;
+}
+
+int
+getNthOfListInt(List *list, int n)
+{
+    return getNthOfList(list,n)->data.int_value;
+}
+
+
 ListCell *
 getNthOfList(List *list, int n)
 {
@@ -133,13 +146,11 @@ getNthOfList(List *list, int n)
 		return NULL;
 	assert(getListLength(list) >= n);
     
-    int counter = 0;
 	ListCell * node;
     
     node = list->head;
-	while (node != NULL && counter < n)
+	while (node != NULL && n--)
 	{
-		counter++;
 		node = node->next;
 	}
     
@@ -285,11 +296,20 @@ sortList(List *list)
 List *
 copyList(List *list)
 {
-	List *listCopy;
+	List *listCopy = NIL;
 
-	listCopy = newList(list->type);
+	if (list == NULL)
+	    return NULL;
 
-	return NULL; /* keep compiler quiet for now */
+	FOREACH_LC(lc, list)
+	{
+	    if (list->type == T_List)
+	        listCopy = appendToTailOfList(listCopy, LC_P_VAL(lc));
+	    else
+	        listCopy = appendToTailOfListInt(listCopy, LC_INT_VAL(lc));
+	}
+
+	return listCopy; /* keep compiler quiet for now */
 }
 
 void

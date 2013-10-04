@@ -41,6 +41,9 @@ typedef struct List
 	for(int DUMMY_INT_FOR_COND(name) = 0; DUMMY_INT_FOR_COND(name) == 0;) \
 		for(type name = NULL; DUMMY_INT_FOR_COND(name) == 0; DUMMY_INT_FOR_COND(name)++) \
 
+#define FOREACH_LC(lc,list) \
+	for(ListCell *lc = getHeadOfList(list); lc != NULL; lc = lc->next)
+
 #define FOREACH(_type_,_node_,_list_) \
     INJECT_VAR(ListCell*,DUMMY_LC(_node_)) \
     for(_type_ *_node_ = (_type_ *)(((DUMMY_LC(_node_) = \
@@ -112,6 +115,12 @@ typedef struct List
                     DUMMY_LC(_ival2_)->next) != NULL) ? \
                     DUMMY_LC(_ival2_)->data.int_value : -1))
 
+/*
+ * Get pointer of integer value of a list cell
+ */
+#define LC_P_VAL(lc) (((ListCell *) lc)->data.ptr_value)
+#define LC_INT_VAL(lc) (((ListCell *) lc)->data.int_value)
+
 extern boolean checkList(const List *list);
 
 extern List *newList(NodeTag type);
@@ -128,6 +137,8 @@ extern void *getHeadOfListP (List *list);
 extern ListCell *getTailOfList(List *list);
 extern int getTailOfListInt(List *list);
 
+extern void *getNthOfListP(List *list, int n);
+extern int getNthOfListInt(List *list, int n);
 extern ListCell *getNthOfList(List *list, int n);
 
 extern void newListTail(List *list);
@@ -149,5 +160,7 @@ extern void deepFreeList(List *list);
 
 extern boolean searchList(List *list, void *value);
 extern boolean searchListInt(List *list, int value);
+
+extern List *concatTwoLists (List *listA, List *listB);
 
 #endif /* LIST_H */
