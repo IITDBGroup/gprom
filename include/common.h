@@ -64,7 +64,7 @@
 #endif
 
 /* OCI stuff */
-#if HAVE_OCILIB
+#if HAVE_LIBOCILIB
 #include <ocilib.h>
 #endif
 

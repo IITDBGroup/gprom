@@ -122,7 +122,7 @@ extern Allocation *findAlloc(const MemContext *mc, const void *addr);
 #define NEW_MEM_CONTEXT(name) newMemContext((name), __FILE__, __LINE__)
 #define NEW_AND_ACQUIRE_MEMCONTEXT(name) \
     do { \
-        MemoryContext *_newcontext_ = NEW_MEM_CONTEXT(name); \
+        MemContext *_newcontext_ = NEW_MEM_CONTEXT(name); \
         ACQUIRE_MEM_CONTEXT(_newcontext_); \
     } while (0);
 /*
