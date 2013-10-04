@@ -97,9 +97,9 @@ typedef struct ProvenanceComputation
 extern Schema *createSchema(char *name, List *attrDefs);
 extern TableAccessOperator *createTableAccessOp (char *tableName, Schema *schema, List *parents, List *attrNames);
 extern SelectionOperator *createSelectionOp (Node *cond, QueryOperator *input, List *parents, List *attrNames);
-extern ProjectionOperator *createProjectionOp (List *projExprs, QueryOperator *input, Schema *schema, List *parents, List *attrNames);
+extern ProjectionOperator *createProjectionOp (List *projExprs, QueryOperator *input, List *parents, List *attrNames);
 extern JoinOperator *createJoinOp (JoinType joinType, Node *cond, List *inputs, List *parents, List *attrNames);
-extern AggregationOperator *createAggregationOp (List *aggrs, List *groupBy, QueryOperator *input, List *schema, List *parents, List *attrNames);
+extern AggregationOperator *createAggregationOp (List *aggrs, List *groupBy, QueryOperator *input, List *parents, List *attrNames);
 extern SetOperator *createSetOperator (SetOpType setOpType, List *inputs, List *parents, List *attrNames);
 extern DuplicateRemoval *createDuplicateRemovalOp (List *attrs, QueryOperator *input, List *parents, List *attrNames);
 extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, List *parents, List *attrNames);
