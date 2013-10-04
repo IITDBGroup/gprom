@@ -8,6 +8,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "model/list/list.h"
+#include "model/node/nodetype.h"
 
 boolean
 checkList(const List *list)
@@ -335,6 +336,11 @@ freeList(List *list)
 {
     if (list == NIL)
         return;
+
+    for(ListCell *lc = list->head->next, *prev = list->head; lc != NULL;
+            prev = lc, lc = lc->next)
+        FREE(prev);
+
     FREE(list);
 }
 
@@ -344,15 +350,13 @@ deepFreeList(List *list)
     if (list == NIL)
         return;
     
-    ListCell *node;
-
-    node = list->head;
-    while (node != NULL)
+    for(ListCell *lc = list->head->next, *prev = list->head; lc != NULL;
+            prev = lc, lc = lc->next)
     {
-        ListCell *temp = node;
-        node = node->next;
-        FREE(temp);
+        deepFree(LC_P_VAL(lc));
+        FREE(prev);
     }
+
     FREE(list);
 }
 

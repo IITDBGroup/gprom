@@ -21,7 +21,7 @@
 /* helper macros */
 #define FREE_NODE_FIELD(fldname) deepFree(node->fldname)
 #define FREE_SCALAR_FIELD(fldname)
-#define FREE_STRING_FIELD(fldname) \
+#define FREE_P_FIELD(fldname) \
     if (node->fldname != NULL) \
         FREE(node->fldname);
 #define FREE_LIST_SHALLOW(fldname) freeList(node->fldname)
@@ -31,6 +31,9 @@
 
 /* declarations */
 static void freeAggregationOperator (AggregationOperator *node);
+static void freeConstant (Constant *node);
+static void freeAttributeReference (AttributeReference *node);
+static void freeFunctionCall (FunctionCall *node);
 
 /* definitions */
 
@@ -54,6 +57,31 @@ freeAggregationOperator (AggregationOperator *node)
     FINISH_FREE();
 }
 
+static void
+freeConstant (Constant *node)
+{
+    FREE_P_FIELD(value);
+
+    FINISH_FREE();
+}
+
+static void
+freeAttributeReference (AttributeReference *node)
+{
+    FREE_P_FIELD(name);
+
+    FINISH_FREE();
+}
+
+static void
+freeFunctionCall (FunctionCall *node)
+{
+    FREE_P_FIELD(functionname);
+    FREE_NODE_FIELD(args);
+
+    FINISH_FREE();
+}
+
 /* frees a node and all of its children */
 void
 deepFree (void *a)
@@ -72,8 +100,14 @@ deepFree (void *a)
             break;
             /* expression nodes */
         case T_Constant:
+            freeConstant((Constant *) node);
+            break;
         case T_AttributeReference:
+            freeAttributeReference((AttributeReference *) node);
+            break;
         case T_FunctionCall:
+            freeFunctionCall((FunctionCall *) node);
+            break;
         case T_Operator:
 
             /* query block model nodes */
