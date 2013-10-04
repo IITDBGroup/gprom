@@ -127,6 +127,8 @@ extern List *newList(NodeTag type);
 
 extern List *singletonInt(int value);
 extern List *singleton(void *value);
+#define LIST_MAKE(...) listMake(__VA_ARGS__, NULL)
+extern List *listMake(void *elem, ...);
 
 extern int getListLength(List *list);
 

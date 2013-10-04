@@ -78,7 +78,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-subdir = src/configuration
+subdir = src/operator_optimizer
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/config/depcomp
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -93,9 +93,11 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
-libconfiguration_la_DEPENDENCIES =
-am_libconfiguration_la_OBJECTS = option_parser.lo option.lo
-libconfiguration_la_OBJECTS = $(am_libconfiguration_la_OBJECTS)
+liboperator_optimizer_la_LIBADD =
+am_liboperator_optimizer_la_OBJECTS = operator_optimizer.lo \
+	operator_merge.lo
+liboperator_optimizer_la_OBJECTS =  \
+	$(am_liboperator_optimizer_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
@@ -134,8 +136,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(libconfiguration_la_SOURCES)
-DIST_SOURCES = $(libconfiguration_la_SOURCES)
+SOURCES = $(liboperator_optimizer_la_SOURCES)
+DIST_SOURCES = $(liboperator_optimizer_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -283,9 +285,8 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include
-noinst_LTLIBRARIES = libconfiguration.la
-libconfiguration_la_SOURCES = option_parser.c option.c
-libconfiguration_la_LIBADD = 
+noinst_LTLIBRARIES = liboperator_optimizer.la
+liboperator_optimizer_la_SOURCES = operator_optimizer.c operator_merge.c
 all: all-am
 
 .SUFFIXES:
@@ -299,9 +300,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign src/configuration/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign src/operator_optimizer/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign src/configuration/Makefile
+	  $(AUTOMAKE) --foreign src/operator_optimizer/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -332,8 +333,8 @@ clean-noinstLTLIBRARIES:
 	  rm -f $${locs}; \
 	}
 
-libconfiguration.la: $(libconfiguration_la_OBJECTS) $(libconfiguration_la_DEPENDENCIES) $(EXTRA_libconfiguration_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(LINK)  $(libconfiguration_la_OBJECTS) $(libconfiguration_la_LIBADD) $(LIBS)
+liboperator_optimizer.la: $(liboperator_optimizer_la_OBJECTS) $(liboperator_optimizer_la_DEPENDENCIES) $(EXTRA_liboperator_optimizer_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(LINK)  $(liboperator_optimizer_la_OBJECTS) $(liboperator_optimizer_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -341,8 +342,8 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/option.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/option_parser.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/operator_merge.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/operator_optimizer.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

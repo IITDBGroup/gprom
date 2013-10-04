@@ -180,6 +180,24 @@ singleton(void *value)
 	return list;
 }
 
+List *
+listMake(void *elem, ...)
+{
+    List *result = NIL;
+    int n = 0;
+    va_list args;
+    void *p;
+
+    va_start(args, elem);
+
+    while((p = va_arg(args, void *)))
+        result = appendToTailOfList(result, p);
+
+    va_end(args);
+
+    return result;
+}
+
 void
 newListTail(List *list)
 {

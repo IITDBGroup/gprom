@@ -96,9 +96,12 @@ typedef struct ProvenanceComputation
     ProvenanceType provType;
 } ProvenanceComputation;
 
-/* create functions */
+/* schema helper functions */
 extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames, List *dataTypes);
+extern List *getDataTypes (Schema *schema);
+
+/* create functions */
 extern TableAccessOperator *createTableAccessOp (char *tableName, char *alias, List *parents, List *attrNames, List *dataTypes);
 extern SelectionOperator *createSelectionOp (Node *cond, QueryOperator *input, List *parents, List *attrNames);
 extern ProjectionOperator *createProjectionOp (List *projExprs, QueryOperator *input, List *parents, List *attrNames);

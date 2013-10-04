@@ -126,17 +126,19 @@ extern Node *newNode(size_t size, NodeTag type);
 extern char *nodeToString(void *obj);
 extern char *beatify(char *input);
 
-/*readfun.c*/
+/* create a node tree from a string */
 extern void *stringToNode(char *str);
 
-/*copyfun.c*/
+/* deep copy a node */
 //#define COPY_OBJECT_TO_CONTEXT(obj, result, context) \
 //
 //    (AQUIRE_MEM_CONTEXT(context,))
 extern void *copyObject(void *obj);
 
-/*equalfun.c*/
+/* deep equals for nodes */
 extern boolean equal(void *a, void *b);
 
+/* deep free a node structure */
+extern void deepFree(void *a);
 
 #endif /*NODETYPE_H*/
