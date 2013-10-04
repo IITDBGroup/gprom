@@ -11,20 +11,26 @@
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "parser/parse_internal.h"
+#include "log/logger.h"
+
+#define RULELOG(grule) \
+    { \
+        TRACE_LOG("Parsing grammer rule <%s>", #grule); \
+    }
 
 Node *bisonParseResult = NULL;
 %}
 
 %union {
-	/* 
-	 * Declare some C structure those will be used as data type
+    /* 
+     * Declare some C structure those will be used as data type
      * for various tokens used in grammar rules.
-	 */
-	 Node *node;
-	 List *list;
-	 char *stringVal;
-	 int intVal;
-	 double floatVal;
+     */
+     Node *node;
+     List *list;
+     char *stringVal;
+     int intVal;
+     double floatVal;
 }
 
 /*
@@ -35,12 +41,12 @@ Node *bisonParseResult = NULL;
 %token <floatVal> floatConst
 %token <stringVal> stringConst
 %token <stringVal> identifier
-%token <stringVal> comparisonop arithmeticop
+%token <stringVal> comparisonop '+' '-' '*' '/' '%' '^' '&' '|' '!'
 
 /*
  * Tokens for in-built keywords
- *		Currently keywords related to basic query are considered.
- *		Later on other keywords will be added.
+ *        Currently keywords related to basic query are considered.
+ *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT
 %token <stringVal> PROVENANCE OF
@@ -57,35 +63,38 @@ Node *bisonParseResult = NULL;
 /*
  * Declare token for operators specify their associativity and precedence
  */
-/* Comparison operator */
-%left comparisonop arithmeticop
-%left AND OR NOT IN ISNULL BETWEEN LIKE
 
-/* Arithmetic operators : FOR TESTING 
-%left operator
-%left '&' '|'
+/* Logical operators */
+%left '|'
+%left XOR
+%left '&'
+%right ':='
+%left '!'
+
+/* Comparison operator */
+%left comparisonop
+%nonassoc AND OR NOT IN ISNULL BETWEEN LIKE
+
+/* Arithmetic operators : FOR TESTING */
 %left '+' '-'
 %left '*' '/' '%'
 %left '^'
-*/
 
-
-/*
- * Tokens for functions
- */
-//%token FUNCIDENTIFIER	
-		// Added a token for all functions inbuilt and user defined functions.
 
 /*
  * Types of non-terminal symbols
  */
 %type <node> stmt provStmt dmlStmt
 %type <node> selectQuery deleteQuery updateQuery
-		// Its a query block model that defines the structure of query.
+        // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList // select and from clauses are lists
 %type <node> selectItem fromClauseItem optionalDistinct optionalWhere
 %type <node> expression constant attributeRef sqlFunctionCall
-//%type <stringVal> operatorExpression operator arithmaticOperator comparisonOperator sqlOperators
+%type <node> binaryOperatorExpression
+/*
+%type <stringVal> operator arithmaticOperator comparisonOperator sqlOperators logicalOperator
+*/
+
 
 %type <stringVal> optionalAlias
 
@@ -95,200 +104,290 @@ Node *bisonParseResult = NULL;
 
 /* Rule for all types of statements */
 stmt: 
-		provStmt ';'	{ $$ = $1; bisonParseResult = (Node *) $$; }
-    	| dmlStmt ';'	{ $$ = $1; bisonParseResult = (Node *) $$; }	// DML statement can be select, update, insert, delete
+        dmlStmt ';'    // DML statement can be select, update, insert, delete
+        {
+            RULELOG(stmt);
+            $$ = $1;
+            bisonParseResult = (Node *) $$;
+        }
+/*	queryStms ';' */
     ;
+
+/*
+queryStmt:
+	selectQuery
+	| provStmt
+	| setOperator
+
+setOperator:
+	queryStmt setOP queryStmt { createSetOp() }
+
+joinExpr:
+	fromItem joinOp fromItem optionalJoinCond
+
+joinOP:
+	optionalNatural joinType 
+
+optionalJoinCond:
+		{}
+	ON ( expression ) {} 
+	USING ( exprList ) {} 
+*/
 
 /* 
  * Rule to parse a query asking for provenance
  */
 provStmt: 
- 		PROVENANCE OF '(' dmlStmt ')' 	{ $$ = (Node *) createProvenanceStmt($4); }
- 	;
+        PROVENANCE OF '(' dmlStmt ')'
+        {
+            RULELOG(provStmt);
+            $$ = (Node *) createProvenanceStmt($4);
+        }
+    ;
+
 
 /*
  * Rule to parse all DML queries.
  */
 dmlStmt:
-		selectQuery
-		| deleteQuery
-		| updateQuery
-	;
-	
-	
+        selectQuery
+        | deleteQuery
+        | updateQuery
+        | provStmt
+        {
+            RULELOG(dmlStmt);
+        }
+    ;
+    
 /*
  * Rule to parse delete query
  */ 
- deleteQuery: 
- 		DELETE 		{ $$ = NULL; }
- 		
+deleteQuery: 
+         DELETE         { RULELOG(deleteQuery); $$ = NULL; }
+    ;
+         
  /*
   * Rules to parse update query
   */
 updateQuery:
-		UPDATE		{ $$ = NULL; }
+        UPDATE        { RULELOG(updateQuery); $$ = NULL; }
+    ;
  
 /*
  * Rule to parse select query
  * Currently it will parse following type of select query:
- * 			'SELECT [DISTINCT clause] selectClause FROM fromClause WHERE whereClause'
+ *             'SELECT [DISTINCT clause] selectClause FROM fromClause WHERE whereClause'
  */
 selectQuery: 
-		SELECT optionalDistinct selectClause optionalFrom optionalWhere
-			{
-				QueryBlock *q =  createQueryBlock();
-				
-				q->distinct = $2;
-				q->selectClause = $3;
-				q->fromClause = $4;
-				q->whereClause = $5;
-				
-				$$ = (Node *) q; 
-			}
-	;
+        SELECT optionalDistinct selectClause optionalFrom optionalWhere
+            {
+                RULELOG(selectQuery);
+                QueryBlock *q =  createQueryBlock();
+                
+                q->distinct = $2;
+                q->selectClause = $3;
+                q->fromClause = $4;
+                q->whereClause = $5;
+                
+                $$ = (Node *) q; 
+            }
+    ;
 
 
 /*
  * Rule to parse optional distinct clause.
  */ 
 optionalDistinct: 
-		/* empty */ 					{ $$ = NULL; }
-		| DISTINCT						{ $$ = (Node *) createDistinctClause(NULL); }
-		| DISTINCT ON '(' exprList ')'	{ $$ = (Node *) createDistinctClause($4); }
-	;
-						
+        /* empty */                     { RULELOG("optionalDistinct::NULL"); $$ = NULL; }
+        | DISTINCT
+            {
+                RULELOG("optionalDistinct::DISTINCT");
+                $$ = (Node *) createDistinctClause(NULL);
+            }
+        | DISTINCT ON '(' exprList ')'
+            {
+                RULELOG("optionalDistinct::DISTINCT::exprList");
+                $$ = (Node *) createDistinctClause($4);
+            }
+    ;
+                        
 
 /*
  * Rule to parse the select clause items.
  */
 selectClause: 
-		selectItem 						{ $$ = singleton($1); }
-		| selectClause ',' selectItem 
-			{ 
-				$$ = appendToTailOfList($1, $3); 
-			}
-	;
+        selectItem
+             {
+                RULELOG("selectClause::selectItem"); $$ = singleton($1);
+            }
+        | selectClause ',' selectItem
+            {
+                RULELOG("selectClause::selectClause::selectItem");
+                $$ = appendToTailOfList($1, $3); 
+            }
+    ;
 
 selectItem:
- 		expression							
- 			{ 
- 				$$ = (Node *) createSelectItem(NULL, $1); 
- 			}
- 		| expression AS identifier 			
- 			{ 
- 				$$ = (Node *) createSelectItem($3, $1);
-			}
-	; 
+         expression                            
+             {
+                 RULELOG("selectItem::expression"); 
+                 $$ = (Node *) createSelectItem(NULL, $1); 
+             }
+         | expression AS identifier             
+             {
+                 RULELOG("selectItem::expression::identifier"); 
+                 $$ = (Node *) createSelectItem($3, $1);
+             }
+    ; 
 
 /*
  * Rule to parse an expression list
  */
 exprList: 
-		expression						{ $$ = singleton($1); }		
-		 | exprList ',' expression 		{ $$ = appendToTailOfList($1, $3); }
-	;
-		 
+        expression        { RULELOG("exprList"); $$ = singleton($1); }
+        | exprList ',' expression
+             {
+                  RULELOG("exprList");
+                  $$ = appendToTailOfList($1, $3);
+             }
+    ;
+         
 
 /*
  * Rule to parse expressions used in various lists
  */
 expression: 
-		constant
-		| attributeRef 
-/*		| operatorExpression */
-		| sqlFunctionCall
-/*		| STARALL				{ return NULL;} //TODO /* this token is for '*' */
-	;
-			
+        constant        { RULELOG("expression::constant"); }
+        | attributeRef         { RULELOG("expression::attributeRef"); }
+        | binaryOperatorExpression        { RULELOG("expression::binaryOperatorExpression"); } 
+        | sqlFunctionCall        { RULELOG("expression::sqlFunctionCall"); }
+/*        | STARALL        { RULELOG("expression::STARALL"); } */
+    ;
+            
 /*
  * Constant parsing
  */
 constant: 
-		intConst			{ $$ = (Node *) createConstInt($1); }
-		| floatConst		{ $$ = (Node *) createConstFloat($1); }
-		| stringConst		{ $$ = (Node *) createConstString($1); }
-	;
-			
+        intConst            { RULELOG("constant::INT"); $$ = (Node *) createConstInt($1); }
+        | floatConst        { RULELOG("constant::FLOAT"); $$ = (Node *) createConstFloat($1); }
+        | stringConst        { RULELOG("constant::STRING"); $$ = (Node *) createConstString($1); }
+    ;
+            
 /*
  * Parse attribute reference
  */
 attributeRef: 
-		identifier 		{ $$ = (Node *) createAttributeReference($1); }
-	;
+        identifier         { RULELOG("attributeRef::IDENTIFIER"); $$ = (Node *) createAttributeReference($1); }
+    ;
 
 /*
  * Parse operator expression
  */
-/* operatorExpression: 
-		expression operator expression 		{ $$ = createOpExpression($1,$2,$3) }
-	;
+ 
+binaryOperatorExpression: 
+        expression '+' expression
+        {
+             RULELOG("operatorExpression");
+             List *expr = singleton($1);
+             expr = appendToTailOfList(expr, $3);
+             $$ = createOpExpr($2, expr);
+        }
+        | expression '-' expression
+        | expression '*' expression
+        | expression '/' expression
+        | expression '%' expression
+        | expression '^' expression
+        | expression '&' expression
+        | expression '|' expression
+        | expression comparisonop expression
+        {
+             RULELOG("operatorExpression");
+             List *expr = singleton($1);
+             expr = appendToTailOfList(expr, $3);
+             $$ = createOpExpr($2, expr);
+        }
+    ;
 
+/*
 operator: 
-		arithmaticOperator
-		| logicalOperator 
-		| comparisonOperator
-		| sqlOperators
-	;
-	
+        arithmaticOperator
+        | logicalOperator 
+        | comparisonOperator
+        | sqlOperators
+    ;
+    
 arithmaticOperator:
-		arithmeticop 		{ $$ = $1; }
-	;
+        arithmeticop
+    ;
 
 logicalOperator:
-		'&&' | '||' | '!'		{ $$ = $1; }
-	;
+        '&' | '|' | '!'
+    ;
 
-	
+    
 comparisonOperator:
-		comparisonop		{ $$ = $1; }
-	;
-	
+        comparisonop
+    ;
+    
 sqlOperators:
-		AND | OR | NOT | IN | isnull | BETWEEN | LIKE 	{ $$ = $1; }
-	;
+        AND | OR | NOT | IN | ISNULL | BETWEEN | LIKE
+    ;
 */
-	
+    
 /*
  * Rule to parse function calls
  */
 sqlFunctionCall: 
-		identifier '(' exprList ')'  		
-			{ 
-				$$ = (Node *) createFunctionCall($1, $3); 
-			}
-	;
+        identifier '(' exprList ')'          
+            {
+                RULELOG("sqlFunctionCall::IDENTIFIER::exprList"); 
+                $$ = (Node *) createFunctionCall($1, $3); 
+            }
+    ;
 
 /*
  * Rule to parse from clause
- *			Currently implemented for basic from clause.
- *			Later on other forms of from clause will be added.
+ *            Currently implemented for basic from clause.
+ *            Later on other forms of from clause will be added.
  */
 optionalFrom: 
-		/* empty */ 		 	{ $$ = NULL; }
-		| FROM fromClause		{ $$ = $2; }
-	;
-			
+        /* empty */              { RULELOG("optionalFrom::NULL"); $$ = NULL; }
+        | FROM fromClause        { RULELOG("optionalFrom::fromClause"); $$ = $2; }
+    ;
+            
 fromClause: 
-		fromClauseItem					{ $$ = singleton($1); }
-		| fromClause ',' fromClauseItem { $$ = appendToTailOfList($1, $3); }
-	;
-	
+        fromClauseItem
+            {
+                RULELOG("fromClause::fromClauseItem");
+                $$ = singleton($1);
+            }
+        | fromClause ',' fromClauseItem
+            {
+                RULELOG("fromClause::fromClause::fromClauseItem");
+                $$ = appendToTailOfList($1, $3);
+            }
+    ;
+    
 fromClauseItem:
-		identifier optionalAlias { $$ = (Node *) createFromTableRef($2, NIL, $1); }
-	;
-	
+        identifier optionalAlias
+            {
+                RULELOG("fromClauseItem");
+                $$ = (Node *) createFromTableRef($2, NIL, $1);
+            }
+    ;
+    
 optionalAlias:
-		/* empty */				{ $$ = NULL; } 
-		| identifier			{ $$ = $1; }
-		| AS identifier			{ $$ = $2; }
-	;
-		  
+        /* empty */                { RULELOG("optionalAlias::NULL"); $$ = NULL; }
+        | identifier            { RULELOG("optionalAlias::identifier"); $$ = $1; }
+        | AS identifier            { RULELOG("optionalAlias::identifier"); $$ = $2; }
+    ;
+          
 /*
  * Rule to parse the where clause.
  */
 optionalWhere: 
-		/* empty */ 			{ $$ = NULL; }
-		| WHERE expression		{ $$ = $2; } 
-	;
+        /* empty */             { RULELOG("optionalWhere::NULL"); $$ = NULL; }
+        | WHERE expression        { RULELOG("optionalWhere::WHERE::expression"); $$ = $2; }
+    ;
 
 %%

@@ -24,7 +24,7 @@
 #include "parser/parse_internal.h"
 #include "sql_parser.tab.h"
 
-#define TOKSELF() { TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", yytext[0], yytext[0]); return yytext[0]; }
+#define TOKSELF() { TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", yytext[0], yytext[0]); yylval.stringVal = strdup(yytext); return yytext[0]; }
 #define TOK(name) { TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, yytext); yylval.stringVal = strdup(yytext); return name; }
 #define TOKSAVE(name,field,function) { TRACE_LOG("Lexed TOKEN <%s> of TYPE <%s>", #name, #field); yylval.field = function(yytext); return name; }
 %}
@@ -60,7 +60,6 @@ identifiers		({identStart}{identContinue}*)
 
 /* operators */
 comparisonops	("="|"<>"|"!="|"<"|">"|"<="|">=")
-arithmeticops	("+"|"-"|"/"|"*"|"%"|"&"|"|"|"^")
 
 /*******************************************************************************
  * Token definitions and actions 
@@ -99,8 +98,8 @@ NULL	     TOK(NULLVAL)
 [(),.;] TOKSELF()
 
 	/* operators */
-{comparisonops}		TOK(comparisonop)
-{arithmeticops}		TOK(arithmeticop)
+{comparisonops}		TOKSELF()
+[-+*%/^~&|!]		TOKSELF()
 	
 	/* names */
 {identifiers}	TOK(identifier)

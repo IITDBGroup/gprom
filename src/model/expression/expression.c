@@ -55,6 +55,24 @@ createFunctionCall(char *fName, List *args)
     return result; 
 }
 
+Operator *
+createOpExpr(char *name, List *args)
+{
+    Operator *result = makeNode(Operator);
+
+    if(name != NULL)
+    {
+        result->name = (char *) MALLOC(strlen(name) + 1);
+        strcpy(result->name, name);
+    }
+    else
+        result->name = NULL;
+
+    result->args = args;
+
+    return result;
+}
+
 Constant *
 createConstInt (int value)
 {
