@@ -96,8 +96,9 @@ Node *bisonParseResult = NULL;
 %type <list> selectClause optionalFrom fromClause exprList
 %type <node> selectItem fromClauseItem optionalDistinct optionalWhere
 %type <node> expression constant attributeRef sqlFunctionCall
+
+%type <node> binaryOperatorExpression
 /*
-%type <node> operatorExpression
 %type <stringVal> operator arithmaticOperator comparisonOperator sqlOperators logicalOperator
 */
 
@@ -241,7 +242,7 @@ exprList:
 expression: 
         constant        { RULELOG("expression::constant"); }
         | attributeRef         { RULELOG("expression::attributeRef"); }
-/*        | operatorExpression        { RULELOG("expression::operatorExpression"); } */
+        | binaryOperatorExpression        { RULELOG("expression::binaryOperatorExpression"); }
         | sqlFunctionCall        { RULELOG("expression::sqlFunctionCall"); }
 /*        | STARALL        { RULELOG("expression::STARALL"); }
     ;
@@ -265,17 +266,26 @@ attributeRef:
 /*
  * Parse operator expression
  */
-/*
-operatorExpression: 
-        expression operator expression
+
+binaryOperatorExpression: 
+        expression '+' expression
+        | expression '-' expression
+        | expression '*' expression
+        | expression '/' expression
+        | expression '%' expression
+        | expression '^' expression
+        | expression '&' expression
+        | expression '|' expression
+        | expression comparisonop expression
         {
             RULELOG("operatorExpression");
             List *expr = singleton($1);
             expr = appendToTailOfList(expr, $3); 
-            $$ = (Node *) createOpExpr($2, expr);
+            $$ = createOpExpr($2, expr);
         }
     ;
 
+/*
 operator: 
         arithmaticOperator
         | logicalOperator 
@@ -299,7 +309,7 @@ sqlOperators:
         AND | OR | NOT | IN | ISNULL | BETWEEN | LIKE
     ;
 */
-  
+
 /*
  * Rule to parse function calls
  */

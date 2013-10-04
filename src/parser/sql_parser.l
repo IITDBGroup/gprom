@@ -135,8 +135,7 @@ NULL	     TOK(NULLVAL)
 /* use logging framework in the future */
 void yyerror(char *s)
 {
-        extern yylineno;
-	ERROR_LOG("%s at %s on line no. %d \n", s, yytext, yylineno);
+	ERROR_LOG("%s at %s\n", s, yytext);
 }
 
 void setupStringInput(char *input)
