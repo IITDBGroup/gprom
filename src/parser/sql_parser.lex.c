@@ -587,7 +587,7 @@ char *yytext;
 #include "parser/parse_internal.h"
 #include "sql_parser.tab.h"
 
-#define TOKSELF() { TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", yytext[0], yytext[0]); return yytext[0]; }
+#define TOKSELF() { TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", yytext[0], yytext[0]); yylval.stringVal = strdup(yytext); return yytext[0]; }
 #define TOK(name) { TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, yytext); yylval.stringVal = strdup(yytext); return name; }
 #define TOKSAVE(name,field,function) { TRACE_LOG("Lexed TOKEN <%s> of TYPE <%s>", #name, #field); yylval.field = function(yytext); return name; }
 /********************************************************************
@@ -601,11 +601,10 @@ char *yytext;
 /* numbers */
 /* names (e.g., tables, attributes) */
 /* operators */
-/* arithmeticops	("+"|"-"|"/"|"*"|"%"|"&"|"|"|"^") */
 /*******************************************************************************
  * Token definitions and actions 
  ******************************************************************************/
-#line 609 "sql_parser.lex.c"
+#line 608 "sql_parser.lex.c"
 
 #define INITIAL 0
 #define SQL 1
@@ -793,11 +792,11 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
     
-#line 68 "sql_parser.l"
+#line 67 "sql_parser.l"
 
 
 	/* ignore all whitespace */
-#line 801 "sql_parser.lex.c"
+#line 800 "sql_parser.lex.c"
 
 	if ( !(yy_init) )
 		{
@@ -899,163 +898,163 @@ do_action:	/* This label is used only to access EOF actions. */
 case 1:
 /* rule 1 can match eol */
 YY_RULE_SETUP
-#line 71 "sql_parser.l"
+#line 70 "sql_parser.l"
 { TRACE_LOG("Lexed whitespace <%s>", yytext); /* ignore it */ }
 	YY_BREAK
 /* literal keyword tokens */
 case 2:
 YY_RULE_SETUP
-#line 74 "sql_parser.l"
+#line 73 "sql_parser.l"
 TOK(SELECT)
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 75 "sql_parser.l"
+#line 74 "sql_parser.l"
 TOK(PROVENANCE)
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 76 "sql_parser.l"
+#line 75 "sql_parser.l"
 TOK(OF)
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 77 "sql_parser.l"
+#line 76 "sql_parser.l"
 TOK(FROM)
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 78 "sql_parser.l"
+#line 77 "sql_parser.l"
 TOK(AS)
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 79 "sql_parser.l"
+#line 78 "sql_parser.l"
 TOK(WHERE)
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 80 "sql_parser.l"
+#line 79 "sql_parser.l"
 TOK(DISTINCT)
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 81 "sql_parser.l"
+#line 80 "sql_parser.l"
 TOK(ON)
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 82 "sql_parser.l"
+#line 81 "sql_parser.l"
 TOK(STARALL)
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 83 "sql_parser.l"
+#line 82 "sql_parser.l"
 TOK(ALL)
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 84 "sql_parser.l"
+#line 83 "sql_parser.l"
 TOK(AND)
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 85 "sql_parser.l"
+#line 84 "sql_parser.l"
 TOK(AMMSC)
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 86 "sql_parser.l"
+#line 85 "sql_parser.l"
 TOK(AMMSC)
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 87 "sql_parser.l"
+#line 86 "sql_parser.l"
 TOK(AMMSC)
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 88 "sql_parser.l"
+#line 87 "sql_parser.l"
 TOK(AMMSC)
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 89 "sql_parser.l"
+#line 88 "sql_parser.l"
 TOK(AMMSC)
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 90 "sql_parser.l"
+#line 89 "sql_parser.l"
 TOK(ANY)
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 91 "sql_parser.l"
+#line 90 "sql_parser.l"
 TOK(BETWEEN)
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 92 "sql_parser.l"
+#line 91 "sql_parser.l"
 TOK(BY)
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 93 "sql_parser.l"
+#line 92 "sql_parser.l"
 TOK(UPDATE)
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 94 "sql_parser.l"
+#line 93 "sql_parser.l"
 TOK(DELETE)
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 95 "sql_parser.l"
+#line 94 "sql_parser.l"
 TOK(IS)
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 96 "sql_parser.l"
+#line 95 "sql_parser.l"
 TOK(NULLVAL)
 	YY_BREAK
 /* punctuation */
 case 25:
 YY_RULE_SETUP
-#line 99 "sql_parser.l"
+#line 98 "sql_parser.l"
 TOKSELF()
 	YY_BREAK
 /* operators */
 case 26:
 YY_RULE_SETUP
-#line 102 "sql_parser.l"
+#line 101 "sql_parser.l"
 TOKSELF()
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 103 "sql_parser.l"
-TOKSELF()	
+#line 102 "sql_parser.l"
+TOKSELF()
 	YY_BREAK
 /* names */
 case 28:
 YY_RULE_SETUP
-#line 106 "sql_parser.l"
+#line 105 "sql_parser.l"
 TOK(identifier)
 	YY_BREAK
 /* numbers */
 case 29:
 YY_RULE_SETUP
-#line 109 "sql_parser.l"
+#line 108 "sql_parser.l"
 TOKSAVE(intConst,intVal,atoi)
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 110 "sql_parser.l"
+#line 109 "sql_parser.l"
 TOKSAVE(floatConst,floatVal,atof)
 	YY_BREAK
 /* strings */
 case 31:
 YY_RULE_SETUP
-#line 113 "sql_parser.l"
+#line 112 "sql_parser.l"
 {
 		int c = input();
 		unput(c);	
@@ -1071,21 +1070,21 @@ case 32:
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 124 "sql_parser.l"
+#line 123 "sql_parser.l"
 {yyerror("Unterminated string"); }
 	YY_BREAK
 /* failure - no token matched */
 case 33:
 YY_RULE_SETUP
-#line 127 "sql_parser.l"
+#line 126 "sql_parser.l"
 { yyerror("Unknown symbol"); }	/* random non-SQL text */
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 129 "sql_parser.l"
+#line 128 "sql_parser.l"
 YY_FATAL_ERROR( "flex scanner jammed" );
 	YY_BREAK
-#line 1089 "sql_parser.lex.c"
+#line 1088 "sql_parser.lex.c"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(SQL):
 	yyterminate();
@@ -2096,7 +2095,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 129 "sql_parser.l"
+#line 128 "sql_parser.l"
 
 
 

@@ -27,6 +27,7 @@ static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
 static void outFromTableRef (StringInfo str, FromTableRef *node);
 static void outAttributeReference (StringInfo str, AttributeReference *node);
+static void outOperator (StringInfo str, Operator *node);
 static void indentString(StringInfo str, int level);
 static void outQueryOperator(StringInfo str, QueryOperator *node);
 static void outProjectionOperator(StringInfo str, ProjectionOperator *node);
@@ -142,6 +143,15 @@ outConstant (StringInfo str, Constant *node)
             appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
             break;
     }
+}
+
+static void
+outOperator (StringInfo str, Operator *node)
+{
+    WRITE_NODE_TYPE(OPERATOR);
+
+    WRITE_STRING_FIELD(name);
+    WRITE_NODE_FIELD(args);
 }
 
 static void
@@ -274,6 +284,9 @@ void outNode(StringInfo str, void *obj)
             case T_SelectItem:
                 outSelectItem(str, (SelectItem *) obj);
                 break;
+	    case T_Operator:
+		outOperator(str, (Operator *) obj);
+		break;
             case T_FromTableRef:
                 outFromTableRef(str, (FromTableRef *) obj);
                 break;

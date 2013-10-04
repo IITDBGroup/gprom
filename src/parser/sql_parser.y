@@ -80,27 +80,21 @@ Node *bisonParseResult = NULL;
 %left '*' '/' '%'
 %left '^'
 
-/*
- * Tokens for functions
- 
-//%token FUNCIDENTIFIER    
-        // Added a token for all functions inbuilt and user defined functions.
-*/
 
 /*
  * Types of non-terminal symbols
  */
 %type <node> stmt provStmt dmlStmt
 %type <node> selectQuery deleteQuery updateQuery
-        /* Its a query block model that defines the structure of query. */
-%type <list> selectClause optionalFrom fromClause exprList
+        // Its a query block model that defines the structure of query.
+%type <list> selectClause optionalFrom fromClause exprList // select and from clauses are lists
 %type <node> selectItem fromClauseItem optionalDistinct optionalWhere
 %type <node> expression constant attributeRef sqlFunctionCall
-
 %type <node> binaryOperatorExpression
 /*
 %type <stringVal> operator arithmaticOperator comparisonOperator sqlOperators logicalOperator
 */
+
 
 %type <stringVal> optionalAlias
 
@@ -111,23 +105,46 @@ Node *bisonParseResult = NULL;
 /* Rule for all types of statements */
 stmt: 
         dmlStmt ';'    // DML statement can be select, update, insert, delete
-        { 
+        {
             RULELOG(stmt);
             $$ = $1;
             bisonParseResult = (Node *) $$;
         }
+/*	queryStms ';' */
     ;
+
+/*
+queryStmt:
+	selectQuery
+	| provStmt
+	| setOperator
+
+setOperator:
+	queryStmt setOP queryStmt { createSetOp() }
+
+joinExpr:
+	fromItem joinOp fromItem optionalJoinCond
+
+joinOP:
+	optionalNatural joinType 
+
+optionalJoinCond:
+		{}
+	ON ( expression ) {} 
+	USING ( exprList ) {} 
+*/
 
 /* 
  * Rule to parse a query asking for provenance
  */
 provStmt: 
-        PROVENANCE OF '(' dmlStmt ')'     
-        { 
+        PROVENANCE OF '(' dmlStmt ')'
+        {
             RULELOG(provStmt);
             $$ = (Node *) createProvenanceStmt($4);
         }
     ;
+
 
 /*
  * Rule to parse all DML queries.
@@ -141,7 +158,7 @@ dmlStmt:
             RULELOG(dmlStmt);
         }
     ;
-
+    
 /*
  * Rule to parse delete query
  */ 
@@ -149,9 +166,9 @@ deleteQuery:
          DELETE         { RULELOG(deleteQuery); $$ = NULL; }
     ;
          
-/*
- * Rules to parse update query
- */
+ /*
+  * Rules to parse update query
+  */
 updateQuery:
         UPDATE        { RULELOG(updateQuery); $$ = NULL; }
     ;
@@ -164,7 +181,7 @@ updateQuery:
 selectQuery: 
         SELECT optionalDistinct selectClause optionalFrom optionalWhere
             {
-                RULELOG(selectQuery); 
+                RULELOG(selectQuery);
                 QueryBlock *q =  createQueryBlock();
                 
                 q->distinct = $2;
@@ -181,14 +198,14 @@ selectQuery:
  * Rule to parse optional distinct clause.
  */ 
 optionalDistinct: 
-        /* empty */    { RULELOG("optionalDistinct::NULL"); $$ = NULL; }
-        | DISTINCT                        
+        /* empty */                     { RULELOG("optionalDistinct::NULL"); $$ = NULL; }
+        | DISTINCT
             {
                 RULELOG("optionalDistinct::DISTINCT");
                 $$ = (Node *) createDistinctClause(NULL);
             }
-        | DISTINCT ON '(' exprList ')'    
-            { 
+        | DISTINCT ON '(' exprList ')'
+            {
                 RULELOG("optionalDistinct::DISTINCT::exprList");
                 $$ = (Node *) createDistinctClause($4);
             }
@@ -199,11 +216,11 @@ optionalDistinct:
  * Rule to parse the select clause items.
  */
 selectClause: 
-        selectItem                         
-            { 
-                RULELOG("selectClause::selectItem"); $$ = singleton($1); 
+        selectItem
+             {
+                RULELOG("selectClause::selectItem"); $$ = singleton($1);
             }
-        | selectClause ',' selectItem 
+        | selectClause ',' selectItem
             {
                 RULELOG("selectClause::selectClause::selectItem");
                 $$ = appendToTailOfList($1, $3); 
@@ -212,27 +229,27 @@ selectClause:
 
 selectItem:
          expression                            
-             { 
-                 RULELOG("selectItem::expression");
+             {
+                 RULELOG("selectItem::expression"); 
                  $$ = (Node *) createSelectItem(NULL, $1); 
              }
          | expression AS identifier             
-             { 
-                 RULELOG("selectItem::expression::identifier");
+             {
+                 RULELOG("selectItem::expression::identifier"); 
                  $$ = (Node *) createSelectItem($3, $1);
-            }
+             }
     ; 
 
 /*
  * Rule to parse an expression list
  */
 exprList: 
-        expression        { RULELOG("exprList"); $$ = singleton($1); }        
-         | exprList ',' expression
-              { 
-                   RULELOG("exprList");
-                   $$ = appendToTailOfList($1, $3); 
-              }
+        expression        { RULELOG("exprList"); $$ = singleton($1); }
+        | exprList ',' expression
+             {
+                  RULELOG("exprList");
+                  $$ = appendToTailOfList($1, $3);
+             }
     ;
          
 
@@ -242,33 +259,39 @@ exprList:
 expression: 
         constant        { RULELOG("expression::constant"); }
         | attributeRef         { RULELOG("expression::attributeRef"); }
-        | binaryOperatorExpression        { RULELOG("expression::binaryOperatorExpression"); }
+        | binaryOperatorExpression        { RULELOG("expression::binaryOperatorExpression"); } 
         | sqlFunctionCall        { RULELOG("expression::sqlFunctionCall"); }
-/*        | STARALL        { RULELOG("expression::STARALL"); }
+/*        | STARALL        { RULELOG("expression::STARALL"); } */
     ;
             
 /*
  * Constant parsing
  */
 constant: 
-        intConst            { RULELOG("constant"); $$ = (Node *) createConstInt($1); }
-        | floatConst        { RULELOG("constant"); $$ = (Node *) createConstFloat($1); }
-        | stringConst        { RULELOG("constant"); $$ = (Node *) createConstString($1); }
+        intConst            { RULELOG("constant::INT"); $$ = (Node *) createConstInt($1); }
+        | floatConst        { RULELOG("constant::FLOAT"); $$ = (Node *) createConstFloat($1); }
+        | stringConst        { RULELOG("constant::STRING"); $$ = (Node *) createConstString($1); }
     ;
             
 /*
  * Parse attribute reference
  */
 attributeRef: 
-        identifier         { RULELOG("attributeRef"); $$ = (Node *) createAttributeReference($1); }
+        identifier         { RULELOG("attributeRef::IDENTIFIER"); $$ = (Node *) createAttributeReference($1); }
     ;
 
 /*
  * Parse operator expression
  */
-
+ 
 binaryOperatorExpression: 
         expression '+' expression
+        {
+             RULELOG("operatorExpression");
+             List *expr = singleton($1);
+             expr = appendToTailOfList(expr, $3);
+             $$ = createOpExpr($2, expr);
+        }
         | expression '-' expression
         | expression '*' expression
         | expression '/' expression
@@ -278,10 +301,10 @@ binaryOperatorExpression:
         | expression '|' expression
         | expression comparisonop expression
         {
-            RULELOG("operatorExpression");
-            List *expr = singleton($1);
-            expr = appendToTailOfList(expr, $3); 
-            $$ = createOpExpr($2, expr);
+             RULELOG("operatorExpression");
+             List *expr = singleton($1);
+             expr = appendToTailOfList(expr, $3);
+             $$ = createOpExpr($2, expr);
         }
     ;
 
@@ -294,13 +317,14 @@ operator:
     ;
     
 arithmaticOperator:
-        '+' | '-' | '*' | '/' | '%' | '^'
+        arithmeticop
     ;
 
 logicalOperator:
         '&' | '|' | '!'
     ;
-  
+
+    
 comparisonOperator:
         comparisonop
     ;
@@ -309,14 +333,14 @@ sqlOperators:
         AND | OR | NOT | IN | ISNULL | BETWEEN | LIKE
     ;
 */
-
+    
 /*
  * Rule to parse function calls
  */
 sqlFunctionCall: 
         identifier '(' exprList ')'          
             {
-                RULELOG("sqlFunctionCall::identifier::exprList"); 
+                RULELOG("sqlFunctionCall::IDENTIFIER::exprList"); 
                 $$ = (Node *) createFunctionCall($1, $3); 
             }
     ;
@@ -332,12 +356,12 @@ optionalFrom:
     ;
             
 fromClause: 
-        fromClauseItem                    
+        fromClauseItem
             {
                 RULELOG("fromClause::fromClauseItem");
                 $$ = singleton($1);
             }
-        | fromClause ',' fromClauseItem 
+        | fromClause ',' fromClauseItem
             {
                 RULELOG("fromClause::fromClause::fromClauseItem");
                 $$ = appendToTailOfList($1, $3);
@@ -345,15 +369,15 @@ fromClause:
     ;
     
 fromClauseItem:
-        identifier optionalAlias 
-            { 
+        identifier optionalAlias
+            {
                 RULELOG("fromClauseItem");
                 $$ = (Node *) createFromTableRef($2, NIL, $1);
             }
     ;
     
 optionalAlias:
-        /* empty */                { RULELOG("optionalAlias::NULL"); $$ = NULL; } 
+        /* empty */                { RULELOG("optionalAlias::NULL"); $$ = NULL; }
         | identifier            { RULELOG("optionalAlias::identifier"); $$ = $1; }
         | AS identifier            { RULELOG("optionalAlias::identifier"); $$ = $2; }
     ;
@@ -363,7 +387,7 @@ optionalAlias:
  */
 optionalWhere: 
         /* empty */             { RULELOG("optionalWhere::NULL"); $$ = NULL; }
-        | WHERE expression        { RULELOG("optionalWhere::WHERE::expression"); $$ = $2; } 
+        | WHERE expression        { RULELOG("optionalWhere::WHERE::expression"); $$ = $2; }
     ;
 
 %%
