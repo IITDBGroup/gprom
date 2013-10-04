@@ -333,7 +333,7 @@ concatTwoLists(List *lista, List*listb)
 	lista->length += listb->length;
 
     assert(checkList(lista));
-    deepFreeList(listb);
+    freeList(listb);
     return lista;
 }
 
