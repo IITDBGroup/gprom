@@ -68,7 +68,7 @@ Node *bisonParseResult = NULL;
 %left '|'
 %left XOR
 %left '&'
-%right ':='
+/* what is that? %right ':=' */
 %left '!'
 
 /* Comparison operator */
@@ -290,7 +290,7 @@ binaryOperatorExpression:
              RULELOG("operatorExpression");
              List *expr = singleton($1);
              expr = appendToTailOfList(expr, $3);
-             $$ = createOpExpr($2, expr);
+             $$ = (Node *) createOpExpr($2, expr);
         }
         | expression '-' expression
         | expression '*' expression
@@ -304,7 +304,7 @@ binaryOperatorExpression:
              RULELOG("operatorExpression");
              List *expr = singleton($1);
              expr = appendToTailOfList(expr, $3);
-             $$ = createOpExpr($2, expr);
+             $$ = (Node *) createOpExpr($2, expr);
         }
     ;
 
