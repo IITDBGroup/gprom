@@ -141,4 +141,14 @@ extern boolean equal(void *a, void *b);
 /* deep free a node structure */
 extern void deepFree(void *a);
 
+/*
+ * Visit all nodes in a tree using a user-provided function that decides
+ * whether to continue the traversal. The user function should return
+ * true if the traversal should be continued and false otherwise. The
+ * user function has to take a state parameter as second input that can, e.g.,
+ * be used to store search results.
+ */
+extern boolean visit (Node *node, boolean (*checkNode) (), void *state);
+extern Node *mutate (Node *node, Node *(*modifyNode) (), void *state);
+
 #endif /*NODETYPE_H*/
