@@ -47,7 +47,7 @@ CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libhelperfunction_la_LIBADD =
 am_libhelperfunction_la_OBJECTS = copy.lo deepFree.lo equal.lo \
-	to_string.lo
+	to_string.lo visit.lo
 libhelperfunction_la_OBJECTS = $(am_libhelperfunction_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -189,7 +189,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include
 noinst_LTLIBRARIES = libhelperfunction.la
-libhelperfunction_la_SOURCES = copy.c deepFree.c equal.c to_string.c 
+libhelperfunction_la_SOURCES = copy.c deepFree.c equal.c to_string.c visit.c 
 all: all-am
 
 .SUFFIXES:
@@ -246,6 +246,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/deepFree.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/equal.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/to_string.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/visit.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
