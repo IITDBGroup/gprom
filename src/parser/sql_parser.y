@@ -31,6 +31,7 @@ Node *bisonParseResult = NULL;
      char *stringVal;
      int intVal;
      double floatVal;
+/*     SetOpType setOp; */
 }
 
 /*
@@ -41,28 +42,30 @@ Node *bisonParseResult = NULL;
 %token <floatVal> floatConst
 %token <stringVal> stringConst
 %token <stringVal> identifier
-%token <stringVal> comparisonop '+' '-' '*' '/' '%' '^' '&' '|' '!'
+%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps
 
 /*
  * Tokens for in-built keywords
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> SELECT
+%token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> PROVENANCE OF
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
 %token <stringVal> DISTINCT
-%token <stringVal> ON
 %token <stringVal> STARALL
-%token <stringVal> UPDATE DELETE
 %token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN
-%token <stringVal> AMMSC NULLVAL ALL ANY BY IS
+%token <stringVal> AMMSC NULLVAL ALL ANY BY IS 
+%token <setOp> UNION INTERSECT MINUS
+/* Keywords for Join queries */
+%token <stringVal> JOIN NATURAL LEFT RIGHT OUTER INNER CROSS ON USING FULL 
 
 /*
  * Declare token for operators specify their associativity and precedence
  */
+%left UNION INTERSECT MINUS
 
 /* Logical operators */
 %left '|'
@@ -72,7 +75,7 @@ Node *bisonParseResult = NULL;
 %left '!'
 
 /* Comparison operator */
-%left comparisonop
+%left comparisonOps
 %nonassoc AND OR NOT IN ISNULL BETWEEN LIKE
 
 /* Arithmetic operators : FOR TESTING */
@@ -84,13 +87,13 @@ Node *bisonParseResult = NULL;
 /*
  * Types of non-terminal symbols
  */
-%type <node> stmt provStmt dmlStmt
-%type <node> selectQuery deleteQuery updateQuery
+%type <node> stmt provStmt dmlStmt queryStmt
+%type <node> selectQuery deleteQuery updateQuery insertQuery // setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList // select and from clauses are lists
 %type <node> selectItem fromClauseItem optionalDistinct optionalWhere
 %type <node> expression constant attributeRef sqlFunctionCall
-%type <node> binaryOperatorExpression
+%type <node> binaryOperatorExpression unaryOperatorExpression
 /*
 %type <stringVal> operator arithmaticOperator comparisonOperator sqlOperators logicalOperator
 */
@@ -106,59 +109,47 @@ Node *bisonParseResult = NULL;
 stmt: 
         dmlStmt ';'    // DML statement can be select, update, insert, delete
         {
-            RULELOG(stmt);
+            RULELOG("stmt::dmlStmt");
             $$ = $1;
             bisonParseResult = (Node *) $$;
         }
-/*	queryStms ';' */
+	| queryStmt ';'
+        {
+            RULELOG("stmt::queryStmt");
+            $$ = $1;
+            bisonParseResult = (Node *) $$;
+        }
     ;
 
 /*
+ * Rule to parse all DML queries.
+ */
+dmlStmt:
+        insertQuery        { RULELOG("dmlStmt::insertQuery"); }
+        | deleteQuery        { RULELOG("dmlStmt::deleteQuery"); }
+        | updateQuery        { RULELOG("dmlStmt::updateQuery"); }
+    ;
+
+/*
+ * Rule to parse all types projection queries.
+ */
 queryStmt:
-	selectQuery
-	| provStmt
-	| setOperator
-
-setOperator:
-	queryStmt setOP queryStmt { createSetOp() }
-
-joinExpr:
-	fromItem joinOp fromItem optionalJoinCond
-
-joinOP:
-	optionalNatural joinType 
-
-optionalJoinCond:
-		{}
-	ON ( expression ) {} 
-	USING ( exprList ) {} 
-*/
+	selectQuery        { RULELOG("queryStmt::selectQuery"); }
+	| provStmt        { RULELOG("queryStmt::provStmt"); }
+/*	| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); } */
+    ;
 
 /* 
  * Rule to parse a query asking for provenance
  */
 provStmt: 
-        PROVENANCE OF '(' dmlStmt ')'
+        PROVENANCE OF '(' stmt ')'
         {
             RULELOG(provStmt);
             $$ = (Node *) createProvenanceStmt($4);
         }
     ;
 
-
-/*
- * Rule to parse all DML queries.
- */
-dmlStmt:
-        selectQuery
-        | deleteQuery
-        | updateQuery
-        | provStmt
-        {
-            RULELOG(dmlStmt);
-        }
-    ;
-    
 /*
  * Rule to parse delete query
  */ 
@@ -166,13 +157,55 @@ deleteQuery:
          DELETE         { RULELOG(deleteQuery); $$ = NULL; }
     ;
          
- /*
-  * Rules to parse update query
-  */
+/*
+ * Rules to parse update query
+ */
 updateQuery:
         UPDATE        { RULELOG(updateQuery); $$ = NULL; }
     ;
- 
+
+/*
+ * Rules to parse insert query
+ */
+insertQuery:
+        INSERT        { RULELOG("insertQuery"); $$ = NULL; } 
+    ;
+
+/*
+ * Rules to parse set operator queries
+ */
+/*
+setOperatorQuery:     // Need to look into createFunction
+        selectQuery INTERSECT selectQuery
+            {
+                RULELOG("setOperatorQuery::INTERSECT");
+                $$ = (Node *) createSetOp($2, TRUE, $1, $3);
+                $$ = (Node *) createSetQuery(List *selectClause, SetOp *root)
+// What does selectClause means here?
+// Why two separate functions createSetOp and createSetQuery?
+// Whats is the significance of passing boolean value here?
+// In query_block.h SetOpType is defined as UNION which should be used. Instead some other string should be used, as UNION is basic token of parser file.
+// Set Operator of type UNION ALL also needs to be considered. Name of the the SetOperators in enum SetOp should be changed for the same.
+// Why setOpType enum is created? We can use char * if required to avoid above conflicts. If we are using those to check setoperator should be of given type mentioned in SetOpType then pasrer is also doing the same thing. It will also parse the required tokens only and will throw error for other misleading SetOperators.
+            }
+        | selectQuery MINUS selectQuery
+            {
+                RULELOG("setOperatorQuery::MINUS");
+                $$ = (Node *) createSetOp($2, TRUE, $1, $3);
+            }
+        | selectQuery UNION selectQuery
+            {
+                RULELOG("setOperatorQuery::UNION");
+                $$ = (Node *) createSetOp($2, TRUE, $1, $3);
+            }
+        | selectQuery UNION ALL selectQuery
+            {
+                RULELOG("setOperatorQuery::UNIONALL");
+                $$ = (Node *) createSetOp($2, TRUE, $1, $4);
+            }
+    ;
+*/
+
 /*
  * Rule to parse select query
  * Currently it will parse following type of select query:
@@ -260,6 +293,7 @@ expression:
         constant        { RULELOG("expression::constant"); }
         | attributeRef         { RULELOG("expression::attributeRef"); }
         | binaryOperatorExpression        { RULELOG("expression::binaryOperatorExpression"); } 
+        | unaryOperatorExpression        { RULELOG("expression::unaryOperatorExpression"); }
         | sqlFunctionCall        { RULELOG("expression::sqlFunctionCall"); }
 /*        | STARALL        { RULELOG("expression::STARALL"); } */
     ;
@@ -286,53 +320,77 @@ attributeRef:
  
 binaryOperatorExpression: 
         expression '+' expression
-        {
-             RULELOG("operatorExpression");
-             List *expr = singleton($1);
-             expr = appendToTailOfList(expr, $3);
-             $$ = (Node *) createOpExpr($2, expr);
-        }
+            {
+                RULELOG("operatorExpression");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
         | expression '-' expression
+            {
+                RULELOG("operatorExpression");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
         | expression '*' expression
+            {
+                RULELOG("operatorExpression");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
         | expression '/' expression
+            {
+                RULELOG("operatorExpression");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
         | expression '%' expression
+            {
+                RULELOG("operatorExpression");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
         | expression '^' expression
+            {
+                RULELOG("operatorExpression");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
         | expression '&' expression
+            {
+                RULELOG("operatorExpression");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
         | expression '|' expression
-        | expression comparisonop expression
-        {
-             RULELOG("operatorExpression");
-             List *expr = singleton($1);
-             expr = appendToTailOfList(expr, $3);
-             $$ = (Node *) createOpExpr($2, expr);
-        }
+            {
+                RULELOG("operatorExpression");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
+        | expression comparisonOps expression
+            {
+                RULELOG("operatorExpression");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
     ;
 
-/*
-operator: 
-        arithmaticOperator
-        | logicalOperator 
-        | comparisonOperator
-        | sqlOperators
-    ;
-    
-arithmaticOperator:
-        arithmeticop
-    ;
-
-logicalOperator:
-        '&' | '|' | '!'
-    ;
-
-    
-comparisonOperator:
-        comparisonop
-    ;
-    
-sqlOperators:
-        AND | OR | NOT | IN | ISNULL | BETWEEN | LIKE
-    ;
-*/
+unaryOperatorExpression:
+        '!' expression
+            {
+                RULELOG("unaryOperatorExpression");
+                List *expr = singleton($2);
+                $$ = (Node *) createOpExpr($1, expr);
+            }
     
 /*
  * Rule to parse function calls

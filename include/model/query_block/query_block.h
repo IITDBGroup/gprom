@@ -12,7 +12,7 @@
 
 typedef enum SetOpType
 {
-    UNION,
+    UNIONOP,
     INTERSECTION,
     DIFFERENCE
 } SetOpType;

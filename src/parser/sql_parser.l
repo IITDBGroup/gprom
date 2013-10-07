@@ -59,7 +59,8 @@ identContinue	[A-Za-z0-9_]
 identifiers		({identStart}{identContinue}*)
 
 /* operators */
-comparisonops	("="|"<>"|"!="|"<"|">"|"<="|">=")
+comparisonOps	['!'|'<'|'>'|'=']{1,2} 
+/*comparisonOps   ['='|'<>'|'!='|'<'|'>'|'<='|'>=']*/
 
 /*******************************************************************************
  * Token definitions and actions 
@@ -98,7 +99,7 @@ NULL	     TOK(NULLVAL)
 [(),.;] TOKSELF()
 
 	/* operators */
-{comparisonops}		TOKSELF()
+{comparisonOps}		TOK(comparisonOps)
 [-+*%/^~&|!]		TOKSELF()
 	
 	/* names */
