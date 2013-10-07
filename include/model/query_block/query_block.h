@@ -12,9 +12,9 @@
 
 typedef enum SetOpType
 {
-    UNION,
-    INTERSECTION,
-    DIFFERENCE
+    SETOP_UNION,
+    SETOP_INTERSECTION,
+    SETOP_DIFFERENCE
 } SetOpType;
 
 typedef struct SetOp
