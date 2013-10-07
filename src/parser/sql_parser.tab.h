@@ -52,25 +52,34 @@
      AS = 270,
      WHERE = 271,
      DISTINCT = 272,
-     ON = 273,
-     STARALL = 274,
-     AND = 275,
-     OR = 276,
-     LIKE = 277,
-     NOT = 278,
-     IN = 279,
-     ISNULL = 280,
-     BETWEEN = 281,
-     AMMSC = 282,
-     NULLVAL = 283,
-     ALL = 284,
-     ANY = 285,
-     BY = 286,
-     IS = 287,
-     UNION = 288,
-     INTERSECT = 289,
-     MINUS = 290,
-     XOR = 291
+     STARALL = 273,
+     AND = 274,
+     OR = 275,
+     LIKE = 276,
+     NOT = 277,
+     IN = 278,
+     ISNULL = 279,
+     BETWEEN = 280,
+     AMMSC = 281,
+     NULLVAL = 282,
+     ALL = 283,
+     ANY = 284,
+     BY = 285,
+     IS = 286,
+     UNION = 287,
+     INTERSECT = 288,
+     MINUS = 289,
+     JOIN = 290,
+     NATURAL = 291,
+     LEFT = 292,
+     RIGHT = 293,
+     OUTER = 294,
+     INNER = 295,
+     CROSS = 296,
+     ON = 297,
+     USING = 298,
+     FULL = 299,
+     XOR = 300
    };
 #endif
 
@@ -97,7 +106,7 @@ typedef union YYSTYPE
 
 
 /* Line 2068 of yacc.c  */
-#line 101 "sql_parser.tab.h"
+#line 110 "sql_parser.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

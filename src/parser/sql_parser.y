@@ -58,7 +58,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> STARALL
 %token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN
 %token <stringVal> AMMSC NULLVAL ALL ANY BY IS 
-%token <setOp> UNION INTERSECT MINUS
+%token <stringVal> UNION INTERSECT MINUS
 /* Keywords for Join queries */
 %token <stringVal> JOIN NATURAL LEFT RIGHT OUTER INNER CROSS ON USING FULL 
 
@@ -88,16 +88,12 @@ Node *bisonParseResult = NULL;
  * Types of non-terminal symbols
  */
 %type <node> stmt provStmt dmlStmt queryStmt
-%type <node> selectQuery deleteQuery updateQuery insertQuery // setOperatorQuery
+%type <node> selectQuery deleteQuery updateQuery insertQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList // select and from clauses are lists
 %type <node> selectItem fromClauseItem optionalDistinct optionalWhere
 %type <node> expression constant attributeRef sqlFunctionCall
 %type <node> binaryOperatorExpression unaryOperatorExpression
-/*
-%type <stringVal> operator arithmaticOperator comparisonOperator sqlOperators logicalOperator
-*/
-
 
 %type <stringVal> optionalAlias
 
@@ -136,7 +132,7 @@ dmlStmt:
 queryStmt:
 	selectQuery        { RULELOG("queryStmt::selectQuery"); }
 	| provStmt        { RULELOG("queryStmt::provStmt"); }
-/*	| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); } */
+	| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); }
     ;
 
 /* 
@@ -174,37 +170,29 @@ insertQuery:
 /*
  * Rules to parse set operator queries
  */
-/*
+
 setOperatorQuery:     // Need to look into createFunction
         selectQuery INTERSECT selectQuery
             {
                 RULELOG("setOperatorQuery::INTERSECT");
-                $$ = (Node *) createSetOp($2, TRUE, $1, $3);
-                $$ = (Node *) createSetQuery(List *selectClause, SetOp *root)
-// What does selectClause means here?
-// Why two separate functions createSetOp and createSetQuery?
-// Whats is the significance of passing boolean value here?
-// In query_block.h SetOpType is defined as UNION which should be used. Instead some other string should be used, as UNION is basic token of parser file.
-// Set Operator of type UNION ALL also needs to be considered. Name of the the SetOperators in enum SetOp should be changed for the same.
-// Why setOpType enum is created? We can use char * if required to avoid above conflicts. If we are using those to check setoperator should be of given type mentioned in SetOpType then pasrer is also doing the same thing. It will also parse the required tokens only and will throw error for other misleading SetOperators.
+                $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
             }
         | selectQuery MINUS selectQuery
             {
                 RULELOG("setOperatorQuery::MINUS");
-                $$ = (Node *) createSetOp($2, TRUE, $1, $3);
+                $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
             }
         | selectQuery UNION selectQuery
             {
                 RULELOG("setOperatorQuery::UNION");
-                $$ = (Node *) createSetOp($2, TRUE, $1, $3);
+                $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
             }
         | selectQuery UNION ALL selectQuery
             {
                 RULELOG("setOperatorQuery::UNIONALL");
-                $$ = (Node *) createSetOp($2, TRUE, $1, $4);
+                $$ = (Node *) createSetQuery($2, TRUE, $1, $4);
             }
     ;
-*/
 
 /*
  * Rule to parse select query
