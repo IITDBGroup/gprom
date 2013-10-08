@@ -20,8 +20,9 @@ typedef enum SetOpType
 typedef struct SetQuery
 {
     NodeTag type;
-    char *setOp;
+    SetOpType setOp;
     boolean all;
+    List *selectClause;
     Node *lChild; // either SetOp or QueryBlock
     Node *rChild; // either SetOp or QueryBlock
 } SetQuery;

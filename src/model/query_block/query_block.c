@@ -46,8 +46,15 @@ createSetQuery(char *setOp, boolean all, Node *lChild,
 {
     SetQuery *result = makeNode(SetQuery);
 
-    result->setOp = setOp;
+    if (!strcmp(setOp, "UNION"))
+        result->setOp = SETOP_UNION;
+    if (!strcmp(setOp, "INTERSECT"))
+        result->setOp = SETOP_INTERSECTION;
+    if (!strcmp(setOp, "MINUS"))
+        result->setOp = SETOP_DIFFERENCE;
+
     result->all = all;
+    result->selectClause = NIL;
     result->lChild = lChild;
     result->rChild = rChild;
 
