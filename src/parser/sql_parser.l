@@ -105,7 +105,8 @@ OUTER        TOK(OUTER)
 INNER        TOK(INNER)
 USING        TOK(USING)
 CROSS        TOK(CROSS)
-
+INTO		TOK(INTO)
+VALUES		TOK(VALUES)
 
 	/* punctuation */
 [(),.;] TOKSELF()

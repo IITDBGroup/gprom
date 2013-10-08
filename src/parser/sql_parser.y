@@ -59,6 +59,8 @@ Node *bisonParseResult = NULL;
 %token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN
 %token <stringVal> AMMSC NULLVAL ALL ANY BY IS 
 %token <stringVal> UNION INTERSECT MINUS
+%token <stringVal> INTO VALUES
+
 /* Keywords for Join queries */
 %token <stringVal> JOIN NATURAL LEFT RIGHT OUTER INNER CROSS ON USING FULL 
 
@@ -164,7 +166,7 @@ updateQuery:
  * Rules to parse insert query
  */
 insertQuery:
-        INSERT        { RULELOG("insertQuery"); $$ = NULL; } 
+        INSERT 		  { RULELOG("insertQuery"); $$ = NULL; } 
     ;
 
 /*
@@ -172,22 +174,22 @@ insertQuery:
  */
 
 setOperatorQuery:     // Need to look into createFunction
-        selectQuery INTERSECT selectQuery
+        queryStmt INTERSECT queryStmt
             {
                 RULELOG("setOperatorQuery::INTERSECT");
                 $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
             }
-        | selectQuery MINUS selectQuery 
+        | queryStmt MINUS queryStmt 
             {
                 RULELOG("setOperatorQuery::MINUS");
                 $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
             }
-        | selectQuery UNION selectQuery
+        | queryStmt UNION queryStmt
             {
                 RULELOG("setOperatorQuery::UNION");
                 $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
             }
-        | selectQuery UNION ALL selectQuery
+        | queryStmt UNION ALL queryStmt
             {
                 RULELOG("setOperatorQuery::UNIONALL");
                 $$ = (Node *) createSetQuery($2, TRUE, $1, $4);
