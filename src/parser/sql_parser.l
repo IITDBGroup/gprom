@@ -59,8 +59,9 @@ identContinue	[A-Za-z0-9_]
 identifiers		({identStart}{identContinue}*)
 
 /* operators */
-comparisonOps	['!'|'<'|'>'|'=']{1,2} 
-/*comparisonOps   ['='|'<>'|'!='|'<'|'>'|'<='|'>=']*/
+/* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
+comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
+/*shiftsOps		["<<"|">>"] */
 
 /*******************************************************************************
  * Token definitions and actions 
