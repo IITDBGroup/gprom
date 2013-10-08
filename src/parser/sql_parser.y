@@ -42,7 +42,7 @@ Node *bisonParseResult = NULL;
 %token <floatVal> floatConst
 %token <stringVal> stringConst
 %token <stringVal> identifier
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps
+%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '('
 
 /*
  * Tokens for in-built keywords
@@ -82,7 +82,7 @@ Node *bisonParseResult = NULL;
 %left '+' '-'
 %left '*' '/' '%'
 %left '^'
-
+%nonassoc '(' ')'
 
 /*
  * Types of non-terminal symbols
@@ -177,7 +177,7 @@ setOperatorQuery:     // Need to look into createFunction
                 RULELOG("setOperatorQuery::INTERSECT");
                 $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
             }
-        | selectQuery MINUS selectQuery
+        | selectQuery MINUS selectQuery 
             {
                 RULELOG("setOperatorQuery::MINUS");
                 $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
