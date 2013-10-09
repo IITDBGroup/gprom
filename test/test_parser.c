@@ -50,6 +50,7 @@ main (int argc, char* argv[])
         result = parseFromString(getOptions()->optionConnection->sql);
 
         DEBUG_LOG("Address of returned node is <%p>", result);
+        ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(bisonParseResult));
         ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(bisonParseResult)));
     }
     freeOptions();

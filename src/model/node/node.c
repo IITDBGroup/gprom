@@ -109,11 +109,13 @@ appendStringInfo(StringInfo str, const char *format, ...)
         needed = vsnprintf(str->data + str->len, have, format, args);
         va_end(args);
 
-        if (needed >= 0 && needed < have - 1)
+        if (needed >= 0 && needed <= have)
         {
             str->len += needed;
             break;
         }
+        if (needed < 0)
+            FATAL_LOG("encoding error in appendStringInfo <%s>", format);
 
         makeStringInfoSpace(str, needed);
     }

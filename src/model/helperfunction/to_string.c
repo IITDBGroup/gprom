@@ -27,6 +27,7 @@ static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
 static void outFromTableRef (StringInfo str, FromTableRef *node);
 static void outAttributeReference (StringInfo str, AttributeReference *node);
+static void outSetQuery (StringInfo str, SetQuery *node);
 static void outOperator (StringInfo str, Operator *node);
 static void indentString(StringInfo str, int level);
 static void outQueryOperator(StringInfo str, QueryOperator *node);
@@ -143,6 +144,18 @@ outConstant (StringInfo str, Constant *node)
             appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
             break;
     }
+}
+
+static void
+outSetQuery (StringInfo str, SetQuery *node)
+{
+    WRITE_NODE_TYPE(SETQUERY);
+
+    WRITE_ENUM_FIELD(setOp, SetOpType);
+    WRITE_BOOL_FIELD(all);
+    WRITE_NODE_FIELD(selectClause);
+    WRITE_NODE_FIELD(lChild);
+    WRITE_NODE_FIELD(rChild);
 }
 
 static void
@@ -284,9 +297,12 @@ void outNode(StringInfo str, void *obj)
             case T_SelectItem:
                 outSelectItem(str, (SelectItem *) obj);
                 break;
-	    case T_Operator:
-		outOperator(str, (Operator *) obj);
-		break;
+            case T_Operator:
+                outOperator(str, (Operator *) obj);
+                break;
+            case T_SetQuery:
+                outSetQuery (str, (SetQuery *) obj);
+                break;
             case T_FromTableRef:
                 outFromTableRef(str, (FromTableRef *) obj);
                 break;

@@ -49,18 +49,18 @@ extern int yydebug;
     floatConst = 259,
     stringConst = 260,
     identifier = 261,
-    comparisonop = 262,
+    comparisonOps = 262,
     SELECT = 263,
-    PROVENANCE = 264,
-    OF = 265,
-    FROM = 266,
-    AS = 267,
-    WHERE = 268,
-    DISTINCT = 269,
-    ON = 270,
-    STARALL = 271,
-    UPDATE = 272,
-    DELETE = 273,
+    INSERT = 264,
+    UPDATE = 265,
+    DELETE = 266,
+    PROVENANCE = 267,
+    OF = 268,
+    FROM = 269,
+    AS = 270,
+    WHERE = 271,
+    DISTINCT = 272,
+    STARALL = 273,
     AND = 274,
     OR = 275,
     LIKE = 276,
@@ -74,7 +74,22 @@ extern int yydebug;
     ANY = 284,
     BY = 285,
     IS = 286,
-    XOR = 287
+    UNION = 287,
+    INTERSECT = 288,
+    MINUS = 289,
+    INTO = 290,
+    VALUES = 291,
+    JOIN = 292,
+    NATURAL = 293,
+    LEFT = 294,
+    RIGHT = 295,
+    OUTER = 296,
+    INNER = 297,
+    CROSS = 298,
+    ON = 299,
+    USING = 300,
+    FULL = 301,
+    XOR = 302
   };
 #endif
 
@@ -94,8 +109,9 @@ union YYSTYPE
      char *stringVal;
      int intVal;
      double floatVal;
+/*     SetOpType setOp; */
 
-#line 99 "sql_parser.tab.h" /* yacc.c:1909  */
+#line 115 "sql_parser.tab.h" /* yacc.c:1909  */
 };
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1

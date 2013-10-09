@@ -100,7 +100,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             }
             break;
         /* query block model nodes */
-        case T_SetOp:
+/*        case T_SetOp:
             {
                 PREP_VISIT(SetOp);
                 VISIT(lChild);
@@ -112,6 +112,14 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 PREP_VISIT(SetQuery);
                 VISIT(selectClause);
                 VISIT(rootSetOp);
+            }
+            break;*/
+        case T_SetQuery:
+            {
+                PREP_VISIT(SetQuery);
+                VISIT(setOp);
+                VISIT(lChild);
+                VISIT(rChild);
             }
             break;
         case T_ProvenanceStmt:
@@ -293,7 +301,7 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
             }
             break;
         /* query block model nodes */
-        case T_SetOp:
+/*        case T_SetOp:
             {
                 NEWN(SetOp);
                 MUTATE(Node,lChild);
@@ -305,6 +313,14 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 NEWN(SetQuery);
                 MUTATE(List,selectClause);
                 MUTATE(SetOp,rootSetOp);
+            }
+            break;*/
+        case T_SetQuery:
+            {
+                NEWN(SetQuery);
+                MUTATE(char, setOp);
+                MUTATE(Node,lChild);
+                MUTATE(Node,rChild);
             }
             break;
         case T_ProvenanceStmt:

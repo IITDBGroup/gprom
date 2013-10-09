@@ -17,21 +17,22 @@ typedef enum SetOpType
     SETOP_DIFFERENCE
 } SetOpType;
 
-typedef struct SetOp
+typedef struct SetQuery
 {
     NodeTag type;
     SetOpType setOp;
     boolean all;
+    List *selectClause;
     Node *lChild; // either SetOp or QueryBlock
     Node *rChild; // either SetOp or QueryBlock
-} SetOp;
-
+} SetQuery;
+/*
 typedef struct SetQuery
 {
     NodeTag type;
     List *selectClause;
     SetOp *rootSetOp;
-} SetQuery;
+} SetQuery; */
 
 
 typedef struct QueryBlock
@@ -109,8 +110,8 @@ typedef struct DistinctClause
 
 
 /* functions for creating query block nodes */
-extern SetQuery *createSetQuery(List *selectClause, SetOp *root);
-extern SetOp *createSetOp(SetOpType opType, boolean all, Node *lChild,
+/*extern SetQuery *createSetQuery(List *selectClause, SetOp *root);*/
+extern SetQuery *createSetQuery(char *opType, boolean all, Node *lChild,
         Node *rChild);
 extern QueryBlock *createQueryBlock(void);
 extern ProvenanceStmt *createProvenanceStmt(Node *query);

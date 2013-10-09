@@ -34,6 +34,8 @@ typedef struct Constant {
 typedef struct AttributeReference {
     NodeTag type;
     char *name;
+    int fromClauseItem;
+    int attrPosition;
 } AttributeReference;
 
 /* functions to create expression nodes */

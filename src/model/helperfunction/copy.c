@@ -34,7 +34,7 @@ static ProvenanceComputation *copyProvenanceComputOp(ProvenanceComputation *from
 
 /*functions to copy query_block*/
 static SetQuery *copySetQuery(SetQuery *from);
-static SetOp *copySetOp(SetOp *from);
+//static SetOp *copySetOp(SetOp *from);
 static QueryBlock *copyQueryBlock(QueryBlock *from);
 static Constant *copyConstant(Constant *from);
 static ProvenanceStmt *copyProvenanceStmt(ProvenanceStmt *from);
@@ -179,6 +179,7 @@ copyProvenanceComputOp(ProvenanceComputation *from)
     return new;
 }
 /*functions to copy query_block*/
+/*
 static SetQuery *
 copySetQuery(SetQuery *from)
 {
@@ -187,13 +188,15 @@ copySetQuery(SetQuery *from)
     COPY_SCALAR_FIELD(rootSetOp);
 
     return new;
-}
-static SetOp *
-copySetOp(SetOp *from)
+}*/
+
+static SetQuery *
+copySetQuery(SetQuery *from)
 {
-    COPY_INIT(SetOp);
+    COPY_INIT(SetQuery);
     COPY_SCALAR_FIELD(setOp);
     COPY_SCALAR_FIELD(all);
+    COPY_NODE_FIELD(selectClause);
     COPY_NODE_FIELD(lChild);
     COPY_NODE_FIELD(rChild);
 

@@ -59,7 +59,9 @@ identContinue	[A-Za-z0-9_]
 identifiers		({identStart}{identContinue}*)
 
 /* operators */
-comparisonops	("="|"<>"|"!="|"<"|">"|"<="|">=")
+/* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
+comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
+/*shiftsOps		["<<"|">>"] */
 
 /*******************************************************************************
  * Token definitions and actions 
@@ -93,12 +95,24 @@ UPDATE		 TOK(UPDATE)
 DELETE	     TOK(DELETE)
 IS		     TOK(IS)
 NULL	     TOK(NULLVAL)
+UNION        TOK(UNION)
+INTERSECT        TOK(INTERSECT)
+MINUS        TOK(MINUS)
+JOIN        TOK(JOIN)
+LEFT        TOK(LEFT)
+RIGHT        TOK(RIGHT)
+OUTER        TOK(OUTER)
+INNER        TOK(INNER)
+USING        TOK(USING)
+CROSS        TOK(CROSS)
+INTO		TOK(INTO)
+VALUES		TOK(VALUES)
 
 	/* punctuation */
 [(),.;] TOKSELF()
 
 	/* operators */
-{comparisonops}		TOKSELF()
+{comparisonOps}		TOK(comparisonOps)
 [-+*%/^~&|!]		TOKSELF()
 	
 	/* names */

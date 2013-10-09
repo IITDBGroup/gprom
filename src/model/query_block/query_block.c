@@ -13,6 +13,7 @@
 #include "model/query_block/query_block.h"
 #include "model/node/nodetype.h"
 
+/*
 SetQuery *
 createSetQuery(List *selectClause, SetOp *root)
 {
@@ -32,6 +33,28 @@ createSetOp(SetOpType opType, boolean all, Node *lChild,
 
     result->all = all;
     result->setOp = opType;
+    result->lChild = lChild;
+    result->rChild = rChild;
+
+    return result;
+}
+*/
+
+SetQuery *
+createSetQuery(char *setOp, boolean all, Node *lChild,
+        Node *rChild)
+{
+    SetQuery *result = makeNode(SetQuery);
+
+    if (!strcmp(setOp, "UNION"))
+        result->setOp = SETOP_UNION;
+    if (!strcmp(setOp, "INTERSECT"))
+        result->setOp = SETOP_INTERSECTION;
+    if (!strcmp(setOp, "MINUS"))
+        result->setOp = SETOP_DIFFERENCE;
+
+    result->all = all;
+    result->selectClause = NIL;
     result->lChild = lChild;
     result->rChild = rChild;
 
