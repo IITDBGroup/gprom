@@ -21,7 +21,7 @@
 /* functions to copy specific node types */
 static AttributeReference *copyAttributeReference(AttributeReference *from);
 static List *deepCopyList(List *from);
-static FunctionCall *copyFunctioncall(FunctionCall *from);
+static FunctionCall *copyFunctionCall(FunctionCall *from);
 static Operator *copyOpExpr(Operator *from);
 
 /*schema helper functions*/
