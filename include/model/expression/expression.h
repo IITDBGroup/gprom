@@ -1,6 +1,7 @@
 #ifndef EXPRESSION_H
 #define EXPRESSION_H
 
+#include "common.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 
@@ -8,6 +9,7 @@ typedef struct FunctionCall {
     NodeTag type;
     char *functionname;
     List *args;
+    boolean isAgg;
 } FunctionCall;
 
 typedef struct Operator {
@@ -30,6 +32,9 @@ typedef struct Constant {
     DataType constType;
     void *value;
 } Constant;
+
+#define INVALID_ATTR -1
+#define INVALID_FROM_ITEM -1
 
 typedef struct AttributeReference {
     NodeTag type;

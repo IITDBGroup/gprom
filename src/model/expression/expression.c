@@ -32,6 +32,8 @@ createAttributeReference (char *name)
     }
     else 
         result->name = NULL;
+    result->fromClauseItem = INVALID_FROM_ITEM;
+    result->attrPosition = INVALID_ATTR;
 
     return result;
 }
@@ -51,6 +53,7 @@ createFunctionCall(char *fName, List *args)
         result->functionname = NULL;
 
     result->args = args; //should we copy?
+    result->isAgg = FALSE;
 
     return result; 
 }

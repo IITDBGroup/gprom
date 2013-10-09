@@ -41,7 +41,7 @@ static ProvenanceStmt *copyProvenanceStmt(ProvenanceStmt *from);
 static SelectItem *copySelectItem(SelectItem  *from);
 static FromTableRef *copyFromTableRef(FromTableRef *from);
 static FromSubquery *copyFromSubquery(FromSubquery *from);
-static FromJoinExpr *copyFromJoin(FromJoinExpr *from);
+static FromJoinExpr *copyFromJoinExpr(FromJoinExpr *from);
 static DistinctClause *copyDistinctClause(DistinctClause *from);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
@@ -98,17 +98,18 @@ copyAttributeReference(AttributeReference *from)
 }
 
 /*functions to copy query_operator*/
-static QueryOperator *
-copyQueryOperator(QueryOperator *from)
-{
-    COPY_INIT(QueryOperator);
-    COPY_NODE_FIELD(inputs);
-    COPY_NODE_FIELD(schema);
-    COPY_NODE_FIELD(parents);
-    COPY_NODE_FIELD(provAttrs);
+//static QueryOperator *
+//copyQueryOperator(QueryOperator *from)
+//{
+//    COPY_INIT(QueryOperator);
+//    COPY_NODE_FIELD(inputs);
+//    COPY_NODE_FIELD(schema);
+//    COPY_NODE_FIELD(parents);
+//    COPY_NODE_FIELD(provAttrs);
+//
+//    return new;
+//}
 
-    return new;
-}
 static TableAccessOperator *
 copyTableAccessOp(TableAccessOperator *from)
 {
@@ -323,9 +324,9 @@ void *copyObject(void *from)
             break;
      
              /* query block model nodes */
-        case T_SetOp:
-            retval = copySetOp(from);
-            break;
+//        case T_SetOp:
+//            retval = copySetOp(from);
+//            break;
         case T_SetQuery:
             retval = copySetQuery(from);
             break;
@@ -355,9 +356,6 @@ void *copyObject(void *from)
             break;
 
              /* query operator model nodes */
-        case T_QueryOperator:
-            retval = copyQueryOperator(from);
-            break;
         case T_SelectionOperator:
             retval = copySelectionOp(from);
             break;

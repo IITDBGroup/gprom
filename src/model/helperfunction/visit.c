@@ -71,8 +71,16 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             break;
         /* expression nodes */
         case T_Constant:
+        	{
+        		PREP_VISIT(Constant);
+        		VISIT(value);
+        	}
             break;
         case T_AttributeReference:
+        	{
+        		PREP_VISIT(AttributeReference);
+        		//VISIT(name);
+        	}
             break;
         case T_FunctionCall:
             {
@@ -116,16 +124,72 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             }
             break;
         case T_QueryBlock:
+        	{
+        		PREP_VISIT(QueryBlock);
+        		VISIT(selectClause);
+        		VISIT(distinct);
+        		VISIT(fromClause);
+        		VISIT(whereClause);
+        		VISIT(havingClause);
+        	}
+        	break;
         case T_SelectItem:
-        case T_FromItem:
+        	{
+        		PREP_VISIT(SelectItem);
+        		//VISIT(alias);
+        		VISIT(expr);
+        	}
+        	break;
+//        case T_FromItem:
+//        	{
+//        		PREP_VISIT(FromItem);
+//        		//VISIT(name);
+//        		VISIT(attrNames);
+//        	}
+//        	break;
         case T_FromTableRef:
+        	{
+        		PREP_VISIT(FromTableRef);
+        		VISIT(from.attrNames);
+        		//VISIT(tableId);
+        	}
+        	break;
         case T_FromSubquery:
+        	{
+        		PREP_VISIT(FromSubquery);
+        		VISIT(from.attrNames);
+        		VISIT(subquery);
+        	}
+        	break;
         case T_FromJoinExpr:
+        	{
+        		PREP_VISIT(FromJoinExpr);
+        		VISIT(from.attrNames);
+        		VISIT(left);
+        		VISIT(right);
+        		VISIT(cond);
+        	}
+        	break;
         case T_DistinctClause:
+        	{
+        		PREP_VISIT(DistinctClause);
+        		VISIT(distinctExprs);
+        	}
+        	break;
 
         /* query operator model nodes */
         case T_Schema:
+        	{
+        		PREP_VISIT(Schema);
+        		VISIT(attrDefs);
+        	}
+        	break;
         case T_AttributeDef:
+        	{
+        		PREP_VISIT(AttributeDef);
+        		//VISIT();
+        	}
+        	break;
         case T_SelectionOperator:
             {
                 PREP_VISIT(SelectionOperator);
@@ -156,9 +220,29 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             }
             break;
         case T_ProvenanceComputation:
+        	{
+        		PREP_VISIT(ProvenanceComputation);
+        		VISIT_OPERATOR_FIELDS();
+        	}
+        	break;
         case T_TableAccessOperator:
+        	{
+        		PREP_VISIT(TableAccessOperator);
+        		VISIT_OPERATOR_FIELDS();
+        	}
+        	break;
         case T_SetOperator:
+        	{
+        		PREP_VISIT(SetOperator);
+        		VISIT_OPERATOR_FIELDS();
+        	}
+        	break;
         case T_DuplicateRemoval:
+        	{
+        		PREP_VISIT(DuplicateRemoval);
+        		VISIT_OPERATOR_FIELDS();
+        		VISIT(attrs);
+        	}
             break;
         default:
             break;
@@ -229,7 +313,6 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         case T_SetQuery:
             {
                 NEWN(SetQuery);
-                MUTATE(char, setOp);
                 MUTATE(Node,lChild);
                 MUTATE(Node,rChild);
             }
