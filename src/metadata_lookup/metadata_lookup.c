@@ -48,6 +48,8 @@ initConnection()
 static boolean
 isConnected()
 {
+	if(conn==NULL)
+		initConnection();
 	if(OCI_IsConnected(conn))
 		return TRUE;
 	else

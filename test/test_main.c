@@ -90,6 +90,7 @@ testSuites(void)
     RUN_TEST(testEqual(), "Test generic equality function.");
     RUN_TEST(testToString(), "Test generic toString function.");
     RUN_TEST(testParse(), "Test parser.");
+    RUN_TEST(testMetadataLookup(), "Test metadata lookup.");
 
     printf("Total %d Test(s) Passed\n\n", test_count);
 }

@@ -55,6 +55,7 @@ if test "x$with_oci_lib" != x; then
 else
 	AC_MSG_RESULT([not set])
 fi
+<<<<<<< HEAD
 ])
 # OCI header location
 AC_DEFUN([AC_OCIH_LOCATION],
@@ -85,10 +86,41 @@ if test "x$with_ocilib" != x; then
     	AC_MSG_RESULT([no])
     	AC_WARN([no OCI library found in location $with_ocilib])
 	fi
+=======
+
+if test -d "$with_oci"; then
+	LDFLAGS="$LDFLAGS -L$with_oci"
+    CPPFLAGS="$CPPFLAGS -I$with_oci/../rdbms/public"
+    AC_MSG_RESULT([yes, $with_oci])
+>>>>>>> eedba9154698336c751bf7bbd46e8037b7684c85
 else
 	AC_MSG_RESULT([not set])
 fi
 ])
+<<<<<<< HEAD
+=======
+
+AC_DEFUN([AC_OCILIB_LOCATION],
+[AC_ARG_WITH(ocilib, [  --with-ocilib], , )
+AC_MSG_CHECKING([for OCILIBLOC])
+
+# sensible default if nothing specified
+if test "x$with_ocilib" = x; then
+    with_ocilib=/usr/local/lib
+fi
+
+if test -d "$with_ocilib"; then
+	LDFLAGS="$LDFLAGS -L$with_ocilib"
+    CPPFLAGS="$CPPFLAGS -I$with_ocilib/../include"
+    AC_MSG_RESULT([yes, $with_ocilib])
+else
+    AC_MSG_RESULT([no])
+    AC_WARN([no library found in location $with_ocilib for ocilib library])
+fi
+])
+
+
+>>>>>>> eedba9154698336c751bf7bbd46e8037b7684c85
 ################################################################################
 # DATA TYPES
 AC_TYPE_SIZE_T
@@ -117,8 +149,11 @@ AC_CHECK_FUNCS([strdup])
 # Oracle access libraries (OCI and OCILIB)
 # check if user has provided us with non-standard locations for OCI/OCILIB libraries
 AC_OCI_LOCATION
+<<<<<<< HEAD
 AC_OCIH_LOCATION
 AC_OCI_LIB_LOCATION
+=======
+>>>>>>> eedba9154698336c751bf7bbd46e8037b7684c85
 AC_OCILIB_LOCATION
 # check for the libraries
 AC_CHECK_LIB([clntsh],[OCIInitialize],[],[AC_MSG_WARN([missing OCI library])])
