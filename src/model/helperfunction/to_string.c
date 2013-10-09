@@ -23,9 +23,12 @@ static void outList(StringInfo str, List *node);
 static void outNode(StringInfo, void *node);
 static void outQueryBlock (StringInfo str, QueryBlock *node);
 static void outConstant (StringInfo str, Constant *node);
+static void outFunctionCall (StringInfo str, FunctionCall *node);
 static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
 static void outFromTableRef (StringInfo str, FromTableRef *node);
+static void outFromJoinExpr (StringInfo str, FromJoinExpr *node);
+static void outFromSubquery (StringInfo str, FromSubquery *node);
 static void outAttributeReference (StringInfo str, AttributeReference *node);
 static void outFunctionCall (StringInfo str, FunctionCall *node);
 static void outSchema (StringInfo str, Schema *node);
@@ -126,7 +129,7 @@ outQueryBlock (StringInfo str, QueryBlock *node)
     WRITE_NODE_FIELD(havingClause);
 }
 
-void
+static void
 outConstant (StringInfo str, Constant *node)
 {
     WRITE_NODE_TYPE(CONSTANT);
@@ -148,6 +151,16 @@ outConstant (StringInfo str, Constant *node)
             appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
             break;
     }
+}
+
+static void
+outFunctionCall (StringInfo str, FunctionCall *node)
+{
+    WRITE_NODE_TYPE(FUNCTIONCALL);
+
+    WRITE_STRING_FIELD(functionname);
+    WRITE_NODE_FIELD(args);
+    WRITE_BOOL_FIELD(isAgg);
 }
 
 static void
@@ -194,6 +207,28 @@ outFromTableRef (StringInfo str, FromTableRef *node)
 
     writeCommonFromItemFields(str, (FromItem *) node);
     WRITE_STRING_FIELD(tableId);
+}
+
+static void
+outFromJoinExpr (StringInfo str, FromJoinExpr *node)
+{
+    WRITE_NODE_TYPE(FROMJOINEXPR);
+
+    writeCommonFromItemFields(str, (FromItem *) node);
+    WRITE_NODE_FIELD(left);
+    WRITE_NODE_FIELD(right);
+    WRITE_ENUM_FIELD(joinType, JoinType);
+    WRITE_ENUM_FIELD(joinCond, JoinConditionType);
+    WRITE_NODE_FIELD(cond);
+}
+
+static void
+outFromSubquery (StringInfo str, FromSubquery *node)
+{
+    WRITE_NODE_TYPE(FROMSUBQUERY);
+
+    writeCommonFromItemFields(str, (FromItem *) node);
+    WRITE_NODE_FIELD(subquery);
 }
 
 static void
@@ -331,6 +366,9 @@ void outNode(StringInfo str, void *obj)
             case T_Constant:
                 outConstant(str, (Constant *) obj);
                 break;
+            case T_FunctionCall:
+                outFunctionCall(str, (FunctionCall *) obj);
+                break;
             case T_SelectItem:
                 outSelectItem(str, (SelectItem *) obj);
                 break;
@@ -342,6 +380,12 @@ void outNode(StringInfo str, void *obj)
                 break;
             case T_FromTableRef:
                 outFromTableRef(str, (FromTableRef *) obj);
+                break;
+            case T_FromJoinExpr:
+                outFromJoinExpr(str, (FromJoinExpr *) obj);
+                break;
+            case T_FromSubquery:
+                outFromSubquery(str, (FromSubquery*) obj);
                 break;
             case T_AttributeReference:
                 outAttributeReference(str, (AttributeReference *) obj);

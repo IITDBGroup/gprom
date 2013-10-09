@@ -104,5 +104,6 @@ extern rc testToString(void);
 extern rc testLogger(void);
 extern rc testMemManager(void);
 extern rc testParse(void);
+extern rc testMetadataLookup(void);
 
 #endif

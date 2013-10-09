@@ -138,9 +138,18 @@ typeOf (Node *expr)
 DataType
 typeOfInOpModel (Node *expr, List *inputOperators)
 {
-    if (isA(expr, AttributeReference)) // need to figure out type
+    switch(expr->type)
     {
-        return DT_STRING;
+        case T_AttributeReference: //TODO need to figure out type
+            return DT_STRING;
+        case T_FunctionCall:
+        case T_Operator:
+            return DT_STRING; //TODO metadata lookup plugin
+        case T_Constant:
+            return typeOf(expr);
+        default:
+            ERROR_LOG("unkown expression type for node: %s", nodeToString(expr));
+            break;
     }
     return DT_STRING;
 }
