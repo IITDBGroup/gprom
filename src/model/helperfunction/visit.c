@@ -68,11 +68,6 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             }
             break;
         case T_IntList:
-        	{
-        		PREP_VISIT(List);
-        		FOREACH_INT(el, n)
-        			VISIT_NODE(el);
-        	}
             break;
         /* expression nodes */
         case T_Constant:
@@ -227,25 +222,25 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         case T_ProvenanceComputation:
         	{
         		PREP_VISIT(ProvenanceComputation);
-        		VISIT_OPERATOR_FILEDS();
+        		VISIT_OPERATOR_FIELDS();
         	}
         	break;
         case T_TableAccessOperator:
         	{
         		PREP_VISIT(TableAccessOperator);
-        		VISIT_OPERATOR_FILEDS();
+        		VISIT_OPERATOR_FIELDS();
         	}
         	break;
         case T_SetOperator:
         	{
         		PREP_VISIT(SetOperator);
-        		VISIT_OPERATOR_FILEDS();
+        		VISIT_OPERATOR_FIELDS();
         	}
         	break;
         case T_DuplicateRemoval:
         	{
         		PREP_VISIT(DuplicateRemoval);
-VISIT_OPERATOR_FILEDS();
+        		VISIT_OPERATOR_FIELDS();
         		VISIT(attrs);
         	}
             break;
@@ -318,7 +313,6 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         case T_SetQuery:
             {
                 NEWN(SetQuery);
-                MUTATE(char, setOp);
                 MUTATE(Node,lChild);
                 MUTATE(Node,rChild);
             }

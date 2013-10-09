@@ -323,9 +323,9 @@ void *copyObject(void *from)
             break;
      
              /* query block model nodes */
-        case T_SetOp:
-            retval = copySetOp(from);
-            break;
+//        case T_SetOp:
+//            retval = copySetOp(from);
+//            break;
         case T_SetQuery:
             retval = copySetQuery(from);
             break;
