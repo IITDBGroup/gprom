@@ -79,7 +79,7 @@ AC_MSG_CHECKING([for user provided OCILIB location])
 if test "x$with_ocilib" != x; then
 	if test -d "$with_ocilib"; then
 		LDFLAGS="$LDFLAGS -L$with_ocilib"
-    	CPPFLAGS="$CPPFLAGS -I$with_ocilib/include"
+    	CPPFLAGS="$CPPFLAGS -I$with_ocilib/../include"
     	AC_MSG_RESULT([yes, $with_ocilib])
 	else
     	AC_MSG_RESULT([no])
