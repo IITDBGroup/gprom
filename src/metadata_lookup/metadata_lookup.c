@@ -16,6 +16,8 @@
 /* If OCILIB is available then use it */
 #if HAVE_LIBOCILIB
 
+#define ORACLE_TNS_CONNECTION_FORMAT "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=(SERVER=DEDICATED)(SID=%s)))"
+
 /*
  * functions and variables for internal use
  */
@@ -29,19 +31,29 @@ static int
 initConnection()
 {
     NEW_AND_ACQUIRE_MEMCONTEXT("metadataContext");
-	context=getCurMemContext();
+    context=getCurMemContext();
+
+    StringInfo connectString = makeStringInfo();
 	Options* options=getOptions();
 	char* user=options->optionConnection->user;
 	char* passwd=options->optionConnection->passwd;
 	char* db=options->optionConnection->db;
-
+	char *host=options->optionConnection->host;
+	int port=options->optionConnection->port;
+	appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT, host, port,
+	        db);
 	if(!OCI_Initialize(NULL, NULL, OCI_ENV_DEFAULT))
 	{
-	    FATAL_LOG("Cannot connect to Oracle database"); //TODO print error type
+	    FATAL_LOG("Cannot initialize OICLIB"); //TODO print error type
 		return EXIT_FAILURE;
 	}
+	DEBUG_LOG("Initialized OCILIB");
 
-	conn = OCI_ConnectionCreate(db,user,passwd,OCI_SESSION_DEFAULT);
+	conn = OCI_ConnectionCreate(connectString->data,user,passwd,
+	        OCI_SESSION_DEFAULT);
+	DEBUG_LOG("Try to connect to server <%s,%s,%s>... %s", connectString->data, user, passwd,
+	        (conn != NULL) ? "SUCCESS" : "FAILURE");
+
 	return EXIT_SUCCESS;
 }
 
@@ -59,6 +71,14 @@ isConnected()
 	}
 }
 
+OCI_Connection *
+getConnection()
+{
+    if(isConnected())
+        return conn;
+    return NULL;
+}
+
 boolean
 catalogTableExists(char* tableName)
 {
@@ -72,7 +92,7 @@ catalogTableExists(char* tableName)
 }
 
 List*
-getAttributes(char* tableName)
+getAttributes(char *tableName)
 {
 	if(tableName==NULL)
 		return NIL;
@@ -86,7 +106,7 @@ getAttributes(char* tableName)
 		for(i = 1; i <= n; i++)
 		{
 			OCI_Column *col = OCI_TypeInfoGetColumn(tInfo, i);
-			AttributeReference* a = createAttributeReference((char *) OCI_GetColumnName(col));
+			AttributeReference *a = createAttributeReference((char *) OCI_GetColumnName(col));
 			attrList=appendToTailOfList(attrList,a);
 		}
 		return attrList;

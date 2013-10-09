@@ -54,38 +54,64 @@ extern int test_count;
         checkResult(returnCode, msg, __FILE__, __func__, __LINE__, -1); \
     } while (0)
 
-#define ASSERT_EQUALS_INTERNAL(a,b,resultExpr,message,format,stringa,stringb) \
+#define EQUALS_EQUALS(_a,_b) \
+    equal(_a,_b)
+
+#define EQUALS_EQ(_a,_b) \
+    (_a) == (_b)
+
+#define EQUALS_STRINGP(_a,_b) \
+	((_a == _b) || (_a != NULL && _b != NULL && strcmp(_a,_b) == 0))
+
+#define EQUALS_STRING(_a,_b) \
+    (strcmp(_a,_b) == 0)
+
+#define TOSTRING_NODE(a) nodeToString(a)
+
+#define TOSTRING_SELF(a) a
+
+#define TOSTRING_TOKENIZE(a) TOSTRING_ ## a
+
+#define ASSERT_EQUALS_INTERNAL(_type,a,b,_equals,message,format,_tostring) \
 	    do { \
-	        boolean result = (resultExpr); \
+	        _type _aVal = (_type) (a); \
+	        _type _bVal = (_type) (b); \
+	        boolean result = _equals(_aVal,_bVal); \
 	        TRACE_LOG("result was: <%s>", result ? "TRUE": "FALSE"); \
 	        char *m = (char *) malloc(2048); \
 	        if (!result) \
 	            sprintf(m, ("expected <" format ">, but was " \
-                        "<" format ">: %s"), stringa, stringb, message); \
+                        "<" format ">: %s"), TOSTRING_TOKENIZE(_tostring)(_aVal), TOSTRING_TOKENIZE(_tostring)(_bVal), message); \
 	        else \
 	            sprintf(m, ("as expected <" format "> was equal to" \
-                        " <" format ">: %s"), stringa, stringb, message); \
+                        " <" format ">: %s"), TOSTRING_TOKENIZE(_tostring)(_aVal), TOSTRING_TOKENIZE(_tostring)(_bVal), message); \
 	        CHECK_RESULT((result ? PASS : FAIL), m); \
 	        free(m); \
 	    } while(0)
 
 #define ASSERT_EQUALS_NODE(a,b,message) \
-    ASSERT_EQUALS_INTERNAL(a,b,equal(a,b),message,"%s",nodeToString(a),nodeToString(b))
+    ASSERT_EQUALS_INTERNAL(Node*,a,b,EQUALS_EQUALS,message,"%s",NODE)
 
 #define ASSERT_EQUALS_INT(a,b,message) \
-    ASSERT_EQUALS_INTERNAL(a,b,(a) == (b),message,"%u",a,b);
+    ASSERT_EQUALS_INTERNAL(int,a,b,EQUALS_EQ,message,"%u",SELF);
 
 #define ASSERT_EQUALS_FLOAT(a,b,message) \
-    ASSERT_EQUALS_INTERNAL(a,b,(a) == (b),message,"%f",a,b);
+    ASSERT_EQUALS_INTERNAL(double,a,b,EQUALS_EQ,message,"%f",SELF);
 
 #define ASSERT_EQUALS_P(a,b,message) \
-    ASSERT_EQUALS_INTERNAL(a,b,(a) == (b),message,"%p",a,b);
+    ASSERT_EQUALS_INTERNAL(void*,a,b,EQUALS_EQ,message,"%p",SELF);
 
 #define ASSERT_EQUALS_STRINGP(a,b,message) \
-    ASSERT_EQUALS_INTERNAL(a,b,((a == b) || (a != NULL && b != NULL && strcmp(a,b) == 0)),message,"%s",a,b);
+    ASSERT_EQUALS_INTERNAL(char*,a,b,EQUALS_STRINGP,message,"%s",SELF);
 
 #define ASSERT_EQUALS_STRING(a,b,message) \
-	ASSERT_EQUALS_INTERNAL(a,b,(strcmp(a,b) == 0),message,"%s",a,b);
+	ASSERT_EQUALS_INTERNAL(char*,a,b,EQUALS_STRING,message,"%s",SELF);
+
+#define ASSERT_TRUE(a,message) \
+	CHECK_RESULT(((a) ? PASS : FAIL), message);
+
+#define ASSERT_FALSE(a,message) \
+    CHECK_RESULT((!(a) ? PASS : FAIL), message);
 
 /* run all tests */
 extern void testSuites(void);

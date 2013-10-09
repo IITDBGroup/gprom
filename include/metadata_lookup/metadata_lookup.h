@@ -18,6 +18,11 @@
 
 #include "model/list/list.h"
 
+#if HAVE_LIBOCILIB
+#include <ocilib.h>
+    extern OCI_Connection *getConnection();
+#endif
+
 extern boolean catalogTableExists (char * tableName);
 extern List *getAttributes (char *tableName);
 extern int databaseConnectionClose();
