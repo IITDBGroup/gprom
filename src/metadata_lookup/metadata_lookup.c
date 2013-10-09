@@ -101,6 +101,7 @@ getAttributes(char *tableName)
 	if(isConnected())
 	{
 		int i,n;
+		tInfo = OCI_TypeInfoGet(conn,tableName,OCI_TIF_TABLE);
 		n = OCI_TypeInfoGetColumnCount(tInfo);
 		List* attrList=NIL;
 		for(i = 1; i <= n; i++)

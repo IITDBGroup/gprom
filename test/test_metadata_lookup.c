@@ -17,8 +17,8 @@
 #include "model/expression/expression.h"
 #include "log/logger.h"
 
-static char *table1Attrs[3] = { "a","b","c" };
-static char *table2Attrs[2] = { "d","e" };
+static char *table1Attrs[3] = { "A","B","C" };
+static char *table2Attrs[2] = { "D","E" };
 
 /* internal tests */
 static rc testCatalogTableExists(void);
