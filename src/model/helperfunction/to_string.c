@@ -30,6 +30,10 @@ static void outFromTableRef (StringInfo str, FromTableRef *node);
 static void outFromJoinExpr (StringInfo str, FromJoinExpr *node);
 static void outFromSubquery (StringInfo str, FromSubquery *node);
 static void outAttributeReference (StringInfo str, AttributeReference *node);
+static void outFunctionCall (StringInfo str, FunctionCall *node);
+static void outSchema (StringInfo str, Schema *node);
+static void outSchemaFromLists(StringInfo str, Schema *node);
+static void outAttributeDef (StringInfo str, AttributeDef *node);
 static void outSetQuery (StringInfo str, SetQuery *node);
 static void outOperator (StringInfo str, Operator *node);
 static void indentString(StringInfo str, int level);
@@ -234,7 +238,40 @@ outAttributeReference (StringInfo str, AttributeReference *node)
 
     WRITE_STRING_FIELD(name);
 }
+static void
+outFunctionCall (StringInfo str, FunctionCall *node)
+{
+    WRITE_NODE_TYPE(FUNCTION_CALL);
 
+    WRITE_STRING_FIELD(functionName);
+    WRITE_NODE_FIELD(args);
+}
+static void 
+outSchema (StringInfo str, Schema *node)
+{
+    WRITE_NODE_TYPE(SCHEMA);
+
+    WRITE_NODE_FIELD(name);
+    WRITE_NODE_FIELD(attrDefs);
+}
+static void 
+outSchemaFromLists (StringInfo str, Schema *node)
+{
+    WRITE_NODE_TYPE(SCHEMA);
+
+    WRITE_NODE_FIELD(name);
+    WRITE_NODE_FIELD(attrNames);
+    WRITE_NODE_FIELD(dataTypes);
+}
+static void outAttributeDef 
+(StringInfo str, AttributeDef *node)
+{
+    WRITE_NODE_TYPE(ATTRIBUTE_DEF);
+
+    WRITE_ENUM_FIELD(dataType, DataType);
+    WRITE_NODE_FIELD(attrNames);
+    WRITE_INT_FIELD(pos); 
+}
 static void
 outQueryOperator (StringInfo str, QueryOperator *node)
 {
@@ -352,6 +389,15 @@ void outNode(StringInfo str, void *obj)
                 break;
             case T_AttributeReference:
                 outAttributeReference(str, (AttributeReference *) obj);
+                break;
+            case T_FunctionCall:
+                outFunctionCall(str, (FunctionCall *) obj);
+                break;
+            case T_Schema:
+                outSchema(str, (Schema *) obj);
+                break;
+            case T_AttributeDef:
+                outAttributeDef(str, (AttributeDef *) obj);
                 break;
             //different case
             //query operator model nodes

@@ -21,7 +21,16 @@
 /* functions to copy specific node types */
 static AttributeReference *copyAttributeReference(AttributeReference *from);
 static List *deepCopyList(List *from);
+static FunctionCall *copyFunctionCall(FunctionCall *from);
+static Operator *copyOpExpr(Operator *from);
+
+/*schema helper functions*/
+static AttributeDef *copyAttributeDef(AttributeDef *from);
+static Schema *copySchema(Schema *from);
+static Schema *copySchemaFromList(Schema *from);
+
 /*functions to copy query_operator*/
+
 static QueryOperator *copyQueryOperator(QueryOperator *from);
 static TableAccessOperator *copyTableAccessOp(TableAccessOperator *from);
 static SelectionOperator *copySelectionOp(SelectionOperator *from);
@@ -94,6 +103,55 @@ copyAttributeReference(AttributeReference *from)
 
     COPY_STRING_FIELD(name);
 
+    return new;
+}
+
+static FunctionCall *
+copyFunctioncall(FunctionCall *from)
+{ 
+    COPY_INIT(FunctionCall);
+   
+    COPY_STRING_FIELD(name);
+
+    return new;
+}
+static Operator *
+copyOpExpr(Operator *from)
+{ 
+    COPY_INIT(Operator);
+    
+    COPY_STRING_FIELD(name);
+
+    return new;
+}
+
+static AttributeDef *
+copyAttributeDef(AttributeDef *from)
+{
+    COPY_INIT(AttributeDef);
+    COPY_SCALAR_FIELD(dataType);
+    COPY_STRING_FIELD(attrName);
+    COPY_SCALAR_FIELD(pos);
+    
+    return new;
+}
+static Schema *
+copySchema(Schema *from)
+{
+    COPY_INIT(Schema);
+    COPY_STRING_FIELD(name);
+    COPY_NODE_FIELD(attrDefs);
+    
+    return new;
+}
+static Schema *
+copySchemaFromList(Schema *from)
+{
+    COPY_INIT(Schema);
+    COPY_STRING_FIELD(name);
+    COPY_NODE_FIELD(attrNames);
+    COPY_NODE_FIELD(dataTypes);
+    
     return new;
 }
 
@@ -322,7 +380,18 @@ void *copyObject(void *from)
         case T_AttributeReference:
             retval = copyAttributeReference(from);
             break;
-     
+        case T_FunctionCall:
+            retval = copyFunctionCall(from);
+            break;
+        case T_Operator:
+            retval = copyOperator(from);
+            break;
+        case T_Schema:
+            retval = copySchema(from);
+            break;
+        case T_AttributeDef:
+            retval = copyAttributeDef(from);
+            break;
              /* query block model nodes */
 //        case T_SetOp:
 //            retval = copySetOp(from);
