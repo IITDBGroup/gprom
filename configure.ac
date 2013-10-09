@@ -42,7 +42,7 @@ fi
 ])
 # OCI library location
 AC_DEFUN([AC_OCI_LIB_LOCATION],
-[AC_ARG_WITH(oci, [  --with-oci-lib], , )
+[AC_ARG_WITH(oci-lib, [  --with-oci-lib], , )
 AC_MSG_CHECKING([for user provided OCI library location])
 if test "x$with_oci_lib" != x; then
 	if test -d "$with_oci_lib"; then
@@ -58,7 +58,7 @@ fi
 ])
 # OCI header location
 AC_DEFUN([AC_OCIH_LOCATION],
-[AC_ARG_WITH(oci, [  --with-oci-headers], , )
+[AC_ARG_WITH(oci-headers, [  --with-oci-headers], , )
 AC_MSG_CHECKING([for user provided OCI header location])
 if test "x$with_oci_headers" != x; then
 	if test -f "$with_oci_headers/oci.h"; then
@@ -74,7 +74,7 @@ fi
 ])
 # OCILIB location
 AC_DEFUN([AC_OCILIB_LOCATION],
-[AC_ARG_WITH(oci, [  --with-ocilib], , )
+[AC_ARG_WITH(ocilib, [  --with-ocilib], , )
 AC_MSG_CHECKING([for user provided OCILIB location])
 if test "x$with_ocilib" != x; then
 	if test -d "$with_ocilib"; then

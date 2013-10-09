@@ -762,6 +762,9 @@ with_gnu_ld
 with_sysroot
 enable_libtool_lock
 with_oci
+with_oci_headers
+with_oci_lib
+with_ocilib
 '
       ac_precious_vars='build_alias
 host_alias
@@ -12704,9 +12707,9 @@ $as_echo "$as_me: WARNING: no OCI library found in location $with_oci" >&2;}
 fi
 
 
-# Check whether --with-oci was given.
-if test "${with_oci+set}" = set; then :
-  withval=$with_oci;
+# Check whether --with-oci-headers was given.
+if test "${with_oci_headers+set}" = set; then :
+  withval=$with_oci_headers;
 fi
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for user provided OCI header location" >&5
@@ -12728,9 +12731,9 @@ $as_echo "not set" >&6; }
 fi
 
 
-# Check whether --with-oci was given.
-if test "${with_oci+set}" = set; then :
-  withval=$with_oci;
+# Check whether --with-oci-lib was given.
+if test "${with_oci_lib+set}" = set; then :
+  withval=$with_oci_lib;
 fi
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for user provided OCI library location" >&5
@@ -12752,9 +12755,9 @@ $as_echo "not set" >&6; }
 fi
 
 
-# Check whether --with-oci was given.
-if test "${with_oci+set}" = set; then :
-  withval=$with_oci;
+# Check whether --with-ocilib was given.
+if test "${with_ocilib+set}" = set; then :
+  withval=$with_ocilib;
 fi
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for user provided OCILIB location" >&5
