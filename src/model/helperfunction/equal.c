@@ -23,6 +23,9 @@ static boolean equalAttributeReference (AttributeReference *a,
         AttributeReference *b);
 static boolean equalList(List *a, List *b);
 // equal functions for query_operator
+static boolean equalSchema(Schema *a, Schema *b);
+static boolean equalSchemaFromLists(Schema *a, Schema *b);
+static boolean equalAttributeDef(AttributeDef *a, AttributeDef *b);
 static boolean equalQueryOperator(QueryOperator *a, QueryOperator *b);
 static boolean equalTableAccessOperator(TableAccessOperator *a, TableAccessOperator *b);
 static boolean equalSelectionOperator(SelectionOperator *a, SelectionOperator *b);
@@ -123,6 +126,34 @@ equalList(List *a, List *b)
             return FALSE;
     }
 
+    return TRUE;
+}
+
+static boolean
+equalSchema(Schema *a, Schema *b)
+{
+    COMPARE_STRING_FIELD(name);
+    COMPARE_NODE_FIELD(attrDefs);
+   
+    return TRUE;
+}
+
+static boolean
+equalSchemaFromLists(Schema *a, Schema *b)
+{
+    COMPARE_STRING_FIELD(name);
+    COMPARE_NODE_FIELD(attrNames);
+    COMPARE_NODE_FIELD(dataTypes);
+   
+    return TRUE;
+}
+
+static boolean
+equalAttributeDef(AttributeDef *a, AttributeDef *b)
+{
+    COMPARE_STRING_FIELD(attrName);
+    COMPARE_SCALAR_FIELD(pos);
+   
     return TRUE;
 }
 
@@ -315,6 +346,12 @@ equal(void *a, void *b)
             /*different types of T_Node       */
         case T_QueryOperator:
             retval = equalQueryOperator(a,b);
+            break;
+        case T_Schema:
+            retval = equalSchema(a,b);
+            break;
+        case T_AttributeDef:
+            retval = equalAttributeDef(a,b);
             break;
         case T_TableAccessOperator:
             retval = equalTableAccessOperator(a,b);
