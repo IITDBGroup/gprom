@@ -27,11 +27,30 @@ fi
 
 if test -d "$with_oci"; then
 	LDFLAGS="$LDFLAGS -L$with_oci"
-    CPPFLAGS="$CPPFLAGS -I$with_oci/include"
+    CPPFLAGS="$CPPFLAGS -I$with_oci/../rdbms/public"
     AC_MSG_RESULT([yes, $with_oci])
 else
     AC_MSG_RESULT([no])
     AC_WARN([no library found in location $with_oci for oracle library])
+fi
+])
+
+AC_DEFUN([AC_OCILIB_LOCATION],
+[AC_ARG_WITH(ocilib, [  --with-ocilib], , )
+AC_MSG_CHECKING([for OCILIBLOC])
+
+# sensible default if nothing specified
+if test "x$with_ocilib" = x; then
+    with_ocilib=/usr/local/lib
+fi
+
+if test -d "$with_ocilib"; then
+	LDFLAGS="$LDFLAGS -L$with_ocilib"
+    CPPFLAGS="$CPPFLAGS -I$with_ocilib/../include"
+    AC_MSG_RESULT([yes, $with_ocilib])
+else
+    AC_MSG_RESULT([no])
+    AC_WARN([no library found in location $with_ocilib for ocilib library])
 fi
 ])
 
@@ -64,6 +83,7 @@ AC_CHECK_FUNCS([strdup])
 # Oracle access libraries (OCI and OCILIB)
 # check if user has provided us with non-standard locations for OCI libraries
 AC_OCI_LOCATION
+AC_OCILIB_LOCATION
 # check for the libraries
 AC_CHECK_LIB([clntsh],[OCIInitialize],[],[AC_MSG_WARN([missing OCI library])])
 AC_CHECK_LIB([occi],[OCIHandleFree],[],[AC_MSG_WARN([missing OCI library])])
