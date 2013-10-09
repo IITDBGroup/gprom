@@ -238,14 +238,7 @@ outAttributeReference (StringInfo str, AttributeReference *node)
 
     WRITE_STRING_FIELD(name);
 }
-static void
-outFunctionCall (StringInfo str, FunctionCall *node)
-{
-    WRITE_NODE_TYPE(FUNCTION_CALL);
 
-    WRITE_STRING_FIELD(functionName);
-    WRITE_NODE_FIELD(args);
-}
 static void 
 outSchema (StringInfo str, Schema *node)
 {
@@ -254,22 +247,23 @@ outSchema (StringInfo str, Schema *node)
     WRITE_NODE_FIELD(name);
     WRITE_NODE_FIELD(attrDefs);
 }
-static void 
-outSchemaFromLists (StringInfo str, Schema *node)
-{
-    WRITE_NODE_TYPE(SCHEMA);
 
-    WRITE_NODE_FIELD(name);
-    WRITE_NODE_FIELD(attrNames);
-    WRITE_NODE_FIELD(dataTypes);
-}
-static void outAttributeDef 
-(StringInfo str, AttributeDef *node)
+//static void
+//outSchemaFromLists (StringInfo str, Schema *node)
+//{
+//    WRITE_NODE_TYPE(SCHEMA);
+//
+//    WRITE_NODE_FIELD(name);
+//    WRITE_NODE_FIELD(attrDefs);
+//}
+
+static void
+outAttributeDef (StringInfo str, AttributeDef *node)
 {
     WRITE_NODE_TYPE(ATTRIBUTE_DEF);
 
     WRITE_ENUM_FIELD(dataType, DataType);
-    WRITE_NODE_FIELD(attrNames);
+    WRITE_NODE_FIELD(attrName);
     WRITE_INT_FIELD(pos); 
 }
 static void
@@ -365,9 +359,6 @@ void outNode(StringInfo str, void *obj)
                 break;
             case T_Constant:
                 outConstant(str, (Constant *) obj);
-                break;
-            case T_FunctionCall:
-                outFunctionCall(str, (FunctionCall *) obj);
                 break;
             case T_SelectItem:
                 outSelectItem(str, (SelectItem *) obj);

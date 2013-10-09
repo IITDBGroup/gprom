@@ -22,7 +22,7 @@
 static AttributeReference *copyAttributeReference(AttributeReference *from);
 static List *deepCopyList(List *from);
 static FunctionCall *copyFunctionCall(FunctionCall *from);
-static Operator *copyOpExpr(Operator *from);
+static Operator *copyOperator(Operator *from);
 
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from);
@@ -31,7 +31,7 @@ static Schema *copySchemaFromList(Schema *from);
 
 /*functions to copy query_operator*/
 
-static QueryOperator *copyQueryOperator(QueryOperator *from);
+//static QueryOperator *copyQueryOperator(QueryOperator *from);
 static TableAccessOperator *copyTableAccessOp(TableAccessOperator *from);
 static SelectionOperator *copySelectionOp(SelectionOperator *from);
 static ProjectionOperator *copyProjectionOp(ProjectionOperator *from);
@@ -107,16 +107,19 @@ copyAttributeReference(AttributeReference *from)
 }
 
 static FunctionCall *
-copyFunctioncall(FunctionCall *from)
+copyFunctionCall(FunctionCall *from)
 { 
     COPY_INIT(FunctionCall);
    
-    COPY_STRING_FIELD(name);
+    COPY_STRING_FIELD(functionname);
+    COPY_NODE_FIELD(args);
+    COPY_SCALAR_FIELD(isAgg);
 
     return new;
 }
+
 static Operator *
-copyOpExpr(Operator *from)
+copyOperator(Operator *from)
 { 
     COPY_INIT(Operator);
     
@@ -144,16 +147,16 @@ copySchema(Schema *from)
     
     return new;
 }
-static Schema *
-copySchemaFromList(Schema *from)
-{
-    COPY_INIT(Schema);
-    COPY_STRING_FIELD(name);
-    COPY_NODE_FIELD(attrNames);
-    COPY_NODE_FIELD(dataTypes);
-    
-    return new;
-}
+//static Schema *
+//copySchemaFromList(Schema *from)
+//{
+//    COPY_INIT(Schema);
+//    COPY_STRING_FIELD(name);
+//    COPY_NODE_FIELD(attrNames);
+//    COPY_NODE_FIELD(dataTypes);
+//
+//    return new;
+//}
 
 /*functions to copy query_operator*/
 //static QueryOperator *

@@ -138,15 +138,15 @@ equalSchema(Schema *a, Schema *b)
     return TRUE;
 }
 
-static boolean
-equalSchemaFromLists(Schema *a, Schema *b)
-{
-    COMPARE_STRING_FIELD(name);
-    COMPARE_NODE_FIELD(attrNames);
-    COMPARE_NODE_FIELD(dataTypes);
-   
-    return TRUE;
-}
+//static boolean
+//equalSchemaFromLists(Schema *a, Schema *b)
+//{
+//    COMPARE_STRING_FIELD(name);
+//    COMPARE_NODE_FIELD(attrNames);
+//    COMPARE_NODE_FIELD(dataTypes);
+//
+//    return TRUE;
+//}
 
 static boolean
 equalAttributeDef(AttributeDef *a, AttributeDef *b)
