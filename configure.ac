@@ -16,26 +16,79 @@ AC_PROG_LEX
 LT_INIT
 ################################################################################
 # DEFINTIONS OF HELPER FUNCTIONS FOR GETTING USER OPTIONS
+# OCI location
 AC_DEFUN([AC_OCI_LOCATION],
 [AC_ARG_WITH(oci, [  --with-oci], , )
-AC_MSG_CHECKING([for OCILOC])
-
-# sensible default if nothing specified
+AC_MSG_CHECKING([for user provided OCI location])
 if test "x$with_oci" = x; then
     with_oci=/usr/local/oracle
-fi
-
-if test -d "$with_oci"; then
-	LDFLAGS="$LDFLAGS -L$with_oci"
-    CPPFLAGS="$CPPFLAGS -I$with_oci/include"
-    AC_MSG_RESULT([yes, $with_oci])
+    if test -d "$with_oci"; then
+		LDFLAGS="$LDFLAGS -L$with_oci"
+    	CPPFLAGS="$CPPFLAGS -I$with_oci/include"
+    	AC_MSG_RESULT([yes, found at $with_oci])
+    else
+    	AC_MSG_RESULT([not set])
+	fi	
 else
-    AC_MSG_RESULT([no])
-    AC_WARN([no library found in location $with_oci for oracle library])
+	if test -d "$with_oci"; then
+		LDFLAGS="$LDFLAGS -L$with_oci"
+    	CPPFLAGS="$CPPFLAGS -I$with_oci/include"
+    	AC_MSG_RESULT([yes, found at $with_oci])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no OCI library found in location $with_oci])
+	fi
 fi
 ])
-
-
+# OCI library location
+AC_DEFUN([AC_OCI_LIB_LOCATION],
+[AC_ARG_WITH(oci, [  --with-oci-lib], , )
+AC_MSG_CHECKING([for user provided OCI library location])
+if test "x$with_oci_lib" != x; then
+	if test -d "$with_oci_lib"; then
+		LDFLAGS="$LDFLAGS -L$with_oci_lib"
+    	AC_MSG_RESULT([yes, found at $with_oci_lib])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no library for OCI found in location $with_oci_lib])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# OCI header location
+AC_DEFUN([AC_OCIH_LOCATION],
+[AC_ARG_WITH(oci, [  --with-oci-headers], , )
+AC_MSG_CHECKING([for user provided OCI header location])
+if test "x$with_oci_headers" != x; then
+	if test -f "$with_oci_headers/oci.h"; then
+    	CPPFLAGS="$CPPFLAGS -I$with_oci_headers/include"
+    	AC_MSG_RESULT([yes, found at $with_oci_headers])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no headers for OCI found in location $with_oci_headers])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# OCILIB location
+AC_DEFUN([AC_OCILIB_LOCATION],
+[AC_ARG_WITH(oci, [  --with-ocilib], , )
+AC_MSG_CHECKING([for user provided OCILIB location])
+if test "x$with_ocilib" != x; then
+	if test -d "$with_ocilib"; then
+		LDFLAGS="$LDFLAGS -L$with_ocilib"
+    	CPPFLAGS="$CPPFLAGS -I$with_ocilib/include"
+    	AC_MSG_RESULT([yes, $with_ocilib])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no OCI library found in location $with_ocilib])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
 ################################################################################
 # DATA TYPES
 AC_TYPE_SIZE_T
@@ -62,8 +115,11 @@ AC_CHECK_FUNCS([memset])
 AC_CHECK_FUNCS([strdup])
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
-# check if user has provided us with non-standard locations for OCI libraries
+# check if user has provided us with non-standard locations for OCI/OCILIB libraries
 AC_OCI_LOCATION
+AC_OCIH_LOCATION
+AC_OCI_LIB_LOCATION
+AC_OCILIB_LOCATION
 # check for the libraries
 AC_CHECK_LIB([clntsh],[OCIInitialize],[],[AC_MSG_WARN([missing OCI library])])
 AC_CHECK_LIB([occi],[OCIHandleFree],[],[AC_MSG_WARN([missing OCI library])])
