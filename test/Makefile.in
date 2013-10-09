@@ -67,7 +67,8 @@ PROGRAMS = $(bin_PROGRAMS)
 am_testmain_OBJECTS = test_main.$(OBJEXT) test_copy.$(OBJEXT) \
 	test_equal.$(OBJEXT) test_expr.$(OBJEXT) test_logger.$(OBJEXT) \
 	test_mem_mgr.$(OBJEXT) test_to_string.$(OBJEXT) \
-	test_parse.$(OBJEXT) test_list.$(OBJEXT)
+	test_parse.$(OBJEXT) test_list.$(OBJEXT) \
+	test_metadata_lookup.$(OBJEXT)
 testmain_OBJECTS = $(am_testmain_OBJECTS)
 testmain_DEPENDENCIES = ../src/libsrc.la
 am_testparser_OBJECTS = test_parser.$(OBJEXT)
@@ -218,8 +219,9 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include -I.
 testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
-					test_logger.c test_mem_mgr.c test_to_string.c \
-					test_parse.c test_list.c test_main.h
+		   test_logger.c test_mem_mgr.c test_to_string.c \
+		   test_parse.c test_list.c test_main.h \
+		   test_metadata_lookup.c
 
 testmain_LDADD = ../src/libsrc.la
 testparser_SOURCES = test_parser.c
@@ -324,6 +326,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_logger.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_main.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_mem_mgr.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_metadata_lookup.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_parse.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_parser.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_to_string.Po@am__quote@
