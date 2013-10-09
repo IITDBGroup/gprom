@@ -111,7 +111,7 @@ deepFree (void *a)
         case T_Operator:
 
             /* query block model nodes */
-        case T_SetOp:
+        //case T_SetOp:
         case T_SetQuery:
         case T_ProvenanceStmt:
         case T_QueryBlock:
