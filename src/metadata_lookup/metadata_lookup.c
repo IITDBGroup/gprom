@@ -13,8 +13,8 @@
 #include "model/expression/expression.h"
 #include "log/logger.h"
 
-/* If OCILIB is available then use it */
-#if HAVE_LIBOCILIB
+/* If OCILIB and OCI are available then use it */
+#if HAVE_LIBOCILIB && HAVE_LIBOCI
 
 #define ORACLE_TNS_CONNECTION_FORMAT "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=(SERVER=DEDICATED)(SID=%s)))"
 

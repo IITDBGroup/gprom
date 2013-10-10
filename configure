@@ -12765,7 +12765,7 @@ $as_echo_n "checking for user provided OCILIB location... " >&6; }
 if test "x$with_ocilib" != x; then
 	if test -d "$with_ocilib"; then
 		LDFLAGS="$LDFLAGS -L$with_ocilib"
-    	CPPFLAGS="$CPPFLAGS -I$with_ocilib/include"
+    	CPPFLAGS="$CPPFLAGS -I$with_ocilib/../include"
     	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: yes, $with_ocilib" >&5
 $as_echo "yes, $with_ocilib" >&6; }
 	else
@@ -15308,3 +15308,4 @@ if test -n "$ac_unrecognized_opts" && test "$enable_option_checking" != no; then
   { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unrecognized options: $ac_unrecognized_opts" >&5
 $as_echo "$as_me: WARNING: unrecognized options: $ac_unrecognized_opts" >&2;}
 fi
+

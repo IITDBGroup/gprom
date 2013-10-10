@@ -35,6 +35,9 @@ testMetadataLookup(void)
 	return PASS;
 }
 
+/* if OCI is not available then add dummy versions */
+#if HAVE_LIBOCILIB && HAVE_LIBOCI
+
 static rc
 setupMetadataLookup(void)
 {
@@ -96,3 +99,26 @@ testGetAttributes(void)
 
 	return PASS;
 }
+
+/* if OCI or OCILIB are not avaible replace with dummy test */
+#else
+
+static rc
+testCatalogTableExists(void)
+{
+    return PASS;
+}
+
+static rc
+testGetAttributes(void)
+{
+    return PASS;
+}
+
+static rc
+setupMetadataLookup(void)
+{
+    return PASS;
+}
+
+#endif
