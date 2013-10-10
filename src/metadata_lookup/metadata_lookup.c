@@ -23,6 +23,7 @@
  */
 static OCI_Connection* conn=NULL;
 static OCI_TypeInfo* tInfo=NULL;
+static OCI_Error* errHandler=NULL;
 static MemContext* context=NULL;
 static int initConnection();
 static boolean isConnected();
@@ -42,9 +43,9 @@ initConnection()
 	int port=options->optionConnection->port;
 	appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT, host, port,
 	        db);
-	if(!OCI_Initialize(NULL, NULL, OCI_ENV_DEFAULT))
+	if(!OCI_Initialize(errHandler, NULL, OCI_ENV_DEFAULT))
 	{
-	    FATAL_LOG("Cannot initialize OICLIB"); //TODO print error type
+	    FATAL_LOG("Cannot initialize OICLIB: %s", OCI_ErrorGetString(errHandler)); //print error type
 		return EXIT_FAILURE;
 	}
 	DEBUG_LOG("Initialized OCILIB");
@@ -66,7 +67,7 @@ isConnected()
 		return TRUE;
 	else
 	{
-		FATAL_LOG("OCI connection lost");
+		FATAL_LOG("OCI connection lost: %s", OCI_ErrorGetString(errHandler));
 		return FALSE;
 	}
 }
