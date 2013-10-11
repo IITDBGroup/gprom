@@ -107,6 +107,7 @@ USING        TOK(USING)
 CROSS        TOK(CROSS)
 INTO		TOK(INTO)
 VALUES		TOK(VALUES)
+IN        TOK(IN)
 
 	/* punctuation */
 [(),.;] TOKSELF()
