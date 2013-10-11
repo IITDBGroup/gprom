@@ -55,7 +55,7 @@ float 			(({integer}|{decimal})([eE][+-]?{integer})?)
 
 /* names (e.g., tables, attributes) */
 identStart		[A-Za-z]
-identContinue	[A-Za-z0-9_]
+identContinue	[A-Za-z0-9_%?]
 identifiers		({identStart}{identContinue}*)
 
 /* operators */
@@ -107,6 +107,10 @@ USING        TOK(USING)
 CROSS        TOK(CROSS)
 INTO		TOK(INTO)
 VALUES		TOK(VALUES)
+IN        TOK(IN)
+ANY        TOK(ANY)
+EXISTS        TOK(EXISTS)
+LIKE        TOK(LIKE)
 
 	/* punctuation */
 [(),.;] TOKSELF()

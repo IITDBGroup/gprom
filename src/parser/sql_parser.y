@@ -31,7 +31,6 @@ Node *bisonParseResult = NULL;
      char *stringVal;
      int intVal;
      double floatVal;
-/*     SetOpType setOp; */
 }
 
 /*
@@ -56,7 +55,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> WHERE
 %token <stringVal> DISTINCT
 %token <stringVal> STARALL
-%token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN
+%token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN EXCEPT EXISTS
 %token <stringVal> AMMSC NULLVAL ALL ANY BY IS 
 %token <stringVal> UNION INTERSECT MINUS
 %token <stringVal> INTO VALUES
@@ -90,14 +89,14 @@ Node *bisonParseResult = NULL;
  * Types of non-terminal symbols
  */
 %type <node> stmt provStmt dmlStmt queryStmt
-%type <node> selectQuery deleteQuery updateQuery insertQuery setOperatorQuery
+%type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList // select and from clauses are lists
 %type <node> selectItem fromClauseItem optionalDistinct optionalWhere
-%type <node> expression constant attributeRef sqlFunctionCall
+%type <node> expression constant attributeRef sqlFunctionCall whereExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
-
-%type <stringVal> optionalAlias
+/*%type <node> optionalJoinClause optionalJoinCond*/
+%type <stringVal> optionalAlias optionalAll sqlOperator
 
 %start stmt
 
@@ -166,7 +165,7 @@ updateQuery:
  * Rules to parse insert query
  */
 insertQuery:
-        INSERT 		  { RULELOG("insertQuery"); $$ = NULL; } 
+        INSERT 		  { RULELOG(insertQuery); $$ = NULL; } 
     ;
 
 /*
@@ -184,16 +183,16 @@ setOperatorQuery:     // Need to look into createFunction
                 RULELOG("setOperatorQuery::MINUS");
                 $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
             }
-        | queryStmt UNION queryStmt
+        | queryStmt UNION optionalAll queryStmt
             {
                 RULELOG("setOperatorQuery::UNION");
-                $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
+                $$ = (Node *) createSetQuery($2, $3, $1, $4);
             }
-        | queryStmt UNION ALL queryStmt
-            {
-                RULELOG("setOperatorQuery::UNIONALL");
-                $$ = (Node *) createSetQuery($2, TRUE, $1, $4);
-            }
+    ;
+
+optionalAll:
+        /* Empty */ { RULELOG("optionalAll::NULL"); $$ = NULL; }
+        | ALL        { RULELOG("optionalAll::ALLTRUE"); $$ = 'T'; }
     ;
 
 /*
@@ -267,10 +266,10 @@ selectItem:
  * Rule to parse an expression list
  */
 exprList: 
-        expression        { RULELOG("exprList"); $$ = singleton($1); }
+        expression        { RULELOG("exprList::SINGLETON"); $$ = singleton($1); }
         | exprList ',' expression
              {
-                  RULELOG("exprList");
+                  RULELOG("exprList::exprList::expression");
                   $$ = appendToTailOfList($1, $3);
              }
     ;
@@ -285,6 +284,7 @@ expression:
         | binaryOperatorExpression        { RULELOG("expression::binaryOperatorExpression"); } 
         | unaryOperatorExpression        { RULELOG("expression::unaryOperatorExpression"); }
         | sqlFunctionCall        { RULELOG("expression::sqlFunctionCall"); }
+/*        | subQuery      { RULELOG ("expression::subQuery"); } */ 
 /*        | STARALL        { RULELOG("expression::STARALL"); } */
     ;
             
@@ -302,6 +302,14 @@ constant:
  */
 attributeRef: 
         identifier         { RULELOG("attributeRef::IDENTIFIER"); $$ = (Node *) createAttributeReference($1); }
+/* HELP HELP ??
+       Need helper function support for attribute list in expression.
+       For e.g.
+           SELECT attr FROM tab
+           WHERE
+              (col1, col2) = (SELECT cl1, cl2 FROM tab2)
+       SolQ: Can we use selectItem function here?????
+*/
     ;
 
 /*
@@ -309,65 +317,71 @@ attributeRef:
  */
  
 binaryOperatorExpression: 
+
+    /* Arithmatic Operations */
         expression '+' expression
             {
-                RULELOG("operatorExpression");
+                RULELOG("binaryOperatorExpression:: '+' ");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
             }
         | expression '-' expression
             {
-                RULELOG("operatorExpression");
+                RULELOG("binaryOperatorExpression:: '-' ");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
             }
         | expression '*' expression
             {
-                RULELOG("operatorExpression");
+                RULELOG("binaryOperatorExpression:: '*' ");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
             }
         | expression '/' expression
             {
-                RULELOG("operatorExpression");
+                RULELOG("binaryOperatorExpression:: '/' ");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
             }
         | expression '%' expression
             {
-                RULELOG("operatorExpression");
+                RULELOG("binaryOperatorExpression:: '%' ");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
             }
         | expression '^' expression
             {
-                RULELOG("operatorExpression");
+                RULELOG("binaryOperatorExpression:: '^' ");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
             }
+
+    /* Binary operators */
         | expression '&' expression
             {
-                RULELOG("operatorExpression");
+                RULELOG("binaryOperatorExpression:: '&' ");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
             }
         | expression '|' expression
             {
-                RULELOG("operatorExpression");
+                RULELOG("binaryOperatorExpression:: '|' ");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
             }
+
+    /* Comparison Operators */
         | expression comparisonOps expression
             {
-                RULELOG("operatorExpression");
+                RULELOG("binaryOperatorExpression::comparisonOps");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
@@ -377,10 +391,11 @@ binaryOperatorExpression:
 unaryOperatorExpression:
         '!' expression
             {
-                RULELOG("unaryOperatorExpression");
+                RULELOG("unaryOperatorExpression:: '!' ");
                 List *expr = singleton($2);
                 $$ = (Node *) createOpExpr($1, expr);
             }
+    ;
     
 /*
  * Rule to parse function calls
@@ -415,12 +430,25 @@ fromClause:
                 $$ = appendToTailOfList($1, $3);
             }
     ;
-    
+
+subQuery:
+        '(' queryStmt ')' optionalAlias
+            {
+                RULELOG("subQuery::queryStmt");
+                $$ = createFromSubquery($4, NULL, $2);
+            }
+    ;
+
 fromClauseItem:
         identifier optionalAlias
             {
                 RULELOG("fromClauseItem");
                 $$ = (Node *) createFromTableRef($2, NIL, $1);
+            }
+        | subQuery
+            {
+                RULELOG("fromClauseItem::subQuery");
+                $$ = $1;
             }
     ;
     
@@ -435,7 +463,64 @@ optionalAlias:
  */
 optionalWhere: 
         /* empty */             { RULELOG("optionalWhere::NULL"); $$ = NULL; }
-        | WHERE expression        { RULELOG("optionalWhere::WHERE::expression"); $$ = $2; }
+        | WHERE whereExpression        { RULELOG("optionalWhere::whereExpression"); $$ = $2; }
+/*        | WHERE expression        { RULELOG("optionalWhere::WHERE::expression"); $$ = $2; } */
+    ;
+
+whereExpression:
+        expression        { RULELOG("whereExpression::expression"); $$ = $1; }
+        | whereExpression AND whereExpression
+            {
+                RULELOG("whereExpression::AND");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
+        | whereExpression OR whereExpression
+            {
+                RULELOG("whereExpression::AND");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
+        | whereExpression LIKE whereExpression
+            {
+                RULELOG("whereExpression::AND");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
+/*        | whereExpression BETWEEN whereExpression AND whereExpression
+            {
+                RULELOG("whereExpression::BETWEEN-AND");
+                HELP HELP: Need support for this from helper functions.
+            } 
+        | whereExpression sqlOperator '(' queryStmt ')'
+            {
+                RULELOG("binaryOperatorExpression::Subquery");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $4);
+                $$ = (Node *) createOpExpr($2, expr);
+            }*/
+        | expression sqlOperator '(' queryStmt ')'
+            {
+                RULELOG("binaryOperatorExpression::Subquery");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $4);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
+/* HELP HELP ??
+          | expression optionalComparisonOps sqlOperator '(' queryStmt ')' 
+                  FOR sqlOperaors like ANY, SOME, ALL
+              E.g.
+                  SELECT attr FROM tab WHERE col > ANY (subquery) 
+        | expression optionalNot sqlOperator[for IN] '(' queryStmt ')' 
+        | sqlOperator [EXISTS/NOT EXISTS] '(' queryStmt ')' */
+    ;
+
+sqlOperator:
+        IN { RULELOG("sqlOperator::IN"); $$ = $1; }
+        | comparisonOps { RULELOG("sqlOperator::comaparionOps"); $$ = $1; }
     ;
 
 %%
