@@ -10,6 +10,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "common.h"
 #include "model/query_operator/query_operator.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
