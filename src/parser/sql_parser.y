@@ -186,13 +186,13 @@ setOperatorQuery:     // Need to look into createFunction
         | queryStmt UNION optionalAll queryStmt
             {
                 RULELOG("setOperatorQuery::UNION");
-                $$ = (Node *) createSetQuery($2, $3, $1, $4);
+                $$ = (Node *) createSetQuery($2, ($3 != NULL), $1, $4);
             }
     ;
 
 optionalAll:
         /* Empty */ { RULELOG("optionalAll::NULL"); $$ = NULL; }
-        | ALL        { RULELOG("optionalAll::ALLTRUE"); $$ = 'T'; }
+        | ALL        { RULELOG("optionalAll::ALLTRUE"); $$ = $1; }
     ;
 
 /*
@@ -435,7 +435,7 @@ subQuery:
         '(' queryStmt ')' optionalAlias
             {
                 RULELOG("subQuery::queryStmt");
-                $$ = createFromSubquery($4, NULL, $2);
+                $$ = (Node *) createFromSubquery($4, NULL, $2);
             }
     ;
 
