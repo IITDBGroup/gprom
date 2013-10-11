@@ -17,3 +17,4 @@ serializeQuery(QueryOperator *q)
 {
     return NULL;
 }
+// sdfsdfsd 
