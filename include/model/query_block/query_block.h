@@ -114,6 +114,7 @@ typedef enum NestingExprType
     NESTQ_EXISTS,
     NESTQ_ANY,
     NESTQ_ALL,
+    NESTQ_UNIQUE,
     NESTQ_SCALAR
 } NestingExprType;
 
