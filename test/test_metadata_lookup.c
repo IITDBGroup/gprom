@@ -36,7 +36,7 @@ testMetadataLookup(void)
 }
 
 /* if OCI is not available then add dummy versions */
-#if HAVE_LIBOCILIB && HAVE_LIBOCI
+#if HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
 
 static rc
 setupMetadataLookup(void)
