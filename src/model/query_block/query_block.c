@@ -10,35 +10,9 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "mem_manager/mem_mgr.h"
 #include "model/query_block/query_block.h"
 #include "model/node/nodetype.h"
-
-/*
-SetQuery *
-createSetQuery(List *selectClause, SetOp *root)
-{
-    SetQuery *result = makeNode(SetQuery);
-
-    result->rootSetOp = root;
-    result->selectClause = selectClause;
-
-    return result;
-}
-
-SetOp *
-createSetOp(SetOpType opType, boolean all, Node *lChild,
-        Node *rChild)
-{
-    SetOp *result;
-
-    result->all = all;
-    result->setOp = opType;
-    result->lChild = lChild;
-    result->rChild = rChild;
-
-    return result;
-}
-*/
 
 SetQuery *
 createSetQuery(char *setOp, boolean all, Node *lChild,
@@ -140,6 +114,20 @@ createDistinctClause (List *distinctExprs)
     DistinctClause *result = makeNode(DistinctClause);
 
     result->distinctExprs = distinctExprs;
+
+    return result;
+}
+
+NestedSubquery *
+createNestedSubquery (NestingExprType nType, Node *expr,
+        char *comparisonOp, Node *query)
+{
+    NestedSubquery *result = makeNode(NestedSubquery);
+
+    result->nestingType = nType;
+    result->expr = expr;
+    result->comparisonOp = strdup(comparisonOp);
+    result->query = query;
 
     return result;
 }

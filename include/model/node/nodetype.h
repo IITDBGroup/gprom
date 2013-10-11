@@ -29,6 +29,7 @@ typedef enum NodeTag {
     T_FromSubquery,
     T_FromJoinExpr,
     T_DistinctClause,
+    T_NestedSubquery,
 
     /* query operator model nodes */
     T_Schema,

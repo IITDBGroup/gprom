@@ -105,9 +105,26 @@ typedef struct FromJoinExpr
 
 typedef struct DistinctClause
 {
+    NodeTag type;
     List *distinctExprs;
 } DistinctClause;
 
+typedef enum NestingExprType
+{
+    NESTQ_EXISTS,
+    NESTQ_ANY,
+    NESTQ_ALL,
+    NESTQ_SCALAR
+} NestingExprType;
+
+typedef struct NestedSubquery
+{
+    NodeTag type;
+    NestingExprType nestingType;
+    Node *expr;
+    char *comparisonOp;
+    Node *query;
+} NestedSubquery;
 
 /* functions for creating query block nodes */
 /*extern SetQuery *createSetQuery(List *selectClause, SetOp *root);*/
@@ -123,5 +140,7 @@ extern FromItem *createFromJoin(char *alias, List *attrNames, FromItem *left,
         FromItem *right, JoinType joinType, JoinConditionType condType,
         Node *cond);
 extern DistinctClause *createDistinctClause (List *distinctExprs);
+extern NestedSubquery *createNestedSubquery (NestingExprType nType, Node *expr,
+        char *comparisonOp, Node *query);
 
 #endif /* QUERY_BLOCK_H */
