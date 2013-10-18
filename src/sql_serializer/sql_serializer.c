@@ -10,13 +10,14 @@
  *-----------------------------------------------------------------------------
  */
 
-#include "sql_serializer/sql_serializer.h"
+#include "common.h"
 #include "mem_manager/mem_mgr.h"
+#include "sql_serializer/sql_serializer.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "model/list/list.h"
 
-#include "uthash.h"
+
 
 /* data structures */
 typedef struct QueryBlockMatch {
@@ -60,8 +61,8 @@ char *
 serializeQuery(QueryOperator *q)
 {
     StringInfo str = makeStringInfo();
-    MemContext *memC = NEW_MEMCONTEXT("SQL_SERIALZIER");
-    ACQUIRE_MEMCONTEXT(memC);
+    MemContext *memC = NEW_MEM_CONTEXT("SQL_SERIALZIER");
+    ACQUIRE_MEM_CONTEXT(memC);
 
     // initialize basic structures and then call the worker
     viewMap = NULL;
@@ -93,7 +94,7 @@ serializeQuery(QueryOperator *q)
     }
 
     // copy result to callers memory context and clean up
-    RELEASE_CUR_MEM_CONTEXT();
+    RELEASE_MEM_CONTEXT();
     char *result = strdup(str->data);
 
     FREE_MEM_CONTEXT(memC);
