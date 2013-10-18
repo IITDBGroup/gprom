@@ -42,7 +42,10 @@ typedef struct QueryBlock
     Node *distinct;
     List *fromClause;
     Node *whereClause;
+    List *groupByClause;
     Node *havingClause;
+    List *orderByClause;
+    Node *limitClause;
 } QueryBlock;
 
 typedef struct ProvenanceStmt

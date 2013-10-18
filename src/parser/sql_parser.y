@@ -60,6 +60,8 @@ Node *bisonParseResult = NULL;
 %token <stringVal> UNION INTERSECT MINUS
 %token <stringVal> INTO VALUES
 
+%token <stringVal> DUMMYEXPR
+
 /* Keywords for Join queries */
 %token <stringVal> JOIN NATURAL LEFT RIGHT OUTER INNER CROSS ON USING FULL 
 
@@ -80,10 +82,12 @@ Node *bisonParseResult = NULL;
 %nonassoc AND OR NOT IN ISNULL BETWEEN LIKE
 
 /* Arithmetic operators : FOR TESTING */
+%nonassoc DUMMYEXPR
 %left '+' '-'
 %left '*' '/' '%'
 %left '^'
 %nonassoc '(' ')'
+
 
 /*
  * Types of non-terminal symbols
@@ -131,9 +135,10 @@ dmlStmt:
  * Rule to parse all types projection queries.
  */
 queryStmt:
-	selectQuery        { RULELOG("queryStmt::selectQuery"); }
-	| provStmt        { RULELOG("queryStmt::provStmt"); }
-	| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); }
+		'(' queryStmt ')'	{ RULELOG("queryStmt::bracketedQuery"); $$ = $2; }
+		| selectQuery        { RULELOG("queryStmt::selectQuery"); }
+		| provStmt        { RULELOG("queryStmt::provStmt"); }
+		| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); }
     ;
 
 /* 
@@ -278,12 +283,13 @@ exprList:
 /*
  * Rule to parse expressions used in various lists
  */
-expression: 
-        constant        { RULELOG("expression::constant"); }
-        | attributeRef         { RULELOG("expression::attributeRef"); }
-        | binaryOperatorExpression        { RULELOG("expression::binaryOperatorExpression"); } 
-        | unaryOperatorExpression        { RULELOG("expression::unaryOperatorExpression"); }
-        | sqlFunctionCall        { RULELOG("expression::sqlFunctionCall"); }
+expression:
+		'(' expression ')'				{ RULELOG("expression::bracked"); $$ = $2; } 
+		| constant     				   	{ RULELOG("expression::constant"); }
+        | attributeRef         		  	{ RULELOG("expression::attributeRef"); }
+        | binaryOperatorExpression		{ RULELOG("expression::binaryOperatorExpression"); } 
+        | unaryOperatorExpression       { RULELOG("expression::unaryOperatorExpression"); }
+        | sqlFunctionCall        		{ RULELOG("expression::sqlFunctionCall"); }
 /*        | '(' queryStmt ')'       { RULELOG ("expression::subQuery"); $$ = $2; } */
 /*        | STARALL        { RULELOG("expression::STARALL"); } */
     ;
@@ -467,7 +473,8 @@ optionalWhere:
     ;
 
 whereExpression:
-        expression        { RULELOG("whereExpression::expression"); $$ = $1; }
+		'(' whereExpression ')' { RULELOG("where::brackedWhereExpression"); $$ = $2; } %prec DUMMYEXPR
+        | expression        { RULELOG("whereExpression::expression"); $$ = $1; } %prec '+'
         | whereExpression AND whereExpression
             {
                 RULELOG("whereExpression::AND");

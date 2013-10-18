@@ -10,8 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 
-#include <string.h>
-#include <stdio.h>
+#include "common.h"
 
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
@@ -30,7 +29,7 @@ newNode(size_t size, NodeTag type)
 {
     Node *newNode;
 
-    newNode = (Node *) MALLOC(size);
+    newNode = (Node *) CALLOC(size,1);
     newNode->type = type;
 
     return newNode;

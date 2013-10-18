@@ -272,7 +272,10 @@ copyQueryBlock(QueryBlock *from)
     COPY_NODE_FIELD(distinct);
     COPY_NODE_FIELD(fromClause);
     COPY_NODE_FIELD(whereClause);
+    COPY_NODE_FIELD(groupByClause);
     COPY_NODE_FIELD(havingClause);
+    COPY_NODE_FIELD(orderByClause);
+    COPY_NODE_FIELD(limitClause);
     
     return new;
 }

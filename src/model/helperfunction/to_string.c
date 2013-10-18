@@ -127,7 +127,10 @@ outQueryBlock (StringInfo str, QueryBlock *node)
     WRITE_NODE_FIELD(selectClause);
     WRITE_NODE_FIELD(fromClause);
     WRITE_NODE_FIELD(whereClause);
+    WRITE_NODE_FIELD(groupByClause);
     WRITE_NODE_FIELD(havingClause);
+    WRITE_NODE_FIELD(orderByClause);
+    WRITE_NODE_FIELD(limitClause);
 }
 
 static void
