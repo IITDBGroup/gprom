@@ -46,6 +46,7 @@ static void outProvenanceComputation(StringInfo str, ProvenanceComputation *node
 static void outTableAccessOperator(StringInfo str, TableAccessOperator *node);
 static void outSetOperator(StringInfo str, SetOperator *node);
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
+static void outNestedSubquery(StringInfo str, NestedSubquery *node);
 
 /*define macros*/
 /*label for the node type*/
@@ -232,6 +233,17 @@ outFromSubquery (StringInfo str, FromSubquery *node)
 }
 
 static void
+outNestedSubquery (StringInfo str, NestedSubquery *node)
+{
+    WRITE_NODE_TYPE(NESTEDSUBQUERY);
+
+    WRITE_ENUM_FIELD(nestingType, NestingExprType);
+    WRITE_NODE_FIELD(expr);
+    WRITE_STRING_FIELD(comparisonOp);
+    WRITE_NODE_FIELD(query);
+}
+
+static void
 outAttributeReference (StringInfo str, AttributeReference *node)
 {
     WRITE_NODE_TYPE(ATTRIBUTE_REFERENCE);
@@ -377,6 +389,9 @@ void outNode(StringInfo str, void *obj)
                 break;
             case T_FromSubquery:
                 outFromSubquery(str, (FromSubquery*) obj);
+                break;
+            case T_NestedSubquery:
+                outNestedSubquery(str, (NestedSubquery*) obj);
                 break;
             case T_AttributeReference:
                 outAttributeReference(str, (AttributeReference *) obj);

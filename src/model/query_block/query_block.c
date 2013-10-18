@@ -119,12 +119,20 @@ createDistinctClause (List *distinctExprs)
 }
 
 NestedSubquery *
-createNestedSubquery (NestingExprType nType, Node *expr,
+createNestedSubquery (char *nType, Node *expr,
         char *comparisonOp, Node *query)
 {
     NestedSubquery *result = makeNode(NestedSubquery);
 
-    result->nestingType = nType;
+    if (!strcmp(nType, "ANY"))
+        result->nestingType = NESTQ_ANY;
+    if (!strcmp(nType, "ALL"))
+        result->nestingType = NESTQ_ALL;
+    if (!strcmp(nType, "EXISTS"))
+        result->nestingType = NESTQ_EXISTS;
+    if (!strcmp(nType, "SCALAR"))
+        result->nestingType = NESTQ_SCALAR;
+
     result->expr = expr;
     result->comparisonOp = strdup(comparisonOp);
     result->query = query;

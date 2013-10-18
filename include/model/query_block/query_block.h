@@ -140,7 +140,9 @@ extern FromItem *createFromJoin(char *alias, List *attrNames, FromItem *left,
         FromItem *right, JoinType joinType, JoinConditionType condType,
         Node *cond);
 extern DistinctClause *createDistinctClause (List *distinctExprs);
-extern NestedSubquery *createNestedSubquery (NestingExprType nType, Node *expr,
-        char *comparisonOp, Node *query);
+//extern NestedSubquery *createNestedSubquery (NestingExprType nType, Node *expr,
+  //      char *comparisonOp, Node *query);
+extern NestedSubquery *createNestedSubquery (char *nType, Node *expr,
+     char *comparisonOp, Node *query);
 
 #endif /* QUERY_BLOCK_H */
