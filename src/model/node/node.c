@@ -121,6 +121,30 @@ appendStringInfo(StringInfo str, const char *format, ...)
 }
 
 
+void
+prependStringInfo (StringInfo str, const char *format, ...)
+{
+    va_list args;
+    int preLen, appendSize;
+    char *temp = MALLOC(str->len);
+
+    // copy string A
+    memcpy(temp, str->data, str->len);
+    preLen = str->len;
+
+    // append to end leading AB
+    va_start(args, format);
+    appendStringInfo(str, format, args);
+    va_end(args);
+
+    // move new parts to the beginning to create BA
+    appendSize = str->len - preLen;
+    memcpy(str->data, str->data + preLen, appendSize);
+    memcpy(str->data + appendSize, temp, preLen);
+    FREE(temp);
+}
+
+
 /*
  * Make sure that a string info has enough space to be enlarged by additonal
  * neededSize char's.

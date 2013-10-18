@@ -88,6 +88,7 @@ extern void resetStringInfo(StringInfo str);
 *The function is append a string to str.
 *-------------------------------------------------------------------*/
 extern void appendStringInfoString(StringInfo str, const char *s);
+#define CONCAT_STRINGINFO(str, other) appendStringInfoString(str, other->data)
 
 /*------------------------------------------------------------------
 * The function is append to a StringInfo using a format string and a variable
@@ -107,6 +108,12 @@ extern void appendStringInfoChar(StringInfo str, char ch);
 *The function is append binary data to a StringInfo.
 *-------------------------------------------------------------------*/
 extern void appendBinaryStringInfo(StringInfo str, const char *data, int datalen);
+
+/*
+ * Prepend string at beginning of string info
+ */
+extern void prependStringInfo (StringInfo str, const char *format, ...);
+
 
 /*------------------------------------------------------------------
 *enlargeStringInfo

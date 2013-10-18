@@ -24,9 +24,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef UTHASH_H
 #define UTHASH_H 
 
-//#include <string.h>   /* memcmp,strlen */
-//#include <stddef.h>   /* ptrdiff_t */
-//#include <stdlib.h>   /* exit() */
 #include "common.h"
 
 /* These macros use decltype or the earlier __typeof GNU extension.
@@ -71,10 +68,10 @@ typedef unsigned char uint8_t;
 #define uthash_fatal(msg) exit(-1)        /* fatal error (out of memory,etc) */
 #endif
 #ifndef uthash_malloc
-#define uthash_malloc(sz) malloc(sz)      /* malloc fcn                      */
+#define uthash_malloc(sz) MALLOC(sz)      /* malloc fcn                      */
 #endif
 #ifndef uthash_free
-#define uthash_free(ptr,sz) free(ptr)     /* free fcn                        */
+#define uthash_free(ptr,sz) FREE(ptr)     /* free fcn                        */
 #endif
 
 #ifndef uthash_noexpand_fyi
