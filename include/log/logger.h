@@ -21,7 +21,7 @@
 #ifndef LOGGER_H_
 #define LOGGER_H_
 
-#include <stdio.h>
+#include "common.h"
 
 typedef enum LogLevel
 {

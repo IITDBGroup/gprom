@@ -76,22 +76,24 @@ extern int yydebug;
     ANY = 286,
     BY = 287,
     IS = 288,
-    UNION = 289,
-    INTERSECT = 290,
-    MINUS = 291,
-    INTO = 292,
-    VALUES = 293,
-    JOIN = 294,
-    NATURAL = 295,
-    LEFT = 296,
-    RIGHT = 297,
-    OUTER = 298,
-    INNER = 299,
-    CROSS = 300,
-    ON = 301,
-    USING = 302,
-    FULL = 303,
-    XOR = 304
+    SOME = 289,
+    UNION = 290,
+    INTERSECT = 291,
+    MINUS = 292,
+    INTO = 293,
+    VALUES = 294,
+    DUMMYEXPR = 295,
+    JOIN = 296,
+    NATURAL = 297,
+    LEFT = 298,
+    RIGHT = 299,
+    OUTER = 300,
+    INNER = 301,
+    CROSS = 302,
+    ON = 303,
+    USING = 304,
+    FULL = 305,
+    XOR = 306
   };
 #endif
 
@@ -112,7 +114,7 @@ union YYSTYPE
      int intVal;
      double floatVal;
 
-#line 116 "sql_parser.tab.h" /* yacc.c:1909  */
+#line 118 "sql_parser.tab.h" /* yacc.c:1909  */
 };
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1

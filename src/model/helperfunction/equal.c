@@ -242,8 +242,11 @@ equalQueryBlock(QueryBlock *a, QueryBlock *b)
     COMPARE_NODE_FIELD(distinct);
     COMPARE_NODE_FIELD(fromClause);
     COMPARE_NODE_FIELD(whereClause);
+    COMPARE_NODE_FIELD(groupByClause);
     COMPARE_NODE_FIELD(havingClause);
-  
+    COMPARE_NODE_FIELD(orderByClause);
+    COMPARE_NODE_FIELD(limitClause);
+
     return TRUE;
 }
 

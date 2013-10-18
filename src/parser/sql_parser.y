@@ -56,9 +56,11 @@ Node *bisonParseResult = NULL;
 %token <stringVal> DISTINCT
 %token <stringVal> STARALL
 %token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN EXCEPT EXISTS
-%token <stringVal> AMMSC NULLVAL ALL ANY BY IS 
+%token <stringVal> AMMSC NULLVAL ALL ANY BY IS SOME
 %token <stringVal> UNION INTERSECT MINUS
 %token <stringVal> INTO VALUES
+
+%token <stringVal> DUMMYEXPR
 
 /* Keywords for Join queries */
 %token <stringVal> JOIN NATURAL LEFT RIGHT OUTER INNER CROSS ON USING FULL 
@@ -80,10 +82,12 @@ Node *bisonParseResult = NULL;
 %nonassoc AND OR NOT IN ISNULL BETWEEN LIKE
 
 /* Arithmetic operators : FOR TESTING */
+%nonassoc DUMMYEXPR
 %left '+' '-'
 %left '*' '/' '%'
 %left '^'
 %nonassoc '(' ')'
+
 
 /*
  * Types of non-terminal symbols
@@ -96,7 +100,7 @@ Node *bisonParseResult = NULL;
 %type <node> expression constant attributeRef sqlFunctionCall whereExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
 /*%type <node> optionalJoinClause optionalJoinCond*/
-%type <stringVal> optionalAlias optionalAll sqlOperator
+%type <stringVal> optionalAlias optionalAll nestedSubQueryOperator optionalNot 
 
 %start stmt
 
@@ -131,9 +135,10 @@ dmlStmt:
  * Rule to parse all types projection queries.
  */
 queryStmt:
-	selectQuery        { RULELOG("queryStmt::selectQuery"); }
-	| provStmt        { RULELOG("queryStmt::provStmt"); }
-	| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); }
+		'(' queryStmt ')'	{ RULELOG("queryStmt::bracketedQuery"); $$ = $2; }
+		| selectQuery        { RULELOG("queryStmt::selectQuery"); }
+		| provStmt        { RULELOG("queryStmt::provStmt"); }
+		| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); }
     ;
 
 /* 
@@ -278,13 +283,14 @@ exprList:
 /*
  * Rule to parse expressions used in various lists
  */
-expression: 
-        constant        { RULELOG("expression::constant"); }
-        | attributeRef         { RULELOG("expression::attributeRef"); }
-        | binaryOperatorExpression        { RULELOG("expression::binaryOperatorExpression"); } 
-        | unaryOperatorExpression        { RULELOG("expression::unaryOperatorExpression"); }
-        | sqlFunctionCall        { RULELOG("expression::sqlFunctionCall"); }
-/*        | subQuery      { RULELOG ("expression::subQuery"); } */ 
+expression:
+		'(' expression ')'				{ RULELOG("expression::bracked"); $$ = $2; } 
+		| constant     				   	{ RULELOG("expression::constant"); }
+        | attributeRef         		  	{ RULELOG("expression::attributeRef"); }
+        | binaryOperatorExpression		{ RULELOG("expression::binaryOperatorExpression"); } 
+        | unaryOperatorExpression       { RULELOG("expression::unaryOperatorExpression"); }
+        | sqlFunctionCall        		{ RULELOG("expression::sqlFunctionCall"); }
+/*        | '(' queryStmt ')'       { RULELOG ("expression::subQuery"); $$ = $2; } */
 /*        | STARALL        { RULELOG("expression::STARALL"); } */
     ;
             
@@ -464,11 +470,11 @@ optionalAlias:
 optionalWhere: 
         /* empty */             { RULELOG("optionalWhere::NULL"); $$ = NULL; }
         | WHERE whereExpression        { RULELOG("optionalWhere::whereExpression"); $$ = $2; }
-/*        | WHERE expression        { RULELOG("optionalWhere::WHERE::expression"); $$ = $2; } */
     ;
 
 whereExpression:
-        expression        { RULELOG("whereExpression::expression"); $$ = $1; }
+		'(' whereExpression ')' { RULELOG("where::brackedWhereExpression"); $$ = $2; } %prec DUMMYEXPR
+        | expression        { RULELOG("whereExpression::expression"); $$ = $1; } %prec '+'
         | whereExpression AND whereExpression
             {
                 RULELOG("whereExpression::AND");
@@ -490,37 +496,54 @@ whereExpression:
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
             }
-/*        | whereExpression BETWEEN whereExpression AND whereExpression
+        | whereExpression BETWEEN whereExpression AND whereExpression
             {
                 RULELOG("whereExpression::BETWEEN-AND");
-                HELP HELP: Need support for this from helper functions.
-            } 
-        | whereExpression sqlOperator '(' queryStmt ')'
-            {
-                RULELOG("binaryOperatorExpression::Subquery");
                 List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $4);
+                expr = appendToTailOfList(expr, $3);
+                expr = appendToTailOfList(expr, $5);
                 $$ = (Node *) createOpExpr($2, expr);
-            }*/
-        | expression sqlOperator '(' queryStmt ')'
+            } 
+        | expression comparisonOps nestedSubQueryOperator '(' queryStmt ')'
             {
                 RULELOG("binaryOperatorExpression::Subquery");
+                $$ = (Node *) createNestedSubquery($3, $1, $2, $5);
+            }
+        | expression comparisonOps '(' queryStmt ')'
+            {
+                RULELOG("whereExpression::comparisonOps::Subquery");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $4);
                 $$ = (Node *) createOpExpr($2, expr);
             }
-/* HELP HELP ??
-          | expression optionalComparisonOps sqlOperator '(' queryStmt ')' 
-                  FOR sqlOperaors like ANY, SOME, ALL
-              E.g.
-                  SELECT attr FROM tab WHERE col > ANY (subquery) 
-        | expression optionalNot sqlOperator[for IN] '(' queryStmt ')' 
-        | sqlOperator [EXISTS/NOT EXISTS] '(' queryStmt ')' */
+        | expression optionalNot IN '(' queryStmt ')'
+            {
+                RULELOG("whereExpression::IN");
+                if ($2 == NULL)
+                {
+                    $$ = (Node *) createNestedSubquery("ANY", $1, "=", $5);
+                }
+                else
+                {
+                    $$ = (Node *) createNestedSubquery("ALL",$1, "<>", $5);
+                }
+            }
+        | optionalNot EXISTS '(' queryStmt ')'
+            {
+                RULELOG("whereExpression::EXISTS");
+                /* How should I call function for this? No provision for NOT */
+            }
     ;
 
-sqlOperator:
-        IN { RULELOG("sqlOperator::IN"); $$ = $1; }
-        | comparisonOps { RULELOG("sqlOperator::comaparionOps"); $$ = $1; }
+nestedSubQueryOperator:
+        ANY { RULELOG("nestedSubQueryOperator::ANY"); $$ = $1; }
+        | ALL { RULELOG("nestedSubQueryOperator::ALL"); $$ = $1; }
+        | SOME { RULELOG("nestedSubQueryOperator::SOME"); $$ = "ANY"; }
+    ;
+
+optionalNot:
+        /* Empty */    { RULELOG("optionalNot::NULL"); $$ = NULL; }
+        | NOT    { RULELOG("optionalNot::NOT"); $$ = $1; }
     ;
 
 %%
