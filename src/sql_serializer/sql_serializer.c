@@ -60,6 +60,8 @@ char *
 serializeQuery(QueryOperator *q)
 {
     StringInfo str = makeStringInfo();
+    MemContext *memC = NEW_MEMCONTEXT("SQL_SERIALZIER");
+    ACQUIRE_MEMCONTEXT(memC);
 
     // initialize basic structures and then call the worker
     viewMap = NULL;
@@ -90,10 +92,13 @@ serializeQuery(QueryOperator *q)
         prependStringInfo(str, "%s", viewDef->data);
     }
 
-    // clean up
+    // copy result to callers memory context and clean up
+    RELEASE_CUR_MEM_CONTEXT();
+    char *result = strdup(str->data);
 
+    FREE_MEM_CONTEXT(memC);
 
-    return str->data;
+    return result;
 }
 
 /*
