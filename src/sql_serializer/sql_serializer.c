@@ -20,13 +20,24 @@
 
 
 /* data structures */
+typedef enum MatchState {
+    MATCH_START,
+    MATCH_DISTINCT,
+    MATCH_FIRST_PROJ,
+    MATCH_HAVING,
+    MATCH_AGGREGATION,
+    MATCH_SECOND_PROJ,
+    MATCH_WHERE,
+    MATCH_NEXTBLOCK
+} MatchState;
+
 typedef struct QueryBlockMatch {
-    Node *firstProj;
-    Node *having;
-    Node *aggregation;
-    Node *secondProj;
-    Node *where;
-    Node *fromRoot;
+    QueryOperator *firstProj;
+    QueryOperator *having;
+    QueryOperator *aggregation;
+    QueryOperator *secondProj;
+    QueryOperator *where;
+    QueryOperator *fromRoot;
 } QueryBlockMatch;
 
 typedef struct TemporaryViewMap {
@@ -54,6 +65,9 @@ static int viewNameCounter;
 static void serializeQueryOperator (QueryOperator *q, StringInfo str);
 static void serializeQueryBlock (QueryOperator *q, StringInfo str);
 static void serializeSetOperator (QueryOperator *q, StringInfo str);
+
+static void serializeFrom (QueryOperator *q, StringInfo from);
+
 static void createTempView (QueryOperator *q, StringInfo str);
 static char *createViewName (void);
 
@@ -124,9 +138,56 @@ static void
 serializeQueryBlock (QueryOperator *q, StringInfo str)
 {
     QueryBlockMatch *matchInfo = NEW(QueryBlockMatch);
-    StringInfo fromString;
+    StringInfo fromString = makeStringInfo();
+    MatchState state = MATCH_START;
+    QueryOperator *cur = q;
+
+    // do the matching
+    while(state != MATCH_NEXTBLOCK && cur != NULL)
+    {
+        switch(state)
+        {
+            /* START state */
+            case MATCH_START:
+                {
+                    switch(cur->type)
+                    {
+                        case T_SelectionOperator:
+
+                            break;
+                        case T_JoinOperator:
+                            matchInfo->fromRoot = cur;
+                            break;
+                        default: //TODO add other cases
+                            break;
+                    }
+                }
+                break;
+            case MATCH_DISTINCT:
+                break;
+            default: //TODO remove once all cases are handled
+                break;
+        }
+
+        // go to child of cur
+        cur = OP_LCHILD(cur);
+    }
+
+    // translate FROM
+    serializeFrom(matchInfo->fromRoot, fromString);
+
+    FREE(matchInfo);
+}
+
+/*
+ * Translate a FROM clause
+ */
+static void
+serializeFrom (QueryOperator *q, StringInfo from)
+{
 
 }
+
 
 /*
  * Serialize a set operation UNION/MINUS/INTERSECT
