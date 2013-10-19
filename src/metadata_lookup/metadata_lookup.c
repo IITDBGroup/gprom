@@ -22,11 +22,74 @@
  * functions and variables for internal use
  */
 static OCI_Connection* conn=NULL;
+static OCI_Statement *st = NULL;
 static OCI_TypeInfo* tInfo=NULL;
 static OCI_Error* errHandler=NULL;
 static MemContext* context=NULL;
+static char** aggList=NULL;
 static int initConnection();
 static boolean isConnected();
+static void initAggList();
+static void freeAggList();
+static OCI_Resultset *executeStatement(char *statement);
+
+static void
+initAggList()
+{
+	//malloc space
+	aggList = CNEW(char*, AGG_FUNCTION_COUNT);
+	aggList[AGG_MAX] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_MIN] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_AVG] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_COUNT] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_SUM] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_FIRST] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_LAST] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_CORR] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_COVAR_POP] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_COVAR_SAMP] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_GROUPING] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_REGR] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_STDDEV] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_STDDEV_POP] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_STDEEV_SAMP] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_VAR_POP] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_VAR_SAMP] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_VARIANCE] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+	aggList[AGG_XMLAGG] = CNEW(char,AGG_FUNCTION_NAME_MAXSIZE);
+
+	//assign string value
+	aggList[AGG_MAX] = "max";
+	aggList[AGG_MIN] = "min";
+	aggList[AGG_AVG] = "avg";
+	aggList[AGG_COUNT] = "count";
+	aggList[AGG_SUM] = "sum";
+	aggList[AGG_FIRST] = "first";
+	aggList[AGG_LAST] = "last";
+	aggList[AGG_CORR] = "corr";
+	aggList[AGG_COVAR_POP] = "covar_pop";
+	aggList[AGG_COVAR_SAMP] = "covar_samp";
+	aggList[AGG_GROUPING] = "grouping";
+	aggList[AGG_REGR] = "regr";
+	aggList[AGG_STDDEV] = "stddev";
+	aggList[AGG_STDDEV_POP] = "stddev_pop";
+	aggList[AGG_STDEEV_SAMP] = "stddev_samp";
+	aggList[AGG_VAR_POP] = "var_pop";
+	aggList[AGG_VAR_SAMP] = "var_samp";
+	aggList[AGG_VARIANCE] = "variance";
+	aggList[AGG_XMLAGG] = "xmlagg";
+}
+
+static void
+freeAggList()
+{
+	int i;
+	for(i = 0; i < AGG_FUNCTION_COUNT; i++)
+	{
+		FREE(aggList[i]);
+	}
+	FREE(aggList);
+}
 
 static int
 initConnection()
@@ -36,6 +99,7 @@ initConnection()
 
     StringInfo connectString = makeStringInfo();
 	Options* options=getOptions();
+
 	char* user=options->optionConnection->user;
 	char* passwd=options->optionConnection->passwd;
 	char* db=options->optionConnection->db;
@@ -92,6 +156,18 @@ catalogTableExists(char* tableName)
 	return FALSE;
 }
 
+boolean
+catalogViewExists(char* viewName)
+{
+	if(NULL==viewName)
+		return FALSE;
+	if(conn==NULL)
+		initConnection();
+	if(isConnected())
+		return (OCI_TypeInfoGet(conn,viewName,OCI_TIF_VIEW)==NULL)? FALSE : TRUE;
+	return FALSE;
+}
+
 List*
 getAttributes(char *tableName)
 {
@@ -117,6 +193,80 @@ getAttributes(char *tableName)
 	return NIL;
 }
 
+boolean
+isAgg(char* functionName)
+{
+	if(functionName == NULL)
+		return FALSE;
+	if(aggList == NULL)
+		initAggList(aggList);
+
+	for(int i = 0; i < AGG_FUNCTION_COUNT; i++)
+	{
+		if(strcasecmp(aggList[i], functionName) == 0)
+			return TRUE;
+	}
+	return FALSE;
+}
+
+char *
+getTableDefinition(char *tableName)
+{
+	char statement[256];
+	char *statement1 = "select DBMS_METADATA.GET_DDL('TABLE', '";
+	char *statement2 = "') from DUAL;";
+	strcpy(statement, statement1);
+	strcat(statement, tableName);
+	strcat(statement, statement2);
+	OCI_Resultset *rs = executeStatement(statement);
+	while(OCI_FetchNext(rs))
+	{
+		return (char *)OCI_GetString(rs, 1);
+	}
+	return NULL;
+}
+
+char *
+getViewDefinition(char *viewName)
+{
+	char statement[256];
+	char *statement1 = "select text from user_views where view_name = '";
+	char *statement2 = "';";
+	strcpy(statement, statement1);
+	strcat(statement, viewName);
+	strcat(statement, statement2);
+	OCI_Resultset *rs = executeStatement(statement);
+	while(OCI_FetchNext(rs))
+	{
+		return (char *)OCI_GetString(rs, 1);
+	}
+	return NULL;
+}
+
+OCI_Resultset *
+executeStatement(char *statement)
+{
+	if(statement == NULL)
+		return NULL;
+	if((conn = getConnection()) != NULL)
+	{
+		if(st == NULL)
+			st = OCI_StatementCreate(conn);
+		if(OCI_ExecuteStmt(st, statement))
+		{
+			TRACE_LOG("Statement: %s executed.", statement);
+			TRACE_LOG("%d row affected", OCI_GetAffectedRows(st));
+			return OCI_GetResultset(st);
+		}
+		else
+		{
+			ERROR_LOG("Statement: %s failed.", statement);
+		}
+	}
+	return NULL;
+}
+
+
 int
 databaseConnectionClose()
 {
@@ -127,6 +277,7 @@ databaseConnectionClose()
 	}
 	else
 	{
+		freeAggList();
 		FREE_MEM_CONTEXT(context);
 		OCI_Cleanup();
 	}
@@ -142,12 +293,41 @@ catalogTableExists(char *table)
     return FALSE;
 }
 
+bolean
+catalogViewExists(char *view)
+{
+	return FALSE;
+}
+
 List *
 getAttributes (char *table)
 {
     return NIL;
 }
 
+boolean
+isAgg(char *table)
+{
+	return FALSE;
+}
+
+char *
+getTableDefinition(char *table)
+{
+	return NULL;
+}
+
+char *
+getViewDefinition(char *view)
+{
+	return NULL;
+}
+
+char *
+executeStatement(char *statement)
+{
+	return NULL;
+}
 int
 databaseConnectionClose ()
 {
