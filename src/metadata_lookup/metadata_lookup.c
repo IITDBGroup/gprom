@@ -262,7 +262,7 @@ getViewDefinition(char *viewName)
 	return NULL;
 }
 
-OCI_Resultset *
+static OCI_Resultset *
 executeStatement(char *statement)
 {
 	if(statement == NULL)
@@ -313,7 +313,7 @@ catalogTableExists(char *table)
     return FALSE;
 }
 
-bolean
+boolean
 catalogViewExists(char *view)
 {
 	return FALSE;
