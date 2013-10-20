@@ -139,3 +139,40 @@ createNestedSubquery (char *nType, Node *expr,
 
     return result;
 }
+
+Insert *
+createInsert(char *nodeName, Node *query)
+{
+    Insert *result = makeNode(Insert);
+    result->nodeName = nodeName;
+    result->query = query;
+
+    return result;
+}
+
+
+Delete *
+createDelete(char *nodeName, Node *cond)
+{
+    Delete *result = makeNode(Delete);
+    result->nodeName = nodeName;
+    result->cond = cond;
+
+    return result;
+}
+
+
+Update *
+createUpdate(char *nodeName, List *selectClause, Node *cond)
+{
+    Update *result = makeNode(Update);
+    result->nodeName = nodeName;
+    ((Update *) result)->selectClause = selectClause;
+    result->cond = cond;
+
+    return result;
+}
+
+
+
+

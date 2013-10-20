@@ -52,6 +52,9 @@ static FromTableRef *copyFromTableRef(FromTableRef *from);
 static FromSubquery *copyFromSubquery(FromSubquery *from);
 static FromJoinExpr *copyFromJoinExpr(FromJoinExpr *from);
 static DistinctClause *copyDistinctClause(DistinctClause *from);
+static Insert *copyInsert(Insert *from);
+static Delete *copyDelete(Delete *from);
+static Update *copyUpdate(Update *from);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -279,6 +282,34 @@ copyQueryBlock(QueryBlock *from)
     
     return new;
 }
+static Insert *
+copyInsert(Insert *from)
+{
+    COPY_INIT(Insert);
+    COPY_STRING_FIELD(nodeName);
+    COPY_NODE_FIELD(query);
+
+    return new;
+}
+static Delete *
+copyDelete(Delete *from)
+{
+    COPY_INIT(Delete);
+    COPY_STRING_FIELD(nodeName);
+    COPY_NODE_FIELD(cond);
+
+    return new;
+}
+static Update *
+copyUpdate(Update *from)
+{
+    COPY_INIT(Update);
+    COPY_STRING_FIELD(nodeName);
+    COPY_NODE_FIELD(selectClause);
+    COPY_NODE_FIELD(cond);
+
+    return new;
+}
 static ProvenanceStmt *
 copyProvenanceStmt(ProvenanceStmt *from)
 {
@@ -428,6 +459,15 @@ void *copyObject(void *from)
             break;
         case T_DistinctClause:
             retval = copyDistinctClause(from);
+            break;
+        case T_Insert:
+            retval = copyInsert(from);
+            break;
+        case T_Delete:
+            retval = copyDelete(from);
+            break;
+        case T_Update:
+            retval = copyUpdate(from);
             break;
 
              /* query operator model nodes */

@@ -129,6 +129,28 @@ typedef struct NestedSubquery
     Node *query;
 } NestedSubquery;
 
+typedef struct Insert
+{
+    NodeTag type;
+    char *nodeName;
+    Node *query;
+} Insert;
+
+typedef struct Delete
+{
+    NodeTag type;
+    char *nodeName;
+    Node *cond;
+} Delete;
+
+typedef struct Update
+{
+    NodeTag type;
+    char *nodeName;
+    List *selectClause;
+    Node *cond;
+} Update;
+
 /* functions for creating query block nodes */
 /*extern SetQuery *createSetQuery(List *selectClause, SetOp *root);*/
 extern SetQuery *createSetQuery(char *opType, boolean all, Node *lChild,
@@ -147,5 +169,8 @@ extern DistinctClause *createDistinctClause (List *distinctExprs);
   //      char *comparisonOp, Node *query);
 extern NestedSubquery *createNestedSubquery (char *nType, Node *expr,
      char *comparisonOp, Node *query);
+extern Insert *createInsert(char *nodeName, Node *query);
+extern Delete *createDelete(char *nodeName, Node *cond);
+extern Update *createUpdate(char *nodeName, List *selectClause, Node *cond);
 
 #endif /* QUERY_BLOCK_H */

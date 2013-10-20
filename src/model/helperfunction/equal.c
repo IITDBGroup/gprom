@@ -44,6 +44,9 @@ static boolean equalFromTableRef(FromTableRef *a, FromTableRef *b);
 static boolean equalFromSubquery(FromSubquery *a, FromSubquery *b);
 static boolean equalFromJoinExpr(FromJoinExpr *a, FromJoinExpr *b);
 static boolean equalDistinctClause(DistinctClause *a,  DistinctClause *b);
+static boolean equalInsert(Insert *a, Insert *b);
+static boolean equalDelete(Delete *a, Delete *b);
+static boolean equalUpdate(Update *a, Update *b);
 
 
 /*use these macros to compare fields */
@@ -251,6 +254,34 @@ equalQueryBlock(QueryBlock *a, QueryBlock *b)
 }
 
 static boolean 
+equalInsert(Insert *a, Insert *b)
+{
+    COMPARE_STRING_FIELD(nodeName);
+    COMPARE_NODE_FIELD(query);
+   
+    return TRUE;
+
+}
+static boolean 
+equalDelete(Delete *a, Delete *b)
+{
+    COMPARE_STRING_FIELD(nodeName);
+    COMPARE_NODE_FIELD(cond);
+   
+    return TRUE;
+
+}
+static boolean 
+equalUpdate(Update *a, Update *b)
+{
+    COMPARE_STRING_FIELD(nodeName);
+    COMPARE_NODE_FIELD(selectClause);
+    COMPARE_NODE_FIELD(cond);
+   
+    return TRUE;
+
+}
+static boolean 
 equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b)
 {
     COMPARE_NODE_FIELD(query);
@@ -403,6 +434,15 @@ equal(void *a, void *b)
             break;
         case T_DistinctClause:
             retval = equalDistinctClause(a,b);
+            break;
+        case T_Insert:
+            retval = equalInsert(a,b);
+            break;
+        case T_Delete:
+            retval = equalDelete(a,b);
+            break;
+        case T_Update:
+            retval = equalUpdate(a,b);
             break;
         default:
             retval = FALSE;

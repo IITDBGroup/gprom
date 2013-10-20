@@ -47,6 +47,9 @@ static void outTableAccessOperator(StringInfo str, TableAccessOperator *node);
 static void outSetOperator(StringInfo str, SetOperator *node);
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
 static void outNestedSubquery(StringInfo str, NestedSubquery *node);
+static void outInsert(StringInfo str, Insert *node);
+static void outDelete(StringInfo str, Delete *node);
+static void outUpdate(StringInfo str, Update *node);
 
 /*define macros*/
 /*label for the node type*/
@@ -118,6 +121,28 @@ outList(StringInfo str, List *node)
     appendStringInfoString(str, ")");
 }
 
+static void
+outInsert(StringInfo str, Insert *node)
+{
+    WRITE_NODE_TYPE(INSERT);
+    WRITE_STRING_FIELD(nodeName);
+    WRITE_NODE_FIELD(query);
+}
+static void 
+outDelete(StringInfo str, Delete *node)
+{
+    WRITE_NODE_TYPE(DELETE);
+    WRITE_STRING_FIELD(nodeName);
+    WRITE_NODE_FIELD(cond);
+}
+static void 
+outUpdate(StringInfo str, Update *node)
+{
+    WRITE_NODE_TYPE(UPDATE);
+    WRITE_STRING_FIELD(nodeName);
+    WRITE_NODE_FIELD(selectClause);
+    WRITE_NODE_FIELD(cond);
+}
 static void
 outQueryBlock (StringInfo str, QueryBlock *node)
 {
@@ -407,6 +432,15 @@ void outNode(StringInfo str, void *obj)
                 break;
             case T_AttributeDef:
                 outAttributeDef(str, (AttributeDef *) obj);
+                break;
+            case T_Insert:
+                outInsert(str, (Insert *) obj);
+                break;
+            case T_Delete:
+                outDelete(str, (Delete *) obj);
+                break;
+            case T_Update:
+                outUpdate(str, (Update *) obj);
                 break;
             //different case
             //query operator model nodes
