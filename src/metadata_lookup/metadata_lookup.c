@@ -24,17 +24,28 @@
 static OCI_Connection* conn=NULL;
 static OCI_Statement *st = NULL;
 static OCI_TypeInfo* tInfo=NULL;
-static OCI_Error* errHandler=NULL;
+static OCI_Error* errorCache=NULL;
 static MemContext* context=NULL;
 static char** aggList=NULL;
-static int initConnection();
-static boolean isConnected();
-static void initAggList();
-static void freeAggList();
+
+static int initConnection(void);
+static boolean isConnected(void);
+static void initAggList(void);
+static void freeAggList(void);
 static OCI_Resultset *executeStatement(char *statement);
+static void handleError (OCI_Error *error);
 
 static void
-initAggList()
+handleError (OCI_Error *error)
+{
+    errorCache = error;
+    DEBUG_LOG("METADATA LOOKUP - OCILIB Error ORA-%05i - msg : %s\n",
+            OCI_ErrorGetOCICode(error), OCI_ErrorGetString(error));
+}
+
+
+static void
+initAggList(void)
 {
 	//malloc space
 	aggList = CNEW(char*, AGG_FUNCTION_COUNT);
@@ -107,9 +118,9 @@ initConnection()
 	int port=options->optionConnection->port;
 	appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT, host, port,
 	        db);
-	if(!OCI_Initialize(errHandler, NULL, OCI_ENV_DEFAULT))
+	if(!OCI_Initialize(handleError, NULL, OCI_ENV_DEFAULT))
 	{
-	    FATAL_LOG("Cannot initialize OICLIB: %s", OCI_ErrorGetString(errHandler)); //print error type
+	    FATAL_LOG("Cannot initialize OICLIB: %s", OCI_ErrorGetString(errorCache)); //print error type
 		return EXIT_FAILURE;
 	}
 	DEBUG_LOG("Initialized OCILIB");
@@ -131,7 +142,7 @@ isConnected()
 		return TRUE;
 	else
 	{
-		FATAL_LOG("OCI connection lost: %s", OCI_ErrorGetString(errHandler));
+		FATAL_LOG("OCI connection lost: %s", OCI_ErrorGetString(errorCache));
 		return FALSE;
 	}
 }
@@ -199,7 +210,7 @@ isAgg(char* functionName)
 	if(functionName == NULL)
 		return FALSE;
 	if(aggList == NULL)
-		initAggList(aggList);
+		initAggList();
 
 	for(int i = 0; i < AGG_FUNCTION_COUNT; i++)
 	{
@@ -262,9 +273,10 @@ executeStatement(char *statement)
 			st = OCI_StatementCreate(conn);
 		if(OCI_ExecuteStmt(st, statement))
 		{
+		    OCI_Resultset *rs = OCI_GetResultset(st);
 			DEBUG_LOG("Statement: %s executed successfully.", statement);
-			DEBUG_LOG("%d row fetched", OCI_GetRowCount(st));
-			return OCI_GetResultset(st);
+			DEBUG_LOG("%d row fetched", OCI_GetRowCount(rs));
+			return rs;
 		}
 		else
 		{
@@ -336,10 +348,12 @@ executeStatement(char *statement)
 {
 	return NULL;
 }
+
 int
 databaseConnectionClose ()
 {
     return EXIT_SUCCESS;
 }
+
 
 #endif
