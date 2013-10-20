@@ -22,7 +22,11 @@ static char *table2Attrs[2] = { "D","E" };
 
 /* internal tests */
 static rc testCatalogTableExists(void);
+static rc testViewExists(void);
 static rc testGetAttributes(void);
+static rc testIsAgg(void);
+static rc testGetTableDefinition();
+static rc testGetViewDefinition();
 static rc setupMetadataLookup(void);
 
 rc
@@ -30,7 +34,11 @@ testMetadataLookup(void)
 {
     RUN_TEST(setupMetadataLookup(),"setup tables");
 	RUN_TEST(testCatalogTableExists(), "test catalog table exists");
+	RUN_TEST(testViewExists(), "test view exists");
 	RUN_TEST(testGetAttributes(), "test get attributes");
+	RUN_TEST(testIsAgg(), "test is aggregation functions");
+	RUN_TEST(testGetTableDefinition(), "test get table definition");
+	RUN_TEST(testGetViewDefinition(), "test get view definition");
 
 	return PASS;
 }
@@ -49,11 +57,16 @@ setupMetadataLookup(void)
     ASSERT_FALSE(st == NULL, "created statement");
     OCI_ExecuteStmt(st,"DROP TABLE metadatalookup_test1");
     OCI_ExecuteStmt(st,"DROP TABLE metadatalookup_test2");
+    OCI_ExecuteStmt(st,"Drop View metadatalookup_view1");
+
     ASSERT_EQUALS_INT(1, OCI_ExecuteStmt(st,
             "CREATE TABLE metadatalookup_test1"
             " (a int, b int, c int)"), "Create table 1");
     ASSERT_EQUALS_INT(1,OCI_ExecuteStmt(st, "CREATE TABLE "
             "metadatalookup_test2 (d int, e int)"),  "Create table 2");
+    ASSERT_EQUALS_INT(1,OCI_ExecuteStmt(st, "CREATE VIEW "
+                "metadatalookup_view1 as select * from metadatalookup_test1"),  "Create view 1");
+
     OCI_Commit(c);
     OCI_StatementFree(st);
 
@@ -71,6 +84,17 @@ testCatalogTableExists(void)
 	ASSERT_EQUALS_INT(hasTest1, TRUE, "test Has table <metadatalookup_test1>");
 	ASSERT_EQUALS_INT(hasTest3, FALSE, "test Doesn't have table <metadatalookup_test3>");
 
+	return PASS;
+}
+
+static rc
+testViewExists(void)
+{
+	boolean hasView1 = catalogViewExists("metadatalookup_view1");
+	boolean hasView2 = catalogViewExists("metadatalookup_view2");
+
+	ASSERT_EQUALS_INT(hasView1, TRUE, "test Has view <metadatalookup_view1>");
+	ASSERT_EQUALS_INT(hasView2, FALSE, "test Doesn't have view <metadatalookup_view2>");
 	return PASS;
 }
 
@@ -100,6 +124,42 @@ testGetAttributes(void)
 	return PASS;
 }
 
+static rc
+testIsAgg(void)
+{
+	boolean isAgg1 = isAgg("max");
+	boolean isAgg2 = isAgg("SuM");
+	boolean isAgg3 = isAgg("notAgg");
+
+	ASSERT_EQUALS_INT(isAgg1, TRUE, "test is aggregation function <max>");
+	ASSERT_EQUALS_INT(isAgg2, TRUE, "test is aggregation function <SuM>");
+	ASSERT_EQUALS_INT(isAgg3, FALSE, "test is aggregation function <notAgg>");
+	return PASS;
+}
+
+static rc
+testGetTableDefinition()
+{
+	char *tableDef = getTableDefinition("METADATALOOKUP_TEST1");
+	char *text = "whatever it is too complex to write here.";
+
+	ASSERT_EQUALS_STRING(tableDef, tableDef, "test get table definition <metadatalookup_test1>");
+
+	return PASS;
+}
+
+static rc
+testGetViewDefinition()
+{
+	char *viewDef = getViewDefinition("METADATALOOKUP_VIEW1");
+	char *text = "select \"A\",\"B\",\"C\" from metadatalookup_test1";
+
+
+	ASSERT_EQUALS_STRING(viewDef, text, "test get view definition <metadatalookup_view1>");
+
+	return PASS;
+}
+
 /* if OCI or OCILIB are not avaible replace with dummy test */
 #else
 
@@ -110,9 +170,33 @@ testCatalogTableExists(void)
 }
 
 static rc
+testViewExists(void)
+{
+	return PASS;
+}
+
+static rc
 testGetAttributes(void)
 {
     return PASS;
+}
+
+static rc
+testIsAgg(void)
+{
+	return PASS;
+}
+
+static rc
+testGetTableDefinition()
+{
+	return PASS;
+}
+
+static rc
+testGetViewDefinition()
+{
+	return PASS;
 }
 
 static rc

@@ -214,14 +214,18 @@ getTableDefinition(char *tableName)
 {
 	char statement[256];
 	char *statement1 = "select DBMS_METADATA.GET_DDL('TABLE', '";
-	char *statement2 = "') from DUAL;";
+	char *statement2 = "') from DUAL";
 	strcpy(statement, statement1);
 	strcat(statement, tableName);
 	strcat(statement, statement2);
+
 	OCI_Resultset *rs = executeStatement(statement);
-	while(OCI_FetchNext(rs))
+	if(rs != NULL)
 	{
-		return (char *)OCI_GetString(rs, 1);
+		while(OCI_FetchNext(rs))
+		{
+			return (char *)OCI_GetString(rs, 1);
+		}
 	}
 	return NULL;
 }
@@ -231,14 +235,18 @@ getViewDefinition(char *viewName)
 {
 	char statement[256];
 	char *statement1 = "select text from user_views where view_name = '";
-	char *statement2 = "';";
+	char *statement2 = "'";
 	strcpy(statement, statement1);
 	strcat(statement, viewName);
 	strcat(statement, statement2);
+
 	OCI_Resultset *rs = executeStatement(statement);
-	while(OCI_FetchNext(rs))
+	if(rs != NULL)
 	{
-		return (char *)OCI_GetString(rs, 1);
+		while(OCI_FetchNext(rs))
+		{
+			return (char *)OCI_GetString(rs, 1);
+		}
 	}
 	return NULL;
 }
@@ -254,8 +262,8 @@ executeStatement(char *statement)
 			st = OCI_StatementCreate(conn);
 		if(OCI_ExecuteStmt(st, statement))
 		{
-			TRACE_LOG("Statement: %s executed.", statement);
-			TRACE_LOG("%d row affected", OCI_GetAffectedRows(st));
+			DEBUG_LOG("Statement: %s executed successfully.", statement);
+			DEBUG_LOG("%d row fetched", OCI_GetRowCount(st));
 			return OCI_GetResultset(st);
 		}
 		else
