@@ -156,7 +156,7 @@ extern void reverseList(List *list);
 extern void sortList(List *list);
 
 extern List *copyList(List *list);
-
+extern List *deepCopyStringList (List *list);
 extern void freeList(List *list);
 extern void deepFreeList(List *list);
 

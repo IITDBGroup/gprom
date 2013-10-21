@@ -331,6 +331,17 @@ copyList(List *list)
 	return listCopy; /* keep compiler quiet for now */
 }
 
+List *
+deepCopyStringList (List *list)
+{
+    List *listCopy = NIL;
+
+    FOREACH(char,c, list)
+        listCopy = appendToTailOfList(listCopy, strdup(c));
+
+    return listCopy;
+}
+
 void
 freeList(List *list)
 {
