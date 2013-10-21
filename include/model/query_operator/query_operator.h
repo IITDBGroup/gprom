@@ -118,6 +118,12 @@ extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, 
 #define OP_RCHILD(op) \
     ((QueryOperator *) ((QueryOperator*) op)->inputs->head->next->data.ptr_value)
 
+#define _OP_LCHILD(op) \
+	((QueryOperator*) op)->inputs->head->data.ptr_value
+
+#define _OP_RCHILD(op) \
+	((QueryOperator*) op)->inputs->head->next->data.ptr_value
+
 /* access functions */
 extern List *getProvenanceAttrs(QueryOperator *op);
 extern List *getNormalAttrs(QueryOperator *op);
