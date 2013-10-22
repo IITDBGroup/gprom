@@ -523,8 +523,8 @@ static const yytype_uint16 yyrline[] =
      283,   284,   285,   286,   295,   296,   297,   304,   322,   329,
      336,   343,   350,   357,   366,   373,   382,   392,   404,   417,
      418,   422,   427,   435,   443,   448,   456,   457,   458,   465,
-     466,   470,   471,   478,   485,   492,   500,   505,   512,   524,
-     532,   533,   534,   538,   539
+     466,   470,   471,   478,   485,   492,   500,   505,   512,   525,
+     542,   543,   544,   548,   549
 };
 #endif
 
@@ -2148,7 +2148,7 @@ yyreduce:
 /* Line 1806 of yacc.c  */
 #line 501 "sql_parser.y"
     {
-                RULELOG("binaryOperatorExpression::Subquery");
+                RULELOG("whereExpression::comparisonOps::nestedSubQueryOperator::Subquery");
                 (yyval.node) = (Node *) createNestedSubquery((yyvsp[(3) - (6)].stringVal), (yyvsp[(1) - (6)].node), (yyvsp[(2) - (6)].stringVal), (yyvsp[(5) - (6)].node));
             }
     break;
@@ -2170,13 +2170,14 @@ yyreduce:
 /* Line 1806 of yacc.c  */
 #line 513 "sql_parser.y"
     {
-                RULELOG("whereExpression::IN");
                 if ((yyvsp[(2) - (6)].stringVal) == NULL)
                 {
+                    RULELOG("whereExpression::IN");
                     (yyval.node) = (Node *) createNestedSubquery("ANY", (yyvsp[(1) - (6)].node), "=", (yyvsp[(5) - (6)].node));
                 }
                 else
                 {
+                    RULELOG("whereExpression::NOT::IN");
                     (yyval.node) = (Node *) createNestedSubquery("ALL",(yyvsp[(1) - (6)].node), "<>", (yyvsp[(5) - (6)].node));
                 }
             }
@@ -2185,9 +2186,18 @@ yyreduce:
   case 69:
 
 /* Line 1806 of yacc.c  */
-#line 525 "sql_parser.y"
+#line 526 "sql_parser.y"
     {
-                RULELOG("whereExpression::EXISTS");
+                if ((yyvsp[(1) - (5)].stringVal) == NULL)
+                {
+                    RULELOG("whereExpression::EXISTS");
+                    (yyval.node) = (Node *) createNestedSubquery((yyvsp[(2) - (5)].stringVal), NULL, (yyvsp[(1) - (5)].stringVal), (yyvsp[(4) - (5)].node));
+                }
+                else
+                {
+                    RULELOG("whereExpression::EXISTS::NOT");
+                    (yyval.node) = (Node *) createNestedSubquery((yyvsp[(2) - (5)].stringVal), NULL, "<>", (yyvsp[(4) - (5)].node));
+                }
                 /* How should I call function for this? No provision for NOT */
             }
     break;
@@ -2195,42 +2205,42 @@ yyreduce:
   case 70:
 
 /* Line 1806 of yacc.c  */
-#line 532 "sql_parser.y"
+#line 542 "sql_parser.y"
     { RULELOG("nestedSubQueryOperator::ANY"); (yyval.stringVal) = (yyvsp[(1) - (1)].stringVal); }
     break;
 
   case 71:
 
 /* Line 1806 of yacc.c  */
-#line 533 "sql_parser.y"
+#line 543 "sql_parser.y"
     { RULELOG("nestedSubQueryOperator::ALL"); (yyval.stringVal) = (yyvsp[(1) - (1)].stringVal); }
     break;
 
   case 72:
 
 /* Line 1806 of yacc.c  */
-#line 534 "sql_parser.y"
+#line 544 "sql_parser.y"
     { RULELOG("nestedSubQueryOperator::SOME"); (yyval.stringVal) = "ANY"; }
     break;
 
   case 73:
 
 /* Line 1806 of yacc.c  */
-#line 538 "sql_parser.y"
+#line 548 "sql_parser.y"
     { RULELOG("optionalNot::NULL"); (yyval.stringVal) = NULL; }
     break;
 
   case 74:
 
 /* Line 1806 of yacc.c  */
-#line 539 "sql_parser.y"
+#line 549 "sql_parser.y"
     { RULELOG("optionalNot::NOT"); (yyval.stringVal) = (yyvsp[(1) - (1)].stringVal); }
     break;
 
 
 
 /* Line 1806 of yacc.c  */
-#line 2234 "sql_parser.tab.c"
+#line 2244 "sql_parser.tab.c"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -2461,6 +2471,6 @@ yyreturn:
 
 
 /* Line 2067 of yacc.c  */
-#line 542 "sql_parser.y"
+#line 552 "sql_parser.y"
 
 
