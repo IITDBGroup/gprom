@@ -73,6 +73,10 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 
 	/* literal keyword tokens */
 SELECT      TOK(SELECT)
+INSERT      TOK(INSERT)
+UPDATE      TOK(UPDATE)
+DELETE      TOK(DELETE)
+SET         TOK(SET)
 PROVENANCE  TOK(PROVENANCE)
 OF          TOK(OF)
 FROM        TOK(FROM)
@@ -113,6 +117,10 @@ IN        TOK(IN)
 EXISTS        TOK(EXISTS)
 LIKE        TOK(LIKE)
 NOT        TOK(NOT)
+GROUP        TOK(GROUP)
+HAVING        TOK(HAVING)
+LIMIT        TOK(LIMIT)
+ORDER        TOK(ORDER)
 
 	/* punctuation */
 [(),.;] TOKSELF()
