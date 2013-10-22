@@ -506,7 +506,7 @@ whereExpression:
             } 
         | expression comparisonOps nestedSubQueryOperator '(' queryStmt ')'
             {
-                RULELOG("binaryOperatorExpression::Subquery");
+                RULELOG("whereExpression::comparisonOps::nestedSubQueryOperator::Subquery");
                 $$ = (Node *) createNestedSubquery($3, $1, $2, $5);
             }
         | expression comparisonOps '(' queryStmt ')'
@@ -518,20 +518,29 @@ whereExpression:
             }
         | expression optionalNot IN '(' queryStmt ')'
             {
-                RULELOG("whereExpression::IN");
                 if ($2 == NULL)
                 {
+                    RULELOG("whereExpression::IN");
                     $$ = (Node *) createNestedSubquery("ANY", $1, "=", $5);
                 }
                 else
                 {
+                    RULELOG("whereExpression::NOT::IN");
                     $$ = (Node *) createNestedSubquery("ALL",$1, "<>", $5);
                 }
             }
         | optionalNot EXISTS '(' queryStmt ')'
             {
-                RULELOG("whereExpression::EXISTS");
-                /* How should I call function for this? No provision for NOT */
+                if ($1 == NULL)
+                {
+                    RULELOG("whereExpression::EXISTS");
+                    $$ = (Node *) createNestedSubquery($2, NULL, $1, $4);
+                }
+                else
+                {
+                    RULELOG("whereExpression::EXISTS::NOT");
+                    $$ = (Node *) createNestedSubquery($2, NULL, "<>", $4);
+                }
             }
     ;
 
