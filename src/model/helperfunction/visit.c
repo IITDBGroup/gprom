@@ -12,6 +12,7 @@
 
 #include "common.h"
 #include "model/list/list.h"
+//#include "model/set/set.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -64,11 +65,18 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             {
                 PREP_VISIT(List);
                 FOREACH(Node,el,n)
-                    VISIT_NODE(el);
+                	VISIT_NODE(el);
             }
             break;
         case T_IntList:
-            break;
+        	break;
+        /* set nodes */
+//        case T_Set:
+//        	{
+//        		PREP_VISIT(Set);
+//        		VISIT(elem);
+//        	}
+//        	break;
         /* expression nodes */
         case T_Constant:
         	{
@@ -77,10 +85,6 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         	}
             break;
         case T_AttributeReference:
-        	{
-        		PREP_VISIT(AttributeReference);
-        		//VISIT(name);
-        	}
             break;
         case T_FunctionCall:
             {
@@ -113,6 +117,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             {
                 PREP_VISIT(SetQuery);
                 VISIT(setOp);
+                VISIT(selectClause);
                 VISIT(lChild);
                 VISIT(rChild);
             }
@@ -130,7 +135,10 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		VISIT(distinct);
         		VISIT(fromClause);
         		VISIT(whereClause);
+        		VISIT(groupByClause);
         		VISIT(havingClause);
+        		VISIT(orderByClause);
+        		VISIT(limitClause);
         	}
         	break;
         case T_SelectItem:
@@ -176,7 +184,32 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		VISIT(distinctExprs);
         	}
         	break;
-
+        case T_NestedSubquery:
+        	{
+        		PREP_VISIT(NestedSubquery);
+        		VISIT(expr);
+        		VISIT(query);
+        	}
+        	break;
+        case T_Insert:
+        	{
+        		PREP_VISIT(Insert);
+        		VISIT(query);
+        	}
+        	break;
+        case T_Delete:
+        	{
+        		PREP_VISIT(Delete);
+        		VISIT(cond);
+        	}
+        	break;
+        case T_Update:
+        	{
+        		PREP_VISIT(Update);
+        		VISIT(selectClause);
+        		VISIT(cond);
+        	}
+        	break;
         /* query operator model nodes */
         case T_Schema:
         	{
@@ -275,9 +308,16 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
     switch(node->type)
     {
         case T_List:
-
+        	return node;
         case T_IntList:
-
+        	return node;
+        /* set nodes */
+//        case T_Set:
+//        	{
+//        		NEWN(Set);
+//        		MUTATE(SetElem, elem);
+//        	}
+//        	break;
         /* expression nodes */
         case T_Constant:
             return node;
@@ -313,24 +353,107 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         case T_SetQuery:
             {
                 NEWN(SetQuery);
+                MUTATE(List, selectClause);
                 MUTATE(Node,lChild);
                 MUTATE(Node,rChild);
             }
             break;
         case T_ProvenanceStmt:
+        	{
+        		NEWN(ProvenanceStmt);
+        		MUTATE(Node, query);
+        	}
+        	break;
         case T_QueryBlock:
+        	{
+        		NEWN(QueryBlock);
+        		MUTATE(List, selectClause);
+        		MUTATE(Node, distinct);
+        		MUTATE(List, fromClause);
+        		MUTATE(Node, whereClause);
+        		MUTATE(List, groupByClause);
+        		MUTATE(Node, havingClause);
+        		MUTATE(List, orderByClause);
+        		MUTATE(Node, limitClause);
+        	}
+        	break;
         case T_SelectItem:
+        	{
+        		NEWN(SelectItem);
+        		MUTATE(Node, expr);
+        	}
+        	break;
         case T_FromItem:
+        	{
+        		NEWN(FromItem);
+        		MUTATE(List, attrNames);
+        	}
+        	break;
         case T_FromTableRef:
+        	{
+        		NEWN(FromTableRef);
+        		MUTATE(List, from.attrNames);
+        	}
+        	break;
         case T_FromSubquery:
+        	{
+        		NEWN(FromSubquery);
+        		MUTATE(List, from.attrNames);
+        		MUTATE(Node, subquery);
+        	}
+        	break;
         case T_FromJoinExpr:
+        	{
+        		NEWN(FromJoinExpr);
+        		MUTATE(List, from.attrNames);
+        		MUTATE(FromItem, left);
+        		MUTATE(FromItem, right);
+        		MUTATE(Node, cond);
+        	}
+        	break;
         case T_DistinctClause:
+        	{
+        		NEWN(DistinctClause);
+        		MUTATE(List, distinctExprs);
+        	}
+        	break;
+        case T_NestedSubquery:
+        	{
+        		NEWN(NestedSubquery);
+        		MUTATE(Node, expr);
+        		MUTATE(Node, query);
+        	}
+        	break;
+        case T_Insert:
+        	{
+        		NEWN(Insert);
+        		MUTATE(Node, query);
+        	}
+            break;
+        case T_Delete:
+        	{
+        		NEWN(Delete);
+        		MUTATE(Node, cond);
+        	}
+        	break;
+        case T_Update:
+        	{
+        		NEWN(Update);
+        		MUTATE(List, selectClause);
+        		MUTATE(Node, cond);
+        	}
+        	break;
 
         /* query operator model nodes */
         case T_Schema:
+        	{
+        		NEWN(Schema);
+        		MUTATE_OPERATOR();
+        		MUTATE(List, attrDefs);
+        	}
             break;
         case T_AttributeDef:
-            break;
+        	return node;
         case T_SelectionOperator:
             {
                 NEWN(SelectionOperator);
@@ -346,11 +469,32 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
             }
             break;
         case T_JoinOperator:
+        	{
+        		NEWN(JoinOperator);
+        		MUTATE_OPERATOR();
+        		MUTATE(Node, cond);
+        	}
+        	break;
         case T_AggregationOperator:
+        	{
+        		NEWN(AggregationOperator);
+        		MUTATE_OPERATOR();
+        		MUTATE(List, aggrs);
+        		MUTATE(List, groupBy);
+        	}
+        	break;
         case T_ProvenanceComputation:
+        	return node;
         case T_TableAccessOperator:
+        	return node;
         case T_SetOperator:
+        	return node;
         case T_DuplicateRemoval:
+        	{
+        		NEWN(DuplicateRemoval);
+        		MUTATE_OPERATOR();
+        		MUTATE(List, attrs);
+        	}
             break;
         default:
             break;
