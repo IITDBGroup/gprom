@@ -19,6 +19,8 @@
 static QueryOperator *translateQuery (Node *node);
 static QueryOperator *translateSetQuery(SetQuery *sq);
 static QueryOperator *translateQueryBlock(QueryBlock *qb);
+static QueryOperator *translateFromClause(List *fromClause);
+static QueryOperator *buildJoinTreeFromOperatorList(List *opList);
 static List *translateFromClauseToOperatorList(List *fromClause);
 static inline QueryOperator *createTableAccessOpFromFromTableRef(FromTableRef *ftr);
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje);
@@ -74,17 +76,8 @@ translateSetQuery(SetQuery *sq)
     inputs = appendToTailOfList(inputs, right);
     // set children of the set operator node
 
-    List *attrNames = NULL;
-    if (sq->selectClause)
-    {
-        FOREACH(char, attr, sq->selectClause)
-            attrNames = appendToTailOfList(attrNames, attr);
-    } // set result table's attribute names of the set operator node
-
-    SetOperator *so = createSetOperator(sq->setOp, inputs, NULL, attrNames);
+    SetOperator *so = createSetOperator(sq->setOp, inputs, NIL, sq->selectClause);
     // create set operator node
-
-    //TODO free attrNames list
 
     OP_LCHILD(so)->parents = OP_RCHILD(so)->parents = singleton(so);
     // set the parent of the node's children
@@ -95,13 +88,48 @@ translateSetQuery(SetQuery *sq)
 static QueryOperator *
 translateQueryBlock(QueryBlock *qb)
 {
-    return NULL; //TODO
+    QueryOperator *fromTreeRoot = translateFromClause(qb->fromClause);
+    // TODO translate where, selection clause
+    return NULL;
+}
+
+static QueryOperator *
+translateFromClause(List *fromClause)
+{
+    List *opList = translateFromClauseToOperatorList(fromClause);
+    return buildJoinTreeFromOperatorList(opList);
+}
+
+static QueryOperator *
+buildJoinTreeFromOperatorList(List *opList)
+{
+    QueryOperator *root = (QueryOperator *) LC_P_VAL(getHeadOfList(opList));
+    FOREACH(QueryOperator, op, opList)
+    {
+        if (op == (QueryOperator *) LC_P_VAL(getHeadOfList(opList)))
+            continue;
+
+        QueryOperator *oldRoot = (QueryOperator *) root;
+        List *inputs = appendToTailOfList(inputs, oldRoot);
+        inputs = appendToTailOfList(inputs, op);
+        // set children of the join node
+
+        List *attrNames = concatTwoLists(getAttrNames(oldRoot->schema), getAttrNames(op->schema));
+        // contact children's attribute names as the node's attribute names
+
+        root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
+        // create join operator
+
+        OP_LCHILD(root)->parents = OP_RCHILD(root)->parents = singleton(root);
+        // set the parent of the node's children
+    }
+    return root;
 }
 
 static List *
 translateFromClauseToOperatorList(List *fromClause)
 {
-    List *opList = NULL;
+    List *opList = NIL;
 
     FOREACH(FromItem, from, fromClause)
     {
@@ -131,7 +159,7 @@ static inline QueryOperator *
 createTableAccessOpFromFromTableRef(FromTableRef *ftr)
 {
     TableAccessOperator *ta = createTableAccessOp(ftr->tableId, ftr->from.name,
-    NULL, ftr->from.attrNames, NULL); // TODO  get data types
+    NIL, ftr->from.attrNames, NIL); // TODO  get data types
     return ((QueryOperator *) ta);
 }
 
@@ -172,7 +200,7 @@ translateFromJoinExpr(FromJoinExpr *fje)
     inputs = appendToTailOfList(inputs, input2);
     // set children of the join operator node
 
-    JoinOperator *jo = createJoinOp(fje->joinType, fje->cond, inputs, NULL,
+    JoinOperator *jo = createJoinOp(fje->joinType, fje->cond, inputs, NIL,
             fje->from.attrNames); //TODO copy cond? compute attrNames?
     // create join operator node
 
@@ -199,7 +227,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
     //TODO create attribute list by analysing subquery under child
     child = translateQuery(prov->query);
 
-    result = createProvenanceComputOp(PI_CS, singleton(child), NULL, NULL, attrs); //TODO adapt function parameters
+    result = createProvenanceComputOp(PI_CS, singleton(child), NIL, NIL, attrs); //TODO adapt function parameters
 
     child->parents = singleton(result);
 

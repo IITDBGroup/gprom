@@ -100,6 +100,7 @@ typedef struct ProvenanceComputation
 extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames, List *dataTypes);
 extern List *getDataTypes (Schema *schema);
+extern List *getAttrNames(Schema *schema);
 
 /* create functions */
 extern TableAccessOperator *createTableAccessOp (char *tableName, char *alias, List *parents, List *attrNames, List *dataTypes);

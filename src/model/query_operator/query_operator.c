@@ -86,6 +86,19 @@ getDataTypes (Schema *schema)
     return result;
 }
 
+List *
+getAttrNames(Schema *schema)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeDef,a,schema->attrDefs)
+    {
+        result = appendToTailOfList(result, a->attrName);
+    }
+
+    return result;
+}
+
 TableAccessOperator *
 createTableAccessOp(char *tableName, char *alias, List *parents,
         List *attrNames, List *dataTypes)
@@ -213,6 +226,18 @@ ProvenanceComputation *
 createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, List *parents, List *attrNames)
 {
     return NULL; //TODO
+}
+
+List *
+getProvenanceAttrs(QueryOperator *op)
+{
+    return op ? op->provAttrs : NIL;
+}
+
+List *
+getNormalAttrs(QueryOperator *op)
+{
+    return op ? op->schema ? op->schema->attrDefs : NIL : NIL;
 }
 
 static Schema *
