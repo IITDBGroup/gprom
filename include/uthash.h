@@ -102,6 +102,20 @@ do {                                                                            
   }                                                                              \
 } while (0)
 
+#define HASH_FIND_CMP(hh,head,keyptr,keylen,out,cmpfunction)                     \
+do {                                                                             \
+  unsigned _hf_bkt,_hf_hashv;                                                    \
+  out=NULL;                                                                      \
+  if (head) {                                                                    \
+     HASH_FCN(keyptr,keylen, (head)->hh.tbl->num_buckets, _hf_hashv, _hf_bkt);   \
+     if (HASH_BLOOM_TEST((head)->hh.tbl, _hf_hashv)) {                           \
+       HASH_FIND_IN_BKT_CMP((head)->hh.tbl, hh,                                  \
+                        (head)->hh.tbl->buckets[ _hf_bkt ],                      \
+                        keyptr,keylen,out,cmpfunction);                          \
+     }                                                                           \
+  }                                                                              \
+} while (0)
+
 #ifdef HASH_BLOOM
 #define HASH_BLOOM_BITLEN (1ULL << HASH_BLOOM)
 #define HASH_BLOOM_BYTELEN (HASH_BLOOM_BITLEN/8) + ((HASH_BLOOM_BITLEN%8) ? 1:0)
@@ -259,6 +273,8 @@ do {                                                                            
     HASH_ADD(hh,head,intfield,sizeof(int),add)
 #define HASH_REPLACE_INT(head,intfield,add,replaced)                             \
     HASH_REPLACE(hh,head,intfield,sizeof(int),add,replaced)
+#define HASH_FIND_NODE(head,findptr,out)                                         \
+    HASH_FIND_CMP(hh,head,findptr,sizeof(void *),out,equal)
 #define HASH_FIND_PTR(head,findptr,out)                                          \
     HASH_FIND(hh,head,findptr,sizeof(void *),out)
 #define HASH_ADD_PTR(head,ptrfield,add)                                          \
@@ -599,6 +615,21 @@ do {                                                                            
  while (out) {                                                                   \
     if ((out)->hh.keylen == keylen_in) {                                           \
         if ((HASH_KEYCMP((out)->hh.key,keyptr,keylen_in)) == 0) break;             \
+    }                                                                            \
+    if ((out)->hh.hh_next) DECLTYPE_ASSIGN(out,ELMT_FROM_HH(tbl,(out)->hh.hh_next)); \
+    else out = NULL;                                                             \
+ }                                                                               \
+} while(0)
+
+#define HASH_KEY_FUNCCMP(a,b,cmpfunction) cmpfunction(a,b)
+
+#define HASH_FIND_IN_BKT_CMP(tbl,hh,head,keyptr,keylen_in,out,cmpfunction)       \
+do {                                                                             \
+ if (head.hh_head) DECLTYPE_ASSIGN(out,ELMT_FROM_HH(tbl,head.hh_head));          \
+ else out=NULL;                                                                  \
+ while (out) {                                                                   \
+    if ((out)->hh.keylen == keylen_in) {                                         \
+        if ((HASH_KEY_FUNCCMP((out)->hh.key,keyptr,cmpfunction)) == 0) break;           \
     }                                                                            \
     if ((out)->hh.hh_next) DECLTYPE_ASSIGN(out,ELMT_FROM_HH(tbl,(out)->hh.hh_next)); \
     else out = NULL;                                                             \

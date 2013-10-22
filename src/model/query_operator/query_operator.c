@@ -209,6 +209,12 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
     return dr;
 }
 
+ProvenanceComputation *
+createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, List *parents, List *attrNames)
+{
+    return NULL; //TODO
+}
+
 static Schema *
 mergeSchemas (List *inputs)
 {

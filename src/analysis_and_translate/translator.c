@@ -16,28 +16,38 @@
 #include "model/list/list.h"
 #include <assert.h>
 
-static QueryOperator *
-translateSetQuery(SetQuery *sq);
-
-static QueryOperator *
-translateQueryBlock(QueryBlock *qb);
-
-static List *
-translateFromClauseToOperatorList(List *fromClause);
-
-static inline QueryOperator *
-createTableAccessOpFromFromTableRef(FromTableRef *ftr);
-
-static QueryOperator *
-translateFromJoinExpr(FromJoinExpr *fje);
-
-static QueryOperator *
-translateFromSubquery(FromSubquery *fsq);
+static QueryOperator *translateQuery (Node *node);
+static QueryOperator *translateSetQuery(SetQuery *sq);
+static QueryOperator *translateQueryBlock(QueryBlock *qb);
+static List *translateFromClauseToOperatorList(List *fromClause);
+static inline QueryOperator *createTableAccessOpFromFromTableRef(FromTableRef *ftr);
+static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje);
+static QueryOperator *translateFromSubquery(FromSubquery *fsq);
+static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov);
 
 QueryOperator *
 translateParse(Node *q)
 {
-    return NULL;
+    //TODO create and destroy memory context - don't forget to copy result to callers context
+    //TODO call analysis function first
+    return translateQuery(q);
+}
+
+static QueryOperator *
+translateQuery (Node *node)
+{
+    switch(node->type)
+    {
+        case T_QueryBlock:
+            return translateQueryBlock((QueryBlock *) node);
+        case T_SetQuery:
+            return translateSetQuery((SetQuery *) node);
+        case T_ProvenanceStmt:
+            return translateProvenanceStmt((ProvenanceStmt *) node);
+        default:
+            assert(FALSE);
+            return NULL;
+    }
 }
 
 static QueryOperator *
@@ -175,8 +185,23 @@ translateFromJoinExpr(FromJoinExpr *fje)
 static QueryOperator *
 translateFromSubquery(FromSubquery *fsq)
 {
-    if (fsq->subquery->type == T_SetQuery)
-        return translateSetQuery((SetQuery *) fsq->subquery);
-    else
-        return translateQueryBlock((QueryBlock *) fsq->subquery);
+    return translateQuery(fsq->subquery);
+    //TODO set attr names from FromItem
+}
+
+static QueryOperator *
+translateProvenanceStmt(ProvenanceStmt *prov)
+{
+    QueryOperator *child;
+    ProvenanceComputation *result;
+    List *attrs = NIL;
+    Schema *schema = NULL;
+    //TODO create attribute list by analysing subquery under child
+    child = translateQuery(prov->query);
+
+    result = createProvenanceComputOp(PI_CS, singleton(child), NULL, NULL, attrs); //TODO adapt function parameters
+
+    child->parents = singleton(result);
+
+    return (QueryOperator *) result;
 }

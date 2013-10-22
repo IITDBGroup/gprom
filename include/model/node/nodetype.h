@@ -13,6 +13,9 @@ typedef enum NodeTag {
     T_List,
     T_IntList,
 
+    /* sets */
+    T_Set,
+
     /* expression nodes */
     T_Constant,
     T_AttributeReference,
