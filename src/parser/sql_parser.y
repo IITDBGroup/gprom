@@ -103,7 +103,7 @@ Node *bisonParseResult = NULL;
 %type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
 /*%type <node> optionalJoinClause optionalJoinCond*/
-%type <stringVal> optionalAlias optionalAll nestedSubQueryOperator optionalNot dataType fromString
+%type <stringVal> optionalAlias optionalAll nestedSubQueryOperator optionalNot fromString
 
 %start stmt
 
@@ -162,7 +162,7 @@ deleteQuery:
          DELETE fromString identifier WHERE whereExpression /* optionalReturning */
          { 
              RULELOG("deleteQuery");
-             $$ = createDelete($3, $5);
+             $$ = (Node *) createDelete($3, $5);
          }
 /* No provision made for RETURNING statements in delete clause */
     ;
@@ -186,7 +186,7 @@ updateQuery:
         UPDATE identifier SET setClause optionalWhere
             { 
                 RULELOG(updateQuery); 
-                $$ = createUpdate($2, $4, $5); 
+                $$ = (Node *) createUpdate($2, $4, $5); 
             }
     ;
 
@@ -229,21 +229,22 @@ insertQuery:
         | INSERT INTO identifier queryStmt
             { 
                 RULELOG("insertQuery::queryStmt");
-                $$ = createInsert($3, $4);
+                $$ = (Node *) createInsert($3, $4, NULL);
             }
     ;
 
 insertList:
-        attributeRef dataType
+        constant
             { RULELOG("insertList::IDENTFIER::dataType"); }
-        | insertList ',' attributeRef dataType
+        | insertList ',' constant
             { RULELOG("insertList::insertList::IDENTFIER::dataType"); }
 /* No Provision made for this type of insert statements */
     ;
 
-dataType:
+/* dataType:
         | INT 
     ;
+*/
 
 /*
  * Rules to parse set operator queries
@@ -551,6 +552,12 @@ optionalWhere:
 whereExpression:
 		'(' whereExpression ')' { RULELOG("where::brackedWhereExpression"); $$ = $2; } %prec DUMMYEXPR
         | expression        { RULELOG("whereExpression::expression"); $$ = $1; } %prec '+'
+        | NOT whereExpression
+            {
+                RULELOG("whereExpression::NOT");
+                List *expr = singleton($2);
+                $$ = (Node *) createOpExpr($1, expr);
+            }
         | whereExpression AND whereExpression
             {
                 RULELOG("whereExpression::AND");
@@ -605,18 +612,18 @@ whereExpression:
                     $$ = (Node *) createNestedSubquery("ALL",$1, "<>", $5);
                 }
             }
-        | optionalNot EXISTS '(' queryStmt ')'
+        | /* optionalNot */ EXISTS '(' queryStmt ')'
             {
-                if ($1 == NULL)
-                {
+                /* if ($1 == NULL)
+                { */
                     RULELOG("whereExpression::EXISTS");
-                    $$ = (Node *) createNestedSubquery($2, NULL, $1, $4);
-                }
+                    $$ = (Node *) createNestedSubquery($1, NULL, NULL, $3);
+               /*  }
                 else
                 {
                     RULELOG("whereExpression::EXISTS::NOT");
                     $$ = (Node *) createNestedSubquery($2, NULL, "<>", $4);
-                }
+                } */
             }
     ;
 

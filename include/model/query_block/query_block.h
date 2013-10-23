@@ -132,7 +132,8 @@ typedef struct NestedSubquery
 typedef struct Insert
 {
     NodeTag type;
-    char *nodeName;
+    char *tableName;
+    List *attrList;
     Node *query;
 } Insert;
 
@@ -169,7 +170,7 @@ extern DistinctClause *createDistinctClause (List *distinctExprs);
   //      char *comparisonOp, Node *query);
 extern NestedSubquery *createNestedSubquery (char *nType, Node *expr,
      char *comparisonOp, Node *query);
-extern Insert *createInsert(char *nodeName, Node *query);
+extern Insert *createInsert(char *nodeName, Node *query, List*);
 extern Delete *createDelete(char *nodeName, Node *cond);
 extern Update *createUpdate(char *nodeName, List *selectClause, Node *cond);
 

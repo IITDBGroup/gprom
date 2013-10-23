@@ -286,7 +286,7 @@ static Insert *
 copyInsert(Insert *from)
 {
     COPY_INIT(Insert);
-    COPY_STRING_FIELD(nodeName);
+    COPY_STRING_FIELD(tableName);
     COPY_NODE_FIELD(query);
 
     return new;

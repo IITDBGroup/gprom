@@ -141,11 +141,12 @@ createNestedSubquery (char *nType, Node *expr,
 }
 
 Insert *
-createInsert(char *nodeName, Node *query)
+createInsert(char *nodeName, Node *query, List *attrs)
 {
     Insert *result = makeNode(Insert);
-    result->nodeName = nodeName;
+    result->tableName = nodeName;
     result->query = query;
+    result->attrList = attrs;
 
     return result;
 }

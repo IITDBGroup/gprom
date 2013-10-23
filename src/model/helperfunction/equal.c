@@ -256,7 +256,7 @@ equalQueryBlock(QueryBlock *a, QueryBlock *b)
 static boolean 
 equalInsert(Insert *a, Insert *b)
 {
-    COMPARE_STRING_FIELD(nodeName);
+    COMPARE_STRING_FIELD(tableName);
     COMPARE_NODE_FIELD(query);
    
     return TRUE;

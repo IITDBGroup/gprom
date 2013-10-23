@@ -125,7 +125,7 @@ static void
 outInsert(StringInfo str, Insert *node)
 {
     WRITE_NODE_TYPE(INSERT);
-    WRITE_STRING_FIELD(nodeName);
+    WRITE_STRING_FIELD(tableName);
     WRITE_NODE_FIELD(query);
 }
 static void 
