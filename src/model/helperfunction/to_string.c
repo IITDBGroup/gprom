@@ -175,7 +175,7 @@ outConstant (StringInfo str, Constant *node)
             appendStringInfo(str, "%f", *((double *) node->value));
             break;
         case DT_STRING:
-            appendStringInfoString(str, (char *) node->value);
+            appendStringInfo(str, "'%s'", (char *) node->value);
             break;
         case DT_BOOL:
             appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
