@@ -126,6 +126,7 @@ outInsert(StringInfo str, Insert *node)
 {
     WRITE_NODE_TYPE(INSERT);
     WRITE_STRING_FIELD(tableName);
+    WRITE_NODE_FIELD(attrList);
     WRITE_NODE_FIELD(query);
 }
 static void 
@@ -498,6 +499,7 @@ beatify(char *input)
     char *result;
     int indentation = 0;
     boolean inString = FALSE;
+    boolean inStringConst = FALSE;
 
     if(input == NULL)
         return NULL;
@@ -511,6 +513,31 @@ beatify(char *input)
             {
                 case '"':
                     inString = FALSE;
+                default:
+                    appendStringInfoChar (str, c);
+            }
+        }
+        else if (inStringConst)
+        {
+            switch(c)
+            {
+                case '\'':
+                {
+                    inStringConst = FALSE;
+                    appendStringInfoChar (str, c);
+                }
+                break;
+                case '\\':
+                {
+                    if ((c + 1) == '\'')
+                    {
+                        c++;
+                        appendStringInfoString(str, "\\'");
+                    }
+                    else
+                        appendStringInfoChar (str, c);
+                }
+                break;
                 default:
                     appendStringInfoChar (str, c);
             }
@@ -546,6 +573,12 @@ beatify(char *input)
                     break;
                 case '"':
                     inString = TRUE;
+                    appendStringInfoChar (str, c);
+                    break;
+                case '\'':
+                    inStringConst = TRUE;
+                    appendStringInfoChar (str, c);
+                    break;
                 default:
                     appendStringInfoChar (str, c);
             }

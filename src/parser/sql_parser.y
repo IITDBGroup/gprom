@@ -225,7 +225,10 @@ setExpression:
  */
 insertQuery:
         INSERT INTO identifier VALUES '(' insertList ')'
-            { RULELOG("insertQuery::insertList"); $$ = NULL; } 
+            { 
+            	RULELOG("insertQuery::insertList"); 
+            	$$ = (Node *) createInsert($3,(Node *) $6, NULL); 
+        	} 
         | INSERT INTO identifier queryStmt
             { 
                 RULELOG("insertQuery::queryStmt");
@@ -235,9 +238,15 @@ insertQuery:
 
 insertList:
         constant
-            { RULELOG("insertList::IDENTFIER::dataType"); }
+            { 
+            	RULELOG("insertList::constant");
+            	$$ = singleton($1); 
+            }
         | insertList ',' constant
-            { RULELOG("insertList::insertList::IDENTFIER::dataType"); }
+            { 
+            	RULELOG("insertList::insertList::constant");
+            	$$ = appendToTailOfList($1, $3);
+            }
 /* No Provision made for this type of insert statements */
     ;
 

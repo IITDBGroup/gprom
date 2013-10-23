@@ -138,13 +138,16 @@ ORDER        TOK(ORDER)
 
 	/* strings */
 '[^'\n]*'	{
-		int c = input();
-		unput(c);	
-		if(c != '\'') {
-			yylval.stringVal = strdup(yytext);
-			return stringConst;
-		} else
-			yymore();
+	//	int c = input();
+	//	unput(c);	
+	//	if(c != '\'') {
+		yylval.stringVal = MALLOC(strlen(yytext) - 1);
+		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
+		yylval.stringVal[strlen(yytext) -1] = '\0';
+		TRACE_LOG("Lexed TOKEN <stringConst> with VALUE <%s>", yytext);
+		return stringConst;
+	//	} else
+	//		yymore();
 	}
 
 		
