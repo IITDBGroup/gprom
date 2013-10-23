@@ -17,24 +17,25 @@
 #include "uthash.h"
 
 Set *
-newSet(NodeTag type)
+newSet(SetType set, int typelen, boolean (*eq) (void *, void *))
 {
     Set *result = makeNode(Set);
 
-    result->elemType = type;
+    result->setType = set;
     result->elem = NULL;
+    result->typelen = typelen;
+    result->eq = eq;
 
     return result;
 }
+
 
 boolean
 hasSetElem (Set *set, void *elem)
 {
     SetElem *result;
 
-    assert(IsA(elem, set->elemType));
-
-    HASH_FIND_NODE(set->elem, &elem, result);
+    HASH_FIND_CMP(hh,set->elem, &elem, set->typelen, result, set->eq);
 
     return result != NULL;
 }
@@ -43,7 +44,9 @@ boolean
 hasSetIntElem (Set *set, int elem)
 {
     SetElem *result;
+
     HASH_FIND_INT(set->elem, &elem, result);
+
     return result != NULL;
 }
 
@@ -90,7 +93,7 @@ removeSetElem (Set *set, void *elem)
     if (e != NULL)
     {
         HASH_DEL(set->elem, e);
-        if (set->elemType != T_Invalid) // && set->type != T_IntSet)
+        if (set->setType == SET_TYPE_NODE) // && set->type != T_IntSet)
             deepFree(e->data);
         else
             FREE(e->data);

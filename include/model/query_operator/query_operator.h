@@ -84,12 +84,6 @@ typedef struct DuplicateRemoval
     List *attrs; // attributes that need duplicate removal, AttributeReference type
 } DuplicateRemoval;
 
-typedef enum ProvenanceType
-{
-    PI_CS,
-    TRANSFORMATION
-} ProvenanceType;
-
 typedef struct ProvenanceComputation
 {
     QueryOperator op;

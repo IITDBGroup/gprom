@@ -386,7 +386,7 @@ concatTwoLists(List *lista, List*listb)
 	lista->length += listb->length;
 
     assert(checkList(lista));
-    freeList(listb);
+    FREE(listb);
     return lista;
 }
 

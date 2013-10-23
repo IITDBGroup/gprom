@@ -56,6 +56,11 @@ typedef struct Node{
     NodeTag type;
 } Node;
 
+typedef enum ProvenanceType
+{
+    PI_CS,
+    TRANSFORMATION
+} ProvenanceType;
 
 /*stringinfo provides the string data type*/
 
