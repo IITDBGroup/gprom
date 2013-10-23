@@ -41,7 +41,7 @@ Node *bisonParseResult = NULL;
 %token <floatVal> floatConst
 %token <stringVal> stringConst
 %token <stringVal> identifier
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '('
+%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
 
 /*
  * Tokens for in-built keywords
@@ -56,9 +56,10 @@ Node *bisonParseResult = NULL;
 %token <stringVal> DISTINCT
 %token <stringVal> STARALL
 %token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN EXCEPT EXISTS
-%token <stringVal> AMMSC NULLVAL ALL ANY BY IS SOME
+%token <stringVal> AMMSC NULLVAL ALL ANY IS SOME
 %token <stringVal> UNION INTERSECT MINUS
-%token <stringVal> INTO VALUES
+%token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
+%token <stringVal> INT
 
 %token <stringVal> DUMMYEXPR
 
@@ -95,12 +96,14 @@ Node *bisonParseResult = NULL;
 %type <node> stmt provStmt dmlStmt queryStmt
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
-%type <list> selectClause optionalFrom fromClause exprList // select and from clauses are lists
-%type <node> selectItem fromClauseItem optionalDistinct optionalWhere
-%type <node> expression constant attributeRef sqlFunctionCall whereExpression
+%type <list> selectClause optionalFrom fromClause exprList clauseList optionalGroupBy optionalOrderBy setClause// select and from clauses are lists
+             insertList
+%type <node> selectItem fromClauseItem optionalDistinct optionalWhere optionalLimit optionalHaving
+             //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
+%type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
 /*%type <node> optionalJoinClause optionalJoinCond*/
-%type <stringVal> optionalAlias optionalAll nestedSubQueryOperator optionalNot 
+%type <stringVal> optionalAlias optionalAll nestedSubQueryOperator optionalNot dataType fromString
 
 %start stmt
 
@@ -156,21 +159,90 @@ provStmt:
  * Rule to parse delete query
  */ 
 deleteQuery: 
-         DELETE         { RULELOG(deleteQuery); $$ = NULL; }
+         DELETE fromString identifier WHERE whereExpression /* optionalReturning */
+         { 
+             RULELOG("deleteQuery");
+             $$ = createDelete($3, $5);
+         }
+/* No provision made for RETURNING statements in delete clause */
     ;
+
+fromString:
+        /* Empty */        { RULELOG("fromString::NULL"); $$ = NULL; }
+        | FROM        { RULELOG("fromString::FROM"); $$ = $1; }
+    ;
+
          
+//optionalReturning:
+/*         Empty         { RULELOG("optionalReturning::NULL"); $$ = NULL; }
+        | RETURNING expression INTO identifier
+            { RULELOG("optionalReturning::RETURNING"); }
+    ; */
+
 /*
  * Rules to parse update query
  */
 updateQuery:
-        UPDATE        { RULELOG(updateQuery); $$ = NULL; }
+        UPDATE identifier SET setClause optionalWhere
+            { 
+                RULELOG(updateQuery); 
+                $$ = createUpdate($2, $4, $5); 
+            }
+    ;
+
+setClause:
+        setExpression
+            {
+                RULELOG("setClause::setExpression");
+                $$ = singleton($1);
+            }
+        | setClause ',' setExpression
+            {
+                RULELOG("setClause::setClause::setExpression");
+                $$ = appendToTailOfList($1, $3);
+            }
+    ;
+
+setExpression:
+        attributeRef comparisonOps expression
+            {
+                RULELOG("setExpression::attributeRef::expression");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
+        | attributeRef comparisonOps '(' queryStmt ')'
+            {
+                RULELOG("setExpression::attributeRef::queryStmt");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr($2, expr);
+            }
     ;
 
 /*
  * Rules to parse insert query
  */
 insertQuery:
-        INSERT 		  { RULELOG(insertQuery); $$ = NULL; } 
+        INSERT INTO identifier VALUES '(' insertList ')'
+            { RULELOG("insertQuery::insertList"); $$ = NULL; } 
+        | INSERT INTO identifier queryStmt
+            { 
+                RULELOG("insertQuery::queryStmt");
+                $$ = createInsert($3, $4);
+            }
+    ;
+
+insertList:
+        attributeRef dataType
+            { RULELOG("insertList::IDENTFIER::dataType"); }
+        | insertList ',' attributeRef dataType
+            { RULELOG("insertList::insertList::IDENTFIER::dataType"); }
+/* No Provision made for this type of insert statements */
+    ;
+
+dataType:
+        | INT 
     ;
 
 /*
@@ -206,7 +278,7 @@ optionalAll:
  *             'SELECT [DISTINCT clause] selectClause FROM fromClause WHERE whereClause'
  */
 selectQuery: 
-        SELECT optionalDistinct selectClause optionalFrom optionalWhere
+        SELECT optionalDistinct selectClause optionalFrom optionalWhere optionalGroupBy optionalHaving optionalOrderBy optionalLimit
             {
                 RULELOG(selectQuery);
                 QueryBlock *q =  createQueryBlock();
@@ -215,6 +287,10 @@ selectQuery:
                 q->selectClause = $3;
                 q->fromClause = $4;
                 q->whereClause = $5;
+                q->groupByClause = $6;
+                q->havingClause = $7;
+                q->orderByClause = $8;
+                q->limitClause = $9;
                 
                 $$ = (Node *) q; 
             }
@@ -506,7 +582,7 @@ whereExpression:
             } 
         | expression comparisonOps nestedSubQueryOperator '(' queryStmt ')'
             {
-                RULELOG("binaryOperatorExpression::Subquery");
+                RULELOG("whereExpression::comparisonOps::nestedSubQueryOperator::Subquery");
                 $$ = (Node *) createNestedSubquery($3, $1, $2, $5);
             }
         | expression comparisonOps '(' queryStmt ')'
@@ -518,20 +594,29 @@ whereExpression:
             }
         | expression optionalNot IN '(' queryStmt ')'
             {
-                RULELOG("whereExpression::IN");
                 if ($2 == NULL)
                 {
+                    RULELOG("whereExpression::IN");
                     $$ = (Node *) createNestedSubquery("ANY", $1, "=", $5);
                 }
                 else
                 {
+                    RULELOG("whereExpression::NOT::IN");
                     $$ = (Node *) createNestedSubquery("ALL",$1, "<>", $5);
                 }
             }
         | optionalNot EXISTS '(' queryStmt ')'
             {
-                RULELOG("whereExpression::EXISTS");
-                /* How should I call function for this? No provision for NOT */
+                if ($1 == NULL)
+                {
+                    RULELOG("whereExpression::EXISTS");
+                    $$ = (Node *) createNestedSubquery($2, NULL, $1, $4);
+                }
+                else
+                {
+                    RULELOG("whereExpression::EXISTS::NOT");
+                    $$ = (Node *) createNestedSubquery($2, NULL, "<>", $4);
+                }
             }
     ;
 
@@ -544,6 +629,55 @@ nestedSubQueryOperator:
 optionalNot:
         /* Empty */    { RULELOG("optionalNot::NULL"); $$ = NULL; }
         | NOT    { RULELOG("optionalNot::NOT"); $$ = $1; }
+    ;
+
+optionalGroupBy:
+        /* Empty */        { RULELOG("optionalGroupBy::NULL"); $$ = NULL; }
+        | GROUP BY clauseList      { RULELOG("optionalGroupBy::GROUPBY"); $$ = $3; }
+    ;
+
+optionalHaving:
+        /* Empty */        { RULELOG("optionalOrderBy:::NULL"); $$ = NULL; }
+        | HAVING sqlFunctionCall comparisonOps expression
+            { 
+                RULELOG("optionalHaving::HAVING"); 
+                List *expr = singleton($2);
+                expr = appendToTailOfList(expr, $4);
+                $$ = (Node *) createOpExpr($3, expr);
+            }
+    ;
+
+optionalOrderBy:
+        /* Empty */        { RULELOG("optionalOrderBy:::NULL"); $$ = NULL; }
+        | ORDER BY clauseList       { RULELOG("optionalOrderBy::ORDERBY"); $$ = $3; }
+    ;
+
+optionalLimit:
+        /* Empty */        { RULELOG("optionalLimit::NULL"); $$ = NULL; }
+        | LIMIT constant        { RULELOG("optionalLimit::CONSTANT"); $$ = $2;}
+    ;
+
+clauseList:
+        attributeRef
+            {
+                RULELOG("clauseList::attributeRef");
+                $$ = singleton($1);
+            }
+        | clauseList ',' attributeRef
+            {
+                RULELOG("clauseList::clauseList::attributeRef");
+                $$ = appendToTailOfList($1, $3);
+            }
+        | constant
+            {
+                RULELOG("clauseList::constant");
+                $$ = singleton($1);
+            }
+        | clauseList ',' constant
+            {
+                RULELOG("clauseList::clauseList::attributeRef");
+                $$ = appendToTailOfList($1, $3);
+            }
     ;
 
 %%
