@@ -277,6 +277,8 @@ outAttributeReference (StringInfo str, AttributeReference *node)
     WRITE_NODE_TYPE(ATTRIBUTE_REFERENCE);
 
     WRITE_STRING_FIELD(name);
+    WRITE_INT_FIELD(fromClauseItem);
+    WRITE_INT_FIELD(attrPosition);
 }
 
 static void 

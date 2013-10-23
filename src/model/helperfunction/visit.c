@@ -158,21 +158,21 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         case T_FromTableRef:
         	{
         		PREP_VISIT(FromTableRef);
-        		VISIT(from.attrNames);
+        		//VISIT(from.attrNames);
         		//VISIT(tableId);
         	}
         	break;
         case T_FromSubquery:
         	{
         		PREP_VISIT(FromSubquery);
-        		VISIT(from.attrNames);
+        		//VISIT(from.attrNames);
         		VISIT(subquery);
         	}
         	break;
         case T_FromJoinExpr:
         	{
         		PREP_VISIT(FromJoinExpr);
-        		VISIT(from.attrNames);
+        		//VISIT(from.attrNames);
         		VISIT(left);
         		VISIT(right);
         		VISIT(cond);
