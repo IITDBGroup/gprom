@@ -90,6 +90,12 @@ typedef struct ProvenanceComputation
     ProvenanceType provType;
 } ProvenanceComputation;
 
+typedef struct UpdateOperator
+{
+    QueryOperator op;
+    char *tableName;
+} UpdateOperator;
+
 /* schema helper functions */
 extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames, List *dataTypes);

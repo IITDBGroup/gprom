@@ -97,7 +97,7 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList clauseList optionalGroupBy optionalOrderBy setClause// select and from clauses are lists
-             insertList
+             insertList stmtList
 %type <node> selectItem fromClauseItem optionalDistinct optionalWhere optionalLimit optionalHaving
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
 %type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
@@ -105,23 +105,35 @@ Node *bisonParseResult = NULL;
 /*%type <node> optionalJoinClause optionalJoinCond*/
 %type <stringVal> optionalAlias optionalAll nestedSubQueryOperator optionalNot fromString
 
-%start stmt
+%start stmtList
 
 %%
 
 /* Rule for all types of statements */
+stmtList: 
+		stmt 
+			{ 
+				RULELOG("stmtList::stmt"); 
+				$$ = singleton($1);
+				bisonParseResult = (Node *) $$;	 
+			}
+	| stmtList stmt 
+			{
+				RULELOG("stmtlist::stmtList::stmt");
+				$$ = appendToTailOfList($1, $2);	
+				bisonParseResult = (Node *) $$; 
+			}
+
 stmt: 
         dmlStmt ';'    // DML statement can be select, update, insert, delete
         {
             RULELOG("stmt::dmlStmt");
             $$ = $1;
-            bisonParseResult = (Node *) $$;
         }
 	| queryStmt ';'
         {
             RULELOG("stmt::queryStmt");
             $$ = $1;
-            bisonParseResult = (Node *) $$;
         }
     ;
 

@@ -63,7 +63,7 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libanalysis_la_DEPENDENCIES =
-am_libanalysis_la_OBJECTS = translator.lo
+am_libanalysis_la_OBJECTS = translator.lo translate_update.lo
 libanalysis_la_OBJECTS = $(am_libanalysis_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -210,7 +210,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include
 noinst_LTLIBRARIES = libanalysis.la
-libanalysis_la_SOURCES = translator.c
+libanalysis_la_SOURCES = translator.c translate_update.c
 libanalysis_la_LIBADD = 
 all: all-am
 
@@ -264,6 +264,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/translate_update.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/translator.Plo@am__quote@
 
 .c.o:
