@@ -15,6 +15,7 @@
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/list/list.h"
+#include "model/expression/expression.h"
 
 static void analyzeQueryBlock (QueryBlock *qb);
 static void analyzeJoin (FromJoinExpr *j);
