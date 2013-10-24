@@ -103,6 +103,8 @@ copyAttributeReference(AttributeReference *from)
 {
     COPY_INIT(AttributeReference);
     COPY_STRING_FIELD(name);
+    COPY_SCALAR_FIELD(fromClauseItem);
+    COPY_SCALAR_FIELD(attrPosition);
 
     return new;
 }
