@@ -14,9 +14,12 @@
 
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
+#include "model/list/list.h"
 
 static void analyzeQueryBlock (QueryBlock *qb);
 static void analyzeJoin (FromJoinExpr *j);
+
+static void analyzeFromTableRef(FromTableRef *f);
 
 void
 analyzeQueryBlockStmt (Node *stmt)
@@ -59,6 +62,9 @@ analyzeQueryBlock (QueryBlock *qb)
             {
                 analyzeJoin((FromJoinExpr *) f);
             }
+            break;
+            default:
+            	break;
         }
     }
     // collect attribute references
@@ -101,7 +107,14 @@ analyzeJoin (FromJoinExpr *j)
     }
     else
     {
-        j->from.attrNames = copy(left->attrNames);
-        j->from.attrNames = listConcat(j->from.attrNames, copy(right->attrNames));
+        j->from.attrNames = copyList(left->attrNames);
+        j->from.attrNames = concatTwoLists(j->from.attrNames, copyList(right->attrNames));
     }
+    //JOIN_COND_USING
+    //JOIN_COND_ON
+}
+
+static void analyzeFromTableRef(FromTableRef *f)
+{
+
 }
