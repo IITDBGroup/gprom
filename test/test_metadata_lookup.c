@@ -216,4 +216,10 @@ setupMetadataLookup(void)
     return PASS;
 }
 
+static rc
+testDatabaseConnectionClose()
+{
+	return PASS;
+}
+
 #endif
