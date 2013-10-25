@@ -19,7 +19,7 @@
 
 static void analyzeQueryBlock (QueryBlock *qb);
 static void analyzeJoin (FromJoinExpr *j);
-
+static boolean findAttrReferences (Node *node, List **state);
 static void analyzeFromTableRef(FromTableRef *f);
 
 void
@@ -69,7 +69,7 @@ analyzeQueryBlock (QueryBlock *qb)
         }
     }
     // collect attribute references
-
+    findAttrReferences(qb, &attrRefs);
     // adapt attribute references
     FOREACH(AttributeReference,a,attrRefs)
     {
@@ -77,6 +77,21 @@ analyzeQueryBlock (QueryBlock *qb)
         // look name in from clause attributes
         // set
     }
+}
+
+static boolean
+findAttrReferences (Node *node, List **state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        *state = appendToTailOfList(*state, node);
+    }
+
+    if (isA(node, FromJoinItem) || ) //other from items
+        return visit(node, findAttrReferences, state);
 }
 
 static void

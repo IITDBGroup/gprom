@@ -67,6 +67,8 @@ static void serializeQueryBlock (QueryOperator *q, StringInfo str);
 static void serializeSetOperator (QueryOperator *q, StringInfo str);
 
 static void serializeFrom (QueryOperator *q, StringInfo from);
+static void serializeWhere (QueryOperator *q, StringInfo where);
+static void serializeSelect (QueryOperator *q, StringInfo select);
 
 static void createTempView (QueryOperator *q, StringInfo str);
 static char *createViewName (void);
@@ -139,12 +141,16 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 {
     QueryBlockMatch *matchInfo = NEW(QueryBlockMatch);
     StringInfo fromString = makeStringInfo();
+    StringInfo whereString = makeStringInfo();
+    StringInfo selectString = makeStringInfo();
     MatchState state = MATCH_START;
     QueryOperator *cur = q;
 
     // do the matching
     while(state != MATCH_NEXTBLOCK && cur != NULL)
     {
+        // first check that cur does not have more than one parent
+
         switch(state)
         {
             /* START state */
@@ -153,10 +159,23 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                     switch(cur->type)
                     {
                         case T_SelectionOperator:
+                        {
+                            QueryOperator *child = OP_LCHILD(cur);
+                            if (child->type == T_AggregationOperator)
+                            {
 
+                            }
+                            /* WHERE */
+                            else
+                            {
+                                matchInfo->where = cur;
+                                state = MATCH_WHERE;
+                            }
+                        }
                             break;
                         case T_JoinOperator:
                             matchInfo->fromRoot = cur;
+                            state = MATCH_NEXTBLOCK;
                             break;
                         default: //TODO add other cases
                             break;
@@ -176,6 +195,25 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
     // translate FROM
     serializeFrom(matchInfo->fromRoot, fromString);
 
+    if(matchInfo->where != NULL)
+        serializeWhere(matchInfo->where, whereString);
+
+    if(matchInfo->secondProj != NULL)
+        serializeSelect(matchInfo->secondProj, selectString);
+    else
+        appendStringInfoString(selectString, "*");
+
+    // put everything together
+    appendStringInfoString(str, "\nSELECT ");
+    appendStringInfoString(str, selectString->data);
+
+    appendStringInfoString(str, "\nFROM ");
+    appendStringInfoString(str, fromString->data);
+
+    appendStringInfoString(str, "\nWHERE ");
+    appendStringInfoString(str, whereString->data);
+
+
     FREE(matchInfo);
 }
 
@@ -184,6 +222,24 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
  */
 static void
 serializeFrom (QueryOperator *q, StringInfo from)
+{
+
+}
+
+/*
+ * Translate a selection into a WHERE clause
+ */
+static void
+serializeWhere (QueryOperator *q, StringInfo where)
+{
+
+}
+
+/*
+ * Create the SELECT clause
+ */
+static void
+serializeSelect (QueryOperator *q, StringInfo select)
 {
 
 }
@@ -229,7 +285,7 @@ createTempView (QueryOperator *q, StringInfo str)
     TemporaryViewMap *view;
 
     // create sql code to create view
-    appendStringInfo(viewDef, "WITH %s AS (", viewName);
+    appendStringInfo(viewDef, "%s AS (", viewName);
     serializeQueryOperator(q, viewDef);
     appendStringInfoString(viewDef, ")\n\n");
 
