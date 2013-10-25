@@ -556,6 +556,71 @@ fromClauseItem:
             }
     ;
     
+fromJoinItem:
+      identifier 'JOIN' identifier optionalAlias
+          {
+                RULELOG("Join");
+                $$ = (Node *) createFromJoin( $4, NIL, $1, $3, $2, NIL);
+          }
+        | identifier 'JOIN' 'ON' optionalAlias
+          {
+                RULELOG("Join...on condition");
+                $$ = (Node *) createFromJoin( $4 ,NIL, $1, NIL, $2, $3);
+          }
+       | identifier 'JOIN' identifier 'USING' optionalAlias
+         {
+                RULELOG("Join..Using");
+                $$ = (Node *) createFromJoin( $4 ,NIL, $1, NIL, $2, $3);
+         }
+       | identifier 'CROSS' identifier optionalAlias
+
+         {
+               RULELOG("Cross Join");
+               $$ = (Node *) createFromJoin( $4, NIL, $1, $3, $2, NIL);
+         }
+       | identifier 'INNER' identifier optionalAlias
+         {
+               RULELOG("Inner Join");
+               $$ = (Node *) createFromJoin( $4, NIL, $1, $3, $2, NIL);
+    
+         }
+       | dentifier 'INNER' identifier "ON" optionalAlias
+         {
+              RULELOG("outer join ....on.... ");
+              $$ = (Node *) createFromJoin( $4 ,NIL, $1, NIL, $2, $3);
+         }
+
+       | dentifier 'INNER' identifier "USING" optionalAlias
+         {
+             RULELOG("inner join ....using.... ");
+             $$ = (Node *) createFromJoin( $4 ,NIL, $1, NIL, $2, $3);
+         }
+
+
+       | identifier 'OUTER' identifier optionalAlias
+         {
+             RULELOG("Outer Join");
+             $$ = (Node *) createFromJoin( $4, NIL, $1, $3, $2, NIL);
+    
+         }
+       | identifier 'OUTER' identifier "ON" optionalAlias
+         {
+            RULELOG("outer join ....on.... ");
+            $$ = (Node *) createFromJoin( $4 ,NIL, $1, NIL, $2, $3);
+         }
+       | identifier 'OUTER' identifier "USING" optionalAlias
+         {
+            RULELOG("outer join ....using.... ");
+            $$ = (Node *) createFromJoin( $4 ,NIL, $1, NIL, $2, $3);
+         }
+
+       |identifier  'FULL ' identifier optionalAlias
+         {
+           RULELOG(" Full Join");
+           $$ = (Node *) createFromJoin( $4, NIL, $1, $3, $2, NIL);
+         }
+     ;
+    
 optionalAlias:
         /* empty */                { RULELOG("optionalAlias::NULL"); $$ = NULL; }
         | identifier            { RULELOG("optionalAlias::identifier"); $$ = $1; }
