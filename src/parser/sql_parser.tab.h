@@ -119,8 +119,9 @@ union YYSTYPE
      char *stringVal;
      int intVal;
      double floatVal;
+     JoinType joinType;
 
-#line 124 "sql_parser.tab.h" /* yacc.c:1909  */
+#line 125 "sql_parser.tab.h" /* yacc.c:1909  */
 };
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1
