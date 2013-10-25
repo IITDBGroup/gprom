@@ -18,6 +18,8 @@
 #include "model/expression/expression.h"
 
 static void analyzeQueryBlock (QueryBlock *qb);
+static void analyzeSetQuery (SetQuery *q);
+static void analyzeProvenanceStmt (ProvenanceStmt *q);
 static void analyzeJoin (FromJoinExpr *j);
 static boolean findAttrReferences (Node *node, List **state);
 static void analyzeFromTableRef(FromTableRef *f);
@@ -35,6 +37,8 @@ analyzeQueryBlockStmt (Node *stmt)
             break;
         case T_ProvenanceStmt:
             analyzeProvenanceStmt((ProvenanceStmt *) stmt);
+            break;
+        default:
             break;
     }
 }
@@ -69,7 +73,7 @@ analyzeQueryBlock (QueryBlock *qb)
         }
     }
     // collect attribute references
-    findAttrReferences(qb, &attrRefs);
+    findAttrReferences((Node *) qb, &attrRefs);
     // adapt attribute references
     FOREACH(AttributeReference,a,attrRefs)
     {
@@ -90,8 +94,10 @@ findAttrReferences (Node *node, List **state)
         *state = appendToTailOfList(*state, node);
     }
 
-    if (isA(node, FromJoinItem) || ) //other from items
+    if (isA(node, FromJoinExpr)) //other from items
         return visit(node, findAttrReferences, state);
+    else
+        return TRUE;
 }
 
 static void
@@ -105,7 +111,7 @@ analyzeJoin (FromJoinExpr *j)
         case T_FromTableRef:
             break;
         case T_FromJoinExpr:
-            analyzeJoin(left);
+            analyzeJoin((FromJoinExpr *) left);
             break;
         case T_FromSubquery:
         {
@@ -131,6 +137,18 @@ analyzeJoin (FromJoinExpr *j)
 }
 
 static void analyzeFromTableRef(FromTableRef *f)
+{
+
+}
+
+static void
+analyzeSetQuery (SetQuery *q)
+{
+
+}
+
+static void
+analyzeProvenanceStmt (ProvenanceStmt *q)
 {
 
 }
