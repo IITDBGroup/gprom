@@ -55,7 +55,6 @@ typedef enum AGG
 
 } AGG;
 
-
 extern boolean catalogTableExists (char * tableName);
 extern boolean catalogViewExists (char * viewName);
 extern List *getAttributes (char *tableName);

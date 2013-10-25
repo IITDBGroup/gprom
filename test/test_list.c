@@ -57,5 +57,14 @@ testIntList(void)
 static rc
 testPList(void)
 {
+//	List *newList = NIL;
+//
+//	char *a = "a";
+//	newList = appendToTailOfList(newList, a);
+//	ASSERT_EQUALS_P(a, getHeadOfList(newList), "Pointer a has added");
+//	char *b = "b";
+//	newList = appendToTailOfList(newList, b);
+//	ASSERT_EQUALS_P(b, getTailOfList(newList), "Pointer b has added");
+
     return PASS;
 }
