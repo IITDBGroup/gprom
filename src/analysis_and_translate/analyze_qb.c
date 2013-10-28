@@ -60,7 +60,19 @@ analyzeQueryBlock (QueryBlock *qb)
             {
                 FromSubquery *sq = (FromSubquery *) f;
                 analyzeQueryBlockStmt(sq->subquery);
-
+                switch(sq->subquery->type)
+                {
+                    case T_QueryBlock:
+                    {
+                        QueryBlock *subQb = (QueryBlock *) sq->subquery;
+                        FOREACH(SelectItem,s,subQb->selectClause)
+                        {
+                            sq->from.attrNames = appendToTailOfList(sq->from.attrNames,s->alias); //TODO
+                        }
+                    }
+                        break;
+                    default: break;
+                }
             }
             break;
             case T_FromJoinExpr:
