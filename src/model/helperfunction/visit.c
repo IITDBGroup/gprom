@@ -41,10 +41,10 @@
  */
 
 #define VISIT(field) \
-    if (!visit((Node *) n->field, checkNode, state)) \
+    if (!checkNode((Node *) n->field, state)) \
         return FALSE;
 #define VISIT_NODE(_node) \
-    if (!visit((Node *) _node, checkNode, state)) \
+    if (!checkNode((Node *) _node, state)) \
         return FALSE;
 
 #define PREP_VISIT(_type) \
@@ -79,10 +79,10 @@ visit (Node *node, boolean (*checkNode) (), void *state)
 //        	break;
         /* expression nodes */
         case T_Constant:
-        	{
-        		PREP_VISIT(Constant);
-        		VISIT(value);
-        	}
+//        	{
+//        		PREP_VISIT(Constant);
+//        		VISIT(value);
+//        	}
             break;
         case T_AttributeReference:
             break;
