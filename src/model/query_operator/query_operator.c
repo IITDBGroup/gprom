@@ -121,7 +121,7 @@ createSelectionOp(Node *cond, QueryOperator *input, List *parents,
 {
     SelectionOperator *sel = NEW(SelectionOperator);
 
-    sel->cond = cond;
+    sel->cond = copyObject(cond);
     sel->op.type = T_SelectionOperator;
     sel->op.inputs = singleton(input);
     sel->op.schema = createSchemaFromLists("SELECT", attrNames, getDataTypes(input->schema));
@@ -155,7 +155,7 @@ createJoinOp(JoinType joinType, Node *cond, List *inputs, List *parents,
 {
     JoinOperator *join = NEW(JoinOperator);
 
-    join->cond = cond;
+    join->cond = copyObject(cond);
     join->joinType = joinType;
     join->op.type = T_JoinOperator;
     join->op.inputs = inputs;
