@@ -83,7 +83,7 @@ typedef struct List
     		getHeadOfList(_list1_)) != NULL) ? \
                     DUMMY_LC(_node1_)->data.ptr_value : NULL), \
         *_node2_ = (_type_ *)(((DUMMY_LC(_node2_) = \
-        	getHeadOfList(_list1_)) != NULL) ? \
+        	getHeadOfList(_list2_)) != NULL) ? \
             		DUMMY_LC(_node2_)->data.ptr_value : NULL) \
         ; \
             DUMMY_LC(_node1_) != NULL && DUMMY_LC(_node2_) != NULL; \

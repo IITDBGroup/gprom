@@ -15,7 +15,7 @@
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
-
+#include "log/logger.h"
 
 /* equal functions for specific node types */
 static boolean equalFunctionCall(FunctionCall *a, FunctionCall *b);
@@ -24,7 +24,7 @@ static boolean equalAttributeReference (AttributeReference *a,
 static boolean equalList(List *a, List *b);
 // equal functions for query_operator
 static boolean equalSchema(Schema *a, Schema *b);
-static boolean equalSchemaFromLists(Schema *a, Schema *b);
+//static boolean equalSchemaFromLists(Schema *a, Schema *b);
 static boolean equalAttributeDef(AttributeDef *a, AttributeDef *b);
 static boolean equalQueryOperator(QueryOperator *a, QueryOperator *b);
 static boolean equalTableAccessOperator(TableAccessOperator *a, TableAccessOperator *b);
@@ -104,6 +104,7 @@ equalList(List *a, List *b)
     COMPARE_SCALAR_FIELD(length);
 
     // lists have same type and length
+    assert(LIST_LENGTH(a) > 0 && LIST_LENGTH(b) > 0);
 
     switch(a->type)
     {
@@ -111,7 +112,7 @@ equalList(List *a, List *b)
         {
             FORBOTH(Node,l,r,a,b)
             {
-                if (!equal(a,b))
+                if (!equal(l,r))
                     return FALSE;
             }
         }
@@ -363,6 +364,8 @@ equal(void *a, void *b)
 
     if (nodeTag(a) !=nodeTag(b))
         return FALSE;
+
+    DEBUG_LOG("same node types <%s> and <%s>", nodeToString(a), nodeToString(b));
 
     switch(nodeTag(a))
     {

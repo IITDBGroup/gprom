@@ -84,7 +84,7 @@ deepCopyList(List *from)
     COPY_SCALAR_FIELD(length);
     COPY_SCALAR_FIELD(type); // if it is an Int_List
 
-    if (from->type == T_List)
+    if (from->type == T_IntList)
     {
         FOREACH_INT(i, from)
             new = appendToTailOfListInt(new, i);

@@ -363,6 +363,17 @@ selectItem:
                  RULELOG("selectItem::expression::identifier"); 
                  $$ = (Node *) createSelectItem($3, $1);
              }
+         | '*'              
+			{ 
+         		RULELOG("selectItem::*"); 
+         		$$ = (Node *) createAttributeReference("*"); 
+     		}
+         | identifier '.' '*' 
+         	{ 
+         		RULELOG("selectItem::*"); 
+     			$$ = (Node *) createAttributeReference(
+ 						CONCAT_STRINGS($1,".*")); 
+ 			}
     ; 
 
 /*
@@ -406,6 +417,7 @@ constant:
  */
 attributeRef: 
         identifier         { RULELOG("attributeRef::IDENTIFIER"); $$ = (Node *) createAttributeReference($1); }
+
 /* HELP HELP ??
        Need helper function support for attribute list in expression.
        For e.g.
