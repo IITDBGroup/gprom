@@ -18,5 +18,7 @@ translateUpdate (Node *update)
 {
     Node *q;
 
+    // test
+
     return NULL;
 }
