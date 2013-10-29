@@ -94,6 +94,43 @@ appendStringInfoString(StringInfo str, const char *s)
     str->len += strlen(s);
 }
 
+void
+appendStringInfoStrings(StringInfo str, ...)
+{
+    va_list args;
+    char *arg;
+
+    va_start(args,str);
+
+    while((arg = va_arg(args, char *)) != NULL)
+    {
+        DEBUG_LOG("append <%s> to <%s>", arg, str->data);
+        appendStringInfoString(str, arg);
+    }
+
+    va_end(args);
+}
+
+extern char *
+concatStrings(const char *s, ...)
+{
+    StringInfo str;
+    char *result;
+    va_list args;
+    char *arg;
+
+    str = makeStringInfo();
+    appendStringInfoString(str, s);
+
+    va_start(args,s);
+    while((arg = va_arg(args,char*)) != NULL)
+        appendStringInfoString(str, arg);
+    va_end(args);
+
+    result = str->data;
+    FREE(str);
+    return result;
+}
 
 void
 appendStringInfo(StringInfo str, const char *format, ...)

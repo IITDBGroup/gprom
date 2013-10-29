@@ -60,7 +60,19 @@ analyzeQueryBlock (QueryBlock *qb)
             {
                 FromSubquery *sq = (FromSubquery *) f;
                 analyzeQueryBlockStmt(sq->subquery);
-
+                switch(sq->subquery->type)
+                {
+                    case T_QueryBlock:
+                    {
+                        QueryBlock *subQb = (QueryBlock *) sq->subquery;
+                        FOREACH(SelectItem,s,subQb->selectClause)
+                        {
+                            sq->from.attrNames = appendToTailOfList(sq->from.attrNames,s->alias); //TODO
+                        }
+                    }
+                        break;
+                    default: break;
+                }
             }
             break;
             case T_FromJoinExpr:
@@ -73,7 +85,14 @@ analyzeQueryBlock (QueryBlock *qb)
         }
     }
     // collect attribute references
-    findAttrReferences((Node *) qb, &attrRefs);
+    findAttrReferences((Node *) qb->distinct, &attrRefs);
+    findAttrReferences((Node *) qb->groupByClause, &attrRefs);
+    findAttrReferences((Node *) qb->havingClause, &attrRefs);
+    findAttrReferences((Node *) qb->limitClause, &attrRefs);
+    findAttrReferences((Node *) qb->orderByClause, &attrRefs);
+    findAttrReferences((Node *) qb->selectClause, &attrRefs);
+    findAttrReferences((Node *) qb->whereClause, &attrRefs);
+
     // adapt attribute references
     FOREACH(AttributeReference,a,attrRefs)
     {
@@ -94,10 +113,10 @@ findAttrReferences (Node *node, List **state)
         *state = appendToTailOfList(*state, node);
     }
 
-    if (isA(node, FromJoinExpr)) //other from items
-        return visit(node, findAttrReferences, state);
-    else
+    if (isQBQuery(node))
         return TRUE;
+
+    return visit(node, findAttrReferences, state);
 }
 
 static void

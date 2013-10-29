@@ -184,7 +184,7 @@ singleton(void *value)
 List *
 listMake(void *elem, ...)
 {
-    List *result = NIL;
+    List *result = singleton(elem);
     int n = 0;
     va_list args;
     void *p;

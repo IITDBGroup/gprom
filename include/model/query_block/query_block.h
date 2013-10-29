@@ -10,6 +10,8 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 
+#define isQBQuery(node) (isA(node,QueryBlock) || isA(node,SetQuery) || isA(node, ProvenanceStmt))
+
 typedef enum SetOpType
 {
     SETOP_UNION,
@@ -60,6 +62,8 @@ typedef struct SelectItem
     char *alias;
     Node *expr;
 } SelectItem;
+
+#define isFromItem(node) (isA(node,FromItem) || isA(node, FromTableRef) || isA(node, FromSubquery) || isA(node, FromJoinExpr))
 
 typedef struct FromItem
 {

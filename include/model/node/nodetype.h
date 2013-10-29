@@ -81,6 +81,7 @@ typedef StringInfoData *StringInfo;
 *The function is create an empty StringInfoData and return a pointer.
 *-------------------------------------------------------------------*/
 extern StringInfo makeStringInfo(void);
+//extern StringInfo makeStringInfoString(char *string);
 
 /*------------------------------------------------------------------
 *initStringInfo
@@ -99,7 +100,11 @@ extern void resetStringInfo(StringInfo str);
 *The function is append a string to str.
 *-------------------------------------------------------------------*/
 extern void appendStringInfoString(StringInfo str, const char *s);
+extern void appendStringInfoStrings(StringInfo str, ...);
+extern char *concatStrings(const char *s, ...);
+
 #define CONCAT_STRINGINFO(str, other) appendStringInfoString(str, other->data)
+#define CONCAT_STRINGS(...) concatStrings(__VA_ARGS__, NULL)
 
 /*------------------------------------------------------------------
 * The function is append to a StringInfo using a format string and a variable
