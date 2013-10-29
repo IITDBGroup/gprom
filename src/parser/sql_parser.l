@@ -56,6 +56,8 @@ float 			(({integer}|{decimal})([eE][+-]?{integer})?)
 /* names (e.g., tables, attributes) */
 identStart		[A-Za-z]
 identContinue	[A-Za-z0-9_%?]
+doublequote     [\"]
+quotedIdentifier		{doublequote}[^\"]+{doublequote}
 identifiers		({identStart}{identContinue}*)
 
 /* operators */
@@ -131,6 +133,12 @@ ORDER        TOK(ORDER)
 	
 	/* names */
 {identifiers}	TOK(identifier)
+{quotedIdentifier}   { 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
+		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
+		yylval.stringVal[strlen(yytext) -1] = '\0';
+		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", yytext);
+		return identifier;
+	}	
 
 	/* numbers */
 {integer}	TOKSAVE(intConst,intVal,atoi)
