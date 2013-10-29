@@ -14,18 +14,30 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/list/list.h"
+#include "mem_manager/mem_mgr.h"
+#include "model/expression/expression.h"
 #include <assert.h>
 
 static QueryOperator *translateQuery (Node *node);
+
+/* Three branches of translating a Query */
 static QueryOperator *translateSetQuery(SetQuery *sq);
 static QueryOperator *translateQueryBlock(QueryBlock *qb);
+static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov);
+
+/* Functions of translating from clause in a QueryBlock */
 static QueryOperator *translateFromClause(List *fromClause);
 static QueryOperator *buildJoinTreeFromOperatorList(List *opList);
 static List *translateFromClauseToOperatorList(List *fromClause);
+static int *getAttrsOffsets(List *fromClause);
 static inline QueryOperator *createTableAccessOpFromFromTableRef(FromTableRef *ftr);
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje);
 static QueryOperator *translateFromSubquery(FromSubquery *fsq);
-static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov);
+
+/* Functions of translating where clause in a QueryBlock */
+static QueryOperator *translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot, int *attrsOffsets);
+static boolean visitAttrRefToSetNewAttrPos(Node *n, void *state);
+
 
 QueryOperator *
 translateParse(Node *q)
@@ -88,9 +100,28 @@ translateSetQuery(SetQuery *sq)
 static QueryOperator *
 translateQueryBlock(QueryBlock *qb)
 {
-    QueryOperator *fromTreeRoot = translateFromClause(qb->fromClause);
-    // TODO translate where, selection clause
+    QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause);
+    int *attrsOffsets = getAttrsOffsets(qb->fromClause);
+    QueryOperator *select = translateWhereClause(qb->whereClause, joinTreeRoot, attrsOffsets);
+    // TODO translate selection clause
     return NULL;
+}
+
+static QueryOperator *
+translateProvenanceStmt(ProvenanceStmt *prov)
+{
+    QueryOperator *child;
+    ProvenanceComputation *result;
+    List *attrs = NIL;
+    Schema *schema = NULL;
+    //TODO create attribute list by analyzing subquery under child
+    child = translateQuery(prov->query);
+
+    result = createProvenanceComputOp(PI_CS, singleton(child), NIL, NIL, attrs); //TODO adapt function parameters
+
+    child->parents = singleton(result);
+
+    return (QueryOperator *) result;
 }
 
 static QueryOperator *
@@ -124,6 +155,22 @@ buildJoinTreeFromOperatorList(List *opList)
         // set the parent of the node's children
     }
     return root;
+}
+
+static int *
+getAttrsOffsets(List *fromClause)
+{
+    int len = getListLength(fromClause);
+    int *offsets = CNEW(int, len);
+    offsets[0] = 0;
+    int i = 0;
+    FOREACH(FromItem, from, fromClause)
+    {
+        i++;
+        if (i < len)
+            offsets[i] = offsets[i - 1] + getListLength(from->attrNames);
+    }
+    return offsets;
 }
 
 static List *
@@ -201,8 +248,10 @@ translateFromJoinExpr(FromJoinExpr *fje)
     // set children of the join operator node
 
     JoinOperator *jo = createJoinOp(fje->joinType, fje->cond, inputs, NIL,
-            fje->from.attrNames); //TODO copy cond? compute attrNames?
+            fje->from.attrNames); // TODO compute attrNames?
     // create join operator node
+
+    // TODO create selection/projection upon join according to join condition
 
     OP_LCHILD(jo)->parents = OP_RCHILD(jo)->parents = singleton(jo);
     // set the parent of the node's children
@@ -218,18 +267,38 @@ translateFromSubquery(FromSubquery *fsq)
 }
 
 static QueryOperator *
-translateProvenanceStmt(ProvenanceStmt *prov)
+translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot, int *attrsOffsets)
 {
-    QueryOperator *child;
-    ProvenanceComputation *result;
-    List *attrs = NIL;
-    Schema *schema = NULL;
-    //TODO create attribute list by analysing subquery under child
-    child = translateQuery(prov->query);
+    if (whereClause == NULL)
+        return NULL;
 
-    result = createProvenanceComputOp(PI_CS, singleton(child), NIL, NIL, attrs); //TODO adapt function parameters
+    QueryOperator *input = joinTreeRoot;
+    SelectionOperator *so = createSelectionOp (whereClause, input, NIL, getAttrNames(input->schema));
+    // create selection operator node upon the root of the join tree
 
-    child->parents = singleton(result);
+    visitAttrRefToSetNewAttrPos(so->cond, attrsOffsets);
+    // change attributes positions in selection condition
 
-    return (QueryOperator *) result;
+    OP_LCHILD(so)->parents = singleton(so);
+    // set the parent of the node's children
+
+    return so;
 }
+
+static boolean
+visitAttrRefToSetNewAttrPos(Node *n, void *state)
+{
+    if (n == NULL)
+        return TRUE;
+
+    if (n->type == T_AttributeReference)
+    {
+        AttributeReference *attrRef = (AttributeReference *) n;
+        int *offsets = (int *) state;
+        attrRef->attrPosition += offsets[attrRef->fromClauseItem];
+        attrRef->fromClauseItem = 0;
+    }
+
+    return visit(n, visitAttrRefToSetNewAttrPos, state);
+}
+
