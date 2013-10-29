@@ -138,7 +138,7 @@ analyzeJoin (FromJoinExpr *j)
 
 static void analyzeFromTableRef(FromTableRef *f)
 {
-
+	f->from.attrNames = getAttributes(f->tableId);
 }
 
 static void
