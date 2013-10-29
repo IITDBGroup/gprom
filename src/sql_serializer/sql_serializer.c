@@ -184,6 +184,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                 break;
             case MATCH_DISTINCT:
                 break;
+            
             default: //TODO remove once all cases are handled
                 break;
         }
