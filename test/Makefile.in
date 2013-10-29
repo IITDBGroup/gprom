@@ -78,7 +78,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-bin_PROGRAMS = testmain$(EXEEXT) testparser$(EXEEXT)
+bin_PROGRAMS = testmain$(EXEEXT) testparser$(EXEEXT) \
+	testupana$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/config/depcomp
@@ -109,6 +110,9 @@ am__v_lt_1 =
 am_testparser_OBJECTS = test_parser.$(OBJEXT)
 testparser_OBJECTS = $(am_testparser_OBJECTS)
 testparser_DEPENDENCIES = ../src/libsrc.la
+am_testupana_OBJECTS = test_update_analysis.$(OBJEXT)
+testupana_OBJECTS = $(am_testupana_OBJECTS)
+testupana_DEPENDENCIES = ../src/libsrc.la
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -143,8 +147,10 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(testmain_SOURCES) $(testparser_SOURCES)
-DIST_SOURCES = $(testmain_SOURCES) $(testparser_SOURCES)
+SOURCES = $(testmain_SOURCES) $(testparser_SOURCES) \
+	$(testupana_SOURCES)
+DIST_SOURCES = $(testmain_SOURCES) $(testparser_SOURCES) \
+	$(testupana_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -295,11 +301,13 @@ AM_CPPFLAGS = -I$(top_srcdir)/include -I.
 testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 		   test_logger.c test_mem_mgr.c test_to_string.c \
 		   test_parse.c test_list.c test_main.h \
-		   test_metadata_lookup.c test_string.c
+		   test_metadata_lookup.c test_string.c 
 
 testmain_LDADD = ../src/libsrc.la
 testparser_SOURCES = test_parser.c
 testparser_LDADD = ../src/libsrc.la
+testupana_SOURCES = test_update_analysis.c
+testupana_LDADD = ../src/libsrc.la
 all: all-am
 
 .SUFFIXES:
@@ -392,6 +400,10 @@ testparser$(EXEEXT): $(testparser_OBJECTS) $(testparser_DEPENDENCIES) $(EXTRA_te
 	@rm -f testparser$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(testparser_OBJECTS) $(testparser_LDADD) $(LIBS)
 
+testupana$(EXEEXT): $(testupana_OBJECTS) $(testupana_DEPENDENCIES) $(EXTRA_testupana_DEPENDENCIES) 
+	@rm -f testupana$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(testupana_OBJECTS) $(testupana_LDADD) $(LIBS)
+
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -410,6 +422,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_parser.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_string.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_to_string.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_update_analysis.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

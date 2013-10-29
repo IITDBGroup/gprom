@@ -16,5 +16,7 @@
 QueryOperator *
 translateUpdate (Node *update)
 {
+    Node *q;
 
+    return NULL;
 }
