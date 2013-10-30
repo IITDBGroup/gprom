@@ -734,8 +734,14 @@ clauseList:
 
 
 
-/* Future Work 
+/* FUTURE WORK 
 
+PRIORITIES
+7)
+4)
+1)
+
+EXHAUSTIVE LIST
 1. Implement support for Case when statemets for all type of queries.
 2. Implement support for RETURNING statement in DELETE queries.
 3. Implement support for column list like (col1, col2, col3). 
@@ -743,4 +749,7 @@ clauseList:
 4. Implement support for Transactions.
 5. Implement support for Create queries.
 6. Implement support for windowing functions.
+7. Implement support for AS OF (timestamp) modifier of a table reference
+8. Implement support for casting expressions
+9. Implement support for IN array expressions like a IN (1,2,3,4,5)
 */
