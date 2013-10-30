@@ -13,6 +13,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/query_block/query_block.h"
 #include "model/node/nodetype.h"
+#include "log/logger.h"
 
 SetQuery *
 createSetQuery(char *setOp, boolean all, Node *lChild,
@@ -91,7 +92,7 @@ createFromSubquery(char *alias, List *attrNames, Node *query)
 
 FromItem *
 createFromJoin(char *alias, List *attrNames, FromItem *left,
-        FromItem *right, char *joinType, JoinConditionType condType,
+        FromItem *right, char *joinType, char *condType,
         Node *cond)
 {
     FromJoinExpr *result = makeNode(FromJoinExpr);
@@ -102,10 +103,40 @@ createFromJoin(char *alias, List *attrNames, FromItem *left,
     result->left = left;
     result->right = right;
     result->cond = cond;
-    result->joinType = joinType;
-    result->joinCond = condType;
+    result->joinType = joinTypeFromString(joinType);
+    result->joinCond = joinConditionTypeFromString(condType);
 
     return (FromItem *) result;
+}
+
+JoinConditionType
+joinConditionTypeFromString (char *condType)
+{
+    if (strcmp(condType,"JOIN_COND_ON") == 0)
+            return JOIN_COND_ON;
+    if (strcmp(condType,"JOIN_COND_USING") == 0)
+            return JOIN_COND_USING;
+    if (strcmp(condType,"JOIN_COND_NATURAL") == 0)
+            return JOIN_COND_NATURAL;
+
+    return JOIN_COND_ON;
+}
+
+JoinType
+joinTypeFromString (char *joinType)
+{
+    if (strcmp(joinType,"JOIN_INNER") == 0)
+        return JOIN_INNER;
+    if (strcmp(joinType,"JOIN_CROSS") == 0)
+            return JOIN_CROSS;
+    if (strcmp(joinType,"JOIN_LEFT_OUTER") == 0)
+            return JOIN_LEFT_OUTER;
+    if (strcmp(joinType,"JOIN_RIGHT_OUTER") == 0)
+            return JOIN_RIGHT_OUTER;
+    if (strcmp(joinType,"JOIN_FULL_OUTER") == 0)
+            return JOIN_FULL_OUTER;
+    FATAL_LOG("unkown JoinType <%s>", joinType);
+    return JOIN_CROSS;
 }
 
 DistinctClause *

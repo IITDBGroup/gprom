@@ -163,8 +163,10 @@ extern FromItem *createFromTableRef(char *alias, List *attrNames,
         char *tableId);
 extern FromItem *createFromSubquery(char *alias, List *attrNames, Node *query);
 extern FromItem *createFromJoin(char *alias, List *attrNames, FromItem *left,
-        FromItem *right, char *joinType, JoinConditionType condType,
+        FromItem *right, char *joinType, char *condType,
         Node *cond);
+extern JoinConditionType joinConditionTypeFromString (char *condType);
+extern JoinType joinTypeFromString (char *joinType);
 extern DistinctClause *createDistinctClause (List *distinctExprs);
 //extern NestedSubquery *createNestedSubquery (NestingExprType nType, Node *expr,
   //      char *comparisonOp, Node *query);

@@ -3,8 +3,9 @@
  *     This is a bison file which contains grammar rules to parse SQLs
  */
 
+
+
 %{
-#include <stdio.h>
 #include "common.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
@@ -561,7 +562,7 @@ fromClauseItem:
         		RULELOG("fromClauseItem::fromJoinItem");
         		f = (FromItem *) $1;
         		f->name = $2;
-        		$$ = f;
+        		$$ = (Node *) f;
         	}
     ;
 
@@ -573,31 +574,31 @@ fromJoinItem:
 		fromClauseItem NATURAL joinType fromClauseItem 
 			{
                 RULELOG("Join");
-                $$ = (Node *) createFromJoin(NULL, NIL, $1, $4, $3, JOIN_CONDITION_NATURAL, NIL);
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $4, $3, "JOIN_CONDITION_NATURAL", NULL);
           	}
      	| fromClauseItem CROSS JOIN fromClauseItem 
         	{
 				RULELOG("Join...on condition");
-                $$ = (Node *) createFromJoin(NULL, NIL, $1, $3, JOIN_CROSS, JOIN_CONDITION_ON, NULL);
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, "JOIN_CROSS", "JOIN_CONDITION_ON", NULL);
           	}
      	| fromClauseItem joinType fromClauseItem ON whereExpression 
         	{
 				RULELOG("Join...on condition");
-                $$ = (Node *) createFromJoin(NULL, NIL, $1, $3, $2, JOIN_CONDITION_ON, $5);
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, $2, "JOIN_CONDITION_ON", $5);
           	}
      	| fromClauseItem joinType fromClauseItem USING '(' identifierList ')'
         	{
 				RULELOG("Join...on condition");
-                $$ = (Node *) createFromJoin(NULL, NIL, $1, $3, $2, JOIN_CONDITION_USING, $6);
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, $2, "JOIN_CONDITION_USING", (Node *) $6);
           	}
      ;
      
 joinType:
-		LEFT OUTER JOIN { $$ = JOIN_INNER; }
-		| RIGHT OUTER JOIN { $$ = JOIN_LEFT_OUTER; }
-		| FULL OUTER JOIN { $$ = JOIN_RIGHT_OUTER; }
-		| INNER JOIN { $$ = JOIN_INNER; }
-		| JOIN { $$ = JOIN_INNER; }
+		LEFT OUTER JOIN { $$ = "JOIN_INNER"; }
+		| RIGHT OUTER JOIN { $$ = "JOIN_LEFT_OUTER"; }
+		| FULL OUTER JOIN { $$ = "JOIN_RIGHT_OUTER"; }
+		| INNER JOIN { $$ = "JOIN_INNER"; }
+		| JOIN { $$ = "JOIN_INNER"; }
 	;
 
 optionalAlias:
