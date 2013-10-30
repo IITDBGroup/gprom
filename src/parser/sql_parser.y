@@ -218,17 +218,21 @@ setClause:
 setExpression:
         attributeRef comparisonOps expression
             {
-                RULELOG("setExpression::attributeRef::expression");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
+                if (!strcmp($2,"=")) {
+                    RULELOG("setExpression::attributeRef::expression");
+                    List *expr = singleton($1);
+                    expr = appendToTailOfList(expr, $3);
+                    $$ = (Node *) createOpExpr($2, expr);
+                }
             }
-        | attributeRef comparisonOps '(' queryStmt ')'
+        | attributeRef comparisonOps subQuery 
             {
-                RULELOG("setExpression::attributeRef::queryStmt");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
+                if (!strcmp($2, "=")) {
+                    RULELOG("setExpression::attributeRef::queryStmt");
+                    List *expr = singleton($1);
+                    expr = appendToTailOfList(expr, $3);
+                    $$ = (Node *) createOpExpr($2, expr);
+                }
             }
     ;
 
@@ -254,6 +258,16 @@ insertList:
             	RULELOG("insertList::constant");
             	$$ = singleton($1); 
             }
+        | identifier
+            {
+                RULELOG("insertList::IDENTIFIER");
+                $$ = singleton($1);
+            }
+        | insertList ',' identifier
+            { 
+                RULELOG("insertList::insertList::::IDENTIFIER");
+                $$ = appendToTailOfList($1, $3);
+            }
         | insertList ',' constant
             { 
             	RULELOG("insertList::insertList::constant");
@@ -262,10 +276,6 @@ insertList:
 /* No Provision made for this type of insert statements */
     ;
 
-/* dataType:
-        | INT 
-    ;
-*/
 
 /*
  * Rules to parse set operator queries
@@ -721,3 +731,16 @@ clauseList:
     ;
 
 %%
+
+
+
+/* Future Work 
+
+1. Implement support for Case when statemets for all type of queries.
+2. Implement support for RETURNING statement in DELETE queries.
+3. Implement support for column list like (col1, col2, col3). 
+   Needed in insert queries, select queries where conditions etc.
+4. Implement support for Transactions.
+5. Implement support for Create queries.
+6. Implement support for windowing functions.
+*/
