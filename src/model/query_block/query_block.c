@@ -91,7 +91,7 @@ createFromSubquery(char *alias, List *attrNames, Node *query)
 
 FromItem *
 createFromJoin(char *alias, List *attrNames, FromItem *left,
-        FromItem *right, JoinType joinType, JoinConditionType condType,
+        FromItem *right, char *joinType, JoinConditionType condType,
         Node *cond)
 {
     FromJoinExpr *result = makeNode(FromJoinExpr);

@@ -31,7 +31,6 @@ Node *bisonParseResult = NULL;
      char *stringVal;
      int intVal;
      double floatVal;
-     JoinType joinType;
 }
 
 /*
@@ -105,7 +104,7 @@ Node *bisonParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 /*%type <node> optionalJoinClause optionalJoinCond*/
 %type <stringVal> optionalAlias optionalAll nestedSubQueryOperator optionalNot fromString
-%type <joinType> joinType
+%type <stringVal> joinType
 
 %start stmtList
 
