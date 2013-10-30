@@ -3,8 +3,9 @@
  *     This is a bison file which contains grammar rules to parse SQLs
  */
 
+
+
 %{
-#include <stdio.h>
 #include "common.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
@@ -97,13 +98,14 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList clauseList optionalGroupBy optionalOrderBy setClause// select and from clauses are lists
-             insertList stmtList
-%type <node> selectItem fromClauseItem optionalDistinct optionalWhere optionalLimit optionalHaving
+             insertList stmtList identifierList
+%type <node> selectItem fromClauseItem fromJoinItem optionalDistinct optionalWhere optionalLimit optionalHaving
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
 %type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
 /*%type <node> optionalJoinClause optionalJoinCond*/
 %type <stringVal> optionalAlias optionalAll nestedSubQueryOperator optionalNot fromString
+%type <stringVal> joinType
 
 %start stmtList
 
@@ -576,8 +578,51 @@ fromClauseItem:
                 RULELOG("fromClauseItem::subQuery");
                 $$ = $1;
             }
+        | fromJoinItem optionalAlias
+        	{
+        		FromItem *f;
+        		RULELOG("fromClauseItem::fromJoinItem");
+        		f = (FromItem *) $1;
+        		f->name = $2;
+        		$$ = (Node *) f;
+        	}
     ;
-    
+
+identifierList:
+		identifier { $$ = singleton($1); }
+		| identifierList ',' identifier { $$ = appendToTailOfList($1, $3); }
+   
+fromJoinItem:
+		fromClauseItem NATURAL joinType fromClauseItem 
+			{
+                RULELOG("Join");
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $4, $3, "JOIN_CONDITION_NATURAL", NULL);
+          	}
+     	| fromClauseItem CROSS JOIN fromClauseItem 
+        	{
+				RULELOG("Join...on condition");
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, "JOIN_CROSS", "JOIN_CONDITION_ON", NULL);
+          	}
+     	| fromClauseItem joinType fromClauseItem ON whereExpression 
+        	{
+				RULELOG("Join...on condition");
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, $2, "JOIN_CONDITION_ON", $5);
+          	}
+     	| fromClauseItem joinType fromClauseItem USING '(' identifierList ')'
+        	{
+				RULELOG("Join...on condition");
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, $2, "JOIN_CONDITION_USING", (Node *) $6);
+          	}
+     ;
+     
+joinType:
+		LEFT OUTER JOIN { $$ = "JOIN_INNER"; }
+		| RIGHT OUTER JOIN { $$ = "JOIN_LEFT_OUTER"; }
+		| FULL OUTER JOIN { $$ = "JOIN_RIGHT_OUTER"; }
+		| INNER JOIN { $$ = "JOIN_INNER"; }
+		| JOIN { $$ = "JOIN_INNER"; }
+	;
+
 optionalAlias:
         /* empty */                { RULELOG("optionalAlias::NULL"); $$ = NULL; }
         | identifier            { RULELOG("optionalAlias::identifier"); $$ = $1; }
@@ -729,6 +774,7 @@ clauseList:
                 $$ = appendToTailOfList($1, $3);
             }
     ;
+
 
 %%
 
