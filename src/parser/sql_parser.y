@@ -41,7 +41,7 @@ Node *bisonParseResult = NULL;
 %token <floatVal> floatConst
 %token <stringVal> stringConst
 %token <stringVal> identifier
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '('
+%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
 
 /*
  * Tokens for in-built keywords
@@ -56,7 +56,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> DISTINCT
 %token <stringVal> STARALL
 %token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN EXCEPT EXISTS
-%token <stringVal> AMMSC NULLVAL ALL ANY BY IS SOME
+%token <stringVal> AMMSC NULLVAL ALL ANY IS SOME
 %token <stringVal> UNION INTERSECT MINUS
 %token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
 %token <stringVal> INT
@@ -129,13 +129,11 @@ stmt:
         {
             RULELOG("stmt::dmlStmt");
             $$ = $1;
-            bisonParseResult = (Node *) $$;
         }
 	| queryStmt ';'
         {
             RULELOG("stmt::queryStmt");
             $$ = $1;
-            bisonParseResult = (Node *) $$;
         }
     ;
 
@@ -220,17 +218,21 @@ setClause:
 setExpression:
         attributeRef comparisonOps expression
             {
-                RULELOG("setExpression::attributeRef::expression");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
+                if (!strcmp($2,"=")) {
+                    RULELOG("setExpression::attributeRef::expression");
+                    List *expr = singleton($1);
+                    expr = appendToTailOfList(expr, $3);
+                    $$ = (Node *) createOpExpr($2, expr);
+                }
             }
-        | attributeRef comparisonOps '(' queryStmt ')'
+        | attributeRef comparisonOps subQuery 
             {
-                RULELOG("setExpression::attributeRef::queryStmt");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
+                if (!strcmp($2, "=")) {
+                    RULELOG("setExpression::attributeRef::queryStmt");
+                    List *expr = singleton($1);
+                    expr = appendToTailOfList(expr, $3);
+                    $$ = (Node *) createOpExpr($2, expr);
+                }
             }
     ;
 
@@ -256,6 +258,16 @@ insertList:
             	RULELOG("insertList::constant");
             	$$ = singleton($1); 
             }
+        | identifier
+            {
+                RULELOG("insertList::IDENTIFIER");
+                $$ = singleton($1);
+            }
+        | insertList ',' identifier
+            { 
+                RULELOG("insertList::insertList::::IDENTIFIER");
+                $$ = appendToTailOfList($1, $3);
+            }
         | insertList ',' constant
             { 
             	RULELOG("insertList::insertList::constant");
@@ -264,10 +276,6 @@ insertList:
 /* No Provision made for this type of insert statements */
     ;
 
-/* dataType:
-        | INT 
-    ;
-*/
 
 /*
  * Rules to parse set operator queries
@@ -636,7 +644,6 @@ whereExpression:
             }
         | expression optionalNot IN '(' queryStmt ')'
             {
-                RULELOG("whereExpression::IN");
                 if ($2 == NULL)
                 {
                     RULELOG("whereExpression::IN");
@@ -724,3 +731,16 @@ clauseList:
     ;
 
 %%
+
+
+
+/* Future Work 
+
+1. Implement support for Case when statemets for all type of queries.
+2. Implement support for RETURNING statement in DELETE queries.
+3. Implement support for column list like (col1, col2, col3). 
+   Needed in insert queries, select queries where conditions etc.
+4. Implement support for Transactions.
+5. Implement support for Create queries.
+6. Implement support for windowing functions.
+*/
