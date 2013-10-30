@@ -13,6 +13,9 @@ typedef enum NodeTag {
     T_List,
     T_IntList,
 
+    /* sets */
+    T_Set,
+
     /* expression nodes */
     T_Constant,
     T_AttributeReference,
@@ -30,6 +33,9 @@ typedef enum NodeTag {
     T_FromJoinExpr,
     T_DistinctClause,
     T_NestedSubquery,
+    T_Insert,
+    T_Delete,
+    T_Update,
 
     /* query operator model nodes */
     T_Schema,
@@ -50,6 +56,11 @@ typedef struct Node{
     NodeTag type;
 } Node;
 
+typedef enum ProvenanceType
+{
+    PI_CS,
+    TRANSFORMATION
+} ProvenanceType;
 
 /*stringinfo provides the string data type*/
 
@@ -70,6 +81,7 @@ typedef StringInfoData *StringInfo;
 *The function is create an empty StringInfoData and return a pointer.
 *-------------------------------------------------------------------*/
 extern StringInfo makeStringInfo(void);
+//extern StringInfo makeStringInfoString(char *string);
 
 /*------------------------------------------------------------------
 *initStringInfo
@@ -88,6 +100,11 @@ extern void resetStringInfo(StringInfo str);
 *The function is append a string to str.
 *-------------------------------------------------------------------*/
 extern void appendStringInfoString(StringInfo str, const char *s);
+extern void appendStringInfoStrings(StringInfo str, ...);
+extern char *concatStrings(const char *s, ...);
+
+#define CONCAT_STRINGINFO(str, other) appendStringInfoString(str, other->data)
+#define CONCAT_STRINGS(...) concatStrings(__VA_ARGS__, NULL)
 
 /*------------------------------------------------------------------
 * The function is append to a StringInfo using a format string and a variable
@@ -107,6 +124,12 @@ extern void appendStringInfoChar(StringInfo str, char ch);
 *The function is append binary data to a StringInfo.
 *-------------------------------------------------------------------*/
 extern void appendBinaryStringInfo(StringInfo str, const char *data, int datalen);
+
+/*
+ * Prepend string at beginning of string info
+ */
+extern void prependStringInfo (StringInfo str, const char *format, ...);
+
 
 /*------------------------------------------------------------------
 *enlargeStringInfo

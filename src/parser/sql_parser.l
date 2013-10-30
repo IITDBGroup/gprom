@@ -56,6 +56,8 @@ float 			(({integer}|{decimal})([eE][+-]?{integer})?)
 /* names (e.g., tables, attributes) */
 identStart		[A-Za-z]
 identContinue	[A-Za-z0-9_%?]
+doublequote     [\"]
+quotedIdentifier		{doublequote}[^\"]+{doublequote}
 identifiers		({identStart}{identContinue}*)
 
 /* operators */
@@ -73,6 +75,10 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 
 	/* literal keyword tokens */
 SELECT      TOK(SELECT)
+INSERT      TOK(INSERT)
+UPDATE      TOK(UPDATE)
+DELETE      TOK(DELETE)
+SET         TOK(SET)
 PROVENANCE  TOK(PROVENANCE)
 OF          TOK(OF)
 FROM        TOK(FROM)
@@ -113,6 +119,10 @@ IN        TOK(IN)
 EXISTS        TOK(EXISTS)
 LIKE        TOK(LIKE)
 NOT        TOK(NOT)
+GROUP        TOK(GROUP)
+HAVING        TOK(HAVING)
+LIMIT        TOK(LIMIT)
+ORDER        TOK(ORDER)
 
 	/* punctuation */
 [(),.;] TOKSELF()
@@ -123,6 +133,12 @@ NOT        TOK(NOT)
 	
 	/* names */
 {identifiers}	TOK(identifier)
+{quotedIdentifier}   { 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
+		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
+		yylval.stringVal[strlen(yytext) -1] = '\0';
+		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", yytext);
+		return identifier;
+	}	
 
 	/* numbers */
 {integer}	TOKSAVE(intConst,intVal,atoi)
@@ -130,13 +146,16 @@ NOT        TOK(NOT)
 
 	/* strings */
 '[^'\n]*'	{
-		int c = input();
-		unput(c);	
-		if(c != '\'') {
-			yylval.stringVal = strdup(yytext);
-			return stringConst;
-		} else
-			yymore();
+	//	int c = input();
+	//	unput(c);	
+	//	if(c != '\'') {
+		yylval.stringVal = MALLOC(strlen(yytext) - 1);
+		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
+		yylval.stringVal[strlen(yytext) -1] = '\0';
+		TRACE_LOG("Lexed TOKEN <stringConst> with VALUE <%s>", yytext);
+		return stringConst;
+	//	} else
+	//		yymore();
 	}
 
 		

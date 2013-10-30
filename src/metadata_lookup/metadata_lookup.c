@@ -21,13 +21,158 @@
 /*
  * functions and variables for internal use
  */
-static OCI_Connection* conn=NULL;
-static OCI_TypeInfo* tInfo=NULL;
-static OCI_Error* errHandler=NULL;
-static MemContext* context=NULL;
-static int initConnection();
-static boolean isConnected();
 
+typedef struct TableBuffer
+{
+	char *tableName;
+	List *attrs;
+} TableBuffer;
+
+typedef struct ViewBuffer
+{
+	char *viewName;
+	char *viewDefinition;
+} ViewBuffer;
+
+static OCI_Connection *conn=NULL;
+static OCI_Statement *st = NULL;
+static OCI_TypeInfo *tInfo=NULL;
+static OCI_Error *errorCache=NULL;
+static MemContext *context=NULL;
+static char **aggList=NULL;
+static List *tableBuffers=NULL;
+static List *viewBuffers=NULL;
+
+static int initConnection(void);
+static boolean isConnected(void);
+static void initAggList(void);
+static void freeAggList(void);
+static OCI_Resultset *executeStatement(char *statement);
+static void handleError (OCI_Error *error);
+
+static void addToTableBuffers(char *tableName, List *attrs);
+static void addToViewBuffers(char *viewName, char *viewDef);
+static List *searchTableBuffers(char *tableName);
+static char *searchViewBuffers(char *viewName);
+static void freeBuffers(void);
+
+static void
+handleError (OCI_Error *error)
+{
+    errorCache = error;
+    DEBUG_LOG("METADATA LOOKUP - OCILIB Error ORA-%05i - msg : %s\n",
+            OCI_ErrorGetOCICode(error), OCI_ErrorGetString(error));
+}
+
+
+static void
+initAggList(void)
+{
+	//malloc space
+	aggList = CNEW(char*, AGG_FUNCTION_COUNT);
+
+	//assign string value
+	aggList[AGG_MAX] = "max";
+	aggList[AGG_MIN] = "min";
+	aggList[AGG_AVG] = "avg";
+	aggList[AGG_COUNT] = "count";
+	aggList[AGG_SUM] = "sum";
+	aggList[AGG_FIRST] = "first";
+	aggList[AGG_LAST] = "last";
+	aggList[AGG_CORR] = "corr";
+	aggList[AGG_COVAR_POP] = "covar_pop";
+	aggList[AGG_COVAR_SAMP] = "covar_samp";
+	aggList[AGG_GROUPING] = "grouping";
+	aggList[AGG_REGR] = "regr";
+	aggList[AGG_STDDEV] = "stddev";
+	aggList[AGG_STDDEV_POP] = "stddev_pop";
+	aggList[AGG_STDEEV_SAMP] = "stddev_samp";
+	aggList[AGG_VAR_POP] = "var_pop";
+	aggList[AGG_VAR_SAMP] = "var_samp";
+	aggList[AGG_VARIANCE] = "variance";
+	aggList[AGG_XMLAGG] = "xmlagg";
+}
+
+static void
+freeAggList()
+{
+	if(aggList != NULL)
+		FREE(aggList);
+}
+
+static void
+freeBuffers()
+{
+	if(tableBuffers != NULL)
+	{
+		//deep free table buffers
+		FOREACH(TableBuffer, t, tableBuffers)
+		{
+			FREE(t->tableName);
+			deepFree(t->attrs);
+		}
+		freeList(tableBuffers);
+	}
+	if(viewBuffers != NULL)
+	{
+		//deep free view buffers
+		FOREACH(ViewBuffer, v, viewBuffers)
+		{
+			FREE(v->viewDefinition);
+			FREE(v->viewName);
+		}
+		freeList(viewBuffers);
+	}
+}
+
+static void
+addToTableBuffers(char* tableName, List *attrList)
+{
+	TableBuffer *t = NEW(TableBuffer);
+	char *name = strdup(tableName);
+	t->tableName = name;
+	t->attrs = attrList;
+	tableBuffers = appendToTailOfList(tableBuffers, t);
+}
+
+static void
+addToViewBuffers(char *viewName, char *viewDef)
+{
+	ViewBuffer *v = NEW(ViewBuffer);
+	char *name = strdup(viewName);
+	v->viewName = name;
+	v->viewDefinition = viewDef;
+	viewBuffers = appendToTailOfList(viewBuffers, v);
+}
+
+static List *
+searchTableBuffers(char *tableName)
+{
+	if(tableBuffers == NULL || tableName == NULL)
+		return NIL;
+	FOREACH(TableBuffer, t, tableBuffers)
+	{
+		if(strcmp(t->tableName, tableName) == 0)
+		{
+			return t->attrs;
+		}
+	}
+	return NIL;
+}
+static char *
+searchViewBuffers(char *viewName)
+{
+	if(viewBuffers == NULL || viewName == NULL)
+		return NULL;
+	FOREACH(ViewBuffer, v, viewBuffers)
+	{
+		if(strcmp(v->viewName, viewName) == 0)
+		{
+			return v->viewDefinition;
+		}
+	}
+	return NULL;
+}
 static int
 initConnection()
 {
@@ -36,6 +181,7 @@ initConnection()
 
     StringInfo connectString = makeStringInfo();
 	Options* options=getOptions();
+
 	char* user=options->optionConnection->user;
 	char* passwd=options->optionConnection->passwd;
 	char* db=options->optionConnection->db;
@@ -43,9 +189,9 @@ initConnection()
 	int port=options->optionConnection->port;
 	appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT, host, port,
 	        db);
-	if(!OCI_Initialize(errHandler, NULL, OCI_ENV_DEFAULT))
+	if(!OCI_Initialize(handleError, NULL, OCI_ENV_DEFAULT))
 	{
-	    FATAL_LOG("Cannot initialize OICLIB: %s", OCI_ErrorGetString(errHandler)); //print error type
+	    FATAL_LOG("Cannot initialize OICLIB: %s", OCI_ErrorGetString(errorCache)); //print error type
 		return EXIT_FAILURE;
 	}
 	DEBUG_LOG("Initialized OCILIB");
@@ -55,6 +201,7 @@ initConnection()
 	DEBUG_LOG("Try to connect to server <%s,%s,%s>... %s", connectString->data, user, passwd,
 	        (conn != NULL) ? "SUCCESS" : "FAILURE");
 
+	initAggList();
 	return EXIT_SUCCESS;
 }
 
@@ -67,7 +214,7 @@ isConnected()
 		return TRUE;
 	else
 	{
-		FATAL_LOG("OCI connection lost: %s", OCI_ErrorGetString(errHandler));
+		FATAL_LOG("OCI connection lost: %s", OCI_ErrorGetString(errorCache));
 		return FALSE;
 	}
 }
@@ -92,11 +239,26 @@ catalogTableExists(char* tableName)
 	return FALSE;
 }
 
+boolean
+catalogViewExists(char* viewName)
+{
+	if(NULL==viewName)
+		return FALSE;
+	if(conn==NULL)
+		initConnection();
+	if(isConnected())
+		return (OCI_TypeInfoGet(conn,viewName,OCI_TIF_VIEW)==NULL)? FALSE : TRUE;
+	return FALSE;
+}
+
 List*
 getAttributes(char *tableName)
 {
+	List* attrList=NIL;
 	if(tableName==NULL)
 		return NIL;
+	if((attrList = searchTableBuffers(tableName)) != NIL)
+		return attrList;
 	if(conn==NULL)
 		initConnection();
 	if(isConnected())
@@ -104,18 +266,110 @@ getAttributes(char *tableName)
 		int i,n;
 		tInfo = OCI_TypeInfoGet(conn,tableName,OCI_TIF_TABLE);
 		n = OCI_TypeInfoGetColumnCount(tInfo);
-		List* attrList=NIL;
+
 		for(i = 1; i <= n; i++)
 		{
 			OCI_Column *col = OCI_TypeInfoGetColumn(tInfo, i);
 			AttributeReference *a = createAttributeReference((char *) OCI_GetColumnName(col));
 			attrList=appendToTailOfList(attrList,a);
 		}
+
+		//add to table buffer list as cache to improve performance
+		//user do not have to free the attrList by themselves
+		addToTableBuffers(tableName, attrList);
 		return attrList;
 	}
 	ERROR_LOG("Not connected to database.");
 	return NIL;
 }
+
+boolean
+isAgg(char* functionName)
+{
+	if(functionName == NULL)
+		return FALSE;
+
+	for(int i = 0; i < AGG_FUNCTION_COUNT; i++)
+	{
+		if(strcasecmp(aggList[i], functionName) == 0)
+			return TRUE;
+	}
+	return FALSE;
+}
+
+char *
+getTableDefinition(char *tableName)
+{
+	char statement[256];
+	char *statement1 = "select DBMS_METADATA.GET_DDL('TABLE', '";
+	char *statement2 = "') from DUAL";
+	strcpy(statement, statement1);
+	strcat(statement, tableName);
+	strcat(statement, statement2);
+
+	OCI_Resultset *rs = executeStatement(statement);
+	if(rs != NULL)
+	{
+		while(OCI_FetchNext(rs))
+		{
+			return (char *)OCI_GetString(rs, 1);
+		}
+	}
+	return NULL;
+}
+
+char *
+getViewDefinition(char *viewName)
+{
+	char *def = NULL;
+	if((def = searchViewBuffers(viewName)) != NULL)
+		return def;
+	char statement[256];
+	char *statement1 = "select text from user_views where view_name = '";
+	char *statement2 = "'";
+	strcpy(statement, statement1);
+	strcat(statement, viewName);
+	strcat(statement, statement2);
+
+	OCI_Resultset *rs = executeStatement(statement);
+	if(rs != NULL)
+	{
+		while(OCI_FetchNext(rs))
+		{
+			char * def = OCI_GetString(rs, 1);
+			//add view definition to view buffers to improve performance
+			//user do not have to free def by themselves
+			addToViewBuffers(viewName, def);
+			return def;
+		}
+	}
+	return NULL;
+}
+
+static OCI_Resultset *
+executeStatement(char *statement)
+{
+	if(statement == NULL)
+		return NULL;
+	if((conn = getConnection()) != NULL)
+	{
+		if(st == NULL)
+			st = OCI_StatementCreate(conn);
+		if(OCI_ExecuteStmt(st, statement))
+		{
+		    OCI_Resultset *rs = OCI_GetResultset(st);
+			DEBUG_LOG("Statement: %s executed successfully.", statement);
+			DEBUG_LOG("%d row fetched", OCI_GetRowCount(rs));
+			return rs;
+		}
+		else
+		{
+			ERROR_LOG("Statement: %s failed.", statement);
+		}
+	}
+	return NULL;
+}
+
 
 int
 databaseConnectionClose()
@@ -127,8 +381,10 @@ databaseConnectionClose()
 	}
 	else
 	{
-		FREE_MEM_CONTEXT(context);
-		OCI_Cleanup();
+		freeAggList();
+		freeBuffers();
+//		OCI_Cleanup();//bugs exist here
+//		FREE_MEM_CONTEXT(context);
 	}
 	return EXIT_SUCCESS;
 }
@@ -142,10 +398,40 @@ catalogTableExists(char *table)
     return FALSE;
 }
 
+boolean
+catalogViewExists(char *view)
+{
+	return FALSE;
+}
+
 List *
 getAttributes (char *table)
 {
     return NIL;
+}
+
+boolean
+isAgg(char *table)
+{
+	return FALSE;
+}
+
+char *
+getTableDefinition(char *table)
+{
+	return NULL;
+}
+
+char *
+getViewDefinition(char *view)
+{
+	return NULL;
+}
+
+char *
+executeStatement(char *statement)
+{
+	return NULL;
 }
 
 int
@@ -153,5 +439,6 @@ databaseConnectionClose ()
 {
     return EXIT_SUCCESS;
 }
+
 
 #endif

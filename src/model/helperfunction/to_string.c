@@ -47,6 +47,9 @@ static void outTableAccessOperator(StringInfo str, TableAccessOperator *node);
 static void outSetOperator(StringInfo str, SetOperator *node);
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
 static void outNestedSubquery(StringInfo str, NestedSubquery *node);
+static void outInsert(StringInfo str, Insert *node);
+static void outDelete(StringInfo str, Delete *node);
+static void outUpdate(StringInfo str, Update *node);
 
 /*define macros*/
 /*label for the node type*/
@@ -119,6 +122,29 @@ outList(StringInfo str, List *node)
 }
 
 static void
+outInsert(StringInfo str, Insert *node)
+{
+    WRITE_NODE_TYPE(INSERT);
+    WRITE_STRING_FIELD(tableName);
+    WRITE_NODE_FIELD(attrList);
+    WRITE_NODE_FIELD(query);
+}
+static void 
+outDelete(StringInfo str, Delete *node)
+{
+    WRITE_NODE_TYPE(DELETE);
+    WRITE_STRING_FIELD(nodeName);
+    WRITE_NODE_FIELD(cond);
+}
+static void 
+outUpdate(StringInfo str, Update *node)
+{
+    WRITE_NODE_TYPE(UPDATE);
+    WRITE_STRING_FIELD(nodeName);
+    WRITE_NODE_FIELD(selectClause);
+    WRITE_NODE_FIELD(cond);
+}
+static void
 outQueryBlock (StringInfo str, QueryBlock *node)
 {
     WRITE_NODE_TYPE(QUERYBLOCK);
@@ -127,7 +153,10 @@ outQueryBlock (StringInfo str, QueryBlock *node)
     WRITE_NODE_FIELD(selectClause);
     WRITE_NODE_FIELD(fromClause);
     WRITE_NODE_FIELD(whereClause);
+    WRITE_NODE_FIELD(groupByClause);
     WRITE_NODE_FIELD(havingClause);
+    WRITE_NODE_FIELD(orderByClause);
+    WRITE_NODE_FIELD(limitClause);
 }
 
 static void
@@ -146,7 +175,7 @@ outConstant (StringInfo str, Constant *node)
             appendStringInfo(str, "%f", *((double *) node->value));
             break;
         case DT_STRING:
-            appendStringInfoString(str, (char *) node->value);
+            appendStringInfo(str, "'%s'", (char *) node->value);
             break;
         case DT_BOOL:
             appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
@@ -249,6 +278,8 @@ outAttributeReference (StringInfo str, AttributeReference *node)
     WRITE_NODE_TYPE(ATTRIBUTE_REFERENCE);
 
     WRITE_STRING_FIELD(name);
+    WRITE_INT_FIELD(fromClauseItem);
+    WRITE_INT_FIELD(attrPosition);
 }
 
 static void 
@@ -405,6 +436,15 @@ void outNode(StringInfo str, void *obj)
             case T_AttributeDef:
                 outAttributeDef(str, (AttributeDef *) obj);
                 break;
+            case T_Insert:
+                outInsert(str, (Insert *) obj);
+                break;
+            case T_Delete:
+                outDelete(str, (Delete *) obj);
+                break;
+            case T_Update:
+                outUpdate(str, (Update *) obj);
+                break;
             //different case
             //query operator model nodes
             case T_QueryOperator:
@@ -459,6 +499,7 @@ beatify(char *input)
     char *result;
     int indentation = 0;
     boolean inString = FALSE;
+    boolean inStringConst = FALSE;
 
     if(input == NULL)
         return NULL;
@@ -472,6 +513,31 @@ beatify(char *input)
             {
                 case '"':
                     inString = FALSE;
+                default:
+                    appendStringInfoChar (str, c);
+            }
+        }
+        else if (inStringConst)
+        {
+            switch(c)
+            {
+                case '\'':
+                {
+                    inStringConst = FALSE;
+                    appendStringInfoChar (str, c);
+                }
+                break;
+                case '\\':
+                {
+                    if ((c + 1) == '\'')
+                    {
+                        c++;
+                        appendStringInfoString(str, "\\'");
+                    }
+                    else
+                        appendStringInfoChar (str, c);
+                }
+                break;
                 default:
                     appendStringInfoChar (str, c);
             }
@@ -507,6 +573,12 @@ beatify(char *input)
                     break;
                 case '"':
                     inString = TRUE;
+                    appendStringInfoChar (str, c);
+                    break;
+                case '\'':
+                    inStringConst = TRUE;
+                    appendStringInfoChar (str, c);
+                    break;
                 default:
                     appendStringInfoChar (str, c);
             }

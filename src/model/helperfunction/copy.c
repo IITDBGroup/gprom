@@ -30,8 +30,7 @@ static Schema *copySchema(Schema *from);
 static Schema *copySchemaFromList(Schema *from);
 
 /*functions to copy query_operator*/
-
-//static QueryOperator *copyQueryOperator(QueryOperator *from);
+static QueryOperator *copyQueryOperator(QueryOperator *from, QueryOperator *new);
 static TableAccessOperator *copyTableAccessOp(TableAccessOperator *from);
 static SelectionOperator *copySelectionOp(SelectionOperator *from);
 static ProjectionOperator *copyProjectionOp(ProjectionOperator *from);
@@ -52,6 +51,9 @@ static FromTableRef *copyFromTableRef(FromTableRef *from);
 static FromSubquery *copyFromSubquery(FromSubquery *from);
 static FromJoinExpr *copyFromJoinExpr(FromJoinExpr *from);
 static DistinctClause *copyDistinctClause(DistinctClause *from);
+static Insert *copyInsert(Insert *from);
+static Delete *copyDelete(Delete *from);
+static Update *copyUpdate(Update *from);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -82,7 +84,7 @@ deepCopyList(List *from)
     COPY_SCALAR_FIELD(length);
     COPY_SCALAR_FIELD(type); // if it is an Int_List
 
-    if (from->type == T_List)
+    if (from->type == T_IntList)
     {
         FOREACH_INT(i, from)
             new = appendToTailOfListInt(new, i);
@@ -100,8 +102,9 @@ static AttributeReference *
 copyAttributeReference(AttributeReference *from)
 {
     COPY_INIT(AttributeReference);
-
     COPY_STRING_FIELD(name);
+    COPY_SCALAR_FIELD(fromClauseItem);
+    COPY_SCALAR_FIELD(attrPosition);
 
     return new;
 }
@@ -110,7 +113,6 @@ static FunctionCall *
 copyFunctionCall(FunctionCall *from)
 { 
     COPY_INIT(FunctionCall);
-   
     COPY_STRING_FIELD(functionname);
     COPY_NODE_FIELD(args);
     COPY_SCALAR_FIELD(isAgg);
@@ -122,7 +124,6 @@ static Operator *
 copyOperator(Operator *from)
 { 
     COPY_INIT(Operator);
-    
     COPY_STRING_FIELD(name);
 
     return new;
@@ -138,6 +139,7 @@ copyAttributeDef(AttributeDef *from)
     
     return new;
 }
+
 static Schema *
 copySchema(Schema *from)
 {
@@ -147,34 +149,29 @@ copySchema(Schema *from)
     
     return new;
 }
-//static Schema *
-//copySchemaFromList(Schema *from)
-//{
-//    COPY_INIT(Schema);
-//    COPY_STRING_FIELD(name);
-//    COPY_NODE_FIELD(attrNames);
-//    COPY_NODE_FIELD(dataTypes);
-//
-//    return new;
-//}
 
 /*functions to copy query_operator*/
-//static QueryOperator *
-//copyQueryOperator(QueryOperator *from)
-//{
-//    COPY_INIT(QueryOperator);
-//    COPY_NODE_FIELD(inputs);
-//    COPY_NODE_FIELD(schema);
-//    COPY_NODE_FIELD(parents);
-//    COPY_NODE_FIELD(provAttrs);
-//
-//    return new;
-//}
+static QueryOperator *
+copyQueryOperator(QueryOperator *from, QueryOperator *new)
+{
+    COPY_NODE_FIELD(inputs);
+    COPY_NODE_FIELD(schema);
+    COPY_NODE_FIELD(provAttrs);
+    //TODO copying is more complicated if we consider nodes with multiple parents
+    // parent cannot be copied, adapt childrens parents
+    FOREACH(QueryOperator,child,new->inputs)
+        child->parents = singleton(new);
+
+    return new;
+}
+
+#define COPY_OPERATOR() copyQueryOperator((QueryOperator *) from, (QueryOperator *) new)
 
 static TableAccessOperator *
 copyTableAccessOp(TableAccessOperator *from)
 {
     COPY_INIT(TableAccessOperator);
+    COPY_OPERATOR();
     COPY_STRING_FIELD(tableName);
 
     return new;
@@ -184,6 +181,7 @@ static SelectionOperator *
 copySelectionOp(SelectionOperator *from)
 {
     COPY_INIT(SelectionOperator);
+    COPY_OPERATOR();
     COPY_NODE_FIELD(cond);
 
     return new;
@@ -193,7 +191,7 @@ static ProjectionOperator *
 copyProjectionOp(ProjectionOperator *from)
 {
     COPY_INIT(ProjectionOperator);
-
+    COPY_OPERATOR();
     COPY_NODE_FIELD(projExprs);
 
     return new;
@@ -202,6 +200,7 @@ static JoinOperator *
 copyJoinOp(JoinOperator *from)
 {
     COPY_INIT(JoinOperator);
+    COPY_OPERATOR();
     COPY_SCALAR_FIELD(joinType);
     COPY_NODE_FIELD(cond);
 
@@ -211,6 +210,7 @@ static AggregationOperator *
 copyAggregationOp(AggregationOperator *from)
 {
     COPY_INIT(AggregationOperator);
+    COPY_OPERATOR();
     COPY_NODE_FIELD(aggrs);
     COPY_NODE_FIELD(groupBy);
 
@@ -220,6 +220,7 @@ static SetOperator *
 copySetOperator(SetOperator *from)
 {
     COPY_INIT(SetOperator);
+    COPY_OPERATOR();
     COPY_SCALAR_FIELD(setOpType);
 
     return new;
@@ -228,6 +229,7 @@ static DuplicateRemoval *
 copyDuplicateRemovalOp(DuplicateRemoval *from)
 {
     COPY_INIT(DuplicateRemoval);
+    COPY_OPERATOR();
     COPY_NODE_FIELD(attrs);
 
     return new;
@@ -236,22 +238,12 @@ static ProvenanceComputation *
 copyProvenanceComputOp(ProvenanceComputation *from)
 {
     COPY_INIT(ProvenanceComputation);
+    COPY_OPERATOR();
     COPY_SCALAR_FIELD(provType);
 
     return new;
 }
 /*functions to copy query_block*/
-/*
-static SetQuery *
-copySetQuery(SetQuery *from)
-{
-    COPY_INIT(SetQuery);
-    COPY_NODE_FIELD(selectClause);
-    COPY_SCALAR_FIELD(rootSetOp);
-
-    return new;
-}*/
-
 static SetQuery *
 copySetQuery(SetQuery *from)
 {
@@ -272,8 +264,40 @@ copyQueryBlock(QueryBlock *from)
     COPY_NODE_FIELD(distinct);
     COPY_NODE_FIELD(fromClause);
     COPY_NODE_FIELD(whereClause);
+    COPY_NODE_FIELD(groupByClause);
     COPY_NODE_FIELD(havingClause);
+    COPY_NODE_FIELD(orderByClause);
+    COPY_NODE_FIELD(limitClause);
     
+    return new;
+}
+static Insert *
+copyInsert(Insert *from)
+{
+    COPY_INIT(Insert);
+    COPY_STRING_FIELD(tableName);
+    COPY_NODE_FIELD(attrList);
+    COPY_NODE_FIELD(query);
+
+    return new;
+}
+static Delete *
+copyDelete(Delete *from)
+{
+    COPY_INIT(Delete);
+    COPY_STRING_FIELD(nodeName);
+    COPY_NODE_FIELD(cond);
+
+    return new;
+}
+static Update *
+copyUpdate(Update *from)
+{
+    COPY_INIT(Update);
+    COPY_STRING_FIELD(nodeName);
+    COPY_NODE_FIELD(selectClause);
+    COPY_NODE_FIELD(cond);
+
     return new;
 }
 static ProvenanceStmt *
@@ -342,7 +366,6 @@ static FromJoinExpr *
 copyFromJoinExpr(FromJoinExpr *from)
 {
     COPY_INIT(FromJoinExpr);
-
     COPY_SCALAR_FIELD(left);
     COPY_SCALAR_FIELD(right);
     COPY_SCALAR_FIELD(joinType);
@@ -356,7 +379,6 @@ static DistinctClause *
 copyDistinctClause(DistinctClause *from)
 {
     COPY_INIT(DistinctClause);
-
     COPY_NODE_FIELD(distinctExprs);
 
     return new;
@@ -425,6 +447,15 @@ void *copyObject(void *from)
             break;
         case T_DistinctClause:
             retval = copyDistinctClause(from);
+            break;
+        case T_Insert:
+            retval = copyInsert(from);
+            break;
+        case T_Delete:
+            retval = copyDelete(from);
+            break;
+        case T_Update:
+            retval = copyUpdate(from);
             break;
 
              /* query operator model nodes */

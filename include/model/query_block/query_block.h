@@ -10,6 +10,8 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 
+#define isQBQuery(node) (isA(node,QueryBlock) || isA(node,SetQuery) || isA(node, ProvenanceStmt))
+
 typedef enum SetOpType
 {
     SETOP_UNION,
@@ -42,7 +44,10 @@ typedef struct QueryBlock
     Node *distinct;
     List *fromClause;
     Node *whereClause;
+    List *groupByClause;
     Node *havingClause;
+    List *orderByClause;
+    Node *limitClause;
 } QueryBlock;
 
 typedef struct ProvenanceStmt
@@ -57,6 +62,8 @@ typedef struct SelectItem
     char *alias;
     Node *expr;
 } SelectItem;
+
+#define isFromItem(node) (isA(node,FromItem) || isA(node, FromTableRef) || isA(node, FromSubquery) || isA(node, FromJoinExpr))
 
 typedef struct FromItem
 {
@@ -126,6 +133,29 @@ typedef struct NestedSubquery
     Node *query;
 } NestedSubquery;
 
+typedef struct Insert
+{
+    NodeTag type;
+    char *tableName;
+    List *attrList;
+    Node *query;
+} Insert;
+
+typedef struct Delete
+{
+    NodeTag type;
+    char *nodeName;
+    Node *cond;
+} Delete;
+
+typedef struct Update
+{
+    NodeTag type;
+    char *nodeName;
+    List *selectClause;
+    Node *cond;
+} Update;
+
 /* functions for creating query block nodes */
 /*extern SetQuery *createSetQuery(List *selectClause, SetOp *root);*/
 extern SetQuery *createSetQuery(char *opType, boolean all, Node *lChild,
@@ -144,5 +174,8 @@ extern DistinctClause *createDistinctClause (List *distinctExprs);
   //      char *comparisonOp, Node *query);
 extern NestedSubquery *createNestedSubquery (char *nType, Node *expr,
      char *comparisonOp, Node *query);
+extern Insert *createInsert(char *nodeName, Node *query, List*);
+extern Delete *createDelete(char *nodeName, Node *cond);
+extern Update *createUpdate(char *nodeName, List *selectClause, Node *cond);
 
 #endif /* QUERY_BLOCK_H */

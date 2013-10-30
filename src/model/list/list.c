@@ -184,7 +184,7 @@ singleton(void *value)
 List *
 listMake(void *elem, ...)
 {
-    List *result = NIL;
+    List *result = singleton(elem);
     int n = 0;
     va_list args;
     void *p;
@@ -331,6 +331,17 @@ copyList(List *list)
 	return listCopy; /* keep compiler quiet for now */
 }
 
+List *
+deepCopyStringList (List *list)
+{
+    List *listCopy = NIL;
+
+    FOREACH(char,c, list)
+        listCopy = appendToTailOfList(listCopy, strdup(c));
+
+    return listCopy;
+}
+
 void
 freeList(List *list)
 {
@@ -375,7 +386,7 @@ concatTwoLists(List *lista, List*listb)
 	lista->length += listb->length;
 
     assert(checkList(lista));
-    freeList(listb);
+    FREE(listb);
     return lista;
 }
 

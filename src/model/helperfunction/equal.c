@@ -15,7 +15,7 @@
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
-
+#include "log/logger.h"
 
 /* equal functions for specific node types */
 static boolean equalFunctionCall(FunctionCall *a, FunctionCall *b);
@@ -24,7 +24,7 @@ static boolean equalAttributeReference (AttributeReference *a,
 static boolean equalList(List *a, List *b);
 // equal functions for query_operator
 static boolean equalSchema(Schema *a, Schema *b);
-static boolean equalSchemaFromLists(Schema *a, Schema *b);
+//static boolean equalSchemaFromLists(Schema *a, Schema *b);
 static boolean equalAttributeDef(AttributeDef *a, AttributeDef *b);
 static boolean equalQueryOperator(QueryOperator *a, QueryOperator *b);
 static boolean equalTableAccessOperator(TableAccessOperator *a, TableAccessOperator *b);
@@ -44,6 +44,9 @@ static boolean equalFromTableRef(FromTableRef *a, FromTableRef *b);
 static boolean equalFromSubquery(FromSubquery *a, FromSubquery *b);
 static boolean equalFromJoinExpr(FromJoinExpr *a, FromJoinExpr *b);
 static boolean equalDistinctClause(DistinctClause *a,  DistinctClause *b);
+static boolean equalInsert(Insert *a, Insert *b);
+static boolean equalDelete(Delete *a, Delete *b);
+static boolean equalUpdate(Update *a, Update *b);
 
 
 /*use these macros to compare fields */
@@ -101,6 +104,7 @@ equalList(List *a, List *b)
     COMPARE_SCALAR_FIELD(length);
 
     // lists have same type and length
+    assert(LIST_LENGTH(a) > 0 && LIST_LENGTH(b) > 0);
 
     switch(a->type)
     {
@@ -108,7 +112,7 @@ equalList(List *a, List *b)
         {
             FORBOTH(Node,l,r,a,b)
             {
-                if (!equal(a,b))
+                if (!equal(l,r))
                     return FALSE;
             }
         }
@@ -242,11 +246,42 @@ equalQueryBlock(QueryBlock *a, QueryBlock *b)
     COMPARE_NODE_FIELD(distinct);
     COMPARE_NODE_FIELD(fromClause);
     COMPARE_NODE_FIELD(whereClause);
+    COMPARE_NODE_FIELD(groupByClause);
     COMPARE_NODE_FIELD(havingClause);
-  
+    COMPARE_NODE_FIELD(orderByClause);
+    COMPARE_NODE_FIELD(limitClause);
+
     return TRUE;
 }
 
+static boolean 
+equalInsert(Insert *a, Insert *b)
+{
+    COMPARE_STRING_FIELD(tableName);
+    COMPARE_NODE_FIELD(query);
+   
+    return TRUE;
+
+}
+static boolean 
+equalDelete(Delete *a, Delete *b)
+{
+    COMPARE_STRING_FIELD(nodeName);
+    COMPARE_NODE_FIELD(cond);
+   
+    return TRUE;
+
+}
+static boolean 
+equalUpdate(Update *a, Update *b)
+{
+    COMPARE_STRING_FIELD(nodeName);
+    COMPARE_NODE_FIELD(selectClause);
+    COMPARE_NODE_FIELD(cond);
+   
+    return TRUE;
+
+}
 static boolean 
 equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b)
 {
@@ -330,6 +365,8 @@ equal(void *a, void *b)
     if (nodeTag(a) !=nodeTag(b))
         return FALSE;
 
+    DEBUG_LOG("same node types <%s> and <%s>", nodeToString(a), nodeToString(b));
+
     switch(nodeTag(a))
     {
         case T_List:
@@ -400,6 +437,15 @@ equal(void *a, void *b)
             break;
         case T_DistinctClause:
             retval = equalDistinctClause(a,b);
+            break;
+        case T_Insert:
+            retval = equalInsert(a,b);
+            break;
+        case T_Delete:
+            retval = equalDelete(a,b);
+            break;
+        case T_Update:
+            retval = equalUpdate(a,b);
             break;
         default:
             retval = FALSE;

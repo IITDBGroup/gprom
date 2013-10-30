@@ -8,6 +8,7 @@ libmodel_la_LIBADD     	= expression/libexpression.la \
 						list/liblist.la \
 						node/libnode.la \
 						query_block/libquery_block.la \
-						query_operator/libquery_operator.la
+						query_operator/libquery_operator.la #\
+						#set/libset.la
 						
 libmodel_la_SOURCES     =

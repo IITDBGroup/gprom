@@ -19,6 +19,12 @@
 #include "uthash.h"
 #include <assert.h>
 
+// override the defaults for UT_hash memory allocation to use standard malloc
+#undef uthash_malloc
+#undef uthash_free
+#define uthash_malloc(sz) malloc(sz)
+#define uthash_free(ptr,sz) free(ptr)
+
 #define DEFAULT_MEM_CONTEXT_NAME "DEFAULT_MEMORY_CONTEXT"
 
 typedef struct MemContextNode
@@ -28,9 +34,9 @@ typedef struct MemContextNode
 } MemContextNode; // context stack node
 
 static void
-addAlloc(MemContext *mc, void *addr, const char *file, unsigned line);
+        addAlloc(MemContext *mc, void *addr, const char *file, unsigned line);
 static void
-delAlloc(MemContext *mc, void *addr, const char *file, unsigned line);
+        delAlloc(MemContext *mc, void *addr, const char *file, unsigned line);
 
 static MemContext *curMemContext = NULL; // global pointer to current memory context
 static MemContext *defaultMemContext = NULL;

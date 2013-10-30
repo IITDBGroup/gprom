@@ -24,9 +24,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef UTHASH_H
 #define UTHASH_H 
 
-//#include <string.h>   /* memcmp,strlen */
-//#include <stddef.h>   /* ptrdiff_t */
-//#include <stdlib.h>   /* exit() */
 #include "common.h"
 
 /* These macros use decltype or the earlier __typeof GNU extension.
@@ -71,10 +68,10 @@ typedef unsigned char uint8_t;
 #define uthash_fatal(msg) exit(-1)        /* fatal error (out of memory,etc) */
 #endif
 #ifndef uthash_malloc
-#define uthash_malloc(sz) malloc(sz)      /* malloc fcn                      */
+#define uthash_malloc(sz) MALLOC(sz)      /* malloc fcn                      */
 #endif
 #ifndef uthash_free
-#define uthash_free(ptr,sz) free(ptr)     /* free fcn                        */
+#define uthash_free(ptr,sz) FREE(ptr)     /* free fcn                        */
 #endif
 
 #ifndef uthash_noexpand_fyi
@@ -101,6 +98,20 @@ do {                                                                            
      if (HASH_BLOOM_TEST((head)->hh.tbl, _hf_hashv)) {                           \
        HASH_FIND_IN_BKT((head)->hh.tbl, hh, (head)->hh.tbl->buckets[ _hf_bkt ],  \
                         keyptr,keylen,out);                                      \
+     }                                                                           \
+  }                                                                              \
+} while (0)
+
+#define HASH_FIND_CMP(hh,head,keyptr,keylen,out,cmpfunction)                     \
+do {                                                                             \
+  unsigned _hf_bkt,_hf_hashv;                                                    \
+  out=NULL;                                                                      \
+  if (head) {                                                                    \
+     HASH_FCN(keyptr,keylen, (head)->hh.tbl->num_buckets, _hf_hashv, _hf_bkt);   \
+     if (HASH_BLOOM_TEST((head)->hh.tbl, _hf_hashv)) {                           \
+       HASH_FIND_IN_BKT_CMP((head)->hh.tbl, hh,                                  \
+                        (head)->hh.tbl->buckets[ _hf_bkt ],                      \
+                        keyptr,keylen,out,cmpfunction);                          \
      }                                                                           \
   }                                                                              \
 } while (0)
@@ -262,6 +273,8 @@ do {                                                                            
     HASH_ADD(hh,head,intfield,sizeof(int),add)
 #define HASH_REPLACE_INT(head,intfield,add,replaced)                             \
     HASH_REPLACE(hh,head,intfield,sizeof(int),add,replaced)
+#define HASH_FIND_NODE(head,findptr,out)                                         \
+    HASH_FIND_CMP(hh,head,findptr,sizeof(void *),out,equal)
 #define HASH_FIND_PTR(head,findptr,out)                                          \
     HASH_FIND(hh,head,findptr,sizeof(void *),out)
 #define HASH_ADD_PTR(head,ptrfield,add)                                          \
@@ -602,6 +615,21 @@ do {                                                                            
  while (out) {                                                                   \
     if ((out)->hh.keylen == keylen_in) {                                           \
         if ((HASH_KEYCMP((out)->hh.key,keyptr,keylen_in)) == 0) break;             \
+    }                                                                            \
+    if ((out)->hh.hh_next) DECLTYPE_ASSIGN(out,ELMT_FROM_HH(tbl,(out)->hh.hh_next)); \
+    else out = NULL;                                                             \
+ }                                                                               \
+} while(0)
+
+#define HASH_KEY_FUNCCMP(a,b,cmpfunction) cmpfunction(a,b)
+
+#define HASH_FIND_IN_BKT_CMP(tbl,hh,head,keyptr,keylen_in,out,cmpfunction)       \
+do {                                                                             \
+ if (head.hh_head) DECLTYPE_ASSIGN(out,ELMT_FROM_HH(tbl,head.hh_head));          \
+ else out=NULL;                                                                  \
+ while (out) {                                                                   \
+    if ((out)->hh.keylen == keylen_in) {                                         \
+        if ((HASH_KEY_FUNCCMP((out)->hh.key,keyptr,cmpfunction)) == 0) break;           \
     }                                                                            \
     if ((out)->hh.hh_next) DECLTYPE_ASSIGN(out,ELMT_FROM_HH(tbl,(out)->hh.hh_next)); \
     else out = NULL;                                                             \

@@ -29,7 +29,7 @@ typedef struct List
 } List;
 
 #define NIL ((List *)NULL)
-
+#define LIST_LENGTH(l) ((l == NULL) ? 0 : (l)->length)
 
 /*
  * Loop through list _list_ and access each element of type _type_ using name
@@ -83,7 +83,7 @@ typedef struct List
     		getHeadOfList(_list1_)) != NULL) ? \
                     DUMMY_LC(_node1_)->data.ptr_value : NULL), \
         *_node2_ = (_type_ *)(((DUMMY_LC(_node2_) = \
-        	getHeadOfList(_list1_)) != NULL) ? \
+        	getHeadOfList(_list2_)) != NULL) ? \
             		DUMMY_LC(_node2_)->data.ptr_value : NULL) \
         ; \
             DUMMY_LC(_node1_) != NULL && DUMMY_LC(_node2_) != NULL; \
@@ -156,7 +156,7 @@ extern void reverseList(List *list);
 extern void sortList(List *list);
 
 extern List *copyList(List *list);
-
+extern List *deepCopyStringList (List *list);
 extern void freeList(List *list);
 extern void deepFreeList(List *list);
 

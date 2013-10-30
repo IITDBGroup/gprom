@@ -10,8 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 
-#include <string.h>
-#include <stdio.h>
+#include "common.h"
 
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
@@ -30,7 +29,7 @@ newNode(size_t size, NodeTag type)
 {
     Node *newNode;
 
-    newNode = (Node *) MALLOC(size);
+    newNode = (Node *) CALLOC(size,1);
     newNode->type = type;
 
     return newNode;
@@ -95,6 +94,43 @@ appendStringInfoString(StringInfo str, const char *s)
     str->len += strlen(s);
 }
 
+void
+appendStringInfoStrings(StringInfo str, ...)
+{
+    va_list args;
+    char *arg;
+
+    va_start(args,str);
+
+    while((arg = va_arg(args, char *)) != NULL)
+    {
+        DEBUG_LOG("append <%s> to <%s>", arg, str->data);
+        appendStringInfoString(str, arg);
+    }
+
+    va_end(args);
+}
+
+extern char *
+concatStrings(const char *s, ...)
+{
+    StringInfo str;
+    char *result;
+    va_list args;
+    char *arg;
+
+    str = makeStringInfo();
+    appendStringInfoString(str, s);
+
+    va_start(args,s);
+    while((arg = va_arg(args,char*)) != NULL)
+        appendStringInfoString(str, arg);
+    va_end(args);
+
+    result = str->data;
+    FREE(str);
+    return result;
+}
 
 void
 appendStringInfo(StringInfo str, const char *format, ...)
@@ -119,6 +155,30 @@ appendStringInfo(StringInfo str, const char *format, ...)
 
         makeStringInfoSpace(str, needed);
     }
+}
+
+
+void
+prependStringInfo (StringInfo str, const char *format, ...)
+{
+    va_list args;
+    int preLen, appendSize;
+    char *temp = MALLOC(str->len);
+
+    // copy string A
+    memcpy(temp, str->data, str->len);
+    preLen = str->len;
+
+    // append to end leading AB
+    va_start(args, format);
+    appendStringInfo(str, format, args);
+    va_end(args);
+
+    // move new parts to the beginning to create BA
+    appendSize = str->len - preLen;
+    memcpy(str->data, str->data + preLen, appendSize);
+    memcpy(str->data + appendSize, temp, preLen);
+    FREE(temp);
 }
 
 

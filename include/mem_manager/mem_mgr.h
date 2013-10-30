@@ -37,8 +37,6 @@
 #ifndef MEM_MGR_H_
 #define MEM_MGR_H_
 
-#include <stdlib.h>
-#include "common.h"
 #include "uthash.h"
 
 typedef struct Allocation

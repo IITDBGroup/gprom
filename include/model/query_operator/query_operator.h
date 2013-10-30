@@ -84,22 +84,23 @@ typedef struct DuplicateRemoval
     List *attrs; // attributes that need duplicate removal, AttributeReference type
 } DuplicateRemoval;
 
-typedef enum ProvenanceType
-{
-    PI_CS,
-    TRANSFORMATION
-} ProvenanceType;
-
 typedef struct ProvenanceComputation
 {
     QueryOperator op;
     ProvenanceType provType;
 } ProvenanceComputation;
 
+typedef struct UpdateOperator
+{
+    QueryOperator op;
+    char *tableName;
+} UpdateOperator;
+
 /* schema helper functions */
 extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames, List *dataTypes);
 extern List *getDataTypes (Schema *schema);
+extern List *getAttrNames(Schema *schema);
 
 /* create functions */
 extern TableAccessOperator *createTableAccessOp (char *tableName, char *alias, List *parents, List *attrNames, List *dataTypes);
@@ -117,6 +118,12 @@ extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, 
 
 #define OP_RCHILD(op) \
     ((QueryOperator *) ((QueryOperator*) op)->inputs->head->next->data.ptr_value)
+
+#define _OP_LCHILD(op) \
+	((QueryOperator*) op)->inputs->head->data.ptr_value
+
+#define _OP_RCHILD(op) \
+	((QueryOperator*) op)->inputs->head->next->data.ptr_value
 
 /* access functions */
 extern List *getProvenanceAttrs(QueryOperator *op);

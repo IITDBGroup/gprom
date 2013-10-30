@@ -86,6 +86,19 @@ getDataTypes (Schema *schema)
     return result;
 }
 
+List *
+getAttrNames(Schema *schema)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeDef,a,schema->attrDefs)
+    {
+        result = appendToTailOfList(result, a->attrName);
+    }
+
+    return result;
+}
+
 TableAccessOperator *
 createTableAccessOp(char *tableName, char *alias, List *parents,
         List *attrNames, List *dataTypes)
@@ -108,7 +121,7 @@ createSelectionOp(Node *cond, QueryOperator *input, List *parents,
 {
     SelectionOperator *sel = NEW(SelectionOperator);
 
-    sel->cond = cond;
+    sel->cond = copyObject(cond);
     sel->op.type = T_SelectionOperator;
     sel->op.inputs = singleton(input);
     sel->op.schema = createSchemaFromLists("SELECT", attrNames, getDataTypes(input->schema));
@@ -123,6 +136,11 @@ createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
         List *attrNames)
 {
     ProjectionOperator *prj = NEW(ProjectionOperator);
+
+    FOREACH(Node, expr, projExprs)
+    {
+        prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
+    }
 
     prj->projExprs = projExprs;
     prj->op.type = T_ProjectionOperator;
@@ -142,7 +160,7 @@ createJoinOp(JoinType joinType, Node *cond, List *inputs, List *parents,
 {
     JoinOperator *join = NEW(JoinOperator);
 
-    join->cond = cond;
+    join->cond = copyObject(cond);
     join->joinType = joinType;
     join->op.type = T_JoinOperator;
     join->op.inputs = inputs;
@@ -207,6 +225,24 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
     dr->op.provAttrs = NULL;
 
     return dr;
+}
+
+ProvenanceComputation *
+createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, List *parents, List *attrNames)
+{
+    return NULL; //TODO
+}
+
+List *
+getProvenanceAttrs(QueryOperator *op)
+{
+    return op ? op->provAttrs : NIL;
+}
+
+List *
+getNormalAttrs(QueryOperator *op)
+{
+    return op ? op->schema ? op->schema->attrDefs : NIL : NIL;
 }
 
 static Schema *

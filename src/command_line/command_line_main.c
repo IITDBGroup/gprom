@@ -10,10 +10,24 @@
  *-------------------------------------------------------------------------
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#include "common.h"
 #include "command_line/command_line_main.h"
 #include "configuration/option_parser.h"
+#include "mem_manager/mem_mgr.h"
+
+#include "model/node/nodetype.h"
+#include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
+#include "log/logger.h"
+#include "parser/parser.h"
+#include "analysis_and_translate/translator.h"
+#include "provenance_rewriter/prov_rewriter.h"
+#include "sql_serializer/sql_serializer.h"
+
+static void init();
+static void cleanup();
+static char *process(char *sql);
+
 
 int
 main(int argc, char* argv[]) {
@@ -22,13 +36,21 @@ main(int argc, char* argv[]) {
 	int rc=parseOption(argc,argv);
 
 	if(rc<0)
+	{
 		printError();
+		return EXIT_FAILURE;
+	}
 	else if(rc>0)
+	{
 		printHelp();
+		return EXIT_FAILURE;
+	}
 	else
 	{
 		printSuccess();
+		init();
 		inputSQL();
+		cleanup();
 	}
 
 	freeOptions();
@@ -79,12 +101,26 @@ printSuccess()
 	printf("===================================================================\n");
 }
 
+static void
+init()
+{
+    initMemManager();
+}
+
+static void
+cleanup()
+{
+    destroyMemManager();
+}
+
 void
 inputSQL()
 {
-	char* sql=(char*)malloc(sizeof(char)*999);
+	char* sql=(char*) CALLOC(999,1);
 	while(TRUE)
 	{
+	    char *rewritten;
+
 		printf("Please input a SQL or 'q' to exit the program\n");
 		scanf("%s",sql);
 		if(*sql=='q')
@@ -92,7 +128,35 @@ inputSQL()
 			printf("Client Exit.\n");
 			break;
 		}
-		printf("Rewrite SQL is:%s\n",sql);
+
+		NEW_AND_ACQUIRE_MEMCONTEXT("PROCESS_CONTEXT");
+		rewritten = process(sql);
+		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+
+		printf("Rewrite SQL is:%s\n",rewritten);
 	}
-	free(sql);
+	FREE(sql);
+}
+
+/*
+ * Parse -> Translate -> Provenance Rewrite -> Serialize
+ */
+static char *
+process(char *sql)
+{
+    Node *parseOutput;
+    QueryOperator *oModel;
+
+    DEBUG_LOG("sql input: <%s>", sql);
+
+    parseOutput = parseFromString(sql);
+    DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parseOutput));
+
+    oModel = translateParse(parseOutput);
+    DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(oModel));
+
+    oModel = provRewriteQuery(oModel);
+    DEBUG_LOG("provenance rewriter returned:\n\n<%s>", nodeToString(oModel));
+
+    return serializeQuery(oModel);
 }
