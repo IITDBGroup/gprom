@@ -137,6 +137,11 @@ createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
 {
     ProjectionOperator *prj = NEW(ProjectionOperator);
 
+    FOREACH(Node, expr, projExprs)
+    {
+        prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
+    }
+
     prj->projExprs = projExprs;
     prj->op.type = T_ProjectionOperator;
     prj->op.inputs = singleton(input);

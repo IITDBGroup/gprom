@@ -38,6 +38,10 @@ static QueryOperator *translateFromSubquery(FromSubquery *fsq);
 static QueryOperator *translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot, int *attrsOffsets);
 static boolean visitAttrRefToSetNewAttrPos(Node *n, void *state);
 
+/* Functions of translating select clause in a QueryBlock */
+static QueryOperator *translateSelectClause(List *selectClause, QueryOperator *select, int *attrsOffsets);
+static boolean visitAttrRefToGetAttrNames(Node *n, void *state);
+
 
 QueryOperator *
 translateParse(Node *q)
@@ -92,7 +96,7 @@ translateSetQuery(SetQuery *sq)
     // create set operator node
 
     OP_LCHILD(so)->parents = OP_RCHILD(so)->parents = singleton(so);
-    // set the parent of the node's children
+    // set the parent of the operator's children
 
     return ((QueryOperator *) so);
 }
@@ -103,8 +107,9 @@ translateQueryBlock(QueryBlock *qb)
     QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause);
     int *attrsOffsets = getAttrsOffsets(qb->fromClause);
     QueryOperator *select = translateWhereClause(qb->whereClause, joinTreeRoot, attrsOffsets);
-    // TODO translate selection clause
-    return NULL;
+    QueryOperator *project = translateSelectClause(qb->selectClause, select, attrsOffsets);
+    // TODO translate aggregation
+    return project;
 }
 
 static QueryOperator *
@@ -152,7 +157,7 @@ buildJoinTreeFromOperatorList(List *opList)
         // create join operator
 
         OP_LCHILD(root)->parents = OP_RCHILD(root)->parents = singleton(root);
-        // set the parent of the node's children
+        // set the parent of the operator's children
     }
     return root;
 }
@@ -248,13 +253,16 @@ translateFromJoinExpr(FromJoinExpr *fje)
     // set children of the join operator node
 
     JoinOperator *jo = createJoinOp(fje->joinType, fje->cond, inputs, NIL,
-            fje->from.attrNames); // TODO compute attrNames?
+            fje->from.attrNames); // TODO merge schema?
     // create join operator node
 
-    // TODO create selection/projection upon join according to join condition
-
     OP_LCHILD(jo)->parents = OP_RCHILD(jo)->parents = singleton(jo);
-    // set the parent of the node's children
+    // set the parent of the operator's children
+
+    if (fje->joinCond == JOIN_COND_NATURAL)
+    {
+        // TODO create projection?
+    }
 
     return ((QueryOperator *) jo);
 }
@@ -270,19 +278,18 @@ static QueryOperator *
 translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot, int *attrsOffsets)
 {
     if (whereClause == NULL)
-        return NULL;
+        return joinTreeRoot;
 
-    QueryOperator *input = joinTreeRoot;
-    SelectionOperator *so = createSelectionOp (whereClause, input, NIL, getAttrNames(input->schema));
+    SelectionOperator *so = createSelectionOp (whereClause, joinTreeRoot, NIL, getAttrNames(joinTreeRoot->schema));
     // create selection operator node upon the root of the join tree
 
     visitAttrRefToSetNewAttrPos(so->cond, attrsOffsets);
     // change attributes positions in selection condition
 
     OP_LCHILD(so)->parents = singleton(so);
-    // set the parent of the node's children
+    // set the parent of the operator's children
 
-    return so;
+    return ((QueryOperator *) so);
 }
 
 static boolean
@@ -291,14 +298,56 @@ visitAttrRefToSetNewAttrPos(Node *n, void *state)
     if (n == NULL)
         return TRUE;
 
+    int *offsets = (int *) state;
     if (n->type == T_AttributeReference)
     {
         AttributeReference *attrRef = (AttributeReference *) n;
-        int *offsets = (int *) state;
         attrRef->attrPosition += offsets[attrRef->fromClauseItem];
         attrRef->fromClauseItem = 0;
     }
 
-    return visit(n, visitAttrRefToSetNewAttrPos, state);
+    return visit(n, visitAttrRefToSetNewAttrPos, offsets);
 }
 
+static QueryOperator *
+translateSelectClause(List *selectClause, QueryOperator *select,
+        int *attrsOffsets)
+{
+    List *attrNames = NIL;
+    FOREACH(Node, expr, selectClause)
+    {
+        visitAttrRefToGetAttrNames(expr, attrNames);
+    }
+    // visit each expression in select clause to get attribute names
+
+    ProjectionOperator *po = createProjectionOp(selectClause, select, NIL,
+            attrNames);
+    // create projection operator upon selection operator from select clause
+
+    FOREACH(Node, expr, po->projExprs)
+    {
+        visitAttrRefToSetNewAttrPos(expr, attrsOffsets);
+        // change attribute position in attribute reference in each projection expression
+    }
+
+    OP_LCHILD(po)->parents = singleton(po);
+    // set the parent of the operator's children
+
+    return ((QueryOperator *) po);
+}
+
+static boolean
+visitAttrRefToGetAttrNames(Node *n, void *state)
+{
+    if (n == NULL)
+        return TRUE;
+
+    List *attrNames = (List *) state;
+    if (n->type == T_AttributeReference)
+    {
+        AttributeReference *attrRef = (AttributeReference *) n;
+        attrNames = appendToTailOfList(attrNames, attrRef->name);
+    }
+
+    return visit(n, visitAttrRefToGetAttrNames, attrNames);
+}
