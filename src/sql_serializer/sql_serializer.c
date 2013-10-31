@@ -338,7 +338,8 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 static void
 serializeFrom (QueryOperator *q, StringInfo from)
 {
-
+    appendStringInfoString(str, "\nFROM ");
+    appendStringInfoString(str, fromString->data);
 }
 
 /*
@@ -347,7 +348,8 @@ serializeFrom (QueryOperator *q, StringInfo from)
 static void
 serializeWhere (QueryOperator *q, StringInfo where)
 {
-
+    appendStringInfoString(str, "\nWHERE ");
+    appendStringInfoString(str, whereString->data);
 }
 
 /*
@@ -356,7 +358,8 @@ serializeWhere (QueryOperator *q, StringInfo where)
 static void
 serializeSelect (QueryOperator *q, StringInfo select)
 {
-
+    appendStringInfoString(str, "\nSELECT ");
+    appendStringInfoString(str, selectString->data);
 }
 
 
