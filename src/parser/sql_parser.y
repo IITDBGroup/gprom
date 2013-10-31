@@ -81,7 +81,10 @@ Node *bisonParseResult = NULL;
 
 /* Comparison operator */
 %left comparisonOps
-%nonassoc AND OR NOT IN ISNULL BETWEEN LIKE
+%right NOT
+%left AND OR
+%right ISNULL
+%nonassoc  LIKE IN  BETWEEN
 
 /* Arithmetic operators : FOR TESTING */
 %nonassoc DUMMYEXPR
@@ -90,6 +93,7 @@ Node *bisonParseResult = NULL;
 %left '^'
 %nonassoc '(' ')'
 
+%left NATURAL JOIN CROSS LEFT FULL RIGHT INNER
 
 /*
  * Types of non-terminal symbols
@@ -103,7 +107,7 @@ Node *bisonParseResult = NULL;
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
 %type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
-/*%type <node> optionalJoinClause optionalJoinCond*/
+%type <node> joinCond
 %type <stringVal> optionalAlias optionalAll nestedSubQueryOperator optionalNot fromString
 %type <stringVal> joinType
 
@@ -559,33 +563,56 @@ fromClause:
             }
     ;
 
-subQuery:
-        '(' queryStmt ')' optionalAlias
-            {
-                RULELOG("subQuery::queryStmt");
-                $$ = (Node *) createFromSubquery($4, NULL, $2);
-            }
-    ;
 
 fromClauseItem:
-        identifier optionalAlias
+        identifier
+            {
+                RULELOG("fromClauseItem");
+                $$ = (Node *) createFromTableRef(NULL, NIL, $1);
+            }
+        | identifier optionalAlias
             {
                 RULELOG("fromClauseItem");
                 $$ = (Node *) createFromTableRef($2, NIL, $1);
             }
+            
         | subQuery
             {
                 RULELOG("fromClauseItem::subQuery");
                 $$ = $1;
             }
-        | fromJoinItem optionalAlias
+        | subQuery optionalAlias
+            {
+                RULELOG("fromClauseItem::subQuery");
+                FromSubquery *s = (FromSubquery *) $1;
+                s->from.name = $2;
+                $$ = (Node *) s;
+            }
+            
+        | fromJoinItem 
         	{
         		FromItem *f;
         		RULELOG("fromClauseItem::fromJoinItem");
         		f = (FromItem *) $1;
-        		f->name = $2;
+        		f->name = NULL;
         		$$ = (Node *) f;
         	}
+       	 | '(' fromJoinItem ')' optionalAlias
+        	{
+        		FromItem *f;
+        		RULELOG("fromClauseItem::fromJoinItem");
+        		f = (FromItem *) $2;
+        		f->name = $3;
+        		$$ = (Node *) f;
+        	}
+    ;
+
+subQuery:
+        '(' queryStmt ')'
+            {
+                RULELOG("subQuery::queryStmt");
+                $$ = (Node *) createFromSubquery(NULL, NULL, $2);
+            }
     ;
 
 identifierList:
@@ -593,39 +620,50 @@ identifierList:
 		| identifierList ',' identifier { $$ = appendToTailOfList($1, $3); }
    
 fromJoinItem:
-		fromClauseItem NATURAL joinType fromClauseItem 
+		'(' fromJoinItem ')' 			{ $$ = $2; }
+		| fromClauseItem NATURAL joinType JOIN fromClauseItem 
 			{
-                RULELOG("Join");
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $4, $3, "JOIN_CONDITION_NATURAL", NULL);
+                RULELOG("fromJoinItem::NATURALjoinType");
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $5, $3, "JOIN_COND_NATURAL", NULL);
+          	}
+        | fromClauseItem NATURAL JOIN fromClauseItem 
+			{
+                RULELOG("fromJoinItem::NATURAL");
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, $3, "JOIN_COND_NATURAL", NULL);
           	}
      	| fromClauseItem CROSS JOIN fromClauseItem 
         	{
-				RULELOG("Join...on condition");
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, "JOIN_CROSS", "JOIN_CONDITION_ON", NULL);
+				RULELOG("fromJoinItem::CROSS JOIN");
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, "JOIN_CROSS", "JOIN_COND_ON", NULL);
           	}
-     	| fromClauseItem joinType fromClauseItem ON whereExpression 
+     	| fromClauseItem joinType JOIN fromClauseItem joinCond 
         	{
-				RULELOG("Join...on condition");
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, $2, "JOIN_CONDITION_ON", $5);
+				RULELOG("fromJoinItem::JOIN::joinType::joinCond");
+				char *condType = (isA($5,List)) ? "JOIN_COND_USING" : "JOIN_COND_ON";
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $4, $2, condType, $5);
           	}
-     	| fromClauseItem joinType fromClauseItem USING '(' identifierList ')'
+     	| fromClauseItem JOIN fromClauseItem joinCond
         	{
-				RULELOG("Join...on condition");
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, $2, "JOIN_CONDITION_USING", (Node *) $6);
+				RULELOG("fromJoinItem::JOIN::joinCond");
+				char *condType = (isA($4,List)) ? "JOIN_COND_USING" : "JOIN_COND_ON"; 
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, "JOIN_INNER", 
+                	condType, $4);
           	}
      ;
      
 joinType:
-		LEFT OUTER JOIN { $$ = "JOIN_INNER"; }
-		| RIGHT OUTER JOIN { $$ = "JOIN_LEFT_OUTER"; }
-		| FULL OUTER JOIN { $$ = "JOIN_RIGHT_OUTER"; }
-		| INNER JOIN { $$ = "JOIN_INNER"; }
-		| JOIN { $$ = "JOIN_INNER"; }
+		LEFT OUTER { $$ = "JOIN_LEFT OUTER"; }
+		| RIGHT OUTER  { $$ = "JOIN_RIGHT_OUTER"; }
+		| FULL OUTER  { $$ = "JOIN_FULL_OUTER"; }
+		| INNER  { $$ = "JOIN_INNER"; }
 	;
 
+joinCond:
+		USING '(' identifierList ')' { $$ = (Node *) $3; }
+		| ON whereExpression			 { $$ = $2; }
+
 optionalAlias:
-        /* empty */                { RULELOG("optionalAlias::NULL"); $$ = NULL; }
-        | identifier            { RULELOG("optionalAlias::identifier"); $$ = $1; }
+        identifier            { RULELOG("optionalAlias::identifier"); $$ = $1; }
         | AS identifier            { RULELOG("optionalAlias::identifier"); $$ = $2; }
     ;
           
@@ -646,7 +684,7 @@ whereExpression:
                 List *expr = singleton($2);
                 $$ = (Node *) createOpExpr($1, expr);
             }
-        | whereExpression AND whereExpression
+        | whereExpression AND whereExpression	
             {
                 RULELOG("whereExpression::AND");
                 List *expr = singleton($1);
@@ -667,14 +705,14 @@ whereExpression:
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
             }
-        | whereExpression BETWEEN whereExpression AND whereExpression
+        | whereExpression BETWEEN expression AND expression
             {
                 RULELOG("whereExpression::BETWEEN-AND");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $3);
                 expr = appendToTailOfList(expr, $5);
                 $$ = (Node *) createOpExpr($2, expr);
-            } 
+            }
         | expression comparisonOps nestedSubQueryOperator '(' queryStmt ')'
             {
                 RULELOG("whereExpression::comparisonOps::nestedSubQueryOperator::Subquery");

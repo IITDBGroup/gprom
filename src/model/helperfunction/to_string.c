@@ -20,6 +20,7 @@
 
 /* functions to output specific node types */
 static void outList(StringInfo str, List *node);
+static void outStringList (StringInfo str, List *node);
 static void outNode(StringInfo, void *node);
 static void outQueryBlock (StringInfo str, QueryBlock *node);
 static void outConstant (StringInfo str, Constant *node);
@@ -92,7 +93,10 @@ static void outUpdate(StringInfo str, Update *node);
 
 /*node field*/
 #define WRITE_NODE_FIELD(fldname)  \
-		appendStringInfoString(str, ":" CppAsString(fldname) "|"); outNode(str, node->fldname);
+		do { \
+		    appendStringInfoString(str, ":" CppAsString(fldname) "|"); \
+            outNode(str, node->fldname); \
+        } while(0);
 
 /*outNode from node append it to string*/
 static void
@@ -118,6 +122,21 @@ outList(StringInfo str, List *node)
                 appendStringInfoString(str, " ");
         }
     }
+    appendStringInfoString(str, ")");
+}
+
+static void
+outStringList (StringInfo str, List *node)
+{
+    appendStringInfo(str, "(");
+
+    FOREACH(char,s,node)
+    {
+        appendStringInfo(str, "\"%s\"", s);
+        if (s_his_cell->next)
+            appendStringInfoString(str, " ");
+    }
+
     appendStringInfoString(str, ")");
 }
 
@@ -249,7 +268,15 @@ outFromJoinExpr (StringInfo str, FromJoinExpr *node)
     WRITE_NODE_FIELD(right);
     WRITE_ENUM_FIELD(joinType, JoinType);
     WRITE_ENUM_FIELD(joinCond, JoinConditionType);
-    WRITE_NODE_FIELD(cond);
+
+    // USING is string list
+    if (node->joinCond == JOIN_COND_USING)
+    {
+        appendStringInfoString(str, ":cond|");
+        outStringList(str, (List *) node->cond);
+    }
+    else
+        WRITE_NODE_FIELD(cond);
 }
 
 static void
@@ -547,9 +574,13 @@ beatify(char *input)
             switch (c)
             {
                 case '(':
-                    indentString(str, indentation);
                     indentation++;
                     appendStringInfoString(str, "(");
+                    if (input[1] == '"') // string list
+                    {
+                        appendStringInfoChar(str, '\n');
+                        indentString(str, indentation);
+                    }
                     break;
                 case '{':
                     appendStringInfoChar(str, '\n');
