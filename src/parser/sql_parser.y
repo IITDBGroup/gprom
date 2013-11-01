@@ -60,7 +60,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> AMMSC NULLVAL ALL ANY IS SOME
 %token <stringVal> UNION INTERSECT MINUS
 %token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
-%token <stringVal> INT
+%token <stringVal> INT BEGIN_TRANS COMMIT_TRANS ROLLBACK_TRANS
 
 %token <stringVal> DUMMYEXPR
 
@@ -109,7 +109,7 @@ Node *bisonParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <stringVal> optionalAlias optionalAll nestedSubQueryOperator optionalNot fromString
-%type <stringVal> joinType
+%type <stringVal> joinType transactionIdentifier
 
 %start stmtList
 
@@ -141,6 +141,11 @@ stmt:
             RULELOG("stmt::queryStmt");
             $$ = $1;
         }
+        | transactionIdentifier ';'
+        {
+            RULELOG("stmt::transactionIdentifier");
+            $$ = $1;
+        }
     ;
 
 /*
@@ -160,6 +165,12 @@ queryStmt:
 		| selectQuery        { RULELOG("queryStmt::selectQuery"); }
 		| provStmt        { RULELOG("queryStmt::provStmt"); }
 		| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); }
+    ;
+
+transactionIdentifier:
+        BEGIN_TRANS        { RULELOG("transactionIdentifier::BEGIN"); $$ = $1; }
+        | COMMIT_TRANS        { RULELOG("transactionIdentifier::COMMIT"); $$ = $1; }
+        | ROLLBACK_TRANS        { RULELOG("transactionIdentifier::ROLLBACK"); $$ = $1; }
     ;
 
 /* 
