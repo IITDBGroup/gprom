@@ -14,3 +14,5 @@ config.status
 *~
 test/testparser
 test/testupana
+test/testanalysis
+.settings

@@ -7,6 +7,7 @@
 
 %{
 #include "common.h"
+#include "mem_manager/mem_mgr.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
@@ -123,12 +124,13 @@ stmtList:
 				$$ = singleton($1);
 				bisonParseResult = (Node *) $$;	 
 			}
-	| stmtList stmt 
+		| stmtList stmt 
 			{
 				RULELOG("stmtlist::stmtList::stmt");
 				$$ = appendToTailOfList($1, $2);	
 				bisonParseResult = (Node *) $$; 
 			}
+	;
 
 stmt: 
         dmlStmt ';'    // DML statement can be select, update, insert, delete
@@ -136,7 +138,7 @@ stmt:
             RULELOG("stmt::dmlStmt");
             $$ = $1;
         }
-	| queryStmt ';'
+		| queryStmt ';'
         {
             RULELOG("stmt::queryStmt");
             $$ = $1;
@@ -144,7 +146,7 @@ stmt:
         | transactionIdentifier ';'
         {
             RULELOG("stmt::transactionIdentifier");
-            $$ = $1;
+            $$ = (Node *) createTransactionStmt($1);
         }
     ;
 
@@ -168,9 +170,9 @@ queryStmt:
     ;
 
 transactionIdentifier:
-        BEGIN_TRANS        { RULELOG("transactionIdentifier::BEGIN"); $$ = $1; }
-        | COMMIT_TRANS        { RULELOG("transactionIdentifier::COMMIT"); $$ = $1; }
-        | ROLLBACK_TRANS        { RULELOG("transactionIdentifier::ROLLBACK"); $$ = $1; }
+        BEGIN_TRANS        { RULELOG("transactionIdentifier::BEGIN"); $$ = strdup("TRANSACTION_BEGIN"); }
+        | COMMIT_TRANS        { RULELOG("transactionIdentifier::COMMIT"); $$ = strdup("TRANSACTION_COMMIT"); }
+        | ROLLBACK_TRANS        { RULELOG("transactionIdentifier::ROLLBACK"); $$ = strdup("TRANSACTION_ABORT"); }
     ;
 
 /* 

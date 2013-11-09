@@ -54,6 +54,7 @@ static DistinctClause *copyDistinctClause(DistinctClause *from);
 static Insert *copyInsert(Insert *from);
 static Delete *copyDelete(Delete *from);
 static Update *copyUpdate(Update *from);
+static TransactionStmt *copyTransactionStmt(TransactionStmt *from);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -196,6 +197,7 @@ copyProjectionOp(ProjectionOperator *from)
 
     return new;
 }
+
 static JoinOperator *
 copyJoinOp(JoinOperator *from)
 {
@@ -206,6 +208,7 @@ copyJoinOp(JoinOperator *from)
 
     return new;
 }
+
 static AggregationOperator *
 copyAggregationOp(AggregationOperator *from)
 {
@@ -216,6 +219,7 @@ copyAggregationOp(AggregationOperator *from)
 
     return new;
 }
+
 static SetOperator *
 copySetOperator(SetOperator *from)
 {
@@ -225,6 +229,7 @@ copySetOperator(SetOperator *from)
 
     return new;
 }
+
 static DuplicateRemoval *
 copyDuplicateRemovalOp(DuplicateRemoval *from)
 {
@@ -234,6 +239,7 @@ copyDuplicateRemovalOp(DuplicateRemoval *from)
 
     return new;
 }
+
 static ProvenanceComputation *
 copyProvenanceComputOp(ProvenanceComputation *from)
 {
@@ -243,6 +249,7 @@ copyProvenanceComputOp(ProvenanceComputation *from)
 
     return new;
 }
+
 /*functions to copy query_block*/
 static SetQuery *
 copySetQuery(SetQuery *from)
@@ -256,6 +263,7 @@ copySetQuery(SetQuery *from)
 
     return new;
 }
+
 static QueryBlock *
 copyQueryBlock(QueryBlock *from)
 {
@@ -271,6 +279,7 @@ copyQueryBlock(QueryBlock *from)
     
     return new;
 }
+
 static Insert *
 copyInsert(Insert *from)
 {
@@ -281,6 +290,7 @@ copyInsert(Insert *from)
 
     return new;
 }
+
 static Delete *
 copyDelete(Delete *from)
 {
@@ -290,6 +300,7 @@ copyDelete(Delete *from)
 
     return new;
 }
+
 static Update *
 copyUpdate(Update *from)
 {
@@ -300,6 +311,16 @@ copyUpdate(Update *from)
 
     return new;
 }
+
+static TransactionStmt *
+copyTransactionStmt(TransactionStmt *from)
+{
+    COPY_INIT(TransactionStmt);
+    COPY_SCALAR_FIELD(stmtType);
+
+    return new;
+}
+
 static ProvenanceStmt *
 copyProvenanceStmt(ProvenanceStmt *from)
 {
@@ -308,6 +329,7 @@ copyProvenanceStmt(ProvenanceStmt *from)
 
     return new;
 }
+
 static SelectItem *
 copySelectItem(SelectItem  *from)
 {
@@ -317,6 +339,7 @@ copySelectItem(SelectItem  *from)
 
     return new;
 }
+
 static FromTableRef *
 copyFromTableRef(FromTableRef *from)
 {
@@ -456,6 +479,9 @@ void *copyObject(void *from)
             break;
         case T_Update:
             retval = copyUpdate(from);
+            break;
+        case T_TransactionStmt:
+            retval = copyTransactionStmt(from);
             break;
 
              /* query operator model nodes */

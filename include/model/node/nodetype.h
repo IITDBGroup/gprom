@@ -36,6 +36,7 @@ typedef enum NodeTag {
     T_Insert,
     T_Delete,
     T_Update,
+    T_TransactionStmt,
 
     /* query operator model nodes */
     T_Schema,

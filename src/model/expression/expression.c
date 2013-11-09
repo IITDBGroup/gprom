@@ -101,7 +101,7 @@ createConstString (char *value)
 }
 
 Constant *
-createConstFloat (float value)
+createConstFloat (double value)
 {
     Constant *result = makeNode(Constant);
     double *v = NEW(double);
@@ -113,6 +113,18 @@ createConstFloat (float value)
     return result;
 }
 
+Constant *
+createConstBool (boolean value)
+{
+    Constant *result = makeNode(Constant);
+    boolean *v = NEW(boolean);
+
+    *v = value;
+    result->constType = DT_BOOL;
+    result->value = v;
+
+    return result;
+}
 
 DataType
 typeOf (Node *expr)

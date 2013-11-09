@@ -52,6 +52,7 @@ static void outNestedSubquery(StringInfo str, NestedSubquery *node);
 static void outInsert(StringInfo str, Insert *node);
 static void outDelete(StringInfo str, Delete *node);
 static void outUpdate(StringInfo str, Update *node);
+static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 
 /*define macros*/
 /*label for the node type*/
@@ -149,6 +150,7 @@ outInsert(StringInfo str, Insert *node)
     WRITE_NODE_FIELD(attrList);
     WRITE_NODE_FIELD(query);
 }
+
 static void 
 outDelete(StringInfo str, Delete *node)
 {
@@ -156,6 +158,7 @@ outDelete(StringInfo str, Delete *node)
     WRITE_STRING_FIELD(nodeName);
     WRITE_NODE_FIELD(cond);
 }
+
 static void 
 outUpdate(StringInfo str, Update *node)
 {
@@ -164,6 +167,14 @@ outUpdate(StringInfo str, Update *node)
     WRITE_NODE_FIELD(selectClause);
     WRITE_NODE_FIELD(cond);
 }
+
+static void
+outTransactionStmt(StringInfo str, TransactionStmt *node)
+{
+    WRITE_NODE_TYPE(TRANSACTIONSTMT);
+    WRITE_ENUM_FIELD(stmtType, TransactionStmtType);
+}
+
 static void
 outQueryBlock (StringInfo str, QueryBlock *node)
 {
@@ -473,7 +484,10 @@ void outNode(StringInfo str, void *obj)
             case T_Update:
                 outUpdate(str, (Update *) obj);
                 break;
-            //different case
+            case T_TransactionStmt:
+                outTransactionStmt(str, (TransactionStmt *) obj);
+                break;
+
             //query operator model nodes
             case T_QueryOperator:
                 outQueryOperator(str, (QueryOperator *) obj);

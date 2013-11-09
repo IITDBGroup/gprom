@@ -10,6 +10,8 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "common.h"
+
 #include "mem_manager/mem_mgr.h"
 #include "model/query_block/query_block.h"
 #include "model/node/nodetype.h"
@@ -205,6 +207,20 @@ createUpdate(char *nodeName, List *selectClause, Node *cond)
     return result;
 }
 
+TransactionStmt *
+createTransactionStmt (char *stmtType)
+{
+    TransactionStmt *result = makeNode(TransactionStmt);
 
+    if (strcmp(stmtType, "TRANSACTION_BEGIN") == 0)
+        result->stmtType = TRANSACTION_BEGIN;
+    else if (strcmp(stmtType, "TRANSACTION_COMMIT") == 0)
+        result->stmtType = TRANSACTION_COMMIT;
+    else if (strcmp(stmtType, "TRANSACTION_ABORT") == 0)
+        result->stmtType = TRANSACTION_ABORT;
+    else
+        FATAL_LOG("unkown transaction stmt type <%s>", stmtType);
+    return result;
+}
 
 

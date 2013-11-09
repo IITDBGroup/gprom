@@ -118,8 +118,8 @@ testListOperations(void)
     l2 = listMake(copyObject(a1), copyObject(a2));
     ASSERT_EQUALS_NODE(a1, getNthOfListP(l1,0), "1) is a1");
     ASSERT_EQUALS_NODE(a2, getNthOfListP(l1,1), "2) is a2");
-//    ASSERT_EQUALS_STRING(nodeToString(l1),nodeToString(l2), "both lists are equal");//TODO core dump here
-//    ASSERT_EQUALS_NODE(l1,l2, "both lists are equal");
+    ASSERT_EQUALS_STRING(nodeToString(l1),nodeToString(l2), "both lists are equal");//TODO core dump here
+    ASSERT_EQUALS_NODE(l1,l2, "both lists are equal");
 
     // shallow free
     l1 = listMake(a1,a2);

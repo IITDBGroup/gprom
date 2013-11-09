@@ -47,7 +47,7 @@ static boolean equalDistinctClause(DistinctClause *a,  DistinctClause *b);
 static boolean equalInsert(Insert *a, Insert *b);
 static boolean equalDelete(Delete *a, Delete *b);
 static boolean equalUpdate(Update *a, Update *b);
-
+static boolean equalTransactionStmt(TransactionStmt *a, TransactionStmt *b);
 
 /*use these macros to compare fields */
 
@@ -263,6 +263,7 @@ equalInsert(Insert *a, Insert *b)
     return TRUE;
 
 }
+
 static boolean 
 equalDelete(Delete *a, Delete *b)
 {
@@ -272,6 +273,7 @@ equalDelete(Delete *a, Delete *b)
     return TRUE;
 
 }
+
 static boolean 
 equalUpdate(Update *a, Update *b)
 {
@@ -282,6 +284,15 @@ equalUpdate(Update *a, Update *b)
     return TRUE;
 
 }
+
+static boolean
+equalTransactionStmt(TransactionStmt *a, TransactionStmt *b)
+{
+    COMPARE_SCALAR_FIELD(stmtType);
+
+    return TRUE;
+}
+
 static boolean 
 equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b)
 {
@@ -446,6 +457,9 @@ equal(void *a, void *b)
             break;
         case T_Update:
             retval = equalUpdate(a,b);
+            break;
+        case T_TransactionStmt:
+            retval = equalTransactionStmt(a,b);
             break;
         default:
             retval = FALSE;

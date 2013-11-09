@@ -19,6 +19,9 @@
 /* internal tests */
 static rc testAttributeReference (void);
 static rc testFunctionCall (void);
+static rc testConstant (void);
+static rc testOperator (void);
+static rc testExpressionToSQL (void);
 
 /* check expression model */
 rc
@@ -26,6 +29,9 @@ testExpr (void)
 {
     RUN_TEST(testAttributeReference(), "test attribute references");
     RUN_TEST(testFunctionCall(), "test function call nodes");
+    RUN_TEST(testConstant(), "test constant nodes");
+    RUN_TEST(testOperator(), "test operator nodes");
+    RUN_TEST(testExpressionToSQL(), "test code that translates an expression tree into SQL code");
 
     return PASS;
 }
@@ -52,5 +58,71 @@ testAttributeReference (void)
 static rc
 testFunctionCall(void)
 {
+    FunctionCall *a;
+    Constant *c;
+
+    a = createFunctionCall ("f", LIST_MAKE(createConstInt(1), createConstInt(2)));
+    c = (Constant *) getNthOfListP(a->args, 0);
+
+    ASSERT_EQUALS_INT(1, INT_VALUE(c), "first arg is 1 const");
+    ASSERT_EQUALS_STRING("f", a->functionname, "function name is f");
+
+    return PASS;
+}
+
+static rc
+testConstant (void)
+{
+    Constant *c;
+    char *str;
+
+    c = createConstInt(1);
+    ASSERT_EQUALS_INT(1, INT_VALUE(c), "constant int 1");
+
+    c = createConstFloat(2.0);
+    ASSERT_EQUALS_FLOAT(2.0, FLOAT_VALUE(c), "constant float 2.0");
+
+    c = createConstBool(TRUE);
+    ASSERT_EQUALS_INT(TRUE, BOOL_VALUE(c), "constant boolean TRUE");
+
+    str = strdup("test");
+    c = createConstString(str);
+    ASSERT_EQUALS_STRING("test", STRING_VALUE(c), "constant string \"test\"");
+
+    return PASS;
+}
+
+static rc
+testOperator (void)
+{
+    Operator *a;
+    Constant *c;
+
+    a = createOpExpr("f", LIST_MAKE(createConstInt(1), createConstInt(2)));
+    c = (Constant *) getNthOfListP(a->args, 0);
+
+    ASSERT_EQUALS_INT(1, INT_VALUE(c), "first arg is 1 const");
+    ASSERT_EQUALS_STRING("f", a->name, "op name is f");
+
+    return PASS;
+}
+
+/* */
+static rc
+testExpressionToSQL()
+{
+    Constant *c1, *c2;
+    Operator *o;
+
+    o = createOpExpr("+", LIST_MAKE(createConstInt(1), createConstInt(2)));
+
+    ASSERT_EQUALS_STRING("(1 + 2)", exprToSQL((Node *) o), "translate expression into SQL code (1 + 2)");
+
+    o = createOpExpr("*", LIST_MAKE(o, createConstFloat(2.0)));
+    ASSERT_EQUALS_STRING("((1 + 2) * 2.000000)", exprToSQL((Node *) o), "translate expression into SQL code (1 + 2) * 2.0");
+
+    o = createOpExpr("+", LIST_MAKE(createAttributeReference("a"), createConstInt(2)));
+    ASSERT_EQUALS_STRING("(a + 2)", exprToSQL((Node *) o), "translate expression into SQL code (a + 2)");
+
     return PASS;
 }
