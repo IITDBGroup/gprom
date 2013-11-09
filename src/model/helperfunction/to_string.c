@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include "common.h"
+#include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"

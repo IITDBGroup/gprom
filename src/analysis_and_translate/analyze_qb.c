@@ -9,13 +9,14 @@
  *
  *-----------------------------------------------------------------------------
  */
-
-#include "analysis_and_translate/analyse_qb.h"
-
+#include "common.h"
+#include "analysis_and_translate/analyze_qb.h"
+#include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
+#include "log/logger.h"
 
 static void analyzeQueryBlock (QueryBlock *qb);
 static void analyzeSetQuery (SetQuery *q);
@@ -35,15 +36,19 @@ analyzeQueryBlockStmt (Node *stmt)
     switch(stmt->type)
     {
         case T_QueryBlock:
+        	FATAL_LOG("Go here type: qb");
             analyzeQueryBlock((QueryBlock *) stmt);
             break;
         case T_SetQuery:
+        	FATAL_LOG("Go here type: sq");
             analyzeSetQuery((SetQuery *) stmt);
             break;
         case T_ProvenanceStmt:
+        	FATAL_LOG("Go here type: ps");
             analyzeProvenanceStmt((ProvenanceStmt *) stmt);
             break;
         default:
+        	FATAL_LOG("Go here type: def");
             break;
     }
 }
@@ -52,7 +57,7 @@ static void
 analyzeQueryBlock (QueryBlock *qb)
 {
     List *attrRefs = NIL;
-    List *fromTbles = NIL;
+    List *fromTables = NIL;
 
     // figuring out attributes of from clause items
     FOREACH(FromItem,f,qb->fromClause)
@@ -61,15 +66,15 @@ analyzeQueryBlock (QueryBlock *qb)
         {
             case T_FromTableRef:
                 analyzeFromTableRef((FromTableRef *) f);
-                fromTbles = appendToTailOfList(fromTbles, f);
+                fromTables = appendToTailOfList(fromTables, f);
                 break;
             case T_FromSubquery:
             	analyzeFromSubquery((FromSubquery *) f);
-            	fromTbles = appendToTailOfList(fromTbles, f);
+            	fromTables = appendToTailOfList(fromTables, f);
             	break;
             case T_FromJoinExpr:
                 analyzeJoin((FromJoinExpr *) f);
-                fromTbles = appendToTailOfList(fromTbles, f);
+                fromTables = appendToTailOfList(fromTables, f);
                 break;
             default:
             	break;
@@ -93,7 +98,7 @@ analyzeQueryBlock (QueryBlock *qb)
     	int fromPos = 0, attrPos;
     	boolean isFound;
         // look name in from clause attributes
-    	FOREACH(FromTableRef, t, fromTbles)
+    	FOREACH(FromTableRef, t, fromTables)
     	{
     		attrPos = 0;
     		isFound = FALSE;
@@ -164,7 +169,7 @@ analyzeJoin (FromJoinExpr *j)
     switch(right->type)
 	{
 		case T_FromTableRef:
-			analyzeFromTableReference((FromTableRef *)right);
+			analyzeFromTableRef((FromTableRef *)right);
 			break;
 		case T_FromJoinExpr:
 			analyzeJoin((FromJoinExpr *) right);
