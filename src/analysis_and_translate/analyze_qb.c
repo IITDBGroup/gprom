@@ -17,6 +17,7 @@
 #include "model/list/list.h"
 #include "model/expression/expression.h"
 #include "log/logger.h"
+#include "metadata_lookup/metadata_lookup.h"
 
 static void analyzeQueryBlock (QueryBlock *qb);
 static void analyzeSetQuery (SetQuery *q);
@@ -36,19 +37,15 @@ analyzeQueryBlockStmt (Node *stmt)
     switch(stmt->type)
     {
         case T_QueryBlock:
-        	FATAL_LOG("Go here type: qb");
             analyzeQueryBlock((QueryBlock *) stmt);
             break;
         case T_SetQuery:
-        	FATAL_LOG("Go here type: sq");
             analyzeSetQuery((SetQuery *) stmt);
             break;
         case T_ProvenanceStmt:
-        	FATAL_LOG("Go here type: ps");
             analyzeProvenanceStmt((ProvenanceStmt *) stmt);
             break;
         default:
-        	FATAL_LOG("Go here type: def");
             break;
     }
 }
@@ -80,6 +77,12 @@ analyzeQueryBlock (QueryBlock *qb)
             	break;
         }
     }
+
+    ERROR_LOG("Figuring out attributes of from clause items done");
+    FOREACH(FromTableRef, f, fromTables)
+    {
+    	ERROR_LOG("tableID: %s",f->tableId);
+    }
     // collect attribute references
     findAttrReferences((Node *) qb->distinct, &attrRefs);
     findAttrReferences((Node *) qb->groupByClause, &attrRefs);
@@ -90,11 +93,16 @@ analyzeQueryBlock (QueryBlock *qb)
     findAttrReferences((Node *) qb->whereClause, &attrRefs);
     //TODO do we need to search into fromClause because there will be attributes in the subquery?
 
+    ERROR_LOG("Collect attribute references done");
+
     // adapt attribute references
     FOREACH(AttributeReference,a,attrRefs)
     {
     	// split name on each "."
     	char *name = getAttrNameFromDot(a->name);
+    	ERROR_LOG("attr : %s", name);
+    	SelectItem *s = (SelectItem *)a;
+    	s->alias = name;
     	int fromPos = 0, attrPos;
     	boolean isFound;
         // look name in from clause attributes
@@ -123,6 +131,8 @@ analyzeQueryBlock (QueryBlock *qb)
     	}
     	//TODO what if not found? throw syntax error?
     }
+
+    ERROR_LOG("Analysis done");
 }
 
 static boolean
@@ -251,16 +261,20 @@ getAttrNameFromDot(char *dotName)
 	//create a new attribute name from the original name with dot
 	char *string = strdup(dotName);
 	char *toFree = string;
-	char *token;
-	while((token = strsep(&string, ".")) != NULL);
+	char *token = NULL;
+	while(string != NULL)
+		token = strsep(&string, ".");
 	char *attrName = strdup(token);
-	FREE(toFree);
+	free(toFree);
 	return attrName;
 }
 
 static char *
 getAttrNameFromNameWithBlank(char *blankName)
 {
+	if(blankName == NULL)
+		return NULL;
+
 	// filter out blank in string
 	int i;
 	for(i=0;i<strlen(blankName);i++)
