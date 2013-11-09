@@ -53,7 +53,7 @@ main (int argc, char* argv[])
         ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(bisonParseResult)));
     }
 
-    analyzeQueryBlockStmt(getHeadOfList(result)->data.ptr_value);
+    analyzeQueryBlockStmt(result);
     ERROR_LOG("ANALYSIS RESULT IS <%s>", nodeToString(result));
     ERROR_LOG("ANALYSIS RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
 

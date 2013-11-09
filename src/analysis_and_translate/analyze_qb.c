@@ -19,6 +19,7 @@
 #include "log/logger.h"
 #include "metadata_lookup/metadata_lookup.h"
 
+static void analyzeStmtList (List *l);
 static void analyzeQueryBlock (QueryBlock *qb);
 static void analyzeSetQuery (SetQuery *q);
 static void analyzeProvenanceStmt (ProvenanceStmt *q);
@@ -45,9 +46,19 @@ analyzeQueryBlockStmt (Node *stmt)
         case T_ProvenanceStmt:
             analyzeProvenanceStmt((ProvenanceStmt *) stmt);
             break;
+        case T_List:
+            analyzeStmtList ((List *) stmt);
+            break;
         default:
             break;
     }
+}
+
+static void
+analyzeStmtList (List *l)
+{
+    FOREACH(Node,n,l)
+        analyzeQueryBlockStmt(n);
 }
 
 static void
