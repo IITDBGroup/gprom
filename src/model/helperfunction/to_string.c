@@ -100,6 +100,13 @@ static void outTransactionStmt(StringInfo str, TransactionStmt *node);
             outNode(str, node->fldname); \
         } while(0);
 
+/*node field*/
+#define WRITE_STRING_LIST_FIELD(fldname)  \
+		do { \
+			appendStringInfoString(str, ":" CppAsString(fldname) "|"); \
+			outStringList(str, node->fldname); \
+		} while(0);
+
 /*outNode from node append it to string*/
 static void
 outList(StringInfo str, List *node)
@@ -124,7 +131,18 @@ outList(StringInfo str, List *node)
                 appendStringInfoString(str, " ");
         }
     }
+
     appendStringInfoString(str, ")");
+}
+
+char *
+stringListToString (List *node)
+{
+    StringInfo str = makeStringInfo();
+
+    outStringList(str, node);
+
+    return str->data;
 }
 
 static void
@@ -258,7 +276,7 @@ static void
 writeCommonFromItemFields(StringInfo str, FromItem *node)
 {
     WRITE_STRING_FIELD(name);
-    WRITE_NODE_FIELD(attrNames);
+    WRITE_STRING_LIST_FIELD(attrNames);
 }
 
 static void

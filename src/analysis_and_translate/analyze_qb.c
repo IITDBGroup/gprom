@@ -25,11 +25,14 @@ static void analyzeSetQuery (SetQuery *q);
 static void analyzeProvenanceStmt (ProvenanceStmt *q);
 static void analyzeJoin (FromJoinExpr *j);
 static boolean findAttrReferences (Node *node, List **state);
+static boolean findAttrRefInFrom (AttributeReference *a, List *fromItems);
+static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a,  List *fromItems);
 static void analyzeFromTableRef(FromTableRef *f);
 static void analyzeFromSubquery(FromSubquery *sq);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 // real attribute name fetching
-static char *getAttrNameFromDot(char *dotName);
+//static char *getAttrNameFromDot(char *dotName);
+static List *splitAttrOnDot (char *dotName);
 static char *getAttrNameFromNameWithBlank(char *blankName);
 
 void
@@ -90,10 +93,12 @@ analyzeQueryBlock (QueryBlock *qb)
     }
 
     ERROR_LOG("Figuring out attributes of from clause items done");
-    FOREACH(FromTableRef, f, fromTables)
-    {
-    	ERROR_LOG("tableID: %s",f->tableId);
-    }
+    ERROR_LOG("Found the following from tables: <%s>", nodeToString(fromTables));
+
+//    FOREACH(FromTableRef, f, fromTables)
+//    {
+//    	ERROR_LOG("tableID: %s",f->tableId);
+//    }
     // collect attribute references
     findAttrReferences((Node *) qb->distinct, &attrRefs);
     findAttrReferences((Node *) qb->groupByClause, &attrRefs);
@@ -105,45 +110,131 @@ analyzeQueryBlock (QueryBlock *qb)
     //TODO do we need to search into fromClause because there will be attributes in the subquery?
 
     ERROR_LOG("Collect attribute references done");
+    INFO_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));
 
     // adapt attribute references
     FOREACH(AttributeReference,a,attrRefs)
     {
     	// split name on each "."
-    	char *name = getAttrNameFromDot(a->name);
-    	ERROR_LOG("attr : %s", name);
-    	SelectItem *s = (SelectItem *)a;
-    	s->alias = name;
-    	int fromPos = 0, attrPos;
-    	boolean isFound;
-        // look name in from clause attributes
-    	FOREACH(FromTableRef, t, fromTables)
-    	{
-    		attrPos = 0;
-    		isFound = FALSE;
-    		FOREACH(AttributeReference, r, attrRefs)
-			{
-				if(strcmp(name, r->name) == 0)
-				{
-					isFound = TRUE;
-					break;
-				}
-				attrPos++;
-			}
-    		if(isFound)
-    			break;
-    		fromPos++;
-    	}
-        // set the position
-    	if(isFound)
-    	{
-    		a->fromClauseItem = fromPos;
-			a->attrPosition = attrPos;
-    	}
+        boolean isFound = FALSE;
+        List *nameParts = splitAttrOnDot(a->name);
+        ERROR_LOG("attr split: %s", stringListToString(nameParts));
+
+    	if (LIST_LENGTH(nameParts) == 1)
+    	    isFound = findAttrRefInFrom(a, fromTables);
+    	else if (LIST_LENGTH(nameParts) == 2)
+    	    isFound = findQualifiedAttrRefInFrom(nameParts, a, fromTables);
+    	else
+    	    FATAL_LOG("right now attribute names should have at most two parts");
+
+    	if (!isFound)
+    	    FATAL_LOG("attribute <%s> does not exist in FROM clause", a->name);
     	//TODO what if not found? throw syntax error?
     }
 
     ERROR_LOG("Analysis done");
+}
+
+static boolean
+findAttrRefInFrom (AttributeReference *a, List *fromItems)
+{
+    boolean isFound = FALSE;
+    int fromPos = 0, attrPos;
+
+    FOREACH(FromItem, f, fromItems)
+    {
+        attrPos = 0;
+        FOREACH(char, r, f->attrNames)
+        {
+            if(strcmp(a->name, r) == 0)
+            {
+                // is ambigious?
+                if (isFound)
+                {
+                    FATAL_LOG("Ambiguous attribute reference <%s>", a->name);
+                    break;
+                }
+                // find occurance found
+                else
+                {
+                    isFound = TRUE;
+                    a->fromClauseItem = fromPos;
+                    a->attrPosition = attrPos;
+                }
+            }
+            attrPos++;
+        }
+        fromPos++;
+    }
+
+    return isFound;
+}
+
+static boolean
+findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromItems)
+{
+    boolean foundFrom;
+    boolean foundAttr;
+    int fromClauseItem = 0;
+    int attrPos = 0;
+    char *tabName = (char *) getNthOfList(nameParts, 0);
+    char *attrName = (char *) getNthOfList(nameParts, 1);
+    FromItem *fromItem = NULL;
+
+    // find table name
+    FOREACH(FromItem, f, fromItems)
+    {
+        if (strcmp(f->name, tabName) == 0)
+        {
+            if (foundFrom)
+            {
+                FATAL_LOG("from clause item name <%s> appears more than once", tabName);
+                return FALSE;
+            }
+            else
+            {
+                fromItem = f;
+                a->fromClauseItem = fromClauseItem;
+                foundFrom = TRUE;
+            }
+        }
+        fromClauseItem++;
+    }
+
+    // did we find from clause item
+    if (!foundFrom)
+    {
+        FATAL_LOG("did not find from clause item named <%s>", tabName);
+        return FALSE;
+    }
+
+    // find attribute name
+    FOREACH(char,aName,fromItem->attrNames)
+    {
+        if (strcmp(aName, attrName) == 0)
+        {
+            if(foundAttr)
+            {
+                FATAL_LOG("ambigious attr name <%s> appears more than once in "
+                        "from clause item <%s>", attrName, tabName);
+                return FALSE;
+            }
+            else
+            {
+                a->attrPosition = attrPos;
+                foundAttr = TRUE;
+            }
+        }
+        attrPos++;
+    }
+
+    if (!foundAttr)
+    {
+        FATAL_LOG("did not find from clause item named <%s>", attrName);
+        return FALSE;
+    }
+
+    return foundAttr;
 }
 
 static boolean
@@ -220,7 +311,10 @@ analyzeJoin (FromJoinExpr *j)
 
 static void analyzeFromTableRef(FromTableRef *f)
 {
-	f->from.attrNames = getAttributes(f->tableId);
+    List *attrRefs = getAttributes(f->tableId);
+    FOREACH(AttributeReference,a,attrRefs)
+	    f->from.attrNames = appendToTailOfList(f->from.attrNames, a->name);
+
 	f->from.name = f->tableId;//TODO is it necessary?
 }
 
@@ -265,20 +359,53 @@ analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right)
 	return result;
 }
 
-static char *
-getAttrNameFromDot(char *dotName)
+static List *
+splitAttrOnDot (char *dotName)
 {
-	dotName = getAttrNameFromNameWithBlank(dotName);
-	//create a new attribute name from the original name with dot
-	char *string = strdup(dotName);
-	char *toFree = string;
-	char *token = NULL;
-	while(string != NULL)
-		token = strsep(&string, ".");
-	char *attrName = strdup(token);
-	FREE(toFree);
-	return attrName;
+    int start = 0, pos = 0;
+    char *token, *string = dotName;
+    List *result = NIL;
+
+    while(string != NULL)
+    {
+        token = strsep(&string, ".");
+        result = appendToTailOfList(result, strdup(token));
+    }
+
+//    while((c = dotName[pos++]) != '\0')
+//        if (c == '.')
+//        {
+//            size_t len = (pos - start);
+//            char *newSeg = CNEW(char, len + 1);
+//
+//            strncpy(newSeg, dotName + start, len);
+//            result = appendToTailOfList(result, newSeg);
+//
+//            start = pos + 1;
+//        }
+//
+//    size_t len = (pos - start);
+//    char *newSeg = CNEW(char, len + 1);
+//    strncpy(newSeg, dotName + start, len);
+//    result = appendToTailOfList(result, newSeg);
+
+    return result;
 }
+
+//static char *
+//getAttrNameFromDot(char *dotName)
+//{
+//	dotName = getAttrNameFromNameWithBlank(dotName);
+//	//create a new attribute name from the original name with dot
+//	char *string = strdup(dotName);
+//	char *toFree = string;
+//	char *token = NULL;
+//	while(string != NULL)
+//		token = strsep(&string, ".");
+//	char *attrName = strdup(token);
+//	FREE(toFree);
+//	return attrName;
+//}
 
 static char *
 getAttrNameFromNameWithBlank(char *blankName)

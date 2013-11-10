@@ -23,6 +23,15 @@ static QueryOperator *findProvenanceComputations (QueryOperator *op);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
 
 /* function definitions */
+List *
+provRewriteQueryList (List *list)
+{
+    FOREACH(QueryOperator,q,list)
+        q_his_cell->data.ptr_value = provRewriteQuery(q);
+
+    return list;
+}
+
 
 QueryOperator *
 provRewriteQuery (QueryOperator *input)

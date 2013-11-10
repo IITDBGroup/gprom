@@ -268,9 +268,13 @@ getAttributes(char *tableName)
 	ACQUIRE_MEM_CONTEXT(context);
 
 	if(tableName==NULL)
-		return NIL;
+	    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
 	if((attrList = searchTableBuffers(tableName)) != NIL)
-		return attrList;
+	{
+	    RELEASE_MEM_CONTEXT();
+	    return attrList;
+	}
+
 	if(conn==NULL)
 		initConnection();
 	if(isConnected())
@@ -289,7 +293,8 @@ getAttributes(char *tableName)
 		//add to table buffer list as cache to improve performance
 		//user do not have to free the attrList by themselves
 		addToTableBuffers(tableName, attrList);
-		RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, attrList);
+		RELEASE_MEM_CONTEXT();
+		return attrList;
 	}
 	ERROR_LOG("Not connected to database.");
 
@@ -345,7 +350,10 @@ getViewDefinition(char *viewName)
 	ACQUIRE_MEM_CONTEXT(context);
 
 	if((def = searchViewBuffers(viewName)) != NULL)
+	{
+	    RELEASE_MEM_CONTEXT();
 		return def;
+	}
 
 	statement = makeStringInfo();
 	appendStringInfo(statement, "select text from user_views where "
@@ -361,7 +369,8 @@ getViewDefinition(char *viewName)
 			//user do not have to free def by themselves
 			addToViewBuffers(viewName, def);
 			deepFree(statement);
-			RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(def);
+			RELEASE_MEM_CONTEXT();
+			return def;
 		}
 	}
 	deepFree(statement);

@@ -25,9 +25,28 @@
 
 #undef free
 
-#define TOKSELF() { TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", yytext[0], yytext[0]); yylval.stringVal = strdup(yytext); return yytext[0]; }
-#define TOK(name) { TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, yytext); yylval.stringVal = strdup(yytext); return name; }
-#define TOKSAVE(name,field,function) { TRACE_LOG("Lexed TOKEN <%s> of TYPE <%s>", #name, #field); yylval.field = function(yytext); return name; }
+#define TOKSELF() { \
+	TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", yytext[0], yytext[0]); \
+	yylval.stringVal = strdup(yytext); \
+	return yytext[0]; \
+	}
+#define TOK(name) { \
+	TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, yytext); \
+ 	yylval.stringVal = strdup(yytext); \
+ 	return name; \
+ 	}
+#define UPCASE_TOK(name) { \
+	TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, yytext); \
+	char *result = strdup(yytext); \
+	yylval.stringVal = result; \
+	for(; *result != '\0'; (*(result) = toupper(*result)), result++); \
+	return name; \
+	}
+#define TOKSAVE(name,field,function) { \
+	TRACE_LOG("Lexed TOKEN <%s> of TYPE <%s>",  #name, #field); \
+	yylval.field = function(yytext); \
+	return name; \
+	}
 %}
 
 /********************************************************************
@@ -138,8 +157,9 @@ ABORT		 TOK(ROLLBACK_TRANS)
 [-+*%/^~&|!]		TOKSELF()
 	
 	/* names */
-{identifiers}	TOK(identifier)
-{quotedIdentifier}   { 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
+{identifiers}	UPCASE_TOK(identifier)
+{quotedIdentifier}   { 		
+		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
 		yylval.stringVal[strlen(yytext) -1] = '\0';
 		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", yytext);
@@ -152,16 +172,11 @@ ABORT		 TOK(ROLLBACK_TRANS)
 
 	/* strings */
 '[^'\n]*'	{
-	//	int c = input();
-	//	unput(c);	
-	//	if(c != '\'') {
 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
 		yylval.stringVal[strlen(yytext) -1] = '\0';
 		TRACE_LOG("Lexed TOKEN <stringConst> with VALUE <%s>", yytext);
 		return stringConst;
-	//	} else
-	//		yymore();
 	}
 
 		

@@ -21,6 +21,8 @@
 static boolean equalFunctionCall(FunctionCall *a, FunctionCall *b);
 static boolean equalAttributeReference (AttributeReference *a,
         AttributeReference *b);
+static boolean equalOperator (Operator *a, Operator *b);
+static boolean equalConstant (Constant *a, Constant *b);
 static boolean equalList(List *a, List *b);
 // equal functions for query_operator
 static boolean equalSchema(Schema *a, Schema *b);
@@ -82,6 +84,34 @@ equalAttributeReference (AttributeReference *a,
         AttributeReference *b)
 {
     COMPARE_STRING_FIELD(name);
+
+    return TRUE;
+}
+
+static boolean equalOperator (Operator *a, Operator *b)
+{
+    COMPARE_STRING_FIELD(name);
+    COMPARE_NODE_FIELD(args);
+
+    return TRUE;
+}
+
+static boolean
+equalConstant (Constant *a, Constant *b)
+{
+    COMPARE_SCALAR_FIELD(constType);
+
+    switch(a->constType)
+    {
+        case DT_INT:
+            return INT_VALUE(a) == INT_VALUE(b);
+        case DT_FLOAT:
+            return FLOAT_VALUE(a) == FLOAT_VALUE(b);
+        case DT_BOOL:
+            return BOOL_VALUE(a) == BOOL_VALUE(b);
+        case DT_STRING:
+            return strcmp(STRING_VALUE(a), STRING_VALUE(b)) == 0;
+    }
 
     return TRUE;
 }
@@ -389,6 +419,12 @@ equal(void *a, void *b)
             break;
         case T_AttributeReference:
             retval = equalAttributeReference(a,b);
+            break;
+        case T_Operator:
+            retval = equalOperator(a,b);
+            break;
+        case T_Constant:
+            retval = equalConstant(a,b);
             break;
             /*something different cases this, and we have*/
             /*different types of T_Node       */

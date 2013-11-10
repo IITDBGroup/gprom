@@ -17,8 +17,10 @@
 #ifndef PROV_REWRITTER_H_
 #define PROV_REWRITTER_H_
 
+#include "model/list/list.h"
 #include "model/query_operator/query_operator.h"
 
+extern List *provRewriteQueryList (List *list);
 extern QueryOperator *provRewriteQuery (QueryOperator *input);
 
 #endif /* PROV_REWRITTER_H_ */

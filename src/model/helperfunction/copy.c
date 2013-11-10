@@ -81,10 +81,6 @@ deepCopyList(List *from)
 {
     List *new = NIL;
 
-    assert(getListLength(from) >= 1);
-//    COPY_SCALAR_FIELD(length);
-//    COPY_SCALAR_FIELD(type); // if it is an Int_List
-
     if (from->type == T_IntList)
     {
         FOREACH_INT(i, from)
@@ -126,6 +122,7 @@ copyOperator(Operator *from)
 { 
     COPY_INIT(Operator);
     COPY_STRING_FIELD(name);
+    COPY_NODE_FIELD(args);
 
     return new;
 }

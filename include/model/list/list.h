@@ -165,4 +165,6 @@ extern boolean searchListInt(List *list, int value);
 
 extern List *concatTwoLists (List *listA, List *listB);
 
+extern char *stringListToString (List *node);
+
 #endif /* LIST_H */

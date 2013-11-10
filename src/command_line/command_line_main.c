@@ -145,7 +145,8 @@ static char *
 process(char *sql)
 {
     Node *parseOutput;
-    QueryOperator *oModel;
+    Node *oModel;
+    StringInfo result = makeStringInfo();
 
     DEBUG_LOG("sql input: <%s>", sql);
 
@@ -155,8 +156,21 @@ process(char *sql)
     oModel = translateParse(parseOutput);
     DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(oModel));
 
-    oModel = provRewriteQuery(oModel);
-    DEBUG_LOG("provenance rewriter returned:\n\n<%s>", nodeToString(oModel));
+    if (isA(oModel, List))
+    {
+        List *stmtList = (List *) oModel;
+        stmtList = provRewriteQueryList(stmtList);
+        DEBUG_LOG("provenance rewriter returned:\n\n<%s>", nodeToString(stmtList));
+        FOREACH(QueryOperator,o,stmtList)
+            appendStringInfo(result, "%s\n", nodeToString(serializeQuery((QueryOperator *) oModel)));
+    }
+    else
+    {
+        oModel = (Node *) provRewriteQuery((QueryOperator *) oModel);
+        DEBUG_LOG("provenance rewriter returned:\n\n<%s>", nodeToString(oModel));
+        appendStringInfo(result, "%s\n", nodeToString(serializeQuery((QueryOperator *) oModel)));
+    }
 
-    return serializeQuery(oModel);
+
+    return result->data;
 }
