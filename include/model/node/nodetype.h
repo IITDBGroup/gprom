@@ -118,7 +118,7 @@ extern void appendStringInfo(StringInfo str, const char *format, ...);
 *appendStringInfoChar
 *The function is append byte to str.
 *-------------------------------------------------------------------*/
-extern void appendStringInfoChar(StringInfo str, char ch);
+extern void inline appendStringInfoChar(StringInfo str, char ch);
 
 /*------------------------------------------------------------------
 *appendBinaryStringInfo

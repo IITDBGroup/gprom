@@ -34,6 +34,7 @@ static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 //static char *getAttrNameFromDot(char *dotName);
 static List *splitAttrOnDot (char *dotName);
 static char *getAttrNameFromNameWithBlank(char *blankName);
+static char *generateAttrNameFromExpr(SelectItem *s);
 
 void
 analyzeQueryBlockStmt (Node *stmt)
@@ -328,7 +329,12 @@ static void analyzeFromSubquery(FromSubquery *sq)
 			QueryBlock *subQb = (QueryBlock *) sq->subquery;
 			FOREACH(SelectItem,s,subQb->selectClause)
 			{
-				sq->from.attrNames = appendToTailOfList(sq->from.attrNames,s->alias);
+				if (s->alias == NULL)
+				    sq->from.attrNames = appendToTailOfList(sq->from.attrNames,
+				            generateAttrNameFromExpr(s));
+				else
+				    sq->from.attrNames = appendToTailOfList(sq->from.attrNames,
+				            s->alias);
 				//TODO do we need to fill alias if it is null?
 			}
 		}
@@ -372,55 +378,37 @@ splitAttrOnDot (char *dotName)
         result = appendToTailOfList(result, strdup(token));
     }
 
-//    while((c = dotName[pos++]) != '\0')
-//        if (c == '.')
-//        {
-//            size_t len = (pos - start);
-//            char *newSeg = CNEW(char, len + 1);
-//
-//            strncpy(newSeg, dotName + start, len);
-//            result = appendToTailOfList(result, newSeg);
-//
-//            start = pos + 1;
-//        }
-//
-//    size_t len = (pos - start);
-//    char *newSeg = CNEW(char, len + 1);
-//    strncpy(newSeg, dotName + start, len);
-//    result = appendToTailOfList(result, newSeg);
-
     return result;
 }
-
+//
 //static char *
-//getAttrNameFromDot(char *dotName)
+//getAttrNameFromNameWithBlank(char *blankName)
 //{
-//	dotName = getAttrNameFromNameWithBlank(dotName);
-//	//create a new attribute name from the original name with dot
-//	char *string = strdup(dotName);
-//	char *toFree = string;
-//	char *token = NULL;
-//	while(string != NULL)
-//		token = strsep(&string, ".");
-//	char *attrName = strdup(token);
-//	FREE(toFree);
-//	return attrName;
+//	if(blankName == NULL)
+//		return NULL;
+//
+//	// filter out blank in string
+//	int i;
+//	for(i=0;i<strlen(blankName);i++)
+//	{
+//		if(blankName[i]==' ')
+//			memcpy(blankName+i,blankName+i+1,strlen(blankName)-i);
+//	}
+//	return blankName;
 //}
 
 static char *
-getAttrNameFromNameWithBlank(char *blankName)
+generateAttrNameFromExpr(SelectItem *s)
 {
-	if(blankName == NULL)
-		return NULL;
+    char *name = exprToSQL(s->expr);
+    char c;
+    StringInfo str = makeStringInfo();
 
-	// filter out blank in string
-	int i;
-	for(i=0;i<strlen(blankName);i++)
-	{
-		if(blankName[i]==' ')
-			memcpy(blankName+i,blankName+i+1,strlen(blankName)-i);
-	}
-	return blankName;
+    while((c = *name++) != '\0')
+        if (c != ' ')
+            appendStringInfoChar(str, toupper(c));
+
+    return str->data;
 }
 
 static void

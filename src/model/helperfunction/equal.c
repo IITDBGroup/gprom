@@ -24,6 +24,8 @@ static boolean equalAttributeReference (AttributeReference *a,
 static boolean equalOperator (Operator *a, Operator *b);
 static boolean equalConstant (Constant *a, Constant *b);
 static boolean equalList(List *a, List *b);
+static boolean equalStringList (List *a, List *b);
+
 // equal functions for query_operator
 static boolean equalSchema(Schema *a, Schema *b);
 //static boolean equalSchemaFromLists(Schema *a, Schema *b);
@@ -37,6 +39,7 @@ static boolean equalAggregationOperator(AggregationOperator *a, AggregationOpera
 static boolean equalSetOperator(SetOperator *a, SetOperator *b);
 static boolean equalDuplicateRemoval(DuplicateRemoval *a, DuplicateRemoval *b);
 static boolean equalProvenanceComputation( ProvenanceComputation *a,  ProvenanceComputation *b);
+
 // equal functions for query_block
 static boolean equalQueryBlock(QueryBlock *a, QueryBlock *b);
 static boolean equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b);
@@ -66,6 +69,13 @@ static boolean equalTransactionStmt(TransactionStmt *a, TransactionStmt *b);
 			if(!equal(a->fldname, b->fldname))  \
 			return FALSE;  \
 		} while (0)
+
+/*compare a field pointer to a string list*/
+#define COMPARE_STRING_LIST_FIELD(fldname)  \
+        do{  \
+            if(!equalStringList(a->fldname, b->fldname))  \
+            return FALSE;  \
+        } while (0)
 
 /*compare a field that is a pointer to a C string or maybe NULL*/
 #define COMPARE_STRING_FIELD(fldname)  \
@@ -157,6 +167,29 @@ equalList(List *a, List *b)
         }
         break;
         default:
+            return FALSE;
+    }
+
+    return TRUE;
+}
+
+static boolean
+equalStringList (List *a, List *b)
+{
+    if (a == NULL && b == NULL)
+        return TRUE;
+    if (a == NULL || b == NULL)
+        return FALSE;
+
+    COMPARE_SCALAR_FIELD(type);
+    COMPARE_SCALAR_FIELD(length);
+
+    // lists have same type and length
+    assert(LIST_LENGTH(a) > 0 && LIST_LENGTH(b) > 0);
+
+    FORBOTH(char,s1,s2,a,b)
+    {
+        if (strcmp(s1,s2) != 0)
             return FALSE;
     }
 
@@ -344,7 +377,7 @@ static boolean
 equalFromItem(FromItem *a, FromItem *b)
 {
     COMPARE_STRING_FIELD(name);
-    COMPARE_NODE_FIELD(attrNames);
+    COMPARE_STRING_LIST_FIELD(attrNames);
     
     return TRUE;
 }

@@ -47,6 +47,7 @@ static QueryBlock *copyQueryBlock(QueryBlock *from);
 static Constant *copyConstant(Constant *from);
 static ProvenanceStmt *copyProvenanceStmt(ProvenanceStmt *from);
 static SelectItem *copySelectItem(SelectItem  *from);
+static void copyFromItem (FromItem *from, FromItem *to);
 static FromTableRef *copyFromTableRef(FromTableRef *from);
 static FromSubquery *copyFromSubquery(FromSubquery *from);
 static FromJoinExpr *copyFromJoinExpr(FromJoinExpr *from);
@@ -337,10 +338,20 @@ copySelectItem(SelectItem  *from)
     return new;
 }
 
+static void
+copyFromItem (FromItem *from, FromItem *to)
+{
+    to->name = strdup(from->name);
+    to->attrNames = deepCopyStringList(from->attrNames);
+}
+
+#define COPY_FROM() copyFromItem((FromItem *) from, (FromItem *) new);
+
 static FromTableRef *
 copyFromTableRef(FromTableRef *from)
 {
     COPY_INIT(FromTableRef);
+    COPY_FROM();
     COPY_STRING_FIELD(tableId);
 
     return new;
@@ -377,6 +388,7 @@ static FromSubquery *
 copyFromSubquery(FromSubquery *from)
 {
     COPY_INIT(FromSubquery);
+    COPY_FROM();
     COPY_NODE_FIELD(subquery);
     
     return new;
@@ -386,6 +398,7 @@ static FromJoinExpr *
 copyFromJoinExpr(FromJoinExpr *from)
 {
     COPY_INIT(FromJoinExpr);
+    COPY_FROM();
     COPY_SCALAR_FIELD(left);
     COPY_SCALAR_FIELD(right);
     COPY_SCALAR_FIELD(joinType);
