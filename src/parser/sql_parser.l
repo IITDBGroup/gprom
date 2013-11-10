@@ -14,7 +14,6 @@
 
 /* includes */
 %{
-#include <stdio.h>
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
@@ -23,6 +22,8 @@
 #include "model/node/nodetype.h"
 #include "parser/parse_internal.h"
 #include "sql_parser.tab.h"
+
+#undef free
 
 #define TOKSELF() { TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", yytext[0], yytext[0]); yylval.stringVal = strdup(yytext); return yytext[0]; }
 #define TOK(name) { TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, yytext); yylval.stringVal = strdup(yytext); return name; }

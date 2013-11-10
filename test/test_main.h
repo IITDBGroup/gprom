@@ -15,12 +15,14 @@
 #ifndef TEST_MAIN_H_
 #define TEST_MAIN_H_
 
-#include <stdio.h>
-#include <string.h>
+#include "common.h"
 
 #include "model/node/nodetype.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
+
+/* are using actual free here */
+#undef free
 
 /* return values for tests */
 #define PASS 0

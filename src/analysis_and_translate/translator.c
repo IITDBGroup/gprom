@@ -10,13 +10,21 @@
  *-------------------------------------------------------------------------
  */
 
-#include "analysis_and_translate/translator.h"
+#include "common.h"
+
+#include "mem_manager/mem_mgr.h"
+
+#include "log/logger.h"
+
+#include "model/node/nodetype.h"
+#include "model/list/list.h"
+#include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
-#include "model/list/list.h"
-#include "mem_manager/mem_mgr.h"
-#include "model/expression/expression.h"
-#include <assert.h>
+
+#include "analysis_and_translate/analyze_qb.h"
+#include "analysis_and_translate/translator.h"
+
 
 static QueryOperator *translateQuery (Node *node);
 
@@ -43,12 +51,22 @@ static QueryOperator *translateSelectClause(List *selectClause, QueryOperator *s
 static boolean visitAttrRefToGetAttrNames(Node *n, void *state);
 
 
-QueryOperator *
+Node *
 translateParse(Node *q)
 {
-    //TODO create and destroy memory context - don't forget to copy result to callers context
-    //TODO call analysis function first
-    return translateQuery(q);
+    Node *result;
+    NEW_AND_ACQUIRE_MEMCONTEXT("TRANSLATOR_CONTEXT");
+    analyzeQueryBlockStmt(q);
+
+    if (isA(q, List))
+    {
+        FOREACH(Node,stmt,(List *) q)
+            stmt_his_cell->data.ptr_value = (Node *) translateQuery(stmt);
+    }
+    else
+        q = (Node *) translateQuery (q);
+
+    FREE_MEM_CONTEXT_AND_RETURN_COPY(Node,q);
 }
 
 static QueryOperator *
@@ -197,6 +215,9 @@ translateFromClauseToOperatorList(List *fromClause)
             case T_FromSubquery:
                 op = translateFromSubquery((FromSubquery *) from);
                 break;
+            default:
+                FATAL_LOG("did not expect node <%s> in from list", nodeToString(from));
+                break;
         }
 
         assert(op);
@@ -232,6 +253,9 @@ translateFromJoinExpr(FromJoinExpr *fje)
         case T_FromSubquery:
             input1 = translateFromSubquery((FromSubquery *) fje->left);
             break;
+        default:
+            FATAL_LOG("did not expect node <%s> in from list", nodeToString(input1));
+            break;
     }
     switch (fje->right->type)
     {
@@ -244,6 +268,9 @@ translateFromJoinExpr(FromJoinExpr *fje)
             break;
         case T_FromSubquery:
             input2 = translateFromSubquery((FromSubquery *) fje->right);
+            break;
+        default:
+            FATAL_LOG("did not expect node <%s> in from list", nodeToString(input2));
             break;
     }
 

@@ -14,6 +14,6 @@
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 
-extern QueryOperator *translateParse(Node *q);
+extern Node *translateParse(Node *q);
 
 #endif /* TRANSLATOR_H_ */

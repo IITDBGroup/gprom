@@ -57,10 +57,10 @@ newList(NodeTag type)
     List *newList;
     ListCell *newListHead;
 
-    newListHead = (ListCell *)MALLOC(sizeof(ListCell));
+    newListHead = (ListCell *) NEW(ListCell);
     newListHead->next = NULL;
 
-    newList = (List *)MALLOC(sizeof(List));
+    newList = (List *) NEW(List);
     newList->type = type;
     newList->length = 1;
     newList->head = newListHead;
@@ -204,7 +204,7 @@ newListTail(List *list)
 {
     ListCell *newTail;
     
-    newTail = (ListCell *)MALLOC(sizeof(ListCell));
+    newTail = (ListCell *) NEW(ListCell);
     newTail->next = NULL;
     
     list->tail->next = newTail;

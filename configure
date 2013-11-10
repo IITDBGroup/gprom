@@ -766,6 +766,7 @@ enable_fast_install
 with_gnu_ld
 with_sysroot
 enable_libtool_lock
+enable_assert
 with_oci
 with_oci_headers
 with_oci_lib
@@ -1411,6 +1412,7 @@ Optional Features:
   --enable-fast-install[=PKGS]
                           optimize for fast installation [default=yes]
   --disable-libtool-lock  avoid locking (might break parallel builds)
+  --disable-assert        turn off assertions
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -12384,6 +12386,28 @@ _ACEOF
 fi
 
 done
+
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether to enable assertions" >&5
+$as_echo_n "checking whether to enable assertions... " >&6; }
+  # Check whether --enable-assert was given.
+if test "${enable_assert+set}" = set; then :
+  enableval=$enable_assert; ac_enable_assert=$enableval
+     if       test "x$enableval" = xno; then :
+
+$as_echo "#define NDEBUG 1" >>confdefs.h
+
+elif test "x$enableval" != xyes; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: invalid argument supplied to --enable-assert" >&5
+$as_echo "$as_me: WARNING: invalid argument supplied to --enable-assert" >&2;}
+	ac_enable_assert=yes
+fi
+else
+  ac_enable_assert=yes
+fi
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_enable_assert" >&5
+$as_echo "$ac_enable_assert" >&6; }
 
 ################################################################################
 # MEMORY ALLOCATION STUFF

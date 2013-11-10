@@ -80,4 +80,7 @@
 #define FALSE 0
 #endif
 
+// override free to make sure nobody is using free directly
+#define free(_p) "DO NOT USE free DIRECTLY USE \"FREE\" FROM THE MEMORY MANAGER"; @
+
 #endif /* COMMON_H */

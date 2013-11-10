@@ -12,18 +12,20 @@
  *-------------------------------------------------------------------------
  */
 
-#include <stdlib.h>
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "uthash.h"
-#include <assert.h>
+
 
 // override the defaults for UT_hash memory allocation to use standard malloc
 #undef uthash_malloc
 #undef uthash_free
 #define uthash_malloc(sz) malloc(sz)
 #define uthash_free(ptr,sz) free(ptr)
+
+// use actual free function
+#undef free
 
 #define DEFAULT_MEM_CONTEXT_NAME "DEFAULT_MEMORY_CONTEXT"
 
@@ -117,12 +119,13 @@ getCurMemContext(void)
  * Pops current context and returns to the previous context. Will not free
  * the current context.
  */
-void
+MemContext *
 releaseCurMemContext(const char *file, unsigned line)
 {
     if (topContextNode->next) // does not free the bottom node holding default context
     {
         MemContextNode *oldTop = topContextNode;
+        MemContext *oldContext = oldTop->mc;
         topContextNode = oldTop->next;
         free(oldTop);
         contextStackSize--;
@@ -132,7 +135,10 @@ releaseCurMemContext(const char *file, unsigned line)
         log_(LOG_DEBUG, file, line,
                 "Set back current memory context to '%s'@%p.",
                 curMemContext->contextName, curMemContext);
+        return oldContext;
     }
+
+    return NULL;
 }
 
 /*

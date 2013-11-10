@@ -79,11 +79,11 @@ static TransactionStmt *copyTransactionStmt(TransactionStmt *from);
 static List *
 deepCopyList(List *from)
 {
-    COPY_INIT(List);
+    List *new = NIL;
 
     assert(getListLength(from) >= 1);
-    COPY_SCALAR_FIELD(length);
-    COPY_SCALAR_FIELD(type); // if it is an Int_List
+//    COPY_SCALAR_FIELD(length);
+//    COPY_SCALAR_FIELD(type); // if it is an Int_List
 
     if (from->type == T_IntList)
     {

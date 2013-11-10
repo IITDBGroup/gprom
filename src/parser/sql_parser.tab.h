@@ -111,7 +111,7 @@ extern int yydebug;
 typedef union YYSTYPE YYSTYPE;
 union YYSTYPE
 {
-#line 26 "sql_parser.y" /* yacc.c:1909  */
+#line 28 "sql_parser.y" /* yacc.c:1909  */
 
     /* 
      * Declare some C structure those will be used as data type

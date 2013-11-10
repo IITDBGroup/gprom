@@ -12,6 +12,9 @@
 #include "common.h"
 #include "configuration/option.h"
 
+// we have to use actual free here
+#undef free
+
 Options* options;
 
 void

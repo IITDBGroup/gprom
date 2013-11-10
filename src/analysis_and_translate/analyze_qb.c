@@ -276,7 +276,7 @@ getAttrNameFromDot(char *dotName)
 	while(string != NULL)
 		token = strsep(&string, ".");
 	char *attrName = strdup(token);
-	free(toFree);
+	FREE(toFree);
 	return attrName;
 }
 

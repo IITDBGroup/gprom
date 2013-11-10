@@ -16,7 +16,9 @@
 /* If OCILIB and OCI are available then use it */
 #if HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
 
-#define ORACLE_TNS_CONNECTION_FORMAT "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=(SERVER=DEDICATED)(SID=%s)))"
+#define ORACLE_TNS_CONNECTION_FORMAT "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=" \
+		"(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
+		"(SERVER=DEDICATED)(SID=%s)))"
 
 /*
  * functions and variables for internal use
@@ -173,6 +175,7 @@ searchViewBuffers(char *viewName)
 	}
 	return NULL;
 }
+
 static int
 initConnection()
 {
@@ -192,6 +195,8 @@ initConnection()
 	if(!OCI_Initialize(handleError, NULL, OCI_ENV_DEFAULT))
 	{
 	    FATAL_LOG("Cannot initialize OICLIB: %s", OCI_ErrorGetString(errorCache)); //print error type
+	    RELEASE_MEM_CONTEXT();
+
 		return EXIT_FAILURE;
 	}
 	DEBUG_LOG("Initialized OCILIB");
@@ -202,6 +207,9 @@ initConnection()
 	        (conn != NULL) ? "SUCCESS" : "FAILURE");
 
 	initAggList();
+
+	RELEASE_MEM_CONTEXT();
+
 	return EXIT_SUCCESS;
 }
 
@@ -235,7 +243,7 @@ catalogTableExists(char* tableName)
 	if(conn==NULL)
 		initConnection();
 	if(isConnected())
-		return (OCI_TypeInfoGet(conn,tableName,OCI_TIF_TABLE)==NULL)? FALSE : TRUE;
+		return (OCI_TypeInfoGet(conn,tableName,OCI_TIF_TABLE)==NULL) ? FALSE : TRUE;
 	return FALSE;
 }
 
@@ -247,14 +255,18 @@ catalogViewExists(char* viewName)
 	if(conn==NULL)
 		initConnection();
 	if(isConnected())
-		return (OCI_TypeInfoGet(conn,viewName,OCI_TIF_VIEW)==NULL)? FALSE : TRUE;
+		return (OCI_TypeInfoGet(conn,viewName,OCI_TIF_VIEW)==NULL) ? FALSE : TRUE;
 	return FALSE;
 }
 
 List*
 getAttributes(char *tableName)
 {
-	List* attrList=NIL;
+	List *attrList=NIL;
+	List *restul = NIL;
+
+	ACQUIRE_MEM_CONTEXT(context);
+
 	if(tableName==NULL)
 		return NIL;
 	if((attrList = searchTableBuffers(tableName)) != NIL)
@@ -277,10 +289,12 @@ getAttributes(char *tableName)
 		//add to table buffer list as cache to improve performance
 		//user do not have to free the attrList by themselves
 		addToTableBuffers(tableName, attrList);
-		return attrList;
+		RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, attrList);
 	}
 	ERROR_LOG("Not connected to database.");
-	return NIL;
+
+	// copy result to callers memory context
+	RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
 }
 
 boolean
@@ -300,50 +314,58 @@ isAgg(char* functionName)
 char *
 getTableDefinition(char *tableName)
 {
-	char statement[256];
-	char *statement1 = "select DBMS_METADATA.GET_DDL('TABLE', '";
-	char *statement2 = "') from DUAL";
-	strcpy(statement, statement1);
-	strcat(statement, tableName);
-	strcat(statement, statement2);
+	StringInfo statement;
 
-	OCI_Resultset *rs = executeStatement(statement);
+	ACQUIRE_MEM_CONTEXT(context);
+
+	statement = makeStringInfo();
+	appendStringInfo(statement, "select DBMS_METADATA.GET_DDL('TABLE', '%s\')"
+	        " from DUAL", tableName);
+
+	OCI_Resultset *rs = executeStatement(statement->data);
 	if(rs != NULL)
 	{
-		while(OCI_FetchNext(rs))
+		if(OCI_FetchNext(rs))
 		{
-			return (char *)OCI_GetString(rs, 1);
+		    deepFree(statement);
+		    RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(
+		            (char *)OCI_GetString(rs, 1));
 		}
 	}
-	return NULL;
+	deepFree(statement);
+	RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(NULL);
 }
 
 char *
 getViewDefinition(char *viewName)
 {
 	char *def = NULL;
+	StringInfo statement;
+
+	ACQUIRE_MEM_CONTEXT(context);
+
 	if((def = searchViewBuffers(viewName)) != NULL)
 		return def;
-	char statement[256];
-	char *statement1 = "select text from user_views where view_name = '";
-	char *statement2 = "'";
-	strcpy(statement, statement1);
-	strcat(statement, viewName);
-	strcat(statement, statement2);
 
-	OCI_Resultset *rs = executeStatement(statement);
+	statement = makeStringInfo();
+	appendStringInfo(statement, "select text from user_views where "
+	        "view_name = '%s'", viewName);
+
+	OCI_Resultset *rs = executeStatement(statement->data);
 	if(rs != NULL)
 	{
-		while(OCI_FetchNext(rs))
+		if(OCI_FetchNext(rs))
 		{
-			char * def = OCI_GetString(rs, 1);
+			char *def = strdup((char *) OCI_GetString(rs, 1));
 			//add view definition to view buffers to improve performance
 			//user do not have to free def by themselves
 			addToViewBuffers(viewName, def);
-			return def;
+			deepFree(statement);
+			RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(def);
 		}
 	}
-	return NULL;
+	deepFree(statement);
+	RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY (NULL);
 }
 
 static OCI_Resultset *

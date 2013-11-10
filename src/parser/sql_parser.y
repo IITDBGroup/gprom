@@ -19,6 +19,8 @@
     { \
         TRACE_LOG("Parsing grammer rule <%s>", #grule); \
     }
+    
+#undef free
 
 Node *bisonParseResult = NULL;
 %}
