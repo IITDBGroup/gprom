@@ -42,7 +42,7 @@ main (int argc, char* argv[])
         result = parseStream(stdin);
 
         DEBUG_LOG("Address of returned node is <%p>", result);
-        ERROR_LOG("PARSE RESULT FROM STREAM IS <%s>", beatify(nodeToString(bisonParseResult)));
+        ERROR_LOG("PARSE RESULT FROM STREAM IS <%s>", beatify(nodeToString(result)));
     }
     // parse input string
     else
@@ -50,8 +50,8 @@ main (int argc, char* argv[])
         result = parseFromString(getOptions()->optionConnection->sql);
 
         DEBUG_LOG("Address of returned node is <%p>", result);
-        ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(bisonParseResult));
-        ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(bisonParseResult)));
+        ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(result));
+        ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
     }
     freeOptions();
     destroyMemManager();
