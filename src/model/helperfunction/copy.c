@@ -82,6 +82,9 @@ deepCopyList(List *from)
 {
     List *new = NIL;
 
+    if(from == NIL)
+        return NIL;
+
     if (from->type == T_IntList)
     {
         FOREACH_INT(i, from)

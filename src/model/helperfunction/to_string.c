@@ -113,22 +113,25 @@ outList(StringInfo str, List *node)
 {
     appendStringInfo(str, "(");
 
-    if(isA(node, IntList))
+    if (node != NIL)
     {
-        FOREACH_INT(i, node)
+        if(isA(node, IntList))
         {
-            appendStringInfo(str, "i%d", i);
-            if (i_his_cell->next)
-                appendStringInfoString(str, " ");
+            FOREACH_INT(i, node)
+            {
+                appendStringInfo(str, "i%d", i);
+                if (i_his_cell->next)
+                    appendStringInfoString(str, " ");
+            }
         }
-    }
-    else
-    {
-        FOREACH(Node,n,node)
+        else
         {
-            outNode(str, n);
-            if (n_his_cell->next)
-                appendStringInfoString(str, " ");
+            FOREACH(Node,n,node)
+            {
+                outNode(str, n);
+                if (n_his_cell->next)
+                    appendStringInfoString(str, " ");
+            }
         }
     }
 

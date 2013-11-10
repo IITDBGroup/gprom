@@ -70,7 +70,7 @@ resetStringInfo(StringInfo str)
     str->len = 0;
 }
 
-void
+void inline
 appendStringInfoChar(StringInfo str, const char c)
 {
     makeStringInfoSpace(str, 1);

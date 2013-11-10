@@ -16,7 +16,7 @@
 rc
 testLogger(void)
 {
-    FATAL_LOG("this is %s msg, level=%d", "fatal", LOG_FATAL);
+//TODO will kill program    FATAL_LOG("this is %s msg, level=%d", "fatal", LOG_FATAL);
     ERROR_LOG("this is %s msg, level=%d", "error", LOG_ERROR);
     WARN_LOG("this is %s msg, level=%d", "warn", LOG_WARN);
     INFO_LOG("this is %s msg, level=%d", "info", LOG_INFO);

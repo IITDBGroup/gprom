@@ -37,7 +37,10 @@ extern void initLogger(void);
 extern void log_(LogLevel level, const char *file, unsigned line, const char *template, ...);
 
 #define FATAL_LOG(template, ...) \
-        log_(LOG_FATAL, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    do { \
+        log_(LOG_FATAL, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
+        exit(1); \
+    } while (0)
 #define ERROR_LOG(template, ...) \
         log_(LOG_ERROR, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
 #define WARN_LOG(template, ...) \

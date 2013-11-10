@@ -13,6 +13,8 @@
 boolean
 checkList(const List *list)
 {
+    int realLength = 0;
+
     if (list == NIL)
         return TRUE;
 
@@ -20,6 +22,11 @@ checkList(const List *list)
     assert(list->head != NULL);
     assert(list->tail != NULL);
     assert(list->type == T_List || list->type == T_IntList);
+
+    for(ListCell *lc = list->head; lc != NULL; lc = lc->next)
+        realLength++;
+
+    assert(realLength == list->length);
 
     if (list->length == 1)
         assert(list->head == list->tail);
@@ -247,7 +254,7 @@ newListHead(List *list)
 {
     ListCell *newHead;
 
-    newHead = (ListCell *)MALLOC(sizeof(ListCell));
+    newHead = (ListCell *) NEW(ListCell);
     newHead->next = list->head;
     list->head = newHead;
     list->length++;

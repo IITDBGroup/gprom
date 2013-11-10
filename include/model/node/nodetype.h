@@ -141,7 +141,7 @@ extern void enlargeStringInfo(StringInfo str, int needed);
 #define nodeTag(nodeptr) (((Node*)(nodeptr))->type)
 #define makeNode(type)  ((type*)newNode(sizeof(type),T_##type))
 #define nodeSetTag(nodeptr,t) (((Node*)(nodeptr))->type = (t))
-#define isA(nodeptr, type)  (nodeTag(nodeptr) == T_##type)
+#define isA(nodeptr, type)  (nodeptr != NULL && (nodeTag(nodeptr) == T_##type))
 
 /*extern declaration */
 extern Node *newNode(size_t size, NodeTag type);
@@ -164,6 +164,7 @@ extern boolean equal(void *a, void *b);
 
 /* deep free a node structure */
 extern void deepFree(void *a);
+extern void freeStringInfo (StringInfo node);
 
 /*
  * Visit all nodes in a tree using a user-provided function that decides

@@ -332,12 +332,12 @@ getTableDefinition(char *tableName)
 	{
 		if(OCI_FetchNext(rs))
 		{
-		    deepFree(statement);
+		    FREE(statement);
 		    RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(
 		            (char *)OCI_GetString(rs, 1));
 		}
 	}
-	deepFree(statement);
+	FREE(statement);
 	RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(NULL);
 }
 
@@ -368,12 +368,12 @@ getViewDefinition(char *viewName)
 			//add view definition to view buffers to improve performance
 			//user do not have to free def by themselves
 			addToViewBuffers(viewName, def);
-			deepFree(statement);
+			FREE(statement);
 			RELEASE_MEM_CONTEXT();
 			return def;
 		}
 	}
-	deepFree(statement);
+	FREE(statement);
 	RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY (NULL);
 }
 

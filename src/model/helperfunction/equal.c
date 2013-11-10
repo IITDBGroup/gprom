@@ -98,7 +98,8 @@ equalAttributeReference (AttributeReference *a,
     return TRUE;
 }
 
-static boolean equalOperator (Operator *a, Operator *b)
+static boolean
+equalOperator (Operator *a, Operator *b)
 {
     COMPARE_STRING_FIELD(name);
     COMPARE_NODE_FIELD(args);
@@ -130,8 +131,9 @@ equalConstant (Constant *a, Constant *b)
 static boolean
 equalFunctionCall(FunctionCall *a, FunctionCall *b)
 {
-    COMPARE_NODE_FIELD(functionname);
+    COMPARE_STRING_FIELD(functionname);
     COMPARE_NODE_FIELD(args);
+    COMPARE_SCALAR_FIELD(isAgg);
 
     return TRUE;
 }
