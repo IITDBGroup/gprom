@@ -78,7 +78,8 @@ static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 
 /*string field*/
 #define WRITE_STRING_FIELD(fldname)  \
-        appendStringInfo(str, ":" CppAsString(fldname) "|\"%s\"", node->fldname)
+        appendStringInfo(str, ":" CppAsString(fldname) "|\"%s\"", \
+                node->fldname ? node->fldname : "(null)")
 
 
 /*enum-type field as integer*/
