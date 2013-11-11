@@ -94,8 +94,8 @@ analyzeQueryBlock (QueryBlock *qb)
         }
     }
 
-    ERROR_LOG("Figuring out attributes of from clause items done");
-    ERROR_LOG("Found the following from tables: <%s>", nodeToString(fromTables));
+    INFO_LOG("Figuring out attributes of from clause items done");
+    DEBUG_LOG("Found the following from tables: <%s>", nodeToString(fromTables));
 
     // expand * expressions
     List *expandedSelectClause = NIL;
@@ -109,10 +109,7 @@ analyzeQueryBlock (QueryBlock *qb)
     }
     qb->selectClause = expandedSelectClause;
     INFO_LOG("Expanded select clause is: <%s>",nodeToString(expandedSelectClause));
-//    FOREACH(FromTableRef, f, fromTables)
-//    {
-//    	ERROR_LOG("tableID: %s",f->tableId);
-//    }
+
     // collect attribute references
     findAttrReferences((Node *) qb->distinct, &attrRefs);
     findAttrReferences((Node *) qb->groupByClause, &attrRefs);
@@ -123,8 +120,8 @@ analyzeQueryBlock (QueryBlock *qb)
     findAttrReferences((Node *) qb->whereClause, &attrRefs);
     //TODO do we need to search into fromClause because there will be attributes in the subquery?
 
-    ERROR_LOG("Collect attribute references done");
-    INFO_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));
+    INFO_LOG("Collect attribute references done");
+    DEBUG_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));
 
     // adapt attribute references
     FOREACH(AttributeReference,a,attrRefs)
@@ -132,7 +129,7 @@ analyzeQueryBlock (QueryBlock *qb)
     	// split name on each "."
         boolean isFound = FALSE;
         List *nameParts = splitAttrOnDot(a->name);
-        ERROR_LOG("attr split: %s", stringListToString(nameParts));
+        DEBUG_LOG("attr split: %s", stringListToString(nameParts));
 
     	if (LIST_LENGTH(nameParts) == 1)
     	    isFound = findAttrRefInFrom(a, fromTables);
@@ -145,7 +142,7 @@ analyzeQueryBlock (QueryBlock *qb)
     	    FATAL_LOG("attribute <%s> does not exist in FROM clause", a->name);
     }
 
-    ERROR_LOG("Analysis done");
+    INFO_LOG("Analysis done");
 }
 
 static boolean

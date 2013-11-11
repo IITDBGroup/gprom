@@ -79,7 +79,8 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 bin_PROGRAMS = testmain$(EXEEXT) testparser$(EXEEXT) \
-	testupana$(EXEEXT) testanalysis$(EXEEXT)
+	testupana$(EXEEXT) testanalysis$(EXEEXT) \
+	testtranslate$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/config/depcomp
@@ -113,6 +114,9 @@ testmain_DEPENDENCIES = ../src/libsrc.la
 am_testparser_OBJECTS = test_parser.$(OBJEXT)
 testparser_OBJECTS = $(am_testparser_OBJECTS)
 testparser_DEPENDENCIES = ../src/libsrc.la
+am_testtranslate_OBJECTS = test_translate.$(OBJEXT)
+testtranslate_OBJECTS = $(am_testtranslate_OBJECTS)
+testtranslate_DEPENDENCIES = ../src/libsrc.la
 am_testupana_OBJECTS = test_update_analysis.$(OBJEXT)
 testupana_OBJECTS = $(am_testupana_OBJECTS)
 testupana_DEPENDENCIES = ../src/libsrc.la
@@ -151,9 +155,11 @@ am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
 SOURCES = $(testanalysis_SOURCES) $(testmain_SOURCES) \
-	$(testparser_SOURCES) $(testupana_SOURCES)
+	$(testparser_SOURCES) $(testtranslate_SOURCES) \
+	$(testupana_SOURCES)
 DIST_SOURCES = $(testanalysis_SOURCES) $(testmain_SOURCES) \
-	$(testparser_SOURCES) $(testupana_SOURCES)
+	$(testparser_SOURCES) $(testtranslate_SOURCES) \
+	$(testupana_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -313,6 +319,8 @@ testupana_SOURCES = test_update_analysis.c
 testupana_LDADD = ../src/libsrc.la
 testanalysis_SOURCES = test_analysis.c
 testanalysis_LDADD = ../src/libsrc.la
+testtranslate_SOURCES = test_translate.c
+testtranslate_LDADD = ../src/libsrc.la
 all: all-am
 
 .SUFFIXES:
@@ -409,6 +417,10 @@ testparser$(EXEEXT): $(testparser_OBJECTS) $(testparser_DEPENDENCIES) $(EXTRA_te
 	@rm -f testparser$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(testparser_OBJECTS) $(testparser_LDADD) $(LIBS)
 
+testtranslate$(EXEEXT): $(testtranslate_OBJECTS) $(testtranslate_DEPENDENCIES) $(EXTRA_testtranslate_DEPENDENCIES) 
+	@rm -f testtranslate$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(testtranslate_OBJECTS) $(testtranslate_LDADD) $(LIBS)
+
 testupana$(EXEEXT): $(testupana_OBJECTS) $(testupana_DEPENDENCIES) $(EXTRA_testupana_DEPENDENCIES) 
 	@rm -f testupana$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(testupana_OBJECTS) $(testupana_LDADD) $(LIBS)
@@ -432,6 +444,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_parser.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_string.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_to_string.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_translate.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_update_analysis.Po@am__quote@
 
 .c.o:

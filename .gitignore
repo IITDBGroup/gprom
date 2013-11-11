@@ -16,3 +16,4 @@ test/testparser
 test/testupana
 test/testanalysis
 .settings
+test/testtranslate

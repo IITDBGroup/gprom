@@ -1,6 +1,6 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include -I.
 
-bin_PROGRAMS = testmain testparser testupana testanalysis
+bin_PROGRAMS = testmain testparser testupana testanalysis testtranslate
 
 testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 		   test_logger.c test_mem_mgr.c test_to_string.c \
@@ -17,3 +17,6 @@ testupana_LDADD = ../src/libsrc.la
 
 testanalysis_SOURCES = test_analysis.c
 testanalysis_LDADD = ../src/libsrc.la
+
+testtranslate_SOURCES = test_translate.c
+testtranslate_LDADD = ../src/libsrc.la

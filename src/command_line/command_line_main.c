@@ -14,16 +14,15 @@
 #include "command_line/command_line_main.h"
 #include "configuration/option_parser.h"
 #include "mem_manager/mem_mgr.h"
+#include "log/logger.h"
 
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
-#include "log/logger.h"
-#include "parser/parser.h"
-#include "analysis_and_translate/translator.h"
-#include "provenance_rewriter/prov_rewriter.h"
-#include "sql_serializer/sql_serializer.h"
+
 #include "rewriter.h"
+
+#include "metadata_lookup/metadata_lookup.h"
 
 static void init();
 static void cleanup();
@@ -106,6 +105,7 @@ static void
 init()
 {
     initMemManager();
+    initMetadataLookupPlugin();
 }
 
 static void

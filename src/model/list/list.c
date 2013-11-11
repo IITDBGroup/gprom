@@ -117,6 +117,18 @@ getHeadOfListInt (List *list)
     return head ? head->data.int_value : -1;
 }
 
+void *
+getHeadOfListP (List *list)
+{
+    assert(isPtrList(list));
+    ListCell *head;
+
+    head = getHeadOfList(list);
+    return head ? head->data.ptr_value : NULL;
+}
+
+
+
 ListCell *
 getTailOfList(List *list)
 {
