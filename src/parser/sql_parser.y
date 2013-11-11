@@ -397,15 +397,12 @@ selectItem:
          | '*'              
 			{ 
          		RULELOG("selectItem::*"); 
-         		$$ = (Node *) createSelectItem(NULL, 
-						(Node *) createAttributeReference(strdup("*"))); 
+         		$$ = (Node *) createSelectItem(strdup("*"), NULL); 
      		}
          | identifier '.' '*' 
          	{ 
          		RULELOG("selectItem::*"); 
-     			$$ = (Node *) createSelectItem(NULL,
-     					(Node *) createAttributeReference(
-     							CONCAT_STRINGS($1,".*"))); 
+     			$$ = (Node *) createSelectItem(CONCAT_STRINGS($1,".*"), NULL); 
  			}
     ; 
 

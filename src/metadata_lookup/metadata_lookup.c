@@ -338,6 +338,7 @@ char *
 getTableDefinition(char *tableName)
 {
 	StringInfo statement;
+	char *result;
 
 	ACQUIRE_MEM_CONTEXT(context);
 
@@ -351,8 +352,8 @@ getTableDefinition(char *tableName)
 		if(OCI_FetchNext(rs))
 		{
 		    FREE(statement);
-		    RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(
-		            (char *)OCI_GetString(rs, 1));
+		    result = strdup((char *)OCI_GetString(rs, 1));
+		    RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 		}
 	}
 	FREE(statement);
@@ -404,6 +405,7 @@ executeStatement(char *statement)
 	{
 		if(st == NULL)
 			st = OCI_StatementCreate(conn);
+		OCI_ReleaseResultsets(st);
 		if(OCI_ExecuteStmt(st, statement))
 		{
 		    OCI_Resultset *rs = OCI_GetResultset(st);
