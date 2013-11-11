@@ -22,6 +22,7 @@
 #include "model/node/nodetype.h"
 #include "parser/parse_internal.h"
 #include "parser/parser.h"
+#include "metadata_lookup/metadata_lookup.h"
 #include "../src/parser/sql_parser.tab.h"
 
 
@@ -30,11 +31,12 @@ main (int argc, char* argv[])
 {
     Node *result;
 
+    // initialize components
     initMemManager();
     mallocOptions();
     parseOption(argc, argv);
-
     initLogger();
+    initMetadataLookupPlugin();
 
     // read from terminal
     if (getOptions()->optionConnection->sql == NULL)

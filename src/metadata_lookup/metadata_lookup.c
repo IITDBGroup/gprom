@@ -44,6 +44,7 @@ static MemContext *context=NULL;
 static char **aggList=NULL;
 static List *tableBuffers=NULL;
 static List *viewBuffers=NULL;
+static boolean initialized = FALSE;
 
 static int initConnection(void);
 static boolean isConnected(void);
@@ -179,8 +180,9 @@ searchViewBuffers(char *viewName)
 static int
 initConnection()
 {
-    NEW_AND_ACQUIRE_MEMCONTEXT("metadataContext");
-    context=getCurMemContext();
+    assert(initialized);
+
+    ACQUIRE_MEM_CONTEXT(context);
 
     StringInfo connectString = makeStringInfo();
 	Options* options=getOptions();
@@ -192,14 +194,6 @@ initConnection()
 	int port=options->optionConnection->port;
 	appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT, host, port,
 	        db);
-	if(!OCI_Initialize(handleError, NULL, OCI_ENV_DEFAULT))
-	{
-	    FATAL_LOG("Cannot initialize OICLIB: %s", OCI_ErrorGetString(errorCache)); //print error type
-	    RELEASE_MEM_CONTEXT();
-
-		return EXIT_FAILURE;
-	}
-	DEBUG_LOG("Initialized OCILIB");
 
 	conn = OCI_ConnectionCreate(connectString->data,user,passwd,
 	        OCI_SESSION_DEFAULT);
@@ -225,6 +219,30 @@ isConnected()
 		FATAL_LOG("OCI connection lost: %s", OCI_ErrorGetString(errorCache));
 		return FALSE;
 	}
+}
+
+int
+initMetadataLookupPlugin (void)
+{
+    if (initialized)
+        FATAL_LOG("tried to initialize metadata lookup plugin more than once");
+
+    NEW_AND_ACQUIRE_MEMCONTEXT("metadataContext");
+    context=getCurMemContext();
+
+    if(!OCI_Initialize(handleError, NULL, OCI_ENV_DEFAULT))
+    {
+        FATAL_LOG("Cannot initialize OICLIB: %s", OCI_ErrorGetString(errorCache)); //print error type
+        RELEASE_MEM_CONTEXT();
+
+        return EXIT_FAILURE;
+    }
+
+    DEBUG_LOG("Initialized OCILIB");
+    RELEASE_MEM_CONTEXT();
+    initialized = TRUE;
+
+    return EXIT_SUCCESS;
 }
 
 OCI_Connection *
@@ -414,7 +432,8 @@ databaseConnectionClose()
 	{
 		freeAggList();
 		freeBuffers();
-//		OCI_Cleanup();//bugs exist here
+		OCI_Cleanup();//bugs exist here
+		initialized = FALSE;
 //		FREE_MEM_CONTEXT(context);
 	}
 	return EXIT_SUCCESS;

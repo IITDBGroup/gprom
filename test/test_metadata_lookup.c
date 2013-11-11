@@ -54,6 +54,8 @@ setupMetadataLookup(void)
     OCI_Connection *c;
     OCI_Statement *st;
 
+    initMetadataLookupPlugin();
+
     c = getConnection();
     st = OCI_StatementCreate(c);
     ASSERT_FALSE(st == NULL, "created statement");
