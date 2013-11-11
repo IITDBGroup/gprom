@@ -57,6 +57,8 @@ analyzeQueryBlockStmt (Node *stmt)
         default:
             break;
     }
+
+    INFO_LOG("RESULT OF ANALYSIS IS:\n%s", beatify(nodeToString(stmt)));
 }
 
 static void
@@ -109,6 +111,16 @@ analyzeQueryBlock (QueryBlock *qb)
     }
     qb->selectClause = expandedSelectClause;
     INFO_LOG("Expanded select clause is: <%s>",nodeToString(expandedSelectClause));
+
+    // create attribute names for unnamed attribute in select clause
+    FOREACH(SelectItem,s,qb->selectClause)
+    {
+        if (s->alias == NULL)
+        {
+            char *newAlias = generateAttrNameFromExpr(s);
+            s->alias = strdup(newAlias);
+        }
+    }
 
     // collect attribute references
     findAttrReferences((Node *) qb->distinct, &attrRefs);
@@ -246,6 +258,8 @@ findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromIt
         return FALSE;
     }
 
+    a->name = strdup(attrName);
+
     return foundAttr;
 }
 
@@ -340,13 +354,8 @@ static void analyzeFromSubquery(FromSubquery *sq)
 			QueryBlock *subQb = (QueryBlock *) sq->subquery;
 			FOREACH(SelectItem,s,subQb->selectClause)
 			{
-				if (s->alias == NULL)
-				    sq->from.attrNames = appendToTailOfList(sq->from.attrNames,
-				            generateAttrNameFromExpr(s));
-				else
-				    sq->from.attrNames = appendToTailOfList(sq->from.attrNames,
-				            s->alias);
-				//TODO do we need to fill alias if it is null?
+                sq->from.attrNames = appendToTailOfList(sq->from.attrNames,
+                        s->alias);
 			}
 		}
 			break;
@@ -380,7 +389,7 @@ static List *
 splitAttrOnDot (char *dotName)
 {
     int start = 0, pos = 0;
-    char *token, *string = dotName;
+    char *token, *string = strdup(dotName);
     List *result = NIL;
 
     while(string != NULL)

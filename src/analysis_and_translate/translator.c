@@ -373,27 +373,26 @@ translateSelectClause(List *selectClause, QueryOperator *select,
     List *attrNames = NIL;
     List *projExprs = NIL;
 
-    // determine projection expressions and attribute names
+    // determine projection expressions
     // visit each expression in select clause to get attribute names
     FOREACH(SelectItem, s, selectClause)
     {
         Node *projExpr = copyObject(s->expr);
-        visitAttrRefToGetAttrNames(projExpr, attrNames);
         projExprs = appendToTailOfList(projExprs, projExpr);
-    }
 
-    ProjectionOperator *po = createProjectionOp(selectClause, select, NIL,
-            attrNames);
-    // create projection operator upon selection operator from select clause
-
-    FOREACH(Node, expr, po->projExprs)
-    {
-        visitAttrRefToSetNewAttrPos(expr, attrsOffsets);
         // change attribute position in attribute reference in each projection expression
+        visitAttrRefToSetNewAttrPos(projExpr, attrsOffsets);
+
+        // add attribute names
+        attrNames = appendToTailOfList(attrNames, strdup(s->alias));
     }
 
-    OP_LCHILD(po)->parents = singleton(po);
+    // create projection operator upon selection operator from select clause
+    ProjectionOperator *po = createProjectionOp(projExprs, select, NIL,
+            attrNames);
+
     // set the parent of the operator's children
+    OP_LCHILD(po)->parents = singleton(po);
 
     return ((QueryOperator *) po);
 }

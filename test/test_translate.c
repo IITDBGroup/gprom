@@ -52,8 +52,8 @@ main (int argc, char* argv[])
     }
 
     qoModel = translateParse(result);
-    ERROR_LOG("ANALYSIS RESULT IS <%s>", nodeToString(qoModel));
-    ERROR_LOG("ANALYSIS RESULT FROM STRING IS:\n%s", beatify(nodeToString(qoModel)));
+    ERROR_LOG("TRANSLATION RESULT FROM STRING IS:\n%s", beatify(nodeToString(qoModel)));
+    ERROR_LOG("SIMPLIFIED OPERATOR TREE:\n%s", operatorToOverviewString(qoModel));
 
     freeOptions();
     destroyMemManager();

@@ -55,6 +55,9 @@ static void outDelete(StringInfo str, Delete *node);
 static void outUpdate(StringInfo str, Update *node);
 static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 
+// create overview string for an operator tree
+static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent);
+
 /*define macros*/
 /*label for the node type*/
 #define booltostr(a) \
@@ -79,8 +82,8 @@ static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 
 /* string field*/
 #define WRITE_STRING_FIELD(fldname)  \
-        appendStringInfo(str, ":" CppAsString(fldname) "|\"%s\"", \
-                node->fldname ? node->fldname : "(null)")
+		appendStringInfo(str, ":" CppAsString(fldname) "|\"%s\"", \
+				node->fldname ? node->fldname : "(null)")
 
 
 /* enum-type field as integer*/
@@ -98,9 +101,9 @@ static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 /* node field*/
 #define WRITE_NODE_FIELD(fldname)  \
 		do { \
-		    appendStringInfoString(str, ":" CppAsString(fldname) "|"); \
-            outNode(str, node->fldname); \
-        } while(0);
+			appendStringInfoString(str, ":" CppAsString(fldname) "|"); \
+			outNode(str, node->fldname); \
+		} while(0);
 
 /*node field*/
 #define WRITE_STRING_LIST_FIELD(fldname)  \
@@ -111,13 +114,13 @@ static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 
 /* write the pointer address of a node used for debugging operator model graphs */
 #define WRITE_NODE_ADDRESS() \
-        appendStringInfo(str, ":ADDRESS|%p", node)
+		appendStringInfo(str, ":ADDRESS|%p", node)
 
 /* write a field that contains a list of pointers to other nodes */
 #define WRITE_POINTER_LIST_FIELD(fldname) \
 		do { \
-		    appendStringInfoString(str, ":" CppAsString(fldname) "|"); \
-		    outPointerList(str, (List *) node->fldname); \
+			appendStringInfoString(str, ":" CppAsString(fldname) "|"); \
+			outPointerList(str, (List *) node->fldname); \
 		} while(0)
 
 /* out pointer list */
@@ -129,11 +132,11 @@ outPointerList (StringInfo str, List *node)
     if (node != NIL)
     {
         FOREACH(void,p,node)
-        {
+                {
             appendStringInfo(str, "%p", p);
             if (p_his_cell->next)
                 appendStringInfoString(str, " ");
-        }
+                }
     }
 
     appendStringInfoString(str, ")");
@@ -150,20 +153,20 @@ outList(StringInfo str, List *node)
         if(isA(node, IntList))
         {
             FOREACH_INT(i, node)
-            {
+                    {
                 appendStringInfo(str, "i%d", i);
                 if (i_his_cell->next)
                     appendStringInfoString(str, " ");
-            }
+                    }
         }
         else
         {
             FOREACH(Node,n,node)
-            {
+                    {
                 outNode(str, n);
                 if (n_his_cell->next)
                     appendStringInfoString(str, " ");
-            }
+                    }
         }
     }
 
@@ -419,7 +422,7 @@ outProjectionOperator(StringInfo str, ProjectionOperator *node)
 {
     WRITE_NODE_TYPE(PROJECTION_OPERATOR);
     WRITE_QUERY_OPERATOR();
-    
+
     WRITE_NODE_FIELD(projExprs); // projection expressions, Expression type
 }
 static void 
@@ -551,7 +554,7 @@ void outNode(StringInfo str, void *obj)
                 outTransactionStmt(str, (TransactionStmt *) obj);
                 break;
 
-            //query operator model nodes
+                //query operator model nodes
             case T_QueryOperator:
                 outQueryOperator(str, (QueryOperator *) obj);
                 break;
@@ -699,9 +702,141 @@ beatify(char *input)
     return result;
 }
 
+char *
+operatorToOverviewString(Node *op)
+{
+    StringInfo str = makeStringInfo();
+
+    TRACE_LOG("input was:\n%s", nodeToString(op));
+
+    if (isA(op,List))
+    {
+        FOREACH(QueryOperator,o,(List *) op)
+        {
+            operatorToOverviewInternal(str,(QueryOperator *) o, 0);
+            appendStringInfoString(str, "\n");
+        }
+    }
+    else
+        operatorToOverviewInternal(str,(QueryOperator *) op, 0);
+
+    return str->data;
+}
+
+static void
+operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
+{
+    indentString(str, indent);
+
+    // output specific operator things
+    switch(op->type)
+    {
+        case T_ProjectionOperator:
+        {
+            ProjectionOperator *o = (ProjectionOperator *) op;
+            WRITE_NODE_TYPE(Projection);
+
+            appendStringInfoString(str, " [");
+            FOREACH(Node,expr,o->projExprs)
+            {
+                appendStringInfo(str, "%s ", exprToSQL(expr));
+            }
+            appendStringInfoChar(str, ']');
+        }
+            break;
+        case T_SelectionOperator:
+            WRITE_NODE_TYPE(Selection);
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, exprToSQL(((SelectionOperator *) op)->cond));
+            appendStringInfoChar(str, ']');
+            break;
+        case  T_JoinOperator:
+        {
+            JoinOperator *o =  (JoinOperator *) op;
+            switch(o->joinType) {
+                case JOIN_INNER:
+                    WRITE_NODE_TYPE(Join);
+                    break;
+                case JOIN_CROSS:
+                    WRITE_NODE_TYPE(CrossProduct);
+                    break;
+                case JOIN_LEFT_OUTER:
+                    WRITE_NODE_TYPE(LeftOuterJoin);
+                    break;
+                case JOIN_RIGHT_OUTER:
+                    WRITE_NODE_TYPE(RightOuterJoin);
+                    break;
+                case JOIN_FULL_OUTER:
+                    WRITE_NODE_TYPE(FullOuterJoin);
+                    break;
+            }
+            WRITE_NODE_TYPE(Join);
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, exprToSQL(o->cond));
+            appendStringInfoChar(str, ']');
+        }
+            break;
+        case T_AggregationOperator:
+        {
+            AggregationOperator *o = (AggregationOperator *) op;
+            WRITE_NODE_TYPE(Aggregation);
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, exprToSQL((Node *) o->aggrs));
+            appendStringInfoString(str, o->groupBy ? "] GROUP BY [" : "");
+            appendStringInfoString(str, exprToSQL((Node *) o->groupBy));
+            appendStringInfoChar(str, ']');
+        }
+            break;
+        case T_ProvenanceComputation:
+            WRITE_NODE_TYPE(ProvenanceComputation);
+            break;
+        case T_TableAccessOperator:
+            WRITE_NODE_TYPE(TableAccess);
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, ((TableAccessOperator *) op)->tableName);
+            appendStringInfoChar(str, ']');
+            break;
+        case T_SetOperator:
+        {
+            SetOperator *o = (SetOperator *) op;
+            switch(o->setOpType)
+            {
+                case SETOP_UNION:
+                    WRITE_NODE_TYPE(Union);
+                    break;
+                case SETOP_INTERSECTION:
+                    WRITE_NODE_TYPE(Intersection);
+                    break;
+                case SETOP_DIFFERENCE:
+                    WRITE_NODE_TYPE(SetDifference);
+                    break;
+            }
+
+        }
+        break;
+        case T_DuplicateRemoval:
+            break;
+        default:
+            FATAL_LOG("not a query operator:\n%s", op);
+            break;
+    }
+
+    // output name
+    appendStringInfo(str, " [%s] ", op->schema->name);
+
+    // output attribute names
+    appendStringInfoString(str, "(");
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    appendStringInfo(str, "%s ", a->attrName);
+    appendStringInfoString(str, ")\n");
+
+    FOREACH(QueryOperator,child,op->inputs)
+    operatorToOverviewInternal(str, child, indent + 1);
+}
+
 static void
 indentString(StringInfo str, int level)
 {
-   while(level-- > 0)
-       appendStringInfoChar(str, '\t');
+    while(level-- > 0)
+        appendStringInfoChar(str, '\t');
 }

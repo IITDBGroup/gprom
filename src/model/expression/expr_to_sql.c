@@ -60,7 +60,7 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
     int i = 0;
     FOREACH(Node,arg,node->args)
     {
-        appendStringInfoString(str, ((i == 0) ? "(" : ", "));
+        appendStringInfoString(str, ((i++ == 0) ? "(" : ", "));
         exprToSQLString(str, arg);
     }
 
@@ -97,6 +97,17 @@ exprToSQLString(StringInfo str, Node *expr)
         case T_Operator:
             operatorToSQL(str, (Operator *) expr);
             break;
+        case T_List:
+        {
+            int i = 0;
+            FOREACH(Node,arg,(List *) expr)
+            {
+                appendStringInfoString(str, ((i++ == 0) ? "(" : ", "));
+                exprToSQLString(str, arg);
+            }
+            appendStringInfoString(str,")");
+        }
+        break;
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));
     }

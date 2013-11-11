@@ -149,6 +149,7 @@ extern Node *newNode(size_t size, NodeTag type);
 /* get a string representation of a node */
 extern char *nodeToString(void *obj);
 extern char *beatify(char *input);
+char *operatorToOverviewString(Node *op);
 
 /* create a node tree from a string */
 extern void *stringToNode(char *str);
