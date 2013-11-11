@@ -23,6 +23,7 @@
 #include "analysis_and_translate/translator.h"
 #include "provenance_rewriter/prov_rewriter.h"
 #include "sql_serializer/sql_serializer.h"
+#include "rewriter.h"
 
 static void init();
 static void cleanup();
@@ -144,33 +145,5 @@ inputSQL()
 static char *
 process(char *sql)
 {
-    Node *parseOutput;
-    Node *oModel;
-    StringInfo result = makeStringInfo();
-
-    DEBUG_LOG("sql input: <%s>", sql);
-
-    parseOutput = parseFromString(sql);
-    DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parseOutput));
-
-    oModel = translateParse(parseOutput);
-    DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(oModel));
-
-    if (isA(oModel, List))
-    {
-        List *stmtList = (List *) oModel;
-        stmtList = provRewriteQueryList(stmtList);
-        DEBUG_LOG("provenance rewriter returned:\n\n<%s>", nodeToString(stmtList));
-        FOREACH(QueryOperator,o,stmtList)
-            appendStringInfo(result, "%s\n", nodeToString(serializeQuery((QueryOperator *) oModel)));
-    }
-    else
-    {
-        oModel = (Node *) provRewriteQuery((QueryOperator *) oModel);
-        DEBUG_LOG("provenance rewriter returned:\n\n<%s>", nodeToString(oModel));
-        appendStringInfo(result, "%s\n", nodeToString(serializeQuery((QueryOperator *) oModel)));
-    }
-
-
-    return result->data;
+    return rewriteQuery(sql);
 }

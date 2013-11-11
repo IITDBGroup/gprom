@@ -32,6 +32,7 @@ static void analyzeFromSubquery(FromSubquery *sq);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 // real attribute name fetching
 //static char *getAttrNameFromDot(char *dotName);
+static List *expandStarExpression (SelectItem *s, List *fromClause);
 static List *splitAttrOnDot (char *dotName);
 static char *getAttrNameFromNameWithBlank(char *blankName);
 static char *generateAttrNameFromExpr(SelectItem *s);
@@ -96,6 +97,18 @@ analyzeQueryBlock (QueryBlock *qb)
     ERROR_LOG("Figuring out attributes of from clause items done");
     ERROR_LOG("Found the following from tables: <%s>", nodeToString(fromTables));
 
+    // expand * expressions
+    List *expandedSelectClause = NIL;
+    FOREACH(SelectItem,s,qb->selectClause)
+    {
+        if (s->expr == NULL)
+            expandedSelectClause = concatTwoLists(expandedSelectClause,
+                    expandStarExpression(s,fromTables));
+        else
+            expandedSelectClause = appendToTailOfList(expandedSelectClause,s);
+    }
+    qb->selectClause = expandedSelectClause;
+    INFO_LOG("Expanded select clause is: <%s>",nodeToString(expandedSelectClause));
 //    FOREACH(FromTableRef, f, fromTables)
 //    {
 //    	ERROR_LOG("tableID: %s",f->tableId);
@@ -130,7 +143,6 @@ analyzeQueryBlock (QueryBlock *qb)
 
     	if (!isFound)
     	    FATAL_LOG("attribute <%s> does not exist in FROM clause", a->name);
-    	//TODO what if not found? throw syntax error?
     }
 
     ERROR_LOG("Analysis done");
@@ -174,13 +186,15 @@ findAttrRefInFrom (AttributeReference *a, List *fromItems)
 static boolean
 findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromItems)
 {
-    boolean foundFrom;
-    boolean foundAttr;
+    boolean foundFrom = FALSE;
+    boolean foundAttr = FALSE;
     int fromClauseItem = 0;
     int attrPos = 0;
-    char *tabName = (char *) getNthOfList(nameParts, 0);
-    char *attrName = (char *) getNthOfList(nameParts, 1);
+    char *tabName = (char *) getNthOfListP(nameParts, 0);
+    char *attrName = (char *) getNthOfListP(nameParts, 1);
     FromItem *fromItem = NULL;
+
+    DEBUG_LOG("looking for attribute %s.%s", tabName, attrName);
 
     // find table name
     FOREACH(FromItem, f, fromItems)
@@ -378,7 +392,72 @@ splitAttrOnDot (char *dotName)
         result = appendToTailOfList(result, strdup(token));
     }
 
+    TRACE_LOG("Split attribute reference <%s> into <%s>", dotName, stringListToString(result));
+
     return result;
+}
+
+static List *
+expandStarExpression (SelectItem *s, List *fromClause)
+{
+    List *nameParts = splitAttrOnDot(s->alias);
+    List *newSelectItems = NIL;
+
+    assert(LIST_LENGTH(nameParts) == 1 || LIST_LENGTH(nameParts) == 2);
+
+    // should be "*" select item -> expand to all attribute in from clause
+    if (LIST_LENGTH(nameParts) == 1)
+    {
+        assert(strcmp((char *) getNthOfListP(nameParts,0),"*") == 0);
+        FOREACH(FromItem,f,fromClause)
+        {
+            FOREACH(char,attr,f->attrNames)
+            {
+                newSelectItems = appendToTailOfList(newSelectItems,
+                        createSelectItem(
+                                strdup(attr),
+                                (Node *) createAttributeReference(
+                                        CONCAT_STRINGS(f->name,".",attr))
+                        ));
+            }
+        }
+    }
+    /*
+     * should be "R.*" for some from clause item named R, expand to all
+     * attributes from R
+     */
+    else
+    {
+        boolean found = FALSE;
+        char *tabName = (char *) getNthOfListP(nameParts,0);
+        char *attrName = (char *) getNthOfListP(nameParts,1);
+        assert(strcmp(attrName,"*") == 0);
+
+        FOREACH(FromItem,f,fromClause)
+        {
+            if (strcmp(f->name,tabName) == 0)
+            {
+                if (found)
+                    FATAL_LOG("Ambiguous from clause reference <%s> to from clause item <%s>", s->alias, tabName);
+                else
+                {
+                    FOREACH(char,attr,f->attrNames)
+                    {
+                        newSelectItems = appendToTailOfList(newSelectItems,
+                                createSelectItem(
+                                       strdup(attr),
+                                       (Node *) createAttributeReference(
+                                               CONCAT_STRINGS(f->name,".",attr))
+                                       ));
+                    }
+                }
+            }
+        }
+    }
+
+    DEBUG_LOG("Expanded a star expression into <%s>", nodeToString(newSelectItems));
+
+    return newSelectItems;
 }
 //
 //static char *
