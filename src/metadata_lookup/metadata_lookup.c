@@ -444,6 +444,12 @@ databaseConnectionClose()
 /* OCILIB is not available, fake functions */
 #else
 
+int
+initMetadataLookupPlugin (void)
+{
+    return EXIT_SUCCESS;
+}
+
 boolean
 catalogTableExists(char *table)
 {
