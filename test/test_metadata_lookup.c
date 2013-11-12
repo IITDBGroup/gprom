@@ -54,6 +54,8 @@ setupMetadataLookup(void)
     OCI_Connection *c;
     OCI_Statement *st;
 
+    initMetadataLookupPlugin();
+
     c = getConnection();
     st = OCI_StatementCreate(c);
     ASSERT_FALSE(st == NULL, "created statement");
@@ -123,9 +125,11 @@ testGetAttributes(void)
     }
     List *attrs2 = getAttributes("metadatalookup_test1");
     List *attrs3 = getAttributes("metadatalookup_test2");
-    //test table buffers;
-    ASSERT_EQUALS_P(attrs, attrs2, "Get attributes addr from table buffers");
-    ASSERT_EQUALS_P(attrs1, attrs3, "Get attributes addr from table buffers");
+
+    //test table buffers
+    ASSERT_EQUALS_NODE(attrs, attrs2, "Get attributes addr from table buffers");
+    ASSERT_EQUALS_NODE(attrs1, attrs3, "Get attributes addr from table buffers");
+
 	return PASS;
 }
 
@@ -157,10 +161,10 @@ testGetViewDefinition()
 {
 	char *viewDef = getViewDefinition("METADATALOOKUP_VIEW1");
 	char *text = "select \"A\",\"B\",\"C\" from metadatalookup_test1";
-	ASSERT_EQUALS_STRING(viewDef, text, "test get view definition <metadatalookup_view1>");
+	ASSERT_EQUALS_STRINGP(viewDef, text, "test get view definition <metadatalookup_view1>");
 
 	char *viewDef1 = getViewDefinition("METADATALOOKUP_VIEW1");
-	ASSERT_EQUALS_STRING(viewDef1, text, "test get view definition from buffer <metadatalookup_view1>");
+	ASSERT_EQUALS_STRINGP(viewDef1, text, "test get view definition from buffer <metadatalookup_view1>");
 	return PASS;
 }
 

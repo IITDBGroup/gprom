@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include "common.h"
+#include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
@@ -19,6 +20,7 @@
 #include "model/query_operator/query_operator.h"
 
 /* functions to output specific node types */
+static void outPointerList (StringInfo str, List *node);
 static void outList(StringInfo str, List *node);
 static void outStringList (StringInfo str, List *node);
 static void outNode(StringInfo, void *node);
@@ -51,6 +53,10 @@ static void outNestedSubquery(StringInfo str, NestedSubquery *node);
 static void outInsert(StringInfo str, Insert *node);
 static void outDelete(StringInfo str, Delete *node);
 static void outUpdate(StringInfo str, Update *node);
+static void outTransactionStmt(StringInfo str, TransactionStmt *node);
+
+// create overview string for an operator tree
+static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent);
 
 /*define macros*/
 /*label for the node type*/
@@ -62,67 +68,119 @@ static void outUpdate(StringInfo str, Update *node);
 
 #define CppAsString(token) #token
 
-/*int field*/
+/* int field*/
 #define WRITE_INT_FIELD(fldname)  \
 		appendStringInfo(str, ":" CppAsString(fldname) "|%d", node->fldname)
 
-/*long-int field*/
+/* long-int field*/
 #define WRITE_LONG_FIELD(fldname)  \
 		appendStringInfo(str, ":" CppAsString(fldname) "|%ld", node->fldname)
 
-/*char field*/
+/* char field*/
 #define WRITE_CHAR_FIELD(fldname)  \
 		appendStringInfo(str, ":" CppAsString(fldname) "|%c", node->fldname)
 
-/*string field*/
+/* string field*/
 #define WRITE_STRING_FIELD(fldname)  \
-        appendStringInfo(str, ":" CppAsString(fldname) "|\"%s\"", node->fldname)
+		appendStringInfo(str, ":" CppAsString(fldname) "|\"%s\"", \
+				node->fldname ? node->fldname : "(null)")
 
 
-/*enum-type field as integer*/
+/* enum-type field as integer*/
 #define WRITE_ENUM_FIELD(fldname, enumtype)  \
 		appendStringInfo(str, ":" CppAsString(fldname) "|%d", (int)node->fldname)
 
-/*float field*/
+/* float field*/
 #define WRITE_FLOAT_FIELD(fldname, format)  \
 		appendStringInfo(str, ":" CppAsString(fldname) "|" format, node->fldname)
 
-/*bool field*/
+/* bool field*/
 #define WRITE_BOOL_FIELD(fldname)  \
 		appendStringInfo(str, ":" CppAsString(fldname) "|%s", booltostr(node->fldname))
 
-/*node field*/
+/* node field*/
 #define WRITE_NODE_FIELD(fldname)  \
 		do { \
-		    appendStringInfoString(str, ":" CppAsString(fldname) "|"); \
-            outNode(str, node->fldname); \
-        } while(0);
+			appendStringInfoString(str, ":" CppAsString(fldname) "|"); \
+			outNode(str, node->fldname); \
+		} while(0);
 
-/*outNode from node append it to string*/
+/*node field*/
+#define WRITE_STRING_LIST_FIELD(fldname)  \
+		do { \
+			appendStringInfoString(str, ":" CppAsString(fldname) "|"); \
+			outStringList(str, node->fldname); \
+		} while(0);
+
+/* write the pointer address of a node used for debugging operator model graphs */
+#define WRITE_NODE_ADDRESS() \
+		appendStringInfo(str, ":ADDRESS|%p", node)
+
+/* write a field that contains a list of pointers to other nodes */
+#define WRITE_POINTER_LIST_FIELD(fldname) \
+		do { \
+			appendStringInfoString(str, ":" CppAsString(fldname) "|"); \
+			outPointerList(str, (List *) node->fldname); \
+		} while(0)
+
+/* out pointer list */
+static void
+outPointerList (StringInfo str, List *node)
+{
+    appendStringInfo(str, "(");
+
+    if (node != NIL)
+    {
+        FOREACH(void,p,node)
+                {
+            appendStringInfo(str, "%p", p);
+            if (p_his_cell->next)
+                appendStringInfoString(str, " ");
+                }
+    }
+
+    appendStringInfoString(str, ")");
+}
+
+/* outNode from node append it to string*/
 static void
 outList(StringInfo str, List *node)
 {
     appendStringInfo(str, "(");
 
-    if(isA(node, IntList))
+    if (node != NIL)
     {
-        FOREACH_INT(i, node)
+        if(isA(node, IntList))
         {
-            appendStringInfo(str, "i%d", i);
-            if (i_his_cell->next)
-                appendStringInfoString(str, " ");
+            FOREACH_INT(i, node)
+                    {
+                appendStringInfo(str, "i%d", i);
+                if (i_his_cell->next)
+                    appendStringInfoString(str, " ");
+                    }
+        }
+        else
+        {
+            FOREACH(Node,n,node)
+                    {
+                outNode(str, n);
+                if (n_his_cell->next)
+                    appendStringInfoString(str, " ");
+                    }
         }
     }
-    else
-    {
-        FOREACH(Node,n,node)
-        {
-            outNode(str, n);
-            if (n_his_cell->next)
-                appendStringInfoString(str, " ");
-        }
-    }
+
     appendStringInfoString(str, ")");
+}
+
+char *
+stringListToString (List *node)
+{
+    StringInfo str = makeStringInfo();
+
+    outStringList(str, node);
+
+    return str->data;
 }
 
 static void
@@ -148,6 +206,7 @@ outInsert(StringInfo str, Insert *node)
     WRITE_NODE_FIELD(attrList);
     WRITE_NODE_FIELD(query);
 }
+
 static void 
 outDelete(StringInfo str, Delete *node)
 {
@@ -155,6 +214,7 @@ outDelete(StringInfo str, Delete *node)
     WRITE_STRING_FIELD(nodeName);
     WRITE_NODE_FIELD(cond);
 }
+
 static void 
 outUpdate(StringInfo str, Update *node)
 {
@@ -163,6 +223,14 @@ outUpdate(StringInfo str, Update *node)
     WRITE_NODE_FIELD(selectClause);
     WRITE_NODE_FIELD(cond);
 }
+
+static void
+outTransactionStmt(StringInfo str, TransactionStmt *node)
+{
+    WRITE_NODE_TYPE(TRANSACTIONSTMT);
+    WRITE_ENUM_FIELD(stmtType, TransactionStmtType);
+}
+
 static void
 outQueryBlock (StringInfo str, QueryBlock *node)
 {
@@ -246,7 +314,7 @@ static void
 writeCommonFromItemFields(StringInfo str, FromItem *node)
 {
     WRITE_STRING_FIELD(name);
-    WRITE_NODE_FIELD(attrNames);
+    WRITE_STRING_LIST_FIELD(attrNames);
 }
 
 static void
@@ -314,7 +382,7 @@ outSchema (StringInfo str, Schema *node)
 {
     WRITE_NODE_TYPE(SCHEMA);
 
-    WRITE_NODE_FIELD(name);
+    WRITE_STRING_FIELD(name);
     WRITE_NODE_FIELD(attrDefs);
 }
 
@@ -333,31 +401,35 @@ outAttributeDef (StringInfo str, AttributeDef *node)
     WRITE_NODE_TYPE(ATTRIBUTE_DEF);
 
     WRITE_ENUM_FIELD(dataType, DataType);
-    WRITE_NODE_FIELD(attrName);
+    WRITE_STRING_FIELD(attrName);
     WRITE_INT_FIELD(pos); 
 }
+
+#define WRITE_QUERY_OPERATOR() outQueryOperator(str, (QueryOperator *) node)
+
 static void
 outQueryOperator (StringInfo str, QueryOperator *node)
 {
-    WRITE_NODE_TYPE(QUERY_OPERATOR);
-
-    WRITE_NODE_FIELD(inputs);
+    WRITE_NODE_ADDRESS();
+    WRITE_POINTER_LIST_FIELD(parents);
     WRITE_NODE_FIELD(schema);
-    WRITE_NODE_FIELD(parents);
     WRITE_NODE_FIELD(provAttrs);
+    WRITE_NODE_FIELD(inputs);
 }
 
 static void 
 outProjectionOperator(StringInfo str, ProjectionOperator *node)
 {
     WRITE_NODE_TYPE(PROJECTION_OPERATOR);
-    
+    WRITE_QUERY_OPERATOR();
+
     WRITE_NODE_FIELD(projExprs); // projection expressions, Expression type
 }
 static void 
 outSelectionOperator (StringInfo str, SelectionOperator *node)
 {
     WRITE_NODE_TYPE(SELECTION_OPERATOR);
+    WRITE_QUERY_OPERATOR();
 
     WRITE_NODE_FIELD(cond); //  condition expression, Expr type
 }
@@ -366,6 +438,7 @@ static void
 outJoinOperator(StringInfo str, JoinOperator *node)
 {
     WRITE_NODE_TYPE(JOIN_OPERATOR);
+    WRITE_QUERY_OPERATOR();
 
     WRITE_ENUM_FIELD(joinType, JoinType);
     WRITE_NODE_FIELD(cond);
@@ -375,6 +448,7 @@ static void
 outAggregationOperator(StringInfo str, AggregationOperator *node)
 {
     WRITE_NODE_TYPE(AGGREGATION_OPERATOR);
+    WRITE_QUERY_OPERATOR();
 
     WRITE_NODE_FIELD(aggrs);
     WRITE_NODE_FIELD(groupBy);
@@ -384,6 +458,7 @@ static void
 outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
 {
     WRITE_NODE_TYPE(PROVENANCE_COMPUTATION);
+    WRITE_QUERY_OPERATOR();
 
     WRITE_ENUM_FIELD(provType,ProvenanceType);
 }
@@ -391,6 +466,7 @@ outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
 static void outTableAccessOperator(StringInfo str, TableAccessOperator *node)
 {
     WRITE_NODE_TYPE(TABLE_ACCESS_OPERATOR);
+    WRITE_QUERY_OPERATOR();
 
     WRITE_STRING_FIELD(tableName);
 }
@@ -398,6 +474,7 @@ static void outTableAccessOperator(StringInfo str, TableAccessOperator *node)
 static void outSetOperator(StringInfo str, SetOperator *node)
 {
     WRITE_NODE_TYPE(SET_OPERATOR);
+    WRITE_QUERY_OPERATOR();
 
     WRITE_ENUM_FIELD(setOpType,SetOpType);
 }
@@ -405,6 +482,7 @@ static void outSetOperator(StringInfo str, SetOperator *node)
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node)
 {
     WRITE_NODE_TYPE(DUPLICATE_REMOVAL);
+    WRITE_QUERY_OPERATOR();
 
     WRITE_NODE_FIELD(attrs); // attributes that need duplicate removal, AttributeReference type
 
@@ -472,8 +550,11 @@ void outNode(StringInfo str, void *obj)
             case T_Update:
                 outUpdate(str, (Update *) obj);
                 break;
-            //different case
-            //query operator model nodes
+            case T_TransactionStmt:
+                outTransactionStmt(str, (TransactionStmt *) obj);
+                break;
+
+                //query operator model nodes
             case T_QueryOperator:
                 outQueryOperator(str, (QueryOperator *) obj);
                 break;
@@ -621,9 +702,141 @@ beatify(char *input)
     return result;
 }
 
+char *
+operatorToOverviewString(Node *op)
+{
+    StringInfo str = makeStringInfo();
+
+    TRACE_LOG("input was:\n%s", nodeToString(op));
+
+    if (isA(op,List))
+    {
+        FOREACH(QueryOperator,o,(List *) op)
+        {
+            operatorToOverviewInternal(str,(QueryOperator *) o, 0);
+            appendStringInfoString(str, "\n");
+        }
+    }
+    else
+        operatorToOverviewInternal(str,(QueryOperator *) op, 0);
+
+    return str->data;
+}
+
+static void
+operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
+{
+    indentString(str, indent);
+
+    // output specific operator things
+    switch(op->type)
+    {
+        case T_ProjectionOperator:
+        {
+            ProjectionOperator *o = (ProjectionOperator *) op;
+            WRITE_NODE_TYPE(Projection);
+
+            appendStringInfoString(str, " [");
+            FOREACH(Node,expr,o->projExprs)
+            {
+                appendStringInfo(str, "%s ", exprToSQL(expr));
+            }
+            appendStringInfoChar(str, ']');
+        }
+            break;
+        case T_SelectionOperator:
+            WRITE_NODE_TYPE(Selection);
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, exprToSQL(((SelectionOperator *) op)->cond));
+            appendStringInfoChar(str, ']');
+            break;
+        case  T_JoinOperator:
+        {
+            JoinOperator *o =  (JoinOperator *) op;
+            switch(o->joinType) {
+                case JOIN_INNER:
+                    WRITE_NODE_TYPE(Join);
+                    break;
+                case JOIN_CROSS:
+                    WRITE_NODE_TYPE(CrossProduct);
+                    break;
+                case JOIN_LEFT_OUTER:
+                    WRITE_NODE_TYPE(LeftOuterJoin);
+                    break;
+                case JOIN_RIGHT_OUTER:
+                    WRITE_NODE_TYPE(RightOuterJoin);
+                    break;
+                case JOIN_FULL_OUTER:
+                    WRITE_NODE_TYPE(FullOuterJoin);
+                    break;
+            }
+            WRITE_NODE_TYPE(Join);
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, exprToSQL(o->cond));
+            appendStringInfoChar(str, ']');
+        }
+            break;
+        case T_AggregationOperator:
+        {
+            AggregationOperator *o = (AggregationOperator *) op;
+            WRITE_NODE_TYPE(Aggregation);
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, exprToSQL((Node *) o->aggrs));
+            appendStringInfoString(str, o->groupBy ? "] GROUP BY [" : "");
+            appendStringInfoString(str, exprToSQL((Node *) o->groupBy));
+            appendStringInfoChar(str, ']');
+        }
+            break;
+        case T_ProvenanceComputation:
+            WRITE_NODE_TYPE(ProvenanceComputation);
+            break;
+        case T_TableAccessOperator:
+            WRITE_NODE_TYPE(TableAccess);
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, ((TableAccessOperator *) op)->tableName);
+            appendStringInfoChar(str, ']');
+            break;
+        case T_SetOperator:
+        {
+            SetOperator *o = (SetOperator *) op;
+            switch(o->setOpType)
+            {
+                case SETOP_UNION:
+                    WRITE_NODE_TYPE(Union);
+                    break;
+                case SETOP_INTERSECTION:
+                    WRITE_NODE_TYPE(Intersection);
+                    break;
+                case SETOP_DIFFERENCE:
+                    WRITE_NODE_TYPE(SetDifference);
+                    break;
+            }
+
+        }
+        break;
+        case T_DuplicateRemoval:
+            break;
+        default:
+            FATAL_LOG("not a query operator:\n%s", op);
+            break;
+    }
+
+    // output name
+    appendStringInfo(str, " [%s] ", op->schema->name);
+
+    // output attribute names
+    appendStringInfoString(str, "(");
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    appendStringInfo(str, "%s ", a->attrName);
+    appendStringInfoString(str, ")\n");
+
+    FOREACH(QueryOperator,child,op->inputs)
+    operatorToOverviewInternal(str, child, indent + 1);
+}
+
 static void
 indentString(StringInfo str, int level)
 {
-   while(level-- > 0)
-       appendStringInfoChar(str, '\t');
+    while(level-- > 0)
+        appendStringInfoChar(str, '\t');
 }

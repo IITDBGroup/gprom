@@ -9,25 +9,33 @@
  *
  *-----------------------------------------------------------------------------
  */
-
-#include "analysis_and_translate/analyse_qb.h"
-
+#include "common.h"
+#include "analysis_and_translate/analyze_qb.h"
+#include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
+#include "log/logger.h"
+#include "metadata_lookup/metadata_lookup.h"
 
+static void analyzeStmtList (List *l);
 static void analyzeQueryBlock (QueryBlock *qb);
 static void analyzeSetQuery (SetQuery *q);
 static void analyzeProvenanceStmt (ProvenanceStmt *q);
 static void analyzeJoin (FromJoinExpr *j);
 static boolean findAttrReferences (Node *node, List **state);
+static boolean findAttrRefInFrom (AttributeReference *a, List *fromItems);
+static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a,  List *fromItems);
 static void analyzeFromTableRef(FromTableRef *f);
 static void analyzeFromSubquery(FromSubquery *sq);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 // real attribute name fetching
-static char *getAttrNameFromDot(char *dotName);
+//static char *getAttrNameFromDot(char *dotName);
+static List *expandStarExpression (SelectItem *s, List *fromClause);
+static List *splitAttrOnDot (char *dotName);
 static char *getAttrNameFromNameWithBlank(char *blankName);
+static char *generateAttrNameFromExpr(SelectItem *s);
 
 void
 analyzeQueryBlockStmt (Node *stmt)
@@ -43,16 +51,28 @@ analyzeQueryBlockStmt (Node *stmt)
         case T_ProvenanceStmt:
             analyzeProvenanceStmt((ProvenanceStmt *) stmt);
             break;
+        case T_List:
+            analyzeStmtList ((List *) stmt);
+            break;
         default:
             break;
     }
+
+    INFO_LOG("RESULT OF ANALYSIS IS:\n%s", beatify(nodeToString(stmt)));
+}
+
+static void
+analyzeStmtList (List *l)
+{
+    FOREACH(Node,n,l)
+        analyzeQueryBlockStmt(n);
 }
 
 static void
 analyzeQueryBlock (QueryBlock *qb)
 {
     List *attrRefs = NIL;
-    List *fromTbles = NIL;
+    List *fromTables = NIL;
 
     // figuring out attributes of from clause items
     FOREACH(FromItem,f,qb->fromClause)
@@ -61,20 +81,47 @@ analyzeQueryBlock (QueryBlock *qb)
         {
             case T_FromTableRef:
                 analyzeFromTableRef((FromTableRef *) f);
-                fromTbles = appendToTailOfList(fromTbles, f);
+                fromTables = appendToTailOfList(fromTables, f);
                 break;
             case T_FromSubquery:
             	analyzeFromSubquery((FromSubquery *) f);
-            	fromTbles = appendToTailOfList(fromTbles, f);
+            	fromTables = appendToTailOfList(fromTables, f);
             	break;
             case T_FromJoinExpr:
                 analyzeJoin((FromJoinExpr *) f);
-                fromTbles = appendToTailOfList(fromTbles, f);
+                fromTables = appendToTailOfList(fromTables, f);
                 break;
             default:
             	break;
         }
     }
+
+    INFO_LOG("Figuring out attributes of from clause items done");
+    DEBUG_LOG("Found the following from tables: <%s>", nodeToString(fromTables));
+
+    // expand * expressions
+    List *expandedSelectClause = NIL;
+    FOREACH(SelectItem,s,qb->selectClause)
+    {
+        if (s->expr == NULL)
+            expandedSelectClause = concatTwoLists(expandedSelectClause,
+                    expandStarExpression(s,fromTables));
+        else
+            expandedSelectClause = appendToTailOfList(expandedSelectClause,s);
+    }
+    qb->selectClause = expandedSelectClause;
+    INFO_LOG("Expanded select clause is: <%s>",nodeToString(expandedSelectClause));
+
+    // create attribute names for unnamed attribute in select clause
+    FOREACH(SelectItem,s,qb->selectClause)
+    {
+        if (s->alias == NULL)
+        {
+            char *newAlias = generateAttrNameFromExpr(s);
+            s->alias = strdup(newAlias);
+        }
+    }
+
     // collect attribute references
     findAttrReferences((Node *) qb->distinct, &attrRefs);
     findAttrReferences((Node *) qb->groupByClause, &attrRefs);
@@ -85,39 +132,135 @@ analyzeQueryBlock (QueryBlock *qb)
     findAttrReferences((Node *) qb->whereClause, &attrRefs);
     //TODO do we need to search into fromClause because there will be attributes in the subquery?
 
+    INFO_LOG("Collect attribute references done");
+    DEBUG_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));
+
     // adapt attribute references
     FOREACH(AttributeReference,a,attrRefs)
     {
     	// split name on each "."
-    	char *name = getAttrNameFromDot(a->name);
-    	int fromPos = 0, attrPos;
-    	boolean isFound;
-        // look name in from clause attributes
-    	FOREACH(FromTableRef, t, fromTbles)
-    	{
-    		attrPos = 0;
-    		isFound = FALSE;
-    		FOREACH(AttributeReference, r, attrRefs)
-			{
-				if(strcmp(name, r->name) == 0)
-				{
-					isFound = TRUE;
-					break;
-				}
-				attrPos++;
-			}
-    		if(isFound)
-    			break;
-    		fromPos++;
-    	}
-        // set the position
-    	if(isFound)
-    	{
-    		a->fromClauseItem = fromPos;
-			a->attrPosition = attrPos;
-    	}
-    	//TODO what if not found? throw syntax error?
+        boolean isFound = FALSE;
+        List *nameParts = splitAttrOnDot(a->name);
+        DEBUG_LOG("attr split: %s", stringListToString(nameParts));
+
+    	if (LIST_LENGTH(nameParts) == 1)
+    	    isFound = findAttrRefInFrom(a, fromTables);
+    	else if (LIST_LENGTH(nameParts) == 2)
+    	    isFound = findQualifiedAttrRefInFrom(nameParts, a, fromTables);
+    	else
+    	    FATAL_LOG("right now attribute names should have at most two parts");
+
+    	if (!isFound)
+    	    FATAL_LOG("attribute <%s> does not exist in FROM clause", a->name);
     }
+
+    INFO_LOG("Analysis done");
+}
+
+static boolean
+findAttrRefInFrom (AttributeReference *a, List *fromItems)
+{
+    boolean isFound = FALSE;
+    int fromPos = 0, attrPos;
+
+    FOREACH(FromItem, f, fromItems)
+    {
+        attrPos = 0;
+        FOREACH(char, r, f->attrNames)
+        {
+            if(strcmp(a->name, r) == 0)
+            {
+                // is ambigious?
+                if (isFound)
+                {
+                    FATAL_LOG("Ambiguous attribute reference <%s>", a->name);
+                    break;
+                }
+                // find occurance found
+                else
+                {
+                    isFound = TRUE;
+                    a->fromClauseItem = fromPos;
+                    a->attrPosition = attrPos;
+                }
+            }
+            attrPos++;
+        }
+        fromPos++;
+    }
+
+    return isFound;
+}
+
+static boolean
+findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromItems)
+{
+    boolean foundFrom = FALSE;
+    boolean foundAttr = FALSE;
+    int fromClauseItem = 0;
+    int attrPos = 0;
+    char *tabName = (char *) getNthOfListP(nameParts, 0);
+    char *attrName = (char *) getNthOfListP(nameParts, 1);
+    FromItem *fromItem = NULL;
+
+    DEBUG_LOG("looking for attribute %s.%s", tabName, attrName);
+
+    // find table name
+    FOREACH(FromItem, f, fromItems)
+    {
+        if (strcmp(f->name, tabName) == 0)
+        {
+            if (foundFrom)
+            {
+                FATAL_LOG("from clause item name <%s> appears more than once", tabName);
+                return FALSE;
+            }
+            else
+            {
+                fromItem = f;
+                a->fromClauseItem = fromClauseItem;
+                foundFrom = TRUE;
+            }
+        }
+        fromClauseItem++;
+    }
+
+    // did we find from clause item
+    if (!foundFrom)
+    {
+        FATAL_LOG("did not find from clause item named <%s>", tabName);
+        return FALSE;
+    }
+
+    // find attribute name
+    FOREACH(char,aName,fromItem->attrNames)
+    {
+        if (strcmp(aName, attrName) == 0)
+        {
+            if(foundAttr)
+            {
+                FATAL_LOG("ambigious attr name <%s> appears more than once in "
+                        "from clause item <%s>", attrName, tabName);
+                return FALSE;
+            }
+            else
+            {
+                a->attrPosition = attrPos;
+                foundAttr = TRUE;
+            }
+        }
+        attrPos++;
+    }
+
+    if (!foundAttr)
+    {
+        FATAL_LOG("did not find from clause item named <%s>", attrName);
+        return FALSE;
+    }
+
+    a->name = strdup(attrName);
+
+    return foundAttr;
 }
 
 static boolean
@@ -164,7 +307,7 @@ analyzeJoin (FromJoinExpr *j)
     switch(right->type)
 	{
 		case T_FromTableRef:
-			analyzeFromTableReference((FromTableRef *)right);
+			analyzeFromTableRef((FromTableRef *)right);
 			break;
 		case T_FromJoinExpr:
 			analyzeJoin((FromJoinExpr *) right);
@@ -194,7 +337,10 @@ analyzeJoin (FromJoinExpr *j)
 
 static void analyzeFromTableRef(FromTableRef *f)
 {
-	f->from.attrNames = getAttributes(f->tableId);
+    List *attrRefs = getAttributes(f->tableId);
+    FOREACH(AttributeReference,a,attrRefs)
+	    f->from.attrNames = appendToTailOfList(f->from.attrNames, a->name);
+
 	f->from.name = f->tableId;//TODO is it necessary?
 }
 
@@ -208,8 +354,8 @@ static void analyzeFromSubquery(FromSubquery *sq)
 			QueryBlock *subQb = (QueryBlock *) sq->subquery;
 			FOREACH(SelectItem,s,subQb->selectClause)
 			{
-				sq->from.attrNames = appendToTailOfList(sq->from.attrNames,s->alias);
-				//TODO do we need to fill alias if it is null?
+                sq->from.attrNames = appendToTailOfList(sq->from.attrNames,
+                        s->alias);
 			}
 		}
 			break;
@@ -239,31 +385,115 @@ analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right)
 	return result;
 }
 
-static char *
-getAttrNameFromDot(char *dotName)
+static List *
+splitAttrOnDot (char *dotName)
 {
-	dotName = getAttrNameFromNameWithBlank(dotName);
-	//create a new attribute name from the original name with dot
-	char *string = strdup(dotName);
-	char *toFree = string;
-	char *token;
-	while((token = strsep(&string, ".")) != NULL);
-	char *attrName = strdup(token);
-	FREE(toFree);
-	return attrName;
+    int start = 0, pos = 0;
+    char *token, *string = strdup(dotName);
+    List *result = NIL;
+
+    while(string != NULL)
+    {
+        token = strsep(&string, ".");
+        result = appendToTailOfList(result, strdup(token));
+    }
+
+    TRACE_LOG("Split attribute reference <%s> into <%s>", dotName, stringListToString(result));
+
+    return result;
 }
 
-static char *
-getAttrNameFromNameWithBlank(char *blankName)
+static List *
+expandStarExpression (SelectItem *s, List *fromClause)
 {
-	// filter out blank in string
-	int i;
-	for(i=0;i<strlen(blankName);i++)
-	{
-		if(blankName[i]==' ')
-			memcpy(blankName+i,blankName+i+1,strlen(blankName)-i);
-	}
-	return blankName;
+    List *nameParts = splitAttrOnDot(s->alias);
+    List *newSelectItems = NIL;
+
+    assert(LIST_LENGTH(nameParts) == 1 || LIST_LENGTH(nameParts) == 2);
+
+    // should be "*" select item -> expand to all attribute in from clause
+    if (LIST_LENGTH(nameParts) == 1)
+    {
+        assert(strcmp((char *) getNthOfListP(nameParts,0),"*") == 0);
+        FOREACH(FromItem,f,fromClause)
+        {
+            FOREACH(char,attr,f->attrNames)
+            {
+                newSelectItems = appendToTailOfList(newSelectItems,
+                        createSelectItem(
+                                strdup(attr),
+                                (Node *) createAttributeReference(
+                                        CONCAT_STRINGS(f->name,".",attr))
+                        ));
+            }
+        }
+    }
+    /*
+     * should be "R.*" for some from clause item named R, expand to all
+     * attributes from R
+     */
+    else
+    {
+        boolean found = FALSE;
+        char *tabName = (char *) getNthOfListP(nameParts,0);
+        char *attrName = (char *) getNthOfListP(nameParts,1);
+        assert(strcmp(attrName,"*") == 0);
+
+        FOREACH(FromItem,f,fromClause)
+        {
+            if (strcmp(f->name,tabName) == 0)
+            {
+                if (found)
+                    FATAL_LOG("Ambiguous from clause reference <%s> to from clause item <%s>", s->alias, tabName);
+                else
+                {
+                    FOREACH(char,attr,f->attrNames)
+                    {
+                        newSelectItems = appendToTailOfList(newSelectItems,
+                                createSelectItem(
+                                       strdup(attr),
+                                       (Node *) createAttributeReference(
+                                               CONCAT_STRINGS(f->name,".",attr))
+                                       ));
+                    }
+                }
+            }
+        }
+    }
+
+    DEBUG_LOG("Expanded a star expression into <%s>", nodeToString(newSelectItems));
+
+    return newSelectItems;
+}
+//
+//static char *
+//getAttrNameFromNameWithBlank(char *blankName)
+//{
+//	if(blankName == NULL)
+//		return NULL;
+//
+//	// filter out blank in string
+//	int i;
+//	for(i=0;i<strlen(blankName);i++)
+//	{
+//		if(blankName[i]==' ')
+//			memcpy(blankName+i,blankName+i+1,strlen(blankName)-i);
+//	}
+//	return blankName;
+//}
+
+static char *
+generateAttrNameFromExpr(SelectItem *s)
+{
+    char *name = exprToSQL(s->expr);
+    char c;
+    StringInfo str = makeStringInfo();
+
+    while((c = *name++) != '\0')
+        if (c != ' ')
+            appendStringInfoChar(str, toupper(c));
+
+    return str->data;
 }
 
 static void

@@ -114,15 +114,15 @@ testListOperations(void)
     // equal
     a1 = createAttributeReference(strdup(a));
     a2 = createAttributeReference(strdup(b));
-    l1 = listMake(a1, a2);
-    l2 = listMake(copyObject(a1), copyObject(a2));
+    l1 = LIST_MAKE(a1, a2);
+    l2 = LIST_MAKE(copyObject(a1), copyObject(a2));
     ASSERT_EQUALS_NODE(a1, getNthOfListP(l1,0), "1) is a1");
     ASSERT_EQUALS_NODE(a2, getNthOfListP(l1,1), "2) is a2");
-    ASSERT_EQUALS_STRING(nodeToString(l1),nodeToString(l2), "both lists are equal");
+    ASSERT_EQUALS_STRING(nodeToString(l1),nodeToString(l2), "both lists are equal");//TODO core dump here
     ASSERT_EQUALS_NODE(l1,l2, "both lists are equal");
 
     // shallow free
-    l1 = listMake(a1,a2);
+    l1 = LIST_MAKE(a1,a2);
     freeList(l1);
     ASSERT_TRUE(-1 == a1->fromClauseItem, "access should not be problematic");
 

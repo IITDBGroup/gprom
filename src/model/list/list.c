@@ -13,6 +13,8 @@
 boolean
 checkList(const List *list)
 {
+    int realLength = 0;
+
     if (list == NIL)
         return TRUE;
 
@@ -20,6 +22,11 @@ checkList(const List *list)
     assert(list->head != NULL);
     assert(list->tail != NULL);
     assert(list->type == T_List || list->type == T_IntList);
+
+    for(ListCell *lc = list->head; lc != NULL; lc = lc->next)
+        realLength++;
+
+    assert(realLength == list->length);
 
     if (list->length == 1)
         assert(list->head == list->tail);
@@ -57,10 +64,10 @@ newList(NodeTag type)
     List *newList;
     ListCell *newListHead;
 
-    newListHead = (ListCell *)MALLOC(sizeof(ListCell));
+    newListHead = (ListCell *) NEW(ListCell);
     newListHead->next = NULL;
 
-    newList = (List *)MALLOC(sizeof(List));
+    newList = (List *) NEW(List);
     newList->type = type;
     newList->length = 1;
     newList->head = newListHead;
@@ -109,6 +116,18 @@ getHeadOfListInt (List *list)
     head = getHeadOfList(list);
     return head ? head->data.int_value : -1;
 }
+
+void *
+getHeadOfListP (List *list)
+{
+    assert(isPtrList(list));
+    ListCell *head;
+
+    head = getHeadOfList(list);
+    return head ? head->data.ptr_value : NULL;
+}
+
+
 
 ListCell *
 getTailOfList(List *list)
@@ -204,7 +223,7 @@ newListTail(List *list)
 {
     ListCell *newTail;
     
-    newTail = (ListCell *)MALLOC(sizeof(ListCell));
+    newTail = (ListCell *) NEW(ListCell);
     newTail->next = NULL;
     
     list->tail->next = newTail;
@@ -247,7 +266,7 @@ newListHead(List *list)
 {
     ListCell *newHead;
 
-    newHead = (ListCell *)MALLOC(sizeof(ListCell));
+    newHead = (ListCell *) NEW(ListCell);
     newHead->next = list->head;
     list->head = newHead;
     list->length++;

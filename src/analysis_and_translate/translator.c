@@ -10,13 +10,21 @@
  *-------------------------------------------------------------------------
  */
 
-#include "analysis_and_translate/translator.h"
+#include "common.h"
+
+#include "mem_manager/mem_mgr.h"
+
+#include "log/logger.h"
+
+#include "model/node/nodetype.h"
+#include "model/list/list.h"
+#include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
-#include "model/list/list.h"
-#include "mem_manager/mem_mgr.h"
-#include "model/expression/expression.h"
-#include <assert.h>
+
+#include "analysis_and_translate/analyze_qb.h"
+#include "analysis_and_translate/translator.h"
+
 
 static QueryOperator *translateQuery (Node *node);
 
@@ -29,31 +37,49 @@ static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov);
 static QueryOperator *translateFromClause(List *fromClause);
 static QueryOperator *buildJoinTreeFromOperatorList(List *opList);
 static List *translateFromClauseToOperatorList(List *fromClause);
-static int *getAttrsOffsets(List *fromClause);
+static List *getAttrsOffsets(List *fromClause);
 static inline QueryOperator *createTableAccessOpFromFromTableRef(FromTableRef *ftr);
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje);
 static QueryOperator *translateFromSubquery(FromSubquery *fsq);
 
 /* Functions of translating where clause in a QueryBlock */
-static QueryOperator *translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot, int *attrsOffsets);
-static boolean visitAttrRefToSetNewAttrPos(Node *n, void *state);
+static QueryOperator *translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot, List *attrsOffsets);
+static boolean visitAttrRefToSetNewAttrPos(Node *n, List *state);
 
 /* Functions of translating select clause in a QueryBlock */
-static QueryOperator *translateSelectClause(List *selectClause, QueryOperator *select, int *attrsOffsets);
+static QueryOperator *translateSelectClause(List *selectClause, QueryOperator *select, List *attrsOffsets);
 static boolean visitAttrRefToGetAttrNames(Node *n, void *state);
 
 
-QueryOperator *
+Node *
 translateParse(Node *q)
 {
-    //TODO create and destroy memory context - don't forget to copy result to callers context
-    //TODO call analysis function first
-    return translateQuery(q);
+    Node *result;
+    NEW_AND_ACQUIRE_MEMCONTEXT("TRANSLATOR_CONTEXT");
+    analyzeQueryBlockStmt(q);
+
+    INFO_LOG("translate QB model \n%s", nodeToString(q));
+
+    if (isA(q, List))
+    {
+        result = (Node *) copyList((List *) q);
+        FOREACH(Node,stmt,(List *) result)
+            stmt_his_cell->data.ptr_value = (Node *) translateQuery(stmt);
+    }
+    else
+        result = (Node *) translateQuery (q);
+
+    INFO_LOG("result of translation is \n%s", beatify(nodeToString(result)));
+    assert(equal(result, copyObject(result)));
+
+    FREE_MEM_CONTEXT_AND_RETURN_COPY(Node,result);
 }
 
 static QueryOperator *
 translateQuery (Node *node)
 {
+    DEBUG_LOG("translate query <%s>", node);
+
     switch(node->type)
     {
         case T_QueryBlock:
@@ -104,10 +130,20 @@ translateSetQuery(SetQuery *sq)
 static QueryOperator *
 translateQueryBlock(QueryBlock *qb)
 {
+    List *attrsOffsets = NIL;
+
+    INFO_LOG("translate a QB:\n%s", nodeToString(qb));
+
     QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause);
-    int *attrsOffsets = getAttrsOffsets(qb->fromClause);
+    INFO_LOG("translatedFrom is\n%s", nodeToString(joinTreeRoot));
+
+    attrsOffsets = getAttrsOffsets(qb->fromClause);
     QueryOperator *select = translateWhereClause(qb->whereClause, joinTreeRoot, attrsOffsets);
+    INFO_LOG("translatedWhere is\n%s", nodeToString(select));
+
     QueryOperator *project = translateSelectClause(qb->selectClause, select, attrsOffsets);
+    INFO_LOG("translatedSelect is\n%s", nodeToString(project));
+
     // TODO translate aggregation
     return project;
 }
@@ -139,14 +175,17 @@ translateFromClause(List *fromClause)
 static QueryOperator *
 buildJoinTreeFromOperatorList(List *opList)
 {
-    QueryOperator *root = (QueryOperator *) LC_P_VAL(getHeadOfList(opList));
+    DEBUG_LOG("build join tree from operator list\n%s", nodeToString(opList));
+
+    QueryOperator *root = (QueryOperator *) getHeadOfListP(opList);
     FOREACH(QueryOperator, op, opList)
     {
-        if (op == (QueryOperator *) LC_P_VAL(getHeadOfList(opList)))
+        if (op == (QueryOperator *) getHeadOfListP(opList))
             continue;
 
         QueryOperator *oldRoot = (QueryOperator *) root;
-        List *inputs = appendToTailOfList(inputs, oldRoot);
+        List *inputs = NIL;
+        inputs = appendToTailOfList(inputs, oldRoot);
         inputs = appendToTailOfList(inputs, op);
         // set children of the join node
 
@@ -159,22 +198,27 @@ buildJoinTreeFromOperatorList(List *opList)
         OP_LCHILD(root)->parents = OP_RCHILD(root)->parents = singleton(root);
         // set the parent of the operator's children
     }
+
+    DEBUG_LOG("join tree for translated from is\n%s", nodeToString(root));
+
     return root;
 }
 
-static int *
+static List *
 getAttrsOffsets(List *fromClause)
 {
     int len = getListLength(fromClause);
-    int *offsets = CNEW(int, len);
-    offsets[0] = 0;
-    int i = 0;
+    List *offsets = NIL;
+    int curOffset = 0;
+
     FOREACH(FromItem, from, fromClause)
     {
-        i++;
-        if (i < len)
-            offsets[i] = offsets[i - 1] + getListLength(from->attrNames);
+       offsets = appendToTailOfListInt(offsets, curOffset);
+       curOffset += getListLength(from->attrNames);
     }
+
+    DEBUG_LOG("attribute offsets for from clause items are %s", offsets);
+
     return offsets;
 }
 
@@ -182,6 +226,8 @@ static List *
 translateFromClauseToOperatorList(List *fromClause)
 {
     List *opList = NIL;
+
+    DEBUG_LOG("translate from clause");
 
     FOREACH(FromItem, from, fromClause)
     {
@@ -197,6 +243,9 @@ translateFromClauseToOperatorList(List *fromClause)
             case T_FromSubquery:
                 op = translateFromSubquery((FromSubquery *) from);
                 break;
+            default:
+                FATAL_LOG("did not expect node <%s> in from list", nodeToString(from));
+                break;
         }
 
         assert(op);
@@ -204,6 +253,7 @@ translateFromClauseToOperatorList(List *fromClause)
     }
 
     assert(opList);
+    DEBUG_LOG("translated from clause into list of operator trees is \n%s", nodeToString(opList));
     return opList;
 }
 
@@ -211,7 +261,8 @@ static inline QueryOperator *
 createTableAccessOpFromFromTableRef(FromTableRef *ftr)
 {
     TableAccessOperator *ta = createTableAccessOp(ftr->tableId, ftr->from.name,
-    NIL, ftr->from.attrNames, NIL); // TODO  get data types
+                NIL, ftr->from.attrNames, NIL); // TODO  get data types
+    DEBUG_LOG("translated table access:\n%s\nINTO\n%s", nodeToString(ftr), nodeToString(ta));
     return ((QueryOperator *) ta);
 }
 
@@ -232,6 +283,9 @@ translateFromJoinExpr(FromJoinExpr *fje)
         case T_FromSubquery:
             input1 = translateFromSubquery((FromSubquery *) fje->left);
             break;
+        default:
+            FATAL_LOG("did not expect node <%s> in from list", nodeToString(input1));
+            break;
     }
     switch (fje->right->type)
     {
@@ -244,6 +298,9 @@ translateFromJoinExpr(FromJoinExpr *fje)
             break;
         case T_FromSubquery:
             input2 = translateFromSubquery((FromSubquery *) fje->right);
+            break;
+        default:
+            FATAL_LOG("did not expect node <%s> in from list", nodeToString(input2));
             break;
     }
 
@@ -275,7 +332,7 @@ translateFromSubquery(FromSubquery *fsq)
 }
 
 static QueryOperator *
-translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot, int *attrsOffsets)
+translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot, List *attrsOffsets)
 {
     if (whereClause == NULL)
         return joinTreeRoot;
@@ -293,7 +350,7 @@ translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot, int *attrsO
 }
 
 static boolean
-visitAttrRefToSetNewAttrPos(Node *n, void *state)
+visitAttrRefToSetNewAttrPos(Node *n, List *state)
 {
     if (n == NULL)
         return TRUE;
@@ -302,7 +359,7 @@ visitAttrRefToSetNewAttrPos(Node *n, void *state)
     if (n->type == T_AttributeReference)
     {
         AttributeReference *attrRef = (AttributeReference *) n;
-        attrRef->attrPosition += offsets[attrRef->fromClauseItem];
+        attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
         attrRef->fromClauseItem = 0;
     }
 
@@ -311,27 +368,31 @@ visitAttrRefToSetNewAttrPos(Node *n, void *state)
 
 static QueryOperator *
 translateSelectClause(List *selectClause, QueryOperator *select,
-        int *attrsOffsets)
+        List *attrsOffsets)
 {
     List *attrNames = NIL;
-    FOREACH(Node, expr, selectClause)
-    {
-        visitAttrRefToGetAttrNames(expr, attrNames);
-    }
+    List *projExprs = NIL;
+
+    // determine projection expressions
     // visit each expression in select clause to get attribute names
-
-    ProjectionOperator *po = createProjectionOp(selectClause, select, NIL,
-            attrNames);
-    // create projection operator upon selection operator from select clause
-
-    FOREACH(Node, expr, po->projExprs)
+    FOREACH(SelectItem, s, selectClause)
     {
-        visitAttrRefToSetNewAttrPos(expr, attrsOffsets);
+        Node *projExpr = copyObject(s->expr);
+        projExprs = appendToTailOfList(projExprs, projExpr);
+
         // change attribute position in attribute reference in each projection expression
+        visitAttrRefToSetNewAttrPos(projExpr, attrsOffsets);
+
+        // add attribute names
+        attrNames = appendToTailOfList(attrNames, strdup(s->alias));
     }
 
-    OP_LCHILD(po)->parents = singleton(po);
+    // create projection operator upon selection operator from select clause
+    ProjectionOperator *po = createProjectionOp(projExprs, select, NIL,
+            attrNames);
+
     // set the parent of the operator's children
+    OP_LCHILD(po)->parents = singleton(po);
 
     return ((QueryOperator *) po);
 }

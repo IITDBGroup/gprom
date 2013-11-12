@@ -77,6 +77,17 @@ freeSet (Set *node)
     FINISH_FREE();
 }
 
+void
+freeStringInfo (StringInfo node)
+{
+    if (node == NULL)
+        return;
+
+    FREE_P_FIELD(data);
+
+    FINISH_FREE();
+}
+
 static void
 freeConstant (Constant *node)
 {

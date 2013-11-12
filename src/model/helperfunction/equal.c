@@ -21,7 +21,11 @@
 static boolean equalFunctionCall(FunctionCall *a, FunctionCall *b);
 static boolean equalAttributeReference (AttributeReference *a,
         AttributeReference *b);
+static boolean equalOperator (Operator *a, Operator *b);
+static boolean equalConstant (Constant *a, Constant *b);
 static boolean equalList(List *a, List *b);
+static boolean equalStringList (List *a, List *b);
+
 // equal functions for query_operator
 static boolean equalSchema(Schema *a, Schema *b);
 //static boolean equalSchemaFromLists(Schema *a, Schema *b);
@@ -35,6 +39,7 @@ static boolean equalAggregationOperator(AggregationOperator *a, AggregationOpera
 static boolean equalSetOperator(SetOperator *a, SetOperator *b);
 static boolean equalDuplicateRemoval(DuplicateRemoval *a, DuplicateRemoval *b);
 static boolean equalProvenanceComputation( ProvenanceComputation *a,  ProvenanceComputation *b);
+
 // equal functions for query_block
 static boolean equalQueryBlock(QueryBlock *a, QueryBlock *b);
 static boolean equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b);
@@ -47,7 +52,7 @@ static boolean equalDistinctClause(DistinctClause *a,  DistinctClause *b);
 static boolean equalInsert(Insert *a, Insert *b);
 static boolean equalDelete(Delete *a, Delete *b);
 static boolean equalUpdate(Update *a, Update *b);
-
+static boolean equalTransactionStmt(TransactionStmt *a, TransactionStmt *b);
 
 /*use these macros to compare fields */
 
@@ -64,6 +69,13 @@ static boolean equalUpdate(Update *a, Update *b);
 			if(!equal(a->fldname, b->fldname))  \
 			return FALSE;  \
 		} while (0)
+
+/*compare a field pointer to a string list*/
+#define COMPARE_STRING_LIST_FIELD(fldname)  \
+        do{  \
+            if(!equalStringList(a->fldname, b->fldname))  \
+            return FALSE;  \
+        } while (0)
 
 /*compare a field that is a pointer to a C string or maybe NULL*/
 #define COMPARE_STRING_FIELD(fldname)  \
@@ -86,12 +98,42 @@ equalAttributeReference (AttributeReference *a,
     return TRUE;
 }
 
+static boolean
+equalOperator (Operator *a, Operator *b)
+{
+    COMPARE_STRING_FIELD(name);
+    COMPARE_NODE_FIELD(args);
+
+    return TRUE;
+}
+
+static boolean
+equalConstant (Constant *a, Constant *b)
+{
+    COMPARE_SCALAR_FIELD(constType);
+
+    switch(a->constType)
+    {
+        case DT_INT:
+            return INT_VALUE(a) == INT_VALUE(b);
+        case DT_FLOAT:
+            return FLOAT_VALUE(a) == FLOAT_VALUE(b);
+        case DT_BOOL:
+            return BOOL_VALUE(a) == BOOL_VALUE(b);
+        case DT_STRING:
+            return strcmp(STRING_VALUE(a), STRING_VALUE(b)) == 0;
+    }
+
+    return TRUE;
+}
+
 /* */
 static boolean
 equalFunctionCall(FunctionCall *a, FunctionCall *b)
 {
-    COMPARE_NODE_FIELD(functionname);
+    COMPARE_STRING_FIELD(functionname);
     COMPARE_NODE_FIELD(args);
+    COMPARE_SCALAR_FIELD(isAgg);
 
     return TRUE;
 }
@@ -127,6 +169,29 @@ equalList(List *a, List *b)
         }
         break;
         default:
+            return FALSE;
+    }
+
+    return TRUE;
+}
+
+static boolean
+equalStringList (List *a, List *b)
+{
+    if (a == NULL && b == NULL)
+        return TRUE;
+    if (a == NULL || b == NULL)
+        return FALSE;
+
+    COMPARE_SCALAR_FIELD(type);
+    COMPARE_SCALAR_FIELD(length);
+
+    // lists have same type and length
+    assert(LIST_LENGTH(a) > 0 && LIST_LENGTH(b) > 0);
+
+    FORBOTH(char,s1,s2,a,b)
+    {
+        if (strcmp(s1,s2) != 0)
             return FALSE;
     }
 
@@ -263,6 +328,7 @@ equalInsert(Insert *a, Insert *b)
     return TRUE;
 
 }
+
 static boolean 
 equalDelete(Delete *a, Delete *b)
 {
@@ -272,6 +338,7 @@ equalDelete(Delete *a, Delete *b)
     return TRUE;
 
 }
+
 static boolean 
 equalUpdate(Update *a, Update *b)
 {
@@ -282,6 +349,15 @@ equalUpdate(Update *a, Update *b)
     return TRUE;
 
 }
+
+static boolean
+equalTransactionStmt(TransactionStmt *a, TransactionStmt *b)
+{
+    COMPARE_SCALAR_FIELD(stmtType);
+
+    return TRUE;
+}
+
 static boolean 
 equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b)
 {
@@ -303,7 +379,7 @@ static boolean
 equalFromItem(FromItem *a, FromItem *b)
 {
     COMPARE_STRING_FIELD(name);
-    COMPARE_NODE_FIELD(attrNames);
+    COMPARE_STRING_LIST_FIELD(attrNames);
     
     return TRUE;
 }
@@ -379,6 +455,12 @@ equal(void *a, void *b)
         case T_AttributeReference:
             retval = equalAttributeReference(a,b);
             break;
+        case T_Operator:
+            retval = equalOperator(a,b);
+            break;
+        case T_Constant:
+            retval = equalConstant(a,b);
+            break;
             /*something different cases this, and we have*/
             /*different types of T_Node       */
         case T_QueryOperator:
@@ -446,6 +528,9 @@ equal(void *a, void *b)
             break;
         case T_Update:
             retval = equalUpdate(a,b);
+            break;
+        case T_TransactionStmt:
+            retval = equalTransactionStmt(a,b);
             break;
         default:
             retval = FALSE;

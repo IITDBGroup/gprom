@@ -96,7 +96,7 @@ extern MemContext *newMemContext(char *contextName, const char *file, unsigned l
 extern void setCurMemContext(MemContext *mc, const char *file, unsigned line);
 extern MemContext *getCurMemContext(void);
 extern void clearCurMemContext(const char *file, unsigned line);
-extern void releaseCurMemContext(const char *file, unsigned line);
+extern MemContext *releaseCurMemContext(const char *file, unsigned line);
 extern void freeCurMemContext(const char *file, unsigned line);
 extern char *contextStringDup(char *input);
 
@@ -133,6 +133,52 @@ extern Allocation *findAlloc(const MemContext *mc, const void *addr);
  * the current context.
  */
 #define RELEASE_MEM_CONTEXT() releaseCurMemContext(__FILE__, __LINE__)
+/*
+ * Release the current memory context, copy the data structure _node
+ * to the callers memory context, free _node, and return.
+ */
+#define RELEASE_MEM_CONTEXT_AND_RETURN_COPY(_type, _node) \
+    do { \
+    	_type *_resultNode; \
+    	_type *_origNode = (_type *) _node; \
+    	RELEASE_MEM_CONTEXT(); \
+    	_resultNode = (_type *) copyObject(_origNode); \
+    	assert(equal(_resultNode,_origNode)); \
+    	FREE(_origNode); \
+    	return (_type *) _resultNode; \
+    } while(0)
+#define RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(_str) \
+    do { \
+        char *_resultStr; \
+        char *_origStr = (char *) _str; \
+        RELEASE_MEM_CONTEXT(); \
+        _resultStr = strdup(_origStr); \
+        FREE(_origStr); \
+        return _resultStr; \
+    } while(0)
+/*
+ * Copy _node to callers memory context and free and release the current
+ *  memory context.
+ */
+#define FREE_MEM_CONTEXT_AND_RETURN_COPY(_type, _node) \
+    do { \
+        _type *_resultNode; \
+        _type *_origNode = (_type *) (_node); \
+        MemContext *oldC = RELEASE_MEM_CONTEXT(); \
+        _resultNode = (_type *) copyObject(_origNode); \
+        assert(equal(_resultNode,_origNode)); \
+        FREE_MEM_CONTEXT(oldC); \
+        return (_type *) _resultNode; \
+    } while(0)
+#define FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(_str) \
+    do { \
+        char *_resultStr; \
+        char *_origStr = (char *) _str; \
+        MemContext *oldC = RELEASE_MEM_CONTEXT(); \
+        _resultStr = strdup(_origStr); \
+        FREE_MEM_CONTEXT(oldC); \
+        return _resultStr; \
+    } while(0)
 /*
  * Removes all the memory allocation records from the current context
  * and free those memories and finally destroy the memory context itself.

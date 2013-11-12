@@ -46,7 +46,7 @@ createFunctionCall(char *fName, List *args)
     
     if(fName != NULL)
     {
-        result->functionname = (char *) MALLOC(strlen(fName) + 1);
+        result->functionname = (char *) CALLOC(1,strlen(fName) + 1);
         strcpy(result->functionname, fName);
     }
     else
@@ -65,7 +65,7 @@ createOpExpr(char *name, List *args)
 
     if(name != NULL)
     {
-        result->name = (char *) MALLOC(strlen(name) + 1);
+        result->name = (char *) CALLOC(1, strlen(name) + 1);
         strcpy(result->name, name);
     }
     else
@@ -101,7 +101,7 @@ createConstString (char *value)
 }
 
 Constant *
-createConstFloat (float value)
+createConstFloat (double value)
 {
     Constant *result = makeNode(Constant);
     double *v = NEW(double);
@@ -113,6 +113,18 @@ createConstFloat (float value)
     return result;
 }
 
+Constant *
+createConstBool (boolean value)
+{
+    Constant *result = makeNode(Constant);
+    boolean *v = NEW(boolean);
+
+    *v = value;
+    result->constType = DT_BOOL;
+    result->value = v;
+
+    return result;
+}
 
 DataType
 typeOf (Node *expr)

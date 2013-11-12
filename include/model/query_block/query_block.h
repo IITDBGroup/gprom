@@ -156,6 +156,20 @@ typedef struct Update
     Node *cond;
 } Update;
 
+
+typedef enum TransactionStmtType
+{
+    TRANSACTION_BEGIN,
+    TRANSACTION_COMMIT,
+    TRANSACTION_ABORT
+} TransactionStmtType;
+
+typedef struct TransactionStmt
+{
+    NodeTag type;
+    TransactionStmtType stmtType;
+} TransactionStmt;
+
 /* functions for creating query block nodes */
 /*extern SetQuery *createSetQuery(List *selectClause, SetOp *root);*/
 extern SetQuery *createSetQuery(char *opType, boolean all, Node *lChild,
@@ -179,5 +193,6 @@ extern NestedSubquery *createNestedSubquery (char *nType, Node *expr,
 extern Insert *createInsert(char *nodeName, Node *query, List*);
 extern Delete *createDelete(char *nodeName, Node *cond);
 extern Update *createUpdate(char *nodeName, List *selectClause, Node *cond);
+extern TransactionStmt *createTransactionStmt (char *stmtType);
 
 #endif /* QUERY_BLOCK_H */

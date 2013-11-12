@@ -21,6 +21,7 @@
 /* internal tests */
 static rc testequalFunctionCall (void);
 static rc testequalAttributeReference (void);
+static rc testequalConstant(void);
 static rc testequalList (void);
 
 
@@ -30,6 +31,8 @@ testEqual (void)
 {
     RUN_TEST(testequalFunctionCall (), "test equal FunctionCall");
     RUN_TEST(testequalAttributeReference(), "test equal AttibuteReference");
+    RUN_TEST(testequalConstant(), "test equal Constant");
+
     RUN_TEST(testequalList(), "test equal List");
 
     return PASS;
@@ -67,6 +70,23 @@ testequalAttributeReference (void)
   ASSERT_EQUALS_NODE(a,b,"both attribute references are same");
 
   return PASS;  
+}
+
+static rc
+testequalConstant(void)
+{
+    Constant *a, *b;
+
+    a = createConstInt(1);
+    b = createConstInt(1);
+
+    ASSERT_EQUALS_INT(1, INT_VALUE(a), "1 integer constant");
+    ASSERT_EQUALS_NODE(a,b,"equal int constants");
+
+    b = createConstInt(2);
+    ASSERT_FALSE(equal(a,b), "int 1 != int 2");
+
+    return PASS;
 }
 
 static rc
