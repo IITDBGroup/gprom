@@ -16,4 +16,7 @@
 /* try to merge adajacent operators of the same type into one operator. */
 extern QueryOperator *mergeAdjacentOperators (QueryOperator *root);
 
+/* try to push down the selection operator for provenence. */
+extern QueryOperator *pushDownSelectionOperatorOnProv(QueryOperator *root);
+
 #endif /* OPERATOR_OPTIMIZER_H_ */

@@ -308,7 +308,12 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
     switch(node->type)
     {
         case T_List:
-        	return node;
+        	{
+        		NEWN(List);
+        		FOREACH(Node, el, newN)
+        			el_his_cell->data.ptr_value = (void *) modifyNode((Node *) el, state);
+        	}
+        	break;
         case T_IntList:
         	return node;
         /* set nodes */
@@ -385,8 +390,8 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         	break;
         case T_FromItem:
         	{
-        		NEWN(FromItem);
-        		MUTATE(List, attrNames);
+        		//NEWN(FromItem);
+        		//MUTATE(List, attrNames);
         	}
         	break;
         case T_FromTableRef:
@@ -448,7 +453,7 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         case T_Schema:
         	{
         		NEWN(Schema);
-        		MUTATE_OPERATOR();
+        		//MUTATE_OPERATOR();
         		MUTATE(List, attrDefs);
         	}
             break;
@@ -484,11 +489,14 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         	}
         	break;
         case T_ProvenanceComputation:
-        	return node;
+    		MUTATE_OPERATOR();
+        	break;
         case T_TableAccessOperator:
-        	return node;
+    		MUTATE_OPERATOR();
+        	break;
         case T_SetOperator:
-        	return node;
+    		MUTATE_OPERATOR();
+        	break;
         case T_DuplicateRemoval:
         	{
         		NEWN(DuplicateRemoval);

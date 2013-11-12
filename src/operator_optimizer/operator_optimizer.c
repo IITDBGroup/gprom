@@ -30,3 +30,18 @@ mergeAdjacentOperators (QueryOperator *root)
 }
 
 
+QueryOperator *
+pushDownSelectionOperatorOnProv(QueryOperator *root) {
+
+	if (isA(root, SelectionOperator)) {
+		List *node = root->provAttrs;
+		if (node) {
+
+		}
+	}
+
+	FOREACH(QueryOperator, o, root->inputs)
+		pushDownSelectionOperatorOnProv(o);
+
+	return root;
+}
