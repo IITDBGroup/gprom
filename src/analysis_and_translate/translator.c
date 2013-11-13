@@ -25,6 +25,8 @@
 #include "analysis_and_translate/analyze_qb.h"
 #include "analysis_and_translate/translator.h"
 
+#include <stdio.h>
+
 
 static QueryOperator *translateQuery (Node *node);
 
@@ -46,9 +48,16 @@ static QueryOperator *translateFromSubquery(FromSubquery *fsq);
 static QueryOperator *translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot, List *attrsOffsets);
 static boolean visitAttrRefToSetNewAttrPos(Node *n, List *state);
 
-/* Functions of translating select clause in a QueryBlock */
+/* Functions of translating simple select clause in a QueryBlock */
 static QueryOperator *translateSelectClause(List *selectClause, QueryOperator *select, List *attrsOffsets);
-static boolean visitAttrRefToGetAttrNames(Node *n, void *state);
+
+/* Functions of translating aggregations, having and group by */
+static QueryOperator *translateHavingClause(Node *havingClause, QueryOperator *input, List *attrsOffsets);
+static QueryOperator *translateAggregation(List *selectClause, Node *havingClause, List *groupByClause, QueryOperator *input, List *attrsOffsets);
+static QueryOperator *createProjectionOverNonAttrRefExprs(List *selectClause, Node *havingClause, List *groupByClause, QueryOperator *input, List *attrsOffsets);
+static List *getListOfNonAttrRefExprs(List *selectClause, Node *havingClause, List *groupByClause);
+static List *getListOfAggregFunctionCalls(List *selectClause, Node *havingClause);
+static boolean visitAggregFunctionCall(Node *n, void *state);
 
 
 Node *
@@ -114,15 +123,16 @@ translateSetQuery(SetQuery *sq)
             right = translateQueryBlock(((QueryBlock *) sq->rChild));
     }
     assert(left && right);
+
+    // set children of the set operator node
     List *inputs = appendToTailOfList(inputs, left);
     inputs = appendToTailOfList(inputs, right);
-    // set children of the set operator node
 
-    SetOperator *so = createSetOperator(sq->setOp, inputs, NIL, sq->selectClause);
     // create set operator node
+    SetOperator *so = createSetOperator(sq->setOp, inputs, NIL, sq->selectClause);
 
-    OP_LCHILD(so)->parents = OP_RCHILD(so)->parents = singleton(so);
     // set the parent of the operator's children
+    OP_LCHILD(so)->parents = OP_RCHILD(so)->parents = singleton(so);
 
     return ((QueryOperator *) so);
 }
@@ -130,22 +140,34 @@ translateSetQuery(SetQuery *sq)
 static QueryOperator *
 translateQueryBlock(QueryBlock *qb)
 {
-    List *attrsOffsets = NIL;
+	List *attrsOffsets = NIL;
 
-    INFO_LOG("translate a QB:\n%s", nodeToString(qb));
+	INFO_LOG("translate a QB:\n%s", nodeToString(qb));
 
-    QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause);
-    INFO_LOG("translatedFrom is\n%s", nodeToString(joinTreeRoot));
+	QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause);
+	INFO_LOG("translatedFrom is\n%s", nodeToString(joinTreeRoot));
 
-    attrsOffsets = getAttrsOffsets(qb->fromClause);
-    QueryOperator *select = translateWhereClause(qb->whereClause, joinTreeRoot, attrsOffsets);
-    INFO_LOG("translatedWhere is\n%s", nodeToString(select));
+	attrsOffsets = getAttrsOffsets(qb->fromClause);
+	QueryOperator *select = translateWhereClause(qb->whereClause, joinTreeRoot,
+			attrsOffsets);
+	INFO_LOG("translatedWhere is\n%s", nodeToString(select));
 
-    QueryOperator *project = translateSelectClause(qb->selectClause, select, attrsOffsets);
-    INFO_LOG("translatedSelect is\n%s", nodeToString(project));
+	QueryOperator *aggr = translateAggregation(qb->selectClause,
+			qb->havingClause, qb->groupByClause, select, attrsOffsets);
+	if (aggr != select)
+		INFO_LOG("translatedAggregation is\n%s", nodeToString(aggr));
 
-    // TODO translate aggregation
-    return project;
+	QueryOperator *having = translateHavingClause(qb->havingClause, aggr,
+			attrsOffsets);
+	if (having != aggr)
+		INFO_LOG("translatedHaving is\n%s", nodeToString(having));
+
+	QueryOperator *project = translateSelectClause(qb->selectClause, having,
+			attrsOffsets);
+	INFO_LOG("translatedSelect is\n%s", nodeToString(project));
+
+	// TODO translate aggregation
+	return project;
 }
 
 static QueryOperator *
@@ -185,18 +207,18 @@ buildJoinTreeFromOperatorList(List *opList)
 
         QueryOperator *oldRoot = (QueryOperator *) root;
         List *inputs = NIL;
+        // set children of the join node
         inputs = appendToTailOfList(inputs, oldRoot);
         inputs = appendToTailOfList(inputs, op);
-        // set children of the join node
 
-        List *attrNames = concatTwoLists(getAttrNames(oldRoot->schema), getAttrNames(op->schema));
         // contact children's attribute names as the node's attribute names
+        List *attrNames = concatTwoLists(getAttrNames(oldRoot->schema), getAttrNames(op->schema));
 
-        root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
         // create join operator
+        root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
 
-        OP_LCHILD(root)->parents = OP_RCHILD(root)->parents = singleton(root);
         // set the parent of the operator's children
+        OP_LCHILD(root)->parents = OP_RCHILD(root)->parents = singleton(root);
     }
 
     DEBUG_LOG("join tree for translated from is\n%s", nodeToString(root));
@@ -305,16 +327,17 @@ translateFromJoinExpr(FromJoinExpr *fje)
     }
 
     assert(input1 && input2);
+
+    // set children of the join operator node
     List *inputs = appendToTailOfList(inputs, input1);
     inputs = appendToTailOfList(inputs, input2);
-    // set children of the join operator node
 
+    // create join operator node
     JoinOperator *jo = createJoinOp(fje->joinType, fje->cond, inputs, NIL,
             fje->from.attrNames); // TODO merge schema?
-    // create join operator node
 
-    OP_LCHILD(jo)->parents = OP_RCHILD(jo)->parents = singleton(jo);
     // set the parent of the operator's children
+    OP_LCHILD(jo)->parents = OP_RCHILD(jo)->parents = singleton(jo);
 
     if (fje->joinCond == JOIN_COND_NATURAL)
     {
@@ -332,21 +355,22 @@ translateFromSubquery(FromSubquery *fsq)
 }
 
 static QueryOperator *
-translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot, List *attrsOffsets)
-{
-    if (whereClause == NULL)
-        return joinTreeRoot;
+translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot,
+		List *attrsOffsets) {
+	if (whereClause == NULL)
+		return joinTreeRoot;
 
-    SelectionOperator *so = createSelectionOp (whereClause, joinTreeRoot, NIL, getAttrNames(joinTreeRoot->schema));
-    // create selection operator node upon the root of the join tree
+	// create selection operator node upon the root of the join tree
+	SelectionOperator *so = createSelectionOp(whereClause, joinTreeRoot, NIL,
+			getAttrNames(joinTreeRoot->schema));
 
-    visitAttrRefToSetNewAttrPos(so->cond, attrsOffsets);
-    // change attributes positions in selection condition
+	// change attributes positions in selection condition
+	visitAttrRefToSetNewAttrPos(so->cond, attrsOffsets);
 
-    OP_LCHILD(so)->parents = singleton(so);
-    // set the parent of the operator's children
+	// set the parent of the operator's children
+	OP_LCHILD(so)->parents = singleton(so);
 
-    return ((QueryOperator *) so);
+	return ((QueryOperator *) so);
 }
 
 static boolean
@@ -356,7 +380,7 @@ visitAttrRefToSetNewAttrPos(Node *n, List *state)
         return TRUE;
 
     int *offsets = (int *) state;
-    if (n->type == T_AttributeReference)
+    if (isA(n, AttributeReference))
     {
         AttributeReference *attrRef = (AttributeReference *) n;
         attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
@@ -397,18 +421,221 @@ translateSelectClause(List *selectClause, QueryOperator *select,
     return ((QueryOperator *) po);
 }
 
-static boolean
-visitAttrRefToGetAttrNames(Node *n, void *state)
+static QueryOperator *
+translateHavingClause(Node *havingClause, QueryOperator *input, List *attrsOffsets)
 {
-    if (n == NULL)
-        return TRUE;
+	QueryOperator *output = input;
 
-    List *attrNames = (List *) state;
-    if (n->type == T_AttributeReference)
-    {
-        AttributeReference *attrRef = (AttributeReference *) n;
-        attrNames = appendToTailOfList(attrNames, attrRef->name);
-    }
+	if (havingClause)
+	{
+		List *attrNames = getAttrNames(input->schema);
 
-    return visit(n, visitAttrRefToGetAttrNames, attrNames);
+		// create selection operator over having clause
+		SelectionOperator *so = createSelectionOp (havingClause, input, NIL, attrNames);
+
+		// set the parent of the selection's child
+		OP_LCHILD(so)->parents = singleton(so);
+
+		// change attributes positions in having condition
+		visitAttrRefToSetNewAttrPos(so->cond, attrsOffsets);
+
+		output = (QueryOperator *) so;
+	}
+
+	return output;
 }
+
+static QueryOperator *
+translateAggregation(List *selectClause, Node *havingClause,
+		List *groupByClause, QueryOperator *input, List *attrsOffsets)
+{
+	QueryOperator *in = createProjectionOverNonAttrRefExprs(selectClause,
+			havingClause, groupByClause, input, attrsOffsets);
+	QueryOperator *output = in;
+	List *aggrs = getListOfAggregFunctionCalls(selectClause, havingClause);
+	if (getListLength(aggrs) > 0)
+	{
+		List *attrNames = getAttrNames(in->schema); // TODO what should attrNames be?
+
+		// copy aggregation function calls and groupBy expressions
+		// and create aggregation operator
+		AggregationOperator *ao = createAggregationOp(aggrs, groupByClause,
+				in, NIL, attrNames);
+
+		// set the parent of the aggregation's child
+		OP_LCHILD(ao)->parents = singleton(ao);
+
+		// change attributes positions in each expression of groupBy
+		FOREACH(Node, exp, ao->groupBy)
+		{
+			visitAttrRefToSetNewAttrPos(exp, attrsOffsets);
+		}
+
+		output = ((QueryOperator *) ao);
+	}
+
+	freeList(aggrs);
+	return output;
+}
+
+static QueryOperator *
+createProjectionOverNonAttrRefExprs(List *selectClause, Node *havingClause,
+		List *groupByClause, QueryOperator *input, List *attrsOffsets)
+{
+	// each entry of the list directly points to the original expression, not copy
+	List *projExprs = getListOfNonAttrRefExprs(selectClause, havingClause,
+			groupByClause);
+
+	QueryOperator *output = input;
+
+	if (getListLength(projExprs) > 0)
+	{
+		// create alias for each non-AttributeReference expression
+		List *attrNames = NIL;
+		int i = 0;
+		FOREACH(Node, expr, projExprs)
+		{
+			char alias[20] = "agg_gb_arg";
+			char postfix[10];
+			sprintf(postfix, "%d", i);
+			attrNames = appendToTailOfList(attrNames, strdup(strcat(alias, postfix)));
+			i++;
+		}
+
+		// copy expressions and create projection operator over the copies
+		ProjectionOperator *po = createProjectionOp(projExprs, input, NIL,
+				attrNames);
+
+		// set the parent of the projection's child
+		OP_LCHILD(po)->parents = singleton(po);
+
+		// change attributes positions in each expression copy
+		FOREACH(Node, exp, po->projExprs)
+		{
+			visitAttrRefToSetNewAttrPos(exp, attrsOffsets);
+		}
+
+		// replace non-AttributeReference arguments in aggregation with alias
+		// each entry of the list directly points to the original aggregation, not copy
+		List *aggregs = getListOfAggregFunctionCalls(selectClause,
+				havingClause);
+		i = 0;
+		FOREACH(FunctionCall, agg, aggregs)
+		{
+			FOREACH(void, arg, agg->args)
+			{
+				if (!isA(arg, AttributeReference))
+				{
+					deepFree(arg);
+					arg = (char *) getNthOfListP(attrNames, i); // TODO ?
+					i++;
+				}
+			}
+		}
+		freeList(aggregs);
+
+		// replace non-AttributeReference expressions in groupBy with alias
+		int len = getListLength(attrNames);
+		if (groupByClause)
+		{
+			FOREACH(void, expr, groupByClause)
+			{
+				if (!isA(expr, AttributeReference) && i < len)
+				{
+					deepFree(expr);
+					expr = (char *) getNthOfListP(attrNames, i); // TODO ?
+					i++;
+				}
+			}
+		}
+		output = ((QueryOperator *) po);
+	}
+
+	freeList(projExprs);
+	return output;
+}
+
+static List *
+getListOfNonAttrRefExprs(List *selectClause, Node *havingClause, List *groupByClause)
+{
+	List *nonAttrRefExprs = newList(T_List);
+	List *aggregs = getListOfAggregFunctionCalls(selectClause, havingClause);
+
+	// get non-AttributeReference expressions from arguments of aggregations
+	FOREACH(FunctionCall, agg, aggregs)
+	{
+		FOREACH(Node, arg, agg->args)
+		{
+			if (!isA(arg, AttributeReference))
+				nonAttrRefExprs = appendToTailOfList(nonAttrRefExprs, arg);
+		}
+	}
+
+	if (groupByClause)
+	{
+		// get non-AttributeReference expressions from group by clause
+		FOREACH(Node, expr, groupByClause)
+		{
+			if (!isA(expr, AttributeReference))
+				nonAttrRefExprs = appendToTailOfList(nonAttrRefExprs, expr);
+		}
+	}
+
+	freeList(aggregs);
+	return nonAttrRefExprs;
+}
+
+/*
+static boolean
+visitNonAttrRefExpr(Node *n, void *state)
+{
+	if (n == NULL)
+		return TRUE;
+
+	List *exprs = (List *) state;
+	if (!isA(n, AttributeReference))
+	{
+		exprs = appendToTailOfList(exprs, n);
+	}
+
+	return visit(n, visitNonAttrRefExpr, exprs);
+}
+*/
+
+static List *
+getListOfAggregFunctionCalls(List *selectClause, Node *havingClause)
+{
+	List *aggregs = newList(T_List);
+	// get aggregations from select clause
+	FOREACH(Node, sel, selectClause)
+	{
+		visitAggregFunctionCall(sel, aggregs);
+	}
+	// get aggregations from having clause
+	visitAggregFunctionCall(havingClause, aggregs);
+
+	return aggregs;
+}
+
+static boolean
+visitAggregFunctionCall(Node *n, void *state)
+{
+	if (n == NULL)
+		return TRUE;
+
+	List *aggregs = (List *) state;
+	if (isA(n, FunctionCall)) // TODO how to prevent from going into nested sub-query?
+	{
+		FunctionCall *fc = (FunctionCall *) n;
+		if (fc->isAgg)
+		{
+			DEBUG_LOG("Found aggregation '%s'.", fc->functionname);
+			aggregs = appendToTailOfList(aggregs, fc);
+		}
+	}
+
+	return visit(n, visitAggregFunctionCall, aggregs);
+}
+
+
+

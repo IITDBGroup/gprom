@@ -142,7 +142,6 @@ createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
         prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
     }
 
-    prj->projExprs = projExprs;
     prj->op.type = T_ProjectionOperator;
     prj->op.inputs = singleton(input);
     prj->op.schema = schemaFromExpressions("PROJECTION", attrNames, projExprs,
@@ -183,8 +182,14 @@ createAggregationOp(List *aggrs, List *groupBy, QueryOperator *input,
 {
     AggregationOperator *aggr = NEW(AggregationOperator);
 
-    aggr->aggrs = aggrs;
-    aggr->groupBy = groupBy;
+    FOREACH(Node, func, aggrs)
+    {
+    	aggr->aggrs = appendToTailOfList(aggr->aggrs, copyObject(func));
+    }
+    FOREACH(Node, expr, groupBy)
+    {
+    	aggr->groupBy = appendToTailOfList(aggr->groupBy, copyObject(expr));
+    }
     aggr->op.type = T_AggregationOperator;
     aggr->op.inputs = singleton(input);
     aggr->op.schema = schemaFromExpressions("AGG", attrNames,
