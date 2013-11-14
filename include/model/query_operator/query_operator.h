@@ -49,27 +49,27 @@ typedef struct TableAccessOperator
 typedef struct SelectionOperator
 {
     QueryOperator op;
-    Node *cond; // condition expression, Expr type
+    Node *cond; // condition expression
 } SelectionOperator;
 
 typedef struct ProjectionOperator
 {
     QueryOperator op;
-    List *projExprs; // projection expressions, Expression type
+    List *projExprs; // projection expressions
 } ProjectionOperator;
 
 typedef struct JoinOperator
 {
     QueryOperator op;
     JoinType joinType;
-    Node *cond; // join condition expression, Operator type
+    Node *cond; // join condition expression
 } JoinOperator;
 
 typedef struct AggregationOperator
 {
     QueryOperator op;
     List *aggrs; // aggregation expressions, FunctionCall type
-    List *groupBy; // group by expressions, AttributeReference type
+    List *groupBy; // group by expressions
 } AggregationOperator;
 
 typedef struct SetOperator
