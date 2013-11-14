@@ -348,6 +348,8 @@ serializeFrom (QueryOperator *q, StringInfo from)
 static void
 serializeWhere (QueryOperator *q, StringInfo where)
 {
+    if(matchInfo->where !=NULL)
+    serializeWhere(matchInfo->where, whereString);
     appendStringInfoString(str, "\nWHERE ");
     appendStringInfoString(str, whereString->data);
 }
@@ -358,6 +360,8 @@ serializeWhere (QueryOperator *q, StringInfo where)
 static void
 serializeSelect (QueryOperator *q, StringInfo select)
 {
+    if(matchInfo->aggregation !=NULL)
+    serializeSelect(matchInfo->aggregation, selectString);
     appendStringInfoString(str, "\nSELECT ");
     appendStringInfoString(str, selectString->data);
 }
