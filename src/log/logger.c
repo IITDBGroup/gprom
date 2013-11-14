@@ -60,22 +60,24 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
     if (level <= maxLevel)
     {
         va_list args;
-        va_start(args, template);
         FILE *out = getOutput(level);
 
         fprintf(out, "%s", getHead(level));
-        vfprintf(out, template, args);
         if (file && line > 0)
         {
-            fprintf(out, " (%s:%u)\n", file, line);
+            fprintf(out, "(%s:%u) ", file, line);
         }
         else
         {
-            fprintf(out, " (unknown)\n");
+            fprintf(out, "(unknown) ");
         }
-        fflush(out);
 
+        va_start(args, template);
+        vfprintf(out, template, args);
         va_end(args);
+
+        fprintf(out, "\n");
+        fflush(out);
     }
 }
 

@@ -707,6 +707,9 @@ operatorToOverviewString(Node *op)
 {
     StringInfo str = makeStringInfo();
 
+    if (op == NULL)
+        return "";
+
     TRACE_LOG("input was:\n%s", nodeToString(op));
 
     if (isA(op,List))
