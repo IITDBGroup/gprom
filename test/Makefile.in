@@ -80,7 +80,8 @@ build_triplet = @build@
 host_triplet = @host@
 bin_PROGRAMS = testmain$(EXEEXT) testparser$(EXEEXT) \
 	testupana$(EXEEXT) testanalysis$(EXEEXT) \
-	testtranslate$(EXEEXT) testserializer$(EXEEXT)
+	testtranslate$(EXEEXT) testserializer$(EXEEXT) \
+	testvisit$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/config/depcomp
@@ -123,6 +124,9 @@ testtranslate_DEPENDENCIES = ../src/libsrc.la
 am_testupana_OBJECTS = test_update_analysis.$(OBJEXT)
 testupana_OBJECTS = $(am_testupana_OBJECTS)
 testupana_DEPENDENCIES = ../src/libsrc.la
+am_testvisit_OBJECTS = test_visit.$(OBJEXT)
+testvisit_OBJECTS = $(am_testvisit_OBJECTS)
+testvisit_DEPENDENCIES = ../src/libsrc.la
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -159,10 +163,12 @@ am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
 SOURCES = $(testanalysis_SOURCES) $(testmain_SOURCES) \
 	$(testparser_SOURCES) $(testserializer_SOURCES) \
-	$(testtranslate_SOURCES) $(testupana_SOURCES)
+	$(testtranslate_SOURCES) $(testupana_SOURCES) \
+	$(testvisit_SOURCES)
 DIST_SOURCES = $(testanalysis_SOURCES) $(testmain_SOURCES) \
 	$(testparser_SOURCES) $(testserializer_SOURCES) \
-	$(testtranslate_SOURCES) $(testupana_SOURCES)
+	$(testtranslate_SOURCES) $(testupana_SOURCES) \
+	$(testvisit_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -326,6 +332,8 @@ testtranslate_SOURCES = test_translate.c
 testtranslate_LDADD = ../src/libsrc.la
 testserializer_SOURCES = test_serializer.c
 testserializer_LDADD = ../src/libsrc.la
+testvisit_SOURCES = test_visit.c
+testvisit_LDADD = ../src/libsrc.la
 all: all-am
 
 .SUFFIXES:
@@ -434,6 +442,10 @@ testupana$(EXEEXT): $(testupana_OBJECTS) $(testupana_DEPENDENCIES) $(EXTRA_testu
 	@rm -f testupana$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(testupana_OBJECTS) $(testupana_LDADD) $(LIBS)
 
+testvisit$(EXEEXT): $(testvisit_OBJECTS) $(testvisit_DEPENDENCIES) $(EXTRA_testvisit_DEPENDENCIES) 
+	@rm -f testvisit$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(testvisit_OBJECTS) $(testvisit_LDADD) $(LIBS)
+
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -456,6 +468,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_to_string.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_translate.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_update_analysis.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_visit.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
