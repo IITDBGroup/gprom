@@ -63,6 +63,8 @@ visit (Node *node, boolean (*checkNode) (), void *state)
     {
         case T_List:
             {
+            	if (node == NULL)
+            		break;
                 PREP_VISIT(List);
                 FOREACH(Node,el,n)
                 	VISIT_NODE(el);
@@ -489,13 +491,19 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         	}
         	break;
         case T_ProvenanceComputation:
-    		MUTATE_OPERATOR();
+        	{
+    			MUTATE_OPERATOR();
+        	}
         	break;
         case T_TableAccessOperator:
-    		MUTATE_OPERATOR();
+    		{
+    			MUTATE_OPERATOR();
+    		}
         	break;
         case T_SetOperator:
-    		MUTATE_OPERATOR();
+    		{
+    			MUTATE_OPERATOR();
+    		}
         	break;
         case T_DuplicateRemoval:
         	{
