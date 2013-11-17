@@ -441,7 +441,7 @@ equal(void *a, void *b)
     if (nodeTag(a) !=nodeTag(b))
         return FALSE;
 
-    DEBUG_LOG("same node types <%s> and <%s>", nodeToString(a), nodeToString(b));
+    DEBUG_LOG("same node types \n<%s>\nand\n<%s>", nodeToString(a), nodeToString(b));
 
     switch(nodeTag(a))
     {

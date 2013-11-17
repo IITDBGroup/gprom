@@ -177,6 +177,7 @@ extern SetQuery *createSetQuery(char *opType, boolean all, Node *lChild,
 extern QueryBlock *createQueryBlock(void);
 extern ProvenanceStmt *createProvenanceStmt(Node *query);
 extern SelectItem *createSelectItem(char *alias, Node *expr);
+extern FromItem *createFromItem (char *alias, List *attrNames);
 extern FromItem *createFromTableRef(char *alias, List *attrNames,
         char *tableId);
 extern FromItem *createFromSubquery(char *alias, List *attrNames, Node *query);

@@ -453,8 +453,8 @@ copyFromJoinExpr(FromJoinExpr *from, OperatorMap **opMap)
 {
     COPY_INIT(FromJoinExpr);
     COPY_FROM();
-    COPY_SCALAR_FIELD(left);
-    COPY_SCALAR_FIELD(right);
+    COPY_NODE_FIELD(left);
+    COPY_NODE_FIELD(right);
     COPY_SCALAR_FIELD(joinType);
     COPY_SCALAR_FIELD(joinCond);
     COPY_NODE_FIELD(cond);

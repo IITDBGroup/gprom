@@ -105,13 +105,13 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList clauseList optionalGroupBy optionalOrderBy setClause// select and from clauses are lists
-             insertList stmtList identifierList
-%type <node> selectItem fromClauseItem fromJoinItem optionalDistinct optionalWhere optionalLimit optionalHaving
+             insertList stmtList identifierList optionalAttrAlias
+%type <node> selectItem fromClauseItem fromJoinItem optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
 %type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
-%type <stringVal> optionalAlias optionalAll nestedSubQueryOperator optionalNot fromString
+%type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString
 %type <stringVal> joinType transactionIdentifier
 
 %start stmtList
@@ -587,7 +587,8 @@ fromClauseItem:
         | identifier optionalAlias
             {
                 RULELOG("fromClauseItem");
-                $$ = (Node *) createFromTableRef($2, NIL, $1);
+                $$ = (Node *) createFromTableRef(((FromItem *) $2)->name, 
+						((FromItem *) $2)->attrNames, $1);
             }
             
         | subQuery
@@ -599,7 +600,8 @@ fromClauseItem:
             {
                 RULELOG("fromClauseItem::subQuery");
                 FromSubquery *s = (FromSubquery *) $1;
-                s->from.name = $2;
+                s->from.name = ((FromItem *) $2)->name;
+                s->from.attrNames = ((FromItem *) $2)->attrNames;
                 $$ = (Node *) s;
             }
             
@@ -616,7 +618,8 @@ fromClauseItem:
         		FromItem *f;
         		RULELOG("fromClauseItem::fromJoinItem");
         		f = (FromItem *) $2;
-        		f->name = $3;
+        		f->name = ((FromItem *) $4)->name;
+                f->attrNames = ((FromItem *) $4)->attrNames;
         		$$ = (Node *) f;
         	}
     ;
@@ -632,55 +635,84 @@ subQuery:
 identifierList:
 		identifier { $$ = singleton($1); }
 		| identifierList ',' identifier { $$ = appendToTailOfList($1, $3); }
-   
+	;
+	
 fromJoinItem:
 		'(' fromJoinItem ')' 			{ $$ = $2; }
-		| fromClauseItem NATURAL joinType JOIN fromClauseItem 
-			{
-                RULELOG("fromJoinItem::NATURALjoinType");
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $5, $3, "JOIN_COND_NATURAL", NULL);
-          	}
         | fromClauseItem NATURAL JOIN fromClauseItem 
 			{
                 RULELOG("fromJoinItem::NATURAL");
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, $3, "JOIN_COND_NATURAL", NULL);
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, 
+						(FromItem *) $4, "JOIN_INNER", "JOIN_COND_NATURAL", 
+						NULL);
+          	}
+		| fromClauseItem NATURAL joinType JOIN fromClauseItem 
+			{
+                RULELOG("fromJoinItem::NATURALjoinType");
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, 
+                		(FromItem *) $5, $3, "JOIN_COND_NATURAL", NULL);
           	}
      	| fromClauseItem CROSS JOIN fromClauseItem 
         	{
 				RULELOG("fromJoinItem::CROSS JOIN");
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, "JOIN_CROSS", "JOIN_COND_ON", NULL);
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, 
+                		(FromItem *) $4, "JOIN_CROSS", "JOIN_COND_ON", NULL);
           	}
      	| fromClauseItem joinType JOIN fromClauseItem joinCond 
         	{
 				RULELOG("fromJoinItem::JOIN::joinType::joinCond");
-				char *condType = (isA($5,List)) ? "JOIN_COND_USING" : "JOIN_COND_ON";
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $4, $2, condType, $5);
+				char *condType = (isA($5,List)) ? "JOIN_COND_USING" : 
+						"JOIN_COND_ON";
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, 
+                		(FromItem *) $4, $2, condType, $5);
           	}
      	| fromClauseItem JOIN fromClauseItem joinCond
         	{
 				RULELOG("fromJoinItem::JOIN::joinCond");
-				char *condType = (isA($4,List)) ? "JOIN_COND_USING" : "JOIN_COND_ON"; 
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, (FromItem *) $3, "JOIN_INNER", 
-                	condType, $4);
+				char *condType = (isA($4,List)) ? "JOIN_COND_USING" : 
+						"JOIN_COND_ON"; 
+                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, 
+                		(FromItem *) $3, "JOIN_INNER", 
+                		condType, $4);
           	}
      ;
      
 joinType:
-		LEFT OUTER { $$ = "JOIN_LEFT OUTER"; }
-		| RIGHT OUTER  { $$ = "JOIN_RIGHT_OUTER"; }
-		| FULL OUTER  { $$ = "JOIN_FULL_OUTER"; }
-		| INNER  { $$ = "JOIN_INNER"; }
+		LEFT 			{ RULELOG("joinType::LEFT"); $$ = "JOIN_LEFT_OUTER"; }
+		| LEFT OUTER 	{ RULELOG("joinType::LEFT OUTER"); $$ = "JOIN_LEFT_OUTER"; }
+		| RIGHT 		{ RULELOG("joinType::RIGHT "); $$ = "JOIN_RIGHT_OUTER"; }
+		| RIGHT OUTER  	{ RULELOG("joinType::RIGHT OUTER"); $$ = "JOIN_RIGHT_OUTER"; }
+		| FULL OUTER  	{ RULELOG("joinType::FULL OUTER"); $$ = "JOIN_FULL_OUTER"; }
+		| FULL 	  		{ RULELOG("joinType::FULL"); $$ = "JOIN_FULL_OUTER"; }
+		| INNER  		{ RULELOG("joinType::INNER"); $$ = "JOIN_INNER"; }
 	;
 
 joinCond:
 		USING '(' identifierList ')' { $$ = (Node *) $3; }
 		| ON whereExpression			 { $$ = $2; }
+	;
 
 optionalAlias:
-        identifier            { RULELOG("optionalAlias::identifier"); $$ = $1; }
-        | AS identifier            { RULELOG("optionalAlias::identifier"); $$ = $2; }
+        identifier optionalAttrAlias      
+			{ 
+				RULELOG("optionalAlias::identifier"); 
+				$$ = (Node *) createFromItem($1,$2); 
+			}
+        | AS identifier optionalAttrAlias       
+			{ 
+				RULELOG("optionalAlias::identifier"); 
+				$$ = (Node *) createFromItem($2,$3); 
+			}
     ;
-          
+    
+optionalAttrAlias:
+		/* empty */ { RULELOG("optionalAttrAlias::empty"); $$ = NULL; }
+		| '(' identifierList ')' 
+			{ 
+				RULELOG("optionalAttrAlias::identifierList"); $$ = $2; 
+			}
+    ;
+    
 /*
  * Rule to parse the where clause.
  */

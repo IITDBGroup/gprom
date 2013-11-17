@@ -414,17 +414,10 @@ searchList(List *list, void *value)
 {
     assert(isPtrList(list));
 
-    if (list == NIL)
-        return FALSE;
-
-    ListCell *lc;
-
-    lc = list->head;
-    while (lc != NULL)
+    FOREACH(void,item,list)
     {
-        if (lc->data.ptr_value == value)
+        if (item == value)
             return TRUE;
-        lc = lc->next;
     }
 
     return FALSE;
@@ -450,3 +443,32 @@ searchListInt(List *list, int value)
 
 	return FALSE;
 }
+
+boolean
+searchListString(List *list, char *value)
+{
+    assert(isPtrList(list));
+
+    FOREACH(char,item,list)
+    {
+        if (strcmp(item,value) == 0)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+boolean
+searchListNode(List *list, Node *value)
+{
+    assert(isPtrList(list));
+
+    FOREACH(Node,item,list)
+    {
+        if (equal(item,value))
+            return TRUE;
+    }
+
+    return FALSE;
+}
+

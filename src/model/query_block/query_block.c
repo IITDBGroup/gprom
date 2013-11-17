@@ -66,6 +66,17 @@ createSelectItem(char *alias, Node *expr)
 }
 
 FromItem *
+createFromItem (char *alias, List *attrNames)
+{
+    FromItem *result = makeNode(FromItem);
+
+    result->name = alias;
+    result->attrNames = attrNames;
+
+    return result;
+}
+
+FromItem *
 createFromTableRef(char *alias, List *attrNames,
         char *tableId)
 {

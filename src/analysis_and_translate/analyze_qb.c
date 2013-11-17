@@ -26,6 +26,8 @@ static void analyzeProvenanceStmt (ProvenanceStmt *q);
 static void analyzeJoin (FromJoinExpr *j);
 static boolean findAttrReferences (Node *node, List **state);
 static boolean findAttrRefInFrom (AttributeReference *a, List *fromItems);
+static FromItem *findNamedFromItem (FromItem *fromItem, char *name);
+static int findAttrInFromItem (FromItem *fromItem, AttributeReference *attr);
 static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a,  List *fromItems);
 static void analyzeFromTableRef(FromTableRef *f);
 static void analyzeFromSubquery(FromSubquery *sq);
@@ -130,7 +132,6 @@ analyzeQueryBlock (QueryBlock *qb)
     findAttrReferences((Node *) qb->orderByClause, &attrRefs);
     findAttrReferences((Node *) qb->selectClause, &attrRefs);
     findAttrReferences((Node *) qb->whereClause, &attrRefs);
-    //TODO do we need to search into fromClause because there will be attributes in the subquery?
 
     INFO_LOG("Collect attribute references done");
     DEBUG_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));
@@ -165,32 +166,85 @@ findAttrRefInFrom (AttributeReference *a, List *fromItems)
 
     FOREACH(FromItem, f, fromItems)
     {
-        attrPos = 0;
-        FOREACH(char, r, f->attrNames)
+        attrPos = findAttrInFromItem(f, a);
+
+        if (attrPos != INVALID_ATTR)
         {
-            if(strcmp(a->name, r) == 0)
+            if (isFound)
+                FATAL_LOG("ambigious attribute reference %s", a->name);
+            else
             {
-                // is ambigious?
-                if (isFound)
-                {
-                    FATAL_LOG("Ambiguous attribute reference <%s>", a->name);
-                    break;
-                }
-                // find occurance found
-                else
-                {
-                    isFound = TRUE;
-                    a->fromClauseItem = fromPos;
-                    a->attrPosition = attrPos;
-                }
+                isFound = TRUE;
+                a->fromClauseItem = fromPos;
+                a->attrPosition = attrPos;
             }
-            attrPos++;
         }
         fromPos++;
     }
 
     return isFound;
 }
+
+static FromItem *
+findNamedFromItem (FromItem *fromItem, char *name)
+{
+    if (isA(fromItem, FromJoinExpr))
+    {
+        FromJoinExpr *join = (FromJoinExpr *) fromItem;
+        FromItem *result;
+
+        // if join has an alias do not recurse
+        if (join->from.name != NULL)
+        {
+            if (strcmp(name, join->from.name) == 0)
+                return fromItem;
+            else
+                return NULL;
+        }
+
+        result = findNamedFromItem (join->left, name);
+        if (result != NULL)
+            return result;
+        return findNamedFromItem (join->right, name);
+    }
+
+    // is not a join
+    if (strcmp(name, fromItem->name) == 0)
+        return fromItem;
+
+    return NULL;
+}
+
+static int
+findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
+{
+    boolean isFound = FALSE;
+    int attrPos = 0, foundAttr = INVALID_ATTR;
+
+    // is not a join
+    FOREACH(char, r, fromItem->attrNames)
+    {
+        if(strcmp(attr->name, r) == 0)
+        {
+            // is ambigious?
+            if (isFound)
+            {
+                FATAL_LOG("Ambiguous attribute reference <%s>", attr->name);
+                break;
+            }
+            // find occurance found
+            else
+            {
+                isFound = TRUE;
+                foundAttr = attrPos;
+            }
+        }
+        attrPos++;
+    }
+
+    return foundAttr;
+}
+
 
 static boolean
 findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromItems)
@@ -208,7 +262,9 @@ findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromIt
     // find table name
     FOREACH(FromItem, f, fromItems)
     {
-        if (strcmp(f->name, tabName) == 0)
+        FromItem *foundF = findNamedFromItem(f, tabName);
+
+        if (foundF != NULL)
         {
             if (foundFrom)
             {

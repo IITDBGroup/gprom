@@ -162,6 +162,8 @@ extern void deepFreeList(List *list);
 
 extern boolean searchList(List *list, void *value);
 extern boolean searchListInt(List *list, int value);
+extern boolean searchListString(List *list, char *value);
+extern boolean searchListNode(List *list, Node *value);
 
 extern List *concatTwoLists (List *listA, List *listB);
 

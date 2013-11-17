@@ -76,9 +76,10 @@ float 			(({integer}|{decimal})([eE][+-]?{integer})?)
 /* names (e.g., tables, attributes) */
 identStart		[A-Za-z]
 identContinue	[A-Za-z0-9_%?]
+identDelim		[.]
 doublequote     [\"]
 quotedIdentifier		{doublequote}[^\"]+{doublequote}
-identifiers		({identStart}{identContinue}*)
+identifiers		({identStart}({identDelim}?{identContinue}+)*)
 
 /* operators */
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
@@ -149,13 +150,6 @@ COMMIT       TOK(COMMIT_TRANS)
 ROLLBACK     TOK(ROLLBACK_TRANS)
 ABORT		 TOK(ROLLBACK_TRANS)
 
-	/* punctuation */
-[(),.;] TOKSELF()
-
-	/* operators */
-{comparisonOps}		TOK(comparisonOps)
-[-+*%/^~&|!]		TOKSELF()
-	
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)
 {quotedIdentifier}   { 		
@@ -165,6 +159,15 @@ ABORT		 TOK(ROLLBACK_TRANS)
 		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", yytext);
 		return identifier;
 	}	
+
+	/* punctuation */
+[(),.;] TOKSELF()
+
+	/* operators */
+{comparisonOps}		TOK(comparisonOps)
+[-+*%/^~&|!]		TOKSELF()
+	
+
 
 	/* numbers */
 {integer}	TOKSAVE(intConst,intVal,atoi)
