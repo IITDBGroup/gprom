@@ -31,7 +31,7 @@ static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *
 static void analyzeFromTableRef(FromTableRef *f);
 static void analyzeFromSubquery(FromSubquery *sq);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
-static void analyzeFunctionCall();
+static void analyzeFunctionCall(QueryBlock *qb);
 
 // real attribute name fetching
 static List *expandStarExpression (SelectItem *s, List *fromClause);
