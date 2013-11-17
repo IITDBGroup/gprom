@@ -30,11 +30,10 @@ static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *
 static void analyzeFromTableRef(FromTableRef *f);
 static void analyzeFromSubquery(FromSubquery *sq);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
+
 // real attribute name fetching
-//static char *getAttrNameFromDot(char *dotName);
 static List *expandStarExpression (SelectItem *s, List *fromClause);
 static List *splitAttrOnDot (char *dotName);
-static char *getAttrNameFromNameWithBlank(char *blankName);
 static char *generateAttrNameFromExpr(SelectItem *s);
 
 void
@@ -341,7 +340,8 @@ static void analyzeFromTableRef(FromTableRef *f)
     FOREACH(AttributeReference,a,attrRefs)
 	    f->from.attrNames = appendToTailOfList(f->from.attrNames, a->name);
 
-	f->from.name = f->tableId;//TODO is it necessary?
+    if(f->from.name == NULL)
+    	f->from.name = f->tableId;//TODO is it necessary?
 }
 
 static void analyzeFromSubquery(FromSubquery *sq)
@@ -423,7 +423,8 @@ expandStarExpression (SelectItem *s, List *fromClause)
                         createSelectItem(
                                 strdup(attr),
                                 (Node *) createAttributeReference(
-                                        CONCAT_STRINGS(f->name,".",attr))
+                                		f->name? CONCAT_STRINGS(f->name,".",attr)
+                                				: attr)
                         ));
             }
         }
@@ -465,22 +466,6 @@ expandStarExpression (SelectItem *s, List *fromClause)
 
     return newSelectItems;
 }
-//
-//static char *
-//getAttrNameFromNameWithBlank(char *blankName)
-//{
-//	if(blankName == NULL)
-//		return NULL;
-//
-//	// filter out blank in string
-//	int i;
-//	for(i=0;i<strlen(blankName);i++)
-//	{
-//		if(blankName[i]==' ')
-//			memcpy(blankName+i,blankName+i+1,strlen(blankName)-i);
-//	}
-//	return blankName;
-//}
 
 static char *
 generateAttrNameFromExpr(SelectItem *s)
