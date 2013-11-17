@@ -25,11 +25,13 @@ static void analyzeSetQuery (SetQuery *q);
 static void analyzeProvenanceStmt (ProvenanceStmt *q);
 static void analyzeJoin (FromJoinExpr *j);
 static boolean findAttrReferences (Node *node, List **state);
+static boolean findFunctionCall (Node *node, List **state);
 static boolean findAttrRefInFrom (AttributeReference *a, List *fromItems);
 static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a,  List *fromItems);
 static void analyzeFromTableRef(FromTableRef *f);
 static void analyzeFromSubquery(FromSubquery *sq);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
+static void analyzeFunctionCall();
 
 // real attribute name fetching
 static List *expandStarExpression (SelectItem *s, List *fromClause);
@@ -129,7 +131,6 @@ analyzeQueryBlock (QueryBlock *qb)
     findAttrReferences((Node *) qb->orderByClause, &attrRefs);
     findAttrReferences((Node *) qb->selectClause, &attrRefs);
     findAttrReferences((Node *) qb->whereClause, &attrRefs);
-    //TODO do we need to search into fromClause because there will be attributes in the subquery?
 
     INFO_LOG("Collect attribute references done");
     DEBUG_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));
@@ -153,7 +154,28 @@ analyzeQueryBlock (QueryBlock *qb)
     	    FATAL_LOG("attribute <%s> does not exist in FROM clause", a->name);
     }
 
+    // adapt function call (isAgg)
+    analyzeFunctionCall(qb);
+
     INFO_LOG("Analysis done");
+}
+
+static void
+analyzeFunctionCall(QueryBlock *qb)
+{
+	List *functionCallList = NIL;
+
+	// collect function call
+	findFunctionCall((Node *) qb->selectClause, &functionCallList);
+
+	INFO_LOG("Collect function call done");
+	DEBUG_LOG("Have the following function calls: <%s>", nodeToString(functionCallList));
+
+	// adapt function call
+	FOREACH(FunctionCall, c, functionCallList)
+	{
+		c->isAgg = isAgg(c->functionname);
+	}
 }
 
 static boolean
@@ -279,6 +301,23 @@ findAttrReferences (Node *node, List **state)
     return visit(node, findAttrReferences, state);
 }
 
+static boolean
+findFunctionCall (Node *node, List **state)
+{
+	if(node == NULL)
+		return TRUE;
+
+	if(isA(node, FunctionCall))
+	{
+		*state = appendToTailOfList(*state, node);
+	}
+
+	if(isQBQuery(node))
+		return TRUE;
+
+	return visit(node, findFunctionCall, state);
+}
+
 static void
 analyzeJoin (FromJoinExpr *j)
 {
@@ -334,17 +373,19 @@ analyzeJoin (FromJoinExpr *j)
     //JOIN_COND_ON
 }
 
-static void analyzeFromTableRef(FromTableRef *f)
+static void
+analyzeFromTableRef(FromTableRef *f)
 {
     List *attrRefs = getAttributes(f->tableId);
     FOREACH(AttributeReference,a,attrRefs)
 	    f->from.attrNames = appendToTailOfList(f->from.attrNames, a->name);
 
     if(f->from.name == NULL)
-    	f->from.name = f->tableId;//TODO is it necessary?
+    	f->from.name = f->tableId;
 }
 
-static void analyzeFromSubquery(FromSubquery *sq)
+static void
+analyzeFromSubquery(FromSubquery *sq)
 {
 	analyzeQueryBlockStmt(sq->subquery);
 	switch(sq->subquery->type)
