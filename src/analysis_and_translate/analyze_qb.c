@@ -96,6 +96,8 @@ analyzeQueryBlock (QueryBlock *qb)
             default:
             	break;
         }
+
+        DEBUG_LOG("analyzed from item <%s>", nodeToString(f));
     }
 
     INFO_LOG("Figuring out attributes of from clause items done");
@@ -339,9 +341,10 @@ findAttrReferences (Node *node, List **state)
 static void
 analyzeJoin (FromJoinExpr *j)
 {
-    FromItem *left;
-    FromItem *right;
+    FromItem *left = j->left;
+    FromItem *right = j->right;
 
+    // analyze inputs
     switch(left->type)
     {
         case T_FromTableRef:
@@ -353,7 +356,7 @@ analyzeJoin (FromJoinExpr *j)
         case T_FromSubquery:
         {
             FromSubquery *sq = (FromSubquery *) left;
-            analyzeQueryBlockStmt(sq->subquery);
+            analyzeFromSubquery(sq);
         }
         break;
         default:
@@ -371,7 +374,7 @@ analyzeJoin (FromJoinExpr *j)
 		case T_FromSubquery:
 		{
 			FromSubquery *sq = (FromSubquery *) right;
-			analyzeQueryBlockStmt(sq->subquery);
+			analyzeFromSubquery(sq);
 		}
 		break;
 		default:
@@ -380,15 +383,23 @@ analyzeJoin (FromJoinExpr *j)
 
     if (j->joinCond == JOIN_COND_NATURAL)
     {
-    	j->from.attrNames = analyzeNaturalJoinRef((FromTableRef *)j->left, (FromTableRef *)j->right);
-    }
-    else
-    {
-        j->from.attrNames = copyList(left->attrNames);
-        j->from.attrNames = concatTwoLists(j->from.attrNames, copyList(right->attrNames));
+        List *expectedAttrs = analyzeNaturalJoinRef((FromTableRef *)j->left,
+                (FromTableRef *)j->right);
+    	if (j->from.attrNames == NULL)
+    	    j->from.attrNames = expectedAttrs;
+    	assert(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
     }
     //JOIN_COND_USING
     //JOIN_COND_ON
+    else
+    {
+        List *expectedAttrs = concatTwoLists(
+                deepCopyStringList(left->attrNames),
+                deepCopyStringList(right->attrNames));
+        if (j->from.attrNames == NULL)
+            j->from.attrNames = expectedAttrs;
+        assert(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
+    }
 }
 
 static void analyzeFromTableRef(FromTableRef *f)
@@ -402,6 +413,8 @@ static void analyzeFromTableRef(FromTableRef *f)
 
 static void analyzeFromSubquery(FromSubquery *sq)
 {
+    List *expectedAttrs = NIL;
+
 	analyzeQueryBlockStmt(sq->subquery);
 	switch(sq->subquery->type)
 	{
@@ -410,7 +423,7 @@ static void analyzeFromSubquery(FromSubquery *sq)
 			QueryBlock *subQb = (QueryBlock *) sq->subquery;
 			FOREACH(SelectItem,s,subQb->selectClause)
 			{
-                sq->from.attrNames = appendToTailOfList(sq->from.attrNames,
+                 expectedAttrs = appendToTailOfList(expectedAttrs,
                         s->alias);
 			}
 		}
@@ -418,26 +431,34 @@ static void analyzeFromSubquery(FromSubquery *sq)
 		default:
 			break;
 	}
+
+	// if no attr aliases given
+	if (!(sq->from.attrNames))
+	    sq->from.attrNames = expectedAttrs;
+
+	assert(LIST_LENGTH(sq->from.attrNames) == LIST_LENGTH(expectedAttrs));
 }
 
 static List *
 analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right)
 {
-	if(left == NULL || right == NULL)
-		return NIL;
-	List *lList = left->from.attrNames;
-	List *rList = right->from.attrNames;
-	List *result = NIL;
-	FOREACH(AttributeReference, l , lList)
+    List *lList = left->from.attrNames;
+    List *rList = right->from.attrNames;
+    List *result = deepCopyStringList(left->from.attrNames);
+
+	// only add attributes from right input that are not in left input
+	FOREACH(char, r, rList)
 	{
-		FOREACH(AttributeReference, r, rList)
+	    boolean found = FALSE;
+		FOREACH(char , l, lList)
 		{
-			if(strcmp(l->name, r->name) == 0)
-			{
-				result = appendToTailOfList(result, l);
-			}
+			if(strcmp(l, r) == 0)
+			    found = TRUE;
 		}
+		if (!found)
+            result = appendToTailOfList(result, r);
 	}
+
 	return result;
 }
 
@@ -464,22 +485,34 @@ expandStarExpression (SelectItem *s, List *fromClause)
 {
     List *nameParts = splitAttrOnDot(s->alias);
     List *newSelectItems = NIL;
-
     assert(LIST_LENGTH(nameParts) == 1 || LIST_LENGTH(nameParts) == 2);
 
     // should be "*" select item -> expand to all attribute in from clause
     if (LIST_LENGTH(nameParts) == 1)
     {
+        int fromAliasCount = 0;
         assert(strcmp((char *) getNthOfListP(nameParts,0),"*") == 0);
+
         FOREACH(FromItem,f,fromClause)
         {
+            // create alias for join
+            if (!(f->name))
+            {
+                StringInfo s = makeStringInfo();
+                appendStringInfo(s,"%u", fromAliasCount++);
+                f->name = CONCAT_STRINGS("dummyFrom", s->data);
+                FREE(s);
+            }
+
             FOREACH(char,attr,f->attrNames)
             {
+                AttributeReference *newA = createAttributeReference(
+                          CONCAT_STRINGS(f->name,".",attr));
+
                 newSelectItems = appendToTailOfList(newSelectItems,
                         createSelectItem(
                                 strdup(attr),
-                                (Node *) createAttributeReference(
-                                        CONCAT_STRINGS(f->name,".",attr))
+                                (Node *) newA
                         ));
             }
         }
