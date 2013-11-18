@@ -28,6 +28,7 @@ typedef enum NodeTag {
     T_QueryBlock,
     T_SelectItem,
     T_FromItem,
+    T_FromProvInfo,
     T_FromTableRef,
     T_FromSubquery,
     T_FromJoinExpr,

@@ -11,6 +11,9 @@
  */
 
 #include "common.h"
+
+#include "log/logger.h"
+
 #include "mem_manager/mem_mgr.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
@@ -37,10 +40,8 @@ typedef struct ProvSchemaInfo
 
 /* function declarations */
 static boolean findBaserelationsVisitor (Node *node, ProvSchemaInfo *status);
-#define CONCAT(...) concat(__VA_ARGS__, NULL)
-static char *concat(char *first, ...);
 static int getRelCount(ProvSchemaInfo *info, char *tableName);
-
+static boolean findTablerefVisitor (Node *node, ProvSchemaInfo *status);
 
 /* definitions */
 List *
@@ -63,22 +64,10 @@ char *
 getProvenanceAttrName (char *table, char *attr, int count)
 {
     char *countStr = NEW(128);
-    return CONCAT(PROV_ATTR_PREFIX, table, "_", attr, sprintf(countStr,"%u", count));
-}
-
-static char *
-concat(char *first, ...)
-{
-    va_list args;
-    StringInfo str = makeStringInfo();
-    char *string;
-
-    va_start(args, first);
-    while((string = va_arg(args, char*)) != NULL)
-        appendStringInfoString(str, string);
-    va_end(args);
-
-    return str->data;
+    if (count > 0)
+        sprintf(countStr,"%u", count);
+    return CONCAT_STRINGS(PROV_ATTR_PREFIX, strdup(table), "_", strdup(attr),
+            countStr);
 }
 
 static boolean
@@ -119,4 +108,76 @@ getRelCount(ProvSchemaInfo *info, char *tableName)
     }
 
     return relCount->count;
+}
+
+List *
+getQBProvenanceAttrList (ProvenanceStmt *stmt)
+{
+    switch(stmt->provType)
+    {
+        case PI_CS:
+            //TODO
+        default:
+        {
+            ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);
+
+            findTablerefVisitor((Node *) stmt->query, pSchema);
+            return pSchema->provAttrs;
+        }
+    }
+
+    return NIL;
+}
+
+static boolean
+findTablerefVisitor (Node *node, ProvSchemaInfo *status)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isFromItem(node))
+    {
+        FromItem *f = (FromItem *) node;
+
+        // if user specified provenance attribute, then use them
+        if (f->provInfo)
+        {
+            char *tableName = f->name;
+
+            // is base relation provenance
+            if (f->provInfo->baserel)
+            {
+                FOREACH(char,attrName,f->attrNames)
+                {
+                    status->provAttrs = appendToTailOfList(status->provAttrs,
+                            getProvenanceAttrName(tableName, attrName,
+                                    getRelCount(status, tableName)));
+                }
+
+            }
+            // user provided provenance attributes
+            else
+            {
+                FOREACH(char,attrName,f->provInfo->userProvAttrs)
+                {
+                    status->provAttrs = appendToTailOfList(status->provAttrs,
+                            getProvenanceAttrName(tableName, attrName,
+                                    getRelCount(status, tableName)));
+                }
+            }
+            return TRUE;
+        }
+        else if (isA(node, FromTableRef))
+        {
+            FromTableRef *r = (FromTableRef *) node;
+            char *tableName = r->tableId;
+
+            FOREACH(char,a,r->from.attrNames)
+            status->provAttrs = appendToTailOfList(status->provAttrs,
+                    getProvenanceAttrName(tableName,a,
+                            getRelCount(status, tableName)));
+        }
+    }
+
+    return visit(node, findTablerefVisitor, status);
 }

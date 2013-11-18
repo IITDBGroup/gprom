@@ -72,6 +72,7 @@ createFromItem (char *alias, List *attrNames)
 
     result->name = alias;
     result->attrNames = attrNames;
+    result->provInfo = NULL;
 
     return result;
 }
@@ -84,6 +85,7 @@ createFromTableRef(char *alias, List *attrNames,
 
     ((FromItem *) result)->name = alias;
     ((FromItem *) result)->attrNames = attrNames;
+    ((FromItem *) result)->provInfo = NULL;
 
     result->tableId = tableId;
 
@@ -97,6 +99,7 @@ createFromSubquery(char *alias, List *attrNames, Node *query)
 
     ((FromItem *) result)->name = alias;
     ((FromItem *) result)->attrNames = attrNames;
+    ((FromItem *) result)->provInfo = NULL;
 
     result->subquery = query;
 
@@ -112,6 +115,7 @@ createFromJoin(char *alias, List *attrNames, FromItem *left,
 
     ((FromItem *) result)->name = alias;
     ((FromItem *) result)->attrNames = attrNames;
+    ((FromItem *) result)->provInfo = NULL;
 
     result->left = left;
     result->right = right;

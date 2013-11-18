@@ -10,14 +10,16 @@
  *-----------------------------------------------------------------------------
  */
 #include "common.h"
+
 #include "analysis_and_translate/analyze_qb.h"
+#include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
-#include "log/logger.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "provenance_rewriter/prov_schema.h"
 
 static void analyzeStmtList (List *l);
 static void analyzeQueryBlock (QueryBlock *qb);
@@ -470,7 +472,19 @@ analyzeFromSubquery(FromSubquery *sq)
                         s->alias);
 			}
 		}
-			break;
+        break;
+		case T_SetQuery:
+		{
+		    SetQuery *setQ = (SetQuery *) sq->subquery;
+		    expectedAttrs = deepCopyStringList(setQ->selectClause);
+		}
+        break;
+		case T_ProvenanceStmt:
+		{
+		    ProvenanceStmt *pStmt = (ProvenanceStmt *) sq->subquery;
+		    expectedAttrs = deepCopyStringList(pStmt->selectClause);
+		}
+		break;
 		default:
 			break;
 	}
@@ -597,22 +611,6 @@ expandStarExpression (SelectItem *s, List *fromClause)
 
     return newSelectItems;
 }
-//
-//static char *
-//getAttrNameFromNameWithBlank(char *blankName)
-//{
-//	if(blankName == NULL)
-//		return NULL;
-//
-//	// filter out blank in string
-//	int i;
-//	for(i=0;i<strlen(blankName);i++)
-//	{
-//		if(blankName[i]==' ')
-//			memcpy(blankName+i,blankName+i+1,strlen(blankName)-i);
-//	}
-//	return blankName;
-//}
 
 static char *
 generateAttrNameFromExpr(SelectItem *s)
@@ -631,13 +629,67 @@ generateAttrNameFromExpr(SelectItem *s)
 static void
 analyzeSetQuery (SetQuery *q)
 {
+    analyzeQueryBlockStmt(q->lChild);
+    analyzeQueryBlockStmt(q->rChild);
 
+    // get attributes from left child
+    switch(q->lChild->type)
+    {
+        case T_QueryBlock:
+        {
+            QueryBlock *qb = (QueryBlock *) q->lChild;
+            FOREACH(SelectItem,s,qb->selectClause)
+            {
+                q->selectClause = appendToTailOfList(q->selectClause,
+                        strdup(s->alias));
+            }
+        }
+        break;
+        case T_SetQuery:
+            q->selectClause = deepCopyStringList(
+                    ((SetQuery *) q->lChild)->selectClause);
+        break;
+        case T_ProvenanceStmt:
+            q->selectClause = deepCopyStringList(
+                    ((ProvenanceStmt *) q->lChild)->selectClause);
+        break;
+        default:
+        break;
+    }
 }
 
 static void
 analyzeProvenanceStmt (ProvenanceStmt *q)
 {
+    analyzeQueryBlockStmt(q->query);
 
+    // get attributes from left child
+    switch(q->query->type)
+    {
+        case T_QueryBlock:
+        {
+            QueryBlock *qb = (QueryBlock *) q->query;
+            FOREACH(SelectItem,s,qb->selectClause)
+            {
+                q->selectClause = appendToTailOfList(q->selectClause,
+                        strdup(s->alias));
+            }
+        }
+        break;
+        case T_SetQuery:
+            q->selectClause = deepCopyStringList(
+                    ((SetQuery *) q->query)->selectClause);
+        break;
+        case T_ProvenanceStmt:
+            q->selectClause = deepCopyStringList(
+                    ((ProvenanceStmt *) q->query)->selectClause);
+        break;
+        default:
+        break;
+    }
+
+    q->selectClause = concatTwoLists(q->selectClause,
+            getQBProvenanceAttrList(q));
 }
 
 

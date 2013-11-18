@@ -53,7 +53,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF
+%token <stringVal> PROVENANCE OF BASERELATION
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -106,7 +106,7 @@ Node *bisonParseResult = NULL;
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList clauseList optionalGroupBy optionalOrderBy setClause// select and from clauses are lists
              insertList stmtList identifierList optionalAttrAlias
-%type <node> selectItem fromClauseItem fromJoinItem optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving
+%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
 %type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
@@ -579,21 +579,27 @@ fromClause:
 
 
 fromClauseItem:
-        identifier
+        identifier optionalFromProv
             {
                 RULELOG("fromClauseItem");
-                $$ = (Node *) createFromTableRef(NULL, NIL, $1);
+				FromItem *f = createFromTableRef(NULL, NIL, $1);
+				f->provInfo = (FromProvInfo *) $2;
+                $$ = (Node *) f;
             }
         | identifier optionalAlias
             {
                 RULELOG("fromClauseItem");
-                $$ = (Node *) createFromTableRef(((FromItem *) $2)->name, 
+                FromItem *f = createFromTableRef(((FromItem *) $2)->name, 
 						((FromItem *) $2)->attrNames, $1);
+				f->provInfo = ((FromItem *) $2)->provInfo;
+                $$ = (Node *) f;
             }
             
-        | subQuery
+        | subQuery optionalFromProv
             {
                 RULELOG("fromClauseItem::subQuery");
+                FromItem *f = (FromItem *) $1;
+                f->provInfo = (FromProvInfo *) $2;
                 $$ = $1;
             }
         | subQuery optionalAlias
@@ -602,10 +608,10 @@ fromClauseItem:
                 FromSubquery *s = (FromSubquery *) $1;
                 s->from.name = ((FromItem *) $2)->name;
                 s->from.attrNames = ((FromItem *) $2)->attrNames;
+                s->from.provInfo = ((FromItem *) $2)->provInfo;
                 $$ = (Node *) s;
             }
-            
-        | fromJoinItem 
+        | fromJoinItem
         	{
         		FromItem *f;
         		RULELOG("fromClauseItem::fromJoinItem");
@@ -620,6 +626,7 @@ fromClauseItem:
         		f = (FromItem *) $2;
         		f->name = ((FromItem *) $4)->name;
                 f->attrNames = ((FromItem *) $4)->attrNames;
+                f->provInfo = ((FromItem *) $4)->provInfo;
         		$$ = (Node *) f;
         	}
     ;
@@ -693,17 +700,41 @@ joinCond:
 	;
 
 optionalAlias:
-        identifier optionalAttrAlias      
-			{ 
+        optionalFromProv identifier optionalAttrAlias      
+			{
 				RULELOG("optionalAlias::identifier"); 
-				$$ = (Node *) createFromItem($1,$2); 
+				FromItem *f = createFromItem($2,$3);
+ 				f->provInfo = (FromProvInfo *) $1;
+				$$ = (Node *) f;
 			}
-        | AS identifier optionalAttrAlias       
+        | optionalFromProv AS identifier optionalAttrAlias       
 			{ 
 				RULELOG("optionalAlias::identifier"); 
-				$$ = (Node *) createFromItem($2,$3); 
+				FromItem *f = createFromItem($3,$4);
+ 				f->provInfo = (FromProvInfo *) $1; 
+				$$ = (Node *) f;
 			}
     ;
+    
+optionalFromProv:
+		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; }
+		| BASERELATION 
+			{
+				RULELOG("optionalFromProv");
+				FromProvInfo *p = makeNode(FromProvInfo);
+				p->baserel = TRUE;
+				p->userProvAttrs = NIL;				 
+				$$ = (Node *) p; 
+			}
+		| PROVENANCE '(' identifierList ')'
+			{
+				RULELOG("optionalFromProv::userProvAttr");
+				FromProvInfo *p = makeNode(FromProvInfo);
+				p->baserel = FALSE;
+				p->userProvAttrs = $3;				 
+				$$ = (Node *) p; 
+			}
+	;
     
 optionalAttrAlias:
 		/* empty */ { RULELOG("optionalAttrAlias::empty"); $$ = NULL; }

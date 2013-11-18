@@ -34,6 +34,7 @@ createAttributeReference (char *name)
         result->name = NULL;
     result->fromClauseItem = INVALID_FROM_ITEM;
     result->attrPosition = INVALID_ATTR;
+    result->outerLevelsUp = INVALID_ATTR;
 
     return result;
 }

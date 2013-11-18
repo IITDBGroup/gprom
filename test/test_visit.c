@@ -85,6 +85,7 @@ visitTheNode(Node *node, void *state) {
 	case T_QueryBlock: printf("The type of the node is QueryBlock\n"); break;
 	case T_SelectItem: printf("The type of the node is SelectItem\n"); break;
 	case T_FromItem: printf("The type of the node is FromItem\n"); break;
+	case T_FromProvInfo: printf("The type of the node is FromProvInfo\n"); break;
 	case T_FromTableRef: printf("The type of the node is FromTableRef\n"); break;
 	case T_FromSubquery: printf("The type of the node is FromSubquery\n"); break;
 	case T_FromJoinExpr: printf("The type of the node is FromJoinExpr\n"); break;

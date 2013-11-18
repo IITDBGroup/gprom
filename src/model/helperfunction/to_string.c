@@ -38,6 +38,7 @@ static void outSchema (StringInfo str, Schema *node);
 static void outSchemaFromLists(StringInfo str, Schema *node);
 static void outAttributeDef (StringInfo str, AttributeDef *node);
 static void outSetQuery (StringInfo str, SetQuery *node);
+static void outProvenanceStmt (StringInfo str, ProvenanceStmt *node);
 static void outOperator (StringInfo str, Operator *node);
 static void indentString(StringInfo str, int level);
 static void outQueryOperator(StringInfo str, QueryOperator *node);
@@ -293,6 +294,25 @@ outSetQuery (StringInfo str, SetQuery *node)
 }
 
 static void
+outFromProvItem (StringInfo str, FromProvInfo *node)
+{
+    WRITE_NODE_TYPE(FROMPROVITEM);
+
+    WRITE_BOOL_FIELD(baserel);
+    WRITE_STRING_LIST_FIELD(userProvAttrs);
+}
+
+static void
+outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
+{
+    WRITE_NODE_TYPE(PROVENANCESTMT);
+
+    WRITE_NODE_FIELD(query);
+    WRITE_STRING_LIST_FIELD(selectClause);
+    WRITE_ENUM_FIELD(provType,ProvenanceType);
+}
+
+static void
 outOperator (StringInfo str, Operator *node)
 {
     WRITE_NODE_TYPE(OPERATOR);
@@ -315,6 +335,7 @@ writeCommonFromItemFields(StringInfo str, FromItem *node)
 {
     WRITE_STRING_FIELD(name);
     WRITE_STRING_LIST_FIELD(attrNames);
+    WRITE_NODE_FIELD(provInfo);
 }
 
 static void
@@ -375,6 +396,7 @@ outAttributeReference (StringInfo str, AttributeReference *node)
     WRITE_STRING_FIELD(name);
     WRITE_INT_FIELD(fromClauseItem);
     WRITE_INT_FIELD(attrPosition);
+    WRITE_INT_FIELD(outerLevelsUp);
 }
 
 static void 
@@ -516,6 +538,12 @@ void outNode(StringInfo str, void *obj)
                 break;
             case T_SetQuery:
                 outSetQuery (str, (SetQuery *) obj);
+                break;
+            case T_ProvenanceStmt:
+                outProvenanceStmt (str, (ProvenanceStmt *) obj);
+                break;
+            case T_FromProvInfo:
+                outFromProvItem(str, (FromProvInfo *) obj);
                 break;
             case T_FromTableRef:
                 outFromTableRef(str, (FromTableRef *) obj);

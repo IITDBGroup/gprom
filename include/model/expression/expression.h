@@ -40,6 +40,7 @@ typedef struct AttributeReference {
     char *name;
     int fromClauseItem;
     int attrPosition;
+    int outerLevelsUp;
 } AttributeReference;
 
 /* functions to create expression nodes */

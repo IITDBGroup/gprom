@@ -53,6 +53,7 @@ static boolean equalInsert(Insert *a, Insert *b);
 static boolean equalDelete(Delete *a, Delete *b);
 static boolean equalUpdate(Update *a, Update *b);
 static boolean equalTransactionStmt(TransactionStmt *a, TransactionStmt *b);
+static boolean equalFromProvInfo (FromProvInfo *a, FromProvInfo *b);
 
 /*use these macros to compare fields */
 
@@ -94,6 +95,9 @@ equalAttributeReference (AttributeReference *a,
         AttributeReference *b)
 {
     COMPARE_STRING_FIELD(name);
+    COMPARE_SCALAR_FIELD(fromClauseItem);
+    COMPARE_SCALAR_FIELD(attrPosition);
+    COMPARE_SCALAR_FIELD(outerLevelsUp);
 
     return TRUE;
 }
@@ -358,11 +362,22 @@ equalTransactionStmt(TransactionStmt *a, TransactionStmt *b)
     return TRUE;
 }
 
+static boolean
+equalFromProvInfo (FromProvInfo *a, FromProvInfo *b)
+{
+    COMPARE_SCALAR_FIELD(baserel);
+    COMPARE_STRING_LIST_FIELD(userProvAttrs);
+
+    return TRUE;
+}
+
 static boolean 
 equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b)
 {
     COMPARE_NODE_FIELD(query);
-  
+    COMPARE_NODE_FIELD(selectClause);
+    COMPARE_SCALAR_FIELD(provType);
+
     return TRUE;
 }
 
@@ -380,6 +395,7 @@ equalFromItem(FromItem *a, FromItem *b)
 {
     COMPARE_STRING_FIELD(name);
     COMPARE_STRING_LIST_FIELD(attrNames);
+    COMPARE_NODE_FIELD(provInfo);
     
     return TRUE;
 }
@@ -507,6 +523,9 @@ equal(void *a, void *b)
             break;
         case T_FromItem:
             retval = equalFromItem(a,b);
+            break;
+        case T_FromProvInfo:
+            retval = equalFromProvInfo(a,b);
             break;
         case T_FromTableRef:
             retval = equalFromTableRef(a,b);

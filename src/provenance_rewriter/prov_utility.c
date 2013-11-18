@@ -18,3 +18,5 @@ addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source)
 {
 //    target->schema = concatTwoLists(target->schema, copyObject(getProvenanceAttrs(source)));
 }
+
+

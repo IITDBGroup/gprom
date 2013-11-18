@@ -84,6 +84,8 @@ static Insert *copyInsert(Insert *from, OperatorMap **opMap);
 static Delete *copyDelete(Delete *from, OperatorMap **opMap);
 static Update *copyUpdate(Update *from, OperatorMap **opMap);
 static TransactionStmt *copyTransactionStmt(TransactionStmt *from, OperatorMap **opMap);
+static FromProvInfo *copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap);
+
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -134,6 +136,7 @@ copyAttributeReference(AttributeReference *from, OperatorMap **opMap)
     COPY_STRING_FIELD(name);
     COPY_SCALAR_FIELD(fromClauseItem);
     COPY_SCALAR_FIELD(attrPosition);
+    COPY_SCALAR_FIELD(outerLevelsUp);
 
     return new;
 }
@@ -373,11 +376,23 @@ copyTransactionStmt(TransactionStmt *from, OperatorMap **opMap)
     return new;
 }
 
+static FromProvInfo *
+copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap)
+{
+    COPY_INIT(FromProvInfo);
+    COPY_SCALAR_FIELD(baserel);
+    new->userProvAttrs = deepCopyStringList(from->userProvAttrs);
+
+    return new;
+}
+
 static ProvenanceStmt *
 copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
 {
     COPY_INIT(ProvenanceStmt);
     COPY_NODE_FIELD(query);
+    COPY_NODE_FIELD(selectClause);
+    COPY_SCALAR_FIELD(provType);
 
     return new;
 }
@@ -397,6 +412,7 @@ copyFromItem (FromItem *from, FromItem *to)
 {
     to->name = strdup(from->name);
     to->attrNames = deepCopyStringList(from->attrNames);
+    to->provInfo = copyObject(from->provInfo);
 }
 
 #define COPY_FROM() copyFromItem((FromItem *) from, (FromItem *) new);
@@ -531,6 +547,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_FromJoinExpr:
             retval = copyFromJoinExpr(from, opMap);
+            break;
+        case T_FromProvInfo:
+            retval = copyFromProvInfo(from, opMap);
             break;
         case T_DistinctClause:
             retval = copyDistinctClause(from, opMap);

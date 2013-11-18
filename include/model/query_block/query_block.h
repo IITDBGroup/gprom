@@ -28,14 +28,6 @@ typedef struct SetQuery
     Node *lChild; // either SetOp or QueryBlock
     Node *rChild; // either SetOp or QueryBlock
 } SetQuery;
-/*
-typedef struct SetQuery
-{
-    NodeTag type;
-    List *selectClause;
-    SetOp *rootSetOp;
-} SetQuery; */
-
 
 typedef struct QueryBlock
 {
@@ -54,6 +46,8 @@ typedef struct ProvenanceStmt
 {
     NodeTag type;
     Node *query;
+    List *selectClause;
+    ProvenanceType provType;
 } ProvenanceStmt;
 
 typedef struct SelectItem
@@ -63,13 +57,22 @@ typedef struct SelectItem
     Node *expr;
 } SelectItem;
 
-#define isFromItem(node) (isA(node,FromItem) || isA(node, FromTableRef) || isA(node, FromSubquery) || isA(node, FromJoinExpr))
+#define isFromItem(node) (isA(node,FromItem) || isA(node, FromTableRef) \
+        || isA(node, FromSubquery) || isA(node, FromJoinExpr))
+
+typedef struct FromProvInfo
+{
+    NodeTag type;
+    boolean baserel;
+    List *userProvAttrs;
+} FromProvInfo;
 
 typedef struct FromItem
 {
     NodeTag type;
     char *name;
     List *attrNames;
+    FromProvInfo *provInfo;
 } FromItem;
 
 typedef struct FromTableRef
