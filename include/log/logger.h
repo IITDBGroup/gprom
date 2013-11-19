@@ -43,20 +43,31 @@ extern LogLevel maxLevel;
         exit(1); \
     } while (0)
 #define ERROR_LOG(template, ...) \
-	if (maxLevel >= LOG_ERROR) \
-        log_(LOG_ERROR, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    do { \
+    	if (maxLevel >= LOG_ERROR) \
+            log_(LOG_ERROR, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
+    } while (0)
 #define WARN_LOG(template, ...) \
-    if (maxLevel >= LOG_WARN) \
-        log_(LOG_WARN, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    do { \
+    	if (maxLevel >= LOG_WARN) \
+            log_(LOG_WARN, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
+    } while (0)
 #define INFO_LOG(template, ...) \
-    if (maxLevel >= LOG_INFO) \
-	    log_(LOG_INFO, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    do { \
+        if (maxLevel >= LOG_INFO) \
+            log_(LOG_INFO, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
+    } while (0)
 #define DEBUG_LOG(template, ...) \
-    if (maxLevel >= LOG_DEBUG) \
-        log_(LOG_DEBUG, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    do { \
+    	if (maxLevel >= LOG_DEBUG) \
+            log_(LOG_DEBUG, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
+    } while (0)
 #define TRACE_LOG(template, ...) \
-    if (maxLevel >= LOG_TRACE) \
-        log_(LOG_TRACE, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    do { \
+    	if (maxLevel >= LOG_TRACE) \
+            log_(LOG_TRACE, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
+    } while (0)
+
 
 
 #endif

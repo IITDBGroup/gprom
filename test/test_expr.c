@@ -45,9 +45,15 @@ testAttributeReference (void)
     a = createAttributeReference("test");
     b = makeNode(AttributeReference);
     b->name = "test";
+    b->fromClauseItem = INVALID_ATTR;
+    b->attrPosition = INVALID_ATTR;
+    b->outerLevelsUp = INVALID_ATTR;
 
     ASSERT_EQUALS_INT(a->type, T_AttributeReference, "type is attribute reference");
     ASSERT_EQUALS_INT(a->type, b->type, "types are the same");
+    ASSERT_EQUALS_INT(a->fromClauseItem, b->fromClauseItem, "FCI are the same");
+    ASSERT_EQUALS_INT(INVALID_ATTR, b->fromClauseItem, "b has FCI=invalid");
+    ASSERT_EQUALS_INT(INVALID_ATTR, a->fromClauseItem, "a has FCI=invlaid");
     ASSERT_EQUALS_STRINGP(a->name, b->name, "names are the same");
     ASSERT_EQUALS_NODE(a,b,"both attribute references are same");
 

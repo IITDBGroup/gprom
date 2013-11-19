@@ -43,6 +43,9 @@ testcopyAttributeReference (void)
     from = createAttributeReference("test");
     new = makeNode(AttributeReference);
     new->name = "test";
+    new->fromClauseItem = INVALID_ATTR;
+    new->attrPosition = INVALID_ATTR;
+    new->outerLevelsUp = INVALID_ATTR;
 
     ASSERT_EQUALS_INT(from->type, T_AttributeReference, "type is attribute reference");
     ASSERT_EQUALS_INT(from->type, new->type, "types are the same");

@@ -63,6 +63,9 @@ testequalAttributeReference (void)
   a = createAttributeReference("test");
   b = makeNode(AttributeReference);
   b->name = "test";
+  b->fromClauseItem = INVALID_ATTR;
+  b->attrPosition = INVALID_ATTR;
+  b->outerLevelsUp = INVALID_ATTR;
 
   ASSERT_EQUALS_INT(a->type, T_AttributeReference, "type is attribute reference");
   ASSERT_EQUALS_INT(a->type, b->type, "types are the same");
