@@ -35,6 +35,7 @@ typedef enum LogLevel
 
 extern void initLogger(void);
 extern void log_(LogLevel level, const char *file, unsigned line, const char *template, ...);
+extern LogLevel maxLevel;
 
 #define FATAL_LOG(template, ...) \
     do { \
@@ -42,14 +43,19 @@ extern void log_(LogLevel level, const char *file, unsigned line, const char *te
         exit(1); \
     } while (0)
 #define ERROR_LOG(template, ...) \
+	if (maxLevel >= LOG_ERROR) \
         log_(LOG_ERROR, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
 #define WARN_LOG(template, ...) \
+    if (maxLevel >= LOG_WARN) \
         log_(LOG_WARN, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
 #define INFO_LOG(template, ...) \
-        log_(LOG_INFO, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    if (maxLevel >= LOG_INFO) \
+	    log_(LOG_INFO, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
 #define DEBUG_LOG(template, ...) \
+    if (maxLevel >= LOG_DEBUG) \
         log_(LOG_DEBUG, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
 #define TRACE_LOG(template, ...) \
+    if (maxLevel >= LOG_TRACE) \
         log_(LOG_TRACE, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
 
 

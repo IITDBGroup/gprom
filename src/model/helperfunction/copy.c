@@ -55,24 +55,24 @@ static Operator *copyOperator(Operator *from, OperatorMap **opMap);
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
 static Schema *copySchema(Schema *from, OperatorMap **opMap);
-static Schema *copySchemaFromList(Schema *from, OperatorMap **opMap);
 
 /*functions to copy query_operator*/
 static QueryOperator *copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap);
-static TableAccessOperator *copyTableAccessOp(TableAccessOperator *from, OperatorMap **opMap);
-static SelectionOperator *copySelectionOp(SelectionOperator *from, OperatorMap **opMap);
-static ProjectionOperator *copyProjectionOp(ProjectionOperator *from, OperatorMap **opMap);
-static JoinOperator *copyJoinOp(JoinOperator *from, OperatorMap **opMap);
-static AggregationOperator *copyAggregationOp(AggregationOperator *from, OperatorMap **opMap);
+static TableAccessOperator *copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap);
+static SelectionOperator *copySelectionOperator(SelectionOperator *from, OperatorMap **opMap);
+static ProjectionOperator *copyProjectionOperator(ProjectionOperator *from, OperatorMap **opMap);
+static JoinOperator *copyJoinOperator(JoinOperator *from, OperatorMap **opMap);
+static AggregationOperator *copyAggregationOperator(AggregationOperator *from, OperatorMap **opMap);
 static SetOperator *copySetOperator(SetOperator *from, OperatorMap **opMap);
-static DuplicateRemoval *copyDuplicateRemovalOp(DuplicateRemoval *from, OperatorMap **opMap);
-static ProvenanceComputation *copyProvenanceComputOp(ProvenanceComputation *from, OperatorMap **opMap);
+static DuplicateRemoval *copyDuplicateRemoval(DuplicateRemoval *from, OperatorMap **opMap);
+static ProvenanceComputation *copyProvenanceComputation(ProvenanceComputation *from, OperatorMap **opMap);
 
 /*functions to copy query_block*/
 static SetQuery *copySetQuery(SetQuery *from, OperatorMap **opMap);
 //static SetOp *copySetOp(SetOp *from, OperatorMap **opMap);
 static QueryBlock *copyQueryBlock(QueryBlock *from, OperatorMap **opMap);
 static Constant *copyConstant(Constant *from, OperatorMap **opMap);
+static NestedSubquery *copyNestedSubquery(NestedSubquery *from, OperatorMap **opMap);
 static ProvenanceStmt *copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap);
 static SelectItem *copySelectItem(SelectItem  *from, OperatorMap **opMap);
 static void copyFromItem (FromItem *from, FromItem *to);
@@ -224,7 +224,7 @@ copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap)
 #define COPY_OPERATOR() copyQueryOperator((QueryOperator *) from, (QueryOperator *) new, opMap)
 
 static TableAccessOperator *
-copyTableAccessOp(TableAccessOperator *from, OperatorMap **opMap)
+copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap)
 {
     COPY_INIT(TableAccessOperator);
     COPY_OPERATOR();
@@ -234,7 +234,7 @@ copyTableAccessOp(TableAccessOperator *from, OperatorMap **opMap)
 }
 
 static SelectionOperator *
-copySelectionOp(SelectionOperator *from, OperatorMap **opMap)
+copySelectionOperator(SelectionOperator *from, OperatorMap **opMap)
 {
     COPY_INIT(SelectionOperator);
     COPY_OPERATOR();
@@ -244,7 +244,7 @@ copySelectionOp(SelectionOperator *from, OperatorMap **opMap)
 }
 
 static ProjectionOperator *
-copyProjectionOp(ProjectionOperator *from, OperatorMap **opMap)
+copyProjectionOperator(ProjectionOperator *from, OperatorMap **opMap)
 {
     COPY_INIT(ProjectionOperator);
     COPY_OPERATOR();
@@ -254,7 +254,7 @@ copyProjectionOp(ProjectionOperator *from, OperatorMap **opMap)
 }
 
 static JoinOperator *
-copyJoinOp(JoinOperator *from, OperatorMap **opMap)
+copyJoinOperator(JoinOperator *from, OperatorMap **opMap)
 {
     COPY_INIT(JoinOperator);
     COPY_OPERATOR();
@@ -265,7 +265,7 @@ copyJoinOp(JoinOperator *from, OperatorMap **opMap)
 }
 
 static AggregationOperator *
-copyAggregationOp(AggregationOperator *from, OperatorMap **opMap)
+copyAggregationOperator(AggregationOperator *from, OperatorMap **opMap)
 {
     COPY_INIT(AggregationOperator);
     COPY_OPERATOR();
@@ -286,7 +286,7 @@ copySetOperator(SetOperator *from, OperatorMap **opMap)
 }
 
 static DuplicateRemoval *
-copyDuplicateRemovalOp(DuplicateRemoval *from, OperatorMap **opMap)
+copyDuplicateRemoval(DuplicateRemoval *from, OperatorMap **opMap)
 {
     COPY_INIT(DuplicateRemoval);
     COPY_OPERATOR();
@@ -296,7 +296,7 @@ copyDuplicateRemovalOp(DuplicateRemoval *from, OperatorMap **opMap)
 }
 
 static ProvenanceComputation *
-copyProvenanceComputOp(ProvenanceComputation *from, OperatorMap **opMap)
+copyProvenanceComputation(ProvenanceComputation *from, OperatorMap **opMap)
 {
     COPY_INIT(ProvenanceComputation);
     COPY_OPERATOR();
@@ -382,6 +382,18 @@ copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap)
     COPY_INIT(FromProvInfo);
     COPY_SCALAR_FIELD(baserel);
     new->userProvAttrs = deepCopyStringList(from->userProvAttrs);
+
+    return new;
+}
+
+static NestedSubquery *
+copyNestedSubquery(NestedSubquery *from, OperatorMap **opMap)
+{
+    COPY_INIT(NestedSubquery);
+    COPY_SCALAR_FIELD(nestingType);
+    COPY_NODE_FIELD(expr);
+    COPY_SCALAR_FIELD(comparisonOp);
+    COPY_NODE_FIELD(query);
 
     return new;
 }
@@ -539,6 +551,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_Constant:
             retval = copyConstant(from, opMap);
             break;
+        case T_NestedSubquery:
+            retval = copyNestedSubquery(from, opMap);
+            break;
         case T_FromTableRef:
             retval = copyFromTableRef(from, opMap);
             break;
@@ -569,28 +584,28 @@ copyInternal(void *from, OperatorMap **opMap)
 
              /* query operator model nodes */
         case T_SelectionOperator:
-            retval = copySelectionOp(from, opMap);
+            retval = copySelectionOperator(from, opMap);
             break;
         case T_ProjectionOperator:
-            retval = copyProjectionOp(from, opMap);
+            retval = copyProjectionOperator(from, opMap);
             break;
         case T_JoinOperator:
-            retval = copyJoinOp(from, opMap);
+            retval = copyJoinOperator(from, opMap);
             break;
         case T_AggregationOperator:
-            retval = copyAggregationOp(from, opMap);
+            retval = copyAggregationOperator(from, opMap);
             break;
         case T_ProvenanceComputation:
-            retval = copyProvenanceComputOp(from, opMap);
+            retval = copyProvenanceComputation(from, opMap);
             break;
         case T_TableAccessOperator:
-            retval = copyTableAccessOp(from, opMap);
+            retval = copyTableAccessOperator(from, opMap);
             break;
         case T_SetOperator:
             retval = copySetOperator(from, opMap);
             break;
         case T_DuplicateRemoval:
-            retval = copyDuplicateRemovalOp(from, opMap);
+            retval = copyDuplicateRemoval(from, opMap);
             break;
 
         default:

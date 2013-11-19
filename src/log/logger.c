@@ -18,21 +18,18 @@
  *-------------------------------------------------------------------------
  */
 
+#include "common.h"
 #include "log/logger.h"
 #include "configuration/option.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
 
 static char *h[] =
     {"FATAL: ", "ERROR: ", "WARN: ", "INFO: ", "DEBUG: ", "TRACE: "};
-static int maxLevel = LOG_INFO;
+
+LogLevel maxLevel = LOG_INFO;
 
 /* internal inlined functions */
-static inline char *
-getHead(LogLevel level);
-static inline FILE *
-getOutput(LogLevel level);
+static inline char *getHead(LogLevel level);
+static inline FILE *getOutput(LogLevel level);
 
 static inline char *
 getHead(LogLevel level)

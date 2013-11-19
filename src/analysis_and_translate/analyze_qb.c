@@ -21,21 +21,29 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "provenance_rewriter/prov_schema.h"
 
-static void analyzeStmtList (List *l);
-static void analyzeQueryBlock (QueryBlock *qb);
-static void analyzeSetQuery (SetQuery *q);
-static void analyzeProvenanceStmt (ProvenanceStmt *q);
-static void analyzeJoin (FromJoinExpr *j);
+static void analyzeStmtList (List *l, List *parentFroms);
+static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
+static void analyzeSetQuery (SetQuery *q, List *parentFroms);
+static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
+static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
+
+// search for attributes and other relevant node types
 static boolean findAttrReferences (Node *node, List **state);
+static boolean findNestedSubqueries (Node *node, List **state);
 static boolean findFunctionCall (Node *node, List **state);
-static boolean findAttrRefInFrom (AttributeReference *a, List *fromItems);
+static boolean findAttrRefInFrom (AttributeReference *a, List *fromClauses);
 static FromItem *findNamedFromItem (FromItem *fromItem, char *name);
 static int findAttrInFromItem (FromItem *fromItem, AttributeReference *attr);
-static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a,  List *fromItems);
+static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a,  List *fromClauses);
+
+// analyze from item types
 static void analyzeFromTableRef(FromTableRef *f);
-static void analyzeFromSubquery(FromSubquery *sq);
+static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
+
+// analyze function calls and nested subqueries
 static void analyzeFunctionCall(QueryBlock *qb);
+static void analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms);
 
 // real attribute name fetching
 static List *expandStarExpression (SelectItem *s, List *fromClause);
@@ -44,21 +52,21 @@ static List *splitAttrOnDot (char *dotName);
 static char *generateAttrNameFromExpr(SelectItem *s);
 
 void
-analyzeQueryBlockStmt (Node *stmt)
+analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
 {
     switch(stmt->type)
     {
         case T_QueryBlock:
-            analyzeQueryBlock((QueryBlock *) stmt);
+            analyzeQueryBlock((QueryBlock *) stmt, parentFroms);
             break;
         case T_SetQuery:
-            analyzeSetQuery((SetQuery *) stmt);
+            analyzeSetQuery((SetQuery *) stmt, parentFroms);
             break;
         case T_ProvenanceStmt:
-            analyzeProvenanceStmt((ProvenanceStmt *) stmt);
+            analyzeProvenanceStmt((ProvenanceStmt *) stmt, parentFroms);
             break;
         case T_List:
-            analyzeStmtList ((List *) stmt);
+            analyzeStmtList ((List *) stmt, parentFroms);
             break;
         default:
             break;
@@ -68,17 +76,16 @@ analyzeQueryBlockStmt (Node *stmt)
 }
 
 static void
-analyzeStmtList (List *l)
+analyzeStmtList (List *l, List *parentFroms)
 {
     FOREACH(Node,n,l)
-        analyzeQueryBlockStmt(n);
+        analyzeQueryBlockStmt(n, parentFroms);
 }
 
 static void
-analyzeQueryBlock (QueryBlock *qb)
+analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 {
     List *attrRefs = NIL;
-    List *fromTables = NIL;
 
     // figuring out attributes of from clause items
     FOREACH(FromItem,f,qb->fromClause)
@@ -87,15 +94,12 @@ analyzeQueryBlock (QueryBlock *qb)
         {
             case T_FromTableRef:
                 analyzeFromTableRef((FromTableRef *) f);
-                fromTables = appendToTailOfList(fromTables, f);
                 break;
             case T_FromSubquery:
-            	analyzeFromSubquery((FromSubquery *) f);
-            	fromTables = appendToTailOfList(fromTables, f);
+            	analyzeFromSubquery((FromSubquery *) f, parentFroms);
             	break;
             case T_FromJoinExpr:
-                analyzeJoin((FromJoinExpr *) f);
-                fromTables = appendToTailOfList(fromTables, f);
+                analyzeJoin((FromJoinExpr *) f, parentFroms);
                 break;
             default:
             	break;
@@ -105,7 +109,7 @@ analyzeQueryBlock (QueryBlock *qb)
     }
 
     INFO_LOG("Figuring out attributes of from clause items done");
-    DEBUG_LOG("Found the following from tables: <%s>", nodeToString(fromTables));
+    DEBUG_LOG("Found the following from tables: <%s>", nodeToString(qb->fromClause));
 
     // expand * expressions
     List *expandedSelectClause = NIL;
@@ -113,9 +117,9 @@ analyzeQueryBlock (QueryBlock *qb)
     {
         if (s->expr == NULL)
             expandedSelectClause = concatTwoLists(expandedSelectClause,
-                    expandStarExpression(s,fromTables));
+                    expandStarExpression(s,qb->fromClause));
         else
-            expandedSelectClause = appendToTailOfList(expandedSelectClause,s);
+            expandedSelectClause = appendToHeadOfList(expandedSelectClause,s);
     }
     qb->selectClause = expandedSelectClause;
     INFO_LOG("Expanded select clause is: <%s>",nodeToString(expandedSelectClause));
@@ -142,6 +146,9 @@ analyzeQueryBlock (QueryBlock *qb)
     INFO_LOG("Collect attribute references done");
     DEBUG_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));
 
+    // expand list of from clause to use
+    parentFroms = appendToHeadOfList(copyList(parentFroms), qb->fromClause);
+
     // adapt attribute references
     FOREACH(AttributeReference,a,attrRefs)
     {
@@ -151,9 +158,9 @@ analyzeQueryBlock (QueryBlock *qb)
         DEBUG_LOG("attr split: %s", stringListToString(nameParts));
 
     	if (LIST_LENGTH(nameParts) == 1)
-    	    isFound = findAttrRefInFrom(a, fromTables);
+    	    isFound = findAttrRefInFrom(a, parentFroms);
     	else if (LIST_LENGTH(nameParts) == 2)
-    	    isFound = findQualifiedAttrRefInFrom(nameParts, a, fromTables);
+    	    isFound = findQualifiedAttrRefInFrom(nameParts, a, parentFroms);
     	else
     	    FATAL_LOG("right now attribute names should have at most two parts");
 
@@ -163,8 +170,35 @@ analyzeQueryBlock (QueryBlock *qb)
 
     // adapt function call (isAgg)
     analyzeFunctionCall(qb);
+    DEBUG_LOG("Analyzed functions");
+
+    // find nested subqueries and analyze them
+    analyzeNestedSubqueries(qb, parentFroms);
+    DEBUG_LOG("Analyzed nested subqueries");
 
     INFO_LOG("Analysis done");
+}
+
+static void
+analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms)
+{
+    List *nestedSubqueries = NIL;
+
+    // find nested subqueries
+    findNestedSubqueries((Node *) qb->selectClause, &nestedSubqueries);
+    findNestedSubqueries((Node *) qb->distinct, &nestedSubqueries);
+    findNestedSubqueries((Node *) qb->fromClause, &nestedSubqueries);
+    findNestedSubqueries((Node *) qb->whereClause, &nestedSubqueries);
+    findNestedSubqueries((Node *) qb->groupByClause, &nestedSubqueries);
+    findNestedSubqueries((Node *) qb->havingClause, &nestedSubqueries);
+    findNestedSubqueries((Node *) qb->orderByClause, &nestedSubqueries);
+
+    DEBUG_LOG("Current query <%s>\nhas nested subqueries\n%s",
+            nodeToString(qb), nodeToString(nestedSubqueries));
+
+    // analyze each subquery
+    FOREACH(NestedSubquery,q,nestedSubqueries)
+        analyzeQueryBlockStmt(q->query, parentFroms);
 }
 
 static void
@@ -180,33 +214,36 @@ analyzeFunctionCall(QueryBlock *qb)
 
     // adapt function call
     FOREACH(FunctionCall, c, functionCallList)
-    {
         c->isAgg = isAgg(c->functionname);
-    }
 }
 
 static boolean
-findAttrRefInFrom (AttributeReference *a, List *fromItems)
+findAttrRefInFrom (AttributeReference *a, List *fromClauses)
 {
     boolean isFound = FALSE;
-    int fromPos = 0, attrPos;
+    int fromPos = 0, attrPos, levelsUp = 0;
 
-    FOREACH(FromItem, f, fromItems)
+    FOREACH(List,fClause,fromClauses)
     {
-        attrPos = findAttrInFromItem(f, a);
-
-        if (attrPos != INVALID_ATTR)
+        FOREACH(FromItem, f, fClause)
         {
-            if (isFound)
-                FATAL_LOG("ambigious attribute reference %s", a->name);
-            else
+            attrPos = findAttrInFromItem(f, a);
+
+            if (attrPos != INVALID_ATTR)
             {
-                isFound = TRUE;
-                a->fromClauseItem = fromPos;
-                a->attrPosition = attrPos;
+                if (isFound)
+                    FATAL_LOG("ambigious attribute reference %s", a->name);
+                else
+                {
+                    isFound = TRUE;
+                    a->fromClauseItem = fromPos;
+                    a->attrPosition = attrPos;
+                    a->outerLevelsUp = levelsUp;
+                }
             }
+            fromPos++;
         }
-        fromPos++;
+        levelsUp++;
     }
 
     return isFound;
@@ -274,12 +311,12 @@ findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
 
 
 static boolean
-findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromItems)
+findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromClauses)
 {
     boolean foundFrom = FALSE;
     boolean foundAttr = FALSE;
     int fromClauseItem = 0;
-    int attrPos = 0;
+    int attrPos = 0, levelsUp = 0;
     char *tabName = (char *) getNthOfListP(nameParts, 0);
     char *attrName = (char *) getNthOfListP(nameParts, 1);
     FromItem *fromItem = NULL;
@@ -287,25 +324,30 @@ findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromIt
     DEBUG_LOG("looking for attribute %s.%s", tabName, attrName);
 
     // find table name
-    FOREACH(FromItem, f, fromItems)
+    FOREACH(List,fromItems,fromClauses)
     {
-        FromItem *foundF = findNamedFromItem(f, tabName);
-
-        if (foundF != NULL)
+        FOREACH(FromItem, f, fromItems)
         {
-            if (foundFrom)
+            FromItem *foundF = findNamedFromItem(f, tabName);
+
+            if (foundF != NULL)
             {
-                FATAL_LOG("from clause item name <%s> appears more than once", tabName);
-                return FALSE;
+                if (foundFrom)
+                {
+                    FATAL_LOG("from clause item name <%s> appears more than once", tabName);
+                    return FALSE;
+                }
+                else
+                {
+                    fromItem = f;
+                    a->fromClauseItem = fromClauseItem;
+                    a->outerLevelsUp = levelsUp;
+                    foundFrom = TRUE;
+                }
             }
-            else
-            {
-                fromItem = f;
-                a->fromClauseItem = fromClauseItem;
-                foundFrom = TRUE;
-            }
+            fromClauseItem++;
         }
-        fromClauseItem++;
+        levelsUp++;
     }
 
     // did we find from clause item
@@ -364,6 +406,25 @@ findAttrReferences (Node *node, List **state)
 }
 
 static boolean
+findNestedSubqueries (Node *node, List **state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, NestedSubquery))
+    {
+        *state = appendToTailOfList(*state, node);
+        TRACE_LOG("found nested subquery <%s>", nodeToString(node));
+        return TRUE;
+    }
+
+    if (isQBQuery(node))
+        return TRUE;
+
+    return visit(node, findNestedSubqueries, state);
+}
+
+static boolean
 findFunctionCall (Node *node, List **state)
 {
     if(node == NULL)
@@ -381,7 +442,7 @@ findFunctionCall (Node *node, List **state)
 }
 
 static void
-analyzeJoin (FromJoinExpr *j)
+analyzeJoin (FromJoinExpr *j, List *parentFroms)
 {
     FromItem *left = j->left;
     FromItem *right = j->right;
@@ -393,12 +454,12 @@ analyzeJoin (FromJoinExpr *j)
         	analyzeFromTableRef((FromTableRef *)left);
             break;
         case T_FromJoinExpr:
-            analyzeJoin((FromJoinExpr *)left);
+            analyzeJoin((FromJoinExpr *)left, parentFroms);
             break;
         case T_FromSubquery:
         {
             FromSubquery *sq = (FromSubquery *) left;
-            analyzeFromSubquery(sq);
+            analyzeFromSubquery(sq, parentFroms);
         }
         break;
         default:
@@ -411,12 +472,12 @@ analyzeJoin (FromJoinExpr *j)
 			analyzeFromTableRef((FromTableRef *)right);
 			break;
 		case T_FromJoinExpr:
-			analyzeJoin((FromJoinExpr *) right);
+			analyzeJoin((FromJoinExpr *) right, parentFroms);
 			break;
 		case T_FromSubquery:
 		{
 			FromSubquery *sq = (FromSubquery *) right;
-			analyzeFromSubquery(sq);
+			analyzeFromSubquery(sq, parentFroms);
 		}
 		break;
 		default:
@@ -456,11 +517,11 @@ analyzeFromTableRef(FromTableRef *f)
 }
 
 static void
-analyzeFromSubquery(FromSubquery *sq)
+analyzeFromSubquery(FromSubquery *sq, List *parentFroms)
 {
     List *expectedAttrs = NIL;
 
-	analyzeQueryBlockStmt(sq->subquery);
+	analyzeQueryBlockStmt(sq->subquery, parentFroms);
 	switch(sq->subquery->type)
 	{
 		case T_QueryBlock:
@@ -627,10 +688,10 @@ generateAttrNameFromExpr(SelectItem *s)
 }
 
 static void
-analyzeSetQuery (SetQuery *q)
+analyzeSetQuery (SetQuery *q, List *parentFroms)
 {
-    analyzeQueryBlockStmt(q->lChild);
-    analyzeQueryBlockStmt(q->rChild);
+    analyzeQueryBlockStmt(q->lChild, parentFroms);
+    analyzeQueryBlockStmt(q->rChild, parentFroms);
 
     // get attributes from left child
     switch(q->lChild->type)
@@ -659,9 +720,9 @@ analyzeSetQuery (SetQuery *q)
 }
 
 static void
-analyzeProvenanceStmt (ProvenanceStmt *q)
+analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 {
-    analyzeQueryBlockStmt(q->query);
+    analyzeQueryBlockStmt(q->query, parentFroms);
 
     // get attributes from left child
     switch(q->query->type)

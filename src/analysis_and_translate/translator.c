@@ -65,7 +65,7 @@ translateParse(Node *q)
 {
     Node *result;
     NEW_AND_ACQUIRE_MEMCONTEXT("TRANSLATOR_CONTEXT");
-    analyzeQueryBlockStmt(q);
+    analyzeQueryBlockStmt(q, NULL);
 
     INFO_LOG("translate QB model \n%s", nodeToString(q));
 

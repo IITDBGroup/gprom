@@ -11,6 +11,7 @@
  */
 
 #include "common.h"
+#include "log/logger.h"
 #include "model/list/list.h"
 //#include "model/set/set.h"
 #include "model/node/nodetype.h"
@@ -48,7 +49,9 @@
         return FALSE;
 
 #define PREP_VISIT(_type) \
-        _type *n = (_type *) node;
+        _type *n = (_type *) node; \
+        TRACE_LOG("visit node <%s>", nodeToString(node));
+
 #define VISIT_OPERATOR_FIELDS() \
         do { \
             VISIT(op.inputs); \
@@ -81,10 +84,10 @@ visit (Node *node, boolean (*checkNode) (), void *state)
 //        	break;
         /* expression nodes */
         case T_Constant:
-//        	{
-//        		PREP_VISIT(Constant);
+        	{
+        		PREP_VISIT(Constant);
 //        		VISIT(value);
-//        	}
+        	}
             break;
         case T_AttributeReference:
             break;
@@ -101,20 +104,6 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             }
             break;
         /* query block model nodes */
-/*        case T_SetOp:
-            {
-                PREP_VISIT(SetOp);
-                VISIT(lChild);
-                VISIT(rChild);
-            }
-            break;
-        case T_SetQuery:
-            {
-                PREP_VISIT(SetQuery);
-                VISIT(selectClause);
-                VISIT(rootSetOp);
-            }
-            break;*/
         case T_SetQuery:
             {
                 PREP_VISIT(SetQuery);
@@ -150,13 +139,6 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		VISIT(expr);
         	}
         	break;
-//        case T_FromItem:
-//        	{
-//        		PREP_VISIT(FromItem);
-//        		//VISIT(name);
-//        		VISIT(attrNames);
-//        	}
-//        	break;
         case T_FromTableRef:
         	{
         		PREP_VISIT(FromTableRef);

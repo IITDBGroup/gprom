@@ -29,13 +29,13 @@ static void outConstant (StringInfo str, Constant *node);
 static void outFunctionCall (StringInfo str, FunctionCall *node);
 static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
+static void outFromProvInfo (StringInfo str, FromProvInfo *node);
 static void outFromTableRef (StringInfo str, FromTableRef *node);
 static void outFromJoinExpr (StringInfo str, FromJoinExpr *node);
 static void outFromSubquery (StringInfo str, FromSubquery *node);
 static void outAttributeReference (StringInfo str, AttributeReference *node);
 static void outFunctionCall (StringInfo str, FunctionCall *node);
 static void outSchema (StringInfo str, Schema *node);
-static void outSchemaFromLists(StringInfo str, Schema *node);
 static void outAttributeDef (StringInfo str, AttributeDef *node);
 static void outSetQuery (StringInfo str, SetQuery *node);
 static void outProvenanceStmt (StringInfo str, ProvenanceStmt *node);
@@ -294,15 +294,6 @@ outSetQuery (StringInfo str, SetQuery *node)
 }
 
 static void
-outFromProvItem (StringInfo str, FromProvInfo *node)
-{
-    WRITE_NODE_TYPE(FROMPROVITEM);
-
-    WRITE_BOOL_FIELD(baserel);
-    WRITE_STRING_LIST_FIELD(userProvAttrs);
-}
-
-static void
 outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
 {
     WRITE_NODE_TYPE(PROVENANCESTMT);
@@ -339,9 +330,18 @@ writeCommonFromItemFields(StringInfo str, FromItem *node)
 }
 
 static void
+outFromProvInfo (StringInfo str, FromProvInfo *node)
+{
+    WRITE_NODE_TYPE(FROMPROVINFO);
+
+    WRITE_BOOL_FIELD(baserel);
+    WRITE_STRING_LIST_FIELD(userProvAttrs);
+}
+
+static void
 outFromTableRef (StringInfo str, FromTableRef *node)
 {
-    WRITE_NODE_TYPE(FROM_TABLE_REF);
+    WRITE_NODE_TYPE(FROMTABLEREF);
 
     writeCommonFromItemFields(str, (FromItem *) node);
     WRITE_STRING_FIELD(tableId);
@@ -407,15 +407,6 @@ outSchema (StringInfo str, Schema *node)
     WRITE_STRING_FIELD(name);
     WRITE_NODE_FIELD(attrDefs);
 }
-
-//static void
-//outSchemaFromLists (StringInfo str, Schema *node)
-//{
-//    WRITE_NODE_TYPE(SCHEMA);
-//
-//    WRITE_NODE_FIELD(name);
-//    WRITE_NODE_FIELD(attrDefs);
-//}
 
 static void
 outAttributeDef (StringInfo str, AttributeDef *node)
@@ -485,7 +476,8 @@ outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
     WRITE_ENUM_FIELD(provType,ProvenanceType);
 }
 
-static void outTableAccessOperator(StringInfo str, TableAccessOperator *node)
+static void
+outTableAccessOperator(StringInfo str, TableAccessOperator *node)
 {
     WRITE_NODE_TYPE(TABLE_ACCESS_OPERATOR);
     WRITE_QUERY_OPERATOR();
@@ -493,7 +485,8 @@ static void outTableAccessOperator(StringInfo str, TableAccessOperator *node)
     WRITE_STRING_FIELD(tableName);
 }
 
-static void outSetOperator(StringInfo str, SetOperator *node)
+static void
+outSetOperator(StringInfo str, SetOperator *node)
 {
     WRITE_NODE_TYPE(SET_OPERATOR);
     WRITE_QUERY_OPERATOR();
@@ -501,7 +494,8 @@ static void outSetOperator(StringInfo str, SetOperator *node)
     WRITE_ENUM_FIELD(setOpType,SetOpType);
 }
 
-static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node)
+static void
+outDuplicateRemoval(StringInfo str, DuplicateRemoval *node)
 {
     WRITE_NODE_TYPE(DUPLICATE_REMOVAL);
     WRITE_QUERY_OPERATOR();
@@ -509,7 +503,9 @@ static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node)
     WRITE_NODE_FIELD(attrs); // attributes that need duplicate removal, AttributeReference type
 
 }
-void outNode(StringInfo str, void *obj)
+
+void
+outNode(StringInfo str, void *obj)
 {
     if(obj == NULL)
         appendStringInfoString(str, "<>");
@@ -543,7 +539,7 @@ void outNode(StringInfo str, void *obj)
                 outProvenanceStmt (str, (ProvenanceStmt *) obj);
                 break;
             case T_FromProvInfo:
-                outFromProvItem(str, (FromProvInfo *) obj);
+                outFromProvInfo(str, (FromProvInfo *) obj);
                 break;
             case T_FromTableRef:
                 outFromTableRef(str, (FromTableRef *) obj);
@@ -620,7 +616,8 @@ void outNode(StringInfo str, void *obj)
 
 /*nodeToString return the node as string*/
 
-char *nodeToString(void *obj)
+char *
+nodeToString(void *obj)
 {
     StringInfo str;
     str = makeStringInfo();
@@ -651,6 +648,7 @@ beatify(char *input)
                     inString = FALSE;
                 default:
                     appendStringInfoChar (str, c);
+                    break;
             }
         }
         else if (inStringConst)

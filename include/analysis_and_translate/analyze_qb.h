@@ -12,7 +12,8 @@
 #define ANALYSE_QB_H_
 
 #include "model/node/nodetype.h"
+#include "model/list/list.h"
 
-void analyzeQueryBlockStmt (Node *stmt);
+void analyzeQueryBlockStmt (Node *stmt, List *parentFroms);
 
 #endif /* ANALYSE_QB_H_ */

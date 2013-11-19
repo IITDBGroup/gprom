@@ -42,6 +42,8 @@ static boolean equalProvenanceComputation( ProvenanceComputation *a,  Provenance
 
 // equal functions for query_block
 static boolean equalQueryBlock(QueryBlock *a, QueryBlock *b);
+static boolean equalSetQuery(SetQuery *a, SetQuery *b);
+static boolean equalNestedSubquery (NestedSubquery *a, NestedSubquery *b);
 static boolean equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b);
 static boolean equalSelectItem(SelectItem *a, SelectItem *b);
 static boolean equalFromItem(FromItem *a, FromItem *b);
@@ -323,6 +325,30 @@ equalQueryBlock(QueryBlock *a, QueryBlock *b)
     return TRUE;
 }
 
+static boolean
+equalSetQuery(SetQuery *a, SetQuery *b)
+{
+    COMPARE_SCALAR_FIELD(setOp);
+    COMPARE_SCALAR_FIELD(all);
+    COMPARE_STRING_LIST_FIELD(selectClause);
+    COMPARE_NODE_FIELD(lChild);
+    COMPARE_NODE_FIELD(rChild);
+
+    return TRUE;
+}
+
+static boolean
+equalNestedSubquery (NestedSubquery *a, NestedSubquery *b)
+{
+    COMPARE_SCALAR_FIELD(nestingType);
+    COMPARE_NODE_FIELD(expr);
+    COMPARE_STRING_FIELD(comparisonOp);
+    COMPARE_NODE_FIELD(query);
+
+    return TRUE;
+}
+
+
 static boolean 
 equalInsert(Insert *a, Insert *b)
 {
@@ -515,6 +541,12 @@ equal(void *a, void *b)
         case T_QueryBlock:
             retval = equalQueryBlock(a,b);
             break;
+        case T_SetQuery:
+            retval = equalSetQuery(a,b);
+            break;
+        case T_NestedSubquery:
+            retval = equalNestedSubquery(a,b);
+            break;
         case T_ProvenanceStmt:
             retval = equalProvenanceStmt(a,b);
             break;
@@ -555,6 +587,9 @@ equal(void *a, void *b)
             retval = FALSE;
             break;
     }
+
+    if (!retval)
+        DEBUG_LOG("not equals \n%s\n\n%s", nodeToString(a), nodeToString(b));
 
     return retval;
 }
