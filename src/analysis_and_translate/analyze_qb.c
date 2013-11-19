@@ -208,6 +208,7 @@ analyzeFunctionCall(QueryBlock *qb)
 
     // collect function call
     findFunctionCall((Node *) qb->selectClause, &functionCallList);
+    findFunctionCall((Node *) qb->havingClause, &functionCallList);
 
     INFO_LOG("Collect function call done");
     DEBUG_LOG("Have the following function calls: <%s>", nodeToString(functionCallList));
