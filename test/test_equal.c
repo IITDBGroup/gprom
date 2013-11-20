@@ -32,7 +32,6 @@ testEqual (void)
     RUN_TEST(testequalFunctionCall (), "test equal FunctionCall");
     RUN_TEST(testequalAttributeReference(), "test equal AttibuteReference");
     RUN_TEST(testequalConstant(), "test equal Constant");
-
     RUN_TEST(testequalList(), "test equal List");
 
     return PASS;
@@ -41,38 +40,38 @@ testEqual (void)
 static rc
 testequalFunctionCall (void)
 {
-  FunctionCall *a, *b;
-  a = createFunctionCall("test", NIL);
-  b = makeNode(FunctionCall);
-  b->args = NIL;
-  b->functionname = "test";
-  
-  ASSERT_EQUALS_INT(a->type, T_FunctionCall, "type is a FunctionCall");
-  ASSERT_EQUALS_INT(a->type, b->type, "types are the same");
-  ASSERT_EQUALS_STRINGP(a->functionname, b->functionname, "names are the same");
-  ASSERT_EQUALS_NODE(a->args,b->args,"both args are same");
+    FunctionCall *a, *b;
+    a = createFunctionCall("test", NIL);
+    b = makeNode(FunctionCall);
+    b->args = NIL;
+    b->functionname = "test";
 
-  return PASS;
+    ASSERT_EQUALS_INT(a->type, T_FunctionCall, "type is a FunctionCall");
+    ASSERT_EQUALS_INT(a->type, b->type, "types are the same");
+    ASSERT_EQUALS_STRINGP(a->functionname, b->functionname, "names are the same");
+    ASSERT_EQUALS_NODE(a->args,b->args,"both args are same");
+
+    return PASS;
 }
 
 static rc
 testequalAttributeReference (void)
 {
-  AttributeReference *a, *b;
+    AttributeReference *a, *b;
 
-  a = createAttributeReference("test");
-  b = makeNode(AttributeReference);
-  b->name = "test";
-  b->fromClauseItem = INVALID_ATTR;
-  b->attrPosition = INVALID_ATTR;
-  b->outerLevelsUp = INVALID_ATTR;
+    a = createAttributeReference("test");
+    b = makeNode(AttributeReference);
+    b->name = "test";
+    b->fromClauseItem = INVALID_ATTR;
+    b->attrPosition = INVALID_ATTR;
+    b->outerLevelsUp = INVALID_ATTR;
 
-  ASSERT_EQUALS_INT(a->type, T_AttributeReference, "type is attribute reference");
-  ASSERT_EQUALS_INT(a->type, b->type, "types are the same");
-  ASSERT_EQUALS_STRINGP(a->name, b->name, "names are the same");
-  ASSERT_EQUALS_NODE(a,b,"both attribute references are same");
+    ASSERT_EQUALS_INT(a->type, T_AttributeReference, "type is attribute reference");
+    ASSERT_EQUALS_INT(a->type, b->type, "types are the same");
+    ASSERT_EQUALS_STRINGP(a->name, b->name, "names are the same");
+    ASSERT_EQUALS_NODE(a,b,"both attribute references are same");
 
-  return PASS;  
+    return PASS;
 }
 
 static rc
@@ -95,7 +94,33 @@ testequalConstant(void)
 static rc
 testequalList (void)
 {
-  return PASS;
+    List *a, *b;
+
+    a = NIL;
+    a = appendToTailOfList (a, createAttributeReference("a1"));
+    a = appendToTailOfList (a, createAttributeReference("a2"));
+    a = appendToTailOfList (a, createAttributeReference("a3"));
+
+    b = NIL;
+    b = appendToTailOfList (b, createAttributeReference("a1"));
+    b = appendToTailOfList (b, createAttributeReference("a2"));
+    b = appendToTailOfList (b, createAttributeReference("a3"));
+
+    ASSERT_EQUALS_NODE(a,b,"node lists are equal");
+
+    a = NIL;
+    a = appendToTailOfListInt (a, 1);
+    a = appendToTailOfListInt (a, 2);
+    a = appendToTailOfListInt (a, 3);
+
+    b = NIL;
+    b = appendToTailOfListInt (b, 1);
+    b = appendToTailOfListInt (b, 2);
+    b = appendToTailOfListInt (b, 3);
+
+    ASSERT_EQUALS_NODE(a,b,"int lists are equal");
+
+    return PASS;
 }
 
 
