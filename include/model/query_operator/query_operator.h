@@ -125,6 +125,9 @@ extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, 
 #define _OP_RCHILD(op) \
     getNthOfListP(((QueryOperator*) op)->inputs,1)
 
+/*  */
+extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
+
 /* access functions */
 extern List *getProvenanceAttrs(QueryOperator *op);
 extern List *getNormalAttrs(QueryOperator *op);

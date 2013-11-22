@@ -238,6 +238,13 @@ createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, Li
     return NULL; //TODO
 }
 
+extern void
+addChildOperator (QueryOperator *parent, QueryOperator *child)
+{
+    parent->inputs = appendToTailOfList(parent->inputs, child);
+    child->parents = appendToTailOfList(child->parents, parent);
+}
+
 List *
 getProvenanceAttrs(QueryOperator *op)
 {

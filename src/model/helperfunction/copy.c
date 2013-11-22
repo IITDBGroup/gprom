@@ -200,11 +200,6 @@ copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap)
 
     // cannot set parents, because not all parents may have been copied yet
     new->parents = NIL;
-//    FOREACH(QueryOperator,parent,from->parents)
-//    {
-//        OperatorMap *parentEntry = MAP_GET_OP(parent);
-//        new->parents = appendToTailOfList(new->parents, parentEntry);
-//    }
 
     // copy children only if they have not been copied before
     FOREACH(QueryOperator,child,from->inputs)

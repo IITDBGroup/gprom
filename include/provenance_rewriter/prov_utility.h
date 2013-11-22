@@ -15,5 +15,6 @@
 
 extern void addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source);
 extern void switchSubtrees(QueryOperator *orig, QueryOperator *new);
+extern QueryOperator *copyUnrootedSubtree(QueryOperator *op);
 
 #endif /* PROV_UTILITY_H_ */

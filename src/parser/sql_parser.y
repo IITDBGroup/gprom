@@ -282,12 +282,12 @@ insertList:
         | identifier
             {
                 RULELOG("insertList::IDENTIFIER");
-                $$ = singleton($1);
+                $$ = singleton(createAttributeReference($1));
             }
         | insertList ',' identifier
             { 
                 RULELOG("insertList::insertList::::IDENTIFIER");
-                $$ = appendToTailOfList($1, $3);
+                $$ = appendToTailOfList($1, createAttributeReference($3));
             }
         | insertList ',' constant
             { 

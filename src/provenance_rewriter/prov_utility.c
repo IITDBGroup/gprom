@@ -41,3 +41,25 @@ switchSubtrees(QueryOperator *orig, QueryOperator *new)
         }
     }
 }
+
+/*
+ * Create a copy of an operator subtree without copying its parents.
+ */
+QueryOperator *
+copyUnrootedSubtree(QueryOperator *op)
+{
+    List *parents;
+    QueryOperator *result;
+
+    // cache parents
+    parents = op->parents;
+    op->parents = NULL;
+
+    // copy
+    result = copyObject(op);
+
+    // restore parents
+    op->parents = parents;
+
+    return result;
+}
