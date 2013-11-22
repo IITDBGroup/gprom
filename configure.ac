@@ -146,6 +146,7 @@ AC_CONFIG_FILES([
 	src/model/node/Makefile
 	src/model/query_block/Makefile
 	src/model/query_operator/Makefile
+	src/model/set/Makefile
     src/operator_optimizer/Makefile
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile

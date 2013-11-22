@@ -16,9 +16,8 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "model/node/nodetype.h"
+#include "model/list/list.h"
 #include "model/expression/expression.h"
-
-
 
 AttributeReference *
 createAttributeReference (char *name)
@@ -39,6 +38,27 @@ createAttributeReference (char *name)
     return result;
 }
 
+Node *
+andExprs (Node *expr, ...)
+{
+    Node *result = NULL;
+    Node *curArg = NULL;
+    va_list args;
+
+    va_start(args, expr);
+
+    while((curArg = va_arg(args,Node*)))
+    {
+        if (result == NULL)
+            result = copyObject(curArg);
+        else
+            result = (Node *) createOpExpr("AND", LIST_MAKE(result, copyObject(curArg)));
+    }
+
+    va_end(args);
+
+    return result;
+}
 
 FunctionCall *
 createFunctionCall(char *fName, List *args)

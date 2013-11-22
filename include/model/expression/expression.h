@@ -47,6 +47,8 @@ typedef struct AttributeReference {
 extern FunctionCall *createFunctionCall (char *fName, List *args);
 extern Operator *createOpExpr (char *name, List *args);
 extern AttributeReference *createAttributeReference (char *name);
+extern Node *andExprs (Node *expr, ...);
+#define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL);
 
 /* functions for creating constants */
 extern Constant *createConstInt (int value);

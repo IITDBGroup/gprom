@@ -14,31 +14,60 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "model/query_operator/query_operator.h"
 
+static void rewriteOperator (QueryOperator *op);
+static void rewriteSelection (SelectionOperator *op);
+
+
 QueryOperator *
-rewritePI_CS (QueryOperator *op)
+rewritePI_CS (ProvenanceComputation  *op)
 {
+    QueryOperator *rewRoot = OP_LCHILD(op);
+
+    // rewrite subquery under provenance computation
+    rewriteOperator(rewRoot);
+    // update root of rewritten subquery
+    rewRoot = OP_LCHILD(op);
+
+    // adapt inputs of parents to remove provenance computation
+    switchSubtrees(op, rewRoot);
+
+    return rewRoot;
+}
+
+static void
+rewriteOperator (QueryOperator *op)
+{
+    FOREACH(QueryOperator,child,op->inputs)
+        rewriteOperator(child);
+
     switch(op->type)
     {
         case T_SelectionOperator:
-            rewritePI_CS(OP_LCHILD(op));
-            addProvenanceAttrsToSchema(op, OP_LCHILD(op));
-            return op;
+            rewriteSelection((SelectionOperator *) op);
             break;
         case T_ProjectionOperator:
-            rewritePI_CS(OP_LCHILD(op));
+            rewriteOperator(OP_LCHILD(op));
 //            addProvenanceAttrsToSchema(op, OP_LCHILD(op));
 //            addProvenanceAttrsToProjection((ProjectionOperator *)op);
-            return op;
+            break;
         case T_AggregationOperator:
 //            return rewritePI_CSAggregation (op);
-            return op;
+            break;
         case T_JoinOperator:
-            rewritePI_CS(OP_LCHILD(op));
-            rewritePI_CS(OP_RCHILD(op));
+            rewriteOperator(OP_LCHILD(op));
+            rewriteOperator(OP_RCHILD(op));
 //            addProvenanceAttrsToSchema(op, OP_LCHILD(op));
 //            addProvenanceAttrsToSchema(op, OP_RCHILD(op));
-            return op;
+            //TODO OTHER OPERATOR
+            break;
         default:
-            return NULL;
+            break;
     }
+}
+
+static void
+rewriteSelection (SelectionOperator *op)
+{
+    rewriteOperator(OP_LCHILD(op));
+    // adapt schema addProvenanceAttrsToSchema(op, OP_LCHILD(op));
 }

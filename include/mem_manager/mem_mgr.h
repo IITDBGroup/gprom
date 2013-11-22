@@ -80,7 +80,7 @@ extern void free_(void *mem, const char *file, unsigned line);
  * Allocates memory for the specified data type and initialize the data of
  * the type to 0.
  */
-#define NEW(type) CALLOC(sizeof(type), 1)
+#define NEW(type) (type *) CALLOC(sizeof(type), 1)
 /*
  * Allocates an array of the specified data type.
  */

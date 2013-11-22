@@ -11,6 +11,7 @@
 
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
+#include "log/logger.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
@@ -104,7 +105,10 @@ static FromProvInfo *copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap);
 
 /*copy a field that is a pointer to C string or NULL*/
 #define COPY_STRING_FIELD(fldname) \
-                 new->fldname = (from->fldname !=NULL ? strdup(from->fldname) : NULL)
+         new->fldname = (from->fldname !=NULL ? strdup(from->fldname) : NULL)
+/* copy a field that is a list of strings */
+#define COPY_STRING_LIST_FIELD(fldname) \
+		 new->fldname = deepCopyStringList((List *) from->fldname)
 
 /*deep copy for List operation*/
 static List *
@@ -381,7 +385,7 @@ copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap)
 {
     COPY_INIT(FromProvInfo);
     COPY_SCALAR_FIELD(baserel);
-    new->userProvAttrs = deepCopyStringList(from->userProvAttrs);
+    COPY_STRING_LIST_FIELD(userProvAttrs);
 
     return new;
 }
@@ -485,7 +489,10 @@ copyFromJoinExpr(FromJoinExpr *from, OperatorMap **opMap)
     COPY_NODE_FIELD(right);
     COPY_SCALAR_FIELD(joinType);
     COPY_SCALAR_FIELD(joinCond);
-    COPY_NODE_FIELD(cond);
+    if (from->joinCond == JOIN_COND_USING)
+        new->cond = (Node *) deepCopyStringList((List *) new->cond);
+    else
+        COPY_NODE_FIELD(cond);
 
     return new;
 }

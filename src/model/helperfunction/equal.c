@@ -12,6 +12,7 @@
 #include "common.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -25,6 +26,7 @@ static boolean equalOperator (Operator *a, Operator *b);
 static boolean equalConstant (Constant *a, Constant *b);
 static boolean equalList(List *a, List *b);
 static boolean equalStringList (List *a, List *b);
+static boolean equalSet (Set *a, Set *b);
 
 // equal functions for query_operator
 static boolean equalSchema(Schema *a, Schema *b);
@@ -205,6 +207,28 @@ equalStringList (List *a, List *b)
 }
 
 static boolean
+equalSet (Set *a, Set *b)
+{
+    if (a->setType != b->setType)
+        return FALSE;
+    if (setSize(a) != setSize(b))
+        return FALSE;
+
+    FOREACH_SET(void,el,a)
+    {
+        if (!hasSetElem(b,el))
+            return FALSE;
+    }
+    FOREACH_SET(void,el,b)
+    {
+        if (!hasSetElem(a,el))
+            return FALSE;
+    }
+
+    return TRUE;
+}
+
+static boolean
 equalSchema(Schema *a, Schema *b)
 {
     COMPARE_STRING_FIELD(name);
@@ -237,7 +261,7 @@ equalQueryOperator(QueryOperator *a, QueryOperator *b)
 {
     COMPARE_NODE_FIELD(inputs);
     COMPARE_NODE_FIELD(schema);
-    COMPARE_NODE_FIELD(parents);
+    //COMPARE_NODE_FIELD(parents);
     COMPARE_NODE_FIELD(provAttrs);
 
     return TRUE;
@@ -490,6 +514,9 @@ equal(void *a, void *b)
         case T_List:
         case T_IntList:
             retval = equalList(a,b);
+            break;
+        case T_Set:
+            retval = equalSet(a,b);
             break;
         case T_FunctionCall:
             retval = equalFunctionCall(a,b);

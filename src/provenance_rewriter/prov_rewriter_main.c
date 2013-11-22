@@ -44,8 +44,8 @@ QueryOperator *
 findProvenanceComputations (QueryOperator *op)
 {
     // is provenance computation? then rewrite
-    if (isA(op, List))
-        return rewriteProvenanceComputation((ProvenanceComputation *) op);
+    if (isA(op, ProvenanceComputation))
+        rewriteProvenanceComputation((ProvenanceComputation *) op);
 
     // else search for children with provenance
     FOREACH(QueryOperator, x, op->inputs)

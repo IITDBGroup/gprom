@@ -15,6 +15,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -23,6 +24,7 @@
 static void outPointerList (StringInfo str, List *node);
 static void outList(StringInfo str, List *node);
 static void outStringList (StringInfo str, List *node);
+static void outSet(StringInfo str, Set *node);
 static void outNode(StringInfo, void *node);
 static void outQueryBlock (StringInfo str, QueryBlock *node);
 static void outConstant (StringInfo str, Constant *node);
@@ -197,6 +199,26 @@ outStringList (StringInfo str, List *node)
     }
 
     appendStringInfoString(str, ")");
+}
+
+static void
+outSet(StringInfo str, Set *node)
+{
+    appendStringInfo(str, "{");
+
+    switch(node->setType)
+    {
+        case SET_TYPE_INT:
+            FOREACH_SET(int,i,node)
+            {
+                appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
+            }
+            break;
+        default:
+            FATAL_LOG("not implemented yet");
+    }
+
+    appendStringInfo(str, "}");
 }
 
 static void
@@ -519,6 +541,9 @@ outNode(StringInfo str, void *obj)
             case T_List:
             case T_IntList:
                 outList(str, (List *) obj);
+                break;
+            case T_Set:
+                outSet(str, (Set *) obj);
                 break;
             case T_QueryBlock:
                 outQueryBlock(str, (QueryBlock *) obj);

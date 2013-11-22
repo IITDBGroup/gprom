@@ -94,7 +94,7 @@ CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libmodel_la_DEPENDENCIES = expression/libexpression.la \
 	helperfunction/libhelperfunction.la list/liblist.la \
-	node/libnode.la query_block/libquery_block.la \
+	node/libnode.la set/libset.la query_block/libquery_block.la \
 	query_operator/libquery_operator.la
 am_libmodel_la_OBJECTS =
 libmodel_la_OBJECTS = $(am_libmodel_la_OBJECTS)
@@ -324,12 +324,13 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/include
-SUBDIRS = expression helperfunction list node query_block query_operator
+SUBDIRS = expression helperfunction list node set query_block query_operator
 noinst_LTLIBRARIES = libmodel.la
 libmodel_la_LIBADD = expression/libexpression.la \
 						helperfunction/libhelperfunction.la \
 						list/liblist.la \
 						node/libnode.la \
+						set/libset.la \
 						query_block/libquery_block.la \
 						query_operator/libquery_operator.la #\
 						#set/libset.la

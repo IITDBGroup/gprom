@@ -63,7 +63,7 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
 char *
 getProvenanceAttrName (char *table, char *attr, int count)
 {
-    char *countStr = NEW(128);
+    char *countStr = CALLOC(1,128);
     if (count > 0)
         sprintf(countStr,"%u", count);
     return CONCAT_STRINGS(PROV_ATTR_PREFIX, strdup(table), "_", strdup(attr),

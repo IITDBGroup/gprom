@@ -13026,7 +13026,7 @@ ac_config_headers="$ac_config_headers config.h"
 
 ################################################################################
 # DERIVED FILES - MAINLY MAKEFILES
-ac_config_files="$ac_config_files Makefile src/Makefile src/analysis_and_translate/Makefile src/command_line/Makefile src/configuration/Makefile src/log/Makefile src/mem_manager/Makefile src/metadata_lookup/Makefile src/model/Makefile src/model/expression/Makefile src/model/helperfunction/Makefile src/model/list/Makefile src/model/node/Makefile src/model/query_block/Makefile src/model/query_operator/Makefile src/operator_optimizer/Makefile src/parser/Makefile src/provenance_rewriter/Makefile src/provenance_rewriter/pi_cs_rewrites/Makefile src/provenance_rewriter/transformation_rewrites/Makefile src/sql_serializer/Makefile test/Makefile"
+ac_config_files="$ac_config_files Makefile src/Makefile src/analysis_and_translate/Makefile src/command_line/Makefile src/configuration/Makefile src/log/Makefile src/mem_manager/Makefile src/metadata_lookup/Makefile src/model/Makefile src/model/expression/Makefile src/model/helperfunction/Makefile src/model/list/Makefile src/model/node/Makefile src/model/query_block/Makefile src/model/query_operator/Makefile src/model/set/Makefile src/operator_optimizer/Makefile src/parser/Makefile src/provenance_rewriter/Makefile src/provenance_rewriter/pi_cs_rewrites/Makefile src/provenance_rewriter/transformation_rewrites/Makefile src/sql_serializer/Makefile test/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -14048,6 +14048,7 @@ do
     "src/model/node/Makefile") CONFIG_FILES="$CONFIG_FILES src/model/node/Makefile" ;;
     "src/model/query_block/Makefile") CONFIG_FILES="$CONFIG_FILES src/model/query_block/Makefile" ;;
     "src/model/query_operator/Makefile") CONFIG_FILES="$CONFIG_FILES src/model/query_operator/Makefile" ;;
+    "src/model/set/Makefile") CONFIG_FILES="$CONFIG_FILES src/model/set/Makefile" ;;
     "src/operator_optimizer/Makefile") CONFIG_FILES="$CONFIG_FILES src/operator_optimizer/Makefile" ;;
     "src/parser/Makefile") CONFIG_FILES="$CONFIG_FILES src/parser/Makefile" ;;
     "src/provenance_rewriter/Makefile") CONFIG_FILES="$CONFIG_FILES src/provenance_rewriter/Makefile" ;;

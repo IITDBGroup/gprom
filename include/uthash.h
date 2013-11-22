@@ -95,6 +95,7 @@ do {                                                                            
   out=NULL;                                                                      \
   if (head) {                                                                    \
      HASH_FCN(keyptr,keylen, (head)->hh.tbl->num_buckets, _hf_hashv, _hf_bkt);   \
+     INFO_LOG("hv is %u", _hf_hashv);                                              \
      if (HASH_BLOOM_TEST((head)->hh.tbl, _hf_hashv)) {                           \
        HASH_FIND_IN_BKT((head)->hh.tbl, hh, (head)->hh.tbl->buckets[ _hf_bkt ],  \
                         keyptr,keylen,out);                                      \
@@ -108,6 +109,7 @@ do {                                                                            
   out=NULL;                                                                      \
   if (head) {                                                                    \
      HASH_FCN(keyptr,keylen, (head)->hh.tbl->num_buckets, _hf_hashv, _hf_bkt);   \
+     INFO_LOG("hv is %u", _hf_hashv);                                            \
      if (HASH_BLOOM_TEST((head)->hh.tbl, _hf_hashv)) {                           \
        HASH_FIND_IN_BKT_CMP((head)->hh.tbl, hh,                                  \
                         (head)->hh.tbl->buckets[ _hf_bkt ],                      \

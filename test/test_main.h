@@ -125,6 +125,7 @@ extern char *getIndent(int depth);
 
 /* individual tests */
 extern rc testList(void);
+extern rc testSet(void);
 extern rc testExpr(void);
 extern rc testCopy(void);
 extern rc testEqual(void);

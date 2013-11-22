@@ -14,5 +14,6 @@
 #include "model/query_operator/query_operator.h"
 
 extern void addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source);
+extern void switchSubtrees(QueryOperator *orig, QueryOperator *new);
 
 #endif /* PROV_UTILITY_H_ */
