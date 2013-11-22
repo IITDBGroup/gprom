@@ -62,7 +62,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     switch(op->provType)
     {
         case PI_CS:
-            return rewritePI_CS((QueryOperator *) op);
+            return rewritePI_CS(op);
         case TRANSFORMATION:
             return rewriteTransformationProvenance((QueryOperator *) op);
     }
