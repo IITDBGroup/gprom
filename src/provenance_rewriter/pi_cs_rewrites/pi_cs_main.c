@@ -50,7 +50,7 @@ rewritePI_CSOperator (QueryOperator *op)
             rewritePI_CSProjection((ProjectionOperator *) op);
             break;
         case T_AggregationOperator:
-            rewritePI_CSAggregation (op);
+            rewritePI_CSAggregation ((AggregationOperator *) op);
             break;
         case T_JoinOperator:
             rewritePI_CSJoin((JoinOperator *) op);
@@ -107,12 +107,12 @@ rewritePI_CSAggregation (AggregationOperator *op)
 
     // create final projection and replace aggregation subtree with projection
     proj = createProjectionOp(NIL, NULL, NIL, NIL);
-    switchSubtrees(op, proj);
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
 
     // create join operator
     joinProv = createJoinOp(JOIN_LEFT_OUTER, NULL, NIL, NIL,
             NIL);
-    addChildOperator(proj, joinProv);
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) joinProv);
 
     // copy aggregation input
     aggInput = copyUnrootedSubtree(OP_LCHILD(op));
@@ -120,8 +120,8 @@ rewritePI_CSAggregation (AggregationOperator *op)
     // add projection including group by expressions if necessary
 
     // add aggregation to join input
-    addChildOperator(joinProv, op);
-    addChildOperator(joinProv, aggInput);
+    addChildOperator((QueryOperator *) joinProv, (QueryOperator *) op);
+    addChildOperator((QueryOperator *) joinProv, (QueryOperator *) aggInput);
 
     // rewrite aggregation input copy
     rewritePI_CSOperator(aggInput);
