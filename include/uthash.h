@@ -95,13 +95,14 @@ do {                                                                            
   out=NULL;                                                                      \
   if (head) {                                                                    \
      HASH_FCN(keyptr,keylen, (head)->hh.tbl->num_buckets, _hf_hashv, _hf_bkt);   \
-     INFO_LOG("hv is %u", _hf_hashv);                                              \
      if (HASH_BLOOM_TEST((head)->hh.tbl, _hf_hashv)) {                           \
        HASH_FIND_IN_BKT((head)->hh.tbl, hh, (head)->hh.tbl->buckets[ _hf_bkt ],  \
                         keyptr,keylen,out);                                      \
      }                                                                           \
   }                                                                              \
 } while (0)
+//     INFO_LOG("hv is %u", _hf_hashv);
+
 
 #define HASH_FIND_CMP(hh,head,keyptr,keylen,out,cmpfunction)                     \
 do {                                                                             \
@@ -109,7 +110,6 @@ do {                                                                            
   out=NULL;                                                                      \
   if (head) {                                                                    \
      HASH_FCN(keyptr,keylen, (head)->hh.tbl->num_buckets, _hf_hashv, _hf_bkt);   \
-     INFO_LOG("hv is %u", _hf_hashv);                                            \
      if (HASH_BLOOM_TEST((head)->hh.tbl, _hf_hashv)) {                           \
        HASH_FIND_IN_BKT_CMP((head)->hh.tbl, hh,                                  \
                         (head)->hh.tbl->buckets[ _hf_bkt ],                      \
@@ -117,6 +117,7 @@ do {                                                                            
      }                                                                           \
   }                                                                              \
 } while (0)
+//      INFO_LOG("hv is %u", _hf_hashv);
 
 #ifdef HASH_BLOOM
 #define HASH_BLOOM_BITLEN (1ULL << HASH_BLOOM)

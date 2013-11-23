@@ -151,6 +151,7 @@ extern Node *newNode(size_t size, NodeTag type);
 extern char *nodeToString(void *obj);
 extern char *beatify(char *input);
 char *operatorToOverviewString(Node *op);
+char *itoa(int value);
 
 /* create a node tree from a string */
 extern void *stringToNode(char *str);

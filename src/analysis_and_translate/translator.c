@@ -248,7 +248,7 @@ getAttrsOffsets(List *fromClause)
        curOffset += getListLength(from->attrNames);
     }
 
-    DEBUG_LOG("attribute offsets for from clause items are %s", offsets);
+    DEBUG_LOG("attribute offsets for from clause items are %s", nodeToString(offsets));
 
     return offsets;
 }
@@ -521,140 +521,185 @@ static QueryOperator *
 translateAggregation(List *selectClause, Node *havingClause,
 		List *groupByClause, QueryOperator *input, List *attrsOffsets)
 {
-	QueryOperator *in = createProjectionOverNonAttrRefExprs(selectClause,
-			havingClause, groupByClause, input, attrsOffsets);
-	QueryOperator *output = in;
+	QueryOperator *in;
+	AggregationOperator *ao;
+	List *attrNames = NIL;
+    int i;
 	List *aggrs = getListOfAggregFunctionCalls(selectClause, havingClause);
-	if (getListLength(aggrs) > 0)
+
+	// does query use aggregation or group by at all?
+	if (getListLength(aggrs) == 0 && !groupByClause)
+	    return input;
+
+	// if necessary create projection for aggregation inputs that are not simple
+	// attribute references
+	in = createProjectionOverNonAttrRefExprs(selectClause,
+	            havingClause, groupByClause, input, attrsOffsets);
+
+    // if no projection was added change attributes positions in each
+	// expression of groupBy and aggregation input to refer to the FROM clause
+	// translation
+	if (in == input)
 	{
-		List *attrNames = getAttrNames(in->schema); // TODO what should attrNames be?
-
-		// copy aggregation function calls and groupBy expressions
-		// and create aggregation operator
-		AggregationOperator *ao = createAggregationOp(aggrs, groupByClause,
-				in, NIL, attrNames);
-
-		// set the parent of the aggregation's child
-		OP_LCHILD(ao)->parents = singleton(ao);
-
-		// change attributes positions in each expression of groupBy
-		FOREACH(Node, exp, ao->groupBy)
-		{
-			visitAttrRefToSetNewAttrPos(exp, attrsOffsets);
-		}
-
-		output = ((QueryOperator *) ao);
+	    FOREACH(Node, exp, groupByClause)
+	        visitAttrRefToSetNewAttrPos(exp, attrsOffsets);
+	    FOREACH(FunctionCall, agg, aggrs)
+	        FOREACH(Node, aggIn, agg->args)
+	            visitAttrRefToSetNewAttrPos(aggIn, attrsOffsets);
 	}
 
+	// create fake attribute names for aggregation output schema
+	for(i = 0; i < LIST_LENGTH(aggrs); i++)
+	    attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("aggr_", itoa(i)));
+	for(i = 0; i < LIST_LENGTH(groupByClause); i++)
+	    attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("group_", itoa(i)));
+
+	// copy aggregation function calls and groupBy expressions
+	// and create aggregation operator
+	ao = createAggregationOp(aggrs, groupByClause,
+	        in, NIL, attrNames);
+
+	// set the parent of the aggregation's child
+	OP_LCHILD(ao)->parents = singleton(ao);
+
+	//TODO replace aggregation function calls and group by expressions in select and having with references to aggrgeation output attributes
+
 	freeList(aggrs);
-	return output;
+	return (QueryOperator *) ao;
 }
 
 static QueryOperator *
 createProjectionOverNonAttrRefExprs(List *selectClause, Node *havingClause,
-		List *groupByClause, QueryOperator *input, List *attrsOffsets)
+        List *groupByClause, QueryOperator *input, List *attrsOffsets)
 {
-	// each entry of the list directly points to the original expression, not copy
-	List *projExprs = getListOfNonAttrRefExprs(selectClause, havingClause,
-			groupByClause);
+    // each entry of the list directly points to the original expression, not copy
+    List *projExprs = getListOfNonAttrRefExprs(selectClause, havingClause,
+            groupByClause);
 
-	QueryOperator *output = input;
+    QueryOperator *output = input;
 
-	if (getListLength(projExprs) > 0)
-	{
-		// create alias for each non-AttributeReference expression
-		List *attrNames = NIL;
-		int i = 0;
-		FOREACH(Node, expr, projExprs)
-		{
-			char alias[20] = "agg_gb_arg";
-			char postfix[10];
-			sprintf(postfix, "%d", i);
-			attrNames = appendToTailOfList(attrNames, strdup(strcat(alias, postfix)));
-			i++;
-		}
+    if (getListLength(projExprs) > 0)
+    {
+        // create alias for each non-AttributeReference expression
+        List *attrNames = NIL;
+        int i = 0;
+        FOREACH(Node, expr, projExprs)
+        {
+            //            char alias[20] = "agg_gb_arg";
+            //            char postfix[10];
+            //            sprintf(postfix, "%d", i);
+            attrNames = appendToTailOfList(attrNames,
+                    CONCAT_STRINGS("agg_gb_arg", itoa(i)));
+            i++;
+        }
 
-		// copy expressions and create projection operator over the copies
-		ProjectionOperator *po = createProjectionOp(projExprs, input, NIL,
-				attrNames);
+        // copy expressions and create projection operator over the copies
+        ProjectionOperator *po = createProjectionOp(projExprs, input, NIL,
+                attrNames);
 
-		// set the parent of the projection's child
-		OP_LCHILD(po)->parents = singleton(po);
+        // set the parent of the projection's child
+        OP_LCHILD(po)->parents = singleton(po);
 
-		// change attributes positions in each expression copy
-		FOREACH(Node, exp, po->projExprs)
-		{
-			visitAttrRefToSetNewAttrPos(exp, attrsOffsets);
-		}
+        // change attributes positions in each expression copy to refer to from outputs
+        FOREACH(Node, exp, po->projExprs)
+            visitAttrRefToSetNewAttrPos(exp, attrsOffsets);
 
-		// replace non-AttributeReference arguments in aggregation with alias
-		// each entry of the list directly points to the original aggregation, not copy
-		List *aggregs = getListOfAggregFunctionCalls(selectClause,
-				havingClause);
-		i = 0;
-		FOREACH(FunctionCall, agg, aggregs)
-		{
-			FOREACH(void, arg, agg->args)
-			{
-				if (!isA(arg, AttributeReference))
-				{
-					deepFree(arg);
-					arg = (char *) getNthOfListP(attrNames, i); // TODO ?
-					i++;
-				}
-			}
-		}
-		freeList(aggregs);
+        // replace non-AttributeReference arguments in aggregation with alias
+        // each entry of the list directly points to the original aggregation, not copy
+        List *aggregs = getListOfAggregFunctionCalls(selectClause,
+                havingClause);
+        i = 0;
+        FOREACH(FunctionCall, agg, aggregs)
+        {
+            FOREACH(Node, arg, agg->args)
+                    {
+                AttributeReference *new;
+                if (!isA(arg, AttributeReference))
+                {
+                    char *aName = (char *) getNthOfListP(attrNames, i);
+                    new = createAttributeReference(aName);
+                    new->fromClauseItem = 0;
+                    new->attrPosition = i;
+                    deepFree(arg);
+                    arg_his_cell->data.ptr_value = new;
+                }
+                else
+                {
+                    new =  (AttributeReference *) arg;
+                    new->fromClauseItem = 0;
+                    new->attrPosition = i;
+                }
+                i++;
+                    }
+        }
+        freeList(aggregs);
 
-		// replace non-AttributeReference expressions in groupBy with alias
-		int len = getListLength(attrNames);
-		if (groupByClause)
-		{
-			FOREACH(void, expr, groupByClause)
-			{
-				if (!isA(expr, AttributeReference) && i < len)
-				{
-					deepFree(expr);
-					expr = (char *) getNthOfListP(attrNames, i); // TODO ?
-					i++;
-				}
-			}
-		}
-		output = ((QueryOperator *) po);
-	}
+        // replace non-AttributeReference expressions in groupBy with alias
+        int len = getListLength(attrNames);
+        if (groupByClause)
+        {
+            FOREACH(Node, expr, groupByClause)
+                    {
+                AttributeReference *new;
 
-	freeList(projExprs);
-	return output;
+                if (!isA(expr, AttributeReference) && i < len)
+                {
+                    deepFree(expr);
+                    char *aName = (char *) getNthOfListP(attrNames, i);
+                    new = createAttributeReference(aName);
+                    new->fromClauseItem = 0;
+                    new->attrPosition = i;
+                    expr_his_cell->data.ptr_value = new;
+                }
+                else
+                {
+                    new =  (AttributeReference *) expr;
+                    new->fromClauseItem = 0;
+                    new->attrPosition = i;
+                }
+                i++;
+                    }
+        }
+        output = ((QueryOperator *) po);
+    }
+
+    freeList(projExprs);
+    return output;
 }
 
 static List *
 getListOfNonAttrRefExprs(List *selectClause, Node *havingClause, List *groupByClause)
 {
-	List *nonAttrRefExprs = NIL;
-	List *aggregs = getListOfAggregFunctionCalls(selectClause, havingClause);
+    List *nonAttrRefExprs = newList(T_List);
+    List *aggregs = getListOfAggregFunctionCalls(selectClause, havingClause);
+    boolean needProjection = FALSE;
 
-	// get non-AttributeReference expressions from arguments of aggregations
-	FOREACH(FunctionCall, agg, aggregs)
-	{
-		FOREACH(Node, arg, agg->args)
-		{
-			if (!isA(arg, AttributeReference))
-				nonAttrRefExprs = appendToTailOfList(nonAttrRefExprs, arg);
-		}
-	}
+    // get non-AttributeReference expressions from arguments of aggregations
+    FOREACH(FunctionCall, agg, aggregs)
+    {
+        FOREACH(Node, arg, agg->args)
+        {
+            nonAttrRefExprs = appendToTailOfList(nonAttrRefExprs, arg);
+            if (!isA(arg, AttributeReference))
+                needProjection = TRUE;
+        }
+    }
 
-	if (groupByClause)
-	{
-		// get non-AttributeReference expressions from group by clause
-		FOREACH(Node, expr, groupByClause)
-		{
-			if (!isA(expr, AttributeReference))
-				nonAttrRefExprs = appendToTailOfList(nonAttrRefExprs, expr);
-		}
-	}
+    if (groupByClause)
+    {
+        // get non-AttributeReference expressions from group by clause
+        FOREACH(Node, expr, groupByClause)
+        {
+            nonAttrRefExprs = appendToTailOfList(nonAttrRefExprs, expr);
+            if (!isA(expr, AttributeReference))
+                needProjection = TRUE;
+        }
+    }
 
-	freeList(aggregs);
-	return nonAttrRefExprs;
+    freeList(aggregs);
+    if  (needProjection)
+        return nonAttrRefExprs;
+    return NULL;
 }
 
 /*
@@ -680,9 +725,8 @@ getListOfAggregFunctionCalls(List *selectClause, Node *havingClause)
 	List *aggregs = NIL;
 	// get aggregations from select clause
 	FOREACH(Node, sel, selectClause)
-	{
 		visitAggregFunctionCall(sel, &aggregs);
-	}
+
 	// get aggregations from having clause
 	visitAggregFunctionCall(havingClause, &aggregs);
 
@@ -700,7 +744,7 @@ visitAggregFunctionCall(Node *n, List **aggregs)
 		FunctionCall *fc = (FunctionCall *) n;
 		if (fc->isAgg)
 		{
-			DEBUG_LOG("Found aggregation '%s'.", fc->functionname);
+			DEBUG_LOG("Found aggregation '%s'.", exprToSQL((Node *) fc));
 			*aggregs = appendToTailOfList(*aggregs, fc);
 
 			// do not recurse into aggregation function calls

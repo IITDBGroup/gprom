@@ -754,6 +754,19 @@ beatify(char *input)
 }
 
 char *
+itoa(int value)
+{
+    StringInfo str = makeStringInfo();
+    char *result;
+
+    appendStringInfo(str, "%d", value);
+    result = str->data;
+    FREE(str);
+
+    return result;
+}
+
+char *
 operatorToOverviewString(Node *op)
 {
     StringInfo str = makeStringInfo();
