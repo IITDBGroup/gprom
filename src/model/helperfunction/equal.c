@@ -507,7 +507,7 @@ equal(void *a, void *b)
     if (nodeTag(a) !=nodeTag(b))
         return FALSE;
 
-    DEBUG_LOG("same node types \n<%s>\nand\n<%s>", nodeToString(a), nodeToString(b));
+    TRACE_LOG("same node types \n<%s>\nand\n<%s>", nodeToString(a), nodeToString(b));
 
     switch(nodeTag(a))
     {
@@ -616,7 +616,7 @@ equal(void *a, void *b)
     }
 
     if (!retval)
-        DEBUG_LOG("not equals \n%s\n\n%s", nodeToString(a), nodeToString(b));
+        TRACE_LOG("not equals \n%s\n\n%s", nodeToString(a), nodeToString(b));
 
     return retval;
 }

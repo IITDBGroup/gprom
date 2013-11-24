@@ -632,6 +632,7 @@ outNode(StringInfo str, void *obj)
                 outDuplicateRemoval(str, (DuplicateRemoval *) obj);
                 break;
             default :
+                FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
                 break;
         }
@@ -645,9 +646,14 @@ char *
 nodeToString(void *obj)
 {
     StringInfo str;
+    char *result;
+
     str = makeStringInfo();
     outNode(str, obj);
-    return str->data;
+    result = str->data;
+    FREE(str);
+
+    return result;
 }
 
 char *

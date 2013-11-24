@@ -38,6 +38,27 @@ createAttributeReference (char *name)
     return result;
 }
 
+AttributeReference *
+createFullAttrReference (char *name, int fromClause, int attrPos,
+        int outerLevelsUp)
+{
+    AttributeReference *result = makeNode(AttributeReference);
+
+    if (name != NULL)
+    {
+        result->name = (char *) MALLOC(strlen(name) + 1);
+        strcpy(result->name, name);
+    }
+    else
+        result->name = NULL;
+
+    result->fromClauseItem = fromClause;
+    result->attrPosition = attrPos;
+    result->outerLevelsUp = outerLevelsUp;
+
+    return result;
+}
+
 Node *
 andExprs (Node *expr, ...)
 {

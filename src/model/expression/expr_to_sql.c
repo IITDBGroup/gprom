@@ -83,6 +83,9 @@ operatorToSQL (StringInfo str, Operator *node)
 static void
 exprToSQLString(StringInfo str, Node *expr)
 {
+    if (expr == NULL)
+        return;
+
     switch(expr->type)
     {
         case T_AttributeReference:

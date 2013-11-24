@@ -119,7 +119,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             expandedSelectClause = concatTwoLists(expandedSelectClause,
                     expandStarExpression(s,qb->fromClause));
         else
-            expandedSelectClause = appendToHeadOfList(expandedSelectClause,s);
+            expandedSelectClause = appendToTailOfList(expandedSelectClause,s);
     }
     qb->selectClause = expandedSelectClause;
     INFO_LOG("Expanded select clause is: <%s>",nodeToString(expandedSelectClause));
