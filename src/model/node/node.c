@@ -157,6 +157,27 @@ appendStringInfo(StringInfo str, const char *format, ...)
     }
 }
 
+boolean
+vAppendStringInfo(StringInfo str, const char *format, va_list args)
+{
+    int needed, have;
+
+    have = str->maxlen - str->len - 1;
+
+    needed = vsnprintf(str->data + str->len, have, format, args);
+
+    if (needed >= 0 && needed <= have)
+    {
+        str->len += needed;
+        return TRUE;
+    }
+    if (needed < 0)
+        FATAL_LOG("encoding error in appendStringInfo <%s>", format);
+
+    makeStringInfoSpace(str, needed);
+    return FALSE;
+}
+
 
 void
 prependStringInfo (StringInfo str, const char *format, ...)
@@ -183,7 +204,7 @@ prependStringInfo (StringInfo str, const char *format, ...)
 
 
 /*
- * Make sure that a string info has enough space to be enlarged by additonal
+ * Make sure that a string info has enough space to be enlarged by additional
  * neededSize char's.
  */
 static void

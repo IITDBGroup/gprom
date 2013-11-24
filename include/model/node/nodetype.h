@@ -113,7 +113,7 @@ extern char *concatStrings(const char *s, ...);
 * length parameter list.
 *-------------------------------------------------------------------*/
 extern void appendStringInfo(StringInfo str, const char *format, ...);
-
+extern boolean vAppendStringInfo(StringInfo str, const char *format, va_list args);
 
 /*------------------------------------------------------------------
 *appendStringInfoChar

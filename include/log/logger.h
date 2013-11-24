@@ -34,6 +34,7 @@ typedef enum LogLevel
 } LogLevel;
 
 extern void initLogger(void);
+extern void shutdownLogger (void);
 extern void log_(LogLevel level, const char *file, unsigned line, const char *template, ...);
 extern LogLevel maxLevel;
 

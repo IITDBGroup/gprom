@@ -58,15 +58,19 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
     {
         case T_QueryBlock:
             analyzeQueryBlock((QueryBlock *) stmt, parentFroms);
+            DEBUG_LOG("analyzed QB");
             break;
         case T_SetQuery:
             analyzeSetQuery((SetQuery *) stmt, parentFroms);
+            DEBUG_LOG("analyzed Set Query");
             break;
         case T_ProvenanceStmt:
             analyzeProvenanceStmt((ProvenanceStmt *) stmt, parentFroms);
+            DEBUG_LOG("analyzed Provenance Stmt");
             break;
         case T_List:
             analyzeStmtList ((List *) stmt, parentFroms);
+            DEBUG_LOG("analyzed List");
             break;
         default:
             break;
