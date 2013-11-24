@@ -900,11 +900,11 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
     // output attribute names
     appendStringInfoString(str, "(");
     FOREACH(AttributeDef,a,op->schema->attrDefs)
-    appendStringInfo(str, "%s ", a->attrName);
+        appendStringInfo(str, "%s ", a->attrName);
     appendStringInfoString(str, ")\n");
 
     FOREACH(QueryOperator,child,op->inputs)
-    operatorToOverviewInternal(str, child, indent + 1);
+        operatorToOverviewInternal(str, child, indent + 1);
 }
 
 static void
