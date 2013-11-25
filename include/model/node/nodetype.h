@@ -114,31 +114,13 @@ extern char *concatStrings(const char *s, ...);
 *-------------------------------------------------------------------*/
 extern void appendStringInfo(StringInfo str, const char *format, ...);
 extern boolean vAppendStringInfo(StringInfo str, const char *format, va_list args);
-
-/*------------------------------------------------------------------
-*appendStringInfoChar
-*The function is append byte to str.
-*-------------------------------------------------------------------*/
 extern void appendStringInfoChar(StringInfo str, char ch);
-
-/*------------------------------------------------------------------
-*appendBinaryStringInfo
-*The function is append binary data to a StringInfo.
-*-------------------------------------------------------------------*/
 extern void appendBinaryStringInfo(StringInfo str, const char *data, int datalen);
-
-/*
- * Prepend string at beginning of string info
- */
 extern void prependStringInfo (StringInfo str, const char *format, ...);
-
-
-/*------------------------------------------------------------------
-*enlargeStringInfo
-*The function is StringInfo's buffer can hold the "needed" bytes.
-*-------------------------------------------------------------------*/
 extern void enlargeStringInfo(StringInfo str, int needed);
+#define STRINGLEN(_str) _str->len
 
+// node helpers
 #define nodeTag(nodeptr) (((Node*)(nodeptr))->type)
 #define makeNode(type)  ((type*)newNode(sizeof(type),T_##type))
 #define nodeSetTag(nodeptr,t) (((Node*)(nodeptr))->type = (t))

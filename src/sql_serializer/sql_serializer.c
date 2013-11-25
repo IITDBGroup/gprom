@@ -46,24 +46,24 @@ typedef enum MatchState {
      )
 
 typedef struct QueryBlockMatch {
-    QueryOperator *distinct;
-    QueryOperator *firstProj;
-    QueryOperator *having;
-    QueryOperator *aggregation;
-    QueryOperator *secondProj;
-    QueryOperator *where;
+    DuplicateRemoval *distinct;
+    ProjectionOperator *firstProj;
+    SelectionOperator *having;
+    AggregationOperator *aggregation;
+    ProjectionOperator *secondProj;
+    SelectionOperator *where;
     QueryOperator *fromRoot;
 } QueryBlockMatch;
 
 #define OUT_BLOCK_MATCH(_level,_m) \
     do { \
-        _level ## _LOG ("distinct: ", operatorToOverviewString((Node *) _m->distinct)); \
-        _level ## _LOG ("firstProj: ", operatorToOverviewString((Node *) _m->firstProj)); \
-        _level ## _LOG ("having: ", operatorToOverviewString((Node *) _m->having)); \
-        _level ## _LOG ("aggregation: ", operatorToOverviewString((Node *) _m->aggregation)); \
-        _level ## _LOG ("secondProj: ", operatorToOverviewString((Node *) _m->secondProj)); \
-        _level ## _LOG ("where: ", operatorToOverviewString((Node *) _m->where)); \
-        _level ## _LOG ("fromRoot: ", operatorToOverviewString((Node *) _m->fromRoot)); \
+        _level ## _LOG ("distinct: %s", operatorToOverviewString((Node *) _m->distinct)); \
+        _level ## _LOG ("firstProj: %s", operatorToOverviewString((Node *) _m->firstProj)); \
+        _level ## _LOG ("having: %s", operatorToOverviewString((Node *) _m->having)); \
+        _level ## _LOG ("aggregation: %s", operatorToOverviewString((Node *) _m->aggregation)); \
+        _level ## _LOG ("secondProj: %s", operatorToOverviewString((Node *) _m->secondProj)); \
+        _level ## _LOG ("where: %s", operatorToOverviewString((Node *) _m->where)); \
+        _level ## _LOG ("fromRoot: %s", operatorToOverviewString((Node *) _m->fromRoot)); \
     } while(0)
 
 typedef struct TemporaryViewMap {
@@ -72,6 +72,11 @@ typedef struct TemporaryViewMap {
     char *viewDefinition;
     UT_hash_handle hh;
 } TemporaryViewMap;
+
+typedef struct UpdateAggAndGroupByAttrState {
+    List *aggNames;
+    List *groupByNames;
+} UpdateAggAndGroupByAttrState;
 
 /* macros */
 #define OPEN_PARENS(str) appendStringInfoChar(str, '(')
@@ -96,8 +101,11 @@ static void serializeFrom (QueryOperator *q, StringInfo from);
 static void serializeFromItem (QueryOperator *q, StringInfo from,
         int *curFromItem, int *attrOffset);
 
-static void serializeWhere (QueryOperator *q, StringInfo where);
-static void serializeSelect (QueryOperator *q, StringInfo select);
+static void serializeWhere (SelectionOperator *q, StringInfo where);
+static boolean updateAttributeNames(Node *node, List *attrs);
+
+static void serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
+        StringInfo having, StringInfo groupBy);
 
 static char *createFromNames (int *attrOffset, int count);
 
@@ -195,8 +203,11 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
     StringInfo fromString = makeStringInfo();
     StringInfo whereString = makeStringInfo();
     StringInfo selectString = makeStringInfo();
+    StringInfo groupByString = makeStringInfo();
+    StringInfo havingString = makeStringInfo();
     MatchState state = MATCH_START;
     QueryOperator *cur = q;
+    List *attrNames = getQueryOperatorAttrNames(q);
 
     // do the matching
     while(state != MATCH_NEXTBLOCK && cur != NULL)
@@ -231,13 +242,13 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                         /* HAVING */
                         if (isA(child,AggregationOperator))
                         {
-                            matchInfo->having = cur;
+                            matchInfo->having = (SelectionOperator *) cur;
                             state = MATCH_HAVING;
                         }
                         /* WHERE */
                         else
                         {
-                            matchInfo->where = cur;
+                            matchInfo->where = (SelectionOperator *) cur;
                             state = MATCH_WHERE;
                         }
                     }
@@ -252,12 +263,12 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                                 || (isA(child,SelectionOperator)
                                         && isA(grandChild,AggregationOperator)))
                         {
-                            matchInfo->firstProj = cur;
+                            matchInfo->firstProj = (ProjectionOperator *) cur;
                             state = MATCH_FIRST_PROJ;
                         }
                         else
                         {
-                            matchInfo->secondProj = cur;
+                            matchInfo->secondProj = (ProjectionOperator *) cur;
                             state = MATCH_SECOND_PROJ;
                         }
                     }
@@ -265,7 +276,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                     case T_DuplicateRemoval:
                         if (state == MATCH_START)
                         {
-                            matchInfo->distinct = cur;
+                            matchInfo->distinct = (DuplicateRemoval *) cur;
                             state = MATCH_DISTINCT;
                         }
                         else
@@ -275,7 +286,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                         }
                         break;
                     case T_AggregationOperator:
-                        matchInfo->aggregation = cur;
+                        matchInfo->aggregation = (AggregationOperator *) cur;
                         state = MATCH_AGGREGATION;
                         break;
                     default:
@@ -294,13 +305,13 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                         QueryOperator *child = OP_LCHILD(cur);
                         if (child->type == T_AggregationOperator)
                         {
-                            matchInfo->having = cur;
+                            matchInfo->having = (SelectionOperator *) cur;
                             state = MATCH_HAVING;
                         }
                     }
                     break;
                     case T_AggregationOperator:
-                        matchInfo->aggregation= cur;
+                        matchInfo->aggregation= (AggregationOperator *) cur;
                         state = MATCH_AGGREGATION;
                         break;
                     default:
@@ -317,7 +328,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                 {
                     case T_AggregationOperator:
                     {
-                        matchInfo->aggregation = cur;
+                        matchInfo->aggregation = (AggregationOperator *) cur;
                         state = MATCH_AGGREGATION;
                     }
                     break;
@@ -334,12 +345,12 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                 {
                     case T_SelectionOperator:
                     {
-                        matchInfo->where = cur;
+                        matchInfo->where = (SelectionOperator *) cur;
                         state = MATCH_WHERE;
                     }
                     break;
                     case T_ProjectionOperator:
-                        matchInfo->secondProj = cur;
+                        matchInfo->secondProj = (ProjectionOperator *) cur;
                         state = MATCH_SECOND_PROJ;
                         break;
                     default:
@@ -355,7 +366,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                 {
                     case T_SelectionOperator:
                     {
-                        matchInfo->where = cur;
+                        matchInfo->where = (SelectionOperator *) cur;
                         state = MATCH_WHERE;
                     }
                     break;
@@ -384,27 +395,36 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     OUT_BLOCK_MATCH(INFO,matchInfo);
 
-    // translate FROM
+    // translate each clause
+    DEBUG_LOG("serializeFrom");
     serializeFrom(matchInfo->fromRoot, fromString);
 
+    DEBUG_LOG("serializeWhere");
     if(matchInfo->where != NULL)
         serializeWhere(matchInfo->where, whereString);
 
-    if(matchInfo->secondProj != NULL)
-        serializeSelect(matchInfo->secondProj, selectString);
-    else
-        appendStringInfoString(selectString, "*");
+    DEBUG_LOG("serialize projection + aggregation + groupBy +  having");
+    serializeProjectionAndAggregation(matchInfo, selectString, havingString,
+            groupByString);
 
     // put everything together
-    appendStringInfoString(str, "\nSELECT ");
-    appendStringInfoString(str, selectString->data);
+    DEBUG_LOG("mergePartsTogether");
+    //TODO DISTINCT
+    if (STRINGLEN(selectString) > 0)
+        appendStringInfoString(str, selectString->data);
+    else
+        appendStringInfoString(str, "\nSELECT *");
 
-    appendStringInfoString(str, "\nFROM ");
     appendStringInfoString(str, fromString->data);
 
-    appendStringInfoString(str, "\nWHERE ");
-    appendStringInfoString(str, whereString->data);
+    if (STRINGLEN(whereString) > 0)
+        appendStringInfoString(str, whereString->data);
 
+    if (STRINGLEN(groupByString) > 0)
+            appendStringInfoString(str, groupByString->data);
+
+    if (STRINGLEN(havingString) > 0)
+            appendStringInfoString(str, havingString->data);
 
     FREE(matchInfo);
 }
@@ -419,8 +439,6 @@ serializeFrom (QueryOperator *q, StringInfo from)
 
     appendStringInfoString(from, "\nFROM ");
     serializeFromItem (q, from, &curFromItem, &attrOffset);
-
-//    appendStringInfoString(from, );
 }
 
 static void
@@ -455,6 +473,8 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                 break;
             }
             serializeFromItem(OP_RCHILD(j), from, curFromItem, attrOffset);
+
+            *attrOffset = 0;
             attrs = createFromNames(attrOffset, LIST_LENGTH(j->op.schema->attrDefs));
             appendStringInfo(from, ") F%u(%s))", (*curFromItem)++, attrs);
         }
@@ -462,12 +482,15 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         case T_TableAccessOperator:
         {
             TableAccessOperator *t = (TableAccessOperator *) q;
+
+            *attrOffset = 0;
             attrs = createFromNames(attrOffset, LIST_LENGTH(t->op.schema->attrDefs));
             appendStringInfo(from, "((%s) F%u(%s))", t->tableName, (*curFromItem)++, attrs);
         }
         break;
         default:
         {
+            *attrOffset = 0;
             appendStringInfoString(from, "((");
             serializeQueryOperator(q, from);
             attrs = createFromNames(attrOffset, LIST_LENGTH(q->schema->attrDefs));
@@ -483,8 +506,9 @@ createFromNames (int *attrOffset, int count)
     char *result = NULL;
     StringInfo str = makeStringInfo();
 
-    for(int i = *attrOffset; i < count; i++)
-        appendStringInfo(str, "%sa%u", i, (i == *attrOffset) ? "" : ", ");
+    for(int i = *attrOffset; i < count + *attrOffset; i++)
+        appendStringInfo(str, "%sa%u", (i == *attrOffset)
+                ? "" : ", ", i);
 
     *attrOffset += count;
     result = str->data;
@@ -497,20 +521,195 @@ createFromNames (int *attrOffset, int count)
  * Translate a selection into a WHERE clause
  */
 static void
-serializeWhere (QueryOperator *q, StringInfo where)
+serializeWhere (SelectionOperator *q, StringInfo where)
 {
     appendStringInfoString(where, "\nWHERE ");
-//    appendStringInfoString(where, whereString->data);
+    updateAttributeNames((Node *) q->cond, NULL);
+    appendStringInfoString(where, exprToSQL(q->cond));
+}
+
+static boolean
+updateAttributeNames(Node *node, List *attrs)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+        char *newName;
+
+        // use from clause attribute nomenclature
+        if (LIST_LENGTH(attrs) == 0)
+            newName = CONCAT_STRINGS("a", itoa(a->attrPosition));
+        // use provided attribute expressions
+        else
+            newName = strdup(getNthOfListP(attrs,a->attrPosition));
+
+        a->name = newName;
+    }
+
+    return visit(node, updateAttributeNames, attrs);
+}
+
+static boolean
+updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+        char *newName;
+        int attrPos = a->attrPosition;
+
+        // is aggregation function
+        if (attrPos < LIST_LENGTH(state->aggNames))
+            newName = strdup(getNthOfListP(state->aggNames, attrPos));
+        else
+        {
+            attrPos -= LIST_LENGTH(state->aggNames);
+            newName = strdup(getNthOfListP(state->groupByNames, attrPos));
+        }
+        DEBUG_LOG("attr <%d> is <%s>", a->attrPosition, newName);
+
+        a->name = newName;
+    }
+
+    return visit(node, updateAggsAndGroupByAttrs, state);
 }
 
 /*
- * Create the SELECT clause
+ * Create the SELECT, GROUP BY, and HAVING clause
  */
 static void
-serializeSelect (QueryOperator *q, StringInfo select)
+serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
+        StringInfo having, StringInfo groupBy)
 {
+    int pos = 0;
+    List *secondProjs = NIL;
+    List *aggs = NIL;
+    List *groupBys = NIL;
+    List *firstProjs = NIL;
+    AggregationOperator *agg = (AggregationOperator *) m->aggregation;
+    UpdateAggAndGroupByAttrState *state = NULL;
+
     appendStringInfoString(select, "\nSELECT ");
-//    appendStringInfoString(select, selectString->data);
+
+    // first projection level for aggregation inputs and group-by
+    if (m->secondProj != NULL)
+    {
+        FOREACH(Node,n,m->secondProj->projExprs)
+        {
+            updateAttributeNames(n, NULL);
+            secondProjs = appendToTailOfList(secondProjs, exprToSQL(n));
+        }
+        INFO_LOG("second projection (agg and group by inputs) is %s",
+                stringListToString(secondProjs));
+    }
+
+    // aggregation if need be
+    if (agg != NULL)
+    {
+        // aggregation
+        FOREACH(Node,expr,agg->aggrs)
+        {
+            updateAttributeNames(expr, secondProjs);
+            aggs = appendToTailOfList(aggs, exprToSQL(expr));
+        }
+        INFO_LOG("agg attributes are %s", stringListToString(aggs));
+
+        // group by
+        FOREACH(Node,expr,agg->groupBy)
+        {
+            char *g;
+            if (pos++ == 0)
+                appendStringInfoString (groupBy, "\nGROUP BY ");
+            else
+                appendStringInfoString (groupBy, ", ");
+
+            updateAttributeNames(expr, secondProjs);
+            g = exprToSQL(expr);
+
+            groupBys = appendToTailOfList(groupBys, g);
+            appendStringInfo(groupBy, "%s", strdup(g));
+        }
+        INFO_LOG("group by attributes are %s", stringListToString(groupBys));
+
+        state = NEW(UpdateAggAndGroupByAttrState);
+        state->aggNames = aggs;
+        state->groupByNames = groupBys;
+    }
+
+    // having
+    if (m->having != NULL)
+    {
+        SelectionOperator *sel = (SelectionOperator *) m->having;
+        DEBUG_LOG("having condition %s", nodeToString(sel->cond));
+        updateAggsAndGroupByAttrs(sel->cond, state);
+        appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond));
+        INFO_LOG("having translation %s", having->data);
+    }
+
+    // second level of projection either if no aggregation or using aggregation
+    if (m->firstProj != NULL)
+    {
+        int pos = 0;
+        ProjectionOperator *p = m->firstProj;
+
+        FOREACH(Node,a,p->projExprs)
+        {
+            if (pos++ != 0)
+                appendStringInfoString(select, ", ");
+
+            // is projection over aggregation
+            if (agg)
+                updateAggsAndGroupByAttrs(a, state);
+            // is projection in query without aggregation
+            else
+                updateAttributeNames(a, NULL);
+            appendStringInfoString(select, exprToSQL(a));
+        }
+
+        INFO_LOG("second projection expressions %s", select->data);
+    }
+    // get aggregation result attributes
+    else if (agg)
+    {
+        int pos = 0;
+
+        FOREACH(char,name,aggs)
+        {
+            if (pos++ != 0)
+                appendStringInfoString(select, ", ");
+            appendStringInfoString(select, name);
+        }
+        FOREACH(char,name,groupBys)
+        {
+            if (pos++ != 0)
+                appendStringInfoString(select, ", ");
+            appendStringInfoString(select, name);
+        }
+        INFO_LOG("aggregation result as projection expressions %s", select->data);
+    }
+    // get attributes from FROM clause root
+    else
+    {
+        List *fromAttrs = getQueryOperatorAttrNames(m->fromRoot);
+
+        FOREACH(char,name,fromAttrs)
+        {
+            if (pos++ != 0)
+                appendStringInfoString(select, ", ");
+            appendStringInfoString(select, name);
+        }
+
+        INFO_LOG("FROM root attributes as projection expressions %s", select->data);
+    }
+
+    if (state)
+        FREE(state);
 }
 
 

@@ -547,7 +547,7 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 	aggPlusGroup = concatTwoLists(copyList(aggrs), copyList(groupByClause));
 
 	// does query use aggregation or group by at all?
-	if (numAgg == 0 && newGroupBy == 0)
+	if (numAgg == 0 && numGroupBy == 0)
 	    return input;
 
 	// if necessary create projection for aggregation inputs that are not simple

@@ -257,6 +257,17 @@ getNormalAttrs(QueryOperator *op)
     return op ? op->schema ? op->schema->attrDefs : NIL : NIL;
 }
 
+List *
+getQueryOperatorAttrNames (QueryOperator *op)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+        result = appendToTailOfList(result, strdup(a->attrName));
+
+    return result;
+}
+
 static Schema *
 mergeSchemas (List *inputs)
 {

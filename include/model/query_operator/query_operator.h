@@ -131,5 +131,6 @@ extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
 /* access functions */
 extern List *getProvenanceAttrs(QueryOperator *op);
 extern List *getNormalAttrs(QueryOperator *op);
+extern List *getQueryOperatorAttrNames (QueryOperator *op);
 
 #endif /* QUERY_OPERATOR_H_ */
