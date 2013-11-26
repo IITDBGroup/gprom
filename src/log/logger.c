@@ -18,21 +18,24 @@
  *-------------------------------------------------------------------------
  */
 
+#include "common.h"
 #include "log/logger.h"
+#include "model/node/nodetype.h"
 #include "configuration/option.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
 
 static char *h[] =
     {"FATAL: ", "ERROR: ", "WARN: ", "INFO: ", "DEBUG: ", "TRACE: "};
-static int maxLevel = LOG_INFO;
+static StringInfo buffer;
+
+LogLevel maxLevel = LOG_INFO;
 
 /* internal inlined functions */
-static inline char *
-getHead(LogLevel level);
-static inline FILE *
-getOutput(LogLevel level);
+static inline char *getHead(LogLevel level);
+static inline FILE *getOutput(LogLevel level);
+static boolean vAppendBuf(StringInfo str, const char *format, va_list args);
+
+
+#undef free
 
 static inline char *
 getHead(LogLevel level)
@@ -50,8 +53,22 @@ void
 initLogger(void)
 {
     Options *options = getOptions();
+
+    buffer = (StringInfo) malloc(sizeof(StringInfoData));
+    buffer->len = 0;
+    buffer->maxlen = 4096;
+    buffer->cursor = 0;
+    buffer->data = (char *) malloc(4096);
+
     if (options && options->optionDebug)
         maxLevel = options->optionDebug->loglevel;
+}
+
+void
+shutdownLogger (void)
+{
+    free(buffer->data);
+    free(buffer);
 }
 
 void
@@ -59,23 +76,80 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
 {
     if (level <= maxLevel)
     {
-        va_list args;
-        va_start(args, template);
+        boolean success = FALSE;
         FILE *out = getOutput(level);
+        buffer->len = 0;
+        buffer->cursor = 0;
+        buffer->data[0] = '\0';
 
+        // output loglevel and location of log statement
         fprintf(out, "%s", getHead(level));
-        vfprintf(out, template, args);
         if (file && line > 0)
         {
-            fprintf(out, " (%s:%u)\n", file, line);
+            fprintf(out, "(%s:%u) ", file, line);
         }
         else
         {
-            fprintf(out, " (unknown)\n");
+            fprintf(out, "(unknown) ");
         }
-        fflush(out);
 
-        va_end(args);
+        // use string info as buffer to deal with large strings
+        while(!success)
+        {
+            va_list args;
+
+            va_start(args, template);
+            success = vAppendBuf(buffer, template, args);
+            va_end(args);
+        }
+
+        fprintf(stderr, "log len <%d>", buffer->len);
+
+        // output a fixed number of chars at a time to not reach fprintf limit
+        int todo = buffer->len;
+        char *curBuf = buffer->data;
+        while(todo > 0)
+        {
+            size_t write = (todo >= 256) ? 256 : todo;
+            assert(fwrite(curBuf, sizeof(char), write, out) == write);
+            curBuf += write;
+            todo -= write;
+            fflush(out);
+        }
+
+        // flush output stream
+        fprintf(out, "\n");
+        fflush(out);
     }
 }
 
+static boolean
+vAppendBuf(StringInfo str, const char *format, va_list args)
+{
+    int needed, have;
+
+    have = str->maxlen - str->len - 1;
+
+    needed = vsnprintf(str->data + str->len, have, format, args);
+
+    if (needed >= 0 && needed <= have)
+    {
+        str->len += needed;
+        return TRUE;
+    }
+    if (needed < 0)
+        fprintf(stderr, "encoding error in appendStringInfo <%s>", format);
+
+    while(str->len + needed >= str->maxlen)
+    {
+        char *newData;
+
+        str->maxlen *= 2;
+        newData = malloc(str->maxlen); // change after we have REALLOC
+        memcpy(newData, str->data, str->len + 1);
+        free(str->data);
+        str->data = newData;
+    }
+
+    return FALSE;
+}

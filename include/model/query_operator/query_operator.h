@@ -49,27 +49,27 @@ typedef struct TableAccessOperator
 typedef struct SelectionOperator
 {
     QueryOperator op;
-    Node *cond; // condition expression, Expr type
+    Node *cond; // condition expression
 } SelectionOperator;
 
 typedef struct ProjectionOperator
 {
     QueryOperator op;
-    List *projExprs; // projection expressions, Expression type
+    List *projExprs; // projection expressions
 } ProjectionOperator;
 
 typedef struct JoinOperator
 {
     QueryOperator op;
     JoinType joinType;
-    Node *cond; // join condition expression, Operator type
+    Node *cond; // join condition expression
 } JoinOperator;
 
 typedef struct AggregationOperator
 {
     QueryOperator op;
     List *aggrs; // aggregation expressions, FunctionCall type
-    List *groupBy; // group by expressions, AttributeReference type
+    List *groupBy; // group by expressions
 } AggregationOperator;
 
 typedef struct SetOperator
@@ -84,22 +84,23 @@ typedef struct DuplicateRemoval
     List *attrs; // attributes that need duplicate removal, AttributeReference type
 } DuplicateRemoval;
 
-typedef enum ProvenanceType
-{
-    PI_CS,
-    TRANSFORMATION
-} ProvenanceType;
-
 typedef struct ProvenanceComputation
 {
     QueryOperator op;
     ProvenanceType provType;
 } ProvenanceComputation;
 
+typedef struct UpdateOperator
+{
+    QueryOperator op;
+    char *tableName;
+} UpdateOperator;
+
 /* schema helper functions */
 extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames, List *dataTypes);
 extern List *getDataTypes (Schema *schema);
+extern List *getAttrNames(Schema *schema);
 
 /* create functions */
 extern TableAccessOperator *createTableAccessOp (char *tableName, char *alias, List *parents, List *attrNames, List *dataTypes);
@@ -113,13 +114,23 @@ extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, 
 
 /* navigation functions */
 #define OP_LCHILD(op) \
-    ((QueryOperator *) ((QueryOperator*) op)->inputs->head->data.ptr_value)
+    ((QueryOperator *) getHeadOfListP(((QueryOperator*) op)->inputs))
 
 #define OP_RCHILD(op) \
-    ((QueryOperator *) ((QueryOperator*) op)->inputs->head->next->data.ptr_value)
+    ((QueryOperator *) getNthOfListP(((QueryOperator*) op)->inputs,1))
+
+#define _OP_LCHILD(op) \
+    getHeadOfListP(((QueryOperator*) op)->inputs)
+
+#define _OP_RCHILD(op) \
+    getNthOfListP(((QueryOperator*) op)->inputs,1)
+
+/*  */
+extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
 
 /* access functions */
 extern List *getProvenanceAttrs(QueryOperator *op);
 extern List *getNormalAttrs(QueryOperator *op);
+extern List *getQueryOperatorAttrNames (QueryOperator *op);
 
 #endif /* QUERY_OPERATOR_H_ */

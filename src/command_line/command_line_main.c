@@ -10,10 +10,24 @@
  *-------------------------------------------------------------------------
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#include "common.h"
 #include "command_line/command_line_main.h"
 #include "configuration/option_parser.h"
+#include "mem_manager/mem_mgr.h"
+#include "log/logger.h"
+
+#include "model/node/nodetype.h"
+#include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
+
+#include "rewriter.h"
+
+#include "metadata_lookup/metadata_lookup.h"
+
+static void init();
+static void cleanup();
+static char *process(char *sql);
+
 
 int
 main(int argc, char* argv[]) {
@@ -22,13 +36,21 @@ main(int argc, char* argv[]) {
 	int rc=parseOption(argc,argv);
 
 	if(rc<0)
+	{
 		printError();
+		return EXIT_FAILURE;
+	}
 	else if(rc>0)
+	{
 		printHelp();
+		return EXIT_FAILURE;
+	}
 	else
 	{
 		printSuccess();
+		init();
 		inputSQL();
+		cleanup();
 	}
 
 	freeOptions();
@@ -79,12 +101,27 @@ printSuccess()
 	printf("===================================================================\n");
 }
 
+static void
+init()
+{
+    initMemManager();
+    initMetadataLookupPlugin();
+}
+
+static void
+cleanup()
+{
+    destroyMemManager();
+}
+
 void
 inputSQL()
 {
-	char* sql=(char*)malloc(sizeof(char)*999);
+	char* sql=(char*) CALLOC(999,1);
 	while(TRUE)
 	{
+	    char *rewritten;
+
 		printf("Please input a SQL or 'q' to exit the program\n");
 		scanf("%s",sql);
 		if(*sql=='q')
@@ -92,7 +129,21 @@ inputSQL()
 			printf("Client Exit.\n");
 			break;
 		}
-		printf("Rewrite SQL is:%s\n",sql);
+
+		NEW_AND_ACQUIRE_MEMCONTEXT("PROCESS_CONTEXT");
+		rewritten = process(sql);
+		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+
+		printf("Rewrite SQL is:%s\n",rewritten);
 	}
-	free(sql);
+	FREE(sql);
+}
+
+/*
+ * Parse -> Translate -> Provenance Rewrite -> Serialize
+ */
+static char *
+process(char *sql)
+{
+    return rewriteQuery(sql);
 }

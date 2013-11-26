@@ -86,6 +86,19 @@ getDataTypes (Schema *schema)
     return result;
 }
 
+List *
+getAttrNames(Schema *schema)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeDef,a,schema->attrDefs)
+    {
+        result = appendToTailOfList(result, a->attrName);
+    }
+
+    return result;
+}
+
 TableAccessOperator *
 createTableAccessOp(char *tableName, char *alias, List *parents,
         List *attrNames, List *dataTypes)
@@ -108,7 +121,7 @@ createSelectionOp(Node *cond, QueryOperator *input, List *parents,
 {
     SelectionOperator *sel = NEW(SelectionOperator);
 
-    sel->cond = cond;
+    sel->cond = copyObject(cond);
     sel->op.type = T_SelectionOperator;
     sel->op.inputs = singleton(input);
     sel->op.schema = createSchemaFromLists("SELECT", attrNames, getDataTypes(input->schema));
@@ -124,7 +137,11 @@ createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
 {
     ProjectionOperator *prj = NEW(ProjectionOperator);
 
-    prj->projExprs = projExprs;
+    FOREACH(Node, expr, projExprs)
+    {
+        prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
+    }
+
     prj->op.type = T_ProjectionOperator;
     prj->op.inputs = singleton(input);
     prj->op.schema = schemaFromExpressions("PROJECTION", attrNames, projExprs,
@@ -142,7 +159,7 @@ createJoinOp(JoinType joinType, Node *cond, List *inputs, List *parents,
 {
     JoinOperator *join = NEW(JoinOperator);
 
-    join->cond = cond;
+    join->cond = copyObject(cond);
     join->joinType = joinType;
     join->op.type = T_JoinOperator;
     join->op.inputs = inputs;
@@ -165,8 +182,14 @@ createAggregationOp(List *aggrs, List *groupBy, QueryOperator *input,
 {
     AggregationOperator *aggr = NEW(AggregationOperator);
 
-    aggr->aggrs = aggrs;
-    aggr->groupBy = groupBy;
+    FOREACH(Node, func, aggrs)
+    {
+    	aggr->aggrs = appendToTailOfList(aggr->aggrs, copyObject(func));
+    }
+    FOREACH(Node, expr, groupBy)
+    {
+    	aggr->groupBy = appendToTailOfList(aggr->groupBy, copyObject(expr));
+    }
     aggr->op.type = T_AggregationOperator;
     aggr->op.inputs = singleton(input);
     aggr->op.schema = schemaFromExpressions("AGG", attrNames,
@@ -207,6 +230,42 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
     dr->op.provAttrs = NULL;
 
     return dr;
+}
+
+ProvenanceComputation *
+createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, List *parents, List *attrNames)
+{
+    return NULL; //TODO
+}
+
+extern void
+addChildOperator (QueryOperator *parent, QueryOperator *child)
+{
+    parent->inputs = appendToTailOfList(parent->inputs, child);
+    child->parents = appendToTailOfList(child->parents, parent);
+}
+
+List *
+getProvenanceAttrs(QueryOperator *op)
+{
+    return op ? op->provAttrs : NIL;
+}
+
+List *
+getNormalAttrs(QueryOperator *op)
+{
+    return op ? op->schema ? op->schema->attrDefs : NIL : NIL;
+}
+
+List *
+getQueryOperatorAttrNames (QueryOperator *op)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+        result = appendToTailOfList(result, strdup(a->attrName));
+
+    return result;
 }
 
 static Schema *

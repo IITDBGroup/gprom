@@ -13,3 +13,9 @@ config.log
 config.status
 *~
 test/testparser
+test/testupana
+test/testanalysis
+.settings
+test/testtranslate
+test/testserializer
+test/testvisit

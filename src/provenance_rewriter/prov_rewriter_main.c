@@ -23,6 +23,15 @@ static QueryOperator *findProvenanceComputations (QueryOperator *op);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
 
 /* function definitions */
+List *
+provRewriteQueryList (List *list)
+{
+    FOREACH(QueryOperator,q,list)
+        q_his_cell->data.ptr_value = provRewriteQuery(q);
+
+    return list;
+}
+
 
 QueryOperator *
 provRewriteQuery (QueryOperator *input)
@@ -35,8 +44,8 @@ QueryOperator *
 findProvenanceComputations (QueryOperator *op)
 {
     // is provenance computation? then rewrite
-    if (isA(op, List))
-        return rewriteProvenanceComputation((ProvenanceComputation *) op);
+    if (isA(op, ProvenanceComputation))
+        rewriteProvenanceComputation((ProvenanceComputation *) op);
 
     // else search for children with provenance
     FOREACH(QueryOperator, x, op->inputs)
@@ -53,7 +62,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     switch(op->provType)
     {
         case PI_CS:
-            return rewritePI_CS((QueryOperator *) op);
+            return rewritePI_CS(op);
         case TRANSFORMATION:
             return rewriteTransformationProvenance((QueryOperator *) op);
     }

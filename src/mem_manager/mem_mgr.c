@@ -12,12 +12,20 @@
  *-------------------------------------------------------------------------
  */
 
-#include <stdlib.h>
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "uthash.h"
-#include <assert.h>
+
+
+// override the defaults for UT_hash memory allocation to use standard malloc
+#undef uthash_malloc
+#undef uthash_free
+#define uthash_malloc(sz) malloc(sz)
+#define uthash_free(ptr,sz) free(ptr)
+
+// use actual free function
+#undef free
 
 #define DEFAULT_MEM_CONTEXT_NAME "DEFAULT_MEMORY_CONTEXT"
 
@@ -27,10 +35,10 @@ typedef struct MemContextNode
     struct MemContextNode *next;
 } MemContextNode; // context stack node
 
-static void
-addAlloc(MemContext *mc, void *addr, const char *file, unsigned line);
-static void
-delAlloc(MemContext *mc, void *addr, const char *file, unsigned line);
+static void addAlloc(MemContext *mc, void *addr, const char *file,
+        unsigned line);
+static void delAlloc(MemContext *mc, void *addr, const char *file,
+        unsigned line);
 
 static MemContext *curMemContext = NULL; // global pointer to current memory context
 static MemContext *defaultMemContext = NULL;
@@ -111,12 +119,13 @@ getCurMemContext(void)
  * Pops current context and returns to the previous context. Will not free
  * the current context.
  */
-void
+MemContext *
 releaseCurMemContext(const char *file, unsigned line)
 {
     if (topContextNode->next) // does not free the bottom node holding default context
     {
         MemContextNode *oldTop = topContextNode;
+        MemContext *oldContext = oldTop->mc;
         topContextNode = oldTop->next;
         free(oldTop);
         contextStackSize--;
@@ -126,7 +135,10 @@ releaseCurMemContext(const char *file, unsigned line)
         log_(LOG_DEBUG, file, line,
                 "Set back current memory context to '%s'@%p.",
                 curMemContext->contextName, curMemContext);
+        return oldContext;
     }
+
+    return NULL;
 }
 
 /*
@@ -141,7 +153,7 @@ addAlloc(MemContext *mc, void *addr, const char *file, unsigned line)
     newAlloc->file = file;
     newAlloc->line = line;
     HASH_ADD_PTR(mc->hashAlloc, address, newAlloc); // add to hash table. Use address as key
-    log_(LOG_DEBUG, file, line,
+    log_(LOG_TRACE, file, line,
             "Added [addr:%p, file:'%s', line:%u] to memory context '%s'.", addr,
             file, line, mc->contextName);
 }
@@ -160,7 +172,7 @@ delAlloc(MemContext *mc, void *addr, const char *file, unsigned line)
         int tmpline = alloc->line;
         HASH_DEL(mc->hashAlloc, alloc); // remove the allocation info
         free(alloc);
-        log_(LOG_DEBUG, file, line,
+        log_(LOG_TRACE, file, line,
                 "Deleted [addr:%p, file:'%s', line:%d] from memory context '%s'.",
                 addr, tmpfile, tmpline, mc->contextName);
     }
@@ -204,12 +216,12 @@ findAlloc(const MemContext *mc, const void *addr)
     HASH_FIND_PTR(mc->hashAlloc, &addr, alloc);
     if (alloc)
     {
-        DEBUG_LOG("Found [addr:%p, file:'%s', line:%d] in memory context '%s'.",
+        TRACE_LOG("Found [addr:%p, file:'%s', line:%d] in memory context '%s'.",
                 alloc->address, alloc->file, alloc->line, mc->contextName);
     }
     else
     {
-        DEBUG_LOG("Could not find address %p in memory context '%s'.", addr,
+        TRACE_LOG("Could not find address %p in memory context '%s'.", addr,
                 mc->contextName);
     }
     return alloc;

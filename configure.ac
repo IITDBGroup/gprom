@@ -104,6 +104,7 @@ AC_CHECK_TYPES([ptrdiff_t])
 # HEADERS
 AC_CHECK_HEADERS([stddef.h])
 AC_CHECK_HEADERS([libintl.h])
+AC_HEADER_ASSERT
 ################################################################################
 # MEMORY ALLOCATION STUFF
 AC_CHECK_HEADERS([malloc.h])
@@ -145,7 +146,8 @@ AC_CONFIG_FILES([
 	src/model/node/Makefile
 	src/model/query_block/Makefile
 	src/model/query_operator/Makefile
-	src/operator_optimizer/Makefile
+	src/model/set/Makefile
+    src/operator_optimizer/Makefile
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile
 	src/provenance_rewriter/pi_cs_rewrites/Makefile

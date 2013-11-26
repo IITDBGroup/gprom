@@ -15,12 +15,14 @@
 #ifndef TEST_MAIN_H_
 #define TEST_MAIN_H_
 
-#include <stdio.h>
-#include <string.h>
+#include "common.h"
 
 #include "model/node/nodetype.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
+
+/* are using actual free here */
+#undef free
 
 /* return values for tests */
 #define PASS 0
@@ -123,6 +125,7 @@ extern char *getIndent(int depth);
 
 /* individual tests */
 extern rc testList(void);
+extern rc testSet(void);
 extern rc testExpr(void);
 extern rc testCopy(void);
 extern rc testEqual(void);
@@ -131,5 +134,6 @@ extern rc testLogger(void);
 extern rc testMemManager(void);
 extern rc testParse(void);
 extern rc testMetadataLookup(void);
+extern rc testString(void);
 
 #endif

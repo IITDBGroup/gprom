@@ -16,9 +16,8 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "model/node/nodetype.h"
+#include "model/list/list.h"
 #include "model/expression/expression.h"
-
-
 
 AttributeReference *
 createAttributeReference (char *name)
@@ -34,10 +33,53 @@ createAttributeReference (char *name)
         result->name = NULL;
     result->fromClauseItem = INVALID_FROM_ITEM;
     result->attrPosition = INVALID_ATTR;
+    result->outerLevelsUp = INVALID_ATTR;
 
     return result;
 }
 
+AttributeReference *
+createFullAttrReference (char *name, int fromClause, int attrPos,
+        int outerLevelsUp)
+{
+    AttributeReference *result = makeNode(AttributeReference);
+
+    if (name != NULL)
+    {
+        result->name = (char *) MALLOC(strlen(name) + 1);
+        strcpy(result->name, name);
+    }
+    else
+        result->name = NULL;
+
+    result->fromClauseItem = fromClause;
+    result->attrPosition = attrPos;
+    result->outerLevelsUp = outerLevelsUp;
+
+    return result;
+}
+
+Node *
+andExprs (Node *expr, ...)
+{
+    Node *result = NULL;
+    Node *curArg = NULL;
+    va_list args;
+
+    va_start(args, expr);
+
+    while((curArg = va_arg(args,Node*)))
+    {
+        if (result == NULL)
+            result = copyObject(curArg);
+        else
+            result = (Node *) createOpExpr("AND", LIST_MAKE(result, copyObject(curArg)));
+    }
+
+    va_end(args);
+
+    return result;
+}
 
 FunctionCall *
 createFunctionCall(char *fName, List *args)
@@ -46,7 +88,7 @@ createFunctionCall(char *fName, List *args)
     
     if(fName != NULL)
     {
-        result->functionname = (char *) MALLOC(strlen(fName) + 1);
+        result->functionname = (char *) CALLOC(1,strlen(fName) + 1);
         strcpy(result->functionname, fName);
     }
     else
@@ -65,7 +107,7 @@ createOpExpr(char *name, List *args)
 
     if(name != NULL)
     {
-        result->name = (char *) MALLOC(strlen(name) + 1);
+        result->name = (char *) CALLOC(1, strlen(name) + 1);
         strcpy(result->name, name);
     }
     else
@@ -101,7 +143,7 @@ createConstString (char *value)
 }
 
 Constant *
-createConstFloat (float value)
+createConstFloat (double value)
 {
     Constant *result = makeNode(Constant);
     double *v = NEW(double);
@@ -113,6 +155,18 @@ createConstFloat (float value)
     return result;
 }
 
+Constant *
+createConstBool (boolean value)
+{
+    Constant *result = makeNode(Constant);
+    boolean *v = NEW(boolean);
+
+    *v = value;
+    result->constType = DT_BOOL;
+    result->value = v;
+
+    return result;
+}
 
 DataType
 typeOf (Node *expr)

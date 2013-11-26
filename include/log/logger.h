@@ -21,7 +21,7 @@
 #ifndef LOGGER_H_
 #define LOGGER_H_
 
-#include <stdio.h>
+#include "common.h"
 
 typedef enum LogLevel
 {
@@ -34,20 +34,41 @@ typedef enum LogLevel
 } LogLevel;
 
 extern void initLogger(void);
+extern void shutdownLogger (void);
 extern void log_(LogLevel level, const char *file, unsigned line, const char *template, ...);
+extern LogLevel maxLevel;
 
 #define FATAL_LOG(template, ...) \
-        log_(LOG_FATAL, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    do { \
+        log_(LOG_FATAL, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
+        exit(1); \
+    } while (0)
 #define ERROR_LOG(template, ...) \
-        log_(LOG_ERROR, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    do { \
+    	if (maxLevel >= LOG_ERROR) \
+            log_(LOG_ERROR, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
+    } while (0)
 #define WARN_LOG(template, ...) \
-        log_(LOG_WARN, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    do { \
+    	if (maxLevel >= LOG_WARN) \
+            log_(LOG_WARN, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
+    } while (0)
 #define INFO_LOG(template, ...) \
-        log_(LOG_INFO, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    do { \
+        if (maxLevel >= LOG_INFO) \
+            log_(LOG_INFO, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
+    } while (0)
 #define DEBUG_LOG(template, ...) \
-        log_(LOG_DEBUG, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    do { \
+    	if (maxLevel >= LOG_DEBUG) \
+            log_(LOG_DEBUG, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
+    } while (0)
 #define TRACE_LOG(template, ...) \
-        log_(LOG_TRACE, __FILE__, __LINE__, (template),  ##__VA_ARGS__)
+    do { \
+    	if (maxLevel >= LOG_TRACE) \
+            log_(LOG_TRACE, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
+    } while (0)
+
 
 
 #endif

@@ -1,8 +1,9 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#include <stddef.h>
+#include <stdio.h>
 #include <assert.h>
+#include <ctype.h>
 
 /*******************************************************************************
  * Portability
@@ -79,5 +80,8 @@
 #define TRUE 1
 #define FALSE 0
 #endif
+
+// override free to make sure nobody is using free directly
+#define free(_p) "DO NOT USE free DIRECTLY USE \"FREE\" FROM THE MEMORY MANAGER"; @
 
 #endif /* COMMON_H */

@@ -13,6 +13,8 @@
 boolean
 checkList(const List *list)
 {
+    int realLength = 0;
+
     if (list == NIL)
         return TRUE;
 
@@ -20,6 +22,11 @@ checkList(const List *list)
     assert(list->head != NULL);
     assert(list->tail != NULL);
     assert(list->type == T_List || list->type == T_IntList);
+
+    for(ListCell *lc = list->head; lc != NULL; lc = lc->next)
+        realLength++;
+
+    assert(realLength == list->length);
 
     if (list->length == 1)
         assert(list->head == list->tail);
@@ -57,10 +64,10 @@ newList(NodeTag type)
     List *newList;
     ListCell *newListHead;
 
-    newListHead = (ListCell *)MALLOC(sizeof(ListCell));
+    newListHead = (ListCell *) NEW(ListCell);
     newListHead->next = NULL;
 
-    newList = (List *)MALLOC(sizeof(List));
+    newList = (List *) NEW(List);
     newList->type = type;
     newList->length = 1;
     newList->head = newListHead;
@@ -109,6 +116,18 @@ getHeadOfListInt (List *list)
     head = getHeadOfList(list);
     return head ? head->data.int_value : -1;
 }
+
+void *
+getHeadOfListP (List *list)
+{
+    assert(isPtrList(list));
+    ListCell *head;
+
+    head = getHeadOfList(list);
+    return head ? head->data.ptr_value : NULL;
+}
+
+
 
 ListCell *
 getTailOfList(List *list)
@@ -184,7 +203,7 @@ singleton(void *value)
 List *
 listMake(void *elem, ...)
 {
-    List *result = NIL;
+    List *result = singleton(elem);
     int n = 0;
     va_list args;
     void *p;
@@ -204,7 +223,7 @@ newListTail(List *list)
 {
     ListCell *newTail;
     
-    newTail = (ListCell *)MALLOC(sizeof(ListCell));
+    newTail = (ListCell *) NEW(ListCell);
     newTail->next = NULL;
     
     list->tail->next = newTail;
@@ -247,7 +266,7 @@ newListHead(List *list)
 {
     ListCell *newHead;
 
-    newHead = (ListCell *)MALLOC(sizeof(ListCell));
+    newHead = (ListCell *) NEW(ListCell);
     newHead->next = list->head;
     list->head = newHead;
     list->length++;
@@ -331,6 +350,17 @@ copyList(List *list)
 	return listCopy; /* keep compiler quiet for now */
 }
 
+List *
+deepCopyStringList (List *list)
+{
+    List *listCopy = NIL;
+
+    FOREACH(char,c, list)
+        listCopy = appendToTailOfList(listCopy, strdup(c));
+
+    return listCopy;
+}
+
 void
 freeList(List *list)
 {
@@ -375,7 +405,7 @@ concatTwoLists(List *lista, List*listb)
 	lista->length += listb->length;
 
     assert(checkList(lista));
-    freeList(listb);
+    FREE(listb);
     return lista;
 }
 
@@ -384,17 +414,10 @@ searchList(List *list, void *value)
 {
     assert(isPtrList(list));
 
-    if (list == NIL)
-        return FALSE;
-
-    ListCell *lc;
-
-    lc = list->head;
-    while (lc != NULL)
+    FOREACH(void,item,list)
     {
-        if (lc->data.ptr_value == value)
+        if (item == value)
             return TRUE;
-        lc = lc->next;
     }
 
     return FALSE;
@@ -420,3 +443,32 @@ searchListInt(List *list, int value)
 
 	return FALSE;
 }
+
+boolean
+searchListString(List *list, char *value)
+{
+    assert(isPtrList(list));
+
+    FOREACH(char,item,list)
+    {
+        if (strcmp(item,value) == 0)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+boolean
+searchListNode(List *list, Node *value)
+{
+    assert(isPtrList(list));
+
+    FOREACH(Node,item,list)
+    {
+        if (equal(item,value))
+            return TRUE;
+    }
+
+    return FALSE;
+}
+

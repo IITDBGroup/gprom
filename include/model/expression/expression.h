@@ -1,7 +1,6 @@
 #ifndef EXPRESSION_H
 #define EXPRESSION_H
 
-#include "common.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 
@@ -41,19 +40,32 @@ typedef struct AttributeReference {
     char *name;
     int fromClauseItem;
     int attrPosition;
+    int outerLevelsUp;
 } AttributeReference;
 
 /* functions to create expression nodes */
 extern FunctionCall *createFunctionCall (char *fName, List *args);
 extern Operator *createOpExpr (char *name, List *args);
 extern AttributeReference *createAttributeReference (char *name);
+extern AttributeReference *createFullAttrReference (char *name, int fromClause,
+        int attrPos, int outerLevelsUp);
+extern Node *andExprs (Node *expr, ...);
+#define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL);
 
 /* functions for creating constants */
 extern Constant *createConstInt (int value);
 extern Constant *createConstString (char *value);
-extern Constant *createConstFloat (float value);
+extern Constant *createConstFloat (double value);
+extern Constant *createConstBool (boolean value);
+#define INT_VALUE(_c) *((int *) ((Constant *) _c)->value)
+#define FLOAT_VALUE(_c) *((double *) ((Constant *) _c)->value)
+#define BOOL_VALUE(_c) *((boolean *) ((Constant *) _c)->value)
+#define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
 
+/* functions for determining the type of an expression */
 extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
+
+extern char *exprToSQL (Node *expr);
 
 #endif /* EXPRESSION_H */

@@ -11,4 +11,4 @@ sql_parser.lex.h sql_parser.lex.c: sql_parser.l
 	$(LEX) -osql_parser.lex.c $<
 
 sql_parser.tab.h sql_parser.tab.c: sql_parser.y
-	bison -d $<
+	bison -Werror -d $<

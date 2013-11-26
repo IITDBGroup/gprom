@@ -13,6 +13,9 @@ typedef enum NodeTag {
     T_List,
     T_IntList,
 
+    /* sets */
+    T_Set,
+
     /* expression nodes */
     T_Constant,
     T_AttributeReference,
@@ -25,11 +28,16 @@ typedef enum NodeTag {
     T_QueryBlock,
     T_SelectItem,
     T_FromItem,
+    T_FromProvInfo,
     T_FromTableRef,
     T_FromSubquery,
     T_FromJoinExpr,
     T_DistinctClause,
     T_NestedSubquery,
+    T_Insert,
+    T_Delete,
+    T_Update,
+    T_TransactionStmt,
 
     /* query operator model nodes */
     T_Schema,
@@ -50,6 +58,11 @@ typedef struct Node{
     NodeTag type;
 } Node;
 
+typedef enum ProvenanceType
+{
+    PI_CS,
+    TRANSFORMATION
+} ProvenanceType;
 
 /*stringinfo provides the string data type*/
 
@@ -70,6 +83,7 @@ typedef StringInfoData *StringInfo;
 *The function is create an empty StringInfoData and return a pointer.
 *-------------------------------------------------------------------*/
 extern StringInfo makeStringInfo(void);
+//extern StringInfo makeStringInfoString(char *string);
 
 /*------------------------------------------------------------------
 *initStringInfo
@@ -88,36 +102,29 @@ extern void resetStringInfo(StringInfo str);
 *The function is append a string to str.
 *-------------------------------------------------------------------*/
 extern void appendStringInfoString(StringInfo str, const char *s);
+extern void appendStringInfoStrings(StringInfo str, ...);
+extern char *concatStrings(const char *s, ...);
+
+#define CONCAT_STRINGINFO(str, other) appendStringInfoString(str, other->data)
+#define CONCAT_STRINGS(...) concatStrings(__VA_ARGS__, NULL)
 
 /*------------------------------------------------------------------
 * The function is append to a StringInfo using a format string and a variable
 * length parameter list.
 *-------------------------------------------------------------------*/
 extern void appendStringInfo(StringInfo str, const char *format, ...);
-
-
-/*------------------------------------------------------------------
-*appendStringInfoChar
-*The function is append byte to str.
-*-------------------------------------------------------------------*/
+extern boolean vAppendStringInfo(StringInfo str, const char *format, va_list args);
 extern void appendStringInfoChar(StringInfo str, char ch);
-
-/*------------------------------------------------------------------
-*appendBinaryStringInfo
-*The function is append binary data to a StringInfo.
-*-------------------------------------------------------------------*/
 extern void appendBinaryStringInfo(StringInfo str, const char *data, int datalen);
-
-/*------------------------------------------------------------------
-*enlargeStringInfo
-*The function is StringInfo's buffer can hold the "needed" bytes.
-*-------------------------------------------------------------------*/
+extern void prependStringInfo (StringInfo str, const char *format, ...);
 extern void enlargeStringInfo(StringInfo str, int needed);
+#define STRINGLEN(_str) _str->len
 
+// node helpers
 #define nodeTag(nodeptr) (((Node*)(nodeptr))->type)
 #define makeNode(type)  ((type*)newNode(sizeof(type),T_##type))
 #define nodeSetTag(nodeptr,t) (((Node*)(nodeptr))->type = (t))
-#define isA(nodeptr, type)  (nodeTag(nodeptr) == T_##type)
+#define isA(nodeptr, type)  (nodeptr != NULL && (nodeTag(nodeptr) == T_##type))
 
 /*extern declaration */
 extern Node *newNode(size_t size, NodeTag type);
@@ -125,6 +132,8 @@ extern Node *newNode(size_t size, NodeTag type);
 /* get a string representation of a node */
 extern char *nodeToString(void *obj);
 extern char *beatify(char *input);
+char *operatorToOverviewString(Node *op);
+char *itoa(int value);
 
 /* create a node tree from a string */
 extern void *stringToNode(char *str);
@@ -140,6 +149,7 @@ extern boolean equal(void *a, void *b);
 
 /* deep free a node structure */
 extern void deepFree(void *a);
+extern void freeStringInfo (StringInfo node);
 
 /*
  * Visit all nodes in a tree using a user-provided function that decides

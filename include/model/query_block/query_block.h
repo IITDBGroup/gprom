@@ -10,6 +10,8 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 
+#define isQBQuery(node) (isA(node,QueryBlock) || isA(node,SetQuery) || isA(node, ProvenanceStmt))
+
 typedef enum SetOpType
 {
     SETOP_UNION,
@@ -26,14 +28,6 @@ typedef struct SetQuery
     Node *lChild; // either SetOp or QueryBlock
     Node *rChild; // either SetOp or QueryBlock
 } SetQuery;
-/*
-typedef struct SetQuery
-{
-    NodeTag type;
-    List *selectClause;
-    SetOp *rootSetOp;
-} SetQuery; */
-
 
 typedef struct QueryBlock
 {
@@ -42,13 +36,18 @@ typedef struct QueryBlock
     Node *distinct;
     List *fromClause;
     Node *whereClause;
+    List *groupByClause;
     Node *havingClause;
+    List *orderByClause;
+    Node *limitClause;
 } QueryBlock;
 
 typedef struct ProvenanceStmt
 {
     NodeTag type;
     Node *query;
+    List *selectClause;
+    ProvenanceType provType;
 } ProvenanceStmt;
 
 typedef struct SelectItem
@@ -58,11 +57,22 @@ typedef struct SelectItem
     Node *expr;
 } SelectItem;
 
+#define isFromItem(node) (isA(node,FromItem) || isA(node, FromTableRef) \
+        || isA(node, FromSubquery) || isA(node, FromJoinExpr))
+
+typedef struct FromProvInfo
+{
+    NodeTag type;
+    boolean baserel;
+    List *userProvAttrs;
+} FromProvInfo;
+
 typedef struct FromItem
 {
     NodeTag type;
     char *name;
     List *attrNames;
+    FromProvInfo *provInfo;
 } FromItem;
 
 typedef struct FromTableRef
@@ -127,6 +137,43 @@ typedef struct NestedSubquery
     Node *query;
 } NestedSubquery;
 
+typedef struct Insert
+{
+    NodeTag type;
+    char *tableName;
+    List *attrList;
+    Node *query;
+} Insert;
+
+typedef struct Delete
+{
+    NodeTag type;
+    char *nodeName;
+    Node *cond;
+} Delete;
+
+typedef struct Update
+{
+    NodeTag type;
+    char *nodeName;
+    List *selectClause;
+    Node *cond;
+} Update;
+
+
+typedef enum TransactionStmtType
+{
+    TRANSACTION_BEGIN,
+    TRANSACTION_COMMIT,
+    TRANSACTION_ABORT
+} TransactionStmtType;
+
+typedef struct TransactionStmt
+{
+    NodeTag type;
+    TransactionStmtType stmtType;
+} TransactionStmt;
+
 /* functions for creating query block nodes */
 /*extern SetQuery *createSetQuery(List *selectClause, SetOp *root);*/
 extern SetQuery *createSetQuery(char *opType, boolean all, Node *lChild,
@@ -134,14 +181,23 @@ extern SetQuery *createSetQuery(char *opType, boolean all, Node *lChild,
 extern QueryBlock *createQueryBlock(void);
 extern ProvenanceStmt *createProvenanceStmt(Node *query);
 extern SelectItem *createSelectItem(char *alias, Node *expr);
+extern FromItem *createFromItem (char *alias, List *attrNames);
 extern FromItem *createFromTableRef(char *alias, List *attrNames,
         char *tableId);
 extern FromItem *createFromSubquery(char *alias, List *attrNames, Node *query);
 extern FromItem *createFromJoin(char *alias, List *attrNames, FromItem *left,
-        FromItem *right, JoinType joinType, JoinConditionType condType,
+        FromItem *right, char *joinType, char *condType,
         Node *cond);
+extern JoinConditionType joinConditionTypeFromString (char *condType);
+extern JoinType joinTypeFromString (char *joinType);
 extern DistinctClause *createDistinctClause (List *distinctExprs);
-extern NestedSubquery *createNestedSubquery (NestingExprType nType, Node *expr,
-        char *comparisonOp, Node *query);
+//extern NestedSubquery *createNestedSubquery (NestingExprType nType, Node *expr,
+  //      char *comparisonOp, Node *query);
+extern NestedSubquery *createNestedSubquery (char *nType, Node *expr,
+     char *comparisonOp, Node *query);
+extern Insert *createInsert(char *nodeName, Node *query, List*);
+extern Delete *createDelete(char *nodeName, Node *cond);
+extern Update *createUpdate(char *nodeName, List *selectClause, Node *cond);
+extern TransactionStmt *createTransactionStmt (char *stmtType);
 
 #endif /* QUERY_BLOCK_H */
