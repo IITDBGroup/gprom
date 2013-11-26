@@ -38,6 +38,9 @@ static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *
 
 // analyze from item types
 static void analyzeFromTableRef(FromTableRef *f);
+static void analyzeInsert(Insert * f);
+static void analyzeDelete(Delete * f);
+static void analyzeUpdate(Update * f);
 static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 
@@ -98,6 +101,15 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
         {
             case T_FromTableRef:
                 analyzeFromTableRef((FromTableRef *) f);
+                break;
+            case T_Insert:
+                analyzeInsert((Insert *) f);
+                break;
+            case T_Delete:
+                analyzeDelete((Delete *) f);
+                break;
+            case T_Update:
+                analyzeUpdate((Update *) f);
                 break;
             case T_FromSubquery:
             	analyzeFromSubquery((FromSubquery *) f, parentFroms);
@@ -519,6 +531,33 @@ analyzeFromTableRef(FromTableRef *f)
 
     if(f->from.name == NULL)
     	f->from.name = f->tableId;
+}
+
+static void
+analyzeInsert(Insert * f)
+{
+	List *attrRefs = getAttributes(f->tableName);
+	if(f->attrList->length != attrRefs->length)
+		DEBUG_LOG("The number of attributes are not correct");
+}
+
+static void
+analyzeDelete(Delete * f)
+{
+	List *attrRefs = NIL;
+	findAttrReferences((Node *) f->cond, &attrRefs);
+	INFO_LOG("Collect attribute references done");
+	DEBUG_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));
+}
+
+static void
+analyzeUpdate(Update * f)
+{
+	List *attrRefs = NIL;
+	findAttrReferences((Node *) f->selectClause, &attrRefs);
+	findAttrReferences((Node *) f->cond, &attrRefs);
+	INFO_LOG("Collect attribute references done");
+	DEBUG_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));
 }
 
 static void
