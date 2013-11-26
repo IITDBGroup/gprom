@@ -12,12 +12,9 @@
 
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
-<<<<<<< HEAD
-=======
 
 #include "log/logger.h"
 
->>>>>>> cf3d9c3c0c86bb43425224c9eba0f8f22639dcbd
 #include "sql_serializer/sql_serializer.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
@@ -37,17 +34,6 @@ typedef enum MatchState {
     MATCH_NEXTBLOCK
 } MatchState;
 
-<<<<<<< HEAD
-typedef struct QueryBlockMatch {
-    QueryOperator *firstProj;
-    QueryOperator *having;
-    QueryOperator *aggregation;
-    QueryOperator *secondProj;
-    QueryOperator *where;
-    QueryOperator *fromRoot;
-} QueryBlockMatch;
-
-=======
 #define OUT_MATCH_STATE(_state) \
     (_state == MATCH_START ? "MATCH_START" : \
      _state == MATCH_DISTINCT ? "MATCH_DISTINCT" : \
@@ -80,7 +66,6 @@ typedef struct QueryBlockMatch {
         _level ## _LOG ("fromRoot: %s", operatorToOverviewString((Node *) _m->fromRoot)); \
     } while(0)
 
->>>>>>> cf3d9c3c0c86bb43425224c9eba0f8f22639dcbd
 typedef struct TemporaryViewMap {
     QueryOperator *viewOp; // the key
     char *viewName;
@@ -88,14 +73,11 @@ typedef struct TemporaryViewMap {
     UT_hash_handle hh;
 } TemporaryViewMap;
 
-<<<<<<< HEAD
-=======
 typedef struct UpdateAggAndGroupByAttrState {
     List *aggNames;
     List *groupByNames;
 } UpdateAggAndGroupByAttrState;
 
->>>>>>> cf3d9c3c0c86bb43425224c9eba0f8f22639dcbd
 /* macros */
 #define OPEN_PARENS(str) appendStringInfoChar(str, '(')
 #define CLOSE_PARENS(str) appendStringInfoChar(str, ')')
@@ -116,13 +98,6 @@ static void serializeQueryBlock (QueryOperator *q, StringInfo str);
 static void serializeSetOperator (QueryOperator *q, StringInfo str);
 
 static void serializeFrom (QueryOperator *q, StringInfo from);
-<<<<<<< HEAD
-static void serializeWhere (QueryOperator *q, StringInfo where);
-static void serializeSelect (QueryOperator *q, StringInfo select);
-
-static void createTempView (QueryOperator *q, StringInfo str);
-static char *createViewName (void);
-=======
 static void serializeFromItem (QueryOperator *q, StringInfo from,
         int *curFromItem, int *attrOffset);
 
@@ -161,7 +136,6 @@ serializeOperatorModel(Node *q)
     FREE(str);
     return result;
 }
->>>>>>> cf3d9c3c0c86bb43425224c9eba0f8f22639dcbd
 
 char *
 serializeQuery(QueryOperator *q)
@@ -200,17 +174,8 @@ serializeQuery(QueryOperator *q)
     }
 
     // copy result to callers memory context and clean up
-<<<<<<< HEAD
-    RELEASE_MEM_CONTEXT();
-    char *result = strdup(str->data);
-
-    FREE_MEM_CONTEXT(memC);
-
-    return result;
-=======
     char *result = strdup(str->data);
     RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
->>>>>>> cf3d9c3c0c86bb43425224c9eba0f8f22639dcbd
 }
 
 /*
@@ -238,24 +203,15 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
     StringInfo fromString = makeStringInfo();
     StringInfo whereString = makeStringInfo();
     StringInfo selectString = makeStringInfo();
-<<<<<<< HEAD
-    MatchState state = MATCH_START;
-    QueryOperator *cur = q;
-=======
     StringInfo groupByString = makeStringInfo();
     StringInfo havingString = makeStringInfo();
     MatchState state = MATCH_START;
     QueryOperator *cur = q;
     List *attrNames = getQueryOperatorAttrNames(q);
->>>>>>> cf3d9c3c0c86bb43425224c9eba0f8f22639dcbd
 
     // do the matching
     while(state != MATCH_NEXTBLOCK && cur != NULL)
     {
-<<<<<<< HEAD
-        // first check that cur does not have more than one parent
-
-=======
         INFO_LOG("STATE: %s", OUT_MATCH_STATE(state));
         INFO_LOG("Operator %s", operatorToOverviewString((Node *) cur));
         // first check that cur does not have more than one parent
@@ -272,158 +228,10 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
             default:
                 break;
         }
->>>>>>> cf3d9c3c0c86bb43425224c9eba0f8f22639dcbd
         switch(state)
         {
             /* START state */
             case MATCH_START:
-<<<<<<< HEAD
-                {
-                    switch(cur->type)
-                    {
-                        case T_SelectionOperator:
-                        {
-                            QueryOperator *child = OP_LCHILD(cur);
-                            if (child->type == T_AggregationOperator)
-                            {
-
-                            }
-                            /* WHERE */
-                            else
-                            {
-                                matchInfo->where = cur;
-                                state = MATCH_WHERE;
-                            }
-                        }
-                            break;
-                        case T_JoinOperator:
-                            matchInfo->fromRoot = cur;
-                            state = MATCH_NEXTBLOCK;
-                            break;
-                        default: //TODO add other cases
-                            break;
-                    }
-                }
-                break;
-            case MATCH_DISTINCT:
-                break;
-            case MATCH_FIRST_PROJ:
-                {
-                    switch(cur->type)
-                    {
-                        case T_SelectionOperator:
-                        {
-                            QueryOperator *child = OP_LCHILD(cur);
-                            if (child->type == T_AggregationOperator)
-                            {
-                                matchInfo->having = cur;
-                                state = MATCH_HAVING;
-                            }  
-                        }
-                            break;
-
-                        case T_JoinOperator:
-                            matchInfo->firstProj = cur;
-                            state = MATCH_NEXTBLOCK;
-                            break;
-                        default: //TODO add other cases
-                            break;
-                    }
-                }
-                break;
-             case MATCH_HAVING:
-                {
-                    switch(cur->type)
-                    {
-                        case T_SelectionOperator:
-                        {
-                            QueryOperator *child = OP_LCHILD(cur);
-                            if (child->type == T_AggregationOperator)
-                            {
-                                matchInfo->aggregation = cur;
-                                state = MATCH_AGGREGATION;
-                            }  
-                        }
-                            break;
-                        default: //TODO add other cases
-                            break;
-                    }
-                }
-                break;
-             case MATCH_AGGREGATION:
-                {
-                    switch(cur->type)
-                    {
-                        case T_SelectionOperator:
-                        {
-                            QueryOperator *child = OP_LCHILD(cur);
-                            if (child->type == T_AggregationOperator)
-                            {
-                                matchInfo->where = cur;
-                                state = MATCH_WHERE;
-                            }
-                        }
-                            break;
-                        case T_JoinOperator:
-                            matchInfo->aggregation = cur;
-                            state = MATCH_NEXTBLOCK;
-                            break;
-                       
-                        default: //TODO add other cases
-                            break;
-                    }
-                }
-                break;
-             case MATCH_SECOND_PROJ:
-                {
-                    switch(cur->type)
-                    {
-                        case T_SelectionOperator:
-                        {
-                            QueryOperator *child = OP_LCHILD(cur);
-                            if (child->type == T_AggregationOperator)
-                            {
-                                matchInfo->where = cur;
-                                state = MATCH_WHERE;
-                            }
-                        }
-                            break;
-                        case T_JoinOperator:
-                            matchInfo->secondProj = cur;
-                            state = MATCH_NEXTBLOCK;
-                            break;
-                       
-                        default: //TODO add other cases
-                            break;
-                    }
-                }
-                break;
-             case MATCH_WHERE:
-                {
-                    switch(cur->type)
-                    {
-                        case T_SelectionOperator:
-                        {
-                            QueryOperator *child = OP_LCHILD(cur);
-                            if (child->type == T_AggregationOperator)
-                            {
-                                matchInfo->where = cur;
-                                state = MATCH_NEXTBLOCK;
-                            }
-                        }
-                            break;
-                        case T_JoinOperator:
-                            matchInfo->where = cur;
-                            state = MATCH_NEXTBLOCK;
-                            break;
-                       
-                        default: //TODO add other cases
-                            break;
-                    }
-                }
-                break;
-            default: //TODO remove once all cases are handled
-=======
             case MATCH_DISTINCT:
             {
                 switch(cur->type)
@@ -578,7 +386,6 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
             case MATCH_NEXTBLOCK:
                 FATAL_LOG("should not end up here because we already"
                         " have reached MATCH_NEXTBLOCK state");
->>>>>>> cf3d9c3c0c86bb43425224c9eba0f8f22639dcbd
                 break;
         }
 
@@ -586,29 +393,6 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
         cur = OP_LCHILD(cur);
     }
 
-<<<<<<< HEAD
-    // translate FROM
-    serializeFrom(matchInfo->fromRoot, fromString);
-
-    if(matchInfo->where != NULL)
-        serializeWhere(matchInfo->where, whereString);
-
-    if(matchInfo->secondProj != NULL)
-        serializeSelect(matchInfo->secondProj, selectString);
-    else
-        appendStringInfoString(selectString, "*");
-
-    // put everything together
-    appendStringInfoString(str, "\nSELECT ");
-    appendStringInfoString(str, selectString->data);
-
-    appendStringInfoString(str, "\nFROM ");
-    appendStringInfoString(str, fromString->data);
-
-    appendStringInfoString(str, "\nWHERE ");
-    appendStringInfoString(str, whereString->data);
-
-=======
     OUT_BLOCK_MATCH(INFO,matchInfo);
 
     // translate each clause
@@ -641,7 +425,6 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     if (STRINGLEN(havingString) > 0)
             appendStringInfoString(str, havingString->data);
->>>>>>> cf3d9c3c0c86bb43425224c9eba0f8f22639dcbd
 
     FREE(matchInfo);
 }
@@ -652,10 +435,6 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 static void
 serializeFrom (QueryOperator *q, StringInfo from)
 {
-<<<<<<< HEAD
-    appendStringInfoString(str, "\nFROM ");
-    appendStringInfoString(str, fromString->data);
-=======
     int curFromItem = 0, attrOffset = 0;
 
     appendStringInfoString(from, "\nFROM ");
@@ -736,33 +515,12 @@ createFromNames (int *attrOffset, int count)
     FREE(str);
 
     return result;
->>>>>>> cf3d9c3c0c86bb43425224c9eba0f8f22639dcbd
 }
 
 /*
  * Translate a selection into a WHERE clause
  */
 static void
-<<<<<<< HEAD
-serializeWhere (QueryOperator *q, StringInfo where)
-{
-    if(matchInfo->where !=NULL)
-    serializeWhere(matchInfo->where, whereString);
-    appendStringInfoString(str, "\nWHERE ");
-    appendStringInfoString(str, whereString->data);
-}
-
-/*
- * Create the SELECT clause
- */
-static void
-serializeSelect (QueryOperator *q, StringInfo select)
-{
-    if(matchInfo->aggregation !=NULL)
-    serializeSelect(matchInfo->aggregation, selectString);
-    appendStringInfoString(str, "\nSELECT ");
-    appendStringInfoString(str, selectString->data);
-=======
 serializeWhere (SelectionOperator *q, StringInfo where)
 {
     appendStringInfoString(where, "\nWHERE ");
@@ -952,7 +710,6 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 
     if (state)
         FREE(state);
->>>>>>> cf3d9c3c0c86bb43425224c9eba0f8f22639dcbd
 }
 
 
