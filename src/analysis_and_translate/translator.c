@@ -35,6 +35,7 @@ typedef struct ReplaceGroupByState
 } ReplaceGroupByState;
 
 // function declarations
+static Node *translateGeneral (Node *node);
 static QueryOperator *translateQuery (Node *node);
 
 /* Three branches of translating a Query */
@@ -85,19 +86,27 @@ translateParse(Node *q)
 
     INFO_LOG("translate QB model \n%s", nodeToString(q));
 
-    if (isA(q, List))
-    {
-        result = (Node *) copyList((List *) q);
-        FOREACH(Node,stmt,(List *) result)
-            stmt_his_cell->data.ptr_value = (Node *) translateQuery(stmt);
-    }
-    else
-        result = (Node *) translateQuery (q);
+    result = translateGeneral(q);
 
     INFO_LOG("result of translation is \n%s", beatify(nodeToString(result)));
     assert(equal(result, copyObject(result)));
 
     FREE_MEM_CONTEXT_AND_RETURN_COPY(Node,result);
+}
+
+static Node *translateGeneral (Node *node)
+{
+    Node *result;
+
+    if (isA(node, List))
+    {
+        result = (Node *) copyList((List *) node);
+        FOREACH(Node,stmt,(List *) result)
+            stmt_his_cell->data.ptr_value = (Node *) translateQuery(stmt);
+    }
+    else
+        result = (Node *) translateQuery(node);
+    return result;
 }
 
 static QueryOperator *
@@ -126,17 +135,19 @@ translateSetQuery(SetQuery *sq)
     QueryOperator *right = NULL;
     if (sq->lChild)
     {
-        if (sq->lChild->type == T_SetQuery)
-            left = translateSetQuery((SetQuery *) sq->lChild);
-        else if (sq->lChild->type == T_QueryBlock)
-            left = translateQueryBlock(((QueryBlock *) sq->lChild));
+        left = translateQuery(sq->lChild);
+//        if (sq->lChild->type == T_SetQuery)
+//            left = translateSetQuery((SetQuery *) sq->lChild);
+//        else if (sq->lChild->type == T_QueryBlock)
+//            left = translateQueryBlock(((QueryBlock *) sq->lChild));
     }
     if (sq->rChild)
     {
-        if (sq->rChild->type == T_SetQuery)
-            right = translateSetQuery((SetQuery *) sq->rChild);
-        else if (sq->rChild->type == T_QueryBlock)
-            right = translateQueryBlock(((QueryBlock *) sq->rChild));
+        left = translateQuery(sq->rChild);
+//        if (sq->rChild->type == T_SetQuery)
+//            right = translateSetQuery((SetQuery *) sq->rChild);
+//        else if (sq->rChild->type == T_QueryBlock)
+//            right = translateQueryBlock(((QueryBlock *) sq->rChild));
     }
     assert(left && right);
 
@@ -192,12 +203,11 @@ translateProvenanceStmt(ProvenanceStmt *prov)
 {
     QueryOperator *child;
     ProvenanceComputation *result;
-    List *attrs = NIL;
     Schema *schema = NULL;
-    //TODO create attribute list by analyzing subquery under child
+
     child = translateQuery(prov->query);
 
-    result = createProvenanceComputOp(PI_CS, singleton(child), NIL, NIL, attrs); //TODO adapt function parameters
+    result = createProvenanceComputOp(prov->provType, singleton(child), NIL, prov->selectClause);
 
     child->parents = singleton(result);
 

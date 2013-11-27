@@ -48,6 +48,7 @@ typedef struct ProvenanceStmt
     Node *query;
     List *selectClause;
     ProvenanceType provType;
+    Node *asOf;
 } ProvenanceStmt;
 
 typedef struct SelectItem

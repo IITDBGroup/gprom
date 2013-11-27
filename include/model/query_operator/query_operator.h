@@ -88,6 +88,7 @@ typedef struct ProvenanceComputation
 {
     QueryOperator op;
     ProvenanceType provType;
+    Node *asOf;
 } ProvenanceComputation;
 
 typedef struct UpdateOperator
@@ -110,7 +111,7 @@ extern JoinOperator *createJoinOp (JoinType joinType, Node *cond, List *inputs, 
 extern AggregationOperator *createAggregationOp (List *aggrs, List *groupBy, QueryOperator *input, List *parents, List *attrNames);
 extern SetOperator *createSetOperator (SetOpType setOpType, List *inputs, List *parents, List *attrNames);
 extern DuplicateRemoval *createDuplicateRemovalOp (List *attrs, QueryOperator *input, List *parents, List *attrNames);
-extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, List *parents, List *attrNames);
+extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames);
 
 /* navigation functions */
 #define OP_LCHILD(op) \

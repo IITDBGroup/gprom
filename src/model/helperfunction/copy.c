@@ -404,6 +404,7 @@ copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
     COPY_NODE_FIELD(query);
     COPY_NODE_FIELD(selectClause);
     COPY_SCALAR_FIELD(provType);
+    COPY_NODE_FIELD(asOf);
 
     return new;
 }

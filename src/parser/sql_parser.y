@@ -53,7 +53,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -111,6 +111,7 @@ Node *bisonParseResult = NULL;
 %type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
+%type <node> optionalProvAsOf
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString
 %type <stringVal> joinType transactionIdentifier
 
@@ -181,12 +182,29 @@ transactionIdentifier:
  * Rule to parse a query asking for provenance
  */
 provStmt: 
-        PROVENANCE OF '(' stmt ')'
+        PROVENANCE optionalProvAsOf OF '(' stmt ')'
         {
-            RULELOG(provStmt);
-            $$ = (Node *) createProvenanceStmt($4);
+			RULELOG("provStmt");
+			ProvenanceStmt *p;            
+			
+			p = createProvenanceStmt($5);
+			p->asOf = (Node *) $2;
+            $$ = (Node *) p;
         }
     ;
+    
+optionalProvAsOf:
+		/* empty */			{ RULELOG("optionalProvAsOf::EMPTY"); $$ = NULL; }
+		| AS OF SCN intConst
+		{
+			RULELOG("optionalProvAsOf::SCN");
+			$$ = (Node *) createConstInt($4);
+		}
+		| AS OF TIMESTAMP stringConst
+		{
+			RULELOG("optionalProvAsOf::TIMESTAMP");
+			$$ = (Node *) createConstString($4);
+		}
 
 /*
  * Rule to parse delete query

@@ -79,9 +79,7 @@ getDataTypes (Schema *schema)
     List *result = NIL;
 
     FOREACH(AttributeDef,a,schema->attrDefs)
-    {
         result = appendToTailOfListInt(result, a->dataType);
-    }
 
     return result;
 }
@@ -92,9 +90,7 @@ getAttrNames(Schema *schema)
     List *result = NIL;
 
     FOREACH(AttributeDef,a,schema->attrDefs)
-    {
         result = appendToTailOfList(result, a->attrName);
-    }
 
     return result;
 }
@@ -103,10 +99,9 @@ TableAccessOperator *
 createTableAccessOp(char *tableName, char *alias, List *parents,
         List *attrNames, List *dataTypes)
 {
-    TableAccessOperator *ta = NEW(TableAccessOperator);
+    TableAccessOperator *ta = makeNode(TableAccessOperator);
 
     ta->tableName = tableName;
-    ta->op.type = T_TableAccessOperator;
     ta->op.inputs = NULL;
     ta->op.schema = createSchemaFromLists(alias, attrNames, dataTypes);
     ta->op.parents = parents;
@@ -119,10 +114,9 @@ SelectionOperator *
 createSelectionOp(Node *cond, QueryOperator *input, List *parents,
         List *attrNames)
 {
-    SelectionOperator *sel = NEW(SelectionOperator);
+    SelectionOperator *sel = makeNode(SelectionOperator);
 
     sel->cond = copyObject(cond);
-    sel->op.type = T_SelectionOperator;
     sel->op.inputs = singleton(input);
     sel->op.schema = createSchemaFromLists("SELECT", attrNames, getDataTypes(input->schema));
     sel->op.parents = parents;
@@ -135,14 +129,13 @@ ProjectionOperator *
 createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
         List *attrNames)
 {
-    ProjectionOperator *prj = NEW(ProjectionOperator);
+    ProjectionOperator *prj = makeNode(ProjectionOperator);
 
     FOREACH(Node, expr, projExprs)
     {
         prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
     }
 
-    prj->op.type = T_ProjectionOperator;
     prj->op.inputs = singleton(input);
     prj->op.schema = schemaFromExpressions("PROJECTION", attrNames, projExprs,
             singleton(input));
@@ -157,11 +150,10 @@ JoinOperator *
 createJoinOp(JoinType joinType, Node *cond, List *inputs, List *parents,
         List *attrNames)
 {
-    JoinOperator *join = NEW(JoinOperator);
+    JoinOperator *join = makeNode(JoinOperator);
 
     join->cond = copyObject(cond);
     join->joinType = joinType;
-    join->op.type = T_JoinOperator;
     join->op.inputs = inputs;
     /* get data types from inputs and attribute names from parameter to create
      * schema */
@@ -180,7 +172,7 @@ AggregationOperator *
 createAggregationOp(List *aggrs, List *groupBy, QueryOperator *input,
         List *parents, List *attrNames)
 {
-    AggregationOperator *aggr = NEW(AggregationOperator);
+    AggregationOperator *aggr = makeNode(AggregationOperator);
 
     FOREACH(Node, func, aggrs)
     {
@@ -190,7 +182,6 @@ createAggregationOp(List *aggrs, List *groupBy, QueryOperator *input,
     {
     	aggr->groupBy = appendToTailOfList(aggr->groupBy, copyObject(expr));
     }
-    aggr->op.type = T_AggregationOperator;
     aggr->op.inputs = singleton(input);
     aggr->op.schema = schemaFromExpressions("AGG", attrNames,
             concatTwoLists(copyList(aggrs),copyList(groupBy)), singleton(input));
@@ -204,10 +195,9 @@ SetOperator *
 createSetOperator(SetOpType setOpType, List *inputs, List *parents,
         List *attrNames)
 {
-    SetOperator *set = NEW(SetOperator);
+    SetOperator *set = makeNode(SetOperator);
 
     set->setOpType = setOpType;
-    set->op.type = T_SetOperator;
     set->op.inputs = inputs;
     set->op.schema = createSchemaFromLists("SET", attrNames, getDataTypes(OP_LCHILD(set)->schema));
     set->op.parents = parents;
@@ -220,10 +210,9 @@ DuplicateRemoval *
 createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
         List *attrNames)
 {
-    DuplicateRemoval *dr = NEW(DuplicateRemoval);
+    DuplicateRemoval *dr = makeNode(DuplicateRemoval);
 
     dr->attrs = attrs;
-    dr->op.type = T_DuplicateRemoval;
     dr->op.inputs = singleton(input);
     dr->op.schema = createSchemaFromLists("DUPREM", attrNames, getDataTypes(input->schema));
     dr->op.parents = parents;
@@ -233,9 +222,16 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
 }
 
 ProvenanceComputation *
-createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, List *parents, List *attrNames)
+createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames)
 {
-    return NULL; //TODO
+    ProvenanceComputation *p = makeNode(ProvenanceComputation);
+
+    p->op.parents = parents;
+    p->op.inputs = inputs;
+    p->op.schema = createSchemaFromLists("PROVENANCE", attrNames, NULL);
+    p->provType = provType;
+
+    return p;
 }
 
 extern void
