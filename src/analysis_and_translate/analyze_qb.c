@@ -98,7 +98,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
         {
             case T_FromTableRef:
                 analyzeFromTableRef((FromTableRef *) f);
-                break;
+                break;           
             case T_FromSubquery:
             	analyzeFromSubquery((FromSubquery *) f, parentFroms);
             	break;
