@@ -447,15 +447,7 @@ searchListInt(List *list, int value)
 boolean
 searchListString(List *list, char *value)
 {
-    assert(isPtrList(list));
-
-    FOREACH(char,item,list)
-    {
-        if (strcmp(item,value) == 0)
-            return TRUE;
-    }
-
-    return FALSE;
+    return listPosString(list, value) != -1;
 }
 
 boolean
@@ -472,3 +464,42 @@ searchListNode(List *list, Node *value)
     return FALSE;
 }
 
+boolean
+genericSearchList(List *list, boolean (*eq) (void *, void *), void *value)
+{
+    return genericListPos(list, eq, value) != -1;
+}
+
+
+boolean
+genericListPos (List *list, boolean (*eq) (void *, void *), void *value)
+{
+    assert(isPtrList(list));
+    int pos = 0;
+
+    FOREACH(void,item,list)
+    {
+        if (eq(item, value))
+            return pos;
+        pos++;
+    }
+
+    return -1;
+}
+
+
+int
+listPosString (List *list, char *value)
+{
+    assert(isPtrList(list));
+    int pos = 0;
+
+    FOREACH(char,item,list)
+    {
+        if (strcmp(item,value) == 0)
+            return pos;
+        pos++;
+    }
+
+    return -1;
+}

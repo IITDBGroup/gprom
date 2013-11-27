@@ -485,7 +485,7 @@ copyFromJoinExpr(FromJoinExpr *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(joinType);
     COPY_SCALAR_FIELD(joinCond);
     if (from->joinCond == JOIN_COND_USING)
-        new->cond = (Node *) deepCopyStringList((List *) new->cond);
+        new->cond = (Node *) deepCopyStringList((List *) from->cond);
     else
         COPY_NODE_FIELD(cond);
 

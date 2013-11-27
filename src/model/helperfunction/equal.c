@@ -78,7 +78,7 @@ static boolean equalFromProvInfo (FromProvInfo *a, FromProvInfo *b);
 /*compare a field pointer to a string list*/
 #define COMPARE_STRING_LIST_FIELD(fldname)  \
         do{  \
-            if(!equalStringList(a->fldname, b->fldname))  \
+            if(!equalStringList((List *) a->fldname, (List *) b->fldname))  \
             return FALSE;  \
         } while (0)
 
@@ -479,7 +479,10 @@ equalFromJoinExpr(FromJoinExpr *a, FromJoinExpr *b)
     COMPARE_NODE_FIELD(right);
     COMPARE_SCALAR_FIELD(joinType);
     COMPARE_SCALAR_FIELD(joinCond);
-    COMPARE_NODE_FIELD(cond);
+    if (a->joinCond == JOIN_COND_USING)
+        COMPARE_STRING_LIST_FIELD(cond);
+    else
+        COMPARE_NODE_FIELD(cond);
   
     return TRUE;
 }
