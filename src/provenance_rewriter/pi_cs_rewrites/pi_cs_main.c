@@ -19,7 +19,7 @@ static void rewritePI_CSSelection (SelectionOperator *op);
 static void rewritePI_CSProjection (ProjectionOperator *op);
 static void rewritePI_CSJoin (JoinOperator *op);
 static void rewritePI_CSAggregation (AggregationOperator *op);
-//TODO add set operations
+static void rewritePI_CSSet (SetOperator *op);
 
 QueryOperator *
 rewritePI_CS (ProvenanceComputation  *op)
@@ -54,7 +54,9 @@ rewritePI_CSOperator (QueryOperator *op)
             break;
         case T_JoinOperator:
             rewritePI_CSJoin((JoinOperator *) op);
-        //TODO OTHER OPERATORS
+            break;
+        case T_SetOperator:
+        	rewritePI_CSSet((SetOperator *) op);
             break;
         default:
             break;
@@ -67,8 +69,8 @@ rewritePI_CSSelection (SelectionOperator *op)
     // rewrite child first
     rewritePI_CSOperator(OP_LCHILD(op));
 
-
-    // adapt schema addProvenanceAttrsToSchema(op, OP_LCHILD(op));
+//     adapt schema addProvenanceAttrsToSchema(op, OP_LCHILD(op));
+    addProvenanceAttrsToSchema(op, OP_LCHILD(op));
 }
 
 static void
@@ -78,8 +80,12 @@ rewritePI_CSProjection (ProjectionOperator *op)
     rewritePI_CSOperator(OP_LCHILD(op));
 
     // add projection expressions for provenance attrs
+    TableAccessOperator *t = OP_LCHILD(op->op.inputs);
+    FOREACH(AttributeDef, a, t->op.schema->attrDefs)
+    	t->op.provAttrs = appendToTailOfList(t->op.provAttrs, createAttributeReference(a->attrName));
 
     // adapt schema
+    addProvenanceAttrsToSchema(op, OP_LCHILD(op));
 }
 
 static void
@@ -90,7 +96,7 @@ rewritePI_CSJoin (JoinOperator *op)
     rewritePI_CSOperator(OP_RCHILD(op));
 
     // adapt schema
-
+    addProvenanceAttrsToSchema(op, OP_LCHILD(op));
 }
 
 /*
@@ -129,4 +135,10 @@ rewritePI_CSAggregation (AggregationOperator *op)
     // create join condition
 
     // create projection expressions for final projection
+}
+
+static void
+rewritePI_CSSet(SetOperator *op)
+{
+
 }
