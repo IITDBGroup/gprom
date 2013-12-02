@@ -208,7 +208,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
     child = translateQuery(prov->query);
 
     result = createProvenanceComputOp(prov->provType, singleton(child), NIL, prov->selectClause);
-
+    result->asOf = copyObject(prov->asOf);
     child->parents = singleton(result);
 
     return (QueryOperator *) result;
