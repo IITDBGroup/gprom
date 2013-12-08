@@ -71,6 +71,15 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
             analyzeProvenanceStmt((ProvenanceStmt *) stmt, parentFroms);
             DEBUG_LOG("analyzed Provenance Stmt");
             break;
+        case T_Insert:
+            analyzeInsert((Insert *) stmt);
+            break;
+        case T_Delete:
+            analyzeDelete((Delete *) stmt);
+            break;
+        case T_Update:
+            analyzeUpdate((Update *) stmt);
+            break;
         case T_List:
             analyzeStmtList ((List *) stmt, parentFroms);
             DEBUG_LOG("analyzed List");
@@ -101,15 +110,6 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
         {
             case T_FromTableRef:
                 analyzeFromTableRef((FromTableRef *) f);
-                break;
-            case T_Insert:
-                analyzeInsert((Insert *) f);
-                break;
-            case T_Delete:
-                analyzeDelete((Delete *) f);
-                break;
-            case T_Update:
-                analyzeUpdate((Update *) f);
                 break;
             case T_FromSubquery:
             	analyzeFromSubquery((FromSubquery *) f, parentFroms);
@@ -537,27 +537,115 @@ static void
 analyzeInsert(Insert * f)
 {
 	List *attrRefs = getAttributes(f->tableName);
-	if(f->attrList->length != attrRefs->length)
-		DEBUG_LOG("The number of attributes are not correct");
+
+	if (isA(f->query,List))
+	{
+		if(f->attrList->length != attrRefs->length)
+			INFO_LOG("The number of values are not equal to the number attributes in the table");
+
+	}
+	else
+	{
+		analyzeQueryBlockStmt (f->query, NIL);
+	}
 }
 
 static void
 analyzeDelete(Delete * f)
 {
 	List *attrRefs = NIL;
+	List *attrDef = getAttributes(f->nodeName);
+	List *attrNames = NIL;
+	FromTableRef *fakeTable;
+	List *fakeFrom = NIL;
+
+	FOREACH(AttributeReference,a,attrDef)
+		attrNames = appendToTailOfList(attrNames, strdup(a->name));
+
+	fakeTable = createFromTableRef(strdup(f->nodeName), attrNames, strdup(f->nodeName));
+	fakeFrom = singleton(singleton(fakeTable));
+
+	boolean isFound = FALSE;
+	    int  attrPos = 0;
+
 	findAttrReferences((Node *) f->cond, &attrRefs);
-	INFO_LOG("Collect attribute references done");
-	DEBUG_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));
+	FOREACH(AttributeReference,a,attrRefs)
+	{
+		 FOREACH(List,fClause,fakeFrom)
+		    {
+		        FOREACH(FromItem, f, fClause)
+		        {
+		            attrPos = findAttrInFromItem(f, a);
+
+		            if (attrPos != INVALID_ATTR)
+		            {
+		                if (isFound)
+		                    DEBUG_LOG("ambigious attribute reference %s", a->name);
+		                else
+		                {
+		                    isFound = TRUE;
+		                    a->fromClauseItem = 0;
+		                    a->attrPosition = attrPos;
+		                    a->outerLevelsUp = 0;
+		                }
+		            }
+		        }
+		    }
+	}
+
+	// search for nested subqueries
+	// analyze each nested subqueries
+	analyzeQueryBlockStmt ((Node *) f->cond, NIL);
 }
+
 
 static void
 analyzeUpdate(Update * f)
 {
 	List *attrRefs = NIL;
-	findAttrReferences((Node *) f->selectClause, &attrRefs);
-	findAttrReferences((Node *) f->cond, &attrRefs);
-	INFO_LOG("Collect attribute references done");
-	DEBUG_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));
+		List *attrDef = getAttributes(f->nodeName);
+		List *attrNames = NIL;
+		FromTableRef *fakeTable;
+		List *fakeFrom = NIL;
+
+		FOREACH(AttributeReference,a,attrDef)
+			attrNames = appendToTailOfList(attrNames, strdup(a->name));
+
+		fakeTable = createFromTableRef(strdup(f->nodeName), attrNames, strdup(f->nodeName));
+		fakeFrom = singleton(singleton(fakeTable));
+
+		boolean isFound = FALSE;
+		    int  attrPos = 0;
+
+		findAttrReferences((Node *) f->cond, &attrRefs);
+		FOREACH(AttributeReference,a,attrRefs)
+		{
+			 FOREACH(List,fClause,fakeFrom)
+			    {
+			        FOREACH(FromItem, f, fClause)
+			        {
+			            attrPos = findAttrInFromItem(f, a);
+
+			            if (attrPos != INVALID_ATTR)
+			            {
+			                if (isFound)
+			                    DEBUG_LOG("ambigious attribute reference %s", a->name);
+			                else
+			                {
+			                    isFound = TRUE;
+			                    a->fromClauseItem = 0;
+			                    a->attrPosition = attrPos;
+			                    a->outerLevelsUp = 0;
+			                }
+			            }
+			        }
+			    }
+		}
+
+		// search for nested subqueries
+		// analyze each nested subqueries
+		analyzeQueryBlockStmt ((Node *) f->cond, NIL);
+
 }
 
 static void
