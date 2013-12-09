@@ -46,20 +46,12 @@ translateInsert (Node *insert)
     StringInfo insert = makeStringInfo();
     Node *insert;
 
-    if(!cond)
-   {
     TableAccessOperator *ta = makeNode(TableAccessOperator);
     ta->tableName = tableName;
-
-    SelectionOperator *sel = makeNode(SelectionOperator);
-    sel->cond = copyObject(cond);
-
-    ProjectionOperator *prj = makeNode(ProjectionOperator);
-    prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
     
     SetOperator *set = makeNode(SetOperator);
     set->setOpType = setOpType;
-   }   
+      
    return insert; 
 }
 
