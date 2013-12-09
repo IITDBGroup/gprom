@@ -206,17 +206,17 @@ translateProvenanceStmt(ProvenanceStmt *prov)
     Schema *schema = NULL;
 
     Constant *test = copyObject((Constant *)prov->asOf);
-    Constant *CopyAsOf = makeNode(Constant);
+    Constant *copyAsOf = makeNode(Constant);
     if(test->constType == DT_INT){
-    	CopyAsOf->value = test->value;
-    	CopyAsOf->constType = DT_INT;
+    	copyAsOf->value = test->value;
+    	copyAsOf->constType = DT_INT;
     }else if(test->constType == DT_STRING){
-    	CopyAsOf->value = test->value;
-    	CopyAsOf->constType = DT_INT;
+    	copyAsOf->value = test->value;
+    	copyAsOf->constType = DT_INT;
 
     }
     //prov->asOf = copyObject((Node *)CopyAsOf);
-    Node *asOf = (Node *)CopyAsOf;
+    Node *asOf = (Node *)copyAsOf;
     child = translateQuery(prov->query);
 
     result = createProvenanceComputOp(prov->provType, singleton(child),NIL, prov->selectClause,asOf);

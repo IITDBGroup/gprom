@@ -495,7 +495,7 @@ outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
 {
     WRITE_NODE_TYPE(PROVENANCE_COMPUTATION);
     WRITE_QUERY_OPERATOR();
-
+    WRITE_NODE_FIELD(asOf);
     WRITE_ENUM_FIELD(provType,ProvenanceType);
 }
 
