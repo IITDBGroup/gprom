@@ -16,6 +16,7 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 
+
 static Schema *mergeSchemas (List *inputs);
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 
@@ -96,12 +97,13 @@ getAttrNames(Schema *schema)
 }
 
 TableAccessOperator *
-createTableAccessOp(char *tableName, char *alias, List *parents,
+createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
         List *attrNames, List *dataTypes)
 {
     TableAccessOperator *ta = makeNode(TableAccessOperator);
 
     ta->tableName = tableName;
+    ta->asOf = asOf;
     ta->op.inputs = NULL;
     ta->op.schema = createSchemaFromLists(alias, attrNames, dataTypes);
     ta->op.parents = parents;
@@ -222,15 +224,17 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
 }
 
 ProvenanceComputation *
-createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames)
+createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, Node *asOf)
 {
     ProvenanceComputation *p = makeNode(ProvenanceComputation);
-
+    //Node *CopyasOf;
+    //CopyasOf = copyObject(asOf);
     p->op.parents = parents;
     p->op.inputs = inputs;
     p->op.schema = createSchemaFromLists("PROVENANCE", attrNames, NULL);
     p->provType = provType;
-
+    p->asOf = asOf;
+    //p->asOf = CopyasOf;
     return p;
 }
 

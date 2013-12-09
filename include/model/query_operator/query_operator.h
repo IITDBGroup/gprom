@@ -44,6 +44,7 @@ typedef struct TableAccessOperator
 {
     QueryOperator op;
     char *tableName;
+    Node *asOf;
 } TableAccessOperator;
 
 typedef struct SelectionOperator
@@ -104,14 +105,14 @@ extern List *getDataTypes (Schema *schema);
 extern List *getAttrNames(Schema *schema);
 
 /* create functions */
-extern TableAccessOperator *createTableAccessOp (char *tableName, char *alias, List *parents, List *attrNames, List *dataTypes);
+extern TableAccessOperator *createTableAccessOp (char *tableName, Node *optime,char *alias, List *parents, List *attrNames, List *dataTypes);
 extern SelectionOperator *createSelectionOp (Node *cond, QueryOperator *input, List *parents, List *attrNames);
 extern ProjectionOperator *createProjectionOp (List *projExprs, QueryOperator *input, List *parents, List *attrNames);
 extern JoinOperator *createJoinOp (JoinType joinType, Node *cond, List *inputs, List *parents, List *attrNames);
 extern AggregationOperator *createAggregationOp (List *aggrs, List *groupBy, QueryOperator *input, List *parents, List *attrNames);
 extern SetOperator *createSetOperator (SetOpType setOpType, List *inputs, List *parents, List *attrNames);
 extern DuplicateRemoval *createDuplicateRemovalOp (List *attrs, QueryOperator *input, List *parents, List *attrNames);
-extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames);
+extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, Node *asOf);
 
 /* navigation functions */
 #define OP_LCHILD(op) \

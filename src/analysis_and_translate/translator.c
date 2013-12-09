@@ -205,12 +205,23 @@ translateProvenanceStmt(ProvenanceStmt *prov)
     ProvenanceComputation *result;
     Schema *schema = NULL;
 
+    Constant *test = copyObject((Constant *)prov->asOf);
+    Constant *CopyAsOf = makeNode(Constant);
+    if(test->constType == DT_INT){
+    	CopyAsOf->value = test->value;
+    	CopyAsOf->constType = DT_INT;
+    }else if(test->constType == DT_STRING){
+    	CopyAsOf->value = test->value;
+    	CopyAsOf->constType = DT_INT;
+
+    }
+    //prov->asOf = copyObject((Node *)CopyAsOf);
+    Node *asOf = (Node *)CopyAsOf;
     child = translateQuery(prov->query);
 
-    result = createProvenanceComputOp(prov->provType, singleton(child), NIL, prov->selectClause);
+    result = createProvenanceComputOp(prov->provType, singleton(child),NIL, prov->selectClause,asOf);
 
     child->parents = singleton(result);
-
     return (QueryOperator *) result;
 }
 
@@ -309,7 +320,7 @@ translateFromClauseToOperatorList(List *fromClause)
 static inline QueryOperator *
 createTableAccessOpFromFromTableRef(FromTableRef *ftr)
 {
-    TableAccessOperator *ta = createTableAccessOp(ftr->tableId, ftr->from.name,
+    TableAccessOperator *ta = createTableAccessOp(ftr->tableId, NULL,ftr->from.name,
                 NIL, ftr->from.attrNames, NIL); // TODO  get data types
     DEBUG_LOG("translated table access:\n%s\nINTO\n%s", nodeToString(ftr), nodeToString(ta));
     return ((QueryOperator *) ta);
