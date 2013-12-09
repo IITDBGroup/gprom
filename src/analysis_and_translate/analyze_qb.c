@@ -553,6 +553,7 @@ static void
 analyzeDelete(Delete * f)
 {
 	List *attrRefs = NIL;
+	List *subqueries;
 	List *attrDef = getAttributes(f->nodeName);
 	List *attrNames = NIL;
 	FromTableRef *fakeTable;
@@ -570,11 +571,11 @@ analyzeDelete(Delete * f)
 	FOREACH(AttributeReference,a,attrRefs)
 	{
 	    boolean isFound = FALSE;
-		 FOREACH(List,fClause,fakeFrom)
-		    {
-		        FOREACH(FromItem, f, fClause)
-		        {
-		            attrPos = findAttrInFromItem(f, a);
+//		 FOREACH(List,fClause,fakeFrom)
+//		    {
+//		        FOREACH(FromItem, f, fClause)
+//		        {
+		            attrPos = findAttrInFromItem((FromItem *) fakeTable, a);
 
 		            if (attrPos != INVALID_ATTR)
 		            {
@@ -588,16 +589,19 @@ analyzeDelete(Delete * f)
 		                    a->outerLevelsUp = 0;
 		                }
 		            }
-		        }
-		    }
+//		        }
+//		    }
 
 		 if (!isFound)
 		     FATAL_LOG("do not find attribute %s", a->name);
 	}
 
 	// search for nested subqueries
+	findNestedSubqueries(f->cond, &subqueries);
+	FOREACH(NestedSubquery,nq,subqueries)
+	    analyzeQueryBlock(nq, fakeFrom);
 	// analyze each nested subqueries
-	analyzeQueryBlockStmt ((Node *) f->cond, NIL);
+//	analyzeQueryBlockStmt ((Node *) f->cond, NIL);
 }
 
 
