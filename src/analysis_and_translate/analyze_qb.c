@@ -542,7 +542,6 @@ analyzeInsert(Insert * f)
 	{
 		if(f->attrList->length != attrRefs->length)
 			INFO_LOG("The number of values are not equal to the number attributes in the table");
-
 	}
 	else
 	{
@@ -565,12 +564,12 @@ analyzeDelete(Delete * f)
 	fakeTable = createFromTableRef(strdup(f->nodeName), attrNames, strdup(f->nodeName));
 	fakeFrom = singleton(singleton(fakeTable));
 
-	boolean isFound = FALSE;
 	    int  attrPos = 0;
 
 	findAttrReferences((Node *) f->cond, &attrRefs);
 	FOREACH(AttributeReference,a,attrRefs)
 	{
+	    boolean isFound = FALSE;
 		 FOREACH(List,fClause,fakeFrom)
 		    {
 		        FOREACH(FromItem, f, fClause)
@@ -591,6 +590,9 @@ analyzeDelete(Delete * f)
 		            }
 		        }
 		    }
+
+		 if (!isFound)
+		     FATAL_LOG("do not find attribute %s", a->name);
 	}
 
 	// search for nested subqueries
