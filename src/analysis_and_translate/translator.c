@@ -219,7 +219,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
     Node *asOf = (Node *)copyAsOf;
     child = translateQuery(prov->query);
 
-    result = createProvenanceComputOp(prov->provType, singleton(child), NIL, prov->selectClause);
+    result = createProvenanceComputOp(prov->provType, singleton(child), NIL, prov->selectClause, NULL);
     result->asOf = copyObject(prov->asOf);
     child->parents = singleton(result);
 
@@ -257,7 +257,8 @@ buildJoinTreeFromOperatorList(List *opList)
         root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
 
         // set the parent of the operator's children
-        OP_LCHILD(root)->parents = OP_RCHILD(root)->parents = singleton(root);
+        OP_LCHILD(root)->parents = singleton(root);
+        OP_RCHILD(root)->parents = singleton(root);
     }
 
     DEBUG_LOG("join tree for translated from is\n%s", nodeToString(root));
