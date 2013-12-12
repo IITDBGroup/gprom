@@ -177,8 +177,8 @@ rewritePI_CSSet(SetOperator *op)
 static void
 rewritePI_CSTableAccess(TableAccessOperator * op)
 {
- op->asOf = copyObject(asOf);
-}
+// op->asOf = copyObject(asOf);
+//}
 
     // Get the povenance name for each attribute
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
