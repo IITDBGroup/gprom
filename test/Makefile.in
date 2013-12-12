@@ -111,7 +111,7 @@ am_testmain_OBJECTS = test_main.$(OBJEXT) test_copy.$(OBJEXT) \
 	test_mem_mgr.$(OBJEXT) test_to_string.$(OBJEXT) \
 	test_parse.$(OBJEXT) test_list.$(OBJEXT) \
 	test_metadata_lookup.$(OBJEXT) test_string.$(OBJEXT) \
-	test_set.$(OBJEXT) test_pi_cs_rewrite.$(OBJEXT)
+	test_set.$(OBJEXT)
 testmain_OBJECTS = $(am_testmain_OBJECTS)
 testmain_DEPENDENCIES = ../src/libsrc.la
 am_testparser_OBJECTS = test_parser.$(OBJEXT)
@@ -329,8 +329,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/include -I.
 testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 		   test_logger.c test_mem_mgr.c test_to_string.c \
 		   test_parse.c test_list.c test_main.h \
-		   test_metadata_lookup.c test_string.c test_set.c \
-                   test_pi_cs_rewrite.c
+		   test_metadata_lookup.c test_string.c test_set.c 
 
 testmain_LDADD = ../src/libsrc.la
 testparser_SOURCES = test_parser.c
