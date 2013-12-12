@@ -15,6 +15,7 @@
 #include "model/query_operator/query_operator.h"
 #include "log/logger.h"
 #include "model/node/nodetype.h"
+#include "provenance_rewriter/prov_schema.h"
 
 static void rewritePI_CSOperator (QueryOperator *op);
 static void rewritePI_CSSelection (SelectionOperator *op);
@@ -57,9 +58,6 @@ rewritePI_CSOperator (QueryOperator *op)
 {
     switch(op->type)
     {
-        case T_TableAccessOperator:
-            rewritePI_CSTableAccess((TableAccessOperator *) op);
-            break;
         case T_SelectionOperator:
          ERROR_LOG("go selection");
             rewritePI_CSSelection((SelectionOperator *) op);
@@ -177,8 +175,14 @@ rewritePI_CSSet(SetOperator *op)
 static void
 rewritePI_CSTableAccess(TableAccessOperator * op)
 {
- op->asOf = copyObject(asOf);
-}
+    List *tableAttr;
+    List *provAttr;
+    List *projExpr;
+    char *newAttrName;
+    int state = 1;
+    int cnt=1;
+    op->asOf = copyObject(asOf);
+
 
     // Get the povenance name for each attribute
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
