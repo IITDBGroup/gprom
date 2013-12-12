@@ -183,9 +183,14 @@ transactionIdentifier:
 provStmt: 
         PROVENANCE OF '(' stmt ')'
         {
-            RULELOG(provStmt);
+            RULELOG("provStmt");
             $$ = (Node *) createProvenanceStmt($4);
         }
+		PROVENANCE OF '(' stmtlist ')'
+		{
+			RULELOG("provStmt::stmtlist");
+			$$ = (Node *) createProvenanceStmt($4);
+		}
     ;
 
 /*

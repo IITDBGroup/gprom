@@ -609,48 +609,48 @@ static void
 analyzeUpdate(Update * f)
 {
 	List *attrRefs = NIL;
-		List *attrDef = getAttributes(f->nodeName);
-		List *attrNames = NIL;
-		FromTableRef *fakeTable;
-		List *fakeFrom = NIL;
+	List *attrDef = getAttributes(f->nodeName);
+	List *attrNames = NIL;
+	FromTableRef *fakeTable;
+	List *fakeFrom = NIL;
 
-		FOREACH(AttributeReference,a,attrDef)
-			attrNames = appendToTailOfList(attrNames, strdup(a->name));
+	FOREACH(AttributeReference,a,attrDef)
+	attrNames = appendToTailOfList(attrNames, strdup(a->name));
 
-		fakeTable = createFromTableRef(strdup(f->nodeName), attrNames, strdup(f->nodeName));
-		fakeFrom = singleton(singleton(fakeTable));
+	fakeTable = createFromTableRef(strdup(f->nodeName), attrNames, strdup(f->nodeName));
+	fakeFrom = singleton(singleton(fakeTable));
 
-		boolean isFound = FALSE;
-		    int  attrPos = 0;
+	boolean isFound = FALSE;
+	int  attrPos = 0;
 
-		findAttrReferences((Node *) f->cond, &attrRefs);
-		FOREACH(AttributeReference,a,attrRefs)
-		{
-			 FOREACH(List,fClause,fakeFrom)
-			    {
-			        FOREACH(FromItem, f, fClause)
-			        {
-			            attrPos = findAttrInFromItem(f, a);
-
-			            if (attrPos != INVALID_ATTR)
+	findAttrReferences((Node *) f->cond, &attrRefs);
+	FOREACH(AttributeReference,a,attrRefs)
+	{
+	    FOREACH(List,fClause,fakeFrom)
 			            {
-			                if (isFound)
-			                    DEBUG_LOG("ambigious attribute reference %s", a->name);
-			                else
+	        FOREACH(FromItem, f, fClause)
 			                {
-			                    isFound = TRUE;
-			                    a->fromClauseItem = 0;
-			                    a->attrPosition = attrPos;
-			                    a->outerLevelsUp = 0;
+	            attrPos = findAttrInFromItem(f, a);
+
+	            if (attrPos != INVALID_ATTR)
+	            {
+	                if (isFound)
+	                    DEBUG_LOG("ambigious attribute reference %s", a->name);
+	                else
+	                {
+	                    isFound = TRUE;
+	                    a->fromClauseItem = 0;
+	                    a->attrPosition = attrPos;
+	                    a->outerLevelsUp = 0;
+	                }
+	            }
 			                }
 			            }
-			        }
-			    }
-		}
+	}
 
-		// search for nested subqueries
-		// analyze each nested subqueries
-		analyzeQueryBlockStmt ((Node *) f->cond, NIL);
+	// search for nested subqueries
+	// analyze each nested subqueries
+	analyzeQueryBlockStmt ((Node *) f->cond, NIL);
 
 }
 
@@ -883,6 +883,9 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             q->selectClause = deepCopyStringList(
                     ((ProvenanceStmt *) q->query)->selectClause);
         break;
+        case T_List:
+            // loop through list
+            break;
         default:
         break;
     }

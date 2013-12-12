@@ -59,6 +59,12 @@ findProvenanceComputations (QueryOperator *op)
 QueryOperator *
 rewriteProvenanceComputation (ProvenanceComputation *op)
 {
+    if (LIST_LENGTH(op->op.inputs) > 1)
+    {
+        // merge
+        // rewrite
+        // return
+    }
     switch(op->provType)
     {
         case PI_CS:

@@ -42,83 +42,100 @@ translateUpdate(Node *update) {
 
 static QueryOperator *
 translateInsert(Insert *insert) {
-	QueryOperator output = NEW(QueryOperator);
 	List *attr = getAttributes(insert.tableName);
+    QueryOperator *insertQuery;
 
-	TableAccessOperator *to = NEW(TableAccessOperator);
+	TableAccessOperator *to;
 	to = createTableAccessOp(insert->tableName, NULL, NIL, attr, NIL);
 
-	TableAccessOperator *ro = NEW(TableAccessOperator);
-	ro = createTableAccessOp(insert->tableName, NULL, NIL, insert->attrList,NIL);
+	if (isA(insert->query,  List))
+	{
+	    // CONST REL OPERATOR
+	    TableAccessOperator *ro;
+	    insertQuery = createTableAccessOp(insert->tableName, NULL, NIL, insert->attrList,NIL);
 
+	}
+	else
+	{
+	    insertQuery = translateQuery(insert->query);
+	}
 
 	enum SetOpType unionType = SETOP_UNION;
-	SetOperator *seto = NEW(SetOperator);
-	seto = createSetOperator(unionType, to, NIL, attr);
+	SetOperator *seto;
+	seto = createSetOperator(unionType, NIL, NIL, attr);
 
 	addChildOperator(seto, to);
-	addChildOperator(seto, ro);
+	addChildOperator(seto, insertQuery);
 
-	OP_LCHILD(seto)->parents = singleton(seto);
-	output = (QueryOperator *) seto;
-
-	return (QueryOperator *) output;
+	return (QueryOperator *) seto;
 }
 
 static QueryOperator *
-translateDelete(Delete *delete) {
-
-	QueryOperator output = NEW(QueryOperator);
+translateDelete(Delete *delete)
+{
 	List *attr = getAttributes(delete.nodeName);
 
-	TableAccessOperator *to = NEW(TableAccessOperator);
-	to = createTableAccessOp(delete.nodeName, NULL, NIL, NIL, attr, NIL);
+	TableAccessOperator *to;
+	to = createTableAccessOp(strdup(delete.nodeName), NULL, NIL, NIL, attr, NIL);
 
-	SelectionOperator *so = NEW(SelectionOperator);
-	so = createSelectionOp(delete.cond, to, NIL, attr);
+	SelectionOperator *so;
+	so = createSelectionOp(copyObject(delete.cond), NIL, NIL, attr);
 	// so->op.schema->name= "Not"; //How to set not for selection OP?
 
 	addChildOperator(so, to);
 
-	OP_LCHILD(so)->parents = singleton(so);
-	output = (QueryOperator *) so;
-
-	return (QueryOperator *) output;
+	return (QueryOperator *) so;
 }
 
 static QueryOperator *
-translateUpdate(Update *update) {
-	QueryOperator output = NEW(QueryOperator);
+translateUpdate(Update *update)
+{
+    List *attrs = getAttributes(update.nodeName);
 
 	TableAccessOperator *to;
-	to = createTableAccessOp(update.nodeName, NULL, NIL, NIL,update.selectClause, NIL);
+	to = createTableAccessOp(strdup(update.nodeName), NULL, NIL, NIL,deepCopyStringList(attrs), NIL);
 
 	SelectionOperator *so;
-	so = createSelectionOp(update.cond, to, NIL, update.selectClause);
+	so = createSelectionOp(copyObject(update.cond), NIL, NIL, deepCopyStringList(attrs));
 
 	addChildOperator(so, to);
 
-	ProjectionOperator *po = NEW(ProjectionOperator);
-	po = createProjectionOp(NIL, so, NIL, update.selectClause);
+	// CREATE PROJECTION EXPRESSIONS
+	List *projExprs = NIL;
+	for(int i = 0; i < LIST_LENGTH(attrs); i++)
+	{
+        Node *projExpr= NULL;
+	    FOREACH(Operator,o,update.selectClause)
+        {
+	        AttributeReference *a = (AttributeReference *) getNthOfList(o->args, 0);
+	        if (a->attrPosition == i)
+	            projExpr = (Node *) copyObject(getNthOfList(o->args, 1));
+        }
+
+	    if (projExpr == NULL)
+	        projExpr = createFullAttrReference(getNthOfList(attrs,i), 0, i, 0);
+	    projExprs = appendToTailOfList(projExprs, projExpr);
+	}
+
+	ProjectionOperator *po;
+	po = createProjectionOp(projExprs, NIL, NIL, deepCopyStringList(attrs));
 
 	addChildOperator(po, so);
 
-	SelectionOperator *nso = NEW(SelectionOperator);
-	nso = so;
-	// nso->op.schema->name= "Not"; //How to set not for selection OP?
+	SelectionOperator *nso;
+	Node *negatedCond;
+	negatedCond = createOpExpr("NOT", singleton(copyObject(update.cond)));
+	nso = createSelectionOp(negatedCond, NIL, NIL, deepCopyStringList(attrs));
 	addChildOperator(nso, to);
 
 	enum SetOpType unionType = SETOP_UNION;
-	SetOperator *seto = NEW(SetOperator);
-	seto = createSetOperator(unionType, po, NIL, update->selectClause);
+	SetOperator *seto;
+	seto = createSetOperator(unionType, NIL, NIL, deepCopyStringList(attrs));
 
 	addChildOperator(seto, po);
 	addChildOperator(seto, nso);
 
-	OP_LCHILD(seto)->parents = singleton(seto);
-	output = (QueryOperator *) seto;
-
-	return (QueryOperator *) output;
+	return (QueryOperator *) seto;
 }
 
 
