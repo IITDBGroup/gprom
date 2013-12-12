@@ -90,10 +90,10 @@ static QueryOperator *
 translateUpdate(Update *update) {
 	QueryOperator output = NEW(QueryOperator);
 
-	TableAccessOperator *to = NEW(TableAccessOperator);
+	TableAccessOperator *to;
 	to = createTableAccessOp(update.nodeName, NULL, NIL, NIL,update.selectClause, NIL);
 
-	SelectionOperator *so = NEW(SelectionOperator);
+	SelectionOperator *so;
 	so = createSelectionOp(update.cond, to, NIL, update.selectClause);
 
 	addChildOperator(so, to);
