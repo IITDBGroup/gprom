@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * pi_cs_main.c
+ *			  
+ *		
+ *		AUTHOR: lord_pretzel
  *
- *
- *  AUTHOR: lord_pretzel
- *
- *
+ *		
  *
  *-----------------------------------------------------------------------------
  */
@@ -57,6 +57,9 @@ rewritePI_CSOperator (QueryOperator *op)
 {
     switch(op->type)
     {
+        case T_TableAccessOperator:
+            rewritePI_CSTableAccess((TableAccessOperator *) op);
+            break;
         case T_SelectionOperator:
          ERROR_LOG("go selection");
             rewritePI_CSSelection((SelectionOperator *) op);
@@ -93,7 +96,7 @@ rewritePI_CSSelection (SelectionOperator *op)
     rewritePI_CSOperator(OP_LCHILD(op));
 
 //     adapt schema addProvenanceAttrsToSchema(op, OP_LCHILD(op));
-    addProvenanceAttrsToSchema(op, OP_LCHILD(op));
+    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 }
 
 static void
@@ -108,7 +111,7 @@ rewritePI_CSProjection (ProjectionOperator *op)
      t->op.provAttrs = appendToTailOfList(t->op.provAttrs, createAttributeReference(a->attrName));
 
     // adapt schema
-    addProvenanceAttrsToSchema(op, OP_LCHILD(op));
+    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 }
 
 static void
@@ -119,7 +122,7 @@ rewritePI_CSJoin (JoinOperator *op)
     rewritePI_CSOperator(OP_RCHILD(op));
 
     // adapt schema
-    addProvenanceAttrsToSchema(op, OP_LCHILD(op));
+    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 }
 
 /*
@@ -163,7 +166,12 @@ rewritePI_CSAggregation (AggregationOperator *op)
 static void
 rewritePI_CSSet(SetOperator *op)
 {
+    // rewrite children
+    rewritePI_CSOperator(OP_LCHILD(op));
+    rewritePI_CSOperator(OP_RCHILD(op));
 
+    // adapt schema
+    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 }
 
 static void
@@ -172,3 +180,32 @@ rewritePI_CSTableAccess(TableAccessOperator * op)
  op->asOf = copyObject(asOf);
 }
 
+    // Get the povenance name for each attribute
+    FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
+    {
+        newAttrName = getProvenanceAttrName(op->tableName, attr->attrName, state);
+        provAttr = appendToTailOfList(provAttr, newAttrName);
+        projExpr = appendToTailOfList(projExpr, attr->attrName);
+        cnt++;
+    }
+
+    projExpr = appendToTailOfList(projExpr, provAttr);
+    
+    int i = cnt;
+    List *newProvPosList;
+    newProvPosList = singleton((int *) cnt);
+    for(i=cnt+1; i <= 2*cnt-1; cnt++) {
+        newProvPosList = appendToTailOfList(newProvPosList, (int *) i);
+    }
+    
+    // Create a new projection operator with these new attributes
+    ProjectionOperator *newpo = createProjectionOp(projExpr, (QueryOperator *) op, NIL, provAttr);
+
+    newpo->op.provAttrs = newProvPosList;
+
+    // Switch the subtree with this newly created projection operator.
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+
+    // Add childs to the newly created projections operator,
+    addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+}

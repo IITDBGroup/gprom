@@ -37,7 +37,8 @@ host_triplet = @host@
 bin_PROGRAMS = testmain$(EXEEXT) testparser$(EXEEXT) \
 	testupana$(EXEEXT) testanalysis$(EXEEXT) \
 	testtranslate$(EXEEXT) testserializer$(EXEEXT) \
-	testvisit$(EXEEXT) testrewriter$(EXEEXT)
+	testvisit$(EXEEXT) testrewriter$(EXEEXT) \
+	testpicsrewrite$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -58,12 +59,15 @@ am_testmain_OBJECTS = test_main.$(OBJEXT) test_copy.$(OBJEXT) \
 	test_mem_mgr.$(OBJEXT) test_to_string.$(OBJEXT) \
 	test_parse.$(OBJEXT) test_list.$(OBJEXT) \
 	test_metadata_lookup.$(OBJEXT) test_string.$(OBJEXT) \
-	test_set.$(OBJEXT)
+	test_set.$(OBJEXT) test_pi_cs_rewrite.$(OBJEXT)
 testmain_OBJECTS = $(am_testmain_OBJECTS)
 testmain_DEPENDENCIES = ../src/libsrc.la
 am_testparser_OBJECTS = test_parser.$(OBJEXT)
 testparser_OBJECTS = $(am_testparser_OBJECTS)
 testparser_DEPENDENCIES = ../src/libsrc.la
+am_testpicsrewrite_OBJECTS = test_pi_cs_rewrite.$(OBJEXT)
+testpicsrewrite_OBJECTS = $(am_testpicsrewrite_OBJECTS)
+testpicsrewrite_DEPENDENCIES = ../src/libsrc.la
 am_testrewriter_OBJECTS = test_rewriter.$(OBJEXT)
 testrewriter_OBJECTS = $(am_testrewriter_OBJECTS)
 testrewriter_DEPENDENCIES = ../src/libsrc.la
@@ -93,13 +97,15 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(testanalysis_SOURCES) $(testmain_SOURCES) \
-	$(testparser_SOURCES) $(testrewriter_SOURCES) \
-	$(testserializer_SOURCES) $(testtranslate_SOURCES) \
-	$(testupana_SOURCES) $(testvisit_SOURCES)
+	$(testparser_SOURCES) $(testpicsrewrite_SOURCES) \
+	$(testrewriter_SOURCES) $(testserializer_SOURCES) \
+	$(testtranslate_SOURCES) $(testupana_SOURCES) \
+	$(testvisit_SOURCES)
 DIST_SOURCES = $(testanalysis_SOURCES) $(testmain_SOURCES) \
-	$(testparser_SOURCES) $(testrewriter_SOURCES) \
-	$(testserializer_SOURCES) $(testtranslate_SOURCES) \
-	$(testupana_SOURCES) $(testvisit_SOURCES)
+	$(testparser_SOURCES) $(testpicsrewrite_SOURCES) \
+	$(testrewriter_SOURCES) $(testserializer_SOURCES) \
+	$(testtranslate_SOURCES) $(testupana_SOURCES) \
+	$(testvisit_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -227,7 +233,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/include -I.
 testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 		   test_logger.c test_mem_mgr.c test_to_string.c \
 		   test_parse.c test_list.c test_main.h \
-		   test_metadata_lookup.c test_string.c test_set.c
+		   test_metadata_lookup.c test_string.c test_set.c \
+                   test_pi_cs_rewrite.c
 
 testmain_LDADD = ../src/libsrc.la
 testparser_SOURCES = test_parser.c
@@ -244,6 +251,8 @@ testvisit_SOURCES = test_visit.c
 testvisit_LDADD = ../src/libsrc.la
 testrewriter_SOURCES = test_rewriter.c
 testrewriter_LDADD = ../src/libsrc.la
+testpicsrewrite_SOURCES = test_pi_cs_rewrite.c
+testpicsrewrite_LDADD = ../src/libsrc.la
 all: all-am
 
 .SUFFIXES:
@@ -330,6 +339,9 @@ testmain$(EXEEXT): $(testmain_OBJECTS) $(testmain_DEPENDENCIES) $(EXTRA_testmain
 testparser$(EXEEXT): $(testparser_OBJECTS) $(testparser_DEPENDENCIES) $(EXTRA_testparser_DEPENDENCIES) 
 	@rm -f testparser$(EXEEXT)
 	$(LINK) $(testparser_OBJECTS) $(testparser_LDADD) $(LIBS)
+testpicsrewrite$(EXEEXT): $(testpicsrewrite_OBJECTS) $(testpicsrewrite_DEPENDENCIES) $(EXTRA_testpicsrewrite_DEPENDENCIES) 
+	@rm -f testpicsrewrite$(EXEEXT)
+	$(LINK) $(testpicsrewrite_OBJECTS) $(testpicsrewrite_LDADD) $(LIBS)
 testrewriter$(EXEEXT): $(testrewriter_OBJECTS) $(testrewriter_DEPENDENCIES) $(EXTRA_testrewriter_DEPENDENCIES) 
 	@rm -f testrewriter$(EXEEXT)
 	$(LINK) $(testrewriter_OBJECTS) $(testrewriter_LDADD) $(LIBS)
@@ -363,6 +375,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_metadata_lookup.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_parse.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_parser.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_pi_cs_rewrite.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_rewriter.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_serializer.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_set.Po@am__quote@
