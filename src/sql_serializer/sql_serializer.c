@@ -484,8 +484,12 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             TableAccessOperator *t = (TableAccessOperator *) q;
 
             *attrOffset = 0;
+             char* asOf = 0;
+             //Constant test = (Constant *)t->asOf;
+            // asOf = (char *)test->value;
+            asOf = exprToSQL(t->asOf);
             attrs = createFromNames(attrOffset, LIST_LENGTH(t->op.schema->attrDefs));
-            appendStringInfo(from, "((%s) F%u(%s))", t->tableName, (*curFromItem)++, attrs);
+            appendStringInfo(from, "((%s)(%s) F%u(%s))", t->tableName, asOf, (*curFromItem)++, attrs);
         }
         break;
         default:

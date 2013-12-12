@@ -13,7 +13,8 @@
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "model/query_operator/query_operator.h"
-#include "provenance_rewriter/prov_schema.h"
+#include "log/logger.h"
+#include "model/node/nodetype.h"
 
 static void rewritePI_CSOperator (QueryOperator *op);
 static void rewritePI_CSSelection (SelectionOperator *op);
@@ -23,10 +24,20 @@ static void rewritePI_CSAggregation (AggregationOperator *op);
 static void rewritePI_CSSet (SetOperator *op);
 static void rewritePI_CSTableAccess(TableAccessOperator *op);
 
+static Node *asOf;
+static List *provAttrs;
+
 QueryOperator *
 rewritePI_CS (ProvenanceComputation  *op)
 {
     QueryOperator *rewRoot = OP_LCHILD(op);
+    ERROR_LOG("rewRoot is: %s", beatify(nodeToString(rewRoot)));
+
+    // get asOf
+    asOf = op->asOf;
+
+    // get provenance attrs
+    provAttrs = getQueryOperatorAttrNames(op);
 
     // rewrite subquery under provenance computation
     rewritePI_CSOperator(rewRoot);
@@ -36,6 +47,8 @@ rewritePI_CS (ProvenanceComputation  *op)
 
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) op, rewRoot);
+    ERROR_LOG("final rewRoot is: %s", beatify(nodeToString(rewRoot)));
+
     return rewRoot;
 }
 
@@ -48,20 +61,29 @@ rewritePI_CSOperator (QueryOperator *op)
             rewritePI_CSTableAccess((TableAccessOperator *) op);
             break;
         case T_SelectionOperator:
+         ERROR_LOG("go selection");
             rewritePI_CSSelection((SelectionOperator *) op);
             break;
         case T_ProjectionOperator:
+         ERROR_LOG("go projection");
             rewritePI_CSProjection((ProjectionOperator *) op);
             break;
         case T_AggregationOperator:
+         ERROR_LOG("go aggregation");
             rewritePI_CSAggregation ((AggregationOperator *) op);
             break;
         case T_JoinOperator:
+         ERROR_LOG("go join");
             rewritePI_CSJoin((JoinOperator *) op);
             break;
         case T_SetOperator:
-            rewritePI_CSSet((SetOperator *) op);
+         ERROR_LOG("go set");
+         rewritePI_CSSet((SetOperator *) op);
             break;
+        case T_TableAccessOperator:
+         ERROR_LOG("go table access");
+         rewritePI_CSTableAccess((TableAccessOperator *) op);
+         break;
         default:
             break;
     }
@@ -84,9 +106,9 @@ rewritePI_CSProjection (ProjectionOperator *op)
     rewritePI_CSOperator(OP_LCHILD(op));
 
     // add projection expressions for provenance attrs
-    TableAccessOperator *t = OP_LCHILD(op->op.inputs);
+    TableAccessOperator *t = OP_LCHILD(op);
     FOREACH(AttributeDef, a, t->op.schema->attrDefs)
-    	t->op.provAttrs = appendToTailOfList(t->op.provAttrs, createAttributeReference(a->attrName));
+     t->op.provAttrs = appendToTailOfList(t->op.provAttrs, createAttributeReference(a->attrName));
 
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
@@ -152,15 +174,11 @@ rewritePI_CSSet(SetOperator *op)
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 }
 
-static void 
-rewritePI_CSTableAccess(TableAccessOperator *op)
+static void
+rewritePI_CSTableAccess(TableAccessOperator * op)
 {
-    List *tableAttr;
-    List *provAttr;
-    List *projExpr;
-    char *newAttrName;
-    int state = 1;
-    int cnt=1;
+ op->asOf = copyObject(asOf);
+}
 
     // Get the povenance name for each attribute
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)

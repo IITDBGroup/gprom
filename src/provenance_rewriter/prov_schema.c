@@ -60,6 +60,17 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
     }
 }
 
+List *
+getProvenanceAttrNames (char *table, List *attrs, int count)
+{
+     List *result = NIL;
+
+     FOREACH(char,a,attrs)
+         result = appendToTailOfList(result, getProvenanceAttrName(table, a, count));
+
+     return result;
+}
+
 char *
 getProvenanceAttrName (char *table, char *attr, int count)
 {

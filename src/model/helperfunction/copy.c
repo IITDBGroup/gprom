@@ -300,6 +300,7 @@ copyProvenanceComputation(ProvenanceComputation *from, OperatorMap **opMap)
     COPY_INIT(ProvenanceComputation);
     COPY_OPERATOR();
     COPY_SCALAR_FIELD(provType);
+    COPY_NODE_FIELD(asOf);
 
     return new;
 }

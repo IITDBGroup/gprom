@@ -15,6 +15,7 @@
 #include "model/query_operator/query_operator.h"
 
 extern List *getProvenanceAttributes(QueryOperator *q, ProvenanceType type);
+extern List *getProvenanceAttrNames (char *table, List *attrs, int count);
 extern char *getProvenanceAttrName (char *table, char *attr, int count);
 extern List *getQBProvenanceAttrList (ProvenanceStmt *stmt);
 

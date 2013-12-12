@@ -495,7 +495,7 @@ outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
 {
     WRITE_NODE_TYPE(PROVENANCE_COMPUTATION);
     WRITE_QUERY_OPERATOR();
-
+    WRITE_NODE_FIELD(asOf);
     WRITE_ENUM_FIELD(provType,ProvenanceType);
 }
 
@@ -504,7 +504,7 @@ outTableAccessOperator(StringInfo str, TableAccessOperator *node)
 {
     WRITE_NODE_TYPE(TABLE_ACCESS_OPERATOR);
     WRITE_QUERY_OPERATOR();
-
+    WRITE_NODE_FIELD(asOf);
     WRITE_STRING_FIELD(tableName);
 }
 
