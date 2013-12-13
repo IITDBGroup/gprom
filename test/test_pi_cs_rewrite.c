@@ -57,7 +57,8 @@ main (int argc, char* argv[])
     ERROR_LOG("TRANSLATION RESULT FROM STRING IS:\n%s", beatify(nodeToString(qoModel)));
     ERROR_LOG("SIMPLIFIED OPERATOR TREE:\n%s", operatorToOverviewString(qoModel));
 
-    rewriteQoModel = (Node *) rewritePI_CS((ProvenanceComputation *) qoModel);
+    QueryOperator *op = (QueryOperator *) getHeadOfListP(qoModel);
+    rewriteQoModel = (Node *) rewritePI_CS((ProvenanceComputation *) op);
     ERROR_LOG("REWRITTEN PROVENANCE RESULT IS:\n%s", beatify(nodeToString(rewriteQoModel)));
 
     freeOptions();

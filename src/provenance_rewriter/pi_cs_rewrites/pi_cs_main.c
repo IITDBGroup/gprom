@@ -16,6 +16,7 @@
 #include "log/logger.h"
 #include "model/node/nodetype.h"
 #include "provenance_rewriter/prov_schema.h"
+#include "model/list/list.h"
 
 static void rewritePI_CSOperator (QueryOperator *op);
 static void rewritePI_CSSelection (SelectionOperator *op);
@@ -31,6 +32,17 @@ static List *provAttrs;
 QueryOperator *
 rewritePI_CS (ProvenanceComputation  *op)
 {
+    ERROR_LOG("\n\n\n\n ************************************* \n\n\n%s", beatify(nodeToString((Node *) op)));
+    ERROR_LOG("Done..");
+//    List *inputs = ((QueryOperator*) op)->inputs;
+
+  //  ListCell *head;
+    //ERROR_LOG("Got List....%p", inputs);
+//    head = inputs ? inputs->head : 2;
+
+    //ERROR_LOG("Got head List....%p", inputs->head);
+    //ERROR_LOG("Value is: %d", &head);
+    //ERROR_LOG("Final Value is...%p",(head ? head->data.ptr_value : NULL));
     QueryOperator *rewRoot = OP_LCHILD(op);
     ERROR_LOG("rewRoot is: %s", beatify(nodeToString(rewRoot)));
 
