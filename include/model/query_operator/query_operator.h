@@ -121,17 +121,21 @@ extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, 
 #define OP_RCHILD(op) \
     ((QueryOperator *) getNthOfListP(((QueryOperator*) op)->inputs,1))
 
-#define _OP_LCHILD(op) \
-    getHeadOfListP(((QueryOperator*) op)->inputs)
+//#define _OP_LCHILD(op) \
+//    getHeadOfListP(((QueryOperator*) op)->inputs)
+//
+//#define _OP_RCHILD(op) \
+//    getNthOfListP(((QueryOperator*) op)->inputs,1)
 
-#define _OP_RCHILD(op) \
-    getNthOfListP(((QueryOperator*) op)->inputs,1)
+#define getAttrDef(op,aPos) \
+    ((AttributeDef *) getNthOfListP(((QueryOperator *) op)->schema->attrDefs, aPos))
 
 /*  */
 extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
 
 /* access functions */
 extern List *getProvenanceAttrs(QueryOperator *op);
+extern List *getProvenanceAttrDefs(QueryOperator *op);
 extern List *getNormalAttrs(QueryOperator *op);
 extern List *getQueryOperatorAttrNames (QueryOperator *op);
 

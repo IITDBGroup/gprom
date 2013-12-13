@@ -121,6 +121,16 @@ typedef struct List
 #define LC_P_VAL(lc) (((ListCell *) lc)->data.ptr_value)
 #define LC_INT_VAL(lc) (((ListCell *) lc)->data.int_value)
 
+/*
+ * Create a integer list starting from _start to _end increasing _step
+ */
+#define CREATE_INT_SEQ(_result, _start, _end, _step) \
+    do { \
+    	_result = NIL; \
+        for(int _my_var = (_start), _my_end = (_end), _my_step = (_step); _my_var <= _my_end; _my_var += _my_step) \
+            _result = appendToTailOfListInt(_result, _my_var); \
+    } while(0)
+
 extern boolean checkList(const List *list);
 
 extern List *newList(NodeTag type);

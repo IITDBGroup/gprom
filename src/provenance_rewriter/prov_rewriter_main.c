@@ -45,13 +45,11 @@ findProvenanceComputations (QueryOperator *op)
 {
     // is provenance computation? then rewrite
     if (isA(op, ProvenanceComputation))
-        rewriteProvenanceComputation((ProvenanceComputation *) op);
+        return rewriteProvenanceComputation((ProvenanceComputation *) op);
 
     // else search for children with provenance
     FOREACH(QueryOperator, x, op->inputs)
-    {
         findProvenanceComputations(x);
-    }
 
     return op;
 }

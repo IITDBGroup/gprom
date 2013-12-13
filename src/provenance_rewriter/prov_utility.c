@@ -11,12 +11,24 @@
  */
 
 #include "provenance_rewriter/prov_utility.h"
+#include "log/logger.h"
 #include "model/list/list.h"
 
 void
 addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source)
 {
-//    target->schema = concatTwoLists(target->schema, copyObject(getProvenanceAttrs(source)));
+    List *newProvAttrs = (List *) copyObject(getProvenanceAttrDefs(source));
+    int curAttrLen = LIST_LENGTH(target->schema->attrDefs);
+    int numProvAttrs = LIST_LENGTH(newProvAttrs);
+    List *newProvPos;
+
+    DEBUG_LOG("add provenance attributes\n%s", nodeToString(newProvAttrs));
+
+    CREATE_INT_SEQ(newProvPos, curAttrLen, curAttrLen + numProvAttrs - 1, 1);
+    target->schema->attrDefs = concatTwoLists(target->schema->attrDefs, newProvAttrs);
+    target->provAttrs = concatTwoLists(target->provAttrs, newProvPos);
+
+    DEBUG_LOG("new prov attr list is \n%s", nodeToString(newProvAttrs));
 }
 
 /*
@@ -32,7 +44,7 @@ switchSubtrees(QueryOperator *orig, QueryOperator *new)
     orig->parents = NIL;
 
     // adapt original parent's inputs
-    FOREACH(QueryOperator,parent,orig->parents)
+    FOREACH(QueryOperator,parent,new->parents)
     {
         FOREACH(QueryOperator,pChild,parent->inputs)
         {

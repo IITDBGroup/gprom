@@ -39,15 +39,13 @@ main (int argc, char* argv[])
     // read from terminal
     if (getOptions()->optionConnection->sql == NULL)
     {
-        result = rewriteQuery(stdin);
-
+        result = rewriteQueryFromStream(stdin);
         ERROR_LOG("REWRITE RESULT FROM STREAM IS <%s>", result);
     }
     // parse input string
     else
     {
         result = rewriteQuery(getOptions()->optionConnection->sql);
-
         ERROR_LOG("REWRITE RESULT FROM STRING IS:\n%s", result);
     }
 

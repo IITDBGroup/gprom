@@ -23,19 +23,44 @@
 #include "analysis_and_translate/translator.h"
 #include "sql_serializer/sql_serializer.h"
 
+static char *rewriteParserOutput (Node *parse);
+
 char *
 rewriteQuery(char *input)
 {
-    StringInfo result = makeStringInfo();
-    char *rewrittenSQL = NULL;
     Node *parse;
-    Node *oModel;
-    Node *rewrittenTree;
-
+    char *result;
 
     parse = parseFromString(input);
     DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
 
+    result = rewriteParserOutput(parse);
+    INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
+
+    return result;
+}
+
+char *
+rewriteQueryFromStream (FILE *stream) {
+    Node *parse;
+    char *result;
+
+    parse = parseStream(stream);
+    DEBUG_LOG("parser returned:\n\n%s", nodeToString(parse));
+
+    result = rewriteParserOutput(parse);
+    INFO_LOG("Rewritten SQL text is <%s>", result);
+
+    return result;
+}
+
+static char *
+rewriteParserOutput (Node *parse)
+{
+    StringInfo result = makeStringInfo();
+    char *rewrittenSQL = NULL;
+    Node *oModel;
+    Node *rewrittenTree;
     oModel = translateParse(parse);
     DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(oModel));
 
@@ -56,7 +81,6 @@ rewriteQuery(char *input)
 
     rewrittenSQL = result->data;
     FREE(result);
-    INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, rewrittenSQL);
 
     return rewrittenSQL;
 }

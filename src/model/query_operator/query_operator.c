@@ -11,6 +11,7 @@
  */
 
 #include "common.h"
+#include "log/logger.h"
 #include "model/query_operator/query_operator.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
@@ -119,7 +120,10 @@ createSelectionOp(Node *cond, QueryOperator *input, List *parents,
     SelectionOperator *sel = makeNode(SelectionOperator);
 
     sel->cond = copyObject(cond);
-    sel->op.inputs = singleton(input);
+    if (input != NULL)
+        sel->op.inputs = singleton(input);
+    else
+        sel->op.inputs = NIL;
     sel->op.schema = createSchemaFromLists("SELECT", attrNames, getDataTypes(input->schema));
     sel->op.parents = parents;
     sel->op.provAttrs = NIL;
@@ -134,11 +138,12 @@ createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
     ProjectionOperator *prj = makeNode(ProjectionOperator);
 
     FOREACH(Node, expr, projExprs)
-    {
         prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
-    }
 
-    prj->op.inputs = singleton(input);
+    if (input != NULL)
+        prj->op.inputs = singleton(input);
+    else
+        prj->op.inputs = NIL;
     prj->op.schema = schemaFromExpressions("PROJECTION", attrNames, projExprs,
             singleton(input));
 
@@ -184,7 +189,11 @@ createAggregationOp(List *aggrs, List *groupBy, QueryOperator *input,
     {
     	aggr->groupBy = appendToTailOfList(aggr->groupBy, copyObject(expr));
     }
-    aggr->op.inputs = singleton(input);
+    if (input != NULL)
+        aggr->op.inputs = singleton(input);
+    else
+        aggr->op.inputs = NIL;
+
     aggr->op.schema = schemaFromExpressions("AGG", attrNames,
             concatTwoLists(copyList(aggrs),copyList(groupBy)), singleton(input));
     aggr->op.parents = parents;
@@ -249,6 +258,21 @@ List *
 getProvenanceAttrs(QueryOperator *op)
 {
     return op ? op->provAttrs : NIL;
+}
+
+List *
+getProvenanceAttrDefs(QueryOperator *op)
+{
+    List *result = NIL;
+
+    FOREACH_INT(i,op->provAttrs)
+    {
+        DEBUG_LOG("prov attr at <%u> is <%s>", i, nodeToString(getNthOfListP(op->schema->attrDefs, i)));
+        result = appendToTailOfList(result, getNthOfListP(op->schema->attrDefs, i));
+    }
+
+
+    return result;
 }
 
 List *
