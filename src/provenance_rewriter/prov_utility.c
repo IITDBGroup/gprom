@@ -28,7 +28,7 @@ addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source)
     target->schema->attrDefs = concatTwoLists(target->schema->attrDefs, newProvAttrs);
     target->provAttrs = concatTwoLists(target->provAttrs, newProvPos);
 
-    DEBUG_LOG("new prov attr list is \n%s", nodeToString(newProvAttrs));
+    DEBUG_LOG("new prov attr list is \n%s\n\nprov attr pos %s", nodeToString(target->schema->attrDefs), nodeToString(target->provAttrs));
 }
 
 /*
