@@ -19,3 +19,5 @@ test/testanalysis
 test/testtranslate
 test/testserializer
 test/testvisit
+test/testpicsrewrite
+test/testrewriter

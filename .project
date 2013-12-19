@@ -84,17 +84,17 @@
 		<link>
 			<name>include</name>
 			<type>2</type>
-			<location>/home/zephyr/git/provenance-rewriter-prototype/include</location>
+			<locationURI>$%7BPROJECT_LOC%7D/include</locationURI>
 		</link>
 		<link>
 			<name>src</name>
 			<type>2</type>
-			<location>/home/zephyr/git/provenance-rewriter-prototype/src</location>
+			<locationURI>$%7BPROJECT_LOC%7D/src</locationURI>
 		</link>
 		<link>
 			<name>test</name>
 			<type>2</type>
-			<location>/home/zephyr/git/provenance-rewriter-prototype/test</location>
+			<locationURI>$%7BPROJECT_LOC%7D/test</locationURI>
 		</link>
 	</linkedResources>
 </projectDescription>
