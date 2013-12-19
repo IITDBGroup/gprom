@@ -75,18 +75,10 @@ visit (Node *node, boolean (*checkNode) (), void *state)
             break;
         case T_IntList:
         	break;
-        /* set nodes */
-//        case T_Set:
-//        	{
-//        		PREP_VISIT(Set);
-//        		VISIT(elem);
-//        	}
-//        	break;
         /* expression nodes */
         case T_Constant:
         	{
         		PREP_VISIT(Constant);
-//        		VISIT(value);
         	}
             break;
         case T_AttributeReference:
@@ -135,28 +127,23 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         case T_SelectItem:
         	{
         		PREP_VISIT(SelectItem);
-        		//VISIT(alias);
         		VISIT(expr);
         	}
         	break;
         case T_FromTableRef:
         	{
         		PREP_VISIT(FromTableRef);
-        		//VISIT(from.attrNames);
-        		//VISIT(tableId);
         	}
         	break;
         case T_FromSubquery:
         	{
         		PREP_VISIT(FromSubquery);
-        		//VISIT(from.attrNames);
         		VISIT(subquery);
         	}
         	break;
         case T_FromJoinExpr:
         	{
         		PREP_VISIT(FromJoinExpr);
-        		//VISIT(from.attrNames);
         		VISIT(left);
         		VISIT(right);
         		VISIT(cond);
@@ -325,20 +312,6 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
             }
             break;
         /* query block model nodes */
-/*        case T_SetOp:
-            {
-                NEWN(SetOp);
-                MUTATE(Node,lChild);
-                MUTATE(Node,rChild);
-            }
-            break;
-        case T_SetQuery:
-            {
-                NEWN(SetQuery);
-                MUTATE(List,selectClause);
-                MUTATE(SetOp,rootSetOp);
-            }
-            break;*/
         case T_SetQuery:
             {
                 NEWN(SetQuery);

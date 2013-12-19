@@ -10,6 +10,8 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "log/logger.h"
+
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
@@ -23,6 +25,19 @@ static QueryOperator *findProvenanceComputations (QueryOperator *op);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
 
 /* function definitions */
+Node *
+provRewriteQBModel (Node *qbModel)
+{
+    if (isA(qbModel, List))
+        return (Node *) provRewriteQueryList((List *) qbModel);
+    else if (isA(qbModel, QueryOperator))
+        return (Node *) provRewriteQuery((QueryOperator *) qbModel);
+
+    FATAL_LOG("cannot rewrite node <%s>", nodeToString(qbModel));
+
+    return NULL;
+}
+
 List *
 provRewriteQueryList (List *list)
 {

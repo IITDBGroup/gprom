@@ -90,7 +90,12 @@ extern void free_(void *mem, const char *file, unsigned line);
  * and then free the memory at the address.
  */
 #define FREE(pointer) free_((void *) (pointer), __FILE__, __LINE__)
-
+#define FREE_IN_CONTEXT(context, pointer) \
+    do { \
+        ACQUIRE_MEM_CONTEXT(context); \
+        free_((void *) (pointer), __FILE__, __LINE__); \
+        RELEASE_MEM_CONTEXT(); \
+    } while(0)
 
 extern MemContext *newMemContext(char *contextName, const char *file, unsigned line);
 extern void setCurMemContext(MemContext *mc, const char *file, unsigned line);
@@ -141,19 +146,19 @@ extern Allocation *findAlloc(const MemContext *mc, const void *addr);
     do { \
     	_type *_resultNode; \
     	_type *_origNode = (_type *) _node; \
-    	RELEASE_MEM_CONTEXT(); \
+    	MemContext *oldC = RELEASE_MEM_CONTEXT(); \
     	_resultNode = (_type *) copyObject(_origNode); \
     	assert(equal(_resultNode,_origNode)); \
-    	FREE(_origNode); \
+    	FREE_IN_CONTEXT(oldC, _origNode); \
     	return (_type *) _resultNode; \
     } while(0)
 #define RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(_str) \
     do { \
         char *_resultStr; \
         char *_origStr = (char *) _str; \
-        RELEASE_MEM_CONTEXT(); \
+        MemContext *oldC = RELEASE_MEM_CONTEXT(); \
         _resultStr = strdup(_origStr); \
-        FREE(_origStr); \
+        FREE_IN_CONTEXT(oldC, _origStr); \
         return _resultStr; \
     } while(0)
 /*

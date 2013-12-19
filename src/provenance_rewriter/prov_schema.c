@@ -23,7 +23,7 @@
 #include "uthash.h"
 
 /* consts */
-#define PROV_ATTR_PREFIX "prov_"
+#define PROV_ATTR_PREFIX "PROV_"
 
 /* data types */
 typedef struct RelCount {

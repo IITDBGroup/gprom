@@ -107,6 +107,10 @@ static boolean updateAttributeNames(Node *node, List *attrs);
 static void serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy);
 
+static char *exprToSQLWithNamingScheme (Node *expr, List *offsets);
+static boolean renameAttrsVisitor (Node *node, List *offsets);
+
+static char *createAttrName (int fItem, int attrOffset);
 static char *createFromNames (int *attrOffset, int count);
 
 static void createTempView (QueryOperator *q, StringInfo str);
@@ -140,9 +144,10 @@ serializeOperatorModel(Node *q)
 char *
 serializeQuery(QueryOperator *q)
 {
-    StringInfo str = makeStringInfo();
-    MemContext *memC = NEW_MEM_CONTEXT("SQL_SERIALZIER");
-    ACQUIRE_MEM_CONTEXT(memC);
+    StringInfo str;
+    NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER");
+
+    str = makeStringInfo();
 
     // initialize basic structures and then call the worker
     viewMap = NULL;
@@ -174,8 +179,8 @@ serializeQuery(QueryOperator *q)
     }
 
     // copy result to callers memory context and clean up
-    char *result = strdup(str->data);
-    RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+    char *result = str->data;
+    FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }
 
 /*
@@ -452,8 +457,14 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         case T_JoinOperator:
         {
             JoinOperator *j = (JoinOperator *) q;
+            List *jOffsets = NIL;
             appendStringInfoString(from, "((");
+
+            //left child
+            jOffsets = appendToTailOfListInt(jOffsets, *curFromItem);
             serializeFromItem(OP_LCHILD(j), from, curFromItem, attrOffset);
+
+            // join
             switch(j->joinType)
             {
                 case JOIN_INNER:
@@ -472,8 +483,17 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                     appendStringInfoString(from, " FULL OUTER JOIN ");
                 break;
             }
+
+            // right child
+            jOffsets = appendToTailOfListInt(jOffsets, *curFromItem);
             serializeFromItem(OP_RCHILD(j), from, curFromItem, attrOffset);
 
+            // join condition
+            if (j->cond)
+                appendStringInfo(from, " ON (%s)", exprToSQLWithNamingScheme(
+                        copyObject(j->cond), jOffsets));
+
+            // alias
             *attrOffset = 0;
             attrs = createFromNames(attrOffset, LIST_LENGTH(j->op.schema->attrDefs));
             appendStringInfo(from, ") F%u(%s))", (*curFromItem)++, attrs);
@@ -482,14 +502,14 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         case T_TableAccessOperator:
         {
             TableAccessOperator *t = (TableAccessOperator *) q;
+            char *asOf = NULL;
 
             *attrOffset = 0;
-             char* asOf = 0;
-             //Constant test = (Constant *)t->asOf;
-            // asOf = (char *)test->value;
-            asOf = exprToSQL(t->asOf);
+            if (t->asOf)
+                asOf = CONCAT_STRINGS("(", exprToSQL(t->asOf), ")");
+
             attrs = createFromNames(attrOffset, LIST_LENGTH(t->op.schema->attrDefs));
-            appendStringInfo(from, "((%s)(%s) F%u(%s))", t->tableName, asOf, (*curFromItem)++, attrs);
+            appendStringInfo(from, "((%s)%s F%u(%s))", t->tableName, asOf ? asOf : "", (*curFromItem)++, attrs);
         }
         break;
         default:
@@ -505,13 +525,40 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 }
 
 static char *
+exprToSQLWithNamingScheme (Node *expr, List *offsets)
+{
+    renameAttrsVisitor(expr, offsets);
+
+    return exprToSQL(expr);
+}
+
+static boolean
+renameAttrsVisitor (Node *node, List *offsets)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+
+        a->name = createAttrName(getNthOfListInt(offsets, a->fromClauseItem),
+                 a->attrPosition);
+
+        return TRUE;
+    }
+
+    return visit(node, renameAttrsVisitor, offsets);
+}
+
+static char *
 createFromNames (int *attrOffset, int count)
 {
     char *result = NULL;
     StringInfo str = makeStringInfo();
 
     for(int i = *attrOffset; i < count + *attrOffset; i++)
-        appendStringInfo(str, "%sa%u", (i == *attrOffset)
+        appendStringInfo(str, "%sA%u", (i == *attrOffset)
                 ? "" : ", ", i);
 
     *attrOffset += count;
@@ -519,6 +566,19 @@ createFromNames (int *attrOffset, int count)
     FREE(str);
 
     return result;
+}
+
+static char *
+createAttrName (int fItem, int attrOffset)
+{
+   StringInfo str = makeStringInfo();
+   char *result = NULL;
+
+   appendStringInfo(str, "F%u.A%u", fItem, attrOffset);
+   result = str->data;
+   FREE(str);
+
+   return result;
 }
 
 /*
@@ -545,7 +605,7 @@ updateAttributeNames(Node *node, List *attrs)
 
         // use from clause attribute nomenclature
         if (LIST_LENGTH(attrs) == 0)
-            newName = CONCAT_STRINGS("a", itoa(a->attrPosition));
+            newName = CONCAT_STRINGS("A", itoa(a->attrPosition));
         // use provided attribute expressions
         else
             newName = strdup(getNthOfListP(attrs,a->attrPosition));
@@ -592,25 +652,25 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy)
 {
     int pos = 0;
-    List *secondProjs = NIL;
+    List *firstProjs = NIL;
     List *aggs = NIL;
     List *groupBys = NIL;
-    List *firstProjs = NIL;
+    List *secondProjs = NIL;
     AggregationOperator *agg = (AggregationOperator *) m->aggregation;
     UpdateAggAndGroupByAttrState *state = NULL;
 
     appendStringInfoString(select, "\nSELECT ");
 
     // first projection level for aggregation inputs and group-by
-    if (m->secondProj != NULL)
+    if (m->firstProj != NULL)
     {
-        FOREACH(Node,n,m->secondProj->projExprs)
+        FOREACH(Node,n,m->firstProj->projExprs)
         {
             updateAttributeNames(n, NULL);
-            secondProjs = appendToTailOfList(secondProjs, exprToSQL(n));
+            firstProjs = appendToTailOfList(firstProjs, exprToSQL(n));
         }
         INFO_LOG("second projection (agg and group by inputs) is %s",
-                stringListToString(secondProjs));
+                stringListToString(firstProjs));
     }
 
     // aggregation if need be
@@ -619,7 +679,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         // aggregation
         FOREACH(Node,expr,agg->aggrs)
         {
-            updateAttributeNames(expr, secondProjs);
+            updateAttributeNames(expr, firstProjs);
             aggs = appendToTailOfList(aggs, exprToSQL(expr));
         }
         INFO_LOG("agg attributes are %s", stringListToString(aggs));
@@ -633,7 +693,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             else
                 appendStringInfoString (groupBy, ", ");
 
-            updateAttributeNames(expr, secondProjs);
+            updateAttributeNames(expr, firstProjs);
             g = exprToSQL(expr);
 
             groupBys = appendToTailOfList(groupBys, g);
@@ -657,13 +717,15 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     }
 
     // second level of projection either if no aggregation or using aggregation
-    if (m->firstProj != NULL)
+    if (m->secondProj != NULL)
     {
         int pos = 0;
-        ProjectionOperator *p = m->firstProj;
+        ProjectionOperator *p = m->secondProj;
+        List *attrNames = getAttrNames(p->op.schema);
 
         FOREACH(Node,a,p->projExprs)
         {
+            char *attrName = (char *) getNthOfListP(attrNames, pos);
             if (pos++ != 0)
                 appendStringInfoString(select, ", ");
 
@@ -673,7 +735,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             // is projection in query without aggregation
             else
                 updateAttributeNames(a, NULL);
-            appendStringInfoString(select, exprToSQL(a));
+            appendStringInfo(select, "%s%s", exprToSQL(a), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
         }
 
         INFO_LOG("second projection expressions %s", select->data);

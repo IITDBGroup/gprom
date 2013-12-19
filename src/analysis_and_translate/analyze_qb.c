@@ -146,6 +146,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     findAttrReferences((Node *) qb->orderByClause, &attrRefs);
     findAttrReferences((Node *) qb->selectClause, &attrRefs);
     findAttrReferences((Node *) qb->whereClause, &attrRefs);
+    findAttrReferences((Node *) qb->fromClause, &attrRefs);
 
     INFO_LOG("Collect attribute references done");
     DEBUG_LOG("Have the following attribute references: <%s>", nodeToString(attrRefs));

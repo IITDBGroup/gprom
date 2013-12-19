@@ -61,23 +61,15 @@ rewriteParserOutput (Node *parse)
     char *rewrittenSQL = NULL;
     Node *oModel;
     Node *rewrittenTree;
-    oModel = translateParse(parse);
-    DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(oModel));
 
-    if (isA(oModel, List))
-    {
-        List *stmtList = (List *) oModel;
-        stmtList = provRewriteQueryList(stmtList);
-        DEBUG_LOG("provenance rewriter returned:\n\n<%s>", nodeToString(stmtList));
-        FOREACH(QueryOperator,o,stmtList)
-            appendStringInfo(result, "%s\n", nodeToString(serializeQuery((QueryOperator *) oModel)));
-    }
-    else
-    {
-        oModel = (Node *) provRewriteQuery((QueryOperator *) oModel);
-        DEBUG_LOG("provenance rewriter returned:\n\n<%s>", nodeToString(oModel));
-        appendStringInfo(result, "%s\n", nodeToString(serializeQuery((QueryOperator *) oModel)));
-    }
+    oModel = translateParse(parse);
+    DEBUG_LOG("translator returned:\n\n<%s>", nodeToString(oModel));
+
+    rewrittenTree = provRewriteQBModel(oModel);
+    DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
+    DEBUG_LOG("as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
+
+    appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
 
     rewrittenSQL = result->data;
     FREE(result);
