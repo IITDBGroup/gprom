@@ -14,24 +14,18 @@
 
 #include "log/logger.h"
 
+#include "uthash.h"
+
 #include "mem_manager/mem_mgr.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "provenance_rewriter/prov_schema.h"
 
-#include "uthash.h"
-
 /* consts */
 #define PROV_ATTR_PREFIX "PROV_"
 
 /* data types */
-typedef struct RelCount {
-    char *relName;
-    int count;
-    UT_hash_handle hh;
-} RelCount;
-
 typedef struct ProvSchemaInfo
 {
     List *provAttrs;
@@ -76,9 +70,9 @@ getProvenanceAttrName (char *table, char *attr, int count)
 {
     char *countStr = CALLOC(1,128);
     if (count > 0)
-        sprintf(countStr,"%u", count);
-    return CONCAT_STRINGS(PROV_ATTR_PREFIX, strdup(table), "_", strdup(attr),
-            countStr);
+        sprintf(countStr,"_%u", count);
+    return CONCAT_STRINGS(PROV_ATTR_PREFIX, strdup(table), countStr, "_",
+            strdup(attr));
 }
 
 static boolean
@@ -103,22 +97,42 @@ findBaserelationsVisitor (Node *node, ProvSchemaInfo *status)
 static int
 getRelCount(ProvSchemaInfo *info, char *tableName)
 {
-    RelCount *relCount;
+    return getRelNameCount(&(info->rels), tableName);
+//
+//
+//
+//    HASH_FIND_STR(info->rels,tableName,relCount);
+//    if (relCount == NULL)
+//    {
+//        relCount = NEW(RelCount);
+//        relCount->count = 0;
+//        relCount->relName = strdup(tableName);
+//        HASH_ADD_STR(info->rels,relName,relCount);
+//    }
+//    else
+//        relCount->count++;
+//
+//    return relCount->count;
+}
 
-    HASH_FIND_STR(info->rels,tableName,relCount);
-    if (relCount == NULL)
+int
+getRelNameCount(RelCount **relCount, char *tableName)
+{
+    RelCount *relC = NULL;
+
+    HASH_FIND_STR((*relCount), tableName, relC);
+    if (relC == NULL)
     {
-        relCount = NEW(RelCount);
-        relCount->count = 0;
-        relCount->relName = strdup(tableName);
-        HASH_ADD_STR(info->rels,relName,relCount);
+        relC = NEW(RelCount);
+        relC->count = 0;
+        relC->relName = strdup(tableName);
+        HASH_ADD_KEYPTR(hh, (*relCount), relC->relName, strlen(relC->relName),
+                relC);
     }
     else
-    {
-        relCount->count++;
-    }
+        relC->count++;
 
-    return relCount->count;
+    return relC->count;
 }
 
 List *

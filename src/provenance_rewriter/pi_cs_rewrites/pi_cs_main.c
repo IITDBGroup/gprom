@@ -28,26 +28,24 @@ static void rewritePI_CSSet (SetOperator *op);
 static void rewritePI_CSTableAccess(TableAccessOperator *op);
 
 static Node *asOf;
-static List *provAttrs;
+static RelCount *nameState;
 
 QueryOperator *
 rewritePI_CS (ProvenanceComputation  *op)
 {
-    ERROR_LOG("\n\n\n\n ************************************* \n\n\n%s", beatify(nodeToString((Node *) op)));
-    ERROR_LOG("Done..");
-//    List *inputs = ((QueryOperator*) op)->inputs;
+    List *provAttrs = NIL;
 
-  //  ListCell *head;
-    //ERROR_LOG("Got List....%p", inputs);
-//    head = inputs ? inputs->head : 2;
+    // unset relation name counters
+    nameState = (RelCount *) NULL;
 
-    //ERROR_LOG("Got head List....%p", inputs->head);
-    //ERROR_LOG("Value is: %d", &head);
-    //ERROR_LOG("Final Value is...%p",(head ? head->data.ptr_value : NULL));
+    INFO_LOG("*************************************\nREWRITE INPUT\n"
+            "******************************\n%s",
+            beatify(nodeToString((Node *) op)));
+
     QueryOperator *rewRoot = OP_LCHILD(op);
-    ERROR_LOG("rewRoot is: %s", beatify(nodeToString(rewRoot)));
+    DEBUG_LOG("rewRoot is: %s", beatify(nodeToString(rewRoot)));
 
-    // get asOf
+    // cache asOf
     asOf = op->asOf;
 
     // get provenance attrs
@@ -61,7 +59,7 @@ rewritePI_CS (ProvenanceComputation  *op)
 
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) op, rewRoot);
-    ERROR_LOG("final rewRoot is: %s", beatify(nodeToString(rewRoot)));
+    INFO_LOG("rewritten query root is: %s", beatify(nodeToString(rewRoot)));
 
     return rewRoot;
 }
@@ -217,10 +215,10 @@ rewritePI_CSTableAccess(TableAccessOperator * op)
     List *provAttr = NIL;
     List *projExpr = NIL;
     char *newAttrName;
-    int state = 0;
-    int cnt=0;
+    int relAccessCount = getRelNameCount(&nameState, op->tableName);
+    int cnt = 0;
 
-    DEBUG_LOG("REWRITE-PICS - Table Access");
+    DEBUG_LOG("REWRITE-PICS - Table Access <%s> <%u>", op->tableName, relAccessCount);
 
     // copy any as of clause if there
     op->asOf = copyObject(asOf);
@@ -236,7 +234,7 @@ rewritePI_CSTableAccess(TableAccessOperator * op)
     cnt = 0;
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
     {
-        newAttrName = getProvenanceAttrName(op->tableName, attr->attrName, state);
+        newAttrName = getProvenanceAttrName(op->tableName, attr->attrName, relAccessCount);
         provAttr = appendToTailOfList(provAttr, newAttrName);
         projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
         cnt++;
