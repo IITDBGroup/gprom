@@ -24,6 +24,7 @@ typedef enum SetType {
 
 typedef struct SetElem {
     void *data;
+    void *key;
     UT_hash_handle hh;
 } SetElem;
 
@@ -46,7 +47,7 @@ extern Set *newSet(SetType set, int typelen, boolean (*eq) (void *, void *), voi
 // create new set with content
 extern Set *makeSet(SetType set, int typelen, boolean (*eq) (void *, void *), void *(*cpy) (void *), ...);
 extern Set *makeSetInt(int elem, ...);
-#define MAKE_NODE_SET(...) makeSet(SET_TYPE_NODE, sizeof(Node), equals, __VA_ARGS__, NULL)
+#define MAKE_NODE_SET(...) makeSet(SET_TYPE_NODE, -1, equal, copyObject, __VA_ARGS__, NULL)
 #define MAKE_SET_PTR(...) makeSet(SET_TYPE_POINTER, sizeof(void *), NULL, NULL, __VA_ARGS__, NULL)
 #define MAKE_INT_SET(...) makeSetInt(__VA_ARGS__, -1)
 #define MAKE_STR_SET(...) makeSet(SET_TYPE_STRING, -1, NULL, NULL, __VA_ARGS__, NULL);
@@ -75,6 +76,7 @@ extern boolean hasSetIntElem (Set *set, int _el);
 extern boolean addToSet (Set *set, void *elem);
 extern boolean addIntToSet (Set *set, int elem);
 
+extern void removeAndFreeSetElem (Set *set, void *elem);
 extern void removeSetElem (Set *set, void *elem);
 extern void removeSetIntElem (Set *set, int elem);
 

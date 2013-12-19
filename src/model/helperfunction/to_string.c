@@ -210,12 +210,26 @@ outSet(StringInfo str, Set *node)
     {
         case SET_TYPE_INT:
             FOREACH_SET(int,i,node)
-            {
                 appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
+            break;
+        case SET_TYPE_STRING:
+            FOREACH_SET(char,el,node)
+                appendStringInfo(str, "%s%s", el, el_his_el->hh.next ? ", " : "");
+            break;
+        case SET_TYPE_POINTER:
+            FOREACH_SET(void,el,node)
+                appendStringInfo(str, "%p%s", el, el_his_el->hh.next ? ", " : "");
+            break;
+        case SET_TYPE_NODE:
+            FOREACH_SET(void,el,node)
+            {
+                outNode(str, el);
+                appendStringInfo(str, "%s", el_his_el->hh.next ? ", " : "");
             }
             break;
         default:
             FATAL_LOG("not implemented yet");
+            break;
     }
 
     appendStringInfo(str, "}");
@@ -657,6 +671,20 @@ nodeToString(void *obj)
     return result;
 }
 
+//int
+//hashObject(void *a)
+//{
+//    StringInfo str;
+//    int hash;
+//
+//    str = makeStringInfo();
+//    outNode(str, obj);
+//
+//}
+
+/*
+ *
+ */
 char *
 beatify(char *input)
 {

@@ -54,6 +54,7 @@ newSet(SetType set, int typelen, boolean (*eq) (void *, void *), void * (*cpy) (
         result->eq = strCmp;
         result->cpy = strCpy;
     }
+    // NODE
     else
     {
         result->eq = eq;
@@ -68,7 +69,7 @@ makeSet(SetType set, int typelen, boolean (*eq) (void *, void *), void * (*cpy) 
 {
     Set *result = newSet(set, typelen, eq, cpy);
     va_list args;
-    void * arg;
+    void *arg;
 
     va_start(args, cpy);
 
@@ -117,10 +118,13 @@ getSetElem(Set *set, void *key)
     else if (set->setType == SET_TYPE_STRING)
         HASH_FIND_STR(set->elem, key, result);
     else
-        HASH_FIND_CMP(hh,set->elem, key, set->typelen, result, set->eq);
+    {
+        char *realKey = nodeToString(key);
+        HASH_FIND_STR(set->elem, realKey, result);
+    }
 
     for(s=set->elem; s != NULL; s=s->hh.next) {
-        INFO_LOG("key and value %d with hv %u keyptr %p", s->data, s->hh.hashv, s->hh.key);
+        INFO_LOG("key and value %p with hv %u keyptr %p", s->data, s->hh.hashv, s->hh.key);
     }
 
     return result;
@@ -155,8 +159,12 @@ addToSet (Set *set, void *elem)
         HASH_ADD_PTR(set->elem, data, setEl);
     else if (set->setType == SET_TYPE_STRING)
         HASH_ADD_KEYPTR(hh, set->elem, setEl->data, strlen((char *) elem), setEl);
+    // Node: store nodeToString as key
     else
-        HASH_ADD_KEYPTR(hh, set->elem, setEl->data, set->typelen, setEl);
+    {
+        setEl->key = nodeToString(elem);
+        HASH_ADD_KEYPTR(hh, set->elem, setEl->key, strlen(setEl->key), setEl);
+    }
 
     return TRUE;
 }
@@ -179,6 +187,28 @@ addIntToSet (Set *set, int elem)
 }
 
 void
+removeAndFreeSetElem (Set *set, void *elem)
+{
+    SetElem *e;
+
+    e = getSetElem(set,elem);
+
+    if (e != NULL)
+    {
+        HASH_DEL(set->elem, e);
+        if (set->setType == SET_TYPE_NODE)
+        {
+            deepFree(e->data);
+            FREE(e->key);
+        }
+        else if (set->setType == SET_TYPE_STRING)
+            FREE(e->data);
+
+        FREE(e);
+    }
+}
+
+void
 removeSetElem (Set *set, void *elem)
 {
     SetElem *e;
@@ -188,11 +218,8 @@ removeSetElem (Set *set, void *elem)
     if (e != NULL)
     {
         HASH_DEL(set->elem, e);
-        if (set->setType == SET_TYPE_NODE) // && set->type != T_IntSet)
-            deepFree(e->data);
-        else if (set->setType == SET_TYPE_STRING)
-            FREE(e->data);
-
+        if (set->setType == SET_TYPE_NODE)
+            FREE(e->key);
         FREE(e);
     }
 }
@@ -221,11 +248,28 @@ unionSets (Set *left, Set *right)
 
     result = CREATE_SAME_TYPE_SET(left);
 
-    for(s = left->elem; s != NULL; s = s->hh.next)
-        addToSet(result, left->cpy(s->data));
-    for(s = right->elem; s != NULL; s = s->hh.next)
-        if (!hasSetElem(result, s->data))
-            addToSet(result, right->cpy(s->data));
+    if (result->setType == SET_TYPE_INT)
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            addIntToSet(result, *((int *) s->data));
+        for(s = right->elem; s != NULL; s = s->hh.next)
+            if (!hasSetIntElem(result, *((int *) s->data)))
+            {
+                addIntToSet(result, *((int *) s->data));
+            }
+    }
+    else
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            addToSet(result, left->cpy(s->data));
+        for(s = right->elem; s != NULL; s = s->hh.next)
+            if (!hasSetElem(result, s->data))
+            {
+                addToSet(result, right->cpy(s->data));
+            }
+    }
+
+    DEBUG_LOG("union result set %s", nodeToString(result));
 
     return result;
 }
@@ -241,9 +285,20 @@ intersectSets (Set *left, Set *right)
 
     result = CREATE_SAME_TYPE_SET(left);
 
-    for(s = left->elem; s != NULL; s = s->hh.next)
-        if (hasSetElem(right, s->data))
-            addToSet(result, left->cpy(s->data));
+    if (result->setType == SET_TYPE_INT)
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            if (hasSetIntElem(right, *((int *) s->data)))
+                addIntToSet(result, *((int *) s->data));
+    }
+    else
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            if (hasSetElem(right, s->data))
+                addToSet(result, left->cpy(s->data));
+    }
+
+    DEBUG_LOG("intersect result set %s", nodeToString(result));
 
     return result;
 }

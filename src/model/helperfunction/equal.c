@@ -214,6 +214,23 @@ equalSet (Set *a, Set *b)
     if (setSize(a) != setSize(b))
         return FALSE;
 
+    if (a->setType == SET_TYPE_INT)
+    {
+        FOREACH_SET(int,i,a)
+        {
+            if (!hasSetIntElem(b,*i))
+                return FALSE;
+        }
+
+        FOREACH_SET(int,i,b)
+        {
+            if (!hasSetIntElem(a,*i))
+                return FALSE;
+        }
+
+        return TRUE;
+    }
+
     FOREACH_SET(void,el,a)
     {
         if (!hasSetElem(b,el))

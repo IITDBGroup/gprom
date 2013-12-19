@@ -828,7 +828,7 @@ createTempView (QueryOperator *q, StringInfo str)
     view->viewName = viewName;
     view->viewOp = q;
     view->viewDefinition = viewDef->data;
-    HASH_ADD_PTR(viewMap, viewName, view);
+    HASH_ADD_KEYPTR(hh, viewMap, view->viewName, strlen(view->viewName), view);
 }
 
 static char *
