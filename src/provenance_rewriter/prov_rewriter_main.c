@@ -63,10 +63,22 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     {
         // merge
         //need a loop here for all updates into one 
-          SetOperator *seto1;
-          TableAccessOperator *to1;
-          SetOperator *seto2;
-          TableAccessOperator *to2;
+        FOREACH(QueryOperator, u, op->inputs)
+          {
+             PREP_VISIT(TableAccessOperator);
+             VISIT_OPERATOR_FIELDS(u);
+          }
+        FOREACH(TableAccessOperator, t, op->inputs)
+          {
+             //find the first updates U' in position j with j>i that has updated table T
+             PREP_VISIT(TableAccessOperator);
+             VISIT_OPERATOR_FIELD(t);
+             if(u != NULL)
+              {
+                t = SetOperator *node;
+              }
+          }
+         
         // rewrite
         if (isA(op, ProvenanceComputation))
             {
