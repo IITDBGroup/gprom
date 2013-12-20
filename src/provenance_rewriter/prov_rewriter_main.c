@@ -62,8 +62,18 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     if (LIST_LENGTH(op->op.inputs) > 1)
     {
         // merge
+        //need a loop here for all updates into one 
+          SetOperator *seto1;
+          TableAccessOperator *to1;
+          SetOperator *seto2;
+          TableAccessOperator *to2;
         // rewrite
-        // return
+        if (isA(op, ProvenanceComputation))
+            {
+              rewriteProvenanceComputation((ProvenanceComputation *) op);
+            } 
+       // return
+     return op;
     }
     switch(op->provType)
     {
