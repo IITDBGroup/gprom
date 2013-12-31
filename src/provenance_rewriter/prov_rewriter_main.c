@@ -63,12 +63,12 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     {
         // merge
         //need a loop here for all updates into one 
-        FOREACH(QueryOperator, u, op->inputs)
+        FOREACH(QueryOperator, u, op->op.inputs)
           {
              PREP_VISIT(TableAccessOperator);
              VISIT_OPERATOR_FIELDS(u);
           }
-        FOREACH(TableAccessOperator, t, op->inputs)
+        FOREACH(TableAccessOperator, t, op->op.inputs)
           {
              //find the first updates U' in position j with j>i that has updated table T
              PREP_VISIT(TableAccessOperator);
