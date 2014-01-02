@@ -61,12 +61,14 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 {
     if (LIST_LENGTH(op->op.inputs) > 1)
     {
-        // merge
+
+    	// merge
         //need a loop here for all updates into one 
         FOREACH(QueryOperator, u, op->op.inputs)
           {
              PREP_VISIT(TableAccessOperator);
              VISIT_OPERATOR_FIELDS(u);
+
           }
         FOREACH(TableAccessOperator, t, op->op.inputs)
           {
