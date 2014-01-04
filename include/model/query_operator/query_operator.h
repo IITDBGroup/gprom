@@ -96,6 +96,12 @@ typedef struct UpdateOperator
     char *tableName;
 } UpdateOperator;
 
+typedef struct ConstRelOperator
+{
+    QueryOperator op;
+    List *values;
+} ConstRelOperator;
+
 /* schema helper functions */
 extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames, List *dataTypes);
@@ -111,6 +117,7 @@ extern AggregationOperator *createAggregationOp (List *aggrs, List *groupBy, Que
 extern SetOperator *createSetOperator (SetOpType setOpType, List *inputs, List *parents, List *attrNames);
 extern DuplicateRemoval *createDuplicateRemovalOp (List *attrs, QueryOperator *input, List *parents, List *attrNames);
 extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, List *parents, List *attrNames);
+extern ConstRelOperator *createConstRelOp(List *values,List *parents, List *attrNames);
 
 /* navigation functions */
 #define OP_LCHILD(op) \

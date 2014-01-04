@@ -59,36 +59,35 @@ findProvenanceComputations (QueryOperator *op)
 QueryOperator *
 rewriteProvenanceComputation (ProvenanceComputation *op)
 {
-    if (LIST_LENGTH(op->op.inputs) > 1)
-    {
+	if (LIST_LENGTH(op->op.inputs) > 1)
+	    {
+	        // merge
+	        //need a loop here for all updates into one
+	        FOREACH(QueryOperator, u, op->op.inputs)
+	          {
+	             PREP_VISIT(TableAccessOperator);
+	             VISIT_OPERATOR_FIELDS(u);
+	          }
+	        FOREACH(TableAccessOperator, t, op->op.inputs)
+	          {
+	             //find the first updates U' in position j with j>i that has updated table T
+	             PREP_VISIT(TableAccessOperator);
+	             VISIT_OPERATOR_FIELD(t);
+	             if(t!= NULL)
+	              {
+	                t = SetOperator *op;
+	              }
+	          }
 
-    	// merge
-        //need a loop here for all updates into one 
-        FOREACH(QueryOperator, u, op->op.inputs)
-          {
-             PREP_VISIT(TableAccessOperator);
-             VISIT_OPERATOR_FIELDS(u);
+	        // rewrite
+	        if (isA(op, ProvenanceComputation))
+	            {
+	              rewriteProvenanceComputation((ProvenanceComputation *) op);
+	            }
+	       // return
+	     return op;
+	    }
 
-          }
-        FOREACH(TableAccessOperator, t, op->op.inputs)
-          {
-             //find the first updates U' in position j with j>i that has updated table T
-             PREP_VISIT(TableAccessOperator);
-             VISIT_OPERATOR_FIELD(t);
-             if(t!= NULL)
-              {
-                t = SetOperator *op;
-              }
-          }
-         
-        // rewrite
-        if (isA(op, ProvenanceComputation))
-            {
-              rewriteProvenanceComputation((ProvenanceComputation *) op);
-            } 
-       // return
-     return op;
-    }
     switch(op->provType)
     {
         case PI_CS:

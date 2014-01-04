@@ -43,26 +43,26 @@ translateUpdate(Node *update) {
 static QueryOperator *
 translateInsert(Insert *insert) {
 	List *attr = getAttributes(insert.tableName);
-    QueryOperator *insertQuery;
+	QueryOperator *insertQuery;
 
 	TableAccessOperator *to;
-	to = createTableAccessOp(insert->tableName, NULL, NIL, attr, NIL);
+	to = createTableAccessOp(insert->tableName, NULL, NIL, deepCopyStringList(attr), NIL);
 
 	if (isA(insert->query,  List))
 	{
-	    // CONST REL OPERATOR
-	    TableAccessOperator *ro;
-	    insertQuery = createTableAccessOp(insert->tableName, NULL, NIL, insert->attrList,NIL);
+		ConstRelOperator *co;
+		co = createConstRelOp(insert->query,NIL, deepCopyStringList(attr),NIL);
+		insertQuery= (QueryOperator *) co;
 
 	}
 	else
 	{
-	    insertQuery = translateQuery(insert->query);
+	    insertQuery =  translateQuery(insert->query);
 	}
 
 	enum SetOpType unionType = SETOP_UNION;
 	SetOperator *seto;
-	seto = createSetOperator(unionType, NIL, NIL, attr);
+	seto = createSetOperator(unionType, NIL, NIL, deepCopyStringList(attr));
 
 	addChildOperator(seto, to);
 	addChildOperator(seto, insertQuery);
@@ -76,11 +76,13 @@ translateDelete(Delete *delete)
 	List *attr = getAttributes(delete.nodeName);
 
 	TableAccessOperator *to;
-	to = createTableAccessOp(strdup(delete.nodeName), NULL, NIL, NIL, attr, NIL);
+	to = createTableAccessOp(strdup(delete.nodeName), NULL, NIL, NIL, deepCopyStringList(attr), NIL);
 
 	SelectionOperator *so;
-	so = createSelectionOp(copyObject(delete.cond), NIL, NIL, attr);
-	// so->op.schema->name= "Not"; //How to set not for selection OP?
+	Node *negatedCond;
+	negatedCond = createOpExpr("NOT", singleton(copyObject(delete.cond)));
+	so = createSelectionOp(negatedCond, NIL, NIL, deepCopyStringList(attr));
+
 
 	addChildOperator(so, to);
 
