@@ -121,6 +121,16 @@ typedef struct List
 #define LC_P_VAL(lc) (((ListCell *) lc)->data.ptr_value)
 #define LC_INT_VAL(lc) (((ListCell *) lc)->data.int_value)
 
+/*
+ * Create a integer list starting from _start to _end increasing _step
+ */
+#define CREATE_INT_SEQ(_result, _start, _end, _step) \
+    do { \
+    	_result = NIL; \
+        for(int _my_var = (_start), _my_end = (_end), _my_step = (_step); _my_var <= _my_end; _my_var += _my_step) \
+            _result = appendToTailOfListInt(_result, _my_var); \
+    } while(0)
+
 extern boolean checkList(const List *list);
 
 extern List *newList(NodeTag type);
@@ -164,6 +174,14 @@ extern boolean searchList(List *list, void *value);
 extern boolean searchListInt(List *list, int value);
 extern boolean searchListString(List *list, char *value);
 extern boolean searchListNode(List *list, Node *value);
+extern boolean genericSearchList(List *list, boolean (*eq) (void *, void *), void *value);
+
+extern int listPosString (List *list, char *value);
+extern boolean genericListPos (List *list, boolean (*eq) (void *, void *), void *value);
+
+extern List *genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value);
+#define REMOVE_FROM_LIST_PTR(list,ptr) genericRemoveFromList (list, ptrEqual, ptr)
+#define REMOVE_FROM_LIST_NODE(list,node) genericRemoveFromList (list, equal, node)
 
 extern List *concatTwoLists (List *listA, List *listB);
 

@@ -77,12 +77,12 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
              int i = 0;
 
              // find all table access operators
-             findTableAccessVisitor(u, &children);
+             findTableAccessVisitor((Node *) u, &children);
 
              FOREACH(TableAccessOperator, t, children)
              {
-                 QueryOperator *op = getUpdateForPreviousTableVersion(op->op.inputs, t->tableName, i);
-                 switchOperators((QueryOperator *) t, op);
+                 QueryOperator *up = getUpdateForPreviousTableVersion(op->op.inputs, t->tableName, i);
+                 switchSubtrees((QueryOperator *) t, up);
                  i++;
              }
         }

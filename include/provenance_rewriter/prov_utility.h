@@ -18,5 +18,6 @@ extern void addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *sou
 extern void switchSubtrees(QueryOperator *orig, QueryOperator *new);
 extern QueryOperator *copyUnrootedSubtree(QueryOperator *op);
 extern boolean findTableAccessVisitor (Node *node, List **result);
+extern void removeParentFromOps (List *operators, Node *parent);
 
 #endif /* PROV_UTILITY_H_ */

@@ -82,3 +82,14 @@ findTableAccessVisitor (Node *node, List **result)
 
     return visit(node, findTableAccessVisitor, (void *) result);
 }
+
+/*
+ *
+ */
+
+void
+removeParentFromOps (List *operators, Node *parent)
+{
+    FOREACH(QueryOperator,op,operators)
+        op->parents = REMOVE_FROM_LIST_PTR(op->parents, parent);
+}
