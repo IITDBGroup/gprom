@@ -20,6 +20,7 @@
 #include "model/list/list.h"
 #include "model/query_operator/query_operator.h"
 
+extern Node *provRewriteQBModel (Node *);
 extern List *provRewriteQueryList (List *list);
 extern QueryOperator *provRewriteQuery (QueryOperator *input);
 

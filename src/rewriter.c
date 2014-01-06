@@ -23,40 +23,56 @@
 #include "analysis_and_translate/translator.h"
 #include "sql_serializer/sql_serializer.h"
 
+static char *rewriteParserOutput (Node *parse);
+
 char *
 rewriteQuery(char *input)
 {
-    StringInfo result = makeStringInfo();
-    char *rewrittenSQL = NULL;
     Node *parse;
-    Node *oModel;
-    Node *rewrittenTree;
-
+    char *result;
 
     parse = parseFromString(input);
     DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
 
-    oModel = translateParse(parse);
-    DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(oModel));
+    result = rewriteParserOutput(parse);
+    INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
 
-    if (isA(oModel, List))
-    {
-        List *stmtList = (List *) oModel;
-        stmtList = provRewriteQueryList(stmtList);
-        DEBUG_LOG("provenance rewriter returned:\n\n<%s>", nodeToString(stmtList));
-        FOREACH(QueryOperator,o,stmtList)
-            appendStringInfo(result, "%s\n", nodeToString(serializeQuery((QueryOperator *) oModel)));
-    }
-    else
-    {
-        oModel = (Node *) provRewriteQuery((QueryOperator *) oModel);
-        DEBUG_LOG("provenance rewriter returned:\n\n<%s>", nodeToString(oModel));
-        appendStringInfo(result, "%s\n", nodeToString(serializeQuery((QueryOperator *) oModel)));
-    }
+    return result;
+}
+
+char *
+rewriteQueryFromStream (FILE *stream) {
+    Node *parse;
+    char *result;
+
+    parse = parseStream(stream);
+    DEBUG_LOG("parser returned:\n\n%s", nodeToString(parse));
+
+    result = rewriteParserOutput(parse);
+    INFO_LOG("Rewritten SQL text is <%s>", result);
+
+    return result;
+}
+
+static char *
+rewriteParserOutput (Node *parse)
+{
+    StringInfo result = makeStringInfo();
+    char *rewrittenSQL = NULL;
+    Node *oModel;
+    Node *rewrittenTree;
+
+    oModel = translateParse(parse);
+    DEBUG_LOG("translator returned:\n\n<%s>", nodeToString(oModel));
+
+    rewrittenTree = provRewriteQBModel(oModel);
+    DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
+    DEBUG_LOG("as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
+
+    appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
 
     rewrittenSQL = result->data;
     FREE(result);
-    INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, rewrittenSQL);
 
     return rewrittenSQL;
 }

@@ -133,6 +133,30 @@ testStringSet(void)
 static rc
 testNodeSet(void)
 {
+    AttributeReference *a1 = createAttributeReference ("a1");
+    AttributeReference *a2 = createAttributeReference ("a2");
+    AttributeReference *a2a = createAttributeReference ("a2");
+    AttributeReference *a3 = createAttributeReference ("a3");
+    Set *a = MAKE_NODE_SET(a1, a2);
+    Set *b = MAKE_NODE_SET(a2a, a3);
+
+    ASSERT_EQUALS_INT(2, setSize(a), "set a is of size 2");
+    ASSERT_EQUALS_INT(2, setSize(b), "set b is of size 2");
+
+    ASSERT_TRUE(hasSetElem(a, a1), "set a has a1");
+    ASSERT_TRUE(hasSetElem(a, a2), "set a has a2");
+    ASSERT_TRUE(hasSetElem(a, a2a), "set a has a2a");
+    ASSERT_FALSE(hasSetElem(a, a3), "set a not has a3");
+
+    removeSetElem(a, a2);
+    ASSERT_EQUALS_INT(1, setSize(a), "set a is of size 1");
+    ASSERT_FALSE(hasSetElem(a, a2), "set a has not a2");
+
+    ASSERT_FALSE(hasSetElem(b, a1), "set b has not a1");
+    ASSERT_TRUE(hasSetElem(b, a2), "set b has a2");
+    ASSERT_TRUE(hasSetElem(b, a2a), "set b has a2a");
+    ASSERT_TRUE(hasSetElem(b, a3), "set b not has a3");
+
     return PASS;
 }
 
@@ -145,11 +169,16 @@ testSetIteration(void)
 
     a = MAKE_INT_SET(1,2,3);
     pos = 0;
-    FOREACH(int,i,a)
+    FOREACH_SET(int,i,a)
     {
-
+        boolean found = FALSE;
+        for(int j = 0; j < 3; j++)
+            if (exp[j] == *i)
+                found = TRUE;
+        ASSERT_TRUE(found, "found element");
     }
 
+    return PASS;
 }
 
 static rc
@@ -160,15 +189,15 @@ testSetEquals(void)
 
     a = MAKE_INT_SET(1,2,3);
     b = MAKE_INT_SET(1,2,3);
-    ASSERT_TRUE(equal(a,b), "same string sets");
-    addToSet(a, "123");
-    ASSERT_FALSE(equal(a,b), "not same string sets");
+    ASSERT_TRUE(equal(a,b), "same int sets");
+    addIntToSet(a,4);
+    ASSERT_FALSE(equal(a,b), "not same int sets");
 
     a = MAKE_STR_SET(strdup("a"), strdup("bc"));
     b = MAKE_STR_SET(strdup("a"), strdup("bc"));
     ASSERT_TRUE(equal(a,b), "same string sets");
-    addIntToSet(a,4);
-    ASSERT_FALSE(equal(a,b), "not same int sets");
+    addToSet(a, "123");
+    ASSERT_FALSE(equal(a,b), "not same string sets");
 
     c1 = NEW(char);
     *c1 = 'a';
@@ -181,7 +210,6 @@ testSetEquals(void)
     ASSERT_TRUE(equal(a,b), "same pointer sets");
     removeSetElem(a, c3);
     ASSERT_FALSE(equal(a,b), "not same pointer sets");
-
 
     return PASS;
 }
@@ -216,7 +244,7 @@ testSetOperations(void)
     INFO_LOG("created sets");
 
     result = unionSets(a,b);
-    ASSERT_EQUALS_NODE(un,result, "union set if {1,2,3,4,5,6}");
+    ASSERT_EQUALS_NODE(un, result, "union set if {1,2,3,4,5,6}");
 
     result = intersectSets(a,b);
     ASSERT_EQUALS_NODE(in, result, "intersected set if {3,4}");

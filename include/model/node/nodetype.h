@@ -157,10 +157,14 @@ extern void *copyObject(void *obj);
 
 /* deep equals for nodes */
 extern boolean equal(void *a, void *b);
+extern boolean ptrEqual(void *a, void *b);
 
 /* deep free a node structure */
 extern void deepFree(void *a);
 extern void freeStringInfo (StringInfo node);
+
+/* compute a hash value for a node tree */
+//extern int hashObject(void *a);
 
 /*
  * Visit all nodes in a tree using a user-provided function that decides

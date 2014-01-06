@@ -10,6 +10,8 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "log/logger.h"
+
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
@@ -25,6 +27,19 @@ static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
 static QueryOperator *getUpdateForPreviousTableVersion (List *updates, char *tableName, int startPos);
 
 /* function definitions */
+Node *
+provRewriteQBModel (Node *qbModel)
+{
+    if (isA(qbModel, List))
+        return (Node *) provRewriteQueryList((List *) qbModel);
+    else if (isA(qbModel, QueryOperator))
+        return (Node *) provRewriteQuery((QueryOperator *) qbModel);
+
+    FATAL_LOG("cannot rewrite node <%s>", nodeToString(qbModel));
+
+    return NULL;
+}
+
 List *
 provRewriteQueryList (List *list)
 {
@@ -47,13 +62,11 @@ findProvenanceComputations (QueryOperator *op)
 {
     // is provenance computation? then rewrite
     if (isA(op, ProvenanceComputation))
-        rewriteProvenanceComputation((ProvenanceComputation *) op);
+        return rewriteProvenanceComputation((ProvenanceComputation *) op);
 
     // else search for children with provenance
     FOREACH(QueryOperator, x, op->inputs)
-    {
         findProvenanceComputations(x);
-    }
 
     return op;
 }

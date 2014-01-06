@@ -432,11 +432,12 @@ databaseConnectionClose()
 	}
 	else
 	{
+	    ACQUIRE_MEM_CONTEXT(context);
 		freeAggList();
 		freeBuffers();
 		OCI_Cleanup();//bugs exist here
 		initialized = FALSE;
-//		FREE_MEM_CONTEXT(context);
+		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 	}
 	return EXIT_SUCCESS;
 }

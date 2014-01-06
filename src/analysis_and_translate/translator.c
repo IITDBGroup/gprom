@@ -35,6 +35,7 @@ typedef struct ReplaceGroupByState
 } ReplaceGroupByState;
 
 // function declarations
+static Node *translateGeneral (Node *node);
 static QueryOperator *translateQuery (Node *node);
 
 /* Three branches of translating a Query */
@@ -85,19 +86,27 @@ translateParse(Node *q)
 
     INFO_LOG("translate QB model \n%s", nodeToString(q));
 
-    if (isA(q, List))
-    {
-        result = (Node *) copyList((List *) q);
-        FOREACH(Node,stmt,(List *) result)
-            stmt_his_cell->data.ptr_value = (Node *) translateQuery(stmt);
-    }
-    else
-        result = (Node *) translateQuery (q);
+    result = translateGeneral(q);
 
     INFO_LOG("result of translation is \n%s", beatify(nodeToString(result)));
     assert(equal(result, copyObject(result)));
 
     FREE_MEM_CONTEXT_AND_RETURN_COPY(Node,result);
+}
+
+static Node *translateGeneral (Node *node)
+{
+    Node *result;
+
+    if (isA(node, List))
+    {
+        result = (Node *) copyList((List *) node);
+        FOREACH(Node,stmt,(List *) result)
+            stmt_his_cell->data.ptr_value = (Node *) translateQuery(stmt);
+    }
+    else
+        result = (Node *) translateQuery(node);
+    return result;
 }
 
 static QueryOperator *
@@ -126,17 +135,19 @@ translateSetQuery(SetQuery *sq)
     QueryOperator *right = NULL;
     if (sq->lChild)
     {
-        if (sq->lChild->type == T_SetQuery)
-            left = translateSetQuery((SetQuery *) sq->lChild);
-        else if (sq->lChild->type == T_QueryBlock)
-            left = translateQueryBlock(((QueryBlock *) sq->lChild));
+        left = translateQuery(sq->lChild);
+//        if (sq->lChild->type == T_SetQuery)
+//            left = translateSetQuery((SetQuery *) sq->lChild);
+//        else if (sq->lChild->type == T_QueryBlock)
+//            left = translateQueryBlock(((QueryBlock *) sq->lChild));
     }
     if (sq->rChild)
     {
-        if (sq->rChild->type == T_SetQuery)
-            right = translateSetQuery((SetQuery *) sq->rChild);
-        else if (sq->rChild->type == T_QueryBlock)
-            right = translateQueryBlock(((QueryBlock *) sq->rChild));
+        left = translateQuery(sq->rChild);
+//        if (sq->rChild->type == T_SetQuery)
+//            right = translateSetQuery((SetQuery *) sq->rChild);
+//        else if (sq->rChild->type == T_QueryBlock)
+//            right = translateQueryBlock(((QueryBlock *) sq->rChild));
     }
     assert(left && right);
 
@@ -192,13 +203,24 @@ translateProvenanceStmt(ProvenanceStmt *prov)
 {
     QueryOperator *child;
     ProvenanceComputation *result;
-    List *attrs = NIL;
     Schema *schema = NULL;
-    //TODO create attribute list by analyzing subquery under child
+
+//    Constant *test = copyObject((Constant *)prov->asOf);
+//    Constant *copyAsOf = makeNode(Constant);
+//    if(test->constType == DT_INT){
+//    	copyAsOf->value = test->value;
+//    	copyAsOf->constType = DT_INT;
+//    }else if(test->constType == DT_STRING){
+//    	copyAsOf->value = test->value;
+//    	copyAsOf->constType = DT_INT;
+//
+//    }
+//    //prov->asOf = copyObject((Node *)CopyAsOf);
+//    Node *asOf = (Node *)copyAsOf;
     child = translateQuery(prov->query);
 
-    result = createProvenanceComputOp(PI_CS, singleton(child), NIL, NIL, attrs); //TODO adapt function parameters
-
+    result = createProvenanceComputOp(prov->provType, singleton(child), NIL, prov->selectClause, NULL);
+    result->asOf = copyObject(prov->asOf);
     child->parents = singleton(result);
 
     return (QueryOperator *) result;
@@ -235,7 +257,8 @@ buildJoinTreeFromOperatorList(List *opList)
         root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
 
         // set the parent of the operator's children
-        OP_LCHILD(root)->parents = OP_RCHILD(root)->parents = singleton(root);
+        OP_LCHILD(root)->parents = singleton(root);
+        OP_RCHILD(root)->parents = singleton(root);
     }
 
     DEBUG_LOG("join tree for translated from is\n%s", nodeToString(root));
@@ -299,7 +322,7 @@ translateFromClauseToOperatorList(List *fromClause)
 static inline QueryOperator *
 createTableAccessOpFromFromTableRef(FromTableRef *ftr)
 {
-    TableAccessOperator *ta = createTableAccessOp(ftr->tableId, ftr->from.name,
+    TableAccessOperator *ta = createTableAccessOp(ftr->tableId, NULL,ftr->from.name,
                 NIL, ftr->from.attrNames, NIL); // TODO  get data types
     DEBUG_LOG("translated table access:\n%s\nINTO\n%s", nodeToString(ftr), nodeToString(ta));
     return ((QueryOperator *) ta);
@@ -311,6 +334,9 @@ translateFromJoinExpr(FromJoinExpr *fje)
     QueryOperator *input1 = NULL;
     QueryOperator *input2 = NULL;
     Node *joinCond = NULL;
+    List *commonAttrs = NIL;
+    List *uniqueRightAttrs = NIL;
+    List *attrNames = fje->from.attrNames;
 
     switch (fje->left->type)
     {
@@ -348,16 +374,42 @@ translateFromJoinExpr(FromJoinExpr *fje)
     assert(input1 && input2);
 
     // set children of the join operator node
-    List *inputs = appendToTailOfList(inputs, input1);
-    inputs = appendToTailOfList(inputs, input2);
+    List *inputs = LIST_MAKE(input1, input2);
 
     // NATURAL join condition, create equality condition for all common attributes
     if (fje->joinCond == JOIN_COND_NATURAL)
     {
-        List *commonAttrs = NIL;
+        List *leftAttrs = getQueryOperatorAttrNames(input1);
+        List *rightAttrs = getQueryOperatorAttrNames(input2);
+        List *commonAttRefs = NIL;
+        int lPos = 0;
 
-        //FOREACH()
+        // search for common attributes and create condition for equality comparisons
+        FOREACH(char,rA,rightAttrs)
+        {
+            int rPos = listPosString(leftAttrs, rA);
+            if(rPos != -1)
+            {
+                AttributeReference *lRef = createFullAttrReference(strdup(rA), 0, lPos, 0);
+                AttributeReference *rRef = createFullAttrReference(strdup(rA), 1, rPos, 0);
 
+                commonAttrs = appendToTailOfList(commonAttrs, rA);
+                joinCond = AND_EXPRS((Node *) createOpExpr("=", LIST_MAKE(lRef,rRef)), joinCond);
+            }
+            else
+                uniqueRightAttrs = appendToTailOfList(uniqueRightAttrs, rA);
+            lPos++;
+        }
+
+        DEBUG_LOG("common attributes for natural join <%s>, unique right "
+                "attrs <%s>, with left <%s> and right <%s>",
+                stringListToString(commonAttrs),
+                stringListToString(uniqueRightAttrs),
+                stringListToString(leftAttrs),
+                stringListToString(rightAttrs));
+
+        // need to update attribute names for join result
+        attrNames = concatTwoLists(leftAttrs, rightAttrs);
     }
     // USING (a1, an) join create condition as l.a1 = r.a1 AND ... AND l.an = r.an
     else if (fje->joinCond == JOIN_COND_USING)
@@ -407,6 +459,8 @@ translateFromJoinExpr(FromJoinExpr *fje)
             attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
             curCond = AND_EXPRS(attrCond,curCond);
         }
+
+        joinCond = curCond;
     }
     // inner join
     else
@@ -414,17 +468,40 @@ translateFromJoinExpr(FromJoinExpr *fje)
 
     // create join operator node
     JoinOperator *jo = createJoinOp(fje->joinType, joinCond, inputs, NIL,
-            fje->from.attrNames); // TODO merge schema?
+            attrNames);
 
     // set the parent of the operator's children
     OP_LCHILD(jo)->parents = OP_RCHILD(jo)->parents = singleton(jo);
 
+    // create projection for natural join
     if (fje->joinCond == JOIN_COND_NATURAL)
     {
-        // TODO create projection?
-    }
+        ProjectionOperator *op;
+        List *projExpr = NIL;
+        int pos = 0;
 
-    return ((QueryOperator *) jo);
+        FOREACH(AttributeDef,a,input1->schema->attrDefs)
+        {
+            projExpr = appendToTailOfList(projExpr,
+                    createFullAttrReference(strdup(a->attrName), 0, pos, 0));
+            pos++;
+        }
+        FOREACH(AttributeDef,a,input2->schema->attrDefs)
+        {
+            if (!searchListString(commonAttrs, a->attrName))
+                projExpr = appendToTailOfList(projExpr,
+                        createFullAttrReference(strdup(a->attrName), 1, pos, 0));
+        }
+
+        DEBUG_LOG("projection expressions for natural join: %s", projExpr);
+
+        op = createProjectionOp(projExpr, (QueryOperator *) jo, NIL, fje->from.attrNames);
+        jo->op.parents = singleton(op);
+
+        return ((QueryOperator *) op);
+    }
+    else
+        return ((QueryOperator *) jo);
 }
 
 static QueryOperator *

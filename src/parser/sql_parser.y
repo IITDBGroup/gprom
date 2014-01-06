@@ -53,7 +53,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -111,6 +111,7 @@ Node *bisonParseResult = NULL;
 %type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
+%type <node> optionalProvAsOf
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString
 %type <stringVal> joinType transactionIdentifier
 
@@ -181,24 +182,39 @@ transactionIdentifier:
  * Rule to parse a query asking for provenance
  */
 provStmt: 
-        PROVENANCE OF '(' stmt ')'
+        PROVENANCE optionalProvAsOf OF '(' stmt ')'
         {
             RULELOG("provStmt::stmt");
-            Node *stmt = $4;
-			ProvenanceStmt *p = createProvenanceStmt(stmt);
-			p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-			p->provType = PROV_PI_CS;
+            Node *stmt = $5;
+	    ProvenanceStmt *p = createProvenanceStmt(stmt);
+	    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+	    p->provType = PROV_PI_CS;
+	    p->asOf = (Node *) $2;
             $$ = (Node *) p;
         }
-		PROVENANCE OF '(' stmtlist ')'
+	| PROVENANCE optionalProvAsOf OF '(' stmtlist ')'
 		{
 			RULELOG("provStmt::stmtlist");
-			ProvenanceStmt *p = createProvenanceStmt($4);
+			ProvenanceStmt *p = createProvenanceStmt($5);
 			p->inputType = PROV_INPUT_UPDATE_SEQUENCE;
 			p->provType = PROV_PI_CS;
+			p->asOf = (Node *) $2;
 			$$ = (Node *) p;
 		}
     ;
+    
+optionalProvAsOf:
+		/* empty */			{ RULELOG("optionalProvAsOf::EMPTY"); $$ = NULL; }
+		| AS OF SCN intConst
+		{
+			RULELOG("optionalProvAsOf::SCN");
+			$$ = (Node *) createConstInt($4);
+		}
+		| AS OF TIMESTAMP stringConst
+		{
+			RULELOG("optionalProvAsOf::TIMESTAMP");
+			$$ = (Node *) createConstString($4);
+		}
 
 /*
  * Rule to parse delete query

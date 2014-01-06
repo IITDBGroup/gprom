@@ -11,10 +11,12 @@
  */
 
 #include "common.h"
+#include "log/logger.h"
 #include "model/query_operator/query_operator.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+
 
 static Schema *mergeSchemas (List *inputs);
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
@@ -79,9 +81,7 @@ getDataTypes (Schema *schema)
     List *result = NIL;
 
     FOREACH(AttributeDef,a,schema->attrDefs)
-    {
         result = appendToTailOfListInt(result, a->dataType);
-    }
 
     return result;
 }
@@ -92,21 +92,19 @@ getAttrNames(Schema *schema)
     List *result = NIL;
 
     FOREACH(AttributeDef,a,schema->attrDefs)
-    {
         result = appendToTailOfList(result, a->attrName);
-    }
 
     return result;
 }
 
 TableAccessOperator *
-createTableAccessOp(char *tableName, char *alias, List *parents,
+createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
         List *attrNames, List *dataTypes)
 {
-    TableAccessOperator *ta = NEW(TableAccessOperator);
+    TableAccessOperator *ta = makeNode(TableAccessOperator);
 
     ta->tableName = tableName;
-    ta->op.type = T_TableAccessOperator;
+    ta->asOf = asOf;
     ta->op.inputs = NULL;
     ta->op.schema = createSchemaFromLists(alias, attrNames, dataTypes);
     ta->op.parents = parents;
@@ -119,11 +117,13 @@ SelectionOperator *
 createSelectionOp(Node *cond, QueryOperator *input, List *parents,
         List *attrNames)
 {
-    SelectionOperator *sel = NEW(SelectionOperator);
+    SelectionOperator *sel = makeNode(SelectionOperator);
 
     sel->cond = copyObject(cond);
-    sel->op.type = T_SelectionOperator;
-    sel->op.inputs = singleton(input);
+    if (input != NULL)
+        sel->op.inputs = singleton(input);
+    else
+        sel->op.inputs = NIL;
     sel->op.schema = createSchemaFromLists("SELECT", attrNames, getDataTypes(input->schema));
     sel->op.parents = parents;
     sel->op.provAttrs = NIL;
@@ -135,15 +135,15 @@ ProjectionOperator *
 createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
         List *attrNames)
 {
-    ProjectionOperator *prj = NEW(ProjectionOperator);
+    ProjectionOperator *prj = makeNode(ProjectionOperator);
 
     FOREACH(Node, expr, projExprs)
-    {
         prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
-    }
 
-    prj->op.type = T_ProjectionOperator;
-    prj->op.inputs = singleton(input);
+    if (input != NULL)
+        prj->op.inputs = singleton(input);
+    else
+        prj->op.inputs = NIL;
     prj->op.schema = schemaFromExpressions("PROJECTION", attrNames, projExprs,
             singleton(input));
 
@@ -157,11 +157,10 @@ JoinOperator *
 createJoinOp(JoinType joinType, Node *cond, List *inputs, List *parents,
         List *attrNames)
 {
-    JoinOperator *join = NEW(JoinOperator);
+    JoinOperator *join = makeNode(JoinOperator);
 
     join->cond = copyObject(cond);
     join->joinType = joinType;
-    join->op.type = T_JoinOperator;
     join->op.inputs = inputs;
     /* get data types from inputs and attribute names from parameter to create
      * schema */
@@ -180,7 +179,7 @@ AggregationOperator *
 createAggregationOp(List *aggrs, List *groupBy, QueryOperator *input,
         List *parents, List *attrNames)
 {
-    AggregationOperator *aggr = NEW(AggregationOperator);
+    AggregationOperator *aggr = makeNode(AggregationOperator);
 
     FOREACH(Node, func, aggrs)
     {
@@ -190,8 +189,11 @@ createAggregationOp(List *aggrs, List *groupBy, QueryOperator *input,
     {
     	aggr->groupBy = appendToTailOfList(aggr->groupBy, copyObject(expr));
     }
-    aggr->op.type = T_AggregationOperator;
-    aggr->op.inputs = singleton(input);
+    if (input != NULL)
+        aggr->op.inputs = singleton(input);
+    else
+        aggr->op.inputs = NIL;
+
     aggr->op.schema = schemaFromExpressions("AGG", attrNames,
             concatTwoLists(copyList(aggrs),copyList(groupBy)), singleton(input));
     aggr->op.parents = parents;
@@ -204,10 +206,9 @@ SetOperator *
 createSetOperator(SetOpType setOpType, List *inputs, List *parents,
         List *attrNames)
 {
-    SetOperator *set = NEW(SetOperator);
+    SetOperator *set = makeNode(SetOperator);
 
     set->setOpType = setOpType;
-    set->op.type = T_SetOperator;
     set->op.inputs = inputs;
     set->op.schema = createSchemaFromLists("SET", attrNames, getDataTypes(OP_LCHILD(set)->schema));
     set->op.parents = parents;
@@ -220,10 +221,9 @@ DuplicateRemoval *
 createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
         List *attrNames)
 {
-    DuplicateRemoval *dr = NEW(DuplicateRemoval);
+    DuplicateRemoval *dr = makeNode(DuplicateRemoval);
 
     dr->attrs = attrs;
-    dr->op.type = T_DuplicateRemoval;
     dr->op.inputs = singleton(input);
     dr->op.schema = createSchemaFromLists("DUPREM", attrNames, getDataTypes(input->schema));
     dr->op.parents = parents;
@@ -233,9 +233,18 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
 }
 
 ProvenanceComputation *
-createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, List *parents, List *attrNames)
+createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, Node *asOf)
 {
-    return NULL; //TODO
+    ProvenanceComputation *p = makeNode(ProvenanceComputation);
+    //Node *CopyasOf;
+    //CopyasOf = copyObject(asOf);
+    p->op.parents = parents;
+    p->op.inputs = inputs;
+    p->op.schema = createSchemaFromLists("PROVENANCE", attrNames, NULL);
+    p->provType = provType;
+    p->asOf = asOf;
+    //p->asOf = CopyasOf;
+    return p;
 }
 
 ConstRelOperator *
@@ -264,6 +273,21 @@ List *
 getProvenanceAttrs(QueryOperator *op)
 {
     return op ? op->provAttrs : NIL;
+}
+
+List *
+getProvenanceAttrDefs(QueryOperator *op)
+{
+    List *result = NIL;
+
+    FOREACH_INT(i,op->provAttrs)
+    {
+        DEBUG_LOG("prov attr at <%u> is <%s>", i, nodeToString(getNthOfListP(op->schema->attrDefs, i)));
+        result = appendToTailOfList(result, getNthOfListP(op->schema->attrDefs, i));
+    }
+
+
+    return result;
 }
 
 List *

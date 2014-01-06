@@ -24,13 +24,7 @@ createAttributeReference (char *name)
 {
     AttributeReference *result = makeNode(AttributeReference);
 
-    if (name != NULL)
-    {
-        result->name = (char *) MALLOC(strlen(name) + 1);
-        strcpy(result->name, name);
-    }
-    else 
-        result->name = NULL;
+    result->name = strdup(name);
     result->fromClauseItem = INVALID_FROM_ITEM;
     result->attrPosition = INVALID_ATTR;
     result->outerLevelsUp = INVALID_ATTR;
@@ -44,14 +38,7 @@ createFullAttrReference (char *name, int fromClause, int attrPos,
 {
     AttributeReference *result = makeNode(AttributeReference);
 
-    if (name != NULL)
-    {
-        result->name = (char *) MALLOC(strlen(name) + 1);
-        strcpy(result->name, name);
-    }
-    else
-        result->name = NULL;
-
+    result->name = strdup(name);
     result->fromClauseItem = fromClause;
     result->attrPosition = attrPos;
     result->outerLevelsUp = outerLevelsUp;

@@ -44,6 +44,7 @@ typedef struct TableAccessOperator
 {
     QueryOperator op;
     char *tableName;
+    Node *asOf;
 } TableAccessOperator;
 
 typedef struct SelectionOperator
@@ -89,6 +90,7 @@ typedef struct ProvenanceComputation
     QueryOperator op;
     Node *transactionInfo;
     ProvenanceType provType;
+    Node *asOf;
 } ProvenanceComputation;
 
 typedef struct UpdateOperator
@@ -127,17 +129,21 @@ extern ConstRelOperator *createConstRelOp(List *values,List *parents, List *attr
 #define OP_RCHILD(op) \
     ((QueryOperator *) getNthOfListP(((QueryOperator*) op)->inputs,1))
 
-#define _OP_LCHILD(op) \
-    getHeadOfListP(((QueryOperator*) op)->inputs)
+//#define _OP_LCHILD(op) \
+//    getHeadOfListP(((QueryOperator*) op)->inputs)
+//
+//#define _OP_RCHILD(op) \
+//    getNthOfListP(((QueryOperator*) op)->inputs,1)
 
-#define _OP_RCHILD(op) \
-    getNthOfListP(((QueryOperator*) op)->inputs,1)
+#define getAttrDef(op,aPos) \
+    ((AttributeDef *) getNthOfListP(((QueryOperator *) op)->schema->attrDefs, aPos))
 
 /*  */
 extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
 
 /* access functions */
 extern List *getProvenanceAttrs(QueryOperator *op);
+extern List *getProvenanceAttrDefs(QueryOperator *op);
 extern List *getNormalAttrs(QueryOperator *op);
 extern List *getQueryOperatorAttrNames (QueryOperator *op);
 

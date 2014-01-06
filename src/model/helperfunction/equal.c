@@ -78,7 +78,7 @@ static boolean equalFromProvInfo (FromProvInfo *a, FromProvInfo *b);
 /*compare a field pointer to a string list*/
 #define COMPARE_STRING_LIST_FIELD(fldname)  \
         do{  \
-            if(!equalStringList(a->fldname, b->fldname))  \
+            if(!equalStringList((List *) a->fldname, (List *) b->fldname))  \
             return FALSE;  \
         } while (0)
 
@@ -213,6 +213,23 @@ equalSet (Set *a, Set *b)
         return FALSE;
     if (setSize(a) != setSize(b))
         return FALSE;
+
+    if (a->setType == SET_TYPE_INT)
+    {
+        FOREACH_SET(int,i,a)
+        {
+            if (!hasSetIntElem(b,*i))
+                return FALSE;
+        }
+
+        FOREACH_SET(int,i,b)
+        {
+            if (!hasSetIntElem(a,*i))
+                return FALSE;
+        }
+
+        return TRUE;
+    }
 
     FOREACH_SET(void,el,a)
     {
@@ -429,6 +446,7 @@ equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b)
     COMPARE_SCALAR_FIELD(provType);
     COMPARE_SCALAR_FIELD(inputType);
     COMPARE_NODE_FIELD(transInfo);
+    COMPARE_NODE_FIELD(asOf);
 
     return TRUE;
 }
@@ -481,7 +499,10 @@ equalFromJoinExpr(FromJoinExpr *a, FromJoinExpr *b)
     COMPARE_NODE_FIELD(right);
     COMPARE_SCALAR_FIELD(joinType);
     COMPARE_SCALAR_FIELD(joinCond);
-    COMPARE_NODE_FIELD(cond);
+    if (a->joinCond == JOIN_COND_USING)
+        COMPARE_STRING_LIST_FIELD(cond);
+    else
+        COMPARE_NODE_FIELD(cond);
   
     return TRUE;
 }
@@ -494,6 +515,12 @@ equalDistinctClause(DistinctClause *a,  DistinctClause *b)
     return TRUE;
 }
 
+/* returns true if two pointers point to the same memory location */
+boolean
+ptrEqual(void *a, void *b)
+{
+    return a == b;
+}
 
 /*equalfun returns  whether two nodes are equal*/
 boolean

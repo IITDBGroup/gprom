@@ -300,6 +300,7 @@ copyProvenanceComputation(ProvenanceComputation *from, OperatorMap **opMap)
     COPY_INIT(ProvenanceComputation);
     COPY_OPERATOR();
     COPY_SCALAR_FIELD(provType);
+    COPY_NODE_FIELD(asOf);
 
     return new;
 }
@@ -405,7 +406,8 @@ copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
     COPY_NODE_FIELD(selectClause);
     COPY_SCALAR_FIELD(provType);
     COPY_SCALAR_FIELD(inputType);
-    COPY_NODE_FIELD(transInfo);
+    COPY_NODE_FIELD(transInfo);    
+    COPY_NODE_FIELD(asOf);
 
     return new;
 }
@@ -487,7 +489,7 @@ copyFromJoinExpr(FromJoinExpr *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(joinType);
     COPY_SCALAR_FIELD(joinCond);
     if (from->joinCond == JOIN_COND_USING)
-        new->cond = (Node *) deepCopyStringList((List *) new->cond);
+        new->cond = (Node *) deepCopyStringList((List *) from->cond);
     else
         COPY_NODE_FIELD(cond);
 

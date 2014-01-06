@@ -39,6 +39,9 @@ static void addAlloc(MemContext *mc, void *addr, const char *file,
         unsigned line);
 static void delAlloc(MemContext *mc, void *addr, const char *file,
         unsigned line);
+static void freeAlloc (Allocation *alloc, MemContext *mc, void *addr,
+        const char *file, unsigned line);
+
 
 static MemContext *curMemContext = NULL; // global pointer to current memory context
 static MemContext *defaultMemContext = NULL;
@@ -168,15 +171,60 @@ delAlloc(MemContext *mc, void *addr, const char *file, unsigned line)
     HASH_FIND_PTR(mc->hashAlloc, &addr, alloc); // find allocation info by address first
     if (alloc)
     {
-        const char *tmpfile = alloc->file;
-        int tmpline = alloc->line;
-        HASH_DEL(mc->hashAlloc, alloc); // remove the allocation info
-        free(alloc);
-        log_(LOG_TRACE, file, line,
-                "Deleted [addr:%p, file:'%s', line:%d] from memory context '%s'.",
-                addr, tmpfile, tmpline, mc->contextName);
+        freeAlloc(alloc, mc, addr, file, line);
+        return;
     }
+    // allocation not found search in ancestor contexts on the stack
+    else
+    {
+        MemContextNode *c = topContextNode;
+        MemContext *curC;
+
+        log_(LOG_TRACE, file, line,
+                "Not found [addr:%p] from memory context '%s'.",
+                            addr, mc->contextName);
+
+        while(c->mc != mc)
+            c = c->next;
+        c = c->next;
+
+        for(; c != NULL; c = c->next)
+        {
+            curC = c->mc;
+            HASH_FIND_PTR(curC->hashAlloc, &addr, alloc);
+
+            if (alloc)
+            {
+                freeAlloc(alloc, curC, addr, file, line);
+                return;
+            }
+            else
+                log_(LOG_TRACE, file, line,
+                            "Not found [addr:%p] from memory context '%s'.",
+                            addr, curC->contextName);
+       }
+    }
+
+    // did not find allocation
+    FATAL_LOG("did not find allocation info for <%p> in memory context <%s>", addr, mc->contextName);
 }
+
+/*
+ * Free an allocation
+ */
+
+static void
+freeAlloc (Allocation *alloc, MemContext *mc, void *addr, const char *file, unsigned line)
+{
+    const char *tmpfile = alloc->file;
+    int tmpline = alloc->line;
+    HASH_DEL(mc->hashAlloc, alloc); // remove the allocation info
+    free(alloc);
+    log_(LOG_TRACE, file, line,
+            "Deleted [addr:%p, file:'%s', line:%d] from memory context '%s'.",
+            addr, tmpfile, tmpline, mc->contextName);
+}
+
 
 /*
  * Creates a memory context.

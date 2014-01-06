@@ -210,12 +210,26 @@ outSet(StringInfo str, Set *node)
     {
         case SET_TYPE_INT:
             FOREACH_SET(int,i,node)
-            {
                 appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
+            break;
+        case SET_TYPE_STRING:
+            FOREACH_SET(char,el,node)
+                appendStringInfo(str, "%s%s", el, el_his_el->hh.next ? ", " : "");
+            break;
+        case SET_TYPE_POINTER:
+            FOREACH_SET(void,el,node)
+                appendStringInfo(str, "%p%s", el, el_his_el->hh.next ? ", " : "");
+            break;
+        case SET_TYPE_NODE:
+            FOREACH_SET(void,el,node)
+            {
+                outNode(str, el);
+                appendStringInfo(str, "%s", el_his_el->hh.next ? ", " : "");
             }
             break;
         default:
             FATAL_LOG("not implemented yet");
+            break;
     }
 
     appendStringInfo(str, "}");
@@ -325,6 +339,7 @@ outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
     WRITE_ENUM_FIELD(provType,ProvenanceType);
     WRITE_ENUM_FIELD(inputType,ProvenanceInputType);
     WRITE_NODE_FIELD(transInfo);
+    WRITE_NODE_FIELD(asOf);
 }
 
 static void
@@ -496,7 +511,7 @@ outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
 {
     WRITE_NODE_TYPE(PROVENANCE_COMPUTATION);
     WRITE_QUERY_OPERATOR();
-
+    WRITE_NODE_FIELD(asOf);
     WRITE_ENUM_FIELD(provType,ProvenanceType);
 }
 
@@ -505,7 +520,7 @@ outTableAccessOperator(StringInfo str, TableAccessOperator *node)
 {
     WRITE_NODE_TYPE(TABLE_ACCESS_OPERATOR);
     WRITE_QUERY_OPERATOR();
-
+    WRITE_NODE_FIELD(asOf);
     WRITE_STRING_FIELD(tableName);
 }
 
@@ -658,6 +673,20 @@ nodeToString(void *obj)
     return result;
 }
 
+//int
+//hashObject(void *a)
+//{
+//    StringInfo str;
+//    int hash;
+//
+//    str = makeStringInfo();
+//    outNode(str, obj);
+//
+//}
+
+/*
+ *
+ */
 char *
 beatify(char *input)
 {
