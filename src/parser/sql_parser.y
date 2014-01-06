@@ -105,13 +105,13 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList clauseList optionalGroupBy optionalOrderBy setClause// select and from clauses are lists
-             insertList stmtList identifierList optionalAttrAlias
+             insertList stmtList identifierList optionalAttrAlias optionalProvWith provOptionList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
 %type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
-%type <node> optionalProvAsOf
+%type <node> optionalProvAsOf provOption
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString
 %type <stringVal> joinType transactionIdentifier
 
@@ -192,13 +192,21 @@ provStmt:
 		    p->asOf = (Node *) $2;
             $$ = (Node *) p;
         }
-	| PROVENANCE optionalProvAsOf OF '(' stmtList ')'
+		| PROVENANCE optionalProvAsOf OF '(' stmtList ')'
 		{
 			RULELOG("provStmt::stmtlist");
 			ProvenanceStmt *p = createProvenanceStmt((Node *) $5);
 			p->inputType = PROV_INPUT_UPDATE_SEQUENCE;
 			p->provType = PROV_PI_CS;
 			p->asOf = (Node *) $2;
+			$$ = (Node *) p;
+		}
+		| PROVENANCE OF TRANSACTION intConst
+		{
+			RULELOG("provStmt::transaction");
+			ProvenanceStmt *p = createProvenanceStmt(NULL);
+			p->inputType = PROV_INPUT_TRANSACTION;
+			p->provType = PROV_PI_CS;
 			$$ = (Node *) p;
 		}
     ;
@@ -215,7 +223,30 @@ optionalProvAsOf:
 			RULELOG("optionalProvAsOf::TIMESTAMP");
 			$$ = (Node *) createConstString($4);
 		}
-
+	;
+	
+optionalProvWith:
+		/* empty */			{ RULELOG("optionalProvWith::EMPTY"); $$ = NIL; }
+		| WITH provOptionList
+		{
+			RULELOG("optionalProvWith::WITH");
+			$$ = $2;
+		}
+	;
+	
+provOptionList:
+		provOption	{ RULELOG("provOptionList::option"); $$ = singleton($1); }
+		| provOptionList provOption 
+		{ 
+			RULELOG("provOptionList::list"); $$ = appendToTailOfList($1,$2); 
+		}
+	;
+	
+provOption:
+		TYPE stringConst { RULELOG("provOption::TYPE"); $$ = ; }
+		
+	;
+	
 /*
  * Rule to parse delete query
  */ 

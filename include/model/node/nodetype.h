@@ -16,6 +16,9 @@ typedef enum NodeTag {
     /* sets */
     T_Set,
 
+    /* options */
+    T_KeyValue,
+
     /* expression nodes */
     T_Constant,
     T_AttributeReference,
@@ -25,6 +28,7 @@ typedef enum NodeTag {
     /* query block model nodes */
     T_SetQuery,
     T_ProvenanceStmt,
+    T_ProvenanceTransactionInfo,
     T_QueryBlock,
     T_SelectItem,
     T_FromItem,
@@ -75,7 +79,7 @@ typedef enum ProvenanceInputType
     PROV_INPUT_TIME_INTERVAL
 } ProvenanceInputType;
 
-/*stringinfo provides the string data type*/
+/* stringinfo provides the string data type*/
 
 typedef struct StringInfoData
 {
@@ -83,11 +87,18 @@ typedef struct StringInfoData
     int  len;
     int maxlen;
     int cursor;
-
-}StringInfoData;
+} StringInfoData;
 
 typedef StringInfoData *StringInfo;
 
+/* Key-Value pair */
+
+typedef struct KeyValue
+{
+    NodeTag type;
+    Node *key;
+    Node *value;
+} KeyValue;
 
 /*------------------------------------------------------------------
 *makeStringInfo

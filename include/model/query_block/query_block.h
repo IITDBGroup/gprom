@@ -55,6 +55,8 @@ typedef struct ProvenanceTransactionInfo
     NodeTag type;
     IsolationLevel transIsolation;
     List *updateTableNames;
+    List *originalUpdates;
+    List *scns;
 } ProvenanceTransactionInfo;
 
 typedef struct ProvenanceStmt

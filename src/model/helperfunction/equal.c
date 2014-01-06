@@ -27,6 +27,7 @@ static boolean equalConstant (Constant *a, Constant *b);
 static boolean equalList(List *a, List *b);
 static boolean equalStringList (List *a, List *b);
 static boolean equalSet (Set *a, Set *b);
+static boolean equalKeyValue (KeyValue *a, KeyValue *b);
 
 // equal functions for query_operator
 static boolean equalSchema(Schema *a, Schema *b);
@@ -47,6 +48,8 @@ static boolean equalQueryBlock(QueryBlock *a, QueryBlock *b);
 static boolean equalSetQuery(SetQuery *a, SetQuery *b);
 static boolean equalNestedSubquery (NestedSubquery *a, NestedSubquery *b);
 static boolean equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b);
+static boolean equalProvenanceTransactionInfo(ProvenanceTransactionInfo *a,
+        ProvenanceTransactionInfo *b);
 static boolean equalSelectItem(SelectItem *a, SelectItem *b);
 static boolean equalFromItem(FromItem *a, FromItem *b);
 static boolean equalFromTableRef(FromTableRef *a, FromTableRef *b);
@@ -241,6 +244,15 @@ equalSet (Set *a, Set *b)
         if (!hasSetElem(a,el))
             return FALSE;
     }
+
+    return TRUE;
+}
+
+static boolean
+equalKeyValue (KeyValue *a, KeyValue *b)
+{
+    COMPARE_NODE_FIELD(key);
+    COMPARE_NODE_FIELD(value);
 
     return TRUE;
 }
@@ -452,6 +464,18 @@ equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b)
 }
 
 static boolean 
+equalProvenanceTransactionInfo(ProvenanceTransactionInfo *a,
+        ProvenanceTransactionInfo *b)
+{
+    COMPARE_SCALAR_FIELD(transIsolation);
+    COMPARE_STRING_LIST_FIELD(updateTableNames);
+    COMPARE_NODE_FIELD(originalUpdates);
+    COMPARE_NODE_FIELD(scns);
+
+    return TRUE;
+}
+
+static boolean
 equalSelectItem(SelectItem *a, SelectItem *b)
 {
     COMPARE_STRING_FIELD(alias);
@@ -567,6 +591,9 @@ equal(void *a, void *b)
         case T_Schema:
             retval = equalSchema(a,b);
             break;
+        case T_KeyValue:
+            retval = equalKeyValue(a,b);
+            break;
         case T_AttributeDef:
             retval = equalAttributeDef(a,b);
             break;
@@ -605,6 +632,9 @@ equal(void *a, void *b)
             break;
         case T_ProvenanceStmt:
             retval = equalProvenanceStmt(a,b);
+            break;
+        case T_ProvenanceTransactionInfo:
+            retval = equalProvenanceTransactionInfo(a,b);
             break;
         case T_SelectItem:
             retval = equalSelectItem(a,b);
