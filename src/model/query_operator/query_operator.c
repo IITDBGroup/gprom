@@ -124,7 +124,8 @@ createSelectionOp(Node *cond, QueryOperator *input, List *parents,
         sel->op.inputs = singleton(input);
     else
         sel->op.inputs = NIL;
-    sel->op.schema = createSchemaFromLists("SELECT", attrNames, getDataTypes(input->schema));
+    sel->op.schema = createSchemaFromLists("SELECT", attrNames,
+            input ? getDataTypes(input->schema) : NIL);
     sel->op.parents = parents;
     sel->op.provAttrs = NIL;
 
@@ -207,10 +208,12 @@ createSetOperator(SetOpType setOpType, List *inputs, List *parents,
         List *attrNames)
 {
     SetOperator *set = makeNode(SetOperator);
+    QueryOperator *lChild = OP_LCHILD(set);
 
     set->setOpType = setOpType;
     set->op.inputs = inputs;
-    set->op.schema = createSchemaFromLists("SET", attrNames, getDataTypes(OP_LCHILD(set)->schema));
+    set->op.schema = createSchemaFromLists("SET", attrNames,
+            lChild ? getDataTypes(lChild->schema) : NIL);
     set->op.parents = parents;
     set->op.provAttrs = NULL;
 
@@ -236,14 +239,13 @@ ProvenanceComputation *
 createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, Node *asOf)
 {
     ProvenanceComputation *p = makeNode(ProvenanceComputation);
-    //Node *CopyasOf;
-    //CopyasOf = copyObject(asOf);
+
     p->op.parents = parents;
     p->op.inputs = inputs;
     p->op.schema = createSchemaFromLists("PROVENANCE", attrNames, NULL);
     p->provType = provType;
     p->asOf = asOf;
-    //p->asOf = CopyasOf;
+
     return p;
 }
 

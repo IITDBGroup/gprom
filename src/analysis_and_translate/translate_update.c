@@ -46,7 +46,7 @@ translateUpdate(Node *update)
 static QueryOperator *
 translateInsert(Insert *insert)
 {
-	List *attr = getAttributes(insert->tableName);
+	List *attr = getAttributeNames(insert->tableName);
 	QueryOperator *insertQuery;
 
 	TableAccessOperator *to;
@@ -76,7 +76,7 @@ translateInsert(Insert *insert)
 static QueryOperator *
 translateDelete(Delete *delete)
 {
-	List *attr = getAttributes(delete->nodeName);
+	List *attr = getAttributeNames(delete->nodeName);
 
 	TableAccessOperator *to;
 	to = createTableAccessOp(strdup(delete->nodeName), NULL, NULL, NIL, deepCopyStringList(attr), NIL);
@@ -94,15 +94,11 @@ translateDelete(Delete *delete)
 static QueryOperator *
 translateUpdateInternal(Update *update)
 {
-    List *attrs = getAttributes(update->nodeName);
+    List *attrs = getAttributeNames(update->nodeName);
 
+    // create table access operator
 	TableAccessOperator *to;
 	to = createTableAccessOp(strdup(update->nodeName), NULL, NULL, NIL, deepCopyStringList(attrs), NIL);
-
-	SelectionOperator *so;
-	so = createSelectionOp(copyObject(update->cond), NULL, NIL, deepCopyStringList(attrs));
-
-	addChildOperator((QueryOperator *) so, (QueryOperator *) to);
 
 	// CREATE PROJECTION EXPRESSIONS
 	List *projExprs = NIL;
@@ -124,21 +120,32 @@ translateUpdateInternal(Update *update)
 	ProjectionOperator *po;
 	po = createProjectionOp(projExprs, NULL, NIL, deepCopyStringList(attrs));
 
-	addChildOperator((QueryOperator *) po, (QueryOperator *) so);
+	// create selection operator, negated selection, and union if update has WHERE clause
+	if (update->cond != NULL)
+	{
+        SelectionOperator *so;
+        so = createSelectionOp(copyObject(update->cond), NULL, NIL, deepCopyStringList(attrs));
+        addChildOperator((QueryOperator *) so, (QueryOperator *) to);
+        addChildOperator((QueryOperator *) po, (QueryOperator *) so);
 
-	SelectionOperator *nso;
-	Node *negatedCond;
-	negatedCond = (Node *) createOpExpr("NOT", singleton(copyObject(update->cond)));
-	nso = createSelectionOp(negatedCond, NULL, NIL, deepCopyStringList(attrs));
-	addChildOperator((QueryOperator *) nso, (QueryOperator *) to);
+        SelectionOperator *nso;
+        Node *negatedCond;
+        negatedCond = (Node *) createOpExpr("NOT", singleton(copyObject(update->cond)));
+        nso = createSelectionOp(negatedCond, NULL, NIL, deepCopyStringList(attrs));
+        addChildOperator((QueryOperator *) nso, (QueryOperator *) to);
 
-	SetOperator *seto;
-	seto = createSetOperator(SETOP_UNION, NIL, NIL, deepCopyStringList(attrs));
+        SetOperator *seto;
+        seto = createSetOperator(SETOP_UNION, NIL, NIL, deepCopyStringList(attrs));
 
-	addChildOperator((QueryOperator *) seto, (QueryOperator *) po);
-	addChildOperator((QueryOperator *) seto, (QueryOperator *) nso);
+        addChildOperator((QueryOperator *) seto, (QueryOperator *) po);
+        addChildOperator((QueryOperator *) seto, (QueryOperator *) nso);
 
-	return (QueryOperator *) seto;
+        return (QueryOperator *) seto;
+	}
+
+	// update without WHERE clause
+    addChildOperator((QueryOperator *) po, (QueryOperator *) to);
+    return (QueryOperator *) po;
 }
 
 

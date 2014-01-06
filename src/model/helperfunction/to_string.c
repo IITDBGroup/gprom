@@ -347,6 +347,7 @@ outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
     WRITE_ENUM_FIELD(inputType,ProvenanceInputType);
     WRITE_NODE_FIELD(transInfo);
     WRITE_NODE_FIELD(asOf);
+    WRITE_NODE_FIELD(options);
 }
 
 static void
@@ -538,8 +539,10 @@ outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
 {
     WRITE_NODE_TYPE(PROVENANCE_COMPUTATION);
     WRITE_QUERY_OPERATOR();
-    WRITE_NODE_FIELD(asOf);
     WRITE_ENUM_FIELD(provType,ProvenanceType);
+    WRITE_ENUM_FIELD(inputType,ProvenanceInputType);
+    WRITE_NODE_FIELD(transactionInfo);
+    WRITE_NODE_FIELD(asOf);
 }
 
 static void

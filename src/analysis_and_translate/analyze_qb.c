@@ -25,6 +25,7 @@ static void analyzeStmtList (List *l, List *parentFroms);
 static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
 static void analyzeSetQuery (SetQuery *q, List *parentFroms);
 static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
+static void analyzeProvenanceOptions (ProvenanceStmt *prov);
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 
 // search for attributes and other relevant node types
@@ -598,7 +599,7 @@ static void analyzeDelete(Delete * f) {
 
 }
 
-static void analyzeUpdate(Update * f) {
+static void analyzeUpdate(Update* f) {
 	List *attrRefs = NIL;
 	List *attrDef = getAttributes(f->nodeName);
 	List *attrNames = NIL;
@@ -616,7 +617,11 @@ static void analyzeUpdate(Update * f) {
 	boolean isFound = FALSE;
 	int attrPos = 0;
 
+	// find attributes
 	findAttrReferences((Node *) f->cond, &attrRefs);
+	findAttrReferences((Node *) f->selectClause, &attrRefs);
+
+	// adapt attributes
 	FOREACH(AttributeReference,a,attrRefs) {
 		boolean isFound = FALSE;
 		//		 FOREACH(List,fClause,fakeFrom)
@@ -885,5 +890,28 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 
 	q->selectClause = concatTwoLists(q->selectClause,
 			getQBProvenanceAttrList(q));
+
+	analyzeProvenanceOptions(q);
 }
 
+static void
+analyzeProvenanceOptions (ProvenanceStmt *prov)
+{
+    /* loop through options */
+    FOREACH(KeyValue,kv,prov->options)
+    {
+        char *key = STRING_VALUE(kv->key);
+        char *value = STRING_VALUE(kv->value);
+
+        /* provenance type */
+        if (!strcmp(key, "TYPE"))
+        {
+            if (!strcmp(value, "PICS"))
+                prov->provType = PROV_PI_CS;
+            else if (!strcmp(value, "TRANSFORMATION"))
+                prov->provType = PROV_TRANSFORMATION;
+            else
+                FATAL_LOG("Unkown provenance type: <%s>", value);
+        }
+    }
+}

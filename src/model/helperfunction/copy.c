@@ -314,6 +314,8 @@ copyProvenanceComputation(ProvenanceComputation *from, OperatorMap **opMap)
     COPY_INIT(ProvenanceComputation);
     COPY_OPERATOR();
     COPY_SCALAR_FIELD(provType);
+    COPY_SCALAR_FIELD(inputType);
+    COPY_NODE_FIELD(transactionInfo);
     COPY_NODE_FIELD(asOf);
 
     return new;
@@ -422,6 +424,7 @@ copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(inputType);
     COPY_NODE_FIELD(transInfo);    
     COPY_NODE_FIELD(asOf);
+    COPY_NODE_FIELD(options);
 
     return new;
 }

@@ -209,7 +209,7 @@ rewritePI_CSSet(SetOperator *op)
 }
 
 static void
-rewritePI_CSTableAccess(TableAccessOperator * op)
+rewritePI_CSTableAccess(TableAccessOperator *op)
 {
     List *tableAttr;
     List *provAttr = NIL;
@@ -221,7 +221,8 @@ rewritePI_CSTableAccess(TableAccessOperator * op)
     DEBUG_LOG("REWRITE-PICS - Table Access <%s> <%u>", op->tableName, relAccessCount);
 
     // copy any as of clause if there
-    op->asOf = copyObject(asOf);
+    if (asOf)
+        op->asOf = copyObject(asOf);
 
     // Get the povenance name for each attribute
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)

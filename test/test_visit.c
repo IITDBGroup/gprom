@@ -112,6 +112,8 @@ visitTheNode(Node *node, void *state)
 	case T_SetOperator: printf("The type of the node is SetOperator\n"); break;
 	case T_DuplicateRemoval: printf("The type of the node is DuplicateRemoval\n"); break;
 	case T_ConstRelOperator: printf("The type of the node is ConstRelOperator\n"); break;
+	case T_ProvenanceTransactionInfo: printf("The type of the node is ProvenanceTransactionInfo\n"); break;
+	case T_KeyValue: printf("The type of the node is KeyValue\n"); break;
 	}
 
 	//printf("The type of the node is %d\n", node->type);

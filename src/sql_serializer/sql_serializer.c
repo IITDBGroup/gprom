@@ -506,8 +506,13 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
             *attrOffset = 0;
             if (t->asOf)
-                asOf = CONCAT_STRINGS("(", exprToSQL(t->asOf), ")");
-
+            {
+                Constant *c = (Constant *) t->asOf;
+                if (c->constType == DT_INT)
+                    asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf));
+                else
+                    asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
+            }
             attrs = createFromNames(attrOffset, LIST_LENGTH(t->op.schema->attrDefs));
             appendStringInfo(from, "((%s)%s F%u(%s))", t->tableName, asOf ? asOf : "", (*curFromItem)++, attrs);
         }

@@ -100,7 +100,7 @@ findTableAccessVisitor (Node *node, List **result)
  */
 
 void
-removeParentFromOps (List *operators, Node *parent)
+removeParentFromOps (List *operators, QueryOperator *parent)
 {
     FOREACH(QueryOperator,op,operators)
         op->parents = REMOVE_FROM_LIST_PTR(op->parents, parent);

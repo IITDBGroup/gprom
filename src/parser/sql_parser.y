@@ -68,7 +68,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> DUMMYEXPR
 
 /* Keywords for Join queries */
-%token <stringVal> JOIN NATURAL LEFT RIGHT OUTER INNER CROSS ON USING FULL 
+%token <stringVal> JOIN NATURAL LEFT RIGHT OUTER INNER CROSS ON USING FULL TYPE TRANSACTION WITH 
 
 /*
  * Declare token for operators specify their associativity and precedence
@@ -182,31 +182,34 @@ transactionIdentifier:
  * Rule to parse a query asking for provenance
  */
 provStmt: 
-        PROVENANCE optionalProvAsOf OF '(' stmt ')'
+        PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')'
         {
             RULELOG("provStmt::stmt");
-            Node *stmt = $5;
+            Node *stmt = $6;
 	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $2;
+		    p->options = $3;
             $$ = (Node *) p;
         }
-		| PROVENANCE optionalProvAsOf OF '(' stmtList ')'
+		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmtList ')'
 		{
 			RULELOG("provStmt::stmtlist");
-			ProvenanceStmt *p = createProvenanceStmt((Node *) $5);
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $6);
 			p->inputType = PROV_INPUT_UPDATE_SEQUENCE;
 			p->provType = PROV_PI_CS;
 			p->asOf = (Node *) $2;
+			p->options = $3;
 			$$ = (Node *) p;
 		}
-		| PROVENANCE OF TRANSACTION intConst
+		| PROVENANCE optionalProvAsOf optionalProvWith OF TRANSACTION intConst
 		{
 			RULELOG("provStmt::transaction");
-			ProvenanceStmt *p = createProvenanceStmt(NULL);
+			ProvenanceStmt *p = createProvenanceStmt((Node *) createConstInt($6));
 			p->inputType = PROV_INPUT_TRANSACTION;
 			p->provType = PROV_PI_CS;
+			p->options = $3;
 			$$ = (Node *) p;
 		}
     ;
@@ -238,13 +241,17 @@ provOptionList:
 		provOption	{ RULELOG("provOptionList::option"); $$ = singleton($1); }
 		| provOptionList provOption 
 		{ 
-			RULELOG("provOptionList::list"); $$ = appendToTailOfList($1,$2); 
+			RULELOG("provOptionList::list"); 
+			$$ = appendToTailOfList($1,$2); 
 		}
 	;
 	
 provOption:
-		TYPE stringConst { RULELOG("provOption::TYPE"); $$ = ; }
-		
+		TYPE stringConst 
+		{ 
+			RULELOG("provOption::TYPE"); 
+			$$ = (Node *) createStringKeyValue("TYPE", $2); 
+		}
 	;
 	
 /*

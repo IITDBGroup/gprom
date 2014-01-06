@@ -119,6 +119,7 @@ typedef struct List
  * Get pointer of integer value of a list cell
  */
 #define LC_P_VAL(lc) (((ListCell *) lc)->data.ptr_value)
+#define LC_STRING_VAL(lc) ((char *) ((ListCell *) lc)->data.ptr_value)
 #define LC_INT_VAL(lc) (((ListCell *) lc)->data.int_value)
 
 /*

@@ -277,11 +277,22 @@ catalogViewExists(char* viewName)
 	return FALSE;
 }
 
+List *
+getAttributeNames (char *tableName)
+{
+    List *attrNames = NIL;
+    List *attrs = getAttributes(tableName);
+
+    FOREACH(AttributeReference,a,attrs)
+        attrNames = appendToTailOfList(attrNames, a->name);
+
+    return attrNames;
+}
+
 List*
 getAttributes(char *tableName)
 {
 	List *attrList=NIL;
-	List *restul = NIL;
 
 	ACQUIRE_MEM_CONTEXT(context);
 

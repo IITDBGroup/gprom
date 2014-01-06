@@ -105,7 +105,10 @@ extern int yydebug;
     ON = 315,
     USING = 316,
     FULL = 317,
-    XOR = 318
+    TYPE = 318,
+    TRANSACTION = 319,
+    WITH = 320,
+    XOR = 321
   };
 #endif
 
@@ -126,7 +129,7 @@ union YYSTYPE
      int intVal;
      double floatVal;
 
-#line 130 "sql_parser.tab.h" /* yacc.c:1909  */
+#line 133 "sql_parser.tab.h" /* yacc.c:1909  */
 };
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1

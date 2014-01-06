@@ -88,8 +88,9 @@ typedef struct DuplicateRemoval
 typedef struct ProvenanceComputation
 {
     QueryOperator op;
-    Node *transactionInfo;
     ProvenanceType provType;
+    ProvenanceInputType inputType;
+    ProvenanceTransactionInfo *transactionInfo;
     Node *asOf;
 } ProvenanceComputation;
 
