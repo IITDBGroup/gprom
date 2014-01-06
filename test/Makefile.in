@@ -310,8 +310,11 @@ $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 $(am__aclocal_m4_deps):
 install-binPROGRAMS: $(bin_PROGRAMS)
 	@$(NORMAL_INSTALL)
-	test -z "$(bindir)" || $(MKDIR_P) "$(DESTDIR)$(bindir)"
 	@list='$(bin_PROGRAMS)'; test -n "$(bindir)" || list=; \
+	if test -n "$$list"; then \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(bindir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(bindir)" || exit 1; \
+	fi; \
 	for p in $$list; do echo "$$p $$p"; done | \
 	sed 's/$(EXEEXT)$$//' | \
 	while read p p1; do if test -f $$p || test -f $$p1; \
@@ -360,6 +363,12 @@ testmain$(EXEEXT): $(testmain_OBJECTS) $(testmain_DEPENDENCIES) $(EXTRA_testmain
 testparser$(EXEEXT): $(testparser_OBJECTS) $(testparser_DEPENDENCIES) $(EXTRA_testparser_DEPENDENCIES) 
 	@rm -f testparser$(EXEEXT)
 	$(LINK) $(testparser_OBJECTS) $(testparser_LDADD) $(LIBS)
+testpicsrewrite$(EXEEXT): $(testpicsrewrite_OBJECTS) $(testpicsrewrite_DEPENDENCIES) $(EXTRA_testpicsrewrite_DEPENDENCIES) 
+	@rm -f testpicsrewrite$(EXEEXT)
+	$(LINK) $(testpicsrewrite_OBJECTS) $(testpicsrewrite_LDADD) $(LIBS)
+testrewriter$(EXEEXT): $(testrewriter_OBJECTS) $(testrewriter_DEPENDENCIES) $(EXTRA_testrewriter_DEPENDENCIES) 
+	@rm -f testrewriter$(EXEEXT)
+	$(LINK) $(testrewriter_OBJECTS) $(testrewriter_LDADD) $(LIBS)
 testserializer$(EXEEXT): $(testserializer_OBJECTS) $(testserializer_DEPENDENCIES) $(EXTRA_testserializer_DEPENDENCIES) 
 	@rm -f testserializer$(EXEEXT)
 	$(LINK) $(testserializer_OBJECTS) $(testserializer_LDADD) $(LIBS)

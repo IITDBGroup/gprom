@@ -36,7 +36,6 @@ typedef struct ReplaceGroupByState
 
 // function declarations
 static Node *translateGeneral (Node *node);
-static QueryOperator *translateQuery (Node *node);
 
 /* Three branches of translating a Query */
 static QueryOperator *translateSetQuery(SetQuery *sq);
@@ -109,7 +108,7 @@ static Node *translateGeneral (Node *node)
     return result;
 }
 
-static QueryOperator *
+QueryOperator *
 translateQuery (Node *node)
 {
     DEBUG_LOG("translate query <%s>", node);

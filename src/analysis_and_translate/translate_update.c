@@ -10,62 +10,65 @@
  *-----------------------------------------------------------------------------
  */
 
-#include "analysis_and_translate/translate_update.h"
-#include "model/query_operator/query_operator.h"
-#include "analysis_and_translate/translator.h"
 #include "common.h"
+
 #include "mem_manager/mem_mgr.h"
+
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
+#include "analysis_and_translate/translator.h"
+#include "analysis_and_translate/translate_update.h"
 
-static QueryOperator *translateUpdate(Update *f);
+#include "metadata_lookup/metadata_lookup.h"
+
+static QueryOperator *translateUpdateInternal(Update *f);
 static QueryOperator *translateInsert(Insert *f);
 static QueryOperator *translateDelete(Delete *f);
 
 QueryOperator *
-translateUpdate(Node *update) {
-
+translateUpdate(Node *update)
+{
 	switch (update->type) {
-	case T_Insert:
-		return translateInsert((Insert *) update);
-
-	case T_Delete:
-		return translateDelete((Delete *) update);
-
-	case T_Update:
-		return translateUpdate((Update *) update);
-	default:
-		return NULL;
+        case T_Insert:
+            return translateInsert((Insert *) update);
+        case T_Delete:
+            return translateDelete((Delete *) update);
+        case T_Update:
+            return translateUpdateInternal((Update *) update);
+        default:
+            return NULL;
 	}
 }
 
 
 static QueryOperator *
-translateInsert(Insert *insert) {
-	List *attr = getAttributes(insert.tableName);
+translateInsert(Insert *insert)
+{
+	List *attr = getAttributes(insert->tableName);
 	QueryOperator *insertQuery;
 
 	TableAccessOperator *to;
-	to = createTableAccessOp(insert->tableName, NULL, NIL, deepCopyStringList(attr), NIL);
+	to = createTableAccessOp(insert->tableName, NULL, NULL, NIL, deepCopyStringList(attr), NIL);
 
 	if (isA(insert->query,  List))
 	{
 		ConstRelOperator *co;
-		co = createConstRelOp(insert->query,NIL, deepCopyStringList(attr),NIL);
+		co = createConstRelOp((List *) insert->query,NIL, deepCopyStringList(attr),NIL);
 		insertQuery= (QueryOperator *) co;
 
 	}
 	else
 	{
-	    insertQuery =  translateQuery(insert->query);
+	    insertQuery =  translateQuery((Node *) insert->query);
 	}
 
-	enum SetOpType unionType = SETOP_UNION;
 	SetOperator *seto;
-	seto = createSetOperator(unionType, NIL, NIL, deepCopyStringList(attr));
+	seto = createSetOperator(SETOP_UNION, NIL, NIL, deepCopyStringList(attr));
 
-	addChildOperator(seto, to);
-	addChildOperator(seto, insertQuery);
+	addChildOperator((QueryOperator *) seto, (QueryOperator *) to);
+	addChildOperator((QueryOperator *) seto, insertQuery);
 
 	return (QueryOperator *) seto;
 }
@@ -73,69 +76,67 @@ translateInsert(Insert *insert) {
 static QueryOperator *
 translateDelete(Delete *delete)
 {
-	List *attr = getAttributes(delete.nodeName);
+	List *attr = getAttributes(delete->nodeName);
 
 	TableAccessOperator *to;
-	to = createTableAccessOp(strdup(delete.nodeName), NULL, NIL, NIL, deepCopyStringList(attr), NIL);
+	to = createTableAccessOp(strdup(delete->nodeName), NULL, NULL, NIL, deepCopyStringList(attr), NIL);
 
 	SelectionOperator *so;
 	Node *negatedCond;
-	negatedCond = createOpExpr("NOT", singleton(copyObject(delete.cond)));
-	so = createSelectionOp(negatedCond, NIL, NIL, deepCopyStringList(attr));
+	negatedCond = (Node *) createOpExpr("NOT", singleton(copyObject(delete->cond)));
+	so = createSelectionOp(negatedCond, NULL, NIL, deepCopyStringList(attr));
 
-
-	addChildOperator(so, to);
+	addChildOperator((QueryOperator *) so, (QueryOperator *) to);
 
 	return (QueryOperator *) so;
 }
 
 static QueryOperator *
-translateUpdate(Update *update)
+translateUpdateInternal(Update *update)
 {
-    List *attrs = getAttributes(update.nodeName);
+    List *attrs = getAttributes(update->nodeName);
 
 	TableAccessOperator *to;
-	to = createTableAccessOp(strdup(update.nodeName), NULL, NIL, NIL,deepCopyStringList(attrs), NIL);
+	to = createTableAccessOp(strdup(update->nodeName), NULL, NULL, NIL, deepCopyStringList(attrs), NIL);
 
 	SelectionOperator *so;
-	so = createSelectionOp(copyObject(update.cond), NIL, NIL, deepCopyStringList(attrs));
+	so = createSelectionOp(copyObject(update->cond), NULL, NIL, deepCopyStringList(attrs));
 
-	addChildOperator(so, to);
+	addChildOperator((QueryOperator *) so, (QueryOperator *) to);
 
 	// CREATE PROJECTION EXPRESSIONS
 	List *projExprs = NIL;
 	for(int i = 0; i < LIST_LENGTH(attrs); i++)
 	{
         Node *projExpr= NULL;
-	    FOREACH(Operator,o,update.selectClause)
+	    FOREACH(Operator,o,update->selectClause)
         {
-	        AttributeReference *a = (AttributeReference *) getNthOfList(o->args, 0);
+	        AttributeReference *a = (AttributeReference *) getNthOfListP(o->args, 0);
 	        if (a->attrPosition == i)
-	            projExpr = (Node *) copyObject(getNthOfList(o->args, 1));
+	            projExpr = (Node *) copyObject(getNthOfListP(o->args, 1));
         }
 
 	    if (projExpr == NULL)
-	        projExpr = createFullAttrReference(getNthOfList(attrs,i), 0, i, 0);
+	        projExpr = (Node *) createFullAttrReference(getNthOfListP(attrs,i), 0, i, 0);
 	    projExprs = appendToTailOfList(projExprs, projExpr);
 	}
 
 	ProjectionOperator *po;
-	po = createProjectionOp(projExprs, NIL, NIL, deepCopyStringList(attrs));
+	po = createProjectionOp(projExprs, NULL, NIL, deepCopyStringList(attrs));
 
-	addChildOperator(po, so);
+	addChildOperator((QueryOperator *) po, (QueryOperator *) so);
 
 	SelectionOperator *nso;
 	Node *negatedCond;
-	negatedCond = createOpExpr("NOT", singleton(copyObject(update.cond)));
-	nso = createSelectionOp(negatedCond, NIL, NIL, deepCopyStringList(attrs));
-	addChildOperator(nso, to);
+	negatedCond = (Node *) createOpExpr("NOT", singleton(copyObject(update->cond)));
+	nso = createSelectionOp(negatedCond, NULL, NIL, deepCopyStringList(attrs));
+	addChildOperator((QueryOperator *) nso, (QueryOperator *) to);
 
-	enum SetOpType unionType = SETOP_UNION;
 	SetOperator *seto;
-	seto = createSetOperator(unionType, NIL, NIL, deepCopyStringList(attrs));
+	seto = createSetOperator(SETOP_UNION, NIL, NIL, deepCopyStringList(attrs));
 
-	addChildOperator(seto, po);
-	addChildOperator(seto, nso);
+	addChildOperator((QueryOperator *) seto, (QueryOperator *) po);
+	addChildOperator((QueryOperator *) seto, (QueryOperator *) nso);
 
 	return (QueryOperator *) seto;
 }

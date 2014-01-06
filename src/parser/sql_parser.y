@@ -121,13 +121,13 @@ Node *bisonParseResult = NULL;
 
 /* Rule for all types of statements */
 stmtList: 
-		stmt 
+		stmt ';'
 			{ 
 				RULELOG("stmtList::stmt"); 
 				$$ = singleton($1);
 				bisonParseResult = (Node *) $$;	 
 			}
-		| stmtList stmt 
+		| stmtList stmt ';' 
 			{
 				RULELOG("stmtlist::stmtList::stmt");
 				$$ = appendToTailOfList($1, $2);	
@@ -136,17 +136,17 @@ stmtList:
 	;
 
 stmt: 
-        dmlStmt ';'    // DML statement can be select, update, insert, delete
+        dmlStmt    // DML statement can be select, update, insert, delete
         {
             RULELOG("stmt::dmlStmt");
             $$ = $1;
         }
-		| queryStmt ';'
+		| queryStmt
         {
             RULELOG("stmt::queryStmt");
             $$ = $1;
         }
-        | transactionIdentifier ';'
+        | transactionIdentifier
         {
             RULELOG("stmt::transactionIdentifier");
             $$ = (Node *) createTransactionStmt($1);
@@ -186,16 +186,16 @@ provStmt:
         {
             RULELOG("provStmt::stmt");
             Node *stmt = $5;
-	    ProvenanceStmt *p = createProvenanceStmt(stmt);
-	    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-	    p->provType = PROV_PI_CS;
-	    p->asOf = (Node *) $2;
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = PROV_PI_CS;
+		    p->asOf = (Node *) $2;
             $$ = (Node *) p;
         }
-	| PROVENANCE optionalProvAsOf OF '(' stmtlist ')'
+	| PROVENANCE optionalProvAsOf OF '(' stmtList ')'
 		{
 			RULELOG("provStmt::stmtlist");
-			ProvenanceStmt *p = createProvenanceStmt($5);
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $5);
 			p->inputType = PROV_INPUT_UPDATE_SEQUENCE;
 			p->provType = PROV_PI_CS;
 			p->asOf = (Node *) $2;

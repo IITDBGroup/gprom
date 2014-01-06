@@ -548,7 +548,7 @@ static void analyzeInsert(Insert * f) {
 
 static void analyzeDelete(Delete * f) {
 	List *attrRefs = NIL;
-	List *subqueries;
+	List *subqueries = NIL;
 	List *attrDef = getAttributes(f->nodeName);
 	List *attrNames = NIL;
 	FromTableRef *fakeTable;
@@ -557,7 +557,7 @@ static void analyzeDelete(Delete * f) {
 	FOREACH(AttributeReference,a,attrDef)
 		attrNames = appendToTailOfList(attrNames, strdup(a->name));
 
-	fakeTable = createFromTableRef(strdup(f->nodeName), attrNames,
+	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->nodeName), attrNames,
 			strdup(f->nodeName));
 	fakeFrom = singleton(singleton(fakeTable));
 
@@ -591,23 +591,25 @@ static void analyzeDelete(Delete * f) {
 
 	// search for nested subqueries
 	findNestedSubqueries(f->cond, &subqueries);
-	FOREACH(NestedSubquery,nq,subqueries)
-		analyzeQueryBlock(nq, fakeFrom);
+
 	// analyze each nested subqueries
-//	analyzeQueryBlockStmt ((Node *) f->cond, NIL);
+	FOREACH(NestedSubquery,nq,subqueries)
+	    analyzeQueryBlockStmt(nq->query, fakeFrom);
+
 }
 
 static void analyzeUpdate(Update * f) {
 	List *attrRefs = NIL;
 	List *attrDef = getAttributes(f->nodeName);
 	List *attrNames = NIL;
+	List *subqueries = NIL;
 	FromTableRef *fakeTable;
 	List *fakeFrom = NIL;
 
 	FOREACH(AttributeReference,a,attrDef)
 		attrNames = appendToTailOfList(attrNames, strdup(a->name));
 
-	fakeTable = createFromTableRef(strdup(f->nodeName), attrNames,
+	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->nodeName), attrNames,
 			strdup(f->nodeName));
 	fakeFrom = singleton(singleton(fakeTable));
 
@@ -642,11 +644,10 @@ static void analyzeUpdate(Update * f) {
 
 	// search for nested subqueries
 	findNestedSubqueries(f->cond, &subqueries);
-	FOREACH(NestedSubquery,nq,subqueries)
-		analyzeQueryBlock(nq, fakeFrom);
-	// analyze each nested subqueries
-	//	analyzeQueryBlockStmt ((Node *) f->cond, NIL);
 
+    // analyze each nested subqueries
+	FOREACH(NestedSubquery,nq,subqueries)
+		analyzeQueryBlockStmt(nq->query, fakeFrom);
 }
 
 static void

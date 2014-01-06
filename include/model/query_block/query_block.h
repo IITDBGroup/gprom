@@ -65,6 +65,7 @@ typedef struct ProvenanceStmt
     ProvenanceType provType;
     ProvenanceInputType inputType;
     ProvenanceTransactionInfo *transInfo;
+    Node *asOf;
 } ProvenanceStmt;
 
 typedef struct SelectItem
