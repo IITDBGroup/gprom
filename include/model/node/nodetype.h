@@ -50,7 +50,8 @@ typedef enum NodeTag {
     T_ProvenanceComputation,
     T_TableAccessOperator,
     T_SetOperator,
-    T_DuplicateRemoval
+    T_DuplicateRemoval,
+    T_ConstRelOperator
 
 } NodeTag;
 

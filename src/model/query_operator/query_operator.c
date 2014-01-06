@@ -238,6 +238,21 @@ createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, Li
     return NULL; //TODO
 }
 
+ConstRelOperator *
+createConstRelOp(List *values, List *parents, List *attrNames, List *dataTypes)
+{
+	ConstRelOperator *co = NEW(ConstRelOperator);
+
+	co->values=values;
+	co->op.type=T_ConstRelOperator;
+	co->op.inputs=NULL;
+	co->op.schema= createSchemaFromLists("ConstRel", attrNames, dataTypes);
+	co->op.parents=parents;
+	co->op.provAttrs=NIL;
+
+	return co;
+}
+
 extern void
 addChildOperator (QueryOperator *parent, QueryOperator *child)
 {
