@@ -146,6 +146,7 @@ extern void *copyObject(void *obj);
 
 /* deep equals for nodes */
 extern boolean equal(void *a, void *b);
+extern boolean ptrEqual(void *a, void *b);
 
 /* deep free a node structure */
 extern void deepFree(void *a);

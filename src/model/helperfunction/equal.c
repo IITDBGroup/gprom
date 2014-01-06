@@ -513,6 +513,12 @@ equalDistinctClause(DistinctClause *a,  DistinctClause *b)
     return TRUE;
 }
 
+/* returns true if two pointers point to the same memory location */
+boolean
+ptrEqual(void *a, void *b)
+{
+    return a == b;
+}
 
 /*equalfun returns  whether two nodes are equal*/
 boolean

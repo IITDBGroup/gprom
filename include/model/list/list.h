@@ -179,6 +179,10 @@ extern boolean genericSearchList(List *list, boolean (*eq) (void *, void *), voi
 extern int listPosString (List *list, char *value);
 extern boolean genericListPos (List *list, boolean (*eq) (void *, void *), void *value);
 
+extern List *genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value);
+#define REMOVE_FROM_LIST_PTR(list,ptr) genericRemoveFromList (list, ptrEqual, ptr)
+#define REMOVE_FROM_LIST_NODE(list,node) genericRemoveFromList (list, equal, node)
+
 extern List *concatTwoLists (List *listA, List *listB);
 
 extern char *stringListToString (List *node);
