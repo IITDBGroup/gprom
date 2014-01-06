@@ -183,13 +183,20 @@ transactionIdentifier:
 provStmt: 
         PROVENANCE OF '(' stmt ')'
         {
-            RULELOG("provStmt");
-            $$ = (Node *) createProvenanceStmt($4);
+            RULELOG("provStmt::stmt");
+            Node *stmt = $4;
+			ProvenanceStmt *p = createProvenanceStmt(stmt);
+			p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+			p->provType = PROV_PI_CS;
+            $$ = (Node *) p;
         }
 		PROVENANCE OF '(' stmtlist ')'
 		{
 			RULELOG("provStmt::stmtlist");
-			$$ = (Node *) createProvenanceStmt($4);
+			ProvenanceStmt *p = createProvenanceStmt($4);
+			p->inputType = PROV_INPUT_UPDATE_SEQUENCE;
+			p->provType = PROV_PI_CS;
+			$$ = (Node *) p;
 		}
     ;
 

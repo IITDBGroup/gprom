@@ -427,6 +427,8 @@ equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b)
     COMPARE_NODE_FIELD(query);
     COMPARE_NODE_FIELD(selectClause);
     COMPARE_SCALAR_FIELD(provType);
+    COMPARE_SCALAR_FIELD(inputType);
+    COMPARE_NODE_FIELD(transInfo);
 
     return TRUE;
 }

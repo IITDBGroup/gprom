@@ -11,6 +11,7 @@
  */
 
 #include "provenance_rewriter/prov_rewriter.h"
+#include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 
@@ -21,6 +22,7 @@
 /* function declarations */
 static QueryOperator *findProvenanceComputations (QueryOperator *op);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
+static QueryOperator *getUpdateForPreviousTableVersion (List *updates, char *tableName, int startPos);
 
 /* function definitions */
 List *
@@ -61,38 +63,67 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 {
     if (LIST_LENGTH(op->op.inputs) > 1)
     {
-        // merge
-        //need a loop here for all updates into one 
+        List *updates = op->op.inputs;
+
+        // reverse list
+        reverseList(updates);
+
+        /*
+         * Merge the individual queries for all updates into one
+         */
         FOREACH(QueryOperator, u, op->op.inputs)
-          {
-             PREP_VISIT(TableAccessOperator);
-             VISIT_OPERATOR_FIELDS(u);
-          }
-        FOREACH(TableAccessOperator, t, op->op.inputs)
-          {
-             //find the first updates U' in position j with j>i that has updated table T
-             PREP_VISIT(TableAccessOperator);
-             VISIT_OPERATOR_FIELD(t);
-             if(u != NULL)
-              {
-                t = SetOperator *node;
-              }
-          }
+        {
+             List *children = NULL;
+             int i = 0;
+
+             // find all table access operators
+             findTableAccessVisitor(u, &children);
+
+             FOREACH(TableAccessOperator, t, children)
+             {
+                 QueryOperator *op = getUpdateForPreviousTableVersion(op->op.inputs, t->tableName, i);
+                 switchOperators((QueryOperator *) t, op);
+                 i++;
+             }
+        }
+//        FOREACH(TableAccessOperator, t, op->op.inputs)
+//          {
+//             //find the first updates U' in position j with j>i that has updated table T
+//             PREP_VISIT(TableAccessOperator);
+//             VISIT_OPERATOR_FIELD(t);
+//             if(u != NULL)
+//              {
+//                t = SetOperator *node;
+//              }
+//          }
          
         // rewrite
-        if (isA(op, ProvenanceComputation))
-            {
-              rewriteProvenanceComputation((ProvenanceComputation *) op);
-            } 
+//        if (isA(op, ProvenanceComputation))
+//            {
+//              rewriteProvenanceComputation((ProvenanceComputation *) op);
+//            }
        // return
-     return op;
     }
     switch(op->provType)
     {
-        case PI_CS:
+        case PROV_PI_CS:
             return rewritePI_CS(op);
-        case TRANSFORMATION:
+        case PROV_TRANSFORMATION:
             return rewriteTransformationProvenance((QueryOperator *) op);
     }
     return NULL;
+}
+
+static QueryOperator *
+getUpdateForPreviousTableVersion (List *updates, char *tableName, int startPos)
+{
+    QueryOperator *result = NULL;
+
+    for(ListCell *lc = getNthOfList(updates, startPos); lc != NULL; lc = lc->next)
+    {
+        QueryOperator *cur = LC_P_VAL(lc);
+
+    }
+
+    return result;
 }

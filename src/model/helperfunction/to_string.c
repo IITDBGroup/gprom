@@ -323,6 +323,8 @@ outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
     WRITE_NODE_FIELD(query);
     WRITE_STRING_LIST_FIELD(selectClause);
     WRITE_ENUM_FIELD(provType,ProvenanceType);
+    WRITE_ENUM_FIELD(inputType,ProvenanceInputType);
+    WRITE_NODE_FIELD(transInfo);
 }
 
 static void

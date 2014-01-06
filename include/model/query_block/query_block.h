@@ -11,6 +11,7 @@
 #include "model/node/nodetype.h"
 
 #define isQBQuery(node) (isA(node,QueryBlock) || isA(node,SetQuery) || isA(node, ProvenanceStmt))
+#define isQBUpdate(node) (isA(node,Insert) || isA(node,Update) || isA(node,Delete))
 
 typedef enum SetOpType
 {
@@ -42,12 +43,28 @@ typedef struct QueryBlock
     Node *limitClause;
 } QueryBlock;
 
+typedef enum IsolationLevel
+{
+    ISOLATION_SERIALIZABLE,
+    ISOLATION_READ_COMMITTED,
+    ISOLATION_READ_ONLY
+} IsolationLevel;
+
+typedef struct ProvenanceTransactionInfo
+{
+    NodeTag type;
+    IsolationLevel transIsolation;
+    List *updateTableNames;
+} ProvenanceTransactionInfo;
+
 typedef struct ProvenanceStmt
 {
     NodeTag type;
     Node *query;
     List *selectClause;
     ProvenanceType provType;
+    ProvenanceInputType inputType;
+    ProvenanceTransactionInfo *transInfo;
 } ProvenanceStmt;
 
 typedef struct SelectItem

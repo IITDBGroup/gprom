@@ -61,9 +61,19 @@ typedef struct Node{
 
 typedef enum ProvenanceType
 {
-    PI_CS,
-    TRANSFORMATION
+    PROV_PI_CS,
+    PROV_TRANSFORMATION
 } ProvenanceType;
+
+/* what type of database operation(s) a provenance computation is for */
+typedef enum ProvenanceInputType
+{
+    PROV_INPUT_QUERY,
+    PROV_INPUT_UPDATE,
+    PROV_INPUT_UPDATE_SEQUENCE,
+    PROV_INPUT_TRANSACTION,
+    PROV_INPUT_TIME_INTERVAL
+} ProvenanceInputType;
 
 /*stringinfo provides the string data type*/
 

@@ -48,14 +48,14 @@ List *
 getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
 {
     switch(type) {
-        case PI_CS:
+        case PROV_PI_CS:
         {
             ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);
 
             findBaserelationsVisitor((Node *) q, pSchema);
             return pSchema->provAttrs;
         }
-        case TRANSFORMATION:
+        case PROV_TRANSFORMATION:
             return singleton(strdup("tprov"));
     }
 }
@@ -115,7 +115,7 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt)
 {
     switch(stmt->provType)
     {
-        case PI_CS:
+        case PROV_PI_CS:
             //TODO
         default:
         {

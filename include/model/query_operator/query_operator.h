@@ -87,6 +87,7 @@ typedef struct DuplicateRemoval
 typedef struct ProvenanceComputation
 {
     QueryOperator op;
+    Node *transactionInfo;
     ProvenanceType provType;
 } ProvenanceComputation;
 
@@ -117,7 +118,7 @@ extern AggregationOperator *createAggregationOp (List *aggrs, List *groupBy, Que
 extern SetOperator *createSetOperator (SetOpType setOpType, List *inputs, List *parents, List *attrNames);
 extern DuplicateRemoval *createDuplicateRemovalOp (List *attrs, QueryOperator *input, List *parents, List *attrNames);
 extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, List *inputs, List *schema, List *parents, List *attrNames);
-extern ConstRelOperator *createConstRelOp(List *values,List *parents, List *attrNames);
+extern ConstRelOperator *createConstRelOp(List *values,List *parents, List *attrNames, List *dataTypes);
 
 /* navigation functions */
 #define OP_LCHILD(op) \
