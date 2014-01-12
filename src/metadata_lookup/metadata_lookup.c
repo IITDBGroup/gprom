@@ -480,6 +480,11 @@ getAttributes (char *table)
     return NIL;
 }
 
+List *getAttributeNames (char *tableName)
+{
+    return NIL;
+}
+
 boolean
 isAgg(char *table)
 {
