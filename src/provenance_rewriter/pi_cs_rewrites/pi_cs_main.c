@@ -70,29 +70,23 @@ rewritePI_CSOperator (QueryOperator *op)
     switch(op->type)
     {
         case T_SelectionOperator:
-         ERROR_LOG("go selection");
             rewritePI_CSSelection((SelectionOperator *) op);
             break;
         case T_ProjectionOperator:
-         ERROR_LOG("go projection");
             rewritePI_CSProjection((ProjectionOperator *) op);
             break;
         case T_AggregationOperator:
-         ERROR_LOG("go aggregation");
             rewritePI_CSAggregation ((AggregationOperator *) op);
             break;
         case T_JoinOperator:
-         ERROR_LOG("go join");
             rewritePI_CSJoin((JoinOperator *) op);
             break;
         case T_SetOperator:
-         ERROR_LOG("go set");
-         rewritePI_CSSet((SetOperator *) op);
+         	rewritePI_CSSet((SetOperator *) op);
             break;
         case T_TableAccessOperator:
-         ERROR_LOG("go table access");
-         rewritePI_CSTableAccess((TableAccessOperator *) op);
-         break;
+        	rewritePI_CSTableAccess((TableAccessOperator *) op);
+        	break;
         default:
             break;
     }
