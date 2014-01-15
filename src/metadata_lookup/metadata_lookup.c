@@ -371,6 +371,13 @@ getTableDefinition(char *tableName)
 	RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(NULL);
 }
 
+
+void
+getTransactionSQLAndSCNs (int xid, List **scns, List **sqls)
+{
+
+}
+
 char *
 getViewDefinition(char *viewName)
 {

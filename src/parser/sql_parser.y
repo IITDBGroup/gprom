@@ -53,7 +53,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -792,12 +792,12 @@ optionalFromProv:
 				p->userProvAttrs = NIL;				 
 				$$ = (Node *) p; 
 			}
-		| PROVENANCE '(' identifierList ')'
+		| HAS PROVENANCE '(' identifierList ')'
 			{
 				RULELOG("optionalFromProv::userProvAttr");
 				FromProvInfo *p = makeNode(FromProvInfo);
 				p->baserel = FALSE;
-				p->userProvAttrs = $3;				 
+				p->userProvAttrs = $4;				 
 				$$ = (Node *) p; 
 			}
 	;
