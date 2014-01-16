@@ -119,6 +119,7 @@ typedef struct List
  * Get pointer of integer value of a list cell
  */
 #define LC_P_VAL(lc) (((ListCell *) lc)->data.ptr_value)
+#define LC_STRING_VAL(lc) ((char *) ((ListCell *) lc)->data.ptr_value)
 #define LC_INT_VAL(lc) (((ListCell *) lc)->data.int_value)
 
 /*
@@ -178,6 +179,10 @@ extern boolean genericSearchList(List *list, boolean (*eq) (void *, void *), voi
 
 extern int listPosString (List *list, char *value);
 extern boolean genericListPos (List *list, boolean (*eq) (void *, void *), void *value);
+
+extern List *genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value);
+#define REMOVE_FROM_LIST_PTR(list,ptr) genericRemoveFromList (list, ptrEqual, ptr)
+#define REMOVE_FROM_LIST_NODE(list,node) genericRemoveFromList (list, equal, node)
 
 extern List *concatTwoLists (List *listA, List *listB);
 

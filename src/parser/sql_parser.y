@@ -53,7 +53,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -68,7 +68,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> DUMMYEXPR
 
 /* Keywords for Join queries */
-%token <stringVal> JOIN NATURAL LEFT RIGHT OUTER INNER CROSS ON USING FULL 
+%token <stringVal> JOIN NATURAL LEFT RIGHT OUTER INNER CROSS ON USING FULL TYPE TRANSACTION WITH 
 
 /*
  * Declare token for operators specify their associativity and precedence
@@ -105,13 +105,13 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList clauseList optionalGroupBy optionalOrderBy setClause// select and from clauses are lists
-             insertList stmtList identifierList optionalAttrAlias
+             insertList stmtList identifierList optionalAttrAlias optionalProvWith provOptionList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
 %type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
-%type <node> optionalProvAsOf
+%type <node> optionalProvAsOf provOption
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString
 %type <stringVal> joinType transactionIdentifier
 
@@ -121,13 +121,13 @@ Node *bisonParseResult = NULL;
 
 /* Rule for all types of statements */
 stmtList: 
-		stmt 
+		stmt ';'
 			{ 
 				RULELOG("stmtList::stmt"); 
 				$$ = singleton($1);
 				bisonParseResult = (Node *) $$;	 
 			}
-		| stmtList stmt 
+		| stmtList stmt ';' 
 			{
 				RULELOG("stmtlist::stmtList::stmt");
 				$$ = appendToTailOfList($1, $2);	
@@ -136,17 +136,17 @@ stmtList:
 	;
 
 stmt: 
-        dmlStmt ';'    // DML statement can be select, update, insert, delete
+        dmlStmt    // DML statement can be select, update, insert, delete
         {
             RULELOG("stmt::dmlStmt");
             $$ = $1;
         }
-		| queryStmt ';'
+		| queryStmt
         {
             RULELOG("stmt::queryStmt");
             $$ = $1;
         }
-        | transactionIdentifier ';'
+        | transactionIdentifier
         {
             RULELOG("stmt::transactionIdentifier");
             $$ = (Node *) createTransactionStmt($1);
@@ -182,15 +182,36 @@ transactionIdentifier:
  * Rule to parse a query asking for provenance
  */
 provStmt: 
-        PROVENANCE optionalProvAsOf OF '(' stmt ')'
+        PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')'
         {
-			RULELOG("provStmt");
-			ProvenanceStmt *p;            
-			
-			p = createProvenanceStmt($5);
-			p->asOf = (Node *) $2;
+            RULELOG("provStmt::stmt");
+            Node *stmt = $6;
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = PROV_PI_CS;
+		    p->asOf = (Node *) $2;
+		    p->options = $3;
             $$ = (Node *) p;
         }
+		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmtList ')'
+		{
+			RULELOG("provStmt::stmtlist");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $6);
+			p->inputType = PROV_INPUT_UPDATE_SEQUENCE;
+			p->provType = PROV_PI_CS;
+			p->asOf = (Node *) $2;
+			p->options = $3;
+			$$ = (Node *) p;
+		}
+		| PROVENANCE optionalProvAsOf optionalProvWith OF TRANSACTION intConst
+		{
+			RULELOG("provStmt::transaction");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) createConstInt($6));
+			p->inputType = PROV_INPUT_TRANSACTION;
+			p->provType = PROV_PI_CS;
+			p->options = $3;
+			$$ = (Node *) p;
+		}
     ;
     
 optionalProvAsOf:
@@ -205,7 +226,34 @@ optionalProvAsOf:
 			RULELOG("optionalProvAsOf::TIMESTAMP");
 			$$ = (Node *) createConstString($4);
 		}
-
+	;
+	
+optionalProvWith:
+		/* empty */			{ RULELOG("optionalProvWith::EMPTY"); $$ = NIL; }
+		| WITH provOptionList
+		{
+			RULELOG("optionalProvWith::WITH");
+			$$ = $2;
+		}
+	;
+	
+provOptionList:
+		provOption	{ RULELOG("provOptionList::option"); $$ = singleton($1); }
+		| provOptionList provOption 
+		{ 
+			RULELOG("provOptionList::list"); 
+			$$ = appendToTailOfList($1,$2); 
+		}
+	;
+	
+provOption:
+		TYPE stringConst 
+		{ 
+			RULELOG("provOption::TYPE"); 
+			$$ = (Node *) createStringKeyValue("TYPE", $2); 
+		}
+	;
+	
 /*
  * Rule to parse delete query
  */ 
@@ -744,12 +792,12 @@ optionalFromProv:
 				p->userProvAttrs = NIL;				 
 				$$ = (Node *) p; 
 			}
-		| PROVENANCE '(' identifierList ')'
+		| HAS PROVENANCE '(' identifierList ')'
 			{
 				RULELOG("optionalFromProv::userProvAttr");
 				FromProvInfo *p = makeNode(FromProvInfo);
 				p->baserel = FALSE;
-				p->userProvAttrs = $3;				 
+				p->userProvAttrs = $4;				 
 				$$ = (Node *) p; 
 			}
 	;

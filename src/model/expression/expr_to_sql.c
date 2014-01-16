@@ -70,13 +70,23 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
 static void
 operatorToSQL (StringInfo str, Operator *node)
 {
-    appendStringInfoString(str, "(");
-    exprToSQLString(str,getNthOfListP(node->args,0));
+    if (LIST_LENGTH(node->args) == 1)
+    {
+        appendStringInfo(str, "(%s ", node->name);
+        appendStringInfoString(str, "(");
+        exprToSQLString(str,getNthOfListP(node->args,0));
+        appendStringInfoString(str, "))");
+    }
+    else
+    {
+        appendStringInfoString(str, "(");
+        exprToSQLString(str,getNthOfListP(node->args,0));
 
-    appendStringInfo(str, " %s ", node->name);
+        appendStringInfo(str, " %s ", node->name);
 
-    exprToSQLString(str,getNthOfListP(node->args,1));
-    appendStringInfoString(str, ")");
+        exprToSQLString(str,getNthOfListP(node->args,1));
+        appendStringInfoString(str, ")");
+    }
 }
 
 

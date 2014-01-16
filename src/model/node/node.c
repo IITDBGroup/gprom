@@ -15,6 +15,7 @@
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
+#include "model/expression/expression.h"
 
 #define INITIAL_STRINGINFO_LENGTH 256
 
@@ -33,6 +34,20 @@ newNode(size_t size, NodeTag type)
     newNode->type = type;
 
     return newNode;
+}
+
+/*
+ * Create a key value pair with string key and value.
+ */
+KeyValue *
+createStringKeyValue (char *key, char *value)
+{
+    KeyValue *result = makeNode(KeyValue);
+
+    result->key = (Node *) createConstString (key);
+    result->value = (Node *) createConstString (value);
+
+    return result;
 }
 
 /*

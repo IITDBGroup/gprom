@@ -10,9 +10,12 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "common.h"
+
+#include "model/list/list.h"
+#include "model/node/nodetype.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "log/logger.h"
-#include "model/list/list.h"
 
 void
 addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source)
@@ -74,4 +77,31 @@ copyUnrootedSubtree(QueryOperator *op)
     op->parents = parents;
 
     return result;
+}
+
+/*
+ * Find table access operators
+ */
+
+boolean
+findTableAccessVisitor (Node *node, List **result)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, TableAccessOperator))
+        *result = appendToTailOfList(*result, node);
+
+    return visit(node, findTableAccessVisitor, (void *) result);
+}
+
+/*
+ *
+ */
+
+void
+removeParentFromOps (List *operators, QueryOperator *parent)
+{
+    FOREACH(QueryOperator,op,operators)
+        op->parents = REMOVE_FROM_LIST_PTR(op->parents, parent);
 }

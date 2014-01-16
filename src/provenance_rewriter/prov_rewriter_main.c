@@ -13,8 +13,11 @@
 #include "log/logger.h"
 
 #include "provenance_rewriter/prov_rewriter.h"
+#include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
+#include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
+
 
 #include "model/query_operator/query_operator.h"
 #include "model/node/nodetype.h"
@@ -72,12 +75,18 @@ findProvenanceComputations (QueryOperator *op)
 QueryOperator *
 rewriteProvenanceComputation (ProvenanceComputation *op)
 {
+    // for a sequence of updates of a transaction merge the sequence into a single
+    // query before rewrite.
+    if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE)
+        mergeUpdateSequence(op);
+
     switch(op->provType)
     {
-        case PI_CS:
+        case PROV_PI_CS:
             return rewritePI_CS(op);
-        case TRANSFORMATION:
+        case PROV_TRANSFORMATION:
             return rewriteTransformationProvenance((QueryOperator *) op);
     }
     return NULL;
 }
+

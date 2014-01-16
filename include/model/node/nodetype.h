@@ -16,6 +16,9 @@ typedef enum NodeTag {
     /* sets */
     T_Set,
 
+    /* options */
+    T_KeyValue,
+
     /* expression nodes */
     T_Constant,
     T_AttributeReference,
@@ -25,6 +28,7 @@ typedef enum NodeTag {
     /* query block model nodes */
     T_SetQuery,
     T_ProvenanceStmt,
+    T_ProvenanceTransactionInfo,
     T_QueryBlock,
     T_SelectItem,
     T_FromItem,
@@ -50,7 +54,8 @@ typedef enum NodeTag {
     T_ProvenanceComputation,
     T_TableAccessOperator,
     T_SetOperator,
-    T_DuplicateRemoval
+    T_DuplicateRemoval,
+    T_ConstRelOperator
 
 } NodeTag;
 
@@ -60,11 +65,21 @@ typedef struct Node{
 
 typedef enum ProvenanceType
 {
-    PI_CS,
-    TRANSFORMATION
+    PROV_PI_CS,
+    PROV_TRANSFORMATION
 } ProvenanceType;
 
-/*stringinfo provides the string data type*/
+/* what type of database operation(s) a provenance computation is for */
+typedef enum ProvenanceInputType
+{
+    PROV_INPUT_QUERY,
+    PROV_INPUT_UPDATE,
+    PROV_INPUT_UPDATE_SEQUENCE,
+    PROV_INPUT_TRANSACTION,
+    PROV_INPUT_TIME_INTERVAL
+} ProvenanceInputType;
+
+/* stringinfo provides the string data type*/
 
 typedef struct StringInfoData
 {
@@ -72,11 +87,18 @@ typedef struct StringInfoData
     int  len;
     int maxlen;
     int cursor;
-
-}StringInfoData;
+} StringInfoData;
 
 typedef StringInfoData *StringInfo;
 
+/* Key-Value pair */
+
+typedef struct KeyValue
+{
+    NodeTag type;
+    Node *key;
+    Node *value;
+} KeyValue;
 
 /*------------------------------------------------------------------
 *makeStringInfo
@@ -128,6 +150,7 @@ extern void enlargeStringInfo(StringInfo str, int needed);
 
 /*extern declaration */
 extern Node *newNode(size_t size, NodeTag type);
+extern KeyValue *createStringKeyValue(char *key, char *value);
 
 /* get a string representation of a node */
 extern char *nodeToString(void *obj);
@@ -146,6 +169,7 @@ extern void *copyObject(void *obj);
 
 /* deep equals for nodes */
 extern boolean equal(void *a, void *b);
+extern boolean ptrEqual(void *a, void *b);
 
 /* deep free a node structure */
 extern void deepFree(void *a);

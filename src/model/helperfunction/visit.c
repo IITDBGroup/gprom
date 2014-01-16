@@ -22,7 +22,7 @@
  * Traverses a node tree and calls a user provided function for each node in
  * the tree. The user function takes a node and state parameter as input. The
  * state can, e.g., be used to store search results. The function should return
- * TRUE unless it wants to indicate that the travesal should be finished. A
+ * TRUE unless it wants to indicate that the traversal should be finished. A
  * user function should follow this pattern:
  *
  * boolean myVisitor (Node *n, void *state)
@@ -30,7 +30,7 @@
  *      if (n == NULL)
  *          return TRUE;
  *
- *      if (isA(node,NodeTypeICareAbout))
+ *      if (isA(n,NodeTypeICareAbout))
  *      {
  *          NodeTypeICareAbout *x = (NodeTypeICareAbout *) n;
  *      }

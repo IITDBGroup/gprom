@@ -59,9 +59,11 @@ extern int initMetadataLookupPlugin (void);
 extern boolean catalogTableExists (char * tableName);
 extern boolean catalogViewExists (char * viewName);
 extern List *getAttributes (char *tableName);
+extern List *getAttributeNames (char *tableName);
 extern boolean isAgg(char *functionName);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
+extern void getTransactionSQLAndSCNs (int xid, List **scns, List **sqls)
 extern int databaseConnectionClose();
 
 #endif /* METADATA_LOOKUP_H_ */

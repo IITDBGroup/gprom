@@ -24,8 +24,7 @@
 
 #include "analysis_and_translate/analyze_qb.h"
 #include "analysis_and_translate/translator.h"
-
-#include <stdio.h>
+#include "analysis_and_translate/translate_update.h"
 
 // data types
 typedef struct ReplaceGroupByState
@@ -36,7 +35,6 @@ typedef struct ReplaceGroupByState
 
 // function declarations
 static Node *translateGeneral (Node *node);
-static QueryOperator *translateQuery (Node *node);
 
 /* Three branches of translating a Query */
 static QueryOperator *translateSetQuery(SetQuery *sq);
@@ -109,7 +107,7 @@ static Node *translateGeneral (Node *node)
     return result;
 }
 
-static QueryOperator *
+QueryOperator *
 translateQuery (Node *node)
 {
     DEBUG_LOG("translate query <%s>", node);
@@ -122,6 +120,10 @@ translateQuery (Node *node)
             return translateSetQuery((SetQuery *) node);
         case T_ProvenanceStmt:
             return translateProvenanceStmt((ProvenanceStmt *) node);
+        case T_Insert:
+        case T_Update:
+        case T_Delete:
+            return translateUpdate(node);
         default:
             assert(FALSE);
             return NULL;
@@ -202,26 +204,69 @@ static QueryOperator *
 translateProvenanceStmt(ProvenanceStmt *prov)
 {
     QueryOperator *child;
+    List *children = NIL;
     ProvenanceComputation *result;
     Schema *schema = NULL;
 
-//    Constant *test = copyObject((Constant *)prov->asOf);
-//    Constant *copyAsOf = makeNode(Constant);
-//    if(test->constType == DT_INT){
-//    	copyAsOf->value = test->value;
-//    	copyAsOf->constType = DT_INT;
-//    }else if(test->constType == DT_STRING){
-//    	copyAsOf->value = test->value;
-//    	copyAsOf->constType = DT_INT;
-//
-//    }
-//    //prov->asOf = copyObject((Node *)CopyAsOf);
-//    Node *asOf = (Node *)copyAsOf;
-    child = translateQuery(prov->query);
-
-    result = createProvenanceComputOp(prov->provType, singleton(child), NIL, prov->selectClause, NULL);
+    result = createProvenanceComputOp(prov->provType, NIL, NIL, prov->selectClause, NULL);
+    result->inputType = prov->inputType;
     result->asOf = copyObject(prov->asOf);
-    child->parents = singleton(result);
+
+    switch(prov->inputType)
+    {
+        case PROV_INPUT_TRANSACTION:
+            break;
+        case PROV_INPUT_UPDATE_SEQUENCE:
+        {
+            ProvenanceTransactionInfo *tInfo = makeNode(ProvenanceTransactionInfo);
+
+            result->transactionInfo = tInfo;
+            tInfo->originalUpdates = copyObject(prov->query);
+            tInfo->updateTableNames = NIL;
+
+            FOREACH(Node,n,(List *) prov->query)
+            {
+                char *tableName;
+
+                /* get table name */
+                switch(n->type)
+                {
+                    case T_Insert:
+                        tableName = ((Insert *) n)->tableName;
+                        break;
+                    case T_Update:
+                        tableName = ((Update *) n)->nodeName;
+                        break;
+                    case T_Delete:
+                        tableName = ((Delete *) n)->nodeName;
+                        break;
+                    case T_QueryBlock:
+                    case T_SetQuery:
+                        tableName = strdup("_NONE");
+                        break;
+                    default:
+                        FATAL_LOG("Unexpected node type %u as input to provenance computation", n->type);
+                        break;
+                }
+
+                tInfo->updateTableNames = appendToTailOfList(
+                        tInfo->updateTableNames, strdup(tableName));
+                tInfo->scns = appendToTailOfListInt(tInfo->scns, -1); //TODO get SCN
+
+                // translate and add update as child to provenance computation
+                child = translateQuery(n);
+                addChildOperator ((QueryOperator *) result, child);
+            }
+        }
+            break;
+        case PROV_INPUT_UPDATE:
+        case PROV_INPUT_QUERY:
+            child = translateQuery(prov->query);
+            addChildOperator((QueryOperator *) result, child);
+            break;
+        case PROV_INPUT_TIME_INTERVAL:
+            break;
+    }
 
     return (QueryOperator *) result;
 }

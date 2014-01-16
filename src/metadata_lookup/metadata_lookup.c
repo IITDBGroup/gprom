@@ -277,11 +277,22 @@ catalogViewExists(char* viewName)
 	return FALSE;
 }
 
+List *
+getAttributeNames (char *tableName)
+{
+    List *attrNames = NIL;
+    List *attrs = getAttributes(tableName);
+
+    FOREACH(AttributeReference,a,attrs)
+        attrNames = appendToTailOfList(attrNames, a->name);
+
+    return attrNames;
+}
+
 List*
 getAttributes(char *tableName)
 {
 	List *attrList=NIL;
-	List *restul = NIL;
 
 	ACQUIRE_MEM_CONTEXT(context);
 
@@ -358,6 +369,13 @@ getTableDefinition(char *tableName)
 	}
 	FREE(statement);
 	RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(NULL);
+}
+
+
+void
+getTransactionSQLAndSCNs (int xid, List **scns, List **sqls)
+{
+
 }
 
 char *
@@ -465,6 +483,11 @@ catalogViewExists(char *view)
 
 List *
 getAttributes (char *table)
+{
+    return NIL;
+}
+
+List *getAttributeNames (char *tableName)
 {
     return NIL;
 }

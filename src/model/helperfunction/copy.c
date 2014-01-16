@@ -50,6 +50,7 @@ static void *copyInternal(void *from, OperatorMap **opMap);
 /* functions to copy specific node types */
 static List *deepCopyList(List *from, OperatorMap **opMap);
 static FunctionCall *copyFunctionCall(FunctionCall *from, OperatorMap **opMap);
+static KeyValue *copyKeyValue(KeyValue *from, OperatorMap **opMap);
 static AttributeReference *copyAttributeReference(AttributeReference *from, OperatorMap **opMap);
 static Operator *copyOperator(Operator *from, OperatorMap **opMap);
 
@@ -75,6 +76,8 @@ static QueryBlock *copyQueryBlock(QueryBlock *from, OperatorMap **opMap);
 static Constant *copyConstant(Constant *from, OperatorMap **opMap);
 static NestedSubquery *copyNestedSubquery(NestedSubquery *from, OperatorMap **opMap);
 static ProvenanceStmt *copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap);
+static ProvenanceTransactionInfo *copyProvenanceTransactionInfo (
+        ProvenanceTransactionInfo *from, OperatorMap **opMap);
 static SelectItem *copySelectItem(SelectItem  *from, OperatorMap **opMap);
 static void copyFromItem (FromItem *from, FromItem *to);
 static FromTableRef *copyFromTableRef(FromTableRef *from, OperatorMap **opMap);
@@ -152,6 +155,17 @@ copyFunctionCall(FunctionCall *from, OperatorMap **opMap)
     COPY_STRING_FIELD(functionname);
     COPY_NODE_FIELD(args);
     COPY_SCALAR_FIELD(isAgg);
+
+    return new;
+}
+
+static KeyValue *
+copyKeyValue(KeyValue *from, OperatorMap **opMap)
+{
+    COPY_INIT(KeyValue);
+
+    COPY_NODE_FIELD(key);
+    COPY_NODE_FIELD(value);
 
     return new;
 }
@@ -300,6 +314,8 @@ copyProvenanceComputation(ProvenanceComputation *from, OperatorMap **opMap)
     COPY_INIT(ProvenanceComputation);
     COPY_OPERATOR();
     COPY_SCALAR_FIELD(provType);
+    COPY_SCALAR_FIELD(inputType);
+    COPY_NODE_FIELD(transactionInfo);
     COPY_NODE_FIELD(asOf);
 
     return new;
@@ -405,7 +421,23 @@ copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
     COPY_NODE_FIELD(query);
     COPY_NODE_FIELD(selectClause);
     COPY_SCALAR_FIELD(provType);
+    COPY_SCALAR_FIELD(inputType);
+    COPY_NODE_FIELD(transInfo);    
     COPY_NODE_FIELD(asOf);
+    COPY_NODE_FIELD(options);
+
+    return new;
+}
+
+static ProvenanceTransactionInfo *
+copyProvenanceTransactionInfo (ProvenanceTransactionInfo *from,
+        OperatorMap **opMap)
+{
+    COPY_INIT(ProvenanceTransactionInfo);
+    COPY_SCALAR_FIELD(transIsolation);
+    COPY_STRING_LIST_FIELD(updateTableNames);
+    COPY_NODE_FIELD(originalUpdates);
+    COPY_NODE_FIELD(scns);
 
     return new;
 }
@@ -527,6 +559,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_FunctionCall:
             retval = copyFunctionCall(from, opMap);
             break;
+        case T_KeyValue:
+            retval = copyKeyValue(from, opMap);
+            break;
         case T_Operator:
             retval = copyOperator(from, opMap);
             break;
@@ -545,6 +580,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_ProvenanceStmt:
             retval = copyProvenanceStmt(from, opMap);
+            break;
+        case T_ProvenanceTransactionInfo:
+            retval = copyProvenanceTransactionInfo(from, opMap);
             break;
         case T_QueryBlock:
             retval = copyQueryBlock(from, opMap);

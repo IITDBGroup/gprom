@@ -7,8 +7,6 @@
  *
  **************************************/
 
-#include <string.h>
-
 #include "common.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
@@ -27,6 +25,7 @@ static boolean equalConstant (Constant *a, Constant *b);
 static boolean equalList(List *a, List *b);
 static boolean equalStringList (List *a, List *b);
 static boolean equalSet (Set *a, Set *b);
+static boolean equalKeyValue (KeyValue *a, KeyValue *b);
 
 // equal functions for query_operator
 static boolean equalSchema(Schema *a, Schema *b);
@@ -47,6 +46,8 @@ static boolean equalQueryBlock(QueryBlock *a, QueryBlock *b);
 static boolean equalSetQuery(SetQuery *a, SetQuery *b);
 static boolean equalNestedSubquery (NestedSubquery *a, NestedSubquery *b);
 static boolean equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b);
+static boolean equalProvenanceTransactionInfo(ProvenanceTransactionInfo *a,
+        ProvenanceTransactionInfo *b);
 static boolean equalSelectItem(SelectItem *a, SelectItem *b);
 static boolean equalFromItem(FromItem *a, FromItem *b);
 static boolean equalFromTableRef(FromTableRef *a, FromTableRef *b);
@@ -59,34 +60,41 @@ static boolean equalUpdate(Update *a, Update *b);
 static boolean equalTransactionStmt(TransactionStmt *a, TransactionStmt *b);
 static boolean equalFromProvInfo (FromProvInfo *a, FromProvInfo *b);
 
-/*use these macros to compare fields */
+/* use these macros to compare fields */
 
-/*compare one simple scalar field(int, boolean, float, etc)*/
+/* compare one simple scalar field(int, boolean, float, etc)*/
 #define COMPARE_SCALAR_FIELD(fldname)  \
 		do{  \
 			if (a->fldname != b->fldname)  \
 			return FALSE;  \
 		} while (0)
 
-/*compare a field pointer to Node tree*/
+/* compare a field pointer to Node tree*/
 #define COMPARE_NODE_FIELD(fldname)  \
 		do{  \
 			if(!equal(a->fldname, b->fldname))  \
 			return FALSE;  \
 		} while (0)
 
-/*compare a field pointer to a string list*/
+/* compare a field pointer to a string list*/
 #define COMPARE_STRING_LIST_FIELD(fldname)  \
         do{  \
             if(!equalStringList((List *) a->fldname, (List *) b->fldname))  \
             return FALSE;  \
         } while (0)
 
-/*compare a field that is a pointer to a C string or maybe NULL*/
+/* compare a field that is a pointer to a C string or maybe NULL*/
 #define COMPARE_STRING_FIELD(fldname)  \
 		do{  \
 			if(!equalstr(a->fldname, b->fldname))  \
 			return FALSE;  \
+		} while (0)
+
+/* compare the common query operator fields */
+#define COMPARE_QUERY_OP() \
+		do { \
+			if(!equalQueryOperator((QueryOperator *) &a->op, (QueryOperator *) &b->op)) \
+			return FALSE; \
 		} while (0)
 
 /*compare a string field that maybe NULL*/
@@ -246,6 +254,15 @@ equalSet (Set *a, Set *b)
 }
 
 static boolean
+equalKeyValue (KeyValue *a, KeyValue *b)
+{
+    COMPARE_NODE_FIELD(key);
+    COMPARE_NODE_FIELD(value);
+
+    return TRUE;
+}
+
+static boolean
 equalSchema(Schema *a, Schema *b)
 {
     COMPARE_STRING_FIELD(name);
@@ -287,14 +304,16 @@ equalQueryOperator(QueryOperator *a, QueryOperator *b)
 static boolean
 equalTableAccessOperator(TableAccessOperator *a, TableAccessOperator *b)
 {
+    COMPARE_QUERY_OP();
     COMPARE_STRING_FIELD(tableName);
- 
+
     return TRUE;
 }
 
 static boolean 
 equalSelectionOperator(SelectionOperator *a, SelectionOperator *b)
 {
+    COMPARE_QUERY_OP();
     COMPARE_NODE_FIELD(cond);
     
     return TRUE;
@@ -303,6 +322,7 @@ equalSelectionOperator(SelectionOperator *a, SelectionOperator *b)
 static boolean 
 equalProjectionOperator(ProjectionOperator *a, ProjectionOperator *b)
 {
+    COMPARE_QUERY_OP();
     COMPARE_NODE_FIELD(projExprs);
    
     return TRUE;
@@ -311,6 +331,7 @@ equalProjectionOperator(ProjectionOperator *a, ProjectionOperator *b)
 static boolean 
 equalJoinOperator(JoinOperator *a, JoinOperator *b)
 {
+    COMPARE_QUERY_OP();
     COMPARE_SCALAR_FIELD(joinType);
     COMPARE_NODE_FIELD(cond);
    
@@ -320,6 +341,7 @@ equalJoinOperator(JoinOperator *a, JoinOperator *b)
 static boolean 
 equalAggregationOperator(AggregationOperator *a, AggregationOperator *b)
 {
+    COMPARE_QUERY_OP();
     COMPARE_NODE_FIELD(aggrs);
     COMPARE_NODE_FIELD(groupBy);
    
@@ -329,6 +351,7 @@ equalAggregationOperator(AggregationOperator *a, AggregationOperator *b)
 static boolean 
 equalSetOperator(SetOperator *a, SetOperator *b)
 {
+    COMPARE_QUERY_OP();
     COMPARE_SCALAR_FIELD(setOpType);
   
     return TRUE;
@@ -337,16 +360,21 @@ equalSetOperator(SetOperator *a, SetOperator *b)
 static boolean 
 equalDuplicateRemoval(DuplicateRemoval *a, DuplicateRemoval *b)
 {
+    COMPARE_QUERY_OP();
     COMPARE_NODE_FIELD(attrs);
   
     return TRUE;
 }
 
 static boolean 
-equalProvenanceComputation( ProvenanceComputation *a,  ProvenanceComputation *b)
+equalProvenanceComputation(ProvenanceComputation *a,  ProvenanceComputation *b)
 {
+    COMPARE_QUERY_OP();
     COMPARE_SCALAR_FIELD(provType);
-  
+    COMPARE_SCALAR_FIELD(inputType);
+    COMPARE_NODE_FIELD(transactionInfo);
+    COMPARE_NODE_FIELD(asOf);
+
     return TRUE;
 }
 
@@ -444,12 +472,27 @@ equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b)
     COMPARE_NODE_FIELD(query);
     COMPARE_NODE_FIELD(selectClause);
     COMPARE_SCALAR_FIELD(provType);
+    COMPARE_SCALAR_FIELD(inputType);
+    COMPARE_NODE_FIELD(transInfo);
     COMPARE_NODE_FIELD(asOf);
+    COMPARE_NODE_FIELD(options);
 
     return TRUE;
 }
 
 static boolean 
+equalProvenanceTransactionInfo(ProvenanceTransactionInfo *a,
+        ProvenanceTransactionInfo *b)
+{
+    COMPARE_SCALAR_FIELD(transIsolation);
+    COMPARE_STRING_LIST_FIELD(updateTableNames);
+    COMPARE_NODE_FIELD(originalUpdates);
+    COMPARE_NODE_FIELD(scns);
+
+    return TRUE;
+}
+
+static boolean
 equalSelectItem(SelectItem *a, SelectItem *b)
 {
     COMPARE_STRING_FIELD(alias);
@@ -513,6 +556,12 @@ equalDistinctClause(DistinctClause *a,  DistinctClause *b)
     return TRUE;
 }
 
+/* returns true if two pointers point to the same memory location */
+boolean
+ptrEqual(void *a, void *b)
+{
+    return a == b;
+}
 
 /*equalfun returns  whether two nodes are equal*/
 boolean
@@ -559,6 +608,9 @@ equal(void *a, void *b)
         case T_Schema:
             retval = equalSchema(a,b);
             break;
+        case T_KeyValue:
+            retval = equalKeyValue(a,b);
+            break;
         case T_AttributeDef:
             retval = equalAttributeDef(a,b);
             break;
@@ -597,6 +649,9 @@ equal(void *a, void *b)
             break;
         case T_ProvenanceStmt:
             retval = equalProvenanceStmt(a,b);
+            break;
+        case T_ProvenanceTransactionInfo:
+            retval = equalProvenanceTransactionInfo(a,b);
             break;
         case T_SelectItem:
             retval = equalSelectItem(a,b);

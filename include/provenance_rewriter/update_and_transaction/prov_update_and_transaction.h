@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------
  *
- * translator.h
+ * prov_update_and_transaction.h
  *		
  *
  *		AUTHOR: lord_pretzel
@@ -8,13 +8,12 @@
  *-----------------------------------------------------------------------------
  */
 
-#ifndef TRANSLATOR_H_
-#define TRANSLATOR_H_
+#ifndef PROV_UPDATE_AND_TRANSACTION_H_
+#define PROV_UPDATE_AND_TRANSACTION_H_
 
-#include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 
-extern Node *translateParse(Node *q);
-extern QueryOperator *translateQuery (Node *node);
+void mergeUpdateSequence(ProvenanceComputation *op);
 
-#endif /* TRANSLATOR_H_ */
+
+#endif /* PROV_UPDATE_AND_TRANSACTION_H_ */

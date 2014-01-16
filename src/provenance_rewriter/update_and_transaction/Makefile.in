@@ -78,12 +78,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-bin_PROGRAMS = testmain$(EXEEXT) testparser$(EXEEXT) \
-	testupana$(EXEEXT) testanalysis$(EXEEXT) \
-	testtranslate$(EXEEXT) testserializer$(EXEEXT) \
-	testvisit$(EXEEXT) testrewriter$(EXEEXT) \
-	testpicsrewrite$(EXEEXT)
-subdir = test
+subdir = src/provenance_rewriter/update_and_transaction
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/config/depcomp
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -97,44 +92,14 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
-am__installdirs = "$(DESTDIR)$(bindir)"
-PROGRAMS = $(bin_PROGRAMS)
-am_testanalysis_OBJECTS = test_analysis.$(OBJEXT)
-testanalysis_OBJECTS = $(am_testanalysis_OBJECTS)
-testanalysis_DEPENDENCIES = ../src/libsrc.la
+LTLIBRARIES = $(noinst_LTLIBRARIES)
+libupdate_rewrites_la_LIBADD =
+am_libupdate_rewrites_la_OBJECTS = prov_update_and_transaction.lo
+libupdate_rewrites_la_OBJECTS = $(am_libupdate_rewrites_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-am_testmain_OBJECTS = test_main.$(OBJEXT) test_copy.$(OBJEXT) \
-	test_equal.$(OBJEXT) test_expr.$(OBJEXT) test_logger.$(OBJEXT) \
-	test_mem_mgr.$(OBJEXT) test_to_string.$(OBJEXT) \
-	test_parse.$(OBJEXT) test_list.$(OBJEXT) \
-	test_metadata_lookup.$(OBJEXT) test_string.$(OBJEXT) \
-	test_set.$(OBJEXT)
-testmain_OBJECTS = $(am_testmain_OBJECTS)
-testmain_DEPENDENCIES = ../src/libsrc.la
-am_testparser_OBJECTS = test_parser.$(OBJEXT)
-testparser_OBJECTS = $(am_testparser_OBJECTS)
-testparser_DEPENDENCIES = ../src/libsrc.la
-am_testpicsrewrite_OBJECTS = test_pi_cs_rewrite.$(OBJEXT)
-testpicsrewrite_OBJECTS = $(am_testpicsrewrite_OBJECTS)
-testpicsrewrite_DEPENDENCIES = ../src/libsrc.la
-am_testrewriter_OBJECTS = test_rewriter.$(OBJEXT)
-testrewriter_OBJECTS = $(am_testrewriter_OBJECTS)
-testrewriter_DEPENDENCIES = ../src/libsrc.la
-am_testserializer_OBJECTS = test_serializer.$(OBJEXT)
-testserializer_OBJECTS = $(am_testserializer_OBJECTS)
-testserializer_DEPENDENCIES = ../src/libsrc.la
-am_testtranslate_OBJECTS = test_translate.$(OBJEXT)
-testtranslate_OBJECTS = $(am_testtranslate_OBJECTS)
-testtranslate_DEPENDENCIES = ../src/libsrc.la
-am_testupana_OBJECTS = test_update_analysis.$(OBJEXT)
-testupana_OBJECTS = $(am_testupana_OBJECTS)
-testupana_DEPENDENCIES = ../src/libsrc.la
-am_testvisit_OBJECTS = test_visit.$(OBJEXT)
-testvisit_OBJECTS = $(am_testvisit_OBJECTS)
-testvisit_DEPENDENCIES = ../src/libsrc.la
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -169,16 +134,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(testanalysis_SOURCES) $(testmain_SOURCES) \
-	$(testparser_SOURCES) $(testpicsrewrite_SOURCES) \
-	$(testrewriter_SOURCES) $(testserializer_SOURCES) \
-	$(testtranslate_SOURCES) $(testupana_SOURCES) \
-	$(testvisit_SOURCES)
-DIST_SOURCES = $(testanalysis_SOURCES) $(testmain_SOURCES) \
-	$(testparser_SOURCES) $(testpicsrewrite_SOURCES) \
-	$(testrewriter_SOURCES) $(testserializer_SOURCES) \
-	$(testtranslate_SOURCES) $(testupana_SOURCES) \
-	$(testvisit_SOURCES)
+SOURCES = $(libupdate_rewrites_la_SOURCES)
+DIST_SOURCES = $(libupdate_rewrites_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -325,29 +282,9 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-AM_CPPFLAGS = -I$(top_srcdir)/include -I.
-testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
-		   test_logger.c test_mem_mgr.c test_to_string.c \
-		   test_parse.c test_list.c test_main.h \
-		   test_metadata_lookup.c test_string.c test_set.c 
-
-testmain_LDADD = ../src/libsrc.la
-testparser_SOURCES = test_parser.c
-testparser_LDADD = ../src/libsrc.la
-testupana_SOURCES = test_update_analysis.c
-testupana_LDADD = ../src/libsrc.la
-testanalysis_SOURCES = test_analysis.c
-testanalysis_LDADD = ../src/libsrc.la
-testtranslate_SOURCES = test_translate.c
-testtranslate_LDADD = ../src/libsrc.la
-testserializer_SOURCES = test_serializer.c
-testserializer_LDADD = ../src/libsrc.la
-testvisit_SOURCES = test_visit.c
-testvisit_LDADD = ../src/libsrc.la
-testrewriter_SOURCES = test_rewriter.c
-testrewriter_LDADD = ../src/libsrc.la
-testpicsrewrite_SOURCES = test_pi_cs_rewrite.c
-testpicsrewrite_LDADD = ../src/libsrc.la
+AM_CPPFLAGS = -I$(top_srcdir)/include
+noinst_LTLIBRARIES = libupdate_rewrites.la
+libupdate_rewrites_la_SOURCES = prov_update_and_transaction.c  
 all: all-am
 
 .SUFFIXES:
@@ -361,9 +298,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign test/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign src/provenance_rewriter/update_and_transaction/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign test/Makefile
+	  $(AUTOMAKE) --foreign src/provenance_rewriter/update_and_transaction/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -382,91 +319,20 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
-install-binPROGRAMS: $(bin_PROGRAMS)
-	@$(NORMAL_INSTALL)
-	@list='$(bin_PROGRAMS)'; test -n "$(bindir)" || list=; \
-	if test -n "$$list"; then \
-	  echo " $(MKDIR_P) '$(DESTDIR)$(bindir)'"; \
-	  $(MKDIR_P) "$(DESTDIR)$(bindir)" || exit 1; \
-	fi; \
-	for p in $$list; do echo "$$p $$p"; done | \
-	sed 's/$(EXEEXT)$$//' | \
-	while read p p1; do if test -f $$p \
-	 || test -f $$p1 \
-	  ; then echo "$$p"; echo "$$p"; else :; fi; \
-	done | \
-	sed -e 'p;s,.*/,,;n;h' \
-	    -e 's|.*|.|' \
-	    -e 'p;x;s,.*/,,;s/$(EXEEXT)$$//;$(transform);s/$$/$(EXEEXT)/' | \
-	sed 'N;N;N;s,\n, ,g' | \
-	$(AWK) 'BEGIN { files["."] = ""; dirs["."] = 1 } \
-	  { d=$$3; if (dirs[d] != 1) { print "d", d; dirs[d] = 1 } \
-	    if ($$2 == $$4) files[d] = files[d] " " $$1; \
-	    else { print "f", $$3 "/" $$4, $$1; } } \
-	  END { for (d in files) print "f", d, files[d] }' | \
-	while read type dir files; do \
-	    if test "$$dir" = .; then dir=; else dir=/$$dir; fi; \
-	    test -z "$$files" || { \
-	    echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files '$(DESTDIR)$(bindir)$$dir'"; \
-	    $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files "$(DESTDIR)$(bindir)$$dir" || exit $$?; \
-	    } \
-	; done
 
-uninstall-binPROGRAMS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(bin_PROGRAMS)'; test -n "$(bindir)" || list=; \
-	files=`for p in $$list; do echo "$$p"; done | \
-	  sed -e 'h;s,^.*/,,;s/$(EXEEXT)$$//;$(transform)' \
-	      -e 's/$$/$(EXEEXT)/' \
-	`; \
-	test -n "$$list" || exit 0; \
-	echo " ( cd '$(DESTDIR)$(bindir)' && rm -f" $$files ")"; \
-	cd "$(DESTDIR)$(bindir)" && rm -f $$files
+clean-noinstLTLIBRARIES:
+	-test -z "$(noinst_LTLIBRARIES)" || rm -f $(noinst_LTLIBRARIES)
+	@list='$(noinst_LTLIBRARIES)'; \
+	locs=`for p in $$list; do echo $$p; done | \
+	      sed 's|^[^/]*$$|.|; s|/[^/]*$$||; s|$$|/so_locations|' | \
+	      sort -u`; \
+	test -z "$$locs" || { \
+	  echo rm -f $${locs}; \
+	  rm -f $${locs}; \
+	}
 
-clean-binPROGRAMS:
-	@list='$(bin_PROGRAMS)'; test -n "$$list" || exit 0; \
-	echo " rm -f" $$list; \
-	rm -f $$list || exit $$?; \
-	test -n "$(EXEEXT)" || exit 0; \
-	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
-	echo " rm -f" $$list; \
-	rm -f $$list
-
-testanalysis$(EXEEXT): $(testanalysis_OBJECTS) $(testanalysis_DEPENDENCIES) $(EXTRA_testanalysis_DEPENDENCIES) 
-	@rm -f testanalysis$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(testanalysis_OBJECTS) $(testanalysis_LDADD) $(LIBS)
-
-testmain$(EXEEXT): $(testmain_OBJECTS) $(testmain_DEPENDENCIES) $(EXTRA_testmain_DEPENDENCIES) 
-	@rm -f testmain$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(testmain_OBJECTS) $(testmain_LDADD) $(LIBS)
-
-testparser$(EXEEXT): $(testparser_OBJECTS) $(testparser_DEPENDENCIES) $(EXTRA_testparser_DEPENDENCIES) 
-	@rm -f testparser$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(testparser_OBJECTS) $(testparser_LDADD) $(LIBS)
-
-testpicsrewrite$(EXEEXT): $(testpicsrewrite_OBJECTS) $(testpicsrewrite_DEPENDENCIES) $(EXTRA_testpicsrewrite_DEPENDENCIES) 
-	@rm -f testpicsrewrite$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(testpicsrewrite_OBJECTS) $(testpicsrewrite_LDADD) $(LIBS)
-
-testrewriter$(EXEEXT): $(testrewriter_OBJECTS) $(testrewriter_DEPENDENCIES) $(EXTRA_testrewriter_DEPENDENCIES) 
-	@rm -f testrewriter$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(testrewriter_OBJECTS) $(testrewriter_LDADD) $(LIBS)
-
-testserializer$(EXEEXT): $(testserializer_OBJECTS) $(testserializer_DEPENDENCIES) $(EXTRA_testserializer_DEPENDENCIES) 
-	@rm -f testserializer$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(testserializer_OBJECTS) $(testserializer_LDADD) $(LIBS)
-
-testtranslate$(EXEEXT): $(testtranslate_OBJECTS) $(testtranslate_DEPENDENCIES) $(EXTRA_testtranslate_DEPENDENCIES) 
-	@rm -f testtranslate$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(testtranslate_OBJECTS) $(testtranslate_LDADD) $(LIBS)
-
-testupana$(EXEEXT): $(testupana_OBJECTS) $(testupana_DEPENDENCIES) $(EXTRA_testupana_DEPENDENCIES) 
-	@rm -f testupana$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(testupana_OBJECTS) $(testupana_LDADD) $(LIBS)
-
-testvisit$(EXEEXT): $(testvisit_OBJECTS) $(testvisit_DEPENDENCIES) $(EXTRA_testvisit_DEPENDENCIES) 
-	@rm -f testvisit$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(testvisit_OBJECTS) $(testvisit_LDADD) $(LIBS)
+libupdate_rewrites.la: $(libupdate_rewrites_la_OBJECTS) $(libupdate_rewrites_la_DEPENDENCIES) $(EXTRA_libupdate_rewrites_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(LINK)  $(libupdate_rewrites_la_OBJECTS) $(libupdate_rewrites_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -474,26 +340,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_analysis.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_copy.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_equal.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_expr.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_list.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_logger.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_main.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_mem_mgr.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_metadata_lookup.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_parse.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_parser.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_pi_cs_rewrite.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_rewriter.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_serializer.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_set.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_string.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_to_string.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_translate.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_update_analysis.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_visit.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/prov_update_and_transaction.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -606,11 +453,8 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(PROGRAMS)
+all-am: Makefile $(LTLIBRARIES)
 installdirs:
-	for dir in "$(DESTDIR)$(bindir)"; do \
-	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
-	done
 install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
@@ -643,7 +487,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-binPROGRAMS clean-generic clean-libtool mostlyclean-am
+clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
+	mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -669,7 +514,7 @@ install-dvi: install-dvi-am
 
 install-dvi-am:
 
-install-exec-am: install-binPROGRAMS
+install-exec-am:
 
 install-html: install-html-am
 
@@ -709,23 +554,23 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-binPROGRAMS
+uninstall-am:
 
 .MAKE: install-am install-strip
 
-.PHONY: CTAGS GTAGS TAGS all all-am check check-am clean \
-	clean-binPROGRAMS clean-generic clean-libtool cscopelist-am \
-	ctags ctags-am distclean distclean-compile distclean-generic \
+.PHONY: CTAGS GTAGS TAGS all all-am check check-am clean clean-generic \
+	clean-libtool clean-noinstLTLIBRARIES cscopelist-am ctags \
+	ctags-am distclean distclean-compile distclean-generic \
 	distclean-libtool distclean-tags distdir dvi dvi-am html \
-	html-am info info-am install install-am install-binPROGRAMS \
-	install-data install-data-am install-dvi install-dvi-am \
-	install-exec install-exec-am install-html install-html-am \
-	install-info install-info-am install-man install-pdf \
-	install-pdf-am install-ps install-ps-am install-strip \
-	installcheck installcheck-am installdirs maintainer-clean \
+	html-am info info-am install install-am install-data \
+	install-data-am install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-man install-pdf install-pdf-am \
+	install-ps install-ps-am install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags tags-am uninstall uninstall-am uninstall-binPROGRAMS
+	tags tags-am uninstall uninstall-am
 
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

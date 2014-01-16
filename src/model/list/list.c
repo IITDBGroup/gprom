@@ -503,3 +503,23 @@ listPosString (List *list, char *value)
 
     return -1;
 }
+
+List *
+genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
+{
+    assert(isPtrList(list));
+    List *result = NULL;
+    ListCell *prev = getHeadOfList(list);
+
+    FOREACH_LC(lc,list)
+    {
+        void *ptrVal = LC_P_VAL(lc);
+
+        if(!eq(ptrVal, value))
+            result = appendToTailOfList(result, ptrVal);
+    }
+
+    freeList(list);
+
+    return result;
+}

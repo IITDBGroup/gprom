@@ -26,23 +26,33 @@ static void outList(StringInfo str, List *node);
 static void outStringList (StringInfo str, List *node);
 static void outSet(StringInfo str, Set *node);
 static void outNode(StringInfo, void *node);
-static void outQueryBlock (StringInfo str, QueryBlock *node);
+
 static void outConstant (StringInfo str, Constant *node);
 static void outFunctionCall (StringInfo str, FunctionCall *node);
+static void outAttributeReference (StringInfo str, AttributeReference *node);
+static void outOperator (StringInfo str, Operator *node);
+static void outKeyValue (StringInfo str, KeyValue *node);
+
+static void outQueryBlock (StringInfo str, QueryBlock *node);
+static void outSetQuery (StringInfo str, SetQuery *node);
+static void outProvenanceStmt (StringInfo str, ProvenanceStmt *node);
+static void outProvenanceTransactionInfo (StringInfo str,
+        ProvenanceTransactionInfo *node);
+static void outInsert(StringInfo str, Insert *node);
+static void outDelete(StringInfo str, Delete *node);
+static void outUpdate(StringInfo str, Update *node);
+static void outNestedSubquery(StringInfo str, NestedSubquery *node);
+static void outTransactionStmt(StringInfo str, TransactionStmt *node);
+
 static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
 static void outFromProvInfo (StringInfo str, FromProvInfo *node);
 static void outFromTableRef (StringInfo str, FromTableRef *node);
 static void outFromJoinExpr (StringInfo str, FromJoinExpr *node);
 static void outFromSubquery (StringInfo str, FromSubquery *node);
-static void outAttributeReference (StringInfo str, AttributeReference *node);
-static void outFunctionCall (StringInfo str, FunctionCall *node);
+
 static void outSchema (StringInfo str, Schema *node);
 static void outAttributeDef (StringInfo str, AttributeDef *node);
-static void outSetQuery (StringInfo str, SetQuery *node);
-static void outProvenanceStmt (StringInfo str, ProvenanceStmt *node);
-static void outOperator (StringInfo str, Operator *node);
-static void indentString(StringInfo str, int level);
 static void outQueryOperator(StringInfo str, QueryOperator *node);
 static void outProjectionOperator(StringInfo str, ProjectionOperator *node);
 static void outSelectionOperator(StringInfo str, SelectionOperator *node);
@@ -52,11 +62,8 @@ static void outProvenanceComputation(StringInfo str, ProvenanceComputation *node
 static void outTableAccessOperator(StringInfo str, TableAccessOperator *node);
 static void outSetOperator(StringInfo str, SetOperator *node);
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
-static void outNestedSubquery(StringInfo str, NestedSubquery *node);
-static void outInsert(StringInfo str, Insert *node);
-static void outDelete(StringInfo str, Delete *node);
-static void outUpdate(StringInfo str, Update *node);
-static void outTransactionStmt(StringInfo str, TransactionStmt *node);
+
+static void indentString(StringInfo str, int level);
 
 // create overview string for an operator tree
 static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent);
@@ -337,7 +344,21 @@ outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
     WRITE_NODE_FIELD(query);
     WRITE_STRING_LIST_FIELD(selectClause);
     WRITE_ENUM_FIELD(provType,ProvenanceType);
+    WRITE_ENUM_FIELD(inputType,ProvenanceInputType);
+    WRITE_NODE_FIELD(transInfo);
     WRITE_NODE_FIELD(asOf);
+    WRITE_NODE_FIELD(options);
+}
+
+static void
+outProvenanceTransactionInfo (StringInfo str, ProvenanceTransactionInfo *node)
+{
+    WRITE_NODE_TYPE(PROVENANCETRANSACTIONINFO);
+
+    WRITE_ENUM_FIELD(transIsolation, IsolationLevel);
+    WRITE_STRING_LIST_FIELD(updateTableNames);
+    WRITE_NODE_FIELD(originalUpdates);
+    WRITE_NODE_FIELD(scns);
 }
 
 static void
@@ -347,6 +368,15 @@ outOperator (StringInfo str, Operator *node)
 
     WRITE_STRING_FIELD(name);
     WRITE_NODE_FIELD(args);
+}
+
+static void
+outKeyValue (StringInfo str, KeyValue *node)
+{
+    WRITE_NODE_TYPE(KEYVALUE);
+
+    WRITE_NODE_FIELD(key);
+    WRITE_NODE_FIELD(value);
 }
 
 static void
@@ -509,8 +539,10 @@ outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
 {
     WRITE_NODE_TYPE(PROVENANCE_COMPUTATION);
     WRITE_QUERY_OPERATOR();
-    WRITE_NODE_FIELD(asOf);
     WRITE_ENUM_FIELD(provType,ProvenanceType);
+    WRITE_ENUM_FIELD(inputType,ProvenanceInputType);
+    WRITE_NODE_FIELD(transactionInfo);
+    WRITE_NODE_FIELD(asOf);
 }
 
 static void
@@ -572,11 +604,17 @@ outNode(StringInfo str, void *obj)
             case T_Operator:
                 outOperator(str, (Operator *) obj);
                 break;
+            case T_KeyValue:
+                outKeyValue(str, (KeyValue *) obj);
+                break;
             case T_SetQuery:
                 outSetQuery (str, (SetQuery *) obj);
                 break;
             case T_ProvenanceStmt:
                 outProvenanceStmt (str, (ProvenanceStmt *) obj);
+                break;
+            case T_ProvenanceTransactionInfo:
+                outProvenanceTransactionInfo (str, (ProvenanceTransactionInfo *) obj);
                 break;
             case T_FromProvInfo:
                 outFromProvInfo(str, (FromProvInfo *) obj);

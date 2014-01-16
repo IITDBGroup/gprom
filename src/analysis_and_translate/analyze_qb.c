@@ -25,6 +25,7 @@ static void analyzeStmtList (List *l, List *parentFroms);
 static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
 static void analyzeSetQuery (SetQuery *q, List *parentFroms);
 static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
+static void analyzeProvenanceOptions (ProvenanceStmt *prov);
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 
 // search for attributes and other relevant node types
@@ -38,6 +39,9 @@ static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *
 
 // analyze from item types
 static void analyzeFromTableRef(FromTableRef *f);
+static void analyzeInsert(Insert * f);
+static void analyzeDelete(Delete * f);
+static void analyzeUpdate(Update * f);
 static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 
@@ -72,6 +76,15 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
             analyzeStmtList ((List *) stmt, parentFroms);
             DEBUG_LOG("analyzed List");
             break;
+	case T_Insert:
+	    analyzeInsert((Insert *) stmt);
+	    break;
+        case T_Delete:
+	    analyzeDelete((Delete *) stmt);
+	    break;
+	case T_Update:
+	    analyzeUpdate((Update *) stmt);
+	    break;
         default:
             break;
     }
@@ -522,6 +535,126 @@ analyzeFromTableRef(FromTableRef *f)
     	f->from.name = f->tableId;
 }
 
+static void analyzeInsert(Insert * f) {
+	List *attrRefs = getAttributes(f->tableName);
+
+	if (isA(f->query,List)) {
+		if (f->attrList->length != attrRefs->length)
+			INFO_LOG(
+					"The number of values are not equal to the number attributes in the table");
+	} else {
+		analyzeQueryBlockStmt(f->query, NIL);
+	}
+}
+
+static void analyzeDelete(Delete * f) {
+	List *attrRefs = NIL;
+	List *subqueries = NIL;
+	List *attrDef = getAttributes(f->nodeName);
+	List *attrNames = NIL;
+	FromTableRef *fakeTable;
+	List *fakeFrom = NIL;
+
+	FOREACH(AttributeReference,a,attrDef)
+		attrNames = appendToTailOfList(attrNames, strdup(a->name));
+
+	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->nodeName), attrNames,
+			strdup(f->nodeName));
+	fakeFrom = singleton(singleton(fakeTable));
+
+	int attrPos = 0;
+
+	findAttrReferences((Node *) f->cond, &attrRefs);
+	FOREACH(AttributeReference,a,attrRefs) {
+		boolean isFound = FALSE;
+//		 FOREACH(List,fClause,fakeFrom)
+//		    {
+//		        FOREACH(FromItem, f, fClause)
+//		        {
+		attrPos = findAttrInFromItem((FromItem *) fakeTable, a);
+
+		if (attrPos != INVALID_ATTR) {
+			if (isFound)
+				DEBUG_LOG("ambigious attribute reference %s", a->name);
+			else {
+				isFound = TRUE;
+				a->fromClauseItem = 0;
+				a->attrPosition = attrPos;
+				a->outerLevelsUp = 0;
+			}
+		}
+//		        }
+//		    }
+
+		if (!isFound)
+			FATAL_LOG("do not find attribute %s", a->name);
+	}
+
+	// search for nested subqueries
+	findNestedSubqueries(f->cond, &subqueries);
+
+	// analyze each nested subqueries
+	FOREACH(NestedSubquery,nq,subqueries)
+	    analyzeQueryBlockStmt(nq->query, fakeFrom);
+
+}
+
+static void analyzeUpdate(Update* f) {
+	List *attrRefs = NIL;
+	List *attrDef = getAttributes(f->nodeName);
+	List *attrNames = NIL;
+	List *subqueries = NIL;
+	FromTableRef *fakeTable;
+	List *fakeFrom = NIL;
+
+	FOREACH(AttributeReference,a,attrDef)
+		attrNames = appendToTailOfList(attrNames, strdup(a->name));
+
+	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->nodeName), attrNames,
+			strdup(f->nodeName));
+	fakeFrom = singleton(singleton(fakeTable));
+
+	boolean isFound = FALSE;
+	int attrPos = 0;
+
+	// find attributes
+	findAttrReferences((Node *) f->cond, &attrRefs);
+	findAttrReferences((Node *) f->selectClause, &attrRefs);
+
+	// adapt attributes
+	FOREACH(AttributeReference,a,attrRefs) {
+		boolean isFound = FALSE;
+		//		 FOREACH(List,fClause,fakeFrom)
+		//		    {
+		//		        FOREACH(FromItem, f, fClause)
+		//		        {
+		attrPos = findAttrInFromItem((FromItem *) fakeTable, a);
+
+		if (attrPos != INVALID_ATTR) {
+			if (isFound)
+				DEBUG_LOG("ambigious attribute reference %s", a->name);
+			else {
+				isFound = TRUE;
+				a->fromClauseItem = 0;
+				a->attrPosition = attrPos;
+				a->outerLevelsUp = 0;
+			}
+		}
+		//		        }
+		//		    }
+
+		if (!isFound)
+			FATAL_LOG("do not find attribute %s", a->name);
+	}
+
+	// search for nested subqueries
+	findNestedSubqueries(f->cond, &subqueries);
+
+    // analyze each nested subqueries
+	FOREACH(NestedSubquery,nq,subqueries)
+		analyzeQueryBlockStmt(nq->query, fakeFrom);
+}
+
 static void
 analyzeFromSubquery(FromSubquery *sq, List *parentFroms)
 {
@@ -755,8 +888,30 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         break;
     }
 
-    q->selectClause = concatTwoLists(q->selectClause,
-            getQBProvenanceAttrList(q));
+	q->selectClause = concatTwoLists(q->selectClause,
+			getQBProvenanceAttrList(q));
+
+	analyzeProvenanceOptions(q);
 }
 
+static void
+analyzeProvenanceOptions (ProvenanceStmt *prov)
+{
+    /* loop through options */
+    FOREACH(KeyValue,kv,prov->options)
+    {
+        char *key = STRING_VALUE(kv->key);
+        char *value = STRING_VALUE(kv->value);
 
+        /* provenance type */
+        if (!strcmp(key, "TYPE"))
+        {
+            if (!strcmp(value, "PICS"))
+                prov->provType = PROV_PI_CS;
+            else if (!strcmp(value, "TRANSFORMATION"))
+                prov->provType = PROV_TRANSFORMATION;
+            else
+                FATAL_LOG("Unkown provenance type: <%s>", value);
+        }
+    }
+}
