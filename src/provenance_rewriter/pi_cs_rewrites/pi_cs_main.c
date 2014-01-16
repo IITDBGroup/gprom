@@ -152,7 +152,10 @@ rewritePI_CSJoin (JoinOperator *op)
     rewritePI_CSOperator(OP_RCHILD(op));
 
     // adapt schema
-    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+//    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+
+    // add projection to put attributes into order
+
 }
 
 /*
