@@ -21,10 +21,5 @@ test/testserializer
 test/testvisit
 test/testpicsrewrite
 test/testrewriter
-Makefile.in
-aclocal.m4
-config.h.in
 config/
 configure
-libtool
-m4/
