@@ -160,6 +160,8 @@ translateSetQuery(SetQuery *sq)
     // create set operator node
     SetOperator *so = createSetOperator(sq->setOp, inputs, NIL, sq->selectClause);
 
+    //TODO if not "all" then add duplicate removal operators
+
     // set the parent of the operator's children
     OP_LCHILD(so)->parents = OP_RCHILD(so)->parents = singleton(so);
 

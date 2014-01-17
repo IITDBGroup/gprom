@@ -54,9 +54,15 @@ Long version:
 		--with-oracle-headers-path=X 
 		--with-oracle-lib-path=Y
 3) Configure, make, install
-	- run ./configure, if use options if either OCI or OCILIB are installed in 
-	non-standard locations.
-	
+	- run ./configure, use options if either OCI or OCILIB are installed in 
+	non-standard locations:
+           - to set OCI location:
+		--with-oci=X
+           - to set OCI library and header locations separately
+		--with-oci-lib=X
+		--with-oci-headers=X
+           - to set OCILIB location
+		--with-ocilib=X
 	- Check that the OCI and OCILIB libraries were found. You should see the
 	following lines in the configure output:
 		
