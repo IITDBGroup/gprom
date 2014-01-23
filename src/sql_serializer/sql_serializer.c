@@ -402,7 +402,8 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     // translate each clause
     DEBUG_LOG("serializeFrom");
-    serializeFrom(matchInfo->fromRoot, fromString);
+    List *fromAttrs = NIL;
+    serializeFrom(matchInfo->fromRoot, fromString, &fromAttrs);
 
     DEBUG_LOG("serializeWhere");
     if(matchInfo->where != NULL)
@@ -438,17 +439,17 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
  * Translate a FROM clause
  */
 static void
-serializeFrom (QueryOperator *q, StringInfo from)
+serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs)
 {
     int curFromItem = 0, attrOffset = 0;
 
     appendStringInfoString(from, "\nFROM ");
-    serializeFromItem (q, from, &curFromItem, &attrOffset);
+    serializeFromItem (q, from, &curFromItem, &attrOffset, fromAttrs);
 }
 
 static void
 serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
-        int *attrOffset)
+        int *attrOffset, List **fromAttrs)
 {
     char *attrs;
 
@@ -462,7 +463,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
             //left child
             jOffsets = appendToTailOfListInt(jOffsets, *curFromItem);
-            serializeFromItem(OP_LCHILD(j), from, curFromItem, attrOffset);
+            serializeFromItem(OP_LCHILD(j), from, curFromItem, attrOffset, fromAttrs);
 
             // join
             switch(j->joinType)
@@ -486,7 +487,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
             // right child
             jOffsets = appendToTailOfListInt(jOffsets, *curFromItem);
-            serializeFromItem(OP_RCHILD(j), from, curFromItem, attrOffset);
+            serializeFromItem(OP_RCHILD(j), from, curFromItem, attrOffset, fromAttrs);
 
             // join condition
             if (j->cond)
@@ -503,6 +504,8 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         {
             TableAccessOperator *t = (TableAccessOperator *) q;
             char *asOf = NULL;
+
+            // add list of attributes as list to fromAttrs
 
             *attrOffset = 0;
             if (t->asOf)
@@ -521,7 +524,9 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         {
             *attrOffset = 0;
             appendStringInfoString(from, "((");
-            serializeQueryOperator(q, from);
+            List *attrNames = serializeQueryOperator(q, from);
+            *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+            // return attribute names
             attrs = createFromNames(attrOffset, LIST_LENGTH(q->schema->attrDefs));
             appendStringInfo(from, ") F%u(%s))", (*curFromItem)++, attrs);
         }
@@ -590,10 +595,10 @@ createAttrName (int fItem, int attrOffset)
  * Translate a selection into a WHERE clause
  */
 static void
-serializeWhere (SelectionOperator *q, StringInfo where)
+serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs)
 {
     appendStringInfoString(where, "\nWHERE ");
-    updateAttributeNames((Node *) q->cond, NULL);
+    updateAttributeNames((Node *) q->cond, fromAttrs);
     appendStringInfoString(where, exprToSQL(q->cond));
 }
 
@@ -607,13 +612,23 @@ updateAttributeNames(Node *node, List *attrs)
     {
         AttributeReference *a = (AttributeReference *) node;
         char *newName;
+        int fromItem = 0;
+        int attrPos = 0;
+
+
+        // LOOP THROUGH fromItems (outer list)
+        // for each elemnt increase position by len(elem)
+        //
+        a->attrPosition
+
+        // fromItem = 2, attrPos = 4 and attrName is "abc" => "F2.abc"
 
         // use from clause attribute nomenclature
-        if (LIST_LENGTH(attrs) == 0)
-            newName = CONCAT_STRINGS("A", itoa(a->attrPosition));
-        // use provided attribute expressions
-        else
-            newName = strdup(getNthOfListP(attrs,a->attrPosition));
+//        if (LIST_LENGTH(attrs) == 0)
+//            newName = CONCAT_STRINGS("A", itoa(a->attrPosition));
+//        // use provided attribute expressions
+//        else
+//            newName = strdup(getNthOfListP(attrs,a->attrPosition));
 
         a->name = newName;
     }
