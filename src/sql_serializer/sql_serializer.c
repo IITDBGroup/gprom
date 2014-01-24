@@ -97,12 +97,12 @@ static void serializeQueryOperator (QueryOperator *q, StringInfo str);
 static void serializeQueryBlock (QueryOperator *q, StringInfo str);
 static void serializeSetOperator (QueryOperator *q, StringInfo str);
 
-static void serializeFrom (QueryOperator *q, StringInfo from);
+static void serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs);
 static void serializeFromItem (QueryOperator *q, StringInfo from,
-        int *curFromItem, int *attrOffset);
+        int *curFromItem, int *attrOffset, List **fromAttrs);
 
-static void serializeWhere (SelectionOperator *q, StringInfo where);
-static boolean updateAttributeNames(Node *node, List *attrs);
+static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
+static boolean updateAttributeNames(Node *node, List *attrs, List *fromAttr);
 
 static void serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy);
@@ -507,6 +507,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
             // add list of attributes as list to fromAttrs
 
+            List **fromAttrs = NIL;
             *attrOffset = 0;
             if (t->asOf)
             {
@@ -517,7 +518,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                     asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
             }
             attrs = createFromNames(attrOffset, LIST_LENGTH(t->op.schema->attrDefs));
-            appendStringInfo(from, "((%s)%s F%u(%s))", t->tableName, asOf ? asOf : "", (*curFromItem)++, attrs);
+            appendStringInfo(from, "((%s)%s F%u(%s))", t->tableName, asOf ? asOf : "", (*curFromItem)++, attrs); //change this part
         }
         break;
         default:
@@ -603,7 +604,7 @@ serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs)
 }
 
 static boolean
-updateAttributeNames(Node *node, List *attrs)
+updateAttributeNames(Node *node, List *attrs, List *fromAttrs)
 {
     if (node == NULL)
         return TRUE;
