@@ -618,9 +618,9 @@ updateAttributeNames(Node *node, List *attrs, List *fromAttrs)
 
 
         // LOOP THROUGH fromItems (outer list)
-        FOREACH(char, newName, attrPos)
+        FOREACH(char, newName, a->attrPosition)
         {
-        	if(attrPos++ != 0)
+        	if(a->attrPosition++ != 0)
         		attrPos++;
         }
                 FOREACH(char, newName, fromItem)
