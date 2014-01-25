@@ -102,7 +102,7 @@ static void serializeFromItem (QueryOperator *q, StringInfo from,
         int *curFromItem, int *attrOffset, List **fromAttrs);
 
 static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
-static boolean updateAttributeNames(Node *node, List *attrs, List *fromAttr);
+static boolean updateAttributeNames(Node *node, List *attrs, List *fromAttrs);
 
 static void serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy);
@@ -494,10 +494,10 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                 appendStringInfo(from, " ON (%s)", exprToSQLWithNamingScheme(
                         copyObject(j->cond), jOffsets));
 
-            // alias
-            *attrOffset = 0;
-            attrs = createFromNames(attrOffset, LIST_LENGTH(j->op.schema->attrDefs));
-            appendStringInfo(from, ") F%u(%s))", (*curFromItem)++, attrs);
+            //we don't need the alias part now
+            //*attrOffset = 0;
+            //attrs = createFromNames(attrOffset, LIST_LENGTH(j->op.schema->attrDefs));
+            //appendStringInfo(from, ") F%u(%s))", (*curFromItem)++, attrs);
         }
         break;
         case T_TableAccessOperator:
@@ -599,7 +599,7 @@ static void
 serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs)
 {
     appendStringInfoString(where, "\nWHERE ");
-    updateAttributeNames((Node *) q->cond, fromAttrs);
+    updateAttributeNames((Node *) q->cond, (List *) attrs, (List *) fromAttrs);
     appendStringInfoString(where, exprToSQL(q->cond));
 }
 
@@ -618,9 +618,20 @@ updateAttributeNames(Node *node, List *attrs, List *fromAttrs)
 
 
         // LOOP THROUGH fromItems (outer list)
-        // for each elemnt increase position by len(elem)
+        FOREACH(char, newName, attrPos)
+        {
+        	if(attrPos++ != 0)
+        		attrPos++;
+        }
+                FOREACH(char, newName, fromItem)
+                {
+                	if(fromItem++ !=0)
+                	appendStringInfoString();
+                }
+
+        // for each element increase position by len(elem)
         //
-        a->attrPosition
+        a->attrPosition = attrPos;
 
         // fromItem = 2, attrPos = 4 and attrName is "abc" => "F2.abc"
 
