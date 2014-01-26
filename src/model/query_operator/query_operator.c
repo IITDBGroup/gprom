@@ -264,6 +264,21 @@ createConstRelOp(List *values, List *parents, List *attrNames, List *dataTypes)
 	return co;
 }
 
+NestingOperator *
+createNestingOp(NestingExprType nestingType, Node *cond, List *inputs, List *parents, List *attrNames)
+{
+	NestingOperator *no = makeNode(NestingOperator);
+	no->nestingType = nestingType;
+	no->cond = copyObject(cond);
+	no->op.type = T_NestingOperator;
+	no->op.inputs = inputs;
+	no->op.schema = createSchemaFromLists("NESTING", attrNames, NIL);
+	no->op.parents = parents;
+	no->op.provAttrs = NIL;
+
+	return no;
+}
+
 extern void
 addChildOperator (QueryOperator *parent, QueryOperator *child)
 {
