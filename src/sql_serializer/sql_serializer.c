@@ -102,7 +102,7 @@ static void serializeFromItem (QueryOperator *q, StringInfo from,
         int *curFromItem, int *attrOffset, List **fromAttrs);
 
 static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
-static boolean updateAttributeNames(Node *node, List *attrs, List *fromAttrs);
+static boolean updateAttributeNames(Node *node, List *fromAttrs);
 
 static void serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy);
@@ -518,7 +518,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                     asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
             }
             attrs = createFromNames(attrOffset, LIST_LENGTH(t->op.schema->attrDefs));
-            appendStringInfo(from, "((%s)%s F%u(%s))", t->tableName, asOf ? asOf : "", (*curFromItem)++, attrs); //change this part
+            appendStringInfo(from, "((%s)%s F%u)", t->tableName, asOf ? asOf : "", (*curFromItem)++, attrs); //change this part
         }
         break;
         default:
@@ -599,12 +599,12 @@ static void
 serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs)
 {
     appendStringInfoString(where, "\nWHERE ");
-    updateAttributeNames((Node *) q->cond, (List *) attrs, (List *) fromAttrs);
+    updateAttributeNames((Node *) q->cond, (List *) fromAttrs);
     appendStringInfoString(where, exprToSQL(q->cond));
 }
 
 static boolean
-updateAttributeNames(Node *node, List *attrs, List *fromAttrs)
+updateAttributeNames(Node *node, List *fromAttrs)
 {
     if (node == NULL)
         return TRUE;
@@ -645,7 +645,7 @@ updateAttributeNames(Node *node, List *attrs, List *fromAttrs)
         a->name = newName;
     }
 
-    return visit(node, updateAttributeNames, attrs);
+    return visit(node, updateAttributeNames, fromAttrs);
 }
 
 static boolean
