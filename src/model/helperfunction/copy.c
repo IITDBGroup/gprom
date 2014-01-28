@@ -408,7 +408,7 @@ copyNestedSubquery(NestedSubquery *from, OperatorMap **opMap)
     COPY_INIT(NestedSubquery);
     COPY_SCALAR_FIELD(nestingType);
     COPY_NODE_FIELD(expr);
-    COPY_SCALAR_FIELD(comparisonOp);
+    COPY_STRING_FIELD(comparisonOp);
     COPY_NODE_FIELD(query);
 
     return new;

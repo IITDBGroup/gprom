@@ -129,6 +129,7 @@ extern SetOperator *createSetOperator (SetOpType setOpType, List *inputs, List *
 extern DuplicateRemoval *createDuplicateRemovalOp (List *attrs, QueryOperator *input, List *parents, List *attrNames);
 extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, Node *asOf);
 extern ConstRelOperator *createConstRelOp(List *values,List *parents, List *attrNames, List *dataTypes);
+//extern NestingOperator *createNestingOpWithChild(NestingExprType nestingType, Node *cond, List *inputs, List *parents, char *nestAttr);
 extern NestingOperator *createNestingOp(NestingExprType nestingType, Node *cond, List *inputs, List *parents, List *attrNames);
 
 /* navigation functions */
