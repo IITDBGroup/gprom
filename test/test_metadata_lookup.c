@@ -161,14 +161,17 @@ testGetTableDefinition()
 static rc
 testTransactionSQLAndSCNs()
 {
-	List **scns=NULL;
-	List **sqls=NULL;
+	List *scns = NIL;
+	List *sqls = NIL;
+	List *binds = NIL;
 
-    getTransactionSQLAndSCNs('0A0020002F570200',scns,sqls);
-    if(SCN !=NULL && sqls != Null)
+    getTransactionSQLAndSCNs("0A0020002F570200",&scns,&sqls,&binds);
+    if (scns !=NULL && sqls != NULL)
     {
     	return PASS;
     }
+
+    return PASS;
 }
 
 static rc

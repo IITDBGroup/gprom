@@ -21,6 +21,7 @@ typedef struct Operator {
 typedef enum DataType
 {
     DT_INT,
+    DT_LONG,
     DT_STRING,
     DT_FLOAT,
     DT_BOOL
@@ -54,6 +55,7 @@ extern Node *andExprs (Node *expr, ...);
 
 /* functions for creating constants */
 extern Constant *createConstInt (int value);
+extern Constant *createConstLong (long value);
 extern Constant *createConstString (char *value);
 extern Constant *createConstFloat (double value);
 extern Constant *createConstBool (boolean value);
