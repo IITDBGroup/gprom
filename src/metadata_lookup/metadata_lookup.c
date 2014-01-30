@@ -28,13 +28,13 @@ typedef struct TableBuffer
 {
 	char *tableName;
 	List *attrs;
-} TableBuffer;
+}TableBuffer;
 
 typedef struct ViewBuffer
 {
 	char *viewName;
 	char *viewDefinition;
-} ViewBuffer;
+}ViewBuffer;
 
 static OCI_Connection *conn=NULL;
 static OCI_Statement *st = NULL;
@@ -62,11 +62,10 @@ static void freeBuffers(void);
 static void
 handleError (OCI_Error *error)
 {
-    errorCache = error;
-    DEBUG_LOG("METADATA LOOKUP - OCILIB Error ORA-%05i - msg : %s\n",
-            OCI_ErrorGetOCICode(error), OCI_ErrorGetString(error));
+	errorCache = error;
+	DEBUG_LOG("METADATA LOOKUP - OCILIB Error ORA-%05i - msg : %s\n",
+			OCI_ErrorGetOCICode(error), OCI_ErrorGetString(error));
 }
-
 
 static void
 initAggList(void)
@@ -100,7 +99,7 @@ static void
 freeAggList()
 {
 	if(aggList != NULL)
-		FREE(aggList);
+	FREE(aggList);
 }
 
 static void
@@ -152,7 +151,7 @@ static List *
 searchTableBuffers(char *tableName)
 {
 	if(tableBuffers == NULL || tableName == NULL)
-		return NIL;
+	return NIL;
 	FOREACH(TableBuffer, t, tableBuffers)
 	{
 		if(strcmp(t->tableName, tableName) == 0)
@@ -166,7 +165,7 @@ static char *
 searchViewBuffers(char *viewName)
 {
 	if(viewBuffers == NULL || viewName == NULL)
-		return NULL;
+	return NULL;
 	FOREACH(ViewBuffer, v, viewBuffers)
 	{
 		if(strcmp(v->viewName, viewName) == 0)
@@ -180,11 +179,11 @@ searchViewBuffers(char *viewName)
 static int
 initConnection()
 {
-    assert(initialized);
+	assert(initialized);
 
-    ACQUIRE_MEM_CONTEXT(context);
+	ACQUIRE_MEM_CONTEXT(context);
 
-    StringInfo connectString = makeStringInfo();
+	StringInfo connectString = makeStringInfo();
 	Options* options=getOptions();
 
 	char* user=options->optionConnection->user;
@@ -193,12 +192,12 @@ initConnection()
 	char *host=options->optionConnection->host;
 	int port=options->optionConnection->port;
 	appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT, host, port,
-	        db);
+			db);
 
 	conn = OCI_ConnectionCreate(connectString->data,user,passwd,
-	        OCI_SESSION_DEFAULT);
+			OCI_SESSION_DEFAULT);
 	DEBUG_LOG("Try to connect to server <%s,%s,%s>... %s", connectString->data, user, passwd,
-	        (conn != NULL) ? "SUCCESS" : "FAILURE");
+			(conn != NULL) ? "SUCCESS" : "FAILURE");
 
 	initAggList();
 
@@ -211,9 +210,9 @@ static boolean
 isConnected()
 {
 	if(conn==NULL)
-		initConnection();
+	initConnection();
 	if(OCI_IsConnected(conn))
-		return TRUE;
+	return TRUE;
 	else
 	{
 		FATAL_LOG("OCI connection lost: %s", OCI_ErrorGetString(errorCache));
@@ -224,44 +223,44 @@ isConnected()
 int
 initMetadataLookupPlugin (void)
 {
-    if (initialized)
-        FATAL_LOG("tried to initialize metadata lookup plugin more than once");
+	if (initialized)
+	FATAL_LOG("tried to initialize metadata lookup plugin more than once");
 
-    NEW_AND_ACQUIRE_MEMCONTEXT("metadataContext");
-    context=getCurMemContext();
+	NEW_AND_ACQUIRE_MEMCONTEXT("metadataContext");
+	context=getCurMemContext();
 
-    if(!OCI_Initialize(handleError, NULL, OCI_ENV_DEFAULT))
-    {
-        FATAL_LOG("Cannot initialize OICLIB: %s", OCI_ErrorGetString(errorCache)); //print error type
-        RELEASE_MEM_CONTEXT();
+	if(!OCI_Initialize(handleError, NULL, OCI_ENV_DEFAULT))
+	{
+		FATAL_LOG("Cannot initialize OICLIB: %s", OCI_ErrorGetString(errorCache)); //print error type
+		RELEASE_MEM_CONTEXT();
 
-        return EXIT_FAILURE;
-    }
+		return EXIT_FAILURE;
+	}
 
-    DEBUG_LOG("Initialized OCILIB");
-    RELEASE_MEM_CONTEXT();
-    initialized = TRUE;
+	DEBUG_LOG("Initialized OCILIB");
+	RELEASE_MEM_CONTEXT();
+	initialized = TRUE;
 
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
 
 OCI_Connection *
 getConnection()
 {
-    if(isConnected())
-        return conn;
-    return NULL;
+	if(isConnected())
+	return conn;
+	return NULL;
 }
 
 boolean
 catalogTableExists(char* tableName)
 {
 	if(NULL==tableName)
-		return FALSE;
+	return FALSE;
 	if(conn==NULL)
-		initConnection();
+	initConnection();
 	if(isConnected())
-		return (OCI_TypeInfoGet(conn,tableName,OCI_TIF_TABLE)==NULL) ? FALSE : TRUE;
+	return (OCI_TypeInfoGet(conn,tableName,OCI_TIF_TABLE)==NULL) ? FALSE : TRUE;
 	return FALSE;
 }
 
@@ -269,24 +268,24 @@ boolean
 catalogViewExists(char* viewName)
 {
 	if(NULL==viewName)
-		return FALSE;
+	return FALSE;
 	if(conn==NULL)
-		initConnection();
+	initConnection();
 	if(isConnected())
-		return (OCI_TypeInfoGet(conn,viewName,OCI_TIF_VIEW)==NULL) ? FALSE : TRUE;
+	return (OCI_TypeInfoGet(conn,viewName,OCI_TIF_VIEW)==NULL) ? FALSE : TRUE;
 	return FALSE;
 }
 
 List *
 getAttributeNames (char *tableName)
 {
-    List *attrNames = NIL;
-    List *attrs = getAttributes(tableName);
+	List *attrNames = NIL;
+	List *attrs = getAttributes(tableName);
 
-    FOREACH(AttributeReference,a,attrs)
-        attrNames = appendToTailOfList(attrNames, a->name);
+	FOREACH(AttributeReference,a,attrs)
+	attrNames = appendToTailOfList(attrNames, a->name);
 
-    return attrNames;
+	return attrNames;
 }
 
 List*
@@ -297,15 +296,15 @@ getAttributes(char *tableName)
 	ACQUIRE_MEM_CONTEXT(context);
 
 	if(tableName==NULL)
-	    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
+	RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
 	if((attrList = searchTableBuffers(tableName)) != NIL)
 	{
-	    RELEASE_MEM_CONTEXT();
-	    return attrList;
+		RELEASE_MEM_CONTEXT();
+		return attrList;
 	}
 
 	if(conn==NULL)
-		initConnection();
+	initConnection();
 	if(isConnected())
 	{
 		int i,n;
@@ -335,12 +334,12 @@ boolean
 isAgg(char* functionName)
 {
 	if(functionName == NULL)
-		return FALSE;
+	return FALSE;
 
 	for(int i = 0; i < AGG_FUNCTION_COUNT; i++)
 	{
 		if(strcasecmp(aggList[i], functionName) == 0)
-			return TRUE;
+		return TRUE;
 	}
 	return FALSE;
 }
@@ -355,172 +354,189 @@ getTableDefinition(char *tableName)
 
 	statement = makeStringInfo();
 	appendStringInfo(statement, "select DBMS_METADATA.GET_DDL('TABLE', '%s\')"
-	        " from DUAL", tableName);
+			" from DUAL", tableName);
 
 	OCI_Resultset *rs = executeStatement(statement->data);
 	if(rs != NULL)
 	{
 		if(OCI_FetchNext(rs))
 		{
-		    FREE(statement);
-		    result = strdup((char *)OCI_GetString(rs, 1));
-		    RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+			FREE(statement);
+			result = strdup((char *)OCI_GetString(rs, 1));
+			RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 		}
 	}
 	FREE(statement);
 	RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(NULL);
 }
 
-
 void
-getTransactionSQLAndSCNs (int xid, List **scns, List **sqls)
+getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls)
 {
 
-}
-
-char *
-getViewDefinition(char *viewName)
-{
-	char *def = NULL;
-	StringInfo statement;
-
-	ACQUIRE_MEM_CONTEXT(context);
-
-	if((def = searchViewBuffers(viewName)) != NULL)
+	if(xid != NULL)
 	{
-	    RELEASE_MEM_CONTEXT();
-		return def;
+
+		StringInfo statement;
+		statement = makeStringInfo();
+
+		appendStringInfo(statement, "SELECT SCN, LSQLTEXT, LSQLBIND FROM "
+				"(SELECT XID, SCN, LSQLTEXT, LSQLBIND, ROW_NUMBER() "
+				"OVER (PARTITION BY statement ORDER BY statement) AS rnum "
+				"FROM SYS.fga_log$ WHERE xid = HEXTORAW('%s')ORDER BY statement) x WHERE rnum = 1;", xid);
+
+		if((conn = getConnection()) != NULL)
+		{
+			if(st == NULL)
+			st = OCI_StatementCreate(conn);
+			OCI_ReleaseResultsets(st);
+			if(OCI_ExecuteStmt(st, statement))
+			{
+				OCI_Resultset *rs = OCI_GetResultset(st);
+				*scns = OCI_GetColumn2(rs,"SCN");
+				*sqls= OCI_GetColumn2(rs,"LSQLTEXT");
+				DEBUG_LOG("Statement: %s executed successfully.", statement);
+				DEBUG_LOG("%d row fetched", OCI_GetRowCount(rs));
+				FREE(statement);
+
+			}
+			else
+			{
+				ERROR_LOG("Statement: %s failed.", statement);
+				FREE(statement);
+			}
+		}
 	}
 
-	statement = makeStringInfo();
-	appendStringInfo(statement, "select text from user_views where "
-	        "view_name = '%s'", viewName);
-
-	OCI_Resultset *rs = executeStatement(statement->data);
-	if(rs != NULL)
+	char *
+	getViewDefinition(char *viewName)
 	{
-		if(OCI_FetchNext(rs))
+		char *def = NULL;
+		StringInfo statement;
+
+		ACQUIRE_MEM_CONTEXT(context);
+
+		if((def = searchViewBuffers(viewName)) != NULL)
 		{
-			char *def = strdup((char *) OCI_GetString(rs, 1));
-			//add view definition to view buffers to improve performance
-			//user do not have to free def by themselves
-			addToViewBuffers(viewName, def);
-			FREE(statement);
 			RELEASE_MEM_CONTEXT();
 			return def;
 		}
-	}
-	FREE(statement);
-	RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY (NULL);
-}
 
-static OCI_Resultset *
-executeStatement(char *statement)
-{
-	if(statement == NULL)
-		return NULL;
-	if((conn = getConnection()) != NULL)
-	{
-		if(st == NULL)
-			st = OCI_StatementCreate(conn);
-		OCI_ReleaseResultsets(st);
-		if(OCI_ExecuteStmt(st, statement))
+		statement = makeStringInfo();
+		appendStringInfo(statement, "select text from user_views where "
+				"view_name = '%s'", viewName);
+
+		OCI_Resultset *rs = executeStatement(statement->data);
+		if(rs != NULL)
 		{
-		    OCI_Resultset *rs = OCI_GetResultset(st);
-			DEBUG_LOG("Statement: %s executed successfully.", statement);
-			DEBUG_LOG("%d row fetched", OCI_GetRowCount(rs));
-			return rs;
+			if(OCI_FetchNext(rs))
+			{
+				char *def = strdup((char *) OCI_GetString(rs, 1));
+				//add view definition to view buffers to improve performance
+				//user do not have to free def by themselves
+				addToViewBuffers(viewName, def);
+				FREE(statement);
+				RELEASE_MEM_CONTEXT();
+				return def;
+			}
+		}
+		FREE(statement);
+		RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY (NULL);
+	}
+
+	static OCI_Resultset *
+	executeStatement(char *statement)
+	{
+		if(statement == NULL)
+		return NULL;
+		if((conn = getConnection()) != NULL)
+		{
+			if(st == NULL)
+			st = OCI_StatementCreate(conn);
+			OCI_ReleaseResultsets(st);
+			if(OCI_ExecuteStmt(st, statement))
+			{
+				OCI_Resultset *rs = OCI_GetResultset(st);
+				DEBUG_LOG("Statement: %s executed successfully.", statement);
+				DEBUG_LOG("%d row fetched", OCI_GetRowCount(rs));
+				return rs;
+			}
+			else
+			{
+				ERROR_LOG("Statement: %s failed.", statement);
+			}
+		}
+		return NULL;
+	}
+
+	int
+	databaseConnectionClose()
+	{
+		if(context==NULL)
+		{
+			ERROR_LOG("Metadata context already freed.");
+			return EXIT_FAILURE;
 		}
 		else
 		{
-			ERROR_LOG("Statement: %s failed.", statement);
+			ACQUIRE_MEM_CONTEXT(context);
+			freeAggList();
+			freeBuffers();
+			OCI_Cleanup(); //bugs exist here
+			initialized = FALSE;
+			FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 		}
+		return EXIT_SUCCESS;
 	}
-	return NULL;
-}
 
+	/* OCILIB is not available, fake functions */
+#else
 
-int
-databaseConnectionClose()
-{
-	if(context==NULL)
-	{
-		ERROR_LOG("Metadata context already freed.");
-		return EXIT_FAILURE;
-	}
-	else
-	{
-	    ACQUIRE_MEM_CONTEXT(context);
-		freeAggList();
-		freeBuffers();
-		OCI_Cleanup();//bugs exist here
-		initialized = FALSE;
-		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
-	}
+int initMetadataLookupPlugin(void) {
 	return EXIT_SUCCESS;
 }
 
-/* OCILIB is not available, fake functions */
-#else
-
-int
-initMetadataLookupPlugin (void)
-{
-    return EXIT_SUCCESS;
+boolean catalogTableExists(char *table) {
+	return FALSE;
 }
 
-boolean
-catalogTableExists(char *table)
-{
-    return FALSE;
-}
-
-boolean
-catalogViewExists(char *view)
-{
+boolean catalogViewExists(char *view) {
 	return FALSE;
 }
 
 List *
-getAttributes (char *table)
-{
-    return NIL;
+getAttributes(char *table) {
+	return NIL;
 }
 
-List *getAttributeNames (char *tableName)
-{
-    return NIL;
+List *getAttributeNames(char *tableName) {
+	return NIL;
 }
 
-boolean
-isAgg(char *table)
-{
+boolean isAgg(char *table) {
 	return FALSE;
 }
 
 char *
-getTableDefinition(char *table)
-{
+getTableDefinition(char *table) {
+	return NULL;
+}
+
+void getTransactionSQLAndSCNs(char *xid, List **scns, List **sqls) {
+}
+
+char *
+getViewDefinition(char *view) {
 	return NULL;
 }
 
 char *
-getViewDefinition(char *view)
-{
+executeStatement(char *statement) {
 	return NULL;
 }
 
-char *
-executeStatement(char *statement)
-{
-	return NULL;
+int databaseConnectionClose() {
+	return EXIT_SUCCESS;
 }
-
-int
-databaseConnectionClose ()
-{
-    return EXIT_SUCCESS;
-}
-
 
 #endif
