@@ -51,9 +51,16 @@ static inline QueryOperator *createTableAccessOpFromFromTableRef(
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje);
 static QueryOperator *translateFromSubquery(FromSubquery *fsq);
 
+/* Functions of translating nested subquery in a QueryBlock */
+static QueryOperator *translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot);
+extern boolean findNestedSubqueries (Node *node, List **state);
+static List *getListOfNestedSubqueries(QueryBlock *qb);
+static void replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb);
+static boolean replaceNestedSubqueryWithAuxExpr(Node *node, int *state);
+
 /* Functions of translating where clause in a QueryBlock */
 static QueryOperator *translateWhereClause(Node *whereClause,
-        QueryOperator *joinTreeRoot, List *attrsOffsets);
+        QueryOperator *nestingOp, List *attrsOffsets);
 static boolean visitAttrRefToSetNewAttrPos(Node *n, List *state);
 
 /* Functions of translating simple select clause in a QueryBlock */
@@ -145,7 +152,7 @@ translateSetQuery(SetQuery *sq)
     }
     if (sq->rChild)
     {
-        left = translateQuery(sq->rChild);
+        right = translateQuery(sq->rChild);
 //        if (sq->rChild->type == T_SetQuery)
 //            right = translateSetQuery((SetQuery *) sq->rChild);
 //        else if (sq->rChild->type == T_QueryBlock)
@@ -177,10 +184,14 @@ translateQueryBlock(QueryBlock *qb)
 	QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause);
 	INFO_LOG("translatedFrom is\n%s", nodeToString(joinTreeRoot));
 
+	QueryOperator *nestingOp = translateNestedSubquery(qb, joinTreeRoot);
+	if (nestingOp != joinTreeRoot)
+		INFO_LOG("translatedNesting is\n%s", nodeToString(nestingOp));
+
 	attrsOffsets = getAttrsOffsets(qb->fromClause);
-	QueryOperator *select = translateWhereClause(qb->whereClause, joinTreeRoot,
+	QueryOperator *select = translateWhereClause(qb->whereClause, nestingOp,
 			attrsOffsets);
-	if (select != joinTreeRoot)
+	if (select != nestingOp)
 	    INFO_LOG("translatedWhere is\n%s", nodeToString(select));
 
 	QueryOperator *aggr = translateAggregation(qb, select, attrsOffsets);
@@ -557,14 +568,122 @@ translateFromSubquery(FromSubquery *fsq)
 }
 
 static QueryOperator *
-translateWhereClause(Node *whereClause, QueryOperator *joinTreeRoot,
-		List *attrsOffsets) {
-	if (whereClause == NULL)
+translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot)
+{
+	List *nestedSubqueries = getListOfNestedSubqueries(qb);
+
+	QueryOperator *lChild = joinTreeRoot;
+	NestingOperator *no = NULL;
+	int i = 1;
+	FOREACH(NestedSubquery, nsq, nestedSubqueries)
+	{
+		// create condition node of nesting operator
+		List *subqueryAttrNames = NIL;
+		FOREACH(SelectItem, s, ((QueryBlock *) nsq->query)->selectClause)
+		{
+			subqueryAttrNames = appendToTailOfList(subqueryAttrNames, strdup(s->alias));
+		}
+		AttributeReference *subqueryAttr =  createAttributeReference ((char *) getHeadOfListP(subqueryAttrNames));
+		List *args = appendToTailOfList(args, nsq->expr);
+		args = appendToTailOfList(args, (Node *) subqueryAttr);
+		Node *cond = (Node *) createOpExpr (nsq->comparisonOp, args);
+
+		// create children of nesting operator
+		// left child is the root of "from" translation tree or previous nesting operator
+		List *inputs = appendToTailOfList(inputs, lChild);
+		// right child is the root of the current nested subquery's translation tree
+		QueryOperator *rChild = translateQueryBlock((QueryBlock *) nsq->query);
+		inputs = appendToTailOfList(inputs, rChild);
+
+		// create attribute names of nesting operator
+		List *attrNames = getAttrNames(lChild->schema);
+		// add an auxiliary attribute, which is the evaluation of the nested subquery
+		attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("nesting_eval_", itoa(i++)));
+
+		// create nesting operator
+		no = createNestingOp(nsq->nestingType, cond, inputs, NIL, attrNames);
+
+		// set the nesting operator as the parent of its children
+		OP_LCHILD(no)->parents = singleton(no);
+		OP_RCHILD(no)->parents = singleton(no);
+
+		// set this nesting operator as the next nesting operator's left child
+		lChild = (QueryOperator *) no;
+	}
+
+	if (no == NULL)
 		return joinTreeRoot;
 
+	replaceAllNestedSubqueriesWithAuxExprs(qb);
+	return ((QueryOperator *) no);
+}
+
+static List *
+getListOfNestedSubqueries(QueryBlock *qb)
+{
+	List *nestedSubqueries = NIL;
+
+	// find nested subqueries
+	findNestedSubqueries((Node *) qb->selectClause, &nestedSubqueries);
+	findNestedSubqueries((Node *) qb->distinct, &nestedSubqueries);
+	findNestedSubqueries((Node *) qb->fromClause, &nestedSubqueries);
+	findNestedSubqueries((Node *) qb->whereClause, &nestedSubqueries);
+	findNestedSubqueries((Node *) qb->groupByClause, &nestedSubqueries);
+	findNestedSubqueries((Node *) qb->havingClause, &nestedSubqueries);
+	findNestedSubqueries((Node *) qb->orderByClause, &nestedSubqueries);
+
+	return nestedSubqueries;
+}
+
+static void
+replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb)
+{
+	int i = 1;
+	replaceNestedSubqueryWithAuxExpr((Node *) qb->selectClause, &i);
+	replaceNestedSubqueryWithAuxExpr((Node *) qb->distinct, &i);
+	replaceNestedSubqueryWithAuxExpr((Node *) qb->fromClause, &i);
+	replaceNestedSubqueryWithAuxExpr((Node *) qb->whereClause, &i);
+	replaceNestedSubqueryWithAuxExpr((Node *) qb->groupByClause, &i);
+	replaceNestedSubqueryWithAuxExpr((Node *) qb->havingClause, &i);
+	replaceNestedSubqueryWithAuxExpr((Node *) qb->orderByClause, &i);
+}
+
+static boolean
+replaceNestedSubqueryWithAuxExpr(Node *node, int *state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, NestedSubquery))
+    {
+    	// create "nesting_eval_i = true" expression
+        int i = (*state)++;
+        AttributeReference *attr = createAttributeReference(CONCAT_STRINGS("nesting_eval_", itoa(i)));
+        Constant *true = createConstBool(TRUE);
+        List *args = appendToTailOfList(args, (Node *) attr);
+        args = appendToTailOfList(args, (Node *) true);
+        Operator *opExpr = createOpExpr("=", args);
+
+        // replace the nested subquery node with the auxiliary expression
+        node = (Node *) opExpr;
+        return TRUE;
+    }
+
+    if (isQBQuery(node))
+        return TRUE;
+
+    return visit(node, replaceNestedSubqueryWithAuxExpr, state);
+}
+
+static QueryOperator *
+translateWhereClause(Node *whereClause, QueryOperator *nestingOp,
+		List *attrsOffsets) {
+	if (whereClause == NULL)
+		return nestingOp;
+
 	// create selection operator node upon the root of the join tree
-	SelectionOperator *so = createSelectionOp(whereClause, joinTreeRoot, NIL,
-			getAttrNames(joinTreeRoot->schema));
+	SelectionOperator *so = createSelectionOp(whereClause, nestingOp, NIL,
+			getAttrNames(nestingOp->schema));
 
 	// change attributes positions in selection condition
 	visitAttrRefToSetNewAttrPos(so->cond, attrsOffsets);
