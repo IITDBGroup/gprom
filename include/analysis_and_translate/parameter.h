@@ -15,9 +15,13 @@
 #include "model/list/list.h"
 
 // set parameters in an SQL statement to the list of constants provided (values).
-extern void setParameterValues (Node *qbModel, List *values);
+extern Node *setParameterValues (Node *qbModel, List *values);
 
 // find all parameters in a Query Block model statement
 extern List *findParameters (Node *qbModel);
+
+// translate Oracle's internal representation of parameter bindings into a list
+// of const nodes
+extern List *oracleBindToConsts (char *binds);
 
 #endif /* PARAMETER_H_ */
