@@ -143,7 +143,7 @@ oracleBindToConsts (char *binds)
         assert(pos - binds <= strlen(binds) + 1);
 
         // read parameter number and length. The format is #PARAM_NUM(LENGTH):
-        retVal = sscanf(pos,"#%u(%u):%n", &param, &len, &read);
+        retVal = sscanf(pos," #%u(%u):%n", &param, &len, &read);
         DEBUG_LOG("#%u(%u): of length %u", param, len, read);
         if (retVal != 2)
             FATAL_LOG("String <%s> at <%s> did not match #Param(length)", binds, pos);
