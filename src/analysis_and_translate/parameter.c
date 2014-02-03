@@ -19,9 +19,17 @@
 #include "model/list/list.h"
 #include "analysis_and_translate/parameter.h"
 
+// data types
+typedef struct ParByNameState
+{
+   List *names;
+   List *values;
+} ParByNameState;
+
 // static functions
 static boolean findParamVisitor(Node *node, List **state);
 static Node *replaceParamMutator (Node *node, List *state);
+static Node *replaceParamByNameMutator (Node *node, ParByNameState *state);
 
 Node *
 setParameterValues (Node *qbModel, List *values)
@@ -46,6 +54,44 @@ replaceParamMutator (Node *node, List *state)
         assert(pos > 0 && pos <= LIST_LENGTH(state));
 
         val = getNthOfListP(state, pos - 1);
+        DEBUG_LOG("replaced parameter <%s> with <%s>", nodeToString(p), nodeToString(val));
+
+        return copyObject(val);
+    }
+
+    return mutate(node, replaceParamMutator, state);
+}
+
+Node *
+setParValsByName (Node *qbModel, List *values, List *names)
+{
+    Node *result;
+    ParByNameState *state = NEW(ParByNameState);
+
+    state->names = names;
+    state->values = values;
+
+    result = replaceParamByNameMutator (qbModel, state);
+    FREE(state);
+
+    return result;
+}
+
+static Node *
+replaceParamByNameMutator (Node *node, ParByNameState *state)
+{
+    if (node == NULL)
+        return NULL;
+
+    if (isA(node, SQLParameter))
+    {
+        SQLParameter *p = (SQLParameter *) node;
+        Node *val;
+        int pos;
+
+        pos = listPosString(state->names, p->name);
+        val = getNthOfListP(state->values, pos);
+
         DEBUG_LOG("replaced parameter <%s> with <%s>", nodeToString(p), nodeToString(val));
 
         return copyObject(val);

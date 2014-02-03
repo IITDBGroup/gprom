@@ -16,6 +16,7 @@
 
 // set parameters in an SQL statement to the list of constants provided (values).
 extern Node *setParameterValues (Node *qbModel, List *values);
+extern Node *setParValsByName (Node *qbModel, List *values, List *names);
 
 // find all parameters in a Query Block model statement
 extern List *findParameters (Node *qbModel);
