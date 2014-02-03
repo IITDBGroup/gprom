@@ -101,6 +101,7 @@ freeAggList()
 {
 	if(aggList != NULL)
 		FREE(aggList);
+	aggList = NULL;
 }
 
 static void
@@ -126,6 +127,8 @@ freeBuffers()
 		}
 		freeList(viewBuffers);
 	}
+	tableBuffers = NIL;
+	viewBuffers = NIL;
 }
 
 static void
@@ -455,6 +458,11 @@ databaseConnectionClose()
 		freeBuffers();
 		OCI_Cleanup();//bugs exist here
 		initialized = FALSE;
+		conn=NULL;
+	    st = NULL;
+	    tInfo=NULL;
+	    errorCache=NULL;
+
 		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 	}
 	return EXIT_SUCCESS;

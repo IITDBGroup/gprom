@@ -41,9 +41,14 @@ replaceParamMutator (Node *node, List *state)
     {
         SQLParameter *p = (SQLParameter *) node;
         int pos = p->position;
+        Node *val;
+
         assert(pos > 0 && pos <= LIST_LENGTH(state));
 
-        return copyObject(getNthOfListP(state, pos - 1));
+        val = getNthOfListP(state, pos - 1);
+        DEBUG_LOG("replaced parameter <%s> with <%s>", nodeToString(p), nodeToString(val));
+
+        return copyObject(val);
     }
 
     return mutate(node, replaceParamMutator, state);
@@ -56,6 +61,8 @@ findParameters (Node *qbModel)
     List *result = NIL;
 
     findParamVisitor(qbModel, &result);
+
+    DEBUG_LOG("parameters are: %s", nodeToString(result));
 
     return result;
 }
@@ -71,14 +78,6 @@ findParamVisitor(Node *node, List **state)
 
     return visit(node, findParamVisitor, (void *) state);
 }
-
-#define CONSUME(str,expt) \
-    do { \
-        char *_intExpt = (expt); \
-        if(strncmp(str, _intExpt, strlen(expt)) != 0) \
-           FATAL("expected %s, but was %s", _intExpt, str); \
-        str += strlen(_intExpt); \
-    } while(0)
 
 List *
 oracleBindToConsts (char *binds)
