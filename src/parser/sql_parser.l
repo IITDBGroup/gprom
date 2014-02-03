@@ -80,6 +80,7 @@ identDelim		[.]
 doublequote     [\"]
 quotedIdentifier		{doublequote}[^\"]+{doublequote}
 identifiers		({identStart}({identDelim}?{identContinue}+)*)
+parameters		[:]{identifiers}
 
 /* operators */
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
@@ -166,6 +167,14 @@ HAS			TOK(HAS)
 		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", yytext);
 		return identifier;
 	}	
+
+{parameters} {
+		yylval.stringVal = MALLOC(strlen(yytext));
+		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 1);
+		yylval.stringVal[strlen(yytext) -1] = '\0';
+		TRACE_LOG("Lexed TOKEN <parameter> with VALUE <:%s>", yytext);
+		return parameter;
+	}
 
 	/* punctuation */
 [(),.;] TOKSELF()

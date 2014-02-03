@@ -53,6 +53,7 @@ static FunctionCall *copyFunctionCall(FunctionCall *from, OperatorMap **opMap);
 static KeyValue *copyKeyValue(KeyValue *from, OperatorMap **opMap);
 static AttributeReference *copyAttributeReference(AttributeReference *from, OperatorMap **opMap);
 static Operator *copyOperator(Operator *from, OperatorMap **opMap);
+static SQLParameter *copySQLParameter(SQLParameter *from, OperatorMap **opMap);
 
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
@@ -176,6 +177,17 @@ copyOperator(Operator *from, OperatorMap **opMap)
     COPY_INIT(Operator);
     COPY_STRING_FIELD(name);
     COPY_NODE_FIELD(args);
+
+    return new;
+}
+
+static SQLParameter *
+copySQLParameter(SQLParameter *from, OperatorMap **opMap)
+{
+    COPY_INIT(SQLParameter);
+    COPY_STRING_FIELD(name);
+    COPY_SCALAR_FIELD(position);
+    COPY_SCALAR_FIELD(parType);
 
     return new;
 }
@@ -570,6 +582,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_AttributeDef:
             retval = copyAttributeDef(from, opMap);
+            break;
+        case T_SQLParameter:
+            retval = copySQLParameter(from, opMap);
             break;
              /* query block model nodes */
 //        case T_SetOp:

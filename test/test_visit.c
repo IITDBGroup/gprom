@@ -114,6 +114,8 @@ visitTheNode(Node *node, void *state)
 	case T_ConstRelOperator: printf("The type of the node is ConstRelOperator\n"); break;
 	case T_ProvenanceTransactionInfo: printf("The type of the node is ProvenanceTransactionInfo\n"); break;
 	case T_KeyValue: printf("The type of the node is KeyValue\n"); break;
+    case T_NestingOperator: printf("The type of the node is NestingOperator\n"); break;
+    case T_SQLParameter: printf("The type of the node is SQLParameter\n"); break;
 	}
 
 	//printf("The type of the node is %d\n", node->type);

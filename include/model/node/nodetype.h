@@ -22,6 +22,7 @@ typedef enum NodeTag {
     /* expression nodes */
     T_Constant,
     T_AttributeReference,
+    T_SQLParameter,
     T_FunctionCall,
     T_Operator,
 

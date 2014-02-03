@@ -215,6 +215,9 @@ translateProvenanceStmt(ProvenanceStmt *prov)
     switch(prov->inputType)
     {
         case PROV_INPUT_TRANSACTION:
+            //TODO call metadata lookup -> SCNS + SQLS
+            //TODO call parser and analyser
+            //TODO translate each update
             break;
         case PROV_INPUT_UPDATE_SEQUENCE:
         {

@@ -46,6 +46,18 @@ createFullAttrReference (char *name, int fromClause, int attrPos,
     return result;
 }
 
+SQLParameter *
+createSQLParameter (char *name)
+{
+    SQLParameter *result = makeNode(SQLParameter);
+
+    result->name = strdup(name);
+    result->position = INVALID_PARAM;
+    result->parType = DT_STRING;
+
+    return result;
+}
+
 Node *
 andExprs (Node *expr, ...)
 {

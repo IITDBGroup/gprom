@@ -20,6 +20,7 @@
 static boolean equalFunctionCall(FunctionCall *a, FunctionCall *b);
 static boolean equalAttributeReference (AttributeReference *a,
         AttributeReference *b);
+static boolean equalSQLParameter (SQLParameter *a, SQLParameter* b);
 static boolean equalOperator (Operator *a, Operator *b);
 static boolean equalConstant (Constant *a, Constant *b);
 static boolean equalList(List *a, List *b);
@@ -110,6 +111,16 @@ equalAttributeReference (AttributeReference *a,
     COMPARE_SCALAR_FIELD(fromClauseItem);
     COMPARE_SCALAR_FIELD(attrPosition);
     COMPARE_SCALAR_FIELD(outerLevelsUp);
+
+    return TRUE;
+}
+
+static boolean
+equalSQLParameter (SQLParameter *a, SQLParameter *b)
+{
+    COMPARE_STRING_FIELD(name);
+    COMPARE_SCALAR_FIELD(position);
+    COMPARE_SCALAR_FIELD(parType);
 
     return TRUE;
 }
@@ -593,6 +604,9 @@ equal(void *a, void *b)
             break;
         case T_AttributeReference:
             retval = equalAttributeReference(a,b);
+            break;
+        case T_SQLParameter:
+            retval = equalSQLParameter(a,b);
             break;
         case T_Operator:
             retval = equalOperator(a,b);
