@@ -95,13 +95,15 @@ oracleBindToConsts (char *binds)
         int read;
 
         // do not advance after last position of input string
-        assert(pos - binds <= strlen(binds));
+        assert(pos - binds <= strlen(binds) + 1);
 
         // read parameter number and length. The format is #PARAM_NUM(LENGTH):
         retVal = sscanf(pos,"#%u(%u):%n", &param, &len, &read);
+        DEBUG_LOG("#%u(%u): of length %u", param, len, read);
         if (retVal != 2)
             FATAL_LOG("String <%s> at <%s> did not match #Param(length)", binds, pos);
         pos += read;
+        DEBUG_LOG("remaining parse is: <%s>", pos);
         //TODO check: can parameter list be different from 1, 2, 3, 4, ...
 
         // read value
@@ -109,8 +111,10 @@ oracleBindToConsts (char *binds)
         strncpy(value, pos, len);
         value[len] = '\0';
         pos += len;
+        DEBUG_LOG("remaining parse is: <%s>", pos);
 
         result = appendToTailOfList(result, (Node *) createConstString(value));
+        DEBUG_LOG("parameters parsed so far <%s>", nodeToString(result));
         FREE(value);
     }
 
