@@ -34,6 +34,7 @@ addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source)
     DEBUG_LOG("new prov attr list is \n%s\n\nprov attr pos %s", nodeToString(target->schema->attrDefs), nodeToString(target->provAttrs));
 }
 
+
 /*
  * Given a subtree rooted a "orig" replace this subtree with the tree rooted
  * at "new". This method adapts all input lists of all parents of "orig" to point
