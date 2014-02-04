@@ -37,7 +37,7 @@ typedef struct QueryOperator
     List *inputs; // children of the operator node, QueryOperator type
     Schema *schema; // attributes and their data types of result tables, Schema type
     List *parents; // direct parents of the operator node, QueryOperator type
-    List *provAttrs; // provenance attributes, AttributeReference type
+    List *provAttrs; // positions of provenance attributes in the operator's schema
 } QueryOperator; // common fields that all operators have
 
 typedef struct TableAccessOperator
