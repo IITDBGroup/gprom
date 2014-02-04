@@ -56,7 +56,7 @@ static QueryOperator *translateNestedSubquery(QueryBlock *qb, QueryOperator *joi
 extern boolean findNestedSubqueries (Node *node, List **state);
 static List *getListOfNestedSubqueries(QueryBlock *qb);
 static void replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb);
-static boolean replaceNestedSubqueryWithAuxExpr(Node *node, int *state);
+static Node *replaceNestedSubqueryWithAuxExpr(Node *node, int *state);
 
 /* Functions of translating where clause in a QueryBlock */
 static QueryOperator *translateWhereClause(Node *whereClause,
@@ -183,12 +183,12 @@ translateQueryBlock(QueryBlock *qb)
 
 	QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause);
 	INFO_LOG("translatedFrom is\n%s", nodeToString(joinTreeRoot));
+    attrsOffsets = getAttrsOffsets(qb->fromClause);
 
 	QueryOperator *nestingOp = translateNestedSubquery(qb, joinTreeRoot);
 	if (nestingOp != joinTreeRoot)
 		INFO_LOG("translatedNesting is\n%s", nodeToString(nestingOp));
 
-	attrsOffsets = getAttrsOffsets(qb->fromClause);
 	QueryOperator *select = translateWhereClause(qb->whereClause, nestingOp,
 			attrsOffsets);
 	if (select != nestingOp)
@@ -580,14 +580,18 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot)
 	int i = 1;
 	FOREACH(NestedSubquery, nsq, nestedSubqueries)
 	{
+	    //TODO adapt attribut references in nsq->expr like in WHERE translation
+
 		// create condition node of nesting operator
-		List *subqueryAttrNames = NIL;
-		FOREACH(SelectItem, s, ((QueryBlock *) nsq->query)->selectClause)
-		{
-			subqueryAttrNames = appendToTailOfList(subqueryAttrNames, strdup(s->alias));
-		}
-		AttributeReference *subqueryAttr =  createAttributeReference ((char *) getHeadOfListP(subqueryAttrNames));
-		List *args = appendToTailOfList(args, nsq->expr);
+//		List *subqueryAttrNames = NIL;
+//		FOREACH(SelectItem, s, ((QueryBlock *) nsq->query)->selectClause)
+//		{
+//			subqueryAttrNames = appendToTailOfList(subqueryAttrNames, strdup(s->alias));
+//		}
+	    //TODO check for nesting type, e.g., EXISTS
+		SelectItem *s = (SelectItem *) getHeadOfListP(((QueryBlock *) nsq->query)->selectClause);
+		AttributeReference *subqueryAttr =  createFullAttrReference (strdup(s->alias), 1, 0, INVALID_ATTR);
+		List *args = appendToTailOfList(args, copyObject(nsq->expr));
 		args = appendToTailOfList(args, (Node *) subqueryAttr);
 		Node *cond = (Node *) createOpExpr (nsq->comparisonOp, args);
 
@@ -642,7 +646,7 @@ static void
 replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb)
 {
 	int i = 1;
-	replaceNestedSubqueryWithAuxExpr((Node *) qb->selectClause, &i);
+	qb->selectClause = (List *) replaceNestedSubqueryWithAuxExpr((Node *) qb->selectClause, &i);
 	replaceNestedSubqueryWithAuxExpr((Node *) qb->distinct, &i);
 	replaceNestedSubqueryWithAuxExpr((Node *) qb->fromClause, &i);
 	replaceNestedSubqueryWithAuxExpr((Node *) qb->whereClause, &i);
@@ -651,31 +655,33 @@ replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb)
 	replaceNestedSubqueryWithAuxExpr((Node *) qb->orderByClause, &i);
 }
 
-static boolean
+static Node *
 replaceNestedSubqueryWithAuxExpr(Node *node, int *state)
 {
     if (node == NULL)
-        return TRUE;
+        return NULL;
 
     if (isA(node, NestedSubquery))
     {
+        //TODO if scalar subquery, e.g., WHERE a  = (SELECT count(*) FROM s), then just add attribute reference to nesting result attribute
+
     	// create "nesting_eval_i = true" expression
         int i = (*state)++;
         AttributeReference *attr = createAttributeReference(CONCAT_STRINGS("nesting_eval_", itoa(i)));
         Constant *true = createConstBool(TRUE);
-        List *args = appendToTailOfList(args, (Node *) attr);
-        args = appendToTailOfList(args, (Node *) true);
+        List *args = LIST_MAKE(attr, true);
+//                appendToTailOfList(args, (Node *) attr);
+//        args = appendToTailOfList(args, (Node *) true);
         Operator *opExpr = createOpExpr("=", args);
 
         // replace the nested subquery node with the auxiliary expression
-        node = (Node *) opExpr;
-        return TRUE;
+        return (Node *) opExpr;
     }
 
     if (isQBQuery(node))
-        return TRUE;
+        return node;
 
-    return visit(node, replaceNestedSubqueryWithAuxExpr, state);
+    return mutate(node, replaceNestedSubqueryWithAuxExpr, state);
 }
 
 static QueryOperator *
