@@ -109,6 +109,7 @@ rewritePI_CSSelection (SelectionOperator *op)
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
 }
 
+
 static void
 rewritePI_CSProjection (ProjectionOperator *op)
 {
@@ -136,6 +137,7 @@ rewritePI_CSProjection (ProjectionOperator *op)
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
 }
 
+
 static void
 rewritePI_CSJoin (JoinOperator *op)
 {
@@ -146,10 +148,11 @@ rewritePI_CSJoin (JoinOperator *op)
     rewritePI_CSOperator(OP_RCHILD(op));
 
     // adapt schema
-//    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+    addProvenanceAttrsToSchema((QueryOperator *) op, OP_RCHILD(op));
 
     // add projection to put attributes into order
-
+    //it is working, seems not to be necessary to add the projection any more...
 }
 
 /*
@@ -201,6 +204,17 @@ rewritePI_CSSet(SetOperator *op)
     rewritePI_CSOperator(OP_LCHILD(op));
     rewritePI_CSOperator(OP_RCHILD(op));
 
+    switch(op->setOpType)
+    {
+    case SETOP_UNION:
+    	break;
+    case SETOP_INTERSECTION:
+    	break;
+    case SETOP_DIFFERENCE:
+    	break;
+    default:
+    	break;
+    }
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 }
