@@ -434,7 +434,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     FREE(matchInfo);
 
-    return attrNames; //TODO return list of attribute names
+    return fromAttrs; //TODO return list of attribute names
 }
 
 /*
