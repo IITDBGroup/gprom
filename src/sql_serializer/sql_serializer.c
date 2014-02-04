@@ -434,7 +434,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     FREE(matchInfo);
 
-    return NIL; //TODO return list of attribute names
+    return attrNames; //TODO return list of attribute names
 }
 
 /*
@@ -753,6 +753,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         ProjectionOperator *p = m->secondProj;
         List *attrNames = getAttrNames(p->op.schema);
         // create result attribute names
+        List *resultAttrs = NIL;
 
         FOREACH(Node,a,p->projExprs)
         {
@@ -776,6 +777,8 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     {
         int pos = 0;
         //TODO create result attribute names
+        List *resultAttrs = NIL;
+
         FOREACH(char,name,aggs)
         {
             if (pos++ != 0)
