@@ -530,7 +530,7 @@ getTableDefinition(char *table) {
     return NULL;
 }
 
-void getTransactionSQLAndSCNs(char *xid, List **scns, List **sqls) {
+void getTransactionSQLAndSCNs(char *xid, List **scns, List **sqls, List **sqlBinds) {
 }
 
 char *
