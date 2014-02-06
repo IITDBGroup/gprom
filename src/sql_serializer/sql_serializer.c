@@ -212,7 +212,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
     StringInfo havingString = makeStringInfo();
     MatchState state = MATCH_START;
     QueryOperator *cur = q;
-    List *attrNames = getQueryOperatorAttrNames(q);
+    List *attrNames = getAttrNames(q->schema);
 
     // do the matching
     while(state != MATCH_NEXTBLOCK && cur != NULL)
@@ -434,7 +434,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     FREE(matchInfo);
 
-    return fromAttrs; //TODO return list of attribute names
+    return attrNames; //TODO return list of attribute names
 }
 
 /*
@@ -453,7 +453,7 @@ static void
 serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         int *attrOffset, List **fromAttrs)
 {
-    char *attrs;
+//    char *attrs;
 
     switch(q->type)
     {
@@ -461,7 +461,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         {
             JoinOperator *j = (JoinOperator *) q;
             List *jOffsets = NIL;
-            appendStringInfoString(from, "((");
+            appendStringInfoString(from, "(");
 
             //left child
             jOffsets = appendToTailOfListInt(jOffsets, *curFromItem);
@@ -499,7 +499,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             //we don't need the alias part now
             //*attrOffset = 0;
             //attrs = createFromNames(attrOffset, LIST_LENGTH(j->op.schema->attrDefs));
-            //appendStringInfo(from, ") F%u(%s))", (*curFromItem)++, attrs);
+            appendStringInfo(from, ")");
         }
         break;
         case T_TableAccessOperator:
@@ -508,8 +508,6 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             char *asOf = NULL;
 
             // add list of attributes as list to fromAttrs
-
-            List **fromAttrs = NULL;
             *attrOffset = 0;
             if (t->asOf)
             {
@@ -519,19 +517,20 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                 else
                     asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
             }
-            attrs = createFromNames(attrOffset, LIST_LENGTH(t->op.schema->attrDefs));
-            appendStringInfo(from, "((%s)%s F%u)", t->tableName, asOf ? asOf : "", (*curFromItem)++, attrs); //change this part
+            List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
+            *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+            appendStringInfo(from, "((%s)%s F%u)", t->tableName, asOf ? asOf : "", (*curFromItem)++); //change this part
         }
         break;
         default:
         {
-            *attrOffset = 0;
+//            *attrOffset = 0;
             appendStringInfoString(from, "((");
             List *attrNames = serializeQueryOperator(q, from);
             *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
             // return attribute names
-            attrs = createFromNames(attrOffset, LIST_LENGTH(q->schema->attrDefs));
-            appendStringInfo(from, ") F%u(%s))", (*curFromItem)++, attrs);
+//            attrs = createFromNames(attrOffset, LIST_LENGTH(q->schema->attrDefs));
+            appendStringInfo(from, ") F%u)", (*curFromItem)++);
         }
         break;
     }
@@ -636,7 +635,7 @@ updateAttributeNames(Node *node, List *fromAttrs)
         // set new attribute name
 //        a->attrPosition = attrPos;
 //        a->fromClauseItem = fromItem;
-        a->name = CONCAT_STRINGS("F", itoa(fromItem), newName);;
+        a->name = CONCAT_STRINGS("F", itoa(fromItem), ".", newName);;
     }
 
     return visit(node, updateAttributeNames, fromAttrs);

@@ -385,7 +385,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds)
         appendStringInfo(statement, "SELECT SCN, LSQLTEXT, LSQLBIND FROM "
                 "(SELECT XID, SCN, LSQLTEXT, LSQLBIND, ROW_NUMBER() "
                 "OVER (PARTITION BY statement ORDER BY statement) AS rnum "
-                "FROM SYS.fga_log$ WHERE xid = HEXTORAW('%s')ORDER BY statement) x WHERE rnum = 1;", xid);
+                "FROM SYS.fga_log$ WHERE xid = HEXTORAW('%s')ORDER BY statement) x WHERE rnum = 1", xid);
 
         if((conn = getConnection()) != NULL)
         {
@@ -404,7 +404,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds)
                 DEBUG_LOG("Current statement at SCN %u\n was:\n%s\nwithBinds:%s", scn, sql, bind);
             }
 
-            DEBUG_LOG("Statement: %s executed successfully.", statement);
+            DEBUG_LOG("Statement: %s executed successfully.", statement->data);
             DEBUG_LOG("%d row fetched", OCI_GetRowCount(rs));
             FREE(statement);
         }

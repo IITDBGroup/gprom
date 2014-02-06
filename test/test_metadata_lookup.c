@@ -166,6 +166,7 @@ testTransactionSQLAndSCNs()
 	List *binds = NIL;
 
     getTransactionSQLAndSCNs("0A0020002F570200",&scns,&sqls,&binds);
+    DEBUG_LOG("scns: %s, sqls: %s, binds: %s", nodeToString(scns), stringListToString(sqls), stringListToString(binds));
     if (scns !=NULL && sqls != NULL)
     {
     	return PASS;
