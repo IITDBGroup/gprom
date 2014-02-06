@@ -220,7 +220,7 @@ optionalProvAsOf:
 		| AS OF SCN intConst
 		{
 			RULELOG("optionalProvAsOf::SCN");
-			$$ = (Node *) createConstInt($4);
+			$$ = (Node *) createConstLong($4);
 		}
 		| AS OF TIMESTAMP stringConst
 		{

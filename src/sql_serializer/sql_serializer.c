@@ -508,7 +508,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             if (t->asOf)
             {
                 Constant *c = (Constant *) t->asOf;
-                if (c->constType == DT_INT)
+                if (c->constType == DT_LONG)
                     asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf));
                 else
                     asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
