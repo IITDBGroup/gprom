@@ -65,6 +65,45 @@ typedef struct CaseWhen {
     Node *then;
 } CaseWhen;
 
+typedef enum WindowBoundType {
+    WINBOUND_UNBOUND_PREC,
+    WINBOUND_CURRENT_ROW,
+    WINBOUND_EXPR_PREC,
+    WINBOUND_EXPR_FOLLOW,
+    WINBOUND_NONE
+} WindowBoundType;
+
+typedef struct WindowBound {
+    NodeTag type;
+    WindowBoundType bType;
+    Node *expr;
+} WindowBound;
+
+typedef enum WinFrameType {
+    WINFRAME_ROWS,
+    WINFRAME_RANGE
+} WinFrameType;
+
+typedef struct WindowFrame {
+    NodeTag type;
+    WinFrameType frameType;
+    WindowBound *lower;
+    WindowBound *higher;
+} WindowFrame;
+
+typedef struct WindowDef {
+    NodeTag type;
+    List *partitionBy;
+    List *orderBy;
+    WindowFrame *frame;
+} WindowDef;
+
+typedef struct WindowFunction {
+    NodeTag type;
+    FunctionCall *f;
+    WindowDef *win;
+} WindowFunction;
+
 /* functions to create expression nodes */
 extern FunctionCall *createFunctionCall (char *fName, List *args);
 extern Operator *createOpExpr (char *name, List *args);
@@ -76,6 +115,11 @@ extern Node *andExprs (Node *expr, ...);
 extern SQLParameter *createSQLParameter (char *name);
 extern CaseExpr *createCaseExpr (Node *expr, List *whenClauses, Node *elseRes);
 extern CaseWhen *createCaseWhen (Node *when, Node *then);
+
+extern WindowBound *createWindowBound (WindowBoundType bType, Node *expr);
+extern WindowFrame *createWindowFrame (WinFrameType winType, WindowBound *lower, WindowBound *upper);
+extern WindowDef *createWindowDef (List *partitionBy, List *orderBy, WindowFrame *frame);
+extern WindowFunction *createWindowFunction (FunctionCall *f, WindowDef *win);
 
 /* functions for creating constants */
 extern Constant *createConstInt (int value);

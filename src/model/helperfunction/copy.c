@@ -55,7 +55,7 @@ static AttributeReference *copyAttributeReference(AttributeReference *from, Oper
 static Operator *copyOperator(Operator *from, OperatorMap **opMap);
 static SQLParameter *copySQLParameter(SQLParameter *from, OperatorMap **opMap);
 static CaseExpr *copyCaseExpr(CaseExpr *from, OperatorMap **opMap);
-static CaseExpr *copyCaseWhen(CaseWhen *from, OperatorMap **opMap);
+static CaseWhen *copyCaseWhen(CaseWhen *from, OperatorMap **opMap);
 
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
@@ -205,7 +205,7 @@ copyCaseExpr(CaseExpr *from, OperatorMap **opMap)
     return new;
 }
 
-static CaseExpr *
+static CaseWhen *
 copyCaseWhen(CaseWhen *from, OperatorMap **opMap)
 {
     COPY_INIT(CaseWhen);

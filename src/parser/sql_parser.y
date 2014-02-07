@@ -66,6 +66,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
 %token <stringVal> INT BEGIN_TRANS COMMIT_TRANS ROLLBACK_TRANS
 %token <stringVal> CASE WHEN THEN ELSE END
+%token <stringVal> OVER PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 
 %token <stringVal> DUMMYEXPR
 
@@ -107,10 +108,11 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList clauseList optionalGroupBy optionalOrderBy setClause// select and from clauses are lists
-             insertList stmtList identifierList optionalAttrAlias optionalProvWith provOptionList caseWhenList
+             insertList stmtList identifierList optionalAttrAlias optionalProvWith provOptionList caseWhenList windowBoundaries optWindowPart
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse
+%type <node> overClause windowSpec optWindowFrame windowBound 
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provOption
@@ -623,7 +625,7 @@ unaryOperatorExpression:
  * Rule to parse function calls
  */
 sqlFunctionCall: 
-        identifier '(' exprList ')'          
+        identifier '(' exprList ')' overClause          
             {
                 RULELOG("sqlFunctionCall::IDENTIFIER::exprList"); 
                 $$ = (Node *) createFunctionCall($1, $3); 
@@ -675,7 +677,94 @@ optionalCaseElse:
 				$$ = $2;
 			}
 	;
+    
+ /*
+  * Rule to parser OVER clause for window functions
+  */
+overClause:
+		/* empty */ 	{ RULELOG("overclause::NULL"); $$ = NULL; }
+		| OVER windowSpec
+			{
+				RULELOG("overclause::window");
+				$$ = $2;
+			}
+	;
+	
+windowSpec:
+		'('  optWindowPart optionalOrderBy optWindowFrame ')'
+			{
+				RULELOG("window");
+				$$ = (Node *) createWindowDef($2,$3, (WindowFrame *) $4);
+			}
+	;
+	
+optWindowPart:
+		/* empty */ 			{ RULELOG("optWindowPart::NULL"); $$ = NIL; }
+		| PARTITION BY exprList
+			{
+				RULELOG("optWindowPart::PARTITION:BY::expressionList");
+				$$ = $3;
+			}
+	;
 
+optWindowFrame:
+		/* empty */				{ RULELOG("optWindowFrame::NULL"); $$ = NULL; }
+		| ROWS windowBoundaries 
+			{ 
+				WindowBound *l, *u = NULL;
+				RULELOG("optWindowFrame::ROWS::windoBoundaries");
+				l = getNthOfListP($2, 0);
+				if(LIST_LENGTH($2) > 1)
+					u = getNthOfListP($2, 1);
+				$$ = (Node *) createWindowFrame(WINFRAME_ROWS, l, u); 
+			}
+		| RANGE windowBoundaries 
+			{
+				WindowBound *l, *u = NULL; 
+				RULELOG("optWindowFrame::RANGE::windoBoundaries"); 
+				l = getNthOfListP($2, 0);
+				if(LIST_LENGTH($2) > 1)
+					u = getNthOfListP($2, 1);
+				$$ = (Node *) createWindowFrame(WINFRAME_RANGE, l, u); 
+			}
+	;
+	
+windowBoundaries:
+		BETWEEN windowBound AND windowBound
+			{ 
+				RULELOG("windowBoundaries::BETWEEN"); 
+				$$ = LIST_MAKE($1, $2); 
+			}	
+		| windowBound 						
+			{ 
+				RULELOG("windowBoundaries::windowBound"); 
+				$$ = singleton($1); 
+			}
+	;
+
+windowBound:
+		UNBOUNDED PRECEDING 
+			{ 
+				RULELOG("windowBound::UNBOUNDED::PRECEDING"); 
+				$$ = (Node *) createWindowBound(WINBOUND_UNBOUND_PREC, NULL); 
+			}
+		| CURRENT ROW 
+			{ 
+				RULELOG("windowBound::CURRENT::ROW"); 
+				$$ = (Node *) createWindowBound(WINBOUND_CURRENT_ROW, NULL); 
+			}			
+		| expression PRECEDING
+			{ 
+				RULELOG("windowBound::expression::PRECEDING"); 
+				$$ = (Node *) createWindowBound(WINBOUND_EXPR_PREC, $1); 
+			}
+		| expression FOLLOWING
+			{ 
+				RULELOG("windowBound::expression::FOLLOWING"); 
+				$$ = (Node *) createWindowBound(WINBOUND_EXPR_FOLLOW, $1); 
+			}
+	;
+	
 /*
  * Rule to parse from clause
  *            Currently implemented for basic from clause.
@@ -1025,7 +1114,6 @@ PRIORITIES
 1)
 
 EXHAUSTIVE LIST
-1. Implement support for Case when statemets for all type of queries.
 2. Implement support for RETURNING statement in DELETE queries.
 3. Implement support for column list like (col1, col2, col3). 
    Needed in insert queries, select queries where conditions etc.
