@@ -267,7 +267,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
 
                 tInfo->updateTableNames = appendToTailOfList(
                         tInfo->updateTableNames, strdup(tableName));
-                tInfo->scns = appendToTailOfListInt(tInfo->scns, -1); //TODO get SCN
+                tInfo->scns = appendToTailOfList(tInfo->scns, createConstLong(0)); //TODO get SCN
 
                 // translate and add update as child to provenance computation
                 child = translateQuery(n);

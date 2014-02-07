@@ -314,6 +314,7 @@ outConstant (StringInfo str, Constant *node)
             break;
         case DT_LONG:
             appendStringInfo(str, "%lu", *((long *) node->value));
+            break;
     }
 }
 

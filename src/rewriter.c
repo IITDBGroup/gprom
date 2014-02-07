@@ -64,10 +64,11 @@ rewriteParserOutput (Node *parse)
 
     oModel = translateParse(parse);
     DEBUG_LOG("translator returned:\n\n<%s>", nodeToString(oModel));
+    INFO_LOG("as overview:\n\n%s", operatorToOverviewString(oModel));
 
     rewrittenTree = provRewriteQBModel(oModel);
     DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
-    DEBUG_LOG("as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
+    INFO_LOG("as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
 
     appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
 

@@ -39,6 +39,8 @@ mergeUpdateSequence(ProvenanceComputation *op)
             FATAL_LOG("isolation level %u not supported:", tInfo->transIsolation);
             break;
     }
+
+    INFO_LOG("updates after merge:\n%s", operatorToOverviewString((Node *) op));
 }
 
 static void

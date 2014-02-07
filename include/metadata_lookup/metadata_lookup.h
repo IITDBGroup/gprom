@@ -17,6 +17,8 @@
 #define METADATA_LOOKUP_H_
 
 #include "model/list/list.h"
+#include "model/node/nodetype.h"
+#include "model/query_block/query_block.h"
 
 #if HAVE_LIBOCILIB
 #include <ocilib.h>
@@ -64,6 +66,7 @@ extern boolean isAgg(char *functionName);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds);
+extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern int databaseConnectionClose();
 
 #endif /* METADATA_LOOKUP_H_ */

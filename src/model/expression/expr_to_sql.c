@@ -43,6 +43,9 @@ constantToSQL (StringInfo str, Constant *node)
         case DT_FLOAT:
             appendStringInfo(str, "%f", *((double *) node->value));
             break;
+        case DT_LONG:
+            appendStringInfo(str, "%lu", *((long *) node->value));
+            break;
         case DT_STRING:
             appendStringInfo(str, "'%s'", (char *) node->value);
             break;

@@ -505,8 +505,12 @@ copyConstant(Constant *from, OperatorMap **opMap)
            *((boolean *) new->value) = *((boolean *) from->value); 
            break;	 
       case DT_STRING:	 
-        new->value = strdup(from->value); 
-        break; 
+          new->value = strdup(from->value);
+          break;
+      case DT_LONG:
+          new->value = NEW(long);
+          *((long *) new->value) = *((long *) from->value);
+          break;
    } 	 
       return new;
 }

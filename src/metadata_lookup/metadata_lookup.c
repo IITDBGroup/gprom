@@ -8,6 +8,7 @@
 #include "configuration/option.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "mem_manager/mem_mgr.h"
+#include "model/query_block/query_block.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
@@ -50,7 +51,9 @@ static int initConnection(void);
 static boolean isConnected(void);
 static void initAggList(void);
 static void freeAggList(void);
+static OCI_Transaction *createTransaction(IsolationLevel isoLevel);
 static OCI_Resultset *executeStatement(char *statement);
+static boolean executeNonQueryStatement(char *statement);
 static void handleError (OCI_Error *error);
 
 static void addToTableBuffers(char *tableName, List *attrs);
@@ -480,6 +483,113 @@ executeStatement(char *statement)
     return NULL;
 }
 
+static boolean
+executeNonQueryStatement(char *statement)
+{
+    if(statement == NULL)
+        return FALSE;
+    if((conn = getConnection()) != NULL)
+    {
+        if(st == NULL)
+            st = OCI_StatementCreate(conn);
+        OCI_ReleaseResultsets(st);
+        if(OCI_ExecuteStmt(st, statement))
+        {
+            DEBUG_LOG("Statement: %s executed successfully.", statement);
+            return TRUE;
+        }
+        else
+        {
+            ERROR_LOG("Statement: %s failed.", statement);
+            return FALSE;
+        }
+    }
+    return FALSE;
+}
+
+Node *
+executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
+{
+    OCI_Transaction *t;
+    OCI_Resultset *rs;
+    Constant *xid;
+
+    if (!isConnected())
+        FATAL_LOG("No connection to database");
+
+    // create transaction
+    t = createTransaction(isoLevel);
+    if (t == NULL)
+        FATAL_LOG("failed creating transaction");
+    if (!OCI_SetTransaction(conn, t))
+        FATAL_LOG("failed setting current transaction");
+
+    // execute SQL
+    FOREACH(char,sql,statements)
+        if (!executeNonQueryStatement(sql))
+        {
+            ERROR_LOG("statement %s failed", sql);
+            if (!OCI_Rollback(conn))
+                FATAL_LOG("Failed rolling back current transaction");
+            return NULL;
+        }
+
+    // get Transaction XID
+    rs = executeStatement("SELECT RAWTOHEX(XID) AS XID FROM v$transaction");
+    if (rs != NULL)
+    {
+        if(OCI_FetchNext(rs))
+        {
+            const char *xidString = OCI_IsNull(rs,1) ? NULL : OCI_GetString(rs,1);
+            if (xidString == NULL)
+                FATAL_LOG("query to retrieve XID did not return any value");
+            DEBUG_LOG("Transaction executed with XID: <%s>", (char *) xidString);
+            xid = createConstString((char *) xidString);
+        }
+        else
+            FATAL_LOG("query to get back transaction xid failed");
+    }
+    else
+        FATAL_LOG("query to get back transaction xid failed");
+    // commit transaction and cleanup
+    OCI_Commit(conn);
+    if (!OCI_TransactionFree(t))
+        FATAL_LOG("Failed freeing transaction");
+
+    return (Node *) xid;
+}
+
+static OCI_Transaction *
+createTransaction(IsolationLevel isoLevel)
+{
+    unsigned int mode;
+    OCI_Transaction *result = NULL;
+
+    // get OCI isolevel constant
+    switch(isoLevel)
+    {
+        case ISOLATION_SERIALIZABLE:
+            mode = OCI_TRS_SERIALIZABLE;
+            break;
+        case ISOLATION_READ_COMMITTED:
+            mode = OCI_TRS_READWRITE;
+            break;
+        case ISOLATION_READ_ONLY:
+            mode = OCI_TRS_READONLY;
+            break;
+    }
+
+    // create transaction
+    if((conn = getConnection()) != NULL)
+    {
+        result = OCI_TransactionCreate(conn, 0, mode, NULL);
+    }
+    else
+        ERROR_LOG("Cannot create transaction: No connection established yet.");
+
+    return result;
+}
+
 int
 databaseConnectionClose()
 {
@@ -562,10 +672,19 @@ executeStatement(char *statement)
 	return NULL;
 }
 
+Node *
+executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
+{
+    return NULL;
+}
+
+
 int
 databaseConnectionClose ()
 {
     return EXIT_SUCCESS;
 }
+
+
 
 #endif
