@@ -75,7 +75,7 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
                  switchSubtrees((QueryOperator *) t, up);
              // previous table version is the one at transaction begin
              else
-                 t->asOf = (Node *) createConstInt(getHeadOfListInt(op->transactionInfo->scns));//TODO get SCN
+                 t->asOf = (Node *) getHeadOfListP(op->transactionInfo->scns);//TODO get SCN
          }
          i++;
     }

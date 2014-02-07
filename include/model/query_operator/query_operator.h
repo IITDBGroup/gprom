@@ -37,7 +37,7 @@ typedef struct QueryOperator
     List *inputs; // children of the operator node, QueryOperator type
     Schema *schema; // attributes and their data types of result tables, Schema type
     List *parents; // direct parents of the operator node, QueryOperator type
-    List *provAttrs; // provenance attributes, AttributeReference type
+    List *provAttrs; // positions of provenance attributes in the operator's schema
 } QueryOperator; // common fields that all operators have
 
 typedef struct TableAccessOperator
@@ -106,6 +106,13 @@ typedef struct ConstRelOperator
     List *values;
 } ConstRelOperator;
 
+typedef struct NestingOperator
+{
+	QueryOperator op;
+	NestingExprType nestingType;
+	Node *cond;
+} NestingOperator;
+
 /* schema helper functions */
 extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames, List *dataTypes);
@@ -122,6 +129,8 @@ extern SetOperator *createSetOperator (SetOpType setOpType, List *inputs, List *
 extern DuplicateRemoval *createDuplicateRemovalOp (List *attrs, QueryOperator *input, List *parents, List *attrNames);
 extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, Node *asOf);
 extern ConstRelOperator *createConstRelOp(List *values,List *parents, List *attrNames, List *dataTypes);
+//extern NestingOperator *createNestingOpWithChild(NestingExprType nestingType, Node *cond, List *inputs, List *parents, char *nestAttr);
+extern NestingOperator *createNestingOp(NestingExprType nestingType, Node *cond, List *inputs, List *parents, List *attrNames);
 
 /* navigation functions */
 #define OP_LCHILD(op) \

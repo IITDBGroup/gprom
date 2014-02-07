@@ -18,7 +18,7 @@
 
 #define ORACLE_TNS_CONNECTION_FORMAT "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=" \
 		"(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
-				"(SERVER=DEDICATED)(SID=%s)))"
+		"(SERVER=DEDICATED)(SID=%s)))"
 
 /*
  * functions and variables for internal use
@@ -26,15 +26,15 @@
 
 typedef struct TableBuffer
 {
-    char *tableName;
-    List *attrs;
-}TableBuffer;
+	char *tableName;
+	List *attrs;
+} TableBuffer;
 
 typedef struct ViewBuffer
 {
-    char *viewName;
-    char *viewDefinition;
-}ViewBuffer;
+	char *viewName;
+	char *viewDefinition;
+} ViewBuffer;
 
 static OCI_Connection *conn=NULL;
 static OCI_Statement *st = NULL;
@@ -98,33 +98,36 @@ initAggList(void)
 static void
 freeAggList()
 {
-    if(aggList != NULL)
-        FREE(aggList);
+	if(aggList != NULL)
+		FREE(aggList);
+	aggList = NULL;
 }
 
 static void
 freeBuffers()
 {
-    if(tableBuffers != NULL)
-    {
-        //deep free table buffers
-        FOREACH(TableBuffer, t, tableBuffers)
-		        {
-            FREE(t->tableName);
-            deepFree(t->attrs);
-		        }
-        freeList(tableBuffers);
-    }
-    if(viewBuffers != NULL)
-    {
-        //deep free view buffers
-        FOREACH(ViewBuffer, v, viewBuffers)
-		        {
-            FREE(v->viewDefinition);
-            FREE(v->viewName);
-		        }
-        freeList(viewBuffers);
-    }
+	if(tableBuffers != NULL)
+	{
+		//deep free table buffers
+		FOREACH(TableBuffer, t, tableBuffers)
+		{
+			FREE(t->tableName);
+			deepFree(t->attrs);
+		}
+		freeList(tableBuffers);
+	}
+	if(viewBuffers != NULL)
+	{
+		//deep free view buffers
+		FOREACH(ViewBuffer, v, viewBuffers)
+		{
+			FREE(v->viewDefinition);
+			FREE(v->viewName);
+		}
+		freeList(viewBuffers);
+	}
+	tableBuffers = NIL;
+	viewBuffers = NIL;
 }
 
 static void
@@ -480,49 +483,64 @@ executeStatement(char *statement)
 int
 databaseConnectionClose()
 {
-    if(context==NULL)
-    {
-        ERROR_LOG("Metadata context already freed.");
-        return EXIT_FAILURE;
-    }
-    else
-    {
-        ACQUIRE_MEM_CONTEXT(context);
-        freeAggList();
-        freeBuffers();
-        OCI_Cleanup(); //bugs exist here
-        initialized = FALSE;
-        FREE_AND_RELEASE_CUR_MEM_CONTEXT();
-    }
-    return EXIT_SUCCESS;
+	if(context==NULL)
+	{
+		ERROR_LOG("Metadata context already freed.");
+		return EXIT_FAILURE;
+	}
+	else
+	{
+	    ACQUIRE_MEM_CONTEXT(context);
+		freeAggList();
+		freeBuffers();
+		OCI_Cleanup();//bugs exist here
+		initialized = FALSE;
+		conn=NULL;
+	    st = NULL;
+	    tInfo=NULL;
+	    errorCache=NULL;
+
+		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+	}
+	return EXIT_SUCCESS;
 }
 
 /* OCILIB is not available, fake functions */
 #else
 
-int initMetadataLookupPlugin(void) {
+int
+initMetadataLookupPlugin (void)
+{
     return EXIT_SUCCESS;
 }
 
-boolean catalogTableExists(char *table) {
+boolean
+catalogTableExists(char *table)
+{
     return FALSE;
 }
 
-boolean catalogViewExists(char *view) {
-    return FALSE;
+boolean
+catalogViewExists(char *view)
+{
+	return FALSE;
 }
 
 List *
-getAttributes(char *table) {
+getAttributes (char *table)
+{
     return NIL;
 }
 
-List *getAttributeNames(char *tableName) {
+List *getAttributeNames (char *tableName)
+{
     return NIL;
 }
 
-boolean isAgg(char *table) {
-    return FALSE;
+boolean
+isAgg(char *table)
+{
+	return FALSE;
 }
 
 char *
@@ -539,11 +557,14 @@ getViewDefinition(char *view) {
 }
 
 char *
-executeStatement(char *statement) {
-    return NULL;
+executeStatement(char *statement)
+{
+	return NULL;
 }
 
-int databaseConnectionClose() {
+int
+databaseConnectionClose ()
+{
     return EXIT_SUCCESS;
 }
 

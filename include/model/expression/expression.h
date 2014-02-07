@@ -35,6 +35,7 @@ typedef struct Constant {
 
 #define INVALID_ATTR -1
 #define INVALID_FROM_ITEM -1
+#define INVALID_PARAM -1;
 
 typedef struct AttributeReference {
     NodeTag type;
@@ -44,6 +45,13 @@ typedef struct AttributeReference {
     int outerLevelsUp;
 } AttributeReference;
 
+typedef struct SQLParameter {
+    NodeTag type;
+    char *name;
+    int position;
+    DataType parType;
+} SQLParameter;
+
 /* functions to create expression nodes */
 extern FunctionCall *createFunctionCall (char *fName, List *args);
 extern Operator *createOpExpr (char *name, List *args);
@@ -52,6 +60,7 @@ extern AttributeReference *createFullAttrReference (char *name, int fromClause,
         int attrPos, int outerLevelsUp);
 extern Node *andExprs (Node *expr, ...);
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL);
+extern SQLParameter *createSQLParameter (char *name);
 
 /* functions for creating constants */
 extern Constant *createConstInt (int value);

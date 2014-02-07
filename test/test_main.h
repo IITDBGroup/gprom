@@ -135,5 +135,6 @@ extern rc testMemManager(void);
 extern rc testParse(void);
 extern rc testMetadataLookup(void);
 extern rc testString(void);
+extern rc testParameter(void);
 
 #endif

@@ -30,7 +30,7 @@ static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 
 // search for attributes and other relevant node types
 static boolean findAttrReferences (Node *node, List **state);
-static boolean findNestedSubqueries (Node *node, List **state);
+extern boolean findNestedSubqueries (Node *node, List **state);
 static boolean findFunctionCall (Node *node, List **state);
 static boolean findAttrRefInFrom (AttributeReference *a, List *fromClauses);
 static FromItem *findNamedFromItem (FromItem *fromItem, char *name);
@@ -424,7 +424,7 @@ findAttrReferences (Node *node, List **state)
     return visit(node, findAttrReferences, state);
 }
 
-static boolean
+boolean
 findNestedSubqueries (Node *node, List **state)
 {
     if (node == NULL)

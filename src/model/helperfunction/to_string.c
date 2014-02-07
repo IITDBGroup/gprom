@@ -30,6 +30,7 @@ static void outNode(StringInfo, void *node);
 static void outConstant (StringInfo str, Constant *node);
 static void outFunctionCall (StringInfo str, FunctionCall *node);
 static void outAttributeReference (StringInfo str, AttributeReference *node);
+static void outSQLParameter (StringInfo str, SQLParameter *node);
 static void outOperator (StringInfo str, Operator *node);
 static void outKeyValue (StringInfo str, KeyValue *node);
 
@@ -468,6 +469,16 @@ outAttributeReference (StringInfo str, AttributeReference *node)
     WRITE_INT_FIELD(outerLevelsUp);
 }
 
+static void
+outSQLParameter (StringInfo str, SQLParameter *node)
+{
+    WRITE_NODE_TYPE(SQL_PARAMETER);
+
+    WRITE_STRING_FIELD(name);
+    WRITE_INT_FIELD(position);
+    WRITE_ENUM_FIELD(parType, DataType);
+}
+
 static void 
 outSchema (StringInfo str, Schema *node)
 {
@@ -635,6 +646,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_AttributeReference:
                 outAttributeReference(str, (AttributeReference *) obj);
+                break;
+            case T_SQLParameter:
+                outSQLParameter(str, (SQLParameter *) obj);
                 break;
             case T_FunctionCall:
                 outFunctionCall(str, (FunctionCall *) obj);

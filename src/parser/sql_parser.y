@@ -45,6 +45,7 @@ Node *bisonParseResult = NULL;
 %token <floatVal> floatConst
 %token <stringVal> stringConst
 %token <stringVal> identifier
+%token <stringVal> parameter
 %token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
 
 /*
@@ -108,7 +109,7 @@ Node *bisonParseResult = NULL;
              insertList stmtList identifierList optionalAttrAlias optionalProvWith provOptionList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
-%type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
+%type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provOption
@@ -219,7 +220,7 @@ optionalProvAsOf:
 		| AS OF SCN intConst
 		{
 			RULELOG("optionalProvAsOf::SCN");
-			$$ = (Node *) createConstInt($4);
+			$$ = (Node *) createConstLong($4);
 		}
 		| AS OF TIMESTAMP stringConst
 		{
@@ -492,6 +493,7 @@ expression:
 		'(' expression ')'				{ RULELOG("expression::bracked"); $$ = $2; } 
 		| constant     				   	{ RULELOG("expression::constant"); }
         | attributeRef         		  	{ RULELOG("expression::attributeRef"); }
+	    | sqlParameter					{ RULELOG("expression::sqlParameter"); }
         | binaryOperatorExpression		{ RULELOG("expression::binaryOperatorExpression"); } 
         | unaryOperatorExpression       { RULELOG("expression::unaryOperatorExpression"); }
         | sqlFunctionCall        		{ RULELOG("expression::sqlFunctionCall"); }
@@ -513,6 +515,12 @@ constant:
  */
 attributeRef: 
         identifier         { RULELOG("attributeRef::IDENTIFIER"); $$ = (Node *) createAttributeReference($1); }
+
+/*
+ * SQL parameter
+ */
+sqlParameter:
+		parameter		   { RULELOG("sqlParameter::PARAMETER"); $$ = (Node *) createSQLParameter($1); }
 
 /* HELP HELP ??
        Need helper function support for attribute list in expression.
