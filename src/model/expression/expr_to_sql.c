@@ -97,7 +97,7 @@ caseToSQL(StringInfo str, CaseExpr *expr)
 {
     appendStringInfoString(str, "(CASE ");
 
-    // expression CASE
+    // CASE expression
     if (expr->expr != NULL)
     {
         exprToSQLString(str, expr->expr);
@@ -113,7 +113,7 @@ caseToSQL(StringInfo str, CaseExpr *expr)
         exprToSQLString(str, w->then);
     }
 
-    // else
+    // ELSE
     if (expr->elseRes != NULL)
     {
         appendStringInfoString(str, " ELSE ");
