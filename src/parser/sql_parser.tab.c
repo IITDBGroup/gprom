@@ -1696,7 +1696,7 @@ yyreduce:
 #line 221 "sql_parser.y" /* yacc.c:1646  */
     {
 			RULELOG("optionalProvAsOf::SCN");
-			(yyval.node) = (Node *) createConstInt((yyvsp[0].intVal));
+			(yyval.node) = (Node *) createConstLong((yyvsp[0].intVal));
 		}
 #line 1702 "sql_parser.tab.c" /* yacc.c:1646  */
     break;
