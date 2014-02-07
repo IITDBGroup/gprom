@@ -312,6 +312,8 @@ outConstant (StringInfo str, Constant *node)
         case DT_BOOL:
             appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
             break;
+        case DT_LONG:
+            appendStringInfo(str, "%lu", *((long *) node->value));
     }
 }
 

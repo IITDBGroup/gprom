@@ -131,6 +131,19 @@ createConstInt (int value)
 }
 
 Constant *
+createConstLong (long value)
+{
+    Constant *result = makeNode(Constant);
+    long *v = NEW(long);
+
+    *v = value;
+    result->constType  = DT_LONG;
+    result->value = v;
+
+    return result;
+}
+
+Constant *
 createConstString (char *value)
 {
     Constant *result = makeNode(Constant);

@@ -93,19 +93,19 @@ static TemporaryViewMap *viewMap;
 static int viewNameCounter;
 
 /* method declarations */
-static void serializeQueryOperator (QueryOperator *q, StringInfo str);
-static void serializeQueryBlock (QueryOperator *q, StringInfo str);
-static void serializeSetOperator (QueryOperator *q, StringInfo str);
+static List *serializeQueryOperator (QueryOperator *q, StringInfo str);
+static List *serializeQueryBlock (QueryOperator *q, StringInfo str);
+static List *serializeSetOperator (QueryOperator *q, StringInfo str);
 
-static void serializeFrom (QueryOperator *q, StringInfo from);
+static void serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs);
 static void serializeFromItem (QueryOperator *q, StringInfo from,
-        int *curFromItem, int *attrOffset);
+        int *curFromItem, int *attrOffset, List **fromAttrs);
 
-static void serializeWhere (SelectionOperator *q, StringInfo where);
-static boolean updateAttributeNames(Node *node, List *attrs);
+static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
+static boolean updateAttributeNames(Node *node, List *fromAttrs);
 
-static void serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
-        StringInfo having, StringInfo groupBy);
+static List *serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
+        StringInfo having, StringInfo groupBy, List *fromAttrs);
 
 static char *exprToSQLWithNamingScheme (Node *expr, List *offsets);
 static boolean renameAttrsVisitor (Node *node, List *offsets);
@@ -113,7 +113,7 @@ static boolean renameAttrsVisitor (Node *node, List *offsets);
 static char *createAttrName (int fItem, int attrOffset);
 static char *createFromNames (int *attrOffset, int count);
 
-static void createTempView (QueryOperator *q, StringInfo str);
+static List *createTempView (QueryOperator *q, StringInfo str);
 static char *createViewName (void);
 
 char *
@@ -186,22 +186,22 @@ serializeQuery(QueryOperator *q)
 /*
  * Main entry point for serialization.
  */
-static void
+static List *
 serializeQueryOperator (QueryOperator *q, StringInfo str)
 {
     // operator with multiple parents
     if (LIST_LENGTH(q->parents) > 1)
-        createTempView (q, str);
+        return createTempView (q, str);
     else if (isA(q, SetOperator))
-        serializeSetOperator(q, str);
+        return serializeSetOperator(q, str);
     else
-        serializeQueryBlock(q, str);
+        return serializeQueryBlock(q, str);
 }
 
 /*
  * Serialize a SQL query block (SELECT ... FROM ... WHERE ...)
  */
-static void
+static List *
 serializeQueryBlock (QueryOperator *q, StringInfo str)
 {
     QueryBlockMatch *matchInfo = NEW(QueryBlockMatch);
@@ -212,7 +212,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
     StringInfo havingString = makeStringInfo();
     MatchState state = MATCH_START;
     QueryOperator *cur = q;
-    List *attrNames = getQueryOperatorAttrNames(q);
+    List *attrNames = getAttrNames(q->schema);
 
     // do the matching
     while(state != MATCH_NEXTBLOCK && cur != NULL)
@@ -402,15 +402,16 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     // translate each clause
     DEBUG_LOG("serializeFrom");
-    serializeFrom(matchInfo->fromRoot, fromString);
+    List *fromAttrs = NIL;
+    serializeFrom(matchInfo->fromRoot, fromString, &fromAttrs);
 
     DEBUG_LOG("serializeWhere");
     if(matchInfo->where != NULL)
-        serializeWhere(matchInfo->where, whereString);
+        serializeWhere(matchInfo->where, whereString, fromAttrs);
 
     DEBUG_LOG("serialize projection + aggregation + groupBy +  having");
     serializeProjectionAndAggregation(matchInfo, selectString, havingString,
-            groupByString);
+            groupByString, fromAttrs);
 
     // put everything together
     DEBUG_LOG("mergePartsTogether");
@@ -432,25 +433,27 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
             appendStringInfoString(str, havingString->data);
 
     FREE(matchInfo);
+
+    return attrNames; //TODO return list of attribute names
 }
 
 /*
  * Translate a FROM clause
  */
 static void
-serializeFrom (QueryOperator *q, StringInfo from)
+serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs)
 {
     int curFromItem = 0, attrOffset = 0;
 
     appendStringInfoString(from, "\nFROM ");
-    serializeFromItem (q, from, &curFromItem, &attrOffset);
+    serializeFromItem (q, from, &curFromItem, &attrOffset, fromAttrs);
 }
 
 static void
 serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
-        int *attrOffset)
+        int *attrOffset, List **fromAttrs)
 {
-    char *attrs;
+//    char *attrs;
 
     switch(q->type)
     {
@@ -458,11 +461,11 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         {
             JoinOperator *j = (JoinOperator *) q;
             List *jOffsets = NIL;
-            appendStringInfoString(from, "((");
+            appendStringInfoString(from, "(");
 
             //left child
             jOffsets = appendToTailOfListInt(jOffsets, *curFromItem);
-            serializeFromItem(OP_LCHILD(j), from, curFromItem, attrOffset);
+            serializeFromItem(OP_LCHILD(j), from, curFromItem, attrOffset, fromAttrs);
 
             // join
             switch(j->joinType)
@@ -486,17 +489,17 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
             // right child
             jOffsets = appendToTailOfListInt(jOffsets, *curFromItem);
-            serializeFromItem(OP_RCHILD(j), from, curFromItem, attrOffset);
+            serializeFromItem(OP_RCHILD(j), from, curFromItem, attrOffset, fromAttrs);
 
             // join condition
             if (j->cond)
                 appendStringInfo(from, " ON (%s)", exprToSQLWithNamingScheme(
                         copyObject(j->cond), jOffsets));
 
-            // alias
-            *attrOffset = 0;
-            attrs = createFromNames(attrOffset, LIST_LENGTH(j->op.schema->attrDefs));
-            appendStringInfo(from, ") F%u(%s))", (*curFromItem)++, attrs);
+            //we don't need the alias part now
+            //*attrOffset = 0;
+            //attrs = createFromNames(attrOffset, LIST_LENGTH(j->op.schema->attrDefs));
+            appendStringInfo(from, ")");
         }
         break;
         case T_TableAccessOperator:
@@ -504,6 +507,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             TableAccessOperator *t = (TableAccessOperator *) q;
             char *asOf = NULL;
 
+            // add list of attributes as list to fromAttrs
             *attrOffset = 0;
             if (t->asOf)
             {
@@ -513,17 +517,20 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                 else
                     asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
             }
-            attrs = createFromNames(attrOffset, LIST_LENGTH(t->op.schema->attrDefs));
-            appendStringInfo(from, "((%s)%s F%u(%s))", t->tableName, asOf ? asOf : "", (*curFromItem)++, attrs);
+            List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
+            *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+            appendStringInfo(from, "((%s)%s F%u)", t->tableName, asOf ? asOf : "", (*curFromItem)++); //change this part
         }
         break;
         default:
         {
-            *attrOffset = 0;
+//            *attrOffset = 0;
             appendStringInfoString(from, "((");
-            serializeQueryOperator(q, from);
-            attrs = createFromNames(attrOffset, LIST_LENGTH(q->schema->attrDefs));
-            appendStringInfo(from, ") F%u(%s))", (*curFromItem)++, attrs);
+            List *attrNames = serializeQueryOperator(q, from);
+            *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+            // return attribute names
+//            attrs = createFromNames(attrOffset, LIST_LENGTH(q->schema->attrDefs));
+            appendStringInfo(from, ") F%u)", (*curFromItem)++);
         }
         break;
     }
@@ -590,15 +597,15 @@ createAttrName (int fItem, int attrOffset)
  * Translate a selection into a WHERE clause
  */
 static void
-serializeWhere (SelectionOperator *q, StringInfo where)
+serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs)
 {
     appendStringInfoString(where, "\nWHERE ");
-    updateAttributeNames((Node *) q->cond, NULL);
+    updateAttributeNames((Node *) q->cond, (List *) fromAttrs);
     appendStringInfoString(where, exprToSQL(q->cond));
 }
 
 static boolean
-updateAttributeNames(Node *node, List *attrs)
+updateAttributeNames(Node *node, List *fromAttrs)
 {
     if (node == NULL)
         return TRUE;
@@ -607,18 +614,31 @@ updateAttributeNames(Node *node, List *attrs)
     {
         AttributeReference *a = (AttributeReference *) node;
         char *newName;
+        List *outer = NIL;
+        int fromItem = -1;
+        int attrPos = 0;
 
-        // use from clause attribute nomenclature
-        if (LIST_LENGTH(attrs) == 0)
-            newName = CONCAT_STRINGS("A", itoa(a->attrPosition));
-        // use provided attribute expressions
-        else
-            newName = strdup(getNthOfListP(attrs,a->attrPosition));
+        // LOOP THROUGH fromItems (outer list)
+        FOREACH(List, attrs, fromAttrs)
+        {
+        	attrPos += LIST_LENGTH(attrs);
+            fromItem++;
+        	if (attrPos > a->attrPosition)
+        	{
+        	    outer = attrs;
+        	    break;
+        	}
+        }
+        attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
+        newName = getNthOfListP(outer, attrPos);
 
-        a->name = newName;
+        // set new attribute name
+//        a->attrPosition = attrPos;
+//        a->fromClauseItem = fromItem;
+        a->name = CONCAT_STRINGS("F", itoa(fromItem), ".", newName);;
     }
 
-    return visit(node, updateAttributeNames, attrs);
+    return visit(node, updateAttributeNames, fromAttrs);
 }
 
 static boolean
@@ -652,15 +672,18 @@ updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state)
 /*
  * Create the SELECT, GROUP BY, and HAVING clause
  */
-static void
+static List *
 serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
-        StringInfo having, StringInfo groupBy)
+        StringInfo having, StringInfo groupBy, List *fromAttrs)
 {
     int pos = 0;
     List *firstProjs = NIL;
+    List *firstProjsForUpdateNames = NIL;
     List *aggs = NIL;
     List *groupBys = NIL;
     List *secondProjs = NIL;
+    List *resultAttrs = NIL;
+
     AggregationOperator *agg = (AggregationOperator *) m->aggregation;
     UpdateAggAndGroupByAttrState *state = NULL;
 
@@ -671,8 +694,9 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     {
         FOREACH(Node,n,m->firstProj->projExprs)
         {
-            updateAttributeNames(n, NULL);
+            updateAttributeNames(n, fromAttrs);
             firstProjs = appendToTailOfList(firstProjs, exprToSQL(n));
+            firstProjsForUpdateNames = singleton(firstProjs);
         }
         INFO_LOG("second projection (agg and group by inputs) is %s",
                 stringListToString(firstProjs));
@@ -727,6 +751,8 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         int pos = 0;
         ProjectionOperator *p = m->secondProj;
         List *attrNames = getAttrNames(p->op.schema);
+        // create result attribute names
+        List *resultAttrs = NIL;
 
         FOREACH(Node,a,p->projExprs)
         {
@@ -736,10 +762,10 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 
             // is projection over aggregation
             if (agg)
-                updateAggsAndGroupByAttrs(a, state);
+                updateAggsAndGroupByAttrs(a, state); //TODO check that this method is still valid
             // is projection in query without aggregation
             else
-                updateAttributeNames(a, NULL);
+                updateAttributeNames(a, fromAttrs);
             appendStringInfo(select, "%s%s", exprToSQL(a), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
         }
 
@@ -749,6 +775,8 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     else if (agg)
     {
         int pos = 0;
+        //TODO create result attribute names
+        List *resultAttrs = NIL;
 
         FOREACH(char,name,aggs)
         {
@@ -767,7 +795,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     // get attributes from FROM clause root
     else
     {
-        List *fromAttrs = getQueryOperatorAttrNames(m->fromRoot);
+        List *fromAttrs = getQueryOperatorAttrNames(m->fromRoot);//TODO
 
         FOREACH(char,name,fromAttrs)
         {
@@ -781,19 +809,22 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 
     if (state)
         FREE(state);
+
+    return resultAttrs; //TODO return list of attr names
 }
 
 
 /*
  * Serialize a set operation UNION/MINUS/INTERSECT
  */
-static void
+static List *
 serializeSetOperator (QueryOperator *q, StringInfo str)
 {
     SetOperator *setOp = (SetOperator *) q;
+    List *resultAttrs;
 
     // output left child
-    WITH_PARENS(str,serializeQueryOperator(OP_LCHILD(q), str));
+    WITH_PARENS(str,resultAttrs = serializeQueryOperator(OP_LCHILD(q), str));
 
     // output set operation
     switch(setOp->setOpType)
@@ -811,21 +842,24 @@ serializeSetOperator (QueryOperator *q, StringInfo str)
 
     // output right child
     WITH_PARENS(str,serializeQueryOperator(OP_RCHILD(q), str));
+
+    return resultAttrs;
 }
 
 /*
  * Create a temporary view
  */
-static void
+static List *
 createTempView (QueryOperator *q, StringInfo str)
 {
     StringInfo viewDef = makeStringInfo();
     char *viewName = createViewName();
     TemporaryViewMap *view;
+    List *resultAttrs;
 
     // create sql code to create view
     appendStringInfo(viewDef, "%s AS (", viewName);
-    serializeQueryOperator(q, viewDef);
+    resultAttrs = serializeQueryOperator(q, viewDef);
     appendStringInfoString(viewDef, ")\n\n");
 
     // add to view table
@@ -834,6 +868,8 @@ createTempView (QueryOperator *q, StringInfo str)
     view->viewOp = q;
     view->viewDefinition = viewDef->data;
     HASH_ADD_KEYPTR(hh, viewMap, view->viewName, strlen(view->viewName), view);
+
+    return resultAttrs;
 }
 
 static char *

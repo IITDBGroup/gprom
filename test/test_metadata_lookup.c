@@ -26,6 +26,7 @@ static rc testViewExists(void);
 static rc testGetAttributes(void);
 static rc testIsAgg(void);
 static rc testGetTableDefinition();
+static rc testTransactionSQLAndSCNs();
 static rc testGetViewDefinition();
 static rc setupMetadataLookup(void);
 static rc testDatabaseConnectionClose(void);
@@ -39,6 +40,7 @@ testMetadataLookup(void)
 	RUN_TEST(testGetAttributes(), "test get attributes");
 	RUN_TEST(testIsAgg(), "test is aggregation functions");
 	RUN_TEST(testGetTableDefinition(), "test get table definition");
+	RUN_TEST(testTransactionSQLAndSCNs(), "test transaction SQL and SCN");
 	RUN_TEST(testGetViewDefinition(), "test get view definition");
 	RUN_TEST(testDatabaseConnectionClose(), "test close database connection");
 
@@ -157,6 +159,23 @@ testGetTableDefinition()
 }
 
 static rc
+testTransactionSQLAndSCNs()
+{
+	List *scns = NIL;
+	List *sqls = NIL;
+	List *binds = NIL;
+
+    getTransactionSQLAndSCNs("0A0020002F570200",&scns,&sqls,&binds);
+    DEBUG_LOG("scns: %s, sqls: %s, binds: %s", nodeToString(scns), stringListToString(sqls), stringListToString(binds));
+    if (scns !=NULL && sqls != NULL)
+    {
+    	return PASS;
+    }
+
+    return PASS;
+}
+
+static rc
 testGetViewDefinition()
 {
 	char *viewDef = getViewDefinition("METADATALOOKUP_VIEW1");
@@ -206,6 +225,12 @@ static rc
 testGetTableDefinition()
 {
 	return PASS;
+}
+
+static rc
+testTransactionSQLAndSCNs(void)
+{
+    return PASS;
 }
 
 static rc

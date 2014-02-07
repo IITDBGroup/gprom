@@ -204,10 +204,10 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
-		| PROVENANCE optionalProvAsOf optionalProvWith OF TRANSACTION intConst
+		| PROVENANCE optionalProvAsOf optionalProvWith OF TRANSACTION stringConst
 		{
 			RULELOG("provStmt::transaction");
-			ProvenanceStmt *p = createProvenanceStmt((Node *) createConstInt($6));
+			ProvenanceStmt *p = createProvenanceStmt((Node *) createConstString($6));
 			p->inputType = PROV_INPUT_TRANSACTION;
 			p->provType = PROV_PI_CS;
 			p->options = $3;

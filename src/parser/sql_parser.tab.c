@@ -1677,7 +1677,7 @@ yyreduce:
 #line 208 "sql_parser.y" /* yacc.c:1646  */
     {
 			RULELOG("provStmt::transaction");
-			ProvenanceStmt *p = createProvenanceStmt((Node *) createConstInt((yyvsp[0].intVal)));
+			ProvenanceStmt *p = createProvenanceStmt((Node *) createConstString((yyvsp[0].stringVal)));
 			p->inputType = PROV_INPUT_TRANSACTION;
 			p->provType = PROV_PI_CS;
 			p->options = (yyvsp[-3].list);
