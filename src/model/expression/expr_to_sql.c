@@ -92,6 +92,35 @@ operatorToSQL (StringInfo str, Operator *node)
     }
 }
 
+static void
+caseToSQL(StringInfo str, CaseExpr *expr)
+{
+    appendStringInfoString(str, "(CASE ");
+
+    // expression CASE
+    if (expr->expr != NULL)
+    {
+        exprToSQLString(str, expr->expr);
+        appendStringInfoString(str, " ");
+    }
+
+    // WHEN ... THEN ...
+    FOREACH(CaseWhen,w,expr->whenClauses)
+    {
+        appendStringInfoString(str, " WHEN ");
+        exprToSQLString(str, w->when);
+        appendStringInfoString(str, " THEN ");
+        exprToSQLString(str, w->then);
+    }
+
+    // else
+    if (expr->elseRes != NULL)
+    {
+        appendStringInfoString(str, " ELSE ");
+        exprToSQLString(str, expr->elseRes);
+    }
+    appendStringInfoString(str, " END)");
+}
 
 static void
 exprToSQLString(StringInfo str, Node *expr)
@@ -124,6 +153,11 @@ exprToSQLString(StringInfo str, Node *expr)
             appendStringInfoString(str,")");
         }
         break;
+        case T_CaseExpr:
+        {
+            caseToSQL(str, (CaseExpr *) expr);
+            break;
+        }
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));
     }

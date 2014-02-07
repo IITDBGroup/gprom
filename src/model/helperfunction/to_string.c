@@ -33,6 +33,8 @@ static void outAttributeReference (StringInfo str, AttributeReference *node);
 static void outSQLParameter (StringInfo str, SQLParameter *node);
 static void outOperator (StringInfo str, Operator *node);
 static void outKeyValue (StringInfo str, KeyValue *node);
+static void outCaseExpr (StringInfo str, CaseExpr *node);
+static void outCaseWhen (StringInfo str, CaseWhen *node);
 
 static void outQueryBlock (StringInfo str, QueryBlock *node);
 static void outSetQuery (StringInfo str, SetQuery *node);
@@ -384,6 +386,25 @@ outKeyValue (StringInfo str, KeyValue *node)
 }
 
 static void
+outCaseExpr (StringInfo str, CaseExpr *node)
+{
+    WRITE_NODE_TYPE(CASE_EXPR);
+
+    WRITE_NODE_FIELD(expr);
+    WRITE_NODE_FIELD(whenClauses);
+    WRITE_NODE_FIELD(elseRes);
+}
+
+static void
+outCaseWhen (StringInfo str, CaseWhen *node)
+{
+    WRITE_NODE_TYPE(CASE_WHEN);
+
+    WRITE_NODE_FIELD(when);
+    WRITE_NODE_FIELD(then);
+}
+
+static void
 outSelectItem (StringInfo str, SelectItem *node)
 {
     WRITE_NODE_TYPE(SELECT_ITEM);
@@ -620,6 +641,12 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_KeyValue:
                 outKeyValue(str, (KeyValue *) obj);
+                break;
+            case T_CaseExpr:
+                outCaseExpr(str, (CaseExpr *) obj);
+                break;
+            case T_CaseWhen:
+                outCaseWhen(str, (CaseWhen *) obj);
                 break;
             case T_SetQuery:
                 outSetQuery (str, (SetQuery *) obj);

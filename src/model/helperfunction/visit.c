@@ -95,6 +95,21 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(args);
             }
             break;
+        case T_CaseExpr:
+            {
+                PREP_VISIT(CaseExpr);
+                VISIT(expr);
+                VISIT(whenClauses);
+                VISIT(elseRes);
+            }
+            break;
+        case T_CaseWhen:
+            {
+                PREP_VISIT(CaseWhen);
+                VISIT(when);
+                VISIT(then);
+            }
+            break;
         /* query block model nodes */
         case T_SetQuery:
             {
@@ -311,6 +326,20 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(List,args);
             }
             break;
+        case T_CaseExpr:
+            {
+                NEWN(CaseExpr);
+                MUTATE(Node, expr);
+                MUTATE(List, whenClauses);
+                MUTATE(Node, elseRes);
+            }
+            break;
+        case T_CaseWhen:
+            {
+                NEWN(CaseWhen);
+                MUTATE(Node, when);
+                MUTATE(Node, then);
+            }
         /* query block model nodes */
         case T_SetQuery:
             {

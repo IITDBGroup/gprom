@@ -1,5 +1,9 @@
-test/testparser -loglevel 3 -sql "SELECT DISTINCT sum(d)*4 AS x, a AS x1,c AS x2, d FROM r R,s S, (SELECT c FROM d) C, A JOIN B ON d=e WHERE e=5 GROUP BY f, ff HAVING sum(d)>3 ORDER BY T LIMIT 3;"
-
-test/testparser -log -loglevel 3 -sql "SELECT a FROM (SELECT c FROM d) A JOIN B ON d=e JOIN C ON e=f;"
-
-test/testparser -log -loglevel 3 -sql "SELECT a FROM (SELECT c FROM d) A NATURAL JOIN B;"
+#!/bin/bash
+if [ "$#X" != "2X" ]; then
+    echo "give two parameters, the first one is loglevel, the second one is SQL code"
+    echo "testrewriters.sh 3 \"SELECT * FROM r;\""
+    exit 1
+fi
+LOGLEVEL=$1
+SQL=$2
+./test/testparser -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga" -log -loglevel ${LOGLEVEL} -sql "${SQL}"

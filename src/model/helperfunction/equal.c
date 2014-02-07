@@ -23,6 +23,8 @@ static boolean equalAttributeReference (AttributeReference *a,
 static boolean equalSQLParameter (SQLParameter *a, SQLParameter* b);
 static boolean equalOperator (Operator *a, Operator *b);
 static boolean equalConstant (Constant *a, Constant *b);
+static boolean equalCaseExpr (CaseExpr *a, CaseExpr *b);
+static boolean equalCaseWhen (CaseWhen *a, CaseWhen *b);
 static boolean equalList(List *a, List *b);
 static boolean equalStringList (List *a, List *b);
 static boolean equalSet (Set *a, Set *b);
@@ -152,6 +154,25 @@ equalConstant (Constant *a, Constant *b)
         case DT_STRING:
             return strcmp(STRING_VALUE(a), STRING_VALUE(b)) == 0;
     }
+
+    return TRUE;
+}
+
+static boolean
+equalCaseExpr (CaseExpr *a, CaseExpr *b)
+{
+    COMPARE_NODE_FIELD(expr);
+    COMPARE_NODE_FIELD(whenClauses);
+    COMPARE_NODE_FIELD(elseRes);
+
+    return TRUE;
+}
+
+static boolean
+equalCaseWhen (CaseWhen *a, CaseWhen *b)
+{
+    COMPARE_NODE_FIELD(when);
+    COMPARE_NODE_FIELD(then);
 
     return TRUE;
 }
@@ -615,6 +636,12 @@ equal(void *a, void *b)
             break;
         case T_Constant:
             retval = equalConstant(a,b);
+            break;
+        case T_CaseExpr:
+            retval = equalCaseExpr(a,b);
+            break;
+        case T_CaseWhen:
+            retval = equalCaseWhen(a,b);
             break;
             /*something different cases this, and we have*/
             /*different types of T_Node       */

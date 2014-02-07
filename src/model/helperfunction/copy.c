@@ -54,6 +54,8 @@ static KeyValue *copyKeyValue(KeyValue *from, OperatorMap **opMap);
 static AttributeReference *copyAttributeReference(AttributeReference *from, OperatorMap **opMap);
 static Operator *copyOperator(Operator *from, OperatorMap **opMap);
 static SQLParameter *copySQLParameter(SQLParameter *from, OperatorMap **opMap);
+static CaseExpr *copyCaseExpr(CaseExpr *from, OperatorMap **opMap);
+static CaseExpr *copyCaseWhen(CaseWhen *from, OperatorMap **opMap);
 
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
@@ -188,6 +190,27 @@ copySQLParameter(SQLParameter *from, OperatorMap **opMap)
     COPY_STRING_FIELD(name);
     COPY_SCALAR_FIELD(position);
     COPY_SCALAR_FIELD(parType);
+
+    return new;
+}
+
+static CaseExpr *
+copyCaseExpr(CaseExpr *from, OperatorMap **opMap)
+{
+    COPY_INIT(CaseExpr);
+    COPY_NODE_FIELD(expr);
+    COPY_NODE_FIELD(whenClauses);
+    COPY_NODE_FIELD(elseRes);
+
+    return new;
+}
+
+static CaseExpr *
+copyCaseWhen(CaseWhen *from, OperatorMap **opMap)
+{
+    COPY_INIT(CaseWhen);
+    COPY_NODE_FIELD(when);
+    COPY_NODE_FIELD(then);
 
     return new;
 }
@@ -589,6 +612,12 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_SQLParameter:
             retval = copySQLParameter(from, opMap);
+            break;
+        case T_CaseExpr:
+            retval = copyCaseExpr(from, opMap);
+            break;
+        case T_CaseWhen:
+            retval = copyCaseWhen(from, opMap);
             break;
              /* query block model nodes */
 //        case T_SetOp:

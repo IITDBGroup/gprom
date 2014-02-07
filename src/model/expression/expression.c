@@ -58,6 +58,29 @@ createSQLParameter (char *name)
     return result;
 }
 
+CaseExpr *
+createCaseExpr (Node *expr, List *whenClauses, Node *elseRes)
+{
+    CaseExpr *result = makeNode(CaseExpr);
+
+    result->expr = expr;
+    result->whenClauses = whenClauses;
+    result->elseRes = elseRes;
+
+    return result;
+}
+
+CaseWhen *
+createCaseWhen (Node *when, Node *then)
+{
+    CaseWhen *result = makeNode(CaseWhen);
+
+    result->when = when;
+    result->then = then;
+
+    return result;
+}
+
 Node *
 andExprs (Node *expr, ...)
 {

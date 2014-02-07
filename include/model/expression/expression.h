@@ -52,6 +52,19 @@ typedef struct SQLParameter {
     DataType parType;
 } SQLParameter;
 
+typedef struct CaseExpr {
+    NodeTag type;
+    Node *expr;
+    List *whenClauses;
+    Node *elseRes;
+} CaseExpr;
+
+typedef struct CaseWhen {
+    NodeTag type;
+    Node *when;
+    Node *then;
+} CaseWhen;
+
 /* functions to create expression nodes */
 extern FunctionCall *createFunctionCall (char *fName, List *args);
 extern Operator *createOpExpr (char *name, List *args);
@@ -61,6 +74,8 @@ extern AttributeReference *createFullAttrReference (char *name, int fromClause,
 extern Node *andExprs (Node *expr, ...);
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL);
 extern SQLParameter *createSQLParameter (char *name);
+extern CaseExpr *createCaseExpr (Node *expr, List *whenClauses, Node *elseRes);
+extern CaseWhen *createCaseWhen (Node *when, Node *then);
 
 /* functions for creating constants */
 extern Constant *createConstInt (int value);

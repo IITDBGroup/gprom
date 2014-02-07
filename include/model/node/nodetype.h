@@ -25,6 +25,8 @@ typedef enum NodeTag {
     T_SQLParameter,
     T_FunctionCall,
     T_Operator,
+    T_CaseExpr,
+    T_CaseWhen,
 
     /* query block model nodes */
     T_SetQuery,

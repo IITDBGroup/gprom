@@ -65,6 +65,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> UNION INTERSECT MINUS
 %token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
 %token <stringVal> INT BEGIN_TRANS COMMIT_TRANS ROLLBACK_TRANS
+%token <stringVal> CASE WHEN THEN ELSE END
 
 %token <stringVal> DUMMYEXPR
 
@@ -106,10 +107,10 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList clauseList optionalGroupBy optionalOrderBy setClause// select and from clauses are lists
-             insertList stmtList identifierList optionalAttrAlias optionalProvWith provOptionList
+             insertList stmtList identifierList optionalAttrAlias optionalProvWith provOptionList caseWhenList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
-%type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression
+%type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provOption
@@ -497,6 +498,7 @@ expression:
         | binaryOperatorExpression		{ RULELOG("expression::binaryOperatorExpression"); } 
         | unaryOperatorExpression       { RULELOG("expression::unaryOperatorExpression"); }
         | sqlFunctionCall        		{ RULELOG("expression::sqlFunctionCall"); }
+		| caseExpression				{ RULELOG("expression::case"); }
 /*        | '(' queryStmt ')'       { RULELOG ("expression::subQuery"); $$ = $2; } */
 /*        | STARALL        { RULELOG("expression::STARALL"); } */
     ;
@@ -627,6 +629,52 @@ sqlFunctionCall:
                 $$ = (Node *) createFunctionCall($1, $3); 
             }
     ;
+
+/*
+ * Rule to parser CASE expressions
+ */
+caseExpression:
+		CASE expression caseWhenList optionalCaseElse END
+			{
+				RULELOG("caseExpression::CASE::expression::whens:else:END");
+				$$ = (Node *) createCaseExpr($2, $3, $4);
+			}
+		| CASE caseWhenList optionalCaseElse END
+			{
+				RULELOG("caseExpression::CASE::whens::else::END");
+				$$ = (Node *) createCaseExpr(NULL, $2, $3);
+			}
+	;
+
+caseWhenList:
+		caseWhenList caseWhen
+			{
+				RULELOG("caseWhenList::list::caseWhen");
+				$$ = appendToTailOfList($1, $2);
+			}
+		| caseWhen
+			{
+				RULELOG("caseWhenList::caseWhen");
+				$$ = singleton($1);
+			}
+	;
+	
+caseWhen:
+		WHEN expression THEN expression
+			{
+				RULELOG("caseWhen::WHEN::expression::THEN::expression");
+				$$ = (Node *) createCaseWhen($2,$4);
+			}
+	;
+
+optionalCaseElse:
+		/* empty */				{ RULELOG("optionalCaseElse::NULL"); $$ = NULL; }
+		| ELSE expression
+			{
+				RULELOG("optionalCaseElse::ELSE::expression");
+				$$ = $2;
+			}
+	;
 
 /*
  * Rule to parse from clause
