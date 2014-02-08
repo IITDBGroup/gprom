@@ -1,2 +1,2 @@
 #!/bin/bash
-./test/testmain -host fourier.cs.iit.edu -db orcl -port 1521 -user tprov -passwd "XA<w67onz" $@
+./test/testmain -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga" -log $@
