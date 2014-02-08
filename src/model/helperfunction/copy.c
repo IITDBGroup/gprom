@@ -56,6 +56,10 @@ static Operator *copyOperator(Operator *from, OperatorMap **opMap);
 static SQLParameter *copySQLParameter(SQLParameter *from, OperatorMap **opMap);
 static CaseExpr *copyCaseExpr(CaseExpr *from, OperatorMap **opMap);
 static CaseWhen *copyCaseWhen(CaseWhen *from, OperatorMap **opMap);
+static WindowBound *copyWindowBound(WindowBound *from, OperatorMap **opMap);
+static WindowFrame *copyWindowFrame(WindowFrame *from, OperatorMap **opMap);
+static WindowDef *copyWindowDef(WindowDef *from, OperatorMap **opMap);
+static WindowFunction *copyWindowFunction(WindowFunction *from, OperatorMap **opMap);
 
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
@@ -214,6 +218,53 @@ copyCaseWhen(CaseWhen *from, OperatorMap **opMap)
 
     return new;
 }
+
+static WindowBound *
+copyWindowBound(WindowBound *from, OperatorMap **opMap)
+{
+    COPY_INIT(WindowBound);
+
+    COPY_SCALAR_FIELD(bType);
+    COPY_NODE_FIELD(expr);
+
+    return new;
+}
+
+static WindowFrame *
+copyWindowFrame(WindowFrame *from, OperatorMap **opMap)
+{
+    COPY_INIT(WindowFrame);
+
+    COPY_SCALAR_FIELD(frameType);
+    COPY_NODE_FIELD(lower);
+    COPY_NODE_FIELD(higher);
+
+    return new;
+}
+
+static WindowDef *
+copyWindowDef(WindowDef *from, OperatorMap **opMap)
+{
+    COPY_INIT(WindowDef);
+
+    COPY_NODE_FIELD(partitionBy);
+    COPY_NODE_FIELD(orderBy);
+    COPY_NODE_FIELD(frame);
+
+    return new;
+}
+
+static WindowFunction *
+copyWindowFunction(WindowFunction *from, OperatorMap **opMap)
+{
+    COPY_INIT(WindowFunction);
+
+    COPY_NODE_FIELD(f);
+    COPY_NODE_FIELD(win);
+
+    return new;
+}
+
 
 static AttributeDef *
 copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
@@ -618,6 +669,18 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_CaseWhen:
             retval = copyCaseWhen(from, opMap);
+            break;
+        case T_WindowBound:
+            retval = copyWindowBound(from, opMap);
+            break;
+        case T_WindowFrame:
+            retval = copyWindowFrame(from, opMap);
+            break;
+        case T_WindowDef:
+            retval = copyWindowDef(from, opMap);
+            break;
+        case T_WindowFunction:
+            retval = copyWindowFunction(from, opMap);
             break;
              /* query block model nodes */
 //        case T_SetOp:

@@ -66,7 +66,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
 %token <stringVal> INT BEGIN_TRANS COMMIT_TRANS ROLLBACK_TRANS
 %token <stringVal> CASE WHEN THEN ELSE END
-%token <stringVal> OVER PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
+%token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 
 %token <stringVal> DUMMYEXPR
 
@@ -627,8 +627,12 @@ unaryOperatorExpression:
 sqlFunctionCall: 
         identifier '(' exprList ')' overClause          
             {
-                RULELOG("sqlFunctionCall::IDENTIFIER::exprList"); 
-                $$ = (Node *) createFunctionCall($1, $3); 
+                RULELOG("sqlFunctionCall::IDENTIFIER::exprList");
+				FunctionCall *f = createFunctionCall($1, $3);
+				if ($4 != NULL)
+					$$ = (Node *) createWindowFunction(f, (WindowDef *) $5);
+				else  
+                	$$ = (Node *) f; 
             }
     ;
 
@@ -683,7 +687,7 @@ optionalCaseElse:
   */
 overClause:
 		/* empty */ 	{ RULELOG("overclause::NULL"); $$ = NULL; }
-		| OVER windowSpec
+		| OVER_TOK windowSpec
 			{
 				RULELOG("overclause::window");
 				$$ = $2;
@@ -733,7 +737,7 @@ windowBoundaries:
 		BETWEEN windowBound AND windowBound
 			{ 
 				RULELOG("windowBoundaries::BETWEEN"); 
-				$$ = LIST_MAKE($1, $2); 
+				$$ = LIST_MAKE($2, $4); 
 			}	
 		| windowBound 						
 			{ 
@@ -1123,4 +1127,5 @@ EXHAUSTIVE LIST
 7. Implement support for AS OF (timestamp) modifier of a table reference
 8. Implement support for casting expressions
 9. Implement support for IN array expressions like a IN (1,2,3,4,5)
+10. Implement support for ASC, DESC, NULLS FIRST/LAST in ORDER BY
 */

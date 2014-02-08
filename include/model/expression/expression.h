@@ -69,8 +69,7 @@ typedef enum WindowBoundType {
     WINBOUND_UNBOUND_PREC,
     WINBOUND_CURRENT_ROW,
     WINBOUND_EXPR_PREC,
-    WINBOUND_EXPR_FOLLOW,
-    WINBOUND_NONE
+    WINBOUND_EXPR_FOLLOW
 } WindowBoundType;
 
 typedef struct WindowBound {

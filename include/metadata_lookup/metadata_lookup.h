@@ -57,12 +57,23 @@ typedef enum AGG
 
 } AGG;
 
+typedef enum WINF
+{
+    WINF_SUM,
+    WINF_FIRST_VALUE,
+    //TODO
+
+    // marker for number of functions
+    WINF_FUNCTION_COUNT
+} WINF;
+
 extern int initMetadataLookupPlugin (void);
 extern boolean catalogTableExists (char * tableName);
 extern boolean catalogViewExists (char * viewName);
 extern List *getAttributes (char *tableName);
 extern List *getAttributeNames (char *tableName);
 extern boolean isAgg(char *functionName);
+extern boolean isWindowFunction(char *functionName);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds);

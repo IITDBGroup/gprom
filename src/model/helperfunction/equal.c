@@ -25,6 +25,11 @@ static boolean equalOperator (Operator *a, Operator *b);
 static boolean equalConstant (Constant *a, Constant *b);
 static boolean equalCaseExpr (CaseExpr *a, CaseExpr *b);
 static boolean equalCaseWhen (CaseWhen *a, CaseWhen *b);
+static boolean equalWindowBound (WindowBound *a, WindowBound *b);
+static boolean equalWindowFrame (WindowFrame *a, WindowFrame *b);
+static boolean equalWindowDef (WindowDef *a, WindowDef *b);
+static boolean equalWindowFunction (WindowFunction *a, WindowFunction *b);
+
 static boolean equalList(List *a, List *b);
 static boolean equalStringList (List *a, List *b);
 static boolean equalSet (Set *a, Set *b);
@@ -176,6 +181,45 @@ equalCaseWhen (CaseWhen *a, CaseWhen *b)
 
     return TRUE;
 }
+
+static boolean
+equalWindowBound (WindowBound *a, WindowBound *b)
+{
+    COMPARE_SCALAR_FIELD(bType);
+    COMPARE_NODE_FIELD(expr);
+
+    return TRUE;
+}
+
+static boolean
+equalWindowFrame (WindowFrame *a, WindowFrame *b)
+{
+    COMPARE_SCALAR_FIELD(frameType);
+    COMPARE_NODE_FIELD(lower);
+    COMPARE_NODE_FIELD(higher);
+
+    return TRUE;
+}
+
+static boolean
+equalWindowDef (WindowDef *a, WindowDef *b)
+{
+    COMPARE_NODE_FIELD(partitionBy);
+    COMPARE_NODE_FIELD(orderBy);
+    COMPARE_NODE_FIELD(frame);
+
+    return TRUE;
+}
+
+static boolean
+equalWindowFunction (WindowFunction *a, WindowFunction *b)
+{
+    COMPARE_NODE_FIELD(f);
+    COMPARE_NODE_FIELD(win);
+
+    return TRUE;
+}
+
 
 /* */
 static boolean
@@ -642,6 +686,18 @@ equal(void *a, void *b)
             break;
         case T_CaseWhen:
             retval = equalCaseWhen(a,b);
+            break;
+        case T_WindowBound:
+            retval = equalWindowBound(a,b);
+            break;
+        case T_WindowFrame:
+            retval = equalWindowFrame(a,b);
+            break;
+        case T_WindowDef:
+            retval = equalWindowDef(a,b);
+            break;
+        case T_WindowFunction:
+            retval = equalWindowFunction(a,b);
             break;
             /*something different cases this, and we have*/
             /*different types of T_Node       */

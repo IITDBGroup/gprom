@@ -110,6 +110,34 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(then);
             }
             break;
+        case T_WindowBound:
+            {
+                PREP_VISIT(WindowBound);
+                VISIT(expr);
+            }
+        break;
+        case T_WindowFrame:
+            {
+                PREP_VISIT(WindowFrame);
+                VISIT(lower);
+                VISIT(higher);
+            }
+        break;
+        case T_WindowDef:
+            {
+                PREP_VISIT(WindowDef);
+                VISIT(partitionBy);
+                VISIT(orderBy);
+                VISIT(frame);
+            }
+        break;
+        case T_WindowFunction:
+            {
+                PREP_VISIT(WindowFunction);
+                VISIT(f);
+                VISIT(win);
+            }
+        break;
         /* query block model nodes */
         case T_SetQuery:
             {
@@ -340,6 +368,35 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(Node, when);
                 MUTATE(Node, then);
             }
+            break;
+        case T_WindowBound:
+            {
+                NEWN(WindowBound);
+                MUTATE(Node, expr);
+            }
+            break;
+        case T_WindowFrame:
+            {
+                NEWN(WindowFrame);
+                MUTATE(WindowBound, lower);
+                MUTATE(WindowBound, higher);
+            }
+            break;
+        case T_WindowDef:
+            {
+                NEWN(WindowDef);
+                MUTATE(List, partitionBy);
+                MUTATE(List, orderBy);
+                MUTATE(WindowFrame, frame);
+            }
+            break;
+        case T_WindowFunction:
+            {
+                NEWN(WindowFunction);
+                MUTATE(FunctionCall, f);
+                MUTATE(WindowDef, win);
+            }
+            break;
         /* query block model nodes */
         case T_SetQuery:
             {

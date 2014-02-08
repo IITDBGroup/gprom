@@ -232,8 +232,13 @@ analyzeFunctionCall(QueryBlock *qb)
     DEBUG_LOG("Have the following function calls: <%s>", nodeToString(functionCallList));
 
     // adapt function call
-    FOREACH(FunctionCall, c, functionCallList)
-        c->isAgg = isAgg(c->functionname);
+    FOREACH(Node, f, functionCallList) {
+        if (isA(f, FunctionCall))
+        {
+            FunctionCall *c = (FunctionCall *) f;
+            c->isAgg = isAgg(c->functionname);
+        }
+    }
 }
 
 static boolean
@@ -450,8 +455,11 @@ findFunctionCall (Node *node, List **state)
         return TRUE;
 
     if(isA(node, FunctionCall))
+        *state = appendToTailOfList(*state, node);
+    else if (isA(node, WindowFunction))
     {
         *state = appendToTailOfList(*state, node);
+        return TRUE;
     }
 
     if(isQBQuery(node))

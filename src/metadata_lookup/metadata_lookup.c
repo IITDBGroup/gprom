@@ -15,7 +15,7 @@
 #include "log/logger.h"
 
 /* If OCILIB and OCI are available then use it */
-#if HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
+#if 1 || HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
 
 #define ORACLE_TNS_CONNECTION_FORMAT "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=" \
 		"(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
@@ -43,6 +43,7 @@ static OCI_TypeInfo *tInfo=NULL;
 static OCI_Error *errorCache=NULL;
 static MemContext *context=NULL;
 static char **aggList=NULL;
+static char **winfList = NULL;
 static List *tableBuffers=NULL;
 static List *viewBuffers=NULL;
 static boolean initialized = FALSE;
@@ -51,6 +52,8 @@ static int initConnection(void);
 static boolean isConnected(void);
 static void initAggList(void);
 static void freeAggList(void);
+static void initWinfList(void);
+static void freeWinfList(void);
 static OCI_Transaction *createTransaction(IsolationLevel isoLevel);
 static OCI_Resultset *executeStatement(char *statement);
 static boolean executeNonQueryStatement(char *statement);
@@ -104,6 +107,25 @@ freeAggList()
 	if(aggList != NULL)
 		FREE(aggList);
 	aggList = NULL;
+}
+
+static void
+initWinfList(void)
+{
+    // malloc space
+    winfList = CNEW(char*, WINF_FUNCTION_COUNT);
+
+    // add functions
+    winfList[WINF_SUM] = "sum";
+    winfList[WINF_FIRST_VALUE] = "first_value";
+}
+
+static void
+freeWinfList(void)
+{
+    if (winfList != NULL)
+        FREE(winfList);
+    winfList = NULL;
 }
 
 static void
@@ -206,6 +228,7 @@ initConnection()
             (conn != NULL) ? "SUCCESS" : "FAILURE");
 
     initAggList();
+    initWinfList();
 
     RELEASE_MEM_CONTEXT();
 
@@ -347,6 +370,21 @@ isAgg(char* functionName)
         if(strcasecmp(aggList[i], functionName) == 0)
             return TRUE;
     }
+    return FALSE;
+}
+
+boolean
+isWindowFunction(char *functionName)
+{
+    if (functionName == NULL)
+        return FALSE;
+
+    for(int i = 0; i < WINF_FUNCTION_COUNT; i++)
+    {
+        if (strcasecmp(winfList[i], functionName) == 0)
+            return TRUE;
+    }
+
     return FALSE;
 }
 
@@ -602,6 +640,7 @@ databaseConnectionClose()
 	{
 	    ACQUIRE_MEM_CONTEXT(context);
 		freeAggList();
+		freeWinfList();
 		freeBuffers();
 		OCI_Cleanup();//bugs exist here
 		initialized = FALSE;

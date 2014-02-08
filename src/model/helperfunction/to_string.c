@@ -35,6 +35,10 @@ static void outOperator (StringInfo str, Operator *node);
 static void outKeyValue (StringInfo str, KeyValue *node);
 static void outCaseExpr (StringInfo str, CaseExpr *node);
 static void outCaseWhen (StringInfo str, CaseWhen *node);
+static void outWindowBound (StringInfo str, WindowBound *node);
+static void outWindowFrame (StringInfo str, WindowFrame *node);
+static void outWindowDef (StringInfo str, WindowDef *node);
+static void outWindowFunction (StringInfo str, WindowFunction *node);
 
 static void outQueryBlock (StringInfo str, QueryBlock *node);
 static void outSetQuery (StringInfo str, SetQuery *node);
@@ -405,6 +409,44 @@ outCaseWhen (StringInfo str, CaseWhen *node)
 }
 
 static void
+outWindowBound (StringInfo str, WindowBound *node)
+{
+    WRITE_NODE_TYPE(WINDOW_BOUND);
+
+    WRITE_ENUM_FIELD(bType, WindowBoundType);
+    WRITE_NODE_FIELD(expr);
+}
+
+static void
+outWindowFrame (StringInfo str, WindowFrame *node)
+{
+    WRITE_NODE_TYPE(WINDOW_FRAME);
+
+    WRITE_ENUM_FIELD(frameType, WinFrameType);
+    WRITE_NODE_FIELD(lower);
+    WRITE_NODE_FIELD(higher);
+}
+
+static void
+outWindowDef (StringInfo str, WindowDef *node)
+{
+    WRITE_NODE_TYPE(WINDOW_DEF);
+
+    WRITE_NODE_FIELD(partitionBy);
+    WRITE_NODE_FIELD(orderBy);
+    WRITE_NODE_FIELD(frame);
+}
+
+static void
+outWindowFunction (StringInfo str, WindowFunction *node)
+{
+    WRITE_NODE_TYPE(WINDOW_FUNCTION);
+
+    WRITE_NODE_FIELD(f);
+    WRITE_NODE_FIELD(win);
+}
+
+static void
 outSelectItem (StringInfo str, SelectItem *node)
 {
     WRITE_NODE_TYPE(SELECT_ITEM);
@@ -647,6 +689,18 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_CaseWhen:
                 outCaseWhen(str, (CaseWhen *) obj);
+                break;
+            case T_WindowBound:
+                outWindowBound(str, (WindowBound *) obj);
+                break;
+            case T_WindowFrame:
+                outWindowFrame(str, (WindowFrame *) obj);
+                break;
+            case T_WindowDef:
+                outWindowDef(str, (WindowDef *) obj);
+                break;
+            case T_WindowFunction:
+                outWindowFunction(str, (WindowFunction *) obj);
                 break;
             case T_SetQuery:
                 outSetQuery (str, (SetQuery *) obj);

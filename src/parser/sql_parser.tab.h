@@ -101,7 +101,7 @@ extern int yydebug;
     THEN = 311,
     ELSE = 312,
     END = 313,
-    OVER = 314,
+    OVER_TOK = 314,
     PARTITION = 315,
     ROWS = 316,
     RANGE = 317,
