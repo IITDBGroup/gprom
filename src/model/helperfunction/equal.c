@@ -149,6 +149,8 @@ equalConstant (Constant *a, Constant *b)
             return BOOL_VALUE(a) == BOOL_VALUE(b);
         case DT_STRING:
             return strcmp(STRING_VALUE(a), STRING_VALUE(b)) == 0;
+        case DT_LONG:
+            return LONG_VALUE(a) == LONG_VALUE(b);
     }
 
     return TRUE;
