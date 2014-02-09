@@ -238,6 +238,14 @@ analyzeFunctionCall(QueryBlock *qb)
             FunctionCall *c = (FunctionCall *) f;
             c->isAgg = isAgg(c->functionname);
         }
+        // window function
+        else
+        {
+            WindowFunction *w = (WindowFunction *) f;
+            FunctionCall *c = (FunctionCall *) w->f;
+            if(!isWindowFunction(c->functionname))
+                FATAL_LOG("Function %s not supported as window function", c->functionname);
+        }
     }
 }
 

@@ -59,8 +59,21 @@ typedef enum AGG
 
 typedef enum WINF
 {
+    // standard agg
+    WINF_MAX,
+    WINF_MIN,
+    WINF_AVG,
+    WINF_COUNT,
     WINF_SUM,
+    WINF_FIRST,
+    WINF_LAST,
+
+    // window specific
     WINF_FIRST_VALUE,
+    WINF_ROW_NUMBER,
+    WINF_RANK,
+    WINF_LAG,
+    WINF_LEAD,
     //TODO
 
     // marker for number of functions

@@ -116,8 +116,20 @@ initWinfList(void)
     winfList = CNEW(char*, WINF_FUNCTION_COUNT);
 
     // add functions
+    winfList[WINF_MAX] = "max";
+    winfList[WINF_MIN] = "min";
+    winfList[WINF_AVG] = "avg";
+    winfList[WINF_COUNT] = "count";
     winfList[WINF_SUM] = "sum";
+    winfList[WINF_FIRST] = "first";
+    winfList[WINF_LAST] = "last";
+
+    // window specific
     winfList[WINF_FIRST_VALUE] = "first_value";
+    winfList[WINF_ROW_NUMBER] = "row_number";
+    winfList[WINF_RANK] = "rank";
+    winfList[WINF_LAG] = "lag";
+    winfList[WINF_LEAD] = "lead";
 }
 
 static void
