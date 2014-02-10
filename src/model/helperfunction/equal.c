@@ -23,6 +23,13 @@ static boolean equalAttributeReference (AttributeReference *a,
 static boolean equalSQLParameter (SQLParameter *a, SQLParameter* b);
 static boolean equalOperator (Operator *a, Operator *b);
 static boolean equalConstant (Constant *a, Constant *b);
+static boolean equalCaseExpr (CaseExpr *a, CaseExpr *b);
+static boolean equalCaseWhen (CaseWhen *a, CaseWhen *b);
+static boolean equalWindowBound (WindowBound *a, WindowBound *b);
+static boolean equalWindowFrame (WindowFrame *a, WindowFrame *b);
+static boolean equalWindowDef (WindowDef *a, WindowDef *b);
+static boolean equalWindowFunction (WindowFunction *a, WindowFunction *b);
+
 static boolean equalList(List *a, List *b);
 static boolean equalStringList (List *a, List *b);
 static boolean equalSet (Set *a, Set *b);
@@ -145,6 +152,8 @@ equalConstant (Constant *a, Constant *b)
             return INT_VALUE(a) == INT_VALUE(b);
         case DT_FLOAT:
             return FLOAT_VALUE(a) == FLOAT_VALUE(b);
+        case DT_LONG:
+            return LONG_VALUE(a) == LONG_VALUE(b);
         case DT_BOOL:
             return BOOL_VALUE(a) == BOOL_VALUE(b);
         case DT_STRING:
@@ -155,6 +164,64 @@ equalConstant (Constant *a, Constant *b)
 
     return TRUE;
 }
+
+static boolean
+equalCaseExpr (CaseExpr *a, CaseExpr *b)
+{
+    COMPARE_NODE_FIELD(expr);
+    COMPARE_NODE_FIELD(whenClauses);
+    COMPARE_NODE_FIELD(elseRes);
+
+    return TRUE;
+}
+
+static boolean
+equalCaseWhen (CaseWhen *a, CaseWhen *b)
+{
+    COMPARE_NODE_FIELD(when);
+    COMPARE_NODE_FIELD(then);
+
+    return TRUE;
+}
+
+static boolean
+equalWindowBound (WindowBound *a, WindowBound *b)
+{
+    COMPARE_SCALAR_FIELD(bType);
+    COMPARE_NODE_FIELD(expr);
+
+    return TRUE;
+}
+
+static boolean
+equalWindowFrame (WindowFrame *a, WindowFrame *b)
+{
+    COMPARE_SCALAR_FIELD(frameType);
+    COMPARE_NODE_FIELD(lower);
+    COMPARE_NODE_FIELD(higher);
+
+    return TRUE;
+}
+
+static boolean
+equalWindowDef (WindowDef *a, WindowDef *b)
+{
+    COMPARE_NODE_FIELD(partitionBy);
+    COMPARE_NODE_FIELD(orderBy);
+    COMPARE_NODE_FIELD(frame);
+
+    return TRUE;
+}
+
+static boolean
+equalWindowFunction (WindowFunction *a, WindowFunction *b)
+{
+    COMPARE_NODE_FIELD(f);
+    COMPARE_NODE_FIELD(win);
+
+    return TRUE;
+}
+
 
 /* */
 static boolean
@@ -615,6 +682,24 @@ equal(void *a, void *b)
             break;
         case T_Constant:
             retval = equalConstant(a,b);
+            break;
+        case T_CaseExpr:
+            retval = equalCaseExpr(a,b);
+            break;
+        case T_CaseWhen:
+            retval = equalCaseWhen(a,b);
+            break;
+        case T_WindowBound:
+            retval = equalWindowBound(a,b);
+            break;
+        case T_WindowFrame:
+            retval = equalWindowFrame(a,b);
+            break;
+        case T_WindowDef:
+            retval = equalWindowDef(a,b);
+            break;
+        case T_WindowFunction:
+            retval = equalWindowFunction(a,b);
             break;
             /*something different cases this, and we have*/
             /*different types of T_Node       */

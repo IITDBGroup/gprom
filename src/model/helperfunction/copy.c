@@ -54,6 +54,12 @@ static KeyValue *copyKeyValue(KeyValue *from, OperatorMap **opMap);
 static AttributeReference *copyAttributeReference(AttributeReference *from, OperatorMap **opMap);
 static Operator *copyOperator(Operator *from, OperatorMap **opMap);
 static SQLParameter *copySQLParameter(SQLParameter *from, OperatorMap **opMap);
+static CaseExpr *copyCaseExpr(CaseExpr *from, OperatorMap **opMap);
+static CaseWhen *copyCaseWhen(CaseWhen *from, OperatorMap **opMap);
+static WindowBound *copyWindowBound(WindowBound *from, OperatorMap **opMap);
+static WindowFrame *copyWindowFrame(WindowFrame *from, OperatorMap **opMap);
+static WindowDef *copyWindowDef(WindowDef *from, OperatorMap **opMap);
+static WindowFunction *copyWindowFunction(WindowFunction *from, OperatorMap **opMap);
 
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
@@ -191,6 +197,74 @@ copySQLParameter(SQLParameter *from, OperatorMap **opMap)
 
     return new;
 }
+
+static CaseExpr *
+copyCaseExpr(CaseExpr *from, OperatorMap **opMap)
+{
+    COPY_INIT(CaseExpr);
+    COPY_NODE_FIELD(expr);
+    COPY_NODE_FIELD(whenClauses);
+    COPY_NODE_FIELD(elseRes);
+
+    return new;
+}
+
+static CaseWhen *
+copyCaseWhen(CaseWhen *from, OperatorMap **opMap)
+{
+    COPY_INIT(CaseWhen);
+    COPY_NODE_FIELD(when);
+    COPY_NODE_FIELD(then);
+
+    return new;
+}
+
+static WindowBound *
+copyWindowBound(WindowBound *from, OperatorMap **opMap)
+{
+    COPY_INIT(WindowBound);
+
+    COPY_SCALAR_FIELD(bType);
+    COPY_NODE_FIELD(expr);
+
+    return new;
+}
+
+static WindowFrame *
+copyWindowFrame(WindowFrame *from, OperatorMap **opMap)
+{
+    COPY_INIT(WindowFrame);
+
+    COPY_SCALAR_FIELD(frameType);
+    COPY_NODE_FIELD(lower);
+    COPY_NODE_FIELD(higher);
+
+    return new;
+}
+
+static WindowDef *
+copyWindowDef(WindowDef *from, OperatorMap **opMap)
+{
+    COPY_INIT(WindowDef);
+
+    COPY_NODE_FIELD(partitionBy);
+    COPY_NODE_FIELD(orderBy);
+    COPY_NODE_FIELD(frame);
+
+    return new;
+}
+
+static WindowFunction *
+copyWindowFunction(WindowFunction *from, OperatorMap **opMap)
+{
+    COPY_INIT(WindowFunction);
+
+    COPY_NODE_FIELD(f);
+    COPY_NODE_FIELD(win);
+
+    return new;
+}
+
 
 static AttributeDef *
 copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
@@ -505,12 +579,12 @@ copyConstant(Constant *from, OperatorMap **opMap)
            *((boolean *) new->value) = *((boolean *) from->value); 
            break;	 
       case DT_STRING:	 
-           new->value = strdup(from->value);
-           break;
+          new->value = strdup(from->value);
+          break;
       case DT_LONG:
-    	   new->value = NEW(long);
-    	   *((long *) new->value) = *((long *) from->value);
-    	   break;
+          new->value = NEW(long);
+          *((long *) new->value) = *((long *) from->value);
+          break;
    } 	 
       return new;
 }
@@ -589,6 +663,24 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_SQLParameter:
             retval = copySQLParameter(from, opMap);
+            break;
+        case T_CaseExpr:
+            retval = copyCaseExpr(from, opMap);
+            break;
+        case T_CaseWhen:
+            retval = copyCaseWhen(from, opMap);
+            break;
+        case T_WindowBound:
+            retval = copyWindowBound(from, opMap);
+            break;
+        case T_WindowFrame:
+            retval = copyWindowFrame(from, opMap);
+            break;
+        case T_WindowDef:
+            retval = copyWindowDef(from, opMap);
+            break;
+        case T_WindowFunction:
+            retval = copyWindowFunction(from, opMap);
             break;
              /* query block model nodes */
 //        case T_SetOp:

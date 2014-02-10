@@ -58,6 +58,75 @@ createSQLParameter (char *name)
     return result;
 }
 
+CaseExpr *
+createCaseExpr (Node *expr, List *whenClauses, Node *elseRes)
+{
+    CaseExpr *result = makeNode(CaseExpr);
+
+    result->expr = expr;
+    result->whenClauses = whenClauses;
+    result->elseRes = elseRes;
+
+    return result;
+}
+
+CaseWhen *
+createCaseWhen (Node *when, Node *then)
+{
+    CaseWhen *result = makeNode(CaseWhen);
+
+    result->when = when;
+    result->then = then;
+
+    return result;
+}
+
+WindowBound *
+createWindowBound (WindowBoundType bType, Node *expr)
+{
+    WindowBound *result = makeNode(WindowBound);
+
+    result->bType = bType;
+    result->expr = expr;
+
+    return result;
+}
+
+WindowFrame *
+createWindowFrame (WinFrameType winType, WindowBound *lower, WindowBound *upper)
+{
+    WindowFrame *result = makeNode(WindowFrame);
+
+    result->frameType = winType;
+    result->lower = lower;
+    result->higher = upper;
+
+    return result;
+}
+
+WindowDef *
+createWindowDef (List *partitionBy, List *orderBy, WindowFrame *frame)
+{
+    WindowDef *result = makeNode(WindowDef);
+
+    result->partitionBy = partitionBy;
+    result->orderBy = orderBy;
+    result->frame = frame;
+
+    return result;
+}
+
+WindowFunction *
+createWindowFunction (FunctionCall *f, WindowDef *win)
+{
+    WindowFunction *result = makeNode(WindowFunction);
+
+    result->f = f;
+    result->win = win;
+
+    return result;
+}
+
 Node *
 andExprs (Node *expr, ...)
 {

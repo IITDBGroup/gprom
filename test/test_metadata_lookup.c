@@ -7,15 +7,19 @@
 #include <string.h>
 
 #include "test_main.h"
-#include "mem_manager/mem_mgr.h"
 #include "common.h"
+
+#include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
+#include "log/logger.h"
+
 #include "metadata_lookup/metadata_lookup.h"
 #include "mem_manager/mem_mgr.h"
+#include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "model/expression/expression.h"
-#include "log/logger.h"
+#include "model/query_block/query_block.h"
+
 
 static char *table1Attrs[3] = { "A","B","C" };
 static char *table2Attrs[2] = { "D","E" };
@@ -28,6 +32,7 @@ static rc testIsAgg(void);
 static rc testGetTableDefinition();
 static rc testTransactionSQLAndSCNs();
 static rc testGetViewDefinition();
+static rc testRunTransactionAndGetXid();
 static rc setupMetadataLookup(void);
 static rc testDatabaseConnectionClose(void);
 
@@ -42,6 +47,7 @@ testMetadataLookup(void)
 	RUN_TEST(testGetTableDefinition(), "test get table definition");
 	RUN_TEST(testTransactionSQLAndSCNs(), "test transaction SQL and SCN");
 	RUN_TEST(testGetViewDefinition(), "test get view definition");
+	RUN_TEST(testRunTransactionAndGetXid(), "test transaction execution and XID retrieval");
 	RUN_TEST(testDatabaseConnectionClose(), "test close database connection");
 
 	return PASS;
@@ -185,6 +191,19 @@ testGetViewDefinition()
 	char *viewDef1 = getViewDefinition("METADATALOOKUP_VIEW1");
 	ASSERT_EQUALS_STRINGP(viewDef1, text, "test get view definition from buffer <metadatalookup_view1>");
 	return PASS;
+}
+
+static rc
+testRunTransactionAndGetXid()
+{
+    Constant *xid;
+    List *sqls = LIST_MAKE("INSERT INTO metadatalookup_test1 VALUES (1,2,3)", "DELETE FROM metadatalookup_test1");
+
+    xid = (Constant *) executeAsTransactionAndGetXID(sqls, ISOLATION_SERIALIZABLE);
+
+    ASSERT_TRUE(xid != NULL, "xid should not be NULL");
+
+    return PASS;
 }
 
 static rc

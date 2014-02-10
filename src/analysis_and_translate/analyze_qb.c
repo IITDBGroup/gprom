@@ -141,16 +141,6 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     qb->selectClause = expandedSelectClause;
     INFO_LOG("Expanded select clause is: <%s>",nodeToString(expandedSelectClause));
 
-    // create attribute names for unnamed attribute in select clause
-    FOREACH(SelectItem,s,qb->selectClause)
-    {
-        if (s->alias == NULL)
-        {
-            char *newAlias = generateAttrNameFromExpr(s);
-            s->alias = strdup(newAlias);
-        }
-    }
-
     // collect attribute references
     findAttrReferences((Node *) qb->distinct, &attrRefs);
     findAttrReferences((Node *) qb->groupByClause, &attrRefs);
@@ -184,6 +174,16 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 
     	if (!isFound)
     	    FATAL_LOG("attribute <%s> does not exist in FROM clause", a->name);
+    }
+
+    // create attribute names for unnamed attribute in select clause
+    FOREACH(SelectItem,s,qb->selectClause)
+    {
+        if (s->alias == NULL)
+        {
+            char *newAlias = generateAttrNameFromExpr(s);
+            s->alias = strdup(newAlias);
+        }
     }
 
     // adapt function call (isAgg)
@@ -232,8 +232,21 @@ analyzeFunctionCall(QueryBlock *qb)
     DEBUG_LOG("Have the following function calls: <%s>", nodeToString(functionCallList));
 
     // adapt function call
-    FOREACH(FunctionCall, c, functionCallList)
-        c->isAgg = isAgg(c->functionname);
+    FOREACH(Node, f, functionCallList) {
+        if (isA(f, FunctionCall))
+        {
+            FunctionCall *c = (FunctionCall *) f;
+            c->isAgg = isAgg(c->functionname);
+        }
+        // window function
+        else
+        {
+            WindowFunction *w = (WindowFunction *) f;
+            FunctionCall *c = (FunctionCall *) w->f;
+            if(!isWindowFunction(c->functionname))
+                FATAL_LOG("Function %s not supported as window function", c->functionname);
+        }
+    }
 }
 
 static boolean
@@ -450,8 +463,11 @@ findFunctionCall (Node *node, List **state)
         return TRUE;
 
     if(isA(node, FunctionCall))
+        *state = appendToTailOfList(*state, node);
+    else if (isA(node, WindowFunction))
     {
         *state = appendToTailOfList(*state, node);
+        return TRUE;
     }
 
     if(isQBQuery(node))

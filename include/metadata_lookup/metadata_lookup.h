@@ -17,6 +17,8 @@
 #define METADATA_LOOKUP_H_
 
 #include "model/list/list.h"
+#include "model/node/nodetype.h"
+#include "model/query_block/query_block.h"
 
 #if HAVE_LIBOCILIB
 #include <ocilib.h>
@@ -55,15 +57,40 @@ typedef enum AGG
 
 } AGG;
 
+typedef enum WINF
+{
+    // standard agg
+    WINF_MAX,
+    WINF_MIN,
+    WINF_AVG,
+    WINF_COUNT,
+    WINF_SUM,
+    WINF_FIRST,
+    WINF_LAST,
+
+    // window specific
+    WINF_FIRST_VALUE,
+    WINF_ROW_NUMBER,
+    WINF_RANK,
+    WINF_LAG,
+    WINF_LEAD,
+    //TODO
+
+    // marker for number of functions
+    WINF_FUNCTION_COUNT
+} WINF;
+
 extern int initMetadataLookupPlugin (void);
 extern boolean catalogTableExists (char * tableName);
 extern boolean catalogViewExists (char * viewName);
 extern List *getAttributes (char *tableName);
 extern List *getAttributeNames (char *tableName);
 extern boolean isAgg(char *functionName);
+extern boolean isWindowFunction(char *functionName);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds);
+extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern int databaseConnectionClose();
 
 #endif /* METADATA_LOOKUP_H_ */
