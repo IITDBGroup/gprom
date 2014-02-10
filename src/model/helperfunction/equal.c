@@ -152,8 +152,6 @@ equalConstant (Constant *a, Constant *b)
             return INT_VALUE(a) == INT_VALUE(b);
         case DT_FLOAT:
             return FLOAT_VALUE(a) == FLOAT_VALUE(b);
-        case DT_LONG:
-            return LONG_VALUE(a) == LONG_VALUE(b);
         case DT_BOOL:
             return BOOL_VALUE(a) == BOOL_VALUE(b);
         case DT_STRING:
