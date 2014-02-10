@@ -2285,7 +2285,7 @@ yyreduce:
     {
                 RULELOG("sqlFunctionCall::IDENTIFIER::exprList");
 				FunctionCall *f = createFunctionCall((yyvsp[-4].stringVal), (yyvsp[-2].list));
-				if ((yyvsp[-1].stringVal) != NULL)
+				if ((yyvsp[0].node) != NULL)
 					(yyval.node) = (Node *) createWindowFunction(f, (WindowDef *) (yyvsp[0].node));
 				else  
                 	(yyval.node) = (Node *) f; 

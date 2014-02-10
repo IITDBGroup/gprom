@@ -629,7 +629,7 @@ sqlFunctionCall:
             {
                 RULELOG("sqlFunctionCall::IDENTIFIER::exprList");
 				FunctionCall *f = createFunctionCall($1, $3);
-				if ($4 != NULL)
+				if ($5 != NULL)
 					$$ = (Node *) createWindowFunction(f, (WindowDef *) $5);
 				else  
                 	$$ = (Node *) f; 
