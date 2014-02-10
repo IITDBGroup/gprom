@@ -169,40 +169,39 @@ rewritePI_CSAggregation (AggregationOperator *op)
 
     DEBUG_LOG("REWRITE-PICS - Aggregation");
 
-    // create final projection and replace aggregation subtree with projection
-    proj = createProjectionOp(NIL, NULL, NIL, NIL);
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    // copy aggregation input
+    aggInput = copyUnrootedSubtree(OP_LCHILD(op));
+    // rewrite aggregation input copy
+    rewritePI_CSOperator(aggInput);
+
+    // add projection including group by expressions if necessary
+    if(op->groupBy != NIL)
+    {
+        List *groupByProjExprs = (List *) copyObject(op->groupBy);
+        ProjectionOperator *groupByProj = createProjectionOp(groupByProjExprs,
+                NULL, NIL, NIL);
+        addChildOperator((QueryOperator *) joinProv, (QueryOperator *) groupByProj);
+        addChildOperator((QueryOperator *) groupByProj, (QueryOperator *) aggInput);
+    }
+    else
+        addChildOperator((QueryOperator *) joinProv, (QueryOperator *) aggInput);
 
     // create join operator
     joinProv = createJoinOp(JOIN_LEFT_OUTER, NULL, NIL, NIL,
             NIL);
     addChildOperator((QueryOperator *) proj, (QueryOperator *) joinProv);
 
-    // copy aggregation input
-    aggInput = copyUnrootedSubtree(OP_LCHILD(op));
-
-    // add projection including group by expressions if necessary
-    if(op->groupBy != NIL)
-    {
-    	List *groupByProjExprs = (List *) copyObject(op->groupBy);
-    	ProjectionOperator *groupByProj = createProjectionOp(groupByProjExprs,
-    			NULL, NIL, NIL);
-    	addChildOperator((QueryOperator *) joinProv, (QueryOperator *) groupByProj);
-    	addChildOperator((QueryOperator *) groupByProj, (QueryOperator *) aggInput);
-    }
-    else
-		addChildOperator((QueryOperator *) joinProv, (QueryOperator *) aggInput);
-
     // add aggregation to join input
     addChildOperator((QueryOperator *) joinProv, (QueryOperator *) op);
-
-    // rewrite aggregation input copy
-    rewritePI_CSOperator(joinProv);
 
     // create join condition
     Node *joinCond;
     //TODO how to create join condition?
     // create projection expressions for final projection
+
+    // create final projection and replace aggregation subtree with projection
+    proj = createProjectionOp(NIL, NULL, NIL, NIL);
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
 }
 
 static void
