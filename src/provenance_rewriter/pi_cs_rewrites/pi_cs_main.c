@@ -186,16 +186,26 @@ rewritePI_CSAggregation (AggregationOperator *op)
     aggInput = copyUnrootedSubtree(OP_LCHILD(op));
 
     // add projection including group by expressions if necessary
+    if(op->groupBy != NIL)
+    {
+    	List *groupByProjExprs = (List *) copyObject(op->groupBy);
+    	ProjectionOperator *groupByProj = createProjectionOp(groupByProjExprs,
+    			NULL, NIL, NIL);
+    	addChildOperator((QueryOperator *) joinProv, (QueryOperator *) groupByProj);
+    	addChildOperator((QueryOperator *) groupByProj, (QueryOperator *) aggInput);
+    }
+    else
+		addChildOperator((QueryOperator *) joinProv, (QueryOperator *) aggInput);
 
     // add aggregation to join input
     addChildOperator((QueryOperator *) joinProv, (QueryOperator *) op);
-    addChildOperator((QueryOperator *) joinProv, (QueryOperator *) aggInput);
 
     // rewrite aggregation input copy
-    rewritePI_CSOperator(aggInput);
+    rewritePI_CSOperator(joinProv);
 
     // create join condition
-
+    Node *joinCond;
+    //TODO how to create join condition?
     // create projection expressions for final projection
 }
 
@@ -204,17 +214,70 @@ rewritePI_CSSet(SetOperator *op)
 {
     DEBUG_LOG("REWRITE-PICS - Set");
 
+    QueryOperator *lChild = OP_LCHILD(op);
+    QueryOperator *rChild = OP_RCHILD(op);
+
     // rewrite children
-    rewritePI_CSOperator(OP_LCHILD(op));
-    rewritePI_CSOperator(OP_RCHILD(op));
+    rewritePI_CSOperator(lChild);
+    rewritePI_CSOperator(rChild);
 
     switch(op->setOpType)
     {
     case SETOP_UNION:
+    {
+    	// create necessary projections
+    	ProjectionOperator *projLeftChild = createProjectionOp(NIL, NULL, NIL, NIL);
+    	ProjectionOperator *projRwLeftChild = createProjectionOp(NIL, NULL, NIL, NIL);
+    	ProjectionOperator *projRightChild = createProjectionOp(NIL, NULL, NIL, NIL);
+
+    	// restructure the tree
+    	addChildOperator((QueryOperator *) projLeftChild, (QueryOperator *) lChild);
+    	addChildOperator((QueryOperator *) projRwLeftChild, (QueryOperator *) projLeftChild);
+    	addChildOperator((QueryOperator *) projRightChild, (QueryOperator *) rChild);
+    	switchSubtrees((QueryOperator *) lChild, (QueryOperator *) projRwLeftChild);
+    	switchSubtrees((QueryOperator *) rChild, (QueryOperator *) projRightChild);
+
+    	// adapt schema for every projections
+    	addProvenanceAttrsToSchema((QueryOperator *) projRwLeftChild, OP_LCHILD(projRwLeftChild));
+    	addProvenanceAttrsToSchema((QueryOperator *) projLeftChild, OP_LCHILD(projLeftChild));
+    	addProvenanceAttrsToSchema((QueryOperator *) projRightChild, OP_LCHILD(projRightChild));
+    }
     	break;
     case SETOP_INTERSECTION:
+    {
+    	JoinOperator *joinOp = createJoinOp(JOIN_CROSS, NULL, NIL, NIL, NIL);
+
+    	//restrcuture the tree
+    	addChildOperator((QueryOperator *)joinOp, lChild);
+    	addChildOperator((QueryOperator *)joinOp, rChild);
+    	switchSubtrees((QueryOperator *) op, (QueryOperator *) joinOp);
+
+    	//create join condition
+    	Node *joinCond;//TODO
+    }
     	break;
     case SETOP_DIFFERENCE:
+    {
+    	SelectionOperator *selOp = createSelectionOp(NULL, NULL, NIL, NIL);
+    	JoinOperator *joinOp = createJoinOp(JOIN_CROSS, NULL, NIL, NIL, NIL);
+    	ProjectionOperator *projOp = createProjectionOp(NIL, NULL, NIL, NIL);
+
+    	//restructure the tree
+    	switchSubtrees((QueryOperator *) op, (QueryOperator *) projOp);
+    	addChildOperator((QueryOperator *) projOp, (QueryOperator *) joinOp);
+    	addChildOperator((QueryOperator *) joinOp, (QueryOperator *) selOp);
+    	addChildOperator((QueryOperator *) joinOp, (QueryOperator *) lChild);
+    	addChildOperator((QueryOperator *) selOp, (QueryOperator *) op);
+
+    	// adapt schema for projection
+    	addProvenanceAttrsToSchema((QueryOperator *) projOp, OP_LCHILD(projOp));
+
+    	// create join condition
+    	Node *joinCond;//TODO
+
+    	// create selection condition
+    	Node *selCond;//TODO
+    }
     	break;
     default:
     	break;
@@ -230,6 +293,7 @@ rewritePI_CSTableAccess(TableAccessOperator *op)
     List *provAttr = NIL;
     List *projExpr = NIL;
     char *newAttrName;
+
     int relAccessCount = getRelNameCount(&nameState, op->tableName);
     int cnt = 0;
 
