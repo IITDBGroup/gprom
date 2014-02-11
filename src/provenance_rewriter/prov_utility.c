@@ -18,6 +18,19 @@
 #include "log/logger.h"
 
 void
+clearAttrsFromSchema(QueryOperator *target)
+{
+	target->schema->attrDefs = NIL;
+}
+
+void
+addNormalAttrsToSchema(QueryOperator *target, QueryOperator *source)
+{
+	List *newAttrs = (List *) copyObject(getNormalAttrs(source));
+	target->schema->attrDefs = concatTwoLists(target->schema->attrDefs, newAttrs);
+}
+
+void
 addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source)
 {
     List *newProvAttrs = (List *) copyObject(getProvenanceAttrDefs(source));

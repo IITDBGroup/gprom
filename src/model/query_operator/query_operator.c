@@ -295,7 +295,20 @@ getProvenanceAttrDefs(QueryOperator *op)
 List *
 getNormalAttrs(QueryOperator *op)
 {
-    return op ? op->schema ? op->schema->attrDefs : NIL : NIL;
+	if(op == NULL || op->schema == NULL || op->schema->attrDefs == NIL)
+		return NIL;
+
+	List *result = NIL;
+	int pos = 0;
+
+	FOREACH(AttributeDef, a, op->schema->attrDefs)
+	{
+		if(!searchListInt(op->provAttrs, pos))
+			result = appendToTailOfList(result, a);
+		pos++;
+	}
+
+    return result;
 }
 
 List *
