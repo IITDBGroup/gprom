@@ -1058,17 +1058,15 @@ optionalNot:
 
 optionalGroupBy:
         /* Empty */        { RULELOG("optionalGroupBy::NULL"); $$ = NULL; }
-        | GROUP BY clauseList      { RULELOG("optionalGroupBy::GROUPBY"); $$ = $3; }
+        | GROUP BY exprList      { RULELOG("optionalGroupBy::GROUPBY"); $$ = $3; }
     ;
 
 optionalHaving:
         /* Empty */        { RULELOG("optionalOrderBy:::NULL"); $$ = NULL; }
-        | HAVING sqlFunctionCall comparisonOps expression
+        | HAVING whereExpression
             { 
                 RULELOG("optionalHaving::HAVING"); 
-                List *expr = singleton($2);
-                expr = appendToTailOfList(expr, $4);
-                $$ = (Node *) createOpExpr($3, expr);
+                $$ = (Node *) $2;
             }
     ;
 

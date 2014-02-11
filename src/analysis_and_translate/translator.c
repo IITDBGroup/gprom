@@ -842,14 +842,6 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 	        state);
     qb->havingClause = replaceAggsAndGroupByMutator((Node *) havingClause,
             state);
-//    qb->groupByClause = NIL;
-//
-//    for(i = 0; i < numGroupBy; i++)
-//    {
-//        AttributeReference *newA = createFullAttrReference(
-//                CONCAT_STRINGS("group_", itoa(i)), 0, i, 0);
-//        qb->groupByClause = appendToTailOfList(qb->groupByClause, newA);
-//    }
 
 	freeList(aggrs);
 	FREE(state);

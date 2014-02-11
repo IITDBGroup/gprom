@@ -55,8 +55,9 @@ typedef struct QueryBlockMatch {
     QueryOperator *fromRoot;
 } QueryBlockMatch;
 
-#define OUT_BLOCK_MATCH(_level,_m) \
+#define OUT_BLOCK_MATCH(_level,_m,_message) \
     do { \
+    	_level ## _LOG ("MATCH INFO: %s", _message); \
         _level ## _LOG ("distinct: %s", operatorToOverviewString((Node *) _m->distinct)); \
         _level ## _LOG ("firstProj: %s", operatorToOverviewString((Node *) _m->firstProj)); \
         _level ## _LOG ("having: %s", operatorToOverviewString((Node *) _m->having)); \
@@ -103,6 +104,7 @@ static void serializeFromItem (QueryOperator *q, StringInfo from,
 
 static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
 static boolean updateAttributeNames(Node *node, List *fromAttrs);
+static boolean updateAttributeNamesSimple(Node *node, List *attrNames);
 
 static List *serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy, List *fromAttrs);
@@ -398,7 +400,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
         cur = OP_LCHILD(cur);
     }
 
-    OUT_BLOCK_MATCH(INFO,matchInfo);
+    OUT_BLOCK_MATCH(INFO,matchInfo, "query block full match");
 
     // translate each clause
     DEBUG_LOG("serializeFrom");
@@ -642,6 +644,22 @@ updateAttributeNames(Node *node, List *fromAttrs)
 }
 
 static boolean
+updateAttributeNamesSimple(Node *node, List *attrNames)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+        char *newName = getNthOfListP(attrNames, a->attrPosition);
+        a->name = strdup(newName);
+    }
+
+    return visit(node, updateAttributeNamesSimple, attrNames);
+}
+
+static boolean
 updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state)
 {
     if (node == NULL)
@@ -678,8 +696,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 {
     int pos = 0;
     List *firstProjs = NIL;
-    List *firstProjsForUpdateNames = NIL;
-    List *aggs = NIL;
+        List *aggs = NIL;
     List *groupBys = NIL;
     List *secondProjs = NIL;
     List *resultAttrs = NIL;
@@ -689,14 +706,13 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 
     appendStringInfoString(select, "\nSELECT ");
 
-    // first projection level for aggregation inputs and group-by
-    if (m->firstProj != NULL)
+    // Projection for aggregation inputs and group-by
+    if (m->secondProj != NULL && agg != NULL)
     {
-        FOREACH(Node,n,m->firstProj->projExprs)
+        FOREACH(Node,n,m->secondProj->projExprs)
         {
             updateAttributeNames(n, fromAttrs);
             firstProjs = appendToTailOfList(firstProjs, exprToSQL(n));
-            firstProjsForUpdateNames = singleton(firstProjs);
         }
         INFO_LOG("second projection (agg and group by inputs) is %s",
                 stringListToString(firstProjs));
@@ -705,10 +721,15 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     // aggregation if need be
     if (agg != NULL)
     {
+        DEBUG_LOG("deal with aggregation function calls");
+
         // aggregation
         FOREACH(Node,expr,agg->aggrs)
         {
-            updateAttributeNames(expr, firstProjs);
+            if (m->secondProj == NULL)
+                updateAttributeNames(expr, fromAttrs);
+            else
+                updateAttributeNamesSimple(expr, firstProjs);
             aggs = appendToTailOfList(aggs, exprToSQL(expr));
         }
         INFO_LOG("agg attributes are %s", stringListToString(aggs));
@@ -722,7 +743,10 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             else
                 appendStringInfoString (groupBy, ", ");
 
-            updateAttributeNames(expr, firstProjs);
+            if (m->secondProj == NULL)
+                updateAttributeNames(expr, fromAttrs);
+            else
+                updateAttributeNamesSimple(expr, firstProjs);
             g = exprToSQL(expr);
 
             groupBys = appendToTailOfList(groupBys, g);
@@ -746,13 +770,15 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     }
 
     // second level of projection either if no aggregation or using aggregation
-    if (m->secondProj != NULL)
+    if ((m->secondProj != NULL && !agg) || (m->firstProj != NULL && agg))
     {
         int pos = 0;
-        ProjectionOperator *p = m->secondProj;
+        ProjectionOperator *p = (agg) ? m->firstProj : m->secondProj;
         List *attrNames = getAttrNames(p->op.schema);
         // create result attribute names
         List *resultAttrs = NIL;
+
+        DEBUG_LOG("outer projection");
 
         FOREACH(Node,a,p->projExprs)
         {
@@ -769,14 +795,13 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             appendStringInfo(select, "%s%s", exprToSQL(a), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
         }
 
+        resultAttrs = attrNames;
         INFO_LOG("second projection expressions %s", select->data);
     }
     // get aggregation result attributes
     else if (agg)
     {
         int pos = 0;
-        //TODO create result attribute names
-        List *resultAttrs = NIL;
 
         FOREACH(char,name,aggs)
         {
@@ -790,14 +815,16 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
                 appendStringInfoString(select, ", ");
             appendStringInfoString(select, name);
         }
+
+        resultAttrs = concatTwoLists(deepCopyStringList(aggs), deepCopyStringList(groupBys));
         INFO_LOG("aggregation result as projection expressions %s", select->data);
     }
     // get attributes from FROM clause root
     else
     {
-        List *fromAttrs = getQueryOperatorAttrNames(m->fromRoot);//TODO
+        resultAttrs = getQueryOperatorAttrNames(m->fromRoot);//TODO
 
-        FOREACH(char,name,fromAttrs)
+        FOREACH(char,name,resultAttrs)
         {
             if (pos++ != 0)
                 appendStringInfoString(select, ", ");
