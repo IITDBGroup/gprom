@@ -833,7 +833,7 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 	// set the parent of the aggregation's child
 	OP_LCHILD(ao)->parents = singleton(ao);
 
-	//TODO replace aggregation function calls and group by expressions in select and having with references to aggrgeation output attributes
+	//TODO replace aggregation function calls and group by expressions in select and having with references to aggregation output attributes
 	state = NEW(ReplaceGroupByState);
 	state->expressions = aggPlusGroup;
 	state->attrNames = attrNames;

@@ -2870,10 +2870,10 @@ yyreduce:
   case 149:
 #line 1014 "sql_parser.y" /* yacc.c:1646  */
     {
-                RULELOG("whereExpression::comparisonOps::Subquery");
-                List *expr = singleton((yyvsp[-4].node));
-                expr = appendToTailOfList(expr, (yyvsp[-1].node));
-                (yyval.node) = (Node *) createOpExpr((yyvsp[-3].stringVal), expr);
+                RULELOG("whereExpression::Subquery");
+                Node *q = (Node *) createNestedSubquery("SCALAR", NULL, NULL, (yyvsp[-1].node)); 
+                List *expr = LIST_MAKE((yyvsp[-4].node), q);
+                (yyval.node) = (Node *) createOpExpr((yyvsp[-3].stringVal), expr); 
             }
 #line 2879 "sql_parser.tab.c" /* yacc.c:1646  */
     break;

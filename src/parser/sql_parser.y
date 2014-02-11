@@ -1012,10 +1012,10 @@ whereExpression:
             }
         | expression comparisonOps '(' queryStmt ')'
             {
-                RULELOG("whereExpression::comparisonOps::Subquery");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $4);
-                $$ = (Node *) createOpExpr($2, expr);
+                RULELOG("whereExpression::Subquery");
+                Node *q = (Node *) createNestedSubquery("SCALAR", NULL, NULL, $4); 
+                List *expr = LIST_MAKE($1, q);
+                $$ = (Node *) createOpExpr($2, expr); 
             }
         | expression optionalNot IN '(' queryStmt ')'
             {
