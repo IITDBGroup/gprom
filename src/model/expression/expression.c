@@ -261,10 +261,11 @@ typeOf (Node *expr)
         }
         //TODO use metadata lookup
         case T_FunctionCall:
+
         case T_Operator:
             return DT_STRING;
         default:
-             ERROR_LOG("unkown expression type for node: %s", nodeToString(expr));
+             ERROR_LOG("unknown expression type for node: %s", nodeToString(expr));
              break;
     }
     return DT_STRING;
@@ -283,7 +284,7 @@ typeOfInOpModel (Node *expr, List *inputOperators)
         case T_Constant:
             return typeOf(expr);
         default:
-            ERROR_LOG("unkown expression type for node: %s", nodeToString(expr));
+            ERROR_LOG("unknown expression type for node: %s", nodeToString(expr));
             break;
     }
     return DT_STRING;
