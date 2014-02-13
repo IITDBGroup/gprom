@@ -30,6 +30,7 @@ parseStream (FILE *stream)
 Node *
 parseFromString (char *input)
 {
+    INFO_LOG("parse SQL:\n%s", input);
     setupStringInput(input);
 
     return parseInternal();

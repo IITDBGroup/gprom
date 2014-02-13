@@ -25,6 +25,11 @@
 #include "analysis_and_translate/analyze_qb.h"
 #include "analysis_and_translate/translator.h"
 #include "analysis_and_translate/translate_update.h"
+#include "analysis_and_translate/parameter.h"
+
+#include "metadata_lookup/metadata_lookup.h"
+#include "parser/parser.h"
+
 
 // data types
 typedef struct ReplaceGroupByState {
@@ -113,7 +118,7 @@ static Node *translateGeneral(Node *node) {
 
 QueryOperator *
 translateQuery(Node *node) {
-	DEBUG_LOG("translate query <%s>", node);
+	DEBUG_LOG("translate query <%s>", nodeToString(node));
 
 	switch (node->type) {
 	case T_QueryBlock:
@@ -219,70 +224,90 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	result->asOf = copyObject(prov->asOf);
 
 	switch (prov->inputType) {
-	case PROV_INPUT_TRANSACTION: {
-		//XID ?
-		char *xid = "0A0020002F570200";
-		List *scns = NIL;
-		List *sqls = NIL;
-		List *sqlBinds = NIL;
+	    case PROV_INPUT_TRANSACTION: {
+	        //XID ?
+	        char *xid = STRING_VALUE(prov->query);
+	        List *scns = NIL;
+	        List *sqls = NIL;
+	        List *sqlBinds = NIL;
 
-		//TODO call metadata lookup -> SCNS + SQLS
-		getTransactionSQLAndSCNs(xid, &scns, &sqls, &sqlBinds);
+	        DEBUG_LOG("Provenance for transaction");
 
-		//TODO set provenance transaction info
-		ProvenanceTransactionInfo *tInfo = makeNode(ProvenanceTransactionInfo);
+	        //TODO call metadata lookup -> SCNS + SQLS
+	        getTransactionSQLAndSCNs(xid, &scns, &sqls, &sqlBinds);
 
-		result->transactionInfo = tInfo;
-		tInfo->originalUpdates = copyObject(&sqls);
-		tInfo->updateTableNames = NIL;
-		FOREACH(long,n,(List *)&scns) {
-			tInfo->scns = appendToTailOfList(tInfo->scns, n); //TODO get SCN
-		}
+	        //TODO set provenance transaction info
+	        ProvenanceTransactionInfo *tInfo = makeNode(ProvenanceTransactionInfo);
 
-		int i = 0;
-		//TODO call parser and analyser and translate nodes
-		FOREACH(char,sql,(List *)&sqls) {
-			Node *node;
-			node = parseFromString(sql);
-			analyzeQueryBlockStmt(node, NULL);
-			node = setParameterValues(node, &sqlBinds[i]);
-			i++;
+	        result->transactionInfo = tInfo;
+	        //		tInfo->originalUpdates = copyObject(&sqls);
+	        tInfo->updateTableNames = NIL;
+	        tInfo->scns = scns;
+	        //		FOREACH(long,n,(List *)&scns) {
+	        //			tInfo->scns = appendToTailOfList(tInfo->scns, createConstLong(n)); //TODO get SCN
+	        //		}
 
-			/* get table name */
-			char *tableName;
+	        int i = 0;
+	        //TODO call parser and analyser and translate nodes
+	        FOREACH(char,sql,sqls)
+	        {
+	            Node *node;
+	            char *bindString;
+	            List *bindVals;
 
-			switch (node->type) {
-			case T_Insert:
-				tableName = ((Insert *) node)->tableName;
-				break;
-			case T_Update:
-				tableName = ((Update *) node)->nodeName;
-				break;
-			case T_Delete:
-				tableName = ((Delete *) node)->nodeName;
-				break;
-			case T_QueryBlock:
-			case T_SetQuery:
-				tableName = strdup("_NONE");
-				break;
-			default:
-				FATAL_LOG(
-						"Unexpected node type %u as input to provenance computation",
-						node->type);
-				break;
-			}
+	            node = parseFromString(sql);
+	            analyzeQueryBlockStmt(node, NULL);
+	            node = getNthOfListP((List *) node, 0);
 
-			tInfo->updateTableNames = appendToTailOfList(
-					tInfo->updateTableNames, strdup(tableName));
+	            bindString = getNthOfListP(sqlBinds, i);
+                if (bindString != NULL)
+                {
+                    DEBUG_LOG("set parameters\n%s\nfor sql\n%s", nodeToString(node), bindString);
+                    bindVals = oracleBindToConsts(bindString);
+                    node = setParameterValues(node, bindVals);
+                }
+	            i++;
 
-			// translate and add update as child to provenance computation
-			child = translateQuery(node);
-			addChildOperator((QueryOperator *) result, child);
-		}
-	}
-		// translate and add update as child to provenance computation
+	            /* get table name */
+	            char *tableName;
 
-		break;
+	            switch (node->type) {
+	                case T_Insert:
+	                    tableName = ((Insert *) node)->tableName;
+	                    break;
+	                case T_Update:
+	                    tableName = ((Update *) node)->nodeName;
+	                    break;
+	                case T_Delete:
+	                    tableName = ((Delete *) node)->nodeName;
+	                    break;
+	                case T_QueryBlock:
+	                case T_SetQuery:
+	                    tableName = strdup("_NONE");
+	                    break;
+	                default:
+	                    FATAL_LOG(
+	                            "Unexpected node type %u as input to provenance computation",
+	                            node->type);
+	                    break;
+	            }
+
+	            DEBUG_LOG("result of update translation is, %s", beatify(nodeToString(node)));
+
+	            tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, node);
+	            tInfo->updateTableNames = appendToTailOfList(
+	                    tInfo->updateTableNames, strdup(tableName));
+
+	            // translate and add update as child to provenance computation
+	            child = translateQuery(node);
+
+	            DEBUG_LOG("qo model transaction is\n%s", beatify(nodeToString(child)));
+
+	            addChildOperator((QueryOperator *) result, child);
+	        }
+	        DEBUG_LOG("constructed transalted provenance computation for PROVENNACE OF TRANSACTION");
+	    }
+	    break;
 	case PROV_INPUT_UPDATE_SEQUENCE: {
 		ProvenanceTransactionInfo *tInfo = makeNode(ProvenanceTransactionInfo);
 

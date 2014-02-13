@@ -254,7 +254,7 @@ outInsert(StringInfo str, Insert *node)
 {
     WRITE_NODE_TYPE(INSERT);
     WRITE_STRING_FIELD(tableName);
-    WRITE_NODE_FIELD(attrList);
+    WRITE_STRING_LIST_FIELD(attrList);
     WRITE_NODE_FIELD(query);
 }
 

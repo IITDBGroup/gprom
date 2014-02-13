@@ -201,7 +201,7 @@ rewritePI_CSAggregation (AggregationOperator *op)
     addChildOperator((QueryOperator *) joinProv, (QueryOperator *) op);
 
     // rewrite aggregation input copy
-    rewritePI_CSOperator(joinProv);
+    rewritePI_CSOperator((QueryOperator *) joinProv);
 
     // create join condition
     Node *joinCond;

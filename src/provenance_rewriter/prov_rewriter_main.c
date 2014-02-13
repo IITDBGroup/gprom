@@ -77,7 +77,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 {
     // for a sequence of updates of a transaction merge the sequence into a single
     // query before rewrite.
-    if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE)
+    if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE || op->inputType == PROV_INPUT_TRANSACTION)
         mergeUpdateSequence(op);
 
     switch(op->provType)

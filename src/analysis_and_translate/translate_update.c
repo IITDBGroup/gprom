@@ -57,7 +57,6 @@ translateInsert(Insert *insert)
 		ConstRelOperator *co;
 		co = createConstRelOp((List *) insert->query,NIL, deepCopyStringList(attr),NIL);
 		insertQuery= (QueryOperator *) co;
-
 	}
 	else
 	{
