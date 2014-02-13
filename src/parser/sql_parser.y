@@ -45,6 +45,7 @@ Node *bisonParseResult = NULL;
 %token <floatVal> floatConst
 %token <stringVal> stringConst
 %token <stringVal> identifier
+%token <stringVal> parameter
 %token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
 
 /*
@@ -64,6 +65,8 @@ Node *bisonParseResult = NULL;
 %token <stringVal> UNION INTERSECT MINUS
 %token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
 %token <stringVal> INT BEGIN_TRANS COMMIT_TRANS ROLLBACK_TRANS
+%token <stringVal> CASE WHEN THEN ELSE END
+%token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 
 %token <stringVal> DUMMYEXPR
 
@@ -105,10 +108,11 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList clauseList optionalGroupBy optionalOrderBy setClause// select and from clauses are lists
-             insertList stmtList identifierList optionalAttrAlias optionalProvWith provOptionList
+             insertList stmtList identifierList optionalAttrAlias optionalProvWith provOptionList caseWhenList windowBoundaries optWindowPart
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
-%type <node> expression constant attributeRef sqlFunctionCall whereExpression setExpression
+%type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse
+%type <node> overClause windowSpec optWindowFrame windowBound 
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provOption
@@ -203,10 +207,10 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
-		| PROVENANCE optionalProvAsOf optionalProvWith OF TRANSACTION intConst
+		| PROVENANCE optionalProvAsOf optionalProvWith OF TRANSACTION stringConst
 		{
 			RULELOG("provStmt::transaction");
-			ProvenanceStmt *p = createProvenanceStmt((Node *) createConstInt($6));
+			ProvenanceStmt *p = createProvenanceStmt((Node *) createConstString($6));
 			p->inputType = PROV_INPUT_TRANSACTION;
 			p->provType = PROV_PI_CS;
 			p->options = $3;
@@ -219,7 +223,7 @@ optionalProvAsOf:
 		| AS OF SCN intConst
 		{
 			RULELOG("optionalProvAsOf::SCN");
-			$$ = (Node *) createConstInt($4);
+			$$ = (Node *) createConstLong($4);
 		}
 		| AS OF TIMESTAMP stringConst
 		{
@@ -492,9 +496,11 @@ expression:
 		'(' expression ')'				{ RULELOG("expression::bracked"); $$ = $2; } 
 		| constant     				   	{ RULELOG("expression::constant"); }
         | attributeRef         		  	{ RULELOG("expression::attributeRef"); }
+	    | sqlParameter					{ RULELOG("expression::sqlParameter"); }
         | binaryOperatorExpression		{ RULELOG("expression::binaryOperatorExpression"); } 
         | unaryOperatorExpression       { RULELOG("expression::unaryOperatorExpression"); }
         | sqlFunctionCall        		{ RULELOG("expression::sqlFunctionCall"); }
+		| caseExpression				{ RULELOG("expression::case"); }
 /*        | '(' queryStmt ')'       { RULELOG ("expression::subQuery"); $$ = $2; } */
 /*        | STARALL        { RULELOG("expression::STARALL"); } */
     ;
@@ -513,6 +519,12 @@ constant:
  */
 attributeRef: 
         identifier         { RULELOG("attributeRef::IDENTIFIER"); $$ = (Node *) createAttributeReference($1); }
+
+/*
+ * SQL parameter
+ */
+sqlParameter:
+		parameter		   { RULELOG("sqlParameter::PARAMETER"); $$ = (Node *) createSQLParameter($1); }
 
 /* HELP HELP ??
        Need helper function support for attribute list in expression.
@@ -613,13 +625,150 @@ unaryOperatorExpression:
  * Rule to parse function calls
  */
 sqlFunctionCall: 
-        identifier '(' exprList ')'          
+        identifier '(' exprList ')' overClause          
             {
-                RULELOG("sqlFunctionCall::IDENTIFIER::exprList"); 
-                $$ = (Node *) createFunctionCall($1, $3); 
+                RULELOG("sqlFunctionCall::IDENTIFIER::exprList");
+				FunctionCall *f = createFunctionCall($1, $3);
+				if ($5 != NULL)
+					$$ = (Node *) createWindowFunction(f, (WindowDef *) $5);
+				else  
+                	$$ = (Node *) f; 
             }
     ;
 
+/*
+ * Rule to parser CASE expressions
+ */
+caseExpression:
+		CASE expression caseWhenList optionalCaseElse END
+			{
+				RULELOG("caseExpression::CASE::expression::whens:else:END");
+				$$ = (Node *) createCaseExpr($2, $3, $4);
+			}
+		| CASE caseWhenList optionalCaseElse END
+			{
+				RULELOG("caseExpression::CASE::whens::else::END");
+				$$ = (Node *) createCaseExpr(NULL, $2, $3);
+			}
+	;
+
+caseWhenList:
+		caseWhenList caseWhen
+			{
+				RULELOG("caseWhenList::list::caseWhen");
+				$$ = appendToTailOfList($1, $2);
+			}
+		| caseWhen
+			{
+				RULELOG("caseWhenList::caseWhen");
+				$$ = singleton($1);
+			}
+	;
+	
+caseWhen:
+		WHEN expression THEN expression
+			{
+				RULELOG("caseWhen::WHEN::expression::THEN::expression");
+				$$ = (Node *) createCaseWhen($2,$4);
+			}
+	;
+
+optionalCaseElse:
+		/* empty */				{ RULELOG("optionalCaseElse::NULL"); $$ = NULL; }
+		| ELSE expression
+			{
+				RULELOG("optionalCaseElse::ELSE::expression");
+				$$ = $2;
+			}
+	;
+    
+ /*
+  * Rule to parser OVER clause for window functions
+  */
+overClause:
+		/* empty */ 	{ RULELOG("overclause::NULL"); $$ = NULL; }
+		| OVER_TOK windowSpec
+			{
+				RULELOG("overclause::window");
+				$$ = $2;
+			}
+	;
+	
+windowSpec:
+		'('  optWindowPart optionalOrderBy optWindowFrame ')'
+			{
+				RULELOG("window");
+				$$ = (Node *) createWindowDef($2,$3, (WindowFrame *) $4);
+			}
+	;
+	
+optWindowPart:
+		/* empty */ 			{ RULELOG("optWindowPart::NULL"); $$ = NIL; }
+		| PARTITION BY exprList
+			{
+				RULELOG("optWindowPart::PARTITION:BY::expressionList");
+				$$ = $3;
+			}
+	;
+
+optWindowFrame:
+		/* empty */				{ RULELOG("optWindowFrame::NULL"); $$ = NULL; }
+		| ROWS windowBoundaries 
+			{ 
+				WindowBound *l, *u = NULL;
+				RULELOG("optWindowFrame::ROWS::windoBoundaries");
+				l = getNthOfListP($2, 0);
+				if(LIST_LENGTH($2) > 1)
+					u = getNthOfListP($2, 1);
+				$$ = (Node *) createWindowFrame(WINFRAME_ROWS, l, u); 
+			}
+		| RANGE windowBoundaries 
+			{
+				WindowBound *l, *u = NULL; 
+				RULELOG("optWindowFrame::RANGE::windoBoundaries"); 
+				l = getNthOfListP($2, 0);
+				if(LIST_LENGTH($2) > 1)
+					u = getNthOfListP($2, 1);
+				$$ = (Node *) createWindowFrame(WINFRAME_RANGE, l, u); 
+			}
+	;
+	
+windowBoundaries:
+		BETWEEN windowBound AND windowBound
+			{ 
+				RULELOG("windowBoundaries::BETWEEN"); 
+				$$ = LIST_MAKE($2, $4); 
+			}	
+		| windowBound 						
+			{ 
+				RULELOG("windowBoundaries::windowBound"); 
+				$$ = singleton($1); 
+			}
+	;
+
+windowBound:
+		UNBOUNDED PRECEDING 
+			{ 
+				RULELOG("windowBound::UNBOUNDED::PRECEDING"); 
+				$$ = (Node *) createWindowBound(WINBOUND_UNBOUND_PREC, NULL); 
+			}
+		| CURRENT ROW 
+			{ 
+				RULELOG("windowBound::CURRENT::ROW"); 
+				$$ = (Node *) createWindowBound(WINBOUND_CURRENT_ROW, NULL); 
+			}			
+		| expression PRECEDING
+			{ 
+				RULELOG("windowBound::expression::PRECEDING"); 
+				$$ = (Node *) createWindowBound(WINBOUND_EXPR_PREC, $1); 
+			}
+		| expression FOLLOWING
+			{ 
+				RULELOG("windowBound::expression::FOLLOWING"); 
+				$$ = (Node *) createWindowBound(WINBOUND_EXPR_FOLLOW, $1); 
+			}
+	;
+	
 /*
  * Rule to parse from clause
  *            Currently implemented for basic from clause.
@@ -969,7 +1118,6 @@ PRIORITIES
 1)
 
 EXHAUSTIVE LIST
-1. Implement support for Case when statemets for all type of queries.
 2. Implement support for RETURNING statement in DELETE queries.
 3. Implement support for column list like (col1, col2, col3). 
    Needed in insert queries, select queries where conditions etc.
@@ -979,4 +1127,5 @@ EXHAUSTIVE LIST
 7. Implement support for AS OF (timestamp) modifier of a table reference
 8. Implement support for casting expressions
 9. Implement support for IN array expressions like a IN (1,2,3,4,5)
+10. Implement support for ASC, DESC, NULLS FIRST/LAST in ORDER BY
 */
