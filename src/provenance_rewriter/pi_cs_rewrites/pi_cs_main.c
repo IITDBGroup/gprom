@@ -177,34 +177,65 @@ rewritePI_CSAggregation (AggregationOperator *op)
     // rewrite aggregation input copy
     rewritePI_CSOperator(aggInput);
 
+    // create join operator
+	joinProv = createJoinOp(JOIN_LEFT_OUTER, NULL, NIL, NIL,
+			NIL);
+
+	// add aggregation to join input
+	addChildOperator((QueryOperator *) joinProv, (QueryOperator *) op);
+
     // add projection including group by expressions if necessary
     if(op->groupBy != NIL)
     {
         List *groupByProjExprs = (List *) copyObject(op->groupBy);
         ProjectionOperator *groupByProj = createProjectionOp(groupByProjExprs,
                 NULL, NIL, NIL);
+
+        // adapt schema for groupByProjection
+        clearAttrsFromSchema((QueryOperator *) op);
+        FOREACH(QueryOperator, q, op->op.inputs)
+        {
+        	addNormalAttrsToSchema((QueryOperator *) op, q);
+        	addProvenanceAttrsToSchema((QueryOperator *) op, q);
+        }
+        //TODO how to adapt project exprs to schema?
+
         addChildOperator((QueryOperator *) joinProv, (QueryOperator *) groupByProj);
         addChildOperator((QueryOperator *) groupByProj, (QueryOperator *) aggInput);
     }
     else
         addChildOperator((QueryOperator *) joinProv, (QueryOperator *) aggInput);
 
-    // create join operator
-    joinProv = createJoinOp(JOIN_LEFT_OUTER, NULL, NIL, NIL,
-            NIL);
-    addChildOperator((QueryOperator *) proj, (QueryOperator *) joinProv);
-
-    // add aggregation to join input
-    addChildOperator((QueryOperator *) joinProv, (QueryOperator *) op);
-
     // create join condition
-    Node *joinCond;
-    //TODO how to create join condition?
-    // create projection expressions for final projection
+	Node *joinCond;
+	if(op->groupBy != NIL)
+	{
+		FOREACH(AttributeReference, a , op->groupBy)
+		{
+			AttributeReference *lA = createAttributeReference(a->name);
+			lA->fromClauseItem = 0;
+			AttributeReference *rA = createAttributeReference(a->name);
+			rA->fromClauseItem = 1;
+			if(LIST_LENGTH(op->groupBy) > 1)
+			{
+				joinCond = AND_EXPRS((Node *) createOpExpr("=", LIST_MAKE(lA,rA)), joinCond);
+			}
+			else
+				joinCond = (Node *) createOpExpr("=", LIST_MAKE(lA, rA));
+		}
+	}
+	joinProv->cond = joinCond;
+
+	// create projection expressions for final projection
 
     // create final projection and replace aggregation subtree with projection
-    proj = createProjectionOp(NIL, NULL, NIL, NIL);
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+	proj = createProjectionOp(NIL, NULL, NIL, NIL);
+	switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) joinProv);
+
+    // adapt schema for final projection
+
 }
 
 static void
