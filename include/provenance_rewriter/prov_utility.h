@@ -14,6 +14,8 @@
 #include "model/list/list.h"
 #include "model/query_operator/query_operator.h"
 
+extern void clearAttrsFromSchema(QueryOperator *target);
+extern void addNormalAttrsToSchema(QueryOperator *target, QueryOperator *source);
 extern void addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source);
 extern void switchSubtrees(QueryOperator *orig, QueryOperator *new);
 extern QueryOperator *copyUnrootedSubtree(QueryOperator *op);
