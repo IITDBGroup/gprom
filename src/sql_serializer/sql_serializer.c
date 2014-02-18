@@ -455,7 +455,6 @@ static void
 serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         int *attrOffset, List **fromAttrs)
 {
-//    char *attrs;
 
     switch(q->type)
     {
@@ -499,8 +498,6 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                         copyObject(j->cond), jOffsets));
 
             //we don't need the alias part now
-            //*attrOffset = 0;
-            //attrs = createFromNames(attrOffset, LIST_LENGTH(j->op.schema->attrDefs));
             appendStringInfo(from, ")");
         }
         break;
@@ -521,7 +518,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             }
             List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
             *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-            appendStringInfo(from, "((%s)%s F%u)", t->tableName, asOf ? asOf : "", (*curFromItem)++); //change this part
+            appendStringInfo(from, "((%s)%s F%u)", t->tableName, asOf ? asOf : "", (*curFromItem)++);
         }
         break;
         default:
@@ -633,10 +630,6 @@ updateAttributeNames(Node *node, List *fromAttrs)
         }
         attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
         newName = getNthOfListP(outer, attrPos);
-
-        // set new attribute name
-//        a->attrPosition = attrPos;
-//        a->fromClauseItem = fromItem;
         a->name = CONCAT_STRINGS("F", itoa(fromItem), ".", newName);;
     }
 
@@ -714,7 +707,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             updateAttributeNames(n, fromAttrs);
             firstProjs = appendToTailOfList(firstProjs, exprToSQL(n));
         }
-        INFO_LOG("second projection (agg and group by inputs) is %s",
+        INFO_LOG("second projection (aggregation and group by inputs) is %s",
                 stringListToString(firstProjs));
     }
 
@@ -732,7 +725,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
                 updateAttributeNamesSimple(expr, firstProjs);
             aggs = appendToTailOfList(aggs, exprToSQL(expr));
         }
-        INFO_LOG("agg attributes are %s", stringListToString(aggs));
+        INFO_LOG("aggregation attributes are %s", stringListToString(aggs));
 
         // group by
         FOREACH(Node,expr,agg->groupBy)
