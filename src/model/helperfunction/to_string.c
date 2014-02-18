@@ -808,6 +808,9 @@ outNode(StringInfo str, void *obj)
             case T_DuplicateRemoval:
                 outDuplicateRemoval(str, (DuplicateRemoval *) obj);
                 break;
+            case T_ConstRelOperator:
+                outConstRelOperator(str, (ConstRelOperator *) obj);
+                break;
             default :
                 FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
@@ -1080,6 +1083,14 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
         break;
         case T_DuplicateRemoval:
             break;
+        case T_ConstRelOperator:
+        {
+            ConstRelOperator *o = (ConstRelOperator *) op;
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, exprToSQL((Node *) o->values));
+            appendStringInfoChar(str, ']');
+        }
+        break;
         default:
             FATAL_LOG("not a query operator:\n%s", op);
             break;
