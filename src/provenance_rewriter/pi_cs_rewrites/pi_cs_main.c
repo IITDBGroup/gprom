@@ -173,20 +173,18 @@ rewritePI_CSAggregation (AggregationOperator *op)
     JoinOperator *joinProv;
     ProjectionOperator *proj;
     QueryOperator *aggInput;
+    QueryOperator *origAgg;
 
     DEBUG_LOG("REWRITE-PICS - Aggregation");
 
     // copy aggregation input
+    origAgg = (QueryOperator *) op;
     aggInput = copyUnrootedSubtree(OP_LCHILD(op));
     // rewrite aggregation input copy
     rewritePI_CSOperator(aggInput);
 
-    // create join operator
-	joinProv = createJoinOp(JOIN_LEFT_OUTER, NULL, NIL, NIL,
-			NIL);
-
 	// add aggregation to join input
-	addChildOperator((QueryOperator *) joinProv, (QueryOperator *) op);
+//	addChildOperator((QueryOperator *) joinProv, (QueryOperator *) op);
 
     // add projection including group by expressions if necessary
     if(op->groupBy != NIL)
@@ -204,23 +202,30 @@ rewritePI_CSAggregation (AggregationOperator *op)
         }
         //TODO how to adapt project exprs to schema?
 
-        addChildOperator((QueryOperator *) joinProv, (QueryOperator *) groupByProj);
         addChildOperator((QueryOperator *) groupByProj, (QueryOperator *) aggInput);
+        aggInput = (QueryOperator *) groupByProj;
     }
-    else
-        addChildOperator((QueryOperator *) joinProv, (QueryOperator *) aggInput);
+//    else
+//        addChildOperator((QueryOperator *) joinProv, (QueryOperator *) aggInput);
+
+    // create join operator
+    List *joinAttrNames = NIL;
+    joinProv = createJoinOp(JOIN_LEFT_OUTER, NULL, LIST_MAKE(origAgg, aggInput), NIL,
+            joinAttrNames);
 
     // create join condition
-	Node *joinCond;
+	Node *joinCond = NULL;
 	if(op->groupBy != NIL)
 	{
 		FOREACH(AttributeReference, a , op->groupBy)
 		{
 			AttributeReference *lA = createAttributeReference(a->name);
 			lA->fromClauseItem = 0;
+			lA->attrPosition = a->attrPosition;
 			AttributeReference *rA = createAttributeReference(a->name);
 			rA->fromClauseItem = 1;
-			if(LIST_LENGTH(op->groupBy) > 1)
+			rA->attrPosition = a->attrPosition; //TODO change
+			if(joinCond)
 			{
 				joinCond = AND_EXPRS((Node *) createOpExpr("=", LIST_MAKE(lA,rA)), joinCond);
 			}
