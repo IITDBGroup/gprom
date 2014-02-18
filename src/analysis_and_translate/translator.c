@@ -25,16 +25,20 @@
 #include "analysis_and_translate/analyze_qb.h"
 #include "analysis_and_translate/translator.h"
 #include "analysis_and_translate/translate_update.h"
+#include "analysis_and_translate/parameter.h"
+
+#include "metadata_lookup/metadata_lookup.h"
+#include "parser/parser.h"
+
 
 // data types
-typedef struct ReplaceGroupByState
-{
-    List *expressions;
-    List *attrNames;
+typedef struct ReplaceGroupByState {
+	List *expressions;
+	List *attrNames;
 } ReplaceGroupByState;
 
 // function declarations
-static Node *translateGeneral (Node *node);
+static Node *translateGeneral(Node *node);
 
 /* Three branches of translating a Query */
 static QueryOperator *translateSetQuery(SetQuery *sq);
@@ -47,40 +51,42 @@ static QueryOperator *buildJoinTreeFromOperatorList(List *opList);
 static List *translateFromClauseToOperatorList(List *fromClause);
 static List *getAttrsOffsets(List *fromClause);
 static inline QueryOperator *createTableAccessOpFromFromTableRef(
-        FromTableRef *ftr);
+		FromTableRef *ftr);
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje);
 static QueryOperator *translateFromSubquery(FromSubquery *fsq);
 
 /* Functions of translating nested subquery in a QueryBlock */
-static QueryOperator *translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrsOffsets);
-extern boolean findNestedSubqueries (Node *node, List **state);
+static QueryOperator *translateNestedSubquery(QueryBlock *qb,
+		QueryOperator *joinTreeRoot, List *attrsOffsets);
+extern boolean findNestedSubqueries(Node *node, List **state);
 static List *getListOfNestedSubqueries(QueryBlock *qb);
 static void replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb);
 static Node *replaceNestedSubqueryWithAuxExpr(Node *node, int *state);
 
 /* Functions of translating where clause in a QueryBlock */
 static QueryOperator *translateWhereClause(Node *whereClause,
-        QueryOperator *nestingOp, List *attrsOffsets);
+		QueryOperator *nestingOp, List *attrsOffsets);
 static boolean visitAttrRefToSetNewAttrPos(Node *n, List *state);
 
 /* Functions of translating simple select clause in a QueryBlock */
 static QueryOperator *translateSelectClause(List *selectClause,
-        QueryOperator *select, List *attrsOffsets, boolean hasAgg);
+		QueryOperator *select, List *attrsOffsets, boolean hasAgg);
 
 /* Functions of translating aggregations, having and group by */
 static QueryOperator *translateHavingClause(Node *havingClause,
-        QueryOperator *input, List *attrsOffsets);
+		QueryOperator *input, List *attrsOffsets);
 static QueryOperator *translateAggregation(QueryBlock *qb, QueryOperator *input,
-        List *attrsOffsets);
-static Node *replaceAggsAndGroupByMutator (Node *node,
-        ReplaceGroupByState *state);
+		List *attrsOffsets);
+static Node *replaceAggsAndGroupByMutator(Node *node,
+		ReplaceGroupByState *state);
 static QueryOperator *createProjectionOverNonAttrRefExprs(List *selectClause,
-        Node *havingClause, List *groupByClause, QueryOperator *input,
-        List *attrsOffsets);
-static List *getListOfNonAttrRefExprs(List *selectClause, Node *havingClause, List *groupByClause);
-static List *getListOfAggregFunctionCalls(List *selectClause, Node *havingClause);
+		Node *havingClause, List *groupByClause, QueryOperator *input,
+		List *attrsOffsets);
+static List *getListOfNonAttrRefExprs(List *selectClause, Node *havingClause,
+		List *groupByClause);
+static List *getListOfAggregFunctionCalls(List *selectClause,
+		Node *havingClause);
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
-
 
 Node *
 translateParse(Node *q)
@@ -160,41 +166,43 @@ translateSetQuery(SetQuery *sq)
     }
     assert(left && right);
 
-    // set children of the set operator node
-    List *inputs = appendToTailOfList(inputs, left);
-    inputs = appendToTailOfList(inputs, right);
+	// set children of the set operator node
+	List *inputs = appendToTailOfList(inputs, left);
+	inputs = appendToTailOfList(inputs, right);
 
-    // create set operator node
-    SetOperator *so = createSetOperator(sq->setOp, inputs, NIL, sq->selectClause);
+	// create set operator node
+	SetOperator *so = createSetOperator(sq->setOp, inputs, NIL,
+			sq->selectClause);
 
-    //TODO if not "all" then add duplicate removal operators
+	//TODO if not "all" then add duplicate removal operators
 
-    // set the parent of the operator's children
-    OP_LCHILD(so)->parents = OP_RCHILD(so)->parents = singleton(so);
+	// set the parent of the operator's children
+	OP_LCHILD(so)->parents = OP_RCHILD(so)->parents = singleton(so);
 
-    return ((QueryOperator *) so);
+	return ((QueryOperator *) so);
 }
 
 static QueryOperator *
 translateQueryBlock(QueryBlock *qb)
 {
 	List *attrsOffsets = NIL;
-	boolean hasAggOrGroupBy= FALSE;
+	boolean hasAggOrGroupBy = FALSE;
 
 	INFO_LOG("translate a QB:\n%s", nodeToString(qb));
 
 	QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause);
 	INFO_LOG("translatedFrom is\n%s", nodeToString(joinTreeRoot));
-    attrsOffsets = getAttrsOffsets(qb->fromClause);
+	attrsOffsets = getAttrsOffsets(qb->fromClause);
 
-	QueryOperator *nestingOp = translateNestedSubquery(qb, joinTreeRoot, attrsOffsets);
+	QueryOperator *nestingOp = translateNestedSubquery(qb, joinTreeRoot,
+			attrsOffsets);
 	if (nestingOp != joinTreeRoot)
 		INFO_LOG("translatedNesting is\n%s", nodeToString(nestingOp));
 
 	QueryOperator *select = translateWhereClause(qb->whereClause, nestingOp,
 			attrsOffsets);
 	if (select != nestingOp)
-	    INFO_LOG("translatedWhere is\n%s", nodeToString(select));
+		INFO_LOG("translatedWhere is\n%s", nodeToString(select));
 
 	QueryOperator *aggr = translateAggregation(qb, select, attrsOffsets);
 	hasAggOrGroupBy = (aggr != select);
@@ -214,77 +222,154 @@ translateQueryBlock(QueryBlock *qb)
 }
 
 static QueryOperator *
-translateProvenanceStmt(ProvenanceStmt *prov)
-{
-    QueryOperator *child;
-    List *children = NIL;
-    ProvenanceComputation *result;
-    Schema *schema = NULL;
+translateProvenanceStmt(ProvenanceStmt *prov) {
+	QueryOperator *child;
+	List *children = NIL;
+	ProvenanceComputation *result;
+	Schema *schema = NULL;
 
-    result = createProvenanceComputOp(prov->provType, NIL, NIL, prov->selectClause, NULL);
-    result->inputType = prov->inputType;
-    result->asOf = copyObject(prov->asOf);
+	result = createProvenanceComputOp(prov->provType, NIL, NIL,
+			prov->selectClause, NULL);
+	result->inputType = prov->inputType;
+	result->asOf = copyObject(prov->asOf);
 
-    switch(prov->inputType)
-    {
-        case PROV_INPUT_TRANSACTION:
-            //TODO call metadata lookup -> SCNS + SQLS
-            //TODO call parser and analyser
-            //TODO translate each update
-            break;
-        case PROV_INPUT_UPDATE_SEQUENCE:
-        {
-            ProvenanceTransactionInfo *tInfo = makeNode(ProvenanceTransactionInfo);
+	switch (prov->inputType) {
+	    case PROV_INPUT_TRANSACTION: {
+	        //XID ?
+	        char *xid = STRING_VALUE(prov->query);
+	        List *scns = NIL;
+	        List *sqls = NIL;
+	        List *sqlBinds = NIL;
 
-            result->transactionInfo = tInfo;
-            tInfo->originalUpdates = copyObject(prov->query);
-            tInfo->updateTableNames = NIL;
+	        DEBUG_LOG("Provenance for transaction");
 
-            FOREACH(Node,n,(List *) prov->query)
-            {
-                char *tableName;
+	        //TODO call metadata lookup -> SCNS + SQLS
+	        getTransactionSQLAndSCNs(xid, &scns, &sqls, &sqlBinds);
 
-                /* get table name */
-                switch(n->type)
+	        //TODO set provenance transaction info
+	        ProvenanceTransactionInfo *tInfo = makeNode(ProvenanceTransactionInfo);
+
+	        result->transactionInfo = tInfo;
+	        //		tInfo->originalUpdates = copyObject(&sqls);
+	        tInfo->updateTableNames = NIL;
+	        tInfo->scns = scns;
+	        //		FOREACH(long,n,(List *)&scns) {
+	        //			tInfo->scns = appendToTailOfList(tInfo->scns, createConstLong(n)); //TODO get SCN
+	        //		}
+
+	        int i = 0;
+	        //TODO call parser and analyser and translate nodes
+	        FOREACH(char,sql,sqls)
+	        {
+	            Node *node;
+	            char *bindString;
+	            List *bindVals;
+
+	            node = parseFromString(sql);
+	            analyzeQueryBlockStmt(node, NULL);
+	            node = getNthOfListP((List *) node, 0);
+
+	            bindString = getNthOfListP(sqlBinds, i);
+                if (bindString != NULL)
                 {
-                    case T_Insert:
-                        tableName = ((Insert *) n)->tableName;
-                        break;
-                    case T_Update:
-                        tableName = ((Update *) n)->nodeName;
-                        break;
-                    case T_Delete:
-                        tableName = ((Delete *) n)->nodeName;
-                        break;
-                    case T_QueryBlock:
-                    case T_SetQuery:
-                        tableName = strdup("_NONE");
-                        break;
-                    default:
-                        FATAL_LOG("Unexpected node type %u as input to provenance computation", n->type);
-                        break;
+                    DEBUG_LOG("set parameters\n%s\nfor sql\n%s", nodeToString(node), bindString);
+                    bindVals = oracleBindToConsts(bindString);
+                    node = setParameterValues(node, bindVals);
                 }
+	            i++;
 
-                tInfo->updateTableNames = appendToTailOfList(
-                        tInfo->updateTableNames, strdup(tableName));
-                tInfo->scns = appendToTailOfList(tInfo->scns, createConstLong(0)); //TODO get SCN
+	            /* get table name */
+	            char *tableName;
 
-                // translate and add update as child to provenance computation
-                child = translateQuery(n);
-                addChildOperator ((QueryOperator *) result, child);
-            }
-        }
-            break;
-        case PROV_INPUT_UPDATE:
-        case PROV_INPUT_QUERY:
-            child = translateQuery(prov->query);
-            addChildOperator((QueryOperator *) result, child);
-            break;
-        case PROV_INPUT_TIME_INTERVAL:
-            break;
-    }
+	            switch (node->type) {
+	                case T_Insert:
+	                    tableName = ((Insert *) node)->tableName;
+	                    break;
+	                case T_Update:
+	                    tableName = ((Update *) node)->nodeName;
+	                    break;
+	                case T_Delete:
+	                    tableName = ((Delete *) node)->nodeName;
+	                    break;
+	                case T_QueryBlock:
+	                case T_SetQuery:
+	                    tableName = strdup("_NONE");
+	                    break;
+	                default:
+	                    FATAL_LOG(
+	                            "Unexpected node type %u as input to provenance computation",
+	                            node->type);
+	                    break;
+	            }
 
-    return (QueryOperator *) result;
+	            DEBUG_LOG("result of update translation is, %s", beatify(nodeToString(node)));
+
+	            tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, node);
+	            tInfo->updateTableNames = appendToTailOfList(
+	                    tInfo->updateTableNames, strdup(tableName));
+
+	            // translate and add update as child to provenance computation
+	            child = translateQuery(node);
+
+	            DEBUG_LOG("qo model transaction is\n%s", beatify(nodeToString(child)));
+
+	            addChildOperator((QueryOperator *) result, child);
+	        }
+	        DEBUG_LOG("constructed transalted provenance computation for PROVENNACE OF TRANSACTION");
+	    }
+	    break;
+	case PROV_INPUT_UPDATE_SEQUENCE: {
+		ProvenanceTransactionInfo *tInfo = makeNode(ProvenanceTransactionInfo);
+
+		result->transactionInfo = tInfo;
+		tInfo->originalUpdates = copyObject(prov->query);
+		tInfo->updateTableNames = NIL;
+
+		FOREACH(Node,n,(List *) prov->query) {
+			char *tableName;
+
+			/* get table name */
+			switch (n->type) {
+			case T_Insert:
+				tableName = ((Insert *) n)->tableName;
+				break;
+			case T_Update:
+				tableName = ((Update *) n)->nodeName;
+				break;
+			case T_Delete:
+				tableName = ((Delete *) n)->nodeName;
+				break;
+			case T_QueryBlock:
+			case T_SetQuery:
+				tableName = strdup("_NONE");
+				break;
+			default:
+				FATAL_LOG(
+						"Unexpected node type %u as input to provenance computation",
+						n->type);
+				break;
+			}
+
+			tInfo->updateTableNames = appendToTailOfList(
+					tInfo->updateTableNames, strdup(tableName));
+			tInfo->scns = appendToTailOfList(tInfo->scns, createConstLong(0)); //TODO get SCN
+
+			// translate and add update as child to provenance computation
+			child = translateQuery(n);
+			addChildOperator((QueryOperator *) result, child);
+		}
+	}
+		break;
+	case PROV_INPUT_UPDATE:
+	case PROV_INPUT_QUERY:
+		child = translateQuery(prov->query);
+		addChildOperator((QueryOperator *) result, child);
+		break;
+	case PROV_INPUT_TIME_INTERVAL:
+		break;
+	}
+
+	return (QueryOperator *) result;
 }
 
 static QueryOperator *
@@ -340,7 +425,8 @@ getAttrsOffsets(List *fromClause)
        curOffset += getListLength(from->attrNames);
     }
 
-    DEBUG_LOG("attribute offsets for from clause items are %s", nodeToString(offsets));
+	DEBUG_LOG("attribute offsets for from clause items are %s",
+			nodeToString(offsets));
 
     return offsets;
 }
@@ -586,10 +672,12 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 		visitAttrRefToSetNewAttrPos(nsq->expr, attrsOffsets);
 		Node *cond = NULL;
 		// create condition node for nesting operator, such like "a = ANY(...)"
-	    if (nsq->nestingType != NESTQ_EXISTS && nsq->nestingType != NESTQ_SCALAR)
-	    {
-			SelectItem *s = (SelectItem *) getHeadOfListP(((QueryBlock *) nsq->query)->selectClause);
-			AttributeReference *subqueryAttr = createFullAttrReference(strdup(s->alias), 1, 0, INVALID_ATTR);
+		if (nsq->nestingType != NESTQ_EXISTS
+				&& nsq->nestingType != NESTQ_SCALAR) {
+			SelectItem *s = (SelectItem *) getHeadOfListP(
+					((QueryBlock *) nsq->query)->selectClause);
+			AttributeReference *subqueryAttr = createFullAttrReference(
+					strdup(s->alias), 1, 0, INVALID_ATTR);
 			List *args = LIST_MAKE(copyObject(nsq->expr), subqueryAttr);
 			cond = (Node *) createOpExpr(nsq->comparisonOp, args);
 		}
@@ -603,7 +691,8 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 		// create attribute names of nesting operator
 		List *attrNames = getAttrNames(lChild->schema);
 		// add an auxiliary attribute, which is the evaluation of the nested subquery
-		attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("nesting_eval_", itoa(i++)));
+		attrNames = appendToTailOfList(attrNames,
+				CONCAT_STRINGS("nesting_eval_", itoa(i++)));
 
 		// create nesting operator
 		no = createNestingOp(nsq->nestingType, cond, inputs, NIL, attrNames);
@@ -644,13 +733,19 @@ static void
 replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb)
 {
 	int i = 1;
-	qb->selectClause = (List *) replaceNestedSubqueryWithAuxExpr((Node *) qb->selectClause, &i);
+	qb->selectClause = (List *) replaceNestedSubqueryWithAuxExpr(
+			(Node *) qb->selectClause, &i);
 	qb->distinct = replaceNestedSubqueryWithAuxExpr((Node *) qb->distinct, &i);
-	qb->fromClause = (List *) replaceNestedSubqueryWithAuxExpr((Node *) qb->fromClause, &i);
-	qb->whereClause = replaceNestedSubqueryWithAuxExpr((Node *) qb->whereClause, &i);
-	qb->groupByClause = (List *) replaceNestedSubqueryWithAuxExpr((Node *) qb->groupByClause, &i);
-	qb->havingClause = replaceNestedSubqueryWithAuxExpr((Node *) qb->havingClause, &i);
-	qb->orderByClause = (List*) replaceNestedSubqueryWithAuxExpr((Node *) qb->orderByClause, &i);
+	qb->fromClause = (List *) replaceNestedSubqueryWithAuxExpr(
+			(Node *) qb->fromClause, &i);
+	qb->whereClause = replaceNestedSubqueryWithAuxExpr((Node *) qb->whereClause,
+			&i);
+	qb->groupByClause = (List *) replaceNestedSubqueryWithAuxExpr(
+			(Node *) qb->groupByClause, &i);
+	qb->havingClause = replaceNestedSubqueryWithAuxExpr(
+			(Node *) qb->havingClause, &i);
+	qb->orderByClause = (List*) replaceNestedSubqueryWithAuxExpr(
+			(Node *) qb->orderByClause, &i);
 }
 
 static Node *
@@ -767,7 +862,8 @@ translateHavingClause(Node *havingClause, QueryOperator *input, List *attrsOffse
 		List *attrNames = getAttrNames(input->schema);
 
 		// create selection operator over having clause
-		SelectionOperator *so = createSelectionOp (havingClause, input, NIL, attrNames);
+		SelectionOperator *so = createSelectionOp(havingClause, input, NIL,
+				attrNames);
 
 		// set the parent of the selection's child
 		OP_LCHILD(so)->parents = singleton(so);
@@ -790,7 +886,7 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 	Node *havingClause = qb->havingClause;
 	List *groupByClause = qb->groupByClause;
 	List *attrNames = NIL;
-    int i;
+	int i;
 	List *aggrs = getListOfAggregFunctionCalls(selectClause, havingClause);
 	List *aggPlusGroup;
 	int numAgg = LIST_LENGTH(aggrs);
@@ -809,7 +905,7 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 	in = createProjectionOverNonAttrRefExprs(selectClause,
 	            havingClause, groupByClause, input, attrsOffsets);
 
-    // if no projection was added change attributes positions in each
+	// if no projection was added change attributes positions in each
 	// expression of groupBy and aggregation input to refer to the FROM clause
 	// translation
 	if (in == input)
@@ -822,10 +918,12 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 	}
 
 	// create fake attribute names for aggregation output schema
-	for(i = 0; i < LIST_LENGTH(aggrs); i++)
-	    attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("aggr_", itoa(i)));
-	for(i = 0; i < LIST_LENGTH(groupByClause); i++)
-	    attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("group_", itoa(i)));
+	for (i = 0; i < LIST_LENGTH(aggrs); i++)
+		attrNames = appendToTailOfList(attrNames,
+				CONCAT_STRINGS("aggr_", itoa(i)));
+	for (i = 0; i < LIST_LENGTH(groupByClause); i++)
+		attrNames = appendToTailOfList(attrNames,
+				CONCAT_STRINGS("group_", itoa(i)));
 
 	// copy aggregation function calls and groupBy expressions
 	// and create aggregation operator
@@ -839,10 +937,10 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 	state->expressions = aggPlusGroup;
 	state->attrNames = attrNames;
 
-	qb->selectClause = (List *) replaceAggsAndGroupByMutator((Node *) selectClause,
-	        state);
-    qb->havingClause = replaceAggsAndGroupByMutator((Node *) havingClause,
-            state);
+	qb->selectClause = (List *) replaceAggsAndGroupByMutator(
+			(Node *) selectClause, state);
+	qb->havingClause = replaceAggsAndGroupByMutator((Node *) havingClause,
+			state);
 
 	freeList(aggrs);
 	FREE(state);
@@ -1065,6 +1163,4 @@ visitAggregFunctionCall(Node *n, List **aggregs)
 
 	return visit(n, visitAggregFunctionCall, aggregs);
 }
-
-
 

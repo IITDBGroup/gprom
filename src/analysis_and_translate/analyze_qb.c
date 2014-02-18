@@ -555,7 +555,15 @@ static void analyzeInsert(Insert * f) {
 	List *attrRefs = getAttributes(f->tableName);
 
 	if (isA(f->query,List)) {
-		if (f->attrList->length != attrRefs->length)
+	    if (f->attrList == NULL)
+	    {
+	        FOREACH(AttributeReference,a,attrRefs)
+            {
+	            char *name = strdup(a->name);
+	            f->attrList = appendToTailOfList(f->attrList, name);
+            }
+	    }
+	    else if (LIST_LENGTH(f->attrList)!= attrRefs->length)
 			INFO_LOG(
 					"The number of values are not equal to the number attributes in the table");
 	} else {

@@ -453,8 +453,9 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds)
                 long scn = (long) OCI_GetBigInt(rs,1); // SCN
                 const char *sql = OCI_GetString(rs,2); // SQLTEXT
                 const char *bind = OCI_GetString(rs,3); // SQLBIND
+                char *sqlPlusSemicolon = CONCAT_STRINGS(sql, ";");
 
-                *sqls = appendToTailOfList(*sqls, strdup( (char *) sql));
+                *sqls = appendToTailOfList(*sqls, strdup( (char *) sqlPlusSemicolon));
                 *scns = appendToTailOfList(*scns, createConstLong(scn));
                 *sqlBinds = appendToTailOfList(*sqlBinds, strdup( (char *) bind));
                 DEBUG_LOG("Current statement at SCN %u\n was:\n%s\nwithBinds:%s", scn, sql, bind);

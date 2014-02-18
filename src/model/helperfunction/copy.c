@@ -75,6 +75,7 @@ static AggregationOperator *copyAggregationOperator(AggregationOperator *from, O
 static SetOperator *copySetOperator(SetOperator *from, OperatorMap **opMap);
 static DuplicateRemoval *copyDuplicateRemoval(DuplicateRemoval *from, OperatorMap **opMap);
 static ProvenanceComputation *copyProvenanceComputation(ProvenanceComputation *from, OperatorMap **opMap);
+static ConstRelOperator *copyConstRelOperator(ConstRelOperator *from, OperatorMap **opMap);
 
 /*functions to copy query_block*/
 static SetQuery *copySetQuery(SetQuery *from, OperatorMap **opMap);
@@ -403,6 +404,16 @@ copyProvenanceComputation(ProvenanceComputation *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(inputType);
     COPY_NODE_FIELD(transactionInfo);
     COPY_NODE_FIELD(asOf);
+
+    return new;
+}
+
+static ConstRelOperator *
+copyConstRelOperator(ConstRelOperator *from, OperatorMap **opMap)
+{
+    COPY_INIT(ConstRelOperator);
+    COPY_OPERATOR();
+    COPY_NODE_FIELD(values);
 
     return new;
 }
@@ -760,7 +771,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_DuplicateRemoval:
             retval = copyDuplicateRemoval(from, opMap);
             break;
-
+        case T_ConstRelOperator:
+            retval = copyConstRelOperator(from, opMap);
+            break;
         default:
             retval = NULL;
             break;

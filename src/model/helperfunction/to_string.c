@@ -256,7 +256,7 @@ outInsert(StringInfo str, Insert *node)
 {
     WRITE_NODE_TYPE(INSERT);
     WRITE_STRING_FIELD(tableName);
-    WRITE_NODE_FIELD(attrList);
+    WRITE_STRING_LIST_FIELD(attrList);
     WRITE_NODE_FIELD(query);
 }
 
@@ -656,14 +656,23 @@ static void
 outConstRelOperator(StringInfo str, ConstRelOperator *node)
 {
 	// TODO outConstRelOperator
-	INFO_LOG("TODO outConstRelOperator");
+	WRITE_NODE_TYPE(CONST_REL_OPERATOR);
+	WRITE_QUERY_OPERATOR();
+
+	WRITE_NODE_FIELD(values);
+
 }
 
 static void
 outNestingOperator(StringInfo str, NestingOperator *node)
 {
 	// TODO outNestingOperator
-	INFO_LOG("TODO outNestingOperator");
+	WRITE_NODE_TYPE(NESTING_OPERATOR);
+	WRITE_QUERY_OPERATOR();
+    WRITE_ENUM_FIELD(nestingType,NestingExprType);
+
+	WRITE_NODE_FIELD(cond);
+
 }
 
 void
@@ -1076,6 +1085,16 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
         break;
         case T_DuplicateRemoval:
             break;
+        case T_ConstRelOperator:
+        {
+            ConstRelOperator *o = (ConstRelOperator *) op;
+
+            WRITE_NODE_TYPE(ConstRelOperator);
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, exprToSQL((Node *) o->values));
+            appendStringInfoChar(str, ']');
+        }
+        break;
         default:
             FATAL_LOG("not a query operator:\n%s", op);
             break;

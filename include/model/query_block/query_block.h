@@ -56,6 +56,8 @@ typedef struct ProvenanceTransactionInfo
     IsolationLevel transIsolation;
     List *updateTableNames;
     List *originalUpdates;
+    //TODO List *sqls
+    //TODO List *binds
     List *scns;
 } ProvenanceTransactionInfo;
 
