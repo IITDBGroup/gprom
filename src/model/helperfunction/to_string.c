@@ -1086,6 +1086,8 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
         case T_ConstRelOperator:
         {
             ConstRelOperator *o = (ConstRelOperator *) op;
+
+            WRITE_NODE_TYPE(ConstRelOperator);
             appendStringInfoString(str, " [");
             appendStringInfoString(str, exprToSQL((Node *) o->values));
             appendStringInfoChar(str, ']');
