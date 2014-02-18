@@ -69,6 +69,9 @@ static void outProvenanceComputation(StringInfo str, ProvenanceComputation *node
 static void outTableAccessOperator(StringInfo str, TableAccessOperator *node);
 static void outSetOperator(StringInfo str, SetOperator *node);
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
+static void outConstRelOperator(StringInfo str, ConstRelOperator *node);
+static void outNestingOperator(StringInfo str, NestingOperator *node);
+
 
 static void indentString(StringInfo str, int level);
 
@@ -647,6 +650,29 @@ outDuplicateRemoval(StringInfo str, DuplicateRemoval *node)
     WRITE_QUERY_OPERATOR();
 
     WRITE_NODE_FIELD(attrs); // attributes that need duplicate removal, AttributeReference type
+
+}
+
+static void
+outConstRelOperator(StringInfo str, ConstRelOperator *node)
+{
+	// TODO outConstRelOperator
+	WRITE_NODE_TYPE(CONST_REL_OPERATOR);
+	WRITE_QUERY_OPERATOR();
+
+	WRITE_NODE_FIELD(values);
+
+}
+
+static void
+outNestingOperator(StringInfo str, NestingOperator *node)
+{
+	// TODO outNestingOperator
+	WRITE_NODE_TYPE(NESTING_OPERATOR);
+	WRITE_QUERY_OPERATOR();
+    WRITE_ENUM_FIELD(nestingType,NestingExprType);
+
+	WRITE_NODE_FIELD(cond);
 
 }
 
