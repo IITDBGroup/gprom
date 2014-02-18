@@ -584,7 +584,6 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 	{
 		// change attributes positions in "expr = ANY(...)"
 		visitAttrRefToSetNewAttrPos(nsq->expr, attrsOffsets);
-
 		Node *cond = NULL;
 		// create condition node for nesting operator, such like "a = ANY(...)"
 	    if (nsq->nestingType != NESTQ_EXISTS && nsq->nestingType != NESTQ_SCALAR)
@@ -597,10 +596,9 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 
 		// create children of nesting operator
 		// left child is the root of "from" translation tree or previous nesting operator
-		List *inputs = appendToTailOfList(inputs, lChild);
 		// right child is the root of the current nested subquery's translation tree
 		QueryOperator *rChild = translateQueryBlock((QueryBlock *) nsq->query);
-		inputs = appendToTailOfList(inputs, rChild);
+		List *inputs = LIST_MAKE(lChild, rChild);
 
 		// create attribute names of nesting operator
 		List *attrNames = getAttrNames(lChild->schema);
@@ -716,8 +714,11 @@ visitAttrRefToSetNewAttrPos(Node *n, List *state)
     if (isA(n, AttributeReference))
     {
         AttributeReference *attrRef = (AttributeReference *) n;
-        attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
-        attrRef->fromClauseItem = 0;
+        if (attrRef->fromClauseItem != INVALID_FROM_ITEM && attrRef->attrPosition != INVALID_ATTR)
+        {
+        	attrRef->attrPosition += getNthOfListInt(state, attrRef->fromClauseItem);
+        	attrRef->fromClauseItem = 0;
+        }
     }
 
     return visit(n, visitAttrRefToSetNewAttrPos, offsets);

@@ -69,6 +69,8 @@ static void outProvenanceComputation(StringInfo str, ProvenanceComputation *node
 static void outTableAccessOperator(StringInfo str, TableAccessOperator *node);
 static void outSetOperator(StringInfo str, SetOperator *node);
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
+static void outConstRelOperator(StringInfo str, ConstRelOperator *node);
+static void outNestingOperator(StringInfo str, NestingOperator *node);
 
 static void indentString(StringInfo str, int level);
 
@@ -650,6 +652,20 @@ outDuplicateRemoval(StringInfo str, DuplicateRemoval *node)
 
 }
 
+static void
+outConstRelOperator(StringInfo str, ConstRelOperator *node)
+{
+	// TODO outConstRelOperator
+	INFO_LOG("TODO outConstRelOperator");
+}
+
+static void
+outNestingOperator(StringInfo str, NestingOperator *node)
+{
+	// TODO outNestingOperator
+	INFO_LOG("TODO outNestingOperator");
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -782,6 +798,12 @@ outNode(StringInfo str, void *obj)
             case T_DuplicateRemoval:
                 outDuplicateRemoval(str, (DuplicateRemoval *) obj);
                 break;
+            case T_ConstRelOperator:
+            	outConstRelOperator(str, (ConstRelOperator *) obj);
+            	break;
+            case T_NestingOperator:
+            	outNestingOperator(str, (NestingOperator *) obj);
+            	break;
             default :
                 FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
