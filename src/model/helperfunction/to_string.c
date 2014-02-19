@@ -1095,6 +1095,20 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
             appendStringInfoChar(str, ']');
         }
         break;
+        case T_NestingOperator:
+        {
+            NestingOperator *o = (NestingOperator *) op;
+            const char *nestingType = (o->nestingType == NESTQ_EXISTS) ? "EXISTS" :
+                    ((o->nestingType == NESTQ_ANY) ? "ANY" :
+                    ((o->nestingType == NESTQ_ALL) ? "ALL" :
+                    ((o->nestingType == NESTQ_UNIQUE) ? "UNIQUE" :
+                    ((o->nestingType == NESTQ_SCALAR) ? "SCALAR" : "")
+                    )));
+
+            WRITE_NODE_TYPE(NestingOperator);
+            appendStringInfo(str, "[%s] [%s]", nestingType, o->cond ? exprToSQL(o->cond) : "");
+        }
+            break;
         default:
             FATAL_LOG("not a query operator:\n%s", op);
             break;

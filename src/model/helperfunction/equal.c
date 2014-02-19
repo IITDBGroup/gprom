@@ -49,6 +49,7 @@ static boolean equalSetOperator(SetOperator *a, SetOperator *b);
 static boolean equalDuplicateRemoval(DuplicateRemoval *a, DuplicateRemoval *b);
 static boolean equalProvenanceComputation(ProvenanceComputation *a, ProvenanceComputation *b);
 static boolean equalConstRelOperator(ConstRelOperator *a, ConstRelOperator *b);
+static boolean equalNestingOperator(NestingOperator *a, NestingOperator *b);
 
 // equal functions for query_block
 static boolean equalQueryBlock(QueryBlock *a, QueryBlock *b);
@@ -466,6 +467,16 @@ equalConstRelOperator(ConstRelOperator *a, ConstRelOperator *b)
     return TRUE;
 }
 
+static boolean
+equalNestingOperator(NestingOperator *a, NestingOperator *b)
+{
+    COMPARE_QUERY_OP();
+    COMPARE_SCALAR_FIELD(nestingType);
+    COMPARE_NODE_FIELD(cond);
+
+    return TRUE;
+}
+
 // equal functions for query_block
 static boolean 
 equalQueryBlock(QueryBlock *a, QueryBlock *b)
@@ -797,6 +808,9 @@ equal(void *a, void *b)
             break;
         case T_TransactionStmt:
             retval = equalTransactionStmt(a,b);
+            break;
+        case T_NestingOperator:
+            retval = equalNestingOperator(a,b);
             break;
         default:
             retval = FALSE;
