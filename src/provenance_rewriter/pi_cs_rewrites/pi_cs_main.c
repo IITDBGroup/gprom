@@ -151,15 +151,19 @@ rewritePI_CSJoin (JoinOperator *op)
     rewritePI_CSOperator(OP_LCHILD(op));
     rewritePI_CSOperator(OP_RCHILD(op));
 
-    // adapt schema
+    // adapt schema for join op
     clearAttrsFromSchema((QueryOperator *) op);
     addNormalAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
     addNormalAttrsToSchema((QueryOperator *) op, OP_RCHILD(op));
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_RCHILD(op));
 
-    // add projection to put attributes into order
-    //it is working, seems not to be necessary to add the projection any more...
+    // add projection to put attributes into order on top of join op
+    ProjectionOperator *proj = createProjectionOp(NIL, NULL, NIL, NIL);
+    addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
+    addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 }
 
 /*
