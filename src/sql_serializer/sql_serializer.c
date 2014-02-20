@@ -117,6 +117,7 @@ static char *createFromNames (int *attrOffset, int count);
 
 static List *createTempView (QueryOperator *q, StringInfo str);
 static char *createViewName (void);
+static char *serializeConstRel(ConstRelOperator *q, StringInfo select, List *fromAttrs, StringInfo from);
 
 char *
 serializeOperatorModel(Node *q)
@@ -200,6 +201,16 @@ serializeQueryOperator (QueryOperator *q, StringInfo str)
         return serializeQueryBlock(q, str);
 }
 
+static char *
+serializeConstRel(ConstRelOperator *q, StringInfo select, List *fromAttrs, StringInfo from)
+{
+
+
+
+
+    return NULL;
+
+}
 /*
  * Serialize a SQL query block (SELECT ... FROM ... WHERE ...)
  */
@@ -520,6 +531,13 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
             appendStringInfo(from, "((%s)%s F%u)", t->tableName, asOf ? asOf : "", (*curFromItem)++);
         }
+        break;
+
+        case T_ConstRelOperator:
+               {
+
+
+               }
         break;
         default:
         {
