@@ -50,5 +50,6 @@ typedef struct Options{
 extern void mallocOptions();
 extern void freeOptions();
 extern Options* getOptions();
+extern boolean isRewriteOptionActivated(char *name);
 
 #endif

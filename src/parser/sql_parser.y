@@ -54,7 +54,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -260,6 +260,11 @@ provOption:
 		{
 			RULELOG("provOption::TABLE");
 			$$ = (Node *) createStringKeyValue("TABLE", $2);
+		}
+		| ONLY UPDATED
+		{
+			RULELOG("provOption::ONLY::UPDATED");
+			$$ = (Node *) createStringKeyValue("ONLY_UPDATED", NULL);
 		}
 	;
 	
