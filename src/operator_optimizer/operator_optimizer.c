@@ -14,6 +14,7 @@
 #include "operator_optimizer/operator_merge.h"
 #include "model/query_block/query_block.h"
 #include "model/list/list.h"
+#include "model/query_operator/schema_utility.h"
 
 QueryOperator *
 mergeAdjacentOperators (QueryOperator *root)

@@ -22,8 +22,9 @@
 #include "provenance_rewriter/prov_rewriter.h"
 #include "analysis_and_translate/translator.h"
 #include "sql_serializer/sql_serializer.h"
+#include "operator_optimizer/operator_optimizer.h"
 
-static char *rewriteParserOutput (Node *parse);
+static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 
 char *
 rewriteQuery(char *input)
@@ -34,7 +35,7 @@ rewriteQuery(char *input)
     parse = parseFromString(input);
     DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
 
-    result = rewriteParserOutput(parse);
+    result = rewriteParserOutput(parse, FALSE);
     INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
 
     return result;
@@ -48,14 +49,29 @@ rewriteQueryFromStream (FILE *stream) {
     parse = parseStream(stream);
     DEBUG_LOG("parser returned:\n\n%s", nodeToString(parse));
 
-    result = rewriteParserOutput(parse);
+    result = rewriteParserOutput(parse, FALSE);
     INFO_LOG("Rewritten SQL text is <%s>", result);
 
     return result;
 }
 
+char *
+rewriteQueryWithOptimization(char *input)
+{
+    Node *parse;
+    char *result;
+
+    parse = parseFromString(input);
+    DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+
+    result = rewriteParserOutput(parse, TRUE);
+    INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
+
+    return result;
+}
+
 static char *
-rewriteParserOutput (Node *parse)
+rewriteParserOutput (Node *parse, boolean applyOptimizations)
 {
     StringInfo result = makeStringInfo();
     char *rewrittenSQL = NULL;
@@ -68,6 +84,23 @@ rewriteParserOutput (Node *parse)
     rewrittenTree = provRewriteQBModel(oModel);
     DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
     DEBUG_LOG("as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
+
+    if(applyOptimizations)
+    {
+        if(isA(rewrittenTree, List))
+        {
+            FOREACH_LC(lc, (List *) rewrittenTree)
+            {
+                QueryOperator *o = (QueryOperator *) LC_P_VAL(lc);
+
+                o = mergeAdjacentOperators(o);
+                LC_P_VAL(lc) = o;
+            }
+        }
+        else
+            rewrittenTree = (Node *) mergeAdjacentOperators((QueryOperator *) rewrittenTree);
+        DEBUG_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
+    }
 
     appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
 
