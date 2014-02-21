@@ -302,6 +302,29 @@ appendToHeadOfListInt (List *list, int value)
     return list;
 }
 
+List *
+replaceNode(List *list, void *n1, void *n2)
+{
+	//if (!(list->type == ((Node*)n1)->type && list->type == ((Node*)n2)->type))
+		//return list;
+
+	ListCell *dummy = (ListCell *) NEW(ListCell);
+	dummy->next = list->head;
+
+	while (dummy->next != NULL) {
+		if (dummy->next->data.ptr_value == n1) {
+			dummy->next->data.ptr_value = n2;
+			break;
+		}
+	}
+
+	ListCell *head = dummy->next;
+	FREE(dummy);
+
+	list->head = head;
+	return list;
+}
+
 void
 reverseList(List *list)
 {

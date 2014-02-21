@@ -15,5 +15,6 @@
 
 extern char *rewriteQuery(char *input);
 extern char *rewriteQueryFromStream (FILE *stream);
+extern char *rewriteQueryWithOptimization(char *input);
 
 #endif /* REWRITER_H_ */

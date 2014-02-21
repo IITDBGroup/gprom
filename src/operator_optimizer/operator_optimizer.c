@@ -14,6 +14,7 @@
 #include "operator_optimizer/operator_merge.h"
 #include "model/query_block/query_block.h"
 #include "model/list/list.h"
+#include "model/query_operator/schema_utility.h"
 
 QueryOperator *
 mergeAdjacentOperators (QueryOperator *root)
@@ -33,11 +34,8 @@ mergeAdjacentOperators (QueryOperator *root)
 QueryOperator *
 pushDownSelectionOperatorOnProv(QueryOperator *root) {
 
-	if (isA(root, SelectionOperator)) {
-		List *node = root->provAttrs;
-		if (node) {
-
-		}
+	if (isA(root, SelectionOperator) && isA(OP_LCHILD(root), ProjectionOperator)) {
+		pushDownSelectionWithProjection((SelectionOperator *) root);
 	}
 
 	FOREACH(QueryOperator, o, root->inputs)

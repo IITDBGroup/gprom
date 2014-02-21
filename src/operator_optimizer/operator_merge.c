@@ -35,9 +35,16 @@ mergeSelection(SelectionOperator *op)
     {
         SelectionOperator *child = (SelectionOperator *) OP_LCHILD(op);
 
+        // only one parent of child is allowed
+        if (LIST_LENGTH(child->op.parents) > 1)
+        	break;
+
         // and condition and link child's children to root
         op->cond = (Node *) createOpExpr("AND", LIST_MAKE(op->cond, child->cond));
         op->op.inputs = child->op.inputs;
+
+        FOREACH(QueryOperator, el, op->op.inputs)
+        	el->parents = child->op.parents;
 
         // clean up child
         child->cond = NULL;
@@ -57,12 +64,19 @@ mergeProjection(ProjectionOperator *op)
     {
         ProjectionOperator *child = (ProjectionOperator *) OP_LCHILD(op);
 
+        // only one parent of child is allowed
+        if (LIST_LENGTH(child->op.parents) > 1)
+        	break;
+
         // combine expressions and link child's children to root
         state->op = child;
         state->projExpr = child->projExprs;
 
         op->projExprs = (List *) replaceAttributeRefsMutator((Node *) op->projExprs, state);
         op->op.inputs = child->op.inputs;
+
+        FOREACH(QueryOperator, el, op->op.inputs)
+        	el->parents = child->op.parents;
 
         // clean up child
         child->projExprs = NULL;
@@ -74,6 +88,46 @@ mergeProjection(ProjectionOperator *op)
     state->projExpr = NULL;
     FREE(state);
     return op;
+}
+
+SelectionOperator *
+pushDownSelectionWithProjection(SelectionOperator *op)
+{
+	ReplaceRefState *state = NEW(ReplaceRefState);
+
+	while(isA(OP_LCHILD(op),SelectionOperator))
+	{
+		ProjectionOperator *child = (ProjectionOperator *) OP_LCHILD(op);
+
+		// only one parent of child is allowed
+		if (LIST_LENGTH(child->op.parents) > 1)
+			break;
+
+		// combine expressions and link child's children to root
+		state->op = child;
+		state->projExpr = child->projExprs;
+
+		op->cond = replaceAttributeRefsMutator(op->cond, state);
+		op->op.inputs = child->op.inputs;
+
+		List *newP = ((QueryOperator *)op->op.inputs->head)->parents;
+
+		FOREACH(QueryOperator, el, op->op.inputs)
+			el->parents = child->op.parents;
+
+		// push down selection
+		child->op.inputs = child->op.parents;
+		child->op.parents = op->op.parents;
+		op->op.parents = newP;
+
+		FOREACH(QueryOperator, el, child->op.parents)
+			replaceNode(el->inputs, op, child);
+	}
+
+	state->op = NULL;
+	state->projExpr = NULL;
+	FREE(state);
+	return op;
 }
 
 static Node *
