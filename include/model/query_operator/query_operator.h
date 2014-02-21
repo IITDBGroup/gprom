@@ -140,12 +140,6 @@ extern NestingOperator *createNestingOp(NestingExprType nestingType, Node *cond,
 #define OP_RCHILD(op) \
     ((QueryOperator *) getNthOfListP(((QueryOperator*) op)->inputs,1))
 
-//#define _OP_LCHILD(op) \
-//    getHeadOfListP(((QueryOperator*) op)->inputs)
-//
-//#define _OP_RCHILD(op) \
-//    getNthOfListP(((QueryOperator*) op)->inputs,1)
-
 #define getAttrDef(op,aPos) \
     ((AttributeDef *) getNthOfListP(((QueryOperator *) op)->schema->attrDefs, aPos))
 
@@ -163,5 +157,9 @@ extern List *getNormalAttrNames(QueryOperator *op);
 extern List *getQueryOperatorAttrNames (QueryOperator *op);
 
 extern int getNumAttrs(QueryOperator *op);
+
+/* transforms a graph query model into a tree */
+extern void treeify(QueryOperator *op);
+extern boolean isTree(QueryOperator *op);
 
 #endif /* QUERY_OPERATOR_H_ */

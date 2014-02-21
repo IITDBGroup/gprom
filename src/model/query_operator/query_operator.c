@@ -366,6 +366,40 @@ getNumAttrs(QueryOperator *op)
     return LIST_LENGTH(op->schema->attrDefs);
 }
 
+void treeify(QueryOperator *op)
+{
+    FOREACH(QueryOperator,child,op->inputs)
+        treeify(child);
+
+    // if operator has more than one parent, then we need to duplicate the subtree under this operator
+    if (LIST_LENGTH(op->parents) > 1)
+    {
+        op->parents = NIL;
+
+        FOREACH(QueryOperator,parent,op->parents)
+        {
+            QueryOperator *copy = copyObject(op);
+            replaceNode(parent->inputs, op, copy);
+            copy->parents = singleton(parent);
+        }
+    }
+}
+
+boolean isTree(QueryOperator *op)
+{
+    if (LIST_LENGTH(op->parents) > 1)
+        return FALSE;
+
+    FOREACH(QueryOperator,o,op->inputs)
+    {
+        if(!isTree(o))
+            return FALSE;
+    }
+
+    return TRUE;
+}
+
+
 static Schema *
 mergeSchemas (List *inputs)
 {
