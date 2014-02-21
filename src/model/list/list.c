@@ -409,6 +409,23 @@ concatTwoLists(List *lista, List*listb)
     return lista;
 }
 
+List *
+concatLists (List *a, ...)
+{
+    va_list args;
+    List *result = a;
+    List *cur;
+
+    va_start(args, a);
+
+    while((cur = va_arg(args, List *)))
+         result = concatTwoLists(result, cur);
+
+    va_end(args);
+
+    return result;
+}
+
 boolean
 searchList(List *list, void *value)
 {

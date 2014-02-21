@@ -195,6 +195,7 @@ createConstInt (int value)
     *v = value;
     result->constType = DT_INT;
     result->value = v;
+    result->isNull = FALSE;
 
     return result;
 }
@@ -208,6 +209,7 @@ createConstLong (long value)
     *v = value;
     result->constType  = DT_LONG;
     result->value = v;
+    result->isNull = FALSE;
 
     return result;
 }
@@ -219,6 +221,7 @@ createConstString (char *value)
 
     result->constType = DT_STRING;
     result->value = strdup(value);
+    result->isNull = FALSE;
 
     return result;
 }
@@ -232,6 +235,7 @@ createConstFloat (double value)
     *v = value;
     result->constType = DT_FLOAT;
     result->value = v;
+    result->isNull = FALSE;
 
     return result;
 }
@@ -245,9 +249,23 @@ createConstBool (boolean value)
     *v = value;
     result->constType = DT_BOOL;
     result->value = v;
+    result->isNull = FALSE;
 
     return result;
 }
+
+Constant *
+createNullConst (DataType dt)
+{
+    Constant *result = makeNode(Constant);
+
+    result->constType = dt;
+    result->value = NULL;
+    result->isNull = TRUE;
+
+    return result;
+}
+
 
 DataType
 typeOf (Node *expr)

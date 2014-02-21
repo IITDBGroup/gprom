@@ -162,6 +162,8 @@ equalConstant (Constant *a, Constant *b)
             return LONG_VALUE(a) == LONG_VALUE(b);
     }
 
+    COMPARE_SCALAR_FIELD(isNull);
+
     return TRUE;
 }
 

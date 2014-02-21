@@ -18,6 +18,7 @@
 #include "model/node/nodetype.h"
 #include "provenance_rewriter/prov_schema.h"
 #include "model/list/list.h"
+#include "model/expression/expression.h"
 
 static void rewritePI_CSOperator (QueryOperator *op);
 static void rewritePI_CSSelection (SelectionOperator *op);
@@ -267,22 +268,92 @@ rewritePI_CSSet(SetOperator *op)
     {
     case SETOP_UNION:
     {
-    	// create necessary projections
-    	ProjectionOperator *projLeftChild = createProjectionOp(NIL, NULL, NIL, NIL);
-    	ProjectionOperator *projRwLeftChild = createProjectionOp(NIL, NULL, NIL, NIL);
-    	ProjectionOperator *projRightChild = createProjectionOp(NIL, NULL, NIL, NIL);
+        List *projExprs = NIL;
+        List *attNames;
+        List *provAttrs = NIL;
+        int lProvs = LIST_LENGTH(lChild->provAttrs);
+        int i;
 
-    	// restructure the tree
-    	addChildOperator((QueryOperator *) projLeftChild, (QueryOperator *) lChild);
-    	addChildOperator((QueryOperator *) projRwLeftChild, (QueryOperator *) projLeftChild);
-    	addChildOperator((QueryOperator *) projRightChild, (QueryOperator *) rChild);
-    	switchSubtrees((QueryOperator *) lChild, (QueryOperator *) projRwLeftChild);
-    	switchSubtrees((QueryOperator *) rChild, (QueryOperator *) projRightChild);
+        // create projection over left rewritten input
+        attNames = concatTwoLists(getQueryOperatorAttrNames(lChild), getOpProvenanceAttrNames(rChild));
 
-    	// adapt schema for every projections
-    	addProvenanceAttrsToSchema((QueryOperator *) projRwLeftChild, OP_LCHILD(projRwLeftChild));
-    	addProvenanceAttrsToSchema((QueryOperator *) projLeftChild, OP_LCHILD(projLeftChild));
-    	addProvenanceAttrsToSchema((QueryOperator *) projRightChild, OP_LCHILD(projRightChild));
+        // createAttrRefs for attributes of left input
+        i = 0;
+        FOREACH(AttributeDef,a,lChild->schema->attrDefs)
+        {
+            AttributeReference *att;
+            att = createFullAttrReference(strdup(a->attrName), 0, i++, INVALID_ATTR);
+            projExprs = appendToTailOfList(projExprs, att);
+        }
+        provAttrs = copyObject(lChild->provAttrs);
+
+        // create NULL expressions for provenance attrs of right input
+        FOREACH(AttributeDef,a, getProvenanceAttrDefs(rChild))
+        {
+            Constant *expr;
+
+            expr = createNullConst(a->dataType);
+            projExprs = appendToTailOfList(projExprs, expr);
+            provAttrs = appendToTailOfListInt(provAttrs, i++);
+        }
+        DEBUG_LOG("have created projection expression: %s\nattribute names: "
+                "%s\n provAttrs: %s\n for left UNION input",
+                nodeToString(projExprs), stringListToString(attNames),
+                nodeToString(provAttrs));
+
+        ProjectionOperator *projLeftChild = createProjectionOp(projExprs,
+                lChild, NIL, attNames);
+        ((QueryOperator *) projLeftChild)->provAttrs = provAttrs;
+
+        // create projection over right rewritten input
+        provAttrs = NIL;
+        projExprs = NIL;
+        attNames = CONCAT_LISTS(getNormalAttrNames(rChild),
+                getOpProvenanceAttrNames(lChild),
+                getOpProvenanceAttrNames(rChild));
+
+        // create AttrRefs for normal attributes of right input
+        i = 0;
+        FOREACH(AttributeDef,a,getNormalAttrs(rChild))
+        {
+            AttributeReference *att;
+            att = createFullAttrReference(strdup(a->attrName), 0, i++, INVALID_ATTR);
+            projExprs = appendToTailOfList(projExprs, att);
+        }
+
+        // create NULL expressions for provenance attrs of left input
+        FOREACH(AttributeDef,a, getProvenanceAttrDefs(lChild))
+        {
+            Constant *expr;
+
+            expr = createNullConst(a->dataType);
+            projExprs = appendToTailOfList(projExprs, expr);
+            provAttrs = appendToTailOfListInt(provAttrs, i++);
+        }
+
+        // create AttrRefs for provenance attrs of right input
+        FOREACH(AttributeDef,a, getProvenanceAttrDefs(rChild))
+        {
+            AttributeReference *att;
+            att = createFullAttrReference(strdup(a->attrName), 0, i - lProvs, INVALID_ATTR);
+            projExprs = appendToTailOfList(projExprs, att);
+            provAttrs = appendToTailOfListInt(provAttrs, i++);
+        }
+
+        DEBUG_LOG("have created projection expressions: %s\nattribute names: "
+                "%s\n provAttrs: %s\n for right UNION input",
+                nodeToString(projExprs), stringListToString(attNames),
+                nodeToString(provAttrs));
+        ProjectionOperator *projRightChild = createProjectionOp(projExprs,
+                rChild, NIL, attNames);
+        ((QueryOperator *) projRightChild)->provAttrs = provAttrs;
+
+    	// make projections of rewritten inputs the direct children of the union operation
+        switchSubtrees(lChild, (QueryOperator *) projLeftChild);
+        switchSubtrees(rChild, (QueryOperator *) projRightChild);
+
+    	// adapt schema of union itself, we can get full provenance attributes from left input
+    	addProvenanceAttrsToSchema((QueryOperator *) op, (QueryOperator *) projLeftChild);
     }
     	break;
     case SETOP_INTERSECTION:
@@ -325,7 +396,7 @@ rewritePI_CSSet(SetOperator *op)
     	break;
     }
     // adapt schema
-    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+//    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 }
 
 static void

@@ -325,6 +325,8 @@ outConstant (StringInfo str, Constant *node)
             appendStringInfo(str, "%lu", *((long *) node->value));
             break;
     }
+
+    WRITE_BOOL_FIELD(isNull);
 }
 
 static void

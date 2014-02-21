@@ -586,7 +586,8 @@ copyConstant(Constant *from, OperatorMap **opMap)
 {
       COPY_INIT(Constant);
       COPY_SCALAR_FIELD(constType); 
-	   
+	  COPY_SCALAR_FIELD(isNull);
+
       switch (from->constType)	 
   {	 
       case DT_INT:	 

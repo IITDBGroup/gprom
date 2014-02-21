@@ -31,6 +31,7 @@ typedef struct Constant {
     NodeTag type;
     DataType constType;
     void *value;
+    boolean isNull;
 } Constant;
 
 #define INVALID_ATTR -1
@@ -126,11 +127,13 @@ extern Constant *createConstLong (long value);
 extern Constant *createConstString (char *value);
 extern Constant *createConstFloat (double value);
 extern Constant *createConstBool (boolean value);
+extern Constant *createNullConst (DataType dt);
 #define INT_VALUE(_c) *((int *) ((Constant *) _c)->value)
 #define FLOAT_VALUE(_c) *((double *) ((Constant *) _c)->value)
 #define LONG_VALUE(_c) *((long *) ((Constant *) _c)->value)
 #define BOOL_VALUE(_c) *((boolean *) ((Constant *) _c)->value)
 #define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
+#define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)
 
 /* functions for determining the type of an expression */
 extern DataType typeOf (Node *expr);

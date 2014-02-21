@@ -303,6 +303,17 @@ getProvenanceAttrDefs(QueryOperator *op)
         result = appendToTailOfList(result, getNthOfListP(op->schema->attrDefs, i));
     }
 
+    return result;
+}
+
+List *
+getOpProvenanceAttrNames(QueryOperator *op)
+{
+    List *provDefs = getProvenanceAttrDefs(op);
+    List *result = NIL;
+
+    FOREACH(AttributeDef,a,provDefs)
+        result = appendToTailOfList(result, strdup(a->attrName));
 
     return result;
 }
@@ -327,6 +338,18 @@ getNormalAttrs(QueryOperator *op)
 }
 
 List *
+getNormalAttrNames(QueryOperator *op)
+{
+    List *defs = getNormalAttrs(op);
+    List *result = NIL;
+
+    FOREACH(AttributeDef, a, defs)
+        result = appendToTailOfList(result, strdup(a->attrName));
+
+    return result;
+}
+
+List *
 getQueryOperatorAttrNames (QueryOperator *op)
 {
     List *result = NIL;
@@ -335,6 +358,12 @@ getQueryOperatorAttrNames (QueryOperator *op)
         result = appendToTailOfList(result, strdup(a->attrName));
 
     return result;
+}
+
+int
+getNumAttrs(QueryOperator *op)
+{
+    return LIST_LENGTH(op->schema->attrDefs);
 }
 
 static Schema *

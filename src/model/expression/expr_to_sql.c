@@ -39,6 +39,12 @@ attributeReferenceToSQL (StringInfo str, AttributeReference *node)
 static void
 constantToSQL (StringInfo str, Constant *node)
 {
+    if (node->isNull)
+    {
+        appendStringInfoString(str, "NULL");
+        return;
+    }
+
     switch(node->constType)
     {
         case DT_INT:
