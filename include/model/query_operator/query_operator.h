@@ -118,6 +118,7 @@ extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames, List *dataTypes);
 extern List *getDataTypes (Schema *schema);
 extern List *getAttrNames(Schema *schema);
+#define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema
 
 /* create functions */
 extern TableAccessOperator *createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents, List *attrNames, List *dataTypes);

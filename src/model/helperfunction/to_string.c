@@ -53,6 +53,7 @@ static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 
 static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
+static void outDistinctClause(StringInfo str, DistinctClause *node);
 static void outFromProvInfo (StringInfo str, FromProvInfo *node);
 static void outFromTableRef (StringInfo str, FromTableRef *node);
 static void outFromJoinExpr (StringInfo str, FromJoinExpr *node);
@@ -343,7 +344,7 @@ outSetQuery (StringInfo str, SetQuery *node)
 
     WRITE_ENUM_FIELD(setOp, SetOpType);
     WRITE_BOOL_FIELD(all);
-    WRITE_NODE_FIELD(selectClause);
+    WRITE_STRING_LIST_FIELD(selectClause);
     WRITE_NODE_FIELD(lChild);
     WRITE_NODE_FIELD(rChild);
 }
@@ -455,6 +456,14 @@ outSelectItem (StringInfo str, SelectItem *node)
 
     WRITE_STRING_FIELD(alias);
     WRITE_NODE_FIELD(expr);
+}
+
+static void
+outDistinctClause(StringInfo str, DistinctClause *node)
+{
+    WRITE_NODE_TYPE(DISTINCT_CLAUSE);
+
+    WRITE_NODE_FIELD(distinctExprs);
 }
 
 static void
@@ -735,6 +744,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_ProvenanceTransactionInfo:
                 outProvenanceTransactionInfo (str, (ProvenanceTransactionInfo *) obj);
+                break;
+            case T_DistinctClause:
+                outDistinctClause (str, (DistinctClause *) obj);
                 break;
             case T_FromProvInfo:
                 outFromProvInfo(str, (FromProvInfo *) obj);
@@ -1084,6 +1096,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
         }
         break;
         case T_DuplicateRemoval:
+            WRITE_NODE_TYPE(DuplicateRemoval);
             break;
         case T_ConstRelOperator:
         {

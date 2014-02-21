@@ -437,7 +437,7 @@ copySetQuery(SetQuery *from, OperatorMap **opMap)
     COPY_INIT(SetQuery);
     COPY_SCALAR_FIELD(setOp);
     COPY_SCALAR_FIELD(all);
-    COPY_NODE_FIELD(selectClause);
+    COPY_STRING_LIST_FIELD(selectClause);
     COPY_NODE_FIELD(lChild);
     COPY_NODE_FIELD(rChild);
 

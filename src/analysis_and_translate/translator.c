@@ -30,6 +30,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "parser/parser.h"
 
+#include "provenance_rewriter/prov_utility.h"
 
 // data types
 typedef struct ReplaceGroupByState {
@@ -71,12 +72,15 @@ static boolean visitAttrRefToSetNewAttrPos(Node *n, List *state);
 /* Functions of translating simple select clause in a QueryBlock */
 static QueryOperator *translateSelectClause(List *selectClause,
 		QueryOperator *select, List *attrsOffsets, boolean hasAgg);
+static QueryOperator *translateDistinct(DistinctClause *distinctClause,
+        QueryOperator *input);
 
 /* Functions of translating aggregations, having and group by */
 static QueryOperator *translateHavingClause(Node *havingClause,
 		QueryOperator *input, List *attrsOffsets);
 static QueryOperator *translateAggregation(QueryBlock *qb, QueryOperator *input,
 		List *attrsOffsets);
+
 static Node *replaceAggsAndGroupByMutator(Node *node,
 		ReplaceGroupByState *state);
 static QueryOperator *createProjectionOverNonAttrRefExprs(List *selectClause,
@@ -148,38 +152,70 @@ translateSetQuery(SetQuery *sq)
 {
     QueryOperator *left = NULL;
     QueryOperator *right = NULL;
+    QueryOperator *result = NULL;
+
+    DEBUG_LOG("translate set query");
+
     if (sq->lChild)
-    {
         left = translateQuery(sq->lChild);
-//        if (sq->lChild->type == T_SetQuery)
-//            left = translateSetQuery((SetQuery *) sq->lChild);
-//        else if (sq->lChild->type == T_QueryBlock)
-//            left = translateQueryBlock(((QueryBlock *) sq->lChild));
-    }
     if (sq->rChild)
-    {
         right = translateQuery(sq->rChild);
-//        if (sq->rChild->type == T_SetQuery)
-//            right = translateSetQuery((SetQuery *) sq->rChild);
-//        else if (sq->rChild->type == T_QueryBlock)
-//            right = translateQueryBlock(((QueryBlock *) sq->rChild));
-    }
     assert(left && right);
 
 	// set children of the set operator node
-	List *inputs = appendToTailOfList(inputs, left);
-	inputs = appendToTailOfList(inputs, right);
+	List *inputs = LIST_MAKE(left, right);
 
 	// create set operator node
 	SetOperator *so = createSetOperator(sq->setOp, inputs, NIL,
 			sq->selectClause);
 
-	//TODO if not "all" then add duplicate removal operators
-
 	// set the parent of the operator's children
-	OP_LCHILD(so)->parents = OP_RCHILD(so)->parents = singleton(so);
+    OP_LCHILD(so)->parents = OP_RCHILD(so)->parents = singleton(so);
 
-	return ((QueryOperator *) so);
+	//if not "all" then add duplicate removal operators
+    if (!sq->all)
+    {
+        switch(sq->setOp)
+        {
+            case SETOP_UNION:
+            case SETOP_INTERSECTION:
+
+                result = (QueryOperator *) createDuplicateRemovalOp(
+                        deepCopyStringList(getAttrNames(GET_OPSCHEMA(so))),
+                        (QueryOperator *) so,
+                        NIL, getAttrNames(GET_OPSCHEMA(so)));
+                ((QueryOperator *) so)->parents = singleton(result);
+                break;
+            case SETOP_DIFFERENCE:
+                {
+                    QueryOperator *lD, *rD;
+
+                    lD = (QueryOperator *) createDuplicateRemovalOp(
+                            deepCopyStringList(getAttrNames(GET_OPSCHEMA(left))),
+                            (QueryOperator *) right,
+                            NIL, getAttrNames(GET_OPSCHEMA(left)));
+
+                    rD = (QueryOperator *) createDuplicateRemovalOp(
+                            deepCopyStringList(getAttrNames(GET_OPSCHEMA(right))),
+                            (QueryOperator *) right,
+                            NIL, getAttrNames(GET_OPSCHEMA(right)));
+                    switchSubtrees(left, lD);
+                    switchSubtrees(right, rD);
+                    left->parents = singleton(lD);
+                    right->parents = singleton(rD);
+
+                    result = (QueryOperator *) so;
+                }
+                break;
+        }
+    }
+    // is "all"
+    else
+        result = (QueryOperator *) so;
+
+	DEBUG_LOG("translated set query is %s", operatorToOverviewString((Node *) result));
+
+	return result;
 }
 
 static QueryOperator *
@@ -218,7 +254,12 @@ translateQueryBlock(QueryBlock *qb)
 			attrsOffsets, hasAggOrGroupBy);
 	INFO_LOG("translatedSelect is\n%s", nodeToString(project));
 
-	return project;
+	QueryOperator *distinct = translateDistinct((DistinctClause *) qb->distinct,
+	        project);
+	if (distinct != project)
+	    INFO_LOG("translatedDistinct is\n%s", nodeToString(distinct));
+
+	return distinct;
 }
 
 static QueryOperator *
@@ -850,6 +891,24 @@ translateSelectClause(List *selectClause, QueryOperator *select,
     OP_LCHILD(po)->parents = singleton(po);
 
     return ((QueryOperator *) po);
+}
+
+static QueryOperator *
+translateDistinct(DistinctClause *distinctClause, QueryOperator *input)
+{
+    QueryOperator *output = input;
+
+    if (distinctClause)
+    {
+        List *attrNames = getAttrNames(input->schema);
+
+        DuplicateRemoval *o = createDuplicateRemovalOp(copyObject(attrNames), input, NIL, attrNames);
+        input->parents = singleton(o);
+
+        output = (QueryOperator *) o;
+    }
+
+    return output;
 }
 
 static QueryOperator *
