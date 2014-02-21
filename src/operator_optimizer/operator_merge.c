@@ -49,7 +49,7 @@ mergeSelection(SelectionOperator *op)
         // clean up child
         child->cond = NULL;
         child->op.inputs = NULL;
-        deepFree(child);
+//        deepFree(child);
     }
 
     return op;
@@ -81,7 +81,7 @@ mergeProjection(ProjectionOperator *op)
         // clean up child
         child->projExprs = NULL;
         child->op.inputs = NULL;
-        deepFree(child);
+//        deepFree(child);
     }
 
     state->op = NULL;
