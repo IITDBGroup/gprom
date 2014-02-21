@@ -27,6 +27,7 @@ static void rewritePI_CSJoin (JoinOperator *op);
 static void rewritePI_CSAggregation (AggregationOperator *op);
 static void rewritePI_CSSet (SetOperator *op);
 static void rewritePI_CSTableAccess(TableAccessOperator *op);
+static void rewritePI_CSConstRel(ConstRelOperator * op);
 
 static Node *asOf;
 static RelCount *nameState;
@@ -93,6 +94,10 @@ rewritePI_CSOperator (QueryOperator *op)
         case T_TableAccessOperator:
          ERROR_LOG("go table access");
          rewritePI_CSTableAccess((TableAccessOperator *) op);
+         break;
+        case T_ConstRelOperator:
+         ERROR_LOG("go const rel operator");
+         rewritePI_CSConstRel((ConstRelOperator *) op);
          break;
         default:
             break;
@@ -452,4 +457,55 @@ rewritePI_CSTableAccess(TableAccessOperator *op)
     addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
 
     DEBUG_LOG("rewrite table acces: %s", operatorToOverviewString((Node *) newpo));
+}
+
+static void
+rewritePI_CSConstRel(ConstRelOperator *op)
+{
+    List *tableAttr;
+    List *provAttr = NIL;
+    List *projExpr = NIL;
+    char *newAttrName;
+
+    int relAccessCount = getRelNameCount(&nameState, "query");
+    int cnt = 0;
+
+    DEBUG_LOG("REWRITE-PICS - Const Rel Operator <%s> <%u>", nodeToString(op->values), relAccessCount);
+
+    // Get the povenance name for each attribute
+    FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
+    {
+        provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        cnt++;
+    }
+
+    cnt = 0;
+    FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
+    {
+        newAttrName = getProvenanceAttrName("query", attr->attrName, relAccessCount);
+        provAttr = appendToTailOfList(provAttr, newAttrName);
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        cnt++;
+    }
+
+    List *newProvPosList = NIL;
+    CREATE_INT_SEQ(newProvPosList, cnt, (cnt * 2) - 1, 1);
+
+    DEBUG_LOG("rewrite const rel operator, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
+            stringListToString(provAttr),
+            nodeToString(projExpr),
+            nodeToString(newProvPosList));
+
+    // Create a new projection operator with these new attributes
+    ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
+    newpo->op.provAttrs = newProvPosList;
+
+    // Switch the subtree with this newly created projection operator.
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+
+    // Add child to the newly created projections operator,
+    addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+
+    DEBUG_LOG("rewrite const rel operator: %s", operatorToOverviewString((Node *) newpo));
 }
