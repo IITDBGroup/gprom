@@ -95,7 +95,7 @@ pushDownSelectionWithProjection(SelectionOperator *op)
 {
 	ReplaceRefState *state = NEW(ReplaceRefState);
 
-	while(isA(OP_LCHILD(op),SelectionOperator))
+	while(isA(OP_LCHILD(op),ProjectionOperator))
 	{
 		ProjectionOperator *child = (ProjectionOperator *) OP_LCHILD(op);
 

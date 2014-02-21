@@ -32,14 +32,16 @@ mergeAdjacentOperators (QueryOperator *root)
 
 
 QueryOperator *
-pushDownSelectionOperatorOnProv(QueryOperator *root) {
+pushDownSelectionOperatorOnProv(QueryOperator *root)
+{
+    QueryOperator *newRoot = root;
 
 	if (isA(root, SelectionOperator) && isA(OP_LCHILD(root), ProjectionOperator)) {
-		pushDownSelectionWithProjection((SelectionOperator *) root);
+		newRoot = (QueryOperator *) pushDownSelectionWithProjection((SelectionOperator *) root);
 	}
 
-	FOREACH(QueryOperator, o, root->inputs)
+	FOREACH(QueryOperator, o, newRoot->inputs)
 		pushDownSelectionOperatorOnProv(o);
 
-	return root;
+	return newRoot;
 }

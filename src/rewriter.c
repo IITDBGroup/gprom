@@ -95,11 +95,17 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
                 QueryOperator *o = (QueryOperator *) LC_P_VAL(lc);
 
                 o = mergeAdjacentOperators(o);
+                o = pushDownSelectionOperatorOnProv(o);
+                o = mergeAdjacentOperators(o);
                 LC_P_VAL(lc) = o;
             }
         }
         else
+        {
             rewrittenTree = (Node *) mergeAdjacentOperators((QueryOperator *) rewrittenTree);
+            rewrittenTree = (Node *) pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
+            rewrittenTree = (Node *) mergeAdjacentOperators((QueryOperator *) rewrittenTree);
+        }
         DEBUG_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
     }
 
