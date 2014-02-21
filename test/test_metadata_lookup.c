@@ -270,4 +270,10 @@ testDatabaseConnectionClose()
 	return PASS;
 }
 
+static rc
+testRunTransactionAndGetXid()
+{
+    return PASS;
+}
+
 #endif
