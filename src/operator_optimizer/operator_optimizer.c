@@ -33,11 +33,8 @@ mergeAdjacentOperators (QueryOperator *root)
 QueryOperator *
 pushDownSelectionOperatorOnProv(QueryOperator *root) {
 
-	if (isA(root, SelectionOperator)) {
-		List *node = root->provAttrs;
-		if (node) {
-
-		}
+	if (isA(root, SelectionOperator) && isA(OP_LCHILD(root), ProjectionOperator)) {
+		pushDownSelectionWithProjection((SelectionOperator *) root);
 	}
 
 	FOREACH(QueryOperator, o, root->inputs)

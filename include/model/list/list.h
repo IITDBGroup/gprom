@@ -162,6 +162,8 @@ extern void newListHead(List *list);
 extern List *appendToHeadOfList(List *list, void *value);
 extern List *appendToHeadOfListInt (List *list, int value);
 
+extern List *replaceNode(List *list, void *n1, void *n2);
+
 extern void reverseList(List *list);
 
 extern void sortList(List *list);
