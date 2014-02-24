@@ -189,6 +189,7 @@ extern List *genericRemoveFromList (List *list, boolean (*eq) (void *, void *), 
 extern List *concatTwoLists (List *listA, List *listB);
 extern List *concatLists (List *a, ...);
 #define CONCAT_LISTS(...) concatLists(__VA_ARGS__, NULL)
+extern List *sublist(List *l, int from, int to);
 
 extern char *stringListToString (List *node);
 

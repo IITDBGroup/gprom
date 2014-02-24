@@ -66,6 +66,11 @@ typedef struct CaseWhen {
     Node *then;
 } CaseWhen;
 
+typedef struct IsNullExpr {
+    NodeTag type;
+    Node *expr;
+} IsNullExpr;
+
 typedef enum WindowBoundType {
     WINBOUND_UNBOUND_PREC,
     WINBOUND_CURRENT_ROW,
@@ -111,10 +116,12 @@ extern AttributeReference *createAttributeReference (char *name);
 extern AttributeReference *createFullAttrReference (char *name, int fromClause,
         int attrPos, int outerLevelsUp);
 extern Node *andExprs (Node *expr, ...);
-#define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL);
+#define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL)
 extern SQLParameter *createSQLParameter (char *name);
 extern CaseExpr *createCaseExpr (Node *expr, List *whenClauses, Node *elseRes);
 extern CaseWhen *createCaseWhen (Node *when, Node *then);
+extern IsNullExpr *createIsNullExpr (Node *expr);
+extern Node *createIsNotDistinctExpr (Node *lArg, Node *rArg);
 
 extern WindowBound *createWindowBound (WindowBoundType bType, Node *expr);
 extern WindowFrame *createWindowFrame (WinFrameType winType, WindowBound *lower, WindowBound *upper);

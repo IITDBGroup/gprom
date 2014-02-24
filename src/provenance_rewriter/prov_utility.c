@@ -48,6 +48,44 @@ addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source)
 }
 
 
+List *
+getProvAttrProjectionExprs(QueryOperator *op)
+{
+    List *result = NIL;
+    List *pNames = getOpProvenanceAttrNames(op);
+    int pos = 0;
+
+    FOREACH_INT(i,op->provAttrs)
+    {
+        AttributeReference *a;
+        char *name = getNthOfListP(pNames, pos++);
+        a = createFullAttrReference(name, 0, i, INVALID_ATTR);
+        result = appendToTailOfList(result, a);
+    }
+
+    return result;
+}
+
+List *
+getNormalAttrProjectionExprs(QueryOperator *op)
+{
+    List *result = NIL;
+    List *names = getQueryOperatorAttrNames(op);
+
+    for(int i = 0; i < getNumAttrs(op); i++)
+    {
+        if (!searchListInt(op->provAttrs, i))
+        {
+            AttributeReference *a;
+            char *name = getNthOfListP(names, i);
+            a = createFullAttrReference(name, 0, i, INVALID_ATTR);
+            result = appendToTailOfList(result, a);
+        }
+    }
+
+    return result;
+}
+
 /*
  * Given a subtree rooted a "orig" replace this subtree with the tree rooted
  * at "new". This method adapts all input lists of all parents of "orig" to point

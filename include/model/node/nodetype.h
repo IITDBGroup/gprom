@@ -27,6 +27,7 @@ typedef enum NodeTag {
     T_Operator,
     T_CaseExpr,
     T_CaseWhen,
+    T_IsNullExpr,
     T_WindowBound,
     T_WindowFrame,
     T_WindowDef,

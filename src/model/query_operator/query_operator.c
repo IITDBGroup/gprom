@@ -318,6 +318,12 @@ getOpProvenanceAttrNames(QueryOperator *op)
     return result;
 }
 
+int
+getNumProvAttrs(QueryOperator *op)
+{
+    return LIST_LENGTH(op->provAttrs);
+}
+
 List *
 getNormalAttrs(QueryOperator *op)
 {
@@ -349,6 +355,13 @@ getNormalAttrNames(QueryOperator *op)
     return result;
 }
 
+int
+getNumNormalAttrs(QueryOperator *op)
+{
+    return getNumAttrs(op) - LIST_LENGTH(op->provAttrs);
+}
+
+
 List *
 getQueryOperatorAttrNames (QueryOperator *op)
 {
@@ -365,6 +378,23 @@ getNumAttrs(QueryOperator *op)
 {
     return LIST_LENGTH(op->schema->attrDefs);
 }
+
+List *
+aggOpGetGroupByAttrNames(AggregationOperator *op)
+{
+    List *result = getQueryOperatorAttrNames((QueryOperator *) op);
+
+    return sublist(result, LIST_LENGTH(op->aggrs), LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy));
+}
+
+List *
+aggOpGetAggAttrNames(AggregationOperator *op)
+{
+    List *result = getQueryOperatorAttrNames((QueryOperator *) op);
+
+    return sublist(result, 0, LIST_LENGTH(op->aggrs));
+}
+
 
 void treeify(QueryOperator *op)
 {

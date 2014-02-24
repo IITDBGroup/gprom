@@ -25,6 +25,7 @@ static boolean equalOperator (Operator *a, Operator *b);
 static boolean equalConstant (Constant *a, Constant *b);
 static boolean equalCaseExpr (CaseExpr *a, CaseExpr *b);
 static boolean equalCaseWhen (CaseWhen *a, CaseWhen *b);
+static boolean equalIsNullExpr (IsNullExpr *a, IsNullExpr *b);
 static boolean equalWindowBound (WindowBound *a, WindowBound *b);
 static boolean equalWindowFrame (WindowFrame *a, WindowFrame *b);
 static boolean equalWindowDef (WindowDef *a, WindowDef *b);
@@ -182,6 +183,14 @@ equalCaseWhen (CaseWhen *a, CaseWhen *b)
 {
     COMPARE_NODE_FIELD(when);
     COMPARE_NODE_FIELD(then);
+
+    return TRUE;
+}
+
+static boolean
+equalIsNullExpr (IsNullExpr *a, IsNullExpr *b)
+{
+    COMPARE_NODE_FIELD(expr);
 
     return TRUE;
 }
@@ -709,6 +718,9 @@ equal(void *a, void *b)
             break;
         case T_CaseWhen:
             retval = equalCaseWhen(a,b);
+            break;
+        case T_IsNullExpr:
+            retval = equalIsNullExpr(a,b);
             break;
         case T_WindowBound:
             retval = equalWindowBound(a,b);

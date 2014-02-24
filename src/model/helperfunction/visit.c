@@ -110,6 +110,12 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(then);
             }
             break;
+        case T_IsNullExpr:
+            {
+                PREP_VISIT(IsNullExpr);
+                VISIT(expr);
+            }
+            break;
         case T_WindowBound:
             {
                 PREP_VISIT(WindowBound);
@@ -367,6 +373,12 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 NEWN(CaseWhen);
                 MUTATE(Node, when);
                 MUTATE(Node, then);
+            }
+            break;
+        case T_IsNullExpr:
+            {
+                NEWN(IsNullExpr);
+                MUTATE(Node, expr);
             }
             break;
         case T_WindowBound:

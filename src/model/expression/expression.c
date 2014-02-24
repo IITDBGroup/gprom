@@ -186,6 +186,29 @@ createOpExpr(char *name, List *args)
     return result;
 }
 
+IsNullExpr *
+createIsNullExpr (Node *expr)
+{
+    IsNullExpr *result = makeNode(IsNullExpr);
+
+    result->expr = expr;
+
+    return result;
+}
+
+Node *
+createIsNotDistinctExpr (Node *lArg, Node *rArg)
+{
+    Operator *eq, *nullTest;
+
+    eq = createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
+    nullTest = createOpExpr("AND", LIST_MAKE(
+            createIsNullExpr(copyObject(lArg)),
+            createIsNullExpr(copyObject(rArg))));
+
+    return (Node *) createOpExpr("OR", LIST_MAKE(eq, nullTest));
+}
+
 Constant *
 createConstInt (int value)
 {

@@ -56,6 +56,7 @@ static Operator *copyOperator(Operator *from, OperatorMap **opMap);
 static SQLParameter *copySQLParameter(SQLParameter *from, OperatorMap **opMap);
 static CaseExpr *copyCaseExpr(CaseExpr *from, OperatorMap **opMap);
 static CaseWhen *copyCaseWhen(CaseWhen *from, OperatorMap **opMap);
+static IsNullExpr *copyIsNullExpr(IsNullExpr *from, OperatorMap **opMap);
 static WindowBound *copyWindowBound(WindowBound *from, OperatorMap **opMap);
 static WindowFrame *copyWindowFrame(WindowFrame *from, OperatorMap **opMap);
 static WindowDef *copyWindowDef(WindowDef *from, OperatorMap **opMap);
@@ -217,6 +218,15 @@ copyCaseWhen(CaseWhen *from, OperatorMap **opMap)
     COPY_INIT(CaseWhen);
     COPY_NODE_FIELD(when);
     COPY_NODE_FIELD(then);
+
+    return new;
+}
+
+static IsNullExpr *
+copyIsNullExpr(IsNullExpr *from, OperatorMap **opMap)
+{
+    COPY_INIT(IsNullExpr);
+    COPY_NODE_FIELD(expr);
 
     return new;
 }
@@ -693,6 +703,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_CaseWhen:
             retval = copyCaseWhen(from, opMap);
+            break;
+        case T_IsNullExpr:
+            retval = copyIsNullExpr(from, opMap);
             break;
         case T_WindowBound:
             retval = copyWindowBound(from, opMap);

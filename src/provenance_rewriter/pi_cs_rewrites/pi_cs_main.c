@@ -20,14 +20,14 @@
 #include "model/list/list.h"
 #include "model/expression/expression.h"
 
-static void rewritePI_CSOperator (QueryOperator *op);
-static void rewritePI_CSSelection (SelectionOperator *op);
-static void rewritePI_CSProjection (ProjectionOperator *op);
-static void rewritePI_CSJoin (JoinOperator *op);
-static void rewritePI_CSAggregation (AggregationOperator *op);
-static void rewritePI_CSSet (SetOperator *op);
-static void rewritePI_CSTableAccess(TableAccessOperator *op);
-static void rewritePI_CSConstRel(ConstRelOperator * op);
+static QueryOperator *rewritePI_CSOperator (QueryOperator *op);
+static QueryOperator *rewritePI_CSSelection (SelectionOperator *op);
+static QueryOperator *rewritePI_CSProjection (ProjectionOperator *op);
+static QueryOperator *rewritePI_CSJoin (JoinOperator *op);
+static QueryOperator *rewritePI_CSAggregation (AggregationOperator *op);
+static QueryOperator *rewritePI_CSSet (SetOperator *op);
+static QueryOperator *rewritePI_CSTableAccess(TableAccessOperator *op);
+static QueryOperator *rewritePI_CSConstRel(ConstRelOperator * op);
 
 static Node *asOf;
 static RelCount *nameState;
@@ -66,45 +66,39 @@ rewritePI_CS (ProvenanceComputation  *op)
     return rewRoot;
 }
 
-static void
+static QueryOperator *
 rewritePI_CSOperator (QueryOperator *op)
 {
     switch(op->type)
     {
+            ERROR_LOG("go selection");
         case T_SelectionOperator:
-         ERROR_LOG("go selection");
-            rewritePI_CSSelection((SelectionOperator *) op);
-            break;
+            return rewritePI_CSSelection((SelectionOperator *) op);
         case T_ProjectionOperator:
-         ERROR_LOG("go projection");
-            rewritePI_CSProjection((ProjectionOperator *) op);
-            break;
+            ERROR_LOG("go projection");
+            return rewritePI_CSProjection((ProjectionOperator *) op);
         case T_AggregationOperator:
-         ERROR_LOG("go aggregation");
-            rewritePI_CSAggregation ((AggregationOperator *) op);
-            break;
+            ERROR_LOG("go aggregation");
+            return rewritePI_CSAggregation ((AggregationOperator *) op);
         case T_JoinOperator:
-         ERROR_LOG("go join");
-            rewritePI_CSJoin((JoinOperator *) op);
-            break;
+            ERROR_LOG("go join");
+            return rewritePI_CSJoin((JoinOperator *) op);
         case T_SetOperator:
-         ERROR_LOG("go set");
-         rewritePI_CSSet((SetOperator *) op);
-            break;
+            ERROR_LOG("go set");
+            return rewritePI_CSSet((SetOperator *) op);
         case T_TableAccessOperator:
-         ERROR_LOG("go table access");
-         rewritePI_CSTableAccess((TableAccessOperator *) op);
-         break;
+            ERROR_LOG("go table access");
+            return rewritePI_CSTableAccess((TableAccessOperator *) op);
         case T_ConstRelOperator:
-         ERROR_LOG("go const rel operator");
-         rewritePI_CSConstRel((ConstRelOperator *) op);
-         break;
+            ERROR_LOG("go const rel operator");
+            return rewritePI_CSConstRel((ConstRelOperator *) op);
         default:
-            break;
+            FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
+            return NULL;
     }
 }
 
-static void
+static QueryOperator *
 rewritePI_CSSelection (SelectionOperator *op)
 {
     assert(OP_LCHILD(op));
@@ -119,9 +113,10 @@ rewritePI_CSSelection (SelectionOperator *op)
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
+    return (QueryOperator *) op;
 }
 
-static void
+static QueryOperator *
 rewritePI_CSProjection (ProjectionOperator *op)
 {
     assert(OP_LCHILD(op));
@@ -146,9 +141,10 @@ rewritePI_CSProjection (ProjectionOperator *op)
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
+    return (QueryOperator *) op;
 }
 
-static void
+static QueryOperator *
 rewritePI_CSJoin (JoinOperator *op)
 {
     DEBUG_LOG("REWRITE-PICS - Join");
@@ -170,6 +166,9 @@ rewritePI_CSJoin (JoinOperator *op)
     addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
     switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
     addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
+
+    DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
+    return (QueryOperator *) op;
 }
 
 /*
@@ -177,13 +176,14 @@ rewritePI_CSJoin (JoinOperator *op)
  *      - replace aggregation with projection over join between the aggregation
  *       and the aggregation rewritten input
  */
-static void
+static QueryOperator *
 rewritePI_CSAggregation (AggregationOperator *op)
 {
     JoinOperator *joinProv;
     ProjectionOperator *proj;
     QueryOperator *aggInput;
     QueryOperator *origAgg;
+    int numGroupAttrs = LIST_LENGTH(op->groupBy);
 
     DEBUG_LOG("REWRITE-PICS - Aggregation");
 
@@ -191,73 +191,81 @@ rewritePI_CSAggregation (AggregationOperator *op)
     origAgg = (QueryOperator *) op;
     aggInput = copyUnrootedSubtree(OP_LCHILD(op));
     // rewrite aggregation input copy
-    rewritePI_CSOperator(aggInput);
-
-	// add aggregation to join input
-//	addChildOperator((QueryOperator *) joinProv, (QueryOperator *) op);
+    aggInput = rewritePI_CSOperator(aggInput);
 
     // add projection including group by expressions if necessary
     if(op->groupBy != NIL)
     {
         List *groupByProjExprs = (List *) copyObject(op->groupBy);
-        ProjectionOperator *groupByProj = createProjectionOp(groupByProjExprs,
-                NULL, NIL, NIL);
+        List *attrNames = NIL;
+        List *provAttrs = NIL;
+        ProjectionOperator *groupByProj;
 
-        // adapt schema for groupByProjection
-        clearAttrsFromSchema((QueryOperator *) op);
-        FOREACH(QueryOperator, q, op->op.inputs)
-        {
-        	addNormalAttrsToSchema((QueryOperator *) op, q);
-        	addProvenanceAttrsToSchema((QueryOperator *) op, q);
-        }
-        //TODO how to adapt project exprs to schema?
+        attrNames = CONCAT_LISTS(aggOpGetGroupByAttrNames(op), getOpProvenanceAttrNames(aggInput));
+        groupByProjExprs = CONCAT_LISTS(groupByProjExprs, getProvAttrProjectionExprs(aggInput));
 
-        addChildOperator((QueryOperator *) groupByProj, (QueryOperator *) aggInput);
+        groupByProj = createProjectionOp(groupByProjExprs,
+                        aggInput, NIL, attrNames);
+        CREATE_INT_SEQ(provAttrs, numGroupAttrs, numGroupAttrs + getNumProvAttrs(aggInput) - 1,1);
+        groupByProj->op.provAttrs = provAttrs;
+        aggInput->parents = singleton(groupByProj);
         aggInput = (QueryOperator *) groupByProj;
     }
-//    else
-//        addChildOperator((QueryOperator *) joinProv, (QueryOperator *) aggInput);
-
-    // create join operator
-    List *joinAttrNames = NIL;
-    joinProv = createJoinOp(JOIN_LEFT_OUTER, NULL, LIST_MAKE(origAgg, aggInput), NIL,
-            joinAttrNames);
 
     // create join condition
 	Node *joinCond = NULL;
+	JoinType joinT = (op->groupBy) ? JOIN_INNER : JOIN_LEFT_OUTER;
+
+	// create join condition for group by
 	if(op->groupBy != NIL)
 	{
+	    int pos = 0;
+	    List *groupByNames = aggOpGetGroupByAttrNames(op);
+
 		FOREACH(AttributeReference, a , op->groupBy)
 		{
-			AttributeReference *lA = createAttributeReference(a->name);
-			lA->fromClauseItem = 0;
-			lA->attrPosition = a->attrPosition;
-			AttributeReference *rA = createAttributeReference(a->name);
-			rA->fromClauseItem = 1;
-			rA->attrPosition = a->attrPosition; //TODO change
+		    char *name = getNthOfListP(groupByNames, pos);
+			AttributeReference *lA = createFullAttrReference(name, 0, a->attrPosition, INVALID_ATTR);
+			AttributeReference *rA = createFullAttrReference(name, 1, pos, INVALID_ATTR);
 			if(joinCond)
-			{
-				joinCond = AND_EXPRS((Node *) createOpExpr("=", LIST_MAKE(lA,rA)), joinCond);
-			}
+				joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
 			else
-				joinCond = (Node *) createOpExpr("=", LIST_MAKE(lA, rA));
+				joinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
+			pos++;
 		}
 	}
-	joinProv->cond = joinCond;
+	// or for without group by
+	else
+	    joinCond = (Node *) createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)));
+
+    // create join operator
+    List *joinAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getQueryOperatorAttrNames(aggInput));
+    joinProv = createJoinOp(joinT, joinCond, LIST_MAKE(origAgg, aggInput), NIL,
+            joinAttrNames);
+    joinProv->op.provAttrs = copyObject(aggInput->provAttrs);
+    FOREACH_LC(lc,joinProv->op.provAttrs)
+        lc->data.int_value += getNumAttrs(origAgg);
 
 	// create projection expressions for final projection
+    List *projAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getOpProvenanceAttrNames(aggInput));
+    List *projExprs = CONCAT_LISTS(getNormalAttrProjectionExprs(origAgg),
+                                getProvAttrProjectionExprs((QueryOperator *) joinProv));
 
     // create final projection and replace aggregation subtree with projection
-	proj = createProjectionOp(NIL, NULL, NIL, NIL);
+	proj = createProjectionOp(projExprs, (QueryOperator *) joinProv, NIL, projAttrNames);
+	joinProv->op.parents = singleton(proj);
+	CREATE_INT_SEQ(proj->op.provAttrs, getNumNormalAttrs((QueryOperator *) origAgg),
+	        getNumNormalAttrs((QueryOperator *) origAgg) + getNumProvAttrs((QueryOperator *) joinProv) - 1,1);
+
+	// switch provenance computation with original aggregation
 	switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
 
-    addChildOperator((QueryOperator *) proj, (QueryOperator *) joinProv);
-
     // adapt schema for final projection
-
+    DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(proj)));
+    return (QueryOperator *) proj;
 }
 
-static void
+static QueryOperator *
 rewritePI_CSSet(SetOperator *op)
 {
     DEBUG_LOG("REWRITE-PICS - Set");
@@ -359,8 +367,8 @@ rewritePI_CSSet(SetOperator *op)
 
     	// adapt schema of union itself, we can get full provenance attributes from left input
     	addProvenanceAttrsToSchema((QueryOperator *) op, (QueryOperator *) projLeftChild);
+        return (QueryOperator *) op;
     }
-    	break;
     case SETOP_INTERSECTION:
     {
     	JoinOperator *joinOp = createJoinOp(JOIN_CROSS, NULL, NIL, NIL, NIL);
@@ -372,8 +380,9 @@ rewritePI_CSSet(SetOperator *op)
 
     	//create join condition
     	Node *joinCond;//TODO
+
+    	return (QueryOperator *) joinOp;
     }
-    	break;
     case SETOP_DIFFERENCE:
     {
     	SelectionOperator *selOp = createSelectionOp(NULL, NULL, NIL, NIL);
@@ -395,16 +404,15 @@ rewritePI_CSSet(SetOperator *op)
 
     	// create selection condition
     	Node *selCond;//TODO
+    	return (QueryOperator *) op;
     }
-    	break;
     default:
     	break;
     }
-    // adapt schema
-//    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+    return NULL;
 }
 
-static void
+static QueryOperator *
 rewritePI_CSTableAccess(TableAccessOperator *op)
 {
     List *tableAttr;
@@ -457,9 +465,10 @@ rewritePI_CSTableAccess(TableAccessOperator *op)
     addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
 
     DEBUG_LOG("rewrite table acces: %s", operatorToOverviewString((Node *) newpo));
+    return (QueryOperator *) newpo;
 }
 
-static void
+static QueryOperator *
 rewritePI_CSConstRel(ConstRelOperator *op)
 {
     List *tableAttr;
@@ -508,4 +517,5 @@ rewritePI_CSConstRel(ConstRelOperator *op)
     addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
 
     DEBUG_LOG("rewrite const rel operator: %s", operatorToOverviewString((Node *) newpo));
+    return (QueryOperator *) newpo;
 }

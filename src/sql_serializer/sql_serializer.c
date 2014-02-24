@@ -79,6 +79,11 @@ typedef struct UpdateAggAndGroupByAttrState {
     List *groupByNames;
 } UpdateAggAndGroupByAttrState;
 
+typedef struct JoinAttrRenameState {
+    int rightFromOffsets;
+    List *fromAttrs;
+} JoinAttrRenameState;
+
 /* macros */
 #define OPEN_PARENS(str) appendStringInfoChar(str, '(')
 #define CLOSE_PARENS(str) appendStringInfoChar(str, ')')
@@ -106,17 +111,17 @@ static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAt
 static boolean updateAttributeNames(Node *node, List *fromAttrs);
 static boolean updateAttributeNamesSimple(Node *node, List *attrNames);
 
-static List *serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
+static List *serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy, List *fromAttrs);
 
-static char *exprToSQLWithNamingScheme (Node *expr, List *offsets);
-static boolean renameAttrsVisitor (Node *node, List *offsets);
+static char *exprToSQLWithNamingScheme(Node *expr, int rOffset, List *fromAttrs);
+static boolean renameAttrsVisitor(Node *node, JoinAttrRenameState *state);
 
-static char *createAttrName (int fItem, int attrOffset);
-static char *createFromNames (int *attrOffset, int count);
+static char *createAttrName(char *name, int fItem);
+static char *createFromNames(int *attrOffset, int count);
 
-static List *createTempView (QueryOperator *q, StringInfo str);
-static char *createViewName (void);
+static List *createTempView(QueryOperator *q, StringInfo str);
+static char *createViewName(void);
 static char *serializeConstRel(ConstRelOperator *q, StringInfo select, List *fromAttrs, StringInfo from);
 
 char *
@@ -472,11 +477,10 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         case T_JoinOperator:
         {
             JoinOperator *j = (JoinOperator *) q;
-            List *jOffsets = NIL;
+            int rOffset;
             appendStringInfoString(from, "(");
 
             //left child
-            jOffsets = appendToTailOfListInt(jOffsets, *curFromItem);
             serializeFromItem(OP_LCHILD(j), from, curFromItem, attrOffset, fromAttrs);
 
             // join
@@ -500,13 +504,13 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             }
 
             // right child
-            jOffsets = appendToTailOfListInt(jOffsets, *curFromItem);
+            rOffset = *curFromItem;
             serializeFromItem(OP_RCHILD(j), from, curFromItem, attrOffset, fromAttrs);
 
             // join condition
             if (j->cond)
                 appendStringInfo(from, " ON (%s)", exprToSQLWithNamingScheme(
-                        copyObject(j->cond), jOffsets));
+                        copyObject(j->cond), rOffset, *fromAttrs));
 
             //we don't need the alias part now
             appendStringInfo(from, ")");
@@ -541,12 +545,11 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         break;
         default:
         {
-//            *attrOffset = 0;
+            List *attrNames;
+
             appendStringInfoString(from, "((");
-            List *attrNames = serializeQueryOperator(q, from);
+            attrNames = serializeQueryOperator(q, from);
             *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-            // return attribute names
-//            attrs = createFromNames(attrOffset, LIST_LENGTH(q->schema->attrDefs));
             appendStringInfo(from, ") F%u)", (*curFromItem)++);
         }
         break;
@@ -554,15 +557,20 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 }
 
 static char *
-exprToSQLWithNamingScheme (Node *expr, List *offsets)
+exprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs)
 {
-    renameAttrsVisitor(expr, offsets);
+    JoinAttrRenameState *state = NEW(JoinAttrRenameState);
 
+    state->rightFromOffsets = rOffset;
+    state->fromAttrs = fromAttrs;
+    renameAttrsVisitor(expr, state);
+
+    FREE(state);
     return exprToSQL(expr);
 }
 
 static boolean
-renameAttrsVisitor (Node *node, List *offsets)
+renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
 {
     if (node == NULL)
         return TRUE;
@@ -570,14 +578,42 @@ renameAttrsVisitor (Node *node, List *offsets)
     if (isA(node, AttributeReference))
     {
         AttributeReference *a = (AttributeReference *) node;
+        boolean isRight = (a->fromClauseItem == 0) ? FALSE : TRUE;
+        int pos = 0, fPos = 0;
+        int rOffset = state->rightFromOffsets;
+        ListCell *lc;
+        char *name;
+        List *from;
 
-        a->name = createAttrName(getNthOfListInt(offsets, a->fromClauseItem),
-                 a->attrPosition);
+        // if right join input find first from item from right input
+        if (isRight)
+            for(lc = getHeadOfList(state->fromAttrs); fPos < rOffset; lc = lc->next, fPos++)
+                ;
+        else
+            lc = getHeadOfList(state->fromAttrs);
+
+        // find from position and attr name
+        for(; lc != NULL; lc = lc->next)
+        {
+            List *attrs = (List *) LC_P_VAL(lc);
+            pos += LIST_LENGTH(attrs);
+            if (pos > a->attrPosition)
+            {
+                from = attrs;
+                break;
+            }
+            fPos++;
+        }
+
+        pos = a->attrPosition - pos + LIST_LENGTH(from);
+        name = getNthOfListP(from, pos);
+
+        a->name = createAttrName(name, fPos);
 
         return TRUE;
     }
 
-    return visit(node, renameAttrsVisitor, offsets);
+    return visit(node, renameAttrsVisitor, state);
 }
 
 static char *
@@ -598,12 +634,12 @@ createFromNames (int *attrOffset, int count)
 }
 
 static char *
-createAttrName (int fItem, int attrOffset)
+createAttrName (char *name, int fItem)
 {
    StringInfo str = makeStringInfo();
    char *result = NULL;
 
-   appendStringInfo(str, "F%u.A%u", fItem, attrOffset);
+   appendStringInfo(str, "F%u.%s", fItem, name);
    result = str->data;
    FREE(str);
 
@@ -707,7 +743,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 {
     int pos = 0;
     List *firstProjs = NIL;
-        List *aggs = NIL;
+    List *aggs = NIL;
     List *groupBys = NIL;
     List *secondProjs = NIL;
     List *resultAttrs = NIL;
@@ -813,21 +849,24 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     else if (agg)
     {
         int pos = 0;
+        char *name;
+        resultAttrs = getQueryOperatorAttrNames((QueryOperator *) agg);
 
-        FOREACH(char,name,aggs)
+        FOREACH(char,a,aggs)
         {
+            name = getNthOfListP(resultAttrs, pos);
             if (pos++ != 0)
                 appendStringInfoString(select, ", ");
-            appendStringInfoString(select, name);
+            appendStringInfo(select, "%s AS %s", a, name);
         }
-        FOREACH(char,name,groupBys)
+        FOREACH(char,gb,groupBys)
         {
+            name = getNthOfListP(resultAttrs, pos);
             if (pos++ != 0)
                 appendStringInfoString(select, ", ");
-            appendStringInfoString(select, name);
+            appendStringInfo(select,  "%s AS %s", gb, name);
         }
 
-        resultAttrs = concatTwoLists(deepCopyStringList(aggs), deepCopyStringList(groupBys));
         INFO_LOG("aggregation result as projection expressions %s", select->data);
     }
     // get attributes from FROM clause root
@@ -848,7 +887,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     if (state)
         FREE(state);
 
-    return resultAttrs; //TODO return list of attr names
+    return resultAttrs;
 }
 
 

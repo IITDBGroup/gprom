@@ -35,6 +35,7 @@ static void outOperator (StringInfo str, Operator *node);
 static void outKeyValue (StringInfo str, KeyValue *node);
 static void outCaseExpr (StringInfo str, CaseExpr *node);
 static void outCaseWhen (StringInfo str, CaseWhen *node);
+static void outIsNullExpr (StringInfo str, IsNullExpr *node);
 static void outWindowBound (StringInfo str, WindowBound *node);
 static void outWindowFrame (StringInfo str, WindowFrame *node);
 static void outWindowDef (StringInfo str, WindowDef *node);
@@ -414,6 +415,14 @@ outCaseWhen (StringInfo str, CaseWhen *node)
 }
 
 static void
+outIsNullExpr (StringInfo str, IsNullExpr *node)
+{
+    WRITE_NODE_TYPE(IS_NULL_EXPR);
+
+    WRITE_NODE_FIELD(expr);
+}
+
+static void
 outWindowBound (StringInfo str, WindowBound *node)
 {
     WRITE_NODE_TYPE(WINDOW_BOUND);
@@ -725,6 +734,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_CaseWhen:
                 outCaseWhen(str, (CaseWhen *) obj);
+                break;
+            case T_IsNullExpr:
+                outIsNullExpr(str, (IsNullExpr *) obj);
                 break;
             case T_WindowBound:
                 outWindowBound(str, (WindowBound *) obj);

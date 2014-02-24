@@ -234,13 +234,18 @@ exprToSQLString(StringInfo str, Node *expr)
         case T_CaseExpr:
         {
             caseToSQL(str, (CaseExpr *) expr);
-            break;
         }
+        break;
         case T_WindowFunction:
         {
             winFuncToSQL(str, (WindowFunction *) expr);
-            break;
         }
+        break;
+        case T_IsNullExpr:
+        {
+            appendStringInfo(str, "(%s IS NULL)", exprToSQL(((IsNullExpr *) expr)->expr));
+        }
+        break;
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));
     }

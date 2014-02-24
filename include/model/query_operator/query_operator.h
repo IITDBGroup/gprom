@@ -146,17 +146,23 @@ extern NestingOperator *createNestingOp(NestingExprType nestingType, Node *cond,
 /*  */
 extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
 
-/* access functions */
+/* attribute functions */
 extern List *getProvenanceAttrs(QueryOperator *op);
 extern List *getProvenanceAttrDefs(QueryOperator *op);
 extern List *getOpProvenanceAttrNames(QueryOperator *op);
+extern int getNumProvAttrs(QueryOperator *op);
 
 extern List *getNormalAttrs(QueryOperator *op);
 extern List *getNormalAttrNames(QueryOperator *op);
+extern int getNumNormalAttrs(QueryOperator *op);
 
 extern List *getQueryOperatorAttrNames (QueryOperator *op);
 
 extern int getNumAttrs(QueryOperator *op);
+
+/* operator specific functions */
+extern List *aggOpGetGroupByAttrNames(AggregationOperator *op);
+extern List *aggOpGetAggAttrNames(AggregationOperator *op);
 
 /* transforms a graph query model into a tree */
 extern void treeify(QueryOperator *op);
