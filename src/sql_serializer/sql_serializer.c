@@ -122,7 +122,6 @@ static char *createFromNames(int *attrOffset, int count);
 
 static List *createTempView(QueryOperator *q, StringInfo str);
 static char *createViewName(void);
-static char *serializeConstRel(ConstRelOperator *q, StringInfo select, List *fromAttrs, StringInfo from);
 
 char *
 serializeOperatorModel(Node *q)
@@ -206,16 +205,6 @@ serializeQueryOperator (QueryOperator *q, StringInfo str)
         return serializeQueryBlock(q, str);
 }
 
-static char *
-serializeConstRel(ConstRelOperator *q, StringInfo select, List *fromAttrs, StringInfo from)
-{
-
-
-
-
-    return NULL;
-
-}
 /*
  * Serialize a SQL query block (SELECT ... FROM ... WHERE ...)
  */
@@ -242,6 +231,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
         {
             case T_JoinOperator:
             case T_TableAccessOperator:
+            case T_ConstRelOperator :
             case T_SetOperator:
                 matchInfo->fromRoot = cur;
                 state = MATCH_NEXTBLOCK;
@@ -539,8 +529,17 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
         case T_ConstRelOperator:
                {
+            	   ConstRelOperator *t = (ConstRelOperator *) q;
+            	   char *as = NULL;
 
+            	   List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
 
+            	     FOREACH(char,values,attrNames)
+            	        {
+            	            if (values++ != 0)
+            	            appendStringInfo(select, "%s AS %s", values, attrNames);
+            	            appendStringInfoString(from, "\nFROM dual ");
+            	        }
                }
         break;
         default:
