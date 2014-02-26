@@ -1417,7 +1417,7 @@ YY_RULE_SETUP
 { 		
 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
-		yylval.stringVal[strlen(yytext) -1] = '\0';
+		yylval.stringVal[strlen(yytext) - 2] = '\0';
 		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", yytext);
 		return identifier;
 	}	
