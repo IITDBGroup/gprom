@@ -533,7 +533,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             }
             List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
             *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-            appendStringInfo(from, "((%s)%s F%u)", t->tableName, asOf ? asOf : "", (*curFromItem)++);
+            appendStringInfo(from, "(%s%s F%u)", t->tableName, asOf ? asOf : "", (*curFromItem)++);
         }
         break;
 

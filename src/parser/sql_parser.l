@@ -188,7 +188,7 @@ UPDATED		TOK(UPDATED)
 {parameters} {
 		yylval.stringVal = MALLOC(strlen(yytext));
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 1);
-		yylval.stringVal[strlen(yytext) -1] = '\0';
+		yylval.stringVal[strlen(yytext) - 1] = '\0';
 		TRACE_LOG("Lexed TOKEN <parameter> with VALUE <:%s>", yytext);
 		return parameter;
 	}
@@ -210,7 +210,7 @@ UPDATED		TOK(UPDATED)
 '[^'\n]*'	{
 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
-		yylval.stringVal[strlen(yytext) -1] = '\0';
+		yylval.stringVal[strlen(yytext) - 2] = '\0';
 		TRACE_LOG("Lexed TOKEN <stringConst> with VALUE <%s>", yytext);
 		return stringConst;
 	}
