@@ -705,6 +705,12 @@ isAgg(char *table)
 	return FALSE;
 }
 
+boolean
+isWindowFunction(char *functionName)
+{
+    return FALSE;
+}
+
 char *
 getTableDefinition(char *table) {
     return NULL;
