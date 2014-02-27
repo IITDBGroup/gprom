@@ -273,10 +273,6 @@ rewritePI_CSSet(SetOperator *op)
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
 
-    // rewrite children
-    rewritePI_CSOperator(lChild);
-    rewritePI_CSOperator(rChild);
-
     switch(op->setOpType)
     {
     case SETOP_UNION:
@@ -286,6 +282,10 @@ rewritePI_CSSet(SetOperator *op)
         List *provAttrs = NIL;
         int lProvs = LIST_LENGTH(lChild->provAttrs);
         int i;
+
+        // rewrite children
+        rewritePI_CSOperator(lChild);
+        rewritePI_CSOperator(rChild);
 
         // create projection over left rewritten input
         attNames = concatTwoLists(getQueryOperatorAttrNames(lChild), getOpProvenanceAttrNames(rChild));
@@ -385,26 +385,47 @@ rewritePI_CSSet(SetOperator *op)
     }
     case SETOP_DIFFERENCE:
     {
-    	SelectionOperator *selOp = createSelectionOp(NULL, NULL, NIL, NIL);
-    	JoinOperator *joinOp = createJoinOp(JOIN_CROSS, NULL, NIL, NIL, NIL);
-    	ProjectionOperator *projOp = createProjectionOp(NIL, NULL, NIL, NIL);
+    	JoinOperator *joinOp;
+    	ProjectionOperator *projOp;
+    	QueryOperator *rewrLeftChild = rewritePI_CSOperator(
+    	        copyUnrootedSubtree(lChild));
 
-    	//restructure the tree
-    	switchSubtrees((QueryOperator *) op, (QueryOperator *) projOp);
-    	addChildOperator((QueryOperator *) projOp, (QueryOperator *) joinOp);
-    	addChildOperator((QueryOperator *) joinOp, (QueryOperator *) selOp);
-    	addChildOperator((QueryOperator *) joinOp, (QueryOperator *) lChild);
-    	addChildOperator((QueryOperator *) selOp, (QueryOperator *) op);
+    	// join provenance with rewritten right input
+    	// create join condition
+        Node *joinCond;
+        List *joinAttrs = CONCAT_LISTS(getQueryOperatorAttrNames((QueryOperator *) op),
+                getQueryOperatorAttrNames(rewrLeftChild));
+    	joinCond = NULL;
 
-    	// adapt schema for projection
+        FORBOTH(AttributeReference, aL , aR, getNormalAttrProjectionExprs(lChild),
+                getNormalAttrProjectionExprs(rewrLeftChild))
+        {
+            aL->fromClauseItem = 0;
+            aR->fromClauseItem = 1;
+            if(joinCond)
+                joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) aL, (Node *) aR), joinCond);
+            else
+                joinCond = (Node *) createIsNotDistinctExpr((Node *) aL, (Node *) aR);
+        }
+
+        joinOp = createJoinOp(JOIN_INNER, joinCond, LIST_MAKE(op, rewrLeftChild),
+                NIL, joinAttrs);
+        joinOp->op.provAttrs = copyObject(rewrLeftChild->provAttrs);
+        SHIFT_INT_LIST(joinOp->op.provAttrs, getNumAttrs((QueryOperator *) op));
+
+    	// adapt schema using projection
+        List *projExpr = CONCAT_LISTS(getNormalAttrProjectionExprs((QueryOperator *)op),
+                getProvAttrProjectionExprs((QueryOperator *) joinOp));
+        List *projAttrs = CONCAT_LISTS(getQueryOperatorAttrNames((QueryOperator *) op),
+                getOpProvenanceAttrNames((QueryOperator *) joinOp));
+        projOp = createProjectionOp(projExpr, (QueryOperator *) joinOp, NIL, projAttrs);
+        projOp->op.provAttrs = copyObject(rewrLeftChild->provAttrs);
     	addProvenanceAttrsToSchema((QueryOperator *) projOp, OP_LCHILD(projOp));
 
-    	// create join condition
-    	Node *joinCond;//TODO
+    	// switch original set diff with projection
+    	switchSubtrees((QueryOperator *) op, (QueryOperator *) projOp);
 
-    	// create selection condition
-    	Node *selCond;//TODO
-    	return (QueryOperator *) op;
+    	return (QueryOperator *) projOp;
     }
     default:
     	break;
