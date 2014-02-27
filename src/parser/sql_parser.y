@@ -54,7 +54,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -945,7 +945,7 @@ optionalFromProv:
 		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; }
 		| BASERELATION 
 			{
-				RULELOG("optionalFromProv");
+				RULELOG("optionalFromProv::BASERELATION");
 				FromProvInfo *p = makeNode(FromProvInfo);
 				p->baserel = TRUE;
 				p->userProvAttrs = NIL;				 
@@ -958,6 +958,13 @@ optionalFromProv:
 				p->baserel = FALSE;
 				p->userProvAttrs = $4;				 
 				$$ = (Node *) p; 
+			}
+		| SHOW INTERMEDIATE PROVENANCE
+			{
+				RULELOG("optionalFromProv::intermediateProv");
+				FromProvInfo *p = makeNode(FromProvInfo);
+				p->intermediateProv = TRUE;
+				$$ = (Node *) p;
 			}
 	;
     

@@ -87,6 +87,7 @@ typedef struct FromProvInfo
 {
     NodeTag type;
     boolean baserel;
+    boolean intermediateProv;
     List *userProvAttrs;
 } FromProvInfo;
 

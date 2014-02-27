@@ -491,6 +491,7 @@ outFromProvInfo (StringInfo str, FromProvInfo *node)
     WRITE_NODE_TYPE(FROMPROVINFO);
 
     WRITE_BOOL_FIELD(baserel);
+    WRITE_BOOL_FIELD(intermediateProv);
     WRITE_STRING_LIST_FIELD(userProvAttrs);
 }
 

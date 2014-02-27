@@ -571,6 +571,7 @@ static boolean
 equalFromProvInfo (FromProvInfo *a, FromProvInfo *b)
 {
     COMPARE_SCALAR_FIELD(baserel);
+    COMPARE_SCALAR_FIELD(intermediateProv);
     COMPARE_STRING_LIST_FIELD(userProvAttrs);
 
     return TRUE;
