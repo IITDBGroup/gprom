@@ -181,7 +181,7 @@ translateSetQuery(SetQuery *sq)
             case SETOP_INTERSECTION:
 
                 result = (QueryOperator *) createDuplicateRemovalOp(
-                        deepCopyStringList(getAttrNames(GET_OPSCHEMA(so))),
+                        getNormalAttrProjectionExprs((QueryOperator *) so),
                         (QueryOperator *) so,
                         NIL, getAttrNames(GET_OPSCHEMA(so)));
                 ((QueryOperator *) so)->parents = singleton(result);
@@ -191,12 +191,12 @@ translateSetQuery(SetQuery *sq)
                     QueryOperator *lD, *rD;
 
                     lD = (QueryOperator *) createDuplicateRemovalOp(
-                            deepCopyStringList(getAttrNames(GET_OPSCHEMA(left))),
+                            getNormalAttrProjectionExprs(left),
                             (QueryOperator *) right,
                             NIL, getAttrNames(GET_OPSCHEMA(left)));
 
                     rD = (QueryOperator *) createDuplicateRemovalOp(
-                            deepCopyStringList(getAttrNames(GET_OPSCHEMA(right))),
+                            getNormalAttrProjectionExprs(right),
                             (QueryOperator *) right,
                             NIL, getAttrNames(GET_OPSCHEMA(right)));
                     switchSubtrees(left, lD);

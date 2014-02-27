@@ -15,7 +15,7 @@
 #include "log/logger.h"
 
 /* If OCILIB and OCI are available then use it */
-#if 1 || HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
+#if HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
 
 #define ORACLE_TNS_CONNECTION_FORMAT "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=" \
 		"(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
@@ -703,6 +703,12 @@ boolean
 isAgg(char *table)
 {
 	return FALSE;
+}
+
+boolean
+isWindowFunction(char *functionName)
+{
+    return FALSE;
 }
 
 char *

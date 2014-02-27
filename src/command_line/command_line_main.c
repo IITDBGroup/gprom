@@ -121,9 +121,10 @@ inputSQL()
 	while(TRUE)
 	{
 	    char *rewritten;
+	    int returnVal;
 
 		printf("Please input a SQL or 'q' to exit the program\n");
-		scanf("%s",sql);
+		returnVal = scanf("%s",sql);
 		if(*sql=='q')
 		{
 			printf("Client Exit.\n");

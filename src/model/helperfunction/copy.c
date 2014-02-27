@@ -516,6 +516,7 @@ copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap)
 {
     COPY_INIT(FromProvInfo);
     COPY_SCALAR_FIELD(baserel);
+    COPY_SCALAR_FIELD(intermediateProv);
     COPY_STRING_LIST_FIELD(userProvAttrs);
 
     return new;
