@@ -48,8 +48,8 @@ main (int argc, char* argv[])
         result = rewriteQuery(getOptions()->optionConnection->sql);
         ERROR_LOG("REWRITE RESULT FROM STRING IS:\n%s", result);
 
-        result = rewriteQueryWithOptimization(
-                getOptions()->optionConnection->sql);
+//        result = rewriteQueryWithOptimization(
+//                getOptions()->optionConnection->sql);
         ERROR_LOG("REWRITE RESULT AFTER OPTIMIZATIONS IS:\n%s", result);
     }
 
