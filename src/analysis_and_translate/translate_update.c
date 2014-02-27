@@ -21,6 +21,8 @@
 #include "analysis_and_translate/translator.h"
 #include "analysis_and_translate/translate_update.h"
 
+#include "configuration/option.h"
+
 #include "metadata_lookup/metadata_lookup.h"
 
 static QueryOperator *translateUpdateInternal(Update *f);
@@ -168,10 +170,20 @@ translateUpdateWithCase(Update *update)
 			AttributeReference *a = (AttributeReference *) getNthOfListP(
 					o->args, 0);
 			if (a->attrPosition == i)
-				projExpr = (Node *) copyObject(
-						concatStrings("if ", nodeToString(update->cond),
-								" then ", getNthOfListP(o->args, 1), " else ",
-								getNthOfListP(attrs, i)));
+			{
+			    Node *cond = copyObject(update->cond);
+			    Node *then = copyObject(getNthOfListP(o->args, 1));
+			    Node *els = (Node *) createFullAttrReference(getNthOfListP(attrs, i),
+	                    0, i, 0);
+			    CaseExpr *caseExpr;
+			    CaseWhen *caseWhen;
+
+			    caseWhen = createCaseWhen(cond, then);
+			    caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
+
+			    projExpr = (Node *) caseExpr;
+			}
+
 		}
 
 		if (projExpr == NULL)

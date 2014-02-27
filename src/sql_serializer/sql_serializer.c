@@ -529,17 +529,22 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
         case T_ConstRelOperator:
                {
-            	   ConstRelOperator *t = (ConstRelOperator *) q;
-            	   char *as = NULL;
+                   ConstRelOperator *t = (ConstRelOperator *) q;
+                   int pos = 0;
+                   List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
 
-            	   List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
+                   appendStringInfoString(from, "(SELECT ");
 
-            	     FOREACH(char,values,attrNames)
-            	        {
-            	            if (values++ != 0)
-            	            appendStringInfo(select, "%s AS %s", values, attrNames);
-            	            appendStringInfoString(from, "\nFROM dual ");
-            	        }
+                   FOREACH(char,attrName,attrNames)
+                   {
+                       Node *value;
+                       if (pos != 0)
+                           appendStringInfoString(from, ", ");
+                       value = getNthOfListP(t->values, pos++);
+                       appendStringInfo(from, "%s AS %s", exprToSQL(value), attrName);
+
+                   }
+                   appendStringInfo(from, "\nFROM dual) F%u", (*curFromItem)++);
                }
         break;
         default:
