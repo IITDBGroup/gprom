@@ -103,7 +103,8 @@ translateParse(Node *q)
 
     result = translateGeneral(q);
 
-    INFO_LOG("result of translation is \n%s", beatify(nodeToString(result)));
+    DEBUG_LOG("result of translation is \n%s", beatify(nodeToString(result)));
+    INFO_LOG("result of translation overview is\n%s", operatorToOverviewString(result));
     assert(equal(result, copyObject(result)));
 
     FREE_MEM_CONTEXT_AND_RETURN_COPY(Node,result);

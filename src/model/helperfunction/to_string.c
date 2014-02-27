@@ -1149,7 +1149,10 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
     appendStringInfoString(str, "(");
     FOREACH(AttributeDef,a,op->schema->attrDefs)
         appendStringInfo(str, "%s ", a->attrName);
-    appendStringInfoString(str, ")\n");
+    appendStringInfoString(str, ")");
+
+    // output address
+    appendStringInfo(str, " [%p]\n", op);
 
     FOREACH(QueryOperator,child,op->inputs)
         operatorToOverviewInternal(str, child, indent + 1);

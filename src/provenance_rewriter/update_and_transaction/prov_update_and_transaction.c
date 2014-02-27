@@ -46,8 +46,11 @@ mergeUpdateSequence(ProvenanceComputation *op)
 static void
 mergeSerializebleTransaction(ProvenanceComputation *op)
 {
-    List *updates = op->op.inputs;
+    List *updates = copyList(op->op.inputs);
     int i = 0;
+
+    // cut links to parent
+    removeParentFromOps(op->op.inputs, (QueryOperator *) op);
 
     // reverse list
     reverseList(updates);
@@ -84,8 +87,8 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     DEBUG_LOG("Merged updates are: %s", beatify(nodeToString(updates)));
 
     // replace updates sequence with root of the whole merged update query
-    removeParentFromOps(op->op.inputs, (QueryOperator *) op);
-    op->op.inputs = singleton(getHeadOfListP(updates));
+    addChildOperator((QueryOperator *) op, (QueryOperator *) getHeadOfListP(updates));
+//    op->op.inputs = singleton();
     DEBUG_LOG("Provenance computation for updates that will be passed "
             "to rewritter: %s", beatify(nodeToString(op)));
 }
