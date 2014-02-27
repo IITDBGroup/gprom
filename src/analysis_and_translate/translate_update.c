@@ -24,24 +24,25 @@
 #include "metadata_lookup/metadata_lookup.h"
 
 static QueryOperator *translateUpdateInternal(Update *f);
+static QueryOperator *translateUpdateWithCase(Update *f);
 static QueryOperator *translateInsert(Insert *f);
 static QueryOperator *translateDelete(Delete *f);
 
+
 QueryOperator *
-translateUpdate(Node *update)
-{
+translateUpdate(Node *update) {
 	switch (update->type) {
-        case T_Insert:
-            return translateInsert((Insert *) update);
-        case T_Delete:
-            return translateDelete((Delete *) update);
-        case T_Update:
-//            if (isRewriteOptionActivated("translate_update_with_case"))
-//                return translateUpdateWithCase((Update *) update);
-//            else
-                return translateUpdateInternal((Update *) update);
-        default:
-            return NULL;
+	case T_Insert:
+		return translateInsert((Insert *) update);
+	case T_Delete:
+		return translateDelete((Delete *) update);
+	case T_Update:
+		if (isRewriteOptionActivated("translate_update_with_case"))
+			return translateUpdateWithCase((Update *) update);
+		else
+			return translateUpdateInternal((Update *) update);
+	default:
+		return NULL;
 	}
 }
 
@@ -150,6 +151,42 @@ translateUpdateInternal(Update *update)
     return (QueryOperator *) po;
 }
 
+static QueryOperator *
+translateUpdateWithCase(Update *update)
+{
+	List *attrs = getAttributeNames(update->nodeName);
+	// create table access operator
+	TableAccessOperator *to;
+	to = createTableAccessOp(strdup(update->nodeName), NULL, NULL, NIL,
+			deepCopyStringList(attrs), NIL);
+
+	// CREATE PROJECTION EXPRESSIONS
+	List *projExprs = NIL;
+	for (int i = 0; i < LIST_LENGTH(attrs); i++) {
+		Node *projExpr = NULL;
+		FOREACH(Operator,o,update->selectClause) {
+			AttributeReference *a = (AttributeReference *) getNthOfListP(
+					o->args, 0);
+			if (a->attrPosition == i)
+				projExpr = (Node *) copyObject(
+						concatStrings("if ", nodeToString(update->cond),
+								" then ", getNthOfListP(o->args, 1), " else ",
+								getNthOfListP(attrs, i)));
+		}
+
+		if (projExpr == NULL)
+			projExpr = (Node *) createFullAttrReference(getNthOfListP(attrs, i),
+					0, i, 0);
+		projExprs = appendToTailOfList(projExprs, projExpr);
+	}
+
+	ProjectionOperator *po;
+	po = createProjectionOp(projExprs, NULL, NIL, deepCopyStringList(attrs));
+
+	addChildOperator((QueryOperator *) po, (QueryOperator *) to);
+	return (QueryOperator *) po;
+
+}
 
 
 
