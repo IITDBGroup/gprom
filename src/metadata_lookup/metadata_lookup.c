@@ -441,7 +441,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds)
         appendStringInfo(statement, "SELECT SCN, LSQLTEXT, LSQLBIND FROM "
                 "(SELECT XID, SCN, LSQLTEXT, LSQLBIND, ROW_NUMBER() "
                 "OVER (PARTITION BY statement ORDER BY statement) AS rnum "
-                "FROM SYS.fga_log$ WHERE xid = HEXTORAW('%s')ORDER BY statement) x WHERE rnum = 1", xid);
+                "FROM SYS.fga_log$ WHERE xid = HEXTORAW('%s') ORDER BY statement) x WHERE rnum = 1", xid);
 
         if((conn = getConnection()) != NULL)
         {
