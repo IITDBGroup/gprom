@@ -231,12 +231,18 @@ initConnection()
     char* db=options->optionConnection->db;
     char *host=options->optionConnection->host;
     int port=options->optionConnection->port;
-    appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT, host, port,
-            db);
+    appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT,
+    		host ? host : "",
+    		port ? port : 1521,
+            db ? db : "");
 
-    conn = OCI_ConnectionCreate(connectString->data,user,passwd,
+    conn = OCI_ConnectionCreate(connectString->data,
+    		user ? user : "",
+    		passwd ? passwd : "",
             OCI_SESSION_DEFAULT);
-    DEBUG_LOG("Try to connect to server <%s,%s,%s>... %s", connectString->data, user, passwd,
+    DEBUG_LOG("Try to connect to server <%s,%s,%s>... %s", connectString->data,
+    		user ? user : "",
+    		passwd ? passwd : "",
             (conn != NULL) ? "SUCCESS" : "FAILURE");
 
     initAggList();
