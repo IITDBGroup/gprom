@@ -404,15 +404,15 @@ void treeify(QueryOperator *op)
     // if operator has more than one parent, then we need to duplicate the subtree under this operator
     if (LIST_LENGTH(op->parents) > 1)
     {
-        DEBUG_LOG("operator has more than one parent %s", nodeToString(op));
-        op->parents = NIL;
+        INFO_LOG("operator has more than one parent %s", operatorToOverviewString(op));
 
         FOREACH(QueryOperator,parent,op->parents)
         {
-            QueryOperator *copy = copyObject(op);
+            QueryOperator *copy = copyUnrootedSubtree(op);
             replaceNode(parent->inputs, op, copy);
             copy->parents = singleton(parent);
         }
+        op->parents = NIL;
     }
 }
 
@@ -430,6 +430,26 @@ boolean isTree(QueryOperator *op)
     return TRUE;
 }
 
+boolean
+checkParentChildLinks (QueryOperator *op)
+{
+	// check that children have this node as their parent
+	FOREACH(QueryOperator,o,op->inputs)
+	{
+		if (!searchList(o->parents, o))
+			return FALSE;
+		checkParentChildLinks(o);
+	}
+
+	// check that this nodes parents have this node as a child
+	FOREACH(QueryOperator,o,op->parents)
+	{
+		if (!searchList(o->inputs, o))
+			return FALSE;
+	}
+
+	return TRUE;
+}
 
 static Schema *
 mergeSchemas (List *inputs)

@@ -81,6 +81,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         mergeUpdateSequence(op);
     treeify((QueryOperator *) op);
     INFO_LOG("treeifyed operator model:\n\n%s\n\n%s", operatorToOverviewString((Node *) op), beatify(nodeToString(op)));
+    assert(isTree(op));
 
     switch(op->provType)
     {

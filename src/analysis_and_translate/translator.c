@@ -128,7 +128,7 @@ static Node *translateGeneral (Node *node)
 QueryOperator *
 translateQuery (Node *node)
 {
-    DEBUG_LOG("translate query <%s>", node);
+    DEBUG_LOG("translate query <%s>", nodeToString(node));
 
     switch(node->type)
     {

@@ -166,6 +166,7 @@ extern List *aggOpGetAggAttrNames(AggregationOperator *op);
 
 /* transforms a graph query model into a tree */
 extern void treeify(QueryOperator *op);
+extern boolean checkParentChildLinks (QueryOperator *op);
 extern boolean isTree(QueryOperator *op);
 
 #endif /* QUERY_OPERATOR_H_ */

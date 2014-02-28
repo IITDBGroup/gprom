@@ -322,6 +322,7 @@ void *
 malloc_(size_t bytes, const char *file, unsigned line)
 {
     void *mem = malloc(bytes);
+    memset(mem, 178, bytes);
     if (mem == NULL)
     {
         log_(LOG_ERROR, file, line, "Fail to malloc.");

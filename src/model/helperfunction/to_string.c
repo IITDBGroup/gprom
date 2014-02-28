@@ -1151,8 +1151,13 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
         appendStringInfo(str, "%s ", a->attrName);
     appendStringInfoString(str, ")");
 
-    // output address
-    appendStringInfo(str, " [%p]\n", op);
+    // output address and parent addresses
+    appendStringInfo(str, " [%p]", op);
+
+    appendStringInfoString(str, "(");
+    FOREACH(QueryOperator,parent,op->parents)
+    	appendStringInfo(str, "%p ", parent);
+    appendStringInfoString(str, ")\n");
 
     FOREACH(QueryOperator,child,op->inputs)
         operatorToOverviewInternal(str, child, indent + 1);
