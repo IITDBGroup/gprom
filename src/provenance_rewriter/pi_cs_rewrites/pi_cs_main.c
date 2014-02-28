@@ -71,26 +71,26 @@ rewritePI_CSOperator (QueryOperator *op)
 {
     switch(op->type)
     {
-            ERROR_LOG("go selection");
+            DEBUG_LOG("go selection");
         case T_SelectionOperator:
             return rewritePI_CSSelection((SelectionOperator *) op);
         case T_ProjectionOperator:
-            ERROR_LOG("go projection");
+            DEBUG_LOG("go projection");
             return rewritePI_CSProjection((ProjectionOperator *) op);
         case T_AggregationOperator:
-            ERROR_LOG("go aggregation");
+            DEBUG_LOG("go aggregation");
             return rewritePI_CSAggregation ((AggregationOperator *) op);
         case T_JoinOperator:
-            ERROR_LOG("go join");
+            DEBUG_LOG("go join");
             return rewritePI_CSJoin((JoinOperator *) op);
         case T_SetOperator:
-            ERROR_LOG("go set");
+            DEBUG_LOG("go set");
             return rewritePI_CSSet((SetOperator *) op);
         case T_TableAccessOperator:
-            ERROR_LOG("go table access");
+            DEBUG_LOG("go table access");
             return rewritePI_CSTableAccess((TableAccessOperator *) op);
         case T_ConstRelOperator:
-            ERROR_LOG("go const rel operator");
+            DEBUG_LOG("go const rel operator");
             return rewritePI_CSConstRel((ConstRelOperator *) op);
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));

@@ -106,7 +106,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
             rewrittenTree = (Node *) pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
             rewrittenTree = (Node *) mergeAdjacentOperators((QueryOperator *) rewrittenTree);
         }
-        DEBUG_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
+        INFO_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
     }
 
     appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));

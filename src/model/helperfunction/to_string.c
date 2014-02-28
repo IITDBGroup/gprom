@@ -1147,8 +1147,10 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
 
     // output attribute names
     appendStringInfoString(str, "(");
+    int pos = 0;
     FOREACH(AttributeDef,a,op->schema->attrDefs)
-        appendStringInfo(str, "%s ", a->attrName);
+        appendStringInfo(str, "%s%s ", a->attrName,
+        		searchListInt(op->provAttrs, pos++) ? "*" : "");
     appendStringInfoString(str, ")");
 
     // output address and parent addresses

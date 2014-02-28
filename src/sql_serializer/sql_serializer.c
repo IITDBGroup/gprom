@@ -533,8 +533,9 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                    int pos = 0;
                    List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
 
-                   appendStringInfoString(from, "(SELECT ");
+                   *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
 
+                   appendStringInfoString(from, "(SELECT ");
                    FOREACH(char,attrName,attrNames)
                    {
                        Node *value;
