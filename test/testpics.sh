@@ -6,4 +6,4 @@ if [ "$#X" != "2X" ]; then
 fi
 LOGLEVEL=$1
 SQL=$2
-./test/testtranslate -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga" -log -loglevel ${LOGLEVEL} -sql "${SQL}"
+./test/testpicsrewrite -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga" -log -loglevel ${LOGLEVEL} -sql "${SQL}"

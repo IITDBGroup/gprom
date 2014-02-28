@@ -280,12 +280,13 @@ rewritePI_CSSet(SetOperator *op)
         List *projExprs = NIL;
         List *attNames;
         List *provAttrs = NIL;
-        int lProvs = LIST_LENGTH(lChild->provAttrs);
+        int lProvs;
         int i;
 
         // rewrite children
         rewritePI_CSOperator(lChild);
         rewritePI_CSOperator(rChild);
+        lProvs = LIST_LENGTH(lChild->provAttrs);
 
         // create projection over left rewritten input
         attNames = concatTwoLists(getQueryOperatorAttrNames(lChild), getOpProvenanceAttrNames(rChild));

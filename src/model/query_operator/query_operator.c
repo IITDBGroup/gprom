@@ -404,6 +404,7 @@ void treeify(QueryOperator *op)
     // if operator has more than one parent, then we need to duplicate the subtree under this operator
     if (LIST_LENGTH(op->parents) > 1)
     {
+        DEBUG_LOG("operator has more than one parent %s", nodeToString(op));
         op->parents = NIL;
 
         FOREACH(QueryOperator,parent,op->parents)
