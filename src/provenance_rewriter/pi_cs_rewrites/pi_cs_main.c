@@ -284,8 +284,8 @@ rewritePI_CSSet(SetOperator *op)
         int i;
 
         // rewrite children
-        rewritePI_CSOperator(lChild);
-        rewritePI_CSOperator(rChild);
+        lChild = rewritePI_CSOperator(lChild);
+        rChild = rewritePI_CSOperator(rChild);
         lProvs = LIST_LENGTH(lChild->provAttrs);
 
         // create projection over left rewritten input
