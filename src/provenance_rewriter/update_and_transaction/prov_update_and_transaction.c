@@ -57,7 +57,7 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     reverseList(updates);
 
     DEBUG_LOG("Updates to merge are: \n\n%s", beatify(nodeToString(updates)));
-    INFO_LOG("Updates to merge overview are: \n\n%s", operatorToOverviewString(updates));
+    INFO_LOG("Updates to merge overview are: \n\n%s", operatorToOverviewString((Node *) updates));
     /*
      * Merge the individual queries for all updates into one
      */
