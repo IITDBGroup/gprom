@@ -16,6 +16,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "provenance_rewriter/prov_utility.h"
 
 
 static Schema *mergeSchemas (List *inputs);
@@ -404,7 +405,7 @@ void treeify(QueryOperator *op)
     // if operator has more than one parent, then we need to duplicate the subtree under this operator
     if (LIST_LENGTH(op->parents) > 1)
     {
-        INFO_LOG("operator has more than one parent %s", operatorToOverviewString(op));
+        INFO_LOG("operator has more than one parent %s", operatorToOverviewString((Node *) op));
 
         FOREACH(QueryOperator,parent,op->parents)
         {
