@@ -27,7 +27,8 @@ static QueryOperator *rewritePI_CSJoin (JoinOperator *op);
 static QueryOperator *rewritePI_CSAggregation (AggregationOperator *op);
 static QueryOperator *rewritePI_CSSet (SetOperator *op);
 static QueryOperator *rewritePI_CSTableAccess(TableAccessOperator *op);
-static QueryOperator *rewritePI_CSConstRel(ConstRelOperator * op);
+static QueryOperator *rewritePI_CSConstRel(ConstRelOperator *op);
+static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 
 static Node *asOf;
 static RelCount *nameState;
@@ -92,6 +93,9 @@ rewritePI_CSOperator (QueryOperator *op)
         case T_ConstRelOperator:
             DEBUG_LOG("go const rel operator");
             return rewritePI_CSConstRel((ConstRelOperator *) op);
+        case T_DuplicateRemoval:
+            DEBUG_LOG("go duplicate removal operator");
+            return rewritePI_CSDuplicateRemOp((DuplicateRemoval *) op);
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
             return NULL;
@@ -540,4 +544,17 @@ rewritePI_CSConstRel(ConstRelOperator *op)
 
     DEBUG_LOG("rewrite const rel operator: %s", operatorToOverviewString((Node *) newpo));
     return (QueryOperator *) newpo;
+}
+
+static QueryOperator *
+rewritePI_CSDuplicateRemOp(DuplicateRemoval *op)
+{
+    QueryOperator *child = OP_LCHILD(op);
+    QueryOperator *theOp = (QueryOperator *) op;
+
+    // remove duplicate removal op
+    removeParentFromOps(singleton(child), theOp);
+    switchSubtreeWithExisting(theOp, child);
+
+    return rewritePI_CSOperator(child);
 }

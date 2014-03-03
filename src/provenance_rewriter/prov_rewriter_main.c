@@ -12,9 +12,12 @@
 
 #include "log/logger.h"
 
+#include "configuration/option.h"
+
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
+#include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 
@@ -86,7 +89,10 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     switch(op->provType)
     {
         case PROV_PI_CS:
-            return rewritePI_CS(op);
+            if (isRewriteOptionActivated("pi_cs_use_composable"))
+                return rewritePI_CSComposable(op);
+            else
+                return rewritePI_CS(op);
         case PROV_TRANSFORMATION:
             return rewriteTransformationProvenance((QueryOperator *) op);
     }

@@ -1,5 +1,5 @@
 #!/bin/bash
-if [ $# -le 2 ]; then
+if [ $# -lt 2 ]; then
     echo "give at least two parameters, the first one is loglevel, the second one is SQL code"
     echo "testrewriters.sh 3 \"SELECT * FROM r;\""
     exit 1
