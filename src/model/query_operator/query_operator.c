@@ -437,15 +437,15 @@ checkParentChildLinks (QueryOperator *op)
 	// check that children have this node as their parent
 	FOREACH(QueryOperator,o,op->inputs)
 	{
-		if (!searchList(o->parents, o))
+		if (!searchList(o->parents, op))
 			return FALSE;
 		checkParentChildLinks(o);
 	}
 
-	// check that this nodes parents have this node as a child
+	// check that this node's parents have this node as a child
 	FOREACH(QueryOperator,o,op->parents)
 	{
-		if (!searchList(o->inputs, o))
+		if (!searchList(o->inputs, op))
 			return FALSE;
 	}
 
