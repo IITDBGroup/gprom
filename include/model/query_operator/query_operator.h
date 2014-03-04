@@ -113,6 +113,16 @@ typedef struct NestingOperator
 	Node *cond;
 } NestingOperator;
 
+typedef struct WindowOperator
+{
+    QueryOperator op;
+    List *partitionBy;
+    List *orderBy;
+    char *attrName;
+    Node *f;
+    //TODO add window def if needed
+} WindowOperator;
+
 /* schema helper functions */
 extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames, List *dataTypes);

@@ -73,6 +73,7 @@ static void outSetOperator(StringInfo str, SetOperator *node);
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
 static void outConstRelOperator(StringInfo str, ConstRelOperator *node);
 static void outNestingOperator(StringInfo str, NestingOperator *node);
+static void outWindowOperator(StringInfo str, WindowOperator *node);
 
 static void indentString(StringInfo str, int level);
 
@@ -639,6 +640,7 @@ outProvenanceComputation(StringInfo str, ProvenanceComputation *node)
 {
     WRITE_NODE_TYPE(PROVENANCE_COMPUTATION);
     WRITE_QUERY_OPERATOR();
+
     WRITE_ENUM_FIELD(provType,ProvenanceType);
     WRITE_ENUM_FIELD(inputType,ProvenanceInputType);
     WRITE_NODE_FIELD(transactionInfo);
@@ -650,6 +652,7 @@ outTableAccessOperator(StringInfo str, TableAccessOperator *node)
 {
     WRITE_NODE_TYPE(TABLE_ACCESS_OPERATOR);
     WRITE_QUERY_OPERATOR();
+
     WRITE_NODE_FIELD(asOf);
     WRITE_STRING_FIELD(tableName);
 }
@@ -676,24 +679,32 @@ outDuplicateRemoval(StringInfo str, DuplicateRemoval *node)
 static void
 outConstRelOperator(StringInfo str, ConstRelOperator *node)
 {
-	// TODO outConstRelOperator
 	WRITE_NODE_TYPE(CONST_REL_OPERATOR);
 	WRITE_QUERY_OPERATOR();
 
 	WRITE_NODE_FIELD(values);
-
 }
 
 static void
 outNestingOperator(StringInfo str, NestingOperator *node)
 {
-	// TODO outNestingOperator
 	WRITE_NODE_TYPE(NESTING_OPERATOR);
 	WRITE_QUERY_OPERATOR();
-    WRITE_ENUM_FIELD(nestingType,NestingExprType);
 
+	WRITE_ENUM_FIELD(nestingType,NestingExprType);
 	WRITE_NODE_FIELD(cond);
+}
 
+static void
+outWindowOperator(StringInfo str, WindowOperator *node)
+{
+    WRITE_NODE_TYPE(WINDOW_OPERATOR);
+    WRITE_QUERY_OPERATOR();
+
+    WRITE_NODE_FIELD(partitionBy);
+    WRITE_NODE_FIELD(orderBy);
+    WRITE_STRING_FIELD(attrName);
+    WRITE_NODE_FIELD(f);
 }
 
 void
@@ -840,6 +851,9 @@ outNode(StringInfo str, void *obj)
             case T_NestingOperator:
             	outNestingOperator(str, (NestingOperator *) obj);
             	break;
+            case T_WindowOperator:
+                outWindowOperator(str, (WindowOperator *) obj);
+                break;
             default :
                 FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);

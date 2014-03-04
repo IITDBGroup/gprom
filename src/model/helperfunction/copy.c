@@ -78,6 +78,7 @@ static DuplicateRemoval *copyDuplicateRemoval(DuplicateRemoval *from, OperatorMa
 static ProvenanceComputation *copyProvenanceComputation(ProvenanceComputation *from, OperatorMap **opMap);
 static ConstRelOperator *copyConstRelOperator(ConstRelOperator *from, OperatorMap **opMap);
 static NestingOperator *copyNestingOperator(NestingOperator *from, OperatorMap **opMap);
+static WindowOperator *copyWindowOperator(WindowOperator *from, OperatorMap **opMap);
 
 /*functions to copy query_block*/
 static SetQuery *copySetQuery(SetQuery *from, OperatorMap **opMap);
@@ -436,6 +437,19 @@ copyNestingOperator(NestingOperator *from, OperatorMap **opMap)
     COPY_OPERATOR();
     COPY_SCALAR_FIELD(nestingType);
     COPY_NODE_FIELD(cond);
+
+    return new;
+}
+
+static WindowOperator *
+copyWindowOperator(WindowOperator *from, OperatorMap **opMap)
+{
+    COPY_INIT(WindowOperator);
+    COPY_OPERATOR();
+    COPY_NODE_FIELD(partitionBy);
+    COPY_NODE_FIELD(orderBy);
+    COPY_STRING_FIELD(attrName);
+    COPY_NODE_FIELD(f);
 
     return new;
 }
@@ -803,6 +817,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_NestingOperator:
             retval = copyNestingOperator(from, opMap);
+            break;
+        case T_WindowOperator:
+            retval = copyWindowOperator(from, opMap);
             break;
         default:
             retval = NULL;
