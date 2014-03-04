@@ -32,9 +32,9 @@ isTupleAtATimeSubtree(QueryOperator *op)
 {
     switch(op->type)
     {
-        case SelectionOperator:
-        case ProjectionOperator:
-        case JoinOperator:
+        case T_SelectionOperator:
+        case T_ProjectionOperator:
+        case T_JoinOperator:
             FOREACH(QueryOperator,child,op->inputs)
                 if (!isTupleAtATimeSubtree)
                     return FALSE;

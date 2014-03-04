@@ -55,6 +55,7 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
 
     // reverse list
     reverseList(updates);
+    reverseList(op->transactionInfo->updateTableNames);
 
     DEBUG_LOG("Updates to merge are: \n\n%s", beatify(nodeToString(updates)));
     INFO_LOG("Updates to merge overview are: \n\n%s", operatorToOverviewString((Node *) updates));
