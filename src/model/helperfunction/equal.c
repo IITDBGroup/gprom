@@ -495,6 +495,7 @@ equalWindowOperator (WindowOperator *a, WindowOperator *b)
     COMPARE_QUERY_OP();
     COMPARE_NODE_FIELD(partitionBy);
     COMPARE_NODE_FIELD(orderBy);
+    COMPARE_NODE_FIELD(frameDef);
     COMPARE_STRING_FIELD(attrName);
     COMPARE_NODE_FIELD(f);
 

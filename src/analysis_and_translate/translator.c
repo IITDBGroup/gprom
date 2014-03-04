@@ -80,6 +80,8 @@ static QueryOperator *translateHavingClause(Node *havingClause,
 		QueryOperator *input, List *attrsOffsets);
 static QueryOperator *translateAggregation(QueryBlock *qb, QueryOperator *input,
 		List *attrsOffsets);
+static QueryOperator *translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
+        List *attrsOffsets);
 
 static Node *replaceAggsAndGroupByMutator(Node *node,
 		ReplaceGroupByState *state);
@@ -91,6 +93,7 @@ static List *getListOfNonAttrRefExprs(List *selectClause, Node *havingClause,
 static List *getListOfAggregFunctionCalls(List *selectClause,
 		Node *havingClause);
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
+static boolean visitFindWindowFuncs(Node *n, List **wfs);
 
 Node *
 translateParse(Node *q)
@@ -224,6 +227,7 @@ translateQueryBlock(QueryBlock *qb)
 {
 	List *attrsOffsets = NIL;
 	boolean hasAggOrGroupBy = FALSE;
+	boolean hasWindowFuncs = FALSE;
 
 	INFO_LOG("translate a QB:\n%s", nodeToString(qb));
 
@@ -246,7 +250,16 @@ translateQueryBlock(QueryBlock *qb)
 	if (hasAggOrGroupBy)
 		INFO_LOG("translatedAggregation is\n%s", nodeToString(aggr));
 
-	QueryOperator *having = translateHavingClause(qb->havingClause, aggr,
+	QueryOperator *wind = translateWindowFuncs(qb, aggr, attrsOffsets);
+	hasWindowFuncs = (wind != aggr);
+	if (hasWindowFuncs)
+	    INFO_LOG("translatedWindowFuncs is\n%s", nodeToString(wind));
+
+	if (hasAggOrGroupBy && hasWindowFuncs)
+	    FATAL_LOG("Cannot have both window functions and aggregation/group by "
+	            "in same query block:\n\n%s", beatify(nodeToString(qb)));
+
+	QueryOperator *having = translateHavingClause(qb->havingClause, wind,
 			attrsOffsets);
 	if (having != aggr)
 		INFO_LOG("translatedHaving is\n%s", nodeToString(having));
@@ -992,7 +1005,7 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 	// set the parent of the aggregation's child
 	OP_LCHILD(ao)->parents = singleton(ao);
 
-	//TODO replace aggregation function calls and group by expressions in select and having with references to aggregation output attributes
+	// replace aggregation function calls and group by expressions in select and having with references to aggregation output attributes
 	state = NEW(ReplaceGroupByState);
 	state->expressions = aggPlusGroup;
 	state->attrNames = attrNames;
@@ -1006,6 +1019,49 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 	FREE(state);
 
 	return (QueryOperator *) ao;
+}
+
+static QueryOperator *
+translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
+        List *attrsOffsets)
+{
+    QueryOperator *wOp = input;
+    QueryOperator *child = NULL;
+    List *wfuncs = NIL;
+    int numWinOp = LIST_LENGTH(wfuncs);
+    int cur = 0;
+    ReplaceGroupByState *state;
+    List *attrNames = NIL;
+
+    // find window functions and adapt function input attribute references
+    visitFindWindowFuncs((Node *) qb->selectClause, &wfuncs);
+    visitAttrRefToSetNewAttrPos((Node *) wfuncs, attrsOffsets);
+
+    // create window operator for each window function call
+    FOREACH(WindowFunction,f,wfuncs)
+    {
+        char *aName = CONCAT_STRINGS("winf_", itoa(cur++));
+
+        child = wOp;
+        wOp = (QueryOperator *) createWindowOp(copyObject(f->f),
+                copyObject(f->win->partitionBy),
+                copyObject(f->win->orderBy),
+                copyObject(f->win->frame),
+                aName, child, NIL);
+        child->parents = singleton(wOp);
+        attrNames = appendToTailOfList(attrNames, aName);
+    }
+
+    // replace window function calls in select with new attributes
+    state = NEW(ReplaceGroupByState);
+    state->expressions = wfuncs;
+    state->attrNames = attrNames;
+
+    qb->selectClause = (List *) replaceAggsAndGroupByMutator(
+            (Node *) qb->selectClause, state);
+    FREE(state);
+
+    return (QueryOperator *) wOp;
 }
 
 static Node *
@@ -1224,3 +1280,18 @@ visitAggregFunctionCall(Node *n, List **aggregs)
 	return visit(n, visitAggregFunctionCall, aggregs);
 }
 
+static boolean
+visitFindWindowFuncs(Node *n, List **wfs)
+{
+    if (n == NULL)
+        return TRUE;
+
+    if (isA(n, WindowFunction))
+    {
+        DEBUG_LOG("Found window function <%s>", exprToSQL(n));
+        *wfs = appendToTailOfList(*wfs, n);
+        return TRUE;
+    }
+
+    return visit(n, visitFindWindowFuncs, wfs);
+}

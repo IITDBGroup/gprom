@@ -448,6 +448,7 @@ copyWindowOperator(WindowOperator *from, OperatorMap **opMap)
     COPY_OPERATOR();
     COPY_NODE_FIELD(partitionBy);
     COPY_NODE_FIELD(orderBy);
+    COPY_NODE_FIELD(frameDef);
     COPY_STRING_FIELD(attrName);
     COPY_NODE_FIELD(f);
 

@@ -703,6 +703,7 @@ outWindowOperator(StringInfo str, WindowOperator *node)
 
     WRITE_NODE_FIELD(partitionBy);
     WRITE_NODE_FIELD(orderBy);
+    WRITE_NODE_FIELD(frameDef);
     WRITE_STRING_FIELD(attrName);
     WRITE_NODE_FIELD(f);
 }
@@ -1150,7 +1151,27 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
             WRITE_NODE_TYPE(NestingOperator);
             appendStringInfo(str, "[%s] [%s]", nestingType, o->cond ? exprToSQL(o->cond) : "");
         }
-            break;
+        break;
+        case T_WindowOperator:
+        {
+            WindowOperator *o = (WindowOperator *) op;
+            WRITE_NODE_TYPE(WindowOperator);
+
+            appendStringInfo(str, "[%s] ", exprToSQL(o->f));
+
+            appendStringInfoString(str, "[");
+            FOREACH(Node,part,o->partitionBy)
+                appendStringInfo(str, "%s ", exprToSQL(part));
+            appendStringInfoString(str, "] ");
+
+            appendStringInfoString(str, "[");
+            FOREACH(Node,part,o->orderBy)
+                appendStringInfo(str, "%s ", exprToSQL(part));
+            appendStringInfoString(str, "] ");
+
+            //exprToSQL((Node *) o->frameDef);
+        }
+        break;
         default:
             FATAL_LOG("not a query operator:\n%s", op);
             break;

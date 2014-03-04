@@ -280,6 +280,29 @@ createNestingOp(NestingExprType nestingType, Node *cond, List *inputs, List *par
 	return no;
 }
 
+WindowOperator *
+createWindowOp(FunctionCall *fCall, List *partitionBy, List *orderBy,
+        WindowFrame *frameDef, char *attrName, QueryOperator *input,
+        List *parents)
+{
+    WindowOperator *wo = makeNode(WindowOperator);
+    List *inputAttrs = getQueryOperatorAttrNames(input);
+
+    wo->partitionBy = partitionBy;
+    wo->orderBy = orderBy;
+    wo->frameDef = frameDef;
+    wo->attrName = attrName;
+    wo->f = (Node *) fCall;
+    wo->op.type = T_WindowOperator;
+    wo->op.inputs = singleton(input);
+    wo->op.schema = createSchemaFromLists("WINDOW", CONCAT_LISTS(inputAttrs, singleton(attrName)), NIL);
+    wo->op.parents = parents;
+    wo->op.provAttrs = NIL;
+
+    return wo;
+}
+
+
 extern void
 addChildOperator (QueryOperator *parent, QueryOperator *child)
 {
