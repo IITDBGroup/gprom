@@ -87,13 +87,35 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     removeParentFromOps(op->op.inputs, (QueryOperator *) op);
     op->op.inputs = singleton(getHeadOfListP(updates));
     DEBUG_LOG("Provenance computation for updates that will be passed "
-            "to rewritter: %s", beatify(nodeToString(op)));
+            "to rewriter: %s", beatify(nodeToString(op)));
 }
 
 static void
 mergeReadCommittedTransaction(ProvenanceComputation *op)
 {
 
+   /* List *updates = op->op.inputs;
+    int v = 0;
+    int k = 0;
+    List *children = NULL;
+
+    FOREACH(TableAccessOperator, t, children)
+    {
+       t->asOf = (Node *) getHeadOfListP(op->transactionInfo->scns);
+
+    }
+
+	if(v< = 1 && )
+	{
+
+	}
+
+	else(v>1 && )
+		{
+
+		}
+ */
+//we need to deal with R(c-1) version of read committed
 }
 
 
