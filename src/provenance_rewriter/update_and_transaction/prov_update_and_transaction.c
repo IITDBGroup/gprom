@@ -100,28 +100,40 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
 static void
 mergeReadCommittedTransaction(ProvenanceComputation *op)
 {
+/*
+	 List *updates = op->op.inputs;
+	 int i = 0;
+	 int v = -i;
+	 removeParentFromOps(op->op.inputs, (QueryOperator *) op);
+	 op->op.inputs = NIL;
 
-   /* List *updates = op->op.inputs;
-    int v = 0;
-    int k = 0;
-    List *children = NULL;
+	 FOREACH(TableAccessOperator, u, updates)
+	 {
+	    List *children = NULL;
+	    findTableAccessVisitor((Node *) u, &children);
 
-    FOREACH(TableAccessOperator, t, children)
-    {
-       t->asOf = (Node *) getHeadOfListP(op->transactionInfo->scns);
+	    FOREACH(TableAccessOperator, t, children)
 
-    }
+	    {
+		  QueryOperator *up = getUpdateForPreviousTableVersion(op,
+		                     t->tableName, i, v);
+		  if (up != NULL)
+		  {
+			  switchSubtreeWithExisting((QueryOperator *) t, up);
+		  }
+		  else
+		  {
+			  t->asOf = (Node *) getHeadOfListP(op->transactionInfo->scns);
+		  }
+		  i++;
+	    }
 
-	if(v< = 1 && )
-	{
+	 SetOperator *seto;
+	 seto = createSetOperator(SETOP_UNION, updates, NIL, deepCopyStringList(updates));
+ //	 addChildOperator((QueryOperator *) , (QueryOperator *) );
+   //  addChildOperator((QueryOperator *) , (QueryOperator *) );
+*/
 
-	}
-
-	else(v>1 && )
-		{
-
-		}
- */
 //we need to deal with R(c-1) version of read committed
 }
 
