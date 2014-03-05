@@ -132,6 +132,12 @@ typedef struct List
             _result = appendToTailOfListInt(_result, _my_var); \
     } while(0)
 
+#define SHIFT_INT_LIST(_list,_shift) \
+    do { \
+        FOREACH_LC(_lc,_list) \
+            LC_INT_VAL(_lc) += _shift; \
+    } while (0)
+
 extern boolean checkList(const List *list);
 
 extern List *newList(NodeTag type);

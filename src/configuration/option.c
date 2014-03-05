@@ -52,3 +52,17 @@ getOptions()
 {
 	return options;
 }
+
+boolean
+isRewriteOptionActivated(char *name)
+{
+    OptionRewrite *ops = getOptions()->optionRewrite;
+
+    for(int i = 0; i < ops->size; i++)
+    {
+        if (strcmp(ops->rewriteMethods[i]->name, name) == 0)
+            return TRUE;
+    }
+
+    return FALSE;
+}

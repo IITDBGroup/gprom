@@ -98,6 +98,7 @@ pushDownSelectionWithProjection(SelectionOperator *op)
 	while(isA(OP_LCHILD(op),ProjectionOperator))
 	{
 		ProjectionOperator *child = (ProjectionOperator *) OP_LCHILD(op);
+		QueryOperator *grandChild = OP_LCHILD(child);
 
 		// only one parent of child is allowed
 		if (LIST_LENGTH(child->op.parents) > 1)
@@ -108,6 +109,7 @@ pushDownSelectionWithProjection(SelectionOperator *op)
 		state->projExpr = child->projExprs;
 
 		op->cond = replaceAttributeRefsMutator(op->cond, state);
+		op->op.schema = copyObject(grandChild->schema);
 		op->op.inputs = child->op.inputs;
 
 		List *newP = ((QueryOperator *)op->op.inputs->head)->parents;

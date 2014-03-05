@@ -16,6 +16,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "provenance_rewriter/prov_utility.h"
 
 
 static Schema *mergeSchemas (List *inputs);
@@ -279,6 +280,29 @@ createNestingOp(NestingExprType nestingType, Node *cond, List *inputs, List *par
 	return no;
 }
 
+WindowOperator *
+createWindowOp(FunctionCall *fCall, List *partitionBy, List *orderBy,
+        WindowFrame *frameDef, char *attrName, QueryOperator *input,
+        List *parents)
+{
+    WindowOperator *wo = makeNode(WindowOperator);
+    List *inputAttrs = getQueryOperatorAttrNames(input);
+
+    wo->partitionBy = partitionBy;
+    wo->orderBy = orderBy;
+    wo->frameDef = frameDef;
+    wo->attrName = attrName;
+    wo->f = (Node *) fCall;
+    wo->op.type = T_WindowOperator;
+    wo->op.inputs = singleton(input);
+    wo->op.schema = createSchemaFromLists("WINDOW", CONCAT_LISTS(inputAttrs, singleton(attrName)), NIL);
+    wo->op.parents = parents;
+    wo->op.provAttrs = NIL;
+
+    return wo;
+}
+
+
 extern void
 addChildOperator (QueryOperator *parent, QueryOperator *child)
 {
@@ -404,14 +428,15 @@ void treeify(QueryOperator *op)
     // if operator has more than one parent, then we need to duplicate the subtree under this operator
     if (LIST_LENGTH(op->parents) > 1)
     {
-        op->parents = NIL;
+        INFO_LOG("operator has more than one parent %s", operatorToOverviewString((Node *) op));
 
         FOREACH(QueryOperator,parent,op->parents)
         {
-            QueryOperator *copy = copyObject(op);
+            QueryOperator *copy = copyUnrootedSubtree(op);
             replaceNode(parent->inputs, op, copy);
             copy->parents = singleton(parent);
         }
+        op->parents = NIL;
     }
 }
 
@@ -429,6 +454,26 @@ boolean isTree(QueryOperator *op)
     return TRUE;
 }
 
+boolean
+checkParentChildLinks (QueryOperator *op)
+{
+	// check that children have this node as their parent
+	FOREACH(QueryOperator,o,op->inputs)
+	{
+		if (!searchList(o->parents, op))
+			return FALSE;
+		checkParentChildLinks(o);
+	}
+
+	// check that this node's parents have this node as a child
+	FOREACH(QueryOperator,o,op->parents)
+	{
+		if (!searchList(o->inputs, op))
+			return FALSE;
+	}
+
+	return TRUE;
+}
 
 static Schema *
 mergeSchemas (List *inputs)

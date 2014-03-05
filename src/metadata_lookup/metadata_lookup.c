@@ -15,7 +15,7 @@
 #include "log/logger.h"
 
 /* If OCILIB and OCI are available then use it */
-#if 1 || HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
+#if HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
 
 #define ORACLE_TNS_CONNECTION_FORMAT "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=" \
 		"(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
@@ -231,12 +231,18 @@ initConnection()
     char* db=options->optionConnection->db;
     char *host=options->optionConnection->host;
     int port=options->optionConnection->port;
-    appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT, host, port,
-            db);
+    appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT,
+    		host ? host : "",
+    		port ? port : 1521,
+            db ? db : "");
 
-    conn = OCI_ConnectionCreate(connectString->data,user,passwd,
+    conn = OCI_ConnectionCreate(connectString->data,
+    		user ? user : "",
+    		passwd ? passwd : "",
             OCI_SESSION_DEFAULT);
-    DEBUG_LOG("Try to connect to server <%s,%s,%s>... %s", connectString->data, user, passwd,
+    DEBUG_LOG("Try to connect to server <%s,%s,%s>... %s", connectString->data,
+    		user ? user : "",
+    		passwd ? passwd : "",
             (conn != NULL) ? "SUCCESS" : "FAILURE");
 
     initAggList();
@@ -441,7 +447,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds)
         appendStringInfo(statement, "SELECT SCN, LSQLTEXT, LSQLBIND FROM "
                 "(SELECT XID, SCN, LSQLTEXT, LSQLBIND, ROW_NUMBER() "
                 "OVER (PARTITION BY statement ORDER BY statement) AS rnum "
-                "FROM SYS.fga_log$ WHERE xid = HEXTORAW('%s')ORDER BY statement) x WHERE rnum = 1", xid);
+                "FROM SYS.fga_log$ WHERE xid = HEXTORAW('%s') ORDER BY statement) x WHERE rnum = 1", xid);
 
         if((conn = getConnection()) != NULL)
         {
@@ -703,6 +709,12 @@ boolean
 isAgg(char *table)
 {
 	return FALSE;
+}
+
+boolean
+isWindowFunction(char *functionName)
+{
+    return FALSE;
 }
 
 char *

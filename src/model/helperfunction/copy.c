@@ -78,6 +78,7 @@ static DuplicateRemoval *copyDuplicateRemoval(DuplicateRemoval *from, OperatorMa
 static ProvenanceComputation *copyProvenanceComputation(ProvenanceComputation *from, OperatorMap **opMap);
 static ConstRelOperator *copyConstRelOperator(ConstRelOperator *from, OperatorMap **opMap);
 static NestingOperator *copyNestingOperator(NestingOperator *from, OperatorMap **opMap);
+static WindowOperator *copyWindowOperator(WindowOperator *from, OperatorMap **opMap);
 
 /*functions to copy query_block*/
 static SetQuery *copySetQuery(SetQuery *from, OperatorMap **opMap);
@@ -440,6 +441,20 @@ copyNestingOperator(NestingOperator *from, OperatorMap **opMap)
     return new;
 }
 
+static WindowOperator *
+copyWindowOperator(WindowOperator *from, OperatorMap **opMap)
+{
+    COPY_INIT(WindowOperator);
+    COPY_OPERATOR();
+    COPY_NODE_FIELD(partitionBy);
+    COPY_NODE_FIELD(orderBy);
+    COPY_NODE_FIELD(frameDef);
+    COPY_STRING_FIELD(attrName);
+    COPY_NODE_FIELD(f);
+
+    return new;
+}
+
 /*functions to copy query_block*/
 static SetQuery *
 copySetQuery(SetQuery *from, OperatorMap **opMap)
@@ -516,6 +531,7 @@ copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap)
 {
     COPY_INIT(FromProvInfo);
     COPY_SCALAR_FIELD(baserel);
+    COPY_SCALAR_FIELD(intermediateProv);
     COPY_STRING_LIST_FIELD(userProvAttrs);
 
     return new;
@@ -802,6 +818,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_NestingOperator:
             retval = copyNestingOperator(from, opMap);
+            break;
+        case T_WindowOperator:
+            retval = copyWindowOperator(from, opMap);
             break;
         default:
             retval = NULL;

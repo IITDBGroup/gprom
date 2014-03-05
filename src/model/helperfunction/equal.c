@@ -51,6 +51,7 @@ static boolean equalDuplicateRemoval(DuplicateRemoval *a, DuplicateRemoval *b);
 static boolean equalProvenanceComputation(ProvenanceComputation *a, ProvenanceComputation *b);
 static boolean equalConstRelOperator(ConstRelOperator *a, ConstRelOperator *b);
 static boolean equalNestingOperator(NestingOperator *a, NestingOperator *b);
+static boolean equalWindowOperator(WindowOperator *a, WindowOperator *b);
 
 // equal functions for query_block
 static boolean equalQueryBlock(QueryBlock *a, QueryBlock *b);
@@ -488,6 +489,19 @@ equalNestingOperator(NestingOperator *a, NestingOperator *b)
     return TRUE;
 }
 
+static boolean
+equalWindowOperator (WindowOperator *a, WindowOperator *b)
+{
+    COMPARE_QUERY_OP();
+    COMPARE_NODE_FIELD(partitionBy);
+    COMPARE_NODE_FIELD(orderBy);
+    COMPARE_NODE_FIELD(frameDef);
+    COMPARE_STRING_FIELD(attrName);
+    COMPARE_NODE_FIELD(f);
+
+    return TRUE;
+}
+
 // equal functions for query_block
 static boolean 
 equalQueryBlock(QueryBlock *a, QueryBlock *b)
@@ -571,6 +585,7 @@ static boolean
 equalFromProvInfo (FromProvInfo *a, FromProvInfo *b)
 {
     COMPARE_SCALAR_FIELD(baserel);
+    COMPARE_SCALAR_FIELD(intermediateProv);
     COMPARE_STRING_LIST_FIELD(userProvAttrs);
 
     return TRUE;
@@ -825,6 +840,9 @@ equal(void *a, void *b)
             break;
         case T_NestingOperator:
             retval = equalNestingOperator(a,b);
+            break;
+        case T_WindowOperator:
+            retval = equalWindowOperator(a,b);
             break;
         default:
             retval = FALSE;

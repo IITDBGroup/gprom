@@ -27,7 +27,8 @@ static QueryOperator *rewritePI_CSJoin (JoinOperator *op);
 static QueryOperator *rewritePI_CSAggregation (AggregationOperator *op);
 static QueryOperator *rewritePI_CSSet (SetOperator *op);
 static QueryOperator *rewritePI_CSTableAccess(TableAccessOperator *op);
-static QueryOperator *rewritePI_CSConstRel(ConstRelOperator * op);
+static QueryOperator *rewritePI_CSConstRel(ConstRelOperator *op);
+static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 
 static Node *asOf;
 static RelCount *nameState;
@@ -71,27 +72,30 @@ rewritePI_CSOperator (QueryOperator *op)
 {
     switch(op->type)
     {
-            ERROR_LOG("go selection");
+            DEBUG_LOG("go selection");
         case T_SelectionOperator:
             return rewritePI_CSSelection((SelectionOperator *) op);
         case T_ProjectionOperator:
-            ERROR_LOG("go projection");
+            DEBUG_LOG("go projection");
             return rewritePI_CSProjection((ProjectionOperator *) op);
         case T_AggregationOperator:
-            ERROR_LOG("go aggregation");
+            DEBUG_LOG("go aggregation");
             return rewritePI_CSAggregation ((AggregationOperator *) op);
         case T_JoinOperator:
-            ERROR_LOG("go join");
+            DEBUG_LOG("go join");
             return rewritePI_CSJoin((JoinOperator *) op);
         case T_SetOperator:
-            ERROR_LOG("go set");
+            DEBUG_LOG("go set");
             return rewritePI_CSSet((SetOperator *) op);
         case T_TableAccessOperator:
-            ERROR_LOG("go table access");
+            DEBUG_LOG("go table access");
             return rewritePI_CSTableAccess((TableAccessOperator *) op);
         case T_ConstRelOperator:
-            ERROR_LOG("go const rel operator");
+            DEBUG_LOG("go const rel operator");
             return rewritePI_CSConstRel((ConstRelOperator *) op);
+        case T_DuplicateRemoval:
+            DEBUG_LOG("go duplicate removal operator");
+            return rewritePI_CSDuplicateRemOp((DuplicateRemoval *) op);
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
             return NULL;
@@ -273,10 +277,6 @@ rewritePI_CSSet(SetOperator *op)
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
 
-    // rewrite children
-    rewritePI_CSOperator(lChild);
-    rewritePI_CSOperator(rChild);
-
     switch(op->setOpType)
     {
     case SETOP_UNION:
@@ -284,8 +284,13 @@ rewritePI_CSSet(SetOperator *op)
         List *projExprs = NIL;
         List *attNames;
         List *provAttrs = NIL;
-        int lProvs = LIST_LENGTH(lChild->provAttrs);
+        int lProvs;
         int i;
+
+        // rewrite children
+        lChild = rewritePI_CSOperator(lChild);
+        rChild = rewritePI_CSOperator(rChild);
+        lProvs = LIST_LENGTH(lChild->provAttrs);
 
         // create projection over left rewritten input
         attNames = concatTwoLists(getQueryOperatorAttrNames(lChild), getOpProvenanceAttrNames(rChild));
@@ -385,26 +390,47 @@ rewritePI_CSSet(SetOperator *op)
     }
     case SETOP_DIFFERENCE:
     {
-    	SelectionOperator *selOp = createSelectionOp(NULL, NULL, NIL, NIL);
-    	JoinOperator *joinOp = createJoinOp(JOIN_CROSS, NULL, NIL, NIL, NIL);
-    	ProjectionOperator *projOp = createProjectionOp(NIL, NULL, NIL, NIL);
+    	JoinOperator *joinOp;
+    	ProjectionOperator *projOp;
+    	QueryOperator *rewrLeftChild = rewritePI_CSOperator(
+    	        copyUnrootedSubtree(lChild));
 
-    	//restructure the tree
-    	switchSubtrees((QueryOperator *) op, (QueryOperator *) projOp);
-    	addChildOperator((QueryOperator *) projOp, (QueryOperator *) joinOp);
-    	addChildOperator((QueryOperator *) joinOp, (QueryOperator *) selOp);
-    	addChildOperator((QueryOperator *) joinOp, (QueryOperator *) lChild);
-    	addChildOperator((QueryOperator *) selOp, (QueryOperator *) op);
+    	// join provenance with rewritten right input
+    	// create join condition
+        Node *joinCond;
+        List *joinAttrs = CONCAT_LISTS(getQueryOperatorAttrNames((QueryOperator *) op),
+                getQueryOperatorAttrNames(rewrLeftChild));
+    	joinCond = NULL;
 
-    	// adapt schema for projection
+        FORBOTH(AttributeReference, aL , aR, getNormalAttrProjectionExprs(lChild),
+                getNormalAttrProjectionExprs(rewrLeftChild))
+        {
+            aL->fromClauseItem = 0;
+            aR->fromClauseItem = 1;
+            if(joinCond)
+                joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) aL, (Node *) aR), joinCond);
+            else
+                joinCond = (Node *) createIsNotDistinctExpr((Node *) aL, (Node *) aR);
+        }
+
+        joinOp = createJoinOp(JOIN_INNER, joinCond, LIST_MAKE(op, rewrLeftChild),
+                NIL, joinAttrs);
+        joinOp->op.provAttrs = copyObject(rewrLeftChild->provAttrs);
+        SHIFT_INT_LIST(joinOp->op.provAttrs, getNumAttrs((QueryOperator *) op));
+
+    	// adapt schema using projection
+        List *projExpr = CONCAT_LISTS(getNormalAttrProjectionExprs((QueryOperator *)op),
+                getProvAttrProjectionExprs((QueryOperator *) joinOp));
+        List *projAttrs = CONCAT_LISTS(getQueryOperatorAttrNames((QueryOperator *) op),
+                getOpProvenanceAttrNames((QueryOperator *) joinOp));
+        projOp = createProjectionOp(projExpr, (QueryOperator *) joinOp, NIL, projAttrs);
+        projOp->op.provAttrs = copyObject(rewrLeftChild->provAttrs);
     	addProvenanceAttrsToSchema((QueryOperator *) projOp, OP_LCHILD(projOp));
 
-    	// create join condition
-    	Node *joinCond;//TODO
+    	// switch original set diff with projection
+    	switchSubtrees((QueryOperator *) op, (QueryOperator *) projOp);
 
-    	// create selection condition
-    	Node *selCond;//TODO
-    	return (QueryOperator *) op;
+    	return (QueryOperator *) projOp;
     }
     default:
     	break;
@@ -518,4 +544,17 @@ rewritePI_CSConstRel(ConstRelOperator *op)
 
     DEBUG_LOG("rewrite const rel operator: %s", operatorToOverviewString((Node *) newpo));
     return (QueryOperator *) newpo;
+}
+
+static QueryOperator *
+rewritePI_CSDuplicateRemOp(DuplicateRemoval *op)
+{
+    QueryOperator *child = OP_LCHILD(op);
+    QueryOperator *theOp = (QueryOperator *) op;
+
+    // remove duplicate removal op
+    removeParentFromOps(singleton(child), theOp);
+    switchSubtreeWithExisting(theOp, child);
+
+    return rewritePI_CSOperator(child);
 }

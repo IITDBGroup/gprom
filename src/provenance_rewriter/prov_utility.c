@@ -89,7 +89,8 @@ getNormalAttrProjectionExprs(QueryOperator *op)
 /*
  * Given a subtree rooted a "orig" replace this subtree with the tree rooted
  * at "new". This method adapts all input lists of all parents of "orig" to point
- * to "new" instead.
+ * to "new" instead. WARNING: "new" is assumed to be unrooted (no parents and not a
+ * child of any other node)
  */
 void
 switchSubtrees(QueryOperator *orig, QueryOperator *new)
@@ -99,6 +100,27 @@ switchSubtrees(QueryOperator *orig, QueryOperator *new)
     orig->parents = NIL;
 
     // adapt original parent's inputs
+    FOREACH(QueryOperator,parent,new->parents)
+    {
+        FOREACH(QueryOperator,pChild,parent->inputs)
+        {
+            if (equal(pChild,orig))
+                pChild_his_cell->data.ptr_value = new;
+        }
+    }
+}
+
+/*
+ * Same as switchSubtrees, but keep parents of "new" intact. This is used
+ * to replace "orig" with "new" if "new" is part of an existing tree
+ */
+void
+switchSubtreeWithExisting (QueryOperator *orig, QueryOperator *new)
+{
+	new->parents = CONCAT_LISTS(new->parents, orig->parents);
+	orig->parents = NIL;
+
+	// adapt inputs of "orig"'s parents
     FOREACH(QueryOperator,parent,new->parents)
     {
         FOREACH(QueryOperator,pChild,parent->inputs)

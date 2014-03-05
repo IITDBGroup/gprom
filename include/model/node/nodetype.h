@@ -64,7 +64,8 @@ typedef enum NodeTag {
     T_SetOperator,
     T_DuplicateRemoval,
     T_ConstRelOperator,
-    T_NestingOperator
+    T_NestingOperator,
+    T_WindowOperator
 
 } NodeTag;
 

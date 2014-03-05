@@ -297,6 +297,23 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         		VISIT(attrs);
         	}
             break;
+        case T_NestingOperator:
+            {
+                PREP_VISIT(NestingOperator);
+                VISIT_OPERATOR_FIELDS();
+                VISIT(cond);
+            }
+            break;
+        case T_WindowOperator:
+            {
+                PREP_VISIT(WindowOperator);
+                VISIT_OPERATOR_FIELDS();
+                VISIT(partitionBy);
+                VISIT(orderBy);
+                VISIT(frameDef);
+                VISIT(f);
+            }
+            break;
         default:
             break;
     }
@@ -545,16 +562,19 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         	break;
         case T_ProvenanceComputation:
         	{
+        	    NEWN(ProvenanceComputation);
     			MUTATE_OPERATOR();
         	}
         	break;
         case T_TableAccessOperator:
     		{
+    		    NEWN(TableAccessOperator);
     			MUTATE_OPERATOR();
     		}
         	break;
         case T_SetOperator:
     		{
+    		    NEWN(SetOperator);
     			MUTATE_OPERATOR();
     		}
         	break;
@@ -564,6 +584,23 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         		MUTATE_OPERATOR();
         		MUTATE(List, attrs);
         	}
+            break;
+        case T_NestingOperator:
+            {
+                NEWN(NestingOperator);
+                MUTATE_OPERATOR();
+                MUTATE(Node, cond);
+            }
+            break;
+        case T_WindowOperator:
+            {
+                NEWN(WindowOperator);
+                MUTATE_OPERATOR();
+                MUTATE(List,partitionBy);
+                MUTATE(List,orderBy);
+                MUTATE(WindowFrame,frameDef);
+                MUTATE(Node,f);
+            }
             break;
         default:
             break;

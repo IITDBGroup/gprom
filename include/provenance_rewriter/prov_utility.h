@@ -25,6 +25,7 @@ extern List *getNormalAttrProjectionExprs(QueryOperator *op);
 
 // graph manipulation
 extern void switchSubtrees(QueryOperator *orig, QueryOperator *new);
+extern void switchSubtreeWithExisting (QueryOperator *orig, QueryOperator *new);
 extern QueryOperator *copyUnrootedSubtree(QueryOperator *op);
 extern void removeParentFromOps (List *operators, QueryOperator *parent);
 
