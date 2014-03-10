@@ -84,7 +84,7 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
              else
                  t->asOf = (Node *) getHeadOfListP(op->transactionInfo->scns);
 
-             INFO_LOG("\tafter merge %s", operatorToOverviewString((Node *) u));
+             INFO_LOG("\Table after merge %s", operatorToOverviewString((Node *) u));
          }
          i++;
     }
@@ -103,10 +103,12 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 /*
 	 List *updates = op->op.inputs;
 	 int i = 0;
-	 int v = -i;
+	 int v = 0;
 	 removeParentFromOps(op->op.inputs, (QueryOperator *) op);
 	 op->op.inputs = NIL;
 
+     //part A SCN(A1) < V0 then V = 0
+     //part B SCN(V1) < = SCN(A2) < = SCN(C) then v =2
 	 FOREACH(TableAccessOperator, u, updates)
 	 {
 	    List *children = NULL;
