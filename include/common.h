@@ -8,9 +8,9 @@
 /*******************************************************************************
  * Portability
  */
-#if HAVE_CONFIG_H
+//#if HAVE_CONFIG_H
 #include <config.h>
-#endif /* HAVE_CONFIG_H */
+//#endif /* HAVE_CONFIG_H */
 
 /* <inttypes.h> integer type definitions */
 #if HAVE_INTTYPES_H
