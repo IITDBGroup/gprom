@@ -179,11 +179,11 @@ serializeQuery(QueryOperator *q)
         {
             appendStringInfoString(viewDef, view->viewDefinition);
             if (view->hh.next != NULL)
-                appendStringInfoString(str, ",\n\n");
+                appendStringInfoString(viewDef, ",\n\n");
         }
 
         // prepend to query translation
-        appendStringInfoString(str, "\n\n");
+//        appendStringInfoString(str, "\n\n");
         DEBUG_LOG("views are:\n\n%s", viewDef->data);
 //        prependStringInfo(str, "%s", viewDef->data);
     }
