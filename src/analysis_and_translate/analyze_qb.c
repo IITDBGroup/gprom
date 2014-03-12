@@ -17,6 +17,7 @@
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "provenance_rewriter/prov_schema.h"
@@ -26,6 +27,8 @@ static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
 static void analyzeSetQuery (SetQuery *q, List *parentFroms);
 static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
 static void analyzeProvenanceOptions (ProvenanceStmt *prov);
+static void analyzeWithStmt (WithStmt *w);
+
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 
 // search for attributes and other relevant node types
@@ -54,6 +57,8 @@ static List *expandStarExpression (SelectItem *s, List *fromClause);
 static List *splitAttrOnDot (char *dotName);
 //static char *getAttrNameFromNameWithBlank(char *blankName);
 static char *generateAttrNameFromExpr(SelectItem *s);
+static List *getQBAttrNames (Node *qb);
+static boolean setViewFromTableRefAttrs(Node *node, List *views);
 
 void
 analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
@@ -76,15 +81,18 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
             analyzeStmtList ((List *) stmt, parentFroms);
             DEBUG_LOG("analyzed List");
             break;
-	case T_Insert:
-	    analyzeInsert((Insert *) stmt);
-	    break;
+        case T_Insert:
+            analyzeInsert((Insert *) stmt);
+            break;
         case T_Delete:
-	    analyzeDelete((Delete *) stmt);
-	    break;
-	case T_Update:
-	    analyzeUpdate((Update *) stmt);
-	    break;
+            analyzeDelete((Delete *) stmt);
+            break;
+        case T_Update:
+            analyzeUpdate((Update *) stmt);
+            break;
+        case T_WithStmt:
+            analyzeWithStmt((WithStmt *) stmt);
+            break;
         default:
             break;
     }
@@ -543,9 +551,16 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
 static void
 analyzeFromTableRef(FromTableRef *f)
 {
-    List *attrRefs = getAttributes(f->tableId);
-    FOREACH(AttributeReference,a,attrRefs)
-	    f->from.attrNames = appendToTailOfList(f->from.attrNames, a->name);
+//    List *attrRefs;
+
+    // attribute names already set (view or temporary view for now)
+    if (f->from.attrNames != NIL)
+        return;
+
+//    attrRefs = getAttributes(f->tableId);
+    f->from.attrNames = getAttributeNames(f->tableId);
+    // FOREACH(AttributeReference,a,attrRefs)
+	// f->from.attrNames = appendToTailOfList(f->from.attrNames, a->name);
 
     if(f->from.name == NULL)
     	f->from.name = f->tableId;
@@ -682,42 +697,52 @@ static void analyzeUpdate(Update* f) {
 static void
 analyzeFromSubquery(FromSubquery *sq, List *parentFroms)
 {
-    List *expectedAttrs = NIL;
+    List *expectedAttrs;
 
 	analyzeQueryBlockStmt(sq->subquery, parentFroms);
-	switch(sq->subquery->type)
-	{
-		case T_QueryBlock:
-		{
-			QueryBlock *subQb = (QueryBlock *) sq->subquery;
-			FOREACH(SelectItem,s,subQb->selectClause)
-			{
-                 expectedAttrs = appendToTailOfList(expectedAttrs,
-                        s->alias);
-			}
-		}
-        break;
-		case T_SetQuery:
-		{
-		    SetQuery *setQ = (SetQuery *) sq->subquery;
-		    expectedAttrs = deepCopyStringList(setQ->selectClause);
-		}
-        break;
-		case T_ProvenanceStmt:
-		{
-		    ProvenanceStmt *pStmt = (ProvenanceStmt *) sq->subquery;
-		    expectedAttrs = deepCopyStringList(pStmt->selectClause);
-		}
-		break;
-		default:
-			break;
-	}
+	expectedAttrs = getQBAttrNames(sq->subquery);
 
 	// if no attr aliases given
 	if (!(sq->from.attrNames))
 	    sq->from.attrNames = expectedAttrs;
 
 	assert(LIST_LENGTH(sq->from.attrNames) == LIST_LENGTH(expectedAttrs));
+}
+
+static List *
+getQBAttrNames (Node *qb)
+{
+    List *attrs = NIL;
+
+    switch(qb->type)
+    {
+        case T_QueryBlock:
+        {
+            QueryBlock *subQb = (QueryBlock *) qb;
+            FOREACH(SelectItem,s,subQb->selectClause)
+            {
+                 attrs = appendToTailOfList(attrs,
+                        s->alias);
+            }
+        }
+        break;
+        case T_SetQuery:
+        {
+            SetQuery *setQ = (SetQuery *) qb;
+            attrs = deepCopyStringList(setQ->selectClause);
+        }
+        break;
+        case T_ProvenanceStmt:
+        {
+            ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
+            attrs = deepCopyStringList(pStmt->selectClause);
+        }
+        break;
+        default:
+            break;
+    }
+
+    return attrs;
 }
 
 static List *
@@ -938,4 +963,59 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
                 FATAL_LOG("Unkown provenance type: <%s>", value);
         }
     }
+}
+
+static void
+analyzeWithStmt (WithStmt *w)
+{
+    Set *viewNames = STRSET();
+    List *analyzedViews = NIL;
+
+    // check that no two views have the same name
+    FOREACH(KeyValue,v,w->withViews)
+    {
+        char *vName = STRING_VALUE(v->key);
+        if (hasSetElem(viewNames, vName))
+            FATAL_LOG("view <%s> defined more than once in with stmt:\n\n%s",
+                    vName, nodeToString(w));
+        else
+            addToSet(viewNames, vName);
+    }
+
+    // analyze each view, but make sure to set attributes of dummy views upfront
+    FOREACH(KeyValue,v,w->withViews)
+    {
+        setViewFromTableRefAttrs(v->value, analyzedViews);
+        analyzeQueryBlockStmt(v->value, NIL);
+        analyzedViews = appendToTailOfList(analyzedViews, v);
+    }
+
+    setViewFromTableRefAttrs(w->query, analyzedViews);
+    analyzeQueryBlockStmt(w->query, NIL);
+}
+
+static boolean
+setViewFromTableRefAttrs(Node *node, List *views)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, FromTableRef))
+    {
+        FromTableRef *f = (FromTableRef *) node;
+        char *name = f->tableId;
+
+        FOREACH(KeyValue,v,views)
+        {
+            char *vName = STRING_VALUE(v->key);
+
+            // found view, set attr names
+            if (strcmp(name, vName) == 0)
+                ((FromItem *) f)->attrNames = getQBAttrNames(v->value);
+        }
+
+        return TRUE;
+    }
+
+    return visit(node, setViewFromTableRefAttrs, views);
 }

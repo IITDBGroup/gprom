@@ -100,7 +100,7 @@ static Delete *copyDelete(Delete *from, OperatorMap **opMap);
 static Update *copyUpdate(Update *from, OperatorMap **opMap);
 static TransactionStmt *copyTransactionStmt(TransactionStmt *from, OperatorMap **opMap);
 static FromProvInfo *copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap);
-
+static WithStmt *copyWithStmt(WithStmt *from, OperatorMap **opMap);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -537,6 +537,16 @@ copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap)
     return new;
 }
 
+static WithStmt *
+copyWithStmt(WithStmt *from, OperatorMap **opMap)
+{
+    COPY_INIT(WithStmt);
+    COPY_NODE_FIELD(withViews);
+    COPY_NODE_FIELD(query);
+
+    return new;
+}
+
 static NestedSubquery *
 copyNestedSubquery(NestedSubquery *from, OperatorMap **opMap)
 {
@@ -750,6 +760,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_QueryBlock:
             retval = copyQueryBlock(from, opMap);
+            break;
+        case T_WithStmt:
+            retval = copyWithStmt(from, opMap);
             break;
         case T_SelectItem:
             retval = copySelectItem(from, opMap);

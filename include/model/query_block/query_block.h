@@ -50,6 +50,13 @@ typedef enum IsolationLevel
     ISOLATION_READ_ONLY
 } IsolationLevel;
 
+typedef struct WithStmt
+{
+    NodeTag type;
+    List *withViews;
+    Node *query;
+} WithStmt;
+
 typedef struct ProvenanceTransactionInfo
 {
     NodeTag type;
@@ -223,5 +230,6 @@ extern Insert *createInsert(char *nodeName, Node *query, List*);
 extern Delete *createDelete(char *nodeName, Node *cond);
 extern Update *createUpdate(char *nodeName, List *selectClause, Node *cond);
 extern TransactionStmt *createTransactionStmt (char *stmtType);
+extern WithStmt *createWithStmt (List *views, Node *query);
 
 #endif /* QUERY_BLOCK_H */

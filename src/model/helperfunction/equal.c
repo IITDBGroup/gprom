@@ -60,6 +60,7 @@ static boolean equalNestedSubquery (NestedSubquery *a, NestedSubquery *b);
 static boolean equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b);
 static boolean equalProvenanceTransactionInfo(ProvenanceTransactionInfo *a,
         ProvenanceTransactionInfo *b);
+static boolean equalWithStmt(WithStmt *a, WithStmt *b);
 static boolean equalSelectItem(SelectItem *a, SelectItem *b);
 static boolean equalFromItem(FromItem *a, FromItem *b);
 static boolean equalFromTableRef(FromTableRef *a, FromTableRef *b);
@@ -618,6 +619,15 @@ equalProvenanceTransactionInfo(ProvenanceTransactionInfo *a,
 }
 
 static boolean
+equalWithStmt(WithStmt *a, WithStmt *b)
+{
+    COMPARE_NODE_FIELD(withViews);
+    COMPARE_NODE_FIELD(query);
+
+    return TRUE;
+}
+
+static boolean
 equalSelectItem(SelectItem *a, SelectItem *b)
 {
     COMPARE_STRING_FIELD(alias);
@@ -804,6 +814,9 @@ equal(void *a, void *b)
             break;
         case T_ProvenanceTransactionInfo:
             retval = equalProvenanceTransactionInfo(a,b);
+            break;
+        case T_WithStmt:
+            retval = equalWithStmt(a,b);
             break;
         case T_SelectItem:
             retval = equalSelectItem(a,b);

@@ -238,4 +238,13 @@ createTransactionStmt (char *stmtType)
     return result;
 }
 
+WithStmt *
+createWithStmt (List *views, Node *query)
+{
+    WithStmt *result = makeNode(WithStmt);
 
+    result->withViews = views;
+    result->query = query;
+
+    return result;
+}

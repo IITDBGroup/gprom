@@ -330,7 +330,7 @@ getAttributeNames (char *tableName)
     List *attrs = getAttributes(tableName);
 
     FOREACH(AttributeReference,a,attrs)
-    attrNames = appendToTailOfList(attrNames, a->name);
+        attrNames = appendToTailOfList(attrNames, a->name);
 
     return attrNames;
 }

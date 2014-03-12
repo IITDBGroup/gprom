@@ -45,6 +45,7 @@ static Node *translateGeneral(Node *node);
 static QueryOperator *translateSetQuery(SetQuery *sq);
 static QueryOperator *translateQueryBlock(QueryBlock *qb);
 static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov);
+static QueryOperator *translateWithStmt(WithStmt *with);
 
 /* Functions of translating from clause in a QueryBlock */
 static QueryOperator *translateFromClause(List *fromClause);
@@ -83,6 +84,7 @@ static QueryOperator *translateAggregation(QueryBlock *qb, QueryOperator *input,
 static QueryOperator *translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
         List *attrsOffsets);
 
+/* helpers */
 static Node *replaceAggsAndGroupByMutator(Node *node,
 		ReplaceGroupByState *state);
 static QueryOperator *createProjectionOverNonAttrRefExprs(List *selectClause,
@@ -94,6 +96,8 @@ static List *getListOfAggregFunctionCalls(List *selectClause,
 		Node *havingClause);
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
 static boolean visitFindWindowFuncs(Node *n, List **wfs);
+static boolean replaceWithViewRefsMutator(Node *node, List *views);
+
 
 Node *
 translateParse(Node *q)
@@ -145,6 +149,8 @@ translateQuery (Node *node)
         case T_Update:
         case T_Delete:
             return translateUpdate(node);
+        case T_WithStmt:
+            return translateWithStmt((WithStmt *) node);
         default:
             assert(FALSE);
             return NULL;
@@ -425,6 +431,70 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	}
 
 	return (QueryOperator *) result;
+}
+
+static QueryOperator *
+translateWithStmt(WithStmt *with)
+{
+    List *withViews = NIL;
+    List *transWithViews = NIL;
+    QueryOperator *finalQ;
+
+    // translate each individual view
+    FOREACH(KeyValue,v,with->withViews)
+    {
+        Node *vQ = v->value;
+        Node *opQ;
+
+        // translate current view into operator model
+        opQ = translateGeneral(vQ);
+
+        // replace references to withViews as table access  with definition
+        replaceWithViewRefsMutator(opQ, transWithViews);
+
+        // store as with view entry
+        transWithViews = appendToTailOfList(transWithViews,
+                createNodeKeyValue(copyObject(v->key), opQ));
+        DEBUG_LOG("translated input views <%s>:\n\n%s\n\ninto\n\n%s",
+                STRING_VALUE(v->key), nodeToString(vQ),
+                operatorToOverviewString(opQ));
+    }
+
+    // adapt the query
+    finalQ = (QueryOperator *) translateGeneral(with->query);
+    replaceWithViewRefsMutator((Node *) finalQ, transWithViews);
+
+    return finalQ;
+}
+
+
+
+static boolean
+replaceWithViewRefsMutator(Node *node, List *views)
+{
+    if (node == NULL)
+        return TRUE;
+
+    // table references may be temporary views
+    if (isA(node, TableAccessOperator))
+    {
+        TableAccessOperator *t = (TableAccessOperator *) node;
+        char *name = t->tableName;
+
+        // if table access represents a view access then replace it with the view query
+        FOREACH(KeyValue,v,views)
+        {
+            char *vName = STRING_VALUE(v->key);
+
+            if (strcmp(name, vName) == 0)
+                switchSubtreeWithExisting((QueryOperator *) t,
+                        (QueryOperator *) v->value);
+        }
+
+        return TRUE;
+    }
+
+    return visit(node, replaceWithViewRefsMutator, views);
 }
 
 static QueryOperator *

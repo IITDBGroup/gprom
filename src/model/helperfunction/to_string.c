@@ -51,6 +51,7 @@ static void outDelete(StringInfo str, Delete *node);
 static void outUpdate(StringInfo str, Update *node);
 static void outNestedSubquery(StringInfo str, NestedSubquery *node);
 static void outTransactionStmt(StringInfo str, TransactionStmt *node);
+static void outWithStmt(StringInfo str, WithStmt *node);
 
 static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
@@ -285,6 +286,14 @@ outTransactionStmt(StringInfo str, TransactionStmt *node)
 {
     WRITE_NODE_TYPE(TRANSACTIONSTMT);
     WRITE_ENUM_FIELD(stmtType, TransactionStmtType);
+}
+
+static void
+outWithStmt(StringInfo str, WithStmt *node)
+{
+    WRITE_NODE_TYPE(WITH_STMT);
+    WRITE_NODE_FIELD(withViews);
+    WRITE_NODE_FIELD(query);
 }
 
 static void
@@ -816,6 +825,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_TransactionStmt:
                 outTransactionStmt(str, (TransactionStmt *) obj);
+                break;
+            case T_WithStmt:
+                outWithStmt(str, (WithStmt *) obj);
                 break;
 
                 //query operator model nodes

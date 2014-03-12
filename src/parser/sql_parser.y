@@ -107,8 +107,10 @@ Node *bisonParseResult = NULL;
 %type <node> stmt provStmt dmlStmt queryStmt
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
-%type <list> selectClause optionalFrom fromClause exprList clauseList optionalGroupBy optionalOrderBy setClause// select and from clauses are lists
-             insertList stmtList identifierList optionalAttrAlias optionalProvWith provOptionList caseWhenList windowBoundaries optWindowPart
+%type <list> selectClause optionalFrom fromClause exprList clauseList 
+			 optionalGroupBy optionalOrderBy setClause insertList stmtList 
+			 identifierList optionalAttrAlias optionalProvWith provOptionList 
+			 caseWhenList windowBoundaries optWindowPart withViewList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse
@@ -116,6 +118,7 @@ Node *bisonParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provOption
+%type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString
 %type <stringVal> joinType transactionIdentifier
 
@@ -155,6 +158,11 @@ stmt:
             RULELOG("stmt::transactionIdentifier");
             $$ = (Node *) createTransactionStmt($1);
         }
+		| withQuery
+		{ 
+			RULELOG("stmt::withQuery"); 
+			$$ = $1; 
+		}
     ;
 
 /*
@@ -175,6 +183,35 @@ queryStmt:
 		| provStmt        { RULELOG("queryStmt::provStmt"); }
 		| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); }
     ;
+
+withQuery:
+		WITH withViewList queryStmt
+		{
+			RULELOG("withQuery::withViewList::queryStmt");
+			$$ = (Node *) createWithStmt($2, $3);
+		}
+	;	
+	
+withViewList:
+		withViewList ',' withView
+		{
+			RULELOG("withViewList::list::view");
+			$$ = appendToTailOfList($1, $3);
+		}
+		| withView
+		{
+			RULELOG("withViewList::view");
+			$$ = singleton($1);
+		}
+	;
+
+withView:
+		identifier AS '(' queryStmt ')'
+		{
+			RULELOG("withView::ident::AS:queryStmt");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString($1), $4);
+		}
+	;
 
 transactionIdentifier:
         BEGIN_TRANS        { RULELOG("transactionIdentifier::BEGIN"); $$ = strdup("TRANSACTION_BEGIN"); }

@@ -257,6 +257,9 @@ exprToSQL (Node *expr)
     StringInfo str = makeStringInfo();
     char *result;
 
+    if (expr == NULL)
+        return "";
+
     exprToSQLString(str, expr);
 
     result = str->data;

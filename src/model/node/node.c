@@ -51,6 +51,20 @@ createStringKeyValue (char *key, char *value)
 }
 
 /*
+ * Create a key value pair with node keys
+ */
+KeyValue *
+createNodeKeyValue(Node *key, Node *value)
+{
+    KeyValue *result = makeNode(KeyValue);
+
+    result->key = key;
+    result->value = value;
+
+    return result;
+}
+
+/*
  * Create a new StringInfo.
  */
 StringInfo

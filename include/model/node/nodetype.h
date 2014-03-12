@@ -50,6 +50,7 @@ typedef enum NodeTag {
     T_Delete,
     T_Update,
     T_TransactionStmt,
+    T_WithStmt,
 
     /* query operator model nodes */
     T_Schema,
@@ -161,6 +162,7 @@ extern void enlargeStringInfo(StringInfo str, int needed);
 /*extern declaration */
 extern Node *newNode(size_t size, NodeTag type);
 extern KeyValue *createStringKeyValue(char *key, char *value);
+extern KeyValue *createNodeKeyValue(Node *key, Node *value);
 
 /* get a string representation of a node */
 extern char *nodeToString(void *obj);
