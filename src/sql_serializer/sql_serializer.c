@@ -71,6 +71,7 @@ typedef struct TemporaryViewMap {
     QueryOperator *viewOp; // the key
     char *viewName;
     char *viewDefinition;
+    List *attrNames;
     UT_hash_handle hh;
 } TemporaryViewMap;
 
@@ -152,6 +153,7 @@ char *
 serializeQuery(QueryOperator *q)
 {
     StringInfo str;
+    StringInfo viewDef;
     NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER");
 
     str = makeStringInfo();
@@ -169,7 +171,7 @@ serializeQuery(QueryOperator *q)
      */
     if (HASH_COUNT(viewMap) > 0)
     {
-        StringInfo viewDef = makeStringInfo();
+        viewDef = makeStringInfo();
         appendStringInfoString(viewDef, "WITH ");
 
         // loop through temporary views we have defined
@@ -182,11 +184,12 @@ serializeQuery(QueryOperator *q)
 
         // prepend to query translation
         appendStringInfoString(str, "\n\n");
-        prependStringInfo(str, "%s", viewDef->data);
+        DEBUG_LOG("views are:\n\n%s", viewDef->data);
+//        prependStringInfo(str, "%s", viewDef->data);
     }
 
     // copy result to callers memory context and clean up
-    char *result = str->data;
+    char *result = CONCAT_STRINGS(viewDef->data, str->data);
     FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }
 
@@ -939,17 +942,35 @@ createTempView (QueryOperator *q, StringInfo str)
     TemporaryViewMap *view;
     List *resultAttrs;
 
+    // check whether we already have create a view for this op
+    HASH_FIND_PTR(viewMap, &q, view);
+    if (view != NULL)
+    {
+        appendStringInfoString(str, strdup(view->viewName));
+        return deepCopyStringList(view->attrNames);
+    }
+
     // create sql code to create view
     appendStringInfo(viewDef, "%s AS (", viewName);
-    resultAttrs = serializeQueryOperator(q, viewDef);
+    if (isA(q, SetOperator))
+        resultAttrs = serializeSetOperator(q, viewDef);
+    else
+        resultAttrs = serializeQueryBlock(q, viewDef);
+
     appendStringInfoString(viewDef, ")\n\n");
+
+    DEBUG_LOG("created view definition:\n%s", viewDef->data);
+
+    // add reference to view
+    appendStringInfoString(str, strdup(viewName));
 
     // add to view table
     view = NEW(TemporaryViewMap);
     view->viewName = viewName;
     view->viewOp = q;
     view->viewDefinition = viewDef->data;
-    HASH_ADD_KEYPTR(hh, viewMap, view->viewName, strlen(view->viewName), view);
+    view->attrNames = resultAttrs;
+    HASH_ADD_PTR(viewMap, viewOp, view);
 
     return resultAttrs;
 }
