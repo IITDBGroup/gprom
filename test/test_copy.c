@@ -18,11 +18,13 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/expression/expression.h"
 #include "model/node/nodetype.h"
+#include "model/query_operator/query_operator.h"
 
 /* internal tests */
 //static rc testcopyAttributeReference (void);
 static rc testshallowCopyList (void);
 static rc testdeepCopyList (void);
+static rc testCopyOpGraph (void);
 
 /* check equal model */
 rc
@@ -31,6 +33,8 @@ testCopy (void)
     // RUN_TEST(testcopyAttributeReference(), "test copy AttibuteReference");
     RUN_TEST(testshallowCopyList(), "test shallow copy for List");
     RUN_TEST(testdeepCopyList(), "test deep copy for List");
+    RUN_TEST(testCopyOpGraph(), "test deep copy for operator graphs");
+
     return PASS;
 }
 
@@ -45,7 +49,8 @@ testshallowCopyList(void)
     fromList = appendToTailOfListInt(fromList, 1);
     fromList = appendToTailOfListInt(fromList, 2);
     fromList = appendToTailOfListInt(fromList, 3);
-	newList = copyList(fromList);
+
+    newList = copyList(fromList);
     ASSERT_EQUALS_INT(getListLength(fromList),getListLength(newList),"Lists have the same length");
     FORBOTH_INT(l,r,fromList,newList)
     ASSERT_EQUALS_INT(l,r,"compare list element");
@@ -53,45 +58,21 @@ testshallowCopyList(void)
     ASSERT_FALSE(l == r, "list cells are actually new");
     FREE(fromList);
     FREE(newList);
+
     return PASS;
-
 }
-
-//static rc
-//testshallowCopyList(void)
-//{
-//    List *fromList =NIL, *newList = NIL;
-//    StringInfo str = makeStringInfo();
-//    fromList = appendStringInfoString(str,"a");
-//    fromList = appendStringInfoString(str, "b");
-//    fromList = appendStringInfoString(str, "c");
-//    newList  = copyList(fromList);
-//
-//    ASSERT_EQUALS_INT(getListLength(fromList), getListLength(newList), " Two lists have the same length");
-//    ASSERT_EQUALS_STRING(fromList, newList, "Two List have same content");
-//    FORBOTH_LC(l,r,fromList, newList)
-//    ASSERT_FALSE(l==r, "List cells are actually new");
-//    FREE(fromList);
-//    FREE(newList);
-//    return PASS;
-//
-//
-//
-//}
 
 static rc
 testdeepCopyList(void)
 {
     List *fromList = NIL, *toList = NIL;
-    //AttributeReference *a, *b;
     char *a = "a";
     char *b = "b";
     AttributeReference *a1, *a2;
-  //  StringInfo str = makeStringInfo();
-	a1 = createAttributeReference(strdup(a));
+
+    a1 = createAttributeReference(strdup(a));
 	a2 = createAttributeReference(strdup(b));
-  //  appendStringInfoString(str, a1);
-//	appendStringInforString(str,a2);
+
 	fromList = appendToTailOfList(fromList, a1);
 	fromList = appendToTailOfList(fromList, a2);
 	toList = copyList(fromList);
@@ -99,18 +80,32 @@ testdeepCopyList(void)
 	ASSERT_EQUALS_STRING(nodeToString(fromList),nodeToString(toList), "both lists are equal");
 	FREE(fromList);
 	FREE(toList);
+
 	return PASS;
-
-    // FORBOTH(void,l,r,fromList,newList)
-    //compare
-
-    //ASSERT_EQUALS_NODE(fromList, newList);
-
-    //    ASSERT_EQUALS_P(getHeadOfList(fromList),getHeadOfList(newList),"Header pointers piont to the same list");
-    //    ASSERT_EQUALS_P(getTailOfList(fromList),getTailOfList(newList),"Tail pointers piont to the same list");
-    //ASSERT_EQUALS_P(a,b,message)
 }
 
+static rc
+testCopyOpGraph (void)
+{
+    QueryOperator *par, *c1, *c2,
+                  *copyP, *copyC1, *copyC2;
 
+    c1 = (QueryOperator *) createTableAccessOp("R", NULL, NULL, NIL, LIST_MAKE("a", "b"), NIL);
+    c2 = c1;
+    par = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(c1,c2), NIL, LIST_MAKE("a", "b"));
+    c1->parents = singleton(par);
+
+    copyP = copyObject(par);
+    copyC1 = OP_LCHILD(copyP);
+    copyC2 = OP_RCHILD(copyP);
+
+    DEBUG_LOG("%s\ncopied to overview\n%s",
+            operatorToOverviewString((Node *) par),
+            operatorToOverviewString((Node *) copyP));
+
+    ASSERT_EQUALS_P(copyC1, copyC2, "graph structure preserved in result of copy");
+
+    return PASS;
+}
 
 

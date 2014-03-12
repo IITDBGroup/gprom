@@ -860,7 +860,7 @@ mapHasOp(QueryOperator *op, OperatorMap **opMap)
 {
     OperatorMap *result;
 
-    HASH_FIND_PTR(*opMap,op,result);
+    HASH_FIND_PTR(*opMap,&op,result);
 
     return result != NULL;
 }
@@ -870,7 +870,7 @@ mapGetOp(QueryOperator *op, OperatorMap **opMap)
 {
     OperatorMap *result;
 
-    HASH_FIND_PTR(*opMap,op,result);
+    HASH_FIND_PTR(*opMap,&op,result);
     assert(result != NULL);
 
     return result->copy;
