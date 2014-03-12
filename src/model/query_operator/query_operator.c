@@ -303,11 +303,18 @@ createWindowOp(FunctionCall *fCall, List *partitionBy, List *orderBy,
 }
 
 
-extern void
+void
 addChildOperator (QueryOperator *parent, QueryOperator *child)
 {
     parent->inputs = appendToTailOfList(parent->inputs, child);
     child->parents = appendToTailOfList(child->parents, parent);
+}
+
+void
+addParent (QueryOperator *child, QueryOperator *parent)
+{
+    if (!searchList(child->parents, parent))
+        child->parents = appendToTailOfList(child->parents, parent);
 }
 
 List *
@@ -438,41 +445,6 @@ void treeify(QueryOperator *op)
         }
         op->parents = NIL;
     }
-}
-
-boolean isTree(QueryOperator *op)
-{
-    if (LIST_LENGTH(op->parents) > 1)
-        return FALSE;
-
-    FOREACH(QueryOperator,o,op->inputs)
-    {
-        if(!isTree(o))
-            return FALSE;
-    }
-
-    return TRUE;
-}
-
-boolean
-checkParentChildLinks (QueryOperator *op)
-{
-	// check that children have this node as their parent
-	FOREACH(QueryOperator,o,op->inputs)
-	{
-		if (!searchList(o->parents, op))
-			return FALSE;
-		checkParentChildLinks(o);
-	}
-
-	// check that this node's parents have this node as a child
-	FOREACH(QueryOperator,o,op->parents)
-	{
-		if (!searchList(o->inputs, op))
-			return FALSE;
-	}
-
-	return TRUE;
 }
 
 static Schema *

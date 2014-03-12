@@ -21,8 +21,8 @@
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 
-
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/query_operator_model_checker.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 
@@ -82,9 +82,13 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     // query before rewrite.
     if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE || op->inputType == PROV_INPUT_TRANSACTION)
         mergeUpdateSequence(op);
-    treeify((QueryOperator *) op);
-    INFO_LOG("treeifyed operator model:\n\n%s\n\n%s", operatorToOverviewString((Node *) op), beatify(nodeToString(op)));
-    assert(isTree((QueryOperator *) op));
+
+    if (isRewriteOptionActivated("treefiy_prov_rewrite_input"))
+    {
+        treeify((QueryOperator *) op);
+        INFO_LOG("treeifyed operator model:\n\n%s\n\n%s", operatorToOverviewString((Node *) op), beatify(nodeToString(op)));
+        assert(isTree((QueryOperator *) op));
+    }
 
     switch(op->provType)
     {

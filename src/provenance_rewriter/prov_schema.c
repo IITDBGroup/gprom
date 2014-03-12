@@ -168,6 +168,7 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
         if (f->provInfo)
         {
             char *tableName = f->name;
+            int curRelCount = getRelCount(status, tableName);
 
             // is base relation provenance
             if (f->provInfo->baserel)
@@ -176,7 +177,7 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
                 {
                     status->provAttrs = appendToTailOfList(status->provAttrs,
                             getProvenanceAttrName(tableName, attrName,
-                                    getRelCount(status, tableName)));
+                                    curRelCount));
                 }
 
             }
@@ -187,7 +188,7 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
                 {
                     status->provAttrs = appendToTailOfList(status->provAttrs,
                             getProvenanceAttrName(tableName, attrName,
-                                    getRelCount(status, tableName)));
+                                    curRelCount));
                 }
             }
             return TRUE;
@@ -196,11 +197,11 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
         {
             FromTableRef *r = (FromTableRef *) node;
             char *tableName = r->tableId;
+            int curRelCount = getRelCount(status, tableName);
 
             FOREACH(char,a,r->from.attrNames)
-            status->provAttrs = appendToTailOfList(status->provAttrs,
-                    getProvenanceAttrName(tableName,a,
-                            getRelCount(status, tableName)));
+                status->provAttrs = appendToTailOfList(status->provAttrs,
+                        getProvenanceAttrName(tableName,a, curRelCount));
         }
     }
 

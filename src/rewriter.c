@@ -15,9 +15,12 @@
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "configuration/option.h"
+
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/query_operator_model_checker.h"
 #include "parser/parser.h"
 #include "provenance_rewriter/prov_rewriter.h"
 #include "analysis_and_translate/translator.h"
@@ -35,7 +38,7 @@ rewriteQuery(char *input)
     parse = parseFromString(input);
     DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
 
-    result = rewriteParserOutput(parse, FALSE);
+    result = rewriteParserOutput(parse, isRewriteOptionActivated("optimize_operator_model"));
     INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
 
     return result;
@@ -49,7 +52,7 @@ rewriteQueryFromStream (FILE *stream) {
     parse = parseStream(stream);
     DEBUG_LOG("parser returned:\n\n%s", nodeToString(parse));
 
-    result = rewriteParserOutput(parse, FALSE);
+    result = rewriteParserOutput(parse, isRewriteOptionActivated("optimize_operator_model"));
     INFO_LOG("Rewritten SQL text is <%s>", result);
 
     return result;
@@ -87,9 +90,9 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     INFO_LOG("as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
     if (isA(rewrittenTree, List))
         FOREACH(QueryOperator,o,(List *) rewrittenTree)
-            assert(checkParentChildLinks(o));
+            assert(checkModel(o));
     else
-        assert(checkParentChildLinks((QueryOperator *) rewrittenTree));
+        assert(checkModel((QueryOperator *) rewrittenTree));
 
 
     if(applyOptimizations)
@@ -101,22 +104,22 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
                 QueryOperator *o = (QueryOperator *) LC_P_VAL(lc);
 
                 o = mergeAdjacentOperators(o);
-                assert(checkParentChildLinks(o));
+                assert(checkModel(o));
                 o = pushDownSelectionOperatorOnProv(o);
-                assert(checkParentChildLinks(o));
+                assert(checkModel(o));
                 o = mergeAdjacentOperators(o);
-                assert(checkParentChildLinks(o));
+                assert(checkModel(o));
                 LC_P_VAL(lc) = o;
             }
         }
         else
         {
             rewrittenTree = (Node *) mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-            assert(checkParentChildLinks((QueryOperator *) rewrittenTree));
+            assert(checkModel((QueryOperator *) rewrittenTree));
             rewrittenTree = (Node *) pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
-            assert(checkParentChildLinks((QueryOperator *) rewrittenTree));
+            assert(checkModel((QueryOperator *) rewrittenTree));
             rewrittenTree = (Node *) mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-            assert(checkParentChildLinks((QueryOperator *) rewrittenTree));
+            assert(checkModel((QueryOperator *) rewrittenTree));
         }
         INFO_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
     }

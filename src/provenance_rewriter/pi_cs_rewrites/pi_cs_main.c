@@ -263,6 +263,8 @@ rewritePI_CSAggregation (AggregationOperator *op)
 
 	// switch provenance computation with original aggregation
 	switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    addParent(origAgg, (QueryOperator *) joinProv);
+    addParent(aggInput, (QueryOperator *) joinProv);
 
     // adapt schema for final projection
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(proj)));

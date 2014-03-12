@@ -154,9 +154,12 @@ serializeQuery(QueryOperator *q)
 {
     StringInfo str;
     StringInfo viewDef;
+    char *result;
+
     NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER");
 
     str = makeStringInfo();
+    viewDef = makeStringInfo();
 
     // initialize basic structures and then call the worker
     viewMap = NULL;
@@ -171,7 +174,6 @@ serializeQuery(QueryOperator *q)
      */
     if (HASH_COUNT(viewMap) > 0)
     {
-        viewDef = makeStringInfo();
         appendStringInfoString(viewDef, "WITH ");
 
         // loop through temporary views we have defined
@@ -183,13 +185,13 @@ serializeQuery(QueryOperator *q)
         }
 
         // prepend to query translation
-//        appendStringInfoString(str, "\n\n");
         DEBUG_LOG("views are:\n\n%s", viewDef->data);
-//        prependStringInfo(str, "%s", viewDef->data);
+        result = CONCAT_STRINGS(viewDef->data, str->data);
     }
+    else
+        result = str->data;
 
     // copy result to callers memory context and clean up
-    char *result = CONCAT_STRINGS(viewDef->data, str->data);
     FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }
 
