@@ -100,6 +100,74 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
 static void
 mergeReadCommittedTransaction(ProvenanceComputation *op)
 {
+	List *scns = op->transactionInfo->scns;
+	long lscn= getTailOfListInt(op->transactionInfo->scns);
+	lscn--;
+	reverseList(scns);
+
+	 FOREACH(ProjectionOperator, u, op->op)
+		    {
+		appendToTailOfList( u->projExprs,
+
+		    }
+
+
+
+
+
+	//// merge
+
+	List *updates = copyList(op->op.inputs);
+	    int i = 0;
+
+	    // cut links to parent
+	    removeParentFromOps(op->op.inputs, (QueryOperator *) op);
+	    op->op.inputs = NIL;
+
+	    // reverse list
+	    reverseList(updates);
+	    reverseList(op->transactionInfo->updateTableNames);
+
+	    DEBUG_LOG("Updates to merge are: \n\n%s", beatify(nodeToString(updates)));
+	    INFO_LOG("Updates to merge overview are: \n\n%s", operatorToOverviewString((Node *) updates));
+	    /*
+	     * Merge the individual queries for all updates into one
+	     */
+	    FOREACH(QueryOperator, u, updates)
+	    {
+	         List *children = NULL;
+
+	         // find all table access operators
+	         findTableAccessVisitor((Node *) u, &children);
+	         INFO_LOG("Replace table access operators in %s", operatorToOverviewString((Node *) u));
+
+	         FOREACH(TableAccessOperator, t, children)
+	         {
+	             INFO_LOG("\tTable Access %s", operatorToOverviewString((Node *) t));
+	             QueryOperator *up = getUpdateForPreviousTableVersion(op,
+	                     t->tableName, i, updates);
+
+	             INFO_LOG("\tUpdate is %s", operatorToOverviewString((Node *) up));
+	             // previous table version was created by transaction
+	             if (up != NULL)
+	                 switchSubtreeWithExisting((QueryOperator *) t, up);
+	             // previous table version is the one at transaction begin
+	             else
+	                 t->asOf = (Node *) getHeadOfListP(op->transactionInfo->scns);
+
+	             INFO_LOG("\Table after merge %s", operatorToOverviewString((Node *) u));
+	         }
+	         i++;
+	    }
+	    DEBUG_LOG("Merged updates are: %s", beatify(nodeToString(updates)));
+
+	    // replace updates sequence with root of the whole merged update query
+	    addChildOperator((QueryOperator *) op, (QueryOperator *) getHeadOfListP(updates));
+	    //op->op.inputs = singleton();
+	    DEBUG_LOG("Provenance computation for updates that will be passed "
+	            "to rewriter: %s", beatify(nodeToString(op)));
+
+}
 /*
 	 List *updates = op->op.inputs;
 	 int i = 0;
@@ -137,8 +205,6 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 */
 
 //we need to deal with R(c-1) version of read committed
-}
-
 
 
 static QueryOperator *
