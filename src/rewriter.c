@@ -87,6 +87,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
 
     rewrittenTree = provRewriteQBModel(oModel);
     DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
+    DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
     INFO_LOG("as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
     if (isA(rewrittenTree, List))
         FOREACH(QueryOperator,o,(List *) rewrittenTree)

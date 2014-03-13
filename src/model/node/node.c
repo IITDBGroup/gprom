@@ -133,7 +133,7 @@ appendStringInfoStrings(StringInfo str, ...)
 
     while((arg = va_arg(args, char *)) != NULL)
     {
-        DEBUG_LOG("append <%s> to <%s>", arg, str->data);
+        DEBUG_LOG("append <%s> to <%s>", arg, str->len ? str->data : "");
         appendStringInfoString(str, arg);
     }
 

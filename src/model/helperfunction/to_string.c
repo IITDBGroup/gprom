@@ -915,6 +915,8 @@ beatify(char *input)
     boolean inString = FALSE;
     boolean inStringConst = FALSE;
 
+    TRACE_LOG("beatify string of len <%u>\n%s", strlen(input), input);
+
     if(input == NULL)
         return NULL;
 

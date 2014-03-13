@@ -118,19 +118,35 @@ checkSchemaConsistency (QueryOperator *op)
         }
         break;
         case T_SetOperator:
-         {
-             SetOperator *o = (SetOperator *) op;
-             QueryOperator *lChild = OP_LCHILD(o);
+        {
+            SetOperator *o = (SetOperator *) op;
+            QueryOperator *lChild = OP_LCHILD(o);
 
-             if (!equal(o->op.schema->attrDefs, lChild->schema->attrDefs))
-             {
-                 ERROR_LOG("Attributes of a set operator should be the "
-                         "attributes of its left child:\n%s",
-                         operatorToOverviewString((Node *) op));
-                 return FALSE;
-             }
-         }
-         break;
+            if (!equal(o->op.schema->attrDefs, lChild->schema->attrDefs))
+            {
+                ERROR_LOG("Attributes of a set operator should be the "
+                        "attributes of its left child:\n%s",
+                        operatorToOverviewString((Node *) op));
+                return FALSE;
+            }
+        }
+        break;
+        case T_WindowOperator:
+        {
+            WindowOperator *o = (WindowOperator *) op;
+            QueryOperator *lChild = OP_LCHILD(op);
+            List *expected = sublist(copyObject(op->schema->attrDefs), 0,
+                    LIST_LENGTH(op->schema->attrDefs));
+
+            if (!equal(expected, lChild->schema->attrDefs))
+            {
+                ERROR_LOG("Attributes of a window operator should be the "
+                        "attributes of its left child + window function:\n%s",
+                        operatorToOverviewString((Node *) op));
+                return FALSE;
+            }
+        }
+        break;
         default:
             break;
     }
@@ -152,8 +168,8 @@ checkParentChildLinks (QueryOperator *op)
         {
             ERROR_LOG("operator \n%s\n\n is child of \n\n%s\n, but does not have"
                     " this operator in its parent list",
-                    beatify(nodeToString(o)),
-                    beatify(nodeToString(op)));
+                    operatorToOverviewString((Node *) o),
+                    operatorToOverviewString((Node *) op));
             return FALSE;
         }
         if (!checkParentChildLinks(o))
@@ -167,8 +183,8 @@ checkParentChildLinks (QueryOperator *op)
         {
             ERROR_LOG("operator \n%s\n\n is parent of \n\n%s\n, but does not have"
                     " this operator in its list of children",
-                    beatify(nodeToString(o)),
-                    beatify(nodeToString(op)));
+                    operatorToOverviewString((Node *) o),
+                    operatorToOverviewString((Node *) op));
 
             return FALSE;
         }
