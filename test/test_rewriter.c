@@ -49,6 +49,9 @@ main (int argc, char* argv[])
         ERROR_LOG("REWRITE RESULT FROM STRING IS:\n%s", result);
     }
 
+    printf("%s", result);
+    fflush(stdout);
+
     freeOptions();
     destroyMemManager();
 

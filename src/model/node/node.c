@@ -21,6 +21,8 @@
 
 /* function declarations */
 static void makeStringInfoSpace (StringInfo str, int needs);
+static boolean checkString (StringInfo str, int line, char *file);
+#define CHECK_STRING(str) checkString(str, __LINE__, __FILE__)
 
 /*
  * Create a new node of a certain type.
@@ -133,7 +135,7 @@ appendStringInfoStrings(StringInfo str, ...)
 
     while((arg = va_arg(args, char *)) != NULL)
     {
-        DEBUG_LOG("append <%s> to <%s>", arg, str->len ? str->data : "");
+//        DEBUG_LOG("append <%s> to <%s>", arg, str->len ? str->data : "");
         appendStringInfoString(str, arg);
     }
 
@@ -172,23 +174,16 @@ appendStringInfo(StringInfo str, const char *format, ...)
 
         have = str->maxlen - str->len - 1;
 
+//        DEBUG_LOG("have len <%u> max len <%u> have <%u>", str->maxlen, str->len, have);
+
         va_start(args, format);
         success = vAppendStringInfo(str, format, args);
-//        needed = vsnprintf(str->data + str->len, have, format, args);
         va_end(args);
+
+        CHECK_STRING(str);
 
         if (success)
             break;
-
-//        if (needed >= 0 && needed <= have)
-//        {
-//            str->len += needed;
-//            break;
-//        }
-//        if (needed < 0)
-//            FATAL_LOG("encoding error in appendStringInfo <%s>", format);
-//
-//        makeStringInfoSpace(str, needed);
     }
 }
 
@@ -199,17 +194,28 @@ vAppendStringInfo(StringInfo str, const char *format, va_list args)
 
     have = str->maxlen - str->len - 1;
 
-    needed = vsnprintf(str->data + str->len, have, format, args);
+    // need at least one byte
+    if (have == 0)
+    {
+        makeStringInfoSpace(str, 256);
+        have = str->maxlen - str->len - 1;
+    }
+
+    // try to output with available space
+    needed = vsnprintf(str->data + str->len, have + 1, format, args);
 
     if (needed >= 0 && needed <= have)
     {
         str->len += needed;
+        CHECK_STRING(str);
         return TRUE;
     }
     if (needed < 0)
         FATAL_LOG("encoding error in appendStringInfo <%s>", format);
 
     makeStringInfoSpace(str, needed);
+    CHECK_STRING(str);
+
     return FALSE;
 }
 
@@ -254,8 +260,25 @@ makeStringInfoSpace(StringInfo str, int neededSize)
         memcpy(newData, str->data, str->len + 1);
         FREE(str->data);
         str->data = newData;
+        CHECK_STRING(str);
 
         TRACE_LOG("increased maxlen to <%u> total requirement was <%u>",
                 str->maxlen, str->len + neededSize);
     }
+}
+
+static boolean
+checkString (StringInfo str, int line, char *file)
+{
+    if (str->len > str->maxlen - 1)
+    {
+        FATAL_LOG("string to long: maxlen <%u> len <%u> string\n%s", str->data);
+    }
+    for(int i = 0; i < str->len; i++)
+    {
+        if (str->data[i] == 0)
+            FATAL_LOG("%s-%u at pos %i ", file, line, i);
+    }
+
+    return TRUE;
 }

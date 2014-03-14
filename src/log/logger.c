@@ -105,8 +105,6 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
             va_end(args);
         }
 
-        fprintf(stderr, "log len <%d>", buffer->len);
-
         // output a fixed number of chars at a time to not reach fprintf limit
         int todo = buffer->len;
         char *curBuf = buffer->data;

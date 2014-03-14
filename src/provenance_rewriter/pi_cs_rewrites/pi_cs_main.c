@@ -371,6 +371,8 @@ rewritePI_CSSet(SetOperator *op)
     	// make projections of rewritten inputs the direct children of the union operation
         switchSubtrees(lChild, (QueryOperator *) projLeftChild);
         switchSubtrees(rChild, (QueryOperator *) projRightChild);
+        lChild->parents = singleton(projLeftChild);
+        rChild->parents = singleton(projRightChild);
 
     	// adapt schema of union itself, we can get full provenance attributes from left input
     	addProvenanceAttrsToSchema((QueryOperator *) op, (QueryOperator *) projLeftChild);

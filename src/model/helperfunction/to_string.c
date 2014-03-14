@@ -887,6 +887,13 @@ nodeToString(void *obj)
     str = makeStringInfo();
     outNode(str, obj);
     result = str->data;
+    DEBUG_LOG("output is of length <%u> of <%u>", str->len, str->maxlen);
+    for(int i = 0; i < str->len; i++)
+        if (str->data[i] == 0)
+        {
+            printf("%i ", i);
+            str->data[i] = 37;
+        }
     FREE(str);
 
     return result;
