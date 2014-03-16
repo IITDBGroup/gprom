@@ -86,10 +86,9 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     INFO_LOG("as overview:\n\n%s", operatorToOverviewString(oModel));
 
     rewrittenTree = provRewriteQBModel(oModel);
-    DEBUG_LOG("provenance rewriter returned:\n\n<%u>", strlen(nodeToString(rewrittenTree)));
-    DEBUG_LOG("provenance rewriter returned:\n\n<%s>", nodeToString(rewrittenTree));
     DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
     INFO_LOG("as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
+
     if (isA(rewrittenTree, List))
         FOREACH(QueryOperator,o,(List *) rewrittenTree)
             assert(checkModel(o));
@@ -107,10 +106,13 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
 
                 o = mergeAdjacentOperators(o);
                 assert(checkModel(o));
+                DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) o));
                 o = pushDownSelectionOperatorOnProv(o);
                 assert(checkModel(o));
+                DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) o));
                 o = mergeAdjacentOperators(o);
                 assert(checkModel(o));
+                DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) o));
                 LC_P_VAL(lc) = o;
             }
         }

@@ -76,7 +76,7 @@ mergeProjection(ProjectionOperator *op)
         op->op.inputs = child->op.inputs;
 
         FOREACH(QueryOperator, el, op->op.inputs)
-        	el->parents = child->op.parents;
+        	el->parents = replaceNode(el->parents, child, op);
 
         // clean up child
         child->projExprs = NULL;
@@ -90,46 +90,52 @@ mergeProjection(ProjectionOperator *op)
     return op;
 }
 
-SelectionOperator *
+QueryOperator *
 pushDownSelectionWithProjection(SelectionOperator *op)
 {
 	ReplaceRefState *state = NEW(ReplaceRefState);
+	QueryOperator *newRoot = (QueryOperator *) op;
 
 	while(isA(OP_LCHILD(op),ProjectionOperator))
 	{
 		ProjectionOperator *child = (ProjectionOperator *) OP_LCHILD(op);
 		QueryOperator *grandChild = OP_LCHILD(child);
+		List *oldP = op->op.parents;
 
 		// only one parent of child is allowed
 		if (LIST_LENGTH(child->op.parents) > 1)
 			break;
 
+        // set newRoot
+        if (newRoot == (QueryOperator *) op)
+            newRoot = (QueryOperator *) child;
+
 		// combine expressions and link child's children to root
 		state->op = child;
 		state->projExpr = child->projExprs;
 
+		// change selection
 		op->cond = replaceAttributeRefsMutator(op->cond, state);
 		op->op.schema = copyObject(grandChild->schema);
 		op->op.inputs = child->op.inputs;
+        op->op.parents = singleton(child);
 
-		List *newP = ((QueryOperator *)op->op.inputs->head)->parents;
+		// push down selection adapt projection
+		child->op.inputs = singleton(op);
+		child->op.parents = oldP;
 
-		FOREACH(QueryOperator, el, op->op.inputs)
-			el->parents = child->op.parents;
+		// replace projection with selection in parents of grandchild
+		grandChild->parents = replaceNode(grandChild->parents, child, op);
 
-		// push down selection
-		child->op.inputs = child->op.parents;
-		child->op.parents = op->op.parents;
-		op->op.parents = newP;
-
-		FOREACH(QueryOperator, el, child->op.parents)
-			replaceNode(el->inputs, op, child);
+		// replace selection with projection in previous selection parents
+		FOREACH(QueryOperator, el, oldP)
+			el->inputs = replaceNode(el->inputs, op, child);
 	}
 
 	state->op = NULL;
 	state->projExpr = NULL;
 	FREE(state);
-	return op;
+	return newRoot;
 }
 
 static Node *
