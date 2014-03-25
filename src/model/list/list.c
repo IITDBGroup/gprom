@@ -135,6 +135,17 @@ getTailOfList(List *list)
     return list ? list->tail : NULL;
 }
 
+void *
+getTailOfListP (List *list)
+{
+    ListCell *tail;
+    assert(isPtrList(list));
+
+    tail = getTailOfList(list);
+
+    return tail ? tail->data.ptr_value : NULL;
+}
+
 int
 getTailOfListInt(List *list)
 {

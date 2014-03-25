@@ -515,11 +515,22 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             *attrOffset = 0;
             if (t->asOf)
             {
-                Constant *c = (Constant *) t->asOf;
-                if (c->constType == DT_LONG)
-                    asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf));
+                if (isA(t->asOf, Constant))
+                {
+                    Constant *c = (Constant *) t->asOf;
+                    if (c->constType == DT_LONG)
+                        asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf));
+                    else
+                        asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
+                }
                 else
-                    asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
+                {
+                    List *scns = (List *) t->asOf;
+                    Node *begin = (Node *) getNthOfList(scns, 0);
+                    Node *end = (Node *) getNthOfList(scns, 1);
+
+                    asOf = CONCAT_STRING(" VERSIONS BETWEEN ", exprToSQL(begin), "AND", exprToSQL(end));
+                }
             }
             List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
             *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);

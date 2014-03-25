@@ -62,26 +62,38 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
 static void
 mergeReadCommittedTransaction(ProvenanceComputation *op)
 {
-
- /*
-    	List *scns = op->transactionInfo->scns;
-	long lscn= getTailOfListInt(op->transactionInfo->scns);
+  	List *scns = op->transactionInfo->scns;
+	long lscn= LONG_VALUE(getTailOfListP(op->transactionInfo->scns));
 	lscn--;
+	Node *joinCond;
+	int i = 0;
 
-	 Constant *expr;
-	 FOREACH(SelectionOperator, u, op->op.inputs)
-		    {
-			Node *negatedCond;
+    // Loop through update translations and add version_startscn condition + attribute
+	FOREACH(QueryOperator,u,op->op.inputs)
+	{
+	    // use original update to figure out type of each update (UPDATE/DELETE/INSERT)
+	    // switch
+	    // case T_UpdateStmt:
+	        // either CASE translation OR union translation
+	    // case t_InsertStmt:
+	    // case T_DeleteStmt:
+	    i++;
+	}
 
-			joinCond = AND_EXPRS((Node *) createOpExpr("=", LIST_MAKE(lRef,rRef)), joinCond);
-		negatedCond = (Node *) createOpExpr("NOT", singleton(copyObject(delete->cond)));
-		//appendToTailOfList( u->cond, );
+//	Constant *expr;
+//	 FOREACH(SelectionOperator, u, op->op.inputs)
+//		    {
+//			Node *negatedCond;
+//
+//			joinCond = AND_EXPRS((Node *) createOpExpr("=", LIST_MAKE(lRef,rRef)), joinCond);
+//		negatedCond = (Node *) createOpExpr("NOT", singleton(copyObject(delete->cond)));
+//		//appendToTailOfList( u->cond, );
+//
+//		    }
 
-		    }
 
 
-
-	//// merge
+	//// merge LIKE SERIALIZABLE
 
 	List *updates = copyList(op->op.inputs);
 	    int i = 0;
@@ -132,9 +144,15 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	    // replace updates sequence with root of the whole merged update query
 	    addChildOperator((QueryOperator *) op, (QueryOperator *) getHeadOfListP(updates));
 	    //op->op.inputs = singleton();
+	     */
+
+	    // adapt table accesses
+	    // findTableAccessVisitor to get all remaining table accesses
+	    // 1) set asOf to List [lscn, lscn] (use Constant Nodes of type long
+	    // 2) add the VERSIONS_STARTSCN attribute to the schema of table access
+
 	    DEBUG_LOG("Provenance computation for updates that will be passed "
 	            "to rewriter: %s", beatify(nodeToString(op)));
-*/
 }
 
 

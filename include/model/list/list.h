@@ -154,6 +154,7 @@ extern int getHeadOfListInt (List *list);
 extern void *getHeadOfListP (List *list);
 
 extern ListCell *getTailOfList(List *list);
+extern void *getTailOfListP (List *list);
 extern int getTailOfListInt(List *list);
 
 extern void *getNthOfListP(List *list, int n);
