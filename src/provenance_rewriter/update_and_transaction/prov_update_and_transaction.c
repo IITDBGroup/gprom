@@ -137,11 +137,10 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 
 						//make new case for SCN
 						Node *then = copyObject("-1");
-						Node *els = (Node *) createAttributeReference(
-								appendStringInfo("SCN AS ", "%l",
-										*((long *) LONG_VALUE(scns[i]))));
-
+						char *str;
+						Node *els = (Node *) createAttributeReference(appendStringInfo("SCN AS ", "%lu",*((long *) LONG_VALUE(scns[i]))));
 						//CONCAT_STRINGS("SCN"," AS ",nodeToString(scns[i]))
+
 						CaseExpr *caseExpr;
 						CaseWhen *caseWhen;
 
