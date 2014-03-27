@@ -124,6 +124,7 @@ typedef struct WindowOperator
 } WindowOperator;
 
 /* schema helper functions */
+extern AttributeDef *createAttributeDef (char *name, DataType dt);
 extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames,
         List *dataTypes);

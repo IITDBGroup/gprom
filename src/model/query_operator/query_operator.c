@@ -31,6 +31,18 @@ createSchema(char *name, List *attrDefs)
     return s;
 }
 
+AttributeDef *
+createAttributeDef (char *name, DataType dt)
+{
+    AttributeDef *result = makeNode(AttributeDef);
+
+    result->dataType = dt;
+    result->attrName = name;
+    result->pos = 0;
+
+    return result;
+}
+
 Schema *
 createSchemaFromLists (char *name, List *attrNames, List *dataTypes)
 {

@@ -66,6 +66,7 @@ typedef struct ProvenanceTransactionInfo
     //TODO List *sqls
     //TODO List *binds
     List *scns;
+    Constant *commitSCN;
 } ProvenanceTransactionInfo;
 
 typedef struct ProvenanceStmt

@@ -99,7 +99,9 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 	List *scns = op->transactionInfo->scns;
 
 	// Loop through update translations and add version_startscn condition + attribute
-	FOREACH(QueryOperator,u,op->op.inputs) {
+	FOREACH(QueryOperator,u,op->op.inputs)
+	{
+	    int i = 0;
 		// use original update to figure out type of each update (UPDATE/DELETE/INSERT)
 		// switch
 		switch (u->type) {
@@ -116,56 +118,61 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 		case T_Update:
 			// either CASE translation OR union translation
 			//if its case translation
-			if (((QueryOperator *) getHeadOfListP(u->inputs))->type
-					== T_ProjectionOperator) {
-				ProjectionOperator *projExprs = NIL;
-				ProjectionOperator *newProjExprs = NIL;
-				int i = 0;
+			if (isA(u,ProjectionOperator))
+			{
+                Node *newWhen = NULL;
+			    ProjectionOperator *proj = (ProjectionOperator *) u;
+				List *projExprs = proj->projExprs;
+				Node *newProjExpr;
 
 				projExprs = getHeadOfListP(u->inputs);
 
 				//Add SCN foreach CaseEpr
-				FOREACH(Node, expr, projExprs) {
-					FOREACH(CaseExpr, cexp , expr) {
-
+				FOREACH(Node, expr, projExprs)
+				{
+					if(isA(expr,CaseExpr))
+				    {
+					    AttributeReference *scnAttr;
+					    CaseExpr *cexp = (CaseExpr *) expr;
 						Node *when = ((CaseWhen *) (cexp->whenClauses))->when;
-						Node *newCond = (Node *) createOpExpr("<=",
-								LIST_MAKE("SCN",scns[i]));
+						Node *newCond;
 
-						Node *newWhen = andExprs(when, newCond);
+						// adding SCN < update SCN condition
+						scnAttr = createFullAttrReference("VERSION_STARTSCN", 0,
+						        getNumAttr(OP_LCHILD(u)), INVALID_ATTR);
+						newNode = (Node *) createOpExpr("<=",
+								LIST_MAKE((Node *) scnAttr,
+								        copyObjecy(getNthOfList(scns,i))));
+
+						newWhen = andExprs(when, newCond);
 						((CaseWhen *) (cexp->whenClauses))->when = newWhen;
-
-						//make new case for SCN
-						Node *then = copyObject("-1");
-						char *str;
-						Node *els = (Node *) createAttributeReference(appendStringInfo("SCN AS ", "%lu",*((long *) LONG_VALUE(scns[i]))));
-						//CONCAT_STRINGS("SCN"," AS ",nodeToString(scns[i]))
-
-						CaseExpr *caseExpr;
-						CaseWhen *caseWhen;
-
-						caseWhen = createCaseWhen(newWhen, then);
-						caseExpr = createCaseExpr(cexp, singleton(caseWhen),
-								els);
-
-						i++;
-
-						Node *projExp = (Node *) caseExpr;
-						newProjExprs = appendToTailOfList(newProjExprs,
-								projExp);
-					}
+				    }
 				}
 
-				((ProjectionOperator *) getHeadOfListP(u->inputs))->projExprs =
-						appendToTailOfList(projExprs, newProjExprs);
-			}
+               //make new case for SCN
+                Node *then = (Node *) createConstLong(-1);
+                Node *els = (Node *) createFullAttrReference("VERSION_STARTSCN", 0, getNumAttr(OP_LCHILD(u)), INVALID_ATTR);
+                CaseExpr *caseExpr;
+                CaseWhen *caseWhen;
 
+                caseWhen = createCaseWhen(copyObject(newWhen), then);
+                caseExpr = createCaseExpr(NULL, singleton(caseWhen),
+                        els);
+
+                newProjExpr = (Node *) caseExpr;
+                proj->projExprs =
+                        appendToTailOfList(projExprs, newProjExpr);
+                u->schema->attrDefs = appendToTailOfList(u->schema->attrDefs,
+                        createAttrDef("VERSION_STARTSCN", DT_LONG));
+			}
 			break;
 
 		default:
 			break;
 
 		}
+
+        i++;
 	}
 
 	List *updates = copyList(op->op.inputs);
@@ -204,7 +211,14 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 				switchSubtreeWithExisting((QueryOperator *) t, up);
 			// previous table version is the one at transaction begin
 			else
-				t->asOf = (Node *) getTailOfListP(op->transactionInfo->scns);
+			{
+			    Node *scn = (Node *) getTailOfListP(op->transactionInfo->scns);
+			    Constant *scnC = (Constant *) copyObject(scnC);
+			    *((long *) scnC->value) = *((long *) scnC->value) + 1; //getCommit SCN
+				t->asOf = (Node *) LIST_MAKE(scnC, copyObject(scnC));
+				((QueryOperator *) t)->schema->attrDefs = appendToTailOfList(((QueryOperator *) t)->schema->attrDefs,
+				        createAttrDef("VERSIONS_STARTSCN", DT_LONG));
+			}
 
 			INFO_LOG("\Table after merge %s",
 					operatorToOverviewString((Node *) u));
