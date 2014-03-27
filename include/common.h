@@ -26,7 +26,7 @@
 #if HAVE_STDLIB_H
 #include <stdlib.h>
 #else
-#define exit(retVal) return retVal;
+#define exit(retVal) return;
 #endif
 
 /* <stddef.h> */
@@ -44,6 +44,10 @@
 #include <strings.h>
 #endif
 
+/* <stdargs.h> */
+#if HAVE_STDARGS_H
+#include <stdargs.h>
+#endif
 
 /* ptrdiff_t */
 #if HAVE_PTRDIFF_T

@@ -1,10 +1,7 @@
 #ifndef NODETYPE_H
 #define NODETYPE_H
 
-#include <stdarg.h>
-
 #include "common.h"
-
 
 typedef enum NodeTag {
     T_Invalid=0,
