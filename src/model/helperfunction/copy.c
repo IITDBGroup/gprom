@@ -583,6 +583,7 @@ copyProvenanceTransactionInfo (ProvenanceTransactionInfo *from,
     COPY_STRING_LIST_FIELD(updateTableNames);
     COPY_NODE_FIELD(originalUpdates);
     COPY_NODE_FIELD(scns);
+    COPY_NODE_FIELD(commitSCN);
 
     return new;
 }

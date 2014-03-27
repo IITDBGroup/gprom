@@ -83,7 +83,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE || op->inputType == PROV_INPUT_TRANSACTION)
         mergeUpdateSequence(op);
     treeify((QueryOperator *) op);
-    INFO_LOG("treeifyed operator model:\n\n%s\n\n%s", operatorToOverviewString((Node *) op), beatify(nodeToString(op)));
+    DEBUG_LOG("treeifyed operator model:\n\n%s\n\n%s", operatorToOverviewString((Node *) op), beatify(nodeToString(op)));
     assert(isTree((QueryOperator *) op));
 
     switch(op->provType)

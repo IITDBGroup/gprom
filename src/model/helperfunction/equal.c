@@ -614,6 +614,8 @@ equalProvenanceTransactionInfo(ProvenanceTransactionInfo *a,
     COMPARE_STRING_LIST_FIELD(updateTableNames);
     COMPARE_NODE_FIELD(originalUpdates);
     COMPARE_NODE_FIELD(scns);
+    COMPARE_NODE_FIELD(commitSCN);
+
 
     return TRUE;
 }

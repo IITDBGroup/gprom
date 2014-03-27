@@ -62,7 +62,7 @@ rewritePI_CS (ProvenanceComputation  *op)
 
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) op, rewRoot);
-    INFO_LOG("rewritten query root is: %s", beatify(nodeToString(rewRoot)));
+    DEBUG_LOG("rewritten query root is: %s", beatify(nodeToString(rewRoot)));
 
     return rewRoot;
 }

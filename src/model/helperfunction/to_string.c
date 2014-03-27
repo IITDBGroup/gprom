@@ -385,6 +385,7 @@ outProvenanceTransactionInfo (StringInfo str, ProvenanceTransactionInfo *node)
     WRITE_STRING_LIST_FIELD(updateTableNames);
     WRITE_NODE_FIELD(originalUpdates);
     WRITE_NODE_FIELD(scns);
+    WRITE_NODE_FIELD(commitSCN);
 }
 
 static void
