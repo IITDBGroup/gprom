@@ -84,7 +84,7 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
              else
                  t->asOf = (Node *) getHeadOfListP(op->transactionInfo->scns);
 
-             INFO_LOG("\Table after merge %s", operatorToOverviewString((Node *) u));
+             INFO_LOG("Table after merge %s", operatorToOverviewString((Node *) u));
          }
          i++;
     }
