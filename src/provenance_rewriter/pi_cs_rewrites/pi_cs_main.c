@@ -41,7 +41,7 @@ rewritePI_CS (ProvenanceComputation  *op)
     // unset relation name counters
     nameState = (RelCount *) NULL;
 
-    INFO_LOG("*************************************\nREWRITE INPUT\n"
+    DEBUG_LOG("*************************************\nREWRITE INPUT\n"
             "******************************\n%s",
             beatify(nodeToString((Node *) op)));
 
