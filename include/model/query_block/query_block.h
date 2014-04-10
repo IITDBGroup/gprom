@@ -9,6 +9,7 @@
 
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
+#include "model/expression/expression.h"
 
 #define isQBQuery(node) (isA(node,QueryBlock) || isA(node,SetQuery) || isA(node, ProvenanceStmt))
 #define isQBUpdate(node) (isA(node,Insert) || isA(node,Update) || isA(node,Delete))

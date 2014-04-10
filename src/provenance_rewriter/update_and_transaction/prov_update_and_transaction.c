@@ -140,7 +140,7 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 						// adding SCN < update SCN condition
 						scnAttr = createFullAttrReference("VERSION_STARTSCN", 0,
 						        getNumAttr(OP_LCHILD(u)), INVALID_ATTR);
-						newNode = (Node *) createOpExpr("<=",
+						newCond = (Node *) createOpExpr("<=",
 								LIST_MAKE((Node *) scnAttr,
 								        copyObjecy(getNthOfList(scns,i))));
 
