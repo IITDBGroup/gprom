@@ -116,7 +116,10 @@ visitTheNode(Node *node, void *state)
 	case T_KeyValue: printf("The type of the node is KeyValue\n"); break;
     case T_NestingOperator: printf("The type of the node is NestingOperator\n"); break;
     case T_SQLParameter: printf("The type of the node is SQLParameter\n"); break;
+    default: printf("Nodetype not added to test yet"); break;
 	}
+
+
 
 	//printf("The type of the node is %d\n", node->type);
 	return visit(node, visitTheNode, state);

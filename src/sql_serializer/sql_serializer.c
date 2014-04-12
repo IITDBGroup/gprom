@@ -534,7 +534,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                     Node *begin = (Node *) getNthOfList(scns, 0);
                     Node *end = (Node *) getNthOfList(scns, 1);
 
-                    asOf = CONCAT_STRING(" VERSIONS BETWEEN ", exprToSQL(begin), "AND", exprToSQL(end));
+                    asOf = CONCAT_STRINGS(" VERSIONS BETWEEN ", exprToSQL(begin), "AND", exprToSQL(end));
                 }
             }
             List *attrNames = getAttrNames(((QueryOperator *) t)->schema);

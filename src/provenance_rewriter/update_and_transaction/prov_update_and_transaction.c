@@ -13,6 +13,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 
+#include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
@@ -140,10 +141,10 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 
 						// adding SCN < update SCN condition
 						scnAttr = createFullAttrReference("VERSION_STARTSCN", 0,
-						        getNumAttr(OP_LCHILD(u)), INVALID_ATTR);
+						        getNumAttrs(OP_LCHILD(u)), INVALID_ATTR);
 						newCond = (Node *) createOpExpr("<=",
 								LIST_MAKE((Node *) scnAttr,
-								        copyObjecy(getNthOfList(scns,i))));
+								        copyObject(getNthOfList(scns,i))));
 
 						newWhen = andExprs(when, newCond);
 						((CaseWhen *) (cexp->whenClauses))->when = newWhen;
@@ -152,7 +153,7 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 
                //make new case for SCN
                 Node *then = (Node *) createConstLong(-1);
-                Node *els = (Node *) createFullAttrReference("VERSION_STARTSCN", 0, getNumAttr(OP_LCHILD(u)), INVALID_ATTR);
+                Node *els = (Node *) createFullAttrReference("VERSION_STARTSCN", 0, getNumAttrs(OP_LCHILD(u)), INVALID_ATTR);
                 CaseExpr *caseExpr;
                 CaseWhen *caseWhen;
 
@@ -164,7 +165,7 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
                 proj->projExprs =
                         appendToTailOfList(projExprs, newProjExpr);
                 u->schema->attrDefs = appendToTailOfList(u->schema->attrDefs,
-                        createAttrDef("VERSION_STARTSCN", DT_LONG));
+                        createAttributeDef("VERSION_STARTSCN", DT_LONG));
 			}
 			break;
 
@@ -218,10 +219,10 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 			    *((long *) scnC->value) = *((long *) scnC->value) + 1; //getCommit SCN
 				t->asOf = (Node *) LIST_MAKE(scnC, copyObject(scnC));
 				((QueryOperator *) t)->schema->attrDefs = appendToTailOfList(((QueryOperator *) t)->schema->attrDefs,
-				        createAttrDef("VERSIONS_STARTSCN", DT_LONG));
+				        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
 			}
 
-			INFO_LOG("\Table after merge %s",
+			INFO_LOG("\tTable after merge %s",
 					operatorToOverviewString((Node *) u));
 		}
 		i++;
