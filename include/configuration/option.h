@@ -2,7 +2,8 @@
 #define OPTION_H
 
 #include "common.h"
-#include <stdlib.h>
+#include "model/node/nodetype.h"
+#include "model/list/list.h"
 
 typedef struct OptionConnection{
 	char* host;
@@ -24,15 +25,15 @@ typedef struct RewriteMethod{
 	boolean isActive;
 } RewriteMethod;
 
-typedef struct OptionRewrite{
-	RewriteMethod** rewriteMethods;
-	int size;
-} OptionRewrite;
+//typedef struct OptionRewrite{
+//	RewriteMethod** rewriteMethods;
+//	int size;
+//} OptionRewrite;
 
 typedef struct Options{
 	OptionConnection* optionConnection;
 	OptionDebug* optionDebug;
-	OptionRewrite* optionRewrite;
+	List* optionRewrite;
 } Options;
 
 #define MAKE_OPTIONS()		\
@@ -44,12 +45,12 @@ typedef struct Options{
 #define MAKE_OPTION_DEBUG()		\
 	((OptionDebug*)calloc(1, sizeof(OptionDebug)))
 
-#define MAKE_OPTION_REWRITE()			\
-	((OptionRewrite*)calloc(1, sizeof(OptionRewrite)))
+//#define MAKE_OPTION_REWRITE()			\
+//	((OptionRewrite*)calloc(1, sizeof(OptionRewrite)))
 
 extern void mallocOptions();
 extern void freeOptions();
-extern Options* getOptions();
+extern Options *getOptions();
 extern boolean isRewriteOptionActivated(char *name);
 
 #endif

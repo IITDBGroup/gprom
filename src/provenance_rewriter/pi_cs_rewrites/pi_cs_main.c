@@ -263,6 +263,8 @@ rewritePI_CSAggregation (AggregationOperator *op)
 
 	// switch provenance computation with original aggregation
 	switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    addParent(origAgg, (QueryOperator *) joinProv);
+    addParent(aggInput, (QueryOperator *) joinProv);
 
     // adapt schema for final projection
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(proj)));
@@ -369,6 +371,8 @@ rewritePI_CSSet(SetOperator *op)
     	// make projections of rewritten inputs the direct children of the union operation
         switchSubtrees(lChild, (QueryOperator *) projLeftChild);
         switchSubtrees(rChild, (QueryOperator *) projRightChild);
+        lChild->parents = singleton(projLeftChild);
+        rChild->parents = singleton(projRightChild);
 
     	// adapt schema of union itself, we can get full provenance attributes from left input
     	addProvenanceAttrsToSchema((QueryOperator *) op, (QueryOperator *) projLeftChild);

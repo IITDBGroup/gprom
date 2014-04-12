@@ -11,6 +11,8 @@
 
 #include "common.h"
 #include "configuration/option.h"
+#include "model/list/list.h"
+#include "model/expression/expression.h"
 
 // we have to use actual free here
 #undef free
@@ -23,7 +25,7 @@ mallocOptions()
 	options=MAKE_OPTIONS();
 	options->optionConnection=MAKE_OPTION_CONNECTION();
 	options->optionDebug=MAKE_OPTION_DEBUG();
-	options->optionRewrite=MAKE_OPTION_REWRITE();
+	options->optionRewrite=NIL;
 }
 
 void
@@ -36,14 +38,24 @@ freeOptions()
 	free(options->optionConnection->sql);
 	free(options->optionConnection);
 	free(options->optionDebug);
-	int i,size=options->optionRewrite->size;
-	for(i=0;i<size;i++)
-	{
-		free(options->optionRewrite->rewriteMethods[i]->name);
-		free(options->optionRewrite->rewriteMethods[i]);
-	}
-	free(options->optionRewrite->rewriteMethods);
-	free(options->optionRewrite);
+//	FOREACH(KeyValue,o,options->optionRewrite)
+//	{
+//	    Constant *c;
+//
+//	    c = (Constant *) o->key;
+//	    if (c->constType == DT_STRING)
+//	        free(c->value);
+//	    free(c);
+//
+//	    c = (Constant *) o->value;
+//        if (c->constType == DT_STRING)
+//            free(c->value);
+//        free(c);
+//
+//        free(o);
+//	}
+//	freeList(options->optionRewrite);
+//	free(options->optionRewrite);
 	free(options);
 }
 
@@ -56,12 +68,12 @@ getOptions()
 boolean
 isRewriteOptionActivated(char *name)
 {
-    OptionRewrite *ops = getOptions()->optionRewrite;
+    Options *ops = getOptions();
 
-    for(int i = 0; i < ops->size; i++)
+    FOREACH(KeyValue,op,ops->optionRewrite)
     {
-        if (strcmp(ops->rewriteMethods[i]->name, name) == 0)
-            return TRUE;
+        if (strcmp(STRING_VALUE(op->key),name) == 0)
+            return BOOL_VALUE(op->value);
     }
 
     return FALSE;

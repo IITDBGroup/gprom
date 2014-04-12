@@ -12,9 +12,14 @@
 
 
 
-#include <string.h>
-#include <stdlib.h>
+#include "common.h"
 #include "configuration/option_parser.h"
+
+#include "model/node/nodetype.h"
+#include "model/expression/expression.h"
+
+// private version of contextStrDup, because mem manager cannot be used here
+static char *contextStringDup (char *);
 
 /*
  * Input: argc, argv
@@ -27,6 +32,7 @@ parseOption(int const argc, char* const argv[])
 {
 	Options* options=getOptions();
 	int i;
+	List *rewriteOptions;
 
 	//parse each option in turn
 	for(i=1;i<argc;i++)
@@ -42,16 +48,14 @@ parseOption(int const argc, char* const argv[])
 			{
 				if(i+1>=argc)
 					return -1;
-				options->optionConnection->host=(char*)malloc(strlen(argv[i+1])+1);
-				strcpy(options->optionConnection->host,argv[i+1]);
+				options->optionConnection->host = strdup(argv[i+1]);
 				i++;
 			}
 			else if(strcmp(value,"-db")==0)
 			{
 				if(i+1>=argc)
 					return -1;
-				options->optionConnection->db=(char*)malloc(strlen(argv[i+1])+1);
-				strcpy(options->optionConnection->db,argv[i+1]);
+				options->optionConnection->db = strdup(argv[i+1]);
 				i++;
 			}
 			else if(strcmp(value,"-port")==0)
@@ -65,16 +69,14 @@ parseOption(int const argc, char* const argv[])
 			{
 				if(i+1>=argc)
 					return -1;
-				options->optionConnection->user=(char*)malloc(strlen(argv[i+1])+1);
-				strcpy(options->optionConnection->user,argv[i+1]);
+				options->optionConnection->user = strdup(argv[i+1]);
 				i++;
 			}
 			else if(strcmp(value,"-passwd")==0)
 			{
 				if(i+1>=argc)
 					return -1;
-				options->optionConnection->passwd=(char*)malloc(strlen(argv[i+1])+1);
-				strcpy(options->optionConnection->passwd,argv[i+1]);
+				options->optionConnection->passwd = strdup(argv[i+1]);
 				i++;
 			}
 			else if(strcmp(value,"-log")==0)
@@ -90,27 +92,36 @@ parseOption(int const argc, char* const argv[])
 				options->optionDebug->debugMemory=TRUE;
 			else if(strcmp(value,"-activate")==0)
 			{
-				int size=getNumberOfRewrite(argc,argv);
-				options->optionRewrite->size=size;
-				if(i+size>=argc)
-					return -1;
-				options->optionRewrite->rewriteMethods=(RewriteMethod**)malloc(sizeof(RewriteMethod*)*size);
-				int j;
-				for(j=0;j<size;j++)
-				{
-					options->optionRewrite->rewriteMethods[j]=(RewriteMethod*)malloc(sizeof(RewriteMethod));
-					options->optionRewrite->rewriteMethods[j]->name=(char*)malloc(strlen(argv[i+1+j])+1);
-					strcpy(options->optionRewrite->rewriteMethods[j]->name,argv[i+1+j]);
-					options->optionRewrite->rewriteMethods[j]->isActive=TRUE;
-				}
-				i+=size;
+			    KeyValue *op;
+
+			    op = createNodeKeyValue(
+			            (Node *) createConstString(strdup(argv[i+1])),
+			            (Node *) createConstBool(TRUE));
+
+			    options->optionRewrite = appendToTailOfList(options->optionRewrite, op);
+			    i++;
+//			    int size=getNumberOfRewrite(argc,argv);
+//				options->optionRewrite->size=size;
+//				if(i+size>=argc)
+//					return -1;
+//				options->optionRewrite->rewriteMethods=(RewriteMethod**)malloc(sizeof(RewriteMethod*)*size);
+//				int j;
+//				for(j=0;j<size;j++)
+//				{
+//					options->optionRewrite->rewriteMethods[j]=(RewriteMethod*)malloc(sizeof(RewriteMethod));
+//					options->optionRewrite->rewriteMethods[j]->name=(char*)malloc(strlen(argv[i+1+j])+1);
+//					strcpy(options->optionRewrite->rewriteMethods[j]->name,argv[i+1+j]);
+//					options->optionRewrite->rewriteMethods[j]->isActive=TRUE;
+//				}
+//				i+=size;
 			}
 			else if (strcmp(value, "-sql") == 0)
 			{
 			    if(i+1>=argc)
                     return -1;
-                options->optionConnection->sql=(char*)malloc(strlen(argv[i+1])+1);
-                strcpy(options->optionConnection->sql,argv[i+1]);
+                options->optionConnection->sql=strdup(argv[i + 1]);
+//                        (char*)malloc(strlen(argv[i+1])+1);
+//                strcpy(options->optionConnection->sql,argv[i+1]);
                 i++;
 			}
 			else
@@ -129,38 +140,45 @@ isOption(char* const value)
 	else return FALSE;
 }
 
-int
-getNumberOfRewrite(int const argc, char* const argv[])
-{
-	int i,start=0,end=0,size=0;
-	//get how many rewrites are activated
-	for(i=1;i<argc;i++)
-	{
-		char* value=argv[i];
-		if(isOption(value) && !start)
-		{
-			if(strcmp(value,"-activate")==0)
-			{
-				start=i;
-				break;
-			}
-		}
-	}
-	for(i=start+1;i<argc;i++)
-	{
-		char* value=argv[i];
-		if(isOption(value) && start)
-		{
-			end=i;
-			size=end-start-1;
-			break;
-		}
-		if(i==argc-1&&start)
-		{
-			end=i;
-			size=end-start;
-		}
-	}
-	return size;
-}
+//int
+//getNumberOfRewrite(int const argc, char* const argv[])
+//{
+//	int i,start=0,end=0,size=0;
+//	//get how many rewrites are activated
+//	for(i=1;i<argc;i++)
+//	{
+//		char* value=argv[i];
+//		if(isOption(value) && !start)
+//		{
+//			if(strcmp(value,"-activate")==0)
+//			{
+//				start=i;
+//				break;
+//			}
+//		}
+//	}
+//	for(i=start+1;i<argc;i++)
+//	{
+//		char* value=argv[i];
+//		if(isOption(value) && start)
+//		{
+//			end=i;
+//			size=end-start-1;
+//			break;
+//		}
+//		if(i==argc-1&&start)
+//		{
+//			end=i;
+//			size=end-start;
+//		}
+//	}
+//	return size;
+//}
 
+static char *
+contextStringDup (char *input)
+{
+    char *result = malloc(strlen(input) + 1);
+    strcpy(result,input);
+    return result;
+}

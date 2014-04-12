@@ -888,6 +888,13 @@ nodeToString(void *obj)
     str = makeStringInfo();
     outNode(str, obj);
     result = str->data;
+    DEBUG_LOG("output is of length <%u> of <%u>", str->len, str->maxlen);
+    for(int i = 0; i < str->len; i++)
+        if (str->data[i] == 0)
+        {
+            printf("%i ", i);
+            str->data[i] = 37;
+        }
     FREE(str);
 
     return result;
@@ -915,6 +922,8 @@ beatify(char *input)
     int indentation = 0;
     boolean inString = FALSE;
     boolean inStringConst = FALSE;
+
+    TRACE_LOG("beatify string of len <%u>\n%s", strlen(input), input);
 
     if(input == NULL)
         return NULL;

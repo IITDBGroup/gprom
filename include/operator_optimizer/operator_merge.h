@@ -16,7 +16,7 @@
 extern SelectionOperator *mergeSelection(SelectionOperator *op);
 extern ProjectionOperator *mergeProjection(ProjectionOperator *op);
 
-extern SelectionOperator *pushDownSelectionWithProjection(SelectionOperator *op);
+extern QueryOperator *pushDownSelectionWithProjection(SelectionOperator *op);
 
 
 #endif /* OPERATOR_MERGE_H_ */

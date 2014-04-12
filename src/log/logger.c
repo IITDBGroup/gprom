@@ -23,6 +23,8 @@
 #include "model/node/nodetype.h"
 #include "configuration/option.h"
 
+#define INIT_BUF_SIZE 1 // 4096
+
 static char *h[] =
     {"FATAL: ", "ERROR: ", "WARN: ", "INFO: ", "DEBUG: ", "TRACE: "};
 static StringInfo buffer;
@@ -56,9 +58,9 @@ initLogger(void)
 
     buffer = (StringInfo) malloc(sizeof(StringInfoData));
     buffer->len = 0;
-    buffer->maxlen = 4096;
+    buffer->maxlen = INIT_BUF_SIZE;
     buffer->cursor = 0;
-    buffer->data = (char *) malloc(4096);
+    buffer->data = (char *) malloc(INIT_BUF_SIZE);
 
     if (options && options->optionDebug)
         maxLevel = options->optionDebug->loglevel;
@@ -102,8 +104,6 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
             success = vAppendBuf(buffer, template, args);
             va_end(args);
         }
-
-        fprintf(stderr, "log len <%d>", buffer->len);
 
         // output a fixed number of chars at a time to not reach fprintf limit
         int todo = buffer->len;

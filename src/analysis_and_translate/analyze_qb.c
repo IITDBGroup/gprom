@@ -12,6 +12,7 @@
 #include "common.h"
 
 #include "analysis_and_translate/analyze_qb.h"
+#include "analysis_and_translate/parameter.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
@@ -32,6 +33,7 @@ static void analyzeWithStmt (WithStmt *w);
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 
 // search for attributes and other relevant node types
+static void enumerateParameters (Node *stmt);
 static boolean findAttrReferences (Node *node, List **state);
 extern boolean findNestedSubqueries (Node *node, List **state);
 static boolean findFunctionCall (Node *node, List **state);
@@ -97,7 +99,20 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
             break;
     }
 
+    if(isQBUpdate(stmt) || isQBQuery(stmt))
+        enumerateParameters(stmt);
+
     INFO_LOG("RESULT OF ANALYSIS IS:\n%s", beatify(nodeToString(stmt)));
+}
+
+static void
+enumerateParameters (Node *stmt)
+{
+    List *params = findParameters(stmt);
+    int i = 1;
+
+    FOREACH(SQLParameter,p,params)
+        p->position = i++;
 }
 
 static void

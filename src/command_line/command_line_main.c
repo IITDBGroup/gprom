@@ -17,8 +17,10 @@
 #include "log/logger.h"
 
 #include "model/node/nodetype.h"
+#include "model/list/list.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/expression/expression.h"
 
 #include "rewriter.h"
 
@@ -94,9 +96,10 @@ printSuccess()
 	printf("log:%d\n",options->optionDebug->log);
 	printf("loglevel:%d\n",options->optionDebug->loglevel);
 	printf("debugmemory:%d\n",options->optionDebug->debugMemory);
-	int i,size=options->optionRewrite->size;
-	for(i=0;i<size;i++)
-		printf("activated rewrite:%s\n",options->optionRewrite->rewriteMethods[i]->name);
+	FOREACH(KeyValue,o,options->optionRewrite)
+	{
+	    printf("rewrite option %s set to %s\n",exprToSQL(o->key), exprToSQL(o->value));
+	}
 	printf("SQL:%s\n",options->optionConnection->sql);
 	printf("===================================================================\n");
 }

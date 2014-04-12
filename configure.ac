@@ -104,6 +104,7 @@ AC_CHECK_TYPES([ptrdiff_t])
 # HEADERS
 AC_CHECK_HEADERS([stddef.h])
 AC_CHECK_HEADERS([libintl.h])
+AC_CHECK_HEADERS([stdarg.h])
 AC_HEADER_ASSERT
 ################################################################################
 # MEMORY ALLOCATION STUFF

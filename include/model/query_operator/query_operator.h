@@ -123,6 +123,20 @@ typedef struct WindowOperator
     Node *f;
 } WindowOperator;
 
+/* type of operator macros */
+#define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
+                        || isA(op, ConstRelOperator))
+
+#define IS_UNARY_OP(op) (isA(op,ProjectionOperator)     \
+        || isA(op,SelectionOperator)                    \
+        || isA(op,AggregationOperator)                  \
+        || isA(op,DuplicateRemoval)                     \
+        || isA(op,WindowOperator))
+
+#define IS_BINARY_OP(op) (isA(op,JoinOperator)          \
+        || isA(op,SetOperator)                          \
+        || isA(op,NestingOperator))
+
 /* schema helper functions */
 extern AttributeDef *createAttributeDef (char *name, DataType dt);
 extern Schema *createSchema(char *name, List *attrDefs);
@@ -169,6 +183,7 @@ extern WindowOperator *createWindowOp(FunctionCall *fCall, List *partitionBy,
 
 /*  */
 extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
+extern void addParent (QueryOperator *child, QueryOperator *parent);
 
 /* attribute functions */
 extern List *getProvenanceAttrs(QueryOperator *op);
@@ -190,7 +205,5 @@ extern List *aggOpGetAggAttrNames(AggregationOperator *op);
 
 /* transforms a graph query model into a tree */
 extern void treeify(QueryOperator *op);
-extern boolean checkParentChildLinks (QueryOperator *op);
-extern boolean isTree(QueryOperator *op);
 
 #endif /* QUERY_OPERATOR_H_ */

@@ -445,9 +445,17 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds)
         *sqlBinds = NIL;
 
         appendStringInfo(statement, "SELECT SCN, LSQLTEXT, LSQLBIND FROM "
-                "(SELECT XID, SCN, LSQLTEXT, LSQLBIND, ROW_NUMBER() "
-                "OVER (PARTITION BY statement ORDER BY statement) AS rnum "
-                "FROM SYS.fga_log$ WHERE xid = HEXTORAW('%s') ORDER BY statement) x WHERE rnum = 1", xid);
+                "(SELECT SCN, LSQLTEXT, LSQLBIND, ntimestamp#, "
+                "   DENSE_RANK() OVER (PARTITION BY statement ORDER BY policyname) AS rnum "
+                "      FROM SYS.fga_log$ "
+                "      WHERE xid = HEXTORAW('%s')) x "
+                "WHERE rnum = 1 "
+                "ORDER BY ntimestamp#", xid);
+//
+//                "SELECT SCN, LSQLTEXT, LSQLBIND FROM "
+//                "(SELECT XID, SCN, LSQLTEXT, LSQLBIND, ROW_NUMBER() "
+//                "OVER (PARTITION BY statement ORDER BY statement) AS rnum "
+//                "FROM SYS.fga_log$ WHERE xid = HEXTORAW('%s') ORDER BY statement) x WHERE rnum = 1", xid);
 
         if((conn = getConnection()) != NULL)
         {
