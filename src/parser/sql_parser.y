@@ -301,7 +301,8 @@ provOption:
 		| ONLY UPDATED
 		{
 			RULELOG("provOption::ONLY::UPDATED");
-			$$ = (Node *) createStringKeyValue("ONLY_UPDATED", NULL);
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString("ONLY_UPDATED"), 
+					(Node *) createConstBool(TRUE));
 		}
 	;
 	

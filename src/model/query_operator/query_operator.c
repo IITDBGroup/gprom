@@ -21,6 +21,7 @@
 
 static Schema *mergeSchemas (List *inputs);
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
+static KeyValue *getProp (QueryOperator *op, Node *key);
 
 Schema *
 createSchema(char *name, List *attrDefs)
@@ -314,6 +315,51 @@ createWindowOp(FunctionCall *fCall, List *partitionBy, List *orderBy,
     return wo;
 }
 
+void
+setProperty (QueryOperator *op, Node *key, Node *value)
+{
+    KeyValue *val = getProp(op, key);
+
+    if (val)
+    {
+        val->value = value;
+
+        return;
+    }
+
+    val = createNodeKeyValue(key, value);
+    op->properties =  (Node *) appendToTailOfList((List *) op->properties, val);
+}
+
+Node *
+getProperty (QueryOperator *op, Node *key)
+{
+    return getProp(op, key)->value;
+}
+
+void
+setStringProperty (QueryOperator *op, char *key, Node *value)
+{
+    setProperty(op, (Node *) createConstString(key), value);
+}
+
+Node *
+getStringProperty (QueryOperator *op, char *key)
+{
+    return getProp(op, (Node *) createConstString(key))->value;
+}
+
+static KeyValue *
+getProp (QueryOperator *op, Node *key)
+{
+    FOREACH(KeyValue,p,(List *) op->properties)
+    {
+        if (equal(p->key,key))
+            return p;
+    }
+
+    return NULL;
+}
 
 void
 addChildOperator (QueryOperator *parent, QueryOperator *child)

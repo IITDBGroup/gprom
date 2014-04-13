@@ -86,7 +86,8 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     if (isRewriteOptionActivated("treefiy_prov_rewrite_input"))
     {
         treeify((QueryOperator *) op);
-        INFO_LOG("treeifyed operator model:\n\n%s\n\n%s", operatorToOverviewString((Node *) op), beatify(nodeToString(op)));
+        INFO_LOG("treeifyed operator model:\n\n%s", operatorToOverviewString((Node *) op));
+        DEBUG_LOG("treeifyed operator model:\n\n%s", beatify(nodeToString(op)));
         assert(isTree((QueryOperator *) op));
     }
 

@@ -38,6 +38,7 @@ typedef struct QueryOperator
     Schema *schema; // attributes and their data types of result tables, Schema type
     List *parents; // direct parents of the operator node, QueryOperator type
     List *provAttrs; // positions of provenance attributes in the operator's schema
+    Node *properties; // generic node to store flexible list or map of properties (KeyValue) for query operators
 } QueryOperator; // common fields that all operators have
 
 typedef struct TableAccessOperator
@@ -181,7 +182,14 @@ extern WindowOperator *createWindowOp(FunctionCall *fCall, List *partitionBy,
 #define getAttrDef(op,aPos) \
     ((AttributeDef *) getNthOfListP(((QueryOperator *) op)->schema->attrDefs, aPos))
 
-/*  */
+/* deal with properties */
+extern void setProperty (QueryOperator *op, Node *key, Node *value);
+extern Node *getProperty (QueryOperator *op, Node *key);
+extern void setStringProperty (QueryOperator *op, char *key, Node *value);
+extern Node *getStringProperty (QueryOperator *op, char *key);
+#define HAS_PROP(op,key) (getProperty(((QueryOperator *) op),key) != NULL)
+
+/* add children and parents */
 extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
 extern void addParent (QueryOperator *child, QueryOperator *parent);
 

@@ -310,6 +310,7 @@ copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap)
     // copy regular fields
     COPY_NODE_FIELD(schema);
     COPY_NODE_FIELD(provAttrs);
+    COPY_NODE_FIELD(properties);
 
     // cannot set parents, because not all parents may have been copied yet
     new->parents = NIL;

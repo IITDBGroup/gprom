@@ -605,6 +605,7 @@ outQueryOperator (StringInfo str, QueryOperator *node)
     WRITE_POINTER_LIST_FIELD(parents);
     WRITE_NODE_FIELD(schema);
     WRITE_NODE_FIELD(provAttrs);
+    WRITE_NODE_FIELD(properties);
     WRITE_NODE_FIELD(inputs);
 }
 

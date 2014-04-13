@@ -433,7 +433,7 @@ getTableDefinition(char *tableName)
 }
 
 void
-getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds)
+getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds, IsolationLevel *iso)
 {
     if(xid != NULL)
     {
@@ -451,11 +451,6 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds)
                 "      WHERE xid = HEXTORAW('%s')) x "
                 "WHERE rnum = 1 "
                 "ORDER BY ntimestamp#", xid);
-//
-//                "SELECT SCN, LSQLTEXT, LSQLBIND FROM "
-//                "(SELECT XID, SCN, LSQLTEXT, LSQLBIND, ROW_NUMBER() "
-//                "OVER (PARTITION BY statement ORDER BY statement) AS rnum "
-//                "FROM SYS.fga_log$ WHERE xid = HEXTORAW('%s') ORDER BY statement) x WHERE rnum = 1", xid);
 
         if((conn = getConnection()) != NULL)
         {
@@ -473,6 +468,51 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds)
                 *scns = appendToTailOfList(*scns, createConstLong(scn));
                 *sqlBinds = appendToTailOfList(*sqlBinds, strdup( (char *) bind));
                 DEBUG_LOG("Current statement at SCN %u\n was:\n%s\nwithBinds:%s", scn, sql, bind);
+            }
+
+            DEBUG_LOG("Statement: %s executed successfully.", statement->data);
+            DEBUG_LOG("%d row fetched", OCI_GetRowCount(rs));
+            FREE(statement);
+        }
+        else
+        {
+            ERROR_LOG("Statement: %s failed.", statement);
+            FREE(statement);
+            return;
+        }
+
+        statement = makeStringInfo();
+        appendStringInfo(statement, "SELECT "
+                "CASE WHEN (count(DISTINCT scn) - count(scn) < 0) "
+                "THEN 0 "
+                "ELSE 1 "
+                "END AS readCommmit\n"
+                "FROM SYS.fga_log$\n"
+                "WHERE xid = HEXTORAW(\'%s\')",
+                xid);
+
+        if ((conn = getConnection()) != NULL)
+        {
+            OCI_Resultset *rs = executeStatement(statement->data);
+
+            // loop through
+            while(OCI_FetchNext(rs))
+            {
+                long isoA = (long) OCI_GetBigInt(rs,1); // ISOLEVEL
+
+                switch(isoA)
+                {
+                    case 0:
+                        *iso = ISOLATION_SERIALIZABLE;
+                        break;
+                    case 1:
+                        *iso = ISOLATION_READ_COMMITTED;
+                        break;
+                    default:
+                        *iso = ISOLATION_READ_ONLY;
+                        break;
+                }
+                DEBUG_LOG("Transaction ISOLEVEL %u", iso);
             }
 
             DEBUG_LOG("Statement: %s executed successfully.", statement->data);

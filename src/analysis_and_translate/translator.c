@@ -293,6 +293,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 			prov->selectClause, NULL);
 	result->inputType = prov->inputType;
 	result->asOf = copyObject(prov->asOf);
+	((QueryOperator *) result)->properties = copyObject(prov->options);
 
 	switch (prov->inputType) {
 	    case PROV_INPUT_TRANSACTION: {
@@ -301,25 +302,24 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	        List *scns = NIL;
 	        List *sqls = NIL;
 	        List *sqlBinds = NIL;
+	        IsolationLevel isoLevel;
 
 	        DEBUG_LOG("Provenance for transaction");
 
-	        //TODO call metadata lookup -> SCNS + SQLS
-	        getTransactionSQLAndSCNs(xid, &scns, &sqls, &sqlBinds);
+	        // call metadata lookup -> SCNS + SQLS
+	        getTransactionSQLAndSCNs(xid, &scns, &sqls, &sqlBinds, &isoLevel);
 
-	        //TODO set provenance transaction info
+	        // set provenance transaction info
 	        ProvenanceTransactionInfo *tInfo = makeNode(ProvenanceTransactionInfo);
 
 	        result->transactionInfo = tInfo;
 	        //		tInfo->originalUpdates = copyObject(&sqls);
 	        tInfo->updateTableNames = NIL;
 	        tInfo->scns = scns;
-	        //		FOREACH(long,n,(List *)&scns) {
-	        //			tInfo->scns = appendToTailOfList(tInfo->scns, createConstLong(n)); //TODO get SCN
-	        //		}
+	        tInfo->transIsolation = isoLevel;
 
 	        int i = 0;
-	        //TODO call parser and analyser and translate nodes
+	        // call parser and analyser and translate nodes
 	        FOREACH(char,sql,sqls)
 	        {
 	            Node *node;
@@ -376,7 +376,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
 	            addChildOperator((QueryOperator *) result, child);
 	        }
-	        DEBUG_LOG("constructed transalted provenance computation for PROVENNACE OF TRANSACTION");
+	        DEBUG_LOG("constructed translated provenance computation for PROVENANCE OF TRANSACTION");
 	    }
 	    break;
 	case PROV_INPUT_UPDATE_SEQUENCE: {

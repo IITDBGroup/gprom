@@ -388,8 +388,9 @@ equalQueryOperator(QueryOperator *a, QueryOperator *b)
 {
     COMPARE_NODE_FIELD(inputs);
     COMPARE_NODE_FIELD(schema);
-    //COMPARE_NODE_FIELD(parents);
+    //COMPARE_NODE_FIELD(parents); //TODO implement compare one node
     COMPARE_NODE_FIELD(provAttrs);
+    COMPARE_NODE_FIELD(properties);
 
     return TRUE;
 }

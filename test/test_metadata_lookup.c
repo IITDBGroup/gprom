@@ -170,13 +170,16 @@ testTransactionSQLAndSCNs()
 	List *scns = NIL;
 	List *sqls = NIL;
 	List *binds = NIL;
+	IsolationLevel iso;
 
-    getTransactionSQLAndSCNs("0A0020002F570200",&scns,&sqls,&binds);
-    DEBUG_LOG("scns: %s, sqls: %s, binds: %s", nodeToString(scns), stringListToString(sqls), stringListToString(binds));
+    getTransactionSQLAndSCNs("0A0020002F570200",&scns,&sqls,&binds, &iso);
+    DEBUG_LOG("scns: %s, sqls: %s, binds: %s, iso: %u",
+            nodeToString(scns),
+            stringListToString(sqls),
+            stringListToString(binds),
+            iso);
     if (scns !=NULL && sqls != NULL)
-    {
     	return PASS;
-    }
 
     return PASS;
 }
