@@ -116,7 +116,9 @@ extern AttributeReference *createAttributeReference (char *name);
 extern AttributeReference *createFullAttrReference (char *name, int fromClause,
         int attrPos, int outerLevelsUp);
 extern Node *andExprs (Node *expr, ...);
+extern Node *orExprs (Node *expr, ...);
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL)
+#define OR_EXPRS(...) orExprs(__VA_ARGS__, NULL)
 extern SQLParameter *createSQLParameter (char *name);
 extern CaseExpr *createCaseExpr (Node *expr, List *whenClauses, Node *elseRes);
 extern CaseWhen *createCaseWhen (Node *when, Node *then);

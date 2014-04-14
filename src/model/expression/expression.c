@@ -130,19 +130,31 @@ createWindowFunction (FunctionCall *f, WindowDef *win)
 Node *
 andExprs (Node *expr, ...)
 {
-    Node *result = NULL;
+    Node *result = copyObject(expr);
     Node *curArg = NULL;
     va_list args;
 
     va_start(args, expr);
 
     while((curArg = va_arg(args,Node*)))
-    {
-        if (result == NULL)
-            result = copyObject(curArg);
-        else
-            result = (Node *) createOpExpr("AND", LIST_MAKE(result, copyObject(curArg)));
-    }
+        result = (Node *) createOpExpr("AND", LIST_MAKE(result, copyObject(curArg)));
+
+    va_end(args);
+
+    return result;
+}
+
+Node *
+orExprs (Node *expr, ...)
+{
+    Node *result = copyObject(expr);
+    Node *curArg = NULL;
+    va_list args;
+
+    va_start(args, expr);
+
+    while((curArg = va_arg(args,Node*)))
+        result = (Node *) createOpExpr("OR", LIST_MAKE(result, copyObject(curArg)));
 
     va_end(args);
 

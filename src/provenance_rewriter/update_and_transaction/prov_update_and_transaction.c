@@ -32,7 +32,7 @@ static void filterUpdatedInFinalResult (ProvenanceComputation *op);
 
 static List *findUpdatedTableAccceses (Node *op);
 static KeyValue *getMapCond (List *props, char *key);
-static void setMapCond (List *props, KeyValue *newVal);
+static void setMapCond (List **props, KeyValue *newVal);
 
 
 void mergeUpdateSequence(ProvenanceComputation *op) {
@@ -310,7 +310,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     origUpdates = t->originalUpdates;
     updatedTables  = findUpdatedTableAccceses ((Node *) op);
 
-    DEBUG_LOG("cond: %s, tables: %s, updatedTable: %s",
+    DEBUG_LOG("\ncond: %s, \ntables: %s, \nupdatedTable: %s",
             nodeToString(upConds),
             stringListToString(tableNames),
             nodeToString(updatedTables));
@@ -328,18 +328,21 @@ addConditionsToBaseTables (ProvenanceComputation *op)
             if (tableMap == NULL)
             {
                 tableMap = createNodeKeyValue((Node *) createConstString(tableName), cond);
-                setMapCond(tableCondMap, tableMap);
+                setMapCond(&tableCondMap, tableMap);
             }
             else
-                tableMap->value = (Node *) AND_EXPRS(tableMap->value, cond);
+                tableMap->value = (Node *) OR_EXPRS(tableMap->value, cond);
         }
     }
+
+    DEBUG_LOG("condtion table map is:\n%s", tableCondMap);
 
     // add selections
     FOREACH(TableAccessOperator,t,updatedTables)
     {
         char *tableName = t->tableName;
-        Node *cond = getMapCond(tableCondMap, tableName)->value;
+        KeyValue *prop = getMapCond(tableCondMap, tableName);
+        Node *cond = prop ? prop->value : NULL;
         SelectionOperator *sel;
 
         DEBUG_LOG("selection conditions are: ", cond);
@@ -367,9 +370,9 @@ getMapCond (List *props, char *key)
 }
 
 static void
-setMapCond (List *props, KeyValue *newVal)
+setMapCond (List **props, KeyValue *newVal)
 {
-    props = appendToTailOfList(props, newVal);
+    *props = appendToTailOfList(*props, newVal);
 }
 
 static List *
@@ -405,12 +408,12 @@ isSimpleUpdate(Node *update)
     if (isA(update,Update))
     {
         Update *up = (Update *) update;
-        return hasNestedSubqueries(up->cond);
+        return !hasNestedSubqueries(up->cond);
     }
     if (isA(update,Delete))
     {
         Delete *del = (Delete *) update;
-        return hasNestedSubqueries(del->cond);
+        return !hasNestedSubqueries(del->cond);
     }
     if (isA(update,Insert))
     {

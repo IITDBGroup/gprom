@@ -180,6 +180,7 @@ translateUpdateWithCase(Update *update)
 	TableAccessOperator *to;
 	to = createTableAccessOp(strdup(update->nodeName), NULL, NULL, NIL,
 			deepCopyStringList(attrs), NIL);
+    SET_BOOL_STRING_PROP(to,"UPDATED TABLE");
 
 	// CREATE PROJECTION EXPRESSIONS
 	List *projExprs = NIL;

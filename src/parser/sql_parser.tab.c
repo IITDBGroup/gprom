@@ -1890,7 +1890,7 @@ yyreduce:
 #line 302 "sql_parser.y" /* yacc.c:1646  */
     {
 			RULELOG("provOption::ONLY::UPDATED");
-			(yyval.node) = (Node *) createNodeKeyValue((Node *) createConstString("ONLY_UPDATED"), 
+			(yyval.node) = (Node *) createNodeKeyValue((Node *) createConstString("ONLY UPDATED"), 
 					(Node *) createConstBool(TRUE));
 		}
 #line 1897 "sql_parser.tab.c" /* yacc.c:1646  */
