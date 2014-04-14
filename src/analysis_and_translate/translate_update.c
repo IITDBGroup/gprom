@@ -12,10 +12,13 @@
 
 #include "common.h"
 
+#include "log/logger.h"
+
 #include "mem_manager/mem_mgr.h"
 
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "analysis_and_translate/translator.h"
@@ -57,6 +60,7 @@ translateInsert(Insert *insert)
 
 	TableAccessOperator *to;
 	to = createTableAccessOp(insert->tableName, NULL, NULL, NIL, deepCopyStringList(attr), NIL);
+	SET_BOOL_STRING_PROP(to,"UPDATED TABLE");
 
 	if (isA(insert->query,  List))
 	{
@@ -75,6 +79,9 @@ translateInsert(Insert *insert)
 	addChildOperator((QueryOperator *) seto, (QueryOperator *) to);
 	addChildOperator((QueryOperator *) seto, insertQuery);
 
+	INFO_LOG("translated insert:\n%s", operatorToOverviewString((Node *) seto));
+	DEBUG_LOG("translated insert:\n%s", nodeToString((Node *) seto));
+
 	return (QueryOperator *) seto;
 }
 
@@ -85,6 +92,7 @@ translateDelete(Delete *delete)
 
 	TableAccessOperator *to;
 	to = createTableAccessOp(strdup(delete->nodeName), NULL, NULL, NIL, deepCopyStringList(attr), NIL);
+	SET_BOOL_STRING_PROP(to,"UPDATED TABLE");
 
 	SelectionOperator *so;
 	Node *negatedCond;
@@ -92,6 +100,9 @@ translateDelete(Delete *delete)
 	so = createSelectionOp(negatedCond, NULL, NIL, deepCopyStringList(attr));
 
 	addChildOperator((QueryOperator *) so, (QueryOperator *) to);
+
+	INFO_LOG("translated delete:\n%s", operatorToOverviewString((Node *) so));
+	DEBUG_LOG("translated delete:\n%s", beatify(nodeToString((Node *) so)));
 
 	return (QueryOperator *) so;
 }
@@ -104,6 +115,7 @@ translateUpdateInternal(Update *update)
     // create table access operator
 	TableAccessOperator *to;
 	to = createTableAccessOp(strdup(update->nodeName), NULL, NULL, NIL, deepCopyStringList(attrs), NIL);
+	SET_BOOL_STRING_PROP(to,"UPDATED TABLE");
 
 	// CREATE PROJECTION EXPRESSIONS
 	List *projExprs = NIL;
@@ -145,11 +157,18 @@ translateUpdateInternal(Update *update)
         addChildOperator((QueryOperator *) seto, (QueryOperator *) po);
         addChildOperator((QueryOperator *) seto, (QueryOperator *) nso);
 
+        INFO_LOG("translated update:\n%s", operatorToOverviewString((Node *) seto));
+        DEBUG_LOG("translated update:\n%s", nodeToString((Node *) seto));
+
         return (QueryOperator *) seto;
 	}
 
 	// update without WHERE clause
     addChildOperator((QueryOperator *) po, (QueryOperator *) to);
+
+    INFO_LOG("translated update:\n%s", operatorToOverviewString((Node *) po));
+    DEBUG_LOG("translated update:\n%s", beatify(nodeToString((Node *) po)));
+
     return (QueryOperator *) po;
 }
 
@@ -196,6 +215,8 @@ translateUpdateWithCase(Update *update)
 	po = createProjectionOp(projExprs, NULL, NIL, deepCopyStringList(attrs));
 
 	addChildOperator((QueryOperator *) po, (QueryOperator *) to);
+	DEBUG_LOG("translated update:\n%s", beatify(nodeToString((Node *) po)));
+
 	return (QueryOperator *) po;
 
 }

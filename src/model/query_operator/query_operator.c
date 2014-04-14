@@ -323,7 +323,6 @@ setProperty (QueryOperator *op, Node *key, Node *value)
     if (val)
     {
         val->value = value;
-
         return;
     }
 
@@ -334,7 +333,9 @@ setProperty (QueryOperator *op, Node *key, Node *value)
 Node *
 getProperty (QueryOperator *op, Node *key)
 {
-    return getProp(op, key)->value;
+    KeyValue *kv = getProp(op, key);
+
+    return kv ? kv->value : NULL;
 }
 
 void
@@ -346,7 +347,9 @@ setStringProperty (QueryOperator *op, char *key, Node *value)
 Node *
 getStringProperty (QueryOperator *op, char *key)
 {
-    return getProp(op, (Node *) createConstString(key))->value;
+    KeyValue *kv = getProp(op, (Node *) createConstString(key));
+
+    return kv ? kv->value : NULL;
 }
 
 static KeyValue *

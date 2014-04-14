@@ -14,6 +14,8 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 
-void analyzeQueryBlockStmt (Node *stmt, List *parentFroms);
+extern void analyzeQueryBlockStmt (Node *stmt, List *parentFroms);
+extern boolean hasNestedSubqueries (Node *node);
+extern boolean findNestedSubqueries (Node *node, List **state);
 
 #endif /* ANALYSE_QB_H_ */

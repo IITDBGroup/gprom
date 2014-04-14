@@ -35,7 +35,6 @@ static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 // search for attributes and other relevant node types
 static void enumerateParameters (Node *stmt);
 static boolean findAttrReferences (Node *node, List **state);
-extern boolean findNestedSubqueries (Node *node, List **state);
 static boolean findFunctionCall (Node *node, List **state);
 static boolean findAttrRefInFrom (AttributeReference *a, List *fromClauses);
 static FromItem *findNamedFromItem (FromItem *fromItem, char *name);
@@ -458,6 +457,19 @@ findAttrReferences (Node *node, List **state)
         return TRUE;
 
     return visit(node, findAttrReferences, state);
+}
+
+boolean
+hasNestedSubqueries (Node *node)
+{
+    List *nested = NIL;
+    boolean result;
+
+    findNestedSubqueries (node, &nested);
+    result = LIST_LENGTH(nested) != 0;
+    freeList(nested);
+
+    return result;
 }
 
 boolean

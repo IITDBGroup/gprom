@@ -303,11 +303,13 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	        List *sqls = NIL;
 	        List *sqlBinds = NIL;
 	        IsolationLevel isoLevel;
+	        List *updateConds = NIL;
+	        Constant *commitSCN = createConstLong(-1L);
 
 	        DEBUG_LOG("Provenance for transaction");
 
 	        // call metadata lookup -> SCNS + SQLS
-	        getTransactionSQLAndSCNs(xid, &scns, &sqls, &sqlBinds, &isoLevel);
+	        getTransactionSQLAndSCNs(xid, &scns, &sqls, &sqlBinds, &isoLevel, commitSCN);
 
 	        // set provenance transaction info
 	        ProvenanceTransactionInfo *tInfo = makeNode(ProvenanceTransactionInfo);
@@ -317,6 +319,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	        tInfo->updateTableNames = NIL;
 	        tInfo->scns = scns;
 	        tInfo->transIsolation = isoLevel;
+	        tInfo->commitSCN = commitSCN;
 
 	        int i = 0;
 	        // call parser and analyser and translate nodes
@@ -347,7 +350,12 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	                    tableName = ((Insert *) node)->tableName;
 	                    break;
 	                case T_Update:
-	                    tableName = ((Update *) node)->nodeName;
+	                    {
+	                        Update *up = (Update *) node;
+
+	                        tableName = up->nodeName;
+	                        updateConds = appendToTailOfList(updateConds, copyObject(up->cond));
+	                    }
 	                    break;
 	                case T_Delete:
 	                    tableName = ((Delete *) node)->nodeName;
@@ -376,6 +384,15 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
 	            addChildOperator((QueryOperator *) result, child);
 	        }
+
+	        // if only updated rows shows be returned then we need to store the update conditions
+	        // because we might need that to filter out those tuples
+	        if (HAS_STRING_PROP(result,"ONLY UPDATED"))
+	        {
+	            DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
+	            setStringProperty((QueryOperator *) result, "UpdateConds", (Node *) updateConds);
+	        }
+
 	        DEBUG_LOG("constructed translated provenance computation for PROVENANCE OF TRANSACTION");
 	    }
 	    break;
@@ -427,6 +444,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 		addChildOperator((QueryOperator *) result, child);
 		break;
 	case PROV_INPUT_TIME_INTERVAL:
+	    //TODO
 		break;
 	}
 

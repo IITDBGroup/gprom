@@ -89,7 +89,8 @@ extern boolean isAgg(char *functionName);
 extern boolean isWindowFunction(char *functionName);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
-extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds, IsolationLevel *iso);
+extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
+        List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern int databaseConnectionClose();
 

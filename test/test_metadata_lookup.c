@@ -20,7 +20,6 @@
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 
-
 static char *table1Attrs[3] = { "A","B","C" };
 static char *table2Attrs[2] = { "D","E" };
 
@@ -171,13 +170,15 @@ testTransactionSQLAndSCNs()
 	List *sqls = NIL;
 	List *binds = NIL;
 	IsolationLevel iso;
+	Constant *commit = createConstLong(-1);
 
-    getTransactionSQLAndSCNs("0A0020002F570200",&scns,&sqls,&binds, &iso);
-    DEBUG_LOG("scns: %s, sqls: %s, binds: %s, iso: %u",
+    getTransactionSQLAndSCNs("0A0020002F570200",&scns,&sqls,&binds, &iso, commit);
+    DEBUG_LOG("scns: %s, sqls: %s, binds: %s, iso: %u, commitSCN: %u",
             nodeToString(scns),
             stringListToString(sqls),
             stringListToString(binds),
-            iso);
+            iso,
+            commit);
     if (scns !=NULL && sqls != NULL)
     	return PASS;
 

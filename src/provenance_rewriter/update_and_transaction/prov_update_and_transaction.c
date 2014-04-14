@@ -13,16 +13,26 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 
+#include "analysis_and_translate/analyze_qb.h"
 #include "model/node/nodetype.h"
+#include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
+#include "configuration/option.h"
 
 static QueryOperator *getUpdateForPreviousTableVersion (ProvenanceComputation *p, char *tableName, int startPos, List *updates);
 
 static void mergeSerializebleTransaction(ProvenanceComputation *op);
-
 static void mergeReadCommittedTransaction(ProvenanceComputation *op);
+
+static void addConditionsToBaseTables (ProvenanceComputation *op);
+static void extractUpdatedFromTemporalHistory (ProvenanceComputation *op);
+static void filterUpdatedInFinalResult (ProvenanceComputation *op);
+
+static List *findUpdatedTableAccceses (Node *op);
+static KeyValue *getMapCond (List *props, char *key);
+static void setMapCond (List *props, KeyValue *newVal);
 
 
 void mergeUpdateSequence(ProvenanceComputation *op) {
@@ -257,4 +267,156 @@ getUpdateForPreviousTableVersion (ProvenanceComputation *p, char *tableName, int
     }
 
     return NULL;
+}
+
+void
+restrictToUpdatedRows (ProvenanceComputation *op)
+{
+    boolean simpleOnly = TRUE;
+    ProvenanceTransactionInfo *t = op->transactionInfo;
+
+    INFO_LOG("RESTRICT TO UPDATED ROWS");
+
+    FOREACH(Node,up,t->originalUpdates)
+        simpleOnly &= isSimpleUpdate(up);
+
+    //TODO for now be conservative when to apply things
+    // use conditions of updates to filter out non-updated tuples early on
+    if (isRewriteOptionActivated("only_updated_use_conditions") && simpleOnly)
+        addConditionsToBaseTables(op);
+    // use history to get tuples updated by transaction and limit provenance tracing to these tuples
+    else if (isRewriteOptionActivated("only_updated_use_history"))
+        extractUpdatedFromTemporalHistory(op);
+    // simply filter out non-updated rows in the end
+    else
+        filterUpdatedInFinalResult(op);
+}
+
+static void
+addConditionsToBaseTables (ProvenanceComputation *op)
+{
+    List *upConds;
+    List *tableNames;
+    List *updatedTables;
+    List *origUpdates;
+    List *tableCondMap = NIL;
+    int pos = 0;
+    KeyValue *tableCond;
+
+    ProvenanceTransactionInfo *t = op->transactionInfo;
+
+    upConds = (List *) GET_STRING_PROP(op, "UpdateConds");
+    tableNames = t->updateTableNames;
+    origUpdates = t->originalUpdates;
+    updatedTables  = findUpdatedTableAccceses ((Node *) op);
+
+    DEBUG_LOG("cond: %s, tables: %s, updatedTable: %s",
+            nodeToString(upConds),
+            stringListToString(tableNames),
+            nodeToString(updatedTables));
+
+    // create map from table name to condition
+    FORBOTH(void,name,up,tableNames,origUpdates)
+    {
+        // only care about updates
+        if (isA(up,Update))
+        {
+            char *tableName = (char *) name;
+            KeyValue *tableMap = getMapCond(tableCondMap, tableName);
+            Node *cond = copyObject((Node *) getNthOfListP(upConds, pos++));
+
+            if (tableMap == NULL)
+            {
+                tableMap = createNodeKeyValue((Node *) createConstString(tableName), cond);
+                setMapCond(tableCondMap, tableMap);
+            }
+            else
+                tableMap->value = (Node *) AND_EXPRS(tableMap->value, cond);
+        }
+    }
+
+    // add selections
+    FOREACH(TableAccessOperator,t,updatedTables)
+    {
+        char *tableName = t->tableName;
+        Node *cond = getMapCond(tableCondMap, tableName)->value;
+        SelectionOperator *sel;
+
+        DEBUG_LOG("selection conditions are: ", cond);
+
+        if (cond != NULL)
+        {
+            sel = createSelectionOp(cond, (QueryOperator *) t, NIL,
+                    getAttrNames(GET_OPSCHEMA(t)));
+            switchSubtrees((QueryOperator *) t, (QueryOperator *) sel);
+            ((QueryOperator *) t)->parents = singleton(sel);
+        }
+    }
+}
+
+static KeyValue *
+getMapCond (List *props, char *key)
+{
+    FOREACH(KeyValue,kv,props)
+    {
+        if (strcmp(key,STRING_VALUE(kv->key)) == 0)
+            return kv;
+    }
+
+    return NULL;
+}
+
+static void
+setMapCond (List *props, KeyValue *newVal)
+{
+    props = appendToTailOfList(props, newVal);
+}
+
+static List *
+findUpdatedTableAccceses (Node *op)
+{
+    List *tables = NIL;
+    List *result = NIL;
+
+    findTableAccessVisitor(op, &tables);
+    FOREACH(TableAccessOperator,t,tables)
+        if (HAS_STRING_PROP(t,"UPDATED TABLE"))
+            result = appendToTailOfList(result, t);
+
+    return result;
+}
+
+static void
+extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
+{
+
+}
+
+static void
+filterUpdatedInFinalResult (ProvenanceComputation *op)
+{
+
+}
+
+boolean
+isSimpleUpdate(Node *update)
+{
+    // type of update (UPDATE / DELETE / INSERT)
+    if (isA(update,Update))
+    {
+        Update *up = (Update *) update;
+        return hasNestedSubqueries(up->cond);
+    }
+    if (isA(update,Delete))
+    {
+        Delete *del = (Delete *) update;
+        return hasNestedSubqueries(del->cond);
+    }
+    if (isA(update,Insert))
+    {
+        Insert *in = (Insert *) update;
+        return (isA(in->query,  List));
+    }
+    FATAL_LOG("Expected an update node");
+    return FALSE;
 }

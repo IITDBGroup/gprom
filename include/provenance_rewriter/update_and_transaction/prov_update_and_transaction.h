@@ -13,7 +13,8 @@
 
 #include "model/query_operator/query_operator.h"
 
-void mergeUpdateSequence(ProvenanceComputation *op);
-
+extern void mergeUpdateSequence(ProvenanceComputation *op);
+extern void restrictToUpdatedRows (ProvenanceComputation *op);
+extern boolean isSimpleUpdate(Node *update);
 
 #endif /* PROV_UPDATE_AND_TRANSACTION_H_ */

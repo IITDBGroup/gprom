@@ -53,7 +53,6 @@ provRewriteQueryList (List *list)
     return list;
 }
 
-
 QueryOperator *
 provRewriteQuery (QueryOperator *input)
 {
@@ -80,8 +79,15 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 {
     // for a sequence of updates of a transaction merge the sequence into a single
     // query before rewrite.
-    if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE || op->inputType == PROV_INPUT_TRANSACTION)
+    if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE
+            || op->inputType == PROV_INPUT_TRANSACTION)
+    {
         mergeUpdateSequence(op);
+        // need to restrict to updated rows?
+        if (op->inputType == PROV_INPUT_TRANSACTION
+                && HAS_STRING_PROP(op,"ONLY UPDATED"))
+            restrictToUpdatedRows(op);
+    }
 
     if (isRewriteOptionActivated("treefiy_prov_rewrite_input"))
     {

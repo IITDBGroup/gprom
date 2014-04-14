@@ -433,7 +433,8 @@ getTableDefinition(char *tableName)
 }
 
 void
-getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds, IsolationLevel *iso)
+getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds,
+        IsolationLevel *iso, Constant *commitScn)
 {
     if(xid != NULL)
     {
@@ -444,6 +445,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds, 
         *sqls = NIL;
         *sqlBinds = NIL;
 
+        // FETCH statements, SCNs, and parameter bindings
         appendStringInfo(statement, "SELECT SCN, LSQLTEXT, LSQLBIND FROM "
                 "(SELECT SCN, LSQLTEXT, LSQLBIND, ntimestamp#, "
                 "   DENSE_RANK() OVER (PARTITION BY statement ORDER BY policyname) AS rnum "
@@ -481,6 +483,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds, 
             return;
         }
 
+        // infer isolation level
         statement = makeStringInfo();
         appendStringInfo(statement, "SELECT "
                 "CASE WHEN (count(DISTINCT scn) - count(scn) < 0) "
@@ -524,6 +527,10 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds, 
             ERROR_LOG("Statement: %s failed.", statement);
             FREE(statement);
         }
+
+        // get COMMIT SCN
+        long commitS = LONG_VALUE(getTailOfListP(*scns)) + 1;
+        (*((long *) commitScn->value)) = commitS; //TODO write query to get real COMMIT SCN
     }
 }
 
