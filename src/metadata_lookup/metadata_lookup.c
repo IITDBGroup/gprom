@@ -487,8 +487,8 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds,
         statement = makeStringInfo();
         appendStringInfo(statement, "SELECT "
                 "CASE WHEN (count(DISTINCT scn) - count(scn) < 0) "
-                "THEN 0 "
-                "ELSE 1 "
+                "THEN 1 "
+                "ELSE 0 "
                 "END AS readCommmit\n"
                 "FROM SYS.fga_log$\n"
                 "WHERE xid = HEXTORAW(\'%s\')",
