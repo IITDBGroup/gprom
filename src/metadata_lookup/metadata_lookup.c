@@ -486,7 +486,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds,
         // infer isolation level
         statement = makeStringInfo();
         appendStringInfo(statement, "SELECT "
-                "CASE WHEN (count(DISTINCT scn) - count(scn) < 0) "
+                "CASE WHEN (count(DISTINCT scn) > 1) "
                 "THEN 1 "
                 "ELSE 0 "
                 "END AS readCommmit\n"
