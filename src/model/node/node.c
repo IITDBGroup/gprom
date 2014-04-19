@@ -22,7 +22,7 @@
 /* function declarations */
 static void makeStringInfoSpace (StringInfo str, int needs);
 static boolean checkString (StringInfo str, int line, char *file);
-#define CHECK_STRING(str) checkString(str, __LINE__, __FILE__)
+#define CHECK_STRING(str) if (maxLevel > LOG_TRACE) { checkString(str, __LINE__, __FILE__); }
 
 /*
  * Create a new node of a certain type.
