@@ -317,6 +317,12 @@ typeOf (Node *expr)
 
         case T_Operator:
             return DT_STRING;
+        case T_CaseExpr:
+        {
+            CaseExpr *c = (CaseExpr *) expr;
+            CaseWhen *w = (CaseWhen *) getNthOfListP(c->whenClauses, 0);
+            return typeOf(w->then);
+        }
         default:
              ERROR_LOG("unknown expression type for node: %s", nodeToString(expr));
              break;
@@ -336,6 +342,12 @@ typeOfInOpModel (Node *expr, List *inputOperators)
             return DT_STRING; //TODO metadata lookup plugin
         case T_Constant:
             return typeOf(expr);
+        case T_CaseExpr:
+        {
+            CaseExpr *c = (CaseExpr *) expr;
+            CaseWhen *w = (CaseWhen *) getNthOfListP(c->whenClauses, 0);
+            return typeOf(w->then);
+        }
         default:
             ERROR_LOG("unknown expression type for node: %s", nodeToString(expr));
             break;

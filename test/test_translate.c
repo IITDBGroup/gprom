@@ -40,7 +40,7 @@ main (int argc, char* argv[])
         result = parseStream(stdin);
 
         DEBUG_LOG("Address of returned node is <%p>", result);
-        ERROR_LOG("PARSE RESULT FROM STREAM IS <%s>", beatify(nodeToString(result)));
+        INFO_LOG("PARSE RESULT FROM STREAM IS <%s>", beatify(nodeToString(result)));
     }
     // parse input string
     else
@@ -48,11 +48,11 @@ main (int argc, char* argv[])
         result = parseFromString(getOptions()->optionConnection->sql);
 
         DEBUG_LOG("Address of returned node is <%p>", result);
-        ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
+        INFO_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
     }
 
     qoModel = translateParse(result);
-    ERROR_LOG("TRANSLATION RESULT FROM STRING IS:\n%s", beatify(nodeToString(qoModel)));
+    DEBUG_LOG("TRANSLATION RESULT FROM STRING IS:\n%s", beatify(nodeToString(qoModel)));
     ERROR_LOG("SIMPLIFIED OPERATOR TREE:\n%s", operatorToOverviewString(qoModel));
 
     freeOptions();
