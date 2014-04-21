@@ -35,11 +35,11 @@ typedef struct MemContextNode
     struct MemContextNode *next;
 } MemContextNode; // context stack node
 
-static void addAlloc(MemContext *mc, void *addr, const char *file,
+static inline void addAlloc(MemContext *mc, void *addr, const char *file,
         unsigned line);
-static void delAlloc(MemContext *mc, void *addr, const char *file,
+static inline void delAlloc(MemContext *mc, void *addr, const char *file,
         unsigned line);
-static void freeAlloc (Allocation *alloc, MemContext *mc, void *addr,
+static inline void freeAlloc (Allocation *alloc, MemContext *mc, void *addr,
         const char *file, unsigned line);
 
 
@@ -156,7 +156,8 @@ addAlloc(MemContext *mc, void *addr, const char *file, unsigned line)
     newAlloc->file = file;
     newAlloc->line = line;
     HASH_ADD_PTR(mc->hashAlloc, address, newAlloc); // add to hash table. Use address as key
-    log_(LOG_TRACE, file, line,
+    if (maxLevel >= LOG_TRACE)
+        log_(LOG_TRACE, file, line,
             "Added [addr:%p, file:'%s', line:%u] to memory context '%s'.", addr,
             file, line, mc->contextName);
 }
@@ -180,7 +181,8 @@ delAlloc(MemContext *mc, void *addr, const char *file, unsigned line)
         MemContextNode *c = topContextNode;
         MemContext *curC;
 
-        log_(LOG_TRACE, file, line,
+        if (maxLevel >= LOG_TRACE)
+            log_(LOG_TRACE, file, line,
                 "Not found [addr:%p] from memory context '%s'.",
                             addr, mc->contextName);
 
@@ -199,7 +201,8 @@ delAlloc(MemContext *mc, void *addr, const char *file, unsigned line)
                 return;
             }
             else
-                log_(LOG_TRACE, file, line,
+                if (maxLevel >= LOG_TRACE)
+                    log_(LOG_TRACE, file, line,
                             "Not found [addr:%p] from memory context '%s'.",
                             addr, curC->contextName);
        }
@@ -220,9 +223,10 @@ freeAlloc (Allocation *alloc, MemContext *mc, void *addr, const char *file, unsi
     int tmpline = alloc->line;
     HASH_DEL(mc->hashAlloc, alloc); // remove the allocation info
     free(alloc);
-    log_(LOG_TRACE, file, line,
-            "Deleted [addr:%p, file:'%s', line:%d] from memory context '%s'.",
-            addr, tmpfile, tmpline, mc->contextName);
+    if (maxLevel >= LOG_TRACE)
+        log_(LOG_TRACE, file, line,
+                "Deleted [addr:%p, file:'%s', line:%d] from memory context '%s'.",
+                addr, tmpfile, tmpline, mc->contextName);
 }
 
 
@@ -235,8 +239,9 @@ newMemContext(char *contextName, const char *file, unsigned line)
     MemContext *mc = (MemContext *) malloc(sizeof(MemContext));
     mc->contextName = contextName;
     mc->hashAlloc = NULL;
-    log_(LOG_DEBUG, file, line, "Created memory context '%s'.",
-            mc->contextName);
+    if (maxLevel >= LOG_DEBUG)
+        log_(LOG_DEBUG, file, line, "Created memory context '%s'.",
+                mc->contextName);
     return mc;
 }
 
@@ -311,7 +316,8 @@ freeCurMemContext(const char *file, unsigned line)
             free(curMemContext);
             curMemContext = NULL;
         }
-        log_(LOG_DEBUG, file, line, "Freed memory context '%s'.", name);
+        if (maxLevel >= LOG_DEBUG)
+            log_(LOG_DEBUG, file, line, "Freed memory context '%s'.", name);
     }
 }
 
@@ -325,11 +331,13 @@ malloc_(size_t bytes, const char *file, unsigned line)
     memset(mem, 178, bytes);
     if (mem == NULL)
     {
-        log_(LOG_ERROR, file, line, "Fail to malloc.");
+        if (maxLevel >= LOG_ERROR)
+            log_(LOG_ERROR, file, line, "Fail to malloc.");
     }
     else
     {
-        log_(LOG_TRACE, file, line, "%ld bytes memory @%p allocated.", bytes,
+        if (maxLevel >= LOG_ERROR)
+            log_(LOG_TRACE, file, line, "%ld bytes memory @%p allocated.", bytes,
                 mem);
     }
 
@@ -348,13 +356,15 @@ calloc_(size_t bytes, unsigned count, const char *file, unsigned line)
     void *mem = calloc(count, bytes);
     if (mem == NULL)
     {
-        log_(LOG_ERROR, file, line, "Fail to calloc.");
+        if (maxLevel >= LOG_ERROR)
+            log_(LOG_ERROR, file, line, "Fail to calloc.");
     }
     else
     {
-        log_(LOG_TRACE, file, line,
-                "%ldx%ld bytes memory @%p allocated and initialized with 0.",
-                bytes, count, mem);
+        if (maxLevel >= LOG_TRACE)
+            log_(LOG_TRACE, file, line,
+                    "%ldx%ld bytes memory @%p allocated and initialized with 0.",
+                    bytes, count, mem);
     }
 
     addAlloc(curMemContext, mem, file, line);
@@ -373,7 +383,8 @@ free_(void *mem, const char *file, unsigned line)
     {
         delAlloc(curMemContext, mem, file, line);
         free(mem);
-        log_(LOG_TRACE, file, line, "Memory @%p freed.", mem);
+        if (maxLevel >= LOG_TRACE)
+            log_(LOG_TRACE, file, line, "Memory @%p freed.", mem);
     }
 }
 
