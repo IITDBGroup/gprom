@@ -89,6 +89,16 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
+# Activate/Deactivate logging
+AC_DEFUN([AC_LOGGING_ACTIVE],
+[AC_ARG_ENABLE(logging, AS_HELP_STRING([--disable-logging],[Disable logging]))
+
+AS_IF([test "x$enable_logging" == "xno"], [
+  AC_DEFINE([DISABLE_LOGGING],[],[Disable logging])
+])
+])
+
+
 ################################################################################
 # DATA TYPES
 AC_TYPE_SIZE_T
@@ -123,9 +133,12 @@ AC_OCIH_LOCATION
 AC_OCI_LIB_LOCATION
 AC_OCILIB_LOCATION
 # check for the libraries
-AC_CHECK_LIB([clntsh],[OCIInitialize],[],[AC_MSG_WARN([missing OCI library])])
-AC_CHECK_LIB([occi],[OCIHandleFree],[],[AC_MSG_WARN([missing OCI library])])
-AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[AC_MSG_WARN([missing OCILIB])])
+AC_CHECK_LIB([clntsh],[OCIInitialize],[],[AC_MSG_ERROR([missing OCI library])])
+AC_CHECK_LIB([occi],[OCIHandleFree],[],[AC_MSG_ERROR([missing OCI library])])
+AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[AC_MSG_ERROR([missing OCILIB])])
+################################################################################
+# enable/disable features
+AC_LOGGING_ACTIVE
 ################################################################################
 # OUTPUT HEADER
 AC_CONFIG_HEADERS([config.h])

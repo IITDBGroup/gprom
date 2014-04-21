@@ -38,6 +38,20 @@ extern void shutdownLogger (void);
 extern void log_(LogLevel level, const char *file, unsigned line, const char *template, ...);
 extern LogLevel maxLevel;
 
+/* user has deactivated logging (default) */
+#ifdef DISABLE_LOGGING
+
+#define FATAL_LOG(template, ...)
+#define ERROR_LOG(template, ...)
+#define WARN_LOG(template, ...)
+#define INFO_LOG(template, ...)
+#define DEBUG_LOG(template, ...)
+#define TRACE_LOG(template, ...)
+#define GENERIC_LOG(level, file, line, template, ...)
+
+/* user has activated logging (default) */
+#else
+
 #define FATAL_LOG(template, ...) \
     do { \
         log_(LOG_FATAL, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
@@ -45,12 +59,12 @@ extern LogLevel maxLevel;
     } while (0)
 #define ERROR_LOG(template, ...) \
     do { \
-    	if (maxLevel >= LOG_ERROR) \
+        if (maxLevel >= LOG_ERROR) \
             log_(LOG_ERROR, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
     } while (0)
 #define WARN_LOG(template, ...) \
     do { \
-    	if (maxLevel >= LOG_WARN) \
+        if (maxLevel >= LOG_WARN) \
             log_(LOG_WARN, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
     } while (0)
 #define INFO_LOG(template, ...) \
@@ -60,15 +74,22 @@ extern LogLevel maxLevel;
     } while (0)
 #define DEBUG_LOG(template, ...) \
     do { \
-    	if (maxLevel >= LOG_DEBUG) \
+        if (maxLevel >= LOG_DEBUG) \
             log_(LOG_DEBUG, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
     } while (0)
 #define TRACE_LOG(template, ...) \
     do { \
-    	if (maxLevel >= LOG_TRACE) \
+        if (maxLevel >= LOG_TRACE) \
             log_(LOG_TRACE, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
     } while (0)
 
+#define GENERIC_LOG(level, file, line, template, ...) \
+		do { \
+			if (maxLevel >= level) \
+			    log_(level, file, line, (template),  ##__VA_ARGS__); \
+		} while (0)
+#endif
+/* logging activated switch */
 
-
+/* header */
 #endif
