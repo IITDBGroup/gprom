@@ -91,10 +91,31 @@ fi
 ])
 # Activate/Deactivate logging
 AC_DEFUN([AC_LOGGING_ACTIVE],
-[AC_ARG_ENABLE(logging, AS_HELP_STRING([--disable-logging],[Disable logging]))
+[
+AC_MSG_CHECKING([should be compiled with logging])
+AC_ARG_ENABLE(logging, AS_HELP_STRING([--disable-logging],[Disable logging]))
 
 AS_IF([test "x$enable_logging" == "xno"], [
   AC_DEFINE([DISABLE_LOGGING],[],[Disable logging])
+  AC_MSG_RESULT([no])
+],
+[
+  AC_MSG_RESULT([yes])
+])
+])
+# Link with google perftools libary
+AC_DEFUN([AC_LINK_PERFTOOLS],
+[AC_ARG_ENABLE(link-perftools, AS_HELP_STRING([--enable-perftools],[Link against google perftools library]))
+AC_MSG_CHECKING([should be linked with google profile library])
+
+AS_IF([test "x$enable_link_perftools" == "xyes"], [
+  AC_MSG_RESULT([yes])
+],[
+  AC_MSG_RESULT([no])
+])
+
+AS_IF([test "x$enable_link_perftools" == "xyes"], [
+	AC_CHECK_LIB([profiler],[ProfilerStart],[],[AC_MSG_ERROR([missing google perftools libprofiler])])
 ])
 ])
 ################################################################################
@@ -137,6 +158,7 @@ AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[AC_MSG_ERROR([missing OCILIB])])
 ################################################################################
 # enable/disable features
 AC_LOGGING_ACTIVE
+AC_LINK_PERFTOOLS
 ################################################################################
 # OUTPUT HEADER
 AC_CONFIG_HEADERS([config.h])
