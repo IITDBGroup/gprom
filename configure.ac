@@ -97,8 +97,6 @@ AS_IF([test "x$enable_logging" == "xno"], [
   AC_DEFINE([DISABLE_LOGGING],[],[Disable logging])
 ])
 ])
-
-
 ################################################################################
 # DATA TYPES
 AC_TYPE_SIZE_T
