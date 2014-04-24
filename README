@@ -4,7 +4,7 @@ PROVENANCE REWRITER PROTOTYPE
 This is the first prototype for a provenance middleware for Oracle. The 
 application consists of a parser, rewriter, and SQL serializer components.
 The application takes user SQL queries with new provenance language constructs
-and translates them into Oracle conformant SQL code. For example, if table
+and translates them into Oracle conform SQL code. For example, if table
 R has two columns A and B, then 
 
 PROVENANCE OF (SELECT a FROM R); 
@@ -37,6 +37,8 @@ Use the following configure options to set library locations:
 --with-oci-lib=X  	: set location of Oracle OCI library shared library files
 --with-oci-headers	: set location of Oracle OCI library header files
 --with-ocilib		: set location of OCILIB library
+--disable-logging   : disable logging
+--enable-perftools  : link against google perftools library
 
 Long version:
 ====================
