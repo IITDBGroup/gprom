@@ -15,5 +15,6 @@
 
 extern char *serializeOperatorModel(Node *q);
 extern char *serializeQuery(QueryOperator *q);
+extern char *quoteIdentifier (char *ident);
 
 #endif /* SQL_SERIALIZER_H_ */

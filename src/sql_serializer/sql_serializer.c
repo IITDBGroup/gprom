@@ -31,6 +31,7 @@ typedef enum MatchState {
     MATCH_AGGREGATION,
     MATCH_SECOND_PROJ,
     MATCH_WHERE,
+    MATCH_WINDOW,
     MATCH_NEXTBLOCK
 } MatchState;
 
@@ -42,6 +43,7 @@ typedef enum MatchState {
      _state == MATCH_AGGREGATION ? "MATCH_AGGREGATION" : \
      _state == MATCH_SECOND_PROJ ? "MATCH_SECOND_PROJ" : \
      _state == MATCH_WHERE ? "MATCH_WHERE" : \
+     _state == MATCH_WINDOW ? "MATCH_WINDOW" : \
              "MATCH_NEXTBLOCK" \
      )
 
@@ -53,6 +55,7 @@ typedef struct QueryBlockMatch {
     ProjectionOperator *secondProj;
     SelectionOperator *where;
     QueryOperator *fromRoot;
+    WindowOperator *windowRoot;
 } QueryBlockMatch;
 
 #define OUT_BLOCK_MATCH(_level,_m,_message) \
@@ -65,6 +68,7 @@ typedef struct QueryBlockMatch {
         _level ## _LOG ("secondProj: %s", operatorToOverviewString((Node *) _m->secondProj)); \
         _level ## _LOG ("where: %s", operatorToOverviewString((Node *) _m->where)); \
         _level ## _LOG ("fromRoot: %s", operatorToOverviewString((Node *) _m->fromRoot)); \
+        _level ## _LOG ("windowRoot: %s", operatorToOverviewString((Node *) _m->windowRoot)); \
     } while(0)
 
 typedef struct TemporaryViewMap {
@@ -100,6 +104,8 @@ static TemporaryViewMap *viewMap;
 static int viewNameCounter;
 
 /* method declarations */
+static boolean quoteAttributeNames (Node *node, void *context);
+
 static List *serializeQueryOperator (QueryOperator *q, StringInfo str);
 static List *serializeQueryBlock (QueryOperator *q, StringInfo str);
 static List *serializeSetOperator (QueryOperator *q, StringInfo str);
@@ -130,6 +136,9 @@ serializeOperatorModel(Node *q)
     StringInfo str = makeStringInfo();
     char *result = NULL;
 
+    // quote ident names if necessary
+    quoteAttributeNames(q, NULL);
+
     if (isA(q, QueryOperator))
     {
         appendStringInfoString(str, serializeQuery((QueryOperator *) q));
@@ -148,6 +157,32 @@ serializeOperatorModel(Node *q)
     FREE(str);
     return result;
 }
+
+static boolean
+quoteAttributeNames (Node *node, void *context)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+        a->name = quoteIdentifier(a->name);
+    }
+    if (isA(node, SelectItem))
+    {
+        SelectItem *a = (SelectItem *) node;
+        a->alias = quoteIdentifier(a->alias);
+    }
+    if (isA(node, AttributeDef))
+    {
+        AttributeDef *a = (AttributeDef *) node;
+        a->attrName = quoteIdentifier(a->attrName);
+    }
+
+    return visit(node, quoteAttributeNames, context);
+}
+
 
 char *
 serializeQuery(QueryOperator *q)
@@ -307,6 +342,10 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                         matchInfo->aggregation = (AggregationOperator *) cur;
                         state = MATCH_AGGREGATION;
                         break;
+                    case T_WindowOperator:
+                        matchInfo->windowRoot = (WindowOperator *) cur;
+                        state = MATCH_WINDOW;
+                        break;
                     default:
                         matchInfo->fromRoot = cur;
                         state = MATCH_NEXTBLOCK;
@@ -331,6 +370,10 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                     case T_AggregationOperator:
                         matchInfo->aggregation= (AggregationOperator *) cur;
                         state = MATCH_AGGREGATION;
+                        break;
+                    case T_WindowOperator:
+                        matchInfo->windowRoot = (WindowOperator *) cur;
+                        state = MATCH_WINDOW;
                         break;
                     default:
                         FATAL_LOG("After matching first projection we should "
@@ -401,6 +444,32 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                 state = MATCH_NEXTBLOCK;
             }
             break;
+            case MATCH_WINDOW:
+            {
+                switch(cur->type)
+                {
+                    case T_WindowOperator:
+                        // do nothing
+                    break;
+                    case T_SelectionOperator:
+                    {
+                        matchInfo->where = (SelectionOperator *) cur;
+                        state = MATCH_WHERE;
+                    }
+                    break;
+                   case T_ProjectionOperator:
+                   {
+                       matchInfo->secondProj = (ProjectionOperator *) cur;
+                       state = MATCH_SECOND_PROJ;
+                   }
+                   break;
+                   default:
+                       matchInfo->fromRoot = cur;
+                       state = MATCH_NEXTBLOCK;
+                   break;
+                }
+            }
+            break;
             case MATCH_NEXTBLOCK:
                 FATAL_LOG("should not end up here because we already"
                         " have reached MATCH_NEXTBLOCK state");
@@ -422,7 +491,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
     if(matchInfo->where != NULL)
         serializeWhere(matchInfo->where, whereString, fromAttrs);
 
-    DEBUG_LOG("serialize projection + aggregation + groupBy +  having");
+    DEBUG_LOG("serialize projection + aggregation + groupBy +  having + window functions");
     serializeProjectionAndAggregation(matchInfo, selectString, havingString,
             groupByString, fromAttrs);
 
@@ -539,7 +608,8 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             }
             List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
             *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-            appendStringInfo(from, "(%s%s F%u)", t->tableName, asOf ? asOf : "", (*curFromItem)++);
+            appendStringInfo(from, "(%s%s F%u)", quoteIdentifier(t->tableName),
+                    asOf ? asOf : "", (*curFromItem)++);
         }
         break;
 
@@ -996,4 +1066,39 @@ createViewName (void)
     appendStringInfo(str, "temp_view_of_%u", viewNameCounter++);
 
     return str->data;
+}
+
+/*
+ * quote identifier if necessary
+ */
+char *
+quoteIdentifier (char *ident)
+{
+    int i = 0;
+    boolean needsQuotes = FALSE;
+
+    if (!isupper(ident[0]))
+        needsQuotes = TRUE;
+
+    for(i = 0; i < strlen(ident); i++)
+    {
+        switch(ident[i])
+        {
+            case '$':
+            case '#':
+            case '_':
+                break;
+            default:
+                if (!isupper(ident[i]))
+                    needsQuotes = TRUE;
+                break;
+        }
+        if (needsQuotes)
+            break;
+    }
+
+    if (needsQuotes)
+        ident = CONCAT_STRINGS("\"",ident,"\"");
+
+    return ident;
 }
