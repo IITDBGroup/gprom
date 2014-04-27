@@ -140,6 +140,7 @@ typedef struct List
 
 extern boolean checkList(const List *list);
 
+/* list creation */
 extern List *newList(NodeTag type);
 
 extern List *singletonInt(int value);
@@ -147,8 +148,10 @@ extern List *singleton(void *value);
 #define LIST_MAKE(...) listMake(__VA_ARGS__, NULL)
 extern List *listMake(void *elem, ...);
 
+/* length of list */
 extern int getListLength(List *list);
 
+/* get certain elements */
 extern ListCell *getHeadOfList(List *list);
 extern int getHeadOfListInt (List *list);
 extern void *getHeadOfListP (List *list);
@@ -161,6 +164,7 @@ extern void *getNthOfListP(List *list, int n);
 extern int getNthOfListInt(List *list, int n);
 extern ListCell *getNthOfList(List *list, int n);
 
+/* append to head or tail of list */
 extern void newListTail(List *list);
 extern List *appendToTailOfList(List *list, void *value);
 extern List *appendToTailOfListInt(List *list, int value);
@@ -169,17 +173,18 @@ extern void newListHead(List *list);
 extern List *appendToHeadOfList(List *list, void *value);
 extern List *appendToHeadOfListInt (List *list, int value);
 
-extern List *replaceNode(List *list, void *n1, void *n2);
-
+/* sort and reverse list */
 extern void reverseList(List *list);
-
 extern void sortList(List *list);
 
+/* copy and free lists */
 extern List *copyList(List *list);
 extern List *deepCopyStringList (List *list);
 extern void freeList(List *list);
 extern void deepFreeList(List *list);
+extern List *stringListToConstList(List *list);
 
+/* search for elements in list */
 extern boolean searchList(List *list, void *value);
 extern boolean searchListInt(List *list, int value);
 extern boolean searchListString(List *list, char *value);
@@ -189,15 +194,21 @@ extern boolean genericSearchList(List *list, boolean (*eq) (void *, void *), voi
 extern int listPosString (List *list, char *value);
 extern boolean genericListPos (List *list, boolean (*eq) (void *, void *), void *value);
 
+/* replace list elements */
+extern List *replaceNode(List *list, void *n1, void *n2);
+
+/* remove element from list */
 extern List *genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value);
 #define REMOVE_FROM_LIST_PTR(list,ptr) genericRemoveFromList (list, ptrEqual, ptr)
 #define REMOVE_FROM_LIST_NODE(list,node) genericRemoveFromList (list, equal, node)
 
+/* concatenate lists and get sublists */
 extern List *concatTwoLists (List *listA, List *listB);
 extern List *concatLists (List *a, ...);
 #define CONCAT_LISTS(...) concatLists(__VA_ARGS__, NULL)
 extern List *sublist(List *l, int from, int to);
 
+/* serialize to string */
 extern char *stringListToString (List *node);
 
 #endif /* LIST_H */

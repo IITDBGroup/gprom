@@ -7,6 +7,7 @@
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 
@@ -18,22 +19,22 @@ checkList(const List *list)
     if (list == NIL)
         return TRUE;
 
-    assert(list->length > 0);
-    assert(list->head != NULL);
-    assert(list->tail != NULL);
-    assert(list->type == T_List || list->type == T_IntList);
+    ASSERT(list->length > 0);
+    ASSERT(list->head != NULL);
+    ASSERT(list->tail != NULL);
+    ASSERT(list->type == T_List || list->type == T_IntList);
 
     for(ListCell *lc = list->head; lc != NULL; lc = lc->next)
         realLength++;
 
-    assert(realLength == list->length);
+    ASSERT(realLength == list->length);
 
     if (list->length == 1)
-        assert(list->head == list->tail);
+        ASSERT(list->head == list->tail);
     if (list->length == 2)
-        assert(list->head->next == list->tail);
+        ASSERT(list->head->next == list->tail);
 
-    assert(list->tail->next == NULL);
+    ASSERT(list->tail->next == NULL);
 
     return TRUE;
 }
@@ -73,7 +74,7 @@ newList(NodeTag type)
     newList->head = newListHead;
     newList->tail = newListHead;
 
-    assert(checkList(newList));
+    ASSERT(checkList(newList));
 
     return newList;
 }
@@ -110,7 +111,7 @@ getHeadOfList(List *list)
 int
 getHeadOfListInt (List *list)
 {
-	assert(isIntList(list));
+	ASSERT(isIntList(list));
     ListCell *head;
     
     head = getHeadOfList(list);
@@ -120,7 +121,7 @@ getHeadOfListInt (List *list)
 void *
 getHeadOfListP (List *list)
 {
-    assert(isPtrList(list));
+    ASSERT(isPtrList(list));
     ListCell *head;
 
     head = getHeadOfList(list);
@@ -139,7 +140,7 @@ void *
 getTailOfListP (List *list)
 {
     ListCell *tail;
-    assert(isPtrList(list));
+    ASSERT(isPtrList(list));
 
     tail = getTailOfList(list);
 
@@ -149,7 +150,7 @@ getTailOfListP (List *list)
 int
 getTailOfListInt(List *list)
 {
-    assert(isIntList(list));
+    ASSERT(isIntList(list));
     
     ListCell *tail;
     
@@ -175,7 +176,7 @@ getNthOfList(List *list, int n)
 {
 	if (list == NIL)
 		return NULL;
-	assert(getListLength(list) >= n);
+	ASSERT(getListLength(list) >= n);
     
 	ListCell * node;
     
@@ -245,7 +246,7 @@ newListTail(List *list)
 List *
 appendToTailOfList(List *list, void *value)
 {
-    assert(isPtrList(list));
+    ASSERT(isPtrList(list));
 	
     if (list == NIL) 
 		list = newList(T_List);
@@ -253,14 +254,14 @@ appendToTailOfList(List *list, void *value)
         newListTail(list);
     
     list->tail->data.ptr_value = value;
-    assert(checkList(list));
+    ASSERT(checkList(list));
     return list;
 }
 
 List *
 appendToTailOfListInt(List *list, int value)
 {
-    assert(isIntList(list));
+    ASSERT(isIntList(list));
     
     if (list == NIL)
         list = newList(T_IntList);
@@ -268,7 +269,7 @@ appendToTailOfListInt(List *list, int value)
         newListTail(list);
     
     list->tail->data.int_value = value;
-    assert(checkList(list));
+    ASSERT(checkList(list));
     return list;
 }
 
@@ -286,7 +287,7 @@ newListHead(List *list)
 List *
 appendToHeadOfList(List *list, void *value)
 {
-    assert(isPtrList(list));
+    ASSERT(isPtrList(list));
 
     if (list == NIL)
         list = newList(T_List);
@@ -294,14 +295,14 @@ appendToHeadOfList(List *list, void *value)
         newListHead(list);
     
     list->head->data.ptr_value = value;
-    assert(checkList(list));
+    ASSERT(checkList(list));
     return list;
 }
 
 List *
 appendToHeadOfListInt (List *list, int value)
 {
-    assert(isIntList(list));
+    ASSERT(isIntList(list));
 
     if (list == NIL)
         list = newList(T_IntList);
@@ -309,7 +310,7 @@ appendToHeadOfListInt (List *list, int value)
         newListHead(list);
 
     list->head->data.int_value = value;
-    assert(checkList(list));
+    ASSERT(checkList(list));
     return list;
 }
 
@@ -345,7 +346,7 @@ reverseList(List *list)
 	}
 	list->head = prev;
 	list->tail = tail;
-    assert(checkList(list));
+    ASSERT(checkList(list));
 }
 
 void
@@ -414,6 +415,17 @@ deepFreeList(List *list)
 }
 
 List *
+stringListToConstList(List *list)
+{
+    List *result = NIL;
+
+    FOREACH(char,el,list)
+        result = appendToTailOfList(result, createConstString(el));
+
+    return result;
+}
+
+List *
 concatTwoLists(List *lista, List*listb)
 {
 	if (lista == NIL)
@@ -421,13 +433,13 @@ concatTwoLists(List *lista, List*listb)
 	if (listb == NIL)
 		return lista;
 
-    assert(lista->type == listb->type);
+    ASSERT(lista->type == listb->type);
 
 	lista->tail->next = listb->head;
 	lista->tail = listb->tail;
 	lista->length += listb->length;
 
-    assert(checkList(lista));
+    ASSERT(checkList(lista));
     FREE(listb);
     return lista;
 }
@@ -455,7 +467,7 @@ sublist(List *l, int from, int to)
     List *result = makeNode(List);
     ListCell *lc = l->head;
 
-    assert(from >= 0 && to <= LIST_LENGTH(l) && to > from);
+    ASSERT(from >= 0 && to <= LIST_LENGTH(l) && to > from);
 
     // skip from start
     for(int i = 0; i < from; i++, lc = lc ->next);
@@ -475,7 +487,7 @@ sublist(List *l, int from, int to)
 boolean
 searchList(List *list, void *value)
 {
-    assert(isPtrList(list));
+    ASSERT(isPtrList(list));
 
     FOREACH(void,item,list)
     {
@@ -489,7 +501,7 @@ searchList(List *list, void *value)
 boolean
 searchListInt(List *list, int value)
 {
-    assert(isIntList(list));
+    ASSERT(isIntList(list));
 
     if (list == NIL)
 		return FALSE;
@@ -516,7 +528,7 @@ searchListString(List *list, char *value)
 boolean
 searchListNode(List *list, Node *value)
 {
-    assert(isPtrList(list));
+    ASSERT(isPtrList(list));
 
     FOREACH(Node,item,list)
     {
@@ -537,7 +549,7 @@ genericSearchList(List *list, boolean (*eq) (void *, void *), void *value)
 boolean
 genericListPos (List *list, boolean (*eq) (void *, void *), void *value)
 {
-    assert(isPtrList(list));
+    ASSERT(isPtrList(list));
     int pos = 0;
 
     FOREACH(void,item,list)
@@ -554,7 +566,7 @@ genericListPos (List *list, boolean (*eq) (void *, void *), void *value)
 int
 listPosString (List *list, char *value)
 {
-    assert(isPtrList(list));
+    ASSERT(isPtrList(list));
     int pos = 0;
 
     FOREACH(char,item,list)
@@ -570,7 +582,7 @@ listPosString (List *list, char *value)
 List *
 genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 {
-    assert(isPtrList(list));
+    ASSERT(isPtrList(list));
     List *result = NULL;
     ListCell *prev = getHeadOfList(list);
 

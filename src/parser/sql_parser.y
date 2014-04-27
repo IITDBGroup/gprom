@@ -1001,7 +1001,7 @@ optionalFromProv:
 			{
 				RULELOG("optionalFromProv::userProvDupAttr");
 				FromProvInfo *p = makeNode(FromProvInfo);
-				p->baserel = FALSE;
+				p->baserel = TRUE;
 				p->userProvAttrs = $4;
 				$$ = (Node *) p;
 			}
@@ -1010,6 +1010,14 @@ optionalFromProv:
 				RULELOG("optionalFromProv::intermediateProv");
 				FromProvInfo *p = makeNode(FromProvInfo);
 				p->intermediateProv = TRUE;
+				$$ = (Node *) p;
+			}
+		| SHOW INTERMEDIATE PROVENANCE '(' identifierList ')'
+			{
+				RULELOG("optionalFromProv::intermediateProv::attrList");
+				FromProvInfo *p = makeNode(FromProvInfo);
+				p->intermediateProv = TRUE;
+				p->userProvAttrs = $5;
 				$$ = (Node *) p;
 			}
 	;

@@ -111,7 +111,7 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
         while(todo > 0)
         {
             size_t write = (todo >= 256) ? 256 : todo;
-            assert(fwrite(curBuf, sizeof(char), write, out) == write);
+            ASSERT(fwrite(curBuf, sizeof(char), write, out) == write);
             curBuf += write;
             todo -= write;
             fflush(out);

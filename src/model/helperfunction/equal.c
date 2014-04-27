@@ -255,7 +255,7 @@ equalList(List *a, List *b)
     COMPARE_SCALAR_FIELD(length);
 
     // lists have same type and length
-    assert(LIST_LENGTH(a) > 0 && LIST_LENGTH(b) > 0);
+    ASSERT(LIST_LENGTH(a) > 0 && LIST_LENGTH(b) > 0);
 
     switch(a->type)
     {
@@ -296,7 +296,7 @@ equalStringList (List *a, List *b)
     COMPARE_SCALAR_FIELD(length);
 
     // lists have same type and length
-    assert(LIST_LENGTH(a) > 0 && LIST_LENGTH(b) > 0);
+    ASSERT(LIST_LENGTH(a) > 0 && LIST_LENGTH(b) > 0);
 
     FORBOTH(char,s1,s2,a,b)
     {

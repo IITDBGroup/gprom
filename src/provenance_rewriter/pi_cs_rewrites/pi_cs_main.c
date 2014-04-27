@@ -105,7 +105,7 @@ rewritePI_CSOperator (QueryOperator *op)
 static QueryOperator *
 rewritePI_CSSelection (SelectionOperator *op)
 {
-    assert(OP_LCHILD(op));
+    ASSERT(OP_LCHILD(op));
 
     DEBUG_LOG("REWRITE-PICS - Selection");
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));
@@ -123,7 +123,7 @@ rewritePI_CSSelection (SelectionOperator *op)
 static QueryOperator *
 rewritePI_CSProjection (ProjectionOperator *op)
 {
-    assert(OP_LCHILD(op));
+    ASSERT(OP_LCHILD(op));
 
     DEBUG_LOG("REWRITE-PICS - Projection");
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));

@@ -144,6 +144,29 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             	break;
         }
 
+        // analyze FromProvInfo if exists
+        if (f->provInfo)
+        {
+            /* if the user provides a list of attributes (that store provenance
+             * or should be duplicated as provenance attributes) then we need
+             * to make sure these attributes exist. */
+            if (f->provInfo->userProvAttrs)
+            {
+                FOREACH(char,name,f->provInfo->userProvAttrs)
+                {
+                    if(!searchListString(f->attrNames, name))
+                        FATAL_LOG("did not find provenance attr %s in from "
+                                "item attrs %s", name, stringListToString(f->attrNames));
+                }
+            }
+        }
+
+        /*
+         * boolean baserel;
+    boolean intermediateProv;
+    List *userProvAttrs;
+         */
+
         DEBUG_LOG("analyzed from item <%s>", nodeToString(f));
     }
 
@@ -560,7 +583,7 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
                 (FromTableRef *)j->right);
     	if (j->from.attrNames == NULL)
     	    j->from.attrNames = expectedAttrs;
-    	assert(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
+    	ASSERT(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
     }
     //JOIN_COND_USING
     //JOIN_COND_ON
@@ -571,7 +594,7 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
                 deepCopyStringList(right->attrNames));
         if (j->from.attrNames == NULL)
             j->from.attrNames = expectedAttrs;
-        assert(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
+        ASSERT(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
     }
 }
 
@@ -733,7 +756,7 @@ analyzeFromSubquery(FromSubquery *sq, List *parentFroms)
 	if (!(sq->from.attrNames))
 	    sq->from.attrNames = expectedAttrs;
 
-	assert(LIST_LENGTH(sq->from.attrNames) == LIST_LENGTH(expectedAttrs));
+	ASSERT(LIST_LENGTH(sq->from.attrNames) == LIST_LENGTH(expectedAttrs));
 }
 
 static List *
@@ -818,13 +841,13 @@ expandStarExpression (SelectItem *s, List *fromClause)
 {
     List *nameParts = splitAttrOnDot(s->alias);
     List *newSelectItems = NIL;
-    assert(LIST_LENGTH(nameParts) == 1 || LIST_LENGTH(nameParts) == 2);
+    ASSERT(LIST_LENGTH(nameParts) == 1 || LIST_LENGTH(nameParts) == 2);
 
     // should be "*" select item -> expand to all attribute in from clause
     if (LIST_LENGTH(nameParts) == 1)
     {
         int fromAliasCount = 0;
-        assert(strcmp((char *) getNthOfListP(nameParts,0),"*") == 0);
+        ASSERT(strcmp((char *) getNthOfListP(nameParts,0),"*") == 0);
 
         FOREACH(FromItem,f,fromClause)
         {
@@ -859,7 +882,7 @@ expandStarExpression (SelectItem *s, List *fromClause)
         boolean found = FALSE;
         char *tabName = (char *) getNthOfListP(nameParts,0);
         char *attrName = (char *) getNthOfListP(nameParts,1);
-        assert(strcmp(attrName,"*") == 0);
+        ASSERT(strcmp(attrName,"*") == 0);
 
         FOREACH(FromItem,f,fromClause)
         {

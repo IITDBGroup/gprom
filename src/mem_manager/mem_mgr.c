@@ -72,8 +72,8 @@ destroyMemManager(void)
     }
     // free all contexts in the context stack except default context
 
-    assert(topContextNode->mc == defaultMemContext);
-    assert(curMemContext == defaultMemContext);
+    ASSERT(topContextNode->mc == defaultMemContext);
+    ASSERT(curMemContext == defaultMemContext);
     int size = memContextSize(defaultMemContext);
     if (size > 0)
     {
@@ -151,7 +151,7 @@ static void
 addAlloc(MemContext *mc, void *addr, const char *file, unsigned line)
 {
     Allocation *newAlloc = (Allocation *) malloc(sizeof(Allocation));
-    assert(mc != NULL);
+    ASSERT(mc != NULL);
     newAlloc->address = addr;
     newAlloc->file = file;
     newAlloc->line = line;

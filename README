@@ -38,6 +38,8 @@ Use the following configure options to set library locations:
 --with-oci-headers	: set location of Oracle OCI library header files
 --with-ocilib		: set location of OCILIB library
 --disable-logging   : disable logging
+--disable-assert	: disable assertion checking
+--disable-debug		: compile without debug symbols
 --enable-perftools  : link against google perftools library
 
 Long version:

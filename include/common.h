@@ -76,6 +76,7 @@
 /*******************************************************************************
  * Definitions
  */
+/* boolean type and consts */
 #ifndef boolean
 #define boolean int
 #endif
@@ -87,5 +88,14 @@
 
 // override free to make sure nobody is using free directly
 #define free(_p) "DO NOT USE free DIRECTLY USE \"FREE\" FROM THE MEMORY MANAGER"; @
+
+// provide ASSERT macro if not deactivated by user
+#ifdef DISABLE_ASSERT
+#define ASSERT(expr)
+#define ASSERT_BARRIER(code)
+#else
+#define ASSERT(expr) assert(expr)
+#define ASSERT_BARRIER(code) code
+#endif
 
 #endif /* COMMON_H */

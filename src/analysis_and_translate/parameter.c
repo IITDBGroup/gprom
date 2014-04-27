@@ -51,7 +51,7 @@ replaceParamMutator (Node *node, List *state)
         int pos = p->position;
         Node *val;
 
-        assert(pos > 0 && pos <= LIST_LENGTH(state));
+        ASSERT(pos > 0 && pos <= LIST_LENGTH(state));
 
         val = getNthOfListP(state, pos - 1);
         DEBUG_LOG("replaced parameter <%s> with <%s>", nodeToString(p), nodeToString(val));
@@ -140,7 +140,7 @@ oracleBindToConsts (char *binds)
         int read;
 
         // do not advance after last position of input string
-        assert(pos - binds <= strlen(binds) + 1);
+        ASSERT(pos - binds <= strlen(binds) + 1);
 
         // read parameter number and length. The format is #PARAM_NUM(LENGTH):
         retVal = sscanf(pos," #%u(%u):%n", &param, &len, &read);

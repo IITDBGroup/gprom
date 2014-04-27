@@ -219,7 +219,7 @@ searchViewBuffers(char *viewName)
 static int
 initConnection()
 {
-    assert(initialized);
+    ASSERT(initialized);
 
     ACQUIRE_MEM_CONTEXT(context);
 

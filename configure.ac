@@ -118,6 +118,35 @@ AS_IF([test "x$enable_link_perftools" == "xyes"], [
 	AC_CHECK_LIB([profiler],[ProfilerStart],[],[AC_MSG_ERROR([missing google perftools libprofiler])])
 ])
 ])
+# enable or disable 
+AC_DEFUN([AC_ASSERT_ACTIVE],
+[
+AC_MSG_CHECKING([should be compiled with assertion support])
+AC_ARG_ENABLE(assert, AS_HELP_STRING([--disable-assert],[Disable assertions]))
+
+AS_IF([test "x$enable_assert" == "xno"], [
+  AC_DEFINE([DISABLE_ASSERT],[],[Disable assert])
+  AC_MSG_RESULT([no])
+],
+[
+  AC_MSG_RESULT([yes])
+])
+])
+# enable or disable 
+AC_DEFUN([AC_DEBUG_ACTIVE],
+[
+AC_MSG_CHECKING([should be compiled with debug symbols])
+AC_ARG_ENABLE(debug, AS_HELP_STRING([--disable-debug],[Disable compilation with debugging symbols]))
+
+AS_IF([test "x$enable_debug" == "xno"], [
+  AC_DEFINE([DISABLE_DEBUG],[],[Disable debug])
+  AC_MSG_RESULT([no])
+],
+[
+  AC_MSG_RESULT([yes])
+  CPPFLAGS="$CPPFLAGS -g"
+])
+])
 ################################################################################
 # DATA TYPES
 AC_TYPE_SIZE_T
@@ -159,6 +188,8 @@ AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[AC_MSG_ERROR([missing OCILIB])])
 # enable/disable features
 AC_LOGGING_ACTIVE
 AC_LINK_PERFTOOLS
+AC_ASSERT_ACTIVE
+AC_DEBUG_ACTIVE
 ################################################################################
 # OUTPUT HEADER
 AC_CONFIG_HEADERS([config.h])

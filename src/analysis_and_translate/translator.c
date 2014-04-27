@@ -56,6 +56,7 @@ static inline QueryOperator *createTableAccessOpFromFromTableRef(
 		FromTableRef *ftr);
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje);
 static QueryOperator *translateFromSubquery(FromSubquery *fsq);
+static void translateFromProvInfo(QueryOperator *op, FromProvInfo *from);
 
 /* Functions of translating nested subquery in a QueryBlock */
 static QueryOperator *translateNestedSubquery(QueryBlock *qb,
@@ -112,7 +113,7 @@ translateParse(Node *q)
 
     DEBUG_LOG("result of translation is \n%s", beatify(nodeToString(result)));
     INFO_LOG("result of translation overview is\n%s", operatorToOverviewString(result));
-    assert(equal(result, copyObject(result)));
+    ASSERT(equal(result, copyObject(result)));
 
     FREE_MEM_CONTEXT_AND_RETURN_COPY(Node,result);
 }
@@ -152,7 +153,7 @@ translateQuery (Node *node)
         case T_WithStmt:
             return translateWithStmt((WithStmt *) node);
         default:
-            assert(FALSE);
+            ASSERT(FALSE);
             return NULL;
     }
 }
@@ -170,7 +171,7 @@ translateSetQuery(SetQuery *sq)
         left = translateQuery(sq->lChild);
     if (sq->rChild)
         right = translateQuery(sq->rChild);
-    assert(left && right);
+    ASSERT(left && right);
 
 	// set children of the set operator node
 	List *inputs = LIST_MAKE(left, right);
@@ -600,13 +601,34 @@ translateFromClauseToOperatorList(List *fromClause)
                 break;
         }
 
-        assert(op);
+        translateFromProvInfo(op, from->provInfo);
+
+        ASSERT(op);
         opList = appendToTailOfList(opList, op);
     }
 
-    assert(opList);
+    ASSERT(opList);
     DEBUG_LOG("translated from clause into list of operator trees is \n%s", nodeToString(opList));
     return opList;
+}
+
+static void
+translateFromProvInfo(QueryOperator *op, FromProvInfo *from)
+{
+    if (from == NULL)
+        return;
+
+    /* treat as base relation or show intermediate provenance? */
+    if (from->intermediateProv)
+        SET_BOOL_STRING_PROP(op,"SHOW_INTERMEDIATE_PROV");
+    else
+        SET_BOOL_STRING_PROP(op,"DO_NOT_RECURSE_REWRITE");
+
+    /* user provided provenance attributes or all attributes of subquery? */
+    if (from->userProvAttrs != NIL)
+        setStringProperty(op, "USER_PROV_ATTRS", (Node *) stringListToConstList(from->userProvAttrs));
+    else
+        setStringProperty(op, "USER_PROV_ATTRS", (Node *) stringListToConstList(getQueryOperatorAttrNames(op)));
 }
 
 static inline QueryOperator *
@@ -661,7 +683,7 @@ translateFromJoinExpr(FromJoinExpr *fje)
             break;
     }
 
-    assert(input1 && input2);
+    ASSERT(input1 && input2);
 
     // set children of the join operator node
     List *inputs = LIST_MAKE(input1, input2);

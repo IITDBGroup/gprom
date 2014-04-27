@@ -89,12 +89,13 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
     INFO_LOG("as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
 
-    if (isA(rewrittenTree, List))
-        FOREACH(QueryOperator,o,(List *) rewrittenTree)
-            assert(checkModel(o));
-    else
-        assert(checkModel((QueryOperator *) rewrittenTree));
-
+    ASSERT_BARRIER(
+        if (isA(rewrittenTree, List))
+            FOREACH(QueryOperator,o,(List *) rewrittenTree)
+                ASSERT(checkModel(o));
+        else
+            ASSERT(checkModel((QueryOperator *) rewrittenTree));
+    )
 
     if(applyOptimizations)
     {
@@ -105,13 +106,13 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
                 QueryOperator *o = (QueryOperator *) LC_P_VAL(lc);
 
                 o = mergeAdjacentOperators(o);
-                assert(checkModel(o));
+                ASSERT(checkModel(o));
                 DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) o));
                 o = pushDownSelectionOperatorOnProv(o);
-                assert(checkModel(o));
+                ASSERT(checkModel(o));
                 DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) o));
                 o = mergeAdjacentOperators(o);
-                assert(checkModel(o));
+                ASSERT(checkModel(o));
                 DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) o));
                 LC_P_VAL(lc) = o;
             }
@@ -119,11 +120,11 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
         else
         {
             rewrittenTree = (Node *) mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-            assert(checkModel((QueryOperator *) rewrittenTree));
+            ASSERT(checkModel((QueryOperator *) rewrittenTree));
             rewrittenTree = (Node *) pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
-            assert(checkModel((QueryOperator *) rewrittenTree));
+            ASSERT(checkModel((QueryOperator *) rewrittenTree));
             rewrittenTree = (Node *) mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-            assert(checkModel((QueryOperator *) rewrittenTree));
+            ASSERT(checkModel((QueryOperator *) rewrittenTree));
         }
         INFO_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
     }

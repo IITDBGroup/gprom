@@ -94,7 +94,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         treeify((QueryOperator *) op);
         INFO_LOG("treeifyed operator model:\n\n%s", operatorToOverviewString((Node *) op));
         DEBUG_LOG("treeifyed operator model:\n\n%s", beatify(nodeToString(op)));
-        assert(isTree((QueryOperator *) op));
+        ASSERT(isTree((QueryOperator *) op));
     }
 
     switch(op->provType)

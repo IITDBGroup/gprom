@@ -148,7 +148,7 @@ extern Allocation *findAlloc(const MemContext *mc, const void *addr);
     	_type *_origNode = (_type *) _node; \
     	MemContext *oldC = RELEASE_MEM_CONTEXT(); \
     	_resultNode = (_type *) copyObject(_origNode); \
-    	assert(equal(_resultNode,_origNode)); \
+    	ASSERT(equal(_resultNode,_origNode)); \
     	FREE_IN_CONTEXT(oldC, _origNode); \
     	return (_type *) _resultNode; \
     } while(0)
@@ -171,7 +171,7 @@ extern Allocation *findAlloc(const MemContext *mc, const void *addr);
         _type *_origNode = (_type *) (_node); \
         MemContext *oldC = RELEASE_MEM_CONTEXT(); \
         _resultNode = (_type *) copyObject(_origNode); \
-        assert(equal(_resultNode,_origNode)); \
+        ASSERT(equal(_resultNode,_origNode)); \
         FREE_MEM_CONTEXT(oldC); \
         return (_type *) _resultNode; \
     } while(0)

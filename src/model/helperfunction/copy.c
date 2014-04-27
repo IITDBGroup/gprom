@@ -873,7 +873,7 @@ mapGetOp(QueryOperator *op, OperatorMap **opMap)
     OperatorMap *result;
 
     HASH_FIND_PTR(*opMap,&op,result);
-    assert(result != NULL);
+    ASSERT(result != NULL);
 
     return result->copy;
 }

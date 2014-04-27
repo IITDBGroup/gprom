@@ -243,8 +243,8 @@ unionSets (Set *left, Set *right)
     Set *result;
     SetElem *s;
 
-    assert(left->setType == right->setType);
-    assert(left->cpy && right->cpy);
+    ASSERT(left->setType == right->setType);
+    ASSERT(left->cpy && right->cpy);
 
     result = CREATE_SAME_TYPE_SET(left);
 
@@ -280,8 +280,8 @@ intersectSets (Set *left, Set *right)
     Set *result;
     SetElem *s;
 
-    assert(left->setType == right->setType);
-    assert(left->cpy && right->cpy);
+    ASSERT(left->setType == right->setType);
+    ASSERT(left->cpy && right->cpy);
 
     result = CREATE_SAME_TYPE_SET(left);
 
