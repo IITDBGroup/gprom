@@ -26,6 +26,7 @@
 #include "analysis_and_translate/translator.h"
 #include "sql_serializer/sql_serializer.h"
 #include "operator_optimizer/operator_optimizer.h"
+#include "instrumentation/timing_instrumentation.h"
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 
@@ -41,6 +42,8 @@ rewriteQuery(char *input)
     result = rewriteParserOutput(parse, isRewriteOptionActivated("optimize_operator_model"));
     INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
 
+    OUT_TIMERS();
+
     return result;
 }
 
@@ -54,6 +57,8 @@ rewriteQueryFromStream (FILE *stream) {
 
     result = rewriteParserOutput(parse, isRewriteOptionActivated("optimize_operator_model"));
     INFO_LOG("Rewritten SQL text is <%s>", result);
+
+    OUT_TIMERS();
 
     return result;
 }
@@ -81,13 +86,17 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     Node *oModel;
     Node *rewrittenTree;
 
+    START_TIMER("translation");
     oModel = translateParse(parse);
     DEBUG_LOG("translator returned:\n\n<%s>", nodeToString(oModel));
     INFO_LOG("as overview:\n\n%s", operatorToOverviewString(oModel));
+    STOP_TIMER("translation");
 
+    START_TIMER("rewrite");
     rewrittenTree = provRewriteQBModel(oModel);
     DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
     INFO_LOG("as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
+    STOP_TIMER("rewrite");
 
     ASSERT_BARRIER(
         if (isA(rewrittenTree, List))
@@ -99,6 +108,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
 
     if(applyOptimizations)
     {
+        START_TIMER("OptimizeModel");
         if(isA(rewrittenTree, List))
         {
             FOREACH_LC(lc, (List *) rewrittenTree)
@@ -127,9 +137,12 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
             ASSERT(checkModel((QueryOperator *) rewrittenTree));
         }
         INFO_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
+        STOP_TIMER("OptimizeModel");
     }
 
+    START_TIMER("SQLcodeGen");
     appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
+    STOP_TIMER("SQLcodeGen");
 
     rewrittenSQL = result->data;
     FREE(result);

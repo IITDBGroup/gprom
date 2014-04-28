@@ -118,7 +118,7 @@ AS_IF([test "x$enable_link_perftools" == "xyes"], [
 	AC_CHECK_LIB([profiler],[ProfilerStart],[],[AC_MSG_ERROR([missing google perftools libprofiler])])
 ])
 ])
-# enable or disable 
+# enable or disable assertions
 AC_DEFUN([AC_ASSERT_ACTIVE],
 [
 AC_MSG_CHECKING([should be compiled with assertion support])
@@ -132,7 +132,7 @@ AS_IF([test "x$enable_assert" == "xno"], [
   AC_MSG_RESULT([yes])
 ])
 ])
-# enable or disable 
+# enable or disable debugging symbols
 AC_DEFUN([AC_DEBUG_ACTIVE],
 [
 AC_MSG_CHECKING([should be compiled with debug symbols])
@@ -145,6 +145,20 @@ AS_IF([test "x$enable_debug" == "xno"], [
 [
   AC_MSG_RESULT([yes])
   CPPFLAGS="$CPPFLAGS -g"
+])
+])
+# compile with or without timing support
+AC_DEFUN([AC_TIMING_ACTIVE],
+[
+AC_MSG_CHECKING([should be compiled with timing instrumentation])
+AC_ARG_ENABLE(timing, AS_HELP_STRING([--disable-timing],[Disable compilation with timing instrumentation]))
+
+AS_IF([test "x$enable_timing" == "xno"], [
+  AC_DEFINE([DISABLE_TIMING],[],[Disable timing])
+  AC_MSG_RESULT([no])
+],
+[
+  AC_MSG_RESULT([yes])
 ])
 ])
 ################################################################################
@@ -163,6 +177,7 @@ AC_CHECK_TYPES([ptrdiff_t])
 AC_CHECK_HEADERS([stddef.h])
 AC_CHECK_HEADERS([libintl.h])
 AC_CHECK_HEADERS([stdarg.h])
+AC_CHECK_HEADERS([time.h])
 AC_HEADER_ASSERT
 ################################################################################
 # MEMORY ALLOCATION STUFF
@@ -190,6 +205,7 @@ AC_LOGGING_ACTIVE
 AC_LINK_PERFTOOLS
 AC_ASSERT_ACTIVE
 AC_DEBUG_ACTIVE
+AC_TIMING_ACTIVE
 ################################################################################
 # OUTPUT HEADER
 AC_CONFIG_HEADERS([config.h])
@@ -201,6 +217,7 @@ AC_CONFIG_FILES([
 	src/analysis_and_translate/Makefile
 	src/command_line/Makefile
 	src/configuration/Makefile
+	src/instrumentation/Makefile
 	src/log/Makefile
 	src/mem_manager/Makefile
 	src/metadata_lookup/Makefile

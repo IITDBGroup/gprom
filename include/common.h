@@ -49,6 +49,12 @@
 #include <stdargs.h>
 #endif
 
+/* <time.h> */
+#if HAVE_TIME_H
+#include <time.h>
+#include <sys/time.h>
+#endif
+
 /* ptrdiff_t */
 #if HAVE_PTRDIFF_T
 //TODO
