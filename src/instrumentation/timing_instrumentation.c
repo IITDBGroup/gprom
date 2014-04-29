@@ -32,6 +32,8 @@ typedef struct Timer
     // current timer status
     struct timeval curStart;
     struct timeval curEnd;
+    long fullStart;
+    long fullEnd;
 
     // time stats
     long totalTime;
@@ -47,7 +49,9 @@ typedef struct Timer
     UT_hash_handle hh;
 } Timer;
 
+// variables
 static Timer *allTimers = NULL;
+static MemContext *context = NULL;
 
 // static functions
 static Timer *getOrCreateTimer (char *name, int line, const char *function,
@@ -55,18 +59,35 @@ static Timer *getOrCreateTimer (char *name, int line, const char *function,
 static void updateStats (Timer *t);
 static long mytimediff (struct timeval *start, struct timeval *end);
 
+#define CREATE_OR_USE_MEMCONTEXT() \
+    do { \
+    	if (context == NULL)    \
+            context = NEW_MEM_CONTEXT("TimerContext");  \
+        ACQUIRE_MEM_CONTEXT(context); \
+    } while (0)
+
 /*
  * Start a timer
  */
 void
 startTimer(char *name, int line, const char *function, const char *sourceFile)
 {
-    Timer *t = getOrCreateTimer(name, line, function, sourceFile);
+    Timer *t;
     struct timeval st;
 
+    if(!isRewriteOptionActivated("timing"))
+        return;
+
+    CREATE_OR_USE_MEMCONTEXT();
+
+    t = getOrCreateTimer(name, line, function, sourceFile);
     gettimeofday(&st, NULL);
+    DEBUG_LOG("FULLTIME %ld", st.tv_sec * 1000000 + st.tv_usec);
+    t->fullStart = st.tv_sec * 1000000 + st.tv_usec;
     t->curStart = st;
     DEBUG_LOG("Start time <%s> %ld sec %ld usec", name, st.tv_sec, st.tv_usec);
+
+    RELEASE_MEM_CONTEXT();
 }
 
 /*
@@ -75,19 +96,30 @@ startTimer(char *name, int line, const char *function, const char *sourceFile)
 void
 endTimer(char *name, int line, const char *function, const char *sourceFile)
 {
-    Timer *t = getOrCreateTimer(name, line, function, sourceFile);
+    Timer *t;
     struct timeval st;
 
+    if(!isRewriteOptionActivated("timing"))
+        return;
+
+    CREATE_OR_USE_MEMCONTEXT();
+
+    t = getOrCreateTimer(name, line, function, sourceFile);
     gettimeofday(&st, NULL);
     t->curEnd = st;
+    t->fullEnd = st.tv_sec * 1000000 + st.tv_usec;
     DEBUG_LOG("Stop time <%s> %ld sec %ld usec", name, st.tv_sec, st.tv_usec);
     updateStats(t);
+
+    RELEASE_MEM_CONTEXT();
 }
 
 static void
 updateStats (Timer *t)
 {
-    long newT = mytimediff(&(t->curEnd), &(t->curStart));
+    DEBUG_LOG("%ld - %ld - %ld", t->fullStart, t->fullEnd, t->fullEnd - t->fullStart);
+//    long newT = mytimediff(&(t->curEnd), &(t->curStart));
+    long newT = t->fullEnd - t->fullStart;
     t->totalTime += newT;
     t->minTime = (newT < t->minTime) ? newT : t->minTime;
     t->maxTime = (newT > t->maxTime) ? newT : t->maxTime;
@@ -105,8 +137,8 @@ mytimediff (struct timeval *start, struct timeval *end)
 
     DEBUG_LOG("\nstart: %ld sec %ld usec\nend: %ld sec %ld usec",
             start->tv_sec, start->tv_usec, end->tv_sec, end->tv_usec);
-    usecDiff = (end->tv_usec / 1000L) - (start->tv_usec / 1000L);
-    secDiff = (end->tv_sec - start->tv_sec);
+    usecDiff = ((end->tv_usec) / 1000L) - ((start->tv_usec) / 1000L);
+    secDiff = (end->tv_sec) - (start->tv_sec);
     diff = usecDiff + (1000 * secDiff);
     DEBUG_LOG("secdiff: %ld, usecdiff: %ld, diff: %ld", usecDiff, secDiff, diff);
 
@@ -127,6 +159,7 @@ getOrCreateTimer (char *name, int line, const char *function, const char *source
         t->line = line;
         t->func = strdup((char *) function);
         t->file = strdup((char *) sourceFile);
+        t->times = NIL;
 
         HASH_ADD_KEYPTR(hh, allTimers, t->name, strlen(t->name), t);
         DEBUG_LOG("created new timer for <%s>", t->name);
@@ -142,15 +175,19 @@ outputTimers (void)
 {
     Timer *t;
 
+    CREATE_OR_USE_MEMCONTEXT();
+
     if(!isRewriteOptionActivated("timing"))
         return;
 
     for(t = allTimers; t != NULL; t = t->hh.next)
     {
-        printf("timer: %s   - total: %ld calls: %ld avg: %ld\n",
+        printf("timer: %30s - total: %12f sec calls: %9ld avg: %12f\n",
                 t->name,
-                t->totalTime,
+                ((double) t->totalTime) / 1000000.0,
                 t->numCalls,
-                t->avgTime);
+                ((double) t->avgTime) / 1000000.0);
     }
+
+    RELEASE_MEM_CONTEXT();
 }

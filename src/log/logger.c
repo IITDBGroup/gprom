@@ -87,13 +87,9 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
         // output loglevel and location of log statement
         fprintf(out, "%s", getHead(level));
         if (file && line > 0)
-        {
             fprintf(out, "(%s:%u) ", file, line);
-        }
         else
-        {
             fprintf(out, "(unknown) ");
-        }
 
         // use string info as buffer to deal with large strings
         while(!success)
@@ -110,8 +106,9 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
         char *curBuf = buffer->data;
         while(todo > 0)
         {
-            size_t write = (todo >= 256) ? 256 : todo;
-            ASSERT(fwrite(curBuf, sizeof(char), write, out) == write);
+            size_t write = (todo >= 10240) ? 10240 : todo;
+            size_t fw = fwrite(curBuf, sizeof(char), write, out);
+            ASSERT(fw == write);
             curBuf += write;
             todo -= write;
             fflush(out);

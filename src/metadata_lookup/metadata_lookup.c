@@ -13,6 +13,7 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "log/logger.h"
+#include "instrumentation/timing_instrumentation.h"
 
 /* If OCILIB and OCI are available then use it */
 #if HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
@@ -195,9 +196,7 @@ searchTableBuffers(char *tableName)
     FOREACH(TableBuffer, t, tableBuffers)
     {
         if(strcmp(t->tableName, tableName) == 0)
-        {
             return t->attrs;
-        }
     }
     return NIL;
 }
@@ -209,9 +208,7 @@ searchViewBuffers(char *viewName)
     FOREACH(ViewBuffer, v, viewBuffers)
     {
         if(strcmp(v->viewName, viewName) == 0)
-        {
             return v->viewDefinition;
-        }
     }
     return NULL;
 }
@@ -306,8 +303,17 @@ catalogTableExists(char* tableName)
         return FALSE;
     if(conn==NULL)
         initConnection();
+
+    START_TIMER("module - metadata lookup");
+
     if(isConnected())
+    {
+        STOP_TIMER("module - metadata lookup");
         return (OCI_TypeInfoGet(conn,tableName,OCI_TIF_TABLE)==NULL) ? FALSE : TRUE;
+    }
+
+    STOP_TIMER("module - metadata lookup");
+
     return FALSE;
 }
 
@@ -318,8 +324,16 @@ catalogViewExists(char* viewName)
         return FALSE;
     if(conn==NULL)
         initConnection();
+
+    START_TIMER("module - metadata lookup");
     if(isConnected())
+    {
+        STOP_TIMER("module - metadata lookup");
         return (OCI_TypeInfoGet(conn,viewName,OCI_TIF_VIEW)==NULL) ? FALSE : TRUE;
+    }
+
+    STOP_TIMER("module - metadata lookup");
+
     return FALSE;
 }
 
@@ -341,6 +355,8 @@ getAttributes(char *tableName)
     List *attrList=NIL;
 
     ACQUIRE_MEM_CONTEXT(context);
+
+    START_TIMER("module - metadata lookup");
 
     if(tableName==NULL)
         RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
@@ -372,6 +388,8 @@ getAttributes(char *tableName)
         return attrList;
     }
     ERROR_LOG("Not connected to database.");
+
+    STOP_TIMER("module - metadata lookup");
 
     // copy result to callers memory context
     RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
@@ -414,6 +432,8 @@ getTableDefinition(char *tableName)
 
     ACQUIRE_MEM_CONTEXT(context);
 
+    START_TIMER("module - metadata lookup");
+
     statement = makeStringInfo();
     appendStringInfo(statement, "select DBMS_METADATA.GET_DDL('TABLE', '%s\')"
             " from DUAL", tableName);
@@ -425,10 +445,12 @@ getTableDefinition(char *tableName)
         {
             FREE(statement);
             result = strdup((char *)OCI_GetString(rs, 1));
+            STOP_TIMER("module - metadata lookup");
             RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
         }
     }
     FREE(statement);
+    STOP_TIMER("module - metadata lookup");
     RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(NULL);
 }
 
@@ -436,6 +458,8 @@ void
 getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds,
         IsolationLevel *iso, Constant *commitScn)
 {
+    START_TIMER("module - metadata lookup");
+
     if(xid != NULL)
     {
         StringInfo statement;
@@ -532,6 +556,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds,
         long commitS = LONG_VALUE(getTailOfListP(*scns)) + 1;
         (*((long *) commitScn->value)) = commitS; //TODO write query to get real COMMIT SCN
     }
+    STOP_TIMER("module - metadata lookup");
 }
 
 char *
@@ -539,6 +564,8 @@ getViewDefinition(char *viewName)
 {
     char *def = NULL;
     StringInfo statement;
+
+    START_TIMER("module - metadata lookup");
 
     ACQUIRE_MEM_CONTEXT(context);
 
@@ -567,6 +594,8 @@ getViewDefinition(char *viewName)
         }
     }
     FREE(statement);
+
+    STOP_TIMER("module - metadata lookup");
     RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY (NULL);
 }
 
@@ -577,6 +606,7 @@ executeStatement(char *statement)
         return NULL;
     if((conn = getConnection()) != NULL)
     {
+        START_TIMER("Oracle - execute SQL");
         if(st == NULL)
             st = OCI_StatementCreate(conn);
         OCI_ReleaseResultsets(st);
@@ -585,12 +615,14 @@ executeStatement(char *statement)
             OCI_Resultset *rs = OCI_GetResultset(st);
             DEBUG_LOG("Statement: %s executed successfully.", statement);
             DEBUG_LOG("%d row fetched", OCI_GetRowCount(rs));
+            STOP_TIMER("Oracle - execute SQL");
             return rs;
         }
         else
         {
             ERROR_LOG("Statement: %s failed.", statement);
         }
+        STOP_TIMER("Oracle - execute SQL");
     }
     return NULL;
 }
@@ -602,17 +634,20 @@ executeNonQueryStatement(char *statement)
         return FALSE;
     if((conn = getConnection()) != NULL)
     {
+        START_TIMER("module - metadata lookup");
         if(st == NULL)
             st = OCI_StatementCreate(conn);
         OCI_ReleaseResultsets(st);
         if(OCI_ExecuteStmt(st, statement))
         {
             DEBUG_LOG("Statement: %s executed successfully.", statement);
+            STOP_TIMER("module - metadata lookup");
             return TRUE;
         }
         else
         {
             ERROR_LOG("Statement: %s failed.", statement);
+            STOP_TIMER("module - metadata lookup");
             return FALSE;
         }
     }
@@ -628,6 +663,8 @@ executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 
     if (!isConnected())
         FATAL_LOG("No connection to database");
+
+    START_TIMER("module - metadata lookup");
 
     // create transaction
     t = createTransaction(isoLevel);
@@ -668,6 +705,8 @@ executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
     if (!OCI_TransactionFree(t))
         FATAL_LOG("Failed freeing transaction");
 
+    STOP_TIMER("module - metadata lookup");
+
     return (Node *) xid;
 }
 
@@ -676,6 +715,8 @@ createTransaction(IsolationLevel isoLevel)
 {
     unsigned int mode;
     OCI_Transaction *result = NULL;
+
+    START_TIMER("module - metadata lookup");
 
     // get OCI isolevel constant
     switch(isoLevel)
@@ -693,11 +734,11 @@ createTransaction(IsolationLevel isoLevel)
 
     // create transaction
     if((conn = getConnection()) != NULL)
-    {
         result = OCI_TransactionCreate(conn, 0, mode, NULL);
-    }
     else
         ERROR_LOG("Cannot create transaction: No connection established yet.");
+
+    STOP_TIMER("module - metadata lookup");
 
     return result;
 }
