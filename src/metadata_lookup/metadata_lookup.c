@@ -363,6 +363,7 @@ getAttributes(char *tableName)
     if((attrList = searchTableBuffers(tableName)) != NIL)
     {
         RELEASE_MEM_CONTEXT();
+        STOP_TIMER("module - metadata lookup");
         return attrList;
     }
 
@@ -385,6 +386,7 @@ getAttributes(char *tableName)
         //user do not have to free the attrList by themselves
         addToTableBuffers(tableName, attrList);
         RELEASE_MEM_CONTEXT();
+        STOP_TIMER("module - metadata lookup");
         return attrList;
     }
     ERROR_LOG("Not connected to database.");
@@ -504,6 +506,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlBinds,
         {
             ERROR_LOG("Statement: %s failed.", statement);
             FREE(statement);
+            STOP_TIMER("module - metadata lookup");
             return;
         }
 
@@ -572,6 +575,7 @@ getViewDefinition(char *viewName)
     if((def = searchViewBuffers(viewName)) != NULL)
     {
         RELEASE_MEM_CONTEXT();
+        STOP_TIMER("module - metadata lookup");
         return def;
     }
 

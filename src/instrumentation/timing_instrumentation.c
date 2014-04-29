@@ -45,6 +45,9 @@ typedef struct Timer
     // complete list of times
     List *times;
 
+    // sanity check to avoid starting a new timer before the old one is finished
+    boolean isRunning;
+
     // hash handle
     UT_hash_handle hh;
 } Timer;
@@ -81,10 +84,13 @@ startTimer(char *name, int line, const char *function, const char *sourceFile)
     CREATE_OR_USE_MEMCONTEXT();
 
     t = getOrCreateTimer(name, line, function, sourceFile);
+    if (t->isRunning)
+        FATAL_LOG("try to start timer <%s: %s-%s-%d > that is still running", t->name, t->file, t->func, t->line);
     gettimeofday(&st, NULL);
     DEBUG_LOG("FULLTIME %ld", st.tv_sec * 1000000 + st.tv_usec);
     t->fullStart = st.tv_sec * 1000000 + st.tv_usec;
     t->curStart = st;
+    t->isRunning = TRUE;
     DEBUG_LOG("Start time <%s> %ld sec %ld usec", name, st.tv_sec, st.tv_usec);
 
     RELEASE_MEM_CONTEXT();
@@ -105,9 +111,12 @@ endTimer(char *name, int line, const char *function, const char *sourceFile)
     CREATE_OR_USE_MEMCONTEXT();
 
     t = getOrCreateTimer(name, line, function, sourceFile);
+    if(!t->isRunning)
+        FATAL_LOG("try to stop timer <%s: %s-%s-%d > that is not running", t->name, t->file, t->func, t->line);
     gettimeofday(&st, NULL);
     t->curEnd = st;
     t->fullEnd = st.tv_sec * 1000000 + st.tv_usec;
+    t->isRunning = FALSE;
     DEBUG_LOG("Stop time <%s> %ld sec %ld usec", name, st.tv_sec, st.tv_usec);
     updateStats(t);
 
@@ -156,13 +165,20 @@ getOrCreateTimer (char *name, int line, const char *function, const char *source
     {
         t = NEW(Timer);
         t->name = strdup(name);
+        t->times = NIL;
         t->line = line;
         t->func = strdup((char *) function);
         t->file = strdup((char *) sourceFile);
-        t->times = NIL;
 
         HASH_ADD_KEYPTR(hh, allTimers, t->name, strlen(t->name), t);
         DEBUG_LOG("created new timer for <%s>", t->name);
+    }
+
+    if (strcmp(t->file, sourceFile) != 0 || strcmp(t->func, function) != 0 || t->line != line)
+    {
+        t->line = line;
+        t->func = strdup((char *) function);
+        t->file = strdup((char *) sourceFile);
     }
 
     return t;
