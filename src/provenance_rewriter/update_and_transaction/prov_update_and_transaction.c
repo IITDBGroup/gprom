@@ -335,7 +335,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
         }
     }
 
-    DEBUG_LOG("condtion table map is:\n%s", tableCondMap);
+    DEBUG_LOG("condition table map is:\n%s", tableCondMap);
 
     // add selections
     FOREACH(TableAccessOperator,t,updatedTables)
