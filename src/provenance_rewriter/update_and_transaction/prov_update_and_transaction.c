@@ -146,7 +146,7 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 				    {
 					    AttributeReference *scnAttr;
 					    CaseExpr *cexp = (CaseExpr *) expr;
-						Node *when = ((CaseWhen *) (cexp->whenClauses))->when;
+						Node *when = ((CaseWhen *) getNthOfListP(cexp->whenClauses, 0))->when;
 						Node *newCond;
 
 						// adding SCN < update SCN condition
@@ -154,7 +154,7 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 						        getNumAttrs(OP_LCHILD(u)), INVALID_ATTR);
 						newCond = (Node *) createOpExpr("<=",
 								LIST_MAKE((Node *) scnAttr,
-								        copyObject(getNthOfList(scns,i))));
+								        copyObject(getNthOfListP(scns,i))));
 
 						newWhen = andExprs(when, newCond);
 						((CaseWhen *) (cexp->whenClauses))->when = newWhen;
