@@ -304,6 +304,12 @@ provOption:
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString("ONLY UPDATED"), 
 					(Node *) createConstBool(TRUE));
 		}
+		| SHOW INTERMEDIATE
+		{
+			RULELOG("provOption::SHOW::INTERMEDIATE");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString("SHOW ALL INTERMEDIATE"), 
+					(Node *) createConstBool(TRUE));
+		}
 	;
 	
 /*
