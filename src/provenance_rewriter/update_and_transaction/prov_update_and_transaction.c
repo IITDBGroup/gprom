@@ -107,13 +107,20 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
             "to rewriter: %s", beatify(nodeToString(op)));
 }
 
-static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
+static void
+mergeReadCommittedTransaction(ProvenanceComputation *op)
+{
 	List *scns = op->transactionInfo->scns;
+    int i = 0;
+    QueryOperator *mergeRoot = NULL;
+    QueryOperator *finalProj = NULL;
 
 	// Loop through update translations and add version_startscn condition + attribute
-	FOREACH(QueryOperator,u,op->op.inputs)
+	FORBOTH_LC(uLc, trLc, op->transactionInfo->originalUpdates, op->op.inputs)
 	{
-	    int i = 0;
+	    QueryOperator *q = (QueryOperator *) LC_P_VAL(trLc);
+	    Node *u = (Node *) LC_P_VAL(uLc);
+
 		// use original update to figure out type of each update (UPDATE/DELETE/INSERT)
 		// switch
 		switch (u->type) {
@@ -130,14 +137,12 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 		case T_Update:
 			// either CASE translation OR union translation
 			//if its case translation
-			if (isA(u,ProjectionOperator))
+			if (isA(q,ProjectionOperator))
 			{
                 Node *newWhen = NULL;
-			    ProjectionOperator *proj = (ProjectionOperator *) u;
+			    ProjectionOperator *proj = (ProjectionOperator *) q;
 				List *projExprs = proj->projExprs;
 				Node *newProjExpr;
-
-				projExprs = getHeadOfListP(u->inputs);
 
 				//Add SCN foreach CaseEpr
 				FOREACH(Node, expr, projExprs)
@@ -146,24 +151,28 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 				    {
 					    AttributeReference *scnAttr;
 					    CaseExpr *cexp = (CaseExpr *) expr;
-						Node *when = ((CaseWhen *) getNthOfListP(cexp->whenClauses, 0))->when;
+					    CaseWhen *whenC = (CaseWhen *) getNthOfListP(cexp->whenClauses, 0);
+						Node *when = whenC->when;
 						Node *newCond;
 
+						DEBUG_LOG("Deal with case: %s", exprToSQL((Node *) cexp));
+
 						// adding SCN < update SCN condition
-						scnAttr = createFullAttrReference("VERSION_STARTSCN", 0,
-						        getNumAttrs(OP_LCHILD(u)), INVALID_ATTR);
+						scnAttr = createFullAttrReference("VERSIONS_STARTSCN", 0,
+						        getNumAttrs(OP_LCHILD(q)), INVALID_ATTR);
 						newCond = (Node *) createOpExpr("<=",
 								LIST_MAKE((Node *) scnAttr,
 								        copyObject(getNthOfListP(scns,i))));
 
 						newWhen = andExprs(when, newCond);
-						((CaseWhen *) (cexp->whenClauses))->when = newWhen;
+						whenC->when = newWhen;
+						DEBUG_LOG("Updated case is: %s", exprToSQL((Node *) cexp));
 				    }
 				}
 
                //make new case for SCN
                 Node *then = (Node *) createConstLong(-1);
-                Node *els = (Node *) createFullAttrReference("VERSION_STARTSCN", 0, getNumAttrs(OP_LCHILD(u)), INVALID_ATTR);
+                Node *els = (Node *) createFullAttrReference("VERSIONS_STARTSCN", 0, getNumAttrs(OP_LCHILD(q)), INVALID_ATTR);
                 CaseExpr *caseExpr;
                 CaseWhen *caseWhen;
 
@@ -174,8 +183,8 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
                 newProjExpr = (Node *) caseExpr;
                 proj->projExprs =
                         appendToTailOfList(projExprs, newProjExpr);
-                u->schema->attrDefs = appendToTailOfList(u->schema->attrDefs,
-                        createAttributeDef("VERSION_STARTSCN", DT_LONG));
+                q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
+                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
 			}
 			break;
 
@@ -188,11 +197,9 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 	}
 
 	List *updates = copyList(op->op.inputs);
-	int i = 0;
+	i = 0;
 
 	// cut links to parent
-	//removeParentFromOps(op->op.inputs, (QueryOperator *) op);
-
 	op->op.inputs = NIL;
 
 	// reverse list
@@ -204,7 +211,8 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 			operatorToOverviewString((Node *) updates));
 	/*
 	 * Merge the individual queries for all updates into one
-	 */FOREACH(QueryOperator, u, updates) {
+	 */
+	FOREACH(QueryOperator, u, updates) {
 		List *children = NULL;
 
 		// find all table access operators
@@ -225,24 +233,42 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op) {
 			else
 			{
 			    Node *scn = (Node *) getTailOfListP(op->transactionInfo->scns);
-			    Constant *scnC = (Constant *) copyObject(scnC);
+			    Constant *scnC = (Constant *) copyObject(op->transactionInfo->commitSCN);
 			    *((long *) scnC->value) = *((long *) scnC->value) + 1; //getCommit SCN
 				t->asOf = (Node *) LIST_MAKE(scnC, copyObject(scnC));
 				((QueryOperator *) t)->schema->attrDefs = appendToTailOfList(((QueryOperator *) t)->schema->attrDefs,
 				        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
 			}
 
-			INFO_LOG("\tTable after merge %s",
+			DEBUG_LOG("\tTable after merge %s",
 					operatorToOverviewString((Node *) u));
 		}
 		i++;
 	}
-	DEBUG_LOG("Merged updates are: %s", beatify(nodeToString(updates)));
+
+	// add projection that removes the VERSIONS_STARTSCN attribute
+	List *finalAttrs, *mergeAttrs, *projExprs = NIL;
+	int cnt = 0;
+
+	mergeRoot = (QueryOperator *) getHeadOfListP(updates);
+	mergeAttrs = getQueryOperatorAttrNames(mergeRoot);
+	finalAttrs = sublist(mergeAttrs, 0, LIST_LENGTH(mergeAttrs) - 1);
+
+    FOREACH(AttributeDef, attr, mergeRoot->schema->attrDefs)
+    {
+        if (strcmp(attr->attrName,"VERSIONS_STARTSCN") != 0)
+            projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        cnt++;
+    }
+
+	finalProj = (QueryOperator *) createProjectionOp(projExprs, mergeRoot, NIL, finalAttrs);
+	mergeRoot->parents = singleton(finalProj);
+
+	INFO_LOG("Merged updates are: %s", operatorToOverviewString((Node *) finalProj));
+	DEBUG_LOG("Merged updates are: %s", beatify(nodeToString((Node *) finalProj)));
 
 	// replace updates sequence with root of the whole merged update query
-	addChildOperator((QueryOperator *) op,
-			(QueryOperator *) getHeadOfListP(updates));
-	//op->op.inputs = singleton();
+	addChildOperator((QueryOperator *) op, finalProj);
 	DEBUG_LOG("Provenance computation for updates that will be passed "
 	"to rewriter: %s", beatify(nodeToString(op)));
 

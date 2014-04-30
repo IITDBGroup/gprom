@@ -600,10 +600,10 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                 else
                 {
                     List *scns = (List *) t->asOf;
-                    Node *begin = (Node *) getNthOfList(scns, 0);
-                    Node *end = (Node *) getNthOfList(scns, 1);
+                    Node *begin = (Node *) getNthOfListP(scns, 0);
+                    Node *end = (Node *) getNthOfListP(scns, 1);
 
-                    asOf = CONCAT_STRINGS(" VERSIONS BETWEEN ", exprToSQL(begin), "AND", exprToSQL(end));
+                    asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ", exprToSQL(begin), " AND ", exprToSQL(end));
                 }
             }
             List *attrNames = getAttrNames(((QueryOperator *) t)->schema);

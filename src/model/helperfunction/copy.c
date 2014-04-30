@@ -342,6 +342,7 @@ copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap)
     COPY_INIT(TableAccessOperator);
     COPY_OPERATOR();
     COPY_STRING_FIELD(tableName);
+    COPY_NODE_FIELD(asOf);
 
     return new;
 }

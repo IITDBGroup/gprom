@@ -94,6 +94,7 @@ typedef struct List
                     DUMMY_LC(_node2_)->next) != NULL) ? \
                     DUMMY_LC(_node2_)->data.ptr_value : NULL))
 
+
 /*
  * Loop through two integer lists simultaneously
  */

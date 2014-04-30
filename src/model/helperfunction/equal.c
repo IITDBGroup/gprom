@@ -400,6 +400,7 @@ equalTableAccessOperator(TableAccessOperator *a, TableAccessOperator *b)
 {
     COMPARE_QUERY_OP();
     COMPARE_STRING_FIELD(tableName);
+    COMPARE_NODE_FIELD(asOf);
 
     return TRUE;
 }

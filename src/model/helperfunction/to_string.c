@@ -321,7 +321,7 @@ outConstant (StringInfo str, Constant *node)
     switch(node->constType)
     {
         case DT_INT:
-            appendStringInfo(str, "%u", *((int *) node->value));
+            appendStringInfo(str, "%d", *((int *) node->value));
             break;
         case DT_FLOAT:
             appendStringInfo(str, "%f", *((double *) node->value));
@@ -333,7 +333,7 @@ outConstant (StringInfo str, Constant *node)
             appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
             break;
         case DT_LONG:
-            appendStringInfo(str, "%lu", *((long *) node->value));
+            appendStringInfo(str, "%ld", *((long *) node->value));
             break;
     }
 
