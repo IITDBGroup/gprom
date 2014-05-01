@@ -306,7 +306,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	        IsolationLevel isoLevel;
 	        List *updateConds = NIL;
 	        Constant *commitSCN = createConstLong(-1L);
-
+	        boolean showIntermediate = HAS_STRING_PROP(result,"SHOW ALL INTERMEDIATE");
 	        DEBUG_LOG("Provenance for transaction");
 
 	        // call metadata lookup -> SCNS + SQLS
@@ -380,6 +380,13 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
 	            // translate and add update as child to provenance computation
 	            child = translateQuery(node);
+
+	            // mark for showing intermediate results
+	            if (showIntermediate)
+	                SET_BOOL_STRING_PROP(child, "SHOW_INTERMEDIATE_PROV");
+
+	            // mark as root of translated update
+	            SET_BOOL_STRING_PROP(child, "IS_UPDATE_ROOT");
 
 	            DEBUG_LOG("qo model transaction is\n%s", beatify(nodeToString(child)));
 

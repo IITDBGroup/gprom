@@ -30,6 +30,8 @@ static QueryOperator *rewritePI_CSTableAccess(TableAccessOperator *op);
 static QueryOperator *rewritePI_CSConstRel(ConstRelOperator *op);
 static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 
+static QueryOperator *addIntermediateProvenance (QueryOperator *op);
+
 static Node *asOf;
 static RelCount *nameState;
 
@@ -70,37 +72,108 @@ rewritePI_CS (ProvenanceComputation  *op)
 static QueryOperator *
 rewritePI_CSOperator (QueryOperator *op)
 {
+    boolean showIntermediate = HAS_STRING_PROP(op,"SHOW_INTERMEDIATE_PROV");
+    QueryOperator *rewrittenOp;
+
     switch(op->type)
     {
             DEBUG_LOG("go selection");
         case T_SelectionOperator:
-            return rewritePI_CSSelection((SelectionOperator *) op);
+            rewrittenOp = rewritePI_CSSelection((SelectionOperator *) op);
+            break;
         case T_ProjectionOperator:
             DEBUG_LOG("go projection");
-            return rewritePI_CSProjection((ProjectionOperator *) op);
+            rewrittenOp = rewritePI_CSProjection((ProjectionOperator *) op);
+            break;
         case T_AggregationOperator:
             DEBUG_LOG("go aggregation");
-            return rewritePI_CSAggregation ((AggregationOperator *) op);
+            rewrittenOp = rewritePI_CSAggregation ((AggregationOperator *) op);
+            break;
         case T_JoinOperator:
             DEBUG_LOG("go join");
-            return rewritePI_CSJoin((JoinOperator *) op);
+            rewrittenOp = rewritePI_CSJoin((JoinOperator *) op);
+            break;
         case T_SetOperator:
             DEBUG_LOG("go set");
-            return rewritePI_CSSet((SetOperator *) op);
+            rewrittenOp = rewritePI_CSSet((SetOperator *) op);
+            break;
         case T_TableAccessOperator:
             DEBUG_LOG("go table access");
-            return rewritePI_CSTableAccess((TableAccessOperator *) op);
+            rewrittenOp = rewritePI_CSTableAccess((TableAccessOperator *) op);
+            break;
         case T_ConstRelOperator:
             DEBUG_LOG("go const rel operator");
-            return rewritePI_CSConstRel((ConstRelOperator *) op);
+            rewrittenOp = rewritePI_CSConstRel((ConstRelOperator *) op);
+            break;
         case T_DuplicateRemoval:
             DEBUG_LOG("go duplicate removal operator");
-            return rewritePI_CSDuplicateRemOp((DuplicateRemoval *) op);
+            rewrittenOp = rewritePI_CSDuplicateRemOp((DuplicateRemoval *) op);
+            break;
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
             return NULL;
     }
+
+    if (showIntermediate)
+        rewrittenOp = addIntermediateProvenance(rewrittenOp);
+
+    return rewrittenOp;
 }
+
+static QueryOperator *
+addIntermediateProvenance (QueryOperator *op)
+{
+    QueryOperator *proj;
+    List *attrNames = NIL;
+    List *projExpr = NIL;
+    List *provAttrPos = NIL;
+    List *normalAttrExpr = getNormalAttrProjectionExprs(op);
+    int cnt = 0;
+    char *newAttrName;
+    int relAccessCount = getRelNameCount(&nameState, "intermediate");
+
+    attrNames = getQueryOperatorAttrNames(op);
+    provAttrPos = copyObject(op->provAttrs);
+
+    // Get the provenance name for each attribute
+    FOREACH(AttributeDef, attr, op->schema->attrDefs)
+    {
+        attrNames = appendToTailOfList(attrNames, strdup(attr->attrName));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        cnt++;
+    }
+
+    FOREACH(AttributeReference, a, normalAttrExpr)
+    {
+        //TODO naming of intermediate results
+        newAttrName = getProvenanceAttrName("intermediate", a->name, relAccessCount);
+        attrNames = appendToTailOfList(attrNames, newAttrName);
+        a->name = newAttrName;
+        projExpr = appendToTailOfList(projExpr, a);
+    }
+
+    List *newProvPosList = NIL;
+    CREATE_INT_SEQ(newProvPosList, cnt, cnt + LIST_LENGTH(normalAttrExpr), 1);
+    provAttrPos = CONCAT_LISTS(provAttrPos, newProvPosList);
+    DEBUG_LOG("add intermediate provenance\n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
+            stringListToString(attrNames),
+            nodeToString(projExpr),
+            nodeToString(newProvPosList));
+
+    // Create a new projection operator with these new attributes
+    proj = (QueryOperator *) createProjectionOp(projExpr, NULL, NIL, attrNames);
+    proj->provAttrs = newProvPosList;
+
+    // Switch the subtree with this newly created projection operator.
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+
+    // Add child to the newly created projections operator,
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
+
+    return proj;
+}
+
+
 
 static QueryOperator *
 rewritePI_CSSelection (SelectionOperator *op)
