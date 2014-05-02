@@ -115,6 +115,8 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
     QueryOperator *mergeRoot = NULL;
     QueryOperator *finalProj = NULL;
 
+    removeParentFromOps(op->op.inputs, (QueryOperator *) op);
+
 	// Loop through update translations and add version_startscn condition + attribute
 	FORBOTH_LC(uLc, trLc, op->transactionInfo->originalUpdates, op->op.inputs)
 	{
@@ -187,7 +189,6 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
                         createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
 			}
 			break;
-
 		default:
 			break;
 
@@ -235,7 +236,10 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 			    Node *scn = (Node *) getTailOfListP(op->transactionInfo->scns);
 			    Constant *scnC = (Constant *) copyObject(op->transactionInfo->commitSCN);
 			    *((long *) scnC->value) = *((long *) scnC->value) + 1; //getCommit SCN
-				t->asOf = (Node *) LIST_MAKE(scnC, copyObject(scnC));
+
+			    SET_BOOL_STRING_PROP(t,"DO_NOT_RECURSE_REWRITE");
+                setStringProperty((QueryOperator *) t,"USER_PROV_ATTRS", (Node *) stringListToConstList(getQueryOperatorAttrNames((QueryOperator *) t)));
+			    t->asOf = (Node *) LIST_MAKE(scnC, copyObject(scnC));
 				((QueryOperator *) t)->schema->attrDefs = appendToTailOfList(((QueryOperator *) t)->schema->attrDefs,
 				        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
 			}
@@ -270,8 +274,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	// replace updates sequence with root of the whole merged update query
 	addChildOperator((QueryOperator *) op, finalProj);
 	DEBUG_LOG("Provenance computation for updates that will be passed "
-	"to rewriter: %s", beatify(nodeToString(op)));
-
+	        "to rewriter: %s", beatify(nodeToString(op)));
 }
 
 

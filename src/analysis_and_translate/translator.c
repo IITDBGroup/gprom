@@ -628,8 +628,10 @@ translateFromProvInfo(QueryOperator *op, FromProvInfo *from)
     /* treat as base relation or show intermediate provenance? */
     if (from->intermediateProv)
         SET_BOOL_STRING_PROP(op,"SHOW_INTERMEDIATE_PROV");
-    else
+    else if (from->baserel)
         SET_BOOL_STRING_PROP(op,"DO_NOT_RECURSE_REWRITE");
+    else
+        SET_BOOL_STRING_PROP(op,"HAS_PROVENANCE");
 
     /* user provided provenance attributes or all attributes of subquery? */
     if (from->userProvAttrs != NIL)

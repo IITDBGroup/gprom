@@ -130,7 +130,7 @@ addIntermediateProvenance (QueryOperator *op)
     List *normalAttrExpr = getNormalAttrProjectionExprs(op);
     int cnt = 0;
     char *newAttrName;
-    int relAccessCount = getRelNameCount(&nameState, "intermediate");
+    int relAccessCount = getRelNameCount(&nameState, "INTERMEDIATE");
 
     attrNames = getQueryOperatorAttrNames(op);
     provAttrPos = copyObject(op->provAttrs);
@@ -138,7 +138,6 @@ addIntermediateProvenance (QueryOperator *op)
     // Get the provenance name for each attribute
     FOREACH(AttributeDef, attr, op->schema->attrDefs)
     {
-        attrNames = appendToTailOfList(attrNames, strdup(attr->attrName));
         projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
         cnt++;
     }
@@ -146,29 +145,31 @@ addIntermediateProvenance (QueryOperator *op)
     FOREACH(AttributeReference, a, normalAttrExpr)
     {
         //TODO naming of intermediate results
-        newAttrName = getProvenanceAttrName("intermediate", a->name, relAccessCount);
+        newAttrName = getProvenanceAttrName("INTERMEDIATE", a->name, relAccessCount);
+        DEBUG_LOG("new attr name: %s", newAttrName);
         attrNames = appendToTailOfList(attrNames, newAttrName);
-        a->name = newAttrName;
         projExpr = appendToTailOfList(projExpr, a);
     }
 
     List *newProvPosList = NIL;
-    CREATE_INT_SEQ(newProvPosList, cnt, cnt + LIST_LENGTH(normalAttrExpr), 1);
+    CREATE_INT_SEQ(newProvPosList, cnt, cnt + LIST_LENGTH(normalAttrExpr) - 1, 1);
     provAttrPos = CONCAT_LISTS(provAttrPos, newProvPosList);
     DEBUG_LOG("add intermediate provenance\n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
             stringListToString(attrNames),
             nodeToString(projExpr),
-            nodeToString(newProvPosList));
+            nodeToString(provAttrPos));
 
     // Create a new projection operator with these new attributes
     proj = (QueryOperator *) createProjectionOp(projExpr, NULL, NIL, attrNames);
-    proj->provAttrs = newProvPosList;
+    proj->provAttrs = provAttrPos;
 
     // Switch the subtree with this newly created projection operator.
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) proj);
 
     // Add child to the newly created projections operator,
     addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
+
+    DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
 
     return proj;
 }
@@ -567,7 +568,7 @@ rewritePI_CSTableAccess(TableAccessOperator *op)
     // Add child to the newly created projections operator,
     addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
 
-    DEBUG_LOG("rewrite table acces: %s", operatorToOverviewString((Node *) newpo));
+    DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) newpo));
     return (QueryOperator *) newpo;
 }
 
