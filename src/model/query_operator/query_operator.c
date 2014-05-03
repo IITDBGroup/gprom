@@ -471,6 +471,20 @@ getNumAttrs(QueryOperator *op)
     return LIST_LENGTH(op->schema->attrDefs);
 }
 
+int
+getAttrPos(QueryOperator *op, char *attr)
+{
+    int i = 0;
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    {
+        if (strcmp(a->attrName, attr) == 0)
+            return i;
+        i++;
+    }
+
+    return -1;
+}
+
 List *
 aggOpGetGroupByAttrNames(AggregationOperator *op)
 {

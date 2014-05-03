@@ -629,7 +629,7 @@ translateFromProvInfo(QueryOperator *op, FromProvInfo *from)
     if (from->intermediateProv)
         SET_BOOL_STRING_PROP(op,"SHOW_INTERMEDIATE_PROV");
     else if (from->baserel)
-        SET_BOOL_STRING_PROP(op,"DO_NOT_RECURSE_REWRITE");
+        SET_BOOL_STRING_PROP(op,"USE_PROVENANCE");
     else
         SET_BOOL_STRING_PROP(op,"HAS_PROVENANCE");
 

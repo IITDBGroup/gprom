@@ -237,7 +237,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 			    Constant *scnC = (Constant *) copyObject(op->transactionInfo->commitSCN);
 			    *((long *) scnC->value) = *((long *) scnC->value) + 1; //getCommit SCN
 
-			    SET_BOOL_STRING_PROP(t,"DO_NOT_RECURSE_REWRITE");
+			    SET_BOOL_STRING_PROP(t,"USE_PROVENANCE");
                 setStringProperty((QueryOperator *) t,"USER_PROV_ATTRS", (Node *) stringListToConstList(getQueryOperatorAttrNames((QueryOperator *) t)));
 			    t->asOf = (Node *) LIST_MAKE(scnC, copyObject(scnC));
 				((QueryOperator *) t)->schema->attrDefs = appendToTailOfList(((QueryOperator *) t)->schema->attrDefs,
