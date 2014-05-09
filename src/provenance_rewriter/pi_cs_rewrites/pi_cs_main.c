@@ -32,7 +32,7 @@ static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 
 static QueryOperator *addIntermediateProvenance (QueryOperator *op, List *userProvAttrs);
 static QueryOperator *rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs);
-static void rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs);
+static QueryOperator *rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs);
 
 
 static Node *asOf;
@@ -85,10 +85,7 @@ rewritePI_CSOperator (QueryOperator *op)
     if (noRewriteUseProv)
         return rewritePI_CSAddProvNoRewrite(op, userProvAttrs);
     if (noRewriteHasProv)
-    {
-        rewritePI_CSUseProvNoRewrite(op, userProvAttrs);
-        return op;
-    }
+        return rewritePI_CSUseProvNoRewrite(op, userProvAttrs);
 
     switch(op->type)
     {
@@ -258,31 +255,67 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
     return (QueryOperator *) newpo;
 }
 
-static void
+static QueryOperator *
 rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs)
 {
     List *provAttrs = op->provAttrs;
     int relAccessCount;
     char *tableName = "USER";
+    boolean isTableAccess = isA(op,TableAccessOperator);
 
-    if (isA(op,TableAccessOperator))
+    if (isTableAccess)
         tableName = ((TableAccessOperator *) op)->tableName;
 
     relAccessCount = getRelNameCount(&nameState, tableName);
 
-    FOREACH(Constant,a,userProvAttrs)
+    // for table access operations we need to add a projection that renames the attributes
+    if (isTableAccess)
     {
-        char *name = STRING_VALUE(a);
-        int pos = getAttrPos(op, name);
-        AttributeDef *attr;
+        QueryOperator *proj;
 
-        attr = getNthOfListP(op->schema->attrDefs, pos);
-        name = getProvenanceAttrName(tableName, name, relAccessCount);
-        attr->attrName = name;
-        provAttrs = appendToTailOfListInt(provAttrs, pos);
+        proj = createProjOnAllAttrs(op);
+
+        // Switch the subtree with this newly created projection operator
+        switchSubtrees(op, proj);
+
+        // Add child to the newly created projection operator
+        addChildOperator(proj, op);
+
+        FOREACH(Constant,a,userProvAttrs)
+        {
+            char *name = STRING_VALUE(a);
+            int pos = getAttrPos(proj, name);
+            AttributeDef *attr;
+
+            attr = getNthOfListP(proj->schema->attrDefs, pos);
+            name = getProvenanceAttrName(tableName, name, relAccessCount);
+            attr->attrName = name;
+            provAttrs = appendToTailOfListInt(provAttrs, pos);
+        }
+
+        proj->provAttrs = provAttrs;
+
+        return proj;
     }
+    // for non-tableaccess operators simply change the attribute names and mark the attributes as provenance attributes
+    else
+    {
+        FOREACH(Constant,a,userProvAttrs)
+        {
+            char *name = STRING_VALUE(a);
+            int pos = getAttrPos(op, name);
+            AttributeDef *attr;
 
-    op->provAttrs = provAttrs;
+            attr = getNthOfListP(op->schema->attrDefs, pos);
+            name = getProvenanceAttrName(tableName, name, relAccessCount);
+            attr->attrName = name;
+            provAttrs = appendToTailOfListInt(provAttrs, pos);
+        }
+
+        op->provAttrs = provAttrs;
+
+        return op;
+    }
 }
 
 static QueryOperator *

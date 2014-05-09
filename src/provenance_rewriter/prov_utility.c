@@ -14,6 +14,7 @@
 
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
+#include "mem_manager/mem_mgr.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "log/logger.h"
 
@@ -84,6 +85,29 @@ getNormalAttrProjectionExprs(QueryOperator *op)
     }
 
     return result;
+}
+
+QueryOperator *
+createProjOnAllAttrs(QueryOperator *op)
+{
+    ProjectionOperator *p;
+    List *projExprs = NIL;
+    List *attrNames = NIL;
+    int i = 0;
+
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    {
+        AttributeReference *att;
+
+        att = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR);
+        projExprs = appendToTailOfList(projExprs, att);
+        attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
+    }
+
+    p = createProjectionOp (projExprs, NULL, NIL, attrNames);
+    p->op.provAttrs = copyObject(op->provAttrs);
+
+    return (QueryOperator *) p;
 }
 
 /*
