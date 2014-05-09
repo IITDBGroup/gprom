@@ -167,6 +167,9 @@ extern char *beatify(char *input);
 char *operatorToOverviewString(Node *op);
 char *itoa(int value);
 
+/* get a dot script for a query operator graph or query block tree */
+extern char *nodeToDot(void *obj);
+
 /* create a node tree from a string */
 extern void *stringToNode(char *str);
 
@@ -183,6 +186,9 @@ extern boolean ptrEqual(void *a, void *b);
 /* deep free a node structure */
 extern void deepFree(void *a);
 extern void freeStringInfo (StringInfo node);
+
+/* compute a hash for a node structure */
+extern unsigned long hashValue(void *a);
 
 /* compute a hash value for a node tree */
 //extern int hashObject(void *a);

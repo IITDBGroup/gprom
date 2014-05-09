@@ -1104,7 +1104,6 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
                     WRITE_NODE_TYPE(FullOuterJoin);
                     break;
             }
-            WRITE_NODE_TYPE(Join);
             appendStringInfoString(str, " [");
             appendStringInfoString(str, exprToSQL(o->cond));
             appendStringInfoChar(str, ']');

@@ -424,37 +424,37 @@ extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 	ProvenanceTransactionInfo *t = op->transactionInfo;
 	List *tables0;
 	List *tables1;
-	tables1 = findUpdatedTableAccesses((Node *) op);
+	tables1 = findUpdatedTableAccceses((Node *) op);
 	ProjectionOperator *po;
 	List *projExprs = po->projExprs;
 	JoinOperator *jo;
-	FOREACH(TableAccessOperator,t,tables1)
-	{
-		char *tableName = t->tableName;
-		Node *cond;
-		SelectionOperator *sel;
-		if ()  //VERSIONS_XID == XID
-		{
-			sel = createSelectionOp(cond, (QueryOperator *) t, NIL,
-					getAttrNames(GET_OPSCHEMA(t)));
-			switchSubtrees((QueryOperator *) t, (QueryOperator *) sel);
-			((QueryOperator *) t)->parents = singleton(sel);
-		}
-	}
-	FOREACH(ProjectionOperator,t,po)
-	{
-		FOREACH(JoinOperator,t,jo)
-		{
-			if (strcmp(jo->cond, "commitSCN") == 0)
-				jo = createJoinOp(JOIN_CROSS, (QueryOperator *) t, NIL,
-						getAttrNames(GET_OPSCHEMA(t)));
-			switchSubtrees((QueryOperator *) t, (QueryOperator *) jo);
-			((QueryOperator *) t)->parents = singleton(jo);
-		}
-		//table0 = findUpdatedTableAccesses((Node *) op);
-		po = createProjectionOp(po, (QueryOperator *)jo, NIL,
-								NIL);
-	}
+//	FOREACH(TableAccessOperator,t,tables1)
+//	{
+//		char *tableName = t->tableName;
+//		Node *cond;
+//		SelectionOperator *sel;
+//		if ()  //VERSIONS_XID == XID
+//		{
+//			sel = createSelectionOp(cond, (QueryOperator *) t, NIL,
+//					getAttrNames(GET_OPSCHEMA(t)));
+//			switchSubtrees((QueryOperator *) t, (QueryOperator *) sel);
+//			((QueryOperator *) t)->parents = singleton(sel);
+//		}
+//	}
+//	FOREACH(ProjectionOperator,t,po)
+//	{
+//		FOREACH(JoinOperator,t,jo)
+//		{
+//			if (strcmp(jo->cond, "commitSCN") == 0)
+//				jo = createJoinOp(JOIN_CROSS, (QueryOperator *) t, NIL,
+//						getAttrNames(GET_OPSCHEMA(t)));
+//			switchSubtrees((QueryOperator *) t, (QueryOperator *) jo);
+//			((QueryOperator *) t)->parents = singleton(jo);
+//		}
+//		//table0 = findUpdatedTableAccesses((Node *) op);
+//		po = createProjectionOp(po, (QueryOperator *)jo, NIL,
+//								NIL);
+//	}
 
 }
 
