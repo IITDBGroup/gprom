@@ -188,7 +188,7 @@ extern void deepFree(void *a);
 extern void freeStringInfo (StringInfo node);
 
 /* compute a hash for a node structure */
-extern unsigned long hashValue(void *a);
+extern uint64_t hashValue(void *a);
 
 /* compute a hash value for a node tree */
 //extern int hashObject(void *a);
