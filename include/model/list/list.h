@@ -211,5 +211,7 @@ extern List *sublist(List *l, int from, int to);
 
 /* serialize to string */
 extern char *stringListToString (List *node);
+extern uint64_t hashStringList(uint64_t cur, List *node);
+
 
 #endif /* LIST_H */
