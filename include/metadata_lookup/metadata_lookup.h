@@ -20,67 +20,61 @@
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 
-#if HAVE_LIBOCILIB
-#include <ocilib.h>
-    extern OCI_Connection *getConnection();
-#endif
 
-#define AGG_FUNCTION_NAME_MAXSIZE 20
-
-typedef enum AGG
+/* types of supported plugins */
+typedef enum MetadataLookupPluginType
 {
-	//frequently used agg functions list
-	AGG_MAX,
-	AGG_MIN,
-	AGG_AVG,
-	AGG_COUNT,
-	AGG_SUM,
-	AGG_FIRST,
-	AGG_LAST,
+    METADATA_LOOKUP_PLUGIN_ORACLE
+} MetadataLookupPluginType;
 
-	//rarely used agg functions list
-	AGG_CORR,
-	AGG_COVAR_POP,
-	AGG_COVAR_SAMP,
-	AGG_GROUPING,
-	AGG_REGR,
-	AGG_STDDEV,
-	AGG_STDDEV_POP,
-	AGG_STDEEV_SAMP,
-	AGG_VAR_POP,
-	AGG_VAR_SAMP,
-	AGG_VARIANCE,
-	AGG_XMLAGG,
 
-	//used as the index of array, its default number is the size of this enum
-	AGG_FUNCTION_COUNT
-
-} AGG;
-
-typedef enum WINF
+/* plugin definition */
+typedef struct MetadataLookupPlugin
 {
-    // standard agg
-    WINF_MAX,
-    WINF_MIN,
-    WINF_AVG,
-    WINF_COUNT,
-    WINF_SUM,
-    WINF_FIRST,
-    WINF_LAST,
+    MetadataLookupPluginType type;
 
-    // window specific
-    WINF_FIRST_VALUE,
-    WINF_ROW_NUMBER,
-    WINF_RANK,
-    WINF_LAG,
-    WINF_LEAD,
-    //TODO
+    /* init and shutdown plugin and connection */
+    boolean (*isInitialized) (void);
+    int (*initMetadataLookupPlugin) (void);
+    int (*databaseConnectionOpen) (void);
+    int (*databaseConnectionClose) (void);
+    int (*shutdownMetadataLookupPlugin) (void);
 
-    // marker for number of functions
-    WINF_FUNCTION_COUNT
-} WINF;
+    /* catalog lookup */
+    boolean (*catalogTableExists) (char * tableName);
+    boolean (*catalogViewExists) (char * viewName);
+    List * (*getAttributes) (char *tableName);
+    List * (*getAttributeNames) (char *tableName);
+    boolean (*isAgg) (char *functionName);
+    boolean (*isWindowFunction) (char *functionName);
+    char * (*getTableDefinition) (char *tableName);
+    char * (*getViewDefinition) (char *viewName);
 
+    /* audit log access */
+    void (*getTransactionSQLAndSCNs) (char *xid, List **scns, List **sqls,
+            List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
+
+    /* execute transaction */
+    Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
+} MetadataLookupPlugin;
+
+
+/* store active plugin */
+extern MetadataLookupPlugin *activePlugin;
+extern List *availablePlugins;
+
+/* plugin handling methods */
+extern int initMetadataLookupPlugins (void);
+extern int shutdownMetadataLookupPlugins (void);
+extern void chooseMetadataLookupPlugin (MetadataLookupPluginType plugin);
+
+/* generic methods */
 extern int initMetadataLookupPlugin (void);
+extern int shutdownMetadataLookupPlugin (void);
+extern int databaseConnectionOpen (void);
+extern int databaseConnectionClose(void);
+extern boolean isInitialized (void);
+
 extern boolean catalogTableExists (char * tableName);
 extern boolean catalogViewExists (char * viewName);
 extern List *getAttributes (char *tableName);
@@ -89,9 +83,10 @@ extern boolean isAgg(char *functionName);
 extern boolean isWindowFunction(char *functionName);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
+
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
-extern int databaseConnectionClose();
+
 
 #endif /* METADATA_LOOKUP_H_ */

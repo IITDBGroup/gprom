@@ -14,6 +14,7 @@
 #include "log/logger.h"
 
 #include "metadata_lookup/metadata_lookup.h"
+#include "metadata_lookup/metadata_lookup_oracle.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
@@ -61,6 +62,8 @@ setupMetadataLookup(void)
     OCI_Connection *c;
     OCI_Statement *st;
 
+    initMetadataLookupPlugins();
+    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
     initMetadataLookupPlugin();
 
     c = getConnection();

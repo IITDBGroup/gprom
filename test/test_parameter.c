@@ -52,6 +52,8 @@ testSetParameterValues (void)
     Node *val = (Node *) createConstString("5");
     SQLParameter *p = (SQLParameter *) getNthOfListP(findParameters(inParse), 0);
 
+    initMetadataLookupPlugins();
+    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
     initMetadataLookupPlugin();
 
     analyzeQueryBlockStmt(expParse, NIL);

@@ -36,6 +36,8 @@ main (int argc, char* argv[])
     mallocOptions();
     parseOption(argc, argv);
     initLogger();
+    initMetadataLookupPlugins();
+    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
     initMetadataLookupPlugin();
 
     // read from terminal

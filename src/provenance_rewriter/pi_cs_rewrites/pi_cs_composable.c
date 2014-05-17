@@ -49,23 +49,32 @@ rewritePI_CSComposable (ProvenanceComputation *op)
 }
 
 /*
- *
+ * Figure out whether for a certain operator there will be at most one provenance tuple
+ * per original result tuple. This can be used to use ROWNUM instead of window functions.
+ * Store result as property to avoid recomputation.
  */
 static boolean
 isTupleAtATimeSubtree(QueryOperator *op)
 {
+    if (HAS_STRING_PROP(op, "PROVENANCE_OPERATOR_AT_A_TIME"))
+        return TRUE;
+
     switch(op->type)
     {
         case T_SelectionOperator:
         case T_ProjectionOperator:
         case T_JoinOperator:
-            FOREACH(QueryOperator,child,op->inputs)
-                if (!isTupleAtATimeSubtree)
-                    return FALSE;
-            return TRUE;
+            break;
         default:
             return FALSE;
     }
+
+    FOREACH(QueryOperator,child,op->inputs)
+        if (!isTupleAtATimeSubtree(child))
+            return FALSE;
+
+    SET_BOOL_STRING_PROP(op,"PROVENANCE_OPERATOR_AT_A_TIME");
+    return TRUE;
 }
 
 static QueryOperator *

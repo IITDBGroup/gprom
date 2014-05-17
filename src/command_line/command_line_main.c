@@ -108,6 +108,9 @@ static void
 init()
 {
     initMemManager();
+    initLogger();
+    initMetadataLookupPlugins();
+    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
     initMetadataLookupPlugin();
 }
 
