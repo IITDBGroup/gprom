@@ -314,7 +314,8 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                         // is first projection?
                         if (isA(child,AggregationOperator)
                                 || (isA(child,SelectionOperator)
-                                        && isA(grandChild,AggregationOperator)))
+                                        && isA(grandChild,AggregationOperator))
+                                || (isA(child,WindowOperator)))
                         {
                             matchInfo->firstProj = (ProjectionOperator *) cur;
                             state = MATCH_FIRST_PROJ;
@@ -538,6 +539,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
     switch(q->type)
     {
+        // Join expressions
         case T_JoinOperator:
         {
             JoinOperator *j = (JoinOperator *) q;
@@ -580,6 +582,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             appendStringInfo(from, ")");
         }
         break;
+        // Table Access
         case T_TableAccessOperator:
         {
             TableAccessOperator *t = (TableAccessOperator *) q;
@@ -612,7 +615,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                     asOf ? asOf : "", (*curFromItem)++);
         }
         break;
-
+        // A constant relation, turn into (SELECT ... FROM dual) subquery
         case T_ConstRelOperator:
                {
                    ConstRelOperator *t = (ConstRelOperator *) q;
@@ -634,6 +637,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                    appendStringInfo(from, "\nFROM dual) F%u", (*curFromItem)++);
                }
         break;
+        // A subquery
         default:
         {
             List *attrNames;
@@ -836,25 +840,31 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     List *firstProjs = NIL;
     List *aggs = NIL;
     List *groupBys = NIL;
+    List *windowFs = NIL;
     List *secondProjs = NIL;
     List *resultAttrs = NIL;
 
+    // either window funtions or regular aggregations but not both
+    ASSERT(!m->windowRoot || !m->aggregation);
+
     AggregationOperator *agg = (AggregationOperator *) m->aggregation;
+    WindowOperator *winR = (WindowOperator *) m->windowRoot;
     UpdateAggAndGroupByAttrState *state = NULL;
 
     appendStringInfoString(select, "\nSELECT ");
 
     // Projection for aggregation inputs and group-by
-    if (m->secondProj != NULL && agg != NULL)
+    if (m->secondProj != NULL && (agg != NULL || winR != NULL))
     {
         FOREACH(Node,n,m->secondProj->projExprs)
         {
             updateAttributeNames(n, fromAttrs);
             firstProjs = appendToTailOfList(firstProjs, exprToSQL(n));
         }
-        INFO_LOG("second projection (aggregation and group by inputs) is %s",
+        INFO_LOG("second projection (aggregation and group by or window inputs) is %s",
                 stringListToString(firstProjs));
     }
+
 
     // aggregation if need be
     if (agg != NULL)
@@ -896,6 +906,38 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         state->aggNames = aggs;
         state->groupByNames = groupBys;
     }
+    // window functions
+    if (winR != NULL)
+    {
+        QueryOperator *curOp = (QueryOperator *) winR;
+        List *inAttrs = (m->secondProj) ? firstProjs : getQueryOperatorAttrNames(m->fromRoot);
+        DEBUG_LOG("deal with window function calls");
+
+        windowFs = deepCopyStringList(inAttrs);
+
+        while(isA(curOp,WindowOperator))
+        {
+            Node *expr = ((WindowOperator *) curOp)->f;
+
+            DEBUG_LOG("window function = %s", beatify(nodeToString(expr)));
+
+            if (m->secondProj == NULL)
+                updateAttributeNames(expr, fromAttrs);
+            else
+                updateAttributeNamesSimple(expr, firstProjs);
+            windowFs = appendToTailOfList(windowFs, exprToSQL(expr));
+
+            DEBUG_LOG("window function = %s", exprToSQL(expr));
+
+            curOp = OP_LCHILD(curOp);
+        }
+
+        state = NEW(UpdateAggAndGroupByAttrState);
+        state->aggNames = windowFs;
+        state->groupByNames = NIL;
+
+        INFO_LOG("window function translated, %s", stringListToString(windowFs));
+    }
 
     // having
     if (m->having != NULL)
@@ -908,10 +950,10 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     }
 
     // second level of projection either if no aggregation or using aggregation
-    if ((m->secondProj != NULL && !agg) || (m->firstProj != NULL && agg))
+    if ((m->secondProj != NULL && !agg) || (m->firstProj != NULL && agg) || (m->firstProj != NULL && winR))
     {
         int pos = 0;
-        ProjectionOperator *p = (agg) ? m->firstProj : m->secondProj;
+        ProjectionOperator *p = (agg || winR) ? m->firstProj : m->secondProj;
         List *attrNames = getAttrNames(p->op.schema);
         // create result attribute names
         List *resultAttrs = NIL;
@@ -927,6 +969,9 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             // is projection over aggregation
             if (agg)
                 updateAggsAndGroupByAttrs(a, state); //TODO check that this method is still valid
+            // is projection over window functions
+            else if (winR)
+                updateAggsAndGroupByAttrs(a, state);
             // is projection in query without aggregation
             else
                 updateAttributeNames(a, fromAttrs);
@@ -935,6 +980,23 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 
         resultAttrs = attrNames;
         INFO_LOG("second projection expressions %s", select->data);
+    }
+    // else if window operator get the attributes from top-most window operator
+    else if (winR)
+    {
+        int pos = 0;
+        char *name;
+        resultAttrs = getQueryOperatorAttrNames((QueryOperator *) winR);
+
+        FOREACH(char,a,windowFs)
+        {
+            name = getNthOfListP(resultAttrs, pos);
+            if (pos++ != 0)
+                appendStringInfoString(select, ", ");
+            appendStringInfo(select, "%s AS %s", a, name);
+        }
+
+        INFO_LOG("window functions results as projection expressions %s", select->data);
     }
     // get aggregation result attributes
     else if (agg)

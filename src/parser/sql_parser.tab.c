@@ -3416,7 +3416,6 @@ EXHAUSTIVE LIST
    Needed in insert queries, select queries where conditions etc.
 4. Implement support for Transactions.
 5. Implement support for Create queries.
-6. Implement support for windowing functions.
 7. Implement support for AS OF (timestamp) modifier of a table reference
 8. Implement support for casting expressions
 9. Implement support for IN array expressions like a IN (1,2,3,4,5)

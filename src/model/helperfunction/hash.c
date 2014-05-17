@@ -281,7 +281,7 @@ hashValueInternal(uint64_t h, void *a)
         case T_WindowFunction:
             return hashWindowFunction (h, (WindowFunction *) n);
         /* query block nodes */
-        /* query operator nodes */\
+        /* query operator nodes */
         default:
             FATAL_LOG("unknown node type");
             break;
