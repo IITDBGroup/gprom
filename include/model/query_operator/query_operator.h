@@ -217,6 +217,8 @@ extern int getAttrPos(QueryOperator *op, char *attr);
 extern List *aggOpGetGroupByAttrNames(AggregationOperator *op);
 extern List *aggOpGetAggAttrNames(AggregationOperator *op);
 
+extern WindowFunction *winOpGetFunc (WindowOperator *op);
+
 /* transforms a graph query model into a tree */
 extern void treeify(QueryOperator *op);
 

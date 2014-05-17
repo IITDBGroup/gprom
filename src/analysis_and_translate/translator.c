@@ -36,6 +36,7 @@
 typedef struct ReplaceGroupByState {
 	List *expressions;
 	List *attrNames;
+	int attrOffset;
 } ReplaceGroupByState;
 
 // function declarations
@@ -1128,6 +1129,7 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 	state = NEW(ReplaceGroupByState);
 	state->expressions = aggPlusGroup;
 	state->attrNames = attrNames;
+	state->attrOffset = 0;
 
 	qb->selectClause = (List *) replaceAggsAndGroupByMutator(
 			(Node *) selectClause, state);
@@ -1151,6 +1153,7 @@ translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
     int cur = 0;
     ReplaceGroupByState *state;
     List *attrNames = NIL;
+    int numAttrs = getNumAttrs(input);
 
     // find window functions and adapt function input attribute references
     visitFindWindowFuncs((Node *) qb->selectClause, &wfuncs);
@@ -1175,10 +1178,13 @@ translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
     state = NEW(ReplaceGroupByState);
     state->expressions = wfuncs;
     state->attrNames = attrNames;
+    state->attrOffset = numAttrs;
 
     qb->selectClause = (List *) replaceAggsAndGroupByMutator(
             (Node *) qb->selectClause, state);
     FREE(state);
+
+    DEBUG_LOG("adapted select clause: %s", nodeToString(qb->selectClause));
 
     return (QueryOperator *) wOp;
 }
@@ -1199,7 +1205,7 @@ replaceAggsAndGroupByMutator (Node *node, ReplaceGroupByState *state)
         if (equal(node, e))
         {
             attrName = (char *) getNthOfListP(state->attrNames, i);
-            return (Node *) createFullAttrReference(strdup(attrName), 0, i, 0);
+            return (Node *) createFullAttrReference(strdup(attrName), 0, i + state->attrOffset, 0);
         }
         i++;
     }

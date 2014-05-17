@@ -501,8 +501,17 @@ aggOpGetAggAttrNames(AggregationOperator *op)
     return sublist(result, 0, LIST_LENGTH(op->aggrs));
 }
 
+WindowFunction *
+winOpGetFunc (WindowOperator *op)
+{
+    return createWindowFunction(copyObject(op->f),
+            (WindowDef *) copyObject(createWindowDef(
+                    op->partitionBy, op->orderBy, op->frameDef)));
+}
 
-void treeify(QueryOperator *op)
+
+void
+treeify(QueryOperator *op)
 {
     FOREACH(QueryOperator,child,op->inputs)
         treeify(child);

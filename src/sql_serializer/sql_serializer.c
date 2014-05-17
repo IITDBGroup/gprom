@@ -925,9 +925,11 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
                 updateAttributeNames(expr, fromAttrs);
             else
                 updateAttributeNamesSimple(expr, firstProjs);
-            windowFs = appendToTailOfList(windowFs, exprToSQL(expr));
+            windowFs = appendToTailOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
+                    (WindowOperator *) curOp)));
 
-            DEBUG_LOG("window function = %s", exprToSQL(expr));
+            DEBUG_LOG("window function = %s", exprToSQL((Node *) winOpGetFunc(
+                    (WindowOperator *) curOp)));
 
             curOp = OP_LCHILD(curOp);
         }
