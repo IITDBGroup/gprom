@@ -40,6 +40,7 @@ static void outWindowBound (StringInfo str, WindowBound *node);
 static void outWindowFrame (StringInfo str, WindowFrame *node);
 static void outWindowDef (StringInfo str, WindowDef *node);
 static void outWindowFunction (StringInfo str, WindowFunction *node);
+static void outRowNumExpr (StringInfo str, RowNumExpr *node);
 
 static void outQueryBlock (StringInfo str, QueryBlock *node);
 static void outSetQuery (StringInfo str, SetQuery *node);
@@ -318,24 +319,28 @@ outConstant (StringInfo str, Constant *node)
 
     WRITE_ENUM_FIELD(constType, DataType);
     appendStringInfoString(str, ":value ");
-    switch(node->constType)
-    {
-        case DT_INT:
-            appendStringInfo(str, "%d", *((int *) node->value));
-            break;
-        case DT_FLOAT:
-            appendStringInfo(str, "%f", *((double *) node->value));
-            break;
-        case DT_STRING:
-            appendStringInfo(str, "'%s'", (char *) node->value);
-            break;
-        case DT_BOOL:
-            appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
-            break;
-        case DT_LONG:
-            appendStringInfo(str, "%ld", *((long *) node->value));
-            break;
-    }
+
+    if (node->isNull)
+        appendStringInfoString(str, "NULL");
+    else
+        switch(node->constType)
+        {
+            case DT_INT:
+                appendStringInfo(str, "%d", *((int *) node->value));
+                break;
+            case DT_FLOAT:
+                appendStringInfo(str, "%f", *((double *) node->value));
+                break;
+            case DT_STRING:
+                appendStringInfo(str, "'%s'", (char *) node->value);
+                break;
+            case DT_BOOL:
+                appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
+                break;
+            case DT_LONG:
+                appendStringInfo(str, "%ld", *((long *) node->value));
+                break;
+        }
 
     WRITE_BOOL_FIELD(isNull);
 }
@@ -469,6 +474,12 @@ outWindowFunction (StringInfo str, WindowFunction *node)
 
     WRITE_NODE_FIELD(f);
     WRITE_NODE_FIELD(win);
+}
+
+static void
+outRowNumExpr (StringInfo str, RowNumExpr *node)
+{
+    WRITE_NODE_TYPE(ROWNUMEXPR);
 }
 
 static void
@@ -773,6 +784,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_WindowFunction:
                 outWindowFunction(str, (WindowFunction *) obj);
+                break;
+            case T_RowNumExpr:
+                outRowNumExpr(str, (RowNumExpr *) obj);
                 break;
             case T_SetQuery:
                 outSetQuery (str, (SetQuery *) obj);

@@ -69,11 +69,12 @@ static void
 functionCallToSQL (StringInfo str, FunctionCall *node)
 {
     appendStringInfoString(str, node->functionname);
+    appendStringInfoString(str, "(");
 
     int i = 0;
     FOREACH(Node,arg,node->args)
     {
-        appendStringInfoString(str, ((i++ == 0) ? "(" : ", "));
+        appendStringInfoString(str, ((i++ == 0) ? "" : ", "));
         exprToSQLString(str, arg);
     }
 
@@ -244,6 +245,11 @@ exprToSQLString(StringInfo str, Node *expr)
         case T_IsNullExpr:
         {
             appendStringInfo(str, "(%s IS NULL)", exprToSQL(((IsNullExpr *) expr)->expr));
+        }
+        break;
+        case T_RowNumExpr:
+        {
+            appendStringInfoString(str, "ROWNUM");
         }
         break;
         default:

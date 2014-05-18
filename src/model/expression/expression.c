@@ -348,6 +348,8 @@ typeOfInOpModel (Node *expr, List *inputOperators)
             CaseWhen *w = (CaseWhen *) getNthOfListP(c->whenClauses, 0);
             return typeOf(w->then);
         }
+        case T_RowNumExpr:
+            return DT_INT;
         default:
             ERROR_LOG("unknown expression type for node: %s", nodeToString(expr));
             break;

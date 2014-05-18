@@ -89,6 +89,15 @@ schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inpu
     return createSchemaFromLists(name, attributeNames, dataTypes);
 }
 
+void
+addAttrToSchema(QueryOperator *op, char *name, DataType dt)
+{
+    AttributeDef *a;
+
+    a = createAttributeDef(strdup(name), dt);
+    op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs, a);
+}
+
 List *
 getDataTypes (Schema *schema)
 {
@@ -294,7 +303,7 @@ createNestingOp(NestingExprType nestingType, Node *cond, List *inputs, List *par
 }
 
 WindowOperator *
-createWindowOp(FunctionCall *fCall, List *partitionBy, List *orderBy,
+createWindowOp(Node *fCall, List *partitionBy, List *orderBy,
         WindowFrame *frameDef, char *attrName, QueryOperator *input,
         List *parents)
 {

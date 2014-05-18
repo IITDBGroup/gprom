@@ -913,7 +913,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         List *inAttrs = (m->secondProj) ? firstProjs : getQueryOperatorAttrNames(m->fromRoot);
         DEBUG_LOG("deal with window function calls");
 
-        windowFs = deepCopyStringList(inAttrs);
+        windowFs = NIL;
 
         while(isA(curOp,WindowOperator))
         {
@@ -925,7 +925,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
                 updateAttributeNames(expr, fromAttrs);
             else
                 updateAttributeNamesSimple(expr, firstProjs);
-            windowFs = appendToTailOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
+            windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
                     (WindowOperator *) curOp)));
 
             DEBUG_LOG("window function = %s", exprToSQL((Node *) winOpGetFunc(
@@ -933,6 +933,8 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 
             curOp = OP_LCHILD(curOp);
         }
+
+        windowFs = CONCAT_LISTS(deepCopyStringList(inAttrs), windowFs);
 
         state = NEW(UpdateAggAndGroupByAttrState);
         state->aggNames = windowFs;

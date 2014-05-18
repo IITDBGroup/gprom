@@ -30,6 +30,7 @@ static boolean equalWindowBound (WindowBound *a, WindowBound *b);
 static boolean equalWindowFrame (WindowFrame *a, WindowFrame *b);
 static boolean equalWindowDef (WindowDef *a, WindowDef *b);
 static boolean equalWindowFunction (WindowFunction *a, WindowFunction *b);
+static boolean equalRowNumExpr (RowNumExpr *a, RowNumExpr *b);
 
 static boolean equalList(List *a, List *b);
 static boolean equalStringList (List *a, List *b);
@@ -235,6 +236,11 @@ equalWindowFunction (WindowFunction *a, WindowFunction *b)
     return TRUE;
 }
 
+static boolean
+equalRowNumExpr (RowNumExpr *a, RowNumExpr *b)
+{
+    return TRUE;
+}
 
 /* */
 static boolean

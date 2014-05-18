@@ -143,6 +143,7 @@ extern AttributeDef *createAttributeDef (char *name, DataType dt);
 extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames,
         List *dataTypes);
+extern void addAttrToSchema(QueryOperator *op, char *name, DataType dt);
 extern List *getDataTypes (Schema *schema);
 extern List *getAttrNames(Schema *schema);
 #define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema
@@ -168,7 +169,7 @@ extern ConstRelOperator *createConstRelOp(List *values,List *parents,
         List *attrNames, List *dataTypes);
 extern NestingOperator *createNestingOp(NestingExprType nestingType, Node *cond,
         List *inputs, List *parents, List *attrNames);
-extern WindowOperator *createWindowOp(FunctionCall *fCall, List *partitionBy,
+extern WindowOperator *createWindowOp(Node *fCall, List *partitionBy,
         List *orderBy, WindowFrame *frameDef, char *attrName,
         QueryOperator *input, List *parents);
 
@@ -189,6 +190,8 @@ extern void setStringProperty (QueryOperator *op, char *key, Node *value);
 extern Node *getStringProperty (QueryOperator *op, char *key);
 #define HAS_PROP(op,key) (getProperty(((QueryOperator *) op),key) != NULL)
 #define HAS_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key) != NULL)
+#define SET_STRING_PROP(op,key,value) (setStringProperty((QueryOperator *) op, \
+        key, (Node *) value))
 #define SET_BOOL_STRING_PROP(op,key) (setStringProperty((QueryOperator *) op, \
         key, (Node *) createConstBool(TRUE)))
 #define GET_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key))

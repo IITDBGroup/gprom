@@ -53,6 +53,10 @@ typedef struct SQLParameter {
     DataType parType;
 } SQLParameter;
 
+typedef struct RowNumExpr {
+    NodeTag type;
+} RowNumExpr;
+
 typedef struct CaseExpr {
     NodeTag type;
     Node *expr;

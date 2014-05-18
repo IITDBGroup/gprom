@@ -47,7 +47,7 @@ static QueryOperator *mapGetOp(QueryOperator *op, OperatorMap **opMap);
 /* internal copy entry point that creates the operator map */
 static void *copyInternal(void *from, OperatorMap **opMap);
 
-/* functions to copy specific node types */
+/* functions to copy expression node types and special node types */
 static List *deepCopyList(List *from, OperatorMap **opMap);
 static FunctionCall *copyFunctionCall(FunctionCall *from, OperatorMap **opMap);
 static KeyValue *copyKeyValue(KeyValue *from, OperatorMap **opMap);
@@ -61,6 +61,7 @@ static WindowBound *copyWindowBound(WindowBound *from, OperatorMap **opMap);
 static WindowFrame *copyWindowFrame(WindowFrame *from, OperatorMap **opMap);
 static WindowDef *copyWindowDef(WindowDef *from, OperatorMap **opMap);
 static WindowFunction *copyWindowFunction(WindowFunction *from, OperatorMap **opMap);
+static RowNumExpr *copyRowNumExpr(RowNumExpr *from, OperatorMap **opMap);
 
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
@@ -274,6 +275,14 @@ copyWindowFunction(WindowFunction *from, OperatorMap **opMap)
 
     COPY_NODE_FIELD(f);
     COPY_NODE_FIELD(win);
+
+    return new;
+}
+
+static RowNumExpr *
+copyRowNumExpr(RowNumExpr *from, OperatorMap **opMap)
+{
+    COPY_INIT(RowNumExpr);
 
     return new;
 }
@@ -747,6 +756,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_WindowFunction:
             retval = copyWindowFunction(from, opMap);
+            break;
+        case T_RowNumExpr:
+            retval = copyRowNumExpr(from, opMap);
             break;
              /* query block model nodes */
 //        case T_SetOp:

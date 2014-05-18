@@ -29,6 +29,7 @@ typedef enum NodeTag {
     T_WindowFrame,
     T_WindowDef,
     T_WindowFunction,
+    T_RowNumExpr,
 
     /* query block model nodes */
     T_SetQuery,
