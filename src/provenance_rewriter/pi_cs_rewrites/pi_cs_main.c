@@ -420,8 +420,17 @@ rewritePI_CSAggregation (AggregationOperator *op)
         List *attrNames = NIL;
         List *provAttrs = NIL;
         ProjectionOperator *groupByProj;
+        List *gbNames = aggOpGetGroupByAttrNames(op);
+        ListCell *lc;
 
-        attrNames = CONCAT_LISTS(aggOpGetGroupByAttrNames(op), getOpProvenanceAttrNames(aggInput));
+        // adapt right side group by attr names
+        FOREACH_LC(lc,gbNames)
+        {
+            char *name = (char *) LC_P_VAL(lc);
+            LC_P_VAL(lc) = CONCAT_STRINGS("_P_SIDE_", name);
+        }
+
+        attrNames = CONCAT_LISTS(gbNames, getOpProvenanceAttrNames(aggInput));
         groupByProjExprs = CONCAT_LISTS(groupByProjExprs, getProvAttrProjectionExprs(aggInput));
 
         groupByProj = createProjectionOp(groupByProjExprs,
@@ -445,8 +454,9 @@ rewritePI_CSAggregation (AggregationOperator *op)
 		FOREACH(AttributeReference, a , op->groupBy)
 		{
 		    char *name = getNthOfListP(groupByNames, pos);
-			AttributeReference *lA = createFullAttrReference(name, 0, a->attrPosition, INVALID_ATTR);
-			AttributeReference *rA = createFullAttrReference(name, 1, pos, INVALID_ATTR);
+			AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, INVALID_ATTR);
+			AttributeReference *rA = createFullAttrReference(
+			        CONCAT_STRINGS("_P_SIDE_",name), 1, pos, INVALID_ATTR);
 			if(joinCond)
 				joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
 			else

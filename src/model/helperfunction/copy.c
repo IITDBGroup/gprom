@@ -635,30 +635,35 @@ copyConstant(Constant *from, OperatorMap **opMap)
       COPY_INIT(Constant);
       COPY_SCALAR_FIELD(constType); 
 	  COPY_SCALAR_FIELD(isNull);
+	  if (from->isNull)
+	  {
+	      new->value = NULL;
+	      return new;
+	  }
 
-      switch (from->constType)	 
-  {	 
-      case DT_INT:	 
-           new->value = NEW(int);	 
-           *((int *) new->value) = *((int *) from->value);	 
-           break;	 
-      case DT_FLOAT: 
-           new->value = NEW(double);	 
-           *((double *) new->value) = *((double *) from->value);
-           break;	 
-      case DT_BOOL: 
-           new->value = NEW(boolean); 
-           *((boolean *) new->value) = *((boolean *) from->value); 
-           break;	 
-      case DT_STRING:	 
-          new->value = strdup(from->value);
-          break;
-      case DT_LONG:
-          new->value = NEW(long);
-          *((long *) new->value) = *((long *) from->value);
-          break;
-   } 	 
-      return new;
+	  switch (from->constType)
+	  {
+	      case DT_INT:
+	          new->value = NEW(int);
+	          *((int *) new->value) = *((int *) from->value);
+	          break;
+	      case DT_FLOAT:
+	          new->value = NEW(double);
+	          *((double *) new->value) = *((double *) from->value);
+	          break;
+	      case DT_BOOL:
+	          new->value = NEW(boolean);
+	          *((boolean *) new->value) = *((boolean *) from->value);
+	          break;
+	      case DT_STRING:
+	          new->value = strdup(from->value);
+	          break;
+	      case DT_LONG:
+	          new->value = NEW(long);
+	          *((long *) new->value) = *((long *) from->value);
+	          break;
+	  }
+	  return new;
 }
 
 static FromSubquery *

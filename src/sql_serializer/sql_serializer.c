@@ -829,6 +829,15 @@ updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state)
     return visit(node, updateAggsAndGroupByAttrs, state);
 }
 
+#define UPDATE_ATTR_NAME(cond,expr,falseAttrs,trueAttrs) \
+    do { \
+        Node *_localExpr = (Node *) (expr); \
+        if (m->secondProj == NULL) \
+            updateAttributeNames(_localExpr, falseAttrs); \
+        else \
+            updateAttributeNamesSimple(_localExpr, trueAttrs); \
+    } while(0)
+
 /*
  * Create the SELECT, GROUP BY, and HAVING clause
  */
@@ -874,10 +883,11 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         // aggregation
         FOREACH(Node,expr,agg->aggrs)
         {
-            if (m->secondProj == NULL)
-                updateAttributeNames(expr, fromAttrs);
-            else
-                updateAttributeNamesSimple(expr, firstProjs);
+            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fromAttrs, firstProjs);
+//            if (m->secondProj == NULL)
+//                updateAttributeNames(expr, fromAttrs);
+//            else
+//                updateAttributeNamesSimple(expr, firstProjs);
             aggs = appendToTailOfList(aggs, exprToSQL(expr));
         }
         INFO_LOG("aggregation attributes are %s", stringListToString(aggs));
@@ -891,10 +901,11 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             else
                 appendStringInfoString (groupBy, ", ");
 
-            if (m->secondProj == NULL)
-                updateAttributeNames(expr, fromAttrs);
-            else
-                updateAttributeNamesSimple(expr, firstProjs);
+            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fromAttrs, firstProjs);
+//            if (m->secondProj == NULL)
+//                updateAttributeNames(expr, fromAttrs);
+//            else
+//                updateAttributeNamesSimple(expr, firstProjs);
             g = exprToSQL(expr);
 
             groupBys = appendToTailOfList(groupBys, g);
@@ -917,16 +928,22 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 
         while(isA(curOp,WindowOperator))
         {
-            Node *expr = ((WindowOperator *) curOp)->f;
+            WindowOperator *wOp = (WindowOperator *) curOp;
+            Node *expr = wOp->f;
 
             DEBUG_LOG("window function = %s", beatify(nodeToString(expr)));
 
-            if (m->secondProj == NULL)
-                updateAttributeNames(expr, fromAttrs);
-            else
-                updateAttributeNamesSimple(expr, firstProjs);
+            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fromAttrs, firstProjs);
+//            if (m->secondProj == NULL)
+//                updateAttributeNames(expr, fromAttrs);
+//            else
+//                updateAttributeNamesSimple(expr, firstProjs);
             windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
                     (WindowOperator *) curOp)));
+
+            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->partitionBy, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->orderBy, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fromAttrs, firstProjs);
 
             DEBUG_LOG("window function = %s", exprToSQL((Node *) winOpGetFunc(
                     (WindowOperator *) curOp)));

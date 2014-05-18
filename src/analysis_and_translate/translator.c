@@ -1113,10 +1113,10 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 	// create fake attribute names for aggregation output schema
 	for (i = 0; i < LIST_LENGTH(aggrs); i++)
 		attrNames = appendToTailOfList(attrNames,
-				CONCAT_STRINGS("aggr_", itoa(i)));
+				CONCAT_STRINGS("AGGR_", itoa(i)));
 	for (i = 0; i < LIST_LENGTH(groupByClause); i++)
 		attrNames = appendToTailOfList(attrNames,
-				CONCAT_STRINGS("group_", itoa(i)));
+				CONCAT_STRINGS("GROUP_", itoa(i)));
 
 	// copy aggregation function calls and groupBy expressions
 	// and create aggregation operator
@@ -1234,7 +1234,7 @@ createProjectionOverNonAttrRefExprs(List *selectClause, Node *havingClause,
         FOREACH(Node, expr, projExprs)
         {
             attrNames = appendToTailOfList(attrNames,
-                    CONCAT_STRINGS("agg_gb_arg", itoa(i)));
+                    CONCAT_STRINGS("AGG_GB_ARG", itoa(i)));
             i++;
         }
 
