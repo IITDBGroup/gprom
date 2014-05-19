@@ -30,6 +30,7 @@ typedef enum NodeTag {
     T_WindowDef,
     T_WindowFunction,
     T_RowNumExpr,
+    T_OrderExpr,
 
     /* query block model nodes */
     T_SetQuery,
@@ -64,7 +65,8 @@ typedef enum NodeTag {
     T_DuplicateRemoval,
     T_ConstRelOperator,
     T_NestingOperator,
-    T_WindowOperator
+    T_WindowOperator,
+    T_OrderOperator
 
 } NodeTag;
 

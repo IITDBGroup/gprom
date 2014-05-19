@@ -113,6 +113,23 @@ typedef struct WindowFunction {
     WindowDef *win;
 } WindowFunction;
 
+typedef enum SortOrder {
+    SORT_ASC,
+    SORT_DESC
+} SortOrder;
+
+typedef enum SortNullOrder {
+    SORT_NULLS_FIRST,
+    SORT_NULLS_LAST
+} SortNullOrder;
+
+typedef struct OrderExpr {
+    NodeTag type;
+    Node *expr;
+    SortOrder order;
+    SortNullOrder nullOrder;
+} OrderExpr;
+
 /* functions to create expression nodes */
 extern FunctionCall *createFunctionCall (char *fName, List *args);
 extern Operator *createOpExpr (char *name, List *args);
@@ -133,6 +150,8 @@ extern WindowBound *createWindowBound (WindowBoundType bType, Node *expr);
 extern WindowFrame *createWindowFrame (WinFrameType winType, WindowBound *lower, WindowBound *upper);
 extern WindowDef *createWindowDef (List *partitionBy, List *orderBy, WindowFrame *frame);
 extern WindowFunction *createWindowFunction (FunctionCall *f, WindowDef *win);
+
+extern OrderExpr *createOrderExpr (Node *expr, SortOrder order, SortNullOrder nullOrder);
 
 /* functions for creating constants */
 extern Constant *createConstInt (int value);

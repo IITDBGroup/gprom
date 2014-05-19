@@ -62,6 +62,7 @@ static WindowFrame *copyWindowFrame(WindowFrame *from, OperatorMap **opMap);
 static WindowDef *copyWindowDef(WindowDef *from, OperatorMap **opMap);
 static WindowFunction *copyWindowFunction(WindowFunction *from, OperatorMap **opMap);
 static RowNumExpr *copyRowNumExpr(RowNumExpr *from, OperatorMap **opMap);
+static OrderExpr *copyOrderExpr(OrderExpr *from, OperatorMap **opMap);
 
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
@@ -80,6 +81,7 @@ static ProvenanceComputation *copyProvenanceComputation(ProvenanceComputation *f
 static ConstRelOperator *copyConstRelOperator(ConstRelOperator *from, OperatorMap **opMap);
 static NestingOperator *copyNestingOperator(NestingOperator *from, OperatorMap **opMap);
 static WindowOperator *copyWindowOperator(WindowOperator *from, OperatorMap **opMap);
+static OrderOperator *copyOrderOperator(OrderOperator *from, OperatorMap **opMap);
 
 /*functions to copy query_block*/
 static SetQuery *copySetQuery(SetQuery *from, OperatorMap **opMap);
@@ -287,6 +289,18 @@ copyRowNumExpr(RowNumExpr *from, OperatorMap **opMap)
     return new;
 }
 
+static OrderExpr *
+copyOrderExpr(OrderExpr *from, OperatorMap **opMap)
+{
+    COPY_INIT(OrderExpr);
+
+    COPY_NODE_FIELD(expr);
+    COPY_SCALAR_FIELD(order);
+    COPY_SCALAR_FIELD(nullOrder);
+
+    return new;
+}
+
 
 static AttributeDef *
 copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
@@ -462,6 +476,17 @@ copyWindowOperator(WindowOperator *from, OperatorMap **opMap)
     COPY_NODE_FIELD(frameDef);
     COPY_STRING_FIELD(attrName);
     COPY_NODE_FIELD(f);
+
+    return new;
+}
+
+static OrderOperator *
+copyOrderOperator(OrderOperator *from, OperatorMap **opMap)
+{
+    COPY_INIT(OrderOperator);
+    COPY_OPERATOR();
+
+    COPY_NODE_FIELD(orderExprs);
 
     return new;
 }
@@ -765,6 +790,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_RowNumExpr:
             retval = copyRowNumExpr(from, opMap);
             break;
+        case T_OrderExpr:
+            retval = copyOrderExpr(from, opMap);
+            break;
              /* query block model nodes */
 //        case T_SetOp:
 //            retval = copySetOp(from, opMap);
@@ -854,6 +882,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_WindowOperator:
             retval = copyWindowOperator(from, opMap);
+            break;
+        case T_OrderOperator:
+            retval = copyOrderOperator(from, opMap);
             break;
         default:
             retval = NULL;

@@ -127,6 +127,18 @@ createWindowFunction (FunctionCall *f, WindowDef *win)
     return result;
 }
 
+OrderExpr *
+createOrderExpr (Node *expr, SortOrder order, SortNullOrder nullOrder)
+{
+    OrderExpr *result = makeNode(OrderExpr);
+
+    result->expr = expr;
+    result->order = order;
+    result->nullOrder = nullOrder;
+
+    return result;
+}
+
 Node *
 andExprs (Node *expr, ...)
 {

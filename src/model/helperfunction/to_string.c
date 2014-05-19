@@ -41,6 +41,7 @@ static void outWindowFrame (StringInfo str, WindowFrame *node);
 static void outWindowDef (StringInfo str, WindowDef *node);
 static void outWindowFunction (StringInfo str, WindowFunction *node);
 static void outRowNumExpr (StringInfo str, RowNumExpr *node);
+static void outOrderExpr (StringInfo str, OrderExpr *node);
 
 static void outQueryBlock (StringInfo str, QueryBlock *node);
 static void outSetQuery (StringInfo str, SetQuery *node);
@@ -76,6 +77,7 @@ static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
 static void outConstRelOperator(StringInfo str, ConstRelOperator *node);
 static void outNestingOperator(StringInfo str, NestingOperator *node);
 static void outWindowOperator(StringInfo str, WindowOperator *node);
+static void outOrderOperator(StringInfo str, OrderOperator *node);
 
 static void indentString(StringInfo str, int level);
 
@@ -483,6 +485,16 @@ outRowNumExpr (StringInfo str, RowNumExpr *node)
 }
 
 static void
+outOrderExpr (StringInfo str, OrderExpr *node)
+{
+    WRITE_NODE_TYPE(ORDER_EXPR);
+
+    WRITE_NODE_FIELD(expr);
+    WRITE_ENUM_FIELD(order,SortOrder);
+    WRITE_ENUM_FIELD(nullOrder,SortNullOrder);
+}
+
+static void
 outSelectItem (StringInfo str, SelectItem *node)
 {
     WRITE_NODE_TYPE(SELECT_ITEM);
@@ -730,6 +742,15 @@ outWindowOperator(StringInfo str, WindowOperator *node)
     WRITE_NODE_FIELD(f);
 }
 
+static void
+outOrderOperator(StringInfo str, OrderOperator *node)
+{
+    WRITE_NODE_TYPE(ORDER_OPERATOR);
+    WRITE_QUERY_OPERATOR();
+
+    WRITE_NODE_FIELD(orderExprs);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -787,6 +808,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_RowNumExpr:
                 outRowNumExpr(str, (RowNumExpr *) obj);
+                break;
+            case T_OrderExpr:
+                outOrderExpr(str, (OrderExpr *) obj);
                 break;
             case T_SetQuery:
                 outSetQuery (str, (SetQuery *) obj);
@@ -882,6 +906,9 @@ outNode(StringInfo str, void *obj)
             	break;
             case T_WindowOperator:
                 outWindowOperator(str, (WindowOperator *) obj);
+                break;
+            case T_OrderOperator:
+                outOrderOperator(str, (OrderOperator *) obj);
                 break;
             default :
                 FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
@@ -1206,6 +1233,13 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
             appendStringInfoString(str, "] ");
 
             //exprToSQL((Node *) o->frameDef);
+        }
+        break;
+        case T_OrderOperator:
+        {
+            OrderOperator *o = (OrderOperator *) op;
+            WRITE_NODE_TYPE(OrderOperator);
+            appendStringInfo(str, "%s", exprToSQL(o->orderExprs));
         }
         break;
         default:

@@ -31,6 +31,7 @@ static boolean equalWindowFrame (WindowFrame *a, WindowFrame *b);
 static boolean equalWindowDef (WindowDef *a, WindowDef *b);
 static boolean equalWindowFunction (WindowFunction *a, WindowFunction *b);
 static boolean equalRowNumExpr (RowNumExpr *a, RowNumExpr *b);
+static boolean equalOrderExpr (OrderExpr *a, OrderExpr *b);
 
 static boolean equalList(List *a, List *b);
 static boolean equalStringList (List *a, List *b);
@@ -53,6 +54,7 @@ static boolean equalProvenanceComputation(ProvenanceComputation *a, ProvenanceCo
 static boolean equalConstRelOperator(ConstRelOperator *a, ConstRelOperator *b);
 static boolean equalNestingOperator(NestingOperator *a, NestingOperator *b);
 static boolean equalWindowOperator(WindowOperator *a, WindowOperator *b);
+static boolean equalOrderOperator(OrderOperator *a, OrderOperator *b);
 
 // equal functions for query_block
 static boolean equalQueryBlock(QueryBlock *a, QueryBlock *b);
@@ -239,6 +241,16 @@ equalWindowFunction (WindowFunction *a, WindowFunction *b)
 static boolean
 equalRowNumExpr (RowNumExpr *a, RowNumExpr *b)
 {
+    return TRUE;
+}
+
+static boolean
+equalOrderExpr (OrderExpr *a, OrderExpr *b)
+{
+    COMPARE_NODE_FIELD(expr);
+    COMPARE_SCALAR_FIELD(order);
+    COMPARE_SCALAR_FIELD(nullOrder);
+
     return TRUE;
 }
 
@@ -511,6 +523,15 @@ equalWindowOperator (WindowOperator *a, WindowOperator *b)
     return TRUE;
 }
 
+static boolean
+equalOrderOperator(OrderOperator *a, OrderOperator *b)
+{
+    COMPARE_QUERY_OP();
+    COMPARE_NODE_FIELD(orderExprs);
+
+    return TRUE;
+}
+
 // equal functions for query_block
 static boolean 
 equalQueryBlock(QueryBlock *a, QueryBlock *b)
@@ -769,6 +790,12 @@ equal(void *a, void *b)
         case T_WindowFunction:
             retval = equalWindowFunction(a,b);
             break;
+        case T_RowNumExpr:
+            retval = equalRowNumExpr(a,b);
+            break;
+        case T_OrderExpr:
+            retval = equalOrderExpr(a,b);
+            break;
             /*something different cases this, and we have*/
             /*different types of T_Node       */
         case T_QueryOperator:
@@ -866,6 +893,9 @@ equal(void *a, void *b)
             break;
         case T_WindowOperator:
             retval = equalWindowOperator(a,b);
+            break;
+        case T_OrderOperator:
+            retval = equalOrderOperator(a,b);
             break;
         default:
             retval = FALSE;

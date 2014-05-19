@@ -32,6 +32,7 @@ typedef enum MatchState {
     MATCH_SECOND_PROJ,
     MATCH_WHERE,
     MATCH_WINDOW,
+    MATCH_ORDER,
     MATCH_NEXTBLOCK
 } MatchState;
 
@@ -44,6 +45,7 @@ typedef enum MatchState {
      _state == MATCH_SECOND_PROJ ? "MATCH_SECOND_PROJ" : \
      _state == MATCH_WHERE ? "MATCH_WHERE" : \
      _state == MATCH_WINDOW ? "MATCH_WINDOW" : \
+     _state == MATCH_WINDOW ? "MATCH_ORDER" : \
              "MATCH_NEXTBLOCK" \
      )
 
@@ -56,6 +58,7 @@ typedef struct QueryBlockMatch {
     SelectionOperator *where;
     QueryOperator *fromRoot;
     WindowOperator *windowRoot;
+    OrderOperator *orderBy;
 } QueryBlockMatch;
 
 #define OUT_BLOCK_MATCH(_level,_m,_message) \
@@ -69,6 +72,7 @@ typedef struct QueryBlockMatch {
         _level ## _LOG ("where: %s", operatorToOverviewString((Node *) _m->where)); \
         _level ## _LOG ("fromRoot: %s", operatorToOverviewString((Node *) _m->fromRoot)); \
         _level ## _LOG ("windowRoot: %s", operatorToOverviewString((Node *) _m->windowRoot)); \
+        _level ## _LOG ("orderBy: %s", operatorToOverviewString((Node *) _m->orderBy)); \
     } while(0)
 
 typedef struct TemporaryViewMap {
@@ -286,6 +290,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
             /* START state */
             case MATCH_START:
             case MATCH_DISTINCT:
+            case MATCH_ORDER:
             {
                 switch(cur->type)
                 {
@@ -328,10 +333,22 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
                     }
                     break;
                     case T_DuplicateRemoval:
-                        if (state == MATCH_START)
+                        if (state == MATCH_START || state == MATCH_ORDER)
                         {
                             matchInfo->distinct = (DuplicateRemoval *) cur;
                             state = MATCH_DISTINCT;
+                        }
+                        else
+                        {
+                            matchInfo->fromRoot = cur;
+                            state = MATCH_NEXTBLOCK;
+                        }
+                        break;
+                    case T_OrderOperator:
+                        if (state == MATCH_START)
+                        {
+                            matchInfo->orderBy = (OrderOperator *) cur;
+                            state = MATCH_ORDER;
                         }
                         else
                         {

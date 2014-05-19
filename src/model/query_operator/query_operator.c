@@ -324,6 +324,22 @@ createWindowOp(Node *fCall, List *partitionBy, List *orderBy,
     return wo;
 }
 
+OrderOperator *
+createOrderOp(List *orderExprs, QueryOperator *input, List *parents)
+{
+    OrderOperator *o = makeNode(OrderOperator);
+    List *inputAttrs = getQueryOperatorAttrNames(input);
+
+    o->orderExprs = orderExprs;
+    o->op.type = T_OrderOperator;
+    o->op.inputs = singleton(input);
+    o->op.schema =  createSchemaFromLists("ORDER", inputAttrs, NIL);
+    o->op.parents = parents;
+    o->op.provAttrs = NIL;
+
+    return o;
+}
+
 void
 setProperty (QueryOperator *op, Node *key, Node *value)
 {

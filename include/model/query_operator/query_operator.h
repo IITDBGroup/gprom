@@ -124,6 +124,12 @@ typedef struct WindowOperator
     Node *f;
 } WindowOperator;
 
+typedef struct OrderOperator
+{
+    QueryOperator op;
+    List *orderExprs;
+} OrderOperator;
+
 /* type of operator macros */
 #define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
                         || isA(op, ConstRelOperator))
@@ -172,6 +178,8 @@ extern NestingOperator *createNestingOp(NestingExprType nestingType, Node *cond,
 extern WindowOperator *createWindowOp(Node *fCall, List *partitionBy,
         List *orderBy, WindowFrame *frameDef, char *attrName,
         QueryOperator *input, List *parents);
+extern OrderOperator *createOrderOp(List *orderExprs, QueryOperator *input,
+        List *parents);
 
 /* navigation functions */
 #define OP_LCHILD(op) \

@@ -67,6 +67,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> INT BEGIN_TRANS COMMIT_TRANS ROLLBACK_TRANS
 %token <stringVal> CASE WHEN THEN ELSE END
 %token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
+%token <stringVal> NULLS FIRST LAST ASC DESC
 
 %token <stringVal> DUMMYEXPR
 
@@ -107,19 +108,19 @@ Node *bisonParseResult = NULL;
 %type <node> stmt provStmt dmlStmt queryStmt
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
-%type <list> selectClause optionalFrom fromClause exprList clauseList 
+%type <list> selectClause optionalFrom fromClause exprList orderList 
 			 optionalGroupBy optionalOrderBy setClause insertList stmtList 
 			 identifierList optionalAttrAlias optionalProvWith provOptionList 
 			 caseWhenList windowBoundaries optWindowPart withViewList
-%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving
-             //optionalReruning optionalGroupBy optionalOrderBy optionalLimit
+%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr
+             //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse
 %type <node> overClause windowSpec optWindowFrame windowBound 
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provOption
 %type <node> withView withQuery
-%type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString
+%type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier
 
 %start stmtList
@@ -1062,17 +1063,28 @@ whereExpression:
             }
         | whereExpression OR whereExpression
             {
-                RULELOG("whereExpression::AND");
+                RULELOG("whereExpression::OR");
                 List *expr = singleton($1);
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
             }
-        | whereExpression LIKE whereExpression
-            {
-                RULELOG("whereExpression::AND");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
+		| whereExpression LIKE whereExpression
+			{
+				//if ($2 == NULL)
+                //{
+                	RULELOG("whereExpression::LIKE");
+	                List *expr = singleton($1);
+	                expr = appendToTailOfList(expr, $3);
+	                $$ = (Node *) createOpExpr($2, expr);
+                /* }
+				else
+				{   
+                	RULELOG("whereExpression::NOT::LIKE");
+                	List *expr = singleton($1);
+                	expr = appendToTailOfList(expr, $4);
+                	Node *like = (Node *) createOpExpr($3, expr);
+                	$$ = (Node *) createOpExpr("NOT", singleton(like));
+				}*/
             }
         | whereExpression BETWEEN expression AND expression
             {
@@ -1107,18 +1119,10 @@ whereExpression:
                     $$ = (Node *) createNestedSubquery("ALL",$1, "<>", $5);
                 }
             }
-        | /* optionalNot */ EXISTS '(' queryStmt ')'
+        | EXISTS '(' queryStmt ')'
             {
-                /* if ($1 == NULL)
-                { */
-                    RULELOG("whereExpression::EXISTS");
-                    $$ = (Node *) createNestedSubquery($1, NULL, NULL, $3);
-               /*  }
-                else
-                {
-                    RULELOG("whereExpression::EXISTS::NOT");
-                    $$ = (Node *) createNestedSubquery($2, NULL, "<>", $4);
-                } */
+                RULELOG("whereExpression::EXISTS");
+                $$ = (Node *) createNestedSubquery($1, NULL, NULL, $3);
             }
     ;
 
@@ -1149,7 +1153,7 @@ optionalHaving:
 
 optionalOrderBy:
         /* Empty */        { RULELOG("optionalOrderBy:::NULL"); $$ = NULL; }
-        | ORDER BY clauseList       { RULELOG("optionalOrderBy::ORDERBY"); $$ = $3; }
+        | ORDER BY orderList       { RULELOG("optionalOrderBy::ORDERBY"); $$ = $3; }
     ;
 
 optionalLimit:
@@ -1157,30 +1161,60 @@ optionalLimit:
         | LIMIT constant        { RULELOG("optionalLimit::CONSTANT"); $$ = $2;}
     ;
 
-clauseList:
-        attributeRef
+orderList:
+		 orderExpr
             {
-                RULELOG("clauseList::attributeRef");
+                RULELOG("clauseList::orderExpr");
                 $$ = singleton($1);
             }
-        | clauseList ',' attributeRef
+        | orderList ',' orderExpr
             {
-                RULELOG("clauseList::clauseList::attributeRef");
-                $$ = appendToTailOfList($1, $3);
-            }
-        | constant
-            {
-                RULELOG("clauseList::constant");
-                $$ = singleton($1);
-            }
-        | clauseList ',' constant
-            {
-                RULELOG("clauseList::clauseList::attributeRef");
+                RULELOG("orderList::orderList::orderExpr");
                 $$ = appendToTailOfList($1, $3);
             }
     ;
 
+orderExpr:
+		expression optionalSortOrder optionalNullOrder
+			{
+				RULELOG("orderExpr::expr::sortOrder::nullOrder");
+				SortOrder o = (strcmp($2,"ASC") == 0) ?  SORT_ASC : SORT_DESC;
+				SortNullOrder n = (strcmp($3,"NULLS_FIRST") == 0) ? 
+						SORT_NULLS_FIRST : 
+						SORT_NULLS_LAST;
+				$$ = (Node *) createOrderExpr($1, o, n);
+			}
+	;
+	
+optionalSortOrder:
+		/* empty */ { RULELOG("optionalSortOrder::empty"); $$ = "ASC"; }
+		| ASC
+			{
+				RULELOG("optionalSortOrder::ASC");
+				$$ = "ASC";
+			}
+		| DESC
+			{
+				RULELOG("optionalSortOrder::DESC");
+				$$ = "DESC";
+			}
+	;
 
+optionalNullOrder:
+		/* empty */ { RULELOG("optionalNullOrder::empty"); $$ = "NULLS_LAST"; }
+		| NULLS FIRST
+			{
+				RULELOG("optionalNullOrder::NULLS FIRST");
+				$$ = "NULLS_FIRST";
+			}
+		| NULLS LAST
+			{
+				RULELOG("optionalNullOrder::NULLS LAST");
+				$$ = "NULLS_LAST";
+			}
+	;
+
+	
 %%
 
 

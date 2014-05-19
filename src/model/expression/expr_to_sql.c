@@ -26,9 +26,9 @@ static void constantToSQL (StringInfo str, Constant *node);
 static void functionCallToSQL (StringInfo str, FunctionCall *node);
 static void operatorToSQL (StringInfo str, Operator *node);
 static void caseToSQL(StringInfo str, CaseExpr *expr);
-static void winFuncToSQL(StringInfo str, WindowFunction * expr);
+static void winFuncToSQL(StringInfo str, WindowFunction *expr);
 static void winBoundToSQL (StringInfo str, WindowBound *b);
-
+static void orderExprToSQL (StringInfo str, OrderExpr *o);
 
 static void
 attributeReferenceToSQL (StringInfo str, AttributeReference *node)
@@ -202,6 +202,22 @@ winBoundToSQL (StringInfo str, WindowBound *b)
 }
 
 static void
+orderExprToSQL (StringInfo str, OrderExpr *o)
+{
+    exprToSQLString(str, (Node *) o->expr);
+
+    if (o->order == SORT_ASC)
+        appendStringInfoString(str, " ASC");
+    else if (o->order == SORT_DESC)
+        appendStringInfoString(str, " DESC");
+
+    if (o->nullOrder == SORT_NULLS_FIRST)
+        appendStringInfoString(str, " NULLS FIRST");
+    else if (o->nullOrder == SORT_NULLS_LAST)
+        appendStringInfoString(str, " NULLS LAST");
+}
+
+static void
 exprToSQLString(StringInfo str, Node *expr)
 {
     if (expr == NULL)
@@ -250,6 +266,11 @@ exprToSQLString(StringInfo str, Node *expr)
         case T_RowNumExpr:
         {
             appendStringInfoString(str, "ROWNUM");
+        }
+        break;
+        case T_OrderExpr:
+        {
+            orderExprToSQL(str, (OrderExpr *) expr);
         }
         break;
         default:

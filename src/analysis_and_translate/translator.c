@@ -86,6 +86,9 @@ static QueryOperator *translateAggregation(QueryBlock *qb, QueryOperator *input,
 static QueryOperator *translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
         List *attrsOffsets);
 
+static QueryOperator *translateOrderBy(QueryBlock *qb, QueryOperator *input,
+        List *attrsOffsets);
+
 /* helpers */
 static Node *replaceAggsAndGroupByMutator(Node *node,
 		ReplaceGroupByState *state);
@@ -230,6 +233,12 @@ translateSetQuery(SetQuery *sq)
 	return result;
 }
 
+#define LOG_TRANSLATED_OP(message,op) \
+    do { \
+        DEBUG_LOG(message, beatify(nodeToString((Node *) op))); \
+        INFO_LOG(message, operatorToOverviewString((Node *) op)); \
+    } while (0)
+
 static QueryOperator *
 translateQueryBlock(QueryBlock *qb)
 {
@@ -237,31 +246,31 @@ translateQueryBlock(QueryBlock *qb)
 	boolean hasAggOrGroupBy = FALSE;
 	boolean hasWindowFuncs = FALSE;
 
-	INFO_LOG("translate a QB:\n%s", nodeToString(qb));
+	DEBUG_LOG("translate a QB:\n%s", beatify(nodeToString(qb)));
 
 	QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause);
-	INFO_LOG("translatedFrom is\n%s", nodeToString(joinTreeRoot));
+	LOG_TRANSLATED_OP("translatedFrom is\n%s", joinTreeRoot);
 	attrsOffsets = getAttrsOffsets(qb->fromClause);
 
 	QueryOperator *nestingOp = translateNestedSubquery(qb, joinTreeRoot,
 			attrsOffsets);
 	if (nestingOp != joinTreeRoot)
-		INFO_LOG("translatedNesting is\n%s", nodeToString(nestingOp));
+	    LOG_TRANSLATED_OP("translatedNesting is\n%s", nestingOp);
 
 	QueryOperator *select = translateWhereClause(qb->whereClause, nestingOp,
 			attrsOffsets);
 	if (select != nestingOp)
-		INFO_LOG("translatedWhere is\n%s", nodeToString(select));
+	    LOG_TRANSLATED_OP("translatedWhere is\n%s", select);
 
 	QueryOperator *aggr = translateAggregation(qb, select, attrsOffsets);
 	hasAggOrGroupBy = (aggr != select);
 	if (hasAggOrGroupBy)
-		INFO_LOG("translatedAggregation is\n%s", nodeToString(aggr));
+	    LOG_TRANSLATED_OP("translatedAggregation is\n%s", aggr);
 
 	QueryOperator *wind = translateWindowFuncs(qb, aggr, attrsOffsets);
 	hasWindowFuncs = (wind != aggr);
 	if (hasWindowFuncs)
-	    INFO_LOG("translatedWindowFuncs is\n%s", nodeToString(wind));
+	    LOG_TRANSLATED_OP("translatedWindowFuncs is\n%s", wind);
 
 	if (hasAggOrGroupBy && hasWindowFuncs)
 	    FATAL_LOG("Cannot have both window functions and aggregation/group by "
@@ -270,18 +279,22 @@ translateQueryBlock(QueryBlock *qb)
 	QueryOperator *having = translateHavingClause(qb->havingClause, wind,
 			attrsOffsets);
 	if (having != aggr)
-		INFO_LOG("translatedHaving is\n%s", nodeToString(having));
+	    LOG_TRANSLATED_OP("translatedHaving is\n%s", having);
 
 	QueryOperator *project = translateSelectClause(qb->selectClause, having,
 			attrsOffsets, hasAggOrGroupBy);
-	INFO_LOG("translatedSelect is\n%s", nodeToString(project));
+	LOG_TRANSLATED_OP("translatedSelect is\n%s", project);
 
 	QueryOperator *distinct = translateDistinct((DistinctClause *) qb->distinct,
 	        project);
 	if (distinct != project)
-	    INFO_LOG("translatedDistinct is\n%s", nodeToString(distinct));
+	    LOG_TRANSLATED_OP("translatedDistinct is\n%s", distinct);
 
-	return distinct;
+	QueryOperator *orderBy = translateOrderBy(qb, distinct, attrsOffsets);
+	if (orderBy != distinct)
+	    LOG_TRANSLATED_OP("translatedOrder is\n%s", orderBy);
+
+	return orderBy;
 }
 
 static QueryOperator *
@@ -1309,6 +1322,18 @@ createProjectionOverNonAttrRefExprs(List *selectClause, Node *havingClause,
 
     freeList(projExprs);
     return output;
+}
+
+static QueryOperator *
+translateOrderBy(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
+{
+    OrderOperator *o;
+    List *adaptedOrderExprs = copyObject(qb->orderByClause);
+
+    o = createOrderOp(adaptedOrderExprs, input, NIL);
+    addParent(input, (QueryOperator *) o);
+
+    return (QueryOperator *) o;
 }
 
 static List *
