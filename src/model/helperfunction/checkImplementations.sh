@@ -21,6 +21,22 @@ searchForFunctions()
     done
 }
 
+searchForVisitAndMutate()
+{
+	cFile=$1
+	nodeTypes=$2
+    echo "****************************************"
+    echo "searching for visit and mutate in ${cFile}"
+    echo "****************************************"
+	for t in ${nodeTypes};
+	do
+		check=`cat ${cFile} | grep "${t}"`
+		if [ "${check}X" == "X" ]; then
+			echo "did not find visit ${t}"
+		fi
+	done
+}
+
 NodeTypesT=`grep ../../../include/model/node/nodetype.h -e 'T_[A-Z][a-z][a-zA-Z]\+' -o | tr '\n' ' '`
 NodeTypes=`echo "${NodeTypesT}" | sed -e 's/T_//g' -e 's/Invalid//g' -e 's/FromItem//g' -e 's/QueryOperator//g'`
 echo "found node types:"; echo "${NodeTypes}"
@@ -31,3 +47,4 @@ searchForFunctions "to_string.c" "out" "${NodeTypes}"
 searchForFunctions "deepFree.c" "free" "${NodeTypes}"
 searchForFunctions "hash.c" "hash" "${NodeTypes}"
 searchForFunctions "to_dot.c" "dot" "${NodeTypes}"
+searchForVisitAndMutate "visit.c" "${NodeTypesT}"

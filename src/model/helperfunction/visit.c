@@ -144,6 +144,14 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(win);
             }
         break;
+        case T_RowNumExpr:
+            break;
+        case T_OrderExpr:
+            {
+                PREP_VISIT(OrderExpr);
+                VISIT(expr);
+            }
+        break;
         /* query block model nodes */
         case T_SetQuery:
             {
@@ -314,6 +322,13 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(f);
             }
             break;
+        case T_OrderOperator:
+            {
+                PREP_VISIT(OrderOperator);
+                VISIT_OPERATOR_FIELDS();
+                VISIT(orderExprs);
+            }
+            break;
         default:
             break;
     }
@@ -426,6 +441,14 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(WindowDef, win);
             }
             break;
+        case T_RowNumExpr:
+            return node;
+        case T_OrderExpr:
+            {
+                NEWN(OrderExpr);
+                MUTATE(Node,expr);
+            }
+        break;
         /* query block model nodes */
         case T_SetQuery:
             {
@@ -600,6 +623,12 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(List,orderBy);
                 MUTATE(WindowFrame,frameDef);
                 MUTATE(Node,f);
+            }
+            break;
+        case T_OrderOperator:
+            {
+                NEWN(OrderOperator);
+                MUTATE(List,orderExprs);
             }
             break;
         default:
