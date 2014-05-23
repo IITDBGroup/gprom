@@ -1330,6 +1330,9 @@ translateOrderBy(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
     OrderOperator *o;
     List *adaptedOrderExprs = copyObject(qb->orderByClause);
 
+    if (!qb->orderByClause)
+        return input;
+
     o = createOrderOp(adaptedOrderExprs, input, NIL);
     addParent(input, (QueryOperator *) o);
 
