@@ -1239,7 +1239,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
         {
             OrderOperator *o = (OrderOperator *) op;
             WRITE_NODE_TYPE(OrderOperator);
-            appendStringInfo(str, "%s", exprToSQL(o->orderExprs));
+            appendStringInfo(str, "%s", exprToSQL((Node *) o->orderExprs));
         }
         break;
         default:
