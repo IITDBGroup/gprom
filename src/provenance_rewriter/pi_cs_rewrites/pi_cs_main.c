@@ -29,6 +29,7 @@ static QueryOperator *rewritePI_CSSet (SetOperator *op);
 static QueryOperator *rewritePI_CSTableAccess(TableAccessOperator *op);
 static QueryOperator *rewritePI_CSConstRel(ConstRelOperator *op);
 static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
+static QueryOperator *rewritePI_CSOrderOp(OrderOperator *op);
 
 static QueryOperator *addIntermediateProvenance (QueryOperator *op, List *userProvAttrs);
 static QueryOperator *rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs);
@@ -120,6 +121,10 @@ rewritePI_CSOperator (QueryOperator *op)
         case T_DuplicateRemoval:
             DEBUG_LOG("go duplicate removal operator");
             rewrittenOp = rewritePI_CSDuplicateRemOp((DuplicateRemoval *) op);
+            break;
+        case T_OrderOperator:
+            DEBUG_LOG("fo order operator");
+            rewrittenOp = rewritePI_CSOrderOp((OrderOperator *) op);
             break;
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
@@ -368,20 +373,26 @@ static QueryOperator *
 rewritePI_CSJoin (JoinOperator *op)
 {
     DEBUG_LOG("REWRITE-PICS - Join");
+    QueryOperator *lChild = OP_LCHILD(op);
+    QueryOperator *rChild = OP_RCHILD(op);
 
     // rewrite children
-    rewritePI_CSOperator(OP_LCHILD(op));
-    rewritePI_CSOperator(OP_RCHILD(op));
+    lChild = rewritePI_CSOperator(lChild);
+    rChild = rewritePI_CSOperator(rChild);
 
     // adapt schema for join op
     clearAttrsFromSchema((QueryOperator *) op);
-    addNormalAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
-    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
-    addNormalAttrsToSchema((QueryOperator *) op, OP_RCHILD(op));
-    addProvenanceAttrsToSchema((QueryOperator *) op, OP_RCHILD(op));
+    addNormalAttrsToSchema((QueryOperator *) op, lChild);
+    addProvenanceAttrsToSchema((QueryOperator *) op, lChild);
+    addNormalAttrsToSchema((QueryOperator *) op, rChild);
+    addProvenanceAttrsToSchema((QueryOperator *) op, rChild);
 
     // add projection to put attributes into order on top of join op
-    ProjectionOperator *proj = createProjectionOp(NIL, NULL, NIL, NIL);
+    List *projExpr = CONCAT_LISTS(
+            getNormalAttrProjectionExprs((QueryOperator *) op),
+            getProvAttrProjectionExprs((QueryOperator *) op));
+    ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
+
     addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
     addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
     switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
@@ -787,4 +798,18 @@ rewritePI_CSDuplicateRemOp(DuplicateRemoval *op)
     switchSubtreeWithExisting(theOp, child);
 
     return rewritePI_CSOperator(child);
+}
+
+static QueryOperator *
+rewritePI_CSOrderOp(OrderOperator *op)
+{
+    QueryOperator *child = OP_LCHILD(op);
+
+    // rewrite child
+    rewritePI_CSOperator(child);
+
+    // adapt provenance attr list and schema
+    addProvenanceAttrsToSchema((QueryOperator *) op, child);
+
+    return (QueryOperator *) op;
 }

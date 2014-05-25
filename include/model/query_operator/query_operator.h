@@ -203,6 +203,8 @@ extern Node *getStringProperty (QueryOperator *op, char *key);
 #define SET_BOOL_STRING_PROP(op,key) (setStringProperty((QueryOperator *) op, \
         key, (Node *) createConstBool(TRUE)))
 #define GET_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key))
+#define GET_BOOL_STRING_PROP(op,key) ((getStringProperty((QueryOperator *) op, key) != NULL) \
+    && (BOOL_VALUE(getStringProperty((QueryOperator *) op, key))))
 
 /* add children and parents */
 extern void addChildOperator (QueryOperator *parent, QueryOperator *child);

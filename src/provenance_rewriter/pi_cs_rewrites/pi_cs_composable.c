@@ -25,6 +25,12 @@
 #define RESULT_TID_ATTR "_result_tid"
 #define PROV_DUPL_COUNT_ATTR "_prov_dup_count"
 
+#define LOG_RESULT(mes,op) \
+    do { \
+    	INFO_LOG(mes,operatorToOverviewString((Node *) op)); \
+    	DEBUG_LOG(mes,beatify(nodeToString((Node *) op))); \
+    } while(0)
+
 // data structures
 static Node *asOf;
 static RelCount *nameState;
@@ -41,8 +47,16 @@ static QueryOperator *rewritePI_CSComposableSet (SetOperator *op);
 static QueryOperator *rewritePI_CSComposableTableAccess(TableAccessOperator *op);
 static QueryOperator *rewritePI_CSComposableConstRel(ConstRelOperator *op);
 static QueryOperator *rewritePI_CSComposableDuplicateRemOp(DuplicateRemoval *op);
+static QueryOperator *rewritePI_CSComposableOrderOp(OrderOperator *op);
 
 static void addResultTIDAndProvDupAttrs (QueryOperator *op, boolean addToSchema);
+static void addChildResultTIDAndProvDupAttrsToSchema (QueryOperator *op);
+static List *getResultTidAndProvDupAttrsProjExprs(QueryOperator * op);
+static void addNormalAttrsWithoutSpecialToSchema(QueryOperator *target, QueryOperator *source);
+static List *getNormalAttrWithoutSpecial(QueryOperator *op);
+static List *removeSpecialAttrsFromNormalProjectionExprs(List *projExpr);
+
+
 static Node *replaceAttrWithCaseForProvDupRemoval (FunctionCall *f, Node *provDupAttrRef);
 
 
@@ -69,21 +83,29 @@ static boolean
 isTupleAtATimeSubtree(QueryOperator *op)
 {
     if (HAS_STRING_PROP(op, "PROVENANCE_OPERATOR_TUPLE_AT_A_TIME"))
-        return TRUE;
+        return GET_BOOL_STRING_PROP(op, "PROVENANCE_OPERATOR_TUPLE_AT_A_TIME");
 
     switch(op->type)
     {
         case T_SelectionOperator:
         case T_ProjectionOperator:
         case T_JoinOperator:
+        case T_TableAccessOperator:
             break;
         default:
+        {
+            SET_STRING_PROP(op, "PROVENANCE_OPERATOR_TUPLE_AT_A_TIME", createConstBool(FALSE));
             return FALSE;
+        }
     }
 
     FOREACH(QueryOperator,child,op->inputs)
         if (!isTupleAtATimeSubtree(child))
+        {
+            SET_STRING_PROP(op, "PROVENANCE_OPERATOR_TUPLE_AT_A_TIME", createConstBool(FALSE));
             return FALSE;
+        }
+
 
     SET_BOOL_STRING_PROP(op,"PROVENANCE_OPERATOR_TUPLE_AT_A_TIME");
     return TRUE;
@@ -110,6 +132,8 @@ rewritePI_CSComposableOperator (QueryOperator *op)
             return rewritePI_CSComposableConstRel((ConstRelOperator *) op);
         case T_DuplicateRemoval:
             return rewritePI_CSComposableDuplicateRemOp((DuplicateRemoval *) op);
+        case T_OrderOperator:
+            return rewritePI_CSComposableOrderOp((OrderOperator *) op);
         default:
             FATAL_LOG("rewrite for %u not implemented", op->type);
             return NULL;
@@ -121,8 +145,8 @@ rewritePI_CSComposableSelection (SelectionOperator *op)
 {
     ASSERT(OP_LCHILD(op));
 
-    DEBUG_LOG("REWRITE-PICS - Selection");
-    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+    DEBUG_LOG("REWRITE-PICS-Composable - Selection");
+    DEBUG_LOG("Operator tree \n%s", beatify(nodeToString(op)));
 
     // rewrite child first
     rewritePI_CSComposableOperator(OP_LCHILD(op));
@@ -136,7 +160,7 @@ rewritePI_CSComposableSelection (SelectionOperator *op)
     if (isTupleAtATimeSubtree(OP_LCHILD(op)))
         SET_BOOL_STRING_PROP(op,"PROVENANCE_OPERATOR_TUPLE_AT_A_TIME");
 
-    DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
+    LOG_RESULT("Selection - Rewritten Operator tree \n%s", op);
     return (QueryOperator *) op;
 }
 
@@ -145,7 +169,7 @@ rewritePI_CSComposableProjection (ProjectionOperator *op)
 {
     ASSERT(OP_LCHILD(op));
 
-    DEBUG_LOG("REWRITE-PICS - Projection");
+    DEBUG_LOG("REWRITE-PICS-Composable - Projection");
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
     // rewrite child
@@ -173,15 +197,135 @@ rewritePI_CSComposableProjection (ProjectionOperator *op)
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
     addResultTIDAndProvDupAttrs((QueryOperator *) op, TRUE);
 
-    DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
+    LOG_RESULT("Projection - Rewritten Operator tree \n%s", op);
     return (QueryOperator *) op;
 }
 
 static QueryOperator *
 rewritePI_CSComposableJoin (JoinOperator *op)
 {
-    FATAL_LOG("not implemented yet");
-    return NULL;
+    DEBUG_LOG("REWRITE-PICS-Composable - Join");
+    WindowOperator *wOp;
+    QueryOperator *lChild = OP_LCHILD(op);
+    QueryOperator *rChild = OP_RCHILD(op);
+    QueryOperator *prev;
+    boolean noDupInput = isTupleAtATimeSubtree((QueryOperator *) op);
+    boolean lChildNoDup = isTupleAtATimeSubtree(lChild);
+    boolean rChildNoDup = isTupleAtATimeSubtree(rChild);
+
+    // rewrite children
+    lChild = rewritePI_CSComposableOperator(lChild);
+    rChild = rewritePI_CSComposableOperator(rChild);
+
+    // adapt schema for join op
+    clearAttrsFromSchema((QueryOperator *) op);
+    addNormalAttrsWithoutSpecialToSchema((QueryOperator *) op, lChild);
+    addProvenanceAttrsToSchema((QueryOperator *) op, lChild);
+    addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) op);
+
+    addNormalAttrsWithoutSpecialToSchema((QueryOperator *) op, rChild);
+    addProvenanceAttrsToSchema((QueryOperator *) op, rChild);
+    addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) op);
+
+    // add window functions for result TID and prov dup columns
+    if (!lChildNoDup || !rChildNoDup)
+    {
+        List *orderBy = NIL;
+        List *partitionBy = NIL;
+        wOp = NULL;
+
+        if (lChildNoDup)
+        {
+            AttributeReference *childResultTidAttr = (AttributeReference *)
+                    getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(lChild));
+            orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr));
+            partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr));
+        }
+        if (rChildNoDup)
+        {
+            AttributeReference *childResultTidAttr = (AttributeReference *)
+                    getHeadOfListP(getResultTidAndProvDupAttrsProjExprs(rChild));
+            childResultTidAttr->attrPosition += getNumAttrs(lChild);
+            orderBy = appendToTailOfList(orderBy, copyObject(childResultTidAttr));
+            partitionBy = appendToTailOfList(partitionBy, copyObject(childResultTidAttr));
+        }
+
+        // add window functions for result TID attr
+        Node *tidFunc = (Node *) createFunctionCall(strdup("DENSE_RANK"), NIL);
+
+        wOp = createWindowOp(tidFunc,
+                NIL,
+                orderBy,
+                NULL,
+                strdup(RESULT_TID_ATTR),
+                (QueryOperator *) op,
+                NIL
+        );
+        wOp->op.provAttrs = copyObject(op->op.provAttrs);
+
+        // add window function for prov dup attr
+        prev = (QueryOperator *) wOp;
+        Node *provDupFunc = (Node *) createFunctionCall(strdup("ROW_NUMBER"), NIL);
+
+        wOp = createWindowOp(provDupFunc,
+                partitionBy,
+                orderBy,
+                NULL,
+                strdup(PROV_DUPL_COUNT_ATTR),
+                prev,
+                NIL
+        );
+        wOp->op.provAttrs = copyObject(prev->provAttrs);
+        addParent(prev, (QueryOperator *) wOp);
+        SET_STRING_PROP(wOp, "RESULT_TID_ATTR", createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 2));
+        SET_STRING_PROP(wOp, "PROV_DUP_ATTR", createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 1));
+
+        LOG_RESULT("Added result TID and prov duplicate window ops:\n%s", wOp);
+    }
+
+    // add projection to put attributes into order on top of join op
+    List *resultTidAndProvCount = NIL;
+    List *projExpr;
+    ProjectionOperator *proj;
+    QueryOperator *projInput = (noDupInput) ?
+            (QueryOperator *) op :
+            (QueryOperator *) wOp;
+
+    // get special attributes from window op or create projection expression for them
+    if (!noDupInput)
+        resultTidAndProvCount = getResultTidAndProvDupAttrsProjExprs((QueryOperator *) wOp);
+    else
+    {
+        resultTidAndProvCount = LIST_MAKE(
+                makeNode(RowNumExpr),
+                createConstInt(1)
+        );
+    }
+    projExpr = CONCAT_LISTS(
+            removeSpecialAttrsFromNormalProjectionExprs(
+                    getNormalAttrProjectionExprs((QueryOperator *) projInput)),
+            getProvAttrProjectionExprs((QueryOperator *) projInput),
+            resultTidAndProvCount);
+    proj = createProjectionOp(projExpr, projInput, NIL, NIL);
+
+    addNormalAttrsWithoutSpecialToSchema((QueryOperator *) proj, (QueryOperator *) projInput);
+    addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) projInput);
+    addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) proj);
+    SET_STRING_PROP(proj, "RESULT_TID_ATTR", createConstInt(LIST_LENGTH(projExpr) - 2));
+    SET_STRING_PROP(proj, "PROV_DUP_ATTR", createConstInt(LIST_LENGTH(projExpr) - 1));
+
+    // switch projection with join in tree
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    if (noDupInput)
+        addParent((QueryOperator *) op, (QueryOperator *) proj);
+    else
+    {
+        addParent((QueryOperator *) wOp, (QueryOperator *) proj);
+        addParent((QueryOperator *) op, (QueryOperator *) prev);
+    }
+
+    LOG_RESULT("Join - Rewritten Operator tree \n%s", proj);
+    return (QueryOperator *) proj;
 }
 
 static QueryOperator *
@@ -202,8 +346,8 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
     List *aggNames = aggOpGetAggAttrNames(op);
     int pos;
 
-    DEBUG_LOG("REWRITE-PICS - Projection");
-    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+    DEBUG_LOG("REWRITE-PICS-Composable - Aggregation");
+    DEBUG_LOG("Operator tree \n%s", beatify(nodeToString(op)));
 
     // rewrite child
     curChild = rewritePI_CSComposableOperator(OP_LCHILD(op));
@@ -357,7 +501,7 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
     DEBUG_LOG("projection is:\n%s", operatorToOverviewString((Node *) proj));
 
     // return projection
-    DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(proj)));
+    LOG_RESULT("Aggregation - Rewritten Operator tree \n%s", op);
     return (QueryOperator *) proj;
 }
 
@@ -380,7 +524,6 @@ replaceAttrWithCaseForProvDupRemoval (FunctionCall *f, Node *provDupAttrRef)
     }
 
     DEBUG_LOG("modified agg function call: <%s>", beatify(nodeToString(f)));
-
     return (Node *) f;
 }
 
@@ -402,7 +545,7 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op)
     int relAccessCount = getRelNameCount(&nameState, op->tableName);
     int cnt = 0;
 
-    DEBUG_LOG("REWRITE-PICS - Table Access <%s> <%u>", op->tableName, relAccessCount);
+    DEBUG_LOG("REWRITE-PICS-Composable - Table Access <%s> <%u>", op->tableName, relAccessCount);
 
     // copy any as of clause if there
     if (asOf)
@@ -458,7 +601,7 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op)
     addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
     SET_BOOL_STRING_PROP(newpo,"PROVENANCE_OPERATOR_TUPLE_AT_A_TIME");
 
-    DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) newpo));
+    LOG_RESULT("Table Access - Rewritten Operator tree \n%s", newpo);
     return (QueryOperator *) newpo;
 }
 
@@ -502,4 +645,88 @@ addResultTIDAndProvDupAttrs (QueryOperator *op, boolean addToSchema)
         SET_STRING_PROP(op, "PROV_DUP_ATTR",
                 copyObject(GET_STRING_PROP(child, "PROV_DUP_ATTR")));
     }
+}
+
+static void
+addChildResultTIDAndProvDupAttrsToSchema (QueryOperator *op)
+{
+    op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs,
+            createAttributeDef(strdup(RESULT_TID_ATTR), DT_INT));
+    op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs,
+            createAttributeDef(strdup(PROV_DUPL_COUNT_ATTR), DT_INT));
+}
+
+static void
+addNormalAttrsWithoutSpecialToSchema(QueryOperator *target, QueryOperator *source)
+{
+    List *newAttrs = (List *) copyObject(getNormalAttrWithoutSpecial(source));
+    target->schema->attrDefs = concatTwoLists(target->schema->attrDefs, newAttrs);
+}
+
+static List *
+getNormalAttrWithoutSpecial(QueryOperator *op)
+{
+    List *norm = getNormalAttrs(op);
+    List *result = NIL;
+
+    FOREACH(AttributeDef,a,norm)
+    {
+        if (strcmp(a->attrName, RESULT_TID_ATTR) != 0
+                && strcmp(a->attrName, PROV_DUPL_COUNT_ATTR) != 0)
+            result = appendToTailOfList(result, a);
+    }
+
+    return result;
+}
+
+
+static List *
+getResultTidAndProvDupAttrsProjExprs(QueryOperator *op)
+{
+    List *result = NIL;
+
+    result = LIST_MAKE(
+            createFullAttrReference(RESULT_TID_ATTR,
+                    0,
+                    INT_VALUE(GET_STRING_PROP(op, "RESULT_TID_ATTR")),
+                    INVALID_ATTR),
+            createFullAttrReference(PROV_DUPL_COUNT_ATTR,
+                    0,
+                    INT_VALUE(GET_STRING_PROP(op, "PROV_DUP_ATTR")),
+                    INVALID_ATTR)
+    );
+
+    return result;
+}
+
+static List *
+removeSpecialAttrsFromNormalProjectionExprs(List *projExpr)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeReference,a,projExpr)
+    {
+        if (strcmp(a->name, RESULT_TID_ATTR) != 0
+            && strcmp(a->name, PROV_DUPL_COUNT_ATTR) != 0)
+            result = appendToTailOfList(result, a);
+    }
+
+    return result;
+}
+
+
+static QueryOperator *
+rewritePI_CSComposableOrderOp(OrderOperator *op)
+{
+    QueryOperator *child = OP_LCHILD(op);
+
+    // rewrite child
+    rewritePI_CSComposableOperator(child);
+
+    // adapt provenance attr list and schema
+    addProvenanceAttrsToSchema((QueryOperator *) op, child);
+    addResultTIDAndProvDupAttrs((QueryOperator *) op, TRUE);
+
+    LOG_RESULT("Order Operator - Rewritten Operator tree \n%s", op);
+    return (QueryOperator *) op;
 }
