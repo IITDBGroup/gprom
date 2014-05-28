@@ -15,6 +15,8 @@
 
 #include "analysis_and_translate/analyze_qb.h"
 #include "model/node/nodetype.h"
+#include "model/set/set.h"
+#include "model/set/hashmap.h"
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 #include "provenance_rewriter/prov_utility.h"
@@ -29,8 +31,10 @@ static void mergeReadCommittedTransaction(ProvenanceComputation *op);
 static void addConditionsToBaseTables (ProvenanceComputation *op);
 static void extractUpdatedFromTemporalHistory (ProvenanceComputation *op);
 static void filterUpdatedInFinalResult (ProvenanceComputation *op);
+static Node *adaptConditionForReadCommitted(Node *cond, Constant *scn, int attrPos);
 
 static List *findUpdatedTableAccceses (Node *op);
+
 static KeyValue *getMapCond (List *props, char *key);
 static void setMapCond (List **props, KeyValue *newVal);
 
@@ -327,46 +331,82 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     List *upConds;
     List *tableNames;
     List *updatedTables;
+    List *allTables;
     List *origUpdates;
     List *tableCondMap = NIL;
     int pos = 0;
     KeyValue *tableCond;
-
+    Set *readFromTableNames = STRSET();
+    Set *updatedTableNames = STRSET();
+    HashMap *numAttrs = NEW_MAP(Constant,Constant);
     ProvenanceTransactionInfo *t = op->transactionInfo;
 
     upConds = (List *) GET_STRING_PROP(op, "UpdateConds");
     tableNames = t->updateTableNames;
     origUpdates = t->originalUpdates;
+    findTableAccessVisitor((Node *) op, &allTables);
     updatedTables  = findUpdatedTableAccceses ((Node *) op);
 
     DEBUG_LOG("\ncond: %s, \ntables: %s, \nupdatedTable: %s",
-            nodeToString(upConds),
+            beatify(nodeToString(upConds)),
             stringListToString(tableNames),
-            nodeToString(updatedTables));
+            beatify(nodeToString(updatedTables)));
 
-    // create map from table name to condition
+    // check which tables are updated and which tables are read accessed (e.g., in query)
+    // only updated tables can be safely prefiltered
+    FOREACH(TableAccessOperator,t,allTables)
+    {
+        if (!MAP_HAS_STRING_KEY(numAttrs,t->tableName))
+        {
+            MAP_ADD_STRING_KEY(numAttrs, t->tableName,
+                    createConstInt(getNumAttrs((QueryOperator *) t) - 1));
+        }
+
+        if (HAS_STRING_PROP(t,"UPDATED TABLE"))
+            addToSet(updatedTableNames, strdup(t->tableName));
+        else
+            addToSet(readFromTableNames, strdup(t->tableName));
+    }
+
+    // create map from table name to condition (for update only tables)
+    int i = 0;
     FORBOTH(void,name,up,tableNames,origUpdates)
     {
         // only care about updates
         if (isA(up,Update))
         {
             char *tableName = (char *) name;
-            KeyValue *tableMap = getMapCond(tableCondMap, tableName);
-            Node *cond = copyObject((Node *) getNthOfListP(upConds, pos++));
 
-            if (tableMap == NULL)
+            if(!hasSetElem(readFromTableNames,tableName))
             {
-                tableMap = createNodeKeyValue((Node *) createConstString(tableName), cond);
-                setMapCond(&tableCondMap, tableMap);
+                KeyValue *tableMap = getMapCond(tableCondMap, tableName);
+                Node *cond = copyObject((Node *) getNthOfListP(upConds, pos));
+
+                // for read committed we have to also check the version column to only
+                // check the condition for rows versions that will be seen by an update
+                if (t->transIsolation == ISOLATION_READ_COMMITTED)
+                {
+                    Constant *scn = (Constant *) getNthOfListP(t->scns, i);
+                    cond = (Node *) adaptConditionForReadCommitted(cond, scn,
+                            INT_VALUE(MAP_GET_STRING(numAttrs, tableName)));
+                }
+
+                if (tableMap == NULL)
+                {
+                    tableMap = createNodeKeyValue((Node *) createConstString(tableName), cond);
+                    setMapCond(&tableCondMap, tableMap);
+                }
+                else
+                    tableMap->value = (Node *) OR_EXPRS(tableMap->value, cond);
             }
-            else
-                tableMap->value = (Node *) OR_EXPRS(tableMap->value, cond);
+            pos++;
+            i++;
         }
     }
 
     DEBUG_LOG("condition table map is:\n%s", tableCondMap);
 
-    // add selections
+    // add selections to only updated tables
     FOREACH(TableAccessOperator,t,updatedTables)
     {
         char *tableName = t->tableName;
@@ -384,6 +424,28 @@ addConditionsToBaseTables (ProvenanceComputation *op)
             ((QueryOperator *) t)->parents = singleton(sel);
         }
     }
+
+    // if there are tables with mixed usage (updated and read from)
+    // then we have to add additional conditions to post-filter out non-update rows
+    // from these tables
+//    FOREACH
+}
+
+static Node *
+adaptConditionForReadCommitted(Node *cond, Constant *scn, int attrPos)
+{
+    Node *result;
+
+    result = AND_EXPRS (
+            cond,
+            createOpExpr("<=", LIST_MAKE(createFullAttrReference(
+                    "VERSIONS_STARTSCN", 0, attrPos, INVALID_ATTR),
+                    copyObject(scn)))
+        );
+
+    DEBUG_LOG("adapted condition for read committed: %s", beatify(nodeToString(result)));
+
+    return result;
 }
 
 static KeyValue *

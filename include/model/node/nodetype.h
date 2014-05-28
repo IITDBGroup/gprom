@@ -6,12 +6,12 @@
 typedef enum NodeTag {
     T_Invalid=0,
 
-    /* lists */
+    /* collection types */
     T_List,
     T_IntList,
-
-    /* sets */
     T_Set,
+    T_HashMap,
+    T_Vector,
 
     /* options */
     T_KeyValue,

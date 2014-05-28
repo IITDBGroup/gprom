@@ -124,7 +124,7 @@ getSetElem(Set *set, void *key)
     }
 
     for(s=set->elem; s != NULL; s=s->hh.next) {
-        INFO_LOG("key and value %p with hv %u keyptr %p", s->data, s->hh.hashv, s->hh.key);
+        TRACE_LOG("key and value %p with hv %u keyptr %p", s->data, s->hh.hashv, s->hh.key);
     }
 
     return result;

@@ -736,15 +736,25 @@ copyInternal(void *from, OperatorMap **opMap)
     if(from == NULL)
         return NULL;
 
+    /* different type nodes */
     switch(nodeTag(from))
     {
-        /*different type nodes*/
-
-        /*list nodes*/
+        /* collection type nodes*/
         case T_List:
         case T_IntList:
             retval = deepCopyList(from, opMap);
             break;
+        case T_Set:
+            retval = deepCopySet(from, opMap);
+            break;
+        case T_HashMap:
+            retval = deepCopyHashMap(from, opMap);
+            break;
+        case T_Vector:
+            retval = deepCopyVector(from, opMap);
+            break;
+
+        /* expression model */
         case T_AttributeReference:
             retval = copyAttributeReference(from, opMap);
             break;
