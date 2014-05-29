@@ -495,8 +495,8 @@ extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 
 	FOREACH(AttributeDef, attr, op->transactionInfo->updateTableNames)
 	{
-		if (strcmp(op->transactionInfo->scns,op->transactionInfo->commitSCN) == 0)
-			projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, 0));
+//		if (strcmp(op->transactionInfo->scns,op->transactionInfo->commitSCN) == 0)
+//			projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, 0));
 
 	}
 // then do the join part for R0 ID == R1 ID part

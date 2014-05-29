@@ -605,31 +605,40 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             TableAccessOperator *t = (TableAccessOperator *) q;
             char *asOf = NULL;
 
-            // add list of attributes as list to fromAttrs
-            *attrOffset = 0;
-            if (t->asOf)
+            if (HAS_STRING_PROP(t, "USE_HISTORY_JOIN"))
             {
-                if (isA(t->asOf, Constant))
-                {
-                    Constant *c = (Constant *) t->asOf;
-                    if (c->constType == DT_LONG)
-                        asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf));
-                    else
-                        asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
-                }
-                else
-                {
-                    List *scns = (List *) t->asOf;
-                    Node *begin = (Node *) getNthOfListP(scns, 0);
-                    Node *end = (Node *) getNthOfListP(scns, 1);
+                List *scnsAndXid = (List *) GET_STRING_PROP(t, "USE_HISTORY_JOIN");
 
-                    asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ", exprToSQL(begin), " AND ", exprToSQL(end));
-                }
             }
-            List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
-            *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-            appendStringInfo(from, "(%s%s F%u)", quoteIdentifier(t->tableName),
-                    asOf ? asOf : "", (*curFromItem)++);
+            else
+            {
+                // add list of attributes as list to fromAttrs
+                *attrOffset = 0;
+                if (t->asOf)
+                {
+                    if (isA(t->asOf, Constant))
+                    {
+                        Constant *c = (Constant *) t->asOf;
+                        if (c->constType == DT_LONG)
+                            asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf));
+                        else
+                            asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
+                    }
+                    else
+                    {
+                        List *scns = (List *) t->asOf;
+                        Node *begin = (Node *) getNthOfListP(scns, 0);
+                        Node *end = (Node *) getNthOfListP(scns, 1);
+
+                        asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ", exprToSQL(begin), " AND ", exprToSQL(end));
+                    }
+                }
+
+                List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
+                *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+                appendStringInfo(from, "(%s%s F%u)", quoteIdentifier(t->tableName),
+                        asOf ? asOf : "", (*curFromItem)++);
+            }
         }
         break;
         // A constant relation, turn into (SELECT ... FROM dual) subquery
