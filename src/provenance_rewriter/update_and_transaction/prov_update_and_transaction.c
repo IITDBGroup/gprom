@@ -484,39 +484,24 @@ static void
 extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 {
 	ProvenanceTransactionInfo *t = op->transactionInfo;
-	List *tables0;
-	List *tables1;
-	tables1 = findUpdatedTableAccceses((Node *) op);
+	List *updateTableNames;
+	List *originalUpdates;
 	ProjectionOperator *po;
 	List *projExprs = po->projExprs;
 	JoinOperator *jo;
-//	FOREACH(TableAccessOperator,t,tables1)
-//	{
-//		char *tableName = t->tableName;
-//		Node *cond;
-//		SelectionOperator *sel;
-//		if ()  //VERSIONS_XID == XID
-//		{
-//			sel = createSelectionOp(cond, (QueryOperator *) t, NIL,
-//					getAttrNames(GET_OPSCHEMA(t)));
-//			switchSubtrees((QueryOperator *) t, (QueryOperator *) sel);
-//			((QueryOperator *) t)->parents = singleton(sel);
-//		}
-//	}
-//	FOREACH(ProjectionOperator,t,po)
-//	{
-//		FOREACH(JoinOperator,t,jo)
-//		{
-//			if (strcmp(jo->cond, "commitSCN") == 0)
-//				jo = createJoinOp(JOIN_CROSS, (QueryOperator *) t, NIL,
-//						getAttrNames(GET_OPSCHEMA(t)));
-//			switchSubtrees((QueryOperator *) t, (QueryOperator *) jo);
-//			((QueryOperator *) t)->parents = singleton(jo);
-//		}
-//		//table0 = findUpdatedTableAccesses((Node *) op);
-//		po = createProjectionOp(po, (QueryOperator *)jo, NIL,
-//								NIL);
-//	}
+	AttributeReference *scnAttr;
+	List *finalAttrs, *mergeAttrs;
+    finalAttrs = sublist(mergeAttrs, 0, LIST_LENGTH(mergeAttrs) - 1);
+
+	FOREACH(AttributeDef, attr, op->transactionInfo->updateTableNames)
+	{
+		if (strcmp(op->transactionInfo->scns,op->transactionInfo->commitSCN) == 0)
+			projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, 0));
+
+	}
+// then do the join part for R0 ID == R1 ID part
+// then the final projection part
+
 
 }
 
