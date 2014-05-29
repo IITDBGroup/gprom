@@ -45,7 +45,7 @@ typedef struct Set {
 extern Set *newSet(SetType set, int typelen, boolean (*eq) (void *, void *), void *(*cpy) (void *));
 
 // create new set with content
-extern Set *makeSet(SetType set, int typelen, boolean (*eq) (void *, void *), void *(*cpy) (void *), ...);
+extern Set *makeSet(SetType set, int typelen, boolean (*eq) (void *, void *), void *(*cpy) (void *), void *elem, ...);
 extern Set *makeSetInt(int elem, ...);
 #define MAKE_NODE_SET(...) makeSet(SET_TYPE_NODE, -1, equal, copyObject, __VA_ARGS__, NULL)
 #define MAKE_SET_PTR(...) makeSet(SET_TYPE_POINTER, sizeof(void *), NULL, NULL, __VA_ARGS__, NULL)

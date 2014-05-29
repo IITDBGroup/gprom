@@ -14,6 +14,9 @@
 #include "log/logger.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
+#include "model/set/hashmap.h"
+#include "model/set/vector.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -47,8 +50,14 @@ static QueryOperator *mapGetOp(QueryOperator *op, OperatorMap **opMap);
 /* internal copy entry point that creates the operator map */
 static void *copyInternal(void *from, OperatorMap **opMap);
 
-/* functions to copy expression node types and special node types */
+/* functions to copy collection types */
 static List *deepCopyList(List *from, OperatorMap **opMap);
+static Set *deepCopySet(Set *from, OperatorMap **opMap);
+static HashMap *deepCopyHashMap(HashMap *from, OperatorMap **opMap);
+static Vector *deepCopyVector(Vector *from, OperatorMap **opMap);
+
+
+/* functions to copy expression node types */
 static FunctionCall *copyFunctionCall(FunctionCall *from, OperatorMap **opMap);
 static KeyValue *copyKeyValue(KeyValue *from, OperatorMap **opMap);
 static AttributeReference *copyAttributeReference(AttributeReference *from, OperatorMap **opMap);
@@ -149,6 +158,39 @@ deepCopyList(List *from, OperatorMap **opMap)
 
     return new;
 }
+
+static Set *
+deepCopySet(Set *from, OperatorMap **opMap)
+{
+    Set *new = NULL;
+
+    return new;
+}
+
+static HashMap *
+deepCopyHashMap(HashMap *from, OperatorMap **opMap)
+{
+    HashMap *new = NULL;
+
+
+
+    return new;
+}
+
+static Vector *
+deepCopyVector(Vector *from, OperatorMap **opMap)
+{
+    Vector *new = makeVector(from->elType, from->elNodeType);
+
+    FREE(new->data);
+    COPY_SCALAR_FIELD(length);
+    COPY_SCALAR_FIELD(maxLength);
+    new->data = MALLOC(getVecDataSize(from));
+    memcpy(new->data, from->data, getVecDataSize(from));
+
+    return new;
+}
+
 
 static AttributeReference *
 copyAttributeReference(AttributeReference *from, OperatorMap **opMap)

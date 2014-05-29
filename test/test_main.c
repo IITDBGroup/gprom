@@ -86,6 +86,8 @@ testSuites(void)
     RUN_TEST(testMemManager(), "Memory manager test.");
     RUN_TEST(testList(), "List model.");
     RUN_TEST(testSet(), "Set.");
+    RUN_TEST(testVector(), "Vector.");
+    RUN_TEST(testHashMap(), "HashMap.");
     RUN_TEST(testExpr(), "Expression model.");
     RUN_TEST(testCopy(), "Test generic copy function.");
     RUN_TEST(testEqual(), "Test generic equality function.");

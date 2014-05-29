@@ -65,13 +65,15 @@ newSet(SetType set, int typelen, boolean (*eq) (void *, void *), void * (*cpy) (
 }
 
 Set *
-makeSet(SetType set, int typelen, boolean (*eq) (void *, void *), void * (*cpy) (void *), ...)
+makeSet(SetType set, int typelen, boolean (*eq) (void *, void *), void * (*cpy) (void *), void *elem, ...)
 {
     Set *result = newSet(set, typelen, eq, cpy);
     va_list args;
     void *arg;
 
-    va_start(args, cpy);
+    addToSet(result, elem);
+
+    va_start(args, elem);
 
     while((arg = va_arg(args,void *)) != NULL)
         addToSet(result, arg);
@@ -87,6 +89,8 @@ makeSetInt(int elem, ...)
     Set *result = INTSET();
     va_list args;
     int arg;
+
+    addIntToSet(result, elem);
 
     va_start(args, elem);
 

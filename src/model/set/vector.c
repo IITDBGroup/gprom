@@ -25,26 +25,77 @@ static void extendVector(Vector *v);
 Vector *
 makeVector(VectorType type, NodeTag nodeType)
 {
+    return makeVectorOfSize(type, nodeType, INITIAL_VEC_SIZE);
+}
+
+Vector *
+makeVectorOfSize(VectorType type, NodeTag nodeType, int numElem)
+{
     Vector *result = makeNode(Vector);
 
-    result->elType = type;
-    result->elNodeType = nodeType;
-    result->length = 0;
-    result->maxLength = INITIAL_VEC_SIZE;
+        result->elType = type;
+        result->elNodeType = nodeType;
+        result->length = 0;
+        result->maxLength = numElem;
 
-    switch(type)
+        switch(type)
+        {
+            case VECTOR_INT:
+                result->data = MALLOC(sizeof(int) * numElem);
+                break;
+            default:
+                result->data = MALLOC(sizeof(void *) * numElem);
+                break;
+        }
+
+        return result;
+}
+
+Vector *
+makeVectorFromElem(VectorType set, NodeTag nodeType, void *elem, ...)
+{
+
+}
+
+Vector *
+makeVectorIntFromElem(int elem, ...)
+{
+    Vector *result = makeVector(VECTOR_INT, T_Invalid);
+    va_list args;
+    int arg;
+
+    vecAppendInt(result, elem);
+
+    va_start(args, elem);
+
+    for(arg = elem; arg >= 0; arg = va_arg(args,int))
     {
-        case VECTOR_INT:
-            result->data = MALLOC(sizeof(int) * INITIAL_VEC_SIZE);
-            break;
-        default:
-            result->data = MALLOC(sizeof(void *) * INITIAL_VEC_SIZE);
-            break;
+        TRACE_LOG("add int %d to set", arg);
+        addIntToSet(result, arg);
     }
+
+    va_end(args);
 
     return result;
 }
 
+size_t
+getVecElemSize(Vector *v)
+{
+    switch(v->elType)
+    {
+        case VECTOR_INT:
+            return sizeof(int);
+        default:
+            return sizeof(void *);
+    }
+}
+
+size_t
+getVecDataSize(Vector *v)
+{
+    return v->maxLength * getVecElemSize(v);
+}
 
 void
 vecAppend(Vector *v, Node *el)
@@ -52,7 +103,7 @@ vecAppend(Vector *v, Node *el)
     if (v->maxLength == v->length)
         extendVector(v);
 
-    ARR(v,Node)[v->length++] = el;
+    VEC_TO_ARR(v,Node)[v->length++] = el;
 }
 
 void
@@ -68,17 +119,7 @@ static void
 extendVector(Vector *v)
 {
     char *newData;
-    size_t typeSize;
-
-    switch(v->elType)
-    {
-        case VECTOR_INT:
-            typeSize = sizeof(int);
-            break;
-        default:
-            typeSize = sizeof(void *);
-            break;
-    }
+    size_t typeSize = getVecElemSize(v);
 
     newData = MALLOC(typeSize * v->maxLength * 2);
     memcpy(newData, v->data, typeSize * v->length);
@@ -107,7 +148,7 @@ boolean
 findVecElem(Vector *v, Node *el)
 {
     FOREACH_VEC(Node,n,v)
-        if (equal(el,n))
+        if (equal(el,*n))
             return TRUE;
 
     return FALSE;
@@ -116,7 +157,7 @@ findVecElem(Vector *v, Node *el)
 boolean
 findVecInt(Vector *v, int el)
 {
-    FOREACH_VEC(int,e,v)
+    FOREACH_VEC_INT(e,v)
        if (*e == el)
            return TRUE;
 
@@ -136,7 +177,7 @@ deepFreeVec (Vector *v)
 {
     FOREACH_VEC(void,el,v)
     {
-        FREE(el);
+        FREE(*el);
     }
     FREE(v->data);
     FREE(v);
