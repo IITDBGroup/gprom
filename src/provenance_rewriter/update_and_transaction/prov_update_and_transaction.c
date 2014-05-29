@@ -483,24 +483,31 @@ findUpdatedTableAccceses (Node *op)
 static void
 extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 {
-	ProvenanceTransactionInfo *t = op->transactionInfo;
+    long *scn = op->transactionInfo->scns;
+    long *scnC = op->transactionInfo->commitSCN;
+    Constant *xid = getTranactionSQLAndSCNs(xid);
+    TableAccessOperator *t;
 	List *updateTableNames;
 	List *originalUpdates;
-	ProjectionOperator *po;
-	List *projExprs = po->projExprs;
-	JoinOperator *jo;
-	AttributeReference *scnAttr;
-	List *finalAttrs, *mergeAttrs;
-    finalAttrs = sublist(mergeAttrs, 0, LIST_LENGTH(mergeAttrs) - 1);
+	KeyValue *tableCond;
+	Set *readFromTableNames = STRSET();
+	Set *updatedTableNames = STRSET();
 
-	FOREACH(AttributeDef, attr, op->transactionInfo->updateTableNames)
-	{
-//		if (strcmp(op->transactionInfo->scns,op->transactionInfo->commitSCN) == 0)
-//			projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, 0));
 
-	}
-// then do the join part for R0 ID == R1 ID part
-// then the final projection part
+   /* SET_BOOL_STRING_PROP(t,"USE_HISTORY_JOIN");
+    setStringProperty((QueryOperator *) t,"USE_HISTORY_JOIN", (long *) scn,(long *)scnC, (Constant *)xid);
+    t->asOf = (Node *) LIST_MAKE(scnC, copyObject(scnC));
+    ((QueryOperator *) t)->schema->attrDefs = appendToTailOfList(((QueryOperator *) t)->schema->attrDefs,
+	createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+
+    FOREACH(TableAccessOperator,t,op)
+{
+    if (HAS_STRING_PROP(t,"UPDATED TABLE"))
+	 addToSet(updatedTableNames, strdup(t->tableName));
+    else
+	 addToSet(readFromTableNames, strdup(t->tableName));
+}
+   */
 
 
 }
