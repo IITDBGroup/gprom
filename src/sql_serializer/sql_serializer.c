@@ -611,12 +611,12 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             {
                /* List *scnsAndXid = (List *) GET_STRING_PROP(t, "USE_HISTORY_JOIN");
 
-                appendStringInfoString(from, "(SELECT", t.op.schema->attrDefs);
-		        appendStringInfoString(from, "(SELECT ROWID AS rid", t->op.schema->attrDefs);
-			    appendStringInfo(t->tableName, "AS OF SCN",op->transactionInfo->scns, ") F0");
+                appendStringInfoString(from, "(SELECT", "(%s)", t.op.schema->attrDefs);
+		        appendStringInfoString(from, "(SELECT ROWID AS rid","(%s)", t->op.schema->attrDefs);
+			    appendStringInfo("(%s)",t->tableName, "AS OF SCN","(%s)",op->transactionInfo->scns, ") F0");
 				appendStringInfoString("\nJOIN ");
-				appendStringInfoString(from, "(SELECT ROWID AS rid", t->tableName, "VERSIONS BETWEEN SCN", op->transactionInfo->commitSCN, "AND", op->transactionInfo->commitSCN, "F1" );
-			    appendStringInfoString("WHERE VERSIONS_XID = HEXTORAW('",getTranactionSQLAndSCNs(xid), "')) F1");
+				appendStringInfoString(from, "(SELECT ROWID AS rid","(%s)", t->tableName, "VERSIONS BETWEEN SCN", "(%u)",op->transactionInfo->commitSCN, "AND","(%u)", op->transactionInfo->commitSCN, "F1" );
+			    appendStringInfoString("WHERE VERSIONS_XID = HEXTORAW('", "(%s)", getTranactionSQLAndSCNs(xid), "')) F1");
 				appendStringInfo("ON (F0.rid = F1.rid)");
                 List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
                 *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
