@@ -11,12 +11,22 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
+#include "model/set/vector.h"
+#include "model/set/hashmap.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "log/logger.h"
 
-/* equal functions for specific node types */
+/* equal function for collection types */
+static boolean equalList(List *a, List *b);
+static boolean equalStringList (List *a, List *b);
+static boolean equalSet (Set *a, Set *b);
+static boolean equalKeyValue (KeyValue *a, KeyValue *b);
+static boolean equalHashMap (HashMap *a, HashMap *b);
+static boolean equalVector (Vector *a, Vector *b);
+
+/* equal functions for expression types */
 static boolean equalFunctionCall(FunctionCall *a, FunctionCall *b);
 static boolean equalAttributeReference (AttributeReference *a,
         AttributeReference *b);
@@ -32,11 +42,6 @@ static boolean equalWindowDef (WindowDef *a, WindowDef *b);
 static boolean equalWindowFunction (WindowFunction *a, WindowFunction *b);
 static boolean equalRowNumExpr (RowNumExpr *a, RowNumExpr *b);
 static boolean equalOrderExpr (OrderExpr *a, OrderExpr *b);
-
-static boolean equalList(List *a, List *b);
-static boolean equalStringList (List *a, List *b);
-static boolean equalSet (Set *a, Set *b);
-static boolean equalKeyValue (KeyValue *a, KeyValue *b);
 
 // equal functions for query_operator
 static boolean equalSchema(Schema *a, Schema *b);
@@ -372,6 +377,71 @@ equalKeyValue (KeyValue *a, KeyValue *b)
 
     return TRUE;
 }
+
+static boolean
+equalHashMap (HashMap *a, HashMap *b)
+{
+    COMPARE_SCALAR_FIELD(keyType);
+    COMPARE_SCALAR_FIELD(valueType);
+
+    FOREACH_HASH_KEY(Node,k,a)
+        if(!hasMapKey(b,k))
+            return FALSE;
+
+    FOREACH_HASH_KEY(Node,k,b)
+        if(!hasMapKey(a,k))
+            return FALSE;
+
+    return TRUE;
+}
+
+static boolean
+equalVector (Vector *a, Vector *b)
+{
+    COMPARE_SCALAR_FIELD(elType);
+    COMPARE_SCALAR_FIELD(length);
+//    COMPARE_SCALAR_FIELD(elNodeType);
+
+    switch(a->elType)
+    {
+        case VECTOR_INT:
+        {
+            int *aA, *bA;
+            aA = VEC_TO_IA(a);
+            bA = VEC_TO_IA(b);
+
+            for(int i = 0; i < VEC_LENGTH(a); i++)
+                if (aA[i] != bA[i])
+                    return FALSE;
+        }
+        break;
+        case VECTOR_STRING:
+        {
+            char **aA, **bA;
+            aA = VEC_TO_ARR(a,char);
+            bA = VEC_TO_ARR(b,char);
+
+            for(int i = 0; i < VEC_LENGTH(a); i++)
+                if (strcmp(aA[i],bA[i]) != 0)
+                    return FALSE;
+        }
+        break;
+        case VECTOR_NODE:
+        {
+            Node **aA, **bA;
+            aA = VEC_TO_ARR(a,Node);
+            bA = VEC_TO_ARR(b,Node);
+
+            for(int i = 0; i < VEC_LENGTH(a); i++)
+                if (equal(aA[i],bA[i]) != 0)
+                    return FALSE;
+        }
+        break;
+    }
+
+    return TRUE;
+}
+
 
 static boolean
 equalSchema(Schema *a, Schema *b)
@@ -754,6 +824,13 @@ equal(void *a, void *b)
         case T_Set:
             retval = equalSet(a,b);
             break;
+        case T_HashMap:
+            retval = equalHashMap(a,b);
+            break;
+        case T_Vector:
+            retval = equalVector(a,b);
+            break;
+
         case T_FunctionCall:
             retval = equalFunctionCall(a,b);
             break;

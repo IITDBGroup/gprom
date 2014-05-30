@@ -56,7 +56,6 @@ static Set *deepCopySet(Set *from, OperatorMap **opMap);
 static HashMap *deepCopyHashMap(HashMap *from, OperatorMap **opMap);
 static Vector *deepCopyVector(Vector *from, OperatorMap **opMap);
 
-
 /* functions to copy expression node types */
 static FunctionCall *copyFunctionCall(FunctionCall *from, OperatorMap **opMap);
 static KeyValue *copyKeyValue(KeyValue *from, OperatorMap **opMap);
@@ -162,7 +161,27 @@ deepCopyList(List *from, OperatorMap **opMap)
 static Set *
 deepCopySet(Set *from, OperatorMap **opMap)
 {
-    Set *new = NULL;
+    Set *new = newSet(from->setType, from->typelen, from->eq, from->cpy);
+
+    switch(from->setType)
+    {
+        case SET_TYPE_INT:
+            FOREACH_SET_INT(a,from)
+                addIntToSet(new, a);
+        break;
+        case SET_TYPE_NODE:
+            FOREACH_SET(Node,a,from)
+                addToSet(new, copyObject(a));
+            break;
+        case SET_TYPE_POINTER:
+            FOREACH_SET(void,a,from)
+                addToSet(new, a);
+            break;
+        case SET_TYPE_STRING:
+            FOREACH_SET(char,a,from)
+                addToSet(new, strdup(a));
+            break;
+    }
 
     return new;
 }
@@ -170,9 +189,10 @@ deepCopySet(Set *from, OperatorMap **opMap)
 static HashMap *
 deepCopyHashMap(HashMap *from, OperatorMap **opMap)
 {
-    HashMap *new = NULL;
+    HashMap *new = newHashMap(from->keyType, from->valueType, NULL, NULL);
 
-
+    FOREACH_HASH_ENTRY(n,from)
+        ADD_TO_MAP(new,copyObject(n));
 
     return new;
 }
@@ -186,7 +206,20 @@ deepCopyVector(Vector *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(length);
     COPY_SCALAR_FIELD(maxLength);
     new->data = MALLOC(getVecDataSize(from));
-    memcpy(new->data, from->data, getVecDataSize(from));
+
+    switch(from->elType)
+    {
+        case VECTOR_INT:
+            memcpy(new->data, from->data, getVecDataSize(from));
+            break;
+        case VECTOR_NODE:
+            new->length = 0;
+            FOREACH_VEC(Node,n,from)
+                VEC_ADD_NODE(from,copyObject(n));
+            break;
+        case VECTOR_STRING:
+            break;
+    }
 
     return new;
 }

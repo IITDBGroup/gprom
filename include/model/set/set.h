@@ -69,6 +69,16 @@ extern Set *makeSetInt(int elem, ...);
             		   DUMMY_SETEL(_elem_)->hh.next) != NULL) ? \
             				   DUMMY_SETEL(_elem_)->data : NULL))
 
+#define FOREACH_SET_INT(_elem_,_set) \
+        INJECT_VAR_SET(SetElem*,DUMMY_SETEL(_elem_)) \
+        for(int _elem_ = (((DUMMY_SETEL(_elem_) = \
+                _set->elem) != NULL) ? \
+                        *((int *) DUMMY_SETEL(_elem_)->data) : -1); \
+                        DUMMY_SETEL(_elem_) != NULL; \
+                        _elem_ = (((DUMMY_SETEL(_elem_) = \
+                       DUMMY_SETEL(_elem_)->hh.next) != NULL) ? \
+                               *((int *) DUMMY_SETEL(_elem_)->data) : -1))
+
 
 extern boolean hasSetElem (Set *set, void *_el);
 extern boolean hasSetIntElem (Set *set, int _el);

@@ -16,17 +16,24 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
+#include "model/set/vector.h"
+#include "model/set/hashmap.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 
 /* functions to output specific node types */
+static void outNode(StringInfo, void *node);
+
+// collection types
 static void outPointerList (StringInfo str, List *node);
 static void outList(StringInfo str, List *node);
 static void outStringList (StringInfo str, List *node);
 static void outSet(StringInfo str, Set *node);
-static void outNode(StringInfo, void *node);
+static void outVector(StringInfo str, Vector *node);
+static void outHashMap(StringInfo str, HashMap *node);
 
+// expression types
 static void outConstant (StringInfo str, Constant *node);
 static void outFunctionCall (StringInfo str, FunctionCall *node);
 static void outAttributeReference (StringInfo str, AttributeReference *node);
@@ -43,6 +50,7 @@ static void outWindowFunction (StringInfo str, WindowFunction *node);
 static void outRowNumExpr (StringInfo str, RowNumExpr *node);
 static void outOrderExpr (StringInfo str, OrderExpr *node);
 
+// query block model
 static void outQueryBlock (StringInfo str, QueryBlock *node);
 static void outSetQuery (StringInfo str, SetQuery *node);
 static void outProvenanceStmt (StringInfo str, ProvenanceStmt *node);
@@ -55,6 +63,7 @@ static void outNestedSubquery(StringInfo str, NestedSubquery *node);
 static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 static void outWithStmt(StringInfo str, WithStmt *node);
 
+// operator model
 static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
 static void outDistinctClause(StringInfo str, DistinctClause *node);
@@ -257,6 +266,55 @@ outSet(StringInfo str, Set *node)
 
     appendStringInfo(str, "}");
 }
+
+static void
+outVector(StringInfo str, Vector *node)
+{
+    appendStringInfo(str, "[");
+
+    switch(node->elType)
+    {
+        case VECTOR_INT:
+        {
+            int j = 0;
+            FOREACH_VEC_INT(i,node)
+            {
+                appendStringInfo(str, "%s", itoa(*i));
+                appendStringInfo(str, "%s", VEC_LENGTH(node) > ++j ? ", " : "");
+            }
+        }
+            break;
+        case VECTOR_NODE:
+            FOREACH_VEC(Node,n,node)
+            {
+                outNode(str, n);
+                appendStringInfo(str, "%s", VEC_IS_LAST(n,node) ? ", " : "");
+            }
+            break;
+        case VECTOR_STRING:
+            FATAL_LOG("TODO");
+            break;
+    }
+
+    appendStringInfo(str, "]");
+}
+
+static void
+outHashMap(StringInfo str, HashMap *node)
+{
+    appendStringInfo(str, "{");
+
+    FOREACH_HASH_ENTRY(el,node)
+    {
+        outNode(str, el->key);
+        appendStringInfoString(str," => ");
+        outNode(str, el->value);
+        appendStringInfo(str, "%s", el_his_el->hh.next ? ", " : "");
+    }
+
+    appendStringInfo(str, "}");
+}
+
 
 static void
 outInsert(StringInfo str, Insert *node)
@@ -770,6 +828,13 @@ outNode(StringInfo str, void *obj)
             case T_Set:
                 outSet(str, (Set *) obj);
                 break;
+            case T_Vector:
+                outVector(str, (Vector *) obj);
+                break;
+            case T_HashMap:
+                outHashMap(str, (HashMap *) obj);
+                break;
+
             case T_QueryBlock:
                 outQueryBlock(str, (QueryBlock *) obj);
                 break;

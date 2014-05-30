@@ -40,9 +40,9 @@ extern Vector *makeVectorOfSize(VectorType type, NodeTag nodeType, int numElem);
 
 extern Vector *makeVectorFromElem(VectorType set, NodeTag nodeType, void *elem, ...);
 extern Vector *makeVectorIntFromElem(int elem, ...);
-#define MAKE_VEC_NODE(tag, ...) makeVectorFromElem(VECTOR_NODE, tag, __VA_ARGS__, NULL)
-#define MAKE_VEC_STRING(...) makeSet(VECTOR_STRING, T_Invalid, __VA_ARGS__, NULL)
-#define MAKE_VEC_INT(...) makeSetInt(__VA_ARGS__, -1)
+#define MAKE_VEC_NODE(tag, ...) makeVectorFromElem(VECTOR_NODE, T_ ## tag, __VA_ARGS__, NULL)
+#define MAKE_VEC_STRING(...) makeVectorFromElem(VECTOR_STRING, T_Invalid, __VA_ARGS__, NULL)
+#define MAKE_VEC_INT(...) makeVectorIntFromElem(__VA_ARGS__, -1)
 
 
 // vector size
@@ -50,15 +50,16 @@ extern size_t getVecElemSize(Vector *v);
 extern size_t getVecDataSize(Vector *v);
 
 // append something to the end of a vector
-extern void vecAppend(Vector *v, Node *el);
+extern void vecAppendNode(Vector *v, Node *el);
 extern void vecAppendInt(Vector *v, int el);
+#define VEC_ADD_NODE(v,el) vecAppendNode((Vector *) v, (Node *) el)
 
 // get elements from a vector
-extern Node *getVec(Vector *v, int pos);
+extern Node *getVecNode(Vector *v, int pos);
 extern int getVecInt(Vector *v, int pos);
 
 // find a certain element in a vector
-extern boolean findVecElem(Vector *v, Node *el);
+extern boolean findVecNode(Vector *v, Node *el);
 extern boolean findVecInt(Vector *v, int el);
 
 #define FOREACH_VEC(_type_,_elem_,_vec_) \
@@ -70,6 +71,13 @@ extern boolean findVecInt(Vector *v, int el);
     for(int *_elem_ = (_vec_ == NULL) ? NULL : VEC_TO_IA(_vec_); \
             _elem_ != NULL && ((_elem_ - VEC_TO_IA(_vec_)) < VEC_LENGTH(_vec_)); \
             _elem_++)
+
+#define VEC_IS_LAST(_elem_,_vec_) (VEC_TO_ARR(_vec_,void)[_vec_->length - 1] == _elem_)
+
+// remove elements from a vector
+extern boolean shrinkVector(Vector *v, int newSize);
+extern int popVecInt(Vector *v);
+extern Node *popVecNode(Vector *v);
 
 // deep free a vector
 extern void freeVec (Vector *v);

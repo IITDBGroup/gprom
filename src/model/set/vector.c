@@ -52,9 +52,23 @@ makeVectorOfSize(VectorType type, NodeTag nodeType, int numElem)
 }
 
 Vector *
-makeVectorFromElem(VectorType set, NodeTag nodeType, void *elem, ...)
+makeVectorFromElem(VectorType type, NodeTag nodeType, void *elem, ...)
 {
+    Vector *result = makeVector(type, nodeType);
+    va_list args;
+    void *arg;
 
+    va_start(args, elem);
+
+    for(arg = elem; arg != NULL; arg = va_arg(args,void*))
+    {
+        TRACE_LOG("add pointer %p to vector", arg);
+        vecAppendNode(result, arg);
+    }
+
+    va_end(args);
+
+    return result;
 }
 
 Vector *
@@ -64,14 +78,12 @@ makeVectorIntFromElem(int elem, ...)
     va_list args;
     int arg;
 
-    vecAppendInt(result, elem);
-
     va_start(args, elem);
 
     for(arg = elem; arg >= 0; arg = va_arg(args,int))
     {
         TRACE_LOG("add int %d to set", arg);
-        addIntToSet(result, arg);
+        vecAppendInt(result, arg);
     }
 
     va_end(args);
@@ -98,7 +110,7 @@ getVecDataSize(Vector *v)
 }
 
 void
-vecAppend(Vector *v, Node *el)
+vecAppendNode(Vector *v, Node *el)
 {
     if (v->maxLength == v->length)
         extendVector(v);
@@ -129,7 +141,7 @@ extendVector(Vector *v)
 }
 
 Node *
-getVec(Vector *v, int pos)
+getVecNode(Vector *v, int pos)
 {
     ASSERT(pos >= 0 && pos < VEC_LENGTH(v));
 
@@ -145,7 +157,7 @@ getVecInt(Vector *v, int pos)
 }
 
 boolean
-findVecElem(Vector *v, Node *el)
+findVecNode(Vector *v, Node *el)
 {
     FOREACH_VEC(Node,n,v)
         if (equal(el,*n))
@@ -162,6 +174,41 @@ findVecInt(Vector *v, int el)
            return TRUE;
 
     return FALSE;
+}
+
+boolean
+shrinkVector(Vector *v, int newSize)
+{
+    ASSERT(newSize >= 0);
+
+    if (VEC_LENGTH(v) <= newSize)
+        return FALSE;
+
+    v->length = newSize;
+
+    return TRUE;
+}
+
+int
+popVecInt(Vector *v)
+{
+    ASSERT(v->length > 0);
+
+    int result = getVecInt(v, v->length - 1);
+    v->length--;
+
+    return result;
+}
+
+Node *
+popVecNode(Vector *v)
+{
+    ASSERT(v->length > 0);
+
+    Node *result = getVecNode(v, v->length - 1);
+    v->length--;
+
+    return result;
 }
 
 void
