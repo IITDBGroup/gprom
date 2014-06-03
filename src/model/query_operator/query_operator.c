@@ -510,6 +510,18 @@ getAttrPos(QueryOperator *op, char *attr)
     return -1;
 }
 
+AttributeDef *
+getAttrDefByPos(QueryOperator *op, char *attr)
+{
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    {
+        if (strcmp(a->attrName, attr) == 0)
+            return a;
+    }
+
+    return NULL;
+}
+
 List *
 aggOpGetGroupByAttrNames(AggregationOperator *op)
 {

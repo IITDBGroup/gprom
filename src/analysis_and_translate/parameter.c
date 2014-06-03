@@ -17,6 +17,7 @@
 #include "model/expression/expression.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "instrumentation/timing_instrumentation.h"
 #include "analysis_and_translate/parameter.h"
 
 // data types

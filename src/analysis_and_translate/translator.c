@@ -11,7 +11,7 @@
  */
 
 #include "common.h"
-
+#include "instrumentation/timing_instrumentation.h"
 #include "mem_manager/mem_mgr.h"
 
 #include "log/logger.h"
@@ -413,7 +413,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	        if (HAS_STRING_PROP(result,PROP_PC_ONLY_UPDATED))
 	        {
 	            DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
-	            setStringProperty((QueryOperator *) result, "UpdateConds", (Node *) updateConds);
+	            setStringProperty((QueryOperator *) result, PROP_PC_UPDATE_COND, (Node *) updateConds);
 	        }
 
 	        DEBUG_LOG("constructed translated provenance computation for PROVENANCE OF TRANSACTION");

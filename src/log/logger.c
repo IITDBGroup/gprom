@@ -19,6 +19,7 @@
  */
 
 #include "common.h"
+#include "instrumentation/timing_instrumentation.h"
 #include "log/logger.h"
 #include "model/node/nodetype.h"
 #include "configuration/option.h"

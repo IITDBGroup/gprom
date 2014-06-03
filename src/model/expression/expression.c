@@ -145,16 +145,20 @@ createOrderExpr (Node *expr, SortOrder order, SortNullOrder nullOrder)
 Node *
 andExprs (Node *expr, ...)
 {
-    Node *result = copyObject(expr);
+    Node *result = NULL;
     Node *curArg = NULL;
+    List *argList = singleton(expr);
+
     va_list args;
 
     va_start(args, expr);
 
     while((curArg = va_arg(args,Node*)))
-        result = (Node *) createOpExpr("AND", LIST_MAKE(result, copyObject(curArg)));
+        argList = appendToTailOfList(argList, copyObject(curArg));
 
     va_end(args);
+
+    result = (Node *) createOpExpr("AND", argList);
 
     return result;
 }
@@ -162,16 +166,20 @@ andExprs (Node *expr, ...)
 Node *
 orExprs (Node *expr, ...)
 {
-    Node *result = copyObject(expr);
+    Node *result = NULL;
     Node *curArg = NULL;
+    List *argList = singleton(expr);
+
     va_list args;
 
     va_start(args, expr);
 
     while((curArg = va_arg(args,Node*)))
-        result = (Node *) createOpExpr("OR", LIST_MAKE(result, copyObject(curArg)));
+        argList = appendToTailOfList(argList, copyObject(curArg));
 
     va_end(args);
+
+    result = (Node *) createOpExpr("OR", argList);
 
     return result;
 }

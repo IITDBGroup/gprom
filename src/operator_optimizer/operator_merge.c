@@ -11,6 +11,7 @@
  */
 
 #include "log/logger.h"
+#include "instrumentation/timing_instrumentation.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/schema_utility.h"
 #include "model/expression/expression.h"
@@ -28,7 +29,9 @@ typedef struct ReplaceRefState {
 
 /* declarations */
 static Node *replaceAttributeRefsMutator (Node *node, ReplaceRefState *state);
-static boolean mergeProjectionIsSafe(ProjectionOperator *op);
+static boolean mergeProjectionIsSafe(ProjectionOperator *op, ProjectionOperator *child);
+static HashMap *getAttrRefCount(Node *expr);
+
 
 SelectionOperator *
 mergeSelection(SelectionOperator *op)
@@ -70,15 +73,17 @@ mergeProjection(ProjectionOperator *op)
         if (LIST_LENGTH(child->op.parents) > 1)
         	break;
 
-        if (!mergeProjectionIsSafe(op))
+        if (!mergeProjectionIsSafe(op, child))
             break;
 
         // combine expressions and link child's children to root
         state->op = child;
         state->projExpr = child->projExprs;
 
+        START_TIMER("OptimizeModel - replace attrs with expr");
         op->projExprs = (List *) replaceAttributeRefsMutator((Node *) op->projExprs, state);
         op->op.inputs = child->op.inputs;
+        STOP_TIMER("OptimizeModel - replace attrs with expr");
 
         FOREACH(QueryOperator, el, op->op.inputs)
         	el->parents = replaceNode(el->parents, child, op);
@@ -162,41 +167,64 @@ replaceAttributeRefsMutator (Node *node, ReplaceRefState *state)
 }
 
 static boolean
-mergeProjectionIsSafe(ProjectionOperator *op)
+mergeProjectionIsSafe(ProjectionOperator *op, ProjectionOperator *child)
 {
+    START_TIMER("OptimizeModel - check safety of projection merge");
+
     FOREACH(Node,p,op->projExprs)
     {
-        HashMap *cnt = NEW_MAP(Constant,Constant);
-        List *attrRef = getAttrReferences(p);
-
         DEBUG_LOG("projection expression: %s", beatify(nodeToString(p)));
-
-        // count number of references to each attribute
-        FOREACH(AttributeReference,a,attrRef)
-        {
-            Constant *aC;
-            if (!MAP_HAS_STRING_KEY(cnt, a->name))
-            {
-                aC = createConstInt(0);
-                MAP_ADD_STRING_KEY(cnt, a->name, aC);
-            }
-            else
-                aC = (Constant *) MAP_GET_STRING(cnt, a->name);
-            INT_VALUE(aC) += 1;
-            DEBUG_LOG("attribute %s count is %s", a->name, exprToSQL((Node *) aC));
-        }
+        HashMap *cnt = getAttrRefCount(p);
 
         // do not merge if there is more than one
-        FOREACH_HASH(Constant,c,cnt)
+        FOREACH_HASH_KEY(Constant,key,cnt)
         {
-            if (INT_VALUE(c) > 1)
+            char *aName = STRING_VALUE(key);
+            int count = INT_VALUE(getMap(cnt, (Node *) key));
+
+            // mentioned more than once. This is unsafe, unless the child attribute is a safe
+            if (count > 1)
             {
-                DEBUG_LOG("mentioned more than once: %s", exprToSQL((Node *) c));
-                return FALSE;
+                Node *childProjExpr = getNthOfListP(child->projExprs, getAttrPos((QueryOperator *) child,aName));
+                HashMap *childCnt = getAttrRefCount(childProjExpr);
+                DEBUG_LOG("mentioned more than once: %s: %u", aName, count);
+
+                FOREACH_HASH(Constant,c,childCnt)
+                {
+                    if (INT_VALUE(c) > 1)
+                    {
+                        DEBUG_LOG("child attribute is not safe to merge: %s: %u", aName, count);
+                        STOP_TIMER("OptimizeModel - check safety of projection merge");
+                        return FALSE;
+                    }
+                }
             }
-            //TODO also check first whether child attribute is simple or not (if simple then more then one ref is ok)
         }
     }
+    STOP_TIMER("OptimizeModel - check safety of projection merge");
 
     return TRUE;
+}
+
+static HashMap *
+getAttrRefCount(Node *expr)
+{
+    HashMap *cnt = NEW_MAP(Constant,Constant);
+    List *attrRef = getAttrReferences(expr);
+
+    FOREACH(AttributeReference,a,attrRef)
+    {
+        Constant *aC;
+        if (!MAP_HAS_STRING_KEY(cnt, a->name))
+        {
+            aC = createConstInt(0);
+            MAP_ADD_STRING_KEY(cnt, a->name, aC);
+        }
+        else
+            aC = (Constant *) MAP_GET_STRING(cnt, a->name);
+        INT_VALUE(aC) += 1;
+        DEBUG_LOG("attribute %s count is %s", a->name, exprToSQL((Node *) aC));
+    }
+
+    return cnt;
 }

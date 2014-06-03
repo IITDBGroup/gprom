@@ -11,7 +11,7 @@
  */
 
 #include "log/logger.h"
-
+#include "instrumentation/timing_instrumentation.h"
 #include "configuration/option.h"
 
 #include "provenance_rewriter/prov_rewriter.h"
@@ -24,7 +24,6 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/operator_property.h"
-
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 
@@ -84,11 +83,18 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE
             || op->inputType == PROV_INPUT_TRANSACTION)
     {
+        START_TIMER("rewrite - merge update reenactments");
         mergeUpdateSequence(op);
+        STOP_TIMER("rewrite - merge update reenactments");
+
         // need to restrict to updated rows?
         if (op->inputType == PROV_INPUT_TRANSACTION
                 && HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
+        {
+            START_TIMER("rewrite - restrict to updated rows");
             restrictToUpdatedRows(op);
+            STOP_TIMER("rewrite - restrict to updated rows");
+        }
     }
 
     if (isRewriteOptionActivated("treefiy_prov_rewrite_input"))

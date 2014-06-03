@@ -11,6 +11,7 @@
  */
 
 #include "common.h"
+#include "instrumentation/timing_instrumentation.h"
 #include "log/logger.h"
 #include "operator_optimizer/operator_optimizer.h"
 #include "operator_optimizer/operator_merge.h"
@@ -32,15 +33,6 @@ optimizeOperatorModel (Node *root)
             QueryOperator *o = (QueryOperator *) LC_P_VAL(lc);
 
             o = optimizeOneGraph(o);
-            o = mergeAdjacentOperators(o);
-            ASSERT(checkModel(o));
-
-            o = pushDownSelectionOperatorOnProv(o);
-            ASSERT(checkModel(o));
-
-            o = mergeAdjacentOperators(o);
-            ASSERT(checkModel(o));
-
             LC_P_VAL(lc) = o;
         }
 
@@ -55,21 +47,29 @@ optimizeOneGraph (QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
 
+    START_TIMER("OptimizeModel - merge adjacent operator");
     rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-    ASSERT(checkModel((QueryOperator *) rewrittenTree));
+    TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
     DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+    STOP_TIMER("OptimizeModel - merge adjacent operator");
 
+    START_TIMER("OptimizeModel - pushdown selections");
     rewrittenTree = pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
     DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-    ASSERT(checkModel((QueryOperator *) rewrittenTree));
+    TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+    STOP_TIMER("OptimizeModel - pushdown selections");
 
+    START_TIMER("OptimizeModel - merge adjacent operator");
     rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
     DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-    ASSERT(checkModel((QueryOperator *) rewrittenTree));
+    TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+    STOP_TIMER("OptimizeModel - merge adjacent operator");
 
+    START_TIMER("OptimizeModel - set materialization hints");
     rewrittenTree = materializeProjectionSequences((QueryOperator *) rewrittenTree);
     DEBUG_LOG("add materialization hints for projection sequences\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
     ASSERT(checkModel((QueryOperator *) rewrittenTree));
+    STOP_TIMER("OptimizeModel - set materialization hints");
 
     return rewrittenTree;
 }

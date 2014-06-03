@@ -11,6 +11,7 @@
  */
 
 #include "common.h"
+#include "instrumentation/timing_instrumentation.h"
 #include "mem_manager/mem_mgr.h"
 
 #include "log/logger.h"

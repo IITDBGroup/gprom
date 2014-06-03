@@ -16,7 +16,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "uthash.h"
-
+#include "instrumentation/timing_instrumentation.h"
 
 // override the defaults for UT_hash memory allocation to use standard malloc
 #undef uthash_malloc

@@ -127,7 +127,7 @@ static void
 updateStats (Timer *t)
 {
     DEBUG_LOG("%ld - %ld - %ld", t->fullStart, t->fullEnd, t->fullEnd - t->fullStart);
-//    long newT = mytimediff(&(t->curEnd), &(t->curStart));
+
     long newT = t->fullEnd - t->fullStart;
     t->totalTime += newT;
     t->minTime = (newT < t->minTime) ? newT : t->minTime;
@@ -169,6 +169,7 @@ getOrCreateTimer (char *name, int line, const char *function, const char *source
         t->line = line;
         t->func = strdup((char *) function);
         t->file = strdup((char *) sourceFile);
+        t->minTime = LONG_MAX;
 
         HASH_ADD_KEYPTR(hh, allTimers, t->name, strlen(t->name), t);
         DEBUG_LOG("created new timer for <%s>", t->name);
@@ -190,19 +191,30 @@ void
 outputTimers (void)
 {
     Timer *t;
+    int maxTimerNameLength = 30;
 
     CREATE_OR_USE_MEMCONTEXT();
+
+    for(t = allTimers; t != NULL; t = t->hh.next)
+    {
+        int len = strlen(t->name);
+        maxTimerNameLength = (maxTimerNameLength < len) ? len : maxTimerNameLength;
+    }
 
     if(!isRewriteOptionActivated("timing"))
         return;
 
     for(t = allTimers; t != NULL; t = t->hh.next)
     {
-        printf("timer: %30s - total: %12f sec calls: %9ld avg: %12f\n",
+        printf("timer: %*s - total: %12f sec calls: %9ld avg: %12f min: %12f max: %12f\n",
+                maxTimerNameLength,
                 t->name,
                 ((double) t->totalTime) / 1000000.0,
                 t->numCalls,
-                ((double) t->avgTime) / 1000000.0);
+                ((double) t->avgTime) / 1000000.0,
+                ((double) t->minTime) / 1000000.0,
+                ((double) t->maxTime) / 1000000.0
+                );
     }
 
     RELEASE_MEM_CONTEXT();

@@ -171,6 +171,7 @@ extern Constant *createNullConst (DataType dt);
 extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
 
+/* create an SQL expression from an expression tree */
 extern char *exprToSQL (Node *expr);
 
 /* functions for searching inside expressions */

@@ -12,7 +12,7 @@
  */
 
 #include "common.h"
-
+#include "instrumentation/timing_instrumentation.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"

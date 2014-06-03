@@ -8,6 +8,7 @@
  **************************************/
 
 #include "common.h"
+#include "instrumentation/timing_instrumentation.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/set/set.h"

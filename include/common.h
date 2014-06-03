@@ -99,8 +99,15 @@
 #ifdef DISABLE_ASSERT
 #define ASSERT(expr)
 #define ASSERT_BARRIER(code)
+#define TIME_ASSERT(expr)
 #else
-#define ASSERT(expr) assert(expr)
+#define ASSERT(expr) assert(expr);
+#define TIME_ASSERT(expr) \
+    do { \
+        START_TIMER("ASSERT"); \
+        assert(expr); \
+        STOP_TIMER("ASSERT"); \
+    } while(0)
 #define ASSERT_BARRIER(code) code
 #endif
 

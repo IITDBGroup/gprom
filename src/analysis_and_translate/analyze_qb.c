@@ -10,6 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 #include "common.h"
+#include "instrumentation/timing_instrumentation.h"
 
 #include "analysis_and_translate/analyze_qb.h"
 #include "analysis_and_translate/parameter.h"

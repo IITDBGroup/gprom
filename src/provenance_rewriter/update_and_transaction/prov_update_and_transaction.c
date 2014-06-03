@@ -34,7 +34,7 @@ static void extractUpdatedFromTemporalHistory (ProvenanceComputation *op);
 static void filterUpdatedInFinalResult (ProvenanceComputation *op);
 static Node *adaptConditionForReadCommitted(Node *cond, Constant *scn, int attrPos);
 
-static List *findUpdatedTableAccceses (Node *op);
+static List *findUpdatedTableAccceses (List *tables);
 
 static KeyValue *getMapCond (List *props, char *key);
 static void setMapCond (List **props, KeyValue *newVal);
@@ -188,7 +188,8 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
                 caseExpr = createCaseExpr(NULL, singleton(caseWhen),
                         els);
 
-                newProjExpr = (Node *) caseExpr;
+                // TODO do not modify the SCN attribute to avoid exponentail expression size blow-up
+                newProjExpr = (Node *) els; // caseExpr
                 proj->projExprs =
                         appendToTailOfList(projExprs, newProjExpr);
                 q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
@@ -347,7 +348,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     tableNames = t->updateTableNames;
     origUpdates = t->originalUpdates;
     findTableAccessVisitor((Node *) op, &allTables);
-    updatedTables  = findUpdatedTableAccceses ((Node *) op);
+    updatedTables  = findUpdatedTableAccceses (allTables);
 
     DEBUG_LOG("\ncond: %s, \ntables: %s, \nupdatedTable: %s",
             beatify(nodeToString(upConds)),
@@ -395,11 +396,12 @@ addConditionsToBaseTables (ProvenanceComputation *op)
 
                 if (tableMap == NULL)
                 {
-                    tableMap = createNodeKeyValue((Node *) createConstString(tableName), cond);
+                    tableMap = createNodeKeyValue((Node *) createConstString(tableName),
+                            (Node *) singleton(cond));
                     setMapCond(&tableCondMap, tableMap);
                 }
                 else
-                    tableMap->value = (Node *) OR_EXPRS(tableMap->value, cond);
+                    tableMap->value = (Node *) appendToTailOfList((List *) tableMap->value, cond);
             }
             pos++;
             i++;
@@ -420,6 +422,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
 
         if (cond != NULL)
         {
+            cond = (Node *) createOpExpr("OR", (List *) cond);
             sel = createSelectionOp(cond, (QueryOperator *) t, NIL,
                     getAttrNames(GET_OPSCHEMA(t)));
             switchSubtrees((QueryOperator *) t, (QueryOperator *) sel);
@@ -469,12 +472,10 @@ setMapCond (List **props, KeyValue *newVal)
 }
 
 static List *
-findUpdatedTableAccceses (Node *op)
+findUpdatedTableAccceses (List *tables)
 {
-    List *tables = NIL;
     List *result = NIL;
 
-    findTableAccessVisitor(op, &tables);
     FOREACH(TableAccessOperator,t,tables)
         if (HAS_STRING_PROP(t,PROP_TABLE_IS_UPDATED))
             result = appendToTailOfList(result, t);

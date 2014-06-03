@@ -91,14 +91,27 @@ operatorToSQL (StringInfo str, Operator *node)
         exprToSQLString(str,getNthOfListP(node->args,0));
         appendStringInfoString(str, "))");
     }
+//    else if (LIST_LENGTH(node->args) == 2)
+//    {
+//        appendStringInfoString(str, "(");
+//        exprToSQLString(str,getNthOfListP(node->args,0));
+//
+//        appendStringInfo(str, " %s ", node->name);
+//
+//        exprToSQLString(str,getNthOfListP(node->args,1));
+//        appendStringInfoString(str, ")");
+//    }
     else
     {
         appendStringInfoString(str, "(");
-        exprToSQLString(str,getNthOfListP(node->args,0));
 
-        appendStringInfo(str, " %s ", node->name);
+        FOREACH(Node,arg,node->args)
+        {
+            exprToSQLString(str,arg);
+            if(arg_his_cell != node->args->tail)
+                appendStringInfo(str, " %s ", node->name);
+        }
 
-        exprToSQLString(str,getNthOfListP(node->args,1));
         appendStringInfoString(str, ")");
     }
 }

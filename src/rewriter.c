@@ -42,7 +42,7 @@ rewriteQuery(char *input)
     result = rewriteParserOutput(parse, isRewriteOptionActivated("optimize_operator_model"));
     INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
 
-    OUT_TIMERS();
+//    OUT_TIMERS();
 
     return result;
 }
@@ -58,7 +58,7 @@ rewriteQueryFromStream (FILE *stream) {
     result = rewriteParserOutput(parse, isRewriteOptionActivated("optimize_operator_model"));
     INFO_LOG("Rewritten SQL text is <%s>", result);
 
-    OUT_TIMERS();
+//    OUT_TIMERS();
 
     return result;
 }
@@ -101,9 +101,9 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     ASSERT_BARRIER(
         if (isA(rewrittenTree, List))
             FOREACH(QueryOperator,o,(List *) rewrittenTree)
-                ASSERT(checkModel(o));
+                TIME_ASSERT(checkModel(o));
         else
-            ASSERT(checkModel((QueryOperator *) rewrittenTree));
+            TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
     )
 
     if(applyOptimizations)

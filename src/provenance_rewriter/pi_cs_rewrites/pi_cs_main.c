@@ -10,6 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "instrumentation/timing_instrumentation.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "model/query_operator/query_operator.h"
@@ -45,6 +46,8 @@ rewritePI_CS (ProvenanceComputation  *op)
 {
     List *provAttrs = NIL;
 
+    START_TIMER("rewrite - PI-CS rewrite");
+
     // unset relation name counters
     nameState = (RelCount *) NULL;
 
@@ -70,6 +73,8 @@ rewritePI_CS (ProvenanceComputation  *op)
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) op, rewRoot);
     DEBUG_LOG("rewritten query root is: %s", beatify(nodeToString(rewRoot)));
+
+    STOP_TIMER("rewrite - PI-CS rewrite");
 
     return rewRoot;
 }

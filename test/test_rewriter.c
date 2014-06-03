@@ -8,7 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common.h"
 #include "mem_manager/mem_mgr.h"
+#include "instrumentation/timing_instrumentation.h"
+
 #include "log/logger.h"
 #include "configuration/option.h"
 #include "configuration/option_parser.h"
@@ -34,6 +37,9 @@ main (int argc, char* argv[])
     mallocOptions();
     parseOption(argc, argv);
     initLogger();
+
+    START_TIMER("TOTAL");
+
     initMetadataLookupPlugins();
     chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
     initMetadataLookupPlugin();
@@ -54,7 +60,11 @@ main (int argc, char* argv[])
     printf("%s", result);
     fflush(stdout);
 
+    STOP_TIMER("TOTAL");
+    OUT_TIMERS();
+
     freeOptions();
+
     destroyMemManager();
 
     return EXIT_SUCCESS;
