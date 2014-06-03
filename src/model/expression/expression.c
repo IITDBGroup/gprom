@@ -19,6 +19,9 @@
 #include "model/list/list.h"
 #include "model/expression/expression.h"
 
+static boolean findAttrReferences (Node *node, List **state);
+
+
 AttributeReference *
 createAttributeReference (char *name)
 {
@@ -367,4 +370,29 @@ typeOfInOpModel (Node *expr, List *inputOperators)
             break;
     }
     return DT_STRING;
+}
+
+/* search functions */
+List *
+getAttrReferences (Node *node)
+{
+    List *result = NIL;
+
+    findAttrReferences(node, &result);
+
+    return result;
+}
+
+static boolean
+findAttrReferences (Node *node, List **state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        *state = appendToTailOfList(*state, node);
+    }
+
+    return visit(node, findAttrReferences, state);
 }

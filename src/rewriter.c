@@ -109,33 +109,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     if(applyOptimizations)
     {
         START_TIMER("OptimizeModel");
-        if(isA(rewrittenTree, List))
-        {
-            FOREACH_LC(lc, (List *) rewrittenTree)
-            {
-                QueryOperator *o = (QueryOperator *) LC_P_VAL(lc);
-
-                o = mergeAdjacentOperators(o);
-                ASSERT(checkModel(o));
-                DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) o));
-                o = pushDownSelectionOperatorOnProv(o);
-                ASSERT(checkModel(o));
-                DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) o));
-                o = mergeAdjacentOperators(o);
-                ASSERT(checkModel(o));
-                DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) o));
-                LC_P_VAL(lc) = o;
-            }
-        }
-        else
-        {
-            rewrittenTree = (Node *) mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-            ASSERT(checkModel((QueryOperator *) rewrittenTree));
-            rewrittenTree = (Node *) pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
-            ASSERT(checkModel((QueryOperator *) rewrittenTree));
-            rewrittenTree = (Node *) mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-            ASSERT(checkModel((QueryOperator *) rewrittenTree));
-        }
+        rewrittenTree = optimizeOperatorModel(rewrittenTree);
         INFO_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
         STOP_TIMER("OptimizeModel");
     }

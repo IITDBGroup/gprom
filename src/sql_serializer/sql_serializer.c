@@ -123,7 +123,7 @@ static boolean updateAttributeNames(Node *node, List *fromAttrs);
 static boolean updateAttributeNamesSimple(Node *node, List *attrNames);
 
 static List *serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
-        StringInfo having, StringInfo groupBy, List *fromAttrs);
+        StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize);
 
 static char *exprToSQLWithNamingScheme(Node *expr, int rOffset, List *fromAttrs);
 static boolean renameAttrsVisitor(Node *node, JoinAttrRenameState *state);
@@ -241,7 +241,7 @@ static List *
 serializeQueryOperator (QueryOperator *q, StringInfo str)
 {
     // operator with multiple parents
-    if (LIST_LENGTH(q->parents) > 1)
+    if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,"MATERIALIZE"))
         return createTempView (q, str);
     else if (isA(q, SetOperator))
         return serializeSetOperator(q, str);
@@ -264,6 +264,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
     MatchState state = MATCH_START;
     QueryOperator *cur = q;
     List *attrNames = getAttrNames(q->schema);
+    boolean topMaterialize = HAS_STRING_PROP(cur,"MATERIALIZE");
 
     // do the matching
     while(state != MATCH_NEXTBLOCK && cur != NULL)
@@ -271,6 +272,17 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
         INFO_LOG("STATE: %s", OUT_MATCH_STATE(state));
         INFO_LOG("Operator %s", operatorToOverviewString((Node *) cur));
         // first check that cur does not have more than one parent
+        if (HAS_STRING_PROP(cur,"MATERIALIZE") || LIST_LENGTH(cur->parents) > 1)
+        {
+            if (cur != q)
+            {
+                matchInfo->fromRoot = cur;
+                state = MATCH_NEXTBLOCK;
+                cur = OP_LCHILD(cur);
+                continue;
+            }
+        }
+        // if cur has not more than one parent and should not be materialized
         switch(cur->type)
         {
             case T_JoinOperator:
@@ -511,7 +523,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     DEBUG_LOG("serialize projection + aggregation + groupBy +  having + window functions");
     serializeProjectionAndAggregation(matchInfo, selectString, havingString,
-            groupByString, fromAttrs);
+            groupByString, fromAttrs, topMaterialize);
 
     // put everything together
     DEBUG_LOG("mergePartsTogether");
@@ -553,130 +565,144 @@ static void
 serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         int *attrOffset, List **fromAttrs)
 {
-
-    switch(q->type)
+    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, "MATERIALIZE")))
     {
-        // Join expressions
-        case T_JoinOperator:
+        switch(q->type)
         {
-            JoinOperator *j = (JoinOperator *) q;
-            int rOffset;
-            appendStringInfoString(from, "(");
-
-            //left child
-            serializeFromItem(OP_LCHILD(j), from, curFromItem, attrOffset, fromAttrs);
-
-            // join
-            switch(j->joinType)
+            // Join expressions
+            case T_JoinOperator:
             {
-                case JOIN_INNER:
-                    appendStringInfoString(from, " JOIN ");
-                break;
-                case JOIN_CROSS:
-                    appendStringInfoString(from, " CROSS JOIN ");
-                break;
-                case JOIN_LEFT_OUTER:
-                    appendStringInfoString(from, " LEFT OUTER JOIN ");
-                break;
-                case JOIN_RIGHT_OUTER:
-                    appendStringInfoString(from, " RIGHT OUTER JOIN ");
-                break;
-                case JOIN_FULL_OUTER:
-                    appendStringInfoString(from, " FULL OUTER JOIN ");
-                break;
-            }
+                JoinOperator *j = (JoinOperator *) q;
+                int rOffset;
+                appendStringInfoString(from, "(");
 
-            // right child
-            rOffset = *curFromItem;
-            serializeFromItem(OP_RCHILD(j), from, curFromItem, attrOffset, fromAttrs);
+                //left child
+                serializeFromItem(OP_LCHILD(j), from, curFromItem, attrOffset, fromAttrs);
 
-            // join condition
-            if (j->cond)
-                appendStringInfo(from, " ON (%s)", exprToSQLWithNamingScheme(
-                        copyObject(j->cond), rOffset, *fromAttrs));
-
-            //we don't need the alias part now
-            appendStringInfo(from, ")");
-        }
-        break;
-        // Table Access
-        case T_TableAccessOperator:
-        {
-            TableAccessOperator *t = (TableAccessOperator *) q;
-            char *asOf = NULL;
-            ProvenanceComputation *op;
-            Constant *xid = getTranactionSQLAndSCNs(xid);
-
-            if (HAS_STRING_PROP(t, "USE_HISTORY_JOIN"))
-            {
-               /* List *scnsAndXid = (List *) GET_STRING_PROP(t, "USE_HISTORY_JOIN");
-
-                appendStringInfoString(from, "(SELECT", "(%s)", t.op.schema->attrDefs);
-		        appendStringInfoString(from, "(SELECT ROWID AS rid","(%s)", t->op.schema->attrDefs);
-			    appendStringInfo("(%s)",t->tableName, "AS OF SCN","(%s)",op->transactionInfo->scns, ") F0");
-				appendStringInfoString("\nJOIN ");
-				appendStringInfoString(from, "(SELECT ROWID AS rid","(%s)", t->tableName, "VERSIONS BETWEEN SCN", "(%u)",op->transactionInfo->commitSCN, "AND","(%u)", op->transactionInfo->commitSCN, "F1" );
-			    appendStringInfoString("WHERE VERSIONS_XID = HEXTORAW('", "(%s)", getTranactionSQLAndSCNs(xid), "')) F1");
-				appendStringInfo("ON (F0.rid = F1.rid)");
-                List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
-                *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-               */
-            }
-            else
-            {
-                // add list of attributes as list to fromAttrs
-                *attrOffset = 0;
-                if (t->asOf)
+                // join
+                switch(j->joinType)
                 {
-                    if (isA(t->asOf, Constant))
-                    {
-                        Constant *c = (Constant *) t->asOf;
-                        if (c->constType == DT_LONG)
-                            asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf));
-                        else
-                            asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
-                    }
-                    else
-                    {
-                        List *scns = (List *) t->asOf;
-                        Node *begin = (Node *) getNthOfListP(scns, 0);
-                        Node *end = (Node *) getNthOfListP(scns, 1);
-
-                        asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ", exprToSQL(begin), " AND ", exprToSQL(end));
-                    }
+                    case JOIN_INNER:
+                        appendStringInfoString(from, " JOIN ");
+                    break;
+                    case JOIN_CROSS:
+                        appendStringInfoString(from, " CROSS JOIN ");
+                    break;
+                    case JOIN_LEFT_OUTER:
+                        appendStringInfoString(from, " LEFT OUTER JOIN ");
+                    break;
+                    case JOIN_RIGHT_OUTER:
+                        appendStringInfoString(from, " RIGHT OUTER JOIN ");
+                    break;
+                    case JOIN_FULL_OUTER:
+                        appendStringInfoString(from, " FULL OUTER JOIN ");
+                    break;
                 }
 
-                List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
-                *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-                appendStringInfo(from, "(%s%s F%u)", quoteIdentifier(t->tableName),
-                        asOf ? asOf : "", (*curFromItem)++);
+                // right child
+                rOffset = *curFromItem;
+                serializeFromItem(OP_RCHILD(j), from, curFromItem, attrOffset, fromAttrs);
+
+                // join condition
+                if (j->cond)
+                    appendStringInfo(from, " ON (%s)", exprToSQLWithNamingScheme(
+                            copyObject(j->cond), rOffset, *fromAttrs));
+
+                //we don't need the alias part now
+                appendStringInfo(from, ")");
             }
-        }
-        break;
-        // A constant relation, turn into (SELECT ... FROM dual) subquery
-        case T_ConstRelOperator:
-               {
-                   ConstRelOperator *t = (ConstRelOperator *) q;
-                   int pos = 0;
-                   List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
+            break;
+            // Table Access
+            case T_TableAccessOperator:
+            {
+                TableAccessOperator *t = (TableAccessOperator *) q;
+                char *asOf = NULL;
+                ProvenanceComputation *op;
+//                Constant *xid = getTranactionSQLAndSCNs(xid);
 
-                   *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+                if (HAS_STRING_PROP(t, "USE_HISTORY_JOIN"))
+                {
+                   /* List *scnsAndXid = (List *) GET_STRING_PROP(t, "USE_HISTORY_JOIN");
 
-                   appendStringInfoString(from, "(SELECT ");
-                   FOREACH(char,attrName,attrNames)
+                    appendStringInfoString(from, "(SELECT", "(%s)", t.op.schema->attrDefs);
+                    appendStringInfoString(from, "(SELECT ROWID AS rid","(%s)", t->op.schema->attrDefs);
+                    appendStringInfo("(%s)",t->tableName, "AS OF SCN","(%s)",op->transactionInfo->scns, ") F0");
+                    appendStringInfoString("\nJOIN ");
+                    appendStringInfoString(from, "(SELECT ROWID AS rid","(%s)", t->tableName, "VERSIONS BETWEEN SCN", "(%u)",op->transactionInfo->commitSCN, "AND","(%u)", op->transactionInfo->commitSCN, "F1" );
+                    appendStringInfoString("WHERE VERSIONS_XID = HEXTORAW('", "(%s)", getTranactionSQLAndSCNs(xid), "')) F1");
+                    appendStringInfo("ON (F0.rid = F1.rid)");
+                    List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
+                    *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+                   */
+                }
+                else
+                {
+                    // add list of attributes as list to fromAttrs
+                    *attrOffset = 0;
+                    if (t->asOf)
+                    {
+                        if (isA(t->asOf, Constant))
+                        {
+                            Constant *c = (Constant *) t->asOf;
+                            if (c->constType == DT_LONG)
+                                asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf));
+                            else
+                                asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
+                        }
+                        else
+                        {
+                            List *scns = (List *) t->asOf;
+                            Node *begin = (Node *) getNthOfListP(scns, 0);
+                            Node *end = (Node *) getNthOfListP(scns, 1);
+
+                            asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ", exprToSQL(begin), " AND ", exprToSQL(end));
+                        }
+                    }
+
+                    List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
+                    *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+                    appendStringInfo(from, "(%s%s F%u)", quoteIdentifier(t->tableName),
+                            asOf ? asOf : "", (*curFromItem)++);
+                }
+            }
+            break;
+            // A constant relation, turn into (SELECT ... FROM dual) subquery
+            case T_ConstRelOperator:
                    {
-                       Node *value;
-                       if (pos != 0)
-                           appendStringInfoString(from, ", ");
-                       value = getNthOfListP(t->values, pos++);
-                       appendStringInfo(from, "%s AS %s", exprToSQL(value), attrName);
+                       ConstRelOperator *t = (ConstRelOperator *) q;
+                       int pos = 0;
+                       List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
 
+                       *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+
+                       appendStringInfoString(from, "(SELECT ");
+                       FOREACH(char,attrName,attrNames)
+                       {
+                           Node *value;
+                           if (pos != 0)
+                               appendStringInfoString(from, ", ");
+                           value = getNthOfListP(t->values, pos++);
+                           appendStringInfo(from, "%s AS %s", exprToSQL(value), attrName);
+
+                       }
+                       appendStringInfo(from, "\nFROM dual) F%u", (*curFromItem)++);
                    }
-                   appendStringInfo(from, "\nFROM dual) F%u", (*curFromItem)++);
-               }
-        break;
-        // A subquery
-        default:
+            break;
+            default:
+            {
+                List *attrNames;
+
+                appendStringInfoString(from, "((");
+                attrNames = serializeQueryOperator(q, from);
+                *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+                appendStringInfo(from, ") F%u)", (*curFromItem)++);
+            }
+            break;
+        }
+    }
+    else
+    {
+        // A materialization point or WITH
         {
             List *attrNames;
 
@@ -685,7 +711,6 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
             appendStringInfo(from, ") F%u)", (*curFromItem)++);
         }
-        break;
     }
 }
 
@@ -881,7 +906,7 @@ updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state)
  */
 static List *
 serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
-        StringInfo having, StringInfo groupBy, List *fromAttrs)
+        StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize)
 {
     int pos = 0;
     List *firstProjs = NIL;
@@ -899,6 +924,8 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     UpdateAggAndGroupByAttrState *state = NULL;
 
     appendStringInfoString(select, "\nSELECT ");
+    if (materialize)
+        appendStringInfoString(select, "/*+ materialize */ ");
 
     // Projection for aggregation inputs and group-by
     if (m->secondProj != NULL && (agg != NULL || winR != NULL))

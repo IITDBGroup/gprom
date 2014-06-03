@@ -33,8 +33,8 @@ static void analyzeWithStmt (WithStmt *w);
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 
 // search for attributes and other relevant node types
-static void enumerateParameters (Node *stmt);
 static boolean findAttrReferences (Node *node, List **state);
+static void enumerateParameters (Node *stmt);
 static boolean findFunctionCall (Node *node, List **state);
 static boolean findAttrRefInFrom (AttributeReference *a, List *fromClauses);
 static FromItem *findNamedFromItem (FromItem *fromItem, char *name);
@@ -465,22 +465,7 @@ findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromCl
     return foundAttr;
 }
 
-static boolean
-findAttrReferences (Node *node, List **state)
-{
-    if (node == NULL)
-        return TRUE;
 
-    if (isA(node, AttributeReference))
-    {
-        *state = appendToTailOfList(*state, node);
-    }
-
-    if (isQBQuery(node))
-        return TRUE;
-
-    return visit(node, findAttrReferences, state);
-}
 
 boolean
 hasNestedSubqueries (Node *node)
@@ -1068,4 +1053,21 @@ setViewFromTableRefAttrs(Node *node, List *views)
     }
 
     return visit(node, setViewFromTableRefAttrs, views);
+}
+
+static boolean
+findAttrReferences (Node *node, List **state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        *state = appendToTailOfList(*state, node);
+    }
+
+    if (isQBQuery(node))
+        return TRUE;
+
+    return visit(node, findAttrReferences, state);
 }

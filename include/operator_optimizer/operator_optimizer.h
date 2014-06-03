@@ -13,6 +13,12 @@
 
 #include "model/query_operator/query_operator.h"
 
+/* apply all optimizations */
+extern Node *optimizeOperatorModel (Node *root);
+
+/* activate materialization for adjcent projections */
+extern QueryOperator *materializeProjectionSequences (QueryOperator *root);
+
 /* try to merge adajacent operators of the same type into one operator. */
 extern QueryOperator *mergeAdjacentOperators (QueryOperator *root);
 

@@ -67,7 +67,7 @@ extern int mapSize (HashMap *map);
 #define DUMMY_HASHEL(_name_) _name_##_his_el
 #define INJECT_VAR_HASH(type,name) \
     for(int DUMMY_INT_FOR_COND_HASH(name) = 0; DUMMY_INT_FOR_COND_HASH(name) == 0;) \
-        for(type name = NULL; DUMMY_INT_FOR_COND_HASH(name) == 0; DUMMY_INT_FOR_COND_HASH(name)++) \
+        for(type name = NULL; DUMMY_INT_FOR_COND_HASH(name) == 0; DUMMY_INT_FOR_COND_HASH(name)++)
 
 #define FOREACH_HASH(_type_,_elem_,_map) \
 		INJECT_VAR_HASH(HashElem*,DUMMY_HASHEL(_elem_)) \

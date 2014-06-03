@@ -173,4 +173,8 @@ extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
 
 extern char *exprToSQL (Node *expr);
 
+/* functions for searching inside expressions */
+extern List *getAttrReferences (Node *node);
+
+
 #endif /* EXPRESSION_H */

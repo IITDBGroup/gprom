@@ -10,9 +10,11 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "log/logger.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/schema_utility.h"
 #include "model/expression/expression.h"
+#include "model/set/hashmap.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "mem_manager/mem_mgr.h"
@@ -26,7 +28,7 @@ typedef struct ReplaceRefState {
 
 /* declarations */
 static Node *replaceAttributeRefsMutator (Node *node, ReplaceRefState *state);
-
+static boolean mergeProjectionIsSafe(ProjectionOperator *op);
 
 SelectionOperator *
 mergeSelection(SelectionOperator *op)
@@ -67,6 +69,9 @@ mergeProjection(ProjectionOperator *op)
         // only one parent of child is allowed
         if (LIST_LENGTH(child->op.parents) > 1)
         	break;
+
+        if (!mergeProjectionIsSafe(op))
+            break;
 
         // combine expressions and link child's children to root
         state->op = child;
@@ -154,4 +159,44 @@ replaceAttributeRefsMutator (Node *node, ReplaceRefState *state)
     }
 
     return mutate(node, replaceAttributeRefsMutator, state);
+}
+
+static boolean
+mergeProjectionIsSafe(ProjectionOperator *op)
+{
+    FOREACH(Node,p,op->projExprs)
+    {
+        HashMap *cnt = NEW_MAP(Constant,Constant);
+        List *attrRef = getAttrReferences(p);
+
+        DEBUG_LOG("projection expression: %s", beatify(nodeToString(p)));
+
+        // count number of references to each attribute
+        FOREACH(AttributeReference,a,attrRef)
+        {
+            Constant *aC;
+            if (!MAP_HAS_STRING_KEY(cnt, a->name))
+            {
+                aC = createConstInt(0);
+                MAP_ADD_STRING_KEY(cnt, a->name, aC);
+            }
+            else
+                aC = (Constant *) MAP_GET_STRING(cnt, a->name);
+            INT_VALUE(aC) += 1;
+            DEBUG_LOG("attribute %s count is %s", a->name, exprToSQL((Node *) aC));
+        }
+
+        // do not merge if there is more than one
+        FOREACH_HASH(Constant,c,cnt)
+        {
+            if (INT_VALUE(c) > 1)
+            {
+                DEBUG_LOG("mentioned more than once: %s", exprToSQL((Node *) c));
+                return FALSE;
+            }
+            //TODO also check first whether child attribute is simple or not (if simple then more then one ref is ok)
+        }
+    }
+
+    return TRUE;
 }

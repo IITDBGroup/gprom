@@ -62,6 +62,7 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
 {
     List *updates = copyList(op->op.inputs);
     int i = 0;
+    char *useTable = NULL;
 
     // cut links to parent
     removeParentFromOps(op->op.inputs, (QueryOperator *) op);
@@ -483,9 +484,9 @@ findUpdatedTableAccceses (Node *op)
 static void
 extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 {
-    long *scn = op->transactionInfo->scns;
-    long *scnC = op->transactionInfo->commitSCN;
-    Constant *xid = getTranactionSQLAndSCNs(xid);
+//    long *scn = op->transactionInfo->scns;
+//    long *scnC = op->transactionInfo->commitSCN;
+//    Constant *xid = getTranactionSQLAndSCNs(xid);
     TableAccessOperator *t;
 	List *updateTableNames;
 	List *originalUpdates;
