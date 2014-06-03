@@ -21,6 +21,7 @@
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/operator_property.h"
 #include "analysis_and_translate/translator.h"
 #include "analysis_and_translate/translate_update.h"
 
@@ -60,7 +61,7 @@ translateInsert(Insert *insert)
 
 	TableAccessOperator *to;
 	to = createTableAccessOp(insert->tableName, NULL, NULL, NIL, deepCopyStringList(attr), NIL);
-	SET_BOOL_STRING_PROP(to,"UPDATED TABLE");
+	SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	if (isA(insert->query,  List))
 	{
@@ -92,7 +93,7 @@ translateDelete(Delete *delete)
 
 	TableAccessOperator *to;
 	to = createTableAccessOp(strdup(delete->nodeName), NULL, NULL, NIL, deepCopyStringList(attr), NIL);
-	SET_BOOL_STRING_PROP(to,"UPDATED TABLE");
+	SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	SelectionOperator *so;
 	Node *negatedCond;
@@ -115,7 +116,7 @@ translateUpdateInternal(Update *update)
     // create table access operator
 	TableAccessOperator *to;
 	to = createTableAccessOp(strdup(update->nodeName), NULL, NULL, NIL, deepCopyStringList(attrs), NIL);
-	SET_BOOL_STRING_PROP(to,"UPDATED TABLE");
+	SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	// CREATE PROJECTION EXPRESSIONS
 	List *projExprs = NIL;
@@ -180,7 +181,7 @@ translateUpdateWithCase(Update *update)
 	TableAccessOperator *to;
 	to = createTableAccessOp(strdup(update->nodeName), NULL, NULL, NIL,
 			deepCopyStringList(attrs), NIL);
-    SET_BOOL_STRING_PROP(to,"UPDATED TABLE");
+    SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	// CREATE PROJECTION EXPRESSIONS
 	List *projExprs = NIL;

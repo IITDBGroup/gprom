@@ -13,6 +13,7 @@
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/operator_property.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "model/node/nodetype.h"
@@ -76,10 +77,10 @@ rewritePI_CS (ProvenanceComputation  *op)
 static QueryOperator *
 rewritePI_CSOperator (QueryOperator *op)
 {
-    boolean showIntermediate = HAS_STRING_PROP(op,"SHOW_INTERMEDIATE_PROV");
-    boolean noRewriteUseProv = HAS_STRING_PROP(op, "USE_PROVENANCE");
-    boolean noRewriteHasProv = HAS_STRING_PROP(op, "HAS_PROVENANCE");
-    List *userProvAttrs = (List *) getStringProperty(op, "USER_PROV_ATTRS");
+    boolean showIntermediate = HAS_STRING_PROP(op,  PROP_SHOW_INTERMEDIATE_PROV);
+    boolean noRewriteUseProv = HAS_STRING_PROP(op, PROP_USE_PROVENANCE);
+    boolean noRewriteHasProv = HAS_STRING_PROP(op, PROP_HAS_PROVENANCE);
+    List *userProvAttrs = (List *) getStringProperty(op, PROP_USER_PROV_ATTRS);
 
     QueryOperator *rewrittenOp;
 

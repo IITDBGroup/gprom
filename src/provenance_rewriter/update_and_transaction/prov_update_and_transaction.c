@@ -19,6 +19,7 @@
 #include "model/set/hashmap.h"
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/operator_property.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
 #include "configuration/option.h"
@@ -242,8 +243,8 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 			    Constant *scnC = (Constant *) copyObject(op->transactionInfo->commitSCN);
 			    *((long *) scnC->value) = *((long *) scnC->value) + 1; //getCommit SCN
 
-			    SET_BOOL_STRING_PROP(t,"USE_PROVENANCE");
-                setStringProperty((QueryOperator *) t,"USER_PROV_ATTRS", (Node *) stringListToConstList(getQueryOperatorAttrNames((QueryOperator *) t)));
+			    SET_BOOL_STRING_PROP(t,PROP_USE_PROVENANCE);
+                setStringProperty((QueryOperator *) t,PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(getQueryOperatorAttrNames((QueryOperator *) t)));
 			    t->asOf = (Node *) LIST_MAKE(scnC, copyObject(scnC));
 				((QueryOperator *) t)->schema->attrDefs = appendToTailOfList(((QueryOperator *) t)->schema->attrDefs,
 				        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
@@ -332,7 +333,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     List *upConds;
     List *tableNames;
     List *updatedTables;
-    List *allTables;
+    List *allTables = NIL;
     List *origUpdates;
     List *tableCondMap = NIL;
     int pos = 0;
@@ -342,7 +343,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     HashMap *numAttrs = NEW_MAP(Constant,Constant);
     ProvenanceTransactionInfo *t = op->transactionInfo;
 
-    upConds = (List *) GET_STRING_PROP(op, "UpdateConds");
+    upConds = (List *) GET_STRING_PROP(op, PROP_PC_UPDATE_COND);
     tableNames = t->updateTableNames;
     origUpdates = t->originalUpdates;
     findTableAccessVisitor((Node *) op, &allTables);
@@ -475,7 +476,7 @@ findUpdatedTableAccceses (Node *op)
 
     findTableAccessVisitor(op, &tables);
     FOREACH(TableAccessOperator,t,tables)
-        if (HAS_STRING_PROP(t,"UPDATED TABLE"))
+        if (HAS_STRING_PROP(t,PROP_TABLE_IS_UPDATED))
             result = appendToTailOfList(result, t);
 
     return result;

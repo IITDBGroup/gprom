@@ -21,6 +21,7 @@
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/operator_property.h"
 
 #include "analysis_and_translate/analyze_qb.h"
 #include "analysis_and_translate/translator.h"
@@ -320,7 +321,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	        IsolationLevel isoLevel;
 	        List *updateConds = NIL;
 	        Constant *commitSCN = createConstLong(-1L);
-	        boolean showIntermediate = HAS_STRING_PROP(result,"SHOW ALL INTERMEDIATE");
+	        boolean showIntermediate = HAS_STRING_PROP(result,PROP_PC_SHOW_INTERMEDIATE);
 	        DEBUG_LOG("Provenance for transaction");
 
 	        // call metadata lookup -> SCNS + SQLS
@@ -397,10 +398,10 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
 	            // mark for showing intermediate results
 	            if (showIntermediate)
-	                SET_BOOL_STRING_PROP(child, "SHOW_INTERMEDIATE_PROV");
+	                SET_BOOL_STRING_PROP(child, PROP_SHOW_INTERMEDIATE_PROV);
 
 	            // mark as root of translated update
-	            SET_BOOL_STRING_PROP(child, "IS_UPDATE_ROOT");
+	            SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
 
 	            DEBUG_LOG("qo model transaction is\n%s", beatify(nodeToString(child)));
 
@@ -409,7 +410,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
 	        // if only updated rows shows be returned then we need to store the update conditions
 	        // because we might need that to filter out those tuples
-	        if (HAS_STRING_PROP(result,"ONLY UPDATED"))
+	        if (HAS_STRING_PROP(result,PROP_PC_ONLY_UPDATED))
 	        {
 	            DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
 	            setStringProperty((QueryOperator *) result, "UpdateConds", (Node *) updateConds);
@@ -641,17 +642,17 @@ translateFromProvInfo(QueryOperator *op, FromProvInfo *from)
 
     /* treat as base relation or show intermediate provenance? */
     if (from->intermediateProv)
-        SET_BOOL_STRING_PROP(op,"SHOW_INTERMEDIATE_PROV");
+        SET_BOOL_STRING_PROP(op,PROP_SHOW_INTERMEDIATE_PROV);
     else if (from->baserel)
-        SET_BOOL_STRING_PROP(op,"USE_PROVENANCE");
+        SET_BOOL_STRING_PROP(op,PROP_USE_PROVENANCE);
     else
-        SET_BOOL_STRING_PROP(op,"HAS_PROVENANCE");
+        SET_BOOL_STRING_PROP(op,PROP_HAS_PROVENANCE);
 
     /* user provided provenance attributes or all attributes of subquery? */
     if (from->userProvAttrs != NIL)
-        setStringProperty(op, "USER_PROV_ATTRS", (Node *) stringListToConstList(from->userProvAttrs));
+        setStringProperty(op, PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(from->userProvAttrs));
     else
-        setStringProperty(op, "USER_PROV_ATTRS", (Node *) stringListToConstList(getQueryOperatorAttrNames(op)));
+        setStringProperty(op, PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(getQueryOperatorAttrNames(op)));
 }
 
 static inline QueryOperator *

@@ -16,6 +16,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/operator_property.h"
 #include "model/list/list.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/prov_schema.h"
@@ -82,8 +83,8 @@ rewritePI_CSComposable (ProvenanceComputation *op)
 static boolean
 isTupleAtATimeSubtree(QueryOperator *op)
 {
-    if (HAS_STRING_PROP(op, "PROVENANCE_OPERATOR_TUPLE_AT_A_TIME"))
-        return GET_BOOL_STRING_PROP(op, "PROVENANCE_OPERATOR_TUPLE_AT_A_TIME");
+    if (HAS_STRING_PROP(op, PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME))
+        return GET_BOOL_STRING_PROP(op, PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME);
 
     switch(op->type)
     {
@@ -94,7 +95,7 @@ isTupleAtATimeSubtree(QueryOperator *op)
             break;
         default:
         {
-            SET_STRING_PROP(op, "PROVENANCE_OPERATOR_TUPLE_AT_A_TIME", createConstBool(FALSE));
+            SET_STRING_PROP(op, PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME, createConstBool(FALSE));
             return FALSE;
         }
     }
@@ -102,12 +103,12 @@ isTupleAtATimeSubtree(QueryOperator *op)
     FOREACH(QueryOperator,child,op->inputs)
         if (!isTupleAtATimeSubtree(child))
         {
-            SET_STRING_PROP(op, "PROVENANCE_OPERATOR_TUPLE_AT_A_TIME", createConstBool(FALSE));
+            SET_STRING_PROP(op, PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME, createConstBool(FALSE));
             return FALSE;
         }
 
 
-    SET_BOOL_STRING_PROP(op,"PROVENANCE_OPERATOR_TUPLE_AT_A_TIME");
+    SET_BOOL_STRING_PROP(op, PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME);
     return TRUE;
 }
 
@@ -158,7 +159,7 @@ rewritePI_CSComposableSelection (SelectionOperator *op)
     addResultTIDAndProvDupAttrs((QueryOperator *) op, TRUE);
 
     if (isTupleAtATimeSubtree(OP_LCHILD(op)))
-        SET_BOOL_STRING_PROP(op,"PROVENANCE_OPERATOR_TUPLE_AT_A_TIME");
+        SET_BOOL_STRING_PROP(op,PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME);
 
     LOG_RESULT("Selection - Rewritten Operator tree \n%s", op);
     return (QueryOperator *) op;
@@ -188,11 +189,11 @@ rewritePI_CSComposableProjection (ProjectionOperator *op)
     // add projection expressions for result TID and prov dup attrs
     op->projExprs = appendToTailOfList(op->projExprs,
             createFullAttrReference(RESULT_TID_ATTR, 0,
-                    INT_VALUE(GET_STRING_PROP(child,"RESULT_TID_ATTR")), 0));
+                    INT_VALUE(GET_STRING_PROP(child,PROP_RESULT_TID_ATTR)), 0));
 
     op->projExprs = appendToTailOfList(op->projExprs,
             createFullAttrReference(PROV_DUPL_COUNT_ATTR, 0,
-                    INT_VALUE(GET_STRING_PROP(child,"PROV_DUP_ATTR")), 0));
+                    INT_VALUE(GET_STRING_PROP(child,PROP_PROV_DUP_ATTR)), 0));
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
     addResultTIDAndProvDupAttrs((QueryOperator *) op, TRUE);
@@ -277,8 +278,8 @@ rewritePI_CSComposableJoin (JoinOperator *op)
         );
         wOp->op.provAttrs = copyObject(prev->provAttrs);
         addParent(prev, (QueryOperator *) wOp);
-        SET_STRING_PROP(wOp, "RESULT_TID_ATTR", createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 2));
-        SET_STRING_PROP(wOp, "PROV_DUP_ATTR", createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 1));
+        SET_STRING_PROP(wOp, PROP_RESULT_TID_ATTR, createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 2));
+        SET_STRING_PROP(wOp, PROP_PROV_DUP_ATTR, createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 1));
 
         LOG_RESULT("Added result TID and prov duplicate window ops:\n%s", wOp);
     }
@@ -311,8 +312,8 @@ rewritePI_CSComposableJoin (JoinOperator *op)
     addNormalAttrsWithoutSpecialToSchema((QueryOperator *) proj, (QueryOperator *) projInput);
     addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) projInput);
     addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) proj);
-    SET_STRING_PROP(proj, "RESULT_TID_ATTR", createConstInt(LIST_LENGTH(projExpr) - 2));
-    SET_STRING_PROP(proj, "PROV_DUP_ATTR", createConstInt(LIST_LENGTH(projExpr) - 1));
+    SET_STRING_PROP(proj, PROP_RESULT_TID_ATTR, createConstInt(LIST_LENGTH(projExpr) - 2));
+    SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR, createConstInt(LIST_LENGTH(projExpr) - 1));
 
     // switch projection with join in tree
     switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
@@ -370,7 +371,7 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
     {
         provDupAttrRef = (Node *) createFullAttrReference(PROV_DUPL_COUNT_ATTR,
                 0,
-                INT_VALUE(GET_STRING_PROP(curChild, "PROV_DUP_ATTR")),
+                INT_VALUE(GET_STRING_PROP(curChild, PROP_PROV_DUP_ATTR)),
                 INVALID_ATTR);
     }
     else
@@ -493,8 +494,8 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
             getNumAttrs((QueryOperator *) proj) - 3, 1);
     addParent((QueryOperator *) curWindow, (QueryOperator *) proj);
 
-    SET_STRING_PROP(proj, "RESULT_TID_ATTR", createConstInt(LIST_LENGTH(finalAttrs) - 2));
-    SET_STRING_PROP(proj, "PROV_DUP_ATTR", createConstInt(LIST_LENGTH(finalAttrs) - 1));
+    SET_STRING_PROP(proj, PROP_RESULT_TID_ATTR, createConstInt(LIST_LENGTH(finalAttrs) - 2));
+    SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR, createConstInt(LIST_LENGTH(finalAttrs) - 1));
 
     // switch aggregation and rewritten
     switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
@@ -591,15 +592,15 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op)
     newpo->op.provAttrs = newProvPosList;
 
     // set properties to mark result TID and prov duplicate attrs
-    SET_STRING_PROP(newpo, "RESULT_TID_ATTR", createConstInt(cnt * 2));
-    SET_STRING_PROP(newpo, "PROV_DUP_ATTR", createConstInt((cnt * 2) + 1));
+    SET_STRING_PROP(newpo, PROP_RESULT_TID_ATTR, createConstInt(cnt * 2));
+    SET_STRING_PROP(newpo, PROP_PROV_DUP_ATTR, createConstInt((cnt * 2) + 1));
 
     // Switch the subtree with this newly created projection operator.
     switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
 
     // Add child to the newly created projections operator,
     addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
-    SET_BOOL_STRING_PROP(newpo,"PROVENANCE_OPERATOR_TUPLE_AT_A_TIME");
+    SET_BOOL_STRING_PROP(newpo,PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME);
 
     LOG_RESULT("Table Access - Rewritten Operator tree \n%s", newpo);
     return (QueryOperator *) newpo;
@@ -635,15 +636,15 @@ addResultTIDAndProvDupAttrs (QueryOperator *op, boolean addToSchema)
                     createAttributeDef(strdup(PROV_DUPL_COUNT_ATTR), DT_INT));
 
         // set properties to mark result TID and prov duplicate attrs
-        SET_STRING_PROP(op, "RESULT_TID_ATTR", createConstInt(numAttrs));
-        SET_STRING_PROP(op, "PROV_DUP_ATTR", createConstInt(numAttrs + 1));
+        SET_STRING_PROP(op, PROP_RESULT_TID_ATTR, createConstInt(numAttrs));
+        SET_STRING_PROP(op, PROP_PROV_DUP_ATTR, createConstInt(numAttrs + 1));
     }
     else
     {
-        SET_STRING_PROP(op, "RESULT_TID_ATTR",
-                copyObject(GET_STRING_PROP(child, "RESULT_TID_ATTR")));
-        SET_STRING_PROP(op, "PROV_DUP_ATTR",
-                copyObject(GET_STRING_PROP(child, "PROV_DUP_ATTR")));
+        SET_STRING_PROP(op, PROP_RESULT_TID_ATTR,
+                copyObject(GET_STRING_PROP(child, PROP_RESULT_TID_ATTR)));
+        SET_STRING_PROP(op, PROP_PROV_DUP_ATTR,
+                copyObject(GET_STRING_PROP(child, PROP_PROV_DUP_ATTR)));
     }
 }
 
@@ -688,11 +689,11 @@ getResultTidAndProvDupAttrsProjExprs(QueryOperator *op)
     result = LIST_MAKE(
             createFullAttrReference(RESULT_TID_ATTR,
                     0,
-                    INT_VALUE(GET_STRING_PROP(op, "RESULT_TID_ATTR")),
+                    INT_VALUE(GET_STRING_PROP(op, PROP_RESULT_TID_ATTR)),
                     INVALID_ATTR),
             createFullAttrReference(PROV_DUPL_COUNT_ATTR,
                     0,
-                    INT_VALUE(GET_STRING_PROP(op, "PROV_DUP_ATTR")),
+                    INT_VALUE(GET_STRING_PROP(op, PROP_PROV_DUP_ATTR)),
                     INVALID_ATTR)
     );
 

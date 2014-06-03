@@ -18,6 +18,7 @@
 #include "sql_serializer/sql_serializer.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/operator_property.h"
 #include "model/list/list.h"
 
 
@@ -241,7 +242,7 @@ static List *
 serializeQueryOperator (QueryOperator *q, StringInfo str)
 {
     // operator with multiple parents
-    if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,"MATERIALIZE"))
+    if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE))
         return createTempView (q, str);
     else if (isA(q, SetOperator))
         return serializeSetOperator(q, str);
@@ -264,7 +265,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
     MatchState state = MATCH_START;
     QueryOperator *cur = q;
     List *attrNames = getAttrNames(q->schema);
-    boolean topMaterialize = HAS_STRING_PROP(cur,"MATERIALIZE");
+    boolean topMaterialize = HAS_STRING_PROP(cur,PROP_MATERIALIZE);
 
     // do the matching
     while(state != MATCH_NEXTBLOCK && cur != NULL)
@@ -272,7 +273,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
         INFO_LOG("STATE: %s", OUT_MATCH_STATE(state));
         INFO_LOG("Operator %s", operatorToOverviewString((Node *) cur));
         // first check that cur does not have more than one parent
-        if (HAS_STRING_PROP(cur,"MATERIALIZE") || LIST_LENGTH(cur->parents) > 1)
+        if (HAS_STRING_PROP(cur,PROP_MATERIALIZE) || LIST_LENGTH(cur->parents) > 1)
         {
             if (cur != q)
             {
@@ -565,7 +566,7 @@ static void
 serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         int *attrOffset, List **fromAttrs)
 {
-    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, "MATERIALIZE")))
+    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE)))
     {
         switch(q->type)
         {
@@ -620,7 +621,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                 ProvenanceComputation *op;
 //                Constant *xid = getTranactionSQLAndSCNs(xid);
 
-                if (HAS_STRING_PROP(t, "USE_HISTORY_JOIN"))
+                if (HAS_STRING_PROP(t, PROP_USE_HISTORY_JOIN))
                 {
                    /* List *scnsAndXid = (List *) GET_STRING_PROP(t, "USE_HISTORY_JOIN");
 

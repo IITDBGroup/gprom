@@ -1,4 +1,4 @@
-/* A Bison parser, made by GNU Bison 3.0.1.  */
+/* A Bison parser, made by GNU Bison 3.0.2.  */
 
 /* Bison interface for Yacc-like parsers in C
 
@@ -144,7 +144,7 @@ extern int yydebug;
 typedef union YYSTYPE YYSTYPE;
 union YYSTYPE
 {
-#line 28 "sql_parser.y" /* yacc.c:1909  */
+#line 29 "sql_parser.y" /* yacc.c:1909  */
 
     /* 
      * Declare some C structure those will be used as data type

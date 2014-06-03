@@ -18,6 +18,7 @@
 #include "model/list/list.h"
 #include "model/query_operator/schema_utility.h"
 #include "model/query_operator/query_operator_model_checker.h"
+#include "model/query_operator/operator_property.h"
 
 static QueryOperator *optimizeOneGraph (QueryOperator *root);
 
@@ -80,7 +81,7 @@ materializeProjectionSequences (QueryOperator *root)
 
     // if two adjacent projections then materialize the lower one
     if (isA(root, ProjectionOperator) && isA(lChild, ProjectionOperator))
-        SET_BOOL_STRING_PROP(lChild, "MATERIALIZE");
+        SET_BOOL_STRING_PROP(lChild, PROP_MATERIALIZE);
 
     FOREACH(QueryOperator,o,root->inputs)
         materializeProjectionSequences(o);

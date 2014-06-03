@@ -14,6 +14,7 @@
 #include "model/query_block/query_block.h"
 #include "parser/parse_internal.h"
 #include "log/logger.h"
+#include "model/query_operator/operator_property.h"
 
 #define RULELOG(grule) \
     { \
@@ -302,13 +303,13 @@ provOption:
 		| ONLY UPDATED
 		{
 			RULELOG("provOption::ONLY::UPDATED");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString("ONLY UPDATED"), 
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_ONLY_UPDATED), 
 					(Node *) createConstBool(TRUE));
 		}
 		| SHOW INTERMEDIATE
 		{
 			RULELOG("provOption::SHOW::INTERMEDIATE");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString("SHOW ALL INTERMEDIATE"), 
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SHOW_INTERMEDIATE), 
 					(Node *) createConstBool(TRUE));
 		}
 	;

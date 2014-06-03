@@ -23,6 +23,8 @@
 
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
+#include "model/query_operator/operator_property.h"
+
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 
@@ -85,7 +87,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         mergeUpdateSequence(op);
         // need to restrict to updated rows?
         if (op->inputType == PROV_INPUT_TRANSACTION
-                && HAS_STRING_PROP(op,"ONLY UPDATED"))
+                && HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
             restrictToUpdatedRows(op);
     }
 
