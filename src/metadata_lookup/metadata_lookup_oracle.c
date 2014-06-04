@@ -60,6 +60,7 @@ static OCI_Transaction *createTransaction(IsolationLevel isoLevel);
 static OCI_Resultset *executeStatement(char *statement);
 static boolean executeNonQueryStatement(char *statement);
 static void handleError (OCI_Error *error);
+static inline char *LobToChar (OCI_Lob *lob);
 
 static void addToTableBuffers(char *tableName, List *attrs);
 static void addToViewBuffers(char *viewName, char *viewDef);
@@ -524,6 +525,7 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
         if((conn = getConnection()) != NULL)
         {
             OCI_Resultset *rs = executeStatement(statement->data);
+            char buf[8000];
 
             // loop through
             while(OCI_FetchNext(rs))
@@ -534,10 +536,19 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
                 long scn = (long) OCI_GetBigInt(rs,1); // SCN
                 STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SCN");
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch SQL");
-                const char *sql = OCI_GetString(rs,2); // SQLTEXT
+//                char *sql = (char *) OCI_GetString(rs,2); // SQLTEXT
                 STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SQL");
+                START_TIMER("module - metadata lookup - fetch transaction info - fetch SQL AS LOB");
+                OCI_Lob *sqlLog = OCI_GetLob(rs,2);
+                char *sql = LobToChar(sqlLog);
+//                unsigned int read = 7000;
+//                OCI_LobRead2(sqlLog,buf,&read, NULL);
+//                buf[read] = '\0';
+                STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SQL AS LOB");
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch bind");
-                const char *bind = OCI_GetString(rs,3); // SQLBIND
+                OCI_Lob *bindLog = OCI_GetLob(rs,3);
+//                char *bind = OCI_GetString(rs,3); // SQLBIND
+                char *bind = LobToChar(bindLog);
                 STOP_TIMER("module - metadata lookup - fetch transaction info - fetch bind");
                 START_TIMER("module - metadata lookup - fetch transaction info - concat strings");
                 char *sqlPlusSemicolon = CONCAT_STRINGS(sql, ";");
@@ -673,6 +684,7 @@ executeStatement(char *statement)
         if(st == NULL)
             st = OCI_StatementCreate(conn);
         OCI_ReleaseResultsets(st);
+        OCI_SetFetchSize(st,1000);
         if(OCI_ExecuteStmt(st, statement))
         {
             OCI_Resultset *rs = OCI_GetResultset(st);
@@ -840,6 +852,32 @@ oracleDatabaseConnectionClose()
 		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 	}
 	return EXIT_SUCCESS;
+}
+
+#define maxRead 8000
+
+static inline char *
+LobToChar (OCI_Lob *lob)
+{
+    unsigned int read = 1;
+    unsigned int byteRead = 0;
+    static char buf[maxRead];
+    StringInfo str = makeStringInfo();
+
+    if (lob == NULL)
+        return "";
+
+    while(OCI_LobRead2(lob, buf, &read, &byteRead) && read > 0)
+    {
+        buf[read] = '\0';
+        appendStringInfoString(str,buf);
+        DEBUG_LOG("read CLOB (%u): %s", read, buf);
+        read = maxRead - 1;
+    }
+
+    DEBUG_LOG("read CLOB: %s", str->data);
+
+    return str->data;
 }
 
 /* OCILIB is not available, fake functions */
