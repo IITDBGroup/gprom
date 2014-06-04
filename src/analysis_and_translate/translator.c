@@ -346,9 +346,12 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	            List *bindVals;
 
 	            node = parseFromString(sql);
+	            START_TIMER("translation - transaction - analyze update");
 	            analyzeQueryBlockStmt(node, NULL);
+	            STOP_TIMER("translation - transaction - analyze update");
 	            node = getNthOfListP((List *) node, 0);
 
+	            START_TIMER("translation - transaction - analyze binds");
 	            bindString = getNthOfListP(sqlBinds, i);
                 if (bindString != NULL)
                 {
@@ -357,6 +360,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                     node = setParameterValues(node, bindVals);
                 }
 	            i++;
+	            STOP_TIMER("translation - transaction - analyze binds");
 
 	            /* get table name */
 	            char *tableName;
@@ -394,7 +398,9 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	                    tInfo->updateTableNames, strdup(tableName));
 
 	            // translate and add update as child to provenance computation
+	            START_TIMER("translation - transaction - translate update");
 	            child = translateQuery(node);
+	            STOP_TIMER("translation - transaction - translate update");
 
 	            // mark for showing intermediate results
 	            if (showIntermediate)
