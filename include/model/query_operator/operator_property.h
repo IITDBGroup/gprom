@@ -41,6 +41,6 @@
 #define PROP_USE_HISTORY_JOIN "USE_HISTORY_JOIN"            // get committed rows from history and join with table at transaction start to pre-filter updated rows
 
 /* projection properties */
-#define PROP_MERGE_SAFE "MERGE SAFE"                        // safe to merge this projection with its child
+#define PROP_MERGE_ATTR_REF_CNTS "MERGE SAFE ATTRIBUTE COUNTS"                        // safe to merge this projection with its child
 
 #endif /* OPERATOR_PROPERTY_H_ */

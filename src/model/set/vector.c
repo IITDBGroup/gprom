@@ -91,6 +91,19 @@ makeVectorIntFromElem(int elem, ...)
     return result;
 }
 
+Vector *
+makeVectorIntSeq (int start, int length, int step)
+{
+    Vector *result = makeVectorOfSize(VECTOR_INT, T_Invalid, length);
+    int *a = VEC_TO_IA(result);
+
+    for(int i = 0, val = start; i < length; i++, val +=step)
+        a[i] = val;
+    result->length = length;
+
+    return result;
+}
+
 size_t
 getVecElemSize(Vector *v)
 {

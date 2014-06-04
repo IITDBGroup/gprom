@@ -28,11 +28,11 @@ typedef struct Vector
 } Vector;
 
 // access data of vector as array
-#define VEC_TO_ARR(vec,type) ((type **) vec->data)
-#define VEC_TO_IA(vec) ((int *) vec->data)
+#define VEC_TO_ARR(vec,type) ((type **) ((Vector *) vec)->data)
+#define VEC_TO_IA(vec) ((int *) ((Vector *) vec)->data)
 
 // length of vector
-#define VEC_LENGTH(v) ((v == NULL) ? 0 : v->length)
+#define VEC_LENGTH(v) ((v == NULL) ? 0 : ((Vector *) v)->length)
 
 // create a new vector
 extern Vector *makeVector(VectorType type, NodeTag nodeType);
@@ -40,6 +40,7 @@ extern Vector *makeVectorOfSize(VectorType type, NodeTag nodeType, int numElem);
 
 extern Vector *makeVectorFromElem(VectorType set, NodeTag nodeType, void *elem, ...);
 extern Vector *makeVectorIntFromElem(int elem, ...);
+extern Vector *makeVectorIntSeq (int start, int length, int step);
 #define MAKE_VEC_NODE(tag, ...) makeVectorFromElem(VECTOR_NODE, T_ ## tag, __VA_ARGS__, NULL)
 #define MAKE_VEC_STRING(...) makeVectorFromElem(VECTOR_STRING, T_Invalid, __VA_ARGS__, NULL)
 #define MAKE_VEC_INT(...) makeVectorIntFromElem(__VA_ARGS__, -1)

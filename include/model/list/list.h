@@ -29,7 +29,8 @@ typedef struct List
 } List;
 
 #define NIL ((List *)NULL)
-#define LIST_LENGTH(l) ((l == NULL) ? 0 : (l)->length)
+#define LIST_LENGTH(l) ((l == NULL) ? 0 : ((List *) l)->length)
+#define LIST_EMPTY(l) (LIST_LENGTH(l) == 0)
 
 /*
  * Loop through list _list_ and access each element of type _type_ using name
@@ -160,6 +161,8 @@ extern void *getHeadOfListP (List *list);
 extern ListCell *getTailOfList(List *list);
 extern void *getTailOfListP (List *list);
 extern int getTailOfListInt(List *list);
+extern void *popTailOfListP (List *list);
+extern ListCell *popTailOfList(List *list);
 
 extern void *getNthOfListP(List *list, int n);
 extern int getNthOfListInt(List *list, int n);
