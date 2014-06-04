@@ -108,6 +108,9 @@ makeVectorIntSeq (int start, int length, int step)
 Vector *
 makeVectorFromList (List *input)
 {
+    if (input == NULL)
+        return NULL;
+
     VectorType t = isA(input,IntList) ? VECTOR_INT : VECTOR_NODE;
     Vector *result = makeVectorOfSize(t, T_Invalid, LIST_LENGTH(input));
 

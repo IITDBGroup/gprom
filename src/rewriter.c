@@ -89,13 +89,21 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     START_TIMER("translation");
     oModel = translateParse(parse);
     DEBUG_LOG("translator returned:\n\n<%s>", nodeToString(oModel));
-    INFO_LOG("as overview:\n\n%s", operatorToOverviewString(oModel));
+    INFO_LOG("transaltor result as overview:\n\n%s", operatorToOverviewString(oModel));
     STOP_TIMER("translation");
+
+    ASSERT_BARRIER(
+        if (isA(rewrittenTree, List))
+            FOREACH(QueryOperator,o,(List *) oModel)
+                TIME_ASSERT(checkModel(o));
+        else
+            TIME_ASSERT(checkModel((QueryOperator *) oModel));
+    )
 
     START_TIMER("rewrite");
     rewrittenTree = provRewriteQBModel(oModel);
     DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
-    INFO_LOG("as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
+    INFO_LOG("provenance rewritten query as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
     STOP_TIMER("rewrite");
 
     ASSERT_BARRIER(

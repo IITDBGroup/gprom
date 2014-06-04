@@ -93,7 +93,7 @@ static QueryOperator *translateOrderBy(QueryBlock *qb, QueryOperator *input,
 /* helpers */
 static Node *replaceAggsAndGroupByMutator(Node *node,
 		ReplaceGroupByState *state);
-static QueryOperator *createProjectionOverNonAttrRefExprs(List *selectClause,
+static QueryOperator *createProjectionOverNonAttrRefExprs(List **selectClause,
 		Node *havingClause, List *groupByClause, QueryOperator *input,
 		List *attrsOffsets);
 static List *getListOfNonAttrRefExprs(List *selectClause, Node *havingClause,
@@ -1107,7 +1107,10 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 	List *newGroupBy;
 	ReplaceGroupByState *state;
 
-	aggPlusGroup = concatTwoLists(copyList(aggrs), copyList(groupByClause));
+	aggPlusGroup = CONCAT_LISTS(copyList(aggrs), copyList(groupByClause));
+	DEBUG_LOG("aggregation and group-by expressions: %s\n\nselect clause:\n\n%s",
+	        beatify(nodeToString(((Node *) aggPlusGroup))),
+	        beatify(nodeToString(((Node *) qb->selectClause))));
 
 	// does query use aggregation or group by at all?
 	if (numAgg == 0 && numGroupBy == 0)
@@ -1115,7 +1118,7 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 
 	// if necessary create projection for aggregation inputs that are not simple
 	// attribute references
-	in = createProjectionOverNonAttrRefExprs(selectClause,
+	in = createProjectionOverNonAttrRefExprs(&selectClause,
 	            havingClause, groupByClause, input, attrsOffsets);
 
 	// if no projection was added change attributes positions in each
@@ -1234,19 +1237,20 @@ replaceAggsAndGroupByMutator (Node *node, ReplaceGroupByState *state)
 }
 
 static QueryOperator *
-createProjectionOverNonAttrRefExprs(List *selectClause, Node *havingClause,
+createProjectionOverNonAttrRefExprs(List **selectClause, Node *havingClause,
         List *groupByClause, QueryOperator *input, List *attrsOffsets)
 {
     // each entry of the list directly points to the original expression, not copy
-    List *projExprs = getListOfNonAttrRefExprs(selectClause, havingClause,
+    List *projExprs = getListOfNonAttrRefExprs(*selectClause, havingClause,
             groupByClause);
 
     QueryOperator *output = input;
 
+    // do we need to another level of projection?
     if (getListLength(projExprs) > 0)
     {
         INFO_LOG("create new projection for aggregation function inputs and "
-                "group by expressions: %s", nodeToString(projExprs));
+                "group by expressions: %s", beatify(nodeToString(projExprs)));
 
         // create alias for each non-AttributeReference expression
         List *attrNames = NIL;
@@ -1271,7 +1275,7 @@ createProjectionOverNonAttrRefExprs(List *selectClause, Node *havingClause,
 
         // replace non-AttributeReference arguments in aggregation with alias
         // each entry of the list directly points to the original aggregation, not copy
-        List *aggregs = getListOfAggregFunctionCalls(selectClause,
+        List *aggregs = getListOfAggregFunctionCalls(*selectClause,
                 havingClause);
         i = 0;
         FOREACH(FunctionCall, agg, aggregs)
@@ -1293,11 +1297,15 @@ createProjectionOverNonAttrRefExprs(List *selectClause, Node *havingClause,
                     new->name = aName;
                     new->fromClauseItem = 0;
                     new->attrPosition = i;
+                    arg_his_cell->data.ptr_value = new;
                 }
                 i++;
             }
         }
         freeList(aggregs);
+
+        // keep old group by to be able to adapt select clause
+        List *oldGroupBy = copyObject(groupByClause);
 
         // replace non-AttributeReference expressions in groupBy with alias
         int len = getListLength(attrNames);
@@ -1320,10 +1328,18 @@ createProjectionOverNonAttrRefExprs(List *selectClause, Node *havingClause,
                     new->name = aName;
                     new->fromClauseItem = 0;
                     new->attrPosition = i;
+                    expr_his_cell->data.ptr_value = new;
                 }
                 i++;
             }
         }
+
+        // replace old group by expressions in select clause with new attributes
+//        if (groupByClause)
+//        {
+//
+//        }
+
         output = ((QueryOperator *) po);
     }
 

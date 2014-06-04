@@ -511,7 +511,7 @@ getAttrPos(QueryOperator *op, char *attr)
 }
 
 AttributeDef *
-getAttrDefByPos(QueryOperator *op, char *attr)
+getAttrDefByName(QueryOperator *op, char *attr)
 {
     FOREACH(AttributeDef,a,op->schema->attrDefs)
     {
@@ -520,6 +520,14 @@ getAttrDefByPos(QueryOperator *op, char *attr)
     }
 
     return NULL;
+}
+
+AttributeDef *
+getAttrDefByPos(QueryOperator *op, int pos)
+{
+    ASSERT(pos >= 0 && pos < LIST_LENGTH(op->schema->attrDefs));
+
+    return (AttributeDef *) getNthOfListP(op->schema->attrDefs, pos);
 }
 
 List *

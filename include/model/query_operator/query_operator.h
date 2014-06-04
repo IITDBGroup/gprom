@@ -225,7 +225,8 @@ extern List *getQueryOperatorAttrNames (QueryOperator *op);
 extern int getNumAttrs(QueryOperator *op);
 
 extern int getAttrPos(QueryOperator *op, char *attr);
-extern AttributeDef *getAttrDefByPos(QueryOperator *op, char *attr);
+extern AttributeDef *getAttrDefByName(QueryOperator *op, char *attr);
+extern AttributeDef *getAttrDefByPos(QueryOperator *op, int pos);
 
 /* operator specific functions */
 extern List *aggOpGetGroupByAttrNames(AggregationOperator *op);

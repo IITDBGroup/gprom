@@ -188,20 +188,20 @@ outList(StringInfo str, List *node)
         if(isA(node, IntList))
         {
             FOREACH_INT(i, node)
-                    {
+            {
                 appendStringInfo(str, "i%d", i);
                 if (i_his_cell->next)
                     appendStringInfoString(str, " ");
-                    }
+            }
         }
         else
         {
             FOREACH(Node,n,node)
-                    {
+            {
                 outNode(str, n);
                 if (n_his_cell->next)
                     appendStringInfoString(str, " ");
-                    }
+            }
         }
     }
 

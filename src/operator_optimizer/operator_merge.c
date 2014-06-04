@@ -15,6 +15,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/query_operator/schema_utility.h"
+#include "model/query_operator/query_operator_model_checker.h"
 #include "model/expression/expression.h"
 #include "model/set/hashmap.h"
 #include "model/set/vector.h"
@@ -22,6 +23,7 @@
 #include "model/node/nodetype.h"
 #include "mem_manager/mem_mgr.h"
 #include "operator_optimizer/operator_merge.h"
+
 
 /* state */
 typedef struct ReplaceRefState {
@@ -83,7 +85,8 @@ mergeProjection(ProjectionOperator *op)
     }
 
     // merge one child parent pair at a time
-    parent = (ProjectionOperator *) popHeadOfListP(stack);
+    if (!LIST_EMPTY(stack))
+        parent = (ProjectionOperator *) popHeadOfListP(stack);
 
     while(!LIST_EMPTY(stack))
     {
@@ -93,6 +96,8 @@ mergeProjection(ProjectionOperator *op)
         // get next parent
         child = parent;
         parent = (ProjectionOperator *) popHeadOfListP(stack);
+
+        ASSERT(isA(parent,ProjectionOperator) && isA(child, ProjectionOperator));
 
         // calculate child reference count vectors needed to determine safety
         opRefCount = calculateChildAttrRefCnts(parent, (QueryOperator *) child);
@@ -109,19 +114,22 @@ mergeProjection(ProjectionOperator *op)
         state->projExpr = makeVectorFromList(child->projExprs);
         state->refCount = makeVectorIntSeq(0,VEC_LENGTH(state->projExpr),0);
 
-        START_TIMER("OptimizeModel - replace attrs with expr");
-        replaceAttributeRefsMutator((Node *) parent->projExprs, state, NULL);
-        parent->op.inputs = child->op.inputs;
-        STOP_TIMER("OptimizeModel - replace attrs with expr");
-
-        FOREACH(QueryOperator, el, parent->op.inputs)
-            el->parents = replaceNode(el->parents, child, parent);
-
         // calculate new reference vector
         mergeReferenceVectors((QueryOperator *) parent, opRefCount, childRefCount);
         DEBUG_LOG("merged reference count:\n%s",
                 beatify(nodeToString(
                         GET_STRING_PROP(parent,PROP_MERGE_ATTR_REF_CNTS))));
+
+        START_TIMER("OptimizeModel - replace attrs with expr");
+        replaceAttributeRefsMutator((Node *) parent->projExprs, state, NULL);
+        STOP_TIMER("OptimizeModel - replace attrs with expr");
+
+        parent->op.inputs = child->op.inputs;
+        FOREACH(QueryOperator, el, parent->op.inputs)
+            el->parents = replaceNode(el->parents, child, parent);
+
+        ASSERT(checkModel(parent));
+
         // clean up child
         child->projExprs = NULL;
         child->op.inputs = NULL;

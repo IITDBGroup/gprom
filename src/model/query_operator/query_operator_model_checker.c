@@ -17,6 +17,9 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 
+static boolean checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent);
+
+
 boolean
 isTree(QueryOperator *op)
 {
@@ -50,6 +53,107 @@ checkModel (QueryOperator *op)
 boolean
 checkAttributeRefConsistency (QueryOperator *op)
 {
+    List *attrRefs = NIL;
+
+    //TODO correlations in nested subqueries and missing operators
+    switch(op->type)
+    {
+        case T_ProjectionOperator:
+        {
+            ProjectionOperator *o = (ProjectionOperator *) op;
+            attrRefs = getAttrReferences((Node *) o->projExprs);
+        }
+        break;
+        case T_SelectionOperator:
+        {
+            SelectionOperator *o = (SelectionOperator *) op;
+            attrRefs = getAttrReferences(o->cond);
+        }
+        break;
+        case T_JoinOperator:
+        {
+            JoinOperator *o = (JoinOperator *) op;
+            attrRefs = getAttrReferences(o->cond);
+        }
+        break;
+        case T_AggregationOperator:
+        {
+            AggregationOperator *o = (AggregationOperator *) op;
+            attrRefs = CONCAT_LISTS(getAttrReferences((Node *) o->aggrs),
+                    getAttrReferences((Node *) o->groupBy));
+        }
+        break;
+        case T_WindowOperator:
+        {
+            WindowOperator *o = (WindowOperator *) op;
+            attrRefs = CONCAT_LISTS(getAttrReferences((Node *) o->partitionBy),
+                    getAttrReferences((Node *) o->orderBy),
+                    getAttrReferences((Node *) o->frameDef),
+                    getAttrReferences((Node *) o->f));
+        }
+        break;
+        case T_OrderOperator:
+        {
+            OrderOperator *o = (OrderOperator *) op;
+            attrRefs = getAttrReferences((Node *) o->orderExprs);
+        }
+        break;
+        case T_DuplicateRemoval:
+        {
+
+        }
+            break;
+        default:
+            break;
+    }
+    if(!checkAttributeRefList(attrRefs, op->inputs, op))
+        return FALSE;
+
+    FOREACH(QueryOperator,child,op->inputs)
+        if (!checkAttributeRefConsistency(child))
+            return FALSE;
+
+    return TRUE;
+}
+
+static boolean
+checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
+{
+    FOREACH(AttributeReference,a,attrRefs)
+    {
+        int input = a->fromClauseItem;
+        int attrPos = a->attrPosition;
+        QueryOperator *child;
+        AttributeDef *childA;
+
+        if (input < 0 || input >= LIST_LENGTH(children))
+        {
+            ERROR_LOG("attribute %s references input operator that does not "
+                    "exist:\n\n%s",
+                    beatify(nodeToString(a)),
+                    operatorToOverviewString((Node *) parent));
+            return FALSE;
+        }
+
+        child = (QueryOperator *) getNthOfListP(children, input);
+        if (attrPos < 0 || attrPos >= getNumAttrs(child))
+        {
+            ERROR_LOG("attribute %s references attribute position that does not "
+                                "exist in child:\n\n%s",
+                                beatify(nodeToString(a)),
+                                operatorToOverviewString((Node *) parent));
+            return FALSE;
+        }
+
+        childA = getAttrDefByPos(child, attrPos);
+        if (strcmp(childA->attrName, a->name) != 0)
+        {
+            ERROR_LOG("attribute ref name and child attrdef names are not the "
+                    "same: <%s> and <%s>", childA->attrName, a->name);
+            return FALSE;
+        }
+    }
+
     return TRUE;
 }
 
@@ -142,6 +246,21 @@ checkSchemaConsistency (QueryOperator *op)
             {
                 ERROR_LOG("Attributes of a window operator should be the "
                         "attributes of its left child + window function:\n%s",
+                        operatorToOverviewString((Node *) op));
+                return FALSE;
+            }
+        }
+        break;
+        case T_OrderOperator:
+        {
+            OrderOperator *o = (OrderOperator *) op;
+            QueryOperator *lChild = OP_LCHILD(op);
+            List *expected = op->schema->attrDefs;
+
+            if (!equal(expected, lChild->schema->attrDefs))
+            {
+                ERROR_LOG("Attributes of a order operator should be the "
+                        "attributes of its left child:\n%s",
                         operatorToOverviewString((Node *) op));
                 return FALSE;
             }
