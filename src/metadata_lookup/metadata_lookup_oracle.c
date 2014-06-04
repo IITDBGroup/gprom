@@ -536,19 +536,18 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
                 long scn = (long) OCI_GetBigInt(rs,1); // SCN
                 STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SCN");
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch SQL");
-//                char *sql = (char *) OCI_GetString(rs,2); // SQLTEXT
-                STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SQL");
-                START_TIMER("module - metadata lookup - fetch transaction info - fetch SQL AS LOB");
-                OCI_Lob *sqlLog = OCI_GetLob(rs,2);
-                char *sql = LobToChar(sqlLog);
+//                OCI_Lob *sqlLog = OCI_GetLob(rs,2);
+//                char *sql = LobToChar(sqlLog);
+                const char *sql = OCI_GetString(rs,2);
 //                unsigned int read = 7000;
 //                OCI_LobRead2(sqlLog,buf,&read, NULL);
 //                buf[read] = '\0';
-                STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SQL AS LOB");
+                STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SQL");
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch bind");
-                OCI_Lob *bindLog = OCI_GetLob(rs,3);
-//                char *bind = OCI_GetString(rs,3); // SQLBIND
-                char *bind = LobToChar(bindLog);
+//                OCI_Lob *bindLog = OCI_GetLob(rs,3);
+//                char *bind = LobToChar(bindLog);
+                const char *bind = OCI_GetString(rs,3); // SQLBIND
+
                 STOP_TIMER("module - metadata lookup - fetch transaction info - fetch bind");
                 START_TIMER("module - metadata lookup - fetch transaction info - concat strings");
                 char *sqlPlusSemicolon = CONCAT_STRINGS(sql, ";");
