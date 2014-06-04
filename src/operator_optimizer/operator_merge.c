@@ -128,7 +128,7 @@ mergeProjection(ProjectionOperator *op)
         FOREACH(QueryOperator, el, parent->op.inputs)
             el->parents = replaceNode(el->parents, child, parent);
 
-        ASSERT(checkModel(parent));
+//        TIME_ASSERT(checkModel(parent));
 
         // clean up child
         child->projExprs = NULL;

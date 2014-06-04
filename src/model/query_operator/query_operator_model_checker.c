@@ -329,8 +329,6 @@ checkParentChildLinks (QueryOperator *op)
         return FALSE;
     }
 
-
-
     return TRUE;
 }
 

@@ -93,7 +93,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     STOP_TIMER("translation");
 
     ASSERT_BARRIER(
-        if (isA(rewrittenTree, List))
+        if (isA(oModel, List))
             FOREACH(QueryOperator,o,(List *) oModel)
                 TIME_ASSERT(checkModel(o));
         else
