@@ -129,6 +129,36 @@ getHeadOfListP (List *list)
     return head ? head->data.ptr_value : NULL;
 }
 
+ListCell *
+popHeadOfList(List *list)
+{
+    ListCell *result = LIST_LENGTH(list) > 0 ? list->head : NULL;
+
+    if (LIST_LENGTH(list) > 0)
+    {
+        list->length--;
+        list->head = result->next;
+    }
+
+    return result;
+}
+
+void *
+popHeadOfListP (List *list)
+{
+    ASSERT(isPtrList(list));
+    ListCell *head;
+    void *result = NULL;
+
+    head = popHeadOfList(list);
+    if (head != NULL)
+    {
+        result = head->data.ptr_value;
+        FREE(head);
+    }
+
+    return result;
+}
 
 
 ListCell *

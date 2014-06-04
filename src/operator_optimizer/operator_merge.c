@@ -25,12 +25,14 @@
 
 /* state */
 typedef struct ReplaceRefState {
-    List *projExpr;
+    Vector *projExpr;
+    Vector *refCount;
     ProjectionOperator *op;
 } ReplaceRefState;
 
 /* declarations */
-static Node *replaceAttributeRefsMutator (Node *node, ReplaceRefState *state);
+//static Node *replaceAttributeRefsMutator (Node *node, ReplaceRefState *state);
+static boolean replaceAttributeRefsMutator (Node *node, ReplaceRefState *state, void **parentPointer);
 static Vector *calculateChildAttrRefCnts(ProjectionOperator *op, QueryOperator *child);
 static inline void getAttrRefCount(Node *expr, Vector *cnts);
 static boolean isMergeSafe(Vector *opRef, Vector *childRef);
@@ -70,41 +72,45 @@ mergeProjection(ProjectionOperator *op)
 {
     ReplaceRefState *state = NEW(ReplaceRefState);
     List *stack = singleton(op);
-    ProjectionOperator *parent = op;
+    QueryOperator *cur = OP_LCHILD(op);
+    ProjectionOperator *parent;
     ProjectionOperator *child;
 
-    // build stack and then process bottom up
-    while(isA((parent = OP_LCHILD(parent)),ProjectionOperator))
+    while(isA(cur,ProjectionOperator))
     {
-        // only one parent of child is allowed in merging
-        if (LIST_LENGTH(((QueryOperator *) parent)->parents) > 1)
-            break;
-
-        stack = appendToTailOfList(stack, parent);
+        stack = appendToHeadOfList(stack, cur);
+        cur = OP_LCHILD(cur);
     }
 
     // merge one child parent pair at a time
-    child = (ProjectionOperator *) popTailOfListP(stack);
-    parent = (ProjectionOperator *) popTailOfListP(stack);
+    parent = (ProjectionOperator *) popHeadOfListP(stack);
 
     while(!LIST_EMPTY(stack))
     {
         Vector *opRefCount;
         Vector *childRefCount;
 
+        // get next parent
+        child = parent;
+        parent = (ProjectionOperator *) popHeadOfListP(stack);
+
         // calculate child reference count vectors needed to determine safety
         opRefCount = calculateChildAttrRefCnts(parent, (QueryOperator *) child);
         childRefCount = calculateChildAttrRefCnts(child, OP_LCHILD(child));
+        DEBUG_LOG("reference counts:\n%s\n\n%s",
+                beatify(nodeToString(opRefCount)),
+                beatify(nodeToString(childRefCount)));
 
         if (!isMergeSafe(opRefCount, childRefCount))
             break;
 
         // combine expressions and link child's children to root
         state->op = child;
-        state->projExpr = child->projExprs;
+        state->projExpr = makeVectorFromList(child->projExprs);
+        state->refCount = makeVectorIntSeq(0,VEC_LENGTH(state->projExpr),0);
 
         START_TIMER("OptimizeModel - replace attrs with expr");
-        parent->projExprs = (List *) replaceAttributeRefsMutator((Node *) parent->projExprs, state);
+        replaceAttributeRefsMutator((Node *) parent->projExprs, state, NULL);
         parent->op.inputs = child->op.inputs;
         STOP_TIMER("OptimizeModel - replace attrs with expr");
 
@@ -113,15 +119,13 @@ mergeProjection(ProjectionOperator *op)
 
         // calculate new reference vector
         mergeReferenceVectors((QueryOperator *) parent, opRefCount, childRefCount);
-
+        DEBUG_LOG("merged reference count:\n%s",
+                beatify(nodeToString(
+                        GET_STRING_PROP(parent,PROP_MERGE_ATTR_REF_CNTS))));
         // clean up child
         child->projExprs = NULL;
         child->op.inputs = NULL;
 //        deepFree(child);
-
-        // get next parent
-        child = parent;
-        parent = (ProjectionOperator *) popTailOfListP(stack);
     }
 
 //    while(isA(OP_LCHILD(op),ProjectionOperator))
@@ -143,10 +147,12 @@ mergeProjection(ProjectionOperator *op)
 //
 //        // combine expressions and link child's children to root
 //        state->op = child;
-//        state->projExpr = child->projExprs;
+//        state->projExpr = makeVectorFromList(child->projExprs);
+//        state->refCount = makeVectorIntSeq(0,VEC_LENGTH(state->projExpr),0);
 //
 //        START_TIMER("OptimizeModel - replace attrs with expr");
-//        op->projExprs = (List *) replaceAttributeRefsMutator((Node *) op->projExprs, state);
+////        op->projExprs = (List *)
+//        replaceAttributeRefsMutator((Node *) op->projExprs, state, NULL);
 //        op->op.inputs = child->op.inputs;
 //        STOP_TIMER("OptimizeModel - replace attrs with expr");
 //
@@ -207,7 +213,7 @@ mergeReferenceVectors(QueryOperator *o, Vector *opRef, Vector *childRef)
 
     // create 0 initial new vector
     for(int i = 0; i < numAttrs; i++)
-        vecAppendNode(result, (Node *) makeVectorIntSeq(0,numChildAttrs,0));
+        vecAppendNode(result, (Node *) makeVectorIntSeq(0,numGChildAttrs,0));
 
     // multiply child count vectors for referenced attributes by reference counts
     // for each parent attribute
@@ -224,10 +230,12 @@ mergeReferenceVectors(QueryOperator *o, Vector *opRef, Vector *childRef)
         for(int j = 0; j < numChildAttrs; j++)
         {
             int *childA = VEC_TO_IA(getVecNode(childRef, j));
-            int refC = resultA[j];
+            int refC = parentA[j];
+
+            DEBUG_LOG("ref count: <%u> for child: %s", refC, nodeToString(getVecNode(childRef, j)));
 
             for(int k = 0; k < numGChildAttrs; k++)
-                resultA[k] = refC * childA[k];
+                resultA[k] += refC * childA[k];
         }
     }
 
@@ -241,44 +249,34 @@ mergeReferenceVectors(QueryOperator *o, Vector *opRef, Vector *childRef)
 QueryOperator *
 pushDownSelectionWithProjection(SelectionOperator *op)
 {
-	ReplaceRefState *state = NEW(ReplaceRefState);
-	QueryOperator *newRoot = (QueryOperator *) op;
-	QueryOperator *cur = op;
-    ProjectionOperator *child = NULL, *parent = NULL;
-	List *stack = singleton(op);
+    ReplaceRefState *state = NEW(ReplaceRefState);
+    QueryOperator *newRoot = (QueryOperator *) op;
 
-	// build stack and then process bottom up
-	while(isA((cur = OP_LCHILD(cur)),ProjectionOperator))
-	{
-        // only one parent of child is allowed in merging
-        if (LIST_LENGTH(cur->parents) > 1)
+    while(isA(OP_LCHILD(op),ProjectionOperator))
+    {
+        ProjectionOperator *child = (ProjectionOperator *) OP_LCHILD(op);
+        QueryOperator *grandChild = OP_LCHILD(child);
+        List *oldP = op->op.parents;
+
+        // only one parent of child is allowed
+        if (LIST_LENGTH(child->op.parents) > 1)
             break;
 
-	    stack = appendToTailOfList(stack, cur);
-	}
-
-	// merge one child parent pair at a time
-	child = (ProjectionOperator *) popTailOfListP(stack);
-	parent = (ProjectionOperator *) popTailOfListP(stack);
-
-	while(!LIST_EMPTY(stack))
-    {
-        QueryOperator *grandChild = OP_LCHILD(child);
-        List *oldP = parent->op.parents;
-
-//        // set newRoot
-//        if (newRoot == (QueryOperator *) parent)
-//            newRoot = (QueryOperator *) child;
+        // set newRoot
+        if (newRoot == (QueryOperator *) op)
+            newRoot = (QueryOperator *) child;
 
         // combine expressions and link child's children to root
         state->op = child;
-        state->projExpr = child->projExprs;
+        state->projExpr = makeVectorFromList(child->projExprs);
+        state->refCount = makeVectorIntSeq(0,VEC_LENGTH(state->projExpr),0);
 
         // change selection
-        parent->cond = replaceAttributeRefsMutator(op->cond, state);
-        parent->op.schema = copyObject(grandChild->schema);
-        parent->op.inputs = child->op.inputs;
-        parent->op.parents = singleton(child);
+//        op->cond =
+        replaceAttributeRefsMutator(op->cond, state, (void **) &(op->cond));
+        op->op.schema = copyObject(grandChild->schema);
+        op->op.inputs = child->op.inputs;
+        op->op.parents = singleton(child);
 
         // push down selection adapt projection
         child->op.inputs = singleton(op);
@@ -292,68 +290,63 @@ pushDownSelectionWithProjection(SelectionOperator *op)
             el->inputs = replaceNode(el->inputs, op, child);
     }
 
-
-//
-	while(isA(OP_LCHILD(op),ProjectionOperator))
-	{
-		ProjectionOperator *child = (ProjectionOperator *) OP_LCHILD(op);
-		QueryOperator *grandChild = OP_LCHILD(child);
-		List *oldP = op->op.parents;
-
-		// only one parent of child is allowed
-		if (LIST_LENGTH(child->op.parents) > 1)
-			break;
-
-        // set newRoot
-        if (newRoot == (QueryOperator *) op)
-            newRoot = (QueryOperator *) child;
-
-		// combine expressions and link child's children to root
-		state->op = child;
-		state->projExpr = child->projExprs;
-
-		// change selection
-		op->cond = replaceAttributeRefsMutator(op->cond, state);
-		op->op.schema = copyObject(grandChild->schema);
-		op->op.inputs = child->op.inputs;
-        op->op.parents = singleton(child);
-
-		// push down selection adapt projection
-		child->op.inputs = singleton(op);
-		child->op.parents = oldP;
-
-		// replace projection with selection in parents of grandchild
-		grandChild->parents = replaceNode(grandChild->parents, child, op);
-
-		// replace selection with projection in previous selection parents
-		FOREACH(QueryOperator, el, oldP)
-			el->inputs = replaceNode(el->inputs, op, child);
-	}
-
-	state->op = NULL;
-	state->projExpr = NULL;
-	FREE(state);
-
-	return op;
+    state->op = NULL;
+    state->projExpr = NULL;
+    FREE(state);
+    return newRoot;
 }
 
-static Node *
-replaceAttributeRefsMutator (Node *node, ReplaceRefState *state)
+
+//static Node *
+//replaceAttributeRefsMutator (Node *node, ReplaceRefState *state)
+//{
+//    if (node == NULL)
+//        return NULL;
+//
+//    if (isA(node, AttributeReference))
+//    {
+//        AttributeReference *a = (AttributeReference *) node;
+//        int pos = getAttributeNum(a->name, (QueryOperator *) state->op);
+//        deepFree(a);
+//
+//        return copyObject(getNthOfListP(state->projExpr, pos));
+//    }
+//
+//    return mutate(node, replaceAttributeRefsMutator, state);
+//}
+
+static boolean
+replaceAttributeRefsMutator (Node *node, ReplaceRefState *state, void **parentPointer)
 {
     if (node == NULL)
-        return NULL;
+        return TRUE;
 
     if (isA(node, AttributeReference))
     {
+        Node **parentP = (Node **) parentPointer;
         AttributeReference *a = (AttributeReference *) node;
         int pos = getAttributeNum(a->name, (QueryOperator *) state->op);
         deepFree(a);
 
-        return copyObject(getNthOfListP(state->projExpr, pos));
+        // do not copy if not necessary
+        if (VEC_TO_IA(state->refCount)[pos] == 0)
+        {
+            DEBUG_LOG("usage count is 0 for %s - do not copy", a->name);
+            *parentP = VEC_TO_ARR(state->projExpr,Node)[pos];
+            VEC_TO_IA(state->refCount)[pos] = 1;
+        }
+        else
+        {
+            DEBUG_LOG("%s has been used before - copy", a->name);
+            *parentP = copyObject(VEC_TO_ARR(state->projExpr,Node)[pos]);
+        }
+
+        return TRUE;
     }
 
-    return mutate(node, replaceAttributeRefsMutator, state);
+    return visitWithPointers(node, replaceAttributeRefsMutator, parentPointer, state);
 }
+
 
 static Vector *
 calculateChildAttrRefCnts(ProjectionOperator *op, QueryOperator *child)

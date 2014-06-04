@@ -16,6 +16,7 @@
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
+#include "model/list/list.h"
 #include "model/set/vector.h"
 
 #define INITIAL_VEC_SIZE 16
@@ -100,6 +101,18 @@ makeVectorIntSeq (int start, int length, int step)
     for(int i = 0, val = start; i < length; i++, val +=step)
         a[i] = val;
     result->length = length;
+
+    return result;
+}
+
+Vector *
+makeVectorFromList (List *input)
+{
+    VectorType t = isA(input,IntList) ? VECTOR_INT : VECTOR_NODE;
+    Vector *result = makeVectorOfSize(t, T_Invalid, LIST_LENGTH(input));
+
+    FOREACH(Node,n,input)
+        vecAppendNode(result,n);
 
     return result;
 }

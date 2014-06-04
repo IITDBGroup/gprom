@@ -287,8 +287,8 @@ outVector(StringInfo str, Vector *node)
         case VECTOR_NODE:
             FOREACH_VEC(Node,n,node)
             {
-                outNode(str, n);
-                appendStringInfo(str, "%s", VEC_IS_LAST(n,node) ? ", " : "");
+                outNode(str, *n);
+                appendStringInfo(str, "%s", VEC_IS_LAST(*n,node) ? ", " : "");
             }
             break;
         case VECTOR_STRING:

@@ -528,6 +528,8 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
             // loop through
             while(OCI_FetchNext(rs))
             {
+                START_TIMER("module - metadata lookup - fetch transaction info");
+
                 long scn = (long) OCI_GetBigInt(rs,1); // SCN
                 const char *sql = OCI_GetString(rs,2); // SQLTEXT
                 const char *bind = OCI_GetString(rs,3); // SQLBIND
@@ -537,6 +539,8 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
                 *scns = appendToTailOfList(*scns, createConstLong(scn));
                 *sqlBinds = appendToTailOfList(*sqlBinds, strdup( (char *) bind));
                 DEBUG_LOG("Current statement at SCN %u\n was:\n%s\nwithBinds:%s", scn, sql, bind);
+
+                STOP_TIMER("module - metadata lookup - fetch transaction info");
             }
 
             DEBUG_LOG("Statement: %s executed successfully.", statement->data);
@@ -564,6 +568,8 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
 
         if ((conn = getConnection()) != NULL)
         {
+            START_TIMER("module - metadata lookup - get isolation level");
+
             OCI_Resultset *rs = executeStatement(statement->data);
 
             // loop through
@@ -589,6 +595,8 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
             DEBUG_LOG("Statement: %s executed successfully.", statement->data);
             DEBUG_LOG("%d row fetched", OCI_GetRowCount(rs));
             FREE(statement);
+
+            STOP_TIMER("module - metadata lookup - get isolation level");
         }
         else
         {

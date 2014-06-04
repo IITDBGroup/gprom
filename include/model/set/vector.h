@@ -11,6 +11,8 @@
 #ifndef VECTOR_H_
 #define VECTOR_H_
 
+#include "model/list/list.h"
+
 typedef enum VectorType {
     VECTOR_INT,
     VECTOR_NODE,
@@ -41,6 +43,7 @@ extern Vector *makeVectorOfSize(VectorType type, NodeTag nodeType, int numElem);
 extern Vector *makeVectorFromElem(VectorType set, NodeTag nodeType, void *elem, ...);
 extern Vector *makeVectorIntFromElem(int elem, ...);
 extern Vector *makeVectorIntSeq (int start, int length, int step);
+extern Vector *makeVectorFromList (List *input);
 #define MAKE_VEC_NODE(tag, ...) makeVectorFromElem(VECTOR_NODE, T_ ## tag, __VA_ARGS__, NULL)
 #define MAKE_VEC_STRING(...) makeVectorFromElem(VECTOR_STRING, T_Invalid, __VA_ARGS__, NULL)
 #define MAKE_VEC_INT(...) makeVectorIntFromElem(__VA_ARGS__, -1)

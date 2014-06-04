@@ -637,3 +637,303 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
 
     return node;
 }
+
+/**
+ * Variant of visit function that propagates the pointer the parent node is used to point to the current node.
+ * This can be used to modify parts of a tree without the need to copy the whole tree (as mutate does).
+ */
+
+#define VISIT_P(field) \
+    if (!userVisitor((Node *) n->field, state, &(n->field))) \
+        return FALSE;
+#define VISIT_LC_P(_el) \
+    if (!userVisitor((Node *) _el->data.ptr_value, state, &(_el->data.ptr_value))) \
+        return FALSE;
+
+#define PREP_VISIT_P(_type) \
+        _type *n = (_type *) node; \
+        TRACE_LOG("visit node <%s>", nodeToString(node));
+
+#define VISIT_OPERATOR_FIELDS_P() \
+        do { \
+            VISIT_P(op.inputs); \
+            VISIT_P(op.provAttrs); \
+            VISIT_P(op.schema); \
+        } while(0)
+
+boolean
+visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, void *state)
+{
+    switch(node->type)
+    {
+        case T_List:
+            {
+                if (node == NULL)
+                    break;
+                PREP_VISIT_P(List);
+                FOREACH_LC(el,n)
+                    VISIT_LC_P(el);
+            }
+            break;
+        case T_IntList:
+            break;
+        /* expression nodes */
+        case T_Constant:
+            {
+                PREP_VISIT_P(Constant);
+            }
+            break;
+        case T_AttributeReference:
+            break;
+        case T_FunctionCall:
+            {
+                PREP_VISIT_P(FunctionCall);
+                VISIT_P(args);
+            }
+            break;
+        case T_Operator:
+            {
+                PREP_VISIT_P(Operator);
+                VISIT_P(args);
+            }
+            break;
+        case T_CaseExpr:
+            {
+                PREP_VISIT_P(CaseExpr);
+                VISIT_P(expr);
+                VISIT_P(whenClauses);
+                VISIT_P(elseRes);
+            }
+            break;
+        case T_CaseWhen:
+            {
+                PREP_VISIT_P(CaseWhen);
+                VISIT_P(when);
+                VISIT_P(then);
+            }
+            break;
+        case T_IsNullExpr:
+            {
+                PREP_VISIT_P(IsNullExpr);
+                VISIT_P(expr);
+            }
+            break;
+        case T_WindowBound:
+            {
+                PREP_VISIT_P(WindowBound);
+                VISIT_P(expr);
+            }
+        break;
+        case T_WindowFrame:
+            {
+                PREP_VISIT_P(WindowFrame);
+                VISIT_P(lower);
+                VISIT_P(higher);
+            }
+        break;
+        case T_WindowDef:
+            {
+                PREP_VISIT_P(WindowDef);
+                VISIT_P(partitionBy);
+                VISIT_P(orderBy);
+                VISIT_P(frame);
+            }
+        break;
+        case T_WindowFunction:
+            {
+                PREP_VISIT_P(WindowFunction);
+                VISIT_P(f);
+                VISIT_P(win);
+            }
+        break;
+        case T_RowNumExpr:
+            break;
+        case T_OrderExpr:
+            {
+                PREP_VISIT_P(OrderExpr);
+                VISIT_P(expr);
+            }
+        break;
+        /* query block model nodes */
+        case T_SetQuery:
+            {
+                PREP_VISIT_P(SetQuery);
+                VISIT_P(setOp);
+                VISIT_P(selectClause);
+                VISIT_P(lChild);
+                VISIT_P(rChild);
+            }
+            break;
+        case T_ProvenanceStmt:
+            {
+                PREP_VISIT_P(ProvenanceStmt);
+                VISIT_P(query);
+            }
+            break;
+        case T_QueryBlock:
+            {
+                PREP_VISIT_P(QueryBlock);
+                VISIT_P(selectClause);
+                VISIT_P(distinct);
+                VISIT_P(fromClause);
+                VISIT_P(whereClause);
+                VISIT_P(groupByClause);
+                VISIT_P(havingClause);
+                VISIT_P(orderByClause);
+                VISIT_P(limitClause);
+            }
+            break;
+        case T_SelectItem:
+            {
+                PREP_VISIT_P(SelectItem);
+                VISIT_P(expr);
+            }
+            break;
+        case T_FromTableRef:
+            {
+                PREP_VISIT_P(FromTableRef);
+            }
+            break;
+        case T_FromSubquery:
+            {
+                PREP_VISIT_P(FromSubquery);
+                VISIT_P(subquery);
+            }
+            break;
+        case T_FromJoinExpr:
+            {
+                PREP_VISIT_P(FromJoinExpr);
+                VISIT_P(left);
+                VISIT_P(right);
+                VISIT_P(cond);
+            }
+            break;
+        case T_DistinctClause:
+            {
+                PREP_VISIT_P(DistinctClause);
+                VISIT_P(distinctExprs);
+            }
+            break;
+        case T_NestedSubquery:
+            {
+                PREP_VISIT_P(NestedSubquery);
+                VISIT_P(expr);
+                VISIT_P(query);
+            }
+            break;
+        case T_Insert:
+            {
+                PREP_VISIT_P(Insert);
+                VISIT_P(query);
+            }
+            break;
+        case T_Delete:
+            {
+                PREP_VISIT_P(Delete);
+                VISIT_P(cond);
+            }
+            break;
+        case T_Update:
+            {
+                PREP_VISIT_P(Update);
+                VISIT_P(selectClause);
+                VISIT_P(cond);
+            }
+            break;
+        /* query operator model nodes */
+        case T_Schema:
+            {
+                PREP_VISIT_P(Schema);
+                VISIT_P(attrDefs);
+            }
+            break;
+        case T_AttributeDef:
+            {
+                PREP_VISIT_P(AttributeDef);
+                //VISIT_P();
+            }
+            break;
+        case T_SelectionOperator:
+            {
+                PREP_VISIT_P(SelectionOperator);
+                VISIT_OPERATOR_FIELDS_P();
+                VISIT_P(cond);
+            }
+            break;
+        case T_ProjectionOperator:
+            {
+                PREP_VISIT_P(ProjectionOperator);
+                VISIT_OPERATOR_FIELDS_P();
+                VISIT_P(projExprs);
+            }
+            break;
+        case T_JoinOperator:
+            {
+                PREP_VISIT_P(JoinOperator);
+                VISIT_OPERATOR_FIELDS_P();
+                VISIT_P(cond);
+            }
+            break;
+        case T_AggregationOperator:
+            {
+                PREP_VISIT_P(AggregationOperator);
+                VISIT_OPERATOR_FIELDS_P();
+                VISIT_P(aggrs);
+                VISIT_P(groupBy);
+            }
+            break;
+        case T_ProvenanceComputation:
+            {
+                PREP_VISIT_P(ProvenanceComputation);
+                VISIT_OPERATOR_FIELDS_P();
+            }
+            break;
+        case T_TableAccessOperator:
+            {
+                PREP_VISIT_P(TableAccessOperator);
+                VISIT_OPERATOR_FIELDS_P();
+            }
+            break;
+        case T_SetOperator:
+            {
+                PREP_VISIT_P(SetOperator);
+                VISIT_OPERATOR_FIELDS_P();
+            }
+            break;
+        case T_DuplicateRemoval:
+            {
+                PREP_VISIT_P(DuplicateRemoval);
+                VISIT_OPERATOR_FIELDS_P();
+                VISIT_P(attrs);
+            }
+            break;
+        case T_NestingOperator:
+            {
+                PREP_VISIT_P(NestingOperator);
+                VISIT_OPERATOR_FIELDS_P();
+                VISIT_P(cond);
+            }
+            break;
+        case T_WindowOperator:
+            {
+                PREP_VISIT_P(WindowOperator);
+                VISIT_OPERATOR_FIELDS_P();
+                VISIT_P(partitionBy);
+                VISIT_P(orderBy);
+                VISIT_P(frameDef);
+                VISIT_P(f);
+            }
+            break;
+        case T_OrderOperator:
+            {
+                PREP_VISIT_P(OrderOperator);
+                VISIT_OPERATOR_FIELDS_P();
+                VISIT_P(orderExprs);
+            }
+            break;
+        default:
+            break;
+    }
+
+    return TRUE;
+}
