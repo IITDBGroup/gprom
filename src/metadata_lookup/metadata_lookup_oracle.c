@@ -530,15 +530,25 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
             {
                 START_TIMER("module - metadata lookup - fetch transaction info");
 
+                START_TIMER("module - metadata lookup - fetch transaction info - fetch SCN");
                 long scn = (long) OCI_GetBigInt(rs,1); // SCN
+                STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SCN");
+                START_TIMER("module - metadata lookup - fetch transaction info - fetch SQL");
                 const char *sql = OCI_GetString(rs,2); // SQLTEXT
+                STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SQL");
+                START_TIMER("module - metadata lookup - fetch transaction info - fetch bind");
                 const char *bind = OCI_GetString(rs,3); // SQLBIND
+                STOP_TIMER("module - metadata lookup - fetch transaction info - fetch bind");
+                START_TIMER("module - metadata lookup - fetch transaction info - concat strings");
                 char *sqlPlusSemicolon = CONCAT_STRINGS(sql, ";");
+                STOP_TIMER("module - metadata lookup - fetch transaction info - concat strings");
 
-                *sqls = appendToTailOfList(*sqls, strdup( (char *) sqlPlusSemicolon));
+                START_TIMER("module - metadata lookup - fetch transaction info - append");
+                *sqls = appendToTailOfList(*sqls, sqlPlusSemicolon);
                 *scns = appendToTailOfList(*scns, createConstLong(scn));
                 *sqlBinds = appendToTailOfList(*sqlBinds, strdup( (char *) bind));
                 DEBUG_LOG("Current statement at SCN %u\n was:\n%s\nwithBinds:%s", scn, sql, bind);
+                STOP_TIMER("module - metadata lookup - fetch transaction info - append");
 
                 STOP_TIMER("module - metadata lookup - fetch transaction info");
             }
