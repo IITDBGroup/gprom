@@ -624,18 +624,27 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
                 if (HAS_STRING_PROP(t, PROP_USE_HISTORY_JOIN))
                 {
-                   /* List *scnsAndXid = (List *) GET_STRING_PROP(t, "USE_HISTORY_JOIN");
-
-                    appendStringInfoString(from, "(SELECT", "(%s)", t.op.schema->attrDefs);
-                    appendStringInfoString(from, "(SELECT ROWID AS rid","(%s)", t->op.schema->attrDefs);
-                    appendStringInfo("(%s)",t->tableName, "AS OF SCN","(%s)",op->transactionInfo->scns, ") F0");
-                    appendStringInfoString("\nJOIN ");
-                    appendStringInfoString(from, "(SELECT ROWID AS rid","(%s)", t->tableName, "VERSIONS BETWEEN SCN", "(%u)",op->transactionInfo->commitSCN, "AND","(%u)", op->transactionInfo->commitSCN, "F1" );
-                    appendStringInfoString("WHERE VERSIONS_XID = HEXTORAW('", "(%s)", getTranactionSQLAndSCNs(xid), "')) F1");
-                    appendStringInfo("ON (F0.rid = F1.rid)");
+                    List *scnsAndXid = (List *) GET_STRING_PROP(t, "USE_HISTORY_JOIN");
+                    Constant *startScn, *commitScn;
+                    Constant *xid;
+                    StringInfo attrNameStr = makeStringInfo();
                     List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
+
+                    FOREACH(char,a,attrNames)
+                    {
+                        // append to string info
+                    }
+
+                    appendStringInfo(from, "(SELECT %s", attrNameStr->data);
+                    appendStringInfo(from, "(SELECT ROWID AS rid , %s", attrNameStr->data);
+                    appendStringInfo(from, "(%s) AS OF SCN %s) F0",t->tableName, LONG_VALUE(startScn));
+                    appendStringInfoString(from, "\nJOIN ");
+                    appendStringInfo(from, "(SELECT ROWID AS rid FROM (%s VERSIONS BETWEEN SCN %u AND %u)) F1 ",
+                            t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
+                    appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1", STRING_VALUE(xid));
+                    appendStringInfoString(from, "ON (F0.rid = F1.rid))");
+
                     *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-                   */
                 }
                 else
                 {

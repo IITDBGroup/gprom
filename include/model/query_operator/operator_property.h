@@ -35,6 +35,7 @@
 #define PROP_PC_UPDATE_COND "UPDATE CONDS"                  // conditions of updates in transaction
 #define PROP_PC_ONLY_UPDATED "ONLY UPDATED"                 // show only provenance of updated rows in transaction
 #define PROP_PC_SHOW_INTERMEDIATE "SHOW ALL INTERMEDIATE"   // show provenance of all intermediate statements in transaction
+#define PROP_PC_TRANS_XID "TRANSACTION_XID"                 // stores transaction XID
 
 /* table access properties */
 #define PROP_TABLE_IS_UPDATED "UPDATED TABLE"               // is table access for the updated table in an DML translation

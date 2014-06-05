@@ -347,7 +347,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     upConds = (List *) GET_STRING_PROP(op, PROP_PC_UPDATE_COND);
     tableNames = t->updateTableNames;
     origUpdates = t->originalUpdates;
-    findTableAccessVisitor((Node *) op, &allTables);
+    findTableAccessVisitor((Node *) op, &allTables); //HAO fetch all table accesses
     updatedTables  = findUpdatedTableAccceses (allTables);
 
     DEBUG_LOG("\ncond: %s, \ntables: %s, \nupdatedTable: %s",
@@ -365,7 +365,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
                     createConstInt(getNumAttrs((QueryOperator *) t) - 1));
         }
 
-        if (HAS_STRING_PROP(t,"UPDATED TABLE"))
+        if (HAS_STRING_PROP(t,"UPDATED TABLE")) //HAO figure out which tables are read from
             addToSet(updatedTableNames, strdup(t->tableName));
         else
             addToSet(readFromTableNames, strdup(t->tableName));
@@ -380,7 +380,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
         {
             char *tableName = (char *) name;
 
-            if(!hasSetElem(readFromTableNames,tableName))
+            if(!hasSetElem(readFromTableNames,tableName)) //HAO in second loop this check
             {
                 KeyValue *tableMap = getMapCond(tableCondMap, tableName);
                 Node *cond = copyObject((Node *) getNthOfListP(upConds, pos));
@@ -486,20 +486,23 @@ findUpdatedTableAccceses (List *tables)
 static void
 extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 {
-//    long *scn = op->transactionInfo->scns;
-//    long *scnC = op->transactionInfo->commitSCN;
-//    Constant *xid = getTranactionSQLAndSCNs(xid);
+    Constant *scn = (Constant *) getHeadOfListP(op->transactionInfo->scns);
+    Constant *scnC = copyObject(op->transactionInfo->commitSCN);
+    Constant *xid = (Constant *) GET_STRING_PROP(op, PROP_PC_TRANS_XID);
     TableAccessOperator *t;
 	List *updateTableNames;
 	List *originalUpdates;
 	KeyValue *tableCond;
 	Set *readFromTableNames = STRSET();
 	Set *updatedTableNames = STRSET();
+	List *propValue = LIST_MAKE(xid, scn, scnC);
 
 
-   /* SET_BOOL_STRING_PROP(t,"USE_HISTORY_JOIN");
+//	SET_STRING_PROP(t,PROP_USE_HISTORY_JOIN, copyObject(propValue));
+
+   /*
     setStringProperty((QueryOperator *) t,"USE_HISTORY_JOIN", (long *) scn,(long *)scnC, (Constant *)xid);
-    t->asOf = (Node *) LIST_MAKE(scnC, copyObject(scnC));
+    t->asOf = NULL;
     ((QueryOperator *) t)->schema->attrDefs = appendToTailOfList(((QueryOperator *) t)->schema->attrDefs,
 	createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
 

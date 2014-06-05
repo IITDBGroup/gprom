@@ -330,6 +330,9 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	        boolean showIntermediate = HAS_STRING_PROP(result,PROP_PC_SHOW_INTERMEDIATE);
 	        DEBUG_LOG("Provenance for transaction");
 
+	        // set XID
+	        SET_STRING_PROP(result, PROP_PC_TRANS_XID, createConstString(strdup(xid)));
+
 	        // call metadata lookup -> SCNS + SQLS
 	        getTransactionSQLAndSCNs(xid, &scns, &sqls, &sqlBinds, &isoLevel, commitSCN);
 
