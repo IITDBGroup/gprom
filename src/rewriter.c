@@ -121,6 +121,12 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
         INFO_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
         STOP_TIMER("OptimizeModel");
     }
+    else
+        if (isA(rewrittenTree, List))
+            FOREACH(QueryOperator,o,(List *) rewrittenTree)
+                LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
+        else
+            rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
 
     START_TIMER("SQLcodeGen");
     appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));

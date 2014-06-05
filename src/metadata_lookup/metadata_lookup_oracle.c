@@ -514,7 +514,12 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
         *sqlBinds = NIL;
 
         // FETCH statements, SCNs, and parameter bindings
-        appendStringInfo(statement, "SELECT SCN, LSQLTEXT, LSQLBIND FROM "
+        appendStringInfo(statement, "SELECT SCN, "
+                " CASE WHEN DBMS_LOB.GETLENGTH(lsqltext) > 4000 THEN lsqltext ELSE NULL END AS lsql,"
+                " CASE WHEN DBMS_LOB.GETLENGTH(lsqltext) <= 4000 THEN DBMS_LOB.SUBSTR(lsqltext,4000)  ELSE NULL END AS shortsql,"
+                " CASE WHEN DBMS_LOB.GETLENGTH(lsqlbind) > 4000 THEN lsqlbind ELSE NULL END AS lbind,"
+                " CASE WHEN DBMS_LOB.GETLENGTH(lsqlbind) <= 4000 THEN DBMS_LOB.SUBSTR(lsqlbind,4000)  ELSE NULL END AS shortbind"
+                " FROM "
                 "(SELECT SCN, LSQLTEXT, LSQLBIND, ntimestamp#, "
                 "   DENSE_RANK() OVER (PARTITION BY statement ORDER BY policyname) AS rnum "
                 "      FROM SYS.fga_log$ "
@@ -537,8 +542,13 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
                 STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SCN");
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch SQL");
 //                OCI_Lob *sqlLog = OCI_GetLob(rs,2);
+                const char *sql;
+                if (OCI_IsNull(rs,2))
+                    sql = OCI_GetString(rs,3);
+                else
+                    sql = OCI_GetString(rs,2);
 //                char *sql = LobToChar(sqlLog);
-                const char *sql = OCI_GetString(rs,2);
+
 //                unsigned int read = 7000;
 //                OCI_LobRead2(sqlLog,buf,&read, NULL);
 //                buf[read] = '\0';
@@ -546,7 +556,11 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch bind");
 //                OCI_Lob *bindLog = OCI_GetLob(rs,3);
 //                char *bind = LobToChar(bindLog);
-                const char *bind = OCI_GetString(rs,3); // SQLBIND
+                const char *bind; // SQLBIND
+                if (OCI_IsNull(rs,4))
+                    bind = OCI_GetString(rs,5);
+                else
+                    bind = OCI_GetString(rs,4);
 
                 STOP_TIMER("module - metadata lookup - fetch transaction info - fetch bind");
                 START_TIMER("module - metadata lookup - fetch transaction info - concat strings");
