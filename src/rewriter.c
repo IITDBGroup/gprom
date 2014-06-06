@@ -39,7 +39,7 @@ rewriteQuery(char *input)
     parse = parseFromString(input);
     DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
 
-    result = rewriteParserOutput(parse, isRewriteOptionActivated("optimize_operator_model"));
+    result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
     INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
 
 //    OUT_TIMERS();
@@ -55,7 +55,7 @@ rewriteQueryFromStream (FILE *stream) {
     parse = parseStream(stream);
     DEBUG_LOG("parser returned:\n\n%s", nodeToString(parse));
 
-    result = rewriteParserOutput(parse, isRewriteOptionActivated("optimize_operator_model"));
+    result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
     INFO_LOG("Rewritten SQL text is <%s>", result);
 
 //    OUT_TIMERS();

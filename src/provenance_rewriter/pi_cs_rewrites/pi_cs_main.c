@@ -10,10 +10,12 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "configuration/option.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/operator_property.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
@@ -139,6 +141,9 @@ rewritePI_CSOperator (QueryOperator *op)
 
     if (showIntermediate)
         rewrittenOp = addIntermediateProvenance(rewrittenOp, userProvAttrs);
+
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        ASSERT(checkModel(rewrittenOp));
 
     return rewrittenOp;
 }

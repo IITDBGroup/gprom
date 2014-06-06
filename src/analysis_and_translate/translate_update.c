@@ -43,7 +43,7 @@ translateUpdate(Node *update) {
 	case T_Delete:
 		return translateDelete((Delete *) update);
 	case T_Update:
-		if (isRewriteOptionActivated("translate_update_with_case"))
+		if (isRewriteOptionActivated(OPTION_TRANSLATE_UPDATE_WITH_CASE))
 			return translateUpdateWithCase((Update *) update);
 		else
 			return translateUpdateInternal((Update *) update);

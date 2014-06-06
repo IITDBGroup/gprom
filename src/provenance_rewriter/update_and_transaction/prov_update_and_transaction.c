@@ -19,6 +19,7 @@
 #include "model/set/hashmap.h"
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/operator_property.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
@@ -43,6 +44,9 @@ static void setMapCond (List **props, KeyValue *newVal);
 void mergeUpdateSequence(ProvenanceComputation *op) {
 	ProvenanceTransactionInfo *tInfo = op->transactionInfo;
 
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        ASSERT(checkModel((QueryOperator *) op));
+
 	switch (tInfo->transIsolation) {
 	case ISOLATION_SERIALIZABLE:
 		mergeSerializebleTransaction(op);
@@ -54,6 +58,9 @@ void mergeUpdateSequence(ProvenanceComputation *op) {
 		FATAL_LOG("isolation level %u not supported:", tInfo->transIsolation);
 		break;
 	}
+
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        ASSERT(checkModel((QueryOperator *) op));
 
 	INFO_LOG("updates after merge:\n%s", operatorToOverviewString((Node *) op));
 }
@@ -335,14 +342,17 @@ restrictToUpdatedRows (ProvenanceComputation *op)
 
     //TODO for now be conservative when to apply things
     // use conditions of updates to filter out non-updated tuples early on
-    if (isRewriteOptionActivated("only_updated_use_conditions") && simpleOnly)
+    if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS) && simpleOnly)
         addConditionsToBaseTables(op);
     // use history to get tuples updated by transaction and limit provenance tracing to these tuples
-    else if (isRewriteOptionActivated("only_updated_use_history"))
+    else if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN))
         extractUpdatedFromTemporalHistory(op);
     // simply filter out non-updated rows in the end
     else
         filterUpdatedInFinalResult(op);
+
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        ASSERT(checkModel((QueryOperator *) op));
 }
 
 static void

@@ -11,6 +11,7 @@
  */
 
 #include "log/logger.h"
+#include "configuration/option.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
@@ -132,6 +133,9 @@ mergeProjection(ProjectionOperator *op)
         child->projExprs = NULL;
         child->op.inputs = NULL;
 //        deepFree(child);
+
+        if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+            ASSERT(checkModel((QueryOperator *) parent));
     }
 
     state->op = NULL;

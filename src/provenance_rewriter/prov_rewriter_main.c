@@ -97,7 +97,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         }
     }
 
-    if (isRewriteOptionActivated("treefiy_prov_rewrite_input"))
+    if (isRewriteOptionActivated(OPTION_TREEIFY_OPERATOR_MODEL))
     {
         treeify((QueryOperator *) op);
         INFO_LOG("treeifyed operator model:\n\n%s", operatorToOverviewString((Node *) op));
@@ -108,7 +108,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     switch(op->provType)
     {
         case PROV_PI_CS:
-            if (isRewriteOptionActivated("pi_cs_use_composable"))
+            if (isRewriteOptionActivated(OPTION_PI_CS_USE_COMPOSABLE))
                 return rewritePI_CSComposable(op);
             else
                 return rewritePI_CS(op);

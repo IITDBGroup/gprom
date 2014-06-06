@@ -78,7 +78,7 @@ startTimer(char *name, int line, const char *function, const char *sourceFile)
     Timer *t;
     struct timeval st;
 
-    if(!isRewriteOptionActivated("timing"))
+    if(!isRewriteOptionActivated(OPTION_TIMING))
         return;
 
     CREATE_OR_USE_MEMCONTEXT();
@@ -201,7 +201,7 @@ outputTimers (void)
         maxTimerNameLength = (maxTimerNameLength < len) ? len : maxTimerNameLength;
     }
 
-    if(!isRewriteOptionActivated("timing"))
+    if(!isRewriteOptionActivated(OPTION_TIMING))
         return;
 
     for(t = allTimers; t != NULL; t = t->hh.next)
