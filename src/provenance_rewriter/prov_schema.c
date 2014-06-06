@@ -170,8 +170,8 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
             char *tableName = f->name;
             int curRelCount = getRelCount(status, tableName);
 
-            // is base relation provenance
-            if (f->provInfo->baserel)
+            // is base relation provenance or USE PROVENANCE
+            if (f->provInfo->baserel && LIST_EMPTY(f->provInfo->userProvAttrs))
             {
                 FOREACH(char,attrName,f->attrNames)
                 {
@@ -179,7 +179,6 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
                             getProvenanceAttrName(tableName, attrName,
                                     curRelCount));
                 }
-
             }
             // user provided provenance attributes
             else

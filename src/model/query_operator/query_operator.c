@@ -403,6 +403,21 @@ addParent (QueryOperator *child, QueryOperator *parent)
         child->parents = appendToTailOfList(child->parents, parent);
 }
 
+int
+getChildPosInParent (QueryOperator *parent, QueryOperator *child)
+{
+    int i = 0;
+
+    FOREACH(QueryOperator,o,parent->inputs)
+    {
+        if (o == child)
+            return i;
+        i++;
+    }
+
+    return -1;
+}
+
 List *
 getProvenanceAttrs(QueryOperator *op)
 {

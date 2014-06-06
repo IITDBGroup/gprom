@@ -943,38 +943,65 @@ analyzeSetQuery (SetQuery *q, List *parentFroms)
     }
 }
 
+/*
+ * Analyze a provenance computation. The main part is to figure out the attributes
+ */
+
 static void
 analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 {
-    analyzeQueryBlockStmt(q->query, parentFroms);
 
-    // get attributes from left child
-    switch(q->query->type)
-    {
-        case T_QueryBlock:
+    switch (q->inputType) {
+        case PROV_INPUT_TRANSACTION:
         {
-            QueryBlock *qb = (QueryBlock *) q->query;
-            FOREACH(SelectItem,s,qb->selectClause)
-            {
-                q->selectClause = appendToTailOfList(q->selectClause,
-                        strdup(s->alias));
-            }
+            //TODO need to know updates at this point
         }
         break;
-        case T_SetQuery:
-            q->selectClause = deepCopyStringList(
-                    ((SetQuery *) q->query)->selectClause);
-        break;
-        case T_ProvenanceStmt:
-            q->selectClause = deepCopyStringList(
-                    ((ProvenanceStmt *) q->query)->selectClause);
-        break;
-        default:
-        break;
-    }
+        case PROV_INPUT_UPDATE:
+        {
 
-	q->selectClause = concatTwoLists(q->selectClause,
-			getQBProvenanceAttrList(q));
+        }
+        break;
+        case PROV_INPUT_QUERY:
+        {
+            analyzeQueryBlockStmt(q->query, parentFroms);
+
+            // get attributes from left child
+            switch(q->query->type)
+            {
+                case T_QueryBlock:
+                {
+                    QueryBlock *qb = (QueryBlock *) q->query;
+                    FOREACH(SelectItem,s,qb->selectClause)
+                    {
+                        q->selectClause = appendToTailOfList(q->selectClause,
+                                strdup(s->alias));
+                    }
+                }
+                break;
+                case T_SetQuery:
+                    q->selectClause = deepCopyStringList(
+                            ((SetQuery *) q->query)->selectClause);
+                break;
+                case T_ProvenanceStmt:
+                    q->selectClause = deepCopyStringList(
+                            ((ProvenanceStmt *) q->query)->selectClause);
+                break;
+                default:
+                break;
+            }
+
+            q->selectClause = concatTwoLists(q->selectClause,
+                    getQBProvenanceAttrList(q));
+        }
+        break;
+        case PROV_INPUT_TIME_INTERVAL:
+            break;
+        case PROV_INPUT_UPDATE_SEQUENCE:
+            break;
+        default:
+            break;
+    }
 
 	analyzeProvenanceOptions(q);
 }

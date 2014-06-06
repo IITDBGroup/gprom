@@ -206,9 +206,10 @@ extern Node *getStringProperty (QueryOperator *op, char *key);
 #define GET_BOOL_STRING_PROP(op,key) ((getStringProperty((QueryOperator *) op, key) != NULL) \
     && (BOOL_VALUE(getStringProperty((QueryOperator *) op, key))))
 
-/* add children and parents */
+/* children and parents */
 extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
 extern void addParent (QueryOperator *child, QueryOperator *parent);
+extern int getChildPosInParent(QueryOperator *parent, QueryOperator *child);
 
 /* attribute functions */
 extern List *getProvenanceAttrs(QueryOperator *op);

@@ -302,6 +302,19 @@ rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs)
             name = getProvenanceAttrName(tableName, name, relAccessCount);
             attr->attrName = name;
             provAttrs = appendToTailOfListInt(provAttrs, pos);
+
+            // in parent operators adapt attribute references to use new name
+            FOREACH(QueryOperator,p,proj->parents)
+            {
+                List *aRefs = findOperatorAttrRefs(p);
+                int childPos = getChildPosInParent(p,proj);
+
+                FOREACH(AttributeReference,a,aRefs)
+                {
+                    if (a->fromClauseItem == childPos && a->attrPosition == pos)
+                        a->name = strdup(name);
+                }
+            }
         }
 
         proj->provAttrs = provAttrs;
@@ -315,12 +328,27 @@ rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs)
         {
             char *name = STRING_VALUE(a);
             int pos = getAttrPos(op, name);
+//            char *oldName;
             AttributeDef *attr;
 
             attr = getNthOfListP(op->schema->attrDefs, pos);
             name = getProvenanceAttrName(tableName, name, relAccessCount);
+//            oldName = attr->attrName;
             attr->attrName = name;
             provAttrs = appendToTailOfListInt(provAttrs, pos);
+
+            // in parent operators adapt attribute references to use new name
+            FOREACH(QueryOperator,p,op->parents)
+            {
+                List *aRefs = findOperatorAttrRefs(p);
+                int childPos = getChildPosInParent(p,op);
+
+                FOREACH(AttributeReference,a,aRefs)
+                {
+                    if (a->fromClauseItem == childPos && a->attrPosition == pos)
+                        a->name = strdup(name);
+                }
+            }
         }
 
         op->provAttrs = provAttrs;

@@ -32,5 +32,6 @@ extern void removeParentFromOps (List *operators, QueryOperator *parent);
 
 // graph search
 extern boolean findTableAccessVisitor (Node *node, List **result);
+extern List *findOperatorAttrRefs (QueryOperator *op);
 
 #endif /* PROV_UTILITY_H_ */

@@ -123,7 +123,8 @@ translateParse(Node *q)
     FREE_MEM_CONTEXT_AND_RETURN_COPY(Node,result);
 }
 
-static Node *translateGeneral (Node *node)
+static Node *
+translateGeneral (Node *node)
 {
     Node *result;
 

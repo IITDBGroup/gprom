@@ -128,53 +128,11 @@ mergeProjection(ProjectionOperator *op)
         FOREACH(QueryOperator, el, parent->op.inputs)
             el->parents = replaceNode(el->parents, child, parent);
 
-//        TIME_ASSERT(checkModel(parent));
-
         // clean up child
         child->projExprs = NULL;
         child->op.inputs = NULL;
 //        deepFree(child);
     }
-
-//    while(isA(OP_LCHILD(op),ProjectionOperator))
-//    {
-//        Vector *opRefCount;
-//        Vector *childRefCount;
-//        ProjectionOperator *child = (ProjectionOperator *) OP_LCHILD(op);
-//
-//        // only one parent of child is allowed
-//        if (LIST_LENGTH(child->op.parents) > 1)
-//        	break;
-//
-//        // calculate child reference count vectors needed to determine safety
-//        opRefCount = calculateChildAttrRefCnts(op, (QueryOperator *) child);
-//        childRefCount = calculateChildAttrRefCnts(child, OP_LCHILD(op));
-//
-//        if (!isMergeSafe(opRefCount, childRefCount))
-//            break;
-//
-//        // combine expressions and link child's children to root
-//        state->op = child;
-//        state->projExpr = makeVectorFromList(child->projExprs);
-//        state->refCount = makeVectorIntSeq(0,VEC_LENGTH(state->projExpr),0);
-//
-//        START_TIMER("OptimizeModel - replace attrs with expr");
-////        op->projExprs = (List *)
-//        replaceAttributeRefsMutator((Node *) op->projExprs, state, NULL);
-//        op->op.inputs = child->op.inputs;
-//        STOP_TIMER("OptimizeModel - replace attrs with expr");
-//
-//        FOREACH(QueryOperator, el, op->op.inputs)
-//        	el->parents = replaceNode(el->parents, child, op);
-//
-//        // calculate new reference vector
-//        mergeReferenceVectors((QueryOperator *) op, opRefCount, childRefCount);
-//
-//        // clean up child
-//        child->projExprs = NULL;
-//        child->op.inputs = NULL;
-////        deepFree(child);
-//    }
 
     state->op = NULL;
     state->projExpr = NULL;

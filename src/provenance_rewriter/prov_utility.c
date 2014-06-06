@@ -193,6 +193,61 @@ findTableAccessVisitor (Node *node, List **result)
     return visit(node, findTableAccessVisitor, (void *) result);
 }
 
+List *
+findOperatorAttrRefs (QueryOperator *op)
+{
+    List *result = NIL;
+
+    switch(op->type)
+    {
+        case T_ProjectionOperator:
+            result = getAttrReferences((Node *)((ProjectionOperator *) op)->projExprs);
+            break;
+        case T_SelectionOperator:
+            result = getAttrReferences((Node *)((SelectionOperator *) op)->cond);
+            break;
+        case T_JoinOperator:
+            result = getAttrReferences((Node *)((JoinOperator *) op)->cond);
+            break;
+        case T_AggregationOperator:
+        {
+            AggregationOperator *a = (AggregationOperator *) op;
+            result = CONCAT_LISTS(getAttrReferences((Node *)a->aggrs), getAttrReferences((Node *)a->groupBy));
+        }
+        break;
+        case T_WindowOperator:
+        {
+            WindowOperator *w = (WindowOperator *) op;
+            result = CONCAT_LISTS(getAttrReferences((Node *)w->f), getAttrReferences((Node *)w->partitionBy),
+                    getAttrReferences((Node *)w->orderBy), getAttrReferences((Node *)w->frameDef));
+        }
+        break;
+        case T_OrderOperator:
+        {
+            OrderOperator *o = (OrderOperator *) op;
+            result = getAttrReferences((Node *)o->orderExprs);
+        }
+        break;
+        case T_NestingOperator:
+        {
+            NestingOperator *n = (NestingOperator *) op;
+            result = getAttrReferences((Node *)n->cond);
+        }
+        break;
+        case T_DuplicateRemoval:
+        {
+            DuplicateRemoval *d = (DuplicateRemoval *) op;
+            result = getAttrReferences((Node *)d->attrs);
+        }
+        break;
+        //TODO
+        default:
+            break;
+    }
+
+    return result;
+}
+
 /*
  *
  */

@@ -386,7 +386,7 @@ equalHashMap (HashMap *a, HashMap *b)
     COMPARE_SCALAR_FIELD(valueType);
 
     FOREACH_HASH_KEY(Node,k,a)
-        if(!hasMapKey(b,k))
+        if(!hasMapKey(b,k) || !equal(getMap(a,k),getMap(b,k)))
             return FALSE;
 
     FOREACH_HASH_KEY(Node,k,b)
