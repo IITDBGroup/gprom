@@ -20,6 +20,7 @@
 #define PROP_USE_PROVENANCE "USE_PROVENANCE"                // duplicate user provided attributes as provenance
 #define PROP_HAS_PROVENANCE "HAS_PROVENANCE"                // indicates the subquery already has associated provenance
 #define PROP_USER_PROV_ATTRS "USER_PROV_ATTRS"              // list of user selected provenance attribtues
+#define PROP_PROV_REL_NAME "PROVENANCE_REL_NAME"            // in provenance attributes refer to subquery as this name
 
 // provenance PI-CS composable
 #define PROP_RESULT_TID_ATTR "RESULT_TID_ATTR"              // result tid attribute for PI-CS composable

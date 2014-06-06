@@ -154,10 +154,12 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs)
     int cnt = 0;
     char *newAttrName;
     int relAccessCount;
-    char *tableName = "INTERMEDIATE";
+    char *tableName; // = "INTERMEDIATE";
 
     if (isA(op,TableAccessOperator))
         tableName = ((TableAccessOperator *) op)->tableName;
+    else
+        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
 
     relAccessCount = getRelNameCount(&nameState, tableName);
 
@@ -216,10 +218,12 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
     int numProvAttrs = LIST_LENGTH(userProvAttrs);
     int numNormalAttrs = LIST_LENGTH(op->schema->attrDefs);
     int cnt = 0;
-    char *tableName = "INTERMEDIATE";
+    char *tableName; // = "INTERMEDIATE";
 
     if (isA(op,TableAccessOperator))
         tableName = ((TableAccessOperator *) op)->tableName;
+    else
+        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
 
     DEBUG_LOG("REWRITE-PICS - Add Provenance Attrs <%s> <%u>",  tableName, relAccessCount);
 
@@ -271,11 +275,13 @@ rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs)
 {
     List *provAttrs = op->provAttrs;
     int relAccessCount;
-    char *tableName = "USER";
+    char *tableName; // = "USER";
     boolean isTableAccess = isA(op,TableAccessOperator);
 
     if (isTableAccess)
         tableName = ((TableAccessOperator *) op)->tableName;
+    else
+        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
 
     relAccessCount = getRelNameCount(&nameState, tableName);
 

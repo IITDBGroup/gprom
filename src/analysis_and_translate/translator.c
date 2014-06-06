@@ -58,7 +58,7 @@ static inline QueryOperator *createTableAccessOpFromFromTableRef(
 		FromTableRef *ftr);
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje);
 static QueryOperator *translateFromSubquery(FromSubquery *fsq);
-static void translateFromProvInfo(QueryOperator *op, FromProvInfo *from);
+static void translateFromProvInfo(QueryOperator *op, FromItem *f);
 
 /* Functions of translating nested subquery in a QueryBlock */
 static QueryOperator *translateNestedSubquery(QueryBlock *qb,
@@ -639,7 +639,7 @@ translateFromClauseToOperatorList(List *fromClause)
                 break;
         }
 
-        translateFromProvInfo(op, from->provInfo);
+        translateFromProvInfo(op, from);
 
         ASSERT(op);
         opList = appendToTailOfList(opList, op);
@@ -651,8 +651,9 @@ translateFromClauseToOperatorList(List *fromClause)
 }
 
 static void
-translateFromProvInfo(QueryOperator *op, FromProvInfo *from)
+translateFromProvInfo(QueryOperator *op, FromItem *f)
 {
+    FromProvInfo *from = f->provInfo;
     if (from == NULL)
         return;
 
@@ -669,6 +670,9 @@ translateFromProvInfo(QueryOperator *op, FromProvInfo *from)
         setStringProperty(op, PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(from->userProvAttrs));
     else
         setStringProperty(op, PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(getQueryOperatorAttrNames(op)));
+
+    /* set name for op */
+    setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
 }
 
 static inline QueryOperator *

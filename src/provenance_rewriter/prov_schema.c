@@ -180,6 +180,21 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
                                     curRelCount));
                 }
             }
+            // show intermediate provenacne
+            else if (f->provInfo->intermediateProv)
+            {
+                // first get child provenance attributes
+                boolean result = visit(node, findTablerefVisitor, status);
+
+                FOREACH(char,attrName,f->attrNames)
+                {
+                    status->provAttrs = appendToTailOfList(status->provAttrs,
+                            getProvenanceAttrName(tableName, attrName,
+                                    curRelCount));
+                }
+
+                return result;
+            }
             // user provided provenance attributes
             else
             {
