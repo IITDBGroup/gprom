@@ -486,33 +486,48 @@ findUpdatedTableAccceses (List *tables)
 static void
 extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 {
-    Constant *scn = (Constant *) getHeadOfListP(op->transactionInfo->scns);
-    Constant *scnC = copyObject(op->transactionInfo->commitSCN);
-    Constant *xid = (Constant *) GET_STRING_PROP(op, PROP_PC_TRANS_XID);
-    TableAccessOperator *t;
+	Constant *scn = (Constant *) getHeadOfListP(op->transactionInfo->scns);
+	Constant *scnC = copyObject(op->transactionInfo->commitSCN);
+	Constant *xid = (Constant *) GET_STRING_PROP(op, PROP_PC_TRANS_XID);
+	TableAccessOperator *t;
 	List *updateTableNames;
 	List *originalUpdates;
 	KeyValue *tableCond;
 	Set *readFromTableNames = STRSET();
 	Set *updatedTableNames = STRSET();
 	List *propValue = LIST_MAKE(xid, scn, scnC);
+	List *allTables = NIL;
+	int i = 0;
 
+	SET_STRING_PROP(t, PROP_USE_HISTORY_JOIN, copyObject(propValue));
+	findTableAccessVisitor((Node *) op, &allTables);
+	updatedTableNames = findUpdatedTableAccceses(allTables);
+	/* FOREACH(TableAccessOperator,t,allTables)
+	{
+		if (HAS_STRING_PROP(t, "UPDATED TABLE"))
+			addToSet(updatedTableNames, strdup(t->tableName));
+		else
+			addToSet(readFromTableNames, strdup(t->tableName));
 
-//	SET_STRING_PROP(t,PROP_USE_HISTORY_JOIN, copyObject(propValue));
+		FORBOTH(void,name,up,updateTableNames,readFromTableNames)
+		{
+			// only care about updates
+			if (isA(up,Update))
+			{
+				char *tableName = (char *) name;
 
-   /*
-    setStringProperty((QueryOperator *) t,"USE_HISTORY_JOIN", (long *) scn,(long *)scnC, (Constant *)xid);
-    t->asOf = NULL;
-    ((QueryOperator *) t)->schema->attrDefs = appendToTailOfList(((QueryOperator *) t)->schema->attrDefs,
-	createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+				if (!hasSetElem(readFromTableNames, tableName)) //HAO in second loop this check
+				{
+					 Node *cond = copyObject((Node *) getNthOfListP());
 
-    FOREACH(TableAccessOperator,t,op)
-{
-    if (HAS_STRING_PROP(t,"UPDATED TABLE"))
-	 addToSet(updatedTableNames, strdup(t->tableName));
-    else
-	 addToSet(readFromTableNames, strdup(t->tableName));
-}
+			         // for read committed we have to also check the version column to only
+					 // check the condition for rows versions that will be seen by an update
+					 Constant *scn = (Constant *) getNthOfListP(op.transactionInfo.scns);
+				}
+			}
+
+	    }
+	}
    */
 
 
