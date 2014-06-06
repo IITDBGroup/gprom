@@ -432,7 +432,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	                    if (HAS_STRING_PROP(t,PROP_TABLE_IS_UPDATED))
 	                    {
 	                        SET_BOOL_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION);
-	                        SET_BOOL_STRING_PROP(t,PROP_HAS_PROVENANCE);
+	                        SET_BOOL_STRING_PROP(t,PROP_USE_PROVENANCE);
 	                        SET_STRING_PROP(t,PROP_USER_PROV_ATTRS,
 	                                stringListToConstList(LIST_MAKE(
 	                                        strdup("ROWID"),
