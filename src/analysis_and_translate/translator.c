@@ -369,7 +369,6 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                     bindVals = oracleBindToConsts(bindString);
                     node = setParameterValues(node, bindVals);
                 }
-	            i++;
 	            STOP_TIMER("translation - transaction - analyze binds");
 
 	            /* get table name */
@@ -414,7 +413,11 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
 	            // mark for showing intermediate results
 	            if (showIntermediate)
+	            {
 	                SET_BOOL_STRING_PROP(child, PROP_SHOW_INTERMEDIATE_PROV);
+	                SET_STRING_PROP(child, PROP_PROV_REL_NAME, createConstString(
+	                        CONCAT_STRINGS("U", itoa(i + 1), "_", strdup(tableName))));
+	            }
 
 	            // mark as root of translated update
 	            SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
@@ -422,6 +425,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	            DEBUG_LOG("qo model transaction is\n%s", beatify(nodeToString(child)));
 
 	            addChildOperator((QueryOperator *) result, child);
+                i++;
 	        }
 
 	        // if only updated rows shows be returned then we need to store the update conditions
