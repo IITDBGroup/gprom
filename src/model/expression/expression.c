@@ -158,6 +158,9 @@ andExprs (Node *expr, ...)
 
     va_end(args);
 
+    if (LIST_LENGTH(argList) == 1)
+        return expr;
+
     result = (Node *) createOpExpr("AND", argList);
 
     return result;
@@ -178,6 +181,9 @@ orExprs (Node *expr, ...)
         argList = appendToTailOfList(argList, copyObject(curArg));
 
     va_end(args);
+
+    if (LIST_LENGTH(argList) == 1)
+        return expr;
 
     result = (Node *) createOpExpr("OR", argList);
 

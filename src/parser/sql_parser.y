@@ -55,7 +55,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -310,6 +310,12 @@ provOption:
 		{
 			RULELOG("provOption::SHOW::INTERMEDIATE");
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SHOW_INTERMEDIATE), 
+					(Node *) createConstBool(TRUE));
+		}
+		| TUPLE VERSIONS
+		{
+			RULELOG("provOption::TUPLE::VERSIONS");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_TUPLE_VERSIONS),
 					(Node *) createConstBool(TRUE));
 		}
 	;

@@ -98,7 +98,17 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
                  switchSubtreeWithExisting((QueryOperator *) t, up);
              // previous table version is the one at transaction begin
              else
-                 t->asOf = (Node *) getHeadOfListP(op->transactionInfo->scns);
+             {
+                 Constant *startScn = copyObject((Constant *) getHeadOfListP(op->transactionInfo->scns));
+
+                 // if user provenance attribute
+                 if (HAS_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION))
+                 {
+                     t->asOf = (Node *) LIST_MAKE(startScn, copyObject(startScn));
+                 }
+                 else
+                     t->asOf = (Node *) startScn;
+             }
 
              INFO_LOG("Table after merge %s", operatorToOverviewString((Node *) u));
          }
@@ -240,15 +250,22 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 			// previous table version is the one at transaction begin
 			else
 			{
-			    Node *scn = (Node *) getTailOfListP(op->transactionInfo->scns);
+//			    Node *scn = (Node *) getTailOfListP(op->transactionInfo->scns);
 			    Constant *scnC = (Constant *) copyObject(op->transactionInfo->commitSCN);
-			    *((long *) scnC->value) = *((long *) scnC->value) + 1; //getCommit SCN
+			    *((long *) scnC->value) = *((long *) scnC->value) - 1; //getCommit SCN - 1
 
-			    SET_BOOL_STRING_PROP(t,PROP_USE_PROVENANCE);
-                setStringProperty((QueryOperator *) t,PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(getQueryOperatorAttrNames((QueryOperator *) t)));
-			    t->asOf = (Node *) LIST_MAKE(scnC, copyObject(scnC));
-				((QueryOperator *) t)->schema->attrDefs = appendToTailOfList(((QueryOperator *) t)->schema->attrDefs,
-				        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+			    if (!HAS_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION))
+			    {
+			        SET_BOOL_STRING_PROP(t,PROP_USE_PROVENANCE);
+			        SET_STRING_PROP(t,PROP_USER_PROV_ATTRS,
+			                stringListToConstList(
+			                        getQueryOperatorAttrNames(
+			                                (QueryOperator *) t)));
+                    ((QueryOperator *) t)->schema->attrDefs = appendToTailOfList(((QueryOperator *) t)->schema->attrDefs,
+                            createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+			    }
+
+                t->asOf = (Node *) LIST_MAKE(scnC, copyObject(scnC));
 			}
 
 			DEBUG_LOG("\tTable after merge %s",
@@ -422,7 +439,13 @@ addConditionsToBaseTables (ProvenanceComputation *op)
 
         if (cond != NULL)
         {
-            cond = (Node *) createOpExpr("OR", (List *) cond);
+            List *args = (List *) cond;
+
+            if (LIST_LENGTH(args) > 1)
+                cond = (Node *) createOpExpr("OR", (List *) cond);
+            else
+                cond = (Node *) getHeadOfListP(args);
+
             sel = createSelectionOp(cond, (QueryOperator *) t, NIL,
                     getAttrNames(GET_OPSCHEMA(t)));
             switchSubtrees((QueryOperator *) t, (QueryOperator *) sel);

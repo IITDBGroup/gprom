@@ -44,9 +44,9 @@ static boolean findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *
 
 // analyze from item types
 static void analyzeFromTableRef(FromTableRef *f);
-static void analyzeInsert(Insert * f);
-static void analyzeDelete(Delete * f);
-static void analyzeUpdate(Update * f);
+static void analyzeInsert(Insert *f);
+static void analyzeDelete(Delete *f);
+static void analyzeUpdate(Update *f);
 static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 
@@ -156,8 +156,15 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                 FOREACH(char,name,f->provInfo->userProvAttrs)
                 {
                     if(!searchListString(f->attrNames, name))
-                        FATAL_LOG("did not find provenance attr %s in from "
+                    {
+                        if (strcmp(name,"ROWID") == 0 || f->type == T_FromTableRef)
+                        {
+                            f->attrNames = appendToTailOfList(f->attrNames, strdup("ROWID"));
+                        }
+                        else
+                            FATAL_LOG("did not find provenance attr %s in from "
                                 "item attrs %s", name, stringListToString(f->attrNames));
+                    }
                 }
             }
         }
@@ -382,6 +389,14 @@ findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
             }
         }
         attrPos++;
+    }
+
+    // if it is a tableaccess then allow access to ROWID column
+    if(strcmp(attr->name,"ROWID") == 0 && fromItem->type == T_FromTableRef)
+    {
+        isFound = TRUE;
+        foundAttr = LIST_LENGTH(fromItem->attrNames);
+        fromItem->attrNames = appendToTailOfList(fromItem->attrNames, strdup("ROWID"));
     }
 
     return foundAttr;
@@ -848,14 +863,18 @@ expandStarExpression (SelectItem *s, List *fromClause)
 
             FOREACH(char,attr,f->attrNames)
             {
-                AttributeReference *newA = createAttributeReference(
-                          CONCAT_STRINGS(f->name,".",attr));
+                // do not expand ROWID column
+                if (!(f->type == T_FromTableRef && strcmp(attr,"ROWID") == 0))
+                {
+                    AttributeReference *newA = createAttributeReference(
+                              CONCAT_STRINGS(f->name,".",attr));
 
-                newSelectItems = appendToTailOfList(newSelectItems,
-                        createSelectItem(
-                                strdup(attr),
-                                (Node *) newA
-                        ));
+                    newSelectItems = appendToTailOfList(newSelectItems,
+                            createSelectItem(
+                                    strdup(attr),
+                                    (Node *) newA
+                            ));
+                }
             }
         }
     }
@@ -880,12 +899,16 @@ expandStarExpression (SelectItem *s, List *fromClause)
                 {
                     FOREACH(char,attr,f->attrNames)
                     {
-                        newSelectItems = appendToTailOfList(newSelectItems,
-                                createSelectItem(
-                                       strdup(attr),
-                                       (Node *) createAttributeReference(
-                                               CONCAT_STRINGS(f->name,".",attr))
-                                       ));
+                        // do not expand ROWID column
+                        if (!(f->type == T_FromTableRef && strcmp(attr,"ROWID") == 0))
+                        {
+                            newSelectItems = appendToTailOfList(newSelectItems,
+                                    createSelectItem(
+                                           strdup(attr),
+                                           (Node *) createAttributeReference(
+                                                   CONCAT_STRINGS(f->name,".",attr))
+                                    ));
+                        }
                     }
                 }
             }

@@ -283,6 +283,9 @@ rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs)
     else
         tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
 
+    DEBUG_LOG("Use existing provenance attributes %s for %s",
+            beatify(nodeToString(userProvAttrs)), tableName);
+
     relAccessCount = getRelNameCount(&nameState, tableName);
 
     // for table access operations we need to add a projection that renames the attributes

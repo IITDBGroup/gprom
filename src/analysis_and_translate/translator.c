@@ -329,6 +329,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	        List *updateConds = NIL;
 	        Constant *commitSCN = createConstLong(-1L);
 	        boolean showIntermediate = HAS_STRING_PROP(result,PROP_PC_SHOW_INTERMEDIATE);
+	        boolean useRowidScn = HAS_STRING_PROP(result,PROP_PC_TUPLE_VERSIONS);
+
 	        DEBUG_LOG("Provenance for transaction");
 
 	        // set XID
@@ -417,6 +419,31 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	                SET_BOOL_STRING_PROP(child, PROP_SHOW_INTERMEDIATE_PROV);
 	                SET_STRING_PROP(child, PROP_PROV_REL_NAME, createConstString(
 	                        CONCAT_STRINGS("U", itoa(i + 1), "_", strdup(tableName))));
+	            }
+
+	            // use ROWID + SCN as provenance, set provenance attribute for each table
+	            if (useRowidScn)
+	            {
+	                List *tables = NIL;
+	                findTableAccessVisitor((Node *) child, &tables);
+
+	                FOREACH(TableAccessOperator,t,tables)
+	                {
+	                    if (HAS_STRING_PROP(t,PROP_TABLE_IS_UPDATED))
+	                    {
+	                        SET_BOOL_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION);
+	                        SET_BOOL_STRING_PROP(t,PROP_HAS_PROVENANCE);
+	                        SET_STRING_PROP(t,PROP_USER_PROV_ATTRS,
+	                                stringListToConstList(LIST_MAKE(
+	                                        strdup("ROWID"),
+	                                        strdup("VERSIONS_STARTSCN"))));
+
+                            t->op.schema->attrDefs = appendToTailOfList(t->op.schema->attrDefs,
+                                    createAttributeDef("ROWID", DT_STRING));
+                            t->op.schema->attrDefs = appendToTailOfList(t->op.schema->attrDefs,
+                                    createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+	                    }
+	                }
 	            }
 
 	            // mark as root of translated update

@@ -182,6 +182,8 @@ DESC			TOK(DESC)
 NULLS			TOK(NULLS)
 FIRST			TOK(FIRST)
 LAST			TOK(LAST)
+TUPLE			TOK(TUPLE)
+VERSIONS		TOK(VERSIONS)
 
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)

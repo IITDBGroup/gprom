@@ -149,7 +149,8 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
         if (strcmp(childA->attrName, a->name) != 0)
         {
             ERROR_LOG("attribute ref name and child attrdef names are not the "
-                    "same: <%s> and <%s>", childA->attrName, a->name);
+                    "same: <%s> and <%s> in\n\n%s", childA->attrName, a->name,
+                    operatorToOverviewString((Node *) parent));
             return FALSE;
         }
     }
