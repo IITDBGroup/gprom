@@ -637,7 +637,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
                     }
 
-                    appendStringInfo(from, "(SELECT %s", attrNameStr.data);
+                    appendStringInfo(from, "(SELECT %s", attrNameStr->data);
                     appendStringInfo(from, "(SELECT ROWID AS rid , %s", attrNameStr->data);
                     appendStringInfo(from, "(%s) AS OF SCN %s) F0",t->tableName, LONG_VALUE(startScn));
                     appendStringInfoString(from, "\nJOIN ");
