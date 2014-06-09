@@ -648,6 +648,9 @@ oracleGetCommitScn (char *tableName, long maxScn, char *xid)
     StringInfo statement = makeStringInfo();
     long commitScn = 0;
 
+    START_TIMER("module - metadata lookup");
+    START_TIMER("module - metadata lookup - get commit SCN");
+
     appendStringInfo(statement, "SELECT DISTINCT VERSIONS_STARTSCN FROM "
             "%s VERSIONS BETWEEN SCN %u AND MAXVALUE "
             "WHERE VERSIONS_XID = HEXTORAW('%s')", tableName, maxScn, xid);
@@ -673,6 +676,9 @@ oracleGetCommitScn (char *tableName, long maxScn, char *xid)
         FATAL_LOG("statement %s execution failed", statement->data);
         FREE(statement);
     }
+
+    STOP_TIMER("module - metadata lookup - get commit SCN");
+    STOP_TIMER("module - metadata lookup");
 
     return commitScn;
 }
