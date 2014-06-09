@@ -1,0 +1,39 @@
+/*-----------------------------------------------------------------------------
+ *
+ * metadata_lookup_postgres.h
+ *		
+ *
+ *		AUTHOR: lord_pretzel
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+#ifndef METADATA_LOOKUP_POSTGRES_H_
+#define METADATA_LOOKUP_POSTGRES_H_
+
+#include "metadata_lookup/metadata_lookup.h"
+
+extern MetadataLookupPlugin *assemblePostgresMetadataLookupPlugin (void);
+
+/* plugin methods */
+extern int postgresInitMetadataLookupPlugin (void);
+extern int postgresShutdownMetadataLookupPlugin (void);
+extern int postgresDatabaseConnectionOpen (void);
+extern int postgresDatabaseConnectionClose();
+extern boolean postgresIsInitialized (void);
+
+extern boolean postgresCatalogTableExists (char * tableName);
+extern boolean postgresCatalogViewExists (char * viewName);
+extern List *postgresGetAttributes (char *tableName);
+extern List *postgresGetAttributeNames (char *tableName);
+extern boolean postgresIsAgg(char *functionName);
+extern boolean postgresIsWindowFunction(char *functionName);
+extern char *postgresGetTableDefinition(char *tableName);
+extern char *postgresGetViewDefinition(char *viewName);
+
+extern void postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
+        List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
+extern Node *postgresExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
+
+
+#endif /* METADATA_LOOKUP_POSTGRES_H_ */
