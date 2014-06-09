@@ -70,6 +70,7 @@ typedef struct MetadataLookupPlugin
     /* audit log access */
     void (*getTransactionSQLAndSCNs) (char *xid, List **scns, List **sqls,
             List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
+    long (*getCommitScn) (char *tableName, long maxScn, char *xid);
 
     /* execute transaction */
     Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
@@ -107,6 +108,7 @@ extern char *getViewDefinition(char *viewName);
 
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
+extern long getCommitScn (char *tableName, long maxScn, char *xid);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 
 /* helper functions for createing the cache */

@@ -377,10 +377,10 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     findTableAccessVisitor((Node *) op, &allTables); //HAO fetch all table accesses
     updatedTables  = findUpdatedTableAccceses (allTables);
 
-    DEBUG_LOG("\ncond: %s, \ntables: %s, \nupdatedTable: %s",
-            beatify(nodeToString(upConds)),
-            stringListToString(tableNames),
-            beatify(nodeToString(updatedTables)));
+//    DEBUG_LOG("\ncond: %s, \ntables: %s, \nupdatedTable: %s",
+//            beatify(nodeToString(upConds)),
+//            stringListToString(tableNames),
+//            beatify(nodeToString(updatedTables)));
 
     // check which tables are updated and which tables are read accessed (e.g., in query)
     // only updated tables can be safely prefiltered
@@ -528,7 +528,7 @@ extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 	List *propValue = LIST_MAKE(xid, scn, scnC);
 	List *allTables = NIL;
 
-	SET_STRING_PROP(t, PROP_USE_HISTORY_JOIN, copyObject(propValue));
+//	SET_STRING_PROP(t, PROP_USE_HISTORY_JOIN, copyObject(propValue));
 	findTableAccessVisitor((Node *) op, &allTables);
 
 	// check with tables we are reading from

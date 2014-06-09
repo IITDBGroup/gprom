@@ -631,6 +631,10 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                     List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
                     int i = 0;
 
+                    xid = (Constant *) getNthOfListP(scnsAndXid,0);
+                    startScn = (Constant *) getNthOfListP(scnsAndXid,1);
+                    commitScn = (Constant *) getNthOfListP(scnsAndXid,2);
+
                     FOREACH(char,a,attrNames)
                     {
                         appendStringInfo(attrNameStr, "%s%s",
@@ -641,14 +645,14 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
                     }
 
-                    appendStringInfo(from, "(SELECT %s", attrNameStr->data);
-                    appendStringInfo(from, "(SELECT ROWID AS rid , %s", attrNameStr->data);
-                    appendStringInfo(from, "(%s) AS OF SCN %s) F0",t->tableName, LONG_VALUE(startScn));
-                    appendStringInfoString(from, "\nJOIN ");
-                    appendStringInfo(from, "(SELECT ROWID AS rid FROM (%s VERSIONS BETWEEN SCN %u AND %u)) F1 ",
+                    appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
+                    appendStringInfo(from, "\t(SELECT ROWID AS rid , %s", attrNameStr->data);
+                    appendStringInfo(from, "\tFROM %s AS OF SCN %u) F0",t->tableName, LONG_VALUE(startScn));
+                    appendStringInfoString(from, "\n JOIN ");
+                    appendStringInfo(from, "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
                             t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
                     appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1", STRING_VALUE(xid));
-                    appendStringInfoString(from, "ON (F0.rid = F1.rid))");
+                    appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",  (*curFromItem)++);
 
                     *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
                 }

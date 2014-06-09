@@ -347,7 +347,6 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	        tInfo->updateTableNames = NIL;
 	        tInfo->scns = scns;
 	        tInfo->transIsolation = isoLevel;
-	        tInfo->commitSCN = commitSCN;
 
 	        int i = 0;
 	        // call parser and analyser and translate nodes
@@ -454,6 +453,12 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	            addChildOperator((QueryOperator *) result, child);
                 i++;
 	        }
+
+	        // get commit scn
+	        char *tableName = (char *) getTailOfListP(tInfo->updateTableNames);
+            tInfo->commitSCN = createConstLong(getCommitScn(tableName,
+                    LONG_VALUE(getTailOfListP(tInfo->scns)),
+                    xid));
 
 	        // if only updated rows shows be returned then we need to store the update conditions
 	        // because we might need that to filter out those tuples

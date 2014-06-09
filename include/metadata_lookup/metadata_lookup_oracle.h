@@ -90,6 +90,8 @@ extern char *oracleGetViewDefinition(char *viewName);
 
 extern void oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
+extern long oracleGetCommitScn (char *tableName, long maxScn, char *xid);
+
 extern Node *oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 
 /* specific methods */

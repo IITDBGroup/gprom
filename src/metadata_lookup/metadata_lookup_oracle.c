@@ -68,6 +68,7 @@ static List *searchTableBuffers(char *tableName);
 static char *searchViewBuffers(char *viewName);
 static void freeBuffers(void);
 
+
 /* assemble plugin and return */
 MetadataLookupPlugin *
 assembleOracleMetadataLookupPlugin (void)
@@ -91,6 +92,7 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->getViewDefinition = oracleGetViewDefinition;
     plugin->getTransactionSQLAndSCNs = oracleGetTransactionSQLAndSCNs;
     plugin->executeAsTransactionAndGetXID = oracleExecuteAsTransactionAndGetXID;
+    plugin->getCommitScn = oracleGetCommitScn;
 
     return plugin;
 }
@@ -530,7 +532,6 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
         if((conn = getConnection()) != NULL)
         {
             OCI_Resultset *rs = executeStatement(statement->data);
-            char buf[8000];
 
             // loop through
             while(OCI_FetchNext(rs))
@@ -540,29 +541,23 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch SCN");
                 long scn = (long) OCI_GetBigInt(rs,1); // SCN
                 STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SCN");
+
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch SQL");
-//                OCI_Lob *sqlLog = OCI_GetLob(rs,2);
                 const char *sql;
                 if (OCI_IsNull(rs,2))
                     sql = OCI_GetString(rs,3);
                 else
                     sql = OCI_GetString(rs,2);
-//                char *sql = LobToChar(sqlLog);
-
-//                unsigned int read = 7000;
-//                OCI_LobRead2(sqlLog,buf,&read, NULL);
-//                buf[read] = '\0';
                 STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SQL");
+
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch bind");
-//                OCI_Lob *bindLog = OCI_GetLob(rs,3);
-//                char *bind = LobToChar(bindLog);
                 const char *bind; // SQLBIND
                 if (OCI_IsNull(rs,4))
                     bind = OCI_GetString(rs,5);
                 else
                     bind = OCI_GetString(rs,4);
-
                 STOP_TIMER("module - metadata lookup - fetch transaction info - fetch bind");
+
                 START_TIMER("module - metadata lookup - fetch transaction info - concat strings");
                 char *sqlPlusSemicolon = CONCAT_STRINGS(sql, ";");
                 STOP_TIMER("module - metadata lookup - fetch transaction info - concat strings");
@@ -634,15 +629,52 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
         }
         else
         {
-            ERROR_LOG("Statement: %s failed.", statement);
+            FATAL_LOG("Statement: %s failed.", statement);
             FREE(statement);
         }
 
         // get COMMIT SCN
-        long commitS = LONG_VALUE(getTailOfListP(*scns)) + 1;
+        long commitS = -1; // getCommitScn("",
+//                LONG_VALUE(getTailOfListP(*scns)),
+//                xid); // LONG_VALUE(getTailOfListP(*scns)) + 1;
         (*((long *) commitScn->value)) = commitS; //TODO write query to get real COMMIT SCN
     }
     STOP_TIMER("module - metadata lookup");
+}
+
+long
+oracleGetCommitScn (char *tableName, long maxScn, char *xid)
+{
+    StringInfo statement = makeStringInfo();
+    long commitScn = 0;
+
+    appendStringInfo(statement, "SELECT DISTINCT VERSIONS_STARTSCN FROM "
+            "%s VERSIONS BETWEEN SCN %u AND MAXVALUE "
+            "WHERE VERSIONS_XID = HEXTORAW('%s')", tableName, maxScn, xid);
+
+
+    if((conn = getConnection()) != NULL)
+    {
+        OCI_Resultset *rs = executeStatement(statement->data);
+
+        // loop through
+        while(OCI_FetchNext(rs))
+            commitScn = (long) OCI_GetBigInt(rs,1);
+
+        ASSERT(commitScn != 0);
+
+        DEBUG_LOG("statement %s \n\nfinished and returned commit SCN %u",
+                statement->data, maxScn);
+
+        FREE(statement);
+    }
+    else
+    {
+        FATAL_LOG("statement %s execution failed", statement->data);
+        FREE(statement);
+    }
+
+    return commitScn;
 }
 
 char *

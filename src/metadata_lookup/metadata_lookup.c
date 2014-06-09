@@ -150,6 +150,13 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
     return activePlugin->getTransactionSQLAndSCNs(xid, scns, sqls, sqlBinds, iso, commitScn);
 }
 
+long
+getCommitScn (char *tableName, long maxScn, char *xid)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getCommitScn(tableName, maxScn, xid);
+}
+
 Node *
 executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 {
