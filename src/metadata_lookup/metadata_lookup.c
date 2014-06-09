@@ -171,3 +171,17 @@ databaseConnectionClose()
     ASSERT(activePlugin && activePlugin->isInitialized());
     return activePlugin->databaseConnectionClose();
 }
+
+CatalogCache *
+createCache(void)
+{
+    CatalogCache *result = NEW(CatalogCache);
+
+    result->tableAttrs = NEW_MAP(Constant,List);
+    result->tableAttrDefs = NEW_MAP(Constant,List);
+    result->viewAttrs = NEW_MAP(Constant,List);
+    result->viewNames = STRSET();
+    result->tableNames = STRSET();
+
+    return result;
+}

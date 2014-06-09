@@ -624,14 +624,18 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
                 if (HAS_STRING_PROP(t, PROP_USE_HISTORY_JOIN))
                 {
-                    List *scnsAndXid = (List *) GET_STRING_PROP(t, "USE_HISTORY_JOIN");
+                    List *scnsAndXid = (List *) GET_STRING_PROP(t, PROP_USE_HISTORY_JOIN);
                     Constant *startScn, *commitScn;
                     Constant *xid;
                     StringInfo attrNameStr = makeStringInfo();
                     List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
+                    int i = 0;
 
                     FOREACH(char,a,attrNames)
                     {
+                        appendStringInfo(attrNameStr, "%s%s",
+                                (i++ == 0) ? "" : ", ",
+                                a);
                         // append to string info
                     	// appendStringInfo(from, "%s %s %s %s", a, attrNames);
 

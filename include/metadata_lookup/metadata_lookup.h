@@ -18,20 +18,37 @@
 
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
+#include "model/set/hashmap.h"
+#include "model/set/set.h"
 #include "model/query_block/query_block.h"
 
 
 /* types of supported plugins */
 typedef enum MetadataLookupPluginType
 {
-    METADATA_LOOKUP_PLUGIN_ORACLE
+    METADATA_LOOKUP_PLUGIN_ORACLE,
+    METADATA_LOOKUP_PLUGIN_POSTGRES
 } MetadataLookupPluginType;
 
+/* catalog cache */
+typedef struct CatalogCache
+{
+    HashMap *tableAttrs;        // hashmap tablename -> attribute names
+    HashMap *tableAttrDefs;     // hashmap tablename -> attribute definitions
+    HashMap *viewAttrs;         // hashmap viewname -> attribute names
+    Set *tableNames;            // set of existing table names
+    Set *viewNames;             // set of existing view names
+    Set *aggFuncNames;          // names of aggregate functions
+    Set *winFuncNames;          // names of window functions
+
+} CatalogCache;
 
 /* plugin definition */
 typedef struct MetadataLookupPlugin
 {
     MetadataLookupPluginType type;
+
+    /* functional interface */
 
     /* init and shutdown plugin and connection */
     boolean (*isInitialized) (void);
@@ -56,6 +73,10 @@ typedef struct MetadataLookupPlugin
 
     /* execute transaction */
     Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
+
+    /* cache for catalog information */
+    CatalogCache *cache;
+
 } MetadataLookupPlugin;
 
 
@@ -88,5 +109,7 @@ extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 
+/* helper functions for createing the cache */
+extern CatalogCache *createCache(void);
 
 #endif /* METADATA_LOOKUP_H_ */

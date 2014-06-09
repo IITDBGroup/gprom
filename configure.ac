@@ -89,6 +89,23 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
+# libpq library location
+AC_DEFUN([AC_LIBPQ_LOCATION],
+[AC_ARG_WITH(libpq, [  --with-libpq], , )
+AC_MSG_CHECKING([for user provided libpq location])
+if test "x$with_libpq" != x; then
+	if test -d "$with_libpq"; then
+		LDFLAGS="$LDFLAGS -L$with_libpq"
+    	CPPFLAGS="$CPPFLAGS -I$with_libpq/../include"
+    	AC_MSG_RESULT([yes, $with_libpq])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no libpq library found in location $with_libpq])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
 # Activate/Deactivate logging
 AC_DEFUN([AC_LOGGING_ACTIVE],
 [
@@ -161,6 +178,34 @@ AS_IF([test "x$enable_timing" == "xno"], [
   AC_MSG_RESULT([yes])
 ])
 ])
+# compile with Postgres support
+AC_DEFUN([AC_ENABLE_POSTGRES],
+[
+AC_MSG_CHECKING([should be compiled with support for Postgres backends])
+AC_ARG_ENABLE(timing, AS_HELP_STRING([--disable-timing],[Disable compilation with support for Postgres backends]))
+
+AS_IF([test "x$enable_postgres" == "xno"], [
+  AC_DEFINE([DISABLE_POSTGRES],[],[Disable support for Postgres backends])
+  AC_MSG_RESULT([no])
+],
+[
+  AC_MSG_RESULT([yes])
+])
+])
+# compile with Oracle support
+AC_DEFUN([AC_ENABLE_ORACLE],
+[
+AC_MSG_CHECKING([should be compiled with support for Oracle backends])
+AC_ARG_ENABLE(oracle, AS_HELP_STRING([--disable-oracle],[Disable compilation with support for Oracle backends]))
+
+AS_IF([test "x$enable_oracle" == "xno"], [
+  AC_DEFINE([DISABLE_ORACLE],[],[Disable support for Oracle backends])
+  AC_MSG_RESULT([no])
+],
+[
+  AC_MSG_RESULT([yes])
+])
+])
 ################################################################################
 # DATA TYPES
 AC_TYPE_SIZE_T
@@ -189,6 +234,10 @@ AC_FUNC_REALLOC
 AC_CHECK_FUNCS([memset])
 AC_CHECK_FUNCS([strdup])
 ################################################################################
+# Check which backends should be supported
+AC_ENABLE_ORACLE
+AC_ENABLE_POSTGRES
+################################################################################
 # Oracle access libraries (OCI and OCILIB)
 # check if user has provided us with non-standard locations for OCI/OCILIB libraries
 AC_OCI_LOCATION
@@ -196,9 +245,15 @@ AC_OCIH_LOCATION
 AC_OCI_LIB_LOCATION
 AC_OCILIB_LOCATION
 # check for the libraries
-AC_CHECK_LIB([clntsh],[OCIInitialize],[],[AC_MSG_ERROR([missing OCI library])])
-AC_CHECK_LIB([occi],[OCIHandleFree],[],[AC_MSG_ERROR([missing OCI library])])
-AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[AC_MSG_ERROR([missing OCILIB])])
+AC_CHECK_LIB([clntsh],[OCIInitialize],[],[AC_MSG_WARN([missing OCI library])])
+AC_CHECK_LIB([occi],[OCIHandleFree],[],[AC_MSG_WARN([missing OCI library])])
+AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[AC_MSG_WARN([missing OCILIB])])
+################################################################################
+# Postgres access library (libpq)
+# check if user has provided us with a non-standard location for Postgres's libpq library
+AC_LIBPQ_LOCATION
+# check for the libpq library
+AC_CHECK_LIB([libpq],[PQconndefaults],[],[AC_MSG_WARN([missing libpq library])])
 ################################################################################
 # enable/disable features
 AC_LOGGING_ACTIVE

@@ -523,45 +523,30 @@ extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 	Constant *scnC = copyObject(op->transactionInfo->commitSCN);
 	Constant *xid = (Constant *) GET_STRING_PROP(op, PROP_PC_TRANS_XID);
 	TableAccessOperator *t;
-	List *updateTableNames;
-	List *originalUpdates;
-	KeyValue *tableCond;
+//	List *updateTableNames;
 	Set *readFromTableNames = STRSET();
-	Set *updatedTableNames = STRSET();
 	List *propValue = LIST_MAKE(xid, scn, scnC);
 	List *allTables = NIL;
-	int i = 0;
 
 	SET_STRING_PROP(t, PROP_USE_HISTORY_JOIN, copyObject(propValue));
 	findTableAccessVisitor((Node *) op, &allTables);
-	updatedTableNames = findUpdatedTableAccceses(allTables);
-	/* FOREACH(TableAccessOperator,t,allTables)
+
+	// check with tables we are reading from
+	FOREACH(TableAccessOperator,t,allTables)
 	{
-		if (HAS_STRING_PROP(t, "UPDATED TABLE"))
-			addToSet(updatedTableNames, strdup(t->tableName));
-		else
-			addToSet(readFromTableNames, strdup(t->tableName));
-
-		FORBOTH(void,name,up,updateTableNames,readFromTableNames)
-		{
-			// only care about updates
-			if (isA(up,Update))
-			{
-				char *tableName = (char *) name;
-
-				if (!hasSetElem(readFromTableNames, tableName)) //HAO in second loop this check
-				{
-					 Node *cond = copyObject((Node *) getNthOfListP());
-
-			         // for read committed we have to also check the version column to only
-					 // check the condition for rows versions that will be seen by an update
-					 Constant *scn = (Constant *) getNthOfListP(op.transactionInfo.scns);
-				}
-			}
-
-	    }
+	    if (!HAS_STRING_PROP(t,PROP_TABLE_IS_UPDATED))
+	        addToSet(readFromTableNames, t->tableName);
 	}
-   */
+
+	// for tables that are only updated
+	FOREACH(TableAccessOperator,t,allTables)
+	{
+        char *tableName = (char *) t->tableName;
+
+        if (!hasSetElem(readFromTableNames, tableName))
+            SET_STRING_PROP(t, PROP_USE_HISTORY_JOIN, copyObject(propValue));
+	}
+
 
 
 }
