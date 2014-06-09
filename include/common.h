@@ -55,6 +55,11 @@
 #include <sys/time.h>
 #endif
 
+/* <limits.h> */
+#if HAVE_LIMITS_H
+#include <limits.h>
+#endif
+
 /* ptrdiff_t */
 #if HAVE_PTRDIFF_T
 //TODO
