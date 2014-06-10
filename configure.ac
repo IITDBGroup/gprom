@@ -253,6 +253,7 @@ AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[AC_MSG_WARN([missing OCILIB])])
 # Postgres access library (libpq)
 # check if user has provided us with a non-standard location for Postgres's libpq library
 AC_LIBPQ_LOCATION
+AC_CHECK_HEADERS([libpq-fe.h])
 # check for the libpq library
 AC_CHECK_LIB([libpq],[PQconndefaults],[],[AC_MSG_WARN([missing libpq library])])
 ################################################################################

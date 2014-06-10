@@ -25,6 +25,11 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 
+#if HAVE_LIBPQ_FE_H
+#include "libpq-fe.h"
+#endif
+
+
 #define CONTEXT_NAME "PostgresMemContext"
 
 // extends MetadataLookupPlugin with postgres connection
@@ -36,6 +41,8 @@ typedef struct PostgresPlugin
 
 static PostgresPlugin *plugin = NULL;
 static MemContext *memContext = NULL;
+
+#ifdef HAVE_LIBPQ_FE
 
 MetadataLookupPlugin *
 assemblePostgresMetadataLookupPlugin (void)
@@ -91,6 +98,48 @@ postgresShutdownMetadataLookupPlugin (void)
 int
 postgresDatabaseConnectionOpen (void)
 {
+    StringInfo connStr = makeStringInfo();
+    OptionConnection *op = getOptions()->optionConnection;
+
+    /* create connection string */
+    if (op->host)
+    {
+        appendStringInfo(connStr, " host=");
+        appendStringInfo(connStr, host);
+    }
+    if (op->db)
+    {
+        appendStringInfo(connStr, " dbname=");
+        appendStringInfo(connStr, db);
+    }
+    if (op->user)
+    {
+        appendStringInfo(connStr, " user=");
+        appendStringInfo(connStr, user);
+    }
+    if (op->passwd)
+    {
+        appendStringInfo(connStr, " password=");
+        appendStringInfo(connStr, password);
+    }
+    if (op->port)
+    {
+        appendStringInfo(connStr, " port=");
+        appendStringInfo(connStr, port);
+    }
+
+    /* try to connect to db */
+    conn = PQconnectdb(connStr);
+
+    /* check to see that the backend connection was successfully made */
+    if (conn == NULL || PQstatus(conn) == CONNECTION_BAD)
+    {
+        fprintf(stderr, "$Q(-2):  Connection to database \"%s\" failed:\n%s",
+                connStr, PQerrorMessage(conn));
+        PQfinish(conn);
+        FATAL_LOG("unable to connect to postgres: %s", connStr->data);
+    }
+
     return EXIT_SUCCESS;
 }
 
@@ -203,4 +252,105 @@ postgresExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel
 
     return (Node *) xid;
 }
+
+// NO libpq present. Provide dummy methods to keep compiler quiet
+#else
+
+MetadataLookupPlugin *
+assemblePostgresMetadataLookupPlugin (void)
+{
+    return NULL;
+}
+
+int
+postgresInitMetadataLookupPlugin (void)
+{
+    return EXIT_SUCCESS;
+}
+
+int
+postgresShutdownMetadataLookupPlugin (void)
+{
+    return EXIT_SUCCESS;
+}
+
+int
+postgresDatabaseConnectionOpen (void)
+{
+    return EXIT_SUCCESS;
+}
+
+int
+postgresDatabaseConnectionClose()
+{
+    return EXIT_SUCCESS;
+}
+
+boolean
+postgresIsInitialized (void)
+{
+    return FALSE;
+}
+
+boolean
+postgresCatalogTableExists (char * tableName)
+{
+    return FALSE;
+}
+
+boolean
+postgresCatalogViewExists (char * viewName)
+{
+    return FALSE;
+}
+
+List *
+postgresGetAttributes (char *tableName)
+{
+    return NIL;
+}
+
+List *
+postgresGetAttributeNames (char *tableName)
+{
+    return NIL;
+}
+
+boolean
+postgresIsAgg(char *functionName)
+{
+    return FALSE;
+}
+
+boolean
+postgresIsWindowFunction(char *functionName)
+{
+    return FALSE;
+}
+
+char *
+postgresGetTableDefinition(char *tableName)
+{
+    return NULL;
+}
+
+char *
+postgresGetViewDefinition(char *viewName)
+{
+    return NULL;
+}
+
+void
+postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
+        List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
+{
+}
+
+Node *
+postgresExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
+{
+    return NULL;
+}
+
+#endif
 

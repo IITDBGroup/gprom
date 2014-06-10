@@ -935,67 +935,70 @@ LobToChar (OCI_Lob *lob)
 #else
 
 int
-initMetadataLookupPlugin (void)
+oracleInitMetadataLookupPlugin (void)
 {
     return EXIT_SUCCESS;
 }
 
 boolean
-catalogTableExists(char *table)
+oracleCatalogTableExists(char *table)
 {
     return FALSE;
 }
 
 boolean
-catalogViewExists(char *view)
+oracleCatalogViewExists(char *view)
 {
 	return FALSE;
 }
 
 List *
-getAttributes (char *table)
+oracleGetAttributes (char *table)
 {
     return NIL;
 }
 
-List *getAttributeNames (char *tableName)
+List *
+oracleGetAttributeNames (char *tableName)
 {
     return NIL;
 }
 
 boolean
-isAgg(char *table)
+oracleIsAgg(char *table)
 {
 	return FALSE;
 }
 
 boolean
-isWindowFunction(char *functionName)
+oracleIsWindowFunction(char *functionName)
 {
     return FALSE;
 }
 
 char *
-getTableDefinition(char *table) {
+oracleGetTableDefinition(char *table) {
     return NULL;
 }
 
-void getTransactionSQLAndSCNs(char *xid, List **scns, List **sqls, List **sqlBinds) {
+void oracleGetTransactionSQLAndSCNs(char *xid, List **scns, List **sqls, List **sqlBinds,
+        IsolationLevel *iso, Constant *commitScn)
+{
 }
 
 char *
-getViewDefinition(char *view) {
+oracleGetViewDefinition(char *view) {
     return NULL;
 }
 
 char *
-executeStatement(char *statement)
+oracleExecuteStatement(char *statement)
 {
 	return NULL;
 }
 
 Node *
-executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
+oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 {
     return NULL;
 }
@@ -1003,16 +1006,20 @@ executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 int
 oracleDatabaseConnectionOpen (void)
 {
-
-}
-
-
-int
-databaseConnectionClose ()
-{
     return EXIT_SUCCESS;
 }
 
 
+int
+oracleDatabaseConnectionClose ()
+{
+    return EXIT_SUCCESS;
+}
+
+MetadataLookupPlugin *
+assembleOracleMetadataLookupPlugin (void)
+{
+    return NULL;
+}
 
 #endif
