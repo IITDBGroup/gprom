@@ -271,8 +271,8 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
     // do the matching
     while(state != MATCH_NEXTBLOCK && cur != NULL)
     {
-        INFO_LOG("STATE: %s", OUT_MATCH_STATE(state));
-        INFO_LOG("Operator %s", operatorToOverviewString((Node *) cur));
+        DEBUG_LOG("STATE: %s", OUT_MATCH_STATE(state));
+        DEBUG_LOG("Operator %s", operatorToOverviewString((Node *) cur));
         // first check that cur does not have more than one parent
         if (HAS_STRING_PROP(cur,PROP_MATERIALIZE) || LIST_LENGTH(cur->parents) > 1)
         {
