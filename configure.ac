@@ -182,7 +182,7 @@ AS_IF([test "x$enable_timing" == "xno"], [
 AC_DEFUN([AC_ENABLE_POSTGRES],
 [
 AC_MSG_CHECKING([should be compiled with support for Postgres backends])
-AC_ARG_ENABLE(timing, AS_HELP_STRING([--disable-timing],[Disable compilation with support for Postgres backends]))
+AC_ARG_ENABLE(postgres, AS_HELP_STRING([--disable-postgres],[Disable compilation with support for Postgres backends]))
 
 AS_IF([test "x$enable_postgres" == "xno"], [
   AC_DEFINE([DISABLE_POSTGRES],[],[Disable support for Postgres backends])
