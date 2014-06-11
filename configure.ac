@@ -255,7 +255,7 @@ AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[AC_MSG_WARN([missing OCILIB])])
 AC_LIBPQ_LOCATION
 AC_CHECK_HEADERS([libpq-fe.h])
 # check for the libpq library
-AC_CHECK_LIB([libpq],[PQconndefaults],[],[AC_MSG_WARN([missing libpq library])])
+AC_CHECK_LIB([pq],[PQconndefaults],[],[AC_MSG_WARN([missing libpq library])])
 ################################################################################
 # enable/disable features
 AC_LOGGING_ACTIVE
