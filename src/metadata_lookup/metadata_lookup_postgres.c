@@ -32,17 +32,20 @@
 
 #define CONTEXT_NAME "PostgresMemContext"
 
+
+#ifdef HAVE_LIBPQ
+
 // extends MetadataLookupPlugin with postgres connection
 typedef struct PostgresPlugin
 {
     MetadataLookupPlugin plugin;
-
+    PGconn *conn;
+    boolean initialized;
 } PostgresPlugin;
 
 static PostgresPlugin *plugin = NULL;
 static MemContext *memContext = NULL;
 
-#ifdef HAVE_LIBPQ_FE
 
 MetadataLookupPlugin *
 assemblePostgresMetadataLookupPlugin (void)
@@ -101,57 +104,65 @@ postgresDatabaseConnectionOpen (void)
     StringInfo connStr = makeStringInfo();
     OptionConnection *op = getOptions()->optionConnection;
 
+    ACQUIRE_MEM_CONTEXT(memContext);
+
     /* create connection string */
     if (op->host)
-    {
-        appendStringInfo(connStr, " host=");
-        appendStringInfo(connStr, host);
-    }
+        appendStringInfo(connStr, " host=%s", op->host);
     if (op->db)
-    {
-        appendStringInfo(connStr, " dbname=");
-        appendStringInfo(connStr, db);
-    }
+        appendStringInfo(connStr, " dbname=%s", op->db);
     if (op->user)
-    {
-        appendStringInfo(connStr, " user=");
-        appendStringInfo(connStr, user);
-    }
+        appendStringInfo(connStr, " user=%s", op->user);
     if (op->passwd)
-    {
-        appendStringInfo(connStr, " password=");
-        appendStringInfo(connStr, password);
-    }
+        appendStringInfo(connStr, " password=%s", op->passwd);
     if (op->port)
-    {
-        appendStringInfo(connStr, " port=");
-        appendStringInfo(connStr, port);
-    }
+        appendStringInfo(connStr, " port=%u", op->port);
 
     /* try to connect to db */
-    conn = PQconnectdb(connStr);
+    plugin->conn = PQconnectdb(connStr->data);
 
     /* check to see that the backend connection was successfully made */
-    if (conn == NULL || PQstatus(conn) == CONNECTION_BAD)
+    if (plugin->conn == NULL || PQstatus(plugin->conn) == CONNECTION_BAD)
     {
-        fprintf(stderr, "$Q(-2):  Connection to database \"%s\" failed:\n%s",
-                connStr, PQerrorMessage(conn));
-        PQfinish(conn);
-        FATAL_LOG("unable to connect to postgres: %s", connStr->data);
+        char *error = PQerrorMessage(plugin->conn);
+        PQfinish(plugin->conn);
+        FATAL_LOG("unable to connect to postgres database %s\n\nfailed "
+                "because of:\n%s", connStr->data, error);
     }
 
+    plugin->initialized = TRUE;
+
+    RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
 }
 
 int
 postgresDatabaseConnectionClose()
 {
+    ACQUIRE_MEM_CONTEXT(memContext);
+    ASSERT(plugin && plugin->initialized);
+
+    PQfinish(plugin->conn);
+
+    RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
 }
 
 boolean
 postgresIsInitialized (void)
 {
+    if (plugin && plugin->initialized)
+    {
+        if (plugin->conn == NULL || PQstatus(plugin->conn) == CONNECTION_BAD)
+        {
+            char *error = PQerrorMessage(plugin->conn);
+            ERROR_LOG("unable to connect to postgres database\nfailed "
+                    "because of:\n%s", error);
+            return FALSE;
+        }
+        return TRUE;
+    }
+
     return FALSE;
 }
 
