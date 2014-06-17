@@ -59,10 +59,22 @@ int connection_port = 0;
 
 // logging options
 int logLevel = 0;
+boolean logActive = FALSE;
+
+// instrumentation options
+boolean opt_timing = FALSE;
+
+// rewrite options
+boolean opt_aggressive_model_checking = FALSE;
+boolean opt_update_only_conditions = FALSE;
+boolean opt_treeify_opterator_model = FALSE;
+boolean opt_only_updated_use_history = FALSE;
+boolean opt_pi_cs_composable = FALSE;
+boolean opt_optimize_operator_model = FALSE;
+boolean opt_translate_update_with_case = FALSE;
+//boolean   = FALSE;
 
 // functions
-static OptionValue wrapOptionValue(void *value, OptionType type);
-
 #define wrapOptionInt(value) { .i = (int *) value }
 #define wrapOptionBool(value) { .b = (boolean *) value }
 #define wrapOptionString(value) { .string = (char **) value }
@@ -74,6 +86,15 @@ static OptionValue wrapOptionValue(void *value, OptionType type);
 #define defOptionFloat(value) { .f = value }
 static void initOptions(void);
 static void setDefault(OptionInfo *o);
+
+#define aRewriteOption(_name,_desc,_var,_def) \
+        { \
+            _name, \
+            _desc, \
+            OPTION_BOOL, \
+            wrapOptionBool(&_var), \
+            defOptionBool(_def) \
+        }
 
 // array storing information for all supported options
 OptionInfo opts[] =
@@ -129,6 +150,44 @@ OptionInfo opts[] =
                 wrapOptionBool(&connection_port),
                 defOptionInt(TRUE)
         },
+        // boolean instrumentation options
+        aRewriteOption(OPTION_TIMING,
+                "measure and output execution time of modules",
+                opt_timing,
+                FALSE),
+        // boolean rewrite options
+        aRewriteOption(OPTION_AGGRESSIVE_MODEL_CHECKING,
+                "do aggressive validity checking of AGM models.",
+                opt_aggressive_model_checking,
+                FALSE),
+        aRewriteOption(OPTION_UPDATE_ONLY_USE_CONDS,
+                "Use disjunctions of update conditions to filter out tuples from "
+                "transaction provenance that are not updated by the transaction.",
+                opt_update_only_conditions,
+                FALSE),
+        aRewriteOption(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN,
+                "Use a join between the version at commit time with the table version"
+                " at transaction start to prefilter rows that were not updated by the transaction.",
+                opt_only_updated_use_history,
+                FALSE),
+        aRewriteOption(OPTION_TREEIFY_OPERATOR_MODEL,
+                "Turn AGM graph into a tree before passing it off to the provenance rewriter.",
+                opt_treeify_opterator_model,
+                TRUE),
+        aRewriteOption(OPTION_PI_CS_USE_COMPOSABLE,
+                "Use composable version of PI-CS provenance that adds additional columns which"
+                " enumerate duplicates introduced by provenance.",
+                opt_pi_cs_composable,
+                FALSE),
+        aRewriteOption(OPTION_OPTIMIZE_OPERATOR_MODEL,
+                "Apply heuristic and cost based optimizations to operator model",
+                opt_optimize_operator_model,
+                FALSE),
+        aRewriteOption(OPTION_TRANSLATE_UPDATE_WITH_CASE,
+                "Create reenactment query for UPDATE statements using CASE instead of UNION.",
+                opt_translate_update_with_case,
+                FALSE),
+        // stopper to indicate end of array
         {
                 "STOPPER",
                 NULL,
@@ -137,7 +196,14 @@ OptionInfo opts[] =
                 defOptionString("")
         }
 };
-
+#define OPTION_TIMING "timing"
+#define OPTION_AGGRESSIVE_MODEL_CHECKING "aggressive_model_checking"
+#define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"
+#define OPTION_UPDATE_ONLY_USE_HISTORY_JOIN "only_updated_use_history"
+#define OPTION_TREEIFY_OPERATOR_MODEL "treefiy_prov_rewrite_input"
+#define OPTION_PI_CS_USE_COMPOSABLE "pi_cs_use_composable"
+#define OPTION_OPTIMIZE_OPERATOR_MODEL "optimize_operator_model"
+#define OPTION_TRANSLATE_UPDATE_WITH_CASE "translate_update_with_case"
 
 
 //static OptionValue
