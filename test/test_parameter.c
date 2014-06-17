@@ -45,24 +45,58 @@ testParseBinds (void)
 static rc
 testSetParameterValues (void)
 {
+
+// only if a backend DB library is available
+#if HAVE_LIBPQ || (HAVE_LIBOCILIB && HAVE_LIBOCCI)
     char *expSQL = "SELECT a FROM r WHERE a = '5';";
     char *inSQL = "SELECT a FROM r WHERE a = :param;";
-    Node *expParse = parseFromString(expSQL);
-    Node *inParse = parseFromString(inSQL);
-    Node *val = (Node *) createConstString("5");
-    SQLParameter *p = (SQLParameter *) getNthOfListP(findParameters(inParse), 0);
 
     initMetadataLookupPlugins();
-    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
-    initMetadataLookupPlugin();
+#endif
 
-    analyzeQueryBlockStmt(expParse, NIL);
-    analyzeQueryBlockStmt(inParse, NIL);
-    p->position = 1;
+#if (HAVE_LIBOCILIB && HAVE_LIBOCCI)
+    {
+        Node *expParse = parseFromString(expSQL);
+        Node *inParse = parseFromString(inSQL);
+        Node *val = (Node *) createConstString("5");
+        SQLParameter *p = (SQLParameter *) getNthOfListP(findParameters(inParse), 0);
 
-    inParse = setParameterValues(inParse, singleton(val));
+        chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
+        initMetadataLookupPlugin();
 
-    ASSERT_EQUALS_NODE(expParse, inParse, "setting parameter is '5'");
+        analyzeQueryBlockStmt(expParse, NIL);
+        analyzeQueryBlockStmt(inParse, NIL);
+        p->position = 1;
+
+        inParse = setParameterValues(inParse, singleton(val));
+
+        ASSERT_EQUALS_NODE(expParse, inParse, "setting parameter is '5'");
+
+        shutdownMetadataLookupPlugin();
+    }
+#endif
+
+#ifdef HAVE_LIBPQ
+    {
+        Node *expParse = parseFromString(expSQL);
+        Node *inParse = parseFromString(inSQL);
+        Node *val = (Node *) createConstString("5");
+        SQLParameter *p = (SQLParameter *) getNthOfListP(findParameters(inParse), 0);
+
+        chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_POSTGRES);
+        initMetadataLookupPlugin();
+
+        analyzeQueryBlockStmt(expParse, NIL);
+        analyzeQueryBlockStmt(inParse, NIL);
+        p->position = 1;
+
+        inParse = setParameterValues(inParse, singleton(val));
+
+        ASSERT_EQUALS_NODE(expParse, inParse, "setting parameter is '5'");
+
+        shutdownMetadataLookupPlugin();
+    }
+#endif
 
     return PASS;
 }

@@ -46,7 +46,6 @@ typedef struct Options{
 	((OptionDebug*)calloc(1, sizeof(OptionDebug)))
 
 /* define rewrite methods */
-
 #define OPTION_TIMING "timing"
 #define OPTION_AGGRESSIVE_MODEL_CHECKING "aggressive_model_checking"
 #define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"
@@ -55,10 +54,8 @@ typedef struct Options{
 #define OPTION_PI_CS_USE_COMPOSABLE "pi_cs_use_composable"
 #define OPTION_OPTIMIZE_OPERATOR_MODEL "optimize_operator_model"
 #define OPTION_TRANSLATE_UPDATE_WITH_CASE "translate_update_with_case"
-#define OPTION_
+//#define OPTION_
 
-//#define MAKE_OPTION_REWRITE()			\
-//	((OptionRewrite*)calloc(1, sizeof(OptionRewrite)))
 
 extern void mallocOptions();
 extern void freeOptions();

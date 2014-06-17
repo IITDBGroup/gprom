@@ -18,6 +18,7 @@
 #include "model/list/list.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
+#include "metadata_lookup/metadata_lookup_postgres.h"
 
 MetadataLookupPlugin *activePlugin = NULL;
 List *availablePlugins = NIL;
@@ -26,9 +27,14 @@ List *availablePlugins = NIL;
 int
 initMetadataLookupPlugins (void)
 {
-    availablePlugins = LIST_MAKE (
-            assembleOracleMetadataLookupPlugin()
-    );
+
+// only assemble plugins for which the library is available
+#ifdef HAVE_LIBOCI
+    availablePlugins = appendToTailOfList(availablePlugins, assembleOracleMetadataLookupPlugin());
+#endif
+#ifdef HAVE_LIBPQ
+    availablePlugins = appendToTailOfList(availablePlugins, assemblePostgresMetadataLookupPlugin());
+#endif
 
     return EXIT_SUCCESS;
 }
@@ -187,8 +193,11 @@ createCache(void)
     result->tableAttrs = NEW_MAP(Constant,List);
     result->tableAttrDefs = NEW_MAP(Constant,List);
     result->viewAttrs = NEW_MAP(Constant,List);
+    result->viewDefs = NEW_MAP(Constant,Constant);
     result->viewNames = STRSET();
     result->tableNames = STRSET();
+    result->aggFuncNames = STRSET();
+    result->winFuncNames = STRSET();
 
     return result;
 }

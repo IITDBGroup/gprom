@@ -95,6 +95,7 @@ testSuites(void)
     RUN_TEST(testString(), "Test stringinfo.");
     RUN_TEST(testParse(), "Test parser.");
     RUN_TEST(testMetadataLookup(), "Test metadata lookup.");
+    RUN_TEST(testMetadataLookupPostgres(), "Test metadata lookup - Postgres.");
     RUN_TEST(testParameter(), "Test SQL parameter functions.");
 
     printf("Total %d Test(s) Passed\n\n", test_count);

@@ -36,11 +36,11 @@ typedef struct CatalogCache
     HashMap *tableAttrs;        // hashmap tablename -> attribute names
     HashMap *tableAttrDefs;     // hashmap tablename -> attribute definitions
     HashMap *viewAttrs;         // hashmap viewname -> attribute names
+    HashMap *viewDefs;          // hashmap viewname -> view definition SQL query
     Set *tableNames;            // set of existing table names
     Set *viewNames;             // set of existing view names
     Set *aggFuncNames;          // names of aggregate functions
     Set *winFuncNames;          // names of window functions
-
 } CatalogCache;
 
 /* plugin definition */

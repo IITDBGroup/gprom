@@ -4,8 +4,6 @@
  *      Author: zephyr
  */
 
-#include <string.h>
-
 #include "test_main.h"
 #include "common.h"
 
@@ -29,10 +27,10 @@ static rc testCatalogTableExists(void);
 static rc testViewExists(void);
 static rc testGetAttributes(void);
 static rc testIsAgg(void);
-static rc testGetTableDefinition();
-static rc testTransactionSQLAndSCNs();
-static rc testGetViewDefinition();
-static rc testRunTransactionAndGetXid();
+static rc testGetTableDefinition(void);
+static rc testTransactionSQLAndSCNs(void);
+static rc testGetViewDefinition(void);
+static rc testRunTransactionAndGetXid(void);
 static rc setupMetadataLookup(void);
 static rc testDatabaseConnectionClose(void);
 

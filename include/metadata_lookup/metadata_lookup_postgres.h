@@ -13,6 +13,10 @@
 
 #include "metadata_lookup/metadata_lookup.h"
 
+#ifdef HAVE_LIBPQ
+#include "libpq-fe.h"
+#endif
+
 extern MetadataLookupPlugin *assemblePostgresMetadataLookupPlugin (void);
 
 /* plugin methods */
@@ -21,6 +25,10 @@ extern int postgresShutdownMetadataLookupPlugin (void);
 extern int postgresDatabaseConnectionOpen (void);
 extern int postgresDatabaseConnectionClose();
 extern boolean postgresIsInitialized (void);
+
+#ifdef HAVE_LIBPQ
+extern PGconn *getPostgresConnection(void);
+#endif
 
 extern boolean postgresCatalogTableExists (char * tableName);
 extern boolean postgresCatalogViewExists (char * viewName);
