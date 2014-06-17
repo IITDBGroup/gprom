@@ -44,6 +44,7 @@ typedef union OptionDefault {
 
 typedef struct OptionInfo {
     char *option;
+    char *cmdLine;
     char *description;
     OptionType valueType;
     OptionValue value;
@@ -84,17 +85,24 @@ boolean opt_translate_update_with_case = FALSE;
 #define defOptionBool(value) { .b = value }
 #define defOptionString(value) { .string = value }
 #define defOptionFloat(value) { .f = value }
+
 static void initOptions(void);
 static void setDefault(OptionInfo *o);
+static OptionValue *getValue (char *name);
+static OptionInfo *getInfo (char *name);
+static char *defGetString(OptionDefault *def, OptionType type);
 
-#define aRewriteOption(_name,_desc,_var,_def) \
+#define aRewriteOption(_name,_opt,_desc,_var,_def) \
         { \
             _name, \
+            _opt, \
             _desc, \
             OPTION_BOOL, \
             wrapOptionBool(&_var), \
             defOptionBool(_def) \
         }
+
+#define OPT_POS(name) INT_VALUE(MAP_GET_STRING(optionPos,name))
 
 // array storing information for all supported options
 OptionInfo opts[] =
@@ -102,6 +110,7 @@ OptionInfo opts[] =
         // database backend connection options
         {
                 "connection.host",
+                "host",
                 "Host IP address for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_host),
@@ -109,6 +118,7 @@ OptionInfo opts[] =
         },
         {
                 "connection.db",
+                "db",
                 "Database name for backend DB connection (SID for Oracle backends).",
                 OPTION_STRING,
                 wrapOptionString(&connection_db),
@@ -116,6 +126,7 @@ OptionInfo opts[] =
         },
         {
                 "connection.user",
+                "user",
                 "User for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_user),
@@ -123,6 +134,7 @@ OptionInfo opts[] =
         },
         {
                 "connection.passwd",
+                "passwd",
                 "Password for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_passwd),
@@ -130,6 +142,7 @@ OptionInfo opts[] =
         },
         {
                 "connection.port",
+                "port",
                 "TCP/IP port for backend DB connection.",
                 OPTION_INT,
                 wrapOptionInt(&connection_port),
@@ -138,6 +151,7 @@ OptionInfo opts[] =
         // logging options
         {
                 "log.level",
+                "loglevel",
                 "Log level determining log output: TRACE, DEBUG, INFO, WARN, ERROR, FATAL",
                 OPTION_INT,
                 wrapOptionInt(&connection_port),
@@ -145,6 +159,7 @@ OptionInfo opts[] =
         },
         {
                 "log.active",
+                "log",
                 "Activate/Deactivate logging",
                 OPTION_BOOL,
                 wrapOptionBool(&connection_port),
@@ -152,38 +167,46 @@ OptionInfo opts[] =
         },
         // boolean instrumentation options
         aRewriteOption(OPTION_TIMING,
+                NULL,
                 "measure and output execution time of modules",
                 opt_timing,
                 FALSE),
         // boolean rewrite options
         aRewriteOption(OPTION_AGGRESSIVE_MODEL_CHECKING,
+                NULL,
                 "do aggressive validity checking of AGM models.",
                 opt_aggressive_model_checking,
                 FALSE),
         aRewriteOption(OPTION_UPDATE_ONLY_USE_CONDS,
+                NULL,
                 "Use disjunctions of update conditions to filter out tuples from "
                 "transaction provenance that are not updated by the transaction.",
                 opt_update_only_conditions,
                 FALSE),
         aRewriteOption(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN,
+                NULL,
                 "Use a join between the version at commit time with the table version"
                 " at transaction start to prefilter rows that were not updated by the transaction.",
                 opt_only_updated_use_history,
                 FALSE),
         aRewriteOption(OPTION_TREEIFY_OPERATOR_MODEL,
+                NULL,
                 "Turn AGM graph into a tree before passing it off to the provenance rewriter.",
                 opt_treeify_opterator_model,
                 TRUE),
         aRewriteOption(OPTION_PI_CS_USE_COMPOSABLE,
+                NULL,
                 "Use composable version of PI-CS provenance that adds additional columns which"
                 " enumerate duplicates introduced by provenance.",
                 opt_pi_cs_composable,
                 FALSE),
         aRewriteOption(OPTION_OPTIMIZE_OPERATOR_MODEL,
+                NULL,
                 "Apply heuristic and cost based optimizations to operator model",
                 opt_optimize_operator_model,
                 FALSE),
         aRewriteOption(OPTION_TRANSLATE_UPDATE_WITH_CASE,
+                NULL,
                 "Create reenactment query for UPDATE statements using CASE instead of UNION.",
                 opt_translate_update_with_case,
                 FALSE),
@@ -191,20 +214,12 @@ OptionInfo opts[] =
         {
                 "STOPPER",
                 NULL,
+                NULL,
                 OPTION_STRING,
                 wrapOptionString(NULL),
                 defOptionString("")
         }
 };
-#define OPTION_TIMING "timing"
-#define OPTION_AGGRESSIVE_MODEL_CHECKING "aggressive_model_checking"
-#define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"
-#define OPTION_UPDATE_ONLY_USE_HISTORY_JOIN "only_updated_use_history"
-#define OPTION_TREEIFY_OPERATOR_MODEL "treefiy_prov_rewrite_input"
-#define OPTION_PI_CS_USE_COMPOSABLE "pi_cs_use_composable"
-#define OPTION_OPTIMIZE_OPERATOR_MODEL "optimize_operator_model"
-#define OPTION_TRANSLATE_UPDATE_WITH_CASE "translate_update_with_case"
-
 
 //static OptionValue
 //wrapOptionValue(void *value, OptionType type)
@@ -362,6 +377,8 @@ freeOptions()
 	free(options);
 }
 
+
+
 Options*
 getOptions()
 {
@@ -380,4 +397,145 @@ isRewriteOptionActivated(char *name)
     }
 
     return FALSE;
+}
+
+static OptionValue *
+getValue (char *name)
+{
+    OptionInfo *i = NULL;
+    ASSERT(hasOption(name));
+
+    i = &(opts[OPT_POS(name)]);
+
+    return &(i->value);
+}
+
+static OptionInfo *
+getInfo (char *name)
+{
+    ASSERT(hasOption(name));
+
+    return &(opts[OPT_POS(name)]);
+}
+
+char *
+getStringOption (char *name)
+{
+    ASSERT(hasOption(name));
+
+    return *(getValue(name)->string);
+}
+
+int
+getIntOption (char *name)
+{
+    ASSERT(hasOption(name));
+
+    return *(getValue(name)->i);
+}
+
+boolean
+getBoolOption (char *name)
+{
+    ASSERT(hasOption(name));
+
+    return *(getValue(name)->b);
+}
+
+double
+getFloatOption (char *name)
+{
+    ASSERT(hasOption(name));
+
+    return *(getValue(name)->f);
+}
+
+void
+setStringOption (char *name, char *value)
+{
+    OptionValue *v;
+    ASSERT(hasOption(name));
+    v = getValue(name);
+
+    *(v->string) = value;
+}
+
+void
+setIntOption(char *name, int value)
+{
+    OptionValue *v;
+    ASSERT(hasOption(name));
+    v = getValue(name);
+
+    *(v->i) = value;
+}
+
+void
+setBoolOption(char *name, boolean value)
+{
+    OptionValue *v;
+    ASSERT(hasOption(name));
+    v = getValue(name);
+
+    *(v->b) = value;
+}
+
+void
+setFloatOption(char *name, double value)
+{
+    OptionValue *v;
+    ASSERT(hasOption(name));
+    v = getValue(name);
+
+    *(v->f) = value;
+}
+
+boolean
+hasOption(char *name)
+{
+    return MAP_HAS_STRING_KEY(optionPos,name);
+}
+
+boolean
+optionSet(char *name)
+{
+    return TRUE;
+}
+
+void
+printOptionsHelp(FILE *stream, char *progName)
+{
+    fprintf(stream, "%s:\nthe following options are supported:\n\n", progName);
+
+    FOREACH_HASH_KEY(Constant,k,optionPos)
+    {
+        char *name = STRING_VALUE(k);
+        OptionInfo *v = getInfo(name);
+        fprintf(stream, "-%s%s internal name: %s default value: %s\n\t%s\n",
+                v->cmdLine ? v->cmdLine : "activate ",
+                v->cmdLine ? "" : v->option,
+                v->option,
+                defGetString(&v->def, v->valueType),
+                v->description);
+    }
+}
+
+static char *
+defGetString(OptionDefault *def, OptionType type)
+{
+    switch(type)
+    {
+        case OPTION_INT:
+            return itoa(def->i);
+        case OPTION_STRING:
+            return def->string;
+        case OPTION_BOOL:
+            return (def->b ? "TRUE" : "FALSE");
+        case OPTION_FLOAT:
+        {
+            char *buf = malloc(sizeof(char) * 50);
+            snprintf(buf,50,"%f", def->f);
+            return buf;
+        }
+    }
 }
