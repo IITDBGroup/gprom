@@ -106,7 +106,12 @@ main(int argc, char* argv[])
 {
     initMemManager();
     mallocOptions();
-    parseOption(argc, argv);
+
+    if (parseOption(argc, argv) != 0)
+    {
+        printOptionsHelp(stdout, "testmain", "Regression test suite. Runs a bunch of whitebox tests on components of the system.");
+        return EXIT_FAILURE;
+    }
 
     initLogger();
     testSuites();

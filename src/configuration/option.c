@@ -138,7 +138,7 @@ OptionInfo opts[] =
                 "Password for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_passwd),
-                defOptionString("fga_")
+                defOptionString("fga")
         },
         {
                 "connection.port",
@@ -220,79 +220,6 @@ OptionInfo opts[] =
                 defOptionString("")
         }
 };
-
-//static OptionValue
-//wrapOptionValue(void *value, OptionType type)
-//{
-//    OptionValue result;
-//
-//    switch(type)
-//    {
-//        case OPTION_STRING:
-//            result.string = (char **) value;
-//            break;
-//        case OPTION_FLOAT:
-//            result.f = (double *) value;
-//            break;
-//        case OPTION_BOOL:
-//            result.b = (boolean *) value;
-//            break;
-//        case OPTION_INT:
-//            result.i = (int *) value;
-//            break;
-//    }
-//
-//    return result;
-//}
-//
-//static OptionValue
-//defOptionInt(int i)
-//{
-//    OptionValue result;
-//    int *iP = malloc(sizeof(int));
-//
-//    *iP = i;
-//    result.i = iP;
-//
-//    return result;
-//}
-//
-//static OptionValue
-//defOptionBool(boolean b)
-//{
-//    OptionValue result;
-//    boolean *p = malloc(sizeof(boolean));
-//
-//    *p = b;
-//    result.b = p;
-//
-//    return result;
-//}
-//
-//static OptionValue
-//defOptionString(char *s)
-//{
-//    OptionValue result;
-//    char **p = malloc(sizeof(char **));
-//
-//    *p = s;
-//
-//    result.string = p;
-//
-//    return result;
-//}
-//
-//static OptionValue
-//defOptionFloat(double f)
-//{
-//    OptionValue result;
-//    double *p = malloc(sizeof(double));
-//
-//    *p = f;
-//    result.f = p;
-//
-//    return result;
-//}
 
 static void
 initOptions(void)
@@ -389,6 +316,8 @@ boolean
 isRewriteOptionActivated(char *name)
 {
     Options *ops = getOptions();
+
+    // return getBoolOption(name);
 
     FOREACH(KeyValue,op,ops->optionRewrite)
     {
@@ -503,18 +432,18 @@ optionSet(char *name)
 }
 
 void
-printOptionsHelp(FILE *stream, char *progName)
+printOptionsHelp(FILE *stream, char *progName, char *description)
 {
-    fprintf(stream, "%s:\nthe following options are supported:\n\n", progName);
+    fprintf(stream, "%s:\n\t%s\n\nthe following options are supported:\n\n",
+            progName, description);
 
     FOREACH_HASH_KEY(Constant,k,optionPos)
     {
         char *name = STRING_VALUE(k);
         OptionInfo *v = getInfo(name);
-        fprintf(stream, "-%s%s internal name: %s default value: %s\n\t%s\n",
-                v->cmdLine ? v->cmdLine : "activate ",
+        fprintf(stream, "-%s%s\n\tDEFAULT VALUE: %s\n\t%s\n",
+                v->cmdLine ? v->cmdLine : "activate/-deactivate ",
                 v->cmdLine ? "" : v->option,
-                v->option,
                 defGetString(&v->def, v->valueType),
                 v->description);
     }

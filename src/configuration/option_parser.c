@@ -14,7 +14,7 @@
 
 #include "common.h"
 #include "configuration/option_parser.h"
-
+#include "configuration/option.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 
@@ -41,9 +41,7 @@ parseOption(int const argc, char* const argv[])
 		if(isOption(value))
 		{
 			if(strcmp(value,"-help")==0)
-			{
 				return 1;
-			}
 			else if(strcmp(value,"-host")==0)
 			{
 				if(i+1>=argc)
@@ -100,20 +98,6 @@ parseOption(int const argc, char* const argv[])
 
 			    options->optionRewrite = appendToTailOfList(options->optionRewrite, op);
 			    i++;
-//			    int size=getNumberOfRewrite(argc,argv);
-//				options->optionRewrite->size=size;
-//				if(i+size>=argc)
-//					return -1;
-//				options->optionRewrite->rewriteMethods=(RewriteMethod**)malloc(sizeof(RewriteMethod*)*size);
-//				int j;
-//				for(j=0;j<size;j++)
-//				{
-//					options->optionRewrite->rewriteMethods[j]=(RewriteMethod*)malloc(sizeof(RewriteMethod));
-//					options->optionRewrite->rewriteMethods[j]->name=(char*)malloc(strlen(argv[i+1+j])+1);
-//					strcpy(options->optionRewrite->rewriteMethods[j]->name,argv[i+1+j]);
-//					options->optionRewrite->rewriteMethods[j]->isActive=TRUE;
-//				}
-//				i+=size;
 			}
 			else if (strcmp(value, "-sql") == 0)
 			{
@@ -137,6 +121,7 @@ isOption(char* const value)
 {
 	if(value[0]=='-')
 		return TRUE;
+
 	else return FALSE;
 }
 

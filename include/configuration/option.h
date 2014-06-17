@@ -70,7 +70,7 @@ extern void setFloatOption(char *name, double value);
 extern boolean hasOption(char *name);
 extern boolean optionSet(char *name);
 
-extern void printOptionsHelp(FILE *stream, char *progName);
+extern void printOptionsHelp(FILE *stream, char *progName, char *description);
 
 extern void mallocOptions();
 extern void freeOptions();
