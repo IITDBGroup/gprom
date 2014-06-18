@@ -95,7 +95,7 @@ extern long oracleGetCommitScn (char *tableName, long maxScn, char *xid);
 extern Node *oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 
 /* specific methods */
-#if HAVE_LIBOCILIB
+#if HAVE_ORACLE_BACKEND
 #include <ocilib.h>
     extern OCI_Connection *getConnection();
 #endif

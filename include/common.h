@@ -73,20 +73,47 @@
 #define strdup(input) contextStringDup(input)
 #endif
 
+/* streq function */
+#if HAVE_STRCMP
+#define streq(_l,_r) (strcmp(_l,_r) == 0)
+#endif
+
 /* exit for main function */
 #ifndef EXIT_SUCCESS
 #define EXIT_SUCCESS  0
 #define EXIT_FAILURE  1
 #endif
 
+/*******************************************************************************
+ * Database Backends
+ */
+
+// postgres
+#ifdef HAVE_LIBPQ
+#define HAVE_POSTGRES_BACKEND 1
+#endif
+
+// oracle
+#if HAVE_LIBOCILIB && (HAVE_LIBOCI || (HAVE_LIBOCCI && HAVE_LIBCLNTSH))
+#define HAVE_ORACLE_BACKEND 1
+#endif
+
+
+// any backend
+#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND
+#define HAVE_A_BACKEND 1
+#endif
+
 /* OCI stuff */
-#if HAVE_LIBOCILIB
+#if HAVE_ORACLE_BACKEND
 #include <ocilib.h>
 #endif
+
 
 /*******************************************************************************
  * Definitions
  */
+
 /* boolean type and consts */
 #ifndef boolean
 #define boolean int

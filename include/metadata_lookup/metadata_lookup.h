@@ -88,6 +88,7 @@ extern List *availablePlugins;
 /* plugin handling methods */
 extern int initMetadataLookupPlugins (void);
 extern int shutdownMetadataLookupPlugins (void);
+extern void chooseMetadataLookupPluginFromString (char *plug);
 extern void chooseMetadataLookupPlugin (MetadataLookupPluginType plugin);
 
 /* generic methods */

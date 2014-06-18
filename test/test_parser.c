@@ -34,14 +34,20 @@ main (int argc, char* argv[])
     // initialize components
     initMemManager();
     mallocOptions();
-    parseOption(argc, argv);
+    if(parseOption(argc, argv) != 0)
+    {
+        printOptionParseError(stdout);
+        printOptionsHelp(stdout, "testparser", "Run parser stage only.");
+        return EXIT_FAILURE;
+    }
     initLogger();
     initMetadataLookupPlugins();
-    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
+    chooseMetadataLookupPluginFromString(getStringOption("backend"));
+//    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
     initMetadataLookupPlugin();
 
     // read from terminal
-    if (getOptions()->optionConnection->sql == NULL)
+    if (getStringOption("input.sql") == NULL)
     {
         result = parseStream(stdin);
 
@@ -51,7 +57,7 @@ main (int argc, char* argv[])
     // parse input string
     else
     {
-        result = parseFromString(getOptions()->optionConnection->sql);
+        result = parseFromString(getStringOption("input.sql"));
 
         DEBUG_LOG("Address of returned node is <%p>", result);
         ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(result));

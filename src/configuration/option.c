@@ -18,15 +18,9 @@
 // we have to use actual free here
 #undef free
 
-Options* options;
+//Options* options;
 HashMap *optionPos; // optionname -> position of option in list
-
-typedef enum OptionType {
-    OPTION_BOOL,
-    OPTION_STRING,
-    OPTION_INT,
-    OPTION_FLOAT
-} OptionType;
+HashMap *cmdOptionPos;
 
 typedef union OptionValue {
     char **string;
@@ -62,6 +56,12 @@ int connection_port = 0;
 int logLevel = 0;
 boolean logActive = FALSE;
 
+// input options
+char *sql = NULL;
+
+// database backend
+char *backend = NULL;
+
 // instrumentation options
 boolean opt_timing = FALSE;
 
@@ -90,6 +90,7 @@ static void initOptions(void);
 static void setDefault(OptionInfo *o);
 static OptionValue *getValue (char *name);
 static OptionInfo *getInfo (char *name);
+static char *valGetString(OptionValue *def, OptionType type);
 static char *defGetString(OptionDefault *def, OptionType type);
 
 #define aRewriteOption(_name,_opt,_desc,_var,_def) \
@@ -110,7 +111,7 @@ OptionInfo opts[] =
         // database backend connection options
         {
                 "connection.host",
-                "host",
+                "-host",
                 "Host IP address for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_host),
@@ -118,7 +119,7 @@ OptionInfo opts[] =
         },
         {
                 "connection.db",
-                "db",
+                "-db",
                 "Database name for backend DB connection (SID for Oracle backends).",
                 OPTION_STRING,
                 wrapOptionString(&connection_db),
@@ -126,7 +127,7 @@ OptionInfo opts[] =
         },
         {
                 "connection.user",
-                "user",
+                "-user",
                 "User for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_user),
@@ -134,7 +135,7 @@ OptionInfo opts[] =
         },
         {
                 "connection.passwd",
-                "passwd",
+                "-passwd",
                 "Password for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_passwd),
@@ -142,7 +143,7 @@ OptionInfo opts[] =
         },
         {
                 "connection.port",
-                "port",
+                "-port",
                 "TCP/IP port for backend DB connection.",
                 OPTION_INT,
                 wrapOptionInt(&connection_port),
@@ -151,19 +152,37 @@ OptionInfo opts[] =
         // logging options
         {
                 "log.level",
-                "loglevel",
-                "Log level determining log output: TRACE, DEBUG, INFO, WARN, ERROR, FATAL",
+                "-loglevel",
+                "Log level determining log output: TRACE=5, DEBUG=4, INFO=3, WARN=2, ERROR=1, FATAL=0",
                 OPTION_INT,
-                wrapOptionInt(&connection_port),
-                defOptionInt(1521)
+                wrapOptionInt(&logLevel),
+                defOptionInt(1)
         },
         {
                 "log.active",
-                "log",
+                "-log",
                 "Activate/Deactivate logging",
                 OPTION_BOOL,
-                wrapOptionBool(&connection_port),
-                defOptionInt(TRUE)
+                wrapOptionBool(&logActive),
+                defOptionBool(TRUE)
+        },
+        // input options
+        {
+                "input.sql",
+                "-sql",
+                "input SQL text",
+                OPTION_STRING,
+                wrapOptionString(&sql),
+                defOptionString(NULL)
+        },
+        // backend selection
+        {
+                "backend",
+                "-backend",
+                "select backend database type: postgres, oracle",
+                OPTION_STRING,
+                wrapOptionString(&backend),
+                defOptionString("oracle")
         },
         // boolean instrumentation options
         aRewriteOption(OPTION_TIMING,
@@ -226,6 +245,7 @@ initOptions(void)
 {
     // create hashmap option -> position in option info array for lookup
     optionPos = NEW_MAP(Constant,Constant);
+    cmdOptionPos = NEW_MAP(Constant,Constant);
 
     // add options to hashmap and set all options to default values
     for(int i = 0; strcmp(opts[i].option,"STOPPER") != 0; i++)
@@ -233,9 +253,14 @@ initOptions(void)
         OptionInfo *o = &(opts[i]);
         setDefault(o);
         ASSERT(!MAP_HAS_STRING_KEY(optionPos, o->option)); // no two option with same identifier
-        MAP_ADD_STRING_KEY(optionPos, o->option, createConstInt(i));
-    }
+        ASSERT(!MAP_HAS_STRING_KEY(cmdOptionPos, o->cmdLine));
 
+        MAP_ADD_STRING_KEY(optionPos, o->option, createConstInt(i));
+        if (o->cmdLine == NULL)
+            MAP_ADD_STRING_KEY(cmdOptionPos, o->option, createConstInt(i));
+        else
+            MAP_ADD_STRING_KEY(cmdOptionPos, o->cmdLine, createConstInt(i));
+    }
 }
 
 static void
@@ -251,9 +276,14 @@ setDefault(OptionInfo *o)
             break;
         case OPTION_STRING:
             {
-                char *newS = malloc(sizeof(char) * (strlen(o->def.string) + 1));
-                strcpy(newS, o->def.string);
-                *(o->value.string) = newS;
+                if (o->def.string == NULL)
+                    *(o->value.string) = NULL;
+                else
+                {
+                    char *newS = malloc(sizeof(char) * (strlen(o->def.string) + 1));
+                    strcpy(newS, o->def.string);
+                    *(o->value.string) = newS;
+                }
             }
             break;
         case OPTION_BOOL:
@@ -265,10 +295,10 @@ setDefault(OptionInfo *o)
 void
 mallocOptions()
 {
-	options=MAKE_OPTIONS();
-	options->optionConnection=MAKE_OPTION_CONNECTION();
-	options->optionDebug=MAKE_OPTION_DEBUG();
-	options->optionRewrite=NIL;
+//	options=MAKE_OPTIONS();
+//	options->optionConnection=MAKE_OPTION_CONNECTION();
+//	options->optionDebug=MAKE_OPTION_DEBUG();
+//	options->optionRewrite=NIL;
 
 	initOptions();
 }
@@ -276,13 +306,13 @@ mallocOptions()
 void
 freeOptions()
 {
-	free(options->optionConnection->host);
-	free(options->optionConnection->db);
-	free(options->optionConnection->user);
-	free(options->optionConnection->passwd);
-	free(options->optionConnection->sql);
-	free(options->optionConnection);
-	free(options->optionDebug);
+//	free(options->optionConnection->host);
+//	free(options->optionConnection->db);
+//	free(options->optionConnection->user);
+//	free(options->optionConnection->passwd);
+//	free(options->optionConnection->sql);
+//	free(options->optionConnection);
+//	free(options->optionDebug);
 //	FOREACH(KeyValue,o,options->optionRewrite)
 //	{
 //	    Constant *c;
@@ -301,31 +331,31 @@ freeOptions()
 //	}
 //	freeList(options->optionRewrite);
 //	free(options->optionRewrite);
-	free(options);
+//	free(options);
 }
 
 
 
-Options*
-getOptions()
-{
-	return options;
-}
+//Options*
+//getOptions()
+//{
+//	return options;
+//}
 
 boolean
 isRewriteOptionActivated(char *name)
 {
-    Options *ops = getOptions();
+//    Options *ops = getOptions();
 
-    // return getBoolOption(name);
+    return getBoolOption(name);
 
-    FOREACH(KeyValue,op,ops->optionRewrite)
-    {
-        if (strcmp(STRING_VALUE(op->key),name) == 0)
-            return BOOL_VALUE(op->value);
-    }
-
-    return FALSE;
+//    FOREACH(KeyValue,op,ops->optionRewrite)
+//    {
+//        if (strcmp(STRING_VALUE(op->key),name) == 0)
+//            return BOOL_VALUE(op->value);
+//    }
+//
+//    return FALSE;
 }
 
 static OptionValue *
@@ -426,6 +456,29 @@ hasOption(char *name)
 }
 
 boolean
+hasCommandOption(char *name)
+{
+    return MAP_HAS_STRING_KEY(cmdOptionPos,name);
+}
+
+char *
+commandOptionGetOption(char *cmd)
+{
+    OptionInfo *i = &(opts[INT_VALUE(MAP_GET_STRING(cmdOptionPos, cmd))]);
+
+    return i->option;
+}
+
+OptionType
+getOptionType(char *name)
+{
+    ASSERT(hasOption(name));
+    OptionInfo *i = getInfo(name);
+
+    return i->valueType;
+}
+
+boolean
 optionSet(char *name)
 {
     return TRUE;
@@ -441,13 +494,48 @@ printOptionsHelp(FILE *stream, char *progName, char *description)
     {
         char *name = STRING_VALUE(k);
         OptionInfo *v = getInfo(name);
-        fprintf(stream, "-%s%s\n\tDEFAULT VALUE: %s\n\t%s\n",
-                v->cmdLine ? v->cmdLine : "activate/-deactivate ",
+        fprintf(stream, "%s%s\n\tDEFAULT VALUE: %s\n\tACTUAL VALUE: %s\n\t%s\n",
+                v->cmdLine ? v->cmdLine : "-activate/-deactivate ",
                 v->cmdLine ? "" : v->option,
                 defGetString(&v->def, v->valueType),
+                valGetString(&v->value, v->valueType),
                 v->description);
     }
 }
+
+void
+printCurrentOptions(FILE *stream)
+{
+    FOREACH_HASH_KEY(Constant,k,optionPos)
+    {
+        char *name = STRING_VALUE(k);
+        OptionInfo *v = getInfo(name);
+        fprintf(stream, "%50s\tVALUE: %s\n",
+                v->option,
+                valGetString(&v->value, v->valueType));
+    }
+}
+
+static char *
+valGetString(OptionValue *def, OptionType type)
+{
+    switch(type)
+    {
+        case OPTION_INT:
+            return itoa(*(def->i));
+        case OPTION_STRING:
+            return *def->string ? *def->string : "NULL";
+        case OPTION_BOOL:
+            return (*def->b ? "TRUE" : "FALSE");
+        case OPTION_FLOAT:
+        {
+            char *buf = malloc(sizeof(char) * 50);
+            snprintf(buf,50,"%f", *def->f);
+            return buf;
+        }
+    }
+}
+
 
 static char *
 defGetString(OptionDefault *def, OptionType type)
@@ -457,7 +545,7 @@ defGetString(OptionDefault *def, OptionType type)
         case OPTION_INT:
             return itoa(def->i);
         case OPTION_STRING:
-            return def->string;
+            return def->string ? def->string : "NULL";
         case OPTION_BOOL:
             return (def->b ? "TRUE" : "FALSE");
         case OPTION_FLOAT:

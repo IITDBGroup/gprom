@@ -186,21 +186,21 @@ int
 postgresDatabaseConnectionOpen (void)
 {
     StringInfo connStr = makeStringInfo();
-    OptionConnection *op = getOptions()->optionConnection;
+//    OptionConnection *op = getOptions()->optionConnection;
 
     ACQUIRE_MEM_CONTEXT(memContext);
 
     /* create connection string */
-    if (op->host)
-        appendStringInfo(connStr, " host=%s", op->host);
-    if (op->db)
-        appendStringInfo(connStr, " dbname=%s", op->db);
-    if (op->user)
-        appendStringInfo(connStr, " user=%s", op->user);
-    if (op->passwd)
-        appendStringInfo(connStr, " password=%s", op->passwd);
-    if (op->port)
-        appendStringInfo(connStr, " port=%u", op->port);
+//    if (op->host)
+        appendStringInfo(connStr, " host=%s", getStringOption("connection.host"));
+//    if (op->db)
+        appendStringInfo(connStr, " dbname=%s", getStringOption("connection.db"));
+//    if (op->user)
+        appendStringInfo(connStr, " user=%s", getStringOption("connection.user"));
+    if (optionSet("connection.passwd"))
+        appendStringInfo(connStr, " password=%s", getStringOption("connection.passwd"));
+//    if (op->port)
+        appendStringInfo(connStr, " port=%u", getIntOption("connection.port"));
 
     /* try to connect to db */
     plugin->conn = PQconnectdb(connStr->data);

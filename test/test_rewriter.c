@@ -26,7 +26,7 @@
 
 
 /* if OCI is not available then add dummy versions */
-#if HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
+#if HAVE_A_BACKEND
 
 int
 main (int argc, char* argv[])
@@ -35,17 +35,22 @@ main (int argc, char* argv[])
 
     initMemManager();
     mallocOptions();
-    parseOption(argc, argv);
+    if(parseOption(argc, argv) != 0)
+    {
+        printOptionParseError(stdout);
+        printOptionsHelp(stdout, "testrewriter", "Run all stages on input and outpur rewritten SQL.");
+        return EXIT_FAILURE;
+    }
     initLogger();
 
     START_TIMER("TOTAL");
 
     initMetadataLookupPlugins();
-    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
+    chooseMetadataLookupPluginFromString(getStringOption("backend"));
     initMetadataLookupPlugin();
 
     // read from terminal
-    if (getOptions()->optionConnection->sql == NULL)
+    if (getStringOption("input.sql") == NULL)
     {
         result = rewriteQueryFromStream(stdin);
         ERROR_LOG("REWRITE RESULT FROM STREAM IS <%s>", result);
@@ -53,7 +58,7 @@ main (int argc, char* argv[])
     // parse input string
     else
     {
-        result = rewriteQuery(getOptions()->optionConnection->sql);
+        result = rewriteQuery(getStringOption("input.sql"));
         ERROR_LOG("REWRITE RESULT FROM STRING IS:\n%s", result);
     }
 
@@ -77,7 +82,7 @@ main (int argc, char* argv[])
 
 int main()
 {
-	return EXIT_SUCCESS;
+    return EXIT_SUCCESS;
 }
 
 #endif

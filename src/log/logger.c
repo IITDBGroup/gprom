@@ -55,7 +55,7 @@ getOutput(LogLevel level)
 void
 initLogger(void)
 {
-    Options *options = getOptions();
+//    Options *options = getOptions();
 
     buffer = (StringInfo) malloc(sizeof(StringInfoData));
     buffer->len = 0;
@@ -63,8 +63,10 @@ initLogger(void)
     buffer->cursor = 0;
     buffer->data = (char *) malloc(INIT_BUF_SIZE);
 
-    if (options && options->optionDebug)
-        maxLevel = options->optionDebug->loglevel;
+//    if (options && options->optionDebug)
+//        maxLevel = options->optionDebug->loglevel;
+
+    maxLevel = getIntOption("log.level");
 }
 
 void

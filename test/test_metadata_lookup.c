@@ -37,22 +37,26 @@ static rc testDatabaseConnectionClose(void);
 rc
 testMetadataLookup(void)
 {
-    RUN_TEST(setupMetadataLookup(),"setup tables");
-	RUN_TEST(testCatalogTableExists(), "test catalog table exists");
-	RUN_TEST(testViewExists(), "test view exists");
-	RUN_TEST(testGetAttributes(), "test get attributes");
-	RUN_TEST(testIsAgg(), "test is aggregation functions");
-	RUN_TEST(testGetTableDefinition(), "test get table definition");
-	RUN_TEST(testTransactionSQLAndSCNs(), "test transaction SQL and SCN");
-	RUN_TEST(testGetViewDefinition(), "test get view definition");
-	RUN_TEST(testRunTransactionAndGetXid(), "test transaction execution and XID retrieval");
-	RUN_TEST(testDatabaseConnectionClose(), "test close database connection");
+
+    if (streq(getStringOption("backend"),"oracle"))
+    {
+        RUN_TEST(setupMetadataLookup(),"setup tables");
+        RUN_TEST(testCatalogTableExists(), "test catalog table exists");
+        RUN_TEST(testViewExists(), "test view exists");
+        RUN_TEST(testGetAttributes(), "test get attributes");
+        RUN_TEST(testIsAgg(), "test is aggregation functions");
+        RUN_TEST(testGetTableDefinition(), "test get table definition");
+        RUN_TEST(testTransactionSQLAndSCNs(), "test transaction SQL and SCN");
+        RUN_TEST(testGetViewDefinition(), "test get view definition");
+        RUN_TEST(testRunTransactionAndGetXid(), "test transaction execution and XID retrieval");
+        RUN_TEST(testDatabaseConnectionClose(), "test close database connection");
+    }
 
 	return PASS;
 }
 
 /* if OCI is not available then add dummy versions */
-#if HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
+#if HAVE_ORACLE_BACKEND
 
 static rc
 setupMetadataLookup(void)

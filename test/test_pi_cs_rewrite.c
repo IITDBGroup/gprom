@@ -21,7 +21,7 @@
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 
 /* if OCI is not available then add dummy versions */
-#if HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
+#if HAVE_A_BACKEND
 
 int
 main (int argc, char* argv[])
@@ -32,12 +32,19 @@ main (int argc, char* argv[])
 
     initMemManager();
     mallocOptions();
-    parseOption(argc, argv);
+    if(parseOption(argc, argv) != 0)
+    {
+        printOptionParseError(stdout);
+        printOptionsHelp(stdout, "testpicsrewrite", "Run all stages on input and output rewritten SQL, but only use pi-cs rewritter.");
+        return EXIT_FAILURE;
+    }
     initLogger();
+    initMetadataLookupPlugins();
+    chooseMetadataLookupPluginFromString(getStringOption("backend"));
     initMetadataLookupPlugin();
 
     // read from terminal
-    if (getOptions()->optionConnection->sql == NULL)
+    if (getStringOption("input.sql") == NULL)
     {
         result = parseStream(stdin);
 
@@ -47,7 +54,7 @@ main (int argc, char* argv[])
     // parse input string
     else
     {
-        result = parseFromString(getOptions()->optionConnection->sql);
+        result = parseFromString(getStringOption("input.sql"));
 
         DEBUG_LOG("Address of returned node is <%p>", result);
         ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
@@ -70,7 +77,7 @@ main (int argc, char* argv[])
 
 
 
-/* if OCI or OCILIB are not avaible replace with dummy test */
+/* if no backend db plugin is available replace with dummy test */
 #else
 
 int main()

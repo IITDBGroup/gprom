@@ -20,7 +20,7 @@
 #include "analysis_and_translate/translator.h"
 
 /* if OCI is not available then add dummy versions */
-#if HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
+#if HAVE_A_BACKEND
 
 int
 main (int argc, char* argv[])
@@ -30,15 +30,19 @@ main (int argc, char* argv[])
 
     initMemManager();
     mallocOptions();
-    parseOption(argc, argv);
+    if(parseOption(argc, argv) != 0)
+    {
+        printOptionParseError(stdout);
+        printOptionsHelp(stdout, "testtranslate", "Run parser -> analyzer -> translator on input for testing.");
+        return EXIT_FAILURE;
+    }
     initLogger();
     initMetadataLookupPlugins();
-    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
+    chooseMetadataLookupPluginFromString(getStringOption("backend"));
     initMetadataLookupPlugin();
 
-
     // read from terminal
-    if (getOptions()->optionConnection->sql == NULL)
+    if (getStringOption("input.sql"))
     {
         result = parseStream(stdin);
 
@@ -48,7 +52,7 @@ main (int argc, char* argv[])
     // parse input string
     else
     {
-        result = parseFromString(getOptions()->optionConnection->sql);
+        result = parseFromString(getStringOption("input.sql"));
 
         DEBUG_LOG("Address of returned node is <%p>", result);
         INFO_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));

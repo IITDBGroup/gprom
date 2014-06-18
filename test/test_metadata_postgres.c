@@ -43,16 +43,19 @@ static rc testDatabaseConnectionClose(void);
 rc
 testMetadataLookupPostgres(void)
 {
-    RUN_TEST(setupMetadataLookup(),"setup tables");
-    RUN_TEST(testCatalogTableExists(), "test catalog table exists");
-    RUN_TEST(testViewExists(), "test view exists");
-    RUN_TEST(testGetAttributes(), "test get attributes");
-    RUN_TEST(testIsAgg(), "test is aggregation functions");
-    RUN_TEST(testGetTableDefinition(), "test get table definition");
-    RUN_TEST(testTransactionSQLAndSCNs(), "test transaction SQL and SCN");
-    RUN_TEST(testGetViewDefinition(), "test get view definition");
-    RUN_TEST(testRunTransactionAndGetXid(), "test transaction execution and XID retrieval");
-    RUN_TEST(testDatabaseConnectionClose(), "test close database connection");
+    if (streq(getStringOption("backend"),"postgres"))
+    {
+        RUN_TEST(setupMetadataLookup(),"setup tables");
+        RUN_TEST(testCatalogTableExists(), "test catalog table exists");
+        RUN_TEST(testViewExists(), "test view exists");
+        RUN_TEST(testGetAttributes(), "test get attributes");
+        RUN_TEST(testIsAgg(), "test is aggregation functions");
+        RUN_TEST(testGetTableDefinition(), "test get table definition");
+        RUN_TEST(testTransactionSQLAndSCNs(), "test transaction SQL and SCN");
+        RUN_TEST(testGetViewDefinition(), "test get view definition");
+        RUN_TEST(testRunTransactionAndGetXid(), "test transaction execution and XID retrieval");
+        RUN_TEST(testDatabaseConnectionClose(), "test close database connection");
+    }
 
     return PASS;
 }

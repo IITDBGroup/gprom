@@ -10,16 +10,18 @@
  *-------------------------------------------------------------------------
  */
 
-
-
 #include "common.h"
 #include "configuration/option_parser.h"
 #include "configuration/option.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 
+// error message
+char *errorMessage = NULL;
+
 // private version of contextStrDup, because mem manager cannot be used here
 static char *contextStringDup (char *);
+static int parseOneOption (char *opt, char* const argv[], const int argc, int *pos);
 
 /*
  * Input: argc, argv
@@ -30,7 +32,7 @@ static char *contextStringDup (char *);
 int
 parseOption(int const argc, char* const argv[])
 {
-	Options* options=getOptions();
+//	Options* options=getOptions();
 	int i;
 	List *rewriteOptions;
 
@@ -42,74 +44,9 @@ parseOption(int const argc, char* const argv[])
 		{
 			if(strcmp(value,"-help")==0)
 				return 1;
-			else if(strcmp(value,"-host")==0)
-			{
-				if(i+1>=argc)
-					return -1;
-				options->optionConnection->host = strdup(argv[i+1]);
-				i++;
-			}
-			else if(strcmp(value,"-db")==0)
-			{
-				if(i+1>=argc)
-					return -1;
-				options->optionConnection->db = strdup(argv[i+1]);
-				i++;
-			}
-			else if(strcmp(value,"-port")==0)
-			{
-				if(i+1>=argc)
-					return -1;
-				options->optionConnection->port=atoi(argv[i+1]);
-				i++;
-			}
-			else if(strcmp(value,"-user")==0)
-			{
-				if(i+1>=argc)
-					return -1;
-				options->optionConnection->user = strdup(argv[i+1]);
-				i++;
-			}
-			else if(strcmp(value,"-passwd")==0)
-			{
-				if(i+1>=argc)
-					return -1;
-				options->optionConnection->passwd = strdup(argv[i+1]);
-				i++;
-			}
-			else if(strcmp(value,"-log")==0)
-				options->optionDebug->log=TRUE;
-			else if(strcmp(value,"-loglevel")==0)
-			{
-				if(i+1>=argc)
-					return -1;
-				options->optionDebug->loglevel=atoi(argv[i+1]);
-				i++;
-			}
-			else if(strcmp(value,"-debugmemory")==0)
-				options->optionDebug->debugMemory=TRUE;
-			else if(strcmp(value,"-activate")==0)
-			{
-			    KeyValue *op;
 
-			    op = createNodeKeyValue(
-			            (Node *) createConstString(strdup(argv[i+1])),
-			            (Node *) createConstBool(TRUE));
-
-			    options->optionRewrite = appendToTailOfList(options->optionRewrite, op);
-			    i++;
-			}
-			else if (strcmp(value, "-sql") == 0)
-			{
-			    if(i+1>=argc)
-                    return -1;
-                options->optionConnection->sql=strdup(argv[i + 1]);
-//                        (char*)malloc(strlen(argv[i+1])+1);
-//                strcpy(options->optionConnection->sql,argv[i+1]);
-                i++;
-			}
-			else
-				return -1;
+			if (parseOneOption(value, argv, argc, &i) != 0)
+			    return 1;
 		}
 	}
 
@@ -125,40 +62,93 @@ isOption(char* const value)
 	else return FALSE;
 }
 
-//int
-//getNumberOfRewrite(int const argc, char* const argv[])
-//{
-//	int i,start=0,end=0,size=0;
-//	//get how many rewrites are activated
-//	for(i=1;i<argc;i++)
-//	{
-//		char* value=argv[i];
-//		if(isOption(value) && !start)
-//		{
-//			if(strcmp(value,"-activate")==0)
-//			{
-//				start=i;
-//				break;
-//			}
-//		}
-//	}
-//	for(i=start+1;i<argc;i++)
-//	{
-//		char* value=argv[i];
-//		if(isOption(value) && start)
-//		{
-//			end=i;
-//			size=end-start-1;
-//			break;
-//		}
-//		if(i==argc-1&&start)
-//		{
-//			end=i;
-//			size=end-start;
-//		}
-//	}
-//	return size;
-//}
+#define ASSERT_HAS_NEXT() \
+    do { \
+        if((*pos) >= argc) \
+        { \
+        	errorMessage = "Expected additional value for option"; \
+            return 1; \
+        } \
+    } while(0)
+
+static int
+parseOneOption (char *opt, char* const argv[], const int argc, int *pos)
+{
+    if (strcmp(opt,"-activate") == 0)
+    {
+        ASSERT_HAS_NEXT();
+        char *o = argv[++(*pos)];
+        if (!hasCommandOption(o))
+        {
+            errorMessage = o;
+            return 1;
+        }
+
+        (*pos)++;
+        (*pos) -= 2;
+        setBoolOption(o,TRUE);
+        return 0;
+    }
+    else if (strcmp(opt,"-deactivate") == 0)
+    {
+        ASSERT_HAS_NEXT();
+        char *o = argv[++(*pos)];
+        if (!hasCommandOption(o))
+        {
+            errorMessage = o;
+            return 1;
+        }
+
+        (*pos)++;
+        (*pos) -= 2;
+        setBoolOption(o,FALSE);
+        return 0;
+    }
+    else if (hasCommandOption(opt))
+    {
+        char *o = commandOptionGetOption(opt);
+        (*pos)++;
+
+        switch(getOptionType(o))
+        {
+            case OPTION_INT:
+            {
+                ASSERT_HAS_NEXT();
+                int val = atoi(argv[*pos]);
+                setIntOption(o,val);
+                (*pos)++;
+                (*pos) -= 2;
+            }
+            break;
+            case OPTION_STRING:
+            {
+                ASSERT_HAS_NEXT();
+                setStringOption(o,strdup(argv[*pos]));
+                (*pos)++;
+                (*pos) -= 2;
+            }
+            break;
+            case OPTION_FLOAT:
+            {
+                ASSERT_HAS_NEXT();
+                //TODO
+                (*pos)++;
+                (*pos) -= 2;
+            }
+            break;
+            case OPTION_BOOL:
+                setBoolOption(o, TRUE);
+                (*pos) -= 1;
+            break;
+        }
+        return 0;
+    }
+    else
+    {
+        errorMessage = opt;
+        return 1;
+    }
+}
 
 static char *
 contextStringDup (char *input)
@@ -166,4 +156,10 @@ contextStringDup (char *input)
     char *result = malloc(strlen(input) + 1);
     strcpy(result,input);
     return result;
+}
+
+extern void
+printOptionParseError(FILE *out)
+{
+    fprintf(out, "ERROR PARSING OPTIONS: %s\n\n", errorMessage ? errorMessage : "");
 }

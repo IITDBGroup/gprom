@@ -29,10 +29,10 @@ initMetadataLookupPlugins (void)
 {
 
 // only assemble plugins for which the library is available
-#ifdef HAVE_LIBOCI
+#if HAVE_ORACLE_BACKEND
     availablePlugins = appendToTailOfList(availablePlugins, assembleOracleMetadataLookupPlugin());
 #endif
-#ifdef HAVE_LIBPQ
+#ifdef HAVE_POSTGRES_BACKEND
     availablePlugins = appendToTailOfList(availablePlugins, assemblePostgresMetadataLookupPlugin());
 #endif
 
@@ -53,6 +53,22 @@ shutdownMetadataLookupPlugins (void)
 }
 
 /* choosePlugins */
+void
+chooseMetadataLookupPluginFromString (char *plug)
+{
+    if (strcmp(plug, "oracle") == 0)
+    {
+        chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
+        return;
+    }
+    if (strcmp(plug, "postgres") == 0)
+    {
+        chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_POSTGRES);
+        return;
+    }
+    FATAL_LOG("unkown plugin type: %s", plug);
+}
+
 void
 chooseMetadataLookupPlugin (MetadataLookupPluginType plugin)
 {

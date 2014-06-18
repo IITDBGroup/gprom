@@ -109,11 +109,15 @@ main(int argc, char* argv[])
 
     if (parseOption(argc, argv) != 0)
     {
+        printOptionParseError(stdout);
         printOptionsHelp(stdout, "testmain", "Regression test suite. Runs a bunch of whitebox tests on components of the system.");
         return EXIT_FAILURE;
     }
 
     initLogger();
+    DEBUG_LOG("configuration:\n\n");
+    printCurrentOptions(stdout);
+
     testSuites();
 
     freeOptions();

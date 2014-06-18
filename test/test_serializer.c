@@ -21,7 +21,7 @@
 #include "sql_serializer/sql_serializer.h"
 
 /* if OCI is not available then add dummy versions */
-#if HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
+#if HAVE_A_BACKEND
 
 int
 main (int argc, char* argv[])
@@ -32,12 +32,17 @@ main (int argc, char* argv[])
 
     initMemManager();
     mallocOptions();
-    parseOption(argc, argv);
+    if(parseOption(argc, argv) != 0)
+    {
+        printOptionParseError(stdout);
+        printOptionsHelp(stdout, "testserializer", "Run all stages on input except provenance rewrite and output rewritten SQL code.");
+        return EXIT_FAILURE;
+    }
     initLogger();
     initMetadataLookupPlugin();
 
     // read from terminal
-    if (getOptions()->optionConnection->sql == NULL)
+    if (getStringOption("input.sql") == NULL)
     {
         result = parseStream(stdin);
 
@@ -47,14 +52,14 @@ main (int argc, char* argv[])
     // parse input string
     else
     {
-        result = parseFromString(getOptions()->optionConnection->sql);
+        result = parseFromString(getStringOption("input.sql"));
 
         DEBUG_LOG("Address of returned node is <%p>", result);
         ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
     }
 
     qoModel = translateParse(result);
-    ERROR_LOG("TRANSLATION RESULT FROM STRING IS:\n%s", beatify(nodeToString(qoModel)));
+    INFO_LOG("TRANSLATION RESULT FROM STRING IS:\n%s", beatify(nodeToString(qoModel)));
     ERROR_LOG("SIMPLIFIED OPERATOR TREE:\n%s", operatorToOverviewString(qoModel));
 
     sql = serializeOperatorModel(qoModel);

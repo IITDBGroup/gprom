@@ -11,6 +11,7 @@
  */
 
 #include "test_main.h"
+#include "configuration/option.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "analysis_and_translate/parameter.h"
@@ -47,14 +48,15 @@ testSetParameterValues (void)
 {
 
 // only if a backend DB library is available
-#if HAVE_LIBPQ || (HAVE_LIBOCILIB && HAVE_LIBOCCI)
+#if HAVE_A_BACKEND
     char *expSQL = "SELECT a FROM r WHERE a = '5';";
     char *inSQL = "SELECT a FROM r WHERE a = :param;";
 
     initMetadataLookupPlugins();
 #endif
 
-#if (HAVE_LIBOCILIB && HAVE_LIBOCCI)
+#if HAVE_ORACLE_BACKEND
+    if (streq(getStringOption("backend"),"oracle"))
     {
         Node *expParse = parseFromString(expSQL);
         Node *inParse = parseFromString(inSQL);
@@ -76,7 +78,8 @@ testSetParameterValues (void)
     }
 #endif
 
-#ifdef HAVE_LIBPQ
+#ifdef HAVE_POSTGRES_BACKEND
+    if (streq(getStringOption("backend"),"postgres"))
     {
         Node *expParse = parseFromString(expSQL);
         Node *inParse = parseFromString(inSQL);

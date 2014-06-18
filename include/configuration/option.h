@@ -5,45 +5,47 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 
-typedef struct OptionConnection{
-	char* host;
-	char* db;
-	int port;
-	char* user;
-	char* passwd;
-	char *sql;
-} OptionConnection;
+typedef enum OptionType {
+    OPTION_BOOL,
+    OPTION_STRING,
+    OPTION_INT,
+    OPTION_FLOAT
+} OptionType;
 
-typedef struct OptionDebug{
-	boolean log;
-	int loglevel;
-	boolean debugMemory;
-} OptionDebug;
+//typedef struct OptionConnection{
+//	char* host;
+//	char* db;
+//	int port;
+//	char* user;
+//	char* passwd;
+//	char *sql;
+//} OptionConnection;
+//
+//typedef struct OptionDebug{
+//	boolean log;
+//	int loglevel;
+//	boolean debugMemory;
+//} OptionDebug;
+//
+//typedef struct RewriteMethod{
+//	char* name;
+//	boolean isActive;
+//} RewriteMethod;
+//
+//typedef struct Options{
+//	OptionConnection* optionConnection;
+//	OptionDebug* optionDebug;
+//	List* optionRewrite;
+//} Options;
 
-typedef struct RewriteMethod{
-	char* name;
-	boolean isActive;
-} RewriteMethod;
-
-//typedef struct OptionRewrite{
-//	RewriteMethod** rewriteMethods;
-//	int size;
-//} OptionRewrite;
-
-typedef struct Options{
-	OptionConnection* optionConnection;
-	OptionDebug* optionDebug;
-	List* optionRewrite;
-} Options;
-
-#define MAKE_OPTIONS()		\
-	((Options*)calloc(1,sizeof(Options)))
-
-#define MAKE_OPTION_CONNECTION()		\
-	((OptionConnection*)calloc(1, sizeof(OptionConnection)))
-
-#define MAKE_OPTION_DEBUG()		\
-	((OptionDebug*)calloc(1, sizeof(OptionDebug)))
+//#define MAKE_OPTIONS()		\
+//	((Options*)calloc(1,sizeof(Options)))
+//
+//#define MAKE_OPTION_CONNECTION()		\
+//	((OptionConnection*)calloc(1, sizeof(OptionConnection)))
+//
+//#define MAKE_OPTION_DEBUG()		\
+//	((OptionDebug*)calloc(1, sizeof(OptionDebug)))
 
 /* define rewrite methods */
 #define OPTION_TIMING "timing"
@@ -68,13 +70,17 @@ extern void setBoolOption(char *name, boolean value);
 extern void setFloatOption(char *name, double value);
 
 extern boolean hasOption(char *name);
+extern boolean hasCommandOption(char *name);
+extern char *commandOptionGetOption(char *name);
+extern OptionType getOptionType(char *name);
 extern boolean optionSet(char *name);
 
 extern void printOptionsHelp(FILE *stream, char *progName, char *description);
+extern void printCurrentOptions(FILE *stream);
 
 extern void mallocOptions();
 extern void freeOptions();
-extern Options *getOptions();
+//extern Options *getOptions();
 extern boolean isRewriteOptionActivated(char *name);
 
 #endif

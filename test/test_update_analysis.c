@@ -33,12 +33,17 @@ main (int argc, char* argv[])
 
     initMemManager();
     mallocOptions();
-    parseOption(argc, argv);
+    if(parseOption(argc, argv) != 0)
+    {
+        printOptionParseError(stdout);
+        printOptionsHelp(stdout, "testanalysis", "Run parser + analysis stages only.");
+        return EXIT_FAILURE;
+    }
 
     initLogger();
 
     // read from terminal
-    if (getOptions()->optionConnection->sql == NULL)
+    if (getStringOption("input.sql") == NULL)
     {
         result = parseStream(stdin);
 
@@ -48,7 +53,7 @@ main (int argc, char* argv[])
     // parse input string
     else
     {
-        result = parseFromString(getOptions()->optionConnection->sql);
+        result = parseFromString(getStringOption("input.sql"));
 
         DEBUG_LOG("Address of returned node is <%p>", result);
         ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(bisonParseResult));

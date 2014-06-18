@@ -17,7 +17,7 @@
 #include "instrumentation/timing_instrumentation.h"
 
 /* If OCILIB and OCI are available then use it */
-#if HAVE_LIBOCILIB && (HAVE_LIBOCI || HAVE_LIBOCCI)
+#if HAVE_ORACLE_BACKEND
 
 #define ORACLE_TNS_CONNECTION_FORMAT "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=" \
 		"(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
@@ -252,13 +252,14 @@ initConnection()
     ACQUIRE_MEM_CONTEXT(context);
 
     StringInfo connectString = makeStringInfo();
-    Options* options=getOptions();
+//    Options* options=getOptions();
 
-    char* user=options->optionConnection->user;
-    char* passwd=options->optionConnection->passwd;
-    char* db=options->optionConnection->db;
-    char *host=options->optionConnection->host;
-    int port=options->optionConnection->port;
+    char* user = getStringOption("connection.user");
+    char* passwd = getStringOption("connection.passwd");
+    char* db = getStringOption("connection.db");
+    char *host = getStringOption("connection.host");
+    int port = getIntOption("connection.port");
+
     appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT,
     		host ? host : "",
     		port ? port : 1521,

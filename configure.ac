@@ -234,6 +234,7 @@ AC_FUNC_REALLOC
 # CHECK FOR STD C FUNCS
 AC_CHECK_FUNCS([memset])
 AC_CHECK_FUNCS([strdup])
+AC_CHECK_FUNCS([strcmp])
 ################################################################################
 # Check which backends should be supported
 AC_ENABLE_ORACLE
