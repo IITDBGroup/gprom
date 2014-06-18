@@ -18,8 +18,13 @@
 #include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
 
+// plugin
+static ParserPlugin *plugin = NULL;
+
+// function defs
 static Node *parseInternal (void);
 
+// wrapper interface
 Node *
 parseStream (FILE *stream)
 {
@@ -61,4 +66,22 @@ parseInternal (void) //TODO make copyObject work first
 
     // create copy of parse result in parent context
     FREE_MEM_CONTEXT_AND_RETURN_COPY(Node,bisonParseResult);
+}
+
+// plugin management
+void
+chooseParserPlugin(ParserPluginType type)
+{
+    //TODO
+    plugin = NULL;
+}
+
+void
+chooseParserPluginFromString(char *type)
+{
+    if (streq(type,"oracle"))
+        chooseParserPlugin(PARSER_PLUGIN_ORACLE);
+    if (streq(type,"postgres"))
+        chooseParserPlugin(PARSER_PLUGIN_POSTGRES);
+    FATAL_LOG("unkown parser plugin type: %s", type);
 }

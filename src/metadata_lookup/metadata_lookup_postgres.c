@@ -26,7 +26,7 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 
-#if HAVE_LIBPQ
+#if HAVE_POSTGRES_BACKEND
 #include "libpq-fe.h"
 #endif
 
@@ -83,7 +83,7 @@
 #define PREP_QUERY(name) prepareQuery(NAME_ ## name, QUERY_ ## name, PARAMS_ ## name, NULL)
 
 // real versions if libpq is present
-#ifdef HAVE_LIBPQ
+#ifdef HAVE_POSTGRES_BACKEND
 
 // functions
 static PGresult *execQuery(char *query);
@@ -159,7 +159,10 @@ int
 postgresInitMetadataLookupPlugin (void)
 {
     if (plugin && plugin->initialized)
-        FATAL_LOG("tried to initialize metadata lookup plugin more than once");
+    {
+        INFO_LOG("tried to initialize metadata lookup plugin more than once");
+        return EXIT_SUCCESS;
+    }
 
     NEW_AND_ACQUIRE_MEMCONTEXT(CONTEXT_NAME);
     memContext = getCurMemContext();

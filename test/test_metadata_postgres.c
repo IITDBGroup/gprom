@@ -61,7 +61,7 @@ testMetadataLookupPostgres(void)
 }
 
 /* if OCI is not available then add dummy versions */
-#if HAVE_LIBPQ
+#if HAVE_POSTGRES_BACKEND
 
 #include "libpq-fe.h"
 

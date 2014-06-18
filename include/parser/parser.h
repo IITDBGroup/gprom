@@ -11,11 +11,34 @@
 #ifndef PARSER_H_
 #define PARSER_H_
 
-#include <stdio.h>
+#include "common.h"
 #include "model/query_block/query_block.h"
 #include "model/list/list.h"
 
-Node *parseStream (FILE *file);
-Node *parseFromString (char *input);
+/* types of supported plugins */
+typedef enum ParserPluginType
+{
+    PARSER_PLUGIN_ORACLE,
+    PARSER_PLUGIN_POSTGRES
+} ParserPluginType;
+
+/* plugin definition */
+typedef struct ParserPlugin
+{
+    ParserPluginType type;
+
+    /* functional interface */
+    Node *(*parseStream) (FILE *file);
+    Node *(*parseFromString) (char *input);
+
+} ParserPlugin;
+
+// plugin management
+extern void chooseParserPlugin(ParserPluginType type);
+extern void chooseParserPluginFromString(char *type);
+
+// parser interface wrapper
+extern Node *parseStream (FILE *file);
+extern Node *parseFromString (char *input);
 
 #endif /* PARSER_H_ */

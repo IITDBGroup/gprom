@@ -77,7 +77,7 @@ chooseMetadataLookupPlugin (MetadataLookupPluginType plugin)
         if (p->type == plugin)
         {
             activePlugin = p;
-            if (!p->isInitialized)
+            if (!(p->isInitialized()))
                 p->initMetadataLookupPlugin();
             return;
         }
