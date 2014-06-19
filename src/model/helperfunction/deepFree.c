@@ -132,6 +132,7 @@ freeQueryBlock (QueryBlock * node)
     FREE_NODE_FIELD(distinct);
     FREE_NODE_FIELD(fromClause);
     FREE_NODE_FIELD(whereClause);
+    xxx
 
     FINISH_FREE();
 }
