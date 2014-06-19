@@ -38,6 +38,9 @@ static void freeAttributeReference (AttributeReference *node);
 static void freeFunctionCall (FunctionCall *node);
 static void freeOperator (Operator *node);
 
+/* query block model */
+static void freeQueryBlock (QueryBlock * node);
+
 /* query operator model */
 static void freeAttributeDef (AttributeDef *node);
 static void freeSchema (Schema *node);
@@ -118,6 +121,17 @@ freeOperator (Operator *node)
 {
     FREE_P_FIELD(name);
     FREE_NODE_FIELD(args);
+
+    FINISH_FREE();
+}
+
+static void
+freeQueryBlock (QueryBlock * node)
+{
+    FREE_NODE_FIELD(selectClause);
+    FREE_NODE_FIELD(distinct);
+    FREE_NODE_FIELD(fromClause);
+    FREE_NODE_FIELD(whereClause);
 
     FINISH_FREE();
 }
@@ -261,6 +275,8 @@ deepFree (void *a)
         case T_SetQuery:
         case T_ProvenanceStmt:
         case T_QueryBlock:
+            freeQueryBlock((QueryBlock *) node);
+            break;
         case T_SelectItem:
         case T_FromItem:
         case T_FromTableRef:
