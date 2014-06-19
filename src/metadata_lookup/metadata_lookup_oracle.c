@@ -300,7 +300,10 @@ int
 oracleInitMetadataLookupPlugin (void)
 {
     if (initialized)
-        FATAL_LOG("tried to initialize metadata lookup plugin more than once");
+    {
+        INFO_LOG("tried to initialize metadata lookup plugin more than once");
+        return EXIT_SUCCESS;
+    }
 
     NEW_AND_ACQUIRE_MEMCONTEXT("metadataContext");
     context=getCurMemContext();

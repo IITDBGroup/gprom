@@ -25,7 +25,6 @@
 #include "libpq-fe.h"
 #endif
 
-
 static rc setupParameterDB (void);
 static rc testParseBinds (void);
 static rc testSetParameterValues (void);
