@@ -34,14 +34,15 @@
 /* Operator type specific properties */
 /* provenance computation specific properties */
 #define PROP_PC_TABLE "TABLE"                               // updated table to trace proveance of transaction for
-#define PROP_PC_UPDATE_COND "UPDATE CONDS"                  // conditions of updates in transaction
-#define PROP_PC_ONLY_UPDATED "ONLY UPDATED"                 // show only provenance of updated rows in transaction
+#define PROP_PC_UPDATE_COND "UPDATE_CONDS"                  // conditions of updates in transaction
+#define PROP_PC_ONLY_UPDATED "ONLY_UPDATED"                 // show only provenance of updated rows in transaction
 #define PROP_PC_SHOW_INTERMEDIATE "SHOW ALL INTERMEDIATE"   // show provenance of all intermediate statements in transaction
 #define PROP_PC_TRANS_XID "TRANSACTION_XID"                 // stores transaction XID
 #define PROP_PC_TUPLE_VERSIONS "TUPLE_VERSIONS"             // use rowid + scn pairs as provenance
 
 /* table access properties */
-#define PROP_TABLE_IS_UPDATED "UPDATED TABLE"               // is table access for the updated table in an DML translation
+#define PROP_TABLE_IS_UPDATED "UPDATED_TABLE"               // is table access for the updated table in an DML translation
+#define PROP_IS_READ_COMMITTED "TABLE_READ_COMMITTED"      // is table access for updated table in a READ COMMITTED transaction
 #define PROP_USE_HISTORY_JOIN "USE_HISTORY_JOIN"            // get committed rows from history and join with table at transaction start to pre-filter updated rows
 #define PROP_TABLE_USE_ROWID_VERSION "USE_ROW_ID_VERSION"   // use rowid and version as provenance
 

@@ -544,7 +544,11 @@ extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
         char *tableName = (char *) t->tableName;
 
         if (!hasSetElem(readFromTableNames, tableName))
+        {
             SET_STRING_PROP(t, PROP_USE_HISTORY_JOIN, copyObject(propValue));
+            if (op->transactionInfo->transIsolation == ISOLATION_READ_COMMITTED)
+                SET_BOOL_STRING_PROP(t,PROP_IS_READ_COMMITTED);
+        }
 	}
 
 

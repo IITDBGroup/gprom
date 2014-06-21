@@ -696,6 +696,15 @@ sqlFunctionCall:
 				else  
                 	$$ = (Node *) f; 
             }
+		| AMMSC '(' exprList ')' overClause          
+            {
+                RULELOG("sqlFunctionCall::AMMSC::exprList");
+				FunctionCall *f = createFunctionCall($1, $3);
+				if ($5 != NULL)
+					$$ = (Node *) createWindowFunction(f, (WindowDef *) $5);
+				else  
+                	$$ = (Node *) f; 
+            }
     ;
 
 /*
@@ -1243,4 +1252,7 @@ EXHAUSTIVE LIST
 8. Implement support for casting expressions
 9. Implement support for IN array expressions like a IN (1,2,3,4,5)
 10. Implement support for ASC, DESC, NULLS FIRST/LAST in ORDER BY
+11. Add DDL statements
+12. Add provenance storage policy language
+13. Add provenance export options (also requires several other changes in the application)
 */

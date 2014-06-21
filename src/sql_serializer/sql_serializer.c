@@ -621,11 +621,11 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                 char *asOf = NULL;
                 ProvenanceComputation *op;
 //                Constant *xid = getTranactionSQLAndSCNs(xid);
-
+                // use history join to prefilter updated rows
                 if (HAS_STRING_PROP(t, PROP_USE_HISTORY_JOIN))
                 {
                     List *scnsAndXid = (List *) GET_STRING_PROP(t, PROP_USE_HISTORY_JOIN);
-                    Constant *startScn, *commitScn;
+                    Constant *startScn, *commitScn, *commitMinusOne;
                     Constant *xid;
                     StringInfo attrNameStr = makeStringInfo();
                     List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
@@ -634,6 +634,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                     xid = (Constant *) getNthOfListP(scnsAndXid,0);
                     startScn = (Constant *) getNthOfListP(scnsAndXid,1);
                     commitScn = (Constant *) getNthOfListP(scnsAndXid,2);
+                    commitMinusOne = createConstLong(LONG_VALUE(commitScn) - 1);
 
                     FOREACH(char,a,attrNames)
                     {
@@ -645,14 +646,31 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
                     }
 
-                    appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
-                    appendStringInfo(from, "\t(SELECT ROWID AS rid , %s", attrNameStr->data);
-                    appendStringInfo(from, "\tFROM %s AS OF SCN %u) F0",t->tableName, LONG_VALUE(startScn));
-                    appendStringInfoString(from, "\n JOIN ");
-                    appendStringInfo(from, "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
-                            t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
-                    appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1", STRING_VALUE(xid));
-                    appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",  (*curFromItem)++);
+                    // read committed?
+                    if (HAS_STRING_PROP(t, PROP_IS_READ_COMMITTED))
+                    {
+                        appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
+                        appendStringInfo(from, "\t(SELECT ROWID AS rid , %s", attrNameStr->data);
+                        appendStringInfo(from, "\tFROM %s VERSIONS BETWEEN SCN %u AND %u) F0",t->tableName,
+                                LONG_VALUE(commitMinusOne),
+                                LONG_VALUE(commitMinusOne));
+                        appendStringInfoString(from, "\n JOIN ");
+                        appendStringInfo(from, "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
+                                t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
+                        appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1", STRING_VALUE(xid));
+                        appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",  (*curFromItem)++);
+                    }
+                    else
+                    {
+                        appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
+                        appendStringInfo(from, "\t(SELECT ROWID AS rid , %s", attrNameStr->data);
+                        appendStringInfo(from, "\tFROM %s AS OF SCN %u) F0",t->tableName, LONG_VALUE(startScn));
+                        appendStringInfoString(from, "\n JOIN ");
+                        appendStringInfo(from, "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
+                                t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
+                        appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1", STRING_VALUE(xid));
+                        appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",  (*curFromItem)++);
+                    }
 
                     *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
                 }
