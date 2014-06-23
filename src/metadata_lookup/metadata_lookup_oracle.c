@@ -715,7 +715,7 @@ oracleGetViewDefinition(char *viewName)
         {
             char *def = strdup((char *) OCI_GetString(rs, 1));
             //add view definition to view buffers to improve performance
-            //user do not have to free def by themselves
+            //user should not free def by themselves
             addToViewBuffers(viewName, def);
             FREE(statement);
             RELEASE_MEM_CONTEXT();
@@ -726,6 +726,38 @@ oracleGetViewDefinition(char *viewName)
 
     STOP_TIMER("module - metadata lookup");
     RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY (NULL);
+}
+
+long
+getBarrierScn(void)
+{
+    long barrier = -1;
+    StringInfo statement;
+
+    START_TIMER("module - metadata lookup");
+
+    ACQUIRE_MEM_CONTEXT(context);
+
+    statement = makeStringInfo();
+    appendStringInfo(statement, "SELECT BARRIERSCN FROM SYS.SYS_FBA_BARRIERSCN;");
+
+    OCI_Resultset *rs = executeStatement(statement->data);
+    if(rs != NULL)
+    {
+        if(OCI_FetchNext(rs))
+        {
+            barrier = (long) OCI_GetBigInt(rs,1);
+            FREE(statement);
+            RELEASE_MEM_CONTEXT();
+            STOP_TIMER("module - metadata lookup");
+            return barrier;
+        }
+    }
+    FREE(statement);
+
+    RELEASE_MEM_CONTEXT();
+    STOP_TIMER("module - metadata lookup");
+    return barrier;
 }
 
 static OCI_Resultset *

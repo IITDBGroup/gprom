@@ -87,6 +87,7 @@ extern boolean oracleIsAgg(char *functionName);
 extern boolean oracleIsWindowFunction(char *functionName);
 extern char *oracleGetTableDefinition(char *tableName);
 extern char *oracleGetViewDefinition(char *viewName);
+extern long getBarrierScn(void);
 
 extern void oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);

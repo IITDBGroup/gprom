@@ -1264,6 +1264,10 @@ quoteIdentifier (char *ident)
     int i = 0;
     boolean needsQuotes = FALSE;
 
+    // already quoted
+    if (ident[0] == '"')
+        return ident;
+
     if (!isupper(ident[0]))
         needsQuotes = TRUE;
 
