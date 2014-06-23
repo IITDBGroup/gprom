@@ -13,7 +13,7 @@
 
 #include "metadata_lookup/metadata_lookup.h"
 
-#ifdef HAVE_LIBPQ
+#ifdef HAVE_POSTGRES_BACKEND
 #include "libpq-fe.h"
 #endif
 
@@ -26,7 +26,7 @@ extern int postgresDatabaseConnectionOpen (void);
 extern int postgresDatabaseConnectionClose();
 extern boolean postgresIsInitialized (void);
 
-#ifdef HAVE_LIBPQ
+#ifdef HAVE_POSTGRES_BACKEND
 extern PGconn *getPostgresConnection(void);
 #endif
 
