@@ -45,8 +45,8 @@
 #endif
 
 /* <stdargs.h> */
-#if HAVE_STDARGS_H
-#include <stdargs.h>
+#if HAVE_STDARG_H
+#include <stdarg.h>
 #endif
 
 /* <time.h> */
