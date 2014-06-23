@@ -124,8 +124,17 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     DEBUG_LOG("Merged updates are: %s", beatify(nodeToString(updates)));
 
     // replace updates sequence with root of the whole merged update query
+
+    // check if user asks for specific table
+
+    // if not then do normal stuff
     addChildOperator((QueryOperator *) op, (QueryOperator *) getHeadOfListP(updates));
-    //op->op.inputs = singleton();
+
+    // else find last update to that table
+    //getUpdateForPreviousTableVersion(op,THE_TABLE_NAME, 0, updates);
+    // if NULL then user has asked for non-existing table
+    // FATAL_LOG("table); - exit
+
     DEBUG_LOG("Provenance computation for updates that will be passed "
             "to rewriter: %s", beatify(nodeToString(op)));
 }

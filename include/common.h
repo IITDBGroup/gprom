@@ -89,7 +89,7 @@
  */
 
 // postgres
-#ifdef HAVE_LIBPQ
+#if HAVE_LIBPQ && HAVE_LIBPQ_FE_H
 #define HAVE_POSTGRES_BACKEND 1
 #endif
 
