@@ -12,41 +12,6 @@ typedef enum OptionType {
     OPTION_FLOAT
 } OptionType;
 
-//typedef struct OptionConnection{
-//	char* host;
-//	char* db;
-//	int port;
-//	char* user;
-//	char* passwd;
-//	char *sql;
-//} OptionConnection;
-//
-//typedef struct OptionDebug{
-//	boolean log;
-//	int loglevel;
-//	boolean debugMemory;
-//} OptionDebug;
-//
-//typedef struct RewriteMethod{
-//	char* name;
-//	boolean isActive;
-//} RewriteMethod;
-//
-//typedef struct Options{
-//	OptionConnection* optionConnection;
-//	OptionDebug* optionDebug;
-//	List* optionRewrite;
-//} Options;
-
-//#define MAKE_OPTIONS()		\
-//	((Options*)calloc(1,sizeof(Options)))
-//
-//#define MAKE_OPTION_CONNECTION()		\
-//	((OptionConnection*)calloc(1, sizeof(OptionConnection)))
-//
-//#define MAKE_OPTION_DEBUG()		\
-//	((OptionDebug*)calloc(1, sizeof(OptionDebug)))
-
 /* define rewrite methods */
 #define OPTION_TIMING "timing"
 #define OPTION_AGGRESSIVE_MODEL_CHECKING "aggressive_model_checking"

@@ -19,7 +19,8 @@
 typedef enum ParserPluginType
 {
     PARSER_PLUGIN_ORACLE,
-    PARSER_PLUGIN_POSTGRES
+    PARSER_PLUGIN_POSTGRES,
+    PARSER_PLUGIN_HIVE
 } ParserPluginType;
 
 /* plugin definition */

@@ -20,31 +20,20 @@
 #include "configuration/option_parser.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "parser/parse_internal.h"
+//#include "parser/parse_internal.h"
 #include "parser/parser.h"
-#include "metadata_lookup/metadata_lookup.h"
-#include "../src/parser/sql_parser.tab.h"
-
+//#include "metadata_lookup/metadata_lookup.h"
+//#include "../src/parser/sql_parser.tab.h"
+#include "rewriter.h"
 
 int
 main (int argc, char* argv[])
 {
     Node *result;
+    int retVal;
 
     // initialize components
-    initMemManager();
-    mallocOptions();
-    if(parseOption(argc, argv) != 0)
-    {
-        printOptionParseError(stdout);
-        printOptionsHelp(stdout, "testparser", "Run parser stage only.");
-        return EXIT_FAILURE;
-    }
-    initLogger();
-    initMetadataLookupPlugins();
-    chooseMetadataLookupPluginFromString(getStringOption("backend"));
-//    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
-    initMetadataLookupPlugin();
+    READ_OPTIONS_AND_INIT("testparser", "Run parser stage only.");
 
     // read from terminal
     if (getStringOption("input.sql") == NULL)
@@ -63,6 +52,7 @@ main (int argc, char* argv[])
         ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(result));
         ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
     }
+
     freeOptions();
     destroyMemManager();
 

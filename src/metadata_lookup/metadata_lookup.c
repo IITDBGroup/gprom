@@ -23,6 +23,9 @@
 MetadataLookupPlugin *activePlugin = NULL;
 List *availablePlugins = NIL;
 
+static MetadataLookupPluginType stringToPluginType(char *type);
+static char *pluginTypeToString(MetadataLookupPluginType type);
+
 /* create list of available plugins */
 int
 initMetadataLookupPlugins (void)
@@ -56,17 +59,7 @@ shutdownMetadataLookupPlugins (void)
 void
 chooseMetadataLookupPluginFromString (char *plug)
 {
-    if (strcmp(plug, "oracle") == 0)
-    {
-        chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
-        return;
-    }
-    if (strcmp(plug, "postgres") == 0)
-    {
-        chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_POSTGRES);
-        return;
-    }
-    FATAL_LOG("unkown plugin type: %s", plug);
+    chooseMetadataLookupPlugin(stringToPluginType(plug));
 }
 
 void
@@ -79,11 +72,37 @@ chooseMetadataLookupPlugin (MetadataLookupPluginType plugin)
             activePlugin = p;
             if (!(p->isInitialized()))
                 p->initMetadataLookupPlugin();
+            INFO_LOG("PLUGIN metadatalookup: <%s>", pluginTypeToString(plugin));
+
             return;
         }
     }
     FATAL_LOG("did not find plugin");
 }
+
+static MetadataLookupPluginType
+stringToPluginType(char *type)
+{
+    if (strcmp(type, "oracle") == 0)
+        return METADATA_LOOKUP_PLUGIN_ORACLE;
+    if (strcmp(type, "postgres") == 0)
+        return METADATA_LOOKUP_PLUGIN_POSTGRES;
+    FATAL_LOG("unkown plugin type <%s>", type);
+    return METADATA_LOOKUP_PLUGIN_ORACLE;
+}
+
+static char *
+pluginTypeToString(MetadataLookupPluginType type)
+{
+    switch(type)
+    {
+    case METADATA_LOOKUP_PLUGIN_ORACLE:
+        return "oracle";
+    case METADATA_LOOKUP_PLUGIN_POSTGRES:
+        return "postgres";
+    }
+}
+
 
 /* wrappers to plugin methods */
 int

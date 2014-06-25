@@ -18,7 +18,7 @@
 #include "test_main.h"
 #include "configuration/option.h"
 #include "configuration/option_parser.h"
-
+#include "rewriter.h"
 
 int test_count = 0;
 int test_rec_depth = 0;
@@ -104,17 +104,7 @@ testSuites(void)
 int
 main(int argc, char* argv[])
 {
-    initMemManager();
-    mallocOptions();
-
-    if (parseOption(argc, argv) != 0)
-    {
-        printOptionParseError(stdout);
-        printOptionsHelp(stdout, "testmain", "Regression test suite. Runs a bunch of whitebox tests on components of the system.");
-        return EXIT_FAILURE;
-    }
-
-    initLogger();
+    READ_OPTIONS_AND_INIT("testmain", "Regression test suite. Runs a bunch of whitebox tests on components of the system.");
     DEBUG_LOG("configuration:\n\n");
     printCurrentOptions(stdout);
 

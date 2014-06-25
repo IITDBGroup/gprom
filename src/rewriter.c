@@ -16,19 +16,75 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "configuration/option.h"
+#include "configuration/option_parser.h"
 
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
-#include "parser/parser.h"
 #include "provenance_rewriter/prov_rewriter.h"
 #include "analysis_and_translate/translator.h"
 #include "sql_serializer/sql_serializer.h"
 #include "operator_optimizer/operator_optimizer.h"
+#include "parser/parser.h"
+#include "metadata_lookup/metadata_lookup.h"
+
 #include "instrumentation/timing_instrumentation.h"
 
+
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
+
+int
+initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[])
+{
+    initMemManager();
+    mallocOptions();
+    if(parseOption(argc, argv) != 0)
+    {
+        printOptionParseError(stdout);
+        printOptionsHelp(stdout, appName, appHelpText);
+        return EXIT_FAILURE;
+    }
+    initLogger();
+
+    return EXIT_SUCCESS;
+}
+
+void
+setupPluginsFromOptions(void)
+{
+    char *be = getStringOption("backend");
+    char *pluginName = be;
+
+    // setup parser - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.parser")) != NULL)
+        chooseParserPluginFromString(pluginName);
+    else
+        chooseParserPluginFromString(be);
+
+    // setup metadata lookup - individual option overrides backend option
+    initMetadataLookupPlugins();
+    if ((pluginName = getStringOption("plugin.metadata")) != NULL)
+        chooseMetadataLookupPluginFromString(pluginName);
+    else
+        chooseMetadataLookupPluginFromString(be);
+    initMetadataLookupPlugin();
+
+    //TODO SQL code gen
+}
+
+int
+readOptionsAndIntialize(char *appName, char *appHelpText, int argc, char* argv[])
+{
+    int retVal;
+    retVal = initBasicModulesAndReadOptions(appName, appHelpText, argc, argv);
+    if (retVal != EXIT_SUCCESS)
+        return retVal;
+
+    setupPluginsFromOptions();
+
+    return EXIT_SUCCESS;
+}
 
 char *
 rewriteQuery(char *input)

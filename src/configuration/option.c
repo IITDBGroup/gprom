@@ -61,6 +61,9 @@ char *sql = NULL;
 
 // database backend
 char *backend = NULL;
+char *plugin_metadata = NULL;
+char *plugin_parser = NULL;
+char *plugin_sqlcodegen = NULL;
 
 // instrumentation options
 boolean opt_timing = FALSE;
@@ -175,14 +178,38 @@ OptionInfo opts[] =
                 wrapOptionString(&sql),
                 defOptionString(NULL)
         },
-        // backend selection
+        // backend and plugin selectionselection
         {
                 "backend",
                 "-backend",
-                "select backend database type: postgres, oracle",
+                "select backend database type: postgres, oracle - this determines parser, metadata-lookup, and sql-code generator",
                 OPTION_STRING,
                 wrapOptionString(&backend),
                 defOptionString("oracle")
+        },
+        {
+                "plugin.metadata",
+                "-Pmetadata",
+                "select metadatalookup plugin: postgres, oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_metadata),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.parser",
+                "-Pparser",
+                "select parser plugin: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_parser),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.sqlcodegen",
+                "-Psqlcodegen",
+                "select SQL code generator plugin: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_sqlcodegen),
+                defOptionString(NULL)
         },
         // boolean instrumentation options
         aRewriteOption(OPTION_TIMING,
@@ -306,56 +333,16 @@ mallocOptions()
 void
 freeOptions()
 {
-//	free(options->optionConnection->host);
-//	free(options->optionConnection->db);
-//	free(options->optionConnection->user);
-//	free(options->optionConnection->passwd);
-//	free(options->optionConnection->sql);
-//	free(options->optionConnection);
-//	free(options->optionDebug);
-//	FOREACH(KeyValue,o,options->optionRewrite)
-//	{
-//	    Constant *c;
-//
-//	    c = (Constant *) o->key;
-//	    if (c->constType == DT_STRING)
-//	        free(c->value);
-//	    free(c);
-//
-//	    c = (Constant *) o->value;
-//        if (c->constType == DT_STRING)
-//            free(c->value);
-//        free(c);
-//
-//        free(o);
-//	}
-//	freeList(options->optionRewrite);
-//	free(options->optionRewrite);
-//	free(options);
+    //TODO
 }
 
 
 
-//Options*
-//getOptions()
-//{
-//	return options;
-//}
 
 boolean
 isRewriteOptionActivated(char *name)
 {
-//    Options *ops = getOptions();
-
     return getBoolOption(name);
-
-//    FOREACH(KeyValue,op,ops->optionRewrite)
-//    {
-//        if (strcmp(STRING_VALUE(op->key),name) == 0)
-//            return BOOL_VALUE(op->value);
-//    }
-//
-//    return FALSE;
 }
 
 static OptionValue *

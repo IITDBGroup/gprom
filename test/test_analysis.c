@@ -14,12 +14,10 @@
 #include "configuration/option_parser.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "parser/parse_internal.h"
 #include "parser/parser.h"
-#include "../src/parser/sql_parser.tab.h"
 #include "model/query_operator/query_operator.h"
-#include "metadata_lookup/metadata_lookup.h"
 #include "analysis_and_translate/analyze_qb.h"
+#include "rewriter.h"
 
 
 /* if OCI is not available then add dummy versions */
@@ -30,19 +28,7 @@ main (int argc, char* argv[])
 {
     Node *result;
 
-    initMemManager();
-    mallocOptions();
-    if(parseOption(argc, argv) != 0)
-    {
-        printOptionParseError(stdout);
-        printOptionsHelp(stdout, "testrewriter", "Run all stages on input and outpur rewritten SQL.");
-        return EXIT_FAILURE;
-    }
-    initLogger();
-
-    initMetadataLookupPlugins();
-    chooseMetadataLookupPluginFromString(getStringOption("backend"));
-    initMetadataLookupPlugin();
+    READ_OPTIONS_AND_INIT("testrewriter", "Run all stages on input and output rewritten SQL.");
 
     // read from terminal
     if (getStringOption("input.sql") == NULL)
