@@ -42,9 +42,16 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
     if(parseOption(argc, argv) != 0)
     {
         printOptionParseError(stdout);
-        printOptionsHelp(stdout, appName, appHelpText);
+        printOptionsHelp(stdout, appName, appHelpText, TRUE);
         return EXIT_FAILURE;
     }
+
+    if (getBoolOption("help"))
+    {
+        printOptionsHelp(stdout, appName, appHelpText, FALSE);
+        return EXIT_FAILURE;
+    }
+
     initLogger();
 
     return EXIT_SUCCESS;

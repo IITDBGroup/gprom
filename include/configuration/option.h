@@ -23,6 +23,14 @@ typedef enum OptionType {
 #define OPTION_TRANSLATE_UPDATE_WITH_CASE "translate_update_with_case"
 //#define OPTION_
 
+/* define optimization options */
+#define OPTIMIZATION_SELECTION_PUSHING "optimization.push_selections"
+#define OPTIMIZATION_MERGE_OPERATORS "optimization.merge_operators"
+#define OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR "optimization.factor_proj_attr_in_expr"
+#define OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ "optimization.materialize_merge_unsafe_proj"
+//#define OPTIMIZATION_ "optimization_"
+
+
 // new option interface
 extern char *getStringOption (char *name);
 extern int getIntOption (char *name);
@@ -40,7 +48,8 @@ extern char *commandOptionGetOption(char *name);
 extern OptionType getOptionType(char *name);
 extern boolean optionSet(char *name);
 
-extern void printOptionsHelp(FILE *stream, char *progName, char *description);
+extern void printOptionsHelp(FILE *stream, char *progName, char *description,
+        boolean showValues);
 extern void printCurrentOptions(FILE *stream);
 
 extern void mallocOptions();

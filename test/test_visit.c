@@ -8,11 +8,8 @@
 #include "configuration/option_parser.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "parser/parse_internal.h"
 #include "parser/parser.h"
-#include "metadata_lookup/metadata_lookup.h"
-#include "../src/parser/sql_parser.tab.h"
-
+#include "rewriter.h"
 
 /*
  * declarations.
@@ -24,20 +21,7 @@ main (int argc, char* argv[])
 {
     Node *result;
 
-    // initialize components
-    initMemManager();
-    mallocOptions();
-    if(parseOption(argc, argv) != 0)
-    {
-        printOptionParseError(stdout);
-        printOptionsHelp(stdout, "testvisit", "Run visit function on input for testing.");
-        return EXIT_FAILURE;
-    }
-    initLogger();
-    initMetadataLookupPlugins();
-    chooseMetadataLookupPluginFromString(getStringOption("backend"));
-//    chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
-    initMetadataLookupPlugin();
+    READ_OPTIONS_AND_INIT("testvisit", "Run visit function on input for testing.");
 
     // read from terminal
     if (getStringOption("input.sql") == NULL)
@@ -61,11 +45,7 @@ main (int argc, char* argv[])
     void *state;
     visitTheNode(result, state);
 
-
-    freeOptions();
-    destroyMemManager();
-
-    return EXIT_SUCCESS;
+    return shutdownApplication();
 }
 
 static boolean

@@ -26,100 +26,16 @@
 
 #include "metadata_lookup/metadata_lookup.h"
 
-static void init();
-static void cleanup();
 static char *process(char *sql);
 
 
 int
 main(int argc, char* argv[]) {
-	mallocOptions();
+    readOptionsAndIntialize("commandline", "GProM default command line that outputs rewritten input query to stdout.", argc, argv);
+	inputSQL();
+	shutdownApplication();
 
-	int rc=parseOption(argc,argv);
-
-	if(rc != 0)
-	{
-	    printOptionParseError(stdout);
-		printOptionsHelp(stdout, "command_line_main", "Main rewrite program");
-		return EXIT_FAILURE;
-	}
-//	else if(rc>0)
-//	{
-//		printHelp();
-//		return EXIT_FAILURE;
-//	}
-	else
-	{
-		printSuccess();
-		init();
-		inputSQL();
-		cleanup();
-	}
-
-	freeOptions();
 	return EXIT_SUCCESS;
-}
-
-void
-printError()
-{
-	printf("Parameters Errors\n");
-}
-
-void
-printHelp()
-{
-    printOptionsHelp(stdout, "command_line_main", "Main rewrite program");
-//    printf("================================HELP===============================\n");
-//	printf("-host, host address of the machine where oracle server runs on\n");
-//	printf("-db, database name of oracle server\n");
-//	printf("-port, port number of oracle server\n");
-//	printf("-user, username of account\n");
-//	printf("-passwd, password of account\n");
-//	printf("-log, set to use log output, default is off\n");
-//	printf("-loglevel, level of log for output, default is 0\n");
-//	printf("-debugmemory, set to use debug implementation of memory management, default is off\n");
-//	printf("-activate, set to activate certain types of alternative rewrites\n");
-//	printf("-sql, SQL you want to input\n");
-//	printf("===================================================================\n");
-}
-
-
-void
-printSuccess()
-{
-//	Options* options=getOptions();
-//	printf("=====================Options Parsed successfully===================\n");
-//	printf("host:%s\n",options->optionConnection->host);
-//	printf("db:%s\n",options->optionConnection->db);
-//	printf("port:%d\n",options->optionConnection->port);
-//	printf("user:%s\n",options->optionConnection->user);
-//	printf("passwd:%s\n",options->optionConnection->passwd);
-//	printf("log:%d\n",options->optionDebug->log);
-//	printf("loglevel:%d\n",options->optionDebug->loglevel);
-//	printf("debugmemory:%d\n",options->optionDebug->debugMemory);
-//	FOREACH(KeyValue,o,options->optionRewrite)
-//	{
-//	    printf("rewrite option %s set to %s\n",exprToSQL(o->key), exprToSQL(o->value));
-//	}
-//	printf("SQL:%s\n",options->optionConnection->sql);
-//	printf("===================================================================\n");
-}
-
-static void
-init()
-{
-    initMemManager();
-    initLogger();
-    initMetadataLookupPlugins();
-    chooseMetadataLookupPluginFromString(getStringOption("backend"));
-    initMetadataLookupPlugin();
-}
-
-static void
-cleanup()
-{
-    destroyMemManager();
 }
 
 void

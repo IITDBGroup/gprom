@@ -45,6 +45,9 @@ typedef struct OptionInfo {
     OptionDefault def;
 } OptionInfo;
 
+// show help only
+boolean opt_show_help = FALSE;
+
 // connection options
 char *connection_host = NULL;
 char *connection_db = NULL;
@@ -78,6 +81,12 @@ boolean opt_optimize_operator_model = FALSE;
 boolean opt_translate_update_with_case = FALSE;
 //boolean   = FALSE;
 
+// optimization options
+boolean opt_optimization_push_selections = FALSE;
+boolean opt_optimization_merge_ops = FALSE;
+boolean opt_optimization_factor_attrs = FALSE;
+boolean opt_materialize_unsafe_proj = FALSE;
+
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
 #define wrapOptionBool(value) { .b = (boolean *) value }
@@ -106,11 +115,32 @@ static char *defGetString(OptionDefault *def, OptionType type);
             defOptionBool(_def) \
         }
 
+#define anOptimizationOption(_name,_opt,_desc,_var,_def) \
+        { \
+            _name, \
+            _opt, \
+            _desc, \
+            OPTION_BOOL, \
+            wrapOptionBool(&_var), \
+            defOptionBool(_def) \
+        }
+
+
+
 #define OPT_POS(name) INT_VALUE(MAP_GET_STRING(optionPos,name))
 
 // array storing information for all supported options
 OptionInfo opts[] =
 {
+        // show help only and quit
+        {
+                "help",
+                "-help",
+                "Show this help text.",
+                OPTION_BOOL,
+                wrapOptionString(&opt_show_help),
+                defOptionBool(FALSE)
+        },
         // database backend connection options
         {
                 "connection.host",
@@ -256,6 +286,34 @@ OptionInfo opts[] =
                 "Create reenactment query for UPDATE statements using CASE instead of UNION.",
                 opt_translate_update_with_case,
                 FALSE),
+        // AGM (Query operator model) individual optimizations
+        anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
+                "-Opush_selections",
+                "Optimization: Activate selection move-around",
+                opt_optimization_push_selections,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_MERGE_OPERATORS,
+                "-Omerge_ops",
+                "Optimization: try to merge adjacent selection and projection operators",
+                opt_optimization_merge_ops,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR,
+                "-Ofactor_attrs",
+                "Optimization: try to factor out attribute references in projection"
+                " expressions to open up new operator merging opportunities",
+                opt_optimization_factor_attrs,
+                FALSE
+        ),
+        anOptimizationOption(OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ,
+                "-Omaterialize_unsafe",
+                "Optimization: add materialization hint for projections that "
+                "if merged with adjacent projection would cause expontential "
+                "expression size blowup",
+                opt_materialize_unsafe_proj,
+                TRUE
+        ),
         // stopper to indicate end of array
         {
                 "STOPPER",
@@ -472,7 +530,7 @@ optionSet(char *name)
 }
 
 void
-printOptionsHelp(FILE *stream, char *progName, char *description)
+printOptionsHelp(FILE *stream, char *progName, char *description, boolean showValues)
 {
     fprintf(stream, "%s:\n\t%s\n\nthe following options are supported:\n\n",
             progName, description);
@@ -481,12 +539,24 @@ printOptionsHelp(FILE *stream, char *progName, char *description)
     {
         char *name = STRING_VALUE(k);
         OptionInfo *v = getInfo(name);
-        fprintf(stream, "%s%s\n\tDEFAULT VALUE: %s\n\tACTUAL VALUE: %s\n\t%s\n",
-                v->cmdLine ? v->cmdLine : "-activate/-deactivate ",
-                v->cmdLine ? "" : v->option,
-                defGetString(&v->def, v->valueType),
-                valGetString(&v->value, v->valueType),
-                v->description);
+
+        if (showValues)
+        {
+            fprintf(stream, "%s%s\n\tDEFAULT VALUE: %s\n\tACTUAL VALUE: %s\n\t%s\n",
+                    v->cmdLine ? v->cmdLine : "-activate/-deactivate ",
+                    v->cmdLine ? "" : v->option,
+                    defGetString(&v->def, v->valueType),
+                    valGetString(&v->value, v->valueType),
+                    v->description);
+        }
+        else
+        {
+            fprintf(stream, "%s%s\tDEFAULT VALUE: %s\n\t%s\n",
+                    v->cmdLine ? v->cmdLine : "-activate/-deactivate ",
+                    v->cmdLine ? "" : v->option,
+                    defGetString(&v->def, v->valueType),
+                    v->description);
+        }
     }
 }
 
