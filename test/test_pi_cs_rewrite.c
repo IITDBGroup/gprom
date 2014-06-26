@@ -56,8 +56,7 @@ main (int argc, char* argv[])
     ERROR_LOG("REWRITTEN PROVENANCE RESULT IS:\n%s", beatify(nodeToString(rewriteQoModel)));
     ERROR_LOG("REWRITTEN PROVENANCE RESULT IS:\n%s", operatorToOverviewString(rewriteQoModel));
 
-    freeOptions();
-    destroyMemManager();
+    shutdownApplication();
 
     return EXIT_SUCCESS;
 }

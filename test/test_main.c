@@ -110,8 +110,7 @@ main(int argc, char* argv[])
 
     testSuites();
 
-    freeOptions();
-    destroyMemManager();
+    shutdownApplication();
 
     return EXIT_SUCCESS;
 }

@@ -16,6 +16,7 @@
 extern int initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[]);
 extern void setupPluginsFromOptions(void);
 extern int readOptionsAndIntialize(char *appName, char *appHelpText, int argc, char* argv[]);
+extern int shutdownApplication(void);
 
 #define READ_OPTIONS_AND_INIT(app,helpText) \
     do { \

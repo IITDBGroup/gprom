@@ -47,7 +47,8 @@ shutdownMetadataLookupPlugins (void)
 {
     FOREACH(MetadataLookupPlugin,p,availablePlugins)
     {
-        p->shutdownMetadataLookupPlugin();
+        if (p->isInitialized())
+            p->shutdownMetadataLookupPlugin();
         FREE(p);
     }
     freeList(availablePlugins);

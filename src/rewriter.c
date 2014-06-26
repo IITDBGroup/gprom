@@ -86,6 +86,19 @@ readOptionsAndIntialize(char *appName, char *appHelpText, int argc, char* argv[]
     return EXIT_SUCCESS;
 }
 
+int
+shutdownApplication(void)
+{
+    INFO_LOG("shutdown plugins, logger, and memory manager");
+
+    shutdownMetadataLookupPlugins();
+
+    freeOptions();
+    destroyMemManager();
+
+    return EXIT_SUCCESS;
+}
+
 char *
 rewriteQuery(char *input)
 {

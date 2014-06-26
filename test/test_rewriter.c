@@ -56,8 +56,9 @@ main (int argc, char* argv[])
     STOP_TIMER("TOTAL");
     OUT_TIMERS();
 
-    freeOptions();
-    destroyMemManager();
+    shutdownApplication();
+//    freeOptions();
+//    destroyMemManager();
 
     return EXIT_SUCCESS;
 }

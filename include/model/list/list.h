@@ -196,7 +196,7 @@ extern boolean searchListNode(List *list, Node *value);
 extern boolean genericSearchList(List *list, boolean (*eq) (void *, void *), void *value);
 
 extern int listPosString (List *list, char *value);
-extern boolean genericListPos (List *list, boolean (*eq) (void *, void *), void *value);
+extern int genericListPos (List *list, boolean (*eq) (void *, void *), void *value);
 
 /* replace list elements */
 extern List *replaceNode(List *list, void *n1, void *n2);

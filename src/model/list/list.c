@@ -577,7 +577,7 @@ genericSearchList(List *list, boolean (*eq) (void *, void *), void *value)
 }
 
 
-boolean
+int
 genericListPos (List *list, boolean (*eq) (void *, void *), void *value)
 {
     ASSERT(isPtrList(list));

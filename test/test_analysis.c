@@ -51,8 +51,7 @@ main (int argc, char* argv[])
     ERROR_LOG("ANALYSIS RESULT IS <%s>", nodeToString(result));
     ERROR_LOG("ANALYSIS RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
 
-    freeOptions();
-    destroyMemManager();
+    shutdownApplication();
 
     return EXIT_SUCCESS;
 }
