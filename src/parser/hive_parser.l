@@ -88,7 +88,66 @@ parameters		[:]{identifiers}
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 /*shiftsOps		["<<"|">>"] */
+notOps			("NOT"|"!")
 
+/*****************************************************************/
+/* HIVE ONES */
+DOT						'.'
+COLON					':' 
+COMMA					',' 
+SEMICOLON				';' 
+
+LPAREN					'(' 
+RPAREN					')' 
+LSQUARE					'[' 
+RSQUARE					']' 
+LCURLY					'{'
+RCURLY					'}'
+
+EQUAL					("=" | "==")
+NOTEQUAL				("<>" | "!=")
+LESSTHANOREQUALTO		"<="
+LESSTHAN				"<"
+GREATERTHANOREQUALTO	">="
+GREATERTHAN				">"
+
+DIVIDE					'/'
+PLUS					'+'
+MINUS					'-'
+STAR					'*'
+MOD						'%'
+DIV						"DIV"
+
+AMPERSAND				'&'
+TILDE					'~'
+BITWISEOR				'|'
+BITWISEXOR				'^'
+QUESTION				'?'
+DOLLAR					'$'
+
+/* LITERAL ONES */
+Letter					 [A-Za-z]
+HexDigit 				 [A-Fa-f]
+Digit					 [0-9]
+Exponent				 ("e" | "E") ( {PLUS}|{MINUS} )? ({Digit})+
+
+RegexComponent 			([A-Za-z0-9_] | {PLUS} | {STAR} | {QUESTION} | {MINUS} | {DOT} | {LPAREN} | {RPAREN} | {LSQUARE} | {RSQUARE} | {LCURLY} | {RCURLY} | {BITWISEXOR} | {BITWISEOR} | {DOLLAR})
+
+StringLiteral ( '\'' ( ~('\''|'\\') | ('\\' .) )* '\'' | '\"' ( ~('\"'|'\\') | ('\\' .) )* '\"' )+
+
+CharSetLiteral ({StringLiteral} | '0' 'X' ({HexDigit}|{Digit})+)
+
+BigintLiteral 			({Digit})+ 'L'
+SmallintLiteral			({Digit})+ 'S'
+TinyintLiteral			({Digit})+ 'Y'
+Number					({Digit})+ ( {DOT} ({Digit})* ({Exponent})? | {Exponent})?
+
+Identifier				(Letter | Digit) (Letter | Digit | '_')* | '`' RegexComponent+ '`'
+CharSetName 		'_' (Letter | Digit | '_' | '-' | '.' | ':' )+
+
+WS    				(' '|'\r'|'\t'|'\n')
+
+COMMENT '--' (~('\n'|'\r'))*
 
 /*******************************************************************************
  * Token definitions and actions 
@@ -99,96 +158,228 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 {whitespace}	 { TRACE_LOG("Lexed whitespace <%s>", hivetext); /* ignore it */ }
 
 	/* literal keyword tokens */
-(?i:SELECT)       	TOK(SELECT)
-(?i:INSERT)			TOK(INSERT)
-(?i:UPDATE)			TOK(UPDATE)
-(?i:DELETE)			TOK(DELETE)
-(?i:SET)			TOK(SET)
-(?i:PROVENANCE)		TOK(PROVENANCE)
-(?i:OF)				TOK(OF)
-(?i:FROM)			TOK(FROM)
-(?i:AS)				TOK(AS)
-(?i:WHERE)			TOK(WHERE)
-(?i:DISTINCT)		TOK(DISTINCT)
-(?i:ON)				TOK(ON)
-STARLL				TOK(STARALL)
-(?i:ALL)		 	TOK(ALL)
-(?i:AND)		 	TOK(AND)
-(?i:OR)             TOK(OR)
-(?i:AVG)		 	TOK(AMMSC)
-(?i:MIN)		 	TOK(AMMSC)
-(?i:MAX)		 	TOK(AMMSC)
-(?i:SUM)		 	TOK(AMMSC)
-(?i:COUNT)		 	TOK(AMMSC)
-(?i:ANY)		 	TOK(ANY)
-(?i:SOME)           TOK(SOME)
-(?i:BETWEEN)	 	TOK(BETWEEN)
-(?i:BY)			 	TOK(BY)
-(?i:UPDATE)		 	TOK(UPDATE)
-(?i:DELETE)	     	TOK(DELETE)
-(?i:IS)		     	TOK(IS)
-(?i:NULL)	     	TOK(NULLVAL)
-(?i:UNION)        	TOK(UNION)
-(?i:INTERSECT)      TOK(INTERSECT)
-(?i:MINUS)        	TOK(MINUS)
-(?i:JOIN)        	TOK(JOIN)
-(?i:LEFT)        	TOK(LEFT)
-(?i:RIGHT)        	TOK(RIGHT)
-(?i:OUTER)        	TOK(OUTER)
-(?i:INNER)        	TOK(INNER)
-(?i:NATURAL)		TOK(NATURAL)
-(?i:USING)        	TOK(USING)
-(?i:CROSS)        	TOK(CROSS)
-(?i:INTO)			TOK(INTO)
-(?i:VALUES)			TOK(VALUES)
-(?i:IN)        		TOK(IN)
-(?i:EXISTS)        	TOK(EXISTS)
-(?i:LIKE)        	TOK(LIKE)
-(?i:GROUP)        	TOK(GROUP)
-(?i:NOT)        	TOK(NOT)
-(?i:HAVING)        	TOK(HAVING)
-(?i:LIMIT)        	TOK(LIMIT)
-(?i:ORDER)        	TOK(ORDER)
-(?i:BEGIN)        	TOK(BEGIN_TRANS)
-(?i:COMMIT)       	TOK(COMMIT_TRANS)
-(?i:ROLLBACK)     	TOK(ROLLBACK_TRANS)
-(?i:ABORT)		 	TOK(ROLLBACK_TRANS)
-(?i:BASERELATION) 	TOK(BASERELATION)
-(?i:SCN)			TOK(SCN)
-(?i:TIMESTAMP)		TOK(TIMESTAMP)
-(?i:TYPE)			TOK(TYPE)
-(?i:TRANSACTION) 	TOK(TRANSACTION)
-(?i:WITH)			TOK(WITH)
-(?i:HAS)			TOK(HAS)
-(?i:CASE)			TOK(CASE)
-(?i:WHEN)			TOK(WHEN)
-(?i:THEN)			TOK(THEN)
-(?i:END)			TOK(END)
-(?i:ELSE)			TOK(ELSE)
-(?i:OVER)			TOK(OVER_TOK)
-(?i:PARTITION)		TOK(PARTITION)
-(?i:ROWS)			TOK(ROWS)
-(?i:RANGE)			TOK(RANGE)
-(?i:UNBOUNDED)		TOK(UNBOUNDED)
-(?i:PRECEDING)		TOK(PRECEDING)
-(?i:CURRENT)		TOK(CURRENT)
-(?i:ROW)			TOK(ROW)
-(?i:FOLLOWING)		TOK(FOLLOWING)
-(?i:TABLE)			TOK(TABLE)
-(?i:ONLY)			TOK(ONLY)
-(?i:UPDATED)		TOK(UPDATED)
-(?i:SHOW)			TOK(SHOW)
-(?i:INTERMEDIATE)	TOK(INTERMEDIATE)
-(?i:USE)			TOK(USE)
-(?i:ASC)			TOK(ASC)
-(?i:DESC)			TOK(DESC)
-(?i:NULLS)			TOK(NULLS)
-(?i:FIRST)			TOK(FIRST)
-(?i:LAST)			TOK(LAST)
-(?i:TUPLE)			TOK(TUPLE)
-(?i:VERSIONS)		TOK(VERSIONS)
+(?i:user)	TOK(kwUser)
+(?i:role)	TOK(kwRole)
+(?i:inner)	TOK(kwInner)
 
-	/* names */
+(?i:TRUE)	TOK(KW_TRUE)
+(?i:FALSE)	TOK(KW_FALSE)
+(?i:ALL)	TOK(KW_ALL)
+(?i:AND)	TOK(KW_AND)
+(?i:OR)		TOK(KW_OR)
+{notOps} 	TOK(KW_NOT)
+(?i:LIKE)	TOK(KW_LIKE)
+
+(?i:IF)	TOK(KW_IF)
+(?i:EXISTS)	TOK(KW_EXISTS)
+
+(?i:ASC)	TOK(KW_ASC)
+(?i:DESC)	TOK(KW_DESC)
+(?i:ORDER)	TOK(KW_ORDER)
+(?i:GROUP)	TOK(KW_GROUP)
+(?i:BY)	TOK(KW_BY)
+(?i:HAVING)	TOK(KW_HAVING)
+(?i:WHERE)	TOK(KW_WHERE)
+(?i:FROM)	TOK(KW_FROM)
+(?i:AS)	TOK(KW_AS)
+(?i:SELECT)	TOK(KW_SELECT)
+(?i:DISTINCT)	TOK(KW_DISTINCT)
+(?i:INSERT)	TOK(KW_INSERT)
+(?i:OVERWRITE)	TOK(KW_OVERWRITE)
+(?i:OUTER)	TOK(KW_OUTER)
+(?i:UNIQUEJOIN)	TOK(KW_UNIQUEJOIN)
+(?i:PRESERVE)	TOK(KW_PRESERVE)
+(?i:JOIN)	TOK(KW_JOIN)
+(?i:LEFT)	TOK(KW_LEFT)
+(?i:RIGHT)	TOK(KW_RIGHT)
+(?i:FULL)	TOK(KW_FULL)
+(?i:ON)	TOK(KW_ON)
+(?i:PARTITION)	TOK(KW_PARTITION)
+(?i:PARTITIONS)	TOK(KW_PARTITIONS)
+(?i:TABLE) TOK(KW_TABLE)
+(?i:TABLES) TOK(KW_TABLES)
+(?i:INDEX) TOK(KW_INDEX)
+(?i:INDEXES) TOK(KW_INDEXES)
+(?i:REBUILD) TOK(KW_REBUILD)
+(?i:FUNCTIONS) TOK(KW_FUNCTIONS)
+(?i:SHOW) TOK(KW_SHOW)
+(?i:MSCK) TOK(KW_MSCK)
+(?i:REPAIR) TOK(KW_REPAIR)
+(?i:DIRECTORY) TOK(KW_DIRECTORY)
+(?i:LOCAL) TOK(KW_LOCAL)
+(?i:TRANSFORM)	TOK(KW_TRANSFORM) 
+(?i:USING) TOK(KW_USING);
+(?i:CLUSTER) TOK(KW_CLUSTER);
+(?i:DISTRIBUTE) TOK(KW_DISTRIBUTE);
+(?i:SORT) TOK(KW_SORT);
+(?i:UNION) TOK(KW_UNION);
+(?i:LOAD) TOK(KW_LOAD);
+(?i:EXPORT) TOK(KW_EXPORT);
+(?i:IMPORT) TOK(KW_IMPORT);
+(?i:DATA) TOK(KW_DATA);
+(?i:INPATH) TOK(KW_INPATH);
+(?i:IS) TOK(KW_IS);
+(?i:NULL) TOK(KW_NULL);
+(?i:CREATE) TOK(KW_CREATE);
+(?i:EXTERNAL) TOK(KW_EXTERNAL);
+(?i:ALTER) TOK(KW_ALTER);
+(?i:CHANGE) TOK(KW_CHANGE);
+(?i:COLUMN) TOK(KW_COLUMN);
+(?i:FIRST) TOK(KW_FIRST);
+(?i:AFTER) TOK(KW_AFTER);
+(?i:DESCRIBE) TOK(KW_DESCRIBE);
+(?i:DROP) TOK(KW_DROP);
+(?i:RENAME) TOK(KW_RENAME);
+(?i:TO) TOK(KW_TO);
+(?i:COMMENT) TOK(KW_COMMENT);
+(?i:BOOLEAN) TOK(KW_BOOLEAN);
+(?i:TINYINT) TOK(KW_TINYINT);
+(?i:SMALLINT) TOK(KW_SMALLINT);
+(?i:INT) TOK(KW_INT);
+(?i:BIGINT) TOK(KW_BIGINT);
+(?i:FLOAT) TOK(KW_FLOAT);
+(?i:DOUBLE) TOK(KW_DOUBLE);
+(?i:DATE) TOK(KW_DATE);
+(?i:DATETIME) TOK(KW_DATETIME);
+(?i:TIMESTAMP) TOK(KW_TIMESTAMP);
+(?i:STRING) TOK(KW_STRING);
+(?i:ARRAY) TOK(KW_ARRAY);
+(?i:STRUCT) TOK(KW_STRUCT);
+(?i:MAP) TOK(KW_MAP);
+(?i:UNIONTYPE) TOK(KW_UNIONTYPE);
+(?i:REDUCE) TOK(KW_REDUCE);
+(?i:PARTITIONED) TOK(KW_PARTITIONED);
+(?i:CLUSTERED) TOK(KW_CLUSTERED);
+(?i:SORTED) TOK(KW_SORTED);
+(?i:INTO) TOK(KW_INTO);
+(?i:BUCKETS) TOK(KW_BUCKETS);
+(?i:ROW) TOK(KW_ROW);
+(?i:FORMAT) TOK(KW_FORMAT);
+(?i:DELIMITED) TOK(KW_DELIMITED);
+(?i:FIELDS) TOK(KW_FIELDS);
+(?i:TERMINATED) TOK(KW_TERMINATED);
+(?i:ESCAPED) TOK(KW_ESCAPED);
+(?i:COLLECTION) TOK(KW_COLLECTION);
+(?i:ITEMS) TOK(KW_ITEMS);
+(?i:KEYS) TOK(KW_KEYS);
+(?i:$KEY$) TOK(KW_KEY_TYPE);
+(?i:LINES) TOK(KW_LINES);
+(?i:STORED) TOK(KW_STORED);
+(?i:FILEFORMAT) TOK(KW_FILEFORMAT);
+(?i:SEQUENCEFILE) TOK(KW_SEQUENCEFILE);
+(?i:TEXTFILE) TOK(KW_TEXTFILE);
+(?i:RCFILE) TOK(KW_RCFILE);
+(?i:INPUTFORMAT) TOK(KW_INPUTFORMAT);
+(?i:OUTPUTFORMAT) TOK(KW_OUTPUTFORMAT);
+(?i:INPUTDRIVER) TOK(KW_INPUTDRIVER);
+(?i:OUTPUTDRIVER) TOK(KW_OUTPUTDRIVER);
+(?i:OFFLINE) TOK(KW_OFFLINE);
+(?i:ENABLE) TOK(KW_ENABLE);
+(?i:DISABLE) TOK(KW_DISABLE);
+(?i:READONLY) TOK(KW_READONLY);
+(?i:NO_DROP) TOK(KW_NO_DROP);
+(?i:LOCATION) TOK(KW_LOCATION);
+(?i:TABLESAMPLE) TOK(KW_TABLESAMPLE);
+(?i:BUCKET) TOK(KW_BUCKET);
+(?i:OUT) TOK(KW_OUT);
+(?i:OF) TOK(KW_OF);
+(?i:PERCENT) TOK(KW_PERCENT);
+(?i:CAST) TOK(KW_CAST);
+(?i:ADD) TOK(KW_ADD);
+(?i:REPLACE) TOK(KW_REPLACE);
+(?i:COLUMNS) TOK(KW_COLUMNS);
+(?i:RLIKE) TOK(KW_RLIKE);
+(?i:REGEXP) TOK(KW_REGEXP);
+(?i:TEMPORARY) TOK(KW_TEMPORARY);
+(?i:FUNCTION) TOK(KW_FUNCTION);
+(?i:EXPLAIN) TOK(KW_EXPLAIN);
+(?i:EXTENDED) TOK(KW_EXTENDED);
+(?i:FORMATTED) TOK(KW_FORMATTED);
+(?i:SERDE) TOK(KW_SERDE);
+(?i:WITH) TOK(KW_WITH);
+(?i:DEFERRED) TOK(KW_DEFERRED);
+(?i:SERDEPROPERTIES) TOK(KW_SERDEPROPERTIES);
+(?i:DBPROPERTIES) TOK(KW_DBPROPERTIES);
+(?i:LIMIT) TOK(KW_LIMIT);
+(?i:SET) TOK(KW_SET);
+(?i:TBLPROPERTIES) TOK(KW_TBLPROPERTIES);
+(?i:IDXPROPERTIES) TOK(KW_IDXPROPERTIES);
+(?i:$VALUE$) TOK(KW_VALUE_TYPE);
+(?i:$ELEM$) TOK(KW_ELEM_TYPE);
+(?i:CASE) TOK(KW_CASE);
+(?i:WHEN) TOK(KW_WHEN);
+(?i:THEN) TOK(KW_THEN);
+(?i:ELSE) TOK(KW_ELSE);
+(?i:END) TOK(KW_END);
+(?i:MAPJOIN) TOK(KW_MAPJOIN);
+(?i:STREAMTABLE) TOK(KW_STREAMTABLE);
+(?i:HOLD_DDLTIME) TOK(KW_HOLD_DDLTIME);
+(?i:CLUSTERSTATUS) TOK(KW_CLUSTERSTATUS);
+(?i:UTC) TOK(KW_UTC);
+(?i:UTC_TMESTAMP) TOK(KW_UTCTIMESTAMP);
+(?i:LONG) TOK(KW_LONG);
+(?i:DELETE) TOK(KW_DELETE);
+(?i:PLUS) TOK(KW_PLUS);
+(?i:MINUS) TOK(KW_MINUS);
+(?i:FETCH) TOK(KW_FETCH);
+(?i:INTERSECT) TOK(KW_INTERSECT);
+(?i:VIEW) TOK(KW_VIEW);
+(?i:IN) TOK(KW_IN);
+(?i:DATABASE) TOK(KW_DATABASE);
+(?i:DATABASES) TOK(KW_DATABASES);
+(?i:MATERIALIZED) TOK(KW_MATERIALIZED);
+(?i:SCHEMA) TOK(KW_SCHEMA);
+(?i:SCHEMAS) TOK(KW_SCHEMAS);
+(?i:GRANT) TOK(KW_GRANT);
+(?i:REVOKE) TOK(KW_REVOKE);
+(?i:SSL) TOK(KW_SSL);
+(?i:UNDO) TOK(KW_UNDO);
+(?i:LOCK) TOK(KW_LOCK);
+(?i:LOCKS) TOK(KW_LOCKS);
+(?i:UNLOCK) TOK(KW_UNLOCK);
+(?i:SHARED) TOK(KW_SHARED);
+(?i:EXCLUSIVE) TOK(KW_EXCLUSIVE);
+(?i:PROCEDURE) TOK(KW_PROCEDURE);
+(?i:UNSIGNED) TOK(KW_UNSIGNED);
+(?i:WHILE) TOK(KW_WHILE);
+(?i:READ) TOK(KW_READ);
+(?i:READS) TOK(KW_READS);
+(?i:PURGE) TOK(KW_PURGE);
+(?i:RANGE) TOK(KW_RANGE);
+(?i:ANALYZE) TOK(KW_ANALYZE);
+(?i:BEFORE) TOK(KW_BEFORE);
+(?i:BETWEEN) TOK(KW_BETWEEN);
+(?i:BOTH) TOK(KW_BOTH);
+(?i:BINARY) TOK(KW_BINARY);
+(?i:CROSS) TOK(KW_CROSS);
+(?i:CONTINUE) TOK(KW_CONTINUE);
+(?i:CURSOR) TOK(KW_CURSOR);
+(?i:TRIGGER) TOK(KW_TRIGGER);
+(?i:RECORDREADER) TOK(KW_RECORDREADER);
+(?i:RECORDWRITER) TOK(KW_RECORDWRITER);
+(?i:SEMI) TOK(KW_SEMI);
+(?i:LATERAL) TOK(KW_LATERAL);
+(?i:TOUCH) TOK(KW_TOUCH);
+(?i:ARCHIVE) TOK(KW_ARCHIVE);
+(?i:UNARCHIVE) TOK(KW_UNARCHIVE);
+(?i:COMPUTE) TOK(KW_COMPUTE);
+(?i:STATISTICS) TOK(KW_STATISTICS);
+(?i:USE) TOK(KW_USE);
+(?i:OPTION) TOK(KW_OPTION);
+(?i:CONCATENATE) TOK(KW_CONCATENATE);
+(?i:SHOW_DATABASE) TOK(KW_SHOW_DATABASE);
+(?i:UPDATE) TOK(KW_UPDATE);
+(?i:RESTRICT) TOK(KW_RESTRICT);
+(?i:CASCADE) TOK(KW_CASCADE);
+
+
+	/* failure - no token matched */
+.		{ hiveerror("Unknown symbol"); }	/* random non-SQL text */
+
+%%
+
+/*
+	
 {identifiers}	UPCASE_TOK(identifier)
 {quotedIdentifier}   { 		
 		hivelval.stringVal = MALLOC(strlen(hivetext) - 1);
@@ -206,20 +397,20 @@ STARLL				TOK(STARALL)
 		return parameter;
 	}
 
-	/* punctuation */
+	
 [(),.;] TOKSELF()
 
-	/* operators */
+	
 {comparisonOps}		TOK(comparisonOps)
 [-+*%/^~&|!]		TOKSELF()
 	
 
 
-	/* numbers */
+	
 {integer}	TOKSAVE(intConst,intVal,atoi)
 {float}	TOKSAVE(floatConst,floatVal,atof)
 
-	/* strings */
+	
 '[^'\n]*'	{
 		hivelval.stringVal = MALLOC(strlen(hivetext) - 1);
 		memcpy(hivelval.stringVal, hivetext + 1, strlen(hivetext) - 2);
@@ -227,14 +418,10 @@ STARLL				TOK(STARALL)
 		TRACE_LOG("Lexed TOKEN <stringConst> with VALUE <%s>", hivetext);
 		return stringConst;
 	}
-
+}
 		
 '[^'\n]*$	{hiveerror("Unterminated string"); }
-
-	/* failure - no token matched */
-.		{ hiveerror("Unknown symbol"); }	/* random non-SQL text */
-
-%%
+*/
 
 /*******************************************************************************
  * Literal C code to include

@@ -10,16 +10,23 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+#include "utility/enum_magic.h"
 
 #define isQBQuery(node) (isA(node,QueryBlock) || isA(node,SetQuery) || isA(node, ProvenanceStmt))
 #define isQBUpdate(node) (isA(node,Insert) || isA(node,Update) || isA(node,Delete))
 
-typedef enum SetOpType
-{
-    SETOP_UNION,
-    SETOP_INTERSECTION,
-    SETOP_DIFFERENCE
-} SetOpType;
+NEW_ENUM_WITH_TO_STRING(SetOpType,
+        SETOP_UNION,
+        SETOP_INTERSECTION,
+        SETOP_DIFFERENCE);
+
+//typedef enum SetOpType
+//{
+//    SETOP_UNION,
+//    SETOP_INTERSECTION,
+//    SETOP_DIFFERENCE
+//} SetOpType;
+
 
 typedef struct SetQuery
 {
@@ -44,12 +51,11 @@ typedef struct QueryBlock
     Node *limitClause;
 } QueryBlock;
 
-typedef enum IsolationLevel
-{
+NEW_ENUM_WITH_TO_STRING(IsolationLevel,
     ISOLATION_SERIALIZABLE,
     ISOLATION_READ_COMMITTED,
     ISOLATION_READ_ONLY
-} IsolationLevel;
+);
 
 typedef struct WithStmt
 {
@@ -64,8 +70,6 @@ typedef struct ProvenanceTransactionInfo
     IsolationLevel transIsolation;
     List *updateTableNames;
     List *originalUpdates;
-    //TODO List *sqls
-    //TODO List *binds
     List *scns;
     Constant *commitSCN;
 } ProvenanceTransactionInfo;
@@ -120,21 +124,19 @@ typedef struct FromSubquery
     Node *subquery;
 } FromSubquery;
 
-typedef enum JoinType
-{
+NEW_ENUM_WITH_TO_STRING(JoinType,
     JOIN_INNER,
     JOIN_CROSS,
     JOIN_LEFT_OUTER,
     JOIN_RIGHT_OUTER,
     JOIN_FULL_OUTER
-} JoinType;
+);
 
-typedef enum JoinConditionType
-{
+NEW_ENUM_WITH_TO_STRING(JoinConditionType,
     JOIN_COND_ON,
     JOIN_COND_USING,
     JOIN_COND_NATURAL
-} JoinConditionType;
+);
 
 typedef struct FromJoinExpr
 {
@@ -152,14 +154,13 @@ typedef struct DistinctClause
     List *distinctExprs;
 } DistinctClause;
 
-typedef enum NestingExprType
-{
+NEW_ENUM_WITH_TO_STRING(NestingExprType,
     NESTQ_EXISTS,
     NESTQ_ANY,
     NESTQ_ALL,
     NESTQ_UNIQUE,
     NESTQ_SCALAR
-} NestingExprType;
+);
 
 typedef struct NestedSubquery
 {
@@ -194,18 +195,40 @@ typedef struct Update
 } Update;
 
 
-typedef enum TransactionStmtType
-{
+NEW_ENUM_WITH_TO_STRING(TransactionStmtType,
     TRANSACTION_BEGIN,
     TRANSACTION_COMMIT,
     TRANSACTION_ABORT
-} TransactionStmtType;
+);
 
 typedef struct TransactionStmt
 {
     NodeTag type;
     TransactionStmtType stmtType;
 } TransactionStmt;
+
+NEW_ENUM_WITH_TO_STRING(UtiltityStmtType,
+    USTMT_LOAD,
+    USTMT_EXPORT
+);
+
+typedef struct UtilityStatement
+{
+    NodeTag type;
+    UtiltityStmtType stmtType;
+} UtilityStatement;
+
+NEW_ENUM_WITH_TO_STRING(DDLStmtType,
+    DDL_CREATE_TABLE,
+    DDL_ALTER_TABLE
+);
+
+typedef struct DDLStatement
+{
+    NodeTag type;
+    DDLStmtType ddlType;
+} DDLStatement;
+
 
 /* functions for creating query block nodes */
 /*extern SetQuery *createSetQuery(List *selectClause, SetOp *root);*/

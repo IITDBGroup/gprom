@@ -352,13 +352,22 @@ restrictToUpdatedRows (ProvenanceComputation *op)
     //TODO for now be conservative when to apply things
     // use conditions of updates to filter out non-updated tuples early on
     if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS) && simpleOnly)
+    {
+        DEBUG_LOG("Use conditions to restrict to updated;");
         addConditionsToBaseTables(op);
+    }
     // use history to get tuples updated by transaction and limit provenance tracing to these tuples
     else if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN))
+    {
+        DEBUG_LOG("Use history join to restrict to updated;");
         extractUpdatedFromTemporalHistory(op);
+    }
     // simply filter out non-updated rows in the end
     else
+    {
+        FATAL_LOG("filtering of updated rows in final result not supported yet.");
         filterUpdatedInFinalResult(op);
+    }
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));
@@ -401,7 +410,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
                     createConstInt(getNumAttrs((QueryOperator *) t) - 1));
         }
 
-        if (HAS_STRING_PROP(t,"UPDATED TABLE")) //HAO figure out which tables are read from
+        if (HAS_STRING_PROP(t,PROP_TABLE_IS_UPDATED)) //HAO figure out which tables are read from
             addToSet(updatedTableNames, strdup(t->tableName));
         else
             addToSet(readFromTableNames, strdup(t->tableName));

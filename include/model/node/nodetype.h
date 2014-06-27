@@ -2,9 +2,10 @@
 #define NODETYPE_H
 
 #include "common.h"
+#include "utility/enum_magic.h"
 
-typedef enum NodeTag {
-    T_Invalid=0,
+NEW_ENUM_WITH_TO_STRING(NodeTag,
+    T_Invalid,
 
     /* collection types */
     T_List,
@@ -50,6 +51,8 @@ typedef enum NodeTag {
     T_Update,
     T_TransactionStmt,
     T_WithStmt,
+    T_DDLStatement,
+    T_UtilityStatement,
 
     /* query operator model nodes */
     T_Schema,
@@ -68,27 +71,25 @@ typedef enum NodeTag {
     T_WindowOperator,
     T_OrderOperator
 
-} NodeTag;
+);
 
 typedef struct Node{
     NodeTag type;
 } Node;
 
-typedef enum ProvenanceType
-{
+NEW_ENUM_WITH_TO_STRING(ProvenanceType,
     PROV_PI_CS,
     PROV_TRANSFORMATION
-} ProvenanceType;
+);
 
 /* what type of database operation(s) a provenance computation is for */
-typedef enum ProvenanceInputType
-{
+NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
     PROV_INPUT_QUERY,
     PROV_INPUT_UPDATE,
     PROV_INPUT_UPDATE_SEQUENCE,
     PROV_INPUT_TRANSACTION,
     PROV_INPUT_TIME_INTERVAL
-} ProvenanceInputType;
+);
 
 /* stringinfo provides the string data type*/
 

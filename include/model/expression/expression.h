@@ -3,6 +3,7 @@
 
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "utility/enum_magic.h"
 
 typedef struct FunctionCall {
     NodeTag type;
@@ -18,14 +19,13 @@ typedef struct Operator {
 } Operator;
 
 
-typedef enum DataType
-{
+NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
     DT_LONG,
     DT_STRING,
     DT_FLOAT,
     DT_BOOL
-} DataType;
+);
 
 typedef struct Constant {
     NodeTag type;
@@ -75,12 +75,12 @@ typedef struct IsNullExpr {
     Node *expr;
 } IsNullExpr;
 
-typedef enum WindowBoundType {
+NEW_ENUM_WITH_TO_STRING(WindowBoundType,
     WINBOUND_UNBOUND_PREC,
     WINBOUND_CURRENT_ROW,
     WINBOUND_EXPR_PREC,
     WINBOUND_EXPR_FOLLOW
-} WindowBoundType;
+);
 
 typedef struct WindowBound {
     NodeTag type;
@@ -88,10 +88,10 @@ typedef struct WindowBound {
     Node *expr;
 } WindowBound;
 
-typedef enum WinFrameType {
+NEW_ENUM_WITH_TO_STRING(WinFrameType,
     WINFRAME_ROWS,
     WINFRAME_RANGE
-} WinFrameType;
+);
 
 typedef struct WindowFrame {
     NodeTag type;
@@ -113,15 +113,15 @@ typedef struct WindowFunction {
     WindowDef *win;
 } WindowFunction;
 
-typedef enum SortOrder {
+NEW_ENUM_WITH_TO_STRING(SortOrder,
     SORT_ASC,
     SORT_DESC
-} SortOrder;
+);
 
-typedef enum SortNullOrder {
+NEW_ENUM_WITH_TO_STRING(SortNullOrder,
     SORT_NULLS_FIRST,
     SORT_NULLS_LAST
-} SortNullOrder;
+);
 
 typedef struct OrderExpr {
     NodeTag type;

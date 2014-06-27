@@ -27,7 +27,6 @@
 #include "mem_manager/mem_mgr.h"
 #include "parser/parser.h"
 #include "parser/parse_internal_hive.h"
-#include "../src/parser/hive_parser.tab.h"
 #include "parser/parser_hive.h"
 #include "sql_parser.tab.h"
 #include "instrumentation/timing_instrumentation.h"

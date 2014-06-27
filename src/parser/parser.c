@@ -11,6 +11,7 @@
  */
 
 #include "parser/parser.h"
+#include "parser/parser_hive.h"
 #include "parser/parser_oracle.h"
 #include "parser/parser_postgres.h"
 #include "model/node/nodetype.h"
@@ -90,9 +91,8 @@ assembleHivePlugin(void)
 {
     ParserPlugin *p = NEW(ParserPlugin);
 
-    p->parseStream = parseStreamOracle;
-    p->parseFromString = parseFromStringOracle;
-    FATAL_LOG("not support yet");
+    p->parseStream = parseStreamHive;
+    p->parseFromString = parseFromStringHive;
 
     return p;
 }

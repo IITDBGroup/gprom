@@ -123,7 +123,7 @@ static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int in
 
 /* enum-type field as integer*/
 #define WRITE_ENUM_FIELD(fldname, enumtype)  \
-		appendStringInfo(str, ":" CppAsString(fldname) "|%d", (int)node->fldname)
+		appendStringInfo(str, ":" CppAsString(fldname) "|%s - %d", enumtype ## ToString(node->fldname), (int)node->fldname)
 
 /* float field*/
 #define WRITE_FLOAT_FIELD(fldname, format)  \

@@ -37,59 +37,68 @@ Node *hiveParseResult = NULL;
  * Declare tokens for name and literal values
  * Declare tokens for user variables
  */
-%token <intVal> intConst
-%token <floatVal> floatConst
-%token <stringVal> stringConst
-%token <stringVal> identifier
-%token <stringVal> parameter
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
-
+ %token <stringVal> StringLiteral Identifier
+  
 /*
  * Tokens for in-built keywords
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS
-%token <stringVal> FROM
-%token <stringVal> AS
-%token <stringVal> WHERE
-%token <stringVal> DISTINCT
-%token <stringVal> STARALL
-%token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN EXCEPT EXISTS
-%token <stringVal> AMMSC NULLVAL ALL ANY IS SOME
-%token <stringVal> UNION INTERSECT MINUS
-%token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
-%token <stringVal> INT BEGIN_TRANS COMMIT_TRANS ROLLBACK_TRANS
-%token <stringVal> CASE WHEN THEN ELSE END
-%token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
-%token <stringVal> NULLS FIRST LAST ASC DESC
+%token <stringVal> kwUser kwRole kwInner
+%token <stringVal> KW_TRUE KW_FALSE KW_ALL KW_AND KW_OR KW_NOT KW_LIKE KW_IF KW_EXISTS 
+%token <stringVal> KW_ASC KW_DESC KW_ORDER KW_GROUP KW_BY KW_HAVING KW_WHERE KW_FROM KW_AS KW_SELECT 
+%token <stringVal> KW_DISTINCT KW_INSERT KW_OVERWRITE KW_OUTER KW_UNIQUEJOIN KW_PRESERVE KW_JOIN KW_LEFT 
+%token <stringVal> KW_RIGHT KW_FULL KW_ON KW_PARTITION KW_PARTITIONS KW_TABLE KW_TABLES KW_INDEX 
+%token <stringVal> KW_INDEXES KW_REBUILD KW_FUNCTIONS KW_SHOW KW_MSCK KW_REPAIR KW_DIRECTORY KW_LOCAL KW_TRANSFORM 
+%token <stringVal> KW_USING KW_CLUSTER KW_DISTRIBUTE KW_SORT KW_UNION KW_LOAD KW_EXPORT KW_IMPORT KW_DATA KW_INPATH
+%token <stringVal> KW_IS KW_NULL KW_CREATE KW_EXTERNAL KW_ALTER KW_CHANGE KW_COLUMN KW_FIRST 
+%token <stringVal> KW_AFTER KW_DESCRIBE KW_DROP KW_RENAME KW_TO KW_COMMENT KW_BOOLEAN
+%token <stringVal> KW_TINYINT KW_SMALLINT KW_INT KW_BIGINT KW_FLOAT KW_DOUBLE KW_DATE
+%token <stringVal> KW_DATETIME KW_TIMESTAMP KW_STRING KW_ARRAY KW_STRUCT KW_MAP 
+%token <stringVal> KW_UNIONTYPE KW_REDUCE KW_PARTITIONED KW_CLUSTERED KW_SORTED 
+%token <stringVal> KW_INTO KW_BUCKETS KW_ROW KW_FORMAT KW_DELIMITED KW_FIELDS 
+%token <stringVal> KW_TERMINATED KW_ESCAPED KW_COLLECTION KW_ITEMS KW_KEYS KW_KEY_TYPE
+%token <stringVal> KW_LINES KW_STORED KW_FILEFORMAT KW_SEQUENCEFILE KW_TEXTFILE KW_RCFILE
+%token <stringVal> KW_INPUTFORMAT KW_OUTPUTFORMAT KW_INPUTDRIVER KW_OUTPUTDRIVER 
+%token <stringVal> KW_OFFLINE KW_ENABLE KW_DISABLE KW_READONLY KW_NO_DROP KW_LOCATION
+%token <stringVal> KW_TABLESAMPLE KW_BUCKET KW_OUT KW_OF KW_PERCENT KW_CAST KW_ADD 
+%token <stringVal> KW_REPLACE KW_COLUMNS KW_RLIKE KW_REGEXP KW_TEMPORARY KW_FUNCTION 
+%token <stringVal> KW_EXPLAIN KW_EXTENDED KW_FORMATTED KW_SERDE KW_WITH KW_DEFERRED 
+%token <stringVal> KW_SERDEPROPERTIES KW_DBPROPERTIES KW_LIMIT KW_SET KW_TBLPROPERTIES 
+%token <stringVal> KW_IDXPROPERTIES KW_VALUE_TYPE KW_ELEM_TYPE	KW_CASE KW_WHEN KW_THEN
+%token <stringVal> KW_ELSE KW_END KW_MAPJOIN KW_STREAMTABLE KW_HOLD_DDLTIME 
+%token <stringVal> KW_CLUSTERSTATUS KW_UTC KW_UTCTIMESTAMP KW_LONG KW_DELETE KW_PLUS
+%token <stringVal> KW_MINUS KW_FETCH KW_INTERSECT KW_VIEW KW_IN KW_DATABASE KW_DATABASES
+%token <stringVal> KW_MATERIALIZED KW_SCHEMA KW_SCHEMAS KW_GRANT KW_REVOKE KW_SSL KW_UNDO
+%token <stringVal> KW_LOCK KW_LOCKS KW_UNLOCK KW_SHARED KW_EXCLUSIVE KW_PROCEDURE 
+%token <stringVal> KW_UNSIGNED KW_WHILE KW_READ KW_READS KW_PURGE KW_RANGE KW_ANALYZE 
+%token <stringVal> KW_BEFORE KW_BETWEEN KW_BOTH KW_BINARY KW_CROSS KW_CONTINUE KW_CURSOR 
+%token <stringVal> KW_TRIGGER KW_RECORDREADER KW_RECORDWRITER KW_SEMI KW_LATERAL KW_TOUCH 
+%token <stringVal> KW_ARCHIVE KW_UNARCHIVE KW_COMPUTE KW_STATISTICS KW_USE KW_OPTION 
+%token <stringVal> KW_CONCATENATE KW_SHOW_DATABASE KW_UPDATE KW_RESTRICT KW_CASCADE  
 
-%token <stringVal> DUMMYEXPR
-
-/* Keywords for Join queries */
-%token <stringVal> JOIN NATURAL LEFT RIGHT OUTER INNER CROSS ON USING FULL TYPE TRANSACTION WITH 
+%token <stringVal> COMMA LPAREN RPAREN EQUAL
 
 /*
  * Declare token for operators specify their associativity and precedence
- */
+ *
 %left UNION INTERSECT MINUS
 
-/* Logical operators */
+/* Logical operators *
 %left '|'
 %left XOR
 %left '&'
-/* what is that? %right ':=' */
+/* what is that? %right ':=' *
 %left '!'
 
-/* Comparison operator */
+/* Comparison operator *
 %left comparisonOps
 %right NOT
 %left AND OR
 %right ISNULL
 %nonassoc  LIKE IN  BETWEEN
 
-/* Arithmetic operators : FOR TESTING */
+/* Arithmetic operators : FOR TESTING *
 %nonassoc DUMMYEXPR
 %left '+' '-'
 %left '*' '/' '%'
@@ -101,1130 +110,2071 @@ Node *hiveParseResult = NULL;
 /*
  * Types of non-terminal symbols
  */
-%type <node> stmt provStmt dmlStmt queryStmt
-%type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
-        // Its a query block model that defines the structure of query.
-%type <list> selectClause optionalFrom fromClause exprList orderList 
-			 optionalGroupBy optionalOrderBy setClause insertList stmtList 
-			 identifierList optionalAttrAlias optionalProvWith provOptionList 
-			 caseWhenList windowBoundaries optWindowPart withViewList
-%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr
-             //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
-%type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse
-%type <node> overClause windowSpec optWindowFrame windowBound 
-%type <node> binaryOperatorExpression unaryOperatorExpression
-%type <node> joinCond
-%type <node> optionalProvAsOf provOption
-%type <node> withView withQuery
-%type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
-%type <stringVal> joinType transactionIdentifier
+/* simple types */
+%type <node> keyValueProperty
+ 
+/* statements and their parts */ 
+%type <list> stmtList
+%type <node> statement explainStatement execStatement
 
+%type <stringVal> explainOptions
+
+%type <node> queryStatementExpression loadStatement exportStatement importStatement ddlStatement
+
+%type <stringVal> loadIsLocal loadIsOverwrite
+
+%type <stringVal> importIsExternal
+%type <node> importTableOrPartition tableOrPartition /* tableLocation */
+%type <stringVal> importTableLocation
+
+%type <stringVal> ifExists restrictOrCascade ifNotExists orReplace
+
+%type <node> createDatabaseStatement optDbProperties dbProperties dbPropertiesList
+%type <stringVal> createDatabaseOrSchema dbLocation
+
+%type <node> switchDatabaseStatement dropDatabaseStatement 
+
+%type <node> databaseComment
+
+/* start symbol */
 %start stmtList
 
+/*************************************************************/
+/* RULE SECTION 											 */
+/*************************************************************/
 %%
 
 /* Rule for all types of statements */
 stmtList: 
-		stmt ';'
+		statement ';'
 			{ 
-				RULELOG("stmtList::stmt"); 
+				RULELOG("stmtList::statement"); 
 				$$ = singleton($1);
 				hiveParseResult = (Node *) $$;	 
 			}
-		| stmtList stmt ';' 
+		| stmtList statement ';' 
 			{
-				RULELOG("stmtlist::stmtList::stmt");
+				RULELOG("stmtlist::stmtList::statement");
 				$$ = appendToTailOfList($1, $2);	
 				hiveParseResult = (Node *) $$; 
 			}
 	;
 
-stmt: 
-        dmlStmt    // DML statement can be select, update, insert, delete
-        {
-            RULELOG("stmt::dmlStmt");
-            $$ = $1;
-        }
-		| queryStmt
-        {
-            RULELOG("stmt::queryStmt");
-            $$ = $1;
-        }
-        | transactionIdentifier
-        {
-            RULELOG("stmt::transactionIdentifier");
-            $$ = (Node *) createTransactionStmt($1);
-        }
-		| withQuery
-		{ 
-			RULELOG("stmt::withQuery"); 
-			$$ = $1; 
-		}
-    ;
+statement:
+		explainStatement ';'
+		| execStatement ';'
+	;
 
-/*
- * Rule to parse all DML queries.
- */
-dmlStmt:
-        insertQuery        { RULELOG("dmlStmt::insertQuery"); }
-        | deleteQuery        { RULELOG("dmlStmt::deleteQuery"); }
-        | updateQuery        { RULELOG("dmlStmt::updateQuery"); }
-    ;
-
-/*
- * Rule to parse all types projection queries.
- */
-queryStmt:
-		'(' queryStmt ')'	{ RULELOG("queryStmt::bracketedQuery"); $$ = $2; }
-		| selectQuery        { RULELOG("queryStmt::selectQuery"); }
-		| provStmt        { RULELOG("queryStmt::provStmt"); }
-		| setOperatorQuery        { RULELOG("queryStmt::setOperatorQuery"); }
-    ;
-
-withQuery:
-		WITH withViewList queryStmt
+/* explain statement */
+explainStatement:
+		KW_EXPLAIN explainOptions execStatement
 		{
-			RULELOG("withQuery::withViewList::queryStmt");
-			$$ = (Node *) createWithStmt($2, $3);
-		}
-	;	
-	
-withViewList:
-		withViewList ',' withView
-		{
-			RULELOG("withViewList::list::view");
-			$$ = appendToTailOfList($1, $3);
-		}
-		| withView
-		{
-			RULELOG("withViewList::view");
-			$$ = singleton($1);
+			$$ = NULL;
 		}
 	;
 
-withView:
-		identifier AS '(' queryStmt ')'
-		{
-			RULELOG("withView::ident::AS:queryStmt");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString($1), $4);
-		}
+explainOptions:
+		/* empty */ { $$ = NULL; }
+		| KW_EXTENDED
+		| KW_FORMATTED
 	;
 
-transactionIdentifier:
-        BEGIN_TRANS        { RULELOG("transactionIdentifier::BEGIN"); $$ = strdup("TRANSACTION_BEGIN"); }
-        | COMMIT_TRANS        { RULELOG("transactionIdentifier::COMMIT"); $$ = strdup("TRANSACTION_COMMIT"); }
-        | ROLLBACK_TRANS        { RULELOG("transactionIdentifier::ROLLBACK"); $$ = strdup("TRANSACTION_ABORT"); }
+/* executable statement */
+execStatement:
+		queryStatementExpression
+    	| loadStatement
+    	| exportStatement
+    	| importStatement
+    	| ddlStatement
     ;
-
-/* 
- * Rule to parse a query asking for provenance
- */
-provStmt: 
-        PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')'
-        {
-            RULELOG("provStmt::stmt");
-            Node *stmt = $6;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
-		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $2;
-		    p->options = $3;
-            $$ = (Node *) p;
-        }
-		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmtList ')'
-		{
-			RULELOG("provStmt::stmtlist");
-			ProvenanceStmt *p = createProvenanceStmt((Node *) $6);
-			p->inputType = PROV_INPUT_UPDATE_SEQUENCE;
-			p->provType = PROV_PI_CS;
-			p->asOf = (Node *) $2;
-			p->options = $3;
-			$$ = (Node *) p;
-		}
-		| PROVENANCE optionalProvAsOf optionalProvWith OF TRANSACTION stringConst
-		{
-			RULELOG("provStmt::transaction");
-			ProvenanceStmt *p = createProvenanceStmt((Node *) createConstString($6));
-			p->inputType = PROV_INPUT_TRANSACTION;
-			p->provType = PROV_PI_CS;
-			p->options = $3;
-			$$ = (Node *) p;
+		
+/* load statement */
+loadStatement: 
+		KW_LOAD KW_DATA loadIsLocal KW_INPATH StringLiteral loadIsOverwrite KW_INTO KW_TABLE tableOrPartition
+    	{
+			$$ = NULL;
 		}
     ;
     
-optionalProvAsOf:
-		/* empty */			{ RULELOG("optionalProvAsOf::EMPTY"); $$ = NULL; }
-		| AS OF SCN intConst
-		{
-			RULELOG("optionalProvAsOf::SCN");
-			$$ = (Node *) createConstLong($4);
-		}
-		| AS OF TIMESTAMP stringConst
-		{
-			RULELOG("optionalProvAsOf::TIMESTAMP");
-			$$ = (Node *) createConstString($4);
-		}
+loadIsLocal:
+		/* empty */ { $$ = NULL; }
+		| KW_LOCAL
 	;
 	
-optionalProvWith:
-		/* empty */			{ RULELOG("optionalProvWith::EMPTY"); $$ = NIL; }
-		| WITH provOptionList
-		{
-			RULELOG("optionalProvWith::WITH");
-			$$ = $2;
+loadIsOverwrite:
+		/* empty */ { $$ = NULL; }
+		| KW_OVERWRITE
+	;			
+
+/* export statement */
+exportStatement: 
+		KW_EXPORT KW_TABLE tableOrPartition KW_TO StringLiteral
+    	{
+			$$ = NULL;
 		}
+    ;
+
+/* import statement */
+importStatement: 
+		KW_IMPORT importIsExternal KW_TABLE importTableOrPartition KW_FROM StringLiteral importTableLocation
+    	{
+			$$ = NULL;
+		}    	
+    ;
+
+importIsExternal:
+		/* empty */ { $$ = NULL; }
+		| KW_EXTERNAL
 	;
-	
-provOptionList:
-		provOption	{ RULELOG("provOptionList::option"); $$ = singleton($1); }
-		| provOptionList provOption 
+
+importTableOrPartition:
+		/* empty */ { $$ = NULL; }
+		| tableOrPartition 
+	;
+		
+
+importTableLocation:
+		/* empty */ { $$ = NULL; }
+/*		| tableLocation */
+	;		
+
+/* DDL statements */
+ddlStatement:
+		 createDatabaseStatement
+/*    	| switchDatabaseStatement
+    	| dropDatabaseStatement
+    	| createTableStatement
+    	| dropTableStatement
+    	| alterStatement
+    	| descStatement
+    	| showStatement
+    	| metastoreCheck
+    	| createViewStatement
+    	| dropViewStatement
+    	| createFunctionStatement
+    	| createIndexStatement
+    	| dropIndexStatement
+    	| dropFunctionStatement
+    	| analyzeStatement
+    	| lockStatement
+    	| unlockStatement
+    	| createRoleStatement
+    	| dropRoleStatement
+    	| grantPrivileges
+    	| revokePrivileges
+    	| showGrants
+    	| showRoleGrants
+    	| grantRole
+    	| revokeRole */
+    ;
+
+/* */
+ifExists:
+		/* emtpy */ { $$ = NULL; }
+		| KW_IF KW_EXISTS
+    ;
+
+restrictOrCascade:
+		/* empty */ { $$ = NULL; }  
+		| KW_RESTRICT
+    	| KW_CASCADE
+    ;
+
+ifNotExists:
+    	/* emtpy */ { $$ = NULL; }
+		| KW_IF KW_NOT KW_EXISTS
+    ;
+
+orReplace:
+		/* emtpy */ { $$ = NULL; }
+		| KW_OR KW_REPLACE
+    ;
+
+/* createDatabase */
+createDatabaseStatement:
+   		KW_CREATE createDatabaseOrSchema ifNotExists Identifier databaseComment dbLocation optDbProperties
 		{ 
-			RULELOG("provOptionList::list"); 
-			$$ = appendToTailOfList($1,$2); 
+			$$ = NULL; 
 		}
+    ;
+
+createDatabaseOrSchema:
+		KW_DATABASE
+		| KW_SCHEMA
+	;
+
+dbLocation:
+		/* empty */ { $$=NULL; }
+      	| KW_LOCATION StringLiteral
+    ;
+
+optDbProperties:
+		/*empty */ { $$ = NULL; }
+		| KW_WITH KW_DBPROPERTIES dbProperties { $$ = $3; }
 	;
 	
-provOption:
-		TYPE stringConst 
-		{ 
-			RULELOG("provOption::TYPE"); 
-			$$ = (Node *) createStringKeyValue("TYPE", $2); 
-		}
-		| TABLE identifier
-		{
-			RULELOG("provOption::TABLE");
-			$$ = (Node *) createStringKeyValue("TABLE", $2);
-		}
-		| ONLY UPDATED
-		{
-			RULELOG("provOption::ONLY::UPDATED");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_ONLY_UPDATED), 
-					(Node *) createConstBool(TRUE));
-		}
-		| SHOW INTERMEDIATE
-		{
-			RULELOG("provOption::SHOW::INTERMEDIATE");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SHOW_INTERMEDIATE), 
-					(Node *) createConstBool(TRUE));
-		}
-		| TUPLE VERSIONS
-		{
-			RULELOG("provOption::TUPLE::VERSIONS");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_TUPLE_VERSIONS),
-					(Node *) createConstBool(TRUE));
-		}
+dbProperties:
+      	LPAREN dbPropertiesList RPAREN { $$ = NIL; }
+    ;
+
+dbPropertiesList:
+      	keyValueProperty { $$ = singleton($1); }
+		| dbPropertiesList COMMA keyValueProperty { $$ = CONCAT_LISTS($1,$3); }
+    ;
+
+/* switchDatabaseStatement */
+switchDatabaseStatement:
+		KW_USE Identifier { $$ = NULL; }
+    ;
+
+/* dropDatabaseStatement */
+dropDatabaseStatement:
+    	KW_DROP createDatabaseOrSchema ifExists Identifier restrictOrCascade { $$ = NULL; }
+    ;
+
+databaseComment:
+		/* empty */ { $$ = NULL; }
+		| KW_COMMENT StringLiteral { $$ = $2; }
+    ;
+
+
+/* Literals */
+keyValueProperty:
+      	StringLiteral EQUAL StringLiteral { $$ = createStringKeyValue($1,$3); }
+    ;
+
+/* dummy for now */
+queryStatementExpression: { $$ = NULL; } 
+tableOrPartition: { $$ = NULL; }
+
+/*
+// starting rule
+execStatement
+@init { msgs.push("statement"); }
+@after { msgs.pop(); }
+    : queryStatementExpression
+    | loadStatement
+    | exportStatement
+    | importStatement
+    | ddlStatement
+    ;
+
+loadStatement
+@init { msgs.push("load statement"); }
+@after { msgs.pop(); }
+    : KW_LOAD KW_DATA (islocal=KW_LOCAL)? KW_INPATH (path=StringLiteral) (isoverwrite=KW_OVERWRITE)? KW_INTO KW_TABLE (tab=tableOrPartition)
+    -> ^(TOK_LOAD $path $tab $islocal? $isoverwrite?)
+    ;
+
+exportStatement
+@init { msgs.push("export statement"); }
+@after { msgs.pop(); }
+    : KW_EXPORT KW_TABLE (tab=tableOrPartition) KW_TO (path=StringLiteral)
+    -> ^(TOK_EXPORT $tab $path)
+    ;
+
+importStatement
+@init { msgs.push("import statement"); }
+@after { msgs.pop(); }
+	: KW_IMPORT ((ext=KW_EXTERNAL)? KW_TABLE (tab=tableOrPartition))? KW_FROM (path=StringLiteral) tableLocation?
+    -> ^(TOK_IMPORT $path $tab? $ext? tableLocation?)
+    ;
+
+ddlStatement
+@init { msgs.push("ddl statement"); }
+@after { msgs.pop(); }
+    : createDatabaseStatement
+    | switchDatabaseStatement
+    | dropDatabaseStatement
+    | createTableStatement
+    | dropTableStatement
+    | alterStatement
+    | descStatement
+    | showStatement
+    | metastoreCheck
+    | createViewStatement
+    | dropViewStatement
+    | createFunctionStatement
+    | createIndexStatement
+    | dropIndexStatement
+    | dropFunctionStatement
+    | analyzeStatement
+    | lockStatement
+    | unlockStatement
+    | createRoleStatement
+    | dropRoleStatement
+    | grantPrivileges
+    | revokePrivileges
+    | showGrants
+    | showRoleGrants
+    | grantRole
+    | revokeRole
+    ;
+
+ifExists
+@init { msgs.push("if exists clause"); }
+@after { msgs.pop(); }
+    : KW_IF KW_EXISTS
+    -> ^(TOK_IFEXISTS)
+    ;
+
+restrictOrCascade
+@init { msgs.push("restrict or cascade clause"); }
+@after { msgs.pop(); }
+    : KW_RESTRICT
+    -> ^(TOK_RESTRICT)
+    | KW_CASCADE
+    -> ^(TOK_CASCADE)
+    ;
+
+ifNotExists
+@init { msgs.push("if not exists clause"); }
+@after { msgs.pop(); }
+    : KW_IF KW_NOT KW_EXISTS
+    -> ^(TOK_IFNOTEXISTS)
+    ;
+
+orReplace
+@init { msgs.push("or replace clause"); }
+@after { msgs.pop(); }
+    : KW_OR KW_REPLACE
+    -> ^(TOK_ORREPLACE)
+    ;
+
+
+createDatabaseStatement
+@init { msgs.push("create database statement"); }
+@after { msgs.pop(); }
+    : KW_CREATE (KW_DATABASE|KW_SCHEMA)
+        ifNotExists?
+        name=Identifier
+        databaseComment?
+        dbLocation?
+        (KW_WITH KW_DBPROPERTIES dbprops=dbProperties)?
+    -> ^(TOK_CREATEDATABASE $name ifNotExists? dbLocation? databaseComment? $dbprops?)
+    ;
+
+dbLocation
+@init { msgs.push("database location specification"); }
+@after { msgs.pop(); }
+    :
+      KW_LOCATION locn=StringLiteral -> ^(TOK_DATABASELOCATION $locn)
+    ;
+
+dbProperties
+@init { msgs.push("dbproperties"); }
+@after { msgs.pop(); }
+    :
+      LPAREN dbPropertiesList RPAREN -> ^(TOK_DATABASEPROPERTIES dbPropertiesList)
+    ;
+
+dbPropertiesList
+@init { msgs.push("database properties list"); }
+@after { msgs.pop(); }
+    :
+      keyValueProperty (COMMA keyValueProperty)* -> ^(TOK_DBPROPLIST keyValueProperty+)
+    ;
+
+
+switchDatabaseStatement
+@init { msgs.push("switch database statement"); }
+@after { msgs.pop(); }
+    : KW_USE Identifier
+    -> ^(TOK_SWITCHDATABASE Identifier)
+    ;
+
+dropDatabaseStatement
+@init { msgs.push("drop database statement"); }
+@after { msgs.pop(); }
+    : KW_DROP (KW_DATABASE|KW_SCHEMA) ifExists? Identifier restrictOrCascade?
+    -> ^(TOK_DROPDATABASE Identifier ifExists? restrictOrCascade?)
+    ;
+
+databaseComment
+@init { msgs.push("database's comment"); }
+@after { msgs.pop(); }
+    : KW_COMMENT comment=StringLiteral
+    -> ^(TOK_DATABASECOMMENT $comment)
+    ;
+
+createTableStatement
+@init { msgs.push("create table statement"); }
+@after { msgs.pop(); }
+    : KW_CREATE (ext=KW_EXTERNAL)? KW_TABLE ifNotExists? name=tableName
+      (  like=KW_LIKE likeName=tableName
+         tableLocation?
+       | (LPAREN columnNameTypeList RPAREN)?
+         tableComment?
+         tablePartition?
+         tableBuckets?
+         tableRowFormat?
+         tableFileFormat?
+         tableLocation?
+         tablePropertiesPrefixed?
+         (KW_AS selectStatement)?
+      )
+    -> ^(TOK_CREATETABLE $name $ext? ifNotExists?
+         ^(TOK_LIKETABLE $likeName?)
+         columnNameTypeList?
+         tableComment?
+         tablePartition?
+         tableBuckets?
+         tableRowFormat?
+         tableFileFormat?
+         tableLocation?
+         tablePropertiesPrefixed?
+         selectStatement?
+        )
+    ;
+
+createIndexStatement
+@init { msgs.push("create index statement");}
+@after {msgs.pop();}
+    : KW_CREATE KW_INDEX indexName=Identifier
+      KW_ON KW_TABLE tab=tableName LPAREN indexedCols=columnNameList RPAREN
+      KW_AS typeName=StringLiteral
+      autoRebuild?
+      indexPropertiesPrefixed?
+      indexTblName?
+      tableRowFormat?
+      tableFileFormat?
+      tableLocation?
+      tablePropertiesPrefixed?
+      indexComment?
+    ->^(TOK_CREATEINDEX $indexName $typeName $tab $indexedCols
+        autoRebuild?
+        indexPropertiesPrefixed?
+        indexTblName?
+        tableRowFormat?
+        tableFileFormat?
+        tableLocation?
+        tablePropertiesPrefixed?
+        indexComment?)
+    ;
+
+indexComment
+@init { msgs.push("comment on an index");}
+@after {msgs.pop();}
+        :
+                KW_COMMENT comment=StringLiteral  -> ^(TOK_INDEXCOMMENT $comment)
+        ;
+
+autoRebuild
+@init { msgs.push("auto rebuild index");}
+@after {msgs.pop();}
+    : KW_WITH KW_DEFERRED KW_REBUILD
+    ->^(TOK_DEFERRED_REBUILDINDEX)
+    ;
+
+indexTblName
+@init { msgs.push("index table name");}
+@after {msgs.pop();}
+    : KW_IN KW_TABLE indexTbl=tableName
+    ->^(TOK_CREATEINDEX_INDEXTBLNAME $indexTbl)
+    ;
+
+indexPropertiesPrefixed
+@init { msgs.push("table properties with prefix"); }
+@after { msgs.pop(); }
+    :
+        KW_IDXPROPERTIES! indexProperties
+    ;
+
+indexProperties
+@init { msgs.push("index properties"); }
+@after { msgs.pop(); }
+    :
+      LPAREN indexPropertiesList RPAREN -> ^(TOK_INDEXPROPERTIES indexPropertiesList)
+    ;
+
+indexPropertiesList
+@init { msgs.push("index properties list"); }
+@after { msgs.pop(); }
+    :
+      keyValueProperty (COMMA keyValueProperty)* -> ^(TOK_INDEXPROPLIST keyValueProperty+)
+    ;
+
+dropIndexStatement
+@init { msgs.push("drop index statement");}
+@after {msgs.pop();}
+    : KW_DROP KW_INDEX ifExists? indexName=Identifier KW_ON tab=tableName
+    ->^(TOK_DROPINDEX $indexName $tab ifExists?)
+    ;
+
+dropTableStatement
+@init { msgs.push("drop statement"); }
+@after { msgs.pop(); }
+    : KW_DROP KW_TABLE ifExists? tableName -> ^(TOK_DROPTABLE tableName ifExists?)
+    ;
+
+alterStatement
+@init { msgs.push("alter statement"); }
+@after { msgs.pop(); }
+    : KW_ALTER!
+        (
+            KW_TABLE! alterTableStatementSuffix
+        |
+            KW_VIEW! alterViewStatementSuffix
+        |
+            KW_INDEX! alterIndexStatementSuffix
+        |
+            KW_DATABASE! alterDatabaseStatementSuffix
+        )
+    ;
+
+alterTableStatementSuffix
+@init { msgs.push("alter table statement"); }
+@after { msgs.pop(); }
+    : alterStatementSuffixRename
+    | alterStatementSuffixAddCol
+    | alterStatementSuffixRenameCol
+    | alterStatementSuffixDropPartitions
+    | alterStatementSuffixAddPartitions
+    | alterStatementSuffixTouch
+    | alterStatementSuffixArchive
+    | alterStatementSuffixUnArchive
+    | alterStatementSuffixProperties
+    | alterTblPartitionStatement
+    | alterStatementSuffixClusterbySortby
+    ;
+
+alterViewStatementSuffix
+@init { msgs.push("alter view statement"); }
+@after { msgs.pop(); }
+    : alterViewSuffixProperties
+    | alterStatementSuffixRename
+        -> ^(TOK_ALTERVIEW_RENAME alterStatementSuffixRename)
+    | alterStatementSuffixAddPartitions
+        -> ^(TOK_ALTERVIEW_ADDPARTS alterStatementSuffixAddPartitions)
+    | alterStatementSuffixDropPartitions
+        -> ^(TOK_ALTERVIEW_DROPPARTS alterStatementSuffixDropPartitions)
+    ;
+
+alterIndexStatementSuffix
+@init { msgs.push("alter index statement"); }
+@after { msgs.pop(); }
+    : indexName=Identifier
+      (KW_ON tableNameId=Identifier)
+      partitionSpec?
+    (
+      KW_REBUILD
+      ->^(TOK_ALTERINDEX_REBUILD $tableNameId $indexName partitionSpec?)
+    |
+      KW_SET KW_IDXPROPERTIES
+      indexProperties
+      ->^(TOK_ALTERINDEX_PROPERTIES $tableNameId $indexName indexProperties)
+    )
+    ;
+
+alterDatabaseStatementSuffix
+@init { msgs.push("alter database statement"); }
+@after { msgs.pop(); }
+    : alterDatabaseSuffixProperties
+    ;
+
+alterDatabaseSuffixProperties
+@init { msgs.push("alter database properties statement"); }
+@after { msgs.pop(); }
+    : name=Identifier KW_SET KW_DBPROPERTIES dbProperties
+    -> ^(TOK_ALTERDATABASE_PROPERTIES $name dbProperties)
+    ;
+
+alterStatementSuffixRename
+@init { msgs.push("rename statement"); }
+@after { msgs.pop(); }
+    : oldName=Identifier KW_RENAME KW_TO newName=Identifier
+    -> ^(TOK_ALTERTABLE_RENAME $oldName $newName)
+    ;
+
+alterStatementSuffixAddCol
+@init { msgs.push("add column statement"); }
+@after { msgs.pop(); }
+    : Identifier (add=KW_ADD | replace=KW_REPLACE) KW_COLUMNS LPAREN columnNameTypeList RPAREN
+    -> {$add != null}? ^(TOK_ALTERTABLE_ADDCOLS Identifier columnNameTypeList)
+    ->                 ^(TOK_ALTERTABLE_REPLACECOLS Identifier columnNameTypeList)
+    ;
+
+alterStatementSuffixRenameCol
+@init { msgs.push("rename column name"); }
+@after { msgs.pop(); }
+    : Identifier KW_CHANGE KW_COLUMN? oldName=Identifier newName=Identifier colType (KW_COMMENT comment=StringLiteral)? alterStatementChangeColPosition?
+    ->^(TOK_ALTERTABLE_RENAMECOL Identifier $oldName $newName colType $comment? alterStatementChangeColPosition?)
+    ;
+
+alterStatementChangeColPosition
+    : first=KW_FIRST|KW_AFTER afterCol=Identifier
+    ->{$first != null}? ^(TOK_ALTERTABLE_CHANGECOL_AFTER_POSITION )
+    -> ^(TOK_ALTERTABLE_CHANGECOL_AFTER_POSITION $afterCol)
+    ;
+
+alterStatementSuffixAddPartitions
+@init { msgs.push("add partition statement"); }
+@after { msgs.pop(); }
+    : Identifier KW_ADD ifNotExists? partitionSpec partitionLocation? (partitionSpec partitionLocation?)*
+    -> ^(TOK_ALTERTABLE_ADDPARTS Identifier ifNotExists? (partitionSpec partitionLocation?)+)
+    ;
+
+alterStatementSuffixTouch
+@init { msgs.push("touch statement"); }
+@after { msgs.pop(); }
+    : Identifier KW_TOUCH (partitionSpec)*
+    -> ^(TOK_ALTERTABLE_TOUCH Identifier (partitionSpec)*)
+    ;
+
+alterStatementSuffixArchive
+@init { msgs.push("archive statement"); }
+@after { msgs.pop(); }
+    : Identifier KW_ARCHIVE (partitionSpec)*
+    -> ^(TOK_ALTERTABLE_ARCHIVE Identifier (partitionSpec)*)
+    ;
+
+alterStatementSuffixUnArchive
+@init { msgs.push("unarchive statement"); }
+@after { msgs.pop(); }
+    : Identifier KW_UNARCHIVE (partitionSpec)*
+    -> ^(TOK_ALTERTABLE_UNARCHIVE Identifier (partitionSpec)*)
+    ;
+
+partitionLocation
+@init { msgs.push("partition location"); }
+@after { msgs.pop(); }
+    :
+      KW_LOCATION locn=StringLiteral -> ^(TOK_PARTITIONLOCATION $locn)
+    ;
+
+alterStatementSuffixDropPartitions
+@init { msgs.push("drop partition statement"); }
+@after { msgs.pop(); }
+    : Identifier KW_DROP ifExists? partitionSpec (COMMA partitionSpec)*
+    -> ^(TOK_ALTERTABLE_DROPPARTS Identifier partitionSpec+ ifExists?)
+    ;
+
+alterStatementSuffixProperties
+@init { msgs.push("alter properties statement"); }
+@after { msgs.pop(); }
+    : name=Identifier KW_SET KW_TBLPROPERTIES tableProperties
+    -> ^(TOK_ALTERTABLE_PROPERTIES $name tableProperties)
+    ;
+
+alterViewSuffixProperties
+@init { msgs.push("alter view properties statement"); }
+@after { msgs.pop(); }
+    : name=Identifier KW_SET KW_TBLPROPERTIES tableProperties
+    -> ^(TOK_ALTERVIEW_PROPERTIES $name tableProperties)
+    ;
+
+alterStatementSuffixSerdeProperties
+@init { msgs.push("alter serdes statement"); }
+@after { msgs.pop(); }
+    : KW_SET KW_SERDE serdeName=StringLiteral (KW_WITH KW_SERDEPROPERTIES tableProperties)?
+    -> ^(TOK_ALTERTABLE_SERIALIZER $serdeName tableProperties?)
+    | KW_SET KW_SERDEPROPERTIES tableProperties
+    -> ^(TOK_ALTERTABLE_SERDEPROPERTIES tableProperties)
+    ;
+
+tablePartitionPrefix
+@init {msgs.push("table partition prefix");}
+@after {msgs.pop();}
+  :name=Identifier partitionSpec?
+  ->^(TOK_TABLE_PARTITION $name partitionSpec?)
+  ;
+
+alterTblPartitionStatement
+@init {msgs.push("alter table partition statement");}
+@after {msgs.pop();}
+  :  tablePartitionPrefix alterTblPartitionStatementSuffix
+  -> ^(TOK_ALTERTABLE_PARTITION tablePartitionPrefix alterTblPartitionStatementSuffix)
+  ;
+
+alterTblPartitionStatementSuffix
+@init {msgs.push("alter table partition statement suffix");}
+@after {msgs.pop();}
+  : alterStatementSuffixFileFormat
+  | alterStatementSuffixLocation
+  | alterStatementSuffixProtectMode
+  | alterStatementSuffixMergeFiles
+  | alterStatementSuffixSerdeProperties
+  | alterStatementSuffixRenamePart
+  ;
+
+alterStatementSuffixFileFormat
+@init {msgs.push("alter fileformat statement"); }
+@after {msgs.pop();}
+	: KW_SET KW_FILEFORMAT fileFormat
+	-> ^(TOK_ALTERTABLE_FILEFORMAT fileFormat)
 	;
-	
-/*
- * Rule to parse delete query
- */ 
-deleteQuery: 
-         DELETE fromString identifier WHERE whereExpression /* optionalReturning */
-         { 
-             RULELOG("deleteQuery");
-             $$ = (Node *) createDelete($3, $5);
-         }
-/* No provision made for RETURNING statements in delete clause */
+
+alterStatementSuffixLocation
+@init {msgs.push("alter location");}
+@after {msgs.pop();}
+  : KW_SET KW_LOCATION newLoc=StringLiteral
+  -> ^(TOK_ALTERTABLE_LOCATION $newLoc)
+  ;
+
+alterStatementSuffixProtectMode
+@init { msgs.push("alter partition protect mode statement"); }
+@after { msgs.pop(); }
+    : alterProtectMode
+    -> ^(TOK_ALTERTABLE_ALTERPARTS_PROTECTMODE alterProtectMode)
     ;
 
-fromString:
-        /* Empty */        { RULELOG("fromString::NULL"); $$ = NULL; }
-        | FROM        { RULELOG("fromString::FROM"); $$ = $1; }
+alterStatementSuffixRenamePart
+@init { msgs.push("alter table rename partition statement"); }
+@after { msgs.pop(); }
+    : KW_RENAME KW_TO partitionSpec
+    ->^(TOK_ALTERTABLE_RENAMEPART partitionSpec)
     ;
 
-         
-//optionalReturning:
-/*         Empty         { RULELOG("optionalReturning::NULL"); $$ = NULL; }
-        | RETURNING expression INTO identifier
-            { RULELOG("optionalReturning::RETURNING"); }
-    ; */
-
-/*
- * Rules to parse update query
- */
-updateQuery:
-        UPDATE identifier SET setClause optionalWhere
-            { 
-                RULELOG(updateQuery); 
-                $$ = (Node *) createUpdate($2, $4, $5); 
-            }
+alterStatementSuffixMergeFiles
+@init { msgs.push(""); }
+@after { msgs.pop(); }
+    : KW_CONCATENATE
+    -> ^(TOK_ALTERTABLE_ALTERPARTS_MERGEFILES)
     ;
 
-setClause:
-        setExpression
-            {
-                RULELOG("setClause::setExpression");
-                $$ = singleton($1);
-            }
-        | setClause ',' setExpression
-            {
-                RULELOG("setClause::setClause::setExpression");
-                $$ = appendToTailOfList($1, $3);
-            }
+alterProtectMode
+@init { msgs.push("protect mode specification enable"); }
+@after { msgs.pop(); }
+    : KW_ENABLE alterProtectModeMode  -> ^(TOK_ENABLE alterProtectModeMode)
+    | KW_DISABLE alterProtectModeMode  -> ^(TOK_DISABLE alterProtectModeMode)
     ;
 
-setExpression:
-        attributeRef comparisonOps expression
-            {
-                if (!strcmp($2,"=")) {
-                    RULELOG("setExpression::attributeRef::expression");
-                    List *expr = singleton($1);
-                    expr = appendToTailOfList(expr, $3);
-                    $$ = (Node *) createOpExpr($2, expr);
-                }
-            }
-        | attributeRef comparisonOps subQuery 
-            {
-                if (!strcmp($2, "=")) {
-                    RULELOG("setExpression::attributeRef::queryStmt");
-                    List *expr = singleton($1);
-                    expr = appendToTailOfList(expr, $3);
-                    $$ = (Node *) createOpExpr($2, expr);
-                }
-            }
-    ;
-
-/*
- * Rules to parse insert query
- */
-insertQuery:
-        INSERT INTO identifier VALUES '(' insertList ')'
-            { 
-            	RULELOG("insertQuery::insertList"); 
-            	$$ = (Node *) createInsert($3,(Node *) $6, NULL); 
-        	} 
-        | INSERT INTO identifier queryStmt
-            { 
-                RULELOG("insertQuery::queryStmt");
-                $$ = (Node *) createInsert($3, $4, NULL);
-            }
-    ;
-/* TODO use identlist + expr list here for INSERT INTO table (attrs) VALUES (exprs) */
-insertList:
-        constant
-            { 
-            	RULELOG("insertList::constant");
-            	$$ = singleton($1); 
-            }
-        | identifier
-            {
-                RULELOG("insertList::IDENTIFIER");
-                $$ = singleton(createAttributeReference($1));
-            }
-        | insertList ',' identifier
-            { 
-                RULELOG("insertList::insertList::::IDENTIFIER");
-                $$ = appendToTailOfList($1, createAttributeReference($3));
-            }
-        | insertList ',' constant
-            { 
-            	RULELOG("insertList::insertList::constant");
-            	$$ = appendToTailOfList($1, $3);
-            }
-/* No Provision made for this type of insert statements */
+alterProtectModeMode
+@init { msgs.push("protect mode specification enable"); }
+@after { msgs.pop(); }
+    : KW_OFFLINE  -> ^(TOK_OFFLINE)
+    | KW_NO_DROP KW_CASCADE? -> ^(TOK_NO_DROP KW_CASCADE?)
+    | KW_READONLY  -> ^(TOK_READONLY)
     ;
 
 
-/*
- * Rules to parse set operator queries
- */
+alterStatementSuffixClusterbySortby
+@init {msgs.push("alter cluster by sort by statement");}
+@after{msgs.pop();}
+	:name=Identifier tableBuckets
+	->^(TOK_ALTERTABLE_CLUSTER_SORT $name tableBuckets)
+	|
+	name=Identifier KW_NOT KW_CLUSTERED
+	->^(TOK_ALTERTABLE_CLUSTER_SORT $name)
+	;
 
-setOperatorQuery:     // Need to look into createFunction
-        queryStmt INTERSECT queryStmt
-            {
-                RULELOG("setOperatorQuery::INTERSECT");
-                $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
-            }
-        | queryStmt MINUS queryStmt 
-            {
-                RULELOG("setOperatorQuery::MINUS");
-                $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
-            }
-        | queryStmt UNION optionalAll queryStmt
-            {
-                RULELOG("setOperatorQuery::UNION");
-                $$ = (Node *) createSetQuery($2, ($3 != NULL), $1, $4);
-            }
+fileFormat
+@init { msgs.push("file format specification"); }
+@after { msgs.pop(); }
+    : KW_SEQUENCEFILE  -> ^(TOK_TBLSEQUENCEFILE)
+    | KW_TEXTFILE  -> ^(TOK_TBLTEXTFILE)
+    | KW_RCFILE  -> ^(TOK_TBLRCFILE)
+    | KW_INPUTFORMAT inFmt=StringLiteral KW_OUTPUTFORMAT outFmt=StringLiteral (KW_INPUTDRIVER inDriver=StringLiteral KW_OUTPUTDRIVER outDriver=StringLiteral)?
+      -> ^(TOK_TABLEFILEFORMAT $inFmt $outFmt $inDriver? $outDriver?)
+    | genericSpec=Identifier -> ^(TOK_FILEFORMAT_GENERIC $genericSpec)
     ;
 
-optionalAll:
-        /* Empty */ { RULELOG("optionalAll::NULL"); $$ = NULL; }
-        | ALL        { RULELOG("optionalAll::ALLTRUE"); $$ = $1; }
+tabTypeExpr
+@init { msgs.push("specifying table types"); }
+@after { msgs.pop(); }
+
+   : Identifier (DOT^ (Identifier | KW_ELEM_TYPE | KW_KEY_TYPE | KW_VALUE_TYPE))*
+   ;
+
+partTypeExpr
+@init { msgs.push("specifying table partitions"); }
+@after { msgs.pop(); }
+    :  tabTypeExpr partitionSpec? -> ^(TOK_TABTYPE tabTypeExpr partitionSpec?)
     ;
 
-/*
- * Rule to parse select query
- * Currently it will parse following type of select query:
- *             'SELECT [DISTINCT clause] selectClause FROM fromClause WHERE whereClause'
- */
-selectQuery: 
-        SELECT optionalDistinct selectClause optionalFrom optionalWhere optionalGroupBy optionalHaving optionalOrderBy optionalLimit
-            {
-                RULELOG(selectQuery);
-                QueryBlock *q =  createQueryBlock();
-                
-                q->distinct = $2;
-                q->selectClause = $3;
-                q->fromClause = $4;
-                q->whereClause = $5;
-                q->groupByClause = $6;
-                q->havingClause = $7;
-                q->orderByClause = $8;
-                q->limitClause = $9;
-                
-                $$ = (Node *) q; 
-            }
+descStatement
+@init { msgs.push("describe statement"); }
+@after { msgs.pop(); }
+    : (KW_DESCRIBE|KW_DESC) (descOptions=KW_FORMATTED|descOptions=KW_EXTENDED)? (parttype=partTypeExpr) -> ^(TOK_DESCTABLE $parttype $descOptions?)
+    | (KW_DESCRIBE|KW_DESC) KW_FUNCTION KW_EXTENDED? (name=descFuncNames) -> ^(TOK_DESCFUNCTION $name KW_EXTENDED?)
+    | (KW_DESCRIBE|KW_DESC) KW_DATABASE KW_EXTENDED? (dbName=Identifier) -> ^(TOK_DESCDATABASE $dbName KW_EXTENDED?)
+    ;
+
+analyzeStatement
+@init { msgs.push("analyze statement"); }
+@after { msgs.pop(); }
+    : KW_ANALYZE KW_TABLE (parttype=tableOrPartition) KW_COMPUTE KW_STATISTICS -> ^(TOK_ANALYZE $parttype)
+    ;
+
+showStatement
+@init { msgs.push("show statement"); }
+@after { msgs.pop(); }
+    : KW_SHOW (KW_DATABASES|KW_SCHEMAS) (KW_LIKE showStmtIdentifier)? -> ^(TOK_SHOWDATABASES showStmtIdentifier?)
+    | KW_SHOW KW_TABLES ((KW_FROM|KW_IN) db_name=Identifier)? (KW_LIKE showStmtIdentifier|showStmtIdentifier)?  -> ^(TOK_SHOWTABLES (TOK_FROM $db_name)? showStmtIdentifier?)
+    | KW_SHOW KW_FUNCTIONS showStmtIdentifier?  -> ^(TOK_SHOWFUNCTIONS showStmtIdentifier?)
+    | KW_SHOW KW_PARTITIONS Identifier partitionSpec? -> ^(TOK_SHOWPARTITIONS Identifier partitionSpec?)
+    | KW_SHOW KW_TABLE KW_EXTENDED ((KW_FROM|KW_IN) db_name=Identifier)? KW_LIKE showStmtIdentifier partitionSpec?
+    -> ^(TOK_SHOW_TABLESTATUS showStmtIdentifier $db_name? partitionSpec?)
+    | KW_SHOW KW_LOCKS (parttype=partTypeExpr)? (isExtended=KW_EXTENDED)? -> ^(TOK_SHOWLOCKS $parttype? $isExtended?)
+    | KW_SHOW (showOptions=KW_FORMATTED)? (KW_INDEX|KW_INDEXES) KW_ON showStmtIdentifier ((KW_FROM|KW_IN) db_name=Identifier)?
+    -> ^(TOK_SHOWINDEXES showStmtIdentifier $showOptions? $db_name?)
+    ;
+
+lockStatement
+@init { msgs.push("lock statement"); }
+@after { msgs.pop(); }
+    : KW_LOCK KW_TABLE tableName partitionSpec? lockMode -> ^(TOK_LOCKTABLE tableName lockMode partitionSpec?)
+    ;
+
+lockMode
+@init { msgs.push("lock mode"); }
+@after { msgs.pop(); }
+    : KW_SHARED | KW_EXCLUSIVE
+    ;
+
+unlockStatement
+@init { msgs.push("unlock statement"); }
+@after { msgs.pop(); }
+    : KW_UNLOCK KW_TABLE tableName partitionSpec?  -> ^(TOK_UNLOCKTABLE tableName partitionSpec?)
+    ;
+
+createRoleStatement
+@init { msgs.push("create role"); }
+@after { msgs.pop(); }
+    : KW_CREATE kwRole roleName=Identifier
+    -> ^(TOK_CREATEROLE $roleName)
+    ;
+
+dropRoleStatement
+@init {msgs.push("drop role");}
+@after {msgs.pop();}
+    : KW_DROP kwRole roleName=Identifier
+    -> ^(TOK_DROPROLE $roleName)
+    ;
+
+grantPrivileges
+@init {msgs.push("grant privileges");}
+@after {msgs.pop();}
+    : KW_GRANT privList=privilegeList
+      privilegeObject?
+      KW_TO principalSpecification
+      (KW_WITH withOption)?
+    -> ^(TOK_GRANT $privList principalSpecification privilegeObject? withOption?)
+    ;
+
+revokePrivileges
+@init {msgs.push("revoke privileges");}
+@afer {msgs.pop();}
+    : KW_REVOKE privilegeList privilegeObject? KW_FROM principalSpecification
+    -> ^(TOK_REVOKE privilegeList principalSpecification privilegeObject?)
+    ;
+
+grantRole
+@init {msgs.push("grant role");}
+@after {msgs.pop();}
+    : KW_GRANT kwRole Identifier (COMMA Identifier)* KW_TO principalSpecification
+    -> ^(TOK_GRANT_ROLE principalSpecification Identifier+)
+    ;
+
+revokeRole
+@init {msgs.push("revoke role");}
+@after {msgs.pop();}
+    : KW_REVOKE kwRole Identifier (COMMA Identifier)* KW_FROM principalSpecification
+    -> ^(TOK_REVOKE_ROLE principalSpecification Identifier+)
+    ;
+
+showRoleGrants
+@init {msgs.push("show role grants");}
+@after {msgs.pop();}
+    : KW_SHOW kwRole KW_GRANT principalName
+    -> ^(TOK_SHOW_ROLE_GRANT principalName)
+    ;
+
+showGrants
+@init {msgs.push("show grants");}
+@after {msgs.pop();}
+    : KW_SHOW KW_GRANT principalName privilegeIncludeColObject?
+    -> ^(TOK_SHOW_GRANT principalName privilegeIncludeColObject?)
+    ;
+
+privilegeIncludeColObject
+@init {msgs.push("privilege object including columns");}
+@after {msgs.pop();}
+    : KW_ON (table=KW_TABLE|KW_DATABASE) Identifier (LPAREN cols=columnNameList RPAREN)? partitionSpec?
+    -> ^(TOK_PRIV_OBJECT_COL Identifier $table? $cols? partitionSpec?)
+    ;
+
+privilegeObject
+@init {msgs.push("privilege subject");}
+@after {msgs.pop();}
+    : KW_ON (table=KW_TABLE|KW_DATABASE) Identifier partitionSpec?
+    -> ^(TOK_PRIV_OBJECT Identifier $table? partitionSpec?)
+    ;
+
+privilegeList
+@init {msgs.push("grant privilege list");}
+@after {msgs.pop();}
+    : privlegeDef (COMMA privlegeDef)*
+    -> ^(TOK_PRIVILEGE_LIST privlegeDef+)
+    ;
+
+privlegeDef
+@init {msgs.push("grant privilege");}
+@after {msgs.pop();}
+    : privilegeType (LPAREN cols=columnNameList RPAREN)?
+    -> ^(TOK_PRIVILEGE privilegeType $cols?)
+    ;
+
+privilegeType
+@init {msgs.push("privilege type");}
+@after {msgs.pop();}
+    : KW_ALL -> ^(TOK_PRIV_ALL)
+    | KW_ALTER -> ^(TOK_PRIV_ALTER_METADATA)
+    | KW_UPDATE -> ^(TOK_PRIV_ALTER_DATA)
+    | KW_CREATE -> ^(TOK_PRIV_CREATE)
+    | KW_DROP -> ^(TOK_PRIV_DROP)
+    | KW_INDEX -> ^(TOK_PRIV_INDEX)
+    | KW_LOCK -> ^(TOK_PRIV_LOCK)
+    | KW_SELECT -> ^(TOK_PRIV_SELECT)
+    | KW_SHOW_DATABASE -> ^(TOK_PRIV_SHOW_DATABASE)
+    ;
+
+principalSpecification
+@init { msgs.push("user/group/role name list"); }
+@after { msgs.pop(); }
+    : principalName (COMMA principalName)* -> ^(TOK_PRINCIPAL_NAME principalName+)
+    ;
+
+principalName
+@init {msgs.push("user|group|role name");}
+@after {msgs.pop();}
+    : kwUser Identifier -> ^(TOK_USER Identifier)
+    | KW_GROUP Identifier -> ^(TOK_GROUP Identifier)
+    | kwRole Identifier -> ^(TOK_ROLE Identifier)
+    ;
+
+withOption
+@init {msgs.push("grant with option");}
+@after {msgs.pop();}
+    : KW_GRANT KW_OPTION
+    -> ^(TOK_GRANT_WITH_OPTION)
+    ;
+
+metastoreCheck
+@init { msgs.push("metastore check statement"); }
+@after { msgs.pop(); }
+    : KW_MSCK (repair=KW_REPAIR)? (KW_TABLE table=Identifier partitionSpec? (COMMA partitionSpec)*)?
+    -> ^(TOK_MSCK $repair? ($table partitionSpec*)?)
+    ;
+
+createFunctionStatement
+@init { msgs.push("create function statement"); }
+@after { msgs.pop(); }
+    : KW_CREATE KW_TEMPORARY KW_FUNCTION Identifier KW_AS StringLiteral
+    -> ^(TOK_CREATEFUNCTION Identifier StringLiteral)
+    ;
+
+dropFunctionStatement
+@init { msgs.push("drop temporary function statement"); }
+@after { msgs.pop(); }
+    : KW_DROP KW_TEMPORARY KW_FUNCTION ifExists? Identifier
+    -> ^(TOK_DROPFUNCTION Identifier ifExists?)
+    ;
+
+createViewStatement
+@init {
+    msgs.push("create view statement");
+}
+@after { msgs.pop(); }
+    : KW_CREATE (orReplace)? KW_VIEW (ifNotExists)? name=tableName
+        (LPAREN columnNameCommentList RPAREN)? tableComment? viewPartition?
+        tablePropertiesPrefixed?
+        KW_AS
+        selectStatement
+    -> ^(TOK_CREATEVIEW $name orReplace?
+         ifNotExists?
+         columnNameCommentList?
+         tableComment?
+         viewPartition?
+         tablePropertiesPrefixed?
+         selectStatement
+        )
+    ;
+
+viewPartition
+@init { msgs.push("view partition specification"); }
+@after { msgs.pop(); }
+    : KW_PARTITIONED KW_ON LPAREN columnNameList RPAREN
+    -> ^(TOK_VIEWPARTCOLS columnNameList)
+    ;
+
+dropViewStatement
+@init { msgs.push("drop view statement"); }
+@after { msgs.pop(); }
+    : KW_DROP KW_VIEW ifExists? viewName -> ^(TOK_DROPVIEW viewName ifExists?)
+    ;
+
+showStmtIdentifier
+@init { msgs.push("Identifier for show statement"); }
+@after { msgs.pop(); }
+    : Identifier
+    | StringLiteral
+    ;
+
+tableComment
+@init { msgs.push("table's comment"); }
+@after { msgs.pop(); }
+    :
+      KW_COMMENT comment=StringLiteral  -> ^(TOK_TABLECOMMENT $comment)
+    ;
+
+tablePartition
+@init { msgs.push("table partition specification"); }
+@after { msgs.pop(); }
+    : KW_PARTITIONED KW_BY LPAREN columnNameTypeList RPAREN
+    -> ^(TOK_TABLEPARTCOLS columnNameTypeList)
+    ;
+
+tableBuckets
+@init { msgs.push("table buckets specification"); }
+@after { msgs.pop(); }
+    :
+      KW_CLUSTERED KW_BY LPAREN bucketCols=columnNameList RPAREN (KW_SORTED KW_BY LPAREN sortCols=columnNameOrderList RPAREN)? KW_INTO num=Number KW_BUCKETS
+    -> ^(TOK_TABLEBUCKETS $bucketCols $sortCols? $num)
+    ;
+
+rowFormat
+@init { msgs.push("serde specification"); }
+@after { msgs.pop(); }
+    : rowFormatSerde -> ^(TOK_SERDE rowFormatSerde)
+    | rowFormatDelimited -> ^(TOK_SERDE rowFormatDelimited)
+    |   -> ^(TOK_SERDE)
+    ;
+
+recordReader
+@init { msgs.push("record reader specification"); }
+@after { msgs.pop(); }
+    : KW_RECORDREADER StringLiteral -> ^(TOK_RECORDREADER StringLiteral)
+    |   -> ^(TOK_RECORDREADER)
+    ;
+
+recordWriter
+@init { msgs.push("record writer specification"); }
+@after { msgs.pop(); }
+    : KW_RECORDWRITER StringLiteral -> ^(TOK_RECORDWRITER StringLiteral)
+    |   -> ^(TOK_RECORDWRITER)
+    ;
+
+rowFormatSerde
+@init { msgs.push("serde format specification"); }
+@after { msgs.pop(); }
+    : KW_ROW KW_FORMAT KW_SERDE name=StringLiteral (KW_WITH KW_SERDEPROPERTIES serdeprops=tableProperties)?
+    -> ^(TOK_SERDENAME $name $serdeprops?)
+    ;
+
+rowFormatDelimited
+@init { msgs.push("serde properties specification"); }
+@after { msgs.pop(); }
+    :
+      KW_ROW KW_FORMAT KW_DELIMITED tableRowFormatFieldIdentifier? tableRowFormatCollItemsIdentifier? tableRowFormatMapKeysIdentifier? tableRowFormatLinesIdentifier?
+    -> ^(TOK_SERDEPROPS tableRowFormatFieldIdentifier? tableRowFormatCollItemsIdentifier? tableRowFormatMapKeysIdentifier? tableRowFormatLinesIdentifier?)
+    ;
+
+tableRowFormat
+@init { msgs.push("table row format specification"); }
+@after { msgs.pop(); }
+    :
+      rowFormatDelimited
+    -> ^(TOK_TABLEROWFORMAT rowFormatDelimited)
+    | rowFormatSerde
+    -> ^(TOK_TABLESERIALIZER rowFormatSerde)
+    ;
+
+tablePropertiesPrefixed
+@init { msgs.push("table properties with prefix"); }
+@after { msgs.pop(); }
+    :
+        KW_TBLPROPERTIES! tableProperties
+    ;
+
+tableProperties
+@init { msgs.push("table properties"); }
+@after { msgs.pop(); }
+    :
+      LPAREN tablePropertiesList RPAREN -> ^(TOK_TABLEPROPERTIES tablePropertiesList)
+    ;
+
+tablePropertiesList
+@init { msgs.push("table properties list"); }
+@after { msgs.pop(); }
+    :
+      keyValueProperty (COMMA keyValueProperty)* -> ^(TOK_TABLEPROPLIST keyValueProperty+)
+    ;
+
+keyValueProperty
+@init { msgs.push("specifying key/value property"); }
+@after { msgs.pop(); }
+    :
+      key=StringLiteral EQUAL value=StringLiteral -> ^(TOK_TABLEPROPERTY $key $value)
+    ;
+
+tableRowFormatFieldIdentifier
+@init { msgs.push("table row format's field separator"); }
+@after { msgs.pop(); }
+    :
+      KW_FIELDS KW_TERMINATED KW_BY fldIdnt=StringLiteral (KW_ESCAPED KW_BY fldEscape=StringLiteral)?
+    -> ^(TOK_TABLEROWFORMATFIELD $fldIdnt $fldEscape?)
+    ;
+
+tableRowFormatCollItemsIdentifier
+@init { msgs.push("table row format's column separator"); }
+@after { msgs.pop(); }
+    :
+      KW_COLLECTION KW_ITEMS KW_TERMINATED KW_BY collIdnt=StringLiteral
+    -> ^(TOK_TABLEROWFORMATCOLLITEMS $collIdnt)
+    ;
+
+tableRowFormatMapKeysIdentifier
+@init { msgs.push("table row format's map key separator"); }
+@after { msgs.pop(); }
+    :
+      KW_MAP KW_KEYS KW_TERMINATED KW_BY mapKeysIdnt=StringLiteral
+    -> ^(TOK_TABLEROWFORMATMAPKEYS $mapKeysIdnt)
+    ;
+
+tableRowFormatLinesIdentifier
+@init { msgs.push("table row format's line separator"); }
+@after { msgs.pop(); }
+    :
+      KW_LINES KW_TERMINATED KW_BY linesIdnt=StringLiteral
+    -> ^(TOK_TABLEROWFORMATLINES $linesIdnt)
+    ;
+
+tableFileFormat
+@init { msgs.push("table file format specification"); }
+@after { msgs.pop(); }
+    :
+      KW_STORED KW_AS KW_SEQUENCEFILE  -> TOK_TBLSEQUENCEFILE
+      | KW_STORED KW_AS KW_TEXTFILE  -> TOK_TBLTEXTFILE
+      | KW_STORED KW_AS KW_RCFILE  -> TOK_TBLRCFILE
+      | KW_STORED KW_AS KW_INPUTFORMAT inFmt=StringLiteral KW_OUTPUTFORMAT outFmt=StringLiteral (KW_INPUTDRIVER inDriver=StringLiteral KW_OUTPUTDRIVER outDriver=StringLiteral)?
+      -> ^(TOK_TABLEFILEFORMAT $inFmt $outFmt $inDriver? $outDriver?)
+      | KW_STORED KW_BY storageHandler=StringLiteral
+         (KW_WITH KW_SERDEPROPERTIES serdeprops=tableProperties)?
+      -> ^(TOK_STORAGEHANDLER $storageHandler $serdeprops?)
+      | KW_STORED KW_AS genericSpec=Identifier
+      -> ^(TOK_FILEFORMAT_GENERIC $genericSpec)
+    ;
+
+tableLocation
+@init { msgs.push("table location specification"); }
+@after { msgs.pop(); }
+    :
+      KW_LOCATION locn=StringLiteral -> ^(TOK_TABLELOCATION $locn)
+    ;
+
+columnNameTypeList
+@init { msgs.push("column name type list"); }
+@after { msgs.pop(); }
+    : columnNameType (COMMA columnNameType)* -> ^(TOK_TABCOLLIST columnNameType+)
+    ;
+
+columnNameColonTypeList
+@init { msgs.push("column name type list"); }
+@after { msgs.pop(); }
+    : columnNameColonType (COMMA columnNameColonType)* -> ^(TOK_TABCOLLIST columnNameColonType+)
+    ;
+
+columnNameList
+@init { msgs.push("column name list"); }
+@after { msgs.pop(); }
+    : columnName (COMMA columnName)* -> ^(TOK_TABCOLNAME columnName+)
+    ;
+
+columnName
+@init { msgs.push("column name"); }
+@after { msgs.pop(); }
+    :
+      Identifier
+    ;
+
+columnNameOrderList
+@init { msgs.push("column name order list"); }
+@after { msgs.pop(); }
+    : columnNameOrder (COMMA columnNameOrder)* -> ^(TOK_TABCOLNAME columnNameOrder+)
+    ;
+
+columnNameOrder
+@init { msgs.push("column name order"); }
+@after { msgs.pop(); }
+    : Identifier (asc=KW_ASC | desc=KW_DESC)?
+    -> {$desc == null}? ^(TOK_TABSORTCOLNAMEASC Identifier)
+    ->                  ^(TOK_TABSORTCOLNAMEDESC Identifier)
+    ;
+
+columnNameCommentList
+@init { msgs.push("column name comment list"); }
+@after { msgs.pop(); }
+    : columnNameComment (COMMA columnNameComment)* -> ^(TOK_TABCOLNAME columnNameComment+)
+    ;
+
+columnNameComment
+@init { msgs.push("column name comment"); }
+@after { msgs.pop(); }
+    : colName=Identifier (KW_COMMENT comment=StringLiteral)?
+    -> ^(TOK_TABCOL $colName TOK_NULL $comment?)
+    ;
+
+columnRefOrder
+@init { msgs.push("column order"); }
+@after { msgs.pop(); }
+    : expression (asc=KW_ASC | desc=KW_DESC)?
+    -> {$desc == null}? ^(TOK_TABSORTCOLNAMEASC expression)
+    ->                  ^(TOK_TABSORTCOLNAMEDESC expression)
+    ;
+
+columnNameType
+@init { msgs.push("column specification"); }
+@after { msgs.pop(); }
+    : colName=Identifier colType (KW_COMMENT comment=StringLiteral)?
+    -> {$comment == null}? ^(TOK_TABCOL $colName colType)
+    ->                     ^(TOK_TABCOL $colName colType $comment)
+    ;
+
+columnNameColonType
+@init { msgs.push("column specification"); }
+@after { msgs.pop(); }
+    : colName=Identifier COLON colType (KW_COMMENT comment=StringLiteral)?
+    -> {$comment == null}? ^(TOK_TABCOL $colName colType)
+    ->                     ^(TOK_TABCOL $colName colType $comment)
+    ;
+
+colType
+@init { msgs.push("column type"); }
+@after { msgs.pop(); }
+    : type
+    ;
+
+colTypeList
+@init { msgs.push("column type list"); }
+@after { msgs.pop(); }
+    : colType (COMMA colType)* -> ^(TOK_COLTYPELIST colType+)
+    ;
+
+type
+    : primitiveType
+    | listType
+    | structType
+    | mapType
+    | unionType;
+
+primitiveType
+@init { msgs.push("primitive type specification"); }
+@after { msgs.pop(); }
+    : KW_TINYINT       ->    TOK_TINYINT
+    | KW_SMALLINT      ->    TOK_SMALLINT
+    | KW_INT           ->    TOK_INT
+    | KW_BIGINT        ->    TOK_BIGINT
+    | KW_BOOLEAN       ->    TOK_BOOLEAN
+    | KW_FLOAT         ->    TOK_FLOAT
+    | KW_DOUBLE        ->    TOK_DOUBLE
+    | KW_DATE          ->    TOK_DATE
+    | KW_DATETIME      ->    TOK_DATETIME
+    | KW_TIMESTAMP     ->    TOK_TIMESTAMP
+    | KW_STRING        ->    TOK_STRING
+    | KW_BINARY        ->    TOK_BINARY
+    ;
+
+listType
+@init { msgs.push("list type"); }
+@after { msgs.pop(); }
+    : KW_ARRAY LESSTHAN type GREATERTHAN   -> ^(TOK_LIST type)
+    ;
+
+structType
+@init { msgs.push("struct type"); }
+@after { msgs.pop(); }
+    : KW_STRUCT LESSTHAN columnNameColonTypeList GREATERTHAN -> ^(TOK_STRUCT columnNameColonTypeList)
+    ;
+
+mapType
+@init { msgs.push("map type"); }
+@after { msgs.pop(); }
+    : KW_MAP LESSTHAN left=primitiveType COMMA right=type GREATERTHAN
+    -> ^(TOK_MAP $left $right)
+    ;
+
+unionType
+@init { msgs.push("uniontype type"); }
+@after { msgs.pop(); }
+    : KW_UNIONTYPE LESSTHAN colTypeList GREATERTHAN -> ^(TOK_UNIONTYPE colTypeList)
+    ;
+
+queryOperator
+@init { msgs.push("query operator"); }
+@after { msgs.pop(); }
+    : KW_UNION KW_ALL -> ^(TOK_UNION)
+    ;
+
+// select statement select ... from ... where ... group by ... order by ...
+queryStatementExpression
+    : queryStatement (queryOperator^ queryStatement)*
+    ;
+
+queryStatement
+    :
+    fromClause
+    ( b+=body )+ -> ^(TOK_QUERY fromClause body+)
+    | regular_body
+    ;
+
+regular_body
+   :
+   insertClause
+   selectClause
+   fromClause
+   whereClause?
+   groupByClause?
+   havingClause?
+   orderByClause?
+   clusterByClause?
+   distributeByClause?
+   sortByClause?
+   limitClause? -> ^(TOK_QUERY fromClause ^(TOK_INSERT insertClause
+                     selectClause whereClause? groupByClause? havingClause? orderByClause? clusterByClause?
+                     distributeByClause? sortByClause? limitClause?))
+   |
+   selectStatement
+   ;
+
+selectStatement
+   :
+   selectClause
+   fromClause
+   whereClause?
+   groupByClause?
+   havingClause?
+   orderByClause?
+   clusterByClause?
+   distributeByClause?
+   sortByClause?
+   limitClause? -> ^(TOK_QUERY fromClause ^(TOK_INSERT ^(TOK_DESTINATION ^(TOK_DIR TOK_TMP_FILE))
+                     selectClause whereClause? groupByClause? havingClause? orderByClause? clusterByClause?
+                     distributeByClause? sortByClause? limitClause?))
+   ;
+
+
+body
+   :
+   insertClause
+   selectClause
+   whereClause?
+   groupByClause?
+   havingClause?
+   orderByClause?
+   clusterByClause?
+   distributeByClause?
+   sortByClause?
+   limitClause? -> ^(TOK_INSERT insertClause?
+                     selectClause whereClause? groupByClause? havingClause? orderByClause? clusterByClause?
+                     distributeByClause? sortByClause? limitClause?)
+   |
+   selectClause
+   whereClause?
+   groupByClause?
+   havingClause?
+   orderByClause?
+   clusterByClause?
+   distributeByClause?
+   sortByClause?
+   limitClause? -> ^(TOK_INSERT ^(TOK_DESTINATION ^(TOK_DIR TOK_TMP_FILE))
+                     selectClause whereClause? groupByClause? havingClause? orderByClause? clusterByClause?
+                     distributeByClause? sortByClause? limitClause?)
+   ;
+
+insertClause
+@init { msgs.push("insert clause"); }
+@after { msgs.pop(); }
+   :
+     KW_INSERT KW_OVERWRITE destination -> ^(TOK_DESTINATION destination)
+   | KW_INSERT KW_INTO KW_TABLE tableOrPartition
+       -> ^(TOK_INSERT_INTO ^(tableOrPartition))
+   ;
+
+destination
+@init { msgs.push("destination specification"); }
+@after { msgs.pop(); }
+   :
+     KW_LOCAL KW_DIRECTORY StringLiteral -> ^(TOK_LOCAL_DIR StringLiteral)
+   | KW_DIRECTORY StringLiteral -> ^(TOK_DIR StringLiteral)
+   | KW_TABLE tableOrPartition -> ^(tableOrPartition)
+   ;
+
+limitClause
+@init { msgs.push("limit clause"); }
+@after { msgs.pop(); }
+   :
+   KW_LIMIT num=Number -> ^(TOK_LIMIT $num)
+   ;
+
+//----------------------- Rules for parsing selectClause -----------------------------
+// select a,b,c ...
+selectClause
+@init { msgs.push("select clause"); }
+@after { msgs.pop(); }
+    :
+    KW_SELECT hintClause? (((KW_ALL | dist=KW_DISTINCT)? selectList)
+                          | (transform=KW_TRANSFORM selectTrfmClause))
+     -> {$transform == null && $dist == null}? ^(TOK_SELECT hintClause? selectList)
+     -> {$transform == null && $dist != null}? ^(TOK_SELECTDI hintClause? selectList)
+     -> ^(TOK_SELECT hintClause? ^(TOK_SELEXPR selectTrfmClause) )
+    |
+    trfmClause  ->^(TOK_SELECT ^(TOK_SELEXPR trfmClause))
+    ;
+
+selectList
+@init { msgs.push("select list"); }
+@after { msgs.pop(); }
+    :
+    selectItem ( COMMA  selectItem )* -> selectItem+
+    ;
+
+selectTrfmClause
+@init { msgs.push("transform clause"); }
+@after { msgs.pop(); }
+    :
+    LPAREN selectExpressionList RPAREN
+    inSerde=rowFormat inRec=recordWriter
+    KW_USING StringLiteral
+    ( KW_AS ((LPAREN (aliasList | columnNameTypeList) RPAREN) | (aliasList | columnNameTypeList)))?
+    outSerde=rowFormat outRec=recordReader
+    -> ^(TOK_TRANSFORM selectExpressionList $inSerde $inRec StringLiteral $outSerde $outRec aliasList? columnNameTypeList?)
+    ;
+
+hintClause
+@init { msgs.push("hint clause"); }
+@after { msgs.pop(); }
+    :
+    DIVIDE STAR PLUS hintList STAR DIVIDE -> ^(TOK_HINTLIST hintList)
+    ;
+
+hintList
+@init { msgs.push("hint list"); }
+@after { msgs.pop(); }
+    :
+    hintItem (COMMA hintItem)* -> hintItem+
+    ;
+
+hintItem
+@init { msgs.push("hint item"); }
+@after { msgs.pop(); }
+    :
+    hintName (LPAREN hintArgs RPAREN)? -> ^(TOK_HINT hintName hintArgs?)
+    ;
+
+hintName
+@init { msgs.push("hint name"); }
+@after { msgs.pop(); }
+    :
+    KW_MAPJOIN -> TOK_MAPJOIN
+    | KW_STREAMTABLE -> TOK_STREAMTABLE
+    | KW_HOLD_DDLTIME -> TOK_HOLD_DDLTIME
+    ;
+
+hintArgs
+@init { msgs.push("hint arguments"); }
+@after { msgs.pop(); }
+    :
+    hintArgName (COMMA hintArgName)* -> ^(TOK_HINTARGLIST hintArgName+)
+    ;
+
+hintArgName
+@init { msgs.push("hint argument name"); }
+@after { msgs.pop(); }
+    :
+    Identifier
+    ;
+
+selectItem
+@init { msgs.push("selection target"); }
+@after { msgs.pop(); }
+    :
+    ( selectExpression  ((KW_AS? Identifier) | (KW_AS LPAREN Identifier (COMMA Identifier)* RPAREN))?) -> ^(TOK_SELEXPR selectExpression Identifier*)
+    ;
+
+trfmClause
+@init { msgs.push("transform clause"); }
+@after { msgs.pop(); }
+    :
+    (   KW_MAP    selectExpressionList
+      | KW_REDUCE selectExpressionList )
+    inSerde=rowFormat inRec=recordWriter
+    KW_USING StringLiteral
+    ( KW_AS ((LPAREN (aliasList | columnNameTypeList) RPAREN) | (aliasList | columnNameTypeList)))?
+    outSerde=rowFormat outRec=recordReader
+    -> ^(TOK_TRANSFORM selectExpressionList $inSerde $inRec StringLiteral $outSerde $outRec aliasList? columnNameTypeList?)
+    ;
+
+selectExpression
+@init { msgs.push("select expression"); }
+@after { msgs.pop(); }
+    :
+    expression | tableAllColumns
+    ;
+
+selectExpressionList
+@init { msgs.push("select expression list"); }
+@after { msgs.pop(); }
+    :
+    selectExpression (COMMA selectExpression)* -> ^(TOK_EXPLIST selectExpression+)
     ;
 
 
-/*
- * Rule to parse optional distinct clause.
- */ 
-optionalDistinct: 
-        /* empty */                     { RULELOG("optionalDistinct::NULL"); $$ = NULL; }
-        | DISTINCT
-            {
-                RULELOG("optionalDistinct::DISTINCT");
-                $$ = (Node *) createDistinctClause(NULL);
-            }
-        | DISTINCT ON '(' exprList ')'
-            {
-                RULELOG("optionalDistinct::DISTINCT::exprList");
-                $$ = (Node *) createDistinctClause($4);
-            }
-    ;
-                        
+//-----------------------------------------------------------------------------------
 
-/*
- * Rule to parse the select clause items.
- */
-selectClause: 
-        selectItem
-             {
-                RULELOG("selectClause::selectItem"); $$ = singleton($1);
-            }
-        | selectClause ',' selectItem
-            {
-                RULELOG("selectClause::selectClause::selectItem");
-                $$ = appendToTailOfList($1, $3); 
-            }
+tableAllColumns
+    : STAR
+        -> ^(TOK_ALLCOLREF)
+    | tableName DOT STAR
+        -> ^(TOK_ALLCOLREF tableName)
     ;
 
-selectItem:
-         expression                            
-             {
-                 RULELOG("selectItem::expression"); 
-                 $$ = (Node *) createSelectItem(NULL, $1); 
-             }
-         | expression AS identifier             
-             {
-                 RULELOG("selectItem::expression::identifier"); 
-                 $$ = (Node *) createSelectItem($3, $1);
-             }
-         | '*'              
-			{ 
-         		RULELOG("selectItem::*"); 
-         		$$ = (Node *) createSelectItem(strdup("*"), NULL); 
-     		}
-         | identifier '.' '*' 
-         	{ 
-         		RULELOG("selectItem::*"); 
-     			$$ = (Node *) createSelectItem(CONCAT_STRINGS($1,".*"), NULL); 
- 			}
-    ; 
-
-/*
- * Rule to parse an expression list
- */
-exprList: 
-        expression        { RULELOG("exprList::SINGLETON"); $$ = singleton($1); }
-        | exprList ',' expression
-             {
-                  RULELOG("exprList::exprList::expression");
-                  $$ = appendToTailOfList($1, $3);
-             }
+// (table|column)
+tableOrColumn
+@init { msgs.push("table or column identifier"); }
+@after { msgs.pop(); }
+    :
+    Identifier -> ^(TOK_TABLE_OR_COL Identifier)
     ;
-         
 
-/*
- * Rule to parse expressions used in various lists
- */
-expression:
-		'(' expression ')'				{ RULELOG("expression::bracked"); $$ = $2; } 
-		| constant     				   	{ RULELOG("expression::constant"); }
-        | attributeRef         		  	{ RULELOG("expression::attributeRef"); }
-	    | sqlParameter					{ RULELOG("expression::sqlParameter"); }
-        | binaryOperatorExpression		{ RULELOG("expression::binaryOperatorExpression"); } 
-        | unaryOperatorExpression       { RULELOG("expression::unaryOperatorExpression"); }
-        | sqlFunctionCall        		{ RULELOG("expression::sqlFunctionCall"); }
-		| caseExpression				{ RULELOG("expression::case"); }
-/*        | '(' queryStmt ')'       { RULELOG ("expression::subQuery"); $$ = $2; } */
-/*        | STARALL        { RULELOG("expression::STARALL"); } */
+expressionList
+@init { msgs.push("expression list"); }
+@after { msgs.pop(); }
+    :
+    expression (COMMA expression)* -> ^(TOK_EXPLIST expression+)
     ;
-            
-/*
- * Constant parsing
- */
-constant: 
-        intConst            { RULELOG("constant::INT"); $$ = (Node *) createConstInt($1); }
-        | floatConst        { RULELOG("constant::FLOAT"); $$ = (Node *) createConstFloat($1); }
-        | stringConst        { RULELOG("constant::STRING"); $$ = (Node *) createConstString($1); }
+
+aliasList
+@init { msgs.push("alias list"); }
+@after { msgs.pop(); }
+    :
+    Identifier (COMMA Identifier)* -> ^(TOK_ALIASLIST Identifier+)
     ;
-            
-/*
- * Parse attribute reference
- */
-attributeRef: 
-        identifier         { RULELOG("attributeRef::IDENTIFIER"); $$ = (Node *) createAttributeReference($1); }
 
-/*
- * SQL parameter
- */
-sqlParameter:
-		parameter		   { RULELOG("sqlParameter::PARAMETER"); $$ = (Node *) createSQLParameter($1); }
+//----------------------- Rules for parsing fromClause ------------------------------
+// from [col1, col2, col3] table1, [col4, col5] table2
+fromClause
+@init { msgs.push("from clause"); }
+@after { msgs.pop(); }
+    :
+    KW_FROM joinSource -> ^(TOK_FROM joinSource)
+    ;
 
-/* HELP HELP ??
-       Need helper function support for attribute list in expression.
-       For e.g.
-           SELECT attr FROM tab
-           WHERE
-              (col1, col2) = (SELECT cl1, cl2 FROM tab2)
-       SolQ: Can we use selectItem function here?????
+joinSource
+@init { msgs.push("join source"); }
+@after { msgs.pop(); }
+    : fromSource ( joinToken^ fromSource (KW_ON! expression)? )*
+    | uniqueJoinToken^ uniqueJoinSource (COMMA! uniqueJoinSource)+
+    ;
+
+uniqueJoinSource
+@init { msgs.push("join source"); }
+@after { msgs.pop(); }
+    : KW_PRESERVE? fromSource uniqueJoinExpr
+    ;
+
+uniqueJoinExpr
+@init { msgs.push("unique join expression list"); }
+@after { msgs.pop(); }
+    : LPAREN e1+=expression (COMMA e1+=expression)* RPAREN
+      -> ^(TOK_EXPLIST $e1*)
+    ;
+
+uniqueJoinToken
+@init { msgs.push("unique join"); }
+@after { msgs.pop(); }
+    : KW_UNIQUEJOIN -> TOK_UNIQUEJOIN;
+
+joinToken
+@init { msgs.push("join type specifier"); }
+@after { msgs.pop(); }
+    :
+      KW_JOIN                     -> TOK_JOIN
+    | kwInner  KW_JOIN            -> TOK_JOIN
+    | KW_LEFT  KW_OUTER KW_JOIN   -> TOK_LEFTOUTERJOIN
+    | KW_RIGHT KW_OUTER KW_JOIN   -> TOK_RIGHTOUTERJOIN
+    | KW_FULL  KW_OUTER KW_JOIN   -> TOK_FULLOUTERJOIN
+    | KW_LEFT  KW_SEMI  KW_JOIN   -> TOK_LEFTSEMIJOIN
+    ;
+
+lateralView
+@init {msgs.push("lateral view"); }
+@after {msgs.pop(); }
+	:
+	KW_LATERAL KW_VIEW function tableAlias KW_AS Identifier (COMMA Identifier)* -> ^(TOK_LATERAL_VIEW ^(TOK_SELECT ^(TOK_SELEXPR function Identifier+ tableAlias)))
+	;
+
+tableAlias
+@init {msgs.push("table alias"); }
+@after {msgs.pop(); }
+    :
+    Identifier -> ^(TOK_TABALIAS Identifier)
+    ;
+
+fromSource
+@init { msgs.push("from source"); }
+@after { msgs.pop(); }
+    :
+    (tableSource | subQuerySource) (lateralView^)*
+    ;
+
+tableBucketSample
+@init { msgs.push("table bucket sample specification"); }
+@after { msgs.pop(); }
+    :
+    KW_TABLESAMPLE LPAREN KW_BUCKET (numerator=Number) KW_OUT KW_OF (denominator=Number) (KW_ON expr+=expression (COMMA expr+=expression)*)? RPAREN -> ^(TOK_TABLEBUCKETSAMPLE $numerator $denominator $expr*)
+    ;
+
+splitSample
+@init { msgs.push("table split sample specification"); }
+@after { msgs.pop(); }
+    :
+    KW_TABLESAMPLE LPAREN  (numerator=Number) KW_PERCENT RPAREN -> ^(TOK_TABLESPLITSAMPLE $numerator)
+    ;
+
+tableSample
+@init { msgs.push("table sample specification"); }
+@after { msgs.pop(); }
+    :
+    tableBucketSample |
+    splitSample
+    ;
+
+tableSource
+@init { msgs.push("table source"); }
+@after { msgs.pop(); }
+    : tabname=tableName (ts=tableSample)? (alias=Identifier)?
+    -> ^(TOK_TABREF $tabname $ts? $alias?)
+    ;
+
+tableName
+@init { msgs.push("table name"); }
+@after { msgs.pop(); }
+    : (db=Identifier DOT)? tab=Identifier
+    -> ^(TOK_TABNAME $db? $tab)
+    ;
+
+viewName
+@init { msgs.push("view name"); }
+@after { msgs.pop(); }
+    :
+    (db=Identifier DOT)? view=Identifier
+    -> ^(TOK_TABNAME $db? $view)
+    ;
+
+subQuerySource
+@init { msgs.push("subquery source"); }
+@after { msgs.pop(); }
+    :
+    LPAREN queryStatementExpression RPAREN Identifier -> ^(TOK_SUBQUERY queryStatementExpression Identifier)
+    ;
+
+//----------------------- Rules for parsing whereClause -----------------------------
+// where a=b and ...
+whereClause
+@init { msgs.push("where clause"); }
+@after { msgs.pop(); }
+    :
+    KW_WHERE searchCondition -> ^(TOK_WHERE searchCondition)
+    ;
+
+searchCondition
+@init { msgs.push("search condition"); }
+@after { msgs.pop(); }
+    :
+    expression
+    ;
+
+//-----------------------------------------------------------------------------------
+
+// group by a,b
+groupByClause
+@init { msgs.push("group by clause"); }
+@after { msgs.pop(); }
+    :
+    KW_GROUP KW_BY
+    groupByExpression
+    ( COMMA groupByExpression )*
+    -> ^(TOK_GROUPBY groupByExpression+)
+    ;
+
+groupByExpression
+@init { msgs.push("group by expression"); }
+@after { msgs.pop(); }
+    :
+    expression
+    ;
+
+havingClause
+@init { msgs.push("having clause"); }
+@after { msgs.pop(); }
+    :
+    KW_HAVING havingCondition -> ^(TOK_HAVING havingCondition)
+    ;
+
+havingCondition
+@init { msgs.push("having condition"); }
+@after { msgs.pop(); }
+    :
+    expression
+    ;
+
+// order by a,b
+orderByClause
+@init { msgs.push("order by clause"); }
+@after { msgs.pop(); }
+    :
+    KW_ORDER KW_BY
+    columnRefOrder
+    ( COMMA columnRefOrder)* -> ^(TOK_ORDERBY columnRefOrder+)
+    ;
+
+clusterByClause
+@init { msgs.push("cluster by clause"); }
+@after { msgs.pop(); }
+    :
+    KW_CLUSTER KW_BY
+    expression
+    ( COMMA expression )* -> ^(TOK_CLUSTERBY expression+)
+    ;
+
+distributeByClause
+@init { msgs.push("distribute by clause"); }
+@after { msgs.pop(); }
+    :
+    KW_DISTRIBUTE KW_BY
+    expression (COMMA expression)* -> ^(TOK_DISTRIBUTEBY expression+)
+    ;
+
+sortByClause
+@init { msgs.push("sort by clause"); }
+@after { msgs.pop(); }
+    :
+    KW_SORT KW_BY
+    columnRefOrder
+    ( COMMA columnRefOrder)* -> ^(TOK_SORTBY columnRefOrder+)
+    ;
+
+// fun(par1, par2, par3)
+function
+@init { msgs.push("function specification"); }
+@after { msgs.pop(); }
+    :
+    functionName
+    LPAREN
+      (
+        (star=STAR)
+        | (dist=KW_DISTINCT)? (expression (COMMA expression)*)?
+      )
+    RPAREN -> {$star != null}? ^(TOK_FUNCTIONSTAR functionName)
+           -> {$dist == null}? ^(TOK_FUNCTION functionName (expression+)?)
+                            -> ^(TOK_FUNCTIONDI functionName (expression+)?)
+    ;
+
+functionName
+@init { msgs.push("function name"); }
+@after { msgs.pop(); }
+    : // Keyword IF is also a function name
+    Identifier | KW_IF | KW_ARRAY | KW_MAP | KW_STRUCT | KW_UNIONTYPE
+    ;
+
+castExpression
+@init { msgs.push("cast expression"); }
+@after { msgs.pop(); }
+    :
+    KW_CAST
+    LPAREN
+          expression
+          KW_AS
+          primitiveType
+    RPAREN -> ^(TOK_FUNCTION primitiveType expression)
+    ;
+
+caseExpression
+@init { msgs.push("case expression"); }
+@after { msgs.pop(); }
+    :
+    KW_CASE expression
+    (KW_WHEN expression KW_THEN expression)+
+    (KW_ELSE expression)?
+    KW_END -> ^(TOK_FUNCTION KW_CASE expression*)
+    ;
+
+whenExpression
+@init { msgs.push("case expression"); }
+@after { msgs.pop(); }
+    :
+    KW_CASE
+     ( KW_WHEN expression KW_THEN expression)+
+    (KW_ELSE expression)?
+    KW_END -> ^(TOK_FUNCTION KW_WHEN expression*)
+    ;
+
+constant
+@init { msgs.push("constant"); }
+@after { msgs.pop(); }
+    :
+    Number
+    | StringLiteral
+    | stringLiteralSequence
+    | BigintLiteral
+    | SmallintLiteral
+    | TinyintLiteral
+    | charSetStringLiteral
+    | booleanValue
+    ;
+
+stringLiteralSequence
+    :
+    StringLiteral StringLiteral+ -> ^(TOK_STRINGLITERALSEQUENCE StringLiteral StringLiteral+)
+    ;
+
+charSetStringLiteral
+@init { msgs.push("character string literal"); }
+@after { msgs.pop(); }
+    :
+    csName=CharSetName csLiteral=CharSetLiteral -> ^(TOK_CHARSETLITERAL $csName $csLiteral)
+    ;
+
+expression
+@init { msgs.push("expression specification"); }
+@after { msgs.pop(); }
+    :
+    precedenceOrExpression
+    ;
+
+atomExpression
+    :
+    KW_NULL -> TOK_NULL
+    | constant
+    | function
+    | castExpression
+    | caseExpression
+    | whenExpression
+    | tableOrColumn
+    | LPAREN! expression RPAREN!
+    ;
+
+
+precedenceFieldExpression
+    :
+    atomExpression ((LSQUARE^ expression RSQUARE!) | (DOT^ Identifier))*
+    ;
+
+precedenceUnaryOperator
+    :
+    PLUS | MINUS | TILDE
+    ;
+
+nullCondition
+    :
+    KW_NULL -> ^(TOK_ISNULL)
+    | KW_NOT KW_NULL -> ^(TOK_ISNOTNULL)
+    ;
+
+precedenceUnaryPrefixExpression
+    :
+    (precedenceUnaryOperator^)* precedenceFieldExpression
+    ;
+
+precedenceUnarySuffixExpression
+    : precedenceUnaryPrefixExpression (a=KW_IS nullCondition)?
+    -> {$a != null}? ^(TOK_FUNCTION nullCondition precedenceUnaryPrefixExpression)
+    -> precedenceUnaryPrefixExpression
+    ;
+
+
+precedenceBitwiseXorOperator
+    :
+    BITWISEXOR
+    ;
+
+precedenceBitwiseXorExpression
+    :
+    precedenceUnarySuffixExpression (precedenceBitwiseXorOperator^ precedenceUnarySuffixExpression)*
+    ;
+
+
+precedenceStarOperator
+    :
+    STAR | DIVIDE | MOD | DIV
+    ;
+
+precedenceStarExpression
+    :
+    precedenceBitwiseXorExpression (precedenceStarOperator^ precedenceBitwiseXorExpression)*
+    ;
+
+
+precedencePlusOperator
+    :
+    PLUS | MINUS
+    ;
+
+precedencePlusExpression
+    :
+    precedenceStarExpression (precedencePlusOperator^ precedenceStarExpression)*
+    ;
+
+
+precedenceAmpersandOperator
+    :
+    AMPERSAND
+    ;
+
+precedenceAmpersandExpression
+    :
+    precedencePlusExpression (precedenceAmpersandOperator^ precedencePlusExpression)*
+    ;
+
+
+precedenceBitwiseOrOperator
+    :
+    BITWISEOR
+    ;
+
+precedenceBitwiseOrExpression
+    :
+    precedenceAmpersandExpression (precedenceBitwiseOrOperator^ precedenceAmpersandExpression)*
+    ;
+
+
+// Equal operators supporting NOT prefix
+precedenceEqualNegatableOperator
+    :
+    KW_LIKE | KW_RLIKE | KW_REGEXP
+    ;
+
+precedenceEqualOperator
+    :
+    precedenceEqualNegatableOperator | EQUAL | NOTEQUAL | LESSTHANOREQUALTO | LESSTHAN | GREATERTHANOREQUALTO | GREATERTHAN
+    ;
+
+precedenceEqualExpression
+    :
+    (left=precedenceBitwiseOrExpression -> $left)
+    (
+       (KW_NOT precedenceEqualNegatableOperator notExpr=precedenceBitwiseOrExpression)
+       -> ^(KW_NOT ^(precedenceEqualNegatableOperator $precedenceEqualExpression $notExpr))
+    | (precedenceEqualOperator equalExpr=precedenceBitwiseOrExpression)
+       -> ^(precedenceEqualOperator $precedenceEqualExpression $equalExpr)
+    | (KW_NOT KW_IN expressions)
+       -> ^(KW_NOT ^(TOK_FUNCTION KW_IN $precedenceEqualExpression expressions))
+    | (KW_IN expressions)
+       -> ^(TOK_FUNCTION KW_IN $precedenceEqualExpression expressions)
+    )*
+    ;
+
+expressions
+    :
+    LPAREN expression (COMMA expression)* RPAREN -> expression*
+    ;
+
+precedenceNotOperator
+    :
+    KW_NOT
+    ;
+
+precedenceNotExpression
+    :
+    (precedenceNotOperator^)* precedenceEqualExpression
+    ;
+
+
+precedenceAndOperator
+    :
+    KW_AND
+    ;
+
+precedenceAndExpression
+    :
+    precedenceNotExpression (precedenceAndOperator^ precedenceNotExpression)*
+    ;
+
+
+precedenceOrOperator
+    :
+    KW_OR
+    ;
+
+precedenceOrExpression
+    :
+    precedenceAndExpression (precedenceOrOperator^ precedenceAndExpression)*
+    ;
+
+
+booleanValue
+    :
+    KW_TRUE^ | KW_FALSE^
+    ;
+
+tableOrPartition
+   :
+   tableName partitionSpec? -> ^(TOK_TAB tableName partitionSpec?)
+   ;
+
+partitionSpec
+    :
+    KW_PARTITION
+     LPAREN partitionVal (COMMA  partitionVal )* RPAREN -> ^(TOK_PARTSPEC partitionVal +)
+    ;
+
+partitionVal
+    :
+    Identifier (EQUAL constant)? -> ^(TOK_PARTVAL Identifier constant?)
+    ;
+
+sysFuncNames
+    :
+      KW_AND
+    | KW_OR
+    | KW_NOT
+    | KW_LIKE
+    | KW_IF
+    | KW_CASE
+    | KW_WHEN
+    | KW_TINYINT
+    | KW_SMALLINT
+    | KW_INT
+    | KW_BIGINT
+    | KW_FLOAT
+    | KW_DOUBLE
+    | KW_BOOLEAN
+    | KW_STRING
+    | KW_BINARY
+    | KW_ARRAY
+    | KW_MAP
+    | KW_STRUCT
+    | KW_UNIONTYPE
+    | EQUAL
+    | NOTEQUAL
+    | LESSTHANOREQUALTO
+    | LESSTHAN
+    | GREATERTHANOREQUALTO
+    | GREATERTHAN
+    | DIVIDE
+    | PLUS
+    | MINUS
+    | STAR
+    | MOD
+    | DIV
+    | AMPERSAND
+    | TILDE
+    | BITWISEOR
+    | BITWISEXOR
+    | KW_RLIKE
+    | KW_REGEXP
+    | KW_IN
+    ;
+
+descFuncNames
+    :
+      sysFuncNames
+    | StringLiteral
+    | Identifier
+    ;
+
 */
-    ;
-
-/*
- * Parse operator expression
- */
- 
-binaryOperatorExpression: 
-
-    /* Arithmatic Operations */
-        expression '+' expression
-            {
-                RULELOG("binaryOperatorExpression:: '+' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-        | expression '-' expression
-            {
-                RULELOG("binaryOperatorExpression:: '-' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-        | expression '*' expression
-            {
-                RULELOG("binaryOperatorExpression:: '*' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-        | expression '/' expression
-            {
-                RULELOG("binaryOperatorExpression:: '/' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-        | expression '%' expression
-            {
-                RULELOG("binaryOperatorExpression:: '%' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-        | expression '^' expression
-            {
-                RULELOG("binaryOperatorExpression:: '^' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-
-    /* Binary operators */
-        | expression '&' expression
-            {
-                RULELOG("binaryOperatorExpression:: '&' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-        | expression '|' expression
-            {
-                RULELOG("binaryOperatorExpression:: '|' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-
-    /* Comparison Operators */
-        | expression comparisonOps expression
-            {
-                RULELOG("binaryOperatorExpression::comparisonOps");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-    ;
-
-unaryOperatorExpression:
-        '!' expression
-            {
-                RULELOG("unaryOperatorExpression:: '!' ");
-                List *expr = singleton($2);
-                $$ = (Node *) createOpExpr($1, expr);
-            }
-    ;
-    
-/*
- * Rule to parse function calls
- */
-sqlFunctionCall: 
-        identifier '(' exprList ')' overClause          
-            {
-                RULELOG("sqlFunctionCall::IDENTIFIER::exprList");
-				FunctionCall *f = createFunctionCall($1, $3);
-				if ($5 != NULL)
-					$$ = (Node *) createWindowFunction(f, (WindowDef *) $5);
-				else  
-                	$$ = (Node *) f; 
-            }
-		| AMMSC '(' exprList ')' overClause          
-            {
-                RULELOG("sqlFunctionCall::AMMSC::exprList");
-				FunctionCall *f = createFunctionCall($1, $3);
-				if ($5 != NULL)
-					$$ = (Node *) createWindowFunction(f, (WindowDef *) $5);
-				else  
-                	$$ = (Node *) f; 
-            }
-    ;
-
-/*
- * Rule to parser CASE expressions
- */
-caseExpression:
-		CASE expression caseWhenList optionalCaseElse END
-			{
-				RULELOG("caseExpression::CASE::expression::whens:else:END");
-				$$ = (Node *) createCaseExpr($2, $3, $4);
-			}
-		| CASE caseWhenList optionalCaseElse END
-			{
-				RULELOG("caseExpression::CASE::whens::else::END");
-				$$ = (Node *) createCaseExpr(NULL, $2, $3);
-			}
-	;
-
-caseWhenList:
-		caseWhenList caseWhen
-			{
-				RULELOG("caseWhenList::list::caseWhen");
-				$$ = appendToTailOfList($1, $2);
-			}
-		| caseWhen
-			{
-				RULELOG("caseWhenList::caseWhen");
-				$$ = singleton($1);
-			}
-	;
-	
-caseWhen:
-		WHEN expression THEN expression
-			{
-				RULELOG("caseWhen::WHEN::expression::THEN::expression");
-				$$ = (Node *) createCaseWhen($2,$4);
-			}
-	;
-
-optionalCaseElse:
-		/* empty */				{ RULELOG("optionalCaseElse::NULL"); $$ = NULL; }
-		| ELSE expression
-			{
-				RULELOG("optionalCaseElse::ELSE::expression");
-				$$ = $2;
-			}
-	;
-    
- /*
-  * Rule to parser OVER clause for window functions
-  */
-overClause:
-		/* empty */ 	{ RULELOG("overclause::NULL"); $$ = NULL; }
-		| OVER_TOK windowSpec
-			{
-				RULELOG("overclause::window");
-				$$ = $2;
-			}
-	;
-	
-windowSpec:
-		'('  optWindowPart optionalOrderBy optWindowFrame ')'
-			{
-				RULELOG("window");
-				$$ = (Node *) createWindowDef($2,$3, (WindowFrame *) $4);
-			}
-	;
-	
-optWindowPart:
-		/* empty */ 			{ RULELOG("optWindowPart::NULL"); $$ = NIL; }
-		| PARTITION BY exprList
-			{
-				RULELOG("optWindowPart::PARTITION:BY::expressionList");
-				$$ = $3;
-			}
-	;
-
-optWindowFrame:
-		/* empty */				{ RULELOG("optWindowFrame::NULL"); $$ = NULL; }
-		| ROWS windowBoundaries 
-			{ 
-				WindowBound *l, *u = NULL;
-				RULELOG("optWindowFrame::ROWS::windoBoundaries");
-				l = getNthOfListP($2, 0);
-				if(LIST_LENGTH($2) > 1)
-					u = getNthOfListP($2, 1);
-				$$ = (Node *) createWindowFrame(WINFRAME_ROWS, l, u); 
-			}
-		| RANGE windowBoundaries 
-			{
-				WindowBound *l, *u = NULL; 
-				RULELOG("optWindowFrame::RANGE::windoBoundaries"); 
-				l = getNthOfListP($2, 0);
-				if(LIST_LENGTH($2) > 1)
-					u = getNthOfListP($2, 1);
-				$$ = (Node *) createWindowFrame(WINFRAME_RANGE, l, u); 
-			}
-	;
-	
-windowBoundaries:
-		BETWEEN windowBound AND windowBound
-			{ 
-				RULELOG("windowBoundaries::BETWEEN"); 
-				$$ = LIST_MAKE($2, $4); 
-			}	
-		| windowBound 						
-			{ 
-				RULELOG("windowBoundaries::windowBound"); 
-				$$ = singleton($1); 
-			}
-	;
-
-windowBound:
-		UNBOUNDED PRECEDING 
-			{ 
-				RULELOG("windowBound::UNBOUNDED::PRECEDING"); 
-				$$ = (Node *) createWindowBound(WINBOUND_UNBOUND_PREC, NULL); 
-			}
-		| CURRENT ROW 
-			{ 
-				RULELOG("windowBound::CURRENT::ROW"); 
-				$$ = (Node *) createWindowBound(WINBOUND_CURRENT_ROW, NULL); 
-			}			
-		| expression PRECEDING
-			{ 
-				RULELOG("windowBound::expression::PRECEDING"); 
-				$$ = (Node *) createWindowBound(WINBOUND_EXPR_PREC, $1); 
-			}
-		| expression FOLLOWING
-			{ 
-				RULELOG("windowBound::expression::FOLLOWING"); 
-				$$ = (Node *) createWindowBound(WINBOUND_EXPR_FOLLOW, $1); 
-			}
-	;
-	
-/*
- * Rule to parse from clause
- *            Currently implemented for basic from clause.
- *            Later on other forms of from clause will be added.
- */
-optionalFrom: 
-        /* empty */              { RULELOG("optionalFrom::NULL"); $$ = NULL; }
-        | FROM fromClause        { RULELOG("optionalFrom::fromClause"); $$ = $2; }
-    ;
-            
-fromClause: 
-        fromClauseItem
-            {
-                RULELOG("fromClause::fromClauseItem");
-                $$ = singleton($1);
-            }
-        | fromClause ',' fromClauseItem
-            {
-                RULELOG("fromClause::fromClause::fromClauseItem");
-                $$ = appendToTailOfList($1, $3);
-            }
-    ;
-
-
-fromClauseItem:
-        identifier optionalFromProv
-            {
-                RULELOG("fromClauseItem");
-				FromItem *f = createFromTableRef(NULL, NIL, $1);
-				f->provInfo = (FromProvInfo *) $2;
-                $$ = (Node *) f;
-            }
-        | identifier optionalAlias
-            {
-                RULELOG("fromClauseItem");
-                FromItem *f = createFromTableRef(((FromItem *) $2)->name, 
-						((FromItem *) $2)->attrNames, $1);
-				f->provInfo = ((FromItem *) $2)->provInfo;
-                $$ = (Node *) f;
-            }
-            
-        | subQuery optionalFromProv
-            {
-                RULELOG("fromClauseItem::subQuery");
-                FromItem *f = (FromItem *) $1;
-                f->provInfo = (FromProvInfo *) $2;
-                $$ = $1;
-            }
-        | subQuery optionalAlias
-            {
-                RULELOG("fromClauseItem::subQuery");
-                FromSubquery *s = (FromSubquery *) $1;
-                s->from.name = ((FromItem *) $2)->name;
-                s->from.attrNames = ((FromItem *) $2)->attrNames;
-                s->from.provInfo = ((FromItem *) $2)->provInfo;
-                $$ = (Node *) s;
-            }
-        | fromJoinItem
-        	{
-        		FromItem *f;
-        		RULELOG("fromClauseItem::fromJoinItem");
-        		f = (FromItem *) $1;
-        		f->name = NULL;
-        		$$ = (Node *) f;
-        	}
-       	 | '(' fromJoinItem ')' optionalAlias
-        	{
-        		FromItem *f;
-        		RULELOG("fromClauseItem::fromJoinItem");
-        		f = (FromItem *) $2;
-        		f->name = ((FromItem *) $4)->name;
-                f->attrNames = ((FromItem *) $4)->attrNames;
-                f->provInfo = ((FromItem *) $4)->provInfo;
-        		$$ = (Node *) f;
-        	}
-    ;
-
-subQuery:
-        '(' queryStmt ')'
-            {
-                RULELOG("subQuery::queryStmt");
-                $$ = (Node *) createFromSubquery(NULL, NULL, $2);
-            }
-    ;
-
-identifierList:
-		identifier { $$ = singleton($1); }
-		| identifierList ',' identifier { $$ = appendToTailOfList($1, $3); }
-	;
-	
-fromJoinItem:
-		'(' fromJoinItem ')' 			{ $$ = $2; }
-        | fromClauseItem NATURAL JOIN fromClauseItem 
-			{
-                RULELOG("fromJoinItem::NATURAL");
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, 
-						(FromItem *) $4, "JOIN_INNER", "JOIN_COND_NATURAL", 
-						NULL);
-          	}
-		| fromClauseItem NATURAL joinType JOIN fromClauseItem 
-			{
-                RULELOG("fromJoinItem::NATURALjoinType");
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, 
-                		(FromItem *) $5, $3, "JOIN_COND_NATURAL", NULL);
-          	}
-     	| fromClauseItem CROSS JOIN fromClauseItem 
-        	{
-				RULELOG("fromJoinItem::CROSS JOIN");
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, 
-                		(FromItem *) $4, "JOIN_CROSS", "JOIN_COND_ON", NULL);
-          	}
-     	| fromClauseItem joinType JOIN fromClauseItem joinCond 
-        	{
-				RULELOG("fromJoinItem::JOIN::joinType::joinCond");
-				char *condType = (isA($5,List)) ? "JOIN_COND_USING" : 
-						"JOIN_COND_ON";
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, 
-                		(FromItem *) $4, $2, condType, $5);
-          	}
-     	| fromClauseItem JOIN fromClauseItem joinCond
-        	{
-				RULELOG("fromJoinItem::JOIN::joinCond");
-				char *condType = (isA($4,List)) ? "JOIN_COND_USING" : 
-						"JOIN_COND_ON"; 
-                $$ = (Node *) createFromJoin(NULL, NIL, (FromItem *) $1, 
-                		(FromItem *) $3, "JOIN_INNER", 
-                		condType, $4);
-          	}
-     ;
-     
-joinType:
-		LEFT 			{ RULELOG("joinType::LEFT"); $$ = "JOIN_LEFT_OUTER"; }
-		| LEFT OUTER 	{ RULELOG("joinType::LEFT OUTER"); $$ = "JOIN_LEFT_OUTER"; }
-		| RIGHT 		{ RULELOG("joinType::RIGHT "); $$ = "JOIN_RIGHT_OUTER"; }
-		| RIGHT OUTER  	{ RULELOG("joinType::RIGHT OUTER"); $$ = "JOIN_RIGHT_OUTER"; }
-		| FULL OUTER  	{ RULELOG("joinType::FULL OUTER"); $$ = "JOIN_FULL_OUTER"; }
-		| FULL 	  		{ RULELOG("joinType::FULL"); $$ = "JOIN_FULL_OUTER"; }
-		| INNER  		{ RULELOG("joinType::INNER"); $$ = "JOIN_INNER"; }
-	;
-
-joinCond:
-		USING '(' identifierList ')' { $$ = (Node *) $3; }
-		| ON whereExpression			 { $$ = $2; }
-	;
-
-optionalAlias:
-        optionalFromProv identifier optionalAttrAlias      
-			{
-				RULELOG("optionalAlias::identifier"); 
-				FromItem *f = createFromItem($2,$3);
- 				f->provInfo = (FromProvInfo *) $1;
-				$$ = (Node *) f;
-			}
-        | optionalFromProv AS identifier optionalAttrAlias       
-			{ 
-				RULELOG("optionalAlias::identifier"); 
-				FromItem *f = createFromItem($3,$4);
- 				f->provInfo = (FromProvInfo *) $1; 
-				$$ = (Node *) f;
-			}
-    ;
-    
-optionalFromProv:
-		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; }
-		| BASERELATION 
-			{
-				RULELOG("optionalFromProv::BASERELATION");
-				FromProvInfo *p = makeNode(FromProvInfo);
-				p->baserel = TRUE;
-				p->userProvAttrs = NIL;				 
-				$$ = (Node *) p; 
-			}
-		| HAS PROVENANCE '(' identifierList ')'
-			{
-				RULELOG("optionalFromProv::userProvAttr");
-				FromProvInfo *p = makeNode(FromProvInfo);
-				p->baserel = FALSE;
-				p->userProvAttrs = $4;				 
-				$$ = (Node *) p; 
-			}
-		| USE PROVENANCE '(' identifierList ')'
-			{
-				RULELOG("optionalFromProv::userProvDupAttr");
-				FromProvInfo *p = makeNode(FromProvInfo);
-				p->baserel = TRUE;
-				p->userProvAttrs = $4;
-				$$ = (Node *) p;
-			}
-		| SHOW INTERMEDIATE PROVENANCE
-			{
-				RULELOG("optionalFromProv::intermediateProv");
-				FromProvInfo *p = makeNode(FromProvInfo);
-				p->intermediateProv = TRUE;
-				$$ = (Node *) p;
-			}
-		| SHOW INTERMEDIATE PROVENANCE '(' identifierList ')'
-			{
-				RULELOG("optionalFromProv::intermediateProv::attrList");
-				FromProvInfo *p = makeNode(FromProvInfo);
-				p->intermediateProv = TRUE;
-				p->userProvAttrs = $5;
-				$$ = (Node *) p;
-			}
-	;
-    
-optionalAttrAlias:
-		/* empty */ { RULELOG("optionalAttrAlias::empty"); $$ = NULL; }
-		| '(' identifierList ')' 
-			{ 
-				RULELOG("optionalAttrAlias::identifierList"); $$ = $2; 
-			}
-    ;
-    
-/*
- * Rule to parse the where clause.
- */
-optionalWhere: 
-        /* empty */             { RULELOG("optionalWhere::NULL"); $$ = NULL; }
-        | WHERE whereExpression        { RULELOG("optionalWhere::whereExpression"); $$ = $2; }
-    ;
-
-whereExpression:
-		'(' whereExpression ')' { RULELOG("where::brackedWhereExpression"); $$ = $2; } %prec DUMMYEXPR
-        | expression        { RULELOG("whereExpression::expression"); $$ = $1; } %prec '+'
-        | NOT whereExpression
-            {
-                RULELOG("whereExpression::NOT");
-                List *expr = singleton($2);
-                $$ = (Node *) createOpExpr($1, expr);
-            }
-        | whereExpression AND whereExpression	
-            {
-                RULELOG("whereExpression::AND");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-        | whereExpression OR whereExpression
-            {
-                RULELOG("whereExpression::OR");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-		| whereExpression LIKE whereExpression
-			{
-				//if ($2 == NULL)
-                //{
-                	RULELOG("whereExpression::LIKE");
-	                List *expr = singleton($1);
-	                expr = appendToTailOfList(expr, $3);
-	                $$ = (Node *) createOpExpr($2, expr);
-                /* }
-				else
-				{   
-                	RULELOG("whereExpression::NOT::LIKE");
-                	List *expr = singleton($1);
-                	expr = appendToTailOfList(expr, $4);
-                	Node *like = (Node *) createOpExpr($3, expr);
-                	$$ = (Node *) createOpExpr("NOT", singleton(like));
-				}*/
-            }
-        | whereExpression BETWEEN expression AND expression
-            {
-                RULELOG("whereExpression::BETWEEN-AND");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                expr = appendToTailOfList(expr, $5);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-        | expression comparisonOps nestedSubQueryOperator '(' queryStmt ')'
-            {
-                RULELOG("whereExpression::comparisonOps::nestedSubQueryOperator::Subquery");
-                $$ = (Node *) createNestedSubquery($3, $1, $2, $5);
-            }
-        | expression comparisonOps '(' queryStmt ')'
-            {
-                RULELOG("whereExpression::Subquery");
-                Node *q = (Node *) createNestedSubquery("SCALAR", NULL, NULL, $4); 
-                List *expr = LIST_MAKE($1, q);
-                $$ = (Node *) createOpExpr($2, expr); 
-            }
-        | expression optionalNot IN '(' queryStmt ')'
-            {
-                if ($2 == NULL)
-                {
-                    RULELOG("whereExpression::IN");
-                    $$ = (Node *) createNestedSubquery("ANY", $1, "=", $5);
-                }
-                else
-                {
-                    RULELOG("whereExpression::NOT::IN");
-                    $$ = (Node *) createNestedSubquery("ALL",$1, "<>", $5);
-                }
-            }
-        | EXISTS '(' queryStmt ')'
-            {
-                RULELOG("whereExpression::EXISTS");
-                $$ = (Node *) createNestedSubquery($1, NULL, NULL, $3);
-            }
-    ;
-
-nestedSubQueryOperator:
-        ANY { RULELOG("nestedSubQueryOperator::ANY"); $$ = $1; }
-        | ALL { RULELOG("nestedSubQueryOperator::ALL"); $$ = $1; }
-        | SOME { RULELOG("nestedSubQueryOperator::SOME"); $$ = "ANY"; }
-    ;
-
-optionalNot:
-        /* Empty */    { RULELOG("optionalNot::NULL"); $$ = NULL; }
-        | NOT    { RULELOG("optionalNot::NOT"); $$ = $1; }
-    ;
-
-optionalGroupBy:
-        /* Empty */        { RULELOG("optionalGroupBy::NULL"); $$ = NULL; }
-        | GROUP BY exprList      { RULELOG("optionalGroupBy::GROUPBY"); $$ = $3; }
-    ;
-
-optionalHaving:
-        /* Empty */        { RULELOG("optionalOrderBy:::NULL"); $$ = NULL; }
-        | HAVING whereExpression
-            { 
-                RULELOG("optionalHaving::HAVING"); 
-                $$ = (Node *) $2;
-            }
-    ;
-
-optionalOrderBy:
-        /* Empty */        { RULELOG("optionalOrderBy:::NULL"); $$ = NULL; }
-        | ORDER BY orderList       { RULELOG("optionalOrderBy::ORDERBY"); $$ = $3; }
-    ;
-
-optionalLimit:
-        /* Empty */        { RULELOG("optionalLimit::NULL"); $$ = NULL; }
-        | LIMIT constant        { RULELOG("optionalLimit::CONSTANT"); $$ = $2;}
-    ;
-
-orderList:
-		 orderExpr
-            {
-                RULELOG("clauseList::orderExpr");
-                $$ = singleton($1);
-            }
-        | orderList ',' orderExpr
-            {
-                RULELOG("orderList::orderList::orderExpr");
-                $$ = appendToTailOfList($1, $3);
-            }
-    ;
-
-orderExpr:
-		expression optionalSortOrder optionalNullOrder
-			{
-				RULELOG("orderExpr::expr::sortOrder::nullOrder");
-				SortOrder o = (strcmp($2,"ASC") == 0) ?  SORT_ASC : SORT_DESC;
-				SortNullOrder n = (strcmp($3,"NULLS_FIRST") == 0) ? 
-						SORT_NULLS_FIRST : 
-						SORT_NULLS_LAST;
-				$$ = (Node *) createOrderExpr($1, o, n);
-			}
-	;
-	
-optionalSortOrder:
-		/* empty */ { RULELOG("optionalSortOrder::empty"); $$ = "ASC"; }
-		| ASC
-			{
-				RULELOG("optionalSortOrder::ASC");
-				$$ = "ASC";
-			}
-		| DESC
-			{
-				RULELOG("optionalSortOrder::DESC");
-				$$ = "DESC";
-			}
-	;
-
-optionalNullOrder:
-		/* empty */ { RULELOG("optionalNullOrder::empty"); $$ = "NULLS_LAST"; }
-		| NULLS FIRST
-			{
-				RULELOG("optionalNullOrder::NULLS FIRST");
-				$$ = "NULLS_FIRST";
-			}
-		| NULLS LAST
-			{
-				RULELOG("optionalNullOrder::NULLS LAST");
-				$$ = "NULLS_LAST";
-			}
-	;
-
 	
 %%
 
