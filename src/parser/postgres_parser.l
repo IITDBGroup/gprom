@@ -1,3 +1,6 @@
+%option prefix="postgres" 
+%option outfile="postgres_parser.lex.c"
+
 /*
  * SQL lexer file for lex/flex defining basic tokens used in the oracle parser
  *
@@ -19,31 +22,31 @@
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "parser/parse_internal.h"
-#include "sql_parser.tab.h"
+#include "parser/parse_internal_postgres.h"
+#include "postgres_parser.tab.h"
 
 #undef free
 
 #define TOKSELF() { \
-	TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", yytext[0], yytext[0]); \
-	yylval.stringVal = strdup(yytext); \
-	return yytext[0]; \
+	TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", postgrestext[0], postgrestext[0]); \
+	postgreslval.stringVal = strdup(postgrestext); \
+	return postgrestext[0]; \
 	}
 #define TOK(name) { \
-	TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, yytext); \
- 	yylval.stringVal = strdup(yytext); \
+	TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, postgrestext); \
+ 	postgreslval.stringVal = strdup(postgrestext); \
  	return name; \
  	}
-#define UPCASE_TOK(name) { \
-	TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, yytext); \
-	char *result = strdup(yytext); \
-	yylval.stringVal = result; \
-	for(; *result != '\0'; (*(result) = toupper(*result)), result++); \
+#define DOWNCASE_TOK(name) { \
+	TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, postgrestext); \
+	char *result = strdup(postgrestext); \
+	postgreslval.stringVal = result; \
+	for(; *result != '\0'; (*(result) = tolower(*result)), result++); \
 	return name; \
 	}
 #define TOKSAVE(name,field,function) { \
 	TRACE_LOG("Lexed TOKEN <%s> of TYPE <%s>",  #name, #field); \
-	yylval.field = function(yytext); \
+	postgreslval.field = function(postgrestext); \
 	return name; \
 	}
 %}
@@ -93,7 +96,7 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 %%
 
 	/* ignore all whitespace */
-{whitespace}	 { TRACE_LOG("Lexed whitespace <%s>", yytext); /* ignore it */ }
+{whitespace}	 { TRACE_LOG("Lexed whitespace <%s>", postgrestext); /* ignore it */ }
 
 	/* literal keyword tokens */
 (?i:SELECT)       	TOK(SELECT)
@@ -108,7 +111,7 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 (?i:WHERE)			TOK(WHERE)
 (?i:DISTINCT)		TOK(DISTINCT)
 (?i:ON)				TOK(ON)
-STARALL				TOK(STARALL)
+STARLL				TOK(STARALL)
 (?i:ALL)		 	TOK(ALL)
 (?i:AND)		 	TOK(AND)
 (?i:OR)             TOK(OR)
@@ -186,20 +189,20 @@ STARALL				TOK(STARALL)
 (?i:VERSIONS)		TOK(VERSIONS)
 
 	/* names */
-{identifiers}	UPCASE_TOK(identifier)
+{identifiers}	DOWNCASE_TOK(identifier)
 {quotedIdentifier}   { 		
-		yylval.stringVal = MALLOC(strlen(yytext) - 1);
-		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
-		yylval.stringVal[strlen(yytext) - 2] = '\0';
-		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", yytext);
+		postgreslval.stringVal = MALLOC(strlen(postgrestext) - 1);
+		memcpy(postgreslval.stringVal, postgrestext + 1, strlen(postgrestext) - 2);
+		postgreslval.stringVal[strlen(postgrestext) - 2] = '\0';
+		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", postgrestext);
 		return identifier;
 	}	
 
 {parameters} {
-		yylval.stringVal = MALLOC(strlen(yytext));
-		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 1);
-		yylval.stringVal[strlen(yytext) - 1] = '\0';
-		TRACE_LOG("Lexed TOKEN <parameter> with VALUE <:%s>", yytext);
+		postgreslval.stringVal = MALLOC(strlen(postgrestext));
+		memcpy(postgreslval.stringVal, postgrestext + 1, strlen(postgrestext) - 1);
+		postgreslval.stringVal[strlen(postgrestext) - 1] = '\0';
+		TRACE_LOG("Lexed TOKEN <parameter> with VALUE <:%s>", postgrestext);
 		return parameter;
 	}
 
@@ -218,18 +221,18 @@ STARALL				TOK(STARALL)
 
 	/* strings */
 '[^'\n]*'	{
-		yylval.stringVal = MALLOC(strlen(yytext) - 1);
-		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
-		yylval.stringVal[strlen(yytext) - 2] = '\0';
-		TRACE_LOG("Lexed TOKEN <stringConst> with VALUE <%s>", yytext);
+		postgreslval.stringVal = MALLOC(strlen(postgrestext) - 1);
+		memcpy(postgreslval.stringVal, postgrestext + 1, strlen(postgrestext) - 2);
+		postgreslval.stringVal[strlen(postgrestext) - 2] = '\0';
+		TRACE_LOG("Lexed TOKEN <stringConst> with VALUE <%s>", postgrestext);
 		return stringConst;
 	}
 
 		
-'[^'\n]*$	{yyerror("Unterminated string"); }
+'[^'\n]*$	{postgreserror("Unterminated string"); }
 
 	/* failure - no token matched */
-.		{ yyerror("Unknown symbol"); }	/* random non-SQL text */
+.		{ postgreserror("Unknown symbol"); }	/* random non-SQL text */
 
 %%
 
@@ -238,12 +241,12 @@ STARALL				TOK(STARALL)
  ******************************************************************************/
 
 /* use logging framework in the future */
-void yyerror(char *s)
+void postgreserror(char *s)
 {
-	ERROR_LOG("%s at %s\n", s, yytext);
+	ERROR_LOG("%s at %s\n", s, postgrestext);
 }
 
-void setupStringInput(char *input)
+void postgresSetupStringInput(char *input)
 {
-	yy_scan_string(input);
+	postgres_scan_string(input);
 }

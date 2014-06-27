@@ -12,6 +12,7 @@
 
 #include "parser/parser.h"
 #include "parser/parser_oracle.h"
+#include "parser/parser_postgres.h"
 #include "model/node/nodetype.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
@@ -78,9 +79,8 @@ assemblePostgresPlugin(void)
 {
     ParserPlugin *p = NEW(ParserPlugin);
 
-    p->parseStream = parseStreamOracle;
-    p->parseFromString = parseFromStringOracle;
-    FATAL_LOG("not support yet");
+    p->parseStream = parseStreamPostgres;
+    p->parseFromString = parseFromStringPostgres;
 
     return p;
 }
