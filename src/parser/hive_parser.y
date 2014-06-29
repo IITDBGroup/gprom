@@ -241,8 +241,8 @@ importTableLocation:
 /* DDL statements */
 ddlStatement:
 		 createDatabaseStatement
-/*    	| switchDatabaseStatement
-    	| dropDatabaseStatement
+    	| switchDatabaseStatement
+    	| dropDatabaseStatement /*
     	| createTableStatement
     	| dropTableStatement
     	| alterStatement
@@ -337,11 +337,1313 @@ databaseComment:
 		| KW_COMMENT StringLiteral { $$ = $2; }
     ;
 
+/* tableStatement */
+createTableStatement:
+		KW_CREATE tableIsExternal KW_TABLE ifNotExists tableName KW_LIKE tableName tableLocation
+		{
+			$$ = NULL;
+		}
+		| optTableColumnList
+         tableComment
+         tablePartition
+         tableBuckets
+         tableRowFormat
+         tableFileFormat
+         tableLocation
+         tablePropertiesPrefixed
+		 optTableAsSelect
+		{
+			$$ = NULL;
+		}
+    ;
+
+tableIsExternal:
+		/* empty */ { $$ = NULL; }
+		| KW_EXTERNAL
+	;
+
+optTableColumnList:
+		LPAREN columnNameTypeList RPAREN { $$ = NULL; }
+	;
+
+optTableAsSelect:
+		KW_AS selectStatement { $$ = $2; }
+	;
+
+createIndexStatement: 
+		KW_CREATE KW_INDEX Identifier KW_ON KW_TABLE tableName LPAREN columnNameList RPAREN KW_AS StringLiteral
+      	autoRebuild
+      	indexPropertiesPrefixed
+      	indexTblName
+      	tableRowFormat
+      	tableFileFormat
+      	tableLocation
+      	tablePropertiesPrefixed
+      	indexComment
+		{
+			$$ = NULL;
+		}
+    ;
+
+indexComment:
+		KW_COMMENT StringLiteral { $$ = $2; }
+	;
+
+autoRebuild:
+		/* empty */ 	{ $$ = NULL; }
+    	| KW_WITH KW_DEFERRED KW_REBUILD
+    ;
+
+indexTblName:
+		/* empty */ 	{ $$ = NULL; } 
+		| KW_IN KW_TABLE tableName
+    	{
+			$$ = $3;
+		}
+    ;
+
+indexPropertiesPrefixed:
+        KW_IDXPROPERTIES! indexProperties
+    ;
+
+indexProperties:
+		LPAREN indexPropertiesList RPAREN  { $$ = $2; }
+    ;
+
+indexPropertiesList:
+      	keyValueProperty { $$ = singleton($1); }
+		| indexPropertiesList COMMA keyValueProperty { $$ = CONCAT_LISTS($1,$3); }
+    ;
+
+dropIndexStatement: 
+		KW_DROP KW_INDEX ifExists Identifier KW_ON tableName
+    	{
+			$$ = NULL;
+		}
+    ;
+
+dropTableStatement: 
+		KW_DROP KW_TABLE ifExists tableName
+		{
+			$$ = NULL;
+		}
+    ;
+
+alterStatement: 
+		KW_ALTER KW_TABLE alterTableStatementSuffix
+		{
+			$$ = NULL;
+		}
+        | KW_ALTER KW_VIEW alterViewStatementSuffix
+		{
+			$$ = NULL;
+		}
+        | KW_ALTER KW_INDEX alterIndexStatementSuffix
+		{
+			$$ = NULL;
+		}
+        | KW_ALTER KW_DATABASE alterDatabaseStatementSuffix
+		{
+			$$ = NULL;
+		}
+    ;
+
+alterTableStatementSuffix: 
+		alterStatementSuffixRename
+    	| alterStatementSuffixAddCol
+    	| alterStatementSuffixRenameCol
+    	| alterStatementSuffixDropPartitions
+    	| alterStatementSuffixAddPartitions
+    	| alterStatementSuffixTouch
+    	| alterStatementSuffixArchive
+    	| alterStatementSuffixUnArchive
+    	| alterStatementSuffixProperties
+    	| alterTblPartitionStatement
+    	| alterStatementSuffixClusterbySortby
+    ;
+
+alterViewStatementSuffix: 
+		alterViewSuffixProperties
+    	| alterStatementSuffixRename
+	    | alterStatementSuffixAddPartitions
+		| alterStatementSuffixDropPartitions
+    ;
+
+alterIndexStatementSuffix: 
+		Identifier KW_ON Identifier partitionSpec KW_REBUILD
+    	| Identifier KW_ON Identifier partitionSpec  KW_SET KW_IDXPROPERTIES indexProperties
+    ;
+
+alterDatabaseStatementSuffix: 
+		alterDatabaseSuffixProperties
+    ;
+
+alterDatabaseSuffixProperties: 
+		Identifier KW_SET KW_DBPROPERTIES dbProperties
+    ;
+
+alterStatementSuffixRename: 
+		Identifier KW_RENAME KW_TO Identifier
+    ;
+
+alterStatementSuffixAddCol: 
+		Identifier addOrReplace KW_COLUMNS LPAREN columnNameTypeList RPAREN
+    ;
+    
+addOrReplace:
+		KW_ADD
+		| KW_REPLACE
+	;
+
+alterStatementSuffixRenameCol:
+		Identifier KW_CHANGE alterColOptColumn Identifier Identifier colType optComment alterStatementChangeColPosition
+    ;
+    
+alterColOptColumn:
+		/* empty */ { $$ = NULL; }
+		| KW_COLUMN
+	;
+
+optComment:
+		/* empty */ { $$ = NULL; }
+		| KW_COMMENT StringLiteral
+	;
+	
+alterStatementChangeColPosition: 
+		firstOrAfter Identifier
+    ;
+
+firstOrAfter:
+		KW_FIRST
+		| KW_AFTER
+	;
+
+alterStatementSuffixAddPartitions: 
+		Identifier KW_ADD ifNotExists partitionSpecLocationList
+    ;
+
+partitionSpecLocationList:
+		partitionSpecLocation
+		| partitionSpecLocationList partitionSpecLocation
+	;
+	
+partitionSpecLocation:
+		partitionSpec
+		| partitionSpec partitionLocation
+	;
+
+alterStatementSuffixTouch: 
+		Identifier KW_TOUCH optPartitionSpecList
+    ;
+
+
+optPartitionSpecList:
+		/* empty */ { $$ = NULL; }
+		| partitionSpecList { $$ = $1; }
+	;
+	
+partitionSpecList:
+		partitionSpec
+		| partitionSpecList COMMA partitionSpec
+	;
+
+alterStatementSuffixArchive: 
+		Identifier KW_ARCHIVE optPartitionSpecList
+    ;
+
+alterStatementSuffixUnArchive: 
+		Identifier KW_UNARCHIVE optPartitionSpecList
+    ;
+
+partitionLocation:
+      	KW_LOCATION StringLiteral
+    ;
+
+alterStatementSuffixDropPartitions: 
+		Identifier KW_DROP ifExists partitionSpecList
+    ;
+
+alterStatementSuffixProperties:
+		Identifier KW_SET KW_TBLPROPERTIES tableProperties
+    ;
+
+alterViewSuffixProperties:
+	    Identifier KW_SET KW_TBLPROPERTIES tableProperties
+    ;
+
+alterStatementSuffixSerdeProperties:
+    	KW_SET KW_SERDE StringLiteral optWithSerdeProperties
+       | KW_SET KW_SERDEPROPERTIES tableProperties
+    ;
+    
+optWithSerdeProperties:
+		KW_WITH KW_SERDEPROPERTIES tableProperties
+	;
+
+tablePartitionPrefix:
+	  	Identifier optPartitionSpec
+	;
+
+alterTblPartitionStatement:
+		tablePartitionPrefix alterTblPartitionStatementSuffix
+  ;
+
+alterTblPartitionStatementSuffix:
+		alterStatementSuffixFileFormat
+  		| alterStatementSuffixLocation
+  		| alterStatementSuffixProtectMode
+  		| alterStatementSuffixMergeFiles
+  		| alterStatementSuffixSerdeProperties
+		| alterStatementSuffixRenamePart
+  	;
+
+alterStatementSuffixFileFormat:
+		KW_SET KW_FILEFORMAT fileFormat
+	;
+
+alterStatementSuffixLocation:
+		KW_SET KW_LOCATION StringLiteral
+	;
+
+alterStatementSuffixProtectMode:
+    	alterProtectMode
+    ;
+
+alterStatementSuffixRenamePart:
+    	KW_RENAME KW_TO partitionSpec
+    ;
+
+alterStatementSuffixMergeFiles:
+		W_CONCATENATE
+    ;
+
+alterProtectMode:
+		KW_ENABLE alterProtectModeMode
+    	| KW_DISABLE alterProtectModeMode
+    ;
+
+alterProtectModeMode:
+    	KW_OFFLINE
+    	| KW_NO_DROP
+    	| KW_NO_DROP KW_CASCADE
+    	| KW_READONLY
+    ;
+
+
+alterStatementSuffixClusterbySortby:
+		tableBuckets
+		| Identifier KW_NOT KW_CLUSTERED
+	;
+
+fileFormat:
+    	KW_SEQUENCEFILE
+    	| KW_TEXTFILE
+    	| KW_RCFILE
+    	| KW_INPUTFORMAT StringLiteral KW_OUTPUTFORMAT StringLiteral optFileFormatDriverSpec
+	    | Identifier
+    ;
+
+optFileFormatDriverSpec:
+		KW_INPUTDRIVER StringLiteral KW_OUTPUTDRIVER StringLiteral
+	;
+	
+tabTypeExpr:
+   	Identifier (DOT^ (Identifier | KW_ELEM_TYPE | KW_KEY_TYPE | KW_VALUE_TYPE))*
+   ;
+
+partTypeExpr:
+    	tabTypeExpr optPartitionSpec
+    ;
+
+descStatement:
+    describeOrDesc formatedOrExtended partTypeExpr
+    | describeOrDesc KW_FUNCTION isExtended descFuncNames
+    | describeOrDesc KW_DATABASE isExtended Identifier
+    ;
+
+optFormatedOrExtended:
+		/* empty */
+		| KW_FORMATTED
+		| KW_EXTENDED
+	;
+		
+describeOrDesc:
+		KW_DESCRIBE
+		| KW_DESC
+	;
+	
+analyzeStatement:
+    	KW_ANALYZE KW_TABLE tableOrPartition KW_COMPUTE KW_STATISTICS
+    ;
+
+showStatement:
+    	KW_SHOW databaseOrSchema optLikeShowStatementIdentifier
+    	| KW_SHOW KW_TABLES optFromInIdent optLikeSSIOrSSI
+    	| KW_SHOW KW_FUNCTIONS optShowStmtIdentifier
+    	| KW_SHOW KW_PARTITIONS Identifier optPartitionSpec
+    	| KW_SHOW KW_TABLE KW_EXTENDED optFromInIdent KW_LIKE showStmtIdentifier optPartitionSpec
+    	| KW_SHOW KW_LOCKS optPartTypeExpr isExtended
+    	| KW_SHOW optFormated indexOrIndexes KW_ON showStmtIdentifier optFromInIdent
+    ;
+
+indexOrIndexes:
+		KW_INDEX
+		| KW_INDEXES
+	;
+
+optFormated:
+		/* empty */
+		| KW_FORMATTED
+	;
+
+optFromInIdent:
+		/* empty */
+		| fromInIdent
+	;
+
+fromInIdent:
+		KW_FROM Identifier
+		| KW_IN Identifier
+	;
+	
+optLikeSSIOrSSI:
+		optLikeShowStatementIdentifier
+		| showStmtIdentifier
+	;		
+
+optLikeShowStatementIdentifier:
+		/* empty */
+		| KW_LIKE showStmtIdentifier
+	;
+	
+lockStatement:
+    	KW_LOCK KW_TABLE tableName optPartitionSpec lockMode
+    ;
+
+lockMode:
+    	KW_SHARED 
+		| KW_EXCLUSIVE
+    ;
+
+unlockStatement:
+		KW_UNLOCK KW_TABLE tableName optPartitionSpec
+    ;
+
+createRoleStatement:
+		KW_CREATE kwRole Identifier
+    ;
+
+dropRoleStatement:
+		KW_DROP kwRole Identifier
+    ;
+
+grantPrivileges:
+		KW_GRANT privilegeList
+      	optPrivilegeObject
+      	KW_TO principalSpecification
+      	optWithOption
+    ;
+
+optWithOption:
+		/* empty */
+		KW_WITH withOption
+	;
+
+revokePrivileges:
+		KW_REVOKE privilegeList optPrivilegeObject KW_FROM principalSpecification
+    ;
+
+grantRole:
+		KW_GRANT kwRole identifierList KW_TO principalSpecification
+    ;
+
+identifierList:
+		Identifier { $$ = singleton($1); }
+		| identifierList COMMA Identifier { $$ = CONCAT_LISTS($1,$3); }
+	;
+
+revokeRole:
+    	KW_REVOKE kwRole identifierList KW_FROM principalSpecification
+    ;
+
+showRoleGrants:
+		KW_SHOW kwRole KW_GRANT principalName
+    ;
+
+showGrants:
+		KW_SHOW KW_GRANT principalName optPrivilegeIncludeColObject
+    ;
+
+optPrivilegeIncludeColObject:
+		/* empty */ { $$ = NULL; }
+		| privilegeIncludeColObject
+	;
+
+privilegeIncludeColObject:
+		KW_ON tableOrDatabase Identifier optColumnNameList optPartitionSpec
+    ;
+
+tableOrDatabase:
+		KW_TABLE
+		| KW_DATABASE
+	;
+
+
+privilegeObject:
+		KW_ON tableOrDatabase Identifier optPartitionSpec
+    ;
+
+privilegeList:
+    	privlegeDef	 { $$ = singleton($1); } 
+		| privilegeList COMMA privlegeDef { $$ = CONCAT_LISTS($1,$3); }
+    ;
+
+privlegeDef:
+		privilegeType optColumnNameList
+    ;
+
+privilegeType:
+		KW_ALL
+    	| KW_ALTER
+    	| KW_UPDATE
+    	| KW_CREATE
+    	| KW_DROP
+    	| KW_INDEX 
+    	| KW_LOCK
+    	| KW_SELECT
+    	| KW_SHOW_DATABASE
+    ;
+
+principalSpecification:
+    	principalName
+		| principalSpecification COMMA principalName
+    ;
+
+principalName:
+    	kwUser Identifier
+    	| KW_GROUP Identifier
+    	| kwRole Identifier
+    ;
+
+withOption:
+		KW_GRANT KW_OPTION
+    ;
+
+metastoreCheck
+		KW_MSCK (repair=KW_REPAIR)? (KW_TABLE table=Identifier partitionSpec? (COMMA partitionSpec)*)?
+    -> ^(TOK_MSCK $repair? ($table partitionSpec*)?)
+    ;
+    
+optRepair:
+		/* empty */ { $$ = NULL; }
+		| KW_REPAIR
+	;
+
+createFunctionStatement:
+		KW_CREATE KW_TEMPORARY KW_FUNCTION Identifier KW_AS StringLiteral
+    ;
+
+dropFunctionStatement:
+		KW_DROP KW_TEMPORARY KW_FUNCTION ifExists Identifier
+    ;
+
+createViewStatement:
+		KW_CREATE orReplace KW_VIEW ifNotExists tableName
+        optColumnNameCommentList tableCommen? optViewPartition
+        tablePropertiesPrefixed?
+        KW_AS
+        selectStatement
+    -> ^(TOK_CREATEVIEW $name orReplace?
+         ifNotExists?
+         columnNameCommentList?
+         tableComment?
+         viewPartition?
+         tablePropertiesPrefixed?
+         selectStatement
+        )
+    ;
+
+viewPartition:
+		W_PARTITIONED KW_ON LPAREN columnNameList RPAREN
+    ;
+
+dropViewStatement:
+		KW_DROP KW_VIEW ifExists viewName
+    ;
+
+showStmtIdentifier:
+		Identifier
+    	| StringLiteral
+	;
+
+tableComment:
+		KW_COMMENT StringLiteral
+    ;
+
+tablePartition:
+		KW_PARTITIONED KW_BY LPAREN columnNameTypeList RPAREN
+    ;
+
+tableBuckets:
+		KW_CLUSTERED KW_BY LPAREN columnNameList RPAREN optSortedByOrderColumnList KW_INTO Number KW_BUCKETS
+    ;
+
+optSortedByOrderColumnList:
+		/* empty */ { $$ = NULL; }
+		| KW_SORTED KW_BY LPAREN columnNameOrderList RPAREN
+	;
+
+rowFormat:
+		rowFormatSerde
+    	| rowFormatDelimited
+    	| /* empty */
+    ;
+
+recordReader
+		KW_RECORDREADER StringLiteral
+    	| /* empty */
+    ;
+
+recordWriter:
+		KW_RECORDWRITER StringLiteral
+    	| /* empty */
+    ;
+
+rowFormatSerde:
+		KW_ROW KW_FORMAT KW_SERDE StringLiteral optWithSerdeProperties
+    ;
+
+optWithSerdeProperties:
+		/* empty */
+		| KW_WITH KW_SERDEPROPERTIES tableProperties
+	;
+	
+rowFormatDelimited:
+		KW_ROW KW_FORMAT KW_DELIMITED tableRowFormatFieldIdentifier? tableRowFormatCollItemsIdentifier? tableRowFormatMapKeysIdentifier? tableRowFormatLinesIdentifier?
+    ;
+
+tableRowFormat:
+		rowFormatDelimited
+	    | rowFormatSerde
+    ;
+
+tablePropertiesPrefixed:
+        KW_TBLPROPERTIES tableProperties
+    ;
+
+tableProperties
+	      LPAREN tablePropertiesList RPAREN
+    ;
+
+tablePropertiesList:
+		keyValueProperty
+		| tablePropertiesList COMMA keyValueProperty
+    ;
 
 /* Literals */
 keyValueProperty:
       	StringLiteral EQUAL StringLiteral { $$ = createStringKeyValue($1,$3); }
     ;
+
+
+tableRowFormatFieldIdentifier:
+		KW_FIELDS KW_TERMINATED KW_BY StringLiteral optEscapedBy
+    ;
+
+optEscapedBy:
+		/* empty */ { $$ = NULL; }
+		| KW_ESCAPED KW_BY StringLiteral
+	;
+	
+tableRowFormatCollItemsIdentifier:
+      	KW_COLLECTION KW_ITEMS KW_TERMINATED KW_BY StringLiteral
+    ;
+
+tableRowFormatMapKeysIdentifier:
+		KW_MAP KW_KEYS KW_TERMINATED KW_BY StringLiteral
+    ;
+
+tableRowFormatLinesIdentifier:
+		KW_LINES KW_TERMINATED KW_BY StringLiteral
+    ;
+
+tableFileFormat:
+      	KW_STORED KW_AS KW_SEQUENCEFILE
+      	| KW_STORED KW_AS KW_TEXTFILE
+      	| KW_STORED KW_AS KW_RCFILE
+      	| KW_STORED KW_AS KW_INPUTFORMAT StringLiteral KW_OUTPUTFORMAT StringLiteral
+      	| KW_STORED KW_BY StringLiteral optSerdeProperties 
+		| KW_STORED KW_AS genericSpec=Identifier
+    ;
+
+optDriver:
+		/* empty */ { $$ = NULL; }
+		| KW_INPUTDRIVER StringLiteral KW_OUTPUTDRIVER StringLiteral
+	;
+	
+optSerdeProperties:
+		/* empty */ { $$ = NULL; }
+		| KW_WITH KW_SERDEPROPERTIES tableProperties
+	;
+
+tableLocation:
+		KW_LOCATION StringLiteral
+    ;
+
+columnNameTypeList:
+		columnNameType { $$ = singleton($1); }
+		| columnNameTypeList COMMA columnNameType { $$ = CONCAT_LISTS($1,$3); }
+    ;
+
+columnNameColonTypeList:
+		columnNameColonType
+		| columnNameColonTypeList COMMA columnNameColonType
+    ;
+
+columnNameList:
+		columnName { $$ = singleton($1); }
+		| columnNameList COMMA columnName  { $$ = CONCAT_LISTS($1,$3); }
+    ;
+
+columnName:
+		Identifier
+    ;
+
+columnNameOrderList:
+		columnNameOrder { $$ = singleton($1); }
+		| columnNameOrderList COMMA columnNameOrder { $$ = CONCAT_LISTS($1,$3); }
+    ;
+
+columnNameOrder:
+		Identifier optAscOrDesc
+    ;
+
+optAscOrDesc:
+		KW_ASC
+		| KW_DESC
+	;
+
+columnNameCommentList:
+		columnNameComment  { $$ = singleton($1); }
+		| columnNameCommentList COMMA columnNameComment { $$ = CONCAT_LISTS($1,$3); }
+    ;
+
+columnNameComment:
+		Identifier optComment
+    ;
+    
+optComment:
+		KW_COMMENT StringLiteral
+	;
+
+columnRefOrder:
+		expression ascOrDesc
+    ;
+
+columnNameType:
+		Identifier colType optComment
+    ;
+
+columnNameColonType:
+		Identifier COLON colType optComment
+    ;
+
+colType:
+		type
+    ;
+
+colTypeList:
+		colType 
+		| colTypeList COMMA colType
+    ;
+
+type:
+		primitiveType
+    	| listType
+    	| structType
+    	| mapType
+    	| unionType
+	;
+
+primitiveType:
+		KW_TINYINT
+    	| KW_SMALLINT 
+    	| KW_INT      
+    	| KW_BIGINT   
+    	| KW_BOOLEAN  
+    	| KW_FLOAT    
+    	| KW_DOUBLE   
+	    | KW_DATE     
+	    | KW_DATETIME 
+	    | KW_TIMESTAMP
+	    | KW_STRING   
+	    | KW_BINARY   
+    ;
+
+listType:
+		KW_ARRAY LESSTHAN type GREATERTHAN
+    ;
+
+structType:
+		KW_STRUCT LESSTHAN columnNameColonTypeList GREATERTHAN
+    ;
+
+mapType:
+		KW_MAP LESSTHAN primitiveType COMMA type GREATERTHAN
+    ;
+
+unionType:
+		KW_UNIONTYPE LESSTHAN colTypeList GREATERTHAN
+    ;
+
+queryOperator:
+		KW_UNION KW_ALL
+    ;
+
+// select statement select ... from ... where ... group by ... order by ...
+queryStatementExpression:
+		queryStatement
+		| setQuery
+    ;
+    
+setQuery:
+		queryStatmentExpression queryOperator queryStatmentExpression
+	;
+
+queryStatement:
+    	fromClause bodyList
+    	| regular_body
+    ;
+
+regular_body:
+   		insertClause
+   		selectClause
+   		fromClause
+   		optWhereClause
+   		optGroupByClause
+   		optHavingClause
+   		optOrderByClause
+   		optClusterByClause
+   		optDistributeByClause
+   		optSortByClause
+   		optLimitClause
+   		| selectStatement
+   ;
+
+selectStatement:
+   		selectClause
+   		fromClause
+   		optwhereClause
+   		optgroupByClause
+   		opthavingClause
+   		optorderByClause
+   		optclusterByClause
+   		optdistributeByClause
+   		optsortByClause
+   		optlimitClause
+   ;
+
+
+body:
+   		insertClause
+		selectClause
+   		optwhereClause
+   		optgroupByClause
+   		opthavingClause
+   		optorderByClause
+   		optclusterByClause
+   		optdistributeByClause
+   		optsortByClause
+	   | selectClause
+   		optwhereClause
+   		optgroupByClause
+		opthavingClause
+   		optorderByClause
+   		optclusterByClause
+   		optdistributeByClause
+   		optsortByClause
+   		optlimitClause
+   ;
+
+insertClause:
+		KW_INSERT KW_OVERWRITE destination
+   		| KW_INSERT KW_INTO KW_TABLE tableOrPartition
+   ;
+
+destination:
+     	KW_LOCAL KW_DIRECTORY StringLiteral
+   		| KW_DIRECTORY StringLiteral
+   		| KW_TABLE tableOrPartition
+   ;
+
+limitClause:
+		KW_LIMIT Number
+   ;
+
+//----------------------- Rules for parsing selectClause -----------------------------
+// select a,b,c ...
+selectClause:
+		KW_SELECT optHintClause optAllOrDistinct selectList
+		| KW_SELECT optHintClause KW_TRANSFORM selectTrfmClause 
+	    | trfmClause
+	;
+
+optHintClause:
+		/* empty */ { $$ = NULL; }
+		| hintClause 
+	;
+
+optAllOrDistinct:
+		KW_ALL
+		| KW_DISTINCT
+	;
+
+selectList:
+		selectItem
+		| selectList COMMA selectItem
+    ;
+
+selectTrfmClause:
+	LPAREN selectExpressionList RPAREN
+    inSerde=rowFormat inRec=recordWriter
+    KW_USING StringLiteral
+    ( KW_AS ((LPAREN (aliasList | columnNameTypeList) RPAREN) | (aliasList | columnNameTypeList)))?
+    outSerde=rowFormat outRec=recordReader
+    -> ^(TOK_TRANSFORM selectExpressionList $inSerde $inRec StringLiteral $outSerde $outRec aliasList? columnNameTypeList?)
+    ;
+
+hintClause
+@init { msgs.push("hint clause"); }
+@after { msgs.pop(); }
+    :
+    DIVIDE STAR PLUS hintList STAR DIVIDE -> ^(TOK_HINTLIST hintList)
+    ;
+
+hintList
+@init { msgs.push("hint list"); }
+@after { msgs.pop(); }
+    :
+    hintItem (COMMA hintItem)* -> hintItem+
+    ;
+
+hintItem
+@init { msgs.push("hint item"); }
+@after { msgs.pop(); }
+    :
+    hintName (LPAREN hintArgs RPAREN)? -> ^(TOK_HINT hintName hintArgs?)
+    ;
+
+hintName
+@init { msgs.push("hint name"); }
+@after { msgs.pop(); }
+    :
+    KW_MAPJOIN -> TOK_MAPJOIN
+    | KW_STREAMTABLE -> TOK_STREAMTABLE
+    | KW_HOLD_DDLTIME -> TOK_HOLD_DDLTIME
+    ;
+
+hintArgs
+@init { msgs.push("hint arguments"); }
+@after { msgs.pop(); }
+    :
+    hintArgName (COMMA hintArgName)* -> ^(TOK_HINTARGLIST hintArgName+)
+    ;
+
+hintArgName
+@init { msgs.push("hint argument name"); }
+@after { msgs.pop(); }
+    :
+    Identifier
+    ;
+
+selectItem
+@init { msgs.push("selection target"); }
+@after { msgs.pop(); }
+    :
+    ( selectExpression  ((KW_AS? Identifier) | (KW_AS LPAREN Identifier (COMMA Identifier)* RPAREN))?) -> ^(TOK_SELEXPR selectExpression Identifier*)
+    ;
+
+trfmClause
+@init { msgs.push("transform clause"); }
+@after { msgs.pop(); }
+    :
+    (   KW_MAP    selectExpressionList
+      | KW_REDUCE selectExpressionList )
+    inSerde=rowFormat inRec=recordWriter
+    KW_USING StringLiteral
+    ( KW_AS ((LPAREN (aliasList | columnNameTypeList) RPAREN) | (aliasList | columnNameTypeList)))?
+    outSerde=rowFormat outRec=recordReader
+    -> ^(TOK_TRANSFORM selectExpressionList $inSerde $inRec StringLiteral $outSerde $outRec aliasList? columnNameTypeList?)
+    ;
+
+selectExpression
+@init { msgs.push("select expression"); }
+@after { msgs.pop(); }
+    :
+    expression | tableAllColumns
+    ;
+
+selectExpressionList
+@init { msgs.push("select expression list"); }
+@after { msgs.pop(); }
+    :
+    selectExpression (COMMA selectExpression)* -> ^(TOK_EXPLIST selectExpression+)
+    ;
+
+
+//-----------------------------------------------------------------------------------
+
+tableAllColumns
+    : STAR
+        -> ^(TOK_ALLCOLREF)
+    | tableName DOT STAR
+        -> ^(TOK_ALLCOLREF tableName)
+    ;
+
+// (table|column)
+tableOrColumn
+@init { msgs.push("table or column identifier"); }
+@after { msgs.pop(); }
+    :
+    Identifier -> ^(TOK_TABLE_OR_COL Identifier)
+    ;
+
+expressionList
+@init { msgs.push("expression list"); }
+@after { msgs.pop(); }
+    :
+    expression (COMMA expression)* -> ^(TOK_EXPLIST expression+)
+    ;
+
+aliasList
+@init { msgs.push("alias list"); }
+@after { msgs.pop(); }
+    :
+    Identifier (COMMA Identifier)* -> ^(TOK_ALIASLIST Identifier+)
+    ;
+
+//----------------------- Rules for parsing fromClause ------------------------------
+// from [col1, col2, col3] table1, [col4, col5] table2
+fromClause
+@init { msgs.push("from clause"); }
+@after { msgs.pop(); }
+    :
+    KW_FROM joinSource -> ^(TOK_FROM joinSource)
+    ;
+
+joinSource
+@init { msgs.push("join source"); }
+@after { msgs.pop(); }
+    : fromSource ( joinToken^ fromSource (KW_ON! expression)? )*
+    | uniqueJoinToken^ uniqueJoinSource (COMMA! uniqueJoinSource)+
+    ;
+
+uniqueJoinSource
+@init { msgs.push("join source"); }
+@after { msgs.pop(); }
+    : KW_PRESERVE? fromSource uniqueJoinExpr
+    ;
+
+uniqueJoinExpr
+@init { msgs.push("unique join expression list"); }
+@after { msgs.pop(); }
+    : LPAREN e1+=expression (COMMA e1+=expression)* RPAREN
+      -> ^(TOK_EXPLIST $e1*)
+    ;
+
+uniqueJoinToken
+@init { msgs.push("unique join"); }
+@after { msgs.pop(); }
+    : KW_UNIQUEJOIN -> TOK_UNIQUEJOIN;
+
+joinToken
+@init { msgs.push("join type specifier"); }
+@after { msgs.pop(); }
+    :
+      KW_JOIN                     -> TOK_JOIN
+    | kwInner  KW_JOIN            -> TOK_JOIN
+    | KW_LEFT  KW_OUTER KW_JOIN   -> TOK_LEFTOUTERJOIN
+    | KW_RIGHT KW_OUTER KW_JOIN   -> TOK_RIGHTOUTERJOIN
+    | KW_FULL  KW_OUTER KW_JOIN   -> TOK_FULLOUTERJOIN
+    | KW_LEFT  KW_SEMI  KW_JOIN   -> TOK_LEFTSEMIJOIN
+    ;
+
+lateralView
+@init {msgs.push("lateral view"); }
+@after {msgs.pop(); }
+	:
+	KW_LATERAL KW_VIEW function tableAlias KW_AS Identifier (COMMA Identifier)* -> ^(TOK_LATERAL_VIEW ^(TOK_SELECT ^(TOK_SELEXPR function Identifier+ tableAlias)))
+	;
+
+tableAlias
+@init {msgs.push("table alias"); }
+@after {msgs.pop(); }
+    :
+    Identifier -> ^(TOK_TABALIAS Identifier)
+    ;
+
+fromSource
+@init { msgs.push("from source"); }
+@after { msgs.pop(); }
+    :
+    (tableSource | subQuerySource) (lateralView^)*
+    ;
+
+tableBucketSample
+@init { msgs.push("table bucket sample specification"); }
+@after { msgs.pop(); }
+    :
+    KW_TABLESAMPLE LPAREN KW_BUCKET (numerator=Number) KW_OUT KW_OF (denominator=Number) (KW_ON expr+=expression (COMMA expr+=expression)*)? RPAREN -> ^(TOK_TABLEBUCKETSAMPLE $numerator $denominator $expr*)
+    ;
+
+splitSample
+@init { msgs.push("table split sample specification"); }
+@after { msgs.pop(); }
+    :
+    KW_TABLESAMPLE LPAREN  (numerator=Number) KW_PERCENT RPAREN -> ^(TOK_TABLESPLITSAMPLE $numerator)
+    ;
+
+tableSample
+@init { msgs.push("table sample specification"); }
+@after { msgs.pop(); }
+    :
+    tableBucketSample |
+    splitSample
+    ;
+
+tableSource
+@init { msgs.push("table source"); }
+@after { msgs.pop(); }
+    : tabname=tableName (ts=tableSample)? (alias=Identifier)?
+    -> ^(TOK_TABREF $tabname $ts? $alias?)
+    ;
+
+tableName
+@init { msgs.push("table name"); }
+@after { msgs.pop(); }
+    : (db=Identifier DOT)? tab=Identifier
+    -> ^(TOK_TABNAME $db? $tab)
+    ;
+
+viewName
+@init { msgs.push("view name"); }
+@after { msgs.pop(); }
+    :
+    (db=Identifier DOT)? view=Identifier
+    -> ^(TOK_TABNAME $db? $view)
+    ;
+
+subQuerySource
+@init { msgs.push("subquery source"); }
+@after { msgs.pop(); }
+    :
+    LPAREN queryStatementExpression RPAREN Identifier -> ^(TOK_SUBQUERY queryStatementExpression Identifier)
+    ;
+
+//----------------------- Rules for parsing whereClause -----------------------------
+// where a=b and ...
+whereClause
+@init { msgs.push("where clause"); }
+@after { msgs.pop(); }
+    :
+    KW_WHERE searchCondition -> ^(TOK_WHERE searchCondition)
+    ;
+
+searchCondition
+@init { msgs.push("search condition"); }
+@after { msgs.pop(); }
+    :
+    expression
+    ;
+
+//-----------------------------------------------------------------------------------
+
+// group by a,b
+groupByClause
+@init { msgs.push("group by clause"); }
+@after { msgs.pop(); }
+    :
+    KW_GROUP KW_BY
+    groupByExpression
+    ( COMMA groupByExpression )*
+    -> ^(TOK_GROUPBY groupByExpression+)
+    ;
+
+groupByExpression
+@init { msgs.push("group by expression"); }
+@after { msgs.pop(); }
+    :
+    expression
+    ;
+
+havingClause
+@init { msgs.push("having clause"); }
+@after { msgs.pop(); }
+    :
+    KW_HAVING havingCondition -> ^(TOK_HAVING havingCondition)
+    ;
+
+havingCondition
+@init { msgs.push("having condition"); }
+@after { msgs.pop(); }
+    :
+    expression
+    ;
+
+// order by a,b
+orderByClause
+@init { msgs.push("order by clause"); }
+@after { msgs.pop(); }
+    :
+    KW_ORDER KW_BY
+    columnRefOrder
+    ( COMMA columnRefOrder)* -> ^(TOK_ORDERBY columnRefOrder+)
+    ;
+
+clusterByClause
+@init { msgs.push("cluster by clause"); }
+@after { msgs.pop(); }
+    :
+    KW_CLUSTER KW_BY
+    expression
+    ( COMMA expression )* -> ^(TOK_CLUSTERBY expression+)
+    ;
+
+distributeByClause
+@init { msgs.push("distribute by clause"); }
+@after { msgs.pop(); }
+    :
+    KW_DISTRIBUTE KW_BY
+    expression (COMMA expression)* -> ^(TOK_DISTRIBUTEBY expression+)
+    ;
+
+sortByClause
+@init { msgs.push("sort by clause"); }
+@after { msgs.pop(); }
+    :
+    KW_SORT KW_BY
+    columnRefOrder
+    ( COMMA columnRefOrder)* -> ^(TOK_SORTBY columnRefOrder+)
+    ;
+
+// fun(par1, par2, par3)
+function
+@init { msgs.push("function specification"); }
+@after { msgs.pop(); }
+    :
+    functionName
+    LPAREN
+      (
+        (star=STAR)
+        | (dist=KW_DISTINCT)? (expression (COMMA expression)*)?
+      )
+    RPAREN -> {$star != null}? ^(TOK_FUNCTIONSTAR functionName)
+           -> {$dist == null}? ^(TOK_FUNCTION functionName (expression+)?)
+                            -> ^(TOK_FUNCTIONDI functionName (expression+)?)
+    ;
+
+functionName
+@init { msgs.push("function name"); }
+@after { msgs.pop(); }
+    : // Keyword IF is also a function name
+    Identifier | KW_IF | KW_ARRAY | KW_MAP | KW_STRUCT | KW_UNIONTYPE
+    ;
+
+castExpression
+@init { msgs.push("cast expression"); }
+@after { msgs.pop(); }
+    :
+    KW_CAST
+    LPAREN
+          expression
+          KW_AS
+          primitiveType
+    RPAREN -> ^(TOK_FUNCTION primitiveType expression)
+    ;
+
+caseExpression
+@init { msgs.push("case expression"); }
+@after { msgs.pop(); }
+    :
+    KW_CASE expression
+    (KW_WHEN expression KW_THEN expression)+
+    (KW_ELSE expression)?
+    KW_END -> ^(TOK_FUNCTION KW_CASE expression*)
+    ;
+
+whenExpression
+@init { msgs.push("case expression"); }
+@after { msgs.pop(); }
+    :
+    KW_CASE
+     ( KW_WHEN expression KW_THEN expression)+
+    (KW_ELSE expression)?
+    KW_END -> ^(TOK_FUNCTION KW_WHEN expression*)
+    ;
+
+constant
+@init { msgs.push("constant"); }
+@after { msgs.pop(); }
+    :
+    Number
+    | StringLiteral
+    | stringLiteralSequence
+    | BigintLiteral
+    | SmallintLiteral
+    | TinyintLiteral
+    | charSetStringLiteral
+    | booleanValue
+    ;
+
+stringLiteralSequence
+    :
+    StringLiteral StringLiteral+ -> ^(TOK_STRINGLITERALSEQUENCE StringLiteral StringLiteral+)
+    ;
+
+charSetStringLiteral
+@init { msgs.push("character string literal"); }
+@after { msgs.pop(); }
+    :
+    csName=CharSetName csLiteral=CharSetLiteral -> ^(TOK_CHARSETLITERAL $csName $csLiteral)
+    ;
+
+expression
+@init { msgs.push("expression specification"); }
+@after { msgs.pop(); }
+    :
+    precedenceOrExpression
+    ;
+
+atomExpression
+    :
+    KW_NULL -> TOK_NULL
+    | constant
+    | function
+    | castExpression
+    | caseExpression
+    | whenExpression
+    | tableOrColumn
+    | LPAREN! expression RPAREN!
+    ;
+
+
+precedenceFieldExpression
+    :
+    atomExpression ((LSQUARE^ expression RSQUARE!) | (DOT^ Identifier))*
+    ;
+
+precedenceUnaryOperator
+    :
+    PLUS | MINUS | TILDE
+    ;
+
+nullCondition
+    :
+    KW_NULL -> ^(TOK_ISNULL)
+    | KW_NOT KW_NULL -> ^(TOK_ISNOTNULL)
+    ;
+
+
 
 /* dummy for now */
 queryStatementExpression: { $$ = NULL; } 
@@ -1208,14 +2510,15 @@ keyValueProperty
       key=StringLiteral EQUAL value=StringLiteral -> ^(TOK_TABLEPROPERTY $key $value)
     ;
 
-tableRowFormatFieldIdentifier
-@init { msgs.push("table row format's field separator"); }
-@after { msgs.pop(); }
-    :
-      KW_FIELDS KW_TERMINATED KW_BY fldIdnt=StringLiteral (KW_ESCAPED KW_BY fldEscape=StringLiteral)?
-    -> ^(TOK_TABLEROWFORMATFIELD $fldIdnt $fldEscape?)
+tableRowFormatFieldIdentifier:
+		KW_FIELDS KW_TERMINATED KW_BY StringLiteral optEscapedBy
     ;
 
+optEscapedBy:
+		/* empty */ { $$ = NULL; }
+		| KW_ESCAPED KW_BY StringLiteral
+	;
+	
 tableRowFormatCollItemsIdentifier
 @init { msgs.push("table row format's column separator"); }
 @after { msgs.pop(); }

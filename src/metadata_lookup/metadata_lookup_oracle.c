@@ -769,9 +769,12 @@ executeStatement(char *statement)
     {
         START_TIMER("Oracle - execute SQL");
         if(st == NULL)
+        {
             st = OCI_StatementCreate(conn);
+            OCI_SetFetchSize(st,1000);
+            OCI_SetPrefetchSize(st,1000);
+        }
         OCI_ReleaseResultsets(st);
-        OCI_SetFetchSize(st,1000);
         if(OCI_ExecuteStmt(st, statement))
         {
             OCI_Resultset *rs = OCI_GetResultset(st);
