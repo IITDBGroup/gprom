@@ -22,9 +22,9 @@ postgres_parser.lex.h postgres_parser.lex.c: postgres_parser.l
 postgres_parser.tab.h postgres_parser.tab.c: postgres_parser.y
 	bison -b postgres_parser -Werror -d $<
 	
-#hive_parser.lex.h hive_parser.lex.c: hive_parser.l
-#	$(LEX) -ohive_parser.lex.c $<
+hive_parser.lex.h hive_parser.lex.c: hive_parser.l
+	$(LEX) -ohive_parser.lex.c $<
 	
-#hive_parser.tab.h hive_parser.tab.c: hive_parser.y
-#	bison -b hive_parser -Werror -d $<
+hive_parser.tab.h hive_parser.tab.c: hive_parser.y
+	bison -b hive_parser -Werror -d $<
 	

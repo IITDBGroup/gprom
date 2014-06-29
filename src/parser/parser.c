@@ -91,9 +91,8 @@ assembleHivePlugin(void)
 {
     ParserPlugin *p = NEW(ParserPlugin);
 
-    //    p->parseStream = parseStreamHive;
-    //    p->parseFromString = parseFromStringHive;
-    FATAL_LOG("not implemented yet");
+    p->parseStream = parseStreamHive;
+    p->parseFromString = parseFromStringHive;
 
     return p;
 }
