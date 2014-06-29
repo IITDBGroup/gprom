@@ -84,23 +84,22 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
 static void
 operatorToSQL (StringInfo str, Operator *node)
 {
-    if (LIST_LENGTH(node->args) == 1)
+    // handle special operators
+    if (streq(node->name,"BETWEEN"))
+    {
+        char *expr = exprToSQL(getNthOfListP(node->args,0));
+        char *lower = exprToSQL(getNthOfListP(node->args,1));
+        char *upper = exprToSQL(getNthOfListP(node->args,2));
+
+        appendStringInfo(str, "(%s BETWEEN %s AND %s)", expr, lower, upper);
+    }
+    else if (LIST_LENGTH(node->args) == 1)
     {
         appendStringInfo(str, "(%s ", node->name);
         appendStringInfoString(str, "(");
         exprToSQLString(str,getNthOfListP(node->args,0));
         appendStringInfoString(str, "))");
     }
-//    else if (LIST_LENGTH(node->args) == 2)
-//    {
-//        appendStringInfoString(str, "(");
-//        exprToSQLString(str,getNthOfListP(node->args,0));
-//
-//        appendStringInfo(str, " %s ", node->name);
-//
-//        exprToSQLString(str,getNthOfListP(node->args,1));
-//        appendStringInfoString(str, ")");
-//    }
     else
     {
         appendStringInfoString(str, "(");
