@@ -160,14 +160,41 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 		switch (u->type) {
 		// case t_InsertStmt:t:
 		case T_Insert:
-			break;
+		{
+		    // is R UNION INSERTS
+		    // transform into R + SCN UNION PROJECTION
 
-			// case T_DeleteStmt:
+		    FATAL_LOG("merging for READ COMMITTED and INSERT not supported yet.");
+		}
+        break;
+        // case T_DeleteStmt:
 		case T_Delete:
-			break;
+		{
+            AttributeReference *scnAttr;
+            Node *newCond;
+            SelectionOperator *s = (SelectionOperator *) q;
 
-			// case T_UpdateStmt:
+		    // assume it is selection over input (for new translation has to be adapted)
+		    ASSERT(isA(q,SelectionOperator));
 
+		    // add SCN attribute to schema and turn NOT(C) into NOT(C) OR SCN > X to selection condition
+            DEBUG_LOG("Deal with condition: %s", exprToSQL((Node *) s->cond));
+
+            // adding SCN < update SCN condition
+            scnAttr = createFullAttrReference("VERSIONS_STARTSCN", 0,
+                    getNumAttrs(OP_LCHILD(q)), INVALID_ATTR);
+            newCond = (Node *) createOpExpr("<=",
+                    LIST_MAKE((Node *) scnAttr,
+                            copyObject(getNthOfListP(scns,i))));
+
+
+		    q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
+		                          createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+
+		    FATAL_LOG("merging for READ COMMITTED and DELETE not supported yet.");
+		}
+        break;
+        // case T_UpdateStmt:
 		case T_Update:
 			// either CASE translation OR union translation
 			//if its case translation
@@ -220,6 +247,10 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
                         appendToTailOfList(projExprs, newProjExpr);
                 q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
                         createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+			}
+			else
+			{
+			    FATAL_LOG("merging for READ COMMITTED and Union Update translation not supported yet.");
 			}
 			break;
 		default:

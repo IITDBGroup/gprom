@@ -29,7 +29,7 @@
 
 #include "metadata_lookup/metadata_lookup.h"
 
-static QueryOperator *translateUpdateInternal(Update *f);
+static QueryOperator *translateUpdateUnion(Update *f);
 static QueryOperator *translateUpdateWithCase(Update *f);
 static QueryOperator *translateInsert(Insert *f);
 static QueryOperator *translateDelete(Delete *f);
@@ -46,7 +46,7 @@ translateUpdate(Node *update) {
 		if (isRewriteOptionActivated(OPTION_TRANSLATE_UPDATE_WITH_CASE))
 			return translateUpdateWithCase((Update *) update);
 		else
-			return translateUpdateInternal((Update *) update);
+			return translateUpdateUnion((Update *) update);
 	default:
 		return NULL;
 	}
@@ -109,7 +109,7 @@ translateDelete(Delete *delete)
 }
 
 static QueryOperator *
-translateUpdateInternal(Update *update)
+translateUpdateUnion(Update *update)
 {
     List *attrs = getAttributeNames(update->nodeName);
 
@@ -185,9 +185,11 @@ translateUpdateWithCase(Update *update)
 
 	// CREATE PROJECTION EXPRESSIONS
 	List *projExprs = NIL;
-	for (int i = 0; i < LIST_LENGTH(attrs); i++) {
+	for (int i = 0; i < LIST_LENGTH(attrs); i++)
+	{
 		Node *projExpr = NULL;
-		FOREACH(Operator,o,update->selectClause) {
+		FOREACH(Operator,o,update->selectClause)
+		{
 			AttributeReference *a = (AttributeReference *) getNthOfListP(
 					o->args, 0);
 			if (a->attrPosition == i)

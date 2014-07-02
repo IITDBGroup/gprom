@@ -14,7 +14,9 @@ typedef enum OptionType {
 
 /* define rewrite methods */
 #define OPTION_TIMING "timing"
+#define OPTION_MEMMEASURE "memdebug"
 #define OPTION_AGGRESSIVE_MODEL_CHECKING "aggressive_model_checking"
+
 #define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"
 #define OPTION_UPDATE_ONLY_USE_HISTORY_JOIN "only_updated_use_history"
 #define OPTION_TREEIFY_OPERATOR_MODEL "treefiy_prov_rewrite_input"
@@ -29,6 +31,49 @@ typedef enum OptionType {
 #define OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR "optimization.factor_proj_attr_in_expr"
 #define OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ "optimization.materialize_merge_unsafe_proj"
 //#define OPTIMIZATION_ "optimization_"
+
+// declare option fields
+// show help only
+extern boolean opt_show_help;
+
+// connection options
+extern char *connection_host;
+extern char *connection_db;
+extern char *connection_user;
+extern char *connection_passwd;
+extern int connection_port;
+
+// logging options
+extern int logLevel;
+extern boolean logActive;
+
+// input options
+extern char *sql;
+
+// database backend
+extern char *backend;
+extern char *plugin_metadata;
+extern char *plugin_parser;
+extern char *plugin_sqlcodegen;
+
+// instrumentation options
+extern boolean opt_timing;
+extern boolean opt_memmeasure;
+
+// rewrite options
+extern boolean opt_aggressive_model_checking;
+extern boolean opt_update_only_conditions;
+extern boolean opt_treeify_opterator_model;
+extern boolean opt_only_updated_use_history;
+extern boolean opt_pi_cs_composable;
+extern boolean opt_optimize_operator_model;
+extern boolean opt_translate_update_with_case;
+
+// optimization options
+extern boolean opt_optimization_push_selections;
+extern boolean opt_optimization_merge_ops;
+extern boolean opt_optimization_factor_attrs;
+extern boolean opt_materialize_unsafe_proj;
 
 
 // new option interface
@@ -54,7 +99,6 @@ extern void printCurrentOptions(FILE *stream);
 
 extern void mallocOptions();
 extern void freeOptions();
-//extern Options *getOptions();
 extern boolean isRewriteOptionActivated(char *name);
 
 #endif
