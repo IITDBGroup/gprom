@@ -184,6 +184,7 @@ STARALL				TOK(STARALL)
 (?i:LAST)			TOK(LAST)
 (?i:TUPLE)			TOK(TUPLE)
 (?i:VERSIONS)		TOK(VERSIONS)
+(?i:ROWNUM)			TOK(ROWNUM)
 
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)

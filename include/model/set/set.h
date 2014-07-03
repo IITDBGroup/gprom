@@ -94,5 +94,6 @@ extern Set *unionSets (Set *left, Set *right);
 extern Set *intersectSets (Set *left, Set *right);
 
 extern int setSize (Set *set);
+#define EMPTY_SET(set) (setSize(set) == 0)
 
 #endif /* SET_H_ */
