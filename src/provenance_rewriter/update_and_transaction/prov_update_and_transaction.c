@@ -496,12 +496,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
                 }
 
                 if (tableMap == NULL)
-                {
-//                    tableMap = createNodeKeyValue((Node *) createConstString(tableName),
-//                            (Node *) singleton(cond));
                     MAP_ADD_STRING_KEY(tabCondMap, tableName, singleton(cond));
-//                    setMapCond(&tableCondMap, tableMap);
-                }
                 else
                     tableMap->value = (Node *) appendToTailOfList((List *) tableMap->value, cond);
             }
@@ -516,7 +511,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     FOREACH(TableAccessOperator,t,updatedTables)
     {
         char *tableName = t->tableName;
-        KeyValue *prop = MAP_GET_STRING_ENTRY(tabCondMap,tableName); //getMapCond(tabCondMap, tableName);
+        KeyValue *prop = MAP_GET_STRING_ENTRY(tabCondMap,tableName);
         Node *cond = prop ? prop->value : NULL;
         SelectionOperator *sel;
 
