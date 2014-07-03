@@ -602,7 +602,7 @@ copyInsert(Insert *from, OperatorMap **opMap)
 {
     COPY_INIT(Insert);
     COPY_STRING_FIELD(tableName);
-    COPY_NODE_FIELD(attrList);
+    COPY_STRING_LIST_FIELD(attrList);
     COPY_NODE_FIELD(query);
 
     return new;

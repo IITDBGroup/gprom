@@ -617,23 +617,117 @@ analyzeFromTableRef(FromTableRef *f)
     	f->from.name = f->tableId;
 }
 
-static void analyzeInsert(Insert * f) {
+static void
+analyzeInsert(Insert * f)
+{
+	List *attrNames = getAttributeNames(f->tableName);
 	List *attrRefs = getAttributes(f->tableName);
+	HashMap *attrPos = NULL;
+	Set *attrNameSet = makeStrSetFromList(attrNames);
 
-	if (isA(f->query,List)) {
-	    if (f->attrList == NULL)
+	// if user has given no attribute list, then get it from table definition
+    if (f->attrList == NULL)
+        f->attrList = deepCopyStringList(attrNames);
+    // else use the user provided one and prepare a map from attribute name to position
+    else
+    {
+        int i = 0;
+        attrPos = NEW_MAP(Constant,Constant);
+
+        FOREACH(char,name,f->attrList)
+        {
+            MAP_ADD_STRING_KEY(attrPos,name,createConstInt(i++));
+
+            // if attribute is not an attribute of table then fail
+            if (!hasSetElem(attrNameSet,name))
+                FATAL_LOG("INSERT mentions attribute <%s> that is not an "
+                        "attribute of table %s:<%s>",
+                        name, f->tableName, stringListToString(attrNames));
+        }
+    }
+
+    // is a VALUES clause
+	if (isA(f->query,List))
+	{
+	    if (LIST_LENGTH(f->attrList) != attrNames->length)
 	    {
-	        FOREACH(AttributeReference,a,attrRefs)
-            {
-	            char *name = strdup(a->name);
-	            f->attrList = appendToTailOfList(f->attrList, name);
-            }
+	        int pos = 0;
+	        List *newValues = NIL;
+	        List *oldValues = (List *) f->query;
+	        INFO_LOG("The number of values are not equal to the number "
+	                            "attributes in the table");
+	        //TODO add NULL or DEFAULT values for remaining attributes
+	        FOREACH(AttributeDef,a,attrRefs)
+	        {
+	            Node *val = NULL;
+
+	            if (MAP_HAS_STRING_KEY(attrPos,a->attrName))
+	            {
+	                val = getNthOfListP(oldValues,
+	                        INT_VALUE(MAP_GET_STRING(attrPos,a->attrName)));
+	                // TODO sanity check value (e.g., no attribute references) tackle also corner cases
+	            }
+	            else
+	            {
+	                Node *def = getAttributeDefaultVal(f->tableName, a->attrName);
+
+	                if (def == NULL)
+	                    val = (Node *) createNullConst(a->dataType);
+	                else
+	                    val = def;
+	            }
+	            newValues = appendToTailOfList(newValues, val);
+	        }
+
+	        f->query = (Node *) newValues;
 	    }
-	    else if (LIST_LENGTH(f->attrList)!= attrRefs->length)
-			INFO_LOG(
-					"The number of values are not equal to the number attributes in the table");
-	} else {
+	}
+	// is an INSERT INTO R (SELECT ...)
+	else
+	{
+	    QueryBlock *q = (QueryBlock *) f->query;
 		analyzeQueryBlockStmt(f->query, NIL);
+		//TODO check query data types
+		//TODO even more important add query block for missing attributes if necessary
+		if (LIST_LENGTH(f->attrList) != attrNames->length)
+        {
+		    QueryBlock *wrap = createQueryBlock();
+		    List *selectClause = NIL;
+
+		    FOREACH(AttributeDef,a,attrRefs)
+		    {
+	            Node *val = NULL;
+//	            SelectItem *subItem = NULL;
+	            SelectItem *newItem = NULL;
+
+                if (MAP_HAS_STRING_KEY(attrPos,a->attrName))
+                {
+//                    subItem = (SelectItem *) getNthOfListP(q->selectClause,
+//                            INT_VALUE(MAP_GET_STRING(attrPos,a->attrName)));
+                    val = (Node *) createFullAttrReference(strdup(a->attrName),
+                            0,
+                            INT_VALUE(MAP_GET_STRING(attrPos,a->attrName)),
+                            INVALID_ATTR);
+                    // TODO sanity check DT
+                }
+                else
+                {
+                    Node *def = getAttributeDefaultVal(f->tableName, a->attrName);
+
+                    if (def == NULL)
+                        val = (Node *) createNullConst(a->dataType);
+                    else
+                        val = def;
+                }
+                newItem = createSelectItem(strdup(a->attrName),val);
+                selectClause = appendToTailOfList(selectClause, newItem);
+		    }
+
+		    wrap->selectClause = selectClause;
+		    wrap->fromClause = singleton(createFromSubquery(strdup("origInsertQuery"),
+		            getQBAttrNames((Node *) q), (Node *) q));
+		    f->query = (Node *) wrap;
+        }
 	}
 }
 

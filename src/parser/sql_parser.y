@@ -110,10 +110,11 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
-			 optionalGroupBy optionalOrderBy setClause insertList stmtList 
+			 optionalGroupBy optionalOrderBy setClause  stmtList //insertList 
 			 identifierList optionalAttrAlias optionalProvWith provOptionList 
 			 caseWhenList windowBoundaries optWindowPart withViewList
-%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr
+//			 optInsertAttrList
+%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse
 %type <node> overClause windowSpec optWindowFrame windowBound 
@@ -393,19 +394,31 @@ setExpression:
  * Rules to parse insert query
  */
 insertQuery:
-        INSERT INTO identifier VALUES '(' insertList ')'
-            { 
-            	RULELOG("insertQuery::insertList"); 
-            	$$ = (Node *) createInsert($3,(Node *) $6, NULL); 
-        	} 
-        | INSERT INTO identifier queryStmt
+        INSERT INTO identifier insertContent
+        { 
+           	RULELOG("insertQuery::insertList"); 
+           	$$ = (Node *) createInsert($3,(Node *) $4, NIL); 
+        }
+        | INSERT INTO identifier '(' identifierList ')' insertContent
+        { 
+           	RULELOG("insertQuery::insertList"); 
+           	$$ = (Node *) createInsert($3,(Node *) $7, $5); 
+     	} 
+         
+ /*       | INSERT INTO identifier optInsertAttrList 
             { 
                 RULELOG("insertQuery::queryStmt");
-                $$ = (Node *) createInsert($3, $4, NULL);
-            }
+                $$ = (Node *) createInsert($3, $5, $4);
+            } */
     ;
+    
+insertContent:
+		VALUES '(' exprList ')' { $$ = (Node *) $3; }
+		| queryStmt
+	;
+	
 /* TODO use identlist + expr list here for INSERT INTO table (attrs) VALUES (exprs) */
-insertList:
+/*insertList:
         constant
             { 
             	RULELOG("insertList::constant");
@@ -426,9 +439,33 @@ insertList:
             	RULELOG("insertList::insertList::constant");
             	$$ = appendToTailOfList($1, $3);
             }
+            */
 /* No Provision made for this type of insert statements */
-    ;
+/* generalize to expression instead of only constant */
+    //;
 
+/* optInsertAttrList:
+		 empty  { RULELOG("optInsertAttrList::empty"); $$ = NIL; }
+		| '(' identifierList ')' 
+		{ 
+			RULELOG("optInsertAttrList::list"); 
+			$$ = $2; 
+		}
+	;
+*/
+	
+/* insertAttrList:
+		identifier
+		{
+			RULELOG("insertAttrList::ident");
+			$$ = singleton($1);
+		}
+		| insertAttrList ',' identifier
+		{
+			RULELOG("insertAttrList::list::ident");
+			$$ = CONCAT_LISTS($1,$3);
+		}
+	; */
 
 /*
  * Rules to parse set operator queries

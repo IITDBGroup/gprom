@@ -83,6 +83,7 @@ extern boolean oracleCatalogTableExists (char * tableName);
 extern boolean oracleCatalogViewExists (char * viewName);
 extern List *oracleGetAttributes (char *tableName);
 extern List *oracleGetAttributeNames (char *tableName);
+extern Node *oracleGetAttributeDefaultVal (char *tableName, char *attrName);
 extern boolean oracleIsAgg(char *functionName);
 extern boolean oracleIsWindowFunction(char *functionName);
 extern char *oracleGetTableDefinition(char *tableName);

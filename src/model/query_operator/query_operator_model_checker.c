@@ -226,6 +226,7 @@ checkSchemaConsistency (QueryOperator *op)
         {
             SetOperator *o = (SetOperator *) op;
             QueryOperator *lChild = OP_LCHILD(o);
+            QueryOperator *rChild = OP_RCHILD(o);
 
             if (!equal(o->op.schema->attrDefs, lChild->schema->attrDefs))
             {
@@ -234,6 +235,15 @@ checkSchemaConsistency (QueryOperator *op)
                         operatorToOverviewString((Node *) op));
                 return FALSE;
             }
+            // left and right child should have the same number of attributes
+            if (LIST_LENGTH(lChild->schema->attrDefs) != LIST_LENGTH(rChild->schema->attrDefs))
+            {
+                ERROR_LOG("Both children of a set operator should have the same"
+                        " number of attributes:\n%s",
+                        operatorToOverviewString((Node *) op));
+                return FALSE;
+            }
+
         }
         break;
         case T_WindowOperator:

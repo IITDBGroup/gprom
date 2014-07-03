@@ -14,6 +14,7 @@
 #include "common.h"
 #include "uthash.h"
 #include "model/node/nodetype.h"
+#include "model/list/list.h"
 
 typedef enum SetType {
     SET_TYPE_INT,
@@ -51,6 +52,7 @@ extern Set *makeSetInt(int elem, ...);
 #define MAKE_SET_PTR(...) makeSet(SET_TYPE_POINTER, sizeof(void *), NULL, NULL, __VA_ARGS__, NULL)
 #define MAKE_INT_SET(...) makeSetInt(__VA_ARGS__, -1)
 #define MAKE_STR_SET(...) makeSet(SET_TYPE_STRING, -1, NULL, NULL, __VA_ARGS__, NULL);
+extern Set *makeStrSetFromList(List *strList);
 
 // iterate through sets
 #define DUMMY_INT_FOR_COND_SET(_name_) _name_##_stupid_int_

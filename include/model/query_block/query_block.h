@@ -20,14 +20,6 @@ NEW_ENUM_WITH_TO_STRING(SetOpType,
         SETOP_INTERSECTION,
         SETOP_DIFFERENCE);
 
-//typedef enum SetOpType
-//{
-//    SETOP_UNION,
-//    SETOP_INTERSECTION,
-//    SETOP_DIFFERENCE
-//} SetOpType;
-
-
 typedef struct SetQuery
 {
     NodeTag type;

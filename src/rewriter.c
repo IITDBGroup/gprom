@@ -172,7 +172,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     START_TIMER("translation");
     oModel = translateParse(parse);
     DEBUG_LOG("translator returned:\n\n<%s>", nodeToString(oModel));
-    INFO_LOG("transaltor result as overview:\n\n%s", operatorToOverviewString(oModel));
+    INFO_LOG("translator result as overview:\n\n%s", operatorToOverviewString(oModel));
     STOP_TIMER("translation");
 
     ASSERT_BARRIER(
