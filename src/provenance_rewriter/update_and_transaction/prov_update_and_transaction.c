@@ -125,16 +125,26 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
 
     // replace updates sequence with root of the whole merged update query
 
-    // check if user asks for specific table
+    if(HAS_STRING_PROP(op,PROP_PC_TABLE))   // check if user asks for specific table
+    {
+    	char *temp = STRING_VALUE(GET_STRING_PROP(op,PROP_PC_TABLE));
+    	QueryOperator *up = getUpdateForPreviousTableVersion(op,   //Find last update to that table
+                temp, 0, updates);
+    	if (up == NULL)  // NULL then user has asked for non-existing table
+    	{
+    		FATAL_LOG("table"); //exit
+    	}
 
-    // if not then do normal stuff
-    addChildOperator((QueryOperator *) op, (QueryOperator *) getHeadOfListP(updates));
+    	//If not then connect the root to the table that the user wants
+    	addChildOperator((QueryOperator *) op, up);
 
-    // else find last update to that table
-    //getUpdateForPreviousTableVersion(op,THE_TABLE_NAME, 0, updates);
-    // if NULL then user has asked for non-existing table
-    // FATAL_LOG("table); - exit
+    }
+    else
+    {
+    	// Else do the normal stuff
+    	addChildOperator((QueryOperator *) op, (QueryOperator *) getHeadOfListP(updates));
 
+    }
     DEBUG_LOG("Provenance computation for updates that will be passed "
             "to rewriter: %s", beatify(nodeToString(op)));
 }
