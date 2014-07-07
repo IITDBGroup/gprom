@@ -230,6 +230,12 @@ orderExprToSQL (StringInfo str, OrderExpr *o)
 }
 
 static void
+sqlParamToSQL(StringInfo str, SQLParameter *p)
+{
+    appendStringInfo(str, ":%s", p->name);
+}
+
+static void
 exprToSQLString(StringInfo str, Node *expr)
 {
     if (expr == NULL)
@@ -261,29 +267,22 @@ exprToSQLString(StringInfo str, Node *expr)
         }
         break;
         case T_CaseExpr:
-        {
             caseToSQL(str, (CaseExpr *) expr);
-        }
         break;
         case T_WindowFunction:
-        {
             winFuncToSQL(str, (WindowFunction *) expr);
-        }
         break;
         case T_IsNullExpr:
-        {
             appendStringInfo(str, "(%s IS NULL)", exprToSQL(((IsNullExpr *) expr)->expr));
-        }
         break;
         case T_RowNumExpr:
-        {
             appendStringInfoString(str, "ROWNUM");
-        }
         break;
         case T_OrderExpr:
-        {
             orderExprToSQL(str, (OrderExpr *) expr);
-        }
+        break;
+        case T_SQLParameter:
+            sqlParamToSQL(str, (SQLParameter *) expr);
         break;
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));

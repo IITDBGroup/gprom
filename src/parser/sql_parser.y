@@ -123,7 +123,7 @@ Node *bisonParseResult = NULL;
 %type <node> optionalProvAsOf provOption
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
-%type <stringVal> joinType transactionIdentifier
+%type <stringVal> joinType transactionIdentifier delimIdentifier
 
 %start stmtList
 
@@ -964,8 +964,8 @@ subQuery:
     ;
 
 identifierList:
-		identifier { $$ = singleton($1); }
-		| identifierList ',' identifier { $$ = appendToTailOfList($1, $3); }
+		delimIdentifier { $$ = singleton($1); }
+		| identifierList ',' delimIdentifier { $$ = appendToTailOfList($1, $3); }
 	;
 	
 fromJoinItem:
@@ -1267,6 +1267,14 @@ optionalNullOrder:
 				$$ = "NULLS_LAST";
 			}
 	;
+
+delimIdentifier:
+		identifier { RULELOG("identifierList::ident"); }
+		| delimIdentifier '.' identifier 
+		{ 
+			RULELOG("identifierList::list::ident"); 
+			$$ = CONCAT_STRINGS($1, ".", $3); //TODO 
+		}  
 
 	
 %%

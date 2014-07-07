@@ -357,20 +357,21 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 	            List *bindVals;
 
 	            node = parseFromString(sql);
+
 	            START_TIMER("translation - transaction - analyze update");
 	            analyzeQueryBlockStmt(node, NULL);
 	            STOP_TIMER("translation - transaction - analyze update");
 	            node = getNthOfListP((List *) node, 0);
 
-	            START_TIMER("translation - transaction - analyze binds");
-	            bindString = getNthOfListP(sqlBinds, i);
+                START_TIMER("translation - transaction - analyze binds");
+                bindString = getNthOfListP(sqlBinds, i);
                 if (bindString != NULL)
                 {
                     DEBUG_LOG("set parameters\n%s\nfor sql\n%s", nodeToString(node), bindString);
                     bindVals = oracleBindToConsts(bindString);
                     node = setParameterValues(node, bindVals);
                 }
-	            STOP_TIMER("translation - transaction - analyze binds");
+                STOP_TIMER("translation - transaction - analyze binds");
 
 	            /* get table name */
 	            char *tableName;

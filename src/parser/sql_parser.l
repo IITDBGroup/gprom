@@ -78,7 +78,9 @@ identContinue	[A-Za-z0-9_%?]
 identDelim		[.]
 doublequote     [\"]
 quotedIdentifier		{doublequote}[^\"]+{doublequote}
-identifiers		({identStart}({identDelim}?{identContinue}+)*)
+identifiers				({identStart}{identContinue}*)
+identifierPart			({quotedIdentifierPart}|{unQuotedIdentifierPart})
+identifierList		({identifierPart}({identDelim}{identifierPart}))*
 parameters		[:]{identifiers}
 
 /* operators */
