@@ -234,6 +234,7 @@ copyAttributeReference(AttributeReference *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(fromClauseItem);
     COPY_SCALAR_FIELD(attrPosition);
     COPY_SCALAR_FIELD(outerLevelsUp);
+    COPY_SCALAR_FIELD(attrType);
 
     return new;
 }
@@ -385,7 +386,7 @@ copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(dataType);
     COPY_STRING_FIELD(attrName);
     COPY_SCALAR_FIELD(pos);
-    
+
     return new;
 }
 

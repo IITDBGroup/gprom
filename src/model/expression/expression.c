@@ -31,13 +31,15 @@ createAttributeReference (char *name)
     result->fromClauseItem = INVALID_FROM_ITEM;
     result->attrPosition = INVALID_ATTR;
     result->outerLevelsUp = INVALID_ATTR;
+    result->attrType= INVALID_ATTR;
+
 
     return result;
 }
 
 AttributeReference *
 createFullAttrReference (char *name, int fromClause, int attrPos,
-        int outerLevelsUp)
+        int outerLevelsUp,DataType attrType)
 {
     AttributeReference *result = makeNode(AttributeReference);
 
@@ -45,6 +47,7 @@ createFullAttrReference (char *name, int fromClause, int attrPos,
     result->fromClauseItem = fromClause;
     result->attrPosition = attrPos;
     result->outerLevelsUp = outerLevelsUp;
+    result->attrType= attrType;
 
     return result;
 }
