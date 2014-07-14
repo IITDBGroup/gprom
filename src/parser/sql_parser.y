@@ -166,6 +166,11 @@ stmt:
 			RULELOG("stmt::withQuery"); 
 			$$ = $1; 
 		}
+		| expression
+		{
+			RULELOG("stmt::expression");
+			$$ = $1;
+		}
     ;
 
 /*

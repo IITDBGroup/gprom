@@ -14,6 +14,7 @@
 
 #include "analysis_and_translate/analyze_qb.h"
 #include "analysis_and_translate/parameter.h"
+#include "configuration/option.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
@@ -59,8 +60,21 @@ static List *expandStarExpression (SelectItem *s, List *fromClause);
 static List *splitAttrOnDot (char *dotName);
 //static char *getAttrNameFromNameWithBlank(char *blankName);
 static char *generateAttrNameFromExpr(SelectItem *s);
+static List *splitTableName(char *tableName);
 static List *getQBAttrNames (Node *qb);
 static boolean setViewFromTableRefAttrs(Node *node, List *views);
+
+/* str functions */
+static inline char *
+strToUpper(char *in)
+{
+    char *result = strdup(in);
+    char *pos;
+    for(pos = result; *++pos != '\0'; *pos = toupper(*pos));
+
+    return result;
+}
+
 
 void
 analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
@@ -620,12 +634,12 @@ analyzeFromTableRef(FromTableRef *f)
 static void
 analyzeInsert(Insert * f)
 {
-	List *attrNames = getAttributeNames(f->tableName);
-	List *attrRefs = getAttributes(f->tableName);
-	HashMap *attrPos = NULL;
-	Set *attrNameSet = makeStrSetFromList(attrNames);
+    List *attrNames = getAttributeNames(f->tableName);
+    List *attrRefs = getAttributes(f->tableName);
+    HashMap *attrPos = NULL;
+    Set *attrNameSet = makeStrSetFromList(attrNames);
 
-	// if user has given no attribute list, then get it from table definition
+    // if user has given no attribute list, then get it from table definition
     if (f->attrList == NULL)
         f->attrList = deepCopyStringList(attrNames);
     // else use the user provided one and prepare a map from attribute name to position
@@ -647,63 +661,67 @@ analyzeInsert(Insert * f)
     }
 
     // is a VALUES clause
-	if (isA(f->query,List))
-	{
-	    if (LIST_LENGTH(f->attrList) != attrNames->length)
-	    {
-	        int pos = 0;
-	        List *newValues = NIL;
-	        List *oldValues = (List *) f->query;
-	        INFO_LOG("The number of values are not equal to the number "
-	                            "attributes in the table");
-	        //TODO add NULL or DEFAULT values for remaining attributes
-	        FOREACH(AttributeDef,a,attrRefs)
-	        {
-	            Node *val = NULL;
-
-	            if (MAP_HAS_STRING_KEY(attrPos,a->attrName))
-	            {
-	                val = getNthOfListP(oldValues,
-	                        INT_VALUE(MAP_GET_STRING(attrPos,a->attrName)));
-	                // TODO sanity check value (e.g., no attribute references) tackle also corner cases
-	            }
-	            else
-	            {
-	                Node *def = getAttributeDefaultVal(f->tableName, a->attrName);
-
-	                if (def == NULL)
-	                    val = (Node *) createNullConst(a->dataType);
-	                else
-	                    val = def;
-	            }
-	            newValues = appendToTailOfList(newValues, val);
-	        }
-
-	        f->query = (Node *) newValues;
-	    }
-	}
-	// is an INSERT INTO R (SELECT ...)
-	else
-	{
-	    QueryBlock *q = (QueryBlock *) f->query;
-		analyzeQueryBlockStmt(f->query, NIL);
-		//TODO check query data types
-		//TODO even more important add query block for missing attributes if necessary
-		if (LIST_LENGTH(f->attrList) != attrNames->length)
+    if (isA(f->query,List))
+    {
+        if (LIST_LENGTH(f->attrList) != attrNames->length)
         {
-		    QueryBlock *wrap = createQueryBlock();
-		    List *selectClause = NIL;
-
-		    FOREACH(AttributeDef,a,attrRefs)
-		    {
-	            Node *val = NULL;
-//	            SelectItem *subItem = NULL;
-	            SelectItem *newItem = NULL;
+            int pos = 0;
+            List *newValues = NIL;
+            List *oldValues = (List *) f->query;
+            INFO_LOG("The number of values are not equal to the number "
+                    "attributes in the table");
+            //TODO add NULL or DEFAULT values for remaining attributes
+            FOREACH(AttributeDef,a,attrRefs)
+            {
+                Node *val = NULL;
 
                 if (MAP_HAS_STRING_KEY(attrPos,a->attrName))
                 {
-//                    subItem = (SelectItem *) getNthOfListP(q->selectClause,
-//                            INT_VALUE(MAP_GET_STRING(attrPos,a->attrName)));
+                    val = getNthOfListP(oldValues,
+                            INT_VALUE(MAP_GET_STRING(attrPos,a->attrName)));
+                    // TODO sanity check value (e.g., no attribute references) tackle also corner cases
+                }
+                else
+                {
+                    List *nameParts = splitTableName(f->tableName);
+                    Node *def = getAttributeDefaultVal(
+                            (char *) getNthOfListP(nameParts, 0),
+                            (char *) getNthOfListP(nameParts, 1),
+                            a->attrName); //TODO get schema
+
+                    if (def == NULL)
+                        val = (Node *) createNullConst(a->dataType);
+                    else
+                        val = def;
+                }
+                newValues = appendToTailOfList(newValues, val);
+            }
+
+            f->query = (Node *) newValues;
+        }
+    }
+    // is an INSERT INTO R (SELECT ...)
+    else
+    {
+        QueryBlock *q = (QueryBlock *) f->query;
+        analyzeQueryBlockStmt(f->query, NIL);
+        //TODO check query data types
+        //TODO even more important add query block for missing attributes if necessary
+        if (LIST_LENGTH(f->attrList) != attrNames->length)
+        {
+            QueryBlock *wrap = createQueryBlock();
+            List *selectClause = NIL;
+
+            FOREACH(AttributeDef,a,attrRefs)
+            {
+                Node *val = NULL;
+                //	            SelectItem *subItem = NULL;
+                SelectItem *newItem = NULL;
+
+                if (MAP_HAS_STRING_KEY(attrPos,a->attrName))
+                {
+                    //                    subItem = (SelectItem *) getNthOfListP(q->selectClause,
+                    //                            INT_VALUE(MAP_GET_STRING(attrPos,a->attrName)));
                     val = (Node *) createFullAttrReference(strdup(a->attrName),
                             0,
                             INT_VALUE(MAP_GET_STRING(attrPos,a->attrName)),
@@ -712,7 +730,11 @@ analyzeInsert(Insert * f)
                 }
                 else
                 {
-                    Node *def = getAttributeDefaultVal(f->tableName, a->attrName);
+                    List *nameParts = splitTableName(f->tableName);
+                    Node *def = getAttributeDefaultVal(
+                            (char *) getNthOfListP(nameParts, 0),
+                            (char *) getNthOfListP(nameParts, 1),
+                            a->attrName); //TODO get schema
 
                     if (def == NULL)
                         val = (Node *) createNullConst(a->dataType);
@@ -721,14 +743,14 @@ analyzeInsert(Insert * f)
                 }
                 newItem = createSelectItem(strdup(a->attrName),val);
                 selectClause = appendToTailOfList(selectClause, newItem);
-		    }
+            }
 
-		    wrap->selectClause = selectClause;
-		    wrap->fromClause = singleton(createFromSubquery(strdup("origInsertQuery"),
-		            getQBAttrNames((Node *) q), (Node *) q));
-		    f->query = (Node *) wrap;
+            wrap->selectClause = selectClause;
+            wrap->fromClause = singleton(createFromSubquery(strdup("origInsertQuery"),
+                    getQBAttrNames((Node *) q), (Node *) q));
+            f->query = (Node *) wrap;
         }
-	}
+    }
 }
 
 static void analyzeDelete(Delete * f) {
@@ -1027,6 +1049,56 @@ generateAttrNameFromExpr(SelectItem *s)
 
     return str->data;
 }
+
+static List *
+splitTableName(char *tableName)
+{
+    List *result = NIL;
+    StringInfo split = makeStringInfo();
+    char *pos = tableName - 1;
+    int len = strlen(tableName);
+    boolean inString = FALSE;
+
+    while(pos++ != (tableName + len))
+    {
+        char c = *pos;
+        switch(c)
+        {
+            case '.':
+                if (!inString)
+                {
+                    result = appendToTailOfList(result, strdup(split->data));
+                    resetStringInfo(split);
+                }
+                appendStringInfoChar(split,*pos);
+                break;
+            case '"':
+                if (inString)
+                    inString = FALSE;
+                else
+                    inString = TRUE;
+                break;
+            case '\\':
+                if (inString)
+                    pos++;
+                break;
+            default:
+                appendStringInfoChar(split,*pos);
+                break;
+        }
+    }
+    result = appendToTailOfList(result, strdup(split->data));
+
+    // if no schema is given, use connection user part
+    if (LIST_LENGTH(result) == 1)
+        result = appendToHeadOfList(result,
+                strToUpper(getStringOption("connection.user")));
+    FREE(split->data);
+
+    return result;
+}
+
+
 
 static void
 analyzeSetQuery (SetQuery *q, List *parentFroms)

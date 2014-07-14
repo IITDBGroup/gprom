@@ -78,6 +78,9 @@
 #define streq(_l,_r) (strcmp(_l,_r) == 0)
 #endif
 
+
+
+
 /* exit for main function */
 #ifndef EXIT_SUCCESS
 #define EXIT_SUCCESS  0
@@ -142,5 +145,7 @@
     } while(0)
 #define ASSERT_BARRIER(code) code
 #endif
+
+
 
 #endif /* COMMON_H */

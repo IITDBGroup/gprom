@@ -13,6 +13,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+#include "parser/parser.h"
 #include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
 
@@ -391,7 +392,7 @@ oracleGetAttributeNames (char *tableName)
 {
     List *attrNames = NIL;
     List *attrs = getAttributes(tableName);
-
+    //TODO use attribute defition instead
     FOREACH(AttributeReference,a,attrs)
         attrNames = appendToTailOfList(attrNames, a->name);
 
@@ -399,14 +400,55 @@ oracleGetAttributeNames (char *tableName)
 }
 
 Node *
-oracleGetAttributeDefaultVal (char *tableName, char *attrName)
+oracleGetAttributeDefaultVal (char *schema, char *tableName, char *attrName)
 {
+    StringInfo statement = makeStringInfo();
+
     ACQUIRE_MEM_CONTEXT(context);
     START_TIMER("module - metadata lookup");
 
-    STOP_TIMER("module - metadata lookup");
+    DEBUG_LOG("Get default for %s.%s.%s", schema, tableName, attrName);
 
     // run query to fetch default value for attribute if it exists and return it
+    appendStringInfo(statement,
+            "SELECT DATA_DEFAULT "
+            "FROM SYS.DBA_TAB_COLS_V$ "
+            "WHERE TABLE_NAME = '%s' "
+            "AND OWNER = '%s' "
+            "AND COLUMN_NAME = '%s'",
+            tableName,
+            schema,
+            attrName);
+    if ((conn = getConnection()) != NULL)
+    {
+        OCI_Resultset *rs = executeStatement(statement->data);
+        char *defaultExpr = NULL;
+        Node *result = NULL;
+
+        // loop through
+        while(OCI_FetchNext(rs))
+        {
+            defaultExpr = (char *) OCI_GetString(rs,1);
+
+            DEBUG_LOG("default expr for %s.%s.%s is <%s>",
+                    schema ? schema : "", tableName, attrName, defaultExpr);
+        }
+
+        DEBUG_LOG("Statement: %s executed successfully.", statement->data);
+        FREE(statement);
+
+        // parse expression
+        if (defaultExpr != NULL)
+            result = parseFromString(defaultExpr);
+
+        RELEASE_MEM_CONTEXT_AND_RETURN_COPY(Node, result);
+    }
+    else
+    {
+        FATAL_LOG("Statement: %s failed.", statement);
+        FREE(statement);
+    }
+    STOP_TIMER("module - metadata lookup");
 
     // return NULL if no default and return to callers memory context
     RELEASE_MEM_CONTEXT_AND_RETURN_COPY(Node, NULL);
@@ -429,7 +471,8 @@ oracleGetAttributes(char *tableName)
         STOP_TIMER("module - metadata lookup");
         return attrList;
     }
-
+    //TODO use query SELECT c.COLUMN_NAME, c.DATA_TYPE FROM DBA_TAB_COLUMNS c WHERE OWNER='FGA_USER' AND TABLE_NAME = 'R' ORDER BY COLUMN_ID;
+    // how to figure out schema
     if(conn==NULL)
         initConnection();
     if(isConnected())
@@ -441,6 +484,7 @@ oracleGetAttributes(char *tableName)
         for(i = 1; i <= n; i++)
         {
             OCI_Column *col = OCI_TypeInfoGetColumn(tInfo, i);
+            //TODO use attribute defition instead
             AttributeReference *a = createAttributeReference((char *) OCI_GetColumnName(col));
             attrList=appendToTailOfList(attrList,a);
         }
@@ -450,7 +494,7 @@ oracleGetAttributes(char *tableName)
         addToTableBuffers(tableName, attrList);
         RELEASE_MEM_CONTEXT();
         STOP_TIMER("module - metadata lookup");
-        return attrList;
+        return attrList; //TODO copying
     }
     ERROR_LOG("Not connected to database.");
 

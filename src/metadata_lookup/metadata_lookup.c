@@ -158,10 +158,10 @@ getAttributeNames (char *tableName)
 }
 
 Node *
-getAttributeDefaultVal (char *tableName, char *attrName)
+getAttributeDefaultVal (char *schema, char *tableName, char *attrName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->getAttributeDefaultVal(tableName,attrName);
+    return activePlugin->getAttributeDefaultVal(schema, tableName,attrName);
 }
 
 List *

@@ -336,6 +336,11 @@ typeOf (Node *expr)
 {
     switch(expr->type)
     {
+        case T_AttributeReference:
+        {
+            AttributeReference *a = (AttributeReference *) expr;
+            return DT_STRING; //TODO
+        }
         case T_Constant:
         {
             Constant *c = (Constant *) expr;
@@ -343,9 +348,15 @@ typeOf (Node *expr)
         }
         //TODO use metadata lookup
         case T_FunctionCall:
-
+        {
+            FunctionCall *f = (FunctionCall *) expr;
+            return DT_STRING;//TODO
+        }
         case T_Operator:
-            return DT_STRING;
+        {
+            Operator *o = (Operator *) expr;
+            return DT_STRING; //TODO
+        }
         case T_CaseExpr:
         {
             CaseExpr *c = (CaseExpr *) expr;
