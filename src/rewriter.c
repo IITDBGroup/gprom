@@ -30,7 +30,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 
 #include "instrumentation/timing_instrumentation.h"
-
+#include "instrumentation/memory_instrumentation.h"
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 
@@ -53,6 +53,8 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
     }
 
     initLogger();
+    if (opt_memmeasure)
+        setupMemInstrumentation();
 
     return EXIT_SUCCESS;
 }
@@ -98,6 +100,11 @@ shutdownApplication(void)
 {
     INFO_LOG("shutdown plugins, logger, and memory manager");
 
+    if (opt_memmeasure)
+    {
+        outputMemstats(FALSE);
+        shutdownMemInstrumentation();
+    }
     shutdownMetadataLookupPlugins();
 
     freeOptions();
@@ -165,7 +172,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     START_TIMER("translation");
     oModel = translateParse(parse);
     DEBUG_LOG("translator returned:\n\n<%s>", nodeToString(oModel));
-    INFO_LOG("transaltor result as overview:\n\n%s", operatorToOverviewString(oModel));
+    INFO_LOG("translator result as overview:\n\n%s", operatorToOverviewString(oModel));
     STOP_TIMER("translation");
 
     ASSERT_BARRIER(

@@ -15,7 +15,10 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/set/set.h"
+#include "model/list/list.h"
+
 #include "uthash.h"
+
 
 static SetElem *getSetElem(Set *set, void *key);
 
@@ -102,6 +105,19 @@ makeSetInt(int elem, ...)
     }
 
     va_end(args);
+
+    return result;
+}
+
+Set *
+makeStrSetFromList(List *strList)
+{
+    Set *result = STRSET();
+
+    FOREACH(char,str,strList)
+    {
+        addToSet(result, str);
+    }
 
     return result;
 }

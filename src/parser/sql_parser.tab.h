@@ -34,6 +34,7 @@
 /* Tokens.  */
 #ifndef YYTOKENTYPE
 # define YYTOKENTYPE
+<<<<<<< HEAD
    /* Put the tokens into the symbol table, so that GDB and other debuggers
       know about them.  */
    enum yytokentype {
@@ -131,6 +132,105 @@
      WITH = 349,
      XOR = 350
    };
+=======
+  enum yytokentype
+  {
+    intConst = 258,
+    floatConst = 259,
+    stringConst = 260,
+    identifier = 261,
+    parameter = 262,
+    comparisonOps = 263,
+    SELECT = 264,
+    INSERT = 265,
+    UPDATE = 266,
+    DELETE = 267,
+    PROVENANCE = 268,
+    OF = 269,
+    BASERELATION = 270,
+    SCN = 271,
+    TIMESTAMP = 272,
+    HAS = 273,
+    TABLE = 274,
+    ONLY = 275,
+    UPDATED = 276,
+    SHOW = 277,
+    INTERMEDIATE = 278,
+    USE = 279,
+    TUPLE = 280,
+    VERSIONS = 281,
+    FROM = 282,
+    AS = 283,
+    WHERE = 284,
+    DISTINCT = 285,
+    STARALL = 286,
+    AND = 287,
+    OR = 288,
+    LIKE = 289,
+    NOT = 290,
+    IN = 291,
+    ISNULL = 292,
+    BETWEEN = 293,
+    EXCEPT = 294,
+    EXISTS = 295,
+    AMMSC = 296,
+    NULLVAL = 297,
+    ROWNUM = 298,
+    ALL = 299,
+    ANY = 300,
+    IS = 301,
+    SOME = 302,
+    UNION = 303,
+    INTERSECT = 304,
+    MINUS = 305,
+    INTO = 306,
+    VALUES = 307,
+    HAVING = 308,
+    GROUP = 309,
+    ORDER = 310,
+    BY = 311,
+    LIMIT = 312,
+    SET = 313,
+    INT = 314,
+    BEGIN_TRANS = 315,
+    COMMIT_TRANS = 316,
+    ROLLBACK_TRANS = 317,
+    CASE = 318,
+    WHEN = 319,
+    THEN = 320,
+    ELSE = 321,
+    END = 322,
+    OVER_TOK = 323,
+    PARTITION = 324,
+    ROWS = 325,
+    RANGE = 326,
+    UNBOUNDED = 327,
+    PRECEDING = 328,
+    CURRENT = 329,
+    ROW = 330,
+    FOLLOWING = 331,
+    NULLS = 332,
+    FIRST = 333,
+    LAST = 334,
+    ASC = 335,
+    DESC = 336,
+    DUMMYEXPR = 337,
+    JOIN = 338,
+    NATURAL = 339,
+    LEFT = 340,
+    RIGHT = 341,
+    OUTER = 342,
+    INNER = 343,
+    CROSS = 344,
+    ON = 345,
+    USING = 346,
+    FULL = 347,
+    TYPE = 348,
+    TRANSACTION = 349,
+    WITH = 350,
+    XOR = 351
+  };
+>>>>>>> ba77ae611a41d4bea598f0ca12d5cbb95b3332a7
 #endif
 
 
@@ -152,11 +252,16 @@ typedef union YYSTYPE
      int intVal;
      double floatVal;
 
+<<<<<<< HEAD
 
 
 /* Line 2068 of yacc.c  */
 #line 159 "sql_parser.tab.h"
 } YYSTYPE;
+=======
+#line 163 "sql_parser.tab.h" /* yacc.c:1909  */
+};
+>>>>>>> ba77ae611a41d4bea598f0ca12d5cbb95b3332a7
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1

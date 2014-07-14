@@ -160,6 +160,14 @@ equalConstant (Constant *a, Constant *b)
 {
     COMPARE_SCALAR_FIELD(constType);
 
+    // if both are NULL they are considered equal
+    if (a->isNull && b->isNull)
+        return TRUE;
+
+    // only one of them is NULL return FALSE
+    if (a->isNull || b->isNull)
+        return FALSE;
+
     switch(a->constType)
     {
         case DT_INT:

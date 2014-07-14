@@ -62,6 +62,7 @@ typedef struct MetadataLookupPlugin
     boolean (*catalogViewExists) (char * viewName);
     List * (*getAttributes) (char *tableName);
     List * (*getAttributeNames) (char *tableName);
+    Node * (*getAttributeDefaultVal) (char *tableName, char *attrName);
     boolean (*isAgg) (char *functionName);
     boolean (*isWindowFunction) (char *functionName);
     char * (*getTableDefinition) (char *tableName);
@@ -102,6 +103,8 @@ extern boolean catalogTableExists (char * tableName);
 extern boolean catalogViewExists (char * viewName);
 extern List *getAttributes (char *tableName);
 extern List *getAttributeNames (char *tableName);
+extern Node *getAttributeDefaultVal (char *tableName, char *attrName);
+extern List *getAttributeDataTypes (char *tableName);
 extern boolean isAgg(char *functionName);
 extern boolean isWindowFunction(char *functionName);
 extern char *getTableDefinition(char *tableName);

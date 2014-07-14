@@ -122,16 +122,29 @@ switchSubtrees(QueryOperator *orig, QueryOperator *new)
     // copy list of parents to new subtree
     new->parents = orig->parents;
     orig->parents = NIL;
+    boolean newParentOfOrig = FALSE;
 
     // adapt original parent's inputs
     FOREACH(QueryOperator,parent,new->parents)
     {
-        FOREACH(QueryOperator,pChild,parent->inputs)
+        // handle case when orig was a child of new
+        if (parent == new)
         {
-            if (equal(pChild,orig))
-                pChild_his_cell->data.ptr_value = new;
+            orig->parents = singleton(new);
+            newParentOfOrig  = TRUE;
+        }
+        else
+        {
+            FOREACH(QueryOperator,pChild,parent->inputs)
+            {
+                if (equal(pChild,orig))
+                    pChild_his_cell->data.ptr_value = new;
+            }
         }
     }
+
+    if (newParentOfOrig)
+        removeParentFromOps(singleton(new), new);
 }
 
 /*

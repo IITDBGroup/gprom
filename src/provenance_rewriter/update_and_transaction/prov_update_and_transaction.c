@@ -160,14 +160,69 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 		switch (u->type) {
 		// case t_InsertStmt:t:
 		case T_Insert:
-			break;
+		{
+		    TableAccessOperator *t = (TableAccessOperator *) OP_LCHILD(q);
+		    QueryOperator *qRoot = OP_RCHILD(q);
+		    ProjectionOperator *p;
 
-			// case T_DeleteStmt:
+            // is R UNION INSERTS transform into R + SCN UNION PROJECTION [*, SCN] (q)
+
+		    // add attributes to union and table access
+		    q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
+		            createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+
+		    // add projection over query, add constant SCN attr, switch with query
+		    p = (ProjectionOperator *) createProjOnAllAttrs(qRoot);
+		    addChildOperator((QueryOperator *) p,qRoot);
+
+		    p->op.schema->attrDefs = appendToTailOfList(p->op.schema->attrDefs,
+		            createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+		    p->projExprs = appendToTailOfList(p->projExprs,copyObject(getNthOfListP(scns,i)));
+
+		    switchSubtrees(qRoot,(QueryOperator *) p);
+
+		    // add projection over table access operators to remove SCN attribute that will be added later
+	        List *children = NULL;
+
+	        // find all table access operators
+	        findTableAccessVisitor((Node *) qRoot, &children);
+	        INFO_LOG("Replace table access operators in %s",
+	                operatorToOverviewString((Node *) q));
+
+	        FOREACH(TableAccessOperator, t, children)
+	        {
+	            ProjectionOperator *po = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) t);
+	            addChildOperator((QueryOperator *) po, (QueryOperator *) t);
+	            switchSubtrees((QueryOperator *) t,(QueryOperator *) po);
+	        }
+		}
+        break;
+        // case T_DeleteStmt:
 		case T_Delete:
-			break;
+		{
+            AttributeReference *scnAttr;
+            Node *newCond;
+            SelectionOperator *s = (SelectionOperator *) q;
 
-			// case T_UpdateStmt:
+		    // assume it is selection over input (for new translation has to be adapted)
+		    ASSERT(isA(q,SelectionOperator));
 
+		    // add SCN attribute to schema and turn NOT(C) into NOT(C) OR SCN > X to selection condition
+            DEBUG_LOG("Deal with condition: %s", exprToSQL((Node *) s->cond));
+
+            // adding SCN < update SCN condition
+            scnAttr = createFullAttrReference("VERSIONS_STARTSCN", 0,
+                    getNumAttrs(OP_LCHILD(q)), INVALID_ATTR);
+            newCond = (Node *) createOpExpr("<=",
+                    LIST_MAKE((Node *) scnAttr,
+                            copyObject(getNthOfListP(scns,i))));
+            s->cond = OR_EXPRS(s->cond, newCond);
+
+		    q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
+		                          createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+		}
+        break;
+        // case T_UpdateStmt:
 		case T_Update:
 			// either CASE translation OR union translation
 			//if its case translation
@@ -221,10 +276,14 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
                 q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
                         createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
 			}
+			else
+			{
+			    FATAL_LOG("merging for READ COMMITTED and Union Update translation not supported yet.");
+			}
 			break;
 		default:
+		    FATAL_LOG("should never have ended up here");
 			break;
-
 		}
 
         i++;
@@ -351,7 +410,7 @@ restrictToUpdatedRows (ProvenanceComputation *op)
 
     //TODO for now be conservative when to apply things
     // use conditions of updates to filter out non-updated tuples early on
-    if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS) && simpleOnly)
+    if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS))
     {
         DEBUG_LOG("Use conditions to restrict to updated;");
         addConditionsToBaseTables(op);
@@ -381,11 +440,13 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     List *updatedTables;
     List *allTables = NIL;
     List *origUpdates;
-    List *tableCondMap = NIL;
+//    List *tableCondMap = NIL;
+    HashMap *tabCondMap = NEW_MAP(Constant,List);
     int pos = 0;
     KeyValue *tableCond;
     Set *readFromTableNames = STRSET();
     Set *updatedTableNames = STRSET();
+    Set *mixedTableNames = NULL;
     HashMap *numAttrs = NEW_MAP(Constant,Constant);
     ProvenanceTransactionInfo *t = op->transactionInfo;
 
@@ -394,11 +455,6 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     origUpdates = t->originalUpdates;
     findTableAccessVisitor((Node *) op, &allTables); //HAO fetch all table accesses
     updatedTables  = findUpdatedTableAccceses (allTables);
-
-//    DEBUG_LOG("\ncond: %s, \ntables: %s, \nupdatedTable: %s",
-//            beatify(nodeToString(upConds)),
-//            stringListToString(tableNames),
-//            beatify(nodeToString(updatedTables)));
 
     // check which tables are updated and which tables are read accessed (e.g., in query)
     // only updated tables can be safely prefiltered
@@ -427,7 +483,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
 
             if(!hasSetElem(readFromTableNames,tableName)) //HAO in second loop this check
             {
-                KeyValue *tableMap = getMapCond(tableCondMap, tableName);
+                KeyValue *tableMap = MAP_GET_STRING_ENTRY(tabCondMap, tableName); // getMapCond(tableCondMap, tableName);
                 Node *cond = copyObject((Node *) getNthOfListP(upConds, pos));
 
                 // for read committed we have to also check the version column to only
@@ -440,11 +496,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
                 }
 
                 if (tableMap == NULL)
-                {
-                    tableMap = createNodeKeyValue((Node *) createConstString(tableName),
-                            (Node *) singleton(cond));
-                    setMapCond(&tableCondMap, tableMap);
-                }
+                    MAP_ADD_STRING_KEY(tabCondMap, tableName, singleton(cond));
                 else
                     tableMap->value = (Node *) appendToTailOfList((List *) tableMap->value, cond);
             }
@@ -453,13 +505,13 @@ addConditionsToBaseTables (ProvenanceComputation *op)
         }
     }
 
-    DEBUG_LOG("condition table map is:\n%s", tableCondMap);
+    DEBUG_LOG("condition table map is:\n%s", tabCondMap);
 
     // add selections to only updated tables
     FOREACH(TableAccessOperator,t,updatedTables)
     {
         char *tableName = t->tableName;
-        KeyValue *prop = getMapCond(tableCondMap, tableName);
+        KeyValue *prop = MAP_GET_STRING_ENTRY(tabCondMap,tableName);
         Node *cond = prop ? prop->value : NULL;
         SelectionOperator *sel;
 
@@ -484,7 +536,9 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     // if there are tables with mixed usage (updated and read from)
     // then we have to add additional conditions to post-filter out non-update rows
     // from these tables
-//    FOREACH
+    mixedTableNames = intersectSets(readFromTableNames,updatedTableNames);
+    if (!EMPTY_SET(mixedTableNames))
+        filterUpdatedInFinalResult(op);
 }
 
 static Node *
@@ -543,6 +597,8 @@ extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 	TableAccessOperator *t;
 //	List *updateTableNames;
 	Set *readFromTableNames = STRSET();
+	Set *updatedTableNames = STRSET();
+	Set *mixedTableNames = STRSET();
 	List *propValue = LIST_MAKE(xid, scn, scnC);
 	List *allTables = NIL;
 
@@ -554,6 +610,8 @@ extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 	{
 	    if (!HAS_STRING_PROP(t,PROP_TABLE_IS_UPDATED))
 	        addToSet(readFromTableNames, t->tableName);
+	    else
+	        addToSet(updatedTableNames, t->tableName);
 	}
 
 	// for tables that are only updated
@@ -569,16 +627,21 @@ extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
         }
 	}
 
-
-
+	//TODO need to postfilter for remaining ones
+    mixedTableNames = intersectSets(readFromTableNames,updatedTableNames);
+    if (!EMPTY_SET(mixedTableNames))
+        filterUpdatedInFinalResult(op);
 }
 
 static void
 filterUpdatedInFinalResult (ProvenanceComputation *op)
 {
+    // for each updated table add attribute that trackes whether the table has been updated
 
+    // add final conditions that
 }
 
+//TODO check is still needed once we extend to nested subqueries
 boolean
 isSimpleUpdate(Node *update)
 {

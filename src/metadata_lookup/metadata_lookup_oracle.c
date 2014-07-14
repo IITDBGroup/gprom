@@ -86,6 +86,7 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->catalogViewExists = oracleCatalogViewExists;
     plugin->getAttributes = oracleGetAttributes;
     plugin->getAttributeNames = oracleGetAttributeNames;
+    plugin->getAttributeDefaultVal = oracleGetAttributeDefaultVal;
     plugin->isAgg = oracleIsAgg;
     plugin->isWindowFunction = oracleIsWindowFunction;
     plugin->getTableDefinition = oracleGetTableDefinition;
@@ -397,6 +398,20 @@ oracleGetAttributeNames (char *tableName)
     return attrNames;
 }
 
+Node *
+oracleGetAttributeDefaultVal (char *tableName, char *attrName)
+{
+    ACQUIRE_MEM_CONTEXT(context);
+    START_TIMER("module - metadata lookup");
+
+    STOP_TIMER("module - metadata lookup");
+
+    // run query to fetch default value for attribute if it exists and return it
+
+    // return NULL if no default and return to callers memory context
+    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(Node, NULL);
+}
+
 List*
 oracleGetAttributes(char *tableName)
 {
@@ -587,6 +602,8 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
             STOP_TIMER("module - metadata lookup");
             return;
         }
+
+        INFO_LOG("transaction statements are:\n\n%s", beatify(stringListToString(*sqls)));
 
         // infer isolation level
         statement = makeStringInfo();

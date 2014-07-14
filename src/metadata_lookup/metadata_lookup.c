@@ -16,6 +16,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "model/list/list.h"
+#include "model/query_operator/query_operator.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
 #include "metadata_lookup/metadata_lookup_postgres.h"
@@ -154,6 +155,25 @@ getAttributeNames (char *tableName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     return activePlugin->getAttributeNames(tableName);
+}
+
+Node *
+getAttributeDefaultVal (char *tableName, char *attrName)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getAttributeDefaultVal(tableName,attrName);
+}
+
+List *
+getAttributeDataTypes (char *tableName)
+{
+    List *result = NIL;
+    ASSERT(activePlugin && activePlugin->isInitialized());
+
+    FOREACH(AttributeDef,a,activePlugin->getAttributes(tableName))
+        result = appendToTailOfListInt(result, a->dataType);
+
+    return result;
 }
 
 boolean

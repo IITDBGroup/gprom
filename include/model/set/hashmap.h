@@ -44,6 +44,7 @@ extern Node *getMap (HashMap *map, Node *key);
 #define MAP_GET_STRING(map,key) getMap(map, (Node *) createConstString(key))
 #define MAP_GET_INT(map,key) getMap(map, (Node *) createConstInt(key))
 extern KeyValue *getMapEntry (HashMap *map, Node *key);
+#define MAP_GET_STRING_ENTRY(map,key) getMapEntry(map, (Node *) createConstString(key))
 
 // add elements to map
 extern boolean addToMap (HashMap *map, Node *key, Node *value);

@@ -70,6 +70,7 @@ char *plugin_sqlcodegen = NULL;
 
 // instrumentation options
 boolean opt_timing = FALSE;
+boolean opt_memmeasure = FALSE;
 
 // rewrite options
 boolean opt_aggressive_model_checking = FALSE;
@@ -244,8 +245,13 @@ OptionInfo opts[] =
         // boolean instrumentation options
         aRewriteOption(OPTION_TIMING,
                 NULL,
-                "measure and output execution time of modules",
+                "measure and output execution time of modules.",
                 opt_timing,
+                FALSE),
+        aRewriteOption(OPTION_MEMMEASURE,
+                NULL,
+                "measure and output memory allocation stats.",
+                opt_memmeasure,
                 FALSE),
         // boolean rewrite options
         aRewriteOption(OPTION_AGGRESSIVE_MODEL_CHECKING,

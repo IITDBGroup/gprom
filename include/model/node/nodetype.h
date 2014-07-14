@@ -6,6 +6,7 @@
 
 NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_Invalid,
+    T_Node,
 
     /* collection types */
     T_List,
