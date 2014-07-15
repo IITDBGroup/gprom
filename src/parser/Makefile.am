@@ -2,6 +2,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/include
 
 BUILT_SOURCES =
 AM_YFLAGS = -d
+CLEANFILES = sql_parser.lex.h sql_parser.lex.c sql_parser.tab.h sql_parser.tab.c \
+			postgres_parser.lex.h postgres_parser.lex.c postgres_parser.tab.h postgres_parser.tab.c  
 
 noinst_LTLIBRARIES        	= libparser.la
 libparser_la_SOURCES		= parser.c \

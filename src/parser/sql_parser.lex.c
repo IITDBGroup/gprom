@@ -2685,7 +2685,7 @@ void yyfree (void * ptr )
 /* use logging framework in the future */
 void yyerror(char *s)
 {
-	FATAL_LOG("%s at %s\n", s, yytext);
+	ERROR_LOG("%s at %s\n", s, yytext);
 }
 
 void setupStringInput(char *input)
