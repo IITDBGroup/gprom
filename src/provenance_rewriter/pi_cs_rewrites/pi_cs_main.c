@@ -176,7 +176,7 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs)
     // Get the provenance name for each attribute
     FOREACH(AttributeDef, attr, op->schema->attrDefs)
     {
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -239,7 +239,7 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
     FOREACH(AttributeDef, attr, op->schema->attrDefs)
     {
         provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -250,7 +250,7 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
         newAttrName = getProvenanceAttrName(tableName, name, relAccessCount);
         provAttr = appendToTailOfList(provAttr, newAttrName);
         cnt = getAttrPos(op,name);
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(name, 0, cnt, 0));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(name, 0, cnt, 0, attr->constType));
     }
 
     List *newProvPosList = NIL;
@@ -407,7 +407,7 @@ rewritePI_CSProjection (ProjectionOperator *op)
         AttributeDef *att = getAttrDef(child,a);
         DEBUG_LOG("attr: %s", nodeToString(att));
          op->projExprs = appendToTailOfList(op->projExprs,
-                 createFullAttrReference(att->attrName, 0, a, 0));
+                 createFullAttrReference(att->attrName, 0, a, 0, att->dataType));
     }
 
     // adapt schema
@@ -513,9 +513,9 @@ rewritePI_CSAggregation (AggregationOperator *op)
 		FOREACH(AttributeReference, a , op->groupBy)
 		{
 		    char *name = getNthOfListP(groupByNames, pos);
-			AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, INVALID_ATTR);
+			AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, INVALID_ATTR, a->attrType);
 			AttributeReference *rA = createFullAttrReference(
-			        CONCAT_STRINGS("_P_SIDE_",name), 1, pos, INVALID_ATTR);
+			        CONCAT_STRINGS("_P_SIDE_",name), 1, pos, INVALID_ATTR, a->attrType);
 			if(joinCond)
 				joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
 			else
@@ -587,7 +587,7 @@ rewritePI_CSSet(SetOperator *op)
         FOREACH(AttributeDef,a,lChild->schema->attrDefs)
         {
             AttributeReference *att;
-            att = createFullAttrReference(strdup(a->attrName), 0, i++, INVALID_ATTR);
+            att = createFullAttrReference(strdup(a->attrName), 0, i++, INVALID_ATTR, a->dataType);
             projExprs = appendToTailOfList(projExprs, att);
         }
         provAttrs = copyObject(lChild->provAttrs);
@@ -622,7 +622,7 @@ rewritePI_CSSet(SetOperator *op)
         FOREACH(AttributeDef,a,getNormalAttrs(rChild))
         {
             AttributeReference *att;
-            att = createFullAttrReference(strdup(a->attrName), 0, i++, INVALID_ATTR);
+            att = createFullAttrReference(strdup(a->attrName), 0, i++, INVALID_ATTR, a->dataType);
             projExprs = appendToTailOfList(projExprs, att);
         }
 
@@ -640,7 +640,7 @@ rewritePI_CSSet(SetOperator *op)
         FOREACH(AttributeDef,a, getProvenanceAttrDefs(rChild))
         {
             AttributeReference *att;
-            att = createFullAttrReference(strdup(a->attrName), 0, i - lProvs, INVALID_ATTR);
+            att = createFullAttrReference(strdup(a->attrName), 0, i - lProvs, INVALID_ATTR, a->dataType);
             projExprs = appendToTailOfList(projExprs, att);
             provAttrs = appendToTailOfListInt(provAttrs, i++);
         }
@@ -748,7 +748,7 @@ rewritePI_CSTableAccess(TableAccessOperator *op)
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
     {
         provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -757,7 +757,7 @@ rewritePI_CSTableAccess(TableAccessOperator *op)
     {
         newAttrName = getProvenanceAttrName(op->tableName, attr->attrName, relAccessCount);
         provAttr = appendToTailOfList(provAttr, newAttrName);
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -800,7 +800,7 @@ rewritePI_CSConstRel(ConstRelOperator *op)
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
     {
         provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -809,7 +809,7 @@ rewritePI_CSConstRel(ConstRelOperator *op)
     {
         newAttrName = getProvenanceAttrName("query", attr->attrName, relAccessCount);
         provAttr = appendToTailOfList(provAttr, newAttrName);
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 

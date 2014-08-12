@@ -131,7 +131,7 @@ translateUpdateUnion(Update *update)
         }
 
 	    if (projExpr == NULL)
-	        projExpr = (Node *) createFullAttrReference(getNthOfListP(attrs,i), 0, i, 0);
+	        projExpr = (Node *) createFullAttrReference(getNthOfListP(attrs,i), 0, i, 0, DT_STRING); //TODO
 	    projExprs = appendToTailOfList(projExprs, projExpr);
 	}
 
@@ -197,7 +197,7 @@ translateUpdateWithCase(Update *update)
 			    Node *cond = copyObject(update->cond);
 			    Node *then = copyObject(getNthOfListP(o->args, 1));
 			    Node *els = (Node *) createFullAttrReference(getNthOfListP(attrs, i),
-	                    0, i, 0);
+	                    0, i, 0,DT_STRING); //TODO
 			    CaseExpr *caseExpr;
 			    CaseWhen *caseWhen;
 
@@ -211,7 +211,7 @@ translateUpdateWithCase(Update *update)
 
 		if (projExpr == NULL)
 			projExpr = (Node *) createFullAttrReference(getNthOfListP(attrs, i),
-					0, i, 0);
+					0, i, 0, DT_STRING);//TODO get from metadata lookup
 		projExprs = appendToTailOfList(projExprs, projExpr);
 	}
 

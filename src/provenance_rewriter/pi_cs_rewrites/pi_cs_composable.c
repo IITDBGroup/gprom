@@ -184,17 +184,17 @@ rewritePI_CSComposableProjection (ProjectionOperator *op)
         AttributeDef *att = getAttrDef(child,a);
         DEBUG_LOG("attr: %s", nodeToString(att));
         op->projExprs = appendToTailOfList(op->projExprs,
-                createFullAttrReference(att->attrName, 0, a, 0));
+                createFullAttrReference(att->attrName, 0, a, 0, att->dataType));
     }
 
     // add projection expressions for result TID and prov dup attrs
     op->projExprs = appendToTailOfList(op->projExprs,
             createFullAttrReference(RESULT_TID_ATTR, 0,
-                    INT_VALUE(GET_STRING_PROP(child,PROP_RESULT_TID_ATTR)), 0));
+                    INT_VALUE(GET_STRING_PROP(child,PROP_RESULT_TID_ATTR)), 0, DT_INT));
 
     op->projExprs = appendToTailOfList(op->projExprs,
             createFullAttrReference(PROV_DUPL_COUNT_ATTR, 0,
-                    INT_VALUE(GET_STRING_PROP(child,PROP_PROV_DUP_ATTR)), 0));
+                    INT_VALUE(GET_STRING_PROP(child,PROP_PROV_DUP_ATTR)), 0, DT_INT));
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
     addResultTIDAndProvDupAttrs((QueryOperator *) op, TRUE);
@@ -373,7 +373,8 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
         provDupAttrRef = (Node *) createFullAttrReference(PROV_DUPL_COUNT_ATTR,
                 0,
                 INT_VALUE(GET_STRING_PROP(curChild, PROP_PROV_DUP_ATTR)),
-                INVALID_ATTR);
+                INVALID_ATTR,
+                DT_INT);
     }
     else
         provDupAttrRef = NULL;
@@ -476,12 +477,14 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
                             strdup(RESULT_TID_ATTR),
                             0,
                             getNumAttrs((QueryOperator *) curWindow) - 2,
-                            INVALID_ATTR),
+                            INVALID_ATTR,
+                            DT_INT),
                         createFullAttrReference(
                             strdup(PROV_DUPL_COUNT_ATTR),
                             0,
                             getNumAttrs((QueryOperator *) curWindow) - 1,
-                            INVALID_ATTR)));
+                            INVALID_ATTR,
+                            DT_INT)));
 
         finalAttrs = CONCAT_LISTS(aggAttrNames,
                             groupByAttrNames,
@@ -557,7 +560,7 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op)
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
     {
         provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -566,7 +569,7 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op)
     {
         newAttrName = getProvenanceAttrName(op->tableName, attr->attrName, relAccessCount);
         provAttr = appendToTailOfList(provAttr, newAttrName);
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -691,11 +694,13 @@ getResultTidAndProvDupAttrsProjExprs(QueryOperator *op)
             createFullAttrReference(RESULT_TID_ATTR,
                     0,
                     INT_VALUE(GET_STRING_PROP(op, PROP_RESULT_TID_ATTR)),
-                    INVALID_ATTR),
+                    INVALID_ATTR,
+                    DT_INT),
             createFullAttrReference(PROV_DUPL_COUNT_ATTR,
                     0,
                     INT_VALUE(GET_STRING_PROP(op, PROP_PROV_DUP_ATTR)),
-                    INVALID_ATTR)
+                    INVALID_ATTR,
+                    DT_INT)
     );
 
     return result;

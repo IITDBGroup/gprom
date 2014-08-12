@@ -773,6 +773,7 @@ translateFromJoinExpr(FromJoinExpr *fje)
     if (fje->joinCond == JOIN_COND_NATURAL)
     {
         List *leftAttrs = getQueryOperatorAttrNames(input1);
+        List *opDefs = input1->schema->attrDefs;
         List *rightAttrs = getQueryOperatorAttrNames(input2);
         List *commonAttRefs = NIL;
         int lPos = 0;
@@ -783,8 +784,9 @@ translateFromJoinExpr(FromJoinExpr *fje)
             int rPos = listPosString(leftAttrs, rA);
             if(rPos != -1)
             {
-                AttributeReference *lRef = createFullAttrReference(strdup(rA), 0, lPos, 0);
-                AttributeReference *rRef = createFullAttrReference(strdup(rA), 1, rPos, 0);
+                AttributeDef *lDef = (AttributeDef *) getNthOfListP(opDefs, lPos);
+                AttributeReference *lRef = createFullAttrReference(strdup(rA), 0, lPos, 0, lDef->dataType);
+                AttributeReference *rRef = createFullAttrReference(strdup(rA), 1, rPos, 0, lDef->dataType);
 
                 commonAttrs = appendToTailOfList(commonAttrs, rA);
                 joinCond = AND_EXPRS((Node *) createOpExpr("=", LIST_MAKE(lRef,rRef)), joinCond);
@@ -876,14 +878,14 @@ translateFromJoinExpr(FromJoinExpr *fje)
         FOREACH(AttributeDef,a,input1->schema->attrDefs)
         {
             projExpr = appendToTailOfList(projExpr,
-                    createFullAttrReference(strdup(a->attrName), 0, pos, 0));
+                    createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
             pos++;
         }
         FOREACH(AttributeDef,a,input2->schema->attrDefs)
         {
             if (!searchListString(commonAttrs, a->attrName))
                 projExpr = appendToTailOfList(projExpr,
-                        createFullAttrReference(strdup(a->attrName), 1, pos, 0));
+                        createFullAttrReference(strdup(a->attrName), 1, pos, 0, a->dataType));
         }
 
         DEBUG_LOG("projection expressions for natural join: %s", projExpr);
@@ -923,7 +925,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 			SelectItem *s = (SelectItem *) getHeadOfListP(
 					((QueryBlock *) nsq->query)->selectClause);
 			AttributeReference *subqueryAttr = createFullAttrReference(
-					strdup(s->alias), 1, 0, INVALID_ATTR);
+					strdup(s->alias), 1, 0, INVALID_ATTR, typeOf(s->expr));
 			List *args = LIST_MAKE(copyObject(nsq->expr), subqueryAttr);
 			cond = (Node *) createOpExpr(nsq->comparisonOp, args);
 		}
@@ -1286,7 +1288,7 @@ replaceAggsAndGroupByMutator (Node *node, ReplaceGroupByState *state)
         if (equal(node, e))
         {
             attrName = (char *) getNthOfListP(state->attrNames, i);
-            return (Node *) createFullAttrReference(strdup(attrName), 0, i + state->attrOffset, 0);
+            return (Node *) createFullAttrReference(strdup(attrName), 0, i + state->attrOffset, 0, typeOf(e));
         }
         i++;
     }

@@ -725,7 +725,8 @@ analyzeInsert(Insert * f)
                     val = (Node *) createFullAttrReference(strdup(a->attrName),
                             0,
                             INT_VALUE(MAP_GET_STRING(attrPos,a->attrName)),
-                            INVALID_ATTR);
+                            INVALID_ATTR,
+                            a->dataType);
                     // TODO sanity check DT
                 }
                 else

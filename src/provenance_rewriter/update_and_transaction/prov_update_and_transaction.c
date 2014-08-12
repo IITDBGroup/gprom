@@ -212,7 +212,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
             // adding SCN < update SCN condition
             scnAttr = createFullAttrReference("VERSIONS_STARTSCN", 0,
-                    getNumAttrs(OP_LCHILD(q)), INVALID_ATTR);
+                    getNumAttrs(OP_LCHILD(q)), INVALID_ATTR, DT_LONG);
             newCond = (Node *) createOpExpr("<=",
                     LIST_MAKE((Node *) scnAttr,
                             copyObject(getNthOfListP(scns,i))));
@@ -248,7 +248,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
 						// adding SCN < update SCN condition
 						scnAttr = createFullAttrReference("VERSIONS_STARTSCN", 0,
-						        getNumAttrs(OP_LCHILD(q)), INVALID_ATTR);
+						        getNumAttrs(OP_LCHILD(q)), INVALID_ATTR, DT_LONG);
 						newCond = (Node *) createOpExpr("<=",
 								LIST_MAKE((Node *) scnAttr,
 								        copyObject(getNthOfListP(scns,i))));
@@ -261,7 +261,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
                //make new case for SCN
                 Node *then = (Node *) createConstLong(-1);
-                Node *els = (Node *) createFullAttrReference("VERSIONS_STARTSCN", 0, getNumAttrs(OP_LCHILD(q)), INVALID_ATTR);
+                Node *els = (Node *) createFullAttrReference("VERSIONS_STARTSCN", 0, getNumAttrs(OP_LCHILD(q)), INVALID_ATTR, DT_LONG);
                 CaseExpr *caseExpr;
                 CaseWhen *caseWhen;
 
@@ -360,7 +360,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
     FOREACH(AttributeDef, attr, mergeRoot->schema->attrDefs)
     {
         if (strcmp(attr->attrName,"VERSIONS_STARTSCN") != 0)
-            projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, cnt, 0));
+            projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -549,7 +549,7 @@ adaptConditionForReadCommitted(Node *cond, Constant *scn, int attrPos)
     result = AND_EXPRS (
             cond,
             createOpExpr("<=", LIST_MAKE(createFullAttrReference(
-                    "VERSIONS_STARTSCN", 0, attrPos, INVALID_ATTR),
+                    "VERSIONS_STARTSCN", 0, attrPos, INVALID_ATTR, scn->constType),
                     copyObject(scn)))
         );
 
