@@ -101,6 +101,7 @@ typedef struct FromItem
     NodeTag type;
     char *name;
     List *attrNames;
+    List *dataTypes;
     FromProvInfo *provInfo;
 } FromItem;
 
@@ -231,7 +232,7 @@ extern ProvenanceStmt *createProvenanceStmt(Node *query);
 extern SelectItem *createSelectItem(char *alias, Node *expr);
 extern FromItem *createFromItem (char *alias, List *attrNames);
 extern FromItem *createFromTableRef(char *alias, List *attrNames,
-        char *tableId);
+        char *tableId, List *dataTypes);
 extern FromItem *createFromSubquery(char *alias, List *attrNames, Node *query);
 extern FromItem *createFromJoin(char *alias, List *attrNames, FromItem *left,
         FromItem *right, char *joinType, char *condType,

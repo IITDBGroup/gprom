@@ -190,6 +190,20 @@ isWindowFunction(char *functionName)
     return activePlugin->isWindowFunction(functionName);
 }
 
+DataType
+getFuncReturnType (char *fName, List *argTypes)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getFuncReturnType(fName, argTypes);
+}
+
+DataType
+getOpReturnType (char *oName, List *argTypes)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getOpReturnType(oName, argTypes);
+}
+
 char *
 getTableDefinition(char *tableName)
 {
@@ -254,6 +268,7 @@ createCache(void)
     result->tableNames = STRSET();
     result->aggFuncNames = STRSET();
     result->winFuncNames = STRSET();
+    result->cacheHook = NULL;
 
     return result;
 }

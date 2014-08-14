@@ -646,6 +646,7 @@ outAttributeReference (StringInfo str, AttributeReference *node)
     WRITE_INT_FIELD(fromClauseItem);
     WRITE_INT_FIELD(attrPosition);
     WRITE_INT_FIELD(outerLevelsUp);
+    WRITE_ENUM_FIELD(attrType,DataType);
 }
 
 static void

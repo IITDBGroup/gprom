@@ -2661,7 +2661,7 @@ yyreduce:
 #line 912 "sql_parser.y" /* yacc.c:1646  */
     {
                 RULELOG("fromClauseItem");
-				FromItem *f = createFromTableRef(NULL, NIL, (yyvsp[-1].stringVal));
+				FromItem *f = createFromTableRef(NULL, NIL, (yyvsp[-1].stringVal), NIL);
 				f->provInfo = (FromProvInfo *) (yyvsp[0].node);
                 (yyval.node) = (Node *) f;
             }
@@ -2673,7 +2673,7 @@ yyreduce:
     {
                 RULELOG("fromClauseItem");
                 FromItem *f = createFromTableRef(((FromItem *) (yyvsp[0].node))->name, 
-						((FromItem *) (yyvsp[0].node))->attrNames, (yyvsp[-1].stringVal));
+						((FromItem *) (yyvsp[0].node))->attrNames, (yyvsp[-1].stringVal), NIL);
 				f->provInfo = ((FromItem *) (yyvsp[0].node))->provInfo;
                 (yyval.node) = (Node *) f;
             }

@@ -863,7 +863,7 @@ fromClauseItem:
         identifier optionalFromProv
             {
                 RULELOG("fromClauseItem");
-				FromItem *f = createFromTableRef(NULL, NIL, $1);
+				FromItem *f = createFromTableRef(NULL, NIL, $1, NIL);
 				f->provInfo = (FromProvInfo *) $2;
                 $$ = (Node *) f;
             }
@@ -871,7 +871,7 @@ fromClauseItem:
             {
                 RULELOG("fromClauseItem");
                 FromItem *f = createFromTableRef(((FromItem *) $2)->name, 
-						((FromItem *) $2)->attrNames, $1);
+						((FromItem *) $2)->attrNames, $1, NIL);
 				f->provInfo = ((FromItem *) $2)->provInfo;
                 $$ = (Node *) f;
             }

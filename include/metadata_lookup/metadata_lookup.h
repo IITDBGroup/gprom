@@ -18,6 +18,7 @@
 
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
+#include "model/expression/expression.h"
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
 #include "model/query_block/query_block.h"
@@ -41,6 +42,8 @@ typedef struct CatalogCache
     Set *viewNames;             // set of existing view names
     Set *aggFuncNames;          // names of aggregate functions
     Set *winFuncNames;          // names of window functions
+    void *cacheHook;            // used to store
+//    void (*cleanAddCache) (CatalogCache *cache); // function to clean up additional cache
 } CatalogCache;
 
 /* plugin definition */
@@ -63,8 +66,12 @@ typedef struct MetadataLookupPlugin
     List * (*getAttributes) (char *tableName);
     List * (*getAttributeNames) (char *tableName);
     Node * (*getAttributeDefaultVal) (char *schema, char *tableName, char *attrName);
+
     boolean (*isAgg) (char *functionName);
     boolean (*isWindowFunction) (char *functionName);
+    DataType (*getFuncReturnType) (char *fName, List *argTypes);
+    DataType (*getOpReturnType) (char *oName, List *argTypes);
+
     char * (*getTableDefinition) (char *tableName);
     char * (*getViewDefinition) (char *viewName);
 
@@ -107,6 +114,8 @@ extern Node *getAttributeDefaultVal (char *schema, char *tableName, char *attrNa
 extern List *getAttributeDataTypes (char *tableName);
 extern boolean isAgg(char *functionName);
 extern boolean isWindowFunction(char *functionName);
+extern DataType getFuncReturnType (char *fName, List *argTypes);
+extern DataType getOpReturnType (char *oName, List *argTypes);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
 

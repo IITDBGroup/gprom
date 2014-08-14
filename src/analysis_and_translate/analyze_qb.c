@@ -622,10 +622,8 @@ analyzeFromTableRef(FromTableRef *f)
     if (f->from.attrNames != NIL)
         return;
 
-//    attrRefs = getAttributes(f->tableId);
     f->from.attrNames = getAttributeNames(f->tableId);
-    // FOREACH(AttributeReference,a,attrRefs)
-	// f->from.attrNames = appendToTailOfList(f->from.attrNames, a->name);
+//getAttributeDataTypes(f->tableId);
 
     if(f->from.name == NULL)
     	f->from.name = f->tableId;
@@ -759,6 +757,7 @@ static void analyzeDelete(Delete * f) {
 	List *subqueries = NIL;
 	List *attrDef = getAttributes(f->nodeName);
 	List *attrNames = NIL;
+	List *dataTypes = getAttributeDataTypes(f->nodeName);
 	FromTableRef *fakeTable;
 	List *fakeFrom = NIL;
 
@@ -766,7 +765,7 @@ static void analyzeDelete(Delete * f) {
 		attrNames = appendToTailOfList(attrNames, strdup(a->name));
 
 	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->nodeName), attrNames,
-			strdup(f->nodeName));
+			strdup(f->nodeName), dataTypes);
 	fakeFrom = singleton(singleton(fakeTable));
 
 	int attrPos = 0;
@@ -809,6 +808,7 @@ static void analyzeDelete(Delete * f) {
 static void analyzeUpdate(Update* f) {
 	List *attrRefs = NIL;
 	List *attrDef = getAttributes(f->nodeName);
+	List *dataTypes = getAttributeDataTypes(f->nodeName);
 	List *attrNames = NIL;
 	List *subqueries = NIL;
 	FromTableRef *fakeTable;
@@ -818,7 +818,7 @@ static void analyzeUpdate(Update* f) {
 		attrNames = appendToTailOfList(attrNames, strdup(a->name));
 
 	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->nodeName), attrNames,
-			strdup(f->nodeName));
+			strdup(f->nodeName), dataTypes);
 	fakeFrom = singleton(singleton(fakeTable));
 
 	boolean isFound = FALSE;
@@ -831,10 +831,7 @@ static void analyzeUpdate(Update* f) {
 	// adapt attributes
 	FOREACH(AttributeReference,a,attrRefs) {
 		boolean isFound = FALSE;
-		//		 FOREACH(List,fClause,fakeFrom)
-		//		    {
-		//		        FOREACH(FromItem, f, fClause)
-		//		        {
+
 		attrPos = findAttrInFromItem((FromItem *) fakeTable, a);
 
 		if (attrPos != INVALID_ATTR) {
@@ -847,8 +844,6 @@ static void analyzeUpdate(Update* f) {
 				a->outerLevelsUp = 0;
 			}
 		}
-		//		        }
-		//		    }
 
 		if (!isFound)
 			FATAL_LOG("do not find attribute %s", a->name);

@@ -10,6 +10,7 @@
 #include "metadata_lookup/metadata_lookup_oracle.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
@@ -484,9 +485,10 @@ oracleGetAttributes(char *tableName)
         for(i = 1; i <= n; i++)
         {
             OCI_Column *col = OCI_TypeInfoGetColumn(tInfo, i);
-            //TODO use attribute defition instead
-            AttributeReference *a = createAttributeReference((char *) OCI_GetColumnName(col));
-            attrList=appendToTailOfList(attrList,a);
+
+            AttributeDef *a = createAttributeDef((char *) OCI_GetColumnName(col),
+                    OCI_GetColumnType(col));
+            attrList = appendToTailOfList(attrList,a);
         }
 
         //add to table buffer list as cache to improve performance
@@ -502,6 +504,35 @@ oracleGetAttributes(char *tableName)
 
     // copy result to callers memory context
     RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
+}
+
+static DataType
+ociTypeToDT (unsigned int typ)
+{
+    /* - OCI_CDT_NUMERIC     : short, int, long long, float, double
+     * - OCI_CDT_DATETIME    : OCI_Date *
+     * - OCI_CDT_TEXT        : dtext *
+     * - OCI_CDT_LONG        : OCI_Long *
+     * - OCI_CDT_CURSOR      : OCI_Statement *
+     * - OCI_CDT_LOB         : OCI_Lob  *
+     * - OCI_CDT_FILE        : OCI_File *
+     * - OCI_CDT_TIMESTAMP   : OCI_Timestamp *
+     * - OCI_CDT_INTERVAL    : OCI_Interval *
+     * - OCI_CDT_RAW         : void *
+     * - OCI_CDT_OBJECT      : OCI_Object *
+     * - OCI_CDT_COLLECTION  : OCI_Coll *
+     * - OCI_CDT_REF         : OCI_Ref *
+     */
+    switch(typ)
+    {
+        case OCI_CDT_NUMERIC:
+            return DT_INT;
+        case OCI_CDT_TEXT:
+            return DT_STRING;
+        //TODO distinguish between int and float
+    }
+
+    return DT_STRING;
 }
 
 boolean

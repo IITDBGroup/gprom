@@ -57,22 +57,21 @@ static QueryOperator *
 translateInsert(Insert *insert)
 {
 	List *attr = getAttributeNames(insert->tableName);
+	List *dts = getAttributeDataTypes(insert->tableName);
 	QueryOperator *insertQuery;
 
 	TableAccessOperator *to;
-	to = createTableAccessOp(insert->tableName, NULL, NULL, NIL, deepCopyStringList(attr), NIL);
+	to = createTableAccessOp(insert->tableName, NULL, NULL, NIL, deepCopyStringList(attr), dts);
 	SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	if (isA(insert->query,  List))
 	{
 		ConstRelOperator *co;
-		co = createConstRelOp((List *) insert->query,NIL, deepCopyStringList(attr),NIL);
+		co = createConstRelOp((List *) insert->query,NIL, deepCopyStringList(attr), dts);
 		insertQuery= (QueryOperator *) co;
 	}
 	else
-	{
 	    insertQuery =  translateQuery((Node *) insert->query);
-	}
 
 	SetOperator *seto;
 	seto = createSetOperator(SETOP_UNION, NIL, NIL, deepCopyStringList(attr));
