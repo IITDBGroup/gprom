@@ -132,6 +132,7 @@ equalAttributeReference (AttributeReference *a,
     COMPARE_SCALAR_FIELD(fromClauseItem);
     COMPARE_SCALAR_FIELD(attrPosition);
     COMPARE_SCALAR_FIELD(outerLevelsUp);
+    COMPARE_SCALAR_FIELD(attrType);
 
     return TRUE;
 }
@@ -752,6 +753,7 @@ equalFromItem(FromItem *a, FromItem *b)
     COMPARE_STRING_FIELD(name);
     COMPARE_STRING_LIST_FIELD(attrNames);
     COMPARE_NODE_FIELD(provInfo);
+    COMPARE_NODE_FIELD(dataTypes);
     
     return TRUE;
 }

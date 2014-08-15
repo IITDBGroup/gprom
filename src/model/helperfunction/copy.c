@@ -717,6 +717,7 @@ copyFromItem (FromItem *from, FromItem *to)
     to->name = strdup(from->name);
     to->attrNames = deepCopyStringList(from->attrNames);
     to->provInfo = copyObject(from->provInfo);
+    to->dataTypes = copyObject(from->dataTypes);
 }
 
 #define COPY_FROM() copyFromItem((FromItem *) from, (FromItem *) new);

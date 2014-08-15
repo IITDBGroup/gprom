@@ -716,7 +716,7 @@ static inline QueryOperator *
 createTableAccessOpFromFromTableRef(FromTableRef *ftr)
 {
     TableAccessOperator *ta = createTableAccessOp(ftr->tableId, NULL,ftr->from.name,
-                NIL, ftr->from.attrNames, NIL); // TODO  get data types
+                NIL, ftr->from.attrNames, ftr->from.dataTypes); // TODO  get data types
     DEBUG_LOG("translated table access:\n%s\nINTO\n%s", nodeToString(ftr), nodeToString(ta));
     return ((QueryOperator *) ta);
 }

@@ -575,6 +575,7 @@ writeCommonFromItemFields(StringInfo str, FromItem *node)
     WRITE_STRING_FIELD(name);
     WRITE_STRING_LIST_FIELD(attrNames);
     WRITE_NODE_FIELD(provInfo);
+    WRITE_NODE_FIELD(dataTypes);
 }
 
 static void

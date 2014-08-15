@@ -63,6 +63,7 @@ static OCI_Resultset *executeStatement(char *statement);
 static boolean executeNonQueryStatement(char *statement);
 static void handleError (OCI_Error *error);
 static inline char *LobToChar (OCI_Lob *lob);
+static DataType ociTypeToDT(unsigned int typ);
 
 static void addToTableBuffers(char *tableName, List *attrs);
 static void addToViewBuffers(char *viewName, char *viewDef);
@@ -93,6 +94,8 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->isWindowFunction = oracleIsWindowFunction;
     plugin->getTableDefinition = oracleGetTableDefinition;
     plugin->getViewDefinition = oracleGetViewDefinition;
+    plugin->getOpReturnType = oracleGetOpReturnType;
+    plugin->getFuncReturnType = oracleGetFuncReturnType;
     plugin->getTransactionSQLAndSCNs = oracleGetTransactionSQLAndSCNs;
     plugin->executeAsTransactionAndGetXID = oracleExecuteAsTransactionAndGetXID;
     plugin->getCommitScn = oracleGetCommitScn;
@@ -465,12 +468,15 @@ oracleGetAttributes(char *tableName)
     START_TIMER("module - metadata lookup");
 
     if(tableName==NULL)
+    {
+        STOP_TIMER("module - metadata lookup");
         RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
+    }
     if((attrList = searchTableBuffers(tableName)) != NIL)
     {
         RELEASE_MEM_CONTEXT();
         STOP_TIMER("module - metadata lookup");
-        return attrList;
+        return copyObject(attrList);
     }
     //TODO use query SELECT c.COLUMN_NAME, c.DATA_TYPE FROM DBA_TAB_COLUMNS c WHERE OWNER='FGA_USER' AND TABLE_NAME = 'R' ORDER BY COLUMN_ID;
     // how to figure out schema
@@ -486,23 +492,22 @@ oracleGetAttributes(char *tableName)
         {
             OCI_Column *col = OCI_TypeInfoGetColumn(tInfo, i);
 
-            AttributeDef *a = createAttributeDef((char *) OCI_GetColumnName(col),
-                    OCI_GetColumnType(col));
+            AttributeDef *a = createAttributeDef(strdup((char *) OCI_GetColumnName(col)),
+                    ociTypeToDT(OCI_GetColumnType(col)));
             attrList = appendToTailOfList(attrList,a);
         }
 
         //add to table buffer list as cache to improve performance
         //user do not have to free the attrList by themselves
         addToTableBuffers(tableName, attrList);
+
         RELEASE_MEM_CONTEXT();
         STOP_TIMER("module - metadata lookup");
-        return attrList; //TODO copying
+        return copyObject(attrList); //TODO copying
     }
+
     ERROR_LOG("Not connected to database.");
-
     STOP_TIMER("module - metadata lookup");
-
-    // copy result to callers memory context
     RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
 }
 
@@ -819,6 +824,62 @@ oracleGetViewDefinition(char *viewName)
     STOP_TIMER("module - metadata lookup");
     RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY (NULL);
 }
+
+DataType
+oracleGetOpReturnType (char *oName, List *dataTypes)
+{
+    return DT_STRING;
+}
+
+DataType
+oracleGetFuncReturnType (char *fName, List *dataTypes)
+{
+    // aggregation functions
+    if (streq(fName,"sum")
+            || streq(fName, "min")
+            || streq(fName, "max")
+        )
+    {
+        ASSERT(LIST_LENGTH(dataTypes) == 1);
+        DataType argType = getNthOfListInt(dataTypes,0);
+
+        switch(argType)
+        {
+            case DT_INT:
+            case DT_LONG:
+                return DT_LONG;
+            case DT_FLOAT:
+                return DT_FLOAT;
+            default:
+                return DT_STRING;
+        }
+    }
+
+    if (streq(fName,"avg"))
+    {
+        ASSERT(LIST_LENGTH(dataTypes) == 1);
+        DataType argType = getNthOfListInt(dataTypes,0);
+
+        switch(argType)
+        {
+            case DT_INT:
+            case DT_LONG:
+            case DT_FLOAT:
+                return DT_FLOAT;
+            default:
+                return DT_STRING;
+        }
+    }
+
+    if (streq(fName,"count"))
+        return DT_LONG;
+
+    if (streq(fName,"xmlagg"))
+        return DT_STRING;
+
+    return DT_STRING;
+}
+
 
 long
 getBarrierScn(void)
@@ -1151,6 +1212,18 @@ MetadataLookupPlugin *
 assembleOracleMetadataLookupPlugin (void)
 {
     return NULL;
+}
+
+DataType
+oracleGetOpReturnType (char *oName, List *dataTypes)
+{
+    return DT_STRING;
+}
+
+DataType
+oracleGetFuncReturnType (char *fName, List *dataTypes)
+{
+    return DT_STRING;
 }
 
 #endif

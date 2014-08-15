@@ -62,6 +62,7 @@ static List *splitAttrOnDot (char *dotName);
 static char *generateAttrNameFromExpr(SelectItem *s);
 static List *splitTableName(char *tableName);
 static List *getQBAttrNames (Node *qb);
+static List *getQBAttrDTs (Node *qb);
 static boolean setViewFromTableRefAttrs(Node *node, List *views);
 
 /* str functions */
@@ -338,6 +339,7 @@ findAttrRefInFrom (AttributeReference *a, List *fromClauses)
                     a->fromClauseItem = fromPos;
                     a->attrPosition = attrPos;
                     a->outerLevelsUp = levelsUp;
+                    a->attrType = getNthOfListInt(f->dataTypes, attrPos);
                 }
             }
             fromPos++;
@@ -478,6 +480,7 @@ findQualifiedAttrRefInFrom (List *nameParts, AttributeReference *a, List *fromCl
             else
             {
                 a->attrPosition = attrPos;
+                a->attrType = getNthOfListInt(fromItem->dataTypes, attrPos);
                 foundAttr = TRUE;
             }
         }
@@ -611,19 +614,23 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
             j->from.attrNames = expectedAttrs;
         ASSERT(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
     }
+
+    j->from.dataTypes = CONCAT_LISTS((List *) copyObject(left->dataTypes),
+            (List *) copyObject(left->dataTypes));
 }
 
 static void
 analyzeFromTableRef(FromTableRef *f)
 {
-//    List *attrRefs;
+    List *dataTypes = getAttributeDataTypes(f->tableId);
+
+    f->from.dataTypes = dataTypes;
 
     // attribute names already set (view or temporary view for now)
     if (f->from.attrNames != NIL)
         return;
 
     f->from.attrNames = getAttributeNames(f->tableId);
-//getAttributeDataTypes(f->tableId);
 
     if(f->from.name == NULL)
     	f->from.name = f->tableId;
@@ -633,6 +640,7 @@ static void
 analyzeInsert(Insert * f)
 {
     List *attrNames = getAttributeNames(f->tableName);
+    List *dataTypes = getAttributeDataTypes(f->tableName);
     List *attrRefs = getAttributes(f->tableName);
     HashMap *attrPos = NULL;
     Set *attrNameSet = makeStrSetFromList(attrNames);
@@ -773,10 +781,7 @@ static void analyzeDelete(Delete * f) {
 	findAttrReferences((Node *) f->cond, &attrRefs);
 	FOREACH(AttributeReference,a,attrRefs) {
 		boolean isFound = FALSE;
-//		 FOREACH(List,fClause,fakeFrom)
-//		    {
-//		        FOREACH(FromItem, f, fClause)
-//		        {
+
 		attrPos = findAttrInFromItem((FromItem *) fakeTable, a);
 
 		if (attrPos != INVALID_ATTR) {
@@ -787,10 +792,9 @@ static void analyzeDelete(Delete * f) {
 				a->fromClauseItem = 0;
 				a->attrPosition = attrPos;
 				a->outerLevelsUp = 0;
+				a->attrType = getNthOfListInt(dataTypes, attrPos);
 			}
 		}
-//		        }
-//		    }
 
 		if (!isFound)
 			FATAL_LOG("do not find attribute %s", a->name);
@@ -805,7 +809,8 @@ static void analyzeDelete(Delete * f) {
 
 }
 
-static void analyzeUpdate(Update* f) {
+static void
+analyzeUpdate(Update* f) {
 	List *attrRefs = NIL;
 	List *attrDef = getAttributes(f->nodeName);
 	List *dataTypes = getAttributeDataTypes(f->nodeName);
@@ -842,6 +847,7 @@ static void analyzeUpdate(Update* f) {
 				a->fromClauseItem = 0;
 				a->attrPosition = attrPos;
 				a->outerLevelsUp = 0;
+				a->attrType = getNthOfListInt(dataTypes, attrPos);
 			}
 		}
 
@@ -868,8 +874,45 @@ analyzeFromSubquery(FromSubquery *sq, List *parentFroms)
 	// if no attr aliases given
 	if (!(sq->from.attrNames))
 	    sq->from.attrNames = expectedAttrs;
+	sq->from.dataTypes = getQBAttrDTs(sq->subquery);
 
 	ASSERT(LIST_LENGTH(sq->from.attrNames) == LIST_LENGTH(expectedAttrs));
+}
+
+static List *
+getQBAttrDTs (Node *qb)
+{
+    List *DTs = NIL;
+
+    switch(qb->type)
+    {
+        case T_QueryBlock:
+        {
+            QueryBlock *subQb = (QueryBlock *) qb;
+            FOREACH(SelectItem,s,subQb->selectClause)
+            {
+                DTs = appendToTailOfListInt(DTs,
+                        (int) typeOf(s->expr));
+            }
+        }
+        break;
+        case T_SetQuery:
+        {
+            SetQuery *setQ = (SetQuery *) qb;
+            DTs = getQBAttrDTs(setQ->lChild);
+        }
+        break;
+        case T_ProvenanceStmt:
+        {
+            ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
+            DTs = NIL; //TODO
+        }
+        break;
+        default:
+            break;
+    }
+
+    return DTs;
 }
 
 static List *

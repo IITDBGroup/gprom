@@ -65,6 +65,11 @@
 //TODO
 #endif
 
+/* <regex.h> */
+#if HAVE_REGEX_H
+#include <regex.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup

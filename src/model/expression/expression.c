@@ -61,7 +61,7 @@ createSQLParameter (char *name)
 
     result->name = strdup(name);
     result->position = INVALID_PARAM;
-    result->parType = DT_STRING;
+    result->parType = DT_STRING;//TODO
 
     return result;
 }
@@ -431,6 +431,7 @@ typeOfOp (Operator *op)
     if (streq(op->name,"+")
             || streq(op->name,"*")
             || streq(op->name,"/")
+            || streq(op->name,"-")
             )
     {
         DataType dLeft = getNthOfListInt(argDTs,0);
@@ -441,6 +442,22 @@ typeOfOp (Operator *op)
         if(dLeft == dRight)
             return dLeft;
     }
+
+    // string ops
+    if (streq(op->name,"||"))
+        return DT_STRING;
+
+    // comparison operators
+    if (streq(op->name,"<")
+            || streq(op->name,">")
+            || streq(op->name,"<=")
+            || streq(op->name,"=>")
+            || streq(op->name,"<>")
+            || streq(op->name,"^=")
+            || streq(op->name,"=")
+            || streq(op->name,"!=")
+                )
+        return DT_BOOL;
 
     return getOpReturnType(op->name, argDTs);
 }

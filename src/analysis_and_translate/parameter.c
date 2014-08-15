@@ -31,6 +31,8 @@ typedef struct ParByNameState
 static boolean findParamVisitor(Node *node, List **state);
 static Node *replaceParamMutator (Node *node, List *state);
 static Node *replaceParamByNameMutator (Node *node, ParByNameState *state);
+static Constant *createBindConstant (char *value);
+static boolean regExMatch (char *reg, char *str);
 
 Node *
 setParameterValues (Node *qbModel, List *values)
@@ -159,10 +161,66 @@ oracleBindToConsts (char *binds)
         pos += len;
         DEBUG_LOG("remaining parse is: <%s>", pos);
 
-        result = appendToTailOfList(result, (Node *) createConstString(value));
+        result = appendToTailOfList(result, (Node *) createBindConstant(value));
         DEBUG_LOG("parameters parsed so far <%s>", nodeToString(result));
         FREE(value);
     }
 
     return result;
+}
+
+/*
+ * For now we try to infer the type of bind variable from its string
+ * representation. Is there a better way?
+ */
+static Constant *
+createBindConstant (char *value)
+{
+    Constant *result;
+
+    if(regExMatch("^[0-9][0-9]*$",value))
+        return createConstLong(atol(value));
+
+    if(regExMatch("^[0-9][0-9]*\\.[0-9][0-9]*$",value))
+        return createConstFloat(atof(value));
+
+    return createConstString(value);
+}
+
+
+static boolean
+regExMatch (char *reg, char *str)
+{
+    regex_t regex;
+    int reti;
+    char msgbuf[100];
+
+    DEBUG_LOG("Match <%s> against <%s>", reg, str);
+
+    reti = regcomp(&regex, reg, 0);
+    if (reti)
+    {
+        regerror(reti, &regex, msgbuf, sizeof(msgbuf));
+        FATAL_LOG("Could not compile regex <%s>:\n%s", reg, msgbuf);
+    }
+
+    /* Execute regular expression */
+    reti = regexec(&regex, str, 0, NULL, 0);
+    if (!reti)
+    {
+        regfree(&regex);
+        return TRUE;
+    }
+    else if (reti == REG_NOMATCH)
+    {
+        regfree(&regex);
+        return FALSE;
+    }
+    else
+    {
+        regerror(reti, &regex, msgbuf, sizeof(msgbuf));
+        FATAL_LOG("Regex match for <%s> on <%s> failed: %s", reg, str, msgbuf);
+    }
+
+    return FALSE;
 }
