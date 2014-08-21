@@ -425,7 +425,9 @@ rewritePI_CSJoin (JoinOperator *op)
     QueryOperator *rChild = OP_RCHILD(op);
 
     // rewrite children
+    // if (!HAS_STRING_PROP(PROP...))
     lChild = rewritePI_CSOperator(lChild);
+    // if (!HAS_STRING_PROP(PROP...))
     rChild = rewritePI_CSOperator(rChild);
 
     // adapt schema for join op
@@ -445,6 +447,8 @@ rewritePI_CSJoin (JoinOperator *op)
     addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
     switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
     addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
+
+    // SET PROP IS_REWRITTEN
 
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
     return (QueryOperator *) op;
