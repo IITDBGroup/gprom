@@ -106,7 +106,7 @@ testParseBinds (void)
 {
     char *binds = " #1(3):123 #2(5):abcde";
     List *consts = NIL;
-    List *expected = LIST_MAKE(createConstString("123"), createConstString("abcde"));
+    List *expected = LIST_MAKE(createConstLong(123), createConstString("abcde"));
 
     consts = oracleBindToConsts(binds);
     ASSERT_EQUALS_NODE(expected, consts, "parsed parameters should be [123,abcde]");
