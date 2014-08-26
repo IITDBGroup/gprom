@@ -12,12 +12,15 @@
 
 #include "common.h"
 
+#include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
-
+#include "model/node/nodetype.h"
+#include "model/set/set.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 
 static boolean checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent);
+static boolean checkUniqueAttrNames (QueryOperator *op);
 
 
 boolean
@@ -284,6 +287,25 @@ checkSchemaConsistency (QueryOperator *op)
     FOREACH(QueryOperator,o,op->inputs)
         if (!checkSchemaConsistency(o))
             return FALSE;
+
+    return checkUniqueAttrNames(op);
+}
+
+static boolean
+checkUniqueAttrNames (QueryOperator *op)
+{
+    Set *names = STRSET();
+
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    {
+        if (hasSetElem(names,a->attrName))
+        {
+            ERROR_LOG("Attribute <%s> appears more than once in\n\n%s",
+                    a->attrName, operatorToOverviewString((Node *) op));
+            return FALSE;
+        }
+        addToSet(names,strdup(a->attrName));
+    }
 
     return TRUE;
 }

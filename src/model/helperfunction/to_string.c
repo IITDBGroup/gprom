@@ -1341,5 +1341,5 @@ static void
 indentString(StringInfo str, int level)
 {
     while(level-- > 0)
-        appendStringInfoChar(str, '\t');
+        appendStringInfoString(str, "  ");
 }
