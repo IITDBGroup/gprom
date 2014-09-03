@@ -39,10 +39,13 @@ extern HashMap *newHashMap(NodeTag keyType, NodeTag valueType, boolean (*eq) (vo
 extern boolean hasMapKey (HashMap *map, Node *key);
 #define MAP_HAS_STRING_KEY(map,key) hasMapKey(map, (Node *) createConstString(key))
 #define MAP_HAS_INT_KEY(map,key) hasMapKey(map, (Node *) createConstInt(key))
+#define MAP_HAS_LONG_KEY(map,key) hasMapKey(map, (Node *) createConstLong(key))
 
 extern Node *getMap (HashMap *map, Node *key);
 #define MAP_GET_STRING(map,key) getMap(map, (Node *) createConstString(key))
 #define MAP_GET_INT(map,key) getMap(map, (Node *) createConstInt(key))
+#define MAP_GET_LONG(map,key) getMap(map, (Node *) createConstLong(key))
+
 extern KeyValue *getMapEntry (HashMap *map, Node *key);
 #define MAP_GET_STRING_ENTRY(map,key) getMapEntry(map, (Node *) createConstString(key))
 
@@ -55,6 +58,7 @@ extern boolean addToMap (HashMap *map, Node *key, Node *value);
 	} while(0)
 #define MAP_ADD_STRING_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstString(key), (Node *) value)
 #define MAP_ADD_INT_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstInt(key), (Node *) value)
+#define MAP_ADD_LONG_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstLong(key), (Node *) value)
 
 // remove elements from map
 extern void removeAndFreeMapElem (HashMap *map, Node *key);

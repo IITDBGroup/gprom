@@ -144,6 +144,8 @@ typedef struct OrderOperator
         || isA(op,SetOperator)                          \
         || isA(op,NestingOperator))
 
+#define IS_OP(op) (IS_NULLARY_OP(op) || IS_UNARY_OP(op) || IS_BINARY_OP(op))
+
 /* schema helper functions */
 extern AttributeDef *createAttributeDef (char *name, DataType dt);
 extern Schema *createSchema(char *name, List *attrDefs);
@@ -228,6 +230,9 @@ extern int getNumAttrs(QueryOperator *op);
 extern int getAttrPos(QueryOperator *op, char *attr);
 extern AttributeDef *getAttrDefByName(QueryOperator *op, char *attr);
 extern AttributeDef *getAttrDefByPos(QueryOperator *op, int pos);
+extern char *getAttrNameByPos(QueryOperator *op, int pos);
+
+extern List *getAttrRefsInOperator (QueryOperator *op);
 
 /* operator specific functions */
 extern List *aggOpGetGroupByAttrNames(AggregationOperator *op);

@@ -87,7 +87,7 @@ escapeUnderscore (char *str)
 
     result = (char *) MALLOC(newLen + 1);
 
-    for(int i = 0, j = 0; i < len; i++, j++)
+    for(int i = 0, j = 0; i <= len; i++, j++)
     {
         if (str[i] == '_')
         {

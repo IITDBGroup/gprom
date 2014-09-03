@@ -175,6 +175,12 @@ char *itoa(int value);
 /* get a dot script for a query operator graph or query block tree */
 extern char *nodeToDot(void *obj);
 
+#define DOT_TO_CONSOLE(obj) \
+    do { \
+        if (getBoolOption(OPTION_GRAPHVIZ)) \
+            printf("%s",nodeToDot(obj)); \
+    } while (0)
+
 /* create a node tree from a string */
 extern void *stringToNode(char *str);
 

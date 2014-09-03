@@ -15,6 +15,7 @@ typedef enum OptionType {
 /* define rewrite methods */
 #define OPTION_TIMING "timing"
 #define OPTION_MEMMEASURE "memdebug"
+#define OPTION_GRAPHVIZ "graphviz"
 #define OPTION_AGGRESSIVE_MODEL_CHECKING "aggressive_model_checking"
 
 #define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"

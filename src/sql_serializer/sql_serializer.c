@@ -21,6 +21,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 
 
 
@@ -105,6 +106,8 @@ typedef struct JoinAttrRenameState {
         CLOSE_PARENS(str); \
     } while(0)
 
+#define ORACLE_IDENT_LIMIT 30
+
 /* variables */
 static TemporaryViewMap *viewMap;
 static int viewNameCounter;
@@ -135,6 +138,10 @@ static char *createFromNames(int *attrOffset, int count);
 
 static List *createTempView(QueryOperator *q, StringInfo str);
 static char *createViewName(void);
+static void shortenAttributeNames(QueryOperator *q);
+static inline char *getShortAttr(char *newName, int id);
+static void fixAttrReferences (QueryOperator *q);
+
 
 char *
 serializeOperatorModel(Node *q)
@@ -142,17 +149,23 @@ serializeOperatorModel(Node *q)
     StringInfo str = makeStringInfo();
     char *result = NULL;
 
+
+
     // quote ident names if necessary
     quoteAttributeNames(q, NULL);
 
     if (isA(q, QueryOperator))
     {
+        // shorten attribute names to oracle's 30 char limit
+        shortenAttributeNames((QueryOperator *) q);
         appendStringInfoString(str, serializeQuery((QueryOperator *) q));
         appendStringInfoChar(str,';');
     }
     else if (isA(q, List))
         FOREACH(QueryOperator,o,(List *) q)
         {
+            // shorten attribute names to oracle's 30 char limit
+            shortenAttributeNames(o);
             appendStringInfoString(str, serializeQuery(o));
             appendStringInfoString(str,";\n\n");
         }
@@ -162,6 +175,68 @@ serializeOperatorModel(Node *q)
     result = str->data;
     FREE(str);
     return result;
+}
+
+static void
+shortenAttributeNames(QueryOperator *q)
+{
+    Set *newAttrNames = STRSET();
+    List *attrs = q->schema->attrDefs;
+
+    FOREACH(QueryOperator,child,q->inputs)
+        shortenAttributeNames(child);
+
+    fixAttrReferences(q);
+
+    FOREACH(AttributeDef,a,attrs)
+    {
+        char *name = a->attrName;
+
+        if (strlen(name) > ORACLE_IDENT_LIMIT)
+        {
+            char *newName = MALLOC(ORACLE_IDENT_LIMIT + 1);
+            memcpy(newName,name,ORACLE_IDENT_LIMIT  + 1);
+            newName[ORACLE_IDENT_LIMIT  + 1] = '\0';
+            int dup = 0;
+
+            //TODO make more efficient
+            while(hasSetElem(newAttrNames,getShortAttr(newName, dup++)))
+                ;
+
+            DEBUG_LOG("shorten attr <%s> to <%s>", a->attrName, name);
+
+            addToSet(newAttrNames, newName);
+            a->attrName = strdup(newName);
+        }
+    }
+}
+
+static inline char*
+getShortAttr(char *newName, int id)
+{
+    char *idStr = itoa(id);
+    int idLen = strlen(idStr) + 1;
+    int offset = ORACLE_IDENT_LIMIT - idLen;
+    memcpy(newName + offset, idStr, idLen);
+    newName[offset - 1] = '#';
+
+    DEBUG_LOG("shortened attr  <%s>", newName);
+
+    return newName;
+}
+
+static void
+fixAttrReferences (QueryOperator *q)
+{
+    List *attRefs = getAttrRefsInOperator (q);
+
+    FOREACH(AttributeReference, a, attRefs)
+    {
+        QueryOperator *child = getNthOfListP(q->inputs, a->fromClauseItem);
+        char *newName = getAttrNameByPos(child,a->attrPosition);
+        if (!streq(newName, a->name))
+            a->name = strdup(newName);
+    }
 }
 
 static boolean

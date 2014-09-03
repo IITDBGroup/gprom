@@ -173,6 +173,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     oModel = translateParse(parse);
     DEBUG_LOG("translator returned:\n\n<%s>", nodeToString(oModel));
     INFO_LOG("translator result as overview:\n\n%s", operatorToOverviewString(oModel));
+    DOT_TO_CONSOLE(oModel);
     STOP_TIMER("translation");
 
     ASSERT_BARRIER(
@@ -187,6 +188,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     rewrittenTree = provRewriteQBModel(oModel);
     DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
     INFO_LOG("provenance rewritten query as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
+    DOT_TO_CONSOLE(rewrittenTree);
     STOP_TIMER("rewrite");
 
     ASSERT_BARRIER(
@@ -210,6 +212,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
                 LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
         else
             rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
+    DOT_TO_CONSOLE(rewrittenTree);
 
     START_TIMER("SQLcodeGen");
     appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));

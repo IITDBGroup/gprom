@@ -71,6 +71,7 @@ char *plugin_sqlcodegen = NULL;
 // instrumentation options
 boolean opt_timing = FALSE;
 boolean opt_memmeasure = FALSE;
+boolean opt_graphviz_output = FALSE;
 
 // rewrite options
 boolean opt_aggressive_model_checking = FALSE;
@@ -253,6 +254,11 @@ OptionInfo opts[] =
                 "measure and output memory allocation stats.",
                 opt_memmeasure,
                 FALSE),
+        aRewriteOption(OPTION_GRAPHVIZ,
+                NULL,
+                "output created query operator models as graphviz scripts.",
+                opt_graphviz_output,
+                FALSE),
         // boolean rewrite options
         aRewriteOption(OPTION_AGGRESSIVE_MODEL_CHECKING,
                 NULL,
@@ -386,11 +392,6 @@ setDefault(OptionInfo *o)
 void
 mallocOptions()
 {
-//	options=MAKE_OPTIONS();
-//	options->optionConnection=MAKE_OPTION_CONNECTION();
-//	options->optionDebug=MAKE_OPTION_DEBUG();
-//	options->optionRewrite=NIL;
-
 	initOptions();
 }
 
