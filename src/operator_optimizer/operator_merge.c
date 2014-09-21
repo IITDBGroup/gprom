@@ -59,7 +59,7 @@ mergeSelection(SelectionOperator *op)
         op->op.inputs = child->op.inputs;
 
         FOREACH(QueryOperator, el, op->op.inputs)
-        	el->parents = child->op.parents;
+        	el->parents = copyObject(child->op.parents);
 
         // clean up child
         child->cond = NULL;
