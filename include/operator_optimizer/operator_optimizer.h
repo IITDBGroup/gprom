@@ -27,4 +27,6 @@ extern QueryOperator *pushDownSelectionOperatorOnProv(QueryOperator *root);
 
 extern QueryOperator *factorAttrsInExpressions(QueryOperator *root);
 
+extern QueryOperator *removeRedundantProjections(QueryOperator *root);
+
 #endif /* OPERATOR_OPTIMIZER_H_ */

@@ -88,6 +88,7 @@ boolean opt_optimization_push_selections = FALSE;
 boolean opt_optimization_merge_ops = FALSE;
 boolean opt_optimization_factor_attrs = FALSE;
 boolean opt_materialize_unsafe_proj = FALSE;
+boolean opt_remove_redundant_projections = TRUE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -324,6 +325,12 @@ OptionInfo opts[] =
                 "if merged with adjacent projection would cause expontential "
                 "expression size blowup",
                 opt_materialize_unsafe_proj,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS,
+                "-Oremove_redundant_projections",
+                "Optimization: try to remove redundant projections",
+                opt_remove_redundant_projections,
                 TRUE
         ),
         // stopper to indicate end of array

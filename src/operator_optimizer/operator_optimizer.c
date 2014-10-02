@@ -102,6 +102,15 @@ optimizeOneGraph (QueryOperator *root)
         ASSERT(checkModel((QueryOperator *) rewrittenTree));
         STOP_TIMER("OptimizeModel - set materialization hints");
     }
+
+    if(getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS))
+    {
+      START_TIMER("OptimizeModel - remove redundant projections");
+      rewrittenTree = removeRedundantProjections((QueryOperator *) rewrittenTree);
+      DEBUG_LOG("remove redundant projections\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+      ASSERT(checkModel((QueryOperator *) rewrittenTree));
+      STOP_TIMER("OptimizeModel - set materialization hints");
+    }
     return rewrittenTree;
 }
 
@@ -163,3 +172,33 @@ factorAttrsInExpressions(QueryOperator *root)
 
     return root;
 }
+
+
+QueryOperator *
+removeRedundantProjections(QueryOperator *root)
+{
+
+  QueryOperator *lChild = OP_LCHILD(root);
+
+  if (isA(root, ProjectionOperator) && isA(lChild, TableAccessOperator))
+  {
+    List *a = root->schema->attrDefs;
+    List *b = lChild->schema->attrDefs;
+
+    /* Compare the Attribute References */
+    boolean compare = equal(a, b);
+
+    if (compare)
+    {
+      // Remove Parent and make lChild as the new parent
+      removeParentFromOps(root->inputs, (QueryOperator *) root);
+      root = lChild;
+    }
+  }
+
+  FOREACH(QueryOperator, o, root->inputs)
+    removeRedundantProjections(o);
+
+  return root;
+}
+
