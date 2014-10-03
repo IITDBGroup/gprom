@@ -22,6 +22,7 @@
 #include "model/query_operator/schema_utility.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/operator_property.h"
+#include "provenance_rewriter/prov_utility.h"
 
 static QueryOperator *optimizeOneGraph (QueryOperator *root);
 
@@ -180,7 +181,7 @@ removeRedundantProjections(QueryOperator *root)
 
   QueryOperator *lChild = OP_LCHILD(root);
 
-  if (isA(root, ProjectionOperator) && isA(lChild, TableAccessOperator))
+  if (isA(root, ProjectionOperator))
   {
     List *a = root->schema->attrDefs;
     List *b = lChild->schema->attrDefs;
