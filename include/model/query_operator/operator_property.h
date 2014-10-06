@@ -21,7 +21,7 @@
 #define PROP_HAS_PROVENANCE "HAS_PROVENANCE"                // indicates the subquery already has associated provenance
 #define PROP_USER_PROV_ATTRS "USER_PROV_ATTRS"              // list of user selected provenance attribtues
 #define PROP_PROV_REL_NAME "PROVENANCE_REL_NAME"            // in provenance attributes refer to subquery as this name
-
+#define PROP_ADD_PROVENANCE "ADD_PROVENANCE"                // add the following attribtues to as provenance attributes (but still rewrite and add normal provenance attrs too)
 
 // provenance PI-CS composable
 #define PROP_RESULT_TID_ATTR "RESULT_TID_ATTR"              // result tid attribute for PI-CS composable
@@ -29,7 +29,7 @@
 #define PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME "PROVENANCE_OPERATOR_TUPLE_AT_A_TIME" // is the operator not sensitive to duplication
 
 // provenance of transaction
-#define PROP_PROV_IS_UPDATE_ROOT "UPDATE_ROOT"                         // root of a translated update reenactment query
+#define PROP_PROV_IS_UPDATE_ROOT "UPDATE_ROOT"              // root of a translated update reenactment query
 
 /* Operator type specific properties */
 /* provenance computation specific properties */
@@ -47,6 +47,6 @@
 #define PROP_TABLE_USE_ROWID_VERSION "USE_ROW_ID_VERSION"   // use rowid and version as provenance
 
 /* projection properties */
-#define PROP_MERGE_ATTR_REF_CNTS "MERGE SAFE ATTRIBUTE COUNTS"                        // safe to merge this projection with its child
+#define PROP_MERGE_ATTR_REF_CNTS "MERGE SAFE ATTRIBUTE COUNTS"                        // safe to merge this projection with its child?
 
 #endif /* OPERATOR_PROPERTY_H_ */

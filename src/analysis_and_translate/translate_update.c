@@ -196,7 +196,7 @@ translateUpdateWithCase(Update *update)
 			    Node *cond = copyObject(update->cond);
 			    Node *then = copyObject(getNthOfListP(o->args, 1));
 			    Node *els = (Node *) createFullAttrReference(getNthOfListP(attrs, i),
-	                    0, i, 0,DT_STRING); //TODO
+	                    0, i, 0, a->attrType); //TODO
 			    CaseExpr *caseExpr;
 			    CaseWhen *caseWhen;
 

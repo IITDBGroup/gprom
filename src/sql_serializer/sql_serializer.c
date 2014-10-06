@@ -115,6 +115,9 @@ static int viewNameCounter;
 /* method declarations */
 static boolean quoteAttributeNames (Node *node, void *context);
 
+static void  makeDTOracleConformant(QueryOperator *q);
+static boolean replaceNonOracleDTs (Node *node, void *context);
+
 static List *serializeQueryOperator (QueryOperator *q, StringInfo str);
 static List *serializeQueryBlock (QueryOperator *q, StringInfo str);
 static List *serializeSetOperator (QueryOperator *q, StringInfo str);
@@ -281,6 +284,9 @@ serializeQuery(QueryOperator *q)
     viewMap = NULL;
     viewNameCounter = 0;
 
+    // simulate non Oracle conformant data types and expressions (boolean)
+    makeDTOracleConformant(q);
+
     // call main entry point for translation
     serializeQueryOperator (q, str);
 
@@ -309,6 +315,42 @@ serializeQuery(QueryOperator *q)
 
     // copy result to callers memory context and clean up
     FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+}
+
+/*
+ * Replace boolean data types
+ */
+static void
+makeDTOracleConformant(QueryOperator *q)
+{
+    replaceNonOracleDTs((Node *) q, NULL);
+}
+
+static boolean
+replaceNonOracleDTs (Node *node, void *context)
+{
+    if (node == NULL)
+        return TRUE;
+
+    //TODO keep context
+    //TODO take care of boolean expressions that are used where Oracle expects
+    if (isA(node,Constant))
+    {
+        Constant *c = (Constant *) node;
+
+        if (c->constType == DT_BOOL)
+        {
+            boolean val = BOOL_VALUE(c);
+            c->constType = DT_INT;
+            c->value = NEW(int);
+            if (val)
+                INT_VALUE(c) = 1;
+            else
+                INT_VALUE(c) = 0;
+        }
+    }
+
+    return visit(node, replaceNonOracleDTs, context);
 }
 
 /*

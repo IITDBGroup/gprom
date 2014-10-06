@@ -22,6 +22,7 @@
 #include "model/node/nodetype.h"
 #include "provenance_rewriter/prov_schema.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/expression/expression.h"
 
 static QueryOperator *rewritePI_CSOperator (QueryOperator *op);
@@ -35,6 +36,7 @@ static QueryOperator *rewritePI_CSConstRel(ConstRelOperator *op);
 static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 static QueryOperator *rewritePI_CSOrderOp(OrderOperator *op);
 
+static QueryOperator *addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs);
 static QueryOperator *addIntermediateProvenance (QueryOperator *op, List *userProvAttrs);
 static QueryOperator *rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs);
 static QueryOperator *rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs);
@@ -87,9 +89,13 @@ rewritePI_CSOperator (QueryOperator *op)
     boolean showIntermediate = HAS_STRING_PROP(op,  PROP_SHOW_INTERMEDIATE_PROV);
     boolean noRewriteUseProv = HAS_STRING_PROP(op, PROP_USE_PROVENANCE);
     boolean noRewriteHasProv = HAS_STRING_PROP(op, PROP_HAS_PROVENANCE);
+    boolean rewriteAddProv = HAS_STRING_PROP(op, PROP_ADD_PROVENANCE);
     List *userProvAttrs = (List *) getStringProperty(op, PROP_USER_PROV_ATTRS);
-
+    List *addProvAttrs;
     QueryOperator *rewrittenOp;
+
+    if (rewriteAddProv)
+        addProvAttrs = (List *)  GET_STRING_PROP(op, PROP_ADD_PROVENANCE);
 
     if (noRewriteUseProv)
         return rewritePI_CSAddProvNoRewrite(op, userProvAttrs);
@@ -142,10 +148,89 @@ rewritePI_CSOperator (QueryOperator *op)
     if (showIntermediate)
         rewrittenOp = addIntermediateProvenance(rewrittenOp, userProvAttrs);
 
+    if (rewriteAddProv)
+        rewrittenOp = addUserProvenanceAttributes(rewrittenOp, addProvAttrs);
+
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel(rewrittenOp));
 
     return rewrittenOp;
+}
+
+static QueryOperator *
+addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs)
+{
+    QueryOperator *proj;
+    List *attrNames = NIL;
+    List *projExpr = NIL;
+    List *provAttrPos = NIL;
+    List *normalAttrExprs = getNormalAttrProjectionExprs(op);
+    List *userPAttrExprs = NIL;
+    int cnt = 0;
+    char *newAttrName;
+    int relAccessCount;
+    char *tableName; // = "INTERMEDIATE";
+    Set *userNames = STRSET();
+
+    // create set for fast access
+    FOREACH(Constant,n,userProvAttrs)
+        addToSet(userNames,STRING_VALUE(n));
+
+    FOREACH(AttributeReference,a,normalAttrExprs)
+    {
+        if (hasSetElem(userNames, a->name))
+            userPAttrExprs = appendToTailOfList(userPAttrExprs,a);
+    }
+
+    if (isA(op,TableAccessOperator))
+        tableName = ((TableAccessOperator *) op)->tableName;
+    else
+        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
+
+    relAccessCount = getRelNameCount(&nameState, tableName);
+
+    DEBUG_LOG("REWRITE-PICS - Add Intermediate Provenance Attrs <%s> <%u>",  tableName, relAccessCount);
+
+    attrNames = getQueryOperatorAttrNames(op);
+    provAttrPos = copyObject(op->provAttrs);
+
+    // Get the provenance name for each attribute
+    FOREACH(AttributeDef, attr, op->schema->attrDefs)
+    {
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+        cnt++;
+    }
+
+    FOREACH(AttributeReference, a, userPAttrExprs)
+    {
+        //TODO naming of intermediate results
+        newAttrName = getProvenanceAttrName(tableName, a->name, relAccessCount);
+        DEBUG_LOG("new attr name: %s", newAttrName);
+        attrNames = appendToTailOfList(attrNames, newAttrName);
+        projExpr = appendToTailOfList(projExpr, a);
+    }
+
+    List *newProvPosList = NIL;
+    CREATE_INT_SEQ(newProvPosList, cnt, cnt + LIST_LENGTH(userPAttrExprs) - 1, 1);
+    provAttrPos = CONCAT_LISTS(provAttrPos, newProvPosList);
+    DEBUG_LOG("add intermediate provenance\n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
+            stringListToString(attrNames),
+            nodeToString(projExpr),
+            nodeToString(provAttrPos));
+
+    // Create a new projection operator with these new attributes
+    proj = (QueryOperator *) createProjectionOp(projExpr, NULL, NIL, attrNames);
+    proj->provAttrs = provAttrPos;
+
+    // Switch the subtree with this newly created projection operator.
+    switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) proj);
+
+    // Add child to the newly created projections operator,
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
+
+    DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
+
+    return proj;
 }
 
 static QueryOperator *

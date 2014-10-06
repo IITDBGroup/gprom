@@ -37,8 +37,8 @@ static Node *adaptConditionForReadCommitted(Node *cond, Constant *scn, int attrP
 
 static List *findUpdatedTableAccceses (List *tables);
 
-static KeyValue *getMapCond (List *props, char *key);
-static void setMapCond (List **props, KeyValue *newVal);
+static void addUpdateAnnotationAttrs (ProvenanceComputation *op);
+static void addAnnotConstToUnion (QueryOperator *un, boolean leftIsTrue, char *annotName);
 
 
 void mergeUpdateSequence(ProvenanceComputation *op) {
@@ -47,22 +47,145 @@ void mergeUpdateSequence(ProvenanceComputation *op) {
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));
 
+    // add boolean attributes to store whether update did modify a row
+    addUpdateAnnotationAttrs (op);
+
+    // merge updates to create transaction reenactment query
 	switch (tInfo->transIsolation) {
-	case ISOLATION_SERIALIZABLE:
-		mergeSerializebleTransaction(op);
-		break;
-	case ISOLATION_READ_COMMITTED:
-		mergeReadCommittedTransaction(op);
-		break;
-	default:
-		FATAL_LOG("isolation level %u not supported:", tInfo->transIsolation);
-		break;
+        case ISOLATION_SERIALIZABLE:
+            mergeSerializebleTransaction(op);
+            break;
+        case ISOLATION_READ_COMMITTED:
+            mergeReadCommittedTransaction(op);
+            break;
+        default:
+            FATAL_LOG("isolation level %u not supported:", tInfo->transIsolation);
+            break;
 	}
+
+	//TODO add projection to remove update annot attribute
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));
 
 	INFO_LOG("updates after merge:\n%s", operatorToOverviewString((Node *) op));
+}
+
+static void
+addUpdateAnnotationAttrs (ProvenanceComputation *op)
+{
+    int i = 0;
+
+    // add projection for each update to create the update attribute
+    FORBOTH_LC(uLc, trLc, op->transactionInfo->originalUpdates, op->op.inputs)
+    {
+        QueryOperator *q = (QueryOperator *) LC_P_VAL(trLc);
+        Node *u = (Node *) LC_P_VAL(uLc);
+        Node *annotAttr;
+        char *annotName;
+
+        annotName = CONCAT_STRINGS("up_", itoa(i));
+
+        // mark update annotation attribute as provenance
+        SET_STRING_PROP(q, PROP_ADD_PROVENANCE, LIST_MAKE(createConstString(annotName)));
+        SET_STRING_PROP(q, PROP_PROV_REL_NAME, createConstString("STATEMENT"));
+
+        // use original update to figure out type of each update (UPDATE/DELETE/INSERT)
+        // switch
+        switch (u->type) {
+            case T_Insert:
+                addAnnotConstToUnion(q, FALSE, annotName);
+            break;
+            case T_Update:
+            {
+                Update *up = (Update *) u;
+
+                // if update CASE translation was used
+                if (isA(q,ProjectionOperator))
+                {
+                    Node *annotAttr;
+                    ProjectionOperator *p = (ProjectionOperator *) q;
+                    Node *cond = getNthOfListP(
+                            (List *) GET_STRING_PROP(op, PROP_PC_UPDATE_COND), i);
+
+                    // add proj expr CASE WHEN C THEN TRUE ELSE FALSE END
+                    annotAttr = (Node *) createCaseExpr(NULL,
+                            LIST_MAKE(createCaseWhen(cond,
+                                    (Node *) createConstBool(TRUE))),
+                            (Node *) createConstBool(FALSE));
+                    p->projExprs = appendToTailOfList(p->projExprs, annotAttr);
+
+                    // add attribute name for annotation attribute to schema
+                    p->op.schema->attrDefs =
+                            appendToTailOfList(p->op.schema->attrDefs,
+                                    createAttributeDef(strdup(annotName), DT_BOOL));
+                }
+                // else union was used
+                else
+                    addAnnotConstToUnion(q, TRUE, annotName);
+            }
+            break;
+            case T_Delete:
+            {
+                ProjectionOperator *p;
+
+                p = (ProjectionOperator *) createProjOnAllAttrs(q);
+                switchSubtrees(q, (QueryOperator *) p);
+
+                p->projExprs = appendToTailOfList(p->projExprs, (Node *) createConstBool(FALSE));
+
+                // add attribute name for annotation attribute to schema
+                p->op.schema->attrDefs =
+                        appendToTailOfList(p->op.schema->attrDefs,
+                                createAttributeDef(strdup(annotName), DT_BOOL));
+            }
+            break;
+            default:
+                FATAL_LOG("expected insert, update, or delete");
+        }
+
+        i++;
+    }
+}
+
+static void
+addAnnotConstToUnion (QueryOperator *un, boolean leftIsTrue, char *annotName)
+{
+    QueryOperator *rChild = OP_RCHILD(un);
+    QueryOperator *lChild = OP_LCHILD(un);
+    ProjectionOperator *p;
+
+    // if is a projection then just add projection expression
+    if (isA(rChild, ProjectionOperator))
+        p = (ProjectionOperator *) rChild;
+    // otherwise add projection on all attributes first
+    else
+    {
+        p = (ProjectionOperator *) createProjOnAllAttrs(rChild);
+        switchSubtrees(rChild, (QueryOperator *) p);
+    }
+
+    p->projExprs = appendToTailOfList(p->projExprs, createConstBool(!leftIsTrue));
+    p->op.schema->attrDefs =
+            appendToTailOfList(p->op.schema->attrDefs, createAttributeDef(strdup(annotName), DT_BOOL));
+
+    // if is a projection then just add projection expression
+    if (isA(lChild, ProjectionOperator))
+        p = (ProjectionOperator *) lChild;
+    // otherwise add projection on all attributes first
+    else
+    {
+        p = (ProjectionOperator *) createProjOnAllAttrs(lChild);
+        switchSubtrees(lChild, (QueryOperator *) p);
+    }
+
+    p->projExprs = appendToTailOfList(p->projExprs, createConstBool(leftIsTrue));
+    p->op.schema->attrDefs =
+            appendToTailOfList(p->op.schema->attrDefs, createAttributeDef(strdup(annotName), DT_BOOL));
+
+    // adapt union
+    un->schema->attrDefs =
+            appendToTailOfList(un->schema->attrDefs, createAttributeDef(strdup(annotName), DT_BOOL));
 }
 
 static void
@@ -556,24 +679,6 @@ adaptConditionForReadCommitted(Node *cond, Constant *scn, int attrPos)
     DEBUG_LOG("adapted condition for read committed: %s", beatify(nodeToString(result)));
 
     return result;
-}
-
-static KeyValue *
-getMapCond (List *props, char *key)
-{
-    FOREACH(KeyValue,kv,props)
-    {
-        if (strcmp(key,STRING_VALUE(kv->key)) == 0)
-            return kv;
-    }
-
-    return NULL;
-}
-
-static void
-setMapCond (List **props, KeyValue *newVal)
-{
-    *props = appendToTailOfList(*props, newVal);
 }
 
 static List *

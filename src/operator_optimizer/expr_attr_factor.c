@@ -84,9 +84,14 @@ factorAttrRefs (Node *node)
     //TODO we may have to explore alternative options
     do {
         previous = node;
+
+        TRACE_LOG("before remove non op case",nodeToString(node));
         node = removeNonOpCase(previous, NULL);
+        TRACE_LOG("before factor add",nodeToString(node));
         node = factorAdd(node, NULL);
+        TRACE_LOG("before factor mult",nodeToString(node));
         node = factorMult(node, NULL);
+        TRACE_LOG("merge same result case",nodeToString(node));
         node = mergeSameResultCase(node, NULL);
     } while(!equal(node,previous));
 
@@ -157,6 +162,8 @@ factorAdd (Node *node, void *state)
 
                     // new arguments to + are a, CASE WHEN C THEN X ELSE 0 END
                     add->args = LIST_MAKE(copyObject(a), c);
+
+                    DEBUG_LOG("factored add: ", add);
 
                     return (Node *)  add;
                 }

@@ -463,11 +463,11 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
 	        // if only updated rows shows be returned then we need to store the update conditions
 	        // because we might need that to filter out those tuples
-	        if (HAS_STRING_PROP(result,PROP_PC_ONLY_UPDATED))
-	        {
-	            DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
-	            setStringProperty((QueryOperator *) result, PROP_PC_UPDATE_COND, (Node *) updateConds);
-	        }
+//	        if (HAS_STRING_PROP(result,PROP_PC_ONLY_UPDATED))
+//	        {
+            DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
+            setStringProperty((QueryOperator *) result, PROP_PC_UPDATE_COND, (Node *) updateConds);
+//	        }
 
 	        DEBUG_LOG("constructed translated provenance computation for PROVENANCE OF TRANSACTION");
 	    }
