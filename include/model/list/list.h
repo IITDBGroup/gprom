@@ -211,6 +211,7 @@ extern List *concatTwoLists (List *listA, List *listB);
 extern List *concatLists (List *a, ...);
 #define CONCAT_LISTS(...) concatLists(__VA_ARGS__, NULL)
 extern List *sublist(List *l, int from, int to);
+extern List *genericSublist(List *l, boolean (*pred) (void *, void *), void *context);
 
 /* serialize to string */
 extern char *stringListToString (List *node);

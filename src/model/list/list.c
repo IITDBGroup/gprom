@@ -515,6 +515,20 @@ sublist(List *l, int from, int to)
     return result;
 }
 
+List *
+genericSublist(List *l, boolean (*pred) (void *, void *), void *context)
+{
+    List *result = NIL;
+
+    FOREACH(void,n,l)
+    {
+        if (pred(n, context))
+            result = appendToTailOfList(result, n);
+    }
+
+    return result;
+}
+
 boolean
 searchList(List *list, void *value)
 {

@@ -65,6 +65,7 @@ void mergeUpdateSequence(ProvenanceComputation *op) {
 
 	//TODO add projection to remove update annot attribute
 
+
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));
 
@@ -84,11 +85,23 @@ addUpdateAnnotationAttrs (ProvenanceComputation *op)
         Node *annotAttr;
         char *annotName;
 
-        annotName = CONCAT_STRINGS("up_", itoa(i));
+        switch (u->type) {
+            case T_Insert:
+                annotName = strdup("ins");
+                break;
+            case T_Update:
+                annotName = strdup("up");
+                break;
+            case T_Delete:
+                annotName = strdup("del");
+                break;
+            default:
+                FATAL_LOG("expected insert, update, or delete");
+        }
 
         // mark update annotation attribute as provenance
         SET_STRING_PROP(q, PROP_ADD_PROVENANCE, LIST_MAKE(createConstString(annotName)));
-        SET_STRING_PROP(q, PROP_PROV_REL_NAME, createConstString("STATEMENT"));
+        SET_STRING_PROP(q, PROP_PROV_REL_NAME, createConstString(CONCAT_STRINGS("STATEMENT", itoa(i))));
 
         // use original update to figure out type of each update (UPDATE/DELETE/INSERT)
         // switch
