@@ -178,16 +178,32 @@ factorAttrsInExpressions(QueryOperator *root)
 QueryOperator *
 removeRedundantProjections(QueryOperator *root)
 {
-
   QueryOperator *lChild = OP_LCHILD(root);
 
   if (isA(root, ProjectionOperator))
   {
-    List *a = root->schema->attrDefs;
-    List *b = lChild->schema->attrDefs;
+    boolean compare = TRUE;
+    List *l1 = ((ProjectionOperator *)root)->projExprs;
+    List *l2 = lChild->schema->attrDefs;
 
-    /* Compare the Attribute References */
-    boolean compare = equal(a, b);
+    if (LIST_LENGTH(l1) != LIST_LENGTH(l2))
+    {
+      compare = FALSE;
+    }
+    else
+    {
+      FORBOTH_LC(lc1,lc2,l1,l2)
+      {
+        AttributeReference *x = (AttributeReference *)LC_P_VAL(lc1);
+        AttributeDef *y = (AttributeDef *)LC_P_VAL(lc2);
+
+        if (*x->name != *y->attrName)
+        {
+          compare = FALSE;
+          break;
+        }
+      }
+    }
 
     if (compare)
     {
@@ -202,4 +218,3 @@ removeRedundantProjections(QueryOperator *root)
 
   return root;
 }
-
