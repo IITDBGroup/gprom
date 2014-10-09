@@ -41,7 +41,9 @@ static void addUpdateAnnotationAttrs (ProvenanceComputation *op);
 static void addAnnotConstToUnion (QueryOperator *un, boolean leftIsTrue, char *annotName);
 
 
-void mergeUpdateSequence(ProvenanceComputation *op) {
+void
+mergeUpdateSequence(ProvenanceComputation *op)
+{
 	ProvenanceTransactionInfo *tInfo = op->transactionInfo;
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
@@ -49,6 +51,21 @@ void mergeUpdateSequence(ProvenanceComputation *op) {
 
     // add boolean attributes to store whether update did modify a row
     addUpdateAnnotationAttrs (op);
+
+    //TODO add projection to remove update annot attribute
+    QueryOperator *lastUp = (QueryOperator *) getTailOfListP(op->op.inputs);
+    List *normalAttrs = NIL;
+    CREATE_INT_SEQ(normalAttrs, 0, getNumNormalAttrs(lastUp) - 2, 1);
+    DEBUG_LOG("hello num attrs %i", getNumNormalAttrs(lastUp) - 2);
+
+    QueryOperator *newTop = createProjOnAttrs(lastUp, normalAttrs);
+    newTop->inputs = LIST_MAKE(lastUp);
+    switchSubtrees(lastUp, newTop);
+    lastUp->parents = LIST_MAKE(newTop);
+
+    INFO_LOG("after adding projection:\n%s", operatorToOverviewString((Node *) op));
+
+    //TODO check that this is ok
 
     // merge updates to create transaction reenactment query
 	switch (tInfo->transIsolation) {
@@ -62,9 +79,6 @@ void mergeUpdateSequence(ProvenanceComputation *op) {
             FATAL_LOG("isolation level %u not supported:", tInfo->transIsolation);
             break;
 	}
-
-	//TODO add projection to remove update annot attribute
-
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));
