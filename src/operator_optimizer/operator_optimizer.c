@@ -182,35 +182,34 @@ removeRedundantProjections(QueryOperator *root)
 
   if (isA(root, ProjectionOperator))
   {
-    boolean compare = TRUE;
-    List *l1 = ((ProjectionOperator *)root)->projExprs;
-    List *l2 = lChild->schema->attrDefs;
+      boolean compare = TRUE;
+      List *l1 = ((ProjectionOperator *)root)->projExprs;
+      List *l2 = lChild->schema->attrDefs;
+      int i = 0;
 
-    if (LIST_LENGTH(l1) != LIST_LENGTH(l2))
-    {
-      compare = FALSE;
-    }
-    else
-    {
-      FORBOTH_LC(lc1,lc2,l1,l2)
-      {
-        AttributeReference *x = (AttributeReference *)LC_P_VAL(lc1);
-        AttributeDef *y = (AttributeDef *)LC_P_VAL(lc2);
-
-        if (*x->name != *y->attrName)
-        {
+      if (LIST_LENGTH(l1) != LIST_LENGTH(l2))
           compare = FALSE;
-          break;
-        }
-      }
-    }
+      else
+      {
+          FORBOTH_LC(lc1,lc2,l1,l2)
+          {
+              AttributeReference *x = (AttributeReference *)LC_P_VAL(lc1);
+              AttributeDef *y = (AttributeDef *)LC_P_VAL(lc2);
 
-    if (compare)
-    {
-      // Remove Parent and make lChild as the new parent
-      removeParentFromOps(root->inputs, (QueryOperator *) root);
-      root = lChild;
-    }
+              if (!streq(x->name,y->attrName) || i++ != x->attrPosition)
+              {
+                  compare = FALSE;
+                  break;
+              }
+          }
+      }
+
+      if (compare)
+      {
+          // Remove Parent and make lChild as the new parent
+          removeParentFromOps(root->inputs, (QueryOperator *) root);
+          root = lChild;
+      }
   }
 
   FOREACH(QueryOperator, o, root->inputs)
