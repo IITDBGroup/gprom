@@ -154,6 +154,8 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
             ERROR_LOG("attribute ref name and child attrdef names are not the "
                     "same: <%s> and <%s> in\n\n%s", childA->attrName, a->name,
                     operatorToOverviewString((Node *) parent));
+            DEBUG_LOG("details are: \n%s\n\n%s", nodeToString(a),
+                    nodeToString(childA));
             return FALSE;
         }
     }
