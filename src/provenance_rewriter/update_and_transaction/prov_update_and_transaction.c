@@ -382,6 +382,23 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 			    ProjectionOperator *proj = (ProjectionOperator *) q;
 				List *projExprs = proj->projExprs;
 				Node *newProjExpr;
+				boolean annotProj = isA(OP_LCHILD(proj), ProjectionOperator);
+
+				// just modify schema of outer projection
+				if (annotProj)
+				{
+	                proj->projExprs = appendToTailOfList(projExprs,
+	                        (Node *) createFullAttrReference("VERSIONS_STARTSCN",
+	                                0,
+	                                getNumAttrs(OP_LCHILD(q)),
+	                                INVALID_ATTR,
+	                                DT_LONG));
+	                q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
+	                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+
+	                proj = (ProjectionOperator *) OP_LCHILD(proj);
+	                projExprs = proj->projExprs;
+				}
 
 				//Add SCN foreach CaseEpr
 				FOREACH(Node, expr, projExprs)
@@ -411,7 +428,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
                //make new case for SCN
                 Node *then = (Node *) createConstLong(-1);
-                Node *els = (Node *) createFullAttrReference("VERSIONS_STARTSCN", 0, getNumAttrs(OP_LCHILD(q)), INVALID_ATTR, DT_LONG);
+                Node *els = (Node *) createFullAttrReference("VERSIONS_STARTSCN", 0, getNumAttrs(OP_LCHILD(proj)), INVALID_ATTR, DT_LONG);
                 CaseExpr *caseExpr;
                 CaseWhen *caseWhen;
 
@@ -419,11 +436,11 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
                 caseExpr = createCaseExpr(NULL, singleton(caseWhen),
                         els);
 
-                // TODO do not modify the SCN attribute to avoid exponentail expression size blow-up
+                // TODO do not modify the SCN attribute to avoid exponential expression size blow-up
                 newProjExpr = (Node *) els; // caseExpr
                 proj->projExprs =
                         appendToTailOfList(projExprs, newProjExpr);
-                q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
+                proj->op.schema->attrDefs = appendToTailOfList(proj->op.schema->attrDefs,
                         createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
 			}
 			else
