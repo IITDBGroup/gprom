@@ -98,6 +98,51 @@ addAttrToSchema(QueryOperator *op, char *name, DataType dt)
     op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs, a);
 }
 
+void
+deleteAttrFromSchemaByName(QueryOperator *op, char *name)
+{
+  FOREACH_LC(lc, op->schema->attrDefs)
+  {
+    if (streq(((AttributeDef *) lc->data.ptr_value)->attrName,name))
+    {
+      DEBUG_LOG("Find one same attrDefs %s = %s, remove it from the schema.", (AttributeDef *) lc->data.ptr_value, name);
+      op->schema->attrDefs = REMOVE_FROM_LIST_PTR(op->schema->attrDefs, LC_P_VAL(lc) );
+    }
+  }
+}
+
+void
+deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos)
+{
+  int i = 0;
+  FOREACH_LC(lc, op->projExprs)
+  {
+    if(i == pos)
+    {
+      DEBUG_LOG("Find the attr_ref by position: %s in postion %d, remove it from the schema.", ((AttributeReference *) lc->data.ptr_value)->name, pos);
+      op->projExprs = REMOVE_FROM_LIST_PTR(op->projExprs, LC_P_VAL(lc));
+    }
+    i++;
+  }
+}
+
+void
+resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2)
+{
+  int cnt = 0;
+  FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+  {
+    FOREACH(AttributeReference, a1, op1->projExprs)
+    {
+      if(streq(a1->name,a2->attrName))
+      {
+        a1->attrPosition = cnt;
+      }
+    }
+    cnt++;
+  }
+}
+
 List *
 getDataTypes (Schema *schema)
 {
@@ -439,6 +484,19 @@ getProvenanceAttrDefs(QueryOperator *op)
 }
 
 List *
+getProvenanceAttrReferences(ProjectionOperator *op, QueryOperator *op1)
+{
+  List *result = NIL;
+
+  FOREACH_INT(i,op1->provAttrs)
+  {
+    DEBUG_LOG("prov attr at <%u> is <%s>", i, nodeToString(getNthOfListP(op->projExprs, i)));
+    result = appendToTailOfList(result, getNthOfListP(op->projExprs, i));
+  }
+  return result;
+}
+
+List *
 getOpProvenanceAttrNames(QueryOperator *op)
 {
     List *provDefs = getProvenanceAttrDefs(op);
@@ -473,6 +531,22 @@ getNormalAttrs(QueryOperator *op)
 	}
 
     return result;
+}
+
+List *
+getNormalAttrReferences(ProjectionOperator *op, QueryOperator *op1)
+{
+  List *result = NIL;
+  int pos = 0;
+
+  FOREACH(AttributeReference, a, op->projExprs)
+  {
+    if(!searchListInt(op1->provAttrs, pos))
+      result = appendToTailOfList(result, a);
+    pos++;
+  }
+
+  return result;
 }
 
 List *

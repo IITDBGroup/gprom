@@ -32,6 +32,7 @@ typedef enum OptionType {
 #define OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR "optimization.factor_proj_attr_in_expr"
 #define OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ "optimization.materialize_merge_unsafe_proj"
 #define OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS "optimization.remove_redundant_projections"
+#define OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ "optimization.pulling_up_provenance_proj"
 //#define OPTIMIZATION_ "optimization_"
 
 // declare option fields
@@ -77,6 +78,7 @@ extern boolean opt_optimization_merge_ops;
 extern boolean opt_optimization_factor_attrs;
 extern boolean opt_materialize_unsafe_proj;
 extern boolean opt_remove_redundant_projections;
+extern boolean opt_optimization_pulling_up_provenance_proj;
 
 // new option interface
 extern char *getStringOption (char *name);

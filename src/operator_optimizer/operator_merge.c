@@ -125,6 +125,7 @@ mergeProjection(ProjectionOperator *op)
         replaceAttributeRefsMutator((Node *) parent->projExprs, state, NULL);
         STOP_TIMER("OptimizeModel - replace attrs with expr");
 
+        parent->isProvenanceProjection = child->isProvenanceProjection;
         parent->op.inputs = child->op.inputs;
         FOREACH(QueryOperator, el, parent->op.inputs)
             el->parents = replaceNode(el->parents, child, parent);

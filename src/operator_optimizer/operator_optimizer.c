@@ -25,6 +25,8 @@
 #include "provenance_rewriter/prov_utility.h"
 
 static QueryOperator *optimizeOneGraph (QueryOperator *root);
+static QueryOperator *pullup(QueryOperator *op, QueryOperator *op1,
+                             List *duplicateattrs, List *normalAttrNames);
 
 Node  *
 optimizeOperatorModel (Node *root)
@@ -112,6 +114,16 @@ optimizeOneGraph (QueryOperator *root)
       ASSERT(checkModel((QueryOperator *) rewrittenTree));
       STOP_TIMER("OptimizeModel - set materialization hints");
     }
+
+    if(getBoolOption(OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ))
+    {
+      START_TIMER("OptimizeModel - pulling up provenance");
+      rewrittenTree = pullingUpProvenanceProjections((QueryOperator *) rewrittenTree);
+      DEBUG_LOG("pulling up provenance projections\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+      ASSERT(checkModel((QueryOperator *) rewrittenTree));
+      STOP_TIMER("OptimizeModel - pulling up provenance");
+    }
+
     return rewrittenTree;
 }
 
@@ -217,4 +229,241 @@ removeRedundantProjections(QueryOperator *root)
     removeRedundantProjections(o);
 
   return root;
+}
+
+QueryOperator *
+pullingUpProvenanceProjections(QueryOperator *root)
+{
+  FOREACH(QueryOperator, o, root->inputs)
+  {
+    if(isA(o, ProjectionOperator))
+    {
+      if(((ProjectionOperator *)o)->isProvenanceProjection == TRUE)
+      {
+        ProjectionOperator *op = (ProjectionOperator *)o;
+
+        List *l1 = getProvenanceAttrReferences(op, o);
+        List *l2 = getNormalAttrReferences(op, o);
+
+        int numNormalAttrs = getNumNormalAttrs(o);
+        int numProvAttrs = getNumProvAttrs(o);
+
+        List *l_prov_attr = NIL;
+
+        FOREACH(AttributeReference, a, l1)
+        {
+          l_prov_attr = appendToTailOfList(l_prov_attr, a->name);
+        }
+
+        List *l_normal_attr = NIL;
+
+        FOREACH(AttributeReference, a, l2)
+        {
+          l_normal_attr =  appendToTailOfList(l_normal_attr, a->name);
+        }
+
+        int normalattrindex[numNormalAttrs];
+        int duplicateattrindex[numProvAttrs];
+
+        int i = 0, j = 0;
+
+        for(i = 0; i < numNormalAttrs; i++)
+        {
+          normalattrindex[i] = -1;
+        }
+        for (j = 0; j < numProvAttrs; j++)
+        {
+          duplicateattrindex[j] = -1;
+        }
+
+        i = 0;
+        j = 0;
+
+        FOREACH_LC(lc1, l_normal_attr)
+        {
+          FOREACH_LC(lc2, l_prov_attr)
+          {
+            char *x = (char *)LC_P_VAL(lc1);
+            char *y = (char *)LC_P_VAL(lc2);
+
+            if (streq(x, y))
+            {
+              duplicateattrindex[j] = 1;
+              normalattrindex[i] = 1;
+            }
+            j++;
+          }
+          i++;
+        }
+
+        List *normalAttrNames = NIL;
+        List *duplicateattrs = NIL;
+
+        List *normalresult = getNormalAttrNames(o);
+        List *duplicateresult = getOpProvenanceAttrNames(o);
+
+        for (i = 0; i < numNormalAttrs; i++)
+        {
+          if (normalattrindex[i] == 1)
+          {
+            normalAttrNames = appendToTailOfList(normalAttrNames, getNthOfListP(normalresult, i));
+          }
+        }
+
+        for (j = 0; j < numProvAttrs; j++)
+        {
+          if (duplicateattrindex[j] == 1)
+          {
+            duplicateattrs = appendToTailOfList(duplicateattrs, getNthOfListP(duplicateresult, j));
+          }
+        }
+
+        root = pullup(o, o, duplicateattrs, normalAttrNames);
+      }
+    }
+
+    pullingUpProvenanceProjections(o);
+  }
+
+  return root;
+}
+
+
+/*
+ * duplicateattrs store attrDef name of provenance attribute
+ * normalAttrnames store attrRef name of provenance attribute
+ */
+QueryOperator *
+pullup(QueryOperator *op, QueryOperator *op1, List *duplicateattrs,
+       List *normalAttrNames)
+{
+  boolean fd = FALSE;
+  boolean isLost= FALSE;
+
+  /*
+   * used to store the name of lost attributes, LostList-duplicateattrs,
+   * LostNormalList-normalAttrnames
+   */
+  List* LostList = NIL;
+  List* LostNormalList = NIL;
+
+  FOREACH(QueryOperator, o, op->parents)
+  {
+    FORBOTH_LC(d,nms,duplicateattrs,normalAttrNames)
+    {
+      /*
+       * find the lost attribute, if we do not find it, we need to add
+       * projection op; or continue upward check.
+       */
+      fd = FALSE;
+      FOREACH_LC(a ,o->schema->attrDefs)
+      {
+        if (streq(((AttributeDef *) a->data.ptr_value)->attrName, nms->data.ptr_value))
+        {
+          fd = TRUE;
+          break;
+        }
+      }
+
+      if(!fd)
+      {
+        DEBUG_LOG("\n Have attribute lost, need to add projection.");
+        isLost = TRUE;
+
+        //add d to the list which stores the name of lost attributes
+        LostList = appendToTailOfList(LostList, d->data.ptr_value);
+        LostNormalList = appendToTailOfList(LostNormalList, nms->data.ptr_value);
+
+        //get rid of the attribute from the duplicate list and normalAttrnames
+        duplicateattrs = REMOVE_FROM_LIST_PTR(duplicateattrs, d->data.ptr_value);
+	normalAttrNames = REMOVE_FROM_LIST_PTR(normalAttrNames, nms->data.ptr_value);
+
+        //delete the duplicate attr_ref from the proExprs (first get pos,
+        //second remove)
+        int pos = getAttrPos(op1, LC_P_VAL(d));
+        deleteAttrRefFromProjExprs((ProjectionOperator*)op1, pos);
+
+        //delete the duplicate attr_def from the schema (compared by name)
+        deleteAttrFromSchemaByName(op1, LC_P_VAL(d));
+      }
+      else
+      {
+        DEBUG_LOG("\n No attribute lost, need to get rid of the attr from schema and continue to upward check. ");
+
+        //get rid of the attr from schema
+        FOREACH_LC(d, duplicateattrs)
+	{
+          FOREACH(AttributeDef,a ,o->schema->attrDefs)
+          {
+            if (streq(a->attrName, LC_P_VAL(d)))
+            {
+              deleteAttrFromSchemaByName(o, LC_P_VAL(d));
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if(isLost)
+    {
+      List* projExpr = NIL;
+      List *provAttr = NIL;
+
+      //build the new schema attrDef names in provAttr list
+      FOREACH(AttributeReference, attrProv, ((ProjectionOperator *)o)->projExprs)
+      {
+        provAttr = appendToTailOfList(provAttr, attrProv->name);
+      }
+
+      //build the attr reference from upper op projExprs
+      int cnt = 0;
+      FOREACH_LC(lc, ((ProjectionOperator *)o)->projExprs)
+      {
+        projExpr = appendToTailOfList(projExpr,
+                                      createFullAttrReference(((AttributeDef *) LC_P_VAL(lc))->attrName, 0,
+                                                              cnt, 0,
+                                                              ((AttributeDef *) LC_P_VAL(lc))->dataType));
+        cnt++;
+      }
+
+      //change the attr reference
+      FORBOTH_LC(attrProvName, attrNorName, LostList, LostNormalList)
+      {
+        FOREACH(AttributeReference, p, projExpr)
+        {
+          if(streq(p->name,LC_P_VAL(attrProvName)))
+          {
+            p->name = LC_P_VAL(attrNorName);
+            break;
+          }
+        }
+      }
+
+      List *newProvPosList = NIL;
+      CREATE_INT_SEQ(newProvPosList, cnt, (cnt * 2) - 1, 1);
+
+      //add projection
+      ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
+      newpo->op.provAttrs = newProvPosList;
+
+      // Switch the subtree with this newly created projection operator.
+      switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+
+      // Add child to the newly created projections operator,
+      addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+
+      //reset the pos of the schema
+      resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator*)newpo,op);
+      resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator*)o, (QueryOperator*)newpo);
+
+      pullup(o, op1, duplicateattrs, normalAttrNames);
+    }
+    else
+    {
+      pullup(o, op1, duplicateattrs, normalAttrNames);
+    }
+  }
+
+  return op;
 }

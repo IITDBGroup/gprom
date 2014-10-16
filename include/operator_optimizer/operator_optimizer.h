@@ -29,4 +29,7 @@ extern QueryOperator *factorAttrsInExpressions(QueryOperator *root);
 
 extern QueryOperator *removeRedundantProjections(QueryOperator *root);
 
+/* try to pull up provenance projections. */
+extern QueryOperator *pullingUpProvenanceProjections(QueryOperator *root);
+
 #endif /* OPERATOR_OPTIMIZER_H_ */
