@@ -48,5 +48,6 @@
 
 /* projection properties */
 #define PROP_MERGE_ATTR_REF_CNTS "MERGE SAFE ATTRIBUTE COUNTS"                        // safe to merge this projection with its child
+#define PROP_PROJ_PROV_ATTR_DUP "PROJECTION WITH PROVENANCE ATTRIBUTE DUPLICATION"    // needed by projection pull-up
 
 #endif /* OPERATOR_PROPERTY_H_ */
