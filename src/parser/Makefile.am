@@ -3,13 +3,17 @@ AM_CPPFLAGS = -I$(top_srcdir)/include
 BUILT_SOURCES =
 AM_YFLAGS = -d
 CLEANFILES = sql_parser.lex.h sql_parser.lex.c sql_parser.tab.h sql_parser.tab.c \
-			postgres_parser.lex.h postgres_parser.lex.c postgres_parser.tab.h postgres_parser.tab.c  
+			postgres_parser.lex.h postgres_parser.lex.c postgres_parser.tab.h postgres_parser.tab.c \
+			dl_parser.lex.h dl_parser.lex.c dl_parser.tab.h dl_parser.tab.c 
 
 noinst_LTLIBRARIES        	= libparser.la
 libparser_la_SOURCES		= parser.c \
 							parser_oracle.c sql_parser.lex.c sql_parser.tab.c \
-							parser_postgres.c postgres_parser.lex.c postgres_parser.tab.c  #\
-							#parser_hive.c hive_parser.lex.c hive_parser.tab.c
+							parser_postgres.c postgres_parser.lex.c postgres_parser.tab.c \
+							parser_dl.c parser_dl.lex.c parser_dl.tab.c
+
+#parser_hive.c hive_parser.lex.c hive_parser.tab.c 
+														
 libparser_la_LIBADD      	= 
 
 sql_parser.lex.h sql_parser.lex.c: sql_parser.l
@@ -30,3 +34,8 @@ postgres_parser.tab.h postgres_parser.tab.c: postgres_parser.y
 #hive_parser.tab.h hive_parser.tab.c: hive_parser.y
 #	bison -b hive_parser -Werror -d $<
 	
+dl_parser.lex.h dl_parser.lex.c: dl_parser.l
+	$(LEX) -odl_parser.lex.c $<
+	
+dl_parser.tab.h dl_parser.tab.c: dl_parser.y
+	bison -b dl_parser -Werror -d $<	
