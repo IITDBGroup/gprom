@@ -357,6 +357,10 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
     addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
 
     DEBUG_LOG("rewrite add provenance attrs:\n%s", operatorToOverviewString((Node *) newpo));
+
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        ASSERT(checkModel((QueryOperator *) newpo));
+
     return (QueryOperator *) newpo;
 }
 
@@ -418,6 +422,9 @@ rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs)
 
         proj->provAttrs = provAttrs;
 
+        if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+            ASSERT(checkModel(proj));
+
         return proj;
     }
     // for non-tableaccess operators simply change the attribute names and mark the attributes as provenance attributes
@@ -451,6 +458,9 @@ rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs)
         }
 
         op->provAttrs = provAttrs;
+
+        if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+            ASSERT(checkModel(op));
 
         return op;
     }
