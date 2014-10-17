@@ -190,6 +190,8 @@ addAnnotConstToUnion (QueryOperator *un, boolean leftIsTrue, char *annotName)
     {
         p = (ProjectionOperator *) createProjOnAllAttrs(rChild);
         switchSubtrees(rChild, (QueryOperator *) p);
+        p->op.inputs = singleton(rChild);
+        rChild->parents = singleton(p);
     }
 
     p->projExprs = appendToTailOfList(p->projExprs, createConstBool(!leftIsTrue));
@@ -204,6 +206,8 @@ addAnnotConstToUnion (QueryOperator *un, boolean leftIsTrue, char *annotName)
     {
         p = (ProjectionOperator *) createProjOnAllAttrs(lChild);
         switchSubtrees(lChild, (QueryOperator *) p);
+        p->op.inputs = singleton(lChild);
+        lChild->parents = singleton(p);
     }
 
     p->projExprs = appendToTailOfList(p->projExprs, createConstBool(leftIsTrue));

@@ -340,13 +340,13 @@ replaceNonOracleDTs (Node *node, void *context)
 
         if (c->constType == DT_BOOL)
         {
-            boolean val = BOOL_VALUE(c);
             c->constType = DT_INT;
-            c->value = NEW(int);
-            if (val)
-                INT_VALUE(c) = 1;
-            else
-                INT_VALUE(c) = 0;
+            if (!c->isNull)
+            {
+                boolean val = BOOL_VALUE(c);
+                c->value = NEW(int);
+                INT_VALUE(c) = val ? 1 : 0;
+            }
         }
     }
 
