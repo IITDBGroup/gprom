@@ -158,6 +158,17 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
                     nodeToString(childA));
             return FALSE;
         }
+        if (childA->dataType != a->attrType)
+        {
+            ERROR_LOG("attribute datatype and child attrdef datatypes are not the "
+                    "same: <%s> and <%s> in\n\n%s",
+                    DataTypeToString(childA->dataType),
+                    DataTypeToString(a->attrType),
+                    operatorToOverviewString((Node *) parent));
+            DEBUG_LOG("details are: \n%s\n\n%s", nodeToString(a),
+                    nodeToString(childA));
+            return FALSE;
+        }
     }
 
     return TRUE;
