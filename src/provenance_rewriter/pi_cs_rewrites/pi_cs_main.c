@@ -219,7 +219,8 @@ addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs)
             nodeToString(provAttrPos));
 
     // Create a new projection operator with these new attributes
-    proj = (QueryOperator *) createProjectionOp(projExpr, NULL, NIL, attrNames);
+    proj = (QueryOperator *) createProjectionOp(projExpr, op, NIL, attrNames);
+    proj->inputs = NIL;
     proj->provAttrs = provAttrPos;
 
     // Switch the subtree with this newly created projection operator.
@@ -229,6 +230,9 @@ addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs)
     addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 
     DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
+
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        ASSERT(checkModel((QueryOperator *) proj));
 
     return proj;
 }
@@ -293,6 +297,9 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs)
     addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 
     DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
+
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        ASSERT(checkModel((QueryOperator *) proj));
 
     return proj;
 }

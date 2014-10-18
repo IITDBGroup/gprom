@@ -84,7 +84,7 @@ schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inpu
     List *dataTypes = NIL;
 
     FOREACH(Node,n,exprs)
-        dataTypes = appendToHeadOfListInt(dataTypes, typeOfInOpModel(n, inputs));
+        dataTypes = appendToTailOfListInt(dataTypes, typeOf(n));
 
     return createSchemaFromLists(name, attributeNames, dataTypes);
 }

@@ -165,8 +165,9 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
                     DataTypeToString(childA->dataType),
                     DataTypeToString(a->attrType),
                     operatorToOverviewString((Node *) parent));
-            DEBUG_LOG("details are: \n%s\n\n%s", nodeToString(a),
-                    nodeToString(childA));
+            DEBUG_LOG("details are: \n%s\n\n%s\n\n%s", nodeToString(a),
+                    nodeToString(childA),
+                    beatify(nodeToString(parent)));
             return FALSE;
         }
     }
@@ -189,6 +190,21 @@ checkSchemaConsistency (QueryOperator *op)
                         " projection expressions:\n%s",
                         operatorToOverviewString((Node *) op));
                 return FALSE;
+            }
+
+            FORBOTH(Node,p,a,o->projExprs,o->op.schema->attrDefs)
+            {
+                AttributeDef *def = (AttributeDef *) a;
+
+                if (typeOf(p) != def->dataType)
+                {
+                    ERROR_LOG("schema and projection expression data types should"
+                            " be the same: %s = %s",
+                            DataTypeToString(typeOf(p)),
+                            DataTypeToString(def->dataType));
+                    DEBUG_LOG("details: %s", beatify(nodeToString(o)));
+                    return FALSE;
+                }
             }
         }
         break;
