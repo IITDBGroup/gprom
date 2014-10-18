@@ -183,13 +183,43 @@ factorMult (Node *node, void *state)
     if (isA(node,CaseExpr))
     {
         CaseExpr *c = (CaseExpr *) node;
-        //TODO
+
         if (LIST_LENGTH(c->whenClauses) == 1)
         {
             CaseWhen *w = (CaseWhen *) getHeadOfListP(c->whenClauses);
+            Operator *mult;
+            AttributeReference *a;
+            Node *opChild;
 
-            if (equal(w->then,c->elseRes))
-                 return copyObject(c->elseRes);
+            // else is attribute reference
+            if (isA(c->elseRes,AttributeReference) && isA(w->then,Operator))
+            {
+                a = (AttributeReference *) c->elseRes;
+                mult = (Operator *) w->then;
+
+                // operator is + and attribute a is one argument
+                if (streq(mult->name,"*") && searchListNode(mult->args, (Node *) a))
+                {
+                    int aPos = genericListPos(mult->args, equal, a);
+                    ASSERT(aPos == 0 || aPos == 1);
+
+                    // copy data structures
+                    mult = copyObject(mult);
+                    c = copyObject(c);
+                    w = (CaseWhen *) getHeadOfListP(c->whenClauses);
+
+                    // change CASE to CASE WHEN C THEN X ELSE 0 END
+                    w->then = (Node *) getNthOfListP(mult->args, aPos == 0 ? 1 : 0);
+                    c->elseRes = (Node *) createConstInt(0);
+
+                    // new arguments to + are a, CASE WHEN C THEN X ELSE 0 END
+                    mult->args = LIST_MAKE(copyObject(a), c);
+
+                    DEBUG_LOG("factored add: ", mult);
+
+                    return (Node *)  mult;
+                }
+            }
         }
     }
 
