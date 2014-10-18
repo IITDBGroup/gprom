@@ -614,6 +614,8 @@ restrictToUpdatedRows (ProvenanceComputation *op)
     FOREACH(Node,up,t->originalUpdates)
         simpleOnly &= isSimpleUpdate(up);
 
+    DEBUG_LOG("is simple, %u", simpleOnly);
+
     //TODO for now be conservative when to apply things
     // use conditions of updates to filter out non-updated tuples early on
     if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS))
