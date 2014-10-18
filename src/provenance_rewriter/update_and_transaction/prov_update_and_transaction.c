@@ -288,6 +288,8 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     //getUpdateForPreviousTableVersion(op,THE_TABLE_NAME, 0, updates);
     // if NULL then user has asked for non-existing table
     // FATAL_LOG("table); - exit
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        ASSERT(checkModel((QueryOperator *) op));
 
     DEBUG_LOG("Provenance computation for updates that will be passed "
             "to rewriter: %s", beatify(nodeToString(op)));
@@ -315,25 +317,43 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 		// case t_InsertStmt:t:
 		case T_Insert:
 		{
-		    TableAccessOperator *t = (TableAccessOperator *) OP_LCHILD(q);
-		    QueryOperator *qRoot = OP_RCHILD(q);
+		    //TODO deal with
+		    QueryOperator *newQ = isA(q, ProjectionOperator) ? OP_LCHILD(q) : q;
+            ProjectionOperator *lC = (ProjectionOperator *) OP_LCHILD(newQ);
+		    TableAccessOperator *t = (TableAccessOperator *) OP_LCHILD(lC);
+		    ProjectionOperator *rC = (ProjectionOperator *) OP_RCHILD(newQ);
+		    QueryOperator *qRoot = OP_LCHILD(rC);
 		    ProjectionOperator *p;
 
             // is R UNION INSERTS transform into R + SCN UNION PROJECTION [*, SCN] (q)
+		    lC->op.schema->attrDefs = appendToTailOfList(lC->op.schema->attrDefs,
+		                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+		    lC->projExprs = appendToTailOfList(lC->projExprs,
+		            createFullAttrReference("VERSIONS_STARTSCN", 0,
+		                    getNumAttrs(OP_LCHILD(lC)), INVALID_ATTR,
+		                    DT_LONG));
+
+		    rC->op.schema->attrDefs = appendToTailOfList(rC->op.schema->attrDefs,
+		            createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+		    rC->projExprs = appendToTailOfList(rC->projExprs,
+		            copyObject(getNthOfListP(scns,i)));
 
 		    // add attributes to union and table access
-		    q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
+		    newQ->schema->attrDefs = appendToTailOfList(newQ->schema->attrDefs,
 		            createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
 
 		    // add projection over query, add constant SCN attr, switch with query
-		    p = (ProjectionOperator *) createProjOnAllAttrs(qRoot);
-		    addChildOperator((QueryOperator *) p,qRoot);
+		    if (!isA(q, ProjectionOperator))
+		    {
+                p = (ProjectionOperator *) createProjOnAllAttrs(qRoot);
+                addChildOperator((QueryOperator *) p,qRoot);
 
-		    p->op.schema->attrDefs = appendToTailOfList(p->op.schema->attrDefs,
-		            createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
-		    p->projExprs = appendToTailOfList(p->projExprs,copyObject(getNthOfListP(scns,i)));
+                p->op.schema->attrDefs = appendToTailOfList(p->op.schema->attrDefs,
+                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+                p->projExprs = appendToTailOfList(p->projExprs,copyObject(getNthOfListP(scns,i)));
 
-		    switchSubtrees(qRoot,(QueryOperator *) p);
+                switchSubtrees(qRoot,(QueryOperator *) p);
+		    }
 
 		    // add projection over table access operators to remove SCN attribute that will be added later
 	        List *children = NULL;
@@ -431,7 +451,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 				}
 
                //make new case for SCN
-                Node *then = (Node *) createConstLong(-1);
+                Node *then = (Node *) createConstLong(-1); //TODO ok to add one?
                 Node *els = (Node *) createFullAttrReference("VERSIONS_STARTSCN", 0, getNumAttrs(OP_LCHILD(proj)), INVALID_ATTR, DT_LONG);
                 CaseExpr *caseExpr;
                 CaseWhen *caseWhen;
@@ -492,7 +512,16 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 			INFO_LOG("\tUpdate is %s", operatorToOverviewString((Node *) up));
 			// previous table version was created by transaction
 			if (up != NULL)
+			{
+                //TODO adapt SCN attribute reference
+			    // FIX parent projection expressions attribute reference
+                FOREACH(ProjectionOperator,p,t->op.parents)
+                {
+                    AttributeReference *a = getTailOfListP(p->projExprs);
+                    a->attrPosition = getNumAttrs((QueryOperator *) up) - 1;
+                }
 				switchSubtreeWithExisting((QueryOperator *) t, up);
+			}
 			// previous table version is the one at transaction begin
 			else
 			{
@@ -526,12 +555,15 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
 	mergeRoot = (QueryOperator *) getHeadOfListP(updates);
 	mergeAttrs = getQueryOperatorAttrNames(mergeRoot);
-	finalAttrs = sublist(mergeAttrs, 0, LIST_LENGTH(mergeAttrs) - 1);
+	finalAttrs = NIL;
 
     FOREACH(AttributeDef, attr, mergeRoot->schema->attrDefs)
     {
         if (strcmp(attr->attrName,"VERSIONS_STARTSCN") != 0)
+        {
             projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+            finalAttrs = appendToTailOfList(finalAttrs, strdup(attr->attrName));
+        }
         cnt++;
     }
 
@@ -545,6 +577,9 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	addChildOperator((QueryOperator *) op, finalProj);
 	DEBUG_LOG("Provenance computation for updates that will be passed "
 	        "to rewriter: %s", beatify(nodeToString(op)));
+
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        ASSERT(checkModel((QueryOperator *) finalProj));
 }
 
 

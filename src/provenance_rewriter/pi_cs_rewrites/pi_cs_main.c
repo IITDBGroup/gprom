@@ -322,16 +322,18 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
     else
         tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
 
-    DEBUG_LOG("REWRITE-PICS - Add Provenance Attrs <%s> <%u>",  tableName, relAccessCount);
+    DEBUG_LOG("REWRITE-PICS - Add Provenance Attrs <%s> <%u>",
+            tableName, relAccessCount);
 
     relAccessCount = getRelNameCount(&nameState, tableName);
 
 
-    // Get the povenance name for each attribute
+    // Get the provenance name for each attribute
     FOREACH(AttributeDef, attr, op->schema->attrDefs)
     {
         provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(
+                attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -339,10 +341,14 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
     FOREACH(Constant, attr, userProvAttrs)
     {
         char *name = STRING_VALUE(attr);
+        AttributeDef *a;
+
         newAttrName = getProvenanceAttrName(tableName, name, relAccessCount);
         provAttr = appendToTailOfList(provAttr, newAttrName);
         cnt = getAttrPos(op,name);
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(name, 0, cnt, 0, attr->constType));
+        a = getAttrDefByPos(op,cnt);
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(name, 0,
+                cnt, 0, a->dataType));
     }
 
     List *newProvPosList = NIL;
