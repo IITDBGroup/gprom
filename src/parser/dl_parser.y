@@ -44,13 +44,17 @@ Node *dlParseResult = NULL;
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> IDENT
+%token <stringVal> NEGATION RULE_IMPLICATION
 
+/* tokens for constant and idents */
 %token <intVal> intConst
 %token <floatVal> floatConst
 %token <stringVal> stringConst
-%token <stringVal> identifier
+%token <stringVal> IDENT
+%token <stringVal> VARIDENT
 %token <stringVal> parameter
+
+/* comparison and arithmetic operators */
 %token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
 
 
@@ -87,7 +91,7 @@ Node *dlParseResult = NULL;
 %type <list> stmtList
 %type <node> statement 
 
-%type <node> rule fact rulehead rulebody atomList atom constAtom argList constList arg variable constant
+%type <node> rule fact rulehead rulebody atomList atom argList  arg variable constant
 
 /* start symbol */
 %start stmtList
@@ -123,7 +127,7 @@ rule:
 	;
 	
 fact:
-		constAtom { $$ = NULL; } /* do more elegant? */
+		atom '.' { $$ = $1; } /* do more elegant? */
 	;
 
 rulehead:
@@ -135,33 +139,37 @@ rulebody:
 	;
 	
 atomList:
-		atomList atom { $$ = NULL; }
+		atomList ',' atom { $$ = NULL; }
 		| atom		  { $$ = NULL; }
 	;
 
 atom:
- 		NEGATION ident '(' argList ')' { $$ = NULL; }
- 		| ident '(' argList ')' { $$ = NULL; }
+ 		NEGATION IDENT '(' argList ')' { $$ = NULL; }
+ 		| IDENT '(' argList ')' { $$ = NULL; }
  	;
 
+/*
 constAtom:
-		ident '(' constList ')' { $$ = NULL; }
+		IDENT '(' constList ')' { $$ = NULL; }
 	;
+*/
 
 argList:
  		argList arg { $$ = NULL; }
  		| arg		{ $$ = NULL; }
  	;
- 	
+
+/* 	
 constList:
-		constList constant { $$ = NULL; }
+		constList ',' constant { $$ = NULL; }
 		| constant { $$ = NULL; }
 	;
- 	
+*/
+
+/* add skolem */ 	
 arg:
  		variable { $$ = NULL; }
  		| constant { $$ = NULL; }
- 		//TODO skolem
 	;
  		
 variable:

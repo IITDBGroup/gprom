@@ -10,7 +10,7 @@ noinst_LTLIBRARIES        	= libparser.la
 libparser_la_SOURCES		= parser.c \
 							parser_oracle.c sql_parser.lex.c sql_parser.tab.c \
 							parser_postgres.c postgres_parser.lex.c postgres_parser.tab.c \
-							parser_dl.c parser_dl.lex.c parser_dl.tab.c
+							parser_dl.c dl_parser.lex.c dl_parser.tab.c
 
 #parser_hive.c hive_parser.lex.c hive_parser.tab.c 
 														

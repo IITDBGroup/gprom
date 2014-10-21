@@ -76,16 +76,19 @@ float 			(({integer}|{decimal})([eE][+-]?{integer})?)
 
 /* names (e.g., tables, attributes) */
 variableStart	[A-Z]
+identStart		[A-Za-z]
 constStart		[a-z]
 identContinue	[A-Za-z0-9_%?]
 identDelim		[.]
 doublequote     [\"]
+identifier		{identStart}{identContinue}*
 quotedIdentifier		{doublequote}[^\"]+{doublequote}
+variable		{variableStart}{identContinue}*
 
 /* operators */
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
 /*shiftsOps		["<<"|">>"] */
-// notOps			("NOT"|"!")
+/* notOps			("NOT"|"!") */
 
 
 /*****************************************************************/
@@ -133,32 +136,24 @@ TILDE					'~'
 (?i:not)	TOK(NEGATION)
 {IMPLIES}	TOK(RULE_IMPLICATION)
 
-{identifiers}	UPCASE_TOK(identifier)
+{variable}	 	UPCASE_TOK(VARIDENT)
+{identifier}	UPCASE_TOK(IDENT)
+
 {quotedIdentifier}   { 		
 		dllval.stringVal = MALLOC(strlen(dltext) - 1);
 		memcpy(dllval.stringVal, dltext + 1, strlen(dltext) - 2);
 		dllval.stringVal[strlen(dltext) - 2] = '\0';
 		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", dltext);
-		return identifier;
+		return IDENT;
 	}	
 
-{parameters} {
-		dllval.stringVal = MALLOC(strlen(dltext));
-		memcpy(dllval.stringVal, dltext + 1, strlen(dltext) - 1);
-		dllval.stringVal[strlen(dltext) - 1] = '\0';
-		TRACE_LOG("Lexed TOKEN <parameter> with VALUE <:%s>", dltext);
-		return parameter;
-	}
-
-	
 [(),.;] TOKSELF()
 
 
 [-+*%/^~&|!]		TOKSELF()
 	
-// numbers	
 {integer}	TOKSAVE(intConst,intVal,atoi)
-{float}	TOKSAVE(floatConst,floatVal,atof)
+{float}		TOKSAVE(floatConst,floatVal,atof)
 
 	
 '[^'\n]*'	{
@@ -168,16 +163,19 @@ TILDE					'~'
 		TRACE_LOG("Lexed TOKEN <stringConst> with VALUE <%s>", dltext);
 		return stringConst;
 	}
-}
+
 		
-'[^'\n]*$	{dlerror("Unterminated string"); }
-*/
+'[^'\n]*$	{ dlerror("Unterminated string"); }
+
+. 			{ dlerror("not matching any token"); }
+
+%%
 
 /*******************************************************************************
  * Literal C code to include
  ******************************************************************************/
 
-/* use logging framework in the future */
+	/* use logging framework in the future */
 void dlerror(char *s)
 {
 	ERROR_LOG("%s at %s\n", s, dltext);
