@@ -14,6 +14,7 @@
 #include "parser/parser_hive.h"
 #include "parser/parser_oracle.h"
 #include "parser/parser_postgres.h"
+#include "parser/parser_dl.h"
 #include "model/node/nodetype.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
@@ -28,6 +29,7 @@ static ParserPlugin *plugin = NULL;
 static ParserPlugin *assembleOraclePlugin(void);
 static ParserPlugin *assemblePostgresPlugin(void);
 static ParserPlugin *assembleHivePlugin(void);
+static ParserPlugin *assembleDLPlugin(void);
 
 // wrapper interface
 Node *
@@ -60,6 +62,9 @@ chooseParserPlugin(ParserPluginType type)
             break;
         case PARSER_PLUGIN_HIVE:
             plugin = assembleHivePlugin();
+            break;
+        case PARSER_PLUGIN_DL:
+            plugin = assembleDLPlugin();
             break;
     }
 }
@@ -94,6 +99,17 @@ assembleHivePlugin(void)
     //    p->parseStream = parseStreamHive;
     //    p->parseFromString = parseFromStringHive;
     FATAL_LOG("not implemented yet");
+
+    return p;
+}
+
+static ParserPlugin *
+assembleDLPlugin(void)
+{
+    ParserPlugin *p = NEW(ParserPlugin);
+
+    p->parseStream = parseStreamdl;
+    p->parseFromString = parseFromStringdl;
 
     return p;
 }

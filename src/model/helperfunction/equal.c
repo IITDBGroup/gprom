@@ -17,6 +17,7 @@
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/datalog/datalog_model.h"
 #include "log/logger.h"
 
 /* equal function for collection types */
@@ -82,6 +83,13 @@ static boolean equalUpdate(Update *a, Update *b);
 static boolean equalTransactionStmt(TransactionStmt *a, TransactionStmt *b);
 static boolean equalFromProvInfo (FromProvInfo *a, FromProvInfo *b);
 
+// equal functions for datalog model
+static boolean equalDLAtom (DLAtom *a, DLAtom *b);
+static boolean equalDLVar (DLVar *a, DLVar *b);
+static boolean equalDLRule (DLRule *a, DLRule *b);
+static boolean equalDLProgram (DLProgram *a, DLProgram *b);
+static boolean equalDLComparison (DLComparison *a, DLComparison *b);
+
 /* use these macros to compare fields */
 
 /* compare one simple scalar field(int, boolean, float, etc)*/
@@ -122,6 +130,53 @@ static boolean equalFromProvInfo (FromProvInfo *a, FromProvInfo *b);
 /*compare a string field that maybe NULL*/
 #define equalstr(a, b)  \
 		(((a) != NULL && (b) != NULL) ? (strcmp(a, b) == 0) : (a) == (b))
+
+/* datalog model comparisons */
+static boolean
+equalDLAtom (DLAtom *a, DLAtom *b)
+{
+    COMPARE_STRING_FIELD(rel);
+    COMPARE_NODE_FIELD(args);
+    COMPARE_SCALAR_FIELD(negated);
+
+    return TRUE;
+}
+
+static boolean
+equalDLVar (DLVar *a, DLVar *b)
+{
+    COMPARE_STRING_FIELD(name);
+    COMPARE_SCALAR_FIELD(dt);
+
+    return TRUE;
+}
+
+static boolean
+equalDLRule (DLRule *a, DLRule *b)
+{
+    COMPARE_NODE_FIELD(head);
+    COMPARE_NODE_FIELD(body);
+
+    return TRUE;
+}
+
+static boolean
+equalDLProgram (DLProgram *a, DLProgram *b)
+{
+    COMPARE_NODE_FIELD(rules);
+    COMPARE_NODE_FIELD(ans);
+
+    return TRUE;
+}
+
+static boolean
+equalDLComparison (DLComparison *a, DLComparison *b)
+{
+    COMPARE_NODE_FIELD(opExpr);
+
+    return TRUE;
+}
+
 
 /* */
 static boolean
@@ -984,6 +1039,22 @@ equal(void *a, void *b)
             break;
         case T_OrderOperator:
             retval = equalOrderOperator(a,b);
+            break;
+        /* datalog model */
+        case T_DLAtom:
+            retval = equalDLAtom(a,b);
+            break;
+        case T_DLVar:
+            retval = equalDLVar(a,b);
+            break;
+        case T_DLRule:
+            retval = equalDLRule(a,b);
+            break;
+        case T_DLProgram:
+            retval = equalDLProgram(a,b);
+            break;
+        case T_DLComparison:
+            retval = equalDLComparison(a,b);
             break;
         default:
             retval = FALSE;

@@ -7,8 +7,6 @@
  *
  **************************************/
 
-#include <stdio.h>
-#include <stdlib.h>
 
 #include "common.h"
 #include "log/logger.h"
@@ -21,6 +19,7 @@
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/datalog/datalog_model.h"
 
 /* functions to output specific node types */
 static void outNode(StringInfo, void *node);
@@ -63,7 +62,6 @@ static void outNestedSubquery(StringInfo str, NestedSubquery *node);
 static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 static void outWithStmt(StringInfo str, WithStmt *node);
 
-// operator model
 static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
 static void outDistinctClause(StringInfo str, DistinctClause *node);
@@ -72,6 +70,7 @@ static void outFromTableRef (StringInfo str, FromTableRef *node);
 static void outFromJoinExpr (StringInfo str, FromJoinExpr *node);
 static void outFromSubquery (StringInfo str, FromSubquery *node);
 
+// operator model
 static void outSchema (StringInfo str, Schema *node);
 static void outAttributeDef (StringInfo str, AttributeDef *node);
 static void outQueryOperator(StringInfo str, QueryOperator *node);
@@ -88,10 +87,19 @@ static void outNestingOperator(StringInfo str, NestingOperator *node);
 static void outWindowOperator(StringInfo str, WindowOperator *node);
 static void outOrderOperator(StringInfo str, OrderOperator *node);
 
+// datalog model
+static void outDLAtom(StringInfo str, DLAtom *node);
+static void outDLVar(StringInfo str, DLVar *node);
+static void outDLRule(StringInfo str, DLRule *node);
+static void outDLProgram(StringInfo str, DLProgram *node);
+static void outDLComparison(StringInfo str, DLComparison *node);
+
 static void indentString(StringInfo str, int level);
 
 // create overview string for an operator tree
 static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent);
+static void datalogToStrInternal(StringInfo str, Node *n, int indent);
+
 
 /*define macros*/
 /*label for the node type*/
@@ -313,6 +321,52 @@ outHashMap(StringInfo str, HashMap *node)
     }
 
     appendStringInfo(str, "}");
+}
+
+// datalog model
+static void
+outDLAtom(StringInfo str, DLAtom *node)
+{
+    WRITE_NODE_TYPE(DLATOM);
+
+    WRITE_STRING_FIELD(rel);
+    WRITE_NODE_FIELD(args);
+    WRITE_BOOL_FIELD(negated);
+}
+
+static void
+outDLVar(StringInfo str, DLVar *node)
+{
+    WRITE_NODE_TYPE(DLVAR);
+
+    WRITE_STRING_FIELD(name);
+    WRITE_ENUM_FIELD(dt,DataType);
+}
+
+static void
+outDLRule(StringInfo str, DLRule *node)
+{
+    WRITE_NODE_TYPE(DLRULE);
+
+    WRITE_NODE_FIELD(head);
+    WRITE_NODE_FIELD(body);
+}
+
+static void
+outDLProgram(StringInfo str, DLProgram *node)
+{
+    WRITE_NODE_TYPE(DLPROGRAM);
+
+    WRITE_NODE_FIELD(rules);
+    WRITE_NODE_FIELD(ans);
+}
+
+static void
+outDLComparison(StringInfo str, DLComparison *node)
+{
+    WRITE_NODE_TYPE(DLCOMPARISON);
+
+    WRITE_NODE_FIELD(opExpr);
 }
 
 
@@ -977,6 +1031,23 @@ outNode(StringInfo str, void *obj)
             case T_OrderOperator:
                 outOrderOperator(str, (OrderOperator *) obj);
                 break;
+            /* datalog stuff */
+            case T_DLAtom:
+                outDLAtom(str, (DLAtom *) obj);
+                break;
+            case T_DLVar:
+                outDLVar(str, (DLVar *) obj);
+                break;
+            case T_DLProgram:
+                outDLProgram(str, (DLProgram *) obj);
+                break;
+            case T_DLRule:
+                outDLRule(str, (DLRule *) obj);
+                break;
+            case T_DLComparison:
+                outDLComparison(str, (DLComparison *) obj);
+                break;
+
             default :
                 FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
@@ -1133,6 +1204,84 @@ itoa(int value)
     FREE(str);
 
     return result;
+}
+
+char *
+datalogToOverviewString(Node *n)
+{
+    StringInfo str = makeStringInfo();
+
+    if (n == NULL)
+        return "";
+
+    datalogToStrInternal(str, n, 0);
+
+    return str->data;
+}
+
+static void
+datalogToStrInternal(StringInfo str, Node *n, int indent)
+{
+    switch(n->type)
+    {
+        case T_DLAtom:
+        {
+            DLAtom *a = (DLAtom *) n;
+            int i = 1;
+            int len = LIST_LENGTH(a->args);
+
+            appendStringInfo(str, "%s(", a->rel);
+            FOREACH(Node,arg,a->args)
+            {
+                datalogToStrInternal(str, arg, indent);
+                if (i++ < len)
+                    appendStringInfoString(str, ",");
+            }
+            appendStringInfoString(str, ")");
+        }
+        break;
+        case T_DLRule:
+        {
+            DLRule *r = (DLRule *) n;
+            int i = 1;
+            int len = LIST_LENGTH(r->body);
+
+            indentString(str,indent);
+            datalogToStrInternal(str, (Node *) r->head, indent);
+            appendStringInfoString(str, " :- ");
+            FOREACH(Node,a,r->body)
+            {
+                datalogToStrInternal(str, a, indent);
+                if (i++ < len)
+                    appendStringInfoString(str, ",");
+            }
+
+            appendStringInfoString(str, ".\n");
+        }
+        break;
+        case T_DLComparison:
+        {
+            DLComparison *c = (DLComparison *) n;
+
+            appendStringInfo(str, "(%s)", exprToSQL((Node *) c->opExpr));
+        }
+        break;
+        case T_DLProgram:
+        {
+            DLProgram *p = (DLProgram *) n;
+            appendStringInfoString(str, "PROGRAM:\n");
+            FOREACH(DLRule,r,p->rules)
+                datalogToStrInternal(str,(Node *) r, 4);
+            appendStringInfoString(str, "ANSWER RELATION:\n");
+            datalogToStrInternal(str,(Node *) p->ans, 4);
+            appendStringInfoString(str, "END PROGRAM:\n");
+        }
+        break;
+        default:
+            FATAL_LOG("should have never come here, datalog program should"
+                    " not have nodes like this: %s",
+                    beatify(nodeToString(n)));
+    }
 }
 
 char *

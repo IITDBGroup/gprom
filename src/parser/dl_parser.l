@@ -86,27 +86,16 @@ quotedIdentifier		{doublequote}[^\"]+{doublequote}
 variable		{variableStart}{identContinue}*
 
 /* operators */
-/* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
-/*shiftsOps		["<<"|">>"] */
-/* notOps			("NOT"|"!") */
+dot						'.'
+colon					':' 
+comma					',' 
+semicolon				';' 
 
+lparen					'(' 
+rparen					')' 
 
-/*****************************************************************/
-/* DL ONES */
-DOT						'.'
-COLON					':' 
-COMMA					',' 
-SEMICOLON				';' 
-
-LPAREN					'(' 
-RPAREN					')' 
-LSQUARE					'[' 
-RSQUARE					']' 
-LCURLY					'{'
-RCURLY					'}'
-
-EQUAL					("=" | "==")
-NOTEQUAL				("<>" | "!=")
+EQUAL					'='
+NOTEQUAL				("<>"|"!=")
 IMPLIES					":-"
 LESSTHANOREQUALTO		"<="
 LESSTHAN				"<"
@@ -119,8 +108,8 @@ MINUS					'-'
 STAR					'*'
 MOD						'%'
 
-AMPERSAND				'&'
-TILDE					'~'
+comparisonOps	({EQUAL}|{NOTEQUAL}|{LESSTHANOREQUALTO}|{LESSTHAN}|{GREATERTHANOREQUALTO}|{GREATERTHAN})
+arithmeticOps	({PLUS}|{MINUS}|{STAR}|{MOD})
 
 /* LITERAL ONES */
 
@@ -147,11 +136,12 @@ TILDE					'~'
 		return IDENT;
 	}	
 
-[(),.;] TOKSELF()
+[(),.;] 			TOKSELF()
+
+{comparisonOps}			TOK(comparisonOp)
+{arithmeticOps}			TOK(arithmeticOp)
 
 
-[-+*%/^~&|!]		TOKSELF()
-	
 {integer}	TOKSAVE(intConst,intVal,atoi)
 {float}		TOKSAVE(floatConst,floatVal,atof)
 

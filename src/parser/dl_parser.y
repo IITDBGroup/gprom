@@ -4,6 +4,7 @@
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
+#include "model/datalog/datalog_model.h"
 #include "model/query_block/query_block.h"
 #include "parser/parse_internal_dl.h"
 #include "log/logger.h"
@@ -53,45 +54,29 @@ Node *dlParseResult = NULL;
 %token <stringVal> IDENT
 %token <stringVal> VARIDENT
 %token <stringVal> parameter
+%token <stringVal> comparisonOp arithmeticOp
 
 /* comparison and arithmetic operators */
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
+/* %token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' ')' '(' '=' */
 
 
 /*
  * Declare token for operators specify their associativity and precedence
  *
-%left MINUS
+%left NEGATION
 
-/* Logical operators *
-%left '&'
-%left '!'
-%left ':-'
-
-/* Comparison operator *
-%left comparisonOps
-%right NOT
-%left AND OR
-
-/* Arithmetic operators : FOR TESTING *
-%nonassoc DUMMYEXPR
-%left '+' '-'
-%left '*' '/' '%'
-%left '^'
 %nonassoc '(' ')'
 
-%left NATURAL JOIN CROSS LEFT FULL RIGHT INNER
 
 /*
  * Types of non-terminal symbols
  */
-/* simple types */
- 
 /* statements and their parts */ 
 %type <list> stmtList
-%type <node> statement 
+%type <node> statement program
 
-%type <node> rule fact rulehead rulebody atomList atom argList  arg variable constant program
+%type <node> rule fact rulehead atom arg variable constant comparison 
+%type <list> atomList argList rulebody 
 
 /* start symbol */
 %start program
@@ -125,48 +110,82 @@ stmtList:
 	;
 	
 statement:
-		rule { $$ = $1; }
-		| fact { $$ = $1; }
+		rule { RULELOG("statement::rule"); $$ = $1; }
+		| fact { RULELOG("statement::fact"); $$ = $1; }
 	;
 	
 rule:
 		rulehead RULE_IMPLICATION rulebody '.' 
 			{ 
-				$$ = (Node *) createDLRule($1,$3); 
+				RULELOG("rule::head::body"); 
+				$$ = (Node *) createDLRule((DLAtom *) $1,$3); 
 			}
 	;
 	
 fact:
-		atom '.' { $$ = $1; } /* do more elegant? */
+		atom '.' { RULELOG("fact::atom"); $$ = $1; } /* do more elegant? */
 	;
 
 rulehead:
-		atom  { $$ = $1; }
+		atom  { RULELOG("rulehead::atom"); $$ = $1; }
 	;
 	
 rulebody:
-		atomList { $$ = $1; }
+		atomList { RULELOG("rulebody::atomList"); $$ = $1; }
 	;
 	
 atomList:
-		atomList ',' atom { $$ = appendToTailOfList($1,$3); }
-		| atom		  { $$ = singleton($1); }
+		atomList ',' atom 
+			{
+				RULELOG("atomList::atom");
+				$$ = appendToTailOfList($1,$3); 
+			}
+		| atom
+			{
+				RULELOG("atomList::atom");
+				$$ = singleton($1); 
+			}
 	;
 
 atom:
- 		NEGATION IDENT '(' argList ')' { $$ = createDLAtom($2, $4, TRUE); }
- 		| IDENT '(' argList ')' { $$ = createDLAtom($1, $3, FALSE); }
+ 		NEGATION IDENT '(' argList ')' 
+ 			{ 
+ 				RULELOG("atom::NEGATION");
+ 				$$ = (Node *) createDLAtom($2, $4, TRUE); 
+			}
+ 		| IDENT '(' argList ')' 
+ 			{
+ 				RULELOG("atom::IDENT");
+ 				$$ = (Node *) createDLAtom($1, $3, FALSE); 
+			}
+		| comparison
+			{
+				RULELOG("atom::comparison");
+				$$ = (Node *) $1;
+			}
  	;
 
 /*
 constAtom:
-		IDENT '(' constList ')' { $$ = createDLAtom($1,$3,FALSE); }
+		IDENT '(' constList ')' 
+			{
+				RULELOG("constAtom");
+				$$ = createDLAtom($1,$3,FALSE); 
+			}
 	;
 */
 
 argList:
- 		argList arg { $$ = appendToTailOfList($1,$2); }
- 		| arg		{ $$ = singleton($1); }
+ 		argList ',' arg 
+ 			{
+ 				RULELOG("argList::argList::arg");
+ 				$$ = appendToTailOfList($1,$3); 
+			}
+ 		| arg		
+ 			{
+ 				RULELOG("argList::arg");
+ 				$$ = singleton($1); 
+			}
  	;
 
 /* 	
@@ -176,19 +195,51 @@ constList:
 	;
 */
 
+comparison:
+		arg comparisonOp arg
+			{
+				RULELOG("comparison::arg::op::arg");
+				$$ = (Node *) createDLComparison($2, $1, $3);
+			}
+	;
+
 /* add skolem */ 	
 arg:
- 		variable { $$ = $1; }
- 		| constant { $$ = $1; }
+ 		variable 
+ 			{
+ 				RULELOG("arg:variable");
+ 		 		$$ = $1; 
+	 		}
+ 		| constant 
+ 			{ 
+ 				RULELOG("arg:constant");
+ 				$$ = $1; 
+			}
 	;
  		
 variable:
-		VARIDENT { $$ = (Node *) createConstString($1); }
+		VARIDENT 
+			{
+				RULELOG("variable"); 
+				$$ = (Node *) createConstString($1); 
+			}
 	;
 	
 constant: 
-		intConst { $$ = (Node *) createConstInt($1); }
-		| floatConst { $$ = (Node *) createConstFloat($1); }
-		| stringConst { $$ = (Node *) createConstString($1); }
+		intConst 
+			{
+				RULELOG("constant::intConst"); 
+				$$ = (Node *) createConstInt($1); 
+			}
+		| floatConst
+			{
+				RULELOG("constant::floatConst"); 
+				$$ = (Node *) createConstFloat($1); 
+			}
+		| stringConst 
+			{
+				RULELOG("constant::stringConst");
+				$$ = (Node *) createConstString($1); 
+			}
 	;
 	

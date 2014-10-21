@@ -41,7 +41,7 @@ main(int argc, char* argv[]) {
 void
 inputSQL()
 {
-	char* sql=(char*) CALLOC(999,1);
+	char* sql=(char*) CALLOC(100000,1);
 	while(TRUE)
 	{
 	    char *rewritten;
