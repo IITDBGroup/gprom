@@ -72,6 +72,7 @@ Node *dlParseResult = NULL;
  * Types of non-terminal symbols
  */
 /* statements and their parts */ 
+%type <stringVal> name
 %type <list> stmtList
 %type <node> statement program
 
@@ -91,18 +92,19 @@ program:
 			{ 
 				RULELOG("program::stmtList");
 				$$ = (Node *) createDLProgram ($1, NULL);
-				dlParseResult = (Node *) $$; 
+				dlParseResult = (Node *) $$;
+				DEBUG_LOG("parsed %s", nodeToString($$));
 			}
 		;
 
 /* Rule for all types of statements */
 stmtList: 
-		statement ';'
+		statement
 			{ 
 				RULELOG("stmtList::statement"); 
 				$$ = singleton($1);
 			}
-		| stmtList statement ';' 
+		| stmtList statement 
 			{
 				RULELOG("stmtlist::stmtList::statement");
 				$$ = appendToTailOfList($1, $2); 
@@ -148,14 +150,14 @@ atomList:
 	;
 
 atom:
- 		NEGATION IDENT '(' argList ')' 
+ 		NEGATION name '(' argList ')' 
  			{ 
  				RULELOG("atom::NEGATION");
  				$$ = (Node *) createDLAtom($2, $4, TRUE); 
 			}
- 		| IDENT '(' argList ')' 
+ 		| name '(' argList ')' 
  			{
- 				RULELOG("atom::IDENT");
+ 				RULELOG("atom::name");
  				$$ = (Node *) createDLAtom($1, $3, FALSE); 
 			}
 		| comparison
@@ -221,7 +223,7 @@ variable:
 		VARIDENT 
 			{
 				RULELOG("variable"); 
-				$$ = (Node *) createConstString($1); 
+				$$ = (Node *) createDLVar($1, DT_STRING); 
 			}
 	;
 	
@@ -243,3 +245,7 @@ constant:
 			}
 	;
 	
+name:
+		IDENT { RULELOG("name::IDENT"); $$ = $1; }
+		| VARIDENT { RULELOG("name::VARIDENT"); $$ = $1; }
+	;	

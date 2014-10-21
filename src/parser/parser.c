@@ -125,6 +125,8 @@ chooseParserPluginFromString(char *type)
         chooseParserPlugin(PARSER_PLUGIN_POSTGRES);
     else if (streq(type,"hive"))
         chooseParserPlugin(PARSER_PLUGIN_HIVE);
+    else if (streq(type,"dl"))
+        chooseParserPlugin(PARSER_PLUGIN_DL);
     else
         FATAL_LOG("unkown parser plugin type: <%s>", type);
 }
