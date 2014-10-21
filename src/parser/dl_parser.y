@@ -91,15 +91,24 @@ Node *dlParseResult = NULL;
 %type <list> stmtList
 %type <node> statement 
 
-%type <node> rule fact rulehead rulebody atomList atom argList  arg variable constant
+%type <node> rule fact rulehead rulebody atomList atom argList  arg variable constant program
 
 /* start symbol */
-%start stmtList
+%start program
 
 /*************************************************************/
 /* RULE SECTION 											 */
 /*************************************************************/
 %%
+
+program:
+		stmtList 
+			{ 
+				RULELOG("program::stmtList");
+				$$ = (Node *) createDLProgram ($1, NULL);
+				dlParseResult = (Node *) $$; 
+			}
+		;
 
 /* Rule for all types of statements */
 stmtList: 
@@ -107,23 +116,24 @@ stmtList:
 			{ 
 				RULELOG("stmtList::statement"); 
 				$$ = singleton($1);
-				dlParseResult = (Node *) $$;	 
 			}
 		| stmtList statement ';' 
 			{
 				RULELOG("stmtlist::stmtList::statement");
-				$$ = appendToTailOfList($1, $2);	
-				dlParseResult = (Node *) $$; 
+				$$ = appendToTailOfList($1, $2); 
 			}
 	;
 	
 statement:
-		rule { $$ = NULL; }
-		| fact { $$ = NULL; }
+		rule { $$ = $1; }
+		| fact { $$ = $1; }
 	;
 	
 rule:
-		rulehead RULE_IMPLICATION rulebody '.' { $$ = NULL; }
+		rulehead RULE_IMPLICATION rulebody '.' 
+			{ 
+				$$ = (Node *) createDLRule($1,$3); 
+			}
 	;
 	
 fact:
@@ -131,54 +141,54 @@ fact:
 	;
 
 rulehead:
-		atom  { $$ = NULL; }
+		atom  { $$ = $1; }
 	;
 	
 rulebody:
-		atomList { $$ = NULL; }
+		atomList { $$ = $1; }
 	;
 	
 atomList:
-		atomList ',' atom { $$ = NULL; }
-		| atom		  { $$ = NULL; }
+		atomList ',' atom { $$ = appendToTailOfList($1,$3); }
+		| atom		  { $$ = singleton($1); }
 	;
 
 atom:
- 		NEGATION IDENT '(' argList ')' { $$ = NULL; }
- 		| IDENT '(' argList ')' { $$ = NULL; }
+ 		NEGATION IDENT '(' argList ')' { $$ = createDLAtom($2, $4, TRUE); }
+ 		| IDENT '(' argList ')' { $$ = createDLAtom($1, $3, FALSE); }
  	;
 
 /*
 constAtom:
-		IDENT '(' constList ')' { $$ = NULL; }
+		IDENT '(' constList ')' { $$ = createDLAtom($1,$3,FALSE); }
 	;
 */
 
 argList:
- 		argList arg { $$ = NULL; }
- 		| arg		{ $$ = NULL; }
+ 		argList arg { $$ = appendToTailOfList($1,$2); }
+ 		| arg		{ $$ = singleton($1); }
  	;
 
 /* 	
 constList:
-		constList ',' constant { $$ = NULL; }
-		| constant { $$ = NULL; }
+		constList ',' constant { $$ = appendToTailOfList($1,$2); }
+		| constant { $$ = singleton($1); }
 	;
 */
 
 /* add skolem */ 	
 arg:
- 		variable { $$ = NULL; }
- 		| constant { $$ = NULL; }
+ 		variable { $$ = $1; }
+ 		| constant { $$ = $1; }
 	;
  		
 variable:
-		VARIDENT { $$ = NULL; }
+		VARIDENT { $$ = (Node *) createConstString($1); }
 	;
 	
 constant: 
-		intConst { $$ = NULL; }
-		| floatConst { $$ = NULL; }
-		| stringConst { $$ = NULL; }
+		intConst { $$ = (Node *) createConstInt($1); }
+		| floatConst { $$ = (Node *) createConstFloat($1); }
+		| stringConst { $$ = (Node *) createConstString($1); }
 	;
 	

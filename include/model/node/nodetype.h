@@ -70,8 +70,14 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_ConstRelOperator,
     T_NestingOperator,
     T_WindowOperator,
-    T_OrderOperator
+    T_OrderOperator,
 
+    /* datalog model nodes */
+    T_DLAtom,
+    T_DLVar,
+    T_DLRule,
+    T_DLProgram,
+    T_DLComparison
 );
 
 typedef struct Node{

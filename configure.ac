@@ -281,6 +281,7 @@ AC_CONFIG_FILES([
 	src/mem_manager/Makefile
 	src/metadata_lookup/Makefile
 	src/model/Makefile
+	src/model/datalog/Makefile
 	src/model/expression/Makefile
 	src/model/helperfunction/Makefile
 	src/model/list/Makefile
