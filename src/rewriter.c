@@ -23,6 +23,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "provenance_rewriter/prov_rewriter.h"
+#include "analysis_and_translate/analyzer.h"
 #include "analysis_and_translate/translator.h"
 #include "sql_serializer/sql_serializer.h"
 #include "operator_optimizer/operator_optimizer.h"
@@ -79,7 +80,23 @@ setupPluginsFromOptions(void)
         chooseMetadataLookupPluginFromString(be);
     initMetadataLookupPlugin();
 
-    //TODO SQL code gen
+    // setup analyzer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.analyzer")) != NULL)
+        chooseAnalyzerPluginFromString(pluginName);
+    else
+        chooseAnalyzerPluginFromString(be);
+
+    // setup analyzer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.translator")) != NULL)
+        chooseTranslatorPluginFromString(pluginName);
+    else
+        chooseTranslatorPluginFromString(be);
+
+    // setup analyzer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.sqlserializer")) != NULL)
+        chooseSqlserializerPluginFromString(pluginName);
+    else
+        chooseSqlserializerPluginFromString(be);
 }
 
 int

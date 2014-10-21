@@ -1,5 +1,5 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include
 
 noinst_LTLIBRARIES        		= libanalysis.la
-libanalysis_la_SOURCES       	= translator.c translate_update.c analyze_qb.c parameter.c
+libanalysis_la_SOURCES       	= translator.c translator_oracle.c translator_dl.c translate_update.c analyzer.c analyze_oracle.c analyze_dl.c parameter.c
 libanalysis_la_LIBADD        	= 

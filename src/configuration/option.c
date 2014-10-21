@@ -67,6 +67,9 @@ char *backend = NULL;
 char *plugin_metadata = NULL;
 char *plugin_parser = NULL;
 char *plugin_sqlcodegen = NULL;
+char *plugin_analyzer = NULL;
+char *plugin_translator = NULL;
+char *plugin_sql_serializer = NULL;
 
 // instrumentation options
 boolean opt_timing = FALSE;
@@ -241,6 +244,30 @@ OptionInfo opts[] =
                 "select SQL code generator plugin: oracle",
                 OPTION_STRING,
                 wrapOptionString(&plugin_sqlcodegen),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.analyzer",
+                "-Panalyzer",
+                "select parser result model analyzer: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_analyzer),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.translator",
+                "-Ptranslator",
+                "select parser result to relational algebra translator: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_translator),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.sqlserializer",
+                "-Psqlserializer",
+                "select SQL code generator plugin: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_sql_serializer),
                 defOptionString(NULL)
         },
         // boolean instrumentation options

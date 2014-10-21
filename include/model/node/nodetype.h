@@ -73,6 +73,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_OrderOperator,
 
     /* datalog model nodes */
+    T_DLNode,
     T_DLAtom,
     T_DLVar,
     T_DLRule,

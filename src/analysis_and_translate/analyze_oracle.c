@@ -12,7 +12,7 @@
 #include "common.h"
 #include "instrumentation/timing_instrumentation.h"
 
-#include "analysis_and_translate/analyze_qb.h"
+#include "analysis_and_translate/analyze_oracle.h"
 #include "analysis_and_translate/parameter.h"
 #include "configuration/option.h"
 #include "log/logger.h"
@@ -76,6 +76,14 @@ strToUpper(char *in)
     return result;
 }
 
+
+Node *
+analyzeOracleModel (Node *stmt)
+{
+    analyzeQueryBlockStmt(stmt, NULL);
+
+    return stmt;
+}
 
 void
 analyzeQueryBlockStmt (Node *stmt, List *parentFroms)

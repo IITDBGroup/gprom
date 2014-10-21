@@ -16,7 +16,7 @@
 #include "model/node/nodetype.h"
 #include "parser/parser.h"
 #include "model/query_operator/query_operator.h"
-#include "analysis_and_translate/analyze_qb.h"
+#include "analysis_and_translate/analyzer.h"
 #include "rewriter.h"
 
 
@@ -47,7 +47,7 @@ main (int argc, char* argv[])
         ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
     }
 
-    analyzeQueryBlockStmt(result, NULL);
+    analyzeParseModel(result);
     ERROR_LOG("ANALYSIS RESULT IS <%s>", nodeToString(result));
     ERROR_LOG("ANALYSIS RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
 
