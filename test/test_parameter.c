@@ -16,7 +16,7 @@
 #include "model/expression/expression.h"
 #include "analysis_and_translate/parameter.h"
 #include "parser/parser.h"
-#include "analysis_and_translate/analyze_qb.h"
+#include "analysis_and_translate/analyze_oracle.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
 #include "metadata_lookup/metadata_lookup_postgres.h"

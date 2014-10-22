@@ -20,6 +20,7 @@
 #include "model/set/vector.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
+#include "model/datalog/datalog_model.h"
 #include "model/query_operator/query_operator.h"
 
 /* data structures for copying operator nodes */
@@ -113,6 +114,13 @@ static Update *copyUpdate(Update *from, OperatorMap **opMap);
 static TransactionStmt *copyTransactionStmt(TransactionStmt *from, OperatorMap **opMap);
 static FromProvInfo *copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap);
 static WithStmt *copyWithStmt(WithStmt *from, OperatorMap **opMap);
+
+/* functions to copy datalog model elements */
+static DLAtom *copyDLAtom(DLAtom *from, OperatorMap **opMap);
+static DLVar *copyDLVar(DLVar *from, OperatorMap **opMap);
+static DLComparison *copyDLComparison(DLComparison *from, OperatorMap **opMap);
+static DLRule *copyDLRule(DLRule *from, OperatorMap **opMap);
+static DLProgram *copyDLProgram(DLProgram *from, OperatorMap **opMap);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -225,6 +233,60 @@ deepCopyVector(Vector *from, OperatorMap **opMap)
     return new;
 }
 
+static DLAtom *
+copyDLAtom(DLAtom *from, OperatorMap **opMap)
+{
+    COPY_INIT(DLAtom);
+
+    COPY_STRING_FIELD(rel);
+    COPY_NODE_FIELD(args);
+    COPY_SCALAR_FIELD(negated);
+
+    return new;
+}
+
+static DLVar *
+copyDLVar(DLVar *from, OperatorMap **opMap)
+{
+    COPY_INIT(DLVar);
+
+    COPY_STRING_FIELD(name);
+    COPY_SCALAR_FIELD(dt);
+
+    return new;
+}
+
+static DLComparison *
+copyDLComparison(DLComparison *from, OperatorMap **opMap)
+{
+    COPY_INIT(DLComparison);
+
+    COPY_NODE_FIELD(opExpr);
+
+    return new;
+}
+
+static DLRule *
+copyDLRule(DLRule *from, OperatorMap **opMap)
+{
+    COPY_INIT(DLRule);
+
+    COPY_NODE_FIELD(head);
+    COPY_NODE_FIELD(body);
+
+    return new;
+}
+
+static DLProgram *
+copyDLProgram(DLProgram *from, OperatorMap **opMap)
+{
+    COPY_INIT(DLProgram);
+
+    COPY_NODE_FIELD(rules);
+    COPY_NODE_FIELD(ans);
+
+    return new;
+}
 
 static AttributeReference *
 copyAttributeReference(AttributeReference *from, OperatorMap **opMap)
@@ -973,6 +1035,23 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_OrderOperator:
             retval = copyOrderOperator(from, opMap);
+            break;
+
+            /* datalog model nodes */
+        case T_DLAtom:
+            retval = copyDLAtom(from, opMap);
+            break;
+        case T_DLVar:
+            retval = copyDLVar(from, opMap);
+            break;
+        case T_DLRule:
+            retval = copyDLRule(from, opMap);
+            break;
+        case T_DLProgram:
+            retval = copyDLProgram(from, opMap);
+            break;
+        case T_DLComparison:
+            retval = copyDLComparison(from, opMap);
             break;
         default:
             retval = NULL;

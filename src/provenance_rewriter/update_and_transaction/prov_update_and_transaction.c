@@ -13,7 +13,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 
-#include "analysis_and_translate/analyze_qb.h"
+#include "analysis_and_translate/analyze_oracle.h"
 #include "model/node/nodetype.h"
 #include "model/set/set.h"
 #include "model/set/hashmap.h"

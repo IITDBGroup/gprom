@@ -13,6 +13,32 @@
 
 #include "model/query_operator/query_operator.h"
 
+/* types of supported plugins */
+typedef enum SqlserializerPluginType
+{
+    SQLSERIALIZER_PLUGIN_ORACLE,
+    SQLSERIALIZER_PLUGIN_POSTGRES,
+    SQLSERIALIZER_PLUGIN_HIVE,
+    SQLSERIALIZER_PLUGIN_DL
+} SqlserializerPluginType;
+
+/* plugin definition */
+typedef struct SqlserializerPlugin
+{
+    SqlserializerPluginType type;
+
+    /* functional interface */
+    char *(*serializeOperatorModel) (Node *q);
+    char *(*serializeQuery) (QueryOperator *q);
+    char *(*quoteIdentifier) (char *ident);
+
+} SqlserializerPlugin;
+
+// plugin management
+extern void chooseSqlserializerPlugin(SqlserializerPluginType type);
+extern void chooseSqlserializerPluginFromString(char *type);
+
+// sqlserializer interface wrapper
 extern char *serializeOperatorModel(Node *q);
 extern char *serializeQuery(QueryOperator *q);
 extern char *quoteIdentifier (char *ident);

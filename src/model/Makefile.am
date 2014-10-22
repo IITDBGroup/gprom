@@ -1,6 +1,6 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include
 
-SUBDIRS = expression helperfunction list node set query_block query_operator
+SUBDIRS = expression helperfunction list node set query_block query_operator datalog
 
 noinst_LTLIBRARIES		= libmodel.la
 libmodel_la_LIBADD     	= expression/libexpression.la \
@@ -9,7 +9,7 @@ libmodel_la_LIBADD     	= expression/libexpression.la \
 						node/libnode.la \
 						set/libset.la \
 						query_block/libquery_block.la \
-						query_operator/libquery_operator.la #\
-						#set/libset.la
+						query_operator/libquery_operator.la \
+						datalog/libdatalog.la
 						
 libmodel_la_SOURCES     =
