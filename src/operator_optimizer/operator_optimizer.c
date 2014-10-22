@@ -61,14 +61,14 @@ optimizeOneGraph (QueryOperator *root)
         STOP_TIMER("OptimizeModel - factor attributes in conditions");
     }
 
-//    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-//    {
-//        START_TIMER("OptimizeModel - merge adjacent operator");
-//        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - merge adjacent operator");
-//    }
+    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
+    {
+        START_TIMER("OptimizeModel - merge adjacent operator");
+        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
+        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+        STOP_TIMER("OptimizeModel - merge adjacent operator");
+    }
 
     if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
     {
@@ -88,14 +88,14 @@ optimizeOneGraph (QueryOperator *root)
         STOP_TIMER("OptimizeModel - factor attributes in conditions");
     }
 
-//    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-//    {
-//        START_TIMER("OptimizeModel - merge adjacent operator");
-//        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - merge adjacent operator");
-//    }
+    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
+    {
+        START_TIMER("OptimizeModel - merge adjacent operator");
+        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
+        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+        STOP_TIMER("OptimizeModel - merge adjacent operator");
+    }
 
     if(getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS))
     {
@@ -246,8 +246,6 @@ pullingUpProvenanceProjections(QueryOperator *root)
   {
     if(isA(o, ProjectionOperator))
     {
-      // getProperty(o, createConstString(PROP_PROJ_PROV_ATTR_DUP)) != NULL
-      // GET_BOOL_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP)
       if(((ProjectionOperator *)o)->isProvenanceProjection == TRUE)
       {
         ProjectionOperator *op = (ProjectionOperator *)o;

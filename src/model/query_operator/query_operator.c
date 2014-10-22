@@ -56,24 +56,24 @@ createSchemaFromLists (char *name, List *attrNames, List *dataTypes)
     if (dataTypes == NULL)
     {
         FOREACH(char,n,attrNames)
-                {
+        {
             AttributeDef *a = makeNode(AttributeDef);
             a->attrName = strdup(n);
             a->dataType = DT_STRING;
 
             result->attrDefs = appendToTailOfList(result->attrDefs, a);
-                }
+        }
     }
     else
     {
         FORBOTH_LC(n,dt,attrNames,dataTypes)
-                {
+        {
             AttributeDef *a = makeNode(AttributeDef);
             a->attrName = strdup(LC_P_VAL(n));
             a->dataType = LC_INT_VAL(dt);
 
             result->attrDefs = appendToTailOfList(result->attrDefs, a);
-                }
+        }
     }
     return result;
 }
@@ -84,7 +84,7 @@ schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inpu
     List *dataTypes = NIL;
 
     FOREACH(Node,n,exprs)
-    dataTypes = appendToHeadOfListInt(dataTypes, typeOfInOpModel(n, inputs));
+        dataTypes = appendToHeadOfListInt(dataTypes, typeOfInOpModel(n, inputs));
 
     return createSchemaFromLists(name, attributeNames, dataTypes);
 }
@@ -105,27 +105,23 @@ deleteAttrFromSchemaByName(QueryOperator *op, char *name)
 
     FOREACH(AttributeDef,a,op->schema->attrDefs)
     {
-        if (!streq(a->attrName,name))
+        if (streq(a->attrName,name))
         {
-            DEBUG_LOG("Find one same attrDefs %s = %s, remove it from the schema.", nodeToString(a), name);
-            result = appendToTailOfList(result, a);
+            op->schema->attrDefs = REMOVE_FROM_LIST_PTR(op->schema->attrDefs, a);
+            break;
         }
     }
-
-    op->schema->attrDefs = result;
 }
 
 void
 deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos)
 {
     int i = 0;
-    void *remE;
 
     FOREACH_LC(lc, op->projExprs)
     {
         if(i == pos)
         {
-            DEBUG_LOG("Find the attr_ref by position: %s in postion %d, remove it from the schema.", ((AttributeReference *) lc->data.ptr_value)->name, pos);
             op->projExprs = REMOVE_FROM_LIST_PTR(op->projExprs, LC_P_VAL(lc));
             break;
         }
@@ -134,18 +130,18 @@ deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos)
 }
 
 void
-resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2)
+resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *op2)
 {
     int cnt = 0;
     FOREACH(AttributeDef, a2, op2->schema->attrDefs)
     {
         FOREACH(AttributeReference, a1, op1->projExprs)
-            {
-            if(streq(a1->name,a2->attrName))
+        {
+            if(streq(a1->name, a2->attrName))
             {
                 a1->attrPosition = cnt;
             }
-            }
+        }
         cnt++;
     }
 }
@@ -433,10 +429,10 @@ static KeyValue *
 getProp (QueryOperator *op, Node *key)
 {
     FOREACH(KeyValue,p,(List *) op->properties)
-            {
+    {
         if (equal(p->key,key))
             return p;
-            }
+    }
 
     return NULL;
 }

@@ -699,7 +699,6 @@ outProjectionOperator(StringInfo str, ProjectionOperator *node)
     WRITE_QUERY_OPERATOR();
 
     WRITE_NODE_FIELD(projExprs); // projection expressions, Expression type
-    WRITE_BOOL_FIELD(isProvenanceProjection);
 }
 static void 
 outSelectionOperator (StringInfo str, SelectionOperator *node)
