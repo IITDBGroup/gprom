@@ -12,6 +12,7 @@
 #define INCLUDE_MODEL_DATALOG_DATALOG_MODEL_H_
 
 #include "model/node/nodetype.h"
+#include "model/expression/expression.h"
 #include "model/set/hashmap.h"
 
 // data types
@@ -63,8 +64,13 @@ extern boolean isConstAtom (DLAtom *a);
 extern DLRule *createDLRule (DLAtom *head, List *body);
 extern DLProgram *createDLProgram (List *dlRules, DLRule *ans);
 extern DLComparison *createDLComparison (char *op, Node *lArg, Node *rArg);
+
+extern char *getHeadPredName(DLRule *r);
 extern List *getRuleVars (DLRule *r);
+extern List *getBodyVars (DLRule *r);
+extern List *getBodyPredVars (DLRule *r);
 extern List *getHeadVars (DLRule *r);
+extern List *getVarNames (List *vars);
 
 // properties
 extern Node *getDLProp(DLNode *n, char *key);

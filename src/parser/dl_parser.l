@@ -91,16 +91,7 @@ colon					':'
 comma					',' 
 semicolon				';' 
 
-lparen					'(' 
-rparen					')' 
-
-EQUAL					'='
-NOTEQUAL				("<>"|"!=")
 IMPLIES					":-"
-LESSTHANOREQUALTO		"<="
-LESSTHAN				"<"
-GREATERTHANOREQUALTO	">="
-GREATERTHAN				">"
 
 DIVIDE					'/'
 PLUS					'+'
@@ -108,7 +99,7 @@ MINUS					'-'
 STAR					'*'
 MOD						'%'
 
-comparisonOps	({EQUAL}|{NOTEQUAL}|{LESSTHANOREQUALTO}|{LESSTHAN}|{GREATERTHANOREQUALTO}|{GREATERTHAN})
+comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 arithmeticOps	({PLUS}|{MINUS}|{STAR}|{MOD})
 
 /* LITERAL ONES */

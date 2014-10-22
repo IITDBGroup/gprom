@@ -115,13 +115,21 @@ makeStrSetFromList(List *strList)
     Set *result = STRSET();
 
     FOREACH(char,str,strList)
-    {
         addToSet(result, str);
-    }
 
     return result;
 }
 
+Set *
+makeNodeSetFromList(List *list)
+{
+    Set *result = NODESET();
+
+    FOREACH(Node,n,list)
+        addToSet(result, n);
+
+    return result;
+}
 
 boolean
 hasSetElem (Set *set, void *_el)

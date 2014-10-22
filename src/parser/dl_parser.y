@@ -38,7 +38,8 @@ Node *dlParseResult = NULL;
  * Declare tokens for name and literal values
  * Declare tokens for user variables
  */
- %token <stringVal> StringLiteral Identifier
+%token <stringVal> IDENT
+%token <stringVal> VARIDENT
   
 /*
  * Tokens for in-built keywords
@@ -51,14 +52,9 @@ Node *dlParseResult = NULL;
 %token <intVal> intConst
 %token <floatVal> floatConst
 %token <stringVal> stringConst
-%token <stringVal> IDENT
-%token <stringVal> VARIDENT
-%token <stringVal> parameter
-%token <stringVal> comparisonOp arithmeticOp
 
 /* comparison and arithmetic operators */
-/* %token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' ')' '(' '=' */
-
+%token <stringVal> comparisonOp arithmeticOp
 
 /*
  * Declare token for operators specify their associativity and precedence

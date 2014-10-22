@@ -177,6 +177,7 @@ extern KeyValue *createNodeKeyValue(Node *key, Node *value);
 extern char *nodeToString(void *obj);
 extern char *beatify(char *input);
 char *operatorToOverviewString(Node *op);
+char *datalogToOverviewString(Node *n);
 char *itoa(int value);
 
 /* get a dot script for a query operator graph or query block tree */

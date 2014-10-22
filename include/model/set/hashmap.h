@@ -60,6 +60,9 @@ extern boolean addToMap (HashMap *map, Node *key, Node *value);
 #define MAP_ADD_INT_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstInt(key), (Node *) value)
 #define MAP_ADD_LONG_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstLong(key), (Node *) value)
 
+extern int mapIncr(HashMap *map, Node *key);
+#define MAP_INCR_STRING_KEY(map, key) mapIncr((HashMap *) map, (Node *) createConstString(key));
+
 // remove elements from map
 extern void removeAndFreeMapElem (HashMap *map, Node *key);
 extern void removeMapElem (HashMap *map, Node *key);

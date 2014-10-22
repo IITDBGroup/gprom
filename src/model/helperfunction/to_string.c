@@ -1222,6 +1222,9 @@ datalogToOverviewString(Node *n)
 static void
 datalogToStrInternal(StringInfo str, Node *n, int indent)
 {
+    if (n == NULL)
+        return;
+
     switch(n->type)
     {
         case T_DLAtom:
@@ -1266,6 +1269,13 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             appendStringInfo(str, "(%s)", exprToSQL((Node *) c->opExpr));
         }
         break;
+        case T_DLVar:
+        {
+            DLVar *v = (DLVar *) n;
+
+            appendStringInfo(str, "%s", v->name);
+        }
+        break;
         case T_DLProgram:
         {
             DLProgram *p = (DLProgram *) n;
@@ -1274,7 +1284,6 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
                 datalogToStrInternal(str,(Node *) r, 4);
             appendStringInfoString(str, "ANSWER RELATION:\n");
             datalogToStrInternal(str,(Node *) p->ans, 4);
-            appendStringInfoString(str, "END PROGRAM:\n");
         }
         break;
         default:

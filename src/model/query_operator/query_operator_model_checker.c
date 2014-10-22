@@ -214,7 +214,7 @@ checkSchemaConsistency (QueryOperator *op)
         break;
         case T_DuplicateRemoval:
         {
-            if (equal(OP_LCHILD(op)->schema->attrDefs, op->schema->attrDefs))
+            if (!equal(OP_LCHILD(op)->schema->attrDefs, op->schema->attrDefs))
             {
                 ERROR_LOG("Attributes of DuplicateRemoval should match attributes"
                         " of its child:\n%s",
@@ -246,7 +246,7 @@ checkSchemaConsistency (QueryOperator *op)
                     copyObject(lChild->schema->attrDefs),
                     copyObject(rChild->schema->attrDefs));
 
-            if (!equal(o->op.schema->attrDefs, expectedSchema))
+            if (o->op.schema->attrDefs->length != expectedSchema->length)
             {
                 ERROR_LOG("Attributes of a join operator should be the "
                         "concatenation of attributes of its children:\n%s\n"

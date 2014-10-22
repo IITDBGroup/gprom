@@ -147,8 +147,13 @@ createSelectionOp(Node *cond, QueryOperator *input, List *parents,
         sel->op.inputs = singleton(input);
     else
         sel->op.inputs = NIL;
+
+    if (attrNames == NIL && input)
+        attrNames = getQueryOperatorAttrNames(input);
+
     sel->op.schema = createSchemaFromLists("SELECT", attrNames,
             input ? getDataTypes(input->schema) : NIL);
+
     sel->op.parents = parents;
     sel->op.provAttrs = NIL;
 
