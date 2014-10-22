@@ -92,6 +92,12 @@ boolean opt_optimization_merge_ops = FALSE;
 boolean opt_optimization_factor_attrs = FALSE;
 boolean opt_materialize_unsafe_proj = FALSE;
 
+// sanity check options
+boolean opt_operator_model_unique_schema_attribues = FALSE;
+boolean opt_operator_model_parent_child_links = FALSE;
+boolean opt_operator_model_schema_consistency = FALSE;
+boolean opt_operator_model_attr_reference_consistency = FALSE;
+
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
 #define wrapOptionBool(value) { .b = (boolean *) value }
@@ -130,6 +136,15 @@ static char *defGetString(OptionDefault *def, OptionType type);
             defOptionBool(_def) \
         }
 
+#define anSanityCheckOption(_name,_opt,_desc,_var,_def) \
+        { \
+            _name, \
+            _opt, \
+            _desc, \
+            OPTION_BOOL, \
+            wrapOptionBool(&_var), \
+            defOptionBool(_def) \
+        }
 
 
 #define OPT_POS(name) INT_VALUE(MAP_GET_STRING(optionPos,name))
@@ -351,6 +366,38 @@ OptionInfo opts[] =
                 "if merged with adjacent projection would cause expontential "
                 "expression size blowup",
                 opt_materialize_unsafe_proj,
+                TRUE
+        ),
+        // sanity model checking options
+        anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
+                "-Cunique_attr_names",
+                "Model Check: check that attribute names are unique for each operator's schema.",
+                opt_operator_model_unique_schema_attribues,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_PARENT_CHILD_LINKS,
+                "-Cparent_child_links",
+                "Model Check: check that an query operator graph is correctly "
+                "connected. For example, if X is a child of Y then Y should"
+                " be a parent of X.",
+                opt_operator_model_parent_child_links ,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_SCHEMA_CONSISTENCY,
+                "-Cschema_consistency",
+                "Model Check: Perform operator type specific sanity checks"
+                " on the schema of an operator. For example, the number of"
+                " attributes in a projection's schema should be equal to the"
+                " number of projection expressions.",
+                opt_operator_model_schema_consistency,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_ATTR_REF,
+                "-Cattr_reference_consistency",
+                "Model Check: check that attribute references used in "
+                "expressions are consistent. For instance, they have to "
+                "refer to existing inputs and attributes.",
+                opt_operator_model_attr_reference_consistency,
                 TRUE
         ),
         // stopper to indicate end of array

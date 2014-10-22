@@ -18,6 +18,7 @@
 #include "model/set/set.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
+#include "configuration/option.h"
 
 static boolean checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent);
 static boolean checkUniqueAttrNames (QueryOperator *op);
@@ -38,16 +39,18 @@ isTree(QueryOperator *op)
     return TRUE;
 }
 
+#define SHOULD(opt) (getBoolOption(OPTION_AGGRESSIVE_MODEL_CHECKING) || getBoolOption(opt))
+
 boolean
 checkModel (QueryOperator *op)
 {
-    if (!checkParentChildLinks(op))
+    if (SHOULD(CHECK_OM_PARENT_CHILD_LINKS) && !checkParentChildLinks(op))
         return FALSE;
 
-    if (!checkAttributeRefConsistency(op))
+    if (SHOULD(CHECK_OM_ATTR_REF) && !checkAttributeRefConsistency(op))
         return FALSE;
 
-    if (!checkSchemaConsistency(op))
+    if (SHOULD(CHECK_OM_SCHEMA_CONSISTENCY) && !checkSchemaConsistency(op))
         return FALSE;
 
     return TRUE;

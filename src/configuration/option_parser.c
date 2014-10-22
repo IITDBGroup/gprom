@@ -137,8 +137,21 @@ parseOneOption (char *opt, char* const argv[], const int argc, int *pos)
             }
             break;
             case OPTION_BOOL:
-                setBoolOption(o, TRUE);
-                (*pos) -= 1;
+                // if user has given value as separate argument
+                if (*pos < argc && !isOption(argv[*pos]))
+                {
+                    char *bVal = argv[*pos];
+                    if (streq(bVal,"TRUE") || streq(bVal,"t") || streq(bVal,"1") || streq(bVal,"true"))
+                        setBoolOption(o,TRUE);
+                    else
+                        setBoolOption(o,FALSE);
+                }
+                // otherwise mentioning an option sets it to TRUE
+                else
+                {
+                    setBoolOption(o, TRUE);
+                    (*pos) -= 1;
+                }
             break;
         }
         return 0;

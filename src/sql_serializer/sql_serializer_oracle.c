@@ -138,7 +138,7 @@ static char *exprToSQLWithNamingScheme(Node *expr, int rOffset, List *fromAttrs)
 static boolean renameAttrsVisitor(Node *node, JoinAttrRenameState *state);
 
 static char *createAttrName(char *name, int fItem);
-static char *createFromNames(int *attrOffset, int count);
+//static char *createFromNames(int *attrOffset, int count);
 
 static List *createTempView(QueryOperator *q, StringInfo str);
 static char *createViewName(void);
@@ -931,22 +931,22 @@ renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
     return visit(node, renameAttrsVisitor, state);
 }
 
-static char *
-createFromNames (int *attrOffset, int count)
-{
-    char *result = NULL;
-    StringInfo str = makeStringInfo();
-
-    for(int i = *attrOffset; i < count + *attrOffset; i++)
-        appendStringInfo(str, "%sA%u", (i == *attrOffset)
-                ? "" : ", ", i);
-
-    *attrOffset += count;
-    result = str->data;
-    FREE(str);
-
-    return result;
-}
+//static char *
+//createFromNames (int *attrOffset, int count)
+//{
+//    char *result = NULL;
+//    StringInfo str = makeStringInfo();
+//
+//    for(int i = *attrOffset; i < count + *attrOffset; i++)
+//        appendStringInfo(str, "%sA%u", (i == *attrOffset)
+//                ? "" : ", ", i);
+//
+//    *attrOffset += count;
+//    result = str->data;
+//    FREE(str);
+//
+//    return result;
+//}
 
 static char *
 createAttrName (char *name, int fItem)
