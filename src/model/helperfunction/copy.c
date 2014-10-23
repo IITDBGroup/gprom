@@ -241,6 +241,7 @@ copyDLAtom(DLAtom *from, OperatorMap **opMap)
     COPY_STRING_FIELD(rel);
     COPY_NODE_FIELD(args);
     COPY_SCALAR_FIELD(negated);
+    COPY_NODE_FIELD(n.properties);
 
     return new;
 }
@@ -252,6 +253,7 @@ copyDLVar(DLVar *from, OperatorMap **opMap)
 
     COPY_STRING_FIELD(name);
     COPY_SCALAR_FIELD(dt);
+    COPY_NODE_FIELD(n.properties);
 
     return new;
 }
@@ -262,6 +264,7 @@ copyDLComparison(DLComparison *from, OperatorMap **opMap)
     COPY_INIT(DLComparison);
 
     COPY_NODE_FIELD(opExpr);
+    COPY_NODE_FIELD(n.properties);
 
     return new;
 }
@@ -273,6 +276,7 @@ copyDLRule(DLRule *from, OperatorMap **opMap)
 
     COPY_NODE_FIELD(head);
     COPY_NODE_FIELD(body);
+    COPY_NODE_FIELD(n.properties);
 
     return new;
 }
@@ -283,7 +287,9 @@ copyDLProgram(DLProgram *from, OperatorMap **opMap)
     COPY_INIT(DLProgram);
 
     COPY_NODE_FIELD(rules);
-    COPY_NODE_FIELD(ans);
+    COPY_NODE_FIELD(facts);
+    COPY_STRING_FIELD(ans);
+    COPY_NODE_FIELD(n.properties);
 
     return new;
 }

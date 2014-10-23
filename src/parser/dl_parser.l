@@ -102,6 +102,9 @@ MOD						'%'
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 arithmeticOps	({PLUS}|{MINUS}|{STAR}|{MOD})
 
+/* KEYWORDS */
+ANS			"ANS"
+
 /* LITERAL ONES */
 
 /*******************************************************************************
@@ -115,6 +118,7 @@ arithmeticOps	({PLUS}|{MINUS}|{STAR}|{MOD})
 	/* literal keyword tokens */
 (?i:not)	TOK(NEGATION)
 {IMPLIES}	TOK(RULE_IMPLICATION)
+{ANS}		TOK(ANS)
 
 {variable}	 	UPCASE_TOK(VARIDENT)
 {identifier}	UPCASE_TOK(IDENT)
@@ -127,7 +131,7 @@ arithmeticOps	({PLUS}|{MINUS}|{STAR}|{MOD})
 		return IDENT;
 	}	
 
-[(),.;] 			TOKSELF()
+[(),.;:] 			TOKSELF()
 
 {comparisonOps}			TOK(comparisonOp)
 {arithmeticOps}			TOK(arithmeticOp)

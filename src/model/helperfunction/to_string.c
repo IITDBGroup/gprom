@@ -332,6 +332,7 @@ outDLAtom(StringInfo str, DLAtom *node)
     WRITE_STRING_FIELD(rel);
     WRITE_NODE_FIELD(args);
     WRITE_BOOL_FIELD(negated);
+    WRITE_NODE_FIELD(n.properties);
 }
 
 static void
@@ -341,6 +342,7 @@ outDLVar(StringInfo str, DLVar *node)
 
     WRITE_STRING_FIELD(name);
     WRITE_ENUM_FIELD(dt,DataType);
+    WRITE_NODE_FIELD(n.properties);
 }
 
 static void
@@ -350,6 +352,7 @@ outDLRule(StringInfo str, DLRule *node)
 
     WRITE_NODE_FIELD(head);
     WRITE_NODE_FIELD(body);
+    WRITE_NODE_FIELD(n.properties);
 }
 
 static void
@@ -358,7 +361,9 @@ outDLProgram(StringInfo str, DLProgram *node)
     WRITE_NODE_TYPE(DLPROGRAM);
 
     WRITE_NODE_FIELD(rules);
-    WRITE_NODE_FIELD(ans);
+    WRITE_NODE_FIELD(facts);
+    WRITE_STRING_FIELD(ans);
+    WRITE_NODE_FIELD(n.properties);
 }
 
 static void
@@ -367,6 +372,7 @@ outDLComparison(StringInfo str, DLComparison *node)
     WRITE_NODE_TYPE(DLCOMPARISON);
 
     WRITE_NODE_FIELD(opExpr);
+    WRITE_NODE_FIELD(n.properties);
 }
 
 
@@ -1282,9 +1288,14 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             appendStringInfoString(str, "PROGRAM:\n");
             FOREACH(DLRule,r,p->rules)
                 datalogToStrInternal(str,(Node *) r, 4);
-            appendStringInfoString(str, "ANSWER RELATION:\n");
-            datalogToStrInternal(str,(Node *) p->ans, 4);
+            if (p->ans)
+                appendStringInfo(str, "ANSWER RELATION:\n\t%s",
+                        p->ans);
         }
+        break;
+        case T_Constant:
+            appendStringInfo(str, "ANSWER RELATION:\n\t%s",
+                    STRING_VALUE(n));
         break;
         default:
             FATAL_LOG("should have never come here, datalog program should"

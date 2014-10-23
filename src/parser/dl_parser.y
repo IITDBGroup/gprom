@@ -46,7 +46,7 @@ Node *dlParseResult = NULL;
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> NEGATION RULE_IMPLICATION
+%token <stringVal> NEGATION RULE_IMPLICATION ANS
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -72,7 +72,7 @@ Node *dlParseResult = NULL;
 %type <list> stmtList
 %type <node> statement program
 
-%type <node> rule fact rulehead atom arg variable constant comparison 
+%type <node> rule fact rulehead atom arg variable constant comparison ansrelation
 %type <list> atomList argList rulebody 
 
 /* start symbol */
@@ -87,7 +87,7 @@ program:
 		stmtList 
 			{ 
 				RULELOG("program::stmtList");
-				$$ = (Node *) createDLProgram ($1, NULL);
+				$$ = (Node *) createDLProgram ($1, NULL, NULL);
 				dlParseResult = (Node *) $$;
 				DEBUG_LOG("parsed %s", nodeToString($$));
 			}
@@ -110,6 +110,7 @@ stmtList:
 statement:
 		rule { RULELOG("statement::rule"); $$ = $1; }
 		| fact { RULELOG("statement::fact"); $$ = $1; }
+		| ansrelation { RULELOG("statement::ansrelation"); $$ = $1; }
 	;
 	
 rule:
@@ -122,6 +123,14 @@ rule:
 	
 fact:
 		atom '.' { RULELOG("fact::atom"); $$ = $1; } /* do more elegant? */
+	;
+
+ansrelation:
+		ANS ':' name '.'
+		{
+			RULELOG("ansrelation");
+			$$ = (Node *) createConstString($3);
+		}
 	;
 
 rulehead:

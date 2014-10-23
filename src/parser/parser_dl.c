@@ -50,7 +50,7 @@ parseInternaldl (void) //TODO make copyObject work first
     int rc = dlparse();
     if (rc)
     {
-        ERROR_LOG("parse error!");
+        FATAL_LOG("parse error!");
         return NULL;
     }
 

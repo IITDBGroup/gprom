@@ -54,7 +54,8 @@ typedef struct DLProgram
 {
     DLNode n;
     List *rules;
-    DLRule *ans;
+    List *facts;
+    char *ans;
 } DLProgram;
 
 // convenience functions
@@ -62,7 +63,7 @@ extern DLAtom *createDLAtom (char *rel, List *args, boolean negated);
 extern DLVar *createDLVar (char *vName, DataType vType);
 extern boolean isConstAtom (DLAtom *a);
 extern DLRule *createDLRule (DLAtom *head, List *body);
-extern DLProgram *createDLProgram (List *dlRules, DLRule *ans);
+extern DLProgram *createDLProgram (List *dlRules, List *facts, char *ans);
 extern DLComparison *createDLComparison (char *op, Node *lArg, Node *rArg);
 
 extern char *getHeadPredName(DLRule *r);
@@ -70,13 +71,19 @@ extern List *getRuleVars (DLRule *r);
 extern List *getBodyVars (DLRule *r);
 extern List *getBodyPredVars (DLRule *r);
 extern List *getHeadVars (DLRule *r);
+
+//extern List *getAtomVars (DLAtom *r);
+
 extern List *getVarNames (List *vars);
 
 // properties
 extern Node *getDLProp(DLNode *n, char *key);
 extern void setDLProp(DLNode *n, char *key, Node *value);
 
-#define DL_GET_HAS_PROP(node,key) (getDLProp((DLNode *) node,key) != NULL)
-#define DL_SET_BOOL_PROP(node,key) (setDLProp((DLNode *) node),key, createConstBool(TRUE));
+#define DL_HAS_PROP(node,key) (getDLProp((DLNode *) node,key) != NULL)
+#define DL_SET_BOOL_PROP(node,key) setDLProp((DLNode *) node, key, (Node *) createConstBool(TRUE));
+
+// property keys
+#define DL_IS_IDB_REL "IS_IDB_REL"
 
 #endif /* INCLUDE_MODEL_DATALOG_DATALOG_MODEL_H_ */

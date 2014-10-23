@@ -138,6 +138,7 @@ equalDLAtom (DLAtom *a, DLAtom *b)
     COMPARE_STRING_FIELD(rel);
     COMPARE_NODE_FIELD(args);
     COMPARE_SCALAR_FIELD(negated);
+    COMPARE_NODE_FIELD(n.properties);
 
     return TRUE;
 }
@@ -147,6 +148,7 @@ equalDLVar (DLVar *a, DLVar *b)
 {
     COMPARE_STRING_FIELD(name);
     COMPARE_SCALAR_FIELD(dt);
+    COMPARE_NODE_FIELD(n.properties);
 
     return TRUE;
 }
@@ -156,6 +158,7 @@ equalDLRule (DLRule *a, DLRule *b)
 {
     COMPARE_NODE_FIELD(head);
     COMPARE_NODE_FIELD(body);
+    COMPARE_NODE_FIELD(n.properties);
 
     return TRUE;
 }
@@ -164,7 +167,9 @@ static boolean
 equalDLProgram (DLProgram *a, DLProgram *b)
 {
     COMPARE_NODE_FIELD(rules);
-    COMPARE_NODE_FIELD(ans);
+    COMPARE_NODE_FIELD(facts);
+    COMPARE_STRING_FIELD(ans);
+    COMPARE_NODE_FIELD(n.properties);
 
     return TRUE;
 }
@@ -173,6 +178,7 @@ static boolean
 equalDLComparison (DLComparison *a, DLComparison *b)
 {
     COMPARE_NODE_FIELD(opExpr);
+    COMPARE_NODE_FIELD(n.properties);
 
     return TRUE;
 }

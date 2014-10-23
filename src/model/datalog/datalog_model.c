@@ -71,11 +71,12 @@ createDLRule (DLAtom *head, List *body)
 
 
 DLProgram *
-createDLProgram (List *dlRules, DLRule *ans)
+createDLProgram (List *dlRules, List *facts, char *ans)
 {
     DLProgram *result = makeNode(DLProgram);
 
     result->rules = dlRules;
+    result->facts = facts;
     result->ans = ans;
 
     return result;
@@ -186,11 +187,17 @@ getComparisonVars(DLComparison *a)
 Node *
 getDLProp(DLNode *n, char *key)
 {
+    if (n->properties == NULL)
+        return NULL;
+
     return MAP_GET_STRING(n->properties, key);
 }
 
 void
 setDLProp(DLNode *n, char *key, Node *value)
 {
+    if (n->properties == NULL)
+        n->properties = NEW_MAP(Node,Node);
+
     MAP_ADD_STRING_KEY(n->properties, key, value);
 }

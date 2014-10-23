@@ -158,7 +158,7 @@ serializeOperatorModelOracle(Node *q)
     // quote ident names if necessary
     quoteAttributeNames(q, NULL);
 
-    if (isA(q, QueryOperator))
+    if (IS_OP(q))
     {
         // shorten attribute names to oracle's 30 char limit
         shortenAttributeNames((QueryOperator *) q);

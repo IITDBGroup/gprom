@@ -23,7 +23,7 @@
 #include "model/set/hashmap.h"
 #include "provenance_rewriter/prov_utility.h"
 
-static List *translateProgram(DLProgram *p);
+static Node *translateProgram(DLProgram *p);
 static QueryOperator *translateRule(DLRule *r);
 static QueryOperator *translateGoal(DLAtom *r);
 static QueryOperator *joinGoalTranslations (DLRule *r, List *goalTrans);
@@ -31,6 +31,7 @@ static Node *createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r);
 static Node *createCondFromComparisons (List *comparisons, QueryOperator *in);
 static void makeNamesUnique (List *names);
 static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
+static void adaptProjectionAttrRef (QueryOperator *o);
 
 static Node *replaceVarWithAttrRef(Node *node, List *context);
 
@@ -42,7 +43,7 @@ translateParseDL(Node *q)
     INFO_LOG("translate DL model:\n\n%s", datalogToOverviewString(q));
 
     if (isA(q,DLProgram))
-        result = (Node *) translateProgram((DLProgram *) q);
+        result = translateProgram((DLProgram *) q);
     // what other node types can be here?
     else
         FATAL_LOG("currently only DLProgram node type translation supported");
@@ -59,12 +60,13 @@ translateQueryDL(Node *node)
     return NULL;
 }
 
-static List *
+static Node *
 translateProgram(DLProgram *p)
 {
     List *translation = NIL; // list of sinks of a relational algebra graph
     List *singleRuleTrans = NIL;
     HashMap *predToTrans = NEW_MAP(Constant,List);
+    Node *answerRel;
 
     // translate rules
     FOREACH(DLRule,r,p->rules)
@@ -109,7 +111,18 @@ translateProgram(DLProgram *p)
     // relations with the corresponding alegebra expression
     translation = connectProgramTranslation(p, predToTrans);
 
-    return translation;
+    if (p->ans == NULL)
+        return (Node *) translation;
+
+    if (!MAP_HAS_STRING_KEY(predToTrans, p->ans))
+    {
+        FATAL_LOG("answer relation %s does not exist in program:\n\n%s",
+                p->ans, datalogToOverviewString((Node *) p));
+    }
+
+    answerRel = MAP_GET_STRING(predToTrans, p->ans);
+
+    return answerRel;
 }
 
 /*
@@ -320,10 +333,27 @@ translateGoal(DLAtom *r)
     ProjectionOperator *rename;
     QueryOperator *pInput;
     TableAccessOperator *rel;
+    List *attrNames = NIL;
+    List *dts = NIL;
 
-    rel = createTableAccessOp(r->rel, NULL, "REL", NIL,
-                    getAttributeNames(r->rel),
-                    getAttributeDataTypes(r->rel));
+    // for idb rels just fake attributes (and for now DTs)
+    if (DL_HAS_PROP(r,DL_IS_IDB_REL))
+    {
+        for(int i = 0; i < LIST_LENGTH(r->args); i++)
+        {
+            attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));
+            dts = appendToTailOfListInt(dts, DT_STRING);
+        }
+    }
+    // is edb, get information from db
+    else
+    {
+        attrNames = getAttributeNames(r->rel);
+        dts = getAttributeDataTypes(r->rel);
+    }
+
+    // create table access op
+    rel = createTableAccessOp(r->rel, NULL, "REL", NIL, attrNames, dts);
 
     // is negated goal?
     if (r->negated)
@@ -375,9 +405,37 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
         }
 
         qoRoots = appendToTailOfList(qoRoots, root);
+        adaptProjectionAttrRef(root);
     }
 
     return qoRoots;
 }
 
+static void
+adaptProjectionAttrRef (QueryOperator *o)
+{
+    if(isA(o,ProjectionOperator))
+    {
+        ProjectionOperator *p = (ProjectionOperator *) o;
+
+        FOREACH(Node,pro,p->projExprs)
+        {
+            List *attrRefs = getAttrReferences (pro);
+
+            FOREACH(AttributeReference,a,attrRefs)
+            {
+                AttributeDef *def = getAttrDefByPos(OP_LCHILD(o), a->attrPosition);
+                char *cName = def->attrName;
+                if (!streq(a->name,cName))
+                {
+                    a->name = strdup(cName);
+                    a->attrType = def->dataType;
+                }
+            }
+        }
+    }
+
+    FOREACH(QueryOperator,c,o->inputs)
+        adaptProjectionAttrRef(c);
+}
 
