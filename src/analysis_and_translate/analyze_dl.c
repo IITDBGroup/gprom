@@ -44,6 +44,8 @@ analyzeDLProgram (DLProgram *p)
     List *rules = NIL;
     List *facts = NIL;
 
+    //TODO infer data types for idb predicates
+
     FOREACH(Node,r,p->rules)
     {
         // a rule

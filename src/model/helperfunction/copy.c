@@ -73,6 +73,7 @@ static WindowDef *copyWindowDef(WindowDef *from, OperatorMap **opMap);
 static WindowFunction *copyWindowFunction(WindowFunction *from, OperatorMap **opMap);
 static RowNumExpr *copyRowNumExpr(RowNumExpr *from, OperatorMap **opMap);
 static OrderExpr *copyOrderExpr(OrderExpr *from, OperatorMap **opMap);
+static CastExpr *copyCastExpr(CastExpr *from, OperatorMap **opMap);
 
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
@@ -446,6 +447,16 @@ copyOrderExpr(OrderExpr *from, OperatorMap **opMap)
     return new;
 }
 
+static CastExpr *
+copyCastExpr(CastExpr *from, OperatorMap **opMap)
+{
+    COPY_INIT(CastExpr);
+
+    COPY_SCALAR_FIELD(resultDT);
+    COPY_NODE_FIELD(expr);
+
+    return new;
+}
 
 static AttributeDef *
 copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
@@ -949,7 +960,10 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_OrderExpr:
             retval = copyOrderExpr(from, opMap);
             break;
-             /* query block model nodes */
+        case T_CastExpr:
+            retval = copyCastExpr(from, opMap);
+            break;
+            /* query block model nodes */
 //        case T_SetOp:
 //            retval = copySetOp(from, opMap);
 //            break;

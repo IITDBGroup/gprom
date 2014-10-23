@@ -48,6 +48,7 @@ static void outWindowDef (StringInfo str, WindowDef *node);
 static void outWindowFunction (StringInfo str, WindowFunction *node);
 static void outRowNumExpr (StringInfo str, RowNumExpr *node);
 static void outOrderExpr (StringInfo str, OrderExpr *node);
+static void outCastExpr (StringInfo str, CastExpr *node);
 
 // query block model
 static void outQueryBlock (StringInfo str, QueryBlock *node);
@@ -613,6 +614,15 @@ outOrderExpr (StringInfo str, OrderExpr *node)
 }
 
 static void
+outCastExpr (StringInfo str, CastExpr *node)
+{
+    WRITE_NODE_TYPE(CAST_EXPR);
+
+    WRITE_ENUM_FIELD(resultDT,DataType);
+    WRITE_NODE_FIELD(expr);
+}
+
+static void
 outSelectItem (StringInfo str, SelectItem *node)
 {
     WRITE_NODE_TYPE(SELECT_ITEM);
@@ -938,6 +948,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_OrderExpr:
                 outOrderExpr(str, (OrderExpr *) obj);
+                break;
+            case T_CastExpr:
+                outCastExpr(str, (CastExpr *) obj);
                 break;
             case T_SetQuery:
                 outSetQuery (str, (SetQuery *) obj);

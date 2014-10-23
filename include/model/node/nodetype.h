@@ -33,6 +33,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_WindowFunction,
     T_RowNumExpr,
     T_OrderExpr,
+    T_CastExpr,
 
     /* query block model nodes */
     T_SetQuery,

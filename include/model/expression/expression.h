@@ -114,6 +114,12 @@ typedef struct WindowFunction {
     WindowDef *win;
 } WindowFunction;
 
+typedef struct CastExpr {
+    NodeTag type;
+    DataType resultDT;
+    Node *expr;
+} CastExpr;
+
 NEW_ENUM_WITH_TO_STRING(SortOrder,
     SORT_ASC,
     SORT_DESC
