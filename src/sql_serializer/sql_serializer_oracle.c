@@ -630,7 +630,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
         cur = OP_LCHILD(cur);
     }
 
-    OUT_BLOCK_MATCH(INFO,matchInfo, "query block full match");
+    OUT_BLOCK_MATCH(DEBUG,matchInfo, "query block full match");
 
     // translate each clause
     DEBUG_LOG("serializeFrom");
