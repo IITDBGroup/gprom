@@ -1092,7 +1092,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             updateAttributeNames(n, fromAttrs);
             firstProjs = appendToTailOfList(firstProjs, exprToSQL(n));
         }
-        INFO_LOG("second projection (aggregation and group by or window inputs) is %s",
+        DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
                 stringListToString(firstProjs));
     }
 
@@ -1112,7 +1112,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 //                updateAttributeNamesSimple(expr, firstProjs);
             aggs = appendToTailOfList(aggs, exprToSQL(expr));
         }
-        INFO_LOG("aggregation attributes are %s", stringListToString(aggs));
+        DEBUG_LOG("aggregation attributes are %s", stringListToString(aggs));
 
         // group by
         FOREACH(Node,expr,agg->groupBy)
@@ -1133,7 +1133,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             groupBys = appendToTailOfList(groupBys, g);
             appendStringInfo(groupBy, "%s", strdup(g));
         }
-        INFO_LOG("group by attributes are %s", stringListToString(groupBys));
+        DEBUG_LOG("group by attributes are %s", stringListToString(groupBys));
 
         state = NEW(UpdateAggAndGroupByAttrState);
         state->aggNames = aggs;
@@ -1179,7 +1179,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         state->aggNames = windowFs;
         state->groupByNames = NIL;
 
-        INFO_LOG("window function translated, %s", stringListToString(windowFs));
+        DEBUG_LOG("window function translated, %s", stringListToString(windowFs));
     }
 
     // having
@@ -1189,7 +1189,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         DEBUG_LOG("having condition %s", nodeToString(sel->cond));
         updateAggsAndGroupByAttrs(sel->cond, state);
         appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond));
-        INFO_LOG("having translation %s", having->data);
+        DEBUG_LOG("having translation %s", having->data);
     }
 
     // second level of projection either if no aggregation or using aggregation
@@ -1222,7 +1222,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         }
 
         resultAttrs = attrNames;
-        INFO_LOG("second projection expressions %s", select->data);
+        DEBUG_LOG("second projection expressions %s", select->data);
     }
     // else if window operator get the attributes from top-most window operator
     else if (winR)
@@ -1239,7 +1239,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             appendStringInfo(select, "%s AS %s", a, name);
         }
 
-        INFO_LOG("window functions results as projection expressions %s", select->data);
+        DEBUG_LOG("window functions results as projection expressions %s", select->data);
     }
     // get aggregation result attributes
     else if (agg)
@@ -1263,7 +1263,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             appendStringInfo(select,  "%s AS %s", gb, name);
         }
 
-        INFO_LOG("aggregation result as projection expressions %s", select->data);
+        DEBUG_LOG("aggregation result as projection expressions %s", select->data);
     }
     // get attributes from FROM clause root
     else
@@ -1277,7 +1277,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             appendStringInfoString(select, name);
         }
 
-        INFO_LOG("FROM root attributes as projection expressions %s", select->data);
+        DEBUG_LOG("FROM root attributes as projection expressions %s", select->data);
     }
 
     if (state)
