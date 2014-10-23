@@ -79,8 +79,8 @@ identDelim		[.]
 doublequote     [\"]
 quotedIdentifier		{doublequote}[^\"]+{doublequote}
 identifiers				({identStart}{identContinue}*)
-identifierPart			({quotedIdentifierPart}|{unQuotedIdentifierPart})
-identifierList		({identifierPart}({identDelim}{identifierPart}))*
+identifierPart			({identifiers}|{quotedIdentifier})
+compositeIdentifier		({identifierPart}({identDelim}{identifierPart}))*
 parameters		[:]{identifiers}
 
 /* operators */
@@ -190,6 +190,7 @@ STARALL				TOK(STARALL)
 
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)
+{compositeIdentifier}	UPCASE_TOK(compositeIdentifier)
 {quotedIdentifier}   { 		
 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
@@ -217,7 +218,7 @@ STARALL				TOK(STARALL)
 
 	/* numbers */
 {integer}	TOKSAVE(intConst,intVal,atoi)
-{float}	TOKSAVE(floatConst,floatVal,atof)
+{float}		TOKSAVE(floatConst,floatVal,atof)
 
 	/* strings */
 '[^'\n]*'	{
