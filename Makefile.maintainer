@@ -1,0 +1,32 @@
+LIBTOOLIZE:=libtoolize
+AUTORECONF:=autoreconf
+MAIN_MAKEFILE:=./Makefile
+
+DEBUG_CONF_OPTS:=--enable-debug --enable-assert CFLAGS='-O0'
+DEBUG_CONF_VARS:=CFLAGS='-O0'
+
+RELEASE_CONF_OPTS:=--disable-logging --disable-assert --disable-debug
+RELEASE_CONF_VARS:=CFLAGS='-O3'
+
+# Default is to run autotools
+all: autotools
+
+# Targets for autotools
+$(MAIN_MAKEFILE): autotools
+
+autotools: runLibTool autoReConf
+
+runLibTool:
+	$(LIBTOOLIZE)
+
+autoReConf: runLibTool
+	$(AUTORECONF) --force --install
+
+# Target for configuring
+configure_debug: $(MAIN_MAKEFILE)
+	./configure $(DEBUG_CONF_OPTS) $(USER_CONF_OPTS) $(DEBUF_CONF_VARS)
+
+configure_release: $(MAIN_MAKEFILE)
+	./configure $(RELASE_CONF_OPTS) $(USER_CONF_OPTS) $(RELEASE_CONF_VARS)
+
+.PHONY=runLibTool autoReConf all autotools configure_debug configure_release

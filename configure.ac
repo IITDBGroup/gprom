@@ -1,4 +1,4 @@
-AC_INIT([tprov],[0.0.1],[bglavic@iit.edu])
+AC_INIT([GProM],[0.0.1],[bglavic@iit.edu])
 AC_CONFIG_AUX_DIR(config)
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_CONFIG_MACRO_DIR([m4])
