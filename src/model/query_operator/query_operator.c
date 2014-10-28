@@ -101,7 +101,7 @@ addAttrToSchema(QueryOperator *op, char *name, DataType dt)
 void
 deleteAttrFromSchemaByName(QueryOperator *op, char *name)
 {
-    List *result = NIL;
+ //   List *result = NIL;
 
     FOREACH(AttributeDef,a,op->schema->attrDefs)
     {

@@ -58,7 +58,6 @@ typedef struct ProjectionOperator
 {
     QueryOperator op;
     List *projExprs; // projection expressions
-    boolean isProvenanceProjection;
 } ProjectionOperator;
 
 typedef struct JoinOperator
