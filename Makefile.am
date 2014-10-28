@@ -7,10 +7,17 @@ AM_CFLAGS = -I$(top_srcdir)/include
 # subdirs to build
 SUBDIRS = src test
 
-# additional directories to include in a distribution pacakge: 
+# additional directories to include in a distribution package:
+# - maintainer Makefile for running autotools 
 # - the header file dir 
+# - .y and .l files
 # - YACC and FLEX generated files
-EXTRA_DIST = include \
-	$(top_srcdir)/src/parser/sql_parser.lex.c \
-	$(top_srcdir)/src/parser/sql_parser.tab.c \
-	$(top_srcdir)/src/parser/sql_parser.tab.h
+# - scripts for running executables and scripts
+EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
+	$(top_srcdir)/include \
+	$(top_srcdir)/src/parser/*.y \
+	$(top_srcdir)/src/parser/*.l \
+	$(top_srcdir)/src/parser/*.lex.c \
+	$(top_srcdir)/src/parser/*.tab.c \
+	$(top_srcdir)/src/parser/*.tab.h \
+	$(top_srcdir)/test/testmain.sh
