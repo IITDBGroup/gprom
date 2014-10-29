@@ -155,6 +155,10 @@ extern void addAttrToSchema(QueryOperator *op, char *name, DataType dt);
 extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name);
 extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2);
+extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2);
+extern Node *changeListOpToAnOpNode(List *l1);
+extern List *getSelectionCondOperatorList(List *opList, Operator *op);
+extern List *getCondOpList(List *l1, List *l2);
 extern List *getDataTypes (Schema *schema);
 extern List *getAttrNames(Schema *schema);
 #define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema

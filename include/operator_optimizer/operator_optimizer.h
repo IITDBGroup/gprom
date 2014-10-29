@@ -32,4 +32,7 @@ extern QueryOperator *removeRedundantProjections(QueryOperator *root);
 /* try to pull up provenance projections. */
 extern QueryOperator *pullingUpProvenanceProjections(QueryOperator *root);
 
+/* try to push down the selection operator through joins for provenence. */
+extern QueryOperator *pushDownSelectionThroughJoinsOperatorOnProv(QueryOperator *root);
+
 #endif /* OPERATOR_OPTIMIZER_H_ */

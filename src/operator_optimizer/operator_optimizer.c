@@ -26,6 +26,8 @@
 
 static QueryOperator *optimizeOneGraph (QueryOperator *root);
 static QueryOperator *pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames);
+static void pushDownSelection(QueryOperator *root, List *opList,
+                              QueryOperator *r, QueryOperator *child);
 
 Node  *
 optimizeOperatorModel (Node *root)
@@ -76,6 +78,15 @@ optimizeOneGraph (QueryOperator *root)
         DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
         TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
         STOP_TIMER("OptimizeModel - pushdown selections");
+    }
+
+    if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS))
+    {
+        START_TIMER("OptimizeModel - pushdown selections through joins");
+        rewrittenTree = pushDownSelectionThroughJoinsOperatorOnProv((QueryOperator *) rewrittenTree);
+        DEBUG_LOG("selections pushed down through joins\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+        STOP_TIMER("OptimizeModel - pushdown selections through joins");
     }
 
     if(getBoolOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR))
@@ -227,7 +238,7 @@ removeRedundantProjections(QueryOperator *root)
       if (compare)
       {
           // Remove Parent and make lChild as the new parent
-          removeParentFromOps(root->inputs, (QueryOperator *) root);
+          switchSubtreeWithExisting((QueryOperator *) root, (QueryOperator *) lChild);
           root = lChild;
       }
   }
@@ -478,3 +489,91 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 
     return op;
 }
+
+QueryOperator *
+pushDownSelectionThroughJoinsOperatorOnProv(QueryOperator *root)
+{
+    QueryOperator *newRoot = root;
+    QueryOperator *child = OP_LCHILD(root);
+    List *opList = NIL;
+
+    if(isA(root, SelectionOperator) && isA(child, JoinOperator))
+    {
+	Operator *c = (Operator *)((SelectionOperator *)newRoot)->cond;
+
+        if(streq(c->name,"AND"))
+	{
+            opList = getSelectionCondOperatorList(opList, c);
+	}
+
+	if(opList != NIL)
+            pushDownSelection(child, opList, newRoot, child);
+    }
+
+    FOREACH(QueryOperator, o, newRoot->inputs)
+        pushDownSelectionThroughJoinsOperatorOnProv(o);
+
+    return newRoot;
+}
+
+void
+pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOperator *child)
+{
+    JoinOperator *newRoot = (JoinOperator *)root;
+
+    List *l1 = NIL;
+    List *l2 = NIL;
+    List *l3 = NIL;
+
+    QueryOperator *o1 = getHeadOfListP(newRoot->op.inputs);
+    QueryOperator *o2 = getTailOfListP(newRoot->op.inputs);
+
+    l1 = getCondOpList(o1->schema->attrDefs, opList);
+    l2 = getCondOpList(o2->schema->attrDefs, opList);
+
+    l3 = removeListElementsFromAnotherList(l1, opList);
+    l3 = removeListElementsFromAnotherList(l2, l3);
+
+    if(l3 != NIL)
+    {
+        Node *opNode3 = changeListOpToAnOpNode(l3);
+        ((SelectionOperator *)r)->cond = (Node *)opNode3;
+    }
+    else
+    {
+        switchSubtreeWithExisting((QueryOperator *) r, (QueryOperator *) child);
+    }
+
+    if(l1 != NIL)
+    {
+        Node *opNode1 = changeListOpToAnOpNode(l1);
+	SelectionOperator *newSo1 = createSelectionOp(opNode1, NULL, NIL,
+                                                      getAttrNames(o1->schema));
+
+        // Switch the subtree with this newly created Selection operator.
+	switchSubtrees((QueryOperator *) o1, (QueryOperator *) newSo1);
+
+        // Add child to the newly created Selection operator.
+	addChildOperator((QueryOperator *) newSo1, (QueryOperator *) o1);
+
+        //reset the attr_ref position
+        resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection((SelectionOperator *)newSo1,(QueryOperator *)o1);
+    }
+
+    if(l2 != NIL)
+    {
+        Node *opNode2 = changeListOpToAnOpNode(l2);
+	SelectionOperator *newSo2 = createSelectionOp(opNode2, NULL, NIL,
+                                                      getAttrNames(o2->schema));
+
+        // Switch the subtree with this newly created Selection operator.
+        switchSubtrees((QueryOperator *) o2, (QueryOperator *) newSo2);
+
+        // Add child to the newly created Selection operator.
+	addChildOperator((QueryOperator *) newSo2, (QueryOperator *) o2);
+
+        //reset the attr_ref position
+	resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection((SelectionOperator *)newSo2,(QueryOperator *)o2);
+    }
+}
+

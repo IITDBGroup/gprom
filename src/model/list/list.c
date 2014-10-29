@@ -629,3 +629,33 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 
     return result;
 }
+
+//remove all the elements of list l1 from list l2, l1 is a sublist of l2
+List *
+removeListElementsFromAnotherList(List *l1, List *l2)
+{
+    List *result = NIL;
+    boolean flag = FALSE;
+
+    FOREACH_LC(lc2, l2)
+    {
+        flag = FALSE;
+        void *value = LC_P_VAL(lc2);
+
+        FOREACH_LC(lc1, l1)
+        {
+            void *ptrVal = LC_P_VAL(lc1);
+            if(equal(ptrVal, value))
+            {
+                flag = TRUE;
+                break;
+            }
+        }
+        if(flag == FALSE)
+        {
+            result = appendToTailOfList(result, value);
+        }
+    }
+
+    return result;
+}

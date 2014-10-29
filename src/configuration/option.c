@@ -90,6 +90,7 @@ boolean opt_optimization_factor_attrs = FALSE;
 boolean opt_materialize_unsafe_proj = FALSE;
 boolean opt_remove_redundant_projections = TRUE;
 boolean opt_optimization_pulling_up_provenance_proj = FALSE;
+boolean opt_optimization_push_selections_through_joins = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -338,6 +339,12 @@ OptionInfo opts[] =
                 "-Opulling_up_provenance_proj",
                 "Optimization: try to pull up provenance projection",
                 opt_optimization_pulling_up_provenance_proj,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS,
+                "-Opush_selections_through_joins",
+                "Optimization: try to push selections through joins",
+                opt_optimization_push_selections_through_joins,
                 TRUE
         ),
         // stopper to indicate end of array

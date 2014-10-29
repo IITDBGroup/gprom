@@ -101,8 +101,6 @@ addAttrToSchema(QueryOperator *op, char *name, DataType dt)
 void
 deleteAttrFromSchemaByName(QueryOperator *op, char *name)
 {
- //   List *result = NIL;
-
     FOREACH(AttributeDef,a,op->schema->attrDefs)
     {
         if (streq(a->attrName,name))
@@ -145,6 +143,187 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *
         cnt++;
     }
 }
+
+void
+resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2)
+{
+    Operator *o = (Operator *)(op1->cond);
+    int cnt = 0;
+
+    if(!streq(o->name,"AND"))
+    {
+        FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+        {
+            FOREACH_LC(lc, (o->args))
+            {
+                if(isA(LC_P_VAL(lc), AttributeReference))
+                {
+                    AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
+                    //DEBUG_LOG("Test Def: %s, Ref: %s",
+                    //a2->attrName,a1->name);
+                    if(streq(a1->name,a2->attrName))
+		    {
+                        a1->attrPosition = cnt;
+                    }
+                }
+            }
+            cnt++;
+        }
+    }
+    else
+    {
+        Operator *o2;
+        Operator *o1;
+        FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+        {
+            o2 = o;
+            while(streq(o2->name,"AND"))
+            {
+                o1  = (Operator *)(getTailOfListP(o2->args));
+                o2 = (Operator *)(getHeadOfListP(o2->args));
+
+                FOREACH_LC(lc,(o1->args))
+                {
+                    if(isA(LC_P_VAL(lc), AttributeReference))
+                    {
+                        AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
+                        //DEBUG_LOG("Test Def: %s, Ref: %s",
+                        //a2->attrName,a1->name);
+			if(streq(a1->name,a2->attrName))
+			{
+                            a1->attrPosition = cnt;
+                        }
+                    }
+                }
+            }
+
+            //The last one operator which without AND
+            FOREACH_LC(lc,(o2->args))
+	    {
+                if(isA(LC_P_VAL(lc), AttributeReference))
+                {
+                    AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
+                    //DEBUG_LOG("Test Def: %s, Ref: %s",
+                    //a2->attrName,a1->name);
+		    if(streq(a1->name,a2->attrName))
+                    {
+                        a1->attrPosition = cnt;
+                    }
+                }
+            }
+
+            cnt++;
+        }
+    }
+}
+
+Node *
+changeListOpToAnOpNode(List *l1)
+{
+    List *helpList;
+    Node *opNode1;
+
+    if (LIST_LENGTH(l1) == 2)
+        opNode1 = (Node *) createOpExpr("AND", (List *) l1);
+    else if(LIST_LENGTH(l1) > 2)
+    {
+        int i;
+        helpList = NIL;
+        Operator *helpO1 = getHeadOfListP(l1);
+        l1 = REMOVE_FROM_LIST_PTR(l1, helpO1);
+        Operator *helpO2 = getHeadOfListP(l1);
+        l1 = REMOVE_FROM_LIST_PTR(l1, helpO2);
+        helpList = appendToTailOfList(helpList, helpO1);
+        helpList = appendToTailOfList(helpList, helpO2);
+
+	Operator *helpO = createOpExpr("AND", (List *) helpList);
+        int length_l1 = LIST_LENGTH(l1);
+
+        for(i=0; i<length_l1; i++)
+        {
+            helpList = NIL;
+            helpList = appendToTailOfList(helpList, helpO);
+            helpO = getHeadOfListP(l1);
+            l1 = REMOVE_FROM_LIST_PTR(l1, helpO);
+            helpList = appendToTailOfList(helpList, helpO);
+            helpO =  createOpExpr("AND", (List *) helpList);
+        }
+        opNode1 = (Node *)helpO;
+    }
+    else
+        opNode1 = (Node *) getHeadOfListP(l1);
+
+    return opNode1;
+}
+
+List *
+getSelectionCondOperatorList(List *opList, Operator *op)
+{
+    Operator *o2 = (Operator *)(getTailOfListP(op->args));
+    if(!streq(o2->name, "AND"))
+    {
+        opList = appendToHeadOfList(opList, o2);
+    }
+
+    Operator *o1 = (Operator *)(getHeadOfListP(op->args));
+    if(streq(o1->name,"AND"))
+    {
+        getSelectionCondOperatorList(opList, o1);
+    }
+    else
+    {
+        opList = appendToHeadOfList(opList, o1);
+    }
+
+    return opList;
+}
+
+
+List*
+getCondOpList(List *l1, List *l2)
+{
+    boolean flag1,flag2;
+    List *newOpList = NIL;
+
+    FOREACH(Operator, o, l2)
+    {
+        DEBUG_LOG("test list: %s", nodeToString(o));
+        flag1 = FALSE;
+
+	FOREACH(AttributeDef, a, l1)
+        {
+            if(streq(((AttributeReference *)getHeadOfListP(o->args))->name, a->attrName))
+            {
+                flag1 = TRUE;
+                break;
+            }
+        }
+
+        if(flag1 == TRUE)
+	{
+            if(isA(getTailOfListP(o->args),Constant))
+	    {
+                DEBUG_LOG("test compare constant");
+                newOpList = appendToTailOfList(newOpList, o);
+            }
+            else if(isA(getTailOfListP(o->args),AttributeReference))
+            {
+                DEBUG_LOG("test compare AttributeReference");
+                FOREACH(AttributeDef, a, l1)
+                {
+                    if(streq(((AttributeReference *)getTailOfListP(o->args))->name, a->attrName))
+                    {
+                        newOpList = appendToTailOfList(newOpList, o);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    return newOpList;
+}
+
 
 List *
 getDataTypes (Schema *schema)
