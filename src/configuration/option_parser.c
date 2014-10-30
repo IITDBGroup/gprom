@@ -32,9 +32,7 @@ static int parseOneOption (char *opt, char* const argv[], const int argc, int *p
 int
 parseOption(int const argc, char* const argv[])
 {
-//	Options* options=getOptions();
 	int i;
-	List *rewriteOptions;
 
 	//parse each option in turn
 	for(i=1;i<argc;i++)

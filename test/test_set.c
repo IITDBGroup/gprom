@@ -163,7 +163,7 @@ testNodeSet(void)
 static rc
 testSetIteration(void)
 {
-    Set *a, *b;
+    Set *a; //, *b;
     int exp[3] = {1,2,3};
     int pos;
 

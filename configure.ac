@@ -206,6 +206,25 @@ AS_IF([test "x$enable_oracle" == "xno"], [
   AC_MSG_RESULT([yes])
 ])
 ])
+# set custom compiler flags
+AC_DEFUN([AC_SET_CUSTOM_CFLAGS],
+[
+AC_MSG_CHECKING([set custom C compiler flags])
+AS_IF([test "x$enable_debug" == "xno"], 
+[
+	GPROM_CC_OPT="-O3"
+	GPROM_CFLAGS_ERR="-Wall"
+],
+[
+	GPROM_CFLAGS_ERR="-Wall -Werror"
+	GPROM_CFLAGS_OPT="-O0"
+])
+GPROM_CFLAGS="${GPROM_CFLAGS_OPT} ${GPROM_CFLAGS_ERR}"
+AC_SUBST([GPROM_CFLAGS],[$GPROM_CFLAGS])
+AC_SUBST([GPROM_CFLAGS_OPT],[$GPROM_CFLAGS_OPT])
+AC_SUBST([GPROM_CFLAGS_ERROR],[$GPROM_CFLAGS_ERROR])
+AC_MSG_RESULT($GPROM_CFLAGS)
+])
 ################################################################################
 # DATA TYPES
 AC_TYPE_SIZE_T
@@ -266,6 +285,10 @@ AC_ASSERT_ACTIVE
 AC_DEBUG_ACTIVE
 AC_TIMING_ACTIVE
 ################################################################################
+# set compiler flags
+AC_SET_CUSTOM_CFLAGS
+#CFLAGS="-Wall -Werror $(CFLAGS)"
+################################################################################
 # OUTPUT HEADER
 AC_CONFIG_HEADERS([config.h])
 ################################################################################
@@ -299,3 +322,14 @@ AC_CONFIG_FILES([
 	test/Makefile
 ])
 AC_OUTPUT
+
+echo "
+  ($PACKAGE_NAME) version $PACKAGE_VERSION
+  Prefix.............: $prefix
+  Debug Build........: $enable_debug
+  Link with GNU perftools: ${enable_link_perftools:=no}
+  Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes}
+  Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}
+  C Compiler.....: $C $CFLAGS $CPPFLAGS $GPROM_CFLAGS
+  Linker.........: $LD $LDFLAGS $LIBS
+"

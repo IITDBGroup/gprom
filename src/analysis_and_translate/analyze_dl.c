@@ -39,8 +39,8 @@ static void
 analyzeDLProgram (DLProgram *p)
 {
     Set *idbRels = STRSET();
-    Set *edbRels = STRSET();
-    HashMap *relToRule; // map idb relations to all rules that have this relation in their head
+//    Set *edbRels = STRSET();
+//    HashMap *relToRule; // map idb relations to all rules that have this relation in their head
     List *rules = NIL;
     List *facts = NIL;
 
@@ -75,7 +75,7 @@ analyzeDLProgram (DLProgram *p)
 static void
 analyzeRule (DLRule *r, Set *idbRels)
 {
-    HashMap *varToPredMapping;
+//    HashMap *varToPredMapping;
 
     if (!checkHeadSafety(r))
         FATAL_LOG("head predicate is not safe: %s",

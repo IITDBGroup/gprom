@@ -1,4 +1,5 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include
+AM_CFLAGS = @GPROM_CFLAGS@
 
 SUBDIRS = expression helperfunction list node set query_block query_operator datalog
 

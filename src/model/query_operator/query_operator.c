@@ -19,7 +19,7 @@
 #include "provenance_rewriter/prov_utility.h"
 
 
-static Schema *mergeSchemas (List *inputs);
+//static Schema *mergeSchemas (List *inputs);
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
 
@@ -52,7 +52,6 @@ createSchemaFromLists (char *name, List *attrNames, List *dataTypes)
     result->name = strdup(name);
     result->attrDefs = NIL;
 
-    int i = 0;
     if (dataTypes == NULL)
     {
         FOREACH(char,n,attrNames)
@@ -669,18 +668,18 @@ treeify(QueryOperator *op)
     }
 }
 
-static Schema *
-mergeSchemas (List *inputs)
-{
-    Schema *result = NULL;
-
-    FOREACH(QueryOperator,O,inputs)
-    {
-        if (result == NULL)
-            result = (Schema *) copyObject(O->schema);
-        else
-            result->attrDefs = concatTwoLists(result->attrDefs, copyObject(O->schema->attrDefs));
-    }
-
-    return result;
-}
+//static Schema *
+//mergeSchemas (List *inputs)
+//{
+//    Schema *result = NULL;
+//
+//    FOREACH(QueryOperator,O,inputs)
+//    {
+//        if (result == NULL)
+//            result = (Schema *) copyObject(O->schema);
+//        else
+//            result->attrDefs = concatTwoLists(result->attrDefs, copyObject(O->schema->attrDefs));
+//    }
+//
+//    return result;
+//}

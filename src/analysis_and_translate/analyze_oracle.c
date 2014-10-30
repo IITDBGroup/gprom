@@ -648,7 +648,7 @@ static void
 analyzeInsert(Insert * f)
 {
     List *attrNames = getAttributeNames(f->tableName);
-    List *dataTypes = getAttributeDataTypes(f->tableName);
+//    List *dataTypes = getAttributeDataTypes(f->tableName);
     List *attrRefs = getAttributes(f->tableName);
     HashMap *attrPos = NULL;
     Set *attrNameSet = makeStrSetFromList(attrNames);
@@ -679,7 +679,7 @@ analyzeInsert(Insert * f)
     {
         if (LIST_LENGTH(f->attrList) != attrNames->length)
         {
-            int pos = 0;
+//            int pos = 0;
             List *newValues = NIL;
             List *oldValues = (List *) f->query;
             INFO_LOG("The number of values are not equal to the number "
@@ -834,7 +834,7 @@ analyzeUpdate(Update* f) {
 			strdup(f->nodeName), dataTypes);
 	fakeFrom = singleton(singleton(fakeTable));
 
-	boolean isFound = FALSE;
+//	boolean isFound = FALSE;
 	int attrPos = 0;
 
 	// find attributes
@@ -912,7 +912,7 @@ getQBAttrDTs (Node *qb)
         break;
         case T_ProvenanceStmt:
         {
-            ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
+//            ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
             DTs = NIL; //TODO
         }
         break;
@@ -985,7 +985,7 @@ analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right)
 static List *
 splitAttrOnDot (char *dotName)
 {
-    int start = 0, pos = 0;
+//    int start = 0, pos = 0;
     char *token, *string = strdup(dotName);
     List *result = NIL;
 

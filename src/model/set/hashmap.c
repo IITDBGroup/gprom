@@ -42,7 +42,7 @@ newHashMap(NodeTag keyType, NodeTag valueType, boolean (*eq) (void *, void *), v
 static HashElem *
 getHashElem(HashMap *map, Node *key)
 {
-    HashElem *result, *s;
+    HashElem *result;
     char *realKey = nodeToString(key);
 
     HASH_FIND_STR(map->elem, realKey, result);

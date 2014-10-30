@@ -169,12 +169,10 @@ appendStringInfo(StringInfo str, const char *format, ...)
     for(;;)
     {
         va_list     args;
-        int needed, have;
+        int have;
         boolean success;
 
         have = str->maxlen - str->len - 1;
-
-//        DEBUG_LOG("have len <%u> max len <%u> have <%u>", str->maxlen, str->len, have);
 
         va_start(args, format);
         success = vAppendStringInfo(str, format, args);

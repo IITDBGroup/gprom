@@ -2,7 +2,7 @@ ACLOCAL_AMFLAGS = -I m4
 
 # add include dir to C compile flags
 AM_CPPFLAGS = -I$(top_srcdir)/include
-AM_CFLAGS = -I$(top_srcdir)/include
+AM_CFLAGS = -I$(top_srcdir)/include @GPROM_CFLAGS@
 
 # subdirs to build
 SUBDIRS = src test

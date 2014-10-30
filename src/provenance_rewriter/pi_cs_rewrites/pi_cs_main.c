@@ -307,7 +307,7 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs)
 static QueryOperator *
 rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
 {
-    List *tableAttr;
+//    List *tableAttr;
     List *provAttr = NIL;
     List *projExpr = NIL;
     char *newAttrName;
@@ -322,11 +322,9 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
     else
         tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
 
+    relAccessCount = getRelNameCount(&nameState, tableName);
     DEBUG_LOG("REWRITE-PICS - Add Provenance Attrs <%s> <%u>",
             tableName, relAccessCount);
-
-    relAccessCount = getRelNameCount(&nameState, tableName);
-
 
     // Get the provenance name for each attribute
     FOREACH(AttributeDef, attr, op->schema->attrDefs)
@@ -592,7 +590,6 @@ rewritePI_CSAggregation (AggregationOperator *op)
         List *provAttrs = NIL;
         ProjectionOperator *groupByProj;
         List *gbNames = aggOpGetGroupByAttrNames(op);
-        ListCell *lc;
 
         // adapt right side group by attr names
         FOREACH_LC(lc,gbNames)
@@ -785,7 +782,7 @@ rewritePI_CSSet(SetOperator *op)
     	switchSubtrees((QueryOperator *) op, (QueryOperator *) joinOp);
 
     	//create join condition
-    	Node *joinCond;//TODO
+//    	Node *joinCond;//TODO
 
     	return (QueryOperator *) joinOp;
     }
@@ -842,7 +839,7 @@ rewritePI_CSSet(SetOperator *op)
 static QueryOperator *
 rewritePI_CSTableAccess(TableAccessOperator *op)
 {
-    List *tableAttr;
+//    List *tableAttr;
     List *provAttr = NIL;
     List *projExpr = NIL;
     char *newAttrName;
@@ -898,7 +895,7 @@ rewritePI_CSTableAccess(TableAccessOperator *op)
 static QueryOperator *
 rewritePI_CSConstRel(ConstRelOperator *op)
 {
-    List *tableAttr;
+//    List *tableAttr;
     List *provAttr = NIL;
     List *projExpr = NIL;
     char *newAttrName;

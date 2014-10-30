@@ -96,7 +96,7 @@ addUpdateAnnotationAttrs (ProvenanceComputation *op)
     {
         QueryOperator *q = (QueryOperator *) LC_P_VAL(trLc);
         Node *u = (Node *) LC_P_VAL(uLc);
-        Node *annotAttr;
+//        Node *annotAttr;
         char *annotName;
 
         switch (u->type) {
@@ -125,7 +125,7 @@ addUpdateAnnotationAttrs (ProvenanceComputation *op)
             break;
             case T_Update:
             {
-                Update *up = (Update *) u;
+//                Update *up = (Update *) u;
 
                 // if update CASE translation was used
                 if (isA(q,ProjectionOperator))
@@ -224,7 +224,7 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
 {
     List *updates = copyList(op->op.inputs);
     int i = 0;
-    char *useTable = NULL;
+//    char *useTable = NULL;
 
     // cut links to parent
     removeParentFromOps(op->op.inputs, (QueryOperator *) op);
@@ -320,7 +320,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 		    //TODO deal with
 		    QueryOperator *newQ = isA(q, ProjectionOperator) ? OP_LCHILD(q) : q;
             ProjectionOperator *lC = (ProjectionOperator *) OP_LCHILD(newQ);
-		    TableAccessOperator *t = (TableAccessOperator *) OP_LCHILD(lC);
+//		    TableAccessOperator *t = (TableAccessOperator *) OP_LCHILD(lC);
 		    ProjectionOperator *rC = (ProjectionOperator *) OP_RCHILD(newQ);
 		    QueryOperator *qRoot = OP_LCHILD(rC);
 		    ProjectionOperator *p;
@@ -651,7 +651,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
 //    List *tableCondMap = NIL;
     HashMap *tabCondMap = NEW_MAP(Constant,List);
     int pos = 0;
-    KeyValue *tableCond;
+//    KeyValue *tableCond;
     Set *readFromTableNames = STRSET();
     Set *updatedTableNames = STRSET();
     Set *mixedTableNames = NULL;
@@ -784,7 +784,7 @@ extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 	Constant *scn = (Constant *) getHeadOfListP(op->transactionInfo->scns);
 	Constant *scnC = copyObject(op->transactionInfo->commitSCN);
 	Constant *xid = (Constant *) GET_STRING_PROP(op, PROP_PC_TRANS_XID);
-	TableAccessOperator *t;
+//	TableAccessOperator *t;
 //	List *updateTableNames;
 	Set *readFromTableNames = STRSET();
 	Set *updatedTableNames = STRSET();

@@ -284,7 +284,7 @@ checkSchemaConsistency (QueryOperator *op)
         break;
         case T_WindowOperator:
         {
-            WindowOperator *o = (WindowOperator *) op;
+//            WindowOperator *o = (WindowOperator *) op;
             QueryOperator *lChild = OP_LCHILD(op);
             List *expected = sublist(copyObject(op->schema->attrDefs), 0,
                     LIST_LENGTH(op->schema->attrDefs) - 1);
@@ -300,7 +300,7 @@ checkSchemaConsistency (QueryOperator *op)
         break;
         case T_OrderOperator:
         {
-            OrderOperator *o = (OrderOperator *) op;
+//            OrderOperator *o = (OrderOperator *) op;
             QueryOperator *lChild = OP_LCHILD(op);
             List *expected = op->schema->attrDefs;
 

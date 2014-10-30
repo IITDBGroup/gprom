@@ -81,7 +81,7 @@ setupParameterDB (void)
     if (streq(getStringOption("backend"),"postgres"))
     {
         PGconn *c;
-        PGresult *res = NULL;
+//        PGresult *res = NULL;
 
         initMetadataLookupPlugins();
         chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_POSTGRES);
@@ -166,14 +166,14 @@ testSetParameterValues (void)
     return PASS;
 }
 
-static boolean
-findParamVisitor(Node *node, List **state)
-{
-    if (node == NULL)
-        return TRUE;
-
-    if (isA(node, SQLParameter))
-        *state = appendToTailOfList(*state, node);
-
-    return visit(node, findParamVisitor, (void *) state);
-}
+//static boolean
+//findParamVisitor(Node *node, List **state)
+//{
+//    if (node == NULL)
+//        return TRUE;
+//
+//    if (isA(node, SQLParameter))
+//        *state = appendToTailOfList(*state, node);
+//
+//    return visit(node, findParamVisitor, (void *) state);
+//}

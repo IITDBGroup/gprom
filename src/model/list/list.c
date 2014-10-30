@@ -247,7 +247,6 @@ List *
 listMake(void *elem, ...)
 {
     List *result = singleton(elem);
-    int n = 0;
     va_list args;
     void *p;
 
@@ -629,7 +628,6 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 {
     ASSERT(isPtrList(list));
     List *result = NULL;
-    ListCell *prev = getHeadOfList(list);
 
     FOREACH_LC(lc,list)
     {

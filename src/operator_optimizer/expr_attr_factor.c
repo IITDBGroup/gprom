@@ -18,7 +18,7 @@
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 
-static boolean getCaseExprs (Node *node, List **state);
+//static boolean getCaseExprs (Node *node, List **state);
 
 static Node *factorAttrRefs (Node *node);
 static Node *removeNonOpCase (Node *node, void *state);
@@ -137,7 +137,7 @@ factorAdd (Node *node, void *state)
             CaseWhen *w = (CaseWhen *) getHeadOfListP(c->whenClauses);
             Operator *add;
             AttributeReference *a;
-            Node *opChild;
+//            Node *opChild;
 
             // else is attribute reference
             if (isA(c->elseRes,AttributeReference) && isA(w->then,Operator))
@@ -189,7 +189,7 @@ factorMult (Node *node, void *state)
             CaseWhen *w = (CaseWhen *) getHeadOfListP(c->whenClauses);
             Operator *mult;
             AttributeReference *a;
-            Node *opChild;
+//            Node *opChild;
 
             // else is attribute reference
             if (isA(c->elseRes,AttributeReference) && isA(w->then,Operator))
@@ -264,14 +264,14 @@ mergeSameResultCase (Node *node, void *state)
 }
 
 // need to capture pointers for replacement too?
-static boolean
-getCaseExprs (Node *node, List **state)
-{
-    if (node == NULL)
-        return TRUE;
-
-    if (isA(node, CaseExpr))
-        *state = appendToTailOfList(*state, node);
-
-    return visit(node, getCaseExprs, state);
-}
+//static boolean
+//getCaseExprs (Node *node, List **state)
+//{
+//    if (node == NULL)
+//        return TRUE;
+//
+//    if (isA(node, CaseExpr))
+//        *state = appendToTailOfList(*state, node);
+//
+//    return visit(node, getCaseExprs, state);
+//}

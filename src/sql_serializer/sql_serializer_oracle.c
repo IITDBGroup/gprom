@@ -737,7 +737,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             {
                 TableAccessOperator *t = (TableAccessOperator *) q;
                 char *asOf = NULL;
-                ProvenanceComputation *op;
+//                ProvenanceComputation *op;
 //                Constant *xid = getTranactionSQLAndSCNs(xid);
                 // use history join to prefilter updated rows
                 if (HAS_STRING_PROP(t, PROP_USE_HISTORY_JOIN))
@@ -898,7 +898,7 @@ renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
         int rOffset = state->rightFromOffsets;
         ListCell *lc;
         char *name;
-        List *from;
+        List *from = NIL;
 
         // if right join input find first from item from right input
         if (isRight)
@@ -1070,7 +1070,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     List *aggs = NIL;
     List *groupBys = NIL;
     List *windowFs = NIL;
-    List *secondProjs = NIL;
+//    List *secondProjs = NIL;
     List *resultAttrs = NIL;
 
     // either window funtions or regular aggregations but not both
@@ -1083,6 +1083,8 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     appendStringInfoString(select, "\nSELECT ");
     if (materialize)
         appendStringInfoString(select, "/*+ materialize */ ");
+    if (m->distinct)
+        appendStringInfoString(select, " DISTINCT "); //TODO deal with distinct on attributes
 
     // Projection for aggregation inputs and group-by
     if (m->secondProj != NULL && (agg != NULL || winR != NULL))

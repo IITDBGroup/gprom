@@ -529,7 +529,7 @@ postgresIsAgg(char *functionName)
 {
     PGresult *res = NULL;
     char *f = strdup(functionName);
-    int i = 0;
+//    int i = 0;
 
     for(char *p = f; *p != '\0'; *(p) = tolower(*p), p++)
         ;

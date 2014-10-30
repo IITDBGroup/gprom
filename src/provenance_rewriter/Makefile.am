@@ -1,4 +1,5 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include
+AM_CFLAGS = @GPROM_CFLAGS@
 
 SUBDIRS = pi_cs_rewrites transformation_rewrites update_and_transaction
 

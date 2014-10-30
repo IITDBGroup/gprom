@@ -310,9 +310,9 @@ translateQueryBlock(QueryBlock *qb)
 static QueryOperator *
 translateProvenanceStmt(ProvenanceStmt *prov) {
     QueryOperator *child;
-    List *children = NIL;
+//    List *children = NIL;
     ProvenanceComputation *result;
-    Schema *schema = NULL;
+//    Schema *schema = NULL;
 
     result = createProvenanceComputOp(prov->provType, NIL, NIL,
             prov->selectClause, NULL);
@@ -532,7 +532,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 static QueryOperator *
 translateWithStmt(WithStmt *with)
 {
-    List *withViews = NIL;
+//    List *withViews = NIL;
     List *transWithViews = NIL;
     QueryOperator *finalQ;
 
@@ -636,7 +636,7 @@ buildJoinTreeFromOperatorList(List *opList)
 static List *
 getAttrsOffsets(List *fromClause)
 {
-    int len = getListLength(fromClause);
+//    int len = getListLength(fromClause);
     List *offsets = NIL;
     int curOffset = 0;
 
@@ -777,7 +777,7 @@ translateFromJoinExpr(FromJoinExpr *fje)
         List *leftAttrs = getQueryOperatorAttrNames(input1);
         List *opDefs = input1->schema->attrDefs;
         List *rightAttrs = getQueryOperatorAttrNames(input2);
-        List *commonAttRefs = NIL;
+//        List *commonAttRefs = NIL;
         int lPos = 0;
 
         // search for common attributes and create condition for equality comparisons
@@ -1159,7 +1159,7 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
     List *aggPlusGroup;
     int numAgg = LIST_LENGTH(aggrs);
     int numGroupBy = LIST_LENGTH(groupByClause);
-    List *newGroupBy;
+//    List *newGroupBy;
     ReplaceGroupByState *state;
 
     DEBUG_LOG("aggregation and group-by expressions: %s\n\n%s\n\nselect clause:\n\n%s",
@@ -1234,7 +1234,7 @@ translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
     QueryOperator *wOp = input;
     QueryOperator *child = NULL;
     List *wfuncs = NIL;
-    int numWinOp = LIST_LENGTH(wfuncs);
+//    int numWinOp = LIST_LENGTH(wfuncs);
     int cur = 0;
     ReplaceGroupByState *state;
     List *attrNames = NIL;

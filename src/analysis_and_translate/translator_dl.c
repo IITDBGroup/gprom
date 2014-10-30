@@ -313,6 +313,7 @@ replaceVarWithAttrRef(Node *node, List *context)
                 pos,
                 INVALID_ATTR,
                 v->dt);
+        return (Node *) a;
     }
 
     return mutate(node, replaceVarWithAttrRef, context);
@@ -358,6 +359,7 @@ translateGoal(DLAtom *r)
     // is negated goal?
     if (r->negated)
     {
+        pInput = NULL;
         //TODO
     }
     else
