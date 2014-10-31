@@ -99,7 +99,10 @@ extern void setDLProp(DLNode *n, char *key, Node *value);
 #define DL_PROV_WHYNOT "WHYNOT_PROV"
 #define DL_PROV_FULL_GP "FULL_GP_PROV"
 
+// property keys for storing analysis results for a program
 #define DL_MAP_RELNAME_TO_RULES "REL_TO_RULES"
+#define DL_IDB_RELS "IDB_RELS"
+#define DL_EDB_RELS "EDB_RELS"
 
 #define DL_WON "WON"
 #define DL_LOST "LOST"

@@ -22,6 +22,7 @@
 #include "model/datalog/datalog_model.h"
 #include "model/set/hashmap.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "provenance_rewriter/game_provenance/gp_main.h"
 
 static Node *translateProgram(DLProgram *p);
 static QueryOperator *translateRule(DLRule *r);
@@ -67,6 +68,18 @@ translateProgram(DLProgram *p)
     List *singleRuleTrans = NIL;
     HashMap *predToTrans = NEW_MAP(Constant,List);
     Node *answerRel;
+
+    // if we want to compute the provenance then construct program
+    // for creating the provenance and translate this one
+    if (IS_GP_PROV(p))
+    {
+        Node *gpComp = rewriteForGP((Node *) p);
+
+        DEBUG_LOG("user asked for provenance computation for:\n%s",
+                datalogToOverviewString((Node *) p));
+
+        return translateParseDL(gpComp);
+    }
 
     // translate rules
     FOREACH(DLRule,r,p->rules)

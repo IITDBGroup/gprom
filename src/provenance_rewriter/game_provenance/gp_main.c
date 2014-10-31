@@ -28,12 +28,12 @@ rewriteForGP(Node *input)
         DLProgram *p = (DLProgram *) input;
         if (IS_GP_PROV(p))
         {
-            p = createGPBottomUpprogram(p);
+            p = createBottomUpGPprogram(p);
             //TODO TopDown decide based on option
         }
         INFO_LOG("program for compute GP is:\n%s",
                 datalogToOverviewString((Node *) p));
-        return p;
+        return (Node *) p;
     }
     else
         FATAL_LOG("currently only GP computation for DLPrograms supported.");

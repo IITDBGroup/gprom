@@ -1310,6 +1310,14 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             appendStringInfo(str, "ANSWER RELATION:\n\t%s",
                     STRING_VALUE(n));
         break;
+        // provenance
+        case T_KeyValue:
+        {
+            KeyValue *kv = (KeyValue *) n;
+            appendStringInfo(str, "COMPUTE PROVENANCE: %s[%s]",
+                    STRING_VALUE(kv->key), datalogToOverviewString(kv->value));
+        }
+        break;
         default:
             FATAL_LOG("should have never come here, datalog program should"
                     " not have nodes like this: %s",

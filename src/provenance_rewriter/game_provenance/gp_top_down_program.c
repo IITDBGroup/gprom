@@ -10,6 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "model/datalog/datalog_model.h"
 #include "provenance_rewriter/game_provenance/gp_top_down_program.h"
 
 static DLProgram *createWhyGPprogram (DLProgram *p, DLAtom *why);
@@ -19,9 +20,24 @@ static DLProgram *unifyProgram (DLProgram *p, DLAtom *question);
 static DLProgram *solveProgram (DLProgram *p, DLAtom *question);
 
 DLProgram *
-createGPTopDownprogram (DLProgram *p)
+createTopDownGPprogram (DLProgram *p)
 {
-    //TODO switch provenance types
+    // why provenance
+    if(DL_HAS_PROP(p,DL_PROV_WHY))
+    {
+        DLAtom *why = (DLAtom *) getDLProp((DLNode *) p,DL_PROV_WHY);
+        return createWhyGPprogram(p, why);
+    }
+    // why not
+    else if(DL_HAS_PROP(p,DL_PROV_WHYNOT))
+    {
+        DLAtom *whyN = (DLAtom *) getDLProp((DLNode *) p,DL_PROV_WHYNOT);
+        return createWhyNotGPprogram(p, whyN);
+    }
+    // full GP
+    else if(DL_HAS_PROP(p,DL_PROV_FULL_GP))
+        return createFullGPprogram(p);
+
     return p;
 }
 
@@ -29,7 +45,7 @@ static DLProgram *
 createWhyGPprogram (DLProgram *p, DLAtom *why)
 {
     DLProgram *solvedProgram;
-    DLProgram *result;
+//    DLProgram *result;
 
     solvedProgram = copyObject(p);
     unifyProgram(solvedProgram, why);
@@ -47,7 +63,7 @@ createWhyNotGPprogram (DLProgram *p, DLAtom *whyNot)
 static DLProgram *
 createFullGPprogram (DLProgram *p)
 {
-
+    return p;
 }
 
 /*
@@ -70,10 +86,10 @@ createFullGPprogram (DLProgram *p)
 static DLProgram *
 unifyProgram (DLProgram *p, DLAtom *question)
 {
-    HashMap *predToRules = getDLProp((DLNode *) p, DL_MAP_RELNAME_TO_RULES);
-    List *newRules;
+//    HashMap *predToRules = (HashMap *) getDLProp((DLNode *) p, DL_MAP_RELNAME_TO_RULES);
+//    List *newRules;
 
-
+    return p;
 }
 
 /*
@@ -84,9 +100,9 @@ unifyProgram (DLProgram *p, DLAtom *question)
 static DLProgram *
 solveProgram (DLProgram *p, DLAtom *question)
 {
-    HashMap *predToRules = getDLProp((DLNode *) p, DL_MAP_RELNAME_TO_RULES);
-    char *targetPred;
+//    HashMap *predToRules = (HashMap *) getDLProp((DLNode *) p, DL_MAP_RELNAME_TO_RULES);
+//    char *targetPred;
 
 
-
+    return p;
 }
