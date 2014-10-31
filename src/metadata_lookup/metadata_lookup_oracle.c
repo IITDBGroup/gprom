@@ -1031,7 +1031,7 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 static OCI_Transaction *
 createTransaction(IsolationLevel isoLevel)
 {
-    unsigned int mode;
+    unsigned int mode = 0;
     OCI_Transaction *result = NULL;
 
     START_TIMER("module - metadata lookup");

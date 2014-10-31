@@ -672,6 +672,8 @@ valGetString(OptionValue *def, OptionType type)
             return buf;
         }
     }
+
+    return NULL; //keep compiler quit
 }
 
 
@@ -693,4 +695,6 @@ defGetString(OptionDefault *def, OptionType type)
             return buf;
         }
     }
+
+    return NULL; //keep compiler quit
 }

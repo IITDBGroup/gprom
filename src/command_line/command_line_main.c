@@ -49,6 +49,9 @@ inputSQL()
 
 		printf("Please input a SQL or 'q' to exit the program\n");
 		returnVal = scanf("%s",sql);
+		if (returnVal == EOF)
+			break;
+
 		if(*sql=='q')
 		{
 			printf("Client Exit.\n");

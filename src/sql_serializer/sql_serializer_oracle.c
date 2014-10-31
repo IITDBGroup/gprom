@@ -1201,7 +1201,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         ProjectionOperator *p = (agg || winR) ? m->firstProj : m->secondProj;
         List *attrNames = getAttrNames(p->op.schema);
         // create result attribute names
-        List *resultAttrs = NIL;
+//        List *resultAttrs = NIL;
 
         DEBUG_LOG("outer projection");
 

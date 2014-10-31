@@ -103,6 +103,7 @@ pluginTypeToString(MetadataLookupPluginType type)
     case METADATA_LOOKUP_PLUGIN_POSTGRES:
         return "postgres";
     }
+    return NULL; //keep compiler quiet
 }
 
 

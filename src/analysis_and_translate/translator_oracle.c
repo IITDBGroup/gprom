@@ -1317,7 +1317,8 @@ createProjectionOverNonAttrRefExprs(List **selectClause, Node **havingClause,
         // create alias for each non-AttributeReference expression
         List *attrNames = NIL;
         int i = 0;
-        FOREACH(Node, expr, projExprs)
+//        FOREACH(Node, expr, projExprs)
+        for(i = 0; i < LIST_LENGTH(projExprs); i++)
         {
             attrNames = appendToTailOfList(attrNames,
                     CONCAT_STRINGS("AGG_GB_ARG", itoa(i)));
