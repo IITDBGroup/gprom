@@ -22,6 +22,7 @@
 
 static List *getAtomVars(DLAtom *a);
 static List *getComparisonVars(DLComparison *a);
+static Node *unificationMutator (Node *node, HashMap *context);
 
 DLAtom *
 createDLAtom (char *rel, List *args, boolean negated)
@@ -159,6 +160,48 @@ getVarNames (List *vars)
         result = appendToTailOfList(result, strdup(v->name));
 
     return result;
+}
+
+DLRule *
+unifiyRule (DLRule *r, List *headBinds)
+{
+    DLRule *result = copyObject(r);
+    List *hVars = getHeadVars(r);
+    HashMap *varToBind = NEW_MAP(Constant,Node);
+    ASSERT(LIST_LENGTH(headBinds) == LIST_LENGTH(hVars));
+
+    // create map varname to binding
+    FORBOTH(Node,v,bind,hVars,headBinds)
+    {
+        DLVar *var = (DLVar *) v;
+        MAP_ADD_STRING_KEY(varToBind,var->name,bind);
+        DEBUG_LOG("Var %s bind to %s", var->name, exprToSQL(bind));
+    }
+
+    result = (DLRule *) unificationMutator((Node *) result, varToBind);
+
+    return result;
+}
+
+static Node *
+unificationMutator (Node *node, HashMap *context)
+{
+    if (node == NULL)
+        return NULL;
+
+    // replace vars with bindings (if bound)
+    if (isA(node, DLVar))
+    {
+        DLVar *oVar = (DLVar *) node;
+        if (MAP_HAS_STRING_KEY(context, oVar->name))
+        {
+            Node *result = MAP_GET_STRING(context, oVar->name);
+
+            return (Node *) copyObject(result);
+        }
+    }
+
+    return mutate(node, unificationMutator, context);
 }
 
 static List *

@@ -315,6 +315,7 @@ AC_CONFIG_FILES([
     src/operator_optimizer/Makefile
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile
+	src/provenance_rewriter/game_provenance/Makefile
 	src/provenance_rewriter/pi_cs_rewrites/Makefile
 	src/provenance_rewriter/transformation_rewrites/Makefile
 	src/provenance_rewriter/update_and_transaction/Makefile
