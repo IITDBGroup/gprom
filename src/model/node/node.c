@@ -169,10 +169,10 @@ appendStringInfo(StringInfo str, const char *format, ...)
     for(;;)
     {
         va_list     args;
-        int have;
+//        int have;
         boolean success;
 
-        have = str->maxlen - str->len - 1;
+//        have = str->maxlen - str->len - 1;
 
         va_start(args, format);
         success = vAppendStringInfo(str, format, args);

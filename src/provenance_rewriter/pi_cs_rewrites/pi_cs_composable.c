@@ -207,10 +207,10 @@ static QueryOperator *
 rewritePI_CSComposableJoin (JoinOperator *op)
 {
     DEBUG_LOG("REWRITE-PICS-Composable - Join");
-    WindowOperator *wOp;
+    WindowOperator *wOp = NULL;
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
-    QueryOperator *prev;
+    QueryOperator *prev = NULL;
     boolean noDupInput = isTupleAtATimeSubtree((QueryOperator *) op);
     boolean lChildNoDup = isTupleAtATimeSubtree(lChild);
     boolean rChildNoDup = isTupleAtATimeSubtree(rChild);
@@ -334,7 +334,7 @@ static QueryOperator *
 rewritePI_CSComposableAggregation (AggregationOperator *op)
 {
     boolean groupBy = (op->groupBy != NIL);
-    WindowOperator *curWindow;
+    WindowOperator *curWindow = NULL;
     QueryOperator *firstChild;
     QueryOperator *curChild;
     ProjectionOperator *proj;

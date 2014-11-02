@@ -194,8 +194,8 @@ extern char *nodeToDot(void *obj);
 extern void *stringToNode(char *str);
 
 /* deep copy a node */
-//#define COPY_OBJECT_TO_CONTEXT(obj, result, context) \
-//
+//#define COPY_OBJECT_TO_CONTEXT(obj, result, context)
+
 //    (AQUIRE_MEM_CONTEXT(context,))
 extern void *copyObject(void *obj);
 

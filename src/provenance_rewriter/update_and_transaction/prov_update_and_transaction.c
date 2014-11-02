@@ -451,14 +451,14 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 				}
 
                //make new case for SCN
-                Node *then = (Node *) createConstLong(-1); //TODO ok to add one?
+//                Node *then = (Node *) createConstLong(-1); //TODO ok to add one?
                 Node *els = (Node *) createFullAttrReference("VERSIONS_STARTSCN", 0, getNumAttrs(OP_LCHILD(proj)), INVALID_ATTR, DT_LONG);
-                CaseExpr *caseExpr;
-                CaseWhen *caseWhen;
+//                CaseExpr *caseExpr;
+//                CaseWhen *caseWhen;
 
-                caseWhen = createCaseWhen(copyObject(newWhen), then);
-                caseExpr = createCaseExpr(NULL, singleton(caseWhen),
-                        els);
+//                caseWhen = createCaseWhen(copyObject(newWhen), then);
+//                caseExpr = createCaseExpr(NULL, singleton(caseWhen),
+//                        els);
 
                 // TODO do not modify the SCN attribute to avoid exponential expression size blow-up
                 newProjExpr = (Node *) els; // caseExpr
@@ -550,11 +550,11 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	}
 
 	// add projection that removes the VERSIONS_STARTSCN attribute
-	List *finalAttrs, *mergeAttrs, *projExprs = NIL;
+	List *finalAttrs, *projExprs = NIL;
 	int cnt = 0;
 
 	mergeRoot = (QueryOperator *) getHeadOfListP(updates);
-	mergeAttrs = getQueryOperatorAttrNames(mergeRoot);
+//	mergeAttrs = getQueryOperatorAttrNames(mergeRoot);
 	finalAttrs = NIL;
 
     FOREACH(AttributeDef, attr, mergeRoot->schema->attrDefs)

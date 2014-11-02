@@ -48,7 +48,7 @@ static RelCount *nameState;
 QueryOperator *
 rewritePI_CS (ProvenanceComputation  *op)
 {
-    List *provAttrs = NIL;
+//    List *provAttrs;
 
     START_TIMER("rewrite - PI-CS rewrite");
 
@@ -66,7 +66,7 @@ rewritePI_CS (ProvenanceComputation  *op)
     asOf = op->asOf;
 
     // get provenance attrs
-    provAttrs = getQueryOperatorAttrNames((QueryOperator *) op);
+//    provAttrs = getQueryOperatorAttrNames((QueryOperator *) op);
 
     // rewrite subquery under provenance computation
     rewritePI_CSOperator(rewRoot);
@@ -91,7 +91,7 @@ rewritePI_CSOperator (QueryOperator *op)
     boolean noRewriteHasProv = HAS_STRING_PROP(op, PROP_HAS_PROVENANCE);
     boolean rewriteAddProv = HAS_STRING_PROP(op, PROP_ADD_PROVENANCE);
     List *userProvAttrs = (List *) getStringProperty(op, PROP_USER_PROV_ATTRS);
-    List *addProvAttrs;
+    List *addProvAttrs = NIL;
     QueryOperator *rewrittenOp;
 
     if (rewriteAddProv)

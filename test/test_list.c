@@ -43,7 +43,8 @@ testIntList(void)
 
     FOREACH_INT(i, newList)
     {
-        ASSERT_EQUALS_INT(0,1,"should never reach here for empty list");
+    	DEBUG_LOG("reached %u", i);
+        ASSERT_TRUE(FALSE,"should never reach here for empty list");
     }
 
     newList = appendToTailOfListInt(newList, 1);
