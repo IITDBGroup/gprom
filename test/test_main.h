@@ -139,5 +139,6 @@ extern rc testMetadataLookup(void);
 extern rc testMetadataLookupPostgres(void);
 extern rc testString(void);
 extern rc testParameter(void);
+extern rc testPICSGraph(void);
 
 #endif

@@ -97,7 +97,7 @@ testSuites(void)
     RUN_TEST(testMetadataLookup(), "Test metadata lookup.");
     RUN_TEST(testMetadataLookupPostgres(), "Test metadata lookup - Postgres.");
     RUN_TEST(testParameter(), "Test SQL parameter functions.");
-
+    RUN_TEST(testPICSGraph(), "Test PI-CS rewrite for relational algebra graph.");
     printf("Total %d Test(s) Passed\n\n", test_count);
 }
 
