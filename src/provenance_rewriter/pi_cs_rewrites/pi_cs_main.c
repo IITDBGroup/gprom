@@ -557,7 +557,7 @@ rewritePI_CSJoin (JoinOperator *op)
     // SET PROP IS_REWRITTEN
 
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
-    return (QueryOperator *) op;
+    return (QueryOperator *) proj;
 }
 
 /*

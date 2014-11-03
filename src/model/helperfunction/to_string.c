@@ -1318,6 +1318,13 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
                     STRING_VALUE(kv->key), datalogToOverviewString(kv->value));
         }
         break;
+        case T_List:
+        {
+            List *l = (List *) n;
+            FOREACH(Node,el,l)
+                datalogToStrInternal(str,el, indent + 4);
+        }
+        break;
         default:
             FATAL_LOG("should have never come here, datalog program should"
                     " not have nodes like this: %s",

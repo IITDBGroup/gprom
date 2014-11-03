@@ -163,7 +163,7 @@ getVarNames (List *vars)
 }
 
 DLRule *
-unifiyRule (DLRule *r, List *headBinds)
+unifyRule (DLRule *r, List *headBinds)
 {
     DLRule *result = copyObject(r);
     List *hVars = getHeadVars(r);

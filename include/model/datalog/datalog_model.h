@@ -83,7 +83,7 @@ extern List *getHeadVars (DLRule *r);
 extern List *getVarNames (List *vars);
 
 // unification
-extern DLRule *unifiyRule (DLRule *r, List *headBinds);
+extern DLRule *unifyRule (DLRule *r, List *headBinds);
 
 // properties
 extern Node *getDLProp(DLNode *n, char *key);
@@ -101,10 +101,14 @@ extern void setDLProp(DLNode *n, char *key, Node *value);
 
 // property keys for storing analysis results for a program
 #define DL_MAP_RELNAME_TO_RULES "REL_TO_RULES"
+#define DL_MAP_UN_PREDS_TO_RULES "UN_PREDS_TO_RULES"
 #define DL_IDB_RELS "IDB_RELS"
 #define DL_EDB_RELS "EDB_RELS"
 
 #define DL_WON "WON"
 #define DL_LOST "LOST"
+#define DL_UNDER_NEG "UNDER_NEG"
 
+#define DL_ORIGINAL_RULE "ORIG_RULE"
+#define DL_RULE_ID "RULE_ID"
 #endif /* INCLUDE_MODEL_DATALOG_DATALOG_MODEL_H_ */
