@@ -40,6 +40,10 @@
 #define PROP_PC_TRANS_XID "TRANSACTION_XID"                 // stores transaction XID
 #define PROP_PC_TUPLE_VERSIONS "TUPLE_VERSIONS"             // use rowid + scn pairs as provenance
 
+//
+#define PROP_PC_HAS_REWRITTEN "HAS_REWRITTEN"				// !!!show if a query has been rewritten
+//
+
 /* table access properties */
 #define PROP_TABLE_IS_UPDATED "UPDATED_TABLE"               // is table access for the updated table in an DML translation
 #define PROP_IS_READ_COMMITTED "TABLE_READ_COMMITTED"      // is table access for updated table in a READ COMMITTED transaction

@@ -136,7 +136,7 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     {
     	char *temp = STRING_VALUE(GET_STRING_PROP(op,PROP_PC_TABLE));
     	QueryOperator *up = getUpdateForPreviousTableVersion(op,   //Find last update to that table
-                temp, 0, updates);
+                temp, -1, updates);
     	if (up == NULL)  // NULL then user has asked for non-existing table
     	{
     		FATAL_LOG("table"); //exit
@@ -309,21 +309,54 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
 	// add projection that removes the VERSIONS_STARTSCN attribute
 	List *finalAttrs, *mergeAttrs, *projExprs = NIL;
+//	QueryOperator *mergeRoot;
 	int cnt = 0;
 
-	mergeRoot = (QueryOperator *) getHeadOfListP(updates);
-	mergeAttrs = getQueryOperatorAttrNames(mergeRoot);
-	finalAttrs = sublist(mergeAttrs, 0, LIST_LENGTH(mergeAttrs) - 1);
+	if(HAS_STRING_PROP(op,PROP_PC_TABLE))
+	{
+		char *temp = STRING_VALUE(GET_STRING_PROP(op,PROP_PC_TABLE));
+		mergeRoot = getUpdateForPreviousTableVersion(op,   //Find last update to that table
+				temp, -1, updates);
+		if (mergeRoot == NULL)  // NULL then user has asked for non-existing table
+		{
+			FATAL_LOG("table"); //exit
+		}
 
-    FOREACH(AttributeDef, attr, mergeRoot->schema->attrDefs)
-    {
-        if (strcmp(attr->attrName,"VERSIONS_STARTSCN") != 0)
-            projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, cnt, 0));
-        cnt++;
-    }
+	}
+	else
+	{
+		mergeRoot = (QueryOperator *) getHeadOfListP(updates);
+	}
 
-	finalProj = (QueryOperator *) createProjectionOp(projExprs, mergeRoot, NIL, finalAttrs);
-	mergeRoot->parents = singleton(finalProj);
+//	if(HAS_STRING_PROP(op,PROP_PC_TABLE))
+//	{
+//
+//		mergeAttrs = getQueryOperatorAttrNames(up);
+//		addChildOperator((QueryOperator *) op, up);
+//		finalAttrs = sublist(mergeAttrs, 0, LIST_LENGTH(mergeAttrs) - 1);
+//		FOREACH(AttributeDef, attr, mergeRoot->schema->attrDefs)
+//		{
+//		    if (strcmp(attr->attrName,"VERSIONS_STARTSCN") != 0)
+//		        projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, cnt, 0));
+//		    cnt++;
+//		}
+//		finalProj = (QueryOperator *) createProjectionOp(projExprs, up, NIL, finalAttrs);
+//		up->parents = singleton(finalProj);
+//	}
+
+		mergeAttrs = getQueryOperatorAttrNames(mergeRoot);
+		finalAttrs = sublist(mergeAttrs, 0, LIST_LENGTH(mergeAttrs) - 1);
+
+	    FOREACH(AttributeDef, attr, mergeRoot->schema->attrDefs)
+	    {
+	        if (strcmp(attr->attrName,"VERSIONS_STARTSCN") != 0)
+	            projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, cnt, 0));
+	        cnt++;
+	    }
+
+		finalProj = (QueryOperator *) createProjectionOp(projExprs, mergeRoot, NIL, finalAttrs);
+		mergeRoot->parents = singleton(finalProj);
+
 
 	INFO_LOG("Merged updates are: %s", operatorToOverviewString((Node *) finalProj));
 	DEBUG_LOG("Merged updates are: %s", beatify(nodeToString((Node *) finalProj)));

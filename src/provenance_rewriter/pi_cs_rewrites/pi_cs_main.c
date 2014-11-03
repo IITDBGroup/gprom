@@ -96,6 +96,13 @@ rewritePI_CSOperator (QueryOperator *op)
     if (noRewriteHasProv)
         return rewritePI_CSUseProvNoRewrite(op, userProvAttrs);
 
+    // Check if the subquery has been rewritten
+    if (HAS_STRING_PROP(op,PROP_PC_HAS_REWRITTEN))
+    {
+    	QueryOperator *alreadyRewritten = (QueryOperator *) LONG_VALUE(GET_STRING_PROPERY(op, PROP_PC_HAS_REWRITTEN));
+    	return alreadyRewritten;
+    }
+
     switch(op->type)
     {
         case T_SelectionOperator:
@@ -138,6 +145,10 @@ rewritePI_CSOperator (QueryOperator *op)
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
             return NULL;
     }
+
+    // Add property "HAS_REWRITTEN" to op where rew is a pointer
+    Node *key;                                // To be modified
+    SET_STRING_PROP(op,PROP_PC_HAS_REWRITTEN, createConstLong(rewrittenOp));
 
     if (showIntermediate)
         rewrittenOp = addIntermediateProvenance(rewrittenOp, userProvAttrs);
@@ -379,14 +390,17 @@ rewritePI_CSSelection (SelectionOperator *op)
     DEBUG_LOG("REWRITE-PICS - Selection");
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
+    List *provAttrs = getQueryOperatorAttrNames((QueryOperator *) op);
+    SelectionOperator *newCopy = createSelectionOp((Node *) copyObject(op->cond), OP_LCHILD(op), op->op.parents, provAttrs);//!!!Create a new selection operator to be a copy
     // rewrite child first
     rewritePI_CSOperator(OP_LCHILD(op));
 
     // adapt schema
-    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+    //??Should we use the rewritten child to adapt the schema?
+    addProvenanceAttrsToSchema((QueryOperator *) newCopy, (QueryOperator *) LONG_VALUE(GET_STRING_PROPERY(OP_LCHILD(op), PROP_PC_HAS_REWRITTEN)));
 
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
-    return (QueryOperator *) op;
+    return (QueryOperator *) newCopy;
 }
 
 static QueryOperator *
@@ -397,24 +411,27 @@ rewritePI_CSProjection (ProjectionOperator *op)
     DEBUG_LOG("REWRITE-PICS - Projection");
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
+    List *provAttrs1 = getQueryOperatorAttrNames((QueryOperator *) op);
+    ProjectionOperator *newCopy = createProjectionOp((List *) copyObject(op->projExprs), OP_LCHILD(op), op->op.parents, provAttrs1);
     // rewrite child
     rewritePI_CSOperator(OP_LCHILD(op));
 
     // add projection expressions for provenance attrs
-    QueryOperator *child = OP_LCHILD(op);
+    QueryOperator *child = (QueryOperator *) LONG_VALUE(GET_STRING_PROPERY(OP_LCHILD(op), PROP_PC_HAS_REWRITTEN));
     FOREACH_INT(a, child->provAttrs)
     {
         AttributeDef *att = getAttrDef(child,a);
         DEBUG_LOG("attr: %s", nodeToString(att));
-         op->projExprs = appendToTailOfList(op->projExprs,
+         newCopy->projExprs = appendToTailOfList(newCopy->projExprs,
                  createFullAttrReference(att->attrName, 0, a, 0));
     }
 
     // adapt schema
-    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+    //??
+    addProvenanceAttrsToSchema((QueryOperator *) newCopy, (QueryOperator *) LONG_VALUE(GET_STRING_PROPERY(OP_LCHILD(op), PROP_PC_HAS_REWRITTEN)));
 
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
-    return (QueryOperator *) op;
+    return (QueryOperator *) newCopy;
 }
 
 static QueryOperator *
@@ -428,26 +445,28 @@ rewritePI_CSJoin (JoinOperator *op)
     lChild = rewritePI_CSOperator(lChild);
     rChild = rewritePI_CSOperator(rChild);
 
+    List *provAttrs1 = getQueryOperatorAttrNames((QueryOperator *) op);
+    JoinOperator newCopy = createJoinOp(op->joinType, (Node *) copyObject(op->cond), LIST_MAKE(lChild,rChild), NIL, provAttrs1);
     // adapt schema for join op
-    clearAttrsFromSchema((QueryOperator *) op);
-    addNormalAttrsToSchema((QueryOperator *) op, lChild);
-    addProvenanceAttrsToSchema((QueryOperator *) op, lChild);
-    addNormalAttrsToSchema((QueryOperator *) op, rChild);
-    addProvenanceAttrsToSchema((QueryOperator *) op, rChild);
+    clearAttrsFromSchema((QueryOperator *) newCopy);
+    addNormalAttrsToSchema((QueryOperator *) newCopy, lChild);
+    addProvenanceAttrsToSchema((QueryOperator *) newCopy, lChild);
+    addNormalAttrsToSchema((QueryOperator *) newCopy, rChild);
+    addProvenanceAttrsToSchema((QueryOperator *) newCopy, rChild);
 
     // add projection to put attributes into order on top of join op
     List *projExpr = CONCAT_LISTS(
-            getNormalAttrProjectionExprs((QueryOperator *) op),
-            getProvAttrProjectionExprs((QueryOperator *) op));
+            getNormalAttrProjectionExprs((QueryOperator *) newCopy),
+            getProvAttrProjectionExprs((QueryOperator *) newCopy));
     ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
 
-    addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
-    addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
-    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
+    addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) newCopy);
+    addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) newCopy);
+    //switchSubtrees((QueryOperator *) newCopy, (QueryOperator *) proj);
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) newCopy);
 
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
-    return (QueryOperator *) op;
+    return (QueryOperator *) proj;
 }
 
 /*
@@ -740,9 +759,20 @@ rewritePI_CSTableAccess(TableAccessOperator *op)
 
     DEBUG_LOG("REWRITE-PICS - Table Access <%s> <%u>", op->tableName, relAccessCount);
 
+    //?Get the list of data types from op
+    List *dataType = getDataTypes(op->op.schema);
+
+    List *provAttrs1 = getQueryOperatorAttrNames((QueryOperator *) op);
+    //?Parameters are all correct?
+    TableAccessOperator *newCopy = createTableAccessOp(op->tableName, op->asOf, op->op.schema->name, NIL, provAttrs1, dataType);
+
     // copy any as of clause if there
+    //?
     if (asOf)
+    {
+        newCopy->asOf = copyObject(asOf);
         op->asOf = copyObject(asOf);
+    }
 
     // Get the povenance name for each attribute
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
@@ -774,10 +804,11 @@ rewritePI_CSTableAccess(TableAccessOperator *op)
     newpo->op.provAttrs = newProvPosList;
 
     // Switch the subtree with this newly created projection operator.
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+    //switchSubtrees((QueryOperator *) newCopy, (QueryOperator *) newpo);
+
 
     // Add child to the newly created projections operator,
-    addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+    addChildOperator((QueryOperator *) newpo, (QueryOperator *) newCopy);
 
     DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) newpo));
     return (QueryOperator *) newpo;
