@@ -105,7 +105,7 @@ rewritePI_CSOperator (QueryOperator *op)
     // Check if the subquery has been rewritten
     if (HAS_STRING_PROP(op,PROP_PC_HAS_REWRITTEN))
     {
-    	QueryOperator *alreadyRewritten = (QueryOperator *) LONG_VALUE(GET_STRING_PROPERY(op, PROP_PC_HAS_REWRITTEN));
+    	QueryOperator *alreadyRewritten = (QueryOperator *) LONG_VALUE(GET_STRING_PROP(op, PROP_PC_HAS_REWRITTEN));
     	return alreadyRewritten;
     }
 
@@ -153,8 +153,8 @@ rewritePI_CSOperator (QueryOperator *op)
     }
 
     // Add property "HAS_REWRITTEN" to op where rew is a pointer
-    Node *key;                                // To be modified
-    SET_STRING_PROP(op,PROP_PC_HAS_REWRITTEN, createConstLong(rewrittenOp));
+//    Node *key;                                // To be modified
+    SET_STRING_PROP(op,PROP_PC_HAS_REWRITTEN, createConstLong((long) rewrittenOp));
 
     if (showIntermediate)
         rewrittenOp = addIntermediateProvenance(rewrittenOp, userProvAttrs);
@@ -503,7 +503,7 @@ rewritePI_CSSelection (SelectionOperator *op)
 
     // adapt schema
     //??Should we use the rewritten child to adapt the schema?
-    addProvenanceAttrsToSchema((QueryOperator *) newCopy, (QueryOperator *) LONG_VALUE(GET_STRING_PROPERY(OP_LCHILD(op), PROP_PC_HAS_REWRITTEN)));
+    addProvenanceAttrsToSchema((QueryOperator *) newCopy, (QueryOperator *) LONG_VALUE(GET_STRING_PROP(OP_LCHILD(op), PROP_PC_HAS_REWRITTEN)));
 
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
     return (QueryOperator *) newCopy;
@@ -523,7 +523,7 @@ rewritePI_CSProjection (ProjectionOperator *op)
     rewritePI_CSOperator(OP_LCHILD(op));
 
     // add projection expressions for provenance attrs
-    QueryOperator *child = (QueryOperator *) LONG_VALUE(GET_STRING_PROPERY(OP_LCHILD(op), PROP_PC_HAS_REWRITTEN));
+    QueryOperator *child = (QueryOperator *) LONG_VALUE(GET_STRING_PROP(OP_LCHILD(op), PROP_PC_HAS_REWRITTEN));
     FOREACH_INT(a, child->provAttrs)
     {
         AttributeDef *att = getAttrDef(child,a);
@@ -534,7 +534,7 @@ rewritePI_CSProjection (ProjectionOperator *op)
 
     // adapt schema
     //??
-    addProvenanceAttrsToSchema((QueryOperator *) newCopy, (QueryOperator *) LONG_VALUE(GET_STRING_PROPERY(OP_LCHILD(op), PROP_PC_HAS_REWRITTEN)));
+    addProvenanceAttrsToSchema((QueryOperator *) newCopy, (QueryOperator *) LONG_VALUE(GET_STRING_PROP(OP_LCHILD(op), PROP_PC_HAS_REWRITTEN)));
 
     DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
     return (QueryOperator *) newCopy;
@@ -552,7 +552,7 @@ rewritePI_CSJoin (JoinOperator *op)
     rChild = rewritePI_CSOperator(rChild);
 
     List *provAttrs1 = getQueryOperatorAttrNames((QueryOperator *) op);
-    JoinOperator newCopy = createJoinOp(op->joinType, (Node *) copyObject(op->cond), LIST_MAKE(lChild,rChild), NIL, provAttrs1);
+    JoinOperator *newCopy = createJoinOp(op->joinType, (Node *) copyObject(op->cond), LIST_MAKE(lChild,rChild), NIL, provAttrs1);
     // adapt schema for join op
     clearAttrsFromSchema((QueryOperator *) newCopy);
     addNormalAttrsToSchema((QueryOperator *) newCopy, lChild);

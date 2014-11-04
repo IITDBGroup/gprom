@@ -17,7 +17,7 @@ static rc testTableAccessRewrite(void);
 rc
 testPICSGraph(void)
 {
-    RUN_TEST(testTableAccessRewrite,"test table access rewrite for graphs");
+    RUN_TEST(testTableAccessRewrite(),"test table access rewrite for graphs");
 
     return PASS;
 }

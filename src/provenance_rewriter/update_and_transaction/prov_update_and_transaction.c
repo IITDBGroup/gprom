@@ -234,12 +234,12 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     reverseList(updates);
     reverseList(op->transactionInfo->updateTableNames);
 
-    if(HAS_STRING_PROP(op,PROP_PC_TABLE))
-    {
-        Constant *value = (Constant *) GET_STRING_PROP(op,PROP_PC_TABLE);
-        char *v = STRING_VALUE(value);
-        char *v2 = STRING_VALUE(GET_STRING_PROP(op,PROP_PC_TABLE));
-    }
+//    if(HAS_STRING_PROP(op,PROP_PC_TABLE))
+//    {
+//        Constant *value = (Constant *) GET_STRING_PROP(op,PROP_PC_TABLE);
+////        char *v = STRING_VALUE(value);
+////        char *v2 = STRING_VALUE(GET_STRING_PROP(op,PROP_PC_TABLE));
+//    }
 
     DEBUG_LOG("Updates to merge are: \n\n%s", beatify(nodeToString(updates)));
     INFO_LOG("Updates to merge overview are: \n\n%s", operatorToOverviewString((Node *) updates));
@@ -606,13 +606,13 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 //		up->parents = singleton(finalProj);
 //	}
 
-		mergeAttrs = getQueryOperatorAttrNames(mergeRoot);
-		finalAttrs = sublist(mergeAttrs, 0, LIST_LENGTH(mergeAttrs) - 1);
+//		mergeAttrs = getQueryOperatorAttrNames(mergeRoot);
+//		finalAttrs = sublist(mergeAttrs, 0, LIST_LENGTH(mergeAttrs) - 1);
 
 	    FOREACH(AttributeDef, attr, mergeRoot->schema->attrDefs)
 	    {
 	        if (strcmp(attr->attrName,"VERSIONS_STARTSCN") != 0)
-	            projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, cnt, 0));
+	            projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, cnt, 0, DT_LONG));
 	        cnt++;
 	    }
 
