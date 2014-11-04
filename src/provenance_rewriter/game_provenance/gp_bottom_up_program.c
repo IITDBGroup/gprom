@@ -237,7 +237,7 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
         Set *won = NODESET();  // keep track of which nodes have been marked as won
         Set *lost = NODESET(); // or lost status
         List *todoStack = NIL;
-        List *unHeads;
+//        List *unHeads;
 
         // initialize stack with rule heads for user provenance question
         todoStack = copyList((List *)
@@ -250,8 +250,9 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
                 addToSet(lost, r->head);
             else
                 addToSet(won, r->head); //done
-            addDLProp((DLNode *) r, neg ? DL_LOST : DL_WON,
+            setDLProp((DLNode *) r, neg ? DL_LOST : DL_WON,
                     (Node *) createConstBool(TRUE));
+
         }
 
         // recursivly set WON/LOST status
