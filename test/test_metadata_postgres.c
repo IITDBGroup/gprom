@@ -25,8 +25,8 @@
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 
-//static char *table1Attrs[3] = { "a","b","c" };
-//static char *table2Attrs[2] = { "d","e" };
+static char *table1Attrs[3] = { "a","b","c" };
+static char *table2Attrs[2] = { "d","e" };
 
 /* internal tests */
 static rc testCatalogTableExists(void);
