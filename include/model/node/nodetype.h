@@ -2,9 +2,11 @@
 #define NODETYPE_H
 
 #include "common.h"
+#include "utility/enum_magic.h"
 
-typedef enum NodeTag {
-    T_Invalid=0,
+NEW_ENUM_WITH_TO_STRING(NodeTag,
+    T_Invalid,
+    T_Node,
 
     /* collection types */
     T_List,
@@ -31,6 +33,7 @@ typedef enum NodeTag {
     T_WindowFunction,
     T_RowNumExpr,
     T_OrderExpr,
+    T_CastExpr,
 
     /* query block model nodes */
     T_SetQuery,
@@ -50,6 +53,8 @@ typedef enum NodeTag {
     T_Update,
     T_TransactionStmt,
     T_WithStmt,
+    T_DDLStatement,
+    T_UtilityStatement,
 
     /* query operator model nodes */
     T_Schema,
@@ -66,29 +71,34 @@ typedef enum NodeTag {
     T_ConstRelOperator,
     T_NestingOperator,
     T_WindowOperator,
-    T_OrderOperator
+    T_OrderOperator,
 
-} NodeTag;
+    /* datalog model nodes */
+    T_DLNode,
+    T_DLAtom,
+    T_DLVar,
+    T_DLRule,
+    T_DLProgram,
+    T_DLComparison
+);
 
 typedef struct Node{
     NodeTag type;
 } Node;
 
-typedef enum ProvenanceType
-{
+NEW_ENUM_WITH_TO_STRING(ProvenanceType,
     PROV_PI_CS,
     PROV_TRANSFORMATION
-} ProvenanceType;
+);
 
 /* what type of database operation(s) a provenance computation is for */
-typedef enum ProvenanceInputType
-{
+NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
     PROV_INPUT_QUERY,
     PROV_INPUT_UPDATE,
     PROV_INPUT_UPDATE_SEQUENCE,
     PROV_INPUT_TRANSACTION,
     PROV_INPUT_TIME_INTERVAL
-} ProvenanceInputType;
+);
 
 /* stringinfo provides the string data type*/
 
@@ -168,17 +178,24 @@ extern KeyValue *createNodeKeyValue(Node *key, Node *value);
 extern char *nodeToString(void *obj);
 extern char *beatify(char *input);
 char *operatorToOverviewString(Node *op);
+char *datalogToOverviewString(Node *n);
 char *itoa(int value);
 
 /* get a dot script for a query operator graph or query block tree */
 extern char *nodeToDot(void *obj);
 
+#define DOT_TO_CONSOLE(obj) \
+    do { \
+        if (getBoolOption(OPTION_GRAPHVIZ)) \
+            printf("%s",nodeToDot(obj)); \
+    } while (0)
+
 /* create a node tree from a string */
 extern void *stringToNode(char *str);
 
 /* deep copy a node */
-//#define COPY_OBJECT_TO_CONTEXT(obj, result, context) \
-//
+//#define COPY_OBJECT_TO_CONTEXT(obj, result, context)
+
 //    (AQUIRE_MEM_CONTEXT(context,))
 extern void *copyObject(void *obj);
 

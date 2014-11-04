@@ -3,6 +3,7 @@
 
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "utility/enum_magic.h"
 
 typedef struct FunctionCall {
     NodeTag type;
@@ -18,14 +19,13 @@ typedef struct Operator {
 } Operator;
 
 
-typedef enum DataType
-{
+NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
     DT_LONG,
     DT_STRING,
     DT_FLOAT,
     DT_BOOL
-} DataType;
+);
 
 typedef struct Constant {
     NodeTag type;
@@ -44,6 +44,7 @@ typedef struct AttributeReference {
     int fromClauseItem;
     int attrPosition;
     int outerLevelsUp;
+    DataType attrType;
 } AttributeReference;
 
 typedef struct SQLParameter {
@@ -75,12 +76,12 @@ typedef struct IsNullExpr {
     Node *expr;
 } IsNullExpr;
 
-typedef enum WindowBoundType {
+NEW_ENUM_WITH_TO_STRING(WindowBoundType,
     WINBOUND_UNBOUND_PREC,
     WINBOUND_CURRENT_ROW,
     WINBOUND_EXPR_PREC,
     WINBOUND_EXPR_FOLLOW
-} WindowBoundType;
+);
 
 typedef struct WindowBound {
     NodeTag type;
@@ -88,10 +89,10 @@ typedef struct WindowBound {
     Node *expr;
 } WindowBound;
 
-typedef enum WinFrameType {
+NEW_ENUM_WITH_TO_STRING(WinFrameType,
     WINFRAME_ROWS,
     WINFRAME_RANGE
-} WinFrameType;
+);
 
 typedef struct WindowFrame {
     NodeTag type;
@@ -113,15 +114,21 @@ typedef struct WindowFunction {
     WindowDef *win;
 } WindowFunction;
 
-typedef enum SortOrder {
+typedef struct CastExpr {
+    NodeTag type;
+    DataType resultDT;
+    Node *expr;
+} CastExpr;
+
+NEW_ENUM_WITH_TO_STRING(SortOrder,
     SORT_ASC,
     SORT_DESC
-} SortOrder;
+);
 
-typedef enum SortNullOrder {
+NEW_ENUM_WITH_TO_STRING(SortNullOrder,
     SORT_NULLS_FIRST,
     SORT_NULLS_LAST
-} SortNullOrder;
+);
 
 typedef struct OrderExpr {
     NodeTag type;
@@ -134,8 +141,8 @@ typedef struct OrderExpr {
 extern FunctionCall *createFunctionCall (char *fName, List *args);
 extern Operator *createOpExpr (char *name, List *args);
 extern AttributeReference *createAttributeReference (char *name);
-extern AttributeReference *createFullAttrReference (char *name, int fromClause,
-        int attrPos, int outerLevelsUp);
+extern AttributeReference *createFullAttrReference (char *name, int fromClause, int attrPos,
+        int outerLevelsUp, DataType attrType);
 extern Node *andExprs (Node *expr, ...);
 extern Node *orExprs (Node *expr, ...);
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL)

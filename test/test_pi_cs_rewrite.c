@@ -12,13 +12,11 @@
 #include "configuration/option_parser.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "parser/parse_internal.h"
 #include "parser/parser.h"
-#include "../src/parser/sql_parser.tab.h"
 #include "model/query_operator/query_operator.h"
-#include "metadata_lookup/metadata_lookup.h"
 #include "analysis_and_translate/translator.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
+#include "rewriter.h"
 
 /* if OCI is not available then add dummy versions */
 #if HAVE_A_BACKEND
@@ -30,18 +28,7 @@ main (int argc, char* argv[])
     Node *qoModel;
     Node *rewriteQoModel;
 
-    initMemManager();
-    mallocOptions();
-    if(parseOption(argc, argv) != 0)
-    {
-        printOptionParseError(stdout);
-        printOptionsHelp(stdout, "testpicsrewrite", "Run all stages on input and output rewritten SQL, but only use pi-cs rewritter.");
-        return EXIT_FAILURE;
-    }
-    initLogger();
-    initMetadataLookupPlugins();
-    chooseMetadataLookupPluginFromString(getStringOption("backend"));
-    initMetadataLookupPlugin();
+    READ_OPTIONS_AND_INIT("testpicsrewrite", "Run all stages on input and output rewritten SQL, but only use pi-cs rewritter.");
 
     // read from terminal
     if (getStringOption("input.sql") == NULL)
@@ -69,8 +56,7 @@ main (int argc, char* argv[])
     ERROR_LOG("REWRITTEN PROVENANCE RESULT IS:\n%s", beatify(nodeToString(rewriteQoModel)));
     ERROR_LOG("REWRITTEN PROVENANCE RESULT IS:\n%s", operatorToOverviewString(rewriteQoModel));
 
-    freeOptions();
-    destroyMemManager();
+    shutdownApplication();
 
     return EXIT_SUCCESS;
 }

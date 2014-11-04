@@ -196,7 +196,7 @@ extern boolean searchListNode(List *list, Node *value);
 extern boolean genericSearchList(List *list, boolean (*eq) (void *, void *), void *value);
 
 extern int listPosString (List *list, char *value);
-extern boolean genericListPos (List *list, boolean (*eq) (void *, void *), void *value);
+extern int genericListPos (List *list, boolean (*eq) (void *, void *), void *value);
 
 /* replace list elements */
 extern List *replaceNode(List *list, void *n1, void *n2);
@@ -211,6 +211,7 @@ extern List *concatTwoLists (List *listA, List *listB);
 extern List *concatLists (List *a, ...);
 #define CONCAT_LISTS(...) concatLists(__VA_ARGS__, NULL)
 extern List *sublist(List *l, int from, int to);
+extern List *genericSublist(List *l, boolean (*pred) (void *, void *), void *context);
 
 /* serialize to string */
 extern char *stringListToString (List *node);

@@ -12,12 +12,16 @@
 
 #include "common.h"
 
+#include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
-
+#include "model/node/nodetype.h"
+#include "model/set/set.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
+#include "configuration/option.h"
 
 static boolean checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent);
+static boolean checkUniqueAttrNames (QueryOperator *op);
 
 
 boolean
@@ -35,16 +39,18 @@ isTree(QueryOperator *op)
     return TRUE;
 }
 
+#define SHOULD(opt) (getBoolOption(OPTION_AGGRESSIVE_MODEL_CHECKING) || getBoolOption(opt))
+
 boolean
 checkModel (QueryOperator *op)
 {
-    if (!checkParentChildLinks(op))
+    if (SHOULD(CHECK_OM_PARENT_CHILD_LINKS) && !checkParentChildLinks(op))
         return FALSE;
 
-    if (!checkAttributeRefConsistency(op))
+    if (SHOULD(CHECK_OM_ATTR_REF) && !checkAttributeRefConsistency(op))
         return FALSE;
 
-    if (!checkSchemaConsistency(op))
+    if (SHOULD(CHECK_OM_SCHEMA_CONSISTENCY) && !checkSchemaConsistency(op))
         return FALSE;
 
     return TRUE;
@@ -151,6 +157,21 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
             ERROR_LOG("attribute ref name and child attrdef names are not the "
                     "same: <%s> and <%s> in\n\n%s", childA->attrName, a->name,
                     operatorToOverviewString((Node *) parent));
+            DEBUG_LOG("details are: \n%s\n\n%s\n\n%s", nodeToString(a),
+                    nodeToString(childA),
+                    beatify(nodeToString(parent)));
+            return FALSE;
+        }
+        if (childA->dataType != a->attrType)
+        {
+            ERROR_LOG("attribute datatype and child attrdef datatypes are not the "
+                    "same: <%s> and <%s> in\n\n%s",
+                    DataTypeToString(childA->dataType),
+                    DataTypeToString(a->attrType),
+                    operatorToOverviewString((Node *) parent));
+            DEBUG_LOG("details are: \n%s\n\n%s\n\n%s", nodeToString(a),
+                    nodeToString(childA),
+                    beatify(nodeToString(parent)));
             return FALSE;
         }
     }
@@ -174,11 +195,26 @@ checkSchemaConsistency (QueryOperator *op)
                         operatorToOverviewString((Node *) op));
                 return FALSE;
             }
+
+            FORBOTH(Node,p,a,o->projExprs,o->op.schema->attrDefs)
+            {
+                AttributeDef *def = (AttributeDef *) a;
+
+                if (typeOf(p) != def->dataType)
+                {
+                    ERROR_LOG("schema and projection expression data types should"
+                            " be the same: %s = %s",
+                            DataTypeToString(typeOf(p)),
+                            DataTypeToString(def->dataType));
+                    DEBUG_LOG("details: %s", beatify(nodeToString(o)));
+                    return FALSE;
+                }
+            }
         }
         break;
         case T_DuplicateRemoval:
         {
-            if (equal(OP_LCHILD(op)->schema->attrDefs, op->schema->attrDefs))
+            if (!equal(OP_LCHILD(op)->schema->attrDefs, op->schema->attrDefs))
             {
                 ERROR_LOG("Attributes of DuplicateRemoval should match attributes"
                         " of its child:\n%s",
@@ -210,7 +246,7 @@ checkSchemaConsistency (QueryOperator *op)
                     copyObject(lChild->schema->attrDefs),
                     copyObject(rChild->schema->attrDefs));
 
-            if (!equal(o->op.schema->attrDefs, expectedSchema))
+            if (o->op.schema->attrDefs->length != expectedSchema->length)
             {
                 ERROR_LOG("Attributes of a join operator should be the "
                         "concatenation of attributes of its children:\n%s\n"
@@ -226,6 +262,7 @@ checkSchemaConsistency (QueryOperator *op)
         {
             SetOperator *o = (SetOperator *) op;
             QueryOperator *lChild = OP_LCHILD(o);
+            QueryOperator *rChild = OP_RCHILD(o);
 
             if (!equal(o->op.schema->attrDefs, lChild->schema->attrDefs))
             {
@@ -234,11 +271,20 @@ checkSchemaConsistency (QueryOperator *op)
                         operatorToOverviewString((Node *) op));
                 return FALSE;
             }
+            // left and right child should have the same number of attributes
+            if (LIST_LENGTH(lChild->schema->attrDefs) != LIST_LENGTH(rChild->schema->attrDefs))
+            {
+                ERROR_LOG("Both children of a set operator should have the same"
+                        " number of attributes:\n%s",
+                        operatorToOverviewString((Node *) op));
+                return FALSE;
+            }
+
         }
         break;
         case T_WindowOperator:
         {
-            WindowOperator *o = (WindowOperator *) op;
+//            WindowOperator *o = (WindowOperator *) op;
             QueryOperator *lChild = OP_LCHILD(op);
             List *expected = sublist(copyObject(op->schema->attrDefs), 0,
                     LIST_LENGTH(op->schema->attrDefs) - 1);
@@ -254,7 +300,7 @@ checkSchemaConsistency (QueryOperator *op)
         break;
         case T_OrderOperator:
         {
-            OrderOperator *o = (OrderOperator *) op;
+//            OrderOperator *o = (OrderOperator *) op;
             QueryOperator *lChild = OP_LCHILD(op);
             List *expected = op->schema->attrDefs;
 
@@ -274,6 +320,25 @@ checkSchemaConsistency (QueryOperator *op)
     FOREACH(QueryOperator,o,op->inputs)
         if (!checkSchemaConsistency(o))
             return FALSE;
+
+    return checkUniqueAttrNames(op);
+}
+
+static boolean
+checkUniqueAttrNames (QueryOperator *op)
+{
+    Set *names = STRSET();
+
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    {
+        if (hasSetElem(names,a->attrName))
+        {
+            ERROR_LOG("Attribute <%s> appears more than once in\n\n%s",
+                    a->attrName, operatorToOverviewString((Node *) op));
+            return FALSE;
+        }
+        addToSet(names,strdup(a->attrName));
+    }
 
     return TRUE;
 }

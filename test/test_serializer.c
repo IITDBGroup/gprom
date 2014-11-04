@@ -9,16 +9,13 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "configuration/option.h"
-#include "configuration/option_parser.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "parser/parse_internal.h"
 #include "parser/parser.h"
-#include "../src/parser/sql_parser.tab.h"
 #include "model/query_operator/query_operator.h"
-#include "metadata_lookup/metadata_lookup.h"
 #include "analysis_and_translate/translator.h"
 #include "sql_serializer/sql_serializer.h"
+#include "rewriter.h"
 
 /* if OCI is not available then add dummy versions */
 #if HAVE_A_BACKEND
@@ -30,16 +27,7 @@ main (int argc, char* argv[])
     Node *qoModel;
     char *sql;
 
-    initMemManager();
-    mallocOptions();
-    if(parseOption(argc, argv) != 0)
-    {
-        printOptionParseError(stdout);
-        printOptionsHelp(stdout, "testserializer", "Run all stages on input except provenance rewrite and output rewritten SQL code.");
-        return EXIT_FAILURE;
-    }
-    initLogger();
-    initMetadataLookupPlugin();
+    READ_OPTIONS_AND_INIT("testtranslate", "Run all stages on input except provenance rewrite and output rewritten SQL code.");
 
     // read from terminal
     if (getStringOption("input.sql") == NULL)
@@ -65,10 +53,7 @@ main (int argc, char* argv[])
     sql = serializeOperatorModel(qoModel);
     ERROR_LOG("SERIALIZED SQL:\n%s", sql);
 
-    freeOptions();
-    destroyMemManager();
-
-    return EXIT_SUCCESS;
+    return shutdownApplication();
 }
 
 

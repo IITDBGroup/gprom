@@ -48,6 +48,7 @@ testAttributeReference (void)
     b->fromClauseItem = INVALID_ATTR;
     b->attrPosition = INVALID_ATTR;
     b->outerLevelsUp = INVALID_ATTR;
+    b->attrType = DT_STRING;
 
     ASSERT_EQUALS_INT(a->type, T_AttributeReference, "type is attribute reference");
     ASSERT_EQUALS_INT(a->type, b->type, "types are the same");
@@ -117,7 +118,7 @@ testOperator (void)
 static rc
 testExpressionToSQL()
 {
-    Constant *c1, *c2;
+//    Constant *c1, *c2;
     Operator *o;
 
     o = createOpExpr("+", LIST_MAKE(createConstInt(1), createConstInt(2)));

@@ -17,6 +17,7 @@
 
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/expression/expression.h"
 
 #include "model/set/hashmap.h"
 
@@ -41,7 +42,7 @@ newHashMap(NodeTag keyType, NodeTag valueType, boolean (*eq) (void *, void *), v
 static HashElem *
 getHashElem(HashMap *map, Node *key)
 {
-    HashElem *result, *s;
+    HashElem *result;
     char *realKey = nodeToString(key);
 
     HASH_FIND_STR(map->elem, realKey, result);
@@ -98,6 +99,26 @@ addToMap (HashMap *map, Node *key, Node *value)
     }
 }
 
+int
+mapIncr(HashMap *map, Node *key)
+{
+    int v;
+    Constant *val;
+
+    if (hasMapKey(map,key))
+    {
+        val = (Constant *) getMap(map, key);
+        v = (INT_VALUE(val)) + 1;
+        INT_VALUE(val) = v;
+    }
+    else
+    {
+        v = 0;
+        addToMap(map, key, (Node *) createConstInt(v));
+    }
+
+    return v;
+}
 
 void
 removeAndFreeMapElem (HashMap *map, Node *key)

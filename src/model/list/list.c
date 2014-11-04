@@ -247,7 +247,6 @@ List *
 listMake(void *elem, ...)
 {
     List *result = singleton(elem);
-    int n = 0;
     va_list args;
     void *p;
 
@@ -515,6 +514,20 @@ sublist(List *l, int from, int to)
     return result;
 }
 
+List *
+genericSublist(List *l, boolean (*pred) (void *, void *), void *context)
+{
+    List *result = NIL;
+
+    FOREACH(void,n,l)
+    {
+        if (pred(n, context))
+            result = appendToTailOfList(result, n);
+    }
+
+    return result;
+}
+
 boolean
 searchList(List *list, void *value)
 {
@@ -577,7 +590,7 @@ genericSearchList(List *list, boolean (*eq) (void *, void *), void *value)
 }
 
 
-boolean
+int
 genericListPos (List *list, boolean (*eq) (void *, void *), void *value)
 {
     ASSERT(isPtrList(list));
@@ -615,7 +628,6 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 {
     ASSERT(isPtrList(list));
     List *result = NULL;
-    ListCell *prev = getHeadOfList(list);
 
     FOREACH_LC(lc,list)
     {

@@ -33,21 +33,9 @@ main (int argc, char* argv[])
 {
     char *result;
 
-    initMemManager();
-    mallocOptions();
-    if(parseOption(argc, argv) != 0)
-    {
-        printOptionParseError(stdout);
-        printOptionsHelp(stdout, "testrewriter", "Run all stages on input and outpur rewritten SQL.");
-        return EXIT_FAILURE;
-    }
-    initLogger();
+    READ_OPTIONS_AND_INIT("testrewriter", "Run all stages on input and outpur rewritten SQL.");
 
     START_TIMER("TOTAL");
-
-    initMetadataLookupPlugins();
-    chooseMetadataLookupPluginFromString(getStringOption("backend"));
-    initMetadataLookupPlugin();
 
     // read from terminal
     if (getStringOption("input.sql") == NULL)
@@ -68,9 +56,9 @@ main (int argc, char* argv[])
     STOP_TIMER("TOTAL");
     OUT_TIMERS();
 
-    freeOptions();
-
-    destroyMemManager();
+    shutdownApplication();
+//    freeOptions();
+//    destroyMemManager();
 
     return EXIT_SUCCESS;
 }

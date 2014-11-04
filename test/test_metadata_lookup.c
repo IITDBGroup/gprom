@@ -162,7 +162,7 @@ static rc
 testGetTableDefinition()
 {
 	char *tableDef = getTableDefinition("METADATALOOKUP_TEST1");
-	char *text = "whatever it is too complex to write here.";
+//	char *text = "whatever it is too complex to write here.";
 
 	ASSERT_EQUALS_STRING(tableDef, tableDef, "test get table definition <metadatalookup_test1>");
 	return PASS;

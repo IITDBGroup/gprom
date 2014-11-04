@@ -17,7 +17,7 @@
 
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
-
+#include "model/datalog/datalog_model.h"
 
 /* function declarations */
 static void exprToSQLString(StringInfo str, Node *expr);
@@ -84,23 +84,22 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
 static void
 operatorToSQL (StringInfo str, Operator *node)
 {
-    if (LIST_LENGTH(node->args) == 1)
+    // handle special operators
+    if (streq(node->name,"BETWEEN"))
+    {
+        char *expr = exprToSQL(getNthOfListP(node->args,0));
+        char *lower = exprToSQL(getNthOfListP(node->args,1));
+        char *upper = exprToSQL(getNthOfListP(node->args,2));
+
+        appendStringInfo(str, "(%s BETWEEN %s AND %s)", expr, lower, upper);
+    }
+    else if (LIST_LENGTH(node->args) == 1)
     {
         appendStringInfo(str, "(%s ", node->name);
         appendStringInfoString(str, "(");
         exprToSQLString(str,getNthOfListP(node->args,0));
         appendStringInfoString(str, "))");
     }
-//    else if (LIST_LENGTH(node->args) == 2)
-//    {
-//        appendStringInfoString(str, "(");
-//        exprToSQLString(str,getNthOfListP(node->args,0));
-//
-//        appendStringInfo(str, " %s ", node->name);
-//
-//        exprToSQLString(str,getNthOfListP(node->args,1));
-//        appendStringInfoString(str, ")");
-//    }
     else
     {
         appendStringInfoString(str, "(");
@@ -231,6 +230,12 @@ orderExprToSQL (StringInfo str, OrderExpr *o)
 }
 
 static void
+sqlParamToSQL(StringInfo str, SQLParameter *p)
+{
+    appendStringInfo(str, ":%s", p->name);
+}
+
+static void
 exprToSQLString(StringInfo str, Node *expr)
 {
     if (expr == NULL)
@@ -240,6 +245,9 @@ exprToSQLString(StringInfo str, Node *expr)
     {
         case T_AttributeReference:
             attributeReferenceToSQL(str, (AttributeReference *) expr);
+            break;
+        case T_DLVar:
+            appendStringInfo(str, "%s", ((DLVar *) expr)->name);
             break;
         case T_Constant:
             constantToSQL(str, (Constant *) expr);
@@ -262,29 +270,22 @@ exprToSQLString(StringInfo str, Node *expr)
         }
         break;
         case T_CaseExpr:
-        {
             caseToSQL(str, (CaseExpr *) expr);
-        }
         break;
         case T_WindowFunction:
-        {
             winFuncToSQL(str, (WindowFunction *) expr);
-        }
         break;
         case T_IsNullExpr:
-        {
             appendStringInfo(str, "(%s IS NULL)", exprToSQL(((IsNullExpr *) expr)->expr));
-        }
         break;
         case T_RowNumExpr:
-        {
             appendStringInfoString(str, "ROWNUM");
-        }
         break;
         case T_OrderExpr:
-        {
             orderExprToSQL(str, (OrderExpr *) expr);
-        }
+        break;
+        case T_SQLParameter:
+            sqlParamToSQL(str, (SQLParameter *) expr);
         break;
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));

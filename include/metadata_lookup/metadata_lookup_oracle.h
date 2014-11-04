@@ -83,10 +83,13 @@ extern boolean oracleCatalogTableExists (char * tableName);
 extern boolean oracleCatalogViewExists (char * viewName);
 extern List *oracleGetAttributes (char *tableName);
 extern List *oracleGetAttributeNames (char *tableName);
+extern Node *oracleGetAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 extern boolean oracleIsAgg(char *functionName);
 extern boolean oracleIsWindowFunction(char *functionName);
 extern char *oracleGetTableDefinition(char *tableName);
 extern char *oracleGetViewDefinition(char *viewName);
+extern DataType oracleGetOpReturnType (char *oName, List *dataTypes);
+extern DataType oracleGetFuncReturnType (char *fName, List *dataTypes);
 extern long getBarrierScn(void);
 
 extern void oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,

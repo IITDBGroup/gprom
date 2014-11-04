@@ -161,6 +161,8 @@ extern Allocation *findAlloc(const MemContext *mc, const void *addr);
         FREE_IN_CONTEXT(oldC, _origStr); \
         return _resultStr; \
     } while(0)
+
+
 /*
  * Copy _node to callers memory context and free and release the current
  *  memory context.

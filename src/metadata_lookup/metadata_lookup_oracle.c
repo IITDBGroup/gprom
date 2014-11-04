@@ -10,9 +10,11 @@
 #include "metadata_lookup/metadata_lookup_oracle.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+#include "parser/parser.h"
 #include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
 
@@ -60,7 +62,8 @@ static OCI_Transaction *createTransaction(IsolationLevel isoLevel);
 static OCI_Resultset *executeStatement(char *statement);
 static boolean executeNonQueryStatement(char *statement);
 static void handleError (OCI_Error *error);
-static inline char *LobToChar (OCI_Lob *lob);
+//static inline char *LobToChar (OCI_Lob *lob);
+static DataType ociTypeToDT(unsigned int typ);
 
 static void addToTableBuffers(char *tableName, List *attrs);
 static void addToViewBuffers(char *viewName, char *viewDef);
@@ -86,10 +89,13 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->catalogViewExists = oracleCatalogViewExists;
     plugin->getAttributes = oracleGetAttributes;
     plugin->getAttributeNames = oracleGetAttributeNames;
+    plugin->getAttributeDefaultVal = oracleGetAttributeDefaultVal;
     plugin->isAgg = oracleIsAgg;
     plugin->isWindowFunction = oracleIsWindowFunction;
     plugin->getTableDefinition = oracleGetTableDefinition;
     plugin->getViewDefinition = oracleGetViewDefinition;
+    plugin->getOpReturnType = oracleGetOpReturnType;
+    plugin->getFuncReturnType = oracleGetFuncReturnType;
     plugin->getTransactionSQLAndSCNs = oracleGetTransactionSQLAndSCNs;
     plugin->executeAsTransactionAndGetXID = oracleExecuteAsTransactionAndGetXID;
     plugin->getCommitScn = oracleGetCommitScn;
@@ -390,11 +396,66 @@ oracleGetAttributeNames (char *tableName)
 {
     List *attrNames = NIL;
     List *attrs = getAttributes(tableName);
-
+    //TODO use attribute defition instead
     FOREACH(AttributeReference,a,attrs)
         attrNames = appendToTailOfList(attrNames, a->name);
 
     return attrNames;
+}
+
+Node *
+oracleGetAttributeDefaultVal (char *schema, char *tableName, char *attrName)
+{
+    StringInfo statement = makeStringInfo();
+
+    ACQUIRE_MEM_CONTEXT(context);
+    START_TIMER("module - metadata lookup");
+
+    DEBUG_LOG("Get default for %s.%s.%s", schema, tableName, attrName);
+
+    // run query to fetch default value for attribute if it exists and return it
+    appendStringInfo(statement,
+            "SELECT DATA_DEFAULT "
+            "FROM SYS.DBA_TAB_COLS_V$ "
+            "WHERE TABLE_NAME = '%s' "
+            "AND OWNER = '%s' "
+            "AND COLUMN_NAME = '%s'",
+            tableName,
+            schema,
+            attrName);
+    if ((conn = getConnection()) != NULL)
+    {
+        OCI_Resultset *rs = executeStatement(statement->data);
+        char *defaultExpr = NULL;
+        Node *result = NULL;
+
+        // loop through
+        while(OCI_FetchNext(rs))
+        {
+            defaultExpr = (char *) OCI_GetString(rs,1);
+
+            DEBUG_LOG("default expr for %s.%s.%s is <%s>",
+                    schema ? schema : "", tableName, attrName, defaultExpr);
+        }
+
+        DEBUG_LOG("Statement: %s executed successfully.", statement->data);
+        FREE(statement);
+
+        // parse expression
+        if (defaultExpr != NULL)
+            result = parseFromString(defaultExpr);
+
+        RELEASE_MEM_CONTEXT_AND_RETURN_COPY(Node, result);
+    }
+    else
+    {
+        FATAL_LOG("Statement: %s failed.", statement);
+        FREE(statement);
+    }
+    STOP_TIMER("module - metadata lookup");
+
+    // return NULL if no default and return to callers memory context
+    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(Node, NULL);
 }
 
 List*
@@ -407,14 +468,18 @@ oracleGetAttributes(char *tableName)
     START_TIMER("module - metadata lookup");
 
     if(tableName==NULL)
+    {
+        STOP_TIMER("module - metadata lookup");
         RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
+    }
     if((attrList = searchTableBuffers(tableName)) != NIL)
     {
         RELEASE_MEM_CONTEXT();
         STOP_TIMER("module - metadata lookup");
-        return attrList;
+        return copyObject(attrList);
     }
-
+    //TODO use query SELECT c.COLUMN_NAME, c.DATA_TYPE FROM DBA_TAB_COLUMNS c WHERE OWNER='FGA_USER' AND TABLE_NAME = 'R' ORDER BY COLUMN_ID;
+    // how to figure out schema
     if(conn==NULL)
         initConnection();
     if(isConnected())
@@ -426,23 +491,53 @@ oracleGetAttributes(char *tableName)
         for(i = 1; i <= n; i++)
         {
             OCI_Column *col = OCI_TypeInfoGetColumn(tInfo, i);
-            AttributeReference *a = createAttributeReference((char *) OCI_GetColumnName(col));
-            attrList=appendToTailOfList(attrList,a);
+
+            AttributeDef *a = createAttributeDef(strdup((char *) OCI_GetColumnName(col)),
+                    ociTypeToDT(OCI_GetColumnType(col)));
+            attrList = appendToTailOfList(attrList,a);
         }
 
         //add to table buffer list as cache to improve performance
         //user do not have to free the attrList by themselves
         addToTableBuffers(tableName, attrList);
+
         RELEASE_MEM_CONTEXT();
         STOP_TIMER("module - metadata lookup");
-        return attrList;
+        return copyObject(attrList); //TODO copying
     }
+
     ERROR_LOG("Not connected to database.");
-
     STOP_TIMER("module - metadata lookup");
-
-    // copy result to callers memory context
     RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
+}
+
+static DataType
+ociTypeToDT (unsigned int typ)
+{
+    /* - OCI_CDT_NUMERIC     : short, int, long long, float, double
+     * - OCI_CDT_DATETIME    : OCI_Date *
+     * - OCI_CDT_TEXT        : dtext *
+     * - OCI_CDT_LONG        : OCI_Long *
+     * - OCI_CDT_CURSOR      : OCI_Statement *
+     * - OCI_CDT_LOB         : OCI_Lob  *
+     * - OCI_CDT_FILE        : OCI_File *
+     * - OCI_CDT_TIMESTAMP   : OCI_Timestamp *
+     * - OCI_CDT_INTERVAL    : OCI_Interval *
+     * - OCI_CDT_RAW         : void *
+     * - OCI_CDT_OBJECT      : OCI_Object *
+     * - OCI_CDT_COLLECTION  : OCI_Coll *
+     * - OCI_CDT_REF         : OCI_Ref *
+     */
+    switch(typ)
+    {
+        case OCI_CDT_NUMERIC:
+            return DT_INT;
+        case OCI_CDT_TEXT:
+            return DT_STRING;
+        //TODO distinguish between int and float
+    }
+
+    return DT_STRING;
 }
 
 boolean
@@ -588,6 +683,8 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
             return;
         }
 
+        INFO_LOG("transaction statements are:\n\n%s", beatify(stringListToString(*sqls)));
+
         // infer isolation level
         statement = makeStringInfo();
         appendStringInfo(statement, "SELECT "
@@ -728,6 +825,62 @@ oracleGetViewDefinition(char *viewName)
     RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY (NULL);
 }
 
+DataType
+oracleGetOpReturnType (char *oName, List *dataTypes)
+{
+    return DT_STRING;
+}
+
+DataType
+oracleGetFuncReturnType (char *fName, List *dataTypes)
+{
+    // aggregation functions
+    if (streq(fName,"sum")
+            || streq(fName, "min")
+            || streq(fName, "max")
+        )
+    {
+        ASSERT(LIST_LENGTH(dataTypes) == 1);
+        DataType argType = getNthOfListInt(dataTypes,0);
+
+        switch(argType)
+        {
+            case DT_INT:
+            case DT_LONG:
+                return DT_LONG;
+            case DT_FLOAT:
+                return DT_FLOAT;
+            default:
+                return DT_STRING;
+        }
+    }
+
+    if (streq(fName,"avg"))
+    {
+        ASSERT(LIST_LENGTH(dataTypes) == 1);
+        DataType argType = getNthOfListInt(dataTypes,0);
+
+        switch(argType)
+        {
+            case DT_INT:
+            case DT_LONG:
+            case DT_FLOAT:
+                return DT_FLOAT;
+            default:
+                return DT_STRING;
+        }
+    }
+
+    if (streq(fName,"count"))
+        return DT_LONG;
+
+    if (streq(fName,"xmlagg"))
+        return DT_STRING;
+
+    return DT_STRING;
+}
+
+
 long
 getBarrierScn(void)
 {
@@ -769,9 +922,12 @@ executeStatement(char *statement)
     {
         START_TIMER("Oracle - execute SQL");
         if(st == NULL)
+        {
             st = OCI_StatementCreate(conn);
+            OCI_SetFetchSize(st,1000);
+            OCI_SetPrefetchSize(st,1000);
+        }
         OCI_ReleaseResultsets(st);
-        OCI_SetFetchSize(st,1000);
         if(OCI_ExecuteStmt(st, statement))
         {
             OCI_Resultset *rs = OCI_GetResultset(st);
@@ -875,7 +1031,7 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 static OCI_Transaction *
 createTransaction(IsolationLevel isoLevel)
 {
-    unsigned int mode;
+    unsigned int mode = 0;
     OCI_Transaction *result = NULL;
 
     START_TIMER("module - metadata lookup");
@@ -943,29 +1099,29 @@ oracleDatabaseConnectionClose()
 
 #define maxRead 8000
 
-static inline char *
-LobToChar (OCI_Lob *lob)
-{
-    unsigned int read = 1;
-    unsigned int byteRead = 0;
-    static char buf[maxRead];
-    StringInfo str = makeStringInfo();
-
-    if (lob == NULL)
-        return "";
-
-    while(OCI_LobRead2(lob, buf, &read, &byteRead) && read > 0)
-    {
-        buf[read] = '\0';
-        appendStringInfoString(str,buf);
-        DEBUG_LOG("read CLOB (%u): %s", read, buf);
-        read = maxRead - 1;
-    }
-
-    DEBUG_LOG("read CLOB: %s", str->data);
-
-    return str->data;
-}
+//static inline char *
+//LobToChar (OCI_Lob *lob)
+//{
+//    unsigned int read = 1;
+//    unsigned int byteRead = 0;
+//    static char buf[maxRead];
+//    StringInfo str = makeStringInfo();
+//
+//    if (lob == NULL)
+//        return "";
+//
+//    while(OCI_LobRead2(lob, buf, &read, &byteRead) && read > 0)
+//    {
+//        buf[read] = '\0';
+//        appendStringInfoString(str,buf);
+//        DEBUG_LOG("read CLOB (%u): %s", read, buf);
+//        read = maxRead - 1;
+//    }
+//
+//    DEBUG_LOG("read CLOB: %s", str->data);
+//
+//    return str->data;
+//}
 
 /* OCILIB is not available, fake functions */
 #else
@@ -1056,6 +1212,18 @@ MetadataLookupPlugin *
 assembleOracleMetadataLookupPlugin (void)
 {
     return NULL;
+}
+
+DataType
+oracleGetOpReturnType (char *oName, List *dataTypes)
+{
+    return DT_STRING;
+}
+
+DataType
+oracleGetFuncReturnType (char *fName, List *dataTypes)
+{
+    return DT_STRING;
 }
 
 #endif

@@ -29,7 +29,7 @@
 
 #include "metadata_lookup/metadata_lookup.h"
 
-static QueryOperator *translateUpdateInternal(Update *f);
+static QueryOperator *translateUpdateUnion(Update *f);
 static QueryOperator *translateUpdateWithCase(Update *f);
 static QueryOperator *translateInsert(Insert *f);
 static QueryOperator *translateDelete(Delete *f);
@@ -46,7 +46,7 @@ translateUpdate(Node *update) {
 		if (isRewriteOptionActivated(OPTION_TRANSLATE_UPDATE_WITH_CASE))
 			return translateUpdateWithCase((Update *) update);
 		else
-			return translateUpdateInternal((Update *) update);
+			return translateUpdateUnion((Update *) update);
 	default:
 		return NULL;
 	}
@@ -57,22 +57,21 @@ static QueryOperator *
 translateInsert(Insert *insert)
 {
 	List *attr = getAttributeNames(insert->tableName);
+	List *dts = getAttributeDataTypes(insert->tableName);
 	QueryOperator *insertQuery;
 
 	TableAccessOperator *to;
-	to = createTableAccessOp(insert->tableName, NULL, NULL, NIL, deepCopyStringList(attr), NIL);
+	to = createTableAccessOp(insert->tableName, NULL, NULL, NIL, deepCopyStringList(attr), dts);
 	SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	if (isA(insert->query,  List))
 	{
 		ConstRelOperator *co;
-		co = createConstRelOp((List *) insert->query,NIL, deepCopyStringList(attr),NIL);
+		co = createConstRelOp((List *) insert->query,NIL, deepCopyStringList(attr), dts);
 		insertQuery= (QueryOperator *) co;
 	}
 	else
-	{
 	    insertQuery =  translateQuery((Node *) insert->query);
-	}
 
 	SetOperator *seto;
 	seto = createSetOperator(SETOP_UNION, NIL, NIL, deepCopyStringList(attr));
@@ -109,7 +108,7 @@ translateDelete(Delete *delete)
 }
 
 static QueryOperator *
-translateUpdateInternal(Update *update)
+translateUpdateUnion(Update *update)
 {
     List *attrs = getAttributeNames(update->nodeName);
 
@@ -131,7 +130,7 @@ translateUpdateInternal(Update *update)
         }
 
 	    if (projExpr == NULL)
-	        projExpr = (Node *) createFullAttrReference(getNthOfListP(attrs,i), 0, i, 0);
+	        projExpr = (Node *) createFullAttrReference(getNthOfListP(attrs,i), 0, i, 0, DT_STRING); //TODO
 	    projExprs = appendToTailOfList(projExprs, projExpr);
 	}
 
@@ -177,17 +176,22 @@ static QueryOperator *
 translateUpdateWithCase(Update *update)
 {
 	List *attrs = getAttributeNames(update->nodeName);
+	List *dts = getAttributeDataTypes(update->nodeName);
 	// create table access operator
 	TableAccessOperator *to;
 	to = createTableAccessOp(strdup(update->nodeName), NULL, NULL, NIL,
-			deepCopyStringList(attrs), NIL);
+			deepCopyStringList(attrs), dts);
     SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	// CREATE PROJECTION EXPRESSIONS
 	List *projExprs = NIL;
-	for (int i = 0; i < LIST_LENGTH(attrs); i++) {
+	for (int i = 0; i < LIST_LENGTH(attrs); i++)
+	{
 		Node *projExpr = NULL;
-		FOREACH(Operator,o,update->selectClause) {
+		DataType aDT = getNthOfListInt(dts, i);
+
+		FOREACH(Operator,o,update->selectClause)
+		{
 			AttributeReference *a = (AttributeReference *) getNthOfListP(
 					o->args, 0);
 			if (a->attrPosition == i)
@@ -195,7 +199,7 @@ translateUpdateWithCase(Update *update)
 			    Node *cond = copyObject(update->cond);
 			    Node *then = copyObject(getNthOfListP(o->args, 1));
 			    Node *els = (Node *) createFullAttrReference(getNthOfListP(attrs, i),
-	                    0, i, 0);
+	                    0, i, 0, a->attrType); //TODO
 			    CaseExpr *caseExpr;
 			    CaseWhen *caseWhen;
 
@@ -209,7 +213,7 @@ translateUpdateWithCase(Update *update)
 
 		if (projExpr == NULL)
 			projExpr = (Node *) createFullAttrReference(getNthOfListP(attrs, i),
-					0, i, 0);
+					0, i, 0, aDT);
 		projExprs = appendToTailOfList(projExprs, projExpr);
 	}
 

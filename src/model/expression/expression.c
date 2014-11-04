@@ -15,11 +15,14 @@
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "metadata_lookup/metadata_lookup.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
 
 static boolean findAttrReferences (Node *node, List **state);
+static DataType typeOfOp (Operator *op);
+static DataType typeOfFunc (FunctionCall *f);
 
 
 AttributeReference *
@@ -31,13 +34,14 @@ createAttributeReference (char *name)
     result->fromClauseItem = INVALID_FROM_ITEM;
     result->attrPosition = INVALID_ATTR;
     result->outerLevelsUp = INVALID_ATTR;
+    result->attrType= DT_STRING;
 
     return result;
 }
 
 AttributeReference *
 createFullAttrReference (char *name, int fromClause, int attrPos,
-        int outerLevelsUp)
+        int outerLevelsUp, DataType attrType)
 {
     AttributeReference *result = makeNode(AttributeReference);
 
@@ -45,6 +49,7 @@ createFullAttrReference (char *name, int fromClause, int attrPos,
     result->fromClauseItem = fromClause;
     result->attrPosition = attrPos;
     result->outerLevelsUp = outerLevelsUp;
+    result->attrType= attrType;
 
     return result;
 }
@@ -56,7 +61,7 @@ createSQLParameter (char *name)
 
     result->name = strdup(name);
     result->position = INVALID_PARAM;
-    result->parType = DT_STRING;
+    result->parType = DT_STRING;//TODO
 
     return result;
 }
@@ -336,22 +341,42 @@ typeOf (Node *expr)
 {
     switch(expr->type)
     {
+        case T_AttributeReference:
+        {
+            AttributeReference *a = (AttributeReference *) expr;
+            return a->attrType;
+        }
         case T_Constant:
         {
             Constant *c = (Constant *) expr;
             return c->constType;
         }
-        //TODO use metadata lookup
         case T_FunctionCall:
-
+        {
+            FunctionCall *f = (FunctionCall *) expr;
+            return typeOfFunc(f);
+        }
+        case T_WindowFunction:
+            return typeOf((Node *) ((WindowFunction *) expr)->f);
         case T_Operator:
-            return DT_STRING;
+        {
+            Operator *o = (Operator *) expr;
+            return typeOfOp(o);
+        }
         case T_CaseExpr:
         {
             CaseExpr *c = (CaseExpr *) expr;
             CaseWhen *w = (CaseWhen *) getNthOfListP(c->whenClauses, 0);
             return typeOf(w->then);
         }
+        case T_IsNullExpr:
+            return DT_BOOL;
+        case T_RowNumExpr:
+            return DT_INT;
+        case T_SQLParameter:
+            return ((SQLParameter *) expr)->parType;
+        case T_OrderExpr:
+            return DT_INT;//TODO should use something else?
         default:
              ERROR_LOG("unknown expression type for node: %s", nodeToString(expr));
              break;
@@ -364,11 +389,12 @@ typeOfInOpModel (Node *expr, List *inputOperators)
 {
     switch(expr->type)
     {
-        case T_AttributeReference: //TODO need to figure out type
-            return DT_STRING;
+        case T_AttributeReference:
+            return ((AttributeReference *) expr)->attrType;
         case T_FunctionCall:
+            return typeOfFunc((FunctionCall *) expr);
         case T_Operator:
-            return DT_STRING; //TODO metadata lookup plugin
+            return typeOfOp((Operator *) expr);
         case T_Constant:
             return typeOf(expr);
         case T_CaseExpr:
@@ -385,6 +411,69 @@ typeOfInOpModel (Node *expr, List *inputOperators)
     }
     return DT_STRING;
 }
+
+/* figure out operator return type */
+static DataType
+typeOfOp (Operator *op)
+{
+    List *argDTs = NIL;
+
+    FOREACH(Node,arg,op->args)
+        argDTs = appendToTailOfListInt(argDTs,typeOf(arg));
+
+    // logical operators
+    if (streq(op->name,"OR")
+            || streq(op->name,"AND")
+            || streq(op->name,"NOT")
+            )
+        return DT_BOOL;
+    // standard arithmetic operators
+    if (streq(op->name,"+")
+            || streq(op->name,"*")
+            || streq(op->name,"/")
+            || streq(op->name,"-")
+            )
+    {
+        DataType dLeft = getNthOfListInt(argDTs,0);
+        DataType dRight = getNthOfListInt(argDTs,1);
+
+        // if the same input data types then we can safely assume that we get the same return data type
+        // otherwise we use the metadata lookup plugin to make sure we get the right type
+        if(dLeft == dRight)
+            return dLeft;
+    }
+
+    // string ops
+    if (streq(op->name,"||"))
+        return DT_STRING;
+
+    // comparison operators
+    if (streq(op->name,"<")
+            || streq(op->name,">")
+            || streq(op->name,"<=")
+            || streq(op->name,"=>")
+            || streq(op->name,"<>")
+            || streq(op->name,"^=")
+            || streq(op->name,"=")
+            || streq(op->name,"!=")
+                )
+        return DT_BOOL;
+
+    return getOpReturnType(op->name, argDTs);
+}
+
+/* figure out function return type */
+static DataType
+typeOfFunc (FunctionCall *f)
+{
+    List *argDTs = NIL;
+
+    FOREACH(Node,arg,f->args)
+            argDTs = appendToTailOfListInt(argDTs,typeOf(arg));
+
+    return getFuncReturnType(f->functionname, argDTs);
+}
+
 
 /* search functions */
 List *

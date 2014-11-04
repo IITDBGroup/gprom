@@ -15,7 +15,10 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/set/set.h"
+#include "model/list/list.h"
+
 #include "uthash.h"
+
 
 static SetElem *getSetElem(Set *set, void *key);
 
@@ -106,6 +109,27 @@ makeSetInt(int elem, ...)
     return result;
 }
 
+Set *
+makeStrSetFromList(List *strList)
+{
+    Set *result = STRSET();
+
+    FOREACH(char,str,strList)
+        addToSet(result, str);
+
+    return result;
+}
+
+Set *
+makeNodeSetFromList(List *list)
+{
+    Set *result = NODESET();
+
+    FOREACH(Node,n,list)
+        addToSet(result, n);
+
+    return result;
+}
 
 boolean
 hasSetElem (Set *set, void *_el)

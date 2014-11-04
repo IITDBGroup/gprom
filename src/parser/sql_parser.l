@@ -1,5 +1,5 @@
 /*
- * SQL lexer file for lex/flex defining basic tokens used in the parser
+ * SQL lexer file for lex/flex defining basic tokens used in the oracle parser
  *
  */
 
@@ -78,7 +78,9 @@ identContinue	[A-Za-z0-9_%?]
 identDelim		[.]
 doublequote     [\"]
 quotedIdentifier		{doublequote}[^\"]+{doublequote}
-identifiers		({identStart}({identDelim}?{identContinue}+)*)
+identifiers				({identStart}{identContinue}*)
+identifierPart			({identifiers}|{quotedIdentifier})
+compositeIdentifier		({identifierPart}({identDelim}{identifierPart}))*
 parameters		[:]{identifiers}
 
 /* operators */
@@ -108,7 +110,7 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 (?i:WHERE)			TOK(WHERE)
 (?i:DISTINCT)		TOK(DISTINCT)
 (?i:ON)				TOK(ON)
-(?i:STARLL)			TOK(STARALL)
+STARALL				TOK(STARALL)
 (?i:ALL)		 	TOK(ALL)
 (?i:AND)		 	TOK(AND)
 (?i:OR)             TOK(OR)
@@ -121,8 +123,6 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 (?i:SOME)           TOK(SOME)
 (?i:BETWEEN)	 	TOK(BETWEEN)
 (?i:BY)			 	TOK(BY)
-(?i:UPDATE)		 	TOK(UPDATE)
-(?i:DELETE)	     	TOK(DELETE)
 (?i:IS)		     	TOK(IS)
 (?i:NULL)	     	TOK(NULLVAL)
 (?i:UNION)        	TOK(UNION)
@@ -184,9 +184,14 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 (?i:LAST)			TOK(LAST)
 (?i:TUPLE)			TOK(TUPLE)
 (?i:VERSIONS)		TOK(VERSIONS)
+(?i:ROWNUM)			TOK(ROWNUM)
+(?i:STATEMENT)		TOK(STATEMENT)
+(?i:ANNOTATIONS)	TOK(ANNOTATIONS)
+(?i:NO)				TOK(NO)
 
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)
+{compositeIdentifier}	UPCASE_TOK(compositeIdentifier)
 {quotedIdentifier}   { 		
 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
@@ -214,7 +219,7 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 
 	/* numbers */
 {integer}	TOKSAVE(intConst,intVal,atoi)
-{float}	TOKSAVE(floatConst,floatVal,atof)
+{float}		TOKSAVE(floatConst,floatVal,atof)
 
 	/* strings */
 '[^'\n]*'	{

@@ -65,6 +65,11 @@
 //TODO
 #endif
 
+/* <regex.h> */
+#if HAVE_REGEX_H
+#include <regex.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup
@@ -77,6 +82,9 @@
 #if HAVE_STRCMP
 #define streq(_l,_r) (strcmp(_l,_r) == 0)
 #endif
+
+
+
 
 /* exit for main function */
 #ifndef EXIT_SUCCESS
@@ -142,5 +150,7 @@
     } while(0)
 #define ASSERT_BARRIER(code) code
 #endif
+
+
 
 #endif /* COMMON_H */

@@ -79,13 +79,14 @@ createFromItem (char *alias, List *attrNames)
 
 FromItem *
 createFromTableRef(char *alias, List *attrNames,
-        char *tableId)
+        char *tableId, List *dataTypes)
 {
     FromTableRef *result = makeNode(FromTableRef);
 
     ((FromItem *) result)->name = alias;
     ((FromItem *) result)->attrNames = attrNames;
     ((FromItem *) result)->provInfo = NULL;
+    ((FromItem *) result)->dataTypes = dataTypes;
 
     result->tableId = tableId;
 

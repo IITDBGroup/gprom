@@ -16,12 +16,16 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "model/list/list.h"
+#include "model/query_operator/query_operator.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
 #include "metadata_lookup/metadata_lookup_postgres.h"
 
 MetadataLookupPlugin *activePlugin = NULL;
 List *availablePlugins = NIL;
+
+static MetadataLookupPluginType stringToPluginType(char *type);
+static char *pluginTypeToString(MetadataLookupPluginType type);
 
 /* create list of available plugins */
 int
@@ -44,7 +48,8 @@ shutdownMetadataLookupPlugins (void)
 {
     FOREACH(MetadataLookupPlugin,p,availablePlugins)
     {
-        p->shutdownMetadataLookupPlugin();
+        if (p->isInitialized())
+            p->shutdownMetadataLookupPlugin();
         FREE(p);
     }
     freeList(availablePlugins);
@@ -56,17 +61,7 @@ shutdownMetadataLookupPlugins (void)
 void
 chooseMetadataLookupPluginFromString (char *plug)
 {
-    if (strcmp(plug, "oracle") == 0)
-    {
-        chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_ORACLE);
-        return;
-    }
-    if (strcmp(plug, "postgres") == 0)
-    {
-        chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_POSTGRES);
-        return;
-    }
-    FATAL_LOG("unkown plugin type: %s", plug);
+    chooseMetadataLookupPlugin(stringToPluginType(plug));
 }
 
 void
@@ -79,11 +74,38 @@ chooseMetadataLookupPlugin (MetadataLookupPluginType plugin)
             activePlugin = p;
             if (!(p->isInitialized()))
                 p->initMetadataLookupPlugin();
+            INFO_LOG("PLUGIN metadatalookup: <%s>", pluginTypeToString(plugin));
+
             return;
         }
     }
     FATAL_LOG("did not find plugin");
 }
+
+static MetadataLookupPluginType
+stringToPluginType(char *type)
+{
+    if (strcmp(type, "oracle") == 0)
+        return METADATA_LOOKUP_PLUGIN_ORACLE;
+    if (strcmp(type, "postgres") == 0)
+        return METADATA_LOOKUP_PLUGIN_POSTGRES;
+    FATAL_LOG("unkown plugin type <%s>", type);
+    return METADATA_LOOKUP_PLUGIN_ORACLE;
+}
+
+static char *
+pluginTypeToString(MetadataLookupPluginType type)
+{
+    switch(type)
+    {
+    case METADATA_LOOKUP_PLUGIN_ORACLE:
+        return "oracle";
+    case METADATA_LOOKUP_PLUGIN_POSTGRES:
+        return "postgres";
+    }
+    return NULL; //keep compiler quiet
+}
+
 
 /* wrappers to plugin methods */
 int
@@ -136,6 +158,25 @@ getAttributeNames (char *tableName)
     return activePlugin->getAttributeNames(tableName);
 }
 
+Node *
+getAttributeDefaultVal (char *schema, char *tableName, char *attrName)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getAttributeDefaultVal(schema, tableName,attrName);
+}
+
+List *
+getAttributeDataTypes (char *tableName)
+{
+    List *result = NIL;
+    ASSERT(activePlugin && activePlugin->isInitialized());
+
+    FOREACH(AttributeDef,a,activePlugin->getAttributes(tableName))
+        result = appendToTailOfListInt(result, a->dataType);
+
+    return result;
+}
+
 boolean
 isAgg(char *functionName)
 {
@@ -148,6 +189,20 @@ isWindowFunction(char *functionName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     return activePlugin->isWindowFunction(functionName);
+}
+
+DataType
+getFuncReturnType (char *fName, List *argTypes)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getFuncReturnType(fName, argTypes);
+}
+
+DataType
+getOpReturnType (char *oName, List *argTypes)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getOpReturnType(oName, argTypes);
 }
 
 char *
@@ -214,6 +269,7 @@ createCache(void)
     result->tableNames = STRSET();
     result->aggFuncNames = STRSET();
     result->winFuncNames = STRSET();
+    result->cacheHook = NULL;
 
     return result;
 }

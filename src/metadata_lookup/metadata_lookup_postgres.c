@@ -31,6 +31,7 @@
 #endif
 
 
+// Mem context
 #define CONTEXT_NAME "PostgresMemContext"
 
 #define NAME_TABLE_GET_ATTRS "GPRoM_GetTableAttributeNames"
@@ -74,10 +75,20 @@
 #define PARAMS_GET_VIEW_DEF 1
 #define QUERY_GET_VIEW_DEF "SELECT definition FROM pg_views WHERE viewname = $1::text;"
 
+#define NAME_GET_FUNC_DEFS "GPRoM_GetFuncDefs"
+#define PARAMS_GET_FUNC_DEFS 2
+#define QUERY_GET_FUNC_DEFS "SELECT prorettype, proargtypes, proallargtypes" \
+        "FROM pg_proc WHERE proname = $1::name AND pronargs = $2::smallint;"
+
+#define NAME_GET_OP_DEFS "GPRoM_GetOpDefs"
+#define PARAMS_GET_OP_DEFS 2
+#define QUERY_GET_OP_DEFS " SELECT oprleft, oprright FROM pg_operator WHERE oprname = $1::name;"
+
+
 //#define NAME_ "GPRoM_"
 //#define PARAMS_ 1
 //#define QUERY_ "SELECT"
-
+#define QUERY_GET_DT_OIDS "SELECT oid, typname FROM pg_type WHERE typtype = 'b';"
 
 // prepare a catalog lookup query
 #define PREP_QUERY(name) prepareQuery(NAME_ ## name, QUERY_ ## name, PARAMS_ ## name, NULL)
@@ -91,7 +102,12 @@ static PGresult *execPrepared(char *qName, List *values);
 static boolean prepareQuery(char *qName, char *query, int parameters,
         Oid *types);
 static void prepareLookupQueries(void);
+static void fillOidToDTMap (HashMap *oidToDT);
+static List *oidVecToDTList (char *oidVec);
 static DataType postgresOidToDT(char *Oid);
+static DataType postgresTypenameToDT (char *typName);
+static List *oidVecToDTList (char *oidVec);
+
 
 // closing result sets and connections
 #define CLOSE_QUERY() \
@@ -123,6 +139,14 @@ typedef struct PostgresPlugin
     boolean initialized;
 } PostgresPlugin;
 
+// data types: additional cache entries
+typedef struct PostgresMetaCache {
+    HashMap *oidToDT;   // maps datatype OID to GProM datatypes
+} PostgresMetaCache;
+
+#define GET_CACHE() ((PostgresMetaCache *) plugin->plugin.cache->cacheHook)
+
+// global vars
 static PostgresPlugin *plugin = NULL;
 static MemContext *memContext = NULL;
 
@@ -146,6 +170,8 @@ assemblePostgresMetadataLookupPlugin (void)
     p->getAttributeNames = postgresGetAttributeNames;
     p->isAgg = postgresIsAgg;
     p->isWindowFunction = postgresIsWindowFunction;
+    p->getFuncReturnType = postgresGetFuncReturnType;
+    p->getOpReturnType = postgresGetOpReturnType;
     p->getTableDefinition = postgresGetTableDefinition;
     p->getViewDefinition = postgresGetViewDefinition;
     p->getTransactionSQLAndSCNs = postgresGetTransactionSQLAndSCNs;
@@ -158,6 +184,8 @@ assemblePostgresMetadataLookupPlugin (void)
 int
 postgresInitMetadataLookupPlugin (void)
 {
+    PostgresMetaCache *psqlCache;
+
     if (plugin && plugin->initialized)
     {
         INFO_LOG("tried to initialize metadata lookup plugin more than once");
@@ -167,7 +195,14 @@ postgresInitMetadataLookupPlugin (void)
     NEW_AND_ACQUIRE_MEMCONTEXT(CONTEXT_NAME);
     memContext = getCurMemContext();
 
+    // create cache
     plugin->plugin.cache = createCache();
+
+    // create postgres specific part of the cache
+    psqlCache = NEW(PostgresMetaCache);
+    psqlCache->oidToDT = NEW_MAP(Constant,Constant);
+    plugin->plugin.cache->cacheHook = (void *) psqlCache;
+
     plugin->initialized = TRUE;
 
     RELEASE_MEM_CONTEXT();
@@ -179,7 +214,7 @@ postgresShutdownMetadataLookupPlugin (void)
 {
     ACQUIRE_MEM_CONTEXT(memContext);
 
-    // clear cache
+    // clear cache and postgres cache
 
     FREE_AND_RELEASE_CUR_MEM_CONTEXT();
     return EXIT_SUCCESS;
@@ -222,8 +257,33 @@ postgresDatabaseConnectionOpen (void)
     // prepare queries
     prepareLookupQueries();
 
+    // initialize cache
+    fillOidToDTMap(GET_CACHE()->oidToDT);
+
     RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
+}
+
+static void
+fillOidToDTMap (HashMap *oidToDT)
+{
+    PGresult *res = NULL;
+    int numRes = 0;
+
+    res = execQuery(QUERY_GET_DT_OIDS);
+    numRes = PQntuples(res);
+
+    for(int i = 0; i < numRes; i++)
+    {
+        char *oid = PQgetvalue(res,i,0);
+        int oidInt = atoi(oid);
+        char *typName = PQgetvalue(res,i,1);
+
+        DEBUG_LOG("oid = %s, typename = %s", oid, typName);
+        MAP_ADD_INT_KEY(oidToDT,oidInt, postgresTypenameToDT(typName));
+    }
+
+    PQclear(res);
 }
 
 static void
@@ -236,6 +296,8 @@ prepareLookupQueries(void)
     PREP_QUERY(IS_WIN_FUNC);
     PREP_QUERY(IS_AGG_FUNC);
     PREP_QUERY(GET_VIEW_DEF);
+    PREP_QUERY(GET_FUNC_DEFS);
+    PREP_QUERY(GET_OP_DEFS);
 }
 
 int
@@ -282,6 +344,76 @@ postgresIsInitialized (void)
     return FALSE;
 }
 
+DataType
+postgresGetFuncReturnType (char *fName, List *argTypes)
+{
+    PGresult *res = NULL;
+    DataType resType = DT_STRING;
+
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+    //TODO cache operator information
+    res = execPrepared(NAME_GET_FUNC_DEFS,
+            LIST_MAKE(createConstString(fName),
+                    createConstInt(LIST_LENGTH(argTypes))));
+
+    for(int i = 0; i < PQntuples(res); i++)
+    {
+        char *retType = PQgetvalue(res,i,0);
+        char *argTypes = PQgetvalue(res,i,1);
+        List *argDTs = oidVecToDTList(argTypes);
+
+        if (equal(argDTs, argTypes)) //TODO compatible data types
+            return postgresOidToDT(retType);
+    }
+
+    PQclear(res);
+
+    RELEASE_MEM_CONTEXT();
+
+    return resType;
+}
+
+DataType
+postgresGetOpReturnType (char *oName, List *argTypes)
+{
+    PGresult *res = NULL;
+    DataType resType = DT_STRING;
+
+    ACQUIRE_MEM_CONTEXT(memContext);
+
+    //TODO cache operator information
+    res = execPrepared(NAME_GET_OP_DEFS,
+            LIST_MAKE(createConstString(oName),
+                    createConstInt(LIST_LENGTH(argTypes))));
+
+    for(int i = 0; i < PQntuples(res); i++)
+    {
+
+    }
+
+    PQclear(res);
+    RELEASE_MEM_CONTEXT();
+
+    return resType;
+}
+
+static List *
+oidVecToDTList (char *oidVec)
+{
+    List *result = NIL;
+    char *oid;
+
+    oid = strtok(oidVec, " ");
+    while(oid != NULL)
+    {
+        result = appendToTailOfListInt(result, atoi(oid));
+        oid = strtok(NULL, " ");
+    }
+
+    return result;
+}
+
 boolean
 postgresCatalogTableExists (char * tableName)
 {
@@ -291,6 +423,7 @@ postgresCatalogTableExists (char * tableName)
         return TRUE;
 
     // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_TABLE_EXISTS, singleton(createConstString(tableName)));
     if (strcmp(PQgetvalue(res,0,0),"t") == 0)
     {
@@ -299,6 +432,7 @@ postgresCatalogTableExists (char * tableName)
         return TRUE;
     }
     PQclear(res);
+    RELEASE_MEM_CONTEXT();
 
     // run query
     return FALSE;
@@ -313,6 +447,7 @@ postgresCatalogViewExists (char * viewName)
         return TRUE;
 
     // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_VIEW_EXISTS, singleton(createConstString(viewName)));
     if (strcmp(PQgetvalue(res,0,0),"t") == 0)
     {
@@ -321,6 +456,7 @@ postgresCatalogViewExists (char * viewName)
         return TRUE;
     }
     PQclear(res);
+    RELEASE_MEM_CONTEXT();
 
     return FALSE;
 }
@@ -337,6 +473,7 @@ postgresGetAttributes (char *tableName)
         return (List *) MAP_GET_STRING(plugin->plugin.cache->tableAttrDefs,tableName);
 
     // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_TABLE_GET_ATTRS, singleton(createConstString(tableName)));
 
     // loop through results
@@ -354,6 +491,7 @@ postgresGetAttributes (char *tableName)
     MAP_ADD_STRING_KEY(plugin->plugin.cache->tableAttrDefs, tableName, attrs);
 
     DEBUG_LOG("table %s attributes are <%s>", tableName, beatify(nodeToString(attrs)));
+    RELEASE_MEM_CONTEXT();
 
     return attrs;
 }
@@ -369,6 +507,7 @@ postgresGetAttributeNames (char *tableName)
         return (List *) MAP_GET_STRING(plugin->plugin.cache->tableAttrs,tableName);
 
     // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_TABLE_GET_ATTRS, singleton(createConstString(tableName)));
 
     // loop through results
@@ -380,6 +519,7 @@ postgresGetAttributeNames (char *tableName)
     MAP_ADD_STRING_KEY(plugin->plugin.cache->tableAttrs, tableName, attrs);
 
     DEBUG_LOG("table %s attributes are <%s>", tableName, stringListToString(attrs));
+    RELEASE_MEM_CONTEXT();
 
     return attrs;
 }
@@ -389,7 +529,7 @@ postgresIsAgg(char *functionName)
 {
     PGresult *res = NULL;
     char *f = strdup(functionName);
-    int i = 0;
+//    int i = 0;
 
     for(char *p = f; *p != '\0'; *(p) = tolower(*p), p++)
         ;
@@ -398,6 +538,7 @@ postgresIsAgg(char *functionName)
         return TRUE;
 
     // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_IS_AGG_FUNC, singleton(createConstString(f)));
     if (strcmp(PQgetvalue(res,0,0),"t") == 0)
     {
@@ -406,6 +547,7 @@ postgresIsAgg(char *functionName)
         return TRUE;
     }
     PQclear(res);
+    RELEASE_MEM_CONTEXT();
 
     return FALSE;
 }
@@ -418,6 +560,7 @@ postgresIsWindowFunction(char *functionName)
         return TRUE;
 
     // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_IS_WIN_FUNC, singleton(createConstString(functionName)));
     if (strcmp(PQgetvalue(res,0,0),"t") == 0)
     {
@@ -426,9 +569,12 @@ postgresIsWindowFunction(char *functionName)
         return TRUE;
     }
     PQclear(res);
+    RELEASE_MEM_CONTEXT();
 
     return FALSE;
 }
+
+
 
 char *
 postgresGetTableDefinition(char *tableName)
@@ -446,6 +592,7 @@ postgresGetViewDefinition(char *viewName)
          return STRING_VALUE(MAP_GET_STRING(plugin->plugin.cache->viewDefs,viewName));
 
     // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
     res = execPrepared(NAME_GET_VIEW_DEF, singleton(createConstString(viewName)));
     if (PQntuples(res) == 1)
     {
@@ -456,6 +603,7 @@ postgresGetViewDefinition(char *viewName)
         return STRING_VALUE(def);
     }
     PQclear(res);
+    RELEASE_MEM_CONTEXT();
 
     return NULL;
 }
@@ -557,11 +705,42 @@ postgresOidToDT(char *Oid)
 {
     int oid = atoi(Oid);
 
-    switch(oid)
-    {
-        default:
-            return DT_STRING;
-    }
+    return (DataType) INT_VALUE(MAP_GET_INT(GET_CACHE()->oidToDT,oid));
+}
+
+static DataType
+postgresTypenameToDT (char *typName)
+{
+    // string data types
+    if (streq(typName,"char")
+           || streq(typName,"name")
+           || streq(typName,"text")
+           || streq(typName,"tsquery")
+           || streq(typName,"varchar")
+           || streq(typName,"xml")
+            )
+        return DT_STRING;
+
+    // integer data types
+    if (streq(typName,"int2")
+            || streq(typName,"int4"))
+        return DT_INT;
+
+    // long data types
+    if (streq(typName, "int8"))
+        return DT_LONG;
+
+    // numeric data types
+    if (streq(typName, "float4")
+            || streq(typName, "float8")
+            )
+        return DT_FLOAT;
+
+    // boolean
+    if (streq(typName,"bool"))
+        return DT_BOOL;
+
+    return DT_STRING;
 }
 
 

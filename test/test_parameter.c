@@ -16,7 +16,7 @@
 #include "model/expression/expression.h"
 #include "analysis_and_translate/parameter.h"
 #include "parser/parser.h"
-#include "analysis_and_translate/analyze_qb.h"
+#include "analysis_and_translate/analyze_oracle.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
 #include "metadata_lookup/metadata_lookup_postgres.h"
@@ -81,7 +81,7 @@ setupParameterDB (void)
     if (streq(getStringOption("backend"),"postgres"))
     {
         PGconn *c;
-        PGresult *res = NULL;
+//        PGresult *res = NULL;
 
         initMetadataLookupPlugins();
         chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_POSTGRES);
@@ -106,7 +106,7 @@ testParseBinds (void)
 {
     char *binds = " #1(3):123 #2(5):abcde";
     List *consts = NIL;
-    List *expected = LIST_MAKE(createConstString("123"), createConstString("abcde"));
+    List *expected = LIST_MAKE(createConstLong(123), createConstString("abcde"));
 
     consts = oracleBindToConsts(binds);
     ASSERT_EQUALS_NODE(expected, consts, "parsed parameters should be [123,abcde]");
@@ -166,14 +166,14 @@ testSetParameterValues (void)
     return PASS;
 }
 
-static boolean
-findParamVisitor(Node *node, List **state)
-{
-    if (node == NULL)
-        return TRUE;
-
-    if (isA(node, SQLParameter))
-        *state = appendToTailOfList(*state, node);
-
-    return visit(node, findParamVisitor, (void *) state);
-}
+//static boolean
+//findParamVisitor(Node *node, List **state)
+//{
+//    if (node == NULL)
+//        return TRUE;
+//
+//    if (isA(node, SQLParameter))
+//        *state = appendToTailOfList(*state, node);
+//
+//    return visit(node, findParamVisitor, (void *) state);
+//}

@@ -25,4 +25,6 @@ extern QueryOperator *mergeAdjacentOperators (QueryOperator *root);
 /* try to push down the selection operator for provenence. */
 extern QueryOperator *pushDownSelectionOperatorOnProv(QueryOperator *root);
 
+extern QueryOperator *factorAttrsInExpressions(QueryOperator *root);
+
 #endif /* OPERATOR_OPTIMIZER_H_ */

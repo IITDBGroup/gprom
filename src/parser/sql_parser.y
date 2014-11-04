@@ -45,7 +45,7 @@ Node *bisonParseResult = NULL;
 %token <intVal> intConst
 %token <floatVal> floatConst
 %token <stringVal> stringConst
-%token <stringVal> identifier
+%token <stringVal> identifier compositeIdentifier
 %token <stringVal> parameter
 %token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
 
@@ -55,14 +55,14 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
 %token <stringVal> DISTINCT
 %token <stringVal> STARALL
 %token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN EXCEPT EXISTS
-%token <stringVal> AMMSC NULLVAL ALL ANY IS SOME
+%token <stringVal> AMMSC NULLVAL ROWNUM ALL ANY IS SOME
 %token <stringVal> UNION INTERSECT MINUS
 %token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
 %token <stringVal> INT BEGIN_TRANS COMMIT_TRANS ROLLBACK_TRANS
@@ -110,10 +110,11 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
-			 optionalGroupBy optionalOrderBy setClause insertList stmtList 
+			 optionalGroupBy optionalOrderBy setClause  stmtList //insertList 
 			 identifierList optionalAttrAlias optionalProvWith provOptionList 
 			 caseWhenList windowBoundaries optWindowPart withViewList
-%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr
+//			 optInsertAttrList
+%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse
 %type <node> overClause windowSpec optWindowFrame windowBound 
@@ -122,7 +123,7 @@ Node *bisonParseResult = NULL;
 %type <node> optionalProvAsOf provOption
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
-%type <stringVal> joinType transactionIdentifier
+%type <stringVal> joinType transactionIdentifier delimIdentifier
 
 %start stmtList
 
@@ -164,6 +165,11 @@ stmt:
 		{ 
 			RULELOG("stmt::withQuery"); 
 			$$ = $1; 
+		}
+		| expression
+		{
+			RULELOG("stmt::expression");
+			$$ = $1;
 		}
     ;
 
@@ -318,6 +324,18 @@ provOption:
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_TUPLE_VERSIONS),
 					(Node *) createConstBool(TRUE));
 		}
+		| STATEMENT ANNOTATIONS
+		{
+			RULELOG("provOption::STATEMENT::ANNOTATIONS");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_STATEMENT_ANNOTATIONS),
+					(Node *) createConstBool(TRUE));
+		}
+		| NO STATEMENT ANNOTATIONS
+		{
+			RULELOG("provOption::NO::STATEMENT::ANNOTATIONS");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_STATEMENT_ANNOTATIONS),
+					(Node *) createConstBool(FALSE));
+		}
 	;
 	
 /*
@@ -393,42 +411,27 @@ setExpression:
  * Rules to parse insert query
  */
 insertQuery:
-        INSERT INTO identifier VALUES '(' insertList ')'
-            { 
-            	RULELOG("insertQuery::insertList"); 
-            	$$ = (Node *) createInsert($3,(Node *) $6, NULL); 
-        	} 
-        | INSERT INTO identifier queryStmt
-            { 
-                RULELOG("insertQuery::queryStmt");
-                $$ = (Node *) createInsert($3, $4, NULL);
-            }
+        INSERT INTO identifier insertContent
+        { 
+           	RULELOG("insertQuery::insertList"); 
+           	$$ = (Node *) createInsert($3,(Node *) $4, NIL); 
+        }
+        | INSERT INTO identifier '(' identifierList ')' insertContent
+        { 
+           	RULELOG("insertQuery::insertList"); 
+           	$$ = (Node *) createInsert($3,(Node *) $7, $5); 
+     	} 
     ;
-/* TODO use identlist + expr list here for INSERT INTO table (attrs) VALUES (exprs) */
-insertList:
-        constant
-            { 
-            	RULELOG("insertList::constant");
-            	$$ = singleton($1); 
-            }
-        | identifier
-            {
-                RULELOG("insertList::IDENTIFIER");
-                $$ = singleton(createAttributeReference($1));
-            }
-        | insertList ',' identifier
-            { 
-                RULELOG("insertList::insertList::::IDENTIFIER");
-                $$ = appendToTailOfList($1, createAttributeReference($3));
-            }
-        | insertList ',' constant
-            { 
-            	RULELOG("insertList::insertList::constant");
-            	$$ = appendToTailOfList($1, $3);
-            }
-/* No Provision made for this type of insert statements */
-    ;
+    
+insertContent:
+		VALUES '(' exprList ')' { $$ = (Node *) $3; }
+		| queryStmt
+	;
+	
 
+/* No Provision made for this type of insert statements */
+/* generalize to expression instead of only constant */
+    //;
 
 /*
  * Rules to parse set operator queries
@@ -563,6 +566,7 @@ expression:
         | unaryOperatorExpression       { RULELOG("expression::unaryOperatorExpression"); }
         | sqlFunctionCall        		{ RULELOG("expression::sqlFunctionCall"); }
 		| caseExpression				{ RULELOG("expression::case"); }
+		| ROWNUM						{ RULELOG("expression::ROWNUM"); $$ = (Node *) makeNode(RowNumExpr); }
 /*        | '(' queryStmt ')'       { RULELOG ("expression::subQuery"); $$ = $2; } */
 /*        | STARALL        { RULELOG("expression::STARALL"); } */
     ;
@@ -580,14 +584,25 @@ constant:
  * Parse attribute reference
  */
 attributeRef: 
-        identifier         { RULELOG("attributeRef::IDENTIFIER"); $$ = (Node *) createAttributeReference($1); }
-
+        identifier         
+        { 
+        	RULELOG("attributeRef::IDENTIFIER"); 
+        	$$ = (Node *) createAttributeReference($1); 
+        }
+        | compositeIdentifier  
+        { 
+        	RULELOG("attributeRef::COMPOSITEIDENT"); 
+        	$$ = (Node *) createAttributeReference($1); 
+        }
+	;
+	
 /*
  * SQL parameter
  */
 sqlParameter:
 		parameter		   { RULELOG("sqlParameter::PARAMETER"); $$ = (Node *) createSQLParameter($1); }
-
+	;
+	
 /* HELP HELP ??
        Need helper function support for attribute list in expression.
        For e.g.
@@ -596,7 +611,6 @@ sqlParameter:
               (col1, col2) = (SELECT cl1, cl2 FROM tab2)
        SolQ: Can we use selectItem function here?????
 */
-    ;
 
 /*
  * Parse operator expression
@@ -868,7 +882,7 @@ fromClauseItem:
         identifier optionalFromProv
             {
                 RULELOG("fromClauseItem");
-				FromItem *f = createFromTableRef(NULL, NIL, $1);
+				FromItem *f = createFromTableRef(NULL, NIL, $1, NIL);
 				f->provInfo = (FromProvInfo *) $2;
                 $$ = (Node *) f;
             }
@@ -876,7 +890,7 @@ fromClauseItem:
             {
                 RULELOG("fromClauseItem");
                 FromItem *f = createFromTableRef(((FromItem *) $2)->name, 
-						((FromItem *) $2)->attrNames, $1);
+						((FromItem *) $2)->attrNames, $1, NIL);
 				f->provInfo = ((FromItem *) $2)->provInfo;
                 $$ = (Node *) f;
             }
@@ -926,8 +940,8 @@ subQuery:
     ;
 
 identifierList:
-		identifier { $$ = singleton($1); }
-		| identifierList ',' identifier { $$ = appendToTailOfList($1, $3); }
+		delimIdentifier { $$ = singleton($1); }
+		| identifierList ',' delimIdentifier { $$ = appendToTailOfList($1, $3); }
 	;
 	
 fromJoinItem:
@@ -1229,6 +1243,14 @@ optionalNullOrder:
 				$$ = "NULLS_LAST";
 			}
 	;
+
+delimIdentifier:
+		identifier { RULELOG("identifierList::ident"); }
+		| delimIdentifier '.' identifier 
+		{ 
+			RULELOG("identifierList::list::ident"); 
+			$$ = CONCAT_STRINGS($1, ".", $3); //TODO 
+		}  
 
 	
 %%

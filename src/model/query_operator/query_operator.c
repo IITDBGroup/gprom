@@ -19,7 +19,7 @@
 #include "provenance_rewriter/prov_utility.h"
 
 
-static Schema *mergeSchemas (List *inputs);
+//static Schema *mergeSchemas (List *inputs);
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
 
@@ -52,7 +52,6 @@ createSchemaFromLists (char *name, List *attrNames, List *dataTypes)
     result->name = strdup(name);
     result->attrDefs = NIL;
 
-    int i = 0;
     if (dataTypes == NULL)
     {
         FOREACH(char,n,attrNames)
@@ -84,7 +83,7 @@ schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inpu
     List *dataTypes = NIL;
 
     FOREACH(Node,n,exprs)
-        dataTypes = appendToHeadOfListInt(dataTypes, typeOfInOpModel(n, inputs));
+        dataTypes = appendToTailOfListInt(dataTypes, typeOf(n));
 
     return createSchemaFromLists(name, attributeNames, dataTypes);
 }
@@ -147,8 +146,13 @@ createSelectionOp(Node *cond, QueryOperator *input, List *parents,
         sel->op.inputs = singleton(input);
     else
         sel->op.inputs = NIL;
+
+    if (attrNames == NIL && input)
+        attrNames = getQueryOperatorAttrNames(input);
+
     sel->op.schema = createSchemaFromLists("SELECT", attrNames,
             input ? getDataTypes(input->schema) : NIL);
+
     sel->op.parents = parents;
     sel->op.provAttrs = NIL;
 
@@ -545,6 +549,79 @@ getAttrDefByPos(QueryOperator *op, int pos)
     return (AttributeDef *) getNthOfListP(op->schema->attrDefs, pos);
 }
 
+char *
+getAttrNameByPos(QueryOperator *op, int pos)
+{
+    return getAttrDefByPos(op, pos)->attrName;
+}
+
+List *
+getAttrRefsInOperator (QueryOperator *op)
+{
+    List *refs = NIL;
+
+    switch(op->type)
+    {
+        case T_TableAccessOperator:
+            break;
+        case T_ProjectionOperator:
+        {
+            ProjectionOperator *p = (ProjectionOperator *) op;
+            refs = getAttrReferences((Node *)p->projExprs);
+        }
+            break;
+        case T_SelectionOperator:
+        {
+            SelectionOperator *p = (SelectionOperator *) op;
+            refs = getAttrReferences((Node *)p->cond);
+        }
+            break;
+        case T_JoinOperator:
+        {
+            JoinOperator *p = (JoinOperator *) op;
+            refs = getAttrReferences((Node *)p->cond);
+        }
+            break;
+        case T_AggregationOperator:
+        {
+            AggregationOperator *p = (AggregationOperator *) op;
+            refs = CONCAT_LISTS(getAttrReferences((Node *)p->aggrs),
+                    getAttrReferences((Node *)p->groupBy));
+        }
+            break;
+        case T_DuplicateRemoval:
+        {
+            DuplicateRemoval *p = (DuplicateRemoval *) op;
+            refs = getAttrReferences((Node *)p->attrs);
+        }
+            break;
+        case T_WindowOperator:
+        {
+            WindowOperator *p = (WindowOperator *) op;
+            refs = CONCAT_LISTS(getAttrReferences((Node *)p->f),
+                    getAttrReferences((Node *)p->partitionBy),
+                    getAttrReferences((Node *)p->orderBy),
+                    getAttrReferences((Node *)p->frameDef));
+        }
+            break;
+        case T_NestingOperator:
+            //TODO do not traverse into query operator
+            break;
+        case T_OrderOperator:
+        {
+            OrderOperator *p = (OrderOperator *) op;
+            refs = getAttrReferences((Node *)p->orderExprs);
+        }
+            break;
+        case T_ConstRelOperator:
+        case T_SetOperator:
+        default:
+            break;
+    }
+
+    return refs;
+}
+
 List *
 aggOpGetGroupByAttrNames(AggregationOperator *op)
 {
@@ -591,18 +668,18 @@ treeify(QueryOperator *op)
     }
 }
 
-static Schema *
-mergeSchemas (List *inputs)
-{
-    Schema *result = NULL;
-
-    FOREACH(QueryOperator,O,inputs)
-    {
-        if (result == NULL)
-            result = (Schema *) copyObject(O->schema);
-        else
-            result->attrDefs = concatTwoLists(result->attrDefs, copyObject(O->schema->attrDefs));
-    }
-
-    return result;
-}
+//static Schema *
+//mergeSchemas (List *inputs)
+//{
+//    Schema *result = NULL;
+//
+//    FOREACH(QueryOperator,O,inputs)
+//    {
+//        if (result == NULL)
+//            result = (Schema *) copyObject(O->schema);
+//        else
+//            result->attrDefs = concatTwoLists(result->attrDefs, copyObject(O->schema->attrDefs));
+//    }
+//
+//    return result;
+//}

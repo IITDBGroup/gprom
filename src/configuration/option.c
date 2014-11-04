@@ -45,6 +45,9 @@ typedef struct OptionInfo {
     OptionDefault def;
 } OptionInfo;
 
+// show help only
+boolean opt_show_help = FALSE;
+
 // connection options
 char *connection_host = NULL;
 char *connection_db = NULL;
@@ -61,9 +64,17 @@ char *sql = NULL;
 
 // database backend
 char *backend = NULL;
+char *plugin_metadata = NULL;
+char *plugin_parser = NULL;
+char *plugin_sqlcodegen = NULL;
+char *plugin_analyzer = NULL;
+char *plugin_translator = NULL;
+char *plugin_sql_serializer = NULL;
 
 // instrumentation options
 boolean opt_timing = FALSE;
+boolean opt_memmeasure = FALSE;
+boolean opt_graphviz_output = FALSE;
 
 // rewrite options
 boolean opt_aggressive_model_checking = FALSE;
@@ -74,6 +85,18 @@ boolean opt_pi_cs_composable = FALSE;
 boolean opt_optimize_operator_model = FALSE;
 boolean opt_translate_update_with_case = FALSE;
 //boolean   = FALSE;
+
+// optimization options
+boolean opt_optimization_push_selections = FALSE;
+boolean opt_optimization_merge_ops = FALSE;
+boolean opt_optimization_factor_attrs = FALSE;
+boolean opt_materialize_unsafe_proj = FALSE;
+
+// sanity check options
+boolean opt_operator_model_unique_schema_attribues = FALSE;
+boolean opt_operator_model_parent_child_links = FALSE;
+boolean opt_operator_model_schema_consistency = FALSE;
+boolean opt_operator_model_attr_reference_consistency = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -103,11 +126,41 @@ static char *defGetString(OptionDefault *def, OptionType type);
             defOptionBool(_def) \
         }
 
+#define anOptimizationOption(_name,_opt,_desc,_var,_def) \
+        { \
+            _name, \
+            _opt, \
+            _desc, \
+            OPTION_BOOL, \
+            wrapOptionBool(&_var), \
+            defOptionBool(_def) \
+        }
+
+#define anSanityCheckOption(_name,_opt,_desc,_var,_def) \
+        { \
+            _name, \
+            _opt, \
+            _desc, \
+            OPTION_BOOL, \
+            wrapOptionBool(&_var), \
+            defOptionBool(_def) \
+        }
+
+
 #define OPT_POS(name) INT_VALUE(MAP_GET_STRING(optionPos,name))
 
 // array storing information for all supported options
 OptionInfo opts[] =
 {
+        // show help only and quit
+        {
+                "help",
+                "-help",
+                "Show this help text.",
+                OPTION_BOOL,
+                wrapOptionString(&opt_show_help),
+                defOptionBool(FALSE)
+        },
         // database backend connection options
         {
                 "connection.host",
@@ -175,20 +228,78 @@ OptionInfo opts[] =
                 wrapOptionString(&sql),
                 defOptionString(NULL)
         },
-        // backend selection
+        // backend and plugin selectionselection
         {
                 "backend",
                 "-backend",
-                "select backend database type: postgres, oracle",
+                "select backend database type: postgres, oracle - this determines parser, metadata-lookup, and sql-code generator",
                 OPTION_STRING,
                 wrapOptionString(&backend),
                 defOptionString("oracle")
         },
+        {
+                "plugin.metadata",
+                "-Pmetadata",
+                "select metadatalookup plugin: postgres, oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_metadata),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.parser",
+                "-Pparser",
+                "select parser plugin: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_parser),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.sqlcodegen",
+                "-Psqlcodegen",
+                "select SQL code generator plugin: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_sqlcodegen),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.analyzer",
+                "-Panalyzer",
+                "select parser result model analyzer: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_analyzer),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.translator",
+                "-Ptranslator",
+                "select parser result to relational algebra translator: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_translator),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.sqlserializer",
+                "-Psqlserializer",
+                "select SQL code generator plugin: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_sql_serializer),
+                defOptionString(NULL)
+        },
         // boolean instrumentation options
         aRewriteOption(OPTION_TIMING,
                 NULL,
-                "measure and output execution time of modules",
+                "measure and output execution time of modules.",
                 opt_timing,
+                FALSE),
+        aRewriteOption(OPTION_MEMMEASURE,
+                NULL,
+                "measure and output memory allocation stats.",
+                opt_memmeasure,
+                FALSE),
+        aRewriteOption(OPTION_GRAPHVIZ,
+                NULL,
+                "output created query operator models as graphviz scripts.",
+                opt_graphviz_output,
                 FALSE),
         // boolean rewrite options
         aRewriteOption(OPTION_AGGRESSIVE_MODEL_CHECKING,
@@ -229,6 +340,66 @@ OptionInfo opts[] =
                 "Create reenactment query for UPDATE statements using CASE instead of UNION.",
                 opt_translate_update_with_case,
                 FALSE),
+        // AGM (Query operator model) individual optimizations
+        anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
+                "-Opush_selections",
+                "Optimization: Activate selection move-around",
+                opt_optimization_push_selections,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_MERGE_OPERATORS,
+                "-Omerge_ops",
+                "Optimization: try to merge adjacent selection and projection operators",
+                opt_optimization_merge_ops,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR,
+                "-Ofactor_attrs",
+                "Optimization: try to factor out attribute references in projection"
+                " expressions to open up new operator merging opportunities",
+                opt_optimization_factor_attrs,
+                FALSE
+        ),
+        anOptimizationOption(OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ,
+                "-Omaterialize_unsafe",
+                "Optimization: add materialization hint for projections that "
+                "if merged with adjacent projection would cause expontential "
+                "expression size blowup",
+                opt_materialize_unsafe_proj,
+                TRUE
+        ),
+        // sanity model checking options
+        anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
+                "-Cunique_attr_names",
+                "Model Check: check that attribute names are unique for each operator's schema.",
+                opt_operator_model_unique_schema_attribues,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_PARENT_CHILD_LINKS,
+                "-Cparent_child_links",
+                "Model Check: check that an query operator graph is correctly "
+                "connected. For example, if X is a child of Y then Y should"
+                " be a parent of X.",
+                opt_operator_model_parent_child_links ,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_SCHEMA_CONSISTENCY,
+                "-Cschema_consistency",
+                "Model Check: Perform operator type specific sanity checks"
+                " on the schema of an operator. For example, the number of"
+                " attributes in a projection's schema should be equal to the"
+                " number of projection expressions.",
+                opt_operator_model_schema_consistency,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_ATTR_REF,
+                "-Cattr_reference_consistency",
+                "Model Check: check that attribute references used in "
+                "expressions are consistent. For instance, they have to "
+                "refer to existing inputs and attributes.",
+                opt_operator_model_attr_reference_consistency,
+                TRUE
+        ),
         // stopper to indicate end of array
         {
                 "STOPPER",
@@ -295,67 +466,22 @@ setDefault(OptionInfo *o)
 void
 mallocOptions()
 {
-//	options=MAKE_OPTIONS();
-//	options->optionConnection=MAKE_OPTION_CONNECTION();
-//	options->optionDebug=MAKE_OPTION_DEBUG();
-//	options->optionRewrite=NIL;
-
 	initOptions();
 }
 
 void
 freeOptions()
 {
-//	free(options->optionConnection->host);
-//	free(options->optionConnection->db);
-//	free(options->optionConnection->user);
-//	free(options->optionConnection->passwd);
-//	free(options->optionConnection->sql);
-//	free(options->optionConnection);
-//	free(options->optionDebug);
-//	FOREACH(KeyValue,o,options->optionRewrite)
-//	{
-//	    Constant *c;
-//
-//	    c = (Constant *) o->key;
-//	    if (c->constType == DT_STRING)
-//	        free(c->value);
-//	    free(c);
-//
-//	    c = (Constant *) o->value;
-//        if (c->constType == DT_STRING)
-//            free(c->value);
-//        free(c);
-//
-//        free(o);
-//	}
-//	freeList(options->optionRewrite);
-//	free(options->optionRewrite);
-//	free(options);
+    //TODO
 }
 
 
 
-//Options*
-//getOptions()
-//{
-//	return options;
-//}
 
 boolean
 isRewriteOptionActivated(char *name)
 {
-//    Options *ops = getOptions();
-
     return getBoolOption(name);
-
-//    FOREACH(KeyValue,op,ops->optionRewrite)
-//    {
-//        if (strcmp(STRING_VALUE(op->key),name) == 0)
-//            return BOOL_VALUE(op->value);
-//    }
-//
-//    return FALSE;
 }
 
 static OptionValue *
@@ -485,7 +611,7 @@ optionSet(char *name)
 }
 
 void
-printOptionsHelp(FILE *stream, char *progName, char *description)
+printOptionsHelp(FILE *stream, char *progName, char *description, boolean showValues)
 {
     fprintf(stream, "%s:\n\t%s\n\nthe following options are supported:\n\n",
             progName, description);
@@ -494,12 +620,24 @@ printOptionsHelp(FILE *stream, char *progName, char *description)
     {
         char *name = STRING_VALUE(k);
         OptionInfo *v = getInfo(name);
-        fprintf(stream, "%s%s\n\tDEFAULT VALUE: %s\n\tACTUAL VALUE: %s\n\t%s\n",
-                v->cmdLine ? v->cmdLine : "-activate/-deactivate ",
-                v->cmdLine ? "" : v->option,
-                defGetString(&v->def, v->valueType),
-                valGetString(&v->value, v->valueType),
-                v->description);
+
+        if (showValues)
+        {
+            fprintf(stream, "%s%s\n\tDEFAULT VALUE: %s\n\tACTUAL VALUE: %s\n\t%s\n",
+                    v->cmdLine ? v->cmdLine : "-activate/-deactivate ",
+                    v->cmdLine ? "" : v->option,
+                    defGetString(&v->def, v->valueType),
+                    valGetString(&v->value, v->valueType),
+                    v->description);
+        }
+        else
+        {
+            fprintf(stream, "%s%s\tDEFAULT VALUE: %s\n\t%s\n",
+                    v->cmdLine ? v->cmdLine : "-activate/-deactivate ",
+                    v->cmdLine ? "" : v->option,
+                    defGetString(&v->def, v->valueType),
+                    v->description);
+        }
     }
 }
 
@@ -534,6 +672,8 @@ valGetString(OptionValue *def, OptionType type)
             return buf;
         }
     }
+
+    return NULL; //keep compiler quit
 }
 
 
@@ -555,4 +695,6 @@ defGetString(OptionDefault *def, OptionType type)
             return buf;
         }
     }
+
+    return NULL; //keep compiler quit
 }

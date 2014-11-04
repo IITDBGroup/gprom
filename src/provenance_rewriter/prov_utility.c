@@ -53,14 +53,16 @@ List *
 getProvAttrProjectionExprs(QueryOperator *op)
 {
     List *result = NIL;
-    List *pNames = getOpProvenanceAttrNames(op);
+    List *pDefs = getProvenanceAttrDefs(op);
     int pos = 0;
 
     FOREACH_INT(i,op->provAttrs)
     {
         AttributeReference *a;
-        char *name = getNthOfListP(pNames, pos++);
-        a = createFullAttrReference(name, 0, i, INVALID_ATTR);
+        AttributeDef *d = getNthOfListP(pDefs, pos++);
+        char *name = strdup(d->attrName);
+
+        a = createFullAttrReference(name, 0, i, INVALID_ATTR, d->dataType);
         result = appendToTailOfList(result, a);
     }
 
@@ -71,15 +73,17 @@ List *
 getNormalAttrProjectionExprs(QueryOperator *op)
 {
     List *result = NIL;
-    List *names = getQueryOperatorAttrNames(op);
+//    List *names = getQueryOperatorAttrNames(op);
+    List *attrDefs = op->schema->attrDefs;
 
     for(int i = 0; i < getNumAttrs(op); i++)
     {
         if (!searchListInt(op->provAttrs, i))
         {
             AttributeReference *a;
-            char *name = getNthOfListP(names, i);
-            a = createFullAttrReference(name, 0, i, INVALID_ATTR);
+            AttributeDef *d = getNthOfListP(attrDefs, i);
+            char *name = strdup(d->attrName);
+            a = createFullAttrReference(name, 0, i, INVALID_ATTR, d->dataType);
             result = appendToTailOfList(result, a);
         }
     }
@@ -99,9 +103,36 @@ createProjOnAllAttrs(QueryOperator *op)
     {
         AttributeReference *att;
 
-        att = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR);
+        att = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR, a->dataType);
         projExprs = appendToTailOfList(projExprs, att);
         attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
+    }
+
+    p = createProjectionOp (projExprs, NULL, NIL, attrNames);
+    p->op.provAttrs = copyObject(op->provAttrs);
+
+    return (QueryOperator *) p;
+}
+
+QueryOperator *
+createProjOnAttrs(QueryOperator *op, List *attrPos)
+{
+    ProjectionOperator *p;
+    List *projExprs = NIL;
+    List *attrNames = NIL;
+    int i = 0;
+
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    {
+        AttributeReference *att;
+
+        //TODO use set would be better
+        if (searchListInt(attrPos, i))
+        {
+            att = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR, a->dataType);
+            projExprs = appendToTailOfList(projExprs, att);
+            attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
+        }
     }
 
     p = createProjectionOp (projExprs, NULL, NIL, attrNames);
@@ -122,16 +153,29 @@ switchSubtrees(QueryOperator *orig, QueryOperator *new)
     // copy list of parents to new subtree
     new->parents = orig->parents;
     orig->parents = NIL;
+    boolean newParentOfOrig = FALSE;
 
     // adapt original parent's inputs
     FOREACH(QueryOperator,parent,new->parents)
     {
-        FOREACH(QueryOperator,pChild,parent->inputs)
+        // handle case when orig was a child of new
+        if (parent == new)
         {
-            if (equal(pChild,orig))
-                pChild_his_cell->data.ptr_value = new;
+            orig->parents = singleton(new);
+            newParentOfOrig  = TRUE;
+        }
+        else
+        {
+            FOREACH(QueryOperator,pChild,parent->inputs)
+            {
+                if (equal(pChild,orig))
+                    pChild_his_cell->data.ptr_value = new;
+            }
         }
     }
+
+    if (newParentOfOrig)
+        removeParentFromOps(singleton(new), new);
 }
 
 /*

@@ -14,6 +14,7 @@
 #include "common.h"
 #include "uthash.h"
 #include "model/node/nodetype.h"
+#include "model/list/list.h"
 
 typedef enum SetType {
     SET_TYPE_INT,
@@ -40,7 +41,7 @@ typedef struct Set {
 // create new empty set
 #define PSET() newSet(SET_TYPE_POINTER, sizeof(void*), NULL, NULL)
 #define STRSET() newSet(SET_TYPE_STRING, -1, NULL, NULL)
-#define NODESET() newSet(SET_TYPE_NODE, sizeof(Node), equals, copyObject)
+#define NODESET() newSet(SET_TYPE_NODE, sizeof(Node), equal, copyObject)
 #define INTSET() newSet(SET_TYPE_INT, sizeof(int), NULL, NULL)
 extern Set *newSet(SetType set, int typelen, boolean (*eq) (void *, void *), void *(*cpy) (void *));
 
@@ -51,6 +52,10 @@ extern Set *makeSetInt(int elem, ...);
 #define MAKE_SET_PTR(...) makeSet(SET_TYPE_POINTER, sizeof(void *), NULL, NULL, __VA_ARGS__, NULL)
 #define MAKE_INT_SET(...) makeSetInt(__VA_ARGS__, -1)
 #define MAKE_STR_SET(...) makeSet(SET_TYPE_STRING, -1, NULL, NULL, __VA_ARGS__, NULL);
+
+// turn lists into sets
+extern Set *makeStrSetFromList(List *strList);
+extern Set *makeNodeSetFromList(List *list);
 
 // iterate through sets
 #define DUMMY_INT_FOR_COND_SET(_name_) _name_##_stupid_int_
@@ -94,5 +99,6 @@ extern Set *unionSets (Set *left, Set *right);
 extern Set *intersectSets (Set *left, Set *right);
 
 extern int setSize (Set *set);
+#define EMPTY_SET(set) (setSize(set) == 0)
 
 #endif /* SET_H_ */

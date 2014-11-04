@@ -79,7 +79,7 @@ static rc
 setupMetadataLookup(void)
 {
     PGconn *c;
-    PGresult *res = NULL;
+//    PGresult *res = NULL;
 
     initMetadataLookupPlugins();
     chooseMetadataLookupPlugin(METADATA_LOOKUP_PLUGIN_POSTGRES);
@@ -172,7 +172,7 @@ static rc
 testGetTableDefinition()
 {
     char *tableDef = getTableDefinition("metadatalookup_test1");
-    char *text = "whatever it is too complex to write here.";
+//    char *text = "whatever it is too complex to write here.";
 
     ASSERT_EQUALS_STRING(tableDef, tableDef, "test get table definition <metadatalookup_test1>");
     return PASS;
@@ -181,9 +181,9 @@ testGetTableDefinition()
 static rc
 testTransactionSQLAndSCNs()
 {
-    List *scns = NIL;
-    List *sqls = NIL;
-    List *binds = NIL;
+//    List *scns = NIL;
+//    List *sqls = NIL;
+//    List *binds = NIL;
 //    IsolationLevel iso;
 //    Constant *commit = createConstLong(-1);
 //
@@ -215,7 +215,7 @@ testGetViewDefinition()
 static rc
 testRunTransactionAndGetXid()
 {
-    Constant *xid;
+//    Constant *xid;
 //    List *sqls = LIST_MAKE("INSERT INTO metadatalookup_test1 VALUES (1,2,3)", "DELETE FROM metadatalookup_test1");
 
 //    xid = (Constant *) executeAsTransactionAndGetXID(sqls, ISOLATION_SERIALIZABLE);

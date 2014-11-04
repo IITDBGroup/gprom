@@ -36,6 +36,7 @@ typedef struct ProvSchemaInfo
 static boolean findBaserelationsVisitor (Node *node, ProvSchemaInfo *status);
 static int getRelCount(ProvSchemaInfo *info, char *tableName);
 static boolean findTablerefVisitor (Node *node, ProvSchemaInfo *status);
+static char *escapeUnderscore (char *str);
 
 /* definitions */
 List *
@@ -52,6 +53,7 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
         case PROV_TRANSFORMATION:
             return singleton(strdup("tprov"));
     }
+    return NIL; //keep compiler quiet
 }
 
 List *
@@ -71,8 +73,33 @@ getProvenanceAttrName (char *table, char *attr, int count)
     char *countStr = CALLOC(1,128);
     if (count > 0)
         sprintf(countStr,"_%u", count);
-    return CONCAT_STRINGS(PROV_ATTR_PREFIX, strdup(table), countStr, "_",
-            strdup(attr));
+    return CONCAT_STRINGS(PROV_ATTR_PREFIX, escapeUnderscore(table), countStr, "_",
+            escapeUnderscore(attr));
+}
+
+static char *
+escapeUnderscore (char *str)
+{
+    int len = strlen(str);
+    int newLen = len;
+    char *result;
+
+    for(char *s = str; *s != '\0'; s++, newLen = newLen + (*s == '_' ? 1 : 0));
+
+    result = (char *) MALLOC(newLen + 1);
+
+    for(int i = 0, j = 0; i <= len; i++, j++)
+    {
+        if (str[i] == '_')
+        {
+            result[j++] = '_';
+            result[j] = '_';
+        }
+        else
+            result[j] = str[i];
+    }
+
+    return result;
 }
 
 static boolean
