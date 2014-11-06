@@ -12,8 +12,13 @@
 #include "model/expression/expression.h"
 #include "utility/enum_magic.h"
 
-#define isQBQuery(node) (isA(node,QueryBlock) || isA(node,SetQuery) || isA(node, ProvenanceStmt))
-#define isQBUpdate(node) (isA(node,Insert) || isA(node,Update) || isA(node,Delete))
+#define isQBQuery(node) (isA(node,QueryBlock) \
+        || isA(node,SetQuery) \
+        || isA(node, ProvenanceStmt) \
+        || isA(node, WithStmt))
+#define isQBUpdate(node) (isA(node,Insert) \
+        || isA(node,Update) \
+        || isA(node,Delete))
 
 NEW_ENUM_WITH_TO_STRING(SetOpType,
         SETOP_UNION,
@@ -77,6 +82,7 @@ typedef struct ProvenanceStmt
     Node *asOf;
     List *options;
 } ProvenanceStmt;
+
 
 typedef struct SelectItem
 {

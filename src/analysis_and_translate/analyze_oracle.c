@@ -1291,6 +1291,8 @@ analyzeWithStmt (WithStmt *w)
 
     setViewFromTableRefAttrs(w->query, analyzedViews);
     analyzeQueryBlockStmt(w->query, NIL);
+
+    DEBUG_LOG("analyzed view is:\n%s", beatify(nodeToString(w->query)));
 }
 
 static boolean
