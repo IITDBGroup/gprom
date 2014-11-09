@@ -630,15 +630,13 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
 static void
 analyzeFromTableRef(FromTableRef *f)
 {
-    List *dataTypes = getAttributeDataTypes(f->tableId);
-
-    f->from.dataTypes = dataTypes;
-
     // attribute names already set (view or temporary view for now)
-    if (f->from.attrNames != NIL)
-        return;
+    if (f->from.attrNames == NIL)
+        f->from.attrNames = getAttributeNames(f->tableId);
 
-    f->from.attrNames = getAttributeNames(f->tableId);
+    if(!(f->from.dataTypes))
+        f->from.dataTypes = getAttributeDataTypes(f->tableId);
+
 
     if(f->from.name == NULL)
     	f->from.name = f->tableId;
@@ -1285,11 +1283,13 @@ analyzeWithStmt (WithStmt *w)
     FOREACH(KeyValue,v,w->withViews)
     {
         setViewFromTableRefAttrs(v->value, analyzedViews);
+        DEBUG_LOG("did set view table refs:\n%s", beatify(nodeToString(v->value)));
         analyzeQueryBlockStmt(v->value, NIL);
         analyzedViews = appendToTailOfList(analyzedViews, v);
     }
 
     setViewFromTableRefAttrs(w->query, analyzedViews);
+    DEBUG_LOG("did set view table refs:\n%s", beatify(nodeToString(w->query)));
     analyzeQueryBlockStmt(w->query, NIL);
 
     DEBUG_LOG("analyzed view is:\n%s", beatify(nodeToString(w->query)));
@@ -1312,7 +1312,10 @@ setViewFromTableRefAttrs(Node *node, List *views)
 
             // found view, set attr names
             if (strcmp(name, vName) == 0)
+            {
                 ((FromItem *) f)->attrNames = getQBAttrNames(v->value);
+                ((FromItem *) f)->dataTypes = getQBAttrDTs  (v->value);
+            }
         }
 
         return TRUE;

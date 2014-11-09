@@ -321,7 +321,8 @@ checkSchemaConsistency (QueryOperator *op)
         if (!checkSchemaConsistency(o))
             return FALSE;
 
-    return checkUniqueAttrNames(op);
+    return !SHOULD(CHECK_OM_UNIQUE_ATTR_NAMES)
+            || checkUniqueAttrNames(op);
 }
 
 static boolean
