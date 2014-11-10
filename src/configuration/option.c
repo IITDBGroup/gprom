@@ -312,7 +312,7 @@ OptionInfo opts[] =
                 "Use disjunctions of update conditions to filter out tuples from "
                 "transaction provenance that are not updated by the transaction.",
                 opt_update_only_conditions,
-                FALSE),
+                TRUE),
         aRewriteOption(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN,
                 NULL,
                 "Use a join between the version at commit time with the table version"
@@ -339,7 +339,7 @@ OptionInfo opts[] =
                 NULL,
                 "Create reenactment query for UPDATE statements using CASE instead of UNION.",
                 opt_translate_update_with_case,
-                FALSE),
+                TRUE),
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
                 "-Opush_selections",

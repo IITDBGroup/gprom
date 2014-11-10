@@ -44,6 +44,8 @@ createQueryBlock(void)
     return makeNode(QueryBlock);
 }
 
+
+
 ProvenanceStmt *
 createProvenanceStmt(Node *query)
 {
