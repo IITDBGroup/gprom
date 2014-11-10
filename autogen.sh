@@ -1,5 +1,4 @@
 #!/bin/bash
-libtoolize
-autoreconf --force --install
-./configure $@
-make
+make -f Makefile.maintainer
+./mconf.sh
+make -j 32

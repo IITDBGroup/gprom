@@ -278,12 +278,13 @@ appendToTailOfList(List *list, void *value)
 {
     ASSERT(isPtrList(list));
 	
-    if (list == NIL) 
+    if (list == NIL || list->length == 0)
 		list = newList(T_List);
 	else
         newListTail(list);
     
     list->tail->data.ptr_value = value;
+
     ASSERT(checkList(list));
     return list;
 }
