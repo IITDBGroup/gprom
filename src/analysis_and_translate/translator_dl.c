@@ -29,6 +29,8 @@ static QueryOperator *translateRule(DLRule *r);
 static QueryOperator *translateGoal(DLAtom *r);
 static QueryOperator *joinGoalTranslations (DLRule *r, List *goalTrans);
 static Node *createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r);
+static List *getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals);
+static Node *replaceDLVarMutator (Node *node, QueryOperator *joinedGoals);
 static Node *createCondFromComparisons (List *comparisons, QueryOperator *in);
 static void makeNamesUnique (List *names);
 static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
@@ -187,22 +189,30 @@ translateRule(DLRule *r)
 
     // create projection to simulate head
     List *projExprs = NIL;
-    List *headVars = getVarNames(getHeadVars(r));
+    List *headNames = NIL;
 
-    FOREACH(char,hV,headVars)
-    {
-        AttributeReference *a;
-        int pos = getAttrPos(joinedGoals, hV);
-        DataType dt = getAttrDefByPos(joinedGoals, pos)->dataType;
+    projExprs = getHeadProjectionExprs(r->head, joinedGoals);
 
-        a = createFullAttrReference(hV,0,pos,INVALID_ATTR, dt);
-        projExprs = appendToTailOfList(projExprs, a);
-    }
+    FOREACH(Node,p,projExprs)
+        headNames = appendToTailOfList(headNames,exprToSQL(p));
+//
+//    List *headVars = getVarNames(getHeadVars(r));
+//    List *headArgs = r->head->args;
+//
+//    FOREACH(char,hV,headVars)
+//    {
+//        AttributeReference *a;
+//        int pos = getAttrPos(joinedGoals, hV);
+//        DataType dt = getAttrDefByPos(joinedGoals, pos)->dataType;
+//
+//        a = createFullAttrReference(hV,0,pos,INVALID_ATTR, dt);
+//        projExprs = appendToTailOfList(projExprs, a);
+//    }
 
     headP = createProjectionOp(projExprs,
             sel ? (QueryOperator *) sel : joinedGoals,
             NIL,
-            headVars);
+            headNames);
 
     // add duplicate removal operator
     dupRem = createDuplicateRemovalOp(NULL, (QueryOperator *) headP, NIL,
@@ -213,6 +223,41 @@ translateRule(DLRule *r)
             operatorToOverviewString((Node *) dupRem));
 
     return (QueryOperator *) dupRem;
+}
+
+static List *
+getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals)
+{
+    List *headArgs = head->args;
+    List *projExprs = NIL;
+
+    FOREACH(Node,a,headArgs)
+    {
+        Node *newA = replaceDLVarMutator(a, joinedGoals);
+        projExprs = appendToTailOfList(projExprs, newA);
+    }
+
+    return projExprs;
+}
+
+static Node *
+replaceDLVarMutator (Node *node, QueryOperator *joinedGoals)
+{
+    if (node == NULL)
+        return node;
+
+    if (isA(node, DLVar))
+    {
+        AttributeReference *a;
+        char *hV = ((DLVar *) node)->name;
+        int pos = getAttrPos(joinedGoals, hV);
+        DataType dt = getAttrDefByPos(joinedGoals, pos)->dataType;
+
+        a = createFullAttrReference(hV,0,pos,INVALID_ATTR, dt);
+        return (Node *) a;
+    }
+
+    return mutate(node, replaceDLVarMutator, joinedGoals);
 }
 
 static QueryOperator *

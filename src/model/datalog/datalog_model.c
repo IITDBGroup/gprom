@@ -244,3 +244,10 @@ setDLProp(DLNode *n, char *key, Node *value)
 
     MAP_ADD_STRING_KEY(n->properties, key, value);
 }
+
+void
+delDLProp(DLNode *n, char *key)
+{
+    if (n->properties != NULL)
+        removeMapElem(n->properties, (Node *) createConstString(key));
+}

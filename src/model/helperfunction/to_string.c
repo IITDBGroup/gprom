@@ -1252,6 +1252,16 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             int i = 1;
             int len = LIST_LENGTH(a->args);
 
+            if (DL_HAS_PROP(a,DL_WON))
+                appendStringInfoString(str, "+");
+            if (DL_HAS_PROP(a,DL_LOST))
+                appendStringInfoString(str, "-");
+            if (DL_HAS_PROP(a,DL_UNDER_NEG_WON))
+                appendStringInfoString(str, "*+");
+            if (DL_HAS_PROP(a,DL_UNDER_NEG_LOST))
+                appendStringInfoString(str, "*-");
+            if (a->negated)
+                appendStringInfoString(str, "not ");
             appendStringInfo(str, "%s(", a->rel);
             FOREACH(Node,arg,a->args)
             {
@@ -1269,6 +1279,10 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             int len = LIST_LENGTH(r->body);
 
             indentString(str,indent);
+            // add rule id if set
+            if (DL_HAS_PROP(r,DL_RULE_ID))
+                appendStringInfo(str, "r%u: ",
+                        INT_VALUE(DL_GET_PROP(r,DL_RULE_ID)));
             datalogToStrInternal(str, (Node *) r->head, indent);
             appendStringInfoString(str, " :- ");
             FOREACH(Node,a,r->body)
@@ -1299,16 +1313,28 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
         {
             DLProgram *p = (DLProgram *) n;
             appendStringInfoString(str, "PROGRAM:\n");
-            FOREACH(DLRule,r,p->rules)
+            FOREACH(Node,r,p->rules)
+            {
+                if (isA(r,Constant))
+                    appendStringInfoString(str, "ANSWER RELATION:\n\t");
                 datalogToStrInternal(str,(Node *) r, 4);
+            }
             if (p->ans)
-                appendStringInfo(str, "ANSWER RELATION:\n\t%s",
+                appendStringInfo(str, "ANSWER RELATION:\n\t%s\n",
                         p->ans);
+            if (DL_HAS_PROP(p,DL_PROV_WHY) || DL_HAS_PROP(p,DL_PROV_WHYNOT))
+            {
+                char *prop = DL_HAS_PROP(p,DL_PROV_WHY) ? DL_PROV_WHY : DL_PROV_WHYNOT;
+                Node *question = DL_GET_PROP(p,prop);
+
+                appendStringInfo(str, "%s:\n\t", prop);
+                datalogToStrInternal(str,(Node *) question, 4);
+            }
         }
         break;
         case T_Constant:
-            appendStringInfo(str, "ANSWER RELATION:\n\t%s",
-                    STRING_VALUE(n));
+            appendStringInfo(str, "%s",
+                    CONST_TO_STRING(n));
         break;
         // provenance
         case T_KeyValue:
@@ -1326,9 +1352,15 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
         }
         break;
         default:
-            FATAL_LOG("should have never come here, datalog program should"
-                    " not have nodes like this: %s",
-                    beatify(nodeToString(n)));
+        {
+            if (IS_EXPR(n))
+                appendStringInfo(str, "%s", exprToSQL(n));
+            else
+                FATAL_LOG("should have never come here, datalog program should"
+                        " not have nodes like this: %s",
+                        beatify(nodeToString(n)));
+        }
+        break;
     }
 }
 
