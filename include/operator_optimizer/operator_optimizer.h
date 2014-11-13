@@ -35,4 +35,7 @@ extern QueryOperator *pullingUpProvenanceProjections(QueryOperator *root);
 /* try to push down the selection operator through joins for provenence. */
 extern QueryOperator *pushDownSelectionThroughJoinsOperatorOnProv(QueryOperator *root);
 
+/* try to implement selection move around */
+extern QueryOperator *selectionMoveAround(QueryOperator *root);
+
 #endif /* OPERATOR_OPTIMIZER_H_ */

@@ -49,5 +49,7 @@
 /* projection properties */
 #define PROP_MERGE_ATTR_REF_CNTS "MERGE SAFE ATTRIBUTE COUNTS"                        // safe to merge this projection with its child
 #define PROP_PROJ_PROV_ATTR_DUP "PROJECTION WITH PROVENANCE ATTRIBUTE DUPLICATION"    // needed by projection pull-up
+/* properties used to store list of set which used in selection move around */
+#define PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND "STORE LIST SET FOR SELECTION MOVE AROUND"
 
 #endif /* OPERATOR_PROPERTY_H_ */

@@ -91,6 +91,7 @@ boolean opt_materialize_unsafe_proj = FALSE;
 boolean opt_remove_redundant_projections = TRUE;
 boolean opt_optimization_pulling_up_provenance_proj = FALSE;
 boolean opt_optimization_push_selections_through_joins = FALSE;
+boolean opt_optimization_selection_move_around = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -347,6 +348,12 @@ OptionInfo opts[] =
                 opt_optimization_push_selections_through_joins,
                 TRUE
         ),
+        anOptimizationOption(OPTIMIZATION_SELECTION_MOVE_AROUND,
+                "-Oselections_move_around",
+                "Optimization: try to move selection around",
+                opt_optimization_selection_move_around,
+                TRUE
+                ),
         // stopper to indicate end of array
         {
                 "STOPPER",

@@ -116,6 +116,15 @@ optimizeOneGraph (QueryOperator *root)
       STOP_TIMER("OptimizeModel - set materialization hints");
     }
 
+    if(getBoolOption(OPTIMIZATION_SELECTION_MOVE_AROUND))
+    {
+        START_TIMER("OptimizeModel - selections move around");
+        rewrittenTree = selectionMoveAround((QueryOperator *) rewrittenTree);
+        DEBUG_LOG("selections move around\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+        STOP_TIMER("OptimizeModel - selections move around");
+    }
+
     if(getBoolOption(OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ))
     {
       START_TIMER("OptimizeModel - pulling up provenance");
@@ -577,3 +586,20 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
     }
 }
 
+QueryOperator *
+selectionMoveAround(QueryOperator *root)
+{
+    //loop 1, bottom to top trace the tree and set the property of each
+    //operation(tree node)
+    setMoveAroundListSetProperityForWholeTree(root);
+
+    //loop 2, top to bottom trace the tree and reset the property of each
+    //operation(tree node)
+    reSetMoveAroundListSetProperityForWholeTree(root);
+
+    //loop 3, bottom to top trace the tree and introduce the new selection or
+    //change the condition of original selection op
+    introduceSelection(root);
+
+    return root;
+}

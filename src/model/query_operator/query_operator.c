@@ -17,6 +17,8 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "model/set/set.h"
+#include "model/query_operator/operator_property.h"
 
 
 static Schema *mergeSchemas (List *inputs);
@@ -216,6 +218,443 @@ resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryO
         }
     }
 }
+
+
+void
+setMoveAroundListSetProperityForWholeTree(QueryOperator *root)
+{
+    if(root->inputs != NULL)
+    {
+        FOREACH(QueryOperator, op, root->inputs)
+            setMoveAroundListSetProperityForWholeTree(op);
+    }
+
+    if(root != NULL)
+    {
+        if(isA(root, TableAccessOperator))
+        {
+            List *setList = NIL;
+            FOREACH(AttributeDef,a, root->schema->attrDefs)
+            {
+                Set *s = MAKE_SET_PTR(a->attrName);
+                setList = appendToTailOfList(setList, s);
+            }
+
+            setProperty((QueryOperator *)root, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), (Node *)setList);
+        }
+
+        if(isA(root, SelectionOperator))
+        {
+            List *opList = NIL;
+
+            Operator *c = (Operator *)(((SelectionOperator *)root)->cond);
+            if(streq(c->name,"AND"))
+            {
+                opList = getSelectionCondOperatorList(opList, c);
+            }
+            else
+                opList = appendToHeadOfList(opList, c);
+
+	  QueryOperator *child = OP_LCHILD(root);
+          Node *n1 = getProperty((QueryOperator *)child, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
+
+          List *l1 = (List *)n1;
+          List *l11 = NIL;
+          List *setList = NIL;
+
+          FOREACH(Set, s1, l1)
+          {
+              Set *s = unionSets(s1,s1);
+              l11 = appendToTailOfList(l11, s);
+          }
+
+          setList = UnionEqualElemOfTwoSetList(opList, l11);
+          setProperty((QueryOperator *)root, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), (Node *)setList);
+        }
+
+        if(isA(root, JoinOperator))
+        {
+            QueryOperator *newRoot = root;
+            QueryOperator *parent = getHeadOfListP(root->parents);
+            List *opList = NIL;
+            List *setList = NIL;
+            List *helpList = NIL;
+
+            Operator *c = (Operator *)(((SelectionOperator *)parent)->cond);
+
+            if(streq(c->name,"AND"))
+            {
+                opList = getSelectionCondOperatorList(opList, c);
+            }
+            else
+                opList = appendToHeadOfList(opList, c);
+
+	    FOREACH(QueryOperator, op, root->inputs)
+            {
+                Node *n1 = getProperty(op, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
+                List *l1 = (List *)n1;
+
+                List *templ1 = NIL;
+                FOREACH(Set, s1, l1)
+                {
+                    Set *s = unionSets(s1,s1);
+                    templ1 = appendToTailOfList(templ1, s);
+                }
+
+                helpList = concatTwoLists(helpList,templ1);
+            }
+
+	    setList = UnionEqualElemOfTwoSetList(opList, helpList);
+            setProperty((QueryOperator *)newRoot, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), (Node *)setList);
+        }
+    }
+}
+
+
+List *
+UnionEqualElemOfTwoSetList(List *listEqlOp, List *listSet)
+{
+
+    FOREACH_LC(lc, listEqlOp)
+    {
+        if(streq(((Operator *)LC_P_VAL(lc))->name,"="))
+        {
+            ListCell *lc1 = getHeadOfList(((Operator *)LC_P_VAL(lc))->args);
+            ListCell *lc2 = getTailOfList(((Operator *)LC_P_VAL(lc))->args);
+            Node *n1 = (Node *)LC_P_VAL(lc1);
+            Node *n2 = (Node *)LC_P_VAL(lc2);
+
+            listSet = addOneEqlOpAttrToListSet(n1,n2,listSet);
+        }
+    }
+
+    return listSet;
+}
+
+
+
+List *
+addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet)
+{
+    //DEBUG_LOG("test n1: %s", nodeToString(n1));
+    //DEBUG_LOG("test n2: %s", nodeToString(n2));
+
+    Node *tempn1, *tempn2;
+    if(isA(n1, Constant))
+        tempn1 = n1;
+    else
+        tempn1 = (Node *)(((AttributeReference *)n1)->name);
+
+    if(isA(n2, Constant))
+        tempn2 = n2;
+    else
+        tempn2 = (Node *)(((AttributeReference *)n2)->name);
+
+    Set *tempSet1;
+    Set *tempSet2;
+    boolean flag1, flag2;
+
+    flag1 = flag2 = FALSE;
+    if(!isA(tempn1,Constant))
+    {
+        FOREACH(Set, s1, listSet)
+        {
+            /*if(hasSetElem(s1,(char *)tempn1))
+              {
+                  flag1 = TRUE;
+                  tempSet1 = s1;
+                  break;
+              }*/
+
+            FOREACH_SET(Node, sn1, s1)
+            {
+                if(!isA(sn1,Constant))
+                {
+                    if(streq((char *)sn1,(char *)tempn1))
+                    {
+                        flag1 = TRUE;
+                        tempSet1 = s1;
+                        break;
+                    }
+                }
+            }
+
+        }
+    }
+
+    if(isA(tempn2,Constant))
+    {
+        FOREACH(Set, s2, listSet)
+        {
+            /*if(hasSetElem(s2,tempn2))
+              {
+                  flag2 = TRUE;
+                  tempSet2 = s2;
+                  break;
+              }*/
+
+            FOREACH_SET(Node, sn2, s2)
+            {
+                if(isA(sn2,Constant))
+                {
+                    int *a = ((Constant *)sn2)->value;
+                    int *b = ((Constant *)tempn2)->value;
+
+                    if(*a == *b)
+                    {
+                        flag2 = TRUE;
+                        tempSet2 = s2;
+                        break;
+                    }
+                }
+            }
+	}
+    }
+    else
+    {
+        FOREACH(Set, s2, listSet)
+        {
+            FOREACH_SET(Node, sn2, s2)
+            {
+                if(streq((char *)sn2, (char *)tempn2))
+                {
+                    flag2 = TRUE;
+                    tempSet2 = s2;
+                    break;
+                }
+            }
+        }
+    }
+
+    if(flag1 == TRUE && flag2 == FALSE)
+    {
+        addToSet(tempSet1,tempn2);
+    }
+    else if(flag1 == TRUE && flag2 == TRUE)
+    {
+	Set *uSet = unionSets(tempSet1,tempSet2);
+	listSet = REMOVE_FROM_LIST_PTR(listSet, tempSet2);
+	listSet = REMOVE_FROM_LIST_PTR(listSet, tempSet1);
+	listSet = appendToTailOfList(listSet,uSet);
+    }
+
+    return listSet;
+}
+
+
+void
+reSetMoveAroundListSetProperityForWholeTree(QueryOperator *root)
+{
+    if(isA(root, JoinOperator))
+    {
+        Node *n1 = getProperty(root, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
+        List *l1 = (List *)n1;
+        FOREACH(QueryOperator, op, root->inputs)
+        {
+            while(!(isA(op,SelectionOperator) || isA(op,JoinOperator) || isA(op,TableAccessOperator)))
+            {
+                op = OP_LCHILD(op);
+            }
+
+            List *attrName = getAttrNames((Schema *)(op->schema));
+
+            List *newl1 = NIL;
+            FOREACH(Set,s,l1)
+            {
+                Set *tempSet = unionSets(s,s);
+                boolean flag;
+                FOREACH_SET(Node,n,s)
+                {
+                    flag = FALSE;
+                    if(!isA(n,Constant))
+                    {
+                        FOREACH(char,nme,attrName)
+                        {
+                            if(streq((char *)n,nme))
+                            {
+                                flag = TRUE;
+                            }
+                        }
+                    }
+                    else
+                        flag = TRUE;
+
+                    if(flag == FALSE)
+                    {
+                        removeSetElem(tempSet,n);
+                    }
+                }
+                if(setSize(tempSet) != 0)
+                {
+                    newl1 = appendToTailOfList(newl1,tempSet);
+                }
+            }
+
+            setProperty(op, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND),(Node *)newl1);
+        }
+    }
+
+    FOREACH(QueryOperator, o, root->inputs)
+        reSetMoveAroundListSetProperityForWholeTree(o);
+}
+
+
+void
+introduceSelection(QueryOperator *root)
+{
+    if(root->inputs != NULL)
+    {
+        FOREACH(QueryOperator, op, root->inputs)
+        {
+            introduceSelection(op);
+        }
+    }
+
+    if(isA(root,JoinOperator))
+    {
+        FOREACH(QueryOperator,qo,root->inputs)
+        {
+            Node *n1 = getProperty(qo, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
+            List *l1 = (List *)n1;
+            List *opList = NIL;
+
+            FOREACH(Set, s1, l1)
+            {
+                if(setSize(s1) == 2)
+                {
+                    List *argList = NIL;
+                    AttributeReference *a;
+                    FOREACH_SET(Node,selem,s1)
+                    {
+                        if(!isA(selem,Constant))
+                        {
+                            FOREACH(AttributeDef,attrDef,qo->schema->attrDefs)
+                            {
+                                if(streq((char *)selem,attrDef->attrName))
+                                {
+                                    a = createFullAttrReference((char *)selem , 0, 0, 0, attrDef->dataType);
+                                    break;
+                                }
+                            }
+                            argList = appendToHeadOfList(argList,a);
+                        }
+                        else
+                            argList = appendToTailOfList(argList,selem);
+                    }
+
+                    Operator *o = createOpExpr("=", argList);
+                    opList = appendToTailOfList(opList, o);
+                }
+
+                if(setSize(s1) == 3)
+                {
+                    List *argList = NIL;
+                    List *tempOpList = NIL;
+                    AttributeReference *a;
+                    AttributeReference *b;
+                    int flagFst = FALSE;
+
+                    FOREACH_SET(Node,selem,s1)
+                    {
+                        if(flagFst == FALSE)
+                        {
+                            flagFst = TRUE;
+                            if(!isA(selem,Constant))
+                            {
+                                FOREACH(AttributeDef,attrDef,qo->schema->attrDefs)
+                                {
+                                    if(streq((char *)selem,attrDef->attrName))
+                                    {
+                                        a = createFullAttrReference((char *)selem , 0, 0, 0, attrDef->dataType);
+                                        break;
+                                    }
+                                }
+                                argList = appendToHeadOfList(argList,a);
+                            }
+                            else
+                            {
+                                argList = appendToTailOfList(argList,selem);
+                            }
+                        }
+                        else
+                        {
+                            if(!isA(selem,Constant))
+                            {
+                                FOREACH(AttributeDef,attrDef,qo->schema->attrDefs)
+                                {
+                                    if(streq((char *)selem,attrDef->attrName))
+                                    {
+                                        b = createFullAttrReference((char *)selem , 0, 0, 0, attrDef->dataType);
+                                        break;
+                                    }
+                                }
+                                argList = appendToHeadOfList(argList,b);
+
+				Operator *o = createOpExpr("=", argList);
+                                opList = appendToTailOfList(opList, o);
+
+				argList = REMOVE_FROM_LIST_PTR(argList,b);
+                            }
+                            else
+                            {
+                                argList = appendToTailOfList(argList,selem);
+				Operator *o = createOpExpr("=", argList);
+                                opList = appendToTailOfList(opList, o);
+
+                                argList = REMOVE_FROM_LIST_PTR(argList,selem);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if(opList != NIL)
+            {
+                if(isA(qo, SelectionOperator))
+                {
+                    List *originalOpList = NIL;
+                    Operator *originalCondOp = (Operator *)(((SelectionOperator *)qo)->cond);
+
+                    if(streq(originalCondOp->name,"AND"))
+                    {
+                        originalOpList = getSelectionCondOperatorList(originalOpList, originalCondOp);
+                    }
+                    else
+                        originalOpList = appendToHeadOfList(originalOpList, originalCondOp);
+
+                    FOREACH(Operator,condOp,originalOpList)
+                    {
+                        if(!streq(condOp->name,"="))
+                        {
+                            opList = appendToHeadOfList(opList,condOp);
+                        }
+                    }
+
+                    Node *opCond = changeListOpToAnOpNode(opList);
+                    ((SelectionOperator *)qo)->cond = opCond;
+                    QueryOperator *child = getHeadOfListP(qo->inputs);
+                    resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection((SelectionOperator *)qo,(QueryOperator *)child);
+                }
+                else
+                {
+                    Node *opCond = changeListOpToAnOpNode(opList);
+                    SelectionOperator *newSo1 = createSelectionOp(opCond, NULL, NIL,getAttrNames(qo->schema));
+
+                    // Switch the subtree with this newly created projection
+                    // operator.
+		    switchSubtrees((QueryOperator *) qo, (QueryOperator *) newSo1);
+
+                    // Add child to the newly created projections operator,
+                    addChildOperator((QueryOperator *) newSo1, (QueryOperator *) qo);
+
+                    //reset the attr_ref position
+                    resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection((SelectionOperator *)newSo1,(QueryOperator *)qo);
+                }
+            }
+        }
+    }
+}
+
 
 Node *
 changeListOpToAnOpNode(List *l1)
