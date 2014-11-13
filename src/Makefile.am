@@ -12,6 +12,7 @@ SUBDIRS = configuration 		\
 		sql_serializer 			\
 		metadata_lookup 		\
 		operator_optimizer 		\
+		execution				\
 		. 						\
 		command_line
 
@@ -26,6 +27,7 @@ libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
 						sql_serializer/libserializer.la \
 						metadata_lookup/libmetadata_lookup.la \
 						operator_optimizer/liboperator_optimizer.la \
-						instrumentation/libinstrumentation.la
-						
+						instrumentation/libinstrumentation.la \
+						execution/libexecution.la
+
 libsrc_la_SOURCES 		= rewriter.c

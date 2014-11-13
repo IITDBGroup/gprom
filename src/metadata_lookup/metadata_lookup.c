@@ -227,6 +227,13 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
     return activePlugin->getTransactionSQLAndSCNs(xid, scns, sqls, sqlBinds, iso, commitScn);
 }
 
+List *
+executeQuery (char *sql)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    return activePlugin->executeQuery(sql);
+}
+
 long
 getCommitScn (char *tableName, long maxScn, char *xid)
 {

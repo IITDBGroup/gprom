@@ -12,6 +12,7 @@
 
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
+#include "configuration/option.h"
 #include "log/logger.h"
 
 #include "metadata_lookup/metadata_lookup.h"
@@ -19,6 +20,7 @@
 #include "model/list/list.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/query_operator_model_checker.h"
 #include "model/datalog/datalog_model.h"
 #include "model/set/hashmap.h"
 #include "provenance_rewriter/prov_utility.h"
@@ -88,6 +90,10 @@ translateProgram(DLProgram *p)
     {
         QueryOperator *tRule = translateRule(r);
         char *headPred = getHeadPredName(r);
+
+        if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+             ASSERT(checkModel((QueryOperator *) tRule));
+
         // not first rule for this pred
         if(MAP_HAS_STRING_KEY(predToTrans,headPred))
         {
@@ -136,6 +142,8 @@ translateProgram(DLProgram *p)
     }
 
     answerRel = MAP_GET_STRING(predToTrans, p->ans);
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+         ASSERT(checkModel((QueryOperator *) answerRel));
 
     return answerRel;
 }
@@ -192,9 +200,10 @@ translateRule(DLRule *r)
     List *headNames = NIL;
 
     projExprs = getHeadProjectionExprs(r->head, joinedGoals);
+    int i = 0;
 
     FOREACH(Node,p,projExprs)
-        headNames = appendToTailOfList(headNames,exprToSQL(p));
+        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("x", itoa(i++)));
 //
 //    List *headVars = getVarNames(getHeadVars(r));
 //    List *headArgs = r->head->args;
@@ -275,7 +284,7 @@ joinGoalTranslations (DLRule *r, List *goalTrans)
 
         cond = createJoinCondOnCommonAttrs(result,g);
 
-        j = createJoinOp(JOIN_INNER, cond, LIST_MAKE(result,g), NIL, attrNames);
+        j = createJoinOp(cond ? JOIN_INNER : JOIN_CROSS, cond, LIST_MAKE(result,g), NIL, attrNames);
 
         result =  (QueryOperator *) j;
     }
@@ -413,6 +422,8 @@ translateGoal(DLAtom *r)
 
     // create table access op
     rel = createTableAccessOp(r->rel, NULL, "REL", NIL, attrNames, dts);
+    if (DL_HAS_PROP(r,DL_IS_IDB_REL))
+        SET_BOOL_STRING_PROP(rel, DL_IS_IDB_REL);
 
     // is negated goal?
     if (r->negated)
@@ -422,6 +433,39 @@ translateGoal(DLAtom *r)
     }
     else
         pInput = (QueryOperator *) rel;
+
+    // add selection if constants are used in the goal
+    // e.g., R(X,1) with attributes A0,A1 are translated into SELECTION[A1=1](R)
+    List *selExpr = NIL;
+    int i = 0;
+
+    FOREACH(Node,arg,r->args)
+    {
+        if (isA(arg,Constant))
+        {
+            Node *comp;
+            AttributeDef *a = getAttrDefByPos(pInput,i);
+            comp = (Node *) createOpExpr("=",
+                    LIST_MAKE(createFullAttrReference(strdup(a->attrName),
+                            0, i, INVALID_ATTR, a->dataType),
+                    copyObject(arg)));
+
+            selExpr = appendToTailOfList(selExpr, comp);
+        }
+        i++;
+    }
+
+
+    if (selExpr != NIL)
+    {
+        SelectionOperator *sel;
+        Node *cond = andExprList(selExpr);
+
+        sel = createSelectionOp(cond, pInput, NIL, NULL);
+        sel->op.inputs = NIL;
+        addChildOperator((QueryOperator *) sel, pInput);
+        pInput = (QueryOperator *) sel;
+    }
 
     // add projection
     rename = (ProjectionOperator *) createProjOnAllAttrs(pInput);
@@ -437,6 +481,10 @@ translateGoal(DLAtom *r)
             d->attrName = strdup(v->name);
         }
     }
+
+    DEBUG_LOG("translated goal %s:\n%s",
+            datalogToOverviewString((Node *) r),
+            operatorToOverviewString((Node *) rename));
 
     return (QueryOperator *) rename;
 }
@@ -457,11 +505,19 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
         // for each rel check whether it is idb
         FOREACH(TableAccessOperator,r,rels)
         {
-            if(MAP_HAS_STRING_KEY(predToTrans,r->tableName))
+            boolean isIDB = HAS_STRING_PROP(r,DL_IS_IDB_REL);
+            DEBUG_LOG("check Table %s that is %s", r->tableName, isIDB ? " idb": " edb");
+            ASSERT(!isIDB || MAP_HAS_STRING_KEY(predToTrans,r->tableName));
+
+            if(isIDB && MAP_HAS_STRING_KEY(predToTrans,r->tableName))
             {
                 QueryOperator *idbImpl = (QueryOperator *) MAP_GET_STRING(predToTrans,r->tableName);
                 switchSubtreeWithExisting((QueryOperator *) r,idbImpl);
+                DEBUG_LOG("replaced idb Table %s with\n:%s", r->tableName,
+                        operatorToOverviewString((Node *) idbImpl));
             }
+            else if (isIDB)
+                FATAL_LOG("Do not find entry for %s", r->tableName);
         }
 
         qoRoots = appendToTailOfList(qoRoots, root);

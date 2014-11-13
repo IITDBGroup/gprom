@@ -62,6 +62,7 @@ extern char *backend;
 extern char *plugin_metadata;
 extern char *plugin_parser;
 extern char *plugin_sqlcodegen;
+extern char *plugin_executor;
 
 // instrumentation options
 extern boolean opt_timing;

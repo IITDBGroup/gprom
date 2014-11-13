@@ -77,6 +77,18 @@ shutdownLogger (void)
 }
 
 void
+_debugNode(void *p)
+{
+    log_(LOG_ERROR, "debugger", 0, "%s", beatify(nodeToString(p)));
+}
+
+void
+_debugMessage(char *mes)
+{
+    log_(LOG_ERROR, "debugger", 0, "%s", mes);
+}
+
+void
 log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
 {
     if (level <= maxLevel)

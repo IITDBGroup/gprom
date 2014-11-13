@@ -22,6 +22,7 @@
 #include "../src/parser/sql_parser.tab.h"
 #include "model/query_operator/query_operator.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "execution/executor.h"
 #include "rewriter.h"
 
 
@@ -33,7 +34,7 @@ main (int argc, char* argv[])
 {
     char *result;
 
-    READ_OPTIONS_AND_INIT("testrewriter", "Run all stages on input and outpur rewritten SQL.");
+    READ_OPTIONS_AND_INIT("testrewriter", "Run all stages on input and output rewritten SQL.");
 
     START_TIMER("TOTAL");
 
@@ -50,8 +51,8 @@ main (int argc, char* argv[])
         ERROR_LOG("REWRITE RESULT FROM STRING IS:\n%s", result);
     }
 
-    printf("%s", result);
-    fflush(stdout);
+    // call executor
+    execute(result);
 
     STOP_TIMER("TOTAL");
     OUT_TIMERS();

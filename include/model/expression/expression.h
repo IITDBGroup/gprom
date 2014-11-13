@@ -160,6 +160,7 @@ extern Operator *createOpExpr (char *name, List *args);
 extern AttributeReference *createAttributeReference (char *name);
 extern AttributeReference *createFullAttrReference (char *name, int fromClause, int attrPos,
         int outerLevelsUp, DataType attrType);
+extern Node *andExprList (List *exprs);
 extern Node *andExprs (Node *expr, ...);
 extern Node *orExprs (Node *expr, ...);
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL)

@@ -99,6 +99,7 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->getTransactionSQLAndSCNs = oracleGetTransactionSQLAndSCNs;
     plugin->executeAsTransactionAndGetXID = oracleExecuteAsTransactionAndGetXID;
     plugin->getCommitScn = oracleGetCommitScn;
+    plugin->executeQuery = oracleGenExecQuery;
 
     return plugin;
 }
@@ -1026,6 +1027,29 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
     STOP_TIMER("module - metadata lookup");
 
     return (Node *) xid;
+}
+
+List *
+oracleGenExecQuery (char *query)
+{
+    List *rel = NIL;
+    int numAttrs;
+    OCI_Resultset *rs;
+
+    rs = executeStatement(query);
+    numAttrs = OCI_GetColumnCount(rs);
+
+    while(OCI_FetchNext(rs))
+    {
+        List *tuple = NIL;
+
+        for(int i = 1; i <= numAttrs; i++)
+            tuple = appendToTailOfList(tuple, strdup((char *) OCI_GetString(rs, i)));
+
+        rel = appendToTailOfList(rel, tuple);
+    }
+
+    return rel;
 }
 
 static OCI_Transaction *

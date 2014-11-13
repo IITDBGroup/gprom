@@ -70,6 +70,7 @@ char *plugin_sqlcodegen = NULL;
 char *plugin_analyzer = NULL;
 char *plugin_translator = NULL;
 char *plugin_sql_serializer = NULL;
+char *plugin_executor = NULL;
 
 // instrumentation options
 boolean opt_timing = FALSE;
@@ -283,6 +284,14 @@ OptionInfo opts[] =
                 "select SQL code generator plugin: oracle",
                 OPTION_STRING,
                 wrapOptionString(&plugin_sql_serializer),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.executor",
+                "-Pexecutor",
+                "select Executor plugin: sql (output rewritten SQL code), gp (output Game provenance)",
+                OPTION_STRING,
+                wrapOptionString(&plugin_executor),
                 defOptionString(NULL)
         },
         // boolean instrumentation options

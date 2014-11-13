@@ -1260,6 +1260,10 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
                 appendStringInfoString(str, "*+");
             if (DL_HAS_PROP(a,DL_UNDER_NEG_LOST))
                 appendStringInfoString(str, "*-");
+
+            if (DL_HAS_PROP(a,DL_IS_IDB_REL))
+                appendStringInfoString(str, "@");
+
             if (a->negated)
                 appendStringInfoString(str, "not ");
             appendStringInfo(str, "%s(", a->rel);

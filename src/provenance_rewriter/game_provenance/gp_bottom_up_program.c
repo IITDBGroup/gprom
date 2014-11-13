@@ -156,7 +156,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                 // add all vars to head
                 ruleRule->head->rel = strdup(adRuleName);
                 ruleRule->head->args = copyObject(newRuleArgs);
-                setDLProp((DLNode *) ruleRule->head, DL_ORIG_ATOM, (Node *) createConstString(r->head->rel));
+                setDLProp((DLNode *) ruleRule->head, DL_ORIG_ATOM, (Node *) copyObject(r->head));
 
                 // adapt goal nodes
                 FOREACH(DLAtom,a,ruleRule->body) //TODO comparison atoms
@@ -284,15 +284,16 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         // if is won then we
         if (ruleWon)
         {
-            char *rel = CONCAT_STRINGS(STRING_VALUE(DL_GET_PROP(e->head,DL_ORIG_ATOM)), "_WON");
+            char *rel = CONCAT_STRINGS(STRING_VALUE(DL_GET_PROP(e->head,DL_ORIG_ATOM)), "_LOST");
+            char *negRel = CONCAT_STRINGS(STRING_VALUE(DL_GET_PROP(e->head,DL_ORIG_ATOM)), "_WON");
 
-            Node *lExpr = createSkolemExpr(GP_NODE_NEGREL, rel, e->head->args);
+            Node *lExpr = createSkolemExpr(GP_NODE_NEGREL, negRel, e->head->args);
             Node *rExpr = createSkolemExpr(GP_NODE_POSREL, rel, e->head->args);
             DLRule *moveRule = createMoveRule(lExpr, rExpr, e->head->rel, e->head->args);
             moveRules = appendToTailOfList(moveRules, moveRule);
 
             lExpr = createSkolemExpr(GP_NODE_POSREL, rel, e->head->args);
-            rExpr = createSkolemExpr(GP_NODE_EDB, rel, e->head->args);
+            rExpr = createSkolemExpr(GP_NODE_EDB, negRel, e->head->args);
             moveRule = createMoveRule(lExpr, rExpr, e->head->rel, e->head->args);
             moveRules = appendToTailOfList(moveRules, moveRule);
 
@@ -316,8 +317,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                                        || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
 //        boolean ruleNeg = DL_HAS_PROP(r->head,DL_UNDER_NEG_WON)
 //                                       || DL_HAS_PROP(r->head,DL_UNDER_NEG_LOST);
+        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
         char *headRel = CONCAT_STRINGS(
-                STRING_VALUE(DL_GET_PROP(r->head,DL_ORIG_ATOM)),
+                strdup(origAtom->rel),
                 ruleWon ? "_WON" : "_LOST");
         char *ruleRel = CONCAT_STRINGS(
                 CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
@@ -325,20 +327,24 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
         int j = 0;
 
+
         // head -> rule_i
-        Node *lExpr = createSkolemExpr(GP_NODE_POSREL, headRel, r->head->args);
-        Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, r->head->args);
+        Node *lExpr = createSkolemExpr(GP_NODE_POSREL, headRel, copyObject(origAtom->args));
+        Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(r->head->args));
         DLRule *moveRule = createMoveRule(lExpr, rExpr, r->head->rel, r->head->args);
         moveRules = appendToTailOfList(moveRules, moveRule);
 
         // rule_i -> goal_i_j -> posR/negR -> posR
         FOREACH(DLAtom,a,r->body)
         {
-            char *goalRel = CONCAT_STRINGS("g", itoa(i), itoa(j),
+            char *goalRel = CONCAT_STRINGS(itoa(i), "_", itoa(j),
                     !ruleWon ? "_WON" : "_LOST");
             char *atomRel = CONCAT_STRINGS(
                     STRING_VALUE(DL_GET_PROP(a,DL_ORIG_ATOM)),
                     !ruleWon ? "_WON" : "_LOST");
+            char *negAtomRel = CONCAT_STRINGS(
+                    STRING_VALUE(DL_GET_PROP(a,DL_ORIG_ATOM)),
+                    ruleWon ? "_WON" : "_LOST");
 
             // -> posR
             if (a->negated)
@@ -362,11 +368,11 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                 moveRules = appendToTailOfList(moveRules, moveRule);
 
                 lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(a->args));
-                rExpr = createSkolemExpr(GP_NODE_NEGREL, atomRel, copyObject(a->args));
+                rExpr = createSkolemExpr(GP_NODE_NEGREL, negAtomRel, copyObject(a->args));
                 moveRule = createMoveRule(lExpr, rExpr, r->head->rel, r->head->args);
                 moveRules = appendToTailOfList(moveRules, moveRule);
 
-                lExpr = createSkolemExpr(GP_NODE_NEGREL, goalRel, copyObject(a->args));
+                lExpr = createSkolemExpr(GP_NODE_NEGREL, negAtomRel, copyObject(a->args));
                 rExpr = createSkolemExpr(GP_NODE_POSREL, atomRel, copyObject(a->args));
                 moveRule = createMoveRule(lExpr, rExpr, r->head->rel, r->head->args);
                 moveRules = appendToTailOfList(moveRules, moveRule);
