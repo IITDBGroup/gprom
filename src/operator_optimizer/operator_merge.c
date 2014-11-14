@@ -301,13 +301,13 @@ replaceAttributeRefsMutator (Node *node, ReplaceRefState *state, void **parentPo
         // do not copy if not necessary
         if (VEC_TO_IA(state->refCount)[pos] == 0)
         {
-            DEBUG_LOG("usage count is 0 for %s - do not copy", a->name);
+            DEBUG_LOG("usage count is 0 for %s - do not copy", a->name ? a->name : "NULL");
             *parentP = VEC_TO_ARR(state->projExpr,Node)[pos];
             VEC_TO_IA(state->refCount)[pos] = 1;
         }
         else
         {
-            DEBUG_LOG("%s has been used before - copy", a->name);
+            DEBUG_LOG("%s has been used before - copy", a->name ? a->name : "NULL");
             *parentP = copyObject(VEC_TO_ARR(state->projExpr,Node)[pos]);
         }
 

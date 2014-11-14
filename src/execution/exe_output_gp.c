@@ -11,10 +11,10 @@
  */
 
 #include "common.h"
-#include <regex.h>
 
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
+#include "utility/string_utils.h"
 #include "execution/exe_output_gp.h"
 #include "model/node/nodetype.h"
 #include "model/set/set.h"
@@ -68,22 +68,22 @@ static char *nodeTypeLabel[] = {
 //        "LOST"
 //};
 
-#define WON_COLOR "00AA00"
-#define LOST_COLOR "AA0000"
+#define WON_COLOR "#00AA00"
+#define LOST_COLOR "#AA0000"
 
 static char *nodeTypeCode[] = {
         // RULE
-        "\n\n\tnode [shape=\"rectangle, fill=white, draw\", style=\"rounded corners\" color=\"" WON_COLOR "\"]\n",
-        "\n\n\tnode [shape=\"rectangle, fill=white, draw\", style=\"rounded corners\" color=\"" LOST_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
         // GOAL
-        "\n\n\tnode [shape=\"rectangle, fill=white, draw\", style=\"rounded corners\" color=\"" WON_COLOR "\"]\n",
-        "\n\n\tnode [shape=\"rectangle, fill=white, draw\", style=\"rounded corners\" color=\"" LOST_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"box\", style=\"rounded corners\" color=\"" WON_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"box\", style=\"rounded corners\" color=\"" LOST_COLOR "\"]\n",
         // REL
-        "\n\n\tnode [shape=\"rectangle, fill=white, draw\", style=\"rounded corners\" color=\"" WON_COLOR "\"]\n",
-        "\n\n\tnode [shape=\"rectangle, fill=white, draw\", style=\"rounded corners\" color=\"" LOST_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"ellipse\", style=\"rounded corners\" color=\"" WON_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"ellipse\", style=\"rounded corners\" color=\"" LOST_COLOR "\"]\n",
         // notREL
-        "\n\n\tnode [shape=\"rectangle, fill=white, draw\", style=\"rounded corners\" color=\"" WON_COLOR "\"]\n",
-        "\n\n\tnode [shape=\"rectangle, fill=white, draw\", style=\"rounded corners\" color=\"" LOST_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"ellipse\", style=\"rounded corners\" color=\"" WON_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"ellipse\", style=\"rounded corners\" color=\"" LOST_COLOR "\"]\n",
         // EDB
         "\n\n\tnode [shape=\"rectangle, fill=white, draw\", style=\"rounded corners\" color=\"" WON_COLOR "\"]\n",
         "\n\n\tnode [shape=\"rectangle, fill=white, draw\", style=\"rounded corners\" color=\"" LOST_COLOR "\"]\n",
@@ -107,9 +107,6 @@ static GPNodeType getNodeType (char *node);
 static char *getNodeId (char *node);
 static char *getNodeLabel (char *node, GPNodeType t);
 
-static char *getMatchingSubstring(const char *string, const char *pattern);
-static char *replaceSubstr(char *str, char *pattern, char *repl);
-static char *strEndTok(char *string, char *delim);
 
 void
 executeOutputGP(void *sql)
@@ -121,12 +118,13 @@ executeOutputGP(void *sql)
     List *queryRes;
 
     for (int i = 0; i < NUM_ELEM_GPNodeType; i++)
-        MAP_ADD_INT_KEY(noteTypes, i, NODESET());
+        MAP_ADD_INT_KEY(noteTypes, i, STRSET());
 
     // append pre fix
     appendStringInfoString(script, DOT_PREFIX);
 
     // execute GP query
+    sql = replaceSubstr((char *) sql, ";", "");
     queryRes = executeQuery(sql);
 
     // loop through query result creating edges and caching nodes
@@ -141,13 +139,13 @@ executeOutputGP(void *sql)
         nodes = (Set *) MAP_GET_INT(noteTypes, lType);
         addToSet(nodes, lRawId);
 
-        char *rRawId = (char *) getNthOfListP(t,0);
+        char *rRawId = (char *) getNthOfListP(t,1);
         GPNodeType rType = getNodeType(rRawId);
         char *rId = getNodeId(rRawId);
         nodes = (Set *) MAP_GET_INT(noteTypes, rType);
         addToSet(nodes, rRawId);
 
-        TRACE_LOG("edge <%s - %s> between nodes of type", lRawId, rRawId,
+        DEBUG_LOG("edge <%s - %s> between nodes of types %s, %s", lRawId, rRawId,
                 GPNodeTypeToString(lType), GPNodeTypeToString(rType));
 
         appendStringInfo(edges, DOT_EDGE_TEMP, lId, rId);
@@ -167,6 +165,7 @@ executeOutputGP(void *sql)
         {
             char *label = getNodeLabel(n,t);
             char *id = getNodeId(n);
+            DEBUG_LOG("label and id for node: <%s> and <%s>", label, id);
             appendStringInfo(script,template,id,label);
         }
     }
@@ -188,9 +187,13 @@ executeOutputGP(void *sql)
 static GPNodeType
 getNodeType (char *node)
 {
-    char *prefix = strtok(node,"_");
-    char *wonLost = strEndTok(strtok(node,"("), "_");
-    char *comb = CONCAT_STRINGS(prefix,wonLost);
+    char *prefix  = strdup(node);
+    char *wonLost = strdup(node);
+    char *comb;
+
+    prefix = strtok(prefix,"_");
+    wonLost = strEndTok(strtok(wonLost,"("), "_");
+    comb = CONCAT_STRINGS(prefix,wonLost);
 
     DEBUG_LOG("name <%s> has prefix <%s> and is won/lost <%s>", node, prefix, wonLost);
 
@@ -212,16 +215,19 @@ static char *
 getNodeId (char *node)
 {
     char *id = strdup(node);
+    char *idP = id;
 
-    while(*(id++) != '\0')
+    while(*(idP++) != '\0')
     {
-        if (*id == '(')
-            *id = '_';
-        if (*id == ')')
-            *id = '_';
-        if (*id == ',')
-            *id = '_';
+        if (*idP == '(')
+            *idP = '_';
+        if (*idP == ')')
+            *idP = '_';
+        if (*idP == ',')
+            *idP = '_';
     }
+
+    DEBUG_LOG("node id: <%s>", id);
 
     return id;
 }
@@ -241,7 +247,7 @@ getNodeLabel (char *node, GPNodeType t)
 
     // compile pattern and match to get node id info
     id = getMatchingSubstring(node, "[^_]+[_]([^\\(]+)");
-    args = getMatchingSubstring(node, "[^\\(]+\\(([^\\)]+\\))");
+    args = getMatchingSubstring(node, "[^\\(]+\(\\([^\\)]+\\))");
 
     switch(t)
     {
@@ -265,7 +271,7 @@ getNodeLabel (char *node, GPNodeType t)
         case GP_NODE_NEGREL_WON:
         case GP_NODE_NEGREL_LOST:
         {
-            return CONCAT_STRINGS("$\neg", id, args, "$");
+            return CONCAT_STRINGS("$\\neg", id, args, "$");
         }
         case GP_NODE_EBD_WON:
         case GP_NODE_EBD_LOST:
@@ -278,65 +284,3 @@ getNodeLabel (char *node, GPNodeType t)
     return node; //TODO
 }
 
-static char *
-getMatchingSubstring(const char *string, const char *pattern)
-{
-    char *result;
-    regex_t p;
-    const int n_matches = 2;
-    regmatch_t m[n_matches];
-    int matchRes;
-    int length;
-
-    // compile
-    regcomp(&p, pattern, REG_EXTENDED);
-
-    // match
-    matchRes = regexec (&p, string, n_matches, m, 0);
-    ASSERT(matchRes == 0);
-
-    // return substring
-    length = m[1].rm_eo - m[1].rm_so;
-    result = MALLOC(length + 1);
-    memcpy(result, string + m[1].rm_so, length);
-    result[length] = '\0';
-
-    TRACE_LOG("matched <%s> string <%s> with result <%s>", pattern, string, result);
-
-    return result;
-}
-
-static char *
-strEndTok(char *string, char *delim)
-{
-    char *result;
-    int startPos = strlen(string) - strlen(delim);
-    int newLen = -1;
-
-    while(--startPos > 0 && strncmp(string + startPos, delim, strlen(delim)) != 0)
-        ;
-
-    if (startPos == 0)
-        return NULL;
-
-    newLen = strlen(string) - startPos + 1 + strlen(delim);
-    result = MALLOC(newLen);
-    memcpy(result,string + startPos + strlen(delim), newLen);
-    return result;
-}
-
-static char *
-replaceSubstr(char *str, char *pattern, char *repl)
-{
-    StringInfo result = makeStringInfo();
-    int patternLen = strlen(pattern);
-    while(*str++ != '\0')
-    {
-        if (strncmp(str, pattern, patternLen) == 0)
-            appendStringInfoString(result, repl);
-        else
-            appendStringInfoChar(result, *str);
-    }
-
-    return result->data;
-}
