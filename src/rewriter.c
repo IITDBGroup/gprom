@@ -23,6 +23,7 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "provenance_rewriter/prov_rewriter.h"
+#include "analysis_and_translate/analyzer.h"
 #include "analysis_and_translate/translator.h"
 #include "sql_serializer/sql_serializer.h"
 #include "operator_optimizer/operator_optimizer.h"
@@ -79,7 +80,23 @@ setupPluginsFromOptions(void)
         chooseMetadataLookupPluginFromString(be);
     initMetadataLookupPlugin();
 
-    //TODO SQL code gen
+    // setup analyzer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.analyzer")) != NULL)
+        chooseAnalyzerPluginFromString(pluginName);
+    else
+        chooseAnalyzerPluginFromString(be);
+
+    // setup analyzer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.translator")) != NULL)
+        chooseTranslatorPluginFromString(pluginName);
+    else
+        chooseTranslatorPluginFromString(be);
+
+    // setup analyzer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.sqlserializer")) != NULL)
+        chooseSqlserializerPluginFromString(pluginName);
+    else
+        chooseSqlserializerPluginFromString(be);
 }
 
 int
@@ -171,7 +188,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
 
     START_TIMER("translation");
     oModel = translateParse(parse);
-    DEBUG_LOG("translator returned:\n\n<%s>", nodeToString(oModel));
+    DEBUG_LOG("translator returned:\n\n<%s>", beatify(nodeToString(oModel)));
     INFO_LOG("translator result as overview:\n\n%s", operatorToOverviewString(oModel));
     DOT_TO_CONSOLE(oModel);
     STOP_TIMER("translation");

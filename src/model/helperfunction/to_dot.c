@@ -76,8 +76,6 @@ opsToDot (StringInfo str, QueryOperator *op, int *curId)
 static void
 outputOpDefs(StringInfo str, QueryOperator *op, int *curId, HashMap *nodeToId)
 {
-    char *result;
-
     // do not output same operator twice
     if (MAP_HAS_LONG_KEY(nodeToId,(long) op))
         return;
@@ -177,7 +175,7 @@ leafsToDot (StringInfo str, QueryOperator *op, HashMap *nodeToId, int *curId)
         }
         else if (o->type == T_ConstRelOperator)
         {
-            ConstRelOperator *c = (ConstRelOperator *) o;
+//            ConstRelOperator *c = (ConstRelOperator *) o;
             appendStringInfo(str, "\t%s [label=\"%s\",shape=box,"
                     "color=yellow,style=filled];", nodeId, "{}");
         }

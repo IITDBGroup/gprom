@@ -45,7 +45,7 @@ Node *bisonParseResult = NULL;
 %token <intVal> intConst
 %token <floatVal> floatConst
 %token <stringVal> stringConst
-%token <stringVal> identifier
+%token <stringVal> identifier compositeIdentifier
 %token <stringVal> parameter
 %token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
 
@@ -55,7 +55,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -324,6 +324,18 @@ provOption:
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_TUPLE_VERSIONS),
 					(Node *) createConstBool(TRUE));
 		}
+		| STATEMENT ANNOTATIONS
+		{
+			RULELOG("provOption::STATEMENT::ANNOTATIONS");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_STATEMENT_ANNOTATIONS),
+					(Node *) createConstBool(TRUE));
+		}
+		| NO STATEMENT ANNOTATIONS
+		{
+			RULELOG("provOption::NO::STATEMENT::ANNOTATIONS");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_STATEMENT_ANNOTATIONS),
+					(Node *) createConstBool(FALSE));
+		}
 	;
 	
 /*
@@ -409,12 +421,6 @@ insertQuery:
            	RULELOG("insertQuery::insertList"); 
            	$$ = (Node *) createInsert($3,(Node *) $7, $5); 
      	} 
-         
- /*       | INSERT INTO identifier optInsertAttrList 
-            { 
-                RULELOG("insertQuery::queryStmt");
-                $$ = (Node *) createInsert($3, $5, $4);
-            } */
     ;
     
 insertContent:
@@ -422,55 +428,10 @@ insertContent:
 		| queryStmt
 	;
 	
-/* TODO use identlist + expr list here for INSERT INTO table (attrs) VALUES (exprs) */
-/*insertList:
-        constant
-            { 
-            	RULELOG("insertList::constant");
-            	$$ = singleton($1); 
-            }
-        | identifier
-            {
-                RULELOG("insertList::IDENTIFIER");
-                $$ = singleton(createAttributeReference($1));
-            }
-        | insertList ',' identifier
-            { 
-                RULELOG("insertList::insertList::::IDENTIFIER");
-                $$ = appendToTailOfList($1, createAttributeReference($3));
-            }
-        | insertList ',' constant
-            { 
-            	RULELOG("insertList::insertList::constant");
-            	$$ = appendToTailOfList($1, $3);
-            }
-            */
+
 /* No Provision made for this type of insert statements */
 /* generalize to expression instead of only constant */
     //;
-
-/* optInsertAttrList:
-		 empty  { RULELOG("optInsertAttrList::empty"); $$ = NIL; }
-		| '(' identifierList ')' 
-		{ 
-			RULELOG("optInsertAttrList::list"); 
-			$$ = $2; 
-		}
-	;
-*/
-	
-/* insertAttrList:
-		identifier
-		{
-			RULELOG("insertAttrList::ident");
-			$$ = singleton($1);
-		}
-		| insertAttrList ',' identifier
-		{
-			RULELOG("insertAttrList::list::ident");
-			$$ = CONCAT_LISTS($1,$3);
-		}
-	; */
 
 /*
  * Rules to parse set operator queries
@@ -623,14 +584,25 @@ constant:
  * Parse attribute reference
  */
 attributeRef: 
-        identifier         { RULELOG("attributeRef::IDENTIFIER"); $$ = (Node *) createAttributeReference($1); }
-
+        identifier         
+        { 
+        	RULELOG("attributeRef::IDENTIFIER"); 
+        	$$ = (Node *) createAttributeReference($1); 
+        }
+        | compositeIdentifier  
+        { 
+        	RULELOG("attributeRef::COMPOSITEIDENT"); 
+        	$$ = (Node *) createAttributeReference($1); 
+        }
+	;
+	
 /*
  * SQL parameter
  */
 sqlParameter:
 		parameter		   { RULELOG("sqlParameter::PARAMETER"); $$ = (Node *) createSQLParameter($1); }
-
+	;
+	
 /* HELP HELP ??
        Need helper function support for attribute list in expression.
        For e.g.
@@ -639,7 +611,6 @@ sqlParameter:
               (col1, col2) = (SELECT cl1, cl2 FROM tab2)
        SolQ: Can we use selectItem function here?????
 */
-    ;
 
 /*
  * Parse operator expression

@@ -18,7 +18,7 @@
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 
-static boolean getCaseExprs (Node *node, List **state);
+//static boolean getCaseExprs (Node *node, List **state);
 
 static Node *factorAttrRefs (Node *node);
 static Node *removeNonOpCase (Node *node, void *state);
@@ -84,9 +84,14 @@ factorAttrRefs (Node *node)
     //TODO we may have to explore alternative options
     do {
         previous = node;
+
+        TRACE_LOG("before remove non op case",nodeToString(node));
         node = removeNonOpCase(previous, NULL);
+        TRACE_LOG("before factor add",nodeToString(node));
         node = factorAdd(node, NULL);
+        TRACE_LOG("before factor mult",nodeToString(node));
         node = factorMult(node, NULL);
+        TRACE_LOG("merge same result case",nodeToString(node));
         node = mergeSameResultCase(node, NULL);
     } while(!equal(node,previous));
 
@@ -132,7 +137,7 @@ factorAdd (Node *node, void *state)
             CaseWhen *w = (CaseWhen *) getHeadOfListP(c->whenClauses);
             Operator *add;
             AttributeReference *a;
-            Node *opChild;
+//            Node *opChild;
 
             // else is attribute reference
             if (isA(c->elseRes,AttributeReference) && isA(w->then,Operator))
@@ -158,6 +163,8 @@ factorAdd (Node *node, void *state)
                     // new arguments to + are a, CASE WHEN C THEN X ELSE 0 END
                     add->args = LIST_MAKE(copyObject(a), c);
 
+                    DEBUG_LOG("factored add: ", add);
+
                     return (Node *)  add;
                 }
             }
@@ -176,13 +183,43 @@ factorMult (Node *node, void *state)
     if (isA(node,CaseExpr))
     {
         CaseExpr *c = (CaseExpr *) node;
-        //TODO
+
         if (LIST_LENGTH(c->whenClauses) == 1)
         {
             CaseWhen *w = (CaseWhen *) getHeadOfListP(c->whenClauses);
+            Operator *mult;
+            AttributeReference *a;
+//            Node *opChild;
 
-            if (equal(w->then,c->elseRes))
-                 return copyObject(c->elseRes);
+            // else is attribute reference
+            if (isA(c->elseRes,AttributeReference) && isA(w->then,Operator))
+            {
+                a = (AttributeReference *) c->elseRes;
+                mult = (Operator *) w->then;
+
+                // operator is + and attribute a is one argument
+                if (streq(mult->name,"*") && searchListNode(mult->args, (Node *) a))
+                {
+                    int aPos = genericListPos(mult->args, equal, a);
+                    ASSERT(aPos == 0 || aPos == 1);
+
+                    // copy data structures
+                    mult = copyObject(mult);
+                    c = copyObject(c);
+                    w = (CaseWhen *) getHeadOfListP(c->whenClauses);
+
+                    // change CASE to CASE WHEN C THEN X ELSE 0 END
+                    w->then = (Node *) getNthOfListP(mult->args, aPos == 0 ? 1 : 0);
+                    c->elseRes = (Node *) createConstInt(0);
+
+                    // new arguments to + are a, CASE WHEN C THEN X ELSE 0 END
+                    mult->args = LIST_MAKE(copyObject(a), c);
+
+                    DEBUG_LOG("factored add: ", mult);
+
+                    return (Node *)  mult;
+                }
+            }
         }
     }
 
@@ -227,14 +264,14 @@ mergeSameResultCase (Node *node, void *state)
 }
 
 // need to capture pointers for replacement too?
-static boolean
-getCaseExprs (Node *node, List **state)
-{
-    if (node == NULL)
-        return TRUE;
-
-    if (isA(node, CaseExpr))
-        *state = appendToTailOfList(*state, node);
-
-    return visit(node, getCaseExprs, state);
-}
+//static boolean
+//getCaseExprs (Node *node, List **state)
+//{
+//    if (node == NULL)
+//        return TRUE;
+//
+//    if (isA(node, CaseExpr))
+//        *state = appendToTailOfList(*state, node);
+//
+//    return visit(node, getCaseExprs, state);
+//}

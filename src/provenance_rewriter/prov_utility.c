@@ -114,6 +114,33 @@ createProjOnAllAttrs(QueryOperator *op)
     return (QueryOperator *) p;
 }
 
+QueryOperator *
+createProjOnAttrs(QueryOperator *op, List *attrPos)
+{
+    ProjectionOperator *p;
+    List *projExprs = NIL;
+    List *attrNames = NIL;
+    int i = 0;
+
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    {
+        AttributeReference *att;
+
+        //TODO use set would be better
+        if (searchListInt(attrPos, i))
+        {
+            att = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR, a->dataType);
+            projExprs = appendToTailOfList(projExprs, att);
+            attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
+        }
+    }
+
+    p = createProjectionOp (projExprs, NULL, NIL, attrNames);
+    p->op.provAttrs = copyObject(op->provAttrs);
+
+    return (QueryOperator *) p;
+}
+
 /*
  * Given a subtree rooted a "orig" replace this subtree with the tree rooted
  * at "new". This method adapts all input lists of all parents of "orig" to point

@@ -37,7 +37,7 @@ static boolean regExMatch (char *reg, char *str);
 Node *
 setParameterValues (Node *qbModel, List *values)
 {
-    List *params = findParameters (qbModel);
+//    List *params = findParameters (qbModel);
 
     return replaceParamMutator(qbModel, values);
 }
@@ -176,8 +176,6 @@ oracleBindToConsts (char *binds)
 static Constant *
 createBindConstant (char *value)
 {
-    Constant *result;
-
     if(regExMatch("^[0-9][0-9]*$",value))
         return createConstLong(atol(value));
 

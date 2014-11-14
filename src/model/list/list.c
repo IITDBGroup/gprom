@@ -247,7 +247,6 @@ List *
 listMake(void *elem, ...)
 {
     List *result = singleton(elem);
-    int n = 0;
     va_list args;
     void *p;
 
@@ -279,12 +278,13 @@ appendToTailOfList(List *list, void *value)
 {
     ASSERT(isPtrList(list));
 	
-    if (list == NIL) 
+    if (list == NIL || list->length == 0)
 		list = newList(T_List);
 	else
         newListTail(list);
     
     list->tail->data.ptr_value = value;
+
     ASSERT(checkList(list));
     return list;
 }
@@ -515,6 +515,20 @@ sublist(List *l, int from, int to)
     return result;
 }
 
+List *
+genericSublist(List *l, boolean (*pred) (void *, void *), void *context)
+{
+    List *result = NIL;
+
+    FOREACH(void,n,l)
+    {
+        if (pred(n, context))
+            result = appendToTailOfList(result, n);
+    }
+
+    return result;
+}
+
 boolean
 searchList(List *list, void *value)
 {
@@ -615,7 +629,6 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 {
     ASSERT(isPtrList(list));
     List *result = NULL;
-    ListCell *prev = getHeadOfList(list);
 
     FOREACH_LC(lc,list)
     {

@@ -163,12 +163,12 @@ testNodeSet(void)
 static rc
 testSetIteration(void)
 {
-    Set *a, *b;
+    Set *a; //, *b;
     int exp[3] = {1,2,3};
-    int pos;
+//    int pos;
 
     a = MAKE_INT_SET(1,2,3);
-    pos = 0;
+//    pos = 0;
     FOREACH_SET(int,i,a)
     {
         boolean found = FALSE;

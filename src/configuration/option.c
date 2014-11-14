@@ -67,6 +67,9 @@ char *backend = NULL;
 char *plugin_metadata = NULL;
 char *plugin_parser = NULL;
 char *plugin_sqlcodegen = NULL;
+char *plugin_analyzer = NULL;
+char *plugin_translator = NULL;
+char *plugin_sql_serializer = NULL;
 
 // instrumentation options
 boolean opt_timing = FALSE;
@@ -92,6 +95,12 @@ boolean opt_remove_redundant_projections = TRUE;
 boolean opt_optimization_pulling_up_provenance_proj = FALSE;
 boolean opt_optimization_push_selections_through_joins = FALSE;
 boolean opt_optimization_selection_move_around = FALSE;
+
+// sanity check options
+boolean opt_operator_model_unique_schema_attribues = FALSE;
+boolean opt_operator_model_parent_child_links = FALSE;
+boolean opt_operator_model_schema_consistency = FALSE;
+boolean opt_operator_model_attr_reference_consistency = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -131,6 +140,15 @@ static char *defGetString(OptionDefault *def, OptionType type);
             defOptionBool(_def) \
         }
 
+#define anSanityCheckOption(_name,_opt,_desc,_var,_def) \
+        { \
+            _name, \
+            _opt, \
+            _desc, \
+            OPTION_BOOL, \
+            wrapOptionBool(&_var), \
+            defOptionBool(_def) \
+        }
 
 
 #define OPT_POS(name) INT_VALUE(MAP_GET_STRING(optionPos,name))
@@ -247,6 +265,30 @@ OptionInfo opts[] =
                 wrapOptionString(&plugin_sqlcodegen),
                 defOptionString(NULL)
         },
+        {
+                "plugin.analyzer",
+                "-Panalyzer",
+                "select parser result model analyzer: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_analyzer),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.translator",
+                "-Ptranslator",
+                "select parser result to relational algebra translator: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_translator),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.sqlserializer",
+                "-Psqlserializer",
+                "select SQL code generator plugin: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_sql_serializer),
+                defOptionString(NULL)
+        },
         // boolean instrumentation options
         aRewriteOption(OPTION_TIMING,
                 NULL,
@@ -274,7 +316,7 @@ OptionInfo opts[] =
                 "Use disjunctions of update conditions to filter out tuples from "
                 "transaction provenance that are not updated by the transaction.",
                 opt_update_only_conditions,
-                FALSE),
+                TRUE),
         aRewriteOption(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN,
                 NULL,
                 "Use a join between the version at commit time with the table version"
@@ -301,7 +343,7 @@ OptionInfo opts[] =
                 NULL,
                 "Create reenactment query for UPDATE statements using CASE instead of UNION.",
                 opt_translate_update_with_case,
-                FALSE),
+                TRUE),
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
                 "-Opush_selections",
@@ -354,6 +396,38 @@ OptionInfo opts[] =
                 opt_optimization_selection_move_around,
                 TRUE
                 ),
+        // sanity model checking options
+        anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
+                "-Cunique_attr_names",
+                "Model Check: check that attribute names are unique for each operator's schema.",
+                opt_operator_model_unique_schema_attribues,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_PARENT_CHILD_LINKS,
+                "-Cparent_child_links",
+                "Model Check: check that an query operator graph is correctly "
+                "connected. For example, if X is a child of Y then Y should"
+                " be a parent of X.",
+                opt_operator_model_parent_child_links ,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_SCHEMA_CONSISTENCY,
+                "-Cschema_consistency",
+                "Model Check: Perform operator type specific sanity checks"
+                " on the schema of an operator. For example, the number of"
+                " attributes in a projection's schema should be equal to the"
+                " number of projection expressions.",
+                opt_operator_model_schema_consistency,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_ATTR_REF,
+                "-Cattr_reference_consistency",
+                "Model Check: check that attribute references used in "
+                "expressions are consistent. For instance, they have to "
+                "refer to existing inputs and attributes.",
+                opt_operator_model_attr_reference_consistency,
+                TRUE
+        ),
         // stopper to indicate end of array
         {
                 "STOPPER",
@@ -626,6 +700,8 @@ valGetString(OptionValue *def, OptionType type)
             return buf;
         }
     }
+
+    return NULL; //keep compiler quit
 }
 
 
@@ -647,4 +723,6 @@ defGetString(OptionDefault *def, OptionType type)
             return buf;
         }
     }
+
+    return NULL; //keep compiler quit
 }

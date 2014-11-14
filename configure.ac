@@ -1,19 +1,4 @@
-AC_INIT([tprov],[0.0.1],[bglavic@iit.edu])
-AC_CONFIG_AUX_DIR(config)
-AM_INIT_AUTOMAKE([-Wall -Werror foreign])
-AC_CONFIG_MACRO_DIR([m4])
-AC_SUBST([ACLOCAL_AMFLAGS],[-I m4])
 ################################################################################
-# CHECK FOR C COMPILER AND FEATURES, BINUTILS, AND BISON + FLEX
-AC_PROG_CC
-AC_PROG_CC_STDC
-# CAN INLINE FUNCTIONS?
-AC_C_INLINE
-AM_PROG_AR
-AC_PROG_YACC
-AC_PROG_LEX
-# INIT LIBTOOL
-LT_INIT
 ################################################################################
 # DEFINTIONS OF HELPER FUNCTIONS FOR GETTING USER OPTIONS
 # OCI location
@@ -206,6 +191,59 @@ AS_IF([test "x$enable_oracle" == "xno"], [
   AC_MSG_RESULT([yes])
 ])
 ])
+# set custom compiler flags
+AC_DEFUN([AC_SET_CUSTOM_CFLAGS],
+[
+AC_MSG_CHECKING([set custom C compiler flags])
+AS_IF([test "x$enable_debug" == "xno"], 
+[
+	GPROM_CFLAGS_DEBUG="-g"
+	GPROM_CFLAGS_OPT="-O3"
+	GPROM_CFLAGS_ERR="-Wall"
+],
+[
+	GPROM_CFLAGS_DEBUG="-g"
+	GPROM_CFLAGS_ERR="-Wall -Werror"
+	GPROM_CFLAGS_OPT="-O0"
+])
+GPROM_CFLAGS="${GPROM_CFLAGS_DEBUG} ${GPROM_CFLAGS_OPT} ${GPROM_CFLAGS_ERR}"
+AC_SUBST([GPROM_CFLAGS],[$GPROM_CFLAGS])
+AC_SUBST([GPROM_CFLAGS_OPT],[$GPROM_CFLAGS_OPT])
+AC_SUBST([GPROM_CFLAGS_ERROR],[$GPROM_CFLAGS_ERROR])
+AC_MSG_RESULT($GPROM_CFLAGS)
+])
+################################################################################
+AC_INIT([GProM],[0.0.1],[bglavic@iit.edu])
+AC_CONFIG_AUX_DIR(config)
+AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AC_CONFIG_MACRO_DIR([m4])
+AC_SUBST([ACLOCAL_AMFLAGS],[-I m4])
+################################################################################
+# CHECK FOR C COMPILER AND FEATURES, BINUTILS, AND BISON + FLEX
+AS_IF([test "x$CFLAGS" != "x"],
+[
+	userCFLAGS="$CFLAGS"	
+],
+[]
+) 
+AC_PROG_CC
+# restore user CFLAGS
+AS_IF([test "x$userCFLAGS" == "x"],
+[
+	CFLAGS=""
+],
+[
+	CFLAGS="$userCFLAGS"
+]
+) 
+AC_PROG_CC_STDC
+# CAN INLINE FUNCTIONS?
+AC_C_INLINE
+AM_PROG_AR
+AC_PROG_YACC
+AC_PROG_LEX
+# INIT LIBTOOL
+LT_INIT
 ################################################################################
 # DATA TYPES
 AC_TYPE_SIZE_T
@@ -266,6 +304,9 @@ AC_ASSERT_ACTIVE
 AC_DEBUG_ACTIVE
 AC_TIMING_ACTIVE
 ################################################################################
+# set compiler flags
+AC_SET_CUSTOM_CFLAGS
+################################################################################
 # OUTPUT HEADER
 AC_CONFIG_HEADERS([config.h])
 ################################################################################
@@ -281,6 +322,7 @@ AC_CONFIG_FILES([
 	src/mem_manager/Makefile
 	src/metadata_lookup/Makefile
 	src/model/Makefile
+	src/model/datalog/Makefile
 	src/model/expression/Makefile
 	src/model/helperfunction/Makefile
 	src/model/list/Makefile
@@ -298,3 +340,20 @@ AC_CONFIG_FILES([
 	test/Makefile
 ])
 AC_OUTPUT
+
+echo "
+  ($PACKAGE_NAME) version $PACKAGE_VERSION
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  Prefix.............: $prefix
+  Debug Build........: ${enable_debug:=yes}
+  Link with GNU perftools: ${enable_link_perftools:=no}
+  Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes}
+  Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  CFLAGS ........: $CFLAGS
+  CPPFLAGS ......: $CPPFLAGS
+  GPROM_CFLAGS...: $GPROM_CFLAGS
+  LDFLAGS........: $LDFLAGS
+  C Compiler.....: $C $CPPFLAGS $GPROM_CFLAGS $CFLAGS
+  Linker.........: $LD $LDFLAGS $LIBS
+"

@@ -30,7 +30,7 @@ int
 main (int argc, char* argv[])
 {
     Node *result;
-    int retVal;
+//    int retVal;
 
     // initialize components
     READ_OPTIONS_AND_INIT("testparser", "Run parser stage only.");

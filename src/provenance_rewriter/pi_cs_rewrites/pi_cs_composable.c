@@ -207,10 +207,10 @@ static QueryOperator *
 rewritePI_CSComposableJoin (JoinOperator *op)
 {
     DEBUG_LOG("REWRITE-PICS-Composable - Join");
-    WindowOperator *wOp;
+    WindowOperator *wOp = NULL;
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
-    QueryOperator *prev;
+    QueryOperator *prev = NULL;
     boolean noDupInput = isTupleAtATimeSubtree((QueryOperator *) op);
     boolean lChildNoDup = isTupleAtATimeSubtree(lChild);
     boolean rChildNoDup = isTupleAtATimeSubtree(rChild);
@@ -334,7 +334,7 @@ static QueryOperator *
 rewritePI_CSComposableAggregation (AggregationOperator *op)
 {
     boolean groupBy = (op->groupBy != NIL);
-    WindowOperator *curWindow;
+    WindowOperator *curWindow = NULL;
     QueryOperator *firstChild;
     QueryOperator *curChild;
     ProjectionOperator *proj;
@@ -465,9 +465,9 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
     // else move result TID and prov dup attribute to end of list
     else
     {
-        List *tidAndDupAttrs = sublist(copyList(normalAttrs),
-                LIST_LENGTH(normalAttrs) - 3,
-                LIST_LENGTH(normalAttrs));
+//        List *tidAndDupAttrs = sublist(copyList(normalAttrs),
+//                LIST_LENGTH(normalAttrs) - 3,
+//                LIST_LENGTH(normalAttrs));
         normalAttrs = sublist(normalAttrs,
                 LIST_LENGTH(normalAttrs) - LIST_LENGTH(op->aggrs) - 2,
                 LIST_LENGTH(normalAttrs) - 2);
@@ -542,7 +542,7 @@ rewritePI_CSComposableSet (SetOperator *op)
 static QueryOperator *
 rewritePI_CSComposableTableAccess(TableAccessOperator *op)
 {
-    List *tableAttr;
+//    List *tableAttr;
     List *provAttr = NIL;
     List *projExpr = NIL;
     char *newAttrName;
@@ -632,8 +632,6 @@ addResultTIDAndProvDupAttrs (QueryOperator *op, boolean addToSchema)
 
     if (addToSchema)
     {
-        char *attrName;
-
         op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs,
                 createAttributeDef(strdup(RESULT_TID_ATTR), DT_INT));
         op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs,

@@ -17,7 +17,7 @@
 
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
-
+#include "model/datalog/datalog_model.h"
 
 /* function declarations */
 static void exprToSQLString(StringInfo str, Node *expr);
@@ -245,6 +245,9 @@ exprToSQLString(StringInfo str, Node *expr)
     {
         case T_AttributeReference:
             attributeReferenceToSQL(str, (AttributeReference *) expr);
+            break;
+        case T_DLVar:
+            appendStringInfo(str, "%s", ((DLVar *) expr)->name);
             break;
         case T_Constant:
             constantToSQL(str, (Constant *) expr);

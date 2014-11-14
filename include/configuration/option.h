@@ -37,6 +37,12 @@ typedef enum OptionType {
 #define OPTIMIZATION_SELECTION_MOVE_AROUND "optimization.selection_move_around"
 //#define OPTIMIZATION_ "optimization_"
 
+/* define model checking options */
+#define CHECK_OM_UNIQUE_ATTR_NAMES "check.unique_attrs"
+#define CHECK_OM_PARENT_CHILD_LINKS "check.parent_child_links"
+#define CHECK_OM_SCHEMA_CONSISTENCY "check.schema_consistency"
+#define CHECK_OM_ATTR_REF "check.attr_ref_consistency"
+
 // declare option fields
 // show help only
 extern boolean opt_show_help;

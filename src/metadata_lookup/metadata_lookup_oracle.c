@@ -62,7 +62,7 @@ static OCI_Transaction *createTransaction(IsolationLevel isoLevel);
 static OCI_Resultset *executeStatement(char *statement);
 static boolean executeNonQueryStatement(char *statement);
 static void handleError (OCI_Error *error);
-static inline char *LobToChar (OCI_Lob *lob);
+//static inline char *LobToChar (OCI_Lob *lob);
 static DataType ociTypeToDT(unsigned int typ);
 
 static void addToTableBuffers(char *tableName, List *attrs);
@@ -1031,7 +1031,7 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 static OCI_Transaction *
 createTransaction(IsolationLevel isoLevel)
 {
-    unsigned int mode;
+    unsigned int mode = 0;
     OCI_Transaction *result = NULL;
 
     START_TIMER("module - metadata lookup");
@@ -1099,29 +1099,29 @@ oracleDatabaseConnectionClose()
 
 #define maxRead 8000
 
-static inline char *
-LobToChar (OCI_Lob *lob)
-{
-    unsigned int read = 1;
-    unsigned int byteRead = 0;
-    static char buf[maxRead];
-    StringInfo str = makeStringInfo();
-
-    if (lob == NULL)
-        return "";
-
-    while(OCI_LobRead2(lob, buf, &read, &byteRead) && read > 0)
-    {
-        buf[read] = '\0';
-        appendStringInfoString(str,buf);
-        DEBUG_LOG("read CLOB (%u): %s", read, buf);
-        read = maxRead - 1;
-    }
-
-    DEBUG_LOG("read CLOB: %s", str->data);
-
-    return str->data;
-}
+//static inline char *
+//LobToChar (OCI_Lob *lob)
+//{
+//    unsigned int read = 1;
+//    unsigned int byteRead = 0;
+//    static char buf[maxRead];
+//    StringInfo str = makeStringInfo();
+//
+//    if (lob == NULL)
+//        return "";
+//
+//    while(OCI_LobRead2(lob, buf, &read, &byteRead) && read > 0)
+//    {
+//        buf[read] = '\0';
+//        appendStringInfoString(str,buf);
+//        DEBUG_LOG("read CLOB (%u): %s", read, buf);
+//        read = maxRead - 1;
+//    }
+//
+//    DEBUG_LOG("read CLOB: %s", str->data);
+//
+//    return str->data;
+//}
 
 /* OCILIB is not available, fake functions */
 #else

@@ -23,6 +23,7 @@ extern void addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *sou
 extern List *getProvAttrProjectionExprs(QueryOperator *op);
 extern List *getNormalAttrProjectionExprs(QueryOperator *op);
 extern QueryOperator *createProjOnAllAttrs(QueryOperator *op);
+extern QueryOperator *createProjOnAttrs(QueryOperator *op, List *attrPos);
 
 // graph manipulation
 extern void switchSubtrees(QueryOperator *orig, QueryOperator *new);

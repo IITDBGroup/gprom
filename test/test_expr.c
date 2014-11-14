@@ -118,7 +118,7 @@ testOperator (void)
 static rc
 testExpressionToSQL()
 {
-    Constant *c1, *c2;
+//    Constant *c1, *c2;
     Operator *o;
 
     o = createOpExpr("+", LIST_MAKE(createConstInt(1), createConstInt(2)));

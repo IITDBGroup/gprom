@@ -51,6 +51,8 @@
 #define PREP_VISIT(_type) \
         _type *n = (_type *) node; \
         TRACE_LOG("visit node <%s>", nodeToString(node));
+#define LOG_VISIT_ONLY(_type) \
+		TRACE_LOG("visit node <%s>", nodeToString(node));
 
 #define VISIT_OPERATOR_FIELDS() \
         do { \
@@ -78,7 +80,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         /* expression nodes */
         case T_Constant:
         	{
-        		PREP_VISIT(Constant);
+        	    LOG_VISIT_ONLY(Constant);
         	}
             break;
         case T_AttributeReference:
@@ -189,7 +191,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         	break;
         case T_FromTableRef:
         	{
-        		PREP_VISIT(FromTableRef);
+        	    LOG_VISIT_ONLY(FromTableRef);
         	}
         	break;
         case T_FromSubquery:
@@ -247,7 +249,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         	break;
         case T_AttributeDef:
         	{
-        		PREP_VISIT(AttributeDef);
+        	    LOG_VISIT_ONLY(AttributeDef);
         		//VISIT();
         	}
         	break;
@@ -587,17 +589,18 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         	{
         	    NEWN(ProvenanceComputation);
     			MUTATE_OPERATOR();
+    			MUTATE(ProvenanceTransactionInfo, transactionInfo);
         	}
         	break;
         case T_TableAccessOperator:
     		{
-    		    NEWN(TableAccessOperator);
+//    		    NEWN(TableAccessOperator);
     			MUTATE_OPERATOR();
     		}
         	break;
         case T_SetOperator:
     		{
-    		    NEWN(SetOperator);
+//    		    NEWN(SetOperator);
     			MUTATE_OPERATOR();
     		}
         	break;
@@ -680,7 +683,7 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
         /* expression nodes */
         case T_Constant:
             {
-                PREP_VISIT_P(Constant);
+                LOG_VISIT_ONLY(Constant);
             }
             break;
         case T_AttributeReference:
@@ -791,7 +794,7 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
             break;
         case T_FromTableRef:
             {
-                PREP_VISIT_P(FromTableRef);
+                LOG_VISIT_ONLY(FromTableRef);
             }
             break;
         case T_FromSubquery:
@@ -849,7 +852,7 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
             break;
         case T_AttributeDef:
             {
-                PREP_VISIT_P(AttributeDef);
+                LOG_VISIT_ONLY(AttributeDef);
                 //VISIT_P();
             }
             break;

@@ -176,10 +176,11 @@ static QueryOperator *
 translateUpdateWithCase(Update *update)
 {
 	List *attrs = getAttributeNames(update->nodeName);
+	List *dts = getAttributeDataTypes(update->nodeName);
 	// create table access operator
 	TableAccessOperator *to;
 	to = createTableAccessOp(strdup(update->nodeName), NULL, NULL, NIL,
-			deepCopyStringList(attrs), NIL);
+			deepCopyStringList(attrs), dts);
     SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	// CREATE PROJECTION EXPRESSIONS
@@ -187,6 +188,8 @@ translateUpdateWithCase(Update *update)
 	for (int i = 0; i < LIST_LENGTH(attrs); i++)
 	{
 		Node *projExpr = NULL;
+		DataType aDT = getNthOfListInt(dts, i);
+
 		FOREACH(Operator,o,update->selectClause)
 		{
 			AttributeReference *a = (AttributeReference *) getNthOfListP(
@@ -196,7 +199,7 @@ translateUpdateWithCase(Update *update)
 			    Node *cond = copyObject(update->cond);
 			    Node *then = copyObject(getNthOfListP(o->args, 1));
 			    Node *els = (Node *) createFullAttrReference(getNthOfListP(attrs, i),
-	                    0, i, 0,DT_STRING); //TODO
+	                    0, i, 0, a->attrType); //TODO
 			    CaseExpr *caseExpr;
 			    CaseWhen *caseWhen;
 
@@ -210,7 +213,7 @@ translateUpdateWithCase(Update *update)
 
 		if (projExpr == NULL)
 			projExpr = (Node *) createFullAttrReference(getNthOfListP(attrs, i),
-					0, i, 0, DT_STRING);//TODO get from metadata lookup
+					0, i, 0, aDT);
 		projExprs = appendToTailOfList(projExprs, projExpr);
 	}
 
