@@ -73,6 +73,7 @@ replaceSubstr(char *str, char *pattern, char *repl)
     {
         if (strncmp(str, pattern, patternLen) == 0)
         {
+            str += patternLen - 1;
             if (strlen(repl) > 0)
                 appendStringInfoString(result, repl);
         }

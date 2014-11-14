@@ -68,45 +68,45 @@ static char *nodeTypeLabel[] = {
 //        "LOST"
 //};
 
-#define WON_COLOR "#00AA00"
-#define LOST_COLOR "#AA0000"
+#define WON_COLOR "#CBFFCB"
+#define LOST_COLOR "#FF8383"
 
 static char *nodeTypeCode[] = {
         // RULE
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
         // GOAL
-        "\n\n\tnode [shape=\"box\", style=\"rounded corners\" color=\"" WON_COLOR "\"]\n",
-        "\n\n\tnode [shape=\"box\", style=\"rounded corners\" color=\"" LOST_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
         // REL
-        "\n\n\tnode [shape=\"ellipse\", style=\"rounded corners\" color=\"" WON_COLOR "\"]\n",
-        "\n\n\tnode [shape=\"ellipse\", style=\"rounded corners\" color=\"" LOST_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"ellipse\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"ellipse\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
         // notREL
-        "\n\n\tnode [shape=\"ellipse\", style=\"rounded corners\" color=\"" WON_COLOR "\"]\n",
-        "\n\n\tnode [shape=\"ellipse\", style=\"rounded corners\" color=\"" LOST_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"ellipse\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"ellipse\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
         // EDB
-        "\n\n\tnode [shape=\"rectangle, fill=white, draw\", style=\"rounded corners\" color=\"" WON_COLOR "\"]\n",
-        "\n\n\tnode [shape=\"rectangle, fill=white, draw\", style=\"rounded corners\" color=\"" LOST_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
 };
 
 
 static char *nodeTypeNodeCode[] = {
-        "%s [texlbl=\"%s\"]\n",
-        "%s [texlbl=\"%s\"]\n",
-        "%s [texlbl=\"%s\"]\n",
-        "%s [texlbl=\"%s\"]\n",
-        "%s [texlbl=\"%s\"]\n",
-        "%s [texlbl=\"%s\"]\n",
-        "%s [texlbl=\"%s\"]\n",
-        "%s [texlbl=\"%s\"]\n",
-        "%s [texlbl=\"%s\"]\n",
-        "%s [texlbl=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\"]\n",
 };
 
 static GPNodeType getNodeType (char *node);
 static char *getNodeId (char *node);
 static char *getNodeLabel (char *node, GPNodeType t);
-
+static char *getTexNodeLabel (char *node, GPNodeType t);
 
 void
 executeOutputGP(void *sql)
@@ -165,8 +165,9 @@ executeOutputGP(void *sql)
         {
             char *label = getNodeLabel(n,t);
             char *id = getNodeId(n);
+            char *texLabel = getTexNodeLabel(n,t);
             DEBUG_LOG("label and id for node: <%s> and <%s>", label, id);
-            appendStringInfo(script,template,id,label);
+            appendStringInfo(script,template,id,label,texLabel);
         }
     }
     // append post fix
@@ -235,18 +236,62 @@ getNodeId (char *node)
 static char *
 getNodeLabel (char *node, GPNodeType t)
 {
-    // extract actual name of node
-//    regex_t idPat;
-//    regex_t argsPat;
-//    const int n_matches = 2;
-//    regmatch_t m[n_matches];
-//    const char *match;
-//    int nomatch;
     char *id;
     char *args;
 
     // compile pattern and match to get node id info
     id = getMatchingSubstring(node, "[^_]+[_]([^\\(]+)");
+    id = replaceSubstr(id, "_WON", "");
+    id = replaceSubstr(id, "_LOST", "");
+
+    args = getMatchingSubstring(node, "[^\\(]+\(\\([^\\)]+\\))");
+
+    switch(t)
+    {
+        // $r_0(a,1,3)$
+        case GP_NODE_RULE_WON:
+        case GP_NODE_RULE_LOST:
+            return CONCAT_STRINGS("r", id, " ", args);
+            break;
+        // $g_{i}^{j}(a,1,2)$
+        case GP_NODE_GOAL_WON:
+        case GP_NODE_GOAL_LOST:
+        {
+            char *newId = replaceSubstr(id, "_", ",");
+            return CONCAT_STRINGS("g[", newId, "]", args);
+        }
+        case GP_NODE_POSREL_WON:
+        case GP_NODE_POSREL_LOST:
+        {
+            return CONCAT_STRINGS(id, args);
+        }
+        case GP_NODE_NEGREL_WON:
+        case GP_NODE_NEGREL_LOST:
+        {
+            return CONCAT_STRINGS("not ", id, args);
+        }
+        case GP_NODE_EBD_WON:
+        case GP_NODE_EBD_LOST:
+        {
+            return CONCAT_STRINGS(id, args);
+        }
+        break;
+    }
+
+    return node; //TODO
+}
+
+static char *
+getTexNodeLabel (char *node, GPNodeType t)
+{
+    char *id;
+    char *args;
+
+    // compile pattern and match to get node id info
+    id = getMatchingSubstring(node, "[^_]+[_]([^\\(]+)");
+    id = replaceSubstr(id, "_WON", "");
+    id = replaceSubstr(id, "_LOST", "");
+
     args = getMatchingSubstring(node, "[^\\(]+\(\\([^\\)]+\\))");
 
     switch(t)
@@ -271,7 +316,7 @@ getNodeLabel (char *node, GPNodeType t)
         case GP_NODE_NEGREL_WON:
         case GP_NODE_NEGREL_LOST:
         {
-            return CONCAT_STRINGS("$\\neg", id, args, "$");
+            return CONCAT_STRINGS("$\\neg ", id, args, "$");
         }
         case GP_NODE_EBD_WON:
         case GP_NODE_EBD_LOST:
@@ -283,4 +328,3 @@ getNodeLabel (char *node, GPNodeType t)
 
     return node; //TODO
 }
-

@@ -284,8 +284,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         // if is won then we
         if (ruleWon)
         {
-            char *rel = CONCAT_STRINGS(STRING_VALUE(DL_GET_PROP(e->head,DL_ORIG_ATOM)), "_LOST");
-            char *negRel = CONCAT_STRINGS(STRING_VALUE(DL_GET_PROP(e->head,DL_ORIG_ATOM)), "_WON");
+            char *rel = CONCAT_STRINGS(STRING_VALUE(DL_GET_PROP(e->head,DL_ORIG_ATOM)), "_WON");
+            char *negRel = CONCAT_STRINGS(STRING_VALUE(DL_GET_PROP(e->head,DL_ORIG_ATOM)), "_LOST");
 
             Node *lExpr = createSkolemExpr(GP_NODE_NEGREL, negRel, e->head->args);
             Node *rExpr = createSkolemExpr(GP_NODE_POSREL, rel, e->head->args);
@@ -323,7 +323,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                 ruleWon ? "_WON" : "_LOST");
         char *ruleRel = CONCAT_STRINGS(
                 CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
-                ruleWon ? "_WON" : "_LOST");
+                !ruleWon ? "_WON" : "_LOST");
         int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
         int j = 0;
 
@@ -338,13 +338,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         FOREACH(DLAtom,a,r->body)
         {
             char *goalRel = CONCAT_STRINGS(itoa(i), "_", itoa(j),
-                    !ruleWon ? "_WON" : "_LOST");
+                    ruleWon ? "_WON" : "_LOST");
             char *atomRel = CONCAT_STRINGS(
                     STRING_VALUE(DL_GET_PROP(a,DL_ORIG_ATOM)),
-                    !ruleWon ? "_WON" : "_LOST");
+                    ruleWon ? "_WON" : "_LOST");
             char *negAtomRel = CONCAT_STRINGS(
                     STRING_VALUE(DL_GET_PROP(a,DL_ORIG_ATOM)),
-                    ruleWon ? "_WON" : "_LOST");
+                    !ruleWon ? "_WON" : "_LOST");
 
             // -> posR
             if (a->negated)
@@ -659,7 +659,7 @@ unifyOneRule(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom)
                 FOREACH(Node,arg,a->args)
                     if (isA(arg,Constant))
                         hasConst = TRUE;
-                if (hasConst)
+//                if (hasConst)
                     unifyOneRule(pToR,rToUn,a);
             }
         }

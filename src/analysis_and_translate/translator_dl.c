@@ -125,6 +125,13 @@ translateProgram(DLProgram *p)
                     getQueryOperatorAttrNames(un));
         }
 
+        // if union is used, then add duplicate removal
+        if (LIST_LENGTH(rTs) > 1)
+        {
+            un = (QueryOperator *) createDuplicateRemovalOp(NULL, (QueryOperator *) un, NIL,
+                    getQueryOperatorAttrNames((QueryOperator *) un));
+        }
+
         kv->value = (Node *) un;
     }
 
