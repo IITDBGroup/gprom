@@ -548,7 +548,6 @@ introduceSelection(QueryOperator *root)
                 if(setSize(s1) == 3)
                 {
                     List *argList = NIL;
-                    List *tempOpList = NIL;
                     AttributeReference *a;
                     AttributeReference *b;
                     int flagFst = FALSE;
@@ -720,7 +719,7 @@ getSelectionCondOperatorList(List *opList, Operator *op)
 List*
 getCondOpList(List *l1, List *l2)
 {
-    boolean flag1,flag2;
+    boolean flag1;
     List *newOpList = NIL;
 
     FOREACH(Operator, o, l2)

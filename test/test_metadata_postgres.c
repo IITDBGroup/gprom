@@ -25,8 +25,6 @@
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 
-static char *table1Attrs[3] = { "a","b","c" };
-static char *table2Attrs[2] = { "d","e" };
 
 /* internal tests */
 static rc testCatalogTableExists(void);
@@ -132,6 +130,8 @@ testGetAttributes(void)
 {
     int i = 0;
 
+    char *table1Attrs[3] = { "a","b","c" };
+    char *table2Attrs[2] = { "d","e" };
     List *attrs = getAttributes("metadatalookup_test1");
     FOREACH(AttributeReference,a,attrs)
     {
