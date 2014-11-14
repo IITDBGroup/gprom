@@ -52,10 +52,10 @@ strEndTok(char *string, char *delim)
     int startPos = strlen(string) - strlen(delim);
     int newLen = -1;
 
-    while(--startPos > 0 && strncmp(string + startPos, delim, strlen(delim)) != 0)
+    while(--startPos >= 0 && strncmp(string + startPos, delim, strlen(delim)) != 0)
         ;
 
-    if (startPos == 0)
+    if (startPos == -1)
         return NULL;
 
     newLen = strlen(string) - startPos + 1 + strlen(delim);
