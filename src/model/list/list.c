@@ -498,14 +498,14 @@ sublist(List *l, int from, int to)
     List *result = makeNode(List);
     ListCell *lc = l->head;
 
-    ASSERT(from >= 0 && to <= LIST_LENGTH(l) && to > from);
+    ASSERT(from >= 0 && to < LIST_LENGTH(l) && to >= from);
 
     // skip from start
     for(int i = 0; i < from; i++, lc = lc ->next);
 
     // find new head and skip until to
     result->head = lc;
-    for(int i = from + 1; i < to; i++, lc = lc->next);
+    for(int i = from + 1; i <= to; i++, lc = lc->next);
 
     result->tail = lc;
     lc->next = NULL;

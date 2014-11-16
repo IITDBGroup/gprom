@@ -229,10 +229,12 @@ translateRule(DLRule *r)
             sel ? (QueryOperator *) sel : joinedGoals,
             NIL,
             headNames);
+    addParent(sel ? (QueryOperator *) sel : joinedGoals, (QueryOperator *) headP);
 
     // add duplicate removal operator
     dupRem = createDuplicateRemovalOp(NULL, (QueryOperator *) headP, NIL,
             getQueryOperatorAttrNames((QueryOperator *) headP));
+    addParent((QueryOperator *) headP, (QueryOperator *) dupRem);
 
     DEBUG_LOG("translated rule:\n%s\n\ninto\n\n%s",
             datalogToOverviewString((Node *) r),
@@ -292,6 +294,8 @@ joinGoalTranslations (DLRule *r, List *goalTrans)
         cond = createJoinCondOnCommonAttrs(result,g);
 
         j = createJoinOp(cond ? JOIN_INNER : JOIN_CROSS, cond, LIST_MAKE(result,g), NIL, attrNames);
+        addParent(result, (QueryOperator *) j);
+        addParent(g, (QueryOperator *) j);
 
         result =  (QueryOperator *) j;
     }
@@ -435,8 +439,46 @@ translateGoal(DLAtom *r)
     // is negated goal?
     if (r->negated)
     {
-        pInput = NULL;
-        //TODO
+        SetOperator *setDiff;
+        ProjectionOperator *rename;
+        QueryOperator *dom;
+        int numAttrs = getNumAttrs((QueryOperator *) rel);
+        // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
+        // then return (Domain X Domain X ... X Domain) - R
+        dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
+                "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
+        List *domainAttrs = singleton("D");
+
+        for(int i = 1; i < numAttrs; i++)
+        {
+            QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
+                    "_DOMAIN", NULL, "DummyDom", NIL,
+                    LIST_MAKE("D"), singletonInt(DT_STRING));
+            QueryOperator *oldD = dom;
+            domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),"D");
+            dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
+                    LIST_MAKE(dom, aDom), NULL,
+                    domainAttrs);
+            addParent(aDom, dom);
+            addParent(oldD, dom);
+        }
+
+        rename = (ProjectionOperator *) createProjOnAllAttrs(dom);
+        int i = 0;
+        FOREACH(AttributeDef,a,rename->op.schema->attrDefs)
+        {
+            char *name = strdup(getNthOfListP(attrNames, i++));
+            a->attrName = name;
+        }
+        addChildOperator((QueryOperator *) rename, dom);
+        dom = (QueryOperator *) rename;
+
+        setDiff = createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(dom, rel),
+                NULL, deepCopyStringList(attrNames));
+        addParent(dom, (QueryOperator *) setDiff);
+        addParent((QueryOperator *) rel, (QueryOperator *) setDiff);
+
+        pInput = (QueryOperator *) setDiff;
     }
     else
         pInput = (QueryOperator *) rel;

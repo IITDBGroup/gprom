@@ -112,6 +112,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 {
     DLProgram *result = makeNode(DLProgram);
     List *newRules = NIL;
+    List *unLinkedRules = NIL;
     List *helpRules = NIL;
     List *edbRules = NIL;
     List *moveRules = NIL;
@@ -139,6 +140,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                 ruleNeg ? "-" : "+");
         List *newRuleArgs = NIL;
 
+        // ************************************************************
         // create rule rule^adornment :- adornedBody
         DEBUG_LOG("create GP RULE rule for %s based on rule:\n%s", adRuleName, datalogToOverviewString((Node *) r));
         DLRule *ruleRule = copyObject(r);
@@ -274,6 +276,16 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         }
     }
 
+    // ************************************************************
+    // create rule rule_i^adornment(X) :- rule_i^adornment-direct(X) rule_j^adornment-direct(X,Y)
+    // for every pattern 1) rule_j^adornment-direct(X,Y) :- ..., goal_k(X) ...
+    //                   2) goal_k(X) -> R(X)
+    //                   3) R(X) -> rule_i^adornment-direct(X)
+    // i.e., starting from the user question atom we check - one hop of a time - that all
+    // intermediate tuples which we include in the game provenance are actually needed
+    // to explain the user question. That is they are reachable from the tbe user question atom
+
+
     // create rules for move relation
     // for each edb rule create two move entries
 
@@ -394,7 +406,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         setIDBBody(r);
 
     solvedProgram->ans = "move";
-    solvedProgram->rules = CONCAT_LISTS(moveRules, newRules, edbRules, helpRules);
+    solvedProgram->rules = CONCAT_LISTS(moveRules, newRules, unLinkedRules, edbRules, helpRules);
 
     INFO_LOG("gp program is:\n%s", datalogToOverviewString((Node *) solvedProgram));
 
