@@ -45,13 +45,21 @@ boolean
 checkModel (QueryOperator *op)
 {
     if (SHOULD(CHECK_OM_PARENT_CHILD_LINKS) && !checkParentChildLinks(op))
+    {
+    	DEBUG_LOG("test 1111111");
         return FALSE;
-
+    }
     if (SHOULD(CHECK_OM_ATTR_REF) && !checkAttributeRefConsistency(op))
+    {
+    	DEBUG_LOG("test 2222222");
         return FALSE;
+    }
 
     if (SHOULD(CHECK_OM_SCHEMA_CONSISTENCY) && !checkSchemaConsistency(op))
+    {
+    	DEBUG_LOG("test 3333333");
         return FALSE;
+    }
 
     return TRUE;
 }
@@ -174,6 +182,16 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
                     beatify(nodeToString(parent)));
             return FALSE;
         }
+       /* else
+        {
+            DEBUG_LOG("attribute datatype and child attrdef datatypes are not the "
+                    "same: <%s> and <%s> in\n\n%s",
+                    DataTypeToString(childA->dataType),
+                    DataTypeToString(a->attrType),
+                    operatorToOverviewString((Node *) parent));;
+            DEBUG_LOG("details are: \n%s\n\n%s\n\n", nodeToString(a),
+                    nodeToString(childA));
+        }*/
     }
 
     return TRUE;

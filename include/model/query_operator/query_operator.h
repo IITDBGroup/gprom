@@ -154,11 +154,13 @@ extern Schema *createSchemaFromLists (char *name, List *attrNames,
 extern void addAttrToSchema(QueryOperator *op, char *name, DataType dt);
 extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name);
 extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
+extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2);
 extern void setMoveAroundListSetProperityForWholeTree(QueryOperator *root);
 extern void reSetMoveAroundListSetProperityForWholeTree(QueryOperator *root);
 extern void introduceSelection(QueryOperator *root);
+extern List *removeRedundantSelectionCondOfOpList(List *opList);
 /* used in selection move around */
 extern List *UnionEqualElemOfTwoSetList(List *l1, List *l2);
 extern List *addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet);
