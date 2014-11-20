@@ -294,7 +294,7 @@ setMoveAroundListSetProperityForWholeTree(QueryOperator *root)
 			List *setList = NIL;
 			List *helpList = NIL;
 
-			Operator *c;
+			Operator *c = NULL;
 			if(((JoinOperator *)newRoot)->joinType == JOIN_INNER)
 				c = (Operator *)(((JoinOperator *)newRoot)->cond);
 			else if(((JoinOperator *)newRoot)->joinType == JOIN_CROSS)
