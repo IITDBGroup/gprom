@@ -133,7 +133,16 @@ optimizeOneGraph (QueryOperator *root)
       ASSERT(checkModel((QueryOperator *) rewrittenTree));
       STOP_TIMER("OptimizeModel - set materialization hints");
     }
-
+/*
+    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
+    {
+        START_TIMER("OptimizeModel - merge adjacent operator");
+        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
+        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+        STOP_TIMER("OptimizeModel - merge adjacent operator");
+    }
+*/
     if(getBoolOption(OPTIMIZATION_SELECTION_MOVE_AROUND))
     {
         START_TIMER("OptimizeModel - selections move around");
@@ -265,7 +274,7 @@ removeRedundantProjections(QueryOperator *root)
       if (compare)
       {
           // Remove Parent and make lChild as the new parent
-          switchSubtreeWithExisting((QueryOperator *) root, (QueryOperator *) lChild);
+          switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
           root = lChild;
       }
   }
@@ -522,32 +531,29 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 QueryOperator *
 pushDownSelectionThroughJoinsOperatorOnProv(QueryOperator *root)
 {
-    QueryOperator *newRoot = root;
-    QueryOperator *child = OP_LCHILD(root);
-    List *opList = NIL;
+	QueryOperator *newRoot = root;
+	QueryOperator *child = OP_LCHILD(root);
+	List *opList = NIL;
 
-    if(isA(root, SelectionOperator) && isA(child, JoinOperator))
-    {
-	Operator *c = (Operator *)((SelectionOperator *)newRoot)->cond;
-
-        if(streq(c->name,"AND"))
+	if(isA(root, SelectionOperator) && isA(child, JoinOperator))
 	{
-            opList = getSelectionCondOperatorList(opList, c);
+		Operator *c = (Operator *)((SelectionOperator *)newRoot)->cond;
+		opList = getSelectionCondOperatorList(opList, c);
+
+		if(opList != NIL)
+			pushDownSelection(child, opList, newRoot, child);
 	}
 
-	if(opList != NIL)
-            pushDownSelection(child, opList, newRoot, child);
-    }
+	FOREACH(QueryOperator, o, newRoot->inputs)
+     	pushDownSelectionThroughJoinsOperatorOnProv(o);
 
-    FOREACH(QueryOperator, o, newRoot->inputs)
-        pushDownSelectionThroughJoinsOperatorOnProv(o);
-
-    return newRoot;
+	return newRoot;
 }
 
 void
 pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOperator *child)
 {
+
     JoinOperator *newRoot = (JoinOperator *)root;
 
     List *l1 = NIL;
@@ -565,12 +571,12 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
 
     if(l3 != NIL)
     {
-        Node *opNode3 = changeListOpToAnOpNode(l3);
-        ((SelectionOperator *)r)->cond = (Node *)opNode3;
+    		Node *opNode3 = changeListOpToAnOpNode(l3);
+    		((SelectionOperator *)r)->cond = (Node *)opNode3;
     }
     else
     {
-        switchSubtreeWithExisting((QueryOperator *) r, (QueryOperator *) child);
+        switchSubtrees((QueryOperator *) r, (QueryOperator *) child);
     }
 
     if(l1 != NIL)

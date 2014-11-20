@@ -160,6 +160,7 @@ extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator
 extern void setMoveAroundListSetProperityForWholeTree(QueryOperator *root);
 extern void reSetMoveAroundListSetProperityForWholeTree(QueryOperator *root);
 extern void introduceSelection(QueryOperator *root);
+extern void introduceSelectionOfNotEqConn(QueryOperator *root);
 extern List *removeRedundantSelectionCondOfOpList(List *opList);
 /* used in selection move around */
 extern List *UnionEqualElemOfTwoSetList(List *l1, List *l2);

@@ -240,91 +240,95 @@ resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryO
 void
 setMoveAroundListSetProperityForWholeTree(QueryOperator *root)
 {
-    if(root->inputs != NULL)
-    {
-        FOREACH(QueryOperator, op, root->inputs)
-            setMoveAroundListSetProperityForWholeTree(op);
-    }
+	if(root->inputs != NULL)
+	{
+		FOREACH(QueryOperator, op, root->inputs)
+            		setMoveAroundListSetProperityForWholeTree(op);
+	}
 
-    if(root != NULL)
-    {
-        if(isA(root, TableAccessOperator))
-        {
-            List *setList = NIL;
-            FOREACH(AttributeDef,a, root->schema->attrDefs)
-            {
-                Set *s = MAKE_SET_PTR(a->attrName);
-                setList = appendToTailOfList(setList, s);
-            }
+	if(root != NULL)
+	{
+		if(isA(root, TableAccessOperator))
+		{
+			List *setList = NIL;
+			FOREACH(AttributeDef,a, root->schema->attrDefs)
+			{
+				Set *s = MAKE_SET_PTR(a->attrName);
+				setList = appendToTailOfList(setList, s);
+			}
 
-            setProperty((QueryOperator *)root, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), (Node *)setList);
-        }
+			setProperty((QueryOperator *)root, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), (Node *)setList);
+		}
 
-        else if(isA(root, SelectionOperator))
-        {
-            List *opList = NIL;
+		else if(isA(root, SelectionOperator))
+		{
+			List *opList = NIL;
 
-            Operator *c = (Operator *)(((SelectionOperator *)root)->cond);
+			Operator *c = (Operator *)(((SelectionOperator *)root)->cond);
 
-            opList = getSelectionCondOperatorList(opList, c);
-
-
-	  QueryOperator *child = OP_LCHILD(root);
-          Node *n1 = getProperty((QueryOperator *)child, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
-
-          List *l1 = (List *)n1;
-          List *l11 = NIL;
-          List *setList = NIL;
-
-          FOREACH(Set, s1, l1)
-          {
-              Set *s = unionSets(s1,s1);
-              l11 = appendToTailOfList(l11, s);
-          }
-
-          setList = UnionEqualElemOfTwoSetList(opList, l11);
-          setProperty((QueryOperator *)root, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), (Node *)setList);
-        }
-
-        else if(isA(root, JoinOperator))
-        {
-            QueryOperator *newRoot = root;
-            QueryOperator *parent = getHeadOfListP(root->parents);
-            List *opList = NIL;
-            List *setList = NIL;
-            List *helpList = NIL;
-
-            Operator *c = (Operator *)(((SelectionOperator *)parent)->cond);
-
-            opList = getSelectionCondOperatorList(opList, c);
+			opList = getSelectionCondOperatorList(opList, c);
 
 
-	    FOREACH(QueryOperator, op, root->inputs)
-            {
-                Node *n1 = getProperty(op, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
-                List *l1 = (List *)n1;
+			QueryOperator *child = OP_LCHILD(root);
+			Node *n1 = getProperty((QueryOperator *)child, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
 
-                List *templ1 = NIL;
-                FOREACH(Set, s1, l1)
-                {
-                    Set *s = unionSets(s1,s1);
-                    templ1 = appendToTailOfList(templ1, s);
-                }
+			List *l1 = (List *)n1;
+			List *l11 = NIL;
+			List *setList = NIL;
 
-                helpList = concatTwoLists(helpList,templ1);
-            }
+			FOREACH(Set, s1, l1)
+			{
+				Set *s = unionSets(s1,s1);
+				l11 = appendToTailOfList(l11, s);
+			}
 
-	    setList = UnionEqualElemOfTwoSetList(opList, helpList);
-            setProperty((QueryOperator *)newRoot, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), (Node *)setList);
-        }
+			setList = UnionEqualElemOfTwoSetList(opList, l11);
+			setProperty((QueryOperator *)root, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), (Node *)setList);
+		}
 
-        else if(isA(root, ProjectionOperator))
-        {
-        	QueryOperator *child = OP_LCHILD(root);
-        	Node *n1 = getProperty((QueryOperator *)child, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
-        	setProperty((QueryOperator *)root, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), n1);
-        }
-    }
+		else if(isA(root, JoinOperator))
+		{
+			QueryOperator *newRoot = root;
+			QueryOperator *parent = getHeadOfListP(root->parents);
+			List *opList = NIL;
+			List *setList = NIL;
+			List *helpList = NIL;
+
+			Operator *c;
+			if(((JoinOperator *)newRoot)->joinType == JOIN_INNER)
+				c = (Operator *)(((JoinOperator *)newRoot)->cond);
+			else if(((JoinOperator *)newRoot)->joinType == JOIN_CROSS)
+				c = (Operator *)(((SelectionOperator *)parent)->cond);
+
+			opList = getSelectionCondOperatorList(opList, c);
+
+
+			FOREACH(QueryOperator, op, root->inputs)
+			{
+				Node *n1 = getProperty(op, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
+				List *l1 = (List *)n1;
+
+				List *templ1 = NIL;
+				FOREACH(Set, s1, l1)
+				{
+					Set *s = unionSets(s1,s1);
+					templ1 = appendToTailOfList(templ1, s);
+				}
+
+				helpList = concatTwoLists(helpList,templ1);
+			}
+
+			setList = UnionEqualElemOfTwoSetList(opList, helpList);
+			setProperty((QueryOperator *)newRoot, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), (Node *)setList);
+		}
+
+		else if(isA(root, ProjectionOperator))
+		{
+			QueryOperator *child = OP_LCHILD(root);
+			Node *n1 = getProperty((QueryOperator *)child, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
+			setProperty((QueryOperator *)root, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), n1);
+		}
+	}
 }
 
 
@@ -514,6 +518,81 @@ reSetMoveAroundListSetProperityForWholeTree(QueryOperator *root)
     FOREACH(QueryOperator, o, root->inputs)
         reSetMoveAroundListSetProperityForWholeTree(o);
 }
+
+
+void
+introduceSelectionOfNotEqConn(QueryOperator *root)
+{
+/*
+	if(root->inputs != NULL)
+	{
+		FOREACH(QueryOperator, op, root->inputs)
+        {
+			introduceSelection(op);
+        }
+	}
+
+	if(isA(root,JoinOperator))
+	{
+		if(((JoinOperator *)root)->joinType == JOIN_INNER)
+		{
+			Node *r1 = getProperty(root, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
+			List *l1 = (List *)r1;
+
+			QueryOperator *opl = (QueryOperator *)(OP_LCHILD(root));
+			QueryOperator *opr = (QueryOperator *)(OP_RCHILD(root));
+
+			if(isA(opl, ProjectionOperator) && isA(OP_LCHILD(opl), SelectionOperator))
+				opl = OP_LCHILD(opl);
+
+			if(isA(opr, ProjectionOperator) && isA(OP_LCHILD(opr), SelectionOperator))
+				opr = OP_LCHILD(opr);
+
+			List *opListl = NIL;
+			List *opListr = NIL;
+
+			if(isA(opl, SelectionOperator))
+				opListl = getSelectionCondOperatorList(opListl, (Operator *)(((SelectionOperator *)opl)->cond));
+
+			if(isA(opr, SelectionOperator))
+				opListr = getSelectionCondOperatorList(opListl, (Operator *)(((SelectionOperator *)opr)->cond));
+
+			if(isA(opl, SelectionOperator))
+			{
+				//opListl = getSelectionCondOperatorList(opListl, (Operator *)(((SelectionOperator *)opl)->cond));
+				FOREACH(Operator, op, opListl)
+				{
+					if(!streq(op->name,"="))
+					{
+						if(isA(getHeadOfListp(op->args), AttributeReference))
+						{
+							AttributeReference *a1 = getHeadOfListP(op->args);
+							FOREACH(Set,s1,l1)
+							{
+								if(setSize(s1) == 2)
+								{
+
+									SetElem *se1 = s1->elem;
+									SetElem *se2 = se1->hh.next;
+
+									if(streq(a1->name,se1->data))
+									{
+										AttributeReference *ar1 = createFullAttrReference((char *)(se2->data) , 0, 0, 0, a1->attrType);
+										Operator *tempOp = copyObject(op);
+										AttributeReference *tempAttr = getHeadOfListP(tempOp->args);
+										tempAttr = ar1;
+									}
+								}
+							}
+						}
+
+					}
+				}
+			}
+		}
+	}*/
+}
+
 
 
 void
@@ -729,8 +808,6 @@ getSelectionCondOperatorList(List *opList, Operator *op)
 	{
 		Operator *o2 = (Operator *)(getTailOfListP(op->args));
 		opList = getSelectionCondOperatorList(opList,o2);
-
-
 
 		Operator *o1 = (Operator *)(getHeadOfListP(op->args));
 		opList = getSelectionCondOperatorList(opList,o1);
