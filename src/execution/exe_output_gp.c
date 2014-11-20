@@ -226,6 +226,14 @@ getNodeId (char *node)
             *idP = '_';
         if (*idP == ',')
             *idP = '_';
+        if (*idP == ' ')
+            *idP = '_';
+        if (*idP == '.')
+            *idP = '_';
+        if (*idP == '-')
+            *idP = '_';
+        if (*idP == '?')
+            *idP = '_';
     }
 
     DEBUG_LOG("node id: <%s>", id);
