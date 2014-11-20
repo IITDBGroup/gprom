@@ -20,6 +20,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/datalog/datalog_model.h"
+#include "utility/string_utils.h"
 
 /* functions to output specific node types */
 static void outNode(StringInfo, void *node);
@@ -311,14 +312,30 @@ outVector(StringInfo str, Vector *node)
 static void
 outHashMap(StringInfo str, HashMap *node)
 {
+    List *entryStrings = NIL;
+    List *sortEntries = NIL;
+
     appendStringInfo(str, "{");
 
+    // create list of serializations for each hash entry
     FOREACH_HASH_ENTRY(el,node)
     {
-        outNode(str, el->key);
-        appendStringInfoString(str," => ");
-        outNode(str, el->value);
-        appendStringInfo(str, "%s", el_his_el->hh.next ? ", " : "");
+        StringInfo hashStr = makeStringInfo();
+        outNode(hashStr, el->key);
+        appendStringInfoString(hashStr," => ");
+        outNode(hashStr, el->value);
+        entryStrings = appendToTailOfList(entryStrings, strdup(hashStr->data));
+    }
+
+    // sort entries lexigraphically (deterministic output)
+    sortEntries = sortList(entryStrings,
+            (int (*) (const void *, const void *)) strCompare);
+
+    // append entries to output
+    FOREACH(char,s,sortEntries)
+    {
+        appendStringInfoString(str,s);
+        appendStringInfo(str, "%s", s_his_cell->next ? ", " : "");
     }
 
     appendStringInfo(str, "}");

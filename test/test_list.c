@@ -11,6 +11,7 @@
  */
 
 #include "test_main.h"
+#include "common.h"
 
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
@@ -101,7 +102,7 @@ testListOperations(void)
 {
     char *a = "a";
     char *b = "b";
-    List *l1,*l2, *l;
+    List *l1,*l2, *l, *lCon;
     AttributeReference *a1, *a2;
 
     // concat
@@ -126,6 +127,22 @@ testListOperations(void)
     l1 = LIST_MAKE(a1,a2);
     freeList(l1);
     ASSERT_TRUE(-1 == a1->fromClauseItem, "access should not be problematic");
+
+    // concat multiple lists
+    l1 = LIST_MAKE(a1,a2);
+    l2 = LIST_MAKE(a1,a2);
+    l = LIST_MAKE(a1,a2);
+
+    lCon = CONCAT_LISTS(l1,l2,l);
+    ASSERT_EQUALS_NODE(LIST_MAKE(a1,a2,a1,a2,a1,a2), lCon, "concat list is a1,a2,a1,a2,a1,a2");
+
+    // sort list
+    l = LIST_MAKE("c","b","a");
+    l = sortList(l, (int (*) (const void *, const void *)) strcmp);
+
+    ASSERT_EQUALS_STRING(stringListToString(LIST_MAKE("a","b","c")), stringListToString(l), "sort lists");
+
+    // reverse list
 
     return PASS;
 }

@@ -83,3 +83,34 @@ replaceSubstr(char *str, char *pattern, char *repl)
 
     return result->data;
 }
+
+char *
+substr(char *str, int from, int to)
+{
+    ASSERT(from >= 0 && from < to && to < strlen(str));
+    int len = to - from  + 1;
+    char *result = MALLOC(len + 1);
+    memcpy(result, str + from, len);
+    result[len] = '\0';
+    return result;
+}
+
+char *
+strRemPostfix(char *str, int postFixSize)
+{
+    ASSERT(postFixSize < strlen(str));
+    int len = strlen(str) - postFixSize;
+    char *result = MALLOC(len + 1);
+    memcpy(result, str, len);
+    result[len] = '\0';
+    return result;
+}
+
+int
+strCompare(const void *a, const void *b)
+{
+    const char **l = ((const char **) a);
+    const char **r = ((const char **) b);
+
+    return strcmp(*l,*r);
+}

@@ -30,11 +30,11 @@ static Node *translateProgram(DLProgram *p);
 static QueryOperator *translateRule(DLRule *r);
 static QueryOperator *translateGoal(DLAtom *r);
 static QueryOperator *joinGoalTranslations (DLRule *r, List *goalTrans);
-static Node *createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r);
+static Node *createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigAttrs);
 static List *getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals);
 static Node *replaceDLVarMutator (Node *node, QueryOperator *joinedGoals);
 static Node *createCondFromComparisons (List *comparisons, QueryOperator *in);
-static void makeNamesUnique (List *names);
+static void makeNamesUnique (List *names, Set *allNames);
 static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
 static void adaptProjectionAttrRef (QueryOperator *o);
 
@@ -282,6 +282,13 @@ static QueryOperator *
 joinGoalTranslations (DLRule *r, List *goalTrans)
 {
     QueryOperator *result = (QueryOperator *) popHeadOfListP(goalTrans);
+    Set *allNames = STRSET();
+    List *origAttrs = getQueryOperatorAttrNames(result);
+
+    // find attribute names
+    FOREACH(QueryOperator,g,goalTrans)
+        FOREACH(char,a,getQueryOperatorAttrNames(g))
+            addToSet(allNames,a);
 
     FOREACH(QueryOperator,g,goalTrans)
     {
@@ -289,67 +296,115 @@ joinGoalTranslations (DLRule *r, List *goalTrans)
         Node *cond;
         List *attrNames = CONCAT_LISTS(getQueryOperatorAttrNames(result),
                 getQueryOperatorAttrNames(g));
-        makeNamesUnique(attrNames);
+        makeNamesUnique(attrNames, allNames);
 
-        cond = createJoinCondOnCommonAttrs(result,g);
+        cond = createJoinCondOnCommonAttrs(result,g, origAttrs);
 
         j = createJoinOp(cond ? JOIN_INNER : JOIN_CROSS, cond, LIST_MAKE(result,g), NIL, attrNames);
         addParent(result, (QueryOperator *) j);
         addParent(g, (QueryOperator *) j);
 
         result =  (QueryOperator *) j;
+        origAttrs = CONCAT_LISTS(origAttrs, getQueryOperatorAttrNames(g));
     }
 
     return result;
 }
 
 static Node *
-createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r)
+createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigAttrs)
 {
     Node *result = NULL;
-    Set *lAttrs = makeStrSetFromList(getQueryOperatorAttrNames(l));
-    Set *rAttrs = makeStrSetFromList(getQueryOperatorAttrNames(r));
+    List *leftAttrs =  getQueryOperatorAttrNames(l);
+    List *rightAttrs = getQueryOperatorAttrNames(r);
+    Set *lAttrs = makeStrSetFromList(leftOrigAttrs);
+    Set *rAttrs = makeStrSetFromList(rightAttrs);
     Set *commonAttrs = intersectSets(lAttrs,rAttrs);
+    int lPos;
+    int rPos;
 
     DEBUG_LOG("common attrs are:\n%s", nodeToString(commonAttrs));
 
-    FOREACH_SET(char,a,commonAttrs)
+    rPos = 0;
+    FOREACH(char,rA,rightAttrs)
     {
-        Operator *op;
-        AttributeReference *lA;
-        AttributeReference *rA;
-        int lPos = getAttrPos(l,a);
-        int rPos = getAttrPos(r,a);
+        // attribute in right
+        if (hasSetElem(commonAttrs,rA))
+        {
+            lPos = 0;
+            FORBOTH(char,lA,origL,leftAttrs,leftOrigAttrs)
+            {
+                // found same attribute
+                if (streq(origL,rA))
+                {
+                    Operator *op;
+                    AttributeReference *lAr;
+                    AttributeReference *rAr;
+                    char *lName = strdup(lA);
+                    char *rName = strdup(rA);
 
-        lA = createFullAttrReference(a, 0, lPos, INVALID_ATTR,
-                getAttrDefByPos(l,lPos)->dataType);
-        rA = createFullAttrReference(a, 1, rPos, INVALID_ATTR,
-                getAttrDefByPos(r,rPos)->dataType);
-        op = createOpExpr("=", LIST_MAKE(lA,rA));
+                    lAr = createFullAttrReference(lName, 0, lPos, INVALID_ATTR,
+                            getAttrDefByPos(l,lPos)->dataType);
+                    rAr = createFullAttrReference(rName, 1, rPos, INVALID_ATTR,
+                            getAttrDefByPos(r,rPos)->dataType);
+                    op = createOpExpr("=", LIST_MAKE(lAr,rAr));
 
-        if (result == NULL)
-            result = (Node *) op;
-        else
-            result = AND_EXPRS(result, op);
+                    if (result == NULL)
+                        result = (Node *) op;
+                    else
+                        result = AND_EXPRS(result, op);
+                }
+                lPos++;
+            }
+        }
+        rPos++;
     }
+//
+//    FOREACH_SET(char,a,commonAttrs)
+//    {
+//        Operator *op;
+//        AttributeReference *lA;
+//        AttributeReference *rA;
+//        int lPos = getAttrPos(l,a);
+//        int rPos = getAttrPos(r,a);
+//        char *lName;
+//        char *rName;
+//
+//        lA = createFullAttrReference(lName, 0, lPos, INVALID_ATTR,
+//                getAttrDefByPos(l,lPos)->dataType);
+//        rA = createFullAttrReference(rName, 1, rPos, INVALID_ATTR,
+//                getAttrDefByPos(r,rPos)->dataType);
+//        op = createOpExpr("=", LIST_MAKE(lA,rA));
+//
+//        if (result == NULL)
+//            result = (Node *) op;
+//        else
+//            result = AND_EXPRS(result, op);
+//    }
 
     return result;
 }
 
 static void
-makeNamesUnique (List *names)
+makeNamesUnique (List *names, Set *allNames)
 {
     HashMap *nCount = NEW_MAP(Constant,Constant);
 
     FOREACH_LC(lc,names)
     {
-        char *name = LC_P_VAL(lc);
-        int count = MAP_INCR_STRING_KEY(nCount,name);
+        char *oldName = LC_P_VAL(lc);
+        char *newName = oldName;
+        int count = MAP_INCR_STRING_KEY(nCount,oldName);
 
         if (count != 0)
-            name = CONCAT_STRINGS(name, itoa(count));
+        {
+            // create a new unique name
+            newName = CONCAT_STRINGS(oldName, itoa(count));
+            while(hasSetElem(allNames, newName))
+                newName = CONCAT_STRINGS(oldName, itoa(++count));
+        }
 
-        LC_P_VAL(lc) = name;
+        LC_P_VAL(lc) = newName;
     }
 }
 

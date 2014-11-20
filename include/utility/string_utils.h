@@ -14,6 +14,10 @@
 extern char *getMatchingSubstring(const char *string, const char *pattern);
 extern char *strEndTok(char *string, char *delim);
 extern char *replaceSubstr(char *str, char *pattern, char *repl);
+extern char *substr(char *str, int from, int to);
+extern char *strRemPostfix(char *str, int postFixSize);
 
+// string comparison for sorting
+extern int strCompare(const void *a, const void *b);
 
 #endif /* INCLUDE_UTILITY_STRING_UTILS_H_ */

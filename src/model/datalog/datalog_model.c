@@ -183,6 +183,26 @@ unifyRule (DLRule *r, List *headBinds)
     return result;
 }
 
+Node *
+applyVarMap(Node *input, HashMap *h)
+{
+    return unificationMutator(input, h);
+}
+
+Node *
+applyVarMapAsLists(Node *input, List *vars, List *replacements)
+{
+    HashMap *h = NEW_MAP(Constant,Node);
+
+    FORBOTH(Node,l,r,vars,replacements)
+    {
+        DLVar *v = (DLVar *) l;
+        MAP_ADD_STRING_KEY(h,v->name,r);
+    }
+
+    return applyVarMap(input, h);
+}
+
 static Node *
 unificationMutator (Node *node, HashMap *context)
 {

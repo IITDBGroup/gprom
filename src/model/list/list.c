@@ -380,11 +380,31 @@ reverseList(List *list)
     ASSERT(checkList(list));
 }
 
-void
-sortList(List *list)
+List *
+sortList(List *list, int (*sm) (const void *, const void *))
 {
+    int numE = LIST_LENGTH(list);
+    ListCell *lc;
+    List *result = NIL;
+    if (list == NIL)
+        return NIL;
 
+    lc = list->head;
+    // create array for quicksort
+    void **arr = CALLOC(sizeof(void *), numE);
+    for(int i = 0; i < numE; i++, lc = lc->next)
+        arr[i] = LC_P_VAL(lc);
+
+    // using stdlib quicksort
+    qsort(arr, numE, sizeof(void*), sm);
+
+    // result list constuction
+    for(int i = 0; i < numE; i++)
+        result = appendToTailOfList(result, arr[i]);
+
+    return result;
 }
+
 
 List *
 copyList(List *list)

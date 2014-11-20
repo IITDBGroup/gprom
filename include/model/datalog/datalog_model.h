@@ -90,8 +90,12 @@ extern List *getHeadVars (DLRule *r);
 
 extern List *getVarNames (List *vars);
 
-// unification
+// unification and variable mappings
 extern DLRule *unifyRule (DLRule *r, List *headBinds);
+// take a datalog model M as input and mappings hof type Var -> Node
+// return  h(M)
+extern Node *applyVarMap(Node *input, HashMap *h);
+extern Node *applyVarMapAsLists(Node *input, List *vars, List *replacements);
 
 // properties
 extern Node *getDLProp(DLNode *n, char *key);
