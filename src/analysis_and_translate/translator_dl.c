@@ -31,8 +31,8 @@ static QueryOperator *translateRule(DLRule *r);
 static QueryOperator *translateGoal(DLAtom *r);
 static QueryOperator *joinGoalTranslations (DLRule *r, List *goalTrans);
 static Node *createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigAttrs);
-static List *getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals);
-static Node *replaceDLVarMutator (Node *node, QueryOperator *joinedGoals);
+static List *getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs);
+static Node *replaceDLVarMutator (Node *node, HashMap *vToA);
 static Node *createCondFromComparisons (List *comparisons, QueryOperator *in);
 static void makeNamesUnique (List *names, Set *allNames);
 static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
@@ -212,7 +212,7 @@ translateRule(DLRule *r)
     List *projExprs = NIL;
     List *headNames = NIL;
 
-    projExprs = getHeadProjectionExprs(r->head, joinedGoals);
+    projExprs = getHeadProjectionExprs(r->head, joinedGoals, getBodyArgs(r));
     int i = 0;
 
     FOREACH(Node,p,projExprs)
@@ -250,14 +250,30 @@ translateRule(DLRule *r)
 }
 
 static List *
-getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals)
+getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs)
 {
     List *headArgs = head->args;
     List *projExprs = NIL;
+    HashMap *vToA = NEW_MAP(Constant,Constant);
+    int pos = 0;
+
+    FORBOTH(Node,bA,a,bodyArgs,joinedGoals->schema->attrDefs)
+    {
+        if (isA(bA, DLVar))
+        {
+            DLVar *v = (DLVar *) bA;
+            AttributeDef *d = (AttributeDef *) a;
+            MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
+                    createConstString(d->attrName),
+                    createConstInt(pos),
+                    createConstInt(d->dataType)));
+        }
+        pos++;
+    }
 
     FOREACH(Node,a,headArgs)
     {
-        Node *newA = replaceDLVarMutator(a, joinedGoals);
+        Node *newA = replaceDLVarMutator(a, vToA);
         projExprs = appendToTailOfList(projExprs, newA);
     }
 
@@ -265,7 +281,7 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals)
 }
 
 static Node *
-replaceDLVarMutator (Node *node, QueryOperator *joinedGoals)
+replaceDLVarMutator (Node *node, HashMap *vToA)
 {
     if (node == NULL)
         return node;
@@ -274,14 +290,16 @@ replaceDLVarMutator (Node *node, QueryOperator *joinedGoals)
     {
         AttributeReference *a;
         char *hV = ((DLVar *) node)->name;
-        int pos = getAttrPos(joinedGoals, hV);
-        DataType dt = getAttrDefByPos(joinedGoals, pos)->dataType;
+        List *l = (List *) MAP_GET_STRING(vToA, hV);
+        char *name = STRING_VALUE(getNthOfListP(l,0));
+        int pos = INT_VALUE(getNthOfListP(l,1));
+        DataType dt = (DataType) INT_VALUE(getNthOfListP(l,2));
 
-        a = createFullAttrReference(hV,0,pos,INVALID_ATTR, dt);
+        a = createFullAttrReference(name,0,pos,INVALID_ATTR, dt);
         return (Node *) a;
     }
 
-    return mutate(node, replaceDLVarMutator, joinedGoals);
+    return mutate(node, replaceDLVarMutator, vToA);
 }
 
 static QueryOperator *
@@ -565,14 +583,51 @@ translateGoal(DLAtom *r)
         i++;
     }
 
+    // add selection to equate attributes if variables are repeated
+    int j = 0;
+    i = 0;
+    FOREACH(Node,arg,r->args)
+    {
+        j = 0;
+        if (isA(arg,DLVar))
+        {
+            char *name = ((DLVar *) arg)->name;
+            DEBUG_LOG("name %s", name);
+            FOREACH(Node,argI,r->args)
+            {
+                // found matching names
+                if (isA(argI, DLVar) && j > i)
+                {
+                    char *IName = ((DLVar *) argI)->name;
+                    DEBUG_LOG("name %s and %s", name, IName);
+                    if (streq(name,IName))
+                    {
+                        Node *comp;
+                        AttributeDef *aI = getAttrDefByPos(pInput,i);
+                        AttributeDef *aJ = getAttrDefByPos(pInput,j);
+                        comp = (Node *) createOpExpr("=",
+                                LIST_MAKE(createFullAttrReference(strdup(aI->attrName),
+                                        0, i, INVALID_ATTR, aI->dataType),
+                                        createFullAttrReference(strdup(aJ->attrName),
+                                                0, j, INVALID_ATTR, aJ->dataType))
+                                );
 
+                        selExpr = appendToTailOfList(selExpr, comp);
+                    }
+                }
+                j++;
+            }
+        }
+        i++;
+    }
+
+    // create a selection if necessary (equate constants, )
     if (selExpr != NIL)
     {
         SelectionOperator *sel;
         Node *cond = andExprList(selExpr);
 
         sel = createSelectionOp(cond, pInput, NIL, NULL);
-//        sel->op.inputs = NIL;
         addParent(pInput, (QueryOperator *) sel);
         pInput = (QueryOperator *) sel;
     }
@@ -582,15 +637,38 @@ translateGoal(DLAtom *r)
     addChildOperator((QueryOperator *) rename, pInput);
 
     // change attribute names
+    Set *nameSet = STRSET();
+    List *finalNames = NIL;
+
     FORBOTH(Node,var,attr,r->args,rename->op.schema->attrDefs)
     {
+        char *n;
+        AttributeDef *d = (AttributeDef *) attr;
+
         if(isA(var,DLVar))
         {
-            AttributeDef *d = (AttributeDef *) attr;
             DLVar *v = (DLVar *) var;
-            d->attrName = strdup(v->name);
+            n = v->name;
+            d->attrName = strdup(n);
         }
+        else
+            n = d->attrName;
+
+        addToSet(nameSet, strdup(n));
+        finalNames = appendToTailOfList(finalNames, strdup(n));
     }
+
+    //TODO make attribute names unique
+    makeNamesUnique(finalNames, nameSet);
+    FORBOTH(void,name,attr,finalNames,rename->op.schema->attrDefs)
+    {
+        char *n = (char *) name;
+        AttributeDef *a = (AttributeDef *) attr;
+
+        if(!streq(a->attrName, name))
+            a->attrName = strdup(n);
+    }
+
 
     DEBUG_LOG("translated goal %s:\n%s",
             datalogToOverviewString((Node *) r),

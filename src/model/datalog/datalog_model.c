@@ -21,6 +21,7 @@
 #include "model/datalog/datalog_model.h"
 
 static List *getAtomVars(DLAtom *a);
+static List *getAtomArgs(DLAtom *a);
 static List *getComparisonVars(DLComparison *a);
 static Node *unificationMutator (Node *node, HashMap *context);
 
@@ -107,6 +108,21 @@ getRuleVars (DLRule *r)
 
     result = CONCAT_LISTS(result, getAtomVars(r->head));
     result = CONCAT_LISTS(result, getBodyVars(r));
+
+    return result;
+}
+
+List *
+getBodyArgs (DLRule *r)
+{
+    List *result = NIL;
+
+    FOREACH(Node,a,r->body)
+    {
+        if (isA(a, DLAtom))
+            result = CONCAT_LISTS(result,
+                    getAtomArgs((DLAtom *) a));
+    }
 
     return result;
 }
@@ -222,6 +238,12 @@ unificationMutator (Node *node, HashMap *context)
     }
 
     return mutate(node, unificationMutator, context);
+}
+
+static List *
+getAtomArgs(DLAtom *a)
+{
+    return copyObject(a->args);
 }
 
 static List *

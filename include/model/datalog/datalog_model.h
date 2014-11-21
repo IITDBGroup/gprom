@@ -83,6 +83,7 @@ extern DLComparison *createDLComparison (char *op, Node *lArg, Node *rArg);
 extern char *getHeadPredName(DLRule *r);
 extern List *getRuleVars (DLRule *r);
 extern List *getBodyVars (DLRule *r);
+List *getBodyArgs (DLRule *r);
 extern List *getBodyPredVars (DLRule *r);
 extern List *getHeadVars (DLRule *r);
 
