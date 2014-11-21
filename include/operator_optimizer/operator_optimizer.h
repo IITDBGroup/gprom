@@ -27,4 +27,15 @@ extern QueryOperator *pushDownSelectionOperatorOnProv(QueryOperator *root);
 
 extern QueryOperator *factorAttrsInExpressions(QueryOperator *root);
 
+extern QueryOperator *removeRedundantProjections(QueryOperator *root);
+
+/* try to pull up provenance projections. */
+extern QueryOperator *pullingUpProvenanceProjections(QueryOperator *root);
+
+/* try to push down the selection operator through joins for provenence. */
+extern QueryOperator *pushDownSelectionThroughJoinsOperatorOnProv(QueryOperator *root);
+
+/* try to implement selection move around */
+extern QueryOperator *selectionMoveAround(QueryOperator *root);
+
 #endif /* OPERATOR_OPTIMIZER_H_ */

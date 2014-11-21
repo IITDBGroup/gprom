@@ -121,8 +121,11 @@ translateProgram(DLProgram *p)
 
         FOREACH(QueryOperator,o,rTs)
         {
-            un = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(un,o), NIL,
+            QueryOperator *prev = un;
+            un = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(prev,o), NIL,
                     getQueryOperatorAttrNames(un));
+            addParent(prev, un);
+            addParent(o, un);
         }
 
         // if union is used, then add duplicate removal
@@ -200,6 +203,7 @@ translateRule(DLRule *r)
     {
         Node *cond = createCondFromComparisons(conditions, joinedGoals);
         sel = createSelectionOp(cond, joinedGoals, NIL, NULL);
+        addParent(joinedGoals, (QueryOperator *) sel);
     }
 
     // create projection to simulate head
@@ -566,8 +570,8 @@ translateGoal(DLAtom *r)
         Node *cond = andExprList(selExpr);
 
         sel = createSelectionOp(cond, pInput, NIL, NULL);
-        sel->op.inputs = NIL;
-        addChildOperator((QueryOperator *) sel, pInput);
+//        sel->op.inputs = NIL;
+        addParent(pInput, (QueryOperator *) sel);
         pInput = (QueryOperator *) sel;
     }
 

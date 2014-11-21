@@ -31,6 +31,10 @@ typedef enum OptionType {
 #define OPTIMIZATION_MERGE_OPERATORS "optimization.merge_operators"
 #define OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR "optimization.factor_proj_attr_in_expr"
 #define OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ "optimization.materialize_merge_unsafe_proj"
+#define OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS "optimization.remove_redundant_projections"
+#define OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ "optimization.pulling_up_provenance_proj"
+#define OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS "optimization.push_selections_through_joins"
+#define OPTIMIZATION_SELECTION_MOVE_AROUND "optimization.selection_move_around"
 //#define OPTIMIZATION_ "optimization_"
 
 /* define model checking options */
@@ -82,7 +86,10 @@ extern boolean opt_optimization_push_selections;
 extern boolean opt_optimization_merge_ops;
 extern boolean opt_optimization_factor_attrs;
 extern boolean opt_materialize_unsafe_proj;
-
+extern boolean opt_remove_redundant_projections;
+extern boolean opt_optimization_pulling_up_provenance_proj;
+extern boolean opt_optimization_push_selections_through_joins;
+extern boolean opt_optimization_selection_move_around;
 
 // new option interface
 extern char *getStringOption (char *name);

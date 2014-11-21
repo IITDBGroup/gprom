@@ -59,7 +59,8 @@ mergeSelection(SelectionOperator *op)
         op->op.inputs = child->op.inputs;
 
         FOREACH(QueryOperator, el, op->op.inputs)
-        	el->parents = copyObject(child->op.parents);
+             el->parents = child->op.parents;
+        //el->parents = copyObject(child->op.parents);
 
         // clean up child
         child->cond = NULL;
@@ -125,6 +126,11 @@ mergeProjection(ProjectionOperator *op)
         replaceAttributeRefsMutator((Node *) parent->projExprs, state, NULL);
         STOP_TIMER("OptimizeModel - replace attrs with expr");
 
+        if(HAS_STRING_PROP(child, PROP_PROJ_PROV_ATTR_DUP))
+        {
+            if(GET_BOOL_STRING_PROP(child, PROP_PROJ_PROV_ATTR_DUP) == TRUE)
+                SET_BOOL_STRING_PROP((QueryOperator *)parent, PROP_PROJ_PROV_ATTR_DUP);
+        }
         parent->op.inputs = child->op.inputs;
         FOREACH(QueryOperator, el, parent->op.inputs)
             el->parents = replaceNode(el->parents, child, parent);

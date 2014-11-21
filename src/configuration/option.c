@@ -92,6 +92,10 @@ boolean opt_optimization_push_selections = FALSE;
 boolean opt_optimization_merge_ops = FALSE;
 boolean opt_optimization_factor_attrs = FALSE;
 boolean opt_materialize_unsafe_proj = FALSE;
+boolean opt_remove_redundant_projections = TRUE;
+boolean opt_optimization_pulling_up_provenance_proj = FALSE;
+boolean opt_optimization_push_selections_through_joins = FALSE;
+boolean opt_optimization_selection_move_around = FALSE;
 
 // sanity check options
 boolean opt_operator_model_unique_schema_attribues = FALSE;
@@ -377,6 +381,30 @@ OptionInfo opts[] =
                 opt_materialize_unsafe_proj,
                 TRUE
         ),
+        anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS,
+                "-Oremove_redundant_projections",
+                "Optimization: try to remove redundant projections",
+                opt_remove_redundant_projections,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ,
+                "-Opulling_up_provenance_proj",
+                "Optimization: try to pull up provenance projection",
+                opt_optimization_pulling_up_provenance_proj,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS,
+                "-Opush_selections_through_joins",
+                "Optimization: try to push selections through joins",
+                opt_optimization_push_selections_through_joins,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_SELECTION_MOVE_AROUND,
+                "-Oselections_move_around",
+                "Optimization: try to move selection around",
+                opt_optimization_selection_move_around,
+                TRUE
+                ),
         // sanity model checking options
         anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
                 "-Cunique_attr_names",
