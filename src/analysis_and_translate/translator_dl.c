@@ -131,8 +131,10 @@ translateProgram(DLProgram *p)
         // if union is used, then add duplicate removal
         if (LIST_LENGTH(rTs) > 1)
         {
+            QueryOperator *old = un;
             un = (QueryOperator *) createDuplicateRemovalOp(NULL, (QueryOperator *) un, NIL,
                     getQueryOperatorAttrNames((QueryOperator *) un));
+            addParent(old, un);
         }
 
         kv->value = (Node *) un;
@@ -214,7 +216,7 @@ translateRule(DLRule *r)
     int i = 0;
 
     FOREACH(Node,p,projExprs)
-        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("x", itoa(i++)));
+        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", itoa(i++)));
 //
 //    List *headVars = getVarNames(getHeadVars(r));
 //    List *headArgs = r->head->args;
