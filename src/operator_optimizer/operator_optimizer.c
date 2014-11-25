@@ -51,32 +51,24 @@ optimizeOperatorModel (Node *root)
 }
 
 
-void callback(List **X1, List **Y1, List **Z1)
+int callback(int numChoices)
 {
-    if (LIST_LENGTH(*X1) == 0 && LIST_LENGTH(*Y1) == 0)
+    if (LIST_LENGTH(X1) == 0)
     {
-       *Y1 = appendToTailOfListInt(*Y1, 0);
-       *Z1 = appendToTailOfListInt(*Z1, 2);
-    }
-    else if (LIST_LENGTH(*X1) == 0 && LIST_LENGTH(*Y1) != 0)
-    {
-        *Y1 = appendToTailOfListInt(*Y1, 0);
-        *Z1 = appendToTailOfListInt(*Z1, 2);
-    }
-    else if(LIST_LENGTH(*X1) != 0)
-    {
-        int x = getHeadOfListInt(*X1);
-        *Y1 = appendToTailOfListInt(*Y1, x);
-        *X1 = removeFromHead(*X1);
-        *Z1 = appendToTailOfListInt(*Z1, 2);
-    }
-    else if(LIST_LENGTH(*X1) == 0)
-    {
-        *Y1 = appendToTailOfListInt(*Y1, 0);
-        *Z1 = appendToTailOfListInt(*Z1, 2);
+       Y1 = appendToTailOfListInt(Y1, 0);
+       Z1 = appendToTailOfListInt(Z1, numChoices);
     }
     else
-        return;
+    {
+        int xVal = getHeadOfListInt(X1);
+        Y1 = appendToTailOfListInt(Y1, xVal);
+        X1 = removeFromHead(X1);
+        Z1 = appendToTailOfListInt(Z1, numChoices);
+    }
+    DEBUG_LOG("optimizer data structures are: X:%s\n, Y:%s\n, Z:%s\n",
+            beatify(nodeToString(X1)), beatify(nodeToString(Y1)),
+            beatify(nodeToString(Z1)));
+
 }
 
 static QueryOperator *
@@ -93,15 +85,11 @@ optimizeOneGraph (QueryOperator *root)
         STOP_TIMER("OptimizeModel - factor attributes in conditions");
     }
 
-        while (LIST_LENGTH(Y1) < 2)
-        {
-            callback(&X1,&Y1,&Z1);
-            int len = LIST_LENGTH(Y1);
-            DEBUG_LOG("LENGTH OF Y IS %d\n", len);
-        }
+    int len = LIST_LENGTH(Y1);
+    DEBUG_LOG("LENGTH OF Y IS %d\n", len);
 
-
-  if(getHeadOfListInt(Y1) == 1)
+  int res = callback(2);
+  if(res == 1)
   {
     if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
     {
@@ -112,7 +100,9 @@ optimizeOneGraph (QueryOperator *root)
         STOP_TIMER("OptimizeModel - merge adjacent operator");
     }
   }
-  if(getTailOfListInt(Y1) == 1)
+
+  res = callback(2);
+  if(res == 1)
   {
     if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
     {
