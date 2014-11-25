@@ -24,7 +24,7 @@
 #include "model/query_operator/operator_property.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "rewriter.h"
-
+#include "operator_optimizer/cost_based_optimizer.h"
 
 static QueryOperator *optimizeOneGraph (QueryOperator *root);
 static QueryOperator *pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames);
@@ -48,27 +48,6 @@ optimizeOperatorModel (Node *root)
     }
     else
         return (Node *) optimizeOneGraph((QueryOperator *) root);
-}
-
-
-int callback(int numChoices)
-{
-    if (LIST_LENGTH(X1) == 0)
-    {
-       Y1 = appendToTailOfListInt(Y1, 0);
-       Z1 = appendToTailOfListInt(Z1, numChoices);
-    }
-    else
-    {
-        int xVal = getHeadOfListInt(X1);
-        Y1 = appendToTailOfListInt(Y1, xVal);
-        X1 = removeFromHead(X1);
-        Z1 = appendToTailOfListInt(Z1, numChoices);
-    }
-    DEBUG_LOG("optimizer data structures are: X:%s\n, Y:%s\n, Z:%s\n",
-            beatify(nodeToString(X1)), beatify(nodeToString(Y1)),
-            beatify(nodeToString(Z1)));
-
 }
 
 static QueryOperator *
