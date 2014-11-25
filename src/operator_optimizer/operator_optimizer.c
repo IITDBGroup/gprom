@@ -23,6 +23,8 @@
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/operator_property.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "rewriter.h"
+
 
 static QueryOperator *optimizeOneGraph (QueryOperator *root);
 static QueryOperator *pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames);
@@ -48,6 +50,35 @@ optimizeOperatorModel (Node *root)
         return (Node *) optimizeOneGraph((QueryOperator *) root);
 }
 
+
+void callback(List **X1, List **Y1, List **Z1)
+{
+    if (LIST_LENGTH(*X1) == 0 && LIST_LENGTH(*Y1) == 0)
+    {
+       *Y1 = appendToTailOfListInt(*Y1, 0);
+       *Z1 = appendToTailOfListInt(*Z1, 2);
+    }
+    else if (LIST_LENGTH(*X1) == 0 && LIST_LENGTH(*Y1) != 0)
+    {
+        *Y1 = appendToTailOfListInt(*Y1, 0);
+        *Z1 = appendToTailOfListInt(*Z1, 2);
+    }
+    else if(LIST_LENGTH(*X1) != 0)
+    {
+        int x = getHeadOfListInt(*X1);
+        *Y1 = appendToTailOfListInt(*Y1, x);
+        *X1 = removeFromHead(*X1);
+        *Z1 = appendToTailOfListInt(*Z1, 2);
+    }
+    else if(LIST_LENGTH(*X1) == 0)
+    {
+        *Y1 = appendToTailOfListInt(*Y1, 0);
+        *Z1 = appendToTailOfListInt(*Z1, 2);
+    }
+    else
+        return;
+}
+
 static QueryOperator *
 optimizeOneGraph (QueryOperator *root)
 {
@@ -62,6 +93,16 @@ optimizeOneGraph (QueryOperator *root)
         STOP_TIMER("OptimizeModel - factor attributes in conditions");
     }
 
+        while (LIST_LENGTH(Y1) < 2)
+        {
+            callback(&X1,&Y1,&Z1);
+            int len = LIST_LENGTH(Y1);
+            DEBUG_LOG("LENGTH OF Y IS %d\n", len);
+        }
+
+
+  if(getHeadOfListInt(Y1) == 1)
+  {
     if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
     {
         START_TIMER("OptimizeModel - merge adjacent operator");
@@ -70,7 +111,9 @@ optimizeOneGraph (QueryOperator *root)
         DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
         STOP_TIMER("OptimizeModel - merge adjacent operator");
     }
-
+  }
+  if(getTailOfListInt(Y1) == 1)
+  {
     if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
     {
         START_TIMER("OptimizeModel - pushdown selections");
@@ -79,6 +122,30 @@ optimizeOneGraph (QueryOperator *root)
         TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
         STOP_TIMER("OptimizeModel - pushdown selections");
     }
+  }
+
+     int lenY1 = LIST_LENGTH(Y1);
+     for(int i=0; i<lenY1; i++)
+     {
+         int y = getTailOfListInt(Y1);
+         int z = getTailOfListInt(Z1);
+
+         if(y+1 == z)
+         {
+             Y1 = removeFromTail(Y1);
+             Z1 = removeFromTail(Z1);
+         }
+         else
+         {
+             y = y + 1;
+             Y1 = removeFromTail(Y1);
+             Y1 = appendToTailOfListInt(Y1,y);
+             break;
+         }
+     }
+     X1 = copyList(Y1);
+     Y1 = NIL;
+     Z1 = NIL;
 
     if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
     {

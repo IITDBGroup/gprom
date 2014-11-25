@@ -643,6 +643,46 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
     return result;
 }
 
+List *
+removeFromTail(List *X)
+{
+	int len = LIST_LENGTH(X);
+	int c = 0;
+
+	List *result = NIL;
+
+	if(len == 1)
+		result = NIL;
+	else
+	{
+		FOREACH_INT(lc, X)
+        {
+			result = appendToTailOfListInt(result, lc);
+			c++;
+			if(c + 1 == len)
+				break;
+        }
+	}
+	return result;
+}
+
+List *
+removeFromHead(List *X)
+{
+    int c = 0;
+
+    List *result = NIL;
+
+    FOREACH_INT(lc, X)
+    {
+        if(c != 0)
+           result = appendToTailOfListInt(result, lc);
+
+        c++;
+    }
+    return result;
+}
+
 //remove all the elements of list l1 from list l2, l1 is a sublist of l2
 List *
 removeListElementsFromAnotherList(List *l1, List *l2)
