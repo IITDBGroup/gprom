@@ -119,6 +119,7 @@ extern DataType getFuncReturnType (char *fName, List *argTypes);
 extern DataType getOpReturnType (char *oName, List *argTypes);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
+extern int getCost(char *query);
 
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);

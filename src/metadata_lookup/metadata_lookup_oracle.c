@@ -914,6 +914,41 @@ getBarrierScn(void)
     return barrier;
 }
 
+int getCost(char *query)
+{
+    StringInfo statement;
+    statement = makeStringInfo();
+
+    //appendStringInfo(statement, "EXPLAIN PLAN FOR \'%s\'", query);
+
+    appendStringInfo(statement, "EXPLAIN PLAN FOR SELECT A, B FROM (R F0)");
+#if 0
+    appendStringInfo(statement, "SELECT "
+                     "CASE WHEN (count(DISTINCT scn) > 1) "
+                                          +                             "THEN 1 "
+                                          +                             "ELSE 0 "
+                                          +                             "END AS readCommmit\n"
+                                          +                             "FROM SYS.fga_log$\n"
+                                          +                             "WHERE xid = HEXTORAW(\'%s\')",
+                                          +                             xid);
+#endif
+
+    //OCI_Resultset *rs = executeStatement(statement->data);
+
+    FREE(statement);
+
+    StringInfo statement1;
+    statement1 = makeStringInfo();
+
+    appendStringInfo(statement1, "SELECT COST FROM PLAN_TABLE");
+
+    //OCI_Resultset *rs1 = executeStatement(statement1->data);
+
+    FREE(statement1);
+
+    return 0;
+}
+
 static OCI_Resultset *
 executeStatement(char *statement)
 {

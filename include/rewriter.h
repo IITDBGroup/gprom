@@ -12,6 +12,7 @@
 #define REWRITER_H_
 
 #include "common.h"
+#include "model/list/list.h"
 
 extern int initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[]);
 extern void setupPluginsFromOptions(void);
@@ -29,5 +30,9 @@ extern void processInput(char *input);
 extern char *rewriteQuery(char *input);
 extern char *rewriteQueryFromStream (FILE *stream);
 extern char *rewriteQueryWithOptimization(char *input);
+
+List *X1;
+List *Y1;
+List *Z1;
 
 #endif /* REWRITER_H_ */

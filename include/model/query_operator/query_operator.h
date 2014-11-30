@@ -158,8 +158,11 @@ extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *
 extern void resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2);
 extern void setMoveAroundListSetProperityForWholeTree(QueryOperator *root);
+extern List *addNonEqOpToOplistInMoveAround(QueryOperator *root, QueryOperator *opl, List *opListr);
 extern void reSetMoveAroundListSetProperityForWholeTree(QueryOperator *root);
 extern void introduceSelection(QueryOperator *root);
+extern List *getMoveAroundOpList(QueryOperator *qo);
+extern void introduceSelectionOrChangeSelectionCond(List *opList, QueryOperator *qo1);
 extern void introduceSelectionOfNotEqConn(QueryOperator *root);
 extern List *removeRedundantSelectionCondOfOpList(List *opList);
 /* used in selection move around */
