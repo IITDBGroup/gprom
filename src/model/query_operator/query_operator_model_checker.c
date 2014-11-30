@@ -317,7 +317,7 @@ checkSchemaConsistency (QueryOperator *op)
 //            WindowOperator *o = (WindowOperator *) op;
             QueryOperator *lChild = OP_LCHILD(op);
             List *expected = sublist(copyObject(op->schema->attrDefs), 0,
-                    LIST_LENGTH(op->schema->attrDefs) - 1);
+                    LIST_LENGTH(op->schema->attrDefs) - 2);
 
             if (!equal(expected, lChild->schema->attrDefs))
             {

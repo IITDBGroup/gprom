@@ -452,7 +452,7 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
     if (!groupBy)
     {
         normalAttrs = sublist(normalAttrs,
-                LIST_LENGTH(normalAttrs) - LIST_LENGTH(op->aggrs) - 1,
+                LIST_LENGTH(normalAttrs) - LIST_LENGTH(op->aggrs),
                 LIST_LENGTH(normalAttrs) - 1);
         projExprs = CONCAT_LISTS(normalAttrs, provAttrs,
                 LIST_MAKE(createConstInt(1),
@@ -469,7 +469,7 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
 //                LIST_LENGTH(normalAttrs) - 3,
 //                LIST_LENGTH(normalAttrs));
         normalAttrs = sublist(normalAttrs,
-                LIST_LENGTH(normalAttrs) - LIST_LENGTH(op->aggrs) - 3,
+                LIST_LENGTH(normalAttrs) - LIST_LENGTH(op->aggrs) - 2,
                 LIST_LENGTH(normalAttrs) - 3);
 
         projExprs = CONCAT_LISTS(normalAttrs, groupByExprs, provAttrs,

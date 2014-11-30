@@ -878,6 +878,11 @@ oracleGetFuncReturnType (char *fName, List *dataTypes)
     if (streq(fName,"xmlagg"))
         return DT_STRING;
 
+    if (streq(fName,"ROW_NUMBER"))
+        return DT_INT;
+    if (streq(fName, "DENSE_RANK"))
+        return DT_INT;
+
     return DT_STRING;
 }
 
