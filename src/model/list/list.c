@@ -226,7 +226,7 @@ singletonInt(int value)
 {
 	List *list;
 
-	list = newList(T_List);
+	list = newList(T_IntList);
 	list->head->data.int_value = value;
 
 	return list;

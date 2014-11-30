@@ -142,6 +142,16 @@ testListOperations(void)
 
     ASSERT_EQUALS_STRING(stringListToString(LIST_MAKE("a","b","c")), stringListToString(l), "sort lists");
 
+    // sublist
+    l = LIST_MAKE("a","b","c");
+    l2 = sublist(l, 0,0);
+    ASSERT_EQUALS_STRING(stringListToString(LIST_MAKE("a")), stringListToString(l2), "sublist 0 to 0");
+    ASSERT_EQUALS_INT(1, LIST_LENGTH(l2), "... of length 1");
+
+    l2 = sublist(l, 2,2);
+    ASSERT_EQUALS_STRING(stringListToString(LIST_MAKE("c")), stringListToString(l2), "sublist 2 to 2");
+    ASSERT_EQUALS_INT(1, LIST_LENGTH(l2), "... of length 1");
+
     // reverse list
 
     return PASS;

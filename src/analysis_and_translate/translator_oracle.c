@@ -1317,7 +1317,7 @@ createProjectionOverNonAttrRefExprs(List **selectClause, Node **havingClause,
         // create alias for each non-AttributeReference expression
         List *attrNames = NIL;
         int i = 0;
-//        FOREACH(Node, expr, projExprs)
+
         for(i = 0; i < LIST_LENGTH(projExprs); i++)
         {
             attrNames = appendToTailOfList(attrNames,
@@ -1347,72 +1347,6 @@ createProjectionOverNonAttrRefExprs(List **selectClause, Node **havingClause,
         *selectClause = (List *) replaceAggsAndGroupByMutator((Node *) *selectClause, state);
         *havingClause = (Node *) replaceAggsAndGroupByMutator((Node *) *havingClause, state);
         *groupByClause = (List *) replaceAggsAndGroupByMutator((Node *) *groupByClause, state);
-//        // replace non-AttributeReference arguments in aggregation with alias
-//        // each entry of the list directly points to the original aggregation, not copy
-//        List *aggregs = getListOfAggregFunctionCalls(*selectClause,
-//                *havingClause);
-//        i = 0;
-//        FOREACH(FunctionCall, agg, aggregs)
-//        {
-//            FOREACH(Node, arg, agg->args)
-//            {
-//                AttributeReference *new;
-//                char *aName = strdup((char *) getNthOfListP(attrNames, i));
-//
-//                if (!isA(arg, AttributeReference))
-//                {
-//                    new = createFullAttrReference(aName, 0, i, 0);
-////                    deepFree(arg);
-//                    arg_his_cell->data.ptr_value = new;
-//                }
-//                else
-//                {
-//                    new =  (AttributeReference *) arg;
-//                    new->name = aName;
-//                    new->fromClauseItem = 0;
-//                    new->attrPosition = i;
-//                    arg_his_cell->data.ptr_value = new;
-//                }
-//                i++;
-//            }
-//        }
-//        freeList(aggregs);
-//
-//        // keep old group by to be able to adapt select clause
-////        List *oldGroupBy = copyObject(groupByClause);
-//
-//        // replace non-AttributeReference expressions in groupBy with alias
-//        int len = getListLength(attrNames);
-//        if (*groupByClause)
-//        {
-////            FOREACH(Node, expr, groupByClause)
-////            {
-////                AttributeReference *new;
-////                char *aName = strdup((char *) getNthOfListP(attrNames, i));
-////
-////                if (!isA(expr, AttributeReference) && i < len)
-////                {
-//////                    deepFree(expr);
-////                    new = createFullAttrReference(aName, 0, i, 0);
-////                    expr_his_cell->data.ptr_value = new;
-////                }
-////                else
-////                {
-////                    new =  (AttributeReference *) expr;
-////                    new->name = aName;
-////                    new->fromClauseItem = 0;
-////                    new->attrPosition = i;
-////                    expr_his_cell->data.ptr_value = new;
-////                }
-////                i++;
-////            }
-//        }
-//
-//        // replace old group by expressions in select clause with new attributes
-////        if (groupByClause)
-////        {
-////
-////        }
 
         output = ((QueryOperator *) po);
     }
