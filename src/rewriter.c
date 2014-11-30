@@ -211,13 +211,6 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
             TIME_ASSERT(checkModel((QueryOperator *) oModel));
     )
 
-    int n = 0;
-    X1 = NIL;
-    Y1 = NIL;
-    Z1 = NIL;
-
-    while(n<4)
-    {
     START_TIMER("rewrite");
     rewrittenTree = provRewriteQBModel(oModel);
     DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
@@ -257,8 +250,6 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     int cost = getCost(rewrittenSQL);
     DEBUG_LOG("Cost of the rewritten Query is = %d\n", cost);
 
-    n++;
-    }
     FREE(result);
 
     return rewrittenSQL;

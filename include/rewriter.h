@@ -31,8 +31,4 @@ extern char *rewriteQuery(char *input);
 extern char *rewriteQueryFromStream (FILE *stream);
 extern char *rewriteQueryWithOptimization(char *input);
 
-List *X1;
-List *Y1;
-List *Z1;
-
 #endif /* REWRITER_H_ */

@@ -69,57 +69,31 @@ optimizeOneGraph (QueryOperator *root)
         STOP_TIMER("OptimizeModel - factor attributes in conditions");
     }
 
-    int len = LIST_LENGTH(Y1);
-    DEBUG_LOG("LENGTH OF Y IS %d\n", len);
-
-  int res = callback(2);
-  if(res == 1)
-  {
-    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
+    int res = callback(2);
+    if(res == 1)
     {
-        START_TIMER("OptimizeModel - merge adjacent operator");
-        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-        STOP_TIMER("OptimizeModel - merge adjacent operator");
+        if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
+        {
+            START_TIMER("OptimizeModel - merge adjacent operator");
+            rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
+            TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+            DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+            STOP_TIMER("OptimizeModel - merge adjacent operator");
+        }
     }
-  }
 
-  res = callback(2);
-  if(res == 1)
-  {
-    if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
+    res = callback(2);
+    if(res == 1)
     {
-        START_TIMER("OptimizeModel - pushdown selections");
-        rewrittenTree = pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
-        DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-        STOP_TIMER("OptimizeModel - pushdown selections");
+        if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
+        {
+            START_TIMER("OptimizeModel - pushdown selections");
+            rewrittenTree = pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
+            DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+            TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+            STOP_TIMER("OptimizeModel - pushdown selections");
+        }
     }
-  }
-
-     int lenY1 = LIST_LENGTH(Y1);
-     for(int i=0; i<lenY1; i++)
-     {
-         int y = getTailOfListInt(Y1);
-         int z = getTailOfListInt(Z1);
-
-         if(y+1 == z)
-         {
-             Y1 = removeFromTail(Y1);
-             Z1 = removeFromTail(Z1);
-         }
-         else
-         {
-             y = y + 1;
-             Y1 = removeFromTail(Y1);
-             Y1 = appendToTailOfListInt(Y1,y);
-             break;
-         }
-     }
-     X1 = copyList(Y1);
-     Y1 = NIL;
-     Z1 = NIL;
 
     if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
     {

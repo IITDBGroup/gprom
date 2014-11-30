@@ -11,19 +11,30 @@
  */
 
 #include "common.h"
+#include "log/logger.h"
+#include "mem_manager/mem_mgr.h"
+
+#include "model/list/list.h"
+#include "model/node/nodetype.h"
 #include "operator_optimizer/cost_based_optimizer.h"
+
+
+static List *X1 = NIL;
+static List *Y1 = NIL;
+static List *Z1 = NIL;
+
 
 
 char *
 doCostBasedOptimization(Node *transOutput)
 {
-
+    return "";
 }
 
 int
 callback (int numChoices)
 {
-    int xVal;
+    int xVal = -1;
 
     DEBUG_LOG("number of choices are: %u", numChoices);
     if (LIST_LENGTH(X1) == 0)

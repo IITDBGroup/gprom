@@ -1854,7 +1854,7 @@ aggOpGetGroupByAttrNames(AggregationOperator *op)
 {
     List *result = getQueryOperatorAttrNames((QueryOperator *) op);
 
-    return sublist(result, LIST_LENGTH(op->aggrs), LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy));
+    return sublist(result, LIST_LENGTH(op->aggrs), LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy) - 1);
 }
 
 List *
@@ -1862,7 +1862,7 @@ aggOpGetAggAttrNames(AggregationOperator *op)
 {
     List *result = getQueryOperatorAttrNames((QueryOperator *) op);
 
-    return sublist(result, 0, LIST_LENGTH(op->aggrs));
+    return sublist(result, 0, LIST_LENGTH(op->aggrs) - 1);
 }
 
 WindowFunction *

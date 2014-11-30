@@ -530,7 +530,7 @@ sublist(List *l, int from, int to)
     result->tail = lc;
     lc->next = NULL;
     result->type = l->type;
-    result->length = to - from;
+    result->length = to - from + 1;
 
     return result;
 }
