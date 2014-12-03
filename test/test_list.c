@@ -16,6 +16,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+#include "utility/string_utils.h"
 
 static rc testIntList(void);
 static rc testPList(void);
@@ -138,7 +139,7 @@ testListOperations(void)
 
     // sort list
     l = LIST_MAKE("c","b","a");
-    l = sortList(l, (int (*) (const void *, const void *)) strcmp);
+    l = sortList(l, strCompare);
 
     ASSERT_EQUALS_STRING(stringListToString(LIST_MAKE("a","b","c")), stringListToString(l), "sort lists");
 
@@ -148,6 +149,7 @@ testListOperations(void)
     ASSERT_EQUALS_STRING(stringListToString(LIST_MAKE("a")), stringListToString(l2), "sublist 0 to 0");
     ASSERT_EQUALS_INT(1, LIST_LENGTH(l2), "... of length 1");
 
+    l = LIST_MAKE("a","b","c");
     l2 = sublist(l, 2,2);
     ASSERT_EQUALS_STRING(stringListToString(LIST_MAKE("c")), stringListToString(l2), "sublist 2 to 2");
     ASSERT_EQUALS_INT(1, LIST_LENGTH(l2), "... of length 1");

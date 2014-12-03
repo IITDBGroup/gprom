@@ -359,10 +359,12 @@ rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op)
         List *subnames = sublist(getQueryOperatorAttrNames((QueryOperator *) op),
                 LIST_LENGTH(op->aggrs),
                 LIST_LENGTH(op->op.schema->attrDefs) - 1);
+        int pos = LIST_LENGTH(op->aggrs);
 
         FORBOTH(void,gBy,res,op->groupBy,subnames)
         {
             AttributeReference *g = (AttributeReference *) copyObject(gBy);
+            g->attrPosition = pos++;
             g->name = strdup((char *) res);
             partitionBy = appendToTailOfList(partitionBy,
                     g);

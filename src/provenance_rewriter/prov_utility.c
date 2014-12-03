@@ -129,14 +129,15 @@ createProjOnAttrs(QueryOperator *op, List *attrPos)
         //TODO use set would be better
         if (searchListInt(attrPos, i))
         {
-            att = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR, a->dataType);
+            att = createFullAttrReference(a->attrName, 0, i, INVALID_ATTR, a->dataType);
             projExprs = appendToTailOfList(projExprs, att);
             attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
         }
+        i++;
     }
 
     p = createProjectionOp (projExprs, NULL, NIL, attrNames);
-    p->op.provAttrs = copyObject(op->provAttrs);
+    p->op.provAttrs = copyObject(op->provAttrs); //TODO create real prov attrs list
 
     return (QueryOperator *) p;
 }

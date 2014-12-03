@@ -534,6 +534,8 @@ sublist(List *l, int from, int to)
     result->type = l->type;
     result->length = to - from + 1;
 
+    ASSERT(checkList(result));
+
     return result;
 }
 
