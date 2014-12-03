@@ -154,5 +154,17 @@ testListOperations(void)
 
     // reverse list
 
+    // search list
+    CREATE_INT_SEQ(l,0,5,1);
+    ASSERT_TRUE(searchListInt(l,0), "0 in (0,1,2,3,4,5)");
+    ASSERT_TRUE(searchListInt(l,5), "5 in (0,1,2,3,4,5)");
+    ASSERT_TRUE(searchListInt(l,2), "2 in (0,1,2,3,4,5)");
+    ASSERT_FALSE(searchListInt(l,6), "6 not in (0,1,2,3,4,5)");
+
+    l = LIST_MAKE("a","b","c");
+    ASSERT_TRUE(searchListString(l,"a"), "a in (a,b,c)");
+    ASSERT_TRUE(searchListString(l,"c"), "c in (a,b,c)");
+    ASSERT_FALSE(searchListString(l,"d"), "d not in (a,b,c)");
+
     return PASS;
 }

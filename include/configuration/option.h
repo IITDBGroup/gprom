@@ -22,6 +22,7 @@ typedef enum OptionType {
 #define OPTION_UPDATE_ONLY_USE_HISTORY_JOIN "only_updated_use_history"
 #define OPTION_TREEIFY_OPERATOR_MODEL "treefiy_prov_rewrite_input"
 #define OPTION_PI_CS_USE_COMPOSABLE "pi_cs_use_composable"
+#define OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW "pi_cs_rewrite_agg_window"
 #define OPTION_OPTIMIZE_OPERATOR_MODEL "optimize_operator_model"
 #define OPTION_TRANSLATE_UPDATE_WITH_CASE "translate_update_with_case"
 //#define OPTION_
@@ -78,6 +79,7 @@ extern boolean opt_update_only_conditions;
 extern boolean opt_treeify_opterator_model;
 extern boolean opt_only_updated_use_history;
 extern boolean opt_pi_cs_composable;
+extern boolean opt_pi_cs_rewrite_agg_window;
 extern boolean opt_optimize_operator_model;
 extern boolean opt_translate_update_with_case;
 

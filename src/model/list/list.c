@@ -509,6 +509,8 @@ concatLists (List *a, ...)
 
     va_end(args);
 
+    ASSERT(checkList(result));
+
     return result;
 }
 

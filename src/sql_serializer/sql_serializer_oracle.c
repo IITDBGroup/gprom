@@ -1200,7 +1200,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     }
 
     // second level of projection either if no aggregation or using aggregation
-    if ((m->secondProj != NULL && !agg) || (m->firstProj != NULL && agg) || (m->firstProj != NULL && winR))
+    if ((m->secondProj != NULL && !agg && !winR ) || (m->firstProj != NULL && agg) || (m->firstProj != NULL && winR))
     {
         int pos = 0;
         ProjectionOperator *p = (agg || winR) ? m->firstProj : m->secondProj;
