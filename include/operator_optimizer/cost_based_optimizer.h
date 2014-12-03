@@ -18,4 +18,6 @@ extern int callback (int numChoices);
 extern void reSetX1();
 
 
+
+
 #endif /* INCLUDE_OPERATOR_OPTIMIZER_COST_BASED_OPTIMIZER_H_ */

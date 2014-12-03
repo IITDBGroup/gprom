@@ -64,35 +64,39 @@ optimizeOneGraph (QueryOperator *root)
         STOP_TIMER("OptimizeModel - factor attributes in conditions");
     }
 
+
     //int len = LIST_LENGTH(Y1);
     //DEBUG_LOG("LENGTH OF Y IS %d\n", len);
 
-  int res = callback(2);
-  if(res == 1)
-  {
-    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-    {
-        START_TIMER("OptimizeModel - merge adjacent operator");
-        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-        STOP_TIMER("OptimizeModel - merge adjacent operator");
-    }
-  }
 
-  res = callback(2);
-  if(res == 1)
-  {
-
-	if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
+    int res = callback(2);
+    if(res == 1)
     {
-        START_TIMER("OptimizeModel - pushdown selections");
-        rewrittenTree = pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
-        DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-        STOP_TIMER("OptimizeModel - pushdown selections");
+        if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
+        {
+            START_TIMER("OptimizeModel - merge adjacent operator");
+            rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
+            TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+            DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+            STOP_TIMER("OptimizeModel - merge adjacent operator");
+        }
     }
-  }
+
+
+
+    res = callback(2);
+    if(res == 1)
+    {
+        if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
+        {
+            START_TIMER("OptimizeModel - pushdown selections");
+            rewrittenTree = pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
+            DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+            TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+            STOP_TIMER("OptimizeModel - pushdown selections");
+        }
+    }
+
 
   reSetX1();
 
@@ -114,6 +118,7 @@ optimizeOneGraph (QueryOperator *root)
         TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
         STOP_TIMER("OptimizeModel - pushdown selections");
     }
+
 
     if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
     {

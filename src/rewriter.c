@@ -204,7 +204,5 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
 
     rewrittenSQL = doCostBasedOptimization(oModel, applyOptimizations);
 
-    //FREE(result);
-
     return rewrittenSQL;
 }
