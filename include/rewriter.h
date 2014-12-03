@@ -33,5 +33,7 @@ extern char *rewriteQueryWithOptimization(char *input);
 List *X1;
 List *Y1;
 List *Z1;
+int cost1;
+char *plan;
 
 #endif /* REWRITER_H_ */

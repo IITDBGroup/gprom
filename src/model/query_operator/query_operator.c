@@ -322,7 +322,8 @@ setMoveAroundListSetProperityForWholeTree(QueryOperator *root)
 			setProperty((QueryOperator *)newRoot, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), (Node *)setList);
 		}
 
-		else if(isA(root, ProjectionOperator))
+		//else if(isA(root, ProjectionOperator))
+		else
 		{
 			QueryOperator *child = OP_LCHILD(root);
 			Node *n1 = getProperty((QueryOperator *)child, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
