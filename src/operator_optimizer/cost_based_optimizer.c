@@ -33,9 +33,14 @@
 #include "instrumentation/memory_instrumentation.h"
 
 
+static List *X1;
+static List *Y1;
+static List *Z1;
+static int cost1;
+static char *plan;
 
 
-
+static boolean continueOptimization (long optTime, long expectedTime);
 
 char *
 doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
@@ -44,17 +49,18 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 	StringInfo result = makeStringInfo();
 	Node *rewrittenTree;
 	char *rewrittenSQL = NULL;
-	int n = 0;
+//	int n = 0;
 	X1 = NIL;
 	Y1 = NIL;
 	Z1 = NIL;
     cost1 = 99999999;
     plan = NULL;
+    long optTime = -1;
 
-	while(n<4)
+	while(continueOptimization(optTime,cost1))
 	{
 		Node *oModel1 = copyObject(oModel);
-
+		//TODO keep track of time spend in loop
 		START_TIMER("rewrite");
 		rewrittenTree = provRewriteQBModel(oModel1);
 		DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
@@ -94,6 +100,9 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 		int cost = getCost(rewrittenSQL);
 		DEBUG_LOG("Cost of the rewritten Query is = %d\n", cost);
 
+        DEBUG_LOG("plan for choice %s is\n%s", beatify(nodeToString(Y1)),
+                rewrittenSQL);
+
 		if(cost < cost1)
 		{
 			cost1 = cost;
@@ -101,7 +110,11 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 			DEBUG_LOG("PLAN: %s", plan);
 		}
 
-		n++;
+		// compute new X1
+		reSetX1();
+		if (X1 == NIL)
+		    break;
+		//TODO
 	}
 
 	FREE(result);
@@ -109,6 +122,11 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 
 }
 
+static boolean
+continueOptimization (long optTime, long expectedTime)
+{
+    return (optTime < expectedTime);
+}
 
 int
 callback (int numChoices)
@@ -168,4 +186,6 @@ reSetX1(){
     X1 = copyList(Y1);
     Y1 = NIL;
     Z1 = NIL;
+
+    DEBUG_LOG("new X is %s", beatify(nodeToString(X1)));
 }

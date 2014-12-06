@@ -98,7 +98,7 @@ optimizeOneGraph (QueryOperator *root)
     }
 
 
-  reSetX1();
+
 
 
     if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
