@@ -150,15 +150,7 @@ callback (int numChoices)
 
 	DEBUG_LOG("optimizer data structures are:\n X:%s\n Y:%s\n Z:%s\n",nodeToString(X1),
 			nodeToString(Y1),nodeToString(Z1));
-/*
-    DEBUG_LOG("optimizer data structures are: X:%s\n, Y:%s\n, Z:%s\n",
-            beatify(nodeToString(X1)), beatify(nodeToString(Y1)),
-            beatify(nodeToString(Z1)));
 
-    DEBUG_LOG("optimizer data structures are: X:%s,",nodeToString(X1));
-    DEBUG_LOG("optimizer data structures are: Y:%s,",nodeToString(Y1));
-    DEBUG_LOG("optimizer data structures are: Z:%s,",nodeToString(Z1));
-*/
     return xVal;
 }
 
