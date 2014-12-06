@@ -182,10 +182,8 @@ rewriteQueryWithOptimization(char *input)
 static char *
 rewriteParserOutput (Node *parse, boolean applyOptimizations)
 {
-
     char *rewrittenSQL = NULL;
     Node *oModel;
-    //Node *rewrittenTree;
 
     START_TIMER("translation");
     oModel = translateParse(parse);

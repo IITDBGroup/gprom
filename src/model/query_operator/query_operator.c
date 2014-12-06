@@ -150,7 +150,7 @@ void
 resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *op2)
 {
     int cnt = 0;
-    FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+   /* FOREACH(AttributeDef, a2, op2->schema->attrDefs)
     {
         FOREACH(AttributeReference, a1, op1->projExprs)
         {
@@ -160,6 +160,20 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *
             }
         }
         cnt++;
+    }
+    */
+    FOREACH(AttributeReference, a1, op1->projExprs)
+    {
+    	cnt = 0;
+    	FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+		{
+            if(streq(a1->name, a2->attrName))
+            {
+                a1->attrPosition = cnt;
+                break;
+            }
+            cnt++;
+		}
     }
 }
 

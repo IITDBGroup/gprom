@@ -100,7 +100,7 @@ optimizeOneGraph (QueryOperator *root)
 
   reSetX1();
 
-/*
+
     if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
     {
         START_TIMER("OptimizeModel - merge adjacent operator");
@@ -173,7 +173,7 @@ optimizeOneGraph (QueryOperator *root)
       ASSERT(checkModel((QueryOperator *) rewrittenTree));
       STOP_TIMER("OptimizeModel - set materialization hints");
     }
-*/
+
 /*
     if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
     {
@@ -184,7 +184,7 @@ optimizeOneGraph (QueryOperator *root)
         STOP_TIMER("OptimizeModel - merge adjacent operator");
     }
 */
-/*
+
     if(getBoolOption(OPTIMIZATION_SELECTION_MOVE_AROUND))
     {
         START_TIMER("OptimizeModel - selections move around");
@@ -220,7 +220,7 @@ optimizeOneGraph (QueryOperator *root)
         ASSERT(checkModel((QueryOperator *) rewrittenTree));
         STOP_TIMER("OptimizeModel - set materialization hints");
     }
-*/
+
     return rewrittenTree;
 }
 
@@ -470,38 +470,64 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 				//If not projection op, just get rid of the attrDef from
 				//schema. If projection op get rid of the attrDef from schema
 				//and attrRef from projExprs
+
+
 				if(isA(o, ProjectionOperator))
 				{
-					//Get rid of the attrDef from schema and attrRef from projExprs
-					int pos = getAttrPos((QueryOperator *)o, LC_P_VAL(d));
-					deleteAttrRefFromProjExprs((ProjectionOperator *)o, pos);
-
-					List *normalAttrNamesCopyTempList = NIL;
-					boolean nacpFlag;
-					char *name;
-
-					FOREACH_LC(n,normalAttrNamesCopy)
+					if(o->parents != NIL)
 					{
-						nacpFlag = FALSE;
-						FORBOTH_LC(lc1, lc2,((ProjectionOperator *)o)->projExprs,o->schema->attrDefs)
+						//Get rid of the attrDef from schema and attrRef from projExprs
+						int pos = getAttrPos((QueryOperator *)o, LC_P_VAL(d));
+						deleteAttrRefFromProjExprs((ProjectionOperator *)o, pos);
+
+						List *normalAttrNamesCopyTempList = NIL;
+						boolean nacpFlag;
+						char *name;
+
+						FOREACH_LC(n,normalAttrNamesCopy)
 						{
-							if(streq(((AttributeReference *)LC_P_VAL(lc1))->name,LC_P_VAL(n)))
+							nacpFlag = FALSE;
+							FORBOTH_LC(lc1, lc2,((ProjectionOperator *)o)->projExprs,o->schema->attrDefs)
 							{
-								name = ((AttributeDef *)LC_P_VAL(lc2))->attrName;
-								nacpFlag = TRUE;
-								break;
+								if(streq(((AttributeReference *)LC_P_VAL(lc1))->name,LC_P_VAL(n)))
+								{
+									name = ((AttributeDef *)LC_P_VAL(lc2))->attrName;
+									nacpFlag = TRUE;
+									break;
+								}
 							}
+							if(nacpFlag == TRUE)
+								normalAttrNamesCopyTempList = appendToTailOfList(normalAttrNamesCopyTempList, name);
+							else
+								normalAttrNamesCopyTempList = appendToTailOfList(normalAttrNamesCopyTempList, n);
 						}
-						if(nacpFlag == TRUE)
-							normalAttrNamesCopyTempList = appendToTailOfList(normalAttrNamesCopyTempList, name);
-						else
-							normalAttrNamesCopyTempList = appendToTailOfList(normalAttrNamesCopyTempList, n);
+						normalAttrNamesCopy = normalAttrNamesCopyTempList;
+
+						deleteAttrFromSchemaByName((QueryOperator *)o, LC_P_VAL(d));
 					}
-					normalAttrNamesCopy = normalAttrNamesCopyTempList;
-				}
-				//Just get rid of the attrDef from schema
-				deleteAttrFromSchemaByName((QueryOperator *)o, LC_P_VAL(d));
+					else
+					{
+						FORBOTH(char, dup, nor, duplicateattrsCopy, normalAttrNamesCopy)
+						{
+							FORBOTH_LC(attrDef, attrRef, o->schema->attrDefs, ((ProjectionOperator *)o)->projExprs)
+		                    {
+								if(streq(dup,((AttributeDef *)(attrDef->data.ptr_value))->attrName))
+								{
+									((AttributeReference *)(attrRef->data.ptr_value))->name = nor;
+									break;
+								}
+	                       	}
+						}
+
+					}
 			}
+				else
+				{
+					//Just get rid of the attrDef from schema
+					deleteAttrFromSchemaByName((QueryOperator *)o, LC_P_VAL(d));
+				}
+			}
+
         }
 
 
@@ -562,6 +588,10 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 		}
 		else
 		{
+			if(isA(o, ProjectionOperator))
+			{
+				resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)o,(QueryOperator *)op);
+			}
 			pullup(o, duplicateattrsCopy, normalAttrNamesCopy);
 		}
 
