@@ -184,5 +184,11 @@ extern char *exprToSQL (Node *expr);
 /* functions for searching inside expressions */
 extern List *getAttrReferences (Node *node);
 
+/* for the condition of selection operator, separate the AND operator to a
+ * list of operators, these relation among these operators is AND */
+extern List *getSelectionCondOperatorList(List *opList, Operator *op);
+
+/* combine a list operator to an AND operator */
+extern Node *changeListOpToAnOpNode(List *l1);
 
 #endif /* EXPRESSION_H */
