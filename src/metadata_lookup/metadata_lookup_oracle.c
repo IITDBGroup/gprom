@@ -913,39 +913,44 @@ getBarrierScn(void)
     return barrier;
 }
 
+
 int getCost(char *query)
 {
-    StringInfo statement;
+	/* Remove the newline characters from the Query */
+	int len = strlen(query);
+	int i = 0;
+	for (i = 0; i < len; i++)
+	{
+		if (query[i] == '\n' || query[i] == ';')
+			query[i] = ' ';
+	}
+
+	unsigned long long cost;
+
+	StringInfo statement;
     statement = makeStringInfo();
-
-    //appendStringInfo(statement, "EXPLAIN PLAN FOR \'%s\'", query);
-
-    appendStringInfo(statement, "EXPLAIN PLAN FOR SELECT A, B FROM (R F0)");
-#if 0
-    appendStringInfo(statement, "SELECT "
-                     "CASE WHEN (count(DISTINCT scn) > 1) "
-                                          +                             "THEN 1 "
-                                          +                             "ELSE 0 "
-                                          +                             "END AS readCommmit\n"
-                                          +                             "FROM SYS.fga_log$\n"
-                                          +                             "WHERE xid = HEXTORAW(\'%s\')",
-                                          +                             xid);
-#endif
-
-    //OCI_Resultset *rs = executeStatement(statement->data);
-
+    appendStringInfo(statement, "EXPLAIN PLAN FOR %s", query);
+    executeStatement(statement->data);
     FREE(statement);
 
     StringInfo statement1;
     statement1 = makeStringInfo();
-
     appendStringInfo(statement1, "SELECT COST FROM PLAN_TABLE");
 
-    //OCI_Resultset *rs1 = executeStatement(statement1->data);
+    OCI_Resultset *rs1 = executeStatement(statement1->data);
+    if (rs1 != NULL)
+    {
+    	while(OCI_FetchNext(rs1))
+        {
+    		cost = OCI_GetInt(rs1, 1);
+    		DEBUG_LOG("Cost is : %i \n", OCI_GetInt(rs1, 1));
+    		break;
+        }
+    }
 
     FREE(statement1);
 
-    return 0;
+    return cost;
 }
 
 static OCI_Resultset *

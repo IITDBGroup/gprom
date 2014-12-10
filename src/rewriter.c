@@ -179,6 +179,52 @@ rewriteQueryWithOptimization(char *input)
     return result;
 }
 
+char *
+generatePlan(Node *oModel, boolean applyOptimizations)
+{
+	StringInfo result = makeStringInfo();
+	Node *rewrittenTree;
+	char *rewrittenSQL = NULL;
+	START_TIMER("rewrite");
+
+	rewrittenTree = provRewriteQBModel(oModel);
+	DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
+	INFO_LOG("provenance rewritten query as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
+	STOP_TIMER("rewrite");
+
+	ASSERT_BARRIER(
+		if (isA(rewrittenTree, List))
+			FOREACH(QueryOperator,o,(List *) rewrittenTree)
+				TIME_ASSERT(checkModel(o));
+		else
+			TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+	)
+
+	if(applyOptimizations)
+	{
+		START_TIMER("OptimizeModel");
+		rewrittenTree = optimizeOperatorModel(rewrittenTree);
+		INFO_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
+		STOP_TIMER("OptimizeModel");
+	}
+	else
+		if (isA(rewrittenTree, List))
+			FOREACH(QueryOperator,o,(List *) rewrittenTree)
+				LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
+		else
+			rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
+
+	START_TIMER("SQLcodeGen");
+	appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
+	STOP_TIMER("SQLcodeGen");
+
+	rewrittenSQL = result->data;
+	FREE(result);
+
+	return rewrittenSQL;
+
+}
+
 static char *
 rewriteParserOutput (Node *parse, boolean applyOptimizations)
 {
@@ -200,7 +246,10 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
             TIME_ASSERT(checkModel((QueryOperator *) oModel));
     )
 
-    rewrittenSQL = doCostBasedOptimization(oModel, applyOptimizations);
+    if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+        rewrittenSQL = doCostBasedOptimization(oModel, applyOptimizations);
+    else
+    	rewrittenSQL = generatePlan(oModel, applyOptimizations);
 
     return rewrittenSQL;
 }

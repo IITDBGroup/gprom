@@ -52,10 +52,37 @@ optimizeOperatorModel (Node *root)
         return (Node *) optimizeOneGraph((QueryOperator *) root);
 }
 
+static void
+applyMerge(QueryOperator *rewrittenTree)
+{
+	if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
+	{
+		START_TIMER("OptimizeModel - merge adjacent operator");
+		rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
+		TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+		DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+		STOP_TIMER("OptimizeModel - merge adjacent operator");
+	}
+}
+
+static void
+applySelectionPushdown(QueryOperator *rewrittenTree)
+{
+	if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
+	{
+		START_TIMER("OptimizeModel - pushdown selections");
+		rewrittenTree = pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
+		DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+		TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+		STOP_TIMER("OptimizeModel - pushdown selections");
+	}
+}
+
 static QueryOperator *
 optimizeOneGraph (QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
+    int res;
 
     if(getBoolOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR))
     {
@@ -66,42 +93,21 @@ optimizeOneGraph (QueryOperator *root)
         STOP_TIMER("OptimizeModel - factor attributes in conditions");
     }
 
-
-    //int len = LIST_LENGTH(Y1);
-    //DEBUG_LOG("LENGTH OF Y IS %d\n", len);
-
-
-    int res = callback(2);
-    if(res == 1)
+    if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
     {
-        if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-        {
-            START_TIMER("OptimizeModel - merge adjacent operator");
-            rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-            TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-            DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-            STOP_TIMER("OptimizeModel - merge adjacent operator");
-        }
+		res = callback(2);
+		if (res == 1)
+			applyMerge(rewrittenTree);
+
+		res = callback(2);
+		if (res == 1)
+			applySelectionPushdown(rewrittenTree);
     }
-
-
-
-    res = callback(2);
-    if(res == 1)
+    else
     {
-        if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
-        {
-            START_TIMER("OptimizeModel - pushdown selections");
-            rewrittenTree = pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
-            DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-            TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-            STOP_TIMER("OptimizeModel - pushdown selections");
-        }
+    	applyMerge(rewrittenTree);
+    	applySelectionPushdown(rewrittenTree);
     }
-
-
-
-
 
     if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
     {
@@ -173,7 +179,7 @@ optimizeOneGraph (QueryOperator *root)
       rewrittenTree = removeRedundantProjections((QueryOperator *) rewrittenTree);
       DEBUG_LOG("remove redundant projections\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
       ASSERT(checkModel((QueryOperator *) rewrittenTree));
-      STOP_TIMER("OptimizeModel - set materialization hints");
+      STOP_TIMER("OptimizeModel - remove redundant projections");
     }
 
 /*

@@ -31,6 +31,7 @@
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
+#include <sys/time.h>
 
 
 static List *X1;
@@ -47,55 +48,23 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 {
 
 	StringInfo result = makeStringInfo();
-	Node *rewrittenTree;
 	char *rewrittenSQL = NULL;
-//	int n = 0;
+
 	X1 = NIL;
 	Y1 = NIL;
 	Z1 = NIL;
     cost1 = 99999999;
     plan = NULL;
-    long optTime = -1;
+    float optTime = 0.0;
 
 	while(continueOptimization(optTime,cost1))
 	{
+		//Keep track of time spent in loop
+	    struct timeval tvalBefore, tvalAfter;
+		gettimeofday (&tvalBefore, NULL);
+
 		Node *oModel1 = copyObject(oModel);
-		//TODO keep track of time spend in loop
-		START_TIMER("rewrite");
-		rewrittenTree = provRewriteQBModel(oModel1);
-		DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
-		INFO_LOG("provenance rewritten query as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
-		DOT_TO_CONSOLE(rewrittenTree);
-		STOP_TIMER("rewrite");
-
-		ASSERT_BARRIER(
-				if (isA(rewrittenTree, List))
-					FOREACH(QueryOperator,o,(List *) rewrittenTree)
-					TIME_ASSERT(checkModel(o));
-				else
-					TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-		)
-
-		if(applyOptimizations)
-		{
-			START_TIMER("OptimizeModel");
-			rewrittenTree = optimizeOperatorModel(rewrittenTree);
-			INFO_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
-			STOP_TIMER("OptimizeModel");
-		}
-		else
-			if (isA(rewrittenTree, List))
-				FOREACH(QueryOperator,o,(List *) rewrittenTree)
-				LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
-			else
-				rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
-		DOT_TO_CONSOLE(rewrittenTree);
-
-		START_TIMER("SQLcodeGen");
-		appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
-		STOP_TIMER("SQLcodeGen");
-
-		rewrittenSQL = result->data;
+		rewrittenSQL = generatePlan(oModel1, applyOptimizations);
 
 		int cost = getCost(rewrittenSQL);
 		DEBUG_LOG("Cost of the rewritten Query is = %d\n", cost);
@@ -114,7 +83,9 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 		reSetX1();
 		if (X1 == NIL)
 		    break;
-		//TODO
+
+		gettimeofday (&tvalAfter, NULL);
+		optTime = (float)(tvalAfter.tv_sec - tvalBefore.tv_sec) / 1000000;
 	}
 
 	FREE(result);
