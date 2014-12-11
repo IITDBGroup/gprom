@@ -643,6 +643,7 @@ createWindowOp(Node *fCall, List *partitionBy, List *orderBy,
 {
     WindowOperator *wo = makeNode(WindowOperator);
     List *inputAttrs = getQueryOperatorAttrNames(input);
+    List *inputDTs = getDataTypes(input->schema);
 
     wo->partitionBy = partitionBy;
     wo->orderBy = orderBy;
@@ -651,7 +652,9 @@ createWindowOp(Node *fCall, List *partitionBy, List *orderBy,
     wo->f = (Node *) fCall;
     wo->op.type = T_WindowOperator;
     wo->op.inputs = singleton(input);
-    wo->op.schema = createSchemaFromLists("WINDOW", CONCAT_LISTS(inputAttrs, singleton(attrName)), NIL);
+    wo->op.schema = createSchemaFromLists("WINDOW",
+            CONCAT_LISTS(inputAttrs, singleton(attrName)),
+            CONCAT_LISTS(inputDTs, singletonInt(typeOf(wo->f))));
     wo->op.parents = parents;
     wo->op.provAttrs = NIL;
 

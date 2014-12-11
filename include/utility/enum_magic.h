@@ -256,12 +256,15 @@
     static inline char * _name_ ## ToString (_name_ in) \
     { \
     	ENUM_STRING_CASE(_name_,__VA_ARGS__); \
-    } \
+    }; \
     \
     static inline _name_ stringTo ## _name_ (char *in) \
     { \
         STRING_ENUM_IF(_name_,__VA_ARGS__); \
-    }
+    }; \
+	\
+	static int NUM_ELEM_ ## _name_ = VA_NUM_ARGS(__VA_ARGS__)
+
 
 
 //NEW_ENUM_WITH_TO_STRING(GGG,a,b,c,d,e,f);

@@ -70,6 +70,7 @@ char *plugin_sqlcodegen = NULL;
 char *plugin_analyzer = NULL;
 char *plugin_translator = NULL;
 char *plugin_sql_serializer = NULL;
+char *plugin_executor = NULL;
 
 // instrumentation options
 boolean opt_timing = FALSE;
@@ -82,6 +83,7 @@ boolean opt_update_only_conditions = FALSE;
 boolean opt_treeify_opterator_model = FALSE;
 boolean opt_only_updated_use_history = FALSE;
 boolean opt_pi_cs_composable = FALSE;
+boolean opt_pi_cs_rewrite_agg_window = FALSE;
 boolean opt_optimize_operator_model = FALSE;
 boolean opt_translate_update_with_case = FALSE;
 //boolean   = FALSE;
@@ -292,6 +294,14 @@ OptionInfo opts[] =
                 wrapOptionString(&plugin_sql_serializer),
                 defOptionString(NULL)
         },
+        {
+                "plugin.executor",
+                "-Pexecutor",
+                "select Executor plugin: sql (output rewritten SQL code), gp (output Game provenance)",
+                OPTION_STRING,
+                wrapOptionString(&plugin_executor),
+                defOptionString(NULL)
+        },
         // boolean instrumentation options
         aRewriteOption(OPTION_TIMING,
                 NULL,
@@ -337,6 +347,11 @@ OptionInfo opts[] =
                 " enumerate duplicates introduced by provenance.",
                 opt_pi_cs_composable,
                 FALSE),
+        aRewriteOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW,
+                NULL,
+                "When composable version of PI-CS provenance is use then rewrite aggregations using window functions.",
+                opt_pi_cs_rewrite_agg_window,
+                TRUE),
         aRewriteOption(OPTION_OPTIMIZE_OPERATOR_MODEL,
                 NULL,
                 "Apply heuristic and cost based optimizations to operator model",

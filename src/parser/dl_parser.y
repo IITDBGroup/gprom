@@ -46,7 +46,7 @@ Node *dlParseResult = NULL;
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> NEGATION RULE_IMPLICATION ANS
+%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -72,14 +72,14 @@ Node *dlParseResult = NULL;
 %type <list> stmtList
 %type <node> statement program
 
-%type <node> rule fact rulehead atom arg variable constant comparison ansrelation
+%type <node> rule fact rulehead atom arg variable constant comparison ansrelation prov_statement
 %type <list> atomList argList rulebody 
 
 /* start symbol */
 %start program
 
 /*************************************************************/
-/* RULE SECTION 											 */
+/* RULE SECTION												 */
 /*************************************************************/
 %%
 
@@ -111,10 +111,35 @@ statement:
 		rule { RULELOG("statement::rule"); $$ = $1; }
 		| fact { RULELOG("statement::fact"); $$ = $1; }
 		| ansrelation { RULELOG("statement::ansrelation"); $$ = $1; }
+		| prov_statement { RULELOG("statement::prov"); $$ = $1; }
 	;
 	
+prov_statement:
+		WHYPROV '(' atom ')' ';'
+		{
+			RULELOG("prov_statement::WHY");
+			$$ = (Node *) createNodeKeyValue(
+					(Node *) createConstString("WHY_PROV"), 
+					(Node *) $3);
+		}
+		| WHYNOTPROV '(' atom ')' ';'
+		{
+			RULELOG("prov_statement::WHYNOT");
+			$$ = (Node *) createNodeKeyValue(
+					(Node *) createConstString("WHYNOT_PROV"),
+					(Node *) $3);
+		}
+		| GP ';'
+		{
+			RULELOG("prov_statement::GP");
+			$$ = (Node *) createNodeKeyValue(
+					(Node *) createConstString("FULL_GP_PROV"), 
+					(Node *) createConstBool(TRUE));
+		}
+	;	
+	
 rule:
-		rulehead RULE_IMPLICATION rulebody '.' 
+		rulehead RULE_IMPLICATION rulebody ';' 
 			{ 
 				RULELOG("rule::head::body"); 
 				$$ = (Node *) createDLRule((DLAtom *) $1,$3); 
@@ -122,11 +147,11 @@ rule:
 	;
 	
 fact:
-		atom '.' { RULELOG("fact::atom"); $$ = $1; } /* do more elegant? */
+		atom ';' { RULELOG("fact::atom"); $$ = $1; } /* do more elegant? */
 	;
 
 ansrelation:
-		ANS ':' name '.'
+		ANS ':' name ';'
 		{
 			RULELOG("ansrelation");
 			$$ = (Node *) createConstString($3);

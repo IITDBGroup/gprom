@@ -77,12 +77,12 @@
 
 #define NAME_GET_FUNC_DEFS "GPRoM_GetFuncDefs"
 #define PARAMS_GET_FUNC_DEFS 2
-#define QUERY_GET_FUNC_DEFS "SELECT prorettype, proargtypes, proallargtypes" \
+#define QUERY_GET_FUNC_DEFS "SELECT prorettype, proargtypes, proallargtypes " \
         "FROM pg_proc WHERE proname = $1::name AND pronargs = $2::smallint;"
 
 #define NAME_GET_OP_DEFS "GPRoM_GetOpDefs"
-#define PARAMS_GET_OP_DEFS 2
-#define QUERY_GET_OP_DEFS " SELECT oprleft, oprright FROM pg_operator WHERE oprname = $1::name;"
+#define PARAMS_GET_OP_DEFS 1
+#define QUERY_GET_OP_DEFS "SELECT oprleft, oprright FROM pg_operator WHERE oprname = $1::name;"
 
 
 //#define NAME_ "GPRoM_"
@@ -280,10 +280,12 @@ fillOidToDTMap (HashMap *oidToDT)
         char *typName = PQgetvalue(res,i,1);
 
         DEBUG_LOG("oid = %s, typename = %s", oid, typName);
-        MAP_ADD_INT_KEY(oidToDT,oidInt, postgresTypenameToDT(typName));
+        MAP_ADD_INT_KEY(oidToDT,oidInt,
+                createConstInt(postgresTypenameToDT(typName)));
     }
-
+    //TODO FINISH transaction
     PQclear(res);
+    DEBUG_LOG("oid -> DT map:\n%s", beatify(nodeToString(oidToDT)));
 }
 
 static void
@@ -632,7 +634,14 @@ execQuery(char *query)
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
 
-    res = PQexec(c, "DECLARE myportal CURSOR FOR ");
+    res = PQexec(c, CONCAT_STRINGS("BEGIN TRANSACTION;"));
+        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+            CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
+                    PQerrorMessage(c));
+    PQclear(res);
+
+    DEBUG_LOG("create cursor for %s", query);
+    res = PQexec(c, CONCAT_STRINGS("DECLARE myportal CURSOR FOR ", query));
     if (PQresultStatus(res) != PGRES_COMMAND_OK)
         CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
                 PQerrorMessage(c));

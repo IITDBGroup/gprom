@@ -17,6 +17,7 @@
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/datalog/datalog_model.h"
 
 /*
  * Traverses a node tree and calls a user provided function for each node in
@@ -331,6 +332,33 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(orderExprs);
             }
             break;
+        // DLNodes
+        case T_DLAtom:
+        {
+            PREP_VISIT(DLAtom);
+            VISIT(args);
+        }
+        break;
+        case T_DLComparison:
+        {
+            PREP_VISIT(DLComparison);
+            VISIT(opExpr);
+        }
+        break;
+        case T_DLRule:
+        {
+            PREP_VISIT(DLRule);
+            VISIT(head);
+            VISIT(body);
+        }
+        break;
+        case T_DLProgram:
+        {
+            PREP_VISIT(DLProgram);
+            VISIT(rules);
+            VISIT(facts);
+        }
+        break;
         default:
             break;
     }
@@ -353,6 +381,12 @@ visit (Node *node, boolean (*checkNode) (), void *state)
     	MUTATE(List,inputs); \
     	MUTATE(Schema,schema); \
     	MUTATE(List,provAttrs); \
+    } while (0)
+
+#define MUTATE_DLNODE() \
+    do { \
+    	DLNode *newN = (DLNode *) node; \
+    	MUTATE(HashMap,properties); \
     } while (0)
 
 Node *
@@ -455,7 +489,7 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         case T_SetQuery:
             {
                 NEWN(SetQuery);
-                MUTATE(List, selectClause);
+                MUTATE(List,selectClause);
                 MUTATE(Node,lChild);
                 MUTATE(Node,rChild);
             }
@@ -634,6 +668,37 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(List,orderExprs);
             }
             break;
+        // DL nodes
+        case T_DLAtom:
+            {
+                NEWN(DLAtom);
+                MUTATE_DLNODE();
+                MUTATE(List,args);
+            }
+        break;
+        case T_DLComparison:
+            {
+                NEWN(DLComparison);
+                MUTATE_DLNODE();
+                MUTATE(Operator,opExpr);
+            }
+        break;
+        case T_DLRule:
+            {
+                NEWN(DLRule);
+                MUTATE_DLNODE();
+                MUTATE(DLAtom,head);
+                MUTATE(List,body);
+            }
+        break;
+        case T_DLProgram:
+            {
+                NEWN(DLProgram);
+                MUTATE_DLNODE();
+                MUTATE(List,rules);
+                MUTATE(List,facts);
+            }
+        break;
         default:
             break;
     }

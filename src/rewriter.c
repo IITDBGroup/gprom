@@ -30,6 +30,7 @@
 #include "parser/parser.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "operator_optimizer/cost_based_optimizer.h"
+#include "execution/executor.h"
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
@@ -98,6 +99,12 @@ setupPluginsFromOptions(void)
         chooseSqlserializerPluginFromString(pluginName);
     else
         chooseSqlserializerPluginFromString(be);
+    // setup analyzer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.executor")) != NULL)
+        chooseExecutorPluginFromString(pluginName);
+    else
+        chooseExecutorPluginFromString("sql");
+
 }
 
 int
@@ -131,6 +138,13 @@ shutdownApplication(void)
     return EXIT_SUCCESS;
 }
 
+void
+processInput(char *input)
+{
+    char *result = rewriteQuery(input);
+    execute(result);
+}
+
 char *
 rewriteQuery(char *input)
 {
@@ -142,8 +156,6 @@ rewriteQuery(char *input)
 
     result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
     INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
-
-//    OUT_TIMERS();
 
     return result;
 }
@@ -158,8 +170,6 @@ rewriteQueryFromStream (FILE *stream) {
 
     result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
     INFO_LOG("Rewritten SQL text is <%s>", result);
-
-//    OUT_TIMERS();
 
     return result;
 }

@@ -21,7 +21,9 @@
 #include "model/datalog/datalog_model.h"
 
 static List *getAtomVars(DLAtom *a);
+static List *getAtomArgs(DLAtom *a);
 static List *getComparisonVars(DLComparison *a);
+static Node *unificationMutator (Node *node, HashMap *context);
 
 DLAtom *
 createDLAtom (char *rel, List *args, boolean negated)
@@ -111,6 +113,21 @@ getRuleVars (DLRule *r)
 }
 
 List *
+getBodyArgs (DLRule *r)
+{
+    List *result = NIL;
+
+    FOREACH(Node,a,r->body)
+    {
+        if (isA(a, DLAtom))
+            result = CONCAT_LISTS(result,
+                    getAtomArgs((DLAtom *) a));
+    }
+
+    return result;
+}
+
+List *
 getBodyVars (DLRule *r)
 {
     List *result = NIL;
@@ -161,6 +178,74 @@ getVarNames (List *vars)
     return result;
 }
 
+DLRule *
+unifyRule (DLRule *r, List *headBinds)
+{
+    DLRule *result = copyObject(r);
+    List *hVars = getHeadVars(r);
+    HashMap *varToBind = NEW_MAP(Constant,Node);
+    ASSERT(LIST_LENGTH(headBinds) == LIST_LENGTH(hVars));
+
+    // create map varname to binding
+    FORBOTH(Node,v,bind,hVars,headBinds)
+    {
+        DLVar *var = (DLVar *) v;
+        MAP_ADD_STRING_KEY(varToBind,var->name,bind);
+        DEBUG_LOG("Var %s bind to %s", var->name, exprToSQL(bind));
+    }
+
+    result = (DLRule *) unificationMutator((Node *) result, varToBind);
+
+    return result;
+}
+
+Node *
+applyVarMap(Node *input, HashMap *h)
+{
+    return unificationMutator(input, h);
+}
+
+Node *
+applyVarMapAsLists(Node *input, List *vars, List *replacements)
+{
+    HashMap *h = NEW_MAP(Constant,Node);
+
+    FORBOTH(Node,l,r,vars,replacements)
+    {
+        DLVar *v = (DLVar *) l;
+        MAP_ADD_STRING_KEY(h,v->name,r);
+    }
+
+    return applyVarMap(input, h);
+}
+
+static Node *
+unificationMutator (Node *node, HashMap *context)
+{
+    if (node == NULL)
+        return NULL;
+
+    // replace vars with bindings (if bound)
+    if (isA(node, DLVar))
+    {
+        DLVar *oVar = (DLVar *) node;
+        if (MAP_HAS_STRING_KEY(context, oVar->name))
+        {
+            Node *result = MAP_GET_STRING(context, oVar->name);
+
+            return (Node *) copyObject(result);
+        }
+    }
+
+    return mutate(node, unificationMutator, context);
+}
+
+static List *
+getAtomArgs(DLAtom *a)
+{
+    return copyObject(a->args);
+}
+
 static List *
 getAtomVars(DLAtom *a)
 {
@@ -200,4 +285,11 @@ setDLProp(DLNode *n, char *key, Node *value)
         n->properties = NEW_MAP(Node,Node);
 
     MAP_ADD_STRING_KEY(n->properties, key, value);
+}
+
+void
+delDLProp(DLNode *n, char *key)
+{
+    if (n->properties != NULL)
+        removeMapElem(n->properties, (Node *) createConstString(key));
 }

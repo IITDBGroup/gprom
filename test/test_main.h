@@ -66,7 +66,7 @@ extern int test_count;
 	((_a == _b) || (_a != NULL && _b != NULL && strcmp(_a,_b) == 0))
 
 #define EQUALS_STRING(_a,_b) \
-    (strcmp(_a,_b) == 0)
+    ((_a == NULL && _b == NULL) || (_a != NULL && _b != NULL && strcmp(_a,_b) == 0))
 
 #define TOSTRING_NODE(a) nodeToString(a)
 
@@ -138,6 +138,7 @@ extern rc testParse(void);
 extern rc testMetadataLookup(void);
 extern rc testMetadataLookupPostgres(void);
 extern rc testString(void);
+extern rc testStringUtils(void);
 extern rc testParameter(void);
 
 #endif

@@ -226,7 +226,7 @@ singletonInt(int value)
 {
 	List *list;
 
-	list = newList(T_List);
+	list = newList(T_IntList);
 	list->head->data.int_value = value;
 
 	return list;
@@ -380,11 +380,31 @@ reverseList(List *list)
     ASSERT(checkList(list));
 }
 
-void
-sortList(List *list)
+List *
+sortList(List *list, int (*sm) (const void *, const void *))
 {
+    int numE = LIST_LENGTH(list);
+    ListCell *lc;
+    List *result = NIL;
+    if (list == NIL)
+        return NIL;
 
+    lc = list->head;
+    // create array for quicksort
+    void **arr = CALLOC(sizeof(void *), numE);
+    for(int i = 0; i < numE; i++, lc = lc->next)
+        arr[i] = LC_P_VAL(lc);
+
+    // using stdlib quicksort
+    qsort(arr, numE, sizeof(void*), sm);
+
+    // result list constuction
+    for(int i = 0; i < numE; i++)
+        result = appendToTailOfList(result, arr[i]);
+
+    return result;
 }
+
 
 List *
 copyList(List *list)
@@ -489,6 +509,8 @@ concatLists (List *a, ...)
 
     va_end(args);
 
+    ASSERT(checkList(result));
+
     return result;
 }
 
@@ -505,12 +527,14 @@ sublist(List *l, int from, int to)
 
     // find new head and skip until to
     result->head = lc;
-    for(int i = from + 1; i < to; i++, lc = lc->next);
+    for(int i = from + 1; i <= to; i++, lc = lc->next);
 
     result->tail = lc;
     lc->next = NULL;
     result->type = l->type;
     result->length = to - from + 1;
+
+    ASSERT(checkList(result));
 
     return result;
 }

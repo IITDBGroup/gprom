@@ -26,6 +26,7 @@ extern int shutdownApplication(void);
         return EXIT_FAILURE;    \
     } while(0)
 
+extern void processInput(char *input);
 extern char *rewriteQuery(char *input);
 extern char *rewriteQueryFromStream (FILE *stream);
 extern char *rewriteQueryWithOptimization(char *input);

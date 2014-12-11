@@ -246,13 +246,21 @@ checkSchemaConsistency (QueryOperator *op)
             SelectionOperator *o = (SelectionOperator *) op;
             QueryOperator *child = OP_LCHILD(o);
 
-            if (!equal(op->schema->attrDefs,child->schema->attrDefs))
+            if (LIST_LENGTH(op->schema->attrDefs) != LIST_LENGTH(child->schema->attrDefs))
             {
-                ERROR_LOG("Attributes of a selection operator should match the "
-                        "attributes of its child:\n%s",
+                ERROR_LOG("Number of attributes of a selection operator should match the "
+                        "number of attributes of its child:\n%s",
                         operatorToOverviewString((Node *) op));
                 return FALSE;
             }
+
+//            if (!equal(op->schema->attrDefs,child->schema->attrDefs))
+//            {
+//                ERROR_LOG("Attributes of a selection operator should match the "
+//                        "attributes of its child:\n%s",
+//                        operatorToOverviewString((Node *) op));
+//                return FALSE;
+//            }
         }
         break;
         case T_JoinOperator:
@@ -260,18 +268,22 @@ checkSchemaConsistency (QueryOperator *op)
             JoinOperator *o = (JoinOperator *) op;
             QueryOperator *lChild = OP_LCHILD(o);
             QueryOperator *rChild = OP_RCHILD(o);
-            List *expectedSchema = CONCAT_LISTS(
-                    copyObject(lChild->schema->attrDefs),
-                    copyObject(rChild->schema->attrDefs));
-
-            if (o->op.schema->attrDefs->length != expectedSchema->length)
+            //TODO only check names
+//            List *expectedSchema = CONCAT_LISTS(
+//                    copyObject(lChild->schema->attrDefs),
+//                    copyObject(rChild->schema->attrDefs));
+//
+            if (LIST_LENGTH(o->op.schema->attrDefs) !=
+                    LIST_LENGTH(lChild->schema->attrDefs) +
+                    LIST_LENGTH(rChild->schema->attrDefs))
             {
-                ERROR_LOG("Attributes of a join operator should be the "
-                        "concatenation of attributes of its children:\n%s\n"
-                        "expected:\n%s\nbut was\n%s",
+                ERROR_LOG("Number of attributes of a join operator should be the "
+                        "addition of the number of attributes of its children:\n%s\n"
+                        "expected:\n%u\nbut was\n%u",
                         operatorToOverviewString((Node *) op),
-                        nodeToString(o->op.schema),
-                        nodeToString(expectedSchema));
+                        LIST_LENGTH(lChild->schema->attrDefs) +
+                                LIST_LENGTH(rChild->schema->attrDefs),
+                        LIST_LENGTH(o->op.schema->attrDefs));
                 return FALSE;
             }
         }
@@ -305,7 +317,7 @@ checkSchemaConsistency (QueryOperator *op)
 //            WindowOperator *o = (WindowOperator *) op;
             QueryOperator *lChild = OP_LCHILD(op);
             List *expected = sublist(copyObject(op->schema->attrDefs), 0,
-                    LIST_LENGTH(op->schema->attrDefs) - 1);
+                    LIST_LENGTH(op->schema->attrDefs) - 2);
 
             if (!equal(expected, lChild->schema->attrDefs))
             {

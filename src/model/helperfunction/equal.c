@@ -22,7 +22,6 @@
 
 /* equal function for collection types */
 static boolean equalList(List *a, List *b);
-static boolean equalStringList (List *a, List *b);
 static boolean equalSet (Set *a, Set *b);
 static boolean equalKeyValue (KeyValue *a, KeyValue *b);
 static boolean equalHashMap (HashMap *a, HashMap *b);
@@ -378,7 +377,7 @@ equalList(List *a, List *b)
     return TRUE;
 }
 
-static boolean
+boolean
 equalStringList (List *a, List *b)
 {
     if (a == NULL && b == NULL)

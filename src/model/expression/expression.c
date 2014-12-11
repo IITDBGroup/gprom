@@ -172,6 +172,17 @@ andExprs (Node *expr, ...)
 }
 
 Node *
+andExprList (List *exprs)
+{
+    Node *result = popHeadOfListP(exprs);
+
+    FOREACH(Node,e,exprs)
+        result = AND_EXPRS(result,e);
+
+    return result;
+}
+
+Node *
 orExprs (Node *expr, ...)
 {
     Node *result = NULL;

@@ -11,6 +11,7 @@
  */
 
 #include "common.h"
+#include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "log/logger.h"
@@ -19,6 +20,7 @@
 #include "operator_optimizer/expr_attr_factor.h"
 #include "model/query_block/query_block.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 #include "model/query_operator/schema_utility.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/operator_property.h"
@@ -32,6 +34,9 @@ static QueryOperator *optimizeOneGraph (QueryOperator *root);
 static QueryOperator *pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames);
 static void pushDownSelection(QueryOperator *root, List *opList,
                               QueryOperator *r, QueryOperator *child);
+static void renameOpAttrRefs(QueryOperator *op, HashMap *nameMap, QueryOperator *pro);
+static boolean renameAttrRefs (Node *node, HashMap *nameMap);
+
 
 Node  *
 optimizeOperatorModel (Node *root)
@@ -323,6 +328,17 @@ removeRedundantProjections(QueryOperator *root)
 
       if (compare)
       {
+          List *projAttrs = getQueryOperatorAttrNames(root);
+          List *childAttrs = getQueryOperatorAttrNames(lChild);
+          HashMap *nameMap = NEW_MAP(Node,Node);
+
+          // adapt any attribute references in the parent of the redundant projection
+          FORBOTH(char,pA,cA,projAttrs, childAttrs)
+              MAP_ADD_STRING_KEY(nameMap, pA, createConstString(cA));
+
+          FOREACH(QueryOperator,parent,root->parents)
+              renameOpAttrRefs(parent, nameMap, root);
+
           // Remove Parent and make lChild as the new parent
           switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
           root = lChild;
@@ -334,6 +350,71 @@ removeRedundantProjections(QueryOperator *root)
 
   return root;
 }
+
+#define CHILDPOS_KEY "__CHILDPOS__"
+
+static void
+renameOpAttrRefs(QueryOperator *op, HashMap *nameMap, QueryOperator *pro)
+{
+    int childPos = 0;
+
+    // find position in parents input list and store in hashmap
+    FOREACH(QueryOperator,child,op->inputs)
+    {
+        if (child == pro)
+            break;
+        childPos++;
+    }
+    MAP_ADD_STRING_KEY(nameMap, CHILDPOS_KEY, createConstInt(childPos));
+
+    if (isA(op,SelectionOperator))
+        renameAttrRefs((Node *) ((SelectionOperator *) op)->cond, nameMap);
+    if (isA(op,JoinOperator))
+        renameAttrRefs((Node *) ((JoinOperator *) op)->cond, nameMap);
+    if (isA(op,AggregationOperator))
+    {
+        AggregationOperator *agg = (AggregationOperator *) op;
+        renameAttrRefs((Node *) agg->aggrs, nameMap);
+        renameAttrRefs((Node *) agg->groupBy, nameMap);
+    }
+    if (isA(op,ProjectionOperator))
+        renameAttrRefs((Node *) ((ProjectionOperator *) op)->projExprs, nameMap);
+    if (isA(op,DuplicateRemoval))
+        renameAttrRefs((Node *) ((DuplicateRemoval *) op)->attrs, nameMap);
+    if (isA(op,NestingOperator))
+        renameAttrRefs((Node *) ((NestingOperator *) op)->cond, nameMap);
+    if (isA(op,WindowOperator))
+    {
+        WindowOperator *w = (WindowOperator *) op;
+        renameAttrRefs((Node *) w->partitionBy, nameMap);
+        renameAttrRefs((Node *) w->orderBy, nameMap);
+        renameAttrRefs((Node *) w->frameDef, nameMap);
+        renameAttrRefs((Node *) w->f, nameMap);
+    }
+    if (isA(op,OrderOperator))
+        renameAttrRefs((Node *) ((OrderOperator *) op)->orderExprs, nameMap);
+}
+
+static boolean
+renameAttrRefs (Node *node, HashMap *nameMap)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if(isA(node,AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+        int childPos = INT_VALUE(MAP_GET_STRING(nameMap,CHILDPOS_KEY));
+
+        if (a->fromClauseItem == childPos)
+            a->name = strdup(STRING_VALUE(MAP_GET_STRING(nameMap, a->name)));
+    }
+
+    if (!isA(node,QueryOperator))
+        return visit(node, renameAttrRefs, nameMap);
+    return TRUE;
+}
+
 
 QueryOperator *
 pullingUpProvenanceProjections(QueryOperator *root)

@@ -80,8 +80,9 @@ typedef struct MetadataLookupPlugin
             List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
     long (*getCommitScn) (char *tableName, long maxScn, char *xid);
 
-    /* execute transaction */
+    /* execution */
     Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
+    List * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
 
     /* cache for catalog information */
     CatalogCache *cache;
@@ -122,6 +123,7 @@ extern int getCost(char *query);
 
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
+extern List *executeQuery (char *sql);
 extern long getCommitScn (char *tableName, long maxScn, char *xid);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 

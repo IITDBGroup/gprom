@@ -179,7 +179,7 @@ extern List *appendToHeadOfListInt (List *list, int value);
 
 /* sort and reverse list */
 extern void reverseList(List *list);
-extern void sortList(List *list);
+extern List *sortList(List *list, int (*sm) (const void *, const void *));
 
 /* copy and free lists */
 extern List *copyList(List *list);
@@ -187,6 +187,9 @@ extern List *deepCopyStringList (List *list);
 extern void freeList(List *list);
 extern void deepFreeList(List *list);
 extern List *stringListToConstList(List *list);
+
+/* compare lists */
+extern boolean equalStringList (List *a, List *b);
 
 /* search for elements in list */
 extern boolean searchList(List *list, void *value);
