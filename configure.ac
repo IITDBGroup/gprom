@@ -203,7 +203,7 @@ AS_IF([test "x$enable_debug" == "xno"],
 ],
 [
 	GPROM_CFLAGS_DEBUG="-g"
-	GPROM_CFLAGS_ERR="-Wall"
+	GPROM_CFLAGS_ERR="-Wall -Werror"
 	GPROM_CFLAGS_OPT="-O0"
 ])
 GPROM_CFLAGS="${GPROM_CFLAGS_DEBUG} ${GPROM_CFLAGS_OPT} ${GPROM_CFLAGS_ERR}"

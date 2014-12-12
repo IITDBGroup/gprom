@@ -91,6 +91,7 @@ testSuites(void)
     RUN_TEST(testExpr(), "Expression model.");
     RUN_TEST(testCopy(), "Test generic copy function.");
     RUN_TEST(testEqual(), "Test generic equality function.");
+    RUN_TEST(testStringUtils(), "Test String utilities.");
     RUN_TEST(testToString(), "Test generic toString function.");
     RUN_TEST(testString(), "Test stringinfo.");
     RUN_TEST(testParse(), "Test parser.");
