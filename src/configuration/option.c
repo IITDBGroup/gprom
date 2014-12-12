@@ -88,6 +88,9 @@ boolean opt_optimize_operator_model = FALSE;
 boolean opt_translate_update_with_case = FALSE;
 //boolean   = FALSE;
 
+// cost based optimization option
+boolean cost_based_optimizer = FALSE;
+
 // optimization options
 boolean opt_optimization_push_selections = FALSE;
 boolean opt_optimization_merge_ops = FALSE;
@@ -359,6 +362,15 @@ OptionInfo opts[] =
                 "Create reenactment query for UPDATE statements using CASE instead of UNION.",
                 opt_translate_update_with_case,
                 TRUE),
+        // Cost Based Optimization Option
+         {
+                "cost_based_optimizer",
+                "-cost_based_optimizer",
+                "Activate/Deactivate cost based optimizer",
+                OPTION_BOOL,
+                wrapOptionBool(&cost_based_optimizer),
+                defOptionBool(FALSE)
+         },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
                 "-Opush_selections",

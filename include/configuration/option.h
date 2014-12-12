@@ -25,6 +25,7 @@ typedef enum OptionType {
 #define OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW "pi_cs_rewrite_agg_window"
 #define OPTION_OPTIMIZE_OPERATOR_MODEL "optimize_operator_model"
 #define OPTION_TRANSLATE_UPDATE_WITH_CASE "translate_update_with_case"
+#define OPTION_COST_BASED_OPTIMIZER "cost_based_optimizer"
 //#define OPTION_
 
 /* define optimization options */
@@ -82,6 +83,9 @@ extern boolean opt_pi_cs_composable;
 extern boolean opt_pi_cs_rewrite_agg_window;
 extern boolean opt_optimize_operator_model;
 extern boolean opt_translate_update_with_case;
+
+// cost based optimization option
+extern boolean cost_based_optimizer;
 
 // optimization options
 extern boolean opt_optimization_push_selections;

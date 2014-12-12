@@ -11,7 +11,11 @@
 #ifndef INCLUDE_OPERATOR_OPTIMIZER_COST_BASED_OPTIMIZER_H_
 #define INCLUDE_OPERATOR_OPTIMIZER_COST_BASED_OPTIMIZER_H_
 
-char *doCostBasedOptimization(Node *transOutput);
-int callback (int numChoices);
+#include "model/node/nodetype.h"
+
+extern char *doCostBasedOptimization(Node *oModel, boolean applyOptimizations);
+extern int callback (int numChoices);
+extern void reSetX1();
+
 
 #endif /* INCLUDE_OPERATOR_OPTIMIZER_COST_BASED_OPTIMIZER_H_ */

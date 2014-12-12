@@ -157,18 +157,11 @@ extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
 extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2);
-extern void setMoveAroundListSetProperityForWholeTree(QueryOperator *root);
-extern List *addNonEqOpToOplistInMoveAround(QueryOperator *root, QueryOperator *opl, List *opListr);
-extern void reSetMoveAroundListSetProperityForWholeTree(QueryOperator *root);
-extern void introduceSelection(QueryOperator *root);
-extern List *getMoveAroundOpList(QueryOperator *qo);
-extern void introduceSelectionOrChangeSelectionCond(List *opList, QueryOperator *qo1);
-extern void introduceSelectionOfNotEqConn(QueryOperator *root);
-extern List *removeRedundantSelectionCondOfOpList(List *opList);
-/* used in selection move around */
+
+/* union equal element between two set list */
 extern List *UnionEqualElemOfTwoSetList(List *l1, List *l2);
 extern List *addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet);
-extern Node *changeListOpToAnOpNode(List *l1);
+
 extern List *getSelectionCondOperatorList(List *opList, Operator *op);
 extern List *getCondOpList(List *l1, List *l2);
 extern List *getDataTypes (Schema *schema);

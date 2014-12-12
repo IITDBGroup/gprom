@@ -510,3 +510,61 @@ findAttrReferences (Node *node, List **state)
 
     return visit(node, findAttrReferences, state);
 }
+
+List *
+getSelectionCondOperatorList(List *opList, Operator *op)
+{
+	if(streq(op->name,"AND"))
+	{
+		Operator *o2 = (Operator *)(getTailOfListP(op->args));
+		opList = getSelectionCondOperatorList(opList,o2);
+
+		Operator *o1 = (Operator *)(getHeadOfListP(op->args));
+		opList = getSelectionCondOperatorList(opList,o1);
+
+	}
+	else
+	{
+		opList = appendToTailOfList(opList, op);
+	}
+	return opList;
+}
+
+Node *
+changeListOpToAnOpNode(List *l1)
+{
+    List *helpList;
+    Node *opNode1;
+
+    if (LIST_LENGTH(l1) == 2)
+        opNode1 = (Node *) createOpExpr("AND", (List *) l1);
+    else if(LIST_LENGTH(l1) > 2)
+    {
+        int i;
+        helpList = NIL;
+        Operator *helpO1 = getHeadOfListP(l1);
+        l1 = REMOVE_FROM_LIST_PTR(l1, helpO1);
+        Operator *helpO2 = getHeadOfListP(l1);
+        l1 = REMOVE_FROM_LIST_PTR(l1, helpO2);
+        helpList = appendToTailOfList(helpList, helpO1);
+        helpList = appendToTailOfList(helpList, helpO2);
+
+	Operator *helpO = createOpExpr("AND", (List *) helpList);
+        int length_l1 = LIST_LENGTH(l1);
+
+        for(i=0; i<length_l1; i++)
+        {
+            helpList = NIL;
+            helpList = appendToTailOfList(helpList, helpO);
+            helpO = getHeadOfListP(l1);
+            l1 = REMOVE_FROM_LIST_PTR(l1, helpO);
+            helpList = appendToTailOfList(helpList, helpO);
+            helpO =  createOpExpr("AND", (List *) helpList);
+        }
+        opNode1 = (Node *)helpO;
+    }
+    else
+        opNode1 = (Node *) getHeadOfListP(l1);
+
+    return opNode1;
+}
