@@ -398,8 +398,8 @@ oracleGetAttributeNames (char *tableName)
     List *attrNames = NIL;
     List *attrs = getAttributes(tableName);
     //TODO use attribute defition instead
-    FOREACH(AttributeReference,a,attrs)
-        attrNames = appendToTailOfList(attrNames, a->name);
+    FOREACH(AttributeDef,a,attrs)
+        attrNames = appendToTailOfList(attrNames, a->attrName);
 
     return attrNames;
 }
