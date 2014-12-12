@@ -18,6 +18,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
 
 static char *table1Attrs[3] = { "A","B","C" };
 static char *table2Attrs[2] = { "D","E" };
@@ -120,19 +121,19 @@ testGetAttributes(void)
     int i = 0;
 
 	List *attrs = getAttributes("metadatalookup_test1");
-	FOREACH(AttributeReference,a,attrs)
+	FOREACH(AttributeDef,a,attrs)
 	{
 	    DEBUG_LOG("Attribute %s\n",nodeToString(a));
-	    ASSERT_EQUALS_STRING(table1Attrs[i],a->name, "attribute");
+	    ASSERT_EQUALS_STRING(table1Attrs[i],a->attrName, "attribute");
 	    i++;
 	}
 
 	i = 0;
     List *attrs1 = getAttributes("metadatalookup_test2");
-    FOREACH(AttributeReference,a,attrs1)
+    FOREACH(AttributeDef,a,attrs1)
     {
         DEBUG_LOG("Attribute %s\n",nodeToString(a));
-        ASSERT_EQUALS_STRING(table2Attrs[i],a->name, "attribute");
+        ASSERT_EQUALS_STRING(table2Attrs[i],a->attrName, "attribute");
         i++;
     }
     List *attrs2 = getAttributes("metadatalookup_test1");
