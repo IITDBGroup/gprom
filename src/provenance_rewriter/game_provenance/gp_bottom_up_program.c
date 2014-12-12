@@ -844,10 +844,10 @@ unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom)
         {
             if (DL_HAS_PROP(a,DL_IS_IDB_REL))
             {
-                boolean hasConst = FALSE;
-                FOREACH(Node,arg,a->args)
-                    if (isA(arg,Constant))
-                        hasConst = TRUE;
+//                boolean hasConst = FALSE;
+//                FOREACH(Node,arg,a->args)
+//                    if (isA(arg,Constant))
+//                        hasConst = TRUE;
 //                if (hasConst)
                 unifyOneWithRuleHeads(pToR,rToUn,a);
             }
