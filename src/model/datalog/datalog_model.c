@@ -199,6 +199,90 @@ unifyRule (DLRule *r, List *headBinds)
     return result;
 }
 
+char *
+getUnificationString(DLAtom *a)
+{
+    StringInfo result = makeStringInfo();
+    int curId = 0;
+    HashMap *varToNewVar = NEW_MAP(Constant,Constant);
+
+    appendStringInfoString(result,strdup(a->rel));
+
+    FOREACH(Node,arg,a->args)
+    {
+        char *stringArg = NULL;
+        boolean isVar = isA(arg,DLVar);
+
+        if (isVar)
+        {
+            DLVar *d = (DLVar *) arg;
+            void *entry = MAP_GET_STRING(varToNewVar,d->name);
+
+            if (entry == NULL)
+            {
+                stringArg = CONCAT_STRINGS("V", itoa(curId++));
+                MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg));
+            }
+            else
+                stringArg = strdup(STRING_VALUE(entry));
+        }
+        else if (isA(arg,Constant))
+            stringArg = exprToSQL(arg);
+        else
+            FATAL_LOG("unexpected type: %u", arg->type);
+
+        appendStringInfo(result,"_%s.%s", isVar ? "V" : "C", stringArg);
+    }
+
+    return result->data;
+}
+
+/*
+ *  Takes an atom and replaces variables with standardized names (V1, V2, ...). This
+ *  is used, e.g., when unifying a program with a user provenance questions to
+ *  abstract from variable naming. For instance
+ *
+ *      WHY(Q(1))
+ *
+ *      r1: Q(X) :- R(X,Y), S(Y,X)
+ *      r2: Q(X) :- T(X,Z), S(Z,X)
+ *      r3: S(A,B) :- U(A,B)
+ *
+ *      for both rules r1 and r2 the first variable of atom S is not bound to a constant.
+ *      We replace both occurances with S(V1,1) to ensure that we are not trying to
+ *      derive two unified instances of r3 where only one is needed.
+ */
+DLAtom *
+getNormalizedAtom(DLAtom *a)
+{
+    DLAtom *result = copyObject(a);
+    HashMap *varToNewVar = NEW_MAP(Constant,Constant);
+    int varId = 0;
+
+    FOREACH(Node,arg,result->args)
+    {
+        char *stringArg = NULL;
+
+        if (isA(arg,DLVar))
+        {
+            DLVar *d = (DLVar *) arg;
+            void *entry = MAP_GET_STRING(varToNewVar,d->name);
+
+            if (entry == NULL)
+            {
+                stringArg = CONCAT_STRINGS("V", itoa(varId++));
+                MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg));
+            }
+            else
+                stringArg = strdup(STRING_VALUE(entry));
+
+            d->name = stringArg;
+        }
+    }
+
+    return result;
+}
+
 Node *
 applyVarMap(Node *input, HashMap *h)
 {
@@ -283,6 +367,9 @@ setDLProp(DLNode *n, char *key, Node *value)
 {
     if (n->properties == NULL)
         n->properties = NEW_MAP(Node,Node);
+
+    if (value == NULL)
+        return;
 
     MAP_ADD_STRING_KEY(n->properties, key, value);
 }

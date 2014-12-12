@@ -30,6 +30,25 @@
 
 #define NON_LINKED_POSTFIX "_nonlinked"
 
+#define NORM_COPY(result,a) \
+	do { \
+	    result = getNormalizedAtom(copyObject((DLAtom *) a));   \
+	    result->negated = FALSE; \
+	    ((DLNode *) result)->properties = NULL; \
+    } while (0)
+
+#define AD_NORM_COPY(result,a) \
+    do { \
+        result = getNormalizedAtom(copyObject((DLAtom *) a));   \
+        result->negated = FALSE; \
+        DLNode *_p = (DLNode *) result; \
+        _p->properties = NULL; \
+        DL_COPY_PROP(a,_p,DL_WON); \
+        DL_COPY_PROP(a,_p,DL_LOST); \
+        DL_COPY_PROP(a,_p,DL_UNDER_NEG_WON); \
+        DL_COPY_PROP(a,_p,DL_UNDER_NEG_LOST); \
+    } while (0)
+
 static DLProgram *createWhyGPprogram (DLProgram *p, DLAtom *why);
 static DLProgram *createWhyNotGPprogram (DLProgram *p, DLAtom *whyNot);
 static DLProgram *createFullGPprogram (DLProgram *p);
@@ -44,7 +63,7 @@ static DLRule *createMoveRule(Node *lExpr, Node *rExpr, char *bodyAtomName, List
 static Node *createSkolemExpr (GPNodeType type, char *id, List *args);
 
 static DLProgram *unifyProgram (DLProgram *p, DLAtom *question);
-static void unifyOneRule(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom);
+static void unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom);
 static DLProgram *solveProgram (DLProgram *p, DLAtom *question, boolean neg);
 
 DLProgram *
@@ -90,6 +109,8 @@ createWhyGPprogram (DLProgram *p, DLAtom *why)
     solvedProgram = rewriteSolvedProgram(solvedProgram);
     DL_DEL_PROP(solvedProgram, DL_PROV_WHY);
 
+//    FATAL_LOG("solvedProgram: %s", datalogToOverviewString((Node *) solvedProgram));
+
     return solvedProgram;
 }
 
@@ -120,7 +141,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     List *edbRules = NIL;
     List *moveRules = NIL;
     Set *adornedEDBAtoms = NODESET();
-//    Set *edgeRuleDef = NODESET(); // for which edges in the GP have we defined filtering rules
     HashMap *idbAdToRules = NEW_MAP(Node,Node);
 
     result->rules = copyObject(solvedProgram->rules);
@@ -176,8 +196,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                     // if an edb atom
                     if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
                     {
-                        DLAtom *at = copyObject(a);
-                        at->negated = FALSE;
+                        DLAtom *at;
+                        AD_NORM_COPY(at,a);
                         addToSet(adornedEDBAtoms, at);
                     }
                     boolean ruleWon = DL_HAS_PROP(r,DL_WON)
@@ -236,9 +256,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         ruleAtom->args = copyObject(newRuleArgs);
         headRule->body = singleton(ruleAtom);
 
-        DLAtom *lookupAtom = copyObject(headRule->head);
-        //lookupAtom->rel = CONCAT_STRINGS(lookupAtom->rel, NON_LINKED_POSTFIX);
-        DL_SET_BOOL_PROP((getDLProp((DLNode *) lookupAtom, DL_ORIG_ATOM)), DL_IS_IDB_REL);
+        DLAtom *lookupAtom;
+        AD_NORM_COPY(lookupAtom,headRule->head);
+//        DL_SET_BOOL_PROP((getDLProp((DLNode *) lookupAtom, DL_ORIG_ATOM)), DL_IS_IDB_REL);
 
         CONCAT_MAP_LIST(idbAdToRules,(Node *) lookupAtom, singleton(ruleRule));
         DEBUG_LOG("created new head rule:\n%s", datalogToOverviewString((Node *) headRule));
@@ -289,7 +309,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
         // add rules to new rules list
         setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) edb);
-        CONCAT_MAP_LIST(idbAdToRules,(Node *) atRule->head,singleton(atRule));
+        DLAtom *lookup;
+        AD_NORM_COPY(lookup, atRule->head);
+        CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup,singleton(atRule));
         edbRules = appendToTailOfList(edbRules, atRule);
         DEBUG_LOG("new EDB rule generated:\n%s",
                 datalogToOverviewString((Node *) atRule));
@@ -322,7 +344,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     //                   3) R(X) -> rule_i^adornment-direct(X)
     // i.e., starting from the user question atom we check - one hop of a time - that all
     // intermediate tuples which we include in the game provenance are actually needed
-    // to explain the user question. That is they are reachable from the tbe user question atom
+    // to explain the user question. That is they are reachable from the user question atom
     Set *unHeadToRules = NODESET();
     FOREACH(DLRule,unRule,unLinkedRules)
     {
@@ -333,10 +355,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
             if (isA(a,DLAtom))
             {
                 DLAtom *at = (DLAtom *) copyObject(a);
-//                at->rel = CONCAT_STRINGS(at->rel, NON_LINKED_POSTFIX);
+                DLAtom *lookup;
+                AD_NORM_COPY(lookup,a);
                 DL_DEL_PROP(at,DL_IS_IDB_REL);
-                List *goalRules = (List *) getMap(idbAdToRules, (Node *) at);
-                DEBUG_LOG("create link rules between %s and rule %s\nusing rules:\n%s", at->rel,
+                List *goalRules = (List *) getMap(idbAdToRules, (Node *) lookup);
+                DEBUG_LOG("create link rules between %s and rule %s\nusing rules:\n%s",
+                        datalogToOverviewString((Node *) lookup),
                         datalogToOverviewString((Node *) unRule),
                         datalogToOverviewString((Node *) goalRules));
                 ASSERT(goalRules != NIL);
@@ -731,7 +755,7 @@ unifyProgram (DLProgram *p, DLAtom *question)
 
     // unify rule bodies starting with constants provided by the user query
     // e.g., Why(Q(1))
-    unifyOneRule(predToRules, predToUnRules, question);
+    unifyOneWithRuleHeads(predToRules, predToUnRules, question);
 
     DEBUG_LOG("predToUnRules:\n%s", beatify(nodeToString(predToUnRules)));
 
@@ -769,14 +793,17 @@ unifyProgram (DLProgram *p, DLAtom *question)
 }
 
 static void
-unifyOneRule(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom)
+unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom)
 {
-    List *vals = curAtom->args;
+    List *vals; //= curAtom->args;
 //    char *unRel = curAtom->rel;
     List *unRules = NIL;
     List *origRules;
-    DLAtom *lookupAtom = copyObject(curAtom);
-    lookupAtom->negated = FALSE;
+    DLAtom *lookupAtom;
+
+    NORM_COPY(lookupAtom, curAtom);
+    vals = lookupAtom->args;
+    setDLProp((DLNode *) curAtom, DL_NORM_ATOM, copyObject(lookupAtom));
 
     // get originalRules and if they exist unified rules
     origRules = (List *) MAP_GET_STRING(pToR, curAtom->rel);
@@ -822,7 +849,7 @@ unifyOneRule(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom)
                     if (isA(arg,Constant))
                         hasConst = TRUE;
 //                if (hasConst)
-                    unifyOneRule(pToR,rToUn,a);
+                unifyOneWithRuleHeads(pToR,rToUn,a);
             }
         }
     }
@@ -876,6 +903,12 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
     Set *doneAd = NODESET();
     Set *edb = (Set *) getDLProp((DLNode *) p, DL_EDB_RELS);
     List *adornedRules = NIL;
+    DLAtom *lookupQ;
+
+    NORM_COPY(lookupQ,question);
+
+    DEBUG_LOG("normalized user atom is: %s",
+            datalogToOverviewString((Node *) lookupQ));
 
     // rules have been unified
     if (unified)
@@ -883,13 +916,22 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
         List *todoStack = NIL;
 
         // initialize stack with copy of rules for user provenance question
-        todoStack = copyObject((List *) getMap(unPredToRules,(Node *) question));
+        todoStack = copyObject((List *) getMap(unPredToRules,(Node *) lookupQ));
+
+        DEBUG_LOG("rules mapping to user question:\n%s",
+                datalogToOverviewString((Node *) todoStack));
 
         // user question defines whether the starting predicate is lost or won
         FOREACH(DLRule,r,todoStack)
         {
             char *state = neg ? DL_LOST : DL_WON;
-            DLAtom *adornedHead = (DLAtom *) copyObject(r->head);
+            DLAtom *adornedHead;
+
+            NORM_COPY(adornedHead, r->head);
+
+            DEBUG_LOG("head atom %s matching normalized user question %s",
+                    datalogToOverviewString((Node *) adornedHead),
+                    datalogToOverviewString((Node *) lookupQ));
 
             setDLProp((DLNode *) r, state,
                     (Node *) createConstBool(TRUE));
@@ -921,14 +963,14 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
             // process each atom
             FOREACH(DLAtom,a,r->body)
             {
-                DLAtom *adHead = copyObject(a);
-                adHead->negated = FALSE;
+                DLAtom *adHead;
                 boolean newWon = ruleWon && !a->negated;
                 boolean newNeg = ruleNeg || !ruleWon;
                 char *newProp = newNeg ?
                         (newWon ? DL_UNDER_NEG_WON : DL_UNDER_NEG_LOST)
                         : (newWon ? DL_WON : DL_LOST);
 
+                NORM_COPY(adHead, a);
                 DEBUG_LOG("process atom:\n%s",
                         datalogToOverviewString((Node *) a));
 
@@ -939,10 +981,10 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
                     // do not process rules for adorned head twice
                     if (!hasSetElem(doneAd, adHead))
                     {
-                        boolean aNeg = a->negated;
-                        a->negated = FALSE;
+                        DLAtom *lookup;
+                        NORM_COPY(lookup,a);
                         List *newRules = copyObject(getMap(unPredToRules,
-                                (Node *) a));
+                                (Node *) lookup));
 
                         FOREACH(DLRule,r,newRules)
                         {
@@ -958,7 +1000,6 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
                             todoStack = appendToTailOfList(todoStack,cpy);
                         }
 
-                        a->negated = aNeg;
                         addToSet(doneAd, copyObject(adHead));
                     }
                 }
@@ -972,7 +1013,7 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
     // non-unified rules
     else
     {
-        DEBUG_LOG("not unified");
+        FATAL_LOG("not unified");
     }
 
     // create adorned program
