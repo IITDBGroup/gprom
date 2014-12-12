@@ -215,8 +215,9 @@ translateRule(DLRule *r)
     projExprs = getHeadProjectionExprs(r->head, joinedGoals, getBodyArgs(r));
     int i = 0;
 
-    FOREACH(Node,p,projExprs)
-        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", itoa(i++)));
+//    FOREACH(Node,p,projExprs)
+    for (; i < LIST_LENGTH(projExprs); i++)
+        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", itoa(i)));
 //
 //    List *headVars = getVarNames(getHeadVars(r));
 //    List *headArgs = r->head->args;
