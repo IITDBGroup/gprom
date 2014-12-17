@@ -931,7 +931,7 @@ int getCost(char *query)
 			query[i] = ' ';
 	}
 
-	unsigned long long cost;
+	unsigned long long cost = 0L;
 
 	StringInfo statement;
     statement = makeStringInfo();

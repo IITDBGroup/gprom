@@ -257,4 +257,13 @@ extern WindowFunction *winOpGetFunc (WindowOperator *op);
 /* transforms a graph query model into a tree */
 extern void treeify(QueryOperator *op);
 
+/* visit a query operator graph in a specified order */
+NEW_ENUM_WITH_TO_STRING(TraversalOrder,
+        TRAVERSAL_PRE,
+        TRAVERSAL_POST);
+extern boolean visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
+        boolean (*visitF) (QueryOperator *op, void *context),
+        void *context);
+
+
 #endif /* QUERY_OPERATOR_H_ */
