@@ -338,10 +338,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //            beatify(nodeToString((Node *) idbAdToRules)));
 
     // ************************************************************
-    // create rule rule_i^adornment(X) :- rule_i^adornment-direct(X) rule_j^adornment-direct(X,Y)
-    // for every pattern 1) rule_j^adornment-direct(X,Y) :- ..., goal_k(X) ...
-    //                   2) goal_k(X) -> R(X)
-    //                   3) R(X) -> rule_i^adornment-direct(X)
+    // create rule rule_i^adornment(X) :- R_unlinked(X) rule_j^adornment_unlinked(X,Y)
+    // for every pattern 1) rule_j^adornment_unlinked(X,Y) :- ..., R(X) ...
+    //                   2) R_unlinked(X) -> rule_i^adornment_unlinked(X)
     // i.e., starting from the user question atom we check - one hop of a time - that all
     // intermediate tuples which we include in the game provenance are actually needed
     // to explain the user question. That is they are reachable from the user question atom
@@ -371,7 +370,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                     DLRule *linkRule = makeNode(DLRule);
                     DLAtom *goalGoal;
                     DLAtom *ruleGoal;
-                    int goalRuleId = DL_HAS_PROP(gRule,DL_RULE_ID) ? INT_VALUE(DL_GET_PROP(gRule, DL_RULE_ID)) : -1;
+                    int goalRuleId = DL_HAS_PROP(gRule,DL_RULE_ID) ?
+                            INT_VALUE(DL_GET_PROP(gRule, DL_RULE_ID)) : -1;
 
                     DEBUG_LOG("back link rule\n%s to\n%s",
                             datalogToOverviewString((Node *) gRule),
@@ -382,19 +382,23 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                     linkRule->head->rel = strRemPostfix(linkRule->head->rel,
                             strlen(NON_LINKED_POSTFIX));
                     if (goalRuleId != -1)
-                        setDLProp((DLNode *) linkRule, DL_RULE_ID, (Node *) createConstInt(goalRuleId));
+                        setDLProp((DLNode *) linkRule, DL_RULE_ID,
+                                (Node *) createConstInt(goalRuleId));
 
-                    goalGoal = copyObject(at);
+                    // create goal for the rule that goal in its body and unify vars with link rule head
                     ruleGoal = copyObject(unRule->head);
                     ruleGoal->rel = strRemPostfix(ruleGoal->rel,
                             strlen(NON_LINKED_POSTFIX));
-                    //TODO
-                    // goals are the goal atom directed
-//                    {
-//                        List *vars;
-//                        List *repl;
-//
-//                    }
+                    ruleGoal = (DLAtom *) applyVarMapAsLists((Node *) ruleGoal,
+                            copyObject(ruleGoal->args),
+                            copyObject(linkRule->head->args));
+
+                    // create goal for the rel that the rule has in its body and unify with link rule head
+                    goalGoal = copyObject(at);
+                    goalGoal = (DLAtom *) applyVarMapAsLists((Node *) goalGoal ,
+                            copyObject(at->args),
+                            copyObject(linkRule->head->args));
+
                     addToSet(unHeadToRules, copyObject(gRule->head));
                     linkRule->body = LIST_MAKE(ruleGoal, goalGoal);
 

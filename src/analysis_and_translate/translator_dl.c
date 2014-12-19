@@ -18,11 +18,12 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/datalog/datalog_model.h"
-#include "model/set/hashmap.h"
+#include "model/datalog/datalog_model_checker.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
 
@@ -46,6 +47,9 @@ translateParseDL(Node *q)
     Node *result = NULL;
 
     INFO_LOG("translate DL model:\n\n%s", datalogToOverviewString(q));
+
+    if (!checkDLModel(q))
+        FATAL_LOG("failed model check on:\n%s", datalogToOverviewString(q));
 
     if (isA(q,DLProgram))
         result = translateProgram((DLProgram *) q);

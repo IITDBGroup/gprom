@@ -296,8 +296,11 @@ applyVarMapAsLists(Node *input, List *vars, List *replacements)
 
     FORBOTH(Node,l,r,vars,replacements)
     {
-        DLVar *v = (DLVar *) l;
-        MAP_ADD_STRING_KEY(h,v->name,r);
+        if (isA(l, DLVar))
+        {
+            DLVar *v = (DLVar *) l;
+            MAP_ADD_STRING_KEY(h,v->name,r);
+        }
     }
 
     return applyVarMap(input, h);
