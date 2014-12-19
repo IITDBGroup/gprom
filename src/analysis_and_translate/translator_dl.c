@@ -59,7 +59,6 @@ translateParseDL(Node *q)
 
     INFO_LOG("translated DL model:\n\n%s", operatorToOverviewString(result));
 
-
     return result;
 }
 
