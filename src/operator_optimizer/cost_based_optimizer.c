@@ -85,9 +85,8 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 		    break;
 
 		gettimeofday (&tvalAfter, NULL);
-		optTime = (float)(tvalAfter.tv_sec - tvalBefore.tv_sec) / 1000000;
+		optTime += (float)(tvalAfter.tv_sec - tvalBefore.tv_sec) / 1000000;
 	}
-
 	FREE(result);
 	return plan;
 
@@ -103,7 +102,6 @@ int
 callback (int numChoices)
 {
     int xVal = -1;
-
 
 	DEBUG_LOG("number of choices are: %u", numChoices);
 	if (LIST_LENGTH(X1) == 0)

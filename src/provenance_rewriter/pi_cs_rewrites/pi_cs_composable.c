@@ -23,6 +23,7 @@
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/prov_schema.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "operator_optimizer/cost_based_optimizer.h"
 
 // result tuple-id attribute and provenance duplicate counter attribute
 #define RESULT_TID_ATTR "_result_tid"
@@ -129,10 +130,28 @@ rewritePI_CSComposableOperator (QueryOperator *op)
             return rewritePI_CSComposableJoin((JoinOperator *) op);
         case T_AggregationOperator:
         {
-            if(getBoolOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW))
-                return rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op);
-            else
-                return rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
+        	if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+        	{
+            	QueryOperator *op1;
+            	int res;
+
+            	res = callback(2);
+
+        		if (res == 1)
+        			op1 = rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op);
+        		else
+       				op1 = rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
+
+        		return op1;
+       	    }
+        	else
+        	{
+        		if(getBoolOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW))
+					return rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op);
+				else
+					return rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
+        	}
+
         }
         case T_Set:
             return rewritePI_CSComposableSet((SetOperator *) op);

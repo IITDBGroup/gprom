@@ -616,25 +616,44 @@ restrictToUpdatedRows (ProvenanceComputation *op)
 
     DEBUG_LOG("is simple, %u", simpleOnly);
 
-    //TODO for now be conservative when to apply things
-    // use conditions of updates to filter out non-updated tuples early on
-    if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS))
+    if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
     {
-        DEBUG_LOG("Use conditions to restrict to updated;");
-        addConditionsToBaseTables(op);
+    	int res;
+
+    	res = callback(2);
+
+    	if (res == 1)
+    	{
+    		addConditionsToBaseTables(op);
+    	}
+   		else
+   		{
+   			extractUpdatedFromTemporalHistory(op);
+   		}
     }
-    // use history to get tuples updated by transaction and limit provenance tracing to these tuples
-    else if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN))
-    {
-        DEBUG_LOG("Use history join to restrict to updated;");
-        extractUpdatedFromTemporalHistory(op);
-    }
-    // simply filter out non-updated rows in the end
     else
     {
-        FATAL_LOG("filtering of updated rows in final result not supported yet.");
-        filterUpdatedInFinalResult(op);
+    	//TODO for now be conservative when to apply things
+		// use conditions of updates to filter out non-updated tuples early on
+		if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS))
+		{
+			DEBUG_LOG("Use conditions to restrict to updated;");
+			addConditionsToBaseTables(op);
+		}
+		// use history to get tuples updated by transaction and limit provenance tracing to these tuples
+		else if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN))
+		{
+			DEBUG_LOG("Use history join to restrict to updated;");
+			extractUpdatedFromTemporalHistory(op);
+		}
+		// simply filter out non-updated rows in the end
+		else
+		{
+			FATAL_LOG("filtering of updated rows in final result not supported yet.");
+			filterUpdatedInFinalResult(op);
+		}
     }
+
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));

@@ -98,7 +98,7 @@ optimizeOneGraph (QueryOperator *root)
         STOP_TIMER("OptimizeModel - factor attributes in conditions");
     }
 
-    if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+   /* if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
     {
 		res = callback(2);
 		if (res == 1)
@@ -112,7 +112,10 @@ optimizeOneGraph (QueryOperator *root)
     {
     	applyMerge(rewrittenTree);
     	applySelectionPushdown(rewrittenTree);
-    }
+    }*/
+
+	applyMerge(rewrittenTree);
+	applySelectionPushdown(rewrittenTree);
 
     if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
     {
