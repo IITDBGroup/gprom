@@ -29,7 +29,7 @@
 
 static Node *translateProgram(DLProgram *p);
 static QueryOperator *translateRule(DLRule *r);
-static QueryOperator *translateGoal(DLAtom *r);
+static QueryOperator *translateGoal(DLAtom *r, int goalPos);
 static QueryOperator *joinGoalTranslations (DLRule *r, List *goalTrans);
 static Node *createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigAttrs);
 static List *getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs);
@@ -58,6 +58,7 @@ translateParseDL(Node *q)
         FATAL_LOG("currently only DLProgram node type translation supported");
 
     INFO_LOG("translated DL model:\n\n%s", operatorToOverviewString(result));
+
 
     return result;
 }
@@ -182,6 +183,7 @@ translateRule(DLRule *r)
     SelectionOperator *sel = NULL;
     List *goalTrans = NIL;
     List *conditions = NIL;
+    int goalPos = 0;
 
     DEBUG_LOG("translate rules: %s", datalogToOverviewString((Node *) r));
 
@@ -190,7 +192,7 @@ translateRule(DLRule *r)
     {
         if (isA(a,DLAtom))
         {
-            QueryOperator *tG = translateGoal((DLAtom *) a);
+            QueryOperator *tG = translateGoal((DLAtom *) a, goalPos++);
             goalTrans = appendToTailOfList(goalTrans, tG);
             DEBUG_LOG("translated body goal is: %s", operatorToOverviewString((Node *) tG));
         }
@@ -491,7 +493,7 @@ replaceVarWithAttrRef(Node *node, List *context)
  */
 
 static QueryOperator *
-translateGoal(DLAtom *r)
+translateGoal(DLAtom *r, int goalPos)
 {
     ProjectionOperator *rename;
     QueryOperator *pInput;
@@ -644,6 +646,7 @@ translateGoal(DLAtom *r)
     // change attribute names
     Set *nameSet = STRSET();
     List *finalNames = NIL;
+    int argPos = 0;
 
     FORBOTH(Node,var,attr,r->args,rename->op.schema->attrDefs)
     {
@@ -656,8 +659,13 @@ translateGoal(DLAtom *r)
             n = v->name;
             d->attrName = strdup(n);
         }
+        else if (isA(var, Constant))
+        {
+            n = CONCAT_STRINGS("C_", itoa(goalPos), "_", itoa(argPos++));
+            d->attrName = strdup(n);
+        }
         else
-            n = d->attrName;
+            FATAL_LOG("we should not end up here");
 
         addToSet(nameSet, strdup(n));
         finalNames = appendToTailOfList(finalNames, strdup(n));

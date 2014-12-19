@@ -109,6 +109,8 @@ createWhyGPprogram (DLProgram *p, DLAtom *why)
     solvedProgram = rewriteSolvedProgram(solvedProgram);
     DL_DEL_PROP(solvedProgram, DL_PROV_WHY);
 
+    INFO_LOG("program for computing Why-prov: %s",
+            datalogToOverviewString((Node *) solvedProgram));
 //    FATAL_LOG("solvedProgram: %s", datalogToOverviewString((Node *) solvedProgram));
 
     return solvedProgram;
