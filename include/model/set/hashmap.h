@@ -14,6 +14,7 @@
 #include "common.h"
 #include "uthash.h"
 #include "model/node/nodetype.h"
+#include "model/list/list.h"
 
 typedef struct HashElem {
     void *data;
@@ -48,6 +49,8 @@ extern Node *getMap (HashMap *map, Node *key);
 
 extern KeyValue *getMapEntry (HashMap *map, Node *key);
 #define MAP_GET_STRING_ENTRY(map,key) getMapEntry(map, (Node *) createConstString(key))
+extern List *getKeys(HashMap *map);
+extern List *getEntries(HashMap *map);
 
 // add elements to map
 extern boolean addToMap (HashMap *map, Node *key, Node *value);

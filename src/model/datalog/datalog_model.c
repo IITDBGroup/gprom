@@ -17,9 +17,11 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
+#include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
 
+static List *makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames);
 static List *getAtomVars(DLAtom *a);
 static List *getAtomArgs(DLAtom *a);
 static List *getComparisonVars(DLComparison *a);
@@ -256,10 +258,45 @@ DLAtom *
 getNormalizedAtom(DLAtom *a)
 {
     DLAtom *result = copyObject(a);
-    HashMap *varToNewVar = NEW_MAP(Constant,Constant);
     int varId = 0;
 
-    FOREACH(Node,arg,result->args)
+    makeUniqueVarNames(result->args, &varId, FALSE);
+
+    return result;
+}
+
+void
+makeVarNamesUnique(List *nodes)
+{
+    int varId = 0;
+
+    FOREACH(DLNode,n,nodes)
+    {
+        if (isA(n, DLRule))
+        {
+            DLRule *r = (DLRule *) n;
+            List *args = getRuleVars(r);
+            makeUniqueVarNames(args, &varId, TRUE);
+        }
+        if (isA(n, DLAtom))
+        {
+            DLAtom *a = (DLAtom *) n;
+            makeUniqueVarNames(a->args, &varId, TRUE);
+        }
+    }
+}
+
+static List *
+makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames)
+{
+    HashMap *varToNewVar = NEW_MAP(Constant,Constant);
+    Set *names = STRSET();
+
+    FOREACH(Node,arg,args)
+        if (isA(arg,DLVar))
+            addToSet(names, ((DLVar *) arg)->name);
+
+    FOREACH(Node,arg, args)
     {
         char *stringArg = NULL;
 
@@ -270,7 +307,13 @@ getNormalizedAtom(DLAtom *a)
 
             if (entry == NULL)
             {
-                stringArg = CONCAT_STRINGS("V", itoa(varId++));
+                // skip varnames that already exist
+                if (doNotOrigNames)
+                    while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", itoa((*varId)++))))
+                        ;
+                else
+                    stringArg = CONCAT_STRINGS("V", itoa((*varId)++));
+
                 MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg));
             }
             else
@@ -280,13 +323,47 @@ getNormalizedAtom(DLAtom *a)
         }
     }
 
-    return result;
+    return args;
 }
 
 Node *
 applyVarMap(Node *input, HashMap *h)
 {
     return unificationMutator(input, h);
+}
+
+boolean
+argListsUnifyable (List *argsL, List *argsR)
+{
+    HashMap *varToRepl = NEW_MAP(Constant,Node);
+
+    // check whether args are unifyable by type (const/var)
+    FORBOTH(Node,l,r,argsL,argsR)
+    {
+        // both are constant then they have to be the same
+        if (isA(l, Constant) && isA(r, Constant))
+        {
+            if (!equal(l,r))
+                return FALSE;
+        }
+        // original one is a var, make sure that we do not have set it to a conflicting value already
+        else if (isA(l, DLVar))
+        {
+            DLVar *lV = (DLVar *) l;
+            if (MAP_HAS_STRING_KEY(varToRepl, lV->name))
+            {
+                if (!equal(MAP_GET_STRING(varToRepl, lV->name), r))
+                    return FALSE;
+            }
+            else
+                MAP_ADD_STRING_KEY(varToRepl, lV->name, copyObject(r));
+        }
+        // left one is a constant and right one is a var. unification failed
+        else
+            return FALSE;
+    }
+
+    return TRUE;
 }
 
 Node *

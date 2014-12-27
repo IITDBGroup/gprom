@@ -15,6 +15,7 @@
 #include "mem_manager/mem_mgr.h"
 
 #include "execution/executor.h"
+#include "execution/exe_output_dl.h"
 #include "execution/exe_output_gp.h"
 #include "execution/exe_output_sql.h"
 #include "execution/exe_run_query.h"
@@ -47,6 +48,9 @@ chooseExecutorPlugin(ExecutorPluginType type)
         case EXECUTOR_PLUGIN_RUN_QUERY:
             plugin->execute = exeRunQuery;
             break;
+        case EXECUTOR_PLUGIN_OUTPUT_DATALOG:
+            plugin->execute = executeOutputDL;
+            break;
     }
 }
 
@@ -61,6 +65,8 @@ chooseExecutorPluginFromString(char *type)
         chooseExecutorPlugin(EXECUTOR_PLUGIN_OUTPUT_GP);
     else if (streq(type,"run"))
         chooseExecutorPlugin(EXECUTOR_PLUGIN_RUN_QUERY);
+    else if (streq(type,"dl"))
+        chooseExecutorPlugin(EXECUTOR_PLUGIN_OUTPUT_DATALOG);
     else
         FATAL_LOG("unkown analyzer plugin type: <%s>", type);
 }

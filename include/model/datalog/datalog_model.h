@@ -96,8 +96,10 @@ extern DLRule *unifyRule (DLRule *r, List *headBinds);
 // take a datalog model M as input and mappings of type Var -> Node
 // return  h(M)
 extern Node *applyVarMap(Node *input, HashMap *h);
+extern boolean argListsUnifyable (List *argsL, List *argsR);
 extern Node *applyVarMapAsLists(Node *input, List *vars, List *replacements);
 extern DLAtom *getNormalizedAtom(DLAtom *a);
+extern void makeVarNamesUnique(List *nodes);
 extern char *getUnificationString(DLAtom *a);
 
 

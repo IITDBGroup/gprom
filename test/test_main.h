@@ -140,5 +140,6 @@ extern rc testMetadataLookupPostgres(void);
 extern rc testString(void);
 extern rc testStringUtils(void);
 extern rc testParameter(void);
+extern rc testDatalogModel(void);
 
 #endif

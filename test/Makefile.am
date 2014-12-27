@@ -8,7 +8,8 @@ testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 		   test_logger.c test_mem_mgr.c test_to_string.c \
 		   test_parse.c test_list.c test_main.h \
 		   test_metadata_lookup.c test_string.c test_set.c test_hashmap.c \
-		   test_vector.c test_parameter.c test_metadata_postgres.c test_string_utils.c
+		   test_vector.c test_parameter.c test_metadata_postgres.c test_string_utils.c \
+		   test_dl.c
 
 testmain_LDADD = ../src/libsrc.la
 

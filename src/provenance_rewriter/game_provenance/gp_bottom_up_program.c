@@ -372,34 +372,54 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                     DLRule *linkRule = makeNode(DLRule);
                     DLAtom *goalGoal;
                     DLAtom *ruleGoal;
+                    DLAtom *atCopy = copyObject(at);
                     int goalRuleId = DL_HAS_PROP(gRule,DL_RULE_ID) ?
                             INT_VALUE(DL_GET_PROP(gRule, DL_RULE_ID)) : -1;
+                    int relNumArgs = LIST_LENGTH(at->args);
+                    DLRule *dummyRule;
 
                     DEBUG_LOG("back link rule\n%s to\n%s",
                             datalogToOverviewString((Node *) gRule),
                             datalogToOverviewString((Node *) unRule));
 
-                    // head is the goal atom
-                    linkRule->head = copyObject(gRule->head);
+                    /*
+                     * unRule: rX  :- ... at ...;
+                     * at :- rY_UN;
+                     * gRule: rY_UN  :- ...;
+                     *
+                     * create rY :- rY_UN, rX;
+                     */
+
+                    // create goal for the rel that the rule has in its body and unify with link rule head
+                    goalGoal = copyObject(gRule->head);
+
+                    // create goal for the rule that goal in its body and unify vars with link rule head
+                    ruleGoal = copyObject(unRule->head);
+                    ruleGoal->rel = strRemPostfix(ruleGoal->rel,
+                            strlen(NON_LINKED_POSTFIX));
+
+                    // create unique variable names for both rule atoms
+                    dummyRule = createDLRule(ruleGoal, singleton(atCopy));
+                    makeVarNamesUnique(LIST_MAKE(goalGoal, dummyRule));
+
+                    DEBUG_LOG("after making names unique:\n%s\n%s",
+                            datalogToOverviewString((Node *) goalGoal),
+                            datalogToOverviewString((Node *) dummyRule));
+
+                    // head is the rule atom with args from goal for this rule
+                    linkRule->head = copyObject(goalGoal);
                     linkRule->head->rel = strRemPostfix(linkRule->head->rel,
                             strlen(NON_LINKED_POSTFIX));
                     if (goalRuleId != -1)
                         setDLProp((DLNode *) linkRule, DL_RULE_ID,
                                 (Node *) createConstInt(goalRuleId));
 
-                    // create goal for the rule that goal in its body and unify vars with link rule head
-                    ruleGoal = copyObject(unRule->head);
-                    ruleGoal->rel = strRemPostfix(ruleGoal->rel,
-                            strlen(NON_LINKED_POSTFIX));
-                    ruleGoal = (DLAtom *) applyVarMapAsLists((Node *) ruleGoal,
-                            copyObject(ruleGoal->args),
-                            copyObject(linkRule->head->args));
-
-                    // create goal for the rel that the rule has in its body and unify with link rule head
-                    goalGoal = copyObject(at);
-                    goalGoal = (DLAtom *) applyVarMapAsLists((Node *) goalGoal ,
-                            copyObject(at->args),
-                            copyObject(linkRule->head->args));
+                    ruleGoal = (DLAtom *) applyVarMapAsLists((Node *) ruleGoal ,
+                            copyObject(atCopy->args),
+                            sublist(copyObject(linkRule->head->args), 0, relNumArgs - 1));
+//                    ruleGoal = (DLAtom *) applyVarMapAsLists((Node *) ruleGoal,
+//                            copyObject(ruleGoal->args),
+//                            copyObject(linkRule->head->args));
 
                     addToSet(unHeadToRules, copyObject(gRule->head));
                     linkRule->body = LIST_MAKE(ruleGoal, goalGoal);

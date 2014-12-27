@@ -58,6 +58,7 @@ translateParseDL(Node *q)
         FATAL_LOG("currently only DLProgram node type translation supported");
 
     INFO_LOG("translated DL model:\n\n%s", operatorToOverviewString(result));
+//    FATAL_LOG("");
 
     return result;
 }

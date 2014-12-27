@@ -99,11 +99,14 @@ static void outDLComparison(StringInfo str, DLComparison *node);
 static void indentString(StringInfo str, int level);
 
 // create overview string for an operator tree
-static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent);
+static int compareOpInfos (const void *l, const void *r);
+static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMap *map);
 static void datalogToStrInternal(StringInfo str, Node *n, int indent);
 
 
 /*define macros*/
+#define OP_ID_STRING "OP_ID"
+
 /*label for the node type*/
 #define booltostr(a) \
 		((a) ? "true" : "false")
@@ -1389,6 +1392,8 @@ char *
 operatorToOverviewString(Node *op)
 {
     StringInfo str = makeStringInfo();
+    HashMap *m;
+    List *reusedSubtrees = NIL;
 
     if (op == NULL)
         return "";
@@ -1399,20 +1404,99 @@ operatorToOverviewString(Node *op)
     {
         FOREACH(QueryOperator,o,(List *) op)
         {
-            operatorToOverviewInternal(str,(QueryOperator *) o, 0);
+            m = NEW_MAP(Constant,List);
+            MAP_ADD_STRING_KEY(m, OP_ID_STRING, createConstInt(0));
+            operatorToOverviewInternal(str,(QueryOperator *) o, 0, m);
+
+            removeMapElem(m, (Node *) createConstString(OP_ID_STRING));
+            reusedSubtrees = sortList(getEntries(m), (int (*)(const void *, const void *))compareOpInfos);
+
+            FOREACH(KeyValue,k,reusedSubtrees)
+            {
+                List *opInfo = (List *) k->value;
+                int opId = INT_VALUE(getNthOfListP(opInfo, 0));
+                StringInfo inner = (StringInfo) LONG_VALUE(getNthOfListP(opInfo, 1));
+
+                appendStringInfo(str, "\n\n-----------------------\n@%u\n%s", opId, inner->data);
+            }
+
             appendStringInfoString(str, "\n");
         }
     }
     else
-        operatorToOverviewInternal(str,(QueryOperator *) op, 0);
+    {
+        m = NEW_MAP(Constant,List);
+        MAP_ADD_STRING_KEY(m, OP_ID_STRING, createConstInt(0));
+
+        operatorToOverviewInternal(str,(QueryOperator *) op, 0, m);
+
+        removeMapElem(m, (Node *) createConstString(OP_ID_STRING));
+        reusedSubtrees = sortList(getEntries(m), (int (*)(const void *, const void *))compareOpInfos);
+
+        FOREACH(KeyValue,k,reusedSubtrees)
+        {
+            List *opInfo = (List *) k->value;
+            int opId = INT_VALUE(getNthOfListP(opInfo, 0));
+            StringInfo inner = (StringInfo) LONG_VALUE(getNthOfListP(opInfo, 1));
+
+            appendStringInfo(str, "\n\n-----------------------\n@%u\n%s", opId, inner->data);
+        }
+    }
 
     return str->data;
 }
 
-static void
-operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
+static int
+compareOpInfos (const void *l, const void *r)
 {
-    indentString(str, indent);
+    List *lList = (List *) (*((KeyValue **) l))->value;
+    List *rList = (List *) (*((KeyValue **) r))->value;
+    int lOpId = INT_VALUE(getNthOfListP(lList, 0));
+    int rOpId = INT_VALUE(getNthOfListP(rList, 0));
+
+    return lOpId - rOpId;
+}
+
+static void
+operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMap *map)
+{
+    // if operator has more than one parents then we outsource
+    if (LIST_LENGTH(op->parents) > 1)
+    {
+        List *opInfo = (List *) MAP_GET_LONG(map, (long) op); // info is: [id, stringRep]
+        int opId;
+
+        indentString(str, indent);
+
+        if (opInfo == NIL)
+        {
+            StringInfo opStr;
+            Constant *curId = (Constant *) MAP_GET_STRING(map, OP_ID_STRING);
+            opId = INT_VALUE(curId);
+            int *idVal = (int *) curId->value;
+            (*idVal)++;
+            opStr = makeStringInfo();
+            opInfo = LIST_MAKE(createConstInt(opId), createConstLong((long) opStr));
+            MAP_ADD_LONG_KEY(map, (long) op, opInfo);
+
+            // append link
+            appendStringInfo(str, "@%u\n", opId);
+
+            // add to separate stringinfo
+            str = opStr;
+            indent = 0;
+        }
+        else
+        {
+            opId = INT_VALUE(getNthOfListP(opInfo, 0));
+            appendStringInfo(str, "@%u\n", opId);
+
+            return;
+        }
+    }
+    else
+        indentString(str, indent);
+
 
     // output specific operator things
     switch(op->type)
@@ -1578,7 +1662,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
     appendStringInfoString(str, ")\n");
 
     FOREACH(QueryOperator,child,op->inputs)
-        operatorToOverviewInternal(str, child, indent + 1);
+        operatorToOverviewInternal(str, child, indent + 1, map);
 }
 
 static void

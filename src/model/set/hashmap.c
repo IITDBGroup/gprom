@@ -72,6 +72,28 @@ getMapEntry (HashMap *map, Node *key)
     return (KeyValue *) (el ? el->data : NULL);
 }
 
+List *
+getKeys(HashMap *map)
+{
+    List *result = NIL;
+
+    FOREACH_HASH_KEY(Node,n,map)
+        result = appendToTailOfList(result, n);
+
+    return result;
+}
+
+List *
+getEntries(HashMap *map)
+{
+    List *result = NIL;
+
+    FOREACH_HASH_ENTRY(k,map)
+        result = appendToTailOfList(result, k);
+
+    return result;
+}
+
 boolean
 addToMap (HashMap *map, Node *key, Node *value)
 {

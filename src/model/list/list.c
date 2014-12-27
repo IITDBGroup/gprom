@@ -398,7 +398,7 @@ sortList(List *list, int (*sm) (const void *, const void *))
     // using stdlib quicksort
     qsort(arr, numE, sizeof(void*), sm);
 
-    // result list constuction
+    // result list construction
     for(int i = 0; i < numE; i++)
         result = appendToTailOfList(result, arr[i]);
 
