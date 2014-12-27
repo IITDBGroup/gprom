@@ -37,7 +37,7 @@ searchForVisitAndMutate()
 	done
 }
 
-NodeTypesT=`grep ../../../include/model/node/nodetype.h -e 'T_[A-Z][a-z][a-zA-Z]\+' -o | tr '\n' ' '`
+NodeTypesT=`grep ../../../include/model/node/nodetype.h -e 'T_[a-zA-Z]\+' -o | tr '\n' ' '`
 NodeTypes=`echo "${NodeTypesT}" | sed -e 's/T_//g' -e 's/Invalid//g' -e 's/FromItem//g' -e 's/QueryOperator//g'`
 echo "found node types:"; echo "${NodeTypes}"
 

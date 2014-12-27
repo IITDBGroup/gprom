@@ -40,28 +40,25 @@ isTree(QueryOperator *op)
 }
 
 #define SHOULD(opt) (getBoolOption(OPTION_AGGRESSIVE_MODEL_CHECKING) || getBoolOption(opt))
+#define FREE_CONTEXT_AND_RETURN_BOOL(b) \
+		do { \
+		    FREE_AND_RELEASE_CUR_MEM_CONTEXT(); \
+            return b; \
+        } while (0)
 
 boolean
 checkModel (QueryOperator *op)
 {
+    NEW_AND_ACQUIRE_MEMCONTEXT("QO_MODEL_CHECKER");
+
     if (SHOULD(CHECK_OM_PARENT_CHILD_LINKS) && !checkParentChildLinks(op))
-    {
-    	DEBUG_LOG("test 1111111");
-        return FALSE;
-    }
+        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
     if (SHOULD(CHECK_OM_ATTR_REF) && !checkAttributeRefConsistency(op))
-    {
-    	DEBUG_LOG("test 2222222");
-        return FALSE;
-    }
-
+        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
     if (SHOULD(CHECK_OM_SCHEMA_CONSISTENCY) && !checkSchemaConsistency(op))
-    {
-    	DEBUG_LOG("test 3333333");
-        return FALSE;
-    }
+        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
 
-    return TRUE;
+    FREE_CONTEXT_AND_RETURN_BOOL(TRUE);
 }
 
 boolean
@@ -139,6 +136,14 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
         int attrPos = a->attrPosition;
         QueryOperator *child;
         AttributeDef *childA;
+
+        if (a->name == NULL)
+        {
+            ERROR_LOG("attribute NULL name: %s\n\nin%s",
+                    beatify(nodeToString(a)),
+                    operatorToOverviewString((Node *) parent));
+            return FALSE;
+        }
 
         if (input < 0 || input >= LIST_LENGTH(children))
         {

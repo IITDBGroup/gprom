@@ -37,8 +37,9 @@ static inline char *getHead(LogLevel level);
 static inline FILE *getOutput(LogLevel level);
 static boolean vAppendBuf(StringInfo str, const char *format, va_list args);
 
-
+// use normal versions of free and malloc instead of memory manager ones
 #undef free
+#undef malloc
 
 static inline char *
 getHead(LogLevel level)

@@ -23,6 +23,7 @@
 
 /* are using actual free here */
 #undef free
+#undef malloc
 
 /* return values for tests */
 #define PASS 0
@@ -97,6 +98,9 @@ extern int test_count;
 #define ASSERT_EQUALS_INT(a,b,message) \
     ASSERT_EQUALS_INTERNAL(int,a,b,EQUALS_EQ,message,"%u",SELF);
 
+#define ASSERT_EQUALS_LONG(a,b,message) \
+    ASSERT_EQUALS_INTERNAL(long,a,b,EQUALS_EQ,message,"%lu",SELF);
+
 #define ASSERT_EQUALS_FLOAT(a,b,message) \
     ASSERT_EQUALS_INTERNAL(double,a,b,EQUALS_EQ,message,"%f",SELF);
 
@@ -141,5 +145,6 @@ extern rc testString(void);
 extern rc testStringUtils(void);
 extern rc testParameter(void);
 extern rc testDatalogModel(void);
+extern rc testHash(void);
 
 #endif

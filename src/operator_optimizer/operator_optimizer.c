@@ -87,7 +87,7 @@ static QueryOperator *
 optimizeOneGraph (QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
-    int res;
+//    int res;
 
     if(getBoolOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR))
     {

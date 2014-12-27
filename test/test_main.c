@@ -99,6 +99,7 @@ testSuites(void)
     RUN_TEST(testMetadataLookupPostgres(), "Test metadata lookup - Postgres.");
     RUN_TEST(testParameter(), "Test SQL parameter functions.");
     RUN_TEST(testDatalogModel(), "Test datalog model features");
+    RUN_TEST(testHash(), "Test hash computation for nodes");
 
     printf("Total %d Test(s) Passed\n\n", test_count);
 }

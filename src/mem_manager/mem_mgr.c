@@ -26,8 +26,9 @@
 #define uthash_malloc(sz) malloc(sz)
 #define uthash_free(ptr,sz) free(ptr)
 
-// use actual free function
+// use actual malloc and free functions
 #undef free
+#undef malloc
 
 #define DEFAULT_MEM_CONTEXT_NAME "DEFAULT_MEMORY_CONTEXT"
 
