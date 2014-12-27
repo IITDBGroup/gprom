@@ -941,7 +941,7 @@ int getCost(char *query)
 
     StringInfo statement1;
     statement1 = makeStringInfo();
-    appendStringInfo(statement1, "SELECT COST FROM PLAN_TABLE");
+    appendStringInfo(statement1, "SELECT COST FROM PLAN_TABLE WHERE ROWNUM = 1");
 
     OCI_Resultset *rs1 = executeStatement(statement1->data);
     if (rs1 != NULL)
