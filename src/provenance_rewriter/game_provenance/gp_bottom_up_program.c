@@ -1039,7 +1039,7 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
     // non-unified rules
     else
     {
-        FATAL_LOG("not unified");
+        FATAL_LOG("not unified is not supported yet.");
     }
 
     // create adorned program

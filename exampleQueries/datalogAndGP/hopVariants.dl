@@ -1,4 +1,12 @@
 ------------------------------------------------------------
+-- the original 3hop
+------------------------------------------------------------
+-- compute all 3-hops
+hop3(X,Y) :- hop(X,A), hop(A,B), hop(B,Y); ANS : hop3;
+-- GP for how to get from a to c in 3 hops
+hop3(X,Y) :- hop(X,A), hop(A,B), hop(B,Y); WHY(hop3('a','c'));
+
+------------------------------------------------------------
 -- reachable in up to 3 hops
 ------------------------------------------------------------
 -- run program
@@ -15,9 +23,4 @@ reachUp2(X,Y) :- reach2(X,Y); reachUp2(X,Y) :- reach(X,Y);  reach2(X,Y) :- reach
 reachUp2(X,Y) :- reach2(X,Y); reachUp2(X,Y) :- reach(X,Y);  reach2(X,Y) :- reach(X,Z), hop(Z,Y); reach(X,Y) :- hop(X,Y); WHY(reachUp2('a','b'));
 
 
--- bug queries
-reachUp3(X,Y) :- reach3(X,Y); reach3(X,Y) :- reach2(X,Z), hop(Z,Y); reach2(X,Y) :- reach(X,Z), hop(Z,Y); reach(X,Y) :- hop(X,Y); WHY(reachUp3('a','b'));
-
-reachUp3(X,Y) :- reach3(X,Y); reach3(X,Y) :- reach2(X,Z), hop(Z,Y); reach2(X,Y) :- hop(X,Z), hop(Z,Y);  WHY(reachUp3('a','b'));
-reachUp3(X,Y) :- reach3(X,Y); reach3(X,Y) :- hop(X,A), hop(A,B), hop(B,Y);  WHY(reachUp3('a','b'));
 
