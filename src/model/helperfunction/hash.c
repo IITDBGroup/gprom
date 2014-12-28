@@ -123,8 +123,10 @@ hashInt(uint64_t cur, int value)
 static inline uint64_t
 hashString(uint64_t cur, char *value)
 {
+    if (value == NULL)
+        return cur;
     size_t len = strlen(value);
-    return hashMemory(cur, &value, len);
+    return hashMemory(cur, value, len);
 }
 
 static inline uint64_t
@@ -150,7 +152,7 @@ hashMemory(uint64_t cur, void *memP, size_t bytes)
 {
     // byte pointers
     char *curP = (char *) &cur;
-    char *valueP = (char *) &memP;
+    char *valueP = (char *) memP;
 
     for(int i = 0; i < bytes; i++, valueP++)
     {
@@ -261,19 +263,19 @@ hashConstant (uint64_t cur, Constant *node)
     switch(node->constType)
     {
         case DT_INT:
-            hashInt(cur, INT_VALUE(node));
+            cur = hashInt(cur, INT_VALUE(node));
             break;
         case DT_LONG:
-            hashLong(cur, LONG_VALUE(node));
+            cur = hashLong(cur, LONG_VALUE(node));
             break;
         case DT_FLOAT:
-            hashFloat(cur, FLOAT_VALUE(node));
+            cur = hashFloat(cur, FLOAT_VALUE(node));
             break;
         case DT_BOOL:
-            hashBool(cur, BOOL_VALUE(node));
+            cur = hashBool(cur, BOOL_VALUE(node));
             break;
         case DT_STRING:
-            hashString(cur, STRING_VALUE(node));
+            cur = hashString(cur, STRING_VALUE(node));
             break;
     }
 
@@ -880,7 +882,7 @@ hashValueInternal(uint64_t h, void *a)
     n = (Node *) a;
 
     // hash node type
-    hashInt(h, n->type);
+    h = hashInt(h, n->type);
 
     switch(n->type)
     {
@@ -1012,6 +1014,8 @@ uint64_t
 hashValue(void *a)
 {
     uint64_t h = FNV_OFFSET;
+    h = hashValueInternal(h, a);
+//    printf("hash value of %p is: %llu: short %u\n", a, h, (unsigned) h);
 
-    return hashValueInternal(h, a);
+    return h;
 }
