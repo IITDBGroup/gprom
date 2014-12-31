@@ -190,7 +190,7 @@ optimizeOneGraph (QueryOperator *root)
       STOP_TIMER("OptimizeModel - remove redundant projections");
     }
 
-/*
+    /*
     if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
     {
         START_TIMER("OptimizeModel - merge adjacent operator");
@@ -843,7 +843,8 @@ setMoveAroundListSetProperityForWholeTree(QueryOperator *root)
 
 			FOREACH(Set, s1, l1)
 			{
-				Set *s = unionSets(s1,s1);
+				//Set *s = unionSets(s1,s1);
+				Set *s = copyObject(s1);
 				l11 = appendToTailOfList(l11, s);
 			}
 
@@ -876,7 +877,8 @@ setMoveAroundListSetProperityForWholeTree(QueryOperator *root)
 				List *templ1 = NIL;
 				FOREACH(Set, s1, l1)
 				{
-					Set *s = unionSets(s1,s1);
+					//Set *s = unionSets(s1,s1);
+					Set *s = copyObject(s1);
 					templ1 = appendToTailOfList(templ1, s);
 				}
 
@@ -1072,21 +1074,25 @@ getMoveAroundOpList(QueryOperator *qo)
 				if(!isA(selem,Constant))
 				{
 					FOREACH(AttributeDef,attrDef,qo1->schema->attrDefs)
-                        				{
+                    {
 						if(streq((char *)selem,attrDef->attrName))
 						{
 							a = createFullAttrReference((char *)selem , 0, 0, 0, attrDef->dataType);
+							argList = appendToHeadOfList(argList,a);
 							break;
 						}
-                        				}
-					argList = appendToHeadOfList(argList,a);
+                     }
+					//argList = appendToHeadOfList(argList,a);
 				}
 				else
 					argList = appendToTailOfList(argList,selem);
 			}
 
-			Operator *o = createOpExpr("=", argList);
-			opList = appendToTailOfList(opList, copyObject(o));
+			if(argList->length == 2)
+			{
+				Operator *o = createOpExpr("=", argList);
+				opList = appendToTailOfList(opList, copyObject(o));
+			}
 		}
 
 		if(setSize(s1) > 2)
@@ -1109,10 +1115,11 @@ getMoveAroundOpList(QueryOperator *qo)
 							if(streq((char *)selem,attrDef->attrName))
 							{
 								a = createFullAttrReference((char *)selem , 0, 0, 0, attrDef->dataType);
+								argList = appendToHeadOfList(argList,a);
 								break;
 							}
                          }
-						argList = appendToHeadOfList(argList,a);
+						//argList = appendToHeadOfList(argList,a);
 					}
 					else
 					{
@@ -1124,25 +1131,30 @@ getMoveAroundOpList(QueryOperator *qo)
 					if(!isA(selem,Constant))
 					{
 						FOREACH(AttributeDef,attrDef,qo1->schema->attrDefs)
-                            				{
+                        {
 							if(streq((char *)selem,attrDef->attrName))
 							{
 								b = createFullAttrReference((char *)selem , 0, 0, 0, attrDef->dataType);
+								argList = appendToHeadOfList(argList,b);
 								break;
 							}
-                            				}
-						argList = appendToHeadOfList(argList,b);
-						Operator *o1 = createOpExpr("=", argList);
-						opList = appendToTailOfList(opList,  copyObject(o1));
-						argList = REMOVE_FROM_LIST_PTR(argList,b);
+                        }
+						if(argList->length == 2)
+						{
+							Operator *o1 = createOpExpr("=", argList);
+							opList = appendToTailOfList(opList,  copyObject(o1));
+							argList = REMOVE_FROM_LIST_PTR(argList,b);
+						}
 
 					}
 					else
 					{
-						argList = appendToTailOfList(argList,selem);
-						Operator *o2 = createOpExpr("=", argList);
-						opList = appendToTailOfList(opList, copyObject(o2));
-						argList = REMOVE_FROM_LIST_PTR(argList,selem);
+						if(argList->length == 1){
+							argList = appendToTailOfList(argList,selem);
+							Operator *o2 = createOpExpr("=", argList);
+							opList = appendToTailOfList(opList, copyObject(o2));
+							argList = REMOVE_FROM_LIST_PTR(argList,selem);
+						}
 					}
 				}
 			}
@@ -1357,7 +1369,7 @@ introduceSelectionOrChangeSelectionCond(List *opList, QueryOperator *qo1)
          if(isA(qo1, SelectionOperator))
          {
              //e.g. if c=5 and c<9, remove c<9
-             opList = removeRedundantSelectionCondOfOpList(opList);
+             //opList = removeRedundantSelectionCondOfOpList(opList);
 
              Node *opCond = changeListOpToAnOpNode(opList);
              ((SelectionOperator *)qo1)->cond = copyObject(opCond);
@@ -1368,7 +1380,7 @@ introduceSelectionOrChangeSelectionCond(List *opList, QueryOperator *qo1)
          }
          else
          {
-         	 opList = removeRedundantSelectionCondOfOpList(opList);
+         	 //opList = removeRedundantSelectionCondOfOpList(opList);
 
              Node *opCond = changeListOpToAnOpNode(opList);
              SelectionOperator *newSo1 = createSelectionOp(opCond, NULL, NIL,getAttrNames(qo1->schema));
@@ -1383,8 +1395,11 @@ introduceSelectionOrChangeSelectionCond(List *opList, QueryOperator *qo1)
              //set the data type
              setAttrDefDataTypeBasedOnBelowOp((QueryOperator *)newSo1, (QueryOperator *)qo1);
 
+             DEBUG_LOG("111111111111111111111111111111111111111");
+
              //reset the attr_ref position
              resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection((SelectionOperator *)newSo1,(QueryOperator *)qo1);
+             DEBUG_LOG("22222222222222222222222222222222222222222");
          }
      }
 }
