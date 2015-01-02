@@ -21,6 +21,8 @@
 
 #include "model/set/hashmap.h"
 
+// memory context to allocate static variables used for lookup
+static MemContext *hashContext = NULL;
 // static variables to speed up lookup for string and int keys and avoid the memory consumption of creating a new Constant node for each lookup
 // without having to implement a different backend hashmap
 
@@ -46,8 +48,6 @@ static inline HashElem *
 getHashElem(HashMap *map, Node *key)
 {
     HashElem *result = NULL;
-//    char *realKey = nodeToString(key);
-//    printf("hash elem:%p\n", key);
     HASH_FIND_NODE(hh,map->elem, key, result);
 
     return result;
@@ -96,7 +96,13 @@ getMapString (HashMap *map, char *key)
     if (key == NULL)
         return NULL;
     if (stringDummy == NULL)
+    {
+        if (hashContext == NULL)
+            hashContext = NEW_MEM_CONTEXT("HASHMAP-CONTEXT");
+        ACQUIRE_MEM_CONTEXT(hashContext);
         stringDummy = createConstString("");
+        RELEASE_MEM_CONTEXT();
+    }
     stringDummy->value = key;
     return getMap(map, (Node *) stringDummy);
 }
@@ -107,7 +113,14 @@ getMapInt (HashMap *map, int key)
     int *v;
     static Constant *intDummy = NULL;
     if (intDummy == NULL)
+    {
+        if (hashContext == NULL)
+            hashContext = NEW_MEM_CONTEXT("HASHMAP-CONTEXT");
+        ACQUIRE_MEM_CONTEXT(hashContext);
         intDummy = createConstInt(0);
+        RELEASE_MEM_CONTEXT();
+    }
+
     v = (int *) intDummy->value;
     *v = key;
     return getMap(map, (Node *) intDummy);
@@ -119,7 +132,14 @@ getMapLong (HashMap *map, long key)
     static Constant *longDummy = NULL;
     long *v;
     if (longDummy == NULL)
+    {
+        if (hashContext == NULL)
+            hashContext = NEW_MEM_CONTEXT("HASHMAP-CONTEXT");
+        ACQUIRE_MEM_CONTEXT(hashContext);
         longDummy = createConstLong(0);
+        RELEASE_MEM_CONTEXT();
+    }
+
     v = (long *) longDummy->value;
     *v = key;
     return getMap(map, (Node *) longDummy);
@@ -169,13 +189,6 @@ addToMap (HashMap *map, Node *key, Node *value)
         entry->key = key;
 
         HASH_ADD_NODE(hh, map->elem, entry->key, entry);
-//        HashElem *el, *temp;
-//        HASH_OUT_DEBUG(hh, map->elem,el,temp);
-//        if(!getHashElem(map,entry->key))
-//        {
-//            printf("\n\nfailed lookup for key hashed to %u for \n%s", (unsigned) hashValue(entry->key), beatify(nodeToString(entry->key)));
-//            ASSERT(FALSE);
-//        }
         return TRUE;
     }
     // overwrite value of existing entry with same key
@@ -214,7 +227,13 @@ mapIncrString(HashMap *map, char *key)
 {
     static Constant *stringDummy = NULL;
     if (stringDummy == NULL)
+    {
+        if (hashContext == NULL)
+            hashContext = NEW_MEM_CONTEXT("HASHMAP-CONTEXT");
+        ACQUIRE_MEM_CONTEXT(hashContext);
         stringDummy = createConstString("");
+        RELEASE_MEM_CONTEXT();
+    }
     stringDummy->value = key;
     return mapIncr(map, (Node *) stringDummy);
 }
