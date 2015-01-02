@@ -25,6 +25,7 @@
 #include "dl_parser.tab.h"
 
 #undef free
+#undef malloc
 
 #define TOKSELF() { \
 	TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", dltext[0], dltext[0]); \

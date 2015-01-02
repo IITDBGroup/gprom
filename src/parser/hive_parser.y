@@ -15,6 +15,7 @@
     }
     
 #undef free
+#undef malloc
 
 Node *hiveParseResult = NULL;
 %}

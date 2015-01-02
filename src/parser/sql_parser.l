@@ -23,6 +23,7 @@
 #include "sql_parser.tab.h"
 
 #undef free
+#undef malloc
 
 #define TOKSELF() { \
 	TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", yytext[0], yytext[0]); \

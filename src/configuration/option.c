@@ -17,6 +17,7 @@
 
 // we have to use actual free here
 #undef free
+#undef malloc
 
 //Options* options;
 HashMap *optionPos; // optionname -> position of option in list
@@ -364,7 +365,7 @@ OptionInfo opts[] =
                 TRUE),
         // Cost Based Optimization Option
          {
-                "cost_based_optimizer",
+                 OPTION_COST_BASED_OPTIMIZER,
                 "-cost_based_optimizer",
                 "Activate/Deactivate cost based optimizer",
                 OPTION_BOOL,

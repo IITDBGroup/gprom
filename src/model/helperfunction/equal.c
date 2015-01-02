@@ -1066,6 +1066,8 @@ equal(void *a, void *b)
             break;
     }
 
+//    printf("equals: %p, %p, %s\n%s -- %s\n", a, b, (a == b) ? "TRUE" : "FALSE", nodeToString(a), nodeToString(b));
+
     if (!retval)
         TRACE_LOG("not equals \n%s\n\n%s", nodeToString(a), nodeToString(b));
 

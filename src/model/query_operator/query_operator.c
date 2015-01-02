@@ -1030,6 +1030,23 @@ treeify(QueryOperator *op)
     }
 }
 
+boolean
+visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
+        boolean (*visitF) (QueryOperator *op, void *context), void *context)
+{
+    if (tOrder == TRAVERSAL_PRE && !visitF(q, context))
+        return FALSE;
+
+    FOREACH(QueryOperator,c,q->inputs)
+        if (!visitQOGraph(c, tOrder, visitF, context))
+            return FALSE;
+
+    if (tOrder == TRAVERSAL_POST && !visitF(q, context))
+        return FALSE;
+
+    return TRUE;
+}
+
 
 //static Schema *
 //mergeSchemas (List *inputs)

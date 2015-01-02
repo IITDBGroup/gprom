@@ -367,7 +367,7 @@ rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op)
     QueryOperator *origAgg;
     QueryOperator *pInput;
     int numGroupAttrs = LIST_LENGTH(op->groupBy);
-    boolean noDupInput;
+//    boolean noDupInput;
     List *partitionBy = NIL;
     List *orderBy = NIL;
 
@@ -396,7 +396,8 @@ rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op)
     aggInput = copyUnrootedSubtree(OP_LCHILD(op));
     // rewrite aggregation input copy
     aggInput = rewritePI_CSComposableOperator(aggInput);
-    noDupInput = isTupleAtATimeSubtree(aggInput);
+//    noDupInput =
+    isTupleAtATimeSubtree(aggInput);
 
     // add projection including group by expressions if necessary
     if(groupBy)

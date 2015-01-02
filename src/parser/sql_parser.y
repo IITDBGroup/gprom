@@ -22,6 +22,7 @@
     }
     
 #undef free
+#undef malloc
 
 Node *bisonParseResult = NULL;
 %}

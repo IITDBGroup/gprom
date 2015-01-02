@@ -16,6 +16,7 @@
     }
     
 #undef free
+#undef malloc
 
 Node *dlParseResult = NULL;
 %}

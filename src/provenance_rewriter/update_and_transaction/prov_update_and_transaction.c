@@ -23,6 +23,7 @@
 #include "model/query_operator/operator_property.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
+#include "operator_optimizer/cost_based_optimizer.h"
 #include "configuration/option.h"
 
 static QueryOperator *getUpdateForPreviousTableVersion (ProvenanceComputation *p, char *tableName, int startPos, List *updates);

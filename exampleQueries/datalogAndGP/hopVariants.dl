@@ -1,0 +1,33 @@
+------------------------------------------------------------
+-- the original 3hop
+------------------------------------------------------------
+-- compute all 3-hops
+hop3(X,Y) :- hop(X,A), hop(A,B), hop(B,Y); ANS : hop3;
+-- GP for how to get from a to c in 3 hops
+hop3(X,Y) :- hop(X,A), hop(A,B), hop(B,Y); WHY(hop3('a','c'));
+
+------------------------------------------------------------
+-- reachable in up to 3 hops
+------------------------------------------------------------
+-- run program
+reachUp3(X,Y) :- reach3(X,Y); reachUp3(X,Y) :- reach2(X,Y); reachUp3(X,Y) :- reach(X,Y); reach3(X,Y) :- reach2(X,Z), hop(Z,Y); reach2(X,Y) :- reach(X,Z), hop(Z,Y); reach(X,Y) :- hop(X,Y); ANS : reachUp3;
+-- GP for how to reach b from a in up to 3 hops
+reachUp3(X,Y) :- reach3(X,Y); reachUp3(X,Y) :- reach2(X,Y); reachUp3(X,Y) :- reach(X,Y); reach3(X,Y) :- reach2(X,Z), hop(Z,Y); reach2(X,Y) :- reach(X,Z), hop(Z,Y); reach(X,Y) :- hop(X,Y); WHY(reachUp3('a','b'));
+-- GP for how to reach any node from any node in up to 3 hops
+reachUp3(X,Y) :- reach3(X,Y); reachUp3(X,Y) :- reach2(X,Y); reachUp3(X,Y) :- reach(X,Y); reach3(X,Y) :- reach2(X,Z), hop(Z,Y); reach2(X,Y) :- reach(X,Z), hop(Z,Y); reach(X,Y) :- hop(X,Y); WHY(reachUp3(X,Y));
+
+------------------------------------------------------------
+-- reachable in up to 2 hops
+------------------------------------------------------------
+reachUp2(X,Y) :- reach2(X,Y); reachUp2(X,Y) :- reach(X,Y);  reach2(X,Y) :- reach(X,Z), hop(Z,Y); reach(X,Y) :- hop(X,Y); ANS : reachUp2;
+reachUp2(X,Y) :- reach2(X,Y); reachUp2(X,Y) :- reach(X,Y);  reach2(X,Y) :- reach(X,Z), hop(Z,Y); reach(X,Y) :- hop(X,Y); WHY(reachUp2('a','b'));
+
+
+------------------------------------------------------------
+-- connected (treat as undirected graph) by path of length 2
+------------------------------------------------------------
+-- run program
+unhop2(X,Y) :- undir(X,A), undir(A,Y); undir(X,Y) :- hop(X,Y); undir(X,Y) :- hop(Y,X); ANS : unhop2;
+-- GP for c being connected to b and a to b
+unhop2(X,Y) :- undir(X,A), undir(A,Y); undir(X,Y) :- hop(X,Y); undir(X,Y) :- hop(Y,X); WHY(unhop2('c','a'));
+unhop2(X,Y) :- undir(X,A), undir(A,Y); undir(X,Y) :- hop(X,Y); undir(X,Y) :- hop(Y,X); WHY(unhop2('a','b'));

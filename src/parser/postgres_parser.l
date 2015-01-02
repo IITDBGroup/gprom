@@ -26,6 +26,7 @@
 #include "postgres_parser.tab.h"
 
 #undef free
+#undef malloc
 
 #define TOKSELF() { \
 	TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", postgrestext[0], postgrestext[0]); \

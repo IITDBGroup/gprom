@@ -134,6 +134,7 @@
 
 // override free to make sure nobody is using free directly
 #define free(_p) "DO NOT USE free DIRECTLY USE \"FREE\" FROM THE MEMORY MANAGER"; @
+#define malloc(_p) "DO NOT USE malloc DIRECTLY USE \"MALLOC\" FROM THE MEMORY MANAGER"; @
 
 // provide ASSERT macro if not deactivated by user
 #ifdef DISABLE_ASSERT

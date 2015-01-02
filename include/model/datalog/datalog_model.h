@@ -93,10 +93,15 @@ extern List *getVarNames (List *vars);
 
 // unification and variable mappings
 extern DLRule *unifyRule (DLRule *r, List *headBinds);
-// take a datalog model M as input and mappings hof type Var -> Node
+// take a datalog model M as input and mappings of type Var -> Node
 // return  h(M)
 extern Node *applyVarMap(Node *input, HashMap *h);
+extern boolean argListsUnifyable (List *argsL, List *argsR);
 extern Node *applyVarMapAsLists(Node *input, List *vars, List *replacements);
+extern DLAtom *getNormalizedAtom(DLAtom *a);
+extern void makeVarNamesUnique(List *nodes);
+extern char *getUnificationString(DLAtom *a);
+
 
 // properties
 extern Node *getDLProp(DLNode *n, char *key);
@@ -107,6 +112,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_GET_PROP(node,key) (getDLProp((DLNode *) node, key))
 #define DL_SET_BOOL_PROP(node,key) setDLProp((DLNode *) node, key, (Node *) createConstBool(TRUE));
 #define DL_DEL_PROP(node,key) (delDLProp((DLNode *) node, key))
+#define DL_COPY_PROP(node1,node2,key) (setDLProp((DLNode *) node2, key, getDLProp((DLNode *) node1,key)))
 
 // property keys
 #define DL_IS_IDB_REL "IS_IDB_REL"
@@ -129,6 +135,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_UNDER_NEG_LOST "UNDER_NEG_LOST"
 
 #define DL_ORIGINAL_RULE "ORIG_RULE"
+#define DL_NORM_ATOM "NORMALIZED_ATOM"
 #define DL_ORIG_ATOM "ORIG_ATOM"
 #define DL_RULE_ID "RULE_ID"
 #endif /* INCLUDE_MODEL_DATALOG_DATALOG_MODEL_H_ */

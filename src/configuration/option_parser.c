@@ -16,6 +16,9 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 
+// use standard malloc to circumvent the memory manager
+#undef malloc
+
 // error message
 char *errorMessage = NULL;
 

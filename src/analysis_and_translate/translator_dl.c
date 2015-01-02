@@ -18,17 +18,18 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/datalog/datalog_model.h"
-#include "model/set/hashmap.h"
+#include "model/datalog/datalog_model_checker.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
 
 static Node *translateProgram(DLProgram *p);
 static QueryOperator *translateRule(DLRule *r);
-static QueryOperator *translateGoal(DLAtom *r);
+static QueryOperator *translateGoal(DLAtom *r, int goalPos);
 static QueryOperator *joinGoalTranslations (DLRule *r, List *goalTrans);
 static Node *createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigAttrs);
 static List *getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs);
@@ -47,6 +48,9 @@ translateParseDL(Node *q)
 
     INFO_LOG("translate DL model:\n\n%s", datalogToOverviewString(q));
 
+    if (!checkDLModel(q))
+        FATAL_LOG("failed model check on:\n%s", datalogToOverviewString(q));
+
     if (isA(q,DLProgram))
         result = translateProgram((DLProgram *) q);
     // what other node types can be here?
@@ -54,6 +58,7 @@ translateParseDL(Node *q)
         FATAL_LOG("currently only DLProgram node type translation supported");
 
     INFO_LOG("translated DL model:\n\n%s", operatorToOverviewString(result));
+//    FATAL_LOG("");
 
     return result;
 }
@@ -178,6 +183,7 @@ translateRule(DLRule *r)
     SelectionOperator *sel = NULL;
     List *goalTrans = NIL;
     List *conditions = NIL;
+    int goalPos = 0;
 
     DEBUG_LOG("translate rules: %s", datalogToOverviewString((Node *) r));
 
@@ -186,7 +192,7 @@ translateRule(DLRule *r)
     {
         if (isA(a,DLAtom))
         {
-            QueryOperator *tG = translateGoal((DLAtom *) a);
+            QueryOperator *tG = translateGoal((DLAtom *) a, goalPos++);
             goalTrans = appendToTailOfList(goalTrans, tG);
             DEBUG_LOG("translated body goal is: %s", operatorToOverviewString((Node *) tG));
         }
@@ -215,8 +221,9 @@ translateRule(DLRule *r)
     projExprs = getHeadProjectionExprs(r->head, joinedGoals, getBodyArgs(r));
     int i = 0;
 
-    FOREACH(Node,p,projExprs)
-        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", itoa(i++)));
+//    FOREACH(Node,p,projExprs)
+    for (; i < LIST_LENGTH(projExprs); i++)
+        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", itoa(i)));
 //
 //    List *headVars = getVarNames(getHeadVars(r));
 //    List *headArgs = r->head->args;
@@ -486,7 +493,7 @@ replaceVarWithAttrRef(Node *node, List *context)
  */
 
 static QueryOperator *
-translateGoal(DLAtom *r)
+translateGoal(DLAtom *r, int goalPos)
 {
     ProjectionOperator *rename;
     QueryOperator *pInput;
@@ -639,6 +646,7 @@ translateGoal(DLAtom *r)
     // change attribute names
     Set *nameSet = STRSET();
     List *finalNames = NIL;
+    int argPos = 0;
 
     FORBOTH(Node,var,attr,r->args,rename->op.schema->attrDefs)
     {
@@ -651,8 +659,13 @@ translateGoal(DLAtom *r)
             n = v->name;
             d->attrName = strdup(n);
         }
+        else if (isA(var, Constant))
+        {
+            n = CONCAT_STRINGS("C_", itoa(goalPos), "_", itoa(argPos++));
+            d->attrName = strdup(n);
+        }
         else
-            n = d->attrName;
+            FATAL_LOG("we should not end up here");
 
         addToSet(nameSet, strdup(n));
         finalNames = appendToTailOfList(finalNames, strdup(n));
