@@ -28,6 +28,6 @@ reachUp2(X,Y) :- reach2(X,Y); reachUp2(X,Y) :- reach(X,Y);  reach2(X,Y) :- reach
 ------------------------------------------------------------
 -- run program
 unhop2(X,Y) :- undir(X,A), undir(A,Y); undir(X,Y) :- hop(X,Y); undir(X,Y) :- hop(Y,X); ANS : unhop2;
--- GP for c being connected to b
+-- GP for c being connected to b and a to b
 unhop2(X,Y) :- undir(X,A), undir(A,Y); undir(X,Y) :- hop(X,Y); undir(X,Y) :- hop(Y,X); WHY(unhop2('c','a'));
 unhop2(X,Y) :- undir(X,A), undir(A,Y); undir(X,Y) :- hop(X,Y); undir(X,Y) :- hop(Y,X); WHY(unhop2('a','b'));
