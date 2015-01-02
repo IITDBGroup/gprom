@@ -28,3 +28,6 @@ config/
 configure
 libtool
 m4/
+debug.script
+debug.txt
+GPexamples/
