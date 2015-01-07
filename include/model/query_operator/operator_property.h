@@ -53,5 +53,6 @@
 /* properties used to store list of set which used in selection move around */
 #define PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND "STORE LIST SET FOR SELECTION MOVE AROUND"
 #define PROP_MERGE_ATTR_REF_CNTS "MERGE SAFE ATTRIBUTE COUNTS"                        // safe to merge this projection with its child?
-
+/* properties to store list of primary keys for each node. */
+#define PROP_STORE_LIST_KEY "STORE KEY LIST FOR REMOVE REDUNDANT DUPLICATE"
 #endif /* OPERATOR_PROPERTY_H_ */

@@ -98,6 +98,7 @@ boolean opt_optimization_merge_ops = FALSE;
 boolean opt_optimization_factor_attrs = FALSE;
 boolean opt_materialize_unsafe_proj = FALSE;
 boolean opt_remove_redundant_projections = TRUE;
+boolean opt_remove_redundant_duplicate_operator = TRUE;
 boolean opt_optimization_pulling_up_provenance_proj = FALSE;
 boolean opt_optimization_push_selections_through_joins = FALSE;
 boolean opt_optimization_selection_move_around = FALSE;
@@ -404,6 +405,12 @@ OptionInfo opts[] =
                 "-Oremove_redundant_projections",
                 "Optimization: try to remove redundant projections",
                 opt_remove_redundant_projections,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR,
+                "-Oremove_redundant_duplicate_operator",
+                "Optimization: try to remove redundant duplicate operator",
+                opt_remove_redundant_duplicate_operator,
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ,

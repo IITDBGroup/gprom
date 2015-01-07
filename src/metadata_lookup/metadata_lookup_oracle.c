@@ -922,18 +922,18 @@ getBarrierScn(void)
 
 int getCost(char *query)
 {
-	/* Remove the newline characters from the Query */
-	int len = strlen(query);
-	int i = 0;
-	for (i = 0; i < len; i++)
-	{
-		if (query[i] == '\n' || query[i] == ';')
-			query[i] = ' ';
-	}
+    /* Remove the newline characters from the Query */
+    int len = strlen(query);
+    int i = 0;
+    for (i = 0; i < len; i++)
+    {
+        if (query[i] == '\n' || query[i] == ';')
+            query[i] = ' ';
+    }
 
-	unsigned long long cost = 0L;
+    unsigned long long cost = 0L;
 
-	StringInfo statement;
+    StringInfo statement;
     statement = makeStringInfo();
     appendStringInfo(statement, "EXPLAIN PLAN FOR %s", query);
     executeStatement(statement->data);
@@ -946,17 +946,49 @@ int getCost(char *query)
     OCI_Resultset *rs1 = executeStatement(statement1->data);
     if (rs1 != NULL)
     {
-    	while(OCI_FetchNext(rs1))
+	while(OCI_FetchNext(rs1))
         {
-    		cost = OCI_GetInt(rs1, 1);
-    		DEBUG_LOG("Cost is : %i \n", OCI_GetInt(rs1, 1));
-    		break;
+		cost = OCI_GetInt(rs1, 1);
+		DEBUG_LOG("Cost is : %i \n", OCI_GetInt(rs1, 1));
+		break;
         }
     }
 
     FREE(statement1);
 
     return cost;
+}
+
+List *getKeyInformation(QueryOperator *root)
+{
+    List *keyList = NIL;
+    const char *column;
+
+    StringInfo statement;
+    statement = makeStringInfo();
+    appendStringInfo(statement, "SELECT cols.column_name "
+                                "FROM all_constraints cons, all_cons_columns cols "
+                                "WHERE cols.table_name = '%s' "
+                                "AND cons.constraint_type = 'P' "
+                                "AND cons.constraint_name = cols.constraint_name "
+                                "AND cons.owner = cols.owner "
+                                "ORDER BY cols.table_name, cols.position",
+                                root->schema->name);
+
+    OCI_Resultset *rs1 = executeStatement(statement->data);
+
+    if (rs1 != NULL)
+    {
+        while(OCI_FetchNext(rs1))
+        {
+            column = OCI_GetString(rs1, 1);
+            DEBUG_LOG("Attribute is : %s \n", column);
+            keyList = appendToTailOfList(keyList, (void *)column);
+        }
+    }
+
+    FREE(statement);
+    return keyList;
 }
 
 static OCI_Resultset *

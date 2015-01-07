@@ -27,7 +27,7 @@
 #include "operator_optimizer/operator_optimizer.h"
 #include "sql_serializer/sql_serializer.h"
 #include "mem_manager/mem_mgr.h"
-#include "metadata_lookup/metadata_lookup.h"
+#include "metadata_lookup/metadata_lookup_oracle.h"
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
