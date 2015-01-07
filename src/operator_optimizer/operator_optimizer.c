@@ -28,6 +28,7 @@
 #include "rewriter.h"
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "model/set/set.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
 
 
 static QueryOperator *optimizeOneGraph (QueryOperator *root);
@@ -87,7 +88,6 @@ static QueryOperator *
 optimizeOneGraph (QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
-//    int res;
 
     if(getBoolOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR))
     {
@@ -110,8 +110,8 @@ optimizeOneGraph (QueryOperator *root)
     }
     else
     {
-    	applyMerge(rewrittenTree);
-    	applySelectionPushdown(rewrittenTree);
+	applyMerge(rewrittenTree);
+	applySelectionPushdown(rewrittenTree);
     }*/
 
 	applyMerge(rewrittenTree);
@@ -179,6 +179,16 @@ optimizeOneGraph (QueryOperator *root)
         DEBUG_LOG("add materialization hints for projection sequences\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
         ASSERT(checkModel((QueryOperator *) rewrittenTree));
         STOP_TIMER("OptimizeModel - set materialization hints");
+    }
+
+    if(getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
+    {
+        START_TIMER("OptimizeModel - remove redundant duplicate operator");
+        computeKeyProp(root);
+        rewrittenTree = removeRedundantDuplicateOperator((QueryOperator *) rewrittenTree);
+        DEBUG_LOG("remove redundant duplicate operator \n\n%s", operatorToOverviewString((Node *) rewrittenTree));
+        ASSERT(checkModel((QueryOperator *) rewrittenTree));
+        STOP_TIMER("OptimizeModel - remove redundant duplicate operator");
     }
 
     if(getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS))
@@ -299,59 +309,86 @@ factorAttrsInExpressions(QueryOperator *root)
     return root;
 }
 
+QueryOperator *
+removeRedundantDuplicateOperator(QueryOperator *root)
+{
+    QueryOperator *lChild = OP_LCHILD(root);
+
+    if (isA(root, DuplicateRemoval) && isA(lChild, ProjectionOperator))
+    {
+        Node *n1 = getProperty(lChild, (Node *) createConstString(PROP_STORE_LIST_KEY));
+        List *l1 = (List *)n1;
+
+        /* Projection is sensitive to Duplicates, If there is no key, we can't
+         * remove Duplicate Operator
+         */
+        if (l1 != NULL)
+	{
+            // Remove Parent and make lChild as the new parent
+	    switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
+	    root = lChild;
+	}
+    }
+
+    FOREACH(QueryOperator, o, root->inputs)
+        removeRedundantDuplicateOperator(o);
+
+    return root;
+}
 
 QueryOperator *
 removeRedundantProjections(QueryOperator *root)
 {
-  QueryOperator *lChild = OP_LCHILD(root);
+    QueryOperator *lChild = OP_LCHILD(root);
 
-  if (isA(root, ProjectionOperator))
-  {
-      boolean compare = TRUE;
-      List *l1 = ((ProjectionOperator *)root)->projExprs;
-      List *l2 = lChild->schema->attrDefs;
-      int i = 0;
+    if (isA(root, ProjectionOperator))
+    {
+        boolean compare = TRUE;
+        List *l1 = ((ProjectionOperator *)root)->projExprs;
+        List *l2 = lChild->schema->attrDefs;
+        int i = 0;
 
-      if (LIST_LENGTH(l1) != LIST_LENGTH(l2))
-          compare = FALSE;
-      else
-      {
-          FORBOTH_LC(lc1,lc2,l1,l2)
-          {
-              AttributeReference *x = (AttributeReference *)LC_P_VAL(lc1);
-              AttributeDef *y = (AttributeDef *)LC_P_VAL(lc2);
+        if (LIST_LENGTH(l1) != LIST_LENGTH(l2))
+            compare = FALSE;
+        else
+        {
+            FORBOTH_LC(lc1,lc2,l1,l2)
+            {
+                AttributeReference *x = (AttributeReference *)LC_P_VAL(lc1);
+                AttributeDef *y = (AttributeDef *)LC_P_VAL(lc2);
 
-              if (!streq(x->name,y->attrName) || i++ != x->attrPosition)
-              {
-                  compare = FALSE;
-                  break;
-              }
-          }
-      }
+                if (!streq(x->name,y->attrName) || i++ != x->attrPosition)
+                {
+                    compare = FALSE;
+                    break;
+                }
+            }
+        }
 
-      if (compare)
-      {
-          List *projAttrs = getQueryOperatorAttrNames(root);
-          List *childAttrs = getQueryOperatorAttrNames(lChild);
-          HashMap *nameMap = NEW_MAP(Node,Node);
+        if (compare)
+        {
+            List *projAttrs = getQueryOperatorAttrNames(root);
+            List *childAttrs = getQueryOperatorAttrNames(lChild);
+            HashMap *nameMap = NEW_MAP(Node,Node);
 
-          // adapt any attribute references in the parent of the redundant projection
-          FORBOTH(char,pA,cA,projAttrs, childAttrs)
-              MAP_ADD_STRING_KEY(nameMap, pA, createConstString(cA));
+            // adapt any attribute references in the parent of the redundant
+            // projection
+            FORBOTH(char,pA,cA,projAttrs, childAttrs)
+                MAP_ADD_STRING_KEY(nameMap, pA, createConstString(cA));
 
-          FOREACH(QueryOperator,parent,root->parents)
-              renameOpAttrRefs(parent, nameMap, root);
+            FOREACH(QueryOperator,parent,root->parents)
+                renameOpAttrRefs(parent, nameMap, root);
 
-          // Remove Parent and make lChild as the new parent
-          switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
-          root = lChild;
-      }
-  }
+            // Remove Parent and make lChild as the new parent
+            switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
+            root = lChild;
+        }
+    }
 
-  FOREACH(QueryOperator, o, root->inputs)
-    removeRedundantProjections(o);
+    FOREACH(QueryOperator, o, root->inputs)
+        removeRedundantProjections(o);
 
-  return root;
+    return root;
 }
 
 #define CHILDPOS_KEY "__CHILDPOS__"
