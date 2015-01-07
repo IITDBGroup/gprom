@@ -138,7 +138,8 @@ typedef struct OrderOperator
         || isA(op,SelectionOperator)                    \
         || isA(op,AggregationOperator)                  \
         || isA(op,DuplicateRemoval)                     \
-        || isA(op,WindowOperator))
+        || isA(op,WindowOperator)                      \
+		|| isA(op,OrderOperator))
 
 #define IS_BINARY_OP(op) (isA(op,JoinOperator)          \
         || isA(op,SetOperator)                          \

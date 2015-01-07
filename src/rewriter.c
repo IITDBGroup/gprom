@@ -214,7 +214,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	{
 		START_TIMER("OptimizeModel");
 		rewrittenTree = optimizeOperatorModel(rewrittenTree);
-		INFO_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
+		INFO_LOG("after optimizing AGM graph:\n\n%s", operatorToOverviewString(rewrittenTree));
 		STOP_TIMER("OptimizeModel");
 	}
 	else
