@@ -962,7 +962,6 @@ int getCost(char *query)
 List *getKeyInformation(QueryOperator *root)
 {
     List *keyList = NIL;
-    const char *column;
 
     StringInfo statement;
     statement = makeStringInfo();
@@ -981,9 +980,7 @@ List *getKeyInformation(QueryOperator *root)
     {
         while(OCI_FetchNext(rs1))
         {
-            column = OCI_GetString(rs1, 1);
-            DEBUG_LOG("Attribute is : %s \n", column);
-            keyList = appendToTailOfList(keyList, (void *)column);
+            keyList = appendToTailOfList(keyList, strdup((char *) OCI_GetString(rs1, 1)));
         }
     }
 
