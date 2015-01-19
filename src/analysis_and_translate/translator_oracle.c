@@ -1171,20 +1171,6 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
     if (numAgg == 0 && numGroupBy == 0)
         return input;
 
-//     if no projection was added
-    // change attributes positions in each
-    // expression of groupBy and aggregation input to refer to the FROM clause
-    // translation
-//    if (in == input)
-//    {
-
-//        FOREACH(Node, exp, groupByClause)
-//            visitAttrRefToSetNewAttrPos(exp, attrsOffsets);
-//        FOREACH(FunctionCall, agg, aggrs)
-//            FOREACH(Node, aggIn, agg->args)
-//                visitAttrRefToSetNewAttrPos(aggIn, attrsOffsets);
-//    }
-
     // if necessary create projection for aggregation inputs that are not simple
     // attribute references
     in = createProjectionOverNonAttrRefExprs(&selectClause,
