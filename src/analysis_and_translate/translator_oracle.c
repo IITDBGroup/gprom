@@ -1308,8 +1308,9 @@ createProjectionOverNonAttrRefExprs(List **selectClause, Node **havingClause,
         {
             attrNames = appendToTailOfList(attrNames,
                     CONCAT_STRINGS("AGG_GB_ARG", itoa(i)));
-            i++;
         }
+
+        ASSERT(LIST_LENGTH(projExprs) == LIST_LENGTH(attrNames));
 
         // copy expressions and create projection operator over the copies
         ProjectionOperator *po = createProjectionOp(projExprs, input, NIL,
