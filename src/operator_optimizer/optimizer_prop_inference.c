@@ -57,9 +57,14 @@ computeKeyProp (QueryOperator *root)
 
     // get keys of children
     keyList = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_KEY);
-    if (IS_BINARY_OP(root))
-        rKeyList = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_KEY);
 
+    if (IS_BINARY_OP(root))
+    {
+        List *newKeyList = NIL;
+        rKeyList = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_KEY);
+        newKeyList = concatTwoLists(keyList, rKeyList);
+        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)newKeyList);
+    }
     // deal with different operator types
 
     // here we could use the ECs to determine new keys, e.g., if input has keys {{A}, {C}} and we have selection condition B = C, then we have a new key {{A}, {B}, {C}}

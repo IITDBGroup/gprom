@@ -965,9 +965,11 @@ setMoveAroundListSetProperityForWholeTree(QueryOperator *root)
 			if(((JoinOperator *)newRoot)->joinType == JOIN_INNER)
 				c = (Operator *)(((JoinOperator *)newRoot)->cond);
 			else if(((JoinOperator *)newRoot)->joinType == JOIN_CROSS)
-				c = (Operator *)(((SelectionOperator *)parent)->cond);
+                               if(parent != NULL)
+				  c = (Operator *)(((SelectionOperator *)parent)->cond);
 
-			opList = getSelectionCondOperatorList(opList, c);
+                        if(c != NULL)
+			   opList = getSelectionCondOperatorList(opList, c);
 
 
 			FOREACH(QueryOperator, op, root->inputs)
