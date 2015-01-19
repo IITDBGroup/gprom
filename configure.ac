@@ -263,6 +263,7 @@ AC_CHECK_HEADERS([stdarg.h])
 AC_CHECK_HEADERS([time.h])
 AC_CHECK_HEADERS([limits.h])
 AC_CHECK_HEADERS([regex.h])
+AC_CHECK_HEADERS([setjmp.h])
 AC_HEADER_ASSERT
 ################################################################################
 # MEMORY ALLOCATION STUFF

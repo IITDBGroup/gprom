@@ -2,7 +2,8 @@
  *
  * logger.h
  *    Author: Ying Ni yni6@hawk.iit.edu
- *    This module is for providing uniform logging for the whole system.
+ *    This module provides uniform logging for the whole system and exception
+ *    handling capabilities.
  *
  *        XXX_LOG() macros work like printf() in C. The first argument is a
  *        format string. Additional optional arguments are parameters
@@ -14,6 +15,7 @@
  *        set from the command line will be printed. For example, if log level
  *        is set to 3 by command line, then logs from FATAL to INFO level will
  *        be printed while logs at DEBUG and TRACE level will not be printed.
+ *        Currently, FATAL causes the application to exit.
  *
  *-------------------------------------------------------------------------
  */

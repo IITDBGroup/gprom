@@ -70,6 +70,11 @@
 #include <regex.h>
 #endif
 
+/* longjmp for exception handling */
+#if HAVE_SETJMP_H
+#include <setjmp.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup
@@ -82,7 +87,6 @@
 #if HAVE_STRCMP
 #define streq(_l,_r) (strcmp(_l,_r) == 0)
 #endif
-
 
 
 
