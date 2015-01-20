@@ -109,3 +109,16 @@ computeSetProp (QueryOperator *root)
 {
 
 }
+
+
+/*
+ * Compute which set of output columns produced by the operator are need upstream.
+ * Will be used to remove unneeded attributes early on. In particular useful for
+ * removing the ROWNUM and other window operators introduced by PI-CS composable
+ * rewrites.
+ */
+void
+computeReqColProp (QueryOperator *root)
+{
+
+}

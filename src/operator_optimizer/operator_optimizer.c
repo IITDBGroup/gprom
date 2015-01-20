@@ -221,8 +221,8 @@ optimizeOneGraph (QueryOperator *root)
 //        ASSERT(checkModel((QueryOperator *) rewrittenTree));
 //        STOP_TIMER("OptimizeModel - set materialization hints");
 //    }
-
-    computeKeyProp(rewrittenTree);
+    if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
+        computeKeyProp(rewrittenTree);
     APPLY_AND_TIME_OPT("remove redundant duplicate removal operators",
             removeRedundantDuplicateOperator,
             OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
