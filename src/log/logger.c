@@ -21,13 +21,14 @@
 #include "common.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "log/logger.h"
+#include "log/termcolor.h"
 #include "model/node/nodetype.h"
 #include "configuration/option.h"
 
 #define INIT_BUF_SIZE 1 // 4096
 
 static char *h[] =
-    {"FATAL: ", "ERROR: ", "WARN: ", "INFO: ", "DEBUG: ", "TRACE: "};
+    {"FATAL", "ERROR ", "WARN", "INFO", "DEBUG", "TRACE"};
 static StringInfo buffer;
 
 LogLevel maxLevel = LOG_INFO;
@@ -101,9 +102,9 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
         buffer->data[0] = '\0';
 
         // output loglevel and location of log statement
-        fprintf(out, "%s", getHead(level));
+        fprintf(out, TB_FG_BG(WHITE,BLACK,"%s"), getHead(level));
         if (file && line > 0)
-            fprintf(out, "(%s:%u) ", file, line);
+            fprintf(out, TCOL(RED,"(%s:%u) "), file, line);
         else
             fprintf(out, "(unknown) ");
 
