@@ -1160,21 +1160,22 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             WindowOperator *wOp = (WindowOperator *) curOp;
             Node *expr = wOp->f;
 
-            DEBUG_LOG("window function = %s", beatify(nodeToString(expr)));
+            DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc(
+                                (WindowOperator *) curOp)));
 
             UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fromAttrs, firstProjs);
 //            if (m->secondProj == NULL)
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-            windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
-                    (WindowOperator *) curOp)));
-
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->partitionBy, fromAttrs, firstProjs);
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->orderBy, fromAttrs, firstProjs);
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fromAttrs, firstProjs);
 
-            DEBUG_LOG("window function = %s", exprToSQL((Node *) winOpGetFunc(
+            windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
+                    (WindowOperator *) curOp)));
+
+            DEBUG_LOG("AFTER: window function = %s", exprToSQL((Node *) winOpGetFunc(
                     (WindowOperator *) curOp)));
 
             curOp = OP_LCHILD(curOp);
