@@ -42,14 +42,6 @@
 #define TERM_BOLD_COLOR_ON(_color_) TERM_COMB(TERM_TEXT_BOLD) TERM_COMB(TERM_FG_ ## _color_)
 #define TERM_BOLD TERM_BOLD_COLOR_ON(BLACK)
 #define TERM_ALL_ON(_text_attrs_,_fg_color_,_bg_color_) TERM_COMB(TERM_TEXT_ ## _text_attrs_) TERM_COMB(TERM_FG_ ## _fg_color_) TERM_COMB(TERM_BG_ ## _bg_color_)
-//#define TERM_COLOR_NORMAL    "\x1B[0m"
-//#define TERM_COLOR_RED       "\x1B[31m"
-//#define TERM_COLOR_GREEN     "\x1B[32m"
-//#define TERM_COLOR_YELLOW    "\x1B[33m"
-//#define TERM_COLOR_BLUE      "\x1B[34m"
-//#define TERM_COLOR_MAGENTA   "\x1B[35m"
-//#define TERM_COLOR_CYAN      "\x1B[36m"
-//#define TERM_COLOR_WHITE     "\x1B[37m"
 
 #define TERM_RESET "\033[0m"
 

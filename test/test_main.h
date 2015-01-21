@@ -20,6 +20,7 @@
 #include "model/node/nodetype.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
+#include "log/termcolor.h"
 
 /* are using actual free here */
 #undef free
@@ -38,7 +39,7 @@ extern int test_count;
     do { \
         char *indentation = getIndent(test_rec_depth); \
         int prev_count = test_count; \
-    	printf("%sTEST SUITE STARTED [%s-%s-%u]: %s\n", indentation, __FILE__, \
+    	printf("%s" T_FG_BG(WHITE,BLACK,"TEST SUITE STARTED") "[" TB("%s") "-%s-%u]: %s\n", indentation, __FILE__, \
     	        __func__, __LINE__, msg); \
     	free(indentation); \
     	test_rec_depth++; \
