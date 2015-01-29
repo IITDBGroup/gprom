@@ -298,7 +298,7 @@ unionSets (Set *left, Set *right)
             }
     }
 
-    DEBUG_LOG("union result set %s", nodeToString(result));
+    TRACE_LOG("union result set %s", nodeToString(result));
 
     return result;
 }
@@ -327,7 +327,7 @@ intersectSets (Set *left, Set *right)
                 addToSet(result, left->cpy(s->data));
     }
 
-    DEBUG_LOG("intersect result set %s", nodeToString(result));
+    TRACE_LOG("intersect result set %s", nodeToString(result));
 
     return result;
 }

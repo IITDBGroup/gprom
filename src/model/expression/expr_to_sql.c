@@ -158,12 +158,24 @@ winFuncToSQL(StringInfo str, WindowFunction *expr)
     if (w->partitionBy != NULL)
     {
         appendStringInfoString(str, "PARTITION BY ");
-        exprToSQLString(str, (Node*) w->partitionBy);
+        FOREACH(Node,p,w->partitionBy)
+        {
+            exprToSQLString(str, p);
+            if(FOREACH_HAS_MORE(p))
+                appendStringInfoString(str, ", ");
+        }
     }
     if (w->orderBy != NULL)
     {
         appendStringInfoString(str, " ORDER BY ");
-        exprToSQLString(str, (Node *) w->orderBy);
+
+        FOREACH(Node,o,w->orderBy)
+        {
+            exprToSQLString(str, o);
+            if(FOREACH_HAS_MORE(o))
+                appendStringInfoString(str, ", ");
+        }
+
     }
     if (w->frame != NULL)
     {

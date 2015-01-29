@@ -138,7 +138,8 @@ typedef struct OrderOperator
         || isA(op,SelectionOperator)                    \
         || isA(op,AggregationOperator)                  \
         || isA(op,DuplicateRemoval)                     \
-        || isA(op,WindowOperator))
+        || isA(op,WindowOperator)                      \
+		|| isA(op,OrderOperator))
 
 #define IS_BINARY_OP(op) (isA(op,JoinOperator)          \
         || isA(op,SetOperator)                          \
@@ -152,6 +153,18 @@ extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames,
         List *dataTypes);
 extern void addAttrToSchema(QueryOperator *op, char *name, DataType dt);
+extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name);
+extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
+extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
+extern void resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2);
+extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2);
+
+/* union equal element between two set list */
+extern List *UnionEqualElemOfTwoSetList(List *l1, List *l2);
+extern List *addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet);
+
+extern List *getSelectionCondOperatorList(List *opList, Operator *op);
+extern List *getCondOpList(List *l1, List *l2);
 extern List *getDataTypes (Schema *schema);
 extern List *getAttrNames(Schema *schema);
 #define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema
@@ -216,10 +229,12 @@ extern int getChildPosInParent(QueryOperator *parent, QueryOperator *child);
 /* attribute functions */
 extern List *getProvenanceAttrs(QueryOperator *op);
 extern List *getProvenanceAttrDefs(QueryOperator *op);
+extern List *getProvenanceAttrReferences(ProjectionOperator *op, QueryOperator *op1);
 extern List *getOpProvenanceAttrNames(QueryOperator *op);
 extern int getNumProvAttrs(QueryOperator *op);
 
 extern List *getNormalAttrs(QueryOperator *op);
+extern List *getNormalAttrReferences(ProjectionOperator *op, QueryOperator *op1);
 extern List *getNormalAttrNames(QueryOperator *op);
 extern int getNumNormalAttrs(QueryOperator *op);
 
@@ -242,5 +257,14 @@ extern WindowFunction *winOpGetFunc (WindowOperator *op);
 
 /* transforms a graph query model into a tree */
 extern void treeify(QueryOperator *op);
+
+/* visit a query operator graph in a specified order */
+NEW_ENUM_WITH_TO_STRING(TraversalOrder,
+        TRAVERSAL_PRE,
+        TRAVERSAL_POST);
+extern boolean visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
+        boolean (*visitF) (QueryOperator *op, void *context),
+        void *context);
+
 
 #endif /* QUERY_OPERATOR_H_ */

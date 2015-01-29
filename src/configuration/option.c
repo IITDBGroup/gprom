@@ -17,6 +17,7 @@
 
 // we have to use actual free here
 #undef free
+#undef malloc
 
 //Options* options;
 HashMap *optionPos; // optionname -> position of option in list
@@ -70,6 +71,7 @@ char *plugin_sqlcodegen = NULL;
 char *plugin_analyzer = NULL;
 char *plugin_translator = NULL;
 char *plugin_sql_serializer = NULL;
+char *plugin_executor = NULL;
 
 // instrumentation options
 boolean opt_timing = FALSE;
@@ -82,15 +84,24 @@ boolean opt_update_only_conditions = FALSE;
 boolean opt_treeify_opterator_model = FALSE;
 boolean opt_only_updated_use_history = FALSE;
 boolean opt_pi_cs_composable = FALSE;
+boolean opt_pi_cs_rewrite_agg_window = FALSE;
 boolean opt_optimize_operator_model = FALSE;
 boolean opt_translate_update_with_case = FALSE;
 //boolean   = FALSE;
+
+// cost based optimization option
+boolean cost_based_optimizer = FALSE;
 
 // optimization options
 boolean opt_optimization_push_selections = FALSE;
 boolean opt_optimization_merge_ops = FALSE;
 boolean opt_optimization_factor_attrs = FALSE;
 boolean opt_materialize_unsafe_proj = FALSE;
+boolean opt_remove_redundant_projections = TRUE;
+boolean opt_remove_redundant_duplicate_operator = TRUE;
+boolean opt_optimization_pulling_up_provenance_proj = FALSE;
+boolean opt_optimization_push_selections_through_joins = FALSE;
+boolean opt_optimization_selection_move_around = FALSE;
 
 // sanity check options
 boolean opt_operator_model_unique_schema_attribues = FALSE;
@@ -285,6 +296,14 @@ OptionInfo opts[] =
                 wrapOptionString(&plugin_sql_serializer),
                 defOptionString(NULL)
         },
+        {
+                "plugin.executor",
+                "-Pexecutor",
+                "select Executor plugin: sql (output rewritten SQL code), gp (output Game provenance)",
+                OPTION_STRING,
+                wrapOptionString(&plugin_executor),
+                defOptionString(NULL)
+        },
         // boolean instrumentation options
         aRewriteOption(OPTION_TIMING,
                 NULL,
@@ -330,6 +349,11 @@ OptionInfo opts[] =
                 " enumerate duplicates introduced by provenance.",
                 opt_pi_cs_composable,
                 FALSE),
+        aRewriteOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW,
+                NULL,
+                "When composable version of PI-CS provenance is use then rewrite aggregations using window functions.",
+                opt_pi_cs_rewrite_agg_window,
+                TRUE),
         aRewriteOption(OPTION_OPTIMIZE_OPERATOR_MODEL,
                 NULL,
                 "Apply heuristic and cost based optimizations to operator model",
@@ -340,6 +364,15 @@ OptionInfo opts[] =
                 "Create reenactment query for UPDATE statements using CASE instead of UNION.",
                 opt_translate_update_with_case,
                 TRUE),
+        // Cost Based Optimization Option
+         {
+                 OPTION_COST_BASED_OPTIMIZER,
+                "-cost_based_optimizer",
+                "Activate/Deactivate cost based optimizer",
+                OPTION_BOOL,
+                wrapOptionBool(&cost_based_optimizer),
+                defOptionBool(FALSE)
+         },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
                 "-Opush_selections",
@@ -368,6 +401,36 @@ OptionInfo opts[] =
                 opt_materialize_unsafe_proj,
                 TRUE
         ),
+        anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS,
+                "-Oremove_redundant_projections",
+                "Optimization: try to remove redundant projections",
+                opt_remove_redundant_projections,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR,
+                "-Oremove_redundant_duplicate_operator",
+                "Optimization: try to remove redundant duplicate operator",
+                opt_remove_redundant_duplicate_operator,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ,
+                "-Opulling_up_provenance_proj",
+                "Optimization: try to pull up provenance projection",
+                opt_optimization_pulling_up_provenance_proj,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS,
+                "-Opush_selections_through_joins",
+                "Optimization: try to push selections through joins",
+                opt_optimization_push_selections_through_joins,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_SELECTION_MOVE_AROUND,
+                "-Oselections_move_around",
+                "Optimization: try to move selection around",
+                opt_optimization_selection_move_around,
+                TRUE
+                ),
         // sanity model checking options
         anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
                 "-Cunique_attr_names",

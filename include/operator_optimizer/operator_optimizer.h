@@ -27,4 +27,33 @@ extern QueryOperator *pushDownSelectionOperatorOnProv(QueryOperator *root);
 
 extern QueryOperator *factorAttrsInExpressions(QueryOperator *root);
 
+extern QueryOperator *removeRedundantProjections(QueryOperator *root);
+
+/*try to remove redundant duplicate operator */
+extern QueryOperator *removeRedundantDuplicateOperator(QueryOperator *root);
+
+/* try to pull up provenance projections. */
+extern QueryOperator *pullingUpProvenanceProjections(QueryOperator *root);
+
+/* try to push down the selection operator through joins for provenence. */
+extern QueryOperator *pushDownSelectionThroughJoinsOperatorOnProv(QueryOperator *root);
+
+/* try to implement selection move around */
+extern QueryOperator *selectionMoveAround(QueryOperator *root);
+
+/* used in selection move around,  step 1  */
+extern void setMoveAroundListSetProperityForWholeTree(QueryOperator *root);
+
+/* used in selection move around,  step 2  */
+extern void reSetMoveAroundListSetProperityForWholeTree(QueryOperator *root);
+
+/* used in selection move around,  step 3  */
+extern void introduceSelection(QueryOperator *root);
+
+/* used in selection move around  */
+extern List *getMoveAroundOpList(QueryOperator *qo);
+extern List *addNonEqOpToOplistInMoveAround(QueryOperator *root, QueryOperator *opl, List *opListr);
+extern void introduceSelectionOrChangeSelectionCond(List *opList, QueryOperator *qo1);
+extern List *removeRedundantSelectionCondOfOpList(List *opList);
+
 #endif /* OPERATOR_OPTIMIZER_H_ */

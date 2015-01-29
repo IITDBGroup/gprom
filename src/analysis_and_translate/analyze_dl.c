@@ -22,7 +22,8 @@
 
 
 static void analyzeDLProgram (DLProgram *p);
-static void analyzeRule (DLRule *r, Set *idbRels);
+static void analyzeRule (DLRule *r, Set *idbRels, Set *edbRels);
+static void analyzeProv (DLProgram *p, KeyValue *kv);
 static boolean checkHeadSafety (DLRule *r);
 
 Node *
@@ -39,10 +40,11 @@ static void
 analyzeDLProgram (DLProgram *p)
 {
     Set *idbRels = STRSET();
-//    Set *edbRels = STRSET();
-//    HashMap *relToRule; // map idb relations to all rules that have this relation in their head
+    Set *edbRels = STRSET();
+    HashMap *relToRule = NEW_MAP(Constant,List); // map idb relations to all rules that have this relation in their head
     List *rules = NIL;
     List *facts = NIL;
+//    List *provComps = NIL;
 
     //TODO infer data types for idb predicates
 
@@ -51,29 +53,69 @@ analyzeDLProgram (DLProgram *p)
         // a rule
         if(isA(r,DLRule))
         {
+            char *headPred = getHeadPredName((DLRule *) r);
+            List *relRules = (List *) MAP_GET_STRING(relToRule,headPred);
+
             rules = appendToTailOfList(rules, r);
-            addToSet(idbRels, getHeadPredName((DLRule *) r));
+            addToSet(idbRels, headPred);
+            relRules = appendToTailOfList(relRules, r);
+            MAP_ADD_STRING_KEY(relToRule,headPred,relRules);
         }
-        if(isA(r,Constant))
+        else if(isA(r,Constant))
         {
             p->ans = STRING_VALUE(r);
             //TODO check that it exists
         }
         // fact
-        if(isA(r,DLAtom))
+        else if(isA(r,DLAtom))
             facts = appendToTailOfList(facts,r);
+        // provenance question
+        else if(isA(r,KeyValue))
+            analyzeProv(p, (KeyValue *) r);
+        else
+            FATAL_LOG("datalog programs can consists of rules, constants, an "
+                    "answer relation specification, facts, and provenance "
+                    "computations");
         //TODO check that atom exists and is of right arity and that only constants are used in the fact
     }
 
     FOREACH(DLRule,r,rules)
-        analyzeRule((DLRule *) r, idbRels);
+        analyzeRule((DLRule *) r, idbRels, edbRels);
 
     p->rules = rules;
     p->facts = facts;
+
+    // store some auxiliary results of analysis in properties
+    setDLProp((DLNode *) p, DL_IDB_RELS, (Node *) idbRels);
+    setDLProp((DLNode *) p, DL_EDB_RELS, (Node *) edbRels);
+    setDLProp((DLNode *) p, DL_MAP_RELNAME_TO_RULES, (Node *) relToRule);
 }
 
 static void
-analyzeRule (DLRule *r, Set *idbRels)
+analyzeProv (DLProgram *p, KeyValue *kv)
+{
+    char *type;
+    ASSERT(isA(kv->key, Constant));
+
+    type = STRING_VALUE(kv->key);
+    if (streq(type,DL_PROV_WHY))
+    {
+        setDLProp((DLNode *) p,DL_PROV_WHY, kv->value);
+        //TODO check that is WHY prove
+    }
+    if (streq(type,DL_PROV_WHYNOT))
+    {
+        setDLProp((DLNode *) p,DL_PROV_WHYNOT, kv->value);
+        //TODO check that is WHY prove
+    }
+    if (streq(type,DL_PROV_FULL_GP))
+    {
+        DL_SET_BOOL_PROP(p,DL_PROV_FULL_GP);
+    }
+}
+
+static void
+analyzeRule (DLRule *r, Set *idbRels, Set *edbRels)
 {
 //    HashMap *varToPredMapping;
 
@@ -97,6 +139,7 @@ analyzeRule (DLRule *r, Set *idbRels)
             // else edb, check that exists and has right arity
             else
             {
+                addToSet(edbRels,atom->rel);
                 if(!catalogTableExists(atom->rel))
                     FATAL_LOG("EDB atom %s does not exist", atom->rel);
             }

@@ -12,6 +12,7 @@
 #define METADATA_LOOKUP_ORACLE_H_
 
 #include "metadata_lookup/metadata_lookup.h"
+#include "model/query_operator/query_operator.h"
 
 /* enums for aggregation and window functions */
 #define AGG_FUNCTION_NAME_MAXSIZE 20
@@ -91,12 +92,15 @@ extern char *oracleGetViewDefinition(char *viewName);
 extern DataType oracleGetOpReturnType (char *oName, List *dataTypes);
 extern DataType oracleGetFuncReturnType (char *fName, List *dataTypes);
 extern long getBarrierScn(void);
+extern int getCost(char *query);
+extern List *getKeyInformation(QueryOperator *root);
 
 extern void oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern long oracleGetCommitScn (char *tableName, long maxScn, char *xid);
 
 extern Node *oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
+extern List *oracleGenExecQuery (char *query);
 
 /* specific methods */
 #if HAVE_ORACLE_BACKEND

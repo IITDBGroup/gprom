@@ -99,6 +99,7 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->getTransactionSQLAndSCNs = oracleGetTransactionSQLAndSCNs;
     plugin->executeAsTransactionAndGetXID = oracleExecuteAsTransactionAndGetXID;
     plugin->getCommitScn = oracleGetCommitScn;
+    plugin->executeQuery = oracleGenExecQuery;
 
     return plugin;
 }
@@ -397,8 +398,8 @@ oracleGetAttributeNames (char *tableName)
     List *attrNames = NIL;
     List *attrs = getAttributes(tableName);
     //TODO use attribute defition instead
-    FOREACH(AttributeReference,a,attrs)
-        attrNames = appendToTailOfList(attrNames, a->name);
+    FOREACH(AttributeDef,a,attrs)
+        attrNames = appendToTailOfList(attrNames, a->attrName);
 
     return attrNames;
 }
@@ -877,6 +878,11 @@ oracleGetFuncReturnType (char *fName, List *dataTypes)
     if (streq(fName,"xmlagg"))
         return DT_STRING;
 
+    if (streq(fName,"ROW_NUMBER"))
+        return DT_INT;
+    if (streq(fName, "DENSE_RANK"))
+        return DT_INT;
+
     return DT_STRING;
 }
 
@@ -911,6 +917,75 @@ getBarrierScn(void)
     RELEASE_MEM_CONTEXT();
     STOP_TIMER("module - metadata lookup");
     return barrier;
+}
+
+
+int getCost(char *query)
+{
+    /* Remove the newline characters from the Query */
+    int len = strlen(query);
+    int i = 0;
+    for (i = 0; i < len; i++)
+    {
+        if (query[i] == '\n' || query[i] == ';')
+            query[i] = ' ';
+    }
+
+    unsigned long long cost = 0L;
+
+    StringInfo statement;
+    statement = makeStringInfo();
+    appendStringInfo(statement, "EXPLAIN PLAN FOR %s", query);
+    executeStatement(statement->data);
+    FREE(statement);
+
+    StringInfo statement1;
+    statement1 = makeStringInfo();
+    appendStringInfo(statement1, "SELECT COST FROM PLAN_TABLE WHERE ROWNUM = 1");
+
+    OCI_Resultset *rs1 = executeStatement(statement1->data);
+    if (rs1 != NULL)
+    {
+	while(OCI_FetchNext(rs1))
+        {
+		cost = OCI_GetInt(rs1, 1);
+		DEBUG_LOG("Cost is : %i \n", OCI_GetInt(rs1, 1));
+		break;
+        }
+    }
+
+    FREE(statement1);
+
+    return cost;
+}
+
+List *getKeyInformation(QueryOperator *root)
+{
+    List *keyList = NIL;
+
+    StringInfo statement;
+    statement = makeStringInfo();
+    appendStringInfo(statement, "SELECT cols.column_name "
+                                "FROM all_constraints cons, all_cons_columns cols "
+                                "WHERE cols.table_name = '%s' "
+                                "AND cons.constraint_type = 'P' "
+                                "AND cons.constraint_name = cols.constraint_name "
+                                "AND cons.owner = cols.owner "
+                                "ORDER BY cols.table_name, cols.position",
+                                root->schema->name);
+
+    OCI_Resultset *rs1 = executeStatement(statement->data);
+
+    if (rs1 != NULL)
+    {
+        while(OCI_FetchNext(rs1))
+        {
+            keyList = appendToTailOfList(keyList, strdup((char *) OCI_GetString(rs1, 1)));
+        }
+    }
+
+    FREE(statement);
+    return keyList;
 }
 
 static OCI_Resultset *
@@ -1026,6 +1101,29 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
     STOP_TIMER("module - metadata lookup");
 
     return (Node *) xid;
+}
+
+List *
+oracleGenExecQuery (char *query)
+{
+    List *rel = NIL;
+    int numAttrs;
+    OCI_Resultset *rs;
+
+    rs = executeStatement(query);
+    numAttrs = OCI_GetColumnCount(rs);
+
+    while(OCI_FetchNext(rs))
+    {
+        List *tuple = NIL;
+
+        for(int i = 1; i <= numAttrs; i++)
+            tuple = appendToTailOfList(tuple, strdup((char *) OCI_GetString(rs, i)));
+
+        rel = appendToTailOfList(rel, tuple);
+    }
+
+    return rel;
 }
 
 static OCI_Transaction *

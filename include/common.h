@@ -70,6 +70,11 @@
 #include <regex.h>
 #endif
 
+/* longjmp for exception handling */
+#if HAVE_SETJMP_H
+#include <setjmp.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup
@@ -82,7 +87,6 @@
 #if HAVE_STRCMP
 #define streq(_l,_r) (strcmp(_l,_r) == 0)
 #endif
-
 
 
 
@@ -134,6 +138,7 @@
 
 // override free to make sure nobody is using free directly
 #define free(_p) "DO NOT USE free DIRECTLY USE \"FREE\" FROM THE MEMORY MANAGER"; @
+#define malloc(_p) "DO NOT USE malloc DIRECTLY USE \"MALLOC\" FROM THE MEMORY MANAGER"; @
 
 // provide ASSERT macro if not deactivated by user
 #ifdef DISABLE_ASSERT

@@ -59,7 +59,8 @@ mergeSelection(SelectionOperator *op)
         op->op.inputs = child->op.inputs;
 
         FOREACH(QueryOperator, el, op->op.inputs)
-        	el->parents = copyObject(child->op.parents);
+             el->parents = child->op.parents;
+        //el->parents = copyObject(child->op.parents);
 
         // clean up child
         child->cond = NULL;
@@ -125,6 +126,11 @@ mergeProjection(ProjectionOperator *op)
         replaceAttributeRefsMutator((Node *) parent->projExprs, state, NULL);
         STOP_TIMER("OptimizeModel - replace attrs with expr");
 
+        if(HAS_STRING_PROP(child, PROP_PROJ_PROV_ATTR_DUP))
+        {
+            if(GET_BOOL_STRING_PROP(child, PROP_PROJ_PROV_ATTR_DUP) == TRUE)
+                SET_BOOL_STRING_PROP((QueryOperator *)parent, PROP_PROJ_PROV_ATTR_DUP);
+        }
         parent->op.inputs = child->op.inputs;
         FOREACH(QueryOperator, el, parent->op.inputs)
             el->parents = replaceNode(el->parents, child, parent);
@@ -301,13 +307,13 @@ replaceAttributeRefsMutator (Node *node, ReplaceRefState *state, void **parentPo
         // do not copy if not necessary
         if (VEC_TO_IA(state->refCount)[pos] == 0)
         {
-            DEBUG_LOG("usage count is 0 for %s - do not copy", a->name);
+            DEBUG_LOG("usage count is 0 for %s - do not copy", a->name ? a->name : "NULL");
             *parentP = VEC_TO_ARR(state->projExpr,Node)[pos];
             VEC_TO_IA(state->refCount)[pos] = 1;
         }
         else
         {
-            DEBUG_LOG("%s has been used before - copy", a->name);
+            DEBUG_LOG("%s has been used before - copy", a->name ? a->name : "NULL");
             *parentP = copyObject(VEC_TO_ARR(state->projExpr,Node)[pos]);
         }
 

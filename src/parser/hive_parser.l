@@ -26,6 +26,7 @@
 #include "hive_parser.tab.h"
 
 #undef free
+#undef malloc
 
 #define TOKSELF() { \
 	TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", hivetext[0], hivetext[0]); \

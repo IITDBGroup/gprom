@@ -22,8 +22,6 @@
 static AnalyzerPlugin *plugin = NULL;
 
 // function defs
-//static Node *analyzeInternal (void);
-
 static AnalyzerPlugin *assembleOraclePlugin(void);
 static AnalyzerPlugin *assemblePostgresPlugin(void);
 static AnalyzerPlugin *assembleHivePlugin(void);

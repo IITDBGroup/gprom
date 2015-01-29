@@ -334,7 +334,8 @@ analyzeFunctionCall(QueryBlock *qb)
             WindowFunction *w = (WindowFunction *) f;
             FunctionCall *c = (FunctionCall *) w->f;
             if(!isWindowFunction(c->functionname))
-                FATAL_LOG("Function %s not supported as window function", c->functionname);
+                FATAL_LOG("Function %s not supported as window function",
+                        c->functionname);
         }
     }
 }
@@ -940,8 +941,8 @@ static void analyzeDelete(Delete * f) {
 	FromTableRef *fakeTable;
 	List *fakeFrom = NIL;
 
-	FOREACH(AttributeReference,a,attrDef)
-		attrNames = appendToTailOfList(attrNames, strdup(a->name));
+	FOREACH(AttributeDef,a,attrDef)
+		attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
 
 	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->nodeName), attrNames,
 			strdup(f->nodeName), dataTypes);
@@ -990,8 +991,8 @@ analyzeUpdate(Update* f) {
 	FromTableRef *fakeTable;
 	List *fakeFrom = NIL;
 
-	FOREACH(AttributeReference,a,attrDef)
-		attrNames = appendToTailOfList(attrNames, strdup(a->name));
+	FOREACH(AttributeDef,a,attrDef)
+		attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
 
 	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->nodeName), attrNames,
 			strdup(f->nodeName), dataTypes);

@@ -16,6 +16,7 @@
 
 #include "mem_manager/mem_mgr.h"
 #include "test_main.h"
+#include "log/termcolor.h"
 #include "configuration/option.h"
 #include "configuration/option_parser.h"
 #include "rewriter.h"
@@ -33,16 +34,16 @@ checkResult(int r, char *msg, const char *file, const char *func, int line,
     {
         if (r == PASS)
         {
-            printf("%sTEST PASS [%s-%s-%u]: %s\n", indentation, file, func,
-                    line, msg);
+            printf("%s" T_FG_BG(BLACK,GREEN,"TEST PASS") TBCOL(GREEN,"[%s-%s-%u]:")
+                    " %s\n", indentation, file, func, line, msg);
             test_count++;
             free(indentation);
             return;
         }
         else
         {
-            printf("%sTEST FAIL [%s-%s-%u]: %s\n", indentation, file, func,
-                    line, msg);
+            printf("%s" T_FG_BG(WHITE,GREEN,"TEST FAIL") TBCOL(RED,"[%s-%s-%u]:")
+                    " %s\n", indentation, file, func,line, msg);
             free(indentation);
             exit(1);
         }
@@ -51,7 +52,8 @@ checkResult(int r, char *msg, const char *file, const char *func, int line,
     {
         if (r == PASS)
         {
-            printf("%sTEST SUITE [%s-%s-%u]: %s - PASSED %u TESTS\n",
+            printf("%s" T_FG_BG(BLACK,GREEN,"TEST SUITE")
+                    TBCOL(GREEN,"[%s-%s-%u]:") " %s - PASSED %u TESTS\n",
                     indentation, file, func, line, msg, tests_passed);
             test_count++;
             free(indentation);
@@ -59,7 +61,8 @@ checkResult(int r, char *msg, const char *file, const char *func, int line,
         }
         else
         {
-            printf("%sTEST SUITE FAILED [%s-%s-%u]: %s AFTER %u TESTS\n",
+            printf("%s" T_FG_BG(BLACK,RED,"TEST SUITE FAILED") TBCOL(RED,"[%s-%s-%u]:")
+                    " %s AFTER %u TESTS\n",
                     indentation, file, func, line, msg, tests_passed);
             free(indentation);
             exit(1);
@@ -79,6 +82,12 @@ getIndent(int depth)
     return result;
 }
 
+boolean
+testQuery (char *query, char *expectedResult)
+{
+    return TRUE;
+}
+
 void
 testSuites(void)
 {
@@ -91,6 +100,7 @@ testSuites(void)
     RUN_TEST(testExpr(), "Expression model.");
     RUN_TEST(testCopy(), "Test generic copy function.");
     RUN_TEST(testEqual(), "Test generic equality function.");
+    RUN_TEST(testStringUtils(), "Test String utilities.");
     RUN_TEST(testToString(), "Test generic toString function.");
     RUN_TEST(testString(), "Test stringinfo.");
     RUN_TEST(testParse(), "Test parser.");
@@ -99,6 +109,11 @@ testSuites(void)
     RUN_TEST(testParameter(), "Test SQL parameter functions.");
     RUN_TEST(testPICSGraph(), "Test PI-CS rewrite for relational algebra graph.");
     printf("Total %d Test(s) Passed\n\n", test_count);
+    RUN_TEST(testDatalogModel(), "Test datalog model features");
+    RUN_TEST(testHash(), "Test hash computation for nodes");
+
+    printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
+            "Total %d Test(s) Passed\n\n", test_count);
 }
 
 int

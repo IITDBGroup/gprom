@@ -20,6 +20,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/datalog/datalog_model.h"
+#include "utility/string_utils.h"
 
 /* functions to output specific node types */
 static void outNode(StringInfo, void *node);
@@ -98,11 +99,14 @@ static void outDLComparison(StringInfo str, DLComparison *node);
 static void indentString(StringInfo str, int level);
 
 // create overview string for an operator tree
-static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent);
+static int compareOpInfos (const void *l, const void *r);
+static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMap *map);
 static void datalogToStrInternal(StringInfo str, Node *n, int indent);
 
 
 /*define macros*/
+#define OP_ID_STRING "OP_ID"
+
 /*label for the node type*/
 #define booltostr(a) \
 		((a) ? "true" : "false")
@@ -311,14 +315,30 @@ outVector(StringInfo str, Vector *node)
 static void
 outHashMap(StringInfo str, HashMap *node)
 {
+    List *entryStrings = NIL;
+    List *sortEntries = NIL;
+
     appendStringInfo(str, "{");
 
+    // create list of serializations for each hash entry
     FOREACH_HASH_ENTRY(el,node)
     {
-        outNode(str, el->key);
-        appendStringInfoString(str," => ");
-        outNode(str, el->value);
-        appendStringInfo(str, "%s", el_his_el->hh.next ? ", " : "");
+        StringInfo hashStr = makeStringInfo();
+        outNode(hashStr, el->key);
+        appendStringInfoString(hashStr," => ");
+        outNode(hashStr, el->value);
+        entryStrings = appendToTailOfList(entryStrings, strdup(hashStr->data));
+    }
+
+    // sort entries lexigraphically (deterministic output)
+    sortEntries = sortList(entryStrings,
+            (int (*) (const void *, const void *)) strCompare);
+
+    // append entries to output
+    FOREACH(char,s,sortEntries)
+    {
+        appendStringInfoString(str,s);
+        appendStringInfo(str, "%s", s_his_cell->next ? ", " : "");
     }
 
     appendStringInfo(str, "}");
@@ -1252,6 +1272,20 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             int i = 1;
             int len = LIST_LENGTH(a->args);
 
+            if (DL_HAS_PROP(a,DL_WON))
+                appendStringInfoString(str, "+");
+            if (DL_HAS_PROP(a,DL_LOST))
+                appendStringInfoString(str, "-");
+            if (DL_HAS_PROP(a,DL_UNDER_NEG_WON))
+                appendStringInfoString(str, "*+");
+            if (DL_HAS_PROP(a,DL_UNDER_NEG_LOST))
+                appendStringInfoString(str, "*-");
+
+            if (DL_HAS_PROP(a,DL_IS_IDB_REL))
+                appendStringInfoString(str, "@");
+
+            if (a->negated)
+                appendStringInfoString(str, "not ");
             appendStringInfo(str, "%s(", a->rel);
             FOREACH(Node,arg,a->args)
             {
@@ -1269,6 +1303,10 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             int len = LIST_LENGTH(r->body);
 
             indentString(str,indent);
+            // add rule id if set
+            if (DL_HAS_PROP(r,DL_RULE_ID))
+                appendStringInfo(str, "r%u: ",
+                        INT_VALUE(DL_GET_PROP(r,DL_RULE_ID)));
             datalogToStrInternal(str, (Node *) r->head, indent);
             appendStringInfoString(str, " :- ");
             FOREACH(Node,a,r->body)
@@ -1299,21 +1337,54 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
         {
             DLProgram *p = (DLProgram *) n;
             appendStringInfoString(str, "PROGRAM:\n");
-            FOREACH(DLRule,r,p->rules)
+            FOREACH(Node,r,p->rules)
+            {
+                if (isA(r,Constant))
+                    appendStringInfoString(str, "ANSWER RELATION:\n\t");
                 datalogToStrInternal(str,(Node *) r, 4);
+            }
             if (p->ans)
-                appendStringInfo(str, "ANSWER RELATION:\n\t%s",
+                appendStringInfo(str, "ANSWER RELATION:\n\t%s\n",
                         p->ans);
+            if (DL_HAS_PROP(p,DL_PROV_WHY) || DL_HAS_PROP(p,DL_PROV_WHYNOT))
+            {
+                char *prop = DL_HAS_PROP(p,DL_PROV_WHY) ? DL_PROV_WHY : DL_PROV_WHYNOT;
+                Node *question = DL_GET_PROP(p,prop);
+
+                appendStringInfo(str, "%s:\n\t", prop);
+                datalogToStrInternal(str,(Node *) question, 4);
+            }
         }
         break;
         case T_Constant:
-            appendStringInfo(str, "ANSWER RELATION:\n\t%s",
-                    STRING_VALUE(n));
+            appendStringInfo(str, "%s",
+                    CONST_TO_STRING(n));
+        break;
+        // provenance
+        case T_KeyValue:
+        {
+            KeyValue *kv = (KeyValue *) n;
+            appendStringInfo(str, "COMPUTE PROVENANCE: %s[%s]",
+                    STRING_VALUE(kv->key), datalogToOverviewString(kv->value));
+        }
+        break;
+        case T_List:
+        {
+            List *l = (List *) n;
+            FOREACH(Node,el,l)
+                datalogToStrInternal(str,el, indent + 4);
+        }
         break;
         default:
-            FATAL_LOG("should have never come here, datalog program should"
-                    " not have nodes like this: %s",
-                    beatify(nodeToString(n)));
+        {
+            if (IS_EXPR(n))
+                appendStringInfo(str, "%s", exprToSQL(n));
+            else
+                FATAL_LOG("should have never come here, datalog program should"
+                        " not have nodes like this: %s",
+                        beatify(nodeToString(n)));
+        }
+        break;
     }
 }
 
@@ -1321,6 +1392,8 @@ char *
 operatorToOverviewString(Node *op)
 {
     StringInfo str = makeStringInfo();
+    HashMap *m;
+    List *reusedSubtrees = NIL;
 
     if (op == NULL)
         return "";
@@ -1331,20 +1404,99 @@ operatorToOverviewString(Node *op)
     {
         FOREACH(QueryOperator,o,(List *) op)
         {
-            operatorToOverviewInternal(str,(QueryOperator *) o, 0);
+            m = NEW_MAP(Constant,List);
+            MAP_ADD_STRING_KEY(m, OP_ID_STRING, createConstInt(0));
+            operatorToOverviewInternal(str,(QueryOperator *) o, 0, m);
+
+            removeMapElem(m, (Node *) createConstString(OP_ID_STRING));
+            reusedSubtrees = sortList(getEntries(m), (int (*)(const void *, const void *))compareOpInfos);
+
+            FOREACH(KeyValue,k,reusedSubtrees)
+            {
+                List *opInfo = (List *) k->value;
+                int opId = INT_VALUE(getNthOfListP(opInfo, 0));
+                StringInfo inner = (StringInfo) LONG_VALUE(getNthOfListP(opInfo, 1));
+
+                appendStringInfo(str, "\n\n-----------------------\n@%u\n%s", opId, inner->data);
+            }
+
             appendStringInfoString(str, "\n");
         }
     }
     else
-        operatorToOverviewInternal(str,(QueryOperator *) op, 0);
+    {
+        m = NEW_MAP(Constant,List);
+        MAP_ADD_STRING_KEY(m, OP_ID_STRING, createConstInt(0));
+
+        operatorToOverviewInternal(str,(QueryOperator *) op, 0, m);
+
+        removeMapElem(m, (Node *) createConstString(OP_ID_STRING));
+        reusedSubtrees = sortList(getEntries(m), (int (*)(const void *, const void *))compareOpInfos);
+
+        FOREACH(KeyValue,k,reusedSubtrees)
+        {
+            List *opInfo = (List *) k->value;
+            int opId = INT_VALUE(getNthOfListP(opInfo, 0));
+            StringInfo inner = (StringInfo) LONG_VALUE(getNthOfListP(opInfo, 1));
+
+            appendStringInfo(str, "\n\n-----------------------\n@%u\n%s", opId, inner->data);
+        }
+    }
 
     return str->data;
 }
 
-static void
-operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
+static int
+compareOpInfos (const void *l, const void *r)
 {
-    indentString(str, indent);
+    List *lList = (List *) (*((KeyValue **) l))->value;
+    List *rList = (List *) (*((KeyValue **) r))->value;
+    int lOpId = INT_VALUE(getNthOfListP(lList, 0));
+    int rOpId = INT_VALUE(getNthOfListP(rList, 0));
+
+    return lOpId - rOpId;
+}
+
+static void
+operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMap *map)
+{
+    // if operator has more than one parents then we outsource
+    if (LIST_LENGTH(op->parents) > 1)
+    {
+        List *opInfo = (List *) MAP_GET_LONG(map, (long) op); // info is: [id, stringRep]
+        int opId;
+
+        indentString(str, indent);
+
+        if (opInfo == NIL)
+        {
+            StringInfo opStr;
+            Constant *curId = (Constant *) MAP_GET_STRING(map, OP_ID_STRING);
+            opId = INT_VALUE(curId);
+            int *idVal = (int *) curId->value;
+            (*idVal)++;
+            opStr = makeStringInfo();
+            opInfo = LIST_MAKE(createConstInt(opId), createConstLong((long) opStr));
+            MAP_ADD_LONG_KEY(map, (long) op, opInfo);
+
+            // append link
+            appendStringInfo(str, "@%u\n", opId);
+
+            // add to separate stringinfo
+            str = opStr;
+            indent = 0;
+        }
+        else
+        {
+            opId = INT_VALUE(getNthOfListP(opInfo, 0));
+            appendStringInfo(str, "@%u\n", opId);
+
+            return;
+        }
+    }
+    else
+        indentString(str, indent);
+
 
     // output specific operator things
     switch(op->type)
@@ -1510,7 +1662,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
     appendStringInfoString(str, ")\n");
 
     FOREACH(QueryOperator,child,op->inputs)
-        operatorToOverviewInternal(str, child, indent + 1);
+        operatorToOverviewInternal(str, child, indent + 1, map);
 }
 
 static void

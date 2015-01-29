@@ -143,7 +143,7 @@ static char *createAttrName(char *name, int fItem);
 static List *createTempView(QueryOperator *q, StringInfo str);
 static char *createViewName(void);
 static void shortenAttributeNames(QueryOperator *q);
-static inline char *getShortAttr(char *newName, int id);
+static inline char *getShortAttr(char *newName, int id, boolean quoted);
 static void fixAttrReferences (QueryOperator *q);
 
 
@@ -195,19 +195,24 @@ shortenAttributeNames(QueryOperator *q)
     FOREACH(AttributeDef,a,attrs)
     {
         char *name = a->attrName;
+        boolean isQuoted = (name[0] == '"');
+        int addQuotLen = (isQuoted ? 2 : 0);
 
-        if (strlen(name) > ORACLE_IDENT_LIMIT)
+        // deal with quoted identifiers (quotes are not part of the limit)
+        if (strlen(name) > (ORACLE_IDENT_LIMIT + addQuotLen))
         {
-            char *newName = MALLOC(ORACLE_IDENT_LIMIT + 1);
-            memcpy(newName,name,ORACLE_IDENT_LIMIT  + 1);
-            newName[ORACLE_IDENT_LIMIT  + 1] = '\0';
+            char *newName = MALLOC(ORACLE_IDENT_LIMIT + 1 + addQuotLen);
+            memcpy(newName,name,ORACLE_IDENT_LIMIT  + 1 + addQuotLen);
+            newName[ORACLE_IDENT_LIMIT  + addQuotLen] = '\0';
+            if (isQuoted)
+                newName[ORACLE_IDENT_LIMIT + 1] = '"';
             int dup = 0;
 
             //TODO make more efficient
-            while(hasSetElem(newAttrNames,getShortAttr(newName, dup++)))
+            while(hasSetElem(newAttrNames,getShortAttr(newName, dup++, isQuoted)))
                 ;
 
-            DEBUG_LOG("shorten attr <%s> to <%s>", a->attrName, name);
+            DEBUG_LOG("shorten attr <%s> to <%s>", a->attrName, newName);
 
             addToSet(newAttrNames, newName);
             a->attrName = strdup(newName);
@@ -216,12 +221,12 @@ shortenAttributeNames(QueryOperator *q)
 }
 
 static inline char*
-getShortAttr(char *newName, int id)
+getShortAttr(char *newName, int id, boolean quoted)
 {
     char *idStr = itoa(id);
     int idLen = strlen(idStr) + 1;
-    int offset = ORACLE_IDENT_LIMIT - idLen;
-    memcpy(newName + offset, idStr, idLen);
+    int offset = ORACLE_IDENT_LIMIT  - idLen + (quoted ? 2 : 0);
+    memcpy(newName + offset, idStr, idLen - 1);
     newName[offset - 1] = '#';
 
     DEBUG_LOG("shortened attr  <%s>", newName);
@@ -304,7 +309,7 @@ serializeQueryOracle(QueryOperator *q)
         {
             appendStringInfoString(viewDef, view->viewDefinition);
             if (view->hh.next != NULL)
-                appendStringInfoString(viewDef, ",\n\n");
+                appendStringInfoString(viewDef, ",\n");
         }
 
         // prepend to query translation
@@ -1155,21 +1160,22 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             WindowOperator *wOp = (WindowOperator *) curOp;
             Node *expr = wOp->f;
 
-            DEBUG_LOG("window function = %s", beatify(nodeToString(expr)));
+            DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc(
+                                (WindowOperator *) curOp)));
 
             UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fromAttrs, firstProjs);
 //            if (m->secondProj == NULL)
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-            windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
-                    (WindowOperator *) curOp)));
-
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->partitionBy, fromAttrs, firstProjs);
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->orderBy, fromAttrs, firstProjs);
             UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fromAttrs, firstProjs);
 
-            DEBUG_LOG("window function = %s", exprToSQL((Node *) winOpGetFunc(
+            windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
+                    (WindowOperator *) curOp)));
+
+            DEBUG_LOG("AFTER: window function = %s", exprToSQL((Node *) winOpGetFunc(
                     (WindowOperator *) curOp)));
 
             curOp = OP_LCHILD(curOp);
@@ -1195,7 +1201,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     }
 
     // second level of projection either if no aggregation or using aggregation
-    if ((m->secondProj != NULL && !agg) || (m->firstProj != NULL && agg) || (m->firstProj != NULL && winR))
+    if ((m->secondProj != NULL && !agg && !winR ) || (m->firstProj != NULL && agg) || (m->firstProj != NULL && winR))
     {
         int pos = 0;
         ProjectionOperator *p = (agg || winR) ? m->firstProj : m->secondProj;
@@ -1347,7 +1353,7 @@ createTempView (QueryOperator *q, StringInfo str)
     else
         resultAttrs = serializeQueryBlock(q, viewDef);
 
-    appendStringInfoString(viewDef, ")\n\n");
+    appendStringInfoString(viewDef, ")");
 
     DEBUG_LOG("created view definition:\n%s", viewDef->data);
 

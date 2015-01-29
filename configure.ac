@@ -215,7 +215,7 @@ AC_MSG_RESULT($GPROM_CFLAGS)
 ################################################################################
 AC_INIT([GProM],[0.0.1],[bglavic@iit.edu])
 AC_CONFIG_AUX_DIR(config)
-AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AM_INIT_AUTOMAKE([-Wall foreign])
 AC_CONFIG_MACRO_DIR([m4])
 AC_SUBST([ACLOCAL_AMFLAGS],[-I m4])
 ################################################################################
@@ -263,6 +263,7 @@ AC_CHECK_HEADERS([stdarg.h])
 AC_CHECK_HEADERS([time.h])
 AC_CHECK_HEADERS([limits.h])
 AC_CHECK_HEADERS([regex.h])
+AC_CHECK_HEADERS([setjmp.h])
 AC_HEADER_ASSERT
 ################################################################################
 # MEMORY ALLOCATION STUFF
@@ -317,6 +318,7 @@ AC_CONFIG_FILES([
 	src/analysis_and_translate/Makefile
 	src/command_line/Makefile
 	src/configuration/Makefile
+	src/execution/Makefile
 	src/instrumentation/Makefile
 	src/log/Makefile
 	src/mem_manager/Makefile
@@ -333,10 +335,12 @@ AC_CONFIG_FILES([
     src/operator_optimizer/Makefile
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile
+	src/provenance_rewriter/game_provenance/Makefile
 	src/provenance_rewriter/pi_cs_rewrites/Makefile
 	src/provenance_rewriter/transformation_rewrites/Makefile
 	src/provenance_rewriter/update_and_transaction/Makefile
 	src/sql_serializer/Makefile
+	src/utility/Makefile
 	test/Makefile
 ])
 AC_OUTPUT

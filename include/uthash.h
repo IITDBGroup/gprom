@@ -103,6 +103,19 @@ do {                                                                            
 } while (0)
 //     INFO_LOG("hv is %u", _hf_hashv);
 
+#define HASH_FIND_NODE(hh,head,keyptr,out)                                \
+do {                                                                             \
+  unsigned _hf_bkt,_hf_hashv;                                                    \
+  out=NULL;                                                                      \
+  if (head) {                                                                    \
+     HASH_FCN_NODE(keyptr, (head)->hh.tbl->num_buckets, _hf_hashv, _hf_bkt);     \
+     TRACE_LOG("hashv: %u for\n%s", _hf_hashv, beatify(nodeToString(keyptr)));   \
+     if (HASH_BLOOM_TEST((head)->hh.tbl, _hf_hashv)) {                           \
+       HASH_FIND_IN_BKT_CMP((head)->hh.tbl, hh, (head)->hh.tbl->buckets[ _hf_bkt ],  \
+                        keyptr,sizeof(void *),out, equal);                      \
+     }                                                                           \
+  }                                                                              \
+} while (0)
 
 #define HASH_FIND_CMP(hh,head,keyptr,keylen,out,cmpfunction)                     \
 do {                                                                             \
@@ -184,7 +197,32 @@ do {                                                                            
   };                                                                             \
   HASH_ADD(hh,head,fieldname,keylen_in,add);                                     \
 } while(0)
- 
+
+#define HASH_ADD_NODE(hh,head,keyptr,add)                                        \
+do {                                                                             \
+ unsigned _ha_bkt;                                                               \
+ (add)->hh.next = NULL;                                                          \
+ (add)->hh.key = (char*)keyptr;                                                  \
+ (add)->hh.keylen = (unsigned)sizeof(void*);                                     \
+ if (!(head)) {                                                                  \
+    head = (add);                                                                \
+    (head)->hh.prev = NULL;                                                      \
+    HASH_MAKE_TABLE(hh,head);                                                    \
+ } else {                                                                        \
+    (head)->hh.tbl->tail->next = (add);                                          \
+    (add)->hh.prev = ELMT_FROM_HH((head)->hh.tbl, (head)->hh.tbl->tail);         \
+    (head)->hh.tbl->tail = &((add)->hh);                                         \
+ }                                                                               \
+ (head)->hh.tbl->num_items++;                                                    \
+ (add)->hh.tbl = (head)->hh.tbl;                                                 \
+ HASH_FCN_NODE(keyptr,(head)->hh.tbl->num_buckets,                               \
+         (add)->hh.hashv, _ha_bkt);                                              \
+ HASH_ADD_TO_BKT((head)->hh.tbl->buckets[_ha_bkt],&(add)->hh);                   \
+ HASH_BLOOM_ADD((head)->hh.tbl,(add)->hh.hashv);                                 \
+ HASH_EMIT_KEY(hh,head,keyptr,sizeof(void*));                                        \
+ HASH_FSCK(hh,head);                                                             \
+} while(0)
+
 #define HASH_ADD_KEYPTR(hh,head,keyptr,keylen_in,add)                            \
 do {                                                                             \
  unsigned _ha_bkt;                                                               \
@@ -276,8 +314,6 @@ do {                                                                            
     HASH_ADD(hh,head,intfield,sizeof(int),add)
 #define HASH_REPLACE_INT(head,intfield,add,replaced)                             \
     HASH_REPLACE(hh,head,intfield,sizeof(int),add,replaced)
-#define HASH_FIND_NODE(head,findptr,out)                                         \
-    HASH_FIND_CMP(hh,head,findptr,sizeof(void *),out,equal)
 #define HASH_FIND_PTR(head,findptr,out)                                          \
     HASH_FIND(hh,head,findptr,sizeof(void *),out)
 #define HASH_ADD_PTR(head,ptrfield,add)                                          \
@@ -390,6 +426,17 @@ do {                                                                            
       hashv ^= (hashv << 5) + (hashv >> 2) + _hs_key[_sx_i];                     \
   bkt = hashv & (num_bkts-1);                                                    \
 } while (0)
+
+/*
+ * Use the generic hash function supported by all node types
+ */
+#define HASH_FCN_NODE(key,num_bkts,hashv,bkt)                                    \
+do {                                                                             \
+  hashv = (unsigned) hashValue(key);                                             \
+  bkt = hashv & (num_bkts-1);                                                    \
+} while (0)
+
+
 
 #define HASH_FNV(key,keylen,num_bkts,hashv,bkt)                                  \
 do {                                                                             \
@@ -632,7 +679,7 @@ do {                                                                            
  else out=NULL;                                                                  \
  while (out) {                                                                   \
     if ((out)->hh.keylen == keylen_in) {                                         \
-        if ((HASH_KEY_FUNCCMP((out)->hh.key,keyptr,cmpfunction)) == 0) break;           \
+        if ((HASH_KEY_FUNCCMP((out)->hh.key,keyptr,cmpfunction)) != 0) break;           \
     }                                                                            \
     if ((out)->hh.hh_next) DECLTYPE_ASSIGN(out,ELMT_FROM_HH(tbl,(out)->hh.hh_next)); \
     else out = NULL;                                                             \
@@ -965,6 +1012,14 @@ typedef struct UT_hash_table {
 #endif
 
 } UT_hash_table;
+
+#define HASH_OUT_DEBUG(_hh_,head,el,tmp)                                      \
+for((el)=(head),(tmp)=((head)?(head)->_hh_.next:NULL);            \
+  el; (el)=(tmp),(tmp)=((tmp)?(tmp)->_hh_.next:NULL))             \
+{ \
+	printf("elem: %p: %s ---------\nbucket->: %p, bucket<-: %p\nkey: %p of len %u\nhashv: %u\n\n", &(el->_hh_), nodeToString(el->_hh_.key), el->_hh_.hh_next, el->_hh_.hh_prev, el->_hh_.key, el->_hh_.keylen, el->_hh_.hashv); \
+}
+
 
 typedef struct UT_hash_handle {
    struct UT_hash_table *tbl;

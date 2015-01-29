@@ -20,9 +20,11 @@
 #include "model/node/nodetype.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
+#include "log/termcolor.h"
 
 /* are using actual free here */
 #undef free
+#undef malloc
 
 /* return values for tests */
 #define PASS 0
@@ -37,7 +39,7 @@ extern int test_count;
     do { \
         char *indentation = getIndent(test_rec_depth); \
         int prev_count = test_count; \
-    	printf("%sTEST SUITE STARTED [%s-%s-%u]: %s\n", indentation, __FILE__, \
+    	printf("%s" T_FG_BG(WHITE,BLACK,"TEST SUITE STARTED") "[" TB("%s") "-%s-%u]: %s\n", indentation, __FILE__, \
     	        __func__, __LINE__, msg); \
     	free(indentation); \
     	test_rec_depth++; \
@@ -66,7 +68,7 @@ extern int test_count;
 	((_a == _b) || (_a != NULL && _b != NULL && strcmp(_a,_b) == 0))
 
 #define EQUALS_STRING(_a,_b) \
-    (strcmp(_a,_b) == 0)
+    ((_a == NULL && _b == NULL) || (_a != NULL && _b != NULL && strcmp(_a,_b) == 0))
 
 #define TOSTRING_NODE(a) nodeToString(a)
 
@@ -97,6 +99,9 @@ extern int test_count;
 #define ASSERT_EQUALS_INT(a,b,message) \
     ASSERT_EQUALS_INTERNAL(int,a,b,EQUALS_EQ,message,"%u",SELF);
 
+#define ASSERT_EQUALS_LONG(a,b,message) \
+    ASSERT_EQUALS_INTERNAL(long,a,b,EQUALS_EQ,message,"%lu",SELF);
+
 #define ASSERT_EQUALS_FLOAT(a,b,message) \
     ASSERT_EQUALS_INTERNAL(double,a,b,EQUALS_EQ,message,"%f",SELF);
 
@@ -122,6 +127,7 @@ extern void testSuites(void);
 extern void checkResult(rc r, char *msg, const char *file, const char *func,
         int line, int tests_passed);
 extern char *getIndent(int depth);
+extern boolean testQuery (char *query, char *expectedResult);
 
 /* individual tests */
 extern rc testList(void);
@@ -138,7 +144,10 @@ extern rc testParse(void);
 extern rc testMetadataLookup(void);
 extern rc testMetadataLookupPostgres(void);
 extern rc testString(void);
+extern rc testStringUtils(void);
 extern rc testParameter(void);
 extern rc testPICSGraph(void);
+extern rc testDatalogModel(void);
+extern rc testHash(void);
 
 #endif

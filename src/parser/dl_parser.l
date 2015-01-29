@@ -25,6 +25,7 @@
 #include "dl_parser.tab.h"
 
 #undef free
+#undef malloc
 
 #define TOKSELF() { \
 	TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", dltext[0], dltext[0]); \
@@ -104,6 +105,9 @@ arithmeticOps	({PLUS}|{MINUS}|{STAR}|{MOD})
 
 /* KEYWORDS */
 ANS			"ANS"
+WHY			"WHY"
+WHYNOT		"WHYNOT"
+GP			"GP"
 
 /* LITERAL ONES */
 
@@ -119,6 +123,9 @@ ANS			"ANS"
 (?i:not)	TOK(NEGATION)
 {IMPLIES}	TOK(RULE_IMPLICATION)
 {ANS}		TOK(ANS)
+{GP}		TOK(GP)
+{WHY}		TOK(WHYPROV)
+{WHYNOT}	TOK(WHYNOTPROV)
 
 {variable}	 	UPCASE_TOK(VARIDENT)
 {identifier}	UPCASE_TOK(IDENT)

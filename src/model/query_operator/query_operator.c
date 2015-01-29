@@ -17,6 +17,8 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "model/set/set.h"
+#include "model/query_operator/operator_property.h"
 
 
 //static Schema *mergeSchemas (List *inputs);
@@ -77,6 +79,24 @@ createSchemaFromLists (char *name, List *attrNames, List *dataTypes)
     return result;
 }
 
+void
+setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2)
+{
+	FOREACH(AttributeDef,a1,op1->schema->attrDefs)
+	{
+	      FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+		  {
+	    	    if(streq(a1->attrName,a2->attrName))
+	    	    {
+	    	    	   DEBUG_LOG("a1->dataType = %s",DataTypeToString(a1->dataType));
+	    	    	   DEBUG_LOG("a2->dataType = %s",DataTypeToString(a2->dataType));
+	    	           a1->dataType = a2->dataType;
+	    	           break;
+	    	    }
+		  }
+	}
+}
+
 static Schema *
 schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs)
 {
@@ -97,13 +117,323 @@ addAttrToSchema(QueryOperator *op, char *name, DataType dt)
     op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs, a);
 }
 
+void
+deleteAttrFromSchemaByName(QueryOperator *op, char *name)
+{
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    {
+        if (streq(a->attrName,name))
+        {
+            op->schema->attrDefs = REMOVE_FROM_LIST_PTR(op->schema->attrDefs, a);
+            break;
+        }
+    }
+}
+
+void
+deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos)
+{
+    int i = 0;
+
+    FOREACH_LC(lc, op->projExprs)
+    {
+        if(i == pos)
+        {
+            op->projExprs = REMOVE_FROM_LIST_PTR(op->projExprs, LC_P_VAL(lc));
+            break;
+        }
+        i++;
+    }
+}
+
+void
+resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *op2)
+{
+    int cnt = 0;
+   /* FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+    {
+        FOREACH(AttributeReference, a1, op1->projExprs)
+        {
+            if(streq(a1->name, a2->attrName))
+            {
+                a1->attrPosition = cnt;
+            }
+        }
+        cnt++;
+    }
+    */
+    FOREACH(AttributeReference, a1, op1->projExprs)
+    {
+    	cnt = 0;
+    	FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+		{
+            if(streq(a1->name, a2->attrName))
+            {
+                a1->attrPosition = cnt;
+                break;
+            }
+            cnt++;
+		}
+    }
+}
+
+void
+resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2)
+{
+    Operator *o = (Operator *)(op1->cond);
+    int cnt = 0;
+
+    if(!streq(o->name,"AND"))
+    {
+        FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+        {
+            FOREACH_LC(lc, (o->args))
+            {
+                if(isA(LC_P_VAL(lc), AttributeReference))
+                {
+                    AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
+                    //DEBUG_LOG("Test Def: %s, Ref: %s",
+                    //a2->attrName,a1->name);
+                    if(streq(a1->name,a2->attrName))
+		    {
+                        a1->attrPosition = cnt;
+                    }
+                }
+            }
+            cnt++;
+        }
+    }
+    else
+    {
+        Operator *o2;
+        Operator *o1;
+        FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+        {
+            o2 = o;
+            while(streq(o2->name,"AND"))
+            {
+                o1  = (Operator *)(getTailOfListP(o2->args));
+                o2 = (Operator *)(getHeadOfListP(o2->args));
+
+                FOREACH_LC(lc,(o1->args))
+                {
+                    if(isA(LC_P_VAL(lc), AttributeReference))
+                    {
+                        AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
+                        //DEBUG_LOG("Test Def: %s, Ref: %s",
+                        //a2->attrName,a1->name);
+			if(streq(a1->name,a2->attrName))
+			{
+                            a1->attrPosition = cnt;
+                        }
+                    }
+                }
+            }
+
+            //The last one operator which without AND
+            FOREACH_LC(lc,(o2->args))
+	    {
+                if(isA(LC_P_VAL(lc), AttributeReference))
+                {
+                    AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
+                    //DEBUG_LOG("Test Def: %s, Ref: %s",
+                    //a2->attrName,a1->name);
+		    if(streq(a1->name,a2->attrName))
+                    {
+                        a1->attrPosition = cnt;
+                    }
+                }
+            }
+
+            cnt++;
+        }
+    }
+}
+
+List *
+UnionEqualElemOfTwoSetList(List *listEqlOp, List *listSet)
+{
+
+    FOREACH_LC(lc, listEqlOp)
+    {
+        if(streq(((Operator *)LC_P_VAL(lc))->name,"="))
+        {
+            ListCell *lc1 = getHeadOfList(((Operator *)LC_P_VAL(lc))->args);
+            ListCell *lc2 = getTailOfList(((Operator *)LC_P_VAL(lc))->args);
+            Node *n1 = (Node *)LC_P_VAL(lc1);
+            Node *n2 = (Node *)LC_P_VAL(lc2);
+
+            listSet = addOneEqlOpAttrToListSet(n1,n2,listSet);
+        }
+    }
+
+    return listSet;
+}
+
+List *
+addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet)
+{
+    //DEBUG_LOG("test n1: %s", nodeToString(n1));
+    //DEBUG_LOG("test n2: %s", nodeToString(n2));
+
+    Node *tempn1, *tempn2;
+    if(isA(n1, Constant))
+        tempn1 = n1;
+    else
+        tempn1 = (Node *)(((AttributeReference *)n1)->name);
+
+    if(isA(n2, Constant))
+        tempn2 = n2;
+    else
+        tempn2 = (Node *)(((AttributeReference *)n2)->name);
+
+    Set *tempSet1;
+    Set *tempSet2;
+    boolean flag1, flag2;
+
+    flag1 = flag2 = FALSE;
+    if(!isA(tempn1,Constant))
+    {
+        FOREACH(Set, s1, listSet)
+        {
+            /*if(hasSetElem(s1,(char *)tempn1))
+              {
+                  flag1 = TRUE;
+                  tempSet1 = s1;
+                  break;
+              }*/
+
+            FOREACH_SET(Node, sn1, s1)
+            {
+                if(!isA(sn1,Constant))
+                {
+                    if(streq((char *)sn1,(char *)tempn1))
+                    {
+                        flag1 = TRUE;
+                        tempSet1 = s1;
+                        break;
+                    }
+                }
+            }
+
+        }
+    }
+
+    if(isA(tempn2,Constant))
+    {
+        FOREACH(Set, s2, listSet)
+        {
+            /*if(hasSetElem(s2,tempn2))
+              {
+                  flag2 = TRUE;
+                  tempSet2 = s2;
+                  break;
+              }*/
+
+            FOREACH_SET(Node, sn2, s2)
+            {
+                if(isA(sn2,Constant))
+                {
+                    int *a = ((Constant *)sn2)->value;
+                    int *b = ((Constant *)tempn2)->value;
+
+                    if(*a == *b)
+                    {
+                        flag2 = TRUE;
+                        tempSet2 = s2;
+                        break;
+                    }
+                }
+            }
+	}
+    }
+    else
+    {
+        FOREACH(Set, s2, listSet)
+        {
+            FOREACH_SET(Node, sn2, s2)
+            {
+                if(streq((char *)sn2, (char *)tempn2))
+                {
+                    flag2 = TRUE;
+                    tempSet2 = s2;
+                    break;
+                }
+            }
+        }
+    }
+
+    if(flag1 == TRUE && flag2 == FALSE)
+    {
+        addToSet(tempSet1,tempn2);
+    }
+    else if(flag1 == TRUE && flag2 == TRUE)
+    {
+	Set *uSet = unionSets(tempSet1,tempSet2);
+	listSet = REMOVE_FROM_LIST_PTR(listSet, tempSet2);
+	listSet = REMOVE_FROM_LIST_PTR(listSet, tempSet1);
+	listSet = appendToTailOfList(listSet,uSet);
+    }
+
+    return listSet;
+}
+
+List*
+getCondOpList(List *l1, List *l2)
+{
+    boolean flag1;
+    List *newOpList = NIL;
+
+    FOREACH(Operator, o, l2)
+    {
+        flag1 = FALSE;
+
+        FOREACH(AttributeDef, a, l1)
+        {
+        	if(isA(getHeadOfListP(o->args),Constant))
+        	{
+        		flag1 = TRUE;
+        		break;
+        	}
+        	else if(streq(((AttributeReference *)getHeadOfListP(o->args))->name, a->attrName))
+        	{
+        		flag1 = TRUE;
+        		break;
+        	}
+        }
+
+        if(flag1 == TRUE)
+	{
+            if(isA(getTailOfListP(o->args),Constant))
+	    {
+                DEBUG_LOG("test compare constant");
+                newOpList = appendToTailOfList(newOpList, o);
+            }
+            else if(isA(getTailOfListP(o->args),AttributeReference))
+            {
+                FOREACH(AttributeDef, a, l1)
+                {
+                    if(streq(((AttributeReference *)getTailOfListP(o->args))->name, a->attrName))
+                    {
+                        newOpList = appendToTailOfList(newOpList, o);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    return newOpList;
+}
+
+
 List *
 getDataTypes (Schema *schema)
 {
     List *result = NIL;
 
     FOREACH(AttributeDef,a,schema->attrDefs)
-        result = appendToTailOfListInt(result, a->dataType);
+    result = appendToTailOfListInt(result, a->dataType);
 
     return result;
 }
@@ -114,7 +444,7 @@ getAttrNames(Schema *schema)
     List *result = NIL;
 
     FOREACH(AttributeDef,a,schema->attrDefs)
-        result = appendToTailOfList(result, a->attrName);
+    result = appendToTailOfList(result, a->attrName);
 
     return result;
 }
@@ -166,7 +496,7 @@ createProjectionOp(List *projExprs, QueryOperator *input, List *parents,
     ProjectionOperator *prj = makeNode(ProjectionOperator);
 
     FOREACH(Node, expr, projExprs)
-        prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
+    prj->projExprs = appendToTailOfList(prj->projExprs, (Node *) copyObject(expr));
 
     if (input != NULL)
         prj->op.inputs = singleton(input);
@@ -211,11 +541,11 @@ createAggregationOp(List *aggrs, List *groupBy, QueryOperator *input,
 
     FOREACH(Node, func, aggrs)
     {
-    	aggr->aggrs = appendToTailOfList(aggr->aggrs, copyObject(func));
+        aggr->aggrs = appendToTailOfList(aggr->aggrs, copyObject(func));
     }
     FOREACH(Node, expr, groupBy)
     {
-    	aggr->groupBy = appendToTailOfList(aggr->groupBy, copyObject(expr));
+        aggr->groupBy = appendToTailOfList(aggr->groupBy, copyObject(expr));
     }
     if (input != NULL)
         aggr->op.inputs = singleton(input);
@@ -279,31 +609,31 @@ createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, L
 ConstRelOperator *
 createConstRelOp(List *values, List *parents, List *attrNames, List *dataTypes)
 {
-	ConstRelOperator *co = NEW(ConstRelOperator);
+    ConstRelOperator *co = NEW(ConstRelOperator);
 
-	co->values=values;
-	co->op.type=T_ConstRelOperator;
-	co->op.inputs=NULL;
-	co->op.schema= createSchemaFromLists("ConstRel", attrNames, dataTypes);
-	co->op.parents=parents;
-	co->op.provAttrs=NIL;
+    co->values=values;
+    co->op.type=T_ConstRelOperator;
+    co->op.inputs=NULL;
+    co->op.schema= createSchemaFromLists("ConstRel", attrNames, dataTypes);
+    co->op.parents=parents;
+    co->op.provAttrs=NIL;
 
-	return co;
+    return co;
 }
 
 NestingOperator *
 createNestingOp(NestingExprType nestingType, Node *cond, List *inputs, List *parents, List *attrNames)
 {
-	NestingOperator *no = makeNode(NestingOperator);
-	no->nestingType = nestingType;
-	no->cond = copyObject(cond);
-	no->op.type = T_NestingOperator;
-	no->op.inputs = inputs;
-	no->op.schema = createSchemaFromLists("NESTING", attrNames, NIL);
-	no->op.parents = parents;
-	no->op.provAttrs = NIL;
+    NestingOperator *no = makeNode(NestingOperator);
+    no->nestingType = nestingType;
+    no->cond = copyObject(cond);
+    no->op.type = T_NestingOperator;
+    no->op.inputs = inputs;
+    no->op.schema = createSchemaFromLists("NESTING", attrNames, NIL);
+    no->op.parents = parents;
+    no->op.provAttrs = NIL;
 
-	return no;
+    return no;
 }
 
 WindowOperator *
@@ -313,6 +643,7 @@ createWindowOp(Node *fCall, List *partitionBy, List *orderBy,
 {
     WindowOperator *wo = makeNode(WindowOperator);
     List *inputAttrs = getQueryOperatorAttrNames(input);
+    List *inputDTs = getDataTypes(input->schema);
 
     wo->partitionBy = partitionBy;
     wo->orderBy = orderBy;
@@ -321,7 +652,9 @@ createWindowOp(Node *fCall, List *partitionBy, List *orderBy,
     wo->f = (Node *) fCall;
     wo->op.type = T_WindowOperator;
     wo->op.inputs = singleton(input);
-    wo->op.schema = createSchemaFromLists("WINDOW", CONCAT_LISTS(inputAttrs, singleton(attrName)), NIL);
+    wo->op.schema = createSchemaFromLists("WINDOW",
+            CONCAT_LISTS(inputAttrs, singleton(attrName)),
+            CONCAT_LISTS(inputDTs, singletonInt(typeOf(wo->f))));
     wo->op.parents = parents;
     wo->op.provAttrs = NIL;
 
@@ -435,10 +768,23 @@ getProvenanceAttrDefs(QueryOperator *op)
 
     FOREACH_INT(i,op->provAttrs)
     {
-        DEBUG_LOG("prov attr at <%u> is <%s>", i, nodeToString(getNthOfListP(op->schema->attrDefs, i)));
+        //DEBUG_LOG("prov attr at <%u> is <%s>", i, nodeToString(getNthOfListP(op->schema->attrDefs, i)));
         result = appendToTailOfList(result, getNthOfListP(op->schema->attrDefs, i));
     }
 
+    return result;
+}
+
+List *
+getProvenanceAttrReferences(ProjectionOperator *op, QueryOperator *op1)
+{
+    List *result = NIL;
+
+    FOREACH_INT(i,op1->provAttrs)
+    {
+        //DEBUG_LOG("prov attr at <%u> is <%s>", i, nodeToString(getNthOfListP(op->projExprs, i)));
+        result = appendToTailOfList(result, getNthOfListP(op->projExprs, i));
+    }
     return result;
 }
 
@@ -449,7 +795,7 @@ getOpProvenanceAttrNames(QueryOperator *op)
     List *result = NIL;
 
     FOREACH(AttributeDef,a,provDefs)
-        result = appendToTailOfList(result, strdup(a->attrName));
+    result = appendToTailOfList(result, strdup(a->attrName));
 
     return result;
 }
@@ -463,18 +809,34 @@ getNumProvAttrs(QueryOperator *op)
 List *
 getNormalAttrs(QueryOperator *op)
 {
-	if(op == NULL || op->schema == NULL || op->schema->attrDefs == NIL)
-		return NIL;
+    if(op == NULL || op->schema == NULL || op->schema->attrDefs == NIL)
+        return NIL;
 
-	List *result = NIL;
-	int pos = 0;
+    List *result = NIL;
+    int pos = 0;
 
-	FOREACH(AttributeDef, a, op->schema->attrDefs)
-	{
-		if(!searchListInt(op->provAttrs, pos))
-			result = appendToTailOfList(result, a);
-		pos++;
-	}
+    FOREACH(AttributeDef, a, op->schema->attrDefs)
+    {
+        if(!searchListInt(op->provAttrs, pos))
+            result = appendToTailOfList(result, a);
+        pos++;
+    }
+
+    return result;
+}
+
+List *
+getNormalAttrReferences(ProjectionOperator *op, QueryOperator *op1)
+{
+    List *result = NIL;
+    int pos = 0;
+
+    FOREACH(AttributeReference, a, op->projExprs)
+    {
+        if(!searchListInt(op1->provAttrs, pos))
+            result = appendToTailOfList(result, a);
+        pos++;
+    }
 
     return result;
 }
@@ -486,7 +848,7 @@ getNormalAttrNames(QueryOperator *op)
     List *result = NIL;
 
     FOREACH(AttributeDef, a, defs)
-        result = appendToTailOfList(result, strdup(a->attrName));
+    result = appendToTailOfList(result, strdup(a->attrName));
 
     return result;
 }
@@ -504,7 +866,7 @@ getQueryOperatorAttrNames (QueryOperator *op)
     List *result = NIL;
 
     FOREACH(AttributeDef,a,op->schema->attrDefs)
-        result = appendToTailOfList(result, strdup(a->attrName));
+    result = appendToTailOfList(result, strdup(a->attrName));
 
     return result;
 }
@@ -533,10 +895,10 @@ AttributeDef *
 getAttrDefByName(QueryOperator *op, char *attr)
 {
     FOREACH(AttributeDef,a,op->schema->attrDefs)
-    {
+            {
         if (strcmp(a->attrName, attr) == 0)
             return a;
-    }
+            }
 
     return NULL;
 }
@@ -569,32 +931,32 @@ getAttrRefsInOperator (QueryOperator *op)
             ProjectionOperator *p = (ProjectionOperator *) op;
             refs = getAttrReferences((Node *)p->projExprs);
         }
-            break;
+        break;
         case T_SelectionOperator:
         {
             SelectionOperator *p = (SelectionOperator *) op;
             refs = getAttrReferences((Node *)p->cond);
         }
-            break;
+        break;
         case T_JoinOperator:
         {
             JoinOperator *p = (JoinOperator *) op;
             refs = getAttrReferences((Node *)p->cond);
         }
-            break;
+        break;
         case T_AggregationOperator:
         {
             AggregationOperator *p = (AggregationOperator *) op;
             refs = CONCAT_LISTS(getAttrReferences((Node *)p->aggrs),
                     getAttrReferences((Node *)p->groupBy));
         }
-            break;
+        break;
         case T_DuplicateRemoval:
         {
             DuplicateRemoval *p = (DuplicateRemoval *) op;
             refs = getAttrReferences((Node *)p->attrs);
         }
-            break;
+        break;
         case T_WindowOperator:
         {
             WindowOperator *p = (WindowOperator *) op;
@@ -603,7 +965,7 @@ getAttrRefsInOperator (QueryOperator *op)
                     getAttrReferences((Node *)p->orderBy),
                     getAttrReferences((Node *)p->frameDef));
         }
-            break;
+        break;
         case T_NestingOperator:
             //TODO do not traverse into query operator
             break;
@@ -612,7 +974,7 @@ getAttrRefsInOperator (QueryOperator *op)
             OrderOperator *p = (OrderOperator *) op;
             refs = getAttrReferences((Node *)p->orderExprs);
         }
-            break;
+        break;
         case T_ConstRelOperator:
         case T_SetOperator:
         default:
@@ -627,7 +989,7 @@ aggOpGetGroupByAttrNames(AggregationOperator *op)
 {
     List *result = getQueryOperatorAttrNames((QueryOperator *) op);
 
-    return sublist(result, LIST_LENGTH(op->aggrs), LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy));
+    return sublist(result, LIST_LENGTH(op->aggrs), LIST_LENGTH(op->aggrs) + LIST_LENGTH(op->groupBy) - 1);
 }
 
 List *
@@ -635,7 +997,7 @@ aggOpGetAggAttrNames(AggregationOperator *op)
 {
     List *result = getQueryOperatorAttrNames((QueryOperator *) op);
 
-    return sublist(result, 0, LIST_LENGTH(op->aggrs));
+    return sublist(result, 0, LIST_LENGTH(op->aggrs) - 1);
 }
 
 WindowFunction *
@@ -651,7 +1013,7 @@ void
 treeify(QueryOperator *op)
 {
     FOREACH(QueryOperator,child,op->inputs)
-        treeify(child);
+                treeify(child);
 
     // if operator has more than one parent, then we need to duplicate the subtree under this operator
     if (LIST_LENGTH(op->parents) > 1)
@@ -667,6 +1029,24 @@ treeify(QueryOperator *op)
         op->parents = NIL;
     }
 }
+
+boolean
+visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
+        boolean (*visitF) (QueryOperator *op, void *context), void *context)
+{
+    if (tOrder == TRAVERSAL_PRE && !visitF(q, context))
+        return FALSE;
+
+    FOREACH(QueryOperator,c,q->inputs)
+        if (!visitQOGraph(c, tOrder, visitF, context))
+            return FALSE;
+
+    if (tOrder == TRAVERSAL_POST && !visitF(q, context))
+        return FALSE;
+
+    return TRUE;
+}
+
 
 //static Schema *
 //mergeSchemas (List *inputs)

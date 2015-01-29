@@ -55,6 +55,7 @@ typedef struct List
                     DUMMY_LC(_node_)->next) != NULL) ? \
                     DUMMY_LC(_node_)->data.ptr_value : NULL))
 
+#define FOREACH_HAS_MORE(_node_) (DUMMY_LC(_node_)->next != NULL)
 /*
  * Loop through integer list _list_ and access each element using name _ival_.
  * _cell_ has to be an existing variable of type ListCell *.
@@ -179,7 +180,7 @@ extern List *appendToHeadOfListInt (List *list, int value);
 
 /* sort and reverse list */
 extern void reverseList(List *list);
-extern void sortList(List *list);
+extern List *sortList(List *list, int (*sm) (const void *, const void *));
 
 /* copy and free lists */
 extern List *copyList(List *list);
@@ -187,6 +188,9 @@ extern List *deepCopyStringList (List *list);
 extern void freeList(List *list);
 extern void deepFreeList(List *list);
 extern List *stringListToConstList(List *list);
+
+/* compare lists */
+extern boolean equalStringList (List *a, List *b);
 
 /* search for elements in list */
 extern boolean searchList(List *list, void *value);
@@ -202,7 +206,10 @@ extern int genericListPos (List *list, boolean (*eq) (void *, void *), void *val
 extern List *replaceNode(List *list, void *n1, void *n2);
 
 /* remove element from list */
+extern List *removeListElementsFromAnotherList(List *l1, List *l2);
 extern List *genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value);
+extern List *removeFromTail(List *X);
+extern List *removeFromHead(List *X);
 #define REMOVE_FROM_LIST_PTR(list,ptr) genericRemoveFromList (list, ptrEqual, ptr)
 #define REMOVE_FROM_LIST_NODE(list,node) genericRemoveFromList (list, equal, node)
 

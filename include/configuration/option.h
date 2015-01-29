@@ -22,8 +22,10 @@ typedef enum OptionType {
 #define OPTION_UPDATE_ONLY_USE_HISTORY_JOIN "only_updated_use_history"
 #define OPTION_TREEIFY_OPERATOR_MODEL "treefiy_prov_rewrite_input"
 #define OPTION_PI_CS_USE_COMPOSABLE "pi_cs_use_composable"
+#define OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW "pi_cs_rewrite_agg_window"
 #define OPTION_OPTIMIZE_OPERATOR_MODEL "optimize_operator_model"
 #define OPTION_TRANSLATE_UPDATE_WITH_CASE "translate_update_with_case"
+#define OPTION_COST_BASED_OPTIMIZER "cost_based_optimizer"
 //#define OPTION_
 
 /* define optimization options */
@@ -31,6 +33,11 @@ typedef enum OptionType {
 #define OPTIMIZATION_MERGE_OPERATORS "optimization.merge_operators"
 #define OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR "optimization.factor_proj_attr_in_expr"
 #define OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ "optimization.materialize_merge_unsafe_proj"
+#define OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS "optimization.remove_redundant_projections"
+#define OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ "optimization.pulling_up_provenance_proj"
+#define OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS "optimization.push_selections_through_joins"
+#define OPTIMIZATION_SELECTION_MOVE_AROUND "optimization.selection_move_around"
+#define OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR "optimization.remove_redundant_duplicate_operator"
 //#define OPTIMIZATION_ "optimization_"
 
 /* define model checking options */
@@ -62,6 +69,7 @@ extern char *backend;
 extern char *plugin_metadata;
 extern char *plugin_parser;
 extern char *plugin_sqlcodegen;
+extern char *plugin_executor;
 
 // instrumentation options
 extern boolean opt_timing;
@@ -73,15 +81,23 @@ extern boolean opt_update_only_conditions;
 extern boolean opt_treeify_opterator_model;
 extern boolean opt_only_updated_use_history;
 extern boolean opt_pi_cs_composable;
+extern boolean opt_pi_cs_rewrite_agg_window;
 extern boolean opt_optimize_operator_model;
 extern boolean opt_translate_update_with_case;
+
+// cost based optimization option
+extern boolean cost_based_optimizer;
 
 // optimization options
 extern boolean opt_optimization_push_selections;
 extern boolean opt_optimization_merge_ops;
 extern boolean opt_optimization_factor_attrs;
 extern boolean opt_materialize_unsafe_proj;
-
+extern boolean opt_remove_redundant_projections;
+extern boolean opt_remove_redundant_duplicate_operator;
+extern boolean opt_optimization_pulling_up_provenance_proj;
+extern boolean opt_optimization_push_selections_through_joins;
+extern boolean opt_optimization_selection_move_around;
 
 // new option interface
 extern char *getStringOption (char *name);

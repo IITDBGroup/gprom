@@ -6,12 +6,14 @@ SUBDIRS = configuration 		\
 		mem_manager				\
 		instrumentation			\
 		model					\
+		utility					\
 		provenance_rewriter		\
 		parser 					\
 		analysis_and_translate 	\
 		sql_serializer 			\
 		metadata_lookup 		\
 		operator_optimizer 		\
+		execution				\
 		. 						\
 		command_line
 
@@ -26,6 +28,8 @@ libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
 						sql_serializer/libserializer.la \
 						metadata_lookup/libmetadata_lookup.la \
 						operator_optimizer/liboperator_optimizer.la \
-						instrumentation/libinstrumentation.la
-						
+						instrumentation/libinstrumentation.la \
+						execution/libexecution.la \
+						utility/libutils.la 
+
 libsrc_la_SOURCES 		= rewriter.c

@@ -22,9 +22,12 @@
     }
     
 #undef free
+#undef malloc
 
 Node *bisonParseResult = NULL;
 %}
+
+%error-verbose
 
 %union {
     /* 
@@ -714,6 +717,17 @@ sqlFunctionCall:
             {
                 RULELOG("sqlFunctionCall::AMMSC::exprList");
 				FunctionCall *f = createFunctionCall($1, $3);
+				if ($5 != NULL)
+					$$ = (Node *) createWindowFunction(f, (WindowDef *) $5);
+				else  
+                	$$ = (Node *) f; 
+            }
+        | AMMSC '(' '*' ')' overClause
+            {
+                RULELOG("sqlFunctionCall::COUNT::*");
+				FunctionCall *f = createFunctionCall($1, singleton(createConstInt(1)));
+				if (strcasecmp($1,"COUNT") != 0)
+					yyerror("* can only be used as an input of the COUNT aggregate function, but no any other function.");
 				if ($5 != NULL)
 					$$ = (Node *) createWindowFunction(f, (WindowDef *) $5);
 				else  
