@@ -127,6 +127,7 @@ extern void testSuites(void);
 extern void checkResult(rc r, char *msg, const char *file, const char *func,
         int line, int tests_passed);
 extern char *getIndent(int depth);
+extern boolean testQuery (char *query, char *expectedResult);
 
 /* individual tests */
 extern rc testList(void);
