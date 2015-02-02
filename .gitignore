@@ -31,3 +31,5 @@ m4/
 debug.script
 debug.txt
 GPexamples/
+javabin/
+jdbcbuild/

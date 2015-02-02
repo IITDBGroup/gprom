@@ -1,0 +1,82 @@
+<project name="GProMJDBC" default="generateDriverJar" basedir=".">
+
+	<!-- task defs -->
+	<import file="./javalib/one-jar-ant-task.xml"/>   
+	
+	<!-- main directories -->
+	<property name="sourcedir" value="${basedir}/src/interfaces/jdbc/java" />
+	<property name="binarydir" value="${basedir}/javabin" />
+	<property name="builddir" value="${basedir}/jdbcbuild" />
+	<property name="librarydir" value="${basedir}/javalib" />
+	
+	<!-- classpath -->
+	<path id="classpath">
+		<fileset dir="${librarydir}"/>
+	</path>
+	
+	<!-- special files -->
+	<property name="conffile" value="${librarydir}/GProMDRiver.properties" />
+	
+	<!-- targets -->
+	<target name="clean">
+		<delete includeemptydirs="true">
+			<fileset dir="${binarydir}" includes="**/*"/>
+		</delete>
+		<mkdir dir="${binarydir}" />
+		<delete includeemptydirs="true">
+			<fileset dir="${builddir}" includes="**/*"/>
+		</delete>
+		<mkdir dir="${builddir}" />
+	</target>
+
+	<target name="compile" depends="clean">
+		<copy todir="${builddir}/lib">
+			<fileset dir="${librarydir}" />
+		</copy>
+<!--		<copy todir="${binarydir}/lib">
+			<fileset dir="${librarydir}"/>
+		</copy> -->
+		<copy file="${conffile}" tofile="${binarydir}/GPRoMDriver.properties" />
+<!--		<copy file="${sourcedir}/driver/GPRoMDriver.properties" tofile="${builddir}/lib/GPRoMDriver.properties" /> -->
+		<javac srcdir="${sourcedir}" destdir="${binarydir}">
+			<classpath refid="classpath"/>
+			<compilerarg value="-Xlint:unchecked" />
+		</javac>
+	</target>
+
+	<target name="generateDriverJar" depends="compile">
+		<mkdir dir="${builddir}" />
+		<jar destfile="${builddir}/gpromjdbc.jar" basedir="${binarydir}">
+		 	<manifest>
+				<attribute name="Created-By" value="Illinois Institute of Technology, Department for Computer Science, DBGroup" />
+				<attribute name="Class-Path" value="
+								lib/hsqldb.jar
+								lib/postgresql-8.1-404.jdbc3.jar
+								lib/log4j-1.2.15.jar
+								lib/servlet.jar
+								lib/
+							" />
+			</manifest>
+		</jar>
+	</target>
+	
+	<!-- generate one combine "fat jar file that contains all java libraries and native libaries (the GProM application) --> 
+	<target name="generateCombinedJar" depends="compile">
+        <delete file="${builddir}/gprom-jdbc-one.jar"/>
+        <one-jar destfile="${builddir}/gprom-jdbc-one.jar">
+            <manifest>
+                <attribute name="One-Jar-Main-Class" value="com.simontuffs.onejar.sdk.Install"/>
+            	<attribute name="One-Jar-Expand" value=""/>
+                <attribute name="One-Jar-Expand-Dir" value="./.expand"/>
+            	<attribute name="One-Jar-Confirm-Expand" value="true"/>
+                <attribute name="One-Jar-Show-Expand" value="true"/>
+            </manifest>
+            <main>
+                <fileset dir="${binarydir}/"/>
+            </main>
+            <lib>
+                <fileset file="${librarydir}/*.jar" />
+            </lib>
+        </one-jar> 
+	</target>
+</project>
