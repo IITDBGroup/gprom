@@ -314,6 +314,7 @@ AC_CONFIG_HEADERS([config.h])
 # DERIVED FILES - MAINLY MAKEFILES
 AC_CONFIG_FILES([
 	Makefile
+	include/Makefile
 	src/Makefile
 	src/analysis_and_translate/Makefile
 	src/command_line/Makefile
@@ -341,6 +342,7 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/update_and_transaction/Makefile
 	src/sql_serializer/Makefile
 	src/utility/Makefile
+	src/libgprom/Makefile
 	test/Makefile
 ])
 AC_OUTPUT

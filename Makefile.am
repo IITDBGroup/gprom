@@ -5,7 +5,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/include
 AM_CFLAGS = -I$(top_srcdir)/include @GPROM_CFLAGS@
 
 # subdirs to build
-SUBDIRS = src test
+SUBDIRS = include src test
 
 # additional directories to include in a distribution package:
 # - maintainer Makefile for running autotools 

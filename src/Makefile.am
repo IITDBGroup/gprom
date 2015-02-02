@@ -15,7 +15,8 @@ SUBDIRS = configuration 		\
 		operator_optimizer 		\
 		execution				\
 		. 						\
-		command_line
+		command_line			\
+		libgprom
 
 noinst_LTLIBRARIES 		= libsrc.la
 libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
@@ -30,6 +31,6 @@ libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
 						operator_optimizer/liboperator_optimizer.la \
 						instrumentation/libinstrumentation.la \
 						execution/libexecution.la \
-						utility/libutils.la 
+						utility/libutils.la
 
 libsrc_la_SOURCES 		= rewriter.c

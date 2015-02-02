@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="javatest"/>
+	<classpathentry kind="src" path="src/interfaces/jdbc/java"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="javalib/log4j-1.2.15.jar"/>
+	<classpathentry kind="lib" path="javalib/postgresql-8.1-404.jdbc3.jar"/>
+	<classpathentry kind="lib" path="javalib/jna-4.1.0.jar"/>
+	<classpathentry kind="lib" path="javalib/one-jar-ant-task-0.97.jar"/>
+	<classpathentry kind="output" path="javabin"/>
+</classpath>
