@@ -11,6 +11,6 @@
 #ifndef INCLUDE_LIBGPROM_LIBGPROM_H_
 #define INCLUDE_LIBGPROM_LIBGPROM_H_
 
-char *gprom_rewriteQuery(char *query);
+const char *gprom_rewriteQuery(const char *query);
 
 #endif /* INCLUDE_LIBGPROM_LIBGPROM_H_ */

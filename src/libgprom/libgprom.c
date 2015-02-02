@@ -13,8 +13,8 @@
 #include "common.h"
 #include "libgprom/libgprom.h"
 
-char *
-gprom_rewriteQuery(char *query)
+const char *
+gprom_rewriteQuery(const char *query)
 {
-    return NULL;
+    return query;
 }

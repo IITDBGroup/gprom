@@ -7,17 +7,30 @@ import java.sql.SQLException;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.gprom.jdbc.driver.*;
+import org.gprom.jdbc.jna.*;
 
 public class GProMTest {
 	// Variable
 	private static Logger log = Logger.getLogger(GProMTest.class);
 
+	static {
+		System.setProperty("jna.library.path","/Users/lord_pretzel/Documents/workspace/GProM/src/libgprom/.libs/");
+		System.out.println(System.getProperty("jna.library.path") + "\n\n");
+	}
+	
 	/**
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		PropertyConfigurator.configureAndWatch("lib/log4j.properties");
+		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
 		String driverURL = "org.gprom.jdbc.driver.GProMDriver";
+		
+		String res = GProM_JNA.INSTANCE.gprom_rewriteQuery("SELECT * FROM r;");
+//		String res = null;
+		log.error(res == null ? "NULL" : res);
+		System.exit(1);
+		
+		
 		// HSQLDB
 		/*
 		 * //String url = "jdbc:gprom:hsqldb:file:/Users/alex/db/mydb"; String
@@ -40,19 +53,19 @@ public class GProMTest {
 			System.exit(-1);
 		}
 		// get the db connection
-		GProMConnection gpromConnection = null;
-		try {
-			gpromConnection = (GProMConnection) DriverManager.getConnection(url,
-					username, password);
-		} catch (SQLException e) {
-			log.error("Error getting a connection");
-			log.error(e.getMessage());
-			System.exit(-1);
-		}
+//		GProMConnection gpromConnection = null;
+//		try {
+//			gpromConnection = (GProMConnection) DriverManager.getConnection(url,
+//					username, password);
+//		} catch (SQLException e) {
+//			log.error("Error getting a connection");
+//			log.error(e.getMessage());
+//			System.exit(-1);
+//		}
 		// create a new statement
-		GProMStatement std = gpromConnection.createGProMStatement();
-		ResultSet rs;
-		try {
+//		GProMStatement std = gpromConnection.createGProMStatement();
+//		ResultSet rs;
+//		try {
 			// rs = std.executeQuery("SELECT PROVENANCE * FROM weather");
 			// rs =
 			// std.executeQuery("SELECT PROVENANCE * FROM AVGTEMP_IN_CITY");
@@ -88,7 +101,7 @@ public class GProMTest {
 			// std.executeQuery("SELECT PROVENANCE temp_lo, temp_hi FROM weather GROUP BY temp_lo, temp_hi, city, prcp, date ORDER BY temp_lo + temp_hi DESC");
 			// rs =
 			// std.executeQuery("SELECT PROVENANCE sum(sump) FROM (SELECT sum(i.price) AS sump FROM item i, sales s WHERE i.id = s.item_id GROUP BY s.shop_id) AS sub");
-			 rs = std.executeQuery("SELECT PROVENANCE sum(i) * null FROM r");
+//			 rs = std.executeQuery("SELECT PROVENANCE sum(i) * null FROM r");
 			// rs =
 			// std.executeQuery("SELECT PROVENANCE sum(sub.sump) AS sum FROM ( SELECT sum(i.price) AS sump FROM item i, sales s WHERE i.id = s.item_id GROUP BY s.shop_id) sub");
 //			 rs =
@@ -98,14 +111,14 @@ public class GProMTest {
 //			rs = std
 //					.executeQuery("select provenance l_returnflag,l_linestatus,sum(l_quantity) as sum_qty,sum(l_extendedprice) as sum_base_price,sum(l_extendedprice * (1 - l_discount)) as sum_disc_price,sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)) as sum_charge,avg(l_quantity) as avg_qty,avg(l_extendedprice) as avg_price,avg(l_discount) as avg_disc,count(*) as count_order from lineitem where l_shipdate <= ('1992-01-11'::date) - ('0 day'::interval) group by l_returnflag, l_linestatus order by l_returnflag, l_linestatus limit 1");
 //			rs = std.executeQuery("SELECT PROVENANCE * FROM r");
-			while (rs.next()) {
-				log.info(rs.getString(1));
-			}
-		} catch (SQLException e) {
-			log.error("Error getting a result set from a query");
-			log.error(e.getMessage());
-			System.exit(-1);
-		}
+//			while (rs.next()) {
+//				log.info(rs.getString(1));
+//			}
+//		} catch (SQLException e) {
+//			log.error("Error getting a result set from a query");
+//			log.error(e.getMessage());
+//			System.exit(-1);
+//		}
 	}
 
 }

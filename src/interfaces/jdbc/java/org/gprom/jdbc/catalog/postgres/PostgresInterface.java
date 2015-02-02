@@ -17,7 +17,7 @@ import org.gprom.jdbc.structure.PGClass;
 import org.gprom.jdbc.structure.RewriteRuleClass;
 import org.gprom.jdbc.container.PostgresMaps;
 
-public class PostgresInterface implements JNINativeInterface, JDBCCallbackInterface{
+public class PostgresInterface implements JDBCCallbackInterface{
 
 	// Variable
 	private static Logger log = Logger.getLogger(PostgresInterface.class);
@@ -34,15 +34,15 @@ public class PostgresInterface implements JNINativeInterface, JDBCCallbackInterf
 	public static PostgresInterface getInstance(Connection con) {
 		if (postgresInterface == null) {
 			postgresInterface = new PostgresInterface();
-			postgresInterface.lookUp = new PostgresCatalogLookup(con);
-			postgresInterface.postgresMaps = new PostgresMaps();
-			try {
-				postgresInterface.initializeMiddleware();
-			} catch (NoSuchMethodException e) {
-				log.error("Something went wrong while initializing the PERM Module");
-				log.error(e.getMessage());
-				System.exit(-1);
-			}
+//			postgresInterface.lookUp = new PostgresCatalogLookup(con);
+//			postgresInterface.postgresMaps = new PostgresMaps();
+//			try {
+//				postgresInterface.initializeMiddleware();
+//			} catch (NoSuchMethodException e) {
+//				log.error("Something went wrong while initializing the PERM Module");
+//				log.error(e.getMessage());
+//				System.exit(-1);
+//			}
 		}
 		return postgresInterface;
 	}

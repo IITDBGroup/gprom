@@ -11,8 +11,6 @@ import java.util.Properties;
 
 import org.apache.log4j.Logger;
 
-import static GProMDriverProperties.*;
-
 /**
  * GProMDriver extends the SQL driver for adding a perm assistance
  * 

@@ -1,1 +1,1 @@
-include_HEADERS = libgprom/libjupiter.h
+include_HEADERS = libgprom/libgprom.h

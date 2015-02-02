@@ -321,6 +321,8 @@ AC_CONFIG_FILES([
 	src/configuration/Makefile
 	src/execution/Makefile
 	src/instrumentation/Makefile
+	src/interfaces/Makefile
+	src/interfaces/jdbc/Makefile
 	src/log/Makefile
 	src/mem_manager/Makefile
 	src/metadata_lookup/Makefile

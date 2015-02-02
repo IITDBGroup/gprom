@@ -148,5 +148,6 @@ extern rc testStringUtils(void);
 extern rc testParameter(void);
 extern rc testDatalogModel(void);
 extern rc testHash(void);
+extern rc testLibGProM(void);
 
 #endif

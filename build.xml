@@ -5,6 +5,7 @@
 	
 	<!-- main directories -->
 	<property name="sourcedir" value="${basedir}/src/interfaces/jdbc/java" />
+	<property name="testsourcedir" value="${basedir}/javatest" />
 	<property name="binarydir" value="${basedir}/javabin" />
 	<property name="builddir" value="${basedir}/jdbcbuild" />
 	<property name="librarydir" value="${basedir}/javalib" />
@@ -16,6 +17,7 @@
 	
 	<!-- special files -->
 	<property name="conffile" value="${librarydir}/GProMDRiver.properties" />
+	<property name="gpromlib.darwin" value="${basedir}/src/libgprom/.libs/libgprom.0.dylib" />
 	
 	<!-- targets -->
 	<target name="clean">
@@ -23,6 +25,7 @@
 			<fileset dir="${binarydir}" includes="**/*"/>
 		</delete>
 		<mkdir dir="${binarydir}" />
+		<mkdir dir="${binarydir}/darwin" />
 		<delete includeemptydirs="true">
 			<fileset dir="${builddir}" includes="**/*"/>
 		</delete>
@@ -36,9 +39,14 @@
 <!--		<copy todir="${binarydir}/lib">
 			<fileset dir="${librarydir}"/>
 		</copy> -->
+		<copy file="${gpromlib.darwin}" tofile="${binarydir}/darwin/libgprom.dylib" />
 		<copy file="${conffile}" tofile="${binarydir}/GPRoMDriver.properties" />
 <!--		<copy file="${sourcedir}/driver/GPRoMDriver.properties" tofile="${builddir}/lib/GPRoMDriver.properties" /> -->
 		<javac srcdir="${sourcedir}" destdir="${binarydir}">
+			<classpath refid="classpath"/>
+			<compilerarg value="-Xlint:unchecked" />
+		</javac>
+		<javac srcdir="${testsourcedir}" destdir="${binarydir}">
 			<classpath refid="classpath"/>
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>

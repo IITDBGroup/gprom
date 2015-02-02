@@ -109,6 +109,7 @@ testSuites(void)
     RUN_TEST(testParameter(), "Test SQL parameter functions.");
     RUN_TEST(testDatalogModel(), "Test datalog model features");
     RUN_TEST(testHash(), "Test hash computation for nodes");
+    RUN_TEST(testLibGProM(), "Test gprom dynamic link library");
 
     printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
             "Total %d Test(s) Passed\n\n", test_count);

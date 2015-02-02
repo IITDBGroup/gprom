@@ -21,3 +21,5 @@ EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
 	$(top_srcdir)/src/parser/*.tab.c \
 	$(top_srcdir)/src/parser/*.tab.h \
 	$(top_srcdir)/test/testmain.sh
+	
+# TODO add java

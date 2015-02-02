@@ -7,5 +7,7 @@
 	<classpathentry kind="lib" path="javalib/postgresql-8.1-404.jdbc3.jar"/>
 	<classpathentry kind="lib" path="javalib/jna-4.1.0.jar"/>
 	<classpathentry kind="lib" path="javalib/one-jar-ant-task-0.97.jar"/>
+	<classpathentry kind="lib" path="javalib"/>
+	<classpathentry kind="lib" path="/usr/local/lib"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>

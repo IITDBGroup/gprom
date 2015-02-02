@@ -26,7 +26,7 @@ import org.gprom.jdbc.structure.RewriteRuleClass;
  * @author alex
  * 
  */
-public class HSQLDBInterface implements JDBCCallbackInterface,JNINativeInterface  {
+public class HSQLDBInterface implements JDBCCallbackInterface  {
 
 	// Variable
 	private static Logger log = Logger.getLogger(HSQLDBInterface.class);
