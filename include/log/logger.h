@@ -40,6 +40,7 @@ extern void shutdownLogger (void);
 extern void log_(LogLevel level, const char *file, unsigned line, const char *template, ...);
 extern void _debugNode(void *p);
 extern void _debugMessage(char *mes);
+extern void registerLogCallback (void (*callback) (const char *,const char *,int,int));
 
 extern LogLevel maxLevel;
 

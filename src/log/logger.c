@@ -27,11 +27,17 @@
 
 #define INIT_BUF_SIZE 1 // 4096
 
+// private vars
 static char *h[] =
     {"FATAL", "ERROR ", "WARN", "INFO", "DEBUG", "TRACE"};
 static StringInfo buffer;
 
+// global loglevel
 LogLevel maxLevel = LOG_INFO;
+
+// info
+typedef void (*LoggerCallbackFunction) (const char *,const char *,int,int);
+static LoggerCallbackFunction logCallback = NULL;
 
 /* internal inlined functions */
 static inline char *getHead(LogLevel level);
@@ -41,6 +47,12 @@ static boolean vAppendBuf(StringInfo str, const char *format, va_list args);
 // use normal versions of free and malloc instead of memory manager ones
 #undef free
 #undef malloc
+
+void
+registerLogCallback (LoggerCallbackFunction callback)
+{
+    logCallback = callback;
+}
 
 static inline char *
 getHead(LogLevel level)
@@ -101,13 +113,6 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
         buffer->cursor = 0;
         buffer->data[0] = '\0';
 
-        // output loglevel and location of log statement
-        fprintf(out, TB_FG_BG(WHITE,BLACK,"%s"), getHead(level));
-        if (file && line > 0)
-            fprintf(out, TCOL(RED,"(%s:%u) "), file, line);
-        else
-            fprintf(out, "(unknown) ");
-
         // use string info as buffer to deal with large strings
         while(!success)
         {
@@ -117,6 +122,20 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
             success = vAppendBuf(buffer, template, args);
             va_end(args);
         }
+
+        if (logCallback != NULL)
+        {
+            logCallback(buffer->data, file, line, level);
+            return;
+        }
+
+        // output loglevel and location of log statement
+        fprintf(out, TB_FG_BG(WHITE,BLACK,"%s"), getHead(level));
+        if (file && line > 0)
+            fprintf(out, TCOL(RED,"(%s:%u) "), file, line);
+        else
+            fprintf(out, "(unknown) ");
+
 
         // output a fixed number of chars at a time to not reach fprintf limit
         int todo = buffer->len;

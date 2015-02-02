@@ -151,13 +151,15 @@ rewriteQuery(char *input)
     Node *parse;
     char *result;
 
+    NEW_AND_ACQUIRE_MEMCONTEXT("Query Context");
+
     parse = parseFromString(input);
     DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
 
     result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
     INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
 
-    return result;
+    RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }
 
 char *
