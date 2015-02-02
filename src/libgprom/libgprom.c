@@ -65,6 +65,12 @@ gprom_registerLoggerCallbackFunction (GProMLoggerCallbackFunction callback)
     registerLogCallback(callback);
 }
 
+void
+gprom_setMaxLogLevel (int maxLevel)
+{
+    setMaxLevel((LogLevel) maxLevel);
+}
+
 
 char *
 gprom_getStringOption (char *name)

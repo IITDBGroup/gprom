@@ -4,9 +4,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import org.apache.log4j.Logger;
-import org.gprom.jdbc.catalog.hsqldb.HSQLDBCatalogLookup;
-import org.gprom.jdbc.catalog.hsqldb.HSQLDBInterface;
 import org.gprom.jdbc.container.DBCatalogTopContainer;
+import org.gprom.jdbc.metadata_lookup.hsqldb.HSQLDBCatalogLookup;
+import org.gprom.jdbc.metadata_lookup.hsqldb.HSQLDBInterface;
 
 /**
  * Java Implementation of the Form_pg_type

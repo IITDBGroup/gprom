@@ -91,6 +91,12 @@ shutdownLogger (void)
 }
 
 void
+setMaxLevel (LogLevel level)
+{
+    maxLevel = level;
+}
+
+void
 _debugNode(void *p)
 {
     log_(LOG_ERROR, "debugger", 0, "%s", beatify(nodeToString(p)));

@@ -1,4 +1,4 @@
-package org.gprom.jdbc.catalog.postgres;
+package org.gprom.jdbc.metadata_lookup.postgres;
 
 
 import java.sql.Connection;

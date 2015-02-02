@@ -20,14 +20,27 @@ public class GProMTest {
 	
 	/**
 	 * @param args
+	 * @throws SQLException 
 	 */
-	public static void main(String[] args) {
+	public static void main(String[] args) throws SQLException {
 		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
 		String driverURL = "org.gprom.jdbc.driver.GProMDriver";
+		GProMWrapper w = GProMWrapper.inst;
 		
-		String res = GProM_JNA.INSTANCE.gprom_rewriteQuery("SELECT * FROM r;");
-//		String res = null;
+		w.init();
+		w.setupFromOptions(new String[] { "-log", "-loglevel", "4", "-backend", "oracle"});
+		w.setLogLevel(1);
+		w.setBoolOption("log.active", true);
+		log.error("log.level=" +  w.getIntOption("log.level"));
+		log.error("log.active=" +  w.getBoolOption("log.active"));
+		
+		String res = w.gpromRewriteQuery("SELECT * FROM r;");
 		log.error(res == null ? "NULL" : res);
+		
+		res = w.gpromRewriteQuery("PROVENANCE OF (SELECT * FROM r);");
+		log.error(res == null ? "NULL" : res);
+		
+		w.shutdown();
 		System.exit(1);
 		
 		

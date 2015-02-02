@@ -7,8 +7,8 @@ import java.sql.SQLWarning;
 import java.sql.Statement;
 
 import org.apache.log4j.Logger;
-import org.gprom.jdbc.catalog.postgres.PostgresInterface;
 import org.gprom.jdbc.jna.GProMWrapper;
+import org.gprom.jdbc.metadata_lookup.postgres.PostgresInterface;
 
 public class GProMStatement implements GProMStatementInterface {
 	// Variable
@@ -21,6 +21,7 @@ public class GProMStatement implements GProMStatementInterface {
 
 	private static String[] utilityKeywors = { "DROP"};
 
+	static GProMWrapper w = GProMWrapper.inst;
 
 	public GProMStatement(Statement stat, Connection con){
 		this.stat = stat;
@@ -33,29 +34,30 @@ public class GProMStatement implements GProMStatementInterface {
 	 * 
 	 */
 	public boolean checkForGProMKeywords(String sqlQuery) {
+		return true;
+		
 		//TODO replace with simple parser that recognizes strings and naming quotes
 		// Check for utility query
-		for (int i = 0; i < utilityKeywors.length; i++) {
-			if (sqlQuery.contains(utilityKeywors[i])
-					|| sqlQuery.contains(utilityKeywors[i].toLowerCase())) {
-				return false;
-			}
-		}
-
-		// If no utility query, check for PERM keywords
-		for (int i = 0; i < permKeywords.length; i++) {
-			if (sqlQuery.contains(permKeywords[i])
-					|| sqlQuery.contains(permKeywords[i].toLowerCase())) {
-				return true;
-			}
-		}
-		return false;
+//		for (int i = 0; i < utilityKeywors.length; i++) {
+//			if (sqlQuery.contains(utilityKeywors[i])
+//					|| sqlQuery.contains(utilityKeywors[i].toLowerCase())) {
+//				return false;
+//			}
+//		}
+//
+//		// If no utility query, check for PERM keywords
+//		for (int i = 0; i < permKeywords.length; i++) {
+//			if (sqlQuery.contains(permKeywords[i])
+//					|| sqlQuery.contains(permKeywords[i].toLowerCase())) {
+//				return true;
+//			}
+//		}
+//		return false;
 	}
 
 	public ResultSet executeGProMQuery(String sqlQuery) throws SQLException{
 		if(checkForGProMKeywords(sqlQuery)){
-			//TODO
-//			sqlQuery = jniInterface(sqlQuery,getDatabaseType());
+			sqlQuery = w.gpromRewriteQuery(sqlQuery);
 		}
 		return executeQuery(sqlQuery);
 	}
@@ -224,11 +226,10 @@ public class GProMStatement implements GProMStatementInterface {
 		stat.setMaxRows(max);
 	}
 
-	
-
 	public void setQueryTimeout(int seconds) throws SQLException {
 		stat.setQueryTimeout(seconds);
 	}
+	
 	public int getDatabaseType() {
 		if(className.contains("hsqldb")){
 			return 1;

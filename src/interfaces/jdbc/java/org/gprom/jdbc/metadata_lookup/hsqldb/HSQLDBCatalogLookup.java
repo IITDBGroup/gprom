@@ -1,4 +1,4 @@
-package org.gprom.jdbc.catalog.hsqldb;
+package org.gprom.jdbc.metadata_lookup.hsqldb;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;

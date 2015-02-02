@@ -4,8 +4,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import org.apache.log4j.Logger;
-import org.gprom.jdbc.catalog.hsqldb.HSQLDBCatalogLookup;
 import org.gprom.jdbc.container.DBCatalogTopContainer;
+import org.gprom.jdbc.metadata_lookup.hsqldb.HSQLDBCatalogLookup;
 
 /**
  * Java implementation of the Form_pg_attribute struct

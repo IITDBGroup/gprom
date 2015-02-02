@@ -26,6 +26,7 @@ extern const char *gprom_rewriteQuery(const char *query);
 typedef void (*GProMLoggerCallbackFunction) (const char *,const char *,int,int);
 
 extern void gprom_registerLoggerCallbackFunction (GProMLoggerCallbackFunction callback);
+extern void gprom_setMaxLogLevel (int maxLevel);
 
 // provide the same for exception handling
 //void registerExecptionHandler ()
