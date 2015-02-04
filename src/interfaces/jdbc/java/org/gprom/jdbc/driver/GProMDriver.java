@@ -46,7 +46,7 @@ public class GProMDriver implements Driver {
 
 	}
 
-	public GProMConnectionInterface connect(String url, Properties info)
+	public GProMConnectionInterface connect (String url, Properties info)
 			throws SQLException {
 		// if the given URL could no be handled by the driver return null.
 		if (!acceptsURL(url))
@@ -89,7 +89,8 @@ public class GProMDriver implements Driver {
 			// init a new GProMConnection from the driver loaded before and
 			// return it
 			driver = DriverManager.getDriver(URL);
-			return new GProMConnection(driver.connect(URL, info));
+			return new GProMConnection(driver.connect(URL, info),
+					getGProMConfForDB());
 		} catch (Exception ex) {
 			ex.printStackTrace();
 			log.error("Error loading the driver and getting a connection");
@@ -97,7 +98,10 @@ public class GProMDriver implements Driver {
 			System.exit(-1);
 		}
 		return null;
-
+	}
+	
+	protected Properties getGProMConfForDB (){
+		return null;
 	}
 
 	/**

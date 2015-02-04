@@ -27,9 +27,11 @@ public class GProMConnection implements GProMConnectionInterface{
 	protected Connection con;
 	// Variable
 	private static Logger log = Logger.getLogger(GProMConnection.class);
+	private Properties gpromConf;
 	
-	public GProMConnection(Connection con){
+	public GProMConnection(Connection con, Properties gpromConf) {
 		this.con = con;
+		this.gpromConf = gpromConf;
 	}
 	
 	public GProMStatement createGProMStatement() {

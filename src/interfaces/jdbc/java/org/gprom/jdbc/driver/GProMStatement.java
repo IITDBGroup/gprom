@@ -26,7 +26,7 @@ public class GProMStatement implements GProMStatementInterface {
 	public GProMStatement(Statement stat, Connection con){
 		this.stat = stat;
 		//Initialize Interface
-		jniInterface = PostgresInterface.getInstance(con);	
+//		jniInterface = PostgresInterface.getInstance(con);	
 		className = con.getClass().toString();
 	}
 	
