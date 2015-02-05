@@ -36,6 +36,8 @@ extern char *gprom_getStringOption (char *name);
 extern int gprom_getIntOption (char *name);
 extern boolean gprom_getBoolOption (char *name);
 extern double gprom_getFloatOption (char *name);
+extern char *gprom_getOptionType(char *name);
+extern boolean gprom_optionExists(char *name);
 
 extern void gprom_setStringOption (char *name, char *value);
 extern void gprom_setIntOption(char *name, int value);

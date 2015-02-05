@@ -306,6 +306,19 @@ public class GProMConnection implements GProMConnectionInterface{
 		return 0;
 	}
 
+	public Properties getGpromConf() {
+		return gpromConf;
+	}
+	
+	public void setProperty (String key, String value) {
+		gpromConf.setProperty(key, value);
+		
+	}
+
+	protected void setGpromConf(Properties gpromConf) {
+		this.gpromConf = gpromConf;
+	}
+
 	
 /* NEW Methods -----------------------------------------------------------
  	public Array createArrayOf(String typeName, Object[] elements)

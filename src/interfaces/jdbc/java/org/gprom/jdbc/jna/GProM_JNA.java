@@ -39,6 +39,9 @@ public interface GProM_JNA extends Library {
     public void gprom_setBoolOption(String name, boolean value);
     public void gprom_setFloatOption(String name, double value);	
 
+    public String gprom_getOptionType(String key);
+    public boolean gprom_optionExists(String key);
+    
     // logging and error callback interface
     interface GProMLoggerCallbackFunction extends Callback {
         void invoke(String message, String fileInfo, int line, int logLevel);

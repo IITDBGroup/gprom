@@ -96,6 +96,19 @@ gprom_getFloatOption (char *name)
     return getFloatOption(name);
 }
 
+char *
+gprom_getOptionType(char *name)
+{
+    ASSERT(optionExists(name));
+    return OptionTypeToString(getOptionType(name));
+}
+
+boolean
+gprom_optionExists(char *name)
+{
+    return optionExists(name);
+}
+
 void
 gprom_setStringOption (char *name, char *value)
 {

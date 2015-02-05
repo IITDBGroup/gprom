@@ -106,6 +106,10 @@ public class GProMWrapper implements GProMJavaInterface {
 		return Level.DEBUG;
 	}
 
+	public void setOption (String key, String value) {
+		
+	}
+	
 	public String getStringOption (String name)
 	{
 		return GProM_JNA.INSTANCE.gprom_getStringOption(name);
@@ -144,6 +148,24 @@ public class GProMWrapper implements GProMJavaInterface {
 	public void setFloatOption(String name, double value)
 	{
 		GProM_JNA.INSTANCE.gprom_setFloatOption(name, value);
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#optionExists(java.lang.String)
+	 */
+	@Override
+	public boolean optionExists(String name) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#typeOfOption(java.lang.String)
+	 */
+	@Override
+	public OptionType typeOfOption(String name) throws Exception {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 

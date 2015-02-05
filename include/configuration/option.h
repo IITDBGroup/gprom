@@ -4,13 +4,16 @@
 #include "common.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "enum_magic.h"
 
-typedef enum OptionType {
+NEW_ENUM_WITH_TO_STRING(
+    OptionType,
     OPTION_BOOL,
     OPTION_STRING,
     OPTION_INT,
     OPTION_FLOAT
-} OptionType;
+);
+//typedef enum OptionType {
 
 /* define rewrite methods */
 #define OPTION_TIMING "timing"
