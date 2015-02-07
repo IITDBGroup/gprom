@@ -7,6 +7,7 @@ import java.sql.SQLWarning;
 import java.sql.Statement;
 
 import org.apache.log4j.Logger;
+import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.metadata_lookup.postgres.PostgresInterface;
 
@@ -14,20 +15,19 @@ public class GProMStatement implements GProMStatementInterface {
 	// Variable
 	private static Logger log = Logger.getLogger(GProMStatement.class);
 	protected Statement stat;
-	protected PostgresInterface jniInterface;
-	private String className;
 	private static String[] permKeywords = { "PROVENANCE", "BASERELATION",
 			"TRANSSQL" };
-
+	private BackendType backend;
+	
 	private static String[] utilityKeywors = { "DROP"};
 
 	static GProMWrapper w = GProMWrapper.inst;
 
-	public GProMStatement(Statement stat, Connection con){
+	public GProMStatement(Statement stat, BackendType backend){
 		this.stat = stat;
 		//Initialize Interface
 //		jniInterface = PostgresInterface.getInstance(con);	
-		className = con.getClass().toString();
+		this.backend = backend;
 	}
 	
 	/**
@@ -230,14 +230,8 @@ public class GProMStatement implements GProMStatementInterface {
 		stat.setQueryTimeout(seconds);
 	}
 	
-	public int getDatabaseType() {
-		if(className.contains("hsqldb")){
-			return 1;
-		}else if(className.contains("postgres")){
-			return 2;
-		}else{
-			return 0;
-		}
+	public BackendType getDatabaseType() {
+		return backend; 
 	}
 
 	public boolean isClosed() throws SQLException {

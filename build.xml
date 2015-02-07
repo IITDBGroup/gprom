@@ -42,11 +42,12 @@
 		<copy file="${gpromlib.darwin}" tofile="${binarydir}/darwin/libgprom.dylib" />
 		<copy file="${conffile}" tofile="${binarydir}/GPRoMDriver.properties" />
 <!--		<copy file="${sourcedir}/driver/GPRoMDriver.properties" tofile="${builddir}/lib/GPRoMDriver.properties" /> -->
-		<javac srcdir="${sourcedir}" destdir="${binarydir}">
+		<javac srcdir="${sourcedir}" destdir="${binarydir}"  debug="on">
 			<classpath refid="classpath"/>
 			<compilerarg value="-Xlint:unchecked" />
+			
 		</javac>
-		<javac srcdir="${testsourcedir}" destdir="${binarydir}">
+		<javac srcdir="${testsourcedir}" destdir="${binarydir}" debug="on">
 			<classpath refid="classpath"/>
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>

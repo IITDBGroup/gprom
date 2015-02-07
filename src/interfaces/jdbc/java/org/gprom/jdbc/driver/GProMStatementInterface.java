@@ -4,13 +4,15 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
+
 public interface GProMStatementInterface extends Statement {
 
 	/**
-	 * Checks if a query has a PERM keywords
+	 * Checks if a query has a provenance related keywords
 	 * 
 	 * @param sqlQuery
-	 * @return true if the query is a PERM query, false otherwise
+	 * @return true if the query is a query that needs provenance rewrite query, false otherwise
 	 */
 	public boolean checkForGProMKeywords(String sqlQuery);
 	
@@ -23,9 +25,8 @@ public interface GProMStatementInterface extends Statement {
 	public ResultSet executeGProMQuery(String sqlQuery) throws SQLException;
 	
 	/**
-	 * Gets the database type for using in the PERM module
-	 * 1: HSQLDB 2: POSTGRES ...
+	 * Gets the backend database type for this connection 
 	 * @return the database type
 	 */
-	public int getDatabaseType();
+	public BackendType getDatabaseType();
 }

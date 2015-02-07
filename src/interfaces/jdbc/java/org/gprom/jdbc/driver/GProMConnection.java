@@ -20,6 +20,8 @@ import java.util.Properties;
 import java.util.concurrent.Executor;
 
 import org.apache.log4j.Logger;
+import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
+import org.gprom.jdbc.jna.GProMWrapper;
 
 public class GProMConnection implements GProMConnectionInterface{
 
@@ -28,15 +30,19 @@ public class GProMConnection implements GProMConnectionInterface{
 	// Variable
 	private static Logger log = Logger.getLogger(GProMConnection.class);
 	private Properties gpromConf;
+	private BackendType backend;
+	private GProMWrapper w;
 	
-	public GProMConnection(Connection con, Properties gpromConf) {
+	public GProMConnection(Connection con, Properties gpromConf, BackendType backend, GProMWrapper w) {
 		this.con = con;
 		this.gpromConf = gpromConf;
+		this.backend = backend;
+		this.w = w;
 	}
 	
 	public GProMStatement createGProMStatement() {
 		try {
-			return new GProMStatement(con.createStatement(),con);
+			return new GProMStatement(con.createStatement(),backend);
 		} catch (SQLException e) {
 			log.error("Error creating a new gprom statement");
 			log.error(e.getMessage());
@@ -58,18 +64,18 @@ public class GProMConnection implements GProMConnectionInterface{
 	}
 
 	public Statement createStatement() throws SQLException {
-		return new GProMStatement(con.createStatement(), con);
+		return new GProMStatement(con.createStatement(), backend);
 	}
 
 	public Statement createStatement(int resultSetType, int resultSetConcurrency)
 			throws SQLException {
-		return new GProMStatement(con.createStatement(resultSetType,resultSetConcurrency), con);
+		return new GProMStatement(con.createStatement(resultSetType,resultSetConcurrency), backend);
 	}
 
 	public Statement createStatement(int resultSetType,
 			int resultSetConcurrency, int resultSetHoldability)
 			throws SQLException {
-		return new GProMStatement(con.createStatement(resultSetType,resultSetConcurrency,resultSetHoldability), con);
+		return new GProMStatement(con.createStatement(resultSetType,resultSetConcurrency,resultSetHoldability), backend);
 	}
 
 	
@@ -318,6 +324,22 @@ public class GProMConnection implements GProMConnectionInterface{
 	protected void setGpromConf(Properties gpromConf) {
 		this.gpromConf = gpromConf;
 	}
+
+	public BackendType getBackend() {
+		return backend;
+	}
+
+	public GProMWrapper getW() {
+		return w;
+	}
+
+	public void setW(GProMWrapper w) {
+		this.w = w;
+	}
+
+//	public void setBackend(BackendType backend) {
+//		this.backend = backend;
+//	}
 
 	
 /* NEW Methods -----------------------------------------------------------

@@ -72,63 +72,63 @@ gprom_setMaxLogLevel (int maxLevel)
 }
 
 
-char *
-gprom_getStringOption (char *name)
+const char *
+gprom_getStringOption (const char *name)
 {
-    return getStringOption(name);
+    return getStringOption((char *) name);
 }
 
 int
-gprom_getIntOption (char *name)
+gprom_getIntOption (const char *name)
 {
-    return getIntOption(name);
+    return getIntOption((char *) name);
 }
 
 boolean
-gprom_getBoolOption (char *name)
+gprom_getBoolOption (const char *name)
 {
-    return getBoolOption(name);
+    return getBoolOption((char *) name);
 }
 
 double
-gprom_getFloatOption (char *name)
+gprom_getFloatOption (const char *name)
 {
-    return getFloatOption(name);
+    return getFloatOption((char *) name);
 }
 
-char *
-gprom_getOptionType(char *name)
+const char *
+gprom_getOptionType(const char *name)
 {
-    ASSERT(optionExists(name));
-    return OptionTypeToString(getOptionType(name));
+    ASSERT(hasOption((char *) name));
+    return OptionTypeToString(getOptionType((char *) name));
 }
 
 boolean
-gprom_optionExists(char *name)
+gprom_optionExists(const char *name)
 {
-    return optionExists(name);
+    return hasOption((char *) name);
 }
 
 void
-gprom_setStringOption (char *name, char *value)
+gprom_setStringOption (const char *name, const char *value)
 {
-    return setStringOption(name,value);
+    return setStringOption((char *) name,(char *) value);
 }
 
 void
-gprom_setIntOption(char *name, int value)
+gprom_setIntOption(const char *name, int value)
 {
-    return setIntOption(name,value);
+    return setIntOption((char *) name,value);
 }
 
 void
-gprom_setBoolOption(char *name, boolean value)
+gprom_setBoolOption(const char *name, boolean value)
 {
-    return setBoolOption(name,value);
+    return setBoolOption((char *) name,value);
 }
 
 void
-gprom_setFloatOption(char *name, double value)
+gprom_setFloatOption(const char *name, double value)
 {
-    return setFloatOption(name,value);
+    return setFloatOption((char *) name,value);
 }

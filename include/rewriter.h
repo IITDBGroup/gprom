@@ -15,6 +15,7 @@
 #include "model/list/list.h"
 
 extern int initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[]);
+extern int initBasicModules (void);
 extern void setupPluginsFromOptions(void);
 extern int readOptionsAndIntialize(char *appName, char *appHelpText, int argc, char* argv[]);
 extern int shutdownApplication(void);

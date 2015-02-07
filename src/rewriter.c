@@ -62,6 +62,16 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
     return EXIT_SUCCESS;
 }
 
+int
+initBasicModules (void)
+{
+    initMemManager();
+    mallocOptions();
+    initLogger();
+    if (opt_memmeasure)
+        setupMemInstrumentation();
+}
+
 void
 setupPluginsFromOptions(void)
 {

@@ -1,6 +1,7 @@
 package org.gprom.jdbc.driver;
 
 import java.io.IOException;
+import java.net.URL;
 import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
@@ -10,6 +11,11 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 
 import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
+import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
+import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
+import org.gprom.jdbc.jna.GProMWrapper;
+import org.gprom.jdbc.utility.LoggerUtil;
 
 /**
  * GProMDriver extends the SQL driver for adding a perm assistance
@@ -24,9 +30,9 @@ public class GProMDriver implements Driver {
 	private static Logger log = Logger.getLogger(GProMDriver.class);
 	
 	
-	
 	protected Driver driver;
-
+	private GProMWrapper w;
+	
 	/*
 	private static final int MAJOR_VERSION = 0;
 	private static final int MINOR_VERSION = 8;
@@ -34,7 +40,9 @@ public class GProMDriver implements Driver {
 	private static final int CURRENT_VERSION = 1;
 	 */
 	public GProMDriver() {
-		
+		w = GProMWrapper.inst;
+		w.init();
+		w.setLogLevel(4);
 	}
 
 	public boolean acceptsURL(String url) throws SQLException {
@@ -57,62 +65,63 @@ public class GProMDriver implements Driver {
 				? (Boolean) info.get("GProM.LoadBackEnd") 
 				: false;  
 		
-		// remove the :perm indicator from the given URL
-		String URL = url;
-		URL = URL.replaceAll(":gprom", "");
-
-		/*
-		 * Load the mapping properties from location inside the jar file.
-		 */
-		Properties properties = new Properties();
-		try {
-			properties.load(this.getClass().getResourceAsStream(
-					"GProMDriver.properties"));
-		} catch (IOException ex) {
-			log.error("Error loading the GProMDriver.properties");
-			log.error(ex.getMessage());
-			return null;
-		}
-
 		/*
 		 * Load the driver to connect to the database and create a new
 		 * GProMConnection.
 		 */
 		try {
+			BackendType backend = GProMJDBCUtil.inst.getBackendTypeFromURL(url);
+			String driverClass = GProMJDBCUtil.inst.getDriverClass(backend);
+			Properties backendOpts = GProMJDBCUtil.inst.getOptionsForBackend(backend);
+			Connection backendConnection;
+			String backendURL = GProMJDBCUtil.inst.stripGProMPrefix(url);
+			
+			if (driverClass == null)
+				throw new Exception("did not find driver for: " +  backend);
+			
 			// look if a suitable driver is in the DriverMapping if automatic loading is active
-			if (loadBackendDriver && properties.containsKey(selectDatabaseDriver(URL))) {
+			if (loadBackendDriver && driverClass != null) {
 				// load the driver from the classpath in the DriverMapping
 				// property
-				Class.forName(properties
-								.getProperty(selectDatabaseDriver(URL)));				
+				Class.forName(driverClass);				
 			}
+			
 			// init a new GProMConnection from the driver loaded before and
 			// return it
-			driver = DriverManager.getDriver(URL);
-			return new GProMConnection(driver.connect(URL, info),
-					getGProMConfForDB());
+			driver = DriverManager.getDriver(backendURL);
+			if (driver == null)
+				throw new Exception("did not find class for driver: " +  driver);
+			
+			// create a jdbc connection to the backend.
+			backendConnection = driver.connect(backendURL, info);
+			if (backendConnection == null)
+				throw new Exception("was unable to create connection: " + backendURL);
+			
+			// extract backend connection parameters from JDBC connection
+			extractConnectionParameters(url, backendOpts);
+			
+			// setup GProM C libraries options and plugins
+			w.setupOptions(backendOpts);
+			w.setupPlugins();
+			
+			return new GProMConnection(backendConnection,
+					backendOpts, backend, w);
 		} catch (Exception ex) {
-			ex.printStackTrace();
-			log.error("Error loading the driver and getting a connection");
-			log.error(ex.getMessage());
+			log.error("Error loading the driver and getting a connection.");
+			LoggerUtil.logException(ex, log);
 			System.exit(-1);
 		}
 		return null;
 	}
 	
-	protected Properties getGProMConfForDB (){
-		return null;
-	}
-
 	/**
-	 * Extracts the String which indicates the driver from the URL
-	 * 
-	 * @param url the gprom URL
-	 * @return String which indicates the database type
+	 * @param backendConnection
+	 * @param backendOpts
 	 */
-	protected String selectDatabaseDriver(String url) {
-		String dbase[] = url.split(":");
-		return dbase[1];
+	private void extractConnectionParameters(String url,
+			Properties opts) {
+		//TODO
+//		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Database, backendInfo);
 	}
 
 	public DriverPropertyInfo[] getPropertyInfo(String url, Properties info)

@@ -4,7 +4,7 @@
 #include "common.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
-#include "enum_magic.h"
+#include "utility/enum_magic.h"
 
 NEW_ENUM_WITH_TO_STRING(
     OptionType,

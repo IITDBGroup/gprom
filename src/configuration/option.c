@@ -239,7 +239,7 @@ OptionInfo opts[] =
                 wrapOptionString(&sql),
                 defOptionString(NULL)
         },
-        // backend and plugin selectionselection
+        // backend and plugin selection
         {
                 "backend",
                 "-backend",
@@ -299,7 +299,9 @@ OptionInfo opts[] =
         {
                 "plugin.executor",
                 "-Pexecutor",
-                "select Executor plugin: sql (output rewritten SQL code), gp (output Game provenance)",
+                "select Executor plugin: sql (output rewritten SQL code), "
+                        "gp (output Game provenance), run (execute the "
+                        "rewritten query and return its result",
                 OPTION_STRING,
                 wrapOptionString(&plugin_executor),
                 defOptionString(NULL)

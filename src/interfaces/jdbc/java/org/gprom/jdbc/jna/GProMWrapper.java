@@ -9,6 +9,8 @@ import java.util.Properties;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.jna.GProMJavaInterface;
+import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
+import org.gprom.jdbc.utility.PropertyWrapper;
 
 /**
  * @author lord_pretzel
@@ -19,6 +21,12 @@ public class GProMWrapper implements GProMJavaInterface {
 	static Logger libLog = Logger.getLogger("LIBGPROM");
 
 
+	public static final String KEY_CONNECTION_HOST = "connection.host";
+	public static final String KEY_CONNECTION_DATABASE = "connection.db";
+	public static final String KEY_CONNECTION_USER = "connection.user";
+	public static final String KEY_CONNECTION_PASSWORD = "connection.passwd";
+	public static final String KEY_CONNECTION_PORT = "connection.port";
+	
 	public static GProMWrapper inst = new GProMWrapper ();
 
 	public static GProMWrapper getInstance () {
@@ -34,7 +42,9 @@ public class GProMWrapper implements GProMJavaInterface {
 	 */
 	@Override
 	public String gpromRewriteQuery(String query) throws SQLException {
-		return GProM_JNA.INSTANCE.gprom_rewriteQuery(query);
+		String result = GProM_JNA.INSTANCE.gprom_rewriteQuery(query).replaceFirst(";\\s+\\z", "");
+		libLog.info("HAVE REWRITTEN:\n\n" + query + "\n\ninto:\n\n" + result);
+		return result;
 	}
 
 	public void init () {
@@ -47,12 +57,14 @@ public class GProMWrapper implements GProMJavaInterface {
 
 		GProM_JNA.INSTANCE.gprom_registerLoggerCallbackFunction(callback);
 		GProM_JNA.INSTANCE.gprom_init();
-		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(0);
+		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(4);
 	}
 
 	public void setLogLevel (int level)
 	{
+		GProM_JNA.INSTANCE.gprom_setBoolOption("log.active", true);
 		GProM_JNA.INSTANCE.gprom_setIntOption("log.level", level);
+		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(level);
 	}
 
 	public void setupOptions (Properties opts)
@@ -81,6 +93,11 @@ public class GProMWrapper implements GProMJavaInterface {
 		setupPlugins();
 	}
 
+	public void setupFromOptions (PropertyWrapper options) throws Exception {
+		setupOptions(options);
+		setupPlugins();
+	}
+	
 	public void shutdown()
 	{
 		GProM_JNA.INSTANCE.gprom_shutdown();
@@ -156,7 +173,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	@Override
 	public boolean optionExists(String name) {
 		// TODO Auto-generated method stub
-		return false;
+		return GProM_JNA.INSTANCE.gprom_optionExists(name);
 	}
 
 	/* (non-Javadoc)
@@ -164,9 +181,59 @@ public class GProMWrapper implements GProMJavaInterface {
 	 */
 	@Override
 	public OptionType typeOfOption(String name) throws Exception {
-		// TODO Auto-generated method stub
-		return null;
+		if (GProM_JNA.INSTANCE.gprom_optionExists(name))
+			return OptionType.valueOf(GProM_JNA.INSTANCE.gprom_getOptionType(name));
+		throw new Exception("option " + name + " does is not a valid option");
+	}
+
+	/** 
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#setOptions(java.util.Properties)
+	 */
+	@Override
+	public void setupOptions(PropertyWrapper options) throws Exception {
+		for (String key: options.stringPropertyNames()) {
+			switch(typeOfOption(key)) {
+			case Boolean:
+				setBoolOption(key, options.getBool(key));
+				break;
+			case Float:
+				setFloatOption(key, options.getFloat(key));
+				break;
+			case Int:
+				setIntOption(key, options.getInt(key));
+				break;
+			case String:
+				setStringOption(key, options.getString(key));
+				break;
+			default:
+				break;
+			}
+		}
 	}
 
 
+	public void setConnectionOption (PropertyWrapper opts, ConnectionParam p, String value) {
+		switch(p)
+		{
+		case Database:
+			opts.setProperty(KEY_CONNECTION_DATABASE, value);
+			break;
+		case Host:
+			opts.setProperty(KEY_CONNECTION_HOST, value);
+			break;
+		case Password:
+			opts.setProperty(KEY_CONNECTION_PASSWORD, value);
+			break;
+		case Port:
+			opts.setProperty(KEY_CONNECTION_PORT, value);
+			break;
+		case User:
+			opts.setProperty(KEY_CONNECTION_USER, value);
+			break;
+		default:
+			break;
+		}
+	}
+	
+	
 }

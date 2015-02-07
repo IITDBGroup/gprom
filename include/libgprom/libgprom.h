@@ -32,16 +32,16 @@ extern void gprom_setMaxLogLevel (int maxLevel);
 //void registerExecptionHandler ()
 
 // interface to configuration
-extern char *gprom_getStringOption (char *name);
-extern int gprom_getIntOption (char *name);
-extern boolean gprom_getBoolOption (char *name);
-extern double gprom_getFloatOption (char *name);
-extern char *gprom_getOptionType(char *name);
-extern boolean gprom_optionExists(char *name);
+extern const char *gprom_getStringOption (const char *name);
+extern int gprom_getIntOption (const char *name);
+extern boolean gprom_getBoolOption (const char *name);
+extern double gprom_getFloatOption (const char *name);
+extern const char *gprom_getOptionType(const char *name);
+extern boolean gprom_optionExists(const char *name);
 
-extern void gprom_setStringOption (char *name, char *value);
-extern void gprom_setIntOption(char *name, int value);
-extern void gprom_setBoolOption(char *name, boolean value);
-extern void gprom_setFloatOption(char *name, double value);
+extern void gprom_setStringOption (const char *name, const char *value);
+extern void gprom_setIntOption(const char *name, int value);
+extern void gprom_setBoolOption(const char *name, boolean value);
+extern void gprom_setFloatOption(const char *name, double value);
 
 #endif /* INCLUDE_LIBGPROM_LIBGPROM_H_ */

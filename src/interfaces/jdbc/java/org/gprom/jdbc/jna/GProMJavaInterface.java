@@ -4,8 +4,10 @@
 package org.gprom.jdbc.jna;
 
 import java.sql.SQLException;
+import java.util.Properties;
 
 import org.apache.log4j.Level;
+import org.gprom.jdbc.utility.PropertyWrapper;
 
 /**
  * @author lord_pretzel
@@ -20,14 +22,24 @@ public interface GProMJavaInterface {
 		Int
 	};
 	
+	public enum ConnectionParam {
+		User,
+		Host,
+		Password,
+		Port,
+		Database
+	}
+	
 	/* rewrite */
 	public String gpromRewriteQuery (String query) throws SQLException;
 	
 	/* initialization */
 	public void init ();
 	public void setupOptions (String[] opts);
+	public void setupOptions (PropertyWrapper options) throws Exception;
 	public void setupPlugins ();
 	public void setupFromOptions (String[] opts);
+	public void setupFromOptions (PropertyWrapper options) throws Exception;
 	public void shutdown();
 	
 	/* configuration */
@@ -41,8 +53,10 @@ public interface GProMJavaInterface {
     public void setBoolOption(String name, boolean value);
     public void setFloatOption(String name, double value);	
 
+    public void setConnectionOption (PropertyWrapper opts, ConnectionParam p, String value);
+    
     public boolean optionExists (String name);
-    public OptionType typeOfOption (String name) throws Exception;
+    public OptionType typeOfOption (String name) throws Exception;   
     
     /* logging */
 	public Level intToLogLevel (int in);	

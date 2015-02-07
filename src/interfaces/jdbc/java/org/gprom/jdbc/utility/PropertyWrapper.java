@@ -308,14 +308,15 @@ public class PropertyWrapper extends Properties {
 		return getPropertiesProperty(key, null);
 	}
 	
-	public Properties getAllProps (String prefix) {
-		Properties result = new Properties();
+	public PropertyWrapper getAllProps (String prefix) {
+		PropertyWrapper result = new PropertyWrapper ();
 		this.setPrefix(prefix);
 		for (Object k: keySet())
 		{
-			String key = (String) k;
+			String key = ((String) k).replace(prefix + ".", "");
 			result.setProperty(key, this.getProperty(key));
 		}
+		this.resetPrefix();
 		
 		return result;
 	}
