@@ -41,8 +41,6 @@ public class GProMDriver implements Driver {
 	 */
 	public GProMDriver() {
 		w = GProMWrapper.inst;
-		w.init();
-		w.setLogLevel(4);
 	}
 
 	public boolean acceptsURL(String url) throws SQLException {
@@ -70,6 +68,8 @@ public class GProMDriver implements Driver {
 		 * GProMConnection.
 		 */
 		try {
+			w.init();
+			
 			BackendType backend = GProMJDBCUtil.inst.getBackendTypeFromURL(url);
 			String driverClass = GProMJDBCUtil.inst.getDriverClass(backend);
 			Properties backendOpts = GProMJDBCUtil.inst.getOptionsForBackend(backend);
@@ -103,6 +103,7 @@ public class GProMDriver implements Driver {
 			// setup GProM C libraries options and plugins
 			w.setupOptions(backendOpts);
 			w.setupPlugins();
+			w.setLogLevel(4);
 			
 			return new GProMConnection(backendConnection,
 					backendOpts, backend, w);
@@ -120,7 +121,6 @@ public class GProMDriver implements Driver {
 	 */
 	private void extractConnectionParameters(String url,
 			Properties opts) {
-		//TODO
 //		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Database, backendInfo);
 	}
 

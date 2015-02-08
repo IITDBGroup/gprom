@@ -70,6 +70,8 @@ initBasicModules (void)
     initLogger();
     if (opt_memmeasure)
         setupMemInstrumentation();
+
+    return EXIT_SUCCESS;
 }
 
 void
