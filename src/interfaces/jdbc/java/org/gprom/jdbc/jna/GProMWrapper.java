@@ -12,6 +12,8 @@ import org.gprom.jdbc.jna.GProMJavaInterface;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
+import com.sun.jna.Pointer;
+
 /**
  * @author lord_pretzel
  *
@@ -42,7 +44,8 @@ public class GProMWrapper implements GProMJavaInterface {
 	 */
 	@Override
 	public String gpromRewriteQuery(String query) throws SQLException {
-		String result = GProM_JNA.INSTANCE.gprom_rewriteQuery(query).replaceFirst(";\\s+\\z", "");
+		Pointer p =  GProM_JNA.INSTANCE.gprom_rewriteQuery(query);
+		String result = p.getString(0).replaceFirst(";\\s+\\z", "");
 		libLog.info("HAVE REWRITTEN:\n\n" + query + "\n\ninto:\n\n" + result);
 		return result;
 	}
@@ -67,14 +70,14 @@ public class GProMWrapper implements GProMJavaInterface {
 		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(level);
 	}
 
-	public void setupOptions (Properties opts)
-	{
-		for(Object key: opts.keySet())
-		{
-			String k = (String) key;
-			setStringOption(k, opts.getProperty(k));
-		}
-	}
+//	public void setupOptions (Properties opts)
+//	{
+//		for(Object key: opts.keySet())
+//		{
+//			String k = (String) key;
+//			setStringOption(k, opts.getProperty(k));
+//		}
+//	}
 
 	public void setupOptions (String[] opts)
 	{
@@ -182,7 +185,17 @@ public class GProMWrapper implements GProMJavaInterface {
 	@Override
 	public OptionType typeOfOption(String name) throws Exception {
 		if (GProM_JNA.INSTANCE.gprom_optionExists(name))
-			return OptionType.valueOf(GProM_JNA.INSTANCE.gprom_getOptionType(name));
+		{
+			String optionType = GProM_JNA.INSTANCE.gprom_getOptionType(name);
+			if(optionType.equals("OPTION_STRING"))
+				return OptionType.String;
+			if(optionType.equals("OPTION_BOOL"))
+				return OptionType.Boolean;
+			if(optionType.equals("OPTION_FLOAT"))
+				return OptionType.Float;
+			if(optionType.equals("OPTION_INT"))
+				return OptionType.Int;
+		}
 		throw new Exception("option " + name + " does is not a valid option");
 	}
 
@@ -192,6 +205,8 @@ public class GProMWrapper implements GProMJavaInterface {
 	@Override
 	public void setupOptions(PropertyWrapper options) throws Exception {
 		for (String key: options.stringPropertyNames()) {
+			libLog.debug("key: "+ key + " type: " + typeOfOption(key));
+			
 			switch(typeOfOption(key)) {
 			case Boolean:
 				setBoolOption(key, options.getBool(key));

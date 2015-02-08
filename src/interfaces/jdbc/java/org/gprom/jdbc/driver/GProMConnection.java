@@ -22,6 +22,7 @@ import java.util.concurrent.Executor;
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMWrapper;
+import org.gprom.jdbc.utility.LoggerUtil;
 
 public class GProMConnection implements GProMConnectionInterface{
 
@@ -44,8 +45,8 @@ public class GProMConnection implements GProMConnectionInterface{
 		try {
 			return new GProMStatement(con.createStatement(),backend);
 		} catch (SQLException e) {
+			LoggerUtil.logException(e, log);
 			log.error("Error creating a new gprom statement");
-			log.error(e.getMessage());
 			System.exit(-1);
 		}
 		return null;
@@ -57,6 +58,7 @@ public class GProMConnection implements GProMConnectionInterface{
 
 	public void close() throws SQLException {
 		con.close();
+		w.shutdown();
 	}
 
 	public void commit() throws SQLException {

@@ -6,6 +6,7 @@ package org.gprom.jdbc.jna;
 import com.sun.jna.Callback;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
+import com.sun.jna.Pointer;
 
 /**
  * @author lord_pretzel
@@ -26,7 +27,7 @@ public interface GProM_JNA extends Library {
 	public void gprom_shutdown();
 	
 	// rewrite methods
-    public String gprom_rewriteQuery (String query);
+    public Pointer gprom_rewriteQuery (String query);
     
     // configuration interface
     public String gprom_getStringOption (String name);

@@ -117,9 +117,9 @@ public class GProMStatement implements GProMStatementInterface {
 	}
 
 	public ResultSet executeQuery(String sql) throws SQLException {
-		if(checkForGProMKeywords(sql)){
+//		if(checkForGProMKeywords(sql)){
 			sql =  GProMWrapper.inst.gpromRewriteQuery(sql);
-		}
+//		}
 		return stat.executeQuery(sql);
 	}
 

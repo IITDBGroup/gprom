@@ -12,10 +12,12 @@ import java.util.Properties;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
+import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
 import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.utility.LoggerUtil;
+import org.gprom.jdbc.utility.PropertyWrapper;
 
 /**
  * GProMDriver extends the SQL driver for adding a perm assistance
@@ -72,7 +74,7 @@ public class GProMDriver implements Driver {
 			
 			BackendType backend = GProMJDBCUtil.inst.getBackendTypeFromURL(url);
 			String driverClass = GProMJDBCUtil.inst.getDriverClass(backend);
-			Properties backendOpts = GProMJDBCUtil.inst.getOptionsForBackend(backend);
+			PropertyWrapper backendOpts = GProMJDBCUtil.inst.getOptionsForBackend(backend);
 			Connection backendConnection;
 			String backendURL = GProMJDBCUtil.inst.stripGProMPrefix(url);
 			
@@ -91,14 +93,15 @@ public class GProMDriver implements Driver {
 			driver = DriverManager.getDriver(backendURL);
 			if (driver == null)
 				throw new Exception("did not find class for driver: " +  driver);
-			
+				
 			// create a jdbc connection to the backend.
+			log.info("trying to connect to: " + backendURL);
 			backendConnection = driver.connect(backendURL, info);
 			if (backendConnection == null)
 				throw new Exception("was unable to create connection: " + backendURL);
 			
 			// extract backend connection parameters from JDBC connection
-			extractConnectionParameters(url, backendOpts);
+			extractConnectionParameters(url, backendOpts, backend);
 			
 			// setup GProM C libraries options and plugins
 			w.setupOptions(backendOpts);
@@ -120,8 +123,15 @@ public class GProMDriver implements Driver {
 	 * @param backendOpts
 	 */
 	private void extractConnectionParameters(String url,
-			Properties opts) {
-//		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Database, backendInfo);
+			PropertyWrapper opts, BackendType backend) {
+//		return;
+		
+		BackendInfo i = GProMJDBCUtil.inst.getBackendInfo(backend);
+		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Database, i.getDatabase(url));
+//		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Host, i.getHost(url));
+//		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.User, i.getUser(url));
+//		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Password, i.getPassword(url));
+//		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Port, i.getPort(url));
 	}
 
 	public DriverPropertyInfo[] getPropertyInfo(String url, Properties info)
