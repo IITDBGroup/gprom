@@ -82,6 +82,12 @@ getIndent(int depth)
     return result;
 }
 
+boolean
+testQuery (char *query, char *expectedResult)
+{
+    return TRUE;
+}
+
 void
 testSuites(void)
 {
