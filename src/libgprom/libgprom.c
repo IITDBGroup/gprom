@@ -112,13 +112,13 @@ gprom_optionExists(const char *name)
 void
 gprom_setStringOption (const char *name, const char *value)
 {
-    return setStringOption((char *) name,(char *) value);
+    return setStringOption((char *) name, strdup((char *) value));
 }
 
 void
 gprom_setIntOption(const char *name, int value)
 {
-    return setIntOption((char *) name,value);
+    return setIntOption((char *) name, value);
 }
 
 void

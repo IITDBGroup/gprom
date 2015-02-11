@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Aggregation Test cases</comment>
+
+<entry key="q1.query">
+PROVENANCE OF (SELECT sum(a) AS x FROM r);
+</entry>
+<entry key="q1.result">
+x | prov_public_r_a | prov_public_r_a 
+----------+-----------------+-----------------
+2|1|1|
+2|1|2|
+</entry>
+
+<entry key="q2.query">
+PROVENANCE OF (SELECT sum(a) AS x, b AS y FROM r GROUP BY b);
+</entry>
+<entry key="q2.result">
+x | y | prov_public_r_a | prov_public_r_a 
+----------+-----------------+-----------------
+1|1|1|1|
+1|2|1|2|
+</entry>
+  
+
+</properties>

@@ -52,6 +52,10 @@ void
 registerLogCallback (LoggerCallbackFunction callback)
 {
     logCallback = callback;
+
+//    FILE *out = getOutput(0);
+//    fprintf(out, "register callback\n");
+//    fflush(out);
 }
 
 static inline char *
@@ -69,16 +73,15 @@ getOutput(LogLevel level)
 void
 initLogger(void)
 {
-//    Options *options = getOptions();
-
     buffer = (StringInfo) malloc(sizeof(StringInfoData));
     buffer->len = 0;
     buffer->maxlen = INIT_BUF_SIZE;
     buffer->cursor = 0;
     buffer->data = (char *) malloc(INIT_BUF_SIZE);
 
-//    if (options && options->optionDebug)
-//        maxLevel = options->optionDebug->loglevel;
+//    FILE *out = getOutput(0);
+//    fprintf(out, "init logger\n");
+//    fflush(out);
 
     maxLevel = getIntOption("log.level");
 }
@@ -88,12 +91,16 @@ shutdownLogger (void)
 {
     free(buffer->data);
     free(buffer);
+    logCallback = NULL;
 }
 
 void
 setMaxLevel (LogLevel level)
 {
     maxLevel = level;
+//    FILE *out = getOutput(0);
+//    fprintf(out, "changed level to %u\n", level);
+//    fflush(out);
 }
 
 void

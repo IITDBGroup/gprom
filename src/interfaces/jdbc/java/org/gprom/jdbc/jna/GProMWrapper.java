@@ -29,6 +29,8 @@ public class GProMWrapper implements GProMJavaInterface {
 	public static final String KEY_CONNECTION_PASSWORD = "connection.passwd";
 	public static final String KEY_CONNECTION_PORT = "connection.port";
 	
+	private GProM_JNA.GProMLoggerCallbackFunction callbackReference;
+	
 	public static GProMWrapper inst = new GProMWrapper ();
 
 	public static GProMWrapper getInstance () {
@@ -51,14 +53,13 @@ public class GProMWrapper implements GProMJavaInterface {
 	}
 
 	public void init () {
-		GProM_JNA.GProMLoggerCallbackFunction callback = new GProM_JNA.GProMLoggerCallbackFunction () {
+		callbackReference = new GProM_JNA.GProMLoggerCallbackFunction () {
 			public void invoke(String message, String file, int line, int level) {
-				System.out.println("invoke");
 				logCallback(message, file, line, level);
 			}
 		};
 
-		GProM_JNA.INSTANCE.gprom_registerLoggerCallbackFunction(callback);
+		GProM_JNA.INSTANCE.gprom_registerLoggerCallbackFunction(callbackReference);
 		GProM_JNA.INSTANCE.gprom_init();
 		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(4);
 	}
@@ -126,8 +127,23 @@ public class GProMWrapper implements GProMJavaInterface {
 		return Level.DEBUG;
 	}
 
-	public void setOption (String key, String value) {
-		
+	public void setOption (String key, String value) throws NumberFormatException, Exception {
+		switch(typeOfOption(key)) {
+		case Boolean:
+			setBoolOption(key, Boolean.getBoolean(value));
+			break;
+		case Float:
+			setFloatOption(key, Float.valueOf(value));
+			break;
+		case Int:
+			setIntOption(key, Integer.valueOf(value));
+			break;
+		case String:
+			setStringOption(key, value);
+			break;
+		default:
+			break;
+		}
 	}
 	
 	public String getStringOption (String name)
@@ -231,18 +247,23 @@ public class GProMWrapper implements GProMJavaInterface {
 		switch(p)
 		{
 		case Database:
+			libLog.debug("set key " + KEY_CONNECTION_DATABASE + " to " + value);
 			opts.setProperty(KEY_CONNECTION_DATABASE, value);
 			break;
 		case Host:
+			libLog.debug("set key " + KEY_CONNECTION_HOST + " to " + value);
 			opts.setProperty(KEY_CONNECTION_HOST, value);
 			break;
 		case Password:
+			libLog.debug("set key " + KEY_CONNECTION_PASSWORD + " to " + value);
 			opts.setProperty(KEY_CONNECTION_PASSWORD, value);
 			break;
 		case Port:
+			libLog.debug("set key " + KEY_CONNECTION_PORT + " to " + value);
 			opts.setProperty(KEY_CONNECTION_PORT, value);
 			break;
 		case User:
+			libLog.debug("set key " + KEY_CONNECTION_USER + " to " + value);
 			opts.setProperty(KEY_CONNECTION_USER, value);
 			break;
 		default:

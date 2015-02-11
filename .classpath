@@ -10,5 +10,6 @@
 	<classpathentry kind="lib" path="javalib"/>
 	<classpathentry kind="lib" path="/usr/local/lib"/>
 	<classpathentry kind="lib" path="javalib/ojdbc7.jar"/>
+	<classpathentry kind="lib" path="javatestlib/dbunit.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>

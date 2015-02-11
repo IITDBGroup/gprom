@@ -34,6 +34,7 @@ static rc testGetViewDefinition(void);
 static rc testRunTransactionAndGetXid(void);
 static rc setupMetadataLookup(void);
 static rc testDatabaseConnectionClose(void);
+static rc testReconnectConnection(void);
 
 rc
 testMetadataLookup(void)
@@ -51,6 +52,7 @@ testMetadataLookup(void)
         RUN_TEST(testGetViewDefinition(), "test get view definition");
         RUN_TEST(testRunTransactionAndGetXid(), "test transaction execution and XID retrieval");
         RUN_TEST(testDatabaseConnectionClose(), "test close database connection");
+        RUN_TEST(testReconnectConnection(), "reconnecting a database connection");
     }
 
 	return PASS;
@@ -221,6 +223,15 @@ testDatabaseConnectionClose()
 {
 	ASSERT_EQUALS_INT(EXIT_SUCCESS, databaseConnectionClose(), "test close metadata_lookup");
 	return PASS;
+}
+
+static rc
+testReconnectConnection(void)
+{
+    ASSERT_EQUALS_INT(EXIT_SUCCESS, initMetadataLookupPlugin(), "test init");
+    ASSERT_EQUALS_INT(EXIT_SUCCESS, databaseConnectionOpen(), "test open metadata_lookup");
+    ASSERT_EQUALS_INT(EXIT_SUCCESS, databaseConnectionClose(), "test close metadata_lookup");
+    return PASS;
 }
 
 /* if OCI or OCILIB are not avaible replace with dummy test */

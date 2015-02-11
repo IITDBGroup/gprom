@@ -128,10 +128,10 @@ public class GProMDriver implements Driver {
 		
 		BackendInfo i = GProMJDBCUtil.inst.getBackendInfo(backend);
 		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Database, i.getDatabase(url));
-//		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Host, i.getHost(url));
-//		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.User, i.getUser(url));
-//		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Password, i.getPassword(url));
-//		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Port, i.getPort(url));
+		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Host, i.getHost(url));
+		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.User, i.getUser(url));
+		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Password, i.getPassword(url));
+		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Port, i.getPort(url));
 	}
 
 	public DriverPropertyInfo[] getPropertyInfo(String url, Properties info)

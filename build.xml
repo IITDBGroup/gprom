@@ -1,7 +1,8 @@
 <project name="GProMJDBC" default="generateDriverJar" basedir=".">
 
 	<!-- task defs -->
-	<import file="./javalib/one-jar-ant-task.xml"/>   
+	<property name="antlibdir" value="${basedir}/ant" />
+	<import file="${antlibdir}/one-jar-ant-task.xml"/>   
 	
 	<!-- main directories -->
 	<property name="sourcedir" value="${basedir}/src/interfaces/jdbc/java" />
@@ -21,35 +22,24 @@
 	
 	<!-- targets -->
 	<target name="clean">
-		<delete includeemptydirs="true">
-			<fileset dir="${binarydir}" includes="**/*"/>
-		</delete>
 		<mkdir dir="${binarydir}" />
 		<mkdir dir="${binarydir}/darwin" />
-		<delete includeemptydirs="true">
-			<fileset dir="${builddir}" includes="**/*"/>
-		</delete>
 		<mkdir dir="${builddir}" />
+		<depend srcdir="${sourcedir}"
+		        destdir="${binarydir}"
+		        cache="depcache"
+		        closure="yes"/>
 	</target>
 
 	<target name="compile" depends="clean">
 		<copy todir="${builddir}/lib">
 			<fileset dir="${librarydir}" />
 		</copy>
-<!--		<copy todir="${binarydir}/lib">
-			<fileset dir="${librarydir}"/>
-		</copy> -->
 		<copy file="${gpromlib.darwin}" tofile="${binarydir}/darwin/libgprom.dylib" />
 		<copy file="${conffile}" tofile="${binarydir}/GPRoMDriver.properties" />
-<!--		<copy file="${sourcedir}/driver/GPRoMDriver.properties" tofile="${builddir}/lib/GPRoMDriver.properties" /> -->
 		<javac srcdir="${sourcedir}" destdir="${binarydir}"  debug="on">
 			<classpath refid="classpath"/>
-			<compilerarg value="-Xlint:unchecked" />
-			
-		</javac>
-		<javac srcdir="${testsourcedir}" destdir="${binarydir}" debug="on">
-			<classpath refid="classpath"/>
-			<compilerarg value="-Xlint:unchecked" />
+			<compilerarg value="-Xlint:unchecked" />		
 		</javac>
 	</target>
 
@@ -74,6 +64,7 @@
         <delete file="${builddir}/gprom-jdbc-one.jar"/>
         <one-jar destfile="${builddir}/gprom-jdbc-one.jar">
             <manifest>
+				<attribute name="Created-By" value="Illinois Institute of Technology, Department for Computer Science, DBGroup" />
                 <attribute name="One-Jar-Main-Class" value="com.simontuffs.onejar.sdk.Install"/>
             	<attribute name="One-Jar-Expand" value=""/>
                 <attribute name="One-Jar-Expand-Dir" value="./.expand"/>

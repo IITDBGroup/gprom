@@ -1192,6 +1192,7 @@ oracleDatabaseConnectionClose()
 
 		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 	}
+
 	return EXIT_SUCCESS;
 }
 

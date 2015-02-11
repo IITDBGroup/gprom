@@ -1,0 +1,9 @@
+DBName=testdb
+AdminDBName=template1
+User=postgres
+Password=
+Schema=public
+Path=resource/sql/
+PermPrefix=/Users/lord_pretzel/systems/aggperm/install
+PermCluster=/Users/lord_pretzel/systems/aggperm/data
+PermSource=/Users/lord_pretzel/Documents/workspace/AggPerm/
