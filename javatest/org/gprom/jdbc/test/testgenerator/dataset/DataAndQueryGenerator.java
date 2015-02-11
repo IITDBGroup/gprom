@@ -19,7 +19,7 @@ import org.dbunit.dataset.xml.XmlDataSet;
 
 /**
  *
- * Part of Project PermTester
+ * Part of Project GProM
  * @author Boris Glavic
  *
  */

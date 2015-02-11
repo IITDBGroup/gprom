@@ -3,11 +3,11 @@ package PACKAGE;
 import java.sql.SQLException;
 
 import org.junit.Test;
-import org.perm.testgenerator.AbstractPermTester;
-import org.perm.testgenerator.ConnectionOptions;
-import org.perm.testgenerator.OptionsManager;
+import org.gprom.jdbc.test.testgenerator.AbstractGProMTester;
+import org.gprom.jdbc.test.testgenerator.ConnectionOptions;
+import org.gprom.jdbc.test.testgenerator.OptionsManager;
 
-public class NAME extends AbstractPermTester {
+public class NAME extends AbstractGProMTester {
 
 	public NAME (String name) {
 		super (name);

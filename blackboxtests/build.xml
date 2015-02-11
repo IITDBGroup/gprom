@@ -15,7 +15,7 @@
 	<property name="binarydir" value="${projectroot}/javabin" />
 	<property name="dbUnitDir" value="${projectroot}/../DBUnit/bin/" />
 	<property name="packageName" value="org.gprom.jdbc.test.autotests" />
-	<property name="testsourcedir" value="${sourcedir}/org/gprom/jdbc/test/autotests" />
+	<property name="testsourcedir" value="${projectroot}/autotests" />
 	<property name="testbinarydir" value="${binarydir}/org/gprom/jdbc/test/autotests" />	
 	<property name="librarydir" value="${projectroot}/javatestlib" />
 	<property name="mainlibrarydir" value="${projectroot}/javalib" />
@@ -105,7 +105,16 @@
 		</copy>
 	</target>
 	
+	<target name="distClean">
+		<delete dir="${binarydir}" includeemptydirs="true" />
+		<delete dir="${builddir}" includeemptydirs="true" />
+		<delete dir="${testsourcedir}" includeemptydirs="true" />
+	</target>
+	
 	<target name="cleanTests" depends="adaptDDLScripts">
+		<mkdir dir="${binarydir}" />
+		<mkdir dir="${builddir}" />
+		<mkdir dir="${sourcedir}" />
 		<mkdir dir="${testsourcedir}" />
 	</target>
 	
@@ -134,7 +143,7 @@
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" 
 				value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
 			<sysproperty key="generator.resourcedir" value="${resourcedir}" />
-			<sysproperty key="generator.sourcedir" value="${sourcedir}" />
+			<sysproperty key="generator.sourcedir" value="${testsourcedir}" />
 			<sysproperty key="generator.package" value="${packageName}" />
 		</java>
 	</target>
@@ -144,7 +153,7 @@
 		        destdir="${binarydir}"
 		        cache="depcache"
 		        closure="yes"/>
-		<javac srcdir="${testsourcedir}" destdir="${binarydir}" classpathref="libraries" 
+		<javac srcdir="${testsourcedir}" destdir="${binarydir}" classpathref="runTestsClasspath" 
 			debug="on">
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>

@@ -30,6 +30,11 @@
 		        cache="depcache"
 		        closure="yes"/>
 	</target>
+	
+	<target name="distClean">
+		<delete dir="${binarydir}" includeemptydirs="true" />
+		<delete dir="${builddir}" includeemptydirs="true" />
+	</target>
 
 	<target name="compile" depends="clean">
 		<copy todir="${builddir}/lib">

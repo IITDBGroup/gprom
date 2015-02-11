@@ -73,7 +73,7 @@ public class ConnectionManager {
 			e.getMessage();
 		}
 		
-		iCon = new PermDatabaseConnection ();
+		iCon = new GProMDatabaseConnection ();
 //		config = iCon.getConfig();
 //		config.setProperty(DatabaseConfig.PROPERTY_DATATYPE_FACTORY, new OracleDataTypeFactory());
 
