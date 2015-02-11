@@ -33,3 +33,5 @@ debug.txt
 GPexamples/
 javabin/
 jdbcbuild/
+depcache
+build
