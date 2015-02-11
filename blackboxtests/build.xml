@@ -14,13 +14,15 @@
 	<property name="sourcedir" value="${projectroot}/javatest" />
 	<property name="binarydir" value="${projectroot}/javabin" />
 	<property name="dbUnitDir" value="${projectroot}/../DBUnit/bin/" />
-	<property name="packageName" value="org.gprom.jdbc.jdbc.test.autotests" />
+	<property name="packageName" value="org.gprom.jdbc.test.autotests" />
 	<property name="testsourcedir" value="${sourcedir}/org/gprom/jdbc/test/autotests" />
 	<property name="testbinarydir" value="${binarydir}/org/gprom/jdbc/test/autotests" />	
 	<property name="librarydir" value="${projectroot}/javatestlib" />
 	<property name="mainlibrarydir" value="${projectroot}/javalib" />
 	<property name="resourcedir" value="${projectroot}/blackboxtests"/>
 	<property name="builddir" value="${projectroot}/build"/>
+	<property name="generatorjar" value="${librarydir}/gprom-test-gen.jar" />
+	<property name="buildjar" value="${builddir}/gprom-jdbc-test.jar" />
 	
 	<!-- settings -->
 	<property name="permserver.options" value="--debug_print_rewritten=off --log_error_verbosity=terse --log_min_messages=error --client_min_messages=error --log_directory=${basedir}"/>
@@ -104,17 +106,7 @@
 	</target>
 	
 	<target name="cleanTests" depends="adaptDDLScripts">
-	<!--	<delete includeemptydirs="true" failonerror="false">
-			<fileset dir="${testbinarydir}" erroronmissingdir="false" includes="**/*" />
-		 </delete>
-		<mkdir dir="${testbinarydir}" />
-		<delete includeemptydirs="true" failonerror="false" >
-			<fileset dir="${testsourcedir}" erroronmissingdir="false" includes="**/*"/>
-		 </delete> -->
 		<mkdir dir="${testsourcedir}" />
-		<mkdir dir="${testsourcedir}/tpch" />
-		<mkdir dir="${testsourcedir}/wherecs" />
-		<mkdir dir="${testsourcedir}/howcs" />
 	</target>
 	
 	<target name="compile" depends="cleanTests">
@@ -129,11 +121,12 @@
 	</target>
 	
 	<target name="jarGenerator" depends="compile">
-		<jar destfile="${librarydir}/permgenerator.jar" basedir="${binarydir}">
+		<jar destfile="${generatorjar}" basedir="${binarydir}">
 			<manifest>
-				<attribute name="Created-By" value="University of Zurich, Department for Computer Science, Boris Glavic" />
+				<attribute name="Created-By" value="Illinois Institute of Technology, Department for Computer Science, Boris Glavic" />
 			</manifest>
 		</jar>
+		<copy file="${generatorjar}" tofile="${buildjar}" />
 	</target>
 	
 	<target name="genTests" depends="jarGenerator">
@@ -152,7 +145,7 @@
 		        cache="depcache"
 		        closure="yes"/>
 		<javac srcdir="${testsourcedir}" destdir="${binarydir}" classpathref="libraries" 
-			debug="on" excludes="**/.svn*">
+			debug="on">
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
