@@ -853,6 +853,17 @@ getNormalAttrNames(QueryOperator *op)
     return result;
 }
 
+List *
+getAttrRefNames(ProjectionOperator *op)
+{
+   List *result = NIL;
+
+   FOREACH(AttributeReference, a, op->projExprs)
+      result = appendToTailOfList(result, strdup(a->name));
+
+   return result;
+}
+
 int
 getNumNormalAttrs(QueryOperator *op)
 {

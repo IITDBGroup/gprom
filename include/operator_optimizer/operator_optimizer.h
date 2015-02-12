@@ -30,7 +30,10 @@ extern QueryOperator *factorAttrsInExpressions(QueryOperator *root);
 extern QueryOperator *removeRedundantProjections(QueryOperator *root);
 
 /*try to remove redundant duplicate operator */
-extern QueryOperator *removeRedundantDuplicateOperator(QueryOperator *root);
+extern QueryOperator *removeRedundantDuplicateOperatorBySet(QueryOperator *root);
+
+/*try to remove redundant duplicate operator */
+extern QueryOperator *removeRedundantDuplicateOperatorByKey(QueryOperator *root);
 
 /* try to pull up provenance projections. */
 extern QueryOperator *pullingUpProvenanceProjections(QueryOperator *root);

@@ -236,6 +236,7 @@ extern int getNumProvAttrs(QueryOperator *op);
 extern List *getNormalAttrs(QueryOperator *op);
 extern List *getNormalAttrReferences(ProjectionOperator *op, QueryOperator *op1);
 extern List *getNormalAttrNames(QueryOperator *op);
+extern List *getAttrRefNames(ProjectionOperator *op);
 extern int getNumNormalAttrs(QueryOperator *op);
 
 extern List *getQueryOperatorAttrNames (QueryOperator *op);

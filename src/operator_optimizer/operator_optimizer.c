@@ -223,11 +223,30 @@ optimizeOneGraph (QueryOperator *root)
 //    }
 
     if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
+    {
         computeKeyProp(rewrittenTree);
-    APPLY_AND_TIME_OPT("remove redundant duplicate removal operators",
-            removeRedundantDuplicateOperator,
+
+        // Set TRUE for each Operator
+        initializeSetProp(rewrittenTree);
+        // Set FALSE for root
+        setStringProperty((QueryOperator *) rewrittenTree, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
+        computeSetProp(rewrittenTree);
+
+        List *icols =  getAttrNames(GET_OPSCHEMA(root));
+    	//char *a = (char *)getHeadOfListP(icols);
+    	Set *seticols = MAKE_STR_SET(strdup((char *)getHeadOfListP(icols)));
+    	FOREACH(char, a, icols)
+    		addToSet (seticols, a);
+
+    	initializeIColProp(rewrittenTree, seticols);
+    }
+    APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
+            removeRedundantDuplicateOperatorBySet,
             OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
 
+    APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by key",
+               removeRedundantDuplicateOperatorByKey,
+               OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
 //
 //    if(getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
 //    {
@@ -376,7 +395,26 @@ factorAttrsInExpressions(QueryOperator *root)
 }
 
 QueryOperator *
-removeRedundantDuplicateOperator(QueryOperator *root)
+removeRedundantDuplicateOperatorBySet(QueryOperator *root)
+{
+	if(isA(root, DuplicateRemoval) && (GET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET) == TRUE))
+	{
+		QueryOperator *lChild = OP_LCHILD(root);
+
+		// Remove Parent and make lChild as the new parent
+		switchSubtrees((QueryOperator *) root, lChild);
+		root = lChild;
+	}
+
+    FOREACH(QueryOperator, o, root->inputs)
+        removeRedundantDuplicateOperatorBySet(o);
+
+    return root;
+}
+
+
+QueryOperator *
+removeRedundantDuplicateOperatorByKey(QueryOperator *root)
 {
     QueryOperator *lChild = OP_LCHILD(root);
 
@@ -389,15 +427,15 @@ removeRedundantDuplicateOperator(QueryOperator *root)
          * remove Duplicate Operator
          */
         if (l1 != NULL)
-	{
+        {
             // Remove Parent and make lChild as the new parent
-	    switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
-	    root = lChild;
-	}
+        	switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
+	    	root = lChild;
+        }
     }
 
     FOREACH(QueryOperator, o, root->inputs)
-        removeRedundantDuplicateOperator(o);
+        removeRedundantDuplicateOperatorByKey(o);
 
     return root;
 }
