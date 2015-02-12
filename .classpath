@@ -12,5 +12,11 @@
 	<classpathentry kind="lib" path="/usr/local/lib"/>
 	<classpathentry kind="lib" path="javalib/ojdbc7.jar"/>
 	<classpathentry kind="lib" path="javatestlib/dbunit.jar"/>
+	<classpathentry kind="lib" path="javatestlib/junit-4.5.jar"/>
+	<classpathentry kind="lib" path="javatestlib/postgresql-8.0-317.jdbc3.jar"/>
+	<classpathentry kind="lib" path="javatestlib/slf4j-api-1.5.2.jar"/>
+	<classpathentry kind="lib" path="javatestlib/slf4j-simple-1.5.2.jar"/>
+	<classpathentry kind="lib" path="build/gprom-jdbc-test.jar"/>
+	<classpathentry kind="lib" path="jdbcbuild/gpromjdbc.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>

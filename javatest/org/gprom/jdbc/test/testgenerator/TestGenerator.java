@@ -23,13 +23,13 @@ public class TestGenerator {
 		    + "\t\ttestSingleQuery(NUM);\n"
 		    + "\t}\n";
 	
-	private HashMap<String,PermSuite> suites;
+	private HashMap<String,GProMSuite> suites;
 	private String TestCase;
 	private String TestSuite;
 	private String OptionsTestCase;
 	private File testDir;
 	private String packageName;
-	private PermSuite allTests;
+	private GProMSuite allTests;
 	
 	public TestGenerator (File testDir, String packageName) throws IOException {
 		this.testDir = testDir;
@@ -78,10 +78,10 @@ public class TestGenerator {
 		for (int i = 0; i < OptionsManager.getInstance().getNumSettings(); i++) {
 			settingNum = i + 1;
 			
-			suites = new HashMap<String,PermSuite> ();
-			allTests = new PermSuite ("AllTests_" + settingNum);
+			suites = new HashMap<String,GProMSuite> ();
+			allTests = new GProMSuite ("AllTests_" + settingNum);
 			suites.put("allTests_" + settingNum, allTests);
-			//allTests.addChild(new PermSuite("SetOptions_" + (i + 1)));
+			//allTests.addChild(new GProMSuite("SetOptions_" + (i + 1)));
 			
 			generateTestRun();
 		}
@@ -112,14 +112,14 @@ public class TestGenerator {
 	}
 	
 	public void generateOptionsSuites () throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
-		PermSuite optionSuite;
+		GProMSuite optionSuite;
 		String output;
 		
-		optionSuite = new PermSuite ("AllTestsOptions");
+		optionSuite = new GProMSuite ("AllTestsOptions");
 		
 		for (int i = 0; i < OptionsManager.getInstance().getNumSettings(); i++) {
 			generateSetOption (i + 1);
-			optionSuite.addChildWithDupes(new PermSuite("AllTests_" + (i + 1)));
+			optionSuite.addChildWithDupes(new GProMSuite("AllTests_" + (i + 1)));
 		}
 		
 		output = TestSuite;
@@ -144,10 +144,10 @@ public class TestGenerator {
 	
 	private void finalizeSuites () throws IOException {
 		java.util.Iterator<String> iter;
-		PermSuite suite;
+		GProMSuite suite;
 		String output;
 		
-		allTests.addChild(new PermSuite("ReportPrinter"));
+		allTests.addChild(new GProMSuite("ReportPrinter"));
 		iter = suites.keySet().iterator();
 		
 		while (iter.hasNext()) {
@@ -169,7 +169,7 @@ public class TestGenerator {
 	private void generateTest (DataAndQueryGenerator generator, String name) throws IOException {
 		String output;
 		StringBuffer tests;
-		PermSuite suite;
+		GProMSuite suite;
 		String runName;
 		
 		tests = new StringBuffer ();
@@ -213,8 +213,8 @@ public class TestGenerator {
 	private void generateSuitesFromFileName (String fileName) {
 		String[] parts;
 		String curName;
-		PermSuite curSuite;
-		PermSuite oldSuite;
+		GProMSuite curSuite;
+		GProMSuite oldSuite;
 		
 		System.out.println("create Suites for " + fileName + " " + settingNum);
 		
@@ -237,7 +237,7 @@ public class TestGenerator {
 				curSuite = suites.get(curName);
 			}
 			else {
-				curSuite = new PermSuite (curName);
+				curSuite = new GProMSuite (curName);
 			}
 			
 			suites.put(curName, curSuite);

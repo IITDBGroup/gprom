@@ -1,9 +1,22 @@
+# Backend
+Backend=Oracle
+
+# general connection options
+Host=ligeti.cs.iit.edu
+Port=1521
 DBName=testdb
-AdminDBName=template1
-User=postgres
-Password=
+User=fga_user
+Password=fga
 Schema=public
-Path=resource/sql/
-PermPrefix=/Users/lord_pretzel/systems/aggperm/install
-PermCluster=/Users/lord_pretzel/systems/aggperm/data
-PermSource=/Users/lord_pretzel/Documents/workspace/AggPerm/
+
+# path of these tests
+Path=resource/PI_CS_queries/
+
+# Oracle specific configuration
+Oracle.SID=orcl
+
+# Postgres specific configuration
+Postgres.AdminDBName=template1
+Postgres.Prefix=/Users/lord_pretzel/systems/aggperm/install
+Postgres.Cluster=/Users/lord_pretzel/systems/aggperm/data
+Postgres.Source=/Users/lord_pretzel/Documents/workspace/AggPerm/

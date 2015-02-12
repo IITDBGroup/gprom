@@ -13,6 +13,8 @@ import java.util.InvalidPropertiesFormatException;
 import java.util.Properties;
 import java.util.Vector;
 
+import org.gprom.jdbc.driver.GProMConnection;
+
 
 /**
  *
@@ -60,7 +62,7 @@ public class OptionsManager {
 	}
 	
 	public void resetOptions (Connection con) throws Exception {
-		setOptions(con);
+		setOptions((GProMConnection) con);
 	}
 	
 	public int getNumOptions () {
@@ -126,23 +128,22 @@ public class OptionsManager {
 		}
 	}
 	
-	private void setOptions (Connection con) throws SQLException {
+	private void setOptions (GProMConnection con) throws SQLException {
 		Statement st;
 		String sql;
 		
-		st = con.createStatement();
+//		st = con.createStatement();
 		
 		for (int i = 0; i < options.size(); i++) {
-			sql = "SET " + options.get(i) + " TO " + currentSettings.get(i) + ";";
-			st.execute(sql);
+			con.setProperty(options.get(i), currentSettings.get(i));
 		}
 		
-		st.close();
-		con.commit();
+//		st.close();
+//		con.commit();
 	}
 	
 	private void setOptions () throws Exception {
-		setOptions (ConnectionManager.getInstance().getConnection());
+		setOptions (ConnectionManager.getInstance().getGProMConnection());
 	}
 	
 }

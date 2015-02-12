@@ -9,7 +9,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Properties;
 
-
 /**
  *
  * Part of Project PermTester
@@ -22,7 +21,7 @@ public class ConnectionOptions {
 	private Properties props;
 	
 	private ConnectionOptions () throws FileNotFoundException, IOException {
-		File pFile = new File(TestGenerator.resourceDir + "/options.txt");
+		File pFile = new File(System.getProperty("generator.resourcedir") + "/options.txt");
 		props = new Properties ();
 		System.out.println(pFile.getAbsolutePath());
 		
@@ -35,6 +34,24 @@ public class ConnectionOptions {
 		
 		return instance;
 	}
+	
+	public String getBackend() {
+		return props.getProperty("Backend");
+	}
+	
+	public String getBackendOption (String key) {
+		return props.getProperty(getBackend() + "." + key);
+	}
+	
+	public String getHost () {
+		return props.getProperty("Host");
+	}
+	
+	public int getPort () {
+		return Integer.valueOf(props.getProperty("Port"));
+	}
+	
+	
 	
 	public String getDbName () {
 		return props.getProperty("DBName");
