@@ -15,7 +15,14 @@
 #include "include/model/set/set.h"
 
 extern void computeKeyProp (QueryOperator *root);
+
 extern void computeECProp (QueryOperator *root);
+extern void computeECPropBottomUp (QueryOperator *root);
+extern List *GenerateCondECSetListUsedInBottomUp(List *CondECSetList, Operator *op);
+extern List *CombineDuplicateElemSetInECList(List *DupECList);
+extern List *LSCHtoRSCH(List *setList, List *rECSetList, List *lSchemaList, List *rSchemaList);
+extern void computeECPropTopDown (QueryOperator *root);
+
 extern void computeReqColProp (QueryOperator *root);
 extern void computeSetProp (QueryOperator *root);
 
