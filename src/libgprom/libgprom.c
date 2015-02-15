@@ -18,6 +18,8 @@
 #include "libgprom/libgprom.h"
 #include "rewriter.h"
 
+#define LIBARY_REWRITE_CONTEXT "LIBGRPROM_QUERY_CONTEXT"
+
 void
 gprom_init(void)
 {
@@ -55,7 +57,8 @@ void gprom_shutdown(void)
 const char *
 gprom_rewriteQuery(const char *query)
 {
-    return (const char *) rewriteQuery((char *) query);
+    NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+    RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(rewriteQuery((char *) query));
 }
 
 
@@ -63,6 +66,12 @@ void
 gprom_registerLoggerCallbackFunction (GProMLoggerCallbackFunction callback)
 {
     registerLogCallback(callback);
+}
+
+void
+gprom_registerExceptionCallbackFunction (GProMExceptionCallbackFunction callback)
+{
+
 }
 
 void

@@ -324,6 +324,45 @@ freeCurMemContext(const char *file, unsigned line)
 }
 
 /*
+ * Free a memory context and its children. The context has to be on the stack.
+ * Returns and aquires the parent of the memory context.
+ */
+MemContext *
+freeMemContextAndChildren(char *contextName)
+{
+    MemContextNode *cur = topContextNode;
+    boolean found = FALSE;
+    char *curName;
+
+    // search for memcontext with the given name
+    for(;cur != NULL; cur = cur->next)
+    {
+        if (streq(cur->mc->contextName,contextName))
+        {
+            found = TRUE;
+            break;
+        }
+    }
+
+    // there is not much hope to recover here
+    if (!found)
+    {
+        fprintf(stderr, "trying to free memory context that currently not on the stack %s", contextName);
+        exit(1);
+    }
+
+    // free all children and requested memory context
+    do
+    {
+        curName = strdup(curMemContext->contextName);
+        FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+        cur = topContextNode;
+    } while(!streq(curName,contextName));
+
+    return cur->mc;
+}
+
+/*
  * Allocates memory and records it in the current memory context.
  */
 void *

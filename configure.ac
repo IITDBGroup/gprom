@@ -319,6 +319,7 @@ AC_CONFIG_FILES([
 	src/analysis_and_translate/Makefile
 	src/command_line/Makefile
 	src/configuration/Makefile
+	src/exception/Makefile
 	src/execution/Makefile
 	src/instrumentation/Makefile
 	src/interfaces/Makefile

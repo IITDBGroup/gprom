@@ -98,7 +98,7 @@ addUpdateAnnotationAttrs (ProvenanceComputation *op)
         QueryOperator *q = (QueryOperator *) LC_P_VAL(trLc);
         Node *u = (Node *) LC_P_VAL(uLc);
 //        Node *annotAttr;
-        char *annotName;
+        char *annotName = NULL;
 
         switch (u->type) {
             case T_Insert:

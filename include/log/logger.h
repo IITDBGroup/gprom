@@ -62,7 +62,6 @@ extern LogLevel maxLevel;
 #define FATAL_LOG(template, ...) \
     do { \
         log_(LOG_FATAL, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
-        exit(1); \
     } while (0)
 #define ERROR_LOG(template, ...) \
     do { \

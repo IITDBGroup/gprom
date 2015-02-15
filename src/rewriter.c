@@ -17,7 +17,7 @@
 #include "log/logger.h"
 #include "configuration/option.h"
 #include "configuration/option_parser.h"
-
+#include "exception/exception.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -161,15 +161,20 @@ char *
 rewriteQuery(char *input)
 {
     Node *parse;
-    char *result;
+    char *result = "";
 
-    NEW_AND_ACQUIRE_MEMCONTEXT("Query Context");
+    NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
 
-    parse = parseFromString(input);
-    DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+    TRY
+    {
+        parse = parseFromString(input);
 
-    result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
-    INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
+        DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+
+        result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
+        INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
+    }
+    END_TRY
 
     RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }

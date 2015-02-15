@@ -246,7 +246,7 @@ STARALL				TOK(STARALL)
 /* use logging framework in the future */
 void yyerror(char *s)
 {
-	ERROR_LOG("%s at %s\n", s, yytext);
+	FATAL_LOG("%s at %s\n", s, yytext);
 }
 
 void setupStringInput(char *input)

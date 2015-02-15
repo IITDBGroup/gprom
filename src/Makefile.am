@@ -4,6 +4,7 @@ AM_CFLAGS = @GPROM_CFLAGS@
 SUBDIRS = configuration 		\
 		log			 			\
 		mem_manager				\
+		exception				\
 		instrumentation			\
 		model					\
 		utility					\
@@ -23,6 +24,7 @@ noinst_LTLIBRARIES 		= libsrc.la
 libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
 						log/liblog.la \
 						mem_manager/libmem_manager.la \
+						exception/libexception.la \
 						model/libmodel.la \
 						provenance_rewriter/libprovenance_rewriter.la \
 						parser/libparser.la \

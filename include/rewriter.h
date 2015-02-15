@@ -14,6 +14,8 @@
 #include "common.h"
 #include "model/list/list.h"
 
+#define QUERY_MEM_CONTEXT "QUERY_CONTEXT"
+
 extern int initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[]);
 extern int initBasicModules (void);
 extern void setupPluginsFromOptions(void);

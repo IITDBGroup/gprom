@@ -1052,7 +1052,7 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 {
     OCI_Transaction *t;
     OCI_Resultset *rs;
-    Constant *xid;
+    Constant *xid = NULL;
 
     if (!isConnected())
         FATAL_LOG("No connection to database");

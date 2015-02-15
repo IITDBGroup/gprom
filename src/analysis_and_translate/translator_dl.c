@@ -650,7 +650,7 @@ translateGoal(DLAtom *r, int goalPos)
 
     FORBOTH(Node,var,attr,r->args,rename->op.schema->attrDefs)
     {
-        char *n;
+        char *n = NULL;
         AttributeDef *d = (AttributeDef *) attr;
 
         if(isA(var,DLVar))
