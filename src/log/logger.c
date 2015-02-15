@@ -20,6 +20,7 @@
 
 #include "common.h"
 #include "instrumentation/timing_instrumentation.h"
+#include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "log/termcolor.h"
 #include "model/node/nodetype.h"
@@ -156,6 +157,27 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
         fprintf(out, "\n");
         fflush(out);
     }
+}
+
+char *
+formatMes(const char *template, ...)
+{
+    boolean success = FALSE;
+    buffer->len = 0;
+    buffer->cursor = 0;
+    buffer->data[0] = '\0';
+
+    // use string info as buffer to deal with large strings
+    while(!success)
+    {
+        va_list args;
+
+        va_start(args, template);
+        success = vAppendBuf(buffer, template, args);
+        va_end(args);
+    }
+
+    return strdup(buffer->data);
 }
 
 static boolean

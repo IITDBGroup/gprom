@@ -173,10 +173,18 @@ rewriteQuery(char *input)
 
         result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
         INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
+        RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
     }
-    END_TRY
-
-    RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+    ON_EXCEPTION
+    {
+        // if an exception is thrown then the query memory context has been
+        // destroyed and we can directly create an empty string in the callers
+        // context
+        result = strdup("");
+        DEBUG_LOG("allocated in memory context: %s", getCurMemContext()->contextName);
+    }
+    END_ON_EXCEPTION
+    return result;
 }
 
 char *

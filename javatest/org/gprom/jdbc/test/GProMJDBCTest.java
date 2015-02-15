@@ -58,8 +58,7 @@ public class GProMJDBCTest {
 
 		con.getW().setBoolOption("pi_cs_use_composable", true);
 		con.getW().setBoolOption("optimize_operator_model", true);
-//		con.getW().setIntOption("log.level", 2);
-		con.getW().setLogLevel(3);
+		con.getW().setLogLevel(4);
 		log.error("log.level=" + con.getW().getIntOption("log.level"));
 		log.error("log.active=" +  con.getW().getBoolOption("log.active"));
 		log.error("pi_cs_use_composable=" +  con.getW().getBoolOption("pi_cs_use_composable"));
@@ -76,8 +75,21 @@ public class GProMJDBCTest {
 		
 		log.error("statement created");
 		ResultSet rs = st.executeQuery("PROVENANCE OF (SELECT sum(a) FROM r GROUP BY b);");
-//		ResultSet rs = st.executeQuery("PROVENANCE OF (SELECT * FROM R);");
+		printResult(rs);
+		
+		rs = st.executeQuery("PROVENANCE OF (SELECT * FROM R);");
+		printResult(rs);
+		
+		// test error
+		rs = st.executeQuery("PROVENANCE OF (SELECT * FRO R);");
+		
+		
+		
+		log.error("statement shutdown");
+		con.close();
+	}
 
+	private static void printResult(ResultSet rs) throws SQLException {
 		/********************************************************************************/
 		System.out.println();
 		System.out.println("-------------------------------------------------------------------------------");
@@ -94,9 +106,6 @@ public class GProMJDBCTest {
 		System.out.println("-------------------------------------------------------------------------------");
 		System.out.println();
 		System.out.println();
-		
-		log.error("statement shutdown");
-		con.close();
 	}
 	
 }

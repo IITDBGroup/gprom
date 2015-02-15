@@ -30,6 +30,17 @@ public interface GProMJavaInterface {
 		Database
 	}
 	
+	public enum ExceptionHandler {
+		Die,
+		Abort,
+		Wipe
+	}
+	
+	public enum ExceptionSeverity {
+		Recoverable,
+		Panic
+	}
+	
 	/* rewrite */
 	public String gpromRewriteQuery (String query) throws SQLException;
 	

@@ -19,6 +19,6 @@ public class NativeException extends SQLException {
 	}
 	
 	public NativeException(String s){
-		super();
+		super(s);
 	}
 }

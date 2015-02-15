@@ -58,7 +58,9 @@ const char *
 gprom_rewriteQuery(const char *query)
 {
     NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
-    RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(rewriteQuery((char *) query));
+    char *result = "";
+    result = rewriteQuery((char *) query);
+    RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }
 
 
@@ -71,7 +73,7 @@ gprom_registerLoggerCallbackFunction (GProMLoggerCallbackFunction callback)
 void
 gprom_registerExceptionCallbackFunction (GProMExceptionCallbackFunction callback)
 {
-
+    registerExceptionCallback((GProMExceptionCallbackFunctionInternal) callback);
 }
 
 void

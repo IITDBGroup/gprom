@@ -15,10 +15,13 @@
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
+#include "exception/exception.h"
 #include "log/logger.h"
 #include "uthash.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
+
+#define DEFAULT_MEM_CONTEXT_NAME "DEFAULT_MEMORY_CONTEXT"
 
 // override the defaults for UT_hash memory allocation to use standard malloc
 #undef uthash_malloc
@@ -29,8 +32,6 @@
 // use actual malloc and free functions
 #undef free
 #undef malloc
-
-#define DEFAULT_MEM_CONTEXT_NAME "DEFAULT_MEMORY_CONTEXT"
 
 typedef struct MemContextNode
 {
@@ -332,7 +333,7 @@ freeMemContextAndChildren(char *contextName)
 {
     MemContextNode *cur = topContextNode;
     boolean found = FALSE;
-    char *curName;
+    char *curName = NULL;
 
     // search for memcontext with the given name
     for(;cur != NULL; cur = cur->next)
@@ -354,10 +355,18 @@ freeMemContextAndChildren(char *contextName)
     // free all children and requested memory context
     do
     {
-        curName = strdup(curMemContext->contextName);
+        // cannot use memory manager MALLOC here
+        if (curName)
+            free(curName);
+        curName = malloc(strlen(curMemContext->contextName) + 1);
+        strcpy(curName,curMemContext->contextName);
         FREE_AND_RELEASE_CUR_MEM_CONTEXT();
         cur = topContextNode;
     } while(!streq(curName,contextName));
+    if (curName)
+        free(curName);
+
+    INFO_LOG("now in context %s", curMemContext->contextName);
 
     return cur->mc;
 }
@@ -444,4 +453,10 @@ contextStringDup(char *input)
     result = strcpy(result, input);
 
     return result;
+}
+
+MemContext *
+getDefaultMemContext(void)
+{
+    return defaultMemContext;
 }

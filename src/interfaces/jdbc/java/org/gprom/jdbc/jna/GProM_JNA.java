@@ -43,11 +43,17 @@ public interface GProM_JNA extends Library {
     public String gprom_getOptionType(String key);
     public boolean gprom_optionExists(String key);
     
-    // logging and error callback interface
+    // logging  callback interface
     interface GProMLoggerCallbackFunction extends Callback {
         void invoke(String message, String fileInfo, int line, int logLevel);
     }
     
+    // exception callback interface
+    interface GProMExceptionCallbackFunction extends Callback {
+    	int invoke(String message, String file, int line, int severity);
+    }
+    
+    public void gprom_registerExceptionCallbackFunction (GProMExceptionCallbackFunction callback);
 	public void gprom_registerLoggerCallbackFunction (GProMLoggerCallbackFunction callback);
 	public void gprom_setMaxLogLevel (int maxLevel);
 }

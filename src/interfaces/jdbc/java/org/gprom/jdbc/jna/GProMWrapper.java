@@ -4,6 +4,8 @@
 package org.gprom.jdbc.jna;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 import org.apache.log4j.Level;
@@ -29,8 +31,31 @@ public class GProMWrapper implements GProMJavaInterface {
 	public static final String KEY_CONNECTION_PASSWORD = "connection.passwd";
 	public static final String KEY_CONNECTION_PORT = "connection.port";
 	
-	private GProM_JNA.GProMLoggerCallbackFunction callbackReference;
+	private class ExceptionInfo {
 	
+		public String message;
+		public String file;
+		public int line;
+		public ExceptionSeverity severity;
+		
+		public ExceptionInfo (String message, String file, int line, ExceptionSeverity severity) {
+			this.message = message;
+			this.file = file;
+			this.line = line;
+			this.severity = severity;
+		}
+		
+		public String toString() {
+			return severity.toString() + ":" + file + "-" + line + " " + message ;
+		}
+		
+	}
+	
+	private GProM_JNA.GProMLoggerCallbackFunction loggerCallback;
+	private GProM_JNA.GProMExceptionCallbackFunction exceptionCallback;
+	private List<ExceptionInfo> exceptions;
+	
+	// singleton instance	
 	public static GProMWrapper inst = new GProMWrapper ();
 
 	public static GProMWrapper getInstance () {
@@ -38,7 +63,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	}
 
 	private GProMWrapper () {
-
+		exceptions = new ArrayList<ExceptionInfo> ();
 	}
 
 	/* (non-Javadoc)
@@ -47,19 +72,45 @@ public class GProMWrapper implements GProMJavaInterface {
 	@Override
 	public String gpromRewriteQuery(String query) throws SQLException {
 		Pointer p =  GProM_JNA.INSTANCE.gprom_rewriteQuery(query);
-		String result = p.getString(0).replaceFirst(";\\s+\\z", "");
+		String result = p.getString(0);
+		
+		// check whether exception has occured
+		if (exceptions.size() > 0) {
+			StringBuilder mes = new StringBuilder();
+			for(ExceptionInfo i: exceptions)
+			{
+				mes.append("ERROR (" + i + ")");
+				mes.append(i.toString());
+				mes.append("\n\n");
+			}
+			exceptions.clear();
+			libLog.error("have encountered exception");
+			throw new NativeException("Error during rewrite:\n" + mes.toString());
+		}
+		//TODO use string builder to avoid creation of two large strings
+		result = result.replaceFirst(";\\s+\\z", "");
 		libLog.info("HAVE REWRITTEN:\n\n" + query + "\n\ninto:\n\n" + result);
 		return result;
 	}
 
 	public void init () {
-		callbackReference = new GProM_JNA.GProMLoggerCallbackFunction () {
+		loggerCallback = new GProM_JNA.GProMLoggerCallbackFunction () {
 			public void invoke(String message, String file, int line, int level) {
-				logCallback(message, file, line, level);
+				logCallbackFunction(message, file, line, level);
 			}
 		};
+		
+		exceptionCallback = new GProM_JNA.GProMExceptionCallbackFunction() {
+			
+			@Override
+			public int invoke(String message, String file, int line, int severity) {
+				return exceptionCallbackFunction(message, file, line, severity);
+			}
 
-		GProM_JNA.INSTANCE.gprom_registerLoggerCallbackFunction(callbackReference);
+		};
+
+		GProM_JNA.INSTANCE.gprom_registerLoggerCallbackFunction(loggerCallback);
+		GProM_JNA.INSTANCE.gprom_registerExceptionCallbackFunction(exceptionCallback);
 		GProM_JNA.INSTANCE.gprom_init();
 		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(4);
 	}
@@ -70,15 +121,6 @@ public class GProMWrapper implements GProMJavaInterface {
 		GProM_JNA.INSTANCE.gprom_setIntOption("log.level", level);
 		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(level);
 	}
-
-//	public void setupOptions (Properties opts)
-//	{
-//		for(Object key: opts.keySet())
-//		{
-//			String k = (String) key;
-//			setStringOption(k, opts.getProperty(k));
-//		}
-//	}
 
 	public void setupOptions (String[] opts)
 	{
@@ -107,12 +149,21 @@ public class GProMWrapper implements GProMJavaInterface {
 		GProM_JNA.INSTANCE.gprom_shutdown();
 	}
 
-	private void logCallback (String message, String file, int line, int level) {
+	private void logCallbackFunction (String message, String file, int line, int level) {
 		String printMes = file + " at " + line + ": " + message;
 
 		libLog.log(intToLogLevel(level), printMes);
 	}
 
+	private int exceptionCallbackFunction(String message, String file,
+			int line, int severity) {
+		String printMes = "EXCEPTION: " + file + " at " + line + ": " + message;
+		libLog.error(printMes);
+		exceptions.add(new ExceptionInfo(message, file, line, intToSeverity(severity)));
+		return exceptionHandlerToInt(ExceptionHandler.Abort);
+	}
+
+	
 	public Level intToLogLevel (int in)
 	{
 		if (in == 0 || in == 1)
@@ -271,5 +322,25 @@ public class GProMWrapper implements GProMJavaInterface {
 		}
 	}
 	
+	private int exceptionHandlerToInt (ExceptionHandler h) {
+		switch(h) {
+		case Abort:
+			return 1;
+		case Die:
+			return 0;
+		case Wipe:
+			return 2;
+		default:
+			return 0;
+		}
+	}
+	
+	private ExceptionSeverity intToSeverity (int s) {
+		if (s == 0)
+			return ExceptionSeverity.Recoverable;
+		if (s == 1)
+			return ExceptionSeverity.Panic;
+		return ExceptionSeverity.Panic;
+	}
 	
 }

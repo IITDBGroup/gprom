@@ -25,35 +25,17 @@ extern const char *gprom_rewriteQuery(const char *query);
 // takes message, c-file, line, loglevel
 typedef void (*GProMLoggerCallbackFunction) (const char *,const char *,int,int);
 
-// enum used as return value for exception handler. Indicates to GProM what to do
-// EXECPTION_DIE: exit(1)
-// EXCEPTION_ABORT: abort processing the current query
-// EXCEPTION_WIPE: abort processing the curren query. Also  wipe all mem contexts except the top-level one, and reinitialize plugins
-typedef enum ExceptionHandler {
-    EXCEPTION_DIE,
-    EXCEPTION_ABORT,
-    EXCEPTION_WIPE
-} ExceptionHandler;
-
-/*
- * Enum indicating severity of an exception
- */
-typedef enum ExceptionSeverity {
-    SEVERITY_PANIC,
-    SEVERITY_RECOVERABLE
-} ExceptionSeverity;
-
 // callback interface for exception handling (application can deal with exception
 // takes message, c-file, line, severity
 // return value indicates what to do
-typedef ExceptionHandler (*GProMExceptionCallbackFunction) (const char *, const char *, int, ExceptionSeverity);
+typedef ExceptionHandler (*GProMExceptionCallbackFunction) (const char *, const char *, int, int);
 
+// register handlers and set log level
 extern void gprom_registerLoggerCallbackFunction (GProMLoggerCallbackFunction callback);
 extern void gprom_registerExceptionCallbackFunction (GProMExceptionCallbackFunction callback);
 extern void gprom_setMaxLogLevel (int maxLevel);
 
-// provide the same for exception handling
-//void registerExecptionHandler ()
+
 
 // interface to configuration
 extern const char *gprom_getStringOption (const char *name);
