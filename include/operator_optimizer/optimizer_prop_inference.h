@@ -23,6 +23,10 @@ extern List *CombineDuplicateElemSetInECList(List *DupECList);
 extern List *LSCHtoRSCH(List *setList, List *rECSetList, List *lSchemaList, List *rSchemaList);
 extern void computeECPropTopDown (QueryOperator *root);
 
+//used in projection bottom up
+extern List *getAttrNameFromOpExpList(List *aNameOpList, Operator *opExpList);
+extern List *SCHAtoBUsedInProJ(List *setList, List *childECSetList, List *attrA, List *attrB);
+
 extern void computeReqColProp (QueryOperator *root);
 extern void computeSetProp (QueryOperator *root);
 
