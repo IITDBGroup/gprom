@@ -24,14 +24,14 @@ extern List *LSCHtoRSCH(List *setList, List *rECSetList, List *lSchemaList, List
 extern void computeECPropTopDown (QueryOperator *root);
 
 //used in projection bottom up
-extern List *getAttrNameFromOpExpList(List *aNameOpList, Operator *opExpList);
+
 extern List *SCHAtoBUsedInProJ(List *setList, List *childECSetList, List *attrA, List *attrB);
 
 extern void computeReqColProp (QueryOperator *root);
 extern void computeSetProp (QueryOperator *root);
 
 extern void initializeSetProp(QueryOperator *root);
-extern void initializeIColProp(QueryOperator *root, Set *seticols);
+extern void initializeIColProp(QueryOperator *root);
 
 extern Set* AddAttrOfSelectCondToSet(Set *set, Operator *op);
 

@@ -238,7 +238,8 @@ optimizeOneGraph (QueryOperator *root)
     	FOREACH(char, a, icols)
     		addToSet (seticols, a);
 
-    	initializeIColProp(rewrittenTree, seticols);
+    	initializeIColProp(rewrittenTree);
+    	computeReqColProp(rewrittenTree);
     }
     APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
             removeRedundantDuplicateOperatorBySet,

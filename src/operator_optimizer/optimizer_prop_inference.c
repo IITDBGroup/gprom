@@ -576,34 +576,6 @@ computeECPropTopDown (QueryOperator *root)
 	}
 }
 
-//e.g. op = a + (b+2), then aNameOpList = {a,b}
-List *
-getAttrNameFromOpExpList(List *aNameOpList, Operator *opExpList)
-{
-	Node *left  = (Node *)getHeadOfListP(opExpList->args);
-	Node *right = (Node *)getTailOfListP(opExpList->args);
-
-	if(isA(left, Operator))
-	{
-		aNameOpList = getAttrNameFromOpExpList(aNameOpList, (Operator *)left);
-	}
-	else if(isA(left, AttributeReference))
-	{
-		aNameOpList = appendToTailOfList(aNameOpList, ((AttributeReference *)left)->name);
-	}
-
-	if(isA(right, Operator))
-	{
-		aNameOpList = getAttrNameFromOpExpList(aNameOpList, (Operator *)right);
-	}
-	else if(isA(right, AttributeReference))
-	{
-		aNameOpList = appendToTailOfList(aNameOpList, ((AttributeReference *)right)->name);
-	}
-
-	return aNameOpList;
-
-}
 
 List *
 SCHAtoBUsedInProJ(List *setList, List *childECSetList, List *attrA, List *attrB)
@@ -887,15 +859,7 @@ computeSetProp (QueryOperator *root)
 }
 
 
-void initializeIColProp(QueryOperator *root, Set *seticols)
-{
-	setStringProperty((QueryOperator *)root, PROP_STORE_SET_ICOLS, (Node *)seticols);
 
-	FOREACH(QueryOperator, o, root->inputs)
-	{
-		initializeIColProp(o, seticols);
-	}
-}
 
 Set *
 AddAttrOfSelectCondToSet(Set *set, Operator *op)
@@ -911,8 +875,16 @@ AddAttrOfSelectCondToSet(Set *set, Operator *op)
        else if(isA(getHeadOfList(op->args),AttributeReference))
        {
     	   char * attrName = ((AttributeReference *)getHeadOfList(op->args))->name;
-    	   //TODO: add attrName to set
-    	   addToSet(set, attrName);
+    	   addToSet(set, strdup(attrName));
+    	   //add attrName to set
+    	   /*if(setSize(set) == 0)
+    	   {
+    		   set = MAKE_STR_SET(strdup(attrName));
+    	   }
+    	   else
+    	   {
+    		   addToSet(set, strdup(attrName));
+    	   }*/
        }
 //       else if(isA(getHeadOfList(op->args),Constant))
 //       {
@@ -928,8 +900,16 @@ AddAttrOfSelectCondToSet(Set *set, Operator *op)
        else if(isA(getTailOfList(op->args),AttributeReference))
        {
     	   char * attrName = ((AttributeReference *)getTailOfList(op->args))->name;
-    	   //TODO: add attrName to set
-    	   addToSet(set, attrName);
+    	   addToSet(set, strdup(attrName));
+    	   //add attrName to set
+    	   /*if(setSize(set) == 0)
+    	   {
+    		   set = MAKE_STR_SET(strdup(attrName));
+    	   }
+    	   else
+    	   {
+    		   addToSet(set, strdup(attrName));
+    	   }*/
        }
 //       else if(isA(getTailOfList(op->args),Constant))
 //       {
@@ -939,6 +919,20 @@ AddAttrOfSelectCondToSet(Set *set, Operator *op)
    }
 
    return set;
+}
+
+void initializeIColProp(QueryOperator *root)
+{
+	Set *icols;
+	List *icolsList = NIL;
+	icolsList = getQueryOperatorAttrNames(root);
+	icols = makeStrSetFromList(icolsList);
+	setStringProperty((QueryOperator *)root, PROP_STORE_SET_ICOLS, (Node *)icols);
+
+	//FOREACH(QueryOperator, o, root->inputs)
+	//{
+	//	initializeIColProp(o, seticols);
+	//}
 }
 
 /*
@@ -953,117 +947,170 @@ computeReqColProp (QueryOperator *root)
 	if (isA(root, SelectionOperator))
 	{
 		Set *rooticols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
-		Set *childicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		//Set *childicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
 
-		// TODO Get the conditions of Selection Operator and add it to Set
+		//Get the conditions of Selection Operator and add it to Set
 		Operator *condOp = (Operator *)(((SelectionOperator *)root)->cond);
-
-		//TODO Initialize Set without having some value
-		Set *condicols = MAKE_STR_SET(strdup("EMPTY"));
-
+		Set *condicols = STRSET();
 		condicols = AddAttrOfSelectCondToSet(condicols,condOp);
 
-		// TODO Union all three sets and set it as its child icols property
+		//Union this two sets and set it as its child icols property
 		Set *eicols;
-		eicols = unionSets(rooticols, childicols);
-		eicols = unionSets(eicols, condicols);
+		eicols = unionSets(rooticols, condicols);
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 	}
 
 	if(isA(root, ProjectionOperator))
 	{
-		Set *rooticols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
-		Set *childicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		//Set *childicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
 
-		//TODO Get Reference Attribute Names and put it into a set
-		List *opAttrNames = getAttrRefNames((ProjectionOperator *)root);
-		Set *setopAttrNames = makeStrSetFromList(opAttrNames);
+		//Get Reference Attribute Names and put it into a set
+		//List *opAttrNames = getAttrRefNames((ProjectionOperator *)root);
+		//List *opAttrNames = getAttrRefNamesContainOps((ProjectionOperator *)root);
+		//Set *setopAttrNames = makeStrSetFromList(opAttrNames);
+		//QueryOperator op = ((ProjectionOperator *)root)->op;
+        //List *attrDefNames = getQueryOperatorAttrNames(op);
 
-		//TODO if Reference Attribute name belongs to the Intersection of the above set with rooticols, then we add the corresponding schema attribute's name to a set.
-		Set *s1 = intersectSets(rooticols, setopAttrNames);
+        Schema *opSchema = ((ProjectionOperator *)root)->op.schema;
+        List *attrDefNames = getAttrNames(opSchema);
+        List *attrRefList = ((ProjectionOperator *)root)->projExprs;
+        List *eicolsList = NIL;
 
-		List *l1 = getQueryOperatorAttrNames(root);
+        //e.g. Project(A,X) from Project(A->A, B+C->X, D->D) from R{A,B,C,D}, set icols(R)
+        //icols = {A,X}
+        //schema = {A,X,D}
+        //eicols = {A,B,C}
+        //if AttrDefName in icols, get correspond AttrRef name (need to check if it is operator)
+        FORBOTH_LC(a,ar, attrDefNames,attrRefList)
+        {
+        	if(hasSetElem(icols,(char *)a))
+        	{
+        		if(isA(ar, Operator))
+        		{
+        			eicolsList = getAttrNameFromOpExpList(eicolsList, (Operator *)ar);
+        		}
+        		else if(isA(ar, AttributeReference))
+        		{
+        			eicolsList = appendToTailOfList(eicolsList, strdup(((AttributeReference *)ar)->name));
+        		}
+        	}
+        }
 
-		//TODO Initialize Set without any argument
-		Set *s2 = MAKE_STR_SET(strdup("EMPTY"));
+        Set *eicols = makeStrSetFromList(eicolsList);
+        setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 
-		FORBOTH(char, a1, b1, opAttrNames, l1)
-		{
-			if(hasSetElem(s1, a1))
-			{
-				addToSet(s2, b1);
-			}
-		}
+		//if Reference Attribute name belongs to the Intersection of the above set with rooticols, then we add the corresponding schema attribute's name to a set.
+		//Set *s1 = intersectSets(rooticols, setopAttrNames);
+
+		//List *l1 = getQueryOperatorAttrNames(root);
+
+		////Initialize Set without any argument
+		//Set *s2 = MAKE_STR_SET(strdup("EMPTY"));
+
+		//FORBOTH(char, a1, b1, opAttrNames, l1)
+		//{
+		//	if(hasSetElem(s1, a1))
+		//	{
+		//		addToSet(s2, b1);
+		//	}
+		//}
 		//TODO Union this set with childicols and set it as its child icols property
-		Set *s3 = unionSets(childicols, s2);
-		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)s3);
+		//Set *s3 = unionSets(childicols, s2);
+		//setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)s3);
 	}
 
 	if(isA(root, DuplicateRemoval))
 	{
-		Set *rooticols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
-		Set *childicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		//Set *childicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
 
 		//Union both sets and set it as its child icols property
-		Set *eicols;
-		eicols = unionSets(rooticols, childicols);
+		//Set *eicols;
+		//eicols = unionSets(rooticols, childicols);
+		Set *eicols = copyObject(icols);
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 
 	}
 
 	if (isA(root, JoinOperator))
 	{
+		List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
+		List *l2 = getQueryOperatorAttrNames(OP_RCHILD(root));
+
+		Set *s1 = makeStrSetFromList(l1);
+		Set *s2 = makeStrSetFromList(l2);
+
 		if(((JoinOperator*)root)->joinType == JOIN_CROSS)
 		{
 			Set *rooticols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
-			Set *leftchildicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
-			Set *rightchildicols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
-
-			List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
-			List *l2 = getQueryOperatorAttrNames(OP_RCHILD(root));
-
-			Set *s1 = makeStrSetFromList(l1);
-			Set *s2 = makeStrSetFromList(l2);
+			//Set *leftchildicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+			//Set *rightchildicols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
 
 			// Set icols for left child
-			Set *s3 = intersectSets(rooticols, s1);
-			Set *s4 = unionSets(s3, leftchildicols);
-			setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)s4);
+			Set *e1icols = intersectSets(rooticols, s1);
+			//Set *s4 = unionSets(s3, leftchildicols);
+			setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)e1icols);
 
 			// Set icols for right child
-			Set *s5 = intersectSets(rooticols, s2);
-			Set *s6 = unionSets(s5, rightchildicols);
-			setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)s6);
+			Set *e2icols = intersectSets(rooticols, s2);
+			//Set *s6 = unionSets(s5, rightchildicols);
+			setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)e2icols);
 		}
 
 		if (((JoinOperator*)root)->joinType == JOIN_INNER)
 		{
-			Set *rooticols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
-			Set *leftchildicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
-			Set *rightchildicols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+			Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
+			//Set *leftchildicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+			//Set *rightchildicols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
 
 			Operator *condOp = (Operator *)(((JoinOperator *)root)->cond);
 			//TODO Initialize Set without having some value
-			Set *condicols = MAKE_STR_SET(strdup("EMPTY"));
+			Set *condicols = STRSET();
 			condicols = AddAttrOfSelectCondToSet(condicols,condOp);
 
-			List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
-			List *l2 = getQueryOperatorAttrNames(OP_RCHILD(root));
-
-			Set *s1 = makeStrSetFromList(l1);
-			Set *s2 = makeStrSetFromList(l2);
-
 			// Set icols for left child
-			Set *s3 = unionSets(rooticols, condicols);
-			Set *s4 = intersectSets(s3, s1);
-			Set *s5 = unionSets(s4, leftchildicols);
-			setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)s5);
+			Set *s3 = unionSets(icols, condicols);
+			Set *e1icols = intersectSets(s3, s1);
+			//Set *s5 = unionSets(s4, leftchildicols);
+			setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)e1icols);
 
 			// Set icols for right child
-			Set *s7 = intersectSets(s3, s2);
-			Set *s8 = unionSets(s7, rightchildicols);
-			setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)s8);
+			Set *e2icols = intersectSets(s3, s2);
+			//Set *s8 = unionSets(s7, rightchildicols);
+			setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)e2icols);
 		}
+
+	}
+
+	if(isA(root, AggregationOperator))
+	{
+		AggregationOperator *agg = (AggregationOperator *)root;
+		Set *set;
+		boolean flag = FALSE;
+
+		//e.g. add sum(A) to set
+		FOREACH(FunctionCall, a, agg->aggrs)
+		{
+			//TODO: ar should get from list args, not only the head one
+			AttributeReference *ar = (AttributeReference *)(getHeadOfList(a->args));
+			if(flag == FALSE)
+			{
+				set = MAKE_SET_PTR(copyObject(ar->name));
+				flag = TRUE;
+			}
+			else
+                addToSet(set,copyObject(ar->name));
+		}
+
+		//e.g. add group by B into set
+		FOREACH(AttributeReference, a, agg->groupBy)
+		{
+			if(setSize(set) != 0)
+				addToSet(set,copyObject(a->name));
+		}
+
+		setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)set);
 	}
 
 	FOREACH(QueryOperator, o, root->inputs)

@@ -864,6 +864,61 @@ getAttrRefNames(ProjectionOperator *op)
    return result;
 }
 
+//e.g. op = a + (b+2), then aNameOpList = {a,b}
+List *
+getAttrNameFromOpExpList(List *aNameOpList, Operator *opExpList)
+{
+	Node *left  = (Node *)getHeadOfListP(opExpList->args);
+	Node *right = (Node *)getTailOfListP(opExpList->args);
+
+	if(isA(left, Operator))
+	{
+		aNameOpList = getAttrNameFromOpExpList(aNameOpList, (Operator *)left);
+	}
+	else if(isA(left, AttributeReference))
+	{
+		aNameOpList = appendToTailOfList(aNameOpList, ((AttributeReference *)left)->name);
+	}
+
+	if(isA(right, Operator))
+	{
+		aNameOpList = getAttrNameFromOpExpList(aNameOpList, (Operator *)right);
+	}
+	else if(isA(right, AttributeReference))
+	{
+		aNameOpList = appendToTailOfList(aNameOpList, ((AttributeReference *)right)->name);
+	}
+
+	return aNameOpList;
+
+}
+
+/*
+ * dif with getAttrRefNames, which contains rename such as
+ * A+B+2 AS X, So the list will contain {A,B}
+ * But contain duplicate, such as
+ * A+B AS X, A, then {A, B, A}, but if change List to set, duplicate should be removed
+ */
+List *
+getAttrRefNamesContainOps(ProjectionOperator *op)
+{
+   List *result = NIL;
+
+   FOREACH(Node, a, op->projExprs)
+   {
+	   if(isA(a, Operator))
+	   {
+		   result = getAttrNameFromOpExpList(result, (Operator *)a);
+	   }
+	   else if(isA(a, AttributeReference))
+	   {
+		   result = appendToTailOfList(result, strdup(((AttributeReference *)a)->name));
+	   }
+   }
+
+   return result;
+}
+
 int
 getNumNormalAttrs(QueryOperator *op)
 {

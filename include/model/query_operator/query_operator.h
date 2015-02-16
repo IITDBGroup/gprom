@@ -237,6 +237,8 @@ extern List *getNormalAttrs(QueryOperator *op);
 extern List *getNormalAttrReferences(ProjectionOperator *op, QueryOperator *op1);
 extern List *getNormalAttrNames(QueryOperator *op);
 extern List *getAttrRefNames(ProjectionOperator *op);
+extern List *getAttrNameFromOpExpList(List *aNameOpList, Operator *opExpList);
+extern List *getAttrRefNamesContainOps(ProjectionOperator *op);
 extern int getNumNormalAttrs(QueryOperator *op);
 
 extern List *getQueryOperatorAttrNames (QueryOperator *op);
