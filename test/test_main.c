@@ -42,7 +42,7 @@ checkResult(int r, char *msg, const char *file, const char *func, int line,
         }
         else
         {
-            printf("%s" T_FG_BG(WHITE,GREEN,"TEST FAIL") TBCOL(RED,"[%s-%s-%u]:")
+            printf("%s" T_FG_BG(WHITE,RED,"TEST FAIL") TBCOL(RED,"[%s-%s-%u]:")
                     " %s\n", indentation, file, func,line, msg);
             free(indentation);
             exit(1);

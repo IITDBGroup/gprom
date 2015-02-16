@@ -35,3 +35,4 @@ javabin/
 jdbcbuild/
 depcache
 build
+autotests

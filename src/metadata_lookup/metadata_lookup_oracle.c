@@ -333,6 +333,7 @@ oracleInitMetadataLookupPlugin (void)
 int
 oracleShutdownMetadataLookupPlugin (void)
 {
+    initialized = FALSE;
     return oracleDatabaseConnectionClose();
 }
 

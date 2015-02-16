@@ -51,10 +51,10 @@ testCreationAndSize(void)
     // test MALLOC
     int* i = MALLOC(sizeof(int));
     *i = 6;
-    ASSERT_EQUALS_INT(6,*i,"allocated int is correct");
+    ASSERT_EQUALS_INT(6,(*i),"allocated int is correct");
 
     // test CALLOC
-    char *s = CALLOC(sizeof(char), 10);
+    char *s = CALLOC(sizeof(char), strlen("abcdefghi") + 1);
     strcpy(s, "abcdefghi");
     ASSERT_EQUALS_STRING("abcdefghi",s,"allocated string is correct");
 

@@ -42,6 +42,8 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
 {
     initMemManager();
     mallocOptions();
+    initLogger();
+
     if(parseOption(argc, argv) != 0)
     {
         printOptionParseError(stdout);
@@ -55,7 +57,9 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
         return EXIT_FAILURE;
     }
 
-    initLogger();
+    // set log level from options
+    setMaxLevel(getIntOption("log.level"));
+
     if (opt_memmeasure)
         setupMemInstrumentation();
 
@@ -180,11 +184,10 @@ rewriteQuery(char *input)
         // if an exception is thrown then the query memory context has been
         // destroyed and we can directly create an empty string in the callers
         // context
-        result = strdup("");
         DEBUG_LOG("allocated in memory context: %s", getCurMemContext()->contextName);
     }
     END_ON_EXCEPTION
-    return result;
+    return strdup("");
 }
 
 char *

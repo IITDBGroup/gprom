@@ -196,12 +196,16 @@ testTransactionSQLAndSCNs()
 static rc
 testGetViewDefinition()
 {
-	char *viewDef = getViewDefinition("METADATALOOKUP_VIEW1");
+	char *viewDef = NULL;
+
+	viewDef = getViewDefinition("METADATALOOKUP_VIEW1");
 	char *text = "select \"A\",\"B\",\"C\" from metadatalookup_test1";
 	ASSERT_EQUALS_STRINGP(viewDef, text, "test get view definition <metadatalookup_view1>");
 
-	char *viewDef1 = getViewDefinition("METADATALOOKUP_VIEW1");
+	char *viewDef1 = NULL;
+	viewDef1 = getViewDefinition("METADATALOOKUP_VIEW1");
 	ASSERT_EQUALS_STRINGP(viewDef1, text, "test get view definition from buffer <metadatalookup_view1>");
+
 	return PASS;
 }
 

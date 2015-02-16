@@ -117,7 +117,7 @@ assembleDLPlugin(void)
 void
 chooseParserPluginFromString(char *type)
 {
-    INFO_LOG("PLUGIN parser: <%s>", type);
+    INFO_LOG("PLUGIN parser: <%s>", strdup(type));
 
     if (streq(type,"oracle"))
         chooseParserPlugin(PARSER_PLUGIN_ORACLE);

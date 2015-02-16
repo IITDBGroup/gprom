@@ -90,6 +90,7 @@ public class ConnectionManager {
 		}
 		
 		gCon = (GProMConnection) con;
+		iCon = new GProMDatabaseConnection();
 		
 		OptionsManager.getInstance().resetOptions (con);
 	}
