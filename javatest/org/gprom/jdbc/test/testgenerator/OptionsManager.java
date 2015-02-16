@@ -128,18 +128,10 @@ public class OptionsManager {
 		}
 	}
 	
-	private void setOptions (GProMConnection con) throws SQLException {
-		Statement st;
-		String sql;
-		
-//		st = con.createStatement();
-		
+	private void setOptions (GProMConnection con) throws SQLException {	
 		for (int i = 0; i < options.size(); i++) {
 			con.setProperty(options.get(i), currentSettings.get(i));
 		}
-		
-//		st.close();
-//		con.commit();
 	}
 	
 	private void setOptions () throws Exception {

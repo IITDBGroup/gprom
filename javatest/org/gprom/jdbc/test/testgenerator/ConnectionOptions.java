@@ -17,6 +17,7 @@ import java.util.Properties;
  */
 public class ConnectionOptions {
 
+
 	private static ConnectionOptions instance;
 	private Properties props;
 	
