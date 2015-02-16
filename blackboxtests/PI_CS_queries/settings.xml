@@ -26,8 +26,8 @@
 <entry key="default.9">false</entry>
 
 
-<!-- Gen strategy -->
-<entry key="setting.1.name">Gen</entry>
+<!-- All optimizations deactivated -->
+<entry key="setting.1.name">NoOpt</entry>
 <entry key="setting.1.1">true</entry>
 <entry key="setting.1.2">false</entry>
 <entry key="setting.1.3">false</entry>
@@ -38,112 +38,5 @@
 <entry key="setting.1.8">false</entry>
 <entry key="setting.1.9">false</entry>
 
-<!-- Left strategy -->
-<entry key="setting.2.name">Left</entry>
-<entry key="setting.2.1">true</entry>
-<entry key="setting.2.2">true</entry>
-<entry key="setting.2.3">false</entry>
-<entry key="setting.2.4">false</entry>
-<entry key="setting.2.5">false</entry>
-<entry key="setting.2.6">false</entry>
-<entry key="setting.2.7">false</entry>
-<entry key="setting.2.8">false</entry>
-<entry key="setting.2.9">false</entry>
-
-<!-- Move strategy -->
-<entry key="setting.3.name">Move</entry>
-<entry key="setting.3.1">true</entry>
-<entry key="setting.3.2">true</entry>
-<entry key="setting.3.3">true</entry>
-<entry key="setting.3.4">false</entry>
-<entry key="setting.3.5">false</entry>
-<entry key="setting.3.6">false</entry>
-<entry key="setting.3.7">false</entry>
-<entry key="setting.3.8">false</entry>
-<entry key="setting.3.9">false</entry>
-
-<!-- Unn strategy -->
-<entry key="setting.4.name">Unn</entry>
-<entry key="setting.4.1">true</entry>
-<entry key="setting.4.2">true</entry>
-<entry key="setting.4.3">true</entry>
-<entry key="setting.4.4">true</entry>
-<entry key="setting.4.5">false</entry>
-<entry key="setting.4.6">false</entry>
-<entry key="setting.4.7">false</entry>
-<entry key="setting.4.8">false</entry>
-<entry key="setting.4.9">false</entry>
-
-<!-- UnnDecor strategy -->
-<entry key="setting.5.name">UnnDec</entry>
-<entry key="setting.5.1">true</entry>
-<entry key="setting.5.2">true</entry>
-<entry key="setting.5.3">true</entry>
-<entry key="setting.5.4">true</entry>
-<entry key="setting.5.5">true</entry>
-<entry key="setting.5.6">false</entry>
-<entry key="setting.5.7">false</entry>
-<entry key="setting.5.8">false</entry>
-<entry key="setting.5.9">false</entry>
-
-<!-- UnnDecor strategy (without move)-->
-<entry key="setting.6.name">UnnDecor</entry>
-<entry key="setting.6.1">true</entry>
-<entry key="setting.6.2">true</entry>
-<entry key="setting.6.3">false</entry>
-<entry key="setting.6.4">true</entry>
-<entry key="setting.6.5">true</entry>
-<entry key="setting.6.6">false</entry>
-<entry key="setting.6.7">false</entry>
-<entry key="setting.6.8">false</entry>
-<entry key="setting.6.9">false</entry>
-
-<!-- Unn strategy (without move and unn)-->
-<entry key="setting.7.name">UnnWOmove</entry>
-<entry key="setting.7.1">true</entry>
-<entry key="setting.7.2">true</entry>
-<entry key="setting.7.3">false</entry>
-<entry key="setting.7.4">false</entry>
-<entry key="setting.7.5">true</entry>
-<entry key="setting.7.6">false</entry>
-<entry key="setting.7.7">false</entry>
-<entry key="setting.7.8">false</entry>
-<entry key="setting.7.9">false</entry>
-
-<!-- Choose cheapest method using the optimizer-->
-<entry key="setting.8.name">Optimizer</entry>
-<entry key="setting.8.1">true</entry>
-<entry key="setting.8.2">true</entry>
-<entry key="setting.8.3">true</entry>
-<entry key="setting.8.4">true</entry>
-<entry key="setting.8.5">true</entry>
-<entry key="setting.8.6">true</entry>
-<entry key="setting.8.7">false</entry>
-<entry key="setting.8.8">false</entry>
-<entry key="setting.8.9">false</entry>
-
-<!-- UnnDecor with selection pushdown -->
-<entry key="setting.9.name">Selection Pushdown</entry>
-<entry key="setting.9.1">true</entry>
-<entry key="setting.9.2">true</entry>
-<entry key="setting.9.3">true</entry>
-<entry key="setting.9.4">true</entry>
-<entry key="setting.9.5">true</entry>
-<entry key="setting.9.6">false</entry>
-<entry key="setting.9.7">true</entry>
-<entry key="setting.9.8">false</entry>
-<entry key="setting.9.9">false</entry>
-
-<!-- new union semantics -->
-<entry key="setting.10.name">Wl union sem</entry>
-<entry key="setting.10.1">true</entry>
-<entry key="setting.10.2">true</entry>
-<entry key="setting.10.3">false</entry>
-<entry key="setting.10.4">true</entry>
-<entry key="setting.10.5">true</entry>
-<entry key="setting.10.6">false</entry>
-<entry key="setting.10.7">false</entry>
-<entry key="setting.10.8">false</entry>
-<entry key="setting.10.9">true</entry>
 
 </properties>
