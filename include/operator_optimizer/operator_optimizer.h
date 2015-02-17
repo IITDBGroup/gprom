@@ -29,6 +29,10 @@ extern QueryOperator *factorAttrsInExpressions(QueryOperator *root);
 
 extern QueryOperator *removeRedundantProjections(QueryOperator *root);
 
+/*try to remove unnecessary columns */
+extern QueryOperator *removeUnnecessaryColumns(QueryOperator *root);
+extern QueryOperator *removeUnnecessaryColumnsFromProjections(QueryOperator *root);
+
 /*try to remove redundant duplicate operator */
 extern QueryOperator *removeRedundantDuplicateOperatorBySet(QueryOperator *root);
 

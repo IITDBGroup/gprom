@@ -138,6 +138,10 @@ optimizeOneGraph (QueryOperator *root)
 
 //	applyMerge(rewrittenTree);
 //	applySelectionPushdown(rewrittenTree);
+    APPLY_AND_TIME_OPT("remove unnecessary columns",
+    		removeUnnecessaryColumns,
+    		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
+
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
@@ -222,6 +226,9 @@ optimizeOneGraph (QueryOperator *root)
 //        STOP_TIMER("OptimizeModel - set materialization hints");
 //    }
 
+
+
+
     if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
     {
         computeKeyProp(rewrittenTree);
@@ -237,9 +244,6 @@ optimizeOneGraph (QueryOperator *root)
     	Set *seticols = MAKE_STR_SET(strdup((char *)getHeadOfListP(icols)));
     	FOREACH(char, a, icols)
     		addToSet (seticols, a);
-
-    	initializeIColProp(rewrittenTree);
-    	computeReqColProp(rewrittenTree);
     }
     APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
             removeRedundantDuplicateOperatorBySet,
@@ -393,6 +397,66 @@ factorAttrsInExpressions(QueryOperator *root)
         factorAttrsInExpressions(o);
 
     return root;
+}
+
+QueryOperator *
+removeUnnecessaryColumns(QueryOperator *root)
+{
+	initializeIColProp(root);
+	computeReqColProp(root);
+	//removeUnnecessaryColumnsFromProjections(root);
+
+
+    return root;
+}
+
+QueryOperator *
+removeUnnecessaryColumnsFromProjections(QueryOperator *root)
+{
+
+	if(isA(root, ProjectionOperator))
+	{
+		Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		int numicols = setSize(icols);
+		int numAttrs = getNumAttrs(root);
+
+		List *newAttrDefs = NIL;
+		List *newAttrRefs = NIL;
+		if(numicols < numAttrs)
+		{
+            FORBOTH_LC(ad, ar, ((ProjectionOperator *)root)->op.schema->attrDefs ,((ProjectionOperator *)root)->projExprs)
+		    {
+                AttributeReference *attrRef = (AttributeReference *)LC_P_VAL(ar);
+                AttributeDef *attrDef = (AttributeDef *)LC_P_VAL(ad);
+
+                if(hasSetElem(icols, (char *)attrDef->attrName))
+                {
+                     newAttrDefs = appendToTailOfList(newAttrDefs, attrDef);
+                     newAttrRefs = appendToTailOfList(newAttrRefs, attrRef);
+                }
+		    }
+            ((ProjectionOperator *)root)->op.schema->attrDefs = newAttrDefs;
+            ((ProjectionOperator *)root)->projExprs = newAttrRefs;
+
+            //if up layer is projection, reset the pos of up layer's reference
+            if(root->parents != NIL)
+            {
+            	QueryOperator *p = (QueryOperator *)getHeadOfListP(root->parents);
+            	if(isA(p, ProjectionOperator))
+            	{
+            		QueryOperator *r = &((ProjectionOperator *)root)->op;
+            		resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)p,(QueryOperator *)r);
+            	}
+            }
+		}
+	}
+
+	FOREACH(QueryOperator, o, root->inputs)
+	{
+		removeUnnecessaryColumnsFromProjections(o);
+	}
+
+	return root;
 }
 
 QueryOperator *
