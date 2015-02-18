@@ -139,16 +139,15 @@ optimizeOneGraph (QueryOperator *root)
 //	applyMerge(rewrittenTree);
 //	applySelectionPushdown(rewrittenTree);
 
-
+    APPLY_AND_TIME_OPT("remove unnecessary columns",
+    		removeUnnecessaryColumns,
+    		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
     APPLY_AND_TIME_OPT("selection pushdown",
             pushDownSelectionOperatorOnProv,
             OPTIMIZATION_SELECTION_PUSHING);
-    APPLY_AND_TIME_OPT("remove unnecessary columns",
-    		removeUnnecessaryColumns,
-    		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
 
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
