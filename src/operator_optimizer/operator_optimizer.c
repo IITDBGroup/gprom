@@ -143,12 +143,12 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
-    APPLY_AND_TIME_OPT("remove unnecessary columns",
-    		removeUnnecessaryColumns,
-    		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
     APPLY_AND_TIME_OPT("selection pushdown",
             pushDownSelectionOperatorOnProv,
             OPTIMIZATION_SELECTION_PUSHING);
+    APPLY_AND_TIME_OPT("remove unnecessary columns",
+    		removeUnnecessaryColumns,
+    		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
 
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
@@ -379,7 +379,7 @@ pushDownSelectionOperatorOnProv(QueryOperator *root)
     QueryOperator *newRoot = root;
 
 	if (isA(root, SelectionOperator) && isA(OP_LCHILD(root), ProjectionOperator))
-//		newRoot = pushDownSelectionWithProjection((SelectionOperator *) root);
+		newRoot = pushDownSelectionWithProjection((SelectionOperator *) root);
 
 	FOREACH(QueryOperator, o, newRoot->inputs)
 		pushDownSelectionOperatorOnProv(o);
@@ -416,10 +416,6 @@ removeUnnecessaryColumns(QueryOperator *root)
 void
 resetAttrPosInCond(QueryOperator *root, Operator *condOp){
 
-	//if(isA(root, SelectionOperator))
-	//{
-	//Operator *condOp = (Operator *)((SelectionOperator *)root)->cond;
-	int count = 0;
 	if(isA(getHeadOfListP(condOp->args), Operator))
 	{
 		resetAttrPosInCond(root, (Operator *)getHeadOfListP(condOp->args));
@@ -427,16 +423,7 @@ resetAttrPosInCond(QueryOperator *root, Operator *condOp){
 	else if(isA(getHeadOfListP(condOp->args), AttributeReference))
 	{
 		AttributeReference *a1 = (AttributeReference *)getHeadOfListP(condOp->args);
-		count = 0;
-		FOREACH(AttributeDef, ad, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
-		{
-			if(streq(a1->name,ad->attrName))
-			{
-				a1->attrPosition = count;
-				break;
-			}
-			count++;
-		}
+		resetPos(a1, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
 	}
 
 	if(isA(getTailOfListP(condOp->args), Operator))
@@ -446,16 +433,7 @@ resetAttrPosInCond(QueryOperator *root, Operator *condOp){
 	else if(isA(getTailOfListP(condOp->args), AttributeReference))
 	{
 		AttributeReference *a2 = (AttributeReference *)getTailOfListP(condOp->args);
-		count = 0;
-		FOREACH(AttributeDef, ad, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
-		{
-			if(streq(a2->name,ad->attrName))
-			{
-				a2->attrPosition = count;
-				break;
-			}
-			count++;
-		}
+		resetPos(a2, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
 	}
 }
 
