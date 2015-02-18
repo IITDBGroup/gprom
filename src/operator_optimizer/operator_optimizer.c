@@ -145,9 +145,9 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
-    APPLY_AND_TIME_OPT("selection pushdown",
-            pushDownSelectionOperatorOnProv,
-            OPTIMIZATION_SELECTION_PUSHING);
+//    APPLY_AND_TIME_OPT("selection pushdown",
+//            pushDownSelectionOperatorOnProv,
+//            OPTIMIZATION_SELECTION_PUSHING);
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
@@ -404,19 +404,356 @@ removeUnnecessaryColumns(QueryOperator *root)
 {
 	initializeIColProp(root);
 	computeReqColProp(root);
-	//removeUnnecessaryColumnsFromProjections(root);
+	printIcols(root);
+	removeUnnecessaryColumnsFromProjections(root);
 
 
     return root;
+}
+
+void
+resetAttrPosInCond(QueryOperator *root, Operator *condOp){
+
+	//if(isA(root, SelectionOperator))
+	//{
+	//Operator *condOp = (Operator *)((SelectionOperator *)root)->cond;
+	int count = 0;
+	if(isA(getHeadOfListP(condOp->args), Operator))
+	{
+		resetAttrPosInCond(root, (Operator *)getHeadOfListP(condOp->args));
+	}
+	else if(isA(getHeadOfListP(condOp->args), AttributeReference))
+	{
+		AttributeReference *a1 = (AttributeReference *)getHeadOfListP(condOp->args);
+		count = 0;
+		FOREACH(AttributeDef, ad, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
+		{
+			if(streq(a1->name,ad->attrName))
+			{
+				a1->attrPosition = count;
+				break;
+			}
+			count++;
+		}
+	}
+
+	if(isA(getTailOfListP(condOp->args), Operator))
+	{
+		resetAttrPosInCond(root, (Operator *)getTailOfListP(condOp->args));
+	}
+	else if(isA(getTailOfListP(condOp->args), AttributeReference))
+	{
+		AttributeReference *a2 = (AttributeReference *)getTailOfListP(condOp->args);
+		count = 0;
+		FOREACH(AttributeDef, ad, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
+		{
+			if(streq(a2->name,ad->attrName))
+			{
+				a2->attrPosition = count;
+				break;
+			}
+			count++;
+		}
+	}
+}
+
+QueryOperator *
+removeUnnecessaryAttrDefInSchema(Set *icols, QueryOperator *op)
+{
+	List *newAttrDefs = NIL;
+	FOREACH(AttributeDef, ad, op->schema->attrDefs)
+	{
+		if(hasSetElem(icols, ad->attrName))
+		{
+			newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+		}
+	}
+	op->schema->attrDefs = newAttrDefs;
+
+	return op;
 }
 
 QueryOperator *
 removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 {
 
+	if(root->inputs != NULL)
+	{
+		FOREACH(QueryOperator, op, root->inputs)
+				removeUnnecessaryColumnsFromProjections(op);
+	}
+
+	Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
+
+	if(isA(root, OrderOperator))
+	{
+		/*
+		 * (1) Remove unnecessary attributeDef in schema based on icols
+		 * (2) Reset the pos of attributeRef in ORDER_EXPR
+		 */
+
+		//step (1)
+		root = removeUnnecessaryAttrDefInSchema(icols, root);
+
+		//step (2)
+		int count = 0;
+		List *ordList = ((OrderOperator *)root)->orderExprs;
+		FOREACH(OrderExpr, o, ordList)
+		{
+            AttributeReference *ar = (AttributeReference *)(o->expr);
+			count = 0;
+			FOREACH(AttributeDef, ad, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
+			{
+				if(streq(ar->name,ad->attrName))
+				{
+					ar->attrPosition = count;
+					break;
+				}
+				count++;
+			}
+		}
+
+	}
+
+	if(isA(root, SelectionOperator))
+	{
+        /*
+         * (1) Remove unnecessary attributeDef in schema based on icols
+         * (2) Reset the pos of attributeRef in cond
+         */
+		//step (1)
+        root = removeUnnecessaryAttrDefInSchema(icols, root);
+
+        //step (2)
+        Operator *condOp = (Operator *)((SelectionOperator *)root)->cond;
+        resetAttrPosInCond(root, condOp);
+	}
+
+	if(isA(root, WindowOperator))
+	{
+        /*
+         * (1) Remove unnecessary attributeDef in schema based on icols and e.icols
+         * (2) Reset the pos of attributeRef in FunctionalCall, Partition By and Order By
+         */
+
+		//step (1)
+		Set *eicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+        icols = unionSets(icols,eicols);
+        QueryOperator *winOp = &(((WindowOperator *)root)->op);
+
+		List *newAttrDefs = NIL;
+		FOREACH(AttributeDef, ad, winOp->schema->attrDefs)
+		{
+			if(hasSetElem(icols, ad->attrName))
+			{
+				newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+			}
+		}
+		winOp->schema->attrDefs = newAttrDefs;
+
+		//step (2)
+		//(1)FunctionalCall
+		int count = 0;;
+        List *funList = ((FunctionCall *)(((WindowOperator *)root)->f))->args;
+        FOREACH(AttributeReference, ar, funList)
+        {
+			count = 0;
+			FOREACH(AttributeDef, ad, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
+			{
+				if(streq(ar->name,ad->attrName))
+				{
+					ar->attrPosition = count;
+					break;
+				}
+				count++;
+			}
+        }
+
+        //(2)PartitionBy
+        List *parList = ((WindowOperator *)root)->partitionBy;
+        if(parList != NIL)
+        {
+        	FOREACH(AttributeReference, ar, parList)
+        	{
+    			count = 0;
+    			FOREACH(AttributeDef, ad, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
+    			{
+    				if(streq(ar->name,ad->attrName))
+    				{
+    					ar->attrPosition = count;
+    					break;
+    				}
+    				count++;
+    			}
+        	}
+        }
+        //(3)OrderBy
+        List *ordList = ((WindowOperator *)root)->orderBy;
+        if(ordList != NIL)
+        {
+        	FOREACH(AttributeReference, ar, ordList)
+        	{
+    			count = 0;
+    			FOREACH(AttributeDef, ad, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
+    			{
+    				if(streq(ar->name,ad->attrName))
+    				{
+    					ar->attrPosition = count;
+    					break;
+    				}
+    				count++;
+    			}
+        	}
+        }
+	}
+
+	if(isA(root, AggregationOperator))
+	{
+		/*
+		 * Reset the attributeReference pos in Group By and Aggrs
+		 */
+
+		AggregationOperator *agg = (AggregationOperator *)root;
+		QueryOperator *child = (QueryOperator *)getHeadOfListP(root->inputs);
+		int cnt;
+		//e.g. sum(A)
+		FOREACH(FunctionCall, a, agg->aggrs)
+		{
+			//TODO: ar should get from list args, not only the head one
+			AttributeReference *ar = (AttributeReference *)(getHeadOfListP(a->args));
+			cnt = 0;
+			FOREACH(AttributeDef, a2, child->schema->attrDefs)
+			{
+				if(streq(ar->name, a2->attrName))
+				{
+					ar->attrPosition = cnt;
+					break;
+				}
+				cnt++;
+			}
+		}
+
+		//e.g. Group By
+		FOREACH(AttributeReference, a, agg->groupBy)
+		{
+			cnt = 0;
+			FOREACH(AttributeDef, a2, child->schema->attrDefs)
+			{
+				if(streq(a->name, a2->attrName))
+				{
+					a->attrPosition = cnt;
+					break;
+				}
+				cnt++;
+			}
+		}
+	}
+
+	if(isA(root, JoinOperator))
+	{
+		QueryOperator *joinOp = &(((JoinOperator *)root)->op);
+		//Set *licols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		//Set *ricols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		//icols = unionSets(licols,ricols);
+
+		List *newAttrDefs = NIL;
+		FOREACH(AttributeDef, ad, joinOp->schema->attrDefs)
+		{
+			if(hasSetElem(icols, ad->attrName))
+			{
+				newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+			}
+		}
+		joinOp->schema->attrDefs = newAttrDefs;
+
+		if((((JoinOperator*)root)->joinType == JOIN_INNER))
+		{
+			Operator *condOp = (Operator *)((JoinOperator *)root)->cond;
+			if(streq(condOp->name,"="))
+			{
+				AttributeReference *a1 = (AttributeReference *)getHeadOfListP(condOp->args);
+				AttributeReference *a2 = (AttributeReference *)getTailOfListP(condOp->args);
+
+				int count = 0;
+				FOREACH(AttributeDef, ad, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
+				{
+					if(streq(a1->name,ad->attrName))
+					{
+						a1->attrPosition = count;
+						break;
+					}
+					count++;
+				}
+
+				count = 0;
+				FOREACH(AttributeDef, ad, ((QueryOperator *)OP_RCHILD(root))->schema->attrDefs)
+				{
+					if(streq(a2->name,ad->attrName))
+					{
+						a2->attrPosition = count;
+						break;
+					}
+					count++;
+				}
+			}
+		}
+	}
+
+	if(isA(root, TableAccessOperator))
+	{
+		 /*
+		  * if size(icols)<size(schema) and its parent is not projection
+		  * then need to introduce one projection operator
+		  */
+		 QueryOperator *tabOp = &((TableAccessOperator *)root)->op;
+		 int sizeSchema = getNumAttrs(tabOp);
+         if(!isA(getHeadOfListP(root->parents), ProjectionOperator) && setSize(icols)<sizeSchema)
+         {
+        	 List* projExpr = NIL;
+        	 List *projAttrN = NIL;
+
+        	 //Create attrDef name list(projAttrN) and attrRef list(projExpr)
+        	 int cnt = 0;
+        	 FOREACH(AttributeDef, ad, tabOp->schema->attrDefs)
+        	 {
+        		 if(hasSetElem(icols, ad->attrName))
+        		 {
+        			 projAttrN = appendToTailOfList(projAttrN, ad->attrName);
+            		 projExpr = appendToTailOfList(projExpr,
+            				 createFullAttrReference(
+            						 ad->attrName, 0,
+            						 cnt, 0,
+            						 ad->dataType));
+            		 cnt++;
+        		 }
+        	 }
+
+        	 //List *newProvPosList = NIL;
+        	 //CREATE_INT_SEQ(newProvPosList, cnt, (cnt * 2) - 1, 1);
+
+        	 //Generate projection
+        	 ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, projAttrN);
+        	 //newpo->op.provAttrs = newProvPosList;
+
+        	 //QueryOperator *parentOp = (QueryOperator *)getHeadOfListP(tabOp->parents);
+
+        	 // Switch the subtree with this newly created projection operator.
+        	 switchSubtrees((QueryOperator *) root, (QueryOperator *) newpo);
+
+        	 // Add child to the newly created projections operator,
+        	 addChildOperator((QueryOperator *) newpo, (QueryOperator *) root);
+
+        	 //Reset the pos of the schema
+        	 resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)newpo,(QueryOperator *)root);
+        	 //resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)parentOp,(QueryOperator *)newpo);
+
+        	 //set new operator's icols property
+ 			setStringProperty((QueryOperator *) newpo, PROP_STORE_SET_ICOLS, (Node *)icols);
+         }
+	}
+
 	if(isA(root, ProjectionOperator))
 	{
-		Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
 		int numicols = setSize(icols);
 		int numAttrs = getNumAttrs(root);
 
@@ -438,6 +775,9 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
             ((ProjectionOperator *)root)->op.schema->attrDefs = newAttrDefs;
             ((ProjectionOperator *)root)->projExprs = newAttrRefs;
 
+         	QueryOperator *child = (QueryOperator *)OP_LCHILD(root);
+            resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)root,(QueryOperator *)child);
+
             //if up layer is projection, reset the pos of up layer's reference
             if(root->parents != NIL)
             {
@@ -446,15 +786,23 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
             	{
             		QueryOperator *r = &((ProjectionOperator *)root)->op;
             		resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)p,(QueryOperator *)r);
+
             	}
+
             }
 		}
+		else
+		{
+	     	QueryOperator *child = (QueryOperator *)OP_LCHILD(root);
+	        resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)root,(QueryOperator *)child);
+		}
+
 	}
 
-	FOREACH(QueryOperator, o, root->inputs)
-	{
-		removeUnnecessaryColumnsFromProjections(o);
-	}
+	//FOREACH(QueryOperator, o, root->inputs)
+	//{
+	//	removeUnnecessaryColumnsFromProjections(o);
+	//}
 
 	return root;
 }

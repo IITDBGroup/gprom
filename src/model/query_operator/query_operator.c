@@ -147,6 +147,50 @@ deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos)
 }
 
 void
+reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, Operator *a1)
+{
+	int cnt;
+	Node *left  = (Node *)getHeadOfListP(a1->args);
+	Node *right = (Node *)getTailOfListP(a1->args);
+
+	if(isA(left, Operator))
+	{
+		reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, (Operator *)left);
+	}
+	else if(isA(left, AttributeReference))
+	{
+		cnt = 0;
+		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+		{
+			if(streq(((AttributeReference *)left)->name, a2->attrName))
+			{
+				((AttributeReference *)left)->attrPosition = cnt;
+				break;
+			}
+			cnt++;
+		}
+	}
+
+	if(isA(right, Operator))
+	{
+		reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, (Operator *)right);
+	}
+	else if(isA(right, AttributeReference))
+	{
+		cnt = 0;
+		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+		{
+			if(streq(((AttributeReference *)right)->name, a2->attrName))
+			{
+				((AttributeReference *)right)->attrPosition = cnt;
+				break;
+			}
+			cnt++;
+		}
+	}
+}
+
+void
 resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *op2)
 {
     int cnt = 0;
@@ -162,19 +206,43 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *
         cnt++;
     }
     */
-    FOREACH(AttributeReference, a1, op1->projExprs)
-    {
-    	cnt = 0;
-    	FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+
+	FOREACH_LC(a1, op1->projExprs)
+	{
+		if(isA(LC_P_VAL(a1), Operator))
 		{
-            if(streq(a1->name, a2->attrName))
-            {
-                a1->attrPosition = cnt;
-                break;
-            }
-            cnt++;
+			reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2,(Operator *)LC_P_VAL(a1));
 		}
-    }
+		else
+		{
+			cnt = 0;
+			FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+			{
+				if(streq(((AttributeReference *)LC_P_VAL(a1))->name, a2->attrName))
+				{
+					((AttributeReference *)LC_P_VAL(a1))->attrPosition = cnt;
+					break;
+				}
+				cnt++;
+			}
+		}
+	}
+
+
+/*    	FOREACH(AttributeReference, a1, op1->projExprs)
+    	{
+    		cnt = 0;
+    		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+    		{
+    			if(streq(a1->name, a2->attrName))
+    			{
+    				a1->attrPosition = cnt;
+    				break;
+    			}
+    			cnt++;
+    		}
+    	}*/
+
 }
 
 void

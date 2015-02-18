@@ -876,21 +876,7 @@ AddAttrOfSelectCondToSet(Set *set, Operator *op)
        {
     	   char * attrName = ((AttributeReference *)getHeadOfListP(op->args))->name;
     	   addToSet(set, strdup(attrName));
-    	   //add attrName to set
-    	   /*if(setSize(set) == 0)
-    	   {
-    		   set = MAKE_STR_SET(strdup(attrName));
-    	   }
-    	   else
-    	   {
-    		   addToSet(set, strdup(attrName));
-    	   }*/
        }
-//       else if(isA(getHeadOfList(op->args),Constant))
-//       {
-//    	   //TODO: add attrName to set
-//    	   addToSet(set, (char *)getHeadOfList(op->args));
-//       }
 
        //Right
        if(isA(getTailOfListP(op->args),Operator))
@@ -901,21 +887,7 @@ AddAttrOfSelectCondToSet(Set *set, Operator *op)
        {
     	   char * attrName = ((AttributeReference *)getTailOfListP(op->args))->name;
     	   addToSet(set, strdup(attrName));
-    	   //add attrName to set
-    	   /*if(setSize(set) == 0)
-    	   {
-    		   set = MAKE_STR_SET(strdup(attrName));
-    	   }
-    	   else
-    	   {
-    		   addToSet(set, strdup(attrName));
-    	   }*/
        }
-//       else if(isA(getTailOfList(op->args),Constant))
-//       {
-//    	   //TODO: add attrName to set
-//    	   addToSet(set, (char *)getTailOfList(op->args));
-//       }
    }
 
    return set;
@@ -948,7 +920,7 @@ computeReqColProp (QueryOperator *root)
 	 * Get root's icols set which can be used in following each operator
 	 */
 	Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
-	DEBUG_LOG("icols:%s\n ",nodeToString(icols));
+	//DEBUG_LOG("icols:%s\n ",nodeToString(icols));
 	//if(isA(root, TableAccessOperator))
 	//{
 		//icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
@@ -966,10 +938,17 @@ computeReqColProp (QueryOperator *root)
 		condicols = AddAttrOfSelectCondToSet(condicols,condOp);
 		DEBUG_LOG("length of set: %d \n",setSize(condicols));
 
+		/*
+		 * Reset itself's property which should union the condition set
+		 * Same with its child's icols property
+		 */
+		icols = unionSets(icols,condicols);
+		setStringProperty((QueryOperator *) root, PROP_STORE_SET_ICOLS, (Node *)icols);
+
 		//Union this two sets and set it as its child icols property
-		Set *eicols;
-		eicols = unionSets(icols, condicols);
-		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
+		//Set *eicols;
+		//eicols = unionSets(icols, condicols);
+		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)icols);
 	}
 
 	else if(isA(root, ProjectionOperator))
@@ -1083,16 +1062,24 @@ computeReqColProp (QueryOperator *root)
 			Set *condicols = STRSET();
 			condicols = AddAttrOfSelectCondToSet(condicols,condOp);
 
+			/*
+			 * Reset itself's property which should union the condition set
+			 */
+			icols = unionSets(icols,condicols);
+			setStringProperty((QueryOperator *)root, PROP_STORE_SET_ICOLS, (Node *)icols);
+
 			// Set icols for left child
-			Set *s3 = unionSets(icols, condicols);
-			Set *e1icols = intersectSets(s3, s1);
+			//Set *s3 = unionSets(icols, condicols);
+			Set *e1icols = intersectSets(icols, s1);
 			//Set *s5 = unionSets(s4, leftchildicols);
 			setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)e1icols);
 
 			// Set icols for right child
-			Set *e2icols = intersectSets(s3, s2);
+			Set *e2icols = intersectSets(icols, s2);
 			//Set *s8 = unionSets(s7, rightchildicols);
 			setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)e2icols);
+
+
 		}
 	}
 
@@ -1138,9 +1125,14 @@ computeReqColProp (QueryOperator *root)
 			addToSet(ordSet,strdup(ar->name));
 		}
 
-		Set *eicols = unionSets(ordSet, icols);
+		/*
+		 * Reset itself's property which should union the condition set
+		 * Same with its child's icols property
+		 */
 
+		Set *eicols = unionSets(ordSet, icols);
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
+		setStringProperty((QueryOperator *) root, PROP_STORE_SET_ICOLS, (Node *)eicols);
 	}
 
 	else if(isA(root,WindowOperator))
@@ -1185,7 +1177,9 @@ computeReqColProp (QueryOperator *root)
          *        window[SUM(A)][B][]  schema[A,B,C,D,winf_0] icols(winf_0,C) can remove D
          *        R(A,B,C,D)                                  icols(A,B,C) add proj(A,B,C)
          */
-        List *schemaList = getQueryOperatorAttrNames(&((WindowOperator *)root)->op);
+        //QueryOperator *child = OP_LCHILD(root->inputs);
+        QueryOperator *child = OP_LCHILD(&((WindowOperator *)root)->op);
+        List *schemaList = getQueryOperatorAttrNames(child);
         Set *schemaSet = makeStrSetFromList(schemaList);
         Set *eicols;
         eicols = unionSets(winSet, icols);
@@ -1198,5 +1192,17 @@ computeReqColProp (QueryOperator *root)
 	FOREACH(QueryOperator, o, root->inputs)
 	{
 		computeReqColProp(o);
+	}
+}
+
+void
+printIcols(QueryOperator *root)
+{
+	Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
+	DEBUG_LOG("icols:%s\n ",nodeToString(icols));
+
+	FOREACH(QueryOperator, o, root->inputs)
+	{
+		printIcols(o);
 	}
 }

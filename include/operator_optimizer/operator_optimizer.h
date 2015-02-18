@@ -12,6 +12,7 @@
 #define OPERATOR_OPTIMIZER_H_
 
 #include "model/query_operator/query_operator.h"
+#include "include/model/set/set.h"
 
 /* apply all optimizations */
 extern Node *optimizeOperatorModel (Node *root);
@@ -32,6 +33,8 @@ extern QueryOperator *removeRedundantProjections(QueryOperator *root);
 /*try to remove unnecessary columns */
 extern QueryOperator *removeUnnecessaryColumns(QueryOperator *root);
 extern QueryOperator *removeUnnecessaryColumnsFromProjections(QueryOperator *root);
+extern QueryOperator *removeUnnecessaryAttrDefInSchema(Set *icols, QueryOperator *op);
+extern void resetAttrPosInCond(QueryOperator *root, Operator *condOp);
 
 /*try to remove redundant duplicate operator */
 extern QueryOperator *removeRedundantDuplicateOperatorBySet(QueryOperator *root);
