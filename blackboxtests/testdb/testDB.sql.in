@@ -1,0 +1,921 @@
+/******************************************************************************
+*******************************************************************************
+*******************************************************************************
+******* 	Table Defs     ************************************************
+*******************************************************************************
+*******************************************************************************
+******************************************************************************/
+
+/******************************************************************************
+******* 	real world example		   ****************************
+******************************************************************************/
+
+DROP TABLE IF EXISTS address CASCADE;
+DROP TABLE IF EXISTS employee CASCADE;
+DROP TABLE IF EXISTS shop CASCADE;
+DROP TABLE IF EXISTS item CASCADE;
+DROP TABLE IF EXISTS sales CASCADE;
+DROP TABLE IF EXISTS employee_works_at_shop CASCADE;
+DROP TABLE IF EXISTS customers CASCADE;
+
+CREATE TABLE address (
+	id SERIAL,
+	city text,
+	street text,
+	number int,
+	PRIMARY KEY (id)
+	);
+	
+	
+CREATE TABLE employee (
+	id SERIAL,
+	first_name TEXT,
+	last_name TEXT,
+	salary int,
+	PRIMARY KEY (id)
+	);
+	
+CREATE TABLE shop (
+	id serial,
+	name text,
+	location_id int8,
+	manager_id int8,
+	PRIMARY KEY (id),
+	FOREIGN KEY (location_id) REFERENCES address (id),
+	FOREIGN KEY (manager_id) REFERENCES employee(id)
+	);
+
+	
+CREATE TABLE item (
+	id SERIAL,
+	name text,
+	price int,
+	cost int,
+	PRIMARY KEY (id)
+	);
+	
+CREATE TABLE sales (
+	item_id int8,
+	shop_id int8,
+	number_items int,
+	sales_date DATE,
+	PRIMARY KEY (shop_id, item_id, sales_date),
+	FOREIGN KEY (shop_id) REFERENCES shop (id),
+	FOREIGN KEY (item_id) REFERENCES item (id)
+	);
+	
+	
+CREATE TABLE employee_works_at_shop (
+	employee_id int8,
+	shop_id int8,
+	PRIMARY KEY (employee_id, shop_id),
+	FOREIGN KEY (employee_id) REFERENCES employee (id),
+	FOREIGN KEY (shop_id) REFERENCES shop (id)
+	);
+	
+CREATE TABLE customers (
+	customer_id SERIAL,
+	name text,
+	address_id int8,
+	PRIMARY KEY (customer_id),
+	FOREIGN KEY (address_id) REFERENCES address (id)
+	);
+	
+	
+/******************************************************************************
+******* 	real world example data		   ****************************
+******************************************************************************/
+
+
+/**** address *****/
+INSERT INTO address VALUES (DEFAULT, 'Zurich','Sihlquai',155);
+INSERT INTO address VALUES (DEFAULT, 'Zurich','Altstettener Strasse',25);
+INSERT INTO address VALUES (DEFAULT, 'Basel','Birmannsgasse',5);
+INSERT INTO address VALUES (DEFAULT, 'Bern','Bernerstrasse',109);
+
+INSERT INTO address VALUES (DEFAULT, 'Zurich','Kundenstrasse',23);
+INSERT INTO address VALUES (DEFAULT, 'Luzern','Hallostrasse',23);
+INSERT INTO address VALUES (DEFAULT, 'Basel','Baumweg',23);
+INSERT INTO address VALUES (DEFAULT, 'Basel','Missionsstrasse',24);
+
+/****** employee **/
+INSERT INTO employee VALUES (DEFAULT, 'Peter', 'Meter', 10000);
+INSERT INTO employee VALUES (DEFAULT, 'Getrud', 'Muller', 8000);
+INSERT INTO employee VALUES (DEFAULT, 'Heinz', 'Heller', 15000);
+INSERT INTO employee VALUES (DEFAULT, 'Fritz', 'Knoten', 9000);
+
+INSERT INTO employee VALUES (DEFAULT, 'Boris', 'Heinzer', 5000);
+INSERT INTO employee VALUES (DEFAULT, 'Gert', 'Gertsen', 12000);
+INSERT INTO employee VALUES (DEFAULT, 'Doris', 'Dorissen', 3000);
+INSERT INTO employee VALUES (DEFAULT, 'Walter', 'Ott', 2000);
+
+/***** shop *******/
+INSERT INTO shop VALUES (DEFAULT, 'Zurich city', 1,1);
+INSERT INTO shop VALUES (DEFAULT, 'Zurich Altstetten', 2,2);
+INSERT INTO shop VALUES (DEFAULT, 'Basel', 3,3);
+INSERT INTO shop VALUES (DEFAULT, 'Bern', 4,4);
+
+
+
+/******* employee working at shop ******/
+INSERT INTO employee_works_at_shop VALUES (1,1);
+INSERT INTO employee_works_at_shop VALUES (2,2);
+INSERT INTO employee_works_at_shop VALUES (3,3);
+INSERT INTO employee_works_at_shop VALUES (4,4);
+
+INSERT INTO employee_works_at_shop VALUES (5,1);
+INSERT INTO employee_works_at_shop VALUES (6,2);
+INSERT INTO employee_works_at_shop VALUES (7,2);
+INSERT INTO employee_works_at_shop VALUES (8,3);
+
+/******** customer *********************/
+INSERT INTO customers VALUES (DEFAULT, 'P. Kunde', 5);
+INSERT INTO customers VALUES (DEFAULT, 'J. Kunde', 6);
+INSERT INTO customers VALUES (DEFAULT, 'B. Kunde', 7);
+INSERT INTO customers VALUES (DEFAULT, 'Q. Kunde', 8);
+
+
+
+/**** item *******/
+INSERT INTO item VALUES (DEFAULT, 'heckenschere', 25, 13);
+INSERT INTO item VALUES (DEFAULT, 'Rasenmaeher', 599, 125);
+INSERT INTO item VALUES (DEFAULT, 'Gartenschlauch', 19, 5);
+
+/***** sales *****/
+INSERT INTO sales VALUES (1,1,25,'2007-01-01');
+INSERT INTO sales VALUES (1,1,11,'2007-05-01');
+INSERT INTO sales VALUES (1,2,46,'2008-01-01');
+INSERT INTO sales VALUES (1,2,2,'2008-10-01');
+INSERT INTO sales VALUES (1,3,33,'2007-01-01');
+INSERT INTO sales VALUES (1,4,20,'2007-01-01');
+INSERT INTO sales VALUES (3,1,6,'2009-01-01');
+INSERT INTO sales VALUES (3,4,100,'2009-01-01');
+INSERT INTO sales VALUES (3,4,1,'2009-01-25');
+INSERT INTO sales VALUES (3,2,13,'2007-01-01');
+INSERT INTO sales VALUES (3,2,13,'2010-01-01');
+INSERT INTO sales VALUES (3,2,3,'2003-01-15');
+INSERT INTO sales VALUES (2,1,20,'2003-01-01');
+INSERT INTO sales VALUES (2,3,1,'2002-01-01');
+INSERT INTO sales VALUES (2,4,1,'2007-01-01');
+
+/******************************************************************************
+******* 	set operations data and table def  ****************************
+******************************************************************************/
+
+DROP TABLE IF EXISTS bagdiff1 CASCADE;
+DROP TABLE IF EXISTS bagdiff2 CASCADE;
+DROP TABLE IF EXISTS bagdiff3 CASCADE;
+DROP TABLE IF EXISTS bagdiff4 CASCADE;
+DROP TABLE IF EXISTS bagdiff5 CASCADE;
+DROP TABLE IF EXISTS set1 CASCADE;
+DROP TABLE IF EXISTS set2 CASCADE;
+DROP TABLE IF EXISTS set3 CASCADE;
+
+
+CREATE TABLE bagdiff1 (
+	id int
+	);
+
+	
+INSERT INTO bagdiff1 VALUES (1);
+INSERT INTO bagdiff1 VALUES (1);
+
+CREATE TABLE bagdiff2 (
+	id int
+	);
+
+INSERT INTO bagdiff2 VALUES (1);
+	
+CREATE TABLE bagdiff3 (
+	id int
+	);
+
+INSERT INTO bagdiff3 VALUES (1);
+INSERT INTO bagdiff3 VALUES (1);
+INSERT INTO bagdiff3 VALUES (2);
+INSERT INTO bagdiff3 VALUES (3);
+
+CREATE TABLE bagdiff4 (
+	id int,
+	nonnu int
+	);
+
+INSERT INTO bagdiff4 VALUES (1,100);
+INSERT INTO bagdiff4 VALUES (1,100);
+INSERT INTO bagdiff4 VALUES (null,100);
+INSERT INTO bagdiff4 VALUES (null,100);
+
+CREATE TABLE bagdiff5 (
+	id int,
+	nonnu int
+	);
+
+CREATE TABLE set1 (
+	a int
+	);
+	
+INSERT INTO set1 VALUES (1);
+INSERT INTO set1 VALUES (2);
+INSERT INTO set1 VALUES (3);
+
+CREATE TABLE set2 (
+	b int
+	);
+	
+INSERT INTO set2 VALUES (1);
+
+CREATE TABLE set3 (
+	c int
+	);
+
+INSERT INTO set3 VALUES (1);
+INSERT INTO set3 VALUES (2);
+
+/******************************************************************************
+******* 	SPJ and A data and table def	   ****************************
+******************************************************************************/
+
+DROP TABLE IF EXISTS muchcols CASCADE;
+DROP TABLE IF EXISTS aggr CASCADE;
+
+CREATE TABLE muchcols (
+	one int,
+	two text,
+	three date,
+	four int8,
+	five text,
+	PRIMARY KEY (one, two)
+	);
+	
+INSERT INTO muchcols VALUES (1,'first','2007-01-01'::date, 4321212123545,'hello world');
+INSERT INTO muchcols VALUES (2,'second','2007-01-01'::date, 9898989,'hello');
+INSERT INTO muchcols VALUES (2,'third','2007-01-01'::date, 212123545,'world');
+INSERT INTO muchcols VALUES (3,'fourth','2007-01-01'::date, 12,'hhhhhhhh');
+
+CREATE TABLE aggr (
+	id int
+	);
+	
+INSERT INTO aggr VALUES (1);
+INSERT INTO aggr VALUES (2);
+INSERT INTO aggr VALUES (3);
+INSERT INTO aggr VALUES (4);
+INSERT INTO aggr VALUES (5);
+INSERT INTO aggr VALUES (6);
+INSERT INTO aggr VALUES (7);
+INSERT INTO aggr VALUES (8);
+INSERT INTO aggr VALUES (9);
+INSERT INTO aggr VALUES (10);
+INSERT INTO aggr VALUES (11);
+INSERT INTO aggr VALUES (12);
+INSERT INTO aggr VALUES (13);
+INSERT INTO aggr VALUES (14);
+INSERT INTO aggr VALUES (15);
+INSERT INTO aggr VALUES (16);
+INSERT INTO aggr VALUES (17);
+INSERT INTO aggr VALUES (18);
+INSERT INTO aggr VALUES (19);
+INSERT INTO aggr VALUES (20);
+INSERT INTO aggr VALUES (21);
+INSERT INTO aggr VALUES (22);
+INSERT INTO aggr VALUES (23);
+INSERT INTO aggr VALUES (24);
+INSERT INTO aggr VALUES (25);
+INSERT INTO aggr VALUES (26);
+INSERT INTO aggr VALUES (27);
+INSERT INTO aggr VALUES (28);
+INSERT INTO aggr VALUES (29);
+INSERT INTO aggr VALUES (30);
+INSERT INTO aggr VALUES (31);
+INSERT INTO aggr VALUES (32);
+
+/******************************************************************************
+******* 	sublinks			   ****************************
+******************************************************************************/
+
+DROP TABLE IF EXISTS empty CASCADE;
+DROP TABLE IF EXISTS r CASCADE;
+DROP TABLE IF EXISTS s CASCADE;
+DROP TABLE IF EXISTS t CASCADE;
+DROP TABLE IF EXISTS v CASCADE;
+DROP TABLE IF EXISTS w CASCADE;
+DROP TABLE IF EXISTS x CASCADE;
+DROP TABLE IF EXISTS tr CASCADE;
+DROP TABLE IF EXISTS ts CASCADE;
+DROP TABLE IF EXISTS nulltab CASCADE;
+DROP TABLE IF EXISTS woid CASCADE;
+
+DROP VIEW IF EXISTS viewsub;
+DROP VIEW IF EXISTS viewsub2;
+
+CREATE TABLE empty (
+	id int);
+
+CREATE TABLE r (
+	i int);
+
+INSERT INTO r VALUES (1);
+INSERT INTO r VALUES (2);
+INSERT INTO r VALUES (3);
+
+CREATE TABLE s (
+	i int);
+
+INSERT INTO s VALUES (1);
+INSERT INTO s VALUES (2);
+INSERT INTO s VALUES (4);
+	
+CREATE TABLE t (
+	i int);
+	
+INSERT INTO t VALUES (2);
+INSERT INTO t VALUES (4);
+INSERT INTO t VALUES (6);
+
+CREATE TABLE v (
+	c int,
+	d int);
+
+INSERT INTO v VALUES (2,1);
+INSERT INTO v VALUES (4,1);
+INSERT INTO v VALUES (5,1);
+
+CREATE TABLE w (
+	e int,
+	f int);
+	
+INSERT INTO w VALUES (1,1);
+INSERT INTO w VALUES (2,2);
+INSERT INTO w VALUES (4,4);
+
+CREATE TABLE x (
+	a int,
+	b int);
+
+INSERT INTO x VALUES (1,1);
+INSERT INTO x VALUES (2,2);
+INSERT INTO x VALUES (3,3);
+
+CREATE TABLE tr (a int, b int);
+
+INSERT INTO tr VALUES (1,1);
+INSERT INTO tr VALUES (2,1);
+INSERT INTO tr VALUES (3,2);
+INSERT INTO tr VALUES (2,2);
+INSERT INTO tr VALUES (0,1);
+
+CREATE TABLE ts (c int);
+
+INSERT INTO ts VALUES (1);
+INSERT INTO ts VALUES (2);
+INSERT INTO ts VALUES (4);
+
+CREATE TABLE nulltab (c int);
+
+INSERT INTO nulltab VALUES (NULL);
+
+CREATE TABLE woid (a int) WITH OIDS;
+
+COPY woid FROM '@PERMTESTERDIR@/resource/testdb/woid.cpy' WITH OIDS CSV DELIMITER '|';
+
+CREATE VIEW viewsub AS (SELECT x.a, x.b
+   FROM x
+  WHERE EXISTS ( SELECT v.c, v.d
+           FROM v
+          WHERE v.c = x.b));
+
+CREATE VIEW viewsub2 AS 
+	(SELECT * FROM x x1 WHERE 
+		EXISTS (SELECT * FROM x x2 WHERE x2.b + 2 > x1.a));
+
+/******************************************************************************
+******* 	unusual SQL features		   ****************************
+******************************************************************************/
+
+DROP TABLE IF EXISTS arraytest;
+DROP TABLE IF EXISTS structtest;
+DROP TABLE IF EXISTS specialnames;
+DROP TYPE IF EXISTS testtype;
+
+-- struct
+CREATE TYPE testtype AS (
+	one int,
+	two text,
+	three int);
+	
+CREATE TABLE structtest (
+	one int,
+	two testtype);
+
+INSERT INTO structtest VALUES (1, '(1,"hello",1)');
+INSERT INTO structtest VALUES (2, '(2,"hello",1)');
+INSERT INTO structtest VALUES (3, '(3,"hello",2)');
+	
+-- array
+CREATE TABLE arraytest (
+	id int,
+	arr int[]
+	);
+	
+INSERT INTO arraytest VALUES (1, '{1,2,3}');
+INSERT INTO arraytest VALUES (2, '{2,4,5,6}');
+
+-- function calls
+
+-- names with underscore
+
+CREATE TABLE specialnames (
+	with_underscore int8, 
+	with_more_underscore_ int8);
+
+INSERT INTO specialnames VALUES (2,1);
+
+
+/******************************************************************************
+******* 	views				   ****************************
+******************************************************************************/
+
+DROP VIEW IF EXISTS bagdiffivew;
+DROP VIEW IF EXISTS complexview;
+DROP VIEW IF EXISTS provview1;
+DROP VIEW IF EXISTS provview2;
+DROP VIEW IF EXISTS subprovview;
+DROP VIEW IF EXISTS joinview;
+DROP VIEW IF EXISTS uview;
+DROP VIEW IF EXISTS provjoinview;
+
+CREATE VIEW bagdiffview AS SELECT * FROM bagdiff1;
+
+CREATE VIEW complexview AS SELECT m.one FROM muchcols m, (SELECT  * FROM bagdiff3) AS bag WHERE m.one >= bag.id;
+
+CREATE VIEW provview1 AS SELECT PROVENANCE * FROM bagdiff1;
+
+CREATE VIEW provview2 AS 
+	SELECT PROVENANCE zushop.name, topshots.last_name 
+	FROM (SELECT * FROM employee WHERE salary > 10000) AS topshots,
+		(SELECT * FROM shop WHERE shop.name LIKE '%Z%rich%') AS zushop, 
+		employee_works_at_shop wo
+	WHERE topshots.id = wo.employee_id
+		AND zushop.id = wo.shop_id;
+		
+-- view with provenance subselect
+CREATE VIEW subprovview AS SELECT * FROM (SELECT PROVENANCE * FROM bagdiff1) AS prov WHERE prov_public_bagdiff1_id > 1; --check
+
+CREATE VIEW joinview AS (SELECT x.a, v.d FROM x LEFT JOIN v ON (x.a = v.d));
+
+CREATE VIEW uview AS (SELECT * FROM r UNION SELECT * FROM s);
+
+CREATE VIEW provjoin AS (SELECT PROVENANCE * FROM joinview);
+
+/******************************************************************************
+******* 	test support functions				   ****************************
+******************************************************************************/
+
+DROP TABLE IF EXISTS testbitset;
+
+CREATE TABLE testbitset (
+	a varbit
+);
+
+INSERT INTO testbitset VALUES (B'100');
+INSERT INTO testbitset VALUES (B'010');
+INSERT INTO testbitset VALUES (B'001');
+INSERT INTO testbitset VALUES (NULL);
+
+/******************************************************************************
+******* 	annotated views						   ****************************
+******************************************************************************/
+
+DROP VIEW IF EXISTS annotview1;
+DROP VIEW IF EXISTS annotview2;
+DROP VIEW IF EXISTS annotview3;
+DROP VIEW IF EXISTS annotview4;
+DROP VIEW IF EXISTS annotview5;
+
+CREATE VIEW annotview1 AS 
+	SELECT ANNOT('M1') * FROM r;
+	
+CREATE VIEW annotview2 AS
+	SELECT ANNOT('M1') * FROM r UNION SELECT ANNOT('M2') * FROM s;
+
+CREATE VIEW annotview3 AS
+	SELECT ANNOT('M1','M2') r.i FROM (SELECT ANNOT('M1') * FROM r) AS r LEFT JOIN (SELECT ANNOT('M2') * FROM s) AS s ON (r.i = s.i);
+
+CREATE VIEW annotview4 AS
+       SELECT r.i FROM r ANNOT('M1','M2') LEFT JOIN s ANNOT('M2') ON (r.i = s.i);
+
+CREATE VIEW annotview5 AS
+       (SELECT r.i FROM r ANNOT('M1') UNION SELECT s.i FROM s ANNOT('M2'));
+
+/******************************************************************************
+******* 	TPCH schema				   ********************
+******************************************************************************/
+
+DROP TABLE IF EXISTS part CASCADE;
+DROP TABLE IF EXISTS supplier CASCADE;
+DROP TABLE IF EXISTS partsupp CASCADE;
+DROP TABLE IF EXISTS customer CASCADE;
+DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS lineitem CASCADE;
+DROP TABLE IF EXISTS region CASCADE;
+DROP TABLE IF EXISTS nation CASCADE;
+
+CREATE TABLE part (
+	p_partkey 	INT8,
+	p_name		VARCHAR(55),
+	p_mfgr		VARCHAR(25),
+	p_brand		VARCHAR(10),
+	p_type		VARCHAR(25),
+	p_size		INT,
+	p_container	VARCHAR(10),
+	p_retailprice	DECIMAL,
+	p_comment	VARCHAR(23),
+	PRIMARY KEY (p_partkey)
+);
+
+CREATE TABLE supplier (
+	s_suppkey	INT8,
+	s_name		VARCHAR(25),
+	s_address	VARCHAR(40),
+	s_nationkey	INT8,
+	s_phone		VARCHAR(15),
+	s_acctbal	DECIMAL,
+	s_comment	VARCHAR(101),
+	PRIMARY KEY (s_suppkey)
+);
+
+CREATE TABLE partsupp (
+	ps_partkey	INT8,
+	ps_suppkey	INT8,
+	ps_availqty	INT,
+	ps_supplycost	DECIMAL,
+	ps_comment	VARCHAR(199),
+	PRIMARY KEY (ps_partkey, ps_suppkey)
+);
+
+CREATE TABLE customer (
+	c_custkey	INT8,
+	c_name		VARCHAR(25),
+	c_address	VARCHAR(40),
+	c_nationkey	INT8,
+	c_phone		VARCHAR(15),
+	c_acctbal	DECIMAL,
+	c_mktsegment	VARCHAR(10),
+	c_comment	VARCHAR(117),
+	PRIMARY KEY (c_custkey)
+);
+
+CREATE TABLE orders (
+	o_orderkey	INT8,
+	o_custkey	INT8,
+	o_orderstatus	VARCHAR(1),
+	o_totalprice	DECIMAL,
+	o_orderdate	DATE,
+	o_orderpriority	VARCHAR(15),
+	o_clerk		VARCHAR(15),
+	o_shippriority	INT,
+	o_comment	VARCHAR(79),
+	PRIMARY KEY (o_orderkey)
+);
+
+CREATE TABLE lineitem (
+	l_orderkey	INT8,
+	l_partkey	INT8,
+	l_suppkey	INT8,
+	l_linenumber	INT8,
+	l_quantity	DECIMAL,
+	l_extendedprice	DECIMAL,
+	l_discount	DECIMAL,
+	l_tax		DECIMAL,
+	l_returnflag	VARCHAR(1),
+	l_linestatus	VARCHAR(1),
+	l_shipdate	DATE,
+	l_commitdate	DATE,
+	l_receiptdate	DATE,
+	l_shipinstruct	VARCHAR(25),
+	l_shipmode	VARCHAR(10),
+	l_comment	VARCHAR(44),
+	PRIMARY KEY (l_orderkey, l_linenumber)
+);
+
+CREATE TABLE nation (
+	n_nationkey	INT8,
+	n_name		VARCHAR(25),
+	n_regionkey	INT8,
+	n_comment	VARCHAR(152),
+	PRIMARY KEY (n_nationkey)
+);
+
+CREATE TABLE region (
+	r_regionkey	INT8,
+	r_name		VARCHAR(25),
+	r_comment	VARCHAR(152),
+	PRIMARY KEY (r_regionkey)
+);
+
+COPY part FROM '@PERMTESTERDIR@/resource/testdb/part.cpy' WITH CSV DELIMITER '|';       
+COPY supplier FROM '@PERMTESTERDIR@/resource/testdb/supplier.cpy' WITH CSV DELIMITER '|';       
+COPY partsupp FROM '@PERMTESTERDIR@/resource/testdb/partsupp.cpy' WITH CSV DELIMITER '|';      
+COPY customer FROM '@PERMTESTERDIR@/resource/testdb/customer.cpy' WITH CSV DELIMITER '|';       
+COPY orders FROM '@PERMTESTERDIR@/resource/testdb/orders.cpy' WITH CSV DELIMITER '|';       
+COPY lineitem FROM '@PERMTESTERDIR@/resource/testdb/lineitem.cpy' WITH CSV DELIMITER '|';       
+COPY nation FROM '@PERMTESTERDIR@/resource/testdb/nation.cpy' WITH CSV DELIMITER '|';
+COPY region FROM '@PERMTESTERDIR@/resource/testdb/region.cpy' WITH CSV DELIMITER '|';
+
+ALTER TABLE supplier ADD FOREIGN KEY (s_nationkey) REFERENCES nation (n_nationkey);
+
+ALTER TABLE partsupp ADD FOREIGN KEY (ps_partkey) REFERENCES part (p_partkey);
+ALTER TABLE partsupp ADD FOREIGN KEY (ps_suppkey) REFERENCES supplier (s_suppkey);
+
+ALTER TABLE customer ADD FOREIGN KEY (c_nationkey) REFERENCES nation (n_nationkey);
+
+ALTER TABLE orders ADD FOREIGN KEY (o_custkey) REFERENCES customer (c_custkey);
+
+ALTER TABLE lineitem ADD FOREIGN KEY (l_partkey, l_suppkey) REFERENCES partsupp (ps_partkey, ps_suppkey);
+ALTER TABLE lineitem ADD FOREIGN KEY (l_partkey) REFERENCES part (p_partkey);
+ALTER TABLE lineitem ADD FOREIGN KEY (l_suppkey) REFERENCES supplier (s_suppkey);
+ALTER TABLE lineitem ADD FOREIGN KEY (l_orderkey) REFERENCES orders (o_orderkey);
+
+ALTER TABLE nation ADD FOREIGN KEY (n_regionkey) REFERENCES region (r_regionkey);
+
+CREATE OR REPLACE VIEW  revenue0 (supplier_no, total_revenue) as
+	select
+		l_suppkey,
+		sum(l_extendedprice * (1 - l_discount))
+	from
+		lineitem
+	where
+		l_shipdate >= date '1996-01-01'
+		and l_shipdate < ('1996-01-01'::date) + ('3 day'::interval)
+	group by
+		l_suppkey;
+
+/* functions for to set optimization parameters */
+CREATE OR REPLACE FUNCTION permSet (left int, move int, unn int, decorr int) RETURNS void AS 
+'
+BEGIN
+	IF $1 = 1 THEN
+		SET prov_use_sublink_optimization_left_join TO true;
+	ELSE
+		SET prov_use_sublink_optimization_left_join TO false;
+	END IF;
+	IF $2 = 1 THEN
+		SET prov_use_sublink_move_to_target TO true;
+	ELSE
+		SET prov_use_sublink_move_to_target TO false;
+	END IF;
+	IF $3 = 1 THEN
+		SET prov_use_sublink_transfrom_top_level_any_to_join TO true;
+	ELSE
+		SET prov_use_sublink_transfrom_top_level_any_to_join TO false;
+	END IF;
+	IF $4 = 1 THEN
+		SET prov_use_unnest_JA TO true;
+	ELSE
+		SET prov_use_unnest_JA TO false;
+	END IF;
+END;
+'
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION permShow () RETURNS SETOF TEXT AS
+'
+SELECT (substring(split_part(a::text, '','',1) from 2)  || '': '' || split_part(a::text, '','',2)) AS value FROM (SELECT pg_show_all_settings() AS a) AS p WHERE split_part(a::text,'','',1) LIKE ''(prov%'';
+'
+LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION permOn () RETURNS void AS
+'SELECT permset(1,1,1,1);'
+LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION permOff () RETURNS void AS
+'SELECT permset(0,0,0,0);'
+LANGUAGE SQL;
+
+/* XSLT func stuff */
+DROP TABLE IF EXISTS xslt_funcs CASCADE;
+
+CREATE TABLE xslt_funcs (
+	funcName text PRIMARY KEY,
+	definition XML
+);
+
+INSERT INTO xslt_funcs VALUES ('hello_world', '<?xml version="1.0" ?><xsl:stylesheet version="2.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"><xsl:template match="/">hello world</xsl:template></xsl:stylesheet>');
+INSERT INTO xslt_funcs VALUES ('identity', '<?xml version="1.0" ?><xsl:stylesheet version="2.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"><xsl:template match="/"><xsl:copy-of select="/"/></xsl:template></xsl:stylesheet>');
+
+CREATE OR REPLACE FUNCTION cxpath(TEXT,XML) RETURNS boolean AS 'SELECT (xpath($1,$2))[1] IS NOT NULL;' LANGUAGE SQL;
+
+/******************************************************************************
+******* 	Amalgam schema				   ********************
+******************************************************************************/
+
+---------------- SOURCE 
+DROP SCHEMA IF EXISTS source CASCADE;
+
+--Commands used to create the database schema
+
+CREATE SCHEMA source;
+
+CREATE TABLE source.institute (
+	inst_id INT NOT NULL,
+	name TEXT,
+	location TEXT,
+	PRIMARY KEY (inst_id)
+);
+
+INSERT INTO source.institute VALUES (1, 'Uni Zuerich', 'Zuerich');
+INSERT INTO source.institute VALUES (2, 'ETH Zuerich', 'Zuerich');
+
+CREATE TABLE source.inproceedings (
+	inproc_id TEXT NOT NULL,
+	title TEXT,
+	bktitle TEXT,
+	year INT,
+	month TEXT,
+	pages TEXT,
+	vol INT,
+	num INT,
+	loc TEXT,
+	class TEXT,
+	note TEXT,
+	annote TEXT,
+	PRIMARY KEY (inproc_id)
+);
+
+INSERT INTO source.inproceedings VALUES 
+	('GA11', 
+	'Perm and Perm again and again', 
+	'SIGSchmod', 
+	2011, 
+	'January', 
+	'-1-100', 
+	NULL, 
+	NULL, 
+	'Berthausen',
+	'Provenance what ever',
+	'better use for annotations');
+	
+
+CREATE TABLE source.article (
+	article_id TEXT NOT NULL,
+	title TEXT,
+	journal TEXT,
+	year INT,
+	month TEXT,
+	pages TEXT,
+	vol INT,
+	num INT,
+	loc TEXT,
+	class TEXT,
+	note TEXT,
+	annote TEXT,
+	PRIMARY KEY (article_id)
+);
+
+INSERT INTO source.article VALUES 
+	('GA12', 
+	'Perm and Perm again and again striking back as a journal publication', 
+	'TOPs', 
+	2012, 
+	'January', 
+	'44-170', 
+	1, 
+	3, 
+	NULL,
+	'Provenance what ever',
+	'better use for annotations');
+
+CREATE TABLE source.author (
+	auth_id INT NOT NULL,
+	name TEXT NOT NULL,
+	inst int REFERENCES source.institute (inst_id),
+	PRIMARY KEY (auth_id)
+);
+
+INSERT INTO source.author VALUES (1,'Boris Glavic', 1);
+INSERT INTO source.author VALUES (2,'Gustavo Alonso', 2);
+
+--RELATIONSHIPS
+
+CREATE TABLE source.inprocpublished (
+	inproc_id TEXT NOT NULL,
+	auth_id INT NOT NULL,
+	PRIMARY KEY (inproc_id, auth_id)
+);
+
+INSERT INTO source.inprocpublished VALUES ('GA11',1);
+INSERT INTO source.inprocpublished VALUES ('GA11',2);
+
+CREATE TABLE source.articlepublished (
+	article_id TEXT NOT NULL,
+	auth_id INT NOT NULL,
+	PRIMARY KEY (article_id, auth_id)
+);
+
+INSERT INTO source.articlepublished VALUES ('GA12',1);
+
+---------------- VIEWS 
+-- drop schema
+DROP SCHEMA IF EXISTS target CASCADE;
+
+-- create schema
+CREATE SCHEMA target;
+
+-- create support functions
+CREATE OR REPLACE FUNCTION get_first_name (text) returns text AS 
+'
+SELECT  (regexp_split_to_array($1,'','')::text[])[2]
+'
+LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION get_last_name (text) returns text AS 
+'
+SELECT (regexp_split_to_array($1,'','')::text[])[1]
+'
+LANGUAGE SQL;
+
+------ AUTHOR 								--------
+CREATE OR REPLACE VIEW target.author AS (
+	SELECT 
+		'SK1' || a.name || COALESCE(i.name,'') AS auth_id,
+		get_first_name(a.name) AS first_name,
+		get_last_name(a.name) AS last_name,
+		CASE WHEN i.name IS NULL THEN 'SK2' || a.name ELSE i.name END AS affiliation 
+	FROM 
+		(SELECT ANNOT('M1','M2') * FROM source.author) a
+		LEFT JOIN
+		(SELECT ANNOT('M2') * FROM source.institute) i
+		ON (a.inst = i.inst_id)
+);
+
+------ PUBLICATION							--------
+CREATE OR REPLACE VIEW target.publication AS (
+	(SELECT ANNOT('M4') 
+			pub.title AS title,
+			'SK1' || a.name || COALESCE(i.name,'') AS auth_id,
+			'SK3' || COALESCE(pub.year::text,'') || COALESCE(pub.month,'') AS date_id,
+			pub.pages AS pages,
+			'SK4' || COALESCE(pub.class,'') AS class_id,
+			'SK5'::text AS issue_id			
+		FROM
+			source.author a
+			LEFT JOIN
+			source.institute i ON (a.inst = i.inst_id),
+			source.inproceedings pub,
+			source.inprocpublished rel
+		WHERE a.auth_id = rel.auth_id AND pub.inproc_id = rel.inproc_id)
+	UNION
+	(SELECT ANNOT('M5') 
+			pub.title AS title,
+			'SK1' || a.name || COALESCE(i.name,'') AS auth_id,
+			'SK3' || COALESCE(pub.year::text,'') || COALESCE(pub.month,'') AS date_id,
+			pub.pages AS pages,
+			'SK4' || COALESCE(pub.class,'') AS class_id,
+			'SK6' || COALESCE(pub.journal,'') || COALESCE(pub.vol::text,'') || COALESCE(pub.num::text,'') AS issue_id			
+		FROM
+			source.author a
+			LEFT JOIN
+			source.institute i ON (a.inst = i.inst_id),
+			source.article pub,
+			source.articlepublished rel
+		WHERE a.auth_id = rel.auth_id AND pub.article_id = rel.article_id)
+);
+
+/******************************************************************************
+******* 	How-CS tables								   ********************
+******************************************************************************/
+
+DROP TABLE IF EXISTS howdt;
+
+CREATE TABLE howdt (a int, b howprov);
+
+INSERT INTO howdt VALUES (1, '1'::howprov);
+INSERT INTO howdt VALUES (2, '+ * + 5 6 | 7 | 8 9 + 10 11 | |'::howprov);
+INSERT INTO howdt VALUES (3, '+ 2 3 4 |'::howprov);
+
+/******************************************************************************
+******* 	AGG PROJECT tables			   ********************
+******************************************************************************/
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+DROP TABLE IF EXISTS t3;
+
+CREATE TABLE t1 (a int, b int, c int);
+CREATE TABLE t2 (a int, b int, c int);
+CREATE TABLE t3 (a int, b int, c int);
+
+INSERT INTO t1 VALUES (1, 2, 3);
+INSERT INTO t1 VALUES (1, 3, 4);
+INSERT INTO t1 VALUES (2, 5, 3);
+INSERT INTO t1 VALUES (2, 1, 7);
+INSERT INTO t1 VALUES (3, 4, 8);
+INSERT INTO t1 VALUES (3, 5, 9);
+
+INSERT INTO t2 VALUES (1, 2, 3);
+INSERT INTO t2 VALUES (2, 3, 4);
+INSERT INTO t2 VALUES (2, 5, 6);
+INSERT INTO t2 VALUES (3, 1, 7);
+
+INSERT INTO t3 VALUES (1, 2, 3);
+INSERT INTO t3 VALUES (2, 3, 4);
+INSERT INTO t3 VALUES (3, 4, 5);
