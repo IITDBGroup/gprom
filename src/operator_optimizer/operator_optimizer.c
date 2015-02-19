@@ -506,7 +506,8 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
          * (2) Reset the pos of attributeRef in cond
          */
 		//step (1)
-        root = removeUnnecessaryAttrDefInSchema(icols, root);
+		Set *eicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+        root = removeUnnecessaryAttrDefInSchema(eicols, root);
 
         //step (2)
         Operator *condOp = (Operator *)((SelectionOperator *)root)->cond;
@@ -588,11 +589,15 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 	if(isA(root, JoinOperator))
 	{
+		Set *elicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		Set *ericols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		Set *eicols = unionSets(elicols,ericols);
+
 		QueryOperator *joinOp = &(((JoinOperator *)root)->op);
 		List *newAttrDefs = NIL;
 		FOREACH(AttributeDef, ad, joinOp->schema->attrDefs)
 		{
-			if(hasSetElem(icols, ad->attrName))
+			if(hasSetElem(eicols, ad->attrName))
 			{
 				newAttrDefs = appendToTailOfList(newAttrDefs, ad);
 			}

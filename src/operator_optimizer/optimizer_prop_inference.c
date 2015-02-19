@@ -940,13 +940,13 @@ computeReqColProp (QueryOperator *root)
 		 * Reset itself's property which should union the condition set
 		 * Same with its child's icols property
 		 */
-		icols = unionSets(icols,condicols);
-		setStringProperty((QueryOperator *) root, PROP_STORE_SET_ICOLS, (Node *)icols);
+		//icols = unionSets(icols,condicols);
+		//setStringProperty((QueryOperator *) root, PROP_STORE_SET_ICOLS, (Node *)icols);
 
 		//Union this two sets and set it as its child icols property
-		//Set *eicols;
-		//eicols = unionSets(icols, condicols);
-		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)icols);
+		Set *eicols;
+		eicols = unionSets(icols, condicols);
+		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 	}
 
 	else if(isA(root, ProjectionOperator))
@@ -1030,7 +1030,7 @@ computeReqColProp (QueryOperator *root)
 			 * Reset itself's property which should union the condition set
 			 */
 			icols = unionSets(icols,condicols);
-			setStringProperty((QueryOperator *)root, PROP_STORE_SET_ICOLS, (Node *)icols);
+			//setStringProperty((QueryOperator *)root, PROP_STORE_SET_ICOLS, (Node *)icols);
 
 			// Set icols for left child
 			//Set *s3 = unionSets(icols, condicols);
