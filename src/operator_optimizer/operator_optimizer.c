@@ -604,7 +604,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		}
 		joinOp->schema->attrDefs = newAttrDefs;
 
-		if((((JoinOperator*)root)->joinType == JOIN_INNER))
+		if(((JoinOperator*)root)->joinType == JOIN_INNER)
 		{
 			Operator *condOp = (Operator *)((JoinOperator *)root)->cond;
 			if(streq(condOp->name,"="))
