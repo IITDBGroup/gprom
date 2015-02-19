@@ -23,6 +23,8 @@ public class ConnectionOptions {
 	
 	private ConnectionOptions () throws FileNotFoundException, IOException {
 		File pFile = new File(System.getProperty("generator.resourcedir") + "/options.txt");
+		if (!pFile.exists())
+			throw new FileNotFoundException(pFile.toString());
 		props = new Properties ();
 		System.out.println(pFile.getAbsolutePath());
 		
