@@ -526,10 +526,22 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
         icols = unionSets(icols,eicols);
         QueryOperator *winOp = &(((WindowOperator *)root)->op);
 
-		List *newAttrDefs = NIL;
+        //List *newAttrDefs = NIL;
+		List *newAttrDefs = copyObject(OP_LCHILD(root)->schema->attrDefs);
+
+//
+//		FOREACH(AttributeDef, ad, winOp->schema->attrDefs)
+//		{
+//			//DEBUG_LOG("attr name: %s \n", ad->attrName);
+//			if(hasSetElem(icols, ad->attrName))
+//			{
+//				//DEBUG_LOG("icols: %s = attr: %s \n\n",icols, ad->attrName);
+//				newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+//			}
+//		}
 		FOREACH(AttributeDef, ad, winOp->schema->attrDefs)
 		{
-			if(hasSetElem(icols, ad->attrName))
+			if(streq(((WindowOperator *)root)->attrName, ad->attrName))
 			{
 				newAttrDefs = appendToTailOfList(newAttrDefs, ad);
 			}
@@ -662,7 +674,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
         	 //resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)parentOp,(QueryOperator *)newpo);
 
         	 //set new operator's icols property
- 			setStringProperty((QueryOperator *) newpo, PROP_STORE_SET_ICOLS, (Node *)icols);
+ 		 	setStringProperty((QueryOperator *) newpo, PROP_STORE_SET_ICOLS, (Node *)icols);
          }
 	}
 
