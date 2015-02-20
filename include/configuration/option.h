@@ -41,7 +41,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS "optimization.push_selections_through_joins"
 #define OPTIMIZATION_SELECTION_MOVE_AROUND "optimization.selection_move_around"
 #define OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR "optimization.remove_redundant_duplicate_operator"
-//#define OPTIMIZATION_ "optimization_"
+#define OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS "optimization.remove_unnecessary_columns"
 
 /* define model checking options */
 #define CHECK_OM_UNIQUE_ATTR_NAMES "check.unique_attrs"
@@ -101,6 +101,7 @@ extern boolean opt_remove_redundant_duplicate_operator;
 extern boolean opt_optimization_pulling_up_provenance_proj;
 extern boolean opt_optimization_push_selections_through_joins;
 extern boolean opt_optimization_selection_move_around;
+extern boolean opt_optimization_remove_unnecessary_columns;
 
 // new option interface
 extern char *getStringOption (char *name);

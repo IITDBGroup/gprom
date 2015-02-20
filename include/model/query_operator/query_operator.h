@@ -156,6 +156,7 @@ extern void addAttrToSchema(QueryOperator *op, char *name, DataType dt);
 extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name);
 extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
 extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
+extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, Operator *a1);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2);
 
@@ -236,6 +237,9 @@ extern int getNumProvAttrs(QueryOperator *op);
 extern List *getNormalAttrs(QueryOperator *op);
 extern List *getNormalAttrReferences(ProjectionOperator *op, QueryOperator *op1);
 extern List *getNormalAttrNames(QueryOperator *op);
+extern List *getAttrRefNames(ProjectionOperator *op);
+extern List *getAttrNameFromOpExpList(List *aNameOpList, Operator *opExpList);
+extern List *getAttrRefNamesContainOps(ProjectionOperator *op);
 extern int getNumNormalAttrs(QueryOperator *op);
 
 extern List *getQueryOperatorAttrNames (QueryOperator *op);
