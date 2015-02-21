@@ -103,6 +103,7 @@ boolean opt_optimization_pulling_up_provenance_proj = FALSE;
 boolean opt_optimization_push_selections_through_joins = FALSE;
 boolean opt_optimization_selection_move_around = FALSE;
 boolean opt_optimization_remove_unnecessary_columns = FALSE;
+boolean opt_optimization_remove_unnecessary_window_operators = FALSE;
 
 // sanity check options
 boolean opt_operator_model_unique_schema_attribues = FALSE;
@@ -412,6 +413,12 @@ OptionInfo opts[] =
                 "-Oremove_redundant_duplicate_operator",
                 "Optimization: try to remove redundant duplicate operator",
                 opt_remove_redundant_duplicate_operator,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS,
+                "-Oremove_unnecessary_window_operators",
+                "Optimization: try to remove unnecessary window operators",
+                opt_optimization_remove_unnecessary_window_operators,
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS,

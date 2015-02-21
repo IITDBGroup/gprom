@@ -142,6 +142,9 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("remove unnecessary columns",
     		removeUnnecessaryColumns,
     		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
+    APPLY_AND_TIME_OPT("remove unnecessary window operators",
+    		removeUnnecessaryWindowOperator,
+    		OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS);
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
@@ -401,6 +404,36 @@ factorAttrsInExpressions(QueryOperator *root)
 }
 
 QueryOperator *
+removeUnnecessaryWindowOperator(QueryOperator *root)
+{
+	if(isA(root, WindowOperator))
+	{
+		Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		char *funcName = ((WindowOperator *)root)->attrName;
+		if(!hasSetElem(icols, funcName))
+		{
+			//window operator's attributes should be its child's attributes + function attributes
+			//so no need to reset pos
+			QueryOperator *lChild = OP_LCHILD(root);
+
+			// Remove Parent and make lChild as the new parent
+			switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
+			root = lChild;
+
+			//Reset pos, but seems no need
+			QueryOperator *parent = getHeadOfListP(root->parents);
+			resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)parent,(QueryOperator *)root);
+
+        }
+    }
+
+	FOREACH(QueryOperator, o, root->inputs)
+	      removeUnnecessaryWindowOperator(o);
+
+	return root;
+}
+
+QueryOperator *
 removeUnnecessaryColumns(QueryOperator *root)
 {
 	initializeIColProp(root);
@@ -455,6 +488,7 @@ removeUnnecessaryAttrDefInSchema(Set *icols, QueryOperator *op)
 void
 resetPos(AttributeReference *ar,  List* attrDefs)
 {
+
 	int count = 0;
 	FOREACH(AttributeDef, ad, attrDefs)
 	{
@@ -517,7 +551,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 	if(isA(root, WindowOperator))
 	{
         /*
-         * (1) Remove unnecessary attributeDef in schema based on icols and e.icols
+         * (1) Window operator's attributes should be its child's attributes + function attributes
          * (2) Reset the pos of attributeRef in FunctionalCall, Partition By and Order By
          */
 
@@ -529,16 +563,6 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
         //List *newAttrDefs = NIL;
 		List *newAttrDefs = copyObject(OP_LCHILD(root)->schema->attrDefs);
 
-//
-//		FOREACH(AttributeDef, ad, winOp->schema->attrDefs)
-//		{
-//			//DEBUG_LOG("attr name: %s \n", ad->attrName);
-//			if(hasSetElem(icols, ad->attrName))
-//			{
-//				//DEBUG_LOG("icols: %s = attr: %s \n\n",icols, ad->attrName);
-//				newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-//			}
-//		}
 		FOREACH(AttributeDef, ad, winOp->schema->attrDefs)
 		{
 			if(streq(((WindowOperator *)root)->attrName, ad->attrName))
@@ -565,14 +589,28 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
         		resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
         	}
         }
+
         //(3)OrderBy
         List *ordList = ((WindowOperator *)root)->orderBy;
         if(ordList != NIL)
         {
-        	FOREACH(AttributeReference, ar, ordList)
-        	{
-        		resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-        	}
+        	FOREACH_LC(o,ordList)
+		    {
+        		/*
+        		 * If-else because sometimes ordList store OrderExpr,
+        		 * sometimes such as q10, it stores AttributeReference  directly
+        		 */
+        	      if(isA(LC_P_VAL(o), AttributeReference))
+        	      {
+        	    	  AttributeReference *ar = (AttributeReference *)LC_P_VAL(o);
+        	    	  resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
+        	      }
+        	      else if(isA(LC_P_VAL(o), OrderExpr))
+        	      {
+        	    	  AttributeReference *ar = (AttributeReference *)(((OrderExpr *)LC_P_VAL(o))->expr);
+        	    	  resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
+        	      }
+		    }
         }
 	}
 
