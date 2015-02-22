@@ -83,8 +83,9 @@ public interface GProMJDBCUtil {
 				return;
 			try {
 				driverProps = new PropertyWrapper();
-				driverProps.load(this.getClass().getResourceAsStream(
-						"/GProMDriver.properties"));
+				driverProps.load(this.getClass().getClassLoader().getResourceAsStream("GProMDriver.properties"));
+//						//						getResourceAsStream(
+//						"lib/GProMDriver.properties"));
 			} catch (IOException ex) {
 				log.error("Error loading the GProMDriver.properties");
 				log.error(ex.getMessage());

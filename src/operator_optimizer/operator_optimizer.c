@@ -1395,8 +1395,8 @@ reSetMoveAroundListSetProperityForWholeTree(QueryOperator *root)
             List *newl1 = NIL;
             FOREACH(Set,s,l1)
             {
-                Set *tempSet = unionSets(s,s);
-            	//Set *tempSet = copyObject(s);
+//                Set *tempSet = unionSets(s,s);
+            	Set *tempSet = copyObject(s);
                 boolean flag;
                 FOREACH_SET(Node,n,s)
                 {

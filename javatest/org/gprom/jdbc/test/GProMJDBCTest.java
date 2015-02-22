@@ -57,8 +57,8 @@ public class GProMJDBCTest {
 		System.out.println("Connection was successfully");
 
 		con.getW().setBoolOption("pi_cs_use_composable", true);
-		con.getW().setBoolOption("optimize_operator_model", true);
-		con.getW().setLogLevel(4);
+		con.getW().setBoolOption("optimize_operator_model", false);
+		con.getW().setLogLevel(0);
 		log.error("log.level=" + con.getW().getIntOption("log.level"));
 		log.error("log.active=" +  con.getW().getBoolOption("log.active"));
 		log.error("pi_cs_use_composable=" +  con.getW().getBoolOption("pi_cs_use_composable"));
@@ -81,9 +81,15 @@ public class GProMJDBCTest {
 		printResult(rs);
 		
 		// test error
+		try {
 		rs = st.executeQuery("PROVENANCE OF (SELECT * FRO R);");
+		}
+		catch (Exception e) {
+			System.out.printf("%s", e);
+		}
 		
-		
+		rs = st.executeQuery("PROVENANCE OF (SELECT * FROM R);");
+		printResult(rs);
 		
 		log.error("statement shutdown");
 		con.close();

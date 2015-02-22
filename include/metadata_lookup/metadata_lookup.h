@@ -21,6 +21,7 @@
 #include "model/expression/expression.h"
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
+#include "model/relation/relation.h"
 #include "model/query_block/query_block.h"
 
 
@@ -82,7 +83,7 @@ typedef struct MetadataLookupPlugin
 
     /* execution */
     Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
-    List * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
+    Relation * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
 
     /* cache for catalog information */
     CatalogCache *cache;
@@ -122,7 +123,7 @@ extern char *getViewDefinition(char *viewName);
 
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
-extern List *executeQuery (char *sql);
+extern Relation *executeQuery (char *sql);
 extern long getCommitScn (char *tableName, long maxScn, char *xid);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 

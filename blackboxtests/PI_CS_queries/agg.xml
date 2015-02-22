@@ -7,20 +7,24 @@
 PROVENANCE OF (SELECT sum(a) AS x FROM r);
 </entry>
 <entry key="q1.result">
-X | PROV_R_A | PROV_R_B
-----------+-----------------+-----------------
-2|1|1|
-2|1|2|
+X|PROV_R_A|PROV_R_B|
+----------------------------------------
+6|1|1|
+6|1|2|
+6|2|1|
+6|2|3|
 </entry>
 
 <entry key="q2.query">
 PROVENANCE OF (SELECT sum(a) AS x, b AS y FROM r GROUP BY b);
 </entry>
 <entry key="q2.result">
-X | Y | PROV_R_A | PROV_R_B 
-----------+-----------------+-----------------
-1|1|1|1|
-1|2|1|2|
+X|Y|PROV_R_A|PROV_R_B|
+----------------------------------------
+3|1|1|1|
+3|1|1|2|
+4|2|2|1|
+4|2|2|3|
 </entry>
   
 

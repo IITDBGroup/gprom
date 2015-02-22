@@ -79,7 +79,10 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_DLVar,
     T_DLRule,
     T_DLProgram,
-    T_DLComparison
+    T_DLComparison,
+
+    /* relation */
+    T_Relation
 );
 
 typedef struct Node{

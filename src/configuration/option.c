@@ -14,6 +14,8 @@
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "model/expression/expression.h"
+#include "log/logger.h"
+#include "exception/exception.h"
 
 // we have to use actual free here
 #undef free

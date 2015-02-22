@@ -302,7 +302,6 @@ replaceAttributeRefsMutator (Node *node, ReplaceRefState *state, void **parentPo
         Node **parentP = (Node **) parentPointer;
         AttributeReference *a = (AttributeReference *) node;
         int pos = getAttributeNum(a->name, (QueryOperator *) state->op);
-        deepFree(a);
 
         // do not copy if not necessary
         if (VEC_TO_IA(state->refCount)[pos] == 0)
@@ -316,6 +315,7 @@ replaceAttributeRefsMutator (Node *node, ReplaceRefState *state, void **parentPo
             DEBUG_LOG("%s has been used before - copy", a->name ? a->name : "NULL");
             *parentP = copyObject(VEC_TO_ARR(state->projExpr,Node)[pos]);
         }
+        deepFree(a);
 
         return TRUE;
     }

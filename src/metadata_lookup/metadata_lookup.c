@@ -227,7 +227,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
     return activePlugin->getTransactionSQLAndSCNs(xid, scns, sqls, sqlBinds, iso, commitScn);
 }
 
-List *
+Relation *
 executeQuery (char *sql)
 {
     ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);

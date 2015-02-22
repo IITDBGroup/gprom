@@ -14,6 +14,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+#include "model/relation/relation.h"
 #include "parser/parser.h"
 #include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
@@ -1116,16 +1117,27 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
     return (Node *) xid;
 }
 
-List *
+Relation *
 oracleGenExecQuery (char *query)
 {
     List *rel = NIL;
     int numAttrs;
     OCI_Resultset *rs;
+    Relation *r = makeNode(Relation);
 
     rs = executeStatement(query);
     numAttrs = OCI_GetColumnCount(rs);
 
+    // fetch attributes
+    r->schema = NIL;
+    for(int i = 1; i <= OCI_GetColumnCount(rs); i++)
+    {
+        OCI_Column *aInfo = OCI_GetColumn(rs, i);
+        const char *name = OCI_ColumnGetName(aInfo);
+        r->schema = appendToTailOfList(r->schema, strdup((char *) name));
+    }
+
+    // fetch tuples
     while(OCI_FetchNext(rs))
     {
         List *tuple = NIL;
@@ -1135,8 +1147,12 @@ oracleGenExecQuery (char *query)
 
         rel = appendToTailOfList(rel, tuple);
     }
+    r->tuples = rel;
 
-    return rel;
+    // cleanup
+    OCI_ReleaseResultsets(st);
+
+    return r;
 }
 
 static OCI_Transaction *
