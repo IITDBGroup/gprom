@@ -93,6 +93,8 @@ static ConstRelOperator *copyConstRelOperator(ConstRelOperator *from, OperatorMa
 static NestingOperator *copyNestingOperator(NestingOperator *from, OperatorMap **opMap);
 static WindowOperator *copyWindowOperator(WindowOperator *from, OperatorMap **opMap);
 static OrderOperator *copyOrderOperator(OrderOperator *from, OperatorMap **opMap);
+static FromJsonTable *copyJsonTableOperator(FromJsonTable *from, OperatorMap **opMap);
+static JsonColInfoItem *copyJsonColInfoItem(JsonColInfoItem *from,OperatorMap ** opMap);
 
 /*functions to copy query_block*/
 static SetQuery *copySetQuery(SetQuery *from, OperatorMap **opMap);
@@ -647,6 +649,31 @@ copyOrderOperator(OrderOperator *from, OperatorMap **opMap)
     return new;
 }
 
+static FromJsonTable*
+copyJsonTableOperator(FromJsonTable *from,OperatorMap **opMap)
+{
+    COPY_INIT(FromJsonTable);
+
+    COPY_NODE_FIELD(columns);
+    COPY_STRING_FIELD(documentcontext);
+    COPY_STRING_FIELD(jsonColumn);
+    COPY_STRING_FIELD(jsonTableIdentifier);
+
+    return new;
+}
+
+static JsonColInfoItem *
+copyJsonColInfoItem(JsonColInfoItem *from, OperatorMap **opMap)
+{
+	COPY_INIT(JsonColInfoItem);
+
+    COPY_STRING_FIELD(attrName);
+    COPY_STRING_FIELD(path);
+    COPY_STRING_FIELD(attrType);
+
+    return new;
+}
+
 /*functions to copy query_block*/
 static SetQuery *
 copySetQuery(SetQuery *from, OperatorMap **opMap)
@@ -1056,7 +1083,12 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_OrderOperator:
             retval = copyOrderOperator(from, opMap);
             break;
-
+        case T_FromJsonTable:
+            retval = copyJsonTableOperator(from, opMap);
+            break;
+        case T_JsonColInfoItem:
+        	retval = copyJsonColInfoItem(from, opMap);
+        	break;
             /* datalog model nodes */
         case T_DLAtom:
             retval = copyDLAtom(from, opMap);

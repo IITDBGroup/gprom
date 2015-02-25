@@ -62,6 +62,10 @@ static boolean equalNestingOperator(NestingOperator *a, NestingOperator *b);
 static boolean equalWindowOperator(WindowOperator *a, WindowOperator *b);
 static boolean equalOrderOperator(OrderOperator *a, OrderOperator *b);
 
+// Json
+static boolean equalJsonOperator(FromJsonTable *a, FromJsonTable *b);
+static boolean equalJsonColInfoItem(JsonColInfoItem *a, JsonColInfoItem *b);
+
 // equal functions for query_block
 static boolean equalQueryBlock(QueryBlock *a, QueryBlock *b);
 static boolean equalSetQuery(SetQuery *a, SetQuery *b);
@@ -672,6 +676,28 @@ equalOrderOperator(OrderOperator *a, OrderOperator *b)
     return TRUE;
 }
 
+
+static boolean
+equalJsonOperator(FromJsonTable *a, FromJsonTable *b)
+{
+	COMPARE_NODE_FIELD(columns);
+    COMPARE_STRING_FIELD(documentcontext);
+    COMPARE_STRING_FIELD(jsonColumn);
+    COMPARE_STRING_FIELD(jsonTableIdentifier);
+
+    return TRUE;
+}
+
+static boolean
+equalJsonColInfoItem(JsonColInfoItem *a, JsonColInfoItem *b)
+{
+    COMPARE_STRING_FIELD(attrName);
+    COMPARE_STRING_FIELD(path);
+    COMPARE_STRING_FIELD(attrType);
+
+    return TRUE;
+}
+
 // equal functions for query_block
 static boolean 
 equalQueryBlock(QueryBlock *a, QueryBlock *b)
@@ -1045,6 +1071,12 @@ equal(void *a, void *b)
         case T_OrderOperator:
             retval = equalOrderOperator(a,b);
             break;
+        case T_FromJsonTable:
+            retval = equalJsonOperator(a,b);
+            break;
+        case T_JsonColInfoItem:
+        	retval = equalJsonColInfoItem(a,b);
+        	break;
         /* datalog model */
         case T_DLAtom:
             retval = equalDLAtom(a,b);

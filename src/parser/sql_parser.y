@@ -72,6 +72,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> CASE WHEN THEN ELSE END
 %token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 %token <stringVal> NULLS FIRST LAST ASC DESC
+%token <stringVal> JSON_TABLE COLUMNS PATH
 
 %token <stringVal> DUMMYEXPR
 
@@ -115,12 +116,13 @@ Node *bisonParseResult = NULL;
 %type <list> selectClause optionalFrom fromClause exprList orderList 
 			 optionalGroupBy optionalOrderBy setClause  stmtList //insertList 
 			 identifierList optionalAttrAlias optionalProvWith provOptionList 
-			 caseWhenList windowBoundaries optWindowPart withViewList
+			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo
 //			 optInsertAttrList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse
-%type <node> overClause windowSpec optWindowFrame windowBound 
+%type <node> overClause windowSpec optWindowFrame windowBound
+%type <node> jsonTable jsonColInfoItem 
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provOption
@@ -867,6 +869,42 @@ windowBound:
 				$$ = (Node *) createWindowBound(WINBOUND_EXPR_FOLLOW, $1); 
 			}
 	;
+
+/*
+ * Rule to parse JSON Functions
+ */
+jsonTable:
+                /* empty */	{ RULELOG("jsonTable::NULL"); $$ = NULL; }
+		| JSON_TABLE '(' compositeIdentifier ',' stringConst COLUMNS '(' jsonColInfo ')' ')' AS identifier
+			{
+				RULELOG("jsonTable::jsonTable");
+                                $$ = (Node *) createFromJsonTable($3, $8, $12);
+			}
+	;
+
+jsonColInfo:
+                jsonColInfoItem
+                        {
+                                RULELOG("jsonColInfo::jsonColInfoItem");
+                                $$ = singleton($1);
+                        }
+                | jsonColInfo ',' jsonColInfoItem
+                        {
+                                RULELOG("jsonColInfo::jsonColInfoItem::jsonColInfoItem");
+                                $$ = appendToTailOfList($1, $3);
+                        }
+        ;
+
+jsonColInfoItem:
+                /* empty */ { RULELOG("jsonColInfoItem::NULL"); }
+                | identifier identifier PATH stringConst 
+                        {
+                                RULELOG("jsonColInfoItem::jsonColInfoItem");
+                                JsonColInfoItem *c = createJsonColInfoItem ($1, $2, $4);
+                                $$ = (Node *) c;
+                        }
+        ;
+
 	
 /*
  * Rule to parse from clause
@@ -943,6 +981,12 @@ fromClauseItem:
                 f->provInfo = ((FromItem *) $4)->provInfo;
         		$$ = (Node *) f;
         	}
+         | jsonTable
+                {
+                    RULELOG("fromClauseItem::jsonTable");
+                    FromJsonTable *jt = (FromJsonTable *) $1;
+                    $$ = (Node*) jt;
+                }
     ;
 
 subQuery:

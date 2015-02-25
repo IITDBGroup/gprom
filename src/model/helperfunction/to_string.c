@@ -89,6 +89,10 @@ static void outNestingOperator(StringInfo str, NestingOperator *node);
 static void outWindowOperator(StringInfo str, WindowOperator *node);
 static void outOrderOperator(StringInfo str, OrderOperator *node);
 
+//json
+static void outFromJsonTable(StringInfo str, FromJsonTable *node);
+static void outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node);
+
 // datalog model
 static void outDLAtom(StringInfo str, DLAtom *node);
 static void outDLVar(StringInfo str, DLVar *node);
@@ -396,6 +400,26 @@ outDLComparison(StringInfo str, DLComparison *node)
     WRITE_NODE_FIELD(n.properties);
 }
 
+static void
+outFromJsonTable(StringInfo str, FromJsonTable *node)
+{
+    WRITE_NODE_TYPE(JSONTABLE);
+    WRITE_NODE_FIELD(columns);
+    WRITE_STRING_FIELD(documentcontext);
+    WRITE_STRING_FIELD(jsonColumn);
+    WRITE_STRING_FIELD(jsonTableIdentifier);
+}
+
+static void
+outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node)
+{
+
+	WRITE_NODE_TYPE(JSONCOLINFOITEM);
+
+    WRITE_STRING_FIELD(attrName);
+    WRITE_STRING_FIELD(path);
+    WRITE_STRING_FIELD(attrType);
+}
 
 static void
 outInsert(StringInfo str, Insert *node)
@@ -1086,7 +1110,13 @@ outNode(StringInfo str, void *obj)
             case T_DLComparison:
                 outDLComparison(str, (DLComparison *) obj);
                 break;
-
+            /* Json stuff */
+            case T_FromJsonTable:
+                outFromJsonTable(str, (FromJsonTable *)obj);
+                break;
+            case T_JsonColInfoItem:
+                outFromJsonColInfoItem(str, (JsonColInfoItem *)obj);
+                break;
             default :
                 FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
