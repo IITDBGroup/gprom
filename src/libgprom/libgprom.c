@@ -17,6 +17,8 @@
 #include "log/logger.h"
 #include "libgprom/libgprom.h"
 #include "rewriter.h"
+#include "metadata_lookup/metadata_lookup.h"
+#include "metadata_lookup/metadata_lookup_external.h"
 
 #define LIBARY_REWRITE_CONTEXT "LIBGRPROM_QUERY_CONTEXT"
 
@@ -142,4 +144,10 @@ void
 gprom_setFloatOption(const char *name, double value)
 {
     return setFloatOption((char *) name,value);
+}
+
+void
+gprom_registerMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
+{
+    setMetadataLookupPlugin(assembleExternalMetadataLookupPlugin(plugin));
 }

@@ -29,7 +29,8 @@
 typedef enum MetadataLookupPluginType
 {
     METADATA_LOOKUP_PLUGIN_ORACLE,
-    METADATA_LOOKUP_PLUGIN_POSTGRES
+    METADATA_LOOKUP_PLUGIN_POSTGRES,
+    METADATA_LOOKUP_PLUGIN_EXTERNAL
 } MetadataLookupPluginType;
 
 /* catalog cache */
@@ -100,6 +101,7 @@ extern int initMetadataLookupPlugins (void);
 extern int shutdownMetadataLookupPlugins (void);
 extern void chooseMetadataLookupPluginFromString (char *plug);
 extern void chooseMetadataLookupPlugin (MetadataLookupPluginType plugin);
+extern void setMetadataLookupPlugin (MetadataLookupPlugin *p);
 
 /* generic methods */
 extern int initMetadataLookupPlugin (void);
