@@ -132,7 +132,7 @@ typedef struct JsonColInfoItem
 
 typedef struct FromJsonTable
 {
-    Node *JsonTable;
+    FromItem from;
     List *columns;
     char *documentcontext;
     char *jsonColumn;
