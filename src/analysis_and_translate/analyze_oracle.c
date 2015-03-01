@@ -58,6 +58,9 @@ static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms);
 static void analyzeFunctionCall(QueryBlock *qb);
 static void analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms);
 
+// analyze FromJsonTable Item
+static void analyzeFromJsonTable(FromJsonTable *f);
+
 // real attribute name fetching
 static List *expandStarExpression (SelectItem *s, List *fromClause);
 static List *splitAttrOnDot (char *dotName);
@@ -192,6 +195,9 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             case T_FromJoinExpr:
                 analyzeJoin((FromJoinExpr *) f, parentFroms);
                 break;
+            case T_FromJsonTable:
+	        analyzeFromJsonTable((FromJsonTable *)f);
+	        break;
             default:
             	break;
         }
@@ -809,6 +815,30 @@ analyzeFromTableRef(FromTableRef *f)
 }
 
 static void
+analyzeFromJsonTable(FromJsonTable *f)
+{
+    // Populate the attrnames, datatypes from columnlist
+    List *attrNames = NIL;
+    List *attrTypes = NIL;
+
+    FOREACH(JsonColInfoItem, attr, f->columns)
+    {
+        attrNames = appendToTailOfList(attrNames, attr->attrName);
+        if(streq(attr->attrType, "VARCHAR2"))
+            attrTypes = appendToTailOfListInt(attrTypes, 5);
+    }
+
+    if (f->from.attrNames == NIL)
+        f->from.attrNames = attrNames;
+
+    if (f->from.dataTypes == NIL)
+        f->from.dataTypes = attrTypes;
+
+    if(f->from.name == NULL)
+	f->from.name = f->jsonTableIdentifier;
+}
+
+static void
 analyzeInsert(Insert * f)
 {
     List *attrNames = getAttributeNames(f->tableName);
@@ -1268,6 +1298,9 @@ getFromTreeLeafs (List *from)
             case T_FromTableRef:
                 result = appendToTailOfList(result, f);
                 break;
+            case T_FromJsonTable:
+	        result = appendToTailOfList(result, f);
+	        break;
             default:
                 FATAL_LOG("expected a FROM clause item not: %s",
                         NodeTagToString(f->type));

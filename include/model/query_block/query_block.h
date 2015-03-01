@@ -259,7 +259,7 @@ extern FromItem *createFromSubquery(char *alias, List *attrNames, Node *query);
 extern FromItem *createFromJoin(char *alias, List *attrNames, FromItem *left,
         FromItem *right, char *joinType, char *condType,
         Node *cond);
-extern FromJsonTable *createFromJsonTable(char *jsonColumn, List *columns, char *jsonTableIdentifier);
+extern FromItem *createFromJsonTable(char *jsonColumn, char *documentcontext, List *columns, char *jsonTableIdentifier);
 extern JsonColInfoItem *createJsonColInfoItem (char *attrName, char *attrType, char *path);
 extern JoinConditionType joinConditionTypeFromString (char *condType);
 extern JoinType joinTypeFromString (char *joinType);

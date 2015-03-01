@@ -92,6 +92,7 @@ static void outOrderOperator(StringInfo str, OrderOperator *node);
 //json
 static void outFromJsonTable(StringInfo str, FromJsonTable *node);
 static void outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node);
+static void outJsonTableOperator(StringInfo str, JsonTableOperator *node);
 
 // datalog model
 static void outDLAtom(StringInfo str, DLAtom *node);
@@ -404,6 +405,7 @@ static void
 outFromJsonTable(StringInfo str, FromJsonTable *node)
 {
     WRITE_NODE_TYPE(JSONTABLE);
+    writeCommonFromItemFields(str, (FromItem *) node);
     WRITE_NODE_FIELD(columns);
     WRITE_STRING_FIELD(documentcontext);
     WRITE_STRING_FIELD(jsonColumn);
@@ -413,7 +415,6 @@ outFromJsonTable(StringInfo str, FromJsonTable *node)
 static void
 outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node)
 {
-
 	WRITE_NODE_TYPE(JSONCOLINFOITEM);
 
     WRITE_STRING_FIELD(attrName);
@@ -505,6 +506,9 @@ outConstant (StringInfo str, Constant *node)
             case DT_LONG:
                 appendStringInfo(str, "%ld", *((long *) node->value));
                 break;
+            case DT_VARCHAR2:
+	        appendStringInfo(str, "'%s'", (char *) node->value);
+	        break;
         }
 
     WRITE_BOOL_FIELD(isNull);
@@ -925,6 +929,18 @@ outOrderOperator(StringInfo str, OrderOperator *node)
     WRITE_NODE_FIELD(orderExprs);
 }
 
+static void
+outJsonTableOperator(StringInfo str, JsonTableOperator *node)
+{
+    WRITE_NODE_TYPE(JSONTABLEOPERATOR);
+
+    WRITE_QUERY_OPERATOR();
+    WRITE_NODE_FIELD(columns);
+    WRITE_STRING_FIELD(documentcontext);
+    WRITE_STRING_FIELD(jsonColumn);
+    WRITE_STRING_FIELD(jsonTableIdentifier);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1116,6 +1132,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_JsonColInfoItem:
                 outFromJsonColInfoItem(str, (JsonColInfoItem *)obj);
+                break;
+            case T_JsonTableOperator:
+                outJsonTableOperator(str, (JsonTableOperator *) obj);
                 break;
             default :
                 FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
@@ -1667,6 +1686,12 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             appendStringInfo(str, "%s", exprToSQL((Node *) o->orderExprs));
         }
         break;
+        case T_JsonTableOperator:
+            WRITE_NODE_TYPE(JsonTable);
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, ((JsonTableOperator *) op)->jsonTableIdentifier);
+            appendStringInfoChar(str, ']');
+            break;
         default:
             FATAL_LOG("not a query operator:\n%s", op);
             break;

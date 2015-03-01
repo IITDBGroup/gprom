@@ -533,6 +533,24 @@ createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
     return ta;
 }
 
+JsonTableOperator *
+createJsonTableOperator(FromJsonTable *fjt)
+{
+    JsonTableOperator *jt = makeNode(JsonTableOperator);
+
+    jt->op.inputs = NULL;
+    jt->op.schema = createSchemaFromLists(fjt->from.name, fjt->from.attrNames, fjt->from.dataTypes);
+    jt->op.parents = NIL;
+    jt->op.provAttrs = NIL;
+
+    jt->columns = fjt->columns;
+    jt->documentcontext = fjt->documentcontext;
+    jt->jsonColumn = fjt->jsonColumn;
+    jt->jsonTableIdentifier = fjt->jsonTableIdentifier;
+
+    return jt;
+}
+
 SelectionOperator *
 createSelectionOp(Node *cond, QueryOperator *input, List *parents,
         List *attrNames)

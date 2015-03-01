@@ -82,6 +82,7 @@ static Schema *copySchema(Schema *from, OperatorMap **opMap);
 /*functions to copy query_operator*/
 static QueryOperator *copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap);
 static TableAccessOperator *copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap);
+static JsonTableOperator *copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap);
 static SelectionOperator *copySelectionOperator(SelectionOperator *from, OperatorMap **opMap);
 static ProjectionOperator *copyProjectionOperator(ProjectionOperator *from, OperatorMap **opMap);
 static JoinOperator *copyJoinOperator(JoinOperator *from, OperatorMap **opMap);
@@ -93,7 +94,7 @@ static ConstRelOperator *copyConstRelOperator(ConstRelOperator *from, OperatorMa
 static NestingOperator *copyNestingOperator(NestingOperator *from, OperatorMap **opMap);
 static WindowOperator *copyWindowOperator(WindowOperator *from, OperatorMap **opMap);
 static OrderOperator *copyOrderOperator(OrderOperator *from, OperatorMap **opMap);
-static FromJsonTable *copyJsonTableOperator(FromJsonTable *from, OperatorMap **opMap);
+static FromJsonTable *copyFromJsonTable(FromJsonTable *from, OperatorMap **opMap);
 static JsonColInfoItem *copyJsonColInfoItem(JsonColInfoItem *from,OperatorMap ** opMap);
 
 /*functions to copy query_block*/
@@ -146,6 +147,7 @@ static DLProgram *copyDLProgram(DLProgram *from, OperatorMap **opMap);
 /* copy a field that is a list of strings */
 #define COPY_STRING_LIST_FIELD(fldname) \
 		 new->fldname = deepCopyStringList((List *) from->fldname)
+
 
 /*deep copy for List operation*/
 static List *
@@ -528,6 +530,22 @@ copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap)
     return new;
 }
 
+static JsonTableOperator *
+copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap)
+{
+    COPY_INIT(JsonTableOperator);
+    COPY_OPERATOR();
+
+    COPY_NODE_FIELD(columns);
+
+    COPY_STRING_FIELD(documentcontext);
+    COPY_STRING_FIELD(jsonColumn);
+    COPY_STRING_FIELD(jsonTableIdentifier);
+
+    return new;
+}
+
+
 static SelectionOperator *
 copySelectionOperator(SelectionOperator *from, OperatorMap **opMap)
 {
@@ -649,23 +667,10 @@ copyOrderOperator(OrderOperator *from, OperatorMap **opMap)
     return new;
 }
 
-static FromJsonTable*
-copyJsonTableOperator(FromJsonTable *from,OperatorMap **opMap)
-{
-    COPY_INIT(FromJsonTable);
-
-    COPY_NODE_FIELD(columns);
-    COPY_STRING_FIELD(documentcontext);
-    COPY_STRING_FIELD(jsonColumn);
-    COPY_STRING_FIELD(jsonTableIdentifier);
-
-    return new;
-}
-
 static JsonColInfoItem *
 copyJsonColInfoItem(JsonColInfoItem *from, OperatorMap **opMap)
 {
-	COPY_INIT(JsonColInfoItem);
+    COPY_INIT(JsonColInfoItem);
 
     COPY_STRING_FIELD(attrName);
     COPY_STRING_FIELD(path);
@@ -838,6 +843,21 @@ copyFromTableRef(FromTableRef *from, OperatorMap **opMap)
     return new;
 }
 
+static FromJsonTable*
+copyFromJsonTable(FromJsonTable *from,OperatorMap **opMap)
+{
+    COPY_INIT(FromJsonTable);
+
+    COPY_FROM();
+
+    COPY_NODE_FIELD(columns);
+    COPY_STRING_FIELD(documentcontext);
+    COPY_STRING_FIELD(jsonColumn);
+    COPY_STRING_FIELD(jsonTableIdentifier);
+
+    return new;
+}
+
 static Constant *
 copyConstant(Constant *from, OperatorMap **opMap)
 {
@@ -870,6 +890,9 @@ copyConstant(Constant *from, OperatorMap **opMap)
 	      case DT_LONG:
 	          new->value = NEW(long);
 	          *((long *) new->value) = *((long *) from->value);
+	          break;
+	      case DT_VARCHAR2:
+	    	  new->value = strdup(from->value);
 	          break;
 	  }
 	  return new;
@@ -1084,11 +1107,11 @@ copyInternal(void *from, OperatorMap **opMap)
             retval = copyOrderOperator(from, opMap);
             break;
         case T_FromJsonTable:
-            retval = copyJsonTableOperator(from, opMap);
+            retval = copyFromJsonTable(from, opMap);
             break;
         case T_JsonColInfoItem:
-        	retval = copyJsonColInfoItem(from, opMap);
-        	break;
+	    retval = copyJsonColInfoItem(from, opMap);
+	    break;
             /* datalog model nodes */
         case T_DLAtom:
             retval = copyDLAtom(from, opMap);
@@ -1104,6 +1127,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_DLComparison:
             retval = copyDLComparison(from, opMap);
+            break;
+        case T_JsonTableOperator:
+	    retval = copyJsonTableOperator(from, opMap);
             break;
         default:
             retval = NULL;

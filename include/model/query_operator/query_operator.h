@@ -130,6 +130,16 @@ typedef struct OrderOperator
     List *orderExprs;
 } OrderOperator;
 
+typedef struct JsonTableOperator
+{
+    QueryOperator op;
+    //List *pathExprs;
+    List *columns;
+    char *documentcontext;
+    char *jsonColumn;
+    char *jsonTableIdentifier;
+} JsonTableOperator;
+
 /* type of operator macros */
 #define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
                         || isA(op, ConstRelOperator))
@@ -173,6 +183,7 @@ extern List *getAttrNames(Schema *schema);
 /* create functions */
 extern TableAccessOperator *createTableAccessOp(char *tableName, Node *asOf,
         char *alias, List *parents, List *attrNames, List *dataTypes);
+extern JsonTableOperator *createJsonTableOperator(FromJsonTable *fjt);
 extern SelectionOperator *createSelectionOp (Node *cond, QueryOperator *input,
         List *parents, List *attrNames);
 extern ProjectionOperator *createProjectionOp (List *projExprs,

@@ -878,7 +878,7 @@ jsonTable:
 		| JSON_TABLE '(' compositeIdentifier ',' stringConst COLUMNS '(' jsonColInfo ')' ')' AS identifier
 			{
 				RULELOG("jsonTable::jsonTable");
-                                $$ = (Node *) createFromJsonTable($3, $8, $12);
+                                $$ = (Node *) createFromJsonTable($3, $5, $8, $12);
 			}
 	;
 
@@ -984,7 +984,8 @@ fromClauseItem:
          | jsonTable
                 {
                     RULELOG("fromClauseItem::jsonTable");
-                    FromJsonTable *jt = (FromJsonTable *) $1;
+                    //FromJsonTable *jt = (FromJsonTable *) $1;
+                    FromItem *jt = (FromItem *)$1;
                     $$ = (Node*) jt;
                 }
     ;
