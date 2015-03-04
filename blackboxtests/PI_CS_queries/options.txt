@@ -1,0 +1,22 @@
+# Backend
+Backend=Oracle
+
+# general connection options
+Host=ligeti.cs.iit.edu
+Port=1521
+DBName=testdb
+User=fga_user
+Password=fga
+Schema=public
+
+# path of these tests
+Path=resource/PI_CS_queries/
+
+# Oracle specific configuration
+Oracle.SID=orcl
+
+# Postgres specific configuration
+Postgres.AdminDBName=template1
+Postgres.Prefix=/Users/lord_pretzel/systems/aggperm/install
+Postgres.Cluster=/Users/lord_pretzel/systems/aggperm/data
+Postgres.Source=/Users/lord_pretzel/Documents/workspace/AggPerm/

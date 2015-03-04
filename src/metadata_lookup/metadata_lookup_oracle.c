@@ -931,7 +931,7 @@ int getCost(char *query)
             query[i] = ' ';
     }
 
-    unsigned long long cost = 0L;
+    unsigned long long int cost = 0L;
 
     StringInfo statement;
     statement = makeStringInfo();
@@ -941,20 +941,32 @@ int getCost(char *query)
 
     StringInfo statement1;
     statement1 = makeStringInfo();
-    appendStringInfo(statement1, "SELECT COST FROM PLAN_TABLE WHERE ROWNUM = 1");
+    appendStringInfo(statement1, "SELECT MAX(COST) FROM PLAN_TABLE");
 
     OCI_Resultset *rs1 = executeStatement(statement1->data);
     if (rs1 != NULL)
     {
 	while(OCI_FetchNext(rs1))
         {
-		cost = OCI_GetInt(rs1, 1);
-		DEBUG_LOG("Cost is : %i \n", OCI_GetInt(rs1, 1));
-		break;
+            cost = (unsigned long long int) OCI_GetBigInt(rs1,1);
+            DEBUG_LOG("Cost is : %u \n", cost);
+            break;
         }
     }
 
     FREE(statement1);
+
+    StringInfo statement2;
+    statement2 = makeStringInfo();
+    appendStringInfo(statement2, "DELETE FROM PLAN_TABLE");
+    executeStatement(statement2->data);
+    FREE(statement2);
+
+    StringInfo statement3;
+    statement3 = makeStringInfo();
+    appendStringInfo(statement3, "COMMIT");
+    executeStatement(statement3->data);
+    FREE(statement3);
 
     return cost;
 }

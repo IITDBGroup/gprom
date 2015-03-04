@@ -60,6 +60,7 @@ static inline QueryOperator *createTableAccessOpFromFromTableRef(
         FromTableRef *ftr);
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje);
 static QueryOperator *translateFromSubquery(FromSubquery *fsq);
+static QueryOperator *translateFromJsonTable(FromJsonTable *fjt);
 static void translateFromProvInfo(QueryOperator *op, FromItem *f);
 
 /* Functions of translating nested subquery in a QueryBlock */
@@ -611,21 +612,48 @@ buildJoinTreeFromOperatorList(List *opList)
         if (op == (QueryOperator *) getHeadOfListP(opList))
             continue;
 
-        QueryOperator *oldRoot = (QueryOperator *) root;
-        List *inputs = NIL;
-        // set children of the join node
-        inputs = appendToTailOfList(inputs, oldRoot);
-        inputs = appendToTailOfList(inputs, op);
+        if (isA(op,JsonTableOperator))
+        {
+            QueryOperator *oldRoot = (QueryOperator *) root;
+            List *inputs = NIL;
 
-        // contact children's attribute names as the node's attribute names
-        List *attrNames = concatTwoLists(getAttrNames(oldRoot->schema), getAttrNames(op->schema));
+            // set children of the JsonTable Operator
+            inputs = appendToTailOfList(inputs, oldRoot);
+            op->inputs = inputs;
 
-        // create join operator
-        root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
+            oldRoot->parents = singleton(op);
 
-        // set the parent of the operator's children
-        OP_LCHILD(root)->parents = singleton(root);
-        OP_RCHILD(root)->parents = singleton(root);
+            // contact children's attribute names as the node's attribute
+            // names
+            List *attrNames = concatTwoLists(getAttrNames(oldRoot->schema), getAttrNames(op->schema));
+
+            /* get data types from inputs and attribute names from parameter
+             * to create schema */
+            List *l1 = getDataTypes(oldRoot->schema);
+	    List *l2 = getDataTypes(op->schema);
+            op->schema = createSchemaFromLists(op->schema->name, attrNames, concatTwoLists(l1, l2));
+
+            root = op;
+        }
+        else
+        {
+            QueryOperator *oldRoot = (QueryOperator *) root;
+            List *inputs = NIL;
+            // set children of the join node
+	    inputs = appendToTailOfList(inputs, oldRoot);
+	    inputs = appendToTailOfList(inputs, op);
+
+            // contact children's attribute names as the node's attribute
+            // names
+            List *attrNames = concatTwoLists(getAttrNames(oldRoot->schema), getAttrNames(op->schema));
+
+            // create join operator
+            root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
+
+            // set the parent of the operator's children
+	    OP_LCHILD(root)->parents = singleton(root);
+            OP_RCHILD(root)->parents = singleton(root);
+        }
     }
 
     DEBUG_LOG("join tree for translated from is\n%s", nodeToString(root));
@@ -673,6 +701,9 @@ translateFromClauseToOperatorList(List *fromClause)
             case T_FromSubquery:
                 op = translateFromSubquery((FromSubquery *) from);
                 break;
+            case T_FromJsonTable:
+            	op = translateFromJsonTable((FromJsonTable *) from);
+            	break;
             default:
                 FATAL_LOG("did not expect node <%s> in from list", nodeToString(from));
                 break;
@@ -906,6 +937,14 @@ translateFromSubquery(FromSubquery *fsq)
 {
     return translateQueryOracle(fsq->subquery);
     //TODO set attr names from FromItem
+}
+
+static QueryOperator *
+translateFromJsonTable(FromJsonTable *fjt)
+{
+    JsonTableOperator *jto = createJsonTableOperator(fjt);
+    DEBUG_LOG("translated Json Table:\n%s\nINTO\n%s", nodeToString(fjt), nodeToString(jto));
+    return ((QueryOperator *) jto);
 }
 
 static QueryOperator *

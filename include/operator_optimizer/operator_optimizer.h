@@ -12,6 +12,7 @@
 #define OPERATOR_OPTIMIZER_H_
 
 #include "model/query_operator/query_operator.h"
+#include "include/model/set/set.h"
 
 /* apply all optimizations */
 extern Node *optimizeOperatorModel (Node *root);
@@ -29,8 +30,21 @@ extern QueryOperator *factorAttrsInExpressions(QueryOperator *root);
 
 extern QueryOperator *removeRedundantProjections(QueryOperator *root);
 
+/* try to remove unnecessary window operator */
+extern QueryOperator *removeUnnecessaryWindowOperator(QueryOperator *root);
+
+/* try to remove unnecessary columns */
+extern QueryOperator *removeUnnecessaryColumns(QueryOperator *root);
+extern QueryOperator *removeUnnecessaryColumnsFromProjections(QueryOperator *root);
+extern QueryOperator *removeUnnecessaryAttrDefInSchema(Set *icols, QueryOperator *op);
+extern void resetAttrPosInCond(QueryOperator *root, Operator *condOp);
+extern void resetPos(AttributeReference *ar,  List* attrDefs);
+
+/* try to remove redundant duplicate operator */
+extern QueryOperator *removeRedundantDuplicateOperatorBySet(QueryOperator *root);
+
 /*try to remove redundant duplicate operator */
-extern QueryOperator *removeRedundantDuplicateOperator(QueryOperator *root);
+extern QueryOperator *removeRedundantDuplicateOperatorByKey(QueryOperator *root);
 
 /* try to pull up provenance projections. */
 extern QueryOperator *pullingUpProvenanceProjections(QueryOperator *root);

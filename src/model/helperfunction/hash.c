@@ -277,6 +277,9 @@ hashConstant (uint64_t cur, Constant *node)
         case DT_STRING:
             cur = hashString(cur, STRING_VALUE(node));
             break;
+        case DT_VARCHAR2:
+	    cur = hashString(cur, STRING_VALUE(node));
+	    break;
     }
 
     HASH_BOOLEAN(isNull);

@@ -147,6 +147,50 @@ deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos)
 }
 
 void
+reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, Operator *a1)
+{
+	int cnt;
+	Node *left  = (Node *)getHeadOfListP(a1->args);
+	Node *right = (Node *)getTailOfListP(a1->args);
+
+	if(isA(left, Operator))
+	{
+		reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, (Operator *)left);
+	}
+	else if(isA(left, AttributeReference))
+	{
+		cnt = 0;
+		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+		{
+			if(streq(((AttributeReference *)left)->name, a2->attrName))
+			{
+				((AttributeReference *)left)->attrPosition = cnt;
+				break;
+			}
+			cnt++;
+		}
+	}
+
+	if(isA(right, Operator))
+	{
+		reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, (Operator *)right);
+	}
+	else if(isA(right, AttributeReference))
+	{
+		cnt = 0;
+		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+		{
+			if(streq(((AttributeReference *)right)->name, a2->attrName))
+			{
+				((AttributeReference *)right)->attrPosition = cnt;
+				break;
+			}
+			cnt++;
+		}
+	}
+}
+
+void
 resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *op2)
 {
     int cnt = 0;
@@ -162,19 +206,43 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *
         cnt++;
     }
     */
-    FOREACH(AttributeReference, a1, op1->projExprs)
-    {
-    	cnt = 0;
-    	FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+
+	FOREACH_LC(a1, op1->projExprs)
+	{
+		if(isA(LC_P_VAL(a1), Operator))
 		{
-            if(streq(a1->name, a2->attrName))
-            {
-                a1->attrPosition = cnt;
-                break;
-            }
-            cnt++;
+			reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2,(Operator *)LC_P_VAL(a1));
 		}
-    }
+		else
+		{
+			cnt = 0;
+			FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+			{
+				if(streq(((AttributeReference *)LC_P_VAL(a1))->name, a2->attrName))
+				{
+					((AttributeReference *)LC_P_VAL(a1))->attrPosition = cnt;
+					break;
+				}
+				cnt++;
+			}
+		}
+	}
+
+
+/*    	FOREACH(AttributeReference, a1, op1->projExprs)
+    	{
+    		cnt = 0;
+    		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+    		{
+    			if(streq(a1->name, a2->attrName))
+    			{
+    				a1->attrPosition = cnt;
+    				break;
+    			}
+    			cnt++;
+    		}
+    	}*/
+
 }
 
 void
@@ -463,6 +531,24 @@ createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
     ta->op.provAttrs = NIL;
 
     return ta;
+}
+
+JsonTableOperator *
+createJsonTableOperator(FromJsonTable *fjt)
+{
+    JsonTableOperator *jt = makeNode(JsonTableOperator);
+
+    jt->op.inputs = NULL;
+    jt->op.schema = createSchemaFromLists(fjt->from.name, fjt->from.attrNames, fjt->from.dataTypes);
+    jt->op.parents = NIL;
+    jt->op.provAttrs = NIL;
+
+    jt->columns = fjt->columns;
+    jt->documentcontext = fjt->documentcontext;
+    jt->jsonColumn = fjt->jsonColumn;
+    jt->jsonTableIdentifier = fjt->jsonTableIdentifier;
+
+    return jt;
 }
 
 SelectionOperator *
@@ -851,6 +937,72 @@ getNormalAttrNames(QueryOperator *op)
     result = appendToTailOfList(result, strdup(a->attrName));
 
     return result;
+}
+
+List *
+getAttrRefNames(ProjectionOperator *op)
+{
+   List *result = NIL;
+
+   FOREACH(AttributeReference, a, op->projExprs)
+      result = appendToTailOfList(result, strdup(a->name));
+
+   return result;
+}
+
+//e.g. op = a + (b+2), then aNameOpList = {a,b}
+List *
+getAttrNameFromOpExpList(List *aNameOpList, Operator *opExpList)
+{
+	Node *left  = (Node *)getHeadOfListP(opExpList->args);
+	Node *right = (Node *)getTailOfListP(opExpList->args);
+
+	if(isA(left, Operator))
+	{
+		aNameOpList = getAttrNameFromOpExpList(aNameOpList, (Operator *)left);
+	}
+	else if(isA(left, AttributeReference))
+	{
+		aNameOpList = appendToTailOfList(aNameOpList, ((AttributeReference *)left)->name);
+	}
+
+	if(isA(right, Operator))
+	{
+		aNameOpList = getAttrNameFromOpExpList(aNameOpList, (Operator *)right);
+	}
+	else if(isA(right, AttributeReference))
+	{
+		aNameOpList = appendToTailOfList(aNameOpList, ((AttributeReference *)right)->name);
+	}
+
+	return aNameOpList;
+
+}
+
+/*
+ * dif with getAttrRefNames, which contains rename such as
+ * A+B+2 AS X, So the list will contain {A,B}
+ * But contain duplicate, such as
+ * A+B AS X, A, then {A, B, A}, but if change List to set, duplicate should be removed
+ */
+List *
+getAttrRefNamesContainOps(ProjectionOperator *op)
+{
+   List *result = NIL;
+
+   FOREACH(Node, a, op->projExprs)
+   {
+	   if(isA(a, Operator))
+	   {
+		   result = getAttrNameFromOpExpList(result, (Operator *)a);
+	   }
+	   else if(isA(a, AttributeReference))
+	   {
+		   result = appendToTailOfList(result, strdup(((AttributeReference *)a)->name));
+	   }
+   }
+
+   return result;
 }
 
 int

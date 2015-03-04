@@ -12,10 +12,28 @@
 #define INCLUDE_OPERATOR_OPTIMIZER_OPTIMIZER_PROP_INFERENCE_H_
 
 #include "model/query_operator/query_operator.h"
+#include "include/model/set/set.h"
 
 extern void computeKeyProp (QueryOperator *root);
+
 extern void computeECProp (QueryOperator *root);
+extern void computeECPropBottomUp (QueryOperator *root);
+extern List *GenerateCondECSetListUsedInBottomUp(List *CondECSetList, Operator *op);
+extern List *CombineDuplicateElemSetInECList(List *DupECList);
+extern List *LSCHtoRSCH(List *setList, List *rECSetList, List *lSchemaList, List *rSchemaList);
+extern void computeECPropTopDown (QueryOperator *root);
+
+//used in projection bottom up
+
+extern List *SCHAtoBUsedInProJ(List *setList, List *childECSetList, List *attrA, List *attrB);
+
 extern void computeReqColProp (QueryOperator *root);
 extern void computeSetProp (QueryOperator *root);
+
+extern void initializeSetProp(QueryOperator *root);
+extern void initializeIColProp(QueryOperator *root);
+extern void printIcols(QueryOperator *root);
+
+extern Set* AddAttrOfSelectCondToSet(Set *set, Operator *op);
 
 #endif /* INCLUDE_OPERATOR_OPTIMIZER_OPTIMIZER_PROP_INFERENCE_H_ */
