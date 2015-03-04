@@ -21,14 +21,16 @@ public class ConnectionOptions {
 	private static ConnectionOptions instance;
 	private Properties props;
 	
-	private ConnectionOptions () throws FileNotFoundException, IOException {
+	private ConnectionOptions () {
+	}
+	
+	public void init () throws IOException {
 		File pFile = new File(System.getProperty("generator.resourcedir") + "/options.txt");
 		if (!pFile.exists())
 			throw new FileNotFoundException(pFile.toString());
 		props = new Properties ();
-		System.out.println(pFile.getAbsolutePath());
 		
-		props.load(new FileInputStream(pFile));
+		props.load(new FileInputStream(pFile));		
 	}
 	
 	public static ConnectionOptions getInstance () throws FileNotFoundException, IOException {
