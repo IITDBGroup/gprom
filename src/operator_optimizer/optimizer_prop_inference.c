@@ -187,7 +187,7 @@ computeECPropBottomUp (QueryOperator *root)
 			{
 				//1, Get cond set
                 Operator *op = (Operator *)(((JoinOperator*)root)->cond);
-                Set *set;
+                Set *set = NULL;
 
                 if(streq(op->name,"="))
                 {
@@ -757,7 +757,7 @@ GenerateCondECSetListUsedInBottomUp(List *CondECSetList, Operator *op)
 	}
 	else if(streq(op->name,"="))
 	{
-		Set *s;
+		Set *s = NULL;
 		if(isA(getHeadOfListP(op->args), AttributeReference))
 		{
            char *arName = copyObject(((AttributeReference *)(LC_P_VAL(getHeadOfList(op->args))))->name);
