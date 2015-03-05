@@ -84,7 +84,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     /* Json Table Node */
     T_FromJsonTable,
     T_JsonTableOperator,
-			T_JsonColInfoItem,
+    T_JsonColInfoItem,
  
     /* relation */
     T_Relation
