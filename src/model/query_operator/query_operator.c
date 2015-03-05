@@ -651,10 +651,11 @@ createSetOperator(SetOpType setOpType, List *inputs, List *parents,
         List *attrNames)
 {
     SetOperator *set = makeNode(SetOperator);
-    QueryOperator *lChild = OP_LCHILD(set);
+    QueryOperator *lChild;
 
     set->setOpType = setOpType;
     set->op.inputs = inputs;
+    lChild = OP_LCHILD(set);
     set->op.schema = createSchemaFromLists("SET", attrNames,
             lChild ? getDataTypes(lChild->schema) : NIL);
     set->op.parents = parents;
