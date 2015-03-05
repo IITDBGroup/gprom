@@ -139,6 +139,12 @@ optimizeOneGraph (QueryOperator *root)
 //	applyMerge(rewrittenTree);
 //	applySelectionPushdown(rewrittenTree);
 
+    APPLY_AND_TIME_OPT("selection move around",
+    		selectionMoveAround,
+    		OPTIMIZATION_SELECTION_MOVE_AROUND);
+    APPLY_AND_TIME_OPT("pull up duplicate remove operators",
+    		pullUpDuplicateRemoval,
+    		OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
     APPLY_AND_TIME_OPT("remove unnecessary columns",
     		removeUnnecessaryColumns,
     		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
@@ -289,9 +295,9 @@ optimizeOneGraph (QueryOperator *root)
         STOP_TIMER("OptimizeModel - merge adjacent operator");
     }
 */
-    APPLY_AND_TIME_OPT("selection move around",
+/*    APPLY_AND_TIME_OPT("selection move around",
             selectionMoveAround,
-            OPTIMIZATION_SELECTION_MOVE_AROUND);
+            OPTIMIZATION_SELECTION_MOVE_AROUND);*/
 //    if(getBoolOption(OPTIMIZATION_SELECTION_MOVE_AROUND))
 //    {
 //        START_TIMER("OptimizeModel - selections move around");
@@ -813,6 +819,91 @@ removeRedundantDuplicateOperatorByKey(QueryOperator *root)
 }
 
 QueryOperator *
+pullUpDuplicateRemoval(QueryOperator *root)
+{
+    computeKeyProp(root);
+
+    List *drOp = NULL;
+    findDuplicateRemoval(&drOp, root);
+
+    FOREACH(DuplicateRemoval, op, drOp)
+    {
+    	if(op->op.parents != NIL)
+    		doPullUpDuplicateRemoval(op);
+    }
+
+    return root;
+}
+
+void
+findDuplicateRemoval(List **drOp, QueryOperator *root)
+{
+	if(isA(root, DuplicateRemoval))
+		*drOp = appendToTailOfList(*drOp, (DuplicateRemoval *)root);
+
+	FOREACH(QueryOperator, op, root->inputs)
+	      findDuplicateRemoval(drOp, op);
+
+}
+
+void
+doPullUpDuplicateRemoval(DuplicateRemoval *root)
+{
+
+	//Calculate the num of op(has key) above the DR op
+	int count = 0;
+	List *keyList = NIL;
+	QueryOperator *tempRoot = (QueryOperator *)root;
+    while(tempRoot->parents != NIL)
+    {
+    	keyList = (List *) getStringProperty(tempRoot, PROP_STORE_LIST_KEY);
+    	if(keyList != NIL)
+            count++;
+    	tempRoot = ((QueryOperator *) getHeadOfListP(tempRoot->parents));
+    }
+
+    int countrolNum = callback(count);
+    if(countrolNum == -1)
+    	countrolNum = 0;
+    /*
+     * if count = 3, countrolNum = callback(3)
+     * (1) countrolNum = 0, DR pull up 1 layer
+     * (2) countrolNum = 1, DR pull up 2 layer
+     * (3) countrolNum = 2, DR pull up 3 layer
+     * Will skip the layer which don't has key
+     */
+    QueryOperator *newOp = (QueryOperator *)root;
+    QueryOperator *child = OP_LCHILD(root);
+    for(int i=0; i<=countrolNum; i++)
+    {
+    	//Make sure the new parent has key
+    	while(TRUE)
+    	{
+    		keyList = NIL;
+    		if(newOp->parents == NIL)
+    			break;
+    		newOp = ((QueryOperator *) getHeadOfListP(newOp->parents));
+
+    		//TODO: After set key in the table R, retrieve below line and comment out another line
+    		//sd
+    		keyList = appendToTailOfList(keyList,"A");
+    		if(keyList != NIL)
+    			break;
+
+    	}
+    }
+
+    switchSubtrees((QueryOperator *) root, (QueryOperator *) child);
+    switchSubtrees((QueryOperator *) newOp, (QueryOperator *) root);
+
+    root->op.inputs = NIL;
+    newOp->parents = NIL;
+	addChildOperator((QueryOperator *) root, (QueryOperator *) newOp);
+
+	root->op.schema->attrDefs = OP_LCHILD(root)->schema->attrDefs;
+}
+
+QueryOperator *
 removeRedundantProjections(QueryOperator *root)
 {
     QueryOperator *lChild = OP_LCHILD(root);
@@ -1298,6 +1389,7 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
 QueryOperator *
 selectionMoveAround(QueryOperator *root)
 {
+/*
     //loop 1, bottom to top trace the tree and set the property of each
     //operation(tree node)
     setMoveAroundListSetProperityForWholeTree(root);
@@ -1311,9 +1403,65 @@ selectionMoveAround(QueryOperator *root)
     introduceSelection(root);
 
     //DEBUG_LOG("after the beauty is: \n%s",beatify(nodeToString(root)));
+*/
+
+	computeECProp(root);
+	introduceSelectionBottomUp(root);
 
     return root;
 }
+
+void
+introduceSelectionBottomUp(QueryOperator *root)
+{
+	if(root->inputs != NULL)
+	{
+		FOREACH(QueryOperator, op, root->inputs)
+		         introduceSelectionBottomUp(op);
+	}
+
+	if(isA(root,TableAccessOperator) || isA(root, AggregationOperator))
+	{
+		Node *nRoot = getProperty(root, (Node *) createConstString(PROP_STORE_SET_EC));
+		List *rootECList = copyList((List *)nRoot);
+
+		//If set size > 1, we need to introduce equal condition
+        boolean flag = FALSE;
+        FOREACH(Set, s, rootECList)
+        {
+        	if(setSize(s) > 1)
+        	{
+        		flag = TRUE;
+        		break;
+        	}
+        }
+
+        //If need, we need to check its parent
+        //If it is selection, we need to change cond, if not, introduce new selection op
+        if(flag == TRUE)
+        {
+            if(isA(getHeadOfListP(root->parents),SelectionOperator))
+            {
+            	//Change cond
+            	QueryOperator *selOp = (QueryOperator *)getHeadOfListP(root->parents);
+            	//Get selection operator's cond and change it to operator list
+    			//Generate opList based on EC
+    			List *opList = getMoveAroundOpList(selOp);
+    			introduceSelectionOrChangeSelectionCond(opList, selOp);
+            }
+            else
+            {
+                //Introduce new selection operator
+                //Generate opList based on EC
+                List *opList = getMoveAroundOpList(root);
+
+                //Create Selection operator and introduce
+            	introduceSelectionOrChangeSelectionCond(opList, root);
+            }
+        }
+	}
+}
+
 
 void
 setMoveAroundListSetProperityForWholeTree(QueryOperator *root)
@@ -1404,7 +1552,6 @@ setMoveAroundListSetProperityForWholeTree(QueryOperator *root)
 			setProperty((QueryOperator *)newRoot, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND), (Node *)setList);
 		}
 
-		//else if(isA(root, ProjectionOperator))
 		else
 		{
 			QueryOperator *child = OP_LCHILD(root);
@@ -1573,7 +1720,8 @@ getMoveAroundOpList(QueryOperator *qo)
 	//while(isA(qo1, ProjectionOperator))
 	//	qo1 = (QueryOperator *)(OP_LCHILD(qo1));
 
-	Node *n1 = getProperty(qo1, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
+	//Node *n1 = getProperty(qo1, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
+	Node *n1 = getProperty(qo1, (Node *) createConstString(PROP_STORE_SET_EC));
 	List *l1 = (List *)n1;
 	opList = NIL;
 
@@ -1597,7 +1745,6 @@ getMoveAroundOpList(QueryOperator *qo)
 							break;
 						}
                      }
-					//argList = appendToHeadOfList(argList,a);
 				}
 				else
 					argList = appendToTailOfList(argList,selem);
@@ -1634,7 +1781,6 @@ getMoveAroundOpList(QueryOperator *qo)
 								break;
 							}
                          }
-						//argList = appendToHeadOfList(argList,a);
 					}
 					else
 					{
@@ -1681,9 +1827,7 @@ getMoveAroundOpList(QueryOperator *qo)
 			{
 				List *originalOpList = NIL;
 				Operator *originalCondOp = (Operator *)(((SelectionOperator *)qo1)->cond);
-
 				originalOpList = getSelectionCondOperatorList(originalOpList, originalCondOp);
-
 
 				FOREACH(Operator,condOp,originalOpList)
 				{
@@ -1910,11 +2054,8 @@ introduceSelectionOrChangeSelectionCond(List *opList, QueryOperator *qo1)
              //set the data type
              setAttrDefDataTypeBasedOnBelowOp((QueryOperator *)newSo1, (QueryOperator *)qo1);
 
-             DEBUG_LOG("111111111111111111111111111111111111111");
-
              //reset the attr_ref position
              resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection((SelectionOperator *)newSo1,(QueryOperator *)qo1);
-             DEBUG_LOG("22222222222222222222222222222222222222222");
          }
      }
 }

@@ -43,8 +43,13 @@ extern void resetPos(AttributeReference *ar,  List* attrDefs);
 /* try to remove redundant duplicate operator */
 extern QueryOperator *removeRedundantDuplicateOperatorBySet(QueryOperator *root);
 
-/*try to remove redundant duplicate operator */
+/* try to remove redundant duplicate operator */
 extern QueryOperator *removeRedundantDuplicateOperatorByKey(QueryOperator *root);
+
+/* try to pull up duplicate operator */
+extern QueryOperator *pullUpDuplicateRemoval(QueryOperator *root);
+extern void findDuplicateRemoval(List **drOp, QueryOperator *root);
+extern void doPullUpDuplicateRemoval(DuplicateRemoval *root);
 
 /* try to pull up provenance projections. */
 extern QueryOperator *pullingUpProvenanceProjections(QueryOperator *root);
@@ -54,6 +59,7 @@ extern QueryOperator *pushDownSelectionThroughJoinsOperatorOnProv(QueryOperator 
 
 /* try to implement selection move around */
 extern QueryOperator *selectionMoveAround(QueryOperator *root);
+extern void introduceSelectionBottomUp(QueryOperator *root);
 
 /* used in selection move around,  step 1  */
 extern void setMoveAroundListSetProperityForWholeTree(QueryOperator *root);
