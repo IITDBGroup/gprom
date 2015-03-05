@@ -39,7 +39,8 @@ typedef enum OptionType {
 #define OPTIMIZATION_SELECTION_MOVE_AROUND "optimization.selection_move_around"
 #define OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR "optimization.remove_redundant_duplicate_operator"
 #define OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS "optimization.remove_unnecessary_columns"
-#define OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS "optimization.remove_unnecessary_window_operator"
+#define OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS "optimization.remove_unnecessary_window_operators"
+#define OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS "optimization.pull_up_deplicate_remove_operators"
 
 /* define model checking options */
 #define CHECK_OM_UNIQUE_ATTR_NAMES "check.unique_attrs"
@@ -101,6 +102,7 @@ extern boolean opt_optimization_push_selections_through_joins;
 extern boolean opt_optimization_selection_move_around;
 extern boolean opt_optimization_remove_unnecessary_columns;
 extern boolean opt_optimization_remove_unnecessary_window_operators;
+extern boolean opt_optimization_pull_up_duplicate_remove_operators;
 
 // new option interface
 extern char *getStringOption (char *name);
