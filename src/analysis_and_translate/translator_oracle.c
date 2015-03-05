@@ -212,7 +212,7 @@ translateSetQuery(SetQuery *sq)
 
                     lD = (QueryOperator *) createDuplicateRemovalOp(
                             getNormalAttrProjectionExprs(left),
-                            (QueryOperator *) right,
+                            (QueryOperator *) left,
                             NIL, getAttrNames(GET_OPSCHEMA(left)));
 
                     rD = (QueryOperator *) createDuplicateRemovalOp(
