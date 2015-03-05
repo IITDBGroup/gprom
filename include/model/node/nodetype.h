@@ -81,6 +81,11 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_DLProgram,
     T_DLComparison,
 
+    /* Json Table Node */
+    T_FromJsonTable,
+    T_JsonTableOperator,
+			T_JsonColInfoItem,
+ 
     /* relation */
     T_Relation
 );

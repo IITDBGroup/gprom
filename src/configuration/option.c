@@ -105,6 +105,8 @@ boolean opt_optimization_pulling_up_provenance_proj = FALSE;
 boolean opt_optimization_push_selections_through_joins = FALSE;
 boolean opt_optimization_selection_move_around = FALSE;
 boolean opt_optimization_remove_unnecessary_columns = FALSE;
+boolean opt_optimization_remove_unnecessary_window_operators = FALSE;
+boolean opt_optimization_pull_up_duplicate_remove_operators = FALSE;
 
 // sanity check options
 boolean opt_operator_model_unique_schema_attribues = FALSE;
@@ -418,11 +420,23 @@ OptionInfo opts[] =
                 opt_remove_redundant_duplicate_operator,
                 TRUE
         ),
+        anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS,
+                "-Oremove_unnecessary_window_operators",
+                "Optimization: try to remove unnecessary window operators",
+                opt_optimization_remove_unnecessary_window_operators,
+                TRUE
+        ),
         anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS,
                 "-Oremove_unnecessary_columns",
                 "Optimization: try to remove unnecessary columns",
                 opt_optimization_remove_unnecessary_columns,
                 TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS,
+        		"-Opullup_duplicate_remove_operators",
+        		"Optimization: try to pull up duplicate remove operators",
+        		opt_optimization_pull_up_duplicate_remove_operators,
+        		TRUE
         ),
         anOptimizationOption(OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ,
                 "-Opulling_up_provenance_proj",

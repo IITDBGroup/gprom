@@ -24,7 +24,8 @@ NEW_ENUM_WITH_TO_STRING(DataType,
     DT_LONG,
     DT_STRING,
     DT_FLOAT,
-    DT_BOOL
+    DT_BOOL,
+    DT_VARCHAR2
 );
 
 typedef struct Constant {

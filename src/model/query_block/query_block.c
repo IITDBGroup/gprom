@@ -129,6 +129,31 @@ createFromJoin(char *alias, List *attrNames, FromItem *left,
     return (FromItem *) result;
 }
 
+FromItem *
+createFromJsonTable(char *jsonColumn, char *documentcontext, List *columns, char *jsonTableIdentifier)
+{
+    FromJsonTable *result = makeNode(FromJsonTable);
+    result->columns = columns;
+    result->documentcontext = strdup(documentcontext);
+    result->jsonColumn = strdup(jsonColumn);
+    result->jsonTableIdentifier = strdup(jsonTableIdentifier);
+    ((FromItem *)result)->name = jsonTableIdentifier;
+
+    return (FromItem *)result;
+}
+
+JsonColInfoItem *
+createJsonColInfoItem (char *attrName, char *attrType, char *path)
+{
+    JsonColInfoItem *result = makeNode(JsonColInfoItem);
+
+    result->attrName = attrName;
+    result->path = path;
+    result->attrType = attrType;
+
+    return result;
+}
+
 JoinConditionType
 joinConditionTypeFromString (char *condType)
 {
