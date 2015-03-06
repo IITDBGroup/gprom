@@ -19,6 +19,8 @@ import org.dbunit.operation.DatabaseOperation;
 
 public class AbstractGProMTester extends DBTestCase {
 
+	protected String path;
+	
 	public AbstractGProMTester (String name) {
 		super(name);
 		
@@ -48,7 +50,8 @@ public class AbstractGProMTester extends DBTestCase {
 	 */
 	@Override
 	protected IDataSet getDataSet () throws Exception {
-		return new XmlDataSet(new FileInputStream(new File(System.getProperty("generator.resourcedir") + "/testdb/smallTestDB.xml")));
+//		return null;
+		return new XmlDataSet(new FileInputStream(new File(path + "/testdb/smallTestDB.xml")));
 	}
 
     protected DatabaseOperation getSetUpOperation() throws Exception {

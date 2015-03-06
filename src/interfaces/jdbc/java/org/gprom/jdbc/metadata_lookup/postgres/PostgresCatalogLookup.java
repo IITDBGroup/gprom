@@ -5,23 +5,20 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import org.apache.log4j.Logger;
+import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin;
+import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.databaseConnectionClose_callback;
+import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.databaseConnectionOpen_callback;
+import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
+import org.gprom.jdbc.utility.LoggerUtil;
 
 
-public class PostgresCatalogLookup {
+public class PostgresCatalogLookup extends AbstractMetadataLookup {
 	private static Logger log = Logger.getLogger(PostgresCatalogLookup.class);
-	private Connection con;
-	private Statement stat;
 
-	public PostgresCatalogLookup(Connection con) {
-		this.con = con;
-		try {
-			stat = con.createStatement();
-		} catch (SQLException e) {
-			log.error("Error creating the Statement object");
-			log.error(e.getMessage());
-			System.exit(-1);
-		}
+	public PostgresCatalogLookup(Connection con) throws SQLException {
+		super(con);
 	}
+
 
 //	/**
 //	 * Checks if the relation name exists and saves also the schema name

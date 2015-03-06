@@ -5,8 +5,8 @@ Backend=Oracle
 Host=ligeti.cs.iit.edu
 Port=1521
 DBName=orcl
-User=fga_user
-Password=fga
+User=testuser
+Password=testuser_man
 Schema=public
 
 # path of these tests

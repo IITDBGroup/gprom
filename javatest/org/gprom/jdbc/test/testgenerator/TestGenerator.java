@@ -182,6 +182,7 @@ public class TestGenerator {
 		output = output.replace("FILE", suite.getFileName());
 		output = output.replace("SETTING", "" + settingNum);
 		output = output.replace("PATH", this.getTestDir().toString() + "/");
+		output = output.replace("BASEDIR", resourceDir);
 		for (int i = 1; i <= generator.getNumTest(); i++) {
 			if (!generator.isInExcludes(settingNum, i))
 				tests.append(testMethodString.replace("NAME", "Query_" + i).replace("NUM", i + ""));

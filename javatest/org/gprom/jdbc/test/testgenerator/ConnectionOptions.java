@@ -19,9 +19,10 @@ public class ConnectionOptions {
 
 
 	private static ConnectionOptions instance;
-	private Properties props;
+	private Properties props = new Properties();
 	
-	private ConnectionOptions () {
+	private ConnectionOptions () throws IOException {
+//		init();
 	}
 	
 	public void init () throws IOException {
@@ -81,13 +82,17 @@ public class ConnectionOptions {
 	
 	public void setPath (String path) {
 		File filePath = new File (path);
-		Properties newProp = new Properties();
+//		Properties newProp = new Properties();
 		
-		props.setProperty("Path", path);
 		try {
-			newProp.load(new FileInputStream(new File(filePath, "options.txt")));
-			props.setProperty("DBName", newProp.getProperty("DBName"));
-			props.setProperty("Password", newProp.getProperty("Password"));
+			props.clear();
+			props.load(new FileInputStream(new File(filePath, "options.txt")));
+			props.setProperty("Path", path);
+//			props.setProperty("User", newProp.getProperty("User"));
+//			props.setProperty("Password", newProp.getProperty("Password"));
+//			props.setProperty("DBName", newProp.getProperty("DBName"));
+//			props.setProperty("Port", newProp.getProperty("Port"));
+//			props.setProperty("Host", newProp.getProperty("Host"));
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

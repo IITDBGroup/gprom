@@ -7,6 +7,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import org.apache.log4j.Logger;
 import org.dbunit.database.IDatabaseConnection;
 import org.postgresql.util.PSQLException;
 import org.gprom.jdbc.driver.GProMConnection;
@@ -15,6 +16,8 @@ import org.gprom.jdbc.utility.LoggerUtil;
 
 public class ConnectionManager {
 
+	static Logger log = Logger.getLogger(ConnectionManager.class);
+	
 	static {
 		try {
 			instance = new ConnectionManager ();
@@ -117,6 +120,7 @@ public class ConnectionManager {
 			String user = ConnectionOptions.getInstance().getUser();
 			String passwd = ConnectionOptions.getInstance().getPassword();
 			
+			log.debug("");
 			String url = "jdbc:gprom:oracle:thin:"  + user + "/" + passwd + 
 					"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
 
