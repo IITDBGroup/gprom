@@ -1428,8 +1428,9 @@ introduceSelectionBottomUp(QueryOperator *root)
 
 		//If set size > 1, we need to introduce equal condition
         boolean flag = FALSE;
-        FOREACH(Set, s, rootECList)
+        FOREACH(KeyValue, kv, rootECList)
         {
+            Set *s = (Set *) kv->key;
         	if(setSize(s) > 1)
         	{
         		flag = TRUE;
@@ -1717,13 +1718,13 @@ getMoveAroundOpList(QueryOperator *qo)
 	//	qo1 = (QueryOperator *)(OP_LCHILD(qo1));
 
 	//Node *n1 = getProperty(qo1, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
-	Node *n1 = getProperty(qo1, (Node *) createConstString(PROP_STORE_SET_EC));
+	Node *n1 = getStringProperty(qo1, PROP_STORE_SET_EC);
 	List *l1 = (List *)n1;
 	opList = NIL;
 
-	FOREACH(Set, s1, l1)
+	FOREACH(KeyValue, kv, l1)
 	{
-
+	    Set *s1 = (Set *) kv->key;
 		if(setSize(s1) == 2)
 		{
 			List *argList = NIL;
