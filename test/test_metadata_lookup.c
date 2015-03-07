@@ -42,6 +42,7 @@ testMetadataLookup(void)
 
     if (streq(getStringOption("backend"),"oracle"))
     {
+        ASSERT_EQUALS_INT(EXIT_SUCCESS, oracleShutdownMetadataLookupPlugin(), "shutdown plugin");
         RUN_TEST(setupMetadataLookup(),"setup tables");
         RUN_TEST(testCatalogTableExists(), "test catalog table exists");
         RUN_TEST(testViewExists(), "test view exists");

@@ -31,6 +31,7 @@ static char *pluginTypeToString(MetadataLookupPluginType type);
 int
 initMetadataLookupPlugins (void)
 {
+    availablePlugins = NIL;
 
 // only assemble plugins for which the library is available
 #if HAVE_ORACLE_BACKEND

@@ -101,7 +101,7 @@ makeSetInt(int elem, ...)
 
     for(arg = elem; arg >= 0; arg = va_arg(args,int))
     {
-        INFO_LOG("add int %d to set", arg);
+        TRACE_LOG("add int %d to set", arg);
         addIntToSet(result, arg);
     }
 
@@ -287,7 +287,7 @@ hasSetIntElem (Set *set, int _el)
     HASH_FIND(hh,set->elem, &_el, sizeof(int), result);
 
     for(s=set->elem; s != NULL; s=s->hh.next) {
-        INFO_LOG("key and value %d with hv %u keyptr %d", *((int *) s->data), s->hh.hashv, *((int *) s->hh.key));
+        TRACE_LOG("key and value %d with hv %u keyptr %d", *((int *) s->data), s->hh.hashv, *((int *) s->hh.key));
     }
 
     return result != NULL;

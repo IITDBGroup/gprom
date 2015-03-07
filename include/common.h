@@ -75,6 +75,16 @@
 #include <setjmp.h>
 #endif
 
+/* signal handler */
+#if HAVE_SIGNAL_H
+#include <signal.h>
+#endif
+
+/* unistd handler */
+#if HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup

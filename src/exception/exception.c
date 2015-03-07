@@ -25,9 +25,11 @@ static ExceptionSeverity severity;
 static const char *exceptionMessage = NULL;
 static const char *file = NULL;
 static int line = -1;
+static void sigsegv_handler(int signo);
+
 
 // macros
-#define SEVER_TO_STRING(s) ((s == SEVERITY_PANIC) ? TB("PANIC") : TB("RECOVERABLE"))
+#define SEVER_TO_STRING(s) ((s == SEVERITY_PANIC) ? TB("PANIC") : ((s == SEVERITY_RECOVERABLE) ? TB("RECOVERABLE") : TB("SIGSEGV")))
 
 // for storing pointer to long jmp stack
 sigjmp_buf *exceptionBuf = NULL;
@@ -37,6 +39,19 @@ void
 registerExceptionCallback (GProMExceptionCallbackFunctionInternal callback)
 {
     exceptionCallback = callback;
+}
+
+//
+void
+registerSignalHandler(void)
+{
+    signal(SIGSEGV, sigsegv_handler);
+}
+
+void
+deregisterSignalHandler(void)
+{
+    signal(SIGSEGV, SIG_DFL);
 }
 
 void
@@ -98,5 +113,17 @@ storeExceptionInfo(ExceptionSeverity s, const char *message, const char *f, int 
     RELEASE_MEM_CONTEXT();
     file = f;
     line = l;
+}
+
+static void
+sigsegv_handler(int signo)
+{
+  if (signo == SIGSEGV)
+  {
+      ERROR_LOG("segmentation fault in process %u", getpid());
+      THROW(SEVERITY_SIGSEGV, "segmentation fault in process %u", getpid());
+  }
+//  signal(signo, SIG_DFL);
+//  kill(getpid(), signo);
 }
 

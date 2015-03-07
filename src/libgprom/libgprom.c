@@ -28,6 +28,7 @@ gprom_init(void)
     initMemManager();
     mallocOptions();
     initLogger();
+    registerSignalHandler();
 }
 
 void
@@ -53,6 +54,7 @@ gprom_configFromOptions(void)
 
 void gprom_shutdown(void)
 {
+    deregisterSignalHandler();
     shutdownApplication();
 }
 

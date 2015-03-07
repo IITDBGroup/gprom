@@ -23,7 +23,14 @@ public class AbstractGProMTester extends DBTestCase {
 	
 	public AbstractGProMTester (String name) {
 		super(name);
-		
+	}
+	
+	protected void setUp () throws Exception {
+		super.setUp();
+		setDBTestCaseProps();
+	}
+
+	protected void setDBTestCaseProps () {
 		try {
 			System.setProperty( PropertiesBasedJdbcDatabaseTester.DBUNIT_DRIVER_CLASS, "org.gprom.jdbc.driver.GProMDriver" );
 	        System.setProperty( PropertiesBasedJdbcDatabaseTester.DBUNIT_CONNECTION_URL, "jdbc:gprom:postgresql://127.0.0.1:5432/" + ConnectionOptions.getInstance().getDbName());
@@ -34,11 +41,6 @@ public class AbstractGProMTester extends DBTestCase {
 		catch (Exception e) {
 			System.err.println(e.toString());
 		}
-		
-	}
-	
-	protected void setUp () throws Exception {
-		super.setUp();
 	}
 	
     protected void tearDown() throws Exception {
