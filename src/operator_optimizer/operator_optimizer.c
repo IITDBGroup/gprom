@@ -1305,8 +1305,9 @@ pushDownSelectionThroughJoinsOperatorOnProv(QueryOperator *root)
 
 	if(isA(root, SelectionOperator) && isA(child, JoinOperator))
 	{
-		Operator *c = (Operator *)((SelectionOperator *)newRoot)->cond;
-		opList = getSelectionCondOperatorList(opList, c);
+//		Operator *c = (Operator *)((SelectionOperator *)newRoot)->cond;
+		opList = NIL;
+		getSelectionCondOperatorList(((SelectionOperator *)newRoot)->cond, &opList);
 
 		if(opList != NIL)
 			pushDownSelection(child, opList, newRoot, child);
@@ -1490,10 +1491,7 @@ setMoveAroundListSetProperityForWholeTree(QueryOperator *root)
 		{
 			List *opList = NIL;
 
-			Operator *c = (Operator *)(((SelectionOperator *)root)->cond);
-
-			opList = getSelectionCondOperatorList(opList, c);
-
+			getSelectionCondOperatorList(((SelectionOperator *)root)->cond, &opList);
 
 			QueryOperator *child = OP_LCHILD(root);
 			Node *n1 = getProperty((QueryOperator *)child, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
@@ -1521,15 +1519,15 @@ setMoveAroundListSetProperityForWholeTree(QueryOperator *root)
 			List *setList = NIL;
 			List *helpList = NIL;
 
-			Operator *c = NULL;
+			Node *c = NULL;
 			if(((JoinOperator *)newRoot)->joinType == JOIN_INNER)
-				c = (Operator *)(((JoinOperator *)newRoot)->cond);
+			    c = ((JoinOperator *)newRoot)->cond;
 			else if(((JoinOperator *)newRoot)->joinType == JOIN_CROSS)
-                               if(parent != NULL)
-				  c = (Operator *)(((SelectionOperator *)parent)->cond);
+			    if(parent != NULL)
+			        c = ((SelectionOperator *)parent)->cond;
 
-                        if(c != NULL)
-			   opList = getSelectionCondOperatorList(opList, c);
+			if(c != NULL)
+			    getSelectionCondOperatorList(c, &opList);
 
 
 			FOREACH(QueryOperator, op, root->inputs)
@@ -1658,15 +1656,13 @@ introduceSelection(QueryOperator *root)
 		List *originalOpList1 = NIL;
 		if(isA(opl, SelectionOperator))
 		{
-			Operator *originalCondOp1 = (Operator *)(((SelectionOperator *)opl)->cond);
-			originalOpList1 = getSelectionCondOperatorList(originalOpList1, originalCondOp1);
+			getSelectionCondOperatorList(((SelectionOperator *)opl)->cond, &originalOpList1);
 		}
 
 		List *originalOpList2 = NIL;
 		if(isA(opr, SelectionOperator))
 		{
-			Operator *originalCondOp2 = (Operator *)(((SelectionOperator *)opr)->cond);
-			originalOpList2 = getSelectionCondOperatorList(originalOpList2, originalCondOp2);
+		    getSelectionCondOperatorList(((SelectionOperator *)opr)->cond, &originalOpList2);
 		}
 
 		opListl = getMoveAroundOpList(opl);
@@ -1826,15 +1822,12 @@ getMoveAroundOpList(QueryOperator *qo)
 			if(isA(qo1, SelectionOperator))
 			{
 				List *originalOpList = NIL;
-				Operator *originalCondOp = (Operator *)(((SelectionOperator *)qo1)->cond);
-				originalOpList = getSelectionCondOperatorList(originalOpList, originalCondOp);
+				getSelectionCondOperatorList(((SelectionOperator *)qo1)->cond, &originalOpList);
 
 				FOREACH(Operator,condOp,originalOpList)
 				{
 					if(!streq(condOp->name,"="))
-					{
 						opList = appendToHeadOfList(opList,condOp);
-					}
 				}
 			}
 		}
@@ -1850,11 +1843,9 @@ addNonEqOpToOplistInMoveAround(QueryOperator *root, QueryOperator *opl, List *op
 
         Node *n = getProperty(root, (Node *) createConstString(PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND));
         List *l1 = (List *)n;
-
 		List *originalOpList = NIL;
-		Operator *originalCondOp = (Operator *)(((SelectionOperator *)opl)->cond);
 
-		originalOpList = getSelectionCondOperatorList(originalOpList, originalCondOp);
+		getSelectionCondOperatorList(((SelectionOperator *)opl)->cond, &originalOpList);
 
 		FOREACH(Operator,condOp,originalOpList)
 		{

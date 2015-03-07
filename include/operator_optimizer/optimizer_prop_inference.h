@@ -18,7 +18,7 @@ extern void computeKeyProp (QueryOperator *root);
 
 extern void computeECProp (QueryOperator *root);
 extern void computeECPropBottomUp (QueryOperator *root);
-extern List *GenerateCondECSetListUsedInBottomUp(List *CondECSetList, Operator *op);
+extern List *GenerateCondECSetListUsedInBottomUp(List *CondECSetList, Node *op);
 extern List *CombineDuplicateElemSetInECList(List *DupECList);
 extern List *LSCHtoRSCH(List *setList, List *rECSetList, List *lSchemaList, List *rSchemaList);
 extern void computeECPropTopDown (QueryOperator *root);
