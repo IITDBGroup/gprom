@@ -193,7 +193,7 @@ computeECPropBottomUp (QueryOperator *root)
 			List *setList = NIL;
 			FOREACH(AttributeDef,a, root->schema->attrDefs)
 			{
-				Set *s = MAKE_SET_PTR(a->attrName);
+				Set *s = MAKE_STR_SET(a->attrName);
 				setList = appendToTailOfList(setList, s);
 			}
 

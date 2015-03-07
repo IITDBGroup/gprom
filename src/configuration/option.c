@@ -64,6 +64,7 @@ boolean logActive = FALSE;
 
 // input options
 char *sql = NULL;
+char *sqlFile = NULL;
 
 // database backend
 char *backend = NULL;
@@ -242,6 +243,14 @@ OptionInfo opts[] =
                 "input SQL text",
                 OPTION_STRING,
                 wrapOptionString(&sql),
+                defOptionString(NULL)
+        },
+        {
+                "input.sqlFile",
+                "-sqlfile",
+                "input SQL file name",
+                OPTION_STRING,
+                wrapOptionString(&sqlFile),
                 defOptionString(NULL)
         },
         // backend and plugin selection
