@@ -206,7 +206,7 @@ extern List *getAttrReferences (Node *node);
 
 /* for the condition of selection operator, separate the AND operator to a
  * list of operators, these relation among these operators is AND */
-extern List *getSelectionCondOperatorList(List *opList, Operator *op);
+extern void getSelectionCondOperatorList(Node *expr, List **opList);
 
 /* combine a list operator to an AND operator */
 extern Node *changeListOpToAnOpNode(List *l1);

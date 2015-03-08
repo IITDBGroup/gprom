@@ -16,6 +16,7 @@
 #include "model/node/nodetype.h"
 #include "model/set/set.h"
 #include "model/list/list.h"
+#include "model/expression/expression.h"
 
 #include "uthash.h"
 
@@ -135,6 +136,125 @@ boolean
 hasSetElem (Set *set, void *_el)
 {
     return getSetElem(set, _el) != NULL;
+}
+
+/* new added used for compute EC */
+boolean
+hasSetPtrElem (Set *set, void *_el)
+{
+	boolean flag = FALSE;
+	if (set->setType == SET_TYPE_POINTER)
+	{
+		FOREACH_SET(Node, elem, set)
+		{
+			if(isA(elem,Constant))
+			{
+				if(equal((Constant *)elem,(Constant *)_el))
+				{
+					flag = TRUE;
+					break;
+				}
+			}
+			else
+			{
+				if(streq((char *)elem,(char *)_el))
+				{
+					flag = TRUE;
+					break;
+				}
+			}
+		}
+	}
+	return flag;
+}
+
+/* new added used for compute EC */
+void removeSetPtrElem (Set *set, void *elem)
+{
+	if (set->setType == SET_TYPE_POINTER)
+	{
+		FOREACH_SET(Node, el, set)
+		{
+			if(streq((char *)el,(char *)elem))
+			{
+				removeSetElem(set, el);
+				break;
+			}
+		}
+	}
+}
+
+Set *
+unionPtrSets (Set *left, Set *right)
+{
+    Set *result;
+    SetElem *s;
+
+    ASSERT(left->setType == right->setType);
+    ASSERT(left->cpy && right->cpy);
+
+    result = CREATE_SAME_TYPE_SET(left);
+
+    if (result->setType == SET_TYPE_POINTER)
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            addToSet(result, left->cpy(s->data));
+        for(s = right->elem; s != NULL; s = s->hh.next)
+            if (!hasSetPtrElem(result, s->data))
+            {
+                addToSet(result, right->cpy(s->data));
+            }
+    }
+
+    TRACE_LOG("union result set %s", nodeToString(result));
+
+    return result;
+}
+
+Set *
+intersectPtrSets (Set *left, Set *right)
+{
+    Set *result;
+    SetElem *s;
+
+    ASSERT(left->setType == right->setType);
+    ASSERT(left->cpy && right->cpy);
+
+    result = CREATE_SAME_TYPE_SET(left);
+
+    if (result->setType == SET_TYPE_POINTER)
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            if (hasSetPtrElem(right, s->data))
+                addToSet(result, left->cpy(s->data));
+    }
+
+    TRACE_LOG("intersect result set %s", nodeToString(result));
+
+    return result;
+}
+
+Set *
+setPtrDifference(Set *left, Set *right)
+{
+    Set *result;
+    SetElem *s;
+
+    ASSERT(left->setType == right->setType);
+    ASSERT(left->cpy && right->cpy);
+
+    result = CREATE_SAME_TYPE_SET(left);
+
+    if (result->setType == SET_TYPE_POINTER)
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            if (!hasSetPtrElem(right, s->data))
+                addToSet(result, left->cpy(s->data));
+    }
+
+    TRACE_LOG("different result set %s", nodeToString(result));
+
+    return result;
 }
 
 static SetElem *
@@ -359,6 +479,30 @@ setDifference(Set *left, Set *right)
     TRACE_LOG("different result set %s", nodeToString(result));
 
     return result;
+}
+
+
+boolean
+overlapsSet(Set *left, Set *right)
+{
+    SetElem *s;
+    if (left->setType != right->setType)
+        return FALSE;
+
+    if (left->setType == SET_TYPE_INT)
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            if (hasSetIntElem(right, *((int *) s->data)))
+                return TRUE;
+    }
+    else
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            if (hasSetElem(right, s->data))
+                return TRUE;
+    }
+
+    return FALSE;
 }
 
 int

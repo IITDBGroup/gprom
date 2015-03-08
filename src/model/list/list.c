@@ -693,17 +693,24 @@ removeFromTail(List *X)
 List *
 removeFromHead(List *X)
 {
-    int c = 0;
+    List *result;
+    ListCell *head;
 
-    List *result = NIL;
+    if (LIST_LENGTH(X) <= 1)
+        return NIL;
 
-    FOREACH_INT(lc, X)
-    {
-        if(c != 0)
-           result = appendToTailOfListInt(result, lc);
+    result = copyList(X);
+    head = result->head;
+    result->head = head->next;
+    result->length--;
 
-        c++;
-    }
+//    FOREACH_INT(lc, X)
+//    {
+//        if(c != 0)
+//           result = appendToTailOfListInt(result, lc);
+//
+//        c++;
+//    }
     return result;
 }
 
