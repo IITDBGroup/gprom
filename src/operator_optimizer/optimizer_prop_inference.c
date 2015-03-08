@@ -470,8 +470,8 @@ computeECPropTopDown (QueryOperator *root)
 	else if(isA(root, ProjectionOperator))
 	{
 		Node *nRoot = getStringProperty(root, PROP_STORE_SET_EC);
-		List *rList = (List *)nRoot;
-
+		List *rList = (List *) nRoot;
+		List *cList = (List *) getStringProperty((QueryOperator *)(OP_LCHILD(root)), PROP_STORE_SET_EC);
 		// this is just a deep copy
 		List *setList = copyObject(rList);
 //		FOREACH(Set, s, rList)
@@ -503,7 +503,9 @@ computeECPropTopDown (QueryOperator *root)
             }
 		}
 
-		setStringProperty((QueryOperator *)(OP_LCHILD(root)), PROP_STORE_SET_EC, (Node *)setList);
+		cList = concatTwoLists(cList, setList);
+		cList = CombineDuplicateElemSetInECList(cList);
+		setStringProperty((QueryOperator *)(OP_LCHILD(root)), PROP_STORE_SET_EC, (Node *)cList);
 	}
 
 	//contains join inner and join cross
