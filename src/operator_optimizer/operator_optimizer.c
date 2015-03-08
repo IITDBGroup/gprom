@@ -1431,7 +1431,8 @@ introduceSelectionBottomUp(QueryOperator *root)
         FOREACH(KeyValue, kv, rootECList)
         {
             Set *s = (Set *) kv->key;
-        	if(setSize(s) > 1)
+            Constant *c = (Constant *) kv->value;
+        	if(setSize(s) > 1 || c != NULL)
         	{
         		flag = TRUE;
         		break;
@@ -1725,26 +1726,44 @@ getMoveAroundOpList(QueryOperator *qo)
 	FOREACH(KeyValue, kv, l1)
 	{
 	    Set *s1 = (Set *) kv->key;
+	    Constant *c = (Constant *) kv->value;
+	    if (c != NULL)
+	    {
+	        AttributeReference *aRef;
+	        char *attr = NULL;
+	        FOREACH_SET(char,a,s1)
+            {
+	            attr = a;
+	            break;
+            }
+	        FOREACH(AttributeDef,attrDef,qo1->schema->attrDefs)
+           {
+               if(streq(attr,attrDef->attrName))
+               {
+                   aRef = createFullAttrReference(attr, 0, 0, 0, attrDef->dataType);
+                   break;
+               }
+            }
+            Operator *o = createOpExpr("=", LIST_MAKE(aRef, copyObject(c)));
+            opList = appendToTailOfList(opList, copyObject(o));
+	    }
+	    //TODO the distinction between 2 or more seems unnecessary, why not compare everybody with the first, e.g.
+	    // {a,b,c} -> a = b, a = c
 		if(setSize(s1) == 2)
 		{
 			List *argList = NIL;
 			AttributeReference *a;
-			FOREACH_SET(Node,selem,s1)
+			FOREACH_SET(char,selem,s1)
 			{
-				if(!isA(selem,Constant))
-				{
-					FOREACH(AttributeDef,attrDef,qo1->schema->attrDefs)
+                FOREACH(AttributeDef,attrDef,qo1->schema->attrDefs)
+                {
+                    if(streq(selem,attrDef->attrName))
                     {
-						if(streq((char *)selem,attrDef->attrName))
-						{
-							a = createFullAttrReference((char *)selem , 0, 0, 0, attrDef->dataType);
-							argList = appendToHeadOfList(argList,a);
-							break;
-						}
-                     }
-				}
-				else
-					argList = appendToTailOfList(argList,selem);
+                        a = createFullAttrReference(selem , 0, 0, 0, attrDef->dataType);
+                        argList = appendToHeadOfList(argList,a);
+                        break;
+                    }
+                 }
 			}
 
 			if(argList->length == 2)
@@ -1756,66 +1775,45 @@ getMoveAroundOpList(QueryOperator *qo)
 
 		if(setSize(s1) > 2)
 		{
+		    List *argList = NIL;
+		    AttributeReference *a;
+		    AttributeReference *b;
+		    int flagFst = FALSE;
 
-			List *argList = NIL;
-			AttributeReference *a;
-			AttributeReference *b;
-			int flagFst = FALSE;
-
-			FOREACH_SET(Node,selem,s1)
-			{
-				if(flagFst == FALSE)
-				{
-					flagFst = TRUE;
-					if(!isA(selem,Constant))
-					{
-						FOREACH(AttributeDef,attrDef,qo1->schema->attrDefs)
-                        {
-							if(streq((char *)selem,attrDef->attrName))
-							{
-								a = createFullAttrReference((char *)selem , 0, 0, 0, attrDef->dataType);
-								argList = appendToHeadOfList(argList,a);
-								break;
-							}
-                         }
-					}
-					else
-					{
-						argList = appendToTailOfList(argList,selem);
-					}
-				}
-				else
-				{
-					if(!isA(selem,Constant))
-					{
-						FOREACH(AttributeDef,attrDef,qo1->schema->attrDefs)
-                        {
-							if(streq((char *)selem,attrDef->attrName))
-							{
-								b = createFullAttrReference((char *)selem , 0, 0, 0, attrDef->dataType);
-								argList = appendToHeadOfList(argList,b);
-								break;
-							}
-                        }
-						if(argList->length == 2)
-						{
-							Operator *o1 = createOpExpr("=", argList);
-							opList = appendToTailOfList(opList,  copyObject(o1));
-							argList = REMOVE_FROM_LIST_PTR(argList,b);
-						}
-
-					}
-					else
-					{
-						if(argList->length == 1){
-							argList = appendToTailOfList(argList,selem);
-							Operator *o2 = createOpExpr("=", argList);
-							opList = appendToTailOfList(opList, copyObject(o2));
-							argList = REMOVE_FROM_LIST_PTR(argList,selem);
-						}
-					}
-				}
-			}
+		    FOREACH_SET(char,selem,s1)
+		    {
+		        if(flagFst == FALSE)
+		        {
+		            flagFst = TRUE;
+		            FOREACH(AttributeDef,attrDef,qo1->schema->attrDefs)
+		            {
+		                if(streq(selem,attrDef->attrName))
+		                {
+		                    a = createFullAttrReference((char *)selem , 0, 0, 0, attrDef->dataType);
+		                    argList = appendToHeadOfList(argList,a);
+		                    break;
+		                }
+		            }
+		        }
+		        else
+		        {
+		            FOREACH(AttributeDef,attrDef,qo1->schema->attrDefs)
+                                {
+		                if(streq((char *)selem,attrDef->attrName))
+		                {
+		                    b = createFullAttrReference((char *)selem , 0, 0, 0, attrDef->dataType);
+		                    argList = appendToHeadOfList(argList,b);
+		                    break;
+		                }
+                                }
+		            if(argList->length == 2)
+		            {
+		                Operator *o1 = createOpExpr("=", argList);
+		                opList = appendToTailOfList(opList,  copyObject(o1));
+		                argList = REMOVE_FROM_LIST_PTR(argList,b);
+		            }
+		        }
+		    }
 		}
 
 		if(opList != NIL)
@@ -1833,6 +1831,8 @@ getMoveAroundOpList(QueryOperator *qo)
 			}
 		}
 	}
+	DEBUG_LOG("oplist: %s", nodeToString((Node *) opList));
+
 	return opList;
 }
 
