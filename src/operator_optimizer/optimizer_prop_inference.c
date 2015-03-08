@@ -462,8 +462,8 @@ computeECPropTopDown (QueryOperator *root)
 	if(isA(root, SelectionOperator))
 	{
 		Node *nRoot = getStringProperty(root, PROP_STORE_SET_EC);
-
 		QueryOperator *childOp = OP_LCHILD(root);
+
 		setStringProperty((QueryOperator *)childOp, PROP_STORE_SET_EC, nRoot);
 	}
 
@@ -534,7 +534,7 @@ computeECPropTopDown (QueryOperator *root)
 		{
             Set *s = (Set *) kv->key;
             Constant *c = (Constant *) kv->value;
-        	tempSet = setDifference(s, rSchemaSet);
+        	tempSet =   setDifference(copyObject(s), rSchemaSet);
 
         	if(setSize(tempSet) > 1 || c != NULL) {
         	    KeyValue *newKV = createNodeKeyValue((Node*) tempSet, copyObject(c));
@@ -545,13 +545,13 @@ computeECPropTopDown (QueryOperator *root)
 		setStringProperty(lChildOp, PROP_STORE_SET_EC, (Node *)lSetList);
 
         //get EC(right)
-        QueryOperator *rChildOp = OP_LCHILD(root);
-        List *rSetList = (List *) getStringProperty(lChildOp, PROP_STORE_SET_EC);
+        QueryOperator *rChildOp = OP_RCHILD(root);
+        List *rSetList = (List *) getStringProperty(rChildOp, PROP_STORE_SET_EC);
         FOREACH(KeyValue, kv, rootECSetList)
         {
             Set *s = (Set *) kv->key;
             Constant *c = (Constant *) kv->value;
-            tempSet = setDifference(s, rSchemaSet);
+            tempSet = setDifference(copyObject(s), lSchemaSet);
 
             if(setSize(tempSet) > 1 || c != NULL) {
                 KeyValue *newKV = createNodeKeyValue((Node*) tempSet, copyObject(c));
