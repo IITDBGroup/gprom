@@ -254,7 +254,7 @@ outStringList (StringInfo str, List *node)
 static void
 outSet(StringInfo str, Set *node)
 {
-    appendStringInfo(str, "{");
+//    appendStringInfo(str, "{");
 
     switch(node->setType)
     {
@@ -282,7 +282,7 @@ outSet(StringInfo str, Set *node)
             break;
     }
 
-    appendStringInfo(str, "}");
+//    appendStringInfo(str, "}");
 }
 
 static void

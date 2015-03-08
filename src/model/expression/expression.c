@@ -511,23 +511,21 @@ findAttrReferences (Node *node, List **state)
     return visit(node, findAttrReferences, state);
 }
 
-List *
-getSelectionCondOperatorList(List *opList, Operator *op)
+//TODO this is unsafe, callers are passing op as an operator even though it may not be one.
+void
+getSelectionCondOperatorList(Node *expr, List **opList)
 {
-	if(streq(op->name,"AND"))
-	{
-		Operator *o2 = (Operator *)(getTailOfListP(op->args));
-		opList = getSelectionCondOperatorList(opList,o2);
-
-		Operator *o1 = (Operator *)(getHeadOfListP(op->args));
-		opList = getSelectionCondOperatorList(opList,o1);
-
+    // only are interested in operators here
+	if (isA(expr,Operator)) {
+	    Operator *op = (Operator *) expr;
+	    if(streq(op->name,"AND"))
+	    {
+	        FOREACH(Node,arg,op->args)
+                getSelectionCondOperatorList(arg,opList);
+	    }
+	    else
+	        *opList = appendToTailOfList(*opList, op);
 	}
-	else
-	{
-		opList = appendToTailOfList(opList, op);
-	}
-	return opList;
 }
 
 Node *
