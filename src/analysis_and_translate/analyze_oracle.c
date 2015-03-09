@@ -59,7 +59,7 @@ static void analyzeFunctionCall(QueryBlock *qb);
 static void analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms);
 
 // analyze FromJsonTable Item
-static void analyzeFromJsonTable(FromJsonTable *f);
+static void analyzeFromJsonTable(FromJsonTable *f, List **state);
 
 // real attribute name fetching
 static List *expandStarExpression (SelectItem *s, List *fromClause);
@@ -196,7 +196,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                 analyzeJoin((FromJoinExpr *) f, parentFroms);
                 break;
             case T_FromJsonTable:
-	        analyzeFromJsonTable((FromJsonTable *)f);
+	        analyzeFromJsonTable((FromJsonTable *)f, &attrRefs);
 	        break;
             default:
             	break;
@@ -815,7 +815,7 @@ analyzeFromTableRef(FromTableRef *f)
 }
 
 static void
-analyzeFromJsonTable(FromJsonTable *f)
+analyzeFromJsonTable(FromJsonTable *f, List **state)
 {
     // Populate the attrnames, datatypes from columnlist
     List *attrNames = NIL;
@@ -836,6 +836,9 @@ analyzeFromJsonTable(FromJsonTable *f)
 
     if(f->from.name == NULL)
 	f->from.name = f->jsonTableIdentifier;
+
+    // Append jsonColumn to attributeRef list
+    *state = appendToTailOfList(*state, f->jsonColumn);
 }
 
 static void

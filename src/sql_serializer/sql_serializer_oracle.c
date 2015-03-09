@@ -414,6 +414,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
             case T_TableAccessOperator:
             case T_ConstRelOperator :
             case T_SetOperator:
+            case T_JsonTableOperator:
                 matchInfo->fromRoot = cur;
                 state = MATCH_NEXTBLOCK;
                 cur = OP_LCHILD(cur);
@@ -735,6 +736,78 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
                 //we don't need the alias part now
                 appendStringInfo(from, ")");
+            }
+            break;
+            // JSON TABLE OPERATOR
+            case T_JsonTableOperator:
+            {
+                JsonTableOperator *jt = (JsonTableOperator *) q;
+
+	        QueryOperator *child = OP_LCHILD(jt);
+                // Serialize left child
+	        serializeFromItem(child, from, curFromItem, attrOffset, fromAttrs);
+
+                // TODO  Get the attributes of JSON TABLE operator
+	        List *jsonAttrNames = getAttrNames(((QueryOperator *) jt)->schema);
+
+                // Get attributes of child
+	        List *childAttrNames = getAttrNames(((QueryOperator *) child)->schema);
+
+                // Remove childAttrNames from jsonAttrNames for
+                // updateAttributeNames to work correctly and identify the
+                // correct fromclause item
+	        List *attrNames = NIL;
+	        boolean flag = FALSE;
+
+	        FOREACH(char, jsonAttr, jsonAttrNames)
+	        {
+                    flag = FALSE;
+                    FOREACH(char, childAttr, childAttrNames)
+                    {
+                        if(streq(childAttr, jsonAttr))
+			{
+                            flag = TRUE;
+                            break;
+                        }
+                    }
+                    if(flag == FALSE)
+                    {
+                        attrNames = appendToTailOfList(attrNames, jsonAttr);
+                    }
+                }
+
+                // Add it to list of fromAttrs
+	        *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+
+                appendStringInfoString(from, ",");
+                appendStringInfo(from, " JSON_TABLE");
+                appendStringInfoString(from, "(");
+
+                // Call updateAtrrNames on jsonColumn and then serialize
+                updateAttributeNames((Node*)jt->jsonColumn, *fromAttrs);
+
+                appendStringInfo(from, exprToSQL((Node*)jt->jsonColumn));
+                appendStringInfoString(from, ",");
+                appendStringInfo(from, " '%s'", jt->documentcontext);
+                appendStringInfoString(from, " COLUMNS");
+                appendStringInfoString(from, "(");
+
+                FOREACH(JsonColInfoItem, col, jt->columns)
+                {
+                    appendStringInfo(from, "%s", col->attrName);
+                    appendStringInfo(from, " %s", col->attrType);
+                    appendStringInfoString(from, " PATH");
+                    appendStringInfo(from, " '%s'", col->path);
+                    appendStringInfoString(from, ",");
+                }
+
+                // Remove the last unnecessary comma
+                from->data[from->len - 1] = ' ';
+
+                appendStringInfoString(from, ")");
+                appendStringInfoString(from, ")");
+                appendStringInfoString(from, " AS ");
+                appendStringInfo(from, "F%u", (*curFromItem)++);
             }
             break;
             // Table Access

@@ -539,7 +539,7 @@ copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap)
     COPY_NODE_FIELD(columns);
 
     COPY_STRING_FIELD(documentcontext);
-    COPY_STRING_FIELD(jsonColumn);
+    COPY_NODE_FIELD(jsonColumn);
     COPY_STRING_FIELD(jsonTableIdentifier);
 
     return new;
@@ -852,7 +852,7 @@ copyFromJsonTable(FromJsonTable *from,OperatorMap **opMap)
 
     COPY_NODE_FIELD(columns);
     COPY_STRING_FIELD(documentcontext);
-    COPY_STRING_FIELD(jsonColumn);
+    COPY_NODE_FIELD(jsonColumn);
     COPY_STRING_FIELD(jsonTableIdentifier);
 
     return new;
