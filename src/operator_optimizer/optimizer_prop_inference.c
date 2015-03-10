@@ -344,7 +344,7 @@ computeECPropBottomUp (QueryOperator *root)
 //				if(setSize(newSet) != 0)
 //					setList1 = appendToTailOfList(setList1, newSet);
 //			}
-			List *aggAndGB = concatLists(copyList(agg->aggrs), copyList(agg->groupBy));
+			List *aggAndGB = concatTwoLists(copyList(agg->aggrs), copyList(agg->groupBy));
 			List *cmpGrByADef = copyList(agg->op.schema->attrDefs);
 //			popHeadOfListP(cmpGrByADef); //TODO works only if there is only one aggregation function!
 			//change attrRef name in Group By to attrDef in Schema
