@@ -243,7 +243,7 @@ computeECPropBottomUp (QueryOperator *root)
 			List *childECSetList = (List *)copyObject(nChildECSetList);
 
 			List *setList = NIL;
-			setList = SCHAtoBUsedInProJ(setList, childECSetList, attrA, attrB);
+			setList = SCHAtoBBomUp(setList, childECSetList, attrA, attrB);
 			setList = CombineDuplicateElemSetInECList(setList);
 			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)setList);
 		}
@@ -348,7 +348,7 @@ computeECPropBottomUp (QueryOperator *root)
 			List *cmpGrByADef = copyList(agg->op.schema->attrDefs);
 //			popHeadOfListP(cmpGrByADef); //TODO works only if there is only one aggregation function!
 			//change attrRef name in Group By to attrDef in Schema
-			setList = SCHAtoBUsedInProJ(setList, childECSetList, aggAndGB, cmpGrByADef);
+			setList = SCHAtoBBomUp(setList, childECSetList, aggAndGB, cmpGrByADef);
 
 			//step 3
 			//get SUM(A) and append to tail of list setList, then set property
@@ -364,7 +364,7 @@ computeECPropBottomUp (QueryOperator *root)
 //            		break;
 //            }
 
-			setProperty((QueryOperator *)root, (Node *) createConstString(PROP_STORE_SET_EC), (Node *)setList);
+			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)setList);
 		}
 
 		else if(isA(root, DuplicateRemoval))
@@ -450,7 +450,7 @@ computeECPropBottomUp (QueryOperator *root)
 		{
 			Node *childECP = getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_EC));
 			List *setList = (List *)childECP;
-			setProperty((QueryOperator *)root, (Node *) createConstString(PROP_STORE_SET_EC), (Node *)setList);
+			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)setList);
 		}
 	}
 }
@@ -469,39 +469,33 @@ computeECPropTopDown (QueryOperator *root)
 
 	else if(isA(root, ProjectionOperator))
 	{
-		Node *nRoot = getStringProperty(root, PROP_STORE_SET_EC);
-		List *rList = (List *) nRoot;
+		List *rList = (List *) getStringProperty(root, PROP_STORE_SET_EC);
 		List *cList = (List *) getStringProperty((QueryOperator *)(OP_LCHILD(root)), PROP_STORE_SET_EC);
 		// this is just a deep copy
 		List *setList = copyObject(rList);
-//		FOREACH(Set, s, rList)
-//		{
-//			//Set *s = unionSets(s1,s1);
-//			Set *s1 = copyObject(s);
-//			setList = appendToTailOfList(setList, s1);
-//		}
 
 		ProjectionOperator *pj = (ProjectionOperator *)root;
-		List *schemaList1 = copyObject(pj->op.schema->attrDefs);
-		List *attrRefList1 = copyList(pj->projExprs); //TODO this is not safe because projection may have a + b, you need to check, see below I fixed that
+		List *attrDefs = copyObject(pj->op.schema->attrDefs);
+		List *attrRefs = copyList(pj->projExprs); //TODO this is not safe because projection may have a + b, you need to check, see below I fixed that
 
-		FOREACH(KeyValue, kv, setList)
-		{
-		    Set *s = (Set *) kv->key;
-		    FORBOTH_LC(a1, s1, attrRefList1, schemaList1)
-            {
-		        char *d1 = ((AttributeDef *)LC_P_VAL(s1))->attrName;
-		        if(hasSetElem(s,d1))
-		        {
-		            Node *pExpr = LC_P_VAL(a1);
-		            removeSetElem (s,d1);
-		            if (isA(pExpr,AttributeReference)) {
-		                char *r1 = strdup(((AttributeReference *) pExpr)->name);
-	                    addToSet(s,r1);
-		            }
-		        }
-            }
-		}
+		SCHBtoAUsedInTopBom(&setList, attrRefs, attrDefs);
+//		FOREACH(KeyValue, kv, setList)
+//		{
+//		    Set *s = (Set *) kv->key;
+//		    FORBOTH_LC(a1, s1, attrRefs, attrDefs)
+//            {
+//		        char *d1 = ((AttributeDef *)LC_P_VAL(s1))->attrName;
+//		        if(hasSetElem(s,d1))
+//		        {
+//		            Node *pExpr = LC_P_VAL(a1);
+//		            removeSetElem (s,d1);
+//		            if (isA(pExpr,AttributeReference)) {
+//		                char *r1 = strdup(((AttributeReference *) pExpr)->name);
+//	                    addToSet(s,r1);
+//		            }
+//		        }
+//            }
+//		}
 
 		cList = concatTwoLists(cList, setList);
 		cList = CombineDuplicateElemSetInECList(cList);
@@ -576,40 +570,37 @@ computeECPropTopDown (QueryOperator *root)
 
 	else if(isA(root, AggregationOperator))
 	{
-		//get EC(Root)
-		Node *nRoot = getProperty(root, (Node *) createConstString(PROP_STORE_SET_EC));
-		List *rootECSetList = (List *)nRoot;
+		List *rList = (List *) getStringProperty(root, PROP_STORE_SET_EC);
+		List *cList = (List *) getStringProperty((QueryOperator *)(OP_LCHILD(root)), PROP_STORE_SET_EC);
+		List *setList = copyObject(rList);
 
-		//get EC(R)
-		QueryOperator *childOp = OP_LCHILD(root);
-		Node *nChild = getProperty(childOp, (Node *) createConstString(PROP_STORE_SET_EC));
-		List *childECSetList = (List *)nChild;
+		AggregationOperator *agg = (AggregationOperator *)root;
+		List *attrDefs = copyObject(agg->op.schema->attrDefs);
+		List *aggAndGB = concatTwoLists(copyList(agg->aggrs), copyList(agg->groupBy));
+		SCHBtoAUsedInTopBom(&setList, aggAndGB, attrDefs);
 
-		//get SCH(R)
-		Set *childSchemaSet = STRSET();
-		FOREACH(AttributeDef,a, ((QueryOperator *)(OP_LCHILD(root)))->schema->attrDefs)
-		       addToSet(childSchemaSet,a->attrName);
+//		FOREACH(KeyValue, kv, setList)
+//		{
+//		    Set *s = (Set *) kv->key;
+//		    FORBOTH_LC(ar, ad, aggAndGB, attrDefs)
+//            {
+//		        char *d = ((AttributeDef *)LC_P_VAL(ad))->attrName;
+//		        if(hasSetElem(s,d))
+//		        {
+//		            Node *pExpr = LC_P_VAL(ar);
+//		            removeSetElem (s,d);
+//		            if (isA(pExpr,AttributeReference)) {
+//		                char *r = strdup(((AttributeReference *) pExpr)->name);
+//	                    addToSet(s,r);
+//		            }
+//		        }
+//            }
+//		}
 
-		List *rootBtoAECSetList = NIL;
-		List *childSchemaSetList1 = copyObject(rootECSetList);
-		List *cmpGrByADef = copyList(root->schema->attrDefs);
-		popHeadOfListP(cmpGrByADef);
-		List *groupBy = ((AggregationOperator *)root)->groupBy;
-		rootBtoAECSetList = SCHBtoAUsedInAgg(rootBtoAECSetList, childSchemaSetList1, cmpGrByADef, groupBy);
+		cList = concatTwoLists(cList, setList);
+		cList = CombineDuplicateElemSetInECList(cList);
 
-       //main steps
-		List *setList = NIL;
-		Set *tempSet;
-		FOREACH(Set, s, rootBtoAECSetList)
-		{
-			tempSet = intersectSets(s, childSchemaSet);
-            setList = appendToTailOfList(setList, tempSet);
-		}
-
-		setList = concatTwoLists(setList, childECSetList);
-		setList = CombineDuplicateElemSetInECList(setList);
-		setProperty((QueryOperator *)(OP_LCHILD(root)), (Node *) createConstString(PROP_STORE_SET_EC ), (Node *)setList);
-
+		setStringProperty((QueryOperator *)(OP_LCHILD(root)), PROP_STORE_SET_EC, (Node *)cList);
 	}
 
 	else if(isA(root, DuplicateRemoval))
@@ -678,21 +669,54 @@ computeECPropTopDown (QueryOperator *root)
 	}
 }
 
+void
+SCHBtoAUsedInTopBom(List **setList, List *attrRefs, List *attrDefs)
+{
+	FOREACH(KeyValue, kv, *setList)
+	{
+	    Set *s = (Set *) kv->key;
+	    FORBOTH_LC(ar, ad, attrRefs, attrDefs)
+        {
+	        char *d = ((AttributeDef *)LC_P_VAL(ad))->attrName;
+	        if(hasSetElem(s,d))
+	        {
+	            Node *pExpr = LC_P_VAL(ar);
+	            removeSetElem (s,d);
+	            if (isA(pExpr,AttributeReference)) {
+	                char *r = strdup(((AttributeReference *) pExpr)->name);
+                    addToSet(s,r);
+	            }
+	        }
+        }
+	}
+}
 
 List *
-SCHAtoBUsedInProJ(List *setList, List *childECSetList, List *attrA, List *attrB)
+SCHAtoBBomUp(List *setList, List *childECSetList, List *attrA, List *attrB)
 {
     List *tempList = childECSetList;
-    HashMap *childAToParent = NEW_MAP(Constant,Constant);
+    //HashMap *childAToParent = NEW_MAP(Constant,Constant);
+    HashMap *childAToParent = NEW_MAP(Constant,Node);
 
     // create map from child attrname to parent attrname
+    // key is attrname, value is a set of attrname, eg. if A->X,A-Y then key:A, value:{X,Y}
     FORBOTH(Node,a,b,attrA,attrB)
     {
         AttributeDef *aDef = (AttributeDef *) b;
         if (isA(a, AttributeReference))
         {
             AttributeReference *aRef = (AttributeReference *) a;
-            MAP_ADD_STRING_KEY(childAToParent, aRef->name, createConstString(aDef->attrName));
+            if(MAP_HAS_STRING_KEY(childAToParent, aRef->name))
+            {
+                Set *set = (Set *)getMapString(childAToParent, aRef->name);
+                addToSet(set, strdup(aDef->attrName));
+            }
+            else
+            {
+            	Set *set = MAKE_STR_SET(strdup(aDef->attrName));
+            	//MAP_ADD_STRING_KEY(childAToParent, aRef->name, createConstString(aDef->attrName));
+            	MAP_ADD_STRING_KEY(childAToParent, aRef->name, (Node *)set);
+            }
             DEBUG_LOG("map %s to %s", aRef->name, aDef->attrName);
         }
     }
@@ -709,8 +733,11 @@ SCHAtoBUsedInProJ(List *setList, List *childECSetList, List *attrA, List *attrB)
         {
             if(MAP_HAS_STRING_KEY(childAToParent, attr))
             {
-                char *newAttr = STRING_VALUE(getMapString(childAToParent, attr));
-                addToSet(newEC,strdup(newAttr));
+                //char *newAttr = STRING_VALUE(getMapString(childAToParent, attr));
+                //addToSet(newEC,strdup(newAttr));
+            	Set *set = (Set *)getMapString(childAToParent, attr);
+            	FOREACH_SET(char, a, set)
+            	       addToSet(newEC,strdup(a));
             }
         }
 
@@ -736,34 +763,6 @@ SCHAtoBUsedInProJ(List *setList, List *childECSetList, List *attrA, List *attrB)
         }
     }
 
-//    FORBOTH(Node,a,b,attrA,attrB)
-//    {
-//        Set *newEC = STRSET();
-//        AttributeDef *aDef = (AttributeDef *) b;
-//
-//        //TODO: Operator in Projection attribute reference
-//        if(isA(a,AttributeReference))
-//        {
-//            char *tempName = ((AttributeReference *) a)->name;
-//            FOREACH(Set, s, tempList)
-//            {
-//                if(hasSetElem(s,tempName))
-//                {
-//                    //                    removeSetElem(sCopy,tempName); //TODO this is problematic, because we are modifying the child set directly
-//                    addToSet(newEC,strdup(aDef->attrName));
-//                }
-//            }
-//        }
-//        // for expressions like a + b -> x we simply need to add new EC for x to the result
-//        else
-//        {
-//            addToSet(newEC, strdup(aDef->attrName));
-//        }
-//
-//        if(setSize(newEC) != 0)
-//            setList = appendToTailOfList(setList, newEC);
-//    }
-
     DEBUG_LOG("adapted EC list for projection is %s", nodeToString(setList));
 
     return setList;
@@ -772,7 +771,7 @@ SCHAtoBUsedInProJ(List *setList, List *childECSetList, List *attrA, List *attrB)
 List *
 SCHBtoAUsedInAgg(List *setList, List *childECSetList, List *attrA, List *attrB)
 {
-	List *tempList = copyList(childECSetList);
+	List *tempList = copyObject(childECSetList);
 	FOREACH(Set, s, tempList)
 	{
 		FORBOTH_LC(a,b,attrA,attrB)
