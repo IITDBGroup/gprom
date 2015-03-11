@@ -382,6 +382,47 @@ computeECPropBottomUp (QueryOperator *root)
 			}
 
 		}
+		else if(isA(root,WindowOperator))
+		{
+			List *childEC = (List *)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
+			List *EC = copyObject(childEC);
+
+			WindowOperator *wOp = (WindowOperator *)root;
+			char *f = wOp->attrName;
+
+			//deal with the case: if window op like: sum(a)... AS X, sum(a)... AS Y
+			//test case: "SELECT X,C FROM (SELECT SUM(A) OVER(PARTITION BY B ORDER BY B desc) AS X, SUM(A) OVER(PARTITION BY B ORDER BY B desc) AS Y,C FROM R JOIN S ON A=C) sbu WHERE X=3 AND C=4;
+			if(isA(OP_LCHILD(root), WindowOperator))
+			{
+				WindowOperator *wChild = (WindowOperator *)OP_LCHILD(root);
+				if(equal(wChild->f, wOp->f))
+				{
+                    FOREACH(KeyValue, kv, EC)
+		            {
+                    	Set *s = (Set *)kv->key;
+                    	if(hasSetElem(s, wChild->attrName))
+                    	{
+                    		addToSet(s, strdup(wOp->attrName));
+                    	}
+		            }
+				}
+				else
+				{
+					Set *s = MAKE_STR_SET(strdup(f));
+					KeyValue *kv;
+					kv = createNodeKeyValue((Node *) s, NULL);
+					EC = appendToTailOfList(EC, kv);
+				}
+			}
+			else
+			{
+				Set *s = MAKE_STR_SET(strdup(f));
+				KeyValue *kv;
+				kv = createNodeKeyValue((Node *) s, NULL);
+				EC = appendToTailOfList(EC, kv);
+			}
+			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
+		}
 		else
 		{
 			Node *childECP = getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_EC));
@@ -574,6 +615,30 @@ computeECPropTopDown (QueryOperator *root)
 			rResultEC= CombineDuplicateElemSetInECList(rResultEC);
 			setStringProperty((QueryOperator *)OP_RCHILD(root), PROP_STORE_SET_EC, (Node *)rResultEC);
 		}
+	}
+	else if(isA(root,WindowOperator))
+	{
+		List *rootEC = (List *)getStringProperty(root, PROP_STORE_SET_EC);
+        List *newRootEC = copyObject(rootEC);
+
+		WindowOperator *wOp = (WindowOperator *)root;
+		char *f = wOp->attrName;
+
+		List *EC = NIL;
+		FOREACH(KeyValue, kv, newRootEC)
+		{
+			Set *s = (Set *)kv->key;
+			if(hasSetElem(s, f))
+			{
+				removeSetElem(s,f);
+				if(setSize(s) != 0)
+				    EC = appendToTailOfList(EC, kv);
+			}
+			else
+				EC = appendToTailOfList(EC, kv);
+		}
+
+		setStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC, (Node *)EC);
 	}
 
 	if(root->inputs != NULL)
