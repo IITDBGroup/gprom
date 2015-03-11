@@ -365,9 +365,20 @@ computeECPropBottomUp (QueryOperator *root)
 
 			if(((SetOperator *)root)->setOpType == SETOP_DIFFERENCE)
 			{
-				Node *childECP = getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_EC));
-				List *setList = copyObject((List *)childECP);
-				setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)setList);
+//				Node *childECP = getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
+//				List *setList = copyObject((List *)childECP);
+//				setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)setList);
+
+				List *EC = NIL;
+				FOREACH(AttributeDef,a, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
+				{
+				    KeyValue *kv;
+					Set *s = MAKE_STR_SET(a->attrName);
+					kv = createNodeKeyValue((Node *) s, NULL);
+					EC = appendToTailOfList(EC, kv);
+				}
+
+				setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
 			}
 
 		}
@@ -497,7 +508,7 @@ computeECPropTopDown (QueryOperator *root)
 	    //TODO this is not correct
 		List *rootEC = (List *) getStringProperty(root, PROP_STORE_SET_EC);
 		List *EC = copyObject(rootEC);
-		setProperty((QueryOperator *)OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_EC), (Node *)EC);
+		setStringProperty((QueryOperator *)OP_LCHILD(root), PROP_STORE_SET_EC, (Node *)EC);
 	}
 
 	else if(isA(root,SetOperator))
@@ -538,7 +549,7 @@ computeECPropTopDown (QueryOperator *root)
 			setStringProperty((QueryOperator *)OP_RCHILD(root), PROP_STORE_SET_EC, (Node *)rSetList);
 		}
 
-		if(((SetOperator *)root)->setOpType == SETOP_INTERSECTION || ((SetOperator *)root)->setOpType == SETOP_DIFFERENCE)
+		if(((SetOperator *)root)->setOpType == SETOP_INTERSECTION)
 		{
 			//set left child's EC
 			setStringProperty((QueryOperator *)OP_LCHILD(root), PROP_STORE_SET_EC, (Node *)copyObject(rootEC));
@@ -549,7 +560,19 @@ computeECPropTopDown (QueryOperator *root)
 
 			//set right child's EC
 			setStringProperty((QueryOperator *)OP_RCHILD(root), PROP_STORE_SET_EC, (Node *)copyObject(rootSetList));
+		}
+		if(((SetOperator *)root)->setOpType == SETOP_DIFFERENCE)
+		{
+			List *lResultEC = NIL;
+			lResultEC = concatTwoLists(copyObject(rootEC), copyObject(lEC));
+			lResultEC= CombineDuplicateElemSetInECList(lResultEC);
+			setStringProperty((QueryOperator *)OP_LCHILD(root), PROP_STORE_SET_EC, (Node *)lResultEC);
 
+			List *rResultEC = NIL;
+			rResultEC = LSCHtoRSCH(rResultEC,rootEC,rattrDefs,lattrDefs);
+			rResultEC = concatTwoLists(rResultEC, copyObject(rEC));
+			rResultEC= CombineDuplicateElemSetInECList(rResultEC);
+			setStringProperty((QueryOperator *)OP_RCHILD(root), PROP_STORE_SET_EC, (Node *)rResultEC);
 		}
 	}
 
@@ -662,7 +685,7 @@ SCHAtoBUsedInBomUp(List *setList, List *childECSetList, List *attrA, List *attrB
 List *
 LSCHtoRSCH(List *setList, List *rECSetList, List *lSchemaList, List *rSchemaList)
 {
-	setList = copyList(rECSetList);
+	setList = copyObject(rECSetList);
 	FOREACH(KeyValue, kv, setList)
 	{
 	    Set *s = (Set *) kv->key;
