@@ -55,7 +55,6 @@ typedef struct List
                     DUMMY_LC(_node_)->next) != NULL) ? \
                     DUMMY_LC(_node_)->data.ptr_value : NULL))
 
-#define FOREACH_GET_LC(_node_) (DUMMY_LC(_node_))
 #define FOREACH_HAS_MORE(_node_) (DUMMY_LC(_node_)->next != NULL)
 /*
  * Loop through integer list _list_ and access each element using name _ival_.
