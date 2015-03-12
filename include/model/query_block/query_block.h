@@ -135,7 +135,7 @@ typedef struct FromJsonTable
     FromItem from;
     List *columns;
     char *documentcontext;
-    char *jsonColumn;
+    AttributeReference *jsonColumn;
     char *jsonTableIdentifier;
 } FromJsonTable;
 
@@ -259,7 +259,7 @@ extern FromItem *createFromSubquery(char *alias, List *attrNames, Node *query);
 extern FromItem *createFromJoin(char *alias, List *attrNames, FromItem *left,
         FromItem *right, char *joinType, char *condType,
         Node *cond);
-extern FromItem *createFromJsonTable(char *jsonColumn, char *documentcontext, List *columns, char *jsonTableIdentifier);
+extern FromItem *createFromJsonTable(AttributeReference *jsonColumn, char *documentcontext, List *columns, char *jsonTableIdentifier);
 extern JsonColInfoItem *createJsonColInfoItem (char *attrName, char *attrType, char *path);
 extern JoinConditionType joinConditionTypeFromString (char *condType);
 extern JoinType joinTypeFromString (char *joinType);

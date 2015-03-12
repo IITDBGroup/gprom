@@ -1421,7 +1421,7 @@ introduceSelectionBottomUp(QueryOperator *root)
 		         introduceSelectionBottomUp(op);
 	}
 
-	if(isA(root,TableAccessOperator) || isA(root, AggregationOperator))
+	if(isA(root,TableAccessOperator) || isA(root, AggregationOperator) || isA(root, WindowOperator))
 	{
 		Node *nRoot = getProperty(root, (Node *) createConstString(PROP_STORE_SET_EC));
 		List *rootECList = copyList((List *)nRoot);

@@ -875,7 +875,7 @@ windowBound:
  */
 jsonTable:
                 /* empty */	{ RULELOG("jsonTable::NULL"); $$ = NULL; }
-		| JSON_TABLE '(' compositeIdentifier ',' stringConst COLUMNS '(' jsonColInfo ')' ')' AS identifier
+		| JSON_TABLE '(' attributeRef ',' stringConst COLUMNS '(' jsonColInfo ')' ')' AS identifier
 			{
 				RULELOG("jsonTable::jsonTable");
                                 $$ = (Node *) createFromJsonTable($3, $5, $8, $12);

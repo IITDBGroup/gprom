@@ -517,7 +517,7 @@ getSelectionCondOperatorList(Node *expr, List **opList)
 {
     // only are interested in operators here
 	if (isA(expr,Operator)) {
-	    Operator *op = (Operator *) expr;
+	    Operator *op = (Operator *) copyObject(expr);
 	    if(streq(op->name,"AND"))
 	    {
 	        FOREACH(Node,arg,op->args)

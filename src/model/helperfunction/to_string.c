@@ -408,7 +408,7 @@ outFromJsonTable(StringInfo str, FromJsonTable *node)
     writeCommonFromItemFields(str, (FromItem *) node);
     WRITE_NODE_FIELD(columns);
     WRITE_STRING_FIELD(documentcontext);
-    WRITE_STRING_FIELD(jsonColumn);
+    WRITE_NODE_FIELD(jsonColumn);
     WRITE_STRING_FIELD(jsonTableIdentifier);
 }
 
@@ -937,7 +937,7 @@ outJsonTableOperator(StringInfo str, JsonTableOperator *node)
     WRITE_QUERY_OPERATOR();
     WRITE_NODE_FIELD(columns);
     WRITE_STRING_FIELD(documentcontext);
-    WRITE_STRING_FIELD(jsonColumn);
+    WRITE_NODE_FIELD(jsonColumn);
     WRITE_STRING_FIELD(jsonTableIdentifier);
 }
 
