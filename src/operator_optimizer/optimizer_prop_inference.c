@@ -516,7 +516,6 @@ computeECPropTopDown (QueryOperator *root)
 		List *rootECSetList = (List *)nRoot;
 
 		//SCH(Left Child)
-		//TODO there is a function in query_operator that returns the attribute names directly - no need to repeat that here
 		Set *lSchemaSet = STRSET();
 		FOREACH(AttributeDef,a, ((QueryOperator *)(OP_LCHILD(root)))->schema->attrDefs)
 		        addToSet(lSchemaSet,a->attrName);
