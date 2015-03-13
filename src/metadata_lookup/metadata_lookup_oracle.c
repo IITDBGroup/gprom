@@ -17,6 +17,7 @@
 #include "parser/parser.h"
 #include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
+#include "utility/string_utils.h"
 
 /* If OCILIB and OCI are available then use it */
 #if HAVE_ORACLE_BACKEND
@@ -610,24 +611,42 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
     {
         StringInfo statement;
         statement = makeStringInfo();
-
+        char *auditTable = strToUpper(getStringOption("backendOpts.oracle.logtable"));
         *scns = NIL;
         *sqls = NIL;
         *sqlBinds = NIL;
 
         // FETCH statements, SCNs, and parameter bindings
-        appendStringInfo(statement, "SELECT SCN, "
-                " CASE WHEN DBMS_LOB.GETLENGTH(lsqltext) > 4000 THEN lsqltext ELSE NULL END AS lsql,"
-                " CASE WHEN DBMS_LOB.GETLENGTH(lsqltext) <= 4000 THEN DBMS_LOB.SUBSTR(lsqltext,4000)  ELSE NULL END AS shortsql,"
-                " CASE WHEN DBMS_LOB.GETLENGTH(lsqlbind) > 4000 THEN lsqlbind ELSE NULL END AS lbind,"
-                " CASE WHEN DBMS_LOB.GETLENGTH(lsqlbind) <= 4000 THEN DBMS_LOB.SUBSTR(lsqlbind,4000)  ELSE NULL END AS shortbind"
-                " FROM "
-                "(SELECT SCN, LSQLTEXT, LSQLBIND, ntimestamp#, "
-                "   DENSE_RANK() OVER (PARTITION BY statement ORDER BY policyname) AS rnum "
-                "      FROM SYS.fga_log$ "
-                "      WHERE xid = HEXTORAW('%s')) x "
-                "WHERE rnum = 1 "
-                "ORDER BY ntimestamp#", xid);
+        if (streq(auditTable, "FGA_LOG$"))
+        {
+            appendStringInfo(statement, "SELECT SCN, "
+                    " CASE WHEN DBMS_LOB.GETLENGTH(lsqltext) > 4000 THEN lsqltext ELSE NULL END AS lsql,"
+                    " CASE WHEN DBMS_LOB.GETLENGTH(lsqltext) <= 4000 THEN DBMS_LOB.SUBSTR(lsqltext,4000)  ELSE NULL END AS shortsql,"
+                    " CASE WHEN DBMS_LOB.GETLENGTH(lsqlbind) > 4000 THEN lsqlbind ELSE NULL END AS lbind,"
+                    " CASE WHEN DBMS_LOB.GETLENGTH(lsqlbind) <= 4000 THEN DBMS_LOB.SUBSTR(lsqlbind,4000)  ELSE NULL END AS shortbind"
+                    " FROM "
+                    "(SELECT SCN, LSQLTEXT, LSQLBIND, ntimestamp#, "
+                    "   DENSE_RANK() OVER (PARTITION BY statement ORDER BY policyname) AS rnum "
+                    "      FROM SYS.fga_log$ "
+                    "      WHERE xid = HEXTORAW('%s')) x "
+                    "WHERE rnum = 1 "
+                    "ORDER BY ntimestamp#", xid);
+        }
+        else if (streq(auditTable, "UNIFIED_AUDIT_TRAIL"))
+        {
+            appendStringInfo(statement, "SELECT SCN, \n"
+                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n"
+                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n"
+                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n"
+                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n"
+                    "FROM \n"
+                    "\t(SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n"
+                    "\tFROM SYS.UNIFIED_AUDIT_TRAIL \n"
+                    "\tWHERE TRANSACTION_ID = HEXTORAW(\'%s\')) x \n"
+                    "ORDER BY ENTRY_ID", xid);
+        }
+        else
+            FATAL_LOG("unkown audit table %s", auditTable);
 
         if((conn = getConnection()) != NULL)
         {
@@ -688,14 +707,28 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
 
         // infer isolation level
         statement = makeStringInfo();
-        appendStringInfo(statement, "SELECT "
-                "CASE WHEN (count(DISTINCT scn) > 1) "
-                "THEN 1 "
-                "ELSE 0 "
-                "END AS readCommmit\n"
-                "FROM SYS.fga_log$\n"
-                "WHERE xid = HEXTORAW(\'%s\')",
-                xid);
+        if (streq(auditTable, "FGA_LOG$"))
+        {
+            appendStringInfo(statement, "SELECT "
+                             "CASE WHEN (count(DISTINCT scn) > 1) "
+                             "THEN 1 "
+                             "ELSE 0 "
+                             "END AS readCommmit\n"
+                             "FROM SYS.fga_log$\n"
+                             "WHERE xid = HEXTORAW(\'%s\')",
+                             xid);
+        }
+        else if (streq(auditTable, "UNIFIED_AUDIT_TRAIL"))
+        {
+            appendStringInfo(statement, "SELECT "
+                    "CASE WHEN (count(DISTINCT scn) > 1) "
+                    "THEN 1 "
+                    "ELSE 0 "
+                    "END AS readCommmit\n"
+                    "FROM SYS.UNIFIED_AUDIT_TRAIL\n"
+                    "WHERE TRANSACTION_ID = HEXTORAW(\'%s\')",
+                    xid);
+        }
 
         if ((conn = getConnection()) != NULL)
         {

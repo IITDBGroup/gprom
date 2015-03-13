@@ -56,6 +56,9 @@ char *connection_user = NULL;
 char *connection_passwd = NULL;
 int connection_port = 0;
 
+// backend specific options
+char *oracle_audit_log_table = NULL;
+
 // logging options
 int logLevel = 0;
 boolean logActive = FALSE;
@@ -215,6 +218,14 @@ OptionInfo opts[] =
                 OPTION_INT,
                 wrapOptionInt(&connection_port),
                 defOptionInt(1521)
+        },
+        {
+                "backendOpts.oracle.logtable",
+                "-Boracle.audittable",
+                "Table storing the audit log (usually fga_log$ or unified_audit_trail)",
+                OPTION_STRING,
+                wrapOptionString(&oracle_audit_log_table),
+                defOptionString("UNIFIED_AUDIT_TRAIL")
         },
         // logging options
         {

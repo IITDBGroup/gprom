@@ -20,4 +20,7 @@ extern char *strRemPostfix(char *str, int postFixSize);
 // string comparison for sorting
 extern int strCompare(const void *a, const void *b);
 
+// string to upper
+extern char *strToUpper(const char *input);
+
 #endif /* INCLUDE_UTILITY_STRING_UTILS_H_ */
