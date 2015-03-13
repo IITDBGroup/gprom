@@ -514,18 +514,18 @@ computeECPropBottomUp (QueryOperator *root)
 
 			if(((SetOperator *)root)->setOpType == SETOP_DIFFERENCE)
 			{
-//				Node *childECP = getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
-//				List *setList = copyObject((List *)childECP);
-//				setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)setList);
+				Node *childECN = getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
+				List *EC = (List *) copyObject(childECN);
+				setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
 
-				List *EC = NIL;
-				FOREACH(AttributeDef,a, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
-				{
-				    KeyValue *kv;
-					Set *s = MAKE_STR_SET(a->attrName);
-					kv = createNodeKeyValue((Node *) s, NULL);
-					EC = appendToTailOfList(EC, kv);
-				}
+//				List *EC = NIL;
+//				FOREACH(AttributeDef,a, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
+//				{
+//				    KeyValue *kv;
+//					Set *s = MAKE_STR_SET(a->attrName);
+//					kv = createNodeKeyValue((Node *) s, NULL);
+//					EC = appendToTailOfList(EC, kv);
+//				}
 
 				setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
 			}
@@ -716,15 +716,15 @@ computeECPropTopDown (QueryOperator *root)
 		List *rootEC = (List *) getStringProperty(root, PROP_STORE_SET_EC);
 
 		//Node *lECP = getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_EC));
-		List *lECSetList = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
-        List *lEC = copyObject(lECSetList);
-		List *rECSetList = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_SET_EC);
-		List *rEC = copyObject(rECSetList);
+		List *lEC = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
+        //List *lEC = copyObject(lECSetList);
+		List *rEC = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_SET_EC);
+		//List *rEC = copyObject(rECSetList);
 
 		if(((SetOperator *)root)->setOpType == SETOP_UNION)
 		{
             //set left child's EC
-			List *lSetList = concatTwoLists(copyObject(rootEC), lEC);
+			List *lSetList = concatTwoLists(copyObject(rootEC), copyObject(lEC));
 			lSetList = CombineDuplicateElemSetInECList(lSetList);
 			setStringProperty((QueryOperator *)OP_LCHILD(root), PROP_STORE_SET_EC, (Node *)lSetList);
 
@@ -734,7 +734,7 @@ computeECPropTopDown (QueryOperator *root)
 
 			//set right childs' EC
 			List *rSetList = NIL;
-			rSetList = concatTwoLists(copyObject(newRootEC), rEC);
+			rSetList = concatTwoLists(copyObject(newRootEC), copyObject(rEC));
 			rSetList = CombineDuplicateElemSetInECList(rSetList);
 			setStringProperty((QueryOperator *)OP_RCHILD(root), PROP_STORE_SET_EC, (Node *)rSetList);
 		}
@@ -753,9 +753,10 @@ computeECPropTopDown (QueryOperator *root)
 		}
 		if(((SetOperator *)root)->setOpType == SETOP_DIFFERENCE)
 		{
-			List *lResultEC = NIL;
-			lResultEC = concatTwoLists(copyObject(rootEC), copyObject(lEC));
-			lResultEC= CombineDuplicateElemSetInECList(lResultEC);
+//			List *lResultEC = NIL;
+//			lResultEC = concatTwoLists(copyObject(rootEC), copyObject(lEC));
+//			lResultEC= CombineDuplicateElemSetInECList(lResultEC);
+			List *lResultEC = copyObject(rootEC);
 			setStringProperty((QueryOperator *)OP_LCHILD(root), PROP_STORE_SET_EC, (Node *)lResultEC);
 
 			List *rResultEC = NIL;
