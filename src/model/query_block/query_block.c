@@ -143,13 +143,17 @@ createFromJsonTable(AttributeReference *jsonColumn, char *documentcontext, List 
 }
 
 JsonColInfoItem *
-createJsonColInfoItem (char *attrName, char *attrType, char *path)
+createJsonColInfoItem (char *attrName, char *attrType, char *path, char *format, char *wrapper, List *nested)
 {
     JsonColInfoItem *result = makeNode(JsonColInfoItem);
 
     result->attrName = attrName;
     result->path = path;
     result->attrType = attrType;
+
+    result->format = format;
+    result->wrapper = wrapper;
+    result->nested = nested;
 
     return result;
 }

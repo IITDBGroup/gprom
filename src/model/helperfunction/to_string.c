@@ -420,6 +420,10 @@ outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node)
     WRITE_STRING_FIELD(attrName);
     WRITE_STRING_FIELD(path);
     WRITE_STRING_FIELD(attrType);
+
+    WRITE_STRING_FIELD(format);
+    WRITE_STRING_FIELD(wrapper);
+    WRITE_NODE_FIELD(nested);
 }
 
 static void

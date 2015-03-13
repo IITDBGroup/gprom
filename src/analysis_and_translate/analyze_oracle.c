@@ -823,9 +823,46 @@ analyzeFromJsonTable(FromJsonTable *f, List **state)
 
     FOREACH(JsonColInfoItem, attr, f->columns)
     {
-        attrNames = appendToTailOfList(attrNames, attr->attrName);
-        if(streq(attr->attrType, "VARCHAR2"))
-            attrTypes = appendToTailOfListInt(attrTypes, 5);
+	if (attr->nested)
+	{
+            FOREACH(JsonColInfoItem, attr1, attr->nested)
+            {
+                attrNames = appendToTailOfList(attrNames, attr1->attrName);
+                // if(streq(attr->attrType, "VARCHAR2"))
+                attrTypes = appendToTailOfListInt(attrTypes, 5);
+	    }
+	}
+	else
+	{
+            attrNames = appendToTailOfList(attrNames, attr->attrName);
+            // if(streq(attr->attrType, "VARCHAR2"))
+	    attrTypes = appendToTailOfListInt(attrTypes, 5);
+	}
+
+        //TODO Add if streq for other datatypes as well
+       /*
+        switch (attr->attrType)
+        {
+        case DT_INT:
+        	attrTypes = appendToTailOfListInt(attrTypes, 0);
+        	break;
+        case DT_LONG:
+        	attrTypes = appendToTailOfListInt(attrTypes, 1);
+        	break;
+        case DT_STRING:
+        	attrTypes = appendToTailOfListInt(attrTypes, 2);
+        	break;
+        case DT_FLOAT:
+        	attrTypes = appendToTailOfListInt(attrTypes, 3);
+        	break;
+        case DT_BOOL:
+        	attrTypes = appendToTailOfListInt(attrTypes, 4);
+        	break;
+        case DT_VARCHAR2:
+        	attrTypes = appendToTailOfListInt(attrTypes, 5);
+        	break;
+        }
+        */
     }
 
     if (f->from.attrNames == NIL)
@@ -837,6 +874,7 @@ analyzeFromJsonTable(FromJsonTable *f, List **state)
     if(f->from.name == NULL)
 	f->from.name = f->jsonTableIdentifier;
 
+    //TODO JsonColumn can refer to column of JsonTable
     // Append jsonColumn to attributeRef list
     *state = appendToTailOfList(*state, f->jsonColumn);
 }

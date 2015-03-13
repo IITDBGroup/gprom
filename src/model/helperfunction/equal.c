@@ -698,6 +698,10 @@ equalJsonColInfoItem(JsonColInfoItem *a, JsonColInfoItem *b)
     COMPARE_STRING_FIELD(path);
     COMPARE_STRING_FIELD(attrType);
 
+    COMPARE_STRING_FIELD(format);
+    COMPARE_STRING_FIELD(wrapper);
+    COMPARE_NODE_FIELD(nested);
+
     return TRUE;
 }
 
