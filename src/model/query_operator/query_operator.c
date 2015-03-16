@@ -88,8 +88,6 @@ setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2)
 		  {
 	    	    if(streq(a1->attrName,a2->attrName))
 	    	    {
-	    	    	   DEBUG_LOG("a1->dataType = %s",DataTypeToString(a1->dataType));
-	    	    	   DEBUG_LOG("a2->dataType = %s",DataTypeToString(a2->dataType));
 	    	           a1->dataType = a2->dataType;
 	    	           break;
 	    	    }
@@ -194,19 +192,6 @@ void
 resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *op2)
 {
     int cnt = 0;
-   /* FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-    {
-        FOREACH(AttributeReference, a1, op1->projExprs)
-        {
-            if(streq(a1->name, a2->attrName))
-            {
-                a1->attrPosition = cnt;
-            }
-        }
-        cnt++;
-    }
-    */
-
 	FOREACH_LC(a1, op1->projExprs)
 	{
 		if(isA(LC_P_VAL(a1), Operator))
@@ -227,95 +212,73 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *
 			}
 		}
 	}
-
-
-/*    	FOREACH(AttributeReference, a1, op1->projExprs)
-    	{
-    		cnt = 0;
-    		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-    		{
-    			if(streq(a1->name, a2->attrName))
-    			{
-    				a1->attrPosition = cnt;
-    				break;
-    			}
-    			cnt++;
-    		}
-    	}*/
-
 }
 
 void
 resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2)
 {
-    Operator *o = (Operator *)(op1->cond);
-    int cnt = 0;
+	Operator *o = (Operator *)(op1->cond);
+	int cnt = 0;
 
-    if(!streq(o->name,"AND"))
-    {
-        FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+	if(!streq(o->name,"AND"))
+	{
+		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
         {
-            FOREACH_LC(lc, (o->args))
+			FOREACH_LC(lc, (o->args))
             {
-                if(isA(LC_P_VAL(lc), AttributeReference))
-                {
-                    AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
-                    //DEBUG_LOG("Test Def: %s, Ref: %s",
-                    //a2->attrName,a1->name);
-                    if(streq(a1->name,a2->attrName))
-		    {
-                        a1->attrPosition = cnt;
-                    }
-                }
+				if(isA(LC_P_VAL(lc), AttributeReference))
+				{
+					AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
+					if(streq(a1->name,a2->attrName))
+					{
+						a1->attrPosition = cnt;
+					}
+				}
             }
-            cnt++;
-        }
-    }
-    else
-    {
-        Operator *o2;
-        Operator *o1;
-        FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-        {
-            o2 = o;
-            while(streq(o2->name,"AND"))
-            {
-                o1  = (Operator *)(getTailOfListP(o2->args));
-                o2 = (Operator *)(getHeadOfListP(o2->args));
-
-                FOREACH_LC(lc,(o1->args))
-                {
-                    if(isA(LC_P_VAL(lc), AttributeReference))
-                    {
-                        AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
-                        //DEBUG_LOG("Test Def: %s, Ref: %s",
-                        //a2->attrName,a1->name);
-			if(streq(a1->name,a2->attrName))
+			cnt++;
+         }
+	}
+	else
+	{
+		Operator *o2;
+		Operator *o1;
+		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+		{
+			o2 = o;
+			while(streq(o2->name,"AND"))
 			{
-                            a1->attrPosition = cnt;
-                        }
-                    }
-                }
-            }
+				o1  = (Operator *)(getTailOfListP(o2->args));
+				o2 = (Operator *)(getHeadOfListP(o2->args));
 
-            //The last one operator which without AND
-            FOREACH_LC(lc,(o2->args))
-	    {
-                if(isA(LC_P_VAL(lc), AttributeReference))
-                {
-                    AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
-                    //DEBUG_LOG("Test Def: %s, Ref: %s",
-                    //a2->attrName,a1->name);
-		    if(streq(a1->name,a2->attrName))
-                    {
-                        a1->attrPosition = cnt;
-                    }
-                }
-            }
+				FOREACH_LC(lc,(o1->args))
+				{
+					if(isA(LC_P_VAL(lc), AttributeReference))
+					{
+						AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
+						if(streq(a1->name,a2->attrName))
+						{
+							a1->attrPosition = cnt;
+						}
+					}
+				}
+			}
 
-            cnt++;
-        }
-    }
+			//The last one operator which without AND
+			FOREACH_LC(lc,(o2->args))
+			{
+				if(isA(LC_P_VAL(lc), AttributeReference))
+				{
+					AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
+					if(streq(a1->name,a2->attrName))
+					{
+						a1->attrPosition = cnt;
+					}
+				}
+			}
+
+			cnt++;
+		}
+	}
 }
 
 List *
@@ -341,9 +304,6 @@ UnionEqualElemOfTwoSetList(List *listEqlOp, List *listSet)
 List *
 addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet)
 {
-    //DEBUG_LOG("test n1: %s", nodeToString(n1));
-    //DEBUG_LOG("test n2: %s", nodeToString(n2));
-
     Node *tempn1, *tempn2;
     if(isA(n1, Constant))
         tempn1 = n1;
@@ -364,13 +324,6 @@ addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet)
     {
         FOREACH(Set, s1, listSet)
         {
-            /*if(hasSetElem(s1,(char *)tempn1))
-              {
-                  flag1 = TRUE;
-                  tempSet1 = s1;
-                  break;
-              }*/
-
             FOREACH_SET(Node, sn1, s1)
             {
                 if(!isA(sn1,Constant))
@@ -391,13 +344,6 @@ addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet)
     {
         FOREACH(Set, s2, listSet)
         {
-            /*if(hasSetElem(s2,tempn2))
-              {
-                  flag2 = TRUE;
-                  tempSet2 = s2;
-                  break;
-              }*/
-
             FOREACH_SET(Node, sn2, s2)
             {
                 if(isA(sn2,Constant))
@@ -473,7 +419,7 @@ getCondOpList(List *l1, List *l2)
         if(flag1 == TRUE)
 	{
             if(isA(getTailOfListP(o->args),Constant))
-	    {
+	        {
                 DEBUG_LOG("test compare constant");
                 newOpList = appendToTailOfList(newOpList, o);
             }
