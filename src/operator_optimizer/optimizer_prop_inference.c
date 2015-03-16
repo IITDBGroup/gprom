@@ -15,7 +15,7 @@
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
-#include "metadata_lookup/metadata_lookup_oracle.h"
+#include "metadata_lookup/metadata_lookup.h"
 #include "include/log/logger.h"
 #include "include/model/query_operator/operator_property.h"
 
@@ -42,7 +42,8 @@ computeKeyProp (QueryOperator *root)
     // table acces operator or constant relation operators have predetermined keys
     if(isA(root, TableAccessOperator))
     {
-        keyList = getKeyInformation(root);
+        TableAccessOperator *rel = (TableAccessOperator *) root;
+        keyList = getKeyInformation(rel->tableName);
         setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
         DEBUG_LOG("operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
         return;

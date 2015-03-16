@@ -1799,7 +1799,7 @@ getMoveAroundOpList(QueryOperator *op)
             	removeSetElem(s1, n1);
             	FOREACH_SET(char, e, s1)
             	{
-                	AttributeReference *aRef2;
+                	AttributeReference *aRef2 = NULL;
     	    		if(MAP_HAS_STRING_KEY(nameToAttrDef, e))
     	    		{
     	    			AttributeDef *attr = (AttributeDef *)getMapString(nameToAttrDef, e);
