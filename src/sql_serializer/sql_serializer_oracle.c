@@ -792,10 +792,14 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                 appendStringInfoString(from, " COLUMNS");
                 appendStringInfoString(from, "(");
 
+                int nestedcount = 0;
                 FOREACH(JsonColInfoItem, col, jt->columns)
                 {
                     if (col->nested)
                     {
+                        if (nestedcount++ > 0)
+                            appendStringInfoString(from, ",");
+
                         appendStringInfoString(from, " NESTED PATH");
                         appendStringInfo(from, " '%s'", col->path);
                         appendStringInfoString(from, " COLUMNS");
@@ -821,8 +825,8 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                             appendStringInfoString(from, ",");
                         }
                         // Remove the last unnecessary comma
+
                         from->data[from->len - 1] = ' ';
-                        appendStringInfoString(from, ")");
                         appendStringInfoString(from, ")");
                     }
                     else
@@ -848,9 +852,10 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
                 // Remove the last unnecessary comma
                 from->data[from->len - 1] = ' ';
-
                 appendStringInfoString(from, ")");
                 appendStringInfoString(from, ")");
+                if (nestedcount >= 1)
+                    appendStringInfoString(from, ")");
                 appendStringInfoString(from, " AS ");
                 appendStringInfo(from, "F%u", (*curFromItem)++);
             }

@@ -35,6 +35,7 @@ static QueryOperator *rewritePI_CSTableAccess(TableAccessOperator *op);
 static QueryOperator *rewritePI_CSConstRel(ConstRelOperator *op);
 static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 static QueryOperator *rewritePI_CSOrderOp(OrderOperator *op);
+static QueryOperator *rewritePI_CSJsonTableOp(JsonTableOperator *op);
 
 static QueryOperator *addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs);
 static QueryOperator *addIntermediateProvenance (QueryOperator *op, List *userProvAttrs);
@@ -137,9 +138,13 @@ rewritePI_CSOperator (QueryOperator *op)
             rewrittenOp = rewritePI_CSDuplicateRemOp((DuplicateRemoval *) op);
             break;
         case T_OrderOperator:
-            DEBUG_LOG("fo order operator");
+            DEBUG_LOG("go order operator");
             rewrittenOp = rewritePI_CSOrderOp((OrderOperator *) op);
             break;
+        case T_JsonTableOperator:
+	     DEBUG_LOG("go JsonTable operator");
+	     rewrittenOp = rewritePI_CSJsonTableOp((JsonTableOperator *) op);
+	     break;
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
             return NULL;
@@ -968,6 +973,131 @@ rewritePI_CSOrderOp(OrderOperator *op)
 
     // adapt provenance attr list and schema
     addProvenanceAttrsToSchema((QueryOperator *) op, child);
+
+    return (QueryOperator *) op;
+}
+
+static QueryOperator *
+rewritePI_CSJsonTableOp(JsonTableOperator *op)
+{
+    QueryOperator *child = OP_LCHILD(op);
+
+    // rewrite child
+    //child = rewritePI_CSOperator(child);
+
+    // adapt provenance attr list and schema
+    //addProvenanceAttrsToSchema((QueryOperator *) op, child);
+
+    // Add the correct JsonColumn things by duplicating them and adapt the
+    // schema accordingly and set the provenance attribute list adding it to
+    // schema of JsonTable
+
+    List *provAttr = NIL;
+    List *projExpr = NIL;
+    char *newAttrName;
+
+    int cnt = 0;
+
+    DEBUG_LOG("REWRITE-PICS - JsonTable <%s>", op->jsonTableIdentifier);
+
+    // Get the povenance name for each attribute
+    FOREACH(JsonColInfoItem, attr, op->columns)
+    {
+	if (attr->nested)
+        {
+            FOREACH(JsonColInfoItem, attr1, attr->nested)
+            {
+                provAttr = appendToTailOfList(provAttr, strdup(attr1->attrName));
+                projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr1->attrName, 0, cnt, 0, DT_VARCHAR2));
+                cnt++;
+            }
+        }
+        else
+        {
+            provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
+            projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, DT_VARCHAR2));
+            cnt++;
+        }
+    }
+
+    cnt = 0;
+
+    List *duplicateAttrList = NIL;
+
+    FOREACH(JsonColInfoItem, attr, op->columns)
+    {
+        if (attr->nested)
+        {
+            List *newNested = NIL;
+            FOREACH(JsonColInfoItem, attr1, attr->nested)
+            {
+                newAttrName = getProvenanceAttrName(op->jsonTableIdentifier, attr1->attrName, 0);
+                JsonColInfoItem *c = createJsonColInfoItem(newAttrName, attr1->attrType, attr1->path, attr1->format, attr1->wrapper, NULL);
+                newNested = appendToTailOfList(newNested, c);
+                provAttr = appendToTailOfList(provAttr, newAttrName);
+                // TODO Make attrType in JsonColInfoItem as DataType (its an enum). Here DT_VARCHAR2 is hardcoded which is wrong
+                projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr1->attrName, 0, cnt, 0, DT_VARCHAR2));
+                cnt++;
+            }
+            attr->nested = concatTwoLists(attr->nested, newNested);
+        }
+        else
+        {
+            newAttrName = getProvenanceAttrName(op->jsonTableIdentifier, attr->attrName, 0);
+            JsonColInfoItem *c = createJsonColInfoItem(newAttrName, attr->attrType, attr->path, attr->format, attr->wrapper, NULL);
+            duplicateAttrList = appendToTailOfList(duplicateAttrList, (Node *) c);
+            provAttr = appendToTailOfList(provAttr, newAttrName);
+            // TODO Make attrType in JsonColInfoItem as DataType (its an enum). Here DT_VARCHAR2 is hardcoded which is wrong
+            projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, DT_VARCHAR2));
+            cnt++;
+	}
+    }
+
+    // Add duplicate provenance Attr List to existing JsonColInfo List
+    List *newJsonColInfoList = concatTwoLists(op->columns, duplicateAttrList);
+
+    // Rearrange the newJsonColInfolist to Seperate normalJsonColList from nestedJsonColList
+    List *normalJsonColList = NIL;
+    List *nestedJsonColList = NIL;
+
+    FOREACH(JsonColInfoItem, j, newJsonColInfoList)
+    {
+        if(j->nested)
+            nestedJsonColList = appendToTailOfList(nestedJsonColList, j);
+        else
+            normalJsonColList = appendToTailOfList(normalJsonColList, j);
+    }
+
+    newJsonColInfoList = concatTwoLists(normalJsonColList, nestedJsonColList);
+
+    op->columns = newJsonColInfoList;
+
+    List *newProvPosList = NIL;
+
+    int cnt1 = LIST_LENGTH(op->op.schema->attrDefs);
+
+    // Create newProvPosList which sets the position of Provenance Attributes in the Schema
+    CREATE_INT_SEQ(newProvPosList, cnt1, cnt1 + cnt-1, 1);
+
+    DEBUG_LOG("rewrite Json Table, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
+              stringListToString(provAttr),
+              nodeToString(projExpr),
+              nodeToString(newProvPosList));
+
+    op->op.provAttrs = newProvPosList;
+
+    List *attrNames = concatTwoLists(getAttrNames(child->schema), provAttr);
+
+    List *dataTypes = NIL;
+
+    FOREACH(Node, n, projExpr)
+        dataTypes = appendToTailOfListInt(dataTypes, typeOf(n));
+
+    List *attrTypes = concatTwoLists(getDataTypes(child->schema), dataTypes);
+
+    op->op.schema = createSchemaFromLists(op->jsonTableIdentifier, attrNames, attrTypes);
+
+    DEBUG_LOG("rewrite Json Table: %s", operatorToOverviewString((Node *)op));
 
     return (QueryOperator *) op;
 }
