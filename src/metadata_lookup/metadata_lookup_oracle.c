@@ -100,6 +100,8 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->executeAsTransactionAndGetXID = oracleExecuteAsTransactionAndGetXID;
     plugin->getCommitScn = oracleGetCommitScn;
     plugin->executeQuery = oracleGenExecQuery;
+    plugin->getCostEstimation = oracleGetCostEstimation;
+    plugin->getKeyInformation = oracleGetKeyInformation;
 
     return plugin;
 }
@@ -920,7 +922,8 @@ getBarrierScn(void)
 }
 
 
-int getCost(char *query)
+int
+oracleGetCostEstimation(char *query)
 {
     /* Remove the newline characters from the Query */
     int len = strlen(query);
@@ -971,7 +974,8 @@ int getCost(char *query)
     return cost;
 }
 
-List *getKeyInformation(QueryOperator *root)
+List *
+oracleGetKeyInformation(char *tableName)
 {
     List *keyList = NIL;
 
@@ -984,7 +988,7 @@ List *getKeyInformation(QueryOperator *root)
                                 "AND cons.constraint_name = cols.constraint_name "
                                 "AND cons.owner = cols.owner "
                                 "ORDER BY cols.table_name, cols.position",
-                                root->schema->name);
+                                tableName);
 
     OCI_Resultset *rs1 = executeStatement(statement->data);
 
@@ -1207,7 +1211,7 @@ oracleDatabaseConnectionClose()
 	return EXIT_SUCCESS;
 }
 
-#define maxRead 8000
+//#define maxRead 8000
 
 //static inline char *
 //LobToChar (OCI_Lob *lob)
@@ -1335,5 +1339,18 @@ oracleGetFuncReturnType (char *fName, List *dataTypes)
 {
     return DT_STRING;
 }
+
+int
+oracleGetCostEstimation(char *query)
+{
+    return 0;
+}
+
+List *
+oracleGetKeyInformation(char *tableName)
+{
+    return NULL;
+}
+
 
 #endif
