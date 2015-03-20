@@ -72,7 +72,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> CASE WHEN THEN ELSE END
 %token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 %token <stringVal> NULLS FIRST LAST ASC DESC
-%token <stringVal> JSON_TABLE COLUMNS PATH
+%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL
 
 %token <stringVal> DUMMYEXPR
 
@@ -129,6 +129,7 @@ Node *bisonParseResult = NULL;
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
+%type <stringVal> optionalFormat optionalWrapper
 
 %start stmtList
 
@@ -897,15 +898,48 @@ jsonColInfo:
 
 jsonColInfoItem:
                 /* empty */ { RULELOG("jsonColInfoItem::NULL"); }
-                | identifier identifier PATH stringConst 
+                | identifier identifier optionalFormat optionalWrapper PATH stringConst
                         {
                                 RULELOG("jsonColInfoItem::jsonColInfoItem");
-                                JsonColInfoItem *c = createJsonColInfoItem ($1, $2, $4);
+                                JsonColInfoItem *c = createJsonColInfoItem ($1, $2, $6, $3, $4, NULL);
+                                $$ = (Node *) c;
+                        }
+                | NESTED PATH stringConst COLUMNS '(' jsonColInfo ')'
+                        {
+                                RULELOG("jsonColInfoItem::jsonColInfoItem");
+                                JsonColInfoItem *c = createJsonColInfoItem (NULL, NULL, $3, NULL, NULL, $6);
                                 $$ = (Node *) c;
                         }
         ;
 
-	
+optionalFormat:
+                /* empty */ { RULELOG("optionalFormat::NULL"); $$ = NULL; }
+                | FORMAT identifier
+                        {
+                                RULELOG("optionalFormat::FORMAT");
+                                $$ = $2;
+                        }
+        ;
+
+optionalWrapper:
+                /* empty */ { RULELOG("optionalWrapper::NULL"); $$ = NULL; }
+                | WITH WRAPPER
+                        {
+                                RULELOG("optionalWrapper::WITH WRAPPER");
+                                $$ = strdup("WITH");
+                        }
+                | WITHOUT WRAPPER
+                        {
+                                RULELOG("optionalWrapper::WITHOUT WRAPPER");
+                                $$ = strdup("WITHOUT");
+                        }
+                | WITH CONDITIONAL WRAPPER
+                        {
+                                RULELOG("optionalWrapper::WITHOUT WRAPPER");
+                                $$ = strdup("WITH CONDITIONAL");
+                        }
+        ;
+
 /*
  * Rule to parse from clause
  *            Currently implemented for basic from clause.

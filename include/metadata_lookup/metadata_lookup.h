@@ -76,7 +76,7 @@ typedef struct MetadataLookupPlugin
 
     char * (*getTableDefinition) (char *tableName);
     char * (*getViewDefinition) (char *viewName);
-
+    List * (*getKeyInformation) (char *tableName);
     /* audit log access */
     void (*getTransactionSQLAndSCNs) (char *xid, List **scns, List **sqls,
             List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
@@ -84,7 +84,8 @@ typedef struct MetadataLookupPlugin
 
     /* execution */
     Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
-    Relation * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
+    List * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
+    int (*getCostEstimation)(char *query);
 
     /* cache for catalog information */
     CatalogCache *cache;
@@ -122,12 +123,14 @@ extern DataType getFuncReturnType (char *fName, List *argTypes);
 extern DataType getOpReturnType (char *oName, List *argTypes);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
+extern List *getKeyInformation (char *tableName);
 
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Relation *executeQuery (char *sql);
 extern long getCommitScn (char *tableName, long maxScn, char *xid);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
+extern int getCostEstimation(char *query);
 
 /* helper functions for createing the cache */
 extern CatalogCache *createCache(void);

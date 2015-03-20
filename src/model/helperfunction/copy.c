@@ -676,6 +676,10 @@ copyJsonColInfoItem(JsonColInfoItem *from, OperatorMap **opMap)
     COPY_STRING_FIELD(path);
     COPY_STRING_FIELD(attrType);
 
+    COPY_STRING_FIELD(format);
+    COPY_STRING_FIELD(wrapper);
+    COPY_NODE_FIELD(nested);
+
     return new;
 }
 

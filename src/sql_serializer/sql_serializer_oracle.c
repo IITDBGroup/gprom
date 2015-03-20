@@ -792,20 +792,70 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                 appendStringInfoString(from, " COLUMNS");
                 appendStringInfoString(from, "(");
 
+                int nestedcount = 0;
                 FOREACH(JsonColInfoItem, col, jt->columns)
                 {
-                    appendStringInfo(from, "%s", col->attrName);
-                    appendStringInfo(from, " %s", col->attrType);
-                    appendStringInfoString(from, " PATH");
-                    appendStringInfo(from, " '%s'", col->path);
-                    appendStringInfoString(from, ",");
+                    if (col->nested)
+                    {
+                        if (nestedcount++ > 0)
+                            appendStringInfoString(from, ",");
+
+                        appendStringInfoString(from, " NESTED PATH");
+                        appendStringInfo(from, " '%s'", col->path);
+                        appendStringInfoString(from, " COLUMNS");
+                        appendStringInfoString(from, "(");
+
+                        FOREACH(JsonColInfoItem, col1, col->nested)
+                        {
+                            appendStringInfo(from, "%s", col1->attrName);
+                            appendStringInfo(from, " %s", col1->attrType);
+
+                            if (col->format)
+                            {
+                                appendStringInfoString(from, " FORMAT");
+                                appendStringInfo(from, " %s", col->format);
+                            }
+                            if (col->wrapper)
+                            {
+                                appendStringInfo(from, " %s", col->wrapper);
+                                appendStringInfo(from, " WRAPPER");
+                            }
+                            appendStringInfoString(from, " PATH");
+                            appendStringInfo(from, " '%s'", col1->path);
+                            appendStringInfoString(from, ",");
+                        }
+                        // Remove the last unnecessary comma
+
+                        from->data[from->len - 1] = ' ';
+                        appendStringInfoString(from, ")");
+                    }
+                    else
+                    {
+                        appendStringInfo(from, "%s", col->attrName);
+                        appendStringInfo(from, " %s", col->attrType);
+
+                        if (col->format)
+                        {
+                            appendStringInfoString(from, " FORMAT");
+                            appendStringInfo(from, " %s", col->format);
+                        }
+                        if (col->wrapper)
+                        {
+                            appendStringInfo(from, " %s", col->wrapper);
+                            appendStringInfo(from, " WRAPPER");
+                        }
+                        appendStringInfoString(from, " PATH");
+                        appendStringInfo(from, " '%s'", col->path);
+                        appendStringInfoString(from, ",");
+                    }
                 }
 
                 // Remove the last unnecessary comma
                 from->data[from->len - 1] = ' ';
-
                 appendStringInfoString(from, ")");
                 appendStringInfoString(from, ")");
+                if (nestedcount >= 1)
+                    appendStringInfoString(from, ")");
                 appendStringInfoString(from, " AS ");
                 appendStringInfo(from, "F%u", (*curFromItem)++);
             }

@@ -128,6 +128,9 @@ typedef struct JsonColInfoItem
     char *attrName;
     char *path;
     char *attrType;
+    char *format;
+    char *wrapper;
+    List *nested;
 } JsonColInfoItem;
 
 typedef struct FromJsonTable
@@ -260,7 +263,7 @@ extern FromItem *createFromJoin(char *alias, List *attrNames, FromItem *left,
         FromItem *right, char *joinType, char *condType,
         Node *cond);
 extern FromItem *createFromJsonTable(AttributeReference *jsonColumn, char *documentcontext, List *columns, char *jsonTableIdentifier);
-extern JsonColInfoItem *createJsonColInfoItem (char *attrName, char *attrType, char *path);
+extern JsonColInfoItem *createJsonColInfoItem (char *attrName, char *attrType, char *path, char *format, char *wrapper, List *nested);
 extern JoinConditionType joinConditionTypeFromString (char *condType);
 extern JoinType joinTypeFromString (char *joinType);
 extern DistinctClause *createDistinctClause (List *distinctExprs);

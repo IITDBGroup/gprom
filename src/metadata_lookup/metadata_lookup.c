@@ -232,6 +232,13 @@ getViewDefinition(char *viewName)
     return activePlugin->getViewDefinition(viewName);
 }
 
+List *
+getKeyInformation (char *tableName)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getKeyInformation(tableName);
+}
+
 void
 getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
@@ -259,6 +266,13 @@ executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     return activePlugin->executeAsTransactionAndGetXID(statements, isoLevel);
+}
+
+int
+getCostEstimation(char *query)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getCostEstimation(query);
 }
 
 int
