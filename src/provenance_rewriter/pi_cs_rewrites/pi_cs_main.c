@@ -24,6 +24,7 @@
 #include "model/list/list.h"
 #include "model/set/set.h"
 #include "model/expression/expression.h"
+#include "model/set/hashmap.h"
 
 static QueryOperator *rewritePI_CSOperator (QueryOperator *op);
 static QueryOperator *rewritePI_CSSelection (SelectionOperator *op);
@@ -983,24 +984,25 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
     QueryOperator *child = OP_LCHILD(op);
 
     // rewrite child
-    //child = rewritePI_CSOperator(child);
+    child = rewritePI_CSOperator(child);
 
     // adapt provenance attr list and schema
-    //addProvenanceAttrsToSchema((QueryOperator *) op, child);
+    clearAttrsFromSchema((QueryOperator *) op);
+    addNormalAttrsToSchema((QueryOperator *) op, child);
+    addProvenanceAttrsToSchema((QueryOperator *) op, child);
 
     // Add the correct JsonColumn things by duplicating them and adapt the
     // schema accordingly and set the provenance attribute list adding it to
     // schema of JsonTable
 
-    List *provAttr = NIL;
-    List *projExpr = NIL;
-    char *newAttrName;
-
+    List *provAttr = NIL;  //new json attribute name list
+    List *newDef = NIL;    //new json attribute Def list
+    List *provList = NIL;  //new provenance attribute Def list
+    char *newAttrName = NULL; //new provenance name
     int cnt = 0;
 
     DEBUG_LOG("REWRITE-PICS - JsonTable <%s>", op->jsonTableIdentifier);
 
-    // Get the povenance name for each attribute
     FOREACH(JsonColInfoItem, attr, op->columns)
     {
 	if (attr->nested)
@@ -1008,96 +1010,76 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
             FOREACH(JsonColInfoItem, attr1, attr->nested)
             {
                 provAttr = appendToTailOfList(provAttr, strdup(attr1->attrName));
-                projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr1->attrName, 0, cnt, 0, DT_VARCHAR2));
+                newDef = appendToTailOfList(newDef, createAttributeDef(attr1->attrName, DT_VARCHAR2));
+
+    			newAttrName = getProvenanceAttrName(op->jsonTableIdentifier, attr1->attrName, 0);
+    			provList = appendToTailOfList(provList, createAttributeDef(newAttrName, DT_VARCHAR2));
                 cnt++;
             }
         }
         else
         {
             provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
-            projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, DT_VARCHAR2));
+            newDef = appendToTailOfList(newDef, createAttributeDef(attr->attrName, DT_VARCHAR2));
+
+    		newAttrName = getProvenanceAttrName(op->jsonTableIdentifier, attr->attrName, 0);
+    		provList = appendToTailOfList(provList, createAttributeDef(newAttrName, DT_VARCHAR2));
             cnt++;
         }
     }
 
-    cnt = 0;
+    //new json table schema
+    op->op.schema->attrDefs = concatTwoLists(op->op.schema->attrDefs, newDef);
 
-    List *duplicateAttrList = NIL;
 
-    FOREACH(JsonColInfoItem, attr, op->columns)
+    //Add projection operator
+    //projExprName:  the new projection operator projExpr name list
+    List *normalName = getNormalAttrNames((QueryOperator *) op);
+    List *provName = getOpProvenanceAttrNames((QueryOperator *) op);
+    List *projExprName = concatTwoLists(normalName, provName);
+    projExprName = concatTwoLists(projExprName, provAttr);
+    List *projExpr = NIL;
+
+    HashMap *namePosMap = NEW_MAP(Constant,Constant);
+    HashMap *nameTypeMap = NEW_MAP(Constant, Node);
+
+    // adapt name to position
+    int count = 0;
+    FOREACH(AttributeDef, d, op->op.schema->attrDefs)
     {
-        if (attr->nested)
-        {
-            List *newNested = NIL;
-            FOREACH(JsonColInfoItem, attr1, attr->nested)
-            {
-                newAttrName = getProvenanceAttrName(op->jsonTableIdentifier, attr1->attrName, 0);
-                JsonColInfoItem *c = createJsonColInfoItem(newAttrName, attr1->attrType, attr1->path, attr1->format, attr1->wrapper, NULL);
-                newNested = appendToTailOfList(newNested, c);
-                provAttr = appendToTailOfList(provAttr, newAttrName);
-                // TODO Make attrType in JsonColInfoItem as DataType (its an enum). Here DT_VARCHAR2 is hardcoded which is wrong
-                projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr1->attrName, 0, cnt, 0, DT_VARCHAR2));
-                cnt++;
-            }
-            attr->nested = concatTwoLists(attr->nested, newNested);
-        }
-        else
-        {
-            newAttrName = getProvenanceAttrName(op->jsonTableIdentifier, attr->attrName, 0);
-            JsonColInfoItem *c = createJsonColInfoItem(newAttrName, attr->attrType, attr->path, attr->format, attr->wrapper, NULL);
-            duplicateAttrList = appendToTailOfList(duplicateAttrList, (Node *) c);
-            provAttr = appendToTailOfList(provAttr, newAttrName);
-            // TODO Make attrType in JsonColInfoItem as DataType (its an enum). Here DT_VARCHAR2 is hardcoded which is wrong
-            projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, DT_VARCHAR2));
-            cnt++;
-	}
+    	char *a = d->attrName;
+        MAP_ADD_STRING_KEY(namePosMap, a, createConstInt(count));
+        count ++;
     }
 
-    // Add duplicate provenance Attr List to existing JsonColInfo List
-    List *newJsonColInfoList = concatTwoLists(op->columns, duplicateAttrList);
-
-    // Rearrange the newJsonColInfolist to Seperate normalJsonColList from nestedJsonColList
-    List *normalJsonColList = NIL;
-    List *nestedJsonColList = NIL;
-
-    FOREACH(JsonColInfoItem, j, newJsonColInfoList)
+    //adapt name to Defs
+    FOREACH(AttributeDef, d, op->op.schema->attrDefs)
     {
-        if(j->nested)
-            nestedJsonColList = appendToTailOfList(nestedJsonColList, j);
-        else
-            normalJsonColList = appendToTailOfList(normalJsonColList, j);
+    	char *a = d->attrName;
+        MAP_ADD_STRING_KEY(nameTypeMap, a, (Node *) d);
     }
 
-    newJsonColInfoList = concatTwoLists(normalJsonColList, nestedJsonColList);
+    count = 0;
+    FOREACH(char, c, projExprName)
+    {
+    	if(MAP_HAS_STRING_KEY(namePosMap, c) && MAP_HAS_STRING_KEY(nameTypeMap, c))
+    	{
+    		count = INT_VALUE(getMapString(namePosMap, c));
+    		AttributeDef *d = (AttributeDef *)getMapString(nameTypeMap, c);
+    		projExpr = appendToTailOfList(projExpr, createFullAttrReference(c, 0, count, 0, d->dataType));
+    	}
+    }
 
-    op->columns = newJsonColInfoList;
 
-    List *newProvPosList = NIL;
+    ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
 
-    int cnt1 = LIST_LENGTH(op->op.schema->attrDefs);
+    //get new projection operator's schema
+    addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
+    addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
+    addProvenanceAttrsToSchemabasedOnList((QueryOperator *) proj, provList);
 
-    // Create newProvPosList which sets the position of Provenance Attributes in the Schema
-    CREATE_INT_SEQ(newProvPosList, cnt1, cnt1 + cnt-1, 1);
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 
-    DEBUG_LOG("rewrite Json Table, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
-              stringListToString(provAttr),
-              nodeToString(projExpr),
-              nodeToString(newProvPosList));
-
-    op->op.provAttrs = newProvPosList;
-
-    List *attrNames = concatTwoLists(getAttrNames(child->schema), provAttr);
-
-    List *dataTypes = NIL;
-
-    FOREACH(Node, n, projExpr)
-        dataTypes = appendToTailOfListInt(dataTypes, typeOf(n));
-
-    List *attrTypes = concatTwoLists(getDataTypes(child->schema), dataTypes);
-
-    op->op.schema = createSchemaFromLists(op->jsonTableIdentifier, attrNames, attrTypes);
-
-    DEBUG_LOG("rewrite Json Table: %s", operatorToOverviewString((Node *)op));
-
-    return (QueryOperator *) op;
+    return (QueryOperator *) proj;
 }
