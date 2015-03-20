@@ -1043,20 +1043,14 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
     HashMap *namePosMap = NEW_MAP(Constant,Constant);
     HashMap *nameTypeMap = NEW_MAP(Constant, Node);
 
-    // adapt name to position
+    // adapt name to position and name to Defs
     int count = 0;
     FOREACH(AttributeDef, d, op->op.schema->attrDefs)
     {
     	char *a = d->attrName;
         MAP_ADD_STRING_KEY(namePosMap, a, createConstInt(count));
-        count ++;
-    }
-
-    //adapt name to Defs
-    FOREACH(AttributeDef, d, op->op.schema->attrDefs)
-    {
-    	char *a = d->attrName;
         MAP_ADD_STRING_KEY(nameTypeMap, a, (Node *) d);
+        count ++;
     }
 
     count = 0;
