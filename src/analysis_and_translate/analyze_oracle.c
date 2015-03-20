@@ -23,6 +23,8 @@
 #include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "metadata_lookup/metadata_lookup_oracle.h"
+#include "parser/parser_oracle.h"
 #include "provenance_rewriter/prov_schema.h"
 
 static void analyzeStmtList (List *l, List *parentFroms);
@@ -178,13 +180,47 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 {
     List *attrRefs = NIL;
 
+    FOREACH(FromItem,f,qb->fromClause)
+    {
+        switch(f->type)
+        {
+            case T_FromTableRef:
+            	//char *tableName = ((FromTableRef *)f)->tableId;
+// *((FromTableRef *)f)->tableId;
+            	//check if it is a table or a view
+            	if (catalogTableExists(((FromTableRef *)f)->tableId)){
+            		analyzeFromTableRef((FromTableRef *) f);
+            	}else if (catalogViewExists(((FromTableRef *)f)->tableId)){
+            		//get view definition -- we get a String
+            		char * view = oracleGetViewDefinition(((FromTableRef *)f)->tableId);
+            		DEBUG_LOG("view: %s", view);
+            		//call parser -- convert string to query block model
+            		Node * n1 = parseFromStringOracle((char *) view);
+            		DEBUG_LOG("node: %s", n1);
+            		FromItem * f1 = createFromSubquery(f->name,f->attrNames,(Node *) n1);
+            	    //replace the FromTableRef for the view with the newly created FromSubquery node.
+            	    //Here I have to tell you a bit how lists work in our system. A lists is a linked list of pointers to ListCell structs.
+            	    //Each list cell has a pointer to the next cell in the list and a union data that stores the actual element.
+            	    //The FOREACH macro uses a loop variable X_his_cell. You can access it by using the DUMMY_LC(loop_variable) macro.
+            	    //For instance, in your example f is the loop variable,
+            	    //so you can use DUMMY_LC(f) and use it to replace the data pointing to the FromTableRef with the new FromSubquery
+            	    DUMMY_LC(f)->data.ptr_value = (FromSubquery *)f1;
+            	}
+            	break;
+
+            default:
+            	break;
+
+        }
+    }
+
     // figuring out attributes of from clause items
     FOREACH(FromItem,f,qb->fromClause)
     {
         switch(f->type)
         {
             case T_FromTableRef:
-                analyzeFromTableRef((FromTableRef *) f);
+            	analyzeFromTableRef((FromTableRef *) f);
                 break;           
             case T_FromSubquery:
             	analyzeFromSubquery((FromSubquery *) f, parentFroms);
