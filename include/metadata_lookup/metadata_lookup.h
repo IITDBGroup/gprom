@@ -84,7 +84,7 @@ typedef struct MetadataLookupPlugin
 
     /* execution */
     Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
-    List * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
+    Relation * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
     int (*getCostEstimation)(char *query);
 
     /* cache for catalog information */
