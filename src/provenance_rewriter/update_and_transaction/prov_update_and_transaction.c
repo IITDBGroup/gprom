@@ -46,18 +46,23 @@ void
 mergeUpdateSequence(ProvenanceComputation *op)
 {
 	ProvenanceTransactionInfo *tInfo = op->transactionInfo;
+	boolean addAnnotAttrs = GET_BOOL_STRING_PROP(op, PROP_PC_STATEMENT_ANNOTATIONS) ||
+	         !(isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS)
+	        || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN)
+	        || getBoolOption(OPTION_COST_BASED_OPTIMIZER));
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));
 
     // add boolean attributes to store whether update did modify a row
-    addUpdateAnnotationAttrs (op);
+    if (addAnnotAttrs)
+        addUpdateAnnotationAttrs (op);
 
     //TODO add projection to remove update annot attribute
     QueryOperator *lastUp = (QueryOperator *) getTailOfListP(op->op.inputs);
     List *normalAttrs = NIL;
     CREATE_INT_SEQ(normalAttrs, 0, getNumNormalAttrs(lastUp) - 2, 1);
-    DEBUG_LOG("hello num attrs %i", getNumNormalAttrs(lastUp) - 2);
+    DEBUG_LOG("num attrs %i", getNumNormalAttrs(lastUp) - 2);
 
     QueryOperator *newTop = createProjOnAttrs(lastUp, normalAttrs);
     newTop->inputs = LIST_MAKE(lastUp);
@@ -452,14 +457,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 				}
 
                //make new case for SCN
-//                Node *then = (Node *) createConstLong(-1); //TODO ok to add one?
                 Node *els = (Node *) createFullAttrReference("VERSIONS_STARTSCN", 0, getNumAttrs(OP_LCHILD(proj)), INVALID_ATTR, DT_LONG);
-//                CaseExpr *caseExpr;
-//                CaseWhen *caseWhen;
-
-//                caseWhen = createCaseWhen(copyObject(newWhen), then);
-//                caseExpr = createCaseExpr(NULL, singleton(caseWhen),
-//                        els);
 
                 // TODO do not modify the SCN attribute to avoid exponential expression size blow-up
                 newProjExpr = (Node *) els; // caseExpr
@@ -624,13 +622,9 @@ restrictToUpdatedRows (ProvenanceComputation *op)
     	res = callback(2);
 
     	if (res == 1)
-    	{
     		addConditionsToBaseTables(op);
-    	}
    		else
-   		{
    			extractUpdatedFromTemporalHistory(op);
-   		}
     }
     else
     {
