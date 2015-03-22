@@ -685,7 +685,7 @@ equalFromJsonTable(FromJsonTable *a, FromJsonTable *b)
 {
 	COMPARE_NODE_FIELD(columns);
     COMPARE_STRING_FIELD(documentcontext);
-    COMPARE_STRING_FIELD(jsonColumn);
+    COMPARE_NODE_FIELD(jsonColumn);
     COMPARE_STRING_FIELD(jsonTableIdentifier);
 
     return TRUE;
@@ -698,6 +698,10 @@ equalJsonColInfoItem(JsonColInfoItem *a, JsonColInfoItem *b)
     COMPARE_STRING_FIELD(path);
     COMPARE_STRING_FIELD(attrType);
 
+    COMPARE_STRING_FIELD(format);
+    COMPARE_STRING_FIELD(wrapper);
+    COMPARE_NODE_FIELD(nested);
+
     return TRUE;
 }
 
@@ -708,7 +712,7 @@ equalJsonTableOperator(JsonTableOperator *a, JsonTableOperator *b)
 
     COMPARE_NODE_FIELD(columns);
     COMPARE_STRING_FIELD(documentcontext);
-    COMPARE_STRING_FIELD(jsonColumn);
+    COMPARE_NODE_FIELD(jsonColumn);
     COMPARE_STRING_FIELD(jsonTableIdentifier);
 
     return TRUE;

@@ -102,14 +102,6 @@ extern Set *setDifference(Set *left, Set *right);
 
 extern boolean overlapsSet(Set *left, Set *right);
 
-/* new added used for compute EC */
-/* Used in pointer set, compare the value the pointer points to */
-extern boolean hasSetPtrElem (Set *set, void *_el);
-extern void removeSetPtrElem (Set *set, void *elem);
-extern Set *unionPtrSets (Set *left, Set *right);
-extern Set *intersectPtrSets (Set *left, Set *right);
-extern Set *setPtrDifference(Set *left, Set *right);
-
 extern int setSize (Set *set);
 #define EMPTY_SET(set) (setSize(set) == 0)
 

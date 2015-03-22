@@ -136,7 +136,7 @@ typedef struct JsonTableOperator
     //List *pathExprs;
     List *columns;
     char *documentcontext;
-    char *jsonColumn;
+    AttributeReference *jsonColumn;
     char *jsonTableIdentifier;
 } JsonTableOperator;
 

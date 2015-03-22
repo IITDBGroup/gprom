@@ -27,7 +27,7 @@
 #include "operator_optimizer/operator_optimizer.h"
 #include "sql_serializer/sql_serializer.h"
 #include "mem_manager/mem_mgr.h"
-#include "metadata_lookup/metadata_lookup_oracle.h"
+#include "metadata_lookup/metadata_lookup.h"
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
@@ -60,16 +60,16 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
     {
         //Keep track of time spent in loop
         struct timeval tvalBefore, tvalAfter;
-	gettimeofday (&tvalBefore, NULL);
+        gettimeofday (&tvalBefore, NULL);
 
-	Node *oModel1 = copyObject(oModel);
+        Node *oModel1 = copyObject(oModel);
         rewrittenSQL = generatePlan(oModel1, applyOptimizations);
 
         char *result = strdup(rewrittenSQL);
-        unsigned long long int cost = getCost(result);
+        unsigned long long int cost = getCostEstimation(result);//TODO not what is returned by the function
         DEBUG_LOG("Cost of the rewritten Query is = %d\n", cost);
         DEBUG_LOG("plan for choice %s is\n%s", beatify(nodeToString(Y1)),
-                  rewrittenSQL);
+                rewrittenSQL);
 
 	if(cost < cost1)
         {

@@ -114,6 +114,13 @@ checkAttributeRefConsistency (QueryOperator *op)
 
         }
             break;
+        // Check Attribute that we use as Json Column should be from/should exist in child
+        case T_JsonTableOperator:
+        {
+	    JsonTableOperator *o = (JsonTableOperator *)op;
+	    attrRefs = singleton(o->jsonColumn);
+        }
+        break;
         default:
             break;
     }
@@ -345,6 +352,22 @@ checkSchemaConsistency (QueryOperator *op)
                         "attributes of its left child:\n%s",
                         operatorToOverviewString((Node *) op));
                 return FALSE;
+            }
+        }
+        break;
+        // We should Check that the schema of JsonTable has the attributes of the Child plus new JsonTable Attributes
+        case T_JsonTableOperator:
+        {
+	    QueryOperator *lChild = OP_LCHILD(op);
+	    FOREACH(Node, n, lChild->schema->attrDefs)
+	    {
+		if(!searchListNode(op->schema->attrDefs, n))
+                {
+                    ERROR_LOG("Attributes of a Json Table operator should be the "
+                              "attributes of its left child plus new JsonTable Attributes:\n%s",
+                              operatorToOverviewString((Node *) op));
+                    return FALSE;
+                }
             }
         }
         break;

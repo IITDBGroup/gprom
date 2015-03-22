@@ -24,6 +24,7 @@
 #include "model/list/list.h"
 #include "model/set/set.h"
 #include "model/expression/expression.h"
+#include "model/set/hashmap.h"
 
 static QueryOperator *rewritePI_CSOperator (QueryOperator *op);
 static QueryOperator *rewritePI_CSSelection (SelectionOperator *op);
@@ -35,6 +36,7 @@ static QueryOperator *rewritePI_CSTableAccess(TableAccessOperator *op);
 static QueryOperator *rewritePI_CSConstRel(ConstRelOperator *op);
 static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 static QueryOperator *rewritePI_CSOrderOp(OrderOperator *op);
+static QueryOperator *rewritePI_CSJsonTableOp(JsonTableOperator *op);
 
 static QueryOperator *addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs);
 static QueryOperator *addIntermediateProvenance (QueryOperator *op, List *userProvAttrs);
@@ -137,9 +139,13 @@ rewritePI_CSOperator (QueryOperator *op)
             rewrittenOp = rewritePI_CSDuplicateRemOp((DuplicateRemoval *) op);
             break;
         case T_OrderOperator:
-            DEBUG_LOG("fo order operator");
+            DEBUG_LOG("go order operator");
             rewrittenOp = rewritePI_CSOrderOp((OrderOperator *) op);
             break;
+        case T_JsonTableOperator:
+	     DEBUG_LOG("go JsonTable operator");
+	     rewrittenOp = rewritePI_CSJsonTableOp((JsonTableOperator *) op);
+	     break;
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
             return NULL;
@@ -970,4 +976,104 @@ rewritePI_CSOrderOp(OrderOperator *op)
     addProvenanceAttrsToSchema((QueryOperator *) op, child);
 
     return (QueryOperator *) op;
+}
+
+static QueryOperator *
+rewritePI_CSJsonTableOp(JsonTableOperator *op)
+{
+    QueryOperator *child = OP_LCHILD(op);
+
+    // rewrite child
+    child = rewritePI_CSOperator(child);
+
+    // adapt provenance attr list and schema
+    clearAttrsFromSchema((QueryOperator *) op);
+    addNormalAttrsToSchema((QueryOperator *) op, child);
+    addProvenanceAttrsToSchema((QueryOperator *) op, child);
+
+    // Add the correct JsonColumn things by duplicating them and adapt the
+    // schema accordingly and set the provenance attribute list adding it to
+    // schema of JsonTable
+
+    List *provAttr = NIL;  //new json attribute name list
+    List *newDef = NIL;    //new json attribute Def list
+    List *provList = NIL;  //new provenance attribute Def list
+    char *newAttrName = NULL; //new provenance name
+    int cnt = 0;
+
+    DEBUG_LOG("REWRITE-PICS - JsonTable <%s>", op->jsonTableIdentifier);
+
+    FOREACH(JsonColInfoItem, attr, op->columns)
+    {
+	if (attr->nested)
+        {
+            FOREACH(JsonColInfoItem, attr1, attr->nested)
+            {
+                provAttr = appendToTailOfList(provAttr, strdup(attr1->attrName));
+                newDef = appendToTailOfList(newDef, createAttributeDef(attr1->attrName, DT_VARCHAR2));
+
+    			newAttrName = getProvenanceAttrName(op->jsonTableIdentifier, attr1->attrName, 0);
+    			provList = appendToTailOfList(provList, createAttributeDef(newAttrName, DT_VARCHAR2));
+                cnt++;
+            }
+        }
+        else
+        {
+            provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
+            newDef = appendToTailOfList(newDef, createAttributeDef(attr->attrName, DT_VARCHAR2));
+
+    		newAttrName = getProvenanceAttrName(op->jsonTableIdentifier, attr->attrName, 0);
+    		provList = appendToTailOfList(provList, createAttributeDef(newAttrName, DT_VARCHAR2));
+            cnt++;
+        }
+    }
+
+    //new json table schema
+    op->op.schema->attrDefs = concatTwoLists(op->op.schema->attrDefs, newDef);
+
+
+    //Add projection operator
+    //projExprName:  the new projection operator projExpr name list
+    List *normalName = getNormalAttrNames((QueryOperator *) op);
+    List *provName = getOpProvenanceAttrNames((QueryOperator *) op);
+    List *projExprName = concatTwoLists(normalName, provName);
+    projExprName = concatTwoLists(projExprName, provAttr);
+    List *projExpr = NIL;
+
+    HashMap *namePosMap = NEW_MAP(Constant,Constant);
+    HashMap *nameTypeMap = NEW_MAP(Constant, Node);
+
+    // adapt name to position and name to Defs
+    int count = 0;
+    FOREACH(AttributeDef, d, op->op.schema->attrDefs)
+    {
+    	char *a = d->attrName;
+        MAP_ADD_STRING_KEY(namePosMap, a, createConstInt(count));
+        MAP_ADD_STRING_KEY(nameTypeMap, a, (Node *) d);
+        count ++;
+    }
+
+    count = 0;
+    FOREACH(char, c, projExprName)
+    {
+    	if(MAP_HAS_STRING_KEY(namePosMap, c) && MAP_HAS_STRING_KEY(nameTypeMap, c))
+    	{
+    		count = INT_VALUE(getMapString(namePosMap, c));
+    		AttributeDef *d = (AttributeDef *)getMapString(nameTypeMap, c);
+    		projExpr = appendToTailOfList(projExpr, createFullAttrReference(c, 0, count, 0, d->dataType));
+    	}
+    }
+
+
+    ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
+
+    //get new projection operator's schema
+    addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
+    addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
+    addProvenanceAttrsToSchemabasedOnList((QueryOperator *) proj, provList);
+
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
+
+    return (QueryOperator *) proj;
 }
