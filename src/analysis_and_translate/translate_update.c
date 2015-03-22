@@ -177,6 +177,8 @@ translateUpdateWithCase(Update *update)
 {
 	List *attrs = getAttributeNames(update->nodeName);
 	List *dts = getAttributeDataTypes(update->nodeName);
+	boolean hasCond = (update->cond != NULL);
+
 	// create table access operator
 	TableAccessOperator *to;
 	to = createTableAccessOp(strdup(update->nodeName), NULL, NULL, NIL,
@@ -199,14 +201,17 @@ translateUpdateWithCase(Update *update)
 			    Node *cond = copyObject(update->cond);
 			    Node *then = copyObject(getNthOfListP(o->args, 1));
 			    Node *els = (Node *) createFullAttrReference(getNthOfListP(attrs, i),
-	                    0, i, 0, a->attrType); //TODO
-			    CaseExpr *caseExpr;
-			    CaseWhen *caseWhen;
+			                0, i, 0, a->attrType); //TODO
+                CaseExpr *caseExpr;
+                CaseWhen *caseWhen;
 
-			    caseWhen = createCaseWhen(cond, then);
-			    caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
+                if (!hasCond)
+                    cond = (Node *) createConstBool (TRUE);
 
-			    projExpr = (Node *) caseExpr;
+                caseWhen = createCaseWhen(cond, then);
+                caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
+
+                projExpr = (Node *) caseExpr;
 			}
 
 		}

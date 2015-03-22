@@ -445,7 +445,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 								LIST_MAKE((Node *) scnAttr,
 								        copyObject(getNthOfListP(scns,i))));
 
-						newWhen = andExprs(when, newCond);
+						newWhen = ((when == NULL) || equal(when,createConstBool(TRUE))) ?  newCond : AND_EXPRS(when, newCond);
 						whenC->when = newWhen;
 						DEBUG_LOG("Updated case is: %s", exprToSQL((Node *) cexp));
 				    }
