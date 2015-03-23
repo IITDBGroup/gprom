@@ -931,10 +931,19 @@ removeRedundantProjections(QueryOperator *root)
         {
             FORBOTH_LC(lc1,lc2,l1,l2)
             {
-                AttributeReference *x = (AttributeReference *)LC_P_VAL(lc1);
-                AttributeDef *y = (AttributeDef *)LC_P_VAL(lc2);
+                Node *n1 = LC_P_VAL(lc1);
+                if (isA(n1,AttributeReference))
+                {
+                    AttributeReference *x = (AttributeReference *) n1;
+                    AttributeDef *y = (AttributeDef *)LC_P_VAL(lc2);
 
-                if (!streq(x->name,y->attrName) || i++ != x->attrPosition)
+                    if (!streq(x->name,y->attrName) || i++ != x->attrPosition)
+                    {
+                        compare = FALSE;
+                        break;
+                    }
+                }
+                else
                 {
                     compare = FALSE;
                     break;

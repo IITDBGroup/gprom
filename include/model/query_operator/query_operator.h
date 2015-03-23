@@ -171,7 +171,7 @@ extern void resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,Quer
 extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2);
 
 /* union equal element between two set list */
-extern List *UnionEqualElemOfTwoSetList(List *l1, List *l2);
+extern List *unionEqualElemOfTwoSetList(List *l1, List *l2);
 extern List *addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet);
 
 //extern List *getSelectionCondOperatorList(List *opList, Operator *op);

@@ -194,6 +194,7 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *
     int cnt = 0;
 	FOREACH_LC(a1, op1->projExprs)
 	{
+	    //TODO assumption that everyghing is either an attributereference or and operator. Need to support any type of expression here
 		if(isA(LC_P_VAL(a1), Operator))
 		{
 			reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2,(Operator *)LC_P_VAL(a1));
@@ -282,7 +283,7 @@ resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryO
 }
 
 List *
-UnionEqualElemOfTwoSetList(List *listEqlOp, List *listSet)
+unionEqualElemOfTwoSetList(List *listEqlOp, List *listSet)
 {
 
     FOREACH_LC(lc, listEqlOp)

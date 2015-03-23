@@ -20,6 +20,8 @@
 #include "include/model/query_operator/operator_property.h"
 
 
+static List *attrRefListToStringList (List *input);
+
 //TODO using a static variable is a problem here, because you just have the last assigned key for a base rleation available which is not sufficient.
 // you need the keys of an operators inputs to determine the operator keys. Since you store them as a property, why not get them from there?
 //static List *keyList = NIL;
@@ -1154,16 +1156,15 @@ computeReqColProp (QueryOperator *root)
         //if AttrDefName in icols, get correspond AttrRef name (need to check if it is operator)
         FORBOTH_LC(a,ar, attrDefNames,attrRefList)
         {
+            //TODO this should deal with any other type of expression
         	if(hasSetElem(icols,LC_P_VAL(a)))
         	{
-        		if(isA(LC_P_VAL(ar), Operator))
-        		{
-        			eicolsList = getAttrNameFromOpExpList(eicolsList, (Operator *)(LC_P_VAL(ar)));
-        		}
-        		else if(isA(LC_P_VAL(ar), AttributeReference))
-        		{
-        			eicolsList = appendToTailOfList(eicolsList, strdup(((AttributeReference *)(LC_P_VAL(ar)))->name));
-        		}
+        	    List *attrRefs = getAttrReferences(LC_P_VAL(ar));
+//        		if(isA(LC_P_VAL(ar), Operator))
+//        			eicolsList = getAttrNameFromOpExpList(eicolsList, (Operator *)(LC_P_VAL(ar)));
+//        		else if(isA(LC_P_VAL(ar), AttributeReference))
+//        			eicolsList = appendToTailOfList(eicolsList, strdup(((AttributeReference *)(LC_P_VAL(ar)))->name));
+        		eicolsList = CONCAT_LISTS(eicolsList, attrRefListToStringList(attrRefs));
         	}
         }
 
@@ -1235,7 +1236,7 @@ computeReqColProp (QueryOperator *root)
 		//e.g. add group by B into set
 		FOREACH(AttributeReference, a, agg->groupBy)
 		{
-				addToSet(set,strdup(a->name));
+		    addToSet(set,strdup(a->name));
 		}
 
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)set);
@@ -1332,4 +1333,15 @@ printIcols(QueryOperator *root)
 	{
 		printIcols(o);
 	}
+}
+
+static List *
+attrRefListToStringList (List *input)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeReference,a,input)
+        result = appendToTailOfList(result,strdup(a->name));
+
+    return result;
 }
