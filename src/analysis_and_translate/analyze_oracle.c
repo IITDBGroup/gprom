@@ -196,7 +196,6 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             		DEBUG_LOG("view: %s", view);
             		//call parser -- convert string to query block model
             		Node * n1 = parseFromStringOracle((char *) view);
-            		DEBUG_LOG("node: %s", n1);
             		FromItem * f1 = createFromSubquery(f->name,f->attrNames,(Node *) n1);
             	    //replace the FromTableRef for the view with the newly created FromSubquery node.
             	    //Here I have to tell you a bit how lists work in our system. A lists is a linked list of pointers to ListCell structs.
