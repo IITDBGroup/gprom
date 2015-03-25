@@ -60,9 +60,6 @@ static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms);
 static void analyzeFunctionCall(QueryBlock *qb);
 static void analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms);
 
-// analyze FromJsonTable Item
-static void analyzeFromJsonTable(FromJsonTable *f, List **state);
-
 // real attribute name fetching
 static List *expandStarExpression (SelectItem *s, List *fromClause);
 static List *splitAttrOnDot (char *dotName);
@@ -230,9 +227,6 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             case T_FromJoinExpr:
                 analyzeJoin((FromJoinExpr *) f, parentFroms);
                 break;
-            case T_FromJsonTable:
-	        analyzeFromJsonTable((FromJsonTable *)f, &attrRefs);
-	        break;
             default:
             	break;
         }
@@ -850,71 +844,6 @@ analyzeFromTableRef(FromTableRef *f)
 }
 
 static void
-analyzeFromJsonTable(FromJsonTable *f, List **state)
-{
-    // Populate the attrnames, datatypes from columnlist
-    List *attrNames = NIL;
-    List *attrTypes = NIL;
-
-    FOREACH(JsonColInfoItem, attr, f->columns)
-    {
-	if (attr->nested)
-	{
-            FOREACH(JsonColInfoItem, attr1, attr->nested)
-            {
-                attrNames = appendToTailOfList(attrNames, attr1->attrName);
-                // if(streq(attr->attrType, "VARCHAR2"))
-                attrTypes = appendToTailOfListInt(attrTypes, 5);
-	    }
-	}
-	else
-	{
-            attrNames = appendToTailOfList(attrNames, attr->attrName);
-            // if(streq(attr->attrType, "VARCHAR2"))
-	    attrTypes = appendToTailOfListInt(attrTypes, 5);
-	}
-
-        //TODO Add if streq for other datatypes as well
-       /*
-        switch (attr->attrType)
-        {
-        case DT_INT:
-        	attrTypes = appendToTailOfListInt(attrTypes, 0);
-        	break;
-        case DT_LONG:
-        	attrTypes = appendToTailOfListInt(attrTypes, 1);
-        	break;
-        case DT_STRING:
-        	attrTypes = appendToTailOfListInt(attrTypes, 2);
-        	break;
-        case DT_FLOAT:
-        	attrTypes = appendToTailOfListInt(attrTypes, 3);
-        	break;
-        case DT_BOOL:
-        	attrTypes = appendToTailOfListInt(attrTypes, 4);
-        	break;
-        case DT_VARCHAR2:
-        	attrTypes = appendToTailOfListInt(attrTypes, 5);
-        	break;
-        }
-        */
-    }
-
-    if (f->from.attrNames == NIL)
-        f->from.attrNames = attrNames;
-
-    if (f->from.dataTypes == NIL)
-        f->from.dataTypes = attrTypes;
-
-    if(f->from.name == NULL)
-	f->from.name = f->jsonTableIdentifier;
-
-    //TODO JsonColumn can refer to column of JsonTable
-    // Append jsonColumn to attributeRef list
-    *state = appendToTailOfList(*state, f->jsonColumn);
-}
-
-static void
 analyzeInsert(Insert * f)
 {
     List *attrNames = getAttributeNames(f->tableName);
@@ -1374,9 +1303,6 @@ getFromTreeLeafs (List *from)
             case T_FromTableRef:
                 result = appendToTailOfList(result, f);
                 break;
-            case T_FromJsonTable:
-	        result = appendToTailOfList(result, f);
-	        break;
             default:
                 FATAL_LOG("expected a FROM clause item not: %s",
                         NodeTagToString(f->type));
