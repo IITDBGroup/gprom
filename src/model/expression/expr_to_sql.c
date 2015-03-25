@@ -62,6 +62,9 @@ constantToSQL (StringInfo str, Constant *node)
         case DT_BOOL:
             appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
             break;
+        case DT_VARCHAR2:
+            appendStringInfo(str, "'%s'", (char *) node->value);
+            break;
     }
 }
 

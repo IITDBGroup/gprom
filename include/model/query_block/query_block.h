@@ -83,7 +83,6 @@ typedef struct ProvenanceStmt
     List *options;
 } ProvenanceStmt;
 
-
 typedef struct SelectItem
 {
     NodeTag type;
@@ -122,6 +121,26 @@ typedef struct FromSubquery
     FromItem from;
     Node *subquery;
 } FromSubquery;
+
+typedef struct JsonColInfoItem
+{
+    NodeTag type;
+    char *attrName;
+    char *path;
+    char *attrType;
+    char *format;
+    char *wrapper;
+    List *nested;
+} JsonColInfoItem;
+
+typedef struct FromJsonTable
+{
+    FromItem from;
+    List *columns;
+    char *documentcontext;
+    AttributeReference *jsonColumn;
+    char *jsonTableIdentifier;
+} FromJsonTable;
 
 NEW_ENUM_WITH_TO_STRING(JoinType,
     JOIN_INNER,
@@ -243,6 +262,8 @@ extern FromItem *createFromSubquery(char *alias, List *attrNames, Node *query);
 extern FromItem *createFromJoin(char *alias, List *attrNames, FromItem *left,
         FromItem *right, char *joinType, char *condType,
         Node *cond);
+extern FromItem *createFromJsonTable(AttributeReference *jsonColumn, char *documentcontext, List *columns, char *jsonTableIdentifier);
+extern JsonColInfoItem *createJsonColInfoItem (char *attrName, char *attrType, char *path, char *format, char *wrapper, List *nested);
 extern JoinConditionType joinConditionTypeFromString (char *condType);
 extern JoinType joinTypeFromString (char *joinType);
 extern DistinctClause *createDistinctClause (List *distinctExprs);

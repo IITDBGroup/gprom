@@ -48,6 +48,22 @@ addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source)
     DEBUG_LOG("new prov attr list is \n%s\n\nprov attr pos %s", nodeToString(target->schema->attrDefs), nodeToString(target->provAttrs));
 }
 
+void
+addProvenanceAttrsToSchemabasedOnList(QueryOperator *target, List *provList)
+{
+    List *newProvAttrs = (List *) copyObject(provList);
+    int curAttrLen = LIST_LENGTH(target->schema->attrDefs);
+    int numProvAttrs = LIST_LENGTH(newProvAttrs);
+    List *newProvPos;
+
+    DEBUG_LOG("add provenance attributes\n%s", nodeToString(newProvAttrs));
+
+    CREATE_INT_SEQ(newProvPos, curAttrLen, curAttrLen + numProvAttrs - 1, 1);
+    target->schema->attrDefs = concatTwoLists(target->schema->attrDefs, newProvAttrs);
+    target->provAttrs = concatTwoLists(target->provAttrs, newProvPos);
+
+    DEBUG_LOG("new prov attr list is \n%s\n\nprov attr pos %s", nodeToString(target->schema->attrDefs), nodeToString(target->provAttrs));
+}
 
 List *
 getProvAttrProjectionExprs(QueryOperator *op)
