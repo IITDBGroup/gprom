@@ -194,6 +194,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             		//get view definition -- we get a String
             		char * view = oracleGetViewDefinition(((FromTableRef *)f)->tableId);
             		DEBUG_LOG("view: %s", view);
+            		strcat((char *) view,";");
             		//call parser -- convert string to query block model
             		Node * n1 = parseFromStringOracle((char *) view);
             		FromItem * f1 = createFromSubquery(f->name,f->attrNames,(Node *) n1);
@@ -203,7 +204,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             	    //The FOREACH macro uses a loop variable X_his_cell. You can access it by using the DUMMY_LC(loop_variable) macro.
             	    //For instance, in your example f is the loop variable,
             	    //so you can use DUMMY_LC(f) and use it to replace the data pointing to the FromTableRef with the new FromSubquery
-            	    DUMMY_LC(f)->data.ptr_value = (FromSubquery *)f1;
+            	    DUMMY_LC(f)->data.ptr_value = f1;
             	}
             	break;
 
