@@ -27,5 +27,18 @@ X|Y|PROV_R_A|PROV_R_B|
 2|3|2|3|
 </entry>
   
+<entry key="q3.query">
+PROVENANCE OF (SELECT count(*) AS x FROM (SELECT sum(a) AS x, b AS y  FROM r  GROUP BY b) x);
+</entry>
+<entry key="q3.result">
+X|PROV_R_A|PROV_R_B|
+----------------------------------------
+3|1|1|
+3|2|1|
+3|1|2|
+3|2|3|
+</entry>
+
+
 
 </properties>
