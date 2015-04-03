@@ -667,26 +667,47 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
     return result;
 }
 
+//List *
+//removeFromTail(List *X)
+//{
+//	int len = LIST_LENGTH(X);
+//	int c = 0;
+//
+//	List *result = NIL;
+//
+//	if(len == 1)
+//		result = NIL;
+//	else
+//	{
+//		FOREACH_INT(lc, X)
+//        {
+//			result = appendToTailOfListInt(result, lc);
+//			c++;
+//			if(c + 1 == len)
+//				break;
+//        }
+//	}
+//	return result;
+//}
 List *
 removeFromTail(List *X)
 {
-	int len = LIST_LENGTH(X);
-	int c = 0;
-
+	DEBUG_LOG("remove from list %s", nodeToString(X));
 	List *result = NIL;
+	ListCell *el;
+	int l = LIST_LENGTH(X);
 
-	if(len == 1)
-		result = NIL;
-	else
-	{
-		FOREACH_INT(lc, X)
-        {
-			result = appendToTailOfListInt(result, lc);
-			c++;
-			if(c + 1 == len)
-				break;
-        }
-	}
+    if (l <= 1)
+        return NIL;
+
+    el = X->head;
+    //DEBUG_LOG("remove from list el %s", nodeToString(el->data));
+    for(int i=0; i<l-1; i++)
+    {
+    	result = appendToTailOfList(result, LC_P_VAL(el));
+    	el = el->next;
+    }
+
 	return result;
 }
 

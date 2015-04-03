@@ -815,32 +815,41 @@ analyzeFromTableRef(FromTableRef *f)
 }
 
 static void
-analyzeFromJsonTable(FromJsonTable *f, List **state)
+recursiveAppendAttrNames(JsonColInfoItem *attr, List **attrNames, List **attrTypes)
 {
-    // Populate the attrnames, datatypes from columnlist
-    List *attrNames = NIL;
-    List *attrTypes = NIL;
-
-    FOREACH(JsonColInfoItem, attr, f->columns)
-    {
 	if (attr->nested)
 	{
-            FOREACH(JsonColInfoItem, attr1, attr->nested)
-            {
-                attrNames = appendToTailOfList(attrNames, attr1->attrName);
-                // if(streq(attr->attrType, "VARCHAR2"))
-                attrTypes = appendToTailOfListInt(attrTypes, 5);
-	    }
+		FOREACH(JsonColInfoItem, attr1, attr->nested)
+        		{
+			if(attr1->nested)
+				recursiveAppendAttrNames(attr1, attrNames, attrTypes);
+			else
+			{
+				*attrNames = appendToTailOfList(*attrNames, attr1->attrName);
+				*attrTypes = appendToTailOfListInt(*attrTypes, 5);
+			}
+        		}
 	}
 	else
 	{
-            attrNames = appendToTailOfList(attrNames, attr->attrName);
-            // if(streq(attr->attrType, "VARCHAR2"))
-	    attrTypes = appendToTailOfListInt(attrTypes, 5);
+		*attrNames = appendToTailOfList(*attrNames, attr->attrName);
+		*attrTypes = appendToTailOfListInt(*attrTypes, 5);
 	}
+}
 
-        //TODO Add if streq for other datatypes as well
-       /*
+static void
+analyzeFromJsonTable(FromJsonTable *f, List **state)
+{
+	// Populate the attrnames, datatypes from columnlist
+	List *attrNames = NIL;
+	List *attrTypes = NIL;
+
+	FOREACH(JsonColInfoItem, attr1, f->columns)
+	{
+		recursiveAppendAttrNames(attr1, &attrNames, &attrTypes);
+
+		//TODO Add if streq for other datatypes as well
+		/*
         switch (attr->attrType)
         {
         case DT_INT:
@@ -862,21 +871,21 @@ analyzeFromJsonTable(FromJsonTable *f, List **state)
         	attrTypes = appendToTailOfListInt(attrTypes, 5);
         	break;
         }
-        */
-    }
+		 */
+	}
 
-    if (f->from.attrNames == NIL)
-        f->from.attrNames = attrNames;
+	if (f->from.attrNames == NIL)
+		f->from.attrNames = attrNames;
 
-    if (f->from.dataTypes == NIL)
-        f->from.dataTypes = attrTypes;
+	if (f->from.dataTypes == NIL)
+		f->from.dataTypes = attrTypes;
 
-    if(f->from.name == NULL)
-	f->from.name = f->jsonTableIdentifier;
+	if(f->from.name == NULL)
+		f->from.name = f->jsonTableIdentifier;
 
-    //TODO JsonColumn can refer to column of JsonTable
-    // Append jsonColumn to attributeRef list
-    *state = appendToTailOfList(*state, f->jsonColumn);
+	//TODO JsonColumn can refer to column of JsonTable
+	// Append jsonColumn to attributeRef list
+	*state = appendToTailOfList(*state, f->jsonColumn);
 }
 
 static void
