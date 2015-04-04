@@ -185,25 +185,27 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
         switch(f->type)
         {
             case T_FromTableRef:
+            {
+                FromTableRef *tr = (FromTableRef *)f;
             	//check if it is a table or a view
-            	if (catalogTableExists(((FromTableRef *)f)->tableId)){
-            		analyzeFromTableRef((FromTableRef *) f);
-            	}else if (catalogViewExists(((FromTableRef *)f)->tableId)){
-            		char * view = oracleGetViewDefinition(((FromTableRef *)f)->tableId);
-            		DEBUG_LOG("view: %s", view);
-            		StringInfo s = makeStringInfo();
-            		appendStringInfoString(s,view);
-            		appendStringInfoString(s,";");
-            		view = s->data;
-            		Node * n1 = parseFromStringOracle((char *) view);
-            		FromItem * f1 = createFromSubquery(f->name,f->attrNames,(Node *) n1);
+            	if (!catalogTableExists(tr->tableId) && catalogViewExists(tr->tableId))
+            	{
+            	    char * view = oracleGetViewDefinition(((FromTableRef *)f)->tableId);
+            	    char *newName = f->name ? f->name : tr->tableId; // if no alias then use view name
+            	    DEBUG_LOG("view: %s", view);
+            	    StringInfo s = makeStringInfo();
+            	    appendStringInfoString(s,view);
+            	    appendStringInfoString(s,";");
+            	    view = s->data;
+            	    Node * n1 = getHeadOfListP((List *) parseFromStringOracle((char *) view));
+            	    FromItem * f1 = createFromSubquery(newName,NIL,(Node *) n1);
+
             	    DUMMY_LC(f)->data.ptr_value = f1;
             	}
-            	break;
-
+            }
+            break;
             default:
             	break;
-
         }
     }
 
@@ -1110,6 +1112,7 @@ getQBAttrDTs (Node *qb)
         }
         break;
         default:
+            FATAL_LOG("unexpected node type as FROM clause item: %s", beatify(nodeToString(qb)));
             break;
     }
 
