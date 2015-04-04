@@ -901,13 +901,13 @@ jsonColInfoItem:
                 | identifier identifier optionalFormat optionalWrapper PATH stringConst
                         {
                                 RULELOG("jsonColInfoItem::jsonColInfoItem");
-                                JsonColInfoItem *c = createJsonColInfoItem ($1, $2, $6, $3, $4, NULL);
+                                JsonColInfoItem *c = createJsonColInfoItem ($1, $2, $6, $3, $4, NULL, NULL);
                                 $$ = (Node *) c;
                         }
                 | NESTED PATH stringConst COLUMNS '(' jsonColInfo ')'
                         {
                                 RULELOG("jsonColInfoItem::jsonColInfoItem");
-                                JsonColInfoItem *c = createJsonColInfoItem (NULL, NULL, $3, NULL, NULL, $6);
+                                JsonColInfoItem *c = createJsonColInfoItem (NULL, NULL, $3, NULL, NULL, $6, NULL);
                                 $$ = (Node *) c;
                         }
         ;

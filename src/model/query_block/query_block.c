@@ -143,7 +143,7 @@ createFromJsonTable(AttributeReference *jsonColumn, char *documentcontext, List 
 }
 
 JsonColInfoItem *
-createJsonColInfoItem (char *attrName, char *attrType, char *path, char *format, char *wrapper, List *nested)
+createJsonColInfoItem (char *attrName, char *attrType, char *path, char *format, char *wrapper, List *nested, char *forOrdinality)
 {
     JsonColInfoItem *result = makeNode(JsonColInfoItem);
 
@@ -154,8 +154,18 @@ createJsonColInfoItem (char *attrName, char *attrType, char *path, char *format,
     result->format = format;
     result->wrapper = wrapper;
     result->nested = nested;
+    result->forOrdinality = forOrdinality;
 
     return result;
+}
+
+JsonPath *
+createJsonPath(char *path)
+{
+	JsonPath *result = makeNode(JsonPath);
+	result->path = path;
+
+	return result;
 }
 
 JoinConditionType
