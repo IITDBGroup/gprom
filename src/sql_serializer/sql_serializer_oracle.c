@@ -690,16 +690,18 @@ serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs)
 static void
 ConstructNestedJsonColItems (JsonColInfoItem *col,StringInfo *from,int *nestedcount)
 {
+	if(col->forOrdinality)
+	{
+		appendStringInfoString(*from, col->forOrdinality);
+		DEBUG_LOG("1111111111111111: %s", col->forOrdinality);
+		appendStringInfoString(*from, " FOR ORDINALITY,");
+	}
+
 	FOREACH(JsonColInfoItem, col1, col->nested)
 	{
 		if (col1->nested)
 		{
 			(*nestedcount) ++;
-			if(col1->forOrdinality)
-			{
-				appendStringInfoString(*from, col1->forOrdinality);
-				appendStringInfoString(*from, " FOR ORDINALITY,");
-			}
 
 			appendStringInfoString(*from, " NESTED PATH");
 			appendStringInfo(*from, " '%s'", col1->path);
@@ -835,16 +837,22 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             	appendStringInfoString(from, " COLUMNS");
             	appendStringInfoString(from, "(");
 
+    			if(jt->forOrdinality)
+    			{
+    				appendStringInfoString(from, jt->forOrdinality);
+    				appendStringInfoString(from, " FOR ORDINALITY, ");
+    			}
+
             	int nestedcount = 0;
             	FOREACH(JsonColInfoItem, col, jt->columns)
             	{
             		if (col->nested)
             		{
-            			if(col->forOrdinality)
-            			{
-            				appendStringInfoString(from, col->forOrdinality);
-            				appendStringInfoString(from, " FOR ORDINALITY, ");
-            			}
+//            			if(col->forOrdinality)
+//            			{
+//            				appendStringInfoString(from, col->forOrdinality);
+//            				appendStringInfoString(from, " FOR ORDINALITY, ");
+//            			}
 
             			if (nestedcount++ > 0)
             				appendStringInfoString(from, ",");

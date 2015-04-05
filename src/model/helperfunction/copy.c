@@ -542,6 +542,7 @@ copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap)
     COPY_STRING_FIELD(documentcontext);
     COPY_NODE_FIELD(jsonColumn);
     COPY_STRING_FIELD(jsonTableIdentifier);
+    COPY_STRING_FIELD(forOrdinality);
 
     return new;
 }

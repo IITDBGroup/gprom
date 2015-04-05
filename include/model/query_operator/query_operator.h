@@ -138,6 +138,7 @@ typedef struct JsonTableOperator
     char *documentcontext;
     AttributeReference *jsonColumn;
     char *jsonTableIdentifier;
+    char *forOrdinality;
 } JsonTableOperator;
 
 /* type of operator macros */

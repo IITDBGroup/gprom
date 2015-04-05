@@ -1019,7 +1019,7 @@ recursiveAppendNestedAttr(JsonColInfoItem *attr, List **provAttr, List **newDef,
 	}
 }
 
-void
+/*void
 addForOrdinality(JsonTableOperator *op, JsonColInfoItem *attr, int *countNest, char *docPath, int *count, ProjectionOperator **proj)
 {
 	if (attr->nested)
@@ -1106,8 +1106,93 @@ addForOrdinality(JsonTableOperator *op, JsonColInfoItem *attr, int *countNest, c
 			}
         }
 	}
-}
+}*/
 
+void
+addForOrdinality(JsonTableOperator **op, JsonColInfoItem **attr, int *countFOD, int *count, ProjectionOperator **proj)
+{
+	List *path = (List *) parseFromStringjp(strdup((*attr)->path));
+	DEBUG_LOG("path element: %s", nodeToString(path));
+	//List *cpath = copyObject(path);
+	if(LIST_LENGTH(path) == 2)
+	{
+		StringInfo forOrdinality = makeStringInfo ();
+		char *prefixFOD = "prov_for_ord_";
+		appendStringInfoString(forOrdinality, prefixFOD);
+		appendStringInfoString(forOrdinality, itoa(*countFOD));
+        (*attr)->forOrdinality = forOrdinality->data;
+
+		StringInfo renameFOD = makeStringInfo ();
+		char *prefixRFOD = "prov_path_";
+		appendStringInfoString(renameFOD, prefixRFOD);
+		appendStringInfoString(renameFOD, itoa(*countFOD));
+		(*countFOD) ++;
+
+		AttributeDef *projAttr = createAttributeDef(renameFOD->data, DT_STRING);
+		AttributeDef *forOrdAttr = createAttributeDef(forOrdinality->data, DT_STRING);
+		AttributeReference *forOrdRef = createAttributeReference(forOrdinality->data);
+		forOrdRef->fromClauseItem = 0;
+		forOrdRef->attrType = DT_STRING;
+		forOrdRef->attrPosition = *count;
+		(*count) ++;
+
+		char *fPathEl = ((JsonPath *)getHeadOfListP(path))->path;
+		StringInfo expr1 = makeStringInfo ();
+		appendStringInfoString(expr1, fPathEl);
+		appendStringInfoString(expr1, "[");
+		Constant *c1 = createConstString(expr1->data);
+
+		StringInfo nameEl = makeStringInfo ();
+		appendStringInfoString(nameEl, "]");
+
+		if(LIST_LENGTH((*attr)->nested) == 1)
+		{
+			appendStringInfoString(nameEl, ".");
+			//List *path1 = (List *) parseFromStringjp(strdup(op->documentcontext));
+			char *colPath = ((JsonColInfoItem *) getHeadOfListP((*attr)->nested))->path;
+			List *path1 = (List *) parseFromStringjp(strdup(colPath));
+			DEBUG_LOG("new nest path element: %s", nodeToString(path1));
+
+			FOREACH(JsonPath, j, path1)
+			{
+				if(streq(j->path, "*"))
+					appendStringInfoString(nameEl, "[*]");
+				else
+					appendStringInfoString(nameEl, j->path);
+			}
+		}
+		Constant *c2 = createConstString(nameEl->data);
+		DEBUG_LOG("Const c1: %s", nodeToString(c1));
+		DEBUG_LOG("Const c2: %s", nodeToString(c2));
+
+		List *exprList1 = NIL;
+		exprList1 = appendToTailOfList(exprList1, forOrdRef);
+		exprList1 = appendToTailOfList(exprList1, c2);
+		Operator *o1 = createOpExpr("||", exprList1);
+
+		List *exprList2 = NIL;
+		exprList2 = appendToTailOfList(exprList2, c1);
+		exprList2 = appendToTailOfList(exprList2, o1);
+		Operator *o2 = createOpExpr("||", exprList2);
+		//DEBUG_LOG("aaaaaaaaaaa");
+		addProvenanceAttrsToSchemabasedOnList((QueryOperator *) (*proj), singleton(projAttr));
+		(*proj)->projExprs = appendToTailOfList((*proj)->projExprs, o2);
+		(*op)->op.schema->attrDefs = appendToTailOfList((*op)->op.schema->attrDefs, forOrdAttr);
+
+	}
+
+	DEBUG_LOG("22222222: %s", (*attr)->forOrdinality);
+	if((*attr)->nested)
+	{
+		FOREACH(JsonColInfoItem, attr1, (*attr)->nested)
+    	{
+			if(attr1->nested)
+			{
+				addForOrdinality(op, &attr1, countFOD, count, proj);
+			}
+    	}
+	}
+}
 
 static QueryOperator *
 rewritePI_CSJsonTableOp(JsonTableOperator *op)
@@ -1179,7 +1264,7 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
 	addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
 	addProvenanceAttrsToSchemabasedOnList((QueryOperator *) proj, provList);
 
-	//for ordinality
+/*	//for ordinality
 	char *p = strdup(op->documentcontext);
 	int countNest = 0;
 	FOREACH(JsonColInfoItem, attr, op->columns)
@@ -1292,8 +1377,135 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
 		proj->projExprs = appendToTailOfList(proj->projExprs, o2);
 		op->op.schema->attrDefs = appendToTailOfList(op->op.schema->attrDefs, forOrdAttr);
 		countFOD ++;
+	}*/
+
+	//begin to split path
+	List *path = (List *) parseFromStringjp(strdup(op->documentcontext));
+	DEBUG_LOG("path element: %s", nodeToString(path));
+
+	//introduce new nest
+	List *cpath = copyObject(path);
+	while (LIST_LENGTH(cpath) > 2)
+	{
+		//E.g. $.Addresses[*].City, pathEl is City
+		//It used to generate $.City and '].City
+		StringInfo pathEl = makeStringInfo ();
+		char *a = ((JsonPath *)getTailOfListP(cpath))->path;
+		if(streq(a,"*"))
+		{
+			cpath = removeFromTail(cpath);
+			a = ((JsonPath *)getTailOfListP(cpath))->path;
+			appendStringInfoString(pathEl, a);
+			appendStringInfoString(pathEl, "[*]");
+		}
+		else
+			appendStringInfoString(pathEl, a);
+
+		cpath = removeFromTail(cpath);
+
+		//Set the new documentcontext
+		StringInfo newdoc = makeStringInfo ();
+		appendStringInfoString(newdoc, "$");
+		FOREACH(JsonPath, j, cpath)
+		{
+			if(streq(j->path, "*"))
+				appendStringInfoString(newdoc, "[*]");
+			else
+			{
+				appendStringInfoString(newdoc, ".");
+				appendStringInfoString(newdoc, j->path);
+			}
+		}
+		op->documentcontext = newdoc->data;
+		DEBUG_LOG("new doc %s", op->documentcontext);
+
+		//Introduce new nested JsonColInfoItem
+		StringInfo nestedpath = makeStringInfo ();
+		appendStringInfoString(nestedpath, "$.");
+		appendStringInfoString(nestedpath, pathEl->data);
+
+		JsonColInfoItem *c = createJsonColInfoItem (NULL, NULL, nestedpath->data, NULL, NULL, op->columns, NULL);
+		op->columns = singleton(c);
 	}
 
+	//for ordinality
+	List *newPath = (List *) parseFromStringjp(strdup(op->documentcontext));
+	DEBUG_LOG("new path element: %s", nodeToString(newPath));
+	List *cnewPath = copyObject(newPath);
+    int countFOD = 0;
+
+	if(LIST_LENGTH(cnewPath) == 2)
+	{
+		StringInfo forOrdinality = makeStringInfo ();
+		char *prefixFOD = "prov_for_ord_";
+		appendStringInfoString(forOrdinality, prefixFOD);
+		appendStringInfoString(forOrdinality, itoa(countFOD));
+        op->forOrdinality = forOrdinality->data;
+
+		StringInfo renameFOD = makeStringInfo ();
+		char *prefixRFOD = "prov_path_";
+		appendStringInfoString(renameFOD, prefixRFOD);
+		appendStringInfoString(renameFOD, itoa(countFOD));
+		countFOD ++;
+
+		AttributeDef *projAttr = createAttributeDef(renameFOD->data, DT_STRING);
+		AttributeDef *forOrdAttr = createAttributeDef(forOrdinality->data, DT_STRING);
+		AttributeReference *forOrdRef = createAttributeReference(forOrdinality->data);
+		forOrdRef->fromClauseItem = 0;
+		forOrdRef->attrType = DT_STRING;
+		forOrdRef->attrPosition = count;
+		count++;
+
+		char *fPathEl = ((JsonPath *)getHeadOfListP(cnewPath))->path;
+		StringInfo expr1 = makeStringInfo ();
+		appendStringInfoString(expr1, fPathEl);
+		appendStringInfoString(expr1, "[");
+		Constant *c1 = createConstString(expr1->data);
+
+		StringInfo nameEl = makeStringInfo ();
+		appendStringInfoString(nameEl, "]");
+
+		if(LIST_LENGTH(op->columns) == 1)
+		{
+			appendStringInfoString(nameEl, ".");
+			char *colPath = ((JsonColInfoItem *) getHeadOfListP(op->columns))->path;
+			List *path1 = (List *) parseFromStringjp(strdup(colPath));
+			DEBUG_LOG("new path element: %s", nodeToString(path1));
+
+			FOREACH(JsonPath, j, path1)
+			{
+				if(streq(j->path, "*"))
+					appendStringInfoString(nameEl, "[*]");
+				else
+					appendStringInfoString(nameEl, j->path);
+			}
+		}
+		Constant *c2 = createConstString(nameEl->data);
+		DEBUG_LOG("Const c1: %s", nodeToString(c1));
+		DEBUG_LOG("Const c2: %s", nodeToString(c2));
+
+		List *exprList1 = NIL;
+		exprList1 = appendToTailOfList(exprList1, forOrdRef);
+		exprList1 = appendToTailOfList(exprList1, c2);
+		Operator *o1 = createOpExpr("||", exprList1);
+
+		List *exprList2 = NIL;
+		exprList2 = appendToTailOfList(exprList2, c1);
+		exprList2 = appendToTailOfList(exprList2, o1);
+		Operator *o2 = createOpExpr("||", exprList2);
+
+		addProvenanceAttrsToSchemabasedOnList((QueryOperator *) proj, singleton(projAttr));
+		proj->projExprs = appendToTailOfList(proj->projExprs, o2);
+		op->op.schema->attrDefs = appendToTailOfList(op->op.schema->attrDefs, forOrdAttr);
+
+	}
+    DEBUG_LOG("3333333node: %s", nodeToString(op->columns));
+	FOREACH(JsonColInfoItem, attr, op->columns)
+	{
+	    addForOrdinality(&op, &attr,&countFOD, &count, &proj);
+		DEBUG_LOG("4444444: %s", attr->forOrdinality);
+
+	}
 	switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
 	addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 

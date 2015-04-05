@@ -130,13 +130,14 @@ createFromJoin(char *alias, List *attrNames, FromItem *left,
 }
 
 FromItem *
-createFromJsonTable(AttributeReference *jsonColumn, char *documentcontext, List *columns, char *jsonTableIdentifier)
+createFromJsonTable(AttributeReference *jsonColumn, char *documentcontext, List *columns, char *jsonTableIdentifier, char *forOrdinality)
 {
     FromJsonTable *result = makeNode(FromJsonTable);
     result->columns = columns;
     result->documentcontext = strdup(documentcontext);
     result->jsonColumn = jsonColumn;
     result->jsonTableIdentifier = strdup(jsonTableIdentifier);
+    result->forOrdinality = strdup(forOrdinality);
     ((FromItem *)result)->name = jsonTableIdentifier;
 
     return (FromItem *)result;

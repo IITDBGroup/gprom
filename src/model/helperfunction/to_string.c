@@ -411,6 +411,7 @@ outFromJsonTable(StringInfo str, FromJsonTable *node)
     WRITE_STRING_FIELD(documentcontext);
     WRITE_NODE_FIELD(jsonColumn);
     WRITE_STRING_FIELD(jsonTableIdentifier);
+    WRITE_STRING_FIELD(forOrdinality);
 }
 
 static void
@@ -945,6 +946,7 @@ outJsonTableOperator(StringInfo str, JsonTableOperator *node)
     WRITE_STRING_FIELD(documentcontext);
     WRITE_NODE_FIELD(jsonColumn);
     WRITE_STRING_FIELD(jsonTableIdentifier);
+    WRITE_STRING_FIELD(forOrdinality);
 }
 
 static void
