@@ -10,8 +10,6 @@
  *-----------------------------------------------------------------------------
  */
 
-#include <string.h>
-
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
@@ -19,8 +17,10 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
+#include "model/datalog/datalog_model.h"
 
 static boolean findAttrReferences (Node *node, List **state);
+static boolean findDLVars (Node *node, List **state);
 static DataType typeOfOp (Operator *op);
 static DataType typeOfFunc (FunctionCall *f);
 
@@ -388,6 +388,8 @@ typeOf (Node *expr)
             return ((SQLParameter *) expr)->parType;
         case T_OrderExpr:
             return DT_INT;//TODO should use something else?
+        case T_DLVar:
+            return ((DLVar *) expr)->dt;
         default:
              ERROR_LOG("unknown expression type for node: %s", nodeToString(expr));
              break;
@@ -509,6 +511,28 @@ findAttrReferences (Node *node, List **state)
     }
 
     return visit(node, findAttrReferences, state);
+}
+
+List *
+getDLVars (Node *node)
+{
+    List *result = NIL;
+
+    findDLVars(node, &result);
+
+    return result;
+}
+
+static boolean
+findDLVars (Node *node, List **state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, DLVar))
+        *state = appendToTailOfList(*state, node);
+
+    return visit(node, findDLVars, state);
 }
 
 //TODO this is unsafe, callers are passing op as an operator even though it may not be one.
