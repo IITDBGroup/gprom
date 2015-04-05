@@ -207,6 +207,25 @@ computeECPropBottomUp (QueryOperator *root)
 			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
 		}
 
+		else if(isA(root, JsonTableOperator))
+		{
+		    List *EC = NIL;
+			FOREACH(AttributeDef,a, root->schema->attrDefs)
+			{
+			    KeyValue *kv;
+				Set *s = MAKE_STR_SET(a->attrName);
+				kv = createNodeKeyValue((Node *) s, NULL);
+				EC = appendToTailOfList(EC, kv);
+			}
+
+			Node *nChild = getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
+			List *childEC = (List *) copyObject(nChild);
+
+			EC = concatTwoLists(EC, childEC);
+			EC = CombineDuplicateElemSetInECList(EC);
+			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
+		}
+
 		else if(isA(root, SelectionOperator))
 		{
 			QueryOperator *childOp = OP_LCHILD(root);
@@ -556,6 +575,36 @@ computeECPropTopDown (QueryOperator *root)
 		QueryOperator *childOp = OP_LCHILD(root);
 
 		setStringProperty((QueryOperator *)childOp, PROP_STORE_SET_EC, nRoot);
+	}
+
+	else if(isA(root, JsonTableOperator))
+	{
+		Set *setNames = STRSET();
+		QueryOperator *childOp = OP_LCHILD(root);
+		FOREACH(AttributeDef, a, childOp->schema->attrDefs)
+		{
+			addToSet(setNames, strdup(a->attrName));
+		}
+
+		Node *nRoot = getStringProperty(root, PROP_STORE_SET_EC);
+		List *rEC = (List *) copyObject(nRoot);
+		List *EC = NIL;
+
+		FOREACH(KeyValue, kv, rEC)
+		{
+			Set *s = (Set *)(kv->key);
+			FOREACH_SET(char, n, s)
+			   DEBUG_LOG("old set s: %s", n);
+			s = intersectSets(s, setNames);
+			//DEBUG_LOG("new set:", nodeToString(s1));
+			FOREACH_SET(char, n, s)
+			   DEBUG_LOG("new set s1: %s", n);
+
+		    if(setSize(s) != 0)
+		    	EC = appendToTailOfList(EC, kv);
+		}
+
+		setStringProperty((QueryOperator *)childOp, PROP_STORE_SET_EC, (Node *)EC);
 	}
 
 	else if(isA(root, ProjectionOperator))
@@ -1315,7 +1364,22 @@ computeReqColProp (QueryOperator *root)
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 
 	}
+	else if(isA(root,JsonTableOperator))
+	{
 
+		char *b = ((JsonTableOperator *)root)->jsonColumn->name;
+		Set *doc = MAKE_STR_SET(b);
+		DEBUG_LOG("Json doc name: %s", b);
+        Set *newIcols = unionSets(icols, doc);
+        setStringProperty((QueryOperator *) root, PROP_STORE_SET_ICOLS, (Node *)newIcols);
+
+		Set *childAttrNames = STRSET();
+		FOREACH(AttributeDef, a, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
+		   addToSet(childAttrNames, a->attrName);
+
+		Set *eicols = intersectSets(newIcols, childAttrNames);
+		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
+	}
 
 	FOREACH(QueryOperator, o, root->inputs)
 	{

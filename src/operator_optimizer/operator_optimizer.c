@@ -779,6 +779,30 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 	}
 
+	if(isA(root, JsonTableOperator))
+	{
+         List *newAttrDef = NIL;
+         FOREACH(AttributeDef, a, root->schema->attrDefs)
+        	 if(hasSetElem(icols, a->attrName))
+        		 newAttrDef = appendToTailOfList(newAttrDef, copyObject(a));
+
+         root->schema->attrDefs = newAttrDef;
+
+         /* reset pos in jsonColumn */
+         JsonTableOperator *jt = (JsonTableOperator *)root;
+         char *name = jt->jsonColumn->name;
+         int cnt = 0;
+         FOREACH(AttributeDef, a, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
+         {
+        	 if(streq(name, a->attrName))
+        	 {
+        		 jt->jsonColumn->attrPosition = cnt;
+        		 break;
+        	 }
+        	 cnt++;
+         }
+	}
+
 	return root;
 }
 
