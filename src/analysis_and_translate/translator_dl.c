@@ -282,7 +282,7 @@ analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules)
         headDTs = appendToTailOfListInt(headDTs, typeOf(arg));
 
     setDLProp((DLNode *) r->head, DL_PRED_DTS, (Node *) headDTs);
-    MAP_ADD_STRING_KEY(predToDTs, r->head->rel, headDTs);
+    MAP_ADD_STRING_KEY(predToDTs, r->head->rel, headDTs );
 }
 
 static void
