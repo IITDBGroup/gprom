@@ -24,6 +24,7 @@
 #include "model/expression/expression.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "provenance_rewriter/prov_schema.h"
+#include "parser/parser.h"
 
 static void analyzeStmtList (List *l, List *parentFroms);
 static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
@@ -181,13 +182,42 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 {
     List *attrRefs = NIL;
 
+    FOREACH(FromItem,f,qb->fromClause)
+    {
+        switch(f->type)
+        {
+            case T_FromTableRef:
+            {
+                FromTableRef *tr = (FromTableRef *)f;
+            	//check if it is a table or a view
+            	if (!catalogTableExists(tr->tableId) && catalogViewExists(tr->tableId))
+            	{
+            	    char * view = getViewDefinition(((FromTableRef *)f)->tableId);
+            	    char *newName = f->name ? f->name : tr->tableId; // if no alias then use view name
+            	    DEBUG_LOG("view: %s", view);
+            	    StringInfo s = makeStringInfo();
+            	    appendStringInfoString(s,view);
+            	    appendStringInfoString(s,";");
+            	    view = s->data;
+            	    Node * n1 = getHeadOfListP((List *) parseFromString((char *) view));
+            	    FromItem * f1 = createFromSubquery(newName,NIL,(Node *) n1);
+
+            	    DUMMY_LC(f)->data.ptr_value = f1;
+            	}
+            }
+            break;
+            default:
+            	break;
+        }
+    }
+
     // figuring out attributes of from clause items
     FOREACH(FromItem,f,qb->fromClause)
     {
         switch(f->type)
         {
             case T_FromTableRef:
-                analyzeFromTableRef((FromTableRef *) f);
+            	analyzeFromTableRef((FromTableRef *) f);
                 break;           
             case T_FromSubquery:
             	analyzeFromSubquery((FromSubquery *) f, parentFroms);
@@ -1161,6 +1191,7 @@ getQBAttrDTs (Node *qb)
         }
         break;
         default:
+            FATAL_LOG("unexpected node type as FROM clause item: %s", beatify(nodeToString(qb)));
             break;
     }
 
