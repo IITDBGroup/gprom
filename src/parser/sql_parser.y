@@ -18,7 +18,7 @@
 
 #define RULELOG(grule) \
     { \
-        TRACE_LOG("Parsing grammer rule <%s>", #grule); \
+        TRACE_LOG("Parsing grammer rule <%s> at line %d", #grule, yylineno); \
     }
     
 #undef free
@@ -879,7 +879,7 @@ jsonTable:
 		| JSON_TABLE '(' attributeRef ',' stringConst COLUMNS '(' jsonColInfo ')' ')' AS identifier
 			{
 				RULELOG("jsonTable::jsonTable");
-                                $$ = (Node *) createFromJsonTable($3, $5, $8, $12);
+                                $$ = (Node *) createFromJsonTable((AttributeReference *) $3, $5, $8, $12);
 			}
 	;
 

@@ -82,7 +82,7 @@ quotedIdentifier		{doublequote}[^\"]+{doublequote}
 identifiers				({identStart}{identContinue}*)
 identifierPart			({identifiers}|{quotedIdentifier})
 compositeIdentifier		({identifierPart}({identDelim}{identifierPart}))*
-parameters		[:]{identifiers}
+parameters		[:]({identifiers}|{integer})
 
 /* operators */
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
