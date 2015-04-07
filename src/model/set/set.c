@@ -16,6 +16,7 @@
 #include "model/node/nodetype.h"
 #include "model/set/set.h"
 #include "model/list/list.h"
+#include "model/expression/expression.h"
 
 #include "uthash.h"
 
@@ -330,6 +331,59 @@ intersectSets (Set *left, Set *right)
     TRACE_LOG("intersect result set %s", nodeToString(result));
 
     return result;
+}
+
+Set *
+setDifference(Set *left, Set *right)
+{
+    Set *result;
+    SetElem *s;
+
+    ASSERT(left->setType == right->setType);
+    ASSERT(left->cpy && right->cpy);
+
+    result = CREATE_SAME_TYPE_SET(left);
+
+    if (result->setType == SET_TYPE_INT)
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            if (!hasSetIntElem(right, *((int *) s->data)))
+                addIntToSet(result, *((int *) s->data));
+    }
+    else
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            if (!hasSetElem(right, s->data))
+                addToSet(result, left->cpy(s->data));
+    }
+
+    TRACE_LOG("different result set %s", nodeToString(result));
+
+    return result;
+}
+
+
+boolean
+overlapsSet(Set *left, Set *right)
+{
+    SetElem *s;
+    if (left->setType != right->setType)
+        return FALSE;
+
+    if (left->setType == SET_TYPE_INT)
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            if (hasSetIntElem(right, *((int *) s->data)))
+                return TRUE;
+    }
+    else
+    {
+        for(s = left->elem; s != NULL; s = s->hh.next)
+            if (hasSetElem(right, s->data))
+                return TRUE;
+    }
+
+    return FALSE;
 }
 
 int

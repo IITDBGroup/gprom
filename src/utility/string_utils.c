@@ -114,3 +114,18 @@ strCompare(const void *a, const void *b)
 
     return strcmp(*l,*r);
 }
+
+char *
+strToUpper(const char *input)
+{
+    char *result;
+
+    if (input == NULL)
+        return NULL;
+    result = strdup((char *) input);
+
+    for(char *p = result; *p != '\0'; p++)
+        *p = toupper(*p);
+
+    return result;
+}

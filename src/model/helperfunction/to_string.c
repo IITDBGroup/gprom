@@ -89,6 +89,12 @@ static void outNestingOperator(StringInfo str, NestingOperator *node);
 static void outWindowOperator(StringInfo str, WindowOperator *node);
 static void outOrderOperator(StringInfo str, OrderOperator *node);
 
+//json
+static void outFromJsonTable(StringInfo str, FromJsonTable *node);
+static void outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node);
+static void outJsonTableOperator(StringInfo str, JsonTableOperator *node);
+static void outJsonPath(StringInfo str, JsonPath *node);
+
 // datalog model
 static void outDLAtom(StringInfo str, DLAtom *node);
 static void outDLVar(StringInfo str, DLVar *node);
@@ -249,7 +255,7 @@ outStringList (StringInfo str, List *node)
 static void
 outSet(StringInfo str, Set *node)
 {
-    appendStringInfo(str, "{");
+//    appendStringInfo(str, "{");
 
     switch(node->setType)
     {
@@ -277,7 +283,7 @@ outSet(StringInfo str, Set *node)
             break;
     }
 
-    appendStringInfo(str, "}");
+//    appendStringInfo(str, "}");
 }
 
 static void
@@ -396,6 +402,31 @@ outDLComparison(StringInfo str, DLComparison *node)
     WRITE_NODE_FIELD(n.properties);
 }
 
+static void
+outFromJsonTable(StringInfo str, FromJsonTable *node)
+{
+    WRITE_NODE_TYPE(JSONTABLE);
+    writeCommonFromItemFields(str, (FromItem *) node);
+    WRITE_NODE_FIELD(columns);
+    WRITE_STRING_FIELD(documentcontext);
+    WRITE_NODE_FIELD(jsonColumn);
+    WRITE_STRING_FIELD(jsonTableIdentifier);
+}
+
+static void
+outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node)
+{
+	WRITE_NODE_TYPE(JSONCOLINFOITEM);
+
+    WRITE_STRING_FIELD(attrName);
+    WRITE_STRING_FIELD(path);
+    WRITE_STRING_FIELD(attrType);
+
+    WRITE_STRING_FIELD(format);
+    WRITE_STRING_FIELD(wrapper);
+    WRITE_NODE_FIELD(nested);
+    WRITE_STRING_FIELD(forOrdinality);
+}
 
 static void
 outInsert(StringInfo str, Insert *node)
@@ -481,6 +512,9 @@ outConstant (StringInfo str, Constant *node)
             case DT_LONG:
                 appendStringInfo(str, "%ld", *((long *) node->value));
                 break;
+            case DT_VARCHAR2:
+	        appendStringInfo(str, "'%s'", (char *) node->value);
+	        break;
         }
 
     WRITE_BOOL_FIELD(isNull);
@@ -901,6 +935,26 @@ outOrderOperator(StringInfo str, OrderOperator *node)
     WRITE_NODE_FIELD(orderExprs);
 }
 
+static void
+outJsonTableOperator(StringInfo str, JsonTableOperator *node)
+{
+    WRITE_NODE_TYPE(JSONTABLEOPERATOR);
+
+    WRITE_QUERY_OPERATOR();
+    WRITE_NODE_FIELD(columns);
+    WRITE_STRING_FIELD(documentcontext);
+    WRITE_NODE_FIELD(jsonColumn);
+    WRITE_STRING_FIELD(jsonTableIdentifier);
+}
+
+static void
+outJsonPath(StringInfo str, JsonPath *node)
+{
+	 WRITE_NODE_TYPE(JSONPATH);
+
+	 WRITE_STRING_FIELD(path);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1086,7 +1140,19 @@ outNode(StringInfo str, void *obj)
             case T_DLComparison:
                 outDLComparison(str, (DLComparison *) obj);
                 break;
-
+            /* Json stuff */
+            case T_FromJsonTable:
+                outFromJsonTable(str, (FromJsonTable *)obj);
+                break;
+            case T_JsonColInfoItem:
+                outFromJsonColInfoItem(str, (JsonColInfoItem *)obj);
+                break;
+            case T_JsonTableOperator:
+                outJsonTableOperator(str, (JsonTableOperator *) obj);
+                break;
+            case T_JsonPath:
+            	outJsonPath(str, (JsonPath *) obj);
+            	break;
             default :
                 FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
@@ -1637,6 +1703,12 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             appendStringInfo(str, "%s", exprToSQL((Node *) o->orderExprs));
         }
         break;
+        case T_JsonTableOperator:
+            WRITE_NODE_TYPE(JsonTable);
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, ((JsonTableOperator *) op)->jsonTableIdentifier);
+            appendStringInfoChar(str, ']');
+            break;
         default:
             FATAL_LOG("not a query operator:\n%s", op);
             break;

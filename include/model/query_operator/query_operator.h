@@ -130,6 +130,16 @@ typedef struct OrderOperator
     List *orderExprs;
 } OrderOperator;
 
+typedef struct JsonTableOperator
+{
+    QueryOperator op;
+    //List *pathExprs;
+    List *columns;
+    char *documentcontext;
+    AttributeReference *jsonColumn;
+    char *jsonTableIdentifier;
+} JsonTableOperator;
+
 /* type of operator macros */
 #define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
                         || isA(op, ConstRelOperator))
@@ -156,14 +166,15 @@ extern void addAttrToSchema(QueryOperator *op, char *name, DataType dt);
 extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name);
 extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
 extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
+extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, Operator *a1);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2);
 
 /* union equal element between two set list */
-extern List *UnionEqualElemOfTwoSetList(List *l1, List *l2);
+extern List *unionEqualElemOfTwoSetList(List *l1, List *l2);
 extern List *addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet);
 
-extern List *getSelectionCondOperatorList(List *opList, Operator *op);
+//extern List *getSelectionCondOperatorList(List *opList, Operator *op);
 extern List *getCondOpList(List *l1, List *l2);
 extern List *getDataTypes (Schema *schema);
 extern List *getAttrNames(Schema *schema);
@@ -172,6 +183,7 @@ extern List *getAttrNames(Schema *schema);
 /* create functions */
 extern TableAccessOperator *createTableAccessOp(char *tableName, Node *asOf,
         char *alias, List *parents, List *attrNames, List *dataTypes);
+extern JsonTableOperator *createJsonTableOperator(FromJsonTable *fjt);
 extern SelectionOperator *createSelectionOp (Node *cond, QueryOperator *input,
         List *parents, List *attrNames);
 extern ProjectionOperator *createProjectionOp (List *projExprs,
@@ -236,6 +248,9 @@ extern int getNumProvAttrs(QueryOperator *op);
 extern List *getNormalAttrs(QueryOperator *op);
 extern List *getNormalAttrReferences(ProjectionOperator *op, QueryOperator *op1);
 extern List *getNormalAttrNames(QueryOperator *op);
+extern List *getAttrRefNames(ProjectionOperator *op);
+extern List *getAttrNameFromOpExpList(List *aNameOpList, Operator *opExpList);
+extern List *getAttrRefNamesContainOps(ProjectionOperator *op);
 extern int getNumNormalAttrs(QueryOperator *op);
 
 extern List *getQueryOperatorAttrNames (QueryOperator *op);

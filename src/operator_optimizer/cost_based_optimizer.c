@@ -27,7 +27,7 @@
 #include "operator_optimizer/operator_optimizer.h"
 #include "sql_serializer/sql_serializer.h"
 #include "mem_manager/mem_mgr.h"
-#include "metadata_lookup/metadata_lookup_oracle.h"
+#include "metadata_lookup/metadata_lookup.h"
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
@@ -37,63 +37,62 @@
 static List *X1;
 static List *Y1;
 static List *Z1;
-static int cost1;
+static unsigned long long int cost1;
 static char *plan;
 
 
-static boolean continueOptimization (long optTime, long expectedTime);
+static boolean continueOptimization (long optTime, unsigned long long int expectedTime);
 
 char *
 doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 {
+    StringInfo result = makeStringInfo();
+    char *rewrittenSQL = NULL;
 
-	StringInfo result = makeStringInfo();
-	char *rewrittenSQL = NULL;
-
-	X1 = NIL;
-	Y1 = NIL;
-	Z1 = NIL;
-    cost1 = 99999999;
+    X1 = NIL;
+    Y1 = NIL;
+    Z1 = NIL;
+    cost1 = ULLONG_MAX;
     plan = NULL;
     float optTime = 0.0;
 
-	while(continueOptimization(optTime,cost1))
-	{
-		//Keep track of time spent in loop
-	    struct timeval tvalBefore, tvalAfter;
-		gettimeofday (&tvalBefore, NULL);
+    while(continueOptimization(optTime,cost1))
+    {
+        //Keep track of time spent in loop
+        struct timeval tvalBefore, tvalAfter;
+        gettimeofday (&tvalBefore, NULL);
 
-		Node *oModel1 = copyObject(oModel);
-		rewrittenSQL = generatePlan(oModel1, applyOptimizations);
+        Node *oModel1 = copyObject(oModel);
+        rewrittenSQL = generatePlan(oModel1, applyOptimizations);
 
-		int cost = getCost(rewrittenSQL);
-		DEBUG_LOG("Cost of the rewritten Query is = %d\n", cost);
-
+        char *result = strdup(rewrittenSQL);
+        unsigned long long int cost = getCostEstimation(result);//TODO not what is returned by the function
+        DEBUG_LOG("Cost of the rewritten Query is = %d\n", cost);
         DEBUG_LOG("plan for choice %s is\n%s", beatify(nodeToString(Y1)),
                 rewrittenSQL);
 
-		if(cost < cost1)
-		{
-			cost1 = cost;
-			plan = rewrittenSQL;
-			DEBUG_LOG("PLAN: %s", plan);
-		}
+	if(cost < cost1)
+        {
+            cost1 = cost;
+            plan = rewrittenSQL;
+            DEBUG_LOG("PLAN: %s", plan);
+        }
 
-		// compute new X1
-		reSetX1();
-		if (X1 == NIL)
-		    break;
+        // compute new X1
+        reSetX1();
+	if (X1 == NIL)
+	    break;
 
-		gettimeofday (&tvalAfter, NULL);
-		optTime += (float)(tvalAfter.tv_sec - tvalBefore.tv_sec) / 1000000;
-	}
-	FREE(result);
-	return plan;
+        gettimeofday (&tvalAfter, NULL);
+        optTime += (float)(tvalAfter.tv_sec - tvalBefore.tv_sec) / 1000000;
+    }
+    FREE(result);
 
+    return plan;
 }
 
 static boolean
-continueOptimization (long optTime, long expectedTime)
+continueOptimization (long optTime, unsigned long long int expectedTime)
 {
     return (optTime < expectedTime);
 }

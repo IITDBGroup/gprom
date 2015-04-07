@@ -84,6 +84,12 @@
 #define PARAMS_GET_OP_DEFS 1
 #define QUERY_GET_OP_DEFS "SELECT oprleft, oprright FROM pg_operator WHERE oprname = $1::name;"
 
+#define NAME_GET_PK "GPRoM_GetPK"
+#define PARAMS_GET_PK 1
+#define QUERY_GET_PK "SELECT a.attname " \
+                     "FROM pg_constraint c, pg_class t, pg_attribute a " \
+                     "WHERE c.contype = 'p' AND c.conrelid = t.oid AND t.relname = $1::text AND a.attrelid = t.oid AND a.attnum = ANY(c.conkey);"
+
 
 //#define NAME_ "GPRoM_"
 //#define PARAMS_ 1
@@ -176,6 +182,8 @@ assemblePostgresMetadataLookupPlugin (void)
     p->getViewDefinition = postgresGetViewDefinition;
     p->getTransactionSQLAndSCNs = postgresGetTransactionSQLAndSCNs;
     p->executeAsTransactionAndGetXID = postgresExecuteAsTransactionAndGetXID;
+    p->getCostEstimation = postgresGetCostEstimation;
+    p->getKeyInformation = postgresGetKeyInformation;
 
     return p;
 }
@@ -610,6 +618,35 @@ postgresGetViewDefinition(char *viewName)
     return NULL;
 }
 
+int
+postgresGetCostEstimation(char *query)
+{
+    FATAL_LOG("not supported yet");
+    return 0;
+}
+
+List *
+postgresGetKeyInformation(char *tableName)
+{
+    List *result = NIL;
+    PGresult *res = NULL;
+
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+    res = execPrepared(NAME_GET_PK, singleton(createConstString(tableName)));
+
+    // loop through results
+    for(int i = 0; i < PQntuples(res); i++)
+        result = appendToTailOfList(result, strdup(PQgetvalue(res,i,0)));
+
+    // cleanup
+    PQclear(res);
+    RELEASE_MEM_CONTEXT();
+
+    return result;
+}
+
+
 void
 postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
@@ -848,6 +885,18 @@ postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
 
 Node *
 postgresExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
+{
+    return NULL;
+}
+
+int
+postgresGetCostEstimation(char *query)
+{
+    return 0;
+}
+
+List *
+postgresGetKeyInformation(char *tableName)
 {
     return NULL;
 }

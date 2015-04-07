@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Settings for GProM</comment>
+
+<!--  available settings -->
+<entry key="option.1">treefiy_prov_rewrite_input</entry>
+
+<!-- PI-CS options -->
+<entry key="option.2">pi_cs_use_composable</entry>
+<entry key="option.3">pi_cs_rewrite_agg_window</entry>
+<entry key="option.4">translate_update_with_case</entry>
+<entry key="option.5">only_updated_use_conditions</entry>
+<entry key="option.6">only_updated_use_history</entry>
+
+<!--  optimization options -->
+
+<entry key="option.7">optimize_operator_model</entry>
+<entry key="option.8">cost_based_optimizer</entry>
+<entry key="option.9">optimization.push_selections</entry>
+<entry key="option.10">optimization.merge_operators</entry>
+<entry key="option.11">optimization.factor_proj_attr_in_expr</entry>
+<entry key="option.12">optimization.materialize_merge_unsafe_proj</entry>
+<entry key="option.13">optimization.remove_redundant_projections</entry>
+<entry key="option.14">optimization.pulling_up_provenance_proj</entry>
+<entry key="option.15">optimization.push_selections_through_joins</entry>
+<entry key="option.16">optimization.selection_move_around</entry>
+<entry key="option.17">optimization.remove_redundant_duplicate_operator</entry>
+
+
+<!-- Default Values -->
+<entry key="default.1">TRUE</entry>
+
+<entry key="default.2">FALSE</entry>
+<entry key="default.3">FALSE</entry>
+<entry key="default.4">TRUE</entry>
+<entry key="default.5">FALSE</entry>
+<entry key="default.6">FALSE</entry>
+
+<entry key="default.7">FALSE</entry>
+<entry key="default.8">FALSE</entry>
+<entry key="default.9">FALSE</entry>
+<entry key="default.10">FALSE</entry>
+<entry key="default.11">FALSE</entry>
+<entry key="default.12">FALSE</entry>
+<entry key="default.13">FALSE</entry>
+<entry key="default.14">FALSE</entry>
+<entry key="default.15">FALSE</entry>
+<entry key="default.16">FALSE</entry>
+<entry key="default.17">FALSE</entry>
+
+<!-- All optimizations deactivated -->
+<entry key="setting.1.name">NoOpt</entry>
+<entry key="setting.1.1">TRUE</entry>
+<entry key="setting.1.2">FALSE</entry>
+<entry key="setting.1.3">FALSE</entry>
+<entry key="setting.1.4">TRUE</entry>
+<entry key="setting.1.5">FALSE</entry>
+<entry key="setting.1.6">FALSE</entry>
+<entry key="setting.1.7">FALSE</entry>
+<entry key="setting.1.8">FALSE</entry>
+<entry key="setting.1.9">FALSE</entry>
+<entry key="setting.1.10">FALSE</entry>
+<entry key="setting.1.11">FALSE</entry>
+<entry key="setting.1.12">FALSE</entry>
+<entry key="setting.1.13">FALSE</entry>
+<entry key="setting.1.14">FALSE</entry>
+<entry key="setting.1.15">FALSE</entry>
+<entry key="setting.1.16">FALSE</entry>
+<entry key="setting.1.17">FALSE</entry>
+
+<!-- All heuristic optimizations activated -->
+<entry key="setting.2.name">NoOpt</entry>
+<entry key="setting.2.1">TRUE</entry>
+<entry key="setting.2.2">FALSE</entry>
+<entry key="setting.2.3">FALSE</entry>
+<entry key="setting.2.4">TRUE</entry>
+<entry key="setting.2.5">FALSE</entry>
+<entry key="setting.2.6">FALSE</entry>
+<entry key="setting.2.7">TRUE</entry>
+<entry key="setting.2.8">TRUE</entry>
+<entry key="setting.2.9">TRUE</entry>
+<entry key="setting.2.10">TRUE</entry>
+<entry key="setting.2.11">TRUE</entry>
+<entry key="setting.2.12">TRUE</entry>
+<entry key="setting.2.13">TRUE</entry>
+<entry key="setting.2.14">TRUE</entry>
+<entry key="setting.2.15">TRUE</entry>
+<entry key="setting.2.16">TRUE</entry>
+<entry key="setting.2.17">TRUE</entry>
+
+</properties>
