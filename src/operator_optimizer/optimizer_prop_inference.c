@@ -30,6 +30,7 @@ static List *attrRefListToStringList (List *input);
 void
 computeKeyProp (QueryOperator *root)
 {
+	DEBUG_LOG("Begin to compute key");
     List *keyList = NIL;
     List *rKeyList = NIL;
 
@@ -46,8 +47,9 @@ computeKeyProp (QueryOperator *root)
     {
         TableAccessOperator *rel = (TableAccessOperator *) root;
         keyList = getKeyInformation(rel->tableName);
+        DEBUG_LOG("keyList length: %d", keyList->length);
         setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
-        DEBUG_LOG("operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
+        DEBUG_LOG("Table operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
         return;
     }
     else if (isA(root, ConstRelOperator))
@@ -55,7 +57,7 @@ computeKeyProp (QueryOperator *root)
         FOREACH(AttributeDef, a, root->schema->attrDefs)
             keyList = appendToTailOfList(keyList, strdup(a->attrName));
         setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
-        DEBUG_LOG("operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
+        DEBUG_LOG("ConstRel operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
         return;
     }
 
@@ -1051,7 +1053,7 @@ void initializeSetProp(QueryOperator *root)
 void
 computeSetProp (QueryOperator *root)
 {
-	if (isA(root, ProjectionOperator) || isA(root, SelectionOperator))
+	if (isA(root, ProjectionOperator) || isA(root, SelectionOperator) || isA(root, JsonTableOperator))
 	{
 		QueryOperator *lChild = OP_LCHILD(root);
 

@@ -1019,102 +1019,15 @@ recursiveAppendNestedAttr(JsonColInfoItem *attr, List **provAttr, List **newDef,
 	}
 }
 
-/*void
-addForOrdinality(JsonTableOperator *op, JsonColInfoItem *attr, int *countNest, char *docPath, int *count, ProjectionOperator **proj)
-{
-	if (attr->nested)
-	{
-		StringInfo forOrdinality = makeStringInfo ();
-		char *prefixFOD = "prov_for_ord_";
-		appendStringInfoString(forOrdinality, prefixFOD);
-		appendStringInfoString(forOrdinality, itoa(*countNest));
-		attr->forOrdinality = forOrdinality->data;
-
-		StringInfo doc = makeStringInfo ();
-		//char *docPath = op->documentcontext;
-		appendStringInfoString(doc, docPath);
-
-		StringInfo prePath = makeStringInfo ();
-//		appendStringInfoString(prePath, "'");
-		int len = doc->len;
-		if(doc->data[len-1] == ']')
-		{
-			for(int i=0; i< len-2; i++)
-				appendStringInfoChar(prePath, doc->data[i]);
-		}
-//		appendStringInfoString(prePath, "'");
-		DEBUG_LOG("pre %s", prePath->data);
-
-		StringInfo path = makeStringInfo ();
-		StringInfo sufPath = makeStringInfo ();
-//		appendStringInfoString(sufPath, "'");
-		appendStringInfoChar(sufPath, ']');
-
-		appendStringInfoString(path, attr->path);
-		int len1 = path->len;
-		for(int i=1; i< len1; i++)
-			appendStringInfoChar(sufPath, path->data[i]);
-//		appendStringInfoString(sufPath, "'");
-		DEBUG_LOG("suffix %s", sufPath->data);
-
-//		StringInfo newPath = makeStringInfo ();
-//		appendStringInfoString(newPath, prePath->data);
-//		appendStringInfoString(newPath, forOrdinality->data);
-//		appendStringInfoString(newPath, sufPath->data);
-//		DEBUG_LOG("new path %s", newPath->data);
-
-    	StringInfo renameFOD = makeStringInfo ();
-        char *prefixRFOD = "prov_path_";
-        appendStringInfoString(renameFOD, prefixRFOD);
-        appendStringInfoString(renameFOD, itoa(*countNest));
-    	AttributeDef *projAttr = createAttributeDef(renameFOD->data, DT_STRING);
-    	AttributeDef *forOrdAttr = createAttributeDef(forOrdinality->data, DT_STRING);
-    	AttributeReference *forOrdRef = createAttributeReference(forOrdinality->data);
-    	forOrdRef->fromClauseItem = 0;
-    	forOrdRef->attrType = DT_STRING;
-    	forOrdRef->attrPosition = *count;
-    	Constant *c1 = createConstString(prePath->data);
-    	Constant *c2 = createConstString(sufPath->data);
-
-    	DEBUG_LOG("Const c1: %s", nodeToString(c1));
-    	DEBUG_LOG("Const c2: %s", nodeToString(c2));
-
-    	List *exprList1 = NIL;
-    	exprList1 = appendToTailOfList(exprList1, forOrdRef);
-    	exprList1 = appendToTailOfList(exprList1, c2);
-    	Operator *o1 = createOpExpr("||", exprList1);
-
-    	List *exprList2 = NIL;
-    	exprList2 = appendToTailOfList(exprList2, c1);
-    	exprList2 = appendToTailOfList(exprList2, o1);
-    	Operator *o2 = createOpExpr("||", exprList2);
-
-    	addProvenanceAttrsToSchemabasedOnList((QueryOperator *) (*proj), singleton(projAttr));
-    	//proj->projExprs = appendToTailOfList(proj->projExprs, forOrdRef);
-    	(*proj)->projExprs = appendToTailOfList((*proj)->projExprs, o2);
-    	op->op.schema->attrDefs = appendToTailOfList(op->op.schema->attrDefs, forOrdAttr);
-
-		docPath = attr->path;
-        (*countNest)++;
-        (*count)++;
-
-		FOREACH(JsonColInfoItem, attr1, attr->nested)
-        {
-			if(attr1->nested)
-			{
-				addForOrdinality(op, attr1, countNest, docPath, count, proj);
-			}
-        }
-	}
-}*/
-
 void
 addForOrdinality(JsonTableOperator **op, JsonColInfoItem **attr, int *countFOD, int *count, ProjectionOperator **proj)
 {
-	List *path = (List *) parseFromStringjp(strdup((*attr)->path));
+	List *path = NIL;
+	if(!streq((*attr)->path, "$"))
+		path = (List *) parseFromStringjp(strdup((*attr)->path));
 	DEBUG_LOG("path element: %s", nodeToString(path));
 	//List *cpath = copyObject(path);
-	if(LIST_LENGTH(path) == 2)
+	if(LIST_LENGTH(path) == 2 && (*attr)->nested)
 	{
 		StringInfo forOrdinality = makeStringInfo ();
 		char *prefixFOD = "prov_for_ord_";
@@ -1147,18 +1060,23 @@ addForOrdinality(JsonTableOperator **op, JsonColInfoItem **attr, int *countFOD, 
 
 		if(LIST_LENGTH((*attr)->nested) == 1)
 		{
-			appendStringInfoString(nameEl, ".");
-			//List *path1 = (List *) parseFromStringjp(strdup(op->documentcontext));
 			char *colPath = ((JsonColInfoItem *) getHeadOfListP((*attr)->nested))->path;
-			List *path1 = (List *) parseFromStringjp(strdup(colPath));
-			DEBUG_LOG("new nest path element: %s", nodeToString(path1));
-
-			FOREACH(JsonPath, j, path1)
+			//StringInfo testPath = makeStringInfo ();
+			//appendStringInfoString(testPath, colPath);
+			if(!streq(colPath, "$"))
 			{
-				if(streq(j->path, "*"))
-					appendStringInfoString(nameEl, "[*]");
-				else
-					appendStringInfoString(nameEl, j->path);
+				appendStringInfoString(nameEl, ".");
+				//List *path1 = (List *) parseFromStringjp(strdup(op->documentcontext));
+				List *path1 = (List *) parseFromStringjp(strdup(colPath));
+				DEBUG_LOG("new nest path element: %s", nodeToString(path1));
+
+				FOREACH(JsonPath, j, path1)
+				{
+					if(streq(j->path, "*"))
+						appendStringInfoString(nameEl, "[*]");
+					else
+						appendStringInfoString(nameEl, j->path);
+				}
 			}
 		}
 		Constant *c2 = createConstString(nameEl->data);
@@ -1174,14 +1092,13 @@ addForOrdinality(JsonTableOperator **op, JsonColInfoItem **attr, int *countFOD, 
 		exprList2 = appendToTailOfList(exprList2, c1);
 		exprList2 = appendToTailOfList(exprList2, o1);
 		Operator *o2 = createOpExpr("||", exprList2);
-		//DEBUG_LOG("aaaaaaaaaaa");
+
 		addProvenanceAttrsToSchemabasedOnList((QueryOperator *) (*proj), singleton(projAttr));
 		(*proj)->projExprs = appendToTailOfList((*proj)->projExprs, o2);
 		(*op)->op.schema->attrDefs = appendToTailOfList((*op)->op.schema->attrDefs, forOrdAttr);
 
 	}
 
-	DEBUG_LOG("22222222: %s", (*attr)->forOrdinality);
 	if((*attr)->nested)
 	{
 		FOREACH(JsonColInfoItem, attr1, (*attr)->nested)
@@ -1264,123 +1181,10 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
 	addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
 	addProvenanceAttrsToSchemabasedOnList((QueryOperator *) proj, provList);
 
-/*	//for ordinality
-	char *p = strdup(op->documentcontext);
-	int countNest = 0;
-	FOREACH(JsonColInfoItem, attr, op->columns)
-		addForOrdinality(op, attr,&countNest, p, &count, &proj);
-
-
 	//begin to split path
-	List *path = (List *) parseFromStringjp(strdup(op->documentcontext));
-	DEBUG_LOG("path element: %s", nodeToString(path));
-
-	List *cpath = copyObject(path);
-	int countFOD = 0;
-	while (LIST_LENGTH(cpath) > 2)
-	{
-		//E.g. $.Addresses[*].City, pathEl is City
-		//It used to generate $.City and '].City
-		StringInfo pathEl = makeStringInfo ();
-		char *a = ((JsonPath *)getTailOfListP(cpath))->path;
-		if(streq(a,"*"))
-		{
-			cpath = removeFromTail(cpath);
-			a = ((JsonPath *)getTailOfListP(cpath))->path;
-			appendStringInfoString(pathEl, a);
-			appendStringInfoString(pathEl, "[*]");
-		}
-		else
-			appendStringInfoString(pathEl, a);
-
-		cpath = removeFromTail(cpath);
-
-		//Set the new documentcontext
-		StringInfo newdoc = makeStringInfo ();
-		appendStringInfoString(newdoc, "$");
-		FOREACH(JsonPath, j, cpath)
-		{
-			if(streq(j->path, "*"))
-				appendStringInfoString(newdoc, "[*]");
-			else
-			{
-				appendStringInfoString(newdoc, ".");
-				appendStringInfoString(newdoc, j->path);
-			}
-		}
-		op->documentcontext = newdoc->data;
-		DEBUG_LOG("new doc %s", op->documentcontext);
-
-		//Introduce new nested JsonColInfoItem
-		StringInfo nestedpath = makeStringInfo ();
-		appendStringInfoString(nestedpath, "$.");
-		appendStringInfoString(nestedpath, pathEl->data);
-
-		StringInfo forOrdinality = makeStringInfo ();
-		char *prefixFOD = "prov_for_ord_";
-		appendStringInfoString(forOrdinality, prefixFOD);
-		appendStringInfoString(forOrdinality, itoa(countFOD));
-		JsonColInfoItem *c = createJsonColInfoItem (NULL, NULL, nestedpath->data, NULL, NULL, op->columns, forOrdinality->data);
-		op->columns = singleton(c);
-
-		//expr
-		StringInfo expr1 = makeStringInfo ();
-		appendStringInfoString(expr1, "$");
-		int cnt = 1;
-		int lenpath = LIST_LENGTH(cpath);
-		FOREACH(JsonPath, j, cpath)
-		{
-			if(streq(j->path, "*") && cnt == lenpath)
-				appendStringInfoString(expr1, "[");
-			else if(streq(j->path, "*"))
-				appendStringInfoString(expr1, "[*]");
-			else
-			{
-				appendStringInfoString(expr1, ".");
-				appendStringInfoString(expr1, j->path);
-			}
-
-			cnt ++;
-		}
-
-		StringInfo renameFOD = makeStringInfo ();
-		char *prefixRFOD = "prov_path_";
-		appendStringInfoString(renameFOD, prefixRFOD);
-		appendStringInfoString(renameFOD, itoa(countFOD));
-		AttributeDef *projAttr = createAttributeDef(renameFOD->data, DT_STRING);
-		AttributeDef *forOrdAttr = createAttributeDef(forOrdinality->data, DT_STRING);
-		AttributeReference *forOrdRef = createAttributeReference(forOrdinality->data);
-		forOrdRef->fromClauseItem = 0;
-		forOrdRef->attrType = DT_STRING;
-		forOrdRef->attrPosition = count;
-		count++;
-
-		Constant *c1 = createConstString(expr1->data);
-		StringInfo nameEl = makeStringInfo ();
-		appendStringInfoString(nameEl, "].");
-		appendStringInfoString(nameEl, pathEl->data);
-		Constant *c2 = createConstString(nameEl->data);
-		DEBUG_LOG("Const c1: %s", nodeToString(c1));
-		DEBUG_LOG("Const c2: %s", nodeToString(c2));
-
-		List *exprList1 = NIL;
-		exprList1 = appendToTailOfList(exprList1, forOrdRef);
-		exprList1 = appendToTailOfList(exprList1, c2);
-		Operator *o1 = createOpExpr("||", exprList1);
-
-		List *exprList2 = NIL;
-		exprList2 = appendToTailOfList(exprList2, c1);
-		exprList2 = appendToTailOfList(exprList2, o1);
-		Operator *o2 = createOpExpr("||", exprList2);
-
-		addProvenanceAttrsToSchemabasedOnList((QueryOperator *) proj, singleton(projAttr));
-		proj->projExprs = appendToTailOfList(proj->projExprs, o2);
-		op->op.schema->attrDefs = appendToTailOfList(op->op.schema->attrDefs, forOrdAttr);
-		countFOD ++;
-	}*/
-
-	//begin to split path
-	List *path = (List *) parseFromStringjp(strdup(op->documentcontext));
+	List *path = NIL;
+	if(!streq(op->documentcontext, "$"))
+	    path = (List *) parseFromStringjp(strdup(op->documentcontext));
 	DEBUG_LOG("path element: %s", nodeToString(path));
 
 	//introduce new nest
@@ -1429,7 +1233,9 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
 	}
 
 	//for ordinality
-	List *newPath = (List *) parseFromStringjp(strdup(op->documentcontext));
+	List *newPath = NIL;
+	if(!streq(op->documentcontext, "$"))
+		newPath = (List *) parseFromStringjp(strdup(op->documentcontext));
 	DEBUG_LOG("new path element: %s", nodeToString(newPath));
 	List *cnewPath = copyObject(newPath);
     int countFOD = 0;
@@ -1467,17 +1273,20 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
 
 		if(LIST_LENGTH(op->columns) == 1)
 		{
-			appendStringInfoString(nameEl, ".");
 			char *colPath = ((JsonColInfoItem *) getHeadOfListP(op->columns))->path;
-			List *path1 = (List *) parseFromStringjp(strdup(colPath));
-			DEBUG_LOG("new path element: %s", nodeToString(path1));
-
-			FOREACH(JsonPath, j, path1)
+			if(!streq(colPath, "$"))
 			{
-				if(streq(j->path, "*"))
-					appendStringInfoString(nameEl, "[*]");
-				else
-					appendStringInfoString(nameEl, j->path);
+				appendStringInfoString(nameEl, ".");
+				List *path1 = (List *) parseFromStringjp(strdup(colPath));
+				DEBUG_LOG("new path element: %s", nodeToString(path1));
+
+				FOREACH(JsonPath, j, path1)
+				{
+					if(streq(j->path, "*"))
+						appendStringInfoString(nameEl, "[*]");
+					else
+						appendStringInfoString(nameEl, j->path);
+				}
 			}
 		}
 		Constant *c2 = createConstString(nameEl->data);
@@ -1499,13 +1308,10 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
 		op->op.schema->attrDefs = appendToTailOfList(op->op.schema->attrDefs, forOrdAttr);
 
 	}
-    DEBUG_LOG("3333333node: %s", nodeToString(op->columns));
-	FOREACH(JsonColInfoItem, attr, op->columns)
-	{
-	    addForOrdinality(&op, &attr,&countFOD, &count, &proj);
-		DEBUG_LOG("4444444: %s", attr->forOrdinality);
 
-	}
+	FOREACH(JsonColInfoItem, attr, op->columns)
+	    addForOrdinality(&op, &attr,&countFOD, &count, &proj);
+
 	switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
 	addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 

@@ -1156,7 +1156,7 @@ outNode(StringInfo str, void *obj)
             	outJsonPath(str, (JsonPath *) obj);
             	break;
             default :
-                FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
+            	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
                 break;
         }
