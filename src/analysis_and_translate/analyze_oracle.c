@@ -23,9 +23,8 @@
 #include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "metadata_lookup/metadata_lookup.h"
-#include "metadata_lookup/metadata_lookup_oracle.h"
-#include "parser/parser_oracle.h"
 #include "provenance_rewriter/prov_schema.h"
+#include "parser/parser.h"
 
 static void analyzeStmtList (List *l, List *parentFroms);
 static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
@@ -59,6 +58,9 @@ static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms);
 // analyze function calls and nested subqueries
 static void analyzeFunctionCall(QueryBlock *qb);
 static void analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms);
+
+// analyze FromJsonTable Item
+static void analyzeFromJsonTable(FromJsonTable *f, List **state);
 
 // real attribute name fetching
 static List *expandStarExpression (SelectItem *s, List *fromClause);
@@ -185,32 +187,27 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
         switch(f->type)
         {
             case T_FromTableRef:
-            	//char *tableName = ((FromTableRef *)f)->tableId;
-// *((FromTableRef *)f)->tableId;
+            {
+                FromTableRef *tr = (FromTableRef *)f;
             	//check if it is a table or a view
-            	if (catalogTableExists(((FromTableRef *)f)->tableId)){
-            		analyzeFromTableRef((FromTableRef *) f);
-            	}else if (catalogViewExists(((FromTableRef *)f)->tableId)){
-            		//get view definition -- we get a String
-            		char * view = oracleGetViewDefinition(((FromTableRef *)f)->tableId);
-            		DEBUG_LOG("view: %s", view);
-            		strcat((char *) view,";");
-            		//call parser -- convert string to query block model
-            		Node * n1 = parseFromStringOracle((char *) view);
-            		FromItem * f1 = createFromSubquery(f->name,f->attrNames,(Node *) n1);
-            	    //replace the FromTableRef for the view with the newly created FromSubquery node.
-            	    //Here I have to tell you a bit how lists work in our system. A lists is a linked list of pointers to ListCell structs.
-            	    //Each list cell has a pointer to the next cell in the list and a union data that stores the actual element.
-            	    //The FOREACH macro uses a loop variable X_his_cell. You can access it by using the DUMMY_LC(loop_variable) macro.
-            	    //For instance, in your example f is the loop variable,
-            	    //so you can use DUMMY_LC(f) and use it to replace the data pointing to the FromTableRef with the new FromSubquery
+            	if (!catalogTableExists(tr->tableId) && catalogViewExists(tr->tableId))
+            	{
+            	    char * view = getViewDefinition(((FromTableRef *)f)->tableId);
+            	    char *newName = f->name ? f->name : tr->tableId; // if no alias then use view name
+            	    DEBUG_LOG("view: %s", view);
+            	    StringInfo s = makeStringInfo();
+            	    appendStringInfoString(s,view);
+            	    appendStringInfoString(s,";");
+            	    view = s->data;
+            	    Node * n1 = getHeadOfListP((List *) parseFromString((char *) view));
+            	    FromItem * f1 = createFromSubquery(newName,NIL,(Node *) n1);
+
             	    DUMMY_LC(f)->data.ptr_value = f1;
             	}
-            	break;
-
+            }
+            break;
             default:
             	break;
-
         }
     }
 
@@ -228,6 +225,9 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             case T_FromJoinExpr:
                 analyzeJoin((FromJoinExpr *) f, parentFroms);
                 break;
+            case T_FromJsonTable:
+	        analyzeFromJsonTable((FromJsonTable *)f, &attrRefs);
+	        break;
             default:
             	break;
         }
@@ -845,6 +845,80 @@ analyzeFromTableRef(FromTableRef *f)
 }
 
 static void
+recursiveAppendAttrNames(JsonColInfoItem *attr, List **attrNames, List **attrTypes)
+{
+	if (attr->nested)
+	{
+		FOREACH(JsonColInfoItem, attr1, attr->nested)
+        		{
+			if(attr1->nested)
+				recursiveAppendAttrNames(attr1, attrNames, attrTypes);
+			else
+			{
+				*attrNames = appendToTailOfList(*attrNames, attr1->attrName);
+				*attrTypes = appendToTailOfListInt(*attrTypes, 5);
+			}
+        		}
+	}
+	else
+	{
+		*attrNames = appendToTailOfList(*attrNames, attr->attrName);
+		*attrTypes = appendToTailOfListInt(*attrTypes, 5);
+	}
+}
+
+static void
+analyzeFromJsonTable(FromJsonTable *f, List **state)
+{
+	// Populate the attrnames, datatypes from columnlist
+	List *attrNames = NIL;
+	List *attrTypes = NIL;
+
+	FOREACH(JsonColInfoItem, attr1, f->columns)
+	{
+		recursiveAppendAttrNames(attr1, &attrNames, &attrTypes);
+
+		//TODO Add if streq for other datatypes as well
+		/*
+        switch (attr->attrType)
+        {
+        case DT_INT:
+        	attrTypes = appendToTailOfListInt(attrTypes, 0);
+        	break;
+        case DT_LONG:
+        	attrTypes = appendToTailOfListInt(attrTypes, 1);
+        	break;
+        case DT_STRING:
+        	attrTypes = appendToTailOfListInt(attrTypes, 2);
+        	break;
+        case DT_FLOAT:
+        	attrTypes = appendToTailOfListInt(attrTypes, 3);
+        	break;
+        case DT_BOOL:
+        	attrTypes = appendToTailOfListInt(attrTypes, 4);
+        	break;
+        case DT_VARCHAR2:
+        	attrTypes = appendToTailOfListInt(attrTypes, 5);
+        	break;
+        }
+		 */
+	}
+
+	if (f->from.attrNames == NIL)
+		f->from.attrNames = attrNames;
+
+	if (f->from.dataTypes == NIL)
+		f->from.dataTypes = attrTypes;
+
+	if(f->from.name == NULL)
+		f->from.name = f->jsonTableIdentifier;
+
+	//TODO JsonColumn can refer to column of JsonTable
+	// Append jsonColumn to attributeRef list
+	*state = appendToTailOfList(*state, f->jsonColumn);
+}
+
+static void
 analyzeInsert(Insert * f)
 {
     List *attrNames = getAttributeNames(f->tableName);
@@ -1117,6 +1191,7 @@ getQBAttrDTs (Node *qb)
         }
         break;
         default:
+            FATAL_LOG("unexpected node type as FROM clause item: %s", beatify(nodeToString(qb)));
             break;
     }
 
@@ -1304,6 +1379,9 @@ getFromTreeLeafs (List *from)
             case T_FromTableRef:
                 result = appendToTailOfList(result, f);
                 break;
+            case T_FromJsonTable:
+	        result = appendToTailOfList(result, f);
+	        break;
             default:
                 FATAL_LOG("expected a FROM clause item not: %s",
                         NodeTagToString(f->type));

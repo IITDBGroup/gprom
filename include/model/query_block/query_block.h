@@ -131,6 +131,7 @@ typedef struct JsonColInfoItem
     char *format;
     char *wrapper;
     List *nested;
+    char *forOrdinality;
 } JsonColInfoItem;
 
 typedef struct FromJsonTable
@@ -140,7 +141,14 @@ typedef struct FromJsonTable
     char *documentcontext;
     AttributeReference *jsonColumn;
     char *jsonTableIdentifier;
+    char *forOrdinality;
 } FromJsonTable;
+
+typedef struct JsonPath
+{
+    NodeTag type;
+    char *path;
+} JsonPath;
 
 NEW_ENUM_WITH_TO_STRING(JoinType,
     JOIN_INNER,
@@ -262,8 +270,9 @@ extern FromItem *createFromSubquery(char *alias, List *attrNames, Node *query);
 extern FromItem *createFromJoin(char *alias, List *attrNames, FromItem *left,
         FromItem *right, char *joinType, char *condType,
         Node *cond);
-extern FromItem *createFromJsonTable(AttributeReference *jsonColumn, char *documentcontext, List *columns, char *jsonTableIdentifier);
-extern JsonColInfoItem *createJsonColInfoItem (char *attrName, char *attrType, char *path, char *format, char *wrapper, List *nested);
+extern FromItem *createFromJsonTable(AttributeReference *jsonColumn, char *documentcontext, List *columns, char *jsonTableIdentifier, char *forOrdinality);
+extern JsonColInfoItem *createJsonColInfoItem (char *attrName, char *attrType, char *path, char *format, char *wrapper, List *nested, char *forOrdinality);
+extern JsonPath *createJsonPath(char *path);
 extern JoinConditionType joinConditionTypeFromString (char *condType);
 extern JoinType joinTypeFromString (char *joinType);
 extern DistinctClause *createDistinctClause (List *distinctExprs);

@@ -100,7 +100,7 @@ extern void oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
 extern long oracleGetCommitScn (char *tableName, long maxScn, char *xid);
 
 extern Node *oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
-extern List *oracleGenExecQuery (char *query);
+extern Relation *oracleGenExecQuery (char *query);
 
 /* specific methods */
 #if HAVE_ORACLE_BACKEND

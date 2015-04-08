@@ -17,7 +17,7 @@
 #include "log/logger.h"
 #include "configuration/option.h"
 #include "configuration/option_parser.h"
-
+#include "exception/exception.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -42,6 +42,8 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
 {
     initMemManager();
     mallocOptions();
+    initLogger();
+
     if(parseOption(argc, argv) != 0)
     {
         printOptionParseError(stdout);
@@ -55,6 +57,20 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
         return EXIT_FAILURE;
     }
 
+    // set log level from options
+    setMaxLevel(getIntOption("log.level"));
+
+    if (opt_memmeasure)
+        setupMemInstrumentation();
+
+    return EXIT_SUCCESS;
+}
+
+int
+initBasicModules (void)
+{
+    initMemManager();
+    mallocOptions();
     initLogger();
     if (opt_memmeasure)
         setupMemInstrumentation();
@@ -149,15 +165,29 @@ char *
 rewriteQuery(char *input)
 {
     Node *parse;
-    char *result;
+    char *result = "";
 
-    parse = parseFromString(input);
-    DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+    NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
 
-    result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
-    INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
+    TRY
+    {
+        parse = parseFromString(input);
 
-    return result;
+        DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+
+        result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
+        INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
+        RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+    }
+    ON_EXCEPTION
+    {
+        // if an exception is thrown then the query memory context has been
+        // destroyed and we can directly create an empty string in the callers
+        // context
+        DEBUG_LOG("allocated in memory context: %s", getCurMemContext()->contextName);
+    }
+    END_ON_EXCEPTION
+    return strdup("");
 }
 
 char *

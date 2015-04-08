@@ -688,6 +688,51 @@ serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs)
 }
 
 static void
+ConstructNestedJsonColItems (JsonColInfoItem *col,StringInfo *from,int *nestedcount)
+{
+	if(col->forOrdinality)
+	{
+		appendStringInfoString(*from, col->forOrdinality);
+		DEBUG_LOG("1111111111111111: %s", col->forOrdinality);
+		appendStringInfoString(*from, " FOR ORDINALITY,");
+	}
+
+	FOREACH(JsonColInfoItem, col1, col->nested)
+	{
+		if (col1->nested)
+		{
+			(*nestedcount) ++;
+
+			appendStringInfoString(*from, " NESTED PATH");
+			appendStringInfo(*from, " '%s'", col1->path);
+			appendStringInfoString(*from, " COLUMNS");
+			appendStringInfoString(*from, "(");
+
+			ConstructNestedJsonColItems(col1, from, nestedcount);
+		}
+		else
+		{
+			appendStringInfo(*from, "%s", col1->attrName);
+			appendStringInfo(*from, " %s", col1->attrType);
+
+			if (col1->format)
+			{
+				appendStringInfoString(*from, " FORMAT");
+				appendStringInfo(*from, " %s", col1->format);
+			}
+			if (col1->wrapper)
+			{
+				appendStringInfo(*from, " %s", col1->wrapper);
+				appendStringInfo(*from, " WRAPPER");
+			}
+			appendStringInfoString(*from, " PATH");
+			appendStringInfo(*from, " '%s'", col1->path);
+			appendStringInfoString(*from, ",");
+		}
+	}
+}
+
+static void
 serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
         int *attrOffset, List **fromAttrs)
 {
@@ -741,156 +786,148 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             // JSON TABLE OPERATOR
             case T_JsonTableOperator:
             {
-                JsonTableOperator *jt = (JsonTableOperator *) q;
+            	JsonTableOperator *jt = (JsonTableOperator *) q;
 
-	        QueryOperator *child = OP_LCHILD(jt);
-                // Serialize left child
-	        serializeFromItem(child, from, curFromItem, attrOffset, fromAttrs);
+            	QueryOperator *child = OP_LCHILD(jt);
+            	// Serialize left child
+            	serializeFromItem(child, from, curFromItem, attrOffset, fromAttrs);
 
-                // TODO  Get the attributes of JSON TABLE operator
-	        List *jsonAttrNames = getAttrNames(((QueryOperator *) jt)->schema);
+            	// TODO  Get the attributes of JSON TABLE operator
+            	List *jsonAttrNames = getAttrNames(((QueryOperator *) jt)->schema);
 
-                // Get attributes of child
-	        List *childAttrNames = getAttrNames(((QueryOperator *) child)->schema);
+            	// Get attributes of child
+            	List *childAttrNames = getAttrNames(((QueryOperator *) child)->schema);
 
-                // Remove childAttrNames from jsonAttrNames for
-                // updateAttributeNames to work correctly and identify the
-                // correct fromclause item
-	        List *attrNames = NIL;
-	        boolean flag = FALSE;
+            	// Remove childAttrNames from jsonAttrNames for
+            	// updateAttributeNames to work correctly and identify the
+            	// correct fromclause item
+            	List *attrNames = NIL;
+            	boolean flag = FALSE;
 
-	        FOREACH(char, jsonAttr, jsonAttrNames)
-	        {
-                    flag = FALSE;
-                    FOREACH(char, childAttr, childAttrNames)
-                    {
-                        if(streq(childAttr, jsonAttr))
-			{
-                            flag = TRUE;
-                            break;
-                        }
-                    }
-                    if(flag == FALSE)
-                    {
-                        attrNames = appendToTailOfList(attrNames, jsonAttr);
-                    }
-                }
+            	FOREACH(char, jsonAttr, jsonAttrNames)
+            	{
+            		flag = FALSE;
+            		FOREACH(char, childAttr, childAttrNames)
+            		{
+            			if(streq(childAttr, jsonAttr))
+            			{
+            				flag = TRUE;
+            				break;
+            			}
+            		}
+            		if(flag == FALSE)
+            		{
+            			attrNames = appendToTailOfList(attrNames, jsonAttr);
+            		}
+            	}
 
-                // Add it to list of fromAttrs
-	        *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+            	// Add it to list of fromAttrs
+            	*fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
 
-                appendStringInfoString(from, ",");
-                appendStringInfo(from, " JSON_TABLE");
-                appendStringInfoString(from, "(");
+            	appendStringInfoString(from, ",");
+            	appendStringInfo(from, " JSON_TABLE");
+            	appendStringInfoString(from, "(");
 
-                // Call updateAtrrNames on jsonColumn and then serialize
-                updateAttributeNames((Node*)jt->jsonColumn, *fromAttrs);
+            	// Call updateAtrrNames on jsonColumn and then serialize
+            	updateAttributeNames((Node*)jt->jsonColumn, *fromAttrs);
 
-                appendStringInfo(from, exprToSQL((Node*)jt->jsonColumn));
-                appendStringInfoString(from, ",");
-                appendStringInfo(from, " '%s'", jt->documentcontext);
-                appendStringInfoString(from, " COLUMNS");
-                appendStringInfoString(from, "(");
+            	appendStringInfo(from, exprToSQL((Node*)jt->jsonColumn));
+            	appendStringInfoString(from, ",");
+            	appendStringInfo(from, " '%s'", jt->documentcontext);
+            	appendStringInfoString(from, " COLUMNS");
+            	appendStringInfoString(from, "(");
 
-                int nestedcount = 0;
-                FOREACH(JsonColInfoItem, col, jt->columns)
-                {
-                    if (col->nested)
-                    {
-                        if (nestedcount++ > 0)
-                            appendStringInfoString(from, ",");
+    			if(jt->forOrdinality)
+    			{
+    				appendStringInfoString(from, jt->forOrdinality);
+    				appendStringInfoString(from, " FOR ORDINALITY, ");
+    			}
 
-                        appendStringInfoString(from, " NESTED PATH");
-                        appendStringInfo(from, " '%s'", col->path);
-                        appendStringInfoString(from, " COLUMNS");
-                        appendStringInfoString(from, "(");
+            	int nestedcount = 0;
+            	FOREACH(JsonColInfoItem, col, jt->columns)
+            	{
+            		if (col->nested)
+            		{
+//            			if(col->forOrdinality)
+//            			{
+//            				appendStringInfoString(from, col->forOrdinality);
+//            				appendStringInfoString(from, " FOR ORDINALITY, ");
+//            			}
 
-                        FOREACH(JsonColInfoItem, col1, col->nested)
-                        {
-                            appendStringInfo(from, "%s", col1->attrName);
-                            appendStringInfo(from, " %s", col1->attrType);
+            			if (nestedcount++ > 0)
+            				appendStringInfoString(from, ",");
 
-                            if (col->format)
-                            {
-                                appendStringInfoString(from, " FORMAT");
-                                appendStringInfo(from, " %s", col->format);
-                            }
-                            if (col->wrapper)
-                            {
-                                appendStringInfo(from, " %s", col->wrapper);
-                                appendStringInfo(from, " WRAPPER");
-                            }
-                            appendStringInfoString(from, " PATH");
-                            appendStringInfo(from, " '%s'", col1->path);
-                            appendStringInfoString(from, ",");
-                        }
-                        // Remove the last unnecessary comma
+            			appendStringInfoString(from, " NESTED PATH");
+            			appendStringInfo(from, " '%s'", col->path);
+            			appendStringInfoString(from, " COLUMNS");
+            			appendStringInfoString(from, "(");
 
-                        from->data[from->len - 1] = ' ';
-                        appendStringInfoString(from, ")");
-                    }
-                    else
-                    {
-                        appendStringInfo(from, "%s", col->attrName);
-                        appendStringInfo(from, " %s", col->attrType);
+            			ConstructNestedJsonColItems (col,&from,&nestedcount);
 
-                        if (col->format)
-                        {
-                            appendStringInfoString(from, " FORMAT");
-                            appendStringInfo(from, " %s", col->format);
-                        }
-                        if (col->wrapper)
-                        {
-                            appendStringInfo(from, " %s", col->wrapper);
-                            appendStringInfo(from, " WRAPPER");
-                        }
-                        appendStringInfoString(from, " PATH");
-                        appendStringInfo(from, " '%s'", col->path);
-                        appendStringInfoString(from, ",");
-                    }
-                }
+            		}
+            		else
+            		{
+            			appendStringInfo(from, "%s", col->attrName);
+            			appendStringInfo(from, " %s", col->attrType);
 
-                // Remove the last unnecessary comma
-                from->data[from->len - 1] = ' ';
-                appendStringInfoString(from, ")");
-                appendStringInfoString(from, ")");
-                if (nestedcount >= 1)
-                    appendStringInfoString(from, ")");
-                appendStringInfoString(from, " AS ");
-                appendStringInfo(from, "F%u", (*curFromItem)++);
+            			if (col->format)
+            			{
+            				appendStringInfoString(from, " FORMAT");
+            				appendStringInfo(from, " %s", col->format);
+            			}
+            			if (col->wrapper)
+            			{
+            				appendStringInfo(from, " %s", col->wrapper);
+            				appendStringInfo(from, " WRAPPER");
+            			}
+            			appendStringInfoString(from, " PATH");
+            			appendStringInfo(from, " '%s'", col->path);
+            			appendStringInfoString(from, ",");
+            		}
+            	}
+
+            	// Remove the last unnecessary comma
+            	from->data[from->len - 1] = ' ';
+            	appendStringInfoString(from, ")");
+            	appendStringInfoString(from, ")");
+
+            	for(int i=0; i<nestedcount; i++)
+            		appendStringInfoString(from, ")");
+            	appendStringInfoString(from, " AS ");
+            	appendStringInfo(from, "F%u", (*curFromItem)++);
             }
             break;
             // Table Access
             case T_TableAccessOperator:
             {
-                TableAccessOperator *t = (TableAccessOperator *) q;
-                char *asOf = NULL;
-//                ProvenanceComputation *op;
-//                Constant *xid = getTranactionSQLAndSCNs(xid);
-                // use history join to prefilter updated rows
-                if (HAS_STRING_PROP(t, PROP_USE_HISTORY_JOIN))
-                {
-                    List *scnsAndXid = (List *) GET_STRING_PROP(t, PROP_USE_HISTORY_JOIN);
-                    Constant *startScn, *commitScn, *commitMinusOne;
-                    Constant *xid;
-                    StringInfo attrNameStr = makeStringInfo();
-                    List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
-                    int i = 0;
+            	TableAccessOperator *t = (TableAccessOperator *) q;
+            	char *asOf = NULL;
+            	//                ProvenanceComputation *op;
+            	//                Constant *xid = getTranactionSQLAndSCNs(xid);
+            	// use history join to prefilter updated rows
+            	if (HAS_STRING_PROP(t, PROP_USE_HISTORY_JOIN))
+            	{
+            		List *scnsAndXid = (List *) GET_STRING_PROP(t, PROP_USE_HISTORY_JOIN);
+            		Constant *startScn, *commitScn, *commitMinusOne;
+            		Constant *xid;
+            		StringInfo attrNameStr = makeStringInfo();
+            		List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
+            		int i = 0;
 
-                    xid = (Constant *) getNthOfListP(scnsAndXid,0);
-                    startScn = (Constant *) getNthOfListP(scnsAndXid,1);
-                    commitScn = (Constant *) getNthOfListP(scnsAndXid,2);
-                    commitMinusOne = createConstLong(LONG_VALUE(commitScn) - 1);
+            		xid = (Constant *) getNthOfListP(scnsAndXid,0);
+            		startScn = (Constant *) getNthOfListP(scnsAndXid,1);
+            		commitScn = (Constant *) getNthOfListP(scnsAndXid,2);
+            		commitMinusOne = createConstLong(LONG_VALUE(commitScn) - 1);
 
-                    FOREACH(char,a,attrNames)
-                    {
-                        appendStringInfo(attrNameStr, "%s%s",
-                                (i++ == 0) ? "" : ", ",
-                                a);
-                        // append to string info
-                        // appendStringInfo(from, "%s %s %s %s", a, attrNames);
+            		FOREACH(char,a,attrNames)
+            		{
+            			appendStringInfo(attrNameStr, "%s%s",
+            					(i++ == 0) ? "" : ", ",
+            							a);
+            			// append to string info
+            			// appendStringInfo(from, "%s %s %s %s", a, attrNames);
 
-                    }
+            		}
 
                     // read committed?
                     if (HAS_STRING_PROP(t, PROP_IS_READ_COMMITTED))

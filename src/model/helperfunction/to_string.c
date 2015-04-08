@@ -93,6 +93,7 @@ static void outOrderOperator(StringInfo str, OrderOperator *node);
 static void outFromJsonTable(StringInfo str, FromJsonTable *node);
 static void outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node);
 static void outJsonTableOperator(StringInfo str, JsonTableOperator *node);
+static void outJsonPath(StringInfo str, JsonPath *node);
 
 // datalog model
 static void outDLAtom(StringInfo str, DLAtom *node);
@@ -410,6 +411,7 @@ outFromJsonTable(StringInfo str, FromJsonTable *node)
     WRITE_STRING_FIELD(documentcontext);
     WRITE_NODE_FIELD(jsonColumn);
     WRITE_STRING_FIELD(jsonTableIdentifier);
+    WRITE_STRING_FIELD(forOrdinality);
 }
 
 static void
@@ -424,6 +426,7 @@ outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node)
     WRITE_STRING_FIELD(format);
     WRITE_STRING_FIELD(wrapper);
     WRITE_NODE_FIELD(nested);
+    WRITE_STRING_FIELD(forOrdinality);
 }
 
 static void
@@ -943,6 +946,15 @@ outJsonTableOperator(StringInfo str, JsonTableOperator *node)
     WRITE_STRING_FIELD(documentcontext);
     WRITE_NODE_FIELD(jsonColumn);
     WRITE_STRING_FIELD(jsonTableIdentifier);
+    WRITE_STRING_FIELD(forOrdinality);
+}
+
+static void
+outJsonPath(StringInfo str, JsonPath *node)
+{
+	 WRITE_NODE_TYPE(JSONPATH);
+
+	 WRITE_STRING_FIELD(path);
 }
 
 void
@@ -1140,8 +1152,11 @@ outNode(StringInfo str, void *obj)
             case T_JsonTableOperator:
                 outJsonTableOperator(str, (JsonTableOperator *) obj);
                 break;
+            case T_JsonPath:
+            	outJsonPath(str, (JsonPath *) obj);
+            	break;
             default :
-                FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
+            	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
                 break;
         }

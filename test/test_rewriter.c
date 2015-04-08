@@ -39,16 +39,28 @@ main (int argc, char* argv[])
     START_TIMER("TOTAL");
 
     // read from terminal
-    if (getStringOption("input.sql") == NULL)
+    if (getStringOption("input.sql") != NULL)
     {
-        result = rewriteQueryFromStream(stdin);
+        result = rewriteQuery(getStringOption("input.sql"));
+        ERROR_LOG("REWRITE RESULT FROM STRING IS:\n%s", result);
+    }
+    else if (getStringOption("input.sqlFile") != NULL)
+    {
+        char *fName = getStringOption("input.sqlFile");
+        FILE *file = fopen(fName, "r");
+
+        if (file == NULL)
+            FATAL_LOG("could not open file %s with error %s", fName, strerror(errno));
+
+        result = rewriteQueryFromStream(file);
+        fclose(file);
         ERROR_LOG("REWRITE RESULT FROM STREAM IS <%s>", result);
     }
     // parse input string
     else
     {
-        result = rewriteQuery(getStringOption("input.sql"));
-        ERROR_LOG("REWRITE RESULT FROM STRING IS:\n%s", result);
+        result = rewriteQueryFromStream(stdin);
+        ERROR_LOG("REWRITE RESULT FROM STREAM IS <%s>", result);
     }
 
     // call executor

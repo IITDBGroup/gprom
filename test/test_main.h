@@ -140,6 +140,7 @@ extern rc testEqual(void);
 extern rc testToString(void);
 extern rc testLogger(void);
 extern rc testMemManager(void);
+extern rc testException(void);
 extern rc testParse(void);
 extern rc testMetadataLookup(void);
 extern rc testMetadataLookupPostgres(void);
@@ -148,5 +149,6 @@ extern rc testStringUtils(void);
 extern rc testParameter(void);
 extern rc testDatalogModel(void);
 extern rc testHash(void);
+extern rc testLibGProM(void);
 
 #endif

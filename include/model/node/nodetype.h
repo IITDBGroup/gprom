@@ -84,7 +84,11 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     /* Json Table Node */
     T_FromJsonTable,
     T_JsonTableOperator,
-    T_JsonColInfoItem
+    T_JsonColInfoItem,
+    T_JsonPath,
+			
+    /* relation */
+    T_Relation
 );
 
 typedef struct Node{

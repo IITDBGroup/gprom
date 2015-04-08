@@ -1,0 +1,108 @@
+<project name="GProMJDBC" default="generateDriverJar" basedir=".">
+
+	<!-- task defs -->
+	<property name="antlibdir" value="${basedir}/ant" />
+	<import file="${antlibdir}/one-jar-ant-task.xml"/>   
+	
+	<!-- main directories -->
+	<property name="sourcedir" value="${basedir}/src/interfaces/jdbc/java" />
+	<property name="testsourcedir" value="${basedir}/javatest" />
+	<property name="binarydir" value="${basedir}/javabin" />
+	<property name="builddir" value="${basedir}/jdbcbuild" />
+	<property name="librarydir" value="${basedir}/javalib" />
+	<property name="gpromJar.simple" value="${builddir}/gpromjdbc.jar" />
+	<property name="gpromJar.selfContained" value="${builddir}/gpromjdbc-all.jar" />
+
+	<!-- special files -->
+	<property name="conffile" value="${librarydir}/GProMDriver.properties" />
+	<property name="log4jconffile" value="${librarydir}/log4j.properties" />
+	
+	<!-- GProM c-library -->
+	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.0.dylib" />
+	<property name="gpromlib.darwin" value="${builddir}/libgrom.jnilib" />	
+	
+	<!-- classpath -->
+	<path id="classpath">
+		<fileset dir="${librarydir}"/>
+	</path>
+	
+	
+	<!-- targets -->
+	<target name="clean">
+		<mkdir dir="${binarydir}" />
+		<mkdir dir="${binarydir}/darwin" />
+		<mkdir dir="${builddir}" />
+		<depend srcdir="${sourcedir}"
+		        destdir="${binarydir}"
+		        cache="depcache"
+		        closure="yes"/>
+	</target>
+	
+	<target name="distClean">
+		<delete dir="${binarydir}" includeemptydirs="true" />
+		<delete dir="${builddir}" includeemptydirs="true" />
+	</target>
+
+	<target name="compile" depends="clean">
+		<copy file="${gpromlib.darwin.src}" tofile="${gpromlib.darwin}" overwrite="true" />
+		<copy todir="${builddir}/lib">
+			<fileset dir="${librarydir}" />
+		</copy>
+		<copy file="${gpromlib.darwin}" tofile="${binarydir}/darwin/libgprom.dylib" />
+		<copy file="${conffile}" tofile="${binarydir}/GPRoMDriver.properties" />
+		<javac srcdir="${sourcedir}" destdir="${binarydir}"  debug="on">
+			<classpath refid="classpath"/>
+			<compilerarg value="-Xlint:unchecked" />		
+		</javac>
+	</target>
+	
+	<!-- generate a simple jar file for the jdbc driver that does not include referrenced jars and the GProM C-library -->
+	<target name="generateDriverJar" depends="compile">
+		<mkdir dir="${builddir}" />
+		<jar destfile="${gpromJar.simple}" basedir="${binarydir}">
+		 	<manifest>
+				<attribute name="Created-By" value="Illinois Institute of Technology, Department for Computer Science, DBGroup" />
+				<attribute name="Class-Path" value="
+								lib/hsqldb.jar
+								lib/postgresql-8.1-404.jdbc3.jar
+								lib/log4j-1.2.15.jar
+								lib/servlet.jar
+								lib/
+							" />
+			</manifest>
+		</jar>
+	</target>
+	
+	<!-- generate one combine "fat" jar file that contains all java libraries and native libaries (the GProM application) --> 
+	<target name="generateCombinedJar" depends="compile">
+        <delete file="${gpromJar.selfContained}"/>
+        <one-jar destfile="${gpromJar.selfContained}">
+            <manifest>
+				<attribute name="Created-By" value="Illinois Institute of Technology, Department for Computer Science, DBGroup" />
+            	<!-- <attribute name="One-Jar-Expand" value=""/>
+                <attribute name="One-Jar-Expand-Dir" value="./.expand"/>
+                <attribute name="One-Jar-Show-Expand" value="true"/> -->
+            	<attribute name="One-Jar-Main-Class" value="org.gprom.jdbc.test.GProMJDBCTest" />
+            	<attribute name="Class-Path" value="
+            									lib/postgresql-8.1-404.jdbc3.jar
+            									lib/log4j-1.2.15.jar
+            									lib/jna-platform-4.1.0.jar
+            									lib/log4j-1.2.15.jar
+            									lib/
+            								" />
+            </manifest>
+            <main>
+                <fileset dir="${binarydir}/"/>
+            </main>
+            <lib>
+                <fileset file="${librarydir}/*.jar" />
+            </lib>
+        	<binlib>
+        		<fileset file="${gpromlib.darwin}" />
+        	</binlib>
+        	<!-- conf files -->
+        	<fileset file="${conffile}" />
+        	<fileset file="${log4jconffile}" />
+        </one-jar> 
+	</target>
+</project>

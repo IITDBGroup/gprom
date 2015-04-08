@@ -82,7 +82,7 @@ quotedIdentifier		{doublequote}[^\"]+{doublequote}
 identifiers				({identStart}{identContinue}*)
 identifierPart			({identifiers}|{quotedIdentifier})
 compositeIdentifier		({identifierPart}({identDelim}{identifierPart}))*
-parameters		[:]{identifiers}
+parameters		[:]({identifiers}|{integer})
 
 /* operators */
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
@@ -111,7 +111,6 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 (?i:WHERE)			TOK(WHERE)
 (?i:DISTINCT)		TOK(DISTINCT)
 (?i:ON)				TOK(ON)
-STARALL				TOK(STARALL)
 (?i:ALL)		 	TOK(ALL)
 (?i:AND)		 	TOK(AND)
 (?i:OR)             TOK(OR)
@@ -253,7 +252,7 @@ STARALL				TOK(STARALL)
 /* use logging framework in the future */
 void yyerror(char *s)
 {
-	ERROR_LOG("%s at %s\n", s, yytext);
+	FATAL_LOG("%s at %s\n", s, yytext);
 }
 
 void setupStringInput(char *input)

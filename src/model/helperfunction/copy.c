@@ -83,6 +83,7 @@ static Schema *copySchema(Schema *from, OperatorMap **opMap);
 static QueryOperator *copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap);
 static TableAccessOperator *copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap);
 static JsonTableOperator *copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap);
+static JsonPath *copyJsonPath(JsonPath *from, OperatorMap **opMap);
 static SelectionOperator *copySelectionOperator(SelectionOperator *from, OperatorMap **opMap);
 static ProjectionOperator *copyProjectionOperator(ProjectionOperator *from, OperatorMap **opMap);
 static JoinOperator *copyJoinOperator(JoinOperator *from, OperatorMap **opMap);
@@ -541,10 +542,19 @@ copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap)
     COPY_STRING_FIELD(documentcontext);
     COPY_NODE_FIELD(jsonColumn);
     COPY_STRING_FIELD(jsonTableIdentifier);
+    COPY_STRING_FIELD(forOrdinality);
 
     return new;
 }
 
+static JsonPath *
+copyJsonPath(JsonPath *from, OperatorMap **opMap)
+{
+	COPY_INIT(JsonPath);
+	COPY_STRING_FIELD(path);
+
+	return new;
+}
 
 static SelectionOperator *
 copySelectionOperator(SelectionOperator *from, OperatorMap **opMap)
@@ -679,6 +689,7 @@ copyJsonColInfoItem(JsonColInfoItem *from, OperatorMap **opMap)
     COPY_STRING_FIELD(format);
     COPY_STRING_FIELD(wrapper);
     COPY_NODE_FIELD(nested);
+    COPY_STRING_FIELD(forOrdinality);
 
     return new;
 }
@@ -1133,8 +1144,11 @@ copyInternal(void *from, OperatorMap **opMap)
             retval = copyDLComparison(from, opMap);
             break;
         case T_JsonTableOperator:
-	    retval = copyJsonTableOperator(from, opMap);
-            break;
+        	retval = copyJsonTableOperator(from, opMap);
+        	break;
+        case T_JsonPath:
+        	retval = copyJsonPath(from, opMap);
+        	break;
         default:
             retval = NULL;
             break;

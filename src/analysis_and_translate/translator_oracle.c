@@ -377,7 +377,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 STOP_TIMER("translation - transaction - analyze binds");
 
                 /* get table name */
-                char *tableName;
+                char *tableName = NULL;
 
                 switch (node->type) {
                     case T_Insert:
@@ -483,7 +483,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
         tInfo->updateTableNames = NIL;
 
         FOREACH(Node,n,(List *) prov->query) {
-            char *tableName;
+            char *tableName = NULL;
 
             /* get table name */
             switch (n->type) {

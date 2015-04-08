@@ -21,6 +21,7 @@
 #include "model/expression/expression.h"
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
+#include "model/relation/relation.h"
 #include "model/query_block/query_block.h"
 
 
@@ -28,7 +29,8 @@
 typedef enum MetadataLookupPluginType
 {
     METADATA_LOOKUP_PLUGIN_ORACLE,
-    METADATA_LOOKUP_PLUGIN_POSTGRES
+    METADATA_LOOKUP_PLUGIN_POSTGRES,
+    METADATA_LOOKUP_PLUGIN_EXTERNAL
 } MetadataLookupPluginType;
 
 /* catalog cache */
@@ -82,7 +84,7 @@ typedef struct MetadataLookupPlugin
 
     /* execution */
     Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
-    List * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
+    Relation * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
     int (*getCostEstimation)(char *query);
 
     /* cache for catalog information */
@@ -100,6 +102,7 @@ extern int initMetadataLookupPlugins (void);
 extern int shutdownMetadataLookupPlugins (void);
 extern void chooseMetadataLookupPluginFromString (char *plug);
 extern void chooseMetadataLookupPlugin (MetadataLookupPluginType plugin);
+extern void setMetadataLookupPlugin (MetadataLookupPlugin *p);
 
 /* generic methods */
 extern int initMetadataLookupPlugin (void);
@@ -124,7 +127,7 @@ extern List *getKeyInformation (char *tableName);
 
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
-extern List *executeQuery (char *sql);
+extern Relation *executeQuery (char *sql);
 extern long getCommitScn (char *tableName, long maxScn, char *xid);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern int getCostEstimation(char *query);
