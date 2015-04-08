@@ -167,7 +167,7 @@ extern void addAttrToSchema(QueryOperator *op, char *name, DataType dt);
 extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name);
 extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
 extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
-extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, Operator *a1);
+extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2);
 

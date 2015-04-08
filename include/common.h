@@ -86,6 +86,7 @@
 /* streq function */
 #if HAVE_STRCMP
 #define streq(_l,_r) (strcmp(_l,_r) == 0)
+#define strpeq(_l,_r) ((_l) == (_r)) || ((_l != NULL) && (_r != NULL) && (strcmp(_l,_r) == 0))
 #endif
 
 

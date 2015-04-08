@@ -120,35 +120,9 @@ optimizeOneGraph (QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
 
-    APPLY_AND_TIME_OPT("factor attributes in conditions", factorAttrsInExpressions, OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
-//    if(getBoolOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR))
-//    {
-//        START_TIMER("OptimizeModel - factor attributes in conditions");
-//        rewrittenTree = factorAttrsInExpressions((QueryOperator *) rewrittenTree);
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        DEBUG_LOG("factor out attribute references in conditions\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - factor attributes in conditions");
-//    }
-
-   /* if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
-    {
-		res = callback(2);
-		if (res == 1)
-			applyMerge(rewrittenTree);
-
-		res = callback(2);
-		if (res == 1)
-			applySelectionPushdown(rewrittenTree);
-    }
-    else
-    {
-	applyMerge(rewrittenTree);
-	applySelectionPushdown(rewrittenTree);
-    }*/
-
-//	applyMerge(rewrittenTree);
-//	applySelectionPushdown(rewrittenTree);
-
+    APPLY_AND_TIME_OPT("factor attributes in conditions",
+            factorAttrsInExpressions,
+            OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
     APPLY_AND_TIME_OPT("selection move around",
     		selectionMoveAround,
     		OPTIMIZATION_SELECTION_MOVE_AROUND);
@@ -167,88 +141,18 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("selection pushdown",
             pushDownSelectionOperatorOnProv,
             OPTIMIZATION_SELECTION_PUSHING);
-
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
-
-//    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-//    {
-//        START_TIMER("OptimizeModel - merge adjacent operator");
-//        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - merge adjacent operator");
-//    }
-//
-//    if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
-//    {
-//        START_TIMER("OptimizeModel - pushdown selections");
-//        rewrittenTree = pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - pushdown selections");
-//    }
-
-
-//    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-//    {
-//        START_TIMER("OptimizeModel - merge adjacent operator");
-//        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - merge adjacent operator");
-//    }
-
     APPLY_AND_TIME_OPT("pushdown selections through joins",
             pushDownSelectionThroughJoinsOperatorOnProv,
             OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS);
-//    if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS))
-//    {
-//        START_TIMER("OptimizeModel - pushdown selections through joins");
-//        rewrittenTree = pushDownSelectionThroughJoinsOperatorOnProv((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("selections pushed down through joins\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - pushdown selections through joins");
-//    }
-
     APPLY_AND_TIME_OPT("factor attributes in conditions",
             factorAttrsInExpressions,
             OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
-//    if(getBoolOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR))
-//    {
-//        START_TIMER("OptimizeModel - factor attributes in conditions");
-//        rewrittenTree = factorAttrsInExpressions((QueryOperator *) rewrittenTree);
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        DEBUG_LOG("factor out attribute references in conditions again\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - factor attributes in conditions");
-//    }
-
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
-//    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-//    {
-//        START_TIMER("OptimizeModel - merge adjacent operator");
-//        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - merge adjacent operator");
-//    }
-
-
-//    if(getBoolOption(OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ))
-//    {
-//        START_TIMER("OptimizeModel - set materialization hints");
-//        rewrittenTree = materializeProjectionSequences((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("add materialization hints for projection sequences\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - set materialization hints");
-//    }
-
-
-
-
     if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
     {
         computeKeyProp(rewrittenTree);
@@ -268,94 +172,21 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
             removeRedundantDuplicateOperatorBySet,
             OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
-
     APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by key",
                removeRedundantDuplicateOperatorByKey,
                OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
-//
-//    if(getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
-//    {
-//        START_TIMER("OptimizeModel - remove redundant duplicate operator");
-//        computeKeyProp(root);
-//        rewrittenTree = removeRedundantDuplicateOperator((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("remove redundant duplicate operator \n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - remove redundant duplicate operator");
-//    }
-
     APPLY_AND_TIME_OPT("remove redundant projection operators",
             removeRedundantProjections,
             OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS);
-//    if(getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS))
-//    {
-//      START_TIMER("OptimizeModel - remove redundant projections");
-//      rewrittenTree = removeRedundantProjections((QueryOperator *) rewrittenTree);
-//      DEBUG_LOG("remove redundant projections\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//      ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//      STOP_TIMER("OptimizeModel - remove redundant projections");
-//    }
-
-    /*
-    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-    {
-        START_TIMER("OptimizeModel - merge adjacent operator");
-        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-        STOP_TIMER("OptimizeModel - merge adjacent operator");
-    }
-*/
-/*    APPLY_AND_TIME_OPT("selection move around",
-            selectionMoveAround,
-            OPTIMIZATION_SELECTION_MOVE_AROUND);*/
-//    if(getBoolOption(OPTIMIZATION_SELECTION_MOVE_AROUND))
-//    {
-//        START_TIMER("OptimizeModel - selections move around");
-//        rewrittenTree = selectionMoveAround((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("selections move around\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - selections move around");
-//    }
-
     APPLY_AND_TIME_OPT("pull up provenance projections",
             pullingUpProvenanceProjections,
             OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ);
-
-//    if(getBoolOption(OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ))
-//    {
-//    	START_TIMER("OptimizeModel - pulling up provenance");
-//    	rewrittenTree = pullingUpProvenanceProjections((QueryOperator *) rewrittenTree);
-//    	DEBUG_LOG("pulling up provenance projections\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//    	ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//    	STOP_TIMER("OptimizeModel - pulling up provenance");
-//    }
-
-
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
-
     APPLY_AND_TIME_OPT("materialize projections that are unsafe to be merged",
             materializeProjectionSequences,
             OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ);
-
-//    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-//    {
-//    	START_TIMER("OptimizeModel - merge adjacent operator");
-//    	rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-//    	DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//    	TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//    	STOP_TIMER("OptimizeModel - merge adjacent operator");
-//    }
-//
-//    if(getBoolOption(OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ))
-//    {
-//        START_TIMER("OptimizeModel - set materialization hints");
-//        rewrittenTree = materializeProjectionSequences((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("add materialization hints for projection sequences\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - set materialization hints");
-//    }
 
     return rewrittenTree;
 }
@@ -456,7 +287,6 @@ removeUnnecessaryColumns(QueryOperator *root)
 	computeReqColProp(root);
 	printIcols(root);
 	removeUnnecessaryColumnsFromProjections(root);
-
 
     return root;
 }
@@ -1144,7 +974,7 @@ pullingUpProvenanceProjections(QueryOperator *root)
 
 
 /*
- * duplicateattrs store attrDef name of provenance attribute, normalAttrnames
+ * duplicateattrs stores attrDef name of provenance attribute, normalAttrnames
  * store attrRef name of provenance attribute
  */
 QueryOperator *
@@ -1170,13 +1000,17 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 			fd = FALSE;
 			if(isA(o, ProjectionOperator))
 			{
-				FOREACH(AttributeReference,a ,((ProjectionOperator *)o)->projExprs)
+				FOREACH(Node,n ,((ProjectionOperator *)o)->projExprs)
                 {
-					if (streq(a->name, nms->data.ptr_value))
-					{
-						fd = TRUE;
-						break;
-					}
+				    if (isA(n,AttributeReference))
+				    {
+				        AttributeReference *a = (AttributeReference *) n;
+                        if (streq(a->name, nms->data.ptr_value))
+                        {
+                            fd = TRUE;
+                            break;
+                        }
+				    }
                 }
 			}
 			else
@@ -1226,14 +1060,15 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 						FOREACH_LC(n,normalAttrNamesCopy)
 						{
 							nacpFlag = FALSE;
-							FORBOTH_LC(lc1, lc2,((ProjectionOperator *)o)->projExprs,o->schema->attrDefs)
+							FORBOTH(Node, lc1, lc2,((ProjectionOperator *)o)->projExprs,o->schema->attrDefs)
 							{
-								if(streq(((AttributeReference *)LC_P_VAL(lc1))->name,LC_P_VAL(n)))
-								{
-									name = ((AttributeDef *)LC_P_VAL(lc2))->attrName;
-									nacpFlag = TRUE;
-									break;
-								}
+							    if (isA(lc1, AttributeReference))
+                                    if(streq(((AttributeReference *)lc1)->name,LC_P_VAL(n))) //TODO may not be attribute reference
+                                    {
+                                        name = ((AttributeDef *)lc2)->attrName;
+                                        nacpFlag = TRUE;
+                                        break;
+                                    }
 							}
 							if(nacpFlag == TRUE)
 								normalAttrNamesCopyTempList = appendToTailOfList(normalAttrNamesCopyTempList, name);
@@ -1248,13 +1083,14 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 					{
 						FORBOTH(char, dup, nor, duplicateattrsCopy, normalAttrNamesCopy)
 						{
-							FORBOTH_LC(attrDef, attrRef, o->schema->attrDefs, ((ProjectionOperator *)o)->projExprs)
+							FORBOTH(Node,attrDef, attrRef, o->schema->attrDefs, ((ProjectionOperator *)o)->projExprs)
 		                    {
-								if(streq(dup,((AttributeDef *)(attrDef->data.ptr_value))->attrName))
-								{
-									((AttributeReference *)(attrRef->data.ptr_value))->name = nor;
-									break;
-								}
+							    if (isA(attrRef, AttributeReference))
+                                    if(streq(dup,((AttributeDef *)(attrDef))->attrName))
+                                    {
+                                        ((AttributeReference *)(attrRef))->name = nor;
+                                        break;
+                                    }
 	                       	}
 						}
 
@@ -1296,13 +1132,17 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 			//Change the attr reference
 			FORBOTH_LC(attrProvName, attrNorName, LostList, LostNormalList)
 			{
-				FOREACH(AttributeReference, p, projExpr)
+				FOREACH(Node, n, projExpr)
                 {
-					if(streq(p->name,LC_P_VAL(attrProvName)))
-					{
-						p->name = LC_P_VAL(attrNorName);
-						break;
-					}
+				    if (isA(n, AttributeReference))
+				    {
+				        AttributeReference *p = (AttributeReference *) n;
+                        if(strpeq(p->name,LC_P_VAL(attrProvName)))
+                        {
+                            p->name = LC_P_VAL(attrNorName);
+                            break;
+                        }
+				    }
                 }
 			}
 

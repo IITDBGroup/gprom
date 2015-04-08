@@ -768,7 +768,7 @@ caseWhenList:
 	;
 	
 caseWhen:
-		WHEN expression THEN expression
+		WHEN whereExpression THEN expression
 			{
 				RULELOG("caseWhen::WHEN::expression::THEN::expression");
 				$$ = (Node *) createCaseWhen($2,$4);
