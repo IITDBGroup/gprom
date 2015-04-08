@@ -20,6 +20,8 @@
 #include "include/model/query_operator/operator_property.h"
 
 
+static List *attrRefListToStringList (List *input);
+
 //TODO using a static variable is a problem here, because you just have the last assigned key for a base rleation available which is not sufficient.
 // you need the keys of an operators inputs to determine the operator keys. Since you store them as a property, why not get them from there?
 //static List *keyList = NIL;
@@ -28,6 +30,7 @@
 void
 computeKeyProp (QueryOperator *root)
 {
+	DEBUG_LOG("Begin to compute key");
     List *keyList = NIL;
     List *rKeyList = NIL;
 
@@ -44,8 +47,9 @@ computeKeyProp (QueryOperator *root)
     {
         TableAccessOperator *rel = (TableAccessOperator *) root;
         keyList = getKeyInformation(rel->tableName);
+        DEBUG_LOG("keyList length: %d", LIST_LENGTH(keyList));
         setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
-        DEBUG_LOG("operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
+        DEBUG_LOG("Table operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
         return;
     }
     else if (isA(root, ConstRelOperator))
@@ -53,7 +57,7 @@ computeKeyProp (QueryOperator *root)
         FOREACH(AttributeDef, a, root->schema->attrDefs)
             keyList = appendToTailOfList(keyList, strdup(a->attrName));
         setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
-        DEBUG_LOG("operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
+        DEBUG_LOG("ConstRel operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
         return;
     }
 
@@ -202,6 +206,25 @@ computeECPropBottomUp (QueryOperator *root)
 				EC = appendToTailOfList(EC, kv);
 			}
 
+			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
+		}
+
+		else if(isA(root, JsonTableOperator))
+		{
+		    List *EC = NIL;
+			FOREACH(AttributeDef,a, root->schema->attrDefs)
+			{
+			    KeyValue *kv;
+				Set *s = MAKE_STR_SET(a->attrName);
+				kv = createNodeKeyValue((Node *) s, NULL);
+				EC = appendToTailOfList(EC, kv);
+			}
+
+			Node *nChild = getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
+			List *childEC = (List *) copyObject(nChild);
+
+			EC = concatTwoLists(EC, childEC);
+			EC = CombineDuplicateElemSetInECList(EC);
 			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
 		}
 
@@ -554,6 +577,36 @@ computeECPropTopDown (QueryOperator *root)
 		QueryOperator *childOp = OP_LCHILD(root);
 
 		setStringProperty((QueryOperator *)childOp, PROP_STORE_SET_EC, nRoot);
+	}
+
+	else if(isA(root, JsonTableOperator))
+	{
+		Set *setNames = STRSET();
+		QueryOperator *childOp = OP_LCHILD(root);
+		FOREACH(AttributeDef, a, childOp->schema->attrDefs)
+		{
+			addToSet(setNames, strdup(a->attrName));
+		}
+
+		Node *nRoot = getStringProperty(root, PROP_STORE_SET_EC);
+		List *rEC = (List *) copyObject(nRoot);
+		List *EC = NIL;
+
+		FOREACH(KeyValue, kv, rEC)
+		{
+			Set *s = (Set *)(kv->key);
+			FOREACH_SET(char, n, s)
+			   DEBUG_LOG("old set s: %s", n);
+			s = intersectSets(s, setNames);
+			//DEBUG_LOG("new set:", nodeToString(s1));
+			FOREACH_SET(char, n, s)
+			   DEBUG_LOG("new set s1: %s", n);
+
+		    if(setSize(s) != 0)
+		    	EC = appendToTailOfList(EC, kv);
+		}
+
+		setStringProperty((QueryOperator *)childOp, PROP_STORE_SET_EC, (Node *)EC);
 	}
 
 	else if(isA(root, ProjectionOperator))
@@ -1000,7 +1053,7 @@ void initializeSetProp(QueryOperator *root)
 void
 computeSetProp (QueryOperator *root)
 {
-	if (isA(root, ProjectionOperator) || isA(root, SelectionOperator))
+	if (isA(root, ProjectionOperator) || isA(root, SelectionOperator) || isA(root, JsonTableOperator))
 	{
 		QueryOperator *lChild = OP_LCHILD(root);
 
@@ -1154,16 +1207,15 @@ computeReqColProp (QueryOperator *root)
         //if AttrDefName in icols, get correspond AttrRef name (need to check if it is operator)
         FORBOTH_LC(a,ar, attrDefNames,attrRefList)
         {
+            //TODO this should deal with any other type of expression
         	if(hasSetElem(icols,LC_P_VAL(a)))
         	{
-        		if(isA(LC_P_VAL(ar), Operator))
-        		{
-        			eicolsList = getAttrNameFromOpExpList(eicolsList, (Operator *)(LC_P_VAL(ar)));
-        		}
-        		else if(isA(LC_P_VAL(ar), AttributeReference))
-        		{
-        			eicolsList = appendToTailOfList(eicolsList, strdup(((AttributeReference *)(LC_P_VAL(ar)))->name));
-        		}
+        	    List *attrRefs = getAttrReferences(LC_P_VAL(ar));
+//        		if(isA(LC_P_VAL(ar), Operator))
+//        			eicolsList = getAttrNameFromOpExpList(eicolsList, (Operator *)(LC_P_VAL(ar)));
+//        		else if(isA(LC_P_VAL(ar), AttributeReference))
+//        			eicolsList = appendToTailOfList(eicolsList, strdup(((AttributeReference *)(LC_P_VAL(ar)))->name));
+        		eicolsList = CONCAT_LISTS(eicolsList, attrRefListToStringList(attrRefs));
         	}
         }
 
@@ -1235,7 +1287,7 @@ computeReqColProp (QueryOperator *root)
 		//e.g. add group by B into set
 		FOREACH(AttributeReference, a, agg->groupBy)
 		{
-				addToSet(set,strdup(a->name));
+		    addToSet(set,strdup(a->name));
 		}
 
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)set);
@@ -1314,7 +1366,22 @@ computeReqColProp (QueryOperator *root)
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 
 	}
+	else if(isA(root,JsonTableOperator))
+	{
 
+		char *b = ((JsonTableOperator *)root)->jsonColumn->name;
+		Set *doc = MAKE_STR_SET(b);
+		DEBUG_LOG("Json doc name: %s", b);
+        Set *newIcols = unionSets(icols, doc);
+        setStringProperty((QueryOperator *) root, PROP_STORE_SET_ICOLS, (Node *)newIcols);
+
+		Set *childAttrNames = STRSET();
+		FOREACH(AttributeDef, a, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs)
+		   addToSet(childAttrNames, a->attrName);
+
+		Set *eicols = intersectSets(newIcols, childAttrNames);
+		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
+	}
 
 	FOREACH(QueryOperator, o, root->inputs)
 	{
@@ -1332,4 +1399,15 @@ printIcols(QueryOperator *root)
 	{
 		printIcols(o);
 	}
+}
+
+static List *
+attrRefListToStringList (List *input)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeReference,a,input)
+        result = appendToTailOfList(result,strdup(a->name));
+
+    return result;
 }

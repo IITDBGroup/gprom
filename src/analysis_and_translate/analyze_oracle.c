@@ -24,6 +24,7 @@
 #include "model/expression/expression.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "provenance_rewriter/prov_schema.h"
+#include "parser/parser.h"
 
 static void analyzeStmtList (List *l, List *parentFroms);
 static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
@@ -181,13 +182,42 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 {
     List *attrRefs = NIL;
 
+    FOREACH(FromItem,f,qb->fromClause)
+    {
+        switch(f->type)
+        {
+            case T_FromTableRef:
+            {
+                FromTableRef *tr = (FromTableRef *)f;
+            	//check if it is a table or a view
+            	if (!catalogTableExists(tr->tableId) && catalogViewExists(tr->tableId))
+            	{
+            	    char * view = getViewDefinition(((FromTableRef *)f)->tableId);
+            	    char *newName = f->name ? f->name : tr->tableId; // if no alias then use view name
+            	    DEBUG_LOG("view: %s", view);
+            	    StringInfo s = makeStringInfo();
+            	    appendStringInfoString(s,view);
+            	    appendStringInfoString(s,";");
+            	    view = s->data;
+            	    Node * n1 = getHeadOfListP((List *) parseFromString((char *) view));
+            	    FromItem * f1 = createFromSubquery(newName,NIL,(Node *) n1);
+
+            	    DUMMY_LC(f)->data.ptr_value = f1;
+            	}
+            }
+            break;
+            default:
+            	break;
+        }
+    }
+
     // figuring out attributes of from clause items
     FOREACH(FromItem,f,qb->fromClause)
     {
         switch(f->type)
         {
             case T_FromTableRef:
-                analyzeFromTableRef((FromTableRef *) f);
+            	analyzeFromTableRef((FromTableRef *) f);
                 break;           
             case T_FromSubquery:
             	analyzeFromSubquery((FromSubquery *) f, parentFroms);
@@ -815,32 +845,41 @@ analyzeFromTableRef(FromTableRef *f)
 }
 
 static void
-analyzeFromJsonTable(FromJsonTable *f, List **state)
+recursiveAppendAttrNames(JsonColInfoItem *attr, List **attrNames, List **attrTypes)
 {
-    // Populate the attrnames, datatypes from columnlist
-    List *attrNames = NIL;
-    List *attrTypes = NIL;
-
-    FOREACH(JsonColInfoItem, attr, f->columns)
-    {
 	if (attr->nested)
 	{
-            FOREACH(JsonColInfoItem, attr1, attr->nested)
-            {
-                attrNames = appendToTailOfList(attrNames, attr1->attrName);
-                // if(streq(attr->attrType, "VARCHAR2"))
-                attrTypes = appendToTailOfListInt(attrTypes, 5);
-	    }
+		FOREACH(JsonColInfoItem, attr1, attr->nested)
+        		{
+			if(attr1->nested)
+				recursiveAppendAttrNames(attr1, attrNames, attrTypes);
+			else
+			{
+				*attrNames = appendToTailOfList(*attrNames, attr1->attrName);
+				*attrTypes = appendToTailOfListInt(*attrTypes, 5);
+			}
+        		}
 	}
 	else
 	{
-            attrNames = appendToTailOfList(attrNames, attr->attrName);
-            // if(streq(attr->attrType, "VARCHAR2"))
-	    attrTypes = appendToTailOfListInt(attrTypes, 5);
+		*attrNames = appendToTailOfList(*attrNames, attr->attrName);
+		*attrTypes = appendToTailOfListInt(*attrTypes, 5);
 	}
+}
 
-        //TODO Add if streq for other datatypes as well
-       /*
+static void
+analyzeFromJsonTable(FromJsonTable *f, List **state)
+{
+	// Populate the attrnames, datatypes from columnlist
+	List *attrNames = NIL;
+	List *attrTypes = NIL;
+
+	FOREACH(JsonColInfoItem, attr1, f->columns)
+	{
+		recursiveAppendAttrNames(attr1, &attrNames, &attrTypes);
+
+		//TODO Add if streq for other datatypes as well
+		/*
         switch (attr->attrType)
         {
         case DT_INT:
@@ -862,21 +901,21 @@ analyzeFromJsonTable(FromJsonTable *f, List **state)
         	attrTypes = appendToTailOfListInt(attrTypes, 5);
         	break;
         }
-        */
-    }
+		 */
+	}
 
-    if (f->from.attrNames == NIL)
-        f->from.attrNames = attrNames;
+	if (f->from.attrNames == NIL)
+		f->from.attrNames = attrNames;
 
-    if (f->from.dataTypes == NIL)
-        f->from.dataTypes = attrTypes;
+	if (f->from.dataTypes == NIL)
+		f->from.dataTypes = attrTypes;
 
-    if(f->from.name == NULL)
-	f->from.name = f->jsonTableIdentifier;
+	if(f->from.name == NULL)
+		f->from.name = f->jsonTableIdentifier;
 
-    //TODO JsonColumn can refer to column of JsonTable
-    // Append jsonColumn to attributeRef list
-    *state = appendToTailOfList(*state, f->jsonColumn);
+	//TODO JsonColumn can refer to column of JsonTable
+	// Append jsonColumn to attributeRef list
+	*state = appendToTailOfList(*state, f->jsonColumn);
 }
 
 static void
@@ -1152,6 +1191,7 @@ getQBAttrDTs (Node *qb)
         }
         break;
         default:
+            FATAL_LOG("unexpected node type as FROM clause item: %s", beatify(nodeToString(qb)));
             break;
     }
 
