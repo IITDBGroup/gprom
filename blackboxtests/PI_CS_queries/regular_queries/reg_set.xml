@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Regular Set Test cases</comment>
+
+<entry key="q1.query">
+UPDATE T SET f=5 WHERE e=1;
+</entry>
+<entry key="q1.result">
+X | Y
+----------+-----------------+-----------------
+1|5|
+2|2|
+</entry>
+
+
+</properties>
