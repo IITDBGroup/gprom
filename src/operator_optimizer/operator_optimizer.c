@@ -89,35 +89,6 @@ optimizeOperatorModel (Node *root)
         return (Node *) optimizeOneGraph((QueryOperator *) root);
 }
 
-//static void
-//applyMerge(QueryOperator *rewrittenTree)
-//{
-//    APPLY_AND_TIME_OPT("merge adjacent projections and selections",mergeAdjacentOperators,OPTIMIZATION_MERGE_OPERATORS);
-//	if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-//	{
-//		START_TIMER("OptimizeModel - merge adjacent operator");
-//		rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-//		TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//		LOG_OPT("merged adjacent", rewrittenTree);
-//		STOP_TIMER("OptimizeModel - merge adjacent operator");
-//	}
-//}
-
-//TODO may be unsafe if the pushed down selection is the topmost operator, because the rewrittenTree variable is local to the method
-//static void
-//applySelectionPushdown(QueryOperator *rewrittenTree)
-//{
-//    APPLY_AND_TIME_OPT("selection pushdown",pushDownSelectionOperatorOnProv,OPTIMIZATION_SELECTION_PUSHING);
-//	if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
-//	{
-//		START_TIMER("OptimizeModel - pushdown selections");
-//		rewrittenTree = pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
-//		DEBUG_LOG("selections pushed down", operatorToOverviewString((Node *) rewrittenTree));
-//		TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//		STOP_TIMER("OptimizeModel - pushdown selections");
-//	}
-//}
-
 static QueryOperator *
 optimizeOneGraph (QueryOperator *root)
 {
