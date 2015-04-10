@@ -1041,9 +1041,9 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 			}
 			else
 			{
-				FOREACH_LC(a ,o->schema->attrDefs)
+				FOREACH(AttributeDef,a ,o->schema->attrDefs)
                 {
-					if (streq(((AttributeDef *) a->data.ptr_value)->attrName, nms->data.ptr_value))
+					if (streq(a->attrName, nms->data.ptr_value))
 					{
 						fd = TRUE;
 						break;
@@ -1145,13 +1145,14 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 
 			//Create the attr reference from upper op projExprs
 			int cnt = 0;
-			FOREACH_LC(lc, ((ProjectionOperator *)o)->projExprs)
+			FOREACH(Node,lc,((ProjectionOperator *)o)->projExprs)
 			{
+			    ASSERT(isA(lc,AttributeReference));//TODO this fails for projection expressions that are not attribute references
 				projExpr = appendToTailOfList(projExpr,
 						createFullAttrReference(
-								((AttributeReference *) LC_P_VAL(lc))->name, 0,
+								((AttributeReference *) lc)->name, 0,
 								cnt, 0,
-								((AttributeReference *) LC_P_VAL(lc))->attrType));
+								((AttributeReference *) lc)->attrType));
 				cnt++;
 			}
 
