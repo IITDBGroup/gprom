@@ -1060,7 +1060,7 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 				LostNormalList = appendToTailOfList(LostNormalList, nms->data.ptr_value);
 
 				//get rid of the attribute from the duplicate list and
-				//normalAttrnames./test/testrewriter.sh 4 "PROVENANCE OF (SELECT sum(A),B FROM R GROUP BY B);" -activate optimize_operator_model
+				//normalAttrnames
 				duplicateattrsCopy = REMOVE_FROM_LIST_PTR(duplicateattrsCopy, d->data.ptr_value);
 				normalAttrNamesCopy = REMOVE_FROM_LIST_PTR(normalAttrNamesCopy, nms->data.ptr_value);
 			}
