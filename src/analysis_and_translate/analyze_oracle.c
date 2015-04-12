@@ -1571,6 +1571,12 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
             else
                 FATAL_LOG("Unkown provenance type: <%s>", value);
         }
+        /* TRANSLATE AS */
+        if (!strcmp(key, "TRANSLATE AS"))
+        {
+        	if(strcmp(value, "JSON"))
+        		FATAL_LOG("Unknown Translate Format: <%s>", value);
+        }
     }
 }
 

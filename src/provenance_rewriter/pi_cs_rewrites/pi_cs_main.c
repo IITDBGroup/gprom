@@ -26,6 +26,7 @@
 #include "model/expression/expression.h"
 #include "model/set/hashmap.h"
 #include "parser/parser_jp.h"
+#include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 
 static QueryOperator *rewritePI_CSOperator (QueryOperator *op);
 static QueryOperator *rewritePI_CSSelection (SelectionOperator *op);
@@ -47,6 +48,7 @@ static QueryOperator *rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *use
 
 static Node *asOf;
 static RelCount *nameState;
+//static QueryOperator *provComputation;
 
 QueryOperator *
 rewritePI_CS (ProvenanceComputation  *op)
@@ -80,6 +82,12 @@ rewritePI_CS (ProvenanceComputation  *op)
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) op, rewRoot);
     DEBUG_LOG("rewritten query root is: %s", beatify(nodeToString(rewRoot)));
+
+    // Check if we should export
+    if(HAS_STRING_PROP(op, PROP_TRANSLATE_AS))
+    {
+    	rewRoot = rewriteTransformationProvenance(rewRoot);
+    }
 
     STOP_TIMER("rewrite - PI-CS rewrite");
 

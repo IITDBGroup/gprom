@@ -141,6 +141,7 @@ initAggList(void)
     aggList[AGG_VAR_SAMP] = "var_samp";
     aggList[AGG_VARIANCE] = "variance";
     aggList[AGG_XMLAGG] = "xmlagg";
+    aggList[AGG_STRAGG] = "stragg";
 }
 
 static void

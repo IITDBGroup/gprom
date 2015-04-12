@@ -43,7 +43,9 @@ typedef enum AGG
     AGG_XMLAGG,
 
     //used as the index of array, its default number is the size of this enum
-    AGG_FUNCTION_COUNT
+    AGG_FUNCTION_COUNT,
+
+    AGG_STRAGG
 
 } AGG;
 
