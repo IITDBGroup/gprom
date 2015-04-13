@@ -26,6 +26,28 @@
 		"(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
 		"(SERVER=DEDICATED)(SID=%s)))"
 
+/* queries */
+#define ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION \
+"WITH transSlice AS (\n" \
+"    SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID, STATEMENT_ID, AUDIT_TYPE\n" \
+"    FROM %s t1\n" \
+"    WHERE TRANSACTION_ID = HEXTORAW('%s'))\n" \
+"                                \n" \
+"SELECT SCN, \n" \
+"      CASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n" \
+"      CASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n" \
+"      CASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n" \
+"      CASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n" \
+"FROM \n" \
+"  (SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n" \
+"  FROM transSlice t1\n" \
+"  WHERE AUDIT_TYPE = 'FineGrainedAudit' \n" \
+"        OR NOT EXISTS (SELECT 1\n" \
+"                       FROM transSlice t2 \n" \
+"                       WHERE t1.STATEMENT_ID = t2.STATEMENT_ID AND AUDIT_TYPE = 'FineGrainedAudit')\n" \
+"                       ) x \n" \
+"ORDER BY ENTRY_ID\n"
+
 /*
  * functions and variables for internal use
  */
@@ -637,31 +659,33 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
         }
         else if (streq(auditTable, "UNIFIED_AUDIT_TRAIL"))
         {
-            appendStringInfo(statement, "SELECT SCN, \n"
-                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n"
-                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n"
-                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n"
-                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n"
-                    "FROM \n"
-                    "\t(SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n"
-                    "\tFROM SYS.UNIFIED_AUDIT_TRAIL \n"
-                    "\tWHERE TRANSACTION_ID = HEXTORAW(\'%s\')) x \n"
-                    "ORDER BY ENTRY_ID", xid);
+//            appendStringInfo(statement, "SELECT SCN, \n"
+//                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n"
+//                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n"
+//                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n"
+//                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n"
+//                    "FROM \n"
+//                    "\t(SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n"
+//                    "\tFROM SYS.UNIFIED_AUDIT_TRAIL \n"
+//                    "\tWHERE TRANSACTION_ID = HEXTORAW(\'%s\')) x \n"
+//                    "ORDER BY ENTRY_ID", xid);
+            appendStringInfo(statement, ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION, "SYS.UNIFIED_AUDIT_LOG", xid);
         }
         else
         {
-            appendStringInfo(statement, "SELECT SCN, \n"
-                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n"
-                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n"
-                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n"
-                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n"
-                                "FROM \n"
-                                "\t(SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n"
-                                "\tFROM %s \n"
-                                "\tWHERE TRANSACTION_ID = HEXTORAW(\'%s\')) x \n"
-                                "ORDER BY ENTRY_ID",
-                                auditTable,
-                                xid);
+//            appendStringInfo(statement, "SELECT SCN, \n"
+//                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n"
+//                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n"
+//                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n"
+//                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n"
+//                                "FROM \n"
+//                                "\t(SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n"
+//                                "\tFROM %s \n"
+//                                "\tWHERE TRANSACTION_ID = HEXTORAW(\'%s\')) x \n"
+//                                "ORDER BY ENTRY_ID",
+//                                auditTable,
+//                                xid);
+            appendStringInfo(statement, ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION, auditTable, xid);
         }
 
         if((conn = getConnection()) != NULL)
