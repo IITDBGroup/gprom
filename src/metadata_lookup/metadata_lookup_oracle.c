@@ -669,7 +669,7 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
 //                    "\tFROM SYS.UNIFIED_AUDIT_TRAIL \n"
 //                    "\tWHERE TRANSACTION_ID = HEXTORAW(\'%s\')) x \n"
 //                    "ORDER BY ENTRY_ID", xid);
-            appendStringInfo(statement, ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION, "SYS.UNIFIED_AUDIT_LOG", xid);
+            appendStringInfo(statement, ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION, "SYS.UNIFIED_AUDIT_TRAIL", xid);
         }
         else
         {
