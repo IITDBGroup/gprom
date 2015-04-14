@@ -49,7 +49,7 @@ X | Y | Z |
 </entry>  
 
 <entry key="q5.query">
-SELECT c as x, d as y, a as z, b as w FROM S FULL OUTER JOIN R ON R.b = S.d;
+SELECT c as x, d as y, a as z, b as w FROM S FULL OUTER JOIN R ON b = d;
 </entry>
 <entry key="q5.result">
 X | Y | 

@@ -26,7 +26,20 @@ CREATE TABLE S (
 	d int
 );
 
+INSERT INTO S VALUES (2,2);
+INSERT INTO S VALUES (2,3);
+INSERT INTO S VALUES (3,2);
+INSERT INTO S VALUES (1,4);
+COMMIT;
 
+CREATE TABLE T (
+	e int,
+	f int
+);
+
+INSERT INTO S VALUES (1,1);
+INSERT INTO S VALUES (2,2);
+COMMIT;
 
 /******************************************************************************
 ******* 	TPCH schema				   ********************

@@ -1,27 +1,80 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
 <properties>
-<comment>Aggregation Test cases</comment>
+<comment>Regular Aggregation Test cases</comment>
 
 <entry key="q1.query">
-PROVENANCE OF (SELECT sum(a) AS x FROM r);
+SELECT a AS x FROM r;
 </entry>
 <entry key="q1.result">
-X | PROV_R_A | PROV_R_B
+X |
 ----------+-----------------+-----------------
-2|1|1|
-2|1|2|
+1|
+1|
+2|
+2|
 </entry>
 
 <entry key="q2.query">
-PROVENANCE OF (SELECT sum(a) AS x, b AS y FROM r GROUP BY b);
+SELECT sum(a) AS x FROM r;
 </entry>
 <entry key="q2.result">
-X | Y | PROV_R_A | PROV_R_B 
+X |
 ----------+-----------------+-----------------
-1|1|1|1|
-1|2|1|2|
+6|
+
 </entry>
+
+<entry key="q3.query">
+SELECT sum(a) AS x, b AS y FROM r GROUP BY b;
+</entry>
+<entry key="q3.result">
+X | Y | 
+----------+-----------------+-----------------
+3|1|
+1|2|
+2|3|
+</entry>
+
+<entry key="q4.query">
+SELECT a AS x, count(b) AS y FROM r GROUP BY a;
+</entry>
+<entry key="q4.result">
+X | Y | 
+----------+-----------------+-----------------
+1|2|
+2|2|
+</entry>
+
+<entry key="q5.query">
+SELECT min(a) AS x, max(a) as y FROM r;
+</entry>
+<entry key="q5.result">
+X | Y | 
+----------+-----------------+-----------------
+1|2|
+</entry>
+
+<entry key="q6.query">
+SELECT avg(a) AS x, avg(b) AS y FROM r;
+</entry>
+<entry key="q6.result">
+X | Y | 
+----------+-----------------+-----------------
+1.5|1.75|
+</entry>
+
   
+<entry key="q7.query">
+SELECT CASE WHEN ((A = 1) OR (B =1 )) THEN  a+ 5 ELSE 2 END AS x FROM (SELECT * FROM r) y WHERE ((A = 1) OR (B > 0));
+</entry>
+<entry key="q7.result">
+X |
+----------+-----------------+-----------------
+2|
+10|
+10|
+10|
+</entry>
 
 </properties>

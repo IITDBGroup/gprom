@@ -18,7 +18,7 @@
 	<property name="log4jconffile" value="${librarydir}/log4j.properties" />
 	
 	<!-- GProM c-library -->
-	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.0.dylib" />
+	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.so.0" />
 	<property name="gpromlib.darwin" value="${builddir}/libgrom.jnilib" />	
 	
 	<!-- classpath -->
