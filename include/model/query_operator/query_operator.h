@@ -202,7 +202,7 @@ extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType,
 extern ConstRelOperator *createConstRelOp(List *values,List *parents,
         List *attrNames, List *dataTypes);
 extern NestingOperator *createNestingOp(NestingExprType nestingType, Node *cond,
-        List *inputs, List *parents, List *attrNames);
+        List *inputs, List *parents, List *attrNames, List *dts);
 extern WindowOperator *createWindowOp(Node *fCall, List *partitionBy,
         List *orderBy, WindowFrame *frameDef, char *attrName,
         QueryOperator *input, List *parents);

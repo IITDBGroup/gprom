@@ -979,12 +979,20 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 
         // create attribute names of nesting operator
         List *attrNames = getAttrNames(lChild->schema);
+        List *dts = getDataTypes(lChild->schema);
+
         // add an auxiliary attribute, which is the evaluation of the nested subquery
         attrNames = appendToTailOfList(attrNames,
                 CONCAT_STRINGS("nesting_eval_", itoa(i++)));
+        if (nsq->nestingType == NESTQ_EXISTS)
+            dts = appendToTailOfListInt(dts, DT_BOOL);
+        else if (nsq->nestingType == NESTQ_SCALAR)
+            dts = appendToTailOfListInt(dts, getAttrDefByPos(rChild, 0)->dataType);
+        else
+            dts = appendToTailOfListInt(dts, typeOf(cond));
 
         // create nesting operator
-        no = createNestingOp(nsq->nestingType, cond, inputs, NIL, attrNames);
+        no = createNestingOp(nsq->nestingType, cond, inputs, NIL, attrNames, dts);
 
         // set the nesting operator as the parent of its children
         OP_LCHILD(no)->parents = singleton(no);
