@@ -29,5 +29,25 @@ X |
 2|
 </entry>
 
+<entry key="q3.query">
+SELECT DISTINCT b as x FROM R WHERE a=1 OR a=2;
+</entry>
+<entry key="q3.result">
+X |
+----------+-----------------+-----------------
+1|
+2|
+3|
+</entry>
+
+<entry key="q4.query">
+SELECT a as x FROM R GROUP BY a HAVING avg(b)>3;
+</entry>
+<entry key="q4.result">
+X |
+----------+-----------------+-----------------
+1|
+2|
+</entry>
 
 </properties>

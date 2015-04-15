@@ -49,13 +49,23 @@ X | Y | Z |
 </entry>  
 
 <entry key="q5.query">
-SELECT c as x, d as y, a as z, b as w FROM S FULL OUTER JOIN R ON b = d;
+SELECT c as x, d as y, a as z, b as w FROM S FULL JOIN R ON b = d;
 </entry>
 <entry key="q5.result">
 X | Y | 
 ----------+-----------------+-----------------
----NOT WORKING!---
+2|2|1|2|
+3|3|2|3|
+2|3|2|3|
+</entry>
 
+<entry key="q6.query">
+SELECT count(*) as x FROM R JOIN S ON b=c;
+</entry>
+<entry key="q6.result">
+X |
+----------+-----------------+-----------------
+5|
 </entry>
 
 </properties>

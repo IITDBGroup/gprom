@@ -71,10 +71,21 @@ SELECT CASE WHEN ((A = 1) OR (B =1 )) THEN  a+ 5 ELSE 2 END AS x FROM (SELECT * 
 <entry key="q7.result">
 X |
 ----------+-----------------+-----------------
+6|
+6|
+7|
 2|
-10|
-10|
-10|
 </entry>
 
+<entry key="q8.query">
+SELECT a as x FROM R WHERE b=(SELECT min(b) FROM r);
+</entry>
+<entry key="q8.result">
+X |
+----------+-----------------+-----------------
+6|
+6|
+7|
+2|
+</entry>
 </properties>
