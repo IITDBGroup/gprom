@@ -82,7 +82,7 @@ Node *jpParseResult = NULL;
 %%
 
 path:
-		 '$'            {RULELOG("path::$"); List *l = NIL; $$ = (Node *) l;}
+		 '$'            { RULELOG("path::$"); List *l = NIL; $$ = l; }
                  | '$' actualpath
 		 { 
 				RULELOG("path::$ actualpath");
@@ -125,7 +125,7 @@ pathstep:
 
                 | '[' intConst ']'
                 {
-                 RULELOG("pathstep::[*]"); $$ = $2;
+                 RULELOG("pathstep::[*]"); $$ = itoa($2);
                 }
                 ;
                 
