@@ -41,13 +41,22 @@ X |
 </entry>
 
 <entry key="q4.query">
-SELECT a as x FROM R GROUP BY a HAVING avg(b)>3;
+SELECT a as x FROM R GROUP BY a HAVING avg(b)>1;
 </entry>
 <entry key="q4.result">
 X |
 ----------+-----------------+-----------------
 1|
 2|
+</entry>
+
+<entry key="q5.query">
+SELECT a AS x FROM R ORDER BY b DESC;
+</entry>
+<entry key="q5.result">
+X |
+----------+-----------------+-----------------
+----NOT WORKING----
 </entry>
 
 </properties>
