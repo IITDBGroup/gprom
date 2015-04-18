@@ -16,10 +16,33 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "model/list/list.h"
 #include "mem_manager/mem_mgr.h"
+#include "model/set/hashmap.h"
 
+#define REL_TUPQ "\"rel:tupQ("
+//#define REL_TUPR "\"rel:tup_R("
+#define REL_TUP_ "\"rel:tup_"
+#define PROV_TYPE_TUPLE ")\" :{\"prov:type\":\"tuple\"}"
+#define ENTITY "entity"
+#define ALL_ENTITIES "allEntities"
+#define WDB "_:wdb"
+#define PROV_USEDENTITY_REL_TUP_R ")\": { \"prov:usedEntity\": \"rel:tup_"
+#define BRACKETS_DOUBLE_QUOTATION ")\""
+#define PROV_GENERATEDENTITY ",\"prov:generatedEntity\":\""
+#define PROV_ACTIVITY_REL_Q_PROV_ENTITY_REL_TUP_R ")\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \"rel:tup_"
+#define PREFIX_REL_URL_ENTITY "{\"prefix\": {\"rel\": \"http://example.org\"}, \"entity\" : { "
+#define ACTIVIT_REL_Q_PROV_TYPE_QUERY_WASDERIVEDFROM "}, \"activity\" : { \"rel:Q\": {\"prov:type\":\"query\"} }, \"wasDerivedFrom\" : {"
+#define WAS_GENREATED_BY "}, \"wasGeneratedBy\" : {"
+#define USED "}, \"used\" : {"
+#define PROV_ACTIVITY_RELQ_PROV_ENTITY ")\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \""
+#define tupQ "rel:tupQ"
+#define _wgb "_:wgb"
+#define _wub "_:wub_"
+//	char *tupQ = "rel:tupQ";
+//	char *_wgb = "_:wgb";
+//	char *_wub = "_:wub_";
 
 Operator *
-generateOp(int *count, Node *attr1, Node *attr2)
+generateOpP(int *count, Node *attr1, Node *attr2)
 {
     List *argList = NIL;
     Operator *o = NULL;
@@ -59,170 +82,223 @@ generateOp(int *count, Node *attr1, Node *attr2)
 	return o;
 }
 
+Operator *
+generateOp(Node *attr1, Node *attr2, HashMap *namePosMap)
+{
+    List *argList = NIL;
+    Operator *o = NULL;
+
+    if(isA(attr2, AttributeDef))
+    {
+    	AttributeDef *attrDef= (AttributeDef *) attr2;
+    	AttributeReference *attrRef = createAttributeReference(attrDef->attrName);
+    	attrRef->fromClauseItem = 0;
+    	attrRef->attrType = attrDef->dataType;
+    	attrRef->attrPosition = INT_VALUE(getMapString(namePosMap, attrRef->name));
+    	argList = appendToTailOfList(argList, attr1);
+    	argList = appendToTailOfList(argList, attrRef);
+
+    }
+
+    else if(isA(attr1, AttributeDef))
+    {
+    	AttributeDef *attrDef= (AttributeDef *) attr1;
+    	AttributeReference *attrRef = createAttributeReference(attrDef->attrName);
+    	attrRef->fromClauseItem = 0;
+    	attrRef->attrType = attrDef->dataType;
+    	attrRef->attrPosition = INT_VALUE(getMapString(namePosMap, attrRef->name));
+    	argList = appendToTailOfList(argList, attrRef);
+    	argList = appendToTailOfList(argList, attr2);
+    }
+    else
+    {
+    	argList = appendToTailOfList(argList, attr1);
+    	argList = appendToTailOfList(argList, attr2);
+    }
+
+    o = createOpExpr("||", argList);
+
+	return o;
+}
+
+void
+findTableAccessOperator(List **drOp, QueryOperator *root)
+{
+	if(isA(root, TableAccessOperator) && isA(getHeadOfListP(root->parents), ProjectionOperator))
+		*drOp = appendToTailOfList(*drOp, (DuplicateRemoval *)root);
+
+	FOREACH(QueryOperator, op, root->inputs)
+	      findTableAccessOperator(drOp, op);
+
+}
+
 QueryOperator *
 rewriteTransformationProvenance(QueryOperator *op)
 {
+	HashMap *namePosMap = NEW_MAP(Constant,Constant);
+	int pos = 0;
+    FOREACH(AttributeDef,ad,op->schema->attrDefs)
+	{
+    	MAP_ADD_STRING_KEY(namePosMap, ad->attrName, createConstInt(pos));
+    	DEBUG_LOG("pos: %d", INT_VALUE(getMapString(namePosMap, ad->attrName)));
+        pos++;
+	}
+//	int ss = INT_VALUE(getMapString(namePosMap, "A"));
+//	DEBUG_LOG("ss: pos = %d", ss);
+
+	//traverse the tree and store table access operator into list taOp
+	List *taOp = NULL;
+    findTableAccessOperator(&taOp, op);
+    FOREACH(TableAccessOperator, op1, taOp)
+         DEBUG_LOG("Table Access Operator name: %s", op1->tableName);
+    DEBUG_LOG("taOp List length: %d", LIST_LENGTH(taOp));
 	List *normalAttrs = getNormalAttrs(op);
 
 	//First projection: normal attributes
 	StringInfo prefixQ = makeStringInfo();
-	appendStringInfoChar(prefixQ, '"');
-	appendStringInfoString(prefixQ, "rel:tupQ(");
+	//appendStringInfoString(prefixQ, "\"rel:tupQ(");
+	appendStringInfoString(prefixQ,strdup(REL_TUPQ));
 	Constant *cPrefixQ = createConstString(prefixQ->data);
 
-	StringInfo prefixR = makeStringInfo();
-	appendStringInfoChar(prefixR, '"');
-	appendStringInfoString(prefixR, "rel:tup_R(");
-	Constant *cPrefixR = createConstString(prefixR->data);
-
 	StringInfo suffix = makeStringInfo();
-	appendStringInfoString(suffix, ")");
-	appendStringInfoChar(suffix, '"');
-	appendStringInfoString(suffix, " : {");
-	appendStringInfoChar(suffix, '"');
-	appendStringInfoString(suffix, "prov:type");
-	appendStringInfoChar(suffix, '"');
-	appendStringInfoString(suffix, ":");
-	appendStringInfoChar(suffix, '"');
-	appendStringInfoString(suffix, "tuple");
-	appendStringInfoChar(suffix, '"');
-	appendStringInfoString(suffix, "}");
+	//appendStringInfoString(suffix, ")\" :{\"prov:type\":\"tuple\"}");
+	appendStringInfoString(suffix, strdup(PROV_TYPE_TUPLE));
 	Constant *cSuffix = createConstString(suffix->data);
 
 	Constant *cBar = createConstString(" | ");
 
 	List *reverseNormalAttrs = copyObject(normalAttrs);
 	reverseList(reverseNormalAttrs);
-	int count = 0;
-	int lenNormalAttrs = LIST_LENGTH(reverseNormalAttrs);
-	count = lenNormalAttrs - 1;
+
 	AttributeDef *firstNormalAttrDef = (AttributeDef *) getHeadOfListP(
 			reverseNormalAttrs);
-	AttributeReference *firstNormalAttr = createAttributeReference(
-			firstNormalAttrDef->attrName);
-	firstNormalAttr->fromClauseItem = 0;
-	firstNormalAttr->attrType = firstNormalAttrDef->dataType;
-	firstNormalAttr->attrPosition = count;
-	count--;
-	List *NormalExprList1 = NIL;
-	NormalExprList1 = appendToTailOfList(NormalExprList1, firstNormalAttr);
-	NormalExprList1 = appendToTailOfList(NormalExprList1, cSuffix);
-	Operator *NormalO1 = createOpExpr("||", NormalExprList1);
+	Operator *NormalO1 = generateOp((Node *)firstNormalAttrDef, (Node *)cSuffix , namePosMap);
 
 	reverseNormalAttrs = removeFromHead(reverseNormalAttrs);
 	FOREACH(AttributeDef, a, reverseNormalAttrs) {
-		List *exprList2 = NIL;
-		exprList2 = appendToTailOfList(exprList2, cBar);
-		exprList2 = appendToTailOfList(exprList2, NormalO1);
-		Operator *o2 = createOpExpr("||", exprList2);
-
-		AttributeReference *attr = createAttributeReference(a->attrName);
-		attr->fromClauseItem = 0;
-		attr->attrType = a->dataType;
-		attr->attrPosition = count;
-
-		List *exprList3 = NIL;
-		exprList3 = appendToTailOfList(exprList3, attr);
-		exprList3 = appendToTailOfList(exprList3, o2);
-		Operator *o3 = createOpExpr("||", exprList3);
+		Operator *o2 = generateOp((Node *)cBar, (Node *)NormalO1 , namePosMap);
+		Operator *o3 = generateOp((Node *)a, (Node *)o2 , namePosMap);
 		NormalO1 = copyObject(o3);
-		count--;
 	}
 
-	List *NormalExprList4 = NIL;
-	NormalExprList4 = appendToTailOfList(NormalExprList4, cPrefixQ);
-	NormalExprList4 = appendToTailOfList(NormalExprList4, NormalO1);
-	Operator *NormalO4 = createOpExpr("||", NormalExprList4);
+	Operator *NormalO4 = generateOp((Node *)cPrefixQ, (Node *)NormalO1, namePosMap );
 	DEBUG_LOG("new operator expression %s", nodeToString(NormalO4));
+
 	List *NormalProjExprs = singleton(NormalO4);
-	count = lenNormalAttrs;
+	List *attrNames = singleton("entity");
+	//List *attrNames = singleton(strdup(ENTITY));
 
-	int entityCount = 0;
-	StringInfo name = makeStringInfo();
-	appendStringInfoString(name, "entity");
-	List *attrNames = singleton(name->data);
-	entityCount++;
-	DEBUG_LOG("new attribute name %s", name->data);
-
-	//Introduce projection operator
+	//Introduce first normal attr projection operator
 	ProjectionOperator *proj = createProjectionOp(NormalProjExprs, op, NIL,
 			attrNames);
 	op->parents = appendToTailOfList(op->parents, proj);
-	DEBUG_LOG("new proj %s", nodeToString(proj));
+	//DEBUG_LOG("new proj %s", nodeToString(proj));
 
-	//Introduce duplicateRemoval operator
+	//Introduce duplicateRemoval operator for the first proj
 	DuplicateRemoval *dr = createDuplicateRemovalOp(NIL, (QueryOperator *) proj,
 			NIL, attrNames);
 	proj->op.parents = appendToTailOfList(proj->op.parents, dr);
+    //End of introducint first normal attr proj op
 
-	//Second projection: provenance attributes
-	List *provAttrs = getProvenanceAttrDefs(op);
-	List *reverseProvAttrs = copyObject(provAttrs);
-	reverseList(reverseProvAttrs);
+/***BEGIN Loop**************************************************************************/
+    List *drOp = NIL;
+   	List *provAttrNames = singleton(ENTITY);
+   	List *provAttrs = NIL; //need to remove
+    FOREACH(TableAccessOperator, ta, taOp)
+    {
+    	StringInfo prefixTable = makeStringInfo();
+    	//appendStringInfoString(prefixR, "\"rel:tup_R(");
+    	appendStringInfoString(prefixTable,strdup(REL_TUP_));
+    	appendStringInfoString(prefixTable, strdup(ta->tableName));
+    	appendStringInfoString(prefixTable, "(");
+    	Constant *cPrefixR = createConstString(prefixTable->data);
 
-	int len = LIST_LENGTH(reverseProvAttrs);
-	count = count + len - 1;
-	AttributeDef *firstAttrDef = (AttributeDef *) getHeadOfListP(
-			reverseProvAttrs);
-	AttributeReference *firstAttr = createAttributeReference(
-			firstAttrDef->attrName);
-	firstAttr->fromClauseItem = 0;
-	firstAttr->attrType = firstAttrDef->dataType;
-	firstAttr->attrPosition = count;
-	count--;
-	List *exprList1 = NIL;
-	exprList1 = appendToTailOfList(exprList1, firstAttr);
-	exprList1 = appendToTailOfList(exprList1, cSuffix);
-	Operator *o1 = createOpExpr("||", exprList1);
+    	//Second projection: provenance attributes
+    	//List *provAttrs = getProvenanceAttrDefs(op);
+    	//List *provAttrs = NIL;
+    	provAttrs = NIL;
+    	if(isA(getHeadOfListP(ta->op.parents), ProjectionOperator))
+    	{
+    		ProjectionOperator *provPj = (ProjectionOperator *) getHeadOfListP(ta->op.parents);
+    		provAttrs = getProvenanceAttrDefs((QueryOperator *)provPj);
+    		DEBUG_LOG("Length %d", LIST_LENGTH(provAttrs));
+    		FOREACH(AttributeDef, ad, provAttrs)
+    			DEBUG_LOG("attr name %s", ad->attrName);
+    	}
+    	List *reverseProvAttrs = copyObject(provAttrs);
+    	reverseList(reverseProvAttrs);
 
-	reverseProvAttrs = removeFromHead(reverseProvAttrs);
-	FOREACH(AttributeDef, a, reverseProvAttrs) {
-		List *exprList2 = NIL;
-		exprList2 = appendToTailOfList(exprList2, cBar);
-		exprList2 = appendToTailOfList(exprList2, o1);
-		Operator *o2 = createOpExpr("||", exprList2);
+    	AttributeDef *firstAttrDef = (AttributeDef *) getHeadOfListP(
+    			reverseProvAttrs);
+    	Operator *o1 = generateOp((Node *)firstAttrDef, (Node *)cSuffix , namePosMap);
+    	reverseProvAttrs = removeFromHead(reverseProvAttrs);
+    	FOREACH(AttributeDef, a, reverseProvAttrs) {
+    		Operator *o2 = generateOp((Node *)cBar, (Node *)o1 , namePosMap);
+    		Operator *o3 = generateOp((Node *)a, (Node *)o2 , namePosMap);
+    		o1 = copyObject(o3);
+    	}
 
-		AttributeReference *attr = createAttributeReference(a->attrName);
-		attr->fromClauseItem = 0;
-		attr->attrType = a->dataType;
-		attr->attrPosition = count;
+    	Operator *o4 = generateOp((Node *)cPrefixR, (Node *)o1, namePosMap);
+    	//DEBUG_LOG("new prov operator expression %s", nodeToString(o4));
 
-		List *exprList3 = NIL;
-		exprList3 = appendToTailOfList(exprList3, attr);
-		exprList3 = appendToTailOfList(exprList3, o2);
-		Operator *o3 = createOpExpr("||", exprList3);
-		o1 = copyObject(o3);
-		count--;
-	}
+    	List *provProjExprs = singleton(o4);
+    	DEBUG_LOG("new prov proj exprs operator expression %s", nodeToString(o4));
+    	//List *provAttrNames = singleton("entity");
+    	//List *provAttrNames = singleton(ENTITY);
 
-	List *exprList4 = NIL;
-	exprList4 = appendToTailOfList(exprList4, cPrefixR);
-	exprList4 = appendToTailOfList(exprList4, o1);
-	Operator *o4 = createOpExpr("||", exprList4);
-	DEBUG_LOG("new prov operator expression %s", nodeToString(o4));
+    	//Introduce second prov projection operator
+    	ProjectionOperator *provProj = createProjectionOp(provProjExprs, op, NIL,
+    			provAttrNames);
+    	op->parents = appendToTailOfList(op->parents, provProj);
 
-	List *provProjExprs = singleton(o4);
 
-	StringInfo provName = makeStringInfo();
-	appendStringInfoString(provName, "entity");
-	List *provAttrNames = singleton(provName->data);
-	entityCount++;
-	DEBUG_LOG("new prov attribute name %s", provName->data);
+    	//Introduce duplicateRemoval operator
+    	DuplicateRemoval *provDr = createDuplicateRemovalOp(NIL,
+    			(QueryOperator *) provProj, NIL, provAttrNames);
+    	provProj->op.parents = appendToTailOfList(provProj->op.parents, provDr);
+    	//End of introducing second prov attr proj op
 
-	//Introduce projection operator
-	ProjectionOperator *provProj = createProjectionOp(provProjExprs, op, NIL,
-			provAttrNames);
-	op->parents = appendToTailOfList(op->parents, provProj);
+    	drOp = appendToTailOfList(drOp, provDr);
+    }
 
-	//Introduce duplicateRemoval operator
-	DuplicateRemoval *provDr = createDuplicateRemovalOp(NIL,
-			(QueryOperator *) provProj, NIL, provAttrNames);
-	provProj->op.parents = appendToTailOfList(provProj->op.parents, provDr);
+	/***END Loop**************************************************************************/
+
+    //Introduce union operators for provs
+    List *copyDrOp = copyObject(drOp);
+    List *unionNames = concatTwoLists(attrNames, provAttrNames);
+
+    SetOperator *so1 = NULL;
+    if(LIST_LENGTH(copyDrOp) > 1)
+    {
+    	DuplicateRemoval *dr2 = (DuplicateRemoval *)getTailOfListP(copyDrOp);
+    	copyDrOp = removeFromTail(copyDrOp);
+    	DuplicateRemoval *dr1 = (DuplicateRemoval *)getTailOfListP(copyDrOp);
+    	so1 = createSetOperator(SETOP_UNION, LIST_MAKE(dr1, dr2), NIL,
+    			unionNames);
+    	OP_LCHILD(so1)->parents = singleton(so1);
+    	OP_RCHILD(so1)->parents = singleton(so1);
+
+        while(LIST_LENGTH(copyDrOp) != 1)
+        {
+        	copyDrOp = removeFromTail(copyDrOp);
+        	DuplicateRemoval *dr3 = (DuplicateRemoval *)getTailOfListP(copyDrOp);
+        	SetOperator *so2 = createSetOperator(SETOP_UNION, LIST_MAKE(dr3, so1), NIL,
+        			unionNames);
+        	OP_LCHILD(so2)->parents = singleton(so2);
+        	OP_RCHILD(so2)->parents = singleton(so2);
+        	so1 = so2;
+        }
+    }
 
 	//Introduce union operator
-	List *unionNames = concatTwoLists(attrNames, provAttrNames);
-	SetOperator *so = createSetOperator(SETOP_UNION, LIST_MAKE(dr, provDr), NIL,
-			unionNames);
+    SetOperator *so = NULL;
+    if(LIST_LENGTH(drOp) == 1)
+    	so = createSetOperator(SETOP_UNION, LIST_MAKE(dr, getHeadOfListP(drOp)), NIL,
+    			unionNames);
+    else
+    	so = createSetOperator(SETOP_UNION, LIST_MAKE(dr, so1), NIL,
+    			unionNames);
+
 	OP_LCHILD(so)->parents = singleton(so);
 	OP_RCHILD(so)->parents = singleton(so);
 
@@ -240,7 +316,8 @@ rewriteTransformationProvenance(QueryOperator *op)
 
 	// create fake attribute names for aggregation output schema
 	List *aggAttrNames = NIL;
-	aggAttrNames = singleton("allEntities");
+	//aggAttrNames = singleton("allEntities");
+	aggAttrNames = singleton(strdup(ALL_ENTITIES));
 
 	AggregationOperator *ao = createAggregationOp(aggrs, NIL,
 			(QueryOperator *) so, NIL, aggAttrNames);
@@ -249,210 +326,138 @@ rewriteTransformationProvenance(QueryOperator *op)
 	/* Second Part: derivedBy and allDerived */
 
 	//Introduce projection operator
-	char *wdb = "_:wdb";
+	//char *wdb = "_:wdb";
 
-	StringInfo prefixDB = makeStringInfo();
-	appendStringInfoChar(prefixDB, '"');
-	appendStringInfoString(prefixDB, strdup(wdb));
-	Constant *cPrefixDB = createConstString(prefixDB->data);
+	/*Loop BEGIN************************************************************************/
+	List *dbProjList = NIL;
+	ProjectionOperator *derivedProj = NULL;
+	FOREACH(TableAccessOperator, ta, taOp)
+	{
+		StringInfo prefixDB = makeStringInfo();
+		//appendStringInfoChar(prefixDB, '"');
+		//appendStringInfoString(prefixDB, strdup(WDB));
+		appendStringInfoString(prefixDB, "\"_:wdb_");
+		appendStringInfoString(prefixDB, strdup(ta->tableName));
+		Constant *cPrefixDB = createConstString(prefixDB->data);
 
-	int lenNormal = LIST_LENGTH(normalAttrs);
-	List *wholeAttrs = concatTwoLists(copyObject(normalAttrs),
-			copyObject(provAttrs));
+    	provAttrs = NIL;
+    	if(isA(getHeadOfListP(ta->op.parents), ProjectionOperator))
+    	{
+    		ProjectionOperator *provPj = (ProjectionOperator *) getHeadOfListP(ta->op.parents);
+    		provAttrs = getProvenanceAttrDefs((QueryOperator *)provPj);
+    	}
 
-	int countDB = 0;
-	AttributeDef *firstNormalAttrDefDB = (AttributeDef *) getHeadOfListP(
-			wholeAttrs);
-	AttributeReference *firstNormalAttrDB = createAttributeReference(
-			firstNormalAttrDefDB->attrName);
-	firstNormalAttrDB->fromClauseItem = 0;
-	firstNormalAttrDB->attrType = firstNormalAttrDefDB->dataType;
-	firstNormalAttrDB->attrPosition = countDB;
-	countDB++;
-	List *NormalExprListDB1 = NIL;
-	NormalExprListDB1 = appendToTailOfList(NormalExprListDB1, cPrefixDB);
-	NormalExprListDB1 = appendToTailOfList(NormalExprListDB1,
-			firstNormalAttrDB);
-	Operator *NormalODB1 = createOpExpr("||", NormalExprListDB1);
+		//int lenNormal = LIST_LENGTH(normalAttrs);
+		List *wholeAttrs = concatTwoLists(copyObject(normalAttrs),
+				copyObject(provAttrs));
 
-	wholeAttrs = removeFromHead(wholeAttrs);
-	FOREACH(AttributeDef, a, wholeAttrs) {
-		List *exprList2 = NIL;
-		exprList2 = appendToTailOfList(exprList2, NormalODB1);
-		exprList2 = appendToTailOfList(exprList2, cBar);
-		Operator *o2 = createOpExpr("||", exprList2);
+		AttributeDef *firstNormalAttrDefDB = (AttributeDef *) getHeadOfListP(
+				wholeAttrs);
+		Operator *NormalODB1 = generateOp((Node *) cPrefixDB, (Node *) firstNormalAttrDefDB,namePosMap);
 
-		AttributeReference *attr = createAttributeReference(a->attrName);
-		attr->fromClauseItem = 0;
-		attr->attrType = a->dataType;
-		attr->attrPosition = countDB;
+		wholeAttrs = removeFromHead(wholeAttrs);
+		FOREACH(AttributeDef, a, wholeAttrs) {
+			Operator *o2 = generateOp((Node *) NormalODB1, (Node *) cBar, namePosMap);
+			Operator *o3 = generateOp((Node *) o2, (Node *) a, namePosMap);
+			NormalODB1 = copyObject(o3);
+		}
 
-		List *exprList3 = NIL;
-		exprList3 = appendToTailOfList(exprList3, o2);
-		exprList3 = appendToTailOfList(exprList3, attr);
-		Operator *o3 = createOpExpr("||", exprList3);
-		NormalODB1 = copyObject(o3);
-		countDB++;
+		StringInfo midDB = makeStringInfo();
+		//appendStringInfoString(midDB, ")\": { \"prov:usedEntity\": \"rel:tup_R(");
+		appendStringInfoString(midDB, strdup(PROV_USEDENTITY_REL_TUP_R));
+		appendStringInfoString(midDB, strdup(ta->tableName));
+		appendStringInfoString(midDB, "(");
+		Constant *cmidDB = createConstString(midDB->data);
+		Operator *DBo4 = generateOp((Node *) NormalODB1, (Node *) cmidDB, namePosMap);
+		//DEBUG_LOG("new prov operator expression %s", nodeToString(DBo4));
+
+		List *provAttrs1 = copyObject(provAttrs);
+		AttributeDef *firstProvAttrDef1 = (AttributeDef *) getHeadOfListP(
+				provAttrs1);
+		Operator *provO1 = generateOp((Node *) DBo4, (Node *) firstProvAttrDef1, namePosMap);
+
+		provAttrs1 = removeFromHead(provAttrs1);
+		FOREACH(AttributeDef, a, provAttrs1) {
+			Operator *o2 = generateOp((Node *) provO1, (Node *) cBar, namePosMap);
+			Operator *o3 = generateOp((Node *) o2, (Node *) a, namePosMap);
+			provO1 = copyObject(o3);
+		}
+
+		StringInfo midProv = makeStringInfo();
+		//appendStringInfoString(midProv,")\"");
+		appendStringInfoString(midProv, strdup(BRACKETS_DOUBLE_QUOTATION));
+		Constant *cmidProv = createConstString(midProv->data);
+		Operator *midProvO4 = generateOp((Node *) provO1, (Node *) cmidProv, namePosMap);
+		//DEBUG_LOG("new prov operator expression %s", nodeToString(midProvO4));
+
+		StringInfo midNor = makeStringInfo();
+		//appendStringInfoString(midNor, ",\"prov:generatedEntity\":\"");
+		appendStringInfoString(midNor, strdup(PROV_GENERATEDENTITY));
+		Constant *cmidNor = createConstString(midNor->data);
+		Operator *midNor1 = generateOp((Node *) midProvO4, (Node *) cmidNor, namePosMap);
+
+		StringInfo midNor2 = makeStringInfo();
+		appendStringInfoString(midNor2, "rel:tupQ(");
+		Constant *cmidNor2 = createConstString(midNor2->data);
+		Operator *midNorO2 = generateOp((Node *) midNor1, (Node *) cmidNor2, namePosMap);
+
+		List *normalAttrs3 = copyObject(normalAttrs);
+		AttributeDef *firstNorAttrDef3 = (AttributeDef *) getHeadOfListP(
+				normalAttrs3);
+
+		Operator *midNor3 = generateOp((Node *) midNorO2, (Node *) firstNorAttrDef3, namePosMap);
+
+		normalAttrs3 = removeFromHead(normalAttrs3);
+		FOREACH(AttributeDef, a, normalAttrs3) {
+			Operator *o2 = generateOp((Node *) midNor3, (Node *) cBar, namePosMap);
+			Operator *o3 = generateOp((Node *) o2, (Node *) a, namePosMap);
+			midNor3 = copyObject(o3);
+		}
+
+		List *normalExprList4 = NIL;
+		StringInfo midNor4 = makeStringInfo();
+		appendStringInfoString(midNor4, ")\"}");
+		Constant *cmidNor4 = createConstString(midNor4->data);
+
+		normalExprList4 = appendToTailOfList(normalExprList4, midNor3);
+		normalExprList4 = appendToTailOfList(normalExprList4, cmidNor4);
+		Operator *midNorO5 = createOpExpr("||", normalExprList4);
+
+		List *derivedProjExprs = singleton(midNorO5);
+		List *derivedAttrNames = singleton(strdup(WDB));
+		derivedProj = createProjectionOp(derivedProjExprs, op,
+				NIL, derivedAttrNames);
+		op->parents = appendToTailOfList(op->parents, derivedProj);
+
+		dbProjList = appendToTailOfList(dbProjList, derivedProj);
+
 	}
+	/*Loop END************************************************************************/
 
-	List *exprListDB4 = NIL;
-	StringInfo midDB = makeStringInfo();
-	appendStringInfoString(midDB, ")");
-	appendStringInfoChar(midDB, '"');
-	appendStringInfoString(midDB, ": { ");
-	//appendStringInfoChar(midDB, '"');
-	//appendStringInfoString(midDB, "prov:activity");
-	//appendStringInfoChar(midDB, '"');
-	//appendStringInfoString(midDB, ": ");
-	//appendStringInfoChar(midDB, '"');
-	//appendStringInfoChar(midDB, 'Q');
-	//appendStringInfoChar(midDB, '"');
-	//appendStringInfoChar(midDB, ',');
-	appendStringInfoChar(midDB, '"');
-	appendStringInfoString(midDB, "prov:usedEntity");
-	appendStringInfoChar(midDB, '"');
-	appendStringInfoString(midDB, ": ");
-	appendStringInfoChar(midDB, '"');
-	appendStringInfoString(midDB, "rel:tup_R(");
-	Constant *cmidDB = createConstString(midDB->data);
+	List *dbUnionNames = concatTwoLists(singleton(strdup(WDB)), singleton(strdup(WDB)));
+	List *copyDbProjList = copyObject(dbProjList);
+	SetOperator *u1 = NULL;
+	if(LIST_LENGTH(copyDbProjList) > 1)
+	{
+    	ProjectionOperator *pj2 = (ProjectionOperator *)getTailOfListP(copyDbProjList);
+    	copyDbProjList = removeFromTail(copyDbProjList);
+    	ProjectionOperator *pj1 = (ProjectionOperator *)getTailOfListP(copyDbProjList);
+    	u1 = createSetOperator(SETOP_UNION, LIST_MAKE(pj1, pj2), NIL,
+    			dbUnionNames);
+    	OP_LCHILD(u1)->parents = singleton(u1);
+    	OP_RCHILD(u1)->parents = singleton(u1);
 
-	exprListDB4 = appendToTailOfList(exprListDB4, NormalODB1);
-	exprListDB4 = appendToTailOfList(exprListDB4, cmidDB);
-	Operator *DBo4 = createOpExpr("||", exprListDB4);
-	//DEBUG_LOG("new prov operator expression %s", nodeToString(DBo4));
-
-	List *provAttrs1 = copyObject(provAttrs);
-	AttributeDef *firstProvAttrDef1 = (AttributeDef *) getHeadOfListP(
-			provAttrs1);
-	AttributeReference *firstProvAttr1 = createAttributeReference(
-			firstProvAttrDef1->attrName);
-	firstProvAttr1->fromClauseItem = 0;
-	firstProvAttr1->attrType = firstProvAttrDef1->dataType;
-	firstProvAttr1->attrPosition = lenNormal;
-	lenNormal++;
-
-	List *provExprList1 = NIL;
-	provExprList1 = appendToTailOfList(provExprList1, DBo4);
-	provExprList1 = appendToTailOfList(provExprList1, firstProvAttr1);
-	Operator *provO1 = createOpExpr("||", provExprList1);
-
-	provAttrs1 = removeFromHead(provAttrs1);
-	FOREACH(AttributeDef, a, provAttrs1) {
-		List *exprList2 = NIL;
-		exprList2 = appendToTailOfList(exprList2, provO1);
-		exprList2 = appendToTailOfList(exprList2, cBar);
-		Operator *o2 = createOpExpr("||", exprList2);
-
-		AttributeReference *attr = createAttributeReference(a->attrName);
-		attr->fromClauseItem = 0;
-		attr->attrType = a->dataType;
-		attr->attrPosition = lenNormal;
-
-		List *exprList3 = NIL;
-		exprList3 = appendToTailOfList(exprList3, o2);
-		exprList3 = appendToTailOfList(exprList3, attr);
-		Operator *o3 = createOpExpr("||", exprList3);
-		provO1 = copyObject(o3);
-		lenNormal++;
+        while(LIST_LENGTH(copyDbProjList) != 1)
+        {
+        	copyDbProjList = removeFromTail(copyDbProjList);
+        	ProjectionOperator *pj3 = (ProjectionOperator *)getTailOfListP(copyDbProjList);
+        	SetOperator *u2 = createSetOperator(SETOP_UNION, LIST_MAKE(pj3, u1), NIL,
+        			dbUnionNames);
+        	OP_LCHILD(u2)->parents = singleton(u2);
+        	OP_RCHILD(u2)->parents = singleton(u2);
+        	u1 = u2;
+        }
 	}
-
-	List *provExprList4 = NIL;
-	StringInfo midProv = makeStringInfo();
-	appendStringInfoChar(midProv, ')');
-	appendStringInfoChar(midProv, '"');
-	Constant *cmidProv = createConstString(midProv->data);
-
-	provExprList4 = appendToTailOfList(provExprList4, provO1);
-	provExprList4 = appendToTailOfList(provExprList4, cmidProv);
-	Operator *midProvO4 = createOpExpr("||", provExprList4);
-	//DEBUG_LOG("new prov operator expression %s", nodeToString(midProvO4));
-
-	List *normalExprList = NIL;
-	StringInfo midNor = makeStringInfo();
-	appendStringInfoString(midNor, ",");
-	//appendStringInfoChar(midNor, '"');
-	//appendStringInfoString(midNor, "prov:usage");
-	//appendStringInfoChar(midNor, '"');
-	//appendStringInfoChar(midNor, ':');
-	//appendStringInfoChar(midNor, '"');
-	//appendStringInfoString(midNor, "u1");
-	//appendStringInfoChar(midNor, '"');
-	//appendStringInfoChar(midNor, ',');
-	//appendStringInfoChar(midNor, '"');
-	//appendStringInfoString(midNor, "prov:generation");
-	//appendStringInfoChar(midNor, '"');
-	//appendStringInfoChar(midNor, ':');
-	//appendStringInfoChar(midNor, '"');
-	//appendStringInfoString(midNor, "g2");
-	//appendStringInfoChar(midNor, '"');
-	//appendStringInfoChar(midNor, ',');
-	appendStringInfoChar(midNor, '"');
-	appendStringInfoString(midNor, "prov:generatedEntity");
-	appendStringInfoChar(midNor, '"');
-	appendStringInfoChar(midNor, ':');
-	appendStringInfoChar(midNor, '"');
-	Constant *cmidNor = createConstString(midNor->data);
-
-	normalExprList = appendToTailOfList(normalExprList, midProvO4);
-	normalExprList = appendToTailOfList(normalExprList, cmidNor);
-	Operator *midNor1 = createOpExpr("||", normalExprList);
-
-	List *normalExprList2 = NIL;
-	StringInfo midNor2 = makeStringInfo();
-	appendStringInfoString(midNor2, "rel:tupQ(");
-	Constant *cmidNor2 = createConstString(midNor2->data);
-
-	normalExprList2 = appendToTailOfList(normalExprList2, midNor1);
-	normalExprList2 = appendToTailOfList(normalExprList2, cmidNor2);
-	Operator *midNorO2 = createOpExpr("||", normalExprList2);
-
-	List *normalAttrs3 = copyObject(normalAttrs);
-	AttributeDef *firstNorAttrDef3 = (AttributeDef *) getHeadOfListP(
-			normalAttrs3);
-	int gb1Count = 0;
-	AttributeReference *firstNorAttr3 = createAttributeReference(
-			firstNorAttrDef3->attrName);
-	firstNorAttr3->fromClauseItem = 0;
-	firstNorAttr3->attrType = firstNorAttrDef3->dataType;
-	firstNorAttr3->attrPosition = gb1Count;
-    gb1Count++;
-
-	List *normalExprList3 = NIL;
-	normalExprList3 = appendToTailOfList(normalExprList3, midNorO2);
-	normalExprList3 = appendToTailOfList(normalExprList3, firstNorAttr3);
-	Operator *midNor3 = createOpExpr("||", normalExprList3);
-
-	normalAttrs3 = removeFromHead(normalAttrs3);
-	FOREACH(AttributeDef, a, normalAttrs3) {
-		Operator *o2 = generateOp(&gb1Count, (Node *) midNor3, (Node *) cBar);
-		Operator *o3 = generateOp(&gb1Count, (Node *) o2, (Node *) a);
-		midNor3 = copyObject(o3);
-	}
-
-	List *normalExprList4 = NIL;
-	StringInfo midNor4 = makeStringInfo();
-	appendStringInfoChar(midNor4, ')');
-	Constant *cmidNor4 = createConstString(midNor4->data);
-
-	normalExprList4 = appendToTailOfList(normalExprList4, midNor3);
-	normalExprList4 = appendToTailOfList(normalExprList4, cmidNor4);
-	Operator *midNorO4 = createOpExpr("||", normalExprList4);
-
-	List *normalExprList5 = NIL;
-	StringInfo midNor5 = makeStringInfo();
-	appendStringInfoChar(midNor5, '"');
-	appendStringInfoChar(midNor5, '}');
-	Constant *cmidNor5 = createConstString(midNor5->data);
-
-	normalExprList5 = appendToTailOfList(normalExprList5, midNorO4);
-	normalExprList5 = appendToTailOfList(normalExprList5, cmidNor5);
-	Operator *midNorO5 = createOpExpr("||", normalExprList5);
-
-	List *derivedProjExprs = singleton(midNorO5);
-	List *derivedAttrNames = singleton(strdup(wdb));
-	ProjectionOperator *derivedProj = createProjectionOp(derivedProjExprs, op,
-			NIL, derivedAttrNames);
-	op->parents = appendToTailOfList(op->parents, derivedProj);
 
 	//Introduce aggregation operator
 	AttributeDef *aggDef1 = (AttributeDef *) getHeadOfListP(
@@ -470,116 +475,23 @@ rewriteTransformationProvenance(QueryOperator *op)
 	List *aggAttrNames1 = NIL;
 	aggAttrNames1 = singleton("allWdb");
 
-	AggregationOperator *ao1 = createAggregationOp(aggrs1, NIL,
-			(QueryOperator *) derivedProj, NIL, aggAttrNames1);
-	derivedProj->op.parents = appendToTailOfList(derivedProj->op.parents, ao1);
-/*
-	 Top projection based on allTup and allDerived, first introduce cross product
-	List *joinNames = concatTwoLists(aggAttrNames, aggAttrNames1);
-
-	//Introduce cross product
-	JoinOperator *jo = createJoinOp(JOIN_CROSS, NULL, LIST_MAKE(ao, ao1), NULL,
-			joinNames);
-	OP_LCHILD(jo)->parents = singleton(jo);
-	OP_RCHILD(jo)->parents = singleton(jo);
-
-	//Introduce projection operation
-	List *topProjExprs = NIL;
-	List *topProjNames = NIL;
-	int topCount = 0;
-
-	//Op expr step 1
-	StringInfo topPrefix1 = makeStringInfo();
-	appendStringInfoChar(topPrefix1, '{');
-	appendStringInfoChar(topPrefix1, '"');
-	appendStringInfoString(topPrefix1, "entities");
-	appendStringInfoChar(topPrefix1, '"');
-	appendStringInfoString(topPrefix1, " : { ");
-	Constant *cTopPrefix1 = createConstString(topPrefix1->data);
-
-	AttributeDef *topAttrDef1 = (AttributeDef *) getHeadOfListP(
-			jo->op.schema->attrDefs);
-	AttributeReference *topAttr1 = createAttributeReference(
-			topAttrDef1->attrName);
-	topAttr1->fromClauseItem = 0;
-	topAttr1->attrType = topAttrDef1->dataType;
-	topAttr1->attrPosition = topCount;
-	topCount++;
-
-	List *topExpr1 = NIL;
-	topExpr1 = appendToTailOfList(topExpr1, cTopPrefix1);
-	topExpr1 = appendToTailOfList(topExpr1, topAttr1);
-	Operator *topO1 = createOpExpr("||", topExpr1);
-
-	//Op expr step 2
-	StringInfo topPrefix2 = makeStringInfo();
-	appendStringInfoString(topPrefix2, "}, ");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, "activity");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, " : { ");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoChar(topPrefix2, 'q');
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, ": {} }, ");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, "wasGeneratedBy");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, " : {");
-	Constant *cTopPrefix2 = createConstString(topPrefix2->data);
-
-	List *topExpr2 = NIL;
-	topExpr2 = appendToTailOfList(topExpr2, topO1);
-	topExpr2 = appendToTailOfList(topExpr2, cTopPrefix2);
-	Operator *topO2 = createOpExpr("||", topExpr2);
-
-	//Op expr step 3
-	AttributeDef *topAttrDef3 = (AttributeDef *) getTailOfListP(
-			jo->op.schema->attrDefs);
-	AttributeReference *topAttr3 = createAttributeReference(
-			topAttrDef3->attrName);
-	topAttr3->fromClauseItem = 0;
-	topAttr3->attrType = topAttrDef3->dataType;
-	topAttr3->attrPosition = topCount;
-	topCount++;
-
-	List *topExpr3 = NIL;
-	topExpr3 = appendToTailOfList(topExpr3, topO2);
-	topExpr3 = appendToTailOfList(topExpr3, topAttr3);
-	Operator *topO3 = createOpExpr("||", topExpr3);
-
-	//Op expr step 4
-	StringInfo topSuffix4 = makeStringInfo();
-	appendStringInfoString(topSuffix4, "}}");
-	//appendStringInfoChar(topSuffix4, '}');
-	Constant *cTopSuffix4 = createConstString(topSuffix4->data);
-
-	List *topExpr4 = NIL;
-	topExpr4 = appendToTailOfList(topExpr4, topO3);
-	topExpr4 = appendToTailOfList(topExpr4, cTopSuffix4);
-	Operator *topO4 = createOpExpr("||", topExpr4);
-
-	topProjExprs = singleton(topO4);
-	topProjNames = singleton("jExport");
-
-	ProjectionOperator *pj = createProjectionOp(topProjExprs,
-			(QueryOperator *) jo, NIL, topProjNames);
-	jo->op.parents = appendToTailOfList(jo->op.parents, pj);*/
-
+	AggregationOperator *ao1 = NULL;
+	if(LIST_LENGTH(dbProjList) == 1)
+	{
+		ao1 = createAggregationOp(aggrs1, NIL,
+				(QueryOperator *) derivedProj, NIL, aggAttrNames1);
+		derivedProj->op.parents = appendToTailOfList(derivedProj->op.parents, ao1);
+	}
+	else
+	{
+		ao1 = createAggregationOp(aggrs1, NIL,
+				(QueryOperator *) u1, NIL, aggAttrNames1);
+		u1->op.parents = appendToTailOfList(u1->op.parents, ao1);
+	}
 
 	//-- was generated by edges output tuple -> Q
 	//generatedBy AS (SELECT '"_wgb' || X || ')" : { "prov:activity": "Q", "prov:entity": "' || '"tupQ(' || X || ')"' || '"}' AS wgb
 	//FROM PQ)
-
-	char *prov = "prov";
-	char *activity = "activity";
-	char *entity = "entity";
-	char *usedEntity = "entity";
-	char *tup_R = "rel:tup_R";
-	char *tupQ = "rel:tupQ";
-	char *_wgb = "_:wgb";
-	char *_wub = "_:wub";
-	int gbCount = 0;
 
 	//OP expr 1
 	StringInfo gbS1 = makeStringInfo();
@@ -589,75 +501,53 @@ rewriteTransformationProvenance(QueryOperator *op)
 
 	List *gbAttr1 = copyObject(normalAttrs);
 	AttributeDef *firstGbAttrDef1= (AttributeDef *) getHeadOfListP(gbAttr1);
-    Operator *gbO1 = generateOp(&gbCount, (Node *)cgbS1, (Node *)firstGbAttrDef1);
+    Operator *gbO1 = generateOp((Node *)cgbS1, (Node *)firstGbAttrDef1, namePosMap);
 
     gbAttr1 = removeFromHead(gbAttr1);
 	FOREACH(AttributeDef, a, gbAttr1) {
-		Operator *o2 = generateOp(&gbCount, (Node *) gbO1, (Node *) cBar);
-		Operator *o3 = generateOp(&gbCount, (Node *) o2, (Node *) a);
+		Operator *o2 = generateOp((Node *) gbO1, (Node *) cBar, namePosMap);
+		Operator *o3 = generateOp((Node *) o2, (Node *) a, namePosMap);
 		gbO1 = copyObject(o3);
 	}
 
 	//OP expr 2
 	StringInfo gbS2 = makeStringInfo();
-	appendStringInfoChar(gbS2, ')');
-	appendStringInfoChar(gbS2, '"');
-	appendStringInfoString(gbS2, " : { ");
-	appendStringInfoChar(gbS2, '"');
-	appendStringInfoString(gbS2, prov);
-	appendStringInfoChar(gbS2, ':');
-	appendStringInfoString(gbS2, activity);
-	appendStringInfoChar(gbS2, '"');
-	appendStringInfoString(gbS2, ": ");
-	appendStringInfoChar(gbS2, '"');
-	appendStringInfoString(gbS2, "rel:");
-	appendStringInfoChar(gbS2, 'Q');
-	appendStringInfoChar(gbS2, '"');
-	appendStringInfoString(gbS2, ", ");
-	appendStringInfoChar(gbS2, '"');
-	appendStringInfoString(gbS2, prov);
-	appendStringInfoChar(gbS2, ':');
-	appendStringInfoString(gbS2, entity);
-	appendStringInfoChar(gbS2, '"');
-	appendStringInfoString(gbS2, ": ");
-	appendStringInfoChar(gbS2, '"');
+	//appendStringInfoString(gbS2, ")\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \"");
+	appendStringInfoString(gbS2, strdup(PROV_ACTIVITY_RELQ_PROV_ENTITY));
 	Constant *cgbS2 = createConstString(gbS2->data);
-    Operator *gbO2 = generateOp(&gbCount, (Node *)gbO1, (Node *)cgbS2);
+    Operator *gbO2 = generateOp((Node *)gbO1, (Node *)cgbS2, namePosMap);
 
     //OP expr 3
-    gbCount = 0;
 	StringInfo gbS3 = makeStringInfo();
 	//appendStringInfoChar(gbS3, '"');
 	appendStringInfoString(gbS3, tupQ);
 	appendStringInfoChar(gbS3, '(');
 	Constant *cgbS3 = createConstString(gbS3->data);
-    Operator *gbO3 = generateOp(&gbCount, (Node *)gbO2, (Node *)cgbS3);
+    Operator *gbO3 = generateOp((Node *)gbO2, (Node *)cgbS3, namePosMap);
 
     //OP expr 4
 	List *gbAttr2 = copyObject(normalAttrs);
 	AttributeDef *firstGbAttrDef2= (AttributeDef *) getHeadOfListP(gbAttr2);
-    Operator *gbO4 = generateOp(&gbCount, (Node *) gbO3, (Node *) firstGbAttrDef2);
+    Operator *gbO4 = generateOp((Node *) gbO3, (Node *) firstGbAttrDef2, namePosMap);
 
     gbAttr2 = removeFromHead(gbAttr2);
 	FOREACH(AttributeDef, a, gbAttr2) {
-		Operator *o2 = generateOp(&gbCount, (Node *) gbO4, (Node *) cBar);
-		Operator *o3 = generateOp(&gbCount, (Node *) o2, (Node *) a);
+		Operator *o2 = generateOp((Node *) gbO4, (Node *) cBar, namePosMap);
+		Operator *o3 = generateOp((Node *) o2, (Node *) a, namePosMap);
 		gbO4 = copyObject(o3);
 	}
 
 	//OP expr 5
 	StringInfo gbS5 = makeStringInfo();
 	appendStringInfoChar(gbS5, ')');
-	//appendStringInfoChar(gbS5, '"');
 	Constant *cgbS5 = createConstString(gbS5->data);
-    Operator *gbO5 = generateOp(&gbCount, (Node *)gbO4, (Node *)cgbS5);
+    Operator *gbO5 = generateOp((Node *)gbO4, (Node *)cgbS5, namePosMap);
 
     //OP expr 6
 	StringInfo gbS6 = makeStringInfo();
-	appendStringInfoChar(gbS6, '"');
-	appendStringInfoChar(gbS6, '}');
+	appendStringInfoString(gbS6, "\"}");
 	Constant *cgbS6 = createConstString(gbS6->data);
-    Operator *gbO6 = generateOp(&gbCount, (Node *)gbO5, (Node *)cgbS6);
+    Operator *gbO6 = generateOp((Node *)gbO5, (Node *)cgbS6, namePosMap);
 
 	ProjectionOperator *generatedByPj = createProjectionOp(singleton(gbO6), op, NIL,
 			singleton("wgb"));
@@ -686,76 +576,98 @@ rewriteTransformationProvenance(QueryOperator *op)
 	//usedBy AS (SELECT '"_wub(' || PA || '|' || PB || ')" : { "prov:activity": "Q", "prov:usedEntity": "tup_R(' || PA || '|' || PB || ') "}' AS used
 	//FROM PQ)
 	//OP expr 1
-	int ubCount = LIST_LENGTH(normalAttrs);
-	StringInfo ubS1 = makeStringInfo();
-	appendStringInfoChar(ubS1, '"');
-	appendStringInfoString(ubS1, _wub);
-	appendStringInfoChar(ubS1, '(');
-	Constant *cubS1 = createConstString(ubS1->data);
+	/*Loop BEGIN***************************************************************/
+	ProjectionOperator *usedByPj = NULL;
 
-	List *ubAttr1 = copyObject(provAttrs);
-	AttributeDef *firstUbAttrDef1= (AttributeDef *) getHeadOfListP(ubAttr1);
-    Operator *ubO1 = generateOp(&ubCount, (Node *)cubS1, (Node *)firstUbAttrDef1);
+	List *ubProjList = NIL;
+	FOREACH(TableAccessOperator, ta, taOp)
+	{
+    	provAttrs = NIL;
+    	if(isA(getHeadOfListP(ta->op.parents), ProjectionOperator))
+    	{
+    		ProjectionOperator *provPj = (ProjectionOperator *) getHeadOfListP(ta->op.parents);
+    		provAttrs = getProvenanceAttrDefs((QueryOperator *)provPj);
+    	}
 
-    ubAttr1 = removeFromHead(ubAttr1);
-	FOREACH(AttributeDef, a, ubAttr1) {
-		Operator *o2 = generateOp(&ubCount, (Node *) ubO1, (Node *) cBar);
-		Operator *o3 = generateOp(&ubCount, (Node *) o2, (Node *) a);
-		ubO1 = copyObject(o3);
+		StringInfo ubS1 = makeStringInfo();
+		appendStringInfoChar(ubS1, '"');
+		appendStringInfoString(ubS1, _wub);
+		appendStringInfoString(ubS1, strdup(ta->tableName));
+		appendStringInfoChar(ubS1, '(');
+		Constant *cubS1 = createConstString(ubS1->data);
+
+		List *ubAttr1 = copyObject(provAttrs);
+		AttributeDef *firstUbAttrDef1= (AttributeDef *) getHeadOfListP(ubAttr1);
+		Operator *ubO1 = generateOp((Node *)cubS1, (Node *)firstUbAttrDef1, namePosMap);
+
+		ubAttr1 = removeFromHead(ubAttr1);
+		FOREACH(AttributeDef, a, ubAttr1) {
+			Operator *o2 = generateOp((Node *) ubO1, (Node *) cBar, namePosMap);
+			Operator *o3 = generateOp((Node *) o2, (Node *) a, namePosMap);
+			ubO1 = copyObject(o3);
+		}
+
+		//OP expr 2
+		StringInfo ubS2 = makeStringInfo();
+		//appendStringInfoString(ubS2, ")\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \"rel:tup_R(");
+		appendStringInfoString(ubS2, strdup(PROV_ACTIVITY_REL_Q_PROV_ENTITY_REL_TUP_R));
+		appendStringInfoString(ubS2, strdup(ta->tableName));
+		appendStringInfoString(ubS2, "(");
+		Constant *cubS2 = createConstString(ubS2->data);
+		Operator *ubO2 = generateOp((Node *)ubO1, (Node *)cubS2, namePosMap);
+
+		//OP expr 3
+		//ubCount = LIST_LENGTH(normalAttrs);
+		//ubCount = ubCount1;
+		List *ubAttr2 = copyObject(provAttrs);
+		AttributeDef *firstUbAttrDef2= (AttributeDef *) getHeadOfListP(ubAttr2);
+		Operator *ubO3 = generateOp((Node *) ubO2, (Node *) firstUbAttrDef2, namePosMap);
+
+		ubAttr2 = removeFromHead(ubAttr2);
+		FOREACH(AttributeDef, a, ubAttr2) {
+			Operator *o2 = generateOp((Node *) ubO3, (Node *) cBar, namePosMap);
+			Operator *o3 = generateOp((Node *) o2, (Node *) a, namePosMap);
+			ubO3 = copyObject(o3);
+		}
+
+		//OP expr 5
+		StringInfo ubS4 = makeStringInfo();
+		appendStringInfoString(ubS4, ")\"}");
+		Constant *cubS4 = createConstString(ubS4->data);
+		Operator *ubO4 = generateOp((Node *)ubO3, (Node *)cubS4, namePosMap);
+
+		usedByPj = createProjectionOp(singleton(ubO4), op, NIL,
+				singleton("used"));
+		op->parents = appendToTailOfList(op->parents, usedByPj);
+
+		ubProjList = appendToTailOfList(ubProjList, usedByPj);
 	}
+	/*Loop END***************************************************************/
 
-	//OP expr 2
-	StringInfo ubS2 = makeStringInfo();
-	appendStringInfoChar(ubS2, ')');
-	appendStringInfoChar(ubS2, '"');
-	appendStringInfoString(ubS2, " : { ");
-	appendStringInfoChar(ubS2, '"');
-	appendStringInfoString(ubS2, prov);
-	appendStringInfoChar(ubS2, ':');
-	appendStringInfoString(ubS2, activity);
-	appendStringInfoChar(ubS2, '"');
-	appendStringInfoString(ubS2, ": ");
-	appendStringInfoChar(ubS2, '"');
-	appendStringInfoString(ubS2, "rel:");
-	appendStringInfoChar(ubS2, 'Q');
-	appendStringInfoChar(ubS2, '"');
-	appendStringInfoString(ubS2, ", ");
-	appendStringInfoChar(ubS2, '"');
-	appendStringInfoString(ubS2, prov);
-	appendStringInfoChar(ubS2, ':');
-	appendStringInfoString(ubS2, usedEntity);
-	appendStringInfoChar(ubS2, '"');
-	appendStringInfoString(ubS2, ": ");
-	appendStringInfoChar(ubS2, '"');
-	appendStringInfoString(ubS2, tup_R);
-	appendStringInfoChar(ubS2, '(');
-	Constant *cubS2 = createConstString(ubS2->data);
-    Operator *ubO2 = generateOp(&ubCount, (Node *)ubO1, (Node *)cubS2);
+	List *ubUnionNames = concatTwoLists(singleton("used"), singleton("used"));
+	List *copyUbProjList = copyObject(ubProjList);
+	SetOperator *u2 = NULL;
+	if(LIST_LENGTH(copyUbProjList) > 1)
+	{
+    	ProjectionOperator *pj2 = (ProjectionOperator *)getTailOfListP(copyUbProjList);
+    	copyUbProjList = removeFromTail(copyUbProjList);
+    	ProjectionOperator *pj1 = (ProjectionOperator *)getTailOfListP(copyUbProjList);
+    	u2 = createSetOperator(SETOP_UNION, LIST_MAKE(pj1, pj2), NIL,
+    			ubUnionNames);
+    	OP_LCHILD(u2)->parents = singleton(u2);
+    	OP_RCHILD(u2)->parents = singleton(u2);
 
-    //OP expr 3
-    ubCount = LIST_LENGTH(normalAttrs);;
-	List *ubAttr2 = copyObject(provAttrs);
-	AttributeDef *firstUbAttrDef2= (AttributeDef *) getHeadOfListP(ubAttr2);
-    Operator *ubO3 = generateOp(&ubCount, (Node *) ubO2, (Node *) firstUbAttrDef2);
-
-    ubAttr2 = removeFromHead(ubAttr2);
-	FOREACH(AttributeDef, a, ubAttr2) {
-		Operator *o2 = generateOp(&ubCount, (Node *) ubO3, (Node *) cBar);
-		Operator *o3 = generateOp(&ubCount, (Node *) o2, (Node *) a);
-		ubO3 = copyObject(o3);
+        while(LIST_LENGTH(copyUbProjList) != 1)
+        {
+        	copyUbProjList = removeFromTail(copyUbProjList);
+        	ProjectionOperator *pj3 = (ProjectionOperator *)getTailOfListP(copyUbProjList);
+        	SetOperator *u3 = createSetOperator(SETOP_UNION, LIST_MAKE(pj3, u2), NIL,
+        			dbUnionNames);
+        	OP_LCHILD(u3)->parents = singleton(u3);
+        	OP_RCHILD(u3)->parents = singleton(u3);
+        	u2 = u3;
+        }
 	}
-
-	//OP expr 5
-	StringInfo ubS4 = makeStringInfo();
-	appendStringInfoString(ubS4, ")");
-	appendStringInfoChar(ubS4, '"');
-	appendStringInfoChar(ubS4, '}');
-	Constant *cubS4 = createConstString(ubS4->data);
-    Operator *ubO4 = generateOp(&ubCount, (Node *)ubO3, (Node *)cubS4);
-
-	ProjectionOperator *usedByPj = createProjectionOp(singleton(ubO4), op, NIL,
-			singleton("used"));
-	op->parents = appendToTailOfList(op->parents, usedByPj);
 
     //allUsed AS (SELECT LISTAGG(used,',') WITHIN GROUP (ORDER BY used) AS allUsed FROM usedBy)
 	AttributeDef *aggAUDef1 = (AttributeDef *) getHeadOfListP(
@@ -772,11 +684,19 @@ rewriteTransformationProvenance(QueryOperator *op)
 	// create fake attribute names for aggregation output schema
 	List * aggAUAttrNames1 = singleton("allUsed");
 
-	AggregationOperator *aoAU1 = createAggregationOp(aggrsAU1, NIL,
-			(QueryOperator *) usedByPj, NIL, aggAUAttrNames1);
-	usedByPj->op.parents = appendToTailOfList(usedByPj->op.parents, aoAU1);
-
-
+	AggregationOperator *aoAU1 = NULL;
+	if(LIST_LENGTH(ubProjList) == 1)
+	{
+		aoAU1 = createAggregationOp(aggrsAU1, NIL,
+				(QueryOperator *) usedByPj, NIL, aggAUAttrNames1);
+		usedByPj->op.parents = appendToTailOfList(usedByPj->op.parents, aoAU1);
+	}
+	else
+	{
+		aoAU1 = createAggregationOp(aggrsAU1, NIL,
+				(QueryOperator *) u2, NIL, aggAUAttrNames1);
+		u2->op.parents = appendToTailOfList(u2->op.parents, aoAU1);
+	}
 
 	/* Top projection based on allTup and allDerived, first introduce cross product */
 	//List *joinNames = concatTwoLists(aggAttrNames, aggAttrNames1);
@@ -817,130 +737,55 @@ rewriteTransformationProvenance(QueryOperator *op)
 
 	//Op expr step 1
 	StringInfo topPrefix1 = makeStringInfo();
-	appendStringInfoChar(topPrefix1, '{');
-	appendStringInfoChar(topPrefix1, '"');
-	appendStringInfo(topPrefix1, "prefix");
-	appendStringInfoChar(topPrefix1, '"');
-	appendStringInfo(topPrefix1, ": {");
-	appendStringInfoChar(topPrefix1, '"');
-	appendStringInfo(topPrefix1, "rel");
-	appendStringInfoChar(topPrefix1, '"');
-	appendStringInfo(topPrefix1, ": ");
-	appendStringInfoChar(topPrefix1, '"');
-	appendStringInfo(topPrefix1, "http://example.org");
-	appendStringInfoChar(topPrefix1, '"');
-	appendStringInfo(topPrefix1, "}, ");
-	appendStringInfoChar(topPrefix1, '"');
-	appendStringInfoString(topPrefix1, "entity");
-	appendStringInfoChar(topPrefix1, '"');
-	appendStringInfoString(topPrefix1, " : { ");
+	//appendStringInfoString(topPrefix1, "{\"prefix\": {\"rel\": \"http://example.org\"}, \"entity\" : { ");
+	appendStringInfoString(topPrefix1, strdup(PREFIX_REL_URL_ENTITY));
 	Constant *cTopPrefix1 = createConstString(topPrefix1->data);
-	AttributeDef *topAttrDef1 = (AttributeDef *) getHeadOfListP(
-			joSchema);
-	Operator *topO1 = generateOp(&topCount, (Node *) cTopPrefix1, (Node *) topAttrDef1);
-
-//	AttributeReference *topAttr1 = createAttributeReference(
-//			topAttrDef1->attrName);
-//	topAttr1->fromClauseItem = 0;
-//	topAttr1->attrType = topAttrDef1->dataType;
-//	topAttr1->attrPosition = topCount;
-//	topCount++;
-//
-//	List *topExpr1 = NIL;
-//	topExpr1 = appendToTailOfList(topExpr1, cTopPrefix1);
-//	topExpr1 = appendToTailOfList(topExpr1, topAttr1);
-//	Operator *topO1 = createOpExpr("||", topExpr1);
+	AttributeDef *topAttrDef1 = (AttributeDef *) getHeadOfListP(joSchema);
+	Operator *topO1 = generateOpP(&topCount, (Node *) cTopPrefix1, (Node *) topAttrDef1);
 
 	//Op expr step 2
 	StringInfo topPrefix2 = makeStringInfo();
-	appendStringInfoString(topPrefix2, "}, ");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, "activity");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, " : { ");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, "rel:");
-	appendStringInfoChar(topPrefix2, 'Q');
-	appendStringInfoChar(topPrefix2, '"');
-	//appendStringInfoString(topPrefix2, ": {} }, ");
-	appendStringInfoString(topPrefix2, ": {");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, "prov:type");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoChar(topPrefix2, ':');
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, "query");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, "} }, ");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, "wasDerivedFrom");
-	appendStringInfoChar(topPrefix2, '"');
-	appendStringInfoString(topPrefix2, " : {");
+	//appendStringInfoString(topPrefix2, "}, \"activity\" : { \"rel:Q\": {\"prov:type\":\"query\"} }, \"wasDerivedFrom\" : {");
+	appendStringInfoString(topPrefix2, strdup(ACTIVIT_REL_Q_PROV_TYPE_QUERY_WASDERIVEDFROM));
 	Constant *cTopPrefix2 = createConstString(topPrefix2->data);
-	Operator *topO2 = generateOp(&topCount, (Node *) topO1, (Node *) cTopPrefix2);
-//	List *topExpr2 = NIL;
-//	topExpr2 = appendToTailOfList(topExpr2, topO1);
-//	topExpr2 = appendToTailOfList(topExpr2, cTopPrefix2);
-//	Operator *topO2 = createOpExpr("||", topExpr2);
+	Operator *topO2 = generateOpP(&topCount, (Node *) topO1, (Node *) cTopPrefix2);
 
 	//Op expr step 3
 	joSchema = removeFromHead(joSchema);
 	AttributeDef *topAttrDef3 = (AttributeDef *) getHeadOfListP(
 			joSchema);
-	Operator *topO3 = generateOp(&topCount, (Node *) topO2, (Node *) topAttrDef3);
-//	AttributeReference *topAttr3 = createAttributeReference(
-//			topAttrDef3->attrName);
-//	topAttr3->fromClauseItem = 0;
-//	topAttr3->attrType = topAttrDef3->dataType;
-//	topAttr3->attrPosition = topCount;
-//	topCount++;
-//
-//	List *topExpr3 = NIL;
-//	topExpr3 = appendToTailOfList(topExpr3, topO2);
-//	topExpr3 = appendToTailOfList(topExpr3, topAttr3);
-//	Operator *topO3 = createOpExpr("||", topExpr3);
+	Operator *topO3 = generateOpP(&topCount, (Node *) topO2, (Node *) topAttrDef3);
 
 	//Op expr step 4
 	StringInfo topSuffix4 = makeStringInfo();
-	appendStringInfoString(topSuffix4, "}, ");
-	appendStringInfoChar(topSuffix4, '"');
-	appendStringInfoString(topSuffix4, "wasGeneratedBy");
-	appendStringInfoChar(topSuffix4, '"');
-	appendStringInfoString(topSuffix4, " : {");
+	//appendStringInfoString(topSuffix4, "}, \"wasGeneratedBy\" : {");
+	appendStringInfoString(topSuffix4, strdup(WAS_GENREATED_BY));
 	Constant *cTopSuffix4 = createConstString(topSuffix4->data);
-	Operator *topO4 = generateOp(&topCount, (Node *) topO3, (Node *) cTopSuffix4);
+	Operator *topO4 = generateOpP(&topCount, (Node *) topO3, (Node *) cTopSuffix4);
 
 	//Op expr step 5
 	joSchema = removeFromHead(joSchema);
 	AttributeDef *topAttrDef5 = (AttributeDef *) getHeadOfListP(
 			joSchema);
-	Operator *topO5 = generateOp(&topCount, (Node *) topO4, (Node *) topAttrDef5);
+	Operator *topO5 = generateOpP(&topCount, (Node *) topO4, (Node *) topAttrDef5);
 
 	//Op expr step 6
 	StringInfo topSuffix6 = makeStringInfo();
-	appendStringInfoString(topSuffix6, "}, ");
-	appendStringInfoChar(topSuffix6, '"');
-	appendStringInfoString(topSuffix6, "used");
-	appendStringInfoChar(topSuffix6, '"');
-	appendStringInfoString(topSuffix6, " : {");
+	//appendStringInfoString(topSuffix6, "}, \"used\" : {");
+	appendStringInfoString(topSuffix6, strdup(USED));
 	Constant *cTopSuffix6 = createConstString(topSuffix6->data);
-	Operator *topO6 = generateOp(&topCount, (Node *) topO5, (Node *) cTopSuffix6);
+	Operator *topO6 = generateOpP(&topCount, (Node *) topO5, (Node *) cTopSuffix6);
 
 	//Op expr step 7
 	AttributeDef *topAttrDef7 = (AttributeDef *) getTailOfListP(
 			joSchema);
-	Operator *topO7 = generateOp(&topCount, (Node *) topO6, (Node *) topAttrDef7);
+	Operator *topO7 = generateOpP(&topCount, (Node *) topO6, (Node *) topAttrDef7);
 
 	//Op expr step 8
 	StringInfo topSuffix8 = makeStringInfo();
 	appendStringInfoString(topSuffix8, "}}");
-	//appendStringInfoChar(topSuffix4, '}');
 	Constant *cTopSuffix8 = createConstString(topSuffix8->data);
-	Operator *topO8 = generateOp(&topCount, (Node *) topO7, (Node *) cTopSuffix8);
-//	List *topExpr4 = NIL;
-//	topExpr4 = appendToTailOfList(topExpr4, topO3);
-//	topExpr4 = appendToTailOfList(topExpr4, cTopSuffix4);
-//	Operator *topO4 = createOpExpr("||", topExpr4);
+	Operator *topO8 = generateOpP(&topCount, (Node *) topO7, (Node *) cTopSuffix8);
 
 	topProjExprs = singleton(topO8);
 	topProjNames = singleton("jExport");
@@ -948,9 +793,6 @@ rewriteTransformationProvenance(QueryOperator *op)
 	ProjectionOperator *pj = createProjectionOp(topProjExprs,
 			(QueryOperator *) jo3, NIL, topProjNames);
 	jo3->op.parents = appendToTailOfList(jo3->op.parents, pj);
-
-
-
 
 	return (QueryOperator *) pj;
 }
