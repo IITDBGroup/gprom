@@ -449,7 +449,8 @@ rewriteTransformationProvenance(QueryOperator *op)
 		Operator *midNorO5 = createOpExpr("||", normalExprList4);
 
 		List *derivedProjExprs = singleton(midNorO5);
-		List *derivedAttrNames = singleton(strdup(WDB));
+		//1111111111 List *derivedAttrNames = singleton(strdup(WDB));
+		List *derivedAttrNames = singleton("wdb");
 		derivedProj = createProjectionOp(derivedProjExprs, op,
 				NIL, derivedAttrNames);
 		op->parents = appendToTailOfList(op->parents, derivedProj);
@@ -459,7 +460,8 @@ rewriteTransformationProvenance(QueryOperator *op)
 	}
 	/*Loop END************************************************************************/
 
-	List *dbUnionNames = concatTwoLists(singleton(strdup(WDB)), singleton(strdup(WDB)));
+	//1111111111111 List *dbUnionNames = concatTwoLists(singleton(strdup(WDB)), singleton(strdup(WDB)));
+	List *dbUnionNames = concatTwoLists(singleton("wdb"), singleton("wdb"));
 	List *copyDbProjList = copyObject(dbProjList);
 	SetOperator *u1 = NULL;
 	if(LIST_LENGTH(copyDbProjList) > 1)
@@ -687,7 +689,7 @@ rewriteTransformationProvenance(QueryOperator *op)
         	copyUbProjList = removeFromTail(copyUbProjList);
         	ProjectionOperator *pj3 = (ProjectionOperator *)getTailOfListP(copyUbProjList);
         	SetOperator *u3 = createSetOperator(SETOP_UNION, LIST_MAKE(pj3, u2), NIL,
-        			dbUnionNames);
+        			ubUnionNames);
         	OP_LCHILD(u3)->parents = singleton(u3);
         	OP_RCHILD(u3)->parents = singleton(u3);
         	u2 = u3;
