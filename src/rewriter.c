@@ -35,6 +35,8 @@
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
 
+#include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
+
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 
 int
@@ -198,6 +200,29 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	START_TIMER("rewrite");
 
 	rewrittenTree = provRewriteQBModel(oModel);
+
+	/*******************new Add for test json import jimp table***************************/
+	if(isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
+	{
+		QueryOperator *q = (QueryOperator *)getHeadOfListP((List *)rewrittenTree);
+		List *taOp = NIL;
+		findTableAccessOperator(&taOp, (QueryOperator *) q);
+		int l = LIST_LENGTH(taOp);
+		DEBUG_LOG("len %d", l);
+		if(isA(getHeadOfListP(taOp),TableAccessOperator))
+		{
+			TableAccessOperator *ta = (TableAccessOperator *) getHeadOfListP(taOp);
+			DEBUG_LOG("test %s", ta->tableName);
+			if(streq(ta->tableName,"JIMP2"))
+			{
+				q = rewriteTransformationProvenanceImport(q);
+				DEBUG_LOG("Table: %s", nodeToString(ta));
+				rewrittenTree = (Node *) singleton(q);
+			}
+		}
+	}
+	/*******************new Add for test json import jimp table***************************/
+
 	DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
 	INFO_LOG("provenance rewritten query as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
 	STOP_TIMER("rewrite");

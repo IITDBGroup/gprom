@@ -37,6 +37,19 @@
 #define tupQ "rel:tupQ"
 #define _wgb "_:wgb"
 #define _wub "_:wub_"
+
+#define _wgb1 "\"_:wgb"
+#define _WDF_JIMP "\"_:wdf_jimp"
+//#define PROV_ACTIVITY_Q_PROV_ENTITY ")\" : { \"prov:activity\": \"Q\", \"prov:usedEntity\": \""
+#define PROV_ACTIVITY_Q_PROV_ENTITY ")\" : {\"prov:usedEntity\": \""
+#define PROV_GENERATED_ENTITY_IMP_TUPQ "\",\"prov:generatedEntity\": \"rel:tupQ("
+#define PROV_ACTIVITY_Q_PROV_ENTITY_TUPQ ")\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \"rel:tupQ("
+#define _WUB_JIMP "\"_:wub_jimp("
+#define PROV_ACTIVITY_Q_PROV_USEDENTITY ")\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \""
+#define REL_BUN "\"rel:bun"
+#define PREFIX_REL_2URL_ENTITY "{\"prefix\": {\"rel\": \"http://example.org\", \"imp\": \"http://importedProv.org\"}, \"entity\" : { "
+#define BUNDLE "}, \"bundle\": {"
+
 //	char *tupQ = "rel:tupQ";
 //	char *_wgb = "_:wgb";
 //	char *_wub = "_:wub_";
@@ -130,6 +143,18 @@ findTableAccessOperator(List **drOp, QueryOperator *root)
 	FOREACH(QueryOperator, op, root->inputs)
 	      findTableAccessOperator(drOp, op);
 
+}
+
+TableAccessOperator *
+findTAOp(QueryOperator *root)
+{
+	if(isA(root, TableAccessOperator))
+		return (TableAccessOperator *) root;
+
+	FOREACH(QueryOperator, op, root->inputs)
+	     findTAOp(op);
+
+	return 0;
 }
 
 QueryOperator *
@@ -793,6 +818,440 @@ rewriteTransformationProvenance(QueryOperator *op)
 	ProjectionOperator *pj = createProjectionOp(topProjExprs,
 			(QueryOperator *) jo3, NIL, topProjNames);
 	jo3->op.parents = appendToTailOfList(jo3->op.parents, pj);
+
+	return (QueryOperator *) pj;
+}
+
+
+QueryOperator *
+rewriteTransformationProvenanceImport (QueryOperator *op)
+{
+
+	HashMap *namePosMap = NEW_MAP(Constant,Constant);
+	int pos = 0;
+    FOREACH(AttributeDef,ad,op->schema->attrDefs)
+	{
+    	MAP_ADD_STRING_KEY(namePosMap, ad->attrName, createConstInt(pos));
+    	DEBUG_LOG("pos: %d", INT_VALUE(getMapString(namePosMap, ad->attrName)));
+        pos++;
+	}
+
+    //***********************************************************************************
+    //-- entities
+	//outTup AS (SELECT DISTINCT '"tupQ(' || X || ')": { "prov:type": "tuple" }' AS entity
+	//FROM PQ),
+	//First projection: normal attributes
+    //***********************************************************************************
+
+    //First op expr
+	StringInfo pjPrefix1 = makeStringInfo();
+	//appendStringInfoString(prefixQ, "\"rel:tupQ(");
+	appendStringInfoString(pjPrefix1,strdup(REL_TUPQ));
+	Constant *cpjPrefix1 = createConstString(pjPrefix1->data);
+	AttributeDef *pjAd1 = (AttributeDef *) getHeadOfListP(op->schema->attrDefs);
+	Operator *pjOp1 = generateOp((Node *) cpjPrefix1, (Node *) pjAd1, namePosMap);
+
+	//Second op expr
+	StringInfo pjPrefix2 = makeStringInfo();
+	//appendStringInfoString(prefixQ, "\"rel:tupQ(");
+	appendStringInfoString(pjPrefix2,strdup(PROV_TYPE_TUPLE));
+	Constant *cpjPrefix2 = createConstString(pjPrefix2->data);
+	Operator *pjOp2 = generateOp((Node *) pjOp1, (Node *) cpjPrefix2, namePosMap);
+
+    //Introduce first projection
+	ProjectionOperator *proj1 = createProjectionOp(singleton(pjOp2), op, NIL,
+			singleton("entity"));
+	op->parents = appendToTailOfList(op->parents, proj1);
+	//DEBUG_LOG("new proj %s", nodeToString(proj1));
+
+	//Introduce duplicateRemoval operator for the first proj
+	DuplicateRemoval *dr1 = createDuplicateRemovalOp(NIL, (QueryOperator *) proj1,
+			NIL, singleton("entity"));
+	proj1->op.parents = appendToTailOfList(proj1->op.parents, dr1);
+
+    //***********************************************************************************
+	//allTup AS (SELECT LISTAGG(entity,',') WITHIN GROUP (ORDER BY entity) AS allEntity FROM outTup al)
+	//Aggregation of first projection: normal attributes
+    //***********************************************************************************
+	//Introduce aggregation operator
+	AttributeDef *aggDef1 = (AttributeDef *) getHeadOfListP(
+			dr1->op.schema->attrDefs);
+	AttributeReference *aggRef1 = createAttributeReference(aggDef1->attrName);
+	aggRef1->fromClauseItem = 0;
+	aggRef1->attrType = aggDef1->dataType;
+	aggRef1->attrPosition = 0;
+	FunctionCall *aggFunc1 = createFunctionCall(strdup("AGG_STRAGG"),
+			singleton(aggRef1));
+
+	List *aggrs1 = singleton(aggFunc1);
+
+	// create fake attribute names for aggregation output schema
+	List *aggAttrNames1 = NIL;
+	//aggAttrNames = singleton("allEntities");
+	aggAttrNames1 = singleton(strdup(ALL_ENTITIES));
+
+	AggregationOperator *ao1 = createAggregationOp(aggrs1, NIL,
+			(QueryOperator *) dr1, NIL, aggAttrNames1);
+	dr1->op.parents = appendToTailOfList(dr1->op.parents, ao1);
+
+    //***********************************************************************************
+	//-- was derived from edges
+	//derivedByR AS (SELECT '"_wdf_jimp' || X || '|' || I || ')" : { "prov:activity": "Q", "prov:usedEntity": "' || I || '",
+	//"prov:generatedEntity": "' || '"tupQ(' || X || ')"' || '"}' AS wdb
+	//FROM PQ),
+    //***********************************************************************************
+
+	//"_wdf_jimp' || X ||
+	Constant *cdbPrefix1 = createConstString(strdup(_WDF_JIMP));
+    AttributeDef *xdbAttrDef = (AttributeDef *) getHeadOfListP(op->schema->attrDefs);
+	Operator *dbOp1 = generateOp((Node *) cdbPrefix1, (Node *) xdbAttrDef, namePosMap);
+
+	//"_wdf_jimp' || X || '|'
+	Constant *cBar = createConstString(" | ");
+	Operator *dbOp2 = generateOp((Node *) dbOp1, (Node *) copyObject(cBar), namePosMap);
+
+	//"_wdf_jimp' || X || '|' || I
+    AttributeDef *idbAttrDef = (AttributeDef *) getTailOfListP(op->schema->attrDefs);
+	Operator *dbOp3 = generateOp((Node *) dbOp2, (Node *) idbAttrDef, namePosMap);
+
+	//"_wdf_jimp' || X || '|' || I || ')" : { "prov:activity": "Q", "prov:usedEntity": "
+	Constant *cdbPrefix2 = createConstString(strdup(PROV_ACTIVITY_Q_PROV_ENTITY));
+	Operator *dbOp4 = generateOp((Node *) dbOp3, (Node *) cdbPrefix2, namePosMap);
+
+	//"_wdf_jimp' || X || '|' || I || ')" : { "prov:activity": "Q", "prov:usedEntity": "' || I
+	Operator *dbOp5 = generateOp((Node *) dbOp4, (Node *) idbAttrDef, namePosMap);
+
+	//derivedByR AS (SELECT '"_wdf_jimp' || X || '|' || I || ')" : { "prov:activity": "Q", "prov:usedEntity": "' || I || '",
+	//"prov:generatedEntity": "rel:tupQ(
+	Constant *cdbPrefix3 = createConstString(strdup(PROV_GENERATED_ENTITY_IMP_TUPQ));
+	Operator *dbOp6 = generateOp((Node *) dbOp5, (Node *) cdbPrefix3, namePosMap);
+
+	//derivedByR AS (SELECT '"_wdf_jimp' || X || '|' || I || ')" : { "prov:activity": "Q", "prov:usedEntity": "' || I || '",
+	//"prov:generatedEntity": "imp:tupQ( || X
+	Operator *dbOp7 = generateOp((Node *) dbOp6, (Node *) xdbAttrDef, namePosMap);
+
+	//derivedByR AS (SELECT '"_wdf_jimp' || X || '|' || I || ')" : { "prov:activity": "Q", "prov:usedEntity": "' || I || '",
+	//"prov:generatedEntity": "imp:tupQ( || X || ')""}'
+	Constant *cdbPrefix4 = createConstString(")\"}");
+	Operator *dbOp8 = generateOp((Node *) dbOp7, (Node *) cdbPrefix4, namePosMap);
+
+	ProjectionOperator *dbProj1 = createProjectionOp(singleton(dbOp8), op,
+			NIL, singleton("wdb"));
+	op->parents = appendToTailOfList(op->parents, dbProj1);
+
+	//Introduce duplicateRemoval operator for the first proj
+	DuplicateRemoval *dr2 = createDuplicateRemovalOp(NIL, (QueryOperator *) dbProj1,
+			NIL, singleton("wdb"));
+	dbProj1->op.parents = appendToTailOfList(dbProj1->op.parents, dr2);
+
+    //***********************************************************************************
+	//allDerived AS (SELECT LISTAGG(wdb,',') WITHIN GROUP (ORDER BY wdb) AS allWdb FROM derivedByR x) ,
+    //***********************************************************************************
+	//Introduce aggregation operator
+	AttributeDef *aggDef2 = (AttributeDef *) getHeadOfListP(
+			dr2->op.schema->attrDefs);
+	AttributeReference *aggRef2 = createAttributeReference(aggDef2->attrName);
+	aggRef2->fromClauseItem = 0;
+	aggRef2->attrType = aggDef1->dataType;
+	aggRef2->attrPosition = 0;
+	FunctionCall *aggFunc2 = createFunctionCall(strdup("AGG_STRAGG"),
+			singleton(aggRef2));
+
+	List *aggrs2 = singleton(aggFunc2);
+
+	// create fake attribute names for aggregation output schema
+	List *aggAttrNames2 = NIL;
+	//aggAttrNames = singleton("allEntities");
+	aggAttrNames2 = singleton(strdup("allWdb"));
+
+	AggregationOperator *ao2 = createAggregationOp(aggrs2, NIL,
+			(QueryOperator *) dr2, NIL, aggAttrNames2);
+	dr2->op.parents = appendToTailOfList(dr2->op.parents, ao2);
+
+    //***********************************************************************************
+	//-- was generated by edges output tuple -> Q
+	//generatedBy AS (SELECT '"_wgb' || X || ')" : { "prov:activity": "Q", "prov:entity": "' || '"tupQ(' || X || ')"' || '"}' AS wgb
+	//FROM PQ),
+    //***********************************************************************************
+
+	//'"_wgb' || X
+	Constant *cgbPrefix1 = createConstString(strdup(_wgb1));
+	Operator *gbOp1 = generateOp((Node *) cgbPrefix1, (Node *) xdbAttrDef, namePosMap);
+
+	//'"_wgb' || X || ')" : { "prov:activity": "Q", "prov:entity": "tupQ('
+	Constant *cgbPrefix2 = createConstString(strdup(PROV_ACTIVITY_Q_PROV_ENTITY_TUPQ));
+	Operator *gbOp2 = generateOp((Node *) gbOp1, (Node *) cgbPrefix2, namePosMap);
+
+	//'"_wgb' || X || ')" : { "prov:activity": "Q", "prov:entity": "tupQ(' || X
+	Operator *gbOp3 = generateOp((Node *) gbOp2, (Node *) xdbAttrDef, namePosMap);
+
+	//'"_wgb' || X || ')" : { "prov:activity": "Q", "prov:entity": "tupQ(' || X || ')""}'
+	Constant *cgbPrefix3 = createConstString(")\"}");
+	Operator *gbOp4 = generateOp((Node *) gbOp3, (Node *) cgbPrefix3, namePosMap);
+
+	ProjectionOperator *gbProj1 = createProjectionOp(singleton(gbOp4), op,
+			NIL, singleton("wgb"));
+	op->parents = appendToTailOfList(op->parents, gbProj1);
+
+	//Introduce duplicateRemoval operator for the first proj
+	DuplicateRemoval *dr3 = createDuplicateRemovalOp(NIL, (QueryOperator *) gbProj1,
+			NIL, singleton("wgb"));
+	gbProj1->op.parents = appendToTailOfList(gbProj1->op.parents, dr3);
+
+    //***********************************************************************************
+	//allGenerated AS (SELECT LISTAGG(wgb,',') WITHIN GROUP (ORDER BY wgb) AS allWgb FROM generatedBy),
+    //***********************************************************************************
+	//Introduce aggregation operator
+	AttributeDef *aggDef3 = (AttributeDef *) getHeadOfListP(
+			dr3->op.schema->attrDefs);
+	AttributeReference *aggRef3 = createAttributeReference(aggDef3->attrName);
+	aggRef3->fromClauseItem = 0;
+	aggRef3->attrType = aggDef3->dataType;
+	aggRef3->attrPosition = 0;
+	FunctionCall *aggFunc3 = createFunctionCall(strdup("AGG_STRAGG"),
+			singleton(aggRef3));
+
+	List *aggrs3 = singleton(aggFunc3);
+
+	// create fake attribute names for aggregation output schema
+	List *aggAttrNames3 = NIL;
+	//aggAttrNames = singleton("allEntities");
+	aggAttrNames3 = singleton(strdup("allWgb"));
+
+	AggregationOperator *ao3 = createAggregationOp(aggrs3, NIL,
+			(QueryOperator *) dr3, NIL, aggAttrNames3);
+	dr3->op.parents = appendToTailOfList(dr3->op.parents, ao3);
+
+    //***********************************************************************************
+    //-- used egdes Q -> input tuple
+	//usedByR AS (SELECT '"_wub_jimp(' || I || ')" : { "prov:activity": "Q", "prov:usedEntity": "' || I || '"}' AS used
+	//FROM PQ),
+    //***********************************************************************************
+
+	//'"_wub_jimp(' || I
+	Constant *cubPrefix1 = createConstString(strdup(_WUB_JIMP));
+	Operator *ubOp1 = generateOp((Node *) cubPrefix1, (Node *) idbAttrDef, namePosMap);
+
+	//'"_wub_jimp(' || I || ')" : { "prov:activity": "Q", "prov:usedEntity": "
+	Constant *cubPrefix2 = createConstString(strdup(PROV_ACTIVITY_Q_PROV_USEDENTITY));
+	Operator *ubOp2 = generateOp((Node *) ubOp1, (Node *) cubPrefix2, namePosMap);
+
+	//'"_wub_jimp(' || I || ')" : { "prov:activity": "Q", "prov:usedEntity": " || I ||
+	Operator *ubOp3 = generateOp((Node *) ubOp2, (Node *) idbAttrDef, namePosMap);
+
+	Constant *cubPrefix3 = createConstString("\"}");
+	Operator *ubOp4 = generateOp((Node *) ubOp3, (Node *) cubPrefix3, namePosMap);
+
+	ProjectionOperator *ubProj1 = createProjectionOp(singleton(ubOp4), op,
+			NIL, singleton("used"));
+	op->parents = appendToTailOfList(op->parents, ubProj1);
+
+	//Introduce duplicateRemoval operator for the first proj
+	DuplicateRemoval *dr4 = createDuplicateRemovalOp(NIL, (QueryOperator *) ubProj1,
+			NIL, singleton("used"));
+	ubProj1->op.parents = appendToTailOfList(ubProj1->op.parents, dr4);
+    //***********************************************************************************
+	//allGenerated AS (SELECT LISTAGG(wgb,',') WITHIN GROUP (ORDER BY wgb) AS allWgb FROM generatedBy),
+    //***********************************************************************************
+	//Introduce aggregation operator
+	AttributeDef *aggDef4 = (AttributeDef *) getHeadOfListP(
+			dr4->op.schema->attrDefs);
+	AttributeReference *aggRef4 = createAttributeReference(aggDef4->attrName);
+	aggRef4->fromClauseItem = 0;
+	aggRef4->attrType = aggDef4->dataType;
+	aggRef4->attrPosition = 0;
+	FunctionCall *aggFunc4 = createFunctionCall(strdup("AGG_STRAGG"),
+			singleton(aggRef4));
+
+	List *aggrs4 = singleton(aggFunc4);
+
+	// create fake attribute names for aggregation output schema
+	List *aggAttrNames4 = NIL;
+	//aggAttrNames = singleton("allEntities");
+	aggAttrNames4 = singleton(strdup("allUsed"));
+
+	AggregationOperator *ao4 = createAggregationOp(aggrs4, NIL,
+			(QueryOperator *) dr4, NIL, aggAttrNames4);
+	dr4->op.parents = appendToTailOfList(dr4->op.parents, ao4);
+
+    //***********************************************************************************
+    //-- bundling
+	//bundles AS (SELECT ' "rel:bun' || I || '": {' || D || '} ' AS b FROM PQ),
+    //***********************************************************************************
+
+	//' "rel:bun' || I
+	Constant *cbdPrefix1 = createConstString(strdup(REL_BUN));
+	Operator *bdOp1 = generateOp((Node *) cbdPrefix1, (Node *) idbAttrDef, namePosMap);
+
+    //' "rel:bun' || I || '": {'
+	Constant *cbdPrefix2 = createConstString("\": ");
+	Operator *bdOp2 = generateOp((Node *) bdOp1, (Node *) cbdPrefix2, namePosMap);
+
+    //' "rel:bun' || I || '": {' || D
+	AttributeDef *ddbAttrDef = (AttributeDef *) getNthOfListP(op->schema->attrDefs, 1);
+	Operator *bdOp3 = generateOp((Node *) bdOp2, (Node *) ddbAttrDef, namePosMap);
+
+//	//' "rel:bun' || I || '": {' || D || '} '
+//	Constant *cbdPrefix3 = createConstString("}");
+//	Operator *bdOp4 = generateOp((Node *) bdOp3, (Node *) cbdPrefix3, namePosMap);
+
+	ProjectionOperator *bdProj1 = createProjectionOp(singleton(bdOp3), op,
+			NIL, singleton("b"));
+	op->parents = appendToTailOfList(op->parents, bdProj1);
+
+//	//Introduce duplicateRemoval operator for the first proj
+//	DuplicateRemoval *dr5 = createDuplicateRemovalOp(NIL, (QueryOperator *) bdProj1,
+//			NIL, singleton("b"));
+//	bdProj1->op.parents = appendToTailOfList(bdProj1->op.parents, dr5);
+
+    //***********************************************************************************
+	//allBun AS (SELECT LISTAGG(b,',') WITHIN GROUP (ORDER BY b) AS allB FROM bundles x)
+    //***********************************************************************************
+	//Introduce aggregation operator
+	AttributeDef *aggDef5 = (AttributeDef *) getHeadOfListP(
+			bdProj1->op.schema->attrDefs);
+	AttributeReference *aggRef5 = createAttributeReference(aggDef5->attrName);
+	aggRef5->fromClauseItem = 0;
+	aggRef5->attrType = aggDef5->dataType;
+	aggRef5->attrPosition = 0;
+	FunctionCall *aggFunc5 = createFunctionCall(strdup("AGG_STRAGG"),
+			singleton(aggRef5));
+
+	List *aggrs5 = singleton(aggFunc5);
+
+	// create fake attribute names for aggregation output schema
+	List *aggAttrNames5 = NIL;
+	//aggAttrNames = singleton("allEntities");
+	aggAttrNames5 = singleton(strdup("allB"));
+
+	AggregationOperator *ao5 = createAggregationOp(aggrs5, NIL,
+			(QueryOperator *) bdProj1, NIL, aggAttrNames5);
+	bdProj1->op.parents = appendToTailOfList(bdProj1->op.parents, ao5);
+
+	//***********************************************************************************
+	//SELECT '{ "entities" : {' || e.allEntity || '}, "acitivity" : { "q": {} }, "wasDerivedFrom" : {' || d.allWdb || '}, "wasGeneratedBy" : {' || g.allWgb || '} , "used" : {' || u.allUsed || '} '
+	//  || ', "bundle": {' || b.allB || '} '
+	//  || '}'   AS jExport
+	//FROM allTup e, allDerived d, allGenerated g, allUsed u, allBun b
+	//***********************************************************************************
+	//Agg 1
+	List *joinNames1 = concatTwoLists(aggAttrNames1, aggAttrNames2);
+
+	//Introduce cross product
+	JoinOperator *jo1 = createJoinOp(JOIN_CROSS, NULL, LIST_MAKE(ao1, ao2), NULL,
+			joinNames1);
+	OP_LCHILD(jo1)->parents = singleton(jo1);
+	OP_RCHILD(jo1)->parents = singleton(jo1);
+
+	//Agg 2
+	List *joinNames2 = concatTwoLists(joinNames1, aggAttrNames3);
+
+	//Introduce cross product
+	JoinOperator *jo2 = createJoinOp(JOIN_CROSS, NULL, LIST_MAKE(jo1, ao3), NULL,
+			joinNames2);
+	OP_LCHILD(jo2)->parents = singleton(jo2);
+	OP_RCHILD(jo2)->parents = singleton(jo2);
+
+	//Agg 3
+	List *joinNames3 = concatTwoLists(joinNames2, aggAttrNames4);
+
+	//Introduce cross product
+	JoinOperator *jo3 = createJoinOp(JOIN_CROSS, NULL, LIST_MAKE(jo2, ao4), NULL,
+			joinNames3);
+	OP_LCHILD(jo3)->parents = singleton(jo3);
+	OP_RCHILD(jo3)->parents = singleton(jo3);
+
+	//Agg 4
+	List *joinNames4 = concatTwoLists(joinNames3, aggAttrNames5);
+
+	//Introduce cross product
+	JoinOperator *jo4 = createJoinOp(JOIN_CROSS, NULL, LIST_MAKE(jo3, ao5), NULL,
+			joinNames4);
+	OP_LCHILD(jo4)->parents = singleton(jo4);
+	OP_RCHILD(jo4)->parents = singleton(jo4);
+
+
+	//Introduce projection operation
+	List *topProjExprs = NIL;
+	List *topProjNames = NIL;
+	List *joSchema = copyObject(jo4->op.schema->attrDefs);
+	int topCount = 0;
+
+	//Op expr step 1
+	StringInfo topPrefix1 = makeStringInfo();
+	//appendStringInfoString(topPrefix1, "{\"prefix\": {\"rel\": \"http://example.org\", "\"imp\": \"http://importedProv.org\"}, \"entity\" : { ");
+	appendStringInfoString(topPrefix1, strdup(PREFIX_REL_2URL_ENTITY));
+	Constant *cTopPrefix1 = createConstString(topPrefix1->data);
+	AttributeDef *topAttrDef1 = (AttributeDef *) getHeadOfListP(joSchema);
+	Operator *topO1 = generateOpP(&topCount, (Node *) cTopPrefix1, (Node *) topAttrDef1);
+
+	//Op expr step 2
+	StringInfo topPrefix2 = makeStringInfo();
+	//appendStringInfoString(topPrefix2, "}, \"activity\" : { \"rel:Q\": {\"prov:type\":\"query\"} }, \"wasDerivedFrom\" : {");
+	appendStringInfoString(topPrefix2, strdup(ACTIVIT_REL_Q_PROV_TYPE_QUERY_WASDERIVEDFROM));
+	Constant *cTopPrefix2 = createConstString(topPrefix2->data);
+	Operator *topO2 = generateOpP(&topCount, (Node *) topO1, (Node *) cTopPrefix2);
+
+	//Op expr step 3
+	joSchema = removeFromHead(joSchema);
+	AttributeDef *topAttrDef3 = (AttributeDef *) getHeadOfListP(
+			joSchema);
+	Operator *topO3 = generateOpP(&topCount, (Node *) topO2, (Node *) topAttrDef3);
+
+	//Op expr step 4
+	StringInfo topSuffix4 = makeStringInfo();
+	//appendStringInfoString(topSuffix4, "}, \"wasGeneratedBy\" : {");
+	appendStringInfoString(topSuffix4, strdup(WAS_GENREATED_BY));
+	Constant *cTopSuffix4 = createConstString(topSuffix4->data);
+	Operator *topO4 = generateOpP(&topCount, (Node *) topO3, (Node *) cTopSuffix4);
+
+	//Op expr step 5
+	joSchema = removeFromHead(joSchema);
+	AttributeDef *topAttrDef5 = (AttributeDef *) getHeadOfListP(
+			joSchema);
+	Operator *topO5 = generateOpP(&topCount, (Node *) topO4, (Node *) topAttrDef5);
+
+	//Op expr step 6
+	StringInfo topSuffix6 = makeStringInfo();
+	//appendStringInfoString(topSuffix6, "}, \"used\" : {");
+	appendStringInfoString(topSuffix6, strdup(USED));
+	Constant *cTopSuffix6 = createConstString(topSuffix6->data);
+	Operator *topO6 = generateOpP(&topCount, (Node *) topO5, (Node *) cTopSuffix6);
+
+	//Op expr step 7
+	joSchema = removeFromHead(joSchema);
+	AttributeDef *topAttrDef7 = (AttributeDef *) getHeadOfListP(
+			joSchema);
+	Operator *topO7 = generateOpP(&topCount, (Node *) topO6, (Node *) topAttrDef7);
+
+	//Op expr step 8
+	//appendStringInfoString(topSuffix6, "}, \"bundle\" : {");
+	Constant *cTopSuffix7 = createConstString(strdup(BUNDLE));
+	Operator *topO8 = generateOpP(&topCount, (Node *) topO7, (Node *) cTopSuffix7);
+
+	//Op expr step 9
+	AttributeDef *topAttrDef8 = (AttributeDef *) getTailOfListP(
+			joSchema);
+	Operator *topO9 = generateOpP(&topCount, (Node *) topO8, (Node *) topAttrDef8);
+
+	//Op expr step 10
+	StringInfo topSuffix8 = makeStringInfo();
+	appendStringInfoString(topSuffix8, "}}");
+	Constant *cTopSuffix8 = createConstString(topSuffix8->data);
+	Operator *top10 = generateOpP(&topCount, (Node *) topO9, (Node *) cTopSuffix8);
+
+	topProjExprs = singleton(top10);
+	topProjNames = singleton("jExport");
+
+	ProjectionOperator *pj = createProjectionOp(topProjExprs,
+			(QueryOperator *) jo4, NIL, topProjNames);
+	jo4->op.parents = appendToTailOfList(jo4->op.parents, pj);
+
+//	//Introduce duplicateRemoval operator for the first proj
+//	DuplicateRemoval *dr5 = createDuplicateRemovalOp(NIL, (QueryOperator *) pj,
+//			NIL, topProjNames);
+//	pj->op.parents = appendToTailOfList(pj->op.parents, dr5);
+
 
 	return (QueryOperator *) pj;
 }
