@@ -21,7 +21,8 @@
 #define REL_TUPQ "\"rel:tupQ("
 //#define REL_TUPR "\"rel:tup_R("
 #define REL_TUP_ "\"rel:tup_"
-#define PROV_TYPE_TUPLE ")\" :{\"prov:type\":\"tuple\"}"
+//#define PROV_TYPE_TUPLE ")\" :{\"prov:type\":\"tuple\"}" For list_agg use this
+#define PROV_TYPE_TUPLE ")\" :{\"prov:type\":\"tuple\"},"
 #define ENTITY "entity"
 #define ALL_ENTITIES "allEntities"
 #define WDB "_:wdb"
@@ -441,7 +442,8 @@ rewriteTransformationProvenance(QueryOperator *op)
 
 		List *normalExprList4 = NIL;
 		StringInfo midNor4 = makeStringInfo();
-		appendStringInfoString(midNor4, ")\"}");
+		//appendStringInfoString(midNor4, ")\"}");  For list_agg use this
+		appendStringInfoString(midNor4, ")\"},");
 		Constant *cmidNor4 = createConstString(midNor4->data);
 
 		normalExprList4 = appendToTailOfList(normalExprList4, midNor3);
@@ -572,7 +574,8 @@ rewriteTransformationProvenance(QueryOperator *op)
 
     //OP expr 6
 	StringInfo gbS6 = makeStringInfo();
-	appendStringInfoString(gbS6, "\"}");
+	//appendStringInfoString(gbS6, "\"}"); For list_agg use this
+	appendStringInfoString(gbS6, "\"},");
 	Constant *cgbS6 = createConstString(gbS6->data);
     Operator *gbO6 = generateOp((Node *)gbO5, (Node *)cgbS6, namePosMap);
 
@@ -659,7 +662,8 @@ rewriteTransformationProvenance(QueryOperator *op)
 
 		//OP expr 5
 		StringInfo ubS4 = makeStringInfo();
-		appendStringInfoString(ubS4, ")\"}");
+		//appendStringInfoString(ubS4, ")\"}");  For list_agg use this one
+		appendStringInfoString(ubS4, ")\"},");
 		Constant *cubS4 = createConstString(ubS4->data);
 		Operator *ubO4 = generateOp((Node *)ubO3, (Node *)cubS4, namePosMap);
 
