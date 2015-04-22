@@ -4,13 +4,19 @@
 <comment>Regular Set Test cases</comment>
 
 <entry key="q1.query">
-UPDATE T SET f=5 WHERE e=1;
+SELECT * FROM R UNION ALL SELECT * FROM S;
 </entry>
 <entry key="q1.result">
-X | Y
-----------+-----------------+-----------------
-1|5|
-2|2|
+A|B|
+----------------------------------------
+1|1|
+1|2|
+2|1|
+2|3|
+1|1|
+1|2|
+2|1|
+2|3|
 </entry>
 
 
