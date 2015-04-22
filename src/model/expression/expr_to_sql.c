@@ -71,17 +71,64 @@ constantToSQL (StringInfo str, Constant *node)
 static void
 functionCallToSQL (StringInfo str, FunctionCall *node)
 {
-    appendStringInfoString(str, node->functionname);
+
+	int flag = 0;
+	if (streq(node->functionname, "AGG_STRAGG"))
+	{
+		flag = 1;
+		appendStringInfoString(str, "replace(rtrim(extract(xmlagg(xmlelement(E,");
+	}
+	else
+		appendStringInfoString(str, node->functionname);
+
+		appendStringInfoString(str, "(");
+
+		int i = 0;
+		//Node *entity;
+		FOREACH(Node,arg,node->args)
+		{
+			appendStringInfoString(str, ((i++ == 0) ? "" : ", "));
+			exprToSQLString(str, arg);
+			//entity = arg;
+		}
+
+    if (flag == 1)
+    {
+    	appendStringInfoString(str, "))),'/E/text()').getclobval(),','),chr(38) || 'quot;','\"'");
+//    	appendStringInfoString(str, "',')");
+//    	appendStringInfoString(str, " WITHIN GROUP (ORDER BY ");
+//    	exprToSQLString(str, entity);
+    }
+    appendStringInfoString(str,")");
+
+/*	int flag = 0;
+	if (streq(node->functionname, "AGG_STRAGG"))
+	{
+		flag = 1;
+		appendStringInfoString(str, "LISTAGG");
+	}
+	else
+		appendStringInfoString(str, node->functionname);
+
     appendStringInfoString(str, "(");
 
     int i = 0;
+    Node *entity;
     FOREACH(Node,arg,node->args)
     {
         appendStringInfoString(str, ((i++ == 0) ? "" : ", "));
         exprToSQLString(str, arg);
+        entity = arg;
     }
 
-    appendStringInfoString(str,")");
+    if (flag == 1)
+    {
+    	appendStringInfoChar(str, ',');
+    	appendStringInfoString(str, "',')");
+    	appendStringInfoString(str, " WITHIN GROUP (ORDER BY ");
+    	exprToSQLString(str, entity);
+    }
+    appendStringInfoString(str,")");*/
 }
 
 static void

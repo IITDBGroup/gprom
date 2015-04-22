@@ -1,6 +1,7 @@
 #ifndef EXPRESSION_H
 #define EXPRESSION_H
 
+#include "common.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "utility/enum_magic.h"

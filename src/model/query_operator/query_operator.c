@@ -149,15 +149,16 @@ reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs)
 {
 	int cnt;
 
-	cnt = 0;
 	FOREACH(AttributeReference,a1,attrRefs)
 	{
+	    cnt = 0;
         FOREACH(AttributeDef, a2, op2->schema->attrDefs)
         {
 
             if(strpeq(a1->name, a2->attrName))
             {
                 a1->attrPosition = cnt;
+                DEBUG_LOG("set attr %s position to %d", a1->name, cnt);
                 break;
             }
             cnt++;
@@ -702,14 +703,14 @@ createConstRelOp(List *values, List *parents, List *attrNames, List *dataTypes)
 }
 
 NestingOperator *
-createNestingOp(NestingExprType nestingType, Node *cond, List *inputs, List *parents, List *attrNames)
+createNestingOp(NestingExprType nestingType, Node *cond, List *inputs, List *parents, List *attrNames, List *dts)
 {
     NestingOperator *no = makeNode(NestingOperator);
     no->nestingType = nestingType;
     no->cond = copyObject(cond);
     no->op.type = T_NestingOperator;
     no->op.inputs = inputs;
-    no->op.schema = createSchemaFromLists("NESTING", attrNames, NIL);
+    no->op.schema = createSchemaFromLists("NESTING", attrNames, dts);
     no->op.parents = parents;
     no->op.provAttrs = NIL;
 
