@@ -390,6 +390,9 @@ visit (Node *node, boolean (*checkNode) (), void *state)
 Node *
 mutate (Node *node, Node *(*modifyNode) (), void *state)
 {
+    if (node == NULL)
+        return NULL;
+
     /* if the user has not modifed the node, then traverse further */
     switch(node->type)
     {

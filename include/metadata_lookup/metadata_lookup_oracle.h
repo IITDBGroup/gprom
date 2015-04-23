@@ -41,11 +41,10 @@ typedef enum AGG
     AGG_VAR_SAMP,
     AGG_VARIANCE,
     AGG_XMLAGG,
+    AGG_STRAGG,
 
     //used as the index of array, its default number is the size of this enum
-    AGG_FUNCTION_COUNT,
-
-    AGG_STRAGG
+    AGG_FUNCTION_COUNT
 
 } AGG;
 
