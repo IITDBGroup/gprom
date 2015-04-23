@@ -3,6 +3,16 @@
 	<!-- task defs -->
 	<property name="antlibdir" value="${basedir}/ant" />
 	<import file="${antlibdir}/one-jar-ant-task.xml"/>   
+	<taskdef resource="net/sf/antcontrib/antcontrib.properties">
+	  <classpath>
+	    <pathelement location="${antlibdir}/ant-contrib.jar"/>
+	  </classpath>
+	</taskdef>
+	
+	<!-- do not add ant classpath to javac classpath -->
+	<presetdef name="javac">
+		<javac includeantruntime="false" />
+	</presetdef>
 	
 	<!-- main directories -->
 	<property name="sourcedir" value="${basedir}/src/interfaces/jdbc/java" />
@@ -18,8 +28,24 @@
 	<property name="log4jconffile" value="${librarydir}/log4j.properties" />
 	
 	<!-- GProM c-library -->
-	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.so.0" />
+	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.dylib" />
+	<property name="gpromlib.darwin.bin" value="${binarydir}/darwin/libgprom.dylib" />
 	<property name="gpromlib.darwin" value="${builddir}/libgrom.jnilib" />	
+	
+	<property name="gpromlib.linux.src" value="${basedir}/src/libgrom/.libs/libgprom.so.0" />
+	<property name="gpromlib.linux.bin" value="${binarydir}/unix/libgprom.so.0" />
+	<property name="gpromlib.linux" value="${builddir}/libgrom.jnilib" />
+	
+	<!-- detect OS -->
+	<condition property="isWindows">
+		<os family="windows" />
+	</condition>
+	<condition property="isLinux">
+		<os family="unix" />
+	</condition>
+	<condition property="isMac">
+		<os family="mac" />
+	</condition>
 	
 	<!-- classpath -->
 	<path id="classpath">
@@ -28,7 +54,28 @@
 	
 	
 	<!-- targets -->
-	<target name="clean">
+	<target name="handleOS">
+		<if>
+	        <equals arg1="${isMac}" arg2="true" />
+	        <then>
+	            <echo message="Mac system" />
+	        	<property name="gpromlib.src" value="${gpromlib.darwin.src}" />
+	        	<property name="gpromlib.bin" value="${gpromlib.darwin.bin}" />
+	        	<property name="gpromlib" value="${gpromlib.darwin}" />
+	        </then>
+		</if>
+		<if>
+	        <equals arg1="${isLinux}" arg2="true" />
+	        <then>
+	            <echo message="Linux system" />
+	        	<property name="gpromlib.src" value="${gpromlib.linux.src}" />
+	        	<property name="gpromlib.bin" value="${gpromlib.linux.bin}" />
+	        	<property name="gpromlib" value="${gpromlib.linux}" />
+	        </then>
+		</if>
+    </target>
+	
+	<target name="clean" depends="handleOS">
 		<mkdir dir="${binarydir}" />
 		<mkdir dir="${binarydir}/darwin" />
 		<mkdir dir="${builddir}" />
@@ -44,11 +91,11 @@
 	</target>
 
 	<target name="compile" depends="clean">
-		<copy file="${gpromlib.darwin.src}" tofile="${gpromlib.darwin}" overwrite="true" />
+		<copy file="${gpromlib.src}" tofile="${gpromlib}" overwrite="true" />
 		<copy todir="${builddir}/lib">
 			<fileset dir="${librarydir}" />
 		</copy>
-		<copy file="${gpromlib.darwin}" tofile="${binarydir}/darwin/libgprom.dylib" />
+		<copy file="${gpromlib}" tofile="${gpromlib.bin}" />
 		<copy file="${conffile}" tofile="${binarydir}/GPRoMDriver.properties" />
 		<javac srcdir="${sourcedir}" destdir="${binarydir}"  debug="on">
 			<classpath refid="classpath"/>
@@ -98,7 +145,7 @@
                 <fileset file="${librarydir}/*.jar" />
             </lib>
         	<binlib>
-        		<fileset file="${gpromlib.darwin}" />
+        		<fileset file="${gpromlib}" />
         	</binlib>
         	<!-- conf files -->
         	<fileset file="${conffile}" />

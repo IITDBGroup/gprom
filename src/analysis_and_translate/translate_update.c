@@ -22,6 +22,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
+#include "model/query_operator/query_operator_model_checker.h"
 #include "analysis_and_translate/translator.h"
 #include "analysis_and_translate/translate_update.h"
 
@@ -227,6 +228,7 @@ translateUpdateWithCase(Update *update)
 
 	addChildOperator((QueryOperator *) po, (QueryOperator *) to);
 	DEBUG_LOG("translated update:\n%s", beatify(nodeToString((Node *) po)));
+	ASSERT(checkModel((QueryOperator *)po));
 
 	return (QueryOperator *) po;
 
