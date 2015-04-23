@@ -30,36 +30,27 @@ X |
 </entry>
 
 <entry key="q3.query">
-SELECT DISTINCT b as x FROM R WHERE a=1 OR a=2;
-</entry>
-<entry key="q3.result">
-X |
-----------+-----------------+-----------------
-1|
-2|
-3|
-</entry>
-
-
-<entry key="q5.query">
-SELECT a AS x FROM R ORDER BY b DESC;
-</entry>
-<entry key="q5.result">
-X |
-----------+-----------------+-----------------
-----NOT WORKING----
-</entry>
-
-<entry key="q6.query">
 SELECT CASE WHEN ((A = 1) OR (B =1 )) THEN  a+ 5 ELSE 2 END AS x FROM (SELECT * FROM r) y WHERE ((A = 1) OR (B > 0));
 </entry>
-<entry key="q6.result">
+<entry key="q3.result">
 X |
 ----------+-----------------+-----------------
 6|
 6|
 7|
 2|
+</entry>
+
+<entry key="q4.query">
+SELECT CASE WHEN a=2 THEN CASE WHEN b>2 THEN b-a ELSE CASE WHEN b=2 THEN 1 ELSE 10 END END ELSE CASE WHEN b*2=6 THEN a*2 ELSE CASE WHEN a+b=3 THEN b ELSE 0 END END END AS x FROM (SELECT * FROM r) y;
+</entry>
+<entry key="q4.result">
+X|
+----------------------------------------
+0|
+2|
+10|
+1|
 </entry>
 
 </properties>
