@@ -62,7 +62,7 @@ computeKeyProp (QueryOperator *root)
     }
 
     // get keys of children
-    keyList = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_KEY);
+    keyList = (List *) copyObject(getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_KEY));
 
     if (IS_BINARY_OP(root))
     {
@@ -81,20 +81,47 @@ computeKeyProp (QueryOperator *root)
     {
         List *l1 = ((ProjectionOperator *)root)->projExprs;
         List *l2 = NIL;
+        boolean hasKey = TRUE;
+        HashMap *inAtoPos = NEW_MAP(Constant,Constant);
+        int i = 0;
 
-        FOREACH(AttributeReference, op1, l1)
-            l2 = appendToTailOfList(l2, op1->name);
+        FOREACH(Node, op1, l1)
+        {
+            if (isA(op1,AttributeReference))
+            {
+                AttributeReference *a = (AttributeReference  *) op1;
+                l2 = appendToTailOfList(l2, a->name);
+                MAP_ADD_STRING_KEY(inAtoPos, a->name, createConstInt(i));
+            }
+            i++;
+        }
 
         FOREACH(char, op, keyList)
         {
-            if(!searchListString(l2, op))
+            //use HASHMAP
+            if(!hasMapStringKey(inAtoPos, op))
             {
-                setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, NULL);
+                hasKey = FALSE;
                 break;
             }
-
-            setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
         }
+        if (hasKey)
+        {
+            //TODO replace input attribute names with output attribute names
+            setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+            FOREACH_LC(lc,keyList)
+            {
+                char *inA = (char *) LC_P_VAL(lc);
+                char *outA;
+                int aPos;
+
+                aPos = INT_VALUE(MAP_GET_STRING(inAtoPos, inA));
+                outA = strdup(getAttrNameByPos(root, aPos));
+                LC_P_VAL(lc) = outA;
+            }
+        }
+        else
+            setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, NULL);
     }
 
     // dup removal operator has a key {all attributes} if the input does not have a key
