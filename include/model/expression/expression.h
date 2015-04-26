@@ -202,6 +202,10 @@ extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
 /* create an SQL expression from an expression tree */
 extern char *exprToSQL (Node *expr);
 
+/* create an Latex expression from an expression tree */
+extern char *exprToLatex (Node *expr);
+extern char *latexEscapeString (char *st);
+
 /* functions for searching inside expressions */
 extern List *getAttrReferences (Node *node);
 

@@ -801,7 +801,7 @@ void
 removeStringProperty (QueryOperator *op, char *key)
 {
     List *props = (List *) op->properties;
-    genericRemoveFromList(props, KeyValueKeyEqString, key);
+    op->properties = (Node *) genericRemoveFromList(props, KeyValueKeyEqString, key);
 }
 
 static boolean

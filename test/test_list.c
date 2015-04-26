@@ -22,6 +22,9 @@ static rc testIntList(void);
 static rc testPList(void);
 static rc testListConstruction(void);
 static rc testListOperations(void);
+static rc testListGenericOps(void);
+
+static boolean cmpConstFirst (void *a, void *b);
 
 rc
 testList()
@@ -30,6 +33,7 @@ testList()
     RUN_TEST(testPList(), "test pointer lists");
     RUN_TEST(testListConstruction(), "test list construction");
     RUN_TEST(testListOperations(), "test list operations");
+    RUN_TEST(testListGenericOps(), "test generic list operations");
 
     return PASS;
 }
@@ -170,3 +174,32 @@ testListOperations(void)
 
     return PASS;
 }
+
+static rc
+testListGenericOps(void)
+{
+    Constant *c1 = createConstString("abc");
+    Constant *c2 = createConstString("aaa");
+    Constant *c3 = createConstString("bcd");
+
+    List *l = LIST_MAKE(c1,c2,c3);
+
+    // search
+    ASSERT_TRUE(genericSearchList(l, cmpConstFirst, createConstString("bbb")), "has string starting with b");
+    ASSERT_FALSE(genericSearchList(l, cmpConstFirst, createConstString("cbc")), "doe not have string starting with c");
+
+    // remove
+    l = genericRemoveFromList(l, cmpConstFirst, createConstString("axxxx"));
+    ASSERT_EQUALS_NODE(l, LIST_MAKE(c3), "after removal list is: (\"bcd\")");
+    return PASS;
+}
+
+static boolean
+cmpConstFirst (void *a, void *b)
+{
+    char *c1 = STRING_VALUE(a);
+    char *c2 = STRING_VALUE(b);
+
+    return c1[0] == c2[0];
+}
+

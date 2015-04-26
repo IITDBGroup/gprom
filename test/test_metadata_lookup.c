@@ -74,7 +74,7 @@ setupMetadataLookup(void)
     ASSERT_FALSE(st == NULL, "created statement");
     OCI_ExecuteStmt(st,"DROP TABLE metadatalookup_test1");
     OCI_ExecuteStmt(st,"DROP TABLE metadatalookup_test2");
-    OCI_ExecuteStmt(st,"Drop View metadatalookup_view1");
+    OCI_ExecuteStmt(st,"DROP View metadatalookup_view1");
 
     ASSERT_EQUALS_INT(1, OCI_ExecuteStmt(st,
             "CREATE TABLE metadatalookup_test1"
