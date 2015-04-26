@@ -203,7 +203,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
     DOT_TO_CONSOLE(rewrittenTree);
 
 	/*******************new Add for test json import jimp table***************************/
-	if(isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
+	if(isA(rewrittenTree,List) && isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
 	{
 		QueryOperator *q = (QueryOperator *)getHeadOfListP((List *)rewrittenTree);
 		List *taOp = NIL;

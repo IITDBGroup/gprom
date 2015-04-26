@@ -42,6 +42,7 @@
 #define APPLY_AND_TIME_OPT(optName,optMethod,configOption) \
     if(getBoolOption(configOption)) \
     { \
+    	INFO_LOG("START: %s", optName); \
         START_TIMER("OptimizeModel - " optName); \
         rewrittenTree = optMethod((QueryOperator *) rewrittenTree); \
         TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree)); \
