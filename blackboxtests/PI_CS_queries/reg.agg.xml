@@ -15,7 +15,6 @@ X|
 2|
 </entry>
 
-
 <entry key="q2.query">
 SELECT sum(a) AS x FROM r;
 </entry>
@@ -24,7 +23,6 @@ X|
 ----------+-----------------+-----------------
 6|
 </entry>
-
 
 <entry key="q3.query">
 SELECT b AS x FROM r GROUP BY b;
@@ -37,7 +35,6 @@ X|
 3|
 </entry>
 
-
 <entry key="q4.query">
 SELECT sum(a) AS x, b AS y FROM r GROUP BY b;
 </entry>
@@ -49,7 +46,6 @@ X | Y |
 2|3|
 </entry>
 
-
 <entry key="q5.query">
 SELECT a AS x, count(b) AS y FROM r GROUP BY a;
 </entry>
@@ -60,7 +56,6 @@ X | Y |
 2|2|
 </entry>
 
-
 <entry key="q6.query">
 SELECT min(a) AS x, max(a) as y FROM r;
 </entry>
@@ -69,7 +64,6 @@ X | Y |
 ----------+-----------------+-----------------
 1|2|
 </entry>
-
 
 <entry key="q7.query">
 SELECT avg(a) AS x, avg(b) AS y FROM r;
@@ -80,7 +74,6 @@ X | Y |
 1.5|1.75|
 </entry>
 
-
 <entry key="q8.query">
 SELECT a AS x, count(b) AS y FROM r GROUP BY a;
 </entry>
@@ -90,7 +83,6 @@ X | Y |
 1|2|
 2|2|
 </entry>
-
 
 <entry key="q9.query">
 SELECT a as x FROM R WHERE b=(SELECT min(b) FROM r);
@@ -154,9 +146,7 @@ X|Y|Z|
 9|5|0|
 9|7|0|
 9|3|1|
-
 </entry>
-
 
 <entry key="q14.query">
 SELECT x+2 as z, x as t, sum(x) as s FROM (SELECT a+b as x, c as y FROM R, S WHERE c>2) GROUP BY x;
@@ -176,7 +166,6 @@ SELECT avg(a) AS x, avg(a+b) AS y, sum(a*b*(d-c)/2) AS z FROM R, S WHERE b>c;
 X|Y|Z|
 ----------------------------------------
 1.75|4.5|15|
-
 </entry>
 
 </properties>
