@@ -19,6 +19,7 @@
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
+#include "model/set/set.h"
 #include "model/query_operator/query_operator.h"
 
 
@@ -37,64 +38,83 @@
 #define REL_INTER "\n\nedge [style=invis,constraint=true];\n\n"
 #define REL_FINAL "}\n\n"
 
-#define GET_OP_ID(result,map,op,curId) \
+#define NODE_ID_PROP "NODE_ID_FOR_DOT"
+
+#define GET_OP_ID(result,map,op) \
 		do { \
-			if (MAP_HAS_LONG_KEY(map, (long) op)) \
-			    result = STRING_VALUE(MAP_GET_LONG(map, (long) op)); \
-			else \
-            { \
-			    char *newKey = nextKey(curId); \
-			    MAP_ADD_LONG_KEY(map, (long) op, createConstString(newKey)); \
-			    result = newKey; \
-            } \
+		    result = STRING_VALUE(GET_STRING_PROP(op, NODE_ID_PROP)); \
+			if (!hasSetLongElem(map, (long) op)) \
+			    addLongToSet(map, (long) op); \
 		} while(0)
 
-#define GET_EXIST_OP_ID(map,op) (STRING_VALUE(MAP_GET_LONG(map, (long) op)))
+#define GET_EXIST_OP_ID(op) STRING_VALUE((GET_STRING_PROP(op, NODE_ID_PROP)))
 
-static HashMap *opsToDot (StringInfo str, QueryOperator *op, int *curId);
-static void leafsToDot (StringInfo str, QueryOperator *op, HashMap *nodeToId, int *curId);
+static void opsToDot (StringInfo str, QueryOperator *op, int *curId);
+static void determineOpIds(QueryOperator *op, int *curId);
+static void leafsToDot (StringInfo str, QueryOperator *op);
 static char *nextKey (int *id);
-static void outputOpDefs(StringInfo str, QueryOperator *op, int *curId, HashMap *nodeToId);
-static void opToDot(StringInfo str, QueryOperator *op, HashMap *nodeToId, int *curId);
+static void outputOpDefs(StringInfo str, QueryOperator *op, Set *nodeDone);
+static void opToDot(StringInfo str, QueryOperator *op, Set *nodeDone);
+static void outputEdges(StringInfo str, QueryOperator *op, Set *nodeDone);
 static void gatherLeafs(QueryOperator *op, List **leafs);
+static void removeNodeIdProp (QueryOperator *op);
 
 
-static HashMap *
+static void
 opsToDot (StringInfo str, QueryOperator *op, int *curId)
 {
-    HashMap *nodeToId = NEW_MAP(Constant,Constant);
-
     appendStringInfoString(str, INNER_PREAMBLE);
 
-    outputOpDefs(str, op, curId, nodeToId);
+    // set node ids as properties to nodes and create code for nodes except leaf nodes
+    determineOpIds(op, curId);
+    DEBUG_LOG("setting op ids: %s", beatify(nodeToString((Node *) op)));
+
+    Set *nodeDone = LONGSET();
+    outputOpDefs(str, op, nodeDone);
+
+    // output edges except edges to leaf nodes
+    nodeDone = LONGSET();
+    outputEdges(str ,op, nodeDone);
 
     appendStringInfoString(str, INNER_POST);
-
-    return nodeToId;
 }
 
 static void
-outputOpDefs(StringInfo str, QueryOperator *op, int *curId, HashMap *nodeToId)
+outputOpDefs(StringInfo str, QueryOperator *op, Set *nodeDone)
 {
     // do not output same operator twice
-    if (MAP_HAS_LONG_KEY(nodeToId,(long) op))
+    if (hasSetLongElem(nodeDone, (long) op))
         return;
 
-    opToDot(str, op, nodeToId, curId);
+    opToDot(str, op, nodeDone);
 
     FOREACH(QueryOperator,child,op->inputs)
-        outputOpDefs(str, child, curId, nodeToId);
+        outputOpDefs(str, child, nodeDone);
 }
 
 static void
-opToDot(StringInfo str, QueryOperator *op, HashMap *nodeToId, int *curId)
+determineOpIds(QueryOperator *op, int *curId)
+{
+    // do not output same operator twice
+    if (HAS_STRING_PROP(op, NODE_ID_PROP))
+        return;
+
+    SET_STRING_PROP(op, NODE_ID_PROP, createConstString(nextKey(curId)));
+
+    FOREACH(QueryOperator,child,op->inputs)
+        determineOpIds(child, curId);
+}
+
+
+static void
+opToDot(StringInfo str, QueryOperator *op, Set *nodeDone)
 {
     char *opName;
 
     if (LIST_LENGTH(op->inputs) == 0)
        return;
 
-    GET_OP_ID(opName, nodeToId, op, curId);
+    GET_OP_ID(opName, nodeDone, op);
 
     switch(op->type)
     {
@@ -138,24 +158,50 @@ opToDot(StringInfo str, QueryOperator *op, HashMap *nodeToId, int *curId)
             appendStringInfo(str, "\t%s [label=\"P\",color=lightgrey];\n",
                                 opName);
             break;
+        case T_DuplicateRemoval:
+            appendStringInfo(str, "\t%s [label=\"D\",color=lightgrey];\n",
+                    opName);
+            break;
         default:
             FATAL_LOG("unkown op type %s", NodeTagToString(op->type));
             break;
     }
-
-    FOREACH(QueryOperator,p,op->parents)
-    {
-        char *pName = NULL;
-        GET_OP_ID(pName, nodeToId, p, curId);
-        appendStringInfo(str, "\t%s -> %s;\n", pName, opName);
-    }
 }
 
 static void
-leafsToDot (StringInfo str, QueryOperator *op, HashMap *nodeToId, int *curId)
+outputEdges(StringInfo str, QueryOperator *op, Set *nodeDone)
+{
+    char *opId;
+    char *cId;
+
+    if (hasSetLongElem(nodeDone, (long) op))
+        return;
+
+    // mark operator as processed to avoid outputting the same edges more than once
+    addLongToSet(nodeDone, (long) op);
+    opId = STRING_VALUE(GET_STRING_PROP(op, NODE_ID_PROP));
+
+    FOREACH(QueryOperator,c,op->inputs)
+    {
+        // Do not creates edges to leaf operators here
+        if (LIST_LENGTH(c->inputs) != 0)
+        {
+            cId = STRING_VALUE(GET_STRING_PROP(c, NODE_ID_PROP));
+            appendStringInfo(str, "\t%s -> %s;\n", opId, cId);
+        }
+    }
+
+    FOREACH(QueryOperator,c,op->inputs)
+        if (LIST_LENGTH(c->inputs) != 0)
+            outputEdges(str, c, nodeDone);
+}
+
+
+static void
+leafsToDot (StringInfo str, QueryOperator *op)
 {
     List *leafs = NIL;
-
+    Set *nodeDone = LONGSET();
     // get leaf operators
     gatherLeafs(op, &leafs);
     DEBUG_LOG("leafs:\n%s", operatorToOverviewString((Node *) leafs));
@@ -165,47 +211,59 @@ leafsToDot (StringInfo str, QueryOperator *op, HashMap *nodeToId, int *curId)
     // output leaf nodes
     FOREACH(QueryOperator,o,leafs)
     {
-        char *nodeId = NULL;
-        GET_OP_ID(nodeId, nodeToId, o, curId);
-        if (o->type == T_TableAccessOperator)
+        if (!hasSetLongElem(nodeDone, (long) o))
         {
-            TableAccessOperator *t = (TableAccessOperator *) o;
-            appendStringInfo(str, "\t%s [label=\"%s\",shape=box,color=yellow,"
-                    "style=filled];\n", nodeId, t->tableName);
-        }
-        else if (o->type == T_ConstRelOperator)
-        {
-//            ConstRelOperator *c = (ConstRelOperator *) o;
-            appendStringInfo(str, "\t%s [label=\"%s\",shape=box,"
-                    "color=yellow,style=filled];", nodeId, "{}");
+            char *nodeId = STRING_VALUE(GET_STRING_PROP(o, NODE_ID_PROP));
+            addLongToSet(nodeDone, (long) o);
+            if (o->type == T_TableAccessOperator)
+            {
+                TableAccessOperator *t = (TableAccessOperator *) o;
+                appendStringInfo(str, "\t%s [label=\"%s\",shape=box,color=yellow,"
+                        "style=filled];\n", nodeId, t->tableName);
+            }
+            else if (o->type == T_ConstRelOperator)
+            {
+    //            ConstRelOperator *c = (ConstRelOperator *) o;
+                appendStringInfo(str, "\t%s [label=\"%s\",shape=box,"
+                        "color=yellow,style=filled];", nodeId, "{}");
+            }
         }
     }
 
     DEBUG_LOG("script created so far:\n%s", str->data);
-    DEBUG_LOG("node id map:\n%s", nodeToString(nodeToId));
 
     // output invisible edges between leaf nodes that enforce order
+    nodeDone = LONGSET();
     appendStringInfoString(str, REL_INTER);
 
     FOREACH(QueryOperator,o,leafs)
     {
-        QueryOperator *next = (QueryOperator *) (o_his_cell->next ?
-                LC_P_VAL(o_his_cell->next) : NULL);
+        if (!hasSetLongElem(nodeDone, (long) o))
+        {
+            addLongToSet(nodeDone, (long) o);
+            QueryOperator *next = (QueryOperator *) (o_his_cell->next ?
+                    LC_P_VAL(o_his_cell->next) : NULL);
 
-        if (next)
-            appendStringInfo(str, "%s -> %s;\n",
-                    GET_EXIST_OP_ID(nodeToId,o),
-                    GET_EXIST_OP_ID(nodeToId,next));
+            if (next)
+                appendStringInfo(str, "%s -> %s;\n",
+                        GET_EXIST_OP_ID(o),
+                        GET_EXIST_OP_ID(next));
+        }
     }
 
     // output edges between intermediate nodes and leafs
+    nodeDone = LONGSET();
     appendStringInfoString(str, REL_FINAL);
 
     FOREACH(QueryOperator,l,leafs)
     {
-        char *nodeId = GET_EXIST_OP_ID(nodeToId,l);
-        FOREACH(QueryOperator,p,l->parents)
-            appendStringInfo(str, "%s -> %s;\n", GET_EXIST_OP_ID(nodeToId,p), nodeId);
+        if (!hasSetLongElem(nodeDone, (long) l))
+       {
+            addLongToSet(nodeDone, (long) l);
+            char *nodeId = GET_EXIST_OP_ID(l);
+            FOREACH(QueryOperator,p,l->parents)
+                appendStringInfo(str, "%s -> %s;\n", GET_EXIST_OP_ID(p), nodeId);
+       }
     }
 }
 
@@ -233,7 +291,6 @@ nodeToDot(void *obj)
     StringInfo script = makeStringInfo();
     char *result;
     int id = 0;
-    HashMap *nodeToId;
     List *graphs = NIL;
     ASSERT(IS_OP(obj) || isA(obj,List));
 
@@ -248,17 +305,29 @@ nodeToDot(void *obj)
     {
         appendStringInfoString(script, SCRIPT_PREAMBLE);
 
-        nodeToId = opsToDot(script, g, &id);
+        opsToDot(script, g, &id);
         DEBUG_LOG("script so far: %s", script->data);
 
-        leafsToDot(script, g, nodeToId, &id);
+        leafsToDot(script, g);
         DEBUG_LOG("script so far: %s", script->data);
 
         appendStringInfoString(script, SCRIPT_POST);
+
+        removeNodeIdProp(g);
     }
+
+
 
     INFO_LOG("script:\n %s", script->data);
     result = script->data;
     FREE(script);
     return result;
+}
+
+static void
+removeNodeIdProp (QueryOperator *op)
+{
+    removeStringProperty(op,NODE_ID_PROP);
+    FOREACH(QueryOperator,c,op->inputs)
+        removeNodeIdProp(c);
 }

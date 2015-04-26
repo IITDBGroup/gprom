@@ -200,6 +200,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	START_TIMER("rewrite");
 
 	rewrittenTree = provRewriteQBModel(oModel);
+    DOT_TO_CONSOLE(rewrittenTree);
 
 	/*******************new Add for test json import jimp table***************************/
 	if(isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
@@ -248,6 +249,8 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 				LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
 		else
 			rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
+
+    DOT_TO_CONSOLE(rewrittenTree);
 
 	START_TIMER("SQLcodeGen");
 	appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));

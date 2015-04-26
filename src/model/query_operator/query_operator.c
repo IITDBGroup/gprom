@@ -24,6 +24,8 @@
 //static Schema *mergeSchemas (List *inputs);
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
+static boolean KeyValueKeyEqString (void *kv, void *str);
+
 
 Schema *
 createSchema(char *name, List *attrDefs)
@@ -793,6 +795,27 @@ getStringProperty (QueryOperator *op, char *key)
     KeyValue *kv = getProp(op, (Node *) createConstString(key));
 
     return kv ? kv->value : NULL;
+}
+
+void
+removeStringProperty (QueryOperator *op, char *key)
+{
+    List *props = (List *) op->properties;
+    genericRemoveFromList(props, KeyValueKeyEqString, key);
+}
+
+static boolean
+KeyValueKeyEqString (void *kv, void *str)
+{
+    ASSERT(isA(kv, KeyValue));
+    KeyValue *kVal = (KeyValue *) kv;
+    ASSERT(isA(kVal->key, Constant));
+    char *keyStr = STRING_VALUE(kVal->key);
+
+    if (strpeq(keyStr, str))
+        return TRUE;
+
+    return FALSE;
 }
 
 static KeyValue *

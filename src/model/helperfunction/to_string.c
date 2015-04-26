@@ -263,6 +263,10 @@ outSet(StringInfo str, Set *node)
             FOREACH_SET(int,i,node)
                 appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
             break;
+        case SET_TYPE_LONG:
+            FOREACH_SET(long,i,node)
+                appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
+            break;
         case SET_TYPE_STRING:
             FOREACH_SET(char,el,node)
                 appendStringInfo(str, "%s%s", el, el_his_el->hh.next ? ", " : "");
