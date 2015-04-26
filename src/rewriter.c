@@ -214,7 +214,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 		{
 			TableAccessOperator *ta = (TableAccessOperator *) getHeadOfListP(taOp);
 			DEBUG_LOG("test %s", ta->tableName);
-			if(streq(ta->tableName,"JIMP2"))
+			if(streq(ta->tableName,"JIMP2") || streq(ta->tableName, "JSDOC1"))
 			{
 				q = rewriteTransformationProvenanceImport(q);
 				DEBUG_LOG("Table: %s", nodeToString(ta));
