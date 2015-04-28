@@ -30,11 +30,11 @@
 	<!-- GProM c-library -->
 	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.dylib" />
 	<property name="gpromlib.darwin.bin" value="${binarydir}/darwin/libgprom.dylib" />
-	<property name="gpromlib.darwin" value="${builddir}/libgrom.jnilib" />	
+	<property name="gpromlib.darwin" value="${builddir}/libgprom.jnilib" />	
 	
-	<property name="gpromlib.linux.src" value="${basedir}/src/libgrom/.libs/libgprom.so.0" />
+	<property name="gpromlib.linux.src" value="${basedir}/src/libgprom/.libs/libgprom.so.0" />
 	<property name="gpromlib.linux.bin" value="${binarydir}/unix/libgprom.so.0" />
-	<property name="gpromlib.linux" value="${builddir}/libgrom.jnilib" />
+	<property name="gpromlib.linux" value="${builddir}/libgprom.jnilib" />
 	
 	<!-- detect OS -->
 	<condition property="isWindows">
