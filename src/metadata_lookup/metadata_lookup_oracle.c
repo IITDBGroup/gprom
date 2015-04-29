@@ -1063,7 +1063,6 @@ List *
 oracleGetKeyInformation(char *tableName)
 {
     List *keyList = NIL;
-    Set *newSet;
 
     StringInfo statement;
     statement = makeStringInfo();
@@ -1080,10 +1079,14 @@ oracleGetKeyInformation(char *tableName)
 
     if (rs1 != NULL)
     {
-        while(OCI_FetchNext(rs1))
+        if (OCI_FetchNext(rs1))
         {
-            newSet = MAKE_STR_SET(strdup((char *) OCI_GetString(rs1, 1)));
-        	//keyList = appendToTailOfList(keyList, strdup((char *) OCI_GetString(rs1, 1)));
+            Set *newSet = STRSET();
+            do
+            {
+                addToSet(newSet, strdup((char *) OCI_GetString(rs1, 1)));
+                //keyList = appendToTailOfList(keyList, strdup((char *) OCI_GetString(rs1, 1)));
+            } while(OCI_FetchNext(rs1));
             keyList = appendToTailOfList(keyList, newSet);
         }
     }

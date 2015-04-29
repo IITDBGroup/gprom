@@ -48,16 +48,19 @@ computeKeyProp (QueryOperator *root)
         TableAccessOperator *rel = (TableAccessOperator *) root;
         keyList = getKeyInformation(rel->tableName);
         DEBUG_LOG("keyList length: %d", LIST_LENGTH(keyList));
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
-        DEBUG_LOG("Table operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
+        setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
+        DEBUG_LOG("Table operator %s keys are {%s}", root->schema->name, beatify(nodeToString((keyList))));
         return;
     }
     else if (isA(root, ConstRelOperator))
     {
         FOREACH(AttributeDef, a, root->schema->attrDefs)
-            keyList = appendToTailOfList(keyList, strdup(a->attrName));
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
-        DEBUG_LOG("ConstRel operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
+        {
+            Set *oneKey = MAKE_STR_SET(strdup(a->attrName));
+            keyList = appendToTailOfList(keyList, oneKey);
+        }
+        setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
+        DEBUG_LOG("ConstRel operator %s keys are {%s}", root->schema->name, beatify(nodeToString((keyList))));
         return;
     }
 
