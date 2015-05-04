@@ -14,7 +14,7 @@
 
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
-
+#include "configuration/option.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
@@ -129,7 +129,7 @@ static void
 opToDot(StringInfo str, QueryOperator *op, Set *nodeDone)
 {
     char *opName;
-
+    boolean showParameters = getBoolOption(OPTION_GRAPHVIZ_DETAILS);
     if (LIST_LENGTH(op->inputs) == 0)
        return;
 
@@ -140,56 +140,88 @@ opToDot(StringInfo str, QueryOperator *op, Set *nodeDone)
         case T_ProjectionOperator:
         {
             ProjectionOperator *p = (ProjectionOperator *) op;
-            StringInfo latexLabel = makeStringInfo();
 
-            FORBOTH(Node,proj,a,p->projExprs,op->schema->attrDefs)
+            if (showParameters)
             {
-                AttributeDef *def = (AttributeDef *) a;
-                appendStringInfo(latexLabel, "%s \\to %s%s",
-                        exprToLatex(proj),
-                        latexEscapeString(def->attrName),
-                        FOREACH_HAS_MORE(proj) ? "," : "");
+                StringInfo latexLabel = makeStringInfo();
+
+                FORBOTH(Node,proj,a,p->projExprs,op->schema->attrDefs)
+                {
+                    AttributeDef *def = (AttributeDef *) a;
+                    appendStringInfo(latexLabel, "%s \\to %s%s",
+                            exprToLatex(proj),
+                            latexEscapeString(def->attrName),
+                            FOREACH_HAS_MORE(proj) ? "," : "");
+                }
+                appendStringInfo(str, "\t%s [label=\"&#928;\",color="
+                        COLOR_DARK_PURPLE ",fillcolor="
+                        COLOR_LIGHT_PURPLE ",texlbl=\"$\\pi_{%s}$\"];\n",
+                        opName, latexLabel->data);
             }
-            appendStringInfo(str, "\t%s [label=\"&#928;\",color=" COLOR_DARK_PURPLE ",fillcolor=" COLOR_LIGHT_PURPLE ",texlbl=\"$\\pi_{%s}$\"];\n",
-                    opName, latexLabel->data);
+            else
+                appendStringInfo(str, "\t%s [label=\"&#928;\",color="
+                        COLOR_DARK_PURPLE ",fillcolor="
+                        COLOR_LIGHT_PURPLE ",texlbl=\"$\\pi$\"];\n",
+                                    opName);
         }
             break;
         case T_SelectionOperator:
         {
             SelectionOperator *sel = (SelectionOperator *) op;
-            char *latexLabel = exprToLatex((Node *) sel->cond);
-            appendStringInfo(str, "\t%s [label=\"&#963;\",color=" COLOR_DARK_GREEN ",fillcolor=" COLOR_LIGHT_GREEN ",texlbl=\"$\\sigma_{%s}$\"];\n",
-                    opName, latexLabel);
+
+            if (showParameters)
+            {
+                char *latexLabel = exprToLatex((Node *) sel->cond);
+                appendStringInfo(str, "\t%s [label=\"&#963;\",color="
+                        COLOR_DARK_GREEN ",fillcolor="
+                        COLOR_LIGHT_GREEN ",texlbl=\"$\\sigma_{%s}$\"];\n",
+                        opName, latexLabel);
+            }
+            else
+                appendStringInfo(str, "\t%s [label=\"&#963;\",color="
+                        COLOR_DARK_GREEN ",fillcolor="
+                        COLOR_LIGHT_GREEN ",texlbl=\"$\\sigma$\"];\n",
+                        opName);
         }
             break;
         case T_AggregationOperator:
         {
             AggregationOperator *a = (AggregationOperator *) op;
-            StringInfo aggLabel = makeStringInfo ();
-            StringInfo groupLabel = makeStringInfo ();
 
-            FOREACH(Node,agg,a->aggrs)
+            if (showParameters)
             {
-                appendStringInfo(aggLabel, "%s%s",
-                        exprToLatex(agg),
-                        FOREACH_HAS_MORE(agg) ? "," : "");
-            }
+                StringInfo aggLabel = makeStringInfo ();
+                StringInfo groupLabel = makeStringInfo ();
 
-            FOREACH(Node,g,a->groupBy)
-            {
-                appendStringInfo(groupLabel, "%s%s",
-                        exprToLatex(g),
-                        FOREACH_HAS_MORE(g) ? "," : "");
-            }
+                FOREACH(Node,agg,a->aggrs)
+                {
+                    appendStringInfo(aggLabel, "%s%s",
+                            exprToLatex(agg),
+                            FOREACH_HAS_MORE(agg) ? "," : "");
+                }
 
-            appendStringInfo(str, "\t%s [label=\"&#945;\",color=" COLOR_DARK_RED ",fillcolor=" COLOR_LIGHT_RED ",texlbl=\"$_{%s}\\alpha_{%s}$\"];\n",
-                    opName, groupLabel->data, aggLabel->data);
+                FOREACH(Node,g,a->groupBy)
+                {
+                    appendStringInfo(groupLabel, "%s%s",
+                            exprToLatex(g),
+                            FOREACH_HAS_MORE(g) ? "," : "");
+                }
+
+                appendStringInfo(str, "\t%s [label=\"&#945;\",color="
+                        COLOR_DARK_RED ",fillcolor="
+                        COLOR_LIGHT_RED ",texlbl=\"$_{%s}\\alpha_{%s}$\"];\n",
+                        opName, groupLabel->data, aggLabel->data);
+            }
+            else
+                appendStringInfo(str, "\t%s [label=\"&#945;\",color="
+                        COLOR_DARK_RED ",fillcolor="
+                        COLOR_LIGHT_RED ",texlbl=\"$\\alpha$\"];\n",
+                        opName);
         }
             break;
         case T_JoinOperator:
         {
             JoinOperator *j = (JoinOperator *) op;
-            char *latexLabel = exprToLatex((Node *) j->cond);
             char *joinSymbol;
 
             switch(j->joinType)
@@ -211,11 +243,19 @@ opToDot(StringInfo str, QueryOperator *op, Set *nodeDone)
                     break;
             }
 
-
-
-
-            appendStringInfo(str, "\t%s [label=\"|X|\",color=" COLOR_DARK_YELLOW ",fillcolor=" COLOR_LIGHT_YELLOW ",texlbl=\"$%s_{%s}$\"];\n",
-                    opName, joinSymbol, latexLabel);
+            if (showParameters)
+            {
+                char *latexLabel = exprToLatex((Node *) j->cond);
+                appendStringInfo(str, "\t%s [label=\"|X|\",color="
+                        COLOR_DARK_YELLOW ",fillcolor="
+                        COLOR_LIGHT_YELLOW ",texlbl=\"$%s_{%s}$\"];\n",
+                        opName, joinSymbol, latexLabel);
+            }
+            else
+                appendStringInfo(str, "\t%s [label=\"|X|\",color="
+                        COLOR_DARK_YELLOW ",fillcolor="
+                        COLOR_LIGHT_YELLOW ",texlbl=\"$%s$\"];\n",
+                        opName, joinSymbol);
         }
             break;
         case T_SetOperator:
@@ -225,52 +265,70 @@ opToDot(StringInfo str, QueryOperator *op, Set *nodeDone)
             {
                 case SETOP_UNION:
                     appendStringInfo(str, "\t%s [label=\"&#8746;\","
-                            "color=" COLOR_DARK_BLUE ",fillcolor=" COLOR_LIGHT_BLUE ",texlbl=\"$\\cup$\"];\n", opName);
+                            "color=" COLOR_DARK_BLUE ",fillcolor="
+                            COLOR_LIGHT_BLUE ",texlbl=\"$\\cup$\"];\n",
+                            opName);
                     break;
                 case SETOP_INTERSECTION:
                     appendStringInfo(str, "\t%s [label=\"&#8745;\","
-                            "color=" COLOR_DARK_BLUE ",fillcolor=" COLOR_LIGHT_BLUE ",texlbl=\"$\\cap$\"];\n", opName);
+                            "color=" COLOR_DARK_BLUE ",fillcolor="
+                            COLOR_LIGHT_BLUE ",texlbl=\"$\\cap$\"];\n",
+                            opName);
                     break;
                 case SETOP_DIFFERENCE:
                     appendStringInfo(str, "\t%s [label=\"-\","
-                            "color=" COLOR_DARK_BLUE ",fillcolor=" COLOR_LIGHT_BLUE ",texlbl=\"$-$\"];\n", opName);
+                            "color=" COLOR_DARK_BLUE ",fillcolor="
+                            COLOR_LIGHT_BLUE ",texlbl=\"$-$\"];\n",
+                            opName);
                     break;
             }
         }
         break;
         case T_ProvenanceComputation:
-            appendStringInfo(str, "\t%s [label=\"P\",color=" COLOR_BLACK ",fillcolor=" COLOR_LIGHT_GREY ",texlbl=\"${\\cal P}$\"];\n",
-                                opName);
+            appendStringInfo(str, "\t%s [label=\"P\",color="
+                    COLOR_BLACK ",fillcolor="
+                    COLOR_LIGHT_GREY ",texlbl=\"${\\cal P}$\"];\n",
+                    opName);
             break;
         case T_DuplicateRemoval:
-            appendStringInfo(str, "\t%s [label=\"&#948;\",color=" COLOR_DARK_PURPLE ",fillcolor=" COLOR_LIGHT_PURPLE ",texlbl=\"$\\delta$\"];\n",
+            appendStringInfo(str, "\t%s [label=\"&#948;\",color="
+                    COLOR_DARK_PURPLE ",fillcolor="
+                    COLOR_LIGHT_PURPLE ",texlbl=\"$\\delta$\"];\n",
                     opName);
             break;
         case T_WindowOperator:
         {
             WindowOperator *w = (WindowOperator *) (op);
-            StringInfo partLabel = makeStringInfo();
-            StringInfo orderLabel = makeStringInfo();
-            StringInfo fLabel = makeStringInfo();
 
-            FOREACH(Node,p,w->partitionBy)
+            if (showParameters)
             {
-                appendStringInfo(partLabel, "%s%s",
-                        exprToLatex(p),
-                        FOREACH_HAS_MORE(p) ? "," : "");
+                StringInfo partLabel = makeStringInfo();
+                StringInfo orderLabel = makeStringInfo();
+                StringInfo fLabel = makeStringInfo();
+
+                FOREACH(Node,p,w->partitionBy)
+                {
+                    appendStringInfo(partLabel, "%s%s",
+                            exprToLatex(p),
+                            FOREACH_HAS_MORE(p) ? "," : "");
+                }
+
+                FOREACH(Node,o,w->orderBy)
+                {
+                    appendStringInfo(orderLabel, "%s%s",
+                            exprToLatex(o),
+                            FOREACH_HAS_MORE(o) ? "," : "");
+                }
+
+                appendStringInfo(fLabel, "%s", exprToLatex(w->f));
+
+                appendStringInfo(str, "\t%s [label=\"&#945;\",color="
+                        COLOR_DARK_RED ",fillcolor="
+                        COLOR_LIGHT_RED ",texlbl=\"$_{%s}^{%s}\\omega_{%s}$\"];\n",
+                        strdup(partLabel->data),
+                        strdup(orderLabel->data),
+                        strdup(fLabel->data));
             }
-
-            FOREACH(Node,o,w->orderBy)
-            {
-                appendStringInfo(orderLabel, "%s%s",
-                        exprToLatex(o),
-                        FOREACH_HAS_MORE(o) ? "," : "");
-            }
-
-            appendStringInfo(fLabel, "%s", exprToLatex(w->f));
-
-            appendStringInfo(str, "\t%s [label=\"&#945;\",color=" COLOR_DARK_RED ",fillcolor=" COLOR_LIGHT_RED ",texlbl=\"$_{%s}^{%s}\\omega_{%s}$\"];\n",
-                              strdup(partLabel->data), strdup(orderLabel->data), strdup(fLabel->data));
         }
             break;
         default:

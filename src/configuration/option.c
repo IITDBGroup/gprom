@@ -80,6 +80,7 @@ char *plugin_executor = NULL;
 boolean opt_timing = FALSE;
 boolean opt_memmeasure = FALSE;
 boolean opt_graphviz_output = FALSE;
+boolean opt_graphviz_detail = FALSE;
 
 // rewrite options
 boolean opt_aggressive_model_checking = FALSE;
@@ -333,6 +334,11 @@ OptionInfo opts[] =
                 NULL,
                 "output created query operator models as graphviz scripts.",
                 opt_graphviz_output,
+                FALSE),
+        aRewriteOption(OPTION_GRAPHVIZ_DETAILS,
+                NULL,
+                "show operator parameters in graphviz scripts.",
+                opt_graphviz_detail ,
                 FALSE),
         // boolean rewrite options
         aRewriteOption(OPTION_AGGRESSIVE_MODEL_CHECKING,
