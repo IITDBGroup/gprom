@@ -44,7 +44,7 @@ typedef struct Set {
 #define STRSET() newSet(SET_TYPE_STRING, -1, NULL, NULL)
 #define NODESET() newSet(SET_TYPE_NODE, sizeof(Node), equal, copyObject)
 #define INTSET() newSet(SET_TYPE_INT, sizeof(int), NULL, NULL)
-#define LONGSET() newSet(SET_TYPE_LONG, sizeof(long), NULL, NULL);
+#define LONGSET() newSet(SET_TYPE_LONG, sizeof(long), NULL, NULL)
 extern Set *newSet(SetType set, int typelen, boolean (*eq) (void *, void *), void *(*cpy) (void *));
 
 // create new set with content

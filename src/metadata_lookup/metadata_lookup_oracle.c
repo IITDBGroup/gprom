@@ -5,18 +5,19 @@
  */
 
 #include "common.h"
+#include "log/logger.h"
+#include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
-#include "mem_manager/mem_mgr.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "model/relation/relation.h"
 #include "parser/parser.h"
-#include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "utility/string_utils.h"
 
@@ -1081,13 +1082,12 @@ oracleGetKeyInformation(char *tableName)
     {
         if (OCI_FetchNext(rs1))
         {
-            Set *newSet = STRSET();
+            Set *keySet = STRSET();
             do
             {
-                addToSet(newSet, strdup((char *) OCI_GetString(rs1, 1)));
-                //keyList = appendToTailOfList(keyList, strdup((char *) OCI_GetString(rs1, 1)));
+                addToSet(keySet, strdup(((char *) OCI_GetString(rs1, 1))));
             } while(OCI_FetchNext(rs1));
-            keyList = appendToTailOfList(keyList, newSet);
+            keyList = appendToTailOfList(keyList, keySet);
         }
     }
 
