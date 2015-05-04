@@ -224,6 +224,7 @@ extern void setProperty (QueryOperator *op, Node *key, Node *value);
 extern Node *getProperty (QueryOperator *op, Node *key);
 extern void setStringProperty (QueryOperator *op, char *key, Node *value);
 extern Node *getStringProperty (QueryOperator *op, char *key);
+extern void removeStringProperty (QueryOperator *op, char *key);
 #define HAS_PROP(op,key) (getProperty(((QueryOperator *) op),key) != NULL)
 #define HAS_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key) != NULL)
 #define SET_STRING_PROP(op,key,value) (setStringProperty((QueryOperator *) op, \

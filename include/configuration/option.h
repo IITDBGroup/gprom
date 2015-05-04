@@ -19,6 +19,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_TIMING "timing"
 #define OPTION_MEMMEASURE "memdebug"
 #define OPTION_GRAPHVIZ "graphviz"
+#define OPTION_GRAPHVIZ_DETAILS "graphviz_details"
 #define OPTION_AGGRESSIVE_MODEL_CHECKING "aggressive_model_checking"
 
 #define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"

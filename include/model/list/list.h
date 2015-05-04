@@ -57,6 +57,7 @@ typedef struct List
 
 #define FOREACH_GET_LC(_node_) (DUMMY_LC(_node_))
 #define FOREACH_HAS_MORE(_node_) (DUMMY_LC(_node_)->next != NULL)
+
 /*
  * Loop through integer list _list_ and access each element using name _ival_.
  * _cell_ has to be an existing variable of type ListCell *.
@@ -125,7 +126,7 @@ typedef struct List
 #define LC_P_VAL(lc) (((ListCell *) lc)->data.ptr_value)
 #define LC_STRING_VAL(lc) ((char *) ((ListCell *) lc)->data.ptr_value)
 #define LC_INT_VAL(lc) (((ListCell *) lc)->data.int_value)
-
+#define LC_NEXT(lc) (((ListCell *) lc)->next)
 /*
  * Create a integer list starting from _start to _end increasing _step
  */

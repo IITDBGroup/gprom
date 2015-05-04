@@ -230,9 +230,10 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	START_TIMER("rewrite");
 
 	rewrittenTree = provRewriteQBModel(oModel);
+    DOT_TO_CONSOLE(rewrittenTree);
 
 	/*******************new Add for test json import jimp table***************************/
-	if(isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
+	if(isA(rewrittenTree,List) && isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
 	{
 		QueryOperator *q = (QueryOperator *)getHeadOfListP((List *)rewrittenTree);
 		List *taOp = NIL;
@@ -243,7 +244,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 		{
 			TableAccessOperator *ta = (TableAccessOperator *) getHeadOfListP(taOp);
 			DEBUG_LOG("test %s", ta->tableName);
-			if(streq(ta->tableName,"JIMP2"))
+			if(streq(ta->tableName,"JIMP2") || streq(ta->tableName, "JSDOC1"))
 			{
 				q = rewriteTransformationProvenanceImport(q);
 				DEBUG_LOG("Table: %s", nodeToString(ta));
@@ -278,6 +279,8 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 				LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
 		else
 			rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
+
+    DOT_TO_CONSOLE(rewrittenTree);
 
 	START_TIMER("SQLcodeGen");
 	appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
