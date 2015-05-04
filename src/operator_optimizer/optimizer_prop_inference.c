@@ -130,9 +130,11 @@ computeKeyProp (QueryOperator *root)
     // dup removal operator has a key {all attributes} if the input does not have a key
     if (isA(root, DuplicateRemoval))
     {
-    	//List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
-    	//TODO Get the child's key property and Append it to above list and set it as property of duplicate operator
 
+    	List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
+    	Set *s1 = makeStrSetFromList(l1);
+
+    	keyList = appendToTailOfList(keyList, s1);
         setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     }
 

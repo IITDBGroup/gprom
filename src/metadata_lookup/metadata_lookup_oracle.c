@@ -1081,13 +1081,13 @@ oracleGetKeyInformation(char *tableName)
     {
         if (OCI_FetchNext(rs1))
         {
-            Set *newSet = STRSET();
+            Set *nSet = STRSET();
             do
             {
-                addToSet(newSet, strdup((char *) OCI_GetString(rs1, 1)));
+                addToSet(nSet, strdup((char *) OCI_GetString(rs1, 1)));
                 //keyList = appendToTailOfList(keyList, strdup((char *) OCI_GetString(rs1, 1)));
             } while(OCI_FetchNext(rs1));
-            keyList = appendToTailOfList(keyList, newSet);
+            keyList = appendToTailOfList(keyList, nSet);
         }
     }
 
