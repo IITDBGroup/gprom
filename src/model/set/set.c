@@ -26,6 +26,9 @@ static SetElem *getSetElem(Set *set, void *key);
 static boolean intCmp (void *a, void *b);
 static void *intCpy (void *a);
 
+static boolean longCmp (void *a, void *b);
+static void *longCpy (void *a);
+
 static boolean ptrCmp (void *a, void *b);
 static void *ptrCpy (void *a);
 
@@ -48,6 +51,11 @@ newSet(SetType set, int typelen, boolean (*eq) (void *, void *), void * (*cpy) (
     {
         result->eq = intCmp;
         result->cpy = intCpy;
+    }
+    else if (set == SET_TYPE_LONG)
+    {
+        result->eq = longCmp;
+        result->cpy = longCpy;
     }
     else if (set == SET_TYPE_POINTER)
     {
@@ -103,6 +111,28 @@ makeSetInt(int elem, ...)
     {
         TRACE_LOG("add int %d to set", arg);
         addIntToSet(result, arg);
+    }
+
+    va_end(args);
+
+    return result;
+}
+
+Set *
+makeSetLong(long elem, ...)
+{
+    Set *result = LONGSET();
+    va_list args;
+    int arg;
+
+    addLongToSet(result, elem);
+
+    va_start(args, elem);
+
+    for(arg = elem; arg >= 0; arg = va_arg(args,long))
+    {
+        TRACE_LOG("add int %d to set", arg);
+        addLongToSet(result, arg);
     }
 
     va_end(args);
@@ -175,6 +205,20 @@ hasSetIntElem (Set *set, int _el)
 }
 
 boolean
+hasSetLongElem (Set *set, long _el)
+{
+    SetElem *result = NULL, *s;
+
+    HASH_FIND(hh,set->elem, &_el, sizeof(long), result);
+
+    for(s=set->elem; s != NULL; s=s->hh.next) {
+        TRACE_LOG("key and value %d with hv %u keyptr %d", *((long *) s->data), s->hh.hashv, *((long *) s->hh.key));
+    }
+
+    return result != NULL;
+}
+
+boolean
 addToSet (Set *set, void *elem)
 {
     SetElem *setEl;
@@ -212,6 +256,23 @@ addIntToSet (Set *set, int elem)
     *((int *) setEl->data) = elem;
 
     HASH_ADD_KEYPTR(hh, set->elem, setEl->data, sizeof(int), setEl);
+
+    return TRUE;
+}
+
+boolean
+addLongToSet (Set *set, long elem)
+{
+    SetElem *setEl;
+
+    if (hasSetLongElem(set, elem))
+        return FALSE;
+
+    setEl = NEW(SetElem);
+    setEl->data = NEW(long);
+    *((long *) setEl->data) = elem;
+
+    HASH_ADD_KEYPTR(hh, set->elem, setEl->data, sizeof(long), setEl);
 
     return TRUE;
 }
@@ -260,6 +321,19 @@ removeSetIntElem (Set *set, int elem)
     SetElem *e;
 
     HASH_FIND(hh, set->elem, &elem, sizeof(int), e);
+    if (e != NULL)
+    {
+        HASH_DEL(set->elem, e);
+        FREE(e);
+    }
+}
+
+void
+removeSetLongElem (Set *set, long elem)
+{
+    SetElem *e;
+
+    HASH_FIND(hh, set->elem, &elem, sizeof(long), e);
     if (e != NULL)
     {
         HASH_DEL(set->elem, e);
@@ -408,6 +482,24 @@ intCpy (void *a)
 {
     int *result = NEW(int);
     *result = *((int *) a);
+
+    return (void *) result;
+}
+
+static boolean
+longCmp (void *a, void *b)
+{
+    long c = *((long *) a);
+    long d = *((long *) b);
+
+    return c == d;
+}
+
+static void *
+longCpy (void *a)
+{
+    long *result = NEW(long);
+    *result = *((long *) a);
 
     return (void *) result;
 }

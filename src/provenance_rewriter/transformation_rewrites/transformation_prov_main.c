@@ -938,7 +938,8 @@ rewriteTransformationProvenanceImport (QueryOperator *op)
 
 	//derivedByR AS (SELECT '"_wdf_jimp' || X || '|' || I || ')" : { "prov:activity": "Q", "prov:usedEntity": "' || I || '",
 	//"prov:generatedEntity": "imp:tupQ( || X || ')""}'
-	Constant *cdbPrefix4 = createConstString(")\"}");
+	//Constant *cdbPrefix4 = createConstString(")\"}"); Used for list_agg
+	Constant *cdbPrefix4 = createConstString(")\"},");
 	Operator *dbOp8 = generateOp((Node *) dbOp7, (Node *) cdbPrefix4, namePosMap);
 
 	ProjectionOperator *dbProj1 = createProjectionOp(singleton(dbOp8), op,
@@ -992,7 +993,8 @@ rewriteTransformationProvenanceImport (QueryOperator *op)
 	Operator *gbOp3 = generateOp((Node *) gbOp2, (Node *) xdbAttrDef, namePosMap);
 
 	//'"_wgb' || X || ')" : { "prov:activity": "Q", "prov:entity": "tupQ(' || X || ')""}'
-	Constant *cgbPrefix3 = createConstString(")\"}");
+	//Constant *cgbPrefix3 = createConstString(")\"}"); Used for list_agg
+	Constant *cgbPrefix3 = createConstString(")\"},");
 	Operator *gbOp4 = generateOp((Node *) gbOp3, (Node *) cgbPrefix3, namePosMap);
 
 	ProjectionOperator *gbProj1 = createProjectionOp(singleton(gbOp4), op,
@@ -1045,7 +1047,8 @@ rewriteTransformationProvenanceImport (QueryOperator *op)
 	//'"_wub_jimp(' || I || ')" : { "prov:activity": "Q", "prov:usedEntity": " || I ||
 	Operator *ubOp3 = generateOp((Node *) ubOp2, (Node *) idbAttrDef, namePosMap);
 
-	Constant *cubPrefix3 = createConstString("\"}");
+	//Constant *cubPrefix3 = createConstString("\"}"); Used for list_agg
+	Constant *cubPrefix3 = createConstString("\"},");
 	Operator *ubOp4 = generateOp((Node *) ubOp3, (Node *) cubPrefix3, namePosMap);
 
 	ProjectionOperator *ubProj1 = createProjectionOp(singleton(ubOp4), op,
@@ -1097,11 +1100,12 @@ rewriteTransformationProvenanceImport (QueryOperator *op)
 	AttributeDef *ddbAttrDef = (AttributeDef *) getNthOfListP(op->schema->attrDefs, 1);
 	Operator *bdOp3 = generateOp((Node *) bdOp2, (Node *) ddbAttrDef, namePosMap);
 
-//	//' "rel:bun' || I || '": {' || D || '} '
-//	Constant *cbdPrefix3 = createConstString("}");
-//	Operator *bdOp4 = generateOp((Node *) bdOp3, (Node *) cbdPrefix3, namePosMap);
+	//under 3 lines used for list_agg
+	//' "rel:bun' || I || '": {' || D || '} '
+	Constant *cbdPrefix3 = createConstString(",");
+	Operator *bdOp4 = generateOp((Node *) bdOp3, (Node *) cbdPrefix3, namePosMap);
 
-	ProjectionOperator *bdProj1 = createProjectionOp(singleton(bdOp3), op,
+	ProjectionOperator *bdProj1 = createProjectionOp(singleton(bdOp4), op,
 			NIL, singleton("b"));
 	op->parents = appendToTailOfList(op->parents, bdProj1);
 

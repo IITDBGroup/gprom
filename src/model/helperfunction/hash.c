@@ -201,6 +201,10 @@ hashSet (uint64_t cur, Set *node)
             FOREACH_SET_INT(i,node)
                 hashInt(cur, i);
             break;
+        case SET_TYPE_LONG:
+            FOREACH_SET_LONG(i,node)
+                hashLong(cur, i);
+            break;
         case SET_TYPE_NODE:
             FOREACH_SET(Node,n,node)
                 hashValueInternal(cur,n);

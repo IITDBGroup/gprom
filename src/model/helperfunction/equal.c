@@ -433,6 +433,23 @@ equalSet (Set *a, Set *b)
         return TRUE;
     }
 
+    if (a->setType == SET_TYPE_LONG)
+    {
+        FOREACH_SET(long,i,a)
+        {
+            if (!hasSetLongElem(b,*i))
+                return FALSE;
+        }
+
+        FOREACH_SET(long,i,b)
+        {
+            if (!hasSetLongElem(a,*i))
+                return FALSE;
+        }
+
+        return TRUE;
+    }
+
     FOREACH_SET(void,el,a)
     {
         if (!hasSetElem(b,el))
