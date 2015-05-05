@@ -138,6 +138,49 @@ computeKeyProp (QueryOperator *root)
         setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     }
 
+    if (isA(root, JoinOperator))
+    {
+    	JoinOperator *j = (JoinOperator *) root;
+    	// crossproduct operator: union sets of keys
+    	if(j->cond==NULL)
+    	{
+    		Set *nSet = STRSET();
+    		List *nKeyList = NIL;
+    		FOREACH(Set,l1,keyList)
+    		{
+    			FOREACH(Set,l2,rKeyList)
+				{
+    				nSet = unionSets (l1, l2);
+    				nKeyList = appendToTailOfList(nKeyList, nSet);
+				}
+    		}
+    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)nKeyList);
+    	}
+    }
+
+
+    if (isA(root, SetOperator))
+    {
+    	SetOperator *j = (SetOperator *) root;
+    	//union operator set to empty
+    	if(j->setOpType==SETOP_UNION)
+       	{
+    		keyList = NIL;
+    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+       	}
+    	//intersect operator
+    	else if(j->setOpType==SETOP_INTERSECTION)
+    	{
+    		//HashMap *nHashMap=newHashMap(NodeTag keyType, NodeTag valueType, boolean (*eq) (void *, void *), void *(*cpy) (void *));
+    		FORBOTH(Set,l1,l2,keyList,rKeyList)
+			{
+
+			}
+    	}
+    }
+
+
+
     DEBUG_LOG("operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
 }
 
