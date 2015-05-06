@@ -12,11 +12,57 @@ import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
 import org.gprom.jdbc.utility.LoggerUtil;
 
 
-public class PostgresCatalogLookup extends AbstractMetadataLookup {
-	private static Logger log = Logger.getLogger(PostgresCatalogLookup.class);
+public class PostgresMetadataLookup extends AbstractMetadataLookup {
+	private static Logger log = Logger.getLogger(PostgresMetadataLookup.class);
 
-	public PostgresCatalogLookup(Connection con) throws SQLException {
+	public PostgresMetadataLookup(Connection con) throws SQLException {
 		super(con);
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#getOpReturnType(java.lang.String, java.lang.String[], int)
+	 */
+	@Override
+	protected String getOpReturnType(String oName, String[] stringArray,
+			int numArgs) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#getViewDefinition(java.lang.String)
+	 */
+	@Override
+	protected String getViewDefinition(String viewName) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#getTableDef(java.lang.String)
+	 */
+	@Override
+	protected String getTableDef(String tableName) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#isWindow(java.lang.String)
+	 */
+	@Override
+	protected int isWindow(String functionName) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#isAgg(java.lang.String)
+	 */
+	@Override
+	protected int isAgg(String functionName) {
+		// TODO Auto-generated method stub
+		return 0;
 	}
 
 

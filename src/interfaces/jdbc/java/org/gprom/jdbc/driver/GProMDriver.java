@@ -16,16 +16,16 @@ import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
 import org.gprom.jdbc.jna.GProMWrapper;
+import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin;
+import org.gprom.jdbc.metadata_lookup.oracle.OracleMetadataLookup;
 import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 /**
  * GProMDriver extends the SQL driver for adding a perm assistance
  * 
- * @author Alex
+ * @author lorpretzel
  * 
- * @see http://de.cute-solutions.de/2009/03/jdbc-treiber-mit-filterfunktion-und-logging
- *      -im-eigenbau-implementierung-der-driver-klasse-25/
  */
 public class GProMDriver implements Driver {
 	/** logger */
@@ -62,8 +62,11 @@ public class GProMDriver implements Driver {
 
 		/** should we load the backend driver or not */
 		boolean loadBackendDriver = info.containsKey(GProMDriverProperties.LOAD_DRIVER) 
-				? (Boolean) info.get("GProM.LoadBackEnd") 
-				: false;  
+				? (Boolean) info.get(GProMDriverProperties.LOAD_DRIVER) 
+				: false;
+		boolean useJDBCMetadataLookup = info.containsKey(GProMDriverProperties.JDBC_METADATA_LOOKUP) 
+				? (Boolean) info.get(GProMDriverProperties.JDBC_METADATA_LOOKUP) 
+				: false; 
 		
 		/*
 		 * Load the driver to connect to the database and create a new
@@ -105,8 +108,14 @@ public class GProMDriver implements Driver {
 			
 			// setup GProM C libraries options and plugins
 			w.setupOptions(backendOpts);
-			w.setupPlugins();
+			if (useJDBCMetadataLookup) {
+				w.setupPlugins(backendConnection, getMetadataLookup(backendConnection, backend));
+			}
+			else {
+				w.setupPlugins();
+			}
 			w.setLogLevel(4);
+			
 			
 			return new GProMConnection(backendConnection,
 					backendOpts, backend, w);
@@ -114,6 +123,21 @@ public class GProMDriver implements Driver {
 			log.error("Error loading the driver and getting a connection.");
 			LoggerUtil.logException(ex, log);
 			System.exit(-1);
+		}
+		return null;
+	}
+	
+	private GProMMetadataLookupPlugin getMetadataLookup (Connection con, BackendType backend) throws SQLException {
+		switch (backend)
+		{
+		case HSQL:
+			break;
+		case Oracle:
+			return new OracleMetadataLookup(con).getPlugin();
+		case Postgres:
+			break;
+		default:
+			break;
 		}
 		return null;
 	}

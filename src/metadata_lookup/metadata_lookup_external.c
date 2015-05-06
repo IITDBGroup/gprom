@@ -42,6 +42,8 @@ static DataType externalGetFuncReturnType (char *fName, List *argTypes);
 static DataType externalGetOpReturnType (char *oName, List *argTypes);
 static char *externalGetTableDefinition(char *tableName);
 static char *externalGetViewDefinition(char *viewName);
+static List *externalGetKeyInformation (char *tableName);
+
 
 static void externalGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
@@ -73,6 +75,7 @@ assembleExternalMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
     p->isWindowFunction = externalIsWindowFunction;
     p->getTableDefinition = externalGetTableDefinition;
     p->getViewDefinition = externalGetViewDefinition;
+    p->getKeyInformation = externalGetKeyInformation;
     p->getOpReturnType = externalGetOpReturnType;
     p->getFuncReturnType = externalGetFuncReturnType;
     p->getTransactionSQLAndSCNs = externalGetTransactionSQLAndSCNs;
@@ -250,6 +253,18 @@ externalGetViewDefinition(char *viewName)
     EXTERNAL_PLUGIN;
 
     return extP->getViewDefinition(viewName);
+}
+
+static List *
+externalGetKeyInformation (char *tableName)
+{
+    EXTERNAL_PLUGIN;
+    List *result = NIL;
+    char **exResult = NULL;
+
+    exResult = extP->getKeyInformation(tableName);
+
+    return result;
 }
 
 static void externalGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,

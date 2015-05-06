@@ -3,6 +3,7 @@
  */
 package org.gprom.jdbc.jna;
 
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +13,7 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.jna.GProMJavaInterface;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
+import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 import com.sun.jna.Pointer;
@@ -54,6 +56,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	private GProM_JNA.GProMLoggerCallbackFunction loggerCallback;
 	private GProM_JNA.GProMExceptionCallbackFunction exceptionCallback;
 	private List<ExceptionInfo> exceptions;
+	private GProMMetadataLookupPlugin p;
 	
 	// singleton instance	
 	public static GProMWrapper inst = new GProMWrapper ();
@@ -130,7 +133,14 @@ public class GProMWrapper implements GProMJavaInterface {
 	public void setupPlugins ()
 	{
 		GProM_JNA.INSTANCE.gprom_configFromOptions();
-
+	}
+	
+	public void setupPlugins(Connection con, GProMMetadataLookupPlugin p)
+	{
+		setStringOption("plugin.metadata", "external");
+		GProM_JNA.INSTANCE.gprom_configFromOptions();
+		this.p = p;
+		GProM_JNA.INSTANCE.gprom_registerMetadataLookupPlugin(p);
 	}
 
 	public void setupFromOptions (String[] opts)
@@ -341,6 +351,14 @@ public class GProMWrapper implements GProMJavaInterface {
 		if (s == 1)
 			return ExceptionSeverity.Panic;
 		return ExceptionSeverity.Panic;
+	}
+
+	public GProMMetadataLookupPlugin getP() {
+		return p;
+	}
+
+	public void setP(GProMMetadataLookupPlugin p) {
+		this.p = p;
 	}
 	
 }

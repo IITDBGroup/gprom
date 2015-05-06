@@ -22,6 +22,7 @@ import java.util.concurrent.Executor;
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMWrapper;
+import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin;
 import org.gprom.jdbc.utility.LoggerUtil;
 
 public class GProMConnection implements GProMConnectionInterface{
@@ -33,6 +34,7 @@ public class GProMConnection implements GProMConnectionInterface{
 	private Properties gpromConf;
 	private BackendType backend;
 	private GProMWrapper w;
+
 	
 	public GProMConnection(Connection con, Properties gpromConf, BackendType backend, GProMWrapper w) {
 		this.con = con;

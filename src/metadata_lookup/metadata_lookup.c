@@ -20,6 +20,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
 #include "metadata_lookup/metadata_lookup_postgres.h"
+#include "metadata_lookup/metadata_lookup_external.h"
 
 MetadataLookupPlugin *activePlugin = NULL;
 List *availablePlugins = NIL;
@@ -40,6 +41,7 @@ initMetadataLookupPlugins (void)
 #ifdef HAVE_POSTGRES_BACKEND
     availablePlugins = appendToTailOfList(availablePlugins, assemblePostgresMetadataLookupPlugin());
 #endif
+    availablePlugins = appendToTailOfList(availablePlugins, assembleExternalMetadataLookupPlugin(NULL));
 
     return EXIT_SUCCESS;
 }

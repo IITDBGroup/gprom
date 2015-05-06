@@ -10,6 +10,7 @@ import com.sun.jna.Library;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
+import com.sun.jna.StringArray;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
@@ -65,6 +66,9 @@ public interface GProM_JNA extends Library {
 	
 	// metadata lookup callback interface defines a methods and a plugin struct
 	public class GProMMetadataLookupPlugin extends Structure {
+		
+		/// C type : boolean isInitialized
+		public GProMMetadataLookupPlugin.isInitialized_callback isInitializedPlugin;
 		/// C type : initMetadataLookupPlugin_callback
 		public GProMMetadataLookupPlugin.initMetadataLookupPlugin_callback initMetadataLookupPlugin;
 		/// C type : databaseConnectionOpen_callback
@@ -73,12 +77,20 @@ public interface GProM_JNA extends Library {
 		public GProMMetadataLookupPlugin.databaseConnectionClose_callback databaseConnectionClose;
 		/// C type : shutdownMetadataLookupPlugin_callback
 		public GProMMetadataLookupPlugin.shutdownMetadataLookupPlugin_callback shutdownMetadataLookupPlugin;
-		/// C type : getAttributes_callback
+	    /// C type: boolean (*catalogTableExists) (char * tableName);
+		public GProMMetadataLookupPlugin.catalogTableExists_callback catalogTableExists;
+		/// C type: boolean (*catalogViewExists) (char * viewName);
+		public GProMMetadataLookupPlugin.catalogViewExists_callback catalogViewExists;
+		/// C type : getAttributes_callback		
 		public GProMMetadataLookupPlugin.getAttributes_callback getAttributes;
 		/// C type : getAttributeNames_callback
 		public GProMMetadataLookupPlugin.getAttributeNames_callback getAttributeNames;
 		/// C type : getAttributeDefaultVal_callback
 		public GProMMetadataLookupPlugin.getAttributeDefaultVal_callback getAttributeDefaultVal;
+		/// C type : boolean (*isAgg) (char *functionName)
+		public GProMMetadataLookupPlugin.isAgg_callback isAgg;
+	    /// C types : boolean (*isWindowFunction) (char *functionName)
+		public GProMMetadataLookupPlugin.isWindowFunction_callback isWindowFunction;
 		/// C type : getFuncReturnType_callback
 		public GProMMetadataLookupPlugin.getFuncReturnType_callback getFuncReturnType;
 		/// C type : getOpReturnType_callback
@@ -87,9 +99,13 @@ public interface GProM_JNA extends Library {
 		public GProMMetadataLookupPlugin.getTableDefinition_callback getTableDefinition;
 		/// C type : getViewDefinition_callback
 		public GProMMetadataLookupPlugin.getViewDefinition_callback getViewDefinition;
-		public interface boolean_callback extends Callback {
+		/// C type:   char ** (*getKeyInformation) (char *tableName)
+		public GProMMetadataLookupPlugin.getKeyInformation_callback getKeyInformation;
+
+		
+		public interface isInitialized_callback {
 			int apply();
-		};
+		}
 		public interface initMetadataLookupPlugin_callback extends Callback {
 			int apply();
 		};
@@ -102,39 +118,49 @@ public interface GProM_JNA extends Library {
 		public interface shutdownMetadataLookupPlugin_callback extends Callback {
 			int apply();
 		};
-		public interface boolean_callback2 extends Callback {
-			int apply(Pointer tableName);
-		};
-		public interface boolean_callback3 extends Callback {
-			int apply(Pointer viewName);
-		};
+		public interface catalogViewExists_callback extends Callback {
+			int apply(String viewName);
+		}
+		public interface catalogTableExists_callback extends Callback {
+			int apply(String tableName);
+		}
 		public interface getAttributes_callback extends Callback {
-			void apply(Pointer tableName, PointerByReference attrs, PointerByReference dataTypes, IntByReference numArgs);
+			void apply(String tableName, 
+					PointerByReference attrs, 	// output parameter char *** 
+					PointerByReference dataTypes, // output parameter char ***
+					IntByReference numArgs);	// output parameter int *	
 		};
 		public interface getAttributeNames_callback extends Callback {
-			void apply(Pointer tableName, PointerByReference attrs, IntByReference numArgs);
+			void apply(String tableName, 
+					PointerByReference attrs, 	// output parameter char *** 
+					IntByReference numArgs 		// output parameter int *
+					);
 		};
 		public interface getAttributeDefaultVal_callback extends Callback {
-			Pointer apply(Pointer schema, Pointer tableName, Pointer attrName);
+			String apply(String schema, String  tableName, String attrName);
 		};
-		public interface boolean_callback4 extends Callback {
-			int apply(Pointer functionName);
-		};
-		public interface boolean_callback5 extends Callback {
-			int apply(Pointer functionName);
-		};
+		public interface isWindowFunction_callback {
+			int apply(String functionName);
+		}
+		public interface isAgg_callback {
+			int apply(String functionName);
+		}
 		public interface getFuncReturnType_callback extends Callback {
-			Pointer apply(Pointer fName, PointerByReference args, int numArgs);
+			String apply(String fName, StringArray args, int numArgs);
 		};
 		public interface getOpReturnType_callback extends Callback {
-			Pointer apply(Pointer oName, PointerByReference args, int numArgs);
+			String apply(String oName, StringArray args, int numArgs);
 		};
 		public interface getTableDefinition_callback extends Callback {
-			Pointer apply(Pointer tableName);
+			String apply(String tableName);
 		};
 		public interface getViewDefinition_callback extends Callback {
-			Pointer apply(Pointer viewName);
+			String apply(String viewName);
 		};
+		public interface getKeyInformation_callback extends Callback {
+			PointerByReference apply(String tableName);
+		};
+		
 		public GProMMetadataLookupPlugin() {
 			super();
 			initFieldOrder();
