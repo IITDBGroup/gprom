@@ -36,7 +36,7 @@ typedef struct HashMap {
 #define NEW_MAP(keyType,valueType) newHashMap(T_ ## keyType, T_ ## valueType, NULL, NULL)
 extern HashMap *newHashMap(NodeTag keyType, NodeTag valueType, boolean (*eq) (void *, void *), void *(*cpy) (void *));
 
-// accesssing map elements
+// accessing map elements
 extern boolean hasMapKey (HashMap *map, Node *key);
 extern boolean hasMapStringKey (HashMap *map, char *key);
 extern boolean hasMapIntKey (HashMap *map, int key);
