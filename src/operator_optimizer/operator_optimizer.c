@@ -42,6 +42,7 @@
 #define APPLY_AND_TIME_OPT(optName,optMethod,configOption) \
     if(getBoolOption(configOption)) \
     { \
+    	INFO_LOG("START: %s", optName); \
         START_TIMER("OptimizeModel - " optName); \
         rewrittenTree = optMethod((QueryOperator *) rewrittenTree); \
         TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree)); \
@@ -66,6 +67,9 @@ static void introduceSelection(Operator *o, QueryOperator *qo1);
 static void introduceSelectionInMoveAround(QueryOperator *root);
 static void removeUnnecessaryCond(QueryOperator *root, Operator *o);
 static void checkCond(QueryOperator *op, Operator *o, boolean *flag);
+//static void resetAttrPosInCond(QueryOperator *root, Operator *condOp);
+static void resetPosInExprs (Node *exprs, List *attrDefs);
+static void resetPos(AttributeReference *ar,  List* attrDefs);
 
 Node  *
 optimizeOperatorModel (Node *root)
@@ -86,69 +90,14 @@ optimizeOperatorModel (Node *root)
         return (Node *) optimizeOneGraph((QueryOperator *) root);
 }
 
-//static void
-//applyMerge(QueryOperator *rewrittenTree)
-//{
-//    APPLY_AND_TIME_OPT("merge adjacent projections and selections",mergeAdjacentOperators,OPTIMIZATION_MERGE_OPERATORS);
-//	if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-//	{
-//		START_TIMER("OptimizeModel - merge adjacent operator");
-//		rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-//		TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//		LOG_OPT("merged adjacent", rewrittenTree);
-//		STOP_TIMER("OptimizeModel - merge adjacent operator");
-//	}
-//}
-
-//TODO may be unsafe if the pushed down selection is the topmost operator, because the rewrittenTree variable is local to the method
-//static void
-//applySelectionPushdown(QueryOperator *rewrittenTree)
-//{
-//    APPLY_AND_TIME_OPT("selection pushdown",pushDownSelectionOperatorOnProv,OPTIMIZATION_SELECTION_PUSHING);
-//	if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
-//	{
-//		START_TIMER("OptimizeModel - pushdown selections");
-//		rewrittenTree = pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
-//		DEBUG_LOG("selections pushed down", operatorToOverviewString((Node *) rewrittenTree));
-//		TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//		STOP_TIMER("OptimizeModel - pushdown selections");
-//	}
-//}
-
 static QueryOperator *
 optimizeOneGraph (QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
 
-    APPLY_AND_TIME_OPT("factor attributes in conditions", factorAttrsInExpressions, OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
-//    if(getBoolOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR))
-//    {
-//        START_TIMER("OptimizeModel - factor attributes in conditions");
-//        rewrittenTree = factorAttrsInExpressions((QueryOperator *) rewrittenTree);
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        DEBUG_LOG("factor out attribute references in conditions\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - factor attributes in conditions");
-//    }
-
-   /* if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
-    {
-		res = callback(2);
-		if (res == 1)
-			applyMerge(rewrittenTree);
-
-		res = callback(2);
-		if (res == 1)
-			applySelectionPushdown(rewrittenTree);
-    }
-    else
-    {
-	applyMerge(rewrittenTree);
-	applySelectionPushdown(rewrittenTree);
-    }*/
-
-//	applyMerge(rewrittenTree);
-//	applySelectionPushdown(rewrittenTree);
-
+    APPLY_AND_TIME_OPT("factor attributes in conditions",
+            factorAttrsInExpressions,
+            OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
     APPLY_AND_TIME_OPT("selection move around",
     		selectionMoveAround,
     		OPTIMIZATION_SELECTION_MOVE_AROUND);
@@ -167,88 +116,18 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("selection pushdown",
             pushDownSelectionOperatorOnProv,
             OPTIMIZATION_SELECTION_PUSHING);
-
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
-
-//    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-//    {
-//        START_TIMER("OptimizeModel - merge adjacent operator");
-//        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - merge adjacent operator");
-//    }
-//
-//    if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING))
-//    {
-//        START_TIMER("OptimizeModel - pushdown selections");
-//        rewrittenTree = pushDownSelectionOperatorOnProv((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("selections pushed down\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - pushdown selections");
-//    }
-
-
-//    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-//    {
-//        START_TIMER("OptimizeModel - merge adjacent operator");
-//        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - merge adjacent operator");
-//    }
-
     APPLY_AND_TIME_OPT("pushdown selections through joins",
             pushDownSelectionThroughJoinsOperatorOnProv,
             OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS);
-//    if(getBoolOption(OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS))
-//    {
-//        START_TIMER("OptimizeModel - pushdown selections through joins");
-//        rewrittenTree = pushDownSelectionThroughJoinsOperatorOnProv((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("selections pushed down through joins\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - pushdown selections through joins");
-//    }
-
     APPLY_AND_TIME_OPT("factor attributes in conditions",
             factorAttrsInExpressions,
             OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
-//    if(getBoolOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR))
-//    {
-//        START_TIMER("OptimizeModel - factor attributes in conditions");
-//        rewrittenTree = factorAttrsInExpressions((QueryOperator *) rewrittenTree);
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        DEBUG_LOG("factor out attribute references in conditions again\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - factor attributes in conditions");
-//    }
-
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
-//    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-//    {
-//        START_TIMER("OptimizeModel - merge adjacent operator");
-//        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - merge adjacent operator");
-//    }
-
-
-//    if(getBoolOption(OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ))
-//    {
-//        START_TIMER("OptimizeModel - set materialization hints");
-//        rewrittenTree = materializeProjectionSequences((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("add materialization hints for projection sequences\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - set materialization hints");
-//    }
-
-
-
-
     if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
     {
         computeKeyProp(rewrittenTree);
@@ -268,94 +147,21 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
             removeRedundantDuplicateOperatorBySet,
             OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
-
     APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by key",
                removeRedundantDuplicateOperatorByKey,
                OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
-//
-//    if(getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
-//    {
-//        START_TIMER("OptimizeModel - remove redundant duplicate operator");
-//        computeKeyProp(root);
-//        rewrittenTree = removeRedundantDuplicateOperator((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("remove redundant duplicate operator \n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - remove redundant duplicate operator");
-//    }
-
     APPLY_AND_TIME_OPT("remove redundant projection operators",
             removeRedundantProjections,
             OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS);
-//    if(getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS))
-//    {
-//      START_TIMER("OptimizeModel - remove redundant projections");
-//      rewrittenTree = removeRedundantProjections((QueryOperator *) rewrittenTree);
-//      DEBUG_LOG("remove redundant projections\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//      ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//      STOP_TIMER("OptimizeModel - remove redundant projections");
-//    }
-
-    /*
-    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-    {
-        START_TIMER("OptimizeModel - merge adjacent operator");
-        rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-        DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-        STOP_TIMER("OptimizeModel - merge adjacent operator");
-    }
-*/
-/*    APPLY_AND_TIME_OPT("selection move around",
-            selectionMoveAround,
-            OPTIMIZATION_SELECTION_MOVE_AROUND);*/
-//    if(getBoolOption(OPTIMIZATION_SELECTION_MOVE_AROUND))
-//    {
-//        START_TIMER("OptimizeModel - selections move around");
-//        rewrittenTree = selectionMoveAround((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("selections move around\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - selections move around");
-//    }
-
     APPLY_AND_TIME_OPT("pull up provenance projections",
             pullingUpProvenanceProjections,
             OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ);
-
-//    if(getBoolOption(OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ))
-//    {
-//    	START_TIMER("OptimizeModel - pulling up provenance");
-//    	rewrittenTree = pullingUpProvenanceProjections((QueryOperator *) rewrittenTree);
-//    	DEBUG_LOG("pulling up provenance projections\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//    	ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//    	STOP_TIMER("OptimizeModel - pulling up provenance");
-//    }
-
-
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
-
     APPLY_AND_TIME_OPT("materialize projections that are unsafe to be merged",
             materializeProjectionSequences,
             OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ);
-
-//    if(getBoolOption(OPTIMIZATION_MERGE_OPERATORS))
-//    {
-//    	START_TIMER("OptimizeModel - merge adjacent operator");
-//    	rewrittenTree = mergeAdjacentOperators((QueryOperator *) rewrittenTree);
-//    	DEBUG_LOG("merged adjacent\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//    	TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//    	STOP_TIMER("OptimizeModel - merge adjacent operator");
-//    }
-//
-//    if(getBoolOption(OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ))
-//    {
-//        START_TIMER("OptimizeModel - set materialization hints");
-//        rewrittenTree = materializeProjectionSequences((QueryOperator *) rewrittenTree);
-//        DEBUG_LOG("add materialization hints for projection sequences\n\n%s", operatorToOverviewString((Node *) rewrittenTree));
-//        ASSERT(checkModel((QueryOperator *) rewrittenTree));
-//        STOP_TIMER("OptimizeModel - set materialization hints");
-//    }
 
     return rewrittenTree;
 }
@@ -457,33 +263,32 @@ removeUnnecessaryColumns(QueryOperator *root)
 	printIcols(root);
 	removeUnnecessaryColumnsFromProjections(root);
 
-
     return root;
 }
 
-void
-resetAttrPosInCond(QueryOperator *root, Operator *condOp){
-
-	if(isA(getHeadOfListP(condOp->args), Operator))
-	{
-		resetAttrPosInCond(root, (Operator *)getHeadOfListP(condOp->args));
-	}
-	else if(isA(getHeadOfListP(condOp->args), AttributeReference))
-	{
-		AttributeReference *a1 = (AttributeReference *)getHeadOfListP(condOp->args);
-		resetPos(a1, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-	}
-
-	if(isA(getTailOfListP(condOp->args), Operator))
-	{
-		resetAttrPosInCond(root, (Operator *)getTailOfListP(condOp->args));
-	}
-	else if(isA(getTailOfListP(condOp->args), AttributeReference))
-	{
-		AttributeReference *a2 = (AttributeReference *)getTailOfListP(condOp->args);
-		resetPos(a2, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-	}
-}
+//void
+//resetAttrPosInCond(QueryOperator *root, Operator *condOp){
+//
+//	if(isA(getHeadOfListP(condOp->args), Operator))
+//	{
+//		resetAttrPosInCond(root, (Operator *)getHeadOfListP(condOp->args));
+//	}
+//	else if(isA(getHeadOfListP(condOp->args), AttributeReference))
+//	{
+//		AttributeReference *a1 = (AttributeReference *)getHeadOfListP(condOp->args);
+//		resetPos(a1, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
+//	}
+//
+//	if(isA(getTailOfListP(condOp->args), Operator))
+//	{
+//		resetAttrPosInCond(root, (Operator *)getTailOfListP(condOp->args));
+//	}
+//	else if(isA(getTailOfListP(condOp->args), AttributeReference))
+//	{
+//		AttributeReference *a2 = (AttributeReference *)getTailOfListP(condOp->args);
+//		resetPos(a2, ((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
+//	}
+//}
 
 QueryOperator *
 removeUnnecessaryAttrDefInSchema(Set *icols, QueryOperator *op)
@@ -501,7 +306,16 @@ removeUnnecessaryAttrDefInSchema(Set *icols, QueryOperator *op)
 	return op;
 }
 
-void
+static void
+resetPosInExprs (Node *exprs, List *attrDefs)
+{
+    List *attrRefs = getAttrReferences(exprs);
+
+    FOREACH(AttributeReference,a,attrRefs)
+        resetPos(a, attrDefs);
+}
+
+static void
 resetPos(AttributeReference *ar,  List* attrDefs)
 {
 
@@ -515,19 +329,21 @@ resetPos(AttributeReference *ar,  List* attrDefs)
 		}
 		count++;
 	}
+	DEBUG_LOG("set attr pos of %s to %d", ar->name, count);
 }
 
 QueryOperator *
 removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 {
+    List *cSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
 
-	if(root->inputs != NULL)
-	{
-		FOREACH(QueryOperator, op, root->inputs)
-				removeUnnecessaryColumnsFromProjections(op);
-	}
+    if(root->inputs != NULL)
+    {
+        FOREACH(QueryOperator, op, root->inputs)
+            removeUnnecessaryColumnsFromProjections(op);
+    }
 
-	Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
+	Set *icols = (Set*) getStringProperty(root, PROP_STORE_SET_ICOLS);
 
 	if(isA(root, OrderOperator))
 	{
@@ -541,12 +357,12 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 		//step (2)
 		List *ordList = ((OrderOperator *)root)->orderExprs;
-		FOREACH(OrderExpr, o, ordList)
-		{
-            AttributeReference *ar = (AttributeReference *)(o->expr);
-            resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-		}
-
+		resetPosInExprs((Node *) ordList, cSchema);
+//		FOREACH(OrderExpr, o, ordList)
+//		{
+//            AttributeReference *ar = (AttributeReference *)(o->expr);
+//            resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
+//		}
 	}
 
 	if(isA(root, SelectionOperator))
@@ -556,12 +372,13 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
          * (2) Reset the pos of attributeRef in cond
          */
 		//step (1)
-		Set *eicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		Set *eicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
         root = removeUnnecessaryAttrDefInSchema(eicols, root);
 
         //step (2)
-        Operator *condOp = (Operator *)((SelectionOperator *)root)->cond;
-        resetAttrPosInCond(root, condOp);
+//        Operator *condOp = (Operator *)((SelectionOperator *)root)->cond;
+        resetPosInExprs(((SelectionOperator *)root)->cond, cSchema);
+//        resetAttrPosInCond(root, condOp);
 	}
 
 	if(isA(root, WindowOperator))
@@ -572,7 +389,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
          */
 
 		//step (1)
-		Set *eicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		Set *eicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
         icols = unionSets(icols,eicols);
         QueryOperator *winOp = &(((WindowOperator *)root)->op);
 
@@ -590,44 +407,47 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 		//step (2)
 		//(1)FunctionalCall
-        List *funList = ((FunctionCall *)(((WindowOperator *)root)->f))->args;
-        FOREACH(AttributeReference, ar, funList)
-        {
-        	resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-        }
+		resetPosInExprs((((WindowOperator *)root)->f),cSchema);
+//        List *funList = ((FunctionCall *)(((WindowOperator *)root)->f))->args;
+//        FOREACH(AttributeReference, ar, funList)
+//        {
+//        	resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
+//        }
 
         //(2)PartitionBy
         List *parList = ((WindowOperator *)root)->partitionBy;
-        if(parList != NIL)
-        {
-        	FOREACH(AttributeReference, ar, parList)
-        	{
-        		resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-        	}
-        }
+        resetPosInExprs((Node *) parList,cSchema);
+//        if(parList != NIL)
+//        {
+//        	FOREACH(AttributeReference, ar, parList)
+//        	{
+//        		resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
+//        	}
+//        }
 
         //(3)OrderBy
         List *ordList = ((WindowOperator *)root)->orderBy;
-        if(ordList != NIL)
-        {
-        	FOREACH_LC(o,ordList)
-		    {
-        		/*
-        		 * If-else because sometimes ordList store OrderExpr,
-        		 * sometimes such as q10, it stores AttributeReference  directly
-        		 */
-        	      if(isA(LC_P_VAL(o), AttributeReference))
-        	      {
-        	    	  AttributeReference *ar = (AttributeReference *)LC_P_VAL(o);
-        	    	  resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-        	      }
-        	      else if(isA(LC_P_VAL(o), OrderExpr))
-        	      {
-        	    	  AttributeReference *ar = (AttributeReference *)(((OrderExpr *)LC_P_VAL(o))->expr);
-        	    	  resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-        	      }
-		    }
-        }
+        resetPosInExprs((Node *) ordList, cSchema);
+//        if(ordList != NIL)
+//        {
+//        	FOREACH_LC(o,ordList)
+//		    {
+//        		/*
+//        		 * If-else because sometimes ordList store OrderExpr,
+//        		 * sometimes such as q10, it stores AttributeReference  directly
+//        		 */
+//        	      if(isA(LC_P_VAL(o), AttributeReference))
+//        	      {
+//        	    	  AttributeReference *ar = (AttributeReference *)LC_P_VAL(o);
+//        	    	  resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
+//        	      }
+//        	      else if(isA(LC_P_VAL(o), OrderExpr))
+//        	      {
+//        	    	  AttributeReference *ar = (AttributeReference *)(((OrderExpr *)LC_P_VAL(o))->expr);
+//        	    	  resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
+//        	      }
+//		    }
+//        }
 	}
 
 	if(isA(root, AggregationOperator))
@@ -637,20 +457,23 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		 */
 
 		AggregationOperator *agg = (AggregationOperator *)root;
-		QueryOperator *child = (QueryOperator *)getHeadOfListP(root->inputs);
-		//e.g. sum(A)
-		FOREACH(FunctionCall, a, agg->aggrs)
-		{
-			//TODO: ar should get from list args, not only the head one
-			AttributeReference *ar = (AttributeReference *)(getHeadOfListP(a->args));
-			resetPos(ar,child->schema->attrDefs);
-		}
+		resetPosInExprs((Node *) agg->aggrs, cSchema);
+		resetPosInExprs((Node *) agg->groupBy, cSchema);
 
-		//e.g. Group By
-		FOREACH(AttributeReference, a, agg->groupBy)
-		{
-			resetPos(a,child->schema->attrDefs);
-		}
+//		QueryOperator *child = (QueryOperator *)getHeadOfListP(root->inputs);
+		//e.g. sum(A)
+//		FOREACH(FunctionCall, a, agg->aggrs)
+//		{
+//			//TODO: ar should get from list args, not only the head one
+//			AttributeReference *ar = (AttributeReference *)(getHeadOfListP(a->args));
+//			resetPos(ar,child->schema->attrDefs);
+//		}
+//
+//		//e.g. Group By
+//		FOREACH(AttributeReference, a, agg->groupBy)
+//		{
+//			resetPos(a,child->schema->attrDefs);
+//		}
 	}
 
 	if(isA(root, JoinOperator))
@@ -658,30 +481,37 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		Set *elicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
 		Set *ericols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
 		Set *eicols = unionSets(elicols,ericols);
+		JoinOperator *j = (JoinOperator *) root;
 
-		QueryOperator *joinOp = &(((JoinOperator *)root)->op);
 		List *newAttrDefs = NIL;
-		FOREACH(AttributeDef, ad, joinOp->schema->attrDefs)
+		FOREACH(AttributeDef, ad, root->schema->attrDefs)
 		{
 			if(hasSetElem(eicols, ad->attrName))
-			{
 				newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-			}
 		}
-		joinOp->schema->attrDefs = newAttrDefs;
+		root->schema->attrDefs = newAttrDefs;
 
-		if(((JoinOperator*)root)->joinType == JOIN_INNER)
+		if(j->cond != NULL)
 		{
-			Operator *condOp = (Operator *)((JoinOperator *)root)->cond;
-			if(streq(condOp->name,"="))
+		    //TODO fix this only works in a very simplistic case. In general we need to split list of attr refs into left and right input refs
+			List *attrRefs = getAttrReferences (j->cond);
+			List *rcSchema = OP_RCHILD(root)->schema->attrDefs;
+
+			FOREACH(AttributeReference,a,attrRefs)
 			{
-				AttributeReference *a1 = (AttributeReference *)getHeadOfListP(condOp->args);
-				AttributeReference *a2 = (AttributeReference *)getTailOfListP(condOp->args);
-
-				resetPos(a1,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
-				resetPos(a2,((QueryOperator *)OP_RCHILD(root))->schema->attrDefs);
-
+			    if (a->fromClauseItem == 0)
+			        resetPos(a,cSchema);
+			    else
+			        resetPos(a,rcSchema);
 			}
+
+//
+//			if(streq(condOp->name,"="))
+//			{
+//				AttributeReference *a1 = (AttributeReference *)getHeadOfListP(condOp->args);
+//				AttributeReference *a2 = (AttributeReference *)getTailOfListP(condOp->args);
+//
+//			}
 		}
 	}
 
@@ -736,27 +566,26 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 	{
 		int numicols = setSize(icols);
 		int numAttrs = getNumAttrs(root);
-
+		ProjectionOperator *proj = (ProjectionOperator *) root;
 		List *newAttrDefs = NIL;
 		List *newAttrRefs = NIL;
 		if(numicols < numAttrs)
 		{
-            FORBOTH_LC(ad, ar, ((ProjectionOperator *)root)->op.schema->attrDefs ,((ProjectionOperator *)root)->projExprs)
+            FORBOTH(Node, ad, ar, root->schema->attrDefs,proj->projExprs)
 		    {
-                AttributeReference *attrRef = (AttributeReference *)LC_P_VAL(ar);
-                AttributeDef *attrDef = (AttributeDef *)LC_P_VAL(ad);
+                AttributeDef *attrDef = (AttributeDef *) ad;
 
                 if(hasSetElem(icols, (char *)attrDef->attrName))
                 {
                      newAttrDefs = appendToTailOfList(newAttrDefs, attrDef);
-                     newAttrRefs = appendToTailOfList(newAttrRefs, attrRef);
+                     newAttrRefs = appendToTailOfList(newAttrRefs, ar);
                 }
 		    }
-            ((ProjectionOperator *)root)->op.schema->attrDefs = newAttrDefs;
-            ((ProjectionOperator *)root)->projExprs = newAttrRefs;
+            root->schema->attrDefs = newAttrDefs;
+            proj->projExprs = newAttrRefs;
 
-         	QueryOperator *child = (QueryOperator *)OP_LCHILD(root);
-            resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)root,(QueryOperator *)child);
+         	QueryOperator *child = OP_LCHILD(root);
+            resetPosOfAttrRefBaseOnBelowLayerSchema(proj,child);
 
             //if up layer is projection, reset the pos of up layer's reference
             if(root->parents != NIL)
@@ -764,9 +593,8 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
             	QueryOperator *p = (QueryOperator *)getHeadOfListP(root->parents);
             	if(isA(p, ProjectionOperator))
             	{
-            		QueryOperator *r = &((ProjectionOperator *)root)->op;
+            		QueryOperator *r = root;
             		resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)p,(QueryOperator *)r);
-
             	}
 
             }
@@ -777,6 +605,30 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 	        resetPosOfAttrRefBaseOnBelowLayerSchema((ProjectionOperator *)root,(QueryOperator *)child);
 		}
 
+	}
+
+	if(isA(root, JsonTableOperator))
+	{
+         List *newAttrDef = NIL;
+         FOREACH(AttributeDef, a, root->schema->attrDefs)
+        	 if(hasSetElem(icols, a->attrName))
+        		 newAttrDef = appendToTailOfList(newAttrDef, copyObject(a));
+
+         root->schema->attrDefs = newAttrDef;
+
+         /* reset pos in jsonColumn */
+         JsonTableOperator *jt = (JsonTableOperator *)root;
+         char *name = jt->jsonColumn->name;
+         int cnt = 0;
+         FOREACH(AttributeDef, a, cSchema)
+         {
+        	 if(streq(name, a->attrName))
+        	 {
+        		 jt->jsonColumn->attrPosition = cnt;
+        		 break;
+        	 }
+        	 cnt++;
+         }
 	}
 
 	return root;
@@ -1120,7 +972,7 @@ pullingUpProvenanceProjections(QueryOperator *root)
 
 
 /*
- * duplicateattrs store attrDef name of provenance attribute, normalAttrnames
+ * duplicateattrs stores attrDef name of provenance attribute, normalAttrnames
  * store attrRef name of provenance attribute
  */
 QueryOperator *
@@ -1146,20 +998,24 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 			fd = FALSE;
 			if(isA(o, ProjectionOperator))
 			{
-				FOREACH(AttributeReference,a ,((ProjectionOperator *)o)->projExprs)
+				FOREACH(Node,n ,((ProjectionOperator *)o)->projExprs)
                 {
-					if (streq(a->name, nms->data.ptr_value))
-					{
-						fd = TRUE;
-						break;
-					}
+				    if (isA(n,AttributeReference))
+				    {
+				        AttributeReference *a = (AttributeReference *) n;
+                        if (streq(a->name, nms->data.ptr_value))
+                        {
+                            fd = TRUE;
+                            break;
+                        }
+				    }
                 }
 			}
 			else
 			{
-				FOREACH_LC(a ,o->schema->attrDefs)
+				FOREACH(AttributeDef,a ,o->schema->attrDefs)
                 {
-					if (streq(((AttributeDef *) a->data.ptr_value)->attrName, nms->data.ptr_value))
+					if (streq(a->attrName, nms->data.ptr_value))
 					{
 						fd = TRUE;
 						break;
@@ -1176,7 +1032,7 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 				LostNormalList = appendToTailOfList(LostNormalList, nms->data.ptr_value);
 
 				//get rid of the attribute from the duplicate list and
-				//normalAttrnames./test/testrewriter.sh 4 "PROVENANCE OF (SELECT sum(A),B FROM R GROUP BY B);" -activate optimize_operator_model
+				//normalAttrnames
 				duplicateattrsCopy = REMOVE_FROM_LIST_PTR(duplicateattrsCopy, d->data.ptr_value);
 				normalAttrNamesCopy = REMOVE_FROM_LIST_PTR(normalAttrNamesCopy, nms->data.ptr_value);
 			}
@@ -1202,14 +1058,15 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 						FOREACH_LC(n,normalAttrNamesCopy)
 						{
 							nacpFlag = FALSE;
-							FORBOTH_LC(lc1, lc2,((ProjectionOperator *)o)->projExprs,o->schema->attrDefs)
+							FORBOTH(Node, lc1, lc2,((ProjectionOperator *)o)->projExprs,o->schema->attrDefs)
 							{
-								if(streq(((AttributeReference *)LC_P_VAL(lc1))->name,LC_P_VAL(n)))
-								{
-									name = ((AttributeDef *)LC_P_VAL(lc2))->attrName;
-									nacpFlag = TRUE;
-									break;
-								}
+							    if (isA(lc1, AttributeReference))
+                                    if(streq(((AttributeReference *)lc1)->name,LC_P_VAL(n))) //TODO may not be attribute reference
+                                    {
+                                        name = ((AttributeDef *)lc2)->attrName;
+                                        nacpFlag = TRUE;
+                                        break;
+                                    }
 							}
 							if(nacpFlag == TRUE)
 								normalAttrNamesCopyTempList = appendToTailOfList(normalAttrNamesCopyTempList, name);
@@ -1224,13 +1081,14 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 					{
 						FORBOTH(char, dup, nor, duplicateattrsCopy, normalAttrNamesCopy)
 						{
-							FORBOTH_LC(attrDef, attrRef, o->schema->attrDefs, ((ProjectionOperator *)o)->projExprs)
+							FORBOTH(Node,attrDef, attrRef, o->schema->attrDefs, ((ProjectionOperator *)o)->projExprs)
 		                    {
-								if(streq(dup,((AttributeDef *)(attrDef->data.ptr_value))->attrName))
-								{
-									((AttributeReference *)(attrRef->data.ptr_value))->name = nor;
-									break;
-								}
+							    if (isA(attrRef, AttributeReference))
+                                    if(streq(dup,((AttributeDef *)(attrDef))->attrName))
+                                    {
+                                        ((AttributeReference *)(attrRef))->name = nor;
+                                        break;
+                                    }
 	                       	}
 						}
 
@@ -1259,26 +1117,31 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 
 			//Create the attr reference from upper op projExprs
 			int cnt = 0;
-			FOREACH_LC(lc, ((ProjectionOperator *)o)->projExprs)
+			FOREACH(Node,lc,((ProjectionOperator *)o)->projExprs)
 			{
+			    ASSERT(isA(lc,AttributeReference));//TODO this fails for projection expressions that are not attribute references
 				projExpr = appendToTailOfList(projExpr,
 						createFullAttrReference(
-								((AttributeReference *) LC_P_VAL(lc))->name, 0,
+								((AttributeReference *) lc)->name, 0,
 								cnt, 0,
-								((AttributeReference *) LC_P_VAL(lc))->attrType));
+								((AttributeReference *) lc)->attrType));
 				cnt++;
 			}
 
 			//Change the attr reference
 			FORBOTH_LC(attrProvName, attrNorName, LostList, LostNormalList)
 			{
-				FOREACH(AttributeReference, p, projExpr)
+				FOREACH(Node, n, projExpr)
                 {
-					if(streq(p->name,LC_P_VAL(attrProvName)))
-					{
-						p->name = LC_P_VAL(attrNorName);
-						break;
-					}
+				    if (isA(n, AttributeReference))
+				    {
+				        AttributeReference *p = (AttributeReference *) n;
+                        if(strpeq(p->name,LC_P_VAL(attrProvName)))
+                        {
+                            p->name = LC_P_VAL(attrNorName);
+                            break;
+                        }
+				    }
                 }
 			}
 
@@ -1409,6 +1272,22 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
 QueryOperator *
 selectionMoveAround(QueryOperator *root)
 {
+/*
+    //loop 1, bottom to top trace the tree and set the property of each
+    //operation(tree node)
+    setMoveAroundListSetProperityForWholeTree(root);
+
+    //loop 2, top to bottom trace the tree and reset the property of each
+    //operation(tree node)
+    reSetMoveAroundListSetProperityForWholeTree(root);
+
+    //loop 3, bottom to top trace the tree and introduce the new selection or
+    //change the condition of original selection op
+    introduceSelection(root);
+
+    //DEBUG_LOG("after the beauty is: \n%s",beatify(nodeToString(root)));
+*/
+
 	computeECProp(root);
 	introduceSelectionInMoveAround(root);
 

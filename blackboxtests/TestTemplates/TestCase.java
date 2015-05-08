@@ -12,10 +12,17 @@ public class NAME extends AbstractGProMTester {
 	public NAME (String name) {
 		super (name);
 		try {
+			path = "BASEPATH";
 			ConnectionOptions.getInstance().setPath("PATH");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+	
+	protected void setUp () throws Exception {
+		path = "BASEDIR";
+		ConnectionOptions.getInstance().setPath("PATH");
+		super.setUp();
 	}
 	
 	@Test

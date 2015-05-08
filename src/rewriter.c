@@ -17,7 +17,7 @@
 #include "log/logger.h"
 #include "configuration/option.h"
 #include "configuration/option_parser.h"
-
+#include "exception/exception.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
@@ -35,6 +35,8 @@
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
 
+#include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
+
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 
 int
@@ -42,6 +44,8 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
 {
     initMemManager();
     mallocOptions();
+    initLogger();
+
     if(parseOption(argc, argv) != 0)
     {
         printOptionParseError(stdout);
@@ -55,6 +59,20 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
         return EXIT_FAILURE;
     }
 
+    // set log level from options
+    setMaxLevel(getIntOption("log.level"));
+
+    if (opt_memmeasure)
+        setupMemInstrumentation();
+
+    return EXIT_SUCCESS;
+}
+
+int
+initBasicModules (void)
+{
+    initMemManager();
+    mallocOptions();
     initLogger();
     if (opt_memmeasure)
         setupMemInstrumentation();
@@ -149,15 +167,29 @@ char *
 rewriteQuery(char *input)
 {
     Node *parse;
-    char *result;
+    char *result = "";
 
-    parse = parseFromString(input);
-    DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+    NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
 
-    result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
-    INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
+    TRY
+    {
+        parse = parseFromString(input);
 
-    return result;
+        DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+
+        result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
+        INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
+        RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+    }
+    ON_EXCEPTION
+    {
+        // if an exception is thrown then the query memory context has been
+        // destroyed and we can directly create an empty string in the callers
+        // context
+        DEBUG_LOG("allocated in memory context: %s", getCurMemContext()->contextName);
+    }
+    END_ON_EXCEPTION
+    return strdup("");
 }
 
 char *
@@ -198,6 +230,30 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	START_TIMER("rewrite");
 
 	rewrittenTree = provRewriteQBModel(oModel);
+    DOT_TO_CONSOLE(rewrittenTree);
+
+	/*******************new Add for test json import jimp table***************************/
+	if(isA(rewrittenTree,List) && isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
+	{
+		QueryOperator *q = (QueryOperator *)getHeadOfListP((List *)rewrittenTree);
+		List *taOp = NIL;
+		findTableAccessOperator(&taOp, (QueryOperator *) q);
+		int l = LIST_LENGTH(taOp);
+		DEBUG_LOG("len %d", l);
+		if(isA(getHeadOfListP(taOp),TableAccessOperator))
+		{
+			TableAccessOperator *ta = (TableAccessOperator *) getHeadOfListP(taOp);
+			DEBUG_LOG("test %s", ta->tableName);
+			if(streq(ta->tableName,"JIMP2") || streq(ta->tableName, "JSDOC1"))
+			{
+				q = rewriteTransformationProvenanceImport(q);
+				DEBUG_LOG("Table: %s", nodeToString(ta));
+				rewrittenTree = (Node *) singleton(q);
+			}
+		}
+	}
+	/*******************new Add for test json import jimp table***************************/
+
 	DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
 	INFO_LOG("provenance rewritten query as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
 	STOP_TIMER("rewrite");
@@ -223,6 +279,8 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 				LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
 		else
 			rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
+
+    DOT_TO_CONSOLE(rewrittenTree);
 
 	START_TIMER("SQLcodeGen");
 	appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));

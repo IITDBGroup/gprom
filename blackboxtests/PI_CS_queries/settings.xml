@@ -70,7 +70,7 @@
 <entry key="setting.1.17">FALSE</entry>
 
 <!-- All heuristic optimizations activated -->
-<entry key="setting.2.name">NoOpt</entry>
+<entry key="setting.2.name">HeuristicOps</entry>
 <entry key="setting.2.1">TRUE</entry>
 <entry key="setting.2.2">FALSE</entry>
 <entry key="setting.2.3">FALSE</entry>
@@ -78,7 +78,7 @@
 <entry key="setting.2.5">FALSE</entry>
 <entry key="setting.2.6">FALSE</entry>
 <entry key="setting.2.7">TRUE</entry>
-<entry key="setting.2.8">TRUE</entry>
+<entry key="setting.2.8">FALSE</entry>
 <entry key="setting.2.9">TRUE</entry>
 <entry key="setting.2.10">TRUE</entry>
 <entry key="setting.2.11">TRUE</entry>
@@ -88,5 +88,45 @@
 <entry key="setting.2.15">TRUE</entry>
 <entry key="setting.2.16">TRUE</entry>
 <entry key="setting.2.17">TRUE</entry>
+
+<!-- Cost-based optimizations activated -->
+<entry key="setting.3.name">CostBasedOpt</entry>
+<entry key="setting.3.1">TRUE</entry>
+<entry key="setting.3.2">FALSE</entry>
+<entry key="setting.3.3">FALSE</entry>
+<entry key="setting.3.4">TRUE</entry>
+<entry key="setting.3.5">FALSE</entry>
+<entry key="setting.3.6">FALSE</entry>
+<entry key="setting.3.7">TRUE</entry>
+<entry key="setting.3.8">FALSE</entry>
+<entry key="setting.3.9">TRUE</entry>
+<entry key="setting.3.10">TRUE</entry>
+<entry key="setting.3.11">TRUE</entry>
+<entry key="setting.3.12">TRUE</entry>
+<entry key="setting.3.13">TRUE</entry>
+<entry key="setting.3.14">TRUE</entry>
+<entry key="setting.3.15">TRUE</entry>
+<entry key="setting.3.16">TRUE</entry>
+<entry key="setting.3.17">TRUE</entry>
+
+<!-- PI-CS composable - All optimizations deactivated -->
+<entry key="setting.4.name">PI-CS-Composable</entry>
+<entry key="setting.4.1">TRUE</entry>
+<entry key="setting.4.2">TRUE</entry>
+<entry key="setting.4.3">FALSE</entry>
+<entry key="setting.4.4">TRUE</entry>
+<entry key="setting.4.5">FALSE</entry>
+<entry key="setting.4.6">FALSE</entry>
+<entry key="setting.4.7">FALSE</entry>
+<entry key="setting.4.8">FALSE</entry>
+<entry key="setting.4.9">FALSE</entry>
+<entry key="setting.4.10">FALSE</entry>
+<entry key="setting.4.11">FALSE</entry>
+<entry key="setting.4.12">FALSE</entry>
+<entry key="setting.4.13">FALSE</entry>
+<entry key="setting.4.14">FALSE</entry>
+<entry key="setting.4.15">FALSE</entry>
+<entry key="setting.4.16">FALSE</entry>
+<entry key="setting.4.17">FALSE</entry>
 
 </properties>

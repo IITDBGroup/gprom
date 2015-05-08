@@ -37,8 +37,6 @@ static boolean regExMatch (char *reg, char *str);
 Node *
 setParameterValues (Node *qbModel, List *values)
 {
-//    List *params = findParameters (qbModel);
-
     return replaceParamMutator(qbModel, values);
 }
 

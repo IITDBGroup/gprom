@@ -184,6 +184,10 @@ deepCopySet(Set *from, OperatorMap **opMap)
             FOREACH_SET_INT(a,from)
                 addIntToSet(new, a);
         break;
+        case SET_TYPE_LONG:
+            FOREACH_SET_LONG(b,from)
+                addLongToSet(new, b);
+        break;
         case SET_TYPE_NODE:
             FOREACH_SET(Node,a,from)
                 addToSet(new, copyObject(a));
@@ -542,6 +546,7 @@ copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap)
     COPY_STRING_FIELD(documentcontext);
     COPY_NODE_FIELD(jsonColumn);
     COPY_STRING_FIELD(jsonTableIdentifier);
+    COPY_STRING_FIELD(forOrdinality);
 
     return new;
 }

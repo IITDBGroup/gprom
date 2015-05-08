@@ -138,6 +138,7 @@ typedef struct JsonTableOperator
     char *documentcontext;
     AttributeReference *jsonColumn;
     char *jsonTableIdentifier;
+    char *forOrdinality;
 } JsonTableOperator;
 
 /* type of operator macros */
@@ -166,7 +167,7 @@ extern void addAttrToSchema(QueryOperator *op, char *name, DataType dt);
 extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name);
 extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
 extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
-extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, Operator *a1);
+extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2);
 extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2);
 
@@ -201,7 +202,7 @@ extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType,
 extern ConstRelOperator *createConstRelOp(List *values,List *parents,
         List *attrNames, List *dataTypes);
 extern NestingOperator *createNestingOp(NestingExprType nestingType, Node *cond,
-        List *inputs, List *parents, List *attrNames);
+        List *inputs, List *parents, List *attrNames, List *dts);
 extern WindowOperator *createWindowOp(Node *fCall, List *partitionBy,
         List *orderBy, WindowFrame *frameDef, char *attrName,
         QueryOperator *input, List *parents);
@@ -223,6 +224,7 @@ extern void setProperty (QueryOperator *op, Node *key, Node *value);
 extern Node *getProperty (QueryOperator *op, Node *key);
 extern void setStringProperty (QueryOperator *op, char *key, Node *value);
 extern Node *getStringProperty (QueryOperator *op, char *key);
+extern void removeStringProperty (QueryOperator *op, char *key);
 #define HAS_PROP(op,key) (getProperty(((QueryOperator *) op),key) != NULL)
 #define HAS_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key) != NULL)
 #define SET_STRING_PROP(op,key,value) (setStringProperty((QueryOperator *) op, \

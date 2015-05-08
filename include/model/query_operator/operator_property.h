@@ -22,6 +22,7 @@
 #define PROP_USER_PROV_ATTRS "USER_PROV_ATTRS"              // list of user selected provenance attribtues
 #define PROP_PROV_REL_NAME "PROVENANCE_REL_NAME"            // in provenance attributes refer to subquery as this name
 #define PROP_ADD_PROVENANCE "ADD_PROVENANCE"                // add the following attribtues to as provenance attributes (but still rewrite and add normal provenance attrs too)
+#define PROP_TRANSLATE_AS "TRANSLATE AS"
 
 // provenance PI-CS composable
 #define PROP_RESULT_TID_ATTR "RESULT_TID_ATTR"              // result tid attribute for PI-CS composable
@@ -33,7 +34,7 @@
 
 /* Operator type specific properties */
 /* provenance computation specific properties */
-#define PROP_PC_TABLE "TABLE"                               // updated table to trace proveance of transaction for
+#define PROP_PC_TABLE "TRACK_TABLE"                         // updated table to trace proveance of transaction for
 #define PROP_PC_UPDATE_COND "UPDATE_CONDS"                  // conditions of updates in transaction
 #define PROP_PC_ONLY_UPDATED "ONLY_UPDATED"                 // show only provenance of updated rows in transaction
 #define PROP_PC_SHOW_INTERMEDIATE "SHOW ALL INTERMEDIATE"   // show provenance of all intermediate statements in transaction

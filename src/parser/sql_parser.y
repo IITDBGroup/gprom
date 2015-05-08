@@ -18,7 +18,7 @@
 
 #define RULELOG(grule) \
     { \
-        TRACE_LOG("Parsing grammer rule <%s>", #grule); \
+        TRACE_LOG("Parsing grammer rule <%s> at line %d", #grule, yylineno); \
     }
     
 #undef free
@@ -72,7 +72,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> CASE WHEN THEN ELSE END
 %token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 %token <stringVal> NULLS FIRST LAST ASC DESC
-%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL
+%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE
 
 %token <stringVal> DUMMYEXPR
 
@@ -116,7 +116,7 @@ Node *bisonParseResult = NULL;
 %type <list> selectClause optionalFrom fromClause exprList orderList 
 			 optionalGroupBy optionalOrderBy setClause  stmtList //insertList 
 			 identifierList optionalAttrAlias optionalProvWith provOptionList 
-			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo
+			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo optionalTranslate
 //			 optInsertAttrList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
@@ -129,7 +129,7 @@ Node *bisonParseResult = NULL;
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
-%type <stringVal> optionalFormat optionalWrapper
+%type <stringVal> optionalFormat optionalWrapper optionalstringConst
 
 %start stmtList
 
@@ -237,7 +237,7 @@ transactionIdentifier:
  * Rule to parse a query asking for provenance
  */
 provStmt: 
-        PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')'
+        PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate
         {
             RULELOG("provStmt::stmt");
             Node *stmt = $6;
@@ -245,7 +245,8 @@ provStmt:
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $2;
-		    p->options = $3;
+                   // p->options = $3;
+                   p->options = concatTwoLists($3, $8);
             $$ = (Node *) p;
         }
 		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmtList ')'
@@ -343,7 +344,25 @@ provOption:
 					(Node *) createConstBool(FALSE));
 		}
 	;
-	
+
+optionalTranslate:
+                /* empty */ { RULELOG("optionalTranslate::EMPTY"); $$ = NULL;}
+                |
+		TRANSLATE AS optionalstringConst 
+		{
+			RULELOG("optionaltranslate::TRANSLATE::AS");
+			$$ = singleton((Node *) createStringKeyValue("TRANSLATE AS", $3));
+		}
+        ;
+
+optionalstringConst:
+		JSON
+		{
+			RULELOG("optionalstringConst::JSON");
+                        $$ = strdup("JSON");
+		}
+        ;
+
 /*
  * Rule to parse delete query
  */ 
@@ -768,7 +787,7 @@ caseWhenList:
 	;
 	
 caseWhen:
-		WHEN expression THEN expression
+		WHEN whereExpression THEN expression
 			{
 				RULELOG("caseWhen::WHEN::expression::THEN::expression");
 				$$ = (Node *) createCaseWhen($2,$4);
@@ -879,7 +898,7 @@ jsonTable:
 		| JSON_TABLE '(' attributeRef ',' stringConst COLUMNS '(' jsonColInfo ')' ')' AS identifier
 			{
 				RULELOG("jsonTable::jsonTable");
-                                $$ = (Node *) createFromJsonTable($3, $5, $8, $12);
+  $$ = (Node *) createFromJsonTable((AttributeReference *) $3, $5, $8, $12, NULL);
 			}
 	;
 
@@ -914,10 +933,10 @@ jsonColInfoItem:
 
 optionalFormat:
                 /* empty */ { RULELOG("optionalFormat::NULL"); $$ = NULL; }
-                | FORMAT identifier
+                | FORMAT JSON
                         {
                                 RULELOG("optionalFormat::FORMAT");
-                                $$ = $2;
+                                $$ = strdup("JSON");
                         }
         ;
 

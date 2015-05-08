@@ -82,7 +82,7 @@ quotedIdentifier		{doublequote}[^\"]+{doublequote}
 identifiers				({identStart}{identContinue}*)
 identifierPart			({identifiers}|{quotedIdentifier})
 compositeIdentifier		({identifierPart}({identDelim}{identifierPart}))*
-parameters		[:]{identifiers}
+parameters		[:]({identifiers}|{integer})
 
 /* operators */
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
@@ -171,6 +171,8 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 (?i:CURRENT)		TOK(CURRENT)
 (?i:ROW)			TOK(ROW)
 (?i:FOLLOWING)		TOK(FOLLOWING)
+(?i:JSON)               TOK(JSON)
+(?i:TRANSLATE)          TOK(TRANSLATE)
 (?i:JSON_TABLE)         TOK(JSON_TABLE)
 (?i:COLUMNS)            TOK(COLUMNS)
 (?i:PATH)               TOK(PATH)
@@ -252,7 +254,7 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 /* use logging framework in the future */
 void yyerror(char *s)
 {
-	ERROR_LOG("%s at %s\n", s, yytext);
+	FATAL_LOG("%s at %s\n", s, yytext);
 }
 
 void setupStringInput(char *input)

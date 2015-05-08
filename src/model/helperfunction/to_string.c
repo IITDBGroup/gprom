@@ -263,6 +263,10 @@ outSet(StringInfo str, Set *node)
             FOREACH_SET(int,i,node)
                 appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
             break;
+        case SET_TYPE_LONG:
+            FOREACH_SET(long,i,node)
+                appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
+            break;
         case SET_TYPE_STRING:
             FOREACH_SET(char,el,node)
                 appendStringInfo(str, "%s%s", el, el_his_el->hh.next ? ", " : "");
@@ -411,6 +415,7 @@ outFromJsonTable(StringInfo str, FromJsonTable *node)
     WRITE_STRING_FIELD(documentcontext);
     WRITE_NODE_FIELD(jsonColumn);
     WRITE_STRING_FIELD(jsonTableIdentifier);
+    WRITE_STRING_FIELD(forOrdinality);
 }
 
 static void
@@ -945,6 +950,7 @@ outJsonTableOperator(StringInfo str, JsonTableOperator *node)
     WRITE_STRING_FIELD(documentcontext);
     WRITE_NODE_FIELD(jsonColumn);
     WRITE_STRING_FIELD(jsonTableIdentifier);
+    WRITE_STRING_FIELD(forOrdinality);
 }
 
 static void
@@ -1154,7 +1160,7 @@ outNode(StringInfo str, void *obj)
             	outJsonPath(str, (JsonPath *) obj);
             	break;
             default :
-                FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
+            	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
                 break;
         }

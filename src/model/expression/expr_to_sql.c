@@ -19,8 +19,11 @@
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
 
+#include "utility/string_utils.h"
+
 /* function declarations */
 static void exprToSQLString(StringInfo str, Node *expr);
+static void exprToLatexString(StringInfo str,  Node *expr);
 static void attributeReferenceToSQL (StringInfo str, AttributeReference *node);
 static void constantToSQL (StringInfo str, Constant *node);
 static void functionCallToSQL (StringInfo str, FunctionCall *node);
@@ -29,6 +32,12 @@ static void caseToSQL(StringInfo str, CaseExpr *expr);
 static void winFuncToSQL(StringInfo str, WindowFunction *expr);
 static void winBoundToSQL (StringInfo str, WindowBound *b);
 static void orderExprToSQL (StringInfo str, OrderExpr *o);
+
+static void functionCallToLatex (StringInfo str, FunctionCall *node);
+static void operatorToLatex (StringInfo str, Operator *node);
+static void constantToLatex (StringInfo str, Constant *node);
+static void attributeReferenceToLatex (StringInfo str, AttributeReference *node);
+
 
 static void
 attributeReferenceToSQL (StringInfo str, AttributeReference *node)
@@ -71,17 +80,87 @@ constantToSQL (StringInfo str, Constant *node)
 static void
 functionCallToSQL (StringInfo str, FunctionCall *node)
 {
-    appendStringInfoString(str, node->functionname);
+
+	int flag = 0;
+	if (streq(node->functionname, "AGG_STRAGG"))
+	{
+		flag = 1;
+                /* Zeroth approach our first version */
+		//appendStringInfoString(str, "replace(rtrim(extract(xmlagg(xmlelement(E,");
+                /* Zhen 1st approach */
+                //appendStringInfoString(str, "replace(rtrim(xmlquery('/E/text()' passing xmlagg(xmlelement(E,");
+                /* Zhen 2nd approach */
+                //appendStringInfoString(str, "replace(rtrim(xmlagg(XMLParse(content ");
+                /* Zhen 3rd approach */
+                //appendStringInfoString(str, "replace(rtrim(xmlserialize(content xmlagg(XMLParse(content ");
+                /* Zhen 4th approach modified 3rd*/
+                appendStringInfoString(str, "replace(rtrim(xmlserialize(content xmlagg(xmlcdata( ");
+                /* Zhen 5th approach modified 2nd */
+                //appendStringInfoString(str, "replace(rtrim(xmlagg(xmlcdata( ");
+	}
+	else
+		appendStringInfoString(str, node->functionname);
+
+		appendStringInfoString(str, "(");
+
+		int i = 0;
+		//Node *entity;
+		FOREACH(Node,arg,node->args)
+		{
+			appendStringInfoString(str, ((i++ == 0) ? "" : ", "));
+			exprToSQLString(str, arg);
+			//entity = arg;
+		}
+
+    if (flag == 1)
+    {
+        /* Zeroth approach our first version */
+    	//appendStringInfoString(str, "))),'/E/text()').getclobval(),','),chr(38) || 'quot;','\"'");
+        /* Zhen 1st approach */
+        //appendStringInfoString(str, "))) returning content).getclobval(),','),chr(38) || 'quot;','\"'");
+        /* Zhen 2nd approach */
+        //appendStringInfoString(str, "))).getclobval(),','),chr(38) || 'quot;','\"'");
+        /* Zhen 3rd approach */
+        //appendStringInfoString(str, "))) as clob),','),chr(38) || 'quot;','\"'");
+        /* Zhen 4th approach modified 3rd*/
+        appendStringInfoString(str, "), 1)) as clob),','),chr(38) || 'quot;','\"'");
+        /* Zhen 5th approach modified 2nd */
+        //appendStringInfoString(str, "), 1)).getclobval(),','),chr(38) || 'quot;','\"'");
+
+//    	appendStringInfoString(str, "',')");
+//    	appendStringInfoString(str, " WITHIN GROUP (ORDER BY ");
+//    	exprToSQLString(str, entity);
+    }
+    appendStringInfoString(str,")");
+
+/*	int flag = 0;
+	if (streq(node->functionname, "AGG_STRAGG"))
+	{
+		flag = 1;
+		appendStringInfoString(str, "LISTAGG");
+	}
+	else
+		appendStringInfoString(str, node->functionname);
+
     appendStringInfoString(str, "(");
 
     int i = 0;
+    Node *entity;
     FOREACH(Node,arg,node->args)
     {
         appendStringInfoString(str, ((i++ == 0) ? "" : ", "));
         exprToSQLString(str, arg);
+        entity = arg;
     }
 
-    appendStringInfoString(str,")");
+    if (flag == 1)
+    {
+    	appendStringInfoChar(str, ',');
+    	appendStringInfoString(str, "',')");
+    	appendStringInfoString(str, " WITHIN GROUP (ORDER BY ");
+    	exprToSQLString(str, entity);
+    }
+    appendStringInfoString(str,")");*/
 }
 
 static void
@@ -322,4 +401,196 @@ exprToSQL (Node *expr)
     FREE(str);
 
     return result;
+}
+
+static void
+exprToLatexString(StringInfo str,  Node *expr)
+{
+    if (expr == NULL)
+        return;
+
+    switch(expr->type)
+    {
+        case T_AttributeReference:
+            attributeReferenceToLatex(str, (AttributeReference *) expr);
+            break;
+        case T_DLVar:
+            appendStringInfo(str, "%s", ((DLVar *) expr)->name);
+            break;
+        case T_Constant:
+            constantToLatex(str, (Constant *) expr);
+            break;
+        case T_FunctionCall:
+            functionCallToLatex(str, (FunctionCall *) expr);
+            break;
+        case T_Operator:
+            operatorToLatex(str, (Operator *) expr);
+            break;
+        case T_List:
+        {
+            int i = 0;
+            FOREACH(Node,arg,(List *) expr)
+            {
+                appendStringInfoString(str, ((i++ == 0) ? "(" : ", "));
+                exprToLatexString(str, arg);
+            }
+            appendStringInfoString(str,")");
+        }
+        break;
+        case T_CaseExpr:
+            caseToSQL(str, (CaseExpr *) expr);
+        break;
+        case T_WindowFunction:
+            winFuncToSQL(str, (WindowFunction *) expr);
+        break;
+        case T_IsNullExpr:
+            appendStringInfo(str, "(%s IS NULL)", exprToLatex(((IsNullExpr *) expr)->expr));
+        break;
+        case T_RowNumExpr:
+            appendStringInfoString(str, "ROWNUM");
+        break;
+        case T_OrderExpr:
+            orderExprToSQL(str, (OrderExpr *) expr);
+        break;
+        case T_SQLParameter:
+            sqlParamToSQL(str, (SQLParameter *) expr);
+        break;
+        default:
+            FATAL_LOG("not an expression node <%s>", nodeToString(expr));
+    }
+}
+
+char *
+exprToLatex (Node *expr)
+{
+    StringInfo str = makeStringInfo();
+    char *result;
+
+    if (expr == NULL)
+        return "";
+
+    exprToLatexString(str, expr);
+
+    result = str->data;
+    FREE(str);
+
+    return result;
+}
+
+
+static void
+functionCallToLatex (StringInfo str, FunctionCall *node)
+{
+
+    //int flag = 0;
+    if (streq(node->functionname, "AGG_STRAGG"))
+    {
+        //flag = 1;
+        appendStringInfoString(str, "strcat");
+    }
+    else
+        appendStringInfoString(str, node->functionname);
+
+    appendStringInfoString(str, "(");
+
+    int i = 0;
+    FOREACH(Node,arg,node->args)
+    {
+        appendStringInfoString(str, ((i++ == 0) ? "" : ", "));
+        exprToLatexString(str, arg);
+    }
+
+    appendStringInfoString(str,")");
+}
+
+static void
+operatorToLatex (StringInfo str, Operator *node)
+{
+    // handle special operators
+    if (streq(node->name,"BETWEEN"))
+    {
+        char *expr = exprToSQL(getNthOfListP(node->args,0));
+        char *lower = exprToSQL(getNthOfListP(node->args,1));
+        char *upper = exprToSQL(getNthOfListP(node->args,2));
+
+        appendStringInfo(str, "(%s < %s \\wedge %s < %s)", lower, expr, expr, upper);
+    }
+    //TODO deal with other specific operators, e.g., comparison
+    else if (LIST_LENGTH(node->args) == 1)
+    {
+        if (streq(node->name,"NOT"))
+            appendStringInfoString(str, "\\neg");
+        else
+            appendStringInfo(str, "%s ", node->name);
+        appendStringInfoString(str, "(");
+        exprToLatexString(str,getNthOfListP(node->args,0));
+        appendStringInfoString(str, ")");
+    }
+    else
+    {
+        appendStringInfoString(str, "(");
+
+        FOREACH(Node,arg,node->args)
+        {
+            exprToLatexString(str,arg);
+            if(arg_his_cell != node->args->tail)
+            {
+                if (streq(node->name,"AND"))
+                    appendStringInfoString(str, "\\wedge");
+                else if (streq(node->name,"OR"))
+                    appendStringInfoString(str, "\\vee");
+                else
+                    appendStringInfo(str, " %s ", node->name);
+            }
+        }
+
+        appendStringInfoString(str, ")");
+    }
+}
+
+static void
+constantToLatex (StringInfo str, Constant *node)
+{
+    if (node->isNull)
+    {
+        appendStringInfoString(str, "NULL");
+        return;
+    }
+
+    switch(node->constType)
+    {
+        case DT_INT:
+            appendStringInfo(str, "%d", *((int *) node->value));
+            break;
+        case DT_FLOAT:
+            appendStringInfo(str, "%f", *((double *) node->value));
+            break;
+        case DT_LONG:
+            appendStringInfo(str, "%ld", *((long *) node->value));
+            break;
+        case DT_STRING:
+            appendStringInfo(str, "\\texttt{\\textcolor{blue}{%s}}", latexEscapeString((char *) node->value));
+            break;
+        case DT_BOOL:
+            appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "true" : "false");
+            break;
+        case DT_VARCHAR2:
+            appendStringInfo(str, "\\texttt{\\textcolor{blue}{%s}}", latexEscapeString((char *) node->value));
+            break;
+    }
+}
+
+static void
+attributeReferenceToLatex (StringInfo str, AttributeReference *node)
+{
+    appendStringInfoString(str, latexEscapeString(strdup(node->name)));
+}
+
+char *
+latexEscapeString (char *st)
+{
+    char *escapedName = replaceSubstr(st, "PROV_", "P_");
+    escapedName = replaceSubstr(escapedName, "_", "\\_");
+    escapedName = replaceSubstr(escapedName, "\"", "\\rq \\rq ");
+    return escapedName;
 }

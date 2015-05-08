@@ -1,6 +1,7 @@
 #ifndef EXPRESSION_H
 #define EXPRESSION_H
 
+#include "common.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "utility/enum_magic.h"
@@ -200,6 +201,10 @@ extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
 
 /* create an SQL expression from an expression tree */
 extern char *exprToSQL (Node *expr);
+
+/* create an Latex expression from an expression tree */
+extern char *exprToLatex (Node *expr);
+extern char *latexEscapeString (char *st);
 
 /* functions for searching inside expressions */
 extern List *getAttrReferences (Node *node);

@@ -20,6 +20,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
 #include "metadata_lookup/metadata_lookup_postgres.h"
+#include "metadata_lookup/metadata_lookup_external.h"
 
 MetadataLookupPlugin *activePlugin = NULL;
 List *availablePlugins = NIL;
@@ -31,6 +32,7 @@ static char *pluginTypeToString(MetadataLookupPluginType type);
 int
 initMetadataLookupPlugins (void)
 {
+    availablePlugins = NIL;
 
 // only assemble plugins for which the library is available
 #if HAVE_ORACLE_BACKEND
@@ -39,6 +41,7 @@ initMetadataLookupPlugins (void)
 #ifdef HAVE_POSTGRES_BACKEND
     availablePlugins = appendToTailOfList(availablePlugins, assemblePostgresMetadataLookupPlugin());
 #endif
+    availablePlugins = appendToTailOfList(availablePlugins, assembleExternalMetadataLookupPlugin(NULL));
 
     return EXIT_SUCCESS;
 }
@@ -82,6 +85,14 @@ chooseMetadataLookupPlugin (MetadataLookupPluginType plugin)
     FATAL_LOG("did not find plugin");
 }
 
+void
+setMetadataLookupPlugin (MetadataLookupPlugin *p)
+{
+    activePlugin = p;
+    if (!(p->isInitialized()))
+        p->initMetadataLookupPlugin();
+}
+
 static MetadataLookupPluginType
 stringToPluginType(char *type)
 {
@@ -89,6 +100,8 @@ stringToPluginType(char *type)
         return METADATA_LOOKUP_PLUGIN_ORACLE;
     if (strcmp(type, "postgres") == 0)
         return METADATA_LOOKUP_PLUGIN_POSTGRES;
+    if (strcmp(type, "external") == 0)
+        return METADATA_LOOKUP_PLUGIN_EXTERNAL;
     FATAL_LOG("unkown plugin type <%s>", type);
     return METADATA_LOOKUP_PLUGIN_ORACLE;
 }
@@ -102,6 +115,8 @@ pluginTypeToString(MetadataLookupPluginType type)
         return "oracle";
     case METADATA_LOOKUP_PLUGIN_POSTGRES:
         return "postgres";
+    case METADATA_LOOKUP_PLUGIN_EXTERNAL:
+        return "external";
     }
     return NULL; //keep compiler quiet
 }
@@ -234,7 +249,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
     return activePlugin->getTransactionSQLAndSCNs(xid, scns, sqls, sqlBinds, iso, commitScn);
 }
 
-List *
+Relation *
 executeQuery (char *sql)
 {
     ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);

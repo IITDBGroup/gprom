@@ -116,6 +116,7 @@ executeOutputGP(void *sql)
     StringInfo edges = makeStringInfo();
     HashMap *noteTypes = NEW_MAP(Constant,Set);
     List *queryRes;
+    Relation *r;
 
     for (int i = 0; i < NUM_ELEM_GPNodeType; i++)
         MAP_ADD_INT_KEY(noteTypes, i, STRSET());
@@ -125,7 +126,8 @@ executeOutputGP(void *sql)
 
     // execute GP query
     sql = replaceSubstr((char *) sql, ";", "");
-    queryRes = executeQuery(sql);
+    r = executeQuery(sql);
+    queryRes = r->tuples;
 
     // loop through query result creating edges and caching nodes
     // add loop

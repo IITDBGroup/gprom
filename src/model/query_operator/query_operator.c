@@ -24,6 +24,8 @@
 //static Schema *mergeSchemas (List *inputs);
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
+static boolean KeyValueKeyEqString (void *kv, void *str);
+
 
 Schema *
 createSchema(char *name, List *attrDefs)
@@ -145,141 +147,188 @@ deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos)
 }
 
 void
-reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, Operator *a1)
+reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs)
 {
 	int cnt;
-	Node *left  = (Node *)getHeadOfListP(a1->args);
-	Node *right = (Node *)getTailOfListP(a1->args);
 
-	if(isA(left, Operator))
+	FOREACH(AttributeReference,a1,attrRefs)
 	{
-		reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, (Operator *)left);
-	}
-	else if(isA(left, AttributeReference))
-	{
-		cnt = 0;
-		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-		{
-			if(streq(((AttributeReference *)left)->name, a2->attrName))
-			{
-				((AttributeReference *)left)->attrPosition = cnt;
-				break;
-			}
-			cnt++;
-		}
+	    cnt = 0;
+        FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+        {
+
+            if(strpeq(a1->name, a2->attrName))
+            {
+                a1->attrPosition = cnt;
+                DEBUG_LOG("set attr %s position to %d", a1->name, cnt);
+                break;
+            }
+            cnt++;
+        }
 	}
 
-	if(isA(right, Operator))
-	{
-		reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, (Operator *)right);
-	}
-	else if(isA(right, AttributeReference))
-	{
-		cnt = 0;
-		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-		{
-			if(streq(((AttributeReference *)right)->name, a2->attrName))
-			{
-				((AttributeReference *)right)->attrPosition = cnt;
-				break;
-			}
-			cnt++;
-		}
-	}
+//	Node *left  = (Node *)getHeadOfListP(a1->args);
+//	Node *right = (Node *)getTailOfListP(a1->args);
+//
+//	if(isA(left, Operator))
+//	{
+//		reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, (Operator *)left);
+//	}
+//	else if(isA(left, AttributeReference))
+//	{
+//		cnt = 0;
+//		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+//		{
+//			if(streq(((AttributeReference *)left)->name, a2->attrName))
+//			{
+//				((AttributeReference *)left)->attrPosition = cnt;
+//				break;
+//			}
+//			cnt++;
+//		}
+//	}
+//
+//	if(isA(right, Operator))
+//	{
+//		reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, (Operator *)right);
+//	}
+//	else if(isA(right, AttributeReference))
+//	{
+//		cnt = 0;
+//		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+//		{
+//			if(streq(((AttributeReference *)right)->name, a2->attrName))
+//			{
+//				((AttributeReference *)right)->attrPosition = cnt;
+//				break;
+//			}
+//			cnt++;
+//		}
+//	}
 }
 
 void
 resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *op2)
 {
-    int cnt = 0;
-	FOREACH_LC(a1, op1->projExprs)
-	{
-	    //TODO assumption that everyghing is either an attributereference or and operator. Need to support any type of expression here
-		if(isA(LC_P_VAL(a1), Operator))
-		{
-			reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2,(Operator *)LC_P_VAL(a1));
-		}
-		else
-		{
-			cnt = 0;
-			FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-			{
-				if(streq(((AttributeReference *)LC_P_VAL(a1))->name, a2->attrName))
-				{
-					((AttributeReference *)LC_P_VAL(a1))->attrPosition = cnt;
-					break;
-				}
-				cnt++;
-			}
-		}
-	}
+//    int cnt = 0;
+    List *attrRefs = getAttrReferences((Node *) op1->projExprs);
+
+    reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, attrRefs);
+
+//    FOREACH(AttributeReference,a1,attrRefs)
+//    {
+//        cnt = 0;
+//        FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+//        {
+//
+//            if(strpeq(a1->name, a2->attrName))
+//            {
+//                a1->attrPosition = cnt;
+//                break;
+//            }
+//            cnt++;
+//        }
+//    }
+
+
+//	FOREACH(Node, a1, op1->projExprs)
+//	{
+//
+//
+//	    //TODO assumption that everyghing is either an attributereference or and operator. Need to support any type of expression here
+//		if(isA(LC_P_VAL(a1), Operator))
+//		{
+//			reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2,(Operator *)LC_P_VAL(a1));
+//		}
+//		else
+//		{
+//			cnt = 0;
+//			FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+//			{
+//
+//				if(streq(((AttributeReference *)LC_P_VAL(a1))->name, a2->attrName))
+//				{
+//					((AttributeReference *)LC_P_VAL(a1))->attrPosition = cnt;
+//					break;
+//				}
+//				cnt++;
+//			}
+//		}
+//	}
 }
 
 void
 resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2)
 {
-	Operator *o = (Operator *)(op1->cond);
-	int cnt = 0;
+	Node *cond = op1->cond;
+//	int cnt = 0;
+	List *attrRefs = getAttrReferences(cond);
 
-	if(!streq(o->name,"AND"))
-	{
-		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-        {
-			FOREACH_LC(lc, (o->args))
-            {
-				if(isA(LC_P_VAL(lc), AttributeReference))
-				{
-					AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
-					if(streq(a1->name,a2->attrName))
-					{
-						a1->attrPosition = cnt;
-					}
-				}
-            }
-			cnt++;
-         }
-	}
-	else
-	{
-		Operator *o2;
-		Operator *o1;
-		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-		{
-			o2 = o;
-			while(streq(o2->name,"AND"))
-			{
-				o1  = (Operator *)(getTailOfListP(o2->args));
-				o2 = (Operator *)(getHeadOfListP(o2->args));
+	reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2,attrRefs);
 
-				FOREACH_LC(lc,(o1->args))
-				{
-					if(isA(LC_P_VAL(lc), AttributeReference))
-					{
-						AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
-						if(streq(a1->name,a2->attrName))
-						{
-							a1->attrPosition = cnt;
-						}
-					}
-				}
-			}
-
-			//The last one operator which without AND
-			FOREACH_LC(lc,(o2->args))
-			{
-				if(isA(LC_P_VAL(lc), AttributeReference))
-				{
-					AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
-					if(streq(a1->name,a2->attrName))
-					{
-						a1->attrPosition = cnt;
-					}
-				}
-			}
-
-			cnt++;
-		}
-	}
+//	FOREACH(AttributeReference,a1,attrRefs)
+//	{
+//
+//	}
+//	if(!streq(o->name,"AND"))
+//	{
+//		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+//        {
+//			FOREACH_LC(lc, (o->args))
+//            {
+//				if(isA(LC_P_VAL(lc), AttributeReference))
+//				{
+//					AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
+//					if(streq(a1->name,a2->attrName))
+//					{
+//						a1->attrPosition = cnt;
+//					}
+//				}
+//            }
+//			cnt++;
+//         }
+//	}
+//	else
+//	{
+//		Operator *o2;
+//		Operator *o1;
+//		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
+//		{
+//			o2 = o;
+//			while(streq(o2->name,"AND"))
+//			{
+//				o1  = (Operator *)(getTailOfListP(o2->args));
+//				o2 = (Operator *)(getHeadOfListP(o2->args));
+//
+//				FOREACH_LC(lc,(o1->args))
+//				{
+//					if(isA(LC_P_VAL(lc), AttributeReference))
+//					{
+//						AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
+//						if(streq(a1->name,a2->attrName))
+//						{
+//							a1->attrPosition = cnt;
+//						}
+//					}
+//				}
+//			}
+//
+//			//The last one operator which without AND
+//			FOREACH_LC(lc,(o2->args))
+//			{
+//				if(isA(LC_P_VAL(lc), AttributeReference))
+//				{
+//					AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
+//					if(streq(a1->name,a2->attrName))
+//					{
+//						a1->attrPosition = cnt;
+//					}
+//				}
+//			}
+//
+//			cnt++;
+//		}
+//	}
 }
 
 List *
@@ -656,14 +705,14 @@ createConstRelOp(List *values, List *parents, List *attrNames, List *dataTypes)
 }
 
 NestingOperator *
-createNestingOp(NestingExprType nestingType, Node *cond, List *inputs, List *parents, List *attrNames)
+createNestingOp(NestingExprType nestingType, Node *cond, List *inputs, List *parents, List *attrNames, List *dts)
 {
     NestingOperator *no = makeNode(NestingOperator);
     no->nestingType = nestingType;
     no->cond = copyObject(cond);
     no->op.type = T_NestingOperator;
     no->op.inputs = inputs;
-    no->op.schema = createSchemaFromLists("NESTING", attrNames, NIL);
+    no->op.schema = createSchemaFromLists("NESTING", attrNames, dts);
     no->op.parents = parents;
     no->op.provAttrs = NIL;
 
@@ -746,6 +795,27 @@ getStringProperty (QueryOperator *op, char *key)
     KeyValue *kv = getProp(op, (Node *) createConstString(key));
 
     return kv ? kv->value : NULL;
+}
+
+void
+removeStringProperty (QueryOperator *op, char *key)
+{
+    List *props = (List *) op->properties;
+    op->properties = (Node *) genericRemoveFromList(props, KeyValueKeyEqString, key);
+}
+
+static boolean
+KeyValueKeyEqString (void *kv, void *str)
+{
+    ASSERT(isA(kv, KeyValue));
+    KeyValue *kVal = (KeyValue *) kv;
+    ASSERT(isA(kVal->key, Constant));
+    char *keyStr = STRING_VALUE(kVal->key);
+
+    if (strpeq(keyStr, str))
+        return TRUE;
+
+    return FALSE;
 }
 
 static KeyValue *

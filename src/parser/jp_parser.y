@@ -82,7 +82,7 @@ Node *jpParseResult = NULL;
 %%
 
 path:
-		 '$'            {RULELOG("path::$");}
+		 '$'            { RULELOG("path::$"); List *l = NIL; $$ = l; }
                  | '$' actualpath
 		 { 
 				RULELOG("path::$ actualpath");
@@ -91,8 +91,8 @@ path:
 				DEBUG_LOG("parsed %s", nodeToString($$));
 		}
 		;	
-actualpath:
-		pathstep
+actualpath:      
+	        pathstep
                 { 
                  RULELOG("actualpath::pathstep"); 
                  Node *n = (Node *) createJsonPath ($1);
@@ -125,7 +125,7 @@ pathstep:
 
                 | '[' intConst ']'
                 {
-                 RULELOG("pathstep::[*]"); $$ = $2;
+                 RULELOG("pathstep::[*]"); $$ = itoa($2);
                 }
                 ;
                 

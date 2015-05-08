@@ -5,17 +5,19 @@
  */
 
 #include "common.h"
+#include "log/logger.h"
+#include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
-#include "mem_manager/mem_mgr.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+#include "model/relation/relation.h"
 #include "parser/parser.h"
-#include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "utility/string_utils.h"
 
@@ -25,6 +27,28 @@
 #define ORACLE_TNS_CONNECTION_FORMAT "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=" \
 		"(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
 		"(SERVER=DEDICATED)(SID=%s)))"
+
+/* queries */
+#define ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION \
+"WITH transSlice AS (\n" \
+"    SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID, STATEMENT_ID, AUDIT_TYPE\n" \
+"    FROM %s t1\n" \
+"    WHERE TRANSACTION_ID = HEXTORAW('%s'))\n" \
+"                                \n" \
+"SELECT SCN, \n" \
+"      CASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n" \
+"      CASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n" \
+"      CASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n" \
+"      CASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n" \
+"FROM \n" \
+"  (SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n" \
+"  FROM transSlice t1\n" \
+"  WHERE AUDIT_TYPE = 'FineGrainedAudit' \n" \
+"        OR NOT EXISTS (SELECT 1\n" \
+"                       FROM transSlice t2 \n" \
+"                       WHERE t1.STATEMENT_ID = t2.STATEMENT_ID AND AUDIT_TYPE = 'FineGrainedAudit')\n" \
+"                       ) x \n" \
+"ORDER BY ENTRY_ID\n"
 
 /*
  * functions and variables for internal use
@@ -141,6 +165,7 @@ initAggList(void)
     aggList[AGG_VAR_SAMP] = "var_samp";
     aggList[AGG_VARIANCE] = "variance";
     aggList[AGG_XMLAGG] = "xmlagg";
+    aggList[AGG_STRAGG] = "stragg";
 }
 
 static void
@@ -336,6 +361,7 @@ oracleInitMetadataLookupPlugin (void)
 int
 oracleShutdownMetadataLookupPlugin (void)
 {
+    initialized = FALSE;
     return oracleDatabaseConnectionClose();
 }
 
@@ -636,31 +662,33 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
         }
         else if (streq(auditTable, "UNIFIED_AUDIT_TRAIL"))
         {
-            appendStringInfo(statement, "SELECT SCN, \n"
-                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n"
-                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n"
-                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n"
-                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n"
-                    "FROM \n"
-                    "\t(SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n"
-                    "\tFROM SYS.UNIFIED_AUDIT_TRAIL \n"
-                    "\tWHERE TRANSACTION_ID = HEXTORAW(\'%s\')) x \n"
-                    "ORDER BY ENTRY_ID", xid);
+//            appendStringInfo(statement, "SELECT SCN, \n"
+//                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n"
+//                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n"
+//                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n"
+//                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n"
+//                    "FROM \n"
+//                    "\t(SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n"
+//                    "\tFROM SYS.UNIFIED_AUDIT_TRAIL \n"
+//                    "\tWHERE TRANSACTION_ID = HEXTORAW(\'%s\')) x \n"
+//                    "ORDER BY ENTRY_ID", xid);
+            appendStringInfo(statement, ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION, "SYS.UNIFIED_AUDIT_TRAIL", xid);
         }
         else
         {
-            appendStringInfo(statement, "SELECT SCN, \n"
-                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n"
-                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n"
-                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n"
-                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n"
-                                "FROM \n"
-                                "\t(SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n"
-                                "\tFROM %s \n"
-                                "\tWHERE TRANSACTION_ID = HEXTORAW(\'%s\')) x \n"
-                                "ORDER BY ENTRY_ID",
-                                auditTable,
-                                xid);
+//            appendStringInfo(statement, "SELECT SCN, \n"
+//                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n"
+//                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n"
+//                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n"
+//                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n"
+//                                "FROM \n"
+//                                "\t(SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n"
+//                                "\tFROM %s \n"
+//                                "\tWHERE TRANSACTION_ID = HEXTORAW(\'%s\')) x \n"
+//                                "ORDER BY ENTRY_ID",
+//                                auditTable,
+//                                xid);
+            appendStringInfo(statement, ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION, auditTable, xid);
         }
 
         if((conn = getConnection()) != NULL)
@@ -1052,9 +1080,14 @@ oracleGetKeyInformation(char *tableName)
 
     if (rs1 != NULL)
     {
-        while(OCI_FetchNext(rs1))
+        if (OCI_FetchNext(rs1))
         {
-            keyList = appendToTailOfList(keyList, strdup((char *) OCI_GetString(rs1, 1)));
+            Set *keySet = STRSET();
+            do
+            {
+                addToSet(keySet, strdup(((char *) OCI_GetString(rs1, 1))));
+            } while(OCI_FetchNext(rs1));
+            keyList = appendToTailOfList(keyList, keySet);
         }
     }
 
@@ -1126,7 +1159,7 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 {
     OCI_Transaction *t;
     OCI_Resultset *rs;
-    Constant *xid;
+    Constant *xid = NULL;
 
     if (!isConnected())
         FATAL_LOG("No connection to database");
@@ -1177,16 +1210,27 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
     return (Node *) xid;
 }
 
-List *
+Relation *
 oracleGenExecQuery (char *query)
 {
     List *rel = NIL;
     int numAttrs;
     OCI_Resultset *rs;
+    Relation *r = makeNode(Relation);
 
     rs = executeStatement(query);
     numAttrs = OCI_GetColumnCount(rs);
 
+    // fetch attributes
+    r->schema = NIL;
+    for(int i = 1; i <= OCI_GetColumnCount(rs); i++)
+    {
+        OCI_Column *aInfo = OCI_GetColumn(rs, i);
+        const char *name = OCI_ColumnGetName(aInfo);
+        r->schema = appendToTailOfList(r->schema, strdup((char *) name));
+    }
+
+    // fetch tuples
     while(OCI_FetchNext(rs))
     {
         List *tuple = NIL;
@@ -1196,8 +1240,12 @@ oracleGenExecQuery (char *query)
 
         rel = appendToTailOfList(rel, tuple);
     }
+    r->tuples = rel;
 
-    return rel;
+    // cleanup
+    OCI_ReleaseResultsets(st);
+
+    return r;
 }
 
 static OCI_Transaction *
@@ -1266,6 +1314,7 @@ oracleDatabaseConnectionClose()
 
 		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 	}
+
 	return EXIT_SUCCESS;
 }
 
