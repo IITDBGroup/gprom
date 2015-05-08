@@ -70,6 +70,7 @@ computeKeyProp (QueryOperator *root)
     if (IS_BINARY_OP(root))
     {
         List *newKeyList = NIL;
+        //should we first copy the keyslist??
         rKeyList = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_KEY);
         newKeyList = concatTwoLists(keyList, rKeyList);
         setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)newKeyList);
@@ -171,14 +172,31 @@ computeKeyProp (QueryOperator *root)
     	//intersect operator
     	else if(j->setOpType==SETOP_INTERSECTION)
     	{
-    		//HashMap *nHashMap=newHashMap(NodeTag keyType, NodeTag valueType, boolean (*eq) (void *, void *), void *(*cpy) (void *));
-    		FORBOTH(Set,l1,l2,keyList,rKeyList)
-			{
+    		HashMap *map = NEW_MAP(KeyValue, KeyValue);
+    		List *lAttr = getQueryOperatorAttrNames(OP_LCHILD(root));
+    		List *rAttr = getQueryOperatorAttrNames(OP_RCHILD(root));
+    		Set *nSet = STRSET();
+    		char *nAttr = NULL;
 
+    		FORBOTH(char,l1,l2,rAttr,lAttr)
+			{
+    			MAP_ADD_STRING_KEY(map, l1, l2);
 			}
+    		FOREACH(Set,s,rKeyList){
+    			FOREACH_SET(char,key,s)
+    			{
+    				nAttr = (char *)copyObject(getMapString (map, key));
+    				addToSet(nSet,nAttr);
+
+    			}
+    			if (!searchList(keyList, nSet))
+    			{
+    				keyList = appendToTailOfList(keyList, nSet);
+    			}
+    		}
+    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     	}
     }
-
 
 
     DEBUG_LOG("operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
