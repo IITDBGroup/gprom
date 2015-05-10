@@ -120,6 +120,8 @@ externalDatabaseConnectionClose()
 static boolean
 externalIsInitialized (void)
 {
+    if (activePlugin == NULL || activePlugin->cache == NULL)
+        return FALSE;
     EXTERNAL_PLUGIN;
     return extP->isInitialized();
 }
