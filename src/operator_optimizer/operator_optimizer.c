@@ -104,9 +104,9 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("pull up duplicate remove operators",
     		pullUpDuplicateRemoval,
     		OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
-    APPLY_AND_TIME_OPT("remove unnecessary columns",
-    		removeUnnecessaryColumns,
-    		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
+//    APPLY_AND_TIME_OPT("remove unnecessary columns",
+//    		removeUnnecessaryColumns,
+//    		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
     APPLY_AND_TIME_OPT("remove unnecessary window operators",
     		removeUnnecessaryWindowOperator,
     		OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS);

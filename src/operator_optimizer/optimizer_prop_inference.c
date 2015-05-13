@@ -249,7 +249,7 @@ computeECPropBottomUp (QueryOperator *root)
 		else if(isA(root, ProjectionOperator))
 		{
 			ProjectionOperator *pj = (ProjectionOperator *)root;
-			//TODO this is like a copyList, e.g., a shallow copy, if this is waht you wanted then replace with copyList otherwise use copyObject
+			//DONE: TODO this is like a copyList, e.g., a shallow copy, if this is waht you wanted then replace with copyList otherwise use copyObject
 			//get list (contains attrRef or Op) from project op projExprs
 			List *attrA = NIL;
 			List *attrB = NIL;
@@ -618,7 +618,7 @@ computeECPropTopDown (QueryOperator *root)
 
 		ProjectionOperator *pj = (ProjectionOperator *)root;
 		List *attrDefs = copyObject(pj->op.schema->attrDefs);
-		List *attrRefs = copyList(pj->projExprs); //TODO this is not safe because projection may have a + b, you need to check, see below I fixed that
+		List *attrRefs = copyList(pj->projExprs); //DONE: TODO this is not safe because projection may have a + b, you need to check, see below I fixed that
 
 		SCHBtoAUsedInTopBom(&setList, attrRefs, attrDefs);
 
@@ -1277,18 +1277,26 @@ computeReqColProp (QueryOperator *root)
 		Set *set = STRSET();
 
 		//e.g. add sum(A) to set
-		FOREACH(FunctionCall, a, agg->aggrs)
-		{
-			//TODO: ar should get from list args, not only the head one
-			AttributeReference *ar = (AttributeReference *)(getHeadOfListP(a->args));
-			addToSet(set,strdup(ar->name));
-		}
+		List *aggList = getAttrReferences((Node *) agg->aggrs);
+		FOREACH(AttributeReference, a, aggList)
+		        addToSet(set,strdup(a->name));
+
+//		FOREACH(FunctionCall, a, agg->aggrs)
+//		{
+//			//DONE: TODO: ar should get from list args, not only the head one
+//			AttributeReference *ar = (AttributeReference *)(getHeadOfListP(a->args));
+//			addToSet(set,strdup(ar->name));
+//		}
 
 		//e.g. add group by B into set
-		FOREACH(AttributeReference, a, agg->groupBy)
-		{
-		    addToSet(set,strdup(a->name));
-		}
+		List *groupByList = getAttrReferences((Node *) agg->groupBy);
+		FOREACH(AttributeReference, a, groupByList)
+		        addToSet(set,strdup(a->name));
+
+//		FOREACH(AttributeReference, a, agg->groupBy)
+//		{
+//		    addToSet(set,strdup(a->name));
+//		}
 
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)set);
 	}
