@@ -145,7 +145,7 @@ X |
 </entry>
 
 <entry key="q13.query">
-PROVENANCE OF (SELECT a as x FROM R GROUP BY a HAVING avg(b)>1);
+PROVENANCE OF (SELECT a as x FROM R GROUP BY a HAVING avg(b)&gt;1);
 </entry>
 <entry key="q13.result">
 X|PROV_R_A|PROV_R_B|
@@ -169,7 +169,7 @@ X|PROV_R_A|PROV_R_B|
 </entry>
 
 <entry key="q15.query">
-PROVENANCE OF (SELECT x+2 as x FROM (SELECT a+b as x, c as y FROM R, S WHERE c>1) GROUP BY x);
+PROVENANCE OF (SELECT x+2 as x FROM (SELECT a+b as x, c as y FROM R, S WHERE c&gt;1) GROUP BY x);
 </entry>
 <entry key="q15.result">
 X|PROV_R_A|PROV_R_B|PROV_S_C|PROV_S_D|
@@ -213,7 +213,7 @@ X|Y|Z|PROV_R_A|PROV_R_B|PROV_S_C|PROV_S_D|
 </entry>
 
 <entry key="q17.query">
-PROVENANCE OF (SELECT x+2 as z, x as t, sum(x) as s FROM (SELECT a+b as x, c as y FROM R, S WHERE c>2) GROUP BY x);
+PROVENANCE OF (SELECT x+2 as z, x as t, sum(x) as s FROM (SELECT a+b as x, c as y FROM R, S WHERE c&gt;2) GROUP BY x);
 </entry>
 <entry key="q17.result">
 Z|T|S|PROV_R_A|PROV_R_B|PROV_S_C|PROV_S_D|
@@ -225,7 +225,7 @@ Z|T|S|PROV_R_A|PROV_R_B|PROV_S_C|PROV_S_D|
 </entry>
 
 <entry key="q18.query">
-PROVENANCE OF (SELECT avg(a) AS x, avg(a+b) AS y, sum(a*b*(d-c)/2) AS z FROM R, S WHERE b>c);
+PROVENANCE OF (SELECT avg(a) AS x, avg(a+b) AS y, sum(a*b*(d-c)/2) AS z FROM R, S WHERE b&gt;c);
 </entry>
 <entry key="q18.result">
 X|Y|Z|PROV_R_A|PROV_R_B|PROV_S_C|PROV_S_D|
