@@ -266,6 +266,8 @@ externalGetKeyInformation (char *tableName)
 
     exResult = extP->getKeyInformation(tableName);
 
+    result = singleton(exResult);
+
     return result;
 }
 
