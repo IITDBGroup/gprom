@@ -493,17 +493,37 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 		if(j->cond != NULL)
 		{
-		    //TODO fix this only works in a very simplistic case. In general we need to split list of attr refs into left and right input refs
+		    //DONE: TODO fix this only works in a very simplistic case. In general we need to split list of attr refs into left and right input refs
 			List *attrRefs = getAttrReferences (j->cond);
 			List *rcSchema = OP_RCHILD(root)->schema->attrDefs;
 
+			List *leftSchemaNames = getAttrNames(OP_LCHILD(root)->schema);
+			List *rightSchemaNames = getAttrNames(OP_RCHILD(root)->schema);
+
+			List *leftRefs = NIL;
+			List *rightRefs = NIL;
+
 			FOREACH(AttributeReference,a,attrRefs)
 			{
-			    if (a->fromClauseItem == 0)
-			        resetPos(a,cSchema);
-			    else
-			        resetPos(a,rcSchema);
+				if(searchListString(leftSchemaNames, a->name))
+					leftRefs = appendToTailOfList(leftRefs, a);
+				else if(searchListString(rightSchemaNames, a->name))
+					rightRefs = appendToTailOfList(rightRefs, a);
 			}
+
+			FOREACH(AttributeReference,a,leftRefs)
+			        resetPos(a,cSchema);
+
+			FOREACH(AttributeReference,a,rightRefs)
+			        resetPos(a,rcSchema);
+
+//			FOREACH(AttributeReference,a,attrRefs)
+//			{
+//			    if (a->fromClauseItem == 0)
+//			        resetPos(a,cSchema);
+//			    else
+//			        resetPos(a,rcSchema);
+//			}
 
 //
 //			if(streq(condOp->name,"="))
@@ -1061,7 +1081,7 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 							FORBOTH(Node, lc1, lc2,((ProjectionOperator *)o)->projExprs,o->schema->attrDefs)
 							{
 								if (isA(lc1, AttributeReference))
-									if(streq(((AttributeReference *)lc1)->name,LC_P_VAL(n))) //TODO may not be attribute reference
+									if(streq(((AttributeReference *)lc1)->name, LC_P_VAL(n))) //TODO may not be attribute reference
 									{
 										name = ((AttributeDef *)lc2)->attrName;
 										nacpFlag = TRUE;
@@ -1080,17 +1100,17 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 					else
 					{
 						FORBOTH(char, dup, nor, duplicateattrsCopy, normalAttrNamesCopy)
-								{
+						{
 							FORBOTH(Node,attrDef, attrRef, o->schema->attrDefs, ((ProjectionOperator *)o)->projExprs)
-		                    		{
+		                    {
 								if (isA(attrRef, AttributeReference))
 									if(streq(dup,((AttributeDef *)(attrDef))->attrName))
 									{
 										((AttributeReference *)(attrRef))->name = nor;
 										break;
 									}
-		                    		}
-								}
+		                    }
+						}
 
 					}
 				}
@@ -1109,7 +1129,46 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 			List* projExpr = NIL;
 			List *provAttr = NIL;
 
-			//Create the new schema attrDef names in provAttr list
+			QueryOperator *childProj = (QueryOperator *) getHeadOfListP(o->inputs);
+
+			provAttr = getAttrNames(childProj->schema);
+			FOREACH(char, provName, LostList)
+				provAttr = appendToTailOfList(provAttr, strdup(provName));
+
+			//Create the attr reference from upper op projExprs
+			int cnt = 0;
+			FOREACH(AttributeDef,attrDef,childProj->schema->attrDefs)
+			{
+				projExpr = appendToTailOfList(projExpr,
+						createFullAttrReference(
+								attrDef->attrName, 0,
+								cnt, 0,
+								attrDef->dataType));
+				cnt++;
+			}
+
+			FORBOTH(char, name, provName, LostNormalList, LostList)
+			{
+				DataType dt;
+				FOREACH(Node, p, ((ProjectionOperator *)o)->projExprs)
+		        {
+					if(isA(p, AttributeReference))
+					{
+						if(streq(provName, ((AttributeReference *)p)->name))
+							dt = ((AttributeReference *)p)->attrType;
+					}
+		        }
+
+				projExpr = appendToTailOfList(projExpr,
+						createFullAttrReference(
+								name, 0,
+								cnt, 0,
+								dt));
+				cnt++;
+			}
+
+
+/*			//Create the new schema attrDef names in provAttr list
 			FOREACH(AttributeReference, attrProv, ((ProjectionOperator *)o)->projExprs)
 			{
 				provAttr = appendToTailOfList(provAttr, attrProv->name);
@@ -1143,7 +1202,7 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
                         }
 				    }
                 }
-			}
+			}*/
 
 			List *newProvPosList = NIL;
 			CREATE_INT_SEQ(newProvPosList, cnt, (cnt * 2) - 1, 1);
