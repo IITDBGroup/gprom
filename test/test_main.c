@@ -42,7 +42,7 @@ checkResult(int r, char *msg, const char *file, const char *func, int line,
         }
         else
         {
-            printf("%s" T_FG_BG(WHITE,GREEN,"TEST FAIL") TBCOL(RED,"[%s-%s-%u]:")
+            printf("%s" T_FG_BG(WHITE,RED,"TEST FAIL") TBCOL(RED,"[%s-%s-%u]:")
                     " %s\n", indentation, file, func,line, msg);
             free(indentation);
             exit(1);
@@ -93,6 +93,7 @@ testSuites(void)
 {
     RUN_TEST(testLogger(), "Logger test.");
     RUN_TEST(testMemManager(), "Memory manager test.");
+    RUN_TEST(testException(), "Exception handling.");
     RUN_TEST(testList(), "List model.");
     RUN_TEST(testSet(), "Set.");
     RUN_TEST(testVector(), "Vector.");
@@ -109,6 +110,7 @@ testSuites(void)
     RUN_TEST(testParameter(), "Test SQL parameter functions.");
     RUN_TEST(testDatalogModel(), "Test datalog model features");
     RUN_TEST(testHash(), "Test hash computation for nodes");
+    RUN_TEST(testLibGProM(), "Test gprom dynamic link library");
 
     printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
             "Total %d Test(s) Passed\n\n", test_count);

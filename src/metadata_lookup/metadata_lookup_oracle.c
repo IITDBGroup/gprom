@@ -5,17 +5,19 @@
  */
 
 #include "common.h"
+#include "log/logger.h"
+#include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
-#include "mem_manager/mem_mgr.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+#include "model/relation/relation.h"
 #include "parser/parser.h"
-#include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "utility/string_utils.h"
 
@@ -360,6 +362,7 @@ oracleInitMetadataLookupPlugin (void)
 int
 oracleShutdownMetadataLookupPlugin (void)
 {
+    initialized = FALSE;
     return oracleDatabaseConnectionClose();
 }
 
@@ -1133,9 +1136,14 @@ oracleGetKeyInformation(char *tableName)
 
     if (rs1 != NULL)
     {
-        while(OCI_FetchNext(rs1))
+        if (OCI_FetchNext(rs1))
         {
-            keyList = appendToTailOfList(keyList, strdup((char *) OCI_GetString(rs1, 1)));
+            Set *keySet = STRSET();
+            do
+            {
+                addToSet(keySet, strdup(((char *) OCI_GetString(rs1, 1))));
+            } while(OCI_FetchNext(rs1));
+            keyList = appendToTailOfList(keyList, keySet);
         }
     }
 
@@ -1207,7 +1215,7 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 {
     OCI_Transaction *t;
     OCI_Resultset *rs;
-    Constant *xid;
+    Constant *xid = NULL;
 
     if (!isConnected())
         FATAL_LOG("No connection to database");
@@ -1258,16 +1266,27 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
     return (Node *) xid;
 }
 
-List *
+Relation *
 oracleGenExecQuery (char *query)
 {
     List *rel = NIL;
     int numAttrs;
     OCI_Resultset *rs;
+    Relation *r = makeNode(Relation);
 
     rs = executeStatement(query);
     numAttrs = OCI_GetColumnCount(rs);
 
+    // fetch attributes
+    r->schema = NIL;
+    for(int i = 1; i <= OCI_GetColumnCount(rs); i++)
+    {
+        OCI_Column *aInfo = OCI_GetColumn(rs, i);
+        const char *name = OCI_ColumnGetName(aInfo);
+        r->schema = appendToTailOfList(r->schema, strdup((char *) name));
+    }
+
+    // fetch tuples
     while(OCI_FetchNext(rs))
     {
         List *tuple = NIL;
@@ -1277,8 +1296,12 @@ oracleGenExecQuery (char *query)
 
         rel = appendToTailOfList(rel, tuple);
     }
+    r->tuples = rel;
 
-    return rel;
+    // cleanup
+    OCI_ReleaseResultsets(st);
+
+    return r;
 }
 
 static OCI_Transaction *
@@ -1347,6 +1370,7 @@ oracleDatabaseConnectionClose()
 
 		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 	}
+
 	return EXIT_SUCCESS;
 }
 

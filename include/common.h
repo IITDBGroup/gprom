@@ -75,6 +75,16 @@
 #include <setjmp.h>
 #endif
 
+/* signal handler */
+#if HAVE_SIGNAL_H
+#include <signal.h>
+#endif
+
+/* unistd handler */
+#if HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup
@@ -142,16 +152,21 @@
 #define malloc(_p) "DO NOT USE malloc DIRECTLY USE \"MALLOC\" FROM THE MEMORY MANAGER"; @
 
 // provide ASSERT macro if not deactivated by user
+// use exception system instead
 #ifdef DISABLE_ASSERT
 #define ASSERT(expr)
 #define ASSERT_BARRIER(code)
 #define TIME_ASSERT(expr)
 #else
-#define ASSERT(expr) assert(expr);
+#define ASSERT(expr) \
+    if (!(expr)) { \
+    	THROW(SEVERITY_RECOVERABLE, "%s: %s\n", "failed assertion", #expr); \
+    }
+
 #define TIME_ASSERT(expr) \
     do { \
         START_TIMER("ASSERT"); \
-        assert(expr); \
+        ASSERT(expr); \
         STOP_TIMER("ASSERT"); \
     } while(0)
 #define ASSERT_BARRIER(code) code

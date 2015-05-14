@@ -264,6 +264,7 @@ AC_CHECK_HEADERS([time.h])
 AC_CHECK_HEADERS([limits.h])
 AC_CHECK_HEADERS([regex.h])
 AC_CHECK_HEADERS([setjmp.h])
+AC_CHECK_HEADERS([signal.h])
 AC_HEADER_ASSERT
 ################################################################################
 # MEMORY ALLOCATION STUFF
@@ -342,12 +343,16 @@ AC_CONFIG_HEADERS([config.h])
 # DERIVED FILES - MAINLY MAKEFILES
 AC_CONFIG_FILES([
 	Makefile
+	include/Makefile
 	src/Makefile
 	src/analysis_and_translate/Makefile
 	src/command_line/Makefile
 	src/configuration/Makefile
+	src/exception/Makefile
 	src/execution/Makefile
 	src/instrumentation/Makefile
+	src/interfaces/Makefile
+	src/interfaces/jdbc/Makefile
 	src/log/Makefile
 	src/mem_manager/Makefile
 	src/metadata_lookup/Makefile
@@ -369,7 +374,9 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/update_and_transaction/Makefile
 	src/sql_serializer/Makefile
 	src/utility/Makefile
+	src/libgprom/Makefile
 	test/Makefile
+	javatest/Makefile
 ])
 AC_OUTPUT
 

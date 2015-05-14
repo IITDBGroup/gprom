@@ -14,6 +14,8 @@
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "model/expression/expression.h"
+#include "log/logger.h"
+#include "exception/exception.h"
 
 // we have to use actual free here
 #undef free
@@ -65,6 +67,7 @@ boolean logActive = FALSE;
 
 // input options
 char *sql = NULL;
+char *sqlFile = NULL;
 
 // database backend
 char *backend = NULL;
@@ -254,7 +257,15 @@ OptionInfo opts[] =
                 wrapOptionString(&sql),
                 defOptionString(NULL)
         },
-        // backend and plugin selectionselection
+        {
+                "input.sqlFile",
+                "-sqlfile",
+                "input SQL file name",
+                OPTION_STRING,
+                wrapOptionString(&sqlFile),
+                defOptionString(NULL)
+        },
+        // backend and plugin selection
         {
                 "backend",
                 "-backend",
@@ -314,7 +325,9 @@ OptionInfo opts[] =
         {
                 "plugin.executor",
                 "-Pexecutor",
-                "select Executor plugin: sql (output rewritten SQL code), gp (output Game provenance)",
+                "select Executor plugin: sql (output rewritten SQL code), "
+                        "gp (output Game provenance), run (execute the "
+                        "rewritten query and return its result",
                 OPTION_STRING,
                 wrapOptionString(&plugin_executor),
                 defOptionString(NULL)

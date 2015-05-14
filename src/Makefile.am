@@ -4,6 +4,7 @@ AM_CFLAGS = @GPROM_CFLAGS@
 SUBDIRS = configuration 		\
 		log			 			\
 		mem_manager				\
+		exception				\
 		instrumentation			\
 		model					\
 		utility					\
@@ -15,12 +16,15 @@ SUBDIRS = configuration 		\
 		operator_optimizer 		\
 		execution				\
 		. 						\
-		command_line
+		command_line			\
+		libgprom				\
+		interfaces
 
 noinst_LTLIBRARIES 		= libsrc.la
 libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
 						log/liblog.la \
 						mem_manager/libmem_manager.la \
+						exception/libexception.la \
 						model/libmodel.la \
 						provenance_rewriter/libprovenance_rewriter.la \
 						parser/libparser.la \
@@ -30,6 +34,6 @@ libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
 						operator_optimizer/liboperator_optimizer.la \
 						instrumentation/libinstrumentation.la \
 						execution/libexecution.la \
-						utility/libutils.la 
+						utility/libutils.la
 
 libsrc_la_SOURCES 		= rewriter.c

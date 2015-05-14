@@ -1328,6 +1328,22 @@ pushDownSelection(QueryOperator *root, List *opList, QueryOperator *r, QueryOper
 QueryOperator *
 selectionMoveAround(QueryOperator *root)
 {
+/*
+    //loop 1, bottom to top trace the tree and set the property of each
+    //operation(tree node)
+    setMoveAroundListSetProperityForWholeTree(root);
+
+    //loop 2, top to bottom trace the tree and reset the property of each
+    //operation(tree node)
+    reSetMoveAroundListSetProperityForWholeTree(root);
+
+    //loop 3, bottom to top trace the tree and introduce the new selection or
+    //change the condition of original selection op
+    introduceSelection(root);
+
+    //DEBUG_LOG("after the beauty is: \n%s",beatify(nodeToString(root)));
+*/
+
 	computeECProp(root);
 	introduceSelectionInMoveAround(root);
 

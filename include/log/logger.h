@@ -24,6 +24,7 @@
 #define LOGGER_H_
 
 #include "common.h"
+#include "exception/exception.h"
 
 typedef enum LogLevel
 {
@@ -37,9 +38,12 @@ typedef enum LogLevel
 
 extern void initLogger(void);
 extern void shutdownLogger (void);
+extern void setMaxLevel (LogLevel level);
 extern void log_(LogLevel level, const char *file, unsigned line, const char *template, ...);
+extern char *formatMes(const char *template, ...);
 extern void _debugNode(void *p);
 extern void _debugMessage(char *mes);
+extern void registerLogCallback (void (*callback) (const char *,const char *,int,int));
 
 extern LogLevel maxLevel;
 
@@ -60,7 +64,7 @@ extern LogLevel maxLevel;
 #define FATAL_LOG(template, ...) \
     do { \
         log_(LOG_FATAL, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \
-        exit(1); \
+        THROW(SEVERITY_RECOVERABLE,(template), ##__VA_ARGS__); \
     } while (0)
 #define ERROR_LOG(template, ...) \
     do { \

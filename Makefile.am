@@ -5,7 +5,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/include
 AM_CFLAGS = -I$(top_srcdir)/include @GPROM_CFLAGS@
 
 # subdirs to build
-SUBDIRS = src test
+SUBDIRS = include src test javatest
 
 # additional directories to include in a distribution package:
 # - maintainer Makefile for running autotools 
@@ -21,3 +21,5 @@ EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
 	$(top_srcdir)/src/parser/*.tab.c \
 	$(top_srcdir)/src/parser/*.tab.h \
 	$(top_srcdir)/test/testmain.sh
+	
+# TODO add java
