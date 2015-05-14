@@ -168,8 +168,7 @@ extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name);
 extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
 extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
 extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs);
-extern void resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2);
-extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2);
+extern void resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *op1,QueryOperator *op2);
 
 /* union equal element between two set list */
 extern List *unionEqualElemOfTwoSetList(List *l1, List *l2);
