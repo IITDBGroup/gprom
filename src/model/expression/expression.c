@@ -10,8 +10,6 @@
  *-----------------------------------------------------------------------------
  */
 
-#include <string.h>
-
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
@@ -20,6 +18,14 @@
 #include "model/list/list.h"
 #include "model/expression/expression.h"
 
+
+typedef struct FindNotesContext
+{
+    NodeTag type;
+    List **result;
+} FindNotesContext;
+
+static boolean findAllNodesVisitor(Node *node, FindNotesContext *context);
 static boolean findAttrReferences (Node *node, List **state);
 static DataType typeOfOp (Operator *op);
 static DataType typeOfFunc (FunctionCall *f);
@@ -565,4 +571,36 @@ changeListOpToAnOpNode(List *l1)
         opNode1 = (Node *) getHeadOfListP(l1);
 
     return opNode1;
+}
+
+List *
+findAllNodes(Node *node, NodeTag type)
+{
+    FindNotesContext *context = NEW(FindNotesContext);
+    List *result = NULL;
+
+    context->type = type;
+    context->result = &result;
+
+    findAllNodesVisitor(node, context);
+
+    FREE(context);
+
+    return result;
+}
+
+
+static boolean
+findAllNodesVisitor(Node *node, FindNotesContext *context)
+{
+    if (node == NULL)
+       return TRUE;
+
+    if ((node->type) == context->type)
+    {
+        *(context->result) = appendToTailOfList(*(context->result), node);
+        return TRUE;
+    }
+
+    return visit(node, findAllNodesVisitor, context);
 }

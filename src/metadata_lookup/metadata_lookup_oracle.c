@@ -426,7 +426,7 @@ List *
 oracleGetAttributeNames (char *tableName)
 {
     List *attrNames = NIL;
-    List *attrs = getAttributes(tableName);
+    List *attrs = oracleGetAttributes(tableName);
     //TODO use attribute defition instead
     FOREACH(AttributeDef,a,attrs)
         attrNames = appendToTailOfList(attrNames, a->attrName);
@@ -476,6 +476,7 @@ oracleGetAttributeDefaultVal (char *schema, char *tableName, char *attrName)
         if (defaultExpr != NULL)
             result = parseFromString(defaultExpr);
 
+        STOP_TIMER("module - metadata lookup");
         RELEASE_MEM_CONTEXT_AND_RETURN_COPY(Node, result);
     }
     else
@@ -537,7 +538,7 @@ oracleGetAttributes(char *tableName)
         return copyObject(attrList); //TODO copying
     }
 
-    ERROR_LOG("Not connected to database.");
+    FATAL_LOG("Not connected to database.");
     STOP_TIMER("module - metadata lookup");
     RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
 }

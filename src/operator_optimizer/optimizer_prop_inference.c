@@ -651,8 +651,42 @@ computeECPropBottomUp (QueryOperator *root)
 			}
 			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
 		}
+		else if (isA(root,ConstRelOperator))
+		{
+		    HashMap *valToNames = NEW_MAP(Constant,Set);
+		    ConstRelOperator *c = (ConstRelOperator *) root;
+            List *EC = NIL;
+
+            // create map from const value to all attribute names with this const value
+            FORBOTH(Node,nodeA,nodeC,root->schema->attrDefs,c->values)
+            {
+                AttributeDef *a = (AttributeDef *) nodeA;
+                Constant *cons = (Constant *) nodeC;
+                if (hasMapKey(valToNames, (Node *) cons))
+                {
+                    Set *s = (Set *) getMap(valToNames, (Node *) cons);
+                    addToSet(s, strdup(a->attrName));
+                }
+                else
+                {
+                    Set *s = MAKE_STR_SET(strdup(a->attrName));
+                    addToMap(valToNames, (Node *) copyObject(cons), (Node *) s);
+                }
+            }
+
+            // use map const->{AttrNames} to create equivalence classes
+            FOREACH_HASH_ENTRY(kv,valToNames)
+            {
+                KeyValue *newKv;
+                newKv = createNodeKeyValue(kv->value, kv->key);
+                EC = appendToTailOfList(EC, newKv);
+            }
+
+            setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
+		}
 		else
 		{
+		    DEBUG_LOG("treat operator %s as default", NodeTagToString(nodeTag(root)));
 			List *childEC = (List *)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
 			List *EC = copyObject(childEC);
 			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);

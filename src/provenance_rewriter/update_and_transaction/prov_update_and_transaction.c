@@ -32,6 +32,7 @@ static void mergeSerializebleTransaction(ProvenanceComputation *op);
 static void mergeReadCommittedTransaction(ProvenanceComputation *op);
 
 static void addConditionsToBaseTables (ProvenanceComputation *op);
+static void removeInputTablesWithOnlyInserts (ProvenanceComputation *op);
 static void extractUpdatedFromTemporalHistory (ProvenanceComputation *op);
 static void filterUpdatedInFinalResult (ProvenanceComputation *op);
 static Node *adaptConditionForReadCommitted(Node *cond, Constant *scn, int attrPos);
@@ -40,6 +41,7 @@ static List *findUpdatedTableAccceses (List *tables);
 
 static void addUpdateAnnotationAttrs (ProvenanceComputation *op);
 static void addAnnotConstToUnion (QueryOperator *un, boolean leftIsTrue, char *annotName);
+
 
 
 void
@@ -610,6 +612,8 @@ restrictToUpdatedRows (ProvenanceComputation *op)
 
     INFO_LOG("RESTRICT TO UPDATED ROWS");
 
+    removeInputTablesWithOnlyInserts(op);
+
     FOREACH(Node,up,t->originalUpdates)
         simpleOnly &= isSimpleUpdate(up);
 
@@ -654,6 +658,72 @@ restrictToUpdatedRows (ProvenanceComputation *op)
         ASSERT(checkModel((QueryOperator *) op));
 }
 
+/**
+ * for inserts into tables that are not read or written afterwards we do not have to scan the table.
+ *
+ *  R u {t} -> {t}
+ *
+ */
+static void
+removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
+{
+    Set *tableUpdateOrRead = STRSET();
+//    List *tableNames;
+//    ProvenanceTransactionInfo *t = op->transactionInfo;
+
+//    tableNames = deepCopyStringList(t->updateTableNames);
+//    reverseList(tableNames);
+
+
+    FOREACH(Node, u, op->transactionInfo->originalUpdates)
+    {
+        if(isA(u,Insert))
+        {
+            Insert *i = (Insert *) u;
+
+            if (!isA(i->query,  List))
+            {
+                List *tableFromItems = findAllNodes(i->query, T_FromTableRef);
+                FOREACH(FromTableRef,f,tableFromItems)
+                    addToSet(tableUpdateOrRead, f->tableId);
+            }
+        }
+        else if (isA(u,Update))
+        {
+            Update *up = (Update *) u;
+            addToSet(tableUpdateOrRead, up->nodeName);
+        }
+        else if (isA(u, Delete))
+        {
+            Delete *d = (Delete *) u;
+            addToSet(tableUpdateOrRead, d->nodeName);
+        }
+    }
+
+    DEBUG_LOG("tables that do not only consist of constants are %s", beatify(nodeToString(tableUpdateOrRead)));
+
+    FOREACH(QueryOperator,u,op->op.inputs)
+    {
+        List *tables = NIL;
+        findTableAccessVisitor((Node *) op, &tables);
+
+        // for every access to a table that is not read by a query or update, i.e., it is only affected by an
+        // INSERT INTO R VALUES (...), we can replace R union {t} with {t}
+        FOREACH(TableAccessOperator,t,tables)
+        {
+            if (!hasSetElem(tableUpdateOrRead, t->tableName))
+            {
+                QueryOperator *un = OP_FIRST_PARENT(t);
+                QueryOperator *c = OP_RCHILD(un);
+                ASSERT(isA(un,SetOperator) && isA(c,ConstRelOperator));
+
+                c->parents = NIL;
+                switchSubtrees(un, c);
+            }
+        }
+    }
+}
+
 static void
 addConditionsToBaseTables (ProvenanceComputation *op)
 {
@@ -674,7 +744,8 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     Constant *constT = createConstBool(TRUE);
 
     upConds = (List *) GET_STRING_PROP(op, PROP_PC_UPDATE_COND);
-    tableNames = t->updateTableNames;
+    tableNames = deepCopyStringList(t->updateTableNames);
+    reverseList(tableNames);
     origUpdates = t->originalUpdates;
     findTableAccessVisitor((Node *) op, &allTables); //HAO fetch all table accesses
     updatedTables  = findUpdatedTableAccceses (allTables);
@@ -728,7 +799,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
         }
     }
 
-    DEBUG_LOG("condition table map is:\n%s", tabCondMap);
+    DEBUG_LOG("condition table map is:\n%s", beatify(nodeToString(tabCondMap)));
 
     // add selections to only updated tables
     FOREACH(TableAccessOperator,t,updatedTables)
