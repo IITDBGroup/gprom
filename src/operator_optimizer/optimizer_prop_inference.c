@@ -199,7 +199,7 @@ computeKeyProp (QueryOperator *root)
     }
 
 
-    DEBUG_LOG("operator %s keys are {%s}", root->schema->name, stringListToString(keyList));
+    DEBUG_LOG("operator %s keys are {%s}", root->schema->name, beatify(nodeToString(keyList)));
 }
 
 void

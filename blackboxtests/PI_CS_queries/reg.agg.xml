@@ -94,7 +94,7 @@ X |
 </entry>
 
 <entry key="q10.query">
-SELECT a as x FROM R GROUP BY a HAVING avg(b)>1;
+SELECT a as x FROM R GROUP BY a HAVING avg(b) &gt; 1;
 </entry>
 <entry key="q10.result">
 X |
@@ -114,7 +114,7 @@ X|
 </entry>
 
 <entry key="q12.query">
-SELECT x+2 as x FROM (SELECT a+b as x, c as y FROM R, S WHERE c>1) GROUP BY x;
+SELECT x+2 as x FROM (SELECT a+b as x, c as y FROM R, S WHERE c &gt; 1) GROUP BY x;
 </entry>
 <entry key="q12.result">
 X|
@@ -149,7 +149,7 @@ X|Y|Z|
 </entry>
 
 <entry key="q14.query">
-SELECT x+2 as z, x as t, sum(x) as s FROM (SELECT a+b as x, c as y FROM R, S WHERE c>2) GROUP BY x;
+SELECT x+2 as z, x as t, sum(x) as s FROM (SELECT a+b as x, c as y FROM R, S WHERE c &gt; 2) GROUP BY x;
 </entry>
 <entry key="q14.result">
 Z|T|S|
@@ -160,12 +160,21 @@ Z|T|S|
 </entry>
 
 <entry key="q15.query">
-SELECT avg(a) AS x, avg(a+b) AS y, sum(a*b*(d-c)/2) AS z FROM R, S WHERE b>c;
+SELECT avg(a) AS x, avg(a+b) AS y, sum(a*b*(d-c)/2) AS z FROM R, S WHERE b &gt; c;
 </entry>
 <entry key="q15.result">
 X|Y|Z|
 ----------------------------------------
 1.75|4.5|15|
+</entry>
+
+<entry key="q16.query">
+SELECT count(*) AS x FROM (SELECT sum(a), b FROM R GROUP BY b) x;
+</entry>
+<entry key="q16.result">
+X|
+----------------------------------------
+2|
 </entry>
 
 </properties>
