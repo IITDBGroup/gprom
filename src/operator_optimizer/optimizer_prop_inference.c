@@ -1334,7 +1334,7 @@ computeReqColProp (QueryOperator *root)
         //if AttrDefName in icols, get correspond AttrRef name (need to check if it is operator)
         FORBOTH_LC(a,ar, attrDefNames,attrRefList)
         {
-            //TODO this should deal with any other type of expression
+            //DONE: TODO this should deal with any other type of expression
         	if(hasSetElem(icols,LC_P_VAL(a)))
         	{
         	    List *attrRefs = getAttrReferences(LC_P_VAL(ar));
@@ -1374,12 +1374,15 @@ computeReqColProp (QueryOperator *root)
 			setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)e2icols);
 		}
 
-		if (((JoinOperator*)root)->joinType == JOIN_INNER)
+		if (((JoinOperator*)root)->joinType == JOIN_INNER || ((JoinOperator*)root)->joinType == JOIN_LEFT_OUTER || ((JoinOperator*)root)->joinType == JOIN_RIGHT_OUTER || ((JoinOperator*)root)->joinType == JOIN_FULL_OUTER)
 		{
-			Operator *condOp = (Operator *)(((JoinOperator *)root)->cond);
-			//TODO Initialize Set without having some value
-			Set *condicols = STRSET();
-			condicols = AddAttrOfSelectCondToSet(condicols,condOp);
+			//Operator *condOp = (Operator *)(((JoinOperator *)root)->cond);
+			//DONE: TODO Initialize Set without having some value
+			//Set *condicols = STRSET();
+			//condicols = AddAttrOfSelectCondToSet(condicols,condOp);
+			List *attrRefs = getAttrReferences(((JoinOperator *)root)->cond);
+			List *nameList = attrRefListToStringList(attrRefs);
+			Set *condicols = makeStrSetFromList(nameList);
 
 			/*
 			 * Reset itself's property which should union the condition set

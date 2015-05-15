@@ -104,9 +104,9 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("pull up duplicate remove operators",
     		pullUpDuplicateRemoval,
     		OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
-//    APPLY_AND_TIME_OPT("remove unnecessary columns",
-//    		removeUnnecessaryColumns,
-//    		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
+    APPLY_AND_TIME_OPT("remove unnecessary columns",
+    		removeUnnecessaryColumns,
+    		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
     APPLY_AND_TIME_OPT("remove unnecessary window operators",
     		removeUnnecessaryWindowOperator,
     		OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS);
@@ -335,15 +335,16 @@ resetPos(AttributeReference *ar,  List* attrDefs)
 QueryOperator *
 removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 {
-    List *cSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
+
 
     if(root->inputs != NULL)
     {
         FOREACH(QueryOperator, op, root->inputs)
             removeUnnecessaryColumnsFromProjections(op);
     }
-
+    List *cSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
 	Set *icols = (Set*) getStringProperty(root, PROP_STORE_SET_ICOLS);
+    List *provAttrNames = getOpProvenanceAttrNames(root);
 
 	if(isA(root, OrderOperator))
 	{
@@ -650,6 +651,18 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
         	 cnt++;
          }
 	}
+
+	//reset provenance attribute position : provAttrs   provAttrNames
+	List *newProvAttrs = NIL;
+	int count = 0;
+	FOREACH(AttributeDef, a, root->schema->attrDefs)
+	{
+		if(searchListString(provAttrNames, a->attrName))
+			newProvAttrs = appendToTailOfListInt(newProvAttrs, count);
+
+		count ++;
+	}
+	root->provAttrs = newProvAttrs;
 
 	return root;
 }
