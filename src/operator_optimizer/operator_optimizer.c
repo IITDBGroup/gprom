@@ -822,6 +822,7 @@ removeRedundantProjections(QueryOperator *root)
                     AttributeReference *x = (AttributeReference *) n1;
                     AttributeDef *y = (AttributeDef *)LC_P_VAL(lc2);
 
+                    DEBUG_LOG("11111 x->name = %s, y->name = %s", x->name, y->attrName);
                     if (!streq(x->name,y->attrName) || i++ != x->attrPosition)
                     {
                         compare = FALSE;
@@ -849,6 +850,9 @@ removeRedundantProjections(QueryOperator *root)
 
             FOREACH(QueryOperator,parent,root->parents)
                 renameOpAttrRefs(parent, nameMap, root);
+
+            // Before remove the projection, let child's schema equal to its schema
+            lChild->schema = copyObject(root->schema);
 
             // Remove Parent and make lChild as the new parent
             switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
