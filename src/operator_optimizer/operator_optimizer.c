@@ -490,7 +490,20 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 			if(hasSetElem(eicols, ad->attrName))
 				newAttrDefs = appendToTailOfList(newAttrDefs, ad);
 		}
-		root->schema->attrDefs = newAttrDefs;
+
+		if(j->cond != NULL)
+		{
+			List *condAttrNames = NIL;
+			List *condAttr = getAttrReferences(j->cond);
+			FOREACH(AttributeReference, a, condAttr)
+			    condAttrNames = appendToTailOfList(condAttrNames, a->name);
+			Set *condSet = makeStrSetFromList(condAttrNames);
+			DEBUG_LOG("condAttr: %d, condSet: %d", LIST_LENGTH(condAttrNames), setSize(condSet));
+			if(LIST_LENGTH(condAttrNames) == setSize(condSet))
+				root->schema->attrDefs = newAttrDefs;
+		}
+		else
+		    root->schema->attrDefs = newAttrDefs;
 
 		if(j->cond != NULL)
 		{
@@ -506,9 +519,9 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 			FOREACH(AttributeReference,a,attrRefs)
 			{
-				if(searchListString(leftSchemaNames, a->name))
+				if(searchListString(leftSchemaNames, a->name) && a->fromClauseItem == 0)
 					leftRefs = appendToTailOfList(leftRefs, a);
-				else if(searchListString(rightSchemaNames, a->name))
+				else if(searchListString(rightSchemaNames, a->name) && a->fromClauseItem == 1)
 					rightRefs = appendToTailOfList(rightRefs, a);
 			}
 
@@ -822,7 +835,6 @@ removeRedundantProjections(QueryOperator *root)
                     AttributeReference *x = (AttributeReference *) n1;
                     AttributeDef *y = (AttributeDef *)LC_P_VAL(lc2);
 
-                    DEBUG_LOG("11111 x->name = %s, y->name = %s", x->name, y->attrName);
                     if (!streq(x->name,y->attrName) || i++ != x->attrPosition)
                     {
                         compare = FALSE;
@@ -837,11 +849,17 @@ removeRedundantProjections(QueryOperator *root)
             }
         }
 
-        if (compare)
+        if (compare && !isA(lChild, TableAccessOperator))
         {
             List *projAttrs = getQueryOperatorAttrNames(root);
             List *childAttrs = getQueryOperatorAttrNames(lChild);
             HashMap *nameMap = NEW_MAP(Node,Node);
+
+            // Before remove the projection, let child's schema equal to its schema
+            lChild->schema = copyObject(root->schema);
+
+            // Remove Parent and make lChild as the new parent
+            switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
 
             // adapt any attribute references in the parent of the redundant
             // projection
@@ -851,11 +869,6 @@ removeRedundantProjections(QueryOperator *root)
             FOREACH(QueryOperator,parent,root->parents)
                 renameOpAttrRefs(parent, nameMap, root);
 
-            // Before remove the projection, let child's schema equal to its schema
-            lChild->schema = copyObject(root->schema);
-
-            // Remove Parent and make lChild as the new parent
-            switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
             root = lChild;
         }
     }
