@@ -704,10 +704,9 @@ removeRedundantDuplicateOperatorByKey(QueryOperator *root)
 {
     QueryOperator *lChild = OP_LCHILD(root);
 
-    if (isA(root, DuplicateRemoval) && isA(lChild, ProjectionOperator))
+    if (isA(root, DuplicateRemoval))
     {
-        Node *n1 = getProperty(lChild, (Node *) createConstString(PROP_STORE_LIST_KEY));
-        List *l1 = (List *)n1;
+        List *l1 = (List *)getStringProperty(lChild, PROP_STORE_LIST_KEY);
 
         /* Projection is sensitive to Duplicates, If there is no key, we can't
          * remove Duplicate Operator

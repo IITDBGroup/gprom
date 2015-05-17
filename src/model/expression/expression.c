@@ -17,6 +17,7 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
+#include "model/datalog/datalog_model.h"
 
 
 typedef struct FindNotesContext
@@ -27,6 +28,7 @@ typedef struct FindNotesContext
 
 static boolean findAllNodesVisitor(Node *node, FindNotesContext *context);
 static boolean findAttrReferences (Node *node, List **state);
+static boolean findDLVars (Node *node, List **state);
 static DataType typeOfOp (Operator *op);
 static DataType typeOfFunc (FunctionCall *f);
 
@@ -394,11 +396,101 @@ typeOf (Node *expr)
             return ((SQLParameter *) expr)->parType;
         case T_OrderExpr:
             return DT_INT;//TODO should use something else?
+        case T_DLVar:
+            return ((DLVar *) expr)->dt;
         default:
-             ERROR_LOG("unknown expression type for node: %s", nodeToString(expr));
+             FATAL_LOG("unknown expression type for node: %s", nodeToString(expr));
              break;
     }
     return DT_STRING;
+}
+
+boolean
+isConstExpr (Node *expr)
+{
+    if (expr == NULL)
+        return TRUE;
+
+    switch(expr->type)
+    {
+        case T_List:
+        {
+            FOREACH(Node,e,(List *) expr)
+            {
+                if (!isConstExpr(e))
+                    return FALSE;
+            }
+            return TRUE;
+        }
+        case T_AttributeReference:
+            return FALSE;
+        case T_Constant:
+            return TRUE;
+        case T_FunctionCall:
+        {
+            FunctionCall *f = (FunctionCall *) expr;
+            FOREACH(Node,arg,f->args)
+            {
+                if (!isConstExpr(arg))
+                    return FALSE;
+            }
+            return TRUE;
+        }
+        case T_WindowFunction:
+        {
+            //TODO
+            return FALSE;
+        }
+        case T_Operator:
+        {
+            Operator *o = (Operator *) expr;
+            FOREACH(Node,arg,o->args)
+            {
+                if (!isConstExpr(arg))
+                    return FALSE;
+            }
+            return TRUE;
+        }
+        case T_CaseExpr:
+        {
+            CaseExpr *c = (CaseExpr *) expr;
+            if (!isConstExpr(c->expr))
+                return FALSE;
+            FOREACH(Node,w,c->whenClauses)
+            {
+                if (!isConstExpr(w))
+                    return FALSE;
+            }
+            return isConstExpr(c->elseRes);
+        }
+        case T_CaseWhen:
+        {
+            CaseWhen *w = (CaseWhen *) expr;
+            if (!isConstExpr(w->when))
+                return FALSE;
+            return isConstExpr(w->then);
+        }
+        case T_IsNullExpr:
+        {
+            IsNullExpr *n = (IsNullExpr *) expr;
+            return isConstExpr(n->expr);
+        }
+        case T_RowNumExpr:
+            return FALSE;
+        case T_SQLParameter:
+            return FALSE;
+        case T_OrderExpr:
+        {
+            OrderExpr *o = (OrderExpr *) expr;
+            return isConstExpr(o->expr);
+        }
+        case T_DLVar:
+            return FALSE;
+        default:
+             FATAL_LOG("unknown expression type for node: %s", nodeToString(expr));
+             break;
+    }
+    return FALSE;
 }
 
 DataType
@@ -515,6 +607,28 @@ findAttrReferences (Node *node, List **state)
     }
 
     return visit(node, findAttrReferences, state);
+}
+
+List *
+getDLVars (Node *node)
+{
+    List *result = NIL;
+
+    findDLVars(node, &result);
+
+    return result;
+}
+
+static boolean
+findDLVars (Node *node, List **state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, DLVar))
+        *state = appendToTailOfList(*state, node);
+
+    return visit(node, findDLVars, state);
 }
 
 //TODO this is unsafe, callers are passing op as an operator even though it may not be one.
