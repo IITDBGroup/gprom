@@ -19,6 +19,14 @@
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
 
+
+typedef struct FindNotesContext
+{
+    NodeTag type;
+    List **result;
+} FindNotesContext;
+
+static boolean findAllNodesVisitor(Node *node, FindNotesContext *context);
 static boolean findAttrReferences (Node *node, List **state);
 static boolean findDLVars (Node *node, List **state);
 static DataType typeOfOp (Operator *op);
@@ -589,4 +597,36 @@ changeListOpToAnOpNode(List *l1)
         opNode1 = (Node *) getHeadOfListP(l1);
 
     return opNode1;
+}
+
+List *
+findAllNodes(Node *node, NodeTag type)
+{
+    FindNotesContext *context = NEW(FindNotesContext);
+    List *result = NULL;
+
+    context->type = type;
+    context->result = &result;
+
+    findAllNodesVisitor(node, context);
+
+    FREE(context);
+
+    return result;
+}
+
+
+static boolean
+findAllNodesVisitor(Node *node, FindNotesContext *context)
+{
+    if (node == NULL)
+       return TRUE;
+
+    if ((node->type) == context->type)
+    {
+        *(context->result) = appendToTailOfList(*(context->result), node);
+        return TRUE;
+    }
+
+    return visit(node, findAllNodesVisitor, context);
 }

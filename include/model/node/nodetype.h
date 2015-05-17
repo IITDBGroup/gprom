@@ -235,5 +235,4 @@ extern boolean visitWithPointers (Node *node,
         boolean (*userF) (),
         void **parentLink, void *state);
 
-
 #endif /*NODETYPE_H*/

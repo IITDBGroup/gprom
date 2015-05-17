@@ -96,6 +96,7 @@ static List *searchTableBuffers(char *tableName);
 static char *searchViewBuffers(char *viewName);
 static void freeBuffers(void);
 
+static char *getHistoryTableName (char *tableName, char *ownerName);
 
 /* assemble plugin and return */
 MetadataLookupPlugin *
@@ -425,7 +426,7 @@ List *
 oracleGetAttributeNames (char *tableName)
 {
     List *attrNames = NIL;
-    List *attrs = getAttributes(tableName);
+    List *attrs = oracleGetAttributes(tableName);
     //TODO use attribute defition instead
     FOREACH(AttributeDef,a,attrs)
         attrNames = appendToTailOfList(attrNames, a->attrName);
@@ -475,6 +476,7 @@ oracleGetAttributeDefaultVal (char *schema, char *tableName, char *attrName)
         if (defaultExpr != NULL)
             result = parseFromString(defaultExpr);
 
+        STOP_TIMER("module - metadata lookup");
         RELEASE_MEM_CONTEXT_AND_RETURN_COPY(Node, result);
     }
     else
@@ -536,7 +538,7 @@ oracleGetAttributes(char *tableName)
         return copyObject(attrList); //TODO copying
     }
 
-    ERROR_LOG("Not connected to database.");
+    FATAL_LOG("Not connected to database.");
     STOP_TIMER("module - metadata lookup");
     RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
 }
@@ -837,14 +839,24 @@ oracleGetCommitScn (char *tableName, long maxScn, char *xid)
 {
     StringInfo statement = makeStringInfo();
     long commitScn = 0;
+    const char *histTable = NULL;
 
     START_TIMER("module - metadata lookup");
     START_TIMER("module - metadata lookup - get commit SCN");
 
-    appendStringInfo(statement, "SELECT DISTINCT VERSIONS_STARTSCN FROM "
-            "%s VERSIONS BETWEEN SCN %u AND MAXVALUE "
-            "WHERE VERSIONS_XID = HEXTORAW('%s')", tableName, maxScn, xid);
+    // get history table name
+    histTable = getHistoryTableName(tableName, strToUpper(getStringOption("connection.user")));
 
+    // run query to get commit SCN
+    appendStringInfo(statement, "SELECT DISTINCT STARTSCN \n"
+            "FROM (SELECT STARTSCN \n"
+            "    FROM SYS_FBA_HIST_%s\n"
+            "    WHERE XID = HEXTORAW('%s')\n"
+            "    UNION ALL \n"
+            "    SELECT STARTSCN\n"
+            "    FROM SYS_FBA_TCRV_%s\n"
+            "    WHERE XID = HEXTORAW('%s')) sub",
+            histTable, xid, histTable, xid);
 
     if((conn = getConnection()) != NULL)
     {
@@ -871,6 +883,51 @@ oracleGetCommitScn (char *tableName, long maxScn, char *xid)
     STOP_TIMER("module - metadata lookup");
 
     return commitScn;
+}
+
+static char *
+getHistoryTableName (char *tableName, char *ownerName)
+{
+
+    StringInfo statement = makeStringInfo();
+    char *histName = NULL;
+
+    START_TIMER("module - metadata lookup - get history table name");
+
+    // get history table name
+    appendStringInfo(statement, "SELECT ARCHIVE_TABLE_NAME "
+            "FROM SYS.dba_flashback_archive_tables "
+            "WHERE TABLE_NAME = '%s' AND OWNER_NAME = '%s'",
+            tableName,
+            ownerName);
+
+
+    if((conn = getConnection()) != NULL)
+    {
+        OCI_Resultset *rs = executeStatement(statement->data);
+
+        // loop through
+        while(OCI_FetchNext(rs))
+            histName =  (char *) OCI_GetString(rs,1);
+
+        ASSERT(histName != NULL);
+
+        DEBUG_LOG("statement %s \n\nfinished and returned history table name %s",
+                statement->data, histName);
+
+        FREE(statement);
+    }
+    else
+    {
+        FATAL_LOG("statement %s execution failed", statement->data);
+        FREE(statement);
+    }
+
+    histName = getMatchingSubstring(histName, "[_]([0-9]+)$");
+
+    STOP_TIMER("module - metadata lookup - get history table name");
+
+    return histName;
 }
 
 char *

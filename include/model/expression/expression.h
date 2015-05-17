@@ -217,4 +217,7 @@ extern void getSelectionCondOperatorList(Node *expr, List **opList);
 /* combine a list operator to an AND operator */
 extern Node *changeListOpToAnOpNode(List *l1);
 
+/* find all nodes of a certain type */
+extern List *findAllNodes(Node *node, NodeTag type);
+
 #endif /* EXPRESSION_H */
