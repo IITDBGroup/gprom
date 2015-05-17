@@ -85,7 +85,7 @@ computeKeyProp (QueryOperator *root)
     {
         List *l1 = ((ProjectionOperator *)root)->projExprs;
         List *l2 = NIL;
-        boolean hasKey = TRUE;
+        boolean hasKey = FALSE;
         HashMap *inAtoPos = NEW_MAP(Constant,Constant);
         int i = 0;
 
@@ -100,28 +100,40 @@ computeKeyProp (QueryOperator *root)
             i++;
         }
 
-        FOREACH(char, op, keyList)
+        FOREACH(Set,s,keyList)
         {
-            //use HASHMAP
-            if(!hasMapStringKey(inAtoPos, op))
+            boolean keyPreserved = TRUE;
+
+            FOREACH_SET(char, op, s)
             {
-                hasKey = FALSE;
-                break;
+                //use HASHMAP
+                if(!hasMapStringKey(inAtoPos, op))
+                {
+                    keyPreserved = FALSE;
+                    break;
+                }
             }
+            hasKey |= keyPreserved;
         }
         if (hasKey)
         {
             //TODO replace input attribute names with output attribute names
             setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
-            FOREACH_LC(lc,keyList)
+            FOREACH_LC(setLc,keyList)
             {
-                char *inA = (char *) LC_P_VAL(lc);
-                char *outA;
-                int aPos;
+                Set *s = (Set *) LC_P_VAL(setLc);
+                Set *newS = STRSET();
+                LC_P_VAL(setLc) = newS;
 
-                aPos = INT_VALUE(MAP_GET_STRING(inAtoPos, inA));
-                outA = strdup(getAttrNameByPos(root, aPos));
-                LC_P_VAL(lc) = outA;
+                FOREACH_SET(char,inA,s)
+                {
+                    char *outA;
+                    int aPos;
+
+                    aPos = INT_VALUE(MAP_GET_STRING(inAtoPos, inA));
+                    outA = strdup(getAttrNameByPos(root, aPos));
+                    addToSet(newS, outA);
+                }
             }
         }
         else
