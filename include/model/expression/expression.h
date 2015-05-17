@@ -198,6 +198,7 @@ extern Constant *createNullConst (DataType dt);
 /* functions for determining the type of an expression */
 extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
+extern boolean isConstExpr (Node *expr);
 
 /* create an SQL expression from an expression tree */
 extern char *exprToSQL (Node *expr);

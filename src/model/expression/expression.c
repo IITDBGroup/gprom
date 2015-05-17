@@ -399,10 +399,98 @@ typeOf (Node *expr)
         case T_DLVar:
             return ((DLVar *) expr)->dt;
         default:
-             ERROR_LOG("unknown expression type for node: %s", nodeToString(expr));
+             FATAL_LOG("unknown expression type for node: %s", nodeToString(expr));
              break;
     }
     return DT_STRING;
+}
+
+boolean
+isConstExpr (Node *expr)
+{
+    if (expr == NULL)
+        return TRUE;
+
+    switch(expr->type)
+    {
+        case T_List:
+        {
+            FOREACH(Node,e,(List *) expr)
+            {
+                if (!isConstExpr(e))
+                    return FALSE;
+            }
+            return TRUE;
+        }
+        case T_AttributeReference:
+            return FALSE;
+        case T_Constant:
+            return TRUE;
+        case T_FunctionCall:
+        {
+            FunctionCall *f = (FunctionCall *) expr;
+            FOREACH(Node,arg,f->args)
+            {
+                if (!isConstExpr(arg))
+                    return FALSE;
+            }
+            return TRUE;
+        }
+        case T_WindowFunction:
+        {
+            //TODO
+            return FALSE;
+        }
+        case T_Operator:
+        {
+            Operator *o = (Operator *) expr;
+            FOREACH(Node,arg,o->args)
+            {
+                if (!isConstExpr(arg))
+                    return FALSE;
+            }
+            return TRUE;
+        }
+        case T_CaseExpr:
+        {
+            CaseExpr *c = (CaseExpr *) expr;
+            if (!isConstExpr(c->expr))
+                return FALSE;
+            FOREACH(Node,w,c->whenClauses)
+            {
+                if (!isConstExpr(w))
+                    return FALSE;
+            }
+            return isConstExpr(c->elseRes);
+        }
+        case T_CaseWhen:
+        {
+            CaseWhen *w = (CaseWhen *) expr;
+            if (!isConstExpr(w->when))
+                return FALSE;
+            return isConstExpr(w->then);
+        }
+        case T_IsNullExpr:
+        {
+            IsNullExpr *n = (IsNullExpr *) expr;
+            return isConstExpr(n->expr);
+        }
+        case T_RowNumExpr:
+            return FALSE;
+        case T_SQLParameter:
+            return FALSE;
+        case T_OrderExpr:
+        {
+            OrderExpr *o = (OrderExpr *) expr;
+            return isConstExpr(o->expr);
+        }
+        case T_DLVar:
+            return FALSE;
+        default:
+             FATAL_LOG("unknown expression type for node: %s", nodeToString(expr));
+             break;
+    }
+    return FALSE;
 }
 
 DataType

@@ -37,7 +37,7 @@ static QueryOperator *joinGoalTranslations (DLRule *r, List *goalTrans);
 static Node *createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigAttrs);
 static List *getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs);
 static Node *replaceDLVarMutator (Node *node, HashMap *vToA);
-static Node *createCondFromComparisons (List *comparisons, QueryOperator *in);
+static Node *createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTmap);
 static void makeNamesUnique (List *names, Set *allNames);
 static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
 static void adaptProjectionAttrRef (QueryOperator *o);
@@ -123,6 +123,8 @@ translateProgram(DLProgram *p)
     {
         QueryOperator *tRule = translateRule(r);
         char *headPred = getHeadPredName(r);
+
+        DEBUG_LOG("translate rule: %s", datalogToOverviewString((Node *) r));
 
         if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
              ASSERT(checkModel((QueryOperator *) tRule));
@@ -217,6 +219,39 @@ analyzeProgramDTs (DLProgram *p, HashMap *predToRules)
             }
         }
     }
+
+    // set DT properties for all variables in rules
+    FOREACH(DLRule,r,p->rules)
+    {
+        HashMap *varToDT = NEW_MAP(Constant,Constant);
+
+        FOREACH(DLNode,a,r->body)
+        {
+            if (isA(a,DLAtom))
+            {
+                DLAtom *atom = (DLAtom *) a;
+                List *dts = (List *) MAP_GET_STRING(predToDTs,atom->rel);
+                ASSERT(dts != NIL);
+
+                // scan through arguments and their data types to determine datatypes of variables
+                FORBOTH_LC(argLc,dtLc,atom->args,dts)
+                {
+                    Node *arg = LC_P_VAL(argLc);
+                    DataType dt = (DataType) LC_INT_VAL(dtLc);
+
+                    if (isA(arg, DLVar))
+                    {
+                        DLVar *v = (DLVar *) arg;
+                        MAP_ADD_STRING_KEY(varToDT, v->name, createConstInt((int) dt));
+                    }
+                }
+            }
+        }
+
+        setDLProp((DLNode *) r,DL_PRED_DTS,(Node *) varToDT);
+    }
+
+    DEBUG_LOG("analyzed DTs for datalog program before translation: %s", beatify(nodeToString((Node *) p)));
 }
 
 static void
@@ -312,8 +347,11 @@ translateRule(DLRule *r)
     List *goalTrans = NIL;
     List *conditions = NIL;
     int goalPos = 0;
+    HashMap *varDTmap;
 
     DEBUG_LOG("translate rules: %s", datalogToOverviewString((Node *) r));
+
+    varDTmap = (HashMap *) getDLProp((DLNode *) r, DL_PRED_DTS);
 
     // translate goals
     FOREACH(Node,a,r->body)
@@ -337,7 +375,7 @@ translateRule(DLRule *r)
     // create selection from comparison expression in the rule
     if (!LIST_EMPTY(conditions))
     {
-        Node *cond = createCondFromComparisons(conditions, joinedGoals);
+        Node *cond = createCondFromComparisons(conditions, joinedGoals, varDTmap);
         sel = createSelectionOp(cond, joinedGoals, NIL, NULL);
         addParent(joinedGoals, (QueryOperator *) sel);
     }
@@ -571,11 +609,20 @@ makeNamesUnique (List *names, Set *allNames)
  *
  */
 static Node *
-createCondFromComparisons (List *comparisons, QueryOperator *in)
+createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTmap)
 {
     Node *result = NULL;
     List *attrNames = getQueryOperatorAttrNames(in);
+    List *vars = getDLVars((Node *) comparisons);
 
+    // set correct data types
+    FOREACH(DLVar,v,vars)
+    {
+        DataType dt = (DataType) INT_VALUE(MAP_GET_STRING(varDTmap, v->name));
+        v->dt = dt;
+    }
+
+    // create condition as conjunction of all conditions and replace variable with attribute references
     FOREACH(DLComparison,d,comparisons)
     {
         Node *newC = replaceVarWithAttrRef(copyObject(d->opExpr), attrNames);
