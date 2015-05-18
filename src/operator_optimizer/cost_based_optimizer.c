@@ -31,8 +31,6 @@
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
-#include <sys/time.h>
-
 
 static List *X1;
 static List *Y1;
