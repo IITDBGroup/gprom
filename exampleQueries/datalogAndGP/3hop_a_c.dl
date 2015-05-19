@@ -1,0 +1,1 @@
+hop3(X,Y) :- hop(X,A), hop(A,B), hop(B,Y). WHY(hop3('a','c')).
