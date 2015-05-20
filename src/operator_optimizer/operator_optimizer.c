@@ -484,12 +484,11 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		Set *eicols = unionSets(elicols,ericols);
 		JoinOperator *j = (JoinOperator *) root;
 
-		List *newAttrDefs = NIL;
-		FOREACH(AttributeDef, ad, root->schema->attrDefs)
-		{
-			if(hasSetElem(eicols, ad->attrName))
-				newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-		}
+		List *lChildAttrDefs = OP_LCHILD(root)->schema->attrDefs;
+		//List *rChildAttrDefs = OP_RCHILD(root)->schema->attrDefs;
+		int lLength = LIST_LENGTH(lChildAttrDefs);
+		//int rLength = LIST_LENGTH(rChildAttrDefs);
+
 
 		if(j->cond != NULL)
 		{
@@ -497,13 +496,48 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 			List *condAttr = getAttrReferences(j->cond);
 			FOREACH(AttributeReference, a, condAttr)
 			    condAttrNames = appendToTailOfList(condAttrNames, a->name);
-			Set *condSet = makeStrSetFromList(condAttrNames);
-			DEBUG_LOG("condAttr: %d, condSet: %d", LIST_LENGTH(condAttrNames), setSize(condSet));
-			if(LIST_LENGTH(condAttrNames) == setSize(condSet))
-				root->schema->attrDefs = newAttrDefs;
+
+			List *newAttrDefs = NIL;
+			int count = 1;
+			FOREACH(AttributeDef, ad, root->schema->attrDefs)
+			{
+				if(hasSetElem(eicols, ad->attrName))
+					newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+				else
+				{
+					if(count <= lLength)
+					{
+					     char *tempName = getAttrNameByPos(OP_LCHILD(root), count-1);
+					     if(searchListString(condAttrNames, tempName))
+					    	 newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+
+					}
+					else
+					{
+					     char *tempName = getAttrNameByPos(OP_RCHILD(root), count-lLength-1);
+					     if(searchListString(condAttrNames, tempName))
+					    	 newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+					}
+				}
+				count ++;
+			}
 		}
-		else
-		    root->schema->attrDefs = newAttrDefs;
+
+
+
+//		if(j->cond != NULL)
+//		{
+//			List *condAttrNames = NIL;
+//			List *condAttr = getAttrReferences(j->cond);
+//			FOREACH(AttributeReference, a, condAttr)
+//			    condAttrNames = appendToTailOfList(condAttrNames, a->name);
+//			Set *condSet = makeStrSetFromList(condAttrNames);
+//			DEBUG_LOG("condAttr: %d, condSet: %d", LIST_LENGTH(condAttrNames), setSize(condSet));
+//			if(LIST_LENGTH(condAttrNames) == setSize(condSet))
+//				root->schema->attrDefs = newAttrDefs;
+//		}
+//		else
+//		    root->schema->attrDefs = newAttrDefs;
 
 		if(j->cond != NULL)
 		{
