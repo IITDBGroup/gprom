@@ -98,9 +98,9 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("factor attributes in conditions",
             factorAttrsInExpressions,
             OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
-    APPLY_AND_TIME_OPT("selection move around",
-    		selectionMoveAround,
-    		OPTIMIZATION_SELECTION_MOVE_AROUND);
+//    APPLY_AND_TIME_OPT("selection move around",
+//    		selectionMoveAround,
+//    		OPTIMIZATION_SELECTION_MOVE_AROUND);
     APPLY_AND_TIME_OPT("pull up duplicate remove operators",
     		pullUpDuplicateRemoval,
     		OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
@@ -188,7 +188,11 @@ mergeAdjacentOperators (QueryOperator *root)
     if (isA(root, SelectionOperator) && isA(OP_LCHILD(root), SelectionOperator))
         root = (QueryOperator *) mergeSelection((SelectionOperator *) root);
     if (isA(root, ProjectionOperator) && isA(OP_LCHILD(root), ProjectionOperator))
-        root = (QueryOperator *) mergeProjection((ProjectionOperator *) root);
+    {
+    	int numParents = LIST_LENGTH(OP_LCHILD(root)->parents);
+    	if(numParents == 1)
+    		root = (QueryOperator *) mergeProjection((ProjectionOperator *) root);
+    }
 
     FOREACH(QueryOperator,o,root->inputs)
          mergeAdjacentOperators(o);
@@ -335,7 +339,6 @@ resetPos(AttributeReference *ar,  List* attrDefs)
 QueryOperator *
 removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 {
-
 
     if(root->inputs != NULL)
     {
@@ -769,7 +772,8 @@ pullUpDuplicateRemoval(QueryOperator *root)
 
     FOREACH(DuplicateRemoval, op, drOp)
     {
-    	if(op->op.parents != NIL)
+    	int numParent = LIST_LENGTH(op->op.parents);
+    	if(op->op.parents != NIL && numParent == 1)
     		doPullUpDuplicateRemoval(op);
     }
 
@@ -851,6 +855,9 @@ removeRedundantProjections(QueryOperator *root)
 
     if (isA(root, ProjectionOperator))
     {
+        //if rename, It can be removed if it's child only has one parent
+        int numParents = LIST_LENGTH(lChild->parents);
+
         boolean compare = TRUE;
         List *l1 = ((ProjectionOperator *)root)->projExprs;
         List *l2 = lChild->schema->attrDefs;
@@ -882,7 +889,7 @@ removeRedundantProjections(QueryOperator *root)
             }
         }
 
-        if (compare && !isA(lChild, TableAccessOperator))
+        if (compare && isA(lChild, ProjectionOperator) && numParents == 1)
         {
             List *projAttrs = getQueryOperatorAttrNames(root);
             List *childAttrs = getQueryOperatorAttrNames(lChild);
@@ -903,6 +910,52 @@ removeRedundantProjections(QueryOperator *root)
                 renameOpAttrRefs(parent, nameMap, root);
 
             root = lChild;
+        }
+
+        else if(compare)
+        {
+        	boolean compare2 = TRUE;
+        	List *l3 = ((ProjectionOperator *)root)->op.schema->attrDefs;
+        	FORBOTH_LC(lc1,lc3,l1,l3)
+        	{
+                Node *n1 = LC_P_VAL(lc1);
+                if (isA(n1,AttributeReference))
+                {
+                	AttributeReference *x = (AttributeReference *) n1;
+                    AttributeDef *y = (AttributeDef *)LC_P_VAL(lc3);
+                    if (!streq(x->name,y->attrName))
+                    {
+                    	compare2 = FALSE;
+                        break;
+                    }
+                }
+                else
+                {
+                  compare2 = FALSE;
+                  break;
+                }
+        	}
+
+        	if(compare2)
+        	{
+        		List *projAttrs = getQueryOperatorAttrNames(root);
+        		List *childAttrs = getQueryOperatorAttrNames(lChild);
+        		HashMap *nameMap = NEW_MAP(Node,Node);
+
+        		// Remove Parent and make lChild as the new parent
+        		//switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
+        		switchSubtreeWithExisting((QueryOperator *) root, (QueryOperator *) lChild);
+        		// adapt any attribute references in the parent of the redundant
+        		// projection
+        		FORBOTH(char,pA,cA,	projAttrs, childAttrs)
+        		MAP_ADD_STRING_KEY(nameMap, pA, createConstString(cA));
+
+        		FOREACH(QueryOperator,parent,root->parents)
+        		renameOpAttrRefs(parent, nameMap, root);
+
+        		root = lChild;
+        	}
+
         }
     }
 
