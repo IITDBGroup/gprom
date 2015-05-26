@@ -66,7 +66,7 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
         char *result = strdup(rewrittenSQL);
         unsigned long long int cost = getCostEstimation(result);//TODO not what is returned by the function
         DEBUG_LOG("Cost of the rewritten Query is = %d\n", cost);
-        DEBUG_LOG("plan for choice %s is\n%s", beatify(nodeToString(Y1)),
+        INFO_LOG("plan for choice %s is\n%s", beatify(nodeToString(Y1)),
                 rewrittenSQL);
 
 	if(cost < cost1)
