@@ -482,62 +482,93 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 	if(isA(root, JoinOperator))
 	{
-		Set *elicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
-		Set *ericols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
-
-		Set *eicols = unionSets(elicols,ericols);
-		FOREACH_SET(char, e, eicols)
-		{
-			DEBUG_LOG("%s ", e);
-		}
+//		Set *elicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+//		Set *ericols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+//
+//		Set *eicols = unionSets(elicols,ericols);
+//		FOREACH_SET(char, e, eicols)
+//		{
+//			DEBUG_LOG("%s ", e);
+//		}
 		JoinOperator *j = (JoinOperator *) root;
 
 		List *lChildAttrDefsNames = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
 		List *rChildAttrDefsNames = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
 
 		int lLength = LIST_LENGTH(lChildAttrDefsNames);
+//		HashMap *hm = (HashMap *) getStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES);
 
 		List *leftSchemaNames = getAttrNames(OP_LCHILD(root)->schema);
 		List *rightSchemaNames = getAttrNames(OP_RCHILD(root)->schema);
 
-		 //Set schema attr def
+//		List *newAttrDefs = NIL;
+//		if(j->cond != NULL)
+//		{
+//			FOREACH(AttributeDef, ad, root->schema->attrDefs)
+//		    {
+//				if(searchListString(leftSchemaNames, ad->attrName) || searchListString(rightSchemaNames, ad->attrName))
+//					newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+//				else
+//				{
+//					char *tempName = strdup(STRING_VALUE(MAP_GET_STRING(hm, ad->attrName)));
+//					if(searchListString(leftSchemaNames, tempName) || searchListString(rightSchemaNames, tempName))
+//						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+//				}
+//		    }
+//			root->schema->attrDefs = newAttrDefs;
+//		}
+		//Set schema attr def
+		List *newAttrDefs = NIL;
+		//List *newAttrDefNames = NIL;
+		int count = 1;
 		if(j->cond != NULL)
 		{
-			List *condAttrNames = NIL;
-			List *condAttr = getAttrReferences(j->cond);
-			FOREACH(AttributeReference, a, condAttr)
-			    condAttrNames = appendToTailOfList(condAttrNames, a->name);
-
-			List *newAttrDefs = NIL;
-			int count = 1;
-
+			printf("1111111111 join schema lenght %d \n", LIST_LENGTH(root->schema->attrDefs));
+			printf("=====================\n");
 			FOREACH(AttributeDef, ad, root->schema->attrDefs)
 			{
-				//if(hasSetElem(eicols, ad->attrName))
-				if(searchListString(leftSchemaNames, ad->attrName) || searchListString(rightSchemaNames, ad->attrName))
-					newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-				else
+				if(count <= lLength)
 				{
-					if(count <= lLength)
-					{
-						char *tempName = (char *) getNthOfListP(lChildAttrDefsNames, count-1);
-						//DEBUG_LOG("map lchild schema name %s to %s, count %d", tempName, ad->attrName, count);
-						if(searchListString(condAttrNames, tempName))
-					    	 newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-
-					}
+					if(searchListString(leftSchemaNames, ad->attrName))
+						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
 					else
 					{
-					     char *tempName = (char *) getNthOfListP(rChildAttrDefsNames, count-lLength-1);
-					     //DEBUG_LOG("map rchild schema name %s to %s, count %d, lLength %d", tempName, ad->attrName, count, lLength);
-					     if(searchListString(condAttrNames, tempName))
-					    	 newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+						char *tempName = (char *) getNthOfListP(lChildAttrDefsNames, count-1);
+						printf("map tempName %s to %s", tempName, ad->attrName);
+						if(searchListString(leftSchemaNames, tempName))
+							newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+					}
+				}
+				else
+				{
+					if(searchListString(rightSchemaNames, ad->attrName))
+						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+					else
+					{
+						char *tempName = (char *) getNthOfListP(rChildAttrDefsNames, count-lLength-1);
+						printf("map tempName %s to %s", tempName, ad->attrName);
+						if(searchListString(rightSchemaNames, tempName))
+							newAttrDefs = appendToTailOfList(newAttrDefs, ad);
 					}
 				}
 				count ++;
 			}
 			root->schema->attrDefs = newAttrDefs;
 		}
+		printf("\n=====================\n");
+//		else
+//		{
+//			List *lSchemaAttrDefs = copyObject(OP_LCHILD(root)->schema->attrDefs);
+//			List *rSchemaAttrDefs = copyObject(OP_RCHILD(root)->schema->attrDefs);
+//			FOREACH(AttributeDef, ad, root->schema->attrDefs)
+//			{
+//				if((searchListString(leftSchemaNames, ad->attrName) || searchListString(rightSchemaNames, ad->attrName)) && !searchListString(newAttrDefNames, ad->attrName))
+//				{
+//					newAttrDefs = AppendToTailOfList(newAttrDefs, ad);
+//					newAttrDefNames = AppendToTailOfList(newAttrDefNames, ad->attrName);
+//				}
+//			}
+//		}
 
 //		if(j->cond != NULL)
 //		{
