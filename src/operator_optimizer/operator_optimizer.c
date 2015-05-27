@@ -486,6 +486,10 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		Set *ericols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
 
 		Set *eicols = unionSets(elicols,ericols);
+		FOREACH_SET(char, e, eicols)
+		{
+			DEBUG_LOG("%s ", e);
+		}
 		JoinOperator *j = (JoinOperator *) root;
 
 		List *lChildAttrDefsNames = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
@@ -493,6 +497,10 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 		int lLength = LIST_LENGTH(lChildAttrDefsNames);
 
+		List *leftSchemaNames = getAttrNames(OP_LCHILD(root)->schema);
+		List *rightSchemaNames = getAttrNames(OP_RCHILD(root)->schema);
+
+		 //Set schema attr def
 		if(j->cond != NULL)
 		{
 			List *condAttrNames = NIL;
@@ -502,15 +510,18 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 			List *newAttrDefs = NIL;
 			int count = 1;
+
 			FOREACH(AttributeDef, ad, root->schema->attrDefs)
 			{
-				if(hasSetElem(eicols, ad->attrName))
+				//if(hasSetElem(eicols, ad->attrName))
+				if(searchListString(leftSchemaNames, ad->attrName) || searchListString(rightSchemaNames, ad->attrName))
 					newAttrDefs = appendToTailOfList(newAttrDefs, ad);
 				else
 				{
 					if(count <= lLength)
 					{
 						char *tempName = (char *) getNthOfListP(lChildAttrDefsNames, count-1);
+						//DEBUG_LOG("map lchild schema name %s to %s, count %d", tempName, ad->attrName, count);
 						if(searchListString(condAttrNames, tempName))
 					    	 newAttrDefs = appendToTailOfList(newAttrDefs, ad);
 
@@ -518,6 +529,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 					else
 					{
 					     char *tempName = (char *) getNthOfListP(rChildAttrDefsNames, count-lLength-1);
+					     //DEBUG_LOG("map rchild schema name %s to %s, count %d, lLength %d", tempName, ad->attrName, count, lLength);
 					     if(searchListString(condAttrNames, tempName))
 					    	 newAttrDefs = appendToTailOfList(newAttrDefs, ad);
 					}
@@ -541,14 +553,15 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 //		else
 //		    root->schema->attrDefs = newAttrDefs;
 
+		 //Set cond attr ref pos
 		if(j->cond != NULL)
 		{
 		    //DONE: TODO fix this only works in a very simplistic case. In general we need to split list of attr refs into left and right input refs
 			List *attrRefs = getAttrReferences (j->cond);
 			List *rcSchema = OP_RCHILD(root)->schema->attrDefs;
-
-			List *leftSchemaNames = getAttrNames(OP_LCHILD(root)->schema);
-			List *rightSchemaNames = getAttrNames(OP_RCHILD(root)->schema);
+//
+//			List *leftSchemaNames = getAttrNames(OP_LCHILD(root)->schema);
+//			List *rightSchemaNames = getAttrNames(OP_RCHILD(root)->schema);
 
 			List *leftRefs = NIL;
 			List *rightRefs = NIL;
