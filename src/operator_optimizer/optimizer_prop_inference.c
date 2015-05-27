@@ -1306,6 +1306,9 @@ computeReqColProp (QueryOperator *root)
 	 */
 	Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
 
+    List *AttrDefNames = getQueryOperatorAttrNames(root);
+    setStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES, (Node *) AttrDefNames);
+
 	if(isA(root, SelectionOperator))
 	{
 		//icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));

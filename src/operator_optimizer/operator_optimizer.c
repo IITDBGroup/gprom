@@ -101,9 +101,9 @@ optimizeOneGraph (QueryOperator *root)
 //    APPLY_AND_TIME_OPT("selection move around",
 //    		selectionMoveAround,
 //    		OPTIMIZATION_SELECTION_MOVE_AROUND);
-    APPLY_AND_TIME_OPT("pull up duplicate remove operators",
-    		pullUpDuplicateRemoval,
-    		OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
+//    APPLY_AND_TIME_OPT("pull up duplicate remove operators",
+//    		pullUpDuplicateRemoval,
+//    		OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
     APPLY_AND_TIME_OPT("remove unnecessary columns",
     		removeUnnecessaryColumns,
     		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
@@ -484,14 +484,14 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 	{
 		Set *elicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
 		Set *ericols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
+
 		Set *eicols = unionSets(elicols,ericols);
 		JoinOperator *j = (JoinOperator *) root;
 
-		List *lChildAttrDefs = OP_LCHILD(root)->schema->attrDefs;
-		//List *rChildAttrDefs = OP_RCHILD(root)->schema->attrDefs;
-		int lLength = LIST_LENGTH(lChildAttrDefs);
-		//int rLength = LIST_LENGTH(rChildAttrDefs);
+		List *lChildAttrDefsNames = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
+		List *rChildAttrDefsNames = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
 
+		int lLength = LIST_LENGTH(lChildAttrDefsNames);
 
 		if(j->cond != NULL)
 		{
@@ -510,23 +510,22 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 				{
 					if(count <= lLength)
 					{
-					     char *tempName = getAttrNameByPos(OP_LCHILD(root), count-1);
-					     if(searchListString(condAttrNames, tempName))
+						char *tempName = (char *) getNthOfListP(lChildAttrDefsNames, count-1);
+						if(searchListString(condAttrNames, tempName))
 					    	 newAttrDefs = appendToTailOfList(newAttrDefs, ad);
 
 					}
 					else
 					{
-					     char *tempName = getAttrNameByPos(OP_RCHILD(root), count-lLength-1);
+					     char *tempName = (char *) getNthOfListP(rChildAttrDefsNames, count-lLength-1);
 					     if(searchListString(condAttrNames, tempName))
 					    	 newAttrDefs = appendToTailOfList(newAttrDefs, ad);
 					}
 				}
 				count ++;
 			}
+			root->schema->attrDefs = newAttrDefs;
 		}
-
-
 
 //		if(j->cond != NULL)
 //		{
@@ -562,9 +561,11 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 					rightRefs = appendToTailOfList(rightRefs, a);
 			}
 
+			DEBUG_LOG("Reset join left");
 			FOREACH(AttributeReference,a,leftRefs)
 			        resetPos(a,cSchema);
 
+			DEBUG_LOG("Reset join right");
 			FOREACH(AttributeReference,a,rightRefs)
 			        resetPos(a,rcSchema);
 
