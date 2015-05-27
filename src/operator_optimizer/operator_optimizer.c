@@ -131,7 +131,6 @@ optimizeOneGraph (QueryOperator *root)
     if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
     {
         computeKeyProp(rewrittenTree);
-
         // Set TRUE for each Operator
         initializeSetProp(rewrittenTree);
         // Set FALSE for root

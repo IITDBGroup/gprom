@@ -42,7 +42,7 @@ computeKeyProp (QueryOperator *root)
         FOREACH(QueryOperator, op, root->inputs)
             computeKeyProp(op);
 
-    // table acces operator or constant relation operators have predetermined keys
+    // table access operator or constant relation operators have predetermined keys
     if(isA(root, TableAccessOperator))
     {
         TableAccessOperator *rel = (TableAccessOperator *) root;
