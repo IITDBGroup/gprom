@@ -164,7 +164,7 @@ translateProgram(DLProgram *p)
         }
 
         // if union is used, then add duplicate removal
-        if (LIST_LENGTH(rTs) > 1)
+        if (LIST_LENGTH(rTs) >= 1)
         {
             QueryOperator *old = un;
             un = (QueryOperator *) createDuplicateRemovalOp(NULL, (QueryOperator *) un, NIL,

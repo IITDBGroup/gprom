@@ -702,7 +702,8 @@ removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
 
     DEBUG_LOG("tables that do not only consist of constants are %s", beatify(nodeToString(tableUpdateOrRead)));
 
-    FOREACH(QueryOperator,u,op->op.inputs)
+//    FOREACH(QueryOperator,u,op->op.inputs)
+    for(int i = 0; i < LIST_LENGTH(op->op.inputs); i++)
     {
         List *tables = NIL;
         findTableAccessVisitor((Node *) op, &tables);
