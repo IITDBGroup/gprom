@@ -20,25 +20,40 @@
 
 #include "common.h"
 #include "instrumentation/timing_instrumentation.h"
+#include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "log/termcolor.h"
 #include "model/node/nodetype.h"
 #include "configuration/option.h"
 
-#define INIT_BUF_SIZE 1 // 4096
+#define INIT_BUF_SIZE 4096
 
+// private vars
 static char *h[] =
-    {"FATAL: ", "ERROR: ", "WARN: ", "INFO: ", "DEBUG: ", "TRACE: "};
-static StringInfo buffer;
+    {"FATAL", "ERROR ", "WARN", "INFO", "DEBUG", "TRACE"};
+static StringInfo buffer = NULL;
 
+// global loglevel
 LogLevel maxLevel = LOG_INFO;
+
+// info
+typedef void (*LoggerCallbackFunction) (const char *,const char *,int,int);
+static LoggerCallbackFunction logCallback = NULL;
 
 /* internal inlined functions */
 static inline char *getHead(LogLevel level);
 static inline FILE *getOutput(LogLevel level);
 static boolean vAppendBuf(StringInfo str, const char *format, va_list args);
 
-
+// use normal versions of free and malloc instead of memory manager ones
 #undef free
+#undef malloc
+
+void
+registerLogCallback (LoggerCallbackFunction callback)
+{
+    logCallback = callback;
+}
 
 static inline char *
 getHead(LogLevel level)
@@ -55,16 +70,12 @@ getOutput(LogLevel level)
 void
 initLogger(void)
 {
-//    Options *options = getOptions();
-
     buffer = (StringInfo) malloc(sizeof(StringInfoData));
     buffer->len = 0;
     buffer->maxlen = INIT_BUF_SIZE;
     buffer->cursor = 0;
     buffer->data = (char *) malloc(INIT_BUF_SIZE);
-
-//    if (options && options->optionDebug)
-//        maxLevel = options->optionDebug->loglevel;
+    memset(buffer->data, 0, INIT_BUF_SIZE);
 
     maxLevel = getIntOption("log.level");
 }
@@ -74,11 +85,32 @@ shutdownLogger (void)
 {
     free(buffer->data);
     free(buffer);
+    logCallback = NULL;
+}
+
+void
+setMaxLevel (LogLevel level)
+{
+    maxLevel = level;
+}
+
+void
+_debugNode(void *p)
+{
+    log_(LOG_ERROR, "debugger", 0, "%s", beatify(nodeToString(p)));
+}
+
+void
+_debugMessage(char *mes)
+{
+    log_(LOG_ERROR, "debugger", 0, "%s", mes);
 }
 
 void
 log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
 {
+    ASSERT(buffer != NULL);
+
     if (level <= maxLevel)
     {
         boolean success = FALSE;
@@ -86,13 +118,6 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
         buffer->len = 0;
         buffer->cursor = 0;
         buffer->data[0] = '\0';
-
-        // output loglevel and location of log statement
-        fprintf(out, "%s", getHead(level));
-        if (file && line > 0)
-            fprintf(out, "(%s:%u) ", file, line);
-        else
-            fprintf(out, "(unknown) ");
 
         // use string info as buffer to deal with large strings
         while(!success)
@@ -103,6 +128,20 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
             success = vAppendBuf(buffer, template, args);
             va_end(args);
         }
+
+        if (logCallback != NULL)
+        {
+            logCallback(buffer->data, file, line, level);
+            return;
+        }
+
+        // output loglevel and location of log statement
+        fprintf(out, TB_FG_BG(WHITE,BLACK,"%s"), getHead(level));
+        if (file && line > 0)
+            fprintf(out, TCOL(RED,"(%s:%u) "), file, line);
+        else
+            fprintf(out, "(unknown) ");
+
 
         // output a fixed number of chars at a time to not reach fprintf limit
         int todo = buffer->len;
@@ -121,6 +160,27 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
         fprintf(out, "\n");
         fflush(out);
     }
+}
+
+char *
+formatMes(const char *template, ...)
+{
+    boolean success = FALSE;
+    buffer->len = 0;
+    buffer->cursor = 0;
+    buffer->data[0] = '\0';
+
+    // use string info as buffer to deal with large strings
+    while(!success)
+    {
+        va_list args;
+
+        va_start(args, template);
+        success = vAppendBuf(buffer, template, args);
+        va_end(args);
+    }
+
+    return strdup(buffer->data);
 }
 
 static boolean

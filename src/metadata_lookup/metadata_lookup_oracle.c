@@ -5,16 +5,21 @@
  */
 
 #include "common.h"
+#include "log/logger.h"
+#include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
-#include "mem_manager/mem_mgr.h"
 #include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
-#include "log/logger.h"
+#include "model/relation/relation.h"
+#include "parser/parser.h"
 #include "instrumentation/timing_instrumentation.h"
+#include "utility/string_utils.h"
 
 /* If OCILIB and OCI are available then use it */
 #if HAVE_ORACLE_BACKEND
@@ -22,6 +27,28 @@
 #define ORACLE_TNS_CONNECTION_FORMAT "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=" \
 		"(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
 		"(SERVER=DEDICATED)(SID=%s)))"
+
+/* queries */
+#define ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION \
+"WITH transSlice AS (\n" \
+"    SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID, STATEMENT_ID, AUDIT_TYPE\n" \
+"    FROM %s t1\n" \
+"    WHERE TRANSACTION_ID = HEXTORAW('%s'))\n" \
+"                                \n" \
+"SELECT SCN, \n" \
+"      CASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n" \
+"      CASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n" \
+"      CASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n" \
+"      CASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n" \
+"FROM \n" \
+"  (SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n" \
+"  FROM transSlice t1\n" \
+"  WHERE AUDIT_TYPE = 'FineGrainedAudit' \n" \
+"        OR NOT EXISTS (SELECT 1\n" \
+"                       FROM transSlice t2 \n" \
+"                       WHERE t1.STATEMENT_ID = t2.STATEMENT_ID AND AUDIT_TYPE = 'FineGrainedAudit')\n" \
+"                       ) x \n" \
+"ORDER BY ENTRY_ID\n"
 
 /*
  * functions and variables for internal use
@@ -60,7 +87,8 @@ static OCI_Transaction *createTransaction(IsolationLevel isoLevel);
 static OCI_Resultset *executeStatement(char *statement);
 static boolean executeNonQueryStatement(char *statement);
 static void handleError (OCI_Error *error);
-static inline char *LobToChar (OCI_Lob *lob);
+//static inline char *LobToChar (OCI_Lob *lob);
+static DataType ociTypeToDT(unsigned int typ);
 
 static void addToTableBuffers(char *tableName, List *attrs);
 static void addToViewBuffers(char *viewName, char *viewDef);
@@ -86,13 +114,19 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->catalogViewExists = oracleCatalogViewExists;
     plugin->getAttributes = oracleGetAttributes;
     plugin->getAttributeNames = oracleGetAttributeNames;
+    plugin->getAttributeDefaultVal = oracleGetAttributeDefaultVal;
     plugin->isAgg = oracleIsAgg;
     plugin->isWindowFunction = oracleIsWindowFunction;
     plugin->getTableDefinition = oracleGetTableDefinition;
     plugin->getViewDefinition = oracleGetViewDefinition;
+    plugin->getOpReturnType = oracleGetOpReturnType;
+    plugin->getFuncReturnType = oracleGetFuncReturnType;
     plugin->getTransactionSQLAndSCNs = oracleGetTransactionSQLAndSCNs;
     plugin->executeAsTransactionAndGetXID = oracleExecuteAsTransactionAndGetXID;
     plugin->getCommitScn = oracleGetCommitScn;
+    plugin->executeQuery = oracleGenExecQuery;
+    plugin->getCostEstimation = oracleGetCostEstimation;
+    plugin->getKeyInformation = oracleGetKeyInformation;
 
     return plugin;
 }
@@ -131,6 +165,7 @@ initAggList(void)
     aggList[AGG_VAR_SAMP] = "var_samp";
     aggList[AGG_VARIANCE] = "variance";
     aggList[AGG_XMLAGG] = "xmlagg";
+    aggList[AGG_STRAGG] = "stragg";
 }
 
 static void
@@ -326,6 +361,7 @@ oracleInitMetadataLookupPlugin (void)
 int
 oracleShutdownMetadataLookupPlugin (void)
 {
+    initialized = FALSE;
     return oracleDatabaseConnectionClose();
 }
 
@@ -390,11 +426,66 @@ oracleGetAttributeNames (char *tableName)
 {
     List *attrNames = NIL;
     List *attrs = getAttributes(tableName);
-
-    FOREACH(AttributeReference,a,attrs)
-        attrNames = appendToTailOfList(attrNames, a->name);
+    //TODO use attribute defition instead
+    FOREACH(AttributeDef,a,attrs)
+        attrNames = appendToTailOfList(attrNames, a->attrName);
 
     return attrNames;
+}
+
+Node *
+oracleGetAttributeDefaultVal (char *schema, char *tableName, char *attrName)
+{
+    StringInfo statement = makeStringInfo();
+
+    ACQUIRE_MEM_CONTEXT(context);
+    START_TIMER("module - metadata lookup");
+
+    DEBUG_LOG("Get default for %s.%s.%s", schema, tableName, attrName);
+
+    // run query to fetch default value for attribute if it exists and return it
+    appendStringInfo(statement,
+            "SELECT DATA_DEFAULT "
+            "FROM SYS.DBA_TAB_COLS_V$ "
+            "WHERE TABLE_NAME = '%s' "
+            "AND OWNER = '%s' "
+            "AND COLUMN_NAME = '%s'",
+            tableName,
+            schema,
+            attrName);
+    if ((conn = getConnection()) != NULL)
+    {
+        OCI_Resultset *rs = executeStatement(statement->data);
+        char *defaultExpr = NULL;
+        Node *result = NULL;
+
+        // loop through
+        while(OCI_FetchNext(rs))
+        {
+            defaultExpr = (char *) OCI_GetString(rs,1);
+
+            DEBUG_LOG("default expr for %s.%s.%s is <%s>",
+                    schema ? schema : "", tableName, attrName, defaultExpr);
+        }
+
+        DEBUG_LOG("Statement: %s executed successfully.", statement->data);
+        FREE(statement);
+
+        // parse expression
+        if (defaultExpr != NULL)
+            result = parseFromString(defaultExpr);
+
+        RELEASE_MEM_CONTEXT_AND_RETURN_COPY(Node, result);
+    }
+    else
+    {
+        FATAL_LOG("Statement: %s failed.", statement);
+        FREE(statement);
+    }
+    STOP_TIMER("module - metadata lookup");
+
+    // return NULL if no default and return to callers memory context
+    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(Node, NULL);
 }
 
 List*
@@ -407,14 +498,18 @@ oracleGetAttributes(char *tableName)
     START_TIMER("module - metadata lookup");
 
     if(tableName==NULL)
+    {
+        STOP_TIMER("module - metadata lookup");
         RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
+    }
     if((attrList = searchTableBuffers(tableName)) != NIL)
     {
         RELEASE_MEM_CONTEXT();
         STOP_TIMER("module - metadata lookup");
-        return attrList;
+        return copyObject(attrList);
     }
-
+    //TODO use query SELECT c.COLUMN_NAME, c.DATA_TYPE FROM DBA_TAB_COLUMNS c WHERE OWNER='FGA_USER' AND TABLE_NAME = 'R' ORDER BY COLUMN_ID;
+    // how to figure out schema
     if(conn==NULL)
         initConnection();
     if(isConnected())
@@ -426,23 +521,53 @@ oracleGetAttributes(char *tableName)
         for(i = 1; i <= n; i++)
         {
             OCI_Column *col = OCI_TypeInfoGetColumn(tInfo, i);
-            AttributeReference *a = createAttributeReference((char *) OCI_GetColumnName(col));
-            attrList=appendToTailOfList(attrList,a);
+
+            AttributeDef *a = createAttributeDef(strdup((char *) OCI_GetColumnName(col)),
+                    ociTypeToDT(OCI_GetColumnType(col)));
+            attrList = appendToTailOfList(attrList,a);
         }
 
         //add to table buffer list as cache to improve performance
         //user do not have to free the attrList by themselves
         addToTableBuffers(tableName, attrList);
+
         RELEASE_MEM_CONTEXT();
         STOP_TIMER("module - metadata lookup");
-        return attrList;
+        return copyObject(attrList); //TODO copying
     }
+
     ERROR_LOG("Not connected to database.");
-
     STOP_TIMER("module - metadata lookup");
-
-    // copy result to callers memory context
     RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List, NIL);
+}
+
+static DataType
+ociTypeToDT (unsigned int typ)
+{
+    /* - OCI_CDT_NUMERIC     : short, int, long long, float, double
+     * - OCI_CDT_DATETIME    : OCI_Date *
+     * - OCI_CDT_TEXT        : dtext *
+     * - OCI_CDT_LONG        : OCI_Long *
+     * - OCI_CDT_CURSOR      : OCI_Statement *
+     * - OCI_CDT_LOB         : OCI_Lob  *
+     * - OCI_CDT_FILE        : OCI_File *
+     * - OCI_CDT_TIMESTAMP   : OCI_Timestamp *
+     * - OCI_CDT_INTERVAL    : OCI_Interval *
+     * - OCI_CDT_RAW         : void *
+     * - OCI_CDT_OBJECT      : OCI_Object *
+     * - OCI_CDT_COLLECTION  : OCI_Coll *
+     * - OCI_CDT_REF         : OCI_Ref *
+     */
+    switch(typ)
+    {
+        case OCI_CDT_NUMERIC:
+            return DT_INT;
+        case OCI_CDT_TEXT:
+            return DT_STRING;
+        //TODO distinguish between int and float
+    }
+
+    return DT_STRING;
 }
 
 boolean
@@ -514,24 +639,57 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
     {
         StringInfo statement;
         statement = makeStringInfo();
-
+        char *auditTable = strToUpper(getStringOption("backendOpts.oracle.logtable"));
         *scns = NIL;
         *sqls = NIL;
         *sqlBinds = NIL;
 
         // FETCH statements, SCNs, and parameter bindings
-        appendStringInfo(statement, "SELECT SCN, "
-                " CASE WHEN DBMS_LOB.GETLENGTH(lsqltext) > 4000 THEN lsqltext ELSE NULL END AS lsql,"
-                " CASE WHEN DBMS_LOB.GETLENGTH(lsqltext) <= 4000 THEN DBMS_LOB.SUBSTR(lsqltext,4000)  ELSE NULL END AS shortsql,"
-                " CASE WHEN DBMS_LOB.GETLENGTH(lsqlbind) > 4000 THEN lsqlbind ELSE NULL END AS lbind,"
-                " CASE WHEN DBMS_LOB.GETLENGTH(lsqlbind) <= 4000 THEN DBMS_LOB.SUBSTR(lsqlbind,4000)  ELSE NULL END AS shortbind"
-                " FROM "
-                "(SELECT SCN, LSQLTEXT, LSQLBIND, ntimestamp#, "
-                "   DENSE_RANK() OVER (PARTITION BY statement ORDER BY policyname) AS rnum "
-                "      FROM SYS.fga_log$ "
-                "      WHERE xid = HEXTORAW('%s')) x "
-                "WHERE rnum = 1 "
-                "ORDER BY ntimestamp#", xid);
+        if (streq(auditTable, "FGA_LOG$"))
+        {
+            appendStringInfo(statement, "SELECT SCN, "
+                    " CASE WHEN DBMS_LOB.GETLENGTH(lsqltext) > 4000 THEN lsqltext ELSE NULL END AS lsql,"
+                    " CASE WHEN DBMS_LOB.GETLENGTH(lsqltext) <= 4000 THEN DBMS_LOB.SUBSTR(lsqltext,4000)  ELSE NULL END AS shortsql,"
+                    " CASE WHEN DBMS_LOB.GETLENGTH(lsqlbind) > 4000 THEN lsqlbind ELSE NULL END AS lbind,"
+                    " CASE WHEN DBMS_LOB.GETLENGTH(lsqlbind) <= 4000 THEN DBMS_LOB.SUBSTR(lsqlbind,4000)  ELSE NULL END AS shortbind"
+                    " FROM "
+                    "(SELECT SCN, LSQLTEXT, LSQLBIND, ntimestamp#, "
+                    "   DENSE_RANK() OVER (PARTITION BY statement ORDER BY policyname) AS rnum "
+                    "      FROM SYS.fga_log$ "
+                    "      WHERE xid = HEXTORAW('%s')) x "
+                    "WHERE rnum = 1 "
+                    "ORDER BY ntimestamp#", xid);
+        }
+        else if (streq(auditTable, "UNIFIED_AUDIT_TRAIL"))
+        {
+//            appendStringInfo(statement, "SELECT SCN, \n"
+//                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n"
+//                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n"
+//                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n"
+//                    "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n"
+//                    "FROM \n"
+//                    "\t(SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n"
+//                    "\tFROM SYS.UNIFIED_AUDIT_TRAIL \n"
+//                    "\tWHERE TRANSACTION_ID = HEXTORAW(\'%s\')) x \n"
+//                    "ORDER BY ENTRY_ID", xid);
+            appendStringInfo(statement, ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION, "SYS.UNIFIED_AUDIT_TRAIL", xid);
+        }
+        else
+        {
+//            appendStringInfo(statement, "SELECT SCN, \n"
+//                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) > 4000 THEN SQL_TEXT ELSE NULL END AS lsql,\n"
+//                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_TEXT) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_TEXT,4000)  ELSE NULL END AS shortsql,\n"
+//                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) > 4000 THEN SQL_BINDS ELSE NULL END AS lbind,\n"
+//                                "\t\tCASE WHEN DBMS_LOB.GETLENGTH(SQL_BINDS) <= 4000 THEN DBMS_LOB.SUBSTR(SQL_BINDS,4000)  ELSE NULL END AS shortbind\n"
+//                                "FROM \n"
+//                                "\t(SELECT SCN, SQL_TEXT, SQL_BINDS, ENTRY_ID\n"
+//                                "\tFROM %s \n"
+//                                "\tWHERE TRANSACTION_ID = HEXTORAW(\'%s\')) x \n"
+//                                "ORDER BY ENTRY_ID",
+//                                auditTable,
+//                                xid);
+            appendStringInfo(statement, ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION, auditTable, xid);
+        }
 
         if((conn = getConnection()) != NULL)
         {
@@ -588,16 +746,44 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
             return;
         }
 
+        INFO_LOG("transaction statements are:\n\n%s", beatify(stringListToString(*sqls)));
+
         // infer isolation level
         statement = makeStringInfo();
-        appendStringInfo(statement, "SELECT "
-                "CASE WHEN (count(DISTINCT scn) > 1) "
-                "THEN 1 "
-                "ELSE 0 "
-                "END AS readCommmit\n"
-                "FROM SYS.fga_log$\n"
-                "WHERE xid = HEXTORAW(\'%s\')",
-                xid);
+        if (streq(auditTable, "FGA_LOG$"))
+        {
+            appendStringInfo(statement, "SELECT "
+                             "CASE WHEN (count(DISTINCT scn) > 1) "
+                             "THEN 1 "
+                             "ELSE 0 "
+                             "END AS readCommmit\n"
+                             "FROM SYS.fga_log$\n"
+                             "WHERE xid = HEXTORAW(\'%s\')",
+                             xid);
+        }
+        else if (streq(auditTable, "UNIFIED_AUDIT_TRAIL"))
+        {
+            appendStringInfo(statement, "SELECT "
+                    "CASE WHEN (count(DISTINCT scn) > 1) "
+                    "THEN 1 "
+                    "ELSE 0 "
+                    "END AS readCommmit\n"
+                    "FROM SYS.UNIFIED_AUDIT_TRAIL\n"
+                    "WHERE TRANSACTION_ID = HEXTORAW(\'%s\')",
+                    xid);
+        }
+        else
+        {
+            appendStringInfo(statement, "SELECT "
+                                "CASE WHEN (count(DISTINCT scn) > 1) "
+                                "THEN 1 "
+                                "ELSE 0 "
+                                "END AS readCommmit\n"
+                                "FROM %s\n"
+                                "WHERE TRANSACTION_ID = HEXTORAW(\'%s\')",
+                                auditTable,
+                                xid);
+        }
 
         if ((conn = getConnection()) != NULL)
         {
@@ -728,6 +914,67 @@ oracleGetViewDefinition(char *viewName)
     RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY (NULL);
 }
 
+DataType
+oracleGetOpReturnType (char *oName, List *dataTypes)
+{
+    return DT_STRING;
+}
+
+DataType
+oracleGetFuncReturnType (char *fName, List *dataTypes)
+{
+    // aggregation functions
+    if (streq(fName,"sum")
+            || streq(fName, "min")
+            || streq(fName, "max")
+        )
+    {
+        ASSERT(LIST_LENGTH(dataTypes) == 1);
+        DataType argType = getNthOfListInt(dataTypes,0);
+
+        switch(argType)
+        {
+            case DT_INT:
+            case DT_LONG:
+                return DT_LONG;
+            case DT_FLOAT:
+                return DT_FLOAT;
+            default:
+                return DT_STRING;
+        }
+    }
+
+    if (streq(fName,"avg"))
+    {
+        ASSERT(LIST_LENGTH(dataTypes) == 1);
+        DataType argType = getNthOfListInt(dataTypes,0);
+
+        switch(argType)
+        {
+            case DT_INT:
+            case DT_LONG:
+            case DT_FLOAT:
+                return DT_FLOAT;
+            default:
+                return DT_STRING;
+        }
+    }
+
+    if (streq(fName,"count"))
+        return DT_LONG;
+
+    if (streq(fName,"xmlagg"))
+        return DT_STRING;
+
+    if (streq(fName,"ROW_NUMBER"))
+        return DT_INT;
+    if (streq(fName, "DENSE_RANK"))
+        return DT_INT;
+
+    return DT_STRING;
+}
+
+
 long
 getBarrierScn(void)
 {
@@ -758,6 +1005,94 @@ getBarrierScn(void)
     RELEASE_MEM_CONTEXT();
     STOP_TIMER("module - metadata lookup");
     return barrier;
+}
+
+
+int
+oracleGetCostEstimation(char *query)
+{
+    /* Remove the newline characters from the Query */
+    int len = strlen(query);
+    int i = 0;
+    for (i = 0; i < len; i++)
+    {
+        if (query[i] == '\n' || query[i] == ';')
+            query[i] = ' ';
+    }
+
+    unsigned long long int cost = 0L;
+
+    StringInfo statement;
+    statement = makeStringInfo();
+    appendStringInfo(statement, "EXPLAIN PLAN FOR %s", query);
+    executeStatement(statement->data);
+    FREE(statement);
+
+    StringInfo statement1;
+    statement1 = makeStringInfo();
+    appendStringInfo(statement1, "SELECT MAX(COST) FROM PLAN_TABLE");
+
+    OCI_Resultset *rs1 = executeStatement(statement1->data);
+    if (rs1 != NULL)
+    {
+	while(OCI_FetchNext(rs1))
+        {
+            cost = (unsigned long long int) OCI_GetBigInt(rs1,1);
+            DEBUG_LOG("Cost is : %u \n", cost);
+            break;
+        }
+    }
+
+    FREE(statement1);
+
+    StringInfo statement2;
+    statement2 = makeStringInfo();
+    appendStringInfo(statement2, "DELETE FROM PLAN_TABLE");
+    executeStatement(statement2->data);
+    FREE(statement2);
+
+    StringInfo statement3;
+    statement3 = makeStringInfo();
+    appendStringInfo(statement3, "COMMIT");
+    executeStatement(statement3->data);
+    FREE(statement3);
+
+    return cost;
+}
+
+List *
+oracleGetKeyInformation(char *tableName)
+{
+    List *keyList = NIL;
+
+    StringInfo statement;
+    statement = makeStringInfo();
+    appendStringInfo(statement, "SELECT cols.column_name "
+                                "FROM all_constraints cons, all_cons_columns cols "
+                                "WHERE cols.table_name = '%s' "
+                                "AND cons.constraint_type = 'P' "
+                                "AND cons.constraint_name = cols.constraint_name "
+                                "AND cons.owner = cols.owner "
+                                "ORDER BY cols.table_name, cols.position",
+                                tableName);
+
+    OCI_Resultset *rs1 = executeStatement(statement->data);
+
+    if (rs1 != NULL)
+    {
+        if (OCI_FetchNext(rs1))
+        {
+            Set *keySet = STRSET();
+            do
+            {
+                addToSet(keySet, strdup(((char *) OCI_GetString(rs1, 1))));
+            } while(OCI_FetchNext(rs1));
+            keyList = appendToTailOfList(keyList, keySet);
+        }
+    }
+
+    FREE(statement);
+    return keyList;
 }
 
 static OCI_Resultset *
@@ -824,7 +1159,7 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 {
     OCI_Transaction *t;
     OCI_Resultset *rs;
-    Constant *xid;
+    Constant *xid = NULL;
 
     if (!isConnected())
         FATAL_LOG("No connection to database");
@@ -875,10 +1210,48 @@ oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
     return (Node *) xid;
 }
 
+Relation *
+oracleGenExecQuery (char *query)
+{
+    List *rel = NIL;
+    int numAttrs;
+    OCI_Resultset *rs;
+    Relation *r = makeNode(Relation);
+
+    rs = executeStatement(query);
+    numAttrs = OCI_GetColumnCount(rs);
+
+    // fetch attributes
+    r->schema = NIL;
+    for(int i = 1; i <= OCI_GetColumnCount(rs); i++)
+    {
+        OCI_Column *aInfo = OCI_GetColumn(rs, i);
+        const char *name = OCI_ColumnGetName(aInfo);
+        r->schema = appendToTailOfList(r->schema, strdup((char *) name));
+    }
+
+    // fetch tuples
+    while(OCI_FetchNext(rs))
+    {
+        List *tuple = NIL;
+
+        for(int i = 1; i <= numAttrs; i++)
+            tuple = appendToTailOfList(tuple, strdup((char *) OCI_GetString(rs, i)));
+
+        rel = appendToTailOfList(rel, tuple);
+    }
+    r->tuples = rel;
+
+    // cleanup
+    OCI_ReleaseResultsets(st);
+
+    return r;
+}
+
 static OCI_Transaction *
 createTransaction(IsolationLevel isoLevel)
 {
-    unsigned int mode;
+    unsigned int mode = 0;
     OCI_Transaction *result = NULL;
 
     START_TIMER("module - metadata lookup");
@@ -941,34 +1314,35 @@ oracleDatabaseConnectionClose()
 
 		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 	}
+
 	return EXIT_SUCCESS;
 }
 
-#define maxRead 8000
+//#define maxRead 8000
 
-static inline char *
-LobToChar (OCI_Lob *lob)
-{
-    unsigned int read = 1;
-    unsigned int byteRead = 0;
-    static char buf[maxRead];
-    StringInfo str = makeStringInfo();
-
-    if (lob == NULL)
-        return "";
-
-    while(OCI_LobRead2(lob, buf, &read, &byteRead) && read > 0)
-    {
-        buf[read] = '\0';
-        appendStringInfoString(str,buf);
-        DEBUG_LOG("read CLOB (%u): %s", read, buf);
-        read = maxRead - 1;
-    }
-
-    DEBUG_LOG("read CLOB: %s", str->data);
-
-    return str->data;
-}
+//static inline char *
+//LobToChar (OCI_Lob *lob)
+//{
+//    unsigned int read = 1;
+//    unsigned int byteRead = 0;
+//    static char buf[maxRead];
+//    StringInfo str = makeStringInfo();
+//
+//    if (lob == NULL)
+//        return "";
+//
+//    while(OCI_LobRead2(lob, buf, &read, &byteRead) && read > 0)
+//    {
+//        buf[read] = '\0';
+//        appendStringInfoString(str,buf);
+//        DEBUG_LOG("read CLOB (%u): %s", read, buf);
+//        read = maxRead - 1;
+//    }
+//
+//    DEBUG_LOG("read CLOB: %s", str->data);
+//
+//    return str->data;
+//}
 
 /* OCILIB is not available, fake functions */
 #else
@@ -1060,5 +1434,30 @@ assembleOracleMetadataLookupPlugin (void)
 {
     return NULL;
 }
+
+DataType
+oracleGetOpReturnType (char *oName, List *dataTypes)
+{
+    return DT_STRING;
+}
+
+DataType
+oracleGetFuncReturnType (char *fName, List *dataTypes)
+{
+    return DT_STRING;
+}
+
+int
+oracleGetCostEstimation(char *query)
+{
+    return 0;
+}
+
+List *
+oracleGetKeyInformation(char *tableName)
+{
+    return NULL;
+}
+
 
 #endif

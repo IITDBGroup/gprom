@@ -130,6 +130,17 @@ typedef struct OrderOperator
     List *orderExprs;
 } OrderOperator;
 
+typedef struct JsonTableOperator
+{
+    QueryOperator op;
+    //List *pathExprs;
+    List *columns;
+    char *documentcontext;
+    AttributeReference *jsonColumn;
+    char *jsonTableIdentifier;
+    char *forOrdinality;
+} JsonTableOperator;
+
 /* type of operator macros */
 #define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
                         || isA(op, ConstRelOperator))
@@ -138,11 +149,14 @@ typedef struct OrderOperator
         || isA(op,SelectionOperator)                    \
         || isA(op,AggregationOperator)                  \
         || isA(op,DuplicateRemoval)                     \
-        || isA(op,WindowOperator))
+        || isA(op,WindowOperator)                      \
+		|| isA(op,OrderOperator))
 
 #define IS_BINARY_OP(op) (isA(op,JoinOperator)          \
         || isA(op,SetOperator)                          \
         || isA(op,NestingOperator))
+
+#define IS_OP(op) (IS_NULLARY_OP(op) || IS_UNARY_OP(op) || IS_BINARY_OP(op))
 
 /* schema helper functions */
 extern AttributeDef *createAttributeDef (char *name, DataType dt);
@@ -150,6 +164,19 @@ extern Schema *createSchema(char *name, List *attrDefs);
 extern Schema *createSchemaFromLists (char *name, List *attrNames,
         List *dataTypes);
 extern void addAttrToSchema(QueryOperator *op, char *name, DataType dt);
+extern void deleteAttrFromSchemaByName(QueryOperator *op, char *name);
+extern void deleteAttrRefFromProjExprs(ProjectionOperator *op, int pos);
+extern void setAttrDefDataTypeBasedOnBelowOp(QueryOperator *op1, QueryOperator *op2);
+extern void reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs);
+extern void resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1,QueryOperator *op2);
+extern void resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2);
+
+/* union equal element between two set list */
+extern List *unionEqualElemOfTwoSetList(List *l1, List *l2);
+extern List *addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet);
+
+//extern List *getSelectionCondOperatorList(List *opList, Operator *op);
+extern List *getCondOpList(List *l1, List *l2);
 extern List *getDataTypes (Schema *schema);
 extern List *getAttrNames(Schema *schema);
 #define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema
@@ -157,6 +184,7 @@ extern List *getAttrNames(Schema *schema);
 /* create functions */
 extern TableAccessOperator *createTableAccessOp(char *tableName, Node *asOf,
         char *alias, List *parents, List *attrNames, List *dataTypes);
+extern JsonTableOperator *createJsonTableOperator(FromJsonTable *fjt);
 extern SelectionOperator *createSelectionOp (Node *cond, QueryOperator *input,
         List *parents, List *attrNames);
 extern ProjectionOperator *createProjectionOp (List *projExprs,
@@ -174,7 +202,7 @@ extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType,
 extern ConstRelOperator *createConstRelOp(List *values,List *parents,
         List *attrNames, List *dataTypes);
 extern NestingOperator *createNestingOp(NestingExprType nestingType, Node *cond,
-        List *inputs, List *parents, List *attrNames);
+        List *inputs, List *parents, List *attrNames, List *dts);
 extern WindowOperator *createWindowOp(Node *fCall, List *partitionBy,
         List *orderBy, WindowFrame *frameDef, char *attrName,
         QueryOperator *input, List *parents);
@@ -196,6 +224,7 @@ extern void setProperty (QueryOperator *op, Node *key, Node *value);
 extern Node *getProperty (QueryOperator *op, Node *key);
 extern void setStringProperty (QueryOperator *op, char *key, Node *value);
 extern Node *getStringProperty (QueryOperator *op, char *key);
+extern void removeStringProperty (QueryOperator *op, char *key);
 #define HAS_PROP(op,key) (getProperty(((QueryOperator *) op),key) != NULL)
 #define HAS_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key) != NULL)
 #define SET_STRING_PROP(op,key,value) (setStringProperty((QueryOperator *) op, \
@@ -214,11 +243,16 @@ extern int getChildPosInParent(QueryOperator *parent, QueryOperator *child);
 /* attribute functions */
 extern List *getProvenanceAttrs(QueryOperator *op);
 extern List *getProvenanceAttrDefs(QueryOperator *op);
+extern List *getProvenanceAttrReferences(ProjectionOperator *op, QueryOperator *op1);
 extern List *getOpProvenanceAttrNames(QueryOperator *op);
 extern int getNumProvAttrs(QueryOperator *op);
 
 extern List *getNormalAttrs(QueryOperator *op);
+extern List *getNormalAttrReferences(ProjectionOperator *op, QueryOperator *op1);
 extern List *getNormalAttrNames(QueryOperator *op);
+extern List *getAttrRefNames(ProjectionOperator *op);
+extern List *getAttrNameFromOpExpList(List *aNameOpList, Operator *opExpList);
+extern List *getAttrRefNamesContainOps(ProjectionOperator *op);
 extern int getNumNormalAttrs(QueryOperator *op);
 
 extern List *getQueryOperatorAttrNames (QueryOperator *op);
@@ -228,6 +262,9 @@ extern int getNumAttrs(QueryOperator *op);
 extern int getAttrPos(QueryOperator *op, char *attr);
 extern AttributeDef *getAttrDefByName(QueryOperator *op, char *attr);
 extern AttributeDef *getAttrDefByPos(QueryOperator *op, int pos);
+extern char *getAttrNameByPos(QueryOperator *op, int pos);
+
+extern List *getAttrRefsInOperator (QueryOperator *op);
 
 /* operator specific functions */
 extern List *aggOpGetGroupByAttrNames(AggregationOperator *op);
@@ -237,5 +274,14 @@ extern WindowFunction *winOpGetFunc (WindowOperator *op);
 
 /* transforms a graph query model into a tree */
 extern void treeify(QueryOperator *op);
+
+/* visit a query operator graph in a specified order */
+NEW_ENUM_WITH_TO_STRING(TraversalOrder,
+        TRAVERSAL_PRE,
+        TRAVERSAL_POST);
+extern boolean visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
+        boolean (*visitF) (QueryOperator *op, void *context),
+        void *context);
+
 
 #endif /* QUERY_OPERATOR_H_ */

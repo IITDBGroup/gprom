@@ -23,6 +23,7 @@
 #include "sql_parser.tab.h"
 
 #undef free
+#undef malloc
 
 #define TOKSELF() { \
 	TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", yytext[0], yytext[0]); \
@@ -78,8 +79,10 @@ identContinue	[A-Za-z0-9_%?]
 identDelim		[.]
 doublequote     [\"]
 quotedIdentifier		{doublequote}[^\"]+{doublequote}
-identifiers		({identStart}({identDelim}?{identContinue}+)*)
-parameters		[:]{identifiers}
+identifiers				({identStart}{identContinue}*)
+identifierPart			({identifiers}|{quotedIdentifier})
+compositeIdentifier		({identifierPart}({identDelim}{identifierPart}))*
+parameters		[:]({identifiers}|{integer})
 
 /* operators */
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
@@ -108,7 +111,6 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 (?i:WHERE)			TOK(WHERE)
 (?i:DISTINCT)		TOK(DISTINCT)
 (?i:ON)				TOK(ON)
-STARALL				TOK(STARALL)
 (?i:ALL)		 	TOK(ALL)
 (?i:AND)		 	TOK(AND)
 (?i:OR)             TOK(OR)
@@ -121,8 +123,6 @@ STARALL				TOK(STARALL)
 (?i:SOME)           TOK(SOME)
 (?i:BETWEEN)	 	TOK(BETWEEN)
 (?i:BY)			 	TOK(BY)
-(?i:UPDATE)		 	TOK(UPDATE)
-(?i:DELETE)	     	TOK(DELETE)
 (?i:IS)		     	TOK(IS)
 (?i:NULL)	     	TOK(NULLVAL)
 (?i:UNION)        	TOK(UNION)
@@ -171,6 +171,15 @@ STARALL				TOK(STARALL)
 (?i:CURRENT)		TOK(CURRENT)
 (?i:ROW)			TOK(ROW)
 (?i:FOLLOWING)		TOK(FOLLOWING)
+(?i:JSON)               TOK(JSON)
+(?i:TRANSLATE)          TOK(TRANSLATE)
+(?i:JSON_TABLE)         TOK(JSON_TABLE)
+(?i:COLUMNS)            TOK(COLUMNS)
+(?i:PATH)               TOK(PATH)
+(?i:FORMAT)             TOK(FORMAT)
+(?i:WITHOUT)            TOK(WITHOUT)
+(?i:WRAPPER)            TOK(WRAPPER)
+(?i:NESTED)             TOK(NESTED)
 (?i:TABLE)			TOK(TABLE)
 (?i:ONLY)			TOK(ONLY)
 (?i:UPDATED)		TOK(UPDATED)
@@ -184,9 +193,14 @@ STARALL				TOK(STARALL)
 (?i:LAST)			TOK(LAST)
 (?i:TUPLE)			TOK(TUPLE)
 (?i:VERSIONS)		TOK(VERSIONS)
+(?i:ROWNUM)			TOK(ROWNUM)
+(?i:STATEMENT)		TOK(STATEMENT)
+(?i:ANNOTATIONS)	TOK(ANNOTATIONS)
+(?i:NO)				TOK(NO)
 
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)
+{compositeIdentifier}	UPCASE_TOK(compositeIdentifier)
 {quotedIdentifier}   { 		
 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
@@ -214,7 +228,7 @@ STARALL				TOK(STARALL)
 
 	/* numbers */
 {integer}	TOKSAVE(intConst,intVal,atoi)
-{float}	TOKSAVE(floatConst,floatVal,atof)
+{float}		TOKSAVE(floatConst,floatVal,atof)
 
 	/* strings */
 '[^'\n]*'	{
@@ -240,7 +254,7 @@ STARALL				TOK(STARALL)
 /* use logging framework in the future */
 void yyerror(char *s)
 {
-	ERROR_LOG("%s at %s\n", s, yytext);
+	FATAL_LOG("%s at %s\n", s, yytext);
 }
 
 void setupStringInput(char *input)

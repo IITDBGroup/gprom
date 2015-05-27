@@ -155,11 +155,10 @@ freeSchema (Schema *node)
 
 #define FREE_OPERATOR() \
     do { \
-        QueryOperator *node = (QueryOperator *) node; \
-        FREE_NODE_FIELD(inputs); \
-        FREE_NODE_FIELD(schema); \
-        FREE_LIST_SHALLOW(parents); \
-        FREE_NODE_FIELD(provAttrs); \
+        FREE_NODE_FIELD(op.inputs); \
+        FREE_NODE_FIELD(op.schema); \
+        FREE_LIST_SHALLOW(op.parents); \
+        FREE_NODE_FIELD(op.provAttrs); \
     } while (0)
 
 static void

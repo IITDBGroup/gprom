@@ -17,6 +17,7 @@
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/datalog/datalog_model.h"
 
 /*
  * Traverses a node tree and calls a user provided function for each node in
@@ -51,6 +52,8 @@
 #define PREP_VISIT(_type) \
         _type *n = (_type *) node; \
         TRACE_LOG("visit node <%s>", nodeToString(node));
+#define LOG_VISIT_ONLY(_type) \
+		TRACE_LOG("visit node <%s>", nodeToString(node));
 
 #define VISIT_OPERATOR_FIELDS() \
         do { \
@@ -78,7 +81,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         /* expression nodes */
         case T_Constant:
         	{
-        		PREP_VISIT(Constant);
+        	    LOG_VISIT_ONLY(Constant);
         	}
             break;
         case T_AttributeReference:
@@ -156,8 +159,6 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         case T_SetQuery:
             {
                 PREP_VISIT(SetQuery);
-                VISIT(setOp);
-                VISIT(selectClause);
                 VISIT(lChild);
                 VISIT(rChild);
             }
@@ -189,7 +190,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         	break;
         case T_FromTableRef:
         	{
-        		PREP_VISIT(FromTableRef);
+        	    LOG_VISIT_ONLY(FromTableRef);
         	}
         	break;
         case T_FromSubquery:
@@ -247,7 +248,7 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         	break;
         case T_AttributeDef:
         	{
-        		PREP_VISIT(AttributeDef);
+        	    LOG_VISIT_ONLY(AttributeDef);
         		//VISIT();
         	}
         	break;
@@ -329,6 +330,33 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(orderExprs);
             }
             break;
+        // DLNodes
+        case T_DLAtom:
+        {
+            PREP_VISIT(DLAtom);
+            VISIT(args);
+        }
+        break;
+        case T_DLComparison:
+        {
+            PREP_VISIT(DLComparison);
+            VISIT(opExpr);
+        }
+        break;
+        case T_DLRule:
+        {
+            PREP_VISIT(DLRule);
+            VISIT(head);
+            VISIT(body);
+        }
+        break;
+        case T_DLProgram:
+        {
+            PREP_VISIT(DLProgram);
+            VISIT(rules);
+            VISIT(facts);
+        }
+        break;
         default:
             break;
     }
@@ -353,9 +381,18 @@ visit (Node *node, boolean (*checkNode) (), void *state)
     	MUTATE(List,provAttrs); \
     } while (0)
 
+#define MUTATE_DLNODE() \
+    do { \
+    	DLNode *newN = (DLNode *) node; \
+    	MUTATE(HashMap,properties); \
+    } while (0)
+
 Node *
 mutate (Node *node, Node *(*modifyNode) (), void *state)
 {
+    if (node == NULL)
+        return NULL;
+
     /* if the user has not modifed the node, then traverse further */
     switch(node->type)
     {
@@ -453,7 +490,7 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         case T_SetQuery:
             {
                 NEWN(SetQuery);
-                MUTATE(List, selectClause);
+                MUTATE(List,selectClause);
                 MUTATE(Node,lChild);
                 MUTATE(Node,rChild);
             }
@@ -587,17 +624,18 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
         	{
         	    NEWN(ProvenanceComputation);
     			MUTATE_OPERATOR();
+    			MUTATE(ProvenanceTransactionInfo, transactionInfo);
         	}
         	break;
         case T_TableAccessOperator:
     		{
-    		    NEWN(TableAccessOperator);
+//    		    NEWN(TableAccessOperator);
     			MUTATE_OPERATOR();
     		}
         	break;
         case T_SetOperator:
     		{
-    		    NEWN(SetOperator);
+//    		    NEWN(SetOperator);
     			MUTATE_OPERATOR();
     		}
         	break;
@@ -631,6 +669,37 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 MUTATE(List,orderExprs);
             }
             break;
+        // DL nodes
+        case T_DLAtom:
+            {
+                NEWN(DLAtom);
+                MUTATE_DLNODE();
+                MUTATE(List,args);
+            }
+        break;
+        case T_DLComparison:
+            {
+                NEWN(DLComparison);
+                MUTATE_DLNODE();
+                MUTATE(Operator,opExpr);
+            }
+        break;
+        case T_DLRule:
+            {
+                NEWN(DLRule);
+                MUTATE_DLNODE();
+                MUTATE(DLAtom,head);
+                MUTATE(List,body);
+            }
+        break;
+        case T_DLProgram:
+            {
+                NEWN(DLProgram);
+                MUTATE_DLNODE();
+                MUTATE(List,rules);
+                MUTATE(List,facts);
+            }
+        break;
         default:
             break;
     }
@@ -680,7 +749,7 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
         /* expression nodes */
         case T_Constant:
             {
-                PREP_VISIT_P(Constant);
+                LOG_VISIT_ONLY(Constant);
             }
             break;
         case T_AttributeReference:
@@ -791,7 +860,7 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
             break;
         case T_FromTableRef:
             {
-                PREP_VISIT_P(FromTableRef);
+                LOG_VISIT_ONLY(FromTableRef);
             }
             break;
         case T_FromSubquery:
@@ -849,7 +918,7 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
             break;
         case T_AttributeDef:
             {
-                PREP_VISIT_P(AttributeDef);
+                LOG_VISIT_ONLY(AttributeDef);
                 //VISIT_P();
             }
             break;

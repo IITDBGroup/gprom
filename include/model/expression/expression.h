@@ -1,6 +1,7 @@
 #ifndef EXPRESSION_H
 #define EXPRESSION_H
 
+#include "common.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "utility/enum_magic.h"
@@ -24,7 +25,8 @@ NEW_ENUM_WITH_TO_STRING(DataType,
     DT_LONG,
     DT_STRING,
     DT_FLOAT,
-    DT_BOOL
+    DT_BOOL,
+    DT_VARCHAR2
 );
 
 typedef struct Constant {
@@ -44,6 +46,7 @@ typedef struct AttributeReference {
     int fromClauseItem;
     int attrPosition;
     int outerLevelsUp;
+    DataType attrType;
 } AttributeReference;
 
 typedef struct SQLParameter {
@@ -113,6 +116,12 @@ typedef struct WindowFunction {
     WindowDef *win;
 } WindowFunction;
 
+typedef struct CastExpr {
+    NodeTag type;
+    DataType resultDT;
+    Node *expr;
+} CastExpr;
+
 NEW_ENUM_WITH_TO_STRING(SortOrder,
     SORT_ASC,
     SORT_DESC
@@ -130,12 +139,30 @@ typedef struct OrderExpr {
     SortNullOrder nullOrder;
 } OrderExpr;
 
+#define IS_EXPR(_n) (isA(_n,FunctionCall) || \
+    isA(_n,Operator) || \
+	isA(_n,Constant) || \
+	isA(_n,AttributeReference) || \
+	isA(_n,SQLParameter) || \
+	isA(_n,RowNumExpr) || \
+	isA(_n,CaseExpr) || \
+	isA(_n,CaseWhen) || \
+	isA(_n,IsNullExpr) || \
+	isA(_n,WindowBound) || \
+	isA(_n,WindowFrame) || \
+	isA(_n,WindowDef) || \
+	isA(_n,WindowFunction) || \
+	isA(_n,CastExpr) || \
+	isA(_n,OrderExpr)  \
+    )
+
 /* functions to create expression nodes */
 extern FunctionCall *createFunctionCall (char *fName, List *args);
 extern Operator *createOpExpr (char *name, List *args);
 extern AttributeReference *createAttributeReference (char *name);
-extern AttributeReference *createFullAttrReference (char *name, int fromClause,
-        int attrPos, int outerLevelsUp);
+extern AttributeReference *createFullAttrReference (char *name, int fromClause, int attrPos,
+        int outerLevelsUp, DataType attrType);
+extern Node *andExprList (List *exprs);
 extern Node *andExprs (Node *expr, ...);
 extern Node *orExprs (Node *expr, ...);
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL)
@@ -166,6 +193,7 @@ extern Constant *createNullConst (DataType dt);
 #define BOOL_VALUE(_c) *((boolean *) ((Constant *) _c)->value)
 #define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
 #define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)
+#define CONST_TO_STRING(_c) (exprToSQL(_c))
 
 /* functions for determining the type of an expression */
 extern DataType typeOf (Node *expr);
@@ -174,8 +202,18 @@ extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
 /* create an SQL expression from an expression tree */
 extern char *exprToSQL (Node *expr);
 
+/* create an Latex expression from an expression tree */
+extern char *exprToLatex (Node *expr);
+extern char *latexEscapeString (char *st);
+
 /* functions for searching inside expressions */
 extern List *getAttrReferences (Node *node);
 
+/* for the condition of selection operator, separate the AND operator to a
+ * list of operators, these relation among these operators is AND */
+extern void getSelectionCondOperatorList(Node *expr, List **opList);
+
+/* combine a list operator to an AND operator */
+extern Node *changeListOpToAnOpNode(List *l1);
 
 #endif /* EXPRESSION_H */

@@ -44,6 +44,8 @@ createQueryBlock(void)
     return makeNode(QueryBlock);
 }
 
+
+
 ProvenanceStmt *
 createProvenanceStmt(Node *query)
 {
@@ -79,13 +81,14 @@ createFromItem (char *alias, List *attrNames)
 
 FromItem *
 createFromTableRef(char *alias, List *attrNames,
-        char *tableId)
+        char *tableId, List *dataTypes)
 {
     FromTableRef *result = makeNode(FromTableRef);
 
     ((FromItem *) result)->name = alias;
     ((FromItem *) result)->attrNames = attrNames;
     ((FromItem *) result)->provInfo = NULL;
+    ((FromItem *) result)->dataTypes = dataTypes;
 
     result->tableId = tableId;
 
@@ -124,6 +127,46 @@ createFromJoin(char *alias, List *attrNames, FromItem *left,
     result->joinCond = joinConditionTypeFromString(condType);
 
     return (FromItem *) result;
+}
+
+FromItem *
+createFromJsonTable(AttributeReference *jsonColumn, char *documentcontext, List *columns, char *jsonTableIdentifier, char *forOrdinality)
+{
+    FromJsonTable *result = makeNode(FromJsonTable);
+    result->columns = columns;
+    result->documentcontext = strdup(documentcontext);
+    result->jsonColumn = jsonColumn;
+    result->jsonTableIdentifier = strdup(jsonTableIdentifier);
+    result->forOrdinality = strdup(forOrdinality);
+    ((FromItem *)result)->name = jsonTableIdentifier;
+
+    return (FromItem *)result;
+}
+
+JsonColInfoItem *
+createJsonColInfoItem (char *attrName, char *attrType, char *path, char *format, char *wrapper, List *nested, char *forOrdinality)
+{
+    JsonColInfoItem *result = makeNode(JsonColInfoItem);
+
+    result->attrName = attrName;
+    result->path = path;
+    result->attrType = attrType;
+
+    result->format = format;
+    result->wrapper = wrapper;
+    result->nested = nested;
+    result->forOrdinality = forOrdinality;
+
+    return result;
+}
+
+JsonPath *
+createJsonPath(char *path)
+{
+	JsonPath *result = makeNode(JsonPath);
+	result->path = path;
+
+	return result;
 }
 
 JoinConditionType

@@ -16,9 +16,11 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "model/list/list.h"
+#include "model/query_operator/query_operator.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
 #include "metadata_lookup/metadata_lookup_postgres.h"
+#include "metadata_lookup/metadata_lookup_external.h"
 
 MetadataLookupPlugin *activePlugin = NULL;
 List *availablePlugins = NIL;
@@ -30,6 +32,7 @@ static char *pluginTypeToString(MetadataLookupPluginType type);
 int
 initMetadataLookupPlugins (void)
 {
+    availablePlugins = NIL;
 
 // only assemble plugins for which the library is available
 #if HAVE_ORACLE_BACKEND
@@ -38,6 +41,7 @@ initMetadataLookupPlugins (void)
 #ifdef HAVE_POSTGRES_BACKEND
     availablePlugins = appendToTailOfList(availablePlugins, assemblePostgresMetadataLookupPlugin());
 #endif
+    availablePlugins = appendToTailOfList(availablePlugins, assembleExternalMetadataLookupPlugin(NULL));
 
     return EXIT_SUCCESS;
 }
@@ -81,6 +85,14 @@ chooseMetadataLookupPlugin (MetadataLookupPluginType plugin)
     FATAL_LOG("did not find plugin");
 }
 
+void
+setMetadataLookupPlugin (MetadataLookupPlugin *p)
+{
+    activePlugin = p;
+    if (!(p->isInitialized()))
+        p->initMetadataLookupPlugin();
+}
+
 static MetadataLookupPluginType
 stringToPluginType(char *type)
 {
@@ -88,6 +100,8 @@ stringToPluginType(char *type)
         return METADATA_LOOKUP_PLUGIN_ORACLE;
     if (strcmp(type, "postgres") == 0)
         return METADATA_LOOKUP_PLUGIN_POSTGRES;
+    if (strcmp(type, "external") == 0)
+        return METADATA_LOOKUP_PLUGIN_EXTERNAL;
     FATAL_LOG("unkown plugin type <%s>", type);
     return METADATA_LOOKUP_PLUGIN_ORACLE;
 }
@@ -101,7 +115,10 @@ pluginTypeToString(MetadataLookupPluginType type)
         return "oracle";
     case METADATA_LOOKUP_PLUGIN_POSTGRES:
         return "postgres";
+    case METADATA_LOOKUP_PLUGIN_EXTERNAL:
+        return "external";
     }
+    return NULL; //keep compiler quiet
 }
 
 
@@ -156,6 +173,25 @@ getAttributeNames (char *tableName)
     return activePlugin->getAttributeNames(tableName);
 }
 
+Node *
+getAttributeDefaultVal (char *schema, char *tableName, char *attrName)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getAttributeDefaultVal(schema, tableName,attrName);
+}
+
+List *
+getAttributeDataTypes (char *tableName)
+{
+    List *result = NIL;
+    ASSERT(activePlugin && activePlugin->isInitialized());
+
+    FOREACH(AttributeDef,a,activePlugin->getAttributes(tableName))
+        result = appendToTailOfListInt(result, a->dataType);
+
+    return result;
+}
+
 boolean
 isAgg(char *functionName)
 {
@@ -168,6 +204,20 @@ isWindowFunction(char *functionName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     return activePlugin->isWindowFunction(functionName);
+}
+
+DataType
+getFuncReturnType (char *fName, List *argTypes)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getFuncReturnType(fName, argTypes);
+}
+
+DataType
+getOpReturnType (char *oName, List *argTypes)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getOpReturnType(oName, argTypes);
 }
 
 char *
@@ -184,12 +234,26 @@ getViewDefinition(char *viewName)
     return activePlugin->getViewDefinition(viewName);
 }
 
+List *
+getKeyInformation (char *tableName)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getKeyInformation(tableName);
+}
+
 void
 getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     return activePlugin->getTransactionSQLAndSCNs(xid, scns, sqls, sqlBinds, iso, commitScn);
+}
+
+Relation *
+executeQuery (char *sql)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    return activePlugin->executeQuery(sql);
 }
 
 long
@@ -204,6 +268,13 @@ executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     return activePlugin->executeAsTransactionAndGetXID(statements, isoLevel);
+}
+
+int
+getCostEstimation(char *query)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    return activePlugin->getCostEstimation(query);
 }
 
 int
@@ -234,6 +305,7 @@ createCache(void)
     result->tableNames = STRSET();
     result->aggFuncNames = STRSET();
     result->winFuncNames = STRSET();
+    result->cacheHook = NULL;
 
     return result;
 }

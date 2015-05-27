@@ -104,6 +104,8 @@ extern void clearCurMemContext(const char *file, unsigned line);
 extern MemContext *releaseCurMemContext(const char *file, unsigned line);
 extern void freeCurMemContext(const char *file, unsigned line);
 extern char *contextStringDup(char *input);
+extern MemContext *freeMemContextAndChildren(char *contextName);
+extern MemContext *getDefaultMemContext(void);
 
 /*
  * Gets context size.
@@ -161,6 +163,8 @@ extern Allocation *findAlloc(const MemContext *mc, const void *addr);
         FREE_IN_CONTEXT(oldC, _origStr); \
         return _resultStr; \
     } while(0)
+
+
 /*
  * Copy _node to callers memory context and free and release the current
  *  memory context.

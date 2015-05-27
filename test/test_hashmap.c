@@ -18,15 +18,14 @@
 #include "model/expression/expression.h"
 
 static rc testIntKeyHashMap(void);
+static rc testHashMapToStringSortOrder(void);
 
 rc
 testHashMap()
 {
     RUN_TEST(testIntKeyHashMap(), "test integer key hashmap");
-//    RUN_TEST(testNodeVector(), "test node vectors");
-//    RUN_TEST(testVectorIteration(), "test set iteration");
-//    RUN_TEST(testVectorEquals(), "test equal function on sets");
-//    RUN_TEST(testVectorOperations(), "test set operations");
+    RUN_TEST(testHashMapToStringSortOrder(),
+            "test determinisim of toString for hashmap");
 
     return PASS;
 }
@@ -57,6 +56,24 @@ testIntKeyHashMap(void)
     removeAndFreeMapElem(a,_I(2));
     ASSERT_FALSE(MAP_HAS_INT_KEY(a,2), "map does not have entry with key 2");
     ASSERT_EQUALS_INT(2, mapSize(a), "hashmap size 2");
+
+    return PASS;
+}
+
+static rc
+testHashMapToStringSortOrder(void)
+{
+    HashMap *a = NEW_MAP(Constant, Constant);
+    HashMap *b = NEW_MAP(Constant, Constant);
+
+    MAP_ADD_STRING_KEY(a, strdup("b"), createConstString("VALUE2"));
+    MAP_ADD_STRING_KEY(a, strdup("a"), createConstString("VALUE1"));
+
+    MAP_ADD_STRING_KEY(b, strdup("a"), createConstString("VALUE1"));
+    MAP_ADD_STRING_KEY(b, strdup("b"), createConstString("VALUE2"));
+
+    ASSERT_EQUALS_STRING(nodeToString(a), nodeToString(b),
+            "insertion order does not effect toString result for hashmaps");
 
     return PASS;
 }

@@ -41,7 +41,6 @@ parseFromStringOracle (char *input)
 static Node *
 parseInternalOracle (void) //TODO make copyObject work first
 {
-    Node *result;
     START_TIMER("module - parser");
 
     NEW_AND_ACQUIRE_MEMCONTEXT("PARSER_CONTEXT");

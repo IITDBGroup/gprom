@@ -42,7 +42,7 @@ main (int argc, char* argv[])
     }
 
 
-    void *state;
+    void *state = NULL;
     visitTheNode(result, state);
 
     return shutdownApplication();

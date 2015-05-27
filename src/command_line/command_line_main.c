@@ -26,7 +26,7 @@
 
 #include "metadata_lookup/metadata_lookup.h"
 
-static char *process(char *sql);
+static void process(char *sql);
 
 
 int
@@ -39,16 +39,19 @@ main(int argc, char* argv[]) {
 }
 
 void
-inputSQL()
+inputSQL(void)
 {
-	char* sql=(char*) CALLOC(999,1);
+	char* sql=(char*) CALLOC(100000,1);
 	while(TRUE)
 	{
-	    char *rewritten;
+//	    char *rewritten;
 	    int returnVal;
 
 		printf("Please input a SQL or 'q' to exit the program\n");
 		returnVal = scanf("%s",sql);
+		if (returnVal == EOF)
+			break;
+
 		if(*sql=='q')
 		{
 			printf("Client Exit.\n");
@@ -56,19 +59,17 @@ inputSQL()
 		}
 
 		NEW_AND_ACQUIRE_MEMCONTEXT("PROCESS_CONTEXT");
-		rewritten = process(sql);
+		process(sql);
 		FREE_AND_RELEASE_CUR_MEM_CONTEXT();
-
-		printf("Rewrite SQL is:%s\n",rewritten);
 	}
 	FREE(sql);
 }
 
 /*
- * Parse -> Translate -> Provenance Rewrite -> Serialize
+ * Parse -> Translate -> Provenance Rewrite -> Serialize -> Execute
  */
-static char *
+static void
 process(char *sql)
 {
-    return rewriteQuery(sql);
+    processInput(sql);
 }

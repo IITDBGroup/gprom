@@ -13,6 +13,7 @@
 #include "common.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "log/logger.h"
+#include "configuration/option.h"
 
 #include "mem_manager/mem_mgr.h"
 #include "model/expression/expression.h"
@@ -22,6 +23,7 @@
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/prov_schema.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "operator_optimizer/cost_based_optimizer.h"
 
 // result tuple-id attribute and provenance duplicate counter attribute
 #define RESULT_TID_ATTR "_result_tid"
@@ -44,7 +46,8 @@ static QueryOperator *rewritePI_CSComposableOperator (QueryOperator *op);
 static QueryOperator *rewritePI_CSComposableSelection (SelectionOperator *op);
 static QueryOperator *rewritePI_CSComposableProjection (ProjectionOperator *op);
 static QueryOperator *rewritePI_CSComposableJoin (JoinOperator *op);
-static QueryOperator *rewritePI_CSComposableAggregation (AggregationOperator *op);
+static QueryOperator *rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op);
+static QueryOperator *rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op);
 static QueryOperator *rewritePI_CSComposableSet (SetOperator *op);
 static QueryOperator *rewritePI_CSComposableTableAccess(TableAccessOperator *op);
 static QueryOperator *rewritePI_CSComposableConstRel(ConstRelOperator *op);
@@ -57,7 +60,8 @@ static List *getResultTidAndProvDupAttrsProjExprs(QueryOperator * op);
 static void addNormalAttrsWithoutSpecialToSchema(QueryOperator *target, QueryOperator *source);
 static List *getNormalAttrWithoutSpecial(QueryOperator *op);
 static List *removeSpecialAttrsFromNormalProjectionExprs(List *projExpr);
-
+static void aggCreateParitionAndOrderBy(AggregationOperator* op,
+        List** partitionBy, List** orderBy);
 
 static Node *replaceAttrWithCaseForProvDupRemoval (FunctionCall *f, Node *provDupAttrRef);
 
@@ -125,7 +129,30 @@ rewritePI_CSComposableOperator (QueryOperator *op)
         case T_JoinOperator:
             return rewritePI_CSComposableJoin((JoinOperator *) op);
         case T_AggregationOperator:
-            return rewritePI_CSComposableAggregation((AggregationOperator *) op);
+        {
+        	if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+        	{
+            	QueryOperator *op1;
+            	int res;
+
+            	res = callback(2);
+
+        		if (res == 1)
+        			op1 = rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op);
+        		else
+       				op1 = rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
+
+        		return op1;
+       	    }
+        	else
+        	{
+        		if(getBoolOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW))
+					return rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op);
+				else
+					return rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
+        	}
+
+        }
         case T_Set:
             return rewritePI_CSComposableSet((SetOperator *) op);
         case T_TableAccessOperator:
@@ -184,17 +211,17 @@ rewritePI_CSComposableProjection (ProjectionOperator *op)
         AttributeDef *att = getAttrDef(child,a);
         DEBUG_LOG("attr: %s", nodeToString(att));
         op->projExprs = appendToTailOfList(op->projExprs,
-                createFullAttrReference(att->attrName, 0, a, 0));
+                createFullAttrReference(att->attrName, 0, a, 0, att->dataType));
     }
 
     // add projection expressions for result TID and prov dup attrs
     op->projExprs = appendToTailOfList(op->projExprs,
             createFullAttrReference(RESULT_TID_ATTR, 0,
-                    INT_VALUE(GET_STRING_PROP(child,PROP_RESULT_TID_ATTR)), 0));
+                    INT_VALUE(GET_STRING_PROP(child,PROP_RESULT_TID_ATTR)), 0, DT_INT));
 
     op->projExprs = appendToTailOfList(op->projExprs,
             createFullAttrReference(PROV_DUPL_COUNT_ATTR, 0,
-                    INT_VALUE(GET_STRING_PROP(child,PROP_PROV_DUP_ATTR)), 0));
+                    INT_VALUE(GET_STRING_PROP(child,PROP_PROV_DUP_ATTR)), 0, DT_INT));
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
     addResultTIDAndProvDupAttrs((QueryOperator *) op, TRUE);
@@ -207,10 +234,10 @@ static QueryOperator *
 rewritePI_CSComposableJoin (JoinOperator *op)
 {
     DEBUG_LOG("REWRITE-PICS-Composable - Join");
-    WindowOperator *wOp;
+    WindowOperator *wOp = NULL;
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
-    QueryOperator *prev;
+    QueryOperator *prev = NULL;
     boolean noDupInput = isTupleAtATimeSubtree((QueryOperator *) op);
     boolean lChildNoDup = isTupleAtATimeSubtree(lChild);
     boolean rChildNoDup = isTupleAtATimeSubtree(rChild);
@@ -331,10 +358,224 @@ rewritePI_CSComposableJoin (JoinOperator *op)
 }
 
 static QueryOperator *
-rewritePI_CSComposableAggregation (AggregationOperator *op)
+rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op)
+{
+    JoinOperator *joinProv;
+    boolean groupBy = (op->groupBy != NIL);
+    ProjectionOperator *proj;
+    QueryOperator *aggInput;
+    QueryOperator *origAgg;
+    QueryOperator *pInput;
+    int numGroupAttrs = LIST_LENGTH(op->groupBy);
+//    boolean noDupInput;
+    List *partitionBy = NIL;
+    List *orderBy = NIL;
+
+    DEBUG_LOG("REWRITE-PICS-Composable - Aggregation - Join");
+
+    if (groupBy)
+    {
+        List *subnames = sublist(getQueryOperatorAttrNames((QueryOperator *) op),
+                LIST_LENGTH(op->aggrs),
+                LIST_LENGTH(op->op.schema->attrDefs) - 1);
+        int pos = LIST_LENGTH(op->aggrs);
+
+        FORBOTH(void,gBy,res,op->groupBy,subnames)
+        {
+            AttributeReference *g = (AttributeReference *) copyObject(gBy);
+            g->attrPosition = pos++;
+            g->name = strdup((char *) res);
+            partitionBy = appendToTailOfList(partitionBy,
+                    g);
+        }
+        orderBy = (List *) copyObject(partitionBy);
+    }
+
+    // copy aggregation input
+    origAgg = (QueryOperator *) op;
+    aggInput = copyUnrootedSubtree(OP_LCHILD(op));
+    // rewrite aggregation input copy
+    aggInput = rewritePI_CSComposableOperator(aggInput);
+//    noDupInput =
+    isTupleAtATimeSubtree(aggInput);
+
+    // add projection including group by expressions if necessary
+    if(groupBy)
+    {
+        List *groupByProjExprs = (List *) copyObject(op->groupBy);
+        List *attrNames = NIL;
+        List *provAttrs = NIL;
+        ProjectionOperator *groupByProj;
+        List *gbNames = aggOpGetGroupByAttrNames(op);
+
+        // adapt right side group by attr names
+        FOREACH_LC(lc,gbNames)
+        {
+            char *name = (char *) LC_P_VAL(lc);
+            LC_P_VAL(lc) = CONCAT_STRINGS("_P_SIDE_", name);
+        }
+
+        attrNames = CONCAT_LISTS(gbNames, getOpProvenanceAttrNames(aggInput));
+        groupByProjExprs = CONCAT_LISTS(groupByProjExprs, getProvAttrProjectionExprs(aggInput));
+
+        groupByProj = createProjectionOp(groupByProjExprs,
+                        aggInput, NIL, attrNames);
+        CREATE_INT_SEQ(provAttrs, numGroupAttrs, numGroupAttrs + getNumProvAttrs(aggInput) - 1,1);
+        groupByProj->op.provAttrs = provAttrs;
+        aggInput->parents = singleton(groupByProj);
+        aggInput = (QueryOperator *) groupByProj;
+
+        // no need to add prov duplicate and tid attributes to projection
+        //TODO make sure the prov dup and tid attributes don't mess things up
+    }
+
+    // create join condition
+    Node *joinCond = NULL;
+    JoinType joinT = (op->groupBy) ? JOIN_INNER : JOIN_LEFT_OUTER;
+
+    // create join condition for group by
+    if(op->groupBy != NIL)
+    {
+        int pos = 0;
+        List *groupByNames = aggOpGetGroupByAttrNames(op);
+
+        FOREACH(AttributeReference, a , op->groupBy)
+        {
+            char *name = getNthOfListP(groupByNames, pos);
+            AttributeReference *lA = createFullAttrReference(name, 0, LIST_LENGTH(op->aggrs) + pos, INVALID_ATTR, a->attrType);
+            AttributeReference *rA = createFullAttrReference(
+                    CONCAT_STRINGS("_P_SIDE_",name), 1, pos, INVALID_ATTR, a->attrType);
+            if(joinCond)
+                joinCond = AND_EXPRS((Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA), joinCond);
+            else
+                joinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
+            pos++;
+        }
+    }
+    // or for without group by
+    else
+        joinCond = (Node *) createOpExpr("=", LIST_MAKE(createConstInt(1), createConstInt(1)));
+
+    // create join operator
+    List *joinAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg), getQueryOperatorAttrNames(aggInput));
+    joinProv = createJoinOp(joinT, joinCond, LIST_MAKE(origAgg, aggInput), NIL,
+            joinAttrNames);
+    joinProv->op.provAttrs = copyObject(aggInput->provAttrs);
+    FOREACH_LC(lc,joinProv->op.provAttrs)
+        lc->data.int_value += getNumAttrs(origAgg);
+    pInput = (QueryOperator *) joinProv;
+
+    // add result TID attr and prov dup attr, if group by then use window function, otherwise use projection
+    //TODO use simpler approach where TID is created as projection on ROWNUM of original aggregation
+    if (groupBy)
+    {
+        WindowOperator *curWindow;
+        // add window functions for result TID attr
+        Node *tidFunc = (Node *) createFunctionCall(strdup("DENSE_RANK"), NIL);
+
+        curWindow = createWindowOp(tidFunc,
+                NIL,
+                orderBy,
+                NULL,
+                strdup(RESULT_TID_ATTR),
+                pInput,
+                NIL
+        );
+        curWindow->op.provAttrs = copyObject(pInput->provAttrs);
+        addParent(pInput, (QueryOperator *) curWindow);
+        pInput = (QueryOperator *) curWindow;
+
+        // add window function for prov dup attr
+        Node *provDupFunc = (Node *) createFunctionCall(strdup("ROW_NUMBER"), NIL);
+
+        curWindow = createWindowOp(provDupFunc,
+                partitionBy,
+                orderBy,
+                NULL,
+                strdup(PROV_DUPL_COUNT_ATTR),
+                pInput,
+                NIL
+        );
+        curWindow->op.provAttrs = copyObject(pInput->provAttrs);
+        addParent(pInput, (QueryOperator *) curWindow);
+        pInput = (QueryOperator *) curWindow;
+
+        DEBUG_LOG("Added result TID and prov duplicate window ops:\n%s",
+                       operatorToOverviewString((Node *) curWindow));
+    }
+
+    // create projection expressions for final projection
+    List *projAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(origAgg),
+            getOpProvenanceAttrNames(aggInput),
+            LIST_MAKE(RESULT_TID_ATTR, PROV_DUPL_COUNT_ATTR));
+    List *projExprs = CONCAT_LISTS(getNormalAttrProjectionExprs(origAgg),
+                                getProvAttrProjectionExprs((QueryOperator *) joinProv));
+
+    // add DUP and TID attrs projection expresions
+    // if group by then take these attributes from the child
+    if (groupBy)
+    {
+        projExprs = appendToTailOfList(projExprs, createFullAttrReference(
+                RESULT_TID_ATTR,
+                0,
+                getNumAttrs(pInput) - 2,
+                INVALID_ATTR,
+                DT_INT
+                ));
+        projExprs = appendToTailOfList(projExprs, createFullAttrReference(
+                PROV_DUPL_COUNT_ATTR,
+                0,
+                getNumAttrs(pInput) - 1,
+                INVALID_ATTR,
+                DT_INT
+                ));
+    }
+    // else add 1 as RESULT_TID and ROWNUM AS PROV DUP
+    else
+    {
+        projExprs = appendToTailOfList(projExprs, createConstInt(1));
+        projExprs = appendToTailOfList(projExprs, makeNode(RowNumExpr));
+    }
+
+    // create final projection and replace aggregation subtree with projection
+    int numProj = LIST_LENGTH(projAttrNames);
+    proj = createProjectionOp(projExprs, (QueryOperator *) pInput, NIL, projAttrNames);
+    pInput->parents = singleton(proj);
+    CREATE_INT_SEQ(proj->op.provAttrs, getNumNormalAttrs((QueryOperator *) origAgg),
+            getNumNormalAttrs((QueryOperator *) origAgg)
+            + getNumProvAttrs((QueryOperator *) joinProv) - 1,
+            1);
+
+    // set DUP and TID attributes properties
+    SET_STRING_PROP(proj, PROP_RESULT_TID_ATTR,
+            createConstInt(numProj - 2));
+    SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR,
+            createConstInt(numProj - 1));
+
+    // switch provenance computation with original aggregation
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    addParent(origAgg, (QueryOperator *) joinProv);
+    addParent(aggInput, (QueryOperator *) joinProv);
+
+    // adapt schema for final projection
+    DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(proj)));
+    return (QueryOperator *) proj;
+}
+
+static void
+aggCreateParitionAndOrderBy(AggregationOperator* op, List** partitionBy,
+        List** orderBy)
+{
+    FOREACH(AttributeReference, a, op->groupBy)
+        *partitionBy = appendToTailOfList(*partitionBy, copyObject(a));
+    *orderBy = copyObject(*partitionBy);
+}
+
+static QueryOperator *
+rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op)
 {
     boolean groupBy = (op->groupBy != NIL);
-    WindowOperator *curWindow;
+    WindowOperator *curWindow = NULL;
     QueryOperator *firstChild;
     QueryOperator *curChild;
     ProjectionOperator *proj;
@@ -348,7 +589,7 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
     List *aggNames = aggOpGetAggAttrNames(op);
     int pos;
 
-    DEBUG_LOG("REWRITE-PICS-Composable - Aggregation");
+    DEBUG_LOG("REWRITE-PICS-Composable - Aggregation - Window");
     DEBUG_LOG("Operator tree \n%s", beatify(nodeToString(op)));
 
     // rewrite child
@@ -359,13 +600,7 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
 
     // create partition clause and order by clauses
     if (groupBy)
-    {
-        FOREACH(AttributeReference, a, op->groupBy)
-            partitionBy = appendToTailOfList(partitionBy,
-                                copyObject(a));
-
-        orderBy = copyObject(partitionBy);
-    }
+        aggCreateParitionAndOrderBy(op, &partitionBy, &orderBy);
 
     // get input prov dup attribute
     if (!noDupInput)
@@ -373,7 +608,8 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
         provDupAttrRef = (Node *) createFullAttrReference(PROV_DUPL_COUNT_ATTR,
                 0,
                 INT_VALUE(GET_STRING_PROP(curChild, PROP_PROV_DUP_ATTR)),
-                INVALID_ATTR);
+                INVALID_ATTR,
+                DT_INT);
     }
     else
         provDupAttrRef = NULL;
@@ -406,6 +642,19 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
     // add result TID attr and prov dup attr, if group by then use window function, otherwise use projection
     if (groupBy)
     {
+        // agg projection to get rid of input TID and DUP attrs
+        QueryOperator *gProj;
+        List *attrPosPref = NIL;
+        List *attrPosPost = NIL;
+        int numAs = getNumAttrs(curChild);
+        int numAggs = LIST_LENGTH(aggNames);
+        // remove TID and DUP FROM attrs, TID, DUP, aggrs
+        CREATE_INT_SEQ(attrPosPref, 0, numAs - numAggs - 2 - 1, 1);
+        CREATE_INT_SEQ(attrPosPost, numAs - numAggs, numAs - 1, 1);
+        gProj = createProjOnAttrs(curChild, CONCAT_LISTS(attrPosPref, attrPosPost));
+        addChildOperator(gProj,curChild);
+        curChild = gProj;
+
         // add window functions for result TID attr
         Node *tidFunc = (Node *) createFunctionCall(strdup("DENSE_RANK"), NIL);
 
@@ -452,7 +701,7 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
     {
         normalAttrs = sublist(normalAttrs,
                 LIST_LENGTH(normalAttrs) - LIST_LENGTH(op->aggrs),
-                LIST_LENGTH(normalAttrs));
+                LIST_LENGTH(normalAttrs) - 1);
         projExprs = CONCAT_LISTS(normalAttrs, provAttrs,
                 LIST_MAKE(createConstInt(1),
                         makeNode(RowNumExpr)));
@@ -464,24 +713,26 @@ rewritePI_CSComposableAggregation (AggregationOperator *op)
     // else move result TID and prov dup attribute to end of list
     else
     {
-        List *tidAndDupAttrs = sublist(copyList(normalAttrs),
-                LIST_LENGTH(normalAttrs) - 3,
-                LIST_LENGTH(normalAttrs));
+//        List *tidAndDupAttrs = sublist(copyList(normalAttrs),
+//                LIST_LENGTH(normalAttrs) - 3,
+//                LIST_LENGTH(normalAttrs));
         normalAttrs = sublist(normalAttrs,
                 LIST_LENGTH(normalAttrs) - LIST_LENGTH(op->aggrs) - 2,
-                LIST_LENGTH(normalAttrs) - 2);
+                LIST_LENGTH(normalAttrs) - 3);
 
         projExprs = CONCAT_LISTS(normalAttrs, groupByExprs, provAttrs,
                 LIST_MAKE(createFullAttrReference(
                             strdup(RESULT_TID_ATTR),
                             0,
                             getNumAttrs((QueryOperator *) curWindow) - 2,
-                            INVALID_ATTR),
+                            INVALID_ATTR,
+                            DT_INT),
                         createFullAttrReference(
                             strdup(PROV_DUPL_COUNT_ATTR),
                             0,
                             getNumAttrs((QueryOperator *) curWindow) - 1,
-                            INVALID_ATTR)));
+                            INVALID_ATTR,
+                            DT_INT)));
 
         finalAttrs = CONCAT_LISTS(aggAttrNames,
                             groupByAttrNames,
@@ -539,7 +790,7 @@ rewritePI_CSComposableSet (SetOperator *op)
 static QueryOperator *
 rewritePI_CSComposableTableAccess(TableAccessOperator *op)
 {
-    List *tableAttr;
+//    List *tableAttr;
     List *provAttr = NIL;
     List *projExpr = NIL;
     char *newAttrName;
@@ -557,7 +808,7 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op)
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
     {
         provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -566,7 +817,7 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op)
     {
         newAttrName = getProvenanceAttrName(op->tableName, attr->attrName, relAccessCount);
         provAttr = appendToTailOfList(provAttr, newAttrName);
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
@@ -629,8 +880,6 @@ addResultTIDAndProvDupAttrs (QueryOperator *op, boolean addToSchema)
 
     if (addToSchema)
     {
-        char *attrName;
-
         op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs,
                 createAttributeDef(strdup(RESULT_TID_ATTR), DT_INT));
         op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs,
@@ -691,11 +940,13 @@ getResultTidAndProvDupAttrsProjExprs(QueryOperator *op)
             createFullAttrReference(RESULT_TID_ATTR,
                     0,
                     INT_VALUE(GET_STRING_PROP(op, PROP_RESULT_TID_ATTR)),
-                    INVALID_ATTR),
+                    INVALID_ATTR,
+                    DT_INT),
             createFullAttrReference(PROV_DUPL_COUNT_ATTR,
                     0,
                     INT_VALUE(GET_STRING_PROP(op, PROP_PROV_DUP_ATTR)),
-                    INVALID_ATTR)
+                    INVALID_ATTR,
+                    DT_INT)
     );
 
     return result;

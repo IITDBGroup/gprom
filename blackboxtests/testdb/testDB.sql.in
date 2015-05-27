@@ -1,0 +1,69 @@
+/******************************************************************************
+*******************************************************************************
+*******************************************************************************
+******* 	Table Defs     ************************************************
+*******************************************************************************
+*******************************************************************************
+******************************************************************************/
+
+/******************************************************************************
+******* 	simplistic tables					   ****************************
+******************************************************************************/
+
+-- TODO check whether they exit
+DROP TABLE R;
+DROP TABLE S;
+DROP TABLE T;
+
+CREATE TABLE R (
+	a int,
+	b int	
+);
+
+INSERT INTO R VALUES (1,1);
+INSERT INTO R VALUES (1,2);
+INSERT INTO R VALUES (2,1);
+INSERT INTO R VALUES (2,3);
+COMMIT;
+
+CREATE TABLE S (
+	c int,
+	d int
+);
+
+INSERT INTO S VALUES (2,2);
+INSERT INTO S VALUES (2,3);
+INSERT INTO S VALUES (3,2);
+INSERT INTO S VALUES (1,4);
+COMMIT;
+
+CREATE TABLE T (
+	e int,
+	f int
+);
+
+INSERT INTO S VALUES (1,1);
+INSERT INTO S VALUES (2,2);
+COMMIT;
+
+CREATE TABLE pk_r (
+	a int PRIMARY KEY, 
+	b int
+);
+
+INSERT INTO pk_r VALUES (1,1);
+INSERT INTO pk_r VALUES (2,1);
+INSERT INTO pk_r VALUES (3,3);
+COMMIT;
+
+CREATE TABLE pk_s (
+	c int, 
+	d int, 
+	PRIMARY KEY (c,d)
+);
+
+INSERT INTO pk_s VALUES (1,1);
+INSERT INTO pk_s VALUES (1,2);
+INSERT INTO pk_s VALUES (2,1);
+INSERT INTO pk_s VALUES (2,2);
+COMMIT;

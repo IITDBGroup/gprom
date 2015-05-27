@@ -12,21 +12,18 @@
 #include "model/expression/expression.h"
 #include "utility/enum_magic.h"
 
-#define isQBQuery(node) (isA(node,QueryBlock) || isA(node,SetQuery) || isA(node, ProvenanceStmt))
-#define isQBUpdate(node) (isA(node,Insert) || isA(node,Update) || isA(node,Delete))
+#define isQBQuery(node) (isA(node,QueryBlock) \
+        || isA(node,SetQuery) \
+        || isA(node, ProvenanceStmt) \
+        || isA(node, WithStmt))
+#define isQBUpdate(node) (isA(node,Insert) \
+        || isA(node,Update) \
+        || isA(node,Delete))
 
 NEW_ENUM_WITH_TO_STRING(SetOpType,
         SETOP_UNION,
         SETOP_INTERSECTION,
         SETOP_DIFFERENCE);
-
-//typedef enum SetOpType
-//{
-//    SETOP_UNION,
-//    SETOP_INTERSECTION,
-//    SETOP_DIFFERENCE
-//} SetOpType;
-
 
 typedef struct SetQuery
 {
@@ -109,6 +106,7 @@ typedef struct FromItem
     NodeTag type;
     char *name;
     List *attrNames;
+    List *dataTypes;
     FromProvInfo *provInfo;
 } FromItem;
 
@@ -123,6 +121,34 @@ typedef struct FromSubquery
     FromItem from;
     Node *subquery;
 } FromSubquery;
+
+typedef struct JsonColInfoItem
+{
+    NodeTag type;
+    char *attrName;
+    char *path;
+    char *attrType;
+    char *format;
+    char *wrapper;
+    List *nested;
+    char *forOrdinality;
+} JsonColInfoItem;
+
+typedef struct FromJsonTable
+{
+    FromItem from;
+    List *columns;
+    char *documentcontext;
+    AttributeReference *jsonColumn;
+    char *jsonTableIdentifier;
+    char *forOrdinality;
+} FromJsonTable;
+
+typedef struct JsonPath
+{
+    NodeTag type;
+    char *path;
+} JsonPath;
 
 NEW_ENUM_WITH_TO_STRING(JoinType,
     JOIN_INNER,
@@ -239,11 +265,14 @@ extern ProvenanceStmt *createProvenanceStmt(Node *query);
 extern SelectItem *createSelectItem(char *alias, Node *expr);
 extern FromItem *createFromItem (char *alias, List *attrNames);
 extern FromItem *createFromTableRef(char *alias, List *attrNames,
-        char *tableId);
+        char *tableId, List *dataTypes);
 extern FromItem *createFromSubquery(char *alias, List *attrNames, Node *query);
 extern FromItem *createFromJoin(char *alias, List *attrNames, FromItem *left,
         FromItem *right, char *joinType, char *condType,
         Node *cond);
+extern FromItem *createFromJsonTable(AttributeReference *jsonColumn, char *documentcontext, List *columns, char *jsonTableIdentifier, char *forOrdinality);
+extern JsonColInfoItem *createJsonColInfoItem (char *attrName, char *attrType, char *path, char *format, char *wrapper, List *nested, char *forOrdinality);
+extern JsonPath *createJsonPath(char *path);
 extern JoinConditionType joinConditionTypeFromString (char *condType);
 extern JoinType joinTypeFromString (char *joinType);
 extern DistinctClause *createDistinctClause (List *distinctExprs);

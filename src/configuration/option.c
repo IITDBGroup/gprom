@@ -14,9 +14,12 @@
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "model/expression/expression.h"
+#include "log/logger.h"
+#include "exception/exception.h"
 
 // we have to use actual free here
 #undef free
+#undef malloc
 
 //Options* options;
 HashMap *optionPos; // optionname -> position of option in list
@@ -55,21 +58,32 @@ char *connection_user = NULL;
 char *connection_passwd = NULL;
 int connection_port = 0;
 
+// backend specific options
+char *oracle_audit_log_table = NULL;
+
 // logging options
 int logLevel = 0;
 boolean logActive = FALSE;
 
 // input options
 char *sql = NULL;
+char *sqlFile = NULL;
 
 // database backend
 char *backend = NULL;
 char *plugin_metadata = NULL;
 char *plugin_parser = NULL;
 char *plugin_sqlcodegen = NULL;
+char *plugin_analyzer = NULL;
+char *plugin_translator = NULL;
+char *plugin_sql_serializer = NULL;
+char *plugin_executor = NULL;
 
 // instrumentation options
 boolean opt_timing = FALSE;
+boolean opt_memmeasure = FALSE;
+boolean opt_graphviz_output = FALSE;
+boolean opt_graphviz_detail = FALSE;
 
 // rewrite options
 boolean opt_aggressive_model_checking = FALSE;
@@ -77,15 +91,33 @@ boolean opt_update_only_conditions = FALSE;
 boolean opt_treeify_opterator_model = FALSE;
 boolean opt_only_updated_use_history = FALSE;
 boolean opt_pi_cs_composable = FALSE;
+boolean opt_pi_cs_rewrite_agg_window = FALSE;
 boolean opt_optimize_operator_model = FALSE;
 boolean opt_translate_update_with_case = FALSE;
 //boolean   = FALSE;
+
+// cost based optimization option
+boolean cost_based_optimizer = FALSE;
 
 // optimization options
 boolean opt_optimization_push_selections = FALSE;
 boolean opt_optimization_merge_ops = FALSE;
 boolean opt_optimization_factor_attrs = FALSE;
 boolean opt_materialize_unsafe_proj = FALSE;
+boolean opt_remove_redundant_projections = TRUE;
+boolean opt_remove_redundant_duplicate_operator = TRUE;
+boolean opt_optimization_pulling_up_provenance_proj = FALSE;
+boolean opt_optimization_push_selections_through_joins = FALSE;
+boolean opt_optimization_selection_move_around = FALSE;
+boolean opt_optimization_remove_unnecessary_columns = FALSE;
+boolean opt_optimization_remove_unnecessary_window_operators = FALSE;
+boolean opt_optimization_pull_up_duplicate_remove_operators = FALSE;
+
+// sanity check options
+boolean opt_operator_model_unique_schema_attribues = FALSE;
+boolean opt_operator_model_parent_child_links = FALSE;
+boolean opt_operator_model_schema_consistency = FALSE;
+boolean opt_operator_model_attr_reference_consistency = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -125,6 +157,15 @@ static char *defGetString(OptionDefault *def, OptionType type);
             defOptionBool(_def) \
         }
 
+#define anSanityCheckOption(_name,_opt,_desc,_var,_def) \
+        { \
+            _name, \
+            _opt, \
+            _desc, \
+            OPTION_BOOL, \
+            wrapOptionBool(&_var), \
+            defOptionBool(_def) \
+        }
 
 
 #define OPT_POS(name) INT_VALUE(MAP_GET_STRING(optionPos,name))
@@ -182,6 +223,14 @@ OptionInfo opts[] =
                 wrapOptionInt(&connection_port),
                 defOptionInt(1521)
         },
+        {
+                "backendOpts.oracle.logtable",
+                "-Boracle.audittable",
+                "Table storing the audit log (usually fga_log$ or unified_audit_trail)",
+                OPTION_STRING,
+                wrapOptionString(&oracle_audit_log_table),
+                defOptionString("UNIFIED_AUDIT_TRAIL")
+        },
         // logging options
         {
                 "log.level",
@@ -208,7 +257,15 @@ OptionInfo opts[] =
                 wrapOptionString(&sql),
                 defOptionString(NULL)
         },
-        // backend and plugin selectionselection
+        {
+                "input.sqlFile",
+                "-sqlfile",
+                "input SQL file name",
+                OPTION_STRING,
+                wrapOptionString(&sqlFile),
+                defOptionString(NULL)
+        },
+        // backend and plugin selection
         {
                 "backend",
                 "-backend",
@@ -241,11 +298,60 @@ OptionInfo opts[] =
                 wrapOptionString(&plugin_sqlcodegen),
                 defOptionString(NULL)
         },
+        {
+                "plugin.analyzer",
+                "-Panalyzer",
+                "select parser result model analyzer: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_analyzer),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.translator",
+                "-Ptranslator",
+                "select parser result to relational algebra translator: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_translator),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.sqlserializer",
+                "-Psqlserializer",
+                "select SQL code generator plugin: oracle",
+                OPTION_STRING,
+                wrapOptionString(&plugin_sql_serializer),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.executor",
+                "-Pexecutor",
+                "select Executor plugin: sql (output rewritten SQL code), "
+                        "gp (output Game provenance), run (execute the "
+                        "rewritten query and return its result",
+                OPTION_STRING,
+                wrapOptionString(&plugin_executor),
+                defOptionString(NULL)
+        },
         // boolean instrumentation options
         aRewriteOption(OPTION_TIMING,
                 NULL,
-                "measure and output execution time of modules",
+                "measure and output execution time of modules.",
                 opt_timing,
+                FALSE),
+        aRewriteOption(OPTION_MEMMEASURE,
+                NULL,
+                "measure and output memory allocation stats.",
+                opt_memmeasure,
+                FALSE),
+        aRewriteOption(OPTION_GRAPHVIZ,
+                NULL,
+                "output created query operator models as graphviz scripts.",
+                opt_graphviz_output,
+                FALSE),
+        aRewriteOption(OPTION_GRAPHVIZ_DETAILS,
+                NULL,
+                "show operator parameters in graphviz scripts.",
+                opt_graphviz_detail ,
                 FALSE),
         // boolean rewrite options
         aRewriteOption(OPTION_AGGRESSIVE_MODEL_CHECKING,
@@ -258,7 +364,7 @@ OptionInfo opts[] =
                 "Use disjunctions of update conditions to filter out tuples from "
                 "transaction provenance that are not updated by the transaction.",
                 opt_update_only_conditions,
-                FALSE),
+                TRUE),
         aRewriteOption(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN,
                 NULL,
                 "Use a join between the version at commit time with the table version"
@@ -276,6 +382,11 @@ OptionInfo opts[] =
                 " enumerate duplicates introduced by provenance.",
                 opt_pi_cs_composable,
                 FALSE),
+        aRewriteOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW,
+                NULL,
+                "When composable version of PI-CS provenance is use then rewrite aggregations using window functions.",
+                opt_pi_cs_rewrite_agg_window,
+                TRUE),
         aRewriteOption(OPTION_OPTIMIZE_OPERATOR_MODEL,
                 NULL,
                 "Apply heuristic and cost based optimizations to operator model",
@@ -285,7 +396,16 @@ OptionInfo opts[] =
                 NULL,
                 "Create reenactment query for UPDATE statements using CASE instead of UNION.",
                 opt_translate_update_with_case,
-                FALSE),
+                TRUE),
+        // Cost Based Optimization Option
+         {
+                 OPTION_COST_BASED_OPTIMIZER,
+                "-cost_based_optimizer",
+                "Activate/Deactivate cost based optimizer",
+                OPTION_BOOL,
+                wrapOptionBool(&cost_based_optimizer),
+                defOptionBool(FALSE)
+         },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
                 "-Opush_selections",
@@ -312,6 +432,86 @@ OptionInfo opts[] =
                 "if merged with adjacent projection would cause expontential "
                 "expression size blowup",
                 opt_materialize_unsafe_proj,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS,
+                "-Oremove_redundant_projections",
+                "Optimization: try to remove redundant projections",
+                opt_remove_redundant_projections,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR,
+                "-Oremove_redundant_duplicate_operator",
+                "Optimization: try to remove redundant duplicate operator",
+                opt_remove_redundant_duplicate_operator,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS,
+                "-Oremove_unnecessary_window_operators",
+                "Optimization: try to remove unnecessary window operators",
+                opt_optimization_remove_unnecessary_window_operators,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS,
+                "-Oremove_unnecessary_columns",
+                "Optimization: try to remove unnecessary columns",
+                opt_optimization_remove_unnecessary_columns,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS,
+        		"-Opullup_duplicate_remove_operators",
+        		"Optimization: try to pull up duplicate remove operators",
+        		opt_optimization_pull_up_duplicate_remove_operators,
+        		TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ,
+                "-Opulling_up_provenance_proj",
+                "Optimization: try to pull up provenance projection",
+                opt_optimization_pulling_up_provenance_proj,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS,
+                "-Opush_selections_through_joins",
+                "Optimization: try to push selections through joins",
+                opt_optimization_push_selections_through_joins,
+                TRUE
+        ),
+        anOptimizationOption(OPTIMIZATION_SELECTION_MOVE_AROUND,
+                "-Oselections_move_around",
+                "Optimization: try to move selection around",
+                opt_optimization_selection_move_around,
+                TRUE
+                ),
+        // sanity model checking options
+        anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
+                "-Cunique_attr_names",
+                "Model Check: check that attribute names are unique for each operator's schema.",
+                opt_operator_model_unique_schema_attribues,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_PARENT_CHILD_LINKS,
+                "-Cparent_child_links",
+                "Model Check: check that an query operator graph is correctly "
+                "connected. For example, if X is a child of Y then Y should"
+                " be a parent of X.",
+                opt_operator_model_parent_child_links ,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_SCHEMA_CONSISTENCY,
+                "-Cschema_consistency",
+                "Model Check: Perform operator type specific sanity checks"
+                " on the schema of an operator. For example, the number of"
+                " attributes in a projection's schema should be equal to the"
+                " number of projection expressions.",
+                opt_operator_model_schema_consistency,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_ATTR_REF,
+                "-Cattr_reference_consistency",
+                "Model Check: check that attribute references used in "
+                "expressions are consistent. For instance, they have to "
+                "refer to existing inputs and attributes.",
+                opt_operator_model_attr_reference_consistency,
                 TRUE
         ),
         // stopper to indicate end of array
@@ -380,11 +580,6 @@ setDefault(OptionInfo *o)
 void
 mallocOptions()
 {
-//	options=MAKE_OPTIONS();
-//	options->optionConnection=MAKE_OPTION_CONNECTION();
-//	options->optionDebug=MAKE_OPTION_DEBUG();
-//	options->optionRewrite=NIL;
-
 	initOptions();
 }
 
@@ -591,6 +786,8 @@ valGetString(OptionValue *def, OptionType type)
             return buf;
         }
     }
+
+    return NULL; //keep compiler quit
 }
 
 
@@ -612,4 +809,6 @@ defGetString(OptionDefault *def, OptionType type)
             return buf;
         }
     }
+
+    return NULL; //keep compiler quit
 }

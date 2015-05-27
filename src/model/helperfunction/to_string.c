@@ -7,8 +7,6 @@
  *
  **************************************/
 
-#include <stdio.h>
-#include <stdlib.h>
 
 #include "common.h"
 #include "log/logger.h"
@@ -21,6 +19,8 @@
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/datalog/datalog_model.h"
+#include "utility/string_utils.h"
 
 /* functions to output specific node types */
 static void outNode(StringInfo, void *node);
@@ -49,6 +49,7 @@ static void outWindowDef (StringInfo str, WindowDef *node);
 static void outWindowFunction (StringInfo str, WindowFunction *node);
 static void outRowNumExpr (StringInfo str, RowNumExpr *node);
 static void outOrderExpr (StringInfo str, OrderExpr *node);
+static void outCastExpr (StringInfo str, CastExpr *node);
 
 // query block model
 static void outQueryBlock (StringInfo str, QueryBlock *node);
@@ -63,7 +64,6 @@ static void outNestedSubquery(StringInfo str, NestedSubquery *node);
 static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 static void outWithStmt(StringInfo str, WithStmt *node);
 
-// operator model
 static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
 static void outDistinctClause(StringInfo str, DistinctClause *node);
@@ -72,6 +72,7 @@ static void outFromTableRef (StringInfo str, FromTableRef *node);
 static void outFromJoinExpr (StringInfo str, FromJoinExpr *node);
 static void outFromSubquery (StringInfo str, FromSubquery *node);
 
+// operator model
 static void outSchema (StringInfo str, Schema *node);
 static void outAttributeDef (StringInfo str, AttributeDef *node);
 static void outQueryOperator(StringInfo str, QueryOperator *node);
@@ -88,12 +89,30 @@ static void outNestingOperator(StringInfo str, NestingOperator *node);
 static void outWindowOperator(StringInfo str, WindowOperator *node);
 static void outOrderOperator(StringInfo str, OrderOperator *node);
 
+//json
+static void outFromJsonTable(StringInfo str, FromJsonTable *node);
+static void outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node);
+static void outJsonTableOperator(StringInfo str, JsonTableOperator *node);
+static void outJsonPath(StringInfo str, JsonPath *node);
+
+// datalog model
+static void outDLAtom(StringInfo str, DLAtom *node);
+static void outDLVar(StringInfo str, DLVar *node);
+static void outDLRule(StringInfo str, DLRule *node);
+static void outDLProgram(StringInfo str, DLProgram *node);
+static void outDLComparison(StringInfo str, DLComparison *node);
+
 static void indentString(StringInfo str, int level);
 
 // create overview string for an operator tree
-static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent);
+static int compareOpInfos (const void *l, const void *r);
+static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMap *map);
+static void datalogToStrInternal(StringInfo str, Node *n, int indent);
+
 
 /*define macros*/
+#define OP_ID_STRING "OP_ID"
+
 /*label for the node type*/
 #define booltostr(a) \
 		((a) ? "true" : "false")
@@ -236,12 +255,16 @@ outStringList (StringInfo str, List *node)
 static void
 outSet(StringInfo str, Set *node)
 {
-    appendStringInfo(str, "{");
+//    appendStringInfo(str, "{");
 
     switch(node->setType)
     {
         case SET_TYPE_INT:
             FOREACH_SET(int,i,node)
+                appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
+            break;
+        case SET_TYPE_LONG:
+            FOREACH_SET(long,i,node)
                 appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
             break;
         case SET_TYPE_STRING:
@@ -264,7 +287,7 @@ outSet(StringInfo str, Set *node)
             break;
     }
 
-    appendStringInfo(str, "}");
+//    appendStringInfo(str, "}");
 }
 
 static void
@@ -302,19 +325,113 @@ outVector(StringInfo str, Vector *node)
 static void
 outHashMap(StringInfo str, HashMap *node)
 {
+    List *entryStrings = NIL;
+    List *sortEntries = NIL;
+
     appendStringInfo(str, "{");
 
+    // create list of serializations for each hash entry
     FOREACH_HASH_ENTRY(el,node)
     {
-        outNode(str, el->key);
-        appendStringInfoString(str," => ");
-        outNode(str, el->value);
-        appendStringInfo(str, "%s", el_his_el->hh.next ? ", " : "");
+        StringInfo hashStr = makeStringInfo();
+        outNode(hashStr, el->key);
+        appendStringInfoString(hashStr," => ");
+        outNode(hashStr, el->value);
+        entryStrings = appendToTailOfList(entryStrings, strdup(hashStr->data));
+    }
+
+    // sort entries lexigraphically (deterministic output)
+    sortEntries = sortList(entryStrings,
+            (int (*) (const void *, const void *)) strCompare);
+
+    // append entries to output
+    FOREACH(char,s,sortEntries)
+    {
+        appendStringInfoString(str,s);
+        appendStringInfo(str, "%s", s_his_cell->next ? ", " : "");
     }
 
     appendStringInfo(str, "}");
 }
 
+// datalog model
+static void
+outDLAtom(StringInfo str, DLAtom *node)
+{
+    WRITE_NODE_TYPE(DLATOM);
+
+    WRITE_STRING_FIELD(rel);
+    WRITE_NODE_FIELD(args);
+    WRITE_BOOL_FIELD(negated);
+    WRITE_NODE_FIELD(n.properties);
+}
+
+static void
+outDLVar(StringInfo str, DLVar *node)
+{
+    WRITE_NODE_TYPE(DLVAR);
+
+    WRITE_STRING_FIELD(name);
+    WRITE_ENUM_FIELD(dt,DataType);
+    WRITE_NODE_FIELD(n.properties);
+}
+
+static void
+outDLRule(StringInfo str, DLRule *node)
+{
+    WRITE_NODE_TYPE(DLRULE);
+
+    WRITE_NODE_FIELD(head);
+    WRITE_NODE_FIELD(body);
+    WRITE_NODE_FIELD(n.properties);
+}
+
+static void
+outDLProgram(StringInfo str, DLProgram *node)
+{
+    WRITE_NODE_TYPE(DLPROGRAM);
+
+    WRITE_NODE_FIELD(rules);
+    WRITE_NODE_FIELD(facts);
+    WRITE_STRING_FIELD(ans);
+    WRITE_NODE_FIELD(n.properties);
+}
+
+static void
+outDLComparison(StringInfo str, DLComparison *node)
+{
+    WRITE_NODE_TYPE(DLCOMPARISON);
+
+    WRITE_NODE_FIELD(opExpr);
+    WRITE_NODE_FIELD(n.properties);
+}
+
+static void
+outFromJsonTable(StringInfo str, FromJsonTable *node)
+{
+    WRITE_NODE_TYPE(JSONTABLE);
+    writeCommonFromItemFields(str, (FromItem *) node);
+    WRITE_NODE_FIELD(columns);
+    WRITE_STRING_FIELD(documentcontext);
+    WRITE_NODE_FIELD(jsonColumn);
+    WRITE_STRING_FIELD(jsonTableIdentifier);
+    WRITE_STRING_FIELD(forOrdinality);
+}
+
+static void
+outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node)
+{
+	WRITE_NODE_TYPE(JSONCOLINFOITEM);
+
+    WRITE_STRING_FIELD(attrName);
+    WRITE_STRING_FIELD(path);
+    WRITE_STRING_FIELD(attrType);
+
+    WRITE_STRING_FIELD(format);
+    WRITE_STRING_FIELD(wrapper);
+    WRITE_NODE_FIELD(nested);
+    WRITE_STRING_FIELD(forOrdinality);
+}
 
 static void
 outInsert(StringInfo str, Insert *node)
@@ -400,6 +517,9 @@ outConstant (StringInfo str, Constant *node)
             case DT_LONG:
                 appendStringInfo(str, "%ld", *((long *) node->value));
                 break;
+            case DT_VARCHAR2:
+	        appendStringInfo(str, "'%s'", (char *) node->value);
+	        break;
         }
 
     WRITE_BOOL_FIELD(isNull);
@@ -553,6 +673,15 @@ outOrderExpr (StringInfo str, OrderExpr *node)
 }
 
 static void
+outCastExpr (StringInfo str, CastExpr *node)
+{
+    WRITE_NODE_TYPE(CAST_EXPR);
+
+    WRITE_ENUM_FIELD(resultDT,DataType);
+    WRITE_NODE_FIELD(expr);
+}
+
+static void
 outSelectItem (StringInfo str, SelectItem *node)
 {
     WRITE_NODE_TYPE(SELECT_ITEM);
@@ -575,6 +704,7 @@ writeCommonFromItemFields(StringInfo str, FromItem *node)
     WRITE_STRING_FIELD(name);
     WRITE_STRING_LIST_FIELD(attrNames);
     WRITE_NODE_FIELD(provInfo);
+    WRITE_NODE_FIELD(dataTypes);
 }
 
 static void
@@ -646,6 +776,7 @@ outAttributeReference (StringInfo str, AttributeReference *node)
     WRITE_INT_FIELD(fromClauseItem);
     WRITE_INT_FIELD(attrPosition);
     WRITE_INT_FIELD(outerLevelsUp);
+    WRITE_ENUM_FIELD(attrType,DataType);
 }
 
 static void
@@ -809,6 +940,27 @@ outOrderOperator(StringInfo str, OrderOperator *node)
     WRITE_NODE_FIELD(orderExprs);
 }
 
+static void
+outJsonTableOperator(StringInfo str, JsonTableOperator *node)
+{
+    WRITE_NODE_TYPE(JSONTABLEOPERATOR);
+
+    WRITE_QUERY_OPERATOR();
+    WRITE_NODE_FIELD(columns);
+    WRITE_STRING_FIELD(documentcontext);
+    WRITE_NODE_FIELD(jsonColumn);
+    WRITE_STRING_FIELD(jsonTableIdentifier);
+    WRITE_STRING_FIELD(forOrdinality);
+}
+
+static void
+outJsonPath(StringInfo str, JsonPath *node)
+{
+	 WRITE_NODE_TYPE(JSONPATH);
+
+	 WRITE_STRING_FIELD(path);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -876,6 +1028,9 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_OrderExpr:
                 outOrderExpr(str, (OrderExpr *) obj);
+                break;
+            case T_CastExpr:
+                outCastExpr(str, (CastExpr *) obj);
                 break;
             case T_SetQuery:
                 outSetQuery (str, (SetQuery *) obj);
@@ -975,8 +1130,37 @@ outNode(StringInfo str, void *obj)
             case T_OrderOperator:
                 outOrderOperator(str, (OrderOperator *) obj);
                 break;
+            /* datalog stuff */
+            case T_DLAtom:
+                outDLAtom(str, (DLAtom *) obj);
+                break;
+            case T_DLVar:
+                outDLVar(str, (DLVar *) obj);
+                break;
+            case T_DLProgram:
+                outDLProgram(str, (DLProgram *) obj);
+                break;
+            case T_DLRule:
+                outDLRule(str, (DLRule *) obj);
+                break;
+            case T_DLComparison:
+                outDLComparison(str, (DLComparison *) obj);
+                break;
+            /* Json stuff */
+            case T_FromJsonTable:
+                outFromJsonTable(str, (FromJsonTable *)obj);
+                break;
+            case T_JsonColInfoItem:
+                outFromJsonColInfoItem(str, (JsonColInfoItem *)obj);
+                break;
+            case T_JsonTableOperator:
+                outJsonTableOperator(str, (JsonTableOperator *) obj);
+                break;
+            case T_JsonPath:
+            	outJsonPath(str, (JsonPath *) obj);
+            	break;
             default :
-                FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
+            	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
                 break;
         }
@@ -996,12 +1180,6 @@ nodeToString(void *obj)
     outNode(str, obj);
     result = str->data;
     TRACE_LOG("output is of length <%u> of <%u>", str->len, str->maxlen);
-    for(int i = 0; i < str->len; i++)
-        if (str->data[i] == 0)
-        {
-            printf("%i ", i);
-            str->data[i] = 37;
-        }
     FREE(str);
 
     return result;
@@ -1140,9 +1318,154 @@ itoa(int value)
 }
 
 char *
+datalogToOverviewString(Node *n)
+{
+    StringInfo str = makeStringInfo();
+
+    if (n == NULL)
+        return "";
+
+    datalogToStrInternal(str, n, 0);
+
+    return str->data;
+}
+
+static void
+datalogToStrInternal(StringInfo str, Node *n, int indent)
+{
+    if (n == NULL)
+        return;
+
+    switch(n->type)
+    {
+        case T_DLAtom:
+        {
+            DLAtom *a = (DLAtom *) n;
+            int i = 1;
+            int len = LIST_LENGTH(a->args);
+
+            if (DL_HAS_PROP(a,DL_WON))
+                appendStringInfoString(str, "+");
+            if (DL_HAS_PROP(a,DL_LOST))
+                appendStringInfoString(str, "-");
+            if (DL_HAS_PROP(a,DL_UNDER_NEG_WON))
+                appendStringInfoString(str, "*+");
+            if (DL_HAS_PROP(a,DL_UNDER_NEG_LOST))
+                appendStringInfoString(str, "*-");
+
+            if (DL_HAS_PROP(a,DL_IS_IDB_REL))
+                appendStringInfoString(str, "@");
+
+            if (a->negated)
+                appendStringInfoString(str, "not ");
+            appendStringInfo(str, "%s(", a->rel);
+            FOREACH(Node,arg,a->args)
+            {
+                datalogToStrInternal(str, arg, indent);
+                if (i++ < len)
+                    appendStringInfoString(str, ",");
+            }
+            appendStringInfoString(str, ")");
+        }
+        break;
+        case T_DLRule:
+        {
+            DLRule *r = (DLRule *) n;
+            int i = 1;
+            int len = LIST_LENGTH(r->body);
+
+            indentString(str,indent);
+            // add rule id if set
+            if (DL_HAS_PROP(r,DL_RULE_ID))
+                appendStringInfo(str, "r%u: ",
+                        INT_VALUE(DL_GET_PROP(r,DL_RULE_ID)));
+            datalogToStrInternal(str, (Node *) r->head, indent);
+            appendStringInfoString(str, " :- ");
+            FOREACH(Node,a,r->body)
+            {
+                datalogToStrInternal(str, a, indent);
+                if (i++ < len)
+                    appendStringInfoString(str, ",");
+            }
+
+            appendStringInfoString(str, ".\n");
+        }
+        break;
+        case T_DLComparison:
+        {
+            DLComparison *c = (DLComparison *) n;
+
+            appendStringInfo(str, "(%s)", exprToSQL((Node *) c->opExpr));
+        }
+        break;
+        case T_DLVar:
+        {
+            DLVar *v = (DLVar *) n;
+
+            appendStringInfo(str, "%s", v->name);
+        }
+        break;
+        case T_DLProgram:
+        {
+            DLProgram *p = (DLProgram *) n;
+            appendStringInfoString(str, "PROGRAM:\n");
+            FOREACH(Node,r,p->rules)
+            {
+                if (isA(r,Constant))
+                    appendStringInfoString(str, "ANSWER RELATION:\n\t");
+                datalogToStrInternal(str,(Node *) r, 4);
+            }
+            if (p->ans)
+                appendStringInfo(str, "ANSWER RELATION:\n\t%s\n",
+                        p->ans);
+            if (DL_HAS_PROP(p,DL_PROV_WHY) || DL_HAS_PROP(p,DL_PROV_WHYNOT))
+            {
+                char *prop = DL_HAS_PROP(p,DL_PROV_WHY) ? DL_PROV_WHY : DL_PROV_WHYNOT;
+                Node *question = DL_GET_PROP(p,prop);
+
+                appendStringInfo(str, "%s:\n\t", prop);
+                datalogToStrInternal(str,(Node *) question, 4);
+            }
+        }
+        break;
+        case T_Constant:
+            appendStringInfo(str, "%s",
+                    CONST_TO_STRING(n));
+        break;
+        // provenance
+        case T_KeyValue:
+        {
+            KeyValue *kv = (KeyValue *) n;
+            appendStringInfo(str, "COMPUTE PROVENANCE: %s[%s]",
+                    STRING_VALUE(kv->key), datalogToOverviewString(kv->value));
+        }
+        break;
+        case T_List:
+        {
+            List *l = (List *) n;
+            FOREACH(Node,el,l)
+                datalogToStrInternal(str,el, indent + 4);
+        }
+        break;
+        default:
+        {
+            if (IS_EXPR(n))
+                appendStringInfo(str, "%s", exprToSQL(n));
+            else
+                FATAL_LOG("should have never come here, datalog program should"
+                        " not have nodes like this: %s",
+                        beatify(nodeToString(n)));
+        }
+        break;
+    }
+}
+
+char *
 operatorToOverviewString(Node *op)
 {
     StringInfo str = makeStringInfo();
+    HashMap *m;
+    List *reusedSubtrees = NIL;
 
     if (op == NULL)
         return "";
@@ -1153,20 +1476,99 @@ operatorToOverviewString(Node *op)
     {
         FOREACH(QueryOperator,o,(List *) op)
         {
-            operatorToOverviewInternal(str,(QueryOperator *) o, 0);
+            m = NEW_MAP(Constant,List);
+            MAP_ADD_STRING_KEY(m, OP_ID_STRING, createConstInt(0));
+            operatorToOverviewInternal(str,(QueryOperator *) o, 0, m);
+
+            removeMapElem(m, (Node *) createConstString(OP_ID_STRING));
+            reusedSubtrees = sortList(getEntries(m), (int (*)(const void *, const void *))compareOpInfos);
+
+            FOREACH(KeyValue,k,reusedSubtrees)
+            {
+                List *opInfo = (List *) k->value;
+                int opId = INT_VALUE(getNthOfListP(opInfo, 0));
+                StringInfo inner = (StringInfo) LONG_VALUE(getNthOfListP(opInfo, 1));
+
+                appendStringInfo(str, "\n\n-----------------------\n@%u\n%s", opId, inner->data);
+            }
+
             appendStringInfoString(str, "\n");
         }
     }
     else
-        operatorToOverviewInternal(str,(QueryOperator *) op, 0);
+    {
+        m = NEW_MAP(Constant,List);
+        MAP_ADD_STRING_KEY(m, OP_ID_STRING, createConstInt(0));
+
+        operatorToOverviewInternal(str,(QueryOperator *) op, 0, m);
+
+        removeMapElem(m, (Node *) createConstString(OP_ID_STRING));
+        reusedSubtrees = sortList(getEntries(m), (int (*)(const void *, const void *))compareOpInfos);
+
+        FOREACH(KeyValue,k,reusedSubtrees)
+        {
+            List *opInfo = (List *) k->value;
+            int opId = INT_VALUE(getNthOfListP(opInfo, 0));
+            StringInfo inner = (StringInfo) LONG_VALUE(getNthOfListP(opInfo, 1));
+
+            appendStringInfo(str, "\n\n-----------------------\n@%u\n%s", opId, inner->data);
+        }
+    }
 
     return str->data;
 }
 
-static void
-operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
+static int
+compareOpInfos (const void *l, const void *r)
 {
-    indentString(str, indent);
+    List *lList = (List *) (*((KeyValue **) l))->value;
+    List *rList = (List *) (*((KeyValue **) r))->value;
+    int lOpId = INT_VALUE(getNthOfListP(lList, 0));
+    int rOpId = INT_VALUE(getNthOfListP(rList, 0));
+
+    return lOpId - rOpId;
+}
+
+static void
+operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMap *map)
+{
+    // if operator has more than one parents then we outsource
+    if (LIST_LENGTH(op->parents) > 1)
+    {
+        List *opInfo = (List *) MAP_GET_LONG(map, (long) op); // info is: [id, stringRep]
+        int opId;
+
+        indentString(str, indent);
+
+        if (opInfo == NIL)
+        {
+            StringInfo opStr;
+            Constant *curId = (Constant *) MAP_GET_STRING(map, OP_ID_STRING);
+            opId = INT_VALUE(curId);
+            int *idVal = (int *) curId->value;
+            (*idVal)++;
+            opStr = makeStringInfo();
+            opInfo = LIST_MAKE(createConstInt(opId), createConstLong((long) opStr));
+            MAP_ADD_LONG_KEY(map, (long) op, opInfo);
+
+            // append link
+            appendStringInfo(str, "@%u\n", opId);
+
+            // add to separate stringinfo
+            str = opStr;
+            indent = 0;
+        }
+        else
+        {
+            opId = INT_VALUE(getNthOfListP(opInfo, 0));
+            appendStringInfo(str, "@%u\n", opId);
+
+            return;
+        }
+    }
+    else
+        indentString(str, indent);
+
 
     // output specific operator things
     switch(op->type)
@@ -1307,6 +1709,12 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
             appendStringInfo(str, "%s", exprToSQL((Node *) o->orderExprs));
         }
         break;
+        case T_JsonTableOperator:
+            WRITE_NODE_TYPE(JsonTable);
+            appendStringInfoString(str, " [");
+            appendStringInfoString(str, ((JsonTableOperator *) op)->jsonTableIdentifier);
+            appendStringInfoChar(str, ']');
+            break;
         default:
             FATAL_LOG("not a query operator:\n%s", op);
             break;
@@ -1332,12 +1740,12 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent)
     appendStringInfoString(str, ")\n");
 
     FOREACH(QueryOperator,child,op->inputs)
-        operatorToOverviewInternal(str, child, indent + 1);
+        operatorToOverviewInternal(str, child, indent + 1, map);
 }
 
 static void
 indentString(StringInfo str, int level)
 {
     while(level-- > 0)
-        appendStringInfoChar(str, '\t');
+        appendStringInfoString(str, "  ");
 }

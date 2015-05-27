@@ -14,6 +14,7 @@
 #include "parser/parser_hive.h"
 #include "parser/parser_oracle.h"
 #include "parser/parser_postgres.h"
+#include "parser/parser_dl.h"
 #include "model/node/nodetype.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
@@ -28,6 +29,7 @@ static ParserPlugin *plugin = NULL;
 static ParserPlugin *assembleOraclePlugin(void);
 static ParserPlugin *assemblePostgresPlugin(void);
 static ParserPlugin *assembleHivePlugin(void);
+static ParserPlugin *assembleDLPlugin(void);
 
 // wrapper interface
 Node *
@@ -60,6 +62,9 @@ chooseParserPlugin(ParserPluginType type)
             break;
         case PARSER_PLUGIN_HIVE:
             plugin = assembleHivePlugin();
+            break;
+        case PARSER_PLUGIN_DL:
+            plugin = assembleDLPlugin();
             break;
     }
 }
@@ -97,10 +102,21 @@ assembleHivePlugin(void)
     return p;
 }
 
+static ParserPlugin *
+assembleDLPlugin(void)
+{
+    ParserPlugin *p = NEW(ParserPlugin);
+
+    p->parseStream = parseStreamdl;
+    p->parseFromString = parseFromStringdl;
+
+    return p;
+}
+
 void
 chooseParserPluginFromString(char *type)
 {
-    INFO_LOG("PLUGIN parser: <%s>", type);
+    INFO_LOG("PLUGIN parser: <%s>", type ? type : "NULL");
 
     if (streq(type,"oracle"))
         chooseParserPlugin(PARSER_PLUGIN_ORACLE);
@@ -108,6 +124,8 @@ chooseParserPluginFromString(char *type)
         chooseParserPlugin(PARSER_PLUGIN_POSTGRES);
     else if (streq(type,"hive"))
         chooseParserPlugin(PARSER_PLUGIN_HIVE);
+    else if (streq(type,"dl"))
+        chooseParserPlugin(PARSER_PLUGIN_DL);
     else
         FATAL_LOG("unkown parser plugin type: <%s>", type);
 }

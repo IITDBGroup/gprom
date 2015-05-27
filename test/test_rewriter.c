@@ -22,6 +22,7 @@
 #include "../src/parser/sql_parser.tab.h"
 #include "model/query_operator/query_operator.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "execution/executor.h"
 #include "rewriter.h"
 
 
@@ -33,25 +34,37 @@ main (int argc, char* argv[])
 {
     char *result;
 
-    READ_OPTIONS_AND_INIT("testrewriter", "Run all stages on input and outpur rewritten SQL.");
+    READ_OPTIONS_AND_INIT("testrewriter", "Run all stages on input and output rewritten SQL.");
 
     START_TIMER("TOTAL");
 
     // read from terminal
-    if (getStringOption("input.sql") == NULL)
+    if (getStringOption("input.sql") != NULL)
     {
-        result = rewriteQueryFromStream(stdin);
+        result = rewriteQuery(getStringOption("input.sql"));
+        ERROR_LOG("REWRITE RESULT FROM STRING IS:\n%s", result);
+    }
+    else if (getStringOption("input.sqlFile") != NULL)
+    {
+        char *fName = getStringOption("input.sqlFile");
+        FILE *file = fopen(fName, "r");
+
+        if (file == NULL)
+            FATAL_LOG("could not open file %s with error %s", fName, strerror(errno));
+
+        result = rewriteQueryFromStream(file);
+        fclose(file);
         ERROR_LOG("REWRITE RESULT FROM STREAM IS <%s>", result);
     }
     // parse input string
     else
     {
-        result = rewriteQuery(getStringOption("input.sql"));
-        ERROR_LOG("REWRITE RESULT FROM STRING IS:\n%s", result);
+        result = rewriteQueryFromStream(stdin);
+        ERROR_LOG("REWRITE RESULT FROM STREAM IS <%s>", result);
     }
 
-    printf("%s", result);
-    fflush(stdout);
+    // call executor
+    execute(result);
 
     STOP_TIMER("TOTAL");
     OUT_TIMERS();

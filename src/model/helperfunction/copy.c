@@ -20,6 +20,7 @@
 #include "model/set/vector.h"
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
+#include "model/datalog/datalog_model.h"
 #include "model/query_operator/query_operator.h"
 
 /* data structures for copying operator nodes */
@@ -72,6 +73,7 @@ static WindowDef *copyWindowDef(WindowDef *from, OperatorMap **opMap);
 static WindowFunction *copyWindowFunction(WindowFunction *from, OperatorMap **opMap);
 static RowNumExpr *copyRowNumExpr(RowNumExpr *from, OperatorMap **opMap);
 static OrderExpr *copyOrderExpr(OrderExpr *from, OperatorMap **opMap);
+static CastExpr *copyCastExpr(CastExpr *from, OperatorMap **opMap);
 
 /*schema helper functions*/
 static AttributeDef *copyAttributeDef(AttributeDef *from, OperatorMap **opMap);
@@ -80,6 +82,8 @@ static Schema *copySchema(Schema *from, OperatorMap **opMap);
 /*functions to copy query_operator*/
 static QueryOperator *copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap);
 static TableAccessOperator *copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap);
+static JsonTableOperator *copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap);
+static JsonPath *copyJsonPath(JsonPath *from, OperatorMap **opMap);
 static SelectionOperator *copySelectionOperator(SelectionOperator *from, OperatorMap **opMap);
 static ProjectionOperator *copyProjectionOperator(ProjectionOperator *from, OperatorMap **opMap);
 static JoinOperator *copyJoinOperator(JoinOperator *from, OperatorMap **opMap);
@@ -91,6 +95,8 @@ static ConstRelOperator *copyConstRelOperator(ConstRelOperator *from, OperatorMa
 static NestingOperator *copyNestingOperator(NestingOperator *from, OperatorMap **opMap);
 static WindowOperator *copyWindowOperator(WindowOperator *from, OperatorMap **opMap);
 static OrderOperator *copyOrderOperator(OrderOperator *from, OperatorMap **opMap);
+static FromJsonTable *copyFromJsonTable(FromJsonTable *from, OperatorMap **opMap);
+static JsonColInfoItem *copyJsonColInfoItem(JsonColInfoItem *from,OperatorMap ** opMap);
 
 /*functions to copy query_block*/
 static SetQuery *copySetQuery(SetQuery *from, OperatorMap **opMap);
@@ -114,6 +120,13 @@ static TransactionStmt *copyTransactionStmt(TransactionStmt *from, OperatorMap *
 static FromProvInfo *copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap);
 static WithStmt *copyWithStmt(WithStmt *from, OperatorMap **opMap);
 
+/* functions to copy datalog model elements */
+static DLAtom *copyDLAtom(DLAtom *from, OperatorMap **opMap);
+static DLVar *copyDLVar(DLVar *from, OperatorMap **opMap);
+static DLComparison *copyDLComparison(DLComparison *from, OperatorMap **opMap);
+static DLRule *copyDLRule(DLRule *from, OperatorMap **opMap);
+static DLProgram *copyDLProgram(DLProgram *from, OperatorMap **opMap);
+
 /*use the Macros(the varibles are 'new' and 'from')*/
 
 /* creates a new pointer to a node and allocated mem */
@@ -135,6 +148,7 @@ static WithStmt *copyWithStmt(WithStmt *from, OperatorMap **opMap);
 /* copy a field that is a list of strings */
 #define COPY_STRING_LIST_FIELD(fldname) \
 		 new->fldname = deepCopyStringList((List *) from->fldname)
+
 
 /*deep copy for List operation*/
 static List *
@@ -169,6 +183,10 @@ deepCopySet(Set *from, OperatorMap **opMap)
         case SET_TYPE_INT:
             FOREACH_SET_INT(a,from)
                 addIntToSet(new, a);
+        break;
+        case SET_TYPE_LONG:
+            FOREACH_SET_LONG(b,from)
+                addLongToSet(new, b);
         break;
         case SET_TYPE_NODE:
             FOREACH_SET(Node,a,from)
@@ -225,6 +243,66 @@ deepCopyVector(Vector *from, OperatorMap **opMap)
     return new;
 }
 
+static DLAtom *
+copyDLAtom(DLAtom *from, OperatorMap **opMap)
+{
+    COPY_INIT(DLAtom);
+
+    COPY_STRING_FIELD(rel);
+    COPY_NODE_FIELD(args);
+    COPY_SCALAR_FIELD(negated);
+    COPY_NODE_FIELD(n.properties);
+
+    return new;
+}
+
+static DLVar *
+copyDLVar(DLVar *from, OperatorMap **opMap)
+{
+    COPY_INIT(DLVar);
+
+    COPY_STRING_FIELD(name);
+    COPY_SCALAR_FIELD(dt);
+    COPY_NODE_FIELD(n.properties);
+
+    return new;
+}
+
+static DLComparison *
+copyDLComparison(DLComparison *from, OperatorMap **opMap)
+{
+    COPY_INIT(DLComparison);
+
+    COPY_NODE_FIELD(opExpr);
+    COPY_NODE_FIELD(n.properties);
+
+    return new;
+}
+
+static DLRule *
+copyDLRule(DLRule *from, OperatorMap **opMap)
+{
+    COPY_INIT(DLRule);
+
+    COPY_NODE_FIELD(head);
+    COPY_NODE_FIELD(body);
+    COPY_NODE_FIELD(n.properties);
+
+    return new;
+}
+
+static DLProgram *
+copyDLProgram(DLProgram *from, OperatorMap **opMap)
+{
+    COPY_INIT(DLProgram);
+
+    COPY_NODE_FIELD(rules);
+    COPY_NODE_FIELD(facts);
+    COPY_STRING_FIELD(ans);
+    COPY_NODE_FIELD(n.properties);
+
+    return new;
+}
 
 static AttributeReference *
 copyAttributeReference(AttributeReference *from, OperatorMap **opMap)
@@ -234,6 +312,7 @@ copyAttributeReference(AttributeReference *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(fromClauseItem);
     COPY_SCALAR_FIELD(attrPosition);
     COPY_SCALAR_FIELD(outerLevelsUp);
+    COPY_SCALAR_FIELD(attrType);
 
     return new;
 }
@@ -377,6 +456,16 @@ copyOrderExpr(OrderExpr *from, OperatorMap **opMap)
     return new;
 }
 
+static CastExpr *
+copyCastExpr(CastExpr *from, OperatorMap **opMap)
+{
+    COPY_INIT(CastExpr);
+
+    COPY_SCALAR_FIELD(resultDT);
+    COPY_NODE_FIELD(expr);
+
+    return new;
+}
 
 static AttributeDef *
 copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
@@ -385,7 +474,7 @@ copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(dataType);
     COPY_STRING_FIELD(attrName);
     COPY_SCALAR_FIELD(pos);
-    
+
     return new;
 }
 
@@ -444,6 +533,31 @@ copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap)
     COPY_NODE_FIELD(asOf);
 
     return new;
+}
+
+static JsonTableOperator *
+copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap)
+{
+    COPY_INIT(JsonTableOperator);
+    COPY_OPERATOR();
+
+    COPY_NODE_FIELD(columns);
+
+    COPY_STRING_FIELD(documentcontext);
+    COPY_NODE_FIELD(jsonColumn);
+    COPY_STRING_FIELD(jsonTableIdentifier);
+    COPY_STRING_FIELD(forOrdinality);
+
+    return new;
+}
+
+static JsonPath *
+copyJsonPath(JsonPath *from, OperatorMap **opMap)
+{
+	COPY_INIT(JsonPath);
+	COPY_STRING_FIELD(path);
+
+	return new;
 }
 
 static SelectionOperator *
@@ -567,6 +681,23 @@ copyOrderOperator(OrderOperator *from, OperatorMap **opMap)
     return new;
 }
 
+static JsonColInfoItem *
+copyJsonColInfoItem(JsonColInfoItem *from, OperatorMap **opMap)
+{
+    COPY_INIT(JsonColInfoItem);
+
+    COPY_STRING_FIELD(attrName);
+    COPY_STRING_FIELD(path);
+    COPY_STRING_FIELD(attrType);
+
+    COPY_STRING_FIELD(format);
+    COPY_STRING_FIELD(wrapper);
+    COPY_NODE_FIELD(nested);
+    COPY_STRING_FIELD(forOrdinality);
+
+    return new;
+}
+
 /*functions to copy query_block*/
 static SetQuery *
 copySetQuery(SetQuery *from, OperatorMap **opMap)
@@ -602,7 +733,7 @@ copyInsert(Insert *from, OperatorMap **opMap)
 {
     COPY_INIT(Insert);
     COPY_STRING_FIELD(tableName);
-    COPY_NODE_FIELD(attrList);
+    COPY_STRING_LIST_FIELD(attrList);
     COPY_NODE_FIELD(query);
 
     return new;
@@ -716,6 +847,7 @@ copyFromItem (FromItem *from, FromItem *to)
     to->name = strdup(from->name);
     to->attrNames = deepCopyStringList(from->attrNames);
     to->provInfo = copyObject(from->provInfo);
+    to->dataTypes = copyObject(from->dataTypes);
 }
 
 #define COPY_FROM() copyFromItem((FromItem *) from, (FromItem *) new);
@@ -726,6 +858,21 @@ copyFromTableRef(FromTableRef *from, OperatorMap **opMap)
     COPY_INIT(FromTableRef);
     COPY_FROM();
     COPY_STRING_FIELD(tableId);
+
+    return new;
+}
+
+static FromJsonTable*
+copyFromJsonTable(FromJsonTable *from,OperatorMap **opMap)
+{
+    COPY_INIT(FromJsonTable);
+
+    COPY_FROM();
+
+    COPY_NODE_FIELD(columns);
+    COPY_STRING_FIELD(documentcontext);
+    COPY_NODE_FIELD(jsonColumn);
+    COPY_STRING_FIELD(jsonTableIdentifier);
 
     return new;
 }
@@ -762,6 +909,9 @@ copyConstant(Constant *from, OperatorMap **opMap)
 	      case DT_LONG:
 	          new->value = NEW(long);
 	          *((long *) new->value) = *((long *) from->value);
+	          break;
+	      case DT_VARCHAR2:
+	    	  new->value = strdup(from->value);
 	          break;
 	  }
 	  return new;
@@ -879,7 +1029,10 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_OrderExpr:
             retval = copyOrderExpr(from, opMap);
             break;
-             /* query block model nodes */
+        case T_CastExpr:
+            retval = copyCastExpr(from, opMap);
+            break;
+            /* query block model nodes */
 //        case T_SetOp:
 //            retval = copySetOp(from, opMap);
 //            break;
@@ -972,6 +1125,34 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_OrderOperator:
             retval = copyOrderOperator(from, opMap);
             break;
+        case T_FromJsonTable:
+            retval = copyFromJsonTable(from, opMap);
+            break;
+        case T_JsonColInfoItem:
+	    retval = copyJsonColInfoItem(from, opMap);
+	    break;
+            /* datalog model nodes */
+        case T_DLAtom:
+            retval = copyDLAtom(from, opMap);
+            break;
+        case T_DLVar:
+            retval = copyDLVar(from, opMap);
+            break;
+        case T_DLRule:
+            retval = copyDLRule(from, opMap);
+            break;
+        case T_DLProgram:
+            retval = copyDLProgram(from, opMap);
+            break;
+        case T_DLComparison:
+            retval = copyDLComparison(from, opMap);
+            break;
+        case T_JsonTableOperator:
+        	retval = copyJsonTableOperator(from, opMap);
+        	break;
+        case T_JsonPath:
+        	retval = copyJsonPath(from, opMap);
+        	break;
         default:
             retval = NULL;
             break;

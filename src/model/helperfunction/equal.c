@@ -17,11 +17,11 @@
 #include "model/expression/expression.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "model/datalog/datalog_model.h"
 #include "log/logger.h"
 
 /* equal function for collection types */
 static boolean equalList(List *a, List *b);
-static boolean equalStringList (List *a, List *b);
 static boolean equalSet (Set *a, Set *b);
 static boolean equalKeyValue (KeyValue *a, KeyValue *b);
 static boolean equalHashMap (HashMap *a, HashMap *b);
@@ -62,6 +62,12 @@ static boolean equalNestingOperator(NestingOperator *a, NestingOperator *b);
 static boolean equalWindowOperator(WindowOperator *a, WindowOperator *b);
 static boolean equalOrderOperator(OrderOperator *a, OrderOperator *b);
 
+// Json
+static boolean equalFromJsonTable(FromJsonTable *a, FromJsonTable *b);
+static boolean equalJsonColInfoItem(JsonColInfoItem *a, JsonColInfoItem *b);
+static boolean equalJsonTableOperator(JsonTableOperator *a, JsonTableOperator *b);
+static boolean equalJsonPath(JsonPath *a, JsonPath *b);
+
 // equal functions for query_block
 static boolean equalQueryBlock(QueryBlock *a, QueryBlock *b);
 static boolean equalSetQuery(SetQuery *a, SetQuery *b);
@@ -81,6 +87,13 @@ static boolean equalDelete(Delete *a, Delete *b);
 static boolean equalUpdate(Update *a, Update *b);
 static boolean equalTransactionStmt(TransactionStmt *a, TransactionStmt *b);
 static boolean equalFromProvInfo (FromProvInfo *a, FromProvInfo *b);
+
+// equal functions for datalog model
+static boolean equalDLAtom (DLAtom *a, DLAtom *b);
+static boolean equalDLVar (DLVar *a, DLVar *b);
+static boolean equalDLRule (DLRule *a, DLRule *b);
+static boolean equalDLProgram (DLProgram *a, DLProgram *b);
+static boolean equalDLComparison (DLComparison *a, DLComparison *b);
 
 /* use these macros to compare fields */
 
@@ -123,6 +136,59 @@ static boolean equalFromProvInfo (FromProvInfo *a, FromProvInfo *b);
 #define equalstr(a, b)  \
 		(((a) != NULL && (b) != NULL) ? (strcmp(a, b) == 0) : (a) == (b))
 
+/* datalog model comparisons */
+static boolean
+equalDLAtom (DLAtom *a, DLAtom *b)
+{
+    COMPARE_STRING_FIELD(rel);
+    COMPARE_NODE_FIELD(args);
+    COMPARE_SCALAR_FIELD(negated);
+    COMPARE_NODE_FIELD(n.properties);
+
+    return TRUE;
+}
+
+static boolean
+equalDLVar (DLVar *a, DLVar *b)
+{
+    COMPARE_STRING_FIELD(name);
+    COMPARE_SCALAR_FIELD(dt);
+    COMPARE_NODE_FIELD(n.properties);
+
+    return TRUE;
+}
+
+static boolean
+equalDLRule (DLRule *a, DLRule *b)
+{
+    COMPARE_NODE_FIELD(head);
+    COMPARE_NODE_FIELD(body);
+    COMPARE_NODE_FIELD(n.properties);
+
+    return TRUE;
+}
+
+static boolean
+equalDLProgram (DLProgram *a, DLProgram *b)
+{
+    COMPARE_NODE_FIELD(rules);
+    COMPARE_NODE_FIELD(facts);
+    COMPARE_STRING_FIELD(ans);
+    COMPARE_NODE_FIELD(n.properties);
+
+    return TRUE;
+}
+
+static boolean
+equalDLComparison (DLComparison *a, DLComparison *b)
+{
+    COMPARE_NODE_FIELD(opExpr);
+    COMPARE_NODE_FIELD(n.properties);
+
+    return TRUE;
+}
+
+
 /* */
 static boolean
 equalAttributeReference (AttributeReference *a,
@@ -132,6 +198,7 @@ equalAttributeReference (AttributeReference *a,
     COMPARE_SCALAR_FIELD(fromClauseItem);
     COMPARE_SCALAR_FIELD(attrPosition);
     COMPARE_SCALAR_FIELD(outerLevelsUp);
+    COMPARE_SCALAR_FIELD(attrType);
 
     return TRUE;
 }
@@ -160,6 +227,14 @@ equalConstant (Constant *a, Constant *b)
 {
     COMPARE_SCALAR_FIELD(constType);
 
+    // if both are NULL they are considered equal
+    if (a->isNull && b->isNull)
+        return TRUE;
+
+    // only one of them is NULL return FALSE
+    if (a->isNull || b->isNull)
+        return FALSE;
+
     switch(a->constType)
     {
         case DT_INT:
@@ -172,6 +247,8 @@ equalConstant (Constant *a, Constant *b)
             return strcmp(STRING_VALUE(a), STRING_VALUE(b)) == 0;
         case DT_LONG:
             return LONG_VALUE(a) == LONG_VALUE(b);
+        case DT_VARCHAR2:
+	    return strcmp(STRING_VALUE(a), STRING_VALUE(b)) == 0;
     }
 
     COMPARE_SCALAR_FIELD(isNull);
@@ -308,7 +385,7 @@ equalList(List *a, List *b)
     return TRUE;
 }
 
-static boolean
+boolean
 equalStringList (List *a, List *b)
 {
     if (a == NULL && b == NULL)
@@ -350,6 +427,23 @@ equalSet (Set *a, Set *b)
         FOREACH_SET(int,i,b)
         {
             if (!hasSetIntElem(a,*i))
+                return FALSE;
+        }
+
+        return TRUE;
+    }
+
+    if (a->setType == SET_TYPE_LONG)
+    {
+        FOREACH_SET(long,i,a)
+        {
+            if (!hasSetLongElem(b,*i))
+                return FALSE;
+        }
+
+        FOREACH_SET(long,i,b)
+        {
+            if (!hasSetLongElem(a,*i))
                 return FALSE;
         }
 
@@ -603,6 +697,56 @@ equalOrderOperator(OrderOperator *a, OrderOperator *b)
     return TRUE;
 }
 
+
+static boolean
+equalFromJsonTable(FromJsonTable *a, FromJsonTable *b)
+{
+	COMPARE_NODE_FIELD(columns);
+    COMPARE_STRING_FIELD(documentcontext);
+    COMPARE_NODE_FIELD(jsonColumn);
+    COMPARE_STRING_FIELD(jsonTableIdentifier);
+    COMPARE_STRING_FIELD(forOrdinality);
+
+    return TRUE;
+}
+
+static boolean
+equalJsonColInfoItem(JsonColInfoItem *a, JsonColInfoItem *b)
+{
+    COMPARE_STRING_FIELD(attrName);
+    COMPARE_STRING_FIELD(path);
+    COMPARE_STRING_FIELD(attrType);
+
+    COMPARE_STRING_FIELD(format);
+    COMPARE_STRING_FIELD(wrapper);
+    COMPARE_NODE_FIELD(nested);
+    COMPARE_STRING_FIELD(forOrdinality);
+
+    return TRUE;
+}
+
+static boolean
+equalJsonTableOperator(JsonTableOperator *a, JsonTableOperator *b)
+{
+    COMPARE_QUERY_OP();
+
+    COMPARE_NODE_FIELD(columns);
+    COMPARE_STRING_FIELD(documentcontext);
+    COMPARE_NODE_FIELD(jsonColumn);
+    COMPARE_STRING_FIELD(jsonTableIdentifier);
+    COMPARE_STRING_FIELD(forOrdinality);
+
+    return TRUE;
+}
+
+static boolean
+equalJsonPath(JsonPath *a, JsonPath *b)
+{
+    COMPARE_STRING_FIELD(path);
+
+    return TRUE;
+}
+
 // equal functions for query_block
 static boolean 
 equalQueryBlock(QueryBlock *a, QueryBlock *b)
@@ -744,6 +888,7 @@ equalFromItem(FromItem *a, FromItem *b)
     COMPARE_STRING_FIELD(name);
     COMPARE_STRING_LIST_FIELD(attrNames);
     COMPARE_NODE_FIELD(provInfo);
+    COMPARE_NODE_FIELD(dataTypes);
     
     return TRUE;
 }
@@ -975,10 +1120,40 @@ equal(void *a, void *b)
         case T_OrderOperator:
             retval = equalOrderOperator(a,b);
             break;
+        case T_FromJsonTable:
+            retval = equalFromJsonTable(a,b);
+            break;
+        case T_JsonColInfoItem:
+        	retval = equalJsonColInfoItem(a,b);
+        	break;
+        case T_JsonTableOperator:
+        	retval = equalJsonTableOperator(a,b);
+        	break;
+        case T_JsonPath:
+        	retval = equalJsonPath(a,b);
+        	break;
+        /* datalog model */
+        case T_DLAtom:
+            retval = equalDLAtom(a,b);
+            break;
+        case T_DLVar:
+            retval = equalDLVar(a,b);
+            break;
+        case T_DLRule:
+            retval = equalDLRule(a,b);
+            break;
+        case T_DLProgram:
+            retval = equalDLProgram(a,b);
+            break;
+        case T_DLComparison:
+            retval = equalDLComparison(a,b);
+            break;
         default:
             retval = FALSE;
             break;
     }
+
+//    printf("equals: %p, %p, %s\n%s -- %s\n", a, b, (a == b) ? "TRUE" : "FALSE", nodeToString(a), nodeToString(b));
 
     if (!retval)
         TRACE_LOG("not equals \n%s\n\n%s", nodeToString(a), nodeToString(b));

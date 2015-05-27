@@ -65,6 +65,26 @@
 //TODO
 #endif
 
+/* <regex.h> */
+#if HAVE_REGEX_H
+#include <regex.h>
+#endif
+
+/* longjmp for exception handling */
+#if HAVE_SETJMP_H
+#include <setjmp.h>
+#endif
+
+/* signal handler */
+#if HAVE_SIGNAL_H
+#include <signal.h>
+#endif
+
+/* unistd handler */
+#if HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup
@@ -76,7 +96,10 @@
 /* streq function */
 #if HAVE_STRCMP
 #define streq(_l,_r) (strcmp(_l,_r) == 0)
+#define strpeq(_l,_r) ((_l) == (_r)) || ((_l != NULL) && (_r != NULL) && (strcmp(_l,_r) == 0))
 #endif
+
+
 
 /* exit for main function */
 #ifndef EXIT_SUCCESS
@@ -126,21 +149,29 @@
 
 // override free to make sure nobody is using free directly
 #define free(_p) "DO NOT USE free DIRECTLY USE \"FREE\" FROM THE MEMORY MANAGER"; @
+#define malloc(_p) "DO NOT USE malloc DIRECTLY USE \"MALLOC\" FROM THE MEMORY MANAGER"; @
 
 // provide ASSERT macro if not deactivated by user
+// use exception system instead
 #ifdef DISABLE_ASSERT
 #define ASSERT(expr)
 #define ASSERT_BARRIER(code)
 #define TIME_ASSERT(expr)
 #else
-#define ASSERT(expr) assert(expr);
+#define ASSERT(expr) \
+    if (!(expr)) { \
+    	THROW(SEVERITY_RECOVERABLE, "%s: %s\n", "failed assertion", #expr); \
+    }
+
 #define TIME_ASSERT(expr) \
     do { \
         START_TIMER("ASSERT"); \
-        assert(expr); \
+        ASSERT(expr); \
         STOP_TIMER("ASSERT"); \
     } while(0)
 #define ASSERT_BARRIER(code) code
 #endif
+
+
 
 #endif /* COMMON_H */

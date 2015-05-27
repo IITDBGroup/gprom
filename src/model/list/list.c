@@ -226,7 +226,7 @@ singletonInt(int value)
 {
 	List *list;
 
-	list = newList(T_List);
+	list = newList(T_IntList);
 	list->head->data.int_value = value;
 
 	return list;
@@ -247,7 +247,6 @@ List *
 listMake(void *elem, ...)
 {
     List *result = singleton(elem);
-    int n = 0;
     va_list args;
     void *p;
 
@@ -279,12 +278,13 @@ appendToTailOfList(List *list, void *value)
 {
     ASSERT(isPtrList(list));
 	
-    if (list == NIL) 
+    if (list == NIL || list->length == 0)
 		list = newList(T_List);
 	else
         newListTail(list);
     
     list->tail->data.ptr_value = value;
+
     ASSERT(checkList(list));
     return list;
 }
@@ -380,11 +380,31 @@ reverseList(List *list)
     ASSERT(checkList(list));
 }
 
-void
-sortList(List *list)
+List *
+sortList(List *list, int (*sm) (const void *, const void *))
 {
+    int numE = LIST_LENGTH(list);
+    ListCell *lc;
+    List *result = NIL;
+    if (list == NIL)
+        return NIL;
 
+    lc = list->head;
+    // create array for quicksort
+    void **arr = CALLOC(sizeof(void *), numE);
+    for(int i = 0; i < numE; i++, lc = lc->next)
+        arr[i] = LC_P_VAL(lc);
+
+    // using stdlib quicksort
+    qsort(arr, numE, sizeof(void*), sm);
+
+    // result list construction
+    for(int i = 0; i < numE; i++)
+        result = appendToTailOfList(result, arr[i]);
+
+    return result;
 }
+
 
 List *
 copyList(List *list)
@@ -489,6 +509,8 @@ concatLists (List *a, ...)
 
     va_end(args);
 
+    ASSERT(checkList(result));
+
     return result;
 }
 
@@ -498,19 +520,35 @@ sublist(List *l, int from, int to)
     List *result = makeNode(List);
     ListCell *lc = l->head;
 
-    ASSERT(from >= 0 && to <= LIST_LENGTH(l) && to > from);
+    ASSERT(from >= 0 && to < LIST_LENGTH(l) && to >= from);
 
     // skip from start
     for(int i = 0; i < from; i++, lc = lc ->next);
 
     // find new head and skip until to
     result->head = lc;
-    for(int i = from + 1; i < to; i++, lc = lc->next);
+    for(int i = from + 1; i <= to; i++, lc = lc->next);
 
     result->tail = lc;
     lc->next = NULL;
     result->type = l->type;
-    result->length = to - from;
+    result->length = to - from + 1;
+
+    ASSERT(checkList(result));
+
+    return result;
+}
+
+List *
+genericSublist(List *l, boolean (*pred) (void *, void *), void *context)
+{
+    List *result = NIL;
+
+    FOREACH(void,n,l)
+    {
+        if (pred(n, context))
+            result = appendToTailOfList(result, n);
+    }
 
     return result;
 }
@@ -615,7 +653,6 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 {
     ASSERT(isPtrList(list));
     List *result = NULL;
-    ListCell *prev = getHeadOfList(list);
 
     FOREACH_LC(lc,list)
     {
@@ -629,3 +666,102 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 
     return result;
 }
+
+//List *
+//removeFromTail(List *X)
+//{
+//	int len = LIST_LENGTH(X);
+//	int c = 0;
+//
+//	List *result = NIL;
+//
+//	if(len == 1)
+//		result = NIL;
+//	else
+//	{
+//		FOREACH_INT(lc, X)
+//        {
+//			result = appendToTailOfListInt(result, lc);
+//			c++;
+//			if(c + 1 == len)
+//				break;
+//        }
+//	}
+//	return result;
+//}
+List *
+removeFromTail(List *X)
+{
+	DEBUG_LOG("remove from list %s", nodeToString(X));
+	List *result = NIL;
+	ListCell *el;
+	int l = LIST_LENGTH(X);
+
+    if (l <= 1)
+        return NIL;
+
+    el = X->head;
+    //DEBUG_LOG("remove from list el %s", nodeToString(el->data));
+    for(int i=0; i<l-1; i++)
+    {
+    	result = appendToTailOfList(result, LC_P_VAL(el));
+    	el = el->next;
+    }
+
+	return result;
+}
+
+List *
+removeFromHead(List *X)
+{
+    List *result;
+    ListCell *head;
+
+    if (LIST_LENGTH(X) <= 1)
+        return NIL;
+
+    result = copyList(X);
+    head = result->head;
+    result->head = head->next;
+    result->length--;
+
+//    FOREACH_INT(lc, X)
+//    {
+//        if(c != 0)
+//           result = appendToTailOfListInt(result, lc);
+//
+//        c++;
+//    }
+    return result;
+}
+
+//remove all the elements of list l1 from list l2, l1 is a sublist of l2
+List *
+removeListElementsFromAnotherList(List *l1, List *l2)
+{
+    List *result = NIL;
+    boolean flag = FALSE;
+
+    FOREACH_LC(lc2, l2)
+    {
+        flag = FALSE;
+        void *value = LC_P_VAL(lc2);
+
+        FOREACH_LC(lc1, l1)
+        {
+            void *ptrVal = LC_P_VAL(lc1);
+            if(equal(ptrVal, value))
+            {
+                flag = TRUE;
+                break;
+            }
+        }
+        if(flag == FALSE)
+        {
+            result = appendToTailOfList(result, value);
+        }
+    }
+
+    return result;
+}
+

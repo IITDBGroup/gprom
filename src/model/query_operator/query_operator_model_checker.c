@@ -12,12 +12,16 @@
 
 #include "common.h"
 
+#include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
-
+#include "model/node/nodetype.h"
+#include "model/set/set.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
+#include "configuration/option.h"
 
 static boolean checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent);
+static boolean checkUniqueAttrNames (QueryOperator *op);
 
 
 boolean
@@ -35,19 +39,26 @@ isTree(QueryOperator *op)
     return TRUE;
 }
 
+#define SHOULD(opt) (getBoolOption(OPTION_AGGRESSIVE_MODEL_CHECKING) || getBoolOption(opt))
+#define FREE_CONTEXT_AND_RETURN_BOOL(b) \
+		do { \
+		    FREE_AND_RELEASE_CUR_MEM_CONTEXT(); \
+            return b; \
+        } while (0)
+
 boolean
 checkModel (QueryOperator *op)
 {
-    if (!checkParentChildLinks(op))
-        return FALSE;
+    NEW_AND_ACQUIRE_MEMCONTEXT("QO_MODEL_CHECKER");
 
-    if (!checkAttributeRefConsistency(op))
-        return FALSE;
+    if (SHOULD(CHECK_OM_PARENT_CHILD_LINKS) && !checkParentChildLinks(op))
+        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
+    if (SHOULD(CHECK_OM_ATTR_REF) && !checkAttributeRefConsistency(op))
+        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
+    if (SHOULD(CHECK_OM_SCHEMA_CONSISTENCY) && !checkSchemaConsistency(op))
+        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
 
-    if (!checkSchemaConsistency(op))
-        return FALSE;
-
-    return TRUE;
+    FREE_CONTEXT_AND_RETURN_BOOL(TRUE);
 }
 
 boolean
@@ -103,6 +114,13 @@ checkAttributeRefConsistency (QueryOperator *op)
 
         }
             break;
+        // Check Attribute that we use as Json Column should be from/should exist in child
+        case T_JsonTableOperator:
+        {
+	    JsonTableOperator *o = (JsonTableOperator *)op;
+	    attrRefs = singleton(o->jsonColumn);
+        }
+        break;
         default:
             break;
     }
@@ -125,6 +143,14 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
         int attrPos = a->attrPosition;
         QueryOperator *child;
         AttributeDef *childA;
+
+        if (a->name == NULL)
+        {
+            ERROR_LOG("attribute NULL name: %s\n\nin%s",
+                    beatify(nodeToString(a)),
+                    operatorToOverviewString((Node *) parent));
+            return FALSE;
+        }
 
         if (input < 0 || input >= LIST_LENGTH(children))
         {
@@ -151,8 +177,33 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
             ERROR_LOG("attribute ref name and child attrdef names are not the "
                     "same: <%s> and <%s> in\n\n%s", childA->attrName, a->name,
                     operatorToOverviewString((Node *) parent));
+            DEBUG_LOG("details are: \n%s\n\n%s\n\n%s", nodeToString(a),
+                    nodeToString(childA),
+                    beatify(nodeToString(parent)));
             return FALSE;
         }
+        if (childA->dataType != a->attrType)
+        {
+            ERROR_LOG("attribute datatype and child attrdef datatypes are not the "
+                    "same: <%s> and <%s> in\n\n%s",
+                    DataTypeToString(childA->dataType),
+                    DataTypeToString(a->attrType),
+                    operatorToOverviewString((Node *) parent));
+            DEBUG_LOG("details are: \n%s\n\n%s\n\n%s", nodeToString(a),
+                    nodeToString(childA),
+                    beatify(nodeToString(parent)));
+            return FALSE;
+        }
+       /* else
+        {
+            DEBUG_LOG("attribute datatype and child attrdef datatypes are not the "
+                    "same: <%s> and <%s> in\n\n%s",
+                    DataTypeToString(childA->dataType),
+                    DataTypeToString(a->attrType),
+                    operatorToOverviewString((Node *) parent));;
+            DEBUG_LOG("details are: \n%s\n\n%s\n\n", nodeToString(a),
+                    nodeToString(childA));
+        }*/
     }
 
     return TRUE;
@@ -174,11 +225,26 @@ checkSchemaConsistency (QueryOperator *op)
                         operatorToOverviewString((Node *) op));
                 return FALSE;
             }
+
+            FORBOTH(Node,p,a,o->projExprs,o->op.schema->attrDefs)
+            {
+                AttributeDef *def = (AttributeDef *) a;
+
+                if (typeOf(p) != def->dataType)
+                {
+                    ERROR_LOG("schema and projection expression data types should"
+                            " be the same: %s = %s",
+                            DataTypeToString(typeOf(p)),
+                            DataTypeToString(def->dataType));
+                    DEBUG_LOG("details: %s", beatify(nodeToString(o)));
+                    return FALSE;
+                }
+            }
         }
         break;
         case T_DuplicateRemoval:
         {
-            if (equal(OP_LCHILD(op)->schema->attrDefs, op->schema->attrDefs))
+            if (!equal(OP_LCHILD(op)->schema->attrDefs, op->schema->attrDefs))
             {
                 ERROR_LOG("Attributes of DuplicateRemoval should match attributes"
                         " of its child:\n%s",
@@ -192,13 +258,21 @@ checkSchemaConsistency (QueryOperator *op)
             SelectionOperator *o = (SelectionOperator *) op;
             QueryOperator *child = OP_LCHILD(o);
 
-            if (!equal(op->schema->attrDefs,child->schema->attrDefs))
+            if (LIST_LENGTH(op->schema->attrDefs) != LIST_LENGTH(child->schema->attrDefs))
             {
-                ERROR_LOG("Attributes of a selection operator should match the "
-                        "attributes of its child:\n%s",
+                ERROR_LOG("Number of attributes of a selection operator should match the "
+                        "number of attributes of its child:\n%s",
                         operatorToOverviewString((Node *) op));
                 return FALSE;
             }
+
+//            if (!equal(op->schema->attrDefs,child->schema->attrDefs))
+//            {
+//                ERROR_LOG("Attributes of a selection operator should match the "
+//                        "attributes of its child:\n%s",
+//                        operatorToOverviewString((Node *) op));
+//                return FALSE;
+//            }
         }
         break;
         case T_JoinOperator:
@@ -206,18 +280,22 @@ checkSchemaConsistency (QueryOperator *op)
             JoinOperator *o = (JoinOperator *) op;
             QueryOperator *lChild = OP_LCHILD(o);
             QueryOperator *rChild = OP_RCHILD(o);
-            List *expectedSchema = CONCAT_LISTS(
-                    copyObject(lChild->schema->attrDefs),
-                    copyObject(rChild->schema->attrDefs));
-
-            if (!equal(o->op.schema->attrDefs, expectedSchema))
+            //TODO only check names
+//            List *expectedSchema = CONCAT_LISTS(
+//                    copyObject(lChild->schema->attrDefs),
+//                    copyObject(rChild->schema->attrDefs));
+//
+            if (LIST_LENGTH(o->op.schema->attrDefs) !=
+                    LIST_LENGTH(lChild->schema->attrDefs) +
+                    LIST_LENGTH(rChild->schema->attrDefs))
             {
-                ERROR_LOG("Attributes of a join operator should be the "
-                        "concatenation of attributes of its children:\n%s\n"
-                        "expected:\n%s\nbut was\n%s",
+                ERROR_LOG("Number of attributes of a join operator should be the "
+                        "addition of the number of attributes of its children:\n%s\n"
+                        "expected:\n%u\nbut was\n%u",
                         operatorToOverviewString((Node *) op),
-                        nodeToString(o->op.schema),
-                        nodeToString(expectedSchema));
+                        LIST_LENGTH(lChild->schema->attrDefs) +
+                                LIST_LENGTH(rChild->schema->attrDefs),
+                        LIST_LENGTH(o->op.schema->attrDefs));
                 return FALSE;
             }
         }
@@ -226,6 +304,7 @@ checkSchemaConsistency (QueryOperator *op)
         {
             SetOperator *o = (SetOperator *) op;
             QueryOperator *lChild = OP_LCHILD(o);
+            QueryOperator *rChild = OP_RCHILD(o);
 
             if (!equal(o->op.schema->attrDefs, lChild->schema->attrDefs))
             {
@@ -234,14 +313,23 @@ checkSchemaConsistency (QueryOperator *op)
                         operatorToOverviewString((Node *) op));
                 return FALSE;
             }
+            // left and right child should have the same number of attributes
+            if (LIST_LENGTH(lChild->schema->attrDefs) != LIST_LENGTH(rChild->schema->attrDefs))
+            {
+                ERROR_LOG("Both children of a set operator should have the same"
+                        " number of attributes:\n%s",
+                        operatorToOverviewString((Node *) op));
+                return FALSE;
+            }
+
         }
         break;
         case T_WindowOperator:
         {
-            WindowOperator *o = (WindowOperator *) op;
+//            WindowOperator *o = (WindowOperator *) op;
             QueryOperator *lChild = OP_LCHILD(op);
             List *expected = sublist(copyObject(op->schema->attrDefs), 0,
-                    LIST_LENGTH(op->schema->attrDefs) - 1);
+                    LIST_LENGTH(op->schema->attrDefs) - 2);
 
             if (!equal(expected, lChild->schema->attrDefs))
             {
@@ -254,7 +342,7 @@ checkSchemaConsistency (QueryOperator *op)
         break;
         case T_OrderOperator:
         {
-            OrderOperator *o = (OrderOperator *) op;
+//            OrderOperator *o = (OrderOperator *) op;
             QueryOperator *lChild = OP_LCHILD(op);
             List *expected = op->schema->attrDefs;
 
@@ -267,6 +355,22 @@ checkSchemaConsistency (QueryOperator *op)
             }
         }
         break;
+        // We should Check that the schema of JsonTable has the attributes of the Child plus new JsonTable Attributes
+        case T_JsonTableOperator:
+        {
+	    QueryOperator *lChild = OP_LCHILD(op);
+	    FOREACH(Node, n, lChild->schema->attrDefs)
+	    {
+		if(!searchListNode(op->schema->attrDefs, n))
+                {
+                    ERROR_LOG("Attributes of a Json Table operator should be the "
+                              "attributes of its left child plus new JsonTable Attributes:\n%s",
+                              operatorToOverviewString((Node *) op));
+                    return FALSE;
+                }
+            }
+        }
+        break;
         default:
             break;
     }
@@ -274,6 +378,26 @@ checkSchemaConsistency (QueryOperator *op)
     FOREACH(QueryOperator,o,op->inputs)
         if (!checkSchemaConsistency(o))
             return FALSE;
+
+    return !SHOULD(CHECK_OM_UNIQUE_ATTR_NAMES)
+            || checkUniqueAttrNames(op);
+}
+
+static boolean
+checkUniqueAttrNames (QueryOperator *op)
+{
+    Set *names = STRSET();
+
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    {
+        if (hasSetElem(names,a->attrName))
+        {
+            ERROR_LOG("Attribute <%s> appears more than once in\n\n%s",
+                    a->attrName, operatorToOverviewString((Node *) op));
+            return FALSE;
+        }
+        addToSet(names,strdup(a->attrName));
+    }
 
     return TRUE;
 }

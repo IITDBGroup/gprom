@@ -60,7 +60,6 @@ static MemContext *context = NULL;
 static Timer *getOrCreateTimer (char *name, int line, const char *function,
         const char *sourceFile);
 static void updateStats (Timer *t);
-static long mytimediff (struct timeval *start, struct timeval *end);
 
 #define CREATE_OR_USE_MEMCONTEXT() \
     do { \
@@ -135,23 +134,6 @@ updateStats (Timer *t)
     t->numCalls++;
     t->avgTime = t->totalTime / t->numCalls;
     t->times = appendToTailOfList(t->times, createConstFloat(newT));
-}
-
-static long
-mytimediff (struct timeval *start, struct timeval *end)
-{
-    long diff;
-    long usecDiff;
-    time_t secDiff;
-
-    DEBUG_LOG("\nstart: %ld sec %ld usec\nend: %ld sec %ld usec",
-            start->tv_sec, start->tv_usec, end->tv_sec, end->tv_usec);
-    usecDiff = ((end->tv_usec) / 1000L) - ((start->tv_usec) / 1000L);
-    secDiff = (end->tv_sec) - (start->tv_sec);
-    diff = usecDiff + (1000 * secDiff);
-    DEBUG_LOG("secdiff: %ld, usecdiff: %ld, diff: %ld", usecDiff, secDiff, diff);
-
-    return diff;
 }
 
 static Timer *

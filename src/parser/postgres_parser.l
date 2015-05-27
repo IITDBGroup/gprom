@@ -26,6 +26,7 @@
 #include "postgres_parser.tab.h"
 
 #undef free
+#undef malloc
 
 #define TOKSELF() { \
 	TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", postgrestext[0], postgrestext[0]); \
@@ -124,8 +125,6 @@ STARLL				TOK(STARALL)
 (?i:SOME)           TOK(SOME)
 (?i:BETWEEN)	 	TOK(BETWEEN)
 (?i:BY)			 	TOK(BY)
-(?i:UPDATE)		 	TOK(UPDATE)
-(?i:DELETE)	     	TOK(DELETE)
 (?i:IS)		     	TOK(IS)
 (?i:NULL)	     	TOK(NULLVAL)
 (?i:UNION)        	TOK(UNION)

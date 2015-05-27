@@ -18,8 +18,10 @@
 
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
+#include "model/expression/expression.h"
 #include "model/set/hashmap.h"
 #include "model/set/set.h"
+#include "model/relation/relation.h"
 #include "model/query_block/query_block.h"
 
 
@@ -27,7 +29,8 @@
 typedef enum MetadataLookupPluginType
 {
     METADATA_LOOKUP_PLUGIN_ORACLE,
-    METADATA_LOOKUP_PLUGIN_POSTGRES
+    METADATA_LOOKUP_PLUGIN_POSTGRES,
+    METADATA_LOOKUP_PLUGIN_EXTERNAL
 } MetadataLookupPluginType;
 
 /* catalog cache */
@@ -41,6 +44,8 @@ typedef struct CatalogCache
     Set *viewNames;             // set of existing view names
     Set *aggFuncNames;          // names of aggregate functions
     Set *winFuncNames;          // names of window functions
+    void *cacheHook;            // used to store
+//    void (*cleanAddCache) (CatalogCache *cache); // function to clean up additional cache
 } CatalogCache;
 
 /* plugin definition */
@@ -62,18 +67,25 @@ typedef struct MetadataLookupPlugin
     boolean (*catalogViewExists) (char * viewName);
     List * (*getAttributes) (char *tableName);
     List * (*getAttributeNames) (char *tableName);
+    Node * (*getAttributeDefaultVal) (char *schema, char *tableName, char *attrName);
+
     boolean (*isAgg) (char *functionName);
     boolean (*isWindowFunction) (char *functionName);
+    DataType (*getFuncReturnType) (char *fName, List *argTypes);
+    DataType (*getOpReturnType) (char *oName, List *argTypes);
+
     char * (*getTableDefinition) (char *tableName);
     char * (*getViewDefinition) (char *viewName);
-
+    List * (*getKeyInformation) (char *tableName);
     /* audit log access */
     void (*getTransactionSQLAndSCNs) (char *xid, List **scns, List **sqls,
             List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
     long (*getCommitScn) (char *tableName, long maxScn, char *xid);
 
-    /* execute transaction */
+    /* execution */
     Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
+    Relation * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
+    int (*getCostEstimation)(char *query);
 
     /* cache for catalog information */
     CatalogCache *cache;
@@ -90,6 +102,7 @@ extern int initMetadataLookupPlugins (void);
 extern int shutdownMetadataLookupPlugins (void);
 extern void chooseMetadataLookupPluginFromString (char *plug);
 extern void chooseMetadataLookupPlugin (MetadataLookupPluginType plugin);
+extern void setMetadataLookupPlugin (MetadataLookupPlugin *p);
 
 /* generic methods */
 extern int initMetadataLookupPlugin (void);
@@ -102,15 +115,22 @@ extern boolean catalogTableExists (char * tableName);
 extern boolean catalogViewExists (char * viewName);
 extern List *getAttributes (char *tableName);
 extern List *getAttributeNames (char *tableName);
+extern Node *getAttributeDefaultVal (char *schema, char *tableName, char *attrName);
+extern List *getAttributeDataTypes (char *tableName);
 extern boolean isAgg(char *functionName);
 extern boolean isWindowFunction(char *functionName);
+extern DataType getFuncReturnType (char *fName, List *argTypes);
+extern DataType getOpReturnType (char *oName, List *argTypes);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
+extern List *getKeyInformation (char *tableName);
 
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
+extern Relation *executeQuery (char *sql);
 extern long getCommitScn (char *tableName, long maxScn, char *xid);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
+extern int getCostEstimation(char *query);
 
 /* helper functions for createing the cache */
 extern CatalogCache *createCache(void);

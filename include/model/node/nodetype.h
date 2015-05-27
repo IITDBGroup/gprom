@@ -6,6 +6,7 @@
 
 NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_Invalid,
+    T_Node,
 
     /* collection types */
     T_List,
@@ -32,6 +33,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_WindowFunction,
     T_RowNumExpr,
     T_OrderExpr,
+    T_CastExpr,
 
     /* query block model nodes */
     T_SetQuery,
@@ -69,8 +71,24 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_ConstRelOperator,
     T_NestingOperator,
     T_WindowOperator,
-    T_OrderOperator
+    T_OrderOperator,
 
+    /* datalog model nodes */
+    T_DLNode,
+    T_DLAtom,
+    T_DLVar,
+    T_DLRule,
+    T_DLProgram,
+    T_DLComparison,
+
+    /* Json Table Node */
+    T_FromJsonTable,
+    T_JsonTableOperator,
+    T_JsonColInfoItem,
+    T_JsonPath,
+			
+    /* relation */
+    T_Relation
 );
 
 typedef struct Node{
@@ -169,17 +187,24 @@ extern KeyValue *createNodeKeyValue(Node *key, Node *value);
 extern char *nodeToString(void *obj);
 extern char *beatify(char *input);
 char *operatorToOverviewString(Node *op);
+char *datalogToOverviewString(Node *n);
 char *itoa(int value);
 
 /* get a dot script for a query operator graph or query block tree */
 extern char *nodeToDot(void *obj);
 
+#define DOT_TO_CONSOLE(obj) \
+    do { \
+        if (getBoolOption(OPTION_GRAPHVIZ)) \
+            printf("%s",nodeToDot(obj)); \
+    } while (0)
+
 /* create a node tree from a string */
 extern void *stringToNode(char *str);
 
 /* deep copy a node */
-//#define COPY_OBJECT_TO_CONTEXT(obj, result, context) \
-//
+//#define COPY_OBJECT_TO_CONTEXT(obj, result, context)
+
 //    (AQUIRE_MEM_CONTEXT(context,))
 extern void *copyObject(void *obj);
 

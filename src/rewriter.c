@@ -17,20 +17,25 @@
 #include "log/logger.h"
 #include "configuration/option.h"
 #include "configuration/option_parser.h"
-
+#include "exception/exception.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "provenance_rewriter/prov_rewriter.h"
+#include "analysis_and_translate/analyzer.h"
 #include "analysis_and_translate/translator.h"
 #include "sql_serializer/sql_serializer.h"
 #include "operator_optimizer/operator_optimizer.h"
 #include "parser/parser.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "operator_optimizer/cost_based_optimizer.h"
+#include "execution/executor.h"
 
 #include "instrumentation/timing_instrumentation.h"
+#include "instrumentation/memory_instrumentation.h"
 
+#include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 
@@ -39,6 +44,8 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
 {
     initMemManager();
     mallocOptions();
+    initLogger();
+
     if(parseOption(argc, argv) != 0)
     {
         printOptionParseError(stdout);
@@ -52,7 +59,23 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
         return EXIT_FAILURE;
     }
 
+    // set log level from options
+    setMaxLevel(getIntOption("log.level"));
+
+    if (opt_memmeasure)
+        setupMemInstrumentation();
+
+    return EXIT_SUCCESS;
+}
+
+int
+initBasicModules (void)
+{
+    initMemManager();
+    mallocOptions();
     initLogger();
+    if (opt_memmeasure)
+        setupMemInstrumentation();
 
     return EXIT_SUCCESS;
 }
@@ -77,7 +100,29 @@ setupPluginsFromOptions(void)
         chooseMetadataLookupPluginFromString(be);
     initMetadataLookupPlugin();
 
-    //TODO SQL code gen
+    // setup analyzer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.analyzer")) != NULL)
+        chooseAnalyzerPluginFromString(pluginName);
+    else
+        chooseAnalyzerPluginFromString(be);
+
+    // setup analyzer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.translator")) != NULL)
+        chooseTranslatorPluginFromString(pluginName);
+    else
+        chooseTranslatorPluginFromString(be);
+
+    // setup analyzer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.sqlserializer")) != NULL)
+        chooseSqlserializerPluginFromString(pluginName);
+    else
+        chooseSqlserializerPluginFromString(be);
+    // setup analyzer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.executor")) != NULL)
+        chooseExecutorPluginFromString(pluginName);
+    else
+        chooseExecutorPluginFromString("sql");
+
 }
 
 int
@@ -98,6 +143,11 @@ shutdownApplication(void)
 {
     INFO_LOG("shutdown plugins, logger, and memory manager");
 
+    if (opt_memmeasure)
+    {
+        outputMemstats(FALSE);
+        shutdownMemInstrumentation();
+    }
     shutdownMetadataLookupPlugins();
 
     freeOptions();
@@ -106,21 +156,40 @@ shutdownApplication(void)
     return EXIT_SUCCESS;
 }
 
+void
+processInput(char *input)
+{
+    char *result = rewriteQuery(input);
+    execute(result);
+}
+
 char *
 rewriteQuery(char *input)
 {
     Node *parse;
-    char *result;
+    char *result = "";
 
-    parse = parseFromString(input);
-    DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+    NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
 
-    result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
-    INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
+    TRY
+    {
+        parse = parseFromString(input);
 
-//    OUT_TIMERS();
+        DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
 
-    return result;
+        result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
+        INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
+        RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+    }
+    ON_EXCEPTION
+    {
+        // if an exception is thrown then the query memory context has been
+        // destroyed and we can directly create an empty string in the callers
+        // context
+        DEBUG_LOG("allocated in memory context: %s", getCurMemContext()->contextName);
+    }
+    END_ON_EXCEPTION
+    return strdup("");
 }
 
 char *
@@ -133,8 +202,6 @@ rewriteQueryFromStream (FILE *stream) {
 
     result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
     INFO_LOG("Rewritten SQL text is <%s>", result);
-
-//    OUT_TIMERS();
 
     return result;
 }
@@ -154,18 +221,89 @@ rewriteQueryWithOptimization(char *input)
     return result;
 }
 
+char *
+generatePlan(Node *oModel, boolean applyOptimizations)
+{
+	StringInfo result = makeStringInfo();
+	Node *rewrittenTree;
+	char *rewrittenSQL = NULL;
+	START_TIMER("rewrite");
+
+	rewrittenTree = provRewriteQBModel(oModel);
+    DOT_TO_CONSOLE(rewrittenTree);
+
+	/*******************new Add for test json import jimp table***************************/
+	if(isA(rewrittenTree,List) && isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
+	{
+		QueryOperator *q = (QueryOperator *)getHeadOfListP((List *)rewrittenTree);
+		List *taOp = NIL;
+		findTableAccessOperator(&taOp, (QueryOperator *) q);
+		int l = LIST_LENGTH(taOp);
+		DEBUG_LOG("len %d", l);
+		if(isA(getHeadOfListP(taOp),TableAccessOperator))
+		{
+			TableAccessOperator *ta = (TableAccessOperator *) getHeadOfListP(taOp);
+			DEBUG_LOG("test %s", ta->tableName);
+			if(streq(ta->tableName,"JIMP2") || streq(ta->tableName, "JSDOC1"))
+			{
+				q = rewriteTransformationProvenanceImport(q);
+				DEBUG_LOG("Table: %s", nodeToString(ta));
+				rewrittenTree = (Node *) singleton(q);
+			}
+		}
+	}
+	/*******************new Add for test json import jimp table***************************/
+
+	DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
+	INFO_LOG("provenance rewritten query as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
+	STOP_TIMER("rewrite");
+
+	ASSERT_BARRIER(
+		if (isA(rewrittenTree, List))
+			FOREACH(QueryOperator,o,(List *) rewrittenTree)
+				TIME_ASSERT(checkModel(o));
+		else
+			TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+	)
+
+	if(applyOptimizations)
+	{
+		START_TIMER("OptimizeModel");
+		rewrittenTree = optimizeOperatorModel(rewrittenTree);
+		INFO_LOG("after optimizing AGM graph:\n\n%s", operatorToOverviewString(rewrittenTree));
+		STOP_TIMER("OptimizeModel");
+	}
+	else
+		if (isA(rewrittenTree, List))
+			FOREACH(QueryOperator,o,(List *) rewrittenTree)
+				LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
+		else
+			rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
+
+    DOT_TO_CONSOLE(rewrittenTree);
+
+	START_TIMER("SQLcodeGen");
+	appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
+	STOP_TIMER("SQLcodeGen");
+
+	rewrittenSQL = result->data;
+	FREE(result);
+
+	return rewrittenSQL;
+
+}
+
 static char *
 rewriteParserOutput (Node *parse, boolean applyOptimizations)
 {
-    StringInfo result = makeStringInfo();
     char *rewrittenSQL = NULL;
     Node *oModel;
-    Node *rewrittenTree;
 
     START_TIMER("translation");
     oModel = translateParse(parse);
-    DEBUG_LOG("translator returned:\n\n<%s>", nodeToString(oModel));
-    INFO_LOG("transaltor result as overview:\n\n%s", operatorToOverviewString(oModel));
+    DEBUG_LOG("translator returned:\n\n<%s>", beatify(nodeToString(oModel)));
+    INFO_LOG("translator result as overview:\n\n%s", operatorToOverviewString(oModel));
+    DOT_TO_CONSOLE(oModel);
     STOP_TIMER("translation");
 
     ASSERT_BARRIER(
@@ -176,40 +314,10 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
             TIME_ASSERT(checkModel((QueryOperator *) oModel));
     )
 
-    START_TIMER("rewrite");
-    rewrittenTree = provRewriteQBModel(oModel);
-    DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
-    INFO_LOG("provenance rewritten query as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
-    STOP_TIMER("rewrite");
-
-    ASSERT_BARRIER(
-        if (isA(rewrittenTree, List))
-            FOREACH(QueryOperator,o,(List *) rewrittenTree)
-                TIME_ASSERT(checkModel(o));
-        else
-            TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-    )
-
-    if(applyOptimizations)
-    {
-        START_TIMER("OptimizeModel");
-        rewrittenTree = optimizeOperatorModel(rewrittenTree);
-        INFO_LOG("after merging operators:\n\n%s", operatorToOverviewString(rewrittenTree));
-        STOP_TIMER("OptimizeModel");
-    }
+    if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+        rewrittenSQL = doCostBasedOptimization(oModel, applyOptimizations);
     else
-        if (isA(rewrittenTree, List))
-            FOREACH(QueryOperator,o,(List *) rewrittenTree)
-                LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
-        else
-            rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
-
-    START_TIMER("SQLcodeGen");
-    appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
-    STOP_TIMER("SQLcodeGen");
-
-    rewrittenSQL = result->data;
-    FREE(result);
+    	rewrittenSQL = generatePlan(oModel, applyOptimizations);
 
     return rewrittenSQL;
 }

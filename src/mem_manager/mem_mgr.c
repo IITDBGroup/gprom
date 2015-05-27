@@ -14,9 +14,14 @@
 
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
+#include "configuration/option.h"
+#include "exception/exception.h"
 #include "log/logger.h"
 #include "uthash.h"
 #include "instrumentation/timing_instrumentation.h"
+#include "instrumentation/memory_instrumentation.h"
+
+#define DEFAULT_MEM_CONTEXT_NAME "DEFAULT_MEMORY_CONTEXT"
 
 // override the defaults for UT_hash memory allocation to use standard malloc
 #undef uthash_malloc
@@ -24,10 +29,9 @@
 #define uthash_malloc(sz) malloc(sz)
 #define uthash_free(ptr,sz) free(ptr)
 
-// use actual free function
+// use actual malloc and free functions
 #undef free
-
-#define DEFAULT_MEM_CONTEXT_NAME "DEFAULT_MEMORY_CONTEXT"
+#undef malloc
 
 typedef struct MemContextNode
 {
@@ -105,6 +109,10 @@ setCurMemContext(MemContext *mc, const char *file, unsigned line)
         contextStackSize++;
         // push the passed-in context into context stack
 
+        // track mem allocations, but not of the context used for memory debugging
+        if (opt_memmeasure && !streq(mc->contextName,MEMDEBUG_CONTEXT_NAME))
+            addContext(mc->contextName, 0, TRUE);
+
         curMemContext = topContextNode->mc;
         GENERIC_LOG(LOG_DEBUG, file, line, "Set current memory context to '%s'@%p.",
                 curMemContext->contextName, curMemContext);
@@ -156,6 +164,7 @@ addAlloc(MemContext *mc, void *addr, const char *file, unsigned line)
     newAlloc->file = file;
     newAlloc->line = line;
     HASH_ADD_PTR(mc->hashAlloc, address, newAlloc); // add to hash table. Use address as key
+
     GENERIC_LOG(LOG_TRACE, file, line,
         "Added [addr:%p, file:'%s', line:%u] to memory context '%s'.", addr,
         file, line, mc->contextName);
@@ -316,13 +325,60 @@ freeCurMemContext(const char *file, unsigned line)
 }
 
 /*
+ * Free a memory context and its children. The context has to be on the stack.
+ * Returns and aquires the parent of the memory context.
+ */
+MemContext *
+freeMemContextAndChildren(char *contextName)
+{
+    MemContextNode *cur = topContextNode;
+    boolean found = FALSE;
+    char *curName = NULL;
+
+    // search for memcontext with the given name
+    for(;cur != NULL; cur = cur->next)
+    {
+        if (streq(cur->mc->contextName,contextName))
+        {
+            found = TRUE;
+            break;
+        }
+    }
+
+    // there is not much hope to recover here
+    if (!found)
+    {
+        fprintf(stderr, "trying to free memory context that currently not on the stack %s", contextName);
+        exit(1);
+    }
+
+    // free all children and requested memory context
+    do
+    {
+        // cannot use memory manager MALLOC here
+        if (curName)
+            free(curName);
+        curName = malloc(strlen(curMemContext->contextName) + 1);
+        strcpy(curName,curMemContext->contextName);
+        FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+        cur = topContextNode;
+    } while(!streq(curName,contextName));
+    if (curName)
+        free(curName);
+
+    INFO_LOG("now in context %s", curMemContext->contextName);
+
+    return cur->mc;
+}
+
+/*
  * Allocates memory and records it in the current memory context.
  */
 void *
 malloc_(size_t bytes, const char *file, unsigned line)
 {
     void *mem = malloc(bytes);
-    memset(mem, 178, bytes);
+//    memset(mem, 178, bytes);
     if (mem == NULL)
     {
         GENERIC_LOG(LOG_ERROR, file, line, "Fail to malloc.");
@@ -332,6 +388,10 @@ malloc_(size_t bytes, const char *file, unsigned line)
         GENERIC_LOG(LOG_TRACE, file, line, "%ld bytes memory @%p allocated.", bytes,
                 mem);
     }
+
+    // track mem allocations, but not of the context used for memory debugging
+    if (opt_memmeasure && !streq(curMemContext->contextName,MEMDEBUG_CONTEXT_NAME))
+        addContext(curMemContext->contextName, bytes, FALSE);
 
     addAlloc(curMemContext, mem, file, line);
 
@@ -356,6 +416,10 @@ calloc_(size_t bytes, unsigned count, const char *file, unsigned line)
                 "%ldx%ld bytes memory @%p allocated and initialized with 0.",
                 bytes, count, mem);
     }
+
+    // track mem allocations, but not of the context used for memory debugging
+    if (opt_memmeasure && !streq(curMemContext->contextName,MEMDEBUG_CONTEXT_NAME))
+        addContext(curMemContext->contextName, bytes, FALSE);
 
     addAlloc(curMemContext, mem, file, line);
 
@@ -389,4 +453,10 @@ contextStringDup(char *input)
     result = strcpy(result, input);
 
     return result;
+}
+
+MemContext *
+getDefaultMemContext(void)
+{
+    return defaultMemContext;
 }

@@ -1,4 +1,5 @@
-AM_CPPFLAGS = -I$(top_srcdir)/include -I.
+AM_CPPFLAGS = -I$(top_srcdir)/include
+AM_CFLAGS = @GPROM_CFLAGS@ -I.
 
 bin_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
 				testserializer testvisit testrewriter testpicsrewrite
@@ -7,9 +8,10 @@ testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 		   test_logger.c test_mem_mgr.c test_to_string.c \
 		   test_parse.c test_list.c test_main.h \
 		   test_metadata_lookup.c test_string.c test_set.c test_hashmap.c \
-		   test_vector.c test_parameter.c test_metadata_postgres.c
+		   test_vector.c test_parameter.c test_metadata_postgres.c test_string_utils.c \
+		   test_dl.c test_hash.c test_libgprom.c test_exception.c
 
-testmain_LDADD = ../src/libsrc.la
+testmain_LDADD = ../src/libsrc.la ../src/libgprom/libgprom.la
 
 testparser_SOURCES = test_parser.c
 testparser_LDADD = ../src/libsrc.la

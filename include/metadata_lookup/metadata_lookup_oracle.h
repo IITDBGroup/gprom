@@ -12,6 +12,7 @@
 #define METADATA_LOOKUP_ORACLE_H_
 
 #include "metadata_lookup/metadata_lookup.h"
+#include "model/query_operator/query_operator.h"
 
 /* enums for aggregation and window functions */
 #define AGG_FUNCTION_NAME_MAXSIZE 20
@@ -40,6 +41,7 @@ typedef enum AGG
     AGG_VAR_SAMP,
     AGG_VARIANCE,
     AGG_XMLAGG,
+    AGG_STRAGG,
 
     //used as the index of array, its default number is the size of this enum
     AGG_FUNCTION_COUNT
@@ -83,17 +85,23 @@ extern boolean oracleCatalogTableExists (char * tableName);
 extern boolean oracleCatalogViewExists (char * viewName);
 extern List *oracleGetAttributes (char *tableName);
 extern List *oracleGetAttributeNames (char *tableName);
+extern Node *oracleGetAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 extern boolean oracleIsAgg(char *functionName);
 extern boolean oracleIsWindowFunction(char *functionName);
 extern char *oracleGetTableDefinition(char *tableName);
 extern char *oracleGetViewDefinition(char *viewName);
+extern DataType oracleGetOpReturnType (char *oName, List *dataTypes);
+extern DataType oracleGetFuncReturnType (char *fName, List *dataTypes);
 extern long getBarrierScn(void);
+extern int oracleGetCostEstimation(char *query);
+extern List *oracleGetKeyInformation(char *tableName);
 
 extern void oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern long oracleGetCommitScn (char *tableName, long maxScn, char *xid);
 
 extern Node *oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
+extern Relation *oracleGenExecQuery (char *query);
 
 /* specific methods */
 #if HAVE_ORACLE_BACKEND

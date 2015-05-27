@@ -36,8 +36,12 @@ extern List *postgresGetAttributes (char *tableName);
 extern List *postgresGetAttributeNames (char *tableName);
 extern boolean postgresIsAgg(char *functionName);
 extern boolean postgresIsWindowFunction(char *functionName);
+extern DataType postgresGetFuncReturnType (char *fName, List *argTypes);
+extern DataType postgresGetOpReturnType (char *oName, List *argTypes);
 extern char *postgresGetTableDefinition(char *tableName);
 extern char *postgresGetViewDefinition(char *viewName);
+extern int postgresGetCostEstimation(char *query);
+extern List *postgresGetKeyInformation(char *tableName);
 
 extern void postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);

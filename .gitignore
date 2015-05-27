@@ -28,3 +28,12 @@ config/
 configure
 libtool
 m4/
+debug.script
+debug.txt
+GPexamples/
+blackboxtests/depcache/
+javabin/
+jdbcbuild/
+depcache
+build
+autotests

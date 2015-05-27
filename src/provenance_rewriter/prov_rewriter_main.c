@@ -37,7 +37,7 @@ provRewriteQBModel (Node *qbModel)
 {
     if (isA(qbModel, List))
         return (Node *) provRewriteQueryList((List *) qbModel);
-    else if (isA(qbModel, QueryOperator))
+    else if (IS_OP(qbModel))
         return (Node *) provRewriteQuery((QueryOperator *) qbModel);
 
     FATAL_LOG("cannot rewrite node <%s>", nodeToString(qbModel));

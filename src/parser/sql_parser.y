@@ -18,13 +18,16 @@
 
 #define RULELOG(grule) \
     { \
-        TRACE_LOG("Parsing grammer rule <%s>", #grule); \
+        TRACE_LOG("Parsing grammer rule <%s> at line %d", #grule, yylineno); \
     }
     
 #undef free
+#undef malloc
 
 Node *bisonParseResult = NULL;
 %}
+
+%error-verbose
 
 %union {
     /* 
@@ -45,7 +48,7 @@ Node *bisonParseResult = NULL;
 %token <intVal> intConst
 %token <floatVal> floatConst
 %token <stringVal> stringConst
-%token <stringVal> identifier
+%token <stringVal> identifier compositeIdentifier
 %token <stringVal> parameter
 %token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
 
@@ -55,20 +58,21 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
 %token <stringVal> DISTINCT
 %token <stringVal> STARALL
 %token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN EXCEPT EXISTS
-%token <stringVal> AMMSC NULLVAL ALL ANY IS SOME
+%token <stringVal> AMMSC NULLVAL ROWNUM ALL ANY IS SOME
 %token <stringVal> UNION INTERSECT MINUS
 %token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
 %token <stringVal> INT BEGIN_TRANS COMMIT_TRANS ROLLBACK_TRANS
 %token <stringVal> CASE WHEN THEN ELSE END
 %token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 %token <stringVal> NULLS FIRST LAST ASC DESC
+%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE
 
 %token <stringVal> DUMMYEXPR
 
@@ -110,19 +114,22 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
-			 optionalGroupBy optionalOrderBy setClause insertList stmtList 
+			 optionalGroupBy optionalOrderBy setClause  stmtList //insertList 
 			 identifierList optionalAttrAlias optionalProvWith provOptionList 
-			 caseWhenList windowBoundaries optWindowPart withViewList
-%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr
+			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo optionalTranslate
+//			 optInsertAttrList
+%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse
-%type <node> overClause windowSpec optWindowFrame windowBound 
+%type <node> overClause windowSpec optWindowFrame windowBound
+%type <node> jsonTable jsonColInfoItem 
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provOption
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
-%type <stringVal> joinType transactionIdentifier
+%type <stringVal> joinType transactionIdentifier delimIdentifier
+%type <stringVal> optionalFormat optionalWrapper optionalstringConst
 
 %start stmtList
 
@@ -164,6 +171,11 @@ stmt:
 		{ 
 			RULELOG("stmt::withQuery"); 
 			$$ = $1; 
+		}
+		| expression
+		{
+			RULELOG("stmt::expression");
+			$$ = $1;
 		}
     ;
 
@@ -225,7 +237,7 @@ transactionIdentifier:
  * Rule to parse a query asking for provenance
  */
 provStmt: 
-        PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')'
+        PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate
         {
             RULELOG("provStmt::stmt");
             Node *stmt = $6;
@@ -233,7 +245,8 @@ provStmt:
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $2;
-		    p->options = $3;
+                   // p->options = $3;
+                   p->options = concatTwoLists($3, $8);
             $$ = (Node *) p;
         }
 		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmtList ')'
@@ -318,8 +331,38 @@ provOption:
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_TUPLE_VERSIONS),
 					(Node *) createConstBool(TRUE));
 		}
+		| STATEMENT ANNOTATIONS
+		{
+			RULELOG("provOption::STATEMENT::ANNOTATIONS");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_STATEMENT_ANNOTATIONS),
+					(Node *) createConstBool(TRUE));
+		}
+		| NO STATEMENT ANNOTATIONS
+		{
+			RULELOG("provOption::NO::STATEMENT::ANNOTATIONS");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_STATEMENT_ANNOTATIONS),
+					(Node *) createConstBool(FALSE));
+		}
 	;
-	
+
+optionalTranslate:
+                /* empty */ { RULELOG("optionalTranslate::EMPTY"); $$ = NULL;}
+                |
+		TRANSLATE AS optionalstringConst 
+		{
+			RULELOG("optionaltranslate::TRANSLATE::AS");
+			$$ = singleton((Node *) createStringKeyValue("TRANSLATE AS", $3));
+		}
+        ;
+
+optionalstringConst:
+		JSON
+		{
+			RULELOG("optionalstringConst::JSON");
+                        $$ = strdup("JSON");
+		}
+        ;
+
 /*
  * Rule to parse delete query
  */ 
@@ -393,42 +436,27 @@ setExpression:
  * Rules to parse insert query
  */
 insertQuery:
-        INSERT INTO identifier VALUES '(' insertList ')'
-            { 
-            	RULELOG("insertQuery::insertList"); 
-            	$$ = (Node *) createInsert($3,(Node *) $6, NULL); 
-        	} 
-        | INSERT INTO identifier queryStmt
-            { 
-                RULELOG("insertQuery::queryStmt");
-                $$ = (Node *) createInsert($3, $4, NULL);
-            }
+        INSERT INTO identifier insertContent
+        { 
+           	RULELOG("insertQuery::insertList"); 
+           	$$ = (Node *) createInsert($3,(Node *) $4, NIL); 
+        }
+        | INSERT INTO identifier '(' identifierList ')' insertContent
+        { 
+           	RULELOG("insertQuery::insertList"); 
+           	$$ = (Node *) createInsert($3,(Node *) $7, $5); 
+     	} 
     ;
-/* TODO use identlist + expr list here for INSERT INTO table (attrs) VALUES (exprs) */
-insertList:
-        constant
-            { 
-            	RULELOG("insertList::constant");
-            	$$ = singleton($1); 
-            }
-        | identifier
-            {
-                RULELOG("insertList::IDENTIFIER");
-                $$ = singleton(createAttributeReference($1));
-            }
-        | insertList ',' identifier
-            { 
-                RULELOG("insertList::insertList::::IDENTIFIER");
-                $$ = appendToTailOfList($1, createAttributeReference($3));
-            }
-        | insertList ',' constant
-            { 
-            	RULELOG("insertList::insertList::constant");
-            	$$ = appendToTailOfList($1, $3);
-            }
-/* No Provision made for this type of insert statements */
-    ;
+    
+insertContent:
+		VALUES '(' exprList ')' { $$ = (Node *) $3; }
+		| queryStmt
+	;
+	
 
+/* No Provision made for this type of insert statements */
+/* generalize to expression instead of only constant */
+    //;
 
 /*
  * Rules to parse set operator queries
@@ -563,6 +591,7 @@ expression:
         | unaryOperatorExpression       { RULELOG("expression::unaryOperatorExpression"); }
         | sqlFunctionCall        		{ RULELOG("expression::sqlFunctionCall"); }
 		| caseExpression				{ RULELOG("expression::case"); }
+		| ROWNUM						{ RULELOG("expression::ROWNUM"); $$ = (Node *) makeNode(RowNumExpr); }
 /*        | '(' queryStmt ')'       { RULELOG ("expression::subQuery"); $$ = $2; } */
 /*        | STARALL        { RULELOG("expression::STARALL"); } */
     ;
@@ -580,14 +609,25 @@ constant:
  * Parse attribute reference
  */
 attributeRef: 
-        identifier         { RULELOG("attributeRef::IDENTIFIER"); $$ = (Node *) createAttributeReference($1); }
-
+        identifier         
+        { 
+        	RULELOG("attributeRef::IDENTIFIER"); 
+        	$$ = (Node *) createAttributeReference($1); 
+        }
+        | compositeIdentifier  
+        { 
+        	RULELOG("attributeRef::COMPOSITEIDENT"); 
+        	$$ = (Node *) createAttributeReference($1); 
+        }
+	;
+	
 /*
  * SQL parameter
  */
 sqlParameter:
 		parameter		   { RULELOG("sqlParameter::PARAMETER"); $$ = (Node *) createSQLParameter($1); }
-
+	;
+	
 /* HELP HELP ??
        Need helper function support for attribute list in expression.
        For e.g.
@@ -596,7 +636,6 @@ sqlParameter:
               (col1, col2) = (SELECT cl1, cl2 FROM tab2)
        SolQ: Can we use selectItem function here?????
 */
-    ;
 
 /*
  * Parse operator expression
@@ -705,6 +744,17 @@ sqlFunctionCall:
 				else  
                 	$$ = (Node *) f; 
             }
+        | AMMSC '(' '*' ')' overClause
+            {
+                RULELOG("sqlFunctionCall::COUNT::*");
+				FunctionCall *f = createFunctionCall($1, singleton(createConstInt(1)));
+				if (strcasecmp($1,"COUNT") != 0)
+					yyerror("* can only be used as an input of the COUNT aggregate function, but no any other function.");
+				if ($5 != NULL)
+					$$ = (Node *) createWindowFunction(f, (WindowDef *) $5);
+				else  
+                	$$ = (Node *) f; 
+            }
     ;
 
 /*
@@ -737,7 +787,7 @@ caseWhenList:
 	;
 	
 caseWhen:
-		WHEN expression THEN expression
+		WHEN whereExpression THEN expression
 			{
 				RULELOG("caseWhen::WHEN::expression::THEN::expression");
 				$$ = (Node *) createCaseWhen($2,$4);
@@ -839,7 +889,76 @@ windowBound:
 				$$ = (Node *) createWindowBound(WINBOUND_EXPR_FOLLOW, $1); 
 			}
 	;
-	
+
+/*
+ * Rule to parse JSON Functions
+ */
+jsonTable:
+                /* empty */	{ RULELOG("jsonTable::NULL"); $$ = NULL; }
+		| JSON_TABLE '(' attributeRef ',' stringConst COLUMNS '(' jsonColInfo ')' ')' AS identifier
+			{
+				RULELOG("jsonTable::jsonTable");
+  $$ = (Node *) createFromJsonTable((AttributeReference *) $3, $5, $8, $12, NULL);
+			}
+	;
+
+jsonColInfo:
+                jsonColInfoItem
+                        {
+                                RULELOG("jsonColInfo::jsonColInfoItem");
+                                $$ = singleton($1);
+                        }
+                | jsonColInfo ',' jsonColInfoItem
+                        {
+                                RULELOG("jsonColInfo::jsonColInfoItem::jsonColInfoItem");
+                                $$ = appendToTailOfList($1, $3);
+                        }
+        ;
+
+jsonColInfoItem:
+                /* empty */ { RULELOG("jsonColInfoItem::NULL"); }
+                | identifier identifier optionalFormat optionalWrapper PATH stringConst
+                        {
+                                RULELOG("jsonColInfoItem::jsonColInfoItem");
+                                JsonColInfoItem *c = createJsonColInfoItem ($1, $2, $6, $3, $4, NULL, NULL);
+                                $$ = (Node *) c;
+                        }
+                | NESTED PATH stringConst COLUMNS '(' jsonColInfo ')'
+                        {
+                                RULELOG("jsonColInfoItem::jsonColInfoItem");
+                                JsonColInfoItem *c = createJsonColInfoItem (NULL, NULL, $3, NULL, NULL, $6, NULL);
+                                $$ = (Node *) c;
+                        }
+        ;
+
+optionalFormat:
+                /* empty */ { RULELOG("optionalFormat::NULL"); $$ = NULL; }
+                | FORMAT JSON
+                        {
+                                RULELOG("optionalFormat::FORMAT");
+                                $$ = strdup("JSON");
+                        }
+        ;
+
+optionalWrapper:
+                /* empty */ { RULELOG("optionalWrapper::NULL"); $$ = NULL; }
+                | WITH WRAPPER
+                        {
+                                RULELOG("optionalWrapper::WITH WRAPPER");
+                                $$ = strdup("WITH");
+                        }
+                | WITHOUT WRAPPER
+                        {
+                                RULELOG("optionalWrapper::WITHOUT WRAPPER");
+                                $$ = strdup("WITHOUT");
+                        }
+                | WITH CONDITIONAL WRAPPER
+                        {
+                                RULELOG("optionalWrapper::WITHOUT WRAPPER");
+                                $$ = strdup("WITH CONDITIONAL");
+                        }
+        ;
+
 /*
  * Rule to parse from clause
  *            Currently implemented for basic from clause.
@@ -868,7 +987,7 @@ fromClauseItem:
         identifier optionalFromProv
             {
                 RULELOG("fromClauseItem");
-				FromItem *f = createFromTableRef(NULL, NIL, $1);
+				FromItem *f = createFromTableRef(NULL, NIL, $1, NIL);
 				f->provInfo = (FromProvInfo *) $2;
                 $$ = (Node *) f;
             }
@@ -876,7 +995,7 @@ fromClauseItem:
             {
                 RULELOG("fromClauseItem");
                 FromItem *f = createFromTableRef(((FromItem *) $2)->name, 
-						((FromItem *) $2)->attrNames, $1);
+						((FromItem *) $2)->attrNames, $1, NIL);
 				f->provInfo = ((FromItem *) $2)->provInfo;
                 $$ = (Node *) f;
             }
@@ -915,6 +1034,13 @@ fromClauseItem:
                 f->provInfo = ((FromItem *) $4)->provInfo;
         		$$ = (Node *) f;
         	}
+         | jsonTable
+                {
+                    RULELOG("fromClauseItem::jsonTable");
+                    //FromJsonTable *jt = (FromJsonTable *) $1;
+                    FromItem *jt = (FromItem *)$1;
+                    $$ = (Node*) jt;
+                }
     ;
 
 subQuery:
@@ -926,8 +1052,8 @@ subQuery:
     ;
 
 identifierList:
-		identifier { $$ = singleton($1); }
-		| identifierList ',' identifier { $$ = appendToTailOfList($1, $3); }
+		delimIdentifier { $$ = singleton($1); }
+		| identifierList ',' delimIdentifier { $$ = appendToTailOfList($1, $3); }
 	;
 	
 fromJoinItem:
@@ -1229,6 +1355,14 @@ optionalNullOrder:
 				$$ = "NULLS_LAST";
 			}
 	;
+
+delimIdentifier:
+		identifier { RULELOG("identifierList::ident"); }
+		| delimIdentifier '.' identifier 
+		{ 
+			RULELOG("identifierList::list::ident"); 
+			$$ = CONCAT_STRINGS($1, ".", $3); //TODO 
+		}  
 
 	
 %%
