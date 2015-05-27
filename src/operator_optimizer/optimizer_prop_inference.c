@@ -85,7 +85,7 @@ computeKeyProp (QueryOperator *root)
     {
         List *l1 = ((ProjectionOperator *)root)->projExprs;
         List *l2 = NIL;
-        boolean hasKey = TRUE;
+        boolean hasKey = FALSE;
         HashMap *inAtoPos = NEW_MAP(Constant,Constant);
         int i = 0;
 
@@ -100,28 +100,40 @@ computeKeyProp (QueryOperator *root)
             i++;
         }
 
-        FOREACH(char, op, keyList)
+        FOREACH(Set,s,keyList)
         {
-            //use HASHMAP
-            if(!hasMapStringKey(inAtoPos, op))
+            boolean keyPreserved = TRUE;
+
+            FOREACH_SET(char, op, s)
             {
-                hasKey = FALSE;
-                break;
+                //use HASHMAP
+                if(!hasMapStringKey(inAtoPos, op))
+                {
+                    keyPreserved = FALSE;
+                    break;
+                }
             }
+            hasKey |= keyPreserved;
         }
         if (hasKey)
         {
             //TODO replace input attribute names with output attribute names
             setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
-            FOREACH_LC(lc,keyList)
+            FOREACH_LC(setLc,keyList)
             {
-                char *inA = (char *) LC_P_VAL(lc);
-                char *outA;
-                int aPos;
+                Set *s = (Set *) LC_P_VAL(setLc);
+                Set *newS = STRSET();
+                LC_P_VAL(setLc) = newS;
 
-                aPos = INT_VALUE(MAP_GET_STRING(inAtoPos, inA));
-                outA = strdup(getAttrNameByPos(root, aPos));
-                LC_P_VAL(lc) = outA;
+                FOREACH_SET(char,inA,s)
+                {
+                    char *outA;
+                    int aPos;
+
+                    aPos = INT_VALUE(MAP_GET_STRING(inAtoPos, inA));
+                    outA = strdup(getAttrNameByPos(root, aPos));
+                    addToSet(newS, outA);
+                }
             }
         }
         else
@@ -749,6 +761,8 @@ computeECPropTopDown (QueryOperator *root)
 
 		SCHBtoAUsedInTopBom(&setList, attrRefs, attrDefs);
 
+		//printf("cList type : %s", nodeToString(cList));
+		//printf("setList type : %s", setList->type);
 		cList = concatTwoLists(cList, setList);
 		cList = CombineDuplicateElemSetInECList(cList);
 		setStringProperty((QueryOperator *)(OP_LCHILD(root)), PROP_STORE_SET_EC, (Node *)cList);
@@ -1332,6 +1346,7 @@ computeReqColProp (QueryOperator *root)
         //schema = {A,X,D}
         //eicols = {A,B,C}
         //if AttrDefName in icols, get correspond AttrRef name (need to check if it is operator)
+
         FORBOTH_LC(a,ar, attrDefNames,attrRefList)
         {
             //DONE: TODO this should deal with any other type of expression
@@ -1342,10 +1357,12 @@ computeReqColProp (QueryOperator *root)
 //        			eicolsList = getAttrNameFromOpExpList(eicolsList, (Operator *)(LC_P_VAL(ar)));
 //        		else if(isA(LC_P_VAL(ar), AttributeReference))
 //        			eicolsList = appendToTailOfList(eicolsList, strdup(((AttributeReference *)(LC_P_VAL(ar)))->name));
-        		eicolsList = CONCAT_LISTS(eicolsList, attrRefListToStringList(attrRefs));
-        	}
-        }
 
+        		eicolsList = concatTwoLists(eicolsList, attrRefListToStringList(attrRefs));
+
+        	}
+
+        }
         Set *eicols = makeStrSetFromList(eicolsList);
         setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 	}
@@ -1506,7 +1523,6 @@ computeReqColProp (QueryOperator *root)
 	}
 	else if(isA(root,JsonTableOperator))
 	{
-
 		char *b = ((JsonTableOperator *)root)->jsonColumn->name;
 		Set *doc = MAKE_STR_SET(b);
 		DEBUG_LOG("Json doc name: %s", b);
@@ -1519,6 +1535,14 @@ computeReqColProp (QueryOperator *root)
 
 		Set *eicols = intersectSets(newIcols, childAttrNames);
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
+	}
+
+	else if(isA(root, SetOperator))
+	{
+		Set *elicols = copyObject(icols);
+		Set *ericols = copyObject(icols);
+		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)elicols);
+		setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)ericols);
 	}
 
 	FOREACH(QueryOperator, o, root->inputs)
