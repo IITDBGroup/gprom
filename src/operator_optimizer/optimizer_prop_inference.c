@@ -94,8 +94,10 @@ computeKeyProp (QueryOperator *root)
             if (isA(op1,AttributeReference))
             {
                 AttributeReference *a = (AttributeReference  *) op1;
-                l2 = appendToTailOfList(l2, a->name);
-                MAP_ADD_STRING_KEY(inAtoPos, a->name, createConstInt(i));
+                if (!hasMapStringKey(inAtoPos, a->name)){
+                    l2 = appendToTailOfList(l2, a->name);
+                    MAP_ADD_STRING_KEY(inAtoPos, a->name, createConstInt(i));
+                }
             }
             i++;
         }
@@ -159,6 +161,7 @@ computeKeyProp (QueryOperator *root)
 				{
     				nSet = unionSets (l1, l2);
     				nKeyList = appendToTailOfList(nKeyList, nSet);
+    				//check if the properties are already set (so we don't get provenance attributes as keys)
 				}
     		}
     		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)nKeyList);
@@ -179,7 +182,8 @@ computeKeyProp (QueryOperator *root)
     	//intersect operator
     	else if(j->setOpType==SETOP_INTERSECTION)
     	{
-    		HashMap *map = NEW_MAP(KeyValue, KeyValue);
+    		//HashMap *map = NEW_MAP(KeyValue, KeyValue);
+    		HashMap *map = NEW_MAP(Constant, Constant);
     		List *lAttr = getQueryOperatorAttrNames(OP_LCHILD(root));
     		List *rAttr = getQueryOperatorAttrNames(OP_RCHILD(root));
     		Set *nSet = STRSET();
@@ -193,7 +197,7 @@ computeKeyProp (QueryOperator *root)
     			FOREACH_SET(char,key,s)
     			{
     				nAttr = (char *)copyObject(getMapString (map, key));
-    				addToSet(nSet,nAttr);
+    				addToSet(nSet, nAttr);
 
     			}
     			if (!searchList(keyList, nSet))
