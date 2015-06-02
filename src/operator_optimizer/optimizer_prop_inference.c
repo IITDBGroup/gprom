@@ -59,7 +59,7 @@ computeKeyProp (QueryOperator *root)
             Set *oneKey = MAKE_STR_SET(strdup(a->attrName));
             keyList = appendToTailOfList(keyList, oneKey);
         }
-        setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
+        //setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
         DEBUG_LOG("ConstRel operator %s keys are {%s}", root->schema->name, beatify(nodeToString((keyList))));
         return;
     }
@@ -78,8 +78,8 @@ computeKeyProp (QueryOperator *root)
     // deal with different operator types
 
     // here we could use the ECs to determine new keys, e.g., if input has keys {{A}, {C}} and we have selection condition B = C, then we have a new key {{A}, {B}, {C}}
-    if (isA(root, SelectionOperator))
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+    //if (isA(root, SelectionOperator))
+        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
 
     if (isA(root, ProjectionOperator))
     {
@@ -132,8 +132,10 @@ computeKeyProp (QueryOperator *root)
             }
 
         }
-
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) newKey);
+        keyList=newKey;
+        DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
+        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) newKey);
+        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) keyList);
     }
 
     // dup removal operator has a key {all attributes} if the input does not have a key
@@ -144,7 +146,7 @@ computeKeyProp (QueryOperator *root)
     	Set *s1 = makeStrSetFromList(l1);
 
     	keyList = appendToTailOfList(keyList, s1);
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     }
 
     if (isA(root, JoinOperator))
@@ -161,10 +163,9 @@ computeKeyProp (QueryOperator *root)
 				{
     				nSet = unionSets (l1, l2);
     				nKeyList = appendToTailOfList(nKeyList, nSet);
-    				//check if the properties are already set (so we don't get provenance attributes as keys)
 				}
     		}
-    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)nKeyList);
+    		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)nKeyList);
     		keyList = nKeyList;
 //    	}
     }
@@ -177,7 +178,7 @@ computeKeyProp (QueryOperator *root)
     	if(j->setOpType==SETOP_UNION)
        	{
     		keyList = NIL;
-    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+    		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
        	}
     	//intersect operator
     	else if(j->setOpType==SETOP_INTERSECTION)
@@ -205,11 +206,15 @@ computeKeyProp (QueryOperator *root)
     				keyList = appendToTailOfList(keyList, nSet);
     			}
     		}
-    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+    		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+    	}
+    	else if(j->setOpType==SETOP_DIFFERENCE){
+    		//TO DO
     	}
     }
+    //clean key list
 
-
+    setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
 }
 
