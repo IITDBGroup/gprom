@@ -59,7 +59,7 @@ computeKeyProp (QueryOperator *root)
             Set *oneKey = MAKE_STR_SET(strdup(a->attrName));
             keyList = appendToTailOfList(keyList, oneKey);
         }
-        //setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
+        setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
         DEBUG_LOG("ConstRel operator %s keys are {%s}", root->schema->name, beatify(nodeToString((keyList))));
         return;
     }
@@ -197,7 +197,7 @@ computeKeyProp (QueryOperator *root)
     		FOREACH(Set,s,rKeyList){
     			FOREACH_SET(char,key,s)
     			{
-    				nAttr = (char *)copyObject(getMapString (map, key));
+    				nAttr = (char *) STRING_VALUE(copyObject(getMapString (map, key)));
     				addToSet(nSet, nAttr);
 
     			}
