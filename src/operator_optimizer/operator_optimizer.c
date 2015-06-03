@@ -101,9 +101,9 @@ optimizeOneGraph (QueryOperator *root)
 //    APPLY_AND_TIME_OPT("selection move around",
 //    		selectionMoveAround,
 //    		OPTIMIZATION_SELECTION_MOVE_AROUND);
-//    APPLY_AND_TIME_OPT("pull up duplicate remove operators",
-//    		pullUpDuplicateRemoval,
-//    		OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
+    APPLY_AND_TIME_OPT("pull up duplicate remove operators",
+    		pullUpDuplicateRemoval,
+    		OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
     APPLY_AND_TIME_OPT("remove unnecessary columns",
     		removeUnnecessaryColumns,
     		OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
@@ -128,7 +128,7 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
-    if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
+/*    if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
     {
         computeKeyProp(rewrittenTree);
 
@@ -146,6 +146,9 @@ optimizeOneGraph (QueryOperator *root)
     }
     APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
             removeRedundantDuplicateOperatorBySet,
+            OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);*/
+    APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
+    		removeRedundantDuplicateOperatorBySetWithInit,
             OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
     APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by key",
                removeRedundantDuplicateOperatorByKey,
@@ -234,7 +237,7 @@ removeUnnecessaryWindowOperator(QueryOperator *root)
 {
 	if(isA(root, WindowOperator))
 	{
-		Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
+		Set *icols = (Set *) getStringProperty(root, PROP_STORE_SET_ICOLS);
 		char *funcName = ((WindowOperator *)root)->attrName;
 		if(!hasSetElem(icols, funcName))
 		{
@@ -323,17 +326,23 @@ static void
 resetPos(AttributeReference *ar,  List* attrDefs)
 {
 
-	int count = 0;
+	int count1 = 0;
 	FOREACH(AttributeDef, ad, attrDefs)
 	{
+//		if(streq(ar->name, "AGG_GB_ARG1"))
+//			DEBUG_LOG("name AGG_GB_ARG1 %s", nodeToString(ar));
+		DEBUG_LOG("compare attrDef name %s, count %d", ad->attrName, count1);
 		if(streq(ar->name,ad->attrName))
 		{
-			ar->attrPosition = count;
+			DEBUG_LOG("map name %s to %s", ar->name, ad->attrName);
+			ar->attrPosition = count1;
+			DEBUG_LOG("set attr pos of %s to %d", ar->name, count1);
 			break;
 		}
-		count++;
+		count1++;
 	}
-	DEBUG_LOG("set attr pos of %s to %d", ar->name, count);
+
+	//DEBUG_LOG("set attr pos of %s to %d", ar->name, count1);
 }
 
 QueryOperator *
@@ -369,7 +378,18 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 //		}
 	}
 
-	if(isA(root, SelectionOperator))
+	else if(isA(root, DuplicateRemoval))
+	{
+		//step (1)
+		//root = removeUnnecessaryAttrDefInSchema(icols, root);
+        root->schema->attrDefs = copyObject(OP_LCHILD(root)->schema->attrDefs);
+
+		//step (2)
+		List *attrsList = ((DuplicateRemoval *)root)->attrs;
+		resetPosInExprs((Node *) attrsList, cSchema);
+	}
+
+	else if(isA(root, SelectionOperator))
 	{
         /*
          * (1) Remove unnecessary attributeDef in schema based on icols
@@ -377,15 +397,20 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
          */
 		//step (1)
 		Set *eicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
-        root = removeUnnecessaryAttrDefInSchema(eicols, root);
+		root = removeUnnecessaryAttrDefInSchema(eicols, root);
+		//Set *unicols = unionSets(eicols, icols);
+		//root = removeUnnecessaryAttrDefInSchema(unicols, root);
+        //root->schema->attrDefs = copyObject (OP_LCHILD(root)->schema->attrDefs);
 
         //step (2)
 //        Operator *condOp = (Operator *)((SelectionOperator *)root)->cond;
         resetPosInExprs(((SelectionOperator *)root)->cond, cSchema);
 //        resetAttrPosInCond(root, condOp);
+
+
 	}
 
-	if(isA(root, WindowOperator))
+	else if(isA(root, WindowOperator))
 	{
         /*
          * (1) Window operator's attributes should be its child's attributes + function attributes
@@ -409,18 +434,53 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		}
 		winOp->schema->attrDefs = newAttrDefs;
 
+		resetPosOfAttrRefBaseOnBelowLayerSchema(root, OP_LCHILD(root));
+
+/*
+		//List *cSchema1 = cSchema;
 		//step (2)
 		//(1)FunctionalCall
-		resetPosInExprs((((WindowOperator *)root)->f),cSchema);
+		DEBUG_LOG("window function");
+		resetPosInExprs(((WindowOperator *)root)->f,cSchema);
 //        List *funList = ((FunctionCall *)(((WindowOperator *)root)->f))->args;
 //        FOREACH(AttributeReference, ar, funList)
 //        {
 //        	resetPos(ar,((QueryOperator *)OP_LCHILD(root))->schema->attrDefs);
 //        }
+*/
 
-        //(2)PartitionBy
-        List *parList = ((WindowOperator *)root)->partitionBy;
-        resetPosInExprs((Node *) parList,cSchema);
+
+/*        //(2)PartitionBy
+		DEBUG_LOG("window PartitionBy");
+//	    List *ccSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
+//	    FOREACH(AttributeDef, ad, ccSchema)
+//	    {
+//	    	printf("ccdef %s \n", ad->attrName);
+//	    }
+	    FOREACH(AttributeDef, ad, cSchema)
+	    {
+	    	printf("cdef %s \n", ad->attrName);
+	    }*/
+
+//		List *parList = NIL;
+//		parList = ((WindowOperator *)root)->partitionBy;
+//		if(LIST_LENGTH(parList) != 0)
+//		{
+//			resetPosInExprs((Node *) parList ,cSchema1);
+//		    FOREACH(AttributeReference, ar, parList)
+//		    {
+//		    	printf(" %s \n", nodeToString(ar));
+//		    }
+//		}
+//        printf("0000000000000 length %d \n", LIST_LENGTH(parList));
+//        FOREACH(AttributeReference, ar, parList)
+//        {
+//        	printf("0000000000000 arg %s \n", nodeToString(ar));
+//        }
+//        FOREACH(AttributeDef, ad, cSchema)
+//        {
+//        	printf("0001111111000 def %s \n", ad->attrName);
+//        }
 //        if(parList != NIL)
 //        {
 //        	FOREACH(AttributeReference, ar, parList)
@@ -429,9 +489,14 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 //        	}
 //        }
 
-        //(3)OrderBy
-        List *ordList = ((WindowOperator *)root)->orderBy;
-        resetPosInExprs((Node *) ordList, cSchema);
+/*        //(3)OrderBy
+		DEBUG_LOG("window order By");
+		List *ordList = NIL;
+		ordList = ((WindowOperator *)root)->orderBy;
+		if(LIST_LENGTH(ordList) != 0)
+			resetPosInExprs((Node *) ordList, cSchema);*/
+
+
 //        if(ordList != NIL)
 //        {
 //        	FOREACH_LC(o,ordList)
@@ -454,7 +519,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 //        }
 	}
 
-	if(isA(root, AggregationOperator))
+	else if(isA(root, AggregationOperator))
 	{
 		/*
 		 * Reset the attributeReference pos in Group By and Aggrs
@@ -480,7 +545,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 //		}
 	}
 
-	if(isA(root, JoinOperator))
+	else if(isA(root, JoinOperator))
 	{
 //		Set *elicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
 //		Set *ericols = (Set*)getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
@@ -492,14 +557,38 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 //		}
 		JoinOperator *j = (JoinOperator *) root;
 
-		List *lChildAttrDefsNames = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
-		List *rChildAttrDefsNames = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
+		//List *lChildAttrDefsNames = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
+		//List *rChildAttrDefsNames = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_SCHEMA_NAMES);
 
-		int lLength = LIST_LENGTH(lChildAttrDefsNames);
+		//int lLength = LIST_LENGTH(lChildAttrDefsNames);
 //		HashMap *hm = (HashMap *) getStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES);
 
 		List *leftSchemaNames = getAttrNames(OP_LCHILD(root)->schema);
 		List *rightSchemaNames = getAttrNames(OP_RCHILD(root)->schema);
+
+
+		//Set schema attr def
+		List *newAttrDefs = NIL;
+		if(j->cond != NULL)
+		{
+			if(LIST_LENGTH(root->schema->attrDefs) != (LIST_LENGTH(OP_LCHILD(root)->schema) + LIST_LENGTH(OP_RCHILD(root)->schema)))
+			{
+				FOREACH(AttributeDef, ad, root->schema->attrDefs)
+		    	{
+					HashMap *hm = (HashMap *) getStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES);
+					char *name = STRING_VALUE(MAP_GET_STRING(hm, ad->attrName));
+					DEBUG_LOG("TEST REMOVE UNNECESSARY COLUMNS MAP %s TO %s .", ad->attrName, name);
+
+					if(searchListString(leftSchemaNames, name) || searchListString(rightSchemaNames, name))
+						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+		         }
+			}
+		}
+		else
+		{
+		     newAttrDefs = concatTwoLists(copyObject(OP_LCHILD(root)->schema->attrDefs), copyObject(OP_RCHILD(root)->schema->attrDefs));
+		}
+		root->schema->attrDefs = newAttrDefs;
 
 //		List *newAttrDefs = NIL;
 //		if(j->cond != NULL)
@@ -517,45 +606,46 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 //		    }
 //			root->schema->attrDefs = newAttrDefs;
 //		}
-		//Set schema attr def
-		List *newAttrDefs = NIL;
-		//List *newAttrDefNames = NIL;
-		int count = 1;
-		if(j->cond != NULL)
-		{
-			printf("1111111111 join schema lenght %d \n", LIST_LENGTH(root->schema->attrDefs));
-			printf("=====================\n");
-			FOREACH(AttributeDef, ad, root->schema->attrDefs)
-			{
-				if(count <= lLength)
-				{
-					if(searchListString(leftSchemaNames, ad->attrName))
-						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-					else
-					{
-						char *tempName = (char *) getNthOfListP(lChildAttrDefsNames, count-1);
-						printf("map tempName %s to %s", tempName, ad->attrName);
-						if(searchListString(leftSchemaNames, tempName))
-							newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-					}
-				}
-				else
-				{
-					if(searchListString(rightSchemaNames, ad->attrName))
-						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-					else
-					{
-						char *tempName = (char *) getNthOfListP(rChildAttrDefsNames, count-lLength-1);
-						printf("map tempName %s to %s", tempName, ad->attrName);
-						if(searchListString(rightSchemaNames, tempName))
-							newAttrDefs = appendToTailOfList(newAttrDefs, ad);
-					}
-				}
-				count ++;
-			}
-			root->schema->attrDefs = newAttrDefs;
-		}
-		printf("\n=====================\n");
+
+//		//Set schema attr def
+//		List *newAttrDefs = NIL;
+//		//List *newAttrDefNames = NIL;
+//		int count = 1;
+//		if(j->cond != NULL)
+//		{
+//			printf("1111111111 join schema lenght %d \n", LIST_LENGTH(root->schema->attrDefs));
+//			printf("=====================\n");
+//			FOREACH(AttributeDef, ad, root->schema->attrDefs)
+//			{
+//				if(count <= lLength)
+//				{
+//					if(searchListString(leftSchemaNames, ad->attrName))
+//						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+//					else
+//					{
+//						char *tempName = (char *) getNthOfListP(lChildAttrDefsNames, count-1);
+//						printf("map tempName %s to %s", tempName, ad->attrName);
+//						if(searchListString(leftSchemaNames, tempName))
+//							newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+//					}
+//				}
+//				else
+//				{
+//					if(searchListString(rightSchemaNames, ad->attrName))
+//						newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+//					else
+//					{
+//						char *tempName = (char *) getNthOfListP(rChildAttrDefsNames, count-lLength-1);
+//						printf("map tempName %s to %s", tempName, ad->attrName);
+//						if(searchListString(rightSchemaNames, tempName))
+//							newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+//					}
+//				}
+//				count ++;
+//			}
+//			root->schema->attrDefs = newAttrDefs;
+//		}
+//		printf("\n=====================\n");
 //		else
 //		{
 //			List *lSchemaAttrDefs = copyObject(OP_LCHILD(root)->schema->attrDefs);
@@ -631,7 +721,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		}
 	}
 
-	if(isA(root, TableAccessOperator))
+	else if(isA(root, TableAccessOperator))
 	{
 		 /*
 		  * if size(icols)<size(schema) and its parent is not projection
@@ -678,8 +768,9 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
          }
 	}
 
-	if(isA(root, ProjectionOperator))
+	else if(isA(root, ProjectionOperator))
 	{
+		DEBUG_LOG("This is projection operator");
 		int numicols = setSize(icols);
 		int numAttrs = getNumAttrs(root);
 		ProjectionOperator *proj = (ProjectionOperator *) root;
@@ -721,9 +812,26 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 	        resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)root,(QueryOperator *)child);
 		}
 
+		//////////new add for test
+//		printf("\n 1111111111 ATTR list length %d \n", LIST_LENGTH(root->schema->attrDefs));
+//		FOREACH(AttributeDef, ad, root->schema->attrDefs)
+//		{
+//			printf("%s ", ad->attrName);
+//		}
+//		printf("\n");
+//		FOREACH(AttributeReference, ar, ((ProjectionOperator *)root)->projExprs)
+//		{
+//			printf("%s ", ar->name);
+//		}
+//
+//		printf("\n 2222222222 ICOLS list length %d \n", numicols);
+//		FOREACH_SET(char, c, icols)
+//		{
+//			printf("%s ", c);
+//		}
 	}
 
-	if(isA(root, JsonTableOperator))
+	else if(isA(root, JsonTableOperator))
 	{
          List *newAttrDef = NIL;
          FOREACH(AttributeDef, a, root->schema->attrDefs)
@@ -763,6 +871,28 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 }
 
 QueryOperator *
+removeRedundantDuplicateOperatorBySetWithInit(QueryOperator *root)
+{
+    //computeKeyProp(root);
+
+    // Set TRUE for each Operator
+    initializeSetProp(root);
+    // Set FALSE for root
+    setStringProperty((QueryOperator *) root, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
+    computeSetProp(root);
+
+//    List *icols =  getAttrNames(GET_OPSCHEMA(root));
+//	//char *a = (char *)getHeadOfListP(icols);
+//	Set *seticols = MAKE_STR_SET(strdup((char *)getHeadOfListP(icols)));
+//	FOREACH(char, a, icols)
+//		addToSet (seticols, a);
+
+	root = removeRedundantDuplicateOperatorBySet(root);
+
+	return root;
+}
+
+QueryOperator *
 removeRedundantDuplicateOperatorBySet(QueryOperator *root)
 {
 	if(isA(root, DuplicateRemoval) && (GET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET) == TRUE))
@@ -772,6 +902,7 @@ removeRedundantDuplicateOperatorBySet(QueryOperator *root)
 		// Remove Parent and make lChild as the new parent
 		switchSubtrees((QueryOperator *) root, lChild);
 		root = lChild;
+		removeRedundantDuplicateOperatorBySet(root);
 	}
 
     FOREACH(QueryOperator, o, root->inputs)
@@ -828,12 +959,14 @@ pullUpDuplicateRemoval(QueryOperator *root)
 void
 findDuplicateRemoval(List **drOp, QueryOperator *root)
 {
-	if(isA(root, DuplicateRemoval))
+	if(isA(root, DuplicateRemoval) && !HAS_STRING_PROP(root, PROP_STORE_DUP_MARK))
+	{
 		*drOp = appendToTailOfList(*drOp, (DuplicateRemoval *)root);
+		SET_BOOL_STRING_PROP(root, PROP_STORE_DUP_MARK);
+	}
 
 	FOREACH(QueryOperator, op, root->inputs)
 	      findDuplicateRemoval(drOp, op);
-
 }
 
 void
@@ -844,11 +977,13 @@ doPullUpDuplicateRemoval(DuplicateRemoval *root)
 	int count = 0;
 	List *keyList = NIL;
 	QueryOperator *tempRoot = (QueryOperator *)root;
-    while(tempRoot->parents != NIL)
+    while(tempRoot->parents != NIL && LIST_LENGTH(tempRoot->parents) == 1)
     {
     	keyList = (List *) getStringProperty(tempRoot, PROP_STORE_LIST_KEY);
     	if(keyList != NIL)
             count++;
+    	else
+    		break;
     	tempRoot = ((QueryOperator *) getHeadOfListP(tempRoot->parents));
     }
 
@@ -862,11 +997,12 @@ doPullUpDuplicateRemoval(DuplicateRemoval *root)
      * (3) countrolNum = 2, DR pull up 3 layer
      * Will skip the layer which don't has key
      */
+    DEBUG_LOG("countrolNum %d", countrolNum);
     QueryOperator *newOp = (QueryOperator *)root;
     QueryOperator *child = OP_LCHILD(root);
     for(int i=0; i<=countrolNum; i++)
     {
-    	//Make sure the new parent has key
+/*    	//Make sure the new parent has key
     	while(TRUE)
     	{
     		keyList = NIL;
@@ -875,14 +1011,18 @@ doPullUpDuplicateRemoval(DuplicateRemoval *root)
     		newOp = ((QueryOperator *) getHeadOfListP(newOp->parents));
 
     		//TODO: After set key in the table R, retrieve below line and comment out another line
-    		//sd
+    		//keyList = (List *) getStringProperty(newOp, PROP_STORE_LIST_KEY);
     		keyList = appendToTailOfList(keyList,"A");
+    		DEBUG_LOG("keyList length %d", LIST_LENGTH(keyList));
     		if(keyList != NIL)
     			break;
 
-    	}
+    	}*/
+    	if(LIST_LENGTH(newOp->parents) == 1)
+    		newOp = ((QueryOperator *) getHeadOfListP(newOp->parents));
+    	else
+    		break;
     }
-
     switchSubtrees((QueryOperator *) root, (QueryOperator *) child);
     switchSubtrees((QueryOperator *) newOp, (QueryOperator *) root);
 
@@ -988,15 +1128,15 @@ removeRedundantProjections(QueryOperator *root)
         		HashMap *nameMap = NEW_MAP(Node,Node);
 
         		// Remove Parent and make lChild as the new parent
-        		//switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
-        		switchSubtreeWithExisting((QueryOperator *) root, (QueryOperator *) lChild);
+        		switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
+        		//switchSubtreeWithExisting((QueryOperator *) root, (QueryOperator *) lChild);
         		// adapt any attribute references in the parent of the redundant
         		// projection
         		FORBOTH(char,pA,cA,	projAttrs, childAttrs)
-        		MAP_ADD_STRING_KEY(nameMap, pA, createConstString(cA));
+        		     MAP_ADD_STRING_KEY(nameMap, pA, createConstString(cA));
 
         		FOREACH(QueryOperator,parent,root->parents)
-        		renameOpAttrRefs(parent, nameMap, root);
+        		       renameOpAttrRefs(parent, nameMap, root);
 
         		root = lChild;
         	}
