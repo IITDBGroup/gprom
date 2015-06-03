@@ -150,7 +150,6 @@ void
 reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs)
 {
 	int cnt;
-
 	FOREACH(AttributeReference,a1,attrRefs)
 	{
 	    cnt = 0;
@@ -166,172 +165,60 @@ reSetPosOfOpAttrRefBaseOnBelowLayerSchema(QueryOperator *op2, List *attrRefs)
             cnt++;
         }
 	}
-
-//	Node *left  = (Node *)getHeadOfListP(a1->args);
-//	Node *right = (Node *)getTailOfListP(a1->args);
-//
-//	if(isA(left, Operator))
-//	{
-//		reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, (Operator *)left);
-//	}
-//	else if(isA(left, AttributeReference))
-//	{
-//		cnt = 0;
-//		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-//		{
-//			if(streq(((AttributeReference *)left)->name, a2->attrName))
-//			{
-//				((AttributeReference *)left)->attrPosition = cnt;
-//				break;
-//			}
-//			cnt++;
-//		}
-//	}
-//
-//	if(isA(right, Operator))
-//	{
-//		reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, (Operator *)right);
-//	}
-//	else if(isA(right, AttributeReference))
-//	{
-//		cnt = 0;
-//		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-//		{
-//			if(streq(((AttributeReference *)right)->name, a2->attrName))
-//			{
-//				((AttributeReference *)right)->attrPosition = cnt;
-//				break;
-//			}
-//			cnt++;
-//		}
-//	}
 }
 
 void
-resetPosOfAttrRefBaseOnBelowLayerSchema(ProjectionOperator *op1, QueryOperator *op2)
+resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *op1, QueryOperator *op2)
 {
-//    int cnt = 0;
-    List *attrRefs = getAttrReferences((Node *) op1->projExprs);
-
+	List *attrRefs = NIL;
+	if(isA(op1, ProjectionOperator))
+	{
+		attrRefs = getAttrReferences((Node *) ((ProjectionOperator *)op1)->projExprs);
+	}
+	else if(isA(op1, SelectionOperator))
+	{
+		Node *cond = ((SelectionOperator *)op1)->cond;
+		attrRefs = getAttrReferences(cond);
+	}
+	else if (isA(op1,JoinOperator))
+	{
+		Node *cond = ((JoinOperator *)op1)->cond;
+		attrRefs = getAttrReferences(cond);
+	}
+	else if (isA(op1,AggregationOperator))
+	{
+		AggregationOperator *agg = (AggregationOperator *) op1;
+		List *aggrs = getAttrReferences((Node *) agg->aggrs);
+		List *groupBy = getAttrReferences((Node *) agg->groupBy);
+		attrRefs = concatTwoLists(aggrs, groupBy);
+	}
+	else if (isA(op1,DuplicateRemoval))
+	{
+		attrRefs = getAttrReferences((Node *) ((DuplicateRemoval *) op1)->attrs);
+	}
+	else if (isA(op1,NestingOperator))
+	{
+		attrRefs = getAttrReferences((Node *) ((NestingOperator *) op1)->cond);
+	}
+	else if (isA(op1,WindowOperator))
+	{
+        WindowOperator *w = (WindowOperator *) op1;
+        List *partitionBy = getAttrReferences((Node *) w->partitionBy);
+        List *orderBy = getAttrReferences((Node *) w->orderBy);
+        List *frameDef = getAttrReferences((Node *) w->frameDef);
+        List *f = getAttrReferences((Node *) w->f);
+        attrRefs = concatTwoLists(partitionBy, orderBy);
+        attrRefs = concatTwoLists(attrRefs, frameDef);
+        attrRefs = concatTwoLists(attrRefs, f);
+	}
+	else if (isA(op1,OrderOperator))
+	{
+		attrRefs = getAttrReferences((Node *) ((OrderOperator *) op1)->orderExprs);
+	}
     reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2, attrRefs);
-
-//    FOREACH(AttributeReference,a1,attrRefs)
-//    {
-//        cnt = 0;
-//        FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-//        {
-//
-//            if(strpeq(a1->name, a2->attrName))
-//            {
-//                a1->attrPosition = cnt;
-//                break;
-//            }
-//            cnt++;
-//        }
-//    }
-
-
-//	FOREACH(Node, a1, op1->projExprs)
-//	{
-//
-//
-//	    //TODO assumption that everyghing is either an attributereference or and operator. Need to support any type of expression here
-//		if(isA(LC_P_VAL(a1), Operator))
-//		{
-//			reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2,(Operator *)LC_P_VAL(a1));
-//		}
-//		else
-//		{
-//			cnt = 0;
-//			FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-//			{
-//
-//				if(streq(((AttributeReference *)LC_P_VAL(a1))->name, a2->attrName))
-//				{
-//					((AttributeReference *)LC_P_VAL(a1))->attrPosition = cnt;
-//					break;
-//				}
-//				cnt++;
-//			}
-//		}
-//	}
 }
 
-void
-resetPosOfAttrRefBaseOnBelowLayerSchemaOfSelection(SelectionOperator *op1,QueryOperator *op2)
-{
-	Node *cond = op1->cond;
-//	int cnt = 0;
-	List *attrRefs = getAttrReferences(cond);
-
-	reSetPosOfOpAttrRefBaseOnBelowLayerSchema(op2,attrRefs);
-
-//	FOREACH(AttributeReference,a1,attrRefs)
-//	{
-//
-//	}
-//	if(!streq(o->name,"AND"))
-//	{
-//		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-//        {
-//			FOREACH_LC(lc, (o->args))
-//            {
-//				if(isA(LC_P_VAL(lc), AttributeReference))
-//				{
-//					AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
-//					if(streq(a1->name,a2->attrName))
-//					{
-//						a1->attrPosition = cnt;
-//					}
-//				}
-//            }
-//			cnt++;
-//         }
-//	}
-//	else
-//	{
-//		Operator *o2;
-//		Operator *o1;
-//		FOREACH(AttributeDef, a2, op2->schema->attrDefs)
-//		{
-//			o2 = o;
-//			while(streq(o2->name,"AND"))
-//			{
-//				o1  = (Operator *)(getTailOfListP(o2->args));
-//				o2 = (Operator *)(getHeadOfListP(o2->args));
-//
-//				FOREACH_LC(lc,(o1->args))
-//				{
-//					if(isA(LC_P_VAL(lc), AttributeReference))
-//					{
-//						AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
-//						if(streq(a1->name,a2->attrName))
-//						{
-//							a1->attrPosition = cnt;
-//						}
-//					}
-//				}
-//			}
-//
-//			//The last one operator which without AND
-//			FOREACH_LC(lc,(o2->args))
-//			{
-//				if(isA(LC_P_VAL(lc), AttributeReference))
-//				{
-//					AttributeReference *a1 = (AttributeReference *)LC_P_VAL(lc);
-//					if(streq(a1->name,a2->attrName))
-//					{
-//						a1->attrPosition = cnt;
-//					}
-//				}
-//			}
-//
-//			cnt++;
-//		}
-//	}
-}
-
-List *
+/*List *
 unionEqualElemOfTwoSetList(List *listEqlOp, List *listSet)
 {
 
@@ -440,7 +327,7 @@ addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet)
     }
 
     return listSet;
-}
+}*/
 
 List*
 getCondOpList(List *l1, List *l2)

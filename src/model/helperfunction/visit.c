@@ -1006,3 +1006,4 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
 
     return TRUE;
 }
+

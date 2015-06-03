@@ -184,9 +184,11 @@ List *
 getAttributeDataTypes (char *tableName)
 {
     List *result = NIL;
+    List *attrs = NIL;
     ASSERT(activePlugin && activePlugin->isInitialized());
 
-    FOREACH(AttributeDef,a,activePlugin->getAttributes(tableName))
+    attrs = activePlugin->getAttributes(tableName);
+    FOREACH(AttributeDef,a,attrs)
         result = appendToTailOfListInt(result, a->dataType);
 
     return result;

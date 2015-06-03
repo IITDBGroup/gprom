@@ -349,7 +349,7 @@ computeECPropBottomUp (QueryOperator *root)
 		else if(isA(root, ProjectionOperator))
 		{
 			ProjectionOperator *pj = (ProjectionOperator *)root;
-			//TODO this is like a copyList, e.g., a shallow copy, if this is waht you wanted then replace with copyList otherwise use copyObject
+			//DONE: TODO this is like a copyList, e.g., a shallow copy, if this is waht you wanted then replace with copyList otherwise use copyObject
 			//get list (contains attrRef or Op) from project op projExprs
 			List *attrA = NIL;
 			List *attrB = NIL;
@@ -658,8 +658,42 @@ computeECPropBottomUp (QueryOperator *root)
 			}
 			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
 		}
+		else if (isA(root,ConstRelOperator))
+		{
+		    HashMap *valToNames = NEW_MAP(Constant,Set);
+		    ConstRelOperator *c = (ConstRelOperator *) root;
+            List *EC = NIL;
+
+            // create map from const value to all attribute names with this const value
+            FORBOTH(Node,nodeA,nodeC,root->schema->attrDefs,c->values)
+            {
+                AttributeDef *a = (AttributeDef *) nodeA;
+                Constant *cons = (Constant *) nodeC;
+                if (hasMapKey(valToNames, (Node *) cons))
+                {
+                    Set *s = (Set *) getMap(valToNames, (Node *) cons);
+                    addToSet(s, strdup(a->attrName));
+                }
+                else
+                {
+                    Set *s = MAKE_STR_SET(strdup(a->attrName));
+                    addToMap(valToNames, (Node *) copyObject(cons), (Node *) s);
+                }
+            }
+
+            // use map const->{AttrNames} to create equivalence classes
+            FOREACH_HASH_ENTRY(kv,valToNames)
+            {
+                KeyValue *newKv;
+                newKv = createNodeKeyValue(kv->value, kv->key);
+                EC = appendToTailOfList(EC, newKv);
+            }
+
+            setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
+		}
 		else
 		{
+		    DEBUG_LOG("treat operator %s as default", NodeTagToString(nodeTag(root)));
 			List *childEC = (List *)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
 			List *EC = copyObject(childEC);
 			setStringProperty((QueryOperator *)root, PROP_STORE_SET_EC, (Node *)EC);
@@ -718,10 +752,12 @@ computeECPropTopDown (QueryOperator *root)
 
 		ProjectionOperator *pj = (ProjectionOperator *)root;
 		List *attrDefs = copyObject(pj->op.schema->attrDefs);
-		List *attrRefs = copyList(pj->projExprs); //TODO this is not safe because projection may have a + b, you need to check, see below I fixed that
+		List *attrRefs = copyList(pj->projExprs); //DONE: TODO this is not safe because projection may have a + b, you need to check, see below I fixed that
 
 		SCHBtoAUsedInTopBom(&setList, attrRefs, attrDefs);
 
+		//printf("cList type : %s", nodeToString(cList));
+		//printf("setList type : %s", setList->type);
 		cList = concatTwoLists(cList, setList);
 		cList = CombineDuplicateElemSetInECList(cList);
 		setStringProperty((QueryOperator *)(OP_LCHILD(root)), PROP_STORE_SET_EC, (Node *)cList);
@@ -1265,6 +1301,9 @@ computeReqColProp (QueryOperator *root)
 	 */
 	Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
 
+    List *AttrDefNames = getQueryOperatorAttrNames(root);
+    setStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES, (Node *) AttrDefNames);
+
 	if(isA(root, SelectionOperator))
 	{
 		//icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
@@ -1305,9 +1344,10 @@ computeReqColProp (QueryOperator *root)
         //schema = {A,X,D}
         //eicols = {A,B,C}
         //if AttrDefName in icols, get correspond AttrRef name (need to check if it is operator)
+
         FORBOTH_LC(a,ar, attrDefNames,attrRefList)
         {
-            //TODO this should deal with any other type of expression
+            //DONE: TODO this should deal with any other type of expression
         	if(hasSetElem(icols,LC_P_VAL(a)))
         	{
         	    List *attrRefs = getAttrReferences(LC_P_VAL(ar));
@@ -1315,10 +1355,12 @@ computeReqColProp (QueryOperator *root)
 //        			eicolsList = getAttrNameFromOpExpList(eicolsList, (Operator *)(LC_P_VAL(ar)));
 //        		else if(isA(LC_P_VAL(ar), AttributeReference))
 //        			eicolsList = appendToTailOfList(eicolsList, strdup(((AttributeReference *)(LC_P_VAL(ar)))->name));
-        		eicolsList = CONCAT_LISTS(eicolsList, attrRefListToStringList(attrRefs));
-        	}
-        }
 
+        		eicolsList = concatTwoLists(eicolsList, attrRefListToStringList(attrRefs));
+
+        	}
+
+        }
         Set *eicols = makeStrSetFromList(eicolsList);
         setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 	}
@@ -1347,12 +1389,15 @@ computeReqColProp (QueryOperator *root)
 			setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)e2icols);
 		}
 
-		if (((JoinOperator*)root)->joinType == JOIN_INNER)
+		if (((JoinOperator*)root)->joinType == JOIN_INNER || ((JoinOperator*)root)->joinType == JOIN_LEFT_OUTER || ((JoinOperator*)root)->joinType == JOIN_RIGHT_OUTER || ((JoinOperator*)root)->joinType == JOIN_FULL_OUTER)
 		{
-			Operator *condOp = (Operator *)(((JoinOperator *)root)->cond);
-			//TODO Initialize Set without having some value
-			Set *condicols = STRSET();
-			condicols = AddAttrOfSelectCondToSet(condicols,condOp);
+			//Operator *condOp = (Operator *)(((JoinOperator *)root)->cond);
+			//DONE: TODO Initialize Set without having some value
+			//Set *condicols = STRSET();
+			//condicols = AddAttrOfSelectCondToSet(condicols,condOp);
+			List *attrRefs = getAttrReferences(((JoinOperator *)root)->cond);
+			List *nameList = attrRefListToStringList(attrRefs);
+			Set *condicols = makeStrSetFromList(nameList);
 
 			/*
 			 * Reset itself's property which should union the condition set
@@ -1377,18 +1422,26 @@ computeReqColProp (QueryOperator *root)
 		Set *set = STRSET();
 
 		//e.g. add sum(A) to set
-		FOREACH(FunctionCall, a, agg->aggrs)
-		{
-			//TODO: ar should get from list args, not only the head one
-			AttributeReference *ar = (AttributeReference *)(getHeadOfListP(a->args));
-			addToSet(set,strdup(ar->name));
-		}
+		List *aggList = getAttrReferences((Node *) agg->aggrs);
+		FOREACH(AttributeReference, a, aggList)
+		        addToSet(set,strdup(a->name));
+
+//		FOREACH(FunctionCall, a, agg->aggrs)
+//		{
+//			//DONE: TODO: ar should get from list args, not only the head one
+//			AttributeReference *ar = (AttributeReference *)(getHeadOfListP(a->args));
+//			addToSet(set,strdup(ar->name));
+//		}
 
 		//e.g. add group by B into set
-		FOREACH(AttributeReference, a, agg->groupBy)
-		{
-		    addToSet(set,strdup(a->name));
-		}
+		List *groupByList = getAttrReferences((Node *) agg->groupBy);
+		FOREACH(AttributeReference, a, groupByList)
+		        addToSet(set,strdup(a->name));
+
+//		FOREACH(AttributeReference, a, agg->groupBy)
+//		{
+//		    addToSet(set,strdup(a->name));
+//		}
 
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)set);
 	}
@@ -1468,7 +1521,6 @@ computeReqColProp (QueryOperator *root)
 	}
 	else if(isA(root,JsonTableOperator))
 	{
-
 		char *b = ((JsonTableOperator *)root)->jsonColumn->name;
 		Set *doc = MAKE_STR_SET(b);
 		DEBUG_LOG("Json doc name: %s", b);
@@ -1481,6 +1533,14 @@ computeReqColProp (QueryOperator *root)
 
 		Set *eicols = intersectSets(newIcols, childAttrNames);
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
+	}
+
+	else if(isA(root, SetOperator))
+	{
+		Set *elicols = copyObject(icols);
+		Set *ericols = copyObject(icols);
+		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)elicols);
+		setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)ericols);
 	}
 
 	FOREACH(QueryOperator, o, root->inputs)
