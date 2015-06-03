@@ -1084,7 +1084,7 @@ removeRedundantProjections(QueryOperator *root)
             lChild->schema = copyObject(root->schema);
 
             // Remove Parent and make lChild as the new parent
-            switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
+            switchSubtreeWithExisting((QueryOperator *) root, (QueryOperator *) lChild);
 
             // adapt any attribute references in the parent of the redundant
             // projection
@@ -1128,7 +1128,7 @@ removeRedundantProjections(QueryOperator *root)
         		HashMap *nameMap = NEW_MAP(Node,Node);
 
         		// Remove Parent and make lChild as the new parent
-        		switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
+        		switchSubtreeWithExisting((QueryOperator *) root, (QueryOperator *) lChild);
         		//switchSubtreeWithExisting((QueryOperator *) root, (QueryOperator *) lChild);
         		// adapt any attribute references in the parent of the redundant
         		// projection
