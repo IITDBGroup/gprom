@@ -76,6 +76,7 @@ initLogger(void)
     buffer->cursor = 0;
     buffer->data = (char *) malloc(INIT_BUF_SIZE);
     memset(buffer->data, 0, INIT_BUF_SIZE);
+    logCallback = NULL;
 
     maxLevel = getIntOption("log.level");
 }
