@@ -42,7 +42,7 @@ computeKeyProp (QueryOperator *root)
         FOREACH(QueryOperator, op, root->inputs)
             computeKeyProp(op);
 
-    // table acces operator or constant relation operators have predetermined keys
+    // table access operator or constant relation operators have predetermined keys
     if(isA(root, TableAccessOperator))
     {
         TableAccessOperator *rel = (TableAccessOperator *) root;
@@ -59,7 +59,7 @@ computeKeyProp (QueryOperator *root)
             Set *oneKey = MAKE_STR_SET(strdup(a->attrName));
             keyList = appendToTailOfList(keyList, oneKey);
         }
-        setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
+        //setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
         DEBUG_LOG("ConstRel operator %s keys are {%s}", root->schema->name, beatify(nodeToString((keyList))));
         return;
     }
@@ -78,8 +78,8 @@ computeKeyProp (QueryOperator *root)
     // deal with different operator types
 
     // here we could use the ECs to determine new keys, e.g., if input has keys {{A}, {C}} and we have selection condition B = C, then we have a new key {{A}, {B}, {C}}
-    if (isA(root, SelectionOperator))
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+    //if (isA(root, SelectionOperator))
+        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
 
     if (isA(root, ProjectionOperator))
     {
@@ -94,8 +94,10 @@ computeKeyProp (QueryOperator *root)
             if (isA(op1,AttributeReference))
             {
                 AttributeReference *a = (AttributeReference  *) op1;
-                l2 = appendToTailOfList(l2, a->name);
-                MAP_ADD_STRING_KEY(inAtoPos, a->name, createConstInt(i));
+                if (!hasMapStringKey(inAtoPos, a->name)){
+                    l2 = appendToTailOfList(l2, a->name);
+                    MAP_ADD_STRING_KEY(inAtoPos, a->name, createConstInt(i));
+                }
             }
             i++;
         }
@@ -130,8 +132,10 @@ computeKeyProp (QueryOperator *root)
             }
 
         }
-
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) newKey);
+        keyList=newKey;
+        DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
+        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) newKey);
+        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) keyList);
     }
 
     // dup removal operator has a key {all attributes} if the input does not have a key
@@ -142,7 +146,7 @@ computeKeyProp (QueryOperator *root)
     	Set *s1 = makeStrSetFromList(l1);
 
     	keyList = appendToTailOfList(keyList, s1);
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     }
 
     if (isA(root, JoinOperator))
@@ -161,7 +165,7 @@ computeKeyProp (QueryOperator *root)
     				nKeyList = appendToTailOfList(nKeyList, nSet);
 				}
     		}
-    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)nKeyList);
+    		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)nKeyList);
     		keyList = nKeyList;
 //    	}
     }
@@ -174,12 +178,13 @@ computeKeyProp (QueryOperator *root)
     	if(j->setOpType==SETOP_UNION)
        	{
     		keyList = NIL;
-    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+    		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
        	}
     	//intersect operator
     	else if(j->setOpType==SETOP_INTERSECTION)
     	{
-    		HashMap *map = NEW_MAP(KeyValue, KeyValue);
+    		//HashMap *map = NEW_MAP(KeyValue, KeyValue);
+    		HashMap *map = NEW_MAP(Constant, Constant);
     		List *lAttr = getQueryOperatorAttrNames(OP_LCHILD(root));
     		List *rAttr = getQueryOperatorAttrNames(OP_RCHILD(root));
     		Set *nSet = STRSET();
@@ -193,7 +198,7 @@ computeKeyProp (QueryOperator *root)
     			FOREACH_SET(char,key,s)
     			{
     				nAttr = (char *)copyObject(getMapString (map, key));
-    				addToSet(nSet,nAttr);
+    				addToSet(nSet, nAttr);
 
     			}
     			if (!searchList(keyList, nSet))
@@ -201,11 +206,15 @@ computeKeyProp (QueryOperator *root)
     				keyList = appendToTailOfList(keyList, nSet);
     			}
     		}
-    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+    		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+    	}
+    	else if(j->setOpType==SETOP_DIFFERENCE){
+    		//TO DO
     	}
     }
+    //clean key list
 
-
+    setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
 }
 
