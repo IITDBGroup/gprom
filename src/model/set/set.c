@@ -460,6 +460,33 @@ overlapsSet(Set *left, Set *right)
     return FALSE;
 }
 
+boolean
+containsSet(Set *left, Set *right)
+{
+
+    boolean containedElem = FALSE;
+
+    if (left->setType != right->setType)
+        return FALSE;
+
+    FOREACH_SET(char, s1, left)
+    {
+    	containedElem = FALSE;
+    	FOREACH_SET(char, s2, right)
+    	{
+    		if (s1 == s2)
+    		{
+    			containedElem = TRUE;
+    			break;
+
+    		}
+    	}
+    	if (containedElem == FALSE)
+    		break;
+    }
+	return containedElem;
+}
+
 int
 setSize (Set *set)
 {

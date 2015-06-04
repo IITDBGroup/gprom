@@ -83,7 +83,7 @@ computeKeyProp (QueryOperator *root)
 
     if (isA(root, ProjectionOperator))
     {
-        List *l1 = ((ProjectionOperator *)root)->projExprs;
+        List *l1 = ((ProjectionOperator *)root)->projExprs; //it is empty now!
         List *l2 = NIL;
         List *newKey = NIL;
         HashMap *inAtoPos = NEW_MAP(Constant,Constant);
@@ -152,8 +152,7 @@ computeKeyProp (QueryOperator *root)
     {
 //    	JoinOperator *j = (JoinOperator *) root;
     	// crossproduct operator: union sets of keys
-//    	if(j->cond==NULL)
-//    	{
+
     		Set *nSet = STRSET();
     		List *nKeyList = NIL;
     		FOREACH(Set,l1,keyList)
@@ -166,7 +165,7 @@ computeKeyProp (QueryOperator *root)
     		}
     		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)nKeyList);
     		keyList = nKeyList;
-//    	}
+
     }
 
 
@@ -207,12 +206,71 @@ computeKeyProp (QueryOperator *root)
     		}
     		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     	}
+    	//difference operator - returns left child (keyList)
     	else if(j->setOpType==SETOP_DIFFERENCE){
-    		//returns left child keyList
+
     	}
     }
-    //clean key list
 
+    //Aggregation operator
+    if (isA(root, AggregationOperator))
+    {
+    	AggregationOperator *j = (AggregationOperator *) root;
+    	List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
+    	Set *s1 = makeStrSetFromList(l1);
+    	Set *nSet = STRSET();
+    	List *nKeyList = NIL;
+
+    	// if groupby is empty return all attributes
+    	if(j->groupBy==NIL)
+    	{
+    		nKeyList = appendToTailOfList(keyList, s1);
+    	}
+    	//if group by not empty intersect key with new attributes
+       	else
+    	{
+       		FOREACH(Set, key, keyList)
+       		{
+       			nSet = intersectSets(key, s1);
+       			nKeyList = appendToTailOfList(keyList, nSet);
+     		}
+    	}
+    	keyList = nKeyList;
+    }
+
+    //return keys from left input (keyList)
+    if (isA(root, NestingOperator))
+    {
+    }
+
+    //keep the same keys from input (keyList)
+    if (isA(root, OrderOperator))
+    {
+    }
+
+    //empty keyList
+    if (isA(root, JsonTableOperator))
+    	keyList=NIL;
+
+
+/*    //clean key list
+    List *finalKeyList;
+    List *aux = keyList;
+    FOREACH (Set, left, keyList)
+    {
+    	aux = genericRemoveFromList (keyList, eq, left);
+    	FOREACH (Set, right, aux)
+    	{
+			if(containsSet(left,right))
+			{
+				//remove right from list
+				keyList = genericRemoveFromList (keyList, eq, right);
+				//add set to finalKeyList
+			}
+    	}
+    }
+
+    finalKeyList = keyList;*/
 
     setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));

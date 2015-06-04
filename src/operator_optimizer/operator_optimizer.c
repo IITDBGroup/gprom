@@ -128,7 +128,7 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("merge adjacent projections and selections",
             mergeAdjacentOperators,
             OPTIMIZATION_MERGE_OPERATORS);
-/*    if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
+    if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
     {
         computeKeyProp(rewrittenTree);
         //exit(-1);
@@ -144,7 +144,7 @@ optimizeOneGraph (QueryOperator *root)
     	FOREACH(char, a, icols)
     		addToSet (seticols, a);
     }
-    APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
+/*    APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
             removeRedundantDuplicateOperatorBySet,
             OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);*/
     APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
