@@ -133,9 +133,8 @@ computeKeyProp (QueryOperator *root)
 
         }
         keyList=newKey;
-        DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
+        //DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
         //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) newKey);
-        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) keyList);
     }
 
     // dup removal operator has a key {all attributes} if the input does not have a key
@@ -209,10 +208,11 @@ computeKeyProp (QueryOperator *root)
     		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     	}
     	else if(j->setOpType==SETOP_DIFFERENCE){
-    		//TO DO
+    		//returns left child keyList
     	}
     }
     //clean key list
+
 
     setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
