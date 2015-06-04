@@ -90,7 +90,7 @@ startTimer(char *name, int line, const char *function, const char *sourceFile)
     t->fullStart = st.tv_sec * 1000000 + st.tv_usec;
     t->curStart = st;
     t->isRunning = TRUE;
-    DEBUG_LOG("Start time <%s> %ld sec %ld usec", name, st.tv_sec, st.tv_usec);
+    DEBUG_LOG("Start time <%s> %ld sec %ld usec at <%s-%s-%d>", name, st.tv_sec, st.tv_usec, sourceFile, function, line);
 
     RELEASE_MEM_CONTEXT();
 }

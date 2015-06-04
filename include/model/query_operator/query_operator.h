@@ -215,6 +215,9 @@ extern OrderOperator *createOrderOp(List *orderExprs, QueryOperator *input,
 #define OP_RCHILD(op) \
     ((QueryOperator *) getNthOfListP(((QueryOperator*) op)->inputs,1))
 
+#define OP_FIRST_PARENT(op) \
+    ((QueryOperator *) getHeadOfListP(((QueryOperator*) op)->parents))
+
 #define getAttrDef(op,aPos) \
     ((AttributeDef *) getNthOfListP(((QueryOperator *) op)->schema->attrDefs, aPos))
 

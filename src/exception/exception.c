@@ -46,12 +46,14 @@ void
 registerSignalHandler(void)
 {
     signal(SIGSEGV, sigsegv_handler);
+    signal(SIGILL, sigsegv_handler);
 }
 
 void
 deregisterSignalHandler(void)
 {
     signal(SIGSEGV, SIG_DFL);
+    signal(SIGILL, SIG_DFL);
 }
 
 void
@@ -120,8 +122,13 @@ sigsegv_handler(int signo)
 {
   if (signo == SIGSEGV)
   {
-      ERROR_LOG("segmentation fault in process %u", getpid());
+//      ERROR_LOG("segmentation fault in process %u", getpid());
       THROW(SEVERITY_SIGSEGV, "segmentation fault in process %u", getpid());
+  }
+  if (signo == SIGILL)
+  {
+      ERROR_LOG("illegal instruction in process %u", getpid());
+      THROW(SEVERITY_PANIC, "illegal instruction in process %u", getpid());
   }
 //  signal(signo, SIG_DFL);
 //  kill(getpid(), signo);

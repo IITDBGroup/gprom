@@ -50,7 +50,7 @@ public class ConnectionManager {
 	}
 	
 	public GProMConnection getGProMConnection () throws Exception {
-		if (con == null || !testConnection()){
+		if (con == null) { // || !testConnection()){
 			createConnection ();
 		}
 		return gCon;

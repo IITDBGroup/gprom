@@ -42,7 +42,31 @@ X |
 </entry>
 
 <entry key="q4.query">
-SELECT CASE WHEN a=2 THEN CASE WHEN b>2 THEN b-a ELSE CASE WHEN b=2 THEN 1 ELSE 10 END END ELSE CASE WHEN b*2=6 THEN a*2 ELSE CASE WHEN a+b=3 THEN b ELSE 0 END END END AS x FROM (SELECT * FROM r) y;
+SELECT CASE 
+			WHEN a=2 
+			THEN 
+				CASE 
+					WHEN b &gt; 2 
+					THEN b-a 
+					ELSE 
+						CASE 
+							WHEN b=2 THEN 1 
+							ELSE 10 
+						END 
+				END 
+			ELSE 
+			CASE 
+				WHEN b*2=6 
+				THEN a*2 
+				ELSE 
+					CASE 
+						WHEN a+b=3 
+						THEN b 
+						ELSE 0 
+					END 
+				END 
+			END AS x 
+FROM (SELECT * FROM r) y;
 </entry>
 <entry key="q4.result">
 X|
