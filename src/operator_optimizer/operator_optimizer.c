@@ -420,19 +420,19 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 		//step (1)
 		Set *eicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
         icols = unionSets(icols,eicols);
-        QueryOperator *winOp = &(((WindowOperator *)root)->op);
+        WindowOperator *winOp = (WindowOperator *) root;
 
         //List *newAttrDefs = NIL;
 		List *newAttrDefs = copyObject(OP_LCHILD(root)->schema->attrDefs);
 
-		FOREACH(AttributeDef, ad, winOp->schema->attrDefs)
+		FOREACH(AttributeDef, ad, root->schema->attrDefs)
 		{
-			if(streq(((WindowOperator *)root)->attrName, ad->attrName))
+			if(streq(winOp->attrName, ad->attrName))
 			{
 				newAttrDefs = appendToTailOfList(newAttrDefs, ad);
 			}
 		}
-		winOp->schema->attrDefs = newAttrDefs;
+		root->schema->attrDefs = newAttrDefs;
 
 		resetPosOfAttrRefBaseOnBelowLayerSchema(root, OP_LCHILD(root));
 
