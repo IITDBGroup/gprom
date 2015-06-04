@@ -45,7 +45,7 @@ public abstract class AbstractMetadataLookup {
 	private static Logger log = Logger.getLogger(AbstractMetadataLookup.class);
 
 	protected GProMMetadataLookupPlugin plugin;
-	private Connection con;
+	protected Connection con;
 	private Statement stat;
 	public static Map<Integer,String> sqlTypeToString = getAllJdbcTypeNames();
 	
@@ -80,7 +80,7 @@ public abstract class AbstractMetadataLookup {
 	 * @author lord_pretzel
 	 *
 	 */
-	protected class FunctionDesc {
+	public class FunctionDesc {
 		int returnType;
 		List<Integer> parameters;
 		String fName;	
@@ -245,18 +245,18 @@ public abstract class AbstractMetadataLookup {
 	 * @param viewName
 	 * @return
 	 */
-	protected int viewExists(String viewName) {
+	public int viewExists(String viewName) {
 		return tableExistsForTypes(viewName, new String[] {"VIEW"}) ? 1 : 0;	}
 
 	/**
 	 * @param tableName
 	 * @return
 	 */
-	protected int tableExists(String tableName) {
+	public int tableExists(String tableName) {
 		return tableExistsForTypes(tableName, new String[] {"TABLE"}) ? 1 : 0;
 	}
 	
-	protected boolean tableExistsForTypes (String tableName, String[] types) {
+	public boolean tableExistsForTypes (String tableName, String[] types) {
 		ResultSet rs;
 		boolean exists = false;
 		try {
@@ -281,12 +281,12 @@ public abstract class AbstractMetadataLookup {
 	 * @param functionName
 	 * @return
 	 */
-	protected abstract int isWindow(String functionName);
+	public abstract int isWindow(String functionName);
 	/**
 	 * @param functionName
 	 * @return
 	 */
-	protected abstract int isAgg(String functionName);
+	public abstract int isAgg(String functionName);
 
 	/**
 	 * @param oName
@@ -294,19 +294,19 @@ public abstract class AbstractMetadataLookup {
 	 * @param numArgs
 	 * @return
 	 */
-	protected abstract String getOpReturnType(String oName, String[] stringArray,
+	public abstract String getOpReturnType(String oName, String[] stringArray,
 			int numArgs);
 	/**
 	 * @param viewName
 	 * @return the SQL defining viewName
 	 */
-	protected abstract String getViewDefinition(String viewName);
+	public abstract String getViewDefinition(String viewName);
 
 	/**
 	 * @param tableName
 	 * @return 
 	 */
-	protected abstract String getTableDef(String tableName);
+	public abstract String getTableDef(String tableName);
 
 	/**
 	 * @param fName
@@ -314,7 +314,7 @@ public abstract class AbstractMetadataLookup {
 	 * @param numArgs
 	 * @return
 	 */
-	protected String getFuncReturnType(String fName, String[] stringArray,
+	public String getFuncReturnType(String fName, String[] stringArray,
 			int numArgs) {
 		ResultSet rs;
 		FunctionDesc f = null;
@@ -362,7 +362,7 @@ public abstract class AbstractMetadataLookup {
 	 * @param tableName
 	 * @return
 	 */
-	protected List<String> getAttributeDTs(String tableName) {
+	public List<String> getAttributeDTs(String tableName) {
 		List<String> result = new ArrayList<String> ();
 		ResultSet rs;
 		
@@ -387,7 +387,7 @@ public abstract class AbstractMetadataLookup {
 	 * @param tableName
 	 * @return
 	 */
-	protected List<String> getAttributeNames(String tableName) {
+	public List<String> getAttributeNames(String tableName) {
 		List<String> result = new ArrayList<String> ();
 		ResultSet rs;
 		
@@ -412,7 +412,7 @@ public abstract class AbstractMetadataLookup {
 	 * 
 	 * @return
 	 */
-	protected int openConnection () {
+	public int openConnection () {
 		try {
 			stat = con.createStatement();
 			return 0;
@@ -427,7 +427,7 @@ public abstract class AbstractMetadataLookup {
 	 * 
 	 * @return
 	 */
-	protected int closeConnection () {
+	public int closeConnection () {
 		try {
 			stat.close();
 			return 0;
@@ -445,7 +445,7 @@ public abstract class AbstractMetadataLookup {
 	 * @param attrName
 	 * @return
 	 */
-	protected String getAttrDefValue (String schema, String tableName, String attrName)
+	public String getAttrDefValue (String schema, String tableName, String attrName)
 	{
 		ResultSet rs;
 		try {
