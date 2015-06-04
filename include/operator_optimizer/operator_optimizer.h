@@ -40,6 +40,7 @@ extern QueryOperator *removeUnnecessaryAttrDefInSchema(Set *icols, QueryOperator
 
 /* try to remove redundant duplicate operator */
 extern QueryOperator *removeRedundantDuplicateOperatorBySet(QueryOperator *root);
+extern QueryOperator *removeRedundantDuplicateOperatorBySetWithInit(QueryOperator *root);
 
 /* try to remove redundant duplicate operator */
 extern QueryOperator *removeRedundantDuplicateOperatorByKey(QueryOperator *root);
