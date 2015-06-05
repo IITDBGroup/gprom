@@ -190,7 +190,7 @@ computeKeyProp (QueryOperator *root)
 
     		FORBOTH(char,l1,l2,rAttr,lAttr)
 			{
-    			MAP_ADD_STRING_KEY(map, l1, l2);
+    			MAP_ADD_STRING_KEY(map, l1, createConstString(l2));
 			}
     		FOREACH(Set,s,rKeyList){
     			FOREACH_SET(char,key,s)
