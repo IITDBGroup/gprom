@@ -232,6 +232,20 @@ factorAttrsInExpressions(QueryOperator *root)
     return root;
 }
 
+/*
+ * Used in removeUnnecessaryWindowOperator to
+ * reset pos in every operator above this operator
+ */
+void
+upCheckResetPos(QueryOperator *op)
+{
+	FOREACH(QueryOperator, parent, op->parents)
+	{
+		resetPosOfAttrRefBaseOnBelowLayerSchema(parent, op);
+		upCheckResetPos(parent);
+	}
+}
+
 QueryOperator *
 removeUnnecessaryWindowOperator(QueryOperator *root)
 {
@@ -245,13 +259,38 @@ removeUnnecessaryWindowOperator(QueryOperator *root)
 			//so no need to reset pos
 			QueryOperator *lChild = OP_LCHILD(root);
 
-			// Remove Parent and make lChild as the new parent
-			switchSubtrees((QueryOperator *) root, (QueryOperator *) lChild);
+			// Remove root and make lChild as the new root
+			//switchSubtree((QueryOperator *) root, (QueryOperator *) lChild);
+			switchSubtreeWithExisting((QueryOperator *) root, (QueryOperator *) lChild);
 			root = lChild;
 
-			//Reset pos, but seems no need
-			QueryOperator *parent = getHeadOfListP(root->parents);
-			resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)parent,(QueryOperator *)root);
+			//delete the funcName in its parents' schema attrdefs
+			List *newAttrDefs = NIL;
+			FOREACH(QueryOperator, op, root->parents)
+			{
+				FOREACH(AttributeDef, ad, op->schema->attrDefs)
+		        {
+				     if(!streq(funcName, ad->attrName))
+				    	 newAttrDefs = appendToTailOfList(newAttrDefs, ad);
+		        }
+		        op->schema->attrDefs = newAttrDefs;
+
+		        if(isA(op, ProjectionOperator))
+		        {
+		        	ProjectionOperator *pj = (ProjectionOperator *) op;
+		        	List *newAttrRefs = NIL;
+					FOREACH(AttributeReference, ar, pj->projExprs)
+			        {
+					     if(!streq(funcName, ar->name))
+					    	 newAttrRefs = appendToTailOfList(newAttrRefs, ar);
+			        }
+					pj->projExprs = newAttrRefs;
+					resetPosOfAttrRefBaseOnBelowLayerSchema(op, root);
+		        }
+			}
+
+			//Because remove one attribute in schema, so need to reset pos in every above operators
+			upCheckResetPos(root);
 
         }
     }
@@ -345,6 +384,33 @@ resetPos(AttributeReference *ar,  List* attrDefs)
 	//DEBUG_LOG("set attr pos of %s to %d", ar->name, count1);
 }
 
+
+void
+printWindowAttrRefs(QueryOperator *op1)
+{
+	DEBUG_LOG("test");
+	if(op1->inputs != NULL)
+	{
+		QueryOperator *op = (QueryOperator *) getHeadOfListP(op1->inputs);
+		if(isA(op, WindowOperator))
+		{
+			//DEBUG_LOG("WINATTR find window op %p: %s", (void *) op, beatify(nodeToString(op)));
+			List *attrRefs = NIL;
+			WindowOperator *w = (WindowOperator *) op;
+			List *partitionBy = getAttrReferences((Node *) w->partitionBy);
+			List *orderBy = getAttrReferences((Node *) w->orderBy);
+			List *frameDef = getAttrReferences((Node *) w->frameDef);
+			List *f = getAttrReferences((Node *) w->f);
+			attrRefs = concatTwoLists(partitionBy, orderBy);
+			attrRefs = concatTwoLists(attrRefs, frameDef);
+			attrRefs = concatTwoLists(attrRefs, f);
+			DEBUG_LOG("WINATTR %p: %s", (void *) op, beatify(nodeToString(attrRefs)));
+		}
+
+	    printWindowAttrRefs(op);
+	}
+}
+
 QueryOperator *
 removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 {
@@ -412,6 +478,9 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 	else if(isA(root, WindowOperator))
 	{
+		//Used for debug
+		//printWindowAttrRefs(root);
+		//DEBUG_LOG("INFO: WINDOW OPERATOR");
         /*
          * (1) Window operator's attributes should be its child's attributes + function attributes
          * (2) Reset the pos of attributeRef in FunctionalCall, Partition By and Order By
@@ -770,7 +839,9 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 
 	else if(isA(root, ProjectionOperator))
 	{
-		DEBUG_LOG("This is projection operator");
+		//Used for debug
+		//printWindowAttrRefs(root);
+		//DEBUG_LOG("INFO: PROJECTION OPERATOR");
 		int numicols = setSize(icols);
 		int numAttrs = getNumAttrs(root);
 		ProjectionOperator *proj = (ProjectionOperator *) root;
@@ -792,7 +863,7 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
             proj->projExprs = newAttrRefs;
 
          	QueryOperator *child = OP_LCHILD(root);
-            resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)proj,child);
+            resetPosOfAttrRefBaseOnBelowLayerSchema(root,child);
 
             //if up layer is projection, reset the pos of up layer's reference
             if(root->parents != NIL)
