@@ -15,26 +15,26 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.log4j.Logger;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.catalogTableExists_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.catalogViewExists_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.databaseConnectionClose_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.databaseConnectionOpen_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.getAttributeDefaultVal_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.getAttributeNames_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.getAttributes_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.getFuncReturnType_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.getOpReturnType_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.getTableDefinition_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.getViewDefinition_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.isAgg_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.isInitialized_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.isWindowFunction_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.catalogTableExists_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.catalogViewExists_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.databaseConnectionClose_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.databaseConnectionOpen_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getAttributeDefaultVal_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getAttributeNames_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getDataTypes_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getFuncReturnType_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getOpReturnType_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getTableDefinition_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getViewDefinition_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.isAgg_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.isInitialized_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.isWindowFunction_callback;
 import org.gprom.jdbc.utility.LoggerUtil;
 
-import com.sun.jna.StringArray;
-import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
+
+import static org.gprom.jdbc.utility.LoggerUtil.*;
 
 /**
  * @author lord_pretzel
@@ -62,12 +62,10 @@ public abstract class AbstractMetadataLookup {
 				result.put((Integer)field.get(null), field.getName());
 			}
 			catch (IllegalArgumentException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				logException(e,log);
 			}
 			catch (IllegalAccessException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				logException(e,log);
 			}
 	    }
 
@@ -113,7 +111,7 @@ public abstract class AbstractMetadataLookup {
 	 */
 	private void createPlugin(final AbstractMetadataLookup t) {
 		plugin = new GProMMetadataLookupPlugin ();
-		plugin.isInitializedPlugin = new isInitialized_callback() {
+		plugin.isInitialized = new isInitialized_callback() {
 
 			@Override
 			public int apply() {
@@ -165,30 +163,39 @@ public abstract class AbstractMetadataLookup {
 		plugin.getAttributeNames = new getAttributeNames_callback() {
 
 			@Override
-			public void apply(String tableName, PointerByReference attrs,
-					IntByReference numArgs) {
+			public String apply(String tableName) {
 				List<String> attrNames = getAttributeNames(tableName);
+				String result = null;
 				
-				// wrap resul as string array
-				StringArray strArr = new StringArray(attrNames.toArray(new String[] {}));		
-				attrs.setPointer(strArr);
-				numArgs.setValue(attrNames.size());
+				for(String att: attrNames) {
+					if (result == null)
+						result = att;
+					else
+						result += "," + att;
+				}
+				
+				log.debug("attrs for table " + tableName + " are " + attrNames);
+				
+				return result;
 			}
 		};
-		plugin.getAttributes = new getAttributes_callback() {
+		plugin.getDataTypes = new getDataTypes_callback() {
 
 			@Override
-			public void apply(String tableName, PointerByReference attrs,
-					PointerByReference dataTypes, IntByReference numArgs) {
-				List<String> attrNames = getAttributeNames(tableName);
+			public String apply(String tableName) {
 				List<String> dts = getAttributeDTs(tableName);
+				String result = null;
 				
-				StringArray strArr = new StringArray(attrNames.toArray(new String[] {}));		
-				attrs.setPointer(strArr);
-				StringArray dtArr = new StringArray(dts.toArray(new String[] {}));		
-				attrs.setPointer(dtArr);
+				for(String dt: dts) {
+					if (result == null)
+						result = dt;
+					else
+						result += "," + dt;
+				}
 				
-				numArgs.setValue(attrNames.size());
+				log.debug("dts for table " + tableName + " are " + dts);
+				
+				return result;
 			}
 			
 		};
@@ -210,16 +217,22 @@ public abstract class AbstractMetadataLookup {
 		plugin.getFuncReturnType = new getFuncReturnType_callback() {
 
 			@Override
-			public String apply(String fName, StringArray args, int numArgs) {
-				return getFuncReturnType(fName, args.getStringArray(0), numArgs);
+			public String apply(String fName, PointerByReference args,
+					int numArgs) {
+				String[] fArgs;
+				fArgs = args.getPointer().getStringArray(0, numArgs);
+				return getFuncReturnType(fName, fArgs, numArgs);
 			}
 			
 		};
 		plugin.getOpReturnType = new getOpReturnType_callback() {
 
 			@Override
-			public String apply(String oName, StringArray args, int numArgs) {
-				return getOpReturnType(oName, args.getStringArray(0), numArgs);
+			public String apply(String oName, PointerByReference args,
+					int numArgs) {
+				String[] opArgs;
+				opArgs = args.getPointer().getStringArray(0, numArgs);
+				return getOpReturnType(oName, opArgs, numArgs);
 			}
 			
 		};
@@ -270,8 +283,7 @@ public abstract class AbstractMetadataLookup {
 			rs.close();
 		}
 		catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			logException(e,log);
 		}
 		
 		return exists;
@@ -351,8 +363,7 @@ public abstract class AbstractMetadataLookup {
 			return sqlTypeToString.get(f.returnType);
 		}
 		catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			logException(e,log);
 		}
 		
 		return null;
@@ -363,51 +374,61 @@ public abstract class AbstractMetadataLookup {
 	 * @return
 	 */
 	public List<String> getAttributeDTs(String tableName) {
+		return getAttributeDTs(tableName, null);
+	}
+
+	protected List<String> getAttributeDTs(String tableName, String schema) {
 		List<String> result = new ArrayList<String> ();
 		ResultSet rs;
 		
 		try { //TODO deal correctly with types
 			rs = con.getMetaData().getColumns(
-				    null, null, tableName, null);
+				    null, schema, tableName, null);
 			while(rs.next()){
 			    String columnType = sqlTypeToString.get(rs.getInt(5));
 			    result.add(columnType);
 			}
 			rs.close();
+			
+			return result;
 		}
 		catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			logException(e,log);
 		}
 		
 		return null;
 	}
-
+	
 	/**
 	 * @param tableName
 	 * @return
 	 */
 	public List<String> getAttributeNames(String tableName) {
+		return getAttributeNames(tableName,null);
+	}
+	
+	protected List<String> getAttributeNames(String tableName, String schema) {
 		List<String> result = new ArrayList<String> ();
 		ResultSet rs;
 		
 		try {
 			rs = con.getMetaData().getColumns(
-				    null, null, tableName, null);
+				    null, schema, tableName, null);
 			while(rs.next()){
 			    String columnName = rs.getString(4);
 			    result.add(columnName);
 			}
 			rs.close();
+			
+			return result;
 		}
 		catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			logException(e, log);
 		}
 		
 		return null;
 	}
-
+	
 	/**
 	 * 
 	 * @return
@@ -458,8 +479,7 @@ public abstract class AbstractMetadataLookup {
 			rs.close();
 		}
 		catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			logException(e,log);
 		}
 		return null;
 	}

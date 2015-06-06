@@ -93,12 +93,20 @@ setupPluginsFromOptions(void)
         chooseParserPluginFromString(be);
 
     // setup metadata lookup - individual option overrides backend option
-    initMetadataLookupPlugins();
-    if ((pluginName = getStringOption("plugin.metadata")) != NULL)
-        chooseMetadataLookupPluginFromString(pluginName);
+    pluginName = getStringOption("plugin.metadata");
+    if (strpeq(pluginName,"external"))
+    {
+        printf("\nPLUGIN******************************************\n\n");
+    }
     else
-        chooseMetadataLookupPluginFromString(be);
-    initMetadataLookupPlugin();
+    {
+        initMetadataLookupPlugins();
+        if (pluginName != NULL)
+            chooseMetadataLookupPluginFromString(pluginName);
+        else
+            chooseMetadataLookupPluginFromString(be);
+        initMetadataLookupPlugin();
+    }
 
     // setup analyzer - individual option overrides backend option
     if ((pluginName = getStringOption("plugin.analyzer")) != NULL)

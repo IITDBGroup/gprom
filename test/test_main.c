@@ -93,7 +93,7 @@ testSuites(void)
 {
     RUN_TEST(testLogger(), "Logger test.");
     RUN_TEST(testMemManager(), "Memory manager test.");
-    RUN_TEST(testException(), "Exception handling.");
+//    RUN_TEST(testException(), "Exception handling.");
     RUN_TEST(testList(), "List model.");
     RUN_TEST(testSet(), "Set.");
     RUN_TEST(testVector(), "Vector.");

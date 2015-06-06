@@ -74,9 +74,9 @@ typedef struct GProMMetadataLookupPlugin
     /* catalog lookup */
     boolean (*catalogTableExists) (char * tableName);
     boolean (*catalogViewExists) (char * viewName);
-    char ** (*getKeyInformation) (char *tableName);
-    void (*getAttributes) (char *tableName, char ***attrs, char ***dataTypes, int *numArgs);
-    void (*getAttributeNames) (char *tableName, char ***attrs, int *numArgs);
+    char * (*getKeyInformation) (char *tableName);
+    char * (*getDataTypes) (char *tableName);
+    char * (*getAttributeNames) (char *tableName);
     char * (*getAttributeDefaultVal) (char *schema, char *tableName, char *attrName);
 
     boolean (*isAgg) (char *functionName);

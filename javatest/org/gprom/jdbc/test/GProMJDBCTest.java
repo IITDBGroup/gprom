@@ -8,10 +8,12 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Properties;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.gprom.jdbc.driver.GProMConnection;
+import org.gprom.jdbc.driver.GProMDriverProperties;
 import org.gprom.jdbc.jna.GProMWrapper;
 
 import com.sun.jna.Native;
@@ -48,7 +50,11 @@ public class GProMJDBCTest {
 			System.exit(-1);
 		}
 		try{
-			con = (GProMConnection) DriverManager.getConnection(url,username,password);
+			Properties info = new Properties();
+			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "TRUE");
+			info.setProperty("user", username);
+			info.setProperty("password", password);
+			con = (GProMConnection) DriverManager.getConnection(url,info);
 		} catch (SQLException e){
 			e.printStackTrace();
 			System.err.println("Something went wrong while connecting to the database.");
@@ -56,9 +62,9 @@ public class GProMJDBCTest {
 		}
 		System.out.println("Connection was successfully");
 
+		con.getW().setLogLevel(4);
 		con.getW().setBoolOption("pi_cs_use_composable", true);
 		con.getW().setBoolOption("optimize_operator_model", false);
-		con.getW().setLogLevel(0);
 		log.error("log.level=" + con.getW().getIntOption("log.level"));
 		log.error("log.active=" +  con.getW().getBoolOption("log.active"));
 		log.error("pi_cs_use_composable=" +  con.getW().getBoolOption("pi_cs_use_composable"));

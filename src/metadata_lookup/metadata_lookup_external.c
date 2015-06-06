@@ -22,7 +22,7 @@
 #include "parser/parser.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_external.h"
-
+#include "utility/string_utils.h"
 
 // wrapper methods
 static int externalInitMetadataLookupPlugin (void);
@@ -145,15 +145,18 @@ externalGetAttributes (char *tableName)
 {
     EXTERNAL_PLUGIN;
     List *result = NULL;
-    char **atts = NULL;
-    char **dts = NULL;
-    int numAtts = 0;
+    List *attrNames = NIL;
+    List *dts = NIL;
+    char *dtString;
 
-    extP->getAttributes(tableName, &atts, &dts, &numAtts);
-    for(int i = 0; i < numAtts; i++)
+    attrNames = externalGetAttributeNames(tableName);
+    dtString = extP->getDataTypes(tableName);
+    dts = splitString(dtString,",");
+
+    FORBOTH(char,a,dt,attrNames,dts)
     {
-        AttributeDef *d = createAttributeDef(strdup(atts[i]),
-                stringToDataType(dts[i]));
+        AttributeDef *d = createAttributeDef(strdup(a),
+                stringToDataType(dt));
         result = appendToTailOfList(result, d);
     }
 
@@ -164,16 +167,11 @@ static List *
 externalGetAttributeNames (char *tableName)
 {
     EXTERNAL_PLUGIN;
-
     List *result = NULL;
-    char **atts = NULL;
-    int numAtts = 0;
+    char *attList;
 
-    extP->getAttributeNames(tableName, &atts, &numAtts);
-    for(int i = 0; i < numAtts; i++)
-    {
-        result = appendToTailOfList(result, strdup(atts[i]));
-    }
+    attList = extP->getAttributeNames(tableName);
+    result = splitString(attList,",");
 
     return result;
 }
@@ -262,11 +260,12 @@ externalGetKeyInformation (char *tableName)
 {
     EXTERNAL_PLUGIN;
     List *result = NIL;
-    char **exResult = NULL;
+    char *exResult = NULL;
+    List *atts;
 
     exResult = extP->getKeyInformation(tableName);
-
-    result = singleton(exResult);
+    atts = splitString(exResult, ",");
+    result = singleton(makeStrSetFromList(atts));
 
     return result;
 }

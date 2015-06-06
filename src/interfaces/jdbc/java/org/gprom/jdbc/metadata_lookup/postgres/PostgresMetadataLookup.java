@@ -2,14 +2,9 @@ package org.gprom.jdbc.metadata_lookup.postgres;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
 
 import org.apache.log4j.Logger;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.databaseConnectionClose_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.databaseConnectionOpen_callback;
 import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
-import org.gprom.jdbc.utility.LoggerUtil;
 
 
 public class PostgresMetadataLookup extends AbstractMetadataLookup {

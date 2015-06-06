@@ -16,6 +16,7 @@
 static rc testStringSubstring(void);
 static rc testEndTok(void);
 static rc testMatchingSubstring(void);
+static rc testSplit(void);
 
 rc
 testStringUtils(void)
@@ -23,6 +24,8 @@ testStringUtils(void)
     RUN_TEST(testStringSubstring(), "Test substring function");
     RUN_TEST(testEndTok(), "Test strEndTok function");
     RUN_TEST(testMatchingSubstring(), "Test getMatchingSubstring function");
+    RUN_TEST(testSplit(), "Test split string");
+
     return PASS;
 }
 
@@ -63,6 +66,19 @@ testMatchingSubstring(void)
             "aaab",
             "get matching substring from bcdeaaabcde according to"
                     " pattern .*([a]+[b]).*");
+
+    return PASS;
+}
+
+static rc
+testSplit(void)
+{
+    List *result;
+    char *input = strdup("AA,b,c");
+    List *expected = LIST_MAKE("AA","b","c");
+
+    result = splitString(input, ",");
+    ASSERT_EQUALS_STRING(result,expected, "elements are AA, b, and c");
 
     return PASS;
 }

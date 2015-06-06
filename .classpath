@@ -18,5 +18,6 @@
 	<classpathentry kind="lib" path="javatestlib/slf4j-simple-1.5.2.jar"/>
 	<classpathentry kind="lib" path="build/gprom-jdbc-test.jar"/>
 	<classpathentry kind="lib" path="jdbcbuild/gpromjdbc.jar"/>
+	<classpathentry kind="lib" path="javalib/jnaerator-0.12.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>

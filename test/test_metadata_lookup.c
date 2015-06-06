@@ -13,12 +13,14 @@
 
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_oracle.h"
+#include "metadata_lookup/metadata_lookup_external.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
+#include "libgprom/libgprom.h"
 
 static char *table1Attrs[3] = { "A","B","C" };
 static char *table2Attrs[2] = { "D","E" };
@@ -35,6 +37,13 @@ static rc testRunTransactionAndGetXid(void);
 static rc setupMetadataLookup(void);
 static rc testDatabaseConnectionClose(void);
 static rc testReconnectConnection(void);
+static rc testExternalPlugin(void);
+
+// dummy plugin methods
+static int dummyReturnInt(void);
+static boolean dummyReturnBoolean(void);
+static boolean dummyIsAgg(char *name);
+
 
 rc
 testMetadataLookup(void)
@@ -54,6 +63,7 @@ testMetadataLookup(void)
         RUN_TEST(testRunTransactionAndGetXid(), "test transaction execution and XID retrieval");
         RUN_TEST(testDatabaseConnectionClose(), "test close database connection");
         RUN_TEST(testReconnectConnection(), "reconnecting a database connection");
+        RUN_TEST(testExternalPlugin(), "test external metadata lookup plugin");
     }
 
 	return PASS;
@@ -239,6 +249,44 @@ testReconnectConnection(void)
     return PASS;
 }
 
+static rc
+testExternalPlugin(void)
+{
+    GProMMetadataLookupPlugin *plugin = NEW(GProMMetadataLookupPlugin);
+
+    plugin->isInitialized = dummyReturnBoolean;
+    plugin->initMetadataLookupPlugin = dummyReturnInt;
+    plugin->databaseConnectionOpen = dummyReturnInt;
+    plugin->databaseConnectionClose = dummyReturnInt;
+    plugin->shutdownMetadataLookupPlugin = dummyReturnInt;
+
+    plugin->isAgg = dummyIsAgg;
+
+    setMetadataLookupPlugin(assembleExternalMetadataLookupPlugin(plugin));
+
+    ASSERT_TRUE(isAgg("SUM"), "test is agg");
+
+    return PASS;
+}
+
+static int
+dummyReturnInt(void)
+{
+    return EXIT_SUCCESS;
+}
+
+static boolean
+dummyReturnBoolean(void)
+{
+    return TRUE;
+}
+
+static boolean
+dummyIsAgg(char *name)
+{
+    return TRUE;
+}
+
 /* if OCI or OCILIB are not avaible replace with dummy test */
 #else
 
@@ -298,6 +346,12 @@ testDatabaseConnectionClose()
 
 static rc
 testRunTransactionAndGetXid()
+{
+    return PASS;
+}
+
+static rc
+testMetadataLookup()
 {
     return PASS;
 }
