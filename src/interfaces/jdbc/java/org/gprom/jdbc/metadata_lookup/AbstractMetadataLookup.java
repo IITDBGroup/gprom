@@ -386,7 +386,8 @@ public abstract class AbstractMetadataLookup {
 				    null, schema, tableName, null);
 			while(rs.next()){
 			    String columnType = sqlTypeToString.get(rs.getInt(5));
-			    result.add(columnType);
+			    String dt = sqlToGpromDT(columnType);
+			    result.add(dt);
 			}
 			rs.close();
 			
@@ -484,4 +485,17 @@ public abstract class AbstractMetadataLookup {
 		return null;
 	}
 	
+	protected String sqlToGpromDT(String dt) {
+		if (dt.equals("VARCHAR") || dt.equals("VARCHAR2")) {
+			return "DT_STRING";
+		}
+		if (dt.equals("INT")) {
+			return "DT_INT";
+		}
+		if (dt.equals("DECIMAL")) {
+			return "DT_INT";
+		}
+		//TODO
+		return "DT_STRING";
+	}
 }

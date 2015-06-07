@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.util.List;
 
 import org.apache.log4j.Logger;
+import org.gprom.jdbc.jna.GProMJavaInterface.DataType;
 import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
 
 import static org.gprom.jdbc.utility.LoggerUtil.*;
@@ -56,6 +57,60 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 		return 0;
 	}
 
+	@Override
+	public String getFuncReturnType(String fName, String[] stringArray,
+			int numArgs) {
+	    fName = fName.toLowerCase();
+		
+		// aggregation functions
+	    if (fName.equals("sum")
+	            || fName.equals( "min")
+	            || fName.equals( "max")
+	        )
+	    {
+	        DataType argType = DataType.valueOf(stringArray[0]);
+
+	        switch(argType)
+	        {
+	            case DT_INT:
+	            case DT_LONG:
+	                return "DT_LONG";
+	            case DT_FLOAT:
+	                return "DT_FLOAT";
+	            default:
+	                return "DT_STRING";
+	        }
+	    }
+
+	    if (fName.equals("avg"))
+	    {
+	    	DataType argType = DataType.valueOf(stringArray[0]);
+
+	        switch(argType)
+	        {
+	            case DT_INT:
+	            case DT_LONG:
+	            case DT_FLOAT:
+	                return "DT_FLOAT";
+	            default:
+	                return "DT_STRING";
+	        }
+	    }
+
+	    if (fName.equals("count"))
+	        return "DT_LONG";
+
+	    if (fName.equals("xmlagg"))
+	        return "DT_STRING";
+
+	    if (fName.equals("row_number"))
+	        return "DT_INT";
+	    if (fName.equals("dense_rank"))
+	        return "DT_INT";
+
+	    return "DT_STRING";
+	}
+	
 	/* (non-Javadoc)
 	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#getOpReturnType(java.lang.String, java.lang.String[], int)
 	 */
@@ -107,5 +162,7 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 			return null;
 		}
 	}
+	
+	
 	
 }

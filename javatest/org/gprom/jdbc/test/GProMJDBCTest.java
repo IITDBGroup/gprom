@@ -62,9 +62,9 @@ public class GProMJDBCTest {
 		}
 		System.out.println("Connection was successfully");
 
-		con.getW().setLogLevel(4);
+		con.getW().setLogLevel(3);
 		con.getW().setBoolOption("pi_cs_use_composable", true);
-		con.getW().setBoolOption("optimize_operator_model", false);
+		con.getW().setBoolOption("optimize_operator_model", true);
 		log.error("log.level=" + con.getW().getIntOption("log.level"));
 		log.error("log.active=" +  con.getW().getBoolOption("log.active"));
 		log.error("pi_cs_use_composable=" +  con.getW().getBoolOption("pi_cs_use_composable"));
