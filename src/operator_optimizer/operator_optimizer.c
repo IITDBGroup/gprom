@@ -98,9 +98,9 @@ optimizeOneGraph (QueryOperator *root)
     APPLY_AND_TIME_OPT("factor attributes in conditions",
             factorAttrsInExpressions,
             OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
-//    APPLY_AND_TIME_OPT("selection move around",
-//    		selectionMoveAround,
-//    		OPTIMIZATION_SELECTION_MOVE_AROUND);
+    APPLY_AND_TIME_OPT("selection move around",
+    		selectionMoveAround,
+    		OPTIMIZATION_SELECTION_MOVE_AROUND);
     APPLY_AND_TIME_OPT("pull up duplicate remove operators",
     		pullUpDuplicateRemoval,
     		OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
