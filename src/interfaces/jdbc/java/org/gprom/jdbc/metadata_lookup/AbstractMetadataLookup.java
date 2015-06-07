@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin;
@@ -24,6 +25,7 @@ import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getAttributeDefaultVal_callb
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getAttributeNames_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getDataTypes_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getFuncReturnType_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getKeyInformation_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getOpReturnType_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getTableDefinition_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getViewDefinition_callback;
@@ -167,12 +169,7 @@ public abstract class AbstractMetadataLookup {
 				List<String> attrNames = getAttributeNames(tableName);
 				String result = null;
 				
-				for(String att: attrNames) {
-					if (result == null)
-						result = att;
-					else
-						result += "," + att;
-				}
+				result = listToString(attrNames);
 				
 				log.debug("attrs for table " + tableName + " are " + attrNames);
 				
@@ -186,12 +183,7 @@ public abstract class AbstractMetadataLookup {
 				List<String> dts = getAttributeDTs(tableName);
 				String result = null;
 				
-				for(String dt: dts) {
-					if (result == null)
-						result = dt;
-					else
-						result += "," + dt;
-				}
+				result = listToString(dts);
 				
 				log.debug("dts for table " + tableName + " are " + dts);
 				
@@ -252,8 +244,49 @@ public abstract class AbstractMetadataLookup {
 			}
 			
 		};
+		plugin.getKeyInformation = new getKeyInformation_callback() {
+
+			@Override
+			public String apply(String tableName) {
+				try {
+					List<String> key = getKeyInformation(tableName); 
+					return listToString(key);
+				}
+				catch (SQLException e) {
+					logException(e, log);
+				}
+				return null;
+			}
+			
+		};
 	}
 
+	/**
+	 * @param tableName
+	 * @return
+	 * @throws SQLException 
+	 */
+	public List<String> getKeyInformation(String tableName) throws SQLException {
+		return getKeyInformation(tableName, null);
+	}
+
+	protected List<String> getKeyInformation(String tableName, String schema) throws SQLException {
+		ResultSet rs;
+		List<String> result = new ArrayList<String> ();
+
+		rs = con.getMetaData().getPrimaryKeys(null, schema, tableName);
+
+	    while (rs.next()) {
+	    	String columnName = rs.getString("COLUMN_NAME");
+		    result.add(columnName);
+		}
+	    
+	    log.debug("keys for relation " + tableName + " are " + result);
+	    
+		return result;
+	}
+
+	
 	/**
 	 * @param viewName
 	 * @return
@@ -497,5 +530,17 @@ public abstract class AbstractMetadataLookup {
 		}
 		//TODO
 		return "DT_STRING";
+	}
+	
+	protected String listToString (List<String> in) {
+		String result = null;
+		
+		for(String s: in)
+			if (result == null)
+				result = s;
+			else
+				result += "," + s;
+		
+		return result;
 	}
 }

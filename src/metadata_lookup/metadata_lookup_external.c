@@ -264,6 +264,7 @@ externalGetKeyInformation (char *tableName)
     List *atts;
 
     exResult = extP->getKeyInformation(tableName);
+    DEBUG_LOG("keys from external are: %s", exResult);
     atts = splitString(exResult, ",");
     result = singleton(makeStrSetFromList(atts));
 
