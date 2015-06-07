@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
 <properties>
-<comment>Aggregation Test cases</comment>
+<comment>Provenance Aggregation Test cases</comment>
 
 <entry key="q1.query">
 PROVENANCE OF (SELECT sum(a) AS x FROM r);

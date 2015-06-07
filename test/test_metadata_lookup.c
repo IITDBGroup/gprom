@@ -22,8 +22,10 @@
 #include "model/query_operator/query_operator.h"
 #include "libgprom/libgprom.h"
 
+#if HAVE_ORACLE_BACKEND
 static char *table1Attrs[3] = { "A","B","C" };
 static char *table2Attrs[2] = { "D","E" };
+#endif
 
 /* internal tests */
 static rc testCatalogTableExists(void);
@@ -40,10 +42,11 @@ static rc testReconnectConnection(void);
 static rc testExternalPlugin(void);
 
 // dummy plugin methods
+#if HAVE_ORACLE_BACKEND
 static int dummyReturnInt(void);
 static boolean dummyReturnBoolean(void);
 static boolean dummyIsAgg(char *name);
-
+#endif
 
 rc
 testMetadataLookup(void)
@@ -51,7 +54,9 @@ testMetadataLookup(void)
 
     if (streq(getStringOption("backend"),"oracle"))
     {
+#if HAVE_ORACLE_BACKEND
         ASSERT_EQUALS_INT(EXIT_SUCCESS, oracleShutdownMetadataLookupPlugin(), "shutdown plugin");
+#endif
         RUN_TEST(setupMetadataLookup(),"setup tables");
         RUN_TEST(testCatalogTableExists(), "test catalog table exists");
         RUN_TEST(testViewExists(), "test view exists");
@@ -351,9 +356,16 @@ testRunTransactionAndGetXid()
 }
 
 static rc
-testMetadataLookup()
+testReconnectConnection(void)
 {
     return PASS;
 }
+
+static rc
+testExternalPlugin(void)
+{
+    return PASS;
+}
+
 
 #endif

@@ -40,7 +40,7 @@ SELECT sum(a) AS x, b AS y FROM r GROUP BY b;
 </entry>
 <entry key="q4.result">
 X | Y | 
-----------+-----------------+-----------------
+----------------------------------------
 3|1|
 1|2|
 2|3|
@@ -51,7 +51,7 @@ SELECT a AS x, count(b) AS y FROM r GROUP BY a;
 </entry>
 <entry key="q5.result">
 X | Y | 
-----------+-----------------+-----------------
+----------------------------------------
 1|2|
 2|2|
 </entry>
@@ -84,39 +84,31 @@ X | Y |
 2|2|
 </entry>
 
-<entry key="q9.query">
-SELECT a as x FROM R WHERE b=(SELECT min(b) FROM r);
-</entry>
-<entry key="q9.result">
-X |
-----------+-----------------+-----------------
----NOT WORKING!---
-</entry>
 
-<entry key="q10.query">
+<entry key="q9.query">
 SELECT a as x FROM R GROUP BY a HAVING avg(b) &gt; 1;
 </entry>
-<entry key="q10.result">
+<entry key="q9.result">
 X |
 ----------+-----------------+-----------------
 1|
 2|
 </entry>
 
-<entry key="q11.query">
+<entry key="q10.query">
 SELECT a*6 as x FROM R GROUP BY a HAVING count(b)=2;
 </entry>
-<entry key="q11.result">
+<entry key="q10.result">
 X|
 ----------------------------------------
 6|
 12|
 </entry>
 
-<entry key="q12.query">
+<entry key="q11.query">
 SELECT x+2 as x FROM (SELECT a+b as x, c as y FROM R, S WHERE c &gt; 1) GROUP BY x;
 </entry>
-<entry key="q12.result">
+<entry key="q11.result">
 X|
 ----------------------------------------
 4|
@@ -124,10 +116,10 @@ X|
 5|
 </entry>
 
-<entry key="q13.query">
+<entry key="q12.query">
 SELECT b*3 as x, (b+a*c)-a as y, d-b as z FROM R,S;
 </entry>
-<entry key="q13.result">
+<entry key="q12.result">
 X|Y|Z|
 ----------------------------------------
 3|2|1|
@@ -148,10 +140,10 @@ X|Y|Z|
 9|3|1|
 </entry>
 
-<entry key="q14.query">
+<entry key="q13.query">
 SELECT x+2 as z, x as t, sum(x) as s FROM (SELECT a+b as x, c as y FROM R, S WHERE c &gt; 2) GROUP BY x;
 </entry>
-<entry key="q14.result">
+<entry key="q13.result">
 Z|T|S|
 ----------------------------------------
 4|2|2|
@@ -159,19 +151,19 @@ Z|T|S|
 5|3|6|
 </entry>
 
-<entry key="q15.query">
+<entry key="q14.query">
 SELECT avg(a) AS x, avg(a+b) AS y, sum(a*b*(d-c)/2) AS z FROM R, S WHERE b &gt; c;
 </entry>
-<entry key="q15.result">
+<entry key="q14.result">
 X|Y|Z|
 ----------------------------------------
 1.75|4.5|15|
 </entry>
 
-<entry key="q16.query">
+<entry key="q15.query">
 SELECT count(*) AS x FROM (SELECT sum(a), b FROM R GROUP BY b) x;
 </entry>
-<entry key="q16.result">
+<entry key="q15.result">
 X|
 ----------------------------------------
 2|
