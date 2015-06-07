@@ -715,7 +715,8 @@ computeECPropTopDown (QueryOperator *root)
 		Node *nRoot = getStringProperty(root, PROP_STORE_SET_EC);
 		QueryOperator *childOp = OP_LCHILD(root);
 
-		setStringProperty((QueryOperator *)childOp, PROP_STORE_SET_EC, nRoot);
+		if(LIST_LENGTH(childOp->parents) == 1)
+		      setStringProperty((QueryOperator *)childOp, PROP_STORE_SET_EC, nRoot);
 	}
 
 	else if(isA(root, JsonTableOperator))
