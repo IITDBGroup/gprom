@@ -148,7 +148,13 @@ public class ConnectionManager {
 			case HSQL:
 				break;
 			case Oracle:
-				st.execute("SELECT 1 from dual;");
+			{
+				String parser = gCon.getW().getStringOption("plugin.parser");
+				if (parser.equals("oracle"))
+					st.execute("SELECT 1 from dual;");
+				else if (parser.equals("dl"))
+					st.execute("Q(X) :- dual(X).");
+			}
 				break;
 			case Postgres:
 				break;

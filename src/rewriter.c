@@ -133,6 +133,43 @@ setupPluginsFromOptions(void)
 
 }
 
+void
+resetupPluginsFromOptions (void)
+{
+    char *be = getStringOption("backend");
+    char *pluginName = be;
+
+    // setup parser - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.parser")) != NULL)
+        chooseParserPluginFromString(pluginName);
+    else
+        chooseParserPluginFromString(be);
+
+    // setup analyzer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.analyzer")) != NULL)
+        chooseAnalyzerPluginFromString(pluginName);
+    else
+        chooseAnalyzerPluginFromString(be);
+
+    // setup translator - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.translator")) != NULL)
+        chooseTranslatorPluginFromString(pluginName);
+    else
+        chooseTranslatorPluginFromString(be);
+
+    // setup serializer - individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.sqlserializer")) != NULL)
+        chooseSqlserializerPluginFromString(pluginName);
+    else
+        chooseSqlserializerPluginFromString(be);
+
+    // setup executor- individual option overrides backend option
+    if ((pluginName = getStringOption("plugin.executor")) != NULL)
+        chooseExecutorPluginFromString(pluginName);
+    else
+        chooseExecutorPluginFromString("sql");
+}
+
 int
 readOptionsAndIntialize(char *appName, char *appHelpText, int argc, char* argv[])
 {

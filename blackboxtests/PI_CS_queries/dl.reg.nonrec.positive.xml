@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
 <properties>
-<comment>Regular Datalog Test cases</comment>
+<comment>Regular Positive Nonrecursive Datalog Test cases</comment>
 
 <entry key="options">
-plugin_parser=dl,
-plugin_analyzer=dl,
-plugin_translator=dl
+plugin.parser=dl,
+plugin.analyzer=dl,
+plugin.translator=dl
 </entry>
 
 <entry key="q1.query">
@@ -67,6 +67,41 @@ A0|A1|
 1|2|
 1|1|
 3|2|
+</entry>
+
+<entry key="q6.query">
+Q(X,X) :- R(X,X).
+</entry>
+<entry key="q6.result">
+A0|A1|
+----------------------------------------
+1|1|
+</entry>
+
+<entry key="q7.query">
+Q(X,X) :- R(X,Y), X=2.
+</entry>
+<entry key="q7.result">
+A0|A1|
+----------------------------------------
+2|2|
+</entry>
+
+<entry key="q8.query">
+Q(X) :- R(X,Y), X &lt; 10. 
+Q(X) :- R(X,Y), Y &gt; 10. 
+ANS : Q.
+</entry>
+<entry key="q8.result">
+A0|
+----------------------------------------
+1|
+2|
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
 </entry>
 
 <entry key="q.query">

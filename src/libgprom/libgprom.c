@@ -92,6 +92,12 @@ gprom_configFromOptions(void)
     setupPluginsFromOptions();
 }
 
+void
+gprom_reconfPlugins(void)
+{
+    resetupPluginsFromOptions();
+}
+
 void gprom_shutdown(void)
 {
     LOCK_MUTEX();

@@ -118,12 +118,32 @@ public class AbstractGProMTester extends DBTestCase {
     	}
     }
     
-    protected void setGenerator (String name) throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
+    protected void setGenerator (String name) throws Exception {
+      	DataAndQueryGenerator generator;
+    	Properties options;
+    	
     	System.out.println("\n********************************************");
     	System.out.println("**   " + name);
     	System.out.println("********************************************\n");
     	
     	TestInfoHolder.getInstance().setGenerator(name);
+    	generator = TestInfoHolder.getInstance().getCurrentGenerator();    	
+    	
+    	GProMConnection g = ConnectionManager.getInstance().getGProMConnection();
+    	
+    	options = TestInfoHolder.getInstance().getCurrentGenerator().getOptions();
+    	
+    	if (options != null)
+    	{
+    		for(Entry<?, ?> e: options.entrySet()) {
+    			String key = (String) e.getKey();
+    			String value = (String) e.getValue();
+    			log.debug("set key " + key + " to " + value);
+    			g.getW().setOption(key, value);
+    		}
+    		
+    		g.getW().reconfPlugins();
+    	}
     }
     
     protected void testSingleQuery (int num) throws Exception {

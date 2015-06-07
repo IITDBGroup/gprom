@@ -31,6 +31,7 @@ public interface GProM_JNA extends Library {
 	public void gprom_readOptions(int argc, String[] args);
 	public void gprom_readOptionAndInit(int argc, String[] args);
 	public void gprom_configFromOptions();
+	public void gprom_reconfPlugins();
 	public void gprom_shutdown();
 	
 	// rewrite methods

@@ -131,6 +131,11 @@ public class GProMWrapper implements GProMJavaInterface {
 		GProM_JNA.INSTANCE.gprom_configFromOptions();
 	}
 	
+	public void reconfPlugins()
+	{
+		GProM_JNA.INSTANCE.gprom_reconfPlugins();
+	}
+	
 	public void setupPlugins(Connection con, GProMMetadataLookupPlugin p)
 	{
 		setStringOption("plugin.metadata", "external");

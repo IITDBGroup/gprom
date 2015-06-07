@@ -29,6 +29,7 @@ extern void gprom_init(void);
 extern void gprom_readOptions(int argc, char *const args[]);
 extern void gprom_readOptionAndInit(int argc, char *const args[]);
 extern void gprom_configFromOptions(void);
+extern void gprom_reconfPlugins(void);
 extern void gprom_shutdown(void);
 
 // process an input query
