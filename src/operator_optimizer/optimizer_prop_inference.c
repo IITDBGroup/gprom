@@ -83,7 +83,7 @@ computeKeyProp (QueryOperator *root)
 
     if (isA(root, ProjectionOperator))
     {
-        List *l1 = ((ProjectionOperator *)root)->projExprs; //it is empty now!
+        List *l1 = ((ProjectionOperator *)root)->projExprs;
         List *l2 = NIL;
         List *newKey = NIL;
         HashMap *inAtoPos = NEW_MAP(Constant,Constant);
@@ -143,8 +143,10 @@ computeKeyProp (QueryOperator *root)
 
     	List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
     	Set *s1 = makeStrSetFromList(l1);
-
-    	keyList = appendToTailOfList(keyList, s1);
+		if (!searchList(keyList,s1)) //search function not working right
+		{
+			keyList = appendToTailOfList(keyList, s1);
+		}
         //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     }
 
@@ -199,7 +201,7 @@ computeKeyProp (QueryOperator *root)
     				addToSet(nSet, nAttr);
 
     			}
-    			if (!searchList(keyList, nSet))
+    			if (!searchList(keyList, nSet)) //is this search function working right?
     			{
     				keyList = appendToTailOfList(keyList, nSet);
     			}
@@ -216,7 +218,7 @@ computeKeyProp (QueryOperator *root)
     if (isA(root, AggregationOperator))
     {
     	AggregationOperator *j = (AggregationOperator *) root;
-    	List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
+    	List *l1 = getQueryOperatorAttrNames(root);
     	Set *s1 = makeStrSetFromList(l1);
     	Set *nSet = STRSET();
     	List *nKeyList = NIL;
@@ -224,6 +226,7 @@ computeKeyProp (QueryOperator *root)
     	// if groupby is empty return all attributes
     	if(j->groupBy==NIL)
     	{
+    		keyList = NIL;
     		nKeyList = appendToTailOfList(keyList, s1);
     	}
     	//if group by not empty intersect key with new attributes

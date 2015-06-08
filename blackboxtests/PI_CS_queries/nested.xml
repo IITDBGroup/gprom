@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Nested Test cases</comment>
+
+<entry key="q1.query">
+SELECT a as x FROM R WHERE b=(SELECT min(x.b) FROM r x);
+</entry>
+<entry key="q1.result">
+X | PROV_R_A | PROV_R_B
+----------+-----------------+-----------------
+----NOT WORKING!---
+</entry>
+
+
+</entry>
+
+
+</properties>
