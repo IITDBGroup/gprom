@@ -53,7 +53,7 @@ void
 registerLogCallback (LoggerCallbackFunction callback)
 {
     logCallback = callback;
-    printf("*****************************SET CALLBACK*********************** %p", callback);
+//    printf("*****************************SET CALLBACK*********************** %p", callback);
 }
 
 static inline char *
@@ -71,7 +71,7 @@ getOutput(LogLevel level)
 void
 initLogger(void)
 {
-    printf("************* INIT");
+//    printf("************* INIT");
     buffer = (StringInfo) malloc(sizeof(StringInfoData));
     buffer->len = 0;
     buffer->maxlen = INIT_BUF_SIZE;

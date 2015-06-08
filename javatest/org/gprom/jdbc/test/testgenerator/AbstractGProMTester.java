@@ -26,6 +26,7 @@ public class AbstractGProMTester extends DBTestCase {
 	static Logger log = Logger.getLogger(AbstractGProMTester.class);
 	
 	protected String path;
+	protected Properties oldProps;
 	
 	public AbstractGProMTester (String name) {
 		super(name);
@@ -50,9 +51,28 @@ public class AbstractGProMTester extends DBTestCase {
 	}
 	
     protected void tearDown() throws Exception {
+    	resetOptions();
     	super.tearDown();
     }
 	
+	/**
+	 * @throws Exception 
+	 * @throws NumberFormatException 
+	 * 
+	 */
+	protected void resetOptions() throws NumberFormatException, Exception {
+		if (oldProps != null) {
+			GProMConnection g = ConnectionManager.getInstance().getGProMConnection();
+			
+			for(Entry<?, ?> e: oldProps.entrySet()) {
+    			String key = (String) e.getKey();
+    			String value = (String) e.getValue();
+    			log.debug("set key " + key + " to " + value);
+    			g.getW().setOption(key, value);
+    		}
+		}
+	}
+
 	/* (non-Javadoc)
 	 * @see org.dbunit.DatabaseTestCase#getDataSet()
 	 */
@@ -95,14 +115,20 @@ public class AbstractGProMTester extends DBTestCase {
     	
     	if (options != null)
     	{
+    		oldProps = new Properties();
     		for(Entry<?, ?> e: options.entrySet()) {
     			String key = (String) e.getKey();
     			String value = (String) e.getValue();
+    			oldProps.setProperty(key, g.getW().getOption(key));
     			log.debug("set key " + key + " to " + value);
     			g.getW().setOption(key, value);
     		}
+    		
+    		g.getW().reconfPlugins();
     	}
-    	
+    	else
+    		oldProps = null;
+    
     	for(int i = 1; i <= generator.getNumTest(); i++) {
     		expected = generator.getExpectedResult("q" + i);
     		queryString = generator.getQuery("q" + i);
@@ -135,15 +161,19 @@ public class AbstractGProMTester extends DBTestCase {
     	
     	if (options != null)
     	{
+    		oldProps = new Properties();
     		for(Entry<?, ?> e: options.entrySet()) {
     			String key = (String) e.getKey();
     			String value = (String) e.getValue();
+    			oldProps.setProperty(key, g.getW().getOption(key));
     			log.debug("set key " + key + " to " + value);
     			g.getW().setOption(key, value);
     		}
     		
     		g.getW().reconfPlugins();
     	}
+    	else
+    		oldProps = null;
     }
     
     protected void testSingleQuery (int num) throws Exception {

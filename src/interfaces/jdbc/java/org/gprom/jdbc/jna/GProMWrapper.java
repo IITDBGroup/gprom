@@ -208,6 +208,22 @@ public class GProMWrapper implements GProMJavaInterface {
 		}
 	}
 	
+	public String getOption (String key) throws NumberFormatException, Exception {
+		switch(typeOfOption(key)) {
+		case Boolean:
+			return "" + getBoolOption(key);
+		case Float:
+			return "" + getFloatOption(key);
+		case Int:
+			return "" + getIntOption(key);
+		case String:
+			return getStringOption(key);
+		default:
+			break;
+		}
+		throw new Exception ("unkown option " + key);
+	}
+	
 	public String getStringOption (String name)
 	{
 		return GProM_JNA.INSTANCE.gprom_getStringOption(name);

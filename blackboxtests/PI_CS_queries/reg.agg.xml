@@ -166,7 +166,7 @@ SELECT count(*) AS x FROM (SELECT sum(a), b FROM R GROUP BY b) x;
 <entry key="q15.result">
 X|
 ----------------------------------------
-2|
+3|
 </entry>
 
 </properties>
