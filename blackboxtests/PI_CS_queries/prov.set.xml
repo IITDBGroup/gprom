@@ -41,22 +41,7 @@ PROVENANCE OF (SELECT * FROM R INTERSECT SELECT * FROM S);
 <entry key="q3.result">
 A|B|C|D|PROV_R_A|PROV_R_B|PROV_S_C|PROV_S_D|
 ----------------------------------------
-1|1|2|2|1|1|2|2|
-1|1|2|3|1|1|2|3|
-1|1|3|3|1|1|3|3|
-1|1|1|4|1|1|1|4|
-1|2|2|2|1|2|2|2|
-1|2|2|3|1|2|2|3|
-1|2|3|3|1|2|3|3|
-1|2|1|4|1|2|1|4|
-2|1|2|2|2|1|2|2|
-2|1|2|3|2|1|2|3|
-2|1|3|3|2|1|3|3|
-2|1|1|4|2|1|1|4|
-2|3|2|2|2|3|2|2|
 2|3|2|3|2|3|2|3|
-2|3|3|3|2|3|3|3|
-2|3|1|4|2|3|1|4|
 </entry>
 
 <entry key="q4.query">
@@ -106,37 +91,17 @@ PROVENANCE OF (SELECT a FROM (SELECT * FROM R UNION SELECT * FROM S) INTERSECT S
 <entry key="q7.result">
 A|C|PROV_R_A|PROV_R_B|PROV_S_C|PROV_S_D|PROV_S_1_C|PROV_S_1_D|
 ----------------------------------------
-1|2|1|1|(null)|(null)|2|2|
-1|2|1|2|(null)|(null)|2|2|
-2|2|2|1|(null)|(null)|2|2|
-2|2|2|3|(null)|(null)|2|2|
-2|2|(null)|(null)|2|2|2|2|
-2|2|(null)|(null)|2|3|2|2|
-3|2|(null)|(null)|3|3|2|2|
-1|2|(null)|(null)|1|4|2|2|
-1|2|1|1|(null)|(null)|2|3|
-1|2|1|2|(null)|(null)|2|3|
-2|2|2|1|(null)|(null)|2|3|
-2|2|2|3|(null)|(null)|2|3|
-2|2|(null)|(null)|2|2|2|3|
-2|2|(null)|(null)|2|3|2|3|
-3|2|(null)|(null)|3|3|2|3|
-1|2|(null)|(null)|1|4|2|3|
-1|3|1|1|(null)|(null)|3|3|
-1|3|1|2|(null)|(null)|3|3|
-2|3|2|1|(null)|(null)|3|3|
-2|3|2|3|(null)|(null)|3|3|
-2|3|(null)|(null)|2|2|3|3|
-2|3|(null)|(null)|2|3|3|3|
-3|3|(null)|(null)|3|3|3|3|
-1|3|(null)|(null)|1|4|3|3|
 1|1|1|1|(null)|(null)|1|4|
 1|1|1|2|(null)|(null)|1|4|
-2|1|2|1|(null)|(null)|1|4|
-2|1|2|3|(null)|(null)|1|4|
-2|1|(null)|(null)|2|2|1|4|
-2|1|(null)|(null)|2|3|1|4|
-3|1|(null)|(null)|3|3|1|4|
+2|2|2|1|(null)|(null)|2|3|
+2|2|2|1|(null)|(null)|2|2|
+2|2|2|3|(null)|(null)|2|3|
+2|2|2|3|(null)|(null)|2|2|
+2|2|(null)|(null)|2|2|2|3|
+2|2|(null)|(null)|2|2|2|2|
+2|2|(null)|(null)|2|3|2|3|
+2|2|(null)|(null)|2|3|2|2|
+3|3|(null)|(null)|3|3|3|3|
 1|1|(null)|(null)|1|4|1|4|
 </entry>
 
