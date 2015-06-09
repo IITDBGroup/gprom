@@ -1158,7 +1158,7 @@ translateDistinct(DistinctClause *distinctClause, QueryOperator *input)
     {
         List *attrNames = getAttrNames(input->schema);
 
-        DuplicateRemoval *o = createDuplicateRemovalOp(copyObject(attrNames), input, NIL, attrNames);
+        DuplicateRemoval *o = createDuplicateRemovalOp(NIL, input, NIL, attrNames);
         input->parents = singleton(o);
 
         output = (QueryOperator *) o;

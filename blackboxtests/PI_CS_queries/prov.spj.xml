@@ -37,7 +37,7 @@ X|Y|PROV_R_A|PROV_R_B|
 </entry>
 
 <entry key="q4.query">
-PROVENANCE OF (SELECT a AS x, b AS y FROM R WHERE a>b);
+PROVENANCE OF (SELECT a AS x, b AS y FROM R WHERE a &gt; b);
 </entry>
 <entry key="q4.result">
 X|Y|PROV_R_A|PROV_R_B|

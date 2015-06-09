@@ -212,7 +212,7 @@ public class DataAndQueryGenerator {
 			result.append("\t\t<row>\n\t\t\t");
 			
 			for (int j = 0; j < rows.length; j++) {
-				if (rows[j].trim().equals("")) {
+				if (rows[j].trim().equals("(null)")) {
 					result.append("<null></null>");
 				}
 				else if (rows[j].trim().equals("EMPTYSTRING")) {
