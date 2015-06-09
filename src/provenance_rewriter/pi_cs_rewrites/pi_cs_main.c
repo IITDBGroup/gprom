@@ -790,7 +790,7 @@ rewritePI_CSSet(SetOperator *op)
     case SETOP_INTERSECTION:
     {
         //create join condition
-       // Node *joinCond;
+        Node *joinCond;
         List *comparisons = NIL;
         int schemaSize = LIST_LENGTH(lChild->schema);
 
@@ -804,7 +804,7 @@ rewritePI_CSSet(SetOperator *op)
                             createFullAttrReference (strdup(rDef->attrName),1,i,INVALID_ATTR, rDef->dataType))
                     ));
         }
-        //joinCond = andExprList(comparisons);
+        joinCond = andExprList(comparisons);
 
         // rewrite children
         lChild = rewritePI_CSOperator(lChild);
