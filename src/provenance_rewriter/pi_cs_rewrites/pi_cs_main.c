@@ -792,7 +792,7 @@ rewritePI_CSSet(SetOperator *op)
         //create join condition
         Node *joinCond;
         List *comparisons = NIL;
-        int schemaSize = LIST_LENGTH(lChild->schema);
+        int schemaSize = LIST_LENGTH(lChild->schema->attrDefs);
 
         for(int i = 0 ; i < schemaSize; i++)
         {
@@ -805,13 +805,14 @@ rewritePI_CSSet(SetOperator *op)
                     ));
         }
         joinCond = andExprList(comparisons);
+        DEBUG_LOG("join cond: %s", beatify(nodeToString(joinCond)));
 
         // rewrite children
         lChild = rewritePI_CSOperator(lChild);
         rChild = rewritePI_CSOperator(rChild);
 
-   	//restrcuture the tree
-    	JoinOperator *joinOp = createJoinOp(JOIN_CROSS, NULL, LIST_MAKE(lChild,rChild), NIL, NIL);
+        //restrcuture the tree
+    	JoinOperator *joinOp = createJoinOp(JOIN_INNER, joinCond, LIST_MAKE(lChild,rChild), NIL, NIL);
     	removeParent(lChild, (QueryOperator *) op);
     	addParent(lChild,(QueryOperator *)  joinOp);
     	removeParent(rChild, (QueryOperator *) op);
