@@ -143,7 +143,7 @@ computeKeyProp (QueryOperator *root)
 
     	List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
     	Set *s1 = makeStrSetFromList(l1);
-		if (!searchList(keyList,s1)) //search function not working right
+		if (!genericSearchList(keyList, equal, s1))
 		{
 			keyList = appendToTailOfList(keyList, s1);
 		}
@@ -201,7 +201,7 @@ computeKeyProp (QueryOperator *root)
     				addToSet(nSet, nAttr);
 
     			}
-    			if (!searchList(keyList, nSet)) //is this search function working right?
+    			if (!genericSearchList(keyList, equal, nSet))
     			{
     				keyList = appendToTailOfList(keyList, nSet);
     			}
@@ -256,7 +256,7 @@ computeKeyProp (QueryOperator *root)
     	keyList=NIL;
 
 
-    DEBUG_LOG("Before Cleaning List: %s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
+    //DEBUG_LOG("Before Cleaning List: %s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
 
     //clean key list - check for each set (a) if it contains another set (b) in it
     if (LIST_LENGTH(keyList)>1){
