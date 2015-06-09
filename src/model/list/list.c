@@ -689,6 +689,7 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 //	}
 //	return result;
 //}
+
 List *
 removeFromTail(List *X)
 {

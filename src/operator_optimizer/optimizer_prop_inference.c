@@ -256,24 +256,30 @@ computeKeyProp (QueryOperator *root)
     	keyList=NIL;
 
 
-/*    //clean key list
-    List *finalKeyList;
-    List *aux = keyList;
-    FOREACH (Set, left, keyList)
-    {
-    	aux = genericRemoveFromList (keyList, eq, left);
-    	FOREACH (Set, right, aux)
-    	{
-			if(containsSet(left,right))
-			{
-				//remove right from list
-				keyList = genericRemoveFromList (keyList, eq, right);
-				//add set to finalKeyList
-			}
-    	}
-    }
+    DEBUG_LOG("Before Cleaning List: %s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
 
-    finalKeyList = keyList;*/
+    //clean key list - check for each set (a) if it contains another set (b) in it
+    if (LIST_LENGTH(keyList)>1){
+    	List *finalKeyList = NIL;
+    	boolean contains = FALSE;
+		FOREACH (Set, a, keyList)
+		{
+			FOREACH (Set, b, keyList)
+			{
+				if (a!=b)
+					if(containsSet(b,a))
+					{
+						contains = TRUE;
+						break;
+					}
+			}
+			if (!contains)
+			{
+				finalKeyList = appendToTailOfList(finalKeyList, a);
+			}
+		}
+		keyList = finalKeyList;
+    }
 
     setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
