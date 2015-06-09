@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Projection Test cases</comment>
+
+<entry key="q1.query">
+PROVENANCE OF (SELECT a as x, e as y FROM R, T);
+</entry>
+<entry key="q1.result">
+X|Y|PROV_R_A|PROV_R_B|PROV_T_E|PROV_T_F|
+----------------------------------------
+1|1|1|1|1|1|
+1|1|1|2|1|1|
+2|1|2|1|1|1|
+2|1|2|3|1|1|
+1|2|1|1|2|2|
+1|2|1|2|2|2|
+2|2|2|1|2|2|
+2|2|2|3|2|2|
+</entry>
+
+<entry key="q2.query">
+PROVENANCE OF (SELECT DISTINCT a as x FROM R);
+</entry>
+<entry key="q2.result">
+X|PROV_R_A|PROV_R_B|
+----------------------------------------
+1|1|1|
+1|1|2|
+2|2|1|
+2|2|3|
+</entry>
+
+<entry key="q3.query">
+PROVENANCE OF (SELECT CASE WHEN ((A = 1) OR (B =1 )) THEN  a+ 5 ELSE 2 END AS x FROM (SELECT * FROM r) y WHERE ((A = 1) OR (B > 0)));
+</entry>
+<entry key="q3.result">
+X|PROV_R_A|PROV_R_B|
+----------------------------------------
+6|1|1|
+6|1|2|
+7|2|1|
+2|2|3|
+</entry>
+
+<entry key="q4.query">
+PROVENANCE OF (SELECT CASE WHEN a=2 THEN CASE WHEN b>2 THEN b-a ELSE CASE WHEN b=2 THEN 1 ELSE 10 END END ELSE CASE WHEN b*2=6 THEN a*2 ELSE CASE WHEN a+b=3 THEN b ELSE 0 END END END AS x FROM (SELECT * FROM r) y);
+</entry>
+<entry key="q4.result">
+X|PROV_R_A|PROV_R_B|
+----------------------------------------
+0|1|1|
+2|1|2|
+10|2|1|
+1|2|3|
+</entry>
+
+</properties>
