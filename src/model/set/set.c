@@ -472,16 +472,10 @@ containsSet(Set *left, Set *right)
     FOREACH_SET(char, s1, left)
     {
     	containedElem = FALSE;
-    	FOREACH_SET(char, s2, right)
-    	{
-    		if (s1 == s2)
-    		{
-    			containedElem = TRUE;
-    			break;
+    	if (hasSetElem(right, s1))
+    		containedElem = TRUE;
 
-    		}
-    	}
-    	if (containedElem == FALSE)
+    	if (!containedElem)
     		break;
     }
 	return containedElem;
