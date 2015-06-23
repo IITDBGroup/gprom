@@ -462,11 +462,11 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
          * (2) Reset the pos of attributeRef in cond
          */
 		//step (1)
-		Set *eicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
-		root = removeUnnecessaryAttrDefInSchema(eicols, root);
+		//Set *eicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
+		//root = removeUnnecessaryAttrDefInSchema(eicols, root);
 		//Set *unicols = unionSets(eicols, icols);
 		//root = removeUnnecessaryAttrDefInSchema(unicols, root);
-        //root->schema->attrDefs = copyObject (OP_LCHILD(root)->schema->attrDefs);
+        root->schema->attrDefs = copyObject (OP_LCHILD(root)->schema->attrDefs);
 
         //step (2)
 //        Operator *condOp = (Operator *)((SelectionOperator *)root)->cond;
@@ -1519,17 +1519,32 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 				cnt++;
 			}
 
+
 			FORBOTH(char, name, provName, LostNormalList, LostList)
 			{
 				DataType dt;
-				FOREACH(Node, p, ((ProjectionOperator *)o)->projExprs)
-		        {
-					if(isA(p, AttributeReference))
+				if(isA(o, ProjectionOperator))
+				{
+					FOREACH(Node, p, ((ProjectionOperator *)o)->projExprs)
 					{
-						if(streq(provName, ((AttributeReference *)p)->name))
-							dt = ((AttributeReference *)p)->attrType;
+						if(isA(p, AttributeReference))
+						{
+							if(streq(provName, ((AttributeReference *)p)->name))
+								dt = ((AttributeReference *)p)->attrType;
+						}
 					}
-		        }
+				}
+				else
+				{
+					FOREACH(Node, p, o->schema->attrDefs)
+					{
+						if(isA(p, AttributeDef))
+						{
+							if(streq(provName, ((AttributeDef *)p)->attrName))
+								dt = ((AttributeDef *)p)->dataType;
+						}
+					}
+				}
 
 				projExpr = appendToTailOfList(projExpr,
 						createFullAttrReference(

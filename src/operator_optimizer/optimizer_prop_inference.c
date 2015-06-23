@@ -52,29 +52,29 @@ computeKeyProp (QueryOperator *root)
         DEBUG_LOG("Table operator %s keys are {%s}", root->schema->name, beatify(nodeToString((keyList))));
         return;
     }
-    else if (isA(root, ConstRelOperator))
-    {
-        FOREACH(AttributeDef, a, root->schema->attrDefs)
-        {
-            Set *oneKey = MAKE_STR_SET(strdup(a->attrName));
-            keyList = appendToTailOfList(keyList, oneKey);
-        }
-        setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
-        DEBUG_LOG("ConstRel operator %s keys are {%s}", root->schema->name, beatify(nodeToString((keyList))));
-        return;
-    }
+//    else if (isA(root, ConstRelOperator))
+//    {
+//        FOREACH(AttributeDef, a, root->schema->attrDefs)
+//        {
+//            Set *oneKey = MAKE_STR_SET(strdup(a->attrName));
+//            keyList = appendToTailOfList(keyList, oneKey);
+//        }
+//        setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
+//        DEBUG_LOG("ConstRel operator %s keys are {%s}", root->schema->name, beatify(nodeToString((keyList))));
+//        return;
+//    }
 
     // get keys of children
     keyList = (List *) copyObject(getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_KEY));
 
-    if (IS_BINARY_OP(root))
-    {
-        List *newKeyList = NIL;
-        //should we first copy the keyslist??
-        rKeyList = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_KEY);
-        newKeyList = concatTwoLists(keyList, rKeyList);
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)newKeyList);
-    }
+//    if (IS_BINARY_OP(root))
+//    {
+//        List *newKeyList = NIL;
+//        //should we first copy the keyslist??
+//        rKeyList = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_KEY);
+//        newKeyList = concatTwoLists(keyList, rKeyList);
+//        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)newKeyList);
+//    }
     // deal with different operator types
 
     // here we could use the ECs to determine new keys, e.g., if input has keys {{A}, {C}} and we have selection condition B = C, then we have a new key {{A}, {B}, {C}}
@@ -135,9 +135,12 @@ computeKeyProp (QueryOperator *root)
                     addToSet(newS, outA);
                 }
             }
+
         }
         else
             setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, NULL);
+
+
     }
 
     // dup removal operator has a key {all attributes} if the input does not have a key
@@ -151,24 +154,43 @@ computeKeyProp (QueryOperator *root)
         setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     }
 
+//    if(isA(root, AggregationOperator))
+//    {
+//    	AggregationOperator *ag = (AggregationOperator *) root;
+//    	List *aggKeyList = NIL;
+//    	FOREACH(AttributeReference, ar, ag->aggrs)
+//    	{
+//    		aggKeyList = appendToTailOfList(aggKeyList, ar->name);
+//    	}
+//    	setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) singleton(aggKeyList));
+//    }
+
     if (isA(root, JoinOperator))
     {
-    	JoinOperator *j = (JoinOperator *) root;
+    	//JoinOperator *j = (JoinOperator *) root;
+    	QueryOperator *lChild = (QueryOperator *) getHeadOfListP(root->inputs);
+    	QueryOperator *rChild = (QueryOperator *) getTailOfListP(root->inputs);
     	// crossproduct operator: union sets of keys
-    	if(j->cond==NULL)
+    	//if(j->cond==NULL)
+    	//{
+
+    	keyList = (List *) copyObject(getStringProperty(lChild, PROP_STORE_LIST_KEY));
+    	rKeyList = (List *) copyObject(getStringProperty(rChild, PROP_STORE_LIST_KEY));
+        DEBUG_LOG("Join left child operator %s keys are {%s}", lChild->schema->name, beatify(nodeToString((keyList))));
+        DEBUG_LOG("Join right child operator %s keys are {%s}", rChild->schema->name, beatify(nodeToString((rKeyList))));
+
+    	Set *nSet = STRSET();
+    	List *nKeyList = NIL;
+    	FOREACH(Set,l1,keyList)
     	{
-    		Set *nSet = STRSET();
-    		List *nKeyList = NIL;
-    		FOREACH(Set,l1,keyList)
-    		{
-    			FOREACH(Set,l2,rKeyList)
-				{
-    				nSet = unionSets (l1, l2);
-    				nKeyList = appendToTailOfList(nKeyList, nSet);
-				}
-    		}
-    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)nKeyList);
+    		FOREACH(Set,l2,rKeyList)
+			{
+    			nSet = unionSets (l1, l2);
+    			nKeyList = appendToTailOfList(nKeyList, nSet);
+			}
     	}
+    	setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)nKeyList);
+    	//}
     }
 
 
