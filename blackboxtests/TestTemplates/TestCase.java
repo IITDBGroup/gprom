@@ -3,6 +3,7 @@ package PACKAGE;
 import java.sql.SQLException;
 
 import org.junit.Test;
+import org.junit.BeforeClass;
 import org.gprom.jdbc.test.testgenerator.AbstractGProMTester;
 import org.gprom.jdbc.test.testgenerator.ConnectionOptions;
 import org.gprom.jdbc.test.testgenerator.OptionsManager;
@@ -23,10 +24,10 @@ public class NAME extends AbstractGProMTester {
 		path = "BASEDIR";
 		ConnectionOptions.getInstance().setPath("PATH");
 		super.setUp();
+		setFile();
 	}
 	
-	@Test
-    public void testSetFile () throws SQLException, Exception {
+    public void setFile () throws SQLException, Exception {
 		setGenerator("FILE");
 		OptionsManager.getInstance().setOptions (SETTING);
     }

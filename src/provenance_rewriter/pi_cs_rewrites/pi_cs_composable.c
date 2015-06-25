@@ -674,8 +674,8 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op)
         Node *provDupFunc = (Node *) createFunctionCall(strdup("ROW_NUMBER"), NIL);
 
         curWindow = createWindowOp(provDupFunc,
-                partitionBy,
-                orderBy,
+                copyObject(partitionBy),
+                copyObject(orderBy),
                 NULL,
                 strdup(PROV_DUPL_COUNT_ATTR),
                 curChild,
