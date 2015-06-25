@@ -15,6 +15,13 @@ import org.gprom.jdbc.utility.PropertyWrapper;
  */
 public interface GProMJavaInterface {
 
+	public enum DataType {
+		DT_STRING,
+		DT_INT,
+		DT_LONG,
+		DT_FLOAT
+	}
+	
 	public enum OptionType {
 		String,
 		Boolean,

@@ -7,13 +7,9 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-import org.gprom.jdbc.jna.GProMJavaInterface;
-import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 import com.sun.jna.Pointer;
@@ -25,7 +21,7 @@ import com.sun.jna.Pointer;
 public class GProMWrapper implements GProMJavaInterface {
 
 	static Logger libLog = Logger.getLogger("LIBGPROM");
-
+	static Logger log = Logger.getLogger(GProMWrapper.class);
 
 	public static final String KEY_CONNECTION_HOST = "connection.host";
 	public static final String KEY_CONNECTION_DATABASE = "connection.db";
@@ -87,12 +83,12 @@ public class GProMWrapper implements GProMJavaInterface {
 				mes.append("\n\n");
 			}
 			exceptions.clear();
-			libLog.error("have encountered exception");
+			log.error("have encountered exception");
 			throw new NativeException("Error during rewrite:\n" + mes.toString());
 		}
 		//TODO use string builder to avoid creation of two large strings
 		result = result.replaceFirst(";\\s+\\z", "");
-		libLog.info("HAVE REWRITTEN:\n\n" + query + "\n\ninto:\n\n" + result);
+		log.info("HAVE REWRITTEN:\n\n" + query + "\n\ninto:\n\n" + result);
 		return result;
 	}
 
@@ -133,6 +129,11 @@ public class GProMWrapper implements GProMJavaInterface {
 	public void setupPlugins ()
 	{
 		GProM_JNA.INSTANCE.gprom_configFromOptions();
+	}
+	
+	public void reconfPlugins()
+	{
+		GProM_JNA.INSTANCE.gprom_reconfPlugins();
 	}
 	
 	public void setupPlugins(Connection con, GProMMetadataLookupPlugin p)
@@ -205,6 +206,22 @@ public class GProMWrapper implements GProMJavaInterface {
 		default:
 			break;
 		}
+	}
+	
+	public String getOption (String key) throws NumberFormatException, Exception {
+		switch(typeOfOption(key)) {
+		case Boolean:
+			return "" + getBoolOption(key);
+		case Float:
+			return "" + getFloatOption(key);
+		case Int:
+			return "" + getIntOption(key);
+		case String:
+			return getStringOption(key);
+		default:
+			break;
+		}
+		throw new Exception ("unkown option " + key);
 	}
 	
 	public String getStringOption (String name)
@@ -282,7 +299,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	@Override
 	public void setupOptions(PropertyWrapper options) throws Exception {
 		for (String key: options.stringPropertyNames()) {
-			libLog.debug("key: "+ key + " type: " + typeOfOption(key));
+			log.debug("key: "+ key + " type: " + typeOfOption(key));
 			
 			switch(typeOfOption(key)) {
 			case Boolean:
@@ -308,23 +325,23 @@ public class GProMWrapper implements GProMJavaInterface {
 		switch(p)
 		{
 		case Database:
-			libLog.debug("set key " + KEY_CONNECTION_DATABASE + " to " + value);
+			log.debug("set key " + KEY_CONNECTION_DATABASE + " to " + value);
 			opts.setProperty(KEY_CONNECTION_DATABASE, value);
 			break;
 		case Host:
-			libLog.debug("set key " + KEY_CONNECTION_HOST + " to " + value);
+			log.debug("set key " + KEY_CONNECTION_HOST + " to " + value);
 			opts.setProperty(KEY_CONNECTION_HOST, value);
 			break;
 		case Password:
-			libLog.debug("set key " + KEY_CONNECTION_PASSWORD + " to " + value);
+			log.debug("set key " + KEY_CONNECTION_PASSWORD + " to " + value);
 			opts.setProperty(KEY_CONNECTION_PASSWORD, value);
 			break;
 		case Port:
-			libLog.debug("set key " + KEY_CONNECTION_PORT + " to " + value);
+			log.debug("set key " + KEY_CONNECTION_PORT + " to " + value);
 			opts.setProperty(KEY_CONNECTION_PORT, value);
 			break;
 		case User:
-			libLog.debug("set key " + KEY_CONNECTION_USER + " to " + value);
+			log.debug("set key " + KEY_CONNECTION_USER + " to " + value);
 			opts.setProperty(KEY_CONNECTION_USER, value);
 			break;
 		default:

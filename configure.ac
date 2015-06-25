@@ -265,6 +265,7 @@ AC_CHECK_HEADERS([limits.h])
 AC_CHECK_HEADERS([regex.h])
 AC_CHECK_HEADERS([setjmp.h])
 AC_CHECK_HEADERS([signal.h])
+AC_CHECK_HEADERS([pthread.h])
 AC_HEADER_ASSERT
 ################################################################################
 # MEMORY ALLOCATION STUFF
@@ -283,48 +284,60 @@ AC_ENABLE_POSTGRES
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
 # check if user has provided us with non-standard locations for OCI/OCILIB libraries
-AC_OCI_LOCATION
-AC_OCIH_LOCATION
-AC_OCI_LIB_LOCATION
-AC_OCILIB_LOCATION
-# check for the libraries
-AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
-AS_IF([test "x$enable_oracle" == "xno"], [
-  AC_MSG_WARN([missing OCI library])
+AS_IF([test "x$enable_oracle" == "xno"],
+[
+	AC_MSG_WARN([user deactivated support for Oracle C-interface (OCI + OCILIB) backend, will not check for OCI/OCILIB library])
 ],
 [
-  AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
-])
-])
-AC_CHECK_LIB([occi],[OCIHandleFree],[],[
-AS_IF([test "x$enable_oracle" == "xno"], [
-  AC_MSG_WARN([missing OCI library])
-],
-[
-  AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
-])
-])
-AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
-AS_IF([test "x$enable_oracle" == "xno"], [
-  AC_MSG_RESULT([missing OCILIB library])
-],
-[
-  AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
-])
+	AC_OCI_LOCATION
+	AC_OCIH_LOCATION
+	AC_OCI_LIB_LOCATION
+	AC_OCILIB_LOCATION
+	# check for the libraries
+	AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
+	AS_IF([test "x$enable_oracle" == "xno"], [
+	  AC_MSG_WARN([missing OCI library])
+	],
+	[
+	  AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+	])
+	])
+	AC_CHECK_LIB([occi],[OCIHandleFree],[],[
+	AS_IF([test "x$enable_oracle" == "xno"], [
+	  AC_MSG_WARN([missing OCI library])
+	],
+	[
+	  AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+	])
+	])
+	AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
+	AS_IF([test "x$enable_oracle" == "xno"], [
+	  AC_MSG_RESULT([missing OCILIB library])
+	],
+	[
+	  AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
+	])
+	])
 ])
 ################################################################################
 # Postgres access library (libpq)
 # check if user has provided us with a non-standard location for Postgres's libpq library
-AC_LIBPQ_LOCATION
-AC_CHECK_HEADERS([libpq-fe.h])
-# check for the libpq library
-AC_CHECK_LIB([pq],[PQconndefaults],[],[
-AS_IF([test "x$enable_postgres" == "xno"], [
-  AC_MSG_WARN([missing libpq library])
+AS_IF([test "x$enable_oracle" == "xno"],
+[
+	AC_MSG_WARN([user deactivated support for Postgres C-interface (libpq) backend, will not check for libpq library])
 ],
 [
-  AC_MSG_ERROR([missing libpq library - if you want to compile without Oracle backend support use --disable-postgres])
-])
+	AC_LIBPQ_LOCATION
+	AC_CHECK_HEADERS([libpq-fe.h])
+	# check for the libpq library
+	AC_CHECK_LIB([pq],[PQconndefaults],[],[
+	AS_IF([test "x$enable_postgres" == "xno"], [
+	  AC_MSG_WARN([missing libpq library])
+	],
+	[
+	  AC_MSG_ERROR([missing libpq library - if you want to compile without Oracle backend support use --disable-postgres])
+	])
+	])
 ])
 ################################################################################
 # enable/disable features

@@ -495,6 +495,14 @@ createJoinOp(JoinType joinType, Node *cond, List *inputs, List *parents,
     List *lDT, *rDT;
     lDT = getDataTypes(OP_LCHILD(join)->schema);
     rDT = getDataTypes(OP_RCHILD(join)->schema);
+
+    // if no attribute names are given use attributes from children
+    if (attrNames == NIL)
+    {
+        attrNames = getAttrNames(OP_LCHILD(join)->schema);
+        attrNames = CONCAT_LISTS(attrNames, getAttrNames(OP_RCHILD(join)->schema));
+    }
+
     join->op.schema = createSchemaFromLists("JOIN", attrNames, concatTwoLists(lDT, rDT));
 
     join->op.parents = parents;
@@ -730,6 +738,12 @@ addParent (QueryOperator *child, QueryOperator *parent)
 {
     if (!searchList(child->parents, parent))
         child->parents = appendToTailOfList(child->parents, parent);
+}
+
+void
+removeParent (QueryOperator *child, QueryOperator *parent)
+{
+    child->parents = REMOVE_FROM_LIST_PTR(child->parents, parent);
 }
 
 int

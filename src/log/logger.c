@@ -53,6 +53,7 @@ void
 registerLogCallback (LoggerCallbackFunction callback)
 {
     logCallback = callback;
+//    printf("*****************************SET CALLBACK*********************** %p", callback);
 }
 
 static inline char *
@@ -70,12 +71,14 @@ getOutput(LogLevel level)
 void
 initLogger(void)
 {
+//    printf("************* INIT");
     buffer = (StringInfo) malloc(sizeof(StringInfoData));
     buffer->len = 0;
     buffer->maxlen = INIT_BUF_SIZE;
     buffer->cursor = 0;
     buffer->data = (char *) malloc(INIT_BUF_SIZE);
     memset(buffer->data, 0, INIT_BUF_SIZE);
+//    logCallback = NULL;
 
     maxLevel = getIntOption("log.level");
 }
@@ -131,6 +134,7 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
 
         if (logCallback != NULL)
         {
+            printf("********************************************");
             logCallback(buffer->data, file, line, level);
             return;
         }

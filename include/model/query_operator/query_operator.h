@@ -240,6 +240,7 @@ extern void removeStringProperty (QueryOperator *op, char *key);
 /* children and parents */
 extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
 extern void addParent (QueryOperator *child, QueryOperator *parent);
+extern void removeParent (QueryOperator *child, QueryOperator *parent);
 extern int getChildPosInParent(QueryOperator *parent, QueryOperator *child);
 
 /* attribute functions */

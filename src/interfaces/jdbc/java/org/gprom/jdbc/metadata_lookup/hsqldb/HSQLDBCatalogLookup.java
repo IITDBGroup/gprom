@@ -5,15 +5,16 @@ import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 
 import org.apache.log4j.Logger;
+import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
 
-public class HSQLDBCatalogLookup {
+public class HSQLDBCatalogLookup extends AbstractMetadataLookup {
 	
 	private static Logger log = Logger.getLogger(HSQLDBCatalogLookup.class);
 	private Connection con;
 	private DatabaseMetaData meta;
 	
-	public HSQLDBCatalogLookup(Connection con){
-		this.con = con;
+	public HSQLDBCatalogLookup(Connection con) throws SQLException {
+		super(con);
 		try {
 			meta = this.con.getMetaData();
 		} catch (SQLException e) {
@@ -21,6 +22,52 @@ public class HSQLDBCatalogLookup {
 			log.error(e.getMessage());
 			System.exit(-1);
 		}
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#isWindow(java.lang.String)
+	 */
+	@Override
+	public int isWindow(String functionName) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#isAgg(java.lang.String)
+	 */
+	@Override
+	public int isAgg(String functionName) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#getOpReturnType(java.lang.String, java.lang.String[], int)
+	 */
+	@Override
+	public String getOpReturnType(String oName, String[] stringArray,
+			int numArgs) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#getViewDefinition(java.lang.String)
+	 */
+	@Override
+	public String getViewDefinition(String viewName) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#getTableDef(java.lang.String)
+	 */
+	@Override
+	public String getTableDef(String tableName) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 	
 //	/**

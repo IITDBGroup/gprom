@@ -22,13 +22,29 @@
 
 #define LIBARY_REWRITE_CONTEXT "LIBGRPROM_QUERY_CONTEXT"
 
-#include <pthread.h>
+
 
 /* mutex to prevent reentrance of library methods for now */
 pthread_mutex_t gpromLibMutex = PTHREAD_MUTEX_INITIALIZER;
 
-#define LOCK_MUTEX()
-#define UNLOCK_MUTEX()
+#define LOCK_MUTEX() do { \
+		printf("TRY TO GET MUTEX\n"); \
+		fflush(stdout); \
+		pthread_mutex_lock (&gpromLibMutex); \
+		printf("GOT MUTEX\n"); \
+		fflush(stdout); \
+    } while (0)
+#define UNLOCK_MUTEX() do { \
+        printf("ABOUT TO RELEASE MUTEX\n"); \
+        fflush(stdout); \
+        pthread_mutex_unlock (&gpromLibMutex); \
+        printf("RELEASED MUTEX\n"); \
+        fflush(stdout); \
+    } while (0)
+
+// #define CREATE_MUTEX() pthread_mutex_init(&gpromLibMutex, NULL);
+#define CREATE_MUTEX()
+#define DESTROY_MUTEX() pthread_mutex_destroy(&gpromLibMutex); printf("DESTROYED MUTEX\n"); fflush(stdout);
 
 //#define LOCK_MUTEX()
 //    printf("try to log mutex");
@@ -42,6 +58,7 @@ pthread_mutex_t gpromLibMutex = PTHREAD_MUTEX_INITIALIZER;
 void
 gprom_init(void)
 {
+    CREATE_MUTEX();
     LOCK_MUTEX();
     initMemManager();
     mallocOptions();
@@ -75,12 +92,19 @@ gprom_configFromOptions(void)
     setupPluginsFromOptions();
 }
 
+void
+gprom_reconfPlugins(void)
+{
+    resetupPluginsFromOptions();
+}
+
 void gprom_shutdown(void)
 {
     LOCK_MUTEX();
     deregisterSignalHandler();
     shutdownApplication();
     UNLOCK_MUTEX();
+    DESTROY_MUTEX();
 }
 
 const char *
@@ -89,9 +113,11 @@ gprom_rewriteQuery(const char *query)
     LOCK_MUTEX();
     NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
     char *result = "";
+    char *returnResult;
     result = rewriteQuery((char *) query);
+    RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
     UNLOCK_MUTEX();
-    RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+    return returnResult;
 }
 
 

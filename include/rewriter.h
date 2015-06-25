@@ -19,6 +19,7 @@
 extern int initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[]);
 extern int initBasicModules (void);
 extern void setupPluginsFromOptions(void);
+extern void resetupPluginsFromOptions (void);
 extern int readOptionsAndIntialize(char *appName, char *appHelpText, int argc, char* argv[]);
 extern int shutdownApplication(void);
 

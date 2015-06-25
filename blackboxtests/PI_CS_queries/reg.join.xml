@@ -13,7 +13,7 @@ X | Y
 </entry>
 
 <entry key="q2.query">
-SELECT a AS x, b AS y FROM R WHERE a>b;
+SELECT a AS x, b AS y FROM R WHERE a &gt; b;
 </entry>
 <entry key="q2.result">
 X | Y | 
@@ -94,7 +94,7 @@ X |
 </entry>
 
 <entry key="q9.query">
-SELECT a AS x, b AS y, d AS z FROM R, S, T WHERE ((a=c AND b=f) OR (c=e AND a=f)) AND d-b>0;
+SELECT a AS x, b AS y, d AS z FROM R, S, T WHERE ((a=c AND b=f) OR (c=e AND a=f)) AND d-b &gt; 0;
 </entry>
 <entry key="q9.result">
 X|Y|Z|

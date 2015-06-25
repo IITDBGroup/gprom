@@ -24,7 +24,8 @@ public interface GProMJDBCUtil {
 	public enum BackendType {
 		Oracle,
 		HSQL,
-		Postgres
+		Postgres,
+		Hive
 	}
 	
 	// interface

@@ -80,6 +80,11 @@
 #include <signal.h>
 #endif
 
+/* pthread */
+#if HAVE_PTHREAD_H
+#include <pthread.h>
+#endif
+
 /* unistd handler */
 #if HAVE_UNISTD_H
 #include <unistd.h>

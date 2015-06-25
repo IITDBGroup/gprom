@@ -42,7 +42,7 @@ computeKeyProp (QueryOperator *root)
         FOREACH(QueryOperator, op, root->inputs)
             computeKeyProp(op);
 
-    // table acces operator or constant relation operators have predetermined keys
+    // table access operator or constant relation operators have predetermined keys
     if(isA(root, TableAccessOperator))
     {
         TableAccessOperator *rel = (TableAccessOperator *) root;
@@ -69,23 +69,23 @@ computeKeyProp (QueryOperator *root)
 
     if (IS_BINARY_OP(root))
     {
-        List *newKeyList = NIL;
+//        List *newKeyList = NIL;
         //should we first copy the keyslist??
         rKeyList = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_KEY);
-        newKeyList = concatTwoLists(keyList, rKeyList);
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)newKeyList);
+//        newKeyList = concatTwoLists(keyList, rKeyList);
+//        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)newKeyList);
     }
     // deal with different operator types
 
     // here we could use the ECs to determine new keys, e.g., if input has keys {{A}, {C}} and we have selection condition B = C, then we have a new key {{A}, {B}, {C}}
-    if (isA(root, SelectionOperator))
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+    //if (isA(root, SelectionOperator))
+        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
 
     if (isA(root, ProjectionOperator))
     {
         List *l1 = ((ProjectionOperator *)root)->projExprs;
         List *l2 = NIL;
-        boolean hasKey = FALSE;
+        List *newKey = NIL;
         HashMap *inAtoPos = NEW_MAP(Constant,Constant);
         int i = 0;
 
@@ -94,51 +94,47 @@ computeKeyProp (QueryOperator *root)
             if (isA(op1,AttributeReference))
             {
                 AttributeReference *a = (AttributeReference  *) op1;
-                l2 = appendToTailOfList(l2, a->name);
-                MAP_ADD_STRING_KEY(inAtoPos, a->name, createConstInt(i));
+                if (!hasMapStringKey(inAtoPos, a->name)){
+                    l2 = appendToTailOfList(l2, a->name);
+                    MAP_ADD_STRING_KEY(inAtoPos, a->name, createConstInt(i));
+                }
             }
             i++;
         }
 
-        FOREACH(Set,s,keyList)
+        FOREACH(Set,key,keyList)
         {
-            boolean keyPreserved = TRUE;
-
-            FOREACH_SET(char, op, s)
+            boolean hasKey = TRUE;
+            FOREACH_SET(char, a, key)
             {
                 //use HASHMAP
-                if(!hasMapStringKey(inAtoPos, op))
+                if(!hasMapStringKey(inAtoPos, a))
                 {
-                    keyPreserved = FALSE;
+                    hasKey = FALSE;
                     break;
                 }
             }
-            hasKey |= keyPreserved;
-        }
-        if (hasKey)
-        {
-            //TODO replace input attribute names with output attribute names
-            setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
-            FOREACH_LC(setLc,keyList)
+            if (hasKey)
             {
-                Set *s = (Set *) LC_P_VAL(setLc);
-                Set *newS = STRSET();
-                LC_P_VAL(setLc) = newS;
+                Set *mappedKey = STRSET();
 
-                FOREACH_SET(char,inA,s)
+                FOREACH_SET(char, inA, key)
                 {
                     char *outA;
                     int aPos;
 
                     aPos = INT_VALUE(MAP_GET_STRING(inAtoPos, inA));
                     outA = strdup(getAttrNameByPos(root, aPos));
-                    addToSet(newS, outA);
+                    addToSet(mappedKey, outA);
                 }
+
+                newKey = appendToTailOfList(newKey, mappedKey);
             }
 
         }
-
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) newKey);
+        keyList=newKey;
+        //DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
+        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) newKey);
     }
 
     // dup removal operator has a key {all attributes} if the input does not have a key
@@ -147,17 +143,18 @@ computeKeyProp (QueryOperator *root)
 
     	List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
     	Set *s1 = makeStrSetFromList(l1);
-
-    	keyList = appendToTailOfList(keyList, s1);
-        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+		if (!genericSearchList(keyList, equal, s1))
+		{
+			keyList = appendToTailOfList(keyList, s1);
+		}
+        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     }
 
     if (isA(root, JoinOperator))
     {
 //    	JoinOperator *j = (JoinOperator *) root;
     	// crossproduct operator: union sets of keys
-//    	if(j->cond==NULL)
-//    	{
+
     		Set *nSet = STRSET();
     		List *nKeyList = NIL;
     		FOREACH(Set,l1,keyList)
@@ -168,9 +165,9 @@ computeKeyProp (QueryOperator *root)
     				nKeyList = appendToTailOfList(nKeyList, nSet);
 				}
     		}
-    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)nKeyList);
+    		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)nKeyList);
     		keyList = nKeyList;
-//    	}
+
     }
 
 
@@ -181,12 +178,13 @@ computeKeyProp (QueryOperator *root)
     	if(j->setOpType==SETOP_UNION)
        	{
     		keyList = NIL;
-    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+    		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
        	}
     	//intersect operator
     	else if(j->setOpType==SETOP_INTERSECTION)
     	{
-    		HashMap *map = NEW_MAP(KeyValue, KeyValue);
+    		//HashMap *map = NEW_MAP(KeyValue, KeyValue);
+    		HashMap *map = NEW_MAP(Constant, Constant);
     		List *lAttr = getQueryOperatorAttrNames(OP_LCHILD(root));
     		List *rAttr = getQueryOperatorAttrNames(OP_RCHILD(root));
     		Set *nSet = STRSET();
@@ -194,25 +192,96 @@ computeKeyProp (QueryOperator *root)
 
     		FORBOTH(char,l1,l2,rAttr,lAttr)
 			{
-    			MAP_ADD_STRING_KEY(map, l1, l2);
+    			MAP_ADD_STRING_KEY(map, l1, createConstString(l2));
 			}
     		FOREACH(Set,s,rKeyList){
     			FOREACH_SET(char,key,s)
     			{
-    				nAttr = (char *)copyObject(getMapString (map, key));
-    				addToSet(nSet,nAttr);
+    				nAttr = (char *) STRING_VALUE(copyObject(getMapString (map, key)));
+    				addToSet(nSet, nAttr);
 
     			}
-    			if (!searchList(keyList, nSet))
+    			if (!genericSearchList(keyList, equal, nSet))
     			{
     				keyList = appendToTailOfList(keyList, nSet);
     			}
     		}
-    		setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+    		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
+    	}
+    	//difference operator - returns left child (keyList)
+    	else if(j->setOpType==SETOP_DIFFERENCE){
+
     	}
     }
 
+    //Aggregation operator
+    if (isA(root, AggregationOperator))
+    {
+    	AggregationOperator *j = (AggregationOperator *) root;
+    	List *l1 = getQueryOperatorAttrNames(root);
+    	Set *s1 = makeStrSetFromList(l1);
+    	Set *nSet = STRSET();
+    	List *nKeyList = NIL;
 
+    	// if groupby is empty return all attributes
+    	if(j->groupBy==NIL)
+    	{
+    		keyList = NIL;
+    		nKeyList = appendToTailOfList(keyList, s1);
+    	}
+    	//if group by not empty intersect key with new attributes
+       	else
+    	{
+       		FOREACH(Set, key, keyList)
+       		{
+       			nSet = intersectSets(key, s1);
+       			nKeyList = appendToTailOfList(keyList, nSet);
+     		}
+    	}
+    	keyList = nKeyList;
+    }
+
+    //return keys from left input (keyList)
+    if (isA(root, NestingOperator))
+    {
+    }
+
+    //keep the same keys from input (keyList)
+    if (isA(root, OrderOperator))
+    {
+    }
+
+    //empty keyList
+    if (isA(root, JsonTableOperator))
+    	keyList=NIL;
+
+
+    //DEBUG_LOG("Before Cleaning List: %s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
+
+    //clean key list - check for each set (a) if it contains another set (b) in it
+    if (LIST_LENGTH(keyList)>1){
+    	List *finalKeyList = NIL;
+    	boolean contains = FALSE;
+		FOREACH (Set, a, keyList)
+		{
+			FOREACH (Set, b, keyList)
+			{
+				if (a!=b)
+					if(containsSet(b,a))
+					{
+						contains = TRUE;
+						break;
+					}
+			}
+			if (!contains)
+			{
+				finalKeyList = appendToTailOfList(finalKeyList, a);
+			}
+		}
+		keyList = finalKeyList;
+    }
+
+    setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
 }
 

@@ -6,8 +6,12 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.InvalidPropertiesFormatException;
+import java.util.Map.Entry;
+import java.util.Properties;
 
+import org.gprom.jdbc.driver.GProMConnection;
 import org. gprom.jdbc.test.testgenerator.dataset.DataAndQueryGenerator;
+import org.apache.log4j.Logger;
 import org.dbunit.Assertion;
 import org.dbunit.DBTestCase;
 import org.dbunit.PropertiesBasedJdbcDatabaseTester;
@@ -19,7 +23,10 @@ import org.dbunit.operation.DatabaseOperation;
 
 public class AbstractGProMTester extends DBTestCase {
 
+	static Logger log = Logger.getLogger(AbstractGProMTester.class);
+	
 	protected String path;
+	protected Properties oldProps;
 	
 	public AbstractGProMTester (String name) {
 		super(name);
@@ -44,9 +51,28 @@ public class AbstractGProMTester extends DBTestCase {
 	}
 	
     protected void tearDown() throws Exception {
+    	resetOptions();
     	super.tearDown();
     }
 	
+	/**
+	 * @throws Exception 
+	 * @throws NumberFormatException 
+	 * 
+	 */
+	protected void resetOptions() throws NumberFormatException, Exception {
+		if (oldProps != null) {
+			GProMConnection g = ConnectionManager.getInstance().getGProMConnection();
+			
+			for(Entry<?, ?> e: oldProps.entrySet()) {
+    			String key = (String) e.getKey();
+    			String value = (String) e.getValue();
+    			log.debug("set key " + key + " to " + value);
+    			g.getW().setOption(key, value);
+    		}
+		}
+	}
+
 	/* (non-Javadoc)
 	 * @see org.dbunit.DatabaseTestCase#getDataSet()
 	 */
@@ -78,10 +104,31 @@ public class AbstractGProMTester extends DBTestCase {
     	String queryString;
     	boolean markedError;
     	DataAndQueryGenerator generator;
+    	Properties options;
     	
     	TestInfoHolder.getInstance().setGenerator(name);
     	generator = TestInfoHolder.getInstance().getCurrentGenerator();    	
     	
+    	GProMConnection g = ConnectionManager.getInstance().getGProMConnection();
+    	
+    	options = TestInfoHolder.getInstance().getCurrentGenerator().getOptions();
+    	
+    	if (options != null)
+    	{
+    		oldProps = new Properties();
+    		for(Entry<?, ?> e: options.entrySet()) {
+    			String key = (String) e.getKey();
+    			String value = (String) e.getValue();
+    			oldProps.setProperty(key, g.getW().getOption(key));
+    			log.debug("set key " + key + " to " + value);
+    			g.getW().setOption(key, value);
+    		}
+    		
+    		g.getW().reconfPlugins();
+    	}
+    	else
+    		oldProps = null;
+    
     	for(int i = 1; i <= generator.getNumTest(); i++) {
     		expected = generator.getExpectedResult("q" + i);
     		queryString = generator.getQuery("q" + i);
@@ -97,12 +144,36 @@ public class AbstractGProMTester extends DBTestCase {
     	}
     }
     
-    protected void setGenerator (String name) throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
+    protected void setGenerator (String name) throws Exception {
+      	DataAndQueryGenerator generator;
+    	Properties options;
+    	
     	System.out.println("\n********************************************");
     	System.out.println("**   " + name);
     	System.out.println("********************************************\n");
     	
     	TestInfoHolder.getInstance().setGenerator(name);
+    	generator = TestInfoHolder.getInstance().getCurrentGenerator();    	
+    	
+    	GProMConnection g = ConnectionManager.getInstance().getGProMConnection();
+    	
+    	options = TestInfoHolder.getInstance().getCurrentGenerator().getOptions();
+    	
+    	if (options != null)
+    	{
+    		oldProps = new Properties();
+    		for(Entry<?, ?> e: options.entrySet()) {
+    			String key = (String) e.getKey();
+    			String value = (String) e.getValue();
+    			oldProps.setProperty(key, g.getW().getOption(key));
+    			log.debug("set key " + key + " to " + value);
+    			g.getW().setOption(key, value);
+    		}
+    		
+    		g.getW().reconfPlugins();
+    	}
+    	else
+    		oldProps = null;
     }
     
     protected void testSingleQuery (int num) throws Exception {

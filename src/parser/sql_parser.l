@@ -132,6 +132,7 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 (?i:LEFT)        	TOK(LEFT)
 (?i:RIGHT)        	TOK(RIGHT)
 (?i:OUTER)        	TOK(OUTER)
+(?i:FULL)			TOK(FULL)
 (?i:INNER)        	TOK(INNER)
 (?i:NATURAL)		TOK(NATURAL)
 (?i:USING)        	TOK(USING)
@@ -197,6 +198,7 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 (?i:STATEMENT)		TOK(STATEMENT)
 (?i:ANNOTATIONS)	TOK(ANNOTATIONS)
 (?i:NO)				TOK(NO)
+
 
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)

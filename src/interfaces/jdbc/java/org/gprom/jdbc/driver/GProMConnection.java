@@ -22,7 +22,6 @@ import java.util.concurrent.Executor;
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMWrapper;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin;
 import org.gprom.jdbc.utility.LoggerUtil;
 
 public class GProMConnection implements GProMConnectionInterface{

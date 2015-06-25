@@ -9,11 +9,10 @@ import java.sql.Statement;
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMWrapper;
-import org.gprom.jdbc.metadata_lookup.postgres.PostgresInterface;
 
 public class GProMStatement implements GProMStatementInterface {
 	// Variable
-	private static Logger log = Logger.getLogger(GProMStatement.class);
+	static Logger log = Logger.getLogger(GProMStatement.class);
 	protected Statement stat;
 	private static String[] permKeywords = { "PROVENANCE", "BASERELATION",
 			"TRANSSQL" };
@@ -24,9 +23,7 @@ public class GProMStatement implements GProMStatementInterface {
 	static GProMWrapper w = GProMWrapper.inst;
 
 	public GProMStatement(Statement stat, BackendType backend){
-		this.stat = stat;
-		//Initialize Interface
-//		jniInterface = PostgresInterface.getInstance(con);	
+		this.stat = stat;	
 		this.backend = backend;
 	}
 	
