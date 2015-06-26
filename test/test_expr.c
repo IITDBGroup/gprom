@@ -85,6 +85,8 @@ testConstant (void)
 
     c = createConstInt(1);
     ASSERT_EQUALS_INT(1, INT_VALUE(c), "constant int 1");
+    c = createConstInt(-1);
+    ASSERT_EQUALS_INT(-1, INT_VALUE(c), "constant int -1");
 
     c = createConstFloat(2.0);
     ASSERT_EQUALS_FLOAT(2.0, FLOAT_VALUE(c), "constant float 2.0");
