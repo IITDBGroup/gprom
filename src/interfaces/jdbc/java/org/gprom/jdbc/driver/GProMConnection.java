@@ -272,7 +272,7 @@ public class GProMConnection implements GProMConnectionInterface{
 	/* (non-Javadoc)
 	 * @see java.sql.Connection#setSchema(java.lang.String)
 	 */
-	@Override
+	
 	public void setSchema(String schema) throws SQLException {
 		// TODO Auto-generated method stub
 		
@@ -281,7 +281,7 @@ public class GProMConnection implements GProMConnectionInterface{
 	/* (non-Javadoc)
 	 * @see java.sql.Connection#getSchema()
 	 */
-	@Override
+	
 	public String getSchema() throws SQLException {
 		// TODO Auto-generated method stub
 		return null;
@@ -290,7 +290,7 @@ public class GProMConnection implements GProMConnectionInterface{
 	/* (non-Javadoc)
 	 * @see java.sql.Connection#abort(java.util.concurrent.Executor)
 	 */
-	@Override
+	
 	public void abort(Executor executor) throws SQLException {
 		// TODO Auto-generated method stub
 		
@@ -299,7 +299,7 @@ public class GProMConnection implements GProMConnectionInterface{
 	/* (non-Javadoc)
 	 * @see java.sql.Connection#setNetworkTimeout(java.util.concurrent.Executor, int)
 	 */
-	@Override
+	
 	public void setNetworkTimeout(Executor executor, int milliseconds)
 			throws SQLException {
 		// TODO Auto-generated method stub
@@ -309,7 +309,7 @@ public class GProMConnection implements GProMConnectionInterface{
 	/* (non-Javadoc)
 	 * @see java.sql.Connection#getNetworkTimeout()
 	 */
-	@Override
+	
 	public int getNetworkTimeout() throws SQLException {
 		// TODO Auto-generated method stub
 		return 0;

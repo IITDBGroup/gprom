@@ -90,7 +90,7 @@ public class GProMJDBCTest {
 		
 		// test error
 		try {
-		rs = st.executeQuery("PROVENANCE OF (SELECT * FRO R);");
+		rs = st.executeQuery("PROVENANCE OF (SELECT * FROM R);");
 		}
 		catch (Exception e) {
 			System.out.printf("%s", e);

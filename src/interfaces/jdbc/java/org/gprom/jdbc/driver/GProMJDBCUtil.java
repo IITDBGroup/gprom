@@ -44,7 +44,7 @@ public interface GProMJDBCUtil {
 		private PropertyWrapper driverProps = null;
 		Logger log = Logger.getLogger(GProMJDBCUtil.class); 
 		
-		@Override
+		
 		public BackendType getBackendTypeFromURL(String jdbcURL) throws GProMSQLException {
 			String backStr;
 			String prefix;
@@ -60,17 +60,17 @@ public interface GProMJDBCUtil {
 			}
 		}
 
-		@Override
+		
 		public BackendType getBackendTypeFromURL(URL jdbcURL) throws GProMSQLException {		
 			return getBackendTypeFromURL(jdbcURL.toString());
 		}
 		
-		@Override
+		
 		public String getDriverClass(URL jdbcURL) throws GProMSQLException {
 			return getDriverClass(getBackendTypeFromURL(jdbcURL));
 		}
 
-		@Override
+		
 		public String getDriverClass(BackendType backend) {
 			loadProps();
 			
@@ -93,7 +93,7 @@ public interface GProMJDBCUtil {
 			}
 		}
 
-		@Override
+		
 		public URL stripGProMPrefix(URL url) throws MalformedURLException {
 			String u = url.toString();
 			u = u.replace("jdbc:gprom:", "jdbc:");

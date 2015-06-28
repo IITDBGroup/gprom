@@ -3,11 +3,10 @@
 	<classpathentry kind="src" path="javatest"/>
 	<classpathentry kind="src" path="src/interfaces/jdbc/java"/>
 	<classpathentry kind="src" path="autotests"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/J2SE-1.5"/>
 	<classpathentry kind="lib" path="javalib/log4j-1.2.15.jar"/>
 	<classpathentry kind="lib" path="javalib/postgresql-8.1-404.jdbc3.jar"/>
-	<classpathentry kind="lib" path="javalib/jna-4.1.0.jar"/>
-	<classpathentry kind="lib" path="/Users/lord_pretzel/Documents/workspace/GProM/ant/one-jar-ant-task-0.97.jar"/>
+	<classpathentry kind="lib" path="javalib/jna-4.1.0.jar" sourcepath="javalib/jna-4.1.0.jar"/>
 	<classpathentry kind="lib" path="javalib"/>
 	<classpathentry kind="lib" path="/usr/local/lib"/>
 	<classpathentry kind="lib" path="javalib/ojdbc7.jar"/>
@@ -19,5 +18,6 @@
 	<classpathentry kind="lib" path="build/gprom-jdbc-test.jar"/>
 	<classpathentry kind="lib" path="jdbcbuild/gpromjdbc.jar"/>
 	<classpathentry kind="lib" path="javalib/jnaerator-0.12.jar"/>
+	<classpathentry kind="lib" path="/home/selithey/workspace1/provenance-rewriter-prototype/ant/one-jar-ant-task-0.97.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>

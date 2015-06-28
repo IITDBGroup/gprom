@@ -115,7 +115,7 @@ public abstract class AbstractMetadataLookup {
 		plugin = new GProMMetadataLookupPlugin ();
 		plugin.isInitialized = new isInitialized_callback() {
 
-			@Override
+			
 			public int apply() {
 				return 1;
 			}
@@ -123,7 +123,7 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.databaseConnectionClose= new databaseConnectionClose_callback() {
 
-			@Override
+			
 			public int apply() {
 				return t.closeConnection();
 			}
@@ -131,7 +131,7 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.databaseConnectionOpen = new databaseConnectionOpen_callback() {
 
-			@Override
+			
 			public int apply() {
 				return t.openConnection();
 			}
@@ -139,7 +139,7 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.catalogTableExists = new catalogTableExists_callback() {
 
-			@Override
+			
 			public int apply(String tableName) {
 				return tableExists(tableName);
 			}
@@ -147,7 +147,7 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.catalogViewExists = new catalogViewExists_callback() {
 
-			@Override
+			
 			public int apply(String viewName) {
 				return viewExists(viewName);
 			}
@@ -155,7 +155,7 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.getAttributeDefaultVal = new getAttributeDefaultVal_callback() {
 
-			@Override
+			
 			public String apply(String schema, String tableName,
 					String attrName) {
 				return getAttrDefValue(schema,tableName,attrName);
@@ -164,7 +164,7 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.getAttributeNames = new getAttributeNames_callback() {
 
-			@Override
+			
 			public String apply(String tableName) {
 				List<String> attrNames = getAttributeNames(tableName);
 				String result = null;
@@ -178,7 +178,7 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.getDataTypes = new getDataTypes_callback() {
 
-			@Override
+			
 			public String apply(String tableName) {
 				List<String> dts = getAttributeDTs(tableName);
 				String result = null;
@@ -193,7 +193,7 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.isAgg = new isAgg_callback() {
 
-			@Override
+			
 			public int apply(String functionName) {
 				return isAgg(functionName);
 			}
@@ -201,14 +201,14 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.isWindowFunction = new isWindowFunction_callback() {
 
-			@Override
+			
 			public int apply(String functionName) {
 				return isWindow(functionName);
 			}
 		};
 		plugin.getFuncReturnType = new getFuncReturnType_callback() {
 
-			@Override
+			
 			public String apply(String fName, PointerByReference args,
 					int numArgs) {
 				String[] fArgs;
@@ -219,7 +219,7 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.getOpReturnType = new getOpReturnType_callback() {
 
-			@Override
+			
 			public String apply(String oName, PointerByReference args,
 					int numArgs) {
 				String[] opArgs;
@@ -230,7 +230,7 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.getTableDefinition = new getTableDefinition_callback() {
 
-			@Override
+			
 			public String apply(String tableName) {
 				return getTableDef(tableName);
 			}
@@ -238,7 +238,7 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.getViewDefinition = new getViewDefinition_callback() {
 
-			@Override
+			
 			public String apply(String viewName) {
 				return getViewDefinition(viewName);
 			}
@@ -246,7 +246,7 @@ public abstract class AbstractMetadataLookup {
 		};
 		plugin.getKeyInformation = new getKeyInformation_callback() {
 
-			@Override
+			
 			public String apply(String tableName) {
 				try {
 					List<String> key = getKeyInformation(tableName); 

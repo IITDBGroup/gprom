@@ -68,7 +68,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	/* (non-Javadoc)
 	 * @see org.gprom.jdbc.jna.GProMJavaInterface#gpromRewriteQuery(java.lang.String)
 	 */
-	@Override
+	
 	public String gpromRewriteQuery(String query) throws SQLException {
 		Pointer p =  GProM_JNA.INSTANCE.gprom_rewriteQuery(query);
 		String result = p.getString(0);
@@ -101,7 +101,7 @@ public class GProMWrapper implements GProMJavaInterface {
 		
 		exceptionCallback = new GProM_JNA.GProMExceptionCallbackFunction() {
 			
-			@Override
+			
 			public int invoke(String message, String file, int line, int severity) {
 				return exceptionCallbackFunction(message, file, line, severity);
 			}
@@ -267,7 +267,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	/* (non-Javadoc)
 	 * @see org.gprom.jdbc.jna.GProMJavaInterface#optionExists(java.lang.String)
 	 */
-	@Override
+	
 	public boolean optionExists(String name) {
 		// TODO Auto-generated method stub
 		return GProM_JNA.INSTANCE.gprom_optionExists(name);
@@ -276,7 +276,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	/* (non-Javadoc)
 	 * @see org.gprom.jdbc.jna.GProMJavaInterface#typeOfOption(java.lang.String)
 	 */
-	@Override
+	
 	public OptionType typeOfOption(String name) throws Exception {
 		if (GProM_JNA.INSTANCE.gprom_optionExists(name))
 		{
@@ -296,7 +296,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	/** 
 	 * @see org.gprom.jdbc.jna.GProMJavaInterface#setOptions(java.util.Properties)
 	 */
-	@Override
+	
 	public void setupOptions(PropertyWrapper options) throws Exception {
 		for (String key: options.stringPropertyNames()) {
 			log.debug("key: "+ key + " type: " + typeOfOption(key));

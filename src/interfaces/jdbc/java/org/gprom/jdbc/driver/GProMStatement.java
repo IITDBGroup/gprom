@@ -254,7 +254,7 @@ public class GProMStatement implements GProMStatementInterface {
 	/* (non-Javadoc)
 	 * @see java.sql.Statement#closeOnCompletion()
 	 */
-	@Override
+	
 	public void closeOnCompletion() throws SQLException {
 		// TODO Auto-generated method stub
 		
@@ -263,7 +263,7 @@ public class GProMStatement implements GProMStatementInterface {
 	/* (non-Javadoc)
 	 * @see java.sql.Statement#isCloseOnCompletion()
 	 */
-	@Override
+	
 	public boolean isCloseOnCompletion() throws SQLException {
 		// TODO Auto-generated method stub
 		return false;

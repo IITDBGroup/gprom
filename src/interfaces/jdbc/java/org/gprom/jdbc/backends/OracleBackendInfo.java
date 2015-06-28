@@ -24,7 +24,7 @@ public class OracleBackendInfo implements BackendInfo {
 	/* (non-Javadoc)
 	 * @see org.gprom.jdbc.backends.BackendInfo#getHost(java.net.URL)
 	 */
-	@Override
+	
 	public String getHost(String url) {
 		String result;
 		Matcher m = Pattern.compile("\\(HOST=[^)]+\\)").matcher(url);
@@ -39,7 +39,7 @@ public class OracleBackendInfo implements BackendInfo {
 	/* (non-Javadoc)
 	 * @see org.gprom.jdbc.backends.BackendInfo#getPort(java.net.String)
 	 */
-	@Override
+	
 	public String getPort(String url) {
 		String result;
 		Matcher m = Pattern.compile("\\(PORT=[^)]+\\)").matcher(url);
@@ -54,7 +54,7 @@ public class OracleBackendInfo implements BackendInfo {
 	/* (non-Javadoc)
 	 * @see org.gprom.jdbc.backends.BackendInfo#getUser(java.net.String)
 	 */
-	@Override
+	
 	public String getUser(String url) {
 		String result;
 		Matcher m = Pattern.compile("jdbc:gprom:oracle:thin:[^/]+/").matcher(url);
@@ -69,7 +69,7 @@ public class OracleBackendInfo implements BackendInfo {
 	/* (non-Javadoc)
 	 * @see org.gprom.jdbc.backends.BackendInfo#getPassword(java.net.String)
 	 */
-	@Override
+	
 	public String getPassword(String url) {
 		String result;
 		Matcher m = Pattern.compile("jdbc:gprom:oracle:thin:[^/]+/[^@]+@").matcher(url);
@@ -84,7 +84,7 @@ public class OracleBackendInfo implements BackendInfo {
 	/* (non-Javadoc)
 	 * @see org.gprom.jdbc.backends.BackendInfo#getDatabase(java.net.String)
 	 */
-	@Override
+	
 	public String getDatabase(String url) {
 		String result;
 		Matcher m = Pattern.compile("\\(SID=[^)]+\\)").matcher(url);

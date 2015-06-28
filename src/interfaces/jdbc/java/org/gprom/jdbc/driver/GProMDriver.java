@@ -201,7 +201,7 @@ public class GProMDriver implements Driver {
 	/* (non-Javadoc)
 	 * @see java.sql.Driver#getParentLogger()
 	 */
-	@Override
+	
 	public java.util.logging.Logger getParentLogger()
 			throws SQLFeatureNotSupportedException {
 		// TODO Auto-generated method stub
