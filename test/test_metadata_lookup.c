@@ -20,8 +20,12 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 
+#if HAVE_ORACLE_BACKEND
+
 static char *table1Attrs[3] = { "A","B","C" };
 static char *table2Attrs[2] = { "D","E" };
+
+#endif
 
 /* internal tests */
 static rc testCatalogTableExists(void);
@@ -42,7 +46,9 @@ testMetadataLookup(void)
 
     if (streq(getStringOption("backend"),"oracle"))
     {
+#if HAVE_ORACLE_BACKEND
         ASSERT_EQUALS_INT(EXIT_SUCCESS, oracleShutdownMetadataLookupPlugin(), "shutdown plugin");
+#endif
         RUN_TEST(setupMetadataLookup(),"setup tables");
         RUN_TEST(testCatalogTableExists(), "test catalog table exists");
         RUN_TEST(testViewExists(), "test view exists");
@@ -298,6 +304,12 @@ testDatabaseConnectionClose()
 
 static rc
 testRunTransactionAndGetXid()
+{
+    return PASS;
+}
+
+static rc
+testReconnectConnection(void)
 {
     return PASS;
 }
