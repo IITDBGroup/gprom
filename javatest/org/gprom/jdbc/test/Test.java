@@ -5,6 +5,7 @@ package org.gprom.jdbc.test;
 
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
@@ -96,13 +97,30 @@ public class Test {
 
 		System.out.println("Enter a string");
 		String s = in.nextLine();
-		ResultSet rs = st.executeQuery(s);
-		printResult(rs);
+
+		String x = s.replace(";", "");
+		ResultSet rs = st.executeQuery("PROVENANCE OF (" + x + ");");
+		ResultSetMetaData rsmd = rs.getMetaData();
+
+		int columnCount = rsmd.getColumnCount();
+
+		// The column count starts from 1
+		for (int i = 1; i < columnCount + 1; i++) {
+			String name = rsmd.getColumnName(i);
+			if (name.contains("_result_tid")
+					|| name.toLowerCase().contains("prov")) {
+			} else {
+				System.out.println("Here------>>>>>>" + name);
+			}
+		}
+
+		ResultSet rs1 = st.executeQuery(s);
+		printResult(rs1);
 		if (!s.toLowerCase().contains("provenance")) {
 
-			String x = s.replace(";", "");
-			rs = st.executeQuery("PROVENANCE OF (" + x + ");");
-			printResult(rs);
+			String x1 = s.replace(";", "");
+			rs1 = st.executeQuery("PROVENANCE OF (" + x1 + ");");
+			printResult(rs1);
 
 			// test error
 			try {
@@ -119,6 +137,21 @@ public class Test {
 		} else {
 
 			rs = st.executeQuery(s);
+
+			ResultSetMetaData rsmd1 = rs.getMetaData();
+
+			int columnCount1 = rsmd.getColumnCount();
+
+			// The column count starts from 1
+			for (int i = 1; i < columnCount + 1; i++) {
+				String name = rsmd.getColumnName(i);
+				if (name.contains("_result_tid")
+						|| name.toLowerCase().contains("prov")) {
+				} else {
+					System.out.println("Here------>>>>>>" + name);
+				}
+			}
+
 			printResult(rs);
 
 			// test error
