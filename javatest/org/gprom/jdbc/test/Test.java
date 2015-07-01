@@ -98,26 +98,28 @@ public class Test {
 		System.out.println("Enter a string");
 		String s = in.nextLine();
 
-		String x = s.replace(";", "");
-		ResultSet rs = st.executeQuery("PROVENANCE OF (" + x + ");");
-		ResultSetMetaData rsmd = rs.getMetaData();
-
-		int columnCount = rsmd.getColumnCount();
-
-		// The column count starts from 1
-		for (int i = 1; i < columnCount + 1; i++) {
-			String name = rsmd.getColumnName(i);
-			if (name.contains("_result_tid")
-					|| name.toLowerCase().contains("prov")) {
-			} else {
-				System.out.println("Here------>>>>>>" + name);
-			}
-		}
-
-		ResultSet rs1 = st.executeQuery(s);
-		printResult(rs1);
+	
+		
 		if (!s.toLowerCase().contains("provenance")) {
+			String x = s.replace(";", "");
+			ResultSet rs = st.executeQuery("PROVENANCE OF (" + x + ");");
+			ResultSetMetaData rsmd = rs.getMetaData();
 
+			int columnCount = rsmd.getColumnCount();
+
+			// The column count starts from 1
+			for (int i = 1; i < columnCount + 1; i++) {
+
+				String name = rsmd.getColumnName(i);
+				if (name.contains("_result_tid")
+						|| name.toLowerCase().contains("prov")) {
+				} else {
+					System.out.println("Here------>>>>>>" + name);
+				}
+			}
+
+			ResultSet rs1 = st.executeQuery(s);
+			printResult(rs1);
 			String x1 = s.replace(";", "");
 			rs1 = st.executeQuery("PROVENANCE OF (" + x1 + ");");
 			printResult(rs1);
@@ -135,6 +137,21 @@ public class Test {
 			log.error("statement shutdown");
 			con.close();
 		} else {
+			ResultSet rs = st.executeQuery(s);
+			ResultSetMetaData rsmd = rs.getMetaData();
+
+			int columnCount = rsmd.getColumnCount();
+
+			// The column count starts from 1
+			for (int i = 1; i < columnCount + 1; i++) {
+
+				String name = rsmd.getColumnName(i);
+				if (name.contains("_result_tid")
+						|| name.toLowerCase().contains("prov")) {
+				} else {
+					System.out.println("Here------>>>>>>" + name);
+				}
+			}
 
 			rs = st.executeQuery(s);
 
