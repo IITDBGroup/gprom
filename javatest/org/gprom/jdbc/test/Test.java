@@ -98,9 +98,13 @@ public class Test {
 		System.out.println("Enter a string");
 		String s = in.nextLine();
 
-	
-		
 		if (!s.toLowerCase().contains("provenance")) {
+			/*
+			 * if(s.toLowerCase().contains("update")||s.toLowerCase().contains(
+			 * "delete")){ try {String l = s.replace("update", "select");}
+			 * catch(Exception e){String l = s.replace("delete", "select");} }
+			 */
+
 			String x = s.replace(";", "");
 			ResultSet rs = st.executeQuery("PROVENANCE OF (" + x + ");");
 			ResultSetMetaData rsmd = rs.getMetaData();
