@@ -46,18 +46,23 @@ void
 mergeUpdateSequence(ProvenanceComputation *op)
 {
 	ProvenanceTransactionInfo *tInfo = op->transactionInfo;
+	boolean addAnnotAttrs = GET_BOOL_STRING_PROP(op, PROP_PC_STATEMENT_ANNOTATIONS) ||
+	         !(isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS)
+	        || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN)
+	        || getBoolOption(OPTION_COST_BASED_OPTIMIZER));
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));
 
     // add boolean attributes to store whether update did modify a row
-    addUpdateAnnotationAttrs (op);
+    if (addAnnotAttrs)
+        addUpdateAnnotationAttrs (op);
 
     //TODO add projection to remove update annot attribute
     QueryOperator *lastUp = (QueryOperator *) getTailOfListP(op->op.inputs);
     List *normalAttrs = NIL;
     CREATE_INT_SEQ(normalAttrs, 0, getNumNormalAttrs(lastUp) - 2, 1);
-    DEBUG_LOG("hello num attrs %i", getNumNormalAttrs(lastUp) - 2);
+    DEBUG_LOG("num attrs %i", getNumNormalAttrs(lastUp) - 2);
 
     QueryOperator *newTop = createProjOnAttrs(lastUp, normalAttrs);
     newTop->inputs = LIST_MAKE(lastUp);
@@ -466,21 +471,14 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 								LIST_MAKE((Node *) scnAttr,
 								        copyObject(getNthOfListP(scns,i))));
 
-						newWhen = andExprs(when, newCond);
+						newWhen = ((when == NULL) || equal(when,createConstBool(TRUE))) ?  newCond : AND_EXPRS(when, newCond);
 						whenC->when = newWhen;
 						DEBUG_LOG("Updated case is: %s", exprToSQL((Node *) cexp));
 				    }
 				}
 
                //make new case for SCN
-//                Node *then = (Node *) createConstLong(-1); //TODO ok to add one?
                 Node *els = (Node *) createFullAttrReference("VERSIONS_STARTSCN", 0, getNumAttrs(OP_LCHILD(proj)), INVALID_ATTR, DT_LONG);
-//                CaseExpr *caseExpr;
-//                CaseWhen *caseWhen;
-
-//                caseWhen = createCaseWhen(copyObject(newWhen), then);
-//                caseExpr = createCaseExpr(NULL, singleton(caseWhen),
-//                        els);
 
                 // TODO do not modify the SCN attribute to avoid exponential expression size blow-up
                 newProjExpr = (Node *) els; // caseExpr
@@ -683,13 +681,9 @@ restrictToUpdatedRows (ProvenanceComputation *op)
     	res = callback(2);
 
     	if (res == 1)
-    	{
     		addConditionsToBaseTables(op);
-    	}
    		else
-   		{
    			extractUpdatedFromTemporalHistory(op);
-   		}
     }
     else
     {
@@ -709,7 +703,7 @@ restrictToUpdatedRows (ProvenanceComputation *op)
 		// simply filter out non-updated rows in the end
 		else
 		{
-			FATAL_LOG("filtering of updated rows in final result not supported yet.");
+			DEBUG_LOG("filtering of updated rows in final result not supported yet.");
 			filterUpdatedInFinalResult(op);
 		}
     }
@@ -736,6 +730,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     Set *mixedTableNames = NULL;
     HashMap *numAttrs = NEW_MAP(Constant,Constant);
     ProvenanceTransactionInfo *t = op->transactionInfo;
+    Constant *constT = createConstBool(TRUE);
 
     upConds = (List *) GET_STRING_PROP(op, PROP_PC_UPDATE_COND);
     tableNames = t->updateTableNames;
@@ -775,7 +770,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
 
                 // for read committed we have to also check the version column to only
                 // check the condition for rows versions that will be seen by an update
-                if (t->transIsolation == ISOLATION_READ_COMMITTED)
+                if (t->transIsolation == ISOLATION_READ_COMMITTED && cond != NULL)
                 {
                     Constant *scn = (Constant *) getNthOfListP(t->scns, i);
                     cond = (Node *) adaptConditionForReadCommitted(cond, scn,
@@ -807,16 +802,26 @@ addConditionsToBaseTables (ProvenanceComputation *op)
         if (cond != NULL)
         {
             List *args = (List *) cond;
+            boolean allTrue = FALSE;
 
-            if (LIST_LENGTH(args) > 1)
-                cond = (Node *) createOpExpr("OR", (List *) cond);
-            else
-                cond = (Node *) getHeadOfListP(args);
+            FOREACH(Node,c,args)
+            {
+                if (c == NULL || equal(c,constT))
+                    allTrue = TRUE;
+            }
 
-            sel = createSelectionOp(cond, (QueryOperator *) t, NIL,
-                    getAttrNames(GET_OPSCHEMA(t)));
-            switchSubtrees((QueryOperator *) t, (QueryOperator *) sel);
-            ((QueryOperator *) t)->parents = singleton(sel);
+            if (!allTrue)
+            {
+                if (LIST_LENGTH(args) > 1)
+                    cond = (Node *) createOpExpr("OR", (List *) cond);
+                else
+                    cond = (Node *) getHeadOfListP(args);
+
+                sel = createSelectionOp(cond, (QueryOperator *) t, NIL,
+                        getAttrNames(GET_OPSCHEMA(t)));
+                switchSubtrees((QueryOperator *) t, (QueryOperator *) sel);
+                ((QueryOperator *) t)->parents = singleton(sel);
+            }
         }
     }
 
@@ -905,9 +910,35 @@ extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
 static void
 filterUpdatedInFinalResult (ProvenanceComputation *op)
 {
+    //TODO will only work if called directly and annotation attributes have been added beforehand
+    //TODO extend to support making it work as a fallback method, easiest solution would be to determine whether this is necessary early on
     // for each updated table add attribute that trackes whether the table has been updated
 
-    // add final conditions that
+    // add final conditions that filters out rows
+    SelectionOperator *sel;
+    QueryOperator *top = OP_LCHILD(op);
+    Node *cond;
+    List *condList = NIL;
+    int i = 0;
+
+    FOREACH(AttributeDef,a,top->schema->attrDefs)
+    {
+        if (strncmp(a->attrName,"PROV_STATEMENT", strlen("PROV_STATEMENT")) == 0)
+        {
+            condList = appendToTailOfList(condList, createOpExpr("=",
+                    LIST_MAKE(createFullAttrReference(strdup(a->attrName), 0, i,
+                                    INVALID_ATTR, a->dataType),
+                            createConstBool(TRUE))
+                    ));
+        }
+        i++;
+    }
+
+    cond = andExprList(condList);
+    DEBUG_LOG("create condition: %s", beatify(nodeToString(cond)));
+    sel = createSelectionOp(cond, top, NIL, NIL);
+
+    switchSubtrees(top, (QueryOperator *) sel);
 }
 
 //TODO check is still needed once we extend to nested subqueries

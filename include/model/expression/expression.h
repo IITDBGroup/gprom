@@ -24,7 +24,8 @@ NEW_ENUM_WITH_TO_STRING(DataType,
     DT_LONG,
     DT_STRING,
     DT_FLOAT,
-    DT_BOOL
+    DT_BOOL,
+    DT_VARCHAR2
 );
 
 typedef struct Constant {
@@ -205,7 +206,7 @@ extern List *getAttrReferences (Node *node);
 
 /* for the condition of selection operator, separate the AND operator to a
  * list of operators, these relation among these operators is AND */
-extern List *getSelectionCondOperatorList(List *opList, Operator *op);
+extern void getSelectionCondOperatorList(Node *expr, List **opList);
 
 /* combine a list operator to an AND operator */
 extern Node *changeListOpToAnOpNode(List *l1);

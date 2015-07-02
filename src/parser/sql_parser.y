@@ -18,7 +18,7 @@
 
 #define RULELOG(grule) \
     { \
-        TRACE_LOG("Parsing grammer rule <%s>", #grule); \
+        TRACE_LOG("Parsing grammer rule <%s> at line %d", #grule, yylineno); \
     }
     
 #undef free
@@ -72,6 +72,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> CASE WHEN THEN ELSE END
 %token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 %token <stringVal> NULLS FIRST LAST ASC DESC
+%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL
 
 %token <stringVal> DUMMYEXPR
 
@@ -115,18 +116,20 @@ Node *bisonParseResult = NULL;
 %type <list> selectClause optionalFrom fromClause exprList orderList 
 			 optionalGroupBy optionalOrderBy setClause  stmtList //insertList 
 			 identifierList optionalAttrAlias optionalProvWith provOptionList 
-			 caseWhenList windowBoundaries optWindowPart withViewList
+			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo
 //			 optInsertAttrList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse
-%type <node> overClause windowSpec optWindowFrame windowBound 
+%type <node> overClause windowSpec optWindowFrame windowBound
+%type <node> jsonTable jsonColInfoItem 
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provOption
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
+%type <stringVal> optionalFormat optionalWrapper
 
 %start stmtList
 
@@ -867,7 +870,76 @@ windowBound:
 				$$ = (Node *) createWindowBound(WINBOUND_EXPR_FOLLOW, $1); 
 			}
 	;
-	
+
+/*
+ * Rule to parse JSON Functions
+ */
+jsonTable:
+                /* empty */	{ RULELOG("jsonTable::NULL"); $$ = NULL; }
+		| JSON_TABLE '(' attributeRef ',' stringConst COLUMNS '(' jsonColInfo ')' ')' AS identifier
+			{
+				RULELOG("jsonTable::jsonTable");
+                                $$ = (Node *) createFromJsonTable((AttributeReference *) $3, $5, $8, $12);
+			}
+	;
+
+jsonColInfo:
+                jsonColInfoItem
+                        {
+                                RULELOG("jsonColInfo::jsonColInfoItem");
+                                $$ = singleton($1);
+                        }
+                | jsonColInfo ',' jsonColInfoItem
+                        {
+                                RULELOG("jsonColInfo::jsonColInfoItem::jsonColInfoItem");
+                                $$ = appendToTailOfList($1, $3);
+                        }
+        ;
+
+jsonColInfoItem:
+                /* empty */ { RULELOG("jsonColInfoItem::NULL"); }
+                | identifier identifier optionalFormat optionalWrapper PATH stringConst
+                        {
+                                RULELOG("jsonColInfoItem::jsonColInfoItem");
+                                JsonColInfoItem *c = createJsonColInfoItem ($1, $2, $6, $3, $4, NULL, NULL);
+                                $$ = (Node *) c;
+                        }
+                | NESTED PATH stringConst COLUMNS '(' jsonColInfo ')'
+                        {
+                                RULELOG("jsonColInfoItem::jsonColInfoItem");
+                                JsonColInfoItem *c = createJsonColInfoItem (NULL, NULL, $3, NULL, NULL, $6, NULL);
+                                $$ = (Node *) c;
+                        }
+        ;
+
+optionalFormat:
+                /* empty */ { RULELOG("optionalFormat::NULL"); $$ = NULL; }
+                | FORMAT identifier
+                        {
+                                RULELOG("optionalFormat::FORMAT");
+                                $$ = $2;
+                        }
+        ;
+
+optionalWrapper:
+                /* empty */ { RULELOG("optionalWrapper::NULL"); $$ = NULL; }
+                | WITH WRAPPER
+                        {
+                                RULELOG("optionalWrapper::WITH WRAPPER");
+                                $$ = strdup("WITH");
+                        }
+                | WITHOUT WRAPPER
+                        {
+                                RULELOG("optionalWrapper::WITHOUT WRAPPER");
+                                $$ = strdup("WITHOUT");
+                        }
+                | WITH CONDITIONAL WRAPPER
+                        {
+                                RULELOG("optionalWrapper::WITHOUT WRAPPER");
+                                $$ = strdup("WITH CONDITIONAL");
+                        }
+        ;
+
 /*
  * Rule to parse from clause
  *            Currently implemented for basic from clause.
@@ -943,6 +1015,13 @@ fromClauseItem:
                 f->provInfo = ((FromItem *) $4)->provInfo;
         		$$ = (Node *) f;
         	}
+         | jsonTable
+                {
+                    RULELOG("fromClauseItem::jsonTable");
+                    //FromJsonTable *jt = (FromJsonTable *) $1;
+                    FromItem *jt = (FromItem *)$1;
+                    $$ = (Node*) jt;
+                }
     ;
 
 subQuery:

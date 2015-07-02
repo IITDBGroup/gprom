@@ -79,7 +79,13 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_DLVar,
     T_DLRule,
     T_DLProgram,
-    T_DLComparison
+    T_DLComparison,
+
+    /* Json Table Node */
+    T_FromJsonTable,
+    T_JsonTableOperator,
+    T_JsonColInfoItem,
+    T_JsonPath
 );
 
 typedef struct Node{

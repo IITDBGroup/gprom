@@ -24,6 +24,8 @@
 #include "model/list/list.h"
 #include "model/set/set.h"
 #include "model/expression/expression.h"
+#include "model/set/hashmap.h"
+#include "parser/parser_jp.h"
 
 static QueryOperator *rewritePI_CSOperator (QueryOperator *op);
 static QueryOperator *rewritePI_CSSelection (SelectionOperator *op);
@@ -35,6 +37,7 @@ static QueryOperator *rewritePI_CSTableAccess(TableAccessOperator *op);
 static QueryOperator *rewritePI_CSConstRel(ConstRelOperator *op);
 static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 static QueryOperator *rewritePI_CSOrderOp(OrderOperator *op);
+static QueryOperator *rewritePI_CSJsonTableOp(JsonTableOperator *op);
 
 static QueryOperator *addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs);
 static QueryOperator *addIntermediateProvenance (QueryOperator *op, List *userProvAttrs);
@@ -162,9 +165,13 @@ rewritePI_CSOperator (QueryOperator *op)
             rewrittenOp = rewritePI_CSDuplicateRemOp((DuplicateRemoval *) op);
             break;
         case T_OrderOperator:
-            DEBUG_LOG("fo order operator");
+            DEBUG_LOG("go order operator");
             rewrittenOp = rewritePI_CSOrderOp((OrderOperator *) op);
             break;
+        case T_JsonTableOperator:
+	     DEBUG_LOG("go JsonTable operator");
+	     rewrittenOp = rewritePI_CSJsonTableOp((JsonTableOperator *) op);
+	     break;
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
             return NULL;
@@ -1036,4 +1043,325 @@ rewritePI_CSOrderOp(OrderOperator *op)
 
     child->parents = appendToTailOfList(child->parents, newCopy);
     return (QueryOperator *) newCopy;
+}
+void
+recursiveAppendNestedAttr(JsonColInfoItem *attr, List **provAttr, List **newDef, List **provList, int *cnt, JsonTableOperator *op)
+{
+	char *newAttrName = NULL; //new provenance name
+	if (attr->nested)
+	{
+//    	StringInfo forOrdinality = makeStringInfo ();
+//        char *prefixFOD = "prov_for_ord_";
+//        appendStringInfoString(forOrdinality, prefixFOD);
+//        appendStringInfoString(forOrdinality, itoa(*countNest));
+//        attr->forOrdinality = forOrdinality->data;
+//        (*countNest)++;
+
+		FOREACH(JsonColInfoItem, attr1, attr->nested)
+        {
+			if(attr1->nested)
+			{
+				recursiveAppendNestedAttr(attr1, provAttr, newDef, provList, cnt, op);
+			}
+			else
+			{
+				*provAttr = appendToTailOfList(*provAttr, strdup(attr1->attrName));
+				*newDef = appendToTailOfList(*newDef, createAttributeDef(attr1->attrName, DT_VARCHAR2));
+
+				newAttrName = getProvenanceAttrName(op->jsonTableIdentifier, attr1->attrName, 0);
+				*provList = appendToTailOfList(*provList, createAttributeDef(newAttrName, DT_VARCHAR2));
+				(*cnt)++;
+			}
+        }
+	}
+	else
+	{
+		*provAttr = appendToTailOfList(*provAttr, strdup(attr->attrName));
+		*newDef = appendToTailOfList(*newDef, createAttributeDef(attr->attrName, DT_VARCHAR2));
+
+		newAttrName = getProvenanceAttrName(op->jsonTableIdentifier, attr->attrName, 0);
+		*provList = appendToTailOfList(*provList, createAttributeDef(newAttrName, DT_VARCHAR2));
+		(*cnt)++;
+	}
+}
+
+void
+addForOrdinality(JsonTableOperator *op, JsonColInfoItem *attr, int *countNest, char *docPath, int *count, ProjectionOperator **proj)
+{
+	if (attr->nested)
+	{
+		StringInfo forOrdinality = makeStringInfo ();
+		char *prefixFOD = "prov_for_ord_";
+		appendStringInfoString(forOrdinality, prefixFOD);
+		appendStringInfoString(forOrdinality, itoa(*countNest));
+		attr->forOrdinality = forOrdinality->data;
+
+		StringInfo doc = makeStringInfo ();
+		//char *docPath = op->documentcontext;
+		appendStringInfoString(doc, docPath);
+
+		StringInfo prePath = makeStringInfo ();
+//		appendStringInfoString(prePath, "'");
+		int len = doc->len;
+		if(doc->data[len-1] == ']')
+		{
+			for(int i=0; i< len-2; i++)
+				appendStringInfoChar(prePath, doc->data[i]);
+		}
+//		appendStringInfoString(prePath, "'");
+		DEBUG_LOG("pre %s", prePath->data);
+
+		StringInfo path = makeStringInfo ();
+		StringInfo sufPath = makeStringInfo ();
+//		appendStringInfoString(sufPath, "'");
+		appendStringInfoChar(sufPath, ']');
+
+		appendStringInfoString(path, attr->path);
+		int len1 = path->len;
+		for(int i=1; i< len1; i++)
+			appendStringInfoChar(sufPath, path->data[i]);
+//		appendStringInfoString(sufPath, "'");
+		DEBUG_LOG("suffix %s", sufPath->data);
+
+//		StringInfo newPath = makeStringInfo ();
+//		appendStringInfoString(newPath, prePath->data);
+//		appendStringInfoString(newPath, forOrdinality->data);
+//		appendStringInfoString(newPath, sufPath->data);
+//		DEBUG_LOG("new path %s", newPath->data);
+
+    	StringInfo renameFOD = makeStringInfo ();
+        char *prefixRFOD = "prov_path_";
+        appendStringInfoString(renameFOD, prefixRFOD);
+        appendStringInfoString(renameFOD, itoa(*countNest));
+    	AttributeDef *projAttr = createAttributeDef(renameFOD->data, DT_STRING);
+    	AttributeDef *forOrdAttr = createAttributeDef(forOrdinality->data, DT_STRING);
+    	AttributeReference *forOrdRef = createAttributeReference(forOrdinality->data);
+    	forOrdRef->fromClauseItem = 0;
+    	forOrdRef->attrType = DT_STRING;
+    	forOrdRef->attrPosition = *count;
+    	Constant *c1 = createConstString(prePath->data);
+    	Constant *c2 = createConstString(sufPath->data);
+
+    	DEBUG_LOG("Const c1: %s", nodeToString(c1));
+    	DEBUG_LOG("Const c2: %s", nodeToString(c2));
+
+    	List *exprList1 = NIL;
+    	exprList1 = appendToTailOfList(exprList1, forOrdRef);
+    	exprList1 = appendToTailOfList(exprList1, c2);
+    	Operator *o1 = createOpExpr("||", exprList1);
+
+    	List *exprList2 = NIL;
+    	exprList2 = appendToTailOfList(exprList2, c1);
+    	exprList2 = appendToTailOfList(exprList2, o1);
+    	Operator *o2 = createOpExpr("||", exprList2);
+
+    	addProvenanceAttrsToSchemabasedOnList((QueryOperator *) (*proj), singleton(projAttr));
+    	//proj->projExprs = appendToTailOfList(proj->projExprs, forOrdRef);
+    	(*proj)->projExprs = appendToTailOfList((*proj)->projExprs, o2);
+    	op->op.schema->attrDefs = appendToTailOfList(op->op.schema->attrDefs, forOrdAttr);
+
+		docPath = attr->path;
+        (*countNest)++;
+        (*count)++;
+
+		FOREACH(JsonColInfoItem, attr1, attr->nested)
+        {
+			if(attr1->nested)
+			{
+				addForOrdinality(op, attr1, countNest, docPath, count, proj);
+			}
+        }
+	}
+}
+
+
+static QueryOperator *
+rewritePI_CSJsonTableOp(JsonTableOperator *op)
+{
+	QueryOperator *child = OP_LCHILD(op);
+
+	// rewrite child
+	child = rewritePI_CSOperator(child);
+
+	// adapt provenance attr list and schema
+	clearAttrsFromSchema((QueryOperator *) op);
+	addNormalAttrsToSchema((QueryOperator *) op, child);
+	addProvenanceAttrsToSchema((QueryOperator *) op, child);
+
+	// Add the correct JsonColumn things by duplicating them and adapt the
+	// schema accordingly and set the provenance attribute list adding it to
+	// schema of JsonTable
+
+	List *provAttr = NIL;  //new json attribute name list
+	List *newDef = NIL;    //new json attribute Def list
+	List *provList = NIL;  //new provenance attribute Def list
+
+	int cnt = 0;
+
+	DEBUG_LOG("REWRITE-PICS - JsonTable <%s>", op->jsonTableIdentifier);
+
+	FOREACH(JsonColInfoItem, attr, op->columns)
+	      recursiveAppendNestedAttr(attr, &provAttr, &newDef, &provList, &cnt, op);
+
+	//new json table schema
+	op->op.schema->attrDefs = concatTwoLists(op->op.schema->attrDefs, newDef);
+
+	//Add projection operator
+	//projExprName:  the new projection operator projExpr name list
+	List *normalName = getNormalAttrNames((QueryOperator *) op);
+	List *provName = getOpProvenanceAttrNames((QueryOperator *) op);
+	List *projExprName = concatTwoLists(normalName, provName);
+	projExprName = concatTwoLists(projExprName, provAttr);
+	List *projExpr = NIL;
+
+	HashMap *namePosMap = NEW_MAP(Constant,Constant);
+	HashMap *nameTypeMap = NEW_MAP(Constant, Node);
+
+	// adapt name to position and name to Defs
+	int count = 0;
+	FOREACH(AttributeDef, d, op->op.schema->attrDefs)
+	{
+		char *a = d->attrName;
+		MAP_ADD_STRING_KEY(namePosMap, a, createConstInt(count));
+		MAP_ADD_STRING_KEY(nameTypeMap, a, (Node *) d);
+		count ++;
+	}
+
+	int count1 = 0;
+	FOREACH(char, c, projExprName)
+	{
+		if(MAP_HAS_STRING_KEY(namePosMap, c) && MAP_HAS_STRING_KEY(nameTypeMap, c))
+		{
+			count1 = INT_VALUE(getMapString(namePosMap, c));
+			AttributeDef *d = (AttributeDef *)getMapString(nameTypeMap, c);
+			projExpr = appendToTailOfList(projExpr, createFullAttrReference(c, 0, count1, 0, d->dataType));
+		}
+	}
+
+	ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
+
+	//get new projection operator's schema
+	addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
+	addProvenanceAttrsToSchema((QueryOperator *) proj, (QueryOperator *) op);
+	addProvenanceAttrsToSchemabasedOnList((QueryOperator *) proj, provList);
+
+	//for ordinality
+	char *p = strdup(op->documentcontext);
+	int countNest = 0;
+	FOREACH(JsonColInfoItem, attr, op->columns)
+		addForOrdinality(op, attr,&countNest, p, &count, &proj);
+
+
+	//begin to split path
+	List *path = (List *) parseFromStringjp(strdup(op->documentcontext));
+	DEBUG_LOG("path element: %s", nodeToString(path));
+
+	List *cpath = copyObject(path);
+	int countFOD = 0;
+	while (LIST_LENGTH(cpath) > 2)
+	{
+		//E.g. $.Addresses[*].City, pathEl is City
+		//It used to generate $.City and '].City
+		StringInfo pathEl = makeStringInfo ();
+		char *a = ((JsonPath *)getTailOfListP(cpath))->path;
+		if(streq(a,"*"))
+		{
+			cpath = removeFromTail(cpath);
+			a = ((JsonPath *)getTailOfListP(cpath))->path;
+			appendStringInfoString(pathEl, a);
+			appendStringInfoString(pathEl, "[*]");
+		}
+		else
+			appendStringInfoString(pathEl, a);
+
+		cpath = removeFromTail(cpath);
+
+		//Set the new documentcontext
+		StringInfo newdoc = makeStringInfo ();
+		appendStringInfoString(newdoc, "$");
+		FOREACH(JsonPath, j, cpath)
+		{
+			if(streq(j->path, "*"))
+				appendStringInfoString(newdoc, "[*]");
+			else
+			{
+				appendStringInfoString(newdoc, ".");
+				appendStringInfoString(newdoc, j->path);
+			}
+		}
+		op->documentcontext = newdoc->data;
+		DEBUG_LOG("new doc %s", op->documentcontext);
+
+		//Introduce new nested JsonColInfoItem
+		StringInfo nestedpath = makeStringInfo ();
+		appendStringInfoString(nestedpath, "$.");
+		appendStringInfoString(nestedpath, pathEl->data);
+
+		StringInfo forOrdinality = makeStringInfo ();
+		char *prefixFOD = "prov_for_ord_";
+		appendStringInfoString(forOrdinality, prefixFOD);
+		appendStringInfoString(forOrdinality, itoa(countFOD));
+		JsonColInfoItem *c = createJsonColInfoItem (NULL, NULL, nestedpath->data, NULL, NULL, op->columns, forOrdinality->data);
+		op->columns = singleton(c);
+
+		//expr
+		StringInfo expr1 = makeStringInfo ();
+		appendStringInfoString(expr1, "$");
+		int cnt = 1;
+		int lenpath = LIST_LENGTH(cpath);
+		FOREACH(JsonPath, j, cpath)
+		{
+			if(streq(j->path, "*") && cnt == lenpath)
+				appendStringInfoString(expr1, "[");
+			else if(streq(j->path, "*"))
+				appendStringInfoString(expr1, "[*]");
+			else
+			{
+				appendStringInfoString(expr1, ".");
+				appendStringInfoString(expr1, j->path);
+			}
+
+			cnt ++;
+		}
+
+		StringInfo renameFOD = makeStringInfo ();
+		char *prefixRFOD = "prov_path_";
+		appendStringInfoString(renameFOD, prefixRFOD);
+		appendStringInfoString(renameFOD, itoa(countFOD));
+		AttributeDef *projAttr = createAttributeDef(renameFOD->data, DT_STRING);
+		AttributeDef *forOrdAttr = createAttributeDef(forOrdinality->data, DT_STRING);
+		AttributeReference *forOrdRef = createAttributeReference(forOrdinality->data);
+		forOrdRef->fromClauseItem = 0;
+		forOrdRef->attrType = DT_STRING;
+		forOrdRef->attrPosition = count;
+		count++;
+
+		Constant *c1 = createConstString(expr1->data);
+		StringInfo nameEl = makeStringInfo ();
+		appendStringInfoString(nameEl, "].");
+		appendStringInfoString(nameEl, pathEl->data);
+		Constant *c2 = createConstString(nameEl->data);
+		DEBUG_LOG("Const c1: %s", nodeToString(c1));
+		DEBUG_LOG("Const c2: %s", nodeToString(c2));
+
+		List *exprList1 = NIL;
+		exprList1 = appendToTailOfList(exprList1, forOrdRef);
+		exprList1 = appendToTailOfList(exprList1, c2);
+		Operator *o1 = createOpExpr("||", exprList1);
+
+		List *exprList2 = NIL;
+		exprList2 = appendToTailOfList(exprList2, c1);
+		exprList2 = appendToTailOfList(exprList2, o1);
+		Operator *o2 = createOpExpr("||", exprList2);
+
+		addProvenanceAttrsToSchemabasedOnList((QueryOperator *) proj, singleton(projAttr));
+		proj->projExprs = appendToTailOfList(proj->projExprs, o2);
+		op->op.schema->attrDefs = appendToTailOfList(op->op.schema->attrDefs, forOrdAttr);
+		countFOD ++;
+	}
+
+	switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+	addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
+
+	return (QueryOperator *) proj;
 }

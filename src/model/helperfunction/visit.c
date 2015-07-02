@@ -159,8 +159,6 @@ visit (Node *node, boolean (*checkNode) (), void *state)
         case T_SetQuery:
             {
                 PREP_VISIT(SetQuery);
-                VISIT(setOp);
-                VISIT(selectClause);
                 VISIT(lChild);
                 VISIT(rChild);
             }

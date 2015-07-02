@@ -82,7 +82,7 @@ quotedIdentifier		{doublequote}[^\"]+{doublequote}
 identifiers				({identStart}{identContinue}*)
 identifierPart			({identifiers}|{quotedIdentifier})
 compositeIdentifier		({identifierPart}({identDelim}{identifierPart}))*
-parameters		[:]{identifiers}
+parameters		[:]({identifiers}|{integer})
 
 /* operators */
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
@@ -111,7 +111,6 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 (?i:WHERE)			TOK(WHERE)
 (?i:DISTINCT)		TOK(DISTINCT)
 (?i:ON)				TOK(ON)
-STARALL				TOK(STARALL)
 (?i:ALL)		 	TOK(ALL)
 (?i:AND)		 	TOK(AND)
 (?i:OR)             TOK(OR)
@@ -172,6 +171,13 @@ STARALL				TOK(STARALL)
 (?i:CURRENT)		TOK(CURRENT)
 (?i:ROW)			TOK(ROW)
 (?i:FOLLOWING)		TOK(FOLLOWING)
+(?i:JSON_TABLE)         TOK(JSON_TABLE)
+(?i:COLUMNS)            TOK(COLUMNS)
+(?i:PATH)               TOK(PATH)
+(?i:FORMAT)             TOK(FORMAT)
+(?i:WITHOUT)            TOK(WITHOUT)
+(?i:WRAPPER)            TOK(WRAPPER)
+(?i:NESTED)             TOK(NESTED)
 (?i:TABLE)			TOK(TABLE)
 (?i:ONLY)			TOK(ONLY)
 (?i:UPDATED)		TOK(UPDATED)
@@ -246,7 +252,7 @@ STARALL				TOK(STARALL)
 /* use logging framework in the future */
 void yyerror(char *s)
 {
-	ERROR_LOG("%s at %s\n", s, yytext);
+	FATAL_LOG("%s at %s\n", s, yytext);
 }
 
 void setupStringInput(char *input)

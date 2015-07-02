@@ -31,3 +31,4 @@ m4/
 debug.script
 debug.txt
 GPexamples/
+blackboxtests/depcache/
