@@ -25,6 +25,8 @@ main(int argc, char* argv[]){
 	Node *qoModel;
 	Node *rewriteQoModel;
 
+
+
     READ_OPTIONS_AND_INIT("testpicsrewritegraph", "Run all stages on input and output rewritten SQL.");
 
     // read from terminal

@@ -43,6 +43,7 @@
 
 //
 #define PROP_PC_HAS_REWRITTEN "HAS_REWRITTEN"				// !!!show if a query has been rewritten
+#define PROP_PC_ACCESS_TABLE_COUNT_GRAPH "ACCESS_COUNT"
 //
 
 /* table access properties */

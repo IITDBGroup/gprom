@@ -36,7 +36,7 @@ typedef struct ProvSchemaInfo
 static boolean findBaserelationsVisitor (Node *node, ProvSchemaInfo *status);
 static int getRelCount(ProvSchemaInfo *info, char *tableName);
 static boolean findTablerefVisitor (Node *node, ProvSchemaInfo *status);
-static char *escapeUnderscore (char *str);
+
 
 /* definitions */
 List *
@@ -77,7 +77,7 @@ getProvenanceAttrName (char *table, char *attr, int count)
             escapeUnderscore(attr));
 }
 
-static char *
+char *
 escapeUnderscore (char *str)
 {
     int len = strlen(str);

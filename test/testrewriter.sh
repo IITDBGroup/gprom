@@ -7,5 +7,5 @@ fi
 LOGLEVEL=$1
 SQL=$2
 ARGS="${*:3}"
-./test/testrewriter -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga" -log -loglevel ${LOGLEVEL} -sql "${SQL}" -activate treefiy_prov_rewrite_input ${ARGS}
+./test/testrewriter -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga" -log -loglevel ${LOGLEVEL} -sql "${SQL}" ${ARGS}
 
