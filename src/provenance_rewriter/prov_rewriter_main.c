@@ -16,6 +16,7 @@
 
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "provenance_rewriter/game_provenance/gp_main.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
@@ -23,6 +24,8 @@
 
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
+#include "model/datalog/datalog_model.h"
+#include "analysis_and_translate/analyze_dl.h"
 #include "model/query_operator/operator_property.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
@@ -39,7 +42,11 @@ provRewriteQBModel (Node *qbModel)
         return (Node *) provRewriteQueryList((List *) qbModel);
     else if (IS_OP(qbModel))
         return (Node *) provRewriteQuery((QueryOperator *) qbModel);
-
+    else if (IS_DL_NODE(qbModel))
+    {
+        createRelToRuleMap(qbModel);
+        return (Node *) rewriteForGP(qbModel);
+    }
     FATAL_LOG("cannot rewrite node <%s>", nodeToString(qbModel));
 
     return NULL;

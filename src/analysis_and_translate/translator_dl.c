@@ -51,8 +51,8 @@ translateParseDL(Node *q)
 
     INFO_LOG("translate DL model:\n\n%s", datalogToOverviewString(q));
 
-    if (!checkDLModel(q))
-        FATAL_LOG("failed model check on:\n%s", datalogToOverviewString(q));
+//    if (!checkDLModel(q))
+//        FATAL_LOG("failed model check on:\n%s", datalogToOverviewString(q));
 
     if (isA(q,DLProgram))
         result = translateProgram((DLProgram *) q);

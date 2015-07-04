@@ -40,6 +40,11 @@ static TranslatorPlugin *assembleOraclePlugin(void);
 static TranslatorPlugin *assemblePostgresPlugin(void);
 static TranslatorPlugin *assembleHivePlugin(void);
 static TranslatorPlugin *assembleDLPlugin(void);
+static TranslatorPlugin *assembleDummyPlugin(void);
+
+static Node *echoNode (Node *in);
+static QueryOperator *echoNodeAsQB (Node *in);
+
 
 Node *
 translateParse(Node *q)
@@ -83,6 +88,9 @@ chooseTranslatorPlugin(TranslatorPluginType type)
             break;
         case TRANSLATOR_PLUGIN_DL:
             plugin = assembleDLPlugin();
+            break;
+        case TRANSLATOR_PLUGIN_DUMMY:
+            plugin = assembleDummyPlugin();
             break;
     }
 }
@@ -129,6 +137,30 @@ assembleDLPlugin(void)
     return p;
 }
 
+static TranslatorPlugin *
+assembleDummyPlugin(void)
+{
+    TranslatorPlugin *p = NEW(TranslatorPlugin);
+
+    p->translateParse = echoNode;
+    p->translateQuery = echoNodeAsQB;
+
+    return p;
+}
+
+static Node *
+echoNode (Node *in)
+{
+    return in;
+}
+
+static QueryOperator *
+echoNodeAsQB (Node *in)
+{
+    return NULL;
+}
+
+
 void
 chooseTranslatorPluginFromString(char *type)
 {
@@ -142,6 +174,8 @@ chooseTranslatorPluginFromString(char *type)
         chooseTranslatorPlugin(TRANSLATOR_PLUGIN_HIVE);
     else if (streq(type,"dl"))
         chooseTranslatorPlugin(TRANSLATOR_PLUGIN_DL);
+    else if (streq(type,"dummy"))
+        chooseTranslatorPlugin(TRANSLATOR_PLUGIN_DUMMY);
     else
         FATAL_LOG("unkown translator plugin type: <%s>", type);
 }

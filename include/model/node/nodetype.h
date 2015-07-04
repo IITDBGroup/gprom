@@ -186,9 +186,10 @@ extern KeyValue *createNodeKeyValue(Node *key, Node *value);
 /* get a string representation of a node */
 extern char *nodeToString(void *obj);
 extern char *beatify(char *input);
-char *operatorToOverviewString(Node *op);
-char *datalogToOverviewString(Node *n);
-char *itoa(int value);
+extern char *operatorToOverviewString(Node *op);
+extern char *datalogToOverviewString(Node *n);
+extern char *itoa(int value);
+extern void indentString(StringInfo str, int level);
 
 /* get a dot script for a query operator graph or query block tree */
 extern char *nodeToDot(void *obj);
