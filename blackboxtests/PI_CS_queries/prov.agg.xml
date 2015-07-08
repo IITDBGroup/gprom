@@ -101,12 +101,15 @@ X|Y|PROV_R_A|PROV_R_B|
 </entry>
 
 <entry key="q12.query">
-PROVENANCE OF (SELECT a as x FROM R WHERE b=(SELECT min(b) FROM r));
+PROVENANCE OF (SELECT sum(A) AS x, avg(b) AS Y FROM r);
 </entry>
 <entry key="q12.result">
-X |
-----------+-----------------+-----------------
----NOT WORKING!---
+X|Y|PROV_R_A|PROV_R_B|
+----------------------------------------
+6|1.75|1|1|
+6|1.75|1|2|
+6|1.75|2|1|
+6|1.75|2|3|
 </entry>
 
 <entry key="q13.query">

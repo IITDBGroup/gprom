@@ -5,22 +5,40 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMWrapper;
 
 public class GProMStatement implements GProMStatementInterface {
-	// Variable
+	// static fields
 	static Logger log = Logger.getLogger(GProMStatement.class);
-	protected Statement stat;
-	private static String[] permKeywords = { "PROVENANCE", "BASERELATION",
-			"TRANSSQL" };
-	private BackendType backend;
-	
-	private static String[] utilityKeywors = { "DROP"};
 
+	private static final String[] gpromKeywords = { "PROVENANCE", "BASERELATION",
+			"TRANSSQL" };
+	private static final String[] utilityKeywords = { "DROP"};
+	private static final Set<String> keywordSet;
+	private static final Set<String> utilityKeywordSet;
+	
 	static GProMWrapper w = GProMWrapper.inst;
+	static final Pattern whitespaceSplitter = Pattern.compile("\\s+"); 
+	
+	// intitialize keyword sets
+	static {
+		keywordSet = new HashSet<String> ();
+		utilityKeywordSet = new HashSet<String> ();
+		
+		keywordSet.addAll(Arrays.asList(gpromKeywords));
+		utilityKeywordSet.addAll(Arrays.asList(utilityKeywords));
+	}
+	
+	// instance field
+	private BackendType backend;
+	protected Statement stat;
 
 	public GProMStatement(Statement stat, BackendType backend){
 		this.stat = stat;	
@@ -31,25 +49,14 @@ public class GProMStatement implements GProMStatementInterface {
 	 * 
 	 */
 	public boolean checkForGProMKeywords(String sqlQuery) {
-		return true;
 		
-		//TODO replace with simple parser that recognizes strings and naming quotes
-		// Check for utility query
-//		for (int i = 0; i < utilityKeywors.length; i++) {
-//			if (sqlQuery.contains(utilityKeywors[i])
-//					|| sqlQuery.contains(utilityKeywors[i].toLowerCase())) {
-//				return false;
-//			}
-//		}
-//
-//		// If no utility query, check for PERM keywords
-//		for (int i = 0; i < permKeywords.length; i++) {
-//			if (sqlQuery.contains(permKeywords[i])
-//					|| sqlQuery.contains(permKeywords[i].toLowerCase())) {
-//				return true;
-//			}
-//		}
-//		return false;
+		for (String token : whitespaceSplitter.split(sqlQuery)) 
+		{
+			if (keywordSet.contains(token))
+				return true;
+		}
+		return false;
+		//TODO use the utility keyword trick?
 	}
 
 	public ResultSet executeGProMQuery(String sqlQuery) throws SQLException{
