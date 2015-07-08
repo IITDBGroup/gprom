@@ -255,6 +255,12 @@ computeKeyProp (QueryOperator *root)
     if (isA(root, JsonTableOperator))
     	keyList=NIL;
 
+    //child key (return keyList)
+    if (isA(root, SelectionOperator))
+    {
+    }
+
+    //apply EC property
 
     //DEBUG_LOG("Before Cleaning List: %s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
 
