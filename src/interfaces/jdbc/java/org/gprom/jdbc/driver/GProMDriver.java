@@ -14,6 +14,7 @@ import org.apache.log4j.Logger;
 import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
+import static org.gprom.jdbc.driver.GProMDriverProperties.*;
 import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin;
 import org.gprom.jdbc.metadata_lookup.oracle.OracleMetadataLookup;
@@ -60,13 +61,12 @@ public class GProMDriver implements Driver {
 			return null;
 
 		/** should we load the backend driver or not */
-		boolean loadBackendDriver = info.containsKey(GProMDriverProperties.LOAD_DRIVER) 
-				? Boolean.parseBoolean(info.getProperty(GProMDriverProperties.LOAD_DRIVER)) 
-				: false;
+		boolean loadBackendDriver = Boolean.parseBoolean(GProMDriverProperties.getValueOrDefault(
+				GProMDriverProperties.LOAD_DRIVER, info)); 
+				
 		/** should we use a Java JDBC based metadata lookup plugin */		
-		boolean useJDBCMetadataLookup = info.containsKey(GProMDriverProperties.JDBC_METADATA_LOOKUP) 
-				? Boolean.parseBoolean(info.getProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP)) 
-				: false; 
+		boolean useJDBCMetadataLookup = Boolean.parseBoolean(GProMDriverProperties.getValueOrDefault(
+				GProMDriverProperties.JDBC_METADATA_LOOKUP, info));
 		
 		/*
 		 * Load the driver to connect to the database and create a new

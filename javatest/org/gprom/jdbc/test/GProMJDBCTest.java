@@ -39,10 +39,10 @@ public class GProMJDBCTest {
 				"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
 		GProMConnection con = null;
 		Native.setProtected(true);
-		log.error("Proetcted: " + Native.isProtected());
+		log.error(url);
 		try{
 			Class.forName("org.gprom.jdbc.driver.GProMDriver");
-			Class.forName(driverURL);
+//			Class.forName(driverURL);
 //			w.setLogLevel(2);
 		} catch(ClassNotFoundException e){
 			e.printStackTrace();
@@ -51,7 +51,7 @@ public class GProMJDBCTest {
 		}
 		try{
 			Properties info = new Properties();
-			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "TRUE");
+//			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "TRUE");
 			info.setProperty("user", username);
 			info.setProperty("password", password);
 			con = (GProMConnection) DriverManager.getConnection(url,info);
@@ -62,7 +62,7 @@ public class GProMJDBCTest {
 		}
 		System.out.println("Connection was successfully");
 
-		con.getW().setLogLevel(0);
+		con.getW().setLogLevel(3);
 		con.getW().setBoolOption("pi_cs_use_composable", true);
 		con.getW().setBoolOption("optimize_operator_model", true);
 		con.getW().setBoolOption("aggressive_model_checking", true);
