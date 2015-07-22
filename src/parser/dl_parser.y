@@ -41,14 +41,7 @@ Node *dlParseResult = NULL;
  */
 %token <stringVal> IDENT
 %token <stringVal> VARIDENT
-
-/* 
- * Functions and operators 
- */ 
-%token <stringVal> AMMSC
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' ')' '('
-%token <stringVal> STRCONCAT 
-
+  
 /*
  * Tokens for in-built keywords
  *        Currently keywords related to basic query are considered.
@@ -62,18 +55,15 @@ Node *dlParseResult = NULL;
 %token <stringVal> stringConst
 
 /* comparison and arithmetic operators */
-%token <stringVal> comparisonOp
+%token <stringVal> comparisonOp arithmeticOp
 
 /*
  * Declare token for operators specify their associativity and precedence
  *
 %left NEGATION
 
-/* Arithmetic operators : FOR TESTING */
-%left '+' '-'
-%left '*' '/' '%'
-%left STRCONCAT
 %nonassoc '(' ')'
+
 
 /*
  * Types of non-terminal symbols
@@ -83,9 +73,8 @@ Node *dlParseResult = NULL;
 %type <list> stmtList
 %type <node> statement program
 
-%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement
-%type <node> variable constant expression functionCall binaryOperatorExpression 
-%type <list> bodyAtomList argList exprList rulebody 
+%type <node> rule fact rulehead atom arg variable constant comparison ansrelation prov_statement
+%type <list> atomList argList rulebody 
 
 /* start symbol */
 %start program
@@ -118,40 +107,32 @@ stmtList:
 				$$ = appendToTailOfList($1, $2); 
 			}
 	;
-
-/*
- * Statements can be:
- *
- * 	- rules, e.g., Q(X) :- R(X,Y);
- *  - facts, e.g., R(1,2);
- * 	- answer relation declarations, e.g., ANS : Q;
- * 	- provenance requests, e.g., WHY(Q(1));
- */
+	
 statement:
 		rule { RULELOG("statement::rule"); $$ = $1; }
 		| fact { RULELOG("statement::fact"); $$ = $1; }
 		| ansrelation { RULELOG("statement::ansrelation"); $$ = $1; }
-		| provStatement { RULELOG("statement::prov"); $$ = $1; }
+		| prov_statement { RULELOG("statement::prov"); $$ = $1; }
 	;
 	
-provStatement:
-		WHYPROV '(' relAtom ')' '.'
+prov_statement:
+		WHYPROV '(' atom ')' ';'
 		{
-			RULELOG("provStatement::WHY");
+			RULELOG("prov_statement::WHY");
 			$$ = (Node *) createNodeKeyValue(
 					(Node *) createConstString("WHY_PROV"), 
 					(Node *) $3);
 		}
-		| WHYNOTPROV '(' relAtom ')' '.'
+		| WHYNOTPROV '(' atom ')' ';'
 		{
-			RULELOG("provStatement::WHYNOT");
+			RULELOG("prov_statement::WHYNOT");
 			$$ = (Node *) createNodeKeyValue(
 					(Node *) createConstString("WHYNOT_PROV"),
 					(Node *) $3);
 		}
-		| GP '.'
+		| GP ';'
 		{
-			RULELOG("provStatement::GP");
+			RULELOG("prov_statement::GP");
 			$$ = (Node *) createNodeKeyValue(
 					(Node *) createConstString("FULL_GP_PROV"), 
 					(Node *) createConstBool(TRUE));
@@ -159,7 +140,7 @@ provStatement:
 	;	
 	
 rule:
-		rulehead RULE_IMPLICATION rulebody '.' 
+		rulehead RULE_IMPLICATION rulebody ';' 
 			{ 
 				RULELOG("rule::head::body"); 
 				$$ = (Node *) createDLRule((DLAtom *) $1,$3); 
@@ -167,11 +148,11 @@ rule:
 	;
 	
 fact:
-		rulehead '.' { RULELOG("fact::rulehead"); $$ = $1; }
+		atom ';' { RULELOG("fact::atom"); $$ = $1; } /* do more elegant? */
 	;
 
 ansrelation:
-		ANS ':' name '.'
+		ANS ':' name ';'
 		{
 			RULELOG("ansrelation");
 			$$ = (Node *) createConstString($3);
@@ -179,37 +160,37 @@ ansrelation:
 	;
 
 rulehead:
-		headatom  { RULELOG("rulehead::atom"); $$ = $1; }
+		atom  { RULELOG("rulehead::atom"); $$ = $1; }
 	;
 	
 rulebody:
-		bodyAtomList { RULELOG("rulebody::atomList"); $$ = $1; }
+		atomList { RULELOG("rulebody::atomList"); $$ = $1; }
 	;
 	
-/* we allow for expressions in the head atom, e.g., Q(X + 1) :- R(X,Y); */
-headatom:
-		name '(' exprList ')'
+atomList:
+		atomList ',' atom 
 			{
-				RULELOG("");
-				$$ = (Node *) createDLAtom($1, $3, FALSE);
-			}
-	;
-	
-bodyAtomList:
-		bodyAtomList ',' bodyAtom
-			{
-				RULELOG("atomList::bodyAtom");
+				RULELOG("atomList::atom");
 				$$ = appendToTailOfList($1,$3); 
 			}
-		| bodyAtom
+		| atom
 			{
 				RULELOG("atomList::atom");
 				$$ = singleton($1); 
 			}
 	;
 
-bodyAtom:
- 		relAtom { RULELOG("bodyAtom::relAtom"); $$ = $1; }
+atom:
+ 		NEGATION name '(' argList ')' 
+ 			{ 
+ 				RULELOG("atom::NEGATION");
+ 				$$ = (Node *) createDLAtom($2, $4, TRUE); 
+			}
+ 		| name '(' argList ')' 
+ 			{
+ 				RULELOG("atom::name");
+ 				$$ = (Node *) createDLAtom($1, $3, FALSE); 
+			}
 		| comparison
 			{
 				RULELOG("atom::comparison");
@@ -217,19 +198,6 @@ bodyAtom:
 			}
  	;
 
-relAtom:
- 		NEGATION name '(' argList ')' 
- 			{ 
- 				RULELOG("relAtom::negative");
- 				$$ = (Node *) createDLAtom($2, $4, TRUE); 
-			}
- 		| name '(' argList ')' 
- 			{
- 				RULELOG("relAtom::positive");
- 				$$ = (Node *) createDLAtom($1, $3, FALSE); 
-			}		
-	;
-	
 /*
 constAtom:
 		IDENT '(' constList ')' 
@@ -268,7 +236,7 @@ comparison:
 			}
 	;
 
-/* args */ 	
+/* add skolem */ 	
 arg:
  		variable 
  			{
@@ -281,101 +249,7 @@ arg:
  				$$ = $1; 
 			}
 	;
-
-/*
- * Rule to parse an expression list
- */
-exprList: 
-        expression        { RULELOG("exprList::SINGLETON"); $$ = singleton($1); }
-        | exprList ',' expression
-             {
-                  RULELOG("exprList::exprList::expression");
-                  $$ = appendToTailOfList($1, $3);
-             }
-    ;
-
-	
-/*
- * Rule to parse expressions used in various lists
- */
-expression:
-		'(' expression ')'				{ RULELOG("expression::bracked"); $$ = $2; } 
-		| constant     				   	{ RULELOG("expression::constant"); }
-        | variable 	        		  	{ RULELOG("expression::variable"); }
-        | binaryOperatorExpression		{ RULELOG("expression::binaryOperatorExpression"); } 
-        | functionCall	        		{ RULELOG("expression::functionCall"); }
-    ;
-
-/*
- * Parse operator expression
- */
- 
-binaryOperatorExpression: 
-
-    /* Arithmatic Operations */
-        expression '+' expression
-            {
-                RULELOG("binaryOperatorExpression:: '+' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-        | expression '-' expression
-            {
-                RULELOG("binaryOperatorExpression:: '-' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-        | expression '*' expression
-            {
-                RULELOG("binaryOperatorExpression:: '*' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-        | expression '/' expression
-            {
-                RULELOG("binaryOperatorExpression:: '/' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-        | expression '%' expression
-            {
-                RULELOG("binaryOperatorExpression:: '%' ");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr($2, expr);
-            }
-    /* String Operators */
-        | expression STRCONCAT expression
-            {
-                RULELOG("binaryOperatorExpression::comparisonOps");
-                List *expr = singleton($1);
-                expr = appendToTailOfList(expr, $3);
-                $$ = (Node *) createOpExpr("||", expr);
-            }
-    ;
-
-
-/*
- * Rule to parse function calls (provision for aggregation)
- */
-functionCall: 
-        name '(' exprList ')'          
-            {
-                RULELOG("functionCall::IDENTIFIER::exprList");
-				FunctionCall *f = createFunctionCall($1, $3);
-            }
-		| AMMSC '(' exprList ')'          
-            {
-                RULELOG("functionCall::AMMSC::exprList");
-				FunctionCall *f = createFunctionCall($1, $3); 
-            }
-    ;
-
-	
+ 		
 variable:
 		VARIDENT 
 			{

@@ -427,15 +427,10 @@ getAtomVars(DLAtom *a)
 static List *
 getComparisonVars(DLComparison *a)
 {
-    List *result = NIL;
+    DLVar *l = getNthOfListP(a->opExpr->args,0);
+    DLVar *r = getNthOfListP(a->opExpr->args,1);
 
-    FOREACH(Node,arg,a->opExpr->args)
-    {
-        if (isA(arg, DLVar))
-            result = appendToTailOfList(result, arg);
-    }
-
-    return result;
+    return LIST_MAKE(l,r);
 }
 
 Node *

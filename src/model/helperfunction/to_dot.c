@@ -325,17 +325,9 @@ opToDot(StringInfo str, QueryOperator *op, Set *nodeDone)
                 appendStringInfo(str, "\t%s [label=\"&#945;\",color="
                         COLOR_DARK_RED ",fillcolor="
                         COLOR_LIGHT_RED ",texlbl=\"$_{%s}^{%s}\\omega_{%s}$\"];\n",
-                        opName,
                         strdup(partLabel->data),
                         strdup(orderLabel->data),
                         strdup(fLabel->data));
-            }
-            else
-            {
-                appendStringInfo(str, "\t%s [label=\"&#945;\",color="
-                          COLOR_DARK_RED ",fillcolor="
-                          COLOR_LIGHT_RED ",texlbl=\"$\\omega$\"];\n",
-                          opName);
             }
         }
             break;

@@ -136,9 +136,6 @@
 /*******************************************************************************
  * Definitions
  */
-#ifndef NULL
-#define NULL (void *) 0
-#endif
 
 /* boolean type and consts */
 #ifndef boolean

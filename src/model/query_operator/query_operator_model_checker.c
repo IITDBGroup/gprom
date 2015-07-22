@@ -405,23 +405,6 @@ checkUniqueAttrNames (QueryOperator *op)
 boolean
 checkParentChildLinks (QueryOperator *op)
 {
-    // check that no operator has itself as child or parent
-    FOREACH(QueryOperator,o,op->inputs)
-        if (o == op)
-        {
-            ERROR_LOG("operator \n%s\n\n has itself as a child",
-                                operatorToOverviewString((Node *) op));
-                        return FALSE;
-        }
-
-    FOREACH(QueryOperator,o,op->parents)
-        if (o == op)
-        {
-            ERROR_LOG("operator \n%s\n\n has itself as a parent",
-                                operatorToOverviewString((Node *) op));
-                        return FALSE;
-        }
-
     // check that children have this node as their parent
     FOREACH(QueryOperator,o,op->inputs)
     {

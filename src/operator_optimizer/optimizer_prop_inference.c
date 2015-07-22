@@ -85,7 +85,7 @@ computeKeyProp (QueryOperator *root)
     {
         List *l1 = ((ProjectionOperator *)root)->projExprs;
         List *l2 = NIL;
-        boolean hasKey = FALSE;
+        boolean hasKey = TRUE;
         HashMap *inAtoPos = NEW_MAP(Constant,Constant);
         int i = 0;
 
@@ -100,40 +100,28 @@ computeKeyProp (QueryOperator *root)
             i++;
         }
 
-        FOREACH(Set,s,keyList)
+        FOREACH(char, op, keyList)
         {
-            boolean keyPreserved = TRUE;
-
-            FOREACH_SET(char, op, s)
+            //use HASHMAP
+            if(!hasMapStringKey(inAtoPos, op))
             {
-                //use HASHMAP
-                if(!hasMapStringKey(inAtoPos, op))
-                {
-                    keyPreserved = FALSE;
-                    break;
-                }
+                hasKey = FALSE;
+                break;
             }
-            hasKey |= keyPreserved;
         }
         if (hasKey)
         {
             //TODO replace input attribute names with output attribute names
             setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
-            FOREACH_LC(setLc,keyList)
+            FOREACH_LC(lc,keyList)
             {
-                Set *s = (Set *) LC_P_VAL(setLc);
-                Set *newS = STRSET();
-                LC_P_VAL(setLc) = newS;
+                char *inA = (char *) LC_P_VAL(lc);
+                char *outA;
+                int aPos;
 
-                FOREACH_SET(char,inA,s)
-                {
-                    char *outA;
-                    int aPos;
-
-                    aPos = INT_VALUE(MAP_GET_STRING(inAtoPos, inA));
-                    outA = strdup(getAttrNameByPos(root, aPos));
-                    addToSet(newS, outA);
-                }
+                aPos = INT_VALUE(MAP_GET_STRING(inAtoPos, inA));
+                outA = strdup(getAttrNameByPos(root, aPos));
+                LC_P_VAL(lc) = outA;
             }
         }
         else
@@ -715,8 +703,7 @@ computeECPropTopDown (QueryOperator *root)
 		Node *nRoot = getStringProperty(root, PROP_STORE_SET_EC);
 		QueryOperator *childOp = OP_LCHILD(root);
 
-		if(LIST_LENGTH(childOp->parents) == 1)
-		      setStringProperty((QueryOperator *)childOp, PROP_STORE_SET_EC, nRoot);
+		setStringProperty((QueryOperator *)childOp, PROP_STORE_SET_EC, nRoot);
 	}
 
 	else if(isA(root, JsonTableOperator))
@@ -1193,7 +1180,7 @@ void initializeSetProp(QueryOperator *root)
 void
 computeSetProp (QueryOperator *root)
 {
-	if (isA(root, ProjectionOperator) || isA(root, SelectionOperator) || isA(root, JsonTableOperator) || isA(root, WindowOperator) || isA(root, OrderOperator) || isA(root, AggregationOperator))
+	if (isA(root, ProjectionOperator) || isA(root, SelectionOperator) || isA(root, JsonTableOperator))
 	{
 		QueryOperator *lChild = OP_LCHILD(root);
 
@@ -1218,7 +1205,7 @@ computeSetProp (QueryOperator *root)
 		}
 	}
 
-	if (isA(root, JoinOperator) || isA(root, SetOperator))
+	if (isA(root, JoinOperator))
 	{
 		QueryOperator *lChild = OP_LCHILD(root);
 		QueryOperator *rChild = OP_RCHILD(root);
@@ -1305,9 +1292,6 @@ computeReqColProp (QueryOperator *root)
 	 */
 	Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
 
-//    List *AttrDefNames = getQueryOperatorAttrNames(root);
-//    setStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES, (Node *) AttrDefNames);
-
 	if(isA(root, SelectionOperator))
 	{
 		//icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
@@ -1317,8 +1301,6 @@ computeReqColProp (QueryOperator *root)
 		Operator *condOp = (Operator *)(((SelectionOperator *)root)->cond);
 		Set *condicols = STRSET();
 		condicols = AddAttrOfSelectCondToSet(condicols,condOp);
-		//List *condAttrs = getAttrReferences((((SelectionOperator *)root)->cond));
-		//Set *condicols = makeStrSetFromList(condAttrs);
 		DEBUG_LOG("length of set: %d \n",setSize(condicols));
 
 		/*
@@ -1331,18 +1313,10 @@ computeReqColProp (QueryOperator *root)
 		//Union this two sets and set it as its child icols property
 		Set *eicols;
 		eicols = unionSets(icols, condicols);
-
-		//Check if child has more parents
-		if(HAS_STRING_PROP(OP_LCHILD(root), PROP_STORE_SET_ICOLS))
-		{
-			Set *duicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
-			eicols = unionSets(eicols, duicols);
-
-		}
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 	}
 
-	if(isA(root, ProjectionOperator))
+	else if(isA(root, ProjectionOperator))
 	{
 		//Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
 		//Set *childicols = (Set*)getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_ICOLS));
@@ -1358,10 +1332,9 @@ computeReqColProp (QueryOperator *root)
         //schema = {A,X,D}
         //eicols = {A,B,C}
         //if AttrDefName in icols, get correspond AttrRef name (need to check if it is operator)
-
         FORBOTH_LC(a,ar, attrDefNames,attrRefList)
         {
-            //DONE: TODO this should deal with any other type of expression
+            //TODO this should deal with any other type of expression
         	if(hasSetElem(icols,LC_P_VAL(a)))
         	{
         	    List *attrRefs = getAttrReferences(LC_P_VAL(ar));
@@ -1369,59 +1342,26 @@ computeReqColProp (QueryOperator *root)
 //        			eicolsList = getAttrNameFromOpExpList(eicolsList, (Operator *)(LC_P_VAL(ar)));
 //        		else if(isA(LC_P_VAL(ar), AttributeReference))
 //        			eicolsList = appendToTailOfList(eicolsList, strdup(((AttributeReference *)(LC_P_VAL(ar)))->name));
-
-        		eicolsList = concatTwoLists(eicolsList, attrRefListToStringList(attrRefs));
-
+        		eicolsList = CONCAT_LISTS(eicolsList, attrRefListToStringList(attrRefs));
         	}
-
         }
+
         Set *eicols = makeStrSetFromList(eicolsList);
-
-		//Check if child has more parents
-		if(HAS_STRING_PROP(OP_LCHILD(root), PROP_STORE_SET_ICOLS))
-		{
-			Set *duicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
-			eicols = unionSets(eicols, duicols);
-
-		}
-
         setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 	}
 
-	if(isA(root, DuplicateRemoval))
+	else if(isA(root, DuplicateRemoval))
 	{
 		Set *eicols = copyObject(icols);
-
-		//Check if child has more parents
-		if(HAS_STRING_PROP(OP_LCHILD(root), PROP_STORE_SET_ICOLS))
-		{
-			Set *duicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
-			eicols = unionSets(eicols, duicols);
-
-		}
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 	}
 
-	if (isA(root, JoinOperator))
+	else if (isA(root, JoinOperator))
 	{
 		List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
 		List *l2 = getQueryOperatorAttrNames(OP_RCHILD(root));
 		Set *s1 = makeStrSetFromList(l1);
 		Set *s2 = makeStrSetFromList(l2);
-
-		List *attrs = root->schema->attrDefs;
-		List *lattrs = OP_LCHILD(root)->schema->attrDefs;
-		List *rattrs = OP_RCHILD(root)->schema->attrDefs;
-		List *lrattrs = concatTwoLists(copyObject(lattrs), copyObject(rattrs));
-		HashMap *nameMap = NEW_MAP(Node,Node);
-		if(LIST_LENGTH(attrs) ==  LIST_LENGTH(lrattrs))
-		{
-			FORBOTH(AttributeDef, ad, lrad, attrs, lrattrs)
-		    {
-				MAP_ADD_STRING_KEY(nameMap, ad->attrName, createConstString(lrad->attrName));
-	     	}
-		}
-		setStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES, (Node *) nameMap);
 
 		if(((JoinOperator*)root)->joinType == JOIN_CROSS)
 		{
@@ -1434,15 +1374,12 @@ computeReqColProp (QueryOperator *root)
 			setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)e2icols);
 		}
 
-		if (((JoinOperator*)root)->joinType == JOIN_INNER || ((JoinOperator*)root)->joinType == JOIN_LEFT_OUTER || ((JoinOperator*)root)->joinType == JOIN_RIGHT_OUTER || ((JoinOperator*)root)->joinType == JOIN_FULL_OUTER)
+		if (((JoinOperator*)root)->joinType == JOIN_INNER)
 		{
-			//Operator *condOp = (Operator *)(((JoinOperator *)root)->cond);
-			//DONE: TODO Initialize Set without having some value
-			//Set *condicols = STRSET();
-			//condicols = AddAttrOfSelectCondToSet(condicols,condOp);
-			List *attrRefs = getAttrReferences(((JoinOperator *)root)->cond);
-			List *nameList = attrRefListToStringList(attrRefs);
-			Set *condicols = makeStrSetFromList(nameList);
+			Operator *condOp = (Operator *)(((JoinOperator *)root)->cond);
+			//TODO Initialize Set without having some value
+			Set *condicols = STRSET();
+			condicols = AddAttrOfSelectCondToSet(condicols,condOp);
 
 			/*
 			 * Reset itself's property which should union the condition set
@@ -1461,7 +1398,7 @@ computeReqColProp (QueryOperator *root)
 		}
 	}
 
-	if(isA(root, AggregationOperator))
+	else if(isA(root, AggregationOperator))
 	{
 		AggregationOperator *agg = (AggregationOperator *)root;
 		Set *set = STRSET();
@@ -1491,7 +1428,7 @@ computeReqColProp (QueryOperator *root)
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)set);
 	}
 
-	if(isA(root,OrderOperator))
+	else if(isA(root,OrderOperator))
 	{
 		//Get attributes from order by
 		Set *ordSet = STRSET();
@@ -1512,7 +1449,7 @@ computeReqColProp (QueryOperator *root)
 		setStringProperty((QueryOperator *) root, PROP_STORE_SET_ICOLS, (Node *)eicols);
 	}
 
-	if(isA(root,WindowOperator))
+	else if(isA(root,WindowOperator))
 	{
 		/*
 		 * Get need attribute name in window function, such as the attributes
@@ -1521,9 +1458,7 @@ computeReqColProp (QueryOperator *root)
 
 		//(1)FunctionalCall, e.g. SUM(A), add A to set
         Set *winSet = STRSET();
-        //List *funList = ((FunctionCall *)(((WindowOperator *)root)->f))->args;
-        List *funList = getAttrReferences(((WindowOperator *)root)->f);
-
+        List *funList = ((FunctionCall *)(((WindowOperator *)root)->f))->args;
         FOREACH(AttributeReference, ar, funList)
         {
         	addToSet(winSet,strdup(ar->name));
@@ -1566,8 +1501,9 @@ computeReqColProp (QueryOperator *root)
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
 
 	}
-	if(isA(root,JsonTableOperator))
+	else if(isA(root,JsonTableOperator))
 	{
+
 		char *b = ((JsonTableOperator *)root)->jsonColumn->name;
 		Set *doc = MAKE_STR_SET(b);
 		DEBUG_LOG("Json doc name: %s", b);
@@ -1580,14 +1516,6 @@ computeReqColProp (QueryOperator *root)
 
 		Set *eicols = intersectSets(newIcols, childAttrNames);
 		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)eicols);
-	}
-
-	if(isA(root, SetOperator))
-	{
-		Set *elicols = copyObject(icols);
-		Set *ericols = copyObject(icols);
-		setStringProperty((QueryOperator *) OP_LCHILD(root), PROP_STORE_SET_ICOLS, (Node *)elicols);
-		setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)ericols);
 	}
 
 	FOREACH(QueryOperator, o, root->inputs)

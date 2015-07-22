@@ -138,8 +138,4 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_NORM_ATOM "NORMALIZED_ATOM"
 #define DL_ORIG_ATOM "ORIG_ATOM"
 #define DL_RULE_ID "RULE_ID"
-
-// property keys for DT information
-#define DL_PRED_DTS "PREDICATE_DATATYPES"
-
 #endif /* INCLUDE_MODEL_DATALOG_DATALOG_MODEL_H_ */

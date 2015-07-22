@@ -30,14 +30,11 @@
 static Node *translateProgram(DLProgram *p);
 static QueryOperator *translateRule(DLRule *r);
 static QueryOperator *translateGoal(DLAtom *r, int goalPos);
-static void analyzeProgramDTs (DLProgram *p, HashMap *predToRules);
-static void analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules);
-static void setVarDTs (Node *expr, HashMap *varToDT);
 static QueryOperator *joinGoalTranslations (DLRule *r, List *goalTrans);
 static Node *createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigAttrs);
 static List *getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs);
 static Node *replaceDLVarMutator (Node *node, HashMap *vToA);
-static Node *createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTmap);
+static Node *createCondFromComparisons (List *comparisons, QueryOperator *in);
 static void makeNamesUnique (List *names, Set *allNames);
 static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
 static void adaptProjectionAttrRef (QueryOperator *o);
@@ -79,7 +76,6 @@ translateProgram(DLProgram *p)
     List *translation = NIL; // list of sinks of a relational algebra graph
     List *singleRuleTrans = NIL;
     HashMap *predToTrans = NEW_MAP(Constant,List);
-    HashMap *predToRules = NEW_MAP(Constant,List);
     Node *answerRel;
 
     // if we want to compute the provenance then construct program
@@ -94,37 +90,11 @@ translateProgram(DLProgram *p)
         return translateParseDL(gpComp);
     }
 
-    // determine pred -> rules
-    FOREACH(DLRule,r,p->rules)
-    {
-        char *headPred = getHeadPredName(r);
-
-        // not first rule for this pred
-        if(MAP_HAS_STRING_KEY(predToRules,headPred))
-        {
-            KeyValue *kv = MAP_GET_STRING_ENTRY(predToRules,headPred);
-            List *pRules = (List *) kv->value;
-            pRules = appendToTailOfList(pRules, r);
-            kv->value = (Node *) pRules;
-        }
-        // first rule for this pred
-        else
-        {
-            List *pRules = singleton(r);
-            MAP_ADD_STRING_KEY(predToRules,headPred,pRules);
-        }
-    }
-
-    // analyze rules to determine data types
-    analyzeProgramDTs(p, predToRules);
-
     // translate rules
     FOREACH(DLRule,r,p->rules)
     {
         QueryOperator *tRule = translateRule(r);
         char *headPred = getHeadPredName(r);
-
-        DEBUG_LOG("translate rule: %s", datalogToOverviewString((Node *) r));
 
         if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
              ASSERT(checkModel((QueryOperator *) tRule));
@@ -164,7 +134,7 @@ translateProgram(DLProgram *p)
         }
 
         // if union is used, then add duplicate removal
-        if (LIST_LENGTH(rTs) >= 1)
+        if (LIST_LENGTH(rTs) > 1)
         {
             QueryOperator *old = un;
             un = (QueryOperator *) createDuplicateRemovalOp(NULL, (QueryOperator *) un, NIL,
@@ -195,139 +165,6 @@ translateProgram(DLProgram *p)
     return answerRel;
 }
 
-static void
-analyzeProgramDTs (DLProgram *p, HashMap *predToRules)
-{
-    HashMap *predToDTs = NEW_MAP(Constant,List);
-
-    // determine data types recursively
-    FOREACH(DLRule,r,p->rules)
-        analyzeRuleDTs(r, predToDTs, predToRules);
-
-    // set properties on goals for rule translation
-    FOREACH(DLRule,r,p->rules)
-    {
-        FOREACH(DLNode,a,r->body)
-        {
-            if (isA(a,DLAtom))
-            {
-                DLAtom *atom = (DLAtom *) a;
-                List *dts = (List *) MAP_GET_STRING(predToDTs,atom->rel);
-                ASSERT(dts != NIL);
-
-                setDLProp((DLNode *) a,DL_PRED_DTS,(Node *) dts);
-            }
-        }
-    }
-
-    // set DT properties for all variables in rules
-    FOREACH(DLRule,r,p->rules)
-    {
-        HashMap *varToDT = NEW_MAP(Constant,Constant);
-
-        FOREACH(DLNode,a,r->body)
-        {
-            if (isA(a,DLAtom))
-            {
-                DLAtom *atom = (DLAtom *) a;
-                List *dts = (List *) MAP_GET_STRING(predToDTs,atom->rel);
-                ASSERT(dts != NIL);
-
-                // scan through arguments and their data types to determine datatypes of variables
-                FORBOTH_LC(argLc,dtLc,atom->args,dts)
-                {
-                    Node *arg = LC_P_VAL(argLc);
-                    DataType dt = (DataType) LC_INT_VAL(dtLc);
-
-                    if (isA(arg, DLVar))
-                    {
-                        DLVar *v = (DLVar *) arg;
-                        MAP_ADD_STRING_KEY(varToDT, v->name, createConstInt((int) dt));
-                    }
-                }
-            }
-        }
-
-        setDLProp((DLNode *) r,DL_PRED_DTS,(Node *) varToDT);
-    }
-
-    DEBUG_LOG("analyzed DTs for datalog program before translation: %s", beatify(nodeToString((Node *) p)));
-}
-
-static void
-analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules)
-{
-    HashMap *varToDT = NEW_MAP(Constant,Constant);
-
-    // determine goal dts
-    FOREACH(Node,n,r->body)
-    {
-        if (isA(n,DLAtom))
-        {
-            DLAtom *a = (DLAtom *) n;
-            List *dts = NIL;
-
-            if (MAP_HAS_STRING_KEY(predToDTs,a->rel))
-                dts = (List *) MAP_GET_STRING(predToDTs, a->rel);
-            else
-            {
-                // idb rel
-                if (DL_HAS_PROP(a,DL_IS_IDB_REL))
-                {
-                    List *rules = (List *) MAP_GET_STRING(predToRules, a->rel);
-
-                    // analyze rules
-                    FOREACH(DLRule,pRule,rules)
-                        analyzeRuleDTs(pRule, predToDTs, predToRules);
-
-                    // now we should have dts available
-                    dts = (List *) MAP_GET_STRING(predToDTs, a->rel);
-                }
-                // edb rels
-                else
-                {
-                    // add DTs if not done already
-                    dts = getAttributeDataTypes(a->rel);
-                    MAP_ADD_STRING_KEY(predToDTs, strdup(a->rel), dts);
-                }
-            }
-            ASSERT(dts != NIL);
-
-
-            // set var -> dt mappings
-            int i = 0;
-            FOREACH(Node,arg,a->args)
-            {
-                if (isA(arg, DLVar))
-                {
-                    DLVar *v = (DLVar *) arg;
-                    MAP_ADD_STRING_KEY(varToDT, v->name,
-                            createConstInt(getNthOfListInt(dts, i)));
-                }
-                i++;
-            }
-        }
-    }
-
-    // determine head dts
-    List *headDTs = NIL;
-    setVarDTs((Node *) r->head->args, varToDT);
-
-    FOREACH(Node,arg,r->head->args)
-        headDTs = appendToTailOfListInt(headDTs, typeOf(arg));
-
-    setDLProp((DLNode *) r->head, DL_PRED_DTS, (Node *) headDTs);
-    MAP_ADD_STRING_KEY(predToDTs, r->head->rel, headDTs );
-}
-
-static void
-setVarDTs (Node *expr, HashMap *varToDT)
-{
-    List *vars = getDLVars (expr);
-    FOREACH(DLVar,v,vars)
-        v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
-}
-
 /*
  * Create algebra expression for one datalog rule. This treats both idb and edb
  *  relations the same by representing them as relation accesses. A rule will be
@@ -347,11 +184,8 @@ translateRule(DLRule *r)
     List *goalTrans = NIL;
     List *conditions = NIL;
     int goalPos = 0;
-    HashMap *varDTmap;
 
     DEBUG_LOG("translate rules: %s", datalogToOverviewString((Node *) r));
-
-    varDTmap = (HashMap *) getDLProp((DLNode *) r, DL_PRED_DTS);
 
     // translate goals
     FOREACH(Node,a,r->body)
@@ -375,7 +209,7 @@ translateRule(DLRule *r)
     // create selection from comparison expression in the rule
     if (!LIST_EMPTY(conditions))
     {
-        Node *cond = createCondFromComparisons(conditions, joinedGoals, varDTmap);
+        Node *cond = createCondFromComparisons(conditions, joinedGoals);
         sel = createSelectionOp(cond, joinedGoals, NIL, NULL);
         addParent(joinedGoals, (QueryOperator *) sel);
     }
@@ -609,20 +443,11 @@ makeNamesUnique (List *names, Set *allNames)
  *
  */
 static Node *
-createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTmap)
+createCondFromComparisons (List *comparisons, QueryOperator *in)
 {
     Node *result = NULL;
     List *attrNames = getQueryOperatorAttrNames(in);
-    List *vars = getDLVars((Node *) comparisons);
 
-    // set correct data types
-    FOREACH(DLVar,v,vars)
-    {
-        DataType dt = (DataType) INT_VALUE(MAP_GET_STRING(varDTmap, v->name));
-        v->dt = dt;
-    }
-
-    // create condition as conjunction of all conditions and replace variable with attribute references
     FOREACH(DLComparison,d,comparisons)
     {
         Node *newC = replaceVarWithAttrRef(copyObject(d->opExpr), attrNames);
@@ -680,13 +505,17 @@ translateGoal(DLAtom *r, int goalPos)
     if (DL_HAS_PROP(r,DL_IS_IDB_REL))
     {
         for(int i = 0; i < LIST_LENGTH(r->args); i++)
+        {
             attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));
+            dts = appendToTailOfListInt(dts, DT_STRING);
+        }
     }
     // is edb, get information from db
     else
+    {
         attrNames = getAttributeNames(r->rel);
-
-    dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
+        dts = getAttributeDataTypes(r->rel);
+    }
 
     // create table access op
     rel = createTableAccessOp(r->rel, NULL, "REL", NIL, attrNames, dts);
@@ -755,8 +584,6 @@ translateGoal(DLAtom *r, int goalPos)
                     LIST_MAKE(createFullAttrReference(strdup(a->attrName),
                             0, i, INVALID_ATTR, a->dataType),
                     copyObject(arg)));
-
-            ASSERT(a->dataType == ((Constant *) arg)->constType);
 
             selExpr = appendToTailOfList(selExpr, comp);
         }

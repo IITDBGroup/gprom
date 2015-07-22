@@ -696,7 +696,6 @@ removeFromTail(List *X)
 	List *result = NIL;
 	ListCell *el;
 	int l = LIST_LENGTH(X);
-	boolean isInt = isIntList(X);
 
     if (l <= 1)
         return NIL;
@@ -705,11 +704,7 @@ removeFromTail(List *X)
     //DEBUG_LOG("remove from list el %s", nodeToString(el->data));
     for(int i=0; i<l-1; i++)
     {
-        if (isInt)
-            result = appendToTailOfListInt(result, LC_INT_VAL(el));
-        else
-            result = appendToTailOfList(result, LC_P_VAL(el));
-
+    	result = appendToTailOfList(result, LC_P_VAL(el));
     	el = el->next;
     }
 

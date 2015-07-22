@@ -18,7 +18,6 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
-#include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
 
 
@@ -26,8 +25,6 @@ static void analyzeDLProgram (DLProgram *p);
 static void analyzeRule (DLRule *r, Set *idbRels, Set *edbRels);
 static void analyzeProv (DLProgram *p, KeyValue *kv);
 static boolean checkHeadSafety (DLRule *r);
-static boolean checkFact (DLAtom *f);
-
 
 Node *
 analyzeDLModel (Node *stmt)
@@ -47,6 +44,7 @@ analyzeDLProgram (DLProgram *p)
     HashMap *relToRule = NEW_MAP(Constant,List); // map idb relations to all rules that have this relation in their head
     List *rules = NIL;
     List *facts = NIL;
+//    List *provComps = NIL;
 
     //TODO infer data types for idb predicates
 
@@ -63,17 +61,14 @@ analyzeDLProgram (DLProgram *p)
             relRules = appendToTailOfList(relRules, r);
             MAP_ADD_STRING_KEY(relToRule,headPred,relRules);
         }
-        // answer relation specification
         else if(isA(r,Constant))
         {
             p->ans = STRING_VALUE(r);
+            //TODO check that it exists
         }
         // fact
         else if(isA(r,DLAtom))
-        {
-            checkFact((DLAtom *) r);
             facts = appendToTailOfList(facts,r);
-        }
         // provenance question
         else if(isA(r,KeyValue))
             analyzeProv(p, (KeyValue *) r);
@@ -84,21 +79,11 @@ analyzeDLProgram (DLProgram *p)
         //TODO check that atom exists and is of right arity and that only constants are used in the fact
     }
 
-    // analyze all rules
     FOREACH(DLRule,r,rules)
         analyzeRule((DLRule *) r, idbRels, edbRels);
 
     p->rules = rules;
     p->facts = facts;
-
-    // check that answer relation exists
-    if (p->ans)
-    {
-        if (!hasSetElem(idbRels, p->ans))
-            FATAL_LOG("no rules found for specified answer relation"
-                    " %s in program:\n\n%s",
-                    p->ans, datalogToOverviewString((Node *) p));
-    }
 
     // store some auxiliary results of analysis in properties
     setDLProp((DLNode *) p, DL_IDB_RELS, (Node *) idbRels);
@@ -167,32 +152,16 @@ analyzeRule (DLRule *r, Set *idbRels, Set *edbRels)
 }
 
 /*
- * Check that facts only use constants
- */
-static boolean
-checkFact (DLAtom *f)
-{
-    FOREACH(Node,arg,f->args)
-    {
-        if (!isConstExpr(arg))
-            FATAL_LOG("datalog facts can only contain constant expressions: %s",
-                    datalogToOverviewString((Node *) f));
-    }
-    return TRUE;
-}
-
-/*
  * Check whether all head variables occur in the body
  */
 static boolean
 checkHeadSafety (DLRule *r)
 {
     DLAtom *h = r->head;
-    List *headVars = getDLVars((Node *) h);
     Set *bodyVars = makeNodeSetFromList(getBodyPredVars(r));
 
     // foreach variable
-    FOREACH(Node,n,headVars)
+    FOREACH(Node,n,h->args)
     {
         if (isA(n, DLVar))
         {

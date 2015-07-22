@@ -60,7 +60,7 @@ mergeUpdateSequence(ProvenanceComputation *op)
     if (addAnnotAttrs)
         addUpdateAnnotationAttrs (op);
 
-    //TODO add projection to remove update annot attribute
+    //TODO add projection to remove update cannot attribute
     QueryOperator *lastUp = (QueryOperator *) getTailOfListP(op->op.inputs);
     List *normalAttrs = NIL;
     CREATE_INT_SEQ(normalAttrs, 0, getNumNormalAttrs(lastUp) - 2, 1);
@@ -702,8 +702,7 @@ removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
 
     DEBUG_LOG("tables that do not only consist of constants are %s", beatify(nodeToString(tableUpdateOrRead)));
 
-//    FOREACH(QueryOperator,u,op->op.inputs)
-    for(int i = 0; i < LIST_LENGTH(op->op.inputs); i++)
+    FOREACH(QueryOperator,u,op->op.inputs)
     {
         List *tables = NIL;
         findTableAccessVisitor((Node *) op, &tables);

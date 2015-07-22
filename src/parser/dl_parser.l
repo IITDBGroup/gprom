@@ -72,7 +72,7 @@ whitespace		({space}+|{comment})
 
 /* numbers */
 integer 		[0-9]+
-decimal 		({integer}*\.{integer}+|{integer}+\.{integer}+)
+decimal 		({integer}*\.{integer}+|{integer}+\.{integer}*)
 float 			(({integer}|{decimal})([eE][+-]?{integer})?)
 
 /* names (e.g., tables, attributes) */
@@ -99,9 +99,9 @@ PLUS					'+'
 MINUS					'-'
 STAR					'*'
 MOD						'%'
-STRCONCAT				"||"
 
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
+arithmeticOps	({PLUS}|{MINUS}|{STAR}|{MOD})
 
 /* KEYWORDS */
 ANS			"ANS"
@@ -127,14 +127,6 @@ GP			"GP"
 {WHY}		TOK(WHYPROV)
 {WHYNOT}	TOK(WHYNOTPROV)
 
-	/* aggregation functions */
-(?i:AVG)	TOK(AMMSC)
-(?i:MIN)	TOK(AMMSC)
-(?i:MAX)	TOK(AMMSC)
-(?i:SUM)	TOK(AMMSC)
-(?i:COUNT)	TOK(AMMSC)
-
-	/* identifier types */
 {variable}	 	UPCASE_TOK(VARIDENT)
 {identifier}	UPCASE_TOK(IDENT)
 
@@ -148,14 +140,10 @@ GP			"GP"
 
 [(),.;:] 			TOKSELF()
 
-	/* comparisons */
-{comparisonOps}		TOK(comparisonOp)
+{comparisonOps}			TOK(comparisonOp)
+{arithmeticOps}			TOK(arithmeticOp)
 
-	/* arithmetic operator */
-[-+*%/]				TOKSELF()
-{STRCONCAT}		TOK(STRCONCAT)
 
-	/* constants */
 {integer}	TOKSAVE(intConst,intVal,atoi)
 {float}		TOKSAVE(floatConst,floatVal,atof)
 

@@ -204,38 +204,16 @@ switchSubtreeWithExisting (QueryOperator *orig, QueryOperator *new)
 {
 	new->parents = CONCAT_LISTS(new->parents, orig->parents);
 	orig->parents = NIL;
-    boolean newParentOfOrig = FALSE;
-    boolean origParentOfNew = FALSE;
 
 	// adapt inputs of "orig"'s parents
-    // adapt original parent's inputs
     FOREACH(QueryOperator,parent,new->parents)
     {
-        // handle case when orig was a child of new
-        if (parent == new)
+        FOREACH(QueryOperator,pChild,parent->inputs)
         {
-            orig->parents = singleton(new);
-            newParentOfOrig  = TRUE;
-        }
-        // handle case when new was a child of orig
-        else if (parent == orig)
-        {
-            origParentOfNew = TRUE;
-        }
-        else
-        {
-            FOREACH(QueryOperator,pChild,parent->inputs)
-            {
-                if (equal(pChild,orig))
-                    pChild_his_cell->data.ptr_value = new;
-            }
+            if (equal(pChild,orig))
+                pChild_his_cell->data.ptr_value = new;
         }
     }
-
-    if (newParentOfOrig)
-        removeParentFromOps(singleton(new), new);
-    if (origParentOfNew)
-        removeParentFromOps(singleton(new), orig);
 }
 
 /*

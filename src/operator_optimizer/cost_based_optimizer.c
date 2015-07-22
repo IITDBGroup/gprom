@@ -31,6 +31,8 @@
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
+#include <sys/time.h>
+
 
 static List *X1;
 static List *Y1;
@@ -66,7 +68,7 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
         char *result = strdup(rewrittenSQL);
         unsigned long long int cost = getCostEstimation(result);//TODO not what is returned by the function
         DEBUG_LOG("Cost of the rewritten Query is = %d\n", cost);
-        INFO_LOG("plan for choice %s is\n%s", beatify(nodeToString(Y1)),
+        DEBUG_LOG("plan for choice %s is\n%s", beatify(nodeToString(Y1)),
                 rewrittenSQL);
 
 	if(cost < cost1)
