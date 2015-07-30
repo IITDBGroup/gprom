@@ -971,7 +971,9 @@ removeRedundantDuplicateOperatorBySet(QueryOperator *root)
 		QueryOperator *lChild = OP_LCHILD(root);
 
 		// Remove Parent and make lChild as the new parent
-		switchSubtrees((QueryOperator *) root, lChild);
+		//switchSubtrees((QueryOperator *) root, lChild);
+
+		switchSubtreeWithExisting((QueryOperator *) root, lChild);
 		root = lChild;
 		removeRedundantDuplicateOperatorBySet(root);
 	}
