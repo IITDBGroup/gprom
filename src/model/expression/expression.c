@@ -18,7 +18,7 @@
 #include "model/list/list.h"
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
-
+#include "utility/string_utils.h"
 
 typedef struct FindNotesContext
 {
@@ -58,6 +58,17 @@ createFullAttrReference (char *name, int fromClause, int attrPos,
     result->attrPosition = attrPos;
     result->outerLevelsUp = outerLevelsUp;
     result->attrType= attrType;
+
+    return result;
+}
+
+CastExpr *
+createCastExpr (Node *expr, DataType resultDt)
+{
+    CastExpr *result = makeNode(CastExpr);
+
+    result->expr = expr;
+    result->resultDT = resultDt;
 
     return result;
 }
@@ -491,6 +502,18 @@ isConstExpr (Node *expr)
              break;
     }
     return FALSE;
+}
+
+DataType
+SQLdataTypeToDataType (char *dt)
+{
+    //TODO outsource to metadatalookup for now does only Oracle
+    if (isPrefix(dt, "NUMERIC") || streq(dt, "NUMBER"))
+        return DT_INT; //TODO may also be float
+    if (isPrefix(dt, "VARCHAR"))
+        return DT_STRING;
+    FATAL_LOG("unkown SQL datatype %s", dt);
+    return DT_INT;
 }
 
 DataType

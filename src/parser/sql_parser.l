@@ -197,6 +197,7 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 (?i:STATEMENT)		TOK(STATEMENT)
 (?i:ANNOTATIONS)	TOK(ANNOTATIONS)
 (?i:NO)				TOK(NO)
+(?i:CAST)			TOK(CAST)
 
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)

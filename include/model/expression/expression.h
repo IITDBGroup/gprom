@@ -162,6 +162,7 @@ extern Operator *createOpExpr (char *name, List *args);
 extern AttributeReference *createAttributeReference (char *name);
 extern AttributeReference *createFullAttrReference (char *name, int fromClause, int attrPos,
         int outerLevelsUp, DataType attrType);
+extern CastExpr *createCastExpr (Node *expr, DataType resultDt);
 extern Node *andExprList (List *exprs);
 extern Node *andExprs (Node *expr, ...);
 extern Node *orExprs (Node *expr, ...);
@@ -199,6 +200,8 @@ extern Constant *createNullConst (DataType dt);
 extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
 extern boolean isConstExpr (Node *expr);
+
+extern DataType SQLdataTypeToDataType (char *dt);
 
 /* create an SQL expression from an expression tree */
 extern char *exprToSQL (Node *expr);

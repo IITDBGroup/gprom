@@ -73,6 +73,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 %token <stringVal> NULLS FIRST LAST ASC DESC
 %token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE
+%token <stringVal> CAST
 
 %token <stringVal> DUMMYEXPR
 
@@ -120,7 +121,7 @@ Node *bisonParseResult = NULL;
 //			 optInsertAttrList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
-%type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse
+%type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
 %type <node> overClause windowSpec optWindowFrame windowBound
 %type <node> jsonTable jsonColInfoItem 
 %type <node> binaryOperatorExpression unaryOperatorExpression
@@ -590,6 +591,7 @@ expression:
         | binaryOperatorExpression		{ RULELOG("expression::binaryOperatorExpression"); } 
         | unaryOperatorExpression       { RULELOG("expression::unaryOperatorExpression"); }
         | sqlFunctionCall        		{ RULELOG("expression::sqlFunctionCall"); }
+        | castExpression				{ RULELOG("expression::castExpression"); }
 		| caseExpression				{ RULELOG("expression::case"); }
 		| ROWNUM						{ RULELOG("expression::ROWNUM"); $$ = (Node *) makeNode(RowNumExpr); }
 /*        | '(' queryStmt ')'       { RULELOG ("expression::subQuery"); $$ = $2; } */
@@ -756,6 +758,18 @@ sqlFunctionCall:
                 	$$ = (Node *) f; 
             }
     ;
+
+/*
+ * Rule for parsing CAST (expr AS type)
+ */
+castExpression:
+		CAST '(' expression AS identifier ')'
+			{
+				RULELOG("castExpression");
+				CastExpr *c = createCastExpr($3, SQLdataTypeToDataType($5));
+				$$ = (Node *) c;
+			}
+	;
 
 /*
  * Rule to parser CASE expressions
