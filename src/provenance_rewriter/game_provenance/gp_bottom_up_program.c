@@ -204,7 +204,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
         // add boolean args 07.2015
         DLVar *createArgs;
-        List *addArgs;
+        List *addArgs = NIL;
 
         if (!ruleWon) {
 
