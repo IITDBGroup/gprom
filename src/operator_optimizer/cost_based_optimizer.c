@@ -53,8 +53,10 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
     cost1 = ULLONG_MAX;
     plan = NULL;
     float optTime = 0.0;
+    int planCount = 0;
+    int maxPlans = getIntOption(OPTION_COST_BASED_MAX_PLANS);
 
-    while(continueOptimization(optTime,cost1))
+    while(continueOptimization(optTime,cost1) && (maxPlans == -1 || planCount < maxPlans))
     {
         //Keep track of time spent in loop
         struct timeval tvalBefore, tvalAfter;
@@ -66,10 +68,11 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
         char *result = strdup(rewrittenSQL);
         unsigned long long int cost = getCostEstimation(result);//TODO not what is returned by the function
         DEBUG_LOG("Cost of the rewritten Query is = %d\n", cost);
-        INFO_LOG("plan for choice %s is\n%s", beatify(nodeToString(Y1)),
+        INFO_LOG("plan (%u) for choice %s is\n%s", planCount, beatify(nodeToString(Y1)),
                 rewrittenSQL);
+        ERROR_LOG("plan %u", planCount);
 
-	if(cost < cost1)
+        if(cost < cost1)
         {
             cost1 = cost;
             plan = rewrittenSQL;
@@ -78,13 +81,16 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 
         // compute new X1
         reSetX1();
-	if (X1 == NIL)
-	    break;
+        if (X1 == NIL)
+            break;
 
         gettimeofday (&tvalAfter, NULL);
         optTime += (float)(tvalAfter.tv_sec - tvalBefore.tv_sec) / 1000000;
+        planCount++;
     }
     FREE(result);
+
+    INFO_LOG("COST-BASED OPTIMIZATION: considered %u plans in total");
 
     return plan;
 }

@@ -966,17 +966,33 @@ removeRedundantDuplicateOperatorBySetWithInit(QueryOperator *root)
 QueryOperator *
 removeRedundantDuplicateOperatorBySet(QueryOperator *root)
 {
-	if(isA(root, DuplicateRemoval) && (GET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET) == TRUE))
-	{
-		QueryOperator *lChild = OP_LCHILD(root);
+    // only remove duprev
+    if (isA(root, DuplicateRemoval) && (GET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET) == TRUE))
+    {
+        // make an optimization choice
+        if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+        {
+            int res = callback(2);
 
-		// Remove Parent and make lChild as the new parent
-		//switchSubtrees((QueryOperator *) root, lChild);
+            // only remove if optimizer decides so
+            if (res == 0)
+            {
+                QueryOperator *lChild = OP_LCHILD(root);
+                switchSubtreeWithExisting((QueryOperator *) root, lChild);
+                root = lChild;
+                return removeRedundantDuplicateOperatorBySet(root);
+            }
+        }
+        else
+        {
 
-		switchSubtreeWithExisting((QueryOperator *) root, lChild);
-		root = lChild;
-		removeRedundantDuplicateOperatorBySet(root);
-	}
+            QueryOperator *lChild = OP_LCHILD(root);
+
+            switchSubtreeWithExisting((QueryOperator *) root, lChild);
+            root = lChild;
+            return removeRedundantDuplicateOperatorBySet(root);
+        }
+    }
 
     FOREACH(QueryOperator, o, root->inputs)
         removeRedundantDuplicateOperatorBySet(o);
@@ -1014,7 +1030,8 @@ removeRedundantDuplicateOperatorByKey(QueryOperator *root)
 QueryOperator *
 pullUpDuplicateRemoval(QueryOperator *root)
 {
-    computeKeyProp(root);
+//    if (!HAS_STRING_PROP(root, PROP_STORE_LIST_KEY))
+        computeKeyProp(root); //Boris: this repeatively computes the key prop
 
     List *drOp = NULL;
     findDuplicateRemoval(&drOp, root);

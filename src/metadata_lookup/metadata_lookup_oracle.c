@@ -75,6 +75,8 @@ static char **aggList=NULL;
 static char **winfList = NULL;
 static List *tableBuffers=NULL;
 static List *viewBuffers=NULL;
+static HashMap *keys=NULL;
+static Set *haveKeys=NULL;
 static boolean initialized = FALSE;
 
 static int initConnection(void);
@@ -233,6 +235,8 @@ freeBuffers()
 	}
 	tableBuffers = NIL;
 	viewBuffers = NIL;
+	keys = NULL;
+	haveKeys = NULL;
 }
 
 static void
@@ -312,7 +316,8 @@ initConnection()
 
     initAggList();
     initWinfList();
-
+    keys = NEW_MAP(Constant,List);
+    haveKeys = STRSET();
     RELEASE_MEM_CONTEXT();
 
     return EXIT_SUCCESS;
@@ -1122,6 +1127,9 @@ oracleGetKeyInformation(char *tableName)
 {
     List *keyList = NIL;
 
+    if(hasSetElem(haveKeys,tableName))
+        return (List *) getMapString(keys,tableName); //TODO copy necessary?
+
     StringInfo statement;
     statement = makeStringInfo();
     appendStringInfo(statement, "SELECT cols.column_name "
@@ -1149,6 +1157,8 @@ oracleGetKeyInformation(char *tableName)
     }
 
     FREE(statement);
+    MAP_ADD_STRING_KEY(keys, tableName, copyObject(keyList));
+    addToSet(haveKeys,strdup(tableName));
     return keyList;
 }
 
