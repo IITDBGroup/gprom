@@ -409,6 +409,8 @@ typeOf (Node *expr)
             return DT_INT;//TODO should use something else?
         case T_DLVar:
             return ((DLVar *) expr)->dt;
+        case T_CastExpr:
+            return ((CastExpr *) expr)->resultDT;
         default:
              FATAL_LOG("unknown expression type for node: %s", nodeToString(expr));
              break;
@@ -497,6 +499,11 @@ isConstExpr (Node *expr)
         }
         case T_DLVar:
             return FALSE;
+        case T_CastExpr:
+        {
+            CastExpr *c = (CastExpr *) expr;
+            return isConstExpr(c->expr);
+        }
         default:
              FATAL_LOG("unknown expression type for node: %s", nodeToString(expr));
              break;
@@ -537,6 +544,8 @@ typeOfInOpModel (Node *expr, List *inputOperators)
         }
         case T_RowNumExpr:
             return DT_INT;
+        case T_CastExpr:
+            return ((CastExpr *) expr)->resultDT;
         default:
             ERROR_LOG("unknown expression type for node: %s", nodeToString(expr));
             break;
