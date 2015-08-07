@@ -492,6 +492,13 @@ exprToLatexString(StringInfo str,  Node *expr)
         case T_SQLParameter:
             sqlParamToSQL(str, (SQLParameter *) expr);
         break;
+        case T_CastExpr:
+        {
+            CastExpr *c = (CastExpr *) expr;
+            exprToLatexString(str, c->expr);
+            //TODO should we show it or not?
+        }
+        break;
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));
     }
