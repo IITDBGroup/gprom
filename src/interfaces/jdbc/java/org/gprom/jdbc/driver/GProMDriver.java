@@ -27,8 +27,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
 
-
-
 import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
@@ -46,19 +44,19 @@ import org.gprom.jdbc.utility.PropertyWrapper;
  */
 public class GProMDriver implements Driver {
 	/** logger */
-	//private static Logger log = Logger.getLogger(GProMDriver.class);
-	private final static Logger logger = Logger.getLogger(GProMDriver.class.getName());
-	 private static FileHandler fh = null;
+	// private static Logger log = Logger.getLogger(GProMDriver.class);
+	private final static Logger logger = Logger.getLogger(GProMDriver.class
+			.getName());
+	private static FileHandler fh = null;
 	public static TestOutput tst = new TestOutput();
-	
+
 	protected Driver driver;
 	private GProMWrapper w;
-	
+
 	/*
-	private static final int MAJOR_VERSION = 0;
-	private static final int MINOR_VERSION = 8;
-	private static final String VERSION_FLAG = "b";
-	private static final int CURRENT_VERSION = 1;
+	 * private static final int MAJOR_VERSION = 0; private static final int
+	 * MINOR_VERSION = 8; private static final String VERSION_FLAG = "b";
+	 * private static final int CURRENT_VERSION = 1;
 	 */
 	public GProMDriver() {
 		w = GProMWrapper.inst;
@@ -66,90 +64,102 @@ public class GProMDriver implements Driver {
 
 	public boolean acceptsURL(String url) throws SQLException {
 		if (url == null)
-	        return false;
-	    if (!url.startsWith("jdbc:gprom:"))
-	        return false;
-	    return true;
+			return false;
+		if (!url.startsWith("jdbc:gprom:"))
+			return false;
+		return true;
 
 	}
 
-	public GProMConnectionInterface connect (String url, Properties info)
+	public GProMConnectionInterface connect(String url, Properties info)
 			throws SQLException {
 		// if the given URL could no be handled by the driver return null.
 		if (!acceptsURL(url))
 			return null;
 
 		/** should we load the backend driver or not */
-		boolean loadBackendDriver = info.containsKey(GProMDriverProperties.LOAD_DRIVER) 
-				? Boolean.parseBoolean(info.getProperty(GProMDriverProperties.LOAD_DRIVER)) 
+		boolean loadBackendDriver = info
+				.containsKey(GProMDriverProperties.LOAD_DRIVER) ? Boolean
+				.parseBoolean(info
+						.getProperty(GProMDriverProperties.LOAD_DRIVER))
 				: false;
-		/** should we use a Java JDBC based metadata lookup plugin */		
-		boolean useJDBCMetadataLookup = info.containsKey(GProMDriverProperties.JDBC_METADATA_LOOKUP) 
-				? Boolean.parseBoolean(info.getProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP)) 
-				: false; 
-		
+		/** should we use a Java JDBC based metadata lookup plugin */
+		boolean useJDBCMetadataLookup = info
+				.containsKey(GProMDriverProperties.JDBC_METADATA_LOOKUP) ? Boolean
+				.parseBoolean(info
+						.getProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP))
+				: false;
+
 		/*
 		 * Load the driver to connect to the database and create a new
 		 * GProMConnection.
 		 */
 		try {
 			w.init();
-			
+
 			BackendType backend = GProMJDBCUtil.inst.getBackendTypeFromURL(url);
 			String driverClass = GProMJDBCUtil.inst.getDriverClass(backend);
-			PropertyWrapper backendOpts = GProMJDBCUtil.inst.getOptionsForBackend(backend);
+			PropertyWrapper backendOpts = GProMJDBCUtil.inst
+					.getOptionsForBackend(backend);
 			Connection backendConnection;
 			String backendURL = GProMJDBCUtil.inst.stripGProMPrefix(url);
-			
+
 			if (driverClass == null)
-				throw new Exception("did not find driver for: " +  backend);
-			
-			// look if a suitable driver is in the DriverMapping if automatic loading is active
+				throw new Exception("did not find driver for: " + backend);
+
+			// look if a suitable driver is in the DriverMapping if automatic
+			// loading is active
 			if (loadBackendDriver && driverClass != null) {
 				// load the driver from the classpath in the DriverMapping
 				// property
-				Class.forName(driverClass);				
+				Class.forName(driverClass);
 			}
-			
+
 			// init a new GProMConnection from the driver loaded before and
 			// return it
 			driver = DriverManager.getDriver(backendURL);
 			if (driver == null)
-				throw new Exception("did not find class for driver: " +  driver);
-				
+				throw new Exception("did not find class for driver: " + driver);
+
 			// create a jdbc connection to the backend.
-		//	log.info("trying to connect to: " + backendURL);
-			backendConnection = driver.connect(backendURL, info);
+			// log.info("trying to connect to: " + backendURL);
+			boolean check = checkJDBC.checkJDBC();
+			if (check) {
+
+				backendConnection = driver.connect(backendURL, info);
+			} else {
+				backendConnection = null;
+			}
 			if (backendConnection == null)
-				throw new Exception("was unable to create connection: " + backendURL);
-			
+				throw new Exception("was unable to create connection: "
+						+ backendURL);
+
 			// extract backend connection parameters from JDBC connection
 			extractConnectionParameters(url, backendOpts, backend);
-			
+
 			// setup GProM C libraries options and plugins
 			w.setupOptions(backendOpts);
 			if (useJDBCMetadataLookup) {
-				w.setupPlugins(backendConnection, getMetadataLookup(backendConnection, backend));
-			}
-			else {
+				w.setupPlugins(backendConnection,
+						getMetadataLookup(backendConnection, backend));
+			} else {
 				w.setupPlugins();
 			}
 			w.setLogLevel(4);
-			
-			
-			return new GProMConnection(backendConnection,
-					backendOpts, backend, w);
+
+			return new GProMConnection(backendConnection, backendOpts, backend,
+					w);
 		} catch (Exception ex) {
-			//log.error("Error loading the driver and getting a connection.");
-			//LoggerUtil.logException(ex, log);
+			// log.error("Error loading the driver and getting a connection.");
+			// LoggerUtil.logException(ex, log);
 			System.exit(-1);
 		}
 		return null;
 	}
-	
-	private GProMMetadataLookupPlugin getMetadataLookup (Connection con, BackendType backend) throws SQLException {
-		switch (backend)
-		{
+
+	private GProMMetadataLookupPlugin getMetadataLookup(Connection con,
+			BackendType backend) throws SQLException {
+		switch (backend) {
 		case HSQL:
 			break;
 		case Oracle:
@@ -161,21 +171,26 @@ public class GProMDriver implements Driver {
 		}
 		return null;
 	}
-	
+
 	/**
 	 * @param backendConnection
 	 * @param backendOpts
 	 */
-	private void extractConnectionParameters(String url,
-			PropertyWrapper opts, BackendType backend) {
-//		return;
-		
+	private void extractConnectionParameters(String url, PropertyWrapper opts,
+			BackendType backend) {
+		// return;
+
 		BackendInfo i = GProMJDBCUtil.inst.getBackendInfo(backend);
-		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Database, i.getDatabase(url));
-		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Host, i.getHost(url));
-		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.User, i.getUser(url));
-		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Password, i.getPassword(url));
-		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Port, i.getPort(url));
+		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Database,
+				i.getDatabase(url));
+		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Host,
+				i.getHost(url));
+		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.User,
+				i.getUser(url));
+		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Password,
+				i.getPassword(url));
+		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Port,
+				i.getPort(url));
 	}
 
 	public DriverPropertyInfo[] getPropertyInfo(String url, Properties info)
@@ -218,47 +233,51 @@ public class GProMDriver implements Driver {
 		}
 	}
 
-	/* (non-Javadoc)
+	/*
+	 * (non-Javadoc)
+	 * 
 	 * @see java.sql.Driver#getParentLogger()
 	 */
-	
+
 	public java.util.logging.Logger getParentLogger()
 			throws SQLFeatureNotSupportedException {
 		// TODO Auto-generated method stub
 		return null;
 	}
+
 	public void provenance(String s, Statement st, GProMConnection con)
 			throws Exception {
-		FileReader fr = new FileReader("java.txt"); 
-BufferedReader br = new BufferedReader(fr); 
-String s1111; 
-while((s1111 = br.readLine()) != null) { 
-System.out.println(s1111); 
-if(s1111.equals("on")){ init();
-			 logger.log(Level.INFO, "message 1");
-			 logger.log(Level.SEVERE, "message 2");
-			 logger.log(Level.FINE, "message 3");}else{System.out.println("off");
-} }
-fr.close(); 
+		FileReader fr = new FileReader("java.txt");
+		BufferedReader br = new BufferedReader(fr);
+		String s1111;
+		while ((s1111 = br.readLine()) != null) {
+			System.out.println(s1111);
+			if (s1111.equals("on")) {
+				init();
+				logger.log(Level.INFO, "message 1");
+				logger.log(Level.SEVERE, "message 2");
+				logger.log(Level.FINE, "message 3");
+			} else {
+				System.out.println("off");
+			}
+		}
+		fr.close();
 
-			
-		
-			
-			
-			
 		if (!s.toLowerCase().contains("provenance")) {
 
 			if (s.toLowerCase().contains("update")
 					|| s.toLowerCase().contains("delete")) {
 				try {
-					String l = s.replace("update", "select CURRENT_TIMESTAMP, ");
+					String l = s
+							.replace("update", "select CURRENT_TIMESTAMP, ");
 				} catch (Exception e) {
-					String l = s.replace("delete", "select CURRENT_TIMESTAMP, ");
+					String l = s
+							.replace("delete", "select CURRENT_TIMESTAMP, ");
 				}
 			}
 
 			String x = s.replace(";", "");
-			
+
 			ResultSet rs = st.executeQuery("PROVENANCE OF (" + x + ");");
 			ResultSetMetaData rsmd = rs.getMetaData();
 
@@ -274,27 +293,24 @@ fr.close();
 					System.out.println("Here------>>>>>>" + name);
 				}
 			}
-			 
+
 			ResultSet rs1 = st.executeQuery(s);
-			printResult(rs1,s);
-			//String x1 = s.replace(";", "");
+			printResult(rs1, s);
+			// String x1 = s.replace(";", "");
+
+			String x1ss = s.replace(";", "");
+			 String x1 = x1ss.replace("select","select CURRENT_TIMESTAMP(6),"); // WORKS!!
+			//String x1 = x1ss.replace("select", "select ORA_ROWSCN,"); 
+			 /* Currently testing how to get SCN.. the below mentioned functions
+			  have so far not worked.
 			
-			
-		String x1ss = s.replace (";","");
-		//String x1 = x1ss.replace("select","select CURRENT_TIMESTAMP(6),");            // WORKS!! 
-		String x1 = x1ss.replace("select","select ORA_ROWSCN,");  //Currently testing how to get SCN.. the below mentioned functions have so far not worked.
-			 /*
-			  * Things tried for SCN :
-			  * 1) DBMS_FLASHBACK.GET_SYSTEM_CHANGE_NUMBER 
-			  * 2) SCN_BASE     //for oracle 9 or below
-			  * 3) ORA_ROWSCN  //Psuedo row
-			  * 4) SCN_TO_TIMESTAMP(ORA_ROWSCN)
-			  * */
-			  
-			
-			
+			 * Things tried for SCN : 1) DBMS_FLASHBACK.GET_SYSTEM_CHANGE_NUMBER
+			 * 2) SCN_BASE //for oracle 9 or below 3) ORA_ROWSCN //Psuedo row 4)
+			 * SCN_TO_TIMESTAMP(ORA_ROWSCN)
+			 */
+
 			rs1 = st.executeQuery("PROVENANCE OF (" + x1 + ");");
-			printResult(rs1,s);
+			printResult(rs1, s);
 
 			// test error
 			try {
@@ -306,8 +322,8 @@ fr.close();
 			rs = st.executeQuery("PROVENANCE OF (" + x + ");");
 			printResult(rs, s);
 
-			//log.error("statement shutdown");
-			/*con.close();*/
+			// log.error("statement shutdown");
+			/* con.close(); */
 		} else {
 			ResultSet rs = st.executeQuery(s);
 			ResultSetMetaData rsmd = rs.getMetaData();
@@ -341,7 +357,7 @@ fr.close();
 				}
 			}
 
-			printResult(rs,s);
+			printResult(rs, s);
 
 			// test error
 			try {
@@ -351,33 +367,30 @@ fr.close();
 			}
 
 			rs = st.executeQuery(s);
-			printResult(rs,s);
+			printResult(rs, s);
 
-			//log.error("statement shutdown");
-			/*con.close();*/
+			// log.error("statement shutdown");
+			/* con.close(); */
 		}
-		
-		
+
 	}
 
-	private static void printResult(ResultSet rs, String s) throws SQLException
-			 {
+	private static void printResult(ResultSet rs, String s) throws SQLException {
 		try (PrintWriter out = new PrintWriter(new BufferedWriter(
 				new FileWriter("myfile.txt", true)))) {
-			
-			
+
 			tst.Test(s);
 			System.out
 					.println("-------------------------------------------------------------------------------");
-		
+
 			tst.Test("-------------------------------------------------------------------------------");
 			tst.Test("\n");
 			for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++)
 				System.out.print(rs.getMetaData().getColumnLabel(i) + "\t|");
 			for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++)
-				//out.print(rs.getMetaData().getColumnLabel(i) + "\t|");
-			tst.Test(rs.getMetaData().getColumnLabel(i) + "\t|");
-			
+				// out.print(rs.getMetaData().getColumnLabel(i) + "\t|");
+				tst.Test(rs.getMetaData().getColumnLabel(i) + "\t|");
+
 			System.out.println();
 			tst.Test("\n");
 			System.out
@@ -388,7 +401,7 @@ fr.close();
 				for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++)
 					System.out.print(rs.getString(i) + "\t|");
 				for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++)
-				
+
 					tst.Test(rs.getString(i) + "\t|");
 				tst.Test("\n");
 				System.out.println();
@@ -403,23 +416,22 @@ fr.close();
 			tst.Test("\n");
 			System.out.println();
 			tst.Test("\n");
-		
-			
-		
-			
+
 		} catch (IOException e) {
 			// exception handling left as an exercise for the reader
 		}
 	}
-	
-	public static void init(){
-		 try {
-			 fh=new FileHandler("logging.log", false);
-			 
-			 Logger logg = Logger.getLogger("");
-			 fh.setFormatter(new SimpleFormatter());
-			 logg.addHandler(fh);
-			 logg.setLevel(Level.CONFIG);}catch (Exception e) {
-				 e.printStackTrace();
-				 }} 
+
+	public static void init() {
+		try {
+			fh = new FileHandler("logging.log", false);
+
+			Logger logg = Logger.getLogger("");
+			fh.setFormatter(new SimpleFormatter());
+			logg.addHandler(fh);
+			logg.setLevel(Level.CONFIG);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
 }

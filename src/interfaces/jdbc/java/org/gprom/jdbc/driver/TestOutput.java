@@ -15,7 +15,7 @@ public class TestOutput {
 			out.print("\n");
 
 		} catch (IOException e) {
-			// exception handling left as an exercise for the reader
+			
 		}
 		try (PrintWriter out = new PrintWriter(new BufferedWriter(
 				new FileWriter("myfile.csv", true)))) { //I have also stored the data in csv since Tanu and Alex mentioned that they use CSV files for transforming data
@@ -24,7 +24,7 @@ public class TestOutput {
 			out.print("\n");
 
 		} catch (IOException e) {
-			// exception handling left as an exercise for the reader
+			
 		}
 	}
 }

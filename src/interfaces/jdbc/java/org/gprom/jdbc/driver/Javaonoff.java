@@ -14,7 +14,7 @@ class Javaonoff implements MyInterface {
 				new FileWriter("java.txt", true)))) {
 			out.print("on");
 		} catch (IOException e) {
-			// exception handling left as an exercise for the reader
+			
 		}
 	}
 
@@ -24,7 +24,7 @@ class Javaonoff implements MyInterface {
 				new FileWriter("java.txt", true)))) {
 			out.print("off");
 		} catch (IOException e) {
-			// exception handling left as an exercise for the reader
+			
 		}
 	}
 
