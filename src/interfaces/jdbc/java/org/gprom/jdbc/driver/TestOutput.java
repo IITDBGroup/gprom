@@ -8,15 +8,23 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class TestOutput {
-public void Test(String s) throws SQLException{
-	try (PrintWriter out = new PrintWriter(new BufferedWriter(
-			new FileWriter("myfile.txt", true)))) {
-		out.print(s);
-		
-		
-		
-	} catch (IOException e) {
-				// exception handling left as an exercise for the reader
-			}
-}
+	public void Test(String s) throws SQLException {
+		try (PrintWriter out = new PrintWriter(new BufferedWriter(
+				new FileWriter("myfile.txt", true)))) {
+			out.print(s);
+			out.print("\n");
+
+		} catch (IOException e) {
+			// exception handling left as an exercise for the reader
+		}
+		try (PrintWriter out = new PrintWriter(new BufferedWriter(
+				new FileWriter("myfile.csv", true)))) {
+			out.print(s);
+
+			out.print("\n");
+
+		} catch (IOException e) {
+			// exception handling left as an exercise for the reader
+		}
+	}
 }

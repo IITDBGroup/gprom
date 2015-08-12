@@ -95,11 +95,10 @@ public class Test {
 
 		log.error("statement created");
 
-		Scanner in = new Scanner(System.in);
-
+	/*	Scanner in = new Scanner(System.in);                //Just uncomment this code to get user input
 		System.out.println("Enter a string");
-		String s = in.nextLine();
-	//	AutoProvenanceReader test = new AutoProvenanceReader();
+		String s = in.nextLine();*/
+		String s = "select * from r;";
 		GProMDriver test = new GProMDriver();
 		test.provenance(s, st, con);
 

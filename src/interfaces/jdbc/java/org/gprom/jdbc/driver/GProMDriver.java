@@ -1,6 +1,8 @@
 package org.gprom.jdbc.driver;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -15,8 +17,18 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.util.Properties;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.FileHandler;
+import java.util.logging.SimpleFormatter;
 
-import org.apache.log4j.Logger;
+import java.io.IOException;
+import java.util.logging.FileHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
+
+
+
 import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
@@ -34,8 +46,9 @@ import org.gprom.jdbc.utility.PropertyWrapper;
  */
 public class GProMDriver implements Driver {
 	/** logger */
-	private static Logger log = Logger.getLogger(GProMDriver.class);
-	
+	//private static Logger log = Logger.getLogger(GProMDriver.class);
+	private final static Logger logger = Logger.getLogger(GProMDriver.class.getName());
+	 private static FileHandler fh = null;
 	public static TestOutput tst = new TestOutput();
 	
 	protected Driver driver;
@@ -105,7 +118,7 @@ public class GProMDriver implements Driver {
 				throw new Exception("did not find class for driver: " +  driver);
 				
 			// create a jdbc connection to the backend.
-			log.info("trying to connect to: " + backendURL);
+		//	log.info("trying to connect to: " + backendURL);
 			backendConnection = driver.connect(backendURL, info);
 			if (backendConnection == null)
 				throw new Exception("was unable to create connection: " + backendURL);
@@ -127,8 +140,8 @@ public class GProMDriver implements Driver {
 			return new GProMConnection(backendConnection,
 					backendOpts, backend, w);
 		} catch (Exception ex) {
-			log.error("Error loading the driver and getting a connection.");
-			LoggerUtil.logException(ex, log);
+			//log.error("Error loading the driver and getting a connection.");
+			//LoggerUtil.logException(ex, log);
 			System.exit(-1);
 		}
 		return null;
@@ -216,19 +229,36 @@ public class GProMDriver implements Driver {
 	}
 	public void provenance(String s, Statement st, GProMConnection con)
 			throws Exception {
+		FileReader fr = new FileReader("java.txt"); 
+BufferedReader br = new BufferedReader(fr); 
+String s1111; 
+while((s1111 = br.readLine()) != null) { 
+System.out.println(s1111); 
+if(s1111.equals("on")){ init();
+			 logger.log(Level.INFO, "message 1");
+			 logger.log(Level.SEVERE, "message 2");
+			 logger.log(Level.FINE, "message 3");}else{System.out.println("off");
+} }
+fr.close(); 
 
+			
+		
+			
+			
+			
 		if (!s.toLowerCase().contains("provenance")) {
 
 			if (s.toLowerCase().contains("update")
 					|| s.toLowerCase().contains("delete")) {
 				try {
-					String l = s.replace("update", "select");
+					String l = s.replace("update", "select CURRENT_TIMESTAMP, ");
 				} catch (Exception e) {
-					String l = s.replace("delete", "select");
+					String l = s.replace("delete", "select CURRENT_TIMESTAMP, ");
 				}
 			}
 
 			String x = s.replace(";", "");
+			
 			ResultSet rs = st.executeQuery("PROVENANCE OF (" + x + ");");
 			ResultSetMetaData rsmd = rs.getMetaData();
 
@@ -244,10 +274,25 @@ public class GProMDriver implements Driver {
 					System.out.println("Here------>>>>>>" + name);
 				}
 			}
-
+			 
 			ResultSet rs1 = st.executeQuery(s);
 			printResult(rs1,s);
-			String x1 = s.replace(";", "");
+			//String x1 = s.replace(";", "");
+			
+			
+		String x1ss = s.replace (";","");
+		//String x1 = x1ss.replace("select","select CURRENT_TIMESTAMP(6),");            // WORKS!! 
+		String x1 = x1ss.replace("select","select ORA_ROWSCN,");  //Currently testing how to get SCN.. the below mentioned functions have so far not worked.
+			 /*
+			  * Things tried for SCN :
+			  * 1) DBMS_FLASHBACK.GET_SYSTEM_CHANGE_NUMBER 
+			  * 2) SCN_BASE     //for oracle 9 or below
+			  * 3) ORA_ROWSCN  //Psuedo row
+			  * 4) SCN_TO_TIMESTAMP(ORA_ROWSCN)
+			  * */
+			  
+			
+			
 			rs1 = st.executeQuery("PROVENANCE OF (" + x1 + ");");
 			printResult(rs1,s);
 
@@ -259,9 +304,9 @@ public class GProMDriver implements Driver {
 			}
 
 			rs = st.executeQuery("PROVENANCE OF (" + x + ");");
-			printResult(rs);
+			printResult(rs, s);
 
-			log.error("statement shutdown");
+			//log.error("statement shutdown");
 			/*con.close();*/
 		} else {
 			ResultSet rs = st.executeQuery(s);
@@ -296,7 +341,7 @@ public class GProMDriver implements Driver {
 				}
 			}
 
-			printResult(rs);
+			printResult(rs,s);
 
 			// test error
 			try {
@@ -306,17 +351,21 @@ public class GProMDriver implements Driver {
 			}
 
 			rs = st.executeQuery(s);
-			printResult(rs);
+			printResult(rs,s);
 
-			log.error("statement shutdown");
+			//log.error("statement shutdown");
 			/*con.close();*/
 		}
+		
+		
 	}
 
-	private static void printResult(ResultSet rs) throws SQLException
+	private static void printResult(ResultSet rs, String s) throws SQLException
 			 {
 		try (PrintWriter out = new PrintWriter(new BufferedWriter(
 				new FileWriter("myfile.txt", true)))) {
+			
+			
 			tst.Test(s);
 			System.out
 					.println("-------------------------------------------------------------------------------");
@@ -362,4 +411,15 @@ public class GProMDriver implements Driver {
 			// exception handling left as an exercise for the reader
 		}
 	}
+	
+	public static void init(){
+		 try {
+			 fh=new FileHandler("logging.log", false);
+			 
+			 Logger logg = Logger.getLogger("");
+			 fh.setFormatter(new SimpleFormatter());
+			 logg.addHandler(fh);
+			 logg.setLevel(Level.CONFIG);}catch (Exception e) {
+				 e.printStackTrace();
+				 }} 
 }
