@@ -28,3 +28,11 @@ public class TestOutput {
 		}
 	}
 }
+
+
+
+/* Two interfaces onr for queries 
+//  make interfaces for every method
+//
+provenance witgh TUPLE VERSIONS OF (select)
+*/

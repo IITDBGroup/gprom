@@ -17,15 +17,16 @@ public class addToHash {
 
 	static Boolean flag = false;
 
-	public static void main(String[] args) {
+	public static void addhash(int foo, String s) { //For adding SCN and TupleVersion, just change from user input to input values from the table and this function
 		Scanner in = new Scanner(System.in);
-		System.out.println("Enter Int Key");
-		String s1 = in.nextLine();
-		System.out.println("Enter String Value");
-		String s = in.nextLine();
-
-		int foo = Integer.parseInt(s1);
-		HashMap<Integer, String> map = null;
+		//System.out.println("Enter Int Key");
+		//String s1 = in.nextLine();
+		//int foo = Integer.parseInt(s1);
+		//System.out.println("Enter String Value");
+		//String s = in.nextLine();
+		/*int foo = 79178265;			// dummy SCN
+		String s = "AAAR3sAAEAAAACXABB";	// dummy rowid   // 
+*/		HashMap<Integer, String> map = null;
 		try {
 			FileInputStream fis = new FileInputStream("hashmap.ser");
 			ObjectInputStream ois = new ObjectInputStream(fis);

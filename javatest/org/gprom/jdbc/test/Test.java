@@ -98,7 +98,7 @@ public class Test {
 	/*	Scanner in = new Scanner(System.in);                //Just uncomment this code to get user input
 		System.out.println("Enter a string");
 		String s = in.nextLine();*/
-		String s = "select * from r;";
+		String s = "select rowid, * from r where a='2';";
 		GProMDriver test = new GProMDriver();
 		test.provenance(s, st, con);
 

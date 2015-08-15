@@ -43,6 +43,7 @@ import org.gprom.jdbc.utility.PropertyWrapper;
  * 
  */
 public class GProMDriver implements Driver {
+	static boolean check = checkJDBC.checkJDBC();
 	/** logger */
 	// private static Logger log = Logger.getLogger(GProMDriver.class);
 	private final static Logger logger = Logger.getLogger(GProMDriver.class
@@ -123,13 +124,9 @@ public class GProMDriver implements Driver {
 
 			// create a jdbc connection to the backend.
 			// log.info("trying to connect to: " + backendURL);
-			boolean check = checkJDBC.checkJDBC();
-			if (check) {
-
+		
 				backendConnection = driver.connect(backendURL, info);
-			} else {
-				backendConnection = null;
-			}
+			
 			if (backendConnection == null)
 				throw new Exception("was unable to create connection: "
 						+ backendURL);
@@ -254,11 +251,9 @@ public class GProMDriver implements Driver {
 			System.out.println(s1111);
 			if (s1111.equals("on")) {
 				init();
-				logger.log(Level.INFO, "message 1");
-				logger.log(Level.SEVERE, "message 2");
-				logger.log(Level.FINE, "message 3");
+			System.out.println("Java logging on....");
 			} else {
-				System.out.println("off");
+				System.out.println("Java logging off....");
 			}
 		}
 		fr.close();
@@ -290,7 +285,7 @@ public class GProMDriver implements Driver {
 				if (name.contains("_result_tid")
 						|| name.toLowerCase().contains("prov")) {
 				} else {
-					System.out.println("Here------>>>>>>" + name);
+					if (check) {System.out.println("Here------>>>>>>" + name);}
 				}
 			}
 
@@ -300,13 +295,13 @@ public class GProMDriver implements Driver {
 
 			String x1ss = s.replace(";", "");
 			 String x1 = x1ss.replace("select","select CURRENT_TIMESTAMP(6),"); // WORKS!!
-			//String x1 = x1ss.replace("select", "select ORA_ROWSCN,"); 
+			//String x1 = x1ss.replace("select", "select row_number()"); 
 			 /* Currently testing how to get SCN.. the below mentioned functions
 			  have so far not worked.
 			
-			 * Things tried for SCN : 1) DBMS_FLASHBACK.GET_SYSTEM_CHANGE_NUMBER
+			 * Things tried for SCN and ROWID : 1) DBMS_FLASHBACK.GET_SYSTEM_CHANGE_NUMBER
 			 * 2) SCN_BASE //for oracle 9 or below 3) ORA_ROWSCN //Psuedo row 4)
-			 * SCN_TO_TIMESTAMP(ORA_ROWSCN)
+			 * SCN_TO_TIMESTAMP(ORA_ROWSCN) 5) ROWID
 			 */
 
 			rs1 = st.executeQuery("PROVENANCE OF (" + x1 + ");");
@@ -337,7 +332,7 @@ public class GProMDriver implements Driver {
 				if (name.contains("_result_tid")
 						|| name.toLowerCase().contains("prov")) {
 				} else {
-					System.out.println("Here------>>>>>>" + name);
+					if (check) {	System.out.println("Here------>>>>>>" + name);}
 				}
 			}
 
@@ -353,7 +348,7 @@ public class GProMDriver implements Driver {
 				if (name.contains("_result_tid")
 						|| name.toLowerCase().contains("prov")) {
 				} else {
-					System.out.println("Here------>>>>>>" + name);
+					if (check) {	System.out.println("Here------>>>>>>" + name); } //These are the tuples that will be affected by the run query
 				}
 			}
 
@@ -380,26 +375,28 @@ public class GProMDriver implements Driver {
 				new FileWriter("myfile.txt", true)))) {
 
 			tst.Test(s);
-			System.out
+			
+			if (check) {System.out
 					.println("-------------------------------------------------------------------------------");
-
+			}
 			tst.Test("-------------------------------------------------------------------------------");
 			tst.Test("\n");
 			for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++)
-				System.out.print(rs.getMetaData().getColumnLabel(i) + "\t|");
+				if (check) {System.out.print(rs.getMetaData().getColumnLabel(i) + "\t|");}
 			for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++)
 				// out.print(rs.getMetaData().getColumnLabel(i) + "\t|");
 				tst.Test(rs.getMetaData().getColumnLabel(i) + "\t|");
 
 			System.out.println();
 			tst.Test("\n");
-			System.out
-					.println("-------------------------------------------------------------------------------");
+		
+			if (check) {System.out
+					.println("-------------------------------------------------------------------------------");}
 			tst.Test("-------------------------------------------------------------------------------");
 			tst.Test("\n");
 			while (rs.next()) {
 				for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++)
-					System.out.print(rs.getString(i) + "\t|");
+					if (check) {System.out.print(rs.getString(i) + "\t|");}
 				for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++)
 
 					tst.Test(rs.getString(i) + "\t|");
@@ -409,8 +406,8 @@ public class GProMDriver implements Driver {
 			System.out.println();
 			tst.Test("\n");
 
-			System.out
-					.println("-------------------------------------------------------------------------------");
+			if (check) {System.out
+					.println("-------------------------------------------------------------------------------");}
 			tst.Test("-------------------------------------------------------------------------------");
 			System.out.println();
 			tst.Test("\n");
@@ -435,3 +432,4 @@ public class GProMDriver implements Driver {
 		}
 	}
 }
+
