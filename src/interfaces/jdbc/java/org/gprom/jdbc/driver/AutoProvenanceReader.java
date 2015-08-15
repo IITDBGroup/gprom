@@ -1,6 +1,6 @@
 /**
  * 
- */
+ *//*
 package org.gprom.jdbc.driver;
 
 import java.io.BufferedWriter;
@@ -24,10 +24,10 @@ import org.gprom.jdbc.driver.AutoProvenanceReader;
 
 import com.sun.jna.Native;
 
-/**
+*//**
  * @author lord_pretzel
  * 
- */
+ *//*
 public class AutoProvenanceReader {
 
 	static Logger log = Logger.getLogger(AutoProvenanceReader.class);
@@ -81,7 +81,7 @@ public static TestOutput tst = new TestOutput();
 			printResult(rs);
 
 			log.error("statement shutdown");
-			/*con.close();*/
+			con.close();
 		} else {
 			ResultSet rs = st.executeQuery(s);
 			ResultSetMetaData rsmd = rs.getMetaData();
@@ -128,7 +128,7 @@ public static TestOutput tst = new TestOutput();
 			printResult(rs);
 
 			log.error("statement shutdown");
-			/*con.close();*/
+			con.close();
 		}
 	}
 
@@ -183,3 +183,4 @@ public static TestOutput tst = new TestOutput();
 	}
 
 }
+*/

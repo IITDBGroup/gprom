@@ -10,13 +10,14 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 import java.util.Scanner;
+import org.gprom.jdbc.driver.Javaonoff;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriver;
 import org.gprom.jdbc.driver.GProMDriverProperties;
-import org.gprom.jdbc.driver.AutoProvenanceReader;
+/*import org.gprom.jdbc.driver.AutoProvenanceReader;*/
 
 import com.sun.jna.Native;
 
@@ -29,6 +30,7 @@ public class Test {
 	static Logger log = Logger.getLogger(Test.class);
 
 	public static void main(String[] args) throws Exception {
+		Javaonoff jo = new Javaonoff();
 		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
 		String driverURL = "oracle.jdbc.OracleDriver";
 		// String url = "jdbc:hsqldb:file:/Users/alex/db/mydb";
@@ -95,12 +97,20 @@ public class Test {
 
 		log.error("statement created");
 
-	/*	Scanner in = new Scanner(System.in);                //Just uncomment this code to get user input
+		Scanner in = new Scanner(System.in); // Just uncomment this code to get
+												// // user input
 		System.out.println("Enter a string");
-		String s = in.nextLine();*/
-		String s = "select rowid, * from r where a='2';";
-		GProMDriver test = new GProMDriver();
-		test.provenance(s, st, con);
+		//String s = in.nextLine();
+		String s = "select * from r where a='2';"; 
+
+		if (s.contains("java")) {
+			jo.javaLogging(s);
+		} else if (s.contains("hash")) {
+			jo.addHash(123, "test");
+		} else {
+			GProMDriver test = new GProMDriver();
+			test.provenance(s, st, con);
+		}
 
 	}
 
