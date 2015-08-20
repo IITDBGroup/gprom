@@ -274,7 +274,7 @@ public class GProMDriver implements Driver {
 
 			String x = s.replace(";", "");
 
-			ResultSet rs = st.executeQuery("PROVENANCE OF (" + x + ");");
+			ResultSet rs = st.executeQuery("PROVENANCE with tuple versions OF(" + x + ");");
 			ResultSetMetaData rsmd = rs.getMetaData();
 
 			int columnCount = rsmd.getColumnCount();
