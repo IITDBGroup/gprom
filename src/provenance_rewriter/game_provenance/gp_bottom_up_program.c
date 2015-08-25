@@ -21,15 +21,15 @@
 #include "provenance_rewriter/game_provenance/gp_bottom_up_program.h"
 #include "utility/string_utils.h"
 
+#define ADD_ARGS "L"
+#define NON_LINKED_POSTFIX "_nonlinked"
+
 #define CONCAT_MAP_LIST(map,key,newList) \
     do { \
         List *old = (List *) getMap(map,key); \
         old = CONCAT_LISTS(newList, old); \
         addToMap(map,key,(Node *) old); \
     } while (0)
-
-#define NON_LINKED_POSTFIX "_nonlinked"
-#define ADD_ARGS "L"
 
 #define NORM_COPY(result,a) \
 	do { \
@@ -156,15 +156,22 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     DLProgram *result = makeNode(DLProgram);
     List *newRules = NIL;
     List *unLinkedRules = NIL;
+    List *unLinkedHelpRules = NIL;
     List *helpRules = NIL;
+    List *negedbRules = NIL;
     List *edbRules = NIL;
     List *moveRules = NIL;
     List *newRuleArgs = NIL;
 	List *deleteArgs = NIL;
-    Set *adornedEDBAtoms = NODESET();
+    List *addArgs = NIL;
+	List *updateArgs = NIL;
+	Set *adornedEDBAtoms = NODESET();
+	Set *adornedEDBHelpAtoms = NODESET();
     HashMap *idbAdToRules = NEW_MAP(Node,Node);
 
     result->rules = copyObject(solvedProgram->rules);
+    DLVar *createArgs;
+    DLRule *ruleRule;
 
     // collect rules and adornedheads we are interested in
 
@@ -173,6 +180,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     //  - create rule^adornment :- adornedBody
     FOREACH(DLRule,r,solvedProgram->rules)
     {
+//	    boolean checkBool = TRUE;
     	boolean ruleWon = DL_HAS_PROP(r,DL_WON)
                            || DL_HAS_PROP(r,DL_UNDER_NEG_WON);
         /*
@@ -198,30 +206,26 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         // create rule rule^adornment :- adornedBody
         DEBUG_LOG("create GP RULE rule for %s based on rule:\n%s", adRuleName,
                 datalogToOverviewString((Node *) r));
-        DLRule *ruleRule = copyObject(r);
+        ruleRule = copyObject(r);
         newRuleArgs = removeVars(makeUniqueVarList(getRuleVars(ruleRule)), ruleRule->head->args);
         newRuleArgs = CONCAT_LISTS(ruleRule->head->args, newRuleArgs);
 
-        // add boolean args 07.2015
-        DLVar *createArgs;
-        List *addArgs = NIL;
-
+        // add args for boolean
         if (!ruleWon) {
 
         	int i = 0;
-        	char *vName = "";
+        	char *vName;
 
         	FOREACH(DLVar,var,ruleRule->body) {
             	if (!LIST_EMPTY(var->name)) {
             		vName = CONCAT_STRINGS(ADD_ARGS, itoa(i++));
             		createArgs = createDLVar(vName, DT_BOOL);
             	}
-            }
-        	addArgs = appendToTailOfList(addArgs, createArgs); // For calculation of length of the new args added
-    		newRuleArgs = appendToTailOfList(newRuleArgs, createArgs);
+            	addArgs = appendToTailOfList(addArgs, createArgs); // For calculation of length of only new args
+        		newRuleArgs = appendToTailOfList(newRuleArgs, createArgs);
+        	}
         }
-
-        DEBUG_LOG("new args for rule head are: %s", datalogToOverviewString((Node *) newRuleArgs));
+//        DEBUG_LOG("new args for rule head are: %s", datalogToOverviewString((Node *) newRuleArgs));
 
         // not under negated rule
         //if (!ruleNeg)
@@ -273,13 +277,16 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                 // adapt goal nodes
                 FOREACH(DLAtom,a,ruleRule->body) //TODO comparison atoms
                 {
-
                 	// if an edb atom
                     if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
                     {
                     	DLAtom *at;
                         AD_NORM_COPY(at,a);
-                        addToSet(adornedEDBAtoms, at);
+                        if (ruleWon) {
+                            addToSet(adornedEDBAtoms, at);
+                        } else {
+                            addToSet(adornedEDBHelpAtoms, at);
+                        }
                     }
 
                     boolean ruleWon = DL_HAS_PROP(r,DL_WON)
@@ -317,6 +324,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         DEBUG_LOG("created new rule:\n%s", datalogToOverviewString((Node *) ruleRule));
         // create rule head^adornment :- rule^adornment
         DEBUG_LOG("create GP HEAD rule for %s based on rule:\n%s", adHeadName, datalogToOverviewString((Node *) r));
+
         DLRule *headRule = makeNode(DLRule);
         DLAtom *adHead = copyObject(r->head);
         DLAtom *ruleAtom = makeNode(DLAtom);
@@ -324,82 +332,117 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         // create head head^adornment(X) if head(X) for original rule
         headRule->head = adHead;
 //        adHead->rel = strdup(adHeadName);
+
         char *adNegHeadName = CONCAT_STRINGS("R", r->head->rel, "_", ruleWon ? "WON" : "LOST");
         adHead->rel = CONCAT_STRINGS(strdup(adNegHeadName), NON_LINKED_POSTFIX);
         setDLProp((DLNode *) adHead, DL_ORIG_ATOM, (Node *) copyObject(r->head));
 
         // create rule atom rule^adornment(X) if rule(X) where X are all vars in rule
-       	ruleAtom->rel = CONCAT_STRINGS(strdup(adRuleName), NON_LINKED_POSTFIX);
-        ruleAtom->args = copyObject(newRuleArgs);
-        headRule->body = singleton(ruleAtom);
+        if (ruleWon) {
 
-//        if (ruleWon) {
+            ruleAtom->rel = CONCAT_STRINGS(strdup(adRuleName), NON_LINKED_POSTFIX);
+            ruleAtom->args = copyObject(newRuleArgs);
+            headRule->body = singleton(ruleAtom);
+
             DLAtom *lookupAtom;
             AD_NORM_COPY(lookupAtom,headRule->head);
-    //        DL_SET_BOOL_PROP((getDLProp((DLNode *) lookupAtom, DL_ORIG_ATOM)), DL_IS_IDB_REL);
             CONCAT_MAP_LIST(idbAdToRules,(Node *) lookupAtom, singleton(ruleRule));
-//        }
 
-/*
-        //add negation head 07.2015
-        if (!ruleWon) {
+            helpRules = appendToTailOfList(helpRules, headRule);
 
-        	DLRule *NegHeadRule = makeNode(DLRule);
-            DLAtom *adNegHead = copyObject(r->head);
-            DLAtom *adhead = copyObject(r->head);
+        } else {
 
-            adNegHead->negated = TRUE;
-            NegHeadRule->head = adNegHead;
+            DLAtom *posHeadAtom = copyObject(r->head);
 
-        	char *negHeadName = CONCAT_STRINGS("R", r->head->rel, "_", "WON");
-        	adNegHead->rel = CONCAT_STRINGS(strdup(negHeadName), NON_LINKED_POSTFIX);
-            setDLProp((DLNode *) adNegHead, DL_ORIG_ATOM, (Node *) copyObject(r->head));
-
-            adhead->rel = CONCAT_STRINGS(strdup(adNegHeadName), NON_LINKED_POSTFIX);
-            NegHeadRule->body = singleton(adhead);
+           	char *PosHeadNm = CONCAT_STRINGS("R", r->head->rel, "_", "WON");
+           	posHeadAtom->negated = TRUE;
+            posHeadAtom->rel = CONCAT_STRINGS(strdup(PosHeadNm), NON_LINKED_POSTFIX);
+            headRule->body = singleton(posHeadAtom);
 
             DLAtom *lookupAtom;
-            AD_NORM_COPY(lookupAtom,NegHeadRule->head);
+            AD_NORM_COPY(lookupAtom,headRule->head);
             CONCAT_MAP_LIST(idbAdToRules,(Node *) lookupAtom, singleton(ruleRule));
 
-        	DEBUG_LOG("created new neg-head rule:\n%s", datalogToOverviewString((Node *) NegHeadRule));
-        	helpRules = appendToTailOfList(helpRules, NegHeadRule);
+            helpRules = appendToTailOfList(helpRules, headRule);
+
+
+        	DLRule *PosHeadRule = makeNode(DLRule);
+            DLAtom *adPosHead = copyObject(r->head);
+
+            PosHeadRule->head = adPosHead;
+        	adPosHead->rel = CONCAT_STRINGS(strdup(PosHeadNm), NON_LINKED_POSTFIX);
+            setDLProp((DLNode *) adPosHead, DL_ORIG_ATOM, (Node *) copyObject(r->head));
+
+          	ruleAtom->rel = CONCAT_STRINGS(strdup(adRuleName), NON_LINKED_POSTFIX);
+          	createArgs->name = "TRUE";
+          	ruleAtom->args = copyObject(newRuleArgs);
+          	PosHeadRule->body = singleton(ruleAtom);
+
+            AD_NORM_COPY(lookupAtom,PosHeadRule->head);
+            CONCAT_MAP_LIST(idbAdToRules,(Node *) lookupAtom, singleton(ruleRule));
+
+            helpRules = appendToTailOfList(helpRules, PosHeadRule);
 
         }
+
+/*
+        DLAtom *lookupAtom;
+        AD_NORM_COPY(lookupAtom,headRule->head);
+//        DL_SET_BOOL_PROP((getDLProp((DLNode *) lookupAtom, DL_ORIG_ATOM)), DL_IS_IDB_REL);
+        CONCAT_MAP_LIST(idbAdToRules,(Node *) lookupAtom, singleton(ruleRule));
 */
-        DEBUG_LOG("created new head rule:\n%s", datalogToOverviewString((Node *) headRule));
-        helpRules = appendToTailOfList(helpRules, headRule);
+
+        DEBUG_LOG("created new head rule:\n%s", datalogToOverviewString((Node *) helpRules));
 //        setIDBBody(ruleRule);
+        if (ruleWon)
+            unLinkedRules = appendToTailOfList(unLinkedRules, ruleRule);
+
 
         // unlinked rules for negation 07.2015
         if (!ruleWon) {
 
         	// 08.2015 calculation of number of loop
         	int numLoop = 0;
-        	for (int j = 0; j < addArgs->length; j+=2) {
-        		if (j == 0) {
-            		numLoop = 2 * (j+1);
-        		} else {
-        			numLoop = 2 * j;
-        		}
+        	for (int l = 1; l < (addArgs->length) + 1; l++) {
+           		numLoop = l * 2;
         	}
 //        	char *intStr = itoa(numLoop);
 //        	DEBUG_LOG("Number of loop:%s", intStr);
 
         	//08.2015 generating possible rules with args
-        	for (int i = 0; i < numLoop; i++) {
+        	boolean *numArgs = MALLOC(sizeof(boolean) * addArgs->length);
+    	    newRuleArgs = removeVars(newRuleArgs, addArgs);
+//    	    DEBUG_LOG("Length of addArgs:%s", itoa(addArgs->length));
 
-        	    boolean checkBool;
-        		if (i % 2 == 0) {
-        			checkBool = TRUE;
+			//give boolean value for the args added
+        	for (int j = 0; j < numLoop; j++) {
+
+        		int pos;
+//        		DEBUG_LOG("updateArgs:%s", datalogToOverviewString((Node *) updateArgs));
+
+        		if (j == 0) {
+        			for (pos = 0; pos < addArgs->length; pos++) {
+        				numArgs[pos] = FALSE; // set all the values to false in array
+                		DEBUG_LOG("numArgs:%d", numArgs[pos]);
+        			}
         		} else {
-        			checkBool = FALSE;
+       				for (pos = 0; pos < addArgs->length; pos++) {
+       					if (numArgs[pos] == FALSE) { // check the value in the array is true or false
+       						numArgs[pos] = TRUE;
+           					break;
+       					} else {
+       						numArgs[pos] = FALSE;
+       					}
+      				}
+     	   		DEBUG_LOG("numArgs:%d", numArgs[pos]);
         		}
 
-        		char *boolOut = checkBool ? "TRUE" : "FALSE";
-//        		DEBUG_LOG("Boolout:%s", boolOut);
-        		createArgs->name = boolOut; //08.2015 need to modify for multi-arguments
+        		//add into the list
+        		updateArgs = appendToTailOfList(updateArgs, createConstBool(numArgs[pos]));
+        		newRuleArgs = appendToTailOfList(newRuleArgs, createConstBool(numArgs[pos]));
+        		DEBUG_LOG("Rule Args:%s", datalogToOverviewString((Node *) newRuleArgs));
 
+        		//create unlinked rules
         		char *adNegRuleName = CONCAT_STRINGS("r", itoa(INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))), "_WL");
 
         		ruleRule->head->rel = CONCAT_STRINGS(adNegRuleName, NON_LINKED_POSTFIX);
@@ -407,99 +450,47 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				setDLProp((DLNode *) ruleRule->head, DL_ORIG_ATOM, (Node *) copyObject(r->head));
 
 				// adapt goal nodes
-				char *adBodyName = "";
+				char *adBodyName;
 				FOREACH(DLAtom,a,ruleRule->body) //TODO comparison atoms
 				{
 					a->rel = "R";
+
 					// if an edb atom
 					if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
 					{
 						DLAtom *at;
 						AD_NORM_COPY(at,a);
-						addToSet(adornedEDBAtoms, at);
+						if (ruleWon) {
+							addToSet(adornedEDBAtoms, at);
+						} else {
+							addToSet(adornedEDBHelpAtoms, at);
+						}
 					}
-					adBodyName = CONCAT_STRINGS("R", a->rel, "_", checkBool ? "WON" : "LOST", NON_LINKED_POSTFIX);
 
-					deleteArgs = appendToTailOfList(deleteArgs, createArgs);
-					a->args = removeVars(newRuleArgs, deleteArgs);
+					adBodyName = CONCAT_STRINGS("R", a->rel, "_", numArgs[pos] ? "WON" : "LOST", NON_LINKED_POSTFIX);
+					a->args = copyObject(removeVars(newRuleArgs, updateArgs));
 
 					setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(a));
 					a->rel = adBodyName;
 
 				}
 
-				unLinkedRules = appendToTailOfList(unLinkedRules, ruleRule);
+				if (numArgs[pos]) {
+					unLinkedHelpRules = appendToTailOfList(unLinkedHelpRules, ruleRule);
+				} else {
+					unLinkedRules = appendToTailOfList(unLinkedRules, ruleRule);
+				}
 				ruleRule = copyObject(r);
-
-				// 08.2015 create RR_LOST = not RR_WON at the end of loop
-				if (i == numLoop) {
-/*
-				DLRule *idbHeadRule = copyObject(r);
-
-				idbHeadRule->head->rel = strdup(adBodyName);
-				idbHeadRule->head->args = copyObject(removeVars(newRuleArgs, deleteArgs));
-				setDLProp((DLNode *) idbHeadRule, DL_ORIG_ATOM, (Node *) copyObject(r->head));
-
-				FOREACH(DLAtom,a,idbHeadRule->body) //TODO comparison atoms
-				{
-					// if an edb atom
-					if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
-					{
-						DLAtom *at;
-						AD_NORM_COPY(at,a);
-						addToSet(adornedEDBAtoms, at);
-					}
-					char *adIdbBodyNm = CONCAT_STRINGS("R", "R", "_", "WON", NON_LINKED_POSTFIX);
-
-					a->negated = TRUE;
-					a->args = copyObject(removeVars(newRuleArgs, deleteArgs));
-
-					setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(a));
-					a->rel = adIdbBodyNm;
-
-				}
-*/
-
-					DLRule *idbHeadRule = makeNode(DLRule);
-		            DLAtom *adIdbHead = copyObject(r->head);
-		            DLAtom *adIdbBody = copyObject(r->head);
-
-		            idbHeadRule->head = adIdbHead;
-					adIdbHead->rel = strdup(adBodyName);
-					adIdbHead->args = copyObject(removeVars(newRuleArgs, deleteArgs));
-		            setDLProp((DLNode *) adIdbHead, DL_ORIG_ATOM, (Node *) copyObject(adIdbHead));
-
-
-		            char *adIdbBodyNm = CONCAT_STRINGS("R", "R", "_", "WON", NON_LINKED_POSTFIX);
-
-		            adIdbBody->negated = TRUE;
-		            adIdbBody->args = copyObject(removeVars(newRuleArgs, deleteArgs));
-
-					setDLProp((DLNode *) adIdbBody, DL_ORIG_ATOM, (Node *) copyObject(adIdbBody));
-					adIdbBody->rel = adIdbBodyNm;
-
-		            idbHeadRule->body = singleton(adIdbBody);
-		            helpRules = appendToTailOfList(helpRules, idbHeadRule);
-
-/*
-		            DLAtom *lookup;
-		            AD_NORM_COPY(lookup,idbHeadRule->head);
-		            CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(idbHeadRule));
-*/
-
-				}
-
+				newRuleArgs = removeVars(newRuleArgs, updateArgs);
         	}
 
         }
 
-        if (ruleWon)
-            unLinkedRules = appendToTailOfList(unLinkedRules, ruleRule);
-
     }
 
-    DEBUG_LOG("------------- STEP 1 ---------------\n: created unlinked rules:\n%s\nand help rules:\n%s",
+    DEBUG_LOG("------------- STEP 1 ---------------\n: created unlinked rules:\n%s\nand unliked help rules rules:\n%s\nand help rules:\n%s",
              datalogToOverviewString((Node *) unLinkedRules),
+			 datalogToOverviewString((Node *) unLinkedHelpRules),
              datalogToOverviewString((Node *) helpRules));
 
     // create rules adorned edb atoms R^adornment
@@ -507,6 +498,45 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     //  - create R^adornment(X) :- not R(X) if Lost+
     //  - create R^adornment(X,TRUE) :- R(X), R^adornment(X,FALSE) :- not R(X) if Won-
     //  - create R^adornment(X,FALSE) :- R(X), R^adornment(X,TRUE) :- not R(X) if Lost-
+
+    FOREACH_SET(DLAtom,edbhelp,adornedEDBHelpAtoms)
+    {
+        DLRule *atRule;
+        DLAtom *atHead;
+        DLAtom *atBody;
+
+  	  	// edb negation 08.2015
+       	if (!DL_HAS_PROP(edbhelp, DL_IS_IDB_REL)) // if an edb atom
+       	{
+       		DLAtom *at;
+       		AD_NORM_COPY(at,edbhelp);
+       		addToSet(adornedEDBAtoms, at);
+       	}
+
+       	char *adNegAtomName = CONCAT_STRINGS("R", edbhelp->rel, "_", "LOST", NON_LINKED_POSTFIX);
+       	atHead = copyObject(edbhelp);
+       	atHead->rel = adNegAtomName;
+//       	atHead->args = copyObject(newRuleArgs);
+
+       	atBody = copyObject(edbhelp);
+       	char *adNegAtomBody = CONCAT_STRINGS("R", edbhelp->rel, "_", "WON", NON_LINKED_POSTFIX);
+       	atBody->negated = TRUE;
+       	atBody->rel = adNegAtomBody;
+//       	atBody->args = copyObject(newRuleArgs);
+
+       	atRule = createDLRule(atHead, singleton(atBody));
+       	setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) edbhelp);
+//       	setDLProp((DLNode *) atBody, DL_ORIG_ATOM, (Node *) copyObject(atBody));
+
+       	DLAtom *lookup;
+       	AD_NORM_COPY(lookup, atRule->head);
+       	CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(atRule));
+
+        negedbRules = appendToTailOfList(negedbRules, atRule);
+       	DEBUG_LOG("new EDB help rule generated:\n%s", datalogToOverviewString((Node *) atRule));
+    }
+
+
     FOREACH_SET(DLAtom,edb,adornedEDBAtoms)
     {
         DLRule *atRule;
@@ -520,6 +550,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         boolean ruleNeg = DL_HAS_PROP(edb,DL_UNDER_NEG_WON);
                                        || DL_HAS_PROP(edb,DL_UNDER_NEG_LOST);
         */
+
+        // positive case
+    	atRule = makeNode(DLRule);
         char *adAtomName = CONCAT_STRINGS("R", edb->rel, "_", "WON", NON_LINKED_POSTFIX);
 
         atHead = copyObject(edb);
@@ -545,60 +578,28 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         // add rules to new rules list
         setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) edb);
 
-//        if (ruleWon) {
-            DLAtom *lookup;
-            AD_NORM_COPY(lookup, atRule->head);
-            CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(atRule));
-//        }
+        DLAtom *lookup;
+        AD_NORM_COPY(lookup, atRule->head);
+        CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(atRule));
 
-//        if (!ruleWon)
-//        	setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) edb);
-
-/*
-  	  	// edb negation 07.2015
-        if (!ruleWon) {
-
-        	DLRule *atNegRule;
-        	DLAtom *atNegHead;
-        	DLAtom *atNegBody;
-
-        	char *adNegIdbName = CONCAT_STRINGS("R", edb->rel, "_", "LOST", NON_LINKED_POSTFIX);
-
-        	atNegHead = copyObject(edb);
-        	atNegHead->rel = adNegIdbName;
-        	atNegBody = copyObject(edb);
-
-
-			char *adIdbBody = CONCAT_STRINGS("R", "R", "_", "WON", NON_LINKED_POSTFIX);
-
-			atNegBody->negated = TRUE;
-        	atNegBody->rel = adIdbBody;
-//        	atNegBody->args = copyObject(edb);
-
-        	atNegRule = createDLRule(atNegHead, singleton(atNegBody));
-            setDLProp((DLNode *) atNegRule->head, DL_ORIG_ATOM, (Node *) copyObject(atNegRule->head));
-
-            DLAtom *lookup;
-            AD_NORM_COPY(lookup, atNegRule->head);
-            CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup,singleton(atNegRule));
-
-            DEBUG_LOG("new neg EDB rule generated:\n%s", datalogToOverviewString((Node *) atNegRule));
-            edbRules = appendToTailOfList(edbRules, atNegRule);
-
-        }
-*/
-        DEBUG_LOG("new EDB rule generated:\n%s", datalogToOverviewString((Node *) atRule));
-        edbRules = appendToTailOfList(edbRules, atRule);
+       	edbRules = appendToTailOfList(edbRules, atRule);
+       	DEBUG_LOG("new EDB rule generated:\n%s", datalogToOverviewString((Node *) edbRules));
 
     }
 
     FOREACH(DLRule,r,unLinkedRules)
         setIDBBody(r);
 
-    DEBUG_LOG("------------- STEP 2 ---------------\n: created unlinked rules:\n%s\nand help rules:\n%s\nand EDB rules:\n%s",
+    FOREACH(DLRule,r,negedbRules)
+        setIDBBody(r);
+
+
+    DEBUG_LOG("------------- STEP 2 ---------------\n: created unlinked rules:\n%s\nand unlinked help rules:\n%s\nand help rules:\n%s\nand EDB help rules:\n%s\nand EDB rules:\n%s",
              datalogToOverviewString((Node *) unLinkedRules),
+			 datalogToOverviewString((Node *) unLinkedHelpRules),
              datalogToOverviewString((Node *) helpRules),
-             datalogToOverviewString((Node *) edbRules));
+			 datalogToOverviewString((Node *) negedbRules),
+			 datalogToOverviewString((Node *) edbRules));
 
 
 //    DEBUG_LOG("create head to unlinked rules mappings:\n%s",
@@ -665,6 +666,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
                     // create unique variable names for both rule atoms
                     dummyRule = createDLRule(ruleGoal, singleton(atCopy));
+
                     // 08.2015 make unique args only for 'Y', but not 'TRUE/FALSE'
                     if (dummyRule->head->args == removeVars(newRuleArgs, deleteArgs)) {
                         makeVarNamesUnique(LIST_MAKE(goalGoal, dummyRule));
@@ -720,8 +722,19 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
             dummyRule->head = copyObject(unRule->head);
             dummyRule->head->rel = strRemPostfix(dummyRule->head->rel,
                     strlen(NON_LINKED_POSTFIX));
+
             dummyBody = copyObject(unRule->head);
-            dummyRule->body = singleton(dummyBody);
+			dummyRule->body = singleton(dummyBody);
+
+            // 08.2015 To check the correctness of rule firing
+//            DEBUG_LOG("check args:%s", datalogToOverviewString((Node *) createArgs->name));
+            /*
+            if (searchList(checkVars, createArgs->name)) {
+				dummyRule->body = LIST_MAKE(dummyBody, HeadRule->head);
+			} else {
+				dummyRule->body = singleton(dummyBody);
+			}
+			*/
             ((DLNode *) dummyRule)->properties =
                     copyObject(((DLNode *) unRule)->properties);
 
@@ -735,13 +748,37 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //    FOREACH(DLRule,r,newRules)
 //        unLinkedRules = REMOVE_FROM_LIST_PTR(unLinkedRules, r);
 
-    DEBUG_LOG("------------- STEP 3 ---------------\ncreated unlinked rules:\n%s\nand linked rules:\n%s\nand help rules:\n%sand EDB rules:\n%s",
+    DEBUG_LOG("------------- STEP 3 ---------------\ncreated unlinked rules:\n%s\nand unlinked help rules:\n%s\nand linked rules:\n%s\nand help rules:\n%s\nand EDB help rules:\n%s\nand EDB rules:\n%s",
             datalogToOverviewString((Node *) unLinkedRules),
+			datalogToOverviewString((Node *) unLinkedHelpRules),
             datalogToOverviewString((Node *) newRules),
             datalogToOverviewString((Node *) helpRules),
-            datalogToOverviewString((Node *) edbRules));
+			datalogToOverviewString((Node *) negedbRules),
+			datalogToOverviewString((Node *) edbRules));
 
     // create rules for move relation
+
+    FOREACH(DLRule,e,negedbRules)
+    {
+        boolean ruleWon = DL_HAS_PROP(e->head,DL_WON)
+                                       || DL_HAS_PROP(e->head,DL_UNDER_NEG_WON);
+
+        ASSERT(DL_HAS_PROP(e->head,DL_ORIG_ATOM));
+        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(e->head,DL_ORIG_ATOM);
+        char *rel = CONCAT_STRINGS(strdup(origAtom->rel), ruleWon ? "_WON" : "_LOST");
+        char *negRel = CONCAT_STRINGS(strdup(origAtom->rel), ruleWon ? "_LOST" : "_WON");
+        char *headName = strRemPostfix(strdup(e->head->rel), strlen(NON_LINKED_POSTFIX));
+
+        if (!ruleWon) {
+
+        	Node *lExpr = createSkolemExpr(GP_NODE_NEGREL, negRel, e->head->args);
+            Node *rExpr = createSkolemExpr(GP_NODE_POSREL, rel, e->head->args);
+            DLRule *moveRule = createMoveRule(lExpr, rExpr, headName, e->head->args);
+            moveRules = appendToTailOfList(moveRules, moveRule);
+
+        }
+    }
+
     // for each edb rule create two move entries
     FOREACH(DLRule,e,edbRules)
     {
@@ -769,7 +806,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
             DEBUG_LOG("NEW MOVE RULE: negR-atom -> R-atom -> R: %s", headName);
 
-        } else {
+        }
+/*
+        else {
 
         	Node *lExpr = createSkolemExpr(GP_NODE_NEGREL, negRel, e->head->args);
             Node *rExpr = createSkolemExpr(GP_NODE_POSREL, rel, e->head->args);
@@ -777,6 +816,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
             moveRules = appendToTailOfList(moveRules, moveRule);
 
         }
+*/
 
     }
 
@@ -818,11 +858,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
         } else {
 
-        	Node *lExpr = createSkolemExpr(GP_NODE_POSREL, headRel, copyObject(origAtom->args));
-            Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(r->head->args));
-            DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
-            moveRules = appendToTailOfList(moveRules, moveRule);
-
+       		Node *lExpr = createSkolemExpr(GP_NODE_POSREL, headRel, copyObject(origAtom->args));
+       		Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(r->head->args));
+       		DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
+       		moveRules = appendToTailOfList(moveRules, moveRule);
         }
 
         // rule_i -> goal_i_j -> posR/negR -> posR
@@ -888,15 +927,32 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     FOREACH(DLRule,r,helpRules)
         setIDBBody(r);
 
-    DEBUG_LOG("------------- STEP 3 ---------------\ncreated unlinked rules:\n%s\nand linked rules:\n%s\nand help rules:\n%s\nand EDB rules:\n%s\nand move rules:\n%s",
+    FOREACH(DLRule,r,negedbRules)
+        setIDBBody(r);
+
+
+    DEBUG_LOG("------------- STEP 3 ---------------\ncreated unlinked rules:\n%s\nand unlinked help rules:\n%s\nand linked rules:\n%s\nand help rules:\n%s\nand EDB help rules:\n%s\nand EDB rules:\n%s\nand move rules:\n%s",
             datalogToOverviewString((Node *) unLinkedRules),
+			datalogToOverviewString((Node *) unLinkedHelpRules),
             datalogToOverviewString((Node *) newRules),
             datalogToOverviewString((Node *) helpRules),
-            datalogToOverviewString((Node *) edbRules),
+			datalogToOverviewString((Node *) negedbRules),
+			datalogToOverviewString((Node *) edbRules),
             datalogToOverviewString((Node *) moveRules));
 
     solvedProgram->ans = "move";
-    solvedProgram->rules = CONCAT_LISTS(moveRules, newRules, edbRules, helpRules, unLinkedRules);
+
+    // 08.2015
+    FOREACH(DLRule,r,solvedProgram->rules){
+    	boolean ruleWon = DL_HAS_PROP(r,DL_WON)
+    	                           || DL_HAS_PROP(r,DL_UNDER_NEG_WON);
+
+    	if (ruleWon) {
+           	solvedProgram->rules = CONCAT_LISTS(moveRules, newRules, edbRules, helpRules, unLinkedRules);
+    	} else {
+           	solvedProgram->rules = CONCAT_LISTS(moveRules, newRules, negedbRules, edbRules, helpRules, unLinkedRules);
+    	}
+    }
 
     INFO_LOG("gp program is:\n%s", datalogToOverviewString((Node *) solvedProgram));
 
@@ -1270,8 +1326,8 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
             DLRule *r = (DLRule *) popHeadOfListP(todoStack);
             boolean ruleWon = DL_HAS_PROP(r,DL_WON)
                     				|| DL_HAS_PROP(r,DL_UNDER_NEG_WON);
-            boolean ruleNeg = DL_HAS_PROP(r,DL_UNDER_NEG_WON)
-                    				|| DL_HAS_PROP(r,DL_UNDER_NEG_LOST);
+//            boolean ruleNeg = DL_HAS_PROP(r,DL_UNDER_NEG_WON)
+//                    				|| DL_HAS_PROP(r,DL_UNDER_NEG_LOST);
 
             DEBUG_LOG("process rule:\n%s",
                     datalogToOverviewString((Node *) r));
@@ -1281,10 +1337,12 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
             {
                 DLAtom *adHead;
                 boolean newWon = ruleWon && !a->negated;
-                boolean newNeg = ruleNeg || !ruleWon;
-                char *newProp = newNeg ?
-                        (newWon ? DL_UNDER_NEG_WON : DL_UNDER_NEG_LOST)
-                        : (newWon ? DL_WON : DL_LOST);
+                char *newProp = newWon ? DL_WON : DL_LOST;
+
+//                boolean newNeg = ruleNeg || !ruleWon;
+//                char *newProp = newNeg ?
+//                        (newWon ? DL_UNDER_NEG_WON : DL_UNDER_NEG_LOST)
+//                        : (newWon ? DL_WON : DL_LOST);
 
                 NORM_COPY(adHead, a);
                 DEBUG_LOG("process atom:\n%s",
