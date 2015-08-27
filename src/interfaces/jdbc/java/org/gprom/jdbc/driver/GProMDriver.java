@@ -6,6 +6,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.sql.Connection;
 import java.sql.Driver;
@@ -54,6 +55,7 @@ public class GProMDriver implements Driver {
 
 	protected Driver driver;
 	private GProMWrapper w;
+	private MyInterface queryAndProvLogger = null;
 
 	/*
 	 * private static final int MAJOR_VERSION = 0; private static final int
@@ -92,6 +94,44 @@ public class GProMDriver implements Driver {
 						.getProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP))
 				: false;
 
+		boolean useProvAndQueryLogger = info
+				.containsKey(GProMDriverProperties.USE_PROV_AND_QUERY_LOGGER) ? Boolean
+				.parseBoolean(info
+						.getProperty(GProMDriverProperties.USE_PROV_AND_QUERY_LOGGER))
+				: false;
+
+		if (useProvAndQueryLogger)
+		//TODO use option to decide which if any prov and query logger to use		
+		{
+			String className = info
+					.getProperty(GProMDriverProperties.PROV_AND_QUERY_LOGGER_CLASS);
+			try {
+				Class clazz = Class.forName(className);
+				queryAndProvLogger = (MyInterface) clazz.getConstructor().newInstance();
+			} catch (ClassNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (InstantiationException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (IllegalAccessException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (IllegalArgumentException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (InvocationTargetException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (NoSuchMethodException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (SecurityException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+		}
 		/*
 		 * Load the driver to connect to the database and create a new
 		 * GProMConnection.
@@ -293,7 +333,7 @@ public class GProMDriver implements Driver {
 			}
 
 			ResultSet rs1 = st.executeQuery(s);
-			printResult(rs1, s);
+			Javaonoff.getInstance().printResult(rs1, s);
 			// String x1 = s.replace(";", "");
 
 			String x1ss = s.replace(";", "");
@@ -310,7 +350,7 @@ public class GProMDriver implements Driver {
 			 */
 
 			rs1 = st.executeQuery("PROVENANCE OF (" + x1 + ");");
-			printResult(rs1, s);
+			Javaonoff.getInstance().printResult(rs1, s);
 
 			// test error
 			try {
@@ -320,7 +360,7 @@ public class GProMDriver implements Driver {
 			}
 
 			rs = st.executeQuery("PROVENANCE OF (" + x + ");");
-			printResult(rs, s);
+			Javaonoff.getInstance().printResult(rs, s);
 
 			// log.error("statement shutdown");
 			/* con.close(); */
@@ -362,7 +402,7 @@ public class GProMDriver implements Driver {
 				}
 			}
 
-			printResult(rs, s);
+			Javaonoff.getInstance().printResult(rs, s);
 
 			// test error
 			try {
@@ -372,7 +412,7 @@ public class GProMDriver implements Driver {
 			}
 
 			rs = st.executeQuery(s);
-			printResult(rs, s);
+			queryAndProvLogger.printResult(rs, s);
 
 			// log.error("statement shutdown");
 			/* con.close(); */
@@ -381,12 +421,12 @@ public class GProMDriver implements Driver {
 
 	}
 
-	private static void printResult(ResultSet rs, String s) throws SQLException {
-		Javaonoff j = new Javaonoff();
+/*	private static void printResult(ResultSet rs, String s) throws SQLException {
+		
 		try (PrintWriter out = new PrintWriter(new BufferedWriter(
 				new FileWriter("myfile.txt", true)))) {
 
-			j.QueryStoretxt(s);
+			Javaonoff.QueryStoretxt(s);
 			j.QueryStorecsv(s);
 
 			if (check) {
@@ -456,7 +496,7 @@ public class GProMDriver implements Driver {
 			// exception handling left as an exercise for the reader
 		}
 		
-	}
+	}*/
 
 	public static void init() {
 		try {

@@ -30,7 +30,7 @@ public class Test {
 	static Logger log = Logger.getLogger(Test.class);
 
 	public static void main(String[] args) throws Exception {
-		Javaonoff jo = new Javaonoff();
+		
 		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
 		String driverURL = "oracle.jdbc.OracleDriver";
 		// String url = "jdbc:hsqldb:file:/Users/alex/db/mydb";
@@ -100,13 +100,12 @@ public class Test {
 		Scanner in = new Scanner(System.in); // Just uncomment this code to get
 												// // user input
 		System.out.println("Enter a string");
-		//String s = in.nextLine();
-		String s = "select * from r where a='2';"; 
+		String s = in.nextLine();
+		//String s = "select * from r;"; 
 
 		if (s.contains("java")) {
-			jo.javaLogging(s);
-		} else if (s.contains("hash")) {
-			jo.addHash(123, "test");
+			Javaonoff.getInstance().JavaLoggingParameter(s);
+		
 		} else {
 			GProMDriver test = new GProMDriver();
 			test.provenance(s, st, con);

@@ -1,17 +1,18 @@
 package org.gprom.jdbc.driver;
 
-interface MyInterface
-{
-   public void method1();
-   public void method2();
-   public void method3();
-   public void method4();
-   public void method5(String s);
-   public void method6(String s);
-   public void method7(String s);
-   public void method8(String s);
-   public void method9(int key, String value);
-   public void method10(int foo, String s);
-   public void method11();
-}
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
+interface MyInterface {
+	abstract void QueryLogger(String s);
+
+	abstract void JavaLoggingParameter(String s);
+
+	abstract void HashLogger(String k, String v)throws FileNotFoundException, ClassNotFoundException, IOException;
+
+	abstract void printResult(ResultSet rs, String s) throws SQLException ;
+
+	abstract void resultsLogger(String s);
+}
