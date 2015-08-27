@@ -210,6 +210,7 @@ extern char *latexEscapeString (char *st);
 /* functions for searching inside expressions */
 extern List *getAttrReferences (Node *node);
 extern List *getDLVars (Node *node);
+extern List *getDLVarsIgnoreProps (Node *node);
 
 /* for the condition of selection operator, separate the AND operator to a
  * list of operators, these relation among these operators is AND */

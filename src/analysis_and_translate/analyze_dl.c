@@ -217,7 +217,7 @@ static boolean
 checkHeadSafety (DLRule *r)
 {
     DLAtom *h = r->head;
-    List *headVars = getDLVars((Node *) h);
+    List *headVars = getDLVarsIgnoreProps((Node *) h);
     Set *bodyVars = makeNodeSetFromList(getBodyPredVars(r));
 
     // foreach variable

@@ -216,14 +216,25 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	int i = 0;
         	char *vName;
 
-        	FOREACH(DLVar,var,ruleRule->body) {
-            	if (!LIST_EMPTY(var->name)) {
-            		vName = CONCAT_STRINGS(ADD_ARGS, itoa(i++));
-            		createArgs = createDLVar(vName, DT_BOOL);
-            	}
-            	addArgs = appendToTailOfList(addArgs, createArgs); // For calculation of length of only new args
-        		newRuleArgs = appendToTailOfList(newRuleArgs, createArgs);
+        	FOREACH(DLNode,n,ruleRule->body) //TODO for(int i = 0; i < LIST_LENGTH(ruleRule->body); i++), but, e.g.,  Y=3
+        	{
+        	    if (isA(n,DLAtom))
+        	    {
+        	        vName = CONCAT_STRINGS(ADD_ARGS, itoa(i++));
+                    createArgs = createDLVar(vName, DT_BOOL);
+                    addArgs = appendToTailOfList(addArgs, createArgs); // For calculation of length of only new args
+                    newRuleArgs = appendToTailOfList(newRuleArgs, copyObject(createArgs));
+        	    }
         	}
+
+//        	FOREACH(DLVar,var,ruleRule->body) {
+//            	if (!LIST_EMPTY(var->name)) {
+//            		vName = CONCAT_STRINGS(ADD_ARGS, itoa(i++));
+//            		createArgs = createDLVar(vName, DT_BOOL);
+//            	}
+//            	addArgs = appendToTailOfList(addArgs, createArgs); // For calculation of length of only new args
+//        		newRuleArgs = appendToTailOfList(newRuleArgs, createArgs);
+//        	}
         }
 //        DEBUG_LOG("new args for rule head are: %s", datalogToOverviewString((Node *) newRuleArgs));
 

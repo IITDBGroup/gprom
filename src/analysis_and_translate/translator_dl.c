@@ -311,7 +311,8 @@ analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules)
 
     // determine head dts
     List *headDTs = NIL;
-    setVarDTs((Node *) r->head->args, varToDT);
+//    setVarDTs((Node *) r->head->args, varToDT);
+    setVarDTs((Node *) r, varToDT);
 
     FOREACH(Node,arg,r->head->args)
         headDTs = appendToTailOfListInt(headDTs, typeOf(arg));
@@ -323,7 +324,7 @@ analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules)
 static void
 setVarDTs (Node *expr, HashMap *varToDT)
 {
-    List *vars = getDLVars (expr);
+    List *vars = getDLVarsIgnoreProps (expr);
     FOREACH(DLVar,v,vars)
         v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
 }
@@ -613,7 +614,7 @@ createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTm
 {
     Node *result = NULL;
     List *attrNames = getQueryOperatorAttrNames(in);
-    List *vars = getDLVars((Node *) comparisons);
+    List *vars = getDLVarsIgnoreProps((Node *) comparisons);
 
     // set correct data types
     FOREACH(DLVar,v,vars)

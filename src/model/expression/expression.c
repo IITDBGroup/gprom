@@ -29,6 +29,7 @@ typedef struct FindNotesContext
 static boolean findAllNodesVisitor(Node *node, FindNotesContext *context);
 static boolean findAttrReferences (Node *node, List **state);
 static boolean findDLVars (Node *node, List **state);
+static boolean findDLVarsIgnoreProps (Node *node, List **state);
 static DataType typeOfOp (Operator *op);
 static DataType typeOfFunc (FunctionCall *f);
 
@@ -623,6 +624,31 @@ static boolean
 findDLVars (Node *node, List **state)
 {
     if (node == NULL)
+        return TRUE;
+
+    if (isA(node, DLVar))
+        *state = appendToTailOfList(*state, node);
+
+    return visit(node, findDLVars, state);
+}
+
+List *
+getDLVarsIgnoreProps (Node *node)
+{
+    List *result = NIL;
+
+    findDLVarsIgnoreProps(node, &result);
+
+    return result;
+}
+
+static boolean
+findDLVarsIgnoreProps (Node *node, List **state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, HashMap))
         return TRUE;
 
     if (isA(node, DLVar))
