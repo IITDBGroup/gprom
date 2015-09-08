@@ -288,11 +288,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                     {
                     	DLAtom *at;
                         AD_NORM_COPY(at,a);
-                        if (ruleWon) {
-                            addToSet(adornedEDBAtoms, at);
-                        } else {
-                            addToSet(adornedEDBHelpAtoms, at);
-                        }
+                        if(ruleWon)
+                        	addToSet(adornedEDBAtoms, at);
+//                        else
+//                            addToSet(adornedEDBHelpAtoms, at);
                     }
 
                     boolean ruleWon = DL_HAS_PROP(r,DL_WON)
@@ -438,6 +437,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
         		int pos, k;
         		List *searchBoolArgs = NIL;
+
 //        		DEBUG_LOG("updateArgs:%s", datalogToOverviewString((Node *) updateArgs));
 //
 //        		if (j == 0)
@@ -515,6 +515,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				setDLProp((DLNode *) ruleRule->head, DL_ORIG_ATOM, (Node *) copyObject(r->head));
 
 				// adapt goal nodes
+				int listPos = 0;
 				char *adBodyName = NULL;
 				FOREACH(DLAtom,a,ruleRule->body) //TODO comparison atoms
 				{
@@ -525,16 +526,16 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					{
 						DLAtom *at;
 						AD_NORM_COPY(at,a);
-						if (ruleWon) {
-							addToSet(adornedEDBAtoms, at);
-						} else {
+						if (searchListInt(searchBoolArgs, 0))
 							addToSet(adornedEDBHelpAtoms, at);
-						}
+						else
+                            addToSet(adornedEDBAtoms, at);
 					}
 
-					adBodyName = CONCAT_STRINGS("R", a->rel, "_",  searchListInt(searchBoolArgs, 0)? "LOST" : "WON", NON_LINKED_POSTFIX);
+					adBodyName = CONCAT_STRINGS("R", a->rel, "_", (getNthOfListInt(searchBoolArgs, listPos) == 1) ? "WON" : "LOST", NON_LINKED_POSTFIX);
+					listPos++;
 
-					if (searchListInt(searchBoolArgs, 0)) // ask another way to do!!!!
+					if (searchListInt(searchBoolArgs, 0))
 						setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(a));
 
 					a->rel = adBodyName;
