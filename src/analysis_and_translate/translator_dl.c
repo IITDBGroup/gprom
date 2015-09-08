@@ -325,6 +325,7 @@ static void
 setVarDTs (Node *expr, HashMap *varToDT)
 {
     List *vars = getDLVarsIgnoreProps (expr);
+//    List *vars = getDLVars (expr);
     FOREACH(DLVar,v,vars)
         v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
 }
@@ -615,6 +616,7 @@ createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTm
     Node *result = NULL;
     List *attrNames = getQueryOperatorAttrNames(in);
     List *vars = getDLVarsIgnoreProps((Node *) comparisons);
+//    List *vars = getDLVars((Node *) comparisons);
 
     // set correct data types
     FOREACH(DLVar,v,vars)
@@ -681,7 +683,7 @@ translateGoal(DLAtom *r, int goalPos)
     if (DL_HAS_PROP(r,DL_IS_IDB_REL))
     {
         for(int i = 0; i < LIST_LENGTH(r->args); i++)
-            attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));
+        	attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));
     }
     // is edb, get information from db
     else
@@ -704,16 +706,19 @@ translateGoal(DLAtom *r, int goalPos)
         // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
         // then return (Domain X Domain X ... X Domain) - R
         dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
-                "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
+        		"DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
         List *domainAttrs = singleton("D");
 
         for(int i = 1; i < numAttrs; i++)
         {
+        	char *aDomAttrName = CONCAT_STRINGS("D", itoa(i++));
             QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
                     "_DOMAIN", NULL, "DummyDom", NIL,
-                    LIST_MAKE("D"), singletonInt(DT_STRING));
+					LIST_MAKE(aDomAttrName), singletonInt(DT_STRING));
+//            		LIST_MAKE("D"), singletonInt(DT_STRING));
             QueryOperator *oldD = dom;
-            domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),"D");
+            domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
+//            domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),"D");
             dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
                     LIST_MAKE(dom, aDom), NULL,
                     domainAttrs);
@@ -756,6 +761,9 @@ translateGoal(DLAtom *r, int goalPos)
                     LIST_MAKE(createFullAttrReference(strdup(a->attrName),
                             0, i, INVALID_ATTR, a->dataType),
                     copyObject(arg)));
+
+            if (a->dataType != ((Constant *) arg)->constType) // check for unmatched dataType
+            	a->dataType = ((Constant *) arg)->constType;  // , but need discussion if it is correct to check
 
             ASSERT(a->dataType == ((Constant *) arg)->constType);
 
