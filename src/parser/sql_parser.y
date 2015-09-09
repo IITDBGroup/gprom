@@ -87,6 +87,7 @@ Node *bisonParseResult = NULL;
 
 /* Logical operators */
 %left '|'
+%left STRINGCONCAT
 %left XOR
 %left '&'
 /* what is that? %right ':=' */
@@ -704,7 +705,13 @@ binaryOperatorExpression:
                 expr = appendToTailOfList(expr, $3);
                 $$ = (Node *) createOpExpr($2, expr);
             }
-
+        | expression STRINGCONCAT expression
+        	{
+                RULELOG("binaryOperatorExpression:: '||' ");
+                List *expr = singleton($1);
+                expr = appendToTailOfList(expr, $3);
+                $$ = (Node *) createOpExpr(strdup("||"), expr);        	
+			}
     /* Comparison Operators */
         | expression comparisonOps expression
             {

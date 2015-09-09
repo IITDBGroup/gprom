@@ -88,7 +88,8 @@ parameters		[:]({identifiers}|{integer})
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 /*shiftsOps		["<<"|">>"] */
-
+/* string concatenation */
+strconcat		"||"
 
 /*******************************************************************************
  * Token definitions and actions 
@@ -223,8 +224,9 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 
 	/* operators */
 {comparisonOps}		TOK(comparisonOps)
+{strconcat}			TOK(STRINGCONCAT)
 [-+*%/^~&|!]		TOKSELF()
-	
+
 
 
 	/* numbers */
