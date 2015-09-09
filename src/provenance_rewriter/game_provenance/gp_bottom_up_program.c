@@ -290,8 +290,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                         AD_NORM_COPY(at,a);
                         if(ruleWon)
                         	addToSet(adornedEDBAtoms, at);
-//                        else
-//                            addToSet(adornedEDBHelpAtoms, at);
+                        else
+                            addToSet(adornedEDBHelpAtoms, at);
                     }
 
                     boolean ruleWon = DL_HAS_PROP(r,DL_WON)
@@ -417,9 +417,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         else
         {
         	// 08.2015 calculation of number of loop
-        	int numLoop = 0;
-        	for (int l = 1; l < (addArgs->length) + 1; l++) {
-           		numLoop = l * 2;
+        	int numLoop = 1;
+        	for (int l = 1; l <= (addArgs->length); l++) {
+        		numLoop = numLoop * 2;
         	}
         	DEBUG_LOG("Number of loop:%d", numLoop);
 
@@ -438,6 +438,21 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         		int pos, k;
         		List *searchBoolArgs = NIL;
 
+				for (pos = 0; pos < (addArgs->length); pos++)
+				{
+					k = numArgs[j] >> pos;
+
+					if (k & 1)
+						numArgs[pos] = TRUE;
+					else
+						numArgs[pos] = FALSE;
+
+					boolArgs = appendToTailOfList(boolArgs, createConstBool(numArgs[pos]));
+					newRuleArgs = appendToTailOfList(newRuleArgs, createConstBool(numArgs[pos]));
+
+					searchBoolArgs = appendToTailOfListInt(searchBoolArgs, numArgs[pos]);
+  				}
+
 //        		DEBUG_LOG("updateArgs:%s", datalogToOverviewString((Node *) updateArgs));
 //
 //        		if (j == 0)
@@ -453,19 +468,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //        		}
 //        		else
 //        		{
-       				for (pos = 0; pos < (addArgs->length); pos++)
-       				{
-       					k = numArgs[j] >> pos;
-
-       					if (k & 1)
-       						numArgs[pos] = TRUE;
-       					else
-       						numArgs[pos] = FALSE;
-
-       					boolArgs = appendToTailOfList(boolArgs, createConstBool(numArgs[pos]));
-       					newRuleArgs = appendToTailOfList(newRuleArgs, createConstBool(numArgs[pos]));
-
-       					searchBoolArgs = appendToTailOfListInt(searchBoolArgs, numArgs[pos]);
 
 //
 //       					if (numArgs[pos] == FALSE) // check the value in the array is true or false
@@ -497,8 +499,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //							updateArgs = appendToTailOfList(updateArgs, createConstBool(numArgs[pos]));
 //							newRuleArgs = appendToTailOfList(newRuleArgs, createConstBool(numArgs[pos]));
 //       					}
-
-      				}
 //     	   		DEBUG_LOG("numArgs:%d", numArgs[pos]);
 //        		}
 
@@ -532,6 +532,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                             addToSet(adornedEDBAtoms, at);
 					}
 
+					// check the args to make TRUE -> WON and FALSE -> LOST
 					adBodyName = CONCAT_STRINGS("R", a->rel, "_", (getNthOfListInt(searchBoolArgs, listPos) == 1) ? "WON" : "LOST", NON_LINKED_POSTFIX);
 					listPos++;
 
