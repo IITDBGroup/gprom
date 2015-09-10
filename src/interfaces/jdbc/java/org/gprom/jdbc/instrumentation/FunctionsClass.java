@@ -1,4 +1,4 @@
-package org.gprom.jdbc.driver;
+package org.gprom.jdbc.instrumentation;
 
 import java.io.BufferedWriter;
 import java.io.File;

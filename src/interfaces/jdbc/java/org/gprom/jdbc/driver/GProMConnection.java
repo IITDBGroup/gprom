@@ -21,6 +21,7 @@ import java.util.concurrent.Executor;
 
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
+import org.gprom.jdbc.instrumentation.IInstrumentationLogger;
 import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.utility.LoggerUtil;
 
@@ -33,13 +34,14 @@ public class GProMConnection implements GProMConnectionInterface{
 	private Properties gpromConf;
 	private BackendType backend;
 	private GProMWrapper w;
-
+	private IInstrumentationLogger provLogger;
 	
-	public GProMConnection(Connection con, Properties gpromConf, BackendType backend, GProMWrapper w) {
+	public GProMConnection(Connection con, Properties gpromConf, BackendType backend, GProMWrapper w, IInstrumentationLogger provLogger) {
 		this.con = con;
 		this.gpromConf = gpromConf;
 		this.backend = backend;
 		this.w = w;
+		this.provLogger = provLogger;
 	}
 	
 	public GProMStatement createGProMStatement() {
@@ -67,18 +69,18 @@ public class GProMConnection implements GProMConnectionInterface{
 	}
 
 	public Statement createStatement() throws SQLException {
-		return new GProMStatement(con.createStatement(), backend);
+		return new GProMStatement(con.createStatement(), backend, provLogger);
 	}
 
 	public Statement createStatement(int resultSetType, int resultSetConcurrency)
 			throws SQLException {
-		return new GProMStatement(con.createStatement(resultSetType,resultSetConcurrency), backend);
+		return new GProMStatement(con.createStatement(resultSetType,resultSetConcurrency), backend, provLogger);
 	}
 
 	public Statement createStatement(int resultSetType,
 			int resultSetConcurrency, int resultSetHoldability)
 			throws SQLException {
-		return new GProMStatement(con.createStatement(resultSetType,resultSetConcurrency,resultSetHoldability), backend);
+		return new GProMStatement(con.createStatement(resultSetType,resultSetConcurrency,resultSetHoldability), backend, provLogger);
 	}
 
 	

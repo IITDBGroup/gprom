@@ -1,4 +1,4 @@
-package org.gprom.jdbc.driver;
+package org.gprom.jdbc.instrumentation;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -18,6 +18,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
+
+import org.gprom.jdbc.driver.checkJDBC;
 
 public class Javaonoff implements MyInterface {
 

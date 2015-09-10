@@ -10,7 +10,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 import java.util.Scanner;
-import org.gprom.jdbc.driver.Javaonoff;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
@@ -18,6 +17,8 @@ import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriver;
 import org.gprom.jdbc.driver.GProMDriverProperties;
 /*import org.gprom.jdbc.driver.AutoProvenanceReader;*/
+
+import org.gprom.jdbc.instrumentation.Javaonoff;
 
 import com.sun.jna.Native;
 

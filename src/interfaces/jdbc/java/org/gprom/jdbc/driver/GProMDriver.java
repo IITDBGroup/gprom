@@ -1,13 +1,8 @@
 package org.gprom.jdbc.driver;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
-import java.net.URL;
 import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
@@ -18,11 +13,6 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.util.Properties;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.FileHandler;
-import java.util.logging.SimpleFormatter;
-
-import java.io.IOException;
 import java.util.logging.FileHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -30,11 +20,12 @@ import java.util.logging.SimpleFormatter;
 
 import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
+import org.gprom.jdbc.instrumentation.IInstrumentationLogger;
+import org.gprom.jdbc.instrumentation.Javaonoff;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
-import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin;
+import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.metadata_lookup.oracle.OracleMetadataLookup;
-import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 /**
@@ -55,7 +46,7 @@ public class GProMDriver implements Driver {
 
 	protected Driver driver;
 	private GProMWrapper w;
-	private MyInterface queryAndProvLogger = null;
+	private IInstrumentationLogger queryAndProvLogger = null;
 
 	/*
 	 * private static final int MAJOR_VERSION = 0; private static final int
@@ -107,7 +98,7 @@ public class GProMDriver implements Driver {
 					.getProperty(GProMDriverProperties.PROV_AND_QUERY_LOGGER_CLASS);
 			try {
 				Class clazz = Class.forName(className);
-				queryAndProvLogger = (MyInterface) clazz.getConstructor().newInstance();
+				queryAndProvLogger = (IInstrumentationLogger) clazz.getConstructor().newInstance();
 			} catch (ClassNotFoundException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();

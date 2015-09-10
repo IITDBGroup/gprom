@@ -8,23 +8,28 @@ import java.sql.Statement;
 
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
+import org.gprom.jdbc.instrumentation.IInstrumentationLogger;
 import org.gprom.jdbc.jna.GProMWrapper;
 
 public class GProMStatement implements GProMStatementInterface {
 	// Variable
 	static Logger log = Logger.getLogger(GProMStatement.class);
+	
 	protected Statement stat;
 	private static String[] permKeywords = { "PROVENANCE", "BASERELATION",
 			"TRANSSQL" };
-	private BackendType backend;
+	
 	
 	private static String[] utilityKeywors = { "DROP"};
 
+	private BackendType backend;
+	private IInstrumentationLogger provLogger;	
 	static GProMWrapper w = GProMWrapper.inst;
 
-	public GProMStatement(Statement stat, BackendType backend){
+	public GProMStatement(Statement stat, BackendType backend, IInstrumentationLogger provLogger) {
 		this.stat = stat;	
 		this.backend = backend;
+		this.provLogger = provLogger;
 	}
 	
 	/**
@@ -117,6 +122,12 @@ public class GProMStatement implements GProMStatementInterface {
 //		if(checkForGProMKeywords(sql)){
 			sql =  GProMWrapper.inst.gpromRewriteQuery(sql);
 //		}
+		//TODO @Saba do logging if asked for
+		if (provLogger != null)
+		{
+			provLogger.logQuery(sql);
+			//TODO execute provenance query and log results here
+		}
 		return stat.executeQuery(sql);
 	}
 
