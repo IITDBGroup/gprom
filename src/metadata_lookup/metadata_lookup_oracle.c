@@ -28,6 +28,10 @@
 		"(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
 		"(SERVER=DEDICATED)(SID=%s)))"
 
+#define ORACLE_TNS_CONNECTION_FORMAT_SERVICE "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=" \
+        "(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
+        "(SERVER=DEDICATED)(SERVICE_NAME=%s)))"
+
 /* queries */
 #define ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION \
 "WITH transSlice AS (\n" \
@@ -296,10 +300,21 @@ initConnection()
     char *host = getStringOption("connection.host");
     int port = getIntOption("connection.port");
 
-    appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT,
-    		host ? host : "",
-    		port ? port : 1521,
-            db ? db : "");
+    // use different templates depending on whether connecting using an SID or a SERVICE_NAME
+    if (getBoolOption(OPTION_ORACLE_USE_SERVICE))
+    {
+        appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT_SERVICE,
+                host ? host : "",
+                port ? port : 1521,
+                db ? db : "");
+    }
+    else
+    {
+        appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT,
+                host ? host : "",
+                port ? port : 1521,
+                db ? db : "");
+    }
 
     conn = OCI_ConnectionCreate(connectString->data,
     		user ? user : "",

@@ -60,6 +60,7 @@ int connection_port = 0;
 
 // backend specific options
 char *oracle_audit_log_table = NULL;
+boolean oracle_use_service_name = FALSE;
 
 // logging options
 int logLevel = 0;
@@ -194,7 +195,7 @@ OptionInfo opts[] =
         {
                 "connection.db",
                 "-db",
-                "Database name for backend DB connection (SID for Oracle backends).",
+                "Database name for backend DB connection (SID or SERVICE_NAME for Oracle backends).",
                 OPTION_STRING,
                 wrapOptionString(&connection_db),
                 defOptionString("orcl")
@@ -223,13 +224,22 @@ OptionInfo opts[] =
                 wrapOptionInt(&connection_port),
                 defOptionInt(1521)
         },
+        // backend specific options
         {
-                "backendOpts.oracle.logtable",
-                "-Boracle.audittable",
+                OPTION_ORACLE_AUDITTABLE,
+                "Boracle.audittable",
                 "Table storing the audit log (usually fga_log$ or unified_audit_trail)",
                 OPTION_STRING,
                 wrapOptionString(&oracle_audit_log_table),
                 defOptionString("UNIFIED_AUDIT_TRAIL")
+        },
+        {
+                OPTION_ORACLE_USE_SERVICE,
+                "-Boracle.servicename",
+                "if this option then the db connection parameter is interpreted as a service name instead of an SID",
+                OPTION_BOOL,
+                wrapOptionString(&oracle_use_service_name),
+                defOptionBool(FALSE)
         },
         // logging options
         {

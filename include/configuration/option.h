@@ -15,6 +15,10 @@ NEW_ENUM_WITH_TO_STRING(
 );
 //typedef enum OptionType {
 
+/* define backend specific options */
+#define OPTION_ORACLE_AUDITTABLE "backendOpts.oracle.logtable"
+#define OPTION_ORACLE_USE_SERVICE "backendOpts.oracle.use_service"
+
 /* define rewrite methods */
 #define OPTION_TIMING "timing"
 #define OPTION_MEMMEASURE "memdebug"
