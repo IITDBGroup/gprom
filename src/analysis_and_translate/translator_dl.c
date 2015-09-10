@@ -86,10 +86,11 @@ translateProgram(DLProgram *p)
     // for creating the provenance and translate this one
     if (IS_GP_PROV(p))
     {
+        DEBUG_LOG("user asked for provenance computation for:\n%s",
+                        datalogToOverviewString((Node *) p));
         Node *gpComp = rewriteForGP((Node *) p);
 
-        DEBUG_LOG("user asked for provenance computation for:\n%s",
-                datalogToOverviewString((Node *) p));
+        ASSERT(!IS_GP_PROV(gpComp));
 
         return translateParseDL(gpComp);
     }
@@ -176,7 +177,7 @@ translateProgram(DLProgram *p)
     }
 
     // connect rules by replacing table access operators representing idb
-    // relations with the corresponding alegebra expression
+    // relations with the corresponding algebra expression
     translation = connectProgramTranslation(p, predToTrans);
 
     if (p->ans == NULL)
