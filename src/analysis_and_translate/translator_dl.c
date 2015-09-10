@@ -714,14 +714,14 @@ translateGoal(DLAtom *r, int goalPos)
         	char *aDomAttrName = CONCAT_STRINGS("D", itoa(i++));
             QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
                     "_DOMAIN", NULL, "DummyDom", NIL,
-					LIST_MAKE(aDomAttrName), singletonInt(DT_STRING));
-//            		LIST_MAKE("D"), singletonInt(DT_STRING));
+					LIST_MAKE("D"), singletonInt(DT_STRING));
+
             QueryOperator *oldD = dom;
             domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-//            domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),"D");
             dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
                     LIST_MAKE(dom, aDom), NULL,
                     domainAttrs);
+
             addParent(aDom, dom);
             addParent(oldD, dom);
         }
@@ -762,8 +762,8 @@ translateGoal(DLAtom *r, int goalPos)
                             0, i, INVALID_ATTR, a->dataType),
                     copyObject(arg)));
 
-            if (a->dataType != ((Constant *) arg)->constType) // check for unmatched dataType
-            	a->dataType = ((Constant *) arg)->constType;  // , but need discussion if it is correct to check
+//            if (a->dataType != ((Constant *) arg)->constType) // check for unmatched dataType
+//            	a->dataType = ((Constant *) arg)->constType;  // , but need discussion if it is correct to check
 
             ASSERT(a->dataType == ((Constant *) arg)->constType);
 

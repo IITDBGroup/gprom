@@ -825,7 +825,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			datalogToOverviewString((Node *) edbRules));
 
     // create rules for move relation
-
+    // for edb-help rule
     FOREACH(DLRule,e,negedbRules)
     {
         boolean ruleWon = DL_HAS_PROP(e->head,DL_WON)
@@ -920,7 +920,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	moveRules = appendToTailOfList(moveRules, moveRule);
 
         	lExpr = createSkolemExpr(GP_NODE_POSREL, headRel, copyObject(origAtom->args));
-        	rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(r->head->args));
+        	rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(newRuleArgs)); // not use boolean args
         	moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
         	moveRules = appendToTailOfList(moveRules, moveRule);
 
@@ -962,7 +962,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
             // -> negR -> posR
             else
             {
-                Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, r->head->args);
+                Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, newRuleArgs); // not use boolean args
                 Node *rExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(a->args));
                 DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
                 moveRules = appendToTailOfList(moveRules, moveRule);
