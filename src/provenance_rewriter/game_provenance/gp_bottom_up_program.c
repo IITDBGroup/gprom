@@ -162,8 +162,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     List *edbRules = NIL;
     List *moveRules = NIL;
     List *newRuleArgs = NIL;
-    List *addArgs = NIL;
-	List *boolArgs = NIL;
 	Set *adornedEDBAtoms = NODESET();
 	Set *adornedEDBHelpAtoms = NODESET();
     HashMap *idbAdToRules = NEW_MAP(Node,Node);
@@ -181,6 +179,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     //  - create rule^adornment :- adornedBody
     FOREACH(DLRule,r,solvedProgram->rules)
     {
+        List *addArgs = NIL;
+//        List *addBoolConst = NIL;
+        List *boolArgs = NIL;
 //	    boolean checkBool = TRUE;
     	boolean ruleWon = DL_HAS_PROP(r,DL_WON)
                            || DL_HAS_PROP(r,DL_UNDER_NEG_WON);
@@ -385,8 +386,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	{
         	    if (isA(n,DLAtom))
         	    {
-                    addArgs = appendToTailOfList(addArgs, createConstBool(1));
-                    newRuleArgs = appendToTailOfList(newRuleArgs, createConstBool(1));
+                    addArgs = appendToTailOfList(addArgs, createConstBool(TRUE));
+                    newRuleArgs = appendToTailOfList(newRuleArgs, createConstBool(TRUE));
         	    }
         	}
 
@@ -418,29 +419,27 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         {
         	// 08.2015 calculation of number of loop
         	int numLoop = 1;
-        	for (int l = 1; l <= (addArgs->length); l++) {
+        	for (int l = 1; l <= (LIST_LENGTH(addArgs)); l++) {
         		numLoop = numLoop * 2;
         	}
         	DEBUG_LOG("Number of loop:%d", numLoop);
 
         	//08.2015 generating possible rules with args
-        	boolean *numArgs = MALLOC(sizeof(boolean) * addArgs->length);
+        	boolean *numArgs = MALLOC(sizeof(boolean) * LIST_LENGTH(addArgs));
     	    newRuleArgs = removeVars(newRuleArgs, addArgs);
 
     	    DEBUG_LOG("Args:%s", datalogToOverviewString((Node *) newRuleArgs));
-    	    DEBUG_LOG("Length of addArgs:%d", addArgs->length);
+    	    DEBUG_LOG("Length of addArgs:%d", LIST_LENGTH(addArgs));
 
 			//give boolean value for the args added
         	for (int j = 0; j < numLoop; j++) {
-
-        		numArgs[j] = j;
-
+        	    int curBitVec = j;
         		int pos, k;
         		List *searchBoolArgs = NIL;
 
-				for (pos = 0; pos < (addArgs->length); pos++)
+				for (pos = 0; pos < LIST_LENGTH(addArgs); pos++)
 				{
-					k = numArgs[j] >> pos;
+					k = curBitVec >> pos;
 
 					if (k & 1)
 						numArgs[pos] = TRUE;
@@ -505,7 +504,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         		//add into the list
 //        		updateArgs = appendToTailOfList(updateArgs, createConstBool(numArgs[pos]));
 //        		newRuleArgs = concatTwoLists(newRuleArgs, updateArgs);
-        		DEBUG_LOG("Rule Args:%s", datalogToOverviewString((Node *) newRuleArgs));
+        		DEBUG_LOG("Rule Args:%s", exprToSQL((Node *) newRuleArgs));
 
         		//create unlinked rules
         		char *adNegRuleName = CONCAT_STRINGS("r", itoa(INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))), "_WL");
