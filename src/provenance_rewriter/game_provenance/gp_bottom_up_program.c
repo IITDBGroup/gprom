@@ -733,11 +733,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
                     // create unique variable names for both rule atoms
                     dummyRule = createDLRule(ruleGoal, singleton(atCopy));
-
-                    // 08.2015 make unique args only for 'Y', but not 'TRUE/FALSE'
-                    if (dummyRule->head->args == newRuleArgs) {
-                        makeVarNamesUnique(LIST_MAKE(goalGoal, dummyRule));
-                    }
+                    makeVarNamesUnique(LIST_MAKE(goalGoal, dummyRule));
 
                     DEBUG_LOG("after making names unique:\n%s\n%s",
                             datalogToOverviewString((Node *) goalGoal),
