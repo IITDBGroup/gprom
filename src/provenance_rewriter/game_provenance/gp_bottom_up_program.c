@@ -161,7 +161,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     List *negedbRules = NIL;
     List *edbRules = NIL;
     List *moveRules = NIL;
-    List *newRuleArgs = NIL;
+    List *origArgs = NIL;
+    List *newRuleArg = NIL;
 	Set *adornedEDBAtoms = NODESET();
 	Set *adornedEDBHelpAtoms = NODESET();
     HashMap *idbAdToRules = NEW_MAP(Node,Node);
@@ -179,7 +180,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     //  - create rule^adornment :- adornedBody
     FOREACH(DLRule,r,solvedProgram->rules)
     {
-        List *addArgs = NIL;
+        List *addArg = NIL;
+//        List *addVars = NIL;
+        int numGoals;
 //        List *addBoolConst = NIL;
         List *boolArgs = NIL;
 //	    boolean checkBool = TRUE;
@@ -209,13 +212,15 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         DEBUG_LOG("create GP RULE rule for %s based on rule:\n%s", adRuleName,
                 datalogToOverviewString((Node *) r));
         ruleRule = copyObject(r);
-        newRuleArgs = removeVars(makeUniqueVarList(getRuleVars(ruleRule)), ruleRule->head->args);
-        newRuleArgs = CONCAT_LISTS(ruleRule->head->args, newRuleArgs);
 
+        origArgs = removeVars(makeUniqueVarList(getRuleVars(ruleRule)), ruleRule->head->args);
+        origArgs = CONCAT_LISTS(ruleRule->head->args, origArgs);
+        newRuleArg = copyObject(origArgs);
         // add args for boolean
         if (!ruleWon) {
 
         	int j = 0;
+        	numGoals = 0;
         	FOREACH(DLNode,n,ruleRule->body) //TODO for(int i = 0; i < LIST_LENGTH(ruleRule->body); i++), but, e.g.,  Y=3
         	{
         	    if (isA(n,DLAtom))
@@ -223,9 +228,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	        vName = CONCAT_STRINGS("L", itoa(j++));
                     createArgs = createDLVar(vName, DT_BOOL);
 
-                    addArgs = appendToTailOfList(addArgs, createConstString(createArgs->name)); // For calculation of length of only new args
-                    newRuleArgs = appendToTailOfList(newRuleArgs, createConstString(createArgs->name));
-//                    newRuleArgs = appendToTailOfList(newRuleArgs, copyObject(createArgs));
+                    numGoals++; // For calculation of length of only new args
+//                    newRuleArgs = appendToTailOfList(newRuleArgs, createConstString(createArgs->name));
+                    newRuleArg = appendToTailOfList(newRuleArg, copyObject(createArgs));
         	    }
         	}
 
@@ -276,7 +281,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 */
             	// add all vars to head
                 ruleRule->head->rel = CONCAT_STRINGS(adRuleName, NON_LINKED_POSTFIX);
-                ruleRule->head->args = copyObject(newRuleArgs);
+                ruleRule->head->args = copyObject(newRuleArg);
                 setDLProp((DLNode *) ruleRule->head, DL_ORIG_ATOM, (Node *) copyObject(r->head));
 
                 // adapt goal nodes
@@ -346,7 +351,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         if (ruleWon) {
 
             ruleAtom->rel = CONCAT_STRINGS(strdup(adRuleName), NON_LINKED_POSTFIX);
-            ruleAtom->args = copyObject(newRuleArgs);
+            ruleAtom->args = copyObject(newRuleArg);
             headRule->body = singleton(ruleAtom);
 
             DLAtom *lookupAtom;
@@ -370,7 +375,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
             helpRules = appendToTailOfList(helpRules, headRule);
 
-
         	DLRule *PosHeadRule = makeNode(DLRule);
             DLAtom *adPosHead = copyObject(r->head);
 
@@ -379,19 +383,19 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
             setDLProp((DLNode *) adPosHead, DL_ORIG_ATOM, (Node *) copyObject(r->head));
 
           	ruleAtom->rel = CONCAT_STRINGS(strdup(adRuleName), NON_LINKED_POSTFIX);
-    	    newRuleArgs = removeVars(newRuleArgs, addArgs);
-          	addArgs = NIL;
+    	    newRuleArg = copyObject(origArgs);
+          	addArg = NIL;
 
         	FOREACH(DLNode,n,ruleRule->body) //TODO for(int i = 0; i < LIST_LENGTH(ruleRule->body); i++), but, e.g.,  Y=3
         	{
         	    if (isA(n,DLAtom))
         	    {
-                    addArgs = appendToTailOfList(addArgs, createConstBool(TRUE));
-                    newRuleArgs = appendToTailOfList(newRuleArgs, createConstBool(TRUE));
+                    addArg = appendToTailOfList(addArg, createConstBool(TRUE));
+                    newRuleArg = appendToTailOfList(newRuleArg, createConstBool(TRUE));
         	    }
         	}
 
-          	ruleAtom->args = copyObject(newRuleArgs);
+          	ruleAtom->args = newRuleArg;
 //          	ruleAtom->negated = TRUE;
           	PosHeadRule->body = singleton(ruleAtom);
 
@@ -419,17 +423,17 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         {
         	// 08.2015 calculation of number of loop
         	int numLoop = 1;
-        	for (int l = 1; l <= (LIST_LENGTH(addArgs)); l++) {
+        	for (int l = 1; l <= numGoals; l++) {
         		numLoop = numLoop * 2;
         	}
         	DEBUG_LOG("Number of loop:%d", numLoop);
 
         	//08.2015 generating possible rules with args
-        	boolean *numArgs = MALLOC(sizeof(boolean) * LIST_LENGTH(addArgs));
-    	    newRuleArgs = removeVars(newRuleArgs, addArgs);
+        	boolean *numArgs = MALLOC(sizeof(boolean) * numGoals);
+    	    newRuleArg = copyObject(origArgs);
 
-    	    DEBUG_LOG("Args:%s", datalogToOverviewString((Node *) newRuleArgs));
-    	    DEBUG_LOG("Length of addArgs:%d", LIST_LENGTH(addArgs));
+    	    DEBUG_LOG("Args:%s", datalogToOverviewString((Node *) newRuleArg));
+    	    DEBUG_LOG("Length of addArgs:%d", numGoals);
 
 			//give boolean value for the args added
         	for (int j = 0; j < numLoop; j++) {
@@ -437,7 +441,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         		int pos, k;
         		List *searchBoolArgs = NIL;
 
-				for (pos = 0; pos < LIST_LENGTH(addArgs); pos++)
+				for (pos = 0; pos < numGoals; pos++)
 				{
 					k = curBitVec >> pos;
 
@@ -447,7 +451,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						numArgs[pos] = FALSE;
 
 					boolArgs = appendToTailOfList(boolArgs, createConstBool(numArgs[pos]));
-					newRuleArgs = appendToTailOfList(newRuleArgs, createConstBool(numArgs[pos]));
+					newRuleArg = appendToTailOfList(newRuleArg, createConstBool(numArgs[pos]));
 
 					searchBoolArgs = appendToTailOfListInt(searchBoolArgs, numArgs[pos]);
   				}
@@ -504,13 +508,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         		//add into the list
 //        		updateArgs = appendToTailOfList(updateArgs, createConstBool(numArgs[pos]));
 //        		newRuleArgs = concatTwoLists(newRuleArgs, updateArgs);
-        		DEBUG_LOG("Rule Args:%s", exprToSQL((Node *) newRuleArgs));
+        		DEBUG_LOG("Rule Args:%s", exprToSQL((Node *) newRuleArg));
 
         		//create unlinked rules
         		char *adNegRuleName = CONCAT_STRINGS("r", itoa(INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))), "_WL");
 
         		ruleRule->head->rel = CONCAT_STRINGS(adNegRuleName, NON_LINKED_POSTFIX);
-				ruleRule->head->args = copyObject(newRuleArgs);
+				ruleRule->head->args = newRuleArg;
 				setDLProp((DLNode *) ruleRule->head, DL_ORIG_ATOM, (Node *) copyObject(r->head));
 
 				// adapt goal nodes
@@ -547,7 +551,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					unLinkedHelpRules = appendToTailOfList(unLinkedHelpRules, ruleRule);
 
 				ruleRule = copyObject(r);
-				newRuleArgs = removeVars(newRuleArgs, boolArgs);
+				newRuleArg = copyObject(origArgs);
         	}
 
         }
@@ -735,7 +739,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                     dummyRule = createDLRule(ruleGoal, singleton(atCopy));
 
                     // 08.2015 make unique args only for 'Y', but not 'TRUE/FALSE'
-                    if (dummyRule->head->args == newRuleArgs) {
+                    if (equal(dummyRule->head->args,origArgs)) {//TODO this is never valid do you mean equals(dummyRule->head->args,newRuleArgs), is this correct now
                         makeVarNamesUnique(LIST_MAKE(goalGoal, dummyRule));
                     }
 
@@ -919,7 +923,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	moveRules = appendToTailOfList(moveRules, moveRule);
 
         	lExpr = createSkolemExpr(GP_NODE_POSREL, headRel, copyObject(origAtom->args));
-        	rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(newRuleArgs)); // not use boolean args
+        	rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(origArgs)); // not use boolean args
         	moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
         	moveRules = appendToTailOfList(moveRules, moveRule);
 
@@ -974,7 +978,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
             {
                 if (!goalWon || ruleWon)
                 {
-                    Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, newRuleArgs); // not use boolean args
+                    Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(origArgs)); // not use boolean args
                     Node *rExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(a->args));
                     DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
                     moveRules = appendToTailOfList(moveRules, moveRule);
