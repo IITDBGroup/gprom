@@ -737,11 +737,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
                     // create unique variable names for both rule atoms
                     dummyRule = createDLRule(ruleGoal, singleton(atCopy));
-
-                    // 08.2015 make unique args only for 'Y', but not 'TRUE/FALSE'
-                    if (equal(dummyRule->head->args,origArgs)) {//TODO this is never valid do you mean equals(dummyRule->head->args,newRuleArgs), is this correct now
-                        makeVarNamesUnique(LIST_MAKE(goalGoal, dummyRule));
-                    }
+                    makeVarNamesUnique(LIST_MAKE(goalGoal, dummyRule));
 
                     DEBUG_LOG("after making names unique:\n%s\n%s",
                             datalogToOverviewString((Node *) goalGoal),
