@@ -88,7 +88,8 @@ parameters		[:]({identifiers}|{integer})
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 /*shiftsOps		["<<"|">>"] */
-
+/* string concatenation */
+strconcat		"||"
 
 /*******************************************************************************
  * Token definitions and actions 
@@ -197,6 +198,7 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 (?i:STATEMENT)		TOK(STATEMENT)
 (?i:ANNOTATIONS)	TOK(ANNOTATIONS)
 (?i:NO)				TOK(NO)
+(?i:CAST)			TOK(CAST)
 
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)
@@ -222,8 +224,9 @@ comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
 
 	/* operators */
 {comparisonOps}		TOK(comparisonOps)
+{strconcat}			TOK(STRINGCONCAT)
 [-+*%/^~&|!]		TOKSELF()
-	
+
 
 
 	/* numbers */

@@ -58,6 +58,8 @@
 #define COLOR_LIGHT_YELLOW  "\"#FFE3A8\""
 #define COLOR_DARK_PURPLE   "\"#800180\""
 #define COLOR_LIGHT_PURPLE  "\"#D5CBFF\""
+#define COLOR_DARK_BROWN    "\"#800180\"" //TODO
+#define COLOR_LIGHT_BROWN   "\"#D5CBFF\""
 
 #define GET_OP_ID(result,map,op) \
 		do { \
@@ -338,7 +340,37 @@ opToDot(StringInfo str, QueryOperator *op, Set *nodeDone)
                           opName);
             }
         }
-            break;
+        break;
+        case T_OrderOperator:
+        {
+            OrderOperator *o = (OrderOperator *) op;
+
+            if (showParameters)
+            {
+                StringInfo orderLabel = makeStringInfo();
+
+                FOREACH(Node,p,o->orderExprs)
+                {
+                    appendStringInfo(orderLabel, "%s%s",
+                            exprToLatex(p),
+                            FOREACH_HAS_MORE(p) ? "," : "");
+                }
+
+                appendStringInfo(str, "\t%s [label=\"&#945;\",color="
+                        COLOR_DARK_BROWN ",fillcolor="
+                        COLOR_LIGHT_BROWN ",texlbl=\"$\\omicron_{%s}$\"];\n",
+                        opName,
+                        strdup(orderLabel->data));
+            }
+            else
+            {
+                appendStringInfo(str, "\t%s [label=\"&#945;\",color="
+                        COLOR_DARK_BROWN ",fillcolor="
+                        COLOR_LIGHT_BROWN ",texlbl=\"$\\omicron$\"];\n",
+                        opName);
+            }
+        }
+        break;
         default:
             FATAL_LOG("unkown op type %s", NodeTagToString(op->type));
             break;

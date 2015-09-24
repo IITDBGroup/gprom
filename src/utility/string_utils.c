@@ -106,6 +106,14 @@ strRemPostfix(char *str, int postFixSize)
     return result;
 }
 
+boolean
+isPrefix(char *str, char *prefix)
+{
+    while(*prefix != '\0' && *prefix++ == *str++)
+        ;
+    return *prefix == '\0';
+}
+
 int
 strCompare(const void *a, const void *b)
 {

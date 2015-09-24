@@ -18,42 +18,39 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/set/hashmap.h"
 
-#define REL_TUPQ "\"rel:tupQ("
-//#define REL_TUPR "\"rel:tup_R("
+#define REL_TUPQ "\"rel:tupQ_"
+//#define REL_TUPR "\"rel:tup_R_"
 #define REL_TUP_ "\"rel:tup_"
-//#define PROV_TYPE_TUPLE ")\" :{\"prov:type\":\"tuple\"}" For list_agg use this
-#define PROV_TYPE_TUPLE ")\" :{\"prov:type\":\"tuple\"},"
+//#define PROV_TYPE_TUPLE "\" :{\"prov:type\":\"tuple\"}" For list_agg use this
+#define PROV_TYPE_TUPLE "\" :{\"prov:type\":\"tuple\"},"
 #define ENTITY "entity"
 #define ALL_ENTITIES "allEntities"
 #define WDB "_:wdb"
-#define PROV_USEDENTITY_REL_TUP_R ")\": { \"prov:usedEntity\": \"rel:tup_"
-#define BRACKETS_DOUBLE_QUOTATION ")\""
+#define PROV_USEDENTITY_REL_TUP_R "\": { \"prov:usedEntity\": \"rel:tup_"
+#define BRACKETS_DOUBLE_QUOTATION "\""
 #define PROV_GENERATEDENTITY ",\"prov:generatedEntity\":\""
-#define PROV_ACTIVITY_REL_Q_PROV_ENTITY_REL_TUP_R ")\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \"rel:tup_"
-#define PREFIX_REL_URL_ENTITY "{\"prefix\": {\"rel\": \"http://example.org\"}, \"entity\" : { "
+#define PROV_ACTIVITY_REL_Q_PROV_ENTITY_REL_TUP_R "\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \"rel:tup_"
+#define PREFIX_REL_URL_ENTITY "{\"prefix\": {\"rel\": \"http://gprom.org/relationalmodel/\"}, \"entity\" : { "
 #define ACTIVIT_REL_Q_PROV_TYPE_QUERY_WASDERIVEDFROM "}, \"activity\" : { \"rel:Q\": {\"prov:type\":\"query\"} }, \"wasDerivedFrom\" : {"
 #define WAS_GENREATED_BY "}, \"wasGeneratedBy\" : {"
 #define USED "}, \"used\" : {"
-#define PROV_ACTIVITY_RELQ_PROV_ENTITY ")\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \""
+#define PROV_ACTIVITY_RELQ_PROV_ENTITY "\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \""
 #define tupQ "rel:tupQ"
 #define _wgb "_:wgb"
 #define _wub "_:wub_"
 
 #define _wgb1 "\"_:wgb"
 #define _WDF_JIMP "\"_:wdf_jimp"
-//#define PROV_ACTIVITY_Q_PROV_ENTITY ")\" : { \"prov:activity\": \"Q\", \"prov:usedEntity\": \""
-#define PROV_ACTIVITY_Q_PROV_ENTITY ")\" : {\"prov:usedEntity\": \""
-#define PROV_GENERATED_ENTITY_IMP_TUPQ "\",\"prov:generatedEntity\": \"rel:tupQ("
-#define PROV_ACTIVITY_Q_PROV_ENTITY_TUPQ ")\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \"rel:tupQ("
-#define _WUB_JIMP "\"_:wub_jimp("
-#define PROV_ACTIVITY_Q_PROV_USEDENTITY ")\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \""
+//#define PROV_ACTIVITY_Q_PROV_ENTITY "\" : { \"prov:activity\": \"Q\", \"prov:usedEntity\": \""
+#define PROV_ACTIVITY_Q_PROV_ENTITY "\" : {\"prov:usedEntity\": \""
+#define PROV_GENERATED_ENTITY_IMP_TUPQ "\",\"prov:generatedEntity\": \"rel:tupQ_"
+#define PROV_ACTIVITY_Q_PROV_ENTITY_TUPQ "\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \"rel:tupQ_"
+#define _WUB_JIMP "\"_:wub_jimp_"
+#define PROV_ACTIVITY_Q_PROV_USEDENTITY "\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \""
 #define REL_BUN "\"rel:bun"
-#define PREFIX_REL_2URL_ENTITY "{\"prefix\": {\"rel\": \"http://example.org\", \"imp\": \"http://importedProv.org\"}, \"entity\" : { "
+#define PREFIX_REL_2URL_ENTITY "{\"prefix\": {\"rel\": \"http://gprom.org/relationalmodel/\", \"imp\": \"http://gprom.org/imported/\"}, \"entity\" : { "
 #define BUNDLE "}, \"bundle\": {"
 
-//	char *tupQ = "rel:tupQ";
-//	char *_wgb = "_:wgb";
-//	char *_wub = "_:wub_";
 
 Operator *
 generateOpP(int *count, Node *attr1, Node *attr2)
@@ -191,7 +188,7 @@ rewriteTransformationProvenance(QueryOperator *op)
 	appendStringInfoString(suffix, strdup(PROV_TYPE_TUPLE));
 	Constant *cSuffix = createConstString(suffix->data);
 
-	Constant *cBar = createConstString(" | ");
+	Constant *cBar = createConstString("_"); //createConstString("_");
 
 	List *reverseNormalAttrs = copyObject(normalAttrs);
 	reverseList(reverseNormalAttrs);
@@ -236,7 +233,7 @@ rewriteTransformationProvenance(QueryOperator *op)
     	//appendStringInfoString(prefixR, "\"rel:tup_R(");
     	appendStringInfoString(prefixTable,strdup(REL_TUP_));
     	appendStringInfoString(prefixTable, strdup(ta->tableName));
-    	appendStringInfoString(prefixTable, "(");
+    	appendStringInfoString(prefixTable, "_");
     	Constant *cPrefixR = createConstString(prefixTable->data);
 
     	//Second projection: provenance attributes
@@ -392,7 +389,7 @@ rewriteTransformationProvenance(QueryOperator *op)
 		//appendStringInfoString(midDB, ")\": { \"prov:usedEntity\": \"rel:tup_R(");
 		appendStringInfoString(midDB, strdup(PROV_USEDENTITY_REL_TUP_R));
 		appendStringInfoString(midDB, strdup(ta->tableName));
-		appendStringInfoString(midDB, "(");
+		appendStringInfoString(midDB, "_");
 		Constant *cmidDB = createConstString(midDB->data);
 		Operator *DBo4 = generateOp((Node *) NormalODB1, (Node *) cmidDB, namePosMap);
 		//DEBUG_LOG("new prov operator expression %s", nodeToString(DBo4));
@@ -423,7 +420,7 @@ rewriteTransformationProvenance(QueryOperator *op)
 		Operator *midNor1 = generateOp((Node *) midProvO4, (Node *) cmidNor, namePosMap);
 
 		StringInfo midNor2 = makeStringInfo();
-		appendStringInfoString(midNor2, "rel:tupQ(");
+		appendStringInfoString(midNor2, "rel:tupQ_");
 		Constant *cmidNor2 = createConstString(midNor2->data);
 		Operator *midNorO2 = generateOp((Node *) midNor1, (Node *) cmidNor2, namePosMap);
 
@@ -443,7 +440,7 @@ rewriteTransformationProvenance(QueryOperator *op)
 		List *normalExprList4 = NIL;
 		StringInfo midNor4 = makeStringInfo();
 		//appendStringInfoString(midNor4, ")\"}");  For list_agg use this
-		appendStringInfoString(midNor4, ")\"},");
+		appendStringInfoString(midNor4, "\"},");
 		Constant *cmidNor4 = createConstString(midNor4->data);
 
 		normalExprList4 = appendToTailOfList(normalExprList4, midNor3);
@@ -550,7 +547,7 @@ rewriteTransformationProvenance(QueryOperator *op)
 	StringInfo gbS3 = makeStringInfo();
 	//appendStringInfoChar(gbS3, '"');
 	appendStringInfoString(gbS3, tupQ);
-	appendStringInfoChar(gbS3, '(');
+	appendStringInfoChar(gbS3, '_');
 	Constant *cgbS3 = createConstString(gbS3->data);
     Operator *gbO3 = generateOp((Node *)gbO2, (Node *)cgbS3, namePosMap);
 
@@ -568,7 +565,7 @@ rewriteTransformationProvenance(QueryOperator *op)
 
 	//OP expr 5
 	StringInfo gbS5 = makeStringInfo();
-	appendStringInfoChar(gbS5, ')');
+//	appendStringInfoChar(gbS5, '_');
 	Constant *cgbS5 = createConstString(gbS5->data);
     Operator *gbO5 = generateOp((Node *)gbO4, (Node *)cgbS5, namePosMap);
 
@@ -623,7 +620,7 @@ rewriteTransformationProvenance(QueryOperator *op)
 		appendStringInfoChar(ubS1, '"');
 		appendStringInfoString(ubS1, _wub);
 		appendStringInfoString(ubS1, strdup(ta->tableName));
-		appendStringInfoChar(ubS1, '(');
+		appendStringInfoChar(ubS1, '_');
 		Constant *cubS1 = createConstString(ubS1->data);
 
 		List *ubAttr1 = copyObject(provAttrs);
@@ -642,7 +639,7 @@ rewriteTransformationProvenance(QueryOperator *op)
 		//appendStringInfoString(ubS2, ")\" : { \"prov:activity\": \"rel:Q\", \"prov:entity\": \"rel:tup_R(");
 		appendStringInfoString(ubS2, strdup(PROV_ACTIVITY_REL_Q_PROV_ENTITY_REL_TUP_R));
 		appendStringInfoString(ubS2, strdup(ta->tableName));
-		appendStringInfoString(ubS2, "(");
+		appendStringInfoString(ubS2, "_");
 		Constant *cubS2 = createConstString(ubS2->data);
 		Operator *ubO2 = generateOp((Node *)ubO1, (Node *)cubS2, namePosMap);
 
@@ -663,7 +660,7 @@ rewriteTransformationProvenance(QueryOperator *op)
 		//OP expr 5
 		StringInfo ubS4 = makeStringInfo();
 		//appendStringInfoString(ubS4, ")\"}");  For list_agg use this one
-		appendStringInfoString(ubS4, ")\"},");
+		appendStringInfoString(ubS4, "\"},");
 		Constant *cubS4 = createConstString(ubS4->data);
 		Operator *ubO4 = generateOp((Node *)ubO3, (Node *)cubS4, namePosMap);
 
@@ -913,7 +910,7 @@ rewriteTransformationProvenanceImport (QueryOperator *op)
 	Operator *dbOp1 = generateOp((Node *) cdbPrefix1, (Node *) xdbAttrDef, namePosMap);
 
 	//"_wdf_jimp' || X || '|'
-	Constant *cBar = createConstString(" | ");
+	Constant *cBar = createConstString("_");
 	Operator *dbOp2 = generateOp((Node *) dbOp1, (Node *) copyObject(cBar), namePosMap);
 
 	//"_wdf_jimp' || X || '|' || I
@@ -939,7 +936,7 @@ rewriteTransformationProvenanceImport (QueryOperator *op)
 	//derivedByR AS (SELECT '"_wdf_jimp' || X || '|' || I || ')" : { "prov:activity": "Q", "prov:usedEntity": "' || I || '",
 	//"prov:generatedEntity": "imp:tupQ( || X || ')""}'
 	//Constant *cdbPrefix4 = createConstString(")\"}"); Used for list_agg
-	Constant *cdbPrefix4 = createConstString(")\"},");
+	Constant *cdbPrefix4 = createConstString("\"},");
 	Operator *dbOp8 = generateOp((Node *) dbOp7, (Node *) cdbPrefix4, namePosMap);
 
 	ProjectionOperator *dbProj1 = createProjectionOp(singleton(dbOp8), op,
@@ -994,7 +991,7 @@ rewriteTransformationProvenanceImport (QueryOperator *op)
 
 	//'"_wgb' || X || ')" : { "prov:activity": "Q", "prov:entity": "tupQ(' || X || ')""}'
 	//Constant *cgbPrefix3 = createConstString(")\"}"); Used for list_agg
-	Constant *cgbPrefix3 = createConstString(")\"},");
+	Constant *cgbPrefix3 = createConstString("\"},");
 	Operator *gbOp4 = generateOp((Node *) gbOp3, (Node *) cgbPrefix3, namePosMap);
 
 	ProjectionOperator *gbProj1 = createProjectionOp(singleton(gbOp4), op,
