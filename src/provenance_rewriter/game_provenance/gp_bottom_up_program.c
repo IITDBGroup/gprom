@@ -953,10 +953,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                     moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
                     moveRules = appendToTailOfList(moveRules, moveRule);
 
-                    lExpr = createSkolemExpr(GP_NODE_POSREL, negAtomRel, copyObject(a->args));
-					rExpr = createSkolemExpr(GP_NODE_EDB, atomRel, copyObject(a->args));
-					moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
-					moveRules = appendToTailOfList(moveRules, moveRule);
+                    if (!ruleWon)
+                    {
+                        lExpr = createSkolemExpr(GP_NODE_POSREL, negAtomRel, copyObject(a->args));
+    					rExpr = createSkolemExpr(GP_NODE_EDB, atomRel, copyObject(a->args));
+    					moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
+    					moveRules = appendToTailOfList(moveRules, moveRule);
+                    }
                 }
             }
             // -> negR -> posR
