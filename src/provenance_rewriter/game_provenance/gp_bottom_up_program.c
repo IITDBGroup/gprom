@@ -1015,16 +1015,18 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
     solvedProgram->ans = "move";
 
+    boolean ruleWon = TRUE;
     // 08.2015
     FOREACH(DLRule,r,solvedProgram->rules){
-    	boolean ruleWon = DL_HAS_PROP(r,DL_WON)
-    	                           || DL_HAS_PROP(r,DL_UNDER_NEG_WON);
-
-    	if (ruleWon)
-           	solvedProgram->rules = CONCAT_LISTS(moveRules, edbRules, helpRules, unLinkedRules, newRules);
-    	else
-           	solvedProgram->rules = CONCAT_LISTS(moveRules, negedbRules, edbRules, helpRules, unLinkedRules, newRules);
+    	ruleWon = ruleWon && (DL_HAS_PROP(r,DL_WON)
+    	                           || DL_HAS_PROP(r,DL_UNDER_NEG_WON));
     }
+
+    if (ruleWon)
+        solvedProgram->rules = CONCAT_LISTS(moveRules, edbRules, helpRules, unLinkedRules, newRules);
+    else
+        solvedProgram->rules = CONCAT_LISTS(moveRules, negedbRules, edbRules, helpRules, unLinkedRules, newRules);
+
 
     INFO_LOG("gp program is:\n%s", datalogToOverviewString((Node *) solvedProgram));
 
