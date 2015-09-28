@@ -184,7 +184,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //        List *addVars = NIL;
         int numGoals;
 //        List *addBoolConst = NIL;
-        List *boolArgs = NIL;
 //	    boolean checkBool = TRUE;
     	boolean ruleWon = DL_HAS_PROP(r,DL_WON)
                            || DL_HAS_PROP(r,DL_UNDER_NEG_WON);
@@ -296,8 +295,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                         AD_NORM_COPY(at,a);
                         if(ruleWon)
                         	addToSet(adornedEDBAtoms, at);
-                        else
-                            addToSet(adornedEDBHelpAtoms, at);
+//                        else
+//                            addToSet(adornedEDBHelpAtoms, at);
                     }
 
                     boolean ruleWon = DL_HAS_PROP(r,DL_WON)
@@ -421,14 +420,14 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         }
         else
         {
-        	// 08.2015 calculation of number of loop
+        	//calculation of number of loop
         	int numLoop = 1;
         	for (int l = 1; l <= numGoals; l++) {
         		numLoop = numLoop * 2;
         	}
         	DEBUG_LOG("Number of loop:%d", numLoop);
 
-        	//08.2015 generating possible rules with args
+        	//generating possible rules with args
         	boolean *numArgs = MALLOC(sizeof(boolean) * numGoals);
     	    newRuleArg = copyObject(origArgs);
 
@@ -439,8 +438,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	for (int j = 0; j < numLoop; j++) {
         	    int curBitVec = j;
         		int pos, k;
-        		List *searchBoolArgs = NIL;
+//        		List *searchBoolArgs = NIL;
+                List *boolArgs = NIL;
 
+        		// represent all the possible bit flip for boolean args
 				for (pos = 0; pos < numGoals; pos++)
 				{
 					k = curBitVec >> pos;
@@ -450,60 +451,11 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					else
 						numArgs[pos] = FALSE;
 
+	        		//add into the list
 					boolArgs = appendToTailOfList(boolArgs, createConstBool(numArgs[pos]));
 					newRuleArg = appendToTailOfList(newRuleArg, createConstBool(numArgs[pos]));
-
-					searchBoolArgs = appendToTailOfListInt(searchBoolArgs, numArgs[pos]);
+//					searchBoolArgs = appendToTailOfListInt(searchBoolArgs, numArgs[pos]);
   				}
-
-//        		DEBUG_LOG("updateArgs:%s", datalogToOverviewString((Node *) updateArgs));
-//
-//        		if (j == 0)
-//        		{
-//        			for (pos = 0; pos < addArgs->length; pos++)
-//        			{
-//        				numArgs[pos] = FALSE; // set all the values to false in array
-//                		DEBUG_LOG("numArgs:%d", numArgs[pos]);
-//
-//                		updateArgs = appendToTailOfList(updateArgs, createConstBool(numArgs[pos]));
-//                		newRuleArgs = appendToTailOfList(newRuleArgs, createConstBool(numArgs[pos]));
-//        			}
-//        		}
-//        		else
-//        		{
-
-//
-//       					if (numArgs[pos] == FALSE) // check the value in the array is true or false
-//       					{
-//       						numArgs[pos] = TRUE;
-//       						for(int i = pos+1; i < addArgs->length; i++)
-//       						{
-//       							numArgs[i] = FALSE;
-//       						}
-//                    		DEBUG_LOG("numArgs:%d", numArgs[pos]);
-//
-//
-//       		        		updateArgs = appendToTailOfList(updateArgs, createConstBool(numArgs[pos]));
-//       		        		newRuleArgs = appendToTailOfList(newRuleArgs, createConstBool(numArgs[pos]));
-////           					break;
-//       					}
-//       					else
-//       					{
-//       						numArgs[pos] = FALSE;
-//       						for(int i = pos+1; i < addArgs->length; i++)
-//       						{
-//       							if (numArgs[i] == FALSE)
-//       								numArgs[i] = TRUE;
-//       							else
-//       								numArgs[i] = FALSE;
-//       						}
-//							DEBUG_LOG("numArgs:%d", numArgs[pos]);
-//
-//							updateArgs = appendToTailOfList(updateArgs, createConstBool(numArgs[pos]));
-//							newRuleArgs = appendToTailOfList(newRuleArgs, createConstBool(numArgs[pos]));
-//       					}
-//     	   		DEBUG_LOG("numArgs:%d", numArgs[pos]);
-//        		}
 
         		//add into the list
 //        		updateArgs = appendToTailOfList(updateArgs, createConstBool(numArgs[pos]));
@@ -519,33 +471,58 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 				// adapt goal nodes
 				int listPos = 0;
-				char *adBodyName = NULL;
+				int getPos = 0;
+
 				FOREACH(DLAtom,a,ruleRule->body) //TODO comparison atoms
 				{
 					a->rel = relName;
+
+					// flip the boolean value if the goal is negated
+//					if(a->negated)
+//					{
+						getPos = listPos + LIST_LENGTH(origArgs);
+//						DEBUG_LOG("get position:%d", getPos);
+//						DEBUG_LOG("list position:%d", listPos);
+//
+//						if (getNthOfListInt(searchBoolArgs, listPos) == 0)
+//							replaceNode(newRuleArg, getNthOfListP(newRuleArg, getPos), createConstBool(TRUE));
+//						else
+//							replaceNode(newRuleArg, getNthOfListP(newRuleArg, getPos), createConstBool(FALSE));
+//
+//						ruleRule->head->args = newRuleArg;
+//						DEBUG_LOG("negated newRuleArg:%s", exprToSQL((Node *) newRuleArg));
+//					}
 
 					// if an edb atom
 					if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
 					{
 						DLAtom *at;
 						AD_NORM_COPY(at,a);
-						if (searchListInt(searchBoolArgs, 0))
+//						if (searchListInt(searchBoolArgs, 0))
+						if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)))
 							addToSet(adornedEDBHelpAtoms, at);
 						else
                             addToSet(adornedEDBAtoms, at);
 					}
 
 					// check the args to make TRUE -> WON and FALSE -> LOST
-					adBodyName = CONCAT_STRINGS("R", a->rel, "_", (getNthOfListInt(searchBoolArgs, listPos) == 1) ? "WON" : "LOST", NON_LINKED_POSTFIX);
+					char *adBodyName = NULL;
+					boolean goalChk = BOOL_VALUE(getNthOfListP(newRuleArg, getPos));
+//
+//						adBodyName = CONCAT_STRINGS("R", a->rel, "_", (getNthOfListInt(searchBoolArgs, listPos) == 1) ? "WON" : "LOST", NON_LINKED_POSTFIX);
+					adBodyName = CONCAT_STRINGS("R", a->rel, "_", goalChk ? "WON" : "LOST", NON_LINKED_POSTFIX);
+
 					listPos++;
 
-					if (searchListInt(searchBoolArgs, 0))
+//					if (searchListInt(searchBoolArgs, 0))
+					if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)))
 						setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(a));
 
 					a->rel = adBodyName;
 				}
 
-				if (searchListInt(searchBoolArgs, 0))
+//				if (searchListInt(searchBoolArgs, 0))
+				if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)))
 					unLinkedRules = appendToTailOfList(unLinkedRules, ruleRule);
 				else
 					unLinkedHelpRules = appendToTailOfList(unLinkedHelpRules, ruleRule);
@@ -575,7 +552,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         DLAtom *atHead;
         DLAtom *atBody;
 
-  	  	// edb negation 08.2015
+  	  	// edb negation
        	if (!DL_HAS_PROP(edbhelp, DL_IS_IDB_REL)) // if an edb atom
        	{
        		DLAtom *at;
@@ -586,13 +563,11 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
        	char *adNegAtomName = CONCAT_STRINGS("R", edbhelp->rel, "_", "LOST", NON_LINKED_POSTFIX);
        	atHead = copyObject(edbhelp);
        	atHead->rel = adNegAtomName;
-//       	atHead->args = copyObject(newRuleArgs);
 
        	atBody = copyObject(edbhelp);
        	char *adNegAtomBody = CONCAT_STRINGS("R", edbhelp->rel, "_", "WON", NON_LINKED_POSTFIX);
        	atBody->negated = TRUE;
        	atBody->rel = adNegAtomBody;
-//       	atBody->args = copyObject(newRuleArgs);
 
        	atRule = createDLRule(atHead, singleton(atBody));
        	setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) edbhelp);
@@ -621,13 +596,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                                        || DL_HAS_PROP(edb,DL_UNDER_NEG_LOST);
         */
 
+
         // positive case
     	atRule = makeNode(DLRule);
-
     	char *adAtomName = CONCAT_STRINGS("R", edb->rel, "_", "WON", NON_LINKED_POSTFIX);
+
         atHead = copyObject(edb);
         atHead->rel = adAtomName;
-
         atBody = copyObject(edb);
 
         //DEBUG_LOG("checkStart:\n%s", datalogToOverviewString((Node *) atRule));
@@ -643,7 +618,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //        if (!ruleWon)
 //        	atBody->negated = FALSE;
 //        }
-        //DEBUG_LOG("checkEnd:\n%s", datalogToOverviewString((Node *) atRule));
+//        DEBUG_LOG("checkEnd:\n%s", datalogToOverviewString((Node *) atRule));
 
 
         // add rules to new rules list
@@ -751,7 +726,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                         setDLProp((DLNode *) linkRule, DL_RULE_ID,
                                 (Node *) createConstInt(goalRuleId));
 
-                    ruleGoal = (DLAtom *) applyVarMapAsLists((Node *) ruleGoal ,
+                    ruleGoal = (DLAtom *) applyVarMapAsLists((Node *) ruleGoal,
                             copyObject(atCopy->args),
                             sublist(copyObject(linkRule->head->args), 0, relNumArgs - 1));
 //                    ruleGoal = (DLAtom *) applyVarMapAsLists((Node *) ruleGoal,
@@ -842,7 +817,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
             Node *rExpr = createSkolemExpr(GP_NODE_POSREL, rel, e->head->args);
             DLRule *moveRule = createMoveRule(lExpr, rExpr, headName, e->head->args);
             moveRules = appendToTailOfList(moveRules, moveRule);
-
         }
     }
 
@@ -854,6 +828,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
         ASSERT(DL_HAS_PROP(e->head,DL_ORIG_ATOM));
         DLAtom *origAtom = (DLAtom *) DL_GET_PROP(e->head,DL_ORIG_ATOM);
+
         char *rel = CONCAT_STRINGS(strdup(origAtom->rel), ruleWon ? "_WON" : "_LOST");
         char *negRel = CONCAT_STRINGS(strdup(origAtom->rel), ruleWon ? "_LOST" : "_WON");
         char *headName = strRemPostfix(strdup(e->head->rel), strlen(NON_LINKED_POSTFIX));
@@ -874,6 +849,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
             DEBUG_LOG("NEW MOVE RULE: negR-atom -> R-atom -> R: %s", headName);
 
         }
+//        else
+//        {
+//        	Node *lExpr = createSkolemExpr(GP_NODE_POSREL, negRel, e->head->args);
+//        	Node *rExpr = createSkolemExpr(GP_NODE_EDB, rel, e->head->args);
+//        	DLRule *moveRule = createMoveRule(lExpr, rExpr, headName, e->head->args);
+//        	moveRules = appendToTailOfList(moveRules, moveRule);
+//        }
 /*
         else {
 
@@ -946,6 +928,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
             char *negAtomRel = CONCAT_STRINGS(
                     strdup(origAtom->rel),
                     !ruleWon ? "_WON" : "_LOST");
+//            char *rel = CONCAT_STRINGS(strdup(origAtom->rel), ruleWon ? "_WON" : "_LOST");
+//            char *negRel = CONCAT_STRINGS(strdup(origAtom->rel), ruleWon ? "_LOST" : "_WON");
+
             int numGoals = LIST_LENGTH(r->body);
             int numHeadArgs = LIST_LENGTH(r->head->args);
             boolean goalWon = FALSE;
@@ -958,15 +943,23 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
             {
                 if (!goalWon)
                 {
-                    Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, r->head->args);
+                    Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(origArgs));
                     Node *rExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(a->args));
                     DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
                     moveRules = appendToTailOfList(moveRules, moveRule);
 
                     lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(a->args));
-                    rExpr = createSkolemExpr(GP_NODE_POSREL, atomRel, copyObject(a->args));
+                    rExpr = createSkolemExpr(GP_NODE_POSREL, negAtomRel, copyObject(a->args));
                     moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
                     moveRules = appendToTailOfList(moveRules, moveRule);
+
+                    if (!ruleWon)
+                    {
+                        lExpr = createSkolemExpr(GP_NODE_POSREL, negAtomRel, copyObject(a->args));
+    					rExpr = createSkolemExpr(GP_NODE_EDB, atomRel, copyObject(a->args));
+    					moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
+    					moveRules = appendToTailOfList(moveRules, moveRule);
+                    }
                 }
             }
             // -> negR -> posR
