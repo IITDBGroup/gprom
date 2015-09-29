@@ -171,7 +171,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     DLVar *createArgs;
     DLRule *ruleRule;
 	char *vName = NULL;
-	char *relName = NULL;
 
     // collect rules and adornedheads we are interested in
 
@@ -286,8 +285,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                 // adapt goal nodes
                 FOREACH(DLAtom,a,ruleRule->body) //TODO comparison atoms
                 {
-                	relName = a->rel;
-
                 	// if an edb atom
                     if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
                     {
@@ -463,6 +460,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         		DEBUG_LOG("Rule Args:%s", exprToSQL((Node *) newRuleArg));
 
         		//create unlinked rules
+				ruleRule = copyObject(r);
         		char *adNegRuleName = CONCAT_STRINGS("r", itoa(INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))), "_WL");
 
         		ruleRule->head->rel = CONCAT_STRINGS(adNegRuleName, NON_LINKED_POSTFIX);
@@ -475,8 +473,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 				FOREACH(DLAtom,a,ruleRule->body) //TODO comparison atoms
 				{
-					a->rel = relName;
-
 					// flip the boolean value if the goal is negated
 //					if(a->negated)
 //					{
@@ -501,15 +497,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //						if (searchListInt(searchBoolArgs, 0))
 						if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)))
 							addToSet(adornedEDBHelpAtoms, at);
-						else
-                            addToSet(adornedEDBAtoms, at);
 					}
 
 					// check the args to make TRUE -> WON and FALSE -> LOST
 					char *adBodyName = NULL;
 					boolean goalChk = BOOL_VALUE(getNthOfListP(newRuleArg, getPos));
-//
-//						adBodyName = CONCAT_STRINGS("R", a->rel, "_", (getNthOfListInt(searchBoolArgs, listPos) == 1) ? "WON" : "LOST", NON_LINKED_POSTFIX);
+
+//					adBodyName = CONCAT_STRINGS("R", a->rel, "_", (getNthOfListInt(searchBoolArgs, listPos) == 1) ? "WON" : "LOST", NON_LINKED_POSTFIX);
 					adBodyName = CONCAT_STRINGS("R", a->rel, "_", goalChk ? "WON" : "LOST", NON_LINKED_POSTFIX);
 
 					listPos++;
@@ -581,7 +575,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
        	DEBUG_LOG("new EDB help rule generated:\n%s", datalogToOverviewString((Node *) negedbRules));
     }
 
-
     FOREACH_SET(DLAtom,edb,adornedEDBAtoms)
     {
         DLRule *atRule;
@@ -595,7 +588,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         boolean ruleNeg = DL_HAS_PROP(edb,DL_UNDER_NEG_WON);
                                        || DL_HAS_PROP(edb,DL_UNDER_NEG_LOST);
         */
-
 
         // positive case
     	atRule = makeNode(DLRule);
