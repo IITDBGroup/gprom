@@ -439,7 +439,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	    int curBitVec = j;
         		int pos, k;
 //        		List *searchBoolArgs = NIL;
-                List *boolArgs = NIL;
+//                List *boolArgs = NIL;
 
         		// represent all the possible bit flip for boolean args
 				for (pos = 0; pos < numGoals; pos++)
@@ -452,7 +452,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						numArgs[pos] = FALSE;
 
 	        		//add into the list
-					boolArgs = appendToTailOfList(boolArgs, createConstBool(numArgs[pos]));
+//					boolArgs = appendToTailOfList(boolArgs, createConstBool(numArgs[pos]));
 					newRuleArg = appendToTailOfList(newRuleArg, createConstBool(numArgs[pos]));
 //					searchBoolArgs = appendToTailOfListInt(searchBoolArgs, numArgs[pos]);
   				}
