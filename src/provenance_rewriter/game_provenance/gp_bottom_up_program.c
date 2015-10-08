@@ -362,30 +362,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			CONCAT_MAP_LIST(idbAdToRules,(Node *) lookupAtom, singleton(ruleRule));
 
 			helpRules = appendToTailOfList(helpRules, headRule);
-
-//        	if (((DLAtom *) r->body)->negated)
-//        	{
-//        		DLRule *PosHeadRule = makeNode(DLRule);
-//
-//        		DLAtom *adNegHeadAtom = copyObject(r->head);
-//				char *NegHeadNm = CONCAT_STRINGS("R", r->head->rel, "_", "LOST");
-//				adNegHeadAtom->rel = CONCAT_STRINGS(strdup(NegHeadNm), NON_LINKED_POSTFIX);
-//				setDLProp((DLNode *) adNegHeadAtom, DL_ORIG_ATOM, (Node *) copyObject(r->head));
-//
-//				DLAtom *adNegBodyAtom = copyObject(r->head);
-//				adNegBodyAtom->negated = TRUE;
-//				adNegBodyAtom->rel = CONCAT_STRINGS(strdup(adNegHeadName), NON_LINKED_POSTFIX);
-//
-//				PosHeadRule->head = adNegHeadAtom;
-//				PosHeadRule->body = singleton(adNegBodyAtom);
-//
-//				DLAtom *lookupAtom;
-//				AD_NORM_COPY(lookupAtom,PosHeadRule->head);
-//				CONCAT_MAP_LIST(idbAdToRules,(Node *) lookupAtom, singleton(PosHeadRule));
-//
-//				helpRules = appendToTailOfList(helpRules, PosHeadRule);
-//        	}
-
         }
         else
         {
@@ -409,10 +385,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	adPosHead->rel = CONCAT_STRINGS(strdup(PosHeadNm), NON_LINKED_POSTFIX);
             setDLProp((DLNode *) adPosHead, DL_ORIG_ATOM, (Node *) copyObject(r->head));
 
-//            if (!searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == (getMatched + 1))
-//            	ruleAtom->rel = CONCAT_STRINGS(strdup(adRuleName), NON_LINKED_POSTFIX_CHKPOS);
-//            else
-            	ruleAtom->rel = CONCAT_STRINGS(strdup(adRuleName), INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) != getMatched ? NON_LINKED_POSTFIX : NON_LINKED_POSTFIX_CHKPOS);
+           	ruleAtom->rel = CONCAT_STRINGS(strdup(adRuleName), INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) != getMatched ? NON_LINKED_POSTFIX : NON_LINKED_POSTFIX_CHKPOS);
 
     	    newRuleArg = copyObject(origArgs);
           	addArg = NIL;
@@ -497,8 +470,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 				if (!searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
 					ruleRule->head->rel = CONCAT_STRINGS(adNegRuleName, NON_LINKED_POSTFIX_CHKPOS);
-//				else if (!searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == (getMatched + 1))
-//					ruleRule->head->rel = CONCAT_STRINGS(adNegRuleName, NON_LINKED_POSTFIX_CHKPOS);
 				else
 					ruleRule->head->rel = CONCAT_STRINGS(adNegRuleName, NON_LINKED_POSTFIX);
 
@@ -816,15 +787,11 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
     // double check if the user question is correct
     DLAtom *adAtom;
-    DLAtom *adAtomLev2;
     getFirstRule = 0;
     getMatched = 0;
 
     FOREACH(DLRule,r,solvedProgram->rules)
     {
-//    	boolean ruleWon = DL_HAS_PROP(r,DL_WON)
-//    	                           || DL_HAS_PROP(r,DL_UNDER_NEG_WON);
-
     	if (getFirstRule == 0)
     	{
     		getMatched = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
@@ -839,30 +806,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			adAtom->args = copyObject(r->head->args);
     	}
 
-    	if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) != 0)
-    	{
-    		adAtomLev2 = copyObject(r->head);
-			char *adNegHeadLev2 = CONCAT_STRINGS("R", r->head->rel, "_", "LOST", NON_LINKED_POSTFIX);
-
-			adAtomLev2->rel = CONCAT_STRINGS(strdup(adNegHeadLev2));
-			adAtomLev2->args = copyObject(r->head->args);
-    	}
-
     	getFirstRule++;
     }
-
-//	List *tempunLinkedRules = NIL;
-//	FOREACH(DLRule,unRule,unLinkedRules)
-//	{
-//		boolean ruleWon = DL_HAS_PROP(unRule->head,DL_WON)
-//		                                       || DL_HAS_PROP(unRule->head,DL_UNDER_NEG_WON);
-//
-//		if (ruleWon)
-//		{
-//			tempunLinkedRules = appendToTailOfList(tempunLinkedRules, unRule);
-//			unLinkedRules = removeVars(unLinkedRules, tempunLinkedRules);
-//		}
-//	}
 
 	FOREACH(DLRule,unRule,unLinkedRules)
 	{
@@ -876,15 +821,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				setDLProp((DLNode *) adAtom, DL_ORIG_ATOM, (Node *) copyObject(adAtom));
 				unRule->body = appendToTailOfList(unRule->body, copyObject(adAtom));
 			}
-
-//			if (INT_VALUE(getDLProp((DLNode *) unRule,DL_RULE_ID)) != getMatched)
-//			{
-//				setDLProp((DLNode *) adAtomLev2, DL_ORIG_ATOM, (Node *) copyObject(adAtomLev2));
-//				unRule->body = appendToTailOfList(unRule->body, copyObject(adAtomLev2));
-//			}
 		}
 	}
 
+	// filter out incorrect linked rules
 	List *removeRules = NIL;
 	List *nRuleBodyArgs;
 	FOREACH(DLRule,nRule,newRules)
@@ -912,9 +852,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 		}
 	}
 	newRules = removeVars(newRules,removeRules);
-
-//	FOREACH(DLRule,t,tempunLinkedRules)
-//		unLinkedRules = appendToTailOfList(unLinkedRules, t);
 
 	FOREACH(DLRule,r,unLinkedRules)
 		setIDBBody(r);
@@ -1091,13 +1028,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 				if (!ruleWon)
 				{
-//					if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
-//					{
+					if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
+					{
 						if (goalPos != unruleNumGoals - 1)
 							goalWon = BOOL_VALUE(getNthOfListP(r->head->args, numHeadArgs - (unruleNumGoals - 1) + goalPos));
-//					}
-//					else
-//						goalWon = BOOL_VALUE(getNthOfListP(r->head->args, numHeadArgs - unruleNumGoals + goalPos));
+					}
+					else
+						goalWon = BOOL_VALUE(getNthOfListP(r->head->args, numHeadArgs - unruleNumGoals + goalPos));
 				}
 
 				// -> posR
