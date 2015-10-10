@@ -17,9 +17,9 @@
 void
 executeOutputDL(void *dl)
 {
-    char *out;
+//    char *out;
 
-    out = datalogToOverviewString(dl);
-    printf("%s", out);
+//    out = datalogToOverviewString(dl);
+    printf("%s", dl);
     fflush(stdout);
 }
