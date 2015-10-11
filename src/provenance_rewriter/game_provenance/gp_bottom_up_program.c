@@ -57,6 +57,7 @@ static DLProgram *createFullGPprogram (DLProgram *p);
 
 static void enumerateRules (DLProgram *p);
 static List *removeVars (List *vars, List *remVars);
+boolean searchVars (List *vars, List *searVars);
 static List *makeUniqueVarList (List *vars);
 static void setIDBBody (DLRule *r);
 
@@ -150,6 +151,7 @@ createFullGPprogram (DLProgram *p)
  * Rewrite program based on adornments created when statically solving the game for the program.
  * We use the solved program to created rules for each adorned version of a unified rule/goal atom
  */
+List *listTopHeadArgs = NIL;
 
 static DLProgram *
 rewriteSolvedProgram (DLProgram *solvedProgram)
@@ -360,30 +362,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			CONCAT_MAP_LIST(idbAdToRules,(Node *) lookupAtom, singleton(ruleRule));
 
 			helpRules = appendToTailOfList(helpRules, headRule);
-
-//        	if (((DLAtom *) r->body)->negated)
-//        	{
-//        		DLRule *PosHeadRule = makeNode(DLRule);
-//
-//        		DLAtom *adNegHeadAtom = copyObject(r->head);
-//				char *NegHeadNm = CONCAT_STRINGS("R", r->head->rel, "_", "LOST");
-//				adNegHeadAtom->rel = CONCAT_STRINGS(strdup(NegHeadNm), NON_LINKED_POSTFIX);
-//				setDLProp((DLNode *) adNegHeadAtom, DL_ORIG_ATOM, (Node *) copyObject(r->head));
-//
-//				DLAtom *adNegBodyAtom = copyObject(r->head);
-//				adNegBodyAtom->negated = TRUE;
-//				adNegBodyAtom->rel = CONCAT_STRINGS(strdup(adNegHeadName), NON_LINKED_POSTFIX);
-//
-//				PosHeadRule->head = adNegHeadAtom;
-//				PosHeadRule->body = singleton(adNegBodyAtom);
-//
-//				DLAtom *lookupAtom;
-//				AD_NORM_COPY(lookupAtom,PosHeadRule->head);
-//				CONCAT_MAP_LIST(idbAdToRules,(Node *) lookupAtom, singleton(PosHeadRule));
-//
-//				helpRules = appendToTailOfList(helpRules, PosHeadRule);
-//        	}
-
         }
         else
         {
@@ -407,10 +385,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	adPosHead->rel = CONCAT_STRINGS(strdup(PosHeadNm), NON_LINKED_POSTFIX);
             setDLProp((DLNode *) adPosHead, DL_ORIG_ATOM, (Node *) copyObject(r->head));
 
-//            if (!searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == (getMatched + 1))
-//            	ruleAtom->rel = CONCAT_STRINGS(strdup(adRuleName), NON_LINKED_POSTFIX_CHKPOS);
-//            else
-            	ruleAtom->rel = CONCAT_STRINGS(strdup(adRuleName), INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) != getMatched ? NON_LINKED_POSTFIX : NON_LINKED_POSTFIX_CHKPOS);
+           	ruleAtom->rel = CONCAT_STRINGS(strdup(adRuleName), INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) != getMatched ? NON_LINKED_POSTFIX : NON_LINKED_POSTFIX_CHKPOS);
 
     	    newRuleArg = copyObject(origArgs);
           	addArg = NIL;
@@ -495,8 +470,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 				if (!searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
 					ruleRule->head->rel = CONCAT_STRINGS(adNegRuleName, NON_LINKED_POSTFIX_CHKPOS);
-//				else if (!searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == (getMatched + 1))
-//					ruleRule->head->rel = CONCAT_STRINGS(adNegRuleName, NON_LINKED_POSTFIX_CHKPOS);
 				else
 					ruleRule->head->rel = CONCAT_STRINGS(adNegRuleName, NON_LINKED_POSTFIX);
 
@@ -696,99 +669,94 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     Set *unHeadToRules = NODESET();
     FOREACH(DLRule,unRule,unLinkedRules)
     {
-//    	boolean ruleWon = DL_HAS_PROP(unRule,DL_WON) || DL_HAS_PROP(unRule,DL_UNDER_NEG_WON);
-
         // for each goal lookup all rules creating goal
         FOREACH(Node,a,unRule->body)
         {
             // ignore comparison atoms
             if (isA(a,DLAtom))
             {
-//            	if (ruleWon || (!ruleWon && INT_VALUE(getDLProp((DLNode *) unRule,DL_RULE_ID)) == getMatched))
-//            	{
-            		DLAtom *at = (DLAtom *) copyObject(a);
-					DLAtom *lookup;
-					AD_NORM_COPY(lookup,a);
-					DL_DEL_PROP(at,DL_IS_IDB_REL);
-					List *goalRules = (List *) getMap(idbAdToRules, (Node *) lookup);
-					DEBUG_LOG("create link rules between %s and rule %s\nusing rules:\n%s",
-							datalogToOverviewString((Node *) lookup),
-							datalogToOverviewString((Node *) unRule),
-							datalogToOverviewString((Node *) goalRules));
-					ASSERT(goalRules != NIL);
+				DLAtom *at = (DLAtom *) copyObject(a);
+				DLAtom *lookup;
+				AD_NORM_COPY(lookup,a);
+				DL_DEL_PROP(at,DL_IS_IDB_REL);
+				List *goalRules = (List *) getMap(idbAdToRules, (Node *) lookup);
+				DEBUG_LOG("create link rules between %s and rule %s\nusing rules:\n%s",
+						datalogToOverviewString((Node *) lookup),
+						datalogToOverviewString((Node *) unRule),
+						datalogToOverviewString((Node *) goalRules));
+				ASSERT(goalRules != NIL);
 
-					// create unlink rule for each rule that has goal atom as head
-					FOREACH(DLRule,gRule,goalRules)
+				// create unlink rule for each rule that has goal atom as head
+				FOREACH(DLRule,gRule,goalRules)
+				{
+					DLRule *linkRule = makeNode(DLRule);
+					DLAtom *goalGoal;
+					DLAtom *ruleGoal;
+					DLAtom *atCopy = copyObject(at);
+					int goalRuleId = DL_HAS_PROP(gRule,DL_RULE_ID) ?
+							INT_VALUE(DL_GET_PROP(gRule, DL_RULE_ID)) : -1;
+					int relNumArgs = LIST_LENGTH(at->args);
+					DLRule *dummyRule;
+
+					DEBUG_LOG("back link rule\n%s to\n%s",
+							datalogToOverviewString((Node *) gRule),
+							datalogToOverviewString((Node *) unRule));
+
+					/*
+					 * unRule: rX  :- ... at ...;
+					 * at :- rY_UN;
+					 * gRule: rY_UN  :- ...;
+					 *
+					 * create rY :- rY_UN, rX;
+					 */
+
+					// create goal for the rel that the rule has in its body and unify with link rule head
+					goalGoal = copyObject(gRule->head);
+
+					// create goal for the rule that goal in its body and unify vars with link rule head
+					ruleGoal = copyObject(unRule->head);
+					ruleGoal->rel = strRemPostfix(ruleGoal->rel,
+							strlen(NON_LINKED_POSTFIX));
+
+					// create unique variable names for both rule atoms
+					dummyRule = createDLRule(ruleGoal, singleton(atCopy));
+					makeVarNamesUnique(LIST_MAKE(goalGoal, dummyRule));
+
+					DEBUG_LOG("after making names unique:\n%s\n%s",
+							datalogToOverviewString((Node *) goalGoal),
+							datalogToOverviewString((Node *) dummyRule));
+
+					// head is the rule atom with args from goal for this rule
+					linkRule->head = copyObject(goalGoal);
+					linkRule->head->rel = strRemPostfix(linkRule->head->rel,
+							strlen(NON_LINKED_POSTFIX));
+					if (goalRuleId != -1)
+						setDLProp((DLNode *) linkRule, DL_RULE_ID,
+								(Node *) createConstInt(goalRuleId));
+
+					ruleGoal = (DLAtom *) applyVarMapAsLists((Node *) ruleGoal,
+							copyObject(atCopy->args),
+							sublist(copyObject(linkRule->head->args), 0, relNumArgs - 1));
+//                    ruleGoal = (DLAtom *) applyVarMapAsLists((Node *) ruleGoal,
+//                            copyObject(ruleGoal->args),
+//                            copyObject(linkRule->head->args));
+
+					addToSet(unHeadToRules, copyObject(gRule->head));
+					linkRule->body = LIST_MAKE(ruleGoal, goalGoal);
+
+					// is a "ruleRule"
+					if (DL_HAS_PROP(gRule, DL_RULE_ID))
 					{
-						DLRule *linkRule = makeNode(DLRule);
-						DLAtom *goalGoal;
-						DLAtom *ruleGoal;
-						DLAtom *atCopy = copyObject(at);
-						int goalRuleId = DL_HAS_PROP(gRule,DL_RULE_ID) ?
-								INT_VALUE(DL_GET_PROP(gRule, DL_RULE_ID)) : -1;
-						int relNumArgs = LIST_LENGTH(at->args);
-						DLRule *dummyRule;
-
-						DEBUG_LOG("back link rule\n%s to\n%s",
-								datalogToOverviewString((Node *) gRule),
-								datalogToOverviewString((Node *) unRule));
-
-						/*
-						 * unRule: rX  :- ... at ...;
-						 * at :- rY_UN;
-						 * gRule: rY_UN  :- ...;
-						 *
-						 * create rY :- rY_UN, rX;
-						 */
-
-						// create goal for the rel that the rule has in its body and unify with link rule head
-						goalGoal = copyObject(gRule->head);
-
-						// create goal for the rule that goal in its body and unify vars with link rule head
-						ruleGoal = copyObject(unRule->head);
-						ruleGoal->rel = strRemPostfix(ruleGoal->rel,
-								strlen(NON_LINKED_POSTFIX));
-
-						// create unique variable names for both rule atoms
-						dummyRule = createDLRule(ruleGoal, singleton(atCopy));
-						makeVarNamesUnique(LIST_MAKE(goalGoal, dummyRule));
-
-						DEBUG_LOG("after making names unique:\n%s\n%s",
-								datalogToOverviewString((Node *) goalGoal),
-								datalogToOverviewString((Node *) dummyRule));
-
-						// head is the rule atom with args from goal for this rule
-						linkRule->head = copyObject(goalGoal);
-						linkRule->head->rel = strRemPostfix(linkRule->head->rel,
-								strlen(NON_LINKED_POSTFIX));
-						if (goalRuleId != -1)
-							setDLProp((DLNode *) linkRule, DL_RULE_ID,
-									(Node *) createConstInt(goalRuleId));
-
-						ruleGoal = (DLAtom *) applyVarMapAsLists((Node *) ruleGoal,
-								copyObject(atCopy->args),
-								sublist(copyObject(linkRule->head->args), 0, relNumArgs - 1));
-	//                    ruleGoal = (DLAtom *) applyVarMapAsLists((Node *) ruleGoal,
-	//                            copyObject(ruleGoal->args),
-	//                            copyObject(linkRule->head->args));
-
-						addToSet(unHeadToRules, copyObject(gRule->head));
-						linkRule->body = LIST_MAKE(ruleGoal, goalGoal);
-
-						// is a "ruleRule"
-						if (DL_HAS_PROP(gRule, DL_RULE_ID))
-						{
-							DEBUG_LOG("created back link rule:\n%s", datalogToOverviewString((Node *) linkRule));
-							newRules = appendToTailOfList(newRules, linkRule);
-						}
-						// is a "edb rule"
-						else
-						{
-							DEBUG_LOG("created back link EDB rule:\n%s", datalogToOverviewString((Node *) linkRule));
-							helpRules = appendToTailOfList(helpRules, linkRule);
-						}
+						DEBUG_LOG("created back link rule:\n%s", datalogToOverviewString((Node *) linkRule));
+						newRules = appendToTailOfList(newRules, linkRule);
 					}
-//            	}
+					// is a "edb rule"
+					else
+					{
+						DEBUG_LOG("created back link EDB rule:\n%s", datalogToOverviewString((Node *) linkRule));
+						helpRules = appendToTailOfList(helpRules, linkRule);
+					}
+				}
             }
         }
     }
@@ -824,9 +792,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
     FOREACH(DLRule,r,solvedProgram->rules)
     {
-//    	boolean ruleWon = DL_HAS_PROP(r,DL_WON)
-//    	                           || DL_HAS_PROP(r,DL_UNDER_NEG_WON);
-
     	if (getFirstRule == 0)
     	{
     		getMatched = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
@@ -844,19 +809,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     	getFirstRule++;
     }
 
-//	List *tempunLinkedRules = NIL;
-//	FOREACH(DLRule,unRule,unLinkedRules)
-//	{
-//		boolean ruleWon = DL_HAS_PROP(unRule->head,DL_WON)
-//		                                       || DL_HAS_PROP(unRule->head,DL_UNDER_NEG_WON);
-//
-//		if (ruleWon)
-//		{
-//			tempunLinkedRules = appendToTailOfList(tempunLinkedRules, unRule);
-//			unLinkedRules = removeVars(unLinkedRules, tempunLinkedRules);
-//		}
-//	}
-
 	FOREACH(DLRule,unRule,unLinkedRules)
 	{
 		boolean ruleWon = DL_HAS_PROP(unRule->head,DL_WON)
@@ -872,8 +824,34 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 		}
 	}
 
-//	FOREACH(DLRule,t,tempunLinkedRules)
-//		unLinkedRules = appendToTailOfList(unLinkedRules, t);
+	// filter out incorrect linked rules
+	List *removeRules = NIL;
+	List *nRuleBodyArgs;
+	FOREACH(DLRule,nRule,newRules)
+	{
+		boolean ruleWon = DL_HAS_PROP(nRule->head,DL_WON)
+                                   || DL_HAS_PROP(nRule->head,DL_UNDER_NEG_WON);
+
+		if (!ruleWon && INT_VALUE(getDLProp((DLNode *) nRule,DL_RULE_ID)) != getMatched)
+		{
+			int getFirstGoal = 0;
+			FOREACH(DLAtom,r,nRule->body)
+			{
+				if (getFirstGoal == 0)
+				{
+					nRuleBodyArgs = NIL;
+					for (int i = 0; i < LIST_LENGTH(r->args); i++)
+						nRuleBodyArgs = appendToTailOfList(nRuleBodyArgs, getNthOfListP(r->args, i));
+				}
+				getFirstGoal++;
+			}
+
+			if (searchListNode(nRuleBodyArgs, (Node *) createConstBool(FALSE)) || searchListNode(nRuleBodyArgs, (Node *) createConstBool(TRUE)))
+				if (INT_VALUE(getDLProp((DLNode *) nRule,DL_RULE_ID)) != getMatched && BOOL_VALUE(getTailOfListP(nRuleBodyArgs)))
+					removeRules = appendToTailOfList(removeRules,nRule);
+		}
+	}
+	newRules = removeVars(newRules,removeRules);
 
 	FOREACH(DLRule,r,unLinkedRules)
 		setIDBBody(r);
@@ -1177,6 +1155,25 @@ removeVars (List *vars, List *remVars)
             result = appendToTailOfList(result, v);
 
     return result;
+}
+
+boolean
+searchVars (List *vars, List *searVars)
+{
+    Set *sVars = NODESET();
+    List *result = NIL;
+
+    FOREACH(Node,r,vars)
+        addToSet(sVars,r);
+
+    FOREACH(Node,v,searVars)
+        if(hasSetElem(sVars,v))
+            result = appendToTailOfList(result, v);
+
+    if (LIST_LENGTH(result) == 0)
+    	return FALSE;
+    else
+    	return TRUE;
 }
 
 static List *
