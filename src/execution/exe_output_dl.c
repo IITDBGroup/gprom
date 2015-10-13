@@ -20,6 +20,6 @@ executeOutputDL(void *dl)
 //    char *out;
 
 //    out = datalogToOverviewString(dl);
-    printf("%s", dl);
+    printf("%s", (char *) dl);
     fflush(stdout);
 }
