@@ -265,6 +265,7 @@ AC_CHECK_HEADERS([limits.h])
 AC_CHECK_HEADERS([regex.h])
 AC_CHECK_HEADERS([setjmp.h])
 AC_CHECK_HEADERS([signal.h])
+AC_CHECK_HEADERS([float.h])
 AC_HEADER_ASSERT
 ################################################################################
 # MEMORY ALLOCATION STUFF

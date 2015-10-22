@@ -29,7 +29,10 @@
 
 static Node *translateProgram(DLProgram *p);
 static QueryOperator *translateRule(DLRule *r);
+static QueryOperator *translateSafeRule(DLRule *r);
+static QueryOperator *translateUnSafeRule(DLRule *r);
 static QueryOperator *translateGoal(DLAtom *r, int goalPos);
+static QueryOperator *translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart);
 static void analyzeProgramDTs (DLProgram *p, HashMap *predToRules);
 static void analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules);
 static void setVarDTs (Node *expr, HashMap *varToDT);
@@ -331,6 +334,23 @@ setVarDTs (Node *expr, HashMap *varToDT)
         v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
 }
 
+static QueryOperator *
+translateRule(DLRule *r)
+{
+    boolean isSafe = FALSE; //TODO implement real safety check in model checker or analyzer
+
+    FOREACH(DLNode,d, r->body) //TODO assume that if we have at least one positive goal then we are safe for now
+    {
+        if (isA(d,DLAtom) && !((DLAtom *) d)->negated)
+            isSafe = TRUE;
+    }
+
+    if(isSafe)
+        return translateSafeRule(r);
+    else
+        return translateUnSafeRule(r);
+}
+
 /*
  * Create algebra expression for one datalog rule. This treats both idb and edb
  *  relations the same by representing them as relation accesses. A rule will be
@@ -341,7 +361,7 @@ setVarDTs (Node *expr, HashMap *varToDT)
  *  3) the rule head will be a projection followed by duplicate removal (it's bag semantics, baby!)
  */
 static QueryOperator *
-translateRule(DLRule *r)
+translateUnSafeRule(DLRule *r)
 {
     ProjectionOperator *headP;
     DuplicateRemoval *dupRem;
@@ -382,6 +402,130 @@ translateRule(DLRule *r)
         sel = createSelectionOp(cond, joinedGoals, NIL, NULL);
         addParent(joinedGoals, (QueryOperator *) sel);
     }
+
+    // create projection to simulate head
+    List *projExprs = NIL;
+    List *headNames = NIL;
+
+    projExprs = getHeadProjectionExprs(r->head, joinedGoals, getBodyArgs(r));
+    int i = 0;
+
+//    FOREACH(Node,p,projExprs)
+    for (; i < LIST_LENGTH(projExprs); i++)
+        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", itoa(i)));
+//
+//    List *headVars = getVarNames(getHeadVars(r));
+//    List *headArgs = r->head->args;
+//
+//    FOREACH(char,hV,headVars)
+//    {
+//        AttributeReference *a;
+//        int pos = getAttrPos(joinedGoals, hV);
+//        DataType dt = getAttrDefByPos(joinedGoals, pos)->dataType;
+//
+//        a = createFullAttrReference(hV,0,pos,INVALID_ATTR, dt);
+//        projExprs = appendToTailOfList(projExprs, a);
+//    }
+
+    headP = createProjectionOp(projExprs,
+            sel ? (QueryOperator *) sel : joinedGoals,
+            NIL,
+            headNames);
+    addParent(sel ? (QueryOperator *) sel : joinedGoals, (QueryOperator *) headP);
+
+    // add duplicate removal operator
+    dupRem = createDuplicateRemovalOp(NULL, (QueryOperator *) headP, NIL,
+            getQueryOperatorAttrNames((QueryOperator *) headP));
+    addParent((QueryOperator *) headP, (QueryOperator *) dupRem);
+
+    DEBUG_LOG("translated rule:\n%s\n\ninto\n\n%s",
+            datalogToOverviewString((Node *) r),
+            operatorToOverviewString((Node *) dupRem));
+
+    return (QueryOperator *) dupRem;
+}
+
+
+
+/*
+ * Create algebra expression for one datalog rule. This treats both idb and edb
+ *  relations the same by representing them as relation accesses. A rule will be
+ *  translated as follows:
+ *
+ *  1) natural joins between goal translations
+ *  2) comparison atoms are translated into a selection on top of that
+ *  3) the rule head will be a projection followed by duplicate removal (it's bag semantics, baby!)
+ */
+static QueryOperator *
+translateSafeRule(DLRule *r)
+{
+    ProjectionOperator *headP;
+    DuplicateRemoval *dupRem;
+    QueryOperator *joinedGoals;
+    SelectionOperator *sel = NULL;
+    List *goalTrans = NIL;
+    List *posGoals = NIL;
+    List *conditions = NIL;
+    QueryOperator *posPart = NULL;
+    int goalPos;
+    HashMap *varDTmap;
+
+    DEBUG_LOG("translate rules: %s", datalogToOverviewString((Node *) r));
+
+    varDTmap = (HashMap *) getDLProp((DLNode *) r, DL_PRED_DTS);
+
+    // translate positive goals
+    goalPos = 0;
+    FOREACH(Node,a,r->body)
+    {
+        if (isA(a,DLAtom))
+        {
+            if (!((DLAtom *) a)->negated)
+            {
+                QueryOperator *tG = translateSafeGoal((DLAtom *) a, goalPos, NULL);
+                posGoals = appendToTailOfList(posGoals, tG);
+                DEBUG_LOG("translated positive body goal is: %s", operatorToOverviewString((Node *) tG));
+            }
+            goalPos++;
+        }
+        else if (isA(a,DLComparison))
+            conditions = appendToTailOfList(conditions, a);
+    }
+
+    posPart = joinGoalTranslations(r, posGoals);
+    joinedGoals = posPart;
+
+    // create selection from comparison expression in the rule
+    if (!LIST_EMPTY(conditions))
+    {
+        Node *cond = createCondFromComparisons(conditions, joinedGoals, varDTmap);
+        sel = createSelectionOp(cond, joinedGoals, NIL, NULL);
+        addParent(joinedGoals, (QueryOperator *) sel);
+        joinedGoals = (QueryOperator *) sel;
+    }
+
+        goalTrans = singleton(joinedGoals);
+
+    // translate negated goals
+    goalPos = 0;
+    FOREACH(Node,a,r->body)
+    {
+        if (isA(a,DLAtom))
+        {
+            if (((DLAtom *) a)->negated)
+            {
+                QueryOperator *tG = translateSafeGoal((DLAtom *) a, goalPos, joinedGoals);
+                goalTrans = appendToTailOfList(goalTrans, tG);
+                DEBUG_LOG("translated negative body goal is: %s", operatorToOverviewString((Node *) tG));
+            }
+            goalPos++;
+        }
+    }
+
+    // add joins to connect goal translations
+    joinedGoals = joinGoalTranslations(r, goalTrans);
+    DEBUG_LOG("joined goals are: %s", operatorToOverviewString((Node *) joinedGoals));
+
 
     // create projection to simulate head
     List *projExprs = NIL;
@@ -684,7 +828,7 @@ translateGoal(DLAtom *r, int goalPos)
     if (DL_HAS_PROP(r,DL_IS_IDB_REL))
     {
         for(int i = 0; i < LIST_LENGTH(r->args); i++)
-        	attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));
+            attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));
     }
     // is edb, get information from db
     else
@@ -707,15 +851,15 @@ translateGoal(DLAtom *r, int goalPos)
         // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
         // then return (Domain X Domain X ... X Domain) - R
         dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
-        		"DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
+                "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
         List *domainAttrs = singleton("D");
 
         for(int i = 1; i < numAttrs; i++)
         {
-        	char *aDomAttrName = CONCAT_STRINGS("D", itoa(i++));
+            char *aDomAttrName = CONCAT_STRINGS("D", itoa(i++));
             QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
                     "_DOMAIN", NULL, "DummyDom", NIL,
-					LIST_MAKE("D"), singletonInt(DT_STRING));
+                    LIST_MAKE("D"), singletonInt(DT_STRING));
 
             QueryOperator *oldD = dom;
             domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
@@ -739,6 +883,249 @@ translateGoal(DLAtom *r, int goalPos)
 
         setDiff = createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(dom, rel),
                 NULL, deepCopyStringList(attrNames));
+        addParent(dom, (QueryOperator *) setDiff);
+        addParent((QueryOperator *) rel, (QueryOperator *) setDiff);
+
+        pInput = (QueryOperator *) setDiff;
+    }
+    else
+        pInput = (QueryOperator *) rel;
+
+    // add selection if constants are used in the goal
+    // e.g., R(X,1) with attributes A0,A1 are translated into SELECTION[A1=1](R)
+    List *selExpr = NIL;
+    int i = 0;
+
+    FOREACH(Node,arg,r->args)
+    {
+        if (isA(arg,Constant))
+        {
+            Node *comp;
+            AttributeDef *a = getAttrDefByPos(pInput,i);
+            comp = (Node *) createOpExpr("=",
+                    LIST_MAKE(createFullAttrReference(strdup(a->attrName),
+                            0, i, INVALID_ATTR, a->dataType),
+                    copyObject(arg)));
+
+//            if (a->dataType != ((Constant *) arg)->constType) // check for unmatched dataType
+//              a->dataType = ((Constant *) arg)->constType;  // , but need discussion if it is correct to check
+
+            ASSERT(a->dataType == ((Constant *) arg)->constType);
+
+            selExpr = appendToTailOfList(selExpr, comp);
+        }
+        i++;
+    }
+
+    // add selection to equate attributes if variables are repeated
+    int j = 0;
+    i = 0;
+    FOREACH(Node,arg,r->args)
+    {
+        j = 0;
+        if (isA(arg,DLVar))
+        {
+            char *name = ((DLVar *) arg)->name;
+            DEBUG_LOG("name %s", name);
+            FOREACH(Node,argI,r->args)
+            {
+                // found matching names
+                if (isA(argI, DLVar) && j > i)
+                {
+                    char *IName = ((DLVar *) argI)->name;
+                    DEBUG_LOG("name %s and %s", name, IName);
+                    if (streq(name,IName))
+                    {
+                        Node *comp;
+                        AttributeDef *aI = getAttrDefByPos(pInput,i);
+                        AttributeDef *aJ = getAttrDefByPos(pInput,j);
+                        comp = (Node *) createOpExpr("=",
+                                LIST_MAKE(createFullAttrReference(strdup(aI->attrName),
+                                        0, i, INVALID_ATTR, aI->dataType),
+                                        createFullAttrReference(strdup(aJ->attrName),
+                                                0, j, INVALID_ATTR, aJ->dataType))
+                                );
+
+                        selExpr = appendToTailOfList(selExpr, comp);
+                    }
+                }
+                j++;
+            }
+        }
+        i++;
+    }
+
+    // create a selection if necessary (equate constants, )
+    if (selExpr != NIL)
+    {
+        SelectionOperator *sel;
+        Node *cond = andExprList(selExpr);
+
+        sel = createSelectionOp(cond, pInput, NIL, NULL);
+        addParent(pInput, (QueryOperator *) sel);
+        pInput = (QueryOperator *) sel;
+    }
+
+    // add projection
+    rename = (ProjectionOperator *) createProjOnAllAttrs(pInput);
+    addChildOperator((QueryOperator *) rename, pInput);
+
+    // change attribute names
+    Set *nameSet = STRSET();
+    List *finalNames = NIL;
+    int argPos = 0;
+
+    FORBOTH(Node,var,attr,r->args,rename->op.schema->attrDefs)
+    {
+        char *n = NULL;
+        AttributeDef *d = (AttributeDef *) attr;
+
+        if(isA(var,DLVar))
+        {
+            DLVar *v = (DLVar *) var;
+            n = v->name;
+            d->attrName = strdup(n);
+        }
+        else if (isA(var, Constant))
+        {
+            n = CONCAT_STRINGS("C_", itoa(goalPos), "_", itoa(argPos++));
+            d->attrName = strdup(n);
+        }
+        else
+            FATAL_LOG("we should not end up here");
+
+        addToSet(nameSet, strdup(n));
+        finalNames = appendToTailOfList(finalNames, strdup(n));
+    }
+
+    //TODO make attribute names unique
+    makeNamesUnique(finalNames, nameSet);
+    FORBOTH(void,name,attr,finalNames,rename->op.schema->attrDefs)
+    {
+        char *n = (char *) name;
+        AttributeDef *a = (AttributeDef *) attr;
+
+        if(!streq(a->attrName, name))
+            a->attrName = strdup(n);
+    }
+
+
+    DEBUG_LOG("translated goal %s:\n%s",
+            datalogToOverviewString((Node *) r),
+            operatorToOverviewString((Node *) rename));
+
+    return (QueryOperator *) rename;
+}
+
+
+
+/*
+ * Like translate goal, but for safe rules we can first determine variable bindings from the positive part of a rule before applying MINUS.
+ */
+
+static QueryOperator *
+translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
+{
+    ProjectionOperator *rename;
+    QueryOperator *pInput;
+    TableAccessOperator *rel;
+    List *attrNames = NIL;
+    List *dts = NIL;
+
+    // for idb rels just fake attributes (and for now DTs)
+    if (DL_HAS_PROP(r,DL_IS_IDB_REL))
+    {
+        for(int i = 0; i < LIST_LENGTH(r->args); i++)
+        	attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));
+    }
+    // is edb, get information from db
+    else
+        attrNames = getAttributeNames(r->rel);
+
+    dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
+
+    // create table access op
+    rel = createTableAccessOp(r->rel, NULL, "REL", NIL, attrNames, dts);
+    if (DL_HAS_PROP(r,DL_IS_IDB_REL))
+        SET_BOOL_STRING_PROP(rel, DL_IS_IDB_REL);
+
+    // is negated goal?
+    if (r->negated)
+    {
+        SetOperator *setDiff;
+        ProjectionOperator *rename;
+        QueryOperator *dom;
+        List *varNames = NIL;
+        List *projArgs = NIL;
+        List *projNames = NIL;
+//        int numAttrs = getNumAttrs((QueryOperator *) rel);
+        // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
+        // then return (Domain X Domain X ... X Domain) - R
+//        dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
+//        		"DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
+//        List *domainAttrs = singleton("D");
+//
+//        for(int i = 1; i < numAttrs; i++)
+//        {
+//        	char *aDomAttrName = CONCAT_STRINGS("D", itoa(i++));
+//            QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
+//                    "_DOMAIN", NULL, "DummyDom", NIL,
+//					LIST_MAKE("D"), singletonInt(DT_STRING));
+//
+//            QueryOperator *oldD = dom;
+//            domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
+//            dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
+//                    LIST_MAKE(dom, aDom), NULL,
+//                    domainAttrs);
+//
+//            addParent(aDom, dom);
+//            addParent(oldD, dom);
+//        }
+        // create projection arguments and varnames for projection over joined positive subgoals
+        int attrPos = 0;
+        FOREACH(Node,n,r->args)
+        {
+            if(isA(n,DLVar))
+            {
+                DLVar *v = (DLVar*) n;
+                char *name = v->name;
+
+                varNames = appendToTailOfList(varNames, strdup(name));
+                projArgs = appendToTailOfList(projArgs,
+                        createFullAttrReference(strdup(name), 0, attrPos, INVALID_ATTR, v->dt));
+                projNames = appendToTailOfList(projNames, strdup(name));
+            }
+            else
+            {
+                projArgs = appendToTailOfList(projArgs, copyObject(n));
+                projNames = appendToTailOfList(projNames, CONCAT_STRINGS("C_", itoa(attrPos)));
+            }
+            attrPos++;
+        }
+
+        DEBUG_LOG("var names of neg goal: %s", stringListToString(varNames));
+        // project onto variables
+        rename = (ProjectionOperator *) createProjOnAttrsByName(posPart, varNames);
+//        int i = 0;
+//        FOREACH(AttributeDef,a,rename->op.schema->attrDefs)
+//        {
+//            char *name = strdup(getNthOfListP(varNames, i++));
+//            a->attrName = name;
+//        }
+        DEBUG_LOG("proj: %s", operatorToOverviewString((Node *) rename));
+        addChildOperator((QueryOperator *) rename, posPart);
+
+
+        // add constants to projection
+        dom = (QueryOperator *) rename;
+        rename = (ProjectionOperator *) createProjectionOp(projArgs, dom, NIL, projNames);
+        addParent(dom, (QueryOperator *) rename);
+//        addChildOperator((QueryOperator *) rename, dom);
+        dom = (QueryOperator *) rename;
+
+        // create set diff
+        setDiff = createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(dom, rel),
+                NULL, deepCopyStringList(projNames));
         addParent(dom, (QueryOperator *) setDiff);
         addParent((QueryOperator *) rel, (QueryOperator *) setDiff);
 

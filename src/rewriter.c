@@ -124,6 +124,11 @@ setupPluginsFromOptions(void)
     else
         chooseExecutorPluginFromString("sql");
 
+    // setup cost-based optimizer
+    if ((pluginName = getStringOption("plugin.cbo")) != NULL)
+        chooseOptimizerPluginFromString(pluginName);
+    else
+        chooseOptimizerPluginFromString("exhaustive");
 }
 
 int

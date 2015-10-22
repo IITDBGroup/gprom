@@ -79,6 +79,7 @@ char *plugin_analyzer = NULL;
 char *plugin_translator = NULL;
 char *plugin_sql_serializer = NULL;
 char *plugin_executor = NULL;
+char *plugin_cbo = NULL;
 
 // instrumentation options
 boolean opt_timing = FALSE;
@@ -341,6 +342,16 @@ OptionInfo opts[] =
                         "rewritten query and return its result",
                 OPTION_STRING,
                 wrapOptionString(&plugin_executor),
+                defOptionString(NULL)
+        },
+        {
+                "plugin.cbo",
+                "-Pcbo",
+                "select Cost-Based Optimizer plugin: exhaustive (enumerate all options), "
+                        "balance (stop optimization after optimization time exceeds estimated runtime of best plan), "
+                        "sim_ann (simmulated annealing)",
+                OPTION_STRING,
+                wrapOptionString(&plugin_cbo),
                 defOptionString(NULL)
         },
         // boolean instrumentation options
