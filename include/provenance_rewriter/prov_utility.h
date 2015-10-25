@@ -28,6 +28,7 @@ extern List *getProvAttrProjectionExprs(QueryOperator *op);
 extern List *getNormalAttrProjectionExprs(QueryOperator *op);
 extern QueryOperator *createProjOnAllAttrs(QueryOperator *op);
 extern QueryOperator *createProjOnAttrs(QueryOperator *op, List *attrPos);
+extern QueryOperator *createProjOnAttrsByName(QueryOperator *op, List *attrNames);
 
 // graph manipulation
 extern void switchSubtrees(QueryOperator *orig, QueryOperator *new);

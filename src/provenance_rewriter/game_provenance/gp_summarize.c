@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------
  *
- * exe_output_dl.c
+ * gp_summarize.c
  *			  
  *		
  *		AUTHOR: lord_pretzel
@@ -11,15 +11,11 @@
  */
 
 #include "common.h"
-#include "execution/exe_output_dl.h"
-#include "model/node/nodetype.h"
+#include "log/logger.h"
+#include "provenance_rewriter/game_provenance/gp_summarize.h"
 
 void
-executeOutputDL(void *dl)
+dummyFunction (void)
 {
-//    char *out;
-
-//    out = datalogToOverviewString(dl);
-    printf("%s", (char *) dl);
-    fflush(stdout);
+    DEBUG_LOG("TEST");
 }

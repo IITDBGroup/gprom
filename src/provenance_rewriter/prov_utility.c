@@ -138,27 +138,52 @@ createProjOnAttrs(QueryOperator *op, List *attrPos)
     ProjectionOperator *p;
     List *projExprs = NIL;
     List *attrNames = NIL;
-    int i = 0;
+//    int i = 0;
 
-    FOREACH(AttributeDef,a,op->schema->attrDefs)
+    FOREACH_INT(i,attrPos)
     {
+        AttributeDef *a = getAttrDefByPos(op, i);
         AttributeReference *att;
 
-        //TODO use set would be better
-        if (searchListInt(attrPos, i))
-        {
-            att = createFullAttrReference(a->attrName, 0, i, INVALID_ATTR, a->dataType);
-            projExprs = appendToTailOfList(projExprs, att);
-            attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
-        }
-        i++;
+        att = createFullAttrReference(strdup(a->attrName), 0, i, INVALID_ATTR, a->dataType);
+        projExprs = appendToTailOfList(projExprs, att);
+        attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
     }
+
+//    FOREACH(AttributeDef,a,op->schema->attrDefs)
+//    {
+//        AttributeReference *att;
+//
+//        //TODO use set would be better
+//        if (searchListInt(attrPos, i))
+//        {
+//            att = createFullAttrReference(strdup(a->attrName), 0, i, INVALID_ATTR, a->dataType);
+//            projExprs = appendToTailOfList(projExprs, att);
+//            attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
+//        }
+//        i++;
+//    }
+
+    DEBUG_LOG("projection expressions: %s", nodeToString((Node*) projExprs));
 
     p = createProjectionOp (projExprs, NULL, NIL, attrNames);
     p->op.provAttrs = copyObject(op->provAttrs); //TODO create real prov attrs list
 
     return (QueryOperator *) p;
 }
+
+QueryOperator *
+createProjOnAttrsByName(QueryOperator *op, List *attrNames)
+{
+    List *attrPos = NIL;
+
+    FOREACH(char,c,attrNames)
+        attrPos = appendToTailOfListInt(attrPos, getAttrPos(op,c));
+    DEBUG_LOG("child attr pos: %s", nodeToString(attrPos));
+
+    return createProjOnAttrs(op, attrPos);
+}
+
 
 /*
  * Given a subtree rooted a "orig" replace this subtree with the tree rooted

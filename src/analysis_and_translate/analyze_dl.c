@@ -20,6 +20,7 @@
 #include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
+#include "model/datalog/datalog_model_checker.h"
 
 
 static void analyzeDLProgram (DLProgram *p);
@@ -36,19 +37,23 @@ analyzeDLModel (Node *stmt)
     if (isA(stmt, DLProgram))
         analyzeDLProgram((DLProgram *) stmt);
 
+    if (!checkDLModel(stmt))
+        FATAL_LOG("failed model check on:\n%s", datalogToOverviewString(stmt));
+
+    DEBUG_LOG("analyzed model is \n%s", nodeToString(stmt));
+    INFO_LOG("analyzed model overview is \n%s", datalogToOverviewString(stmt));
+
     return stmt;
 }
 
-static void
-analyzeDLProgram (DLProgram *p)
+void
+createRelToRuleMap (Node *stmt)
 {
-    Set *idbRels = STRSET();
-    Set *edbRels = STRSET();
-    HashMap *relToRule = NEW_MAP(Constant,List); // map idb relations to all rules that have this relation in their head
-    List *rules = NIL;
-    List *facts = NIL;
+    if (!isA(stmt,DLProgram))
+        return;
 
-    //TODO infer data types for idb predicates
+    HashMap *relToRule = NEW_MAP(Constant,List); // map idb relations to all rules that have this relation in their head
+    DLProgram *p = (DLProgram *) stmt;
 
     FOREACH(Node,r,p->rules)
     {
@@ -58,10 +63,35 @@ analyzeDLProgram (DLProgram *p)
             char *headPred = getHeadPredName((DLRule *) r);
             List *relRules = (List *) MAP_GET_STRING(relToRule,headPred);
 
-            rules = appendToTailOfList(rules, r);
-            addToSet(idbRels, headPred);
             relRules = appendToTailOfList(relRules, r);
             MAP_ADD_STRING_KEY(relToRule,headPred,relRules);
+        }
+    }
+
+    setDLProp((DLNode *) p, DL_MAP_RELNAME_TO_RULES, (Node *) relToRule);
+}
+
+static void
+analyzeDLProgram (DLProgram *p)
+{
+    Set *idbRels = STRSET();
+    Set *edbRels = STRSET();
+//    HashMap *relToRule = (HashMap *) getDLProp((DLNode *) p, DL_MAP_RELNAME_TO_RULES);
+    List *rules = NIL;
+    List *facts = NIL;
+
+    createRelToRuleMap((Node *) p);
+    //TODO infer data types for idb predicates
+
+    FOREACH(Node,r,p->rules)
+    {
+        // a rule
+        if(isA(r,DLRule))
+        {
+            char *headPred = getHeadPredName((DLRule *) r);
+
+            rules = appendToTailOfList(rules, r);
+            addToSet(idbRels, headPred);
         }
         // answer relation specification
         else if(isA(r,Constant))
@@ -103,7 +133,6 @@ analyzeDLProgram (DLProgram *p)
     // store some auxiliary results of analysis in properties
     setDLProp((DLNode *) p, DL_IDB_RELS, (Node *) idbRels);
     setDLProp((DLNode *) p, DL_EDB_RELS, (Node *) edbRels);
-    setDLProp((DLNode *) p, DL_MAP_RELNAME_TO_RULES, (Node *) relToRule);
 }
 
 static void
@@ -188,7 +217,7 @@ static boolean
 checkHeadSafety (DLRule *r)
 {
     DLAtom *h = r->head;
-    List *headVars = getDLVars((Node *) h);
+    List *headVars = getDLVarsIgnoreProps((Node *) h);
     Set *bodyVars = makeNodeSetFromList(getBodyPredVars(r));
 
     // foreach variable

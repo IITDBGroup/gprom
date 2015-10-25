@@ -71,6 +71,9 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
     || DL_HAS_PROP(prog,DL_PROV_WHYNOT) \
     || DL_HAS_PROP(prog,DL_PROV_FULL_GP))
 
+#define IS_DL_NODE(n) (isA(n,DLNode) || isA(n,DLAtom) || isA(n,DLVar) \
+        || isA(n,DLComparison) || isA(n,DLRule) || isA(n,DLProgram))
+
 // convenience functions
 extern DLAtom *createDLAtom (char *rel, List *args, boolean negated);
 extern DLVar *createDLVar (char *vName, DataType vType);

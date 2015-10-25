@@ -102,8 +102,6 @@ static void outDLRule(StringInfo str, DLRule *node);
 static void outDLProgram(StringInfo str, DLProgram *node);
 static void outDLComparison(StringInfo str, DLComparison *node);
 
-static void indentString(StringInfo str, int level);
-
 // create overview string for an operator tree
 static int compareOpInfos (const void *l, const void *r);
 static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMap *map);
@@ -1743,7 +1741,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
         operatorToOverviewInternal(str, child, indent + 1, map);
 }
 
-static void
+void
 indentString(StringInfo str, int level)
 {
     while(level-- > 0)

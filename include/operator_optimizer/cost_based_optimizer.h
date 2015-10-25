@@ -13,9 +13,17 @@
 
 #include "model/node/nodetype.h"
 
+NEW_ENUM_WITH_TO_STRING
+(
+    OptimizerPlugin,
+    OPTIMIZER_EXHAUSTIVE,
+    OPTIMIZER_SIMMULATED_ANNEALING,
+    OPTIMIZER_BALANCED
+);
+
+extern void chooseOptimizerPlugin(OptimizerPlugin typ);
+extern void chooseOptimizerPluginFromString(char *pluginName);
 extern char *doCostBasedOptimization(Node *oModel, boolean applyOptimizations);
 extern int callback (int numChoices);
-extern void reSetX1();
-
 
 #endif /* INCLUDE_OPERATOR_OPTIMIZER_COST_BASED_OPTIMIZER_H_ */

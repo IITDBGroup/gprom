@@ -14,5 +14,6 @@
 #include "model/node/nodetype.h"
 
 extern Node *analyzeDLModel (Node *stmt);
+extern void createRelToRuleMap (Node *stmt);
 
 #endif /* INCLUDE_ANALYSIS_AND_TRANSLATE_ANALYZE_DL_H_ */

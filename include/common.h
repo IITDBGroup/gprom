@@ -17,6 +17,10 @@
 #include <inttypes.h>
 #endif
 
+#if HAVE_FLOAT_H
+#include <float.h>
+#endif
+
 /* <sys/types.h> */
 #if HAVE_SYS_TYPES_H
 #include <sys/types.h>

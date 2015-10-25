@@ -20,7 +20,8 @@ typedef enum TranslatorPluginType
     TRANSLATOR_PLUGIN_ORACLE,
     TRANSLATOR_PLUGIN_POSTGRES,
     TRANSLATOR_PLUGIN_HIVE,
-    TRANSLATOR_PLUGIN_DL
+    TRANSLATOR_PLUGIN_DL,
+    TRANSLATOR_PLUGIN_DUMMY
 } TranslatorPluginType;
 
 /* plugin definition */

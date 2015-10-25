@@ -162,6 +162,7 @@ extern Operator *createOpExpr (char *name, List *args);
 extern AttributeReference *createAttributeReference (char *name);
 extern AttributeReference *createFullAttrReference (char *name, int fromClause, int attrPos,
         int outerLevelsUp, DataType attrType);
+extern CastExpr *createCastExpr (Node *expr, DataType resultDt);
 extern Node *andExprList (List *exprs);
 extern Node *andExprs (Node *expr, ...);
 extern Node *orExprs (Node *expr, ...);
@@ -200,6 +201,8 @@ extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
 extern boolean isConstExpr (Node *expr);
 
+extern DataType SQLdataTypeToDataType (char *dt);
+
 /* create an SQL expression from an expression tree */
 extern char *exprToSQL (Node *expr);
 
@@ -210,6 +213,7 @@ extern char *latexEscapeString (char *st);
 /* functions for searching inside expressions */
 extern List *getAttrReferences (Node *node);
 extern List *getDLVars (Node *node);
+extern List *getDLVarsIgnoreProps (Node *node);
 
 /* for the condition of selection operator, separate the AND operator to a
  * list of operators, these relation among these operators is AND */

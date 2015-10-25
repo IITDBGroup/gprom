@@ -462,11 +462,11 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
          * (2) Reset the pos of attributeRef in cond
          */
 		//step (1)
-		Set *eicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
-		root = removeUnnecessaryAttrDefInSchema(eicols, root);
+		//Set *eicols = (Set*)getStringProperty(OP_LCHILD(root), PROP_STORE_SET_ICOLS);
+		//root = removeUnnecessaryAttrDefInSchema(eicols, root);
 		//Set *unicols = unionSets(eicols, icols);
 		//root = removeUnnecessaryAttrDefInSchema(unicols, root);
-        //root->schema->attrDefs = copyObject (OP_LCHILD(root)->schema->attrDefs);
+        root->schema->attrDefs = copyObject (OP_LCHILD(root)->schema->attrDefs);
 
         //step (2)
 //        Operator *condOp = (Operator *)((SelectionOperator *)root)->cond;
@@ -966,15 +966,33 @@ removeRedundantDuplicateOperatorBySetWithInit(QueryOperator *root)
 QueryOperator *
 removeRedundantDuplicateOperatorBySet(QueryOperator *root)
 {
-	if(isA(root, DuplicateRemoval) && (GET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET) == TRUE))
-	{
-		QueryOperator *lChild = OP_LCHILD(root);
+    // only remove duprev
+    if (isA(root, DuplicateRemoval) && (GET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET) == TRUE))
+    {
+        // make an optimization choice
+        if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+        {
+            int res = callback(2);
 
-		// Remove Parent and make lChild as the new parent
-		switchSubtrees((QueryOperator *) root, lChild);
-		root = lChild;
-		removeRedundantDuplicateOperatorBySet(root);
-	}
+            // only remove if optimizer decides so
+            if (res == 0)
+            {
+                QueryOperator *lChild = OP_LCHILD(root);
+                switchSubtreeWithExisting((QueryOperator *) root, lChild);
+                root = lChild;
+                return removeRedundantDuplicateOperatorBySet(root);
+            }
+        }
+        else
+        {
+
+            QueryOperator *lChild = OP_LCHILD(root);
+
+            switchSubtreeWithExisting((QueryOperator *) root, lChild);
+            root = lChild;
+            return removeRedundantDuplicateOperatorBySet(root);
+        }
+    }
 
     FOREACH(QueryOperator, o, root->inputs)
         removeRedundantDuplicateOperatorBySet(o);
@@ -1012,7 +1030,8 @@ removeRedundantDuplicateOperatorByKey(QueryOperator *root)
 QueryOperator *
 pullUpDuplicateRemoval(QueryOperator *root)
 {
-    computeKeyProp(root);
+//    if (!HAS_STRING_PROP(root, PROP_STORE_LIST_KEY))
+        computeKeyProp(root); //Boris: this repeatively computes the key prop
 
     List *drOp = NULL;
     findDuplicateRemoval(&drOp, root);
@@ -1519,17 +1538,32 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 				cnt++;
 			}
 
+
 			FORBOTH(char, name, provName, LostNormalList, LostList)
 			{
 				DataType dt;
-				FOREACH(Node, p, ((ProjectionOperator *)o)->projExprs)
-		        {
-					if(isA(p, AttributeReference))
+				if(isA(o, ProjectionOperator))
+				{
+					FOREACH(Node, p, ((ProjectionOperator *)o)->projExprs)
 					{
-						if(streq(provName, ((AttributeReference *)p)->name))
-							dt = ((AttributeReference *)p)->attrType;
+						if(isA(p, AttributeReference))
+						{
+							if(streq(provName, ((AttributeReference *)p)->name))
+								dt = ((AttributeReference *)p)->attrType;
+						}
 					}
-		        }
+				}
+				else
+				{
+					FOREACH(Node, p, o->schema->attrDefs)
+					{
+						if(isA(p, AttributeDef))
+						{
+							if(streq(provName, ((AttributeDef *)p)->attrName))
+								dt = ((AttributeDef *)p)->dataType;
+						}
+					}
+				}
 
 				projExpr = appendToTailOfList(projExpr,
 						createFullAttrReference(

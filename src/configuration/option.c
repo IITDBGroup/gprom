@@ -60,6 +60,7 @@ int connection_port = 0;
 
 // backend specific options
 char *oracle_audit_log_table = NULL;
+boolean oracle_use_service_name = FALSE;
 
 // logging options
 int logLevel = 0;
@@ -78,6 +79,7 @@ char *plugin_analyzer = NULL;
 char *plugin_translator = NULL;
 char *plugin_sql_serializer = NULL;
 char *plugin_executor = NULL;
+char *plugin_cbo = NULL;
 
 // instrumentation options
 boolean opt_timing = FALSE;
@@ -98,6 +100,7 @@ boolean opt_translate_update_with_case = FALSE;
 
 // cost based optimization option
 boolean cost_based_optimizer = FALSE;
+int cost_max_considered_plans = -1;
 
 // optimization options
 boolean opt_optimization_push_selections = FALSE;
@@ -194,7 +197,7 @@ OptionInfo opts[] =
         {
                 "connection.db",
                 "-db",
-                "Database name for backend DB connection (SID for Oracle backends).",
+                "Database name for backend DB connection (SID or SERVICE_NAME for Oracle backends).",
                 OPTION_STRING,
                 wrapOptionString(&connection_db),
                 defOptionString("orcl")
@@ -223,13 +226,22 @@ OptionInfo opts[] =
                 wrapOptionInt(&connection_port),
                 defOptionInt(1521)
         },
+        // backend specific options
         {
-                "backendOpts.oracle.logtable",
-                "-Boracle.audittable",
+                OPTION_ORACLE_AUDITTABLE,
+                "Boracle.audittable",
                 "Table storing the audit log (usually fga_log$ or unified_audit_trail)",
                 OPTION_STRING,
                 wrapOptionString(&oracle_audit_log_table),
                 defOptionString("UNIFIED_AUDIT_TRAIL")
+        },
+        {
+                OPTION_ORACLE_USE_SERVICE,
+                "-Boracle.servicename",
+                "if this option then the db connection parameter is interpreted as a service name instead of an SID",
+                OPTION_BOOL,
+                wrapOptionString(&oracle_use_service_name),
+                defOptionBool(FALSE)
         },
         // logging options
         {
@@ -332,6 +344,16 @@ OptionInfo opts[] =
                 wrapOptionString(&plugin_executor),
                 defOptionString(NULL)
         },
+        {
+                "plugin.cbo",
+                "-Pcbo",
+                "select Cost-Based Optimizer plugin: exhaustive (enumerate all options), "
+                        "balance (stop optimization after optimization time exceeds estimated runtime of best plan), "
+                        "sim_ann (simmulated annealing)",
+                OPTION_STRING,
+                wrapOptionString(&plugin_cbo),
+                defOptionString(NULL)
+        },
         // boolean instrumentation options
         aRewriteOption(OPTION_TIMING,
                 NULL,
@@ -405,6 +427,14 @@ OptionInfo opts[] =
                 OPTION_BOOL,
                 wrapOptionBool(&cost_based_optimizer),
                 defOptionBool(FALSE)
+         },
+         {
+                 OPTION_COST_BASED_MAX_PLANS,
+                 "-max_considered_plans",
+                 "Maximal number of plans considered by cost based optimizer",
+                 OPTION_INT,
+                 wrapOptionInt(&cost_max_considered_plans),
+                 defOptionInt(-1)
          },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,

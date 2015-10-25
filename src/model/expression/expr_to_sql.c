@@ -32,6 +32,7 @@ static void caseToSQL(StringInfo str, CaseExpr *expr);
 static void winFuncToSQL(StringInfo str, WindowFunction *expr);
 static void winBoundToSQL (StringInfo str, WindowBound *b);
 static void orderExprToSQL (StringInfo str, OrderExpr *o);
+static void dataTypeToSQL (StringInfo str, DataType dt);
 
 static void functionCallToLatex (StringInfo str, FunctionCall *node);
 static void operatorToLatex (StringInfo str, Operator *node);
@@ -330,6 +331,39 @@ sqlParamToSQL(StringInfo str, SQLParameter *p)
 }
 
 static void
+castExprToSQL(StringInfo str, CastExpr *c)
+{
+    //TODO vendor specific
+    appendStringInfoString(str, "CAST (");
+    exprToSQLString(str, c->expr);
+    appendStringInfoString(str, " AS ");
+    dataTypeToSQL(str, c->resultDT);
+    appendStringInfoString(str, ")");
+}
+
+static void
+dataTypeToSQL (StringInfo str, DataType dt)
+{
+    switch(dt)
+    {
+        case DT_INT:
+        case DT_LONG:
+            appendStringInfoString(str, "NUMBER");
+            break;
+        case DT_FLOAT:
+            appendStringInfoString(str, "BINARY_FLOAT");
+            break;
+        case DT_STRING:
+        case DT_VARCHAR2:
+            appendStringInfoString(str, "VARCHAR2(2000)");
+            break;
+        case DT_BOOL:
+            appendStringInfoString(str, "NUMBER(1)");
+            break;
+    }
+}
+
+static void
 exprToSQLString(StringInfo str, Node *expr)
 {
     if (expr == NULL)
@@ -380,6 +414,9 @@ exprToSQLString(StringInfo str, Node *expr)
         break;
         case T_SQLParameter:
             sqlParamToSQL(str, (SQLParameter *) expr);
+        break;
+        case T_CastExpr:
+            castExprToSQL(str, (CastExpr *) expr);
         break;
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));
@@ -454,6 +491,13 @@ exprToLatexString(StringInfo str,  Node *expr)
         break;
         case T_SQLParameter:
             sqlParamToSQL(str, (SQLParameter *) expr);
+        break;
+        case T_CastExpr:
+        {
+            CastExpr *c = (CastExpr *) expr;
+            exprToLatexString(str, c->expr);
+            //TODO should we show it or not?
+        }
         break;
         default:
             FATAL_LOG("not an expression node <%s>", nodeToString(expr));

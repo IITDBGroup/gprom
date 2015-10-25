@@ -18,6 +18,7 @@
 
 #include "sql_serializer/sql_serializer.h"
 #include "sql_serializer/sql_serializer_oracle.h"
+#include "sql_serializer/sql_serializer_dl.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
@@ -114,7 +115,9 @@ assembleDLPlugin(void)
 {
     SqlserializerPlugin *p = NEW(SqlserializerPlugin);
 
-    FATAL_LOG("not implemented yet");
+    p->serializeOperatorModel = serializeOperatorModelDL;
+    p->serializeQuery = serializeQueryDL;
+    p->quoteIdentifier = quoteIdentifierDL;
 
     return p;
 }

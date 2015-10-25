@@ -158,6 +158,8 @@ typedef struct JsonTableOperator
 
 #define IS_OP(op) (IS_NULLARY_OP(op) || IS_UNARY_OP(op) || IS_BINARY_OP(op))
 
+#define IS_QB(op) (IS_OP(op) || (isA(op,List) && (op == NULL || IS_OP(getNthOfListP((List *) op, 0)))))
+
 /* schema helper functions */
 extern AttributeDef *createAttributeDef (char *name, DataType dt);
 extern Schema *createSchema(char *name, List *attrDefs);

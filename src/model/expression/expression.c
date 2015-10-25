@@ -18,7 +18,7 @@
 #include "model/list/list.h"
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
-
+#include "utility/string_utils.h"
 
 typedef struct FindNotesContext
 {
@@ -29,6 +29,7 @@ typedef struct FindNotesContext
 static boolean findAllNodesVisitor(Node *node, FindNotesContext *context);
 static boolean findAttrReferences (Node *node, List **state);
 static boolean findDLVars (Node *node, List **state);
+static boolean findDLVarsIgnoreProps (Node *node, List **state);
 static DataType typeOfOp (Operator *op);
 static DataType typeOfFunc (FunctionCall *f);
 
@@ -58,6 +59,17 @@ createFullAttrReference (char *name, int fromClause, int attrPos,
     result->attrPosition = attrPos;
     result->outerLevelsUp = outerLevelsUp;
     result->attrType= attrType;
+
+    return result;
+}
+
+CastExpr *
+createCastExpr (Node *expr, DataType resultDt)
+{
+    CastExpr *result = makeNode(CastExpr);
+
+    result->expr = expr;
+    result->resultDT = resultDt;
 
     return result;
 }
@@ -398,6 +410,8 @@ typeOf (Node *expr)
             return DT_INT;//TODO should use something else?
         case T_DLVar:
             return ((DLVar *) expr)->dt;
+        case T_CastExpr:
+            return ((CastExpr *) expr)->resultDT;
         default:
              FATAL_LOG("unknown expression type for node: %s", nodeToString(expr));
              break;
@@ -486,11 +500,28 @@ isConstExpr (Node *expr)
         }
         case T_DLVar:
             return FALSE;
+        case T_CastExpr:
+        {
+            CastExpr *c = (CastExpr *) expr;
+            return isConstExpr(c->expr);
+        }
         default:
              FATAL_LOG("unknown expression type for node: %s", nodeToString(expr));
              break;
     }
     return FALSE;
+}
+
+DataType
+SQLdataTypeToDataType (char *dt)
+{
+    //TODO outsource to metadatalookup for now does only Oracle
+    if (isPrefix(dt, "NUMERIC") || streq(dt, "NUMBER"))
+        return DT_INT; //TODO may also be float
+    if (isPrefix(dt, "VARCHAR"))
+        return DT_STRING;
+    FATAL_LOG("unkown SQL datatype %s", dt);
+    return DT_INT;
 }
 
 DataType
@@ -514,6 +545,8 @@ typeOfInOpModel (Node *expr, List *inputOperators)
         }
         case T_RowNumExpr:
             return DT_INT;
+        case T_CastExpr:
+            return ((CastExpr *) expr)->resultDT;
         default:
             ERROR_LOG("unknown expression type for node: %s", nodeToString(expr));
             break;
@@ -623,6 +656,31 @@ static boolean
 findDLVars (Node *node, List **state)
 {
     if (node == NULL)
+        return TRUE;
+
+    if (isA(node, DLVar))
+        *state = appendToTailOfList(*state, node);
+
+    return visit(node, findDLVars, state);
+}
+
+List *
+getDLVarsIgnoreProps (Node *node)
+{
+    List *result = NIL;
+
+    findDLVarsIgnoreProps(node, &result);
+
+    return result;
+}
+
+static boolean
+findDLVarsIgnoreProps (Node *node, List **state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, HashMap))
         return TRUE;
 
     if (isA(node, DLVar))

@@ -119,7 +119,7 @@ static boolean quoteAttributeNames (Node *node, void *context);
 static void  makeDTOracleConformant(QueryOperator *q);
 static boolean replaceNonOracleDTs (Node *node, void *context);
 
-static List *serializeQueryOperator (QueryOperator *q, StringInfo str);
+static List *serializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent);
 static List *serializeQueryBlock (QueryOperator *q, StringInfo str);
 static List *serializeSetOperator (QueryOperator *q, StringInfo str);
 
@@ -140,7 +140,7 @@ static boolean renameAttrsVisitor(Node *node, JoinAttrRenameState *state);
 static char *createAttrName(char *name, int fItem);
 //static char *createFromNames(int *attrOffset, int count);
 
-static List *createTempView(QueryOperator *q, StringInfo str);
+static List *createTempView(QueryOperator *q, StringInfo str, QueryOperator *parent);
 static char *createViewName(void);
 static void shortenAttributeNames(QueryOperator *q);
 static inline char *getShortAttr(char *newName, int id, boolean quoted);
@@ -294,7 +294,7 @@ serializeQueryOracle(QueryOperator *q)
     makeDTOracleConformant(q);
 
     // call main entry point for translation
-    serializeQueryOperator (q, str);
+    serializeQueryOperator (q, str, NULL);
 
     /*
      *  prepend the temporary view definition to create something like
@@ -363,11 +363,11 @@ replaceNonOracleDTs (Node *node, void *context)
  * Main entry point for serialization.
  */
 static List *
-serializeQueryOperator (QueryOperator *q, StringInfo str)
+serializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent)
 {
     // operator with multiple parents
     if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE))
-        return createTempView (q, str);
+        return createTempView (q, str, parent);
     else if (isA(q, SetOperator))
         return serializeSetOperator(q, str);
     else
@@ -1015,7 +1015,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                 List *attrNames;
 
                 appendStringInfoString(from, "((");
-                attrNames = serializeQueryOperator(q, from);
+                attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0)); //TODO ok to use first?
                 *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
                 appendStringInfo(from, ") F%u)", (*curFromItem)++);
             }
@@ -1029,7 +1029,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
             List *attrNames;
 
             appendStringInfoString(from, "((");
-            attrNames = serializeQueryOperator(q, from);
+            attrNames = serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0)); //TODO ok to use first?
             *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
             appendStringInfo(from, ") F%u)", (*curFromItem)++);
         }
@@ -1465,7 +1465,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str)
     List *resultAttrs;
 
     // output left child
-    WITH_PARENS(str,resultAttrs = serializeQueryOperator(OP_LCHILD(q), str));
+    WITH_PARENS(str,resultAttrs = serializeQueryOperator(OP_LCHILD(q), str, q));
 
     // output set operation
     switch(setOp->setOpType)
@@ -1482,7 +1482,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str)
     }
 
     // output right child
-    WITH_PARENS(str,serializeQueryOperator(OP_RCHILD(q), str));
+    WITH_PARENS(str,serializeQueryOperator(OP_RCHILD(q), str, q));
 
     return resultAttrs;
 }
@@ -1491,7 +1491,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str)
  * Create a temporary view
  */
 static List *
-createTempView (QueryOperator *q, StringInfo str)
+createTempView (QueryOperator *q, StringInfo str, QueryOperator *parent)
 {
     StringInfo viewDef = makeStringInfo();
     char *viewName = createViewName();
@@ -1502,7 +1502,10 @@ createTempView (QueryOperator *q, StringInfo str)
     HASH_FIND_PTR(viewMap, &q, view);
     if (view != NULL)
     {
-        appendStringInfoString(str, strdup(view->viewName));
+        if (isA(parent, SetOperator))
+            appendStringInfo(str, "(SELECT * FROM %s)", strdup(view->viewName));
+        else
+            appendStringInfoString(str, strdup(view->viewName));
         return deepCopyStringList(view->attrNames);
     }
 
@@ -1518,7 +1521,10 @@ createTempView (QueryOperator *q, StringInfo str)
     DEBUG_LOG("created view definition:\n%s", viewDef->data);
 
     // add reference to view
-    appendStringInfoString(str, strdup(viewName));
+    if (isA(parent, SetOperator))
+        appendStringInfo(str, "(SELECT * FROM %s)", strdup(viewName));
+    else
+        appendStringInfoString(str, strdup(viewName));
 
     // add to view table
     view = NEW(TemporaryViewMap);

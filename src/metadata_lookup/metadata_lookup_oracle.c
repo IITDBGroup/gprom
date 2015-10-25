@@ -28,6 +28,10 @@
 		"(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
 		"(SERVER=DEDICATED)(SID=%s)))"
 
+#define ORACLE_TNS_CONNECTION_FORMAT_SERVICE "(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=" \
+        "(PROTOCOL=TCP)(HOST=%s)(PORT=%u)))(CONNECT_DATA=" \
+        "(SERVER=DEDICATED)(SERVICE_NAME=%s)))"
+
 /* queries */
 #define ORACLE_SQL_GET_AUDIT_FOR_TRANSACTION \
 "WITH transSlice AS (\n" \
@@ -75,6 +79,8 @@ static char **aggList=NULL;
 static char **winfList = NULL;
 static List *tableBuffers=NULL;
 static List *viewBuffers=NULL;
+static HashMap *keys=NULL;
+static Set *haveKeys=NULL;
 static boolean initialized = FALSE;
 
 static int initConnection(void);
@@ -233,6 +239,8 @@ freeBuffers()
 	}
 	tableBuffers = NIL;
 	viewBuffers = NIL;
+	keys = NULL;
+	haveKeys = NULL;
 }
 
 static void
@@ -296,10 +304,21 @@ initConnection()
     char *host = getStringOption("connection.host");
     int port = getIntOption("connection.port");
 
-    appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT,
-    		host ? host : "",
-    		port ? port : 1521,
-            db ? db : "");
+    // use different templates depending on whether connecting using an SID or a SERVICE_NAME
+    if (getBoolOption(OPTION_ORACLE_USE_SERVICE))
+    {
+        appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT_SERVICE,
+                host ? host : "",
+                port ? port : 1521,
+                db ? db : "");
+    }
+    else
+    {
+        appendStringInfo(connectString, ORACLE_TNS_CONNECTION_FORMAT,
+                host ? host : "",
+                port ? port : 1521,
+                db ? db : "");
+    }
 
     conn = OCI_ConnectionCreate(connectString->data,
     		user ? user : "",
@@ -312,7 +331,8 @@ initConnection()
 
     initAggList();
     initWinfList();
-
+    keys = NEW_MAP(Constant,List);
+    haveKeys = STRSET();
     RELEASE_MEM_CONTEXT();
 
     return EXIT_SUCCESS;
@@ -1102,15 +1122,15 @@ oracleGetCostEstimation(char *query)
 
     FREE(statement1);
 
-    StringInfo statement2;
-    statement2 = makeStringInfo();
-    appendStringInfo(statement2, "DELETE FROM PLAN_TABLE");
-    executeStatement(statement2->data);
-    FREE(statement2);
+//    StringInfo statement2;
+//    statement2 = makeStringInfo();
+//    appendStringInfo(statement2, "DELETE FROM PLAN_TABLE");
+//    executeStatement(statement2->data);
+//    FREE(statement2);
 
     StringInfo statement3;
     statement3 = makeStringInfo();
-    appendStringInfo(statement3, "COMMIT");
+    appendStringInfo(statement3, "TRUNCATE TABLE PLAN_TABLE");
     executeStatement(statement3->data);
     FREE(statement3);
 
@@ -1121,6 +1141,9 @@ List *
 oracleGetKeyInformation(char *tableName)
 {
     List *keyList = NIL;
+
+    if(hasSetElem(haveKeys,tableName))
+        return (List *) getMapString(keys,tableName); //TODO copy necessary?
 
     StringInfo statement;
     statement = makeStringInfo();
@@ -1149,6 +1172,8 @@ oracleGetKeyInformation(char *tableName)
     }
 
     FREE(statement);
+    MAP_ADD_STRING_KEY(keys, tableName, copyObject(keyList));
+    addToSet(haveKeys,strdup(tableName));
     return keyList;
 }
 

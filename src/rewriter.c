@@ -22,6 +22,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
+#include "model/datalog/datalog_model.h"
 #include "provenance_rewriter/prov_rewriter.h"
 #include "analysis_and_translate/analyzer.h"
 #include "analysis_and_translate/translator.h"
@@ -131,6 +132,11 @@ setupPluginsFromOptions(void)
     else
         chooseExecutorPluginFromString("sql");
 
+    // setup cost-based optimizer
+    if ((pluginName = getStringOption("plugin.cbo")) != NULL)
+        chooseOptimizerPluginFromString(pluginName);
+    else
+        chooseOptimizerPluginFromString("exhaustive");
 }
 
 void
@@ -275,57 +281,61 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	START_TIMER("rewrite");
 
 	rewrittenTree = provRewriteQBModel(oModel);
-    DOT_TO_CONSOLE(rewrittenTree);
 
-	/*******************new Add for test json import jimp table***************************/
-	if(isA(rewrittenTree,List) && isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
+	if (IS_QB(rewrittenTree))
 	{
-		QueryOperator *q = (QueryOperator *)getHeadOfListP((List *)rewrittenTree);
-		List *taOp = NIL;
-		findTableAccessOperator(&taOp, (QueryOperator *) q);
-		int l = LIST_LENGTH(taOp);
-		DEBUG_LOG("len %d", l);
-		if(isA(getHeadOfListP(taOp),TableAccessOperator))
-		{
-			TableAccessOperator *ta = (TableAccessOperator *) getHeadOfListP(taOp);
-			DEBUG_LOG("test %s", ta->tableName);
-			if(streq(ta->tableName,"JIMP2") || streq(ta->tableName, "JSDOC1"))
-			{
-				q = rewriteTransformationProvenanceImport(q);
-				DEBUG_LOG("Table: %s", nodeToString(ta));
-				rewrittenTree = (Node *) singleton(q);
-			}
-		}
+	    DOT_TO_CONSOLE(rewrittenTree);
+
+	    /*******************new Add for test json import jimp table***************************/
+	    if(isA(rewrittenTree,List) && isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
+	    {
+	        QueryOperator *q = (QueryOperator *)getHeadOfListP((List *)rewrittenTree);
+	        List *taOp = NIL;
+	        findTableAccessOperator(&taOp, (QueryOperator *) q);
+	        int l = LIST_LENGTH(taOp);
+	        DEBUG_LOG("len %d", l);
+	        if(isA(getHeadOfListP(taOp),TableAccessOperator))
+	        {
+	            TableAccessOperator *ta = (TableAccessOperator *) getHeadOfListP(taOp);
+	            DEBUG_LOG("test %s", ta->tableName);
+	            if(streq(ta->tableName,"JIMP2") || streq(ta->tableName, "JSDOC1"))
+	            {
+	                q = rewriteTransformationProvenanceImport(q);
+	                DEBUG_LOG("Table: %s", nodeToString(ta));
+	                rewrittenTree = (Node *) singleton(q);
+	            }
+	        }
+	    }
+	    /*******************new Add for test json import jimp table***************************/
+
+	    DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
+	    INFO_LOG("provenance rewritten query as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
+	    STOP_TIMER("rewrite");
+
+	    ASSERT_BARRIER(
+	            if (isA(rewrittenTree, List))
+	                FOREACH(QueryOperator,o,(List *) rewrittenTree)
+	                TIME_ASSERT(checkModel(o));
+	            else
+	                TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
+	    )
+
+	    if(applyOptimizations)
+	    {
+	        START_TIMER("OptimizeModel");
+	        rewrittenTree = optimizeOperatorModel(rewrittenTree);
+	        INFO_LOG("after optimizing AGM graph:\n\n%s", operatorToOverviewString(rewrittenTree));
+	        STOP_TIMER("OptimizeModel");
+	    }
+	    else
+	        if (isA(rewrittenTree, List))
+	            FOREACH(QueryOperator,o,(List *) rewrittenTree)
+	            LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
+	        else
+	            rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
+
+	    DOT_TO_CONSOLE(rewrittenTree);
 	}
-	/*******************new Add for test json import jimp table***************************/
-
-	DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
-	INFO_LOG("provenance rewritten query as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
-	STOP_TIMER("rewrite");
-
-	ASSERT_BARRIER(
-		if (isA(rewrittenTree, List))
-			FOREACH(QueryOperator,o,(List *) rewrittenTree)
-				TIME_ASSERT(checkModel(o));
-		else
-			TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
-	)
-
-	if(applyOptimizations)
-	{
-		START_TIMER("OptimizeModel");
-		rewrittenTree = optimizeOperatorModel(rewrittenTree);
-		INFO_LOG("after optimizing AGM graph:\n\n%s", operatorToOverviewString(rewrittenTree));
-		STOP_TIMER("OptimizeModel");
-	}
-	else
-		if (isA(rewrittenTree, List))
-			FOREACH(QueryOperator,o,(List *) rewrittenTree)
-				LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
-		else
-			rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
-
-    DOT_TO_CONSOLE(rewrittenTree);
 
 	START_TIMER("SQLcodeGen");
 	appendStringInfo(result, "%s\n", serializeOperatorModel(rewrittenTree));
@@ -347,16 +357,26 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     START_TIMER("translation");
     oModel = translateParse(parse);
     DEBUG_LOG("translator returned:\n\n<%s>", beatify(nodeToString(oModel)));
-    INFO_LOG("translator result as overview:\n\n%s", operatorToOverviewString(oModel));
-    DOT_TO_CONSOLE(oModel);
+    if (IS_OP(oModel))
+    {
+        INFO_LOG("translator result as overview:\n\n%s", operatorToOverviewString(oModel));
+        DOT_TO_CONSOLE(oModel);
+    }
+    else if (IS_DL_NODE(oModel))
+    {
+        INFO_LOG("translator result as overview:\n\n%s", datalogToOverviewString(oModel));
+    }
     STOP_TIMER("translation");
 
     ASSERT_BARRIER(
-        if (isA(oModel, List))
-            FOREACH(QueryOperator,o,(List *) oModel)
+        if (IS_OP(oModel))
+        {
+            if (isA(oModel, List))
+                FOREACH(QueryOperator,o,(List *) oModel)
                 TIME_ASSERT(checkModel(o));
-        else
-            TIME_ASSERT(checkModel((QueryOperator *) oModel));
+            else
+                TIME_ASSERT(checkModel((QueryOperator *) oModel));
+        }
     )
 
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
