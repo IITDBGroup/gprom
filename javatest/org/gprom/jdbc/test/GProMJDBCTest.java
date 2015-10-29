@@ -42,7 +42,7 @@ public class GProMJDBCTest {
 		log.error(url);
 		try{
 			Class.forName("org.gprom.jdbc.driver.GProMDriver");
-//			Class.forName(driverURL);
+			Class.forName(driverURL);
 //			w.setLogLevel(2);
 		} catch(ClassNotFoundException e){
 			e.printStackTrace();
@@ -85,19 +85,19 @@ public class GProMJDBCTest {
 		ResultSet rs = st.executeQuery("PROVENANCE OF (SELECT sum(a) FROM r GROUP BY b);");
 		printResult(rs);
 		
-		rs = st.executeQuery("PROVENANCE OF (SELECT * FROM R);");
-		printResult(rs);
-		
-		// test error
-		try {
-		rs = st.executeQuery("PROVENANCE OF (SELECT * FRO R);");
-		}
-		catch (Exception e) {
-			System.out.printf("%s", e);
-		}
-		
-		rs = st.executeQuery("PROVENANCE OF (SELECT * FROM R);");
-		printResult(rs);
+//		rs = st.executeQuery("PROVENANCE OF (SELECT * FROM R);");
+//		printResult(rs);
+//		
+//		// test error
+//		try {
+//		rs = st.executeQuery("PROVENANCE OF (SELECT * FRO R);");
+//		}
+//		catch (Exception e) {
+//			System.out.printf("%s", e);
+//		}
+//		
+//		rs = st.executeQuery("PROVENANCE OF (SELECT * FROM R);");
+//		printResult(rs);
 		
 		log.error("statement shutdown");
 		con.close();
