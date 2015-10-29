@@ -4,7 +4,7 @@ if [ $# -le 1 ]; then
     echo "debugrewriters.sh 3 \"SELECT * FROM r;\""
     exit 1
 fi
-GDB=lldb
+GDB=gdb
 LOGLEVEL=$1
 SQL=$2
 ARGS="${*:3}"
