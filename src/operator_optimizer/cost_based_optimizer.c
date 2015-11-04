@@ -60,6 +60,15 @@ typedef struct OptimizerState
     List *previousPath;
 } OptimizerState;
 
+typedef struct AnnealingState
+{
+    PlanCost previousPlanCost;
+    char *previousPlan;
+    float previousPlanExpectedTime;
+    List *previousPath;
+    double temp;
+} AnnealingState;
+
 /* initialize the optimizer's state */
 static inline OptimizerState *
 createOptState(void)
@@ -258,7 +267,7 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
     	if(state->previousPlanCost != PLAN_MAX_COST)
     	{
     		// compute acceptance probability
-    		double p = (state->currentCost - state->previousPlanCost)/temp;
+    		double p = ((double) (state->previousPlanCost - state->currentCost))/temp;
     		double ap = pow(2.71828, p);
     		int random = 1; //need to be changed to random value between [0,1)
     		//double random = rand()/(RAND_MAX+1.0);
@@ -274,11 +283,11 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
     		DEBUG_LOG("***************Back to previous plan***************** \n");
     		if(ap <= random)
     		{
-    			if(state->previousPlanCost != PLAN_MAX_COST)
+//    			if(state->previousPlanCost != PLAN_MAX_COST)
     				state->currentCost = state->previousPlanCost;
-    			if(state->previousPlan != NULL)
+//    			if(state->previousPlan != NULL)
     				state->currentPlan = strdup(state->previousPlan);
-    			if(state->previousPath != NIL)
+//    			if(state->previousPath != NIL)
     				state->curPath = copyObject(state->previousPath);
     			//state->currentPlanExpectedTime = state->previousPlanExpectedTime;
     			DEBUG_LOG("PLAN: %s", state->currentPlan);
