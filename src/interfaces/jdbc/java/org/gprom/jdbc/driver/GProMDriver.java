@@ -177,7 +177,7 @@ public class GProMDriver implements Driver {
 			w.setLogLevel(4);
 
 			return new GProMConnection(backendConnection, backendOpts, backend,
-					w);
+					w, queryAndProvLogger);
 		} catch (Exception ex) {
 			// log.error("Error loading the driver and getting a connection.");
 			// LoggerUtil.logException(ex, log);

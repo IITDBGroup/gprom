@@ -19,6 +19,5 @@
 	<classpathentry kind="lib" path="jdbcbuild/gpromjdbc.jar"/>
 	<classpathentry kind="lib" path="javalib/jnaerator-0.12.jar"/>
 	<classpathentry kind="lib" path="/home/selithey/workspace1/provenance-rewriter-prototype/ant/one-jar-ant-task-0.97.jar"/>
-	<classpathentry kind="lib" path="/home/selithey/Downloads/guava-18.0.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>

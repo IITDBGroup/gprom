@@ -46,7 +46,7 @@ public class GProMConnection implements GProMConnectionInterface{
 	
 	public GProMStatement createGProMStatement() {
 		try {
-			return new GProMStatement(con.createStatement(),backend);
+			return new GProMStatement(con.createStatement(),backend, provLogger);
 		} catch (SQLException e) {
 			LoggerUtil.logException(e, log);
 			log.error("Error creating a new gprom statement");
