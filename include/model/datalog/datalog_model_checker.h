@@ -14,5 +14,6 @@
 #include "model/node/nodetype.h"
 
 boolean checkDLModel (Node *dlModel);
+boolean checkDLRuleSafety (DLRule *r);
 
 #endif /* INCLUDE_MODEL_DATALOG_DATALOG_MODEL_CHECKER_H_ */

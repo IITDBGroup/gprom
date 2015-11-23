@@ -139,6 +139,48 @@ checkDLRule (DLRule *r)
                     datalogToOverviewString((Node *) r));
         }
 
+    return checkDLRuleSafety(r);
+//    return TRUE;
+}
+
+boolean
+checkDLRuleSafety (DLRule *r)
+{
+    Set *posVars = STRSET();
+
+    FOREACH(DLNode,d,r->body)
+    {
+         if (isA(d,DLAtom) && !((DLAtom *) d)->negated)
+         {
+             DLAtom *a = (DLAtom *) d;
+             FOREACH(Node,n,a->args)
+             {
+                 if(isA(n,DLVar))
+                 {
+                     DLVar *v = (DLVar *) n;
+                     addToSet(posVars,v->name);
+                 }
+             }
+         }
+
+    }
+
+    FOREACH(DLNode,d,r->body)
+    {
+        if (isA(d,DLAtom) && ((DLAtom *) d)->negated)
+        {
+            DLAtom *a = (DLAtom *) d;
+            FOREACH(Node,n,a->args)
+            {
+                if(isA(n,DLVar))
+                {
+                    DLVar *v = (DLVar *) n;
+                    if(!hasSetElem(posVars, v->name))
+                        return FALSE;
+                }
+            }
+        }
+    }
 
     return TRUE;
 }
