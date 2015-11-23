@@ -1077,6 +1077,58 @@ LSCHtoRSCH(List *setList, List *rECSetList, List *lSchemaList, List *rSchemaList
 List *
 CombineDuplicateElemSetInECList(List *DupECList)
 {
+
+	List *keyList = NIL;
+	HashMap *ECMap = NEW_MAP(Node,Node);
+	FOREACH(KeyValue, kv, DupECList)
+	{
+		Set *s = (Set *) kv->key;
+		KeyValue *kvCopy = copyObject(kv);
+		FOREACH_SET(char, c, s)
+		{
+			if(!hasMapStringKey(ECMap, c))
+			{
+				MAP_ADD_STRING_KEY(ECMap, c, kvCopy);
+				keyList = appendToTailOfList(keyList, strdup(c));
+			}
+			else
+			{
+				KeyValue *kvGet =  (KeyValue *) MAP_GET_STRING(ECMap, c);
+
+				//set constant
+				Constant *cons = NULL;
+				if(kvGet->value != NULL)
+					cons = copyObject ((Constant *) kvGet->value);
+				else if(kvCopy->value != NULL)
+					cons = copyObject ((Constant *) kv->value);
+
+				Set *kvGetSetCopy = copyObject ((Set *) kvGet->key);
+				Set *kvCopySetCopy = copyObject ((Set *) kvCopy->key);
+				Set *unionSet = unionSets(kvGetSetCopy, kvCopySetCopy);
+
+				//old points to new
+				kvGet->key = (Node *) unionSet;
+				kvCopy->key = (Node *) unionSet;
+
+				kvGet->value = (Node *) cons;
+				kvCopy->value = (Node *) cons;
+			}
+		}
+	}
+
+	List *result = NIL;
+	FOREACH(char, key, keyList)
+	{
+		KeyValue *kValue = (KeyValue *) MAP_GET_STRING(ECMap, key);
+		if(!searchListNode(result, (Node *) kValue))
+			result = appendToTailOfList(result, copyObject(kValue));
+	}
+
+	return result;
+
+	/*
+	 * Old
+	 *
 		boolean change = FALSE;
 		//do a deep copy so we have the original list around
 		List *list1 = copyList(DupECList);
@@ -1132,6 +1184,7 @@ CombineDuplicateElemSetInECList(List *DupECList)
 	    		DupECList1 = appendToTailOfList(DupECList1, kv);
 	    }
 		return DupECList1;
+		*/
 }
 
 

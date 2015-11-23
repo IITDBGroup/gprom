@@ -32,6 +32,8 @@
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
 
+#include "math.h"
+
 /* cost of a plan */
 #define PLAN_MAX_COST ULLONG_MAX
 typedef unsigned long long int PlanCost;
@@ -51,7 +53,26 @@ typedef struct OptimizerState
     List *fixedPath;
     void *hook;
     int maxPlans;
+    //Added by Xing
+    PlanCost previousPlanCost;
+    char *previousPlan;
+    float previousPlanExpectedTime;
+    List *previousPath;
 } OptimizerState;
+
+typedef struct AnnealingState
+{
+    PlanCost previousPlanCost;
+    char *previousPlan;
+    float previousPlanExpectedTime;
+    List *previousPath;
+    double temp;
+    double coolingRate;
+    PlanCost currentCost;
+    char *currentPlan;
+    List *curPath;
+
+} AnnealingState;
 
 /* initialize the optimizer's state */
 static inline OptimizerState *
@@ -71,7 +92,19 @@ createOptState(void)
     state->hook = NULL;
     state->planCount = 0;
     state->maxPlans = -1;
+    //Added by Xing
 
+    //AnnealingState *annealState = NEW(AnnealingState);
+    //annealState->previousPlanCost = PLAN_MAX_COST;
+    //annealState->previousPlan = NULL;
+    //annealState->previousPlanExpectedTime =  DBL_MAX;
+    //annealState->previousPath = NIL;
+    //state->hook = annealState;
+
+    //state->previousPlanCost = PLAN_MAX_COST;
+    //state->previousPlan = NULL;
+    //state->previousPlanExpectedTime = DBL_MAX;
+    //state->previousPath = NIL;
     return state;
 }
 
@@ -111,6 +144,8 @@ static int simannCallback (OptimizerState *state, int numChoices);
  * current best plan. */
 static boolean balancedContinueOptimization (OptimizerState *state);
 
+// update best plan
+static void updateBestPlan (OptimizerState *state);
 
 void
 chooseOptimizerPlugin(OptimizerPlugin typ)
@@ -162,30 +197,30 @@ chooseOptimizerPluginFromString(char *pluginName)
 char *
 doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 {
-    // intitialize optimizer state
-    state = createOptState();
-    if (opt->initialize)
-        opt->initialize(state);
-    state->maxPlans = getIntOption(OPTION_COST_BASED_MAX_PLANS);
+	// intitialize optimizer state
+	state = createOptState();
+	if (opt->initialize)
+		opt->initialize(state);
+	state->maxPlans = getIntOption(OPTION_COST_BASED_MAX_PLANS);
 
-    // main loop -> create one plan in each iteration
-    while(opt->shouldContinue(state))
-    {
-        // keep track of time spent in loop
-        struct timeval tvalBefore, tvalAfter;
-        gettimeofday (&tvalBefore, NULL);
+	// main loop -> create one plan in each iteration
+	while(opt->shouldContinue(state))
+	{
+		// keep track of time spent in loop
+		struct timeval tvalBefore, tvalAfter;
+		gettimeofday (&tvalBefore, NULL);
 
-        // create next plan
-        Node *oModel1 = copyObject(oModel);
-        state->currentPlan = generatePlan(oModel1, applyOptimizations);
+		// create next plan
+		Node *oModel1 = copyObject(oModel);
+		state->currentPlan = generatePlan(oModel1, applyOptimizations);
 
-        char *result = strdup(state->currentPlan);
-        state->currentCost = getCostEstimation(result);//TODO not what is returned by the function
-        DEBUG_LOG("Cost of the rewritten Query is = %d\n", state->currentCost);
-        INFO_LOG("plan (%u) for choice %s is\n%s", state->planCount, beatify(nodeToString(state->curPath)),
-                state->currentPlan);
-        ERROR_LOG("plan %u", state->planCount);
-
+		char *result = strdup(state->currentPlan);
+		state->currentCost = getCostEstimation(result);//TODO not what is returned by the function
+		DEBUG_LOG("Cost of the rewritten Query is = %d\n", state->currentCost);
+		INFO_LOG("plan (%u) for choice %s is\n%s", state->planCount, beatify(nodeToString(state->curPath)),
+				state->currentPlan);
+		ERROR_LOG("plan %u", state->planCount);
+		/*
         // update best plan
         if(state->currentCost < state->bestPlanCost)
         {
@@ -194,21 +229,123 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
             state->bestPlanExpectedTime = estimateRuntime(state);
             DEBUG_LOG("PLAN: %s", state->bestPlan);
         }
+		 */
+		// determine what options to choose in the next iteration
+		if(!opt->generateNextChoice(state))
+			break;
 
-        // determine what options to choose in the next iteration
-        if(!opt->generateNextChoice(state))
-            break;
+		// update state
+		gettimeofday (&tvalAfter, NULL);
+		state->optTime += (float)(tvalAfter.tv_sec - tvalBefore.tv_sec) / 1000000;
+		state->planCount++;
+		FREE(result);
+		FREE(state->currentPlan);
+	}
 
-        // update state
-        gettimeofday (&tvalAfter, NULL);
-        state->optTime += (float)(tvalAfter.tv_sec - tvalBefore.tv_sec) / 1000000;
-        state->planCount++;
-        FREE(result);
-        FREE(state->currentPlan);
+	INFO_LOG("COST-BASED OPTIMIZATION: considered %u plans in total", state->planCount);
+	return state->bestPlan;
+
+
+/*
+	// intitialize optimizer state
+    state = createOptState();
+    if (opt->initialize)
+        opt->initialize(state);
+    state->maxPlans = getIntOption(OPTION_COST_BASED_MAX_PLANS);
+
+    //double temp = 10000;
+    //double coolingRate = 0.5;
+
+    // main loop -> create one plan in each iteration
+    while(temp > 1)
+    {
+    	// keep track of time spent in loop
+    	struct timeval tvalBefore, tvalAfter;
+    	gettimeofday (&tvalBefore, NULL);
+
+    	// create next plan
+    	Node *oModel1 = copyObject(oModel);
+    	state->currentPlan = generatePlan(oModel1, applyOptimizations);
+
+    	char *result = strdup(state->currentPlan);
+    	state->currentCost = getCostEstimation(result);//TODO not what is returned by the function
+
+    	DEBUG_LOG("Cost of the rewritten Query is = %d\n", state->currentCost);
+    	INFO_LOG("plan (%u) for choice %s is\n%s", state->planCount, beatify(nodeToString(state->curPath)),
+    			state->currentPlan);
+    	ERROR_LOG("plan %u", state->planCount);
+
+    	if(state->previousPlanCost != PLAN_MAX_COST)
+    	{
+    		// compute acceptance probability
+    		double p = ((double) (state->previousPlanCost - state->currentCost))/temp;
+    		double ap = pow(2.71828, p);
+    		int random = 1; //need to be changed to random value between [0,1)
+    		//double random = rand()/(RAND_MAX+1.0);
+    		DEBUG_LOG("random = %f, ap = %f, previous cost = %lld, current cost = %lld", random, ap, state->previousPlanCost, state->currentCost);
+
+    		//
+    		//  back to previous plan or just use current plan
+    		//  if ap > random, apply this current plan
+    		//  if app <= random, back to previous plan and based on previous plan to generate next plan
+    		//  current means the neighbor of previous one
+    		//  random is between [0,1)
+    		//
+    		DEBUG_LOG("***************Back to previous plan***************** \n");
+    		if(ap <= random)
+    		{
+//    			if(state->previousPlanCost != PLAN_MAX_COST)
+    				state->currentCost = state->previousPlanCost;
+//    			if(state->previousPlan != NULL)
+    				state->currentPlan = strdup(state->previousPlan);
+//    			if(state->previousPath != NIL)
+    				state->curPath = copyObject(state->previousPath);
+    			//state->currentPlanExpectedTime = state->previousPlanExpectedTime;
+    			DEBUG_LOG("PLAN: %s", state->currentPlan);
+    			//DEBUG_LOG("modify current X is %s, previous X is %s", beatify(nodeToString(state->curPath)),beatify(nodeToString(state->previousPath)));
+    		}
+    		else
+    		{
+    			//before to generate next plan, store current plan
+    			state->previousPlanCost = state->currentCost;
+    			state->previousPlan = strdup(state->currentPlan);
+    			DEBUG_LOG("best cost = %lld, previous cost = %lld, current cost = %lld", state->bestPlanCost, state->previousPlanCost, state->currentCost);
+    		}
+    	}
+    	else
+    	{
+    		state->previousPlanCost = state->currentCost;
+    		state->previousPlan = strdup(state->currentPlan);
+    	}
+
+    	// update best plan
+    	DEBUG_LOG("***************Compare to best plan***************** \n");
+    	if(state->currentCost < state->bestPlanCost)
+    	{
+    		state->bestPlanCost = state->currentCost;
+    		state->bestPlan = strdup(state->currentPlan);
+    		state->bestPlanExpectedTime = estimateRuntime(state);
+    		DEBUG_LOG("PLAN: %s", state->bestPlan);
+    	}
+
+    	// determine what options to choose in the next iteration
+    	if(!opt->generateNextChoice(state))
+    		break;
+
+    	// update state
+    	gettimeofday (&tvalAfter, NULL);
+    	state->optTime += (float)(tvalAfter.tv_sec - tvalBefore.tv_sec) / 1000000;
+    	state->planCount++;
+    	FREE(result);
+    	FREE(state->currentPlan);
+
+    	//temp *= 1 - coolingRate;
     }
-
+    */
+    DEBUG_LOG("BEST PLAN COST: %d \n", state->bestPlanCost);
     INFO_LOG("COST-BASED OPTIMIZATION: considered %u plans in total", state->planCount);
     return state->bestPlan;
+
 }
 
 static double
@@ -276,8 +413,12 @@ callback (int numChoices)
 static boolean
 exhaustiveGenerateNextChoice (OptimizerState *state)
 {
-    List *X1 = state->curPath;
-    List *Y1 = state->fixedPath;
+	updateBestPlan(state);
+
+    //List *X1 = state->curPath;
+    //List *Y1 = state->fixedPath;
+    List *X1 = state->fixedPath;
+    List *Y1 = state->curPath;
     List *Z1 = state->numChoices;
 
     int lenY1 = LIST_LENGTH(Y1);
@@ -299,9 +440,9 @@ exhaustiveGenerateNextChoice (OptimizerState *state)
             break;
         }
     }
-    state->curPath = NIL;
-    state->fixedPath = copyList(Y1);
-    state->numChoices = NIL;
+    state->fixedPath = copyList(Y1); //X1
+    state->curPath = NIL;  //Y1
+    state->numChoices = NIL; //Z1
 
     DEBUG_LOG("new X is %s", beatify(nodeToString(X1)));
 
@@ -318,8 +459,8 @@ static int
 exhaustiveCallback (OptimizerState *state, int numChoices)
 {
     int choice = -1;
-    List *curPath = state->curPath;
     List *fixedPath = state->fixedPath;
+    List *curPath = state->curPath;
     List *numChoicesOnPath = state->numChoices;
     DEBUG_LOG("number of choices are: %u", numChoices);
     if (LIST_LENGTH(fixedPath) == 0)
@@ -335,8 +476,8 @@ exhaustiveCallback (OptimizerState *state, int numChoices)
         numChoicesOnPath = appendToTailOfListInt(numChoicesOnPath, numChoices);
     }
 
-    state->curPath = curPath;
     state->fixedPath = fixedPath;
+    state->curPath = curPath;
     state->numChoices = numChoicesOnPath;
 
     DEBUG_LOG("optimizer data structures are:\n X:%s\n Y:%s\n Z:%s\n",nodeToString(fixedPath),
@@ -351,22 +492,123 @@ balancedContinueOptimization (OptimizerState *state)
     return (state->optTime < state->bestPlanExpectedTime);
 }
 
+static void
+updateBestPlan (OptimizerState *state)
+{
+	if(state->currentCost < state->bestPlanCost)
+	{
+		state->bestPlanCost = state->currentCost;
+		state->bestPlan = strdup(state->currentPlan);
+		state->bestPlanExpectedTime = estimateRuntime(state);
+		DEBUG_LOG("PLAN: %s", state->bestPlan);
+	}
+}
+
 static boolean
 simannInitialize(OptimizerState *state)
 {
+    AnnealingState *annealState = NEW(AnnealingState);
+    annealState->previousPlanCost = PLAN_MAX_COST;
+    annealState->previousPlan = NULL;
+    annealState->previousPlanExpectedTime =  DBL_MAX;
+    annealState->previousPath = NIL;
+    annealState->temp = 10000;
+    annealState->coolingRate = 0.5;
+
+    state->hook = annealState;
+
+
     return TRUE;
 }
 
 static boolean
 simannGenerateNextChoice (OptimizerState *state)
 {
-    return TRUE;
+	AnnealingState *state1 = (AnnealingState *)(state->hook);
+	if(state1->previousPlanCost != PLAN_MAX_COST)
+	{
+		// compute acceptance probability
+		double p = ((double) (state1->previousPlanCost - state->currentCost))/state1->temp;
+		double ap = pow(2.71828, p);
+		int random = 1; //need to be changed to random value between [0,1)
+		//double random = rand()/(RAND_MAX+1.0);
+		DEBUG_LOG("temp = %f, ap = %f, previous cost = %lld, current cost = %lld", state1->temp, ap, state1->previousPlanCost, state->currentCost);
+
+		//  back to previous plan or just use current plan
+		//  if ap > random, apply this current plan
+		//  if ap <= random, back to previous plan and based on previous plan to generate next plan
+		//  current means the neighbor of previous one
+		//  random is between [0,1)
+		if(ap <= random)
+		{
+			DEBUG_LOG("**Back to previous plan** \n");
+			state->currentCost = state1->previousPlanCost;
+			state->currentPlan = strdup(state1->previousPlan);
+			state->curPath = copyObject(state1->previousPath);
+			DEBUG_LOG("PLAN: %s", state->currentPlan);
+		}
+		else
+		{
+			//before to generate next plan, store current plan
+			state1->previousPlanCost = state->currentCost;
+			state1->previousPlan = strdup(state->currentPlan);
+			DEBUG_LOG("best cost = %lld, previous cost = %lld, current cost = %lld", state->bestPlanCost, state1->previousPlanCost, state->currentCost);
+		}
+	}
+	else
+	{
+		state1->previousPlanCost = state->currentCost;
+		state1->previousPlan = strdup(state->currentPlan);
+	}
+
+	// update best plan
+	updateBestPlan(state);
+	//minus temp
+	state1->temp *= 1 - state1->coolingRate;
+    //store previous path before generate next path
+	state1->previousPath = copyObject(state->curPath);
+	DEBUG_LOG("old X is %s", beatify(nodeToString(state1->previousPath)));
+
+
+	//following are generating next path
+	//List *fixedPath = state->fixedPath;  //X1 0
+	List *curPath = state->curPath;        //Y1 [0 0]
+	List *numChoices = state->numChoices;  //Z1 [2 2]
+
+	List *fixedPathHelp = NIL;
+	List *numChoicesHelp = NIL;
+
+	int curPathLen = LIST_LENGTH(curPath);
+	int pos = rand() % curPathLen;
+	DEBUG_LOG("pos = %d\n",pos);
+
+	for(int i=0; i <= pos; i++)
+	{
+		int c = getHeadOfListInt(curPath);
+		int n = getHeadOfListInt(numChoices);
+		fixedPathHelp = appendToTailOfListInt(fixedPathHelp, c);
+		numChoicesHelp = appendToTailOfListInt(numChoicesHelp, n);
+		curPath = removeFromHead(curPath);
+		numChoices = removeFromHead(numChoices);
+	}
+
+	state->fixedPath = copyList(fixedPathHelp);
+	state->curPath = NIL;
+	state->numChoices = NIL;
+
+	DEBUG_LOG("new X is %s", beatify(nodeToString(fixedPathHelp)));
+
+	return (state->fixedPath != NIL);
+
+	//return TRUE;
 }
 
 static boolean
 simannContinueOptimization (OptimizerState *state)
 {
-    return TRUE;
+	AnnealingState *state1 = (AnnealingState *)(state->hook);
+	return state1->temp > 1;
+    //return TRUE;
 }
 
 static int
@@ -382,6 +624,7 @@ simannCallback (OptimizerState *state, int numChoices)
         int nextChoice = rand() % numChoices;
         curPath = appendToTailOfListInt(curPath, nextChoice);
         numChoicesOnPath = appendToTailOfListInt(numChoicesOnPath, numChoices);
+        DEBUG_LOG("thisChoice = %d",nextChoice);
     }
     else
     {
@@ -389,6 +632,7 @@ simannCallback (OptimizerState *state, int numChoices)
         curPath = appendToTailOfListInt(curPath, choice);
         fixedPath = removeFromHead(fixedPath);
         numChoicesOnPath = appendToTailOfListInt(numChoicesOnPath, numChoices);
+        DEBUG_LOG("nextChoice = %d",choice);
     }
 
     state->curPath = curPath;
