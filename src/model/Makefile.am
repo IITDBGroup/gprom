@@ -1,7 +1,7 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include
 AM_CFLAGS = @GPROM_CFLAGS@
 
-SUBDIRS = expression helperfunction list node set query_block query_operator datalog
+SUBDIRS = expression helperfunction list node set query_block query_operator datalog rpq
 
 noinst_LTLIBRARIES		= libmodel.la
 libmodel_la_LIBADD     	= expression/libexpression.la \

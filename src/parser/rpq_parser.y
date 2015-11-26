@@ -4,7 +4,7 @@
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "model/datalog/datalog_model.h"
+#include "model/rpq/rpq_model.h"
 #include "model/query_block/query_block.h"
 #include "parser/parse_internal_rpq.h"
 #include "log/logger.h"
@@ -88,16 +88,17 @@ rpq:
          	    $$ = $1;
 				rpqParseResult = (Node *) $1;
 				DEBUG_LOG("parsed %s", nodeToString($$));
-		}
+		}	
 	;
 
 regexpr:
-		label { $$ = makeRegexLabel($1); }
-		| regexpr OR regexpr { $$ = makeRegex(LIST_MAKE($1,$2), "|"); }
-		| regexpr DOT regexpr { $$ = makeRegex(LIST_MAKE($1,$2), "."); }
-		| regexpr PLUS { $$ = makeRegex(singleton($1), "+")); }
-		| regexpr OPTIONAL { $$ = makeRegex(singleton($1), "?")); }
-		| regexpr STAR { $$ = makeRegex(singleton($1), "*")); }
+		label { $$ = (Node *) makeRegexLabel($1); }
+		| '(' regexpr ')' { $$ = $2; }
+		| regexpr OR regexpr { $$ = (Node *) makeRegex(LIST_MAKE($1,$2), "|"); }
+		| regexpr DOT regexpr { $$ = (Node *) makeRegex(LIST_MAKE($1,$2), "."); }
+		| regexpr PLUS { $$ = (Node *) makeRegex(singleton($1), "+"); }
+		| regexpr OPTIONAL { $$ = (Node *) makeRegex(singleton($1), "?"); }
+		| regexpr STAR { $$ = (Node *) makeRegex(singleton($1), "*"); }
 	;
 	
 label:

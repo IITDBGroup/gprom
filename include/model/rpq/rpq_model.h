@@ -12,12 +12,26 @@
 #define INCLUDE_MODEL_RPQ_RPQ_MODEL_H_
 
 #include "model/node/nodetype.h"
-#include ""
-NEW_ENUM(RegexOpType, )
+#include "utility/enum_magic.h"
 
-typedef struct RegexNode {
+NEW_ENUM_WITH_TO_STRING(RegexOpType,
+REGEX_LABEL,
+REGEX_OR,
+REGEX_PLUS,
+REGEX_STAR,
+REGEX_CONC,
+REGEX_OPTIONAL
+);
+
+typedef struct Regex {
+    NodeTag type;
     List *children;
     RegexOpType opType;
-} RegexNode;
+    char *label;
+} Regex;
+
+extern Regex* makeRegex(List *args, char *type);
+extern Regex* makeRegexLabel(char *label);
+extern RegexOpType parseRegexOp (char *label);
 
 #endif /* INCLUDE_MODEL_RPQ_RPQ_MODEL_H_ */

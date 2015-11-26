@@ -18,6 +18,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/datalog/datalog_model.h"
+#include "model/rpq/rpq_model.h"
 #include "log/logger.h"
 
 /* equal function for collection types */
@@ -95,6 +96,9 @@ static boolean equalDLVar (DLVar *a, DLVar *b);
 static boolean equalDLRule (DLRule *a, DLRule *b);
 static boolean equalDLProgram (DLProgram *a, DLProgram *b);
 static boolean equalDLComparison (DLComparison *a, DLComparison *b);
+
+// equal functions for regex model
+static boolean equalRegex (Regex *a, Regex *b);
 
 /* use these macros to compare fields */
 
@@ -185,6 +189,16 @@ equalDLComparison (DLComparison *a, DLComparison *b)
 {
     COMPARE_NODE_FIELD(opExpr);
     COMPARE_NODE_FIELD(n.properties);
+
+    return TRUE;
+}
+
+static boolean
+equalRegex (Regex *a, Regex *b)
+{
+    COMPARE_NODE_FIELD(children);
+    COMPARE_SCALAR_FIELD(opType);
+    COMPARE_STRING_FIELD(label);
 
     return TRUE;
 }
@@ -1160,6 +1174,9 @@ equal(void *a, void *b)
             break;
         case T_DLComparison:
             retval = equalDLComparison(a,b);
+            break;
+        case T_Regex:
+            retval = equalRegex(a,b);
             break;
         default:
             retval = FALSE;

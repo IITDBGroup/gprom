@@ -88,7 +88,10 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_JsonPath,
 			
     /* relation */
-    T_Relation
+    T_Relation,
+
+    /* rpq */
+    T_Regex
 );
 
 typedef struct Node{
