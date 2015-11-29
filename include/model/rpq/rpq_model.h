@@ -33,5 +33,6 @@ typedef struct Regex {
 extern Regex* makeRegex(List *args, char *type);
 extern Regex* makeRegexLabel(char *label);
 extern RegexOpType parseRegexOp (char *label);
+extern char *rpqToShortString (Regex *rpq);
 
 #endif /* INCLUDE_MODEL_RPQ_RPQ_MODEL_H_ */
