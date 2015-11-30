@@ -82,6 +82,7 @@ addResultRules (List *rules, char *rpqName)
     DLRule *r;
     DLAtom *head;
     DLAtom *edge;
+    DLComparison *noNull;
 
     head = createDLAtom(strdup(RESULT_PRED),
             LIST_MAKE(createDLVar("X",DT_STRING),
@@ -97,7 +98,10 @@ addResultRules (List *rules, char *rpqName)
             createDLVar("L",DT_STRING),
             createDLVar("V",DT_STRING)),
             FALSE);
-    r = createDLRule(head, singleton(edge));
+    noNull = createDLComparison("!=",
+            (Node *) createDLVar("L", DT_STRING),
+            (Node *) createNullConst(DT_STRING));
+    r = createDLRule(head, LIST_MAKE(edge,noNull));
     rules = appendToTailOfList(rules, r);
 
     return rules;

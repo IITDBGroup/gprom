@@ -194,7 +194,7 @@ extern Constant *createNullConst (DataType dt);
 #define BOOL_VALUE(_c) *((boolean *) ((Constant *) _c)->value)
 #define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
 #define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)
-#define CONST_TO_STRING(_c) (exprToSQL(_c))
+#define CONST_TO_STRING(_c) (exprToSQL((Node *) _c))
 
 /* functions for determining the type of an expression */
 extern DataType typeOf (Node *expr);

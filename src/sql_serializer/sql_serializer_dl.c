@@ -24,6 +24,7 @@
 #include "model/set/set.h"
 
 static void datalogToStr(StringInfo str, Node *n, int indent);
+static char *constToDL(Constant *c);
 
 
 char *
@@ -88,7 +89,10 @@ datalogToStr(StringInfo str, Node *n, int indent)
         {
             DLComparison *c = (DLComparison *) n;
 
-            appendStringInfo(str, "(%s)", exprToSQL((Node *) c->opExpr));
+            datalogToStr(str,getNthOfListP(c->opExpr->args, 0), indent);
+            appendStringInfo(str, " %s ", c->opExpr->name);
+            datalogToStr(str,getNthOfListP(c->opExpr->args, 1), indent);
+//            appendStringInfo(str, "%s", exprToSQL((Node *) c->opExpr));
         }
         break;
         case T_DLVar:
@@ -104,17 +108,17 @@ datalogToStr(StringInfo str, Node *n, int indent)
 
             FOREACH(Node,f,p->facts)
             {
-                datalogToStr(str,(Node *) f, 4);
+                datalogToStr(str,(Node *) f, 0);
             }
             FOREACH(Node,r,p->rules)
             {
-                datalogToStr(str,(Node *) r, 4);
+                datalogToStr(str,(Node *) r, 0);
             }
         }
         break;
         case T_Constant:
             appendStringInfo(str, "%s",
-                    CONST_TO_STRING(n));
+                    constToDL((Constant *) n));
         break;
         // provenance
         case T_List:
@@ -135,6 +139,19 @@ datalogToStr(StringInfo str, Node *n, int indent)
         }
         break;
     }
+}
+
+static char *
+constToDL(Constant *c)
+{
+    if (CONST_IS_NULL(c))
+        return strdup("null");
+    if (c->constType == DT_STRING)
+    {
+        return STRING_VALUE(c);
+    }
+    else
+        return CONST_TO_STRING(c);
 }
 
 char *
