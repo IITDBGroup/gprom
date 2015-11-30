@@ -142,7 +142,8 @@ rpqTranslate (Regex *rpq, HashMap *subexToRules, HashMap *subexToPred, Set *used
     char *rpqSubex = rpqToShortString(rpq);
     StringInfo predName = makeStringInfo();
     char *origName = MATCH_REL(rpq);
-    if (MAP_HAS_STRING_KEY(subexToRules, rpqSubex))
+
+    if (MAP_HAS_STRING_KEY(subexToPred, rpqSubex))
         return;
 
     origName = replaceCharsForPred(origName);

@@ -2,7 +2,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/include
 AM_CFLAGS = @GPROM_CFLAGS@ -I.
 
 bin_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
-				testserializer testvisit testrewriter testpicsrewrite 
+				testserializer testvisit testrewriter testpicsrewrite \
+				testrpq
 
 testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 		   test_logger.c test_mem_mgr.c test_to_string.c \
@@ -36,3 +37,6 @@ testrewriter_LDADD = ../src/libsrc.la
 
 testpicsrewrite_SOURCES = test_pi_cs_rewrite.c
 testpicsrewrite_LDADD = ../src/libsrc.la
+
+testrpq_SOURCES = test_rpq_to_dl.c
+testrpq_LDADD = ../src/libsrc.la
