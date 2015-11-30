@@ -19,7 +19,7 @@ SUBDIRS = configuration 		\
 		. 						\
 		command_line			\
 		libgprom				\
-		interfaces				\
+		interfaces				
 		
 
 noinst_LTLIBRARIES 		= libsrc.la

@@ -11,6 +11,7 @@ libmodel_la_LIBADD     	= expression/libexpression.la \
 						set/libset.la \
 						query_block/libquery_block.la \
 						query_operator/libquery_operator.la \
-						datalog/libdatalog.la
+						datalog/libdatalog.la \
+						rpq/librpq_model.la
 						
 libmodel_la_SOURCES     =

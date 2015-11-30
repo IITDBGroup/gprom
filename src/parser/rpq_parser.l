@@ -80,18 +80,17 @@ variableStart	[A-Z]
 identStart		[A-Za-z]
 constStart		[a-z]
 identContinue	[A-Za-z0-9_%?]
-identDelim		[.]
 doublequote     [\"]
 identifier		{identStart}{identContinue}*
-quotedIdentifier		{doublequote}[^\"]+{doublequote}
+quotedIdentifier	{doublequote}[^\"]+{doublequote}
 
 
 /* operators */
-DOT						'.'
-PLUS					'+'
-STAR					'*'
-OR						'|'
-OPTIONAL				'?'
+DOT						[.]
+PLUS					[+]
+STAR					[*]
+OR						[|]
+OPTIONAL				[?]
 
 /* KEYWORDS */
 
@@ -111,11 +110,11 @@ OPTIONAL				'?'
 
 {identifier}            TOK(IDENT)
 {integer}				TOKSAVE(intConst,intVal,atoi)
-DOT						TOK(DOT)
-PLUS					TOK(PLUS)
-STAR					TOK(STAR)
-OR						TOK(OR)
-OPTIONAL				TOK(OPTIONAL)
+{DOT}					TOK(DOT)
+{PLUS}					TOK(PLUS)
+{STAR}					TOK(STAR)
+{OR}					TOK(OR)
+{OPTIONAL}				TOK(OPTIONAL)
 
 [()] 			TOKSELF()
 

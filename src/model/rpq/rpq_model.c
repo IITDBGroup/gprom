@@ -98,7 +98,7 @@ rpqToShortInternal (StringInfo str, Regex *rpq)
         break;
         case REGEX_CONC:
             rpqToShortInternal(str, getNthOfListP(rpq->children, 0));
-            appendStringInfoString(str, " . ");
+            appendStringInfoString(str, ".");
             rpqToShortInternal(str, getNthOfListP(rpq->children, 1));
         break;
         case REGEX_OPTIONAL:

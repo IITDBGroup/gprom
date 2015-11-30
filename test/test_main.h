@@ -150,5 +150,6 @@ extern rc testParameter(void);
 extern rc testDatalogModel(void);
 extern rc testHash(void);
 extern rc testLibGProM(void);
+extern rc testRPQ(void);
 
 #endif

@@ -60,8 +60,8 @@ Node *rpqParseResult = NULL;
 /*
  * Declare token for operators specify their associativity and precedence
  */
-%right PLUS OPTIONAL STAR 
 %left OR DOT
+%right PLUS OPTIONAL STAR 
 %nonassoc '(' ')'
 
 
@@ -94,8 +94,8 @@ rpq:
 regexpr:
 		label { $$ = (Node *) makeRegexLabel($1); }
 		| '(' regexpr ')' { $$ = $2; }
-		| regexpr OR regexpr { $$ = (Node *) makeRegex(LIST_MAKE($1,$2), "|"); }
-		| regexpr DOT regexpr { $$ = (Node *) makeRegex(LIST_MAKE($1,$2), "."); }
+		| regexpr OR regexpr { $$ = (Node *) makeRegex(LIST_MAKE($1,$3), "|"); }
+		| regexpr DOT regexpr { $$ = (Node *) makeRegex(LIST_MAKE($1,$3), "."); }
 		| regexpr PLUS { $$ = (Node *) makeRegex(singleton($1), "+"); }
 		| regexpr OPTIONAL { $$ = (Node *) makeRegex(singleton($1), "?"); }
 		| regexpr STAR { $$ = (Node *) makeRegex(singleton($1), "*"); }
