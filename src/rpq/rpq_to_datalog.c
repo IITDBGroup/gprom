@@ -18,6 +18,7 @@
 #include "log/logger.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/set/hashmap.h"
 #include "model/datalog/datalog_model.h"
 #include "model/rpq/rpq_model.h"
@@ -26,33 +27,39 @@
 #define EDGE_REL_NAME "e"
 #define NODE_REL_NAME "node"
 #define MATCH_PRED "match"
+#define RESULT_PRED "result"
 
-#define MATCH_REL(rpq) CONCAT_STRINGS(MATCH_PRED,"_",rpqToShortString(rpq))
+#define MATCH_REL(rpq) (CONCAT_STRINGS(MATCH_PRED,"_",rpqToShortString(rpq)))
 #define CHILD_MATCH_REL(rpq,pos) CONCAT_STRINGS(MATCH_PRED,"_", \
 		    rpqToShortString(getNthOfListP(rpq->children,(pos))))
+#define GET_MATCH_REL(rpq) (STRING_VALUE(MAP_GET_STRING(subexToPred,rpqToShortString(rpq))))
+#define CHILD_GET_MATCH_REL(rpq,pos) (STRING_VALUE(MAP_GET_STRING(subexToPred,rpqToShortString(getNthOfListP(rpq->children,(pos))))))
 
-static void rpqTranslate (Regex *rpq, HashMap *subexToPred);
-static void translateLabel(Regex *rpq, HashMap *subexToPred);
-static void translateOptional(Regex *rpq, HashMap *subexToPred);
-static void translatePlus(Regex *rpq, HashMap *subexToPred);
-static void translateStar(Regex *rpq, HashMap *subexToPred);
-static void translateOr(Regex *rpq, HashMap *subexToPred);
-static void translateConc(Regex *rpq, HashMap *subexToPred);
+static void rpqTranslate (Regex *rpq, HashMap *subexToRules, HashMap *subexToPred, Set *usedNames);
+static void translateLabel(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
+static void translateOptional(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
+static void translatePlus(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
+static void translateStar(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
+static void translateOr(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
+static void translateConc(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
 
 static List *addNodeRules (List *rules);
-
+static List *addResultRules (List *rules, char *rpqName);
+static char *replaceCharsForPred(char *in);
 
 Node *
 rpqToDatalog(Regex *rpq)
 {
-    HashMap *subexToPred = NEW_MAP(Constant,DLNode);
+    HashMap *subexToRules = NEW_MAP(Constant,List);
+    HashMap *subexToPred = NEW_MAP(Constant,Constant);
+    Set *usedNames = STRSET();
     DLProgram *dl;
     List *rules = NIL;
 
-    rpqTranslate(rpq, subexToPred);
+    rpqTranslate(rpq, subexToRules, subexToPred, usedNames);
 
     /* create program */
-    FOREACH_HASH(List,subRules,subexToPred)
+    FOREACH_HASH(List,subRules,subexToRules)
         FOREACH(DLRule,r,subRules)
             rules = appendToTailOfList(rules,r);
 
@@ -60,11 +67,38 @@ rpqToDatalog(Regex *rpq)
     rules = addNodeRules(rules);
 
     // add rule for result generation
-    //TODO
+    rules = addResultRules(rules, MATCH_REL(rpq));
 
-    dl = createDLProgram(rules, NIL, "result");
+    dl = createDLProgram(rules, NIL, RESULT_PRED);
 
     return (Node *) dl;
+}
+
+static List *
+addResultRules (List *rules, char *rpqName)
+{
+    DLRule *r;
+    DLAtom *head;
+    DLAtom *edge;
+
+    head = createDLAtom(strdup(RESULT_PRED),
+            LIST_MAKE(createDLVar("X",DT_STRING),
+            createDLVar("Y",DT_STRING),
+            createDLVar("U",DT_STRING),
+            createDLVar("L",DT_STRING),
+            createDLVar("V",DT_STRING)),
+            FALSE);
+    edge = createDLAtom(strdup(rpqName),
+            LIST_MAKE(createDLVar("X",DT_STRING),
+            createDLVar("Y",DT_STRING),
+            createDLVar("U",DT_STRING),
+            createDLVar("L",DT_STRING),
+            createDLVar("V",DT_STRING)),
+            FALSE);
+    r = createDLRule(head, singleton(edge));
+    rules = appendToTailOfList(rules, r);
+
+    return rules;
 }
 
 static List *
@@ -99,35 +133,48 @@ addNodeRules (List *rules)
     return rules;
 }
 
-static void
-rpqTranslate (Regex *rpq, HashMap *subexToPred)
-{
-    char *rpqSubex = MATCH_REL(rpq);
 
-    if (MAP_HAS_STRING_KEY(subexToPred, rpqSubex))
+static void
+rpqTranslate (Regex *rpq, HashMap *subexToRules, HashMap *subexToPred, Set *usedNames)
+{
+    char *rpqSubex = rpqToShortString(rpq);
+    StringInfo predName = makeStringInfo();
+    char *origName = MATCH_REL(rpq);
+    if (MAP_HAS_STRING_KEY(subexToRules, rpqSubex))
         return;
+
+    appendStringInfoString(predName, replaceCharsForPred(origName));
+    //appendStringInfoString(predName, origName);
+    while(hasSetElem(usedNames,predName->data))
+        appendStringInfoString(predName,"1");
+
+    addToSet(usedNames,strdup(predName->data));
+    MAP_ADD_STRING_KEY(subexToPred,rpqSubex,createConstString(strdup(predName->data)));
+    DEBUG_LOG("pred name for %s is %s wiht orig %s", rpqToShortString(rpq), strdup(predName->data), origName);
+
+    FOREACH(Regex,child,rpq->children)
+        rpqTranslate(child, subexToRules, subexToPred, usedNames);
 
     switch(rpq->opType)
     {
         case REGEX_LABEL:
-            translateLabel(rpq,subexToPred);
+            translateLabel(rpq,subexToRules, subexToPred);
         break;
         case REGEX_OR:
-            translateOr(rpq,subexToPred);
+            translateOr(rpq,subexToRules, subexToPred);
         break;
         case REGEX_PLUS:
-            translatePlus(rpq,subexToPred);
+            translatePlus(rpq,subexToRules, subexToPred);
         break;
         case REGEX_STAR:
-            translateStar(rpq,subexToPred);
+            translateStar(rpq,subexToRules, subexToPred);
         break;
         case REGEX_CONC:
-            translateConc(rpq,subexToPred);
+            translateConc(rpq,subexToRules, subexToPred);
         break;
         case REGEX_OPTIONAL:
-            translateOptional(rpq,subexToPred);
+            translateOptional(rpq,subexToRules, subexToPred);
         break;
-
     }
 }
 
@@ -135,9 +182,9 @@ rpqTranslate (Regex *rpq, HashMap *subexToPred)
  * for regex "l" return rule match_l
  */
 static void
-translateLabel(Regex *rpq, HashMap *subexToPred)
+translateLabel(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
 {
-    char *relName = MATCH_REL(rpq);
+    char *relName = GET_MATCH_REL(rpq);
     DLRule *r;
     DLAtom *head;
     DLAtom *edge;
@@ -157,14 +204,14 @@ translateLabel(Regex *rpq, HashMap *subexToPred)
     r = createDLRule(head, singleton(edge));
 
     // add rule
-    MAP_ADD_STRING_KEY(subexToPred,relName,singleton(r));
+    MAP_ADD_STRING_KEY(subexToRules,relName,singleton(r));
 }
 
 static void
-translateOptional(Regex *rpq, HashMap *subexToPred)
+translateOptional(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
 {
-    char *relName = MATCH_REL(rpq);
-    char *childRel = CHILD_MATCH_REL(rpq,0);
+    char *relName = GET_MATCH_REL(rpq);
+    char *childRel = CHILD_GET_MATCH_REL(rpq,0);
     DLRule *r;
     DLAtom *head;
     DLAtom *edge;
@@ -201,14 +248,14 @@ translateOptional(Regex *rpq, HashMap *subexToPred)
     rules = appendToTailOfList(rules,r);
 
     // add rules
-    MAP_ADD_STRING_KEY(subexToPred,relName,rules);
+    MAP_ADD_STRING_KEY(subexToRules,relName,rules);
 }
 
 static void
-translatePlus(Regex *rpq, HashMap *subexToPred)
+translatePlus(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
 {
-    char *relName = MATCH_REL(rpq);
-    char *childRel = CHILD_MATCH_REL(rpq,0);
+    char *relName = GET_MATCH_REL(rpq);
+    char *childRel = CHILD_GET_MATCH_REL(rpq,0);
     DLRule *r;
     DLAtom *head;
     DLAtom *edge1;
@@ -273,14 +320,14 @@ translatePlus(Regex *rpq, HashMap *subexToPred)
     rules = appendToTailOfList(rules,r);
 
     // add rules
-    MAP_ADD_STRING_KEY(subexToPred,relName,rules);
+    MAP_ADD_STRING_KEY(subexToRules,relName,rules);
 }
 
 static void
-translateStar(Regex *rpq, HashMap *subexToPred)
+translateStar(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
 {
-    char *relName = MATCH_REL(rpq);
-    char *childRel = CHILD_MATCH_REL(rpq,0);
+    char *relName = GET_MATCH_REL(rpq);
+    char *childRel = CHILD_GET_MATCH_REL(rpq,0);
     DLRule *r;
     DLAtom *head;
     DLAtom *edge1;
@@ -341,17 +388,17 @@ translateStar(Regex *rpq, HashMap *subexToPred)
     rules = appendToTailOfList(rules,r);
 
     // add rules
-    MAP_ADD_STRING_KEY(subexToPred,relName,rules);
+    MAP_ADD_STRING_KEY(subexToRules,relName,rules);
 }
 
 static void
-translateOr(Regex *rpq, HashMap *subexToPred)
+translateOr(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
 {
-    char *relName = MATCH_REL(rpq);
+    char *relName = GET_MATCH_REL(rpq);
     Regex *lChild = getNthOfListP(rpq->children,0);
-    char *lChildRel = MATCH_REL(lChild);
+    char *lChildRel = GET_MATCH_REL(lChild);
     Regex *rChild = getNthOfListP(rpq->children,1);
-    char *rChildRel = MATCH_REL(rChild);
+    char *rChildRel = GET_MATCH_REL(rChild);
     DLRule *r;
     DLAtom *head;
     DLAtom *edge;
@@ -394,17 +441,17 @@ translateOr(Regex *rpq, HashMap *subexToPred)
     rules = appendToTailOfList(rules,r);
 
     // add rules
-    MAP_ADD_STRING_KEY(subexToPred,relName,rules);
+    MAP_ADD_STRING_KEY(subexToRules,relName,rules);
 }
 
 static void
-translateConc(Regex *rpq, HashMap *subexToPred)
+translateConc(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
 {
-    char *relName = MATCH_REL(rpq);
+    char *relName = GET_MATCH_REL(rpq);
     Regex *lChild = getNthOfListP(rpq->children,0);
-    char *lChildRel = MATCH_REL(lChild);
+    char *lChildRel = GET_MATCH_REL(lChild);
     Regex *rChild = getNthOfListP(rpq->children,1);
-    char *rChildRel = MATCH_REL(rChild);
+    char *rChildRel = GET_MATCH_REL(rChild);
     DLRule *r;
     DLAtom *head;
     DLAtom *edge1;
@@ -452,5 +499,29 @@ translateConc(Regex *rpq, HashMap *subexToPred)
     rules = appendToTailOfList(rules,r);
 
     // add rules
-    MAP_ADD_STRING_KEY(subexToPred,relName,rules);
+    MAP_ADD_STRING_KEY(subexToRules,relName,rules);
+}
+
+static char *
+replaceCharsForPred(char *in)
+{
+    while(*in++ != '\0')
+    {
+        if (*in == '(')
+            *in = '_';
+        else if (*in == ')')
+            *in = '_';
+        else if (*in == '|')
+            *in = '_';
+        else if (*in == '*')
+            *in = '_';
+        else if (*in == '+')
+            *in = '_';
+        else if (*in == '?')
+            *in = '_';
+        else if (*in == '.')
+            *in = '_';
+    }
+
+    return in;
 }
