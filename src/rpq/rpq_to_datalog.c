@@ -29,11 +29,11 @@
 #define MATCH_PRED "match"
 #define RESULT_PRED "result"
 
-#define MATCH_REL(rpq) (CONCAT_STRINGS(MATCH_PRED,"_",rpqToShortString(rpq)))
+#define MATCH_REL(rpq) (CONCAT_STRINGS(MATCH_PRED,"_",rpqToReversePolish(rpq)))
 #define CHILD_MATCH_REL(rpq,pos) CONCAT_STRINGS(MATCH_PRED,"_", \
 		    rpqToShortString(getNthOfListP(rpq->children,(pos))))
-#define GET_MATCH_REL(rpq) (STRING_VALUE(MAP_GET_STRING(subexToPred,rpqToShortString(rpq))))
-#define CHILD_GET_MATCH_REL(rpq,pos) (STRING_VALUE(MAP_GET_STRING(subexToPred,rpqToShortString(getNthOfListP(rpq->children,(pos))))))
+#define GET_MATCH_REL(rpq) (STRING_VALUE(MAP_GET_STRING(subexToPred,rpqToReversePolish(rpq))))
+#define CHILD_GET_MATCH_REL(rpq,pos) (STRING_VALUE(MAP_GET_STRING(subexToPred,rpqToReversePolish(getNthOfListP(rpq->children,(pos))))))
 
 static void rpqTranslate (Regex *rpq, HashMap *subexToRules, HashMap *subexToPred, Set *usedNames);
 static void translateLabel(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
@@ -139,7 +139,7 @@ addNodeRules (List *rules)
 static void
 rpqTranslate (Regex *rpq, HashMap *subexToRules, HashMap *subexToPred, Set *usedNames)
 {
-    char *rpqSubex = rpqToShortString(rpq);
+    char *rpqSubex = rpqToReversePolish(rpq);
     StringInfo predName = makeStringInfo();
     char *origName = MATCH_REL(rpq);
 

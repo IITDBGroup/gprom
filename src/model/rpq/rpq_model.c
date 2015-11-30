@@ -18,6 +18,7 @@
 #include "model/rpq/rpq_model.h"
 
 static void rpqToShortInternal (StringInfo str, Regex *rpq);
+static void rpqToReversePolishInternal(StringInfo str, Regex *rpq);
 
 
 Regex *
@@ -105,6 +106,51 @@ rpqToShortInternal (StringInfo str, Regex *rpq)
             appendStringInfoString(str, "(");
             rpqToShortInternal(str, getNthOfListP(rpq->children, 0));
             appendStringInfoString(str, ")?");
+        break;
+    }
+}
+
+char *
+rpqToReversePolish(Regex *rpq)
+{
+    StringInfo str = makeStringInfo();
+
+    rpqToReversePolishInternal(str, rpq);
+
+    return str->data;
+}
+
+static void
+rpqToReversePolishInternal(StringInfo str, Regex *rpq)
+{
+    switch (rpq->opType)
+    {
+        case REGEX_LABEL:
+            appendStringInfoString(str, rpq->label);
+            break;
+        case REGEX_OR:
+            rpqToReversePolishInternal(str, getNthOfListP(rpq->children, 0));
+            appendStringInfoString(str, "_");
+            rpqToReversePolishInternal(str, getNthOfListP(rpq->children, 1));
+            appendStringInfoString(str, "_OR");
+            break;
+        case REGEX_PLUS:
+            rpqToReversePolishInternal(str, getNthOfListP(rpq->children, 0));
+            appendStringInfoString(str, "_PLUS");
+        break;
+        case REGEX_STAR:
+            rpqToReversePolishInternal(str, getNthOfListP(rpq->children, 0));
+            appendStringInfoString(str, "_STAR");
+        break;
+        case REGEX_CONC:
+            rpqToReversePolishInternal(str, getNthOfListP(rpq->children, 0));
+            appendStringInfoString(str, "_");
+            rpqToReversePolishInternal(str, getNthOfListP(rpq->children, 1));
+            appendStringInfoString(str, "_CONC");
+        break;
+        case REGEX_OPTIONAL:
+            rpqToReversePolishInternal(str, getNthOfListP(rpq->children, 0));
+            appendStringInfoString(str, "_OPT");
         break;
     }
 }
