@@ -56,6 +56,8 @@ rpqToDatalog(Regex *rpq)
     DLProgram *dl;
     List *rules = NIL;
 
+    INFO_LOG("translate %s", rpqToShortString(rpq));
+
     rpqTranslate(rpq, subexToRules, subexToPred, usedNames);
 
     /* create program */
@@ -67,7 +69,7 @@ rpqToDatalog(Regex *rpq)
     rules = addNodeRules(rules);
 
     // add rule for result generation
-    rules = addResultRules(rules, MATCH_REL(rpq));
+    rules = addResultRules(rules, GET_MATCH_REL(rpq));
 
     dl = createDLProgram(rules, NIL, RESULT_PRED);
 
@@ -143,7 +145,9 @@ rpqTranslate (Regex *rpq, HashMap *subexToRules, HashMap *subexToPred, Set *used
     if (MAP_HAS_STRING_KEY(subexToRules, rpqSubex))
         return;
 
-    appendStringInfoString(predName, replaceCharsForPred(origName));
+    origName = replaceCharsForPred(origName);
+
+    appendStringInfoString(predName, origName);
     //appendStringInfoString(predName, origName);
     while(hasSetElem(usedNames,predName->data))
         appendStringInfoString(predName,"1");
@@ -505,6 +509,7 @@ translateConc(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
 static char *
 replaceCharsForPred(char *in)
 {
+    char *res = in;
     while(*in++ != '\0')
     {
         if (*in == '(')
@@ -523,5 +528,5 @@ replaceCharsForPred(char *in)
             *in = '_';
     }
 
-    return in;
+    return res;
 }
