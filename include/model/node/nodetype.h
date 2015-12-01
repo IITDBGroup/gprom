@@ -173,6 +173,7 @@ extern void appendStringInfoChar(StringInfo str, char ch);
 extern void appendBinaryStringInfo(StringInfo str, const char *data, int datalen);
 extern void prependStringInfo (StringInfo str, const char *format, ...);
 extern void enlargeStringInfo(StringInfo str, int needed);
+extern void removeTailingStringInfo(StringInfo str, int numChars);
 #define STRINGLEN(_str) _str->len
 
 // node helpers

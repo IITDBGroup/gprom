@@ -137,6 +137,23 @@ isPrefix(char *str, char *prefix)
     return *prefix == '\0';
 }
 
+char *
+specializeTemplate(char *template, List *args)
+{
+    int i = 1;
+    char *result = strdup(template);
+
+    FOREACH(char,arg,args)
+    {
+        char *var = CONCAT_STRINGS("$",itoa(i));
+
+        result = replaceSubstr(result,var,arg);
+        i++;
+    }
+
+    return result;
+}
+
 int
 strCompare(const void *a, const void *b)
 {
