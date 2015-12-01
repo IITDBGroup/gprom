@@ -184,6 +184,8 @@
 #define ASSERT_BARRIER(code) code
 #endif
 
-
+// min and max
+#define MIN(x,y) (x < y ? x : y)
+#define MAX(x,y) (x > y ? x : y)
 
 #endif /* COMMON_H */
