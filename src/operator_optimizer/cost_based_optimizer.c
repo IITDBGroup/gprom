@@ -778,6 +778,7 @@ minusOne(List *curPath, List *numChoices)
 	return ycurPath;
 }
 
+//TODO just use equal
 static boolean
 checkEqual(List *l1, List *l2)
 {
@@ -814,13 +815,15 @@ copyBalancedInterval(BalancedInterval *bl)
 	return balancedItvl;
 }
 
+
 static boolean
 balancedGenerateNextChoice (OptimizerState *state)
 {
 	updateBestPlan(state);
-	int cnt = ((BalancedState *)(state->hook))->count;
-	List *fifoList = ((BalancedState *)(state->hook))->fifo;
-	BalancedInterval *bl = ((BalancedState *)(state->hook))->bl;
+	BalancedState *balSt = (BalancedState *)(state->hook);
+	int cnt = balSt->count;
+	List *fifoList = balSt->fifo;
+	BalancedInterval *bl = balSt->bl;
 	//boolean returnFlag = FALSE;
 	if(cnt == 1)
 	{
@@ -840,13 +843,24 @@ balancedGenerateNextChoice (OptimizerState *state)
 		}
 		state->curPath = NIL;
 		fifoList = appendToTailOfList(fifoList, copyBalancedInterval(bl));
-
 	}
 	else
 	{
+	    boolean needLowToMid = TRUE;
+	    boolean needMidToHigh = TRUE;
+
+	    // do we need to generate [low,mid]
+	    List *temp = addOne(bl->beginInterval, state->numChoices);
+	    if (equals(state->curPath,temp))
+	        needLowToMid = FALSE;
+	    // do we need to generate [mid,high]
+	    List *temp = addOne(state->curPath, state->numChoices);
+        if (equals(bl->endInterval,temp))
+            needMidToHigh = FALSE;
 
 		//check if middle equal to low, if not equal return false
 		boolean sameFlag1 = TRUE;
+		//TODO use equal is safe when not the same length
 		FORBOTH(int, l, h, bl->beginInterval, state->curPath)
 		{
 			if(l != h)
@@ -875,6 +889,7 @@ balancedGenerateNextChoice (OptimizerState *state)
 		bl1->endInterval = copyObject(state->curPath);
 		bl1->previousLH = -1;
 		bl1->numContinues = 0;
+		//TODO  find common prefix length as function/macro
 		FORBOTH(int, l, h, bl1->beginInterval, bl1->endInterval)
 		{
 			if(l == h)
@@ -909,7 +924,7 @@ balancedGenerateNextChoice (OptimizerState *state)
 		}
         //if true should minus 1
 		else if(sameFlag2 == TRUE){
-		    bl1->endInterval = minusOne(state->curPath, state->numChoices);
+		    bl1->endInterval = minusOne(state->curPath, state->numChoices);//TODO use end one here
 		    //check if need to add to the fifo
 		    List *temp = addOne(bl1->beginInterval, state->numChoices);
 		    boolean eqFlag = checkEqual(temp, bl1->endInterval);
@@ -959,15 +974,15 @@ balancedGenerateNextChoice (OptimizerState *state)
 
 		if(fifoList != NIL)
 		{
-			((BalancedState *)(state->hook))->bl = copyBalancedInterval ((BalancedInterval *) getHeadOfList(fifoList));
+			balSt->bl = copyBalancedInterval ((BalancedInterval *) getHeadOfList(fifoList));
 		}
 
 	}
 
-	(((BalancedState *)(state->hook))->count) ++;
+	(balSt->count) ++;
 	state->numChoices = NIL;
 	state->curPath = NIL;
-	((BalancedState *)(state->hook))->fifo = fifoList;
+	balSt->fifo = fifoList;
 
 
     return (fifoList != NIL || cnt == 1);
