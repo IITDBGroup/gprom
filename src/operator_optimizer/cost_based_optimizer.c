@@ -818,22 +818,18 @@ static boolean
 balancedGenerateNextChoice (OptimizerState *state)
 {
 	updateBestPlan(state);
-	//List *X1 = state->curPath;  //used to return check
 	int cnt = ((BalancedState *)(state->hook))->count;
 	List *fifoList = ((BalancedState *)(state->hook))->fifo;
-	//DEBUG_LOG("length: %d", LIST_LENGTH(fifoList));
 	BalancedInterval *bl = ((BalancedState *)(state->hook))->bl;
 	//boolean returnFlag = FALSE;
 	if(cnt == 1)
 	{
 		bl->beginInterval = copyObject(state->curPath);
-		//DEBUG_LOG("first new structures are:\n Y:%s\n",nodeToString(bl->beginInterval));
 		state->curPath = NIL;
 	}
 	else if(cnt == 2)
 	{
 		bl->endInterval = copyObject(state->curPath);
-		//DEBUG_LOG("Second new structures are:\n Y:%s\n",nodeToString(bl->endInterval));
 		bl->numContinues = 0;
 		FORBOTH(int, l, h, bl->beginInterval, bl->endInterval)
 		{
@@ -843,22 +839,11 @@ balancedGenerateNextChoice (OptimizerState *state)
 				break;
 		}
 		state->curPath = NIL;
-		//DEBUG_LOG("numContinues should be 0: %d", bl->numContinues);
 		fifoList = appendToTailOfList(fifoList, copyBalancedInterval(bl));
-//		DEBUG_LOG("fifoList length should be 1: %d", LIST_LENGTH(fifoList));
-//		FOREACH(BalancedInterval, b, fifoList)
-//		{
-//			DEBUG_LOG("Low new structures are:\n Y:%s\n",nodeToString(b->beginInterval));
-//			DEBUG_LOG("High new structures are:\n Y:%s\n",nodeToString(b->endInterval));
-//		}
+
 	}
 	else
 	{
-		//remove the first element from fifo List
-		//append the two divided intervals into the tail fifo List
-		//BalancedInterval *intvl = (BalancedInterval *) getHeadOfList(fifoList);
-		//divide to two interval, curPath is the middle one
-	    //DEBUG_LOG("curPath new structures are:\n Y:%s\n",nodeToString(state->curPath));
 
 		//check if middle equal to low, if not equal return false
 		boolean sameFlag1 = TRUE;
@@ -870,10 +855,6 @@ balancedGenerateNextChoice (OptimizerState *state)
 				break;
 			}
 		}
-//        if(sameFlag1 == FALSE)
-//        	DEBUG_LOG("sameFlag1 FALSE");
-//        else
-//        	DEBUG_LOG("sameFlag1 TRUE");
 
 		//check if the middle equal to high, if not equal return false
 		boolean sameFlag2 = TRUE;
@@ -885,16 +866,9 @@ balancedGenerateNextChoice (OptimizerState *state)
 				break;
 			}
 		}
-//        if(sameFlag2 == FALSE)
-//        	DEBUG_LOG("sameFlag2 FALSE");
-//        else
-//        	DEBUG_LOG("sameFlag2 TRUE");
 
 		BalancedInterval *bl1 = NEW(BalancedInterval);
 		BalancedInterval *bl2 = NEW(BalancedInterval);
-//		DEBUG_LOG("check begin, new structures are:\n Y:%s\n",nodeToString(bl->beginInterval));
-//		DEBUG_LOG("check middle, new structures are:\n Y:%s\n",nodeToString(state->curPath));
-//		DEBUG_LOG("check end, new structures are:\n Y:%s\n",nodeToString(bl->endInterval));
 		//set bl1
 		bl1->lhFlag = 0;
 		bl1->beginInterval = copyObject(bl->beginInterval);
@@ -908,7 +882,6 @@ balancedGenerateNextChoice (OptimizerState *state)
 			else
 				break;
 		}
-        //DEBUG_LOG("bl1 numContinues: %d", bl1->numContinues);
 
 		//set bl2
 		bl2->lhFlag = 1;
@@ -923,7 +896,6 @@ balancedGenerateNextChoice (OptimizerState *state)
 			else
 				break;
 		}
-		//DEBUG_LOG("bl2 numContinues: %d", bl2->numContinues);
 
         //if true should add 1
 		if(sameFlag1 == TRUE)
@@ -958,28 +930,14 @@ balancedGenerateNextChoice (OptimizerState *state)
 		else
 		{
 			List *temp1 = addOne(bl1->beginInterval, state->numChoices);
-//			DEBUG_LOG("before add one, new structures are:\n Y:%s\n",nodeToString(bl1->beginInterval));
-//			DEBUG_LOG("after add one, new structures are:\n Y:%s\n",nodeToString(temp1));
-//			DEBUG_LOG("bl1 end, new structures are:\n Y:%s\n",nodeToString(bl1->endInterval));
-
 			boolean eqFlag1 = checkEqual(temp1, bl1->endInterval);
-//			if(eqFlag1)
-//				DEBUG_LOG("equal");
-//			else
-//				DEBUG_LOG("not equal");
 
 			if(!eqFlag1)
 				fifoList = appendToTailOfList(fifoList, bl1);
 
 			List *temp2 = addOne(bl2->beginInterval, state->numChoices);
-//			DEBUG_LOG("before add one, new structures are:\n Y:%s\n",nodeToString(bl2->beginInterval));
-//			DEBUG_LOG("after add one, new structures are:\n Y:%s\n",nodeToString(temp2));
-//			DEBUG_LOG("bl1 end, new structures are:\n Y:%s\n",nodeToString(bl2->endInterval));
 			boolean eqFlag2 = checkEqual(temp2, bl2->endInterval);
-//			if(eqFlag2)
-//				DEBUG_LOG("equal");
-//			else
-//				DEBUG_LOG("not equal");
+
 			if(!eqFlag2)
 			{
 		    	bl2->lhFlag = 1;
@@ -991,9 +949,9 @@ balancedGenerateNextChoice (OptimizerState *state)
 					else
 						break;
 				}
-				//DEBUG_LOG("length fifo before remove %d", LIST_LENGTH(fifoList));
+				
 				fifoList = appendToTailOfList(fifoList, bl2);
-				//DEBUG_LOG("length fifo before remove %d", LIST_LENGTH(fifoList));
+			
 			}
 		}
 		if(fifoList != NIL)
@@ -1002,10 +960,8 @@ balancedGenerateNextChoice (OptimizerState *state)
 		if(fifoList != NIL)
 		{
 			((BalancedState *)(state->hook))->bl = copyBalancedInterval ((BalancedInterval *) getHeadOfList(fifoList));
-			//returnFlag = TRUE;
 		}
 
-		//X1 = state->curPath;  //used to return check
 	}
 
 	(((BalancedState *)(state->hook))->count) ++;
@@ -1013,20 +969,9 @@ balancedGenerateNextChoice (OptimizerState *state)
 	state->curPath = NIL;
 	((BalancedState *)(state->hook))->fifo = fifoList;
 
-    //print fifo
-//    if(fifoList != NIL)
-//    {
-//    	FOREACH(BalancedInterval, bll, fifoList)
-//		{
-//    		DEBUG_LOG("fifo are:\n Y:%s\n Z:%s\n",
-//    		      nodeToString(bll->beginInterval),nodeToString(bll->endInterval));
-//		}
-//    }
-    //DEBUG_LOG("new X is %s", beatify(nodeToString()));
 
     return (fifoList != NIL || cnt == 1);
 
-	//return TRUE;
 }
 
 static boolean
@@ -1101,30 +1046,10 @@ balancedCallback (OptimizerState *state, int numChoices)
 
 	numChoicesOnPath = appendToTailOfListInt(numChoicesOnPath, numChoices);
 
-//    int choice = -1;
-//    List *fixedPath = state->fixedPath;
-//    List *curPath = state->curPath;
-//    List *numChoicesOnPath = state->numChoices;
-//    DEBUG_LOG("number of choices are: %u", numChoices);
-//    if (LIST_LENGTH(fixedPath) == 0)
-//    {
-//        curPath = appendToTailOfListInt(curPath, 0);
-//        numChoicesOnPath = appendToTailOfListInt(numChoicesOnPath, numChoices);
-//    }
-//    else
-//    {
-//        choice = getHeadOfListInt(fixedPath);
-//        curPath = appendToTailOfListInt(curPath, choice);
-//        fixedPath = removeFromHead(fixedPath);
-//        numChoicesOnPath = appendToTailOfListInt(numChoicesOnPath, numChoices);
-//    }
-
     //state->fixedPath = fixedPath;
     state->curPath = curPath;
     state->numChoices = numChoicesOnPath;
 
-    //DEBUG_LOG("optimizer data structures are:\n X:%s\n Y:%s\n Z:%s\n",nodeToString(fixedPath),
-    //        nodeToString(curPath),nodeToString(numChoicesOnPath));
     DEBUG_LOG("optimizer data structures are:\n Y:%s\n Z:%s\n",
                nodeToString(curPath),nodeToString(numChoicesOnPath));
 
