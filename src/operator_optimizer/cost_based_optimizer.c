@@ -62,11 +62,12 @@ typedef struct OptimizerState
 
 typedef struct BalancedInterval
 {
-	int lhFlag;            // lhFlag = 0 means "Low", lhFlag = 1 means "High"
+	int lhFlag;            // lhFlag = 0 means "Low", lhFlag = 1 means "High", lhFlag = 2 means "need low add one", lhFlag = 3 means "need high minus one"
 	List *beginInterval;   // example: [000, 111]   beginIterval = 000, endInterval = 111
 	List *endInterval;
 	int numContinues;      // When using callback generate next plan, get the first several continuous same number, example: [000, 010], numContinues = 1, the first 0 same
     int previousLH;        // If previous one go left "0", this one should go right "1"
+    List *helpPath;        // if lhFlag = 2 or 3, store some value into helpPath used to generate next path when call callback function, like the fixedPath in heuristic method
     //List *currentList;     // The current path (the result, the middle one which will be return after all callback fucntions) and path it to generationNextPlan function
 }BalancedInterval;
 
@@ -165,6 +166,8 @@ static List *addOne(List *curPath, List *numChoices);
 static List* minusOne(List *curPath, List *numChoices);
 static boolean checkEqual(List *l1, List *l2);
 static BalancedInterval* copyBalancedInterval(BalancedInterval *bl);
+static int findCommonPrefixLength(List *l1, List *l2);
+static List* generateNextPlan(int hlflag, List *l, List *h);
 
 /* 2-competitive version of the continue function that stops optimization when
  * more time has been spend on optimization then the expected runtime of the
@@ -229,13 +232,11 @@ chooseOptimizerPluginFromString(char *pluginName)
  */
 char *
 doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
-{DEBUG_LOG("4444444444444");
+{
 	// intitialize optimizer state
 	state = createOptState();
-	DEBUG_LOG("5555555555555555555555");
 	if (opt->initialize)
 		opt->initialize(state);
-	DEBUG_LOG("66666666666666666666666");
 	state->maxPlans = getIntOption(OPTION_COST_BASED_MAX_PLANS);
 
 	// main loop -> create one plan in each iteration
@@ -683,7 +684,7 @@ simannCallback (OptimizerState *state, int numChoices)
 
 static boolean
 balancedInitialize(OptimizerState *state)
-{DEBUG_LOG("333333333333333333333333333");
+{
 	BalancedState *balancedState = NEW(BalancedState);
 	balancedState->count = 1;
 	balancedState->fifo = NIL;
@@ -694,6 +695,7 @@ balancedInitialize(OptimizerState *state)
 	balancedItvl->endInterval = NIL;
 	balancedItvl->numContinues = -1;
 	balancedItvl->previousLH = -1;
+	balancedItvl->helpPath = NIL;
 
 	balancedState->bl = balancedItvl;
 
@@ -811,10 +813,56 @@ copyBalancedInterval(BalancedInterval *bl)
 	balancedItvl->endInterval = copyObject(bl->endInterval);
 	balancedItvl->numContinues = bl->numContinues;
 	balancedItvl->previousLH = bl->previousLH;
+	balancedItvl->helpPath = copyObject(bl->helpPath);
 
 	return balancedItvl;
 }
 
+static int
+findCommonPrefixLength(List *l1, List *l2)
+{
+	int prefixLength = 0;
+	FORBOTH(int, l, h, l1, l2)
+	{
+		if(l == h)
+			prefixLength ++;
+		else
+			break;
+	}
+
+	return prefixLength;
+}
+
+static List*
+generateNextPlan(int hlflag, List *l, List *h)
+{
+	int commonPrefixLength = findCommonPrefixLength(l,h);
+	List *result = NIL;
+    int flag = hlflag;
+
+	int i = 0;
+	FOREACH_INT(c, l)
+	{
+		if(i<commonPrefixLength)
+			result = appendToTailOfListInt(result, c);
+		else
+		{
+			if(flag == 0)
+			{
+				result = appendToTailOfListInt(result, 0);
+				flag = 1;
+			}
+			else
+			{
+				result = appendToTailOfListInt(result, 1);
+				flag = 0;
+			}
+		}
+	    i ++;
+	}
+
+	return result;
+}
 
 static boolean
 balancedGenerateNextChoice (OptimizerState *state)
@@ -824,6 +872,10 @@ balancedGenerateNextChoice (OptimizerState *state)
 	int cnt = balSt->count;
 	List *fifoList = balSt->fifo;
 	BalancedInterval *bl = balSt->bl;
+
+	DEBUG_LOG("new structures are:\n X:%s\n Y:%s\n Z:%s\n",
+	               nodeToString(state->curPath),nodeToString(bl->beginInterval),nodeToString(bl->endInterval));
+
 	//boolean returnFlag = FALSE;
 	if(cnt == 1)
 	{
@@ -833,157 +885,111 @@ balancedGenerateNextChoice (OptimizerState *state)
 	else if(cnt == 2)
 	{
 		bl->endInterval = copyObject(state->curPath);
-		bl->numContinues = 0;
-		FORBOTH(int, l, h, bl->beginInterval, bl->endInterval)
-		{
-			if(l == h)
-				bl->numContinues ++;
-			else
-				break;
-		}
+		bl->numContinues = findCommonPrefixLength(bl->beginInterval, bl->endInterval);
 		state->curPath = NIL;
+		bl->helpPath = copyObject(bl->beginInterval);
 		fifoList = appendToTailOfList(fifoList, copyBalancedInterval(bl));
 	}
 	else
 	{
+		//bl = copyBalancedInterval ((BalancedInterval *) getHeadOfListP(fifoList));
+
 	    boolean needLowToMid = TRUE;
 	    boolean needMidToHigh = TRUE;
 
 	    // do we need to generate [low,mid]
-	    List *temp = addOne(bl->beginInterval, state->numChoices);
-	    if (equals(state->curPath,temp))
+	    List *temp1 = addOne(bl->beginInterval, state->numChoices);
+	    if (checkEqual(state->curPath,temp1))
 	        needLowToMid = FALSE;
 	    // do we need to generate [mid,high]
-	    List *temp = addOne(state->curPath, state->numChoices);
-        if (equals(bl->endInterval,temp))
+	    List *temp2 = addOne(state->curPath, state->numChoices);
+        if (checkEqual(bl->endInterval,temp2))
             needMidToHigh = FALSE;
 
-		//check if middle equal to low, if not equal return false
-		boolean sameFlag1 = TRUE;
-		//TODO use equal is safe when not the same length
-		FORBOTH(int, l, h, bl->beginInterval, state->curPath)
-		{
-			if(l != h)
-			{
-				sameFlag1 = FALSE;
-				break;
-			}
-		}
+        if(needLowToMid)
+        {
+        	BalancedInterval *bl1 = NEW(BalancedInterval);
+        	//set bl1
+        	bl1->lhFlag = 0;
+        	bl1->helpPath = NIL;
+        	bl1->beginInterval = copyObject(bl->beginInterval);
+        	bl1->endInterval = copyObject(state->curPath);
+        	bl1->previousLH = -1;
+        	bl1->numContinues = findCommonPrefixLength(bl1->beginInterval, bl1->endInterval);
 
-		//check if the middle equal to high, if not equal return false
-		boolean sameFlag2 = TRUE;
-		FORBOTH(int, l, h, state->curPath, bl->endInterval)
-		{
-			if(l != h)
-			{
-				sameFlag2 = FALSE;
-				break;
-			}
-		}
+        	//predict next plan: if equal to low, set bl1->lhFlag = 2; if equal to high, set bl1->lfFlag = 3.
+        	//when callback, check lfFlag, if 2, do not do left right left... directly add one to low and return; if 3, minus to high and return.
+        	List *nextPlan = generateNextPlan(bl1->lhFlag, bl1->beginInterval, bl1->endInterval);
+        	if(checkEqual(nextPlan, bl1->beginInterval))
+        	{
+        		bl1->lhFlag = 2;
+        		bl1->helpPath = addOne(bl1->beginInterval, state->numChoices);
+        	}
+        	else if(checkEqual(nextPlan, bl1->endInterval))
+        	{
+        		bl1->lhFlag = 3;
+        		bl1->helpPath = minusOne(bl1->endInterval, state->numChoices);
+        	}
+        	else
+        		bl1->helpPath = copyObject(bl1->beginInterval);
+        	//add bl1 to the fifo
+            fifoList = appendToTailOfList(fifoList, bl1);
+        }
 
-		BalancedInterval *bl1 = NEW(BalancedInterval);
-		BalancedInterval *bl2 = NEW(BalancedInterval);
-		//set bl1
-		bl1->lhFlag = 0;
-		bl1->beginInterval = copyObject(bl->beginInterval);
-		bl1->endInterval = copyObject(state->curPath);
-		bl1->previousLH = -1;
-		bl1->numContinues = 0;
-		//TODO  find common prefix length as function/macro
-		FORBOTH(int, l, h, bl1->beginInterval, bl1->endInterval)
-		{
-			if(l == h)
-				bl1->numContinues ++;
-			else
-				break;
-		}
+        if(needMidToHigh)
+        {
+        	BalancedInterval *bl2 = NEW(BalancedInterval);
+        	//set bl2
+        	bl2->lhFlag = 1;
+        	bl2->helpPath = NIL;
+        	bl2->beginInterval = copyObject(state->curPath);
+        	bl2->endInterval = copyObject(bl->endInterval);
+        	bl2->previousLH = -1;
+        	bl2->numContinues = findCommonPrefixLength(bl2->beginInterval, bl2->endInterval);
 
-		//set bl2
-		bl2->lhFlag = 1;
-		bl2->beginInterval = copyObject(state->curPath);
-		bl2->endInterval = copyObject(bl->endInterval);
-		bl2->previousLH = -1;
-		bl2->numContinues = 0;
-		FORBOTH(int, l, h, bl2->beginInterval, bl2->endInterval)
-		{
-			if(l == h)
-				bl2->numContinues ++;
-			else
-				break;
-		}
+        	//predict next plan: if equal to low, set bl1->lhFlag = 2; if equal to high, set bl1->lfFlag = 3.
+        	//when callback, check lfFlag, if 2, do not do left right left... directly add one to low and return; if 3, minus to high and return.
+        	List *nextPlan = generateNextPlan(bl2->lhFlag, bl2->beginInterval, bl2->endInterval);
+        	if(checkEqual(nextPlan, bl2->beginInterval))
+        	{
+        		bl2->lhFlag = 2;
+        		bl2->helpPath = addOne(bl2->beginInterval, state->numChoices);
+        	}
+        	else if(checkEqual(nextPlan, bl2->endInterval))
+        	{
+        		bl2->lhFlag = 3;
+        		bl2->helpPath = minusOne(bl2->endInterval, state->numChoices);
+        	}
+        	else
+        		bl2->helpPath = copyObject(bl2->beginInterval);
 
-        //if true should add 1
-		if(sameFlag1 == TRUE)
-		{
-		    bl2->beginInterval = addOne(state->curPath, state->numChoices);
-		    //check if need to add to the fifo
-		    List *temp = addOne(bl2->beginInterval, state->numChoices);
-		    boolean eqFlag = checkEqual(temp, bl2->endInterval);
-		    if(!eqFlag)
-		    	fifoList = appendToTailOfList(fifoList, bl2);
-		}
-        //if true should minus 1
-		else if(sameFlag2 == TRUE){
-		    bl1->endInterval = minusOne(state->curPath, state->numChoices);//TODO use end one here
-		    //check if need to add to the fifo
-		    List *temp = addOne(bl1->beginInterval, state->numChoices);
-		    boolean eqFlag = checkEqual(temp, bl1->endInterval);
-		    if(!eqFlag)
-		    {
-		    	bl1->lhFlag = 1;
-		    	bl1->numContinues = 0;
-				FORBOTH(int, l, h, bl1->beginInterval, bl1->endInterval)
-				{
-					if(l == h)
-						bl1->numContinues ++;
-					else
-						break;
-				}
-		    	fifoList = appendToTailOfList(fifoList, bl1);
-		    }
-		}
-		else
-		{
-			List *temp1 = addOne(bl1->beginInterval, state->numChoices);
-			boolean eqFlag1 = checkEqual(temp1, bl1->endInterval);
+        	//add bl1 to the fifo
+            fifoList = appendToTailOfList(fifoList, bl2);
+        }
 
-			if(!eqFlag1)
-				fifoList = appendToTailOfList(fifoList, bl1);
-
-			List *temp2 = addOne(bl2->beginInterval, state->numChoices);
-			boolean eqFlag2 = checkEqual(temp2, bl2->endInterval);
-
-			if(!eqFlag2)
-			{
-		    	bl2->lhFlag = 1;
-		    	bl2->numContinues = 0;
-				FORBOTH(int, l, h, bl2->beginInterval, bl2->endInterval)
-				{
-					if(l == h)
-						bl2->numContinues ++;
-					else
-						break;
-				}
-				
-				fifoList = appendToTailOfList(fifoList, bl2);
-			
-			}
-		}
 		if(fifoList != NIL)
 			fifoList = removeFromHead(fifoList);
 
 		if(fifoList != NIL)
-		{
-			balSt->bl = copyBalancedInterval ((BalancedInterval *) getHeadOfList(fifoList));
-		}
-
+			balSt->bl = copyBalancedInterval ((BalancedInterval *) getHeadOfListP(fifoList));
 	}
 
+    //print fifo
+//    if(fifoList != NIL)
+//    {
+//    	FOREACH(BalancedInterval, bll, fifoList)
+//		{
+//    		DEBUG_LOG("fifo are:\n Y:%s\n Z:%s\n",
+//    		      nodeToString(bll->beginInterval),nodeToString(bll->endInterval));
+//		}
+//    }
+//    DEBUG_LOG("fifo2 are:\n Y:%s\n Z:%s\n",
+//        		      nodeToString(balSt->bl->beginInterval),nodeToString(balSt->bl->endInterval));
 	(balSt->count) ++;
 	state->numChoices = NIL;
 	state->curPath = NIL;
 	balSt->fifo = fifoList;
-
+	state->hook = balSt;
 
     return (fifoList != NIL || cnt == 1);
 
@@ -1016,49 +1022,147 @@ balancedCallback (OptimizerState *state, int numChoices)
 	}
 	else
 	{
+		//BalancedInterval *bl = copyBalancedInterval (((BalancedState *)(state->hook))->bl);
 		BalancedInterval *bl = ((BalancedState *)(state->hook))->bl;
 
-		if(bl->numContinues > 0)  //copy first several same value
+		if(bl->lhFlag < 2 )
 		{
-			choice = getHeadOfListInt(bl->beginInterval);
+			if(bl->numContinues > 0)  //copy first several same value
+			{
+//				choice = getHeadOfListInt(bl->beginInterval);
+//				curPath = appendToTailOfListInt(curPath, choice);
+//				bl->beginInterval = removeFromHead(bl->beginInterval);
+				choice = getHeadOfListInt(bl->helpPath);
+				curPath = appendToTailOfListInt(curPath, choice);
+				bl->helpPath = removeFromHead(bl->helpPath);
+				//bl->endInterval = removeFromHead(bl->endInterval);
+				bl->numContinues --;
+			}
+			else  //after copy same, do left first or right first
+			{
+				if(bl->previousLH == -1)  //check first one
+				{
+					if(bl->lhFlag == 0)  //check left first
+					{
+						choice = 0;
+						curPath = appendToTailOfListInt(curPath, choice);
+					}
+					else if(bl->lhFlag == 1) //check right first
+					{
+						choice = numChoices - 1;
+						curPath = appendToTailOfListInt(curPath, choice);
+					}
+					bl->previousLH = choice;
+				}
+				else  //after first one
+				{
+					if(bl->previousLH == 0)
+					{
+						choice = numChoices - 1;
+						curPath = appendToTailOfListInt(curPath, choice);
+					}
+					else if(bl->previousLH == 1)
+					{
+						choice = 0;
+						curPath = appendToTailOfListInt(curPath, choice);
+					}
+					bl->previousLH = choice;
+				}
+			}
+		}
+		else
+		{
+			choice = getHeadOfListInt(bl->helpPath);
 			curPath = appendToTailOfListInt(curPath, choice);
-			bl->beginInterval = removeFromHead(bl->beginInterval);
-			bl->endInterval = removeFromHead(bl->endInterval);
-			bl->numContinues --;
+			bl->helpPath = removeFromHead(bl->helpPath);
 		}
-		else  //after copy same, do left first or right first
-		{
-            if(bl->previousLH == -1)  //check first one
-            {
-            	if(bl->lhFlag == 0)  //check left first
-            	{
-        			choice = 0;
-        			curPath = appendToTailOfListInt(curPath, choice);
-            	}
-            	else if(bl->lhFlag == 1) //check right first
-            	{
-        			choice = numChoices - 1;
-        			curPath = appendToTailOfListInt(curPath, choice);
-            	}
-            	bl->previousLH = choice;
-            }
-            else  //after first one
-            {
-            	if(bl->previousLH == 0)
-            	{
-        			choice = numChoices - 1;
-        			curPath = appendToTailOfListInt(curPath, choice);
-            	}
-            	else if(bl->previousLH == 1)
-            	{
-        			choice = 0;
-        			curPath = appendToTailOfListInt(curPath, choice);
-            	}
-            	bl->previousLH = choice;
-            }
-		}
-	}
 
+
+//		if(bl->lhFlag == 0)
+//		{
+//			if(bl->numContinues > 0)  //copy first several same value
+//			{
+//				choice = getHeadOfListInt(bl->beginInterval);
+//				curPath = appendToTailOfListInt(curPath, choice);
+//				bl->beginInterval = removeFromHead(bl->beginInterval);
+//				//bl->endInterval = removeFromHead(bl->endInterval);
+//				bl->numContinues --;
+//			}
+//			else  //after copy same, do left first or right first
+//			{
+//				if(bl->previousLH == -1)  //check first one
+//				{
+//					choice = 0;
+//					curPath = appendToTailOfListInt(curPath, choice);
+//					bl->previousLH = choice;
+//				}
+//				else  //after first one
+//				{
+//					if(bl->previousLH == 0)
+//					{
+//						choice = numChoices - 1;
+//						curPath = appendToTailOfListInt(curPath, choice);
+//					}
+//					else if(bl->previousLH == 1)
+//					{
+//						choice = 0;
+//						curPath = appendToTailOfListInt(curPath, choice);
+//					}
+//					bl->previousLH = choice;
+//				}
+//			}
+//		}
+//		else if(bl->lhFlag == 1)
+//		{
+//			if(bl->numContinues > 0)  //copy first several same value
+//			{
+//				choice = getHeadOfListInt(bl->beginInterval);
+//				curPath = appendToTailOfListInt(curPath, choice);
+//				bl->beginInterval = removeFromHead(bl->beginInterval);
+//				//bl->endInterval = removeFromHead(bl->endInterval);
+//				bl->numContinues --;
+//			}
+//			else  //after copy same, do left first or right first
+//			{
+//				if(bl->previousLH == -1)  //check first one
+//				{
+//					choice = numChoices - 1;
+//					curPath = appendToTailOfListInt(curPath, choice);
+//					bl->previousLH = choice;
+//				}
+//				else  //after first one
+//				{
+//					if(bl->previousLH == 0)
+//					{
+//						choice = numChoices - 1;
+//						curPath = appendToTailOfListInt(curPath, choice);
+//					}
+//					else if(bl->previousLH == 1)
+//					{
+//						choice = 0;
+//						curPath = appendToTailOfListInt(curPath, choice);
+//					}
+//					bl->previousLH = choice;
+//				}
+//			}
+//		}
+//		else if(bl->lhFlag == 2 || bl->lhFlag == 3)
+//		{
+//			choice = getHeadOfListInt(bl->helpPath);
+//			curPath = appendToTailOfListInt(curPath, choice);
+//			bl->helpPath = removeFromHead(bl->helpPath);
+//		}
+
+
+
+
+//		else if(bl->lhFlag == 3)
+//		{
+//			choice = getHeadOfListInt(bl->helpPath);
+//			curPath = appendToTailOfListInt(curPath, choice);
+//			bl->helpPath = removeFromHead(bl->helpPath);
+//		}
+	}
 	numChoicesOnPath = appendToTailOfListInt(numChoicesOnPath, numChoices);
 
     //state->fixedPath = fixedPath;
