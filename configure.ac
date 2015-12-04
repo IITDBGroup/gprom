@@ -191,6 +191,21 @@ AS_IF([test "x$enable_oracle" == "xno"], [
   AC_MSG_RESULT([yes])
 ])
 ])
+# enable/disable Java bindings
+AC_DEFUN([AC_ENABLE_JAVA_BINDING],
+[
+AC_MSG_CHECKING([build with Java bindings including JDBC driver])
+AC_ARG_ENABLE(java, AS_HELP_STRING([--disable-java],[Disable building of Java bindings]))
+
+AS_IF([test "x$enable_java" == "xno"], [
+  AC_DEFINE([DISABLE_JAVA],[],[Disable building of Java binding])
+  AC_MSG_RESULT([no])
+],
+[
+  AC_MSG_RESULT([yes])
+])
+AM_CONDITIONAL(JAVABINDING, test "x$enable_java" != "xno")
+])
 # set custom compiler flags
 AC_DEFUN([AC_SET_CUSTOM_CFLAGS],
 [
@@ -283,6 +298,9 @@ AC_CHECK_FUNCS([strcmp])
 # Check which backends should be supported
 AC_ENABLE_ORACLE
 AC_ENABLE_POSTGRES
+################################################################################
+# Check which language bindings to build
+AC_ENABLE_JAVA_BINDING
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
 # check if user has provided us with non-standard locations for OCI/OCILIB libraries
@@ -398,6 +416,7 @@ echo "
   Link with GNU perftools: ${enable_link_perftools:=no}
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes}
   Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}
+  Language bindings..: Java - ${enable_java:=yes}
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   CFLAGS ........: $CFLAGS
   CPPFLAGS ......: $CPPFLAGS
