@@ -5,7 +5,11 @@ AM_CPPFLAGS = -I$(top_srcdir)/include
 AM_CFLAGS = -I$(top_srcdir)/include @GPROM_CFLAGS@
 
 # subdirs to build
+if JAVABINDING
 SUBDIRS = include src test javatest
+else
+SUBDIRS = include src test
+endif
 
 # additional directories to include in a distribution package:
 # - maintainer Makefile for running autotools 
