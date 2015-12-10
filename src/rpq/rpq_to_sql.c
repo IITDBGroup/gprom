@@ -29,25 +29,86 @@
 #define MATCH_PRED "match"
 #define RESULT_PRED "result"
 
-#define SQL_TEMPLATE_LABEL "$1 AS (SELECT head, tail, head AS ehead, label, tail AS etail FROM " EDGE_REL_NAME " WHERE label = '$2')"
-#define SQL_TEMPLATE_OPTIONAL "$1 AS (SELECT * FROM $2 UNION ALL SELECT head, tail, NULL, NULL, NULL FROM dual)"
-#define SQL_TEMPLATE_PLUS "$1(head,tail,ehead,label,etail) AS (SELECT CONNECT_BY_ROOT(head) head, tail, ehead,label,etail " \
+#define SQL_TEMPLATE(db,rpqtype,template) SQL_TEMPLATE_ ## db ## _ ## rpqtype ## _ ## template
+#define SQL_TEMPLATE_SELECT(db,rpqtype,opVar) \
+    do { \
+        if (streq(opVar,"LABEL")) \
+            return SQL_TEMPLATE(db,rpqtype,LABEL); \
+        if (streq(opVar,"OPTIONAL")) \
+            return SQL_TEMPLATE(db,rpqtype,OPTIONAL); \
+        if (streq(opVar,"PLUS")) \
+            return SQL_TEMPLATE(db,rpqtype,PLUS); \
+        if (streq(opVar,"STAR")) \
+            return SQL_TEMPLATE(db,rpqtype,STAR); \
+        if (streq(opVar,"CONC")) \
+            return SQL_TEMPLATE(db,rpqtype,CONC); \
+        if (streq(opVar,"OR")) \
+            return SQL_TEMPLATE(db,rpqtype,OR); \
+        if (streq(opVar,"RESULT")) \
+            return SQL_TEMPLATE(db,rpqtype,RESULT); \
+    } while(0)
+
+// ORACLE MACROS
+#define SQL_TEMPLATE_ORACLE_RPQSUB_LABEL "$1 AS (SELECT head, tail, head AS ehead, label, tail AS etail FROM " EDGE_REL_NAME " WHERE label = '$2')"
+#define SQL_TEMPLATE_ORACLE_RPQSUB_OPTIONAL "$1 AS (SELECT * FROM $2 UNION ALL SELECT head, tail, NULL, NULL, NULL FROM dual)"
+#define SQL_TEMPLATE_ORACLE_RPQSUB_PLUS "$1(head,tail,ehead,label,etail) AS (SELECT CONNECT_BY_ROOT(head) head, tail, ehead,label,etail " \
                           "FROM $2 CONNECT BY NOCYCLE PRIOR tail = head)"
-#define SQL_TEMPLATE_STAR "$1(head,tail,ehead,label,etail) AS ((SELECT CONNECT_BY_ROOT(head) AS head, tail, ehead,label,etail " \
+#define SQL_TEMPLATE_ORACLE_RPQSUB_STAR "$1(head,tail,ehead,label,etail) AS ((SELECT CONNECT_BY_ROOT(head) AS head, tail, ehead,label,etail " \
 		                  "FROM $2 CONNECT BY NOCYCLE PRIOR tail = head) UNION ALL (SELECT n AS head, n AS tail, NULL, NULL, NULL FROM " NODE_REL_NAME "))"
-#define SQL_TEMPLATE_CONC "$1_join AS (SELECT l.head, r.tail, l.ehead AS lehead, l.label AS llabel, l.etail AS letail, r.ehead AS rehead, r.label AS rlabel, r.etail AS retail FROM $2 l, $3 r WHERE l.tail = r.head),\n" \
+#define SQL_TEMPLATE_ORACLE_RPQSUB_CONC "$1_join AS (SELECT l.head, r.tail, l.ehead AS lehead, l.label AS llabel, l.etail AS letail, r.ehead AS rehead, r.label AS rlabel, r.etail AS retail FROM $2 l, $3 r WHERE l.tail = r.head),\n" \
                           "$1 AS ((SELECT head, tail, lehead AS ehead, llabel AS label, letail AS etail FROM $1_join) " \
                           "UNION ALL (SELECT head, tail, rehead AS ehead, rlabel AS label, retail AS etail FROM $1_join))"
-#define SQL_TEMPLATE_OR "$1 AS (SELECT * FROM $2 UNION ALL SELECT * FROM $3)"
-#define SQL_TEMPLATE_RESULT "WITH node AS (SELECT head AS n FROM "  EDGE_REL_NAME  \
+#define SQL_TEMPLATE_ORACLE_RPQSUB_OR "$1 AS (SELECT * FROM $2 UNION ALL SELECT * FROM $3)"
+#define SQL_TEMPLATE_ORACLE_RPQSUB_RESULT "WITH node AS (SELECT head AS n FROM "  EDGE_REL_NAME  \
                             " UNION ALL SELECT tail AS n FROM "  EDGE_REL_NAME  ")," \
 		                    "$1 \nSELECT DISTINCT * FROM $2;\n"
+
+#define SQL_TEMPLATE_ORACLE_RPQ_LABEL "$1 AS (SELECT head, tail FROM " EDGE_REL_NAME " WHERE label = '$2')"
+#define SQL_TEMPLATE_ORACLE_RPQ_OPTIONAL "$1 AS (SELECT * FROM $2 UNION ALL SELECT head, tail FROM dual)"
+#define SQL_TEMPLATE_ORACLE_RPQ_PLUS "$1(head,tail) AS (SELECT CONNECT_BY_ROOT(head) head, tail " \
+                          "FROM $2 CONNECT BY NOCYCLE PRIOR tail = head)"
+#define SQL_TEMPLATE_ORACLE_RPQ_STAR "$1(head,tail) AS ((SELECT CONNECT_BY_ROOT(head) AS head, tail " \
+                          "FROM $2 CONNECT BY NOCYCLE PRIOR tail = head) UNION ALL (SELECT n AS head, n AS tail FROM " NODE_REL_NAME "))"
+#define SQL_TEMPLATE_ORACLE_RPQ_CONC "$1 AS (SELECT l.head, r.tail FROM $2 l, $3 r WHERE l.tail = r.head)"
+#define SQL_TEMPLATE_ORACLE_RPQ_OR "$1 AS (SELECT * FROM $2 UNION ALL SELECT * FROM $3)"
+#define SQL_TEMPLATE_ORACLE_RPQ_RESULT "WITH node AS (SELECT head AS n FROM "  EDGE_REL_NAME  \
+                            " UNION ALL SELECT tail AS n FROM "  EDGE_REL_NAME  ")," \
+                            "$1 \nSELECT DISTINCT * FROM $2;\n"
+
+// SQLITE MACROS
+#define SQL_TEMPLATE_SQLITE_RPQSUB_LABEL "$1 AS (SELECT head, tail, head AS ehead, label, tail AS etail FROM " EDGE_REL_NAME " WHERE label = '$2')"
+#define SQL_TEMPLATE_SQLITE_RPQSUB_OPTIONAL "$1 AS (SELECT * FROM $2 UNION ALL SELECT head, tail, NULL, NULL, NULL FROM dual)"
+#define SQL_TEMPLATE_SQLITE_RPQSUB_PLUS "$1(head,tail,ehead,label,etail) AS (SELECT CONNECT_BY_ROOT(head) head, tail, ehead,label,etail " \
+                          "FROM $2 CONNECT BY NOCYCLE PRIOR tail = head)"
+#define SQL_TEMPLATE_SQLITE_RPQSUB_STAR "$1(head,tail,ehead,label,etail) AS ((SELECT CONNECT_BY_ROOT(head) AS head, tail, ehead,label,etail " \
+                          "FROM $2 CONNECT BY NOCYCLE PRIOR tail = head) UNION ALL (SELECT n AS head, n AS tail, NULL, NULL, NULL FROM " NODE_REL_NAME "))"
+#define SQL_TEMPLATE_SQLITE_RPQSUB_CONC "$1_join AS (SELECT l.head, r.tail, l.ehead AS lehead, l.label AS llabel, l.etail AS letail, r.ehead AS rehead, r.label AS rlabel, r.etail AS retail FROM $2 l, $3 r WHERE l.tail = r.head),\n" \
+                          "$1 AS ((SELECT head, tail, lehead AS ehead, llabel AS label, letail AS etail FROM $1_join) " \
+                          "UNION ALL (SELECT head, tail, rehead AS ehead, rlabel AS label, retail AS etail FROM $1_join))"
+#define SQL_TEMPLATE_SQLITE_RPQSUB_OR "$1 AS (SELECT * FROM $2 UNION ALL SELECT * FROM $3)"
+#define SQL_TEMPLATE_SQLITE_RPQSUB_RESULT "WITH node AS (SELECT head AS n FROM "  EDGE_REL_NAME  \
+                            " UNION ALL SELECT tail AS n FROM "  EDGE_REL_NAME  ")," \
+                            "$1 \nSELECT DISTINCT * FROM $2;\n"
+
+#define SQL_TEMPLATE_SQLITE_RPQ_LABEL "$1 AS (SELECT head, tail FROM " EDGE_REL_NAME " WHERE label = '$2')"
+#define SQL_TEMPLATE_SQLITE_RPQ_OPTIONAL "$1 AS (SELECT * FROM $2 UNION ALL SELECT head, tail FROM dual)"
+#define SQL_TEMPLATE_SQLITE_RPQ_PLUS "$1(head,tail) AS (SELECT * FROM $2 UNION " \
+                          "SELECT x.head, y.tail FROM $1 x, $2 y WHERE x.tail = y.head)"
+#define SQL_TEMPLATE_SQLITE_RPQ_STAR "$1(head,tail) AS (SELECT n AS head, n AS tail FROM " NODE_REL_NAME " UNION " \
+		                  "SELECT x.head, y.tail FROM $1 x, $2 y WHERE x.tail = y.head)"
+#define SQL_TEMPLATE_SQLITE_RPQ_CONC "$1 AS (SELECT l.head, r.tail FROM $2 l, $3 r WHERE l.tail = r.head)"
+#define SQL_TEMPLATE_SQLITE_RPQ_OR "$1 AS (SELECT * FROM $2 UNION ALL SELECT * FROM $3)"
+#define SQL_TEMPLATE_SQLITE_RPQ_RESULT "WITH RECURSIVE node AS (SELECT head AS n FROM "  EDGE_REL_NAME  \
+                            " UNION ALL SELECT tail AS n FROM "  EDGE_REL_NAME  ")," \
+                            "$1 \nSELECT DISTINCT * FROM $2;\n"
 
 #define MATCH_REL(rpq) (CONCAT_STRINGS(MATCH_PRED,"_",rpqToReversePolish(rpq)))
 #define CHILD_MATCH_REL(rpq,pos) CONCAT_STRINGS(MATCH_PRED,"_", \
             rpqToShortString(getNthOfListP(rpq->children,(pos))))
 #define GET_MATCH_REL(rpq) (STRING_VALUE(MAP_GET_STRING(subexToPred,rpqToReversePolish(rpq))))
 #define CHILD_GET_MATCH_REL(rpq,pos) (STRING_VALUE(MAP_GET_STRING(subexToPred,rpqToReversePolish(getNthOfListP(rpq->children,(pos))))))
+
+static char *getSQLTemplate (char *db, char *rpqType);
 
 static void rpqTranslate (Regex *rpq, HashMap *subexToRules, HashMap *subexToPred, Set *usedNames);
 static void translateLabel(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
@@ -79,7 +140,7 @@ rpqToSQL(Regex *rpq)
     removeTailingStringInfo(ctes,1);
 
     // create wrapper query
-    result = specializeTemplate(SQL_TEMPLATE_RESULT, LIST_MAKE(ctes->data, GET_MATCH_REL(rpq)));
+    result = specializeTemplate(SQL_TEMPLATE_ORACLE_ORACLERESULT, LIST_MAKE(ctes->data, GET_MATCH_REL(rpq)));
 
     return result;
 }
@@ -138,7 +199,7 @@ translateLabel(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     char *relName = GET_MATCH_REL(rpq);
     char *sql;
 
-    sql = specializeTemplate(SQL_TEMPLATE_LABEL,LIST_MAKE(relName,strdup(rpq->label)));
+    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_ORACLELABEL,LIST_MAKE(relName,strdup(rpq->label)));
 
     // add rule
     MAP_ADD_STRING_KEY(subexToRules,relName,createConstString(sql));
@@ -152,7 +213,7 @@ translateOptional(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     Regex *lChild = getNthOfListP(rpq->children,0);
     char *lChildRel = GET_MATCH_REL(lChild);
 
-    sql = specializeTemplate(SQL_TEMPLATE_OPTIONAL,LIST_MAKE(relName,lChildRel));
+    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_OPTIONAL,LIST_MAKE(relName,lChildRel));
 
     // add rule
     MAP_ADD_STRING_KEY(subexToRules,relName,createConstString(sql));
@@ -166,7 +227,7 @@ translatePlus(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     Regex *lChild = getNthOfListP(rpq->children,0);
     char *lChildRel = GET_MATCH_REL(lChild);
 
-    sql = specializeTemplate(SQL_TEMPLATE_PLUS,LIST_MAKE(relName,lChildRel));
+    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_PLUS,LIST_MAKE(relName,lChildRel));
 
     // add rule
     MAP_ADD_STRING_KEY(subexToRules,relName,createConstString(sql));
@@ -180,7 +241,7 @@ translateStar(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     Regex *lChild = getNthOfListP(rpq->children,0);
     char *lChildRel = GET_MATCH_REL(lChild);
 
-    sql = specializeTemplate(SQL_TEMPLATE_STAR,LIST_MAKE(relName,lChildRel));
+    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_STAR,LIST_MAKE(relName,lChildRel));
 
     // add rule
     MAP_ADD_STRING_KEY(subexToRules,relName,createConstString(sql));
@@ -196,7 +257,7 @@ translateOr(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     Regex *rChild = getNthOfListP(rpq->children,1);
     char *rChildRel = GET_MATCH_REL(rChild);
 
-    sql = specializeTemplate(SQL_TEMPLATE_OR,LIST_MAKE(relName,lChildRel, rChildRel));
+    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_OR,LIST_MAKE(relName,lChildRel, rChildRel));
 
     // add rule
     MAP_ADD_STRING_KEY(subexToRules,relName,createConstString(sql));
@@ -212,10 +273,37 @@ translateConc(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     Regex *rChild = getNthOfListP(rpq->children,1);
     char *rChildRel = GET_MATCH_REL(rChild);
 
-    sql = specializeTemplate(SQL_TEMPLATE_CONC,LIST_MAKE(relName,lChildRel, rChildRel));
+    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_CONC,LIST_MAKE(relName,lChildRel, rChildRel));
 
     // add rule
     MAP_ADD_STRING_KEY(subexToRules,relName,createConstString(sql));
+}
+
+static char *
+getSQLTemplate (char *db, char *rpqType, char *op)
+{
+    if (streq(db,"ORACLE"))
+    {
+        if (streq(rpqType,"RPQ"))
+        {
+            SQL_TEMPLATE_SELECT(ORACLE,RPQ,op);
+        }
+        else
+        {
+            SQL_TEMPLATE_SELECT(ORACLE,RPQSUB,op);
+        }
+    }
+    else
+    {
+        if (streq(rpqType,"RPQ"))
+        {
+            SQL_TEMPLATE_SELECT(SQLITE,RPQ,op);
+        }
+        else
+        {
+            SQL_TEMPLATE_SELECT(SQLITE,RPQSUB,op);
+        }
+    }
 }
 
 static char *

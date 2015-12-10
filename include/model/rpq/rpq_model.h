@@ -23,6 +23,12 @@ REGEX_CONC,
 REGEX_OPTIONAL
 );
 
+NEW_ENUM_WITH_TO_STRING(RegexQueryType,
+RPQ_REGULAR,
+RPQ_PROV,
+RPQ_SUBGRAPH
+);
+
 typedef struct Regex {
     NodeTag type;
     List *children;
