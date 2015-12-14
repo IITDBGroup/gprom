@@ -88,7 +88,7 @@ testRPQToDL(void)
     Node *dl;
 
     r = (Regex *) parseFromStringrpq("(a|b).c");
-    dl = rpqToDatalog(r);
+    dl = rpqToDatalog(r,RPQ_QUERY_PROV,"e","result");
 
     DEBUG_LOG("%s", beatify(nodeToString(dl)));
     INFO_LOG("%s", datalogToOverviewString(dl));

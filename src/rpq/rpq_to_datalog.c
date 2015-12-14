@@ -24,10 +24,10 @@
 #include "model/rpq/rpq_model.h"
 #include "rpq/rpq_to_datalog.h"
 
-#define EDGE_REL_NAME "e"
-#define NODE_REL_NAME "node"
+//#define EDGE_REL_NAME "e"
+#define NODE_REL_NAME "node_for_rpq"
 #define MATCH_PRED "match"
-#define RESULT_PRED "result"
+//#define RESULT_PRED "result"
 
 #define MATCH_REL(rpq) (CONCAT_STRINGS(MATCH_PRED,"_",rpqToReversePolish(rpq)))
 #define CHILD_MATCH_REL(rpq,pos) CONCAT_STRINGS(MATCH_PRED,"_", \
@@ -42,6 +42,8 @@ typedef struct RpqToDatalogContext {
     HashMap *subexToPred;
     Set *usedNames;
     RPQQueryType queryType;
+    char *edgeRel;
+    char *resultRel;
 } RpqToDatalogContext;
 
 #define MAKE_RPQ_CONTEXT(varname) \
@@ -61,19 +63,21 @@ static void translateStar(Regex *rpq, RpqToDatalogContext *c);
 static void translateOr(Regex *rpq, RpqToDatalogContext *c);
 static void translateConc(Regex *rpq, RpqToDatalogContext *c);
 
-static List *addNodeRules (List *rules);
-static List *addResultRules (List *rules, char *rpqName, RPQQueryType qType);
+static List *addNodeRules (List *rules, RpqToDatalogContext *c);
+static List *addResultRules (List *rules, char *rpqName, RpqToDatalogContext *c);
 static char *replaceCharsForPred(char *in);
 
 Node *
-rpqToDatalog(Regex *rpq)
+rpqToDatalog(Regex *rpq, RPQQueryType type, char *edgeRel, char *outRel)
 {
     RpqToDatalogContext *c;
     DLProgram *dl;
     List *rules = NIL;
 
     MAKE_RPQ_CONTEXT(c);
-    c->queryType = RPQ_QUERY_SUBGRAPH;
+    c->queryType = type;
+    c->edgeRel = edgeRel;
+    c->resultRel = outRel;
 
     INFO_LOG("translate %s", rpqToShortString(rpq));
 
@@ -85,29 +89,29 @@ rpqToDatalog(Regex *rpq)
             rules = appendToTailOfList(rules,r);
 
     // add node rules
-    rules = addNodeRules(rules);
+    rules = addNodeRules(rules, c);
 
     // add rule for result generation
-    rules = addResultRules(rules, GET_MATCH_REL(rpq), c->queryType);
+    rules = addResultRules(rules, GET_MATCH_REL(rpq), c);
 
-    dl = createDLProgram(rules, NIL, RESULT_PRED);
+    dl = createDLProgram(rules, NIL, strdup(c->resultRel));
 
     return (Node *) dl;
 }
 
 static List *
-addResultRules (List *rules, char *rpqName, RPQQueryType qType)
+addResultRules (List *rules, char *rpqName, RpqToDatalogContext *c)
 {
     DLRule *r;
     DLAtom *head;
     DLAtom *edge;
     DLComparison *noNull;
 
-    switch(qType)
+    switch(c->queryType)
     {
         case RPQ_QUERY_RESULT:
         {
-            head = createDLAtom(strdup(RESULT_PRED),
+            head = createDLAtom(strdup(c->resultRel),
                     LIST_MAKE(
                     createDLVar("X",DT_STRING),
                     createDLVar("Y",DT_STRING)),
@@ -122,7 +126,7 @@ addResultRules (List *rules, char *rpqName, RPQQueryType qType)
         break;
         case RPQ_QUERY_SUBGRAPH:
         {
-            head = createDLAtom(strdup(RESULT_PRED),
+            head = createDLAtom(strdup(c->resultRel),
                     LIST_MAKE(
                     createDLVar("U",DT_STRING),
                     createDLVar("L",DT_STRING),
@@ -144,7 +148,7 @@ addResultRules (List *rules, char *rpqName, RPQQueryType qType)
         break;
         case RPQ_QUERY_PROV:
         {
-            head = createDLAtom(strdup(RESULT_PRED),
+            head = createDLAtom(strdup(c->resultRel),
                     LIST_MAKE(createDLVar("X",DT_STRING),
                     createDLVar("Y",DT_STRING),
                     createDLVar("U",DT_STRING),
@@ -171,7 +175,7 @@ addResultRules (List *rules, char *rpqName, RPQQueryType qType)
 }
 
 static List *
-addNodeRules (List *rules)
+addNodeRules (List *rules, RpqToDatalogContext *c)
 {
     DLRule *r;
     DLAtom *head;
@@ -180,7 +184,7 @@ addNodeRules (List *rules)
     head = createDLAtom(strdup(NODE_REL_NAME),
             singleton(createDLVar("X",DT_STRING)),
             FALSE);
-    edge = createDLAtom(strdup(EDGE_REL_NAME),
+    edge = createDLAtom(strdup(c->edgeRel),
             LIST_MAKE(createDLVar("X",DT_STRING),
             createDLVar("Y",DT_STRING),
             createDLVar("Z",DT_STRING)),
@@ -191,7 +195,7 @@ addNodeRules (List *rules)
     head = createDLAtom(strdup(NODE_REL_NAME),
             LIST_MAKE(createDLVar("X",DT_STRING)),
             FALSE);
-    edge = createDLAtom(strdup(EDGE_REL_NAME),
+    edge = createDLAtom(strdup(c->edgeRel),
             LIST_MAKE(createDLVar("Z",DT_STRING),
             createDLVar("Y",DT_STRING),
             createDLVar("X",DT_STRING)),
@@ -278,7 +282,7 @@ translateLabel(Regex *rpq, RpqToDatalogContext *c)
                         createDLVar("Y",DT_STRING)),
                         FALSE);
     }
-    edge = createDLAtom(strdup(EDGE_REL_NAME),
+    edge = createDLAtom(strdup(c->edgeRel),
             LIST_MAKE(createDLVar("X",DT_STRING),
             createConstString(rpq->label),
             createDLVar("Y",DT_STRING)),

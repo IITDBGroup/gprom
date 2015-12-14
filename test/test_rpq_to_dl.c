@@ -30,6 +30,7 @@
 #include "execution/executor.h"
 #include "rewriter.h"
 
+static boolean matchesKeyword (char *in);
 
 /* if OCI is not available then add dummy versions */
 #if HAVE_A_BACKEND
@@ -41,16 +42,31 @@ main (int argc, char* argv[])
     Node *dl;
     char *result;
     boolean outSQL = FALSE;
+//    List *keywords = LIST_MAKE("-tosql", "-rpqtype");
+    RPQQueryType type = RPQ_QUERY_RESULT;
 
 //    printf("%s\n", argv[1]);
-    if (streq(argv[1],"-tosql"))
+
+    while(argc > 0 && matchesKeyword(argv[1]))
     {
-        outSQL = TRUE;
-        argv++;
-        argc--;
-//        printf("%s\n", argv[1]);
+        printf("%u %s\n", argc, argv[1]);
+        if (streq(argv[1],"-tosql"))
+        {
+            outSQL = TRUE;
+            argv++;
+            argc--;
+    //        printf("%s\n", argv[1]);
+        }
+        if (streq(argv[1],"-rpqtype"))
+        {
+            if (argc < 2)
+                FATAL_LOG("-rpqtype requires argument");
+            type = stringToRPQQueryType(argv[2]);
+            argv += 2;
+            argc -= 2;
+    //        printf("%s\n", argv[1]);
+        }
     }
-//    exit(1);
 
     READ_OPTIONS_AND_INIT("testrpq", "test binary for regular path query to datalog compilation.");
 
@@ -82,7 +98,7 @@ main (int argc, char* argv[])
     if (!outSQL)
     {
         // translate to datalog
-        dl = rpqToDatalog(rpq);
+        dl = rpqToDatalog(rpq,type,"e","result");
         ERROR_LOG("Datalog translation is <%s>", datalogToOverviewString(dl));
 
         // output as string
@@ -113,7 +129,15 @@ int main()
 
 #endif
 
-
+static boolean
+matchesKeyword (char *in)
+{
+    if (streq(in, "-tosql"))
+        return TRUE;
+    if (streq(in, "-rpqtype"))
+        return TRUE;
+    return FALSE;
+}
 
 
 
