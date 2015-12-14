@@ -32,36 +32,55 @@
 #define MATCH_REL(rpq) (CONCAT_STRINGS(MATCH_PRED,"_",rpqToReversePolish(rpq)))
 #define CHILD_MATCH_REL(rpq,pos) CONCAT_STRINGS(MATCH_PRED,"_", \
 		    rpqToShortString(getNthOfListP(rpq->children,(pos))))
-#define GET_MATCH_REL(rpq) (STRING_VALUE(MAP_GET_STRING(subexToPred,rpqToReversePolish(rpq))))
-#define CHILD_GET_MATCH_REL(rpq,pos) (STRING_VALUE(MAP_GET_STRING(subexToPred,rpqToReversePolish(getNthOfListP(rpq->children,(pos))))))
+#define GET_MATCH_REL(rpq) (STRING_VALUE(MAP_GET_STRING((c->subexToPred),rpqToReversePolish(rpq))))
+#define CHILD_GET_MATCH_REL(rpq,pos) (STRING_VALUE(MAP_GET_STRING(c->subexToPred,rpqToReversePolish(getNthOfListP(rpq->children,(pos))))))
 
-static void rpqTranslate (Regex *rpq, HashMap *subexToRules, HashMap *subexToPred, Set *usedNames);
-static void translateLabel(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
-static void translateOptional(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
-static void translatePlus(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
-static void translateStar(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
-static void translateOr(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
-static void translateConc(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
+
+
+typedef struct RpqToDatalogContext {
+    HashMap *subexToRules;
+    HashMap *subexToPred;
+    Set *usedNames;
+    RPQQueryType queryType;
+} RpqToDatalogContext;
+
+#define MAKE_RPQ_CONTEXT(varname) \
+    do { \
+        varname = NEW(RpqToDatalogContext); \
+        varname->subexToRules =  NEW_MAP(Constant,List); \
+        varname->subexToPred = NEW_MAP(Constant,Constant); \
+        varname->usedNames = STRSET(); \
+    } while(0)
+
+
+static void rpqTranslate (Regex *rpq, RpqToDatalogContext *c);
+static void translateLabel(Regex *rpq, RpqToDatalogContext *c);
+static void translateOptional(Regex *rpq, RpqToDatalogContext *c);
+static void translatePlus(Regex *rpq, RpqToDatalogContext *c);
+static void translateStar(Regex *rpq, RpqToDatalogContext *c);
+static void translateOr(Regex *rpq, RpqToDatalogContext *c);
+static void translateConc(Regex *rpq, RpqToDatalogContext *c);
 
 static List *addNodeRules (List *rules);
-static List *addResultRules (List *rules, char *rpqName);
+static List *addResultRules (List *rules, char *rpqName, RPQQueryType qType);
 static char *replaceCharsForPred(char *in);
 
 Node *
 rpqToDatalog(Regex *rpq)
 {
-    HashMap *subexToRules = NEW_MAP(Constant,List);
-    HashMap *subexToPred = NEW_MAP(Constant,Constant);
-    Set *usedNames = STRSET();
+    RpqToDatalogContext *c;
     DLProgram *dl;
     List *rules = NIL;
 
+    MAKE_RPQ_CONTEXT(c);
+    c->queryType = RPQ_QUERY_SUBGRAPH;
+
     INFO_LOG("translate %s", rpqToShortString(rpq));
 
-    rpqTranslate(rpq, subexToRules, subexToPred, usedNames);
+    rpqTranslate(rpq, c);
 
     /* create program */
-    FOREACH_HASH(List,subRules,subexToRules)
+    FOREACH_HASH(List,subRules,c->subexToRules)
         FOREACH(DLRule,r,subRules)
             rules = appendToTailOfList(rules,r);
 
@@ -69,7 +88,7 @@ rpqToDatalog(Regex *rpq)
     rules = addNodeRules(rules);
 
     // add rule for result generation
-    rules = addResultRules(rules, GET_MATCH_REL(rpq));
+    rules = addResultRules(rules, GET_MATCH_REL(rpq), c->queryType);
 
     dl = createDLProgram(rules, NIL, RESULT_PRED);
 
@@ -77,32 +96,76 @@ rpqToDatalog(Regex *rpq)
 }
 
 static List *
-addResultRules (List *rules, char *rpqName)
+addResultRules (List *rules, char *rpqName, RPQQueryType qType)
 {
     DLRule *r;
     DLAtom *head;
     DLAtom *edge;
     DLComparison *noNull;
 
-    head = createDLAtom(strdup(RESULT_PRED),
-            LIST_MAKE(createDLVar("X",DT_STRING),
-            createDLVar("Y",DT_STRING),
-            createDLVar("U",DT_STRING),
-            createDLVar("L",DT_STRING),
-            createDLVar("V",DT_STRING)),
-            FALSE);
-    edge = createDLAtom(strdup(rpqName),
-            LIST_MAKE(createDLVar("X",DT_STRING),
-            createDLVar("Y",DT_STRING),
-            createDLVar("U",DT_STRING),
-            createDLVar("L",DT_STRING),
-            createDLVar("V",DT_STRING)),
-            FALSE);
-    noNull = createDLComparison("!=",
-            (Node *) createDLVar("L", DT_STRING),
-            (Node *) createNullConst(DT_STRING));
-    r = createDLRule(head, LIST_MAKE(edge,noNull));
-    rules = appendToTailOfList(rules, r);
+    switch(qType)
+    {
+        case RPQ_QUERY_RESULT:
+        {
+            head = createDLAtom(strdup(RESULT_PRED),
+                    LIST_MAKE(
+                    createDLVar("X",DT_STRING),
+                    createDLVar("Y",DT_STRING)),
+                    FALSE);
+            edge = createDLAtom(strdup(rpqName),
+                    LIST_MAKE(createDLVar("X",DT_STRING),
+                    createDLVar("Y",DT_STRING)),
+                    FALSE);
+            r = createDLRule(head, singleton(edge));
+            rules = appendToTailOfList(rules, r);
+        }
+        break;
+        case RPQ_QUERY_SUBGRAPH:
+        {
+            head = createDLAtom(strdup(RESULT_PRED),
+                    LIST_MAKE(
+                    createDLVar("U",DT_STRING),
+                    createDLVar("L",DT_STRING),
+                    createDLVar("V",DT_STRING)),
+                    FALSE);
+            edge = createDLAtom(strdup(rpqName),
+                    LIST_MAKE(createDLVar("X",DT_STRING),
+                    createDLVar("Y",DT_STRING),
+                    createDLVar("U",DT_STRING),
+                    createDLVar("L",DT_STRING),
+                    createDLVar("V",DT_STRING)),
+                    FALSE);
+            noNull = createDLComparison("!=",
+                    (Node *) createDLVar("L", DT_STRING),
+                    (Node *) createNullConst(DT_STRING));
+            r = createDLRule(head, LIST_MAKE(edge,noNull));
+            rules = appendToTailOfList(rules, r);
+        }
+        break;
+        case RPQ_QUERY_PROV:
+        {
+            head = createDLAtom(strdup(RESULT_PRED),
+                    LIST_MAKE(createDLVar("X",DT_STRING),
+                    createDLVar("Y",DT_STRING),
+                    createDLVar("U",DT_STRING),
+                    createDLVar("L",DT_STRING),
+                    createDLVar("V",DT_STRING)),
+                    FALSE);
+            edge = createDLAtom(strdup(rpqName),
+                    LIST_MAKE(createDLVar("X",DT_STRING),
+                    createDLVar("Y",DT_STRING),
+                    createDLVar("U",DT_STRING),
+                    createDLVar("L",DT_STRING),
+                    createDLVar("V",DT_STRING)),
+                    FALSE);
+            noNull = createDLComparison("!=",
+                    (Node *) createDLVar("L", DT_STRING),
+                    (Node *) createNullConst(DT_STRING));
+            r = createDLRule(head, LIST_MAKE(edge,noNull));
+            rules = appendToTailOfList(rules, r);
+        }
+        break;
+    }
 
     return rules;
 }
@@ -141,48 +204,48 @@ addNodeRules (List *rules)
 
 
 static void
-rpqTranslate (Regex *rpq, HashMap *subexToRules, HashMap *subexToPred, Set *usedNames)
+rpqTranslate (Regex *rpq, RpqToDatalogContext *c)
 {
     char *rpqSubex = rpqToReversePolish(rpq);
     StringInfo predName = makeStringInfo();
     char *origName = MATCH_REL(rpq);
 
-    if (MAP_HAS_STRING_KEY(subexToPred, rpqSubex))
+    if (MAP_HAS_STRING_KEY(c->subexToPred, rpqSubex))
         return;
 
     origName = replaceCharsForPred(origName);
 
     appendStringInfoString(predName, origName);
     //appendStringInfoString(predName, origName);
-    while(hasSetElem(usedNames,predName->data))
+    while(hasSetElem(c->usedNames,predName->data))
         appendStringInfoString(predName,"1");
 
-    addToSet(usedNames,strdup(predName->data));
-    MAP_ADD_STRING_KEY(subexToPred,rpqSubex,createConstString(strdup(predName->data)));
+    addToSet(c->usedNames,strdup(predName->data));
+    MAP_ADD_STRING_KEY(c->subexToPred,rpqSubex,createConstString(strdup(predName->data)));
     DEBUG_LOG("pred name for %s is %s wiht orig %s", rpqToShortString(rpq), strdup(predName->data), origName);
 
     FOREACH(Regex,child,rpq->children)
-        rpqTranslate(child, subexToRules, subexToPred, usedNames);
+        rpqTranslate(child, c);
 
     switch(rpq->opType)
     {
         case REGEX_LABEL:
-            translateLabel(rpq,subexToRules, subexToPred);
+            translateLabel(rpq,c);
         break;
         case REGEX_OR:
-            translateOr(rpq,subexToRules, subexToPred);
+            translateOr(rpq,c);
         break;
         case REGEX_PLUS:
-            translatePlus(rpq,subexToRules, subexToPred);
+            translatePlus(rpq,c);
         break;
         case REGEX_STAR:
-            translateStar(rpq,subexToRules, subexToPred);
+            translateStar(rpq,c);
         break;
         case REGEX_CONC:
-            translateConc(rpq,subexToRules, subexToPred);
+            translateConc(rpq,c);
         break;
         case REGEX_OPTIONAL:
-            translateOptional(rpq,subexToRules, subexToPred);
+            translateOptional(rpq,c);
         break;
     }
 }
@@ -191,20 +254,30 @@ rpqTranslate (Regex *rpq, HashMap *subexToRules, HashMap *subexToPred, Set *used
  * for regex "l" return rule match_l
  */
 static void
-translateLabel(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
+translateLabel(Regex *rpq, RpqToDatalogContext *c)
 {
     char *relName = GET_MATCH_REL(rpq);
     DLRule *r;
     DLAtom *head;
     DLAtom *edge;
 
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("X",DT_STRING),
-                    createConstString(rpq->label),
-                    createDLVar("Y",DT_STRING)),
-                    FALSE);
+    if (c->queryType == RPQ_QUERY_RESULT)
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+    }
+    else
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("X",DT_STRING),
+                        createConstString(rpq->label),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+    }
     edge = createDLAtom(strdup(EDGE_REL_NAME),
             LIST_MAKE(createDLVar("X",DT_STRING),
             createConstString(rpq->label),
@@ -213,11 +286,11 @@ translateLabel(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     r = createDLRule(head, singleton(edge));
 
     // add rule
-    MAP_ADD_STRING_KEY(subexToRules,relName,singleton(r));
+    MAP_ADD_STRING_KEY(c->subexToRules,relName,singleton(r));
 }
 
 static void
-translateOptional(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
+translateOptional(Regex *rpq, RpqToDatalogContext *c)
 {
     char *relName = GET_MATCH_REL(rpq);
     char *childRel = CHILD_GET_MATCH_REL(rpq,0);
@@ -226,42 +299,70 @@ translateOptional(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     DLAtom *edge;
     List *rules = NIL;
 
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("X",DT_STRING),
-                    createNullConst(DT_STRING),
-                    createNullConst(DT_STRING),
-                    createNullConst(DT_STRING)),
-                    FALSE);
+    // match_a?(X,X) :- node(X)
+    if (c->queryType == RPQ_QUERY_RESULT)
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("X",DT_STRING)),
+                        FALSE);
+    }
+    // match_a?(X,X,null,null,null) :- node(X)
+    else
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("X",DT_STRING),
+                        createNullConst(DT_STRING),
+                        createNullConst(DT_STRING),
+                        createNullConst(DT_STRING)),
+                        FALSE);
+    }
     edge = createDLAtom(strdup(NODE_REL_NAME),
             singleton(createDLVar("X",DT_STRING)),
             FALSE);
     r = createDLRule(head, singleton(edge));
     rules = appendToTailOfList(rules,r);
 
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("Z",DT_STRING),
-                    createDLVar("L",DT_STRING),
-                    createDLVar("U",DT_STRING)),
-                    FALSE);
-    edge = createDLAtom(childRel,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("Z",DT_STRING),
-                    createDLVar("L",DT_STRING),
-                    createDLVar("U",DT_STRING)),
-                    FALSE);
+    // match_a?(X,Y) :- match_A(X,Y)
+    if (c->queryType == RPQ_QUERY_RESULT)
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+        edge = createDLAtom(childRel,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+    }
+    // match_a?(X,Y,Z,L,U) :- match_A(X,Y,Z,L,U)
+    else
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("Z",DT_STRING),
+                        createDLVar("L",DT_STRING),
+                        createDLVar("U",DT_STRING)),
+                        FALSE);
+        edge = createDLAtom(childRel,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("Z",DT_STRING),
+                        createDLVar("L",DT_STRING),
+                        createDLVar("U",DT_STRING)),
+                        FALSE);
+    }
     r = createDLRule(head, singleton(edge));
     rules = appendToTailOfList(rules,r);
 
     // add rules
-    MAP_ADD_STRING_KEY(subexToRules,relName,rules);
+    MAP_ADD_STRING_KEY(c->subexToRules,relName,rules);
 }
 
 static void
-translatePlus(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
+translatePlus(Regex *rpq, RpqToDatalogContext *c)
 {
     char *relName = GET_MATCH_REL(rpq);
     char *childRel = CHILD_GET_MATCH_REL(rpq,0);
@@ -271,69 +372,107 @@ translatePlus(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     DLAtom *edge2;
     List *rules = NIL;
 
-    // match_A+(X,Y,A,L,B) :- match_A+(X,Y,A,L,B)
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("A",DT_STRING),
-                    createDLVar("L",DT_STRING),
-                    createDLVar("B",DT_STRING)),
-                    FALSE);
-    edge1 = createDLAtom(childRel,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("A",DT_STRING),
-                    createDLVar("L",DT_STRING),
-                    createDLVar("B",DT_STRING)),
-                    FALSE);
+    // match_A+(X,Y) :- match_A(X,Y)
+    if (c->queryType == RPQ_QUERY_RESULT)
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+        edge1 = createDLAtom(childRel,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+    }
+    // match_A+(X,Y,A,L,B) :- match_A(X,Y,A,L,B)
+    else
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("A",DT_STRING),
+                        createDLVar("L",DT_STRING),
+                        createDLVar("B",DT_STRING)),
+                        FALSE);
+        edge1 = createDLAtom(childRel,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("A",DT_STRING),
+                        createDLVar("L",DT_STRING),
+                        createDLVar("B",DT_STRING)),
+                        FALSE);
+    }
     r = createDLRule(head, singleton(edge1));
     rules = appendToTailOfList(rules,r);
 
-    // create a join between A+ and A and propagate both their path edges = 2 options
-    edge1 = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Z",DT_STRING),
-                    createDLVar("A",DT_STRING),
-                    createDLVar("L1",DT_STRING),
-                    createDLVar("B",DT_STRING)),
-                    FALSE);
-    edge2 = createDLAtom(childRel,
-            LIST_MAKE(createDLVar("Z",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("C",DT_STRING),
-                    createDLVar("L2",DT_STRING),
-                    createDLVar("D",DT_STRING)),
-                    FALSE);
-    // match_A+(X,Y,A,L1,B) :- match_A+(X,Z,A,L1,B), match_A(Z,Y,C,L2,D).
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("A",DT_STRING),
-                    createDLVar("L1",DT_STRING),
-                    createDLVar("B",DT_STRING)),
-                    FALSE);
-    r = createDLRule(head, LIST_MAKE(edge1,edge2));
-    rules = appendToTailOfList(rules,r);
+    if (c->queryType == RPQ_QUERY_RESULT)
+    {
+        // match_A+(X,Y) :- match_A+(X,Z), match_A(Z,Y).
+        edge1 = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Z",DT_STRING)),
+                        FALSE);
+        edge2 = createDLAtom(childRel,
+                LIST_MAKE(createDLVar("Z",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
 
-    // match_A+(X,Y,C,L2,D) :- match_A+(X,Z,A,L1,B), match_A(Z,Y,C,L2,D).
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("C",DT_STRING),
-                    createDLVar("L2",DT_STRING),
-                    createDLVar("D",DT_STRING)),
-                    FALSE);
-    edge1 = copyObject(edge1);
-    edge2 = copyObject(edge2);
-    r = createDLRule(head, LIST_MAKE(edge1,edge2));
-    rules = appendToTailOfList(rules,r);
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+
+        r = createDLRule(head, LIST_MAKE(edge1,edge2));
+        rules = appendToTailOfList(rules,r);
+    }
+    else
+    {
+        // create a join between A+ and A and propagate both their path edges = 2 options
+        edge1 = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Z",DT_STRING),
+                        createDLVar("A",DT_STRING),
+                        createDLVar("L1",DT_STRING),
+                        createDLVar("B",DT_STRING)),
+                        FALSE);
+        edge2 = createDLAtom(childRel,
+                LIST_MAKE(createDLVar("Z",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("C",DT_STRING),
+                        createDLVar("L2",DT_STRING),
+                        createDLVar("D",DT_STRING)),
+                        FALSE);
+        // match_A+(X,Y,A,L1,B) :- match_A+(X,Z,A,L1,B), match_A(Z,Y,C,L2,D).
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("A",DT_STRING),
+                        createDLVar("L1",DT_STRING),
+                        createDLVar("B",DT_STRING)),
+                        FALSE);
+        r = createDLRule(head, LIST_MAKE(edge1,edge2));
+        rules = appendToTailOfList(rules,r);
+
+        // match_A+(X,Y,C,L2,D) :- match_A+(X,Z,A,L1,B), match_A(Z,Y,C,L2,D).
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("C",DT_STRING),
+                        createDLVar("L2",DT_STRING),
+                        createDLVar("D",DT_STRING)),
+                        FALSE);
+        edge1 = copyObject(edge1);
+        edge2 = copyObject(edge2);
+        r = createDLRule(head, LIST_MAKE(edge1,edge2));
+        rules = appendToTailOfList(rules,r);
+    }
 
     // add rules
-    MAP_ADD_STRING_KEY(subexToRules,relName,rules);
+    MAP_ADD_STRING_KEY(c->subexToRules,relName,rules);
 }
 
 static void
-translateStar(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
+translateStar(Regex *rpq, RpqToDatalogContext *c)
 {
     char *relName = GET_MATCH_REL(rpq);
     char *childRel = CHILD_GET_MATCH_REL(rpq,0);
@@ -343,65 +482,98 @@ translateStar(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     DLAtom *edge2;
     List *rules = NIL;
 
+    // match_A*(X,Y) :- node(X)
+    if (c->queryType == RPQ_QUERY_RESULT)
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("X",DT_STRING)),
+                        FALSE);
+
+    }
     // match_A*(X,Y,null,null,null) :- node(X)
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("X",DT_STRING),
-                    createNullConst(DT_STRING),
-                    createNullConst(DT_STRING),
-                    createNullConst(DT_STRING)),
-                    FALSE);
+    else
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("X",DT_STRING),
+                        createNullConst(DT_STRING),
+                        createNullConst(DT_STRING),
+                        createNullConst(DT_STRING)),
+                        FALSE);
+    }
     edge1 = createDLAtom(strdup(NODE_REL_NAME),
             singleton(createDLVar("X",DT_STRING)),
             FALSE);
     r = createDLRule(head, singleton(edge1));
     rules = appendToTailOfList(rules,r);
 
-    // create a join between A* and A and propagate both their path edges = 2 options
-    edge1 = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Z",DT_STRING),
-                    createDLVar("A",DT_STRING),
-                    createDLVar("L1",DT_STRING),
-                    createDLVar("B",DT_STRING)),
-                    FALSE);
-    edge2 = createDLAtom(childRel,
-            LIST_MAKE(createDLVar("Z",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("C",DT_STRING),
-                    createDLVar("L2",DT_STRING),
-                    createDLVar("D",DT_STRING)),
-                    FALSE);
-    // match_A*(X,Y,A,L1,B) :- match_A*(X,Z,A,L1,B), match_A(Z,Y,C,L2,D).
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("A",DT_STRING),
-                    createDLVar("L1",DT_STRING),
-                    createDLVar("B",DT_STRING)),
-                    FALSE);
-    r = createDLRule(head, LIST_MAKE(edge1,edge2));
-    rules = appendToTailOfList(rules,r);
+    // match_A*(X,Y) :- match_A*(X,Z), match_A(Z,Y).
+    if (c->queryType == RPQ_QUERY_RESULT)
+    {
+        edge1 = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Z",DT_STRING)),
+                        FALSE);
+        edge2 = createDLAtom(childRel,
+                LIST_MAKE(createDLVar("Z",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+        r = createDLRule(head, LIST_MAKE(edge1,edge2));
+        rules = appendToTailOfList(rules,r);
+    }
+    else
+    {
+        // create a join between A* and A and propagate both their path edges = 2 options
+        edge1 = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Z",DT_STRING),
+                        createDLVar("A",DT_STRING),
+                        createDLVar("L1",DT_STRING),
+                        createDLVar("B",DT_STRING)),
+                        FALSE);
+        edge2 = createDLAtom(childRel,
+                LIST_MAKE(createDLVar("Z",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("C",DT_STRING),
+                        createDLVar("L2",DT_STRING),
+                        createDLVar("D",DT_STRING)),
+                        FALSE);
+        // match_A*(X,Y,A,L1,B) :- match_A*(X,Z,A,L1,B), match_A(Z,Y,C,L2,D).
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("A",DT_STRING),
+                        createDLVar("L1",DT_STRING),
+                        createDLVar("B",DT_STRING)),
+                        FALSE);
+        r = createDLRule(head, LIST_MAKE(edge1,edge2));
+        rules = appendToTailOfList(rules,r);
 
-    // match_A*(X,Y,C,L2,D) :- match_A*(X,Z,A,L1,B), match_A(Z,Y,C,L2,D).
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("C",DT_STRING),
-                    createDLVar("L2",DT_STRING),
-                    createDLVar("D",DT_STRING)),
-                    FALSE);
-    edge1 = copyObject(edge1);
-    edge2 = copyObject(edge2);
-    r = createDLRule(head, LIST_MAKE(edge1,edge2));
-    rules = appendToTailOfList(rules,r);
+        // match_A*(X,Y,C,L2,D) :- match_A*(X,Z,A,L1,B), match_A(Z,Y,C,L2,D).
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("C",DT_STRING),
+                        createDLVar("L2",DT_STRING),
+                        createDLVar("D",DT_STRING)),
+                        FALSE);
+        edge1 = copyObject(edge1);
+        edge2 = copyObject(edge2);
+        r = createDLRule(head, LIST_MAKE(edge1,edge2));
+        rules = appendToTailOfList(rules,r);
+    }
 
     // add rules
-    MAP_ADD_STRING_KEY(subexToRules,relName,rules);
+    MAP_ADD_STRING_KEY(c->subexToRules,relName,rules);
 }
 
 static void
-translateOr(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
+translateOr(Regex *rpq, RpqToDatalogContext *c)
 {
     char *relName = GET_MATCH_REL(rpq);
     Regex *lChild = getNthOfListP(rpq->children,0);
@@ -413,48 +585,78 @@ translateOr(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     DLAtom *edge;
     List *rules = NIL;
 
+    // match_A|B(X,Y) :- match_A(X,Y)
+    if (c->queryType == RPQ_QUERY_RESULT)
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+        edge = createDLAtom(lChildRel,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+    }
     // match_A|B(X,Y,A,L1,B) :- match_A(X,Y,A,L1,B).s
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("A",DT_STRING),
-                    createDLVar("L",DT_STRING),
-                    createDLVar("B",DT_STRING)),
-                    FALSE);
-    edge = createDLAtom(lChildRel,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("A",DT_STRING),
-                    createDLVar("L",DT_STRING),
-                    createDLVar("B",DT_STRING)),
-                    FALSE);
+    else
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("A",DT_STRING),
+                        createDLVar("L",DT_STRING),
+                        createDLVar("B",DT_STRING)),
+                        FALSE);
+        edge = createDLAtom(lChildRel,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("A",DT_STRING),
+                        createDLVar("L",DT_STRING),
+                        createDLVar("B",DT_STRING)),
+                        FALSE);
+    }
     r = createDLRule(head, singleton(edge));
     rules = appendToTailOfList(rules,r);
 
+    // match_A|B(X,Y) :- match_B(X,Y)
+    if (c->queryType == RPQ_QUERY_RESULT)
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+        edge = createDLAtom(rChildRel,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+    }
     // match_A.B(X,Y,C,L2,D) :- match_B(Z,Y,C,L2,D).
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("A",DT_STRING),
-                    createDLVar("L",DT_STRING),
-                    createDLVar("B",DT_STRING)),
-                    FALSE);
-    edge = createDLAtom(rChildRel,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("A",DT_STRING),
-                    createDLVar("L",DT_STRING),
-                    createDLVar("B",DT_STRING)),
-                    FALSE);
+    else
+    {
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("A",DT_STRING),
+                        createDLVar("L",DT_STRING),
+                        createDLVar("B",DT_STRING)),
+                        FALSE);
+        edge = createDLAtom(rChildRel,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("A",DT_STRING),
+                        createDLVar("L",DT_STRING),
+                        createDLVar("B",DT_STRING)),
+                        FALSE);
+    }
     r = createDLRule(head, singleton(edge));
     rules = appendToTailOfList(rules,r);
 
     // add rules
-    MAP_ADD_STRING_KEY(subexToRules,relName,rules);
+    MAP_ADD_STRING_KEY(c->subexToRules,relName,rules);
 }
 
 static void
-translateConc(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
+translateConc(Regex *rpq, RpqToDatalogContext *c)
 {
     char *relName = GET_MATCH_REL(rpq);
     Regex *lChild = getNthOfListP(rpq->children,0);
@@ -467,48 +669,71 @@ translateConc(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     DLAtom *edge2;
     List *rules = NIL;
 
-    // create a join between A . B
-    edge1 = createDLAtom(lChildRel,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Z",DT_STRING),
-                    createDLVar("A",DT_STRING),
-                    createDLVar("L1",DT_STRING),
-                    createDLVar("B",DT_STRING)),
-                    FALSE);
-    edge2 = createDLAtom(rChildRel,
-            LIST_MAKE(createDLVar("Z",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("C",DT_STRING),
-                    createDLVar("L2",DT_STRING),
-                    createDLVar("D",DT_STRING)),
-                    FALSE);
+    // match_A.B(X,Y) :- match_A(X,Z), match_B(Z,Y).
+    if (c->queryType == RPQ_QUERY_RESULT)
+    {
+        // create a join between A . B
+        edge1 = createDLAtom(lChildRel,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Z",DT_STRING)),
+                        FALSE);
+        edge2 = createDLAtom(rChildRel,
+                LIST_MAKE(createDLVar("Z",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING)),
+                        FALSE);
 
-    // match_A.B(X,Y,A,L1,B) :- match_A(X,Z,A,L1,B), match_B(Z,Y,C,L2,D).
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("A",DT_STRING),
-                    createDLVar("L1",DT_STRING),
-                    createDLVar("B",DT_STRING)),
-                    FALSE);
-    r = createDLRule(head, LIST_MAKE(edge1,edge2));
-    rules = appendToTailOfList(rules,r);
+        r = createDLRule(head, LIST_MAKE(edge1,edge2));
+        rules = appendToTailOfList(rules,r);
+    }
+    else
+    {
+        // create a join between A . B
+        edge1 = createDLAtom(lChildRel,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Z",DT_STRING),
+                        createDLVar("A",DT_STRING),
+                        createDLVar("L1",DT_STRING),
+                        createDLVar("B",DT_STRING)),
+                        FALSE);
+        edge2 = createDLAtom(rChildRel,
+                LIST_MAKE(createDLVar("Z",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("C",DT_STRING),
+                        createDLVar("L2",DT_STRING),
+                        createDLVar("D",DT_STRING)),
+                        FALSE);
 
-    // match_A.B(X,Y,C,L2,D) :- match_A(X,Z,A,L1,B), match_B(Z,Y,C,L2,D).
-    head = createDLAtom(relName,
-            LIST_MAKE(createDLVar("X",DT_STRING),
-                    createDLVar("Y",DT_STRING),
-                    createDLVar("C",DT_STRING),
-                    createDLVar("L2",DT_STRING),
-                    createDLVar("D",DT_STRING)),
-                    FALSE);
-    edge1 = copyObject(edge1);
-    edge2 = copyObject(edge2);
-    r = createDLRule(head, LIST_MAKE(edge1,edge2));
-    rules = appendToTailOfList(rules,r);
+        // match_A.B(X,Y,A,L1,B) :- match_A(X,Z,A,L1,B), match_B(Z,Y,C,L2,D).
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("A",DT_STRING),
+                        createDLVar("L1",DT_STRING),
+                        createDLVar("B",DT_STRING)),
+                        FALSE);
+        r = createDLRule(head, LIST_MAKE(edge1,edge2));
+        rules = appendToTailOfList(rules,r);
+
+        // match_A.B(X,Y,C,L2,D) :- match_A(X,Z,A,L1,B), match_B(Z,Y,C,L2,D).
+        head = createDLAtom(relName,
+                LIST_MAKE(createDLVar("X",DT_STRING),
+                        createDLVar("Y",DT_STRING),
+                        createDLVar("C",DT_STRING),
+                        createDLVar("L2",DT_STRING),
+                        createDLVar("D",DT_STRING)),
+                        FALSE);
+        edge1 = copyObject(edge1);
+        edge2 = copyObject(edge2);
+        r = createDLRule(head, LIST_MAKE(edge1,edge2));
+        rules = appendToTailOfList(rules,r);
+    }
 
     // add rules
-    MAP_ADD_STRING_KEY(subexToRules,relName,rules);
+    MAP_ADD_STRING_KEY(c->subexToRules,relName,rules);
 }
 
 static char *

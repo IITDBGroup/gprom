@@ -108,7 +108,7 @@
 #define GET_MATCH_REL(rpq) (STRING_VALUE(MAP_GET_STRING(subexToPred,rpqToReversePolish(rpq))))
 #define CHILD_GET_MATCH_REL(rpq,pos) (STRING_VALUE(MAP_GET_STRING(subexToPred,rpqToReversePolish(getNthOfListP(rpq->children,(pos))))))
 
-static char *getSQLTemplate (char *db, char *rpqType);
+static char *getSQLTemplate (char *db, char *rpqType, char *op);
 
 static void rpqTranslate (Regex *rpq, HashMap *subexToRules, HashMap *subexToPred, Set *usedNames);
 static void translateLabel(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred);
@@ -140,7 +140,7 @@ rpqToSQL(Regex *rpq)
     removeTailingStringInfo(ctes,1);
 
     // create wrapper query
-    result = specializeTemplate(SQL_TEMPLATE_ORACLE_ORACLERESULT, LIST_MAKE(ctes->data, GET_MATCH_REL(rpq)));
+    result = specializeTemplate(SQL_TEMPLATE_ORACLE_RPQ_RESULT, LIST_MAKE(ctes->data, GET_MATCH_REL(rpq)));
 
     return result;
 }
@@ -199,7 +199,7 @@ translateLabel(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     char *relName = GET_MATCH_REL(rpq);
     char *sql;
 
-    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_ORACLELABEL,LIST_MAKE(relName,strdup(rpq->label)));
+    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_RPQ_LABEL,LIST_MAKE(relName,strdup(rpq->label)));
 
     // add rule
     MAP_ADD_STRING_KEY(subexToRules,relName,createConstString(sql));
@@ -212,8 +212,10 @@ translateOptional(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     char *sql;
     Regex *lChild = getNthOfListP(rpq->children,0);
     char *lChildRel = GET_MATCH_REL(lChild);
+    char *template = getSQLTemplate("ORACLE", "RPQ", "OPTIONAL");
 
-    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_OPTIONAL,LIST_MAKE(relName,lChildRel));
+    //SQL_TEMPLATE_ORACLE_RPQ_OPTIONAL
+    sql = specializeTemplate(template,LIST_MAKE(relName,lChildRel));
 
     // add rule
     MAP_ADD_STRING_KEY(subexToRules,relName,createConstString(sql));
@@ -227,7 +229,7 @@ translatePlus(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     Regex *lChild = getNthOfListP(rpq->children,0);
     char *lChildRel = GET_MATCH_REL(lChild);
 
-    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_PLUS,LIST_MAKE(relName,lChildRel));
+    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_RPQ_PLUS,LIST_MAKE(relName,lChildRel));
 
     // add rule
     MAP_ADD_STRING_KEY(subexToRules,relName,createConstString(sql));
@@ -241,7 +243,7 @@ translateStar(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     Regex *lChild = getNthOfListP(rpq->children,0);
     char *lChildRel = GET_MATCH_REL(lChild);
 
-    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_STAR,LIST_MAKE(relName,lChildRel));
+    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_RPQ_STAR,LIST_MAKE(relName,lChildRel));
 
     // add rule
     MAP_ADD_STRING_KEY(subexToRules,relName,createConstString(sql));
@@ -257,7 +259,7 @@ translateOr(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     Regex *rChild = getNthOfListP(rpq->children,1);
     char *rChildRel = GET_MATCH_REL(rChild);
 
-    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_OR,LIST_MAKE(relName,lChildRel, rChildRel));
+    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_RPQ_OR,LIST_MAKE(relName,lChildRel, rChildRel));
 
     // add rule
     MAP_ADD_STRING_KEY(subexToRules,relName,createConstString(sql));
@@ -273,7 +275,7 @@ translateConc(Regex *rpq, HashMap *subexToRules, HashMap *subexToPred)
     Regex *rChild = getNthOfListP(rpq->children,1);
     char *rChildRel = GET_MATCH_REL(rChild);
 
-    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_CONC,LIST_MAKE(relName,lChildRel, rChildRel));
+    sql = specializeTemplate(SQL_TEMPLATE_ORACLE_RPQ_CONC,LIST_MAKE(relName,lChildRel, rChildRel));
 
     // add rule
     MAP_ADD_STRING_KEY(subexToRules,relName,createConstString(sql));
@@ -304,6 +306,8 @@ getSQLTemplate (char *db, char *rpqType, char *op)
             SQL_TEMPLATE_SELECT(SQLITE,RPQSUB,op);
         }
     }
+    FATAL_LOG("unkown RPQ and backend type <%s> and <%s>", rpqType, db);
+    return NULL;
 }
 
 static char *
