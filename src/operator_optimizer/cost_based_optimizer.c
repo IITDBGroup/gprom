@@ -68,6 +68,8 @@ typedef struct BalancedInterval
 	int numContinues;      // When using callback generate next plan, get the first several continuous same number, example: [000, 010], numContinues = 1, the first 0 same
     int previousLH;        // If previous one go left "0", this one should go right "1"
     List *helpPath;        // if lhFlag = 2 or 3, store some value into helpPath used to generate next path when call callback function, like the fixedPath in heuristic method
+    List *helpEnd;         // if helpPath store the beginInterval, the helpEnd store endInterval
+    int helpFlag;
     //List *currentList;     // The current path (the result, the middle one which will be return after all callback fucntions) and path it to generationNextPlan function
 }BalancedInterval;
 
@@ -167,7 +169,7 @@ static List* minusOne(List *curPath, List *numChoices);
 static boolean checkEqual(List *l1, List *l2);
 static BalancedInterval* copyBalancedInterval(BalancedInterval *bl);
 static int findCommonPrefixLength(List *l1, List *l2);
-static List* generateNextPlan(int hlflag, List *l, List *h);
+static List* generateNextPlan(int hlflag, List *l, List *h, List *numChoice);
 
 /* 2-competitive version of the continue function that stops optimization when
  * more time has been spend on optimization then the expected runtime of the
@@ -696,6 +698,8 @@ balancedInitialize(OptimizerState *state)
 	balancedItvl->numContinues = -1;
 	balancedItvl->previousLH = -1;
 	balancedItvl->helpPath = NIL;
+	balancedItvl->helpEnd = NIL;
+	balancedItvl->helpFlag = 0;
 
 	balancedState->bl = balancedItvl;
 
@@ -834,32 +838,65 @@ findCommonPrefixLength(List *l1, List *l2)
 }
 
 static List*
-generateNextPlan(int hlflag, List *l, List *h)
+generateNextPlan(int hlflag, List *l, List *h, List *numChoice)
 {
 	int commonPrefixLength = findCommonPrefixLength(l,h);
+	List *num = copyObject(numChoice);
 	List *result = NIL;
     int flag = hlflag;
 
-	int i = 0;
-	FOREACH_INT(c, l)
+//	int i = 0;
+//	FOREACH_INT(c, l)
+//	{
+//		if(i<commonPrefixLength)
+//			result = appendToTailOfListInt(result, c);
+//		else
+//		{
+//			if(flag == 0)
+//			{
+//				result = appendToTailOfListInt(result, 0);
+//				flag = 1;
+//			}
+//			else
+//			{
+//				result = appendToTailOfListInt(result, 1);
+//				flag = 0;
+//			}
+//		}
+//	    i ++;
+//	}
+
+    int i = 0;
+    int helpFlag = 0;
+	FORBOTH_INT(cl, ch, l, h)
 	{
+		int numValue = getHeadOfListInt(num);
+		num = removeFromHead(num);
 		if(i<commonPrefixLength)
-			result = appendToTailOfListInt(result, c);
+			result = appendToTailOfListInt(result, ch);
 		else
 		{
-			if(flag == 0)
+			int len = ch - cl;
+			if (helpFlag ==0 && len > 1 && len % 2 == 0){  //middle case, the number of choice is a odd value
+				result = appendToTailOfListInt(result, len/2);
+				helpFlag = 1;
+			}
+			else if(helpFlag == 1 && numValue>2 && numValue % 2 != 0)
+				result = appendToTailOfListInt(result, (numValue - 1) / 2);
+			else if(flag == 0)
 			{
 				result = appendToTailOfListInt(result, 0);
 				flag = 1;
 			}
 			else
 			{
-				result = appendToTailOfListInt(result, 1);
+				result = appendToTailOfListInt(result, numValue-1);
 				flag = 0;
 			}
 		}
 	    i ++;
 	}
+
 
 	return result;
 }
@@ -872,8 +909,9 @@ balancedGenerateNextChoice (OptimizerState *state)
 	int cnt = balSt->count;
 	List *fifoList = balSt->fifo;
 	BalancedInterval *bl = balSt->bl;
+	bl->helpFlag = 0;
 
-	DEBUG_LOG("new structures are:\n X:%s\n Y:%s\n Z:%s\n",
+	DEBUG_LOG("new structures are:\n curPath:%s\n beginInterval:%s\n endInterval:%s\n",
 	               nodeToString(state->curPath),nodeToString(bl->beginInterval),nodeToString(bl->endInterval));
 
 	//boolean returnFlag = FALSE;
@@ -887,7 +925,8 @@ balancedGenerateNextChoice (OptimizerState *state)
 		bl->endInterval = copyObject(state->curPath);
 		bl->numContinues = findCommonPrefixLength(bl->beginInterval, bl->endInterval);
 		state->curPath = NIL;
-		bl->helpPath = copyObject(bl->beginInterval);
+		bl->helpPath = copyObject(bl->beginInterval);   //used to get common value, use the numContinues to control
+		bl->helpEnd = copyObject(bl->endInterval);    //used to compute the middle case
 		fifoList = appendToTailOfList(fifoList, copyBalancedInterval(bl));
 	}
 	else
@@ -916,10 +955,11 @@ balancedGenerateNextChoice (OptimizerState *state)
         	bl1->endInterval = copyObject(state->curPath);
         	bl1->previousLH = -1;
         	bl1->numContinues = findCommonPrefixLength(bl1->beginInterval, bl1->endInterval);
+        	bl1->helpEnd = copyObject(bl1->endInterval);
 
         	//predict next plan: if equal to low, set bl1->lhFlag = 2; if equal to high, set bl1->lfFlag = 3.
         	//when callback, check lfFlag, if 2, do not do left right left... directly add one to low and return; if 3, minus to high and return.
-        	List *nextPlan = generateNextPlan(bl1->lhFlag, bl1->beginInterval, bl1->endInterval);
+        	List *nextPlan = generateNextPlan(bl1->lhFlag, bl1->beginInterval, bl1->endInterval, state->numChoices);
         	if(checkEqual(nextPlan, bl1->beginInterval))
         	{
         		bl1->lhFlag = 2;
@@ -946,10 +986,11 @@ balancedGenerateNextChoice (OptimizerState *state)
         	bl2->endInterval = copyObject(bl->endInterval);
         	bl2->previousLH = -1;
         	bl2->numContinues = findCommonPrefixLength(bl2->beginInterval, bl2->endInterval);
+        	bl2->helpEnd = copyObject(bl2->endInterval);
 
         	//predict next plan: if equal to low, set bl1->lhFlag = 2; if equal to high, set bl1->lfFlag = 3.
         	//when callback, check lfFlag, if 2, do not do left right left... directly add one to low and return; if 3, minus to high and return.
-        	List *nextPlan = generateNextPlan(bl2->lhFlag, bl2->beginInterval, bl2->endInterval);
+        	List *nextPlan = generateNextPlan(bl2->lhFlag, bl2->beginInterval, bl2->endInterval, state->numChoices);
         	if(checkEqual(nextPlan, bl2->beginInterval))
         	{
         		bl2->lhFlag = 2;
@@ -1018,7 +1059,6 @@ balancedCallback (OptimizerState *state, int numChoices)
 	{
 		choice = numChoices-1;
 		curPath = appendToTailOfListInt(curPath, choice);
-
 	}
 	else
 	{
@@ -1029,20 +1069,34 @@ balancedCallback (OptimizerState *state, int numChoices)
 		{
 			if(bl->numContinues > 0)  //copy first several same value
 			{
-//				choice = getHeadOfListInt(bl->beginInterval);
-//				curPath = appendToTailOfListInt(curPath, choice);
-//				bl->beginInterval = removeFromHead(bl->beginInterval);
 				choice = getHeadOfListInt(bl->helpPath);
 				curPath = appendToTailOfListInt(curPath, choice);
 				bl->helpPath = removeFromHead(bl->helpPath);
-				//bl->endInterval = removeFromHead(bl->endInterval);
+				bl->helpEnd = removeFromHead(bl->helpEnd);
 				bl->numContinues --;
 			}
 			else  //after copy same, do left first or right first
 			{
+				int cl = getHeadOfListInt(bl->helpPath);
+				int ch = getHeadOfListInt(bl->helpEnd);
+				bl->helpPath = removeFromHead(bl->helpPath);
+				bl->helpEnd = removeFromHead(bl->helpEnd);
+				int len = ch - cl;
+
 				if(bl->previousLH == -1)  //check first one
 				{
-					if(bl->lhFlag == 0)  //check left first
+					if(bl->helpFlag == 0 && len > 1 && len % 2 == 0) //after numContinues iterations (after copy the common prefix), next iteration helpFlag = 0, after that helpFlag = 1.
+					{                                                //For middle case, helpFlag == 0, choose middle value from the interval, after this time(helpFlag = 1), choose middle value from the numChoice.
+						choice = len/2;
+						curPath = appendToTailOfListInt(curPath, choice);
+						bl->helpFlag = 1;
+					}
+					else if(bl->helpFlag == 1 && numChoices>2 && numChoices % 2 != 0)
+					{
+						choice = (numChoices-1)/2;
+						curPath = appendToTailOfListInt(curPath, choice);
+					}
+					else if(bl->lhFlag == 0)  //check left first
 					{
 						choice = 0;
 						curPath = appendToTailOfListInt(curPath, choice);
@@ -1056,7 +1110,11 @@ balancedCallback (OptimizerState *state, int numChoices)
 				}
 				else  //after first one
 				{
-					if(bl->previousLH == 0)
+					if (len > 1 && len % 2 == 0){  //middle case
+						choice = len/2;
+						curPath = appendToTailOfListInt(curPath, len/2);
+					}
+					else if(bl->previousLH == 0)
 					{
 						choice = numChoices - 1;
 						curPath = appendToTailOfListInt(curPath, choice);
