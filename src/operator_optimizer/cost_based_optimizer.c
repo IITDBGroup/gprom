@@ -253,6 +253,15 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 		state->currentPlan = generatePlan(oModel1, applyOptimizations);
 
 		char *result = strdup(state->currentPlan);
+
+//      linear regression
+//		PlanCost estCost = getCostEstimation(result);
+//		double b0 = -6.954274;
+//		double b1 = 0.7868441;
+//		double e = 2.718281828459;
+//		double m = b0 + b1*log(estCost);
+//		state->currentCost = pow(e, m);
+
 		state->currentCost = getCostEstimation(result);//TODO not what is returned by the function
 		DEBUG_LOG("Cost of the rewritten Query is = %d\n", state->currentCost);
 		INFO_LOG("plan (%u) for choice %s is\n%s", state->planCount, beatify(nodeToString(state->curPath)),
@@ -389,6 +398,16 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 static double
 estimateRuntime (OptimizerState *state)
 {
+//	char *result = strdup(state->currentPlan);
+//    PlanCost resultCost;
+//
+//	PlanCost estCost = getCostEstimation(result);
+//	double b0 = -6.954274;
+//	double b1 = 0.7868441;
+//	double e = 2.718281828459;
+//	double m = b0 + b1*log(estCost);
+//	resultCost = pow(e, m);
+
     return DBL_MAX; //TODO compute time
 }
 
@@ -490,6 +509,7 @@ exhaustiveGenerateNextChoice (OptimizerState *state)
 static boolean
 exhaustiveContinueOptimization (OptimizerState *state)
 {
+
     return TRUE;
 }
 
