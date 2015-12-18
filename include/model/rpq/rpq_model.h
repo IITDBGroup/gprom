@@ -42,10 +42,21 @@ typedef struct Regex {
     char *label;
 } Regex;
 
+typedef struct RPQQuery {
+    NodeTag type;
+    Regex *q;
+    RPQQueryType t;
+    char *edgeRel;
+    char *resultRel;
+} RPQQuery;
+
 extern Regex* makeRegex(List *args, char *type);
 extern Regex* makeRegexLabel(char *label);
 extern RegexOpType parseRegexOp (char *label);
 extern char *rpqToShortString (Regex *rpq);
 extern char *rpqToReversePolish(Regex *rpq);
+
+extern RPQQueryType getRPQQueryType (char *t);
+extern RPQQuery *makeRPQQuery(char *query, char *rpqType, char *edgeRel, char *resultRel);
 
 #endif /* INCLUDE_MODEL_RPQ_RPQ_MODEL_H_ */

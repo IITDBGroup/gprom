@@ -154,3 +154,29 @@ rpqToReversePolishInternal(StringInfo str, Regex *rpq)
         break;
     }
 }
+
+extern RPQQuery *
+makeRPQQuery(char *query, char *rpqType, char *edgeRel, char *resultRel)
+{
+    RPQQuery *result = makeNode(RPQQuery);
+
+    result->q = rpq_parse(query);
+    result->t = getRPQQueryType(rpqType);
+    result->edgeRel = edgeRel;
+    result->resultRel = resultRel;
+
+    return result;
+}
+
+RPQQueryType
+getRPQQueryType (char *t)
+{
+    if (streq(t,"RESULT"))
+        return RPQ_QUERY_RESULT;
+    if (streq(t,"PROV"))
+        return RPQ_QUERY_PROV;
+    if (streq(t,"SUBGRAPH"))
+        return RPQ_QUERY_SUBGRAPH;
+    FATAL_LOG("unkown rpq query type <%s>. Should be one of RESULT, PROV, SUBGRAPH", t);
+    return RPQ_QUERY_RESULT;
+}
