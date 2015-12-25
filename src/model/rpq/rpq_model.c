@@ -16,6 +16,7 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/rpq/rpq_model.h"
+#include "parser/parser_rpq.h"
 
 static void rpqToShortInternal (StringInfo str, Regex *rpq);
 static void rpqToReversePolishInternal(StringInfo str, Regex *rpq);
@@ -160,7 +161,7 @@ makeRPQQuery(char *query, char *rpqType, char *edgeRel, char *resultRel)
 {
     RPQQuery *result = makeNode(RPQQuery);
 
-    result->q = rpq_parse(query);
+    result->q = (Regex *) parseFromStringrpq(query);
     result->t = getRPQQueryType(rpqType);
     result->edgeRel = edgeRel;
     result->resultRel = resultRel;

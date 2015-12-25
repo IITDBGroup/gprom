@@ -68,6 +68,12 @@ static List *addResultRules (List *rules, char *rpqName, RpqToDatalogContext *c)
 static char *replaceCharsForPred(char *in);
 
 Node *
+rpqQueryToDatalog(RPQQuery *q)
+{
+    return rpqToDatalog(q->q, q->t, q->edgeRel, q->resultRel);
+}
+
+Node *
 rpqToDatalog(Regex *rpq, RPQQueryType type, char *edgeRel, char *outRel)
 {
     RpqToDatalogContext *c;

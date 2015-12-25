@@ -99,6 +99,7 @@ static boolean equalDLComparison (DLComparison *a, DLComparison *b);
 
 // equal functions for regex model
 static boolean equalRegex (Regex *a, Regex *b);
+static boolean equalRPQQuery (RPQQuery *a, RPQQuery *b);
 
 /* use these macros to compare fields */
 
@@ -203,6 +204,16 @@ equalRegex (Regex *a, Regex *b)
     return TRUE;
 }
 
+static boolean
+equalRPQQuery (RPQQuery *a, RPQQuery *b)
+{
+    COMPARE_NODE_FIELD(q);
+    COMPARE_SCALAR_FIELD(t);
+    COMPARE_STRING_FIELD(edgeRel);
+    COMPARE_STRING_FIELD(resultRel);
+
+    return TRUE;
+}
 
 /* */
 static boolean
@@ -1177,6 +1188,9 @@ equal(void *a, void *b)
             break;
         case T_Regex:
             retval = equalRegex(a,b);
+            break;
+        case T_RPQQuery:
+            retval = equalRPQQuery(a,b);
             break;
         default:
             retval = FALSE;

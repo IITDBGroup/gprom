@@ -128,6 +128,7 @@ static DLProgram *copyDLProgram(DLProgram *from, OperatorMap **opMap);
 
 /* copy regex elements */
 static Regex *copyRegex(Regex *from, OperatorMap **opMap);
+static RPQQuery *copyRPQQuery(RPQQuery *from, OperatorMap **opMap);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -314,6 +315,19 @@ copyRegex(Regex *from, OperatorMap **opMap)
     COPY_NODE_FIELD(children);
     COPY_SCALAR_FIELD(opType);
     COPY_STRING_FIELD(label);
+
+    return new;
+}
+
+static RPQQuery *
+copyRPQQuery(RPQQuery *from, OperatorMap **opMap)
+{
+    COPY_INIT(RPQQuery);
+
+    COPY_NODE_FIELD(q);
+    COPY_SCALAR_FIELD(t);
+    COPY_STRING_FIELD(edgeRel);
+    COPY_STRING_FIELD(resultRel);
 
     return new;
 }
@@ -1169,6 +1183,9 @@ copyInternal(void *from, OperatorMap **opMap)
         	break;
         case T_Regex:
             retval = copyRegex(from, opMap);
+            break;
+        case T_RPQQuery:
+            retval = copyRPQQuery(from, opMap);
             break;
         default:
             retval = NULL;

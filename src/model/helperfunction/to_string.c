@@ -96,8 +96,9 @@ static void outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node);
 static void outJsonTableOperator(StringInfo str, JsonTableOperator *node);
 static void outJsonPath(StringInfo str, JsonPath *node);
 
-// regex
+// regex and RPQ
 static void outRegex(StringInfo str, Regex *node);
+static void outRPQQuery(StringInfo str, RPQQuery *node);
 
 // datalog model
 static void outDLAtom(StringInfo str, DLAtom *node);
@@ -973,6 +974,17 @@ outRegex(StringInfo str, Regex *node)
     WRITE_STRING_FIELD(label);
 }
 
+static void
+outRPQQuery(StringInfo str, RPQQuery *node)
+{
+    WRITE_NODE_TYPE(RPQQUERY);
+
+    WRITE_NODE_FIELD(q);
+    WRITE_ENUM_FIELD(t,RPQQueryType);
+    WRITE_STRING_FIELD(edgeRel);
+    WRITE_STRING_FIELD(resultRel);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1173,6 +1185,9 @@ outNode(StringInfo str, void *obj)
             	break;
             case T_Regex:
                 outRegex(str, (Regex *) obj);
+                break;
+            case T_RPQQuery:
+                outRPQQuery(str, (RPQQuery *) obj);
                 break;
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
