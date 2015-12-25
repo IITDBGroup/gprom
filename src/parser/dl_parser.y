@@ -5,7 +5,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/datalog/datalog_model.h"
-#include "model/model/rpq/rpq_model.h"
+#include "model/rpq/rpq_model.h"
 #include "model/query_block/query_block.h"
 #include "parser/parse_internal_dl.h"
 #include "log/logger.h"
@@ -55,7 +55,7 @@ Node *dlParseResult = NULL;
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP
+%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -84,7 +84,7 @@ Node *dlParseResult = NULL;
 %type <list> stmtList
 %type <node> statement program
 
-%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatment
+%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement
 %type <node> variable constant expression functionCall binaryOperatorExpression 
 %type <list> bodyAtomList argList exprList rulebody 
 
@@ -127,7 +127,7 @@ stmtList:
  *  - facts, e.g., R(1,2);
  * 	- answer relation declarations, e.g., ANS : Q;
  * 	- provenance requests, e.g., WHY(Q(1));
- *  - RPQ requests, e.g., RPQ('a*.b', RESULT, edge, result)
+ *  - RPQ requests, e.g., RPQ('a*.b', typeOfResult, edge, result)
  */
 statement:
 		rule { RULELOG("statement::rule"); $$ = $1; }
@@ -138,10 +138,10 @@ statement:
 	;
 
 rpqStatement:
-		RPQ '( stringConst ',' IDENT ',' IDENT ',' IDENT ')'
+		RPQ '(' stringConst ',' IDENT ',' IDENT ',' IDENT ')'
 		{
 			RULELOG("rpqStatement");
-			$$ = makeRPQQuery($3, $5, $7, $8);
+			$$ = makeRPQQuery($3, $5, $7, $9);
 		}
 	;
 	
