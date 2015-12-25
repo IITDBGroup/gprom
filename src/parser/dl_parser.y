@@ -138,7 +138,7 @@ statement:
 	;
 
 rpqStatement:
-		RPQ '(' stringConst ',' IDENT ',' IDENT ',' IDENT ')'
+		RPQ '(' stringConst ',' VARIDENT ',' VARIDENT ',' VARIDENT ')' '.'
 		{
 			RULELOG("rpqStatement");
 			$$ = makeRPQQuery($3, $5, $7, $9);

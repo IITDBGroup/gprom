@@ -14,5 +14,6 @@
 #include "model/rpq/rpq_model.h"
 
 extern Node *rpqToDatalog(Regex *rpq, RPQQueryType type, char *edgeRel, char *outRel);
+extern Node *rpqQueryToDatalog(RPQQuery *q);
 
 #endif /* INCLUDE_RPQ_RPQ_TO_DATALOG_H_ */

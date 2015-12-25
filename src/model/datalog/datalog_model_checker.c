@@ -92,7 +92,7 @@ checkDLProgram (DLProgram *p)
                 if (DL_HAS_PROP(at, DL_IS_IDB_REL)
                         && !hasSetElem(idbRels, at->rel))
                 {
-                    FATAL_LOG("arity of rel %s was supposed to be %u in rul:\n%s",
+                    FATAL_LOG("arity of rel %s was supposed to be %u in rule:\n%s",
                             at->rel, arity, datalogToOverviewString((Node *) r));
                     return FALSE;
                 }
@@ -101,7 +101,7 @@ checkDLProgram (DLProgram *p)
                 arity = INT_VALUE(MAP_GET_STRING(relArities, at->rel));
                 if (arity != LIST_LENGTH(at->args))
                 {
-                    FATAL_LOG("arity of rel %s was supposed to be %u in rul:\n%s",
+                    FATAL_LOG("arity of rel %s was supposed to be %u in rule:\n%s",
                             at->rel, arity, datalogToOverviewString((Node *) r));
                     return FALSE;
                 }
@@ -128,19 +128,18 @@ checkDLProgram (DLProgram *p)
 static boolean
 checkDLRule (DLRule *r)
 {
-    Set *headV = makeStrSetFromList(getVarNames(getHeadVars(r)));
-    Set *allV = makeStrSetFromList(getVarNames(getBodyVars(r)));
-
-    // check that head vars appear in body
-    FOREACH_SET(char,v,headV)
-        if(!hasSetElem(allV,v))
-        {
-            FATAL_LOG("did not find head var %s in body of rule:\n%s", v,
-                    datalogToOverviewString((Node *) r));
-        }
+//    Set *headV = makeStrSetFromList(getVarNames(getHeadVars(r)));
+//    Set *allV = makeStrSetFromList(getVarNames(getBodyVars(r)));
+//
+//    // check that head vars appear in body
+//    FOREACH_SET(char,v,headV)
+//        if(!hasSetElem(allV,v))
+//        {
+//            FATAL_LOG("did not find head var %s in body of rule:\n%s", v,
+//                    datalogToOverviewString((Node *) r));
+//        }
 
     return checkDLRuleSafety(r);
-//    return TRUE;
 }
 
 boolean
@@ -148,6 +147,7 @@ checkDLRuleSafety (DLRule *r)
 {
     Set *posVars = STRSET();
 
+    // gather variables used in positive relation atoms
     FOREACH(DLNode,d,r->body)
     {
          if (isA(d,DLAtom) && !((DLAtom *) d)->negated)
@@ -165,6 +165,7 @@ checkDLRuleSafety (DLRule *r)
 
     }
 
+    // check that variables in negated atoms are also occur in positive atoms
     FOREACH(DLNode,d,r->body)
     {
         if (isA(d,DLAtom) && ((DLAtom *) d)->negated)
@@ -176,8 +177,53 @@ checkDLRuleSafety (DLRule *r)
                 {
                     DLVar *v = (DLVar *) n;
                     if(!hasSetElem(posVars, v->name))
+                    {
+                        ERROR_LOG("Unsafe rule. Variable %s is only used in "
+                                "negated subgoal in rule:\n%s",
+                                v->name,
+                                datalogToOverviewString((Node *) r));
                         return FALSE;
+                    }
                 }
+            }
+        }
+    }
+
+    // check that vars used in comparison atoms are also occur in positive atoms
+    FOREACH(DLNode,d,r->body)
+    {
+        if (isA(d,DLComparison))
+        {
+            DLComparison *a = (DLComparison *) d;
+            List *vars = getDLVarsIgnoreProps((Node *) a->opExpr);
+            FOREACH(DLVar,v,vars)
+            {
+                if(!hasSetElem(posVars, v->name))
+                {
+                    ERROR_LOG("Unsafe rule. Variable %s is used in comparison atom "
+                            "but not in positive subgoal in rule:\n%s",
+                            v->name,
+                            datalogToOverviewString((Node *) r));
+                    return FALSE;
+                }
+            }
+        }
+    }
+
+    // check that head is safe
+    DLAtom *a = (DLAtom *) r->head;
+    FOREACH(Node,n,a->args)
+    {
+        List *vars = getDLVarsIgnoreProps(n);
+        FOREACH(DLVar,v,vars)
+        {
+            if(!hasSetElem(posVars, v->name))
+            {
+                ERROR_LOG("Unsafe rule. Variable %s is used in head atom "
+                        "but not in positive subgoal in rule:\n%s",
+                        v->name,
+                        datalogToOverviewString((Node *) r));
+                return FALSE;
             }
         }
     }

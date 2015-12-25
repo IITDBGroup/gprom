@@ -21,12 +21,13 @@
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
 #include "model/datalog/datalog_model_checker.h"
-
+#include "model/rpq/rpq_model.h"
+#include "rpq/rpq_to_datalog.h"
 
 static void analyzeDLProgram (DLProgram *p);
 static void analyzeRule (DLRule *r, Set *idbRels, Set *edbRels);
 static void analyzeProv (DLProgram *p, KeyValue *kv);
-static boolean checkHeadSafety (DLRule *r);
+static List * analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules);
 static boolean checkFact (DLAtom *f);
 
 
@@ -79,6 +80,24 @@ analyzeDLProgram (DLProgram *p)
 //    HashMap *relToRule = (HashMap *) getDLProp((DLNode *) p, DL_MAP_RELNAME_TO_RULES);
     List *rules = NIL;
     List *facts = NIL;
+    List *rpqRules = NIL;
+
+    // expand RPQ queries
+    FOREACH(Node,r,p->rules)
+    {
+        if(isA(r,RPQQuery))
+        {
+            List *newRules;
+            newRules = analyzeAndExpandRPQ ((RPQQuery *) r, &rpqRules);
+            rpqRules = CONCAT_LISTS(rpqRules, newRules);
+        }
+        else
+        {
+            rpqRules = appendToTailOfList(rpqRules, r);
+        }
+    }
+    p->rules = CONCAT_LISTS(rpqRules);
+
 
     createRelToRuleMap((Node *) p);
     //TODO infer data types for idb predicates
@@ -163,11 +182,17 @@ analyzeRule (DLRule *r, Set *idbRels, Set *edbRels)
 {
 //    HashMap *varToPredMapping;
 
-    if (!checkHeadSafety(r))
-        FATAL_LOG("head predicate is not safe: %s",
-                datalogToOverviewString((Node *) r));
+//    // check safety
+    if (!checkDLRuleSafety(r))
+        FATAL_LOG("rule is not safe: %s",
+                        datalogToOverviewString((Node *) r));
+
+    //    if (!checkHeadSafety(r))
+//        FATAL_LOG("head predicate is not safe: %s",
+//                datalogToOverviewString((Node *) r));
 
     // check that head predicate is not a edb relation
+
 
     // check body
     FOREACH(Node,a,r->body)
@@ -190,7 +215,7 @@ analyzeRule (DLRule *r, Set *idbRels, Set *edbRels)
         }
         if (isA(a, DLComparison))
         {
-
+            // check DTs
         }
     }
 }
@@ -210,27 +235,9 @@ checkFact (DLAtom *f)
     return TRUE;
 }
 
-/*
- * Check whether all head variables occur in the body
- */
-static boolean
-checkHeadSafety (DLRule *r)
+static List *
+analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules)
 {
-    DLAtom *h = r->head;
-    List *headVars = getDLVarsIgnoreProps((Node *) h);
-    Set *bodyVars = makeNodeSetFromList(getBodyPredVars(r));
-
-    // foreach variable
-    FOREACH(Node,n,headVars)
-    {
-        if (isA(n, DLVar))
-        {
-            if(!hasSetElem(bodyVars,n))
-                return FALSE;
-        }
-        else
-            FATAL_LOG("for now only variables accepted in the head");
-    }
-
-    return TRUE;
+    DLProgram *rpqP = (DLProgram *) rpqQueryToDatalog(q);
+    return rpqP->rules;
 }
