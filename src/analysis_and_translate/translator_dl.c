@@ -752,6 +752,16 @@ createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTm
     FOREACH(DLComparison,d,comparisons)
     {
         Node *newC = replaceVarWithAttrRef(copyObject(d->opExpr), attrNames);
+        Node *leftIn = getNthOfListP(d->opExpr->args,0);
+        Node *rightIn = getNthOfListP(d->opExpr->args,1);
+
+        if (isA(rightIn,Constant) && (CONST_IS_NULL(rightIn)))
+        {
+            if (streq(d->opExpr->name,"="))
+                newC = (Node *) createIsNullExpr(leftIn);
+            else if (streq(d->opExpr->name,"!="))
+                newC = (Node *) createOpExpr("NOT", singleton(createIsNullExpr(leftIn)));
+        }
 
         if (result == NULL)
             result = newC;
