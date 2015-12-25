@@ -7,8 +7,6 @@
  *
  **************************************/
 
-#include <string.h>
-
 #include "common.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "mem_manager/mem_mgr.h"
@@ -22,6 +20,7 @@
 #include "model/query_block/query_block.h"
 #include "model/datalog/datalog_model.h"
 #include "model/query_operator/query_operator.h"
+#include "model/rpq/rpq_model.h"
 
 /* data structures for copying operator nodes */
 typedef struct OperatorMap
@@ -126,6 +125,9 @@ static DLVar *copyDLVar(DLVar *from, OperatorMap **opMap);
 static DLComparison *copyDLComparison(DLComparison *from, OperatorMap **opMap);
 static DLRule *copyDLRule(DLRule *from, OperatorMap **opMap);
 static DLProgram *copyDLProgram(DLProgram *from, OperatorMap **opMap);
+
+/* copy regex elements */
+static Regex *copyRegex(Regex *from, OperatorMap **opMap);
 
 /*use the Macros(the varibles are 'new' and 'from')*/
 
@@ -300,6 +302,18 @@ copyDLProgram(DLProgram *from, OperatorMap **opMap)
     COPY_NODE_FIELD(facts);
     COPY_STRING_FIELD(ans);
     COPY_NODE_FIELD(n.properties);
+
+    return new;
+}
+
+static Regex *
+copyRegex(Regex *from, OperatorMap **opMap)
+{
+    COPY_INIT(Regex);
+
+    COPY_NODE_FIELD(children);
+    COPY_SCALAR_FIELD(opType);
+    COPY_STRING_FIELD(label);
 
     return new;
 }
@@ -1153,6 +1167,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_JsonPath:
         	retval = copyJsonPath(from, opMap);
         	break;
+        case T_Regex:
+            retval = copyRegex(from, opMap);
+            break;
         default:
             retval = NULL;
             break;

@@ -1114,7 +1114,7 @@ oracleGetCostEstimation(char *query)
     {
 	while(OCI_FetchNext(rs1))
         {
-            cost = (unsigned long long int) OCI_GetBigInt(rs1,1);
+            cost = (unsigned long long int) OCI_GetUnsignedBigInt(rs1,1);
             DEBUG_LOG("Cost is : %u \n", cost);
             break;
         }

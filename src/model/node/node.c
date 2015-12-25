@@ -241,6 +241,30 @@ prependStringInfo (StringInfo str, const char *format, ...)
     FREE(temp);
 }
 
+void
+removeTailingStringInfo(StringInfo str, int numChars)
+{
+    if (str->len < numChars)
+        FATAL_LOG("trying to remove %u chars from stringinfo of length %u", numChars, str->len);
+    str->len -= numChars;
+    str->data[str->len] = '\0';
+}
+
+void
+replaceStringInfo(StringInfo str, int start, char *repl)
+{
+    int numNeeded = start + strlen(repl) - str->len;
+    if (numNeeded > 0)
+    {
+        makeStringInfoSpace(str,numNeeded);
+        str->len += numNeeded;
+        str->data[str->len] = '\0';
+    }
+    for(int i = 0; i < strlen(repl); i++)
+    {
+        str->data[start + i] = repl[i];
+    }
+}
 
 /*
  * Make sure that a string info has enough space to be enlarged by additional

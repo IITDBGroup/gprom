@@ -41,7 +41,6 @@ static Node *createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, Li
 static List *getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs);
 static Node *replaceDLVarMutator (Node *node, HashMap *vToA);
 static Node *createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTmap);
-static void makeNamesUnique (List *names, Set *allNames);
 static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
 static void adaptProjectionAttrRef (QueryOperator *o);
 
@@ -729,28 +728,7 @@ createJoinCondOnCommonAttrs (QueryOperator *l, QueryOperator *r, List *leftOrigA
     return result;
 }
 
-static void
-makeNamesUnique (List *names, Set *allNames)
-{
-    HashMap *nCount = NEW_MAP(Constant,Constant);
 
-    FOREACH_LC(lc,names)
-    {
-        char *oldName = LC_P_VAL(lc);
-        char *newName = oldName;
-        int count = MAP_INCR_STRING_KEY(nCount,oldName);
-
-        if (count != 0)
-        {
-            // create a new unique name
-            newName = CONCAT_STRINGS(oldName, itoa(count));
-            while(hasSetElem(allNames, newName))
-                newName = CONCAT_STRINGS(oldName, itoa(++count));
-        }
-
-        LC_P_VAL(lc) = newName;
-    }
-}
 
 /*
  *

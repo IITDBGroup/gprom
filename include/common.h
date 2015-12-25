@@ -84,6 +84,11 @@
 #include <signal.h>
 #endif
 
+/* pthread */
+#if HAVE_PTHREAD_H
+#include <pthread.h>
+#endif
+
 /* unistd handler */
 #if HAVE_UNISTD_H
 #include <unistd.h>
@@ -179,6 +184,8 @@
 #define ASSERT_BARRIER(code) code
 #endif
 
-
+// min and max
+#define MIN(x,y) (x < y ? x : y)
+#define MAX(x,y) (x > y ? x : y)
 
 #endif /* COMMON_H */

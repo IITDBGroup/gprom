@@ -13,6 +13,7 @@
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
+#include "model/list/list.h"
 #include "utility/string_utils.h"
 #include <regex.h>
 #include "model/node/nodetype.h"
@@ -41,6 +42,28 @@ getMatchingSubstring(const char *string, const char *pattern)
     result[length] = '\0';
 
     TRACE_LOG("matched <%s> string <%s> with result <%s>", pattern, string, result);
+
+    return result;
+}
+
+List *
+splitString(char *str, const char *delim)
+{
+    char* token;
+//    char **pos = &str;
+    List *result = NIL;
+
+    if (str == NULL)
+        return NIL;
+    while ((token = strsep(&str, ",")) != NULL)
+        result = appendToTailOfList(result, strdup(token));
+//    token = strsep(str, delim, pos);
+//
+//    while (token)
+//    {
+//
+//        token = strtok_r(str, delim, pos);
+//    }
 
     return result;
 }
@@ -112,6 +135,23 @@ isPrefix(char *str, char *prefix)
     while(*prefix != '\0' && *prefix++ == *str++)
         ;
     return *prefix == '\0';
+}
+
+char *
+specializeTemplate(char *template, List *args)
+{
+    int i = 1;
+    char *result = strdup(template);
+
+    FOREACH(char,arg,args)
+    {
+        char *var = CONCAT_STRINGS("$",itoa(i));
+
+        result = replaceSubstr(result,var,arg);
+        i++;
+    }
+
+    return result;
 }
 
 int

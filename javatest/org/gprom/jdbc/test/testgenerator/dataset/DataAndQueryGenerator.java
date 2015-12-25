@@ -7,11 +7,14 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.InvalidPropertiesFormatException;
+import java.util.List;
 import java.util.Properties;
 import java.util.Vector;
-import java.util.logging.Logger;
 
+import org.apache.log4j.Logger;
 import org.dbunit.dataset.DataSetException;
 import org.dbunit.dataset.ITable;
 import org.dbunit.dataset.xml.XmlDataSet;
@@ -44,6 +47,30 @@ public class DataAndQueryGenerator {
 	
 	public DataAndQueryGenerator (Properties properties) {
 		this.properties = properties;
+	}
+	
+	public Properties getOptions () {
+		String props = properties.getProperty("options");
+		String[] lines;
+		Properties result;
+		
+		if (props == null)
+			return null;
+		
+		if(props == null || props.equals("")) {
+			return null;
+		}
+		
+		result = new Properties();		
+		props = props.replaceAll("\\n", "");
+		
+		lines = props.split(",");  
+		
+		for (int i = 0; i < lines.length; i++) {
+			result.setProperty(lines[i].split("=")[0], lines[i].split("=")[1]);
+		}
+		
+		return result;
 	}
 	
 	public ITable getExpectedResult (String key) throws DataSetException, IOException {
@@ -162,10 +189,10 @@ public class DataAndQueryGenerator {
 		result.append(header);
 		
 		/* split lines */
-		lines = resultSet.split("\n");
+		lines = removeEmptyLines(resultSet.split("\n"));
 		
 		/* get columns */
-		columns = lines[1].split("\\|");
+		columns = lines[0].split("\\|");
 		numColumns = columns.length;
 		
 		/* output columns */
@@ -174,7 +201,7 @@ public class DataAndQueryGenerator {
 		}
 		
 		/* get lines and output them */
-		for (int i = 3; i < lines.length; i++) {
+		for (int i = 2; i < lines.length; i++) {
 			rows = lines[i].split("\\|");
 			
 			/* replace escapted '|' characters */
@@ -185,7 +212,7 @@ public class DataAndQueryGenerator {
 			result.append("\t\t<row>\n\t\t\t");
 			
 			for (int j = 0; j < rows.length; j++) {
-				if (rows[j].trim().equals("")) {
+				if (rows[j].trim().equals("(null)")) {
 					result.append("<null></null>");
 				}
 				else if (rows[j].trim().equals("EMPTYSTRING")) {
@@ -208,6 +235,22 @@ public class DataAndQueryGenerator {
 		//System.out.println(result.toString());
 		
 		return result.toString();
+	}
+	
+	protected String[] removeEmptyLines(String[] in) {
+		String[] result;
+		List<String> buf = new ArrayList<String> ();
+		
+		for(String line: in) {
+			if (!line.trim().equals(""))
+				buf.add(line.trim());
+		}
+		
+		result = buf.toArray(new String[] {} );
+		
+		log.debug("after remove strings: " + Arrays.toString(result));
+		
+		return result;
 	}
 	
 	public int getNumTest () {

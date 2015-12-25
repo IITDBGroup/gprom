@@ -5,6 +5,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/datalog/datalog_model.h"
+#include "model/model/rpq/rpq_model.h"
 #include "model/query_block/query_block.h"
 #include "parser/parse_internal_dl.h"
 #include "log/logger.h"
@@ -83,7 +84,7 @@ Node *dlParseResult = NULL;
 %type <list> stmtList
 %type <node> statement program
 
-%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement
+%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatment
 %type <node> variable constant expression functionCall binaryOperatorExpression 
 %type <list> bodyAtomList argList exprList rulebody 
 
@@ -126,12 +127,22 @@ stmtList:
  *  - facts, e.g., R(1,2);
  * 	- answer relation declarations, e.g., ANS : Q;
  * 	- provenance requests, e.g., WHY(Q(1));
+ *  - RPQ requests, e.g., RPQ('a*.b', RESULT, edge, result)
  */
 statement:
 		rule { RULELOG("statement::rule"); $$ = $1; }
 		| fact { RULELOG("statement::fact"); $$ = $1; }
 		| ansrelation { RULELOG("statement::ansrelation"); $$ = $1; }
 		| provStatement { RULELOG("statement::prov"); $$ = $1; }
+		| rpqStatement { RULELOG("statement::rpq"); $$ = $1; }
+	;
+
+rpqStatement:
+		RPQ '( stringConst ',' IDENT ',' IDENT ',' IDENT ')'
+		{
+			RULELOG("rpqStatement");
+			$$ = makeRPQQuery($3, $5, $7, $8);
+		}
 	;
 	
 provStatement:

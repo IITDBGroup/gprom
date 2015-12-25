@@ -37,3 +37,4 @@ jdbcbuild/
 depcache
 build
 autotests
+valgrind.txt

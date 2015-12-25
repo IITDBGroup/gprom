@@ -29,6 +29,7 @@ extern void gprom_init(void);
 extern void gprom_readOptions(int argc, char *const args[]);
 extern void gprom_readOptionAndInit(int argc, char *const args[]);
 extern void gprom_configFromOptions(void);
+extern void gprom_reconfPlugins(void);
 extern void gprom_shutdown(void);
 
 // process an input query
@@ -74,9 +75,9 @@ typedef struct GProMMetadataLookupPlugin
     /* catalog lookup */
     boolean (*catalogTableExists) (char * tableName);
     boolean (*catalogViewExists) (char * viewName);
-    char ** (*getKeyInformation) (char *tableName);
-    void (*getAttributes) (char *tableName, char ***attrs, char ***dataTypes, int *numArgs);
-    void (*getAttributeNames) (char *tableName, char ***attrs, int *numArgs);
+    char * (*getKeyInformation) (char *tableName);
+    char * (*getDataTypes) (char *tableName);
+    char * (*getAttributeNames) (char *tableName);
     char * (*getAttributeDefaultVal) (char *schema, char *tableName, char *attrName);
 
     boolean (*isAgg) (char *functionName);

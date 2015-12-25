@@ -120,6 +120,7 @@ extern Set *intersectSets (Set *left, Set *right);
 extern Set *setDifference(Set *left, Set *right);
 
 extern boolean overlapsSet(Set *left, Set *right);
+extern boolean containsSet(Set *left, Set *right);
 
 extern int setSize (Set *set);
 #define EMPTY_SET(set) (setSize(set) == 0)

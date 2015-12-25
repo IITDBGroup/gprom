@@ -133,6 +133,7 @@ strconcat		"||"
 (?i:LEFT)        	TOK(LEFT)
 (?i:RIGHT)        	TOK(RIGHT)
 (?i:OUTER)        	TOK(OUTER)
+(?i:FULL)			TOK(FULL)
 (?i:INNER)        	TOK(INNER)
 (?i:NATURAL)		TOK(NATURAL)
 (?i:USING)        	TOK(USING)
@@ -199,6 +200,7 @@ strconcat		"||"
 (?i:ANNOTATIONS)	TOK(ANNOTATIONS)
 (?i:NO)				TOK(NO)
 (?i:CAST)			TOK(CAST)
+
 
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)

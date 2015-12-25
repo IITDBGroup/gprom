@@ -20,6 +20,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/datalog/datalog_model.h"
+#include "model/rpq/rpq_model.h"
 #include "utility/string_utils.h"
 
 /* functions to output specific node types */
@@ -94,6 +95,9 @@ static void outFromJsonTable(StringInfo str, FromJsonTable *node);
 static void outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node);
 static void outJsonTableOperator(StringInfo str, JsonTableOperator *node);
 static void outJsonPath(StringInfo str, JsonPath *node);
+
+// regex
+static void outRegex(StringInfo str, Regex *node);
 
 // datalog model
 static void outDLAtom(StringInfo str, DLAtom *node);
@@ -959,6 +963,16 @@ outJsonPath(StringInfo str, JsonPath *node)
 	 WRITE_STRING_FIELD(path);
 }
 
+static void
+outRegex(StringInfo str, Regex *node)
+{
+    WRITE_NODE_TYPE(REGEX);
+
+    WRITE_NODE_FIELD(children);
+    WRITE_ENUM_FIELD(opType,RegexOpType);
+    WRITE_STRING_FIELD(label);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1157,6 +1171,9 @@ outNode(StringInfo str, void *obj)
             case T_JsonPath:
             	outJsonPath(str, (JsonPath *) obj);
             	break;
+            case T_Regex:
+                outRegex(str, (Regex *) obj);
+                break;
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);

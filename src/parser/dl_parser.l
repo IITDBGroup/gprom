@@ -108,6 +108,7 @@ ANS			"ANS"
 WHY			"WHY"
 WHYNOT		"WHYNOT"
 GP			"GP"
+RPQ			"RPQ"
 
 /* LITERAL ONES */
 
@@ -126,6 +127,7 @@ GP			"GP"
 {GP}		TOK(GP)
 {WHY}		TOK(WHYPROV)
 {WHYNOT}	TOK(WHYNOTPROV)
+{RPQ}		TOK(RPQ)
 
 	/* aggregation functions */
 (?i:AVG)	TOK(AMMSC)

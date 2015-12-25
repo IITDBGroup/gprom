@@ -93,7 +93,7 @@ testSuites(void)
 {
     RUN_TEST(testLogger(), "Logger test.");
     RUN_TEST(testMemManager(), "Memory manager test.");
-    RUN_TEST(testException(), "Exception handling.");
+//    RUN_TEST(testException(), "Exception handling.");
     RUN_TEST(testList(), "List model.");
     RUN_TEST(testSet(), "Set.");
     RUN_TEST(testVector(), "Vector.");
@@ -111,6 +111,7 @@ testSuites(void)
     RUN_TEST(testDatalogModel(), "Test datalog model features");
     RUN_TEST(testHash(), "Test hash computation for nodes");
     RUN_TEST(testLibGProM(), "Test gprom dynamic link library");
+    RUN_TEST(testRPQ(), "Test regular path query features");
 
     printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
             "Total %d Test(s) Passed\n\n", test_count);

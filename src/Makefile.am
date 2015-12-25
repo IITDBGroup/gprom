@@ -15,10 +15,12 @@ SUBDIRS = configuration 		\
 		metadata_lookup 		\
 		operator_optimizer 		\
 		execution				\
+		rpq						\
 		. 						\
 		command_line			\
 		libgprom				\
-		interfaces
+		interfaces				
+		
 
 noinst_LTLIBRARIES 		= libsrc.la
 libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
@@ -34,6 +36,7 @@ libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
 						operator_optimizer/liboperator_optimizer.la \
 						instrumentation/libinstrumentation.la \
 						execution/libexecution.la \
-						utility/libutils.la
+						utility/libutils.la \
+						rpq/librpq.la
 
 libsrc_la_SOURCES 		= rewriter.c

@@ -6,12 +6,14 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Properties;
 
 import org.apache.log4j.Logger;
 import org.dbunit.database.IDatabaseConnection;
 import org.postgresql.util.PSQLException;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriver;
+import org.gprom.jdbc.driver.GProMDriverProperties;
 import org.gprom.jdbc.utility.LoggerUtil;
 
 public class ConnectionManager {
@@ -69,7 +71,11 @@ public class ConnectionManager {
 		loadBackendDriver();
 		
 		try {
-			con = DriverManager.getConnection(constructURL());
+			Properties props = new Properties();
+			props.setProperty("user", ConnectionOptions.getInstance().getUser());
+			props.setProperty("password", ConnectionOptions.getInstance().getPassword());
+			props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "true");
+			con = DriverManager.getConnection(constructURL(), props);
 		}
 		catch (PSQLException e) {
 			con = null;
@@ -81,9 +87,11 @@ public class ConnectionManager {
 					e1.printStackTrace();
 				}
 				try {
-					con = DriverManager.getConnection(constructURL() 
-							, ConnectionOptions.getInstance().getUser(), 
-							ConnectionOptions.getInstance().getPassword());
+					Properties props = new Properties();
+					props.setProperty("user", ConnectionOptions.getInstance().getUser());
+					props.setProperty("password", ConnectionOptions.getInstance().getPassword());
+					props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "true");
+					con = DriverManager.getConnection(constructURL(), props);
 				}
 				catch (Exception e2) {
 					con = null;
@@ -140,7 +148,13 @@ public class ConnectionManager {
 			case HSQL:
 				break;
 			case Oracle:
-				st.execute("SELECT 1 from dual;");
+			{
+				String parser = gCon.getW().getStringOption("plugin.parser");
+				if (parser.equals("oracle"))
+					st.execute("SELECT 1 from dual;");
+				else if (parser.equals("dl"))
+					st.execute("Q(X) :- dual(X).");
+			}
 				break;
 			case Postgres:
 				break;

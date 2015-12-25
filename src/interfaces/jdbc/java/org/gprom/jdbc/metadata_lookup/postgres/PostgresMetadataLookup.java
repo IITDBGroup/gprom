@@ -2,14 +2,9 @@ package org.gprom.jdbc.metadata_lookup.postgres;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
 
 import org.apache.log4j.Logger;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.databaseConnectionClose_callback;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin.databaseConnectionOpen_callback;
 import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
-import org.gprom.jdbc.utility.LoggerUtil;
 
 
 public class PostgresMetadataLookup extends AbstractMetadataLookup {
@@ -23,7 +18,7 @@ public class PostgresMetadataLookup extends AbstractMetadataLookup {
 	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#getOpReturnType(java.lang.String, java.lang.String[], int)
 	 */
 	@Override
-	protected String getOpReturnType(String oName, String[] stringArray,
+	public String getOpReturnType(String oName, String[] stringArray,
 			int numArgs) {
 		// TODO Auto-generated method stub
 		return null;
@@ -33,7 +28,7 @@ public class PostgresMetadataLookup extends AbstractMetadataLookup {
 	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#getViewDefinition(java.lang.String)
 	 */
 	@Override
-	protected String getViewDefinition(String viewName) {
+	public String getViewDefinition(String viewName) {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -42,7 +37,7 @@ public class PostgresMetadataLookup extends AbstractMetadataLookup {
 	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#getTableDef(java.lang.String)
 	 */
 	@Override
-	protected String getTableDef(String tableName) {
+	public String getTableDef(String tableName) {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -51,7 +46,7 @@ public class PostgresMetadataLookup extends AbstractMetadataLookup {
 	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#isWindow(java.lang.String)
 	 */
 	@Override
-	protected int isWindow(String functionName) {
+	public int isWindow(String functionName) {
 		// TODO Auto-generated method stub
 		return 0;
 	}
@@ -60,7 +55,7 @@ public class PostgresMetadataLookup extends AbstractMetadataLookup {
 	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#isAgg(java.lang.String)
 	 */
 	@Override
-	protected int isAgg(String functionName) {
+	public int isAgg(String functionName) {
 		// TODO Auto-generated method stub
 		return 0;
 	}

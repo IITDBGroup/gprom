@@ -133,8 +133,9 @@
             	<attribute name="Class-Path" value="
             									lib/postgresql-8.1-404.jdbc3.jar
             									lib/log4j-1.2.15.jar
-            									lib/jna-platform-4.1.0.jar
-            									lib/log4j-1.2.15.jar
+            									lib/jna-4.1.0.jar
+            									lib/ojdbc7.jar
+            									lib/sqlist-jdbc-3.8.10.1.jar
             									lib/
             								" />
             </manifest>

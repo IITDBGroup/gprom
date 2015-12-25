@@ -816,7 +816,7 @@ valGetString(OptionValue *def, OptionType type)
             return buf;
         }
     }
-
+    FATAL_LOG("should never end up here");
     return NULL; //keep compiler quit
 }
 

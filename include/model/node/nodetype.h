@@ -88,7 +88,11 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_JsonPath,
 			
     /* relation */
-    T_Relation
+    T_Relation,
+
+    /* rpq */
+    T_Regex,
+    T_RPQQuery
 );
 
 typedef struct Node{
@@ -170,6 +174,8 @@ extern void appendStringInfoChar(StringInfo str, char ch);
 extern void appendBinaryStringInfo(StringInfo str, const char *data, int datalen);
 extern void prependStringInfo (StringInfo str, const char *format, ...);
 extern void enlargeStringInfo(StringInfo str, int needed);
+extern void removeTailingStringInfo(StringInfo str, int numChars);
+extern void replaceStringInfo(StringInfo str, int start, char *repl);
 #define STRINGLEN(_str) _str->len
 
 // node helpers

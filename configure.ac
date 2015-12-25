@@ -266,6 +266,7 @@ AC_CHECK_HEADERS([regex.h])
 AC_CHECK_HEADERS([setjmp.h])
 AC_CHECK_HEADERS([signal.h])
 AC_CHECK_HEADERS([float.h])
+AC_CHECK_HEADERS([pthread.h])
 AC_HEADER_ASSERT
 ################################################################################
 # MEMORY ALLOCATION STUFF
@@ -365,6 +366,7 @@ AC_CONFIG_FILES([
 	src/model/node/Makefile
 	src/model/query_block/Makefile
 	src/model/query_operator/Makefile
+	src/model/rpq/Makefile
 	src/model/set/Makefile
     src/operator_optimizer/Makefile
 	src/parser/Makefile
@@ -373,6 +375,7 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/pi_cs_rewrites/Makefile
 	src/provenance_rewriter/transformation_rewrites/Makefile
 	src/provenance_rewriter/update_and_transaction/Makefile
+	src/rpq/Makefile
 	src/sql_serializer/Makefile
 	src/utility/Makefile
 	src/libgprom/Makefile

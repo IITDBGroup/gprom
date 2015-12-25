@@ -11,12 +11,12 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 
 import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
 import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
+import static org.gprom.jdbc.driver.GProMDriverProperties.*;
 import org.gprom.jdbc.jna.GProMWrapper;
-import org.gprom.jdbc.jna.GProM_JNA.GProMMetadataLookupPlugin;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin;
 import org.gprom.jdbc.metadata_lookup.oracle.OracleMetadataLookup;
 import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
@@ -61,12 +61,12 @@ public class GProMDriver implements Driver {
 			return null;
 
 		/** should we load the backend driver or not */
-		boolean loadBackendDriver = info.containsKey(GProMDriverProperties.LOAD_DRIVER) 
-				? (Boolean) info.get(GProMDriverProperties.LOAD_DRIVER) 
-				: false;
-		boolean useJDBCMetadataLookup = info.containsKey(GProMDriverProperties.JDBC_METADATA_LOOKUP) 
-				? (Boolean) info.get(GProMDriverProperties.JDBC_METADATA_LOOKUP) 
-				: false; 
+		boolean loadBackendDriver = Boolean.parseBoolean(GProMDriverProperties.getValueOrDefault(
+				GProMDriverProperties.LOAD_DRIVER, info)); 
+				
+		/** should we use a Java JDBC based metadata lookup plugin */		
+		boolean useJDBCMetadataLookup = Boolean.parseBoolean(GProMDriverProperties.getValueOrDefault(
+				GProMDriverProperties.JDBC_METADATA_LOOKUP, info));
 		
 		/*
 		 * Load the driver to connect to the database and create a new

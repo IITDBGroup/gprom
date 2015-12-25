@@ -12,9 +12,10 @@
 
 #include "common.h"
 
-#include "model/list/list.h"
 #include "model/node/nodetype.h"
-//#include "model/query_operator/query_operator.h"
+#include "model/list/list.h"
+#include "model/set/set.h"
+#include "model/set/hashmap.h"
 #include "mem_manager/mem_mgr.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "log/logger.h"
@@ -355,6 +356,31 @@ findOperatorAttrRefs (QueryOperator *op)
     }
 
     return result;
+}
+
+void
+makeNamesUnique (List *names, Set *allNames)
+{
+    HashMap *nCount = NEW_MAP(Constant,Constant);
+    if (allNames == NULL)
+        allNames = STRSET();
+
+    FOREACH_LC(lc,names)
+    {
+        char *oldName = LC_P_VAL(lc);
+        char *newName = oldName;
+        int count = MAP_INCR_STRING_KEY(nCount,oldName);
+
+        if (count != 0)
+        {
+            // create a new unique name
+            newName = CONCAT_STRINGS(oldName, itoa(count));
+            while(hasSetElem(allNames, newName))
+                newName = CONCAT_STRINGS(oldName, itoa(++count));
+        }
+
+        LC_P_VAL(lc) = newName;
+    }
 }
 
 /*

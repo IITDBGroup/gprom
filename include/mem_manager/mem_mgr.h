@@ -163,6 +163,13 @@ extern Allocation *findAlloc(const MemContext *mc, const void *addr);
         FREE_IN_CONTEXT(oldC, _origStr); \
         return _resultStr; \
     } while(0)
+#define RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(_str,_cpy) \
+    do { \
+        char *_origStr = (char *) _str; \
+        MemContext *oldC = RELEASE_MEM_CONTEXT(); \
+        _cpy = strdup(_origStr); \
+        FREE_IN_CONTEXT(oldC, _origStr); \
+    } while(0)
 
 
 /*

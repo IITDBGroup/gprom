@@ -12,6 +12,7 @@
 #define PROV_UTILITY_H_
 
 #include "model/list/list.h"
+#include "model/set/set.h"
 #include "model/query_operator/query_operator.h"
 
 // schema manipulation
@@ -19,6 +20,8 @@ extern void clearAttrsFromSchema(QueryOperator *target);
 extern void addNormalAttrsToSchema(QueryOperator *target, QueryOperator *source);
 extern void addProvenanceAttrsToSchema(QueryOperator *target, QueryOperator *source);
 extern void addProvenanceAttrsToSchemabasedOnList(QueryOperator *target, List *provList);
+extern void makeNamesUnique (List *names, Set *allNames);
+
 
 // create projection expressions
 extern List *getProvAttrProjectionExprs(QueryOperator *op);

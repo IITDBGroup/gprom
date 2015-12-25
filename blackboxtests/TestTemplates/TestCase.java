@@ -27,6 +27,10 @@ public class NAME extends AbstractGProMTester {
 		setFile();
 	}
 	
+	protected void tearDown () throws Exception {
+		super.tearDown();
+	}
+	
     public void setFile () throws SQLException, Exception {
 		setGenerator("FILE");
 		OptionsManager.getInstance().setOptions (SETTING);
