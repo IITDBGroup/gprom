@@ -19,6 +19,7 @@
  */
 package de.jaret.examples.timebars.eventmonitoring.swing;
 
+import java.awt.Button;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
@@ -114,7 +115,13 @@ public class EventMonitoringControlPanel extends JPanel {
             }
         });
         add(optScrollingCheck);
-
+        Button startBt = new Button("StartTime");
+        add(startBt);
+        Button endBt = new Button("EndTime");
+        add(endBt);
+        Button searchBt = new Button("Filter");
+        add(searchBt);
+        
         final JCheckBox markerInDiagramAreaCheck = new JCheckBox("Allow Marker drag in DiagramArea");
         markerInDiagramAreaCheck.setSelected(_viewer.getMarkerDraggingInDiagramArea());
         markerInDiagramAreaCheck.addActionListener(new ActionListener() {

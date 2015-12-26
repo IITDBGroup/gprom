@@ -113,11 +113,11 @@ public class ModelCreator {
 		start.setDateTime(1, 1, 2009, 0, 0, 0);
 		JaretDate end = new JaretDate();
 		end.setDateTime(1, 2, 2009, 0, 0, 0);
+		//使用sql获取数据库信息
 		ResultSet resultSet = DBConnection.getData();
 
 		DefaultTimeBarModel model = new DefaultTimeBarModel();
 		TransactionNode node;
-		System.out.println("TESTsa萨迪罚款了数的加法卢卡斯的.................");
 
 		ArrayList<TransactionNode> nodes = new ArrayList<TransactionNode>();
 		try {
@@ -127,14 +127,14 @@ public class ModelCreator {
 //						.findColumn("SCN")),
 //						resultSet.getTimestamp("NTIMESTAMP#"));
 				
+				//添加需要的属性
+				//第一个属性找到sql对应的属性名  dbusername换sql对应属性
 				node = new TransactionNode(resultSet.getString(resultSet
-						.findColumn("DBUSERNAME")), resultSet.getInt(resultSet
+						.findColumn("SQL_TEXT")), resultSet.getInt(resultSet
 						.findColumn("SCN")),
 						resultSet.getTimestamp("EVENT_TIMESTAMP"));
 				
 				nodes.add(node);
-				// System.out.println("TESTsa萨迪罚款了数的加法卢卡斯的.................");
-//				System.out.println(resultSet.getTimestamp("EVENT_TIMESTAMP").toString());
 			}
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
@@ -145,19 +145,18 @@ public class ModelCreator {
 			DefaultRowHeader header = new DefaultRowHeader("SCN "
 					+ Integer.toString(nodes.get(i).getSCN()));
 			EventTimeBarRow row = new EventTimeBarRow(header);
+			
 			for (int j = i; j < nodes.size(); j++) {
 				if (nodes.get(i).getSCN() == nodes.get(j).getSCN()) {
-
 					start.setDateTime(nodes.get(j).getTimeStamp().getDay(),
 							(nodes.get(j).getTimeStamp().getMonth() + 1), nodes
 									.get(j).getTimeStamp().getYear() + 1900,
 							nodes.get(j).getTimeStamp().getHours(), nodes
 									.get(j).getTimeStamp().getMinutes(), 0);
-					
 					EventInterval interval = new EventInterval(start.copy()
 							.advanceHours(10), start.copy().advanceHours(15));
-					interval.setTitle(nodes.get(j).getQuery());
 					
+					interval.setTitle(nodes.get(j).getQuery());
 					row.addInterval(interval);
 					nodes.remove(j);
 				}

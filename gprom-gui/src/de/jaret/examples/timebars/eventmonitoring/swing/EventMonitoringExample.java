@@ -32,13 +32,18 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.util.List;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
 import javax.swing.Timer;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 
 import de.jaret.examples.timebars.eventmonitoring.model.CollectingTimeBarNode;
 import de.jaret.examples.timebars.eventmonitoring.model.EventInterval;
@@ -83,6 +88,7 @@ public class EventMonitoringExample {
     }
 
     public EventMonitoringExample() {
+    	
     }
 
     public void run() {
@@ -121,11 +127,9 @@ public class EventMonitoringExample {
         // setup header renderer
         _tbv.setHeaderRenderer(new EventMonitorHeaderRenderer());
         
-        
         // set a name for the viewer and setup the default title renderer
         _tbv.setName("Monitor");
         _tbv.setTitleRenderer(new DefaultTitleRenderer());
-        
         
         // selection strategy: shortest first
         _tbv.getDelegate().setIntervalSelectionStrategy(new IIntervalSelectionStrategy() {
@@ -175,15 +179,20 @@ public class EventMonitoringExample {
             _tbv.addMouseListener(new MouseAdapter() {
 
                 public void mouseClicked(MouseEvent e) {
-                	   Point origin2 = e.getPoint();
+                	Point origin2 = e.getPoint();
                 	TimeBarRow row2 = _tbv.getRowForXY(origin2.x, origin2.y);
-//                	System.out.println(row2.getIntervals().get(0).getBegin());
+                	
+                	//EventInterval interval = (EventInterval) flatModel.getRow(0).getIntervals().get(0);
+                	EventInterval interval = (EventInterval) row2.getIntervals().get(0);
                 	//在这里添加弹出窗口界面。。。
+                	//JOptionPane.showMessageDialog(null, "在对话框内显示的描述性的文字"+row2.getIntervals().get(0).getBegin(), "标题条文字串", JOptionPane.ERROR_MESSAGE);
+                	String sql = interval.getTitle();
+                	//String id = interval.get
+                	String beginTime = interval.getBegin().toDisplayStringDate()+" "+interval.getBegin().toDisplayStringTime();
+                	//String endTime = interval.getEnd().toDisplayStringDate()+" "+interval.getEnd().toDisplayStringTime();
+                	//显示一个dialog
+                	JOptionPane.showConfirmDialog(null, "sql:"+sql+"\n\nbegin:"+beginTime, "information", JOptionPane.YES_NO_OPTION);
                 	
-                	EventInterval interval = (EventInterval) flatModel.getRow(0).getIntervals().get(0);
-                	  System.out.println(interval.getTitle());
-                	
-                	//                	System.out.println("首都发生的加法阿拉山口的加法拉开圣诞节");
                     if (e.getClickCount() == 2) {
                     	Point origin = e.getPoint();
                         if (_tbv.getDelegate().getYAxisRect().contains(origin)) {
@@ -191,6 +200,7 @@ public class EventMonitoringExample {
                             if (row != null) {
                                 if (row instanceof EventTimeBarRow) {
                                     EventTimeBarRow erow = (EventTimeBarRow) row;
+                                    
                                     if (!erow.isExpanded()) {
                                         // expand
                                         _tbv.getTimeBarViewState().setDrawOverlapping(row, false);
@@ -263,15 +273,19 @@ public class EventMonitoringExample {
 
         
         
-// sample property listener        
-//        _tbv.addPropertyChangeListener(_tbv.PROPERTYNAME_STARTDATE, new PropertyChangeListener(){
-//
-//            @Override
-//            public void propertyChange(PropertyChangeEvent evt) {
-//                System.out.println("Start changed to "+evt.getNewValue());
-//            }
-//            
-//        });
+        // sample property listener        
+        _tbv.addPropertyChangeListener(_tbv.PROPERTYNAME_STARTDATE, new PropertyChangeListener(){
+
+            @Override
+            public void propertyChange(PropertyChangeEvent evt) {
+                System.out.println("Start changed to "+evt.getNewValue());
+                
+                
+                
+                
+            }
+            
+        });
         
         // Do not allow any modifications - do not add an interval modificator!
         // _tbv.addIntervalModificator(new DefaultIntervalModificator());
@@ -318,28 +332,32 @@ public class EventMonitoringExample {
         _tbv.setBodyContextMenu(pop);
 
         // sample: check enablement of action in a popup
-//        pop.addPopupMenuListener(new PopupMenuListener() {
-//            
-//            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
-//                System.out.println(_tbv.getPopUpInformation().getLeft());
-//                System.out.println(_tbv.getPopUpInformation().getRight().toDisplayString());
-//                if (_tbv.getPopUpInformation().getRight().getHours()>9) {
-//                    bodyaction.setEnabled(false);
-//                } else {
-//                    bodyaction.setEnabled(true);
-//                }
-//            }
-//            
-//            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
-//                // TODO Auto-generated method stub
-//                
-//            }
-//            
-//            public void popupMenuCanceled(PopupMenuEvent e) {
-//                // TODO Auto-generated method stub
-//                
-//            }
-//        });
+        pop.addPopupMenuListener(new PopupMenuListener() {
+            
+            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+                System.out.println(_tbv.getPopUpInformation().getLeft());
+                System.out.println(_tbv.getPopUpInformation().getRight().toDisplayString());
+                System.out.println("222222222");
+                
+                
+                
+                if (_tbv.getPopUpInformation().getRight().getHours()>9) {
+                    bodyaction.setEnabled(false);
+                } else {
+                    bodyaction.setEnabled(true);
+                }
+            }
+            
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
+                // TODO Auto-generated method stub
+                
+            }
+            
+            public void popupMenuCanceled(PopupMenuEvent e) {
+                // TODO Auto-generated method stub
+                
+            }
+        });
         
         
         
@@ -349,6 +367,7 @@ public class EventMonitoringExample {
                 System.out.println("run " + getValue(NAME));
             }
         };
+        
         pop = new JPopupMenu("Operations");
         pop.add(action);
         _tbv.setHierarchyContextMenu(pop);
@@ -369,6 +388,7 @@ public class EventMonitoringExample {
                 System.out.println("run " + getValue(NAME));
             }
         };
+        
         pop = new JPopupMenu("Operations");
         pop.add(action);
         _tbv.setTimeScaleContextMenu(pop);
@@ -400,20 +420,18 @@ public class EventMonitoringExample {
         final double min = 0.3;
         final double max = 0.7;
         
-//      _tbv.addPropertyChangeListener(_tbv.PROPERTYNAME_PIXELPERSECOND, new PropertyChangeListener(){
-//                    public void propertyChange(PropertyChangeEvent evt) {
-//                        // if not displayed set the viewer to display the marker at the min position
-//                        if (!isInRange(_tm.getDate(), min, max)) {
-//                            int secondsDisplayed = _tbv.getSecondsDisplayed();
-//                            JaretDate startDate = _tm.getDate().copy().advanceSeconds(-min*secondsDisplayed);
-//     //                       _tbv.setStartDate(startDate);
-//                        }
-//                    }
-//                    
-//                });
-        
-        
-        
+      _tbv.addPropertyChangeListener(_tbv.PROPERTYNAME_PIXELPERSECOND, new PropertyChangeListener(){
+                    public void propertyChange(PropertyChangeEvent evt) {
+                        // if not displayed set the viewer to display the marker at the min position
+                        if (!isInRange(_tm.getDate(), min, max)) {
+                            int secondsDisplayed = _tbv.getSecondsDisplayed();
+                            JaretDate startDate = _tm.getDate().copy().advanceSeconds(-min*secondsDisplayed);
+     //                       _tbv.setStartDate(startDate);
+                        }
+                    }
+                    
+                });
+
         
         // go!
         f.setVisible(true);
