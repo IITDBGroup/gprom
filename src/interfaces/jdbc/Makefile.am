@@ -6,6 +6,7 @@ GPROM_JDBC_JAR=$(top_srcdir)/build/gprom-jdbc.jar
 GPROM_LIBRARY=$(top_srcdir)/src/libgprom/libgprom.la
 JAVA_JDBC_SRC=$(wildcard ./*.java)
 
+if JAVABINDING
 # run antbuild if necessary (library has changed or java files have changed or jar file has not been build yet)
 all-local: $(GPROM_JDBC_JAR)
 
@@ -15,3 +16,4 @@ $(GPROM_JDBC_JAR): $(GPROM_LIBRARY) $(JAVA_JDBC_SRC)
 # clean should also run ant's clean task
 clean-local:
 	ant -f $(ANT_BUILDFILE) distClean
+endif
