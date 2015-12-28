@@ -94,6 +94,11 @@
 #include <unistd.h>
 #endif
 
+/* math */
+#if HAVE_MATH_H
+#include <math.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup

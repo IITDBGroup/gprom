@@ -32,7 +32,7 @@
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
 
-#include "math.h"
+
 
 /* cost of a plan */
 #define PLAN_MAX_COST ULLONG_MAX
