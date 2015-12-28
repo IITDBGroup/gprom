@@ -330,6 +330,11 @@ AS_IF([test "x$enable_postgres" == "xno"], [
 ])
 ])
 ################################################################################
+# check for libm
+AC_CHECK_LIB([m],[pow],[],[
+  AC_MSG_ERROR([missing libm library (searching for pow function)])
+])
+################################################################################
 # enable/disable features
 AC_LOGGING_ACTIVE
 AC_LINK_PERFTOOLS
