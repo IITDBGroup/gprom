@@ -276,14 +276,19 @@ createIsNullExpr (Node *expr)
 Node *
 createIsNotDistinctExpr (Node *lArg, Node *rArg)
 {
-    Operator *eq, *nullTest;
+    Operator *eq; //, *nullTest;
 
-    eq = createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
-    nullTest = createOpExpr("AND", LIST_MAKE(
-            createIsNullExpr(copyObject(lArg)),
-            createIsNullExpr(copyObject(rArg))));
+    eq = createOpExpr("=", LIST_MAKE(
+            createFunctionCall("sys_op_map_nonnull", singleton(copyObject(lArg))),
+            createFunctionCall("sys_op_map_nonnull", singleton(copyObject(rArg)))));
+    return (Node *) eq;
 
-    return (Node *) createOpExpr("OR", LIST_MAKE(eq, nullTest));
+//    eq = createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
+//    nullTest = createOpExpr("AND", LIST_MAKE(
+//            createIsNullExpr(copyObject(lArg)),
+//            createIsNullExpr(copyObject(rArg))));
+//
+//    return (Node *) createOpExpr("OR", LIST_MAKE(eq, nullTest));
 }
 
 Constant *

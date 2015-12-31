@@ -43,11 +43,11 @@ typedef struct OptimizerState
 {
     PlanCost bestPlanCost;
     char *bestPlan;
-    float bestPlanExpectedTime;
+    double bestPlanExpectedTime;
     PlanCost currentCost;
     char *currentPlan;
     int planCount;
-    float optTime;
+    double optTime;
     List *curPath;
     List *numChoices;
     List *fixedPath;
@@ -56,7 +56,7 @@ typedef struct OptimizerState
     //Added by Xing
     PlanCost previousPlanCost;
     char *previousPlan;
-    float previousPlanExpectedTime;
+    double previousPlanExpectedTime;
     List *previousPath;
 } OptimizerState;
 
@@ -84,7 +84,7 @@ typedef struct AnnealingState
 {
     PlanCost previousPlanCost;
     char *previousPlan;
-    float previousPlanExpectedTime;
+    double previousPlanExpectedTime;
     List *previousPath;
     double temp;
     double coolingRate;
@@ -112,19 +112,7 @@ createOptState(void)
     state->hook = NULL;
     state->planCount = 0;
     state->maxPlans = -1;
-    //Added by Xing
 
-    //AnnealingState *annealState = NEW(AnnealingState);
-    //annealState->previousPlanCost = PLAN_MAX_COST;
-    //annealState->previousPlan = NULL;
-    //annealState->previousPlanExpectedTime =  DBL_MAX;
-    //annealState->previousPath = NIL;
-    //state->hook = annealState;
-
-    //state->previousPlanCost = PLAN_MAX_COST;
-    //state->previousPlan = NULL;
-    //state->previousPlanExpectedTime = DBL_MAX;
-    //state->previousPath = NIL;
     return state;
 }
 
@@ -164,6 +152,9 @@ static boolean balancedGenerateNextChoice (OptimizerState *state);
 static boolean balancedContinueOptimization (OptimizerState *state);
 static int balancedCallback (OptimizerState *state, int numChoices);
 
+// adaptive function that determines whether to continue based on
+static boolean optLessThanExecTimeContinue (OptimizerState *state);
+
 static List *addOne(List *curPath, List *numChoices);
 static List* minusOne(List *curPath, List *numChoices);
 static boolean checkEqual(List *l1, List *l2);
@@ -188,10 +179,6 @@ chooseOptimizerPlugin(OptimizerPlugin typ)
     {
         case OPTIMIZER_BALANCED:
         {
-//            opt->initialize = NULL;
-//            opt->shouldContinue = balancedContinueOptimization;
-//            opt->callback = exhaustiveCallback;
-//            opt->generateNextChoice = exhaustiveGenerateNextChoice;
         	opt->initialize = balancedInitialize;
         	opt->shouldContinue = balancedContinueOptimization;
         	opt->callback = balancedCallback;
@@ -214,6 +201,14 @@ chooseOptimizerPlugin(OptimizerPlugin typ)
             opt->generateNextChoice = exhaustiveGenerateNextChoice;
         }
         break;
+        case OPTIMIZER_EXHAUSTIVE_ADAPTIVE:
+        {
+            opt->initialize = NULL;
+            opt->shouldContinue = optLessThanExecTimeContinue;
+            opt->callback = exhaustiveCallback;
+            opt->generateNextChoice = exhaustiveGenerateNextChoice;
+        }
+        break;
     }
 }
 
@@ -226,6 +221,8 @@ chooseOptimizerPluginFromString(char *pluginName)
         chooseOptimizerPlugin(OPTIMIZER_SIMMULATED_ANNEALING);
     if (streq(pluginName,"balance"))
         chooseOptimizerPlugin(OPTIMIZER_BALANCED);
+    if (streq(pluginName,"exhaustive_adaptive"))
+        chooseOptimizerPlugin(OPTIMIZER_EXHAUSTIVE_ADAPTIVE);
 }
 
 
@@ -254,36 +251,20 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 
 		char *result = strdup(state->currentPlan);
 
-//      linear regression
-//		PlanCost estCost = getCostEstimation(result);
-//		double b0 = -6.954274;
-//		double b1 = 0.7868441;
-//		double e = 2.718281828459;
-//		double m = b0 + b1*log(estCost);
-//		state->currentCost = pow(e, m);
-
 		state->currentCost = getCostEstimation(result);//TODO not what is returned by the function
 		DEBUG_LOG("Cost of the rewritten Query is = %d\n", state->currentCost);
 		INFO_LOG("plan (%u) for choice %s is\n%s", state->planCount, beatify(nodeToString(state->curPath)),
 				state->currentPlan);
 		ERROR_LOG("plan %u", state->planCount);
-		/*
-        // update best plan
-        if(state->currentCost < state->bestPlanCost)
-        {
-            state->bestPlanCost = state->currentCost;
-            state->bestPlan = strdup(state->currentPlan);
-            state->bestPlanExpectedTime = estimateRuntime(state);
-            DEBUG_LOG("PLAN: %s", state->bestPlan);
-        }
-		 */
+
 		// determine what options to choose in the next iteration
 		if(!opt->generateNextChoice(state))
 			break;
 
 		// update state
 		gettimeofday (&tvalAfter, NULL);
-		state->optTime += (float)(tvalAfter.tv_sec - tvalBefore.tv_sec) / 1000000;
+		state->optTime += (double)(tvalAfter.tv_sec - tvalBefore.tv_sec)
+		        + (((double) (tvalAfter.tv_usec - tvalBefore.tv_usec)) / 1000000.0);
 		state->planCount++;
 		FREE(result);
 		FREE(state->currentPlan);
@@ -399,16 +380,25 @@ static double
 estimateRuntime (OptimizerState *state)
 {
 //	char *result = strdup(state->currentPlan);
-//    PlanCost resultCost;
+    double resultCost;
 //
 //	PlanCost estCost = getCostEstimation(result);
-//	double b0 = -6.954274;
-//	double b1 = 0.7868441;
-//	double e = 2.718281828459;
-//	double m = b0 + b1*log(estCost);
-//	resultCost = pow(e, m);
+	double b0 = -6.954274;
+	double b1 = 0.7868441;
+	double e = 2.718281828459;
+	double m = b0 + (b1 * log((double) state->bestPlanCost));
+	resultCost = pow(e, m);
 
-    return DBL_MAX; //TODO compute time
+	ERROR_LOG("log is <%f> and b1 * log is <%f> and b0 + ... is <%f> and e^m is <%f>",
+	        log((double) state->bestPlanCost),
+	        (b1 * log((double) state->bestPlanCost)),
+	        b0 + (b1 * log((double) state->bestPlanCost)),
+	        pow(e, m)
+	        );
+
+	ERROR_LOG("plan with cost %llu has estimated runtime %f", state->bestPlanCost, resultCost);
+
+	return resultCost;
 }
 
 
@@ -553,12 +543,13 @@ exhaustiveCallback (OptimizerState *state, int numChoices)
 static void
 updateBestPlan (OptimizerState *state)
 {
+    ERROR_LOG("current plan cost is %llu", state->currentCost);
 	if(state->currentCost < state->bestPlanCost)
 	{
 		state->bestPlanCost = state->currentCost;
 		state->bestPlan = strdup(state->currentPlan);
 		state->bestPlanExpectedTime = estimateRuntime(state);
-		DEBUG_LOG("PLAN: %s", state->bestPlan);
+		DEBUG_LOG("NEW BEST PLAN: %s", state->bestPlan);
 	}
 }
 
@@ -1059,7 +1050,6 @@ balancedGenerateNextChoice (OptimizerState *state)
 static boolean
 balancedContinueOptimization (OptimizerState *state)
 {
-
     return TRUE;
 }
 
@@ -1252,4 +1242,11 @@ balancedCallback (OptimizerState *state, int numChoices)
 
 
     return choice;
+}
+
+static boolean
+optLessThanExecTimeContinue (OptimizerState *state)
+{
+    ERROR_LOG("compare opt time %f to best plan time %f", state->optTime, state->bestPlanExpectedTime);
+    return state->optTime <= state->bestPlanExpectedTime;
 }

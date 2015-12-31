@@ -1122,17 +1122,17 @@ oracleGetCostEstimation(char *query)
 
     FREE(statement1);
 
-//    StringInfo statement2;
-//    statement2 = makeStringInfo();
-//    appendStringInfo(statement2, "DELETE FROM PLAN_TABLE");
-//    executeStatement(statement2->data);
-//    FREE(statement2);
+StringInfo statement2;
+statement2 = makeStringInfo();
+appendStringInfo(statement2, "DELETE FROM PLAN_TABLE");
+executeStatement(statement2->data);
+FREE(statement2);
 
-    StringInfo statement3;
-    statement3 = makeStringInfo();
-    appendStringInfo(statement3, "TRUNCATE TABLE PLAN_TABLE");
-    executeStatement(statement3->data);
-    FREE(statement3);
+//    StringInfo statement3;
+//    statement3 = makeStringInfo();
+//    appendStringInfo(statement3, "TRUNCATE TABLE PLAN_TABLE");
+//    executeStatement(statement3->data);
+//    FREE(statement3);
 
     return cost;
 }
