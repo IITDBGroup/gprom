@@ -118,7 +118,6 @@ createOptState(void)
 
 /*
  * A plugin for the cost-based optimizer.
- *
  */
 typedef struct CostBasedOptimizer
 {
@@ -270,110 +269,9 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 		FREE(state->currentPlan);
 	}
 
+    DEBUG_LOG("BEST PLAN COST: %d \n", state->bestPlanCost);
 	INFO_LOG("COST-BASED OPTIMIZATION: considered %u plans in total", state->planCount);
 	return state->bestPlan;
-
-
-/*
-	// intitialize optimizer state
-    state = createOptState();
-    if (opt->initialize)
-        opt->initialize(state);
-    state->maxPlans = getIntOption(OPTION_COST_BASED_MAX_PLANS);
-
-    //double temp = 10000;
-    //double coolingRate = 0.5;
-
-    // main loop -> create one plan in each iteration
-    while(temp > 1)
-    {
-    	// keep track of time spent in loop
-    	struct timeval tvalBefore, tvalAfter;
-    	gettimeofday (&tvalBefore, NULL);
-
-    	// create next plan
-    	Node *oModel1 = copyObject(oModel);
-    	state->currentPlan = generatePlan(oModel1, applyOptimizations);
-
-    	char *result = strdup(state->currentPlan);
-    	state->currentCost = getCostEstimation(result);//TODO not what is returned by the function
-
-    	DEBUG_LOG("Cost of the rewritten Query is = %d\n", state->currentCost);
-    	INFO_LOG("plan (%u) for choice %s is\n%s", state->planCount, beatify(nodeToString(state->curPath)),
-    			state->currentPlan);
-    	ERROR_LOG("plan %u", state->planCount);
-
-    	if(state->previousPlanCost != PLAN_MAX_COST)
-    	{
-    		// compute acceptance probability
-    		double p = ((double) (state->previousPlanCost - state->currentCost))/temp;
-    		double ap = pow(2.71828, p);
-    		int random = 1; //need to be changed to random value between [0,1)
-    		//double random = rand()/(RAND_MAX+1.0);
-    		DEBUG_LOG("random = %f, ap = %f, previous cost = %lld, current cost = %lld", random, ap, state->previousPlanCost, state->currentCost);
-
-    		//
-    		//  back to previous plan or just use current plan
-    		//  if ap > random, apply this current plan
-    		//  if app <= random, back to previous plan and based on previous plan to generate next plan
-    		//  current means the neighbor of previous one
-    		//  random is between [0,1)
-    		//
-    		DEBUG_LOG("***************Back to previous plan***************** \n");
-    		if(ap <= random)
-    		{
-//    			if(state->previousPlanCost != PLAN_MAX_COST)
-    				state->currentCost = state->previousPlanCost;
-//    			if(state->previousPlan != NULL)
-    				state->currentPlan = strdup(state->previousPlan);
-//    			if(state->previousPath != NIL)
-    				state->curPath = copyObject(state->previousPath);
-    			//state->currentPlanExpectedTime = state->previousPlanExpectedTime;
-    			DEBUG_LOG("PLAN: %s", state->currentPlan);
-    			//DEBUG_LOG("modify current X is %s, previous X is %s", beatify(nodeToString(state->curPath)),beatify(nodeToString(state->previousPath)));
-    		}
-    		else
-    		{
-    			//before to generate next plan, store current plan
-    			state->previousPlanCost = state->currentCost;
-    			state->previousPlan = strdup(state->currentPlan);
-    			DEBUG_LOG("best cost = %lld, previous cost = %lld, current cost = %lld", state->bestPlanCost, state->previousPlanCost, state->currentCost);
-    		}
-    	}
-    	else
-    	{
-    		state->previousPlanCost = state->currentCost;
-    		state->previousPlan = strdup(state->currentPlan);
-    	}
-
-    	// update best plan
-    	DEBUG_LOG("***************Compare to best plan***************** \n");
-    	if(state->currentCost < state->bestPlanCost)
-    	{
-    		state->bestPlanCost = state->currentCost;
-    		state->bestPlan = strdup(state->currentPlan);
-    		state->bestPlanExpectedTime = estimateRuntime(state);
-    		DEBUG_LOG("PLAN: %s", state->bestPlan);
-    	}
-
-    	// determine what options to choose in the next iteration
-    	if(!opt->generateNextChoice(state))
-    		break;
-
-    	// update state
-    	gettimeofday (&tvalAfter, NULL);
-    	state->optTime += (float)(tvalAfter.tv_sec - tvalBefore.tv_sec) / 1000000;
-    	state->planCount++;
-    	FREE(result);
-    	FREE(state->currentPlan);
-
-    	//temp *= 1 - coolingRate;
-    }
-    */
-    DEBUG_LOG("BEST PLAN COST: %d \n", state->bestPlanCost);
-    INFO_LOG("COST-BASED OPTIMIZATION: considered %u plans in total", state->planCount);
-    return state->bestPlan;
-
 }
 
 static double
@@ -401,69 +299,17 @@ estimateRuntime (OptimizerState *state)
 	return resultCost;
 }
 
-
-
 int
 callback (int numChoices)
 {
     return opt->callback(state,numChoices);
-//    int xVal = -1;
-//
-//	DEBUG_LOG("number of choices are: %u", numChoices);
-//	if (LIST_LENGTH(X1) == 0)
-//	{
-//		Y1 = appendToTailOfListInt(Y1, 0);
-//		Z1 = appendToTailOfListInt(Z1, numChoices);
-//	}
-//	else
-//	{
-//		xVal = getHeadOfListInt(X1);
-//		Y1 = appendToTailOfListInt(Y1, xVal);
-//		X1 = removeFromHead(X1);
-//		Z1 = appendToTailOfListInt(Z1, numChoices);
-//	}
-//
-//	DEBUG_LOG("optimizer data structures are:\n X:%s\n Y:%s\n Z:%s\n",nodeToString(X1),
-//			nodeToString(Y1),nodeToString(Z1));
-//
-//    return xVal;
 }
-
-//void
-//reSetX1(){
-//    int lenY1 = LIST_LENGTH(Y1);
-//    for(int i=0; i<lenY1; i++)
-//    {
-//        int y = getTailOfListInt(Y1);
-//        int z = getTailOfListInt(Z1);
-//
-//        if(y+1 == z)
-//        {
-//            Y1 = removeFromTail(Y1);
-//            Z1 = removeFromTail(Z1);
-//        }
-//        else
-//        {
-//            y = y + 1;
-//            Y1 = removeFromTail(Y1);
-//            Y1 = appendToTailOfListInt(Y1,y);
-//            break;
-//        }
-//    }
-//    X1 = copyList(Y1);
-//    Y1 = NIL;
-//    Z1 = NIL;
-//
-//    DEBUG_LOG("new X is %s", beatify(nodeToString(X1)));
-//}
 
 static boolean
 exhaustiveGenerateNextChoice (OptimizerState *state)
 {
 	updateBestPlan(state);
 
-    //List *X1 = state->curPath;
-    //List *Y1 = state->fixedPath;
     List *X1 = state->fixedPath;
     List *Y1 = state->curPath;
     List *Z1 = state->numChoices;
@@ -499,7 +345,6 @@ exhaustiveGenerateNextChoice (OptimizerState *state)
 static boolean
 exhaustiveContinueOptimization (OptimizerState *state)
 {
-
     return TRUE;
 }
 
@@ -534,12 +379,6 @@ exhaustiveCallback (OptimizerState *state, int numChoices)
     return choice;
 }
 
-//static boolean
-//balancedContinueOptimization (OptimizerState *state)
-//{
-//    return (state->optTime < state->bestPlanExpectedTime);
-//}
-
 static void
 updateBestPlan (OptimizerState *state)
 {
@@ -565,7 +404,6 @@ simannInitialize(OptimizerState *state)
     annealState->coolingRate = 0.5;
 
     state->hook = annealState;
-
 
     return TRUE;
 }
@@ -618,7 +456,6 @@ simannGenerateNextChoice (OptimizerState *state)
 	state1->previousPath = copyObject(state->curPath);
 	DEBUG_LOG("old X is %s", beatify(nodeToString(state1->previousPath)));
 
-
 	//following are generating next path
 	//List *fixedPath = state->fixedPath;  //X1 0
 	List *curPath = state->curPath;        //Y1 [0 0]
@@ -648,8 +485,6 @@ simannGenerateNextChoice (OptimizerState *state)
 	DEBUG_LOG("new X is %s", beatify(nodeToString(fixedPathHelp)));
 
 	return (state->fixedPath != NIL);
-
-	//return TRUE;
 }
 
 static boolean
@@ -657,7 +492,6 @@ simannContinueOptimization (OptimizerState *state)
 {
 	AnnealingState *state1 = (AnnealingState *)(state->hook);
 	return state1->temp > 1;
-    //return TRUE;
 }
 
 static int
@@ -856,27 +690,6 @@ generateNextPlan(int hlflag, List *l, List *h, List *numChoice)
 	List *result = NIL;
     int flag = hlflag;
 
-//	int i = 0;
-//	FOREACH_INT(c, l)
-//	{
-//		if(i<commonPrefixLength)
-//			result = appendToTailOfListInt(result, c);
-//		else
-//		{
-//			if(flag == 0)
-//			{
-//				result = appendToTailOfListInt(result, 0);
-//				flag = 1;
-//			}
-//			else
-//			{
-//				result = appendToTailOfListInt(result, 1);
-//				flag = 0;
-//			}
-//		}
-//	    i ++;
-//	}
-
     int i = 0;
     int helpFlag = 0;
 	FORBOTH_INT(cl, ch, l, h)
@@ -1026,17 +839,6 @@ balancedGenerateNextChoice (OptimizerState *state)
 			balSt->bl = copyBalancedInterval ((BalancedInterval *) getHeadOfListP(fifoList));
 	}
 
-    //print fifo
-//    if(fifoList != NIL)
-//    {
-//    	FOREACH(BalancedInterval, bll, fifoList)
-//		{
-//    		DEBUG_LOG("fifo are:\n Y:%s\n Z:%s\n",
-//    		      nodeToString(bll->beginInterval),nodeToString(bll->endInterval));
-//		}
-//    }
-//    DEBUG_LOG("fifo2 are:\n Y:%s\n Z:%s\n",
-//        		      nodeToString(balSt->bl->beginInterval),nodeToString(balSt->bl->endInterval));
 	(balSt->count) ++;
 	state->numChoices = NIL;
 	state->curPath = NIL;
