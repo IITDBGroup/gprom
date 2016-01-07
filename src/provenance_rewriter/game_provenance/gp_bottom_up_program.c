@@ -906,12 +906,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     }
 
     // for each rule_i do head -> rule_i, rule_i -> goal_i_j, goal_i_j -> posR/negR -> posR?
-	int ruleId = 0;
 	int checkPos = 0; // To filter out unnecessary move rules (rule_i -> goal_i_j, goal_i_j -> posR/negR)
 
+	int ruleId = 0;
+    char *bName = NULL;
 	List *newBoolArgs = NIL;
     DLVar *createBoolArgs;
-    char *bName = NULL;
 
     FOREACH(DLRule,r,unLinkedRules)
     {
