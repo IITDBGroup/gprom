@@ -503,7 +503,7 @@ translateSafeRule(DLRule *r)
         joinedGoals = (QueryOperator *) sel;
     }
 
-        goalTrans = singleton(joinedGoals);
+    goalTrans = singleton(joinedGoals);
 
     // translate negated goals
     goalPos = 0;
@@ -895,9 +895,6 @@ translateGoal(DLAtom *r, int goalPos)
                             0, i, INVALID_ATTR, a->dataType),
                     copyObject(arg)));
 
-//            if (a->dataType != ((Constant *) arg)->constType) // check for unmatched dataType
-//              a->dataType = ((Constant *) arg)->constType;  // , but need discussion if it is correct to check
-
             ASSERT(a->dataType == ((Constant *) arg)->constType);
 
             selExpr = appendToTailOfList(selExpr, comp);
@@ -1041,7 +1038,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     if (r->negated)
     {
         SetOperator *setDiff;
-        ProjectionOperator *rename;
+        ProjectionOperator *rename = NULL;
         QueryOperator *dom;
         List *varNames = NIL;
         List *projArgs = NIL;
@@ -1069,6 +1066,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
 //            addParent(aDom, dom);
 //            addParent(oldD, dom);
 //        }
+
         // create projection arguments and varnames for projection over joined positive subgoals
         int attrPos = 0;
         FOREACH(Node,n,r->args)
@@ -1092,24 +1090,37 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
         }
 
         DEBUG_LOG("var names of neg goal: %s", stringListToString(varNames));
-        // project onto variables
-        rename = (ProjectionOperator *) createProjOnAttrsByName(posPart, varNames);
-//        int i = 0;
-//        FOREACH(AttributeDef,a,rename->op.schema->attrDefs)
-//        {
-//            char *name = strdup(getNthOfListP(varNames, i++));
-//            a->attrName = name;
-//        }
-        DEBUG_LOG("proj: %s", operatorToOverviewString((Node *) rename));
-        addChildOperator((QueryOperator *) rename, posPart);
 
+        // check if variables existed
+        if (varNames != NULL)
+        {
+            // project onto variables
+            rename = (ProjectionOperator *) createProjOnAttrsByName(posPart, varNames);
+//            int i = 0;
+//            FOREACH(AttributeDef,a,rename->op.schema->attrDefs)
+//            {
+//                char *name = strdup(getNthOfListP(varNames, i++));
+//                a->attrName = name;
+//            }
+    		DEBUG_LOG("proj: %s", operatorToOverviewString((Node *) rename));
+    		addChildOperator((QueryOperator *) rename, posPart);
 
-        // add constants to projection
-        dom = (QueryOperator *) rename;
-        rename = (ProjectionOperator *) createProjectionOp(projArgs, dom, NIL, projNames);
-        addParent(dom, (QueryOperator *) rename);
-//        addChildOperator((QueryOperator *) rename, dom);
-        dom = (QueryOperator *) rename;
+            // add constants to projection
+            dom = (QueryOperator *) rename;
+            rename = (ProjectionOperator *) createProjectionOp(projArgs, dom, NIL, projNames);
+            addParent(dom, (QueryOperator *) rename);
+    //        addChildOperator((QueryOperator *) rename, dom);
+        }
+        else
+        {
+            // add constants to projection
+        	rename = (ProjectionOperator *) createProjectionOp(projArgs, (QueryOperator *) rename, NIL, projNames);
+
+        	DEBUG_LOG("proj: %s", operatorToOverviewString((Node *) rename));
+    		addChildOperator((QueryOperator *) rename, posPart);
+        }
+
+    	dom = (QueryOperator *) rename;
 
         // create set diff
         setDiff = createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(dom, rel),
@@ -1137,9 +1148,6 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
                     LIST_MAKE(createFullAttrReference(strdup(a->attrName),
                             0, i, INVALID_ATTR, a->dataType),
                     copyObject(arg)));
-
-//            if (a->dataType != ((Constant *) arg)->constType) // check for unmatched dataType
-//            	a->dataType = ((Constant *) arg)->constType;  // , but need discussion if it is correct to check
 
             ASSERT(a->dataType == ((Constant *) arg)->constType);
 
