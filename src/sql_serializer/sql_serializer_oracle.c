@@ -124,7 +124,7 @@ static List *serializeQueryBlock (QueryOperator *q, StringInfo str);
 static List *serializeSetOperator (QueryOperator *q, StringInfo str);
 
 static void serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs);
-static void serializeFromItem (QueryOperator *q, StringInfo from,
+static void serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from,
         int *curFromItem, int *attrOffset, List **fromAttrs);
 
 static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
@@ -684,7 +684,7 @@ serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs)
     int curFromItem = 0, attrOffset = 0;
 
     appendStringInfoString(from, "\nFROM ");
-    serializeFromItem (q, from, &curFromItem, &attrOffset, fromAttrs);
+    serializeFromItem (q, q, from, &curFromItem, &attrOffset, fromAttrs);
 }
 
 static void
@@ -733,10 +733,12 @@ ConstructNestedJsonColItems (JsonColInfoItem *col,StringInfo *from,int *nestedco
 }
 
 static void
-serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
+serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, int *curFromItem,
         int *attrOffset, List **fromAttrs)
 {
-    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE)))
+    // if operator has more than one parent then it will be represented as a CTE
+    // however, when create the code for a CTE (q==fromRoot) then we should create SQL for this op)
+    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE)) || q == fromRoot)
     {
         switch(q->type)
         {
@@ -748,7 +750,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                 appendStringInfoString(from, "(");
 
                 //left child
-                serializeFromItem(OP_LCHILD(j), from, curFromItem, attrOffset, fromAttrs);
+                serializeFromItem(fromRoot, OP_LCHILD(j), from, curFromItem, attrOffset, fromAttrs);
 
                 // join
                 switch(j->joinType)
@@ -772,7 +774,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
                 // right child
                 rOffset = *curFromItem;
-                serializeFromItem(OP_RCHILD(j), from, curFromItem, attrOffset, fromAttrs);
+                serializeFromItem(fromRoot, OP_RCHILD(j), from, curFromItem, attrOffset, fromAttrs);
 
                 // join condition
                 if (j->cond)
@@ -790,7 +792,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
             	QueryOperator *child = OP_LCHILD(jt);
             	// Serialize left child
-            	serializeFromItem(child, from, curFromItem, attrOffset, fromAttrs);
+            	serializeFromItem(fromRoot, child, from, curFromItem, attrOffset, fromAttrs);
 
             	// TODO  Get the attributes of JSON TABLE operator
             	List *jsonAttrNames = getAttrNames(((QueryOperator *) jt)->schema);
