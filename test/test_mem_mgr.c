@@ -114,9 +114,13 @@ module_Func1(void)
     context1 = NEW_MEM_CONTEXT("TEST_CONTEXT_1");
     ACQUIRE_MEM_CONTEXT(context1); // switch to context1
 
-    NEW(int);
-    CNEW(TestStruct, 5);
-    NEW(TestStruct);
+    int *x = NEW(int);
+    *x = 5;
+    ASSERT_EQUALS_INT(5,*x,"is 5");
+    TestStruct *t = CNEW(TestStruct, 5);
+    t = NEW(TestStruct);
+    t->a = 5;
+    ASSERT_EQUALS_INT(5,t->a,"is 5");
     ASSERT_EQUALS_INT(3,memContextSize(context1), "context1 size is now 3");
 
     RELEASE_MEM_CONTEXT(); // set back curMemContext to previous one. context1 still exists.
