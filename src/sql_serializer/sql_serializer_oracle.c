@@ -1438,13 +1438,27 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     // get attributes from FROM clause root
     else
     {
-        resultAttrs = getQueryOperatorAttrNames(m->fromRoot);//TODO
+        List *inAttrs = NIL;
+        int fromItem = 0;
 
-        FOREACH(char,name,resultAttrs)
+        // attribute aliases are determined by the fromRoot operator's schema
+        resultAttrs = getQueryOperatorAttrNames(m->fromRoot);//TODO
+        // construct list of from clause attribute names with from clause item aliases
+        FOREACH(List, attrs, fromAttrs)
+        {
+            FOREACH(char,name,attrs)
+            {
+                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", itoa(fromItem), ".", name));
+            }
+            fromItem++;
+        }
+
+        // construct select clause
+        FORBOTH(char,outName,inName,resultAttrs,inAttrs)
         {
             if (pos++ != 0)
                 appendStringInfoString(select, ", ");
-            appendStringInfoString(select, name);
+            appendStringInfo(select, "%s AS %s", inName, outName);
         }
 
         DEBUG_LOG("FROM root attributes as projection expressions %s", select->data);
