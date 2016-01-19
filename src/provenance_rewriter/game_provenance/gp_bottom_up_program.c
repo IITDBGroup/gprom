@@ -798,19 +798,21 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 		boolean ruleWon = DL_HAS_PROP(unRule->head,DL_WON)
                                    || DL_HAS_PROP(unRule->head,DL_UNDER_NEG_WON);
 
-		if (!ruleWon)
+		if (!ruleWon && INT_VALUE(getDLProp((DLNode *) unRule,DL_RULE_ID)) == getMatched)
 		{
-			if (INT_VALUE(getDLProp((DLNode *) unRule,DL_RULE_ID)) == getMatched)
-			{
+//			if (INT_VALUE(getDLProp((DLNode *) unRule,DL_RULE_ID)) == getMatched)
+//			{
 				setDLProp((DLNode *) adAtom, DL_ORIG_ATOM, (Node *) copyObject(adAtom));
 				unRule->body = appendToTailOfList(unRule->body, copyObject(adAtom));
-			}
+//			}
 		}
 	}
 
 	// filter out incorrect linked rules
 	List *removeRules = NIL;
 	List *nRuleBodyArgs;
+	DEBUG_LOG("newRules before removing:\n%s", datalogToOverviewString((Node *) newRules));
+
 	FOREACH(DLRule,nRule,newRules)
 	{
 		boolean ruleWon = DL_HAS_PROP(nRule->head,DL_WON)
@@ -836,6 +838,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 		}
 	}
 	newRules = removeVars(newRules,removeRules);
+	DEBUG_LOG("newRules after removing:\n%s", datalogToOverviewString((Node *) newRules));
 
 	FOREACH(DLRule,r,unLinkedRules)
 		setIDBBody(r);
@@ -907,10 +910,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
     // for each rule_i do head -> rule_i, rule_i -> goal_i_j, goal_i_j -> posR/negR -> posR?
 	int checkPos = 0; // To filter out unnecessary move rules (rule_i -> goal_i_j, goal_i_j -> posR/negR)
+	int ruleId = 0; // To check rule id is changed
+	int ruleIdCheck = 0;
+	int ruleIdPos = 0; // position in the list of rule id
 
-	int ruleId = 0;
     char *bName = NULL;
 	List *newBoolArgs = NIL;
+	List *collectRuleId = NIL;
     DLVar *createBoolArgs;
 
     FOREACH(DLRule,r,unLinkedRules)
@@ -919,21 +925,18 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                                        || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
 //        boolean ruleNeg = DL_HAS_PROP(r->head,DL_UNDER_NEG_WON)
 //                                       || DL_HAS_PROP(r->head,DL_UNDER_NEG_LOST);
-
-
 		ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
 		DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
 
 		// Collecting all the original variables for later use
 		int argPos = -1;
 		List *ruleArgs = NIL;
+		int rNumGoals = LIST_LENGTH(r->body);
 
 		FOREACH(DLAtom,a,r->body)
 		{
 			argPos++;
-			int rNumGoals = LIST_LENGTH(r->body);
-
-			if (!ruleWon && (argPos + 1) == rNumGoals && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
+			if (!ruleWon && (argPos + 1) == rNumGoals && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched && rNumGoals > 1)
 			{
 				ruleArgs = copyObject(ruleArgs);
 			}
@@ -947,7 +950,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			}
 		}
 //        DEBUG_LOG("List Length:%d", LIST_LENGTH(r->body));
-//        DEBUG_LOG("args for rule:%s", exprToSQL((Node *) ruleArgs));
+        DEBUG_LOG("args for rule:%s", exprToSQL((Node *) ruleArgs));
 
 		char *negHeadRel = CONCAT_STRINGS(
 				strdup(origAtom->rel),
@@ -999,21 +1002,24 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 		List *newRuleHeadArgs = NIL;
 		List *boolArgs = removeVars(r->head->args, ruleArgs);
 
+		// create a list for collecting rule id
+    	ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
+    	ruleIdCheck = ruleId + INT_VALUE(createConstBool(ruleWon));
+    	collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
+
+    	// reset the position to check if the rule id is changed
+    	if (LIST_LENGTH(collectRuleId) > 1 && getNthOfListInt(collectRuleId,ruleIdPos-1) != getNthOfListInt(collectRuleId,ruleIdPos))
+    		checkPos = 0;
+
 		if (!ruleWon)
 		{
-			// generate boolean args with variables
+			// generate boolean args with variables to reduce redundant move rules
 			newBoolArgs = NIL;
 			for(int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs); checkLoop++)
 			{
 				bName = CONCAT_STRINGS("B", itoa(checkLoop));
 				createBoolArgs = createDLVar(bName, DT_BOOL);
 		        newBoolArgs = appendToTailOfList(newBoolArgs, copyObject(createBoolArgs));
-			}
-
-			if (ruleId != INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))) // reset the position when the rule id is changed
-			{
-				checkPos = 0;
-				ruleId++;
 			}
 
 			if (checkPos < LIST_LENGTH(boolArgs))
@@ -1036,12 +1042,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			FOREACH(DLAtom,a,r->body)
 			{
 				goalPos++;
-				int unruleNumGoals = LIST_LENGTH(r->body);
+//				int unruleNumGoals = LIST_LENGTH(r->body);
 				int numHeadArgs = LIST_LENGTH(r->head->args);
 				boolean goalWon = FALSE;
 
 				// Not include the additional atom for filtering out
-				if (!ruleWon && (goalPos + 1) == unruleNumGoals && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
+				if (!ruleWon && (goalPos + 1) == rNumGoals && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched && rNumGoals > 1)
 				{
 					goalWon = TRUE;
 				}
@@ -1067,11 +1073,11 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						{
 							if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
 							{
-								if (goalPos != unruleNumGoals - 1)
-									goalWon = BOOL_VALUE(getNthOfListP(r->head->args, numHeadArgs - (unruleNumGoals - 1) + goalPos));
+								if (goalPos != rNumGoals - 1)
+									goalWon = BOOL_VALUE(getNthOfListP(r->head->args, numHeadArgs - (rNumGoals - 1) + goalPos));
 							}
 							else
-								goalWon = BOOL_VALUE(getNthOfListP(r->head->args, numHeadArgs - unruleNumGoals + goalPos));
+								goalWon = BOOL_VALUE(getNthOfListP(r->head->args, numHeadArgs - rNumGoals + goalPos));
 						}
 
 						// -> posR
@@ -1152,7 +1158,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			}
 			checkPos++;
 		}
-
+		ruleIdPos++;
     }
 
     FOREACH(DLRule,r,newRules)
