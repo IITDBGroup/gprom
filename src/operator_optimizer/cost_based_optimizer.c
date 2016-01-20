@@ -474,7 +474,7 @@ simannGenerateNextChoice (OptimizerState *state)
 	List *numChoicesHelp = NIL;
 
 	int curPathLen = LIST_LENGTH(curPath);
-	int pos = rand() % curPathLen;
+	int pos = curPathLen == 0 ? 0 : rand() % curPathLen;
 	DEBUG_LOG("pos = %d\n",pos);
 
 	for(int i=0; i <= pos; i++)
