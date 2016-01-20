@@ -417,8 +417,13 @@ simannGenerateNextChoice (OptimizerState *state)
 	if(state1->previousPlanCost != PLAN_MAX_COST)
 	{
 		// compute acceptance probability
-		double p = ((double) (state1->previousPlanCost - state->currentCost))/state1->temp;
-		double ap = pow(2.71828, p);
+		double p = 0.0
+        double ap = 1.0;
+		if (state1->previousPlanCost <= state->currentCost)
+		{
+		    p = ((double) (state1->previousPlanCost - state->currentCost))/state1->temp;
+		    ap = pow(2.71828, p);
+		}
 		int random = 1; //need to be changed to random value between [0,1)
 		//double random = rand()/(RAND_MAX+1.0);
 		DEBUG_LOG("temp = %f, ap = %f, previous cost = %lld, current cost = %lld", state1->temp, ap, state1->previousPlanCost, state->currentCost);
