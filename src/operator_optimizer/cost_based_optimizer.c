@@ -35,8 +35,10 @@
 
 
 /* cost of a plan */
-#define PLAN_MAX_COST ULLONG_MAX
-typedef unsigned long long int PlanCost;
+//#define PLAN_MAX_COST ULLONG_MAX
+#define PLAN_MAX_COST LLONG_MAX
+//typedef unsigned long long int PlanCost;
+typedef long long int PlanCost;
 
 /* current state of the optimizer */
 typedef struct OptimizerState
@@ -426,7 +428,14 @@ simannGenerateNextChoice (OptimizerState *state)
 		//  if ap <= random, back to previous plan and based on previous plan to generate next plan
 		//  current means the neighbor of previous one
 		//  random is between [0,1)
-		if(ap <= random)
+		if(state->currentCost < state1->previousPlanCost)
+		{
+			//before to generate next plan, store current plan
+			state1->previousPlanCost = state->currentCost;
+			state1->previousPlan = strdup(state->currentPlan);
+			DEBUG_LOG("best cost = %lld, previous cost = %lld, current cost = %lld", state->bestPlanCost, state1->previousPlanCost, state->currentCost);
+		}
+		else if(ap <= random)
 		{
 			DEBUG_LOG("**Back to previous plan** \n");
 			state->currentCost = state1->previousPlanCost;
