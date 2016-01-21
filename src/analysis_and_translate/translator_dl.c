@@ -1076,7 +1076,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
                 DLVar *v = (DLVar*) n;
                 char *name = v->name;
 
-//                varNames = appendToTailOfList(varNames, strdup(name));
+                varNames = appendToTailOfList(varNames, strdup(name));
                 projArgs = appendToTailOfList(projArgs,
                         createFullAttrReference(strdup(name), 0, attrPos, INVALID_ATTR, v->dt));
 
@@ -1085,8 +1085,8 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
                 	projNames = appendToTailOfList(projNames, strdup(name));
                 else
                 {
-                	char *newName = CONCAT_STRINGS(name, itoa(attrPos));
-                	projNames = appendToTailOfList(projNames, strdup(newName));
+                	char *newProjName = CONCAT_STRINGS(name, itoa(attrPos));
+                	projNames = appendToTailOfList(projNames, strdup(newProjName));
                 }
             }
             else
@@ -1097,20 +1097,50 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
             attrPos++;
         }
 
-        DEBUG_LOG("var names of neg goal: %s", stringListToString(projNames));
+        DEBUG_LOG("var names of neg goal: %s", stringListToString(varNames));
 
         // check if variables existed
         if (varNames != NULL)
         {
             // project onto variables
-//            rename = (ProjectionOperator *) createProjOnAttrsByName(posPart, varNames);
-            rename = (ProjectionOperator *) createProjOnAttrsByName(posPart, projNames);
+            rename = (ProjectionOperator *) createProjOnAttrsByName(posPart, varNames);
 //            int i = 0;
 //            FOREACH(AttributeDef,a,rename->op.schema->attrDefs)
 //            {
 //                char *name = strdup(getNthOfListP(varNames, i++));
 //                a->attrName = name;
 //            }
+
+            // change attribute names
+			Set *nameSet = STRSET();
+			List *finalNames = NIL;
+
+			FORBOTH(Node,var,attr,r->args,rename->op.schema->attrDefs)
+			{
+				char *n = NULL;
+				AttributeDef *d = (AttributeDef *) attr;
+
+				if(isA(var,DLVar))
+				{
+					DLVar *v = (DLVar *) var;
+					n = v->name;
+					d->attrName = strdup(n);
+				}
+
+				addToSet(nameSet, strdup(n));
+				finalNames = appendToTailOfList(finalNames, strdup(n));
+			}
+
+			//TODO make attribute names unique
+			makeNamesUnique(finalNames, nameSet);
+			FORBOTH(void,name,attr,finalNames,rename->op.schema->attrDefs)
+			{
+				char *n = (char *) name;
+				AttributeDef *a = (AttributeDef *) attr;
+
+				if(!streq(a->attrName, name))
+					a->attrName = strdup(n);
+			}
 
     		DEBUG_LOG("proj: %s", operatorToOverviewString((Node *) rename));
     		addChildOperator((QueryOperator *) rename, posPart);
