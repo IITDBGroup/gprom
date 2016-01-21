@@ -1008,8 +1008,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     	collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
 
     	// reset the position to check if the rule id is changed
-    	if (LIST_LENGTH(collectRuleId) > 1 && getNthOfListInt(collectRuleId,ruleIdPos-1) != getNthOfListInt(collectRuleId,ruleIdPos))
-    		checkPos = 0;
+    	if (LIST_LENGTH(collectRuleId) > 1)
+    		if (getNthOfListInt(collectRuleId,ruleIdPos-1) != getNthOfListInt(collectRuleId,ruleIdPos))
+    			checkPos = 0;
 
 		if (!ruleWon)
 		{

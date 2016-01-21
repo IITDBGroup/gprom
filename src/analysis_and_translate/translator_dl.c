@@ -583,9 +583,9 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
             DLVar *v = (DLVar *) bA;
             AttributeDef *d = (AttributeDef *) a;
             MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
-                    createConstString(d->attrName),
-                    createConstInt(pos),
-                    createConstInt(d->dataType)));
+            					createConstString(d->attrName),
+								createConstInt(pos),
+								createConstInt(d->dataType)));
         }
         pos++;
     }
@@ -1076,10 +1076,18 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
                 DLVar *v = (DLVar*) n;
                 char *name = v->name;
 
-                varNames = appendToTailOfList(varNames, strdup(name));
+//                varNames = appendToTailOfList(varNames, strdup(name));
                 projArgs = appendToTailOfList(projArgs,
                         createFullAttrReference(strdup(name), 0, attrPos, INVALID_ATTR, v->dt));
-                projNames = appendToTailOfList(projNames, strdup(name));
+
+                // create unique variable name if same name exists
+                if (!searchListString(projNames,name))
+                	projNames = appendToTailOfList(projNames, strdup(name));
+                else
+                {
+                	char *newName = CONCAT_STRINGS(name, itoa(attrPos));
+                	projNames = appendToTailOfList(projNames, strdup(newName));
+                }
             }
             else
             {
@@ -1089,19 +1097,21 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
             attrPos++;
         }
 
-        DEBUG_LOG("var names of neg goal: %s", stringListToString(varNames));
+        DEBUG_LOG("var names of neg goal: %s", stringListToString(projNames));
 
         // check if variables existed
         if (varNames != NULL)
         {
             // project onto variables
-            rename = (ProjectionOperator *) createProjOnAttrsByName(posPart, varNames);
+//            rename = (ProjectionOperator *) createProjOnAttrsByName(posPart, varNames);
+            rename = (ProjectionOperator *) createProjOnAttrsByName(posPart, projNames);
 //            int i = 0;
 //            FOREACH(AttributeDef,a,rename->op.schema->attrDefs)
 //            {
 //                char *name = strdup(getNthOfListP(varNames, i++));
 //                a->attrName = name;
 //            }
+
     		DEBUG_LOG("proj: %s", operatorToOverviewString((Node *) rename));
     		addChildOperator((QueryOperator *) rename, posPart);
 
