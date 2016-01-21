@@ -800,11 +800,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 		if (!ruleWon && INT_VALUE(getDLProp((DLNode *) unRule,DL_RULE_ID)) == getMatched)
 		{
-//			if (INT_VALUE(getDLProp((DLNode *) unRule,DL_RULE_ID)) == getMatched)
-//			{
-				setDLProp((DLNode *) adAtom, DL_ORIG_ATOM, (Node *) copyObject(adAtom));
-				unRule->body = appendToTailOfList(unRule->body, copyObject(adAtom));
-//			}
+			setDLProp((DLNode *) adAtom, DL_ORIG_ATOM, (Node *) copyObject(adAtom));
+			unRule->body = appendToTailOfList(unRule->body, copyObject(adAtom));
 		}
 	}
 
@@ -911,8 +908,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     // for each rule_i do head -> rule_i, rule_i -> goal_i_j, goal_i_j -> posR/negR -> posR?
 	int checkPos = 0; // To filter out unnecessary move rules (rule_i -> goal_i_j, goal_i_j -> posR/negR)
 	int ruleId = 0; // To check rule id is changed
-	int ruleIdCheck = 0;
 	int ruleIdPos = 0; // position in the list of rule id
+	int ruleIdCheck = 0;
 
     char *bName = NULL;
 	List *newBoolArgs = NIL;
@@ -1004,7 +1001,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 		// create a list for collecting rule id
     	ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-    	ruleIdCheck = ruleId + INT_VALUE(createConstBool(ruleWon));
+    	char *newRuleId = CONCAT_STRINGS(itoa(ruleId), STRING_VALUE(createConstBool(ruleWon)));
+    	ruleIdCheck = INT_VALUE(createConstString(newRuleId));
     	collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
 
     	// reset the position to check if the rule id is changed
