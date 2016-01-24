@@ -385,6 +385,7 @@ static void
 updateBestPlan (OptimizerState *state)
 {
     ERROR_LOG("current plan cost is %llu", state->currentCost);
+    ERROR_LOG("best plan cost is %llu", state->bestPlanCost);
 	if(state->currentCost < state->bestPlanCost)
 	{
 		state->bestPlanCost = state->currentCost;
@@ -417,16 +418,23 @@ simannGenerateNextChoice (OptimizerState *state)
 	if(state1->previousPlanCost != PLAN_MAX_COST)
 	{
 		// compute acceptance probability
-		double p = 0.0
+		double p = 0.0;
         double ap = 1.0;
+        PlanCost mp = 0;
+        double p1 = 0.0;
+        int c = 100;
 		if (state1->previousPlanCost <= state->currentCost)
 		{
-		    p = ((double) (state1->previousPlanCost - state->currentCost))/state1->temp;
-		    ap = pow(2.71828, p);
+			mp = state1->previousPlanCost - state->currentCost;
+		    //p = ((double) (state1->previousPlanCost - state->currentCost))/state1->temp;
+			p = ((double) mp)/state1->temp;
+			p1 = p/state->currentCost;
+			p1 = c*p1;
+		    ap = pow(2.71828, p1);
 		}
-		int random = 1; //need to be changed to random value between [0,1)
-		//double random = rand()/(RAND_MAX+1.0);
-		DEBUG_LOG("temp = %f, ap = %f, previous cost = %lld, current cost = %lld", state1->temp, ap, state1->previousPlanCost, state->currentCost);
+		//double random = 1.0; //need to be changed to random value between [0,1)
+		double random = rand()/(RAND_MAX+1.0);
+		DEBUG_LOG("temp = %f, mp = %lld, p = %f, p1 = %f, ap = %f, random = %f, previous cost = %lld, current cost = %lld", state1->temp, mp, p, p1, ap, random, state1->previousPlanCost, state->currentCost);
 
 		//  back to previous plan or just use current plan
 		//  if ap > random, apply this current plan
