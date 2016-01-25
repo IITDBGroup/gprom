@@ -424,7 +424,7 @@ simannGenerateNextChoice (OptimizerState *state)
         double p1 = 0.0;
         //int c = 100;
         int c = getIntOption(OPTION_COST_BASED_SIMANN_CONST);
-        DEBUG_LOG("111111111111111111111 c = %d\n", c);
+        DEBUG_LOG("c = %d\n", c);
         if (state1->previousPlanCost <= state->currentCost)
 		{
 			mp = state1->previousPlanCost - state->currentCost;
