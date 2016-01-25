@@ -35,6 +35,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_TRANSLATE_UPDATE_WITH_CASE "translate_update_with_case"
 #define OPTION_COST_BASED_OPTIMIZER "cost_based_optimizer"
 #define OPTION_COST_BASED_MAX_PLANS "cost_based_optimizer_max_plans"
+#define OPTION_COST_BASED_SIMANN_CONST "cost_based_sim_ann_c"
 //#define OPTION_
 
 /* define optimization options */

@@ -101,6 +101,7 @@ boolean opt_translate_update_with_case = FALSE;
 // cost based optimization option
 boolean cost_based_optimizer = FALSE;
 int cost_max_considered_plans = -1;
+int cost_sim_ann_const = 10;
 
 // optimization options
 boolean opt_optimization_push_selections = FALSE;
@@ -435,6 +436,14 @@ OptionInfo opts[] =
                  OPTION_INT,
                  wrapOptionInt(&cost_max_considered_plans),
                  defOptionInt(-1)
+         },
+         {
+                 OPTION_COST_BASED_SIMANN_CONST,
+                 "-cost_sim_ann_const",
+                 "TODO",
+                 OPTION_INT,
+                 wrapOptionInt(&cost_sim_ann_const),
+                 defOptionInt(10)
          },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
