@@ -404,7 +404,11 @@ simannInitialize(OptimizerState *state)
     annealState->previousPlanExpectedTime =  DBL_MAX;
     annealState->previousPath = NIL;
     annealState->temp = 10000;
-    annealState->coolingRate = 0.5;
+    //annealState->coolingRate = 0.5;
+    int coolingRate = getIntOption(OPTION_COST_BASED_SIMANN_COOLDOWN_RATE);
+    annealState->coolingRate = ((double) coolingRate)/10;
+    DEBUG_LOG("cooldown rate = %d\n", coolingRate);
+    DEBUG_LOG("cooldown rate = %f\n", annealState->coolingRate);
 
     state->hook = annealState;
 

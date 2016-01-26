@@ -102,6 +102,7 @@ boolean opt_translate_update_with_case = FALSE;
 boolean cost_based_optimizer = FALSE;
 int cost_max_considered_plans = -1;
 int cost_sim_ann_const = 10;
+int cost_sim_ann_cooldown_rate = 5;
 
 // optimization options
 boolean opt_optimization_push_selections = FALSE;
@@ -440,10 +441,18 @@ OptionInfo opts[] =
          {
                  OPTION_COST_BASED_SIMANN_CONST,
                  "-cost_sim_ann_const",
-                 "TODO",
+                 "Cost base simulate annealing a c value used in calculate ap, eg. c = 10, 20, 50 or 100",
                  OPTION_INT,
                  wrapOptionInt(&cost_sim_ann_const),
                  defOptionInt(10)
+         },
+         {
+                 OPTION_COST_BASED_SIMANN_COOLDOWN_RATE,
+                 "-cost_sim_ann_cooldown_rate",
+                 "Cost base simulate annealing cooling down rate between 0.1 and 0.9, 1 means 0.1",
+                 OPTION_INT,
+                 wrapOptionInt(&cost_sim_ann_cooldown_rate),
+                 defOptionFloat(5)
          },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
