@@ -1076,7 +1076,9 @@ doPullUpDuplicateRemoval(DuplicateRemoval *root)
     		break;
     	tempRoot = ((QueryOperator *) getHeadOfListP(tempRoot->parents));
     }
-
+    DEBUG_LOG("count = %d\n",count);
+    if(count != 0)
+    {
     int countrolNum = callback(count);
     if(countrolNum == -1)
     	countrolNum = 0;
@@ -1121,6 +1123,7 @@ doPullUpDuplicateRemoval(DuplicateRemoval *root)
 	addChildOperator((QueryOperator *) root, (QueryOperator *) newOp);
 
 	root->op.schema->attrDefs = OP_LCHILD(root)->schema->attrDefs;
+    }
 }
 
 QueryOperator *
