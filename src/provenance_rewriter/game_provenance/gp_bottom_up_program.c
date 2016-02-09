@@ -1121,7 +1121,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						{
 							if (!goalWon || ruleWon)
 							{
-								Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(removeVars(r->head->args, removeVars(r->head->args, ruleArgs))));
+								Node *lExpr;
+								if(!ruleWon)
+									lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(removeVars(r->head->args, removeVars(r->head->args, ruleArgs))));
+								else
+									lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(r->head->args));
+
 								Node *rExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(a->args));
 								DLRule *moveRule;
 								if (ruleWon)
