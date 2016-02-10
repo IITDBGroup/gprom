@@ -844,7 +844,7 @@ translateGoal(DLAtom *r, int goalPos)
 
         for(int i = 1; i < numAttrs; i++)
         {
-            char *aDomAttrName = CONCAT_STRINGS("D", itoa(i++));
+            char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
             QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
                     "_DOMAIN", NULL, "DummyDom", NIL,
                     LIST_MAKE("D"), singletonInt(DT_STRING));
