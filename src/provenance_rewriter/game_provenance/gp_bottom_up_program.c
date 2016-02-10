@@ -939,10 +939,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			}
 			else
 			{
-				if (!searchList(ruleArgs, a->args->head->data.ptr_value) || !searchList(ruleArgs, a->args->tail->data.ptr_value))
+				FOREACH(DLNode,arg,a->args)
 				{
-					ruleArgs = appendToTailOfList(ruleArgs, a->args->head->data.ptr_value);
-					ruleArgs = appendToTailOfList(ruleArgs, a->args->tail->data.ptr_value);
+					if (!searchListNode(ruleArgs, (Node *) arg))
+						ruleArgs = appendToTailOfList(ruleArgs, copyObject(arg));
 				}
 			}
 		}
