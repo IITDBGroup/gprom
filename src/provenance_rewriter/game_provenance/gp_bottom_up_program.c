@@ -1016,7 +1016,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			newBoolArgs = NIL;
 			for(int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs); checkLoop++)
 			{
-				bName = CONCAT_STRINGS("B", itoa(checkLoop));
+				bName = CONCAT_STRINGS("BL", itoa(checkLoop));
 				createBoolArgs = createDLVar(bName, DT_BOOL);
 		        newBoolArgs = appendToTailOfList(newBoolArgs, copyObject(createBoolArgs));
 			}
