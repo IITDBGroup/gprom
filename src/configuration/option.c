@@ -231,7 +231,7 @@ OptionInfo opts[] =
         // backend specific options
         {
                 OPTION_ORACLE_AUDITTABLE,
-                "Boracle.audittable",
+                "-Boracle.audittable",
                 "Table storing the audit log (usually fga_log$ or unified_audit_trail)",
                 OPTION_STRING,
                 wrapOptionString(&oracle_audit_log_table),
