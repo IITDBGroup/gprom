@@ -284,7 +284,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
 	if (IS_QB(rewrittenTree))
 	{
-	    DOT_TO_CONSOLE(rewrittenTree);
+	    DOT_TO_CONSOLE_WITH_MESSAGE("BEFORE REWRITE", rewrittenTree);
 
 	    /*******************new Add for test json import jimp table***************************/
 	    if(isA(rewrittenTree,List) && isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
@@ -334,7 +334,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	        else
 	            rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
 
-	    DOT_TO_CONSOLE(rewrittenTree);
+	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
 	}
 
 	START_TIMER("SQLcodeGen");
@@ -360,7 +360,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     if (IS_OP(oModel))
     {
         INFO_LOG("translator result as overview:\n\n%s", operatorToOverviewString(oModel));
-        DOT_TO_CONSOLE(oModel);
+        DOT_TO_CONSOLE_WITH_MESSAGE("TRANSLATOR OUTPUT", oModel);
     }
     else if (IS_DL_NODE(oModel))
     {

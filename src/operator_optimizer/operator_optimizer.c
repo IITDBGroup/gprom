@@ -47,6 +47,7 @@
         rewrittenTree = optMethod((QueryOperator *) rewrittenTree); \
         TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree)); \
         LOG_OPT(optName, rewrittenTree); \
+        DOT_TO_CONSOLE_WITH_MESSAGE(optName,rewrittenTree); \
         STOP_TIMER("OptimizeModel - " optName); \
     }
 
