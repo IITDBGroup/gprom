@@ -47,6 +47,7 @@
         rewrittenTree = optMethod((QueryOperator *) rewrittenTree); \
         TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree)); \
         LOG_OPT(optName, rewrittenTree); \
+        DOT_TO_CONSOLE_WITH_MESSAGE(optName,rewrittenTree); \
         STOP_TIMER("OptimizeModel - " optName); \
     }
 
@@ -1076,7 +1077,9 @@ doPullUpDuplicateRemoval(DuplicateRemoval *root)
     		break;
     	tempRoot = ((QueryOperator *) getHeadOfListP(tempRoot->parents));
     }
-
+    DEBUG_LOG("count = %d\n",count);
+    if(count != 0)
+    {
     int countrolNum = callback(count);
     if(countrolNum == -1)
     	countrolNum = 0;
@@ -1121,6 +1124,7 @@ doPullUpDuplicateRemoval(DuplicateRemoval *root)
 	addChildOperator((QueryOperator *) root, (QueryOperator *) newOp);
 
 	root->op.schema->attrDefs = OP_LCHILD(root)->schema->attrDefs;
+    }
 }
 
 QueryOperator *
@@ -1313,12 +1317,12 @@ pullingUpProvenanceProjections(QueryOperator *root)
 	{
 		if(isA(o, ProjectionOperator))
 		{
+			ProjectionOperator *op = (ProjectionOperator *)o;
 			if(HAS_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP))
 			{
-				if(GET_BOOL_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP) == TRUE)
+				if(GET_BOOL_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP) == TRUE && GET_BOOL_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP_PULLUP) == FALSE)
 				{
-					ProjectionOperator *op = (ProjectionOperator *)o;
-
+					 SET_BOOL_STRING_PROP((QueryOperator *)o, PROP_PROJ_PROV_ATTR_DUP_PULLUP);
 					//Get the attrReference of the provenance attribute
 					List *l1 = getProvenanceAttrReferences(op, o);
 
@@ -1358,7 +1362,6 @@ pullingUpProvenanceProjections(QueryOperator *root)
                         }
 					}
 
-
 					//Delete the duplicateattrs from the provenance projection
 					FOREACH_LC(d,duplicateattrs)
 					{
@@ -1370,7 +1373,9 @@ pullingUpProvenanceProjections(QueryOperator *root)
 						deleteAttrFromSchemaByName((QueryOperator *)op, LC_P_VAL(d));
 					}
 
-					pullup(o, duplicateattrs, normalAttrNames);
+					if(LIST_LENGTH(o->parents) == 1)
+						pullup(o, duplicateattrs, normalAttrNames);
+
 				}
 			}
 		}
@@ -1400,241 +1405,196 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 	List* duplicateattrsCopy = copyList(duplicateattrs);
 	List* normalAttrNamesCopy = copyList(normalAttrNames);
 
-	FOREACH(QueryOperator, o, op->parents)
+	QueryOperator *o = (QueryOperator *) getHeadOfListP(op->parents);
+
+	FORBOTH_LC(d, nms, duplicateattrs, normalAttrNames)
 	{
-		FORBOTH_LC(d, nms, duplicateattrs, normalAttrNames)
-        {
-			// find the lost attribute, if we do not find it, we need to add
-			// projection op; or continue upward check.
-			fd = FALSE;
-			if(isA(o, ProjectionOperator))
-			{
-				FOREACH(Node,n ,((ProjectionOperator *)o)->projExprs)
-                {
-				    if (isA(n,AttributeReference))
-				    {
-				        AttributeReference *a = (AttributeReference *) n;
-                        if (streq(a->name, nms->data.ptr_value))
-                        {
-                            fd = TRUE;
-                            break;
-                        }
-				    }
-                }
-			}
-			else
-			{
-				FOREACH(AttributeDef,a ,o->schema->attrDefs)
-                {
-					if (streq(a->attrName, nms->data.ptr_value))
+		// find the lost attribute, if we do not find it, we need to add
+		// projection op; or continue upward check.
+		fd = FALSE;
+		if(isA(o, ProjectionOperator))
+		{
+			FOREACH(Node,n ,((ProjectionOperator *)o)->projExprs)
+            {
+				if (isA(n,AttributeReference))
+				{
+					AttributeReference *a = (AttributeReference *) n;
+
+					if (streq(a->name, nms->data.ptr_value))
 					{
 						fd = TRUE;
 						break;
 					}
-                }
-			}
-
-			if(!fd)
-			{
-				isLost = TRUE;
-
-				//add d to the list which stores the name of lost attributes
-				LostList = appendToTailOfList(LostList, d->data.ptr_value);
-				LostNormalList = appendToTailOfList(LostNormalList, nms->data.ptr_value);
-
-				//get rid of the attribute from the duplicate list and
-				//normalAttrnames
-				duplicateattrsCopy = REMOVE_FROM_LIST_PTR(duplicateattrsCopy, d->data.ptr_value);
-				normalAttrNamesCopy = REMOVE_FROM_LIST_PTR(normalAttrNamesCopy, nms->data.ptr_value);
-			}
-			else
-			{
-				//If not projection op, just get rid of the attrDef from
-				//schema. If projection op get rid of the attrDef from schema
-				//and attrRef from projExprs
-
-
-				if(isA(o, ProjectionOperator))
-				{
-					if(o->parents != NIL)
-					{
-						//Get rid of the attrDef from schema and attrRef from projExprs
-						int pos = getAttrPos((QueryOperator *)o, LC_P_VAL(d));
-						deleteAttrRefFromProjExprs((ProjectionOperator *)o, pos);
-
-						List *normalAttrNamesCopyTempList = NIL;
-						boolean nacpFlag;
-						char *name;
-
-						FOREACH_LC(n,normalAttrNamesCopy)
-						{
-							nacpFlag = FALSE;
-							FORBOTH(Node, lc1, lc2,((ProjectionOperator *)o)->projExprs,o->schema->attrDefs)
-							{
-								if (isA(lc1, AttributeReference))
-									if(streq(((AttributeReference *)lc1)->name, LC_P_VAL(n))) //TODO may not be attribute reference
-									{
-										name = ((AttributeDef *)lc2)->attrName;
-										nacpFlag = TRUE;
-										break;
-									}
-							}
-							if(nacpFlag == TRUE)
-								normalAttrNamesCopyTempList = appendToTailOfList(normalAttrNamesCopyTempList, name);
-							else
-								normalAttrNamesCopyTempList = appendToTailOfList(normalAttrNamesCopyTempList, n);
-						}
-						normalAttrNamesCopy = normalAttrNamesCopyTempList;
-
-						deleteAttrFromSchemaByName((QueryOperator *)o, LC_P_VAL(d));
-					}
-					else
-					{
-						FORBOTH(char, dup, nor, duplicateattrsCopy, normalAttrNamesCopy)
-						{
-							FORBOTH(Node,attrDef, attrRef, o->schema->attrDefs, ((ProjectionOperator *)o)->projExprs)
-		                    {
-								if (isA(attrRef, AttributeReference))
-									if(streq(dup,((AttributeDef *)(attrDef))->attrName))
-									{
-										((AttributeReference *)(attrRef))->name = nor;
-										break;
-									}
-		                    }
-						}
-
-					}
 				}
-				else
-				{
-					//Just get rid of the attrDef from schema
-					deleteAttrFromSchemaByName((QueryOperator *)o, LC_P_VAL(d));
-				}
-			}
-
-        }
-
-
-		if(isLost)
-		{
-			List* projExpr = NIL;
-			List *provAttr = NIL;
-
-			QueryOperator *childProj = (QueryOperator *) getHeadOfListP(o->inputs);
-
-			provAttr = getAttrNames(childProj->schema);
-			FOREACH(char, provName, LostList)
-				provAttr = appendToTailOfList(provAttr, strdup(provName));
-
-			//Create the attr reference from upper op projExprs
-			int cnt = 0;
-			FOREACH(AttributeDef,attrDef,childProj->schema->attrDefs)
-			{
-				projExpr = appendToTailOfList(projExpr,
-						createFullAttrReference(
-								attrDef->attrName, 0,
-								cnt, 0,
-								attrDef->dataType));
-				cnt++;
-			}
-
-
-			FORBOTH(char, name, provName, LostNormalList, LostList)
-			{
-				DataType dt;
-				if(isA(o, ProjectionOperator))
-				{
-					FOREACH(Node, p, ((ProjectionOperator *)o)->projExprs)
-					{
-						if(isA(p, AttributeReference))
-						{
-							if(streq(provName, ((AttributeReference *)p)->name))
-								dt = ((AttributeReference *)p)->attrType;
-						}
-					}
-				}
-				else
-				{
-					FOREACH(Node, p, o->schema->attrDefs)
-					{
-						if(isA(p, AttributeDef))
-						{
-							if(streq(provName, ((AttributeDef *)p)->attrName))
-								dt = ((AttributeDef *)p)->dataType;
-						}
-					}
-				}
-
-				projExpr = appendToTailOfList(projExpr,
-						createFullAttrReference(
-								name, 0,
-								cnt, 0,
-								dt));
-				cnt++;
-			}
-
-
-/*			//Create the new schema attrDef names in provAttr list
-			FOREACH(AttributeReference, attrProv, ((ProjectionOperator *)o)->projExprs)
-			{
-				provAttr = appendToTailOfList(provAttr, attrProv->name);
-			}
-
-			//Create the attr reference from upper op projExprs
-			int cnt = 0;
-			FOREACH(Node,lc,((ProjectionOperator *)o)->projExprs)
-			{
-			    ASSERT(isA(lc,AttributeReference));//TODO this fails for projection expressions that are not attribute references
-				projExpr = appendToTailOfList(projExpr,
-						createFullAttrReference(
-								((AttributeReference *) lc)->name, 0,
-								cnt, 0,
-								((AttributeReference *) lc)->attrType));
-				cnt++;
-			}
-
-			//Change the attr reference
-			FORBOTH_LC(attrProvName, attrNorName, LostList, LostNormalList)
-			{
-				FOREACH(Node, n, projExpr)
-                {
-				    if (isA(n, AttributeReference))
-				    {
-				        AttributeReference *p = (AttributeReference *) n;
-                        if(strpeq(p->name,LC_P_VAL(attrProvName)))
-                        {
-                            p->name = LC_P_VAL(attrNorName);
-                            break;
-                        }
-				    }
-                }
-			}*/
-
-			List *newProvPosList = NIL;
-			CREATE_INT_SEQ(newProvPosList, cnt, (cnt * 2) - 1, 1);
-
-			//Add projection
-			ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
-			newpo->op.provAttrs = newProvPosList;
-
-			// Switch the subtree with this newly created projection operator.
-			switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
-
-			// Add child to the newly created projections operator,
-			addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
-
-			//Reset the pos of the schema
-			resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)newpo,(QueryOperator *)op);
-			resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)o,(QueryOperator *)newpo);
-
-			pullup(o, duplicateattrsCopy, normalAttrNamesCopy);
+             }
 		}
 		else
 		{
-			resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)o,(QueryOperator *)op);
-			pullup(o, duplicateattrsCopy, normalAttrNamesCopy);
+			FOREACH(AttributeDef,a ,o->schema->attrDefs)
+            {
+				if (streq(a->attrName, nms->data.ptr_value))
+				{
+					fd = TRUE;
+					break;
+				}
+             }
 		}
 
+		//if not find this attrRef(searched by name), means lost, need add
+		if(!fd)
+		{
+			isLost = TRUE;
+
+			//add d to the list which stores the name of lost attributes
+			LostList = appendToTailOfList(LostList, strdup(d->data.ptr_value));
+			LostNormalList = appendToTailOfList(LostNormalList, strdup(nms->data.ptr_value));
+
+			//get rid of the attribute from the duplicate list and
+			//normalAttrnames
+			duplicateattrsCopy = REMOVE_FROM_LIST_PTR(duplicateattrsCopy, d->data.ptr_value);
+			normalAttrNamesCopy = REMOVE_FROM_LIST_PTR(normalAttrNamesCopy, nms->data.ptr_value);
+		}
+		//if find this attrRef(searched by name), means have this attrRef, not need to add, just remove it
+		else
+		{
+			//If not projection op, just get rid of the attrDef from
+			//schema. If projection op get rid of the attrDef from schema
+			//and attrRef from projExprs
+
+			if(isA(o, ProjectionOperator))
+			{
+				if(o->parents != NIL && LIST_LENGTH(o->parents) == 1)
+				{
+					//Get rid of the attrDef from schema and attrRef from projExprs
+					int pos = getAttrPos((QueryOperator *)o, LC_P_VAL(d));
+
+					if(pos != -1)
+					{
+						deleteAttrFromSchemaByName((QueryOperator *)o, LC_P_VAL(d));
+						deleteAttrRefFromProjExprs((ProjectionOperator *)o, pos);
+					}
+				}
+				else
+				{
+					FORBOTH(Node,attrDef, attrRef, o->schema->attrDefs, ((ProjectionOperator *)o)->projExprs)
+		            {
+						if (isA(attrRef, AttributeReference))
+						{
+							if(streq(LC_P_VAL(d),((AttributeDef *)attrDef)->attrName))
+							{
+								((AttributeReference *)(attrRef))->name = LC_P_VAL(nms);
+								break;
+							}
+						}
+		             }
+				}
+			}
+			else
+			{
+				//Just get rid of the attrDef from schema
+				deleteAttrFromSchemaByName((QueryOperator *)o, LC_P_VAL(d));
+			}
+		}
+
+	}
+
+	if(isLost)
+	{
+
+		FOREACH(QueryOperator, opChild, o->inputs)
+		    		{
+			List *projAttrNames = NIL;
+			List *projExpr = NIL;
+
+			//e.g. projection
+			// A B | PA  -> name   (1.1) copy child's old attr name (1.2) add new prov name from lost list
+			// A B | A   -> ref    (2.1) copy child's old attr ref (2.2) add new normal prov name from normal lost list
+
+			// (1.1)
+			if(isA(opChild, ProjectionOperator))
+				projAttrNames = getAttrRefNames((ProjectionOperator *) opChild);
+			else
+				projAttrNames = getQueryOperatorAttrNames((QueryOperator *) opChild);
+
+			// (2.1)
+			int cnt = 0;
+			if(isA(opChild, ProjectionOperator))
+			{
+				projExpr = copyObject(((ProjectionOperator *)opChild)->projExprs);
+				cnt = getNumAttrs(opChild);
+			}
+			else
+			{
+				FOREACH(AttributeDef,attrDef,opChild->schema->attrDefs)
+				{
+					projExpr = appendToTailOfList(projExpr,
+							createFullAttrReference(
+									attrDef->attrName, 0,
+									cnt, 0,
+									attrDef->dataType));
+					cnt++;
+				}
+			}
+
+			// (1.2)
+                		FOREACH(char, attrName, LostList)
+                		projAttrNames = appendToTailOfList(projAttrNames, attrName);
+
+                		// (2.2)
+                		List *childType = getDataTypes(opChild->schema);
+                		List *childName = getAttrNames(opChild->schema);
+
+                		FOREACH(char, attrName, LostNormalList)
+                		{
+                			DataType type ;
+                			char *name = NULL;
+                			FORBOTH(Node, t, n, childType, childName)
+                			{
+                				name = (char *) n;
+                				if(streq(name, attrName))
+                				{
+                					type = (DataType) t;
+                					break;
+                				}
+                			}
+                			if(name != NULL)
+                			{
+                				projExpr = appendToTailOfList(projExpr,
+                						createFullAttrReference(
+                								name, 0,
+                								cnt, 0,
+                								type));
+                				cnt++;
+                			}
+                		}
+
+                		List *newProvPosList = NIL;
+                		CREATE_INT_SEQ(newProvPosList, cnt, (cnt * 2) - 1, 1);
+
+                		//Add projection
+                		ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, projAttrNames);
+                		newpo->op.provAttrs = newProvPosList;
+
+                		// Switch the subtree with this newly created projection operator.
+                		switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+
+                		// Add child to the newly created projections operator,
+                		addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+
+                		//Reset the pos of the schema
+                		resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)newpo,(QueryOperator *)op);
+                		resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)o,(QueryOperator *)newpo);
+
+                		if(LIST_LENGTH(o->parents) == 1)
+                			pullup(o, duplicateattrsCopy, normalAttrNamesCopy);
+		    		}
+	}
+	else
+	{
+		resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)o,(QueryOperator *)op);
+
+		if(LIST_LENGTH(o->parents) == 1)
+			pullup(o, duplicateattrsCopy, normalAttrNamesCopy);
 	}
 
 	return op;

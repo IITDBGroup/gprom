@@ -101,6 +101,8 @@ boolean opt_translate_update_with_case = FALSE;
 // cost based optimization option
 boolean cost_based_optimizer = FALSE;
 int cost_max_considered_plans = -1;
+int cost_sim_ann_const = 10;
+int cost_sim_ann_cooldown_rate = 5;
 
 // optimization options
 boolean opt_optimization_push_selections = FALSE;
@@ -229,7 +231,7 @@ OptionInfo opts[] =
         // backend specific options
         {
                 OPTION_ORACLE_AUDITTABLE,
-                "Boracle.audittable",
+                "-Boracle.audittable",
                 "Table storing the audit log (usually fga_log$ or unified_audit_trail)",
                 OPTION_STRING,
                 wrapOptionString(&oracle_audit_log_table),
@@ -435,6 +437,22 @@ OptionInfo opts[] =
                  OPTION_INT,
                  wrapOptionInt(&cost_max_considered_plans),
                  defOptionInt(-1)
+         },
+         {
+                 OPTION_COST_BASED_SIMANN_CONST,
+                 "-cost_sim_ann_const",
+                 "Cost base simulate annealing a c value used in calculate ap, eg. c = 10, 20, 50 or 100",
+                 OPTION_INT,
+                 wrapOptionInt(&cost_sim_ann_const),
+                 defOptionInt(10)
+         },
+         {
+                 OPTION_COST_BASED_SIMANN_COOLDOWN_RATE,
+                 "-cost_sim_ann_cooldown_rate",
+                 "Cost base simulate annealing cooling down rate between 0.1 and 0.9, 1 means 0.1",
+                 OPTION_INT,
+                 wrapOptionInt(&cost_sim_ann_cooldown_rate),
+                 defOptionFloat(5)
          },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,

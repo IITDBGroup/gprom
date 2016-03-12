@@ -35,8 +35,10 @@
 
 
 /* cost of a plan */
-#define PLAN_MAX_COST ULLONG_MAX
-typedef unsigned long long int PlanCost;
+//#define PLAN_MAX_COST ULLONG_MAX
+#define PLAN_MAX_COST LLONG_MAX
+//typedef unsigned long long int PlanCost;
+typedef long long int PlanCost;
 
 /* current state of the optimizer */
 typedef struct OptimizerState
@@ -383,6 +385,7 @@ static void
 updateBestPlan (OptimizerState *state)
 {
     ERROR_LOG("current plan cost is %llu", state->currentCost);
+    ERROR_LOG("best plan cost is %llu", state->bestPlanCost);
 	if(state->currentCost < state->bestPlanCost)
 	{
 		state->bestPlanCost = state->currentCost;
@@ -401,7 +404,11 @@ simannInitialize(OptimizerState *state)
     annealState->previousPlanExpectedTime =  DBL_MAX;
     annealState->previousPath = NIL;
     annealState->temp = 10000;
-    annealState->coolingRate = 0.5;
+    //annealState->coolingRate = 0.5;
+    int coolingRate = getIntOption(OPTION_COST_BASED_SIMANN_COOLDOWN_RATE);
+    annealState->coolingRate = ((double) coolingRate)/10;
+    DEBUG_LOG("cooldown rate = %d\n", coolingRate);
+    DEBUG_LOG("cooldown rate = %f\n", annealState->coolingRate);
 
     state->hook = annealState;
 
@@ -415,18 +422,39 @@ simannGenerateNextChoice (OptimizerState *state)
 	if(state1->previousPlanCost != PLAN_MAX_COST)
 	{
 		// compute acceptance probability
-		double p = ((double) (state1->previousPlanCost - state->currentCost))/state1->temp;
-		double ap = pow(2.71828, p);
-		int random = 1; //need to be changed to random value between [0,1)
-		//double random = rand()/(RAND_MAX+1.0);
-		DEBUG_LOG("temp = %f, ap = %f, previous cost = %lld, current cost = %lld", state1->temp, ap, state1->previousPlanCost, state->currentCost);
+		double p = 0.0;
+        double ap = 1.0;
+        PlanCost mp = 0;
+        double p1 = 0.0;
+        //int c = 100;
+        int c = getIntOption(OPTION_COST_BASED_SIMANN_CONST);
+        DEBUG_LOG("c = %d\n", c);
+        if (state1->previousPlanCost <= state->currentCost)
+		{
+			mp = state1->previousPlanCost - state->currentCost;
+		    //p = ((double) (state1->previousPlanCost - state->currentCost))/state1->temp;
+			p = ((double) mp)/state1->temp;
+			p1 = p/state->currentCost;
+			p1 = c*p1;
+		    ap = pow(2.71828, p1);
+		}
+		//double random = 1.0; //need to be changed to random value between [0,1)
+		double random = rand()/(RAND_MAX+1.0);
+		DEBUG_LOG("temp = %f, mp = %lld, p = %f, p1 = %f, ap = %f, random = %f, previous cost = %lld, current cost = %lld", state1->temp, mp, p, p1, ap, random, state1->previousPlanCost, state->currentCost);
 
 		//  back to previous plan or just use current plan
 		//  if ap > random, apply this current plan
 		//  if ap <= random, back to previous plan and based on previous plan to generate next plan
 		//  current means the neighbor of previous one
 		//  random is between [0,1)
-		if(ap <= random)
+		if(state->currentCost < state1->previousPlanCost)
+		{
+			//before to generate next plan, store current plan
+			state1->previousPlanCost = state->currentCost;
+			state1->previousPlan = strdup(state->currentPlan);
+			DEBUG_LOG("best cost = %lld, previous cost = %lld, current cost = %lld", state->bestPlanCost, state1->previousPlanCost, state->currentCost);
+		}
+		else if(ap <= random)
 		{
 			DEBUG_LOG("**Back to previous plan** \n");
 			state->currentCost = state1->previousPlanCost;
@@ -465,7 +493,7 @@ simannGenerateNextChoice (OptimizerState *state)
 	List *numChoicesHelp = NIL;
 
 	int curPathLen = LIST_LENGTH(curPath);
-	int pos = rand() % curPathLen;
+	int pos = curPathLen == 0 ? 0 : rand() % curPathLen;
 	DEBUG_LOG("pos = %d\n",pos);
 
 	for(int i=0; i <= pos; i++)

@@ -200,6 +200,12 @@ extern void indentString(StringInfo str, int level);
 /* get a dot script for a query operator graph or query block tree */
 extern char *nodeToDot(void *obj);
 
+#define DOT_TO_CONSOLE_WITH_MESSAGE(mes,obj) \
+    do { \
+        if (getBoolOption(OPTION_GRAPHVIZ)) \
+            printf("GRAPHVIZ: %s\n%s",(mes),nodeToDot(obj)); \
+    } while (0)
+
 #define DOT_TO_CONSOLE(obj) \
     do { \
         if (getBoolOption(OPTION_GRAPHVIZ)) \

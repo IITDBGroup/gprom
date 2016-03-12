@@ -459,9 +459,9 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             }
 
             // get commit scn
-            char *tableName = (char *) getTailOfListP(tInfo->updateTableNames);
+            char *tableName = (char *) getHeadOfListP(tInfo->updateTableNames);
             tInfo->commitSCN = createConstLong(getCommitScn(tableName,
-                    LONG_VALUE(getTailOfListP(tInfo->scns)),
+                    LONG_VALUE(getHeadOfListP(tInfo->scns)),
                     xid));
 
             // if only updated rows shows be returned then we need to store the update conditions
