@@ -141,7 +141,7 @@ rpqStatement:
 		RPQ '(' stringConst ',' VARIDENT ',' VARIDENT ',' VARIDENT ')' '.'
 		{
 			RULELOG("rpqStatement");
-			$$ = makeRPQQuery($3, $5, $7, $9);
+			$$ = (Node *) makeRPQQuery($3, $5, $7, $9);
 		}
 	;
 	
