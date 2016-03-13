@@ -28,12 +28,14 @@
 #include "provenance_rewriter/game_provenance/gp_main.h"
 
 static Node *translateProgram(DLProgram *p);
+static QueryOperator *translateFact(DLAtom *f);
 static QueryOperator *translateRule(DLRule *r);
 static QueryOperator *translateSafeRule(DLRule *r);
 static QueryOperator *translateUnSafeRule(DLRule *r);
 static QueryOperator *translateGoal(DLAtom *r, int goalPos);
 static QueryOperator *translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart);
 static void analyzeProgramDTs (DLProgram *p, HashMap *predToRules);
+static void analyzeFactDTs (DLAtom *f, HashMap *predToDTs);
 static void analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules);
 static void setVarDTs (Node *expr, HashMap *varToDT);
 static QueryOperator *joinGoalTranslations (DLRule *r, List *goalTrans);
@@ -75,14 +77,36 @@ translateQueryDL(Node *node)
     return NULL;
 }
 
+#define APPEND_TO_MAP_VALUE_LIST(map,key,elem) \
+    do { \
+        if(MAP_HAS_STRING_KEY((map),(key))) \
+        { \
+            KeyValue *_kv = MAP_GET_STRING_ENTRY((map),(key)); \
+            List *_valList = (List *) _kv->value; \
+            _valList = appendToTailOfList(_valList, (elem)); \
+            _kv->value = (Node *) _valList; \
+        } \
+        else \
+        { \
+            List *_valList = singleton((elem)); \
+            MAP_ADD_STRING_KEY((map),(key),_valList); \
+        } \
+    } while(0)
+
 static Node *
 translateProgram(DLProgram *p)
 {
     List *translation = NIL; // list of sinks of a relational algebra graph
-    List *singleRuleTrans = NIL;
+//    List *singleRuleTrans = NIL;
     HashMap *predToTrans = NEW_MAP(Constant,List);
     HashMap *predToRules = NEW_MAP(Constant,List);
     Node *answerRel;
+//    Set *edbRels, idbRels, factRels;
+
+    // get names of EDB, IDB and fact predicates
+//    idbRels = (Set *) DL_GET_PROP(p, DL_IDB_RELS);
+//    edbRels = (Set *) DL_GET_PROP(p, DL_EDB_RELS);
+//    factRels = (Set *) DL_GET_PROP(p, DL_FACT_RELS);
 
     // if we want to compute the provenance then construct program
     // for creating the provenance and translate this one
@@ -101,25 +125,67 @@ translateProgram(DLProgram *p)
     FOREACH(DLRule,r,p->rules)
     {
         char *headPred = getHeadPredName(r);
-
-        // not first rule for this pred
-        if(MAP_HAS_STRING_KEY(predToRules,headPred))
-        {
-            KeyValue *kv = MAP_GET_STRING_ENTRY(predToRules,headPred);
-            List *pRules = (List *) kv->value;
-            pRules = appendToTailOfList(pRules, r);
-            kv->value = (Node *) pRules;
-        }
-        // first rule for this pred
-        else
-        {
-            List *pRules = singleton(r);
-            MAP_ADD_STRING_KEY(predToRules,headPred,pRules);
-        }
+        APPEND_TO_MAP_VALUE_LIST(predToRules,headPred,r);
+//        // not first rule for this pred
+//        if(MAP_HAS_STRING_KEY(predToRules,headPred))
+//        {
+//            KeyValue *kv = MAP_GET_STRING_ENTRY(predToRules,headPred);
+//            List *pRules = (List *) kv->value;
+//            pRules = appendToTailOfList(pRules, r);
+//            kv->value = (Node *) pRules;
+//        }
+//        // first rule for this pred
+//        else
+//        {
+//            List *pRules = singleton(r);
+//            MAP_ADD_STRING_KEY(predToRules,headPred,pRules);
+//        }
+    }
+    FOREACH(DLAtom,f,p->facts)
+    {
+        char *relName = f->rel;
+        APPEND_TO_MAP_VALUE_LIST(predToRules,relName,f);
+//        // not first rule for this pred
+//        if(MAP_HAS_STRING_KEY(predToRules,relName))
+//        {
+//            KeyValue *kv = MAP_GET_STRING_ENTRY(predToRules,relName);
+//            List *pRules = (List *) kv->value;
+//            pRules = appendToTailOfList(pRules, f);
+//            kv->value = (Node *) pRules;
+//        }
+//        // first rule for this pred
+//        else
+//        {
+//            List *pRules = singleton(f);
+//            MAP_ADD_STRING_KEY(predToRules,relName,pRules);
+//        }
     }
 
     // analyze rules to determine data types
     analyzeProgramDTs(p, predToRules);
+
+    // translate facts
+    FOREACH(DLAtom,f,p->facts)
+    {
+        QueryOperator *tFact = translateFact(f);
+        char *predName = f->rel;
+
+        DEBUG_LOG("translate fact: %s", datalogToOverviewString((Node *) f));
+        APPEND_TO_MAP_VALUE_LIST(predToTrans,predName,tFact);
+//        if(MAP_HAS_STRING_KEY(predToTrans,predName))
+//        {
+//            KeyValue *kv = MAP_GET_STRING_ENTRY(predToTrans,predName);
+//            List *ruleTrans = (List *) kv->value;
+//            ruleTrans = appendToTailOfList(ruleTrans, tFact);
+//            kv->value = (Node *) ruleTrans;
+//        }
+//        // first rule for this pred
+//        else
+//        {
+//            List *ruleTrans = singleton(tFact);
+//            MAP_ADD_STRING_KEY(predToTrans,predName,ruleTrans);
+//        }
+    }
 
     // translate rules
     FOREACH(DLRule,r,p->rules)
@@ -132,22 +198,23 @@ translateProgram(DLProgram *p)
         if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
              ASSERT(checkModel((QueryOperator *) tRule));
 
-        // not first rule for this pred
-        if(MAP_HAS_STRING_KEY(predToTrans,headPred))
-        {
-            KeyValue *kv = MAP_GET_STRING_ENTRY(predToTrans,headPred);
-            List *ruleTrans = (List *) kv->value;
-            ruleTrans = appendToTailOfList(ruleTrans, tRule);
-            kv->value = (Node *) ruleTrans;
-        }
-        // first rule for this pred
-        else
-        {
-            List *ruleTrans = singleton(tRule);
-            MAP_ADD_STRING_KEY(predToTrans,headPred,ruleTrans);
-        }
-        singleRuleTrans = appendToTailOfList(singleRuleTrans,
-                tRule);
+        APPEND_TO_MAP_VALUE_LIST(predToTrans,headPred,tRule);
+//        // not first rule for this pred
+//        if(MAP_HAS_STRING_KEY(predToTrans,headPred))
+//        {
+//            KeyValue *kv = MAP_GET_STRING_ENTRY(predToTrans,headPred);
+//            List *ruleTrans = (List *) kv->value;
+//            ruleTrans = appendToTailOfList(ruleTrans, tRule);
+//            kv->value = (Node *) ruleTrans;
+//        }
+//        // first rule for this pred
+//        else
+//        {
+//            List *ruleTrans = singleton(tRule);
+//            MAP_ADD_STRING_KEY(predToTrans,headPred,ruleTrans);
+//        }
+//        singleRuleTrans = appendToTailOfList(singleRuleTrans,
+//                tRule);
     }
 
     // for each predicate create a union between all translated rules
@@ -203,7 +270,11 @@ analyzeProgramDTs (DLProgram *p, HashMap *predToRules)
 {
     HashMap *predToDTs = NEW_MAP(Constant,List);
 
-    // determine data types recursively
+    // determine fact data types
+    FOREACH(DLAtom,f,p->facts)
+        analyzeFactDTs(f, predToDTs);
+
+    // determine data types
     FOREACH(DLRule,r,p->rules)
         analyzeRuleDTs(r, predToDTs, predToRules);
 
@@ -255,6 +326,18 @@ analyzeProgramDTs (DLProgram *p, HashMap *predToRules)
     }
 
     DEBUG_LOG("analyzed DTs for datalog program before translation: %s", beatify(nodeToString((Node *) p)));
+}
+
+static void
+analyzeFactDTs (DLAtom *f, HashMap *predToDTs)
+{
+    List *dts = NIL;
+
+    FOREACH(Node,arg,f->args)
+        dts = appendToTailOfListInt(dts, typeOf(arg));
+
+    setDLProp((DLNode *) f, DL_PRED_DTS, (Node *) dts);
+    MAP_ADD_STRING_KEY(predToDTs, f->rel, dts);
 }
 
 static void
@@ -331,6 +414,25 @@ setVarDTs (Node *expr, HashMap *varToDT)
 //    List *vars = getDLVars (expr);
     FOREACH(DLVar,v,vars)
         v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
+}
+
+static QueryOperator *
+translateFact(DLAtom *f)
+{
+    QueryOperator *result;
+    List *attrNames = NIL;
+    List *dts = NIL;
+    int pos = 0;
+
+    FOREACH(Node,arg,f->args)
+    {
+        dts = appendToTailOfListInt(dts, typeOf(arg));
+        attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("c", itoa(pos++)));
+    }
+
+    result = (QueryOperator *) createConstRelOp(copyObject(f->args), NIL, attrNames, dts);
+
+    return result;
 }
 
 static QueryOperator *
@@ -803,6 +905,16 @@ replaceVarWithAttrRef(Node *node, List *context)
  *  and A2 would be translated into PROJECTION[A1->X,B1->Y](R).
  */
 
+#define COPY_PROPS_TO_TABLEACCESS(table,dl) \
+    do { \
+        if (DL_HAS_PROP(dl,DL_IS_IDB_REL)) \
+            SET_BOOL_STRING_PROP(table, DL_IS_IDB_REL); \
+        if (DL_HAS_PROP(dl,DL_IS_EDB_REL)) \
+            SET_BOOL_STRING_PROP(table, DL_IS_EDB_REL); \
+        if (DL_HAS_PROP(dl,DL_IS_FACT_REL)) \
+            SET_BOOL_STRING_PROP(table, DL_IS_FACT_REL); \
+    } while(0)
+
 static QueryOperator *
 translateGoal(DLAtom *r, int goalPos)
 {
@@ -813,7 +925,8 @@ translateGoal(DLAtom *r, int goalPos)
     List *dts = NIL;
 
     // for idb rels just fake attributes (and for now DTs)
-    if (DL_HAS_PROP(r,DL_IS_IDB_REL))
+    if (DL_HAS_PROP(r,DL_IS_IDB_REL) ||
+            (DL_HAS_PROP(r,DL_IS_FACT_REL) && !DL_HAS_PROP(r,DL_IS_EDB_REL)))
     {
         for(int i = 0; i < LIST_LENGTH(r->args); i++)
             attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));
@@ -826,8 +939,7 @@ translateGoal(DLAtom *r, int goalPos)
 
     // create table access op
     rel = createTableAccessOp(r->rel, NULL, "REL", NIL, attrNames, dts);
-    if (DL_HAS_PROP(r,DL_IS_IDB_REL))
-        SET_BOOL_STRING_PROP(rel, DL_IS_IDB_REL);
+    COPY_PROPS_TO_TABLEACCESS(rel,r);
 
     // is negated goal?
     if (r->negated)
@@ -1018,7 +1130,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     List *dts = NIL;
 
     // for idb rels just fake attributes (and for now DTs)
-    if (DL_HAS_PROP(r,DL_IS_IDB_REL))
+    if (DL_HAS_PROP(r,DL_IS_IDB_REL) || DL_HAS_PROP(r,DL_IS_FACT_REL))
     {
         for(int i = 0; i < LIST_LENGTH(r->args); i++)
         	attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));
@@ -1031,8 +1143,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
 
     // create table access op
     rel = createTableAccessOp(r->rel, NULL, "REL", NIL, attrNames, dts);
-    if (DL_HAS_PROP(r,DL_IS_IDB_REL))
-        SET_BOOL_STRING_PROP(rel, DL_IS_IDB_REL);
+    COPY_PROPS_TO_TABLEACCESS(rel,r);
 
     // is negated goal?
     if (r->negated)
@@ -1313,17 +1424,38 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
         FOREACH(TableAccessOperator,r,rels)
         {
             boolean isIDB = HAS_STRING_PROP(r,DL_IS_IDB_REL);
-            DEBUG_LOG("check Table %s that is %s", r->tableName, isIDB ? " idb": " edb");
+            boolean isEDB = HAS_STRING_PROP(r,DL_IS_EDB_REL);
+            boolean isFact = HAS_STRING_PROP(r,DL_IS_FACT_REL);
+
+            DEBUG_LOG("check Table %s that is %s%s%s", r->tableName, isIDB ? " idb": "",
+                    isEDB ? " edb": "", isFact ? " fact": "");
             ASSERT(!isIDB || MAP_HAS_STRING_KEY(predToTrans,r->tableName));
 
-            if(isIDB && MAP_HAS_STRING_KEY(predToTrans,r->tableName))
+            // is idb or fact (which is not edb)
+            if((isIDB || (isFact && !isEDB)) && MAP_HAS_STRING_KEY(predToTrans,r->tableName))
             {
                 QueryOperator *idbImpl = (QueryOperator *) MAP_GET_STRING(predToTrans,r->tableName);
                 switchSubtreeWithExisting((QueryOperator *) r,idbImpl);
                 DEBUG_LOG("replaced idb Table %s with\n:%s", r->tableName,
                         operatorToOverviewString((Node *) idbImpl));
             }
-            else if (isIDB)
+            // is fact which is edb
+            else if (isFact && isEDB && MAP_HAS_STRING_KEY(predToTrans,r->tableName))
+            {
+                QueryOperator *idbImpl = (QueryOperator *)
+                        MAP_GET_STRING(predToTrans,r->tableName);
+                QueryOperator *un;
+
+                un = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(r,idbImpl), NIL,
+                        getQueryOperatorAttrNames((QueryOperator *) r));
+                addParent(idbImpl, un);
+                addParent((QueryOperator *) r, un);
+
+                switchSubtreeWithExisting((QueryOperator *) r,un);
+                DEBUG_LOG("replaced idb Table %s with\n:%s", r->tableName,
+                        operatorToOverviewString((Node *) un));
+            }
+            else if (isIDB || isFact)
                 FATAL_LOG("Do not find entry for %s", r->tableName);
         }
 

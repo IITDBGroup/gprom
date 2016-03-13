@@ -18,6 +18,7 @@
 #include "model/set/hashmap.h"
 #include "model/datalog/datalog_model.h"
 #include "model/datalog/datalog_model_checker.h"
+#include "metadata_lookup/metadata_lookup.h"
 
 static boolean checkDLProgram (DLProgram *p);
 static boolean checkDLRule (DLRule *r);
@@ -42,6 +43,20 @@ checkDLProgram (DLProgram *p)
 {
     HashMap *relArities = NEW_MAP(Constant,Constant);
     Set *idbRels = STRSET();
+    Set *edbRels = STRSET();
+    Set *factRels = STRSET();
+    Set *edbOrFactRels = STRSET();
+
+    // check facts
+    FOREACH(DLAtom,f,p->facts)
+    {
+        if (!checkFact(f))
+            return FALSE;
+        addToSet(factRels, f->rel);
+        if (!MAP_HAS_STRING_KEY(relArities, f->rel))
+            MAP_ADD_STRING_KEY(relArities, strdup(f->rel),
+                    createConstInt(LIST_LENGTH(f->args)));
+    }
 
     // check internal consistency of each rule
     FOREACH(DLRule,r,p->rules)
@@ -69,15 +84,55 @@ checkDLProgram (DLProgram *p)
         }
     }
 
-    // second loop to check consistency of idb rels and arities
+    // Gather edb rules and check their consistency
+    FOREACH(DLRule,r,p->rules)
+    {
+        FOREACH(DLNode,a,r->body)
+        {
+            if (isA(a, DLAtom))
+            {
+                DLAtom *atom = (DLAtom *) a;
+                char *relName = atom->rel;
+                if (catalogTableExists(relName))
+                {
+                    addToSet(edbRels, relName);
+                    if (LIST_LENGTH(getAttributes(relName)) != LIST_LENGTH(atom->args))
+                        FATAL_LOG("Body atom %s uses edb relation %s but does "
+                                "not have that same arity as this relation.",
+                                datalogToOverviewString((Node *) atom), relName);
+                }
+                else if (!(hasSetElem(idbRels,relName) || hasSetElem(factRels,relName)))
+                {
+                    FATAL_LOG("Predicate of body atom %s is neither IDB nor EDB"
+                            " (used in facts of present in the database)",
+                            datalogToOverviewString((Node *) atom));
+                }
+
+            }
+        }
+    }
+
+    // check for overlap among EDB and IDB
+    edbOrFactRels = unionSets(edbRels,factRels);
+    // check that idb and edb do not overlap
+    if (overlapsSet(idbRels,edbOrFactRels))
+    {
+        FATAL_LOG("relation has to be either EDB or IDB:\n%s\n\n%s",
+                nodeToString(idbRels), nodeToString(edbRels));
+        return FALSE;
+    }
+
+    // third loop to check consistency of idb rels and arities
+    Set *checkIdb = copyObject(idbRels);
     FOREACH(DLRule,r,p->rules)
     {
         int arity;
 
+        removeSetElem(checkIdb,r->head->rel);
         arity = INT_VALUE(MAP_GET_STRING(relArities, r->head->rel));
         if (arity != LIST_LENGTH(r->head->args))
         {
-            FATAL_LOG("arity of rel %s was supposed to be %u in rul:\n%s",
+            FATAL_LOG("arity of rel %s was supposed to be %u in rule:\n%s",
                     r->head->rel, arity, datalogToOverviewString((Node *) r));
             return FALSE;
         }
@@ -88,14 +143,26 @@ checkDLProgram (DLProgram *p)
             {
                 DLAtom *at = (DLAtom *) a;
 
-                // idb check
-                if (DL_HAS_PROP(at, DL_IS_IDB_REL)
-                        && !hasSetElem(idbRels, at->rel))
-                {
-                    FATAL_LOG("arity of rel %s was supposed to be %u in rule:\n%s",
-                            at->rel, arity, datalogToOverviewString((Node *) r));
-                    return FALSE;
-                }
+                // set predicate type for atom
+                DL_DEL_PROP(at,DL_IS_IDB_REL);
+                DL_DEL_PROP(at,DL_IS_EDB_REL);
+                DL_DEL_PROP(at,DL_IS_FACT_REL);
+
+                if (hasSetElem(idbRels,at->rel))
+                    DL_SET_BOOL_PROP(at,DL_IS_IDB_REL);
+                if (hasSetElem(edbRels,at->rel))
+                    DL_SET_BOOL_PROP(at,DL_IS_EDB_REL);
+                if (hasSetElem(factRels,at->rel))
+                    DL_SET_BOOL_PROP(at,DL_IS_FACT_REL);
+
+                DEBUG_LOG("fixed atom: %s", nodeToString((Node *) at));
+//                if (DL_HAS_PROP(at, DL_IS_IDB_REL)
+//                        && !hasSetElem(idbRels, at->rel))
+//                {
+//                    FATAL_LOG("atom marked as IDB is not using IDB predicate:\n%s",
+//                            at->rel, datalogToOverviewString((Node *) r));
+//                    return FALSE;
+//                }
 
                 // check arity
                 arity = INT_VALUE(MAP_GET_STRING(relArities, at->rel));
@@ -109,6 +176,10 @@ checkDLProgram (DLProgram *p)
         }
     }
 
+    if (!EMPTY_SET(checkIdb))
+        FATAL_LOG("The following IDB predicate(s) used in rule bodies do not "
+                "occur in the head of any rule: %s", checkIdb);
+
     // answer relation appears as head of a rule
     if (p->ans && !hasSetElem(idbRels, p->ans))
     {
@@ -118,9 +189,10 @@ checkDLProgram (DLProgram *p)
         return FALSE;
     }
 
-    //TODO check that answer relation appears in head
-
-    //TODO check that idb relations appear at least in the head of one rule
+    // store some auxiliary results of analysis in properties
+    setDLProp((DLNode *) p, DL_IDB_RELS, (Node *) idbRels);
+    setDLProp((DLNode *) p, DL_EDB_RELS, (Node *) edbRels);
+    setDLProp((DLNode *) p, DL_FACT_RELS, (Node *) factRels);
 
     return TRUE;
 }
@@ -138,6 +210,8 @@ checkDLRule (DLRule *r)
 //            FATAL_LOG("did not find head var %s in body of rule:\n%s", v,
 //                    datalogToOverviewString((Node *) r));
 //        }
+
+
 
     return checkDLRuleSafety(r);
 }
@@ -228,5 +302,20 @@ checkDLRuleSafety (DLRule *r)
         }
     }
 
+    return TRUE;
+}
+
+/*
+ * Check that facts only use constants
+ */
+boolean
+checkFact (DLAtom *f)
+{
+    FOREACH(Node,arg,f->args)
+    {
+        if (!isConstExpr(arg))
+            FATAL_LOG("datalog facts can only contain constant expressions: %s",
+                    datalogToOverviewString((Node *) f));
+    }
     return TRUE;
 }

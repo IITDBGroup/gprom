@@ -119,6 +119,8 @@ extern void delDLProp(DLNode *n, char *key);
 
 // property keys
 #define DL_IS_IDB_REL "IS_IDB_REL"
+#define DL_IS_EDB_REL "IS_EDB_REL"
+#define DL_IS_FACT_REL "IS_FACT_REL"
 
 #define DL_PROV_WHY "WHY_PROV"
 #define DL_PROV_WHYNOT "WHYNOT_PROV"
@@ -131,6 +133,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_MAP_ADORNED_PREDS_TO_RULES "ADORNED_PREDS_TO_RULES"
 #define DL_IDB_RELS "IDB_RELS"
 #define DL_EDB_RELS "EDB_RELS"
+#define DL_FACT_RELS "FACT_RELS"
 
 #define DL_WON "WON"
 #define DL_LOST "LOST"

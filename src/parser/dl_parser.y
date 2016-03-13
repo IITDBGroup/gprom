@@ -171,10 +171,10 @@ provStatement:
 	
 rule:
 		rulehead RULE_IMPLICATION rulebody '.' 
-			{ 
-				RULELOG("rule::head::body"); 
-				$$ = (Node *) createDLRule((DLAtom *) $1,$3); 
-			}
+		{ 
+			RULELOG("rule::head::body"); 
+			$$ = (Node *) createDLRule((DLAtom *) $1,$3); 
+		}
 	;
 	
 fact:

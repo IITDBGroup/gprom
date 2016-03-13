@@ -1439,6 +1439,13 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
         {
             DLProgram *p = (DLProgram *) n;
             appendStringInfoString(str, "PROGRAM:\n");
+            FOREACH(Node,f,p->facts)
+            {
+                indentString(str,4);
+                datalogToStrInternal(str,(Node *) f, 4);
+                appendStringInfo(str, ".\n");
+            }
+
             FOREACH(Node,r,p->rules)
             {
                 if (isA(r,Constant))
