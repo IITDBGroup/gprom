@@ -23,6 +23,7 @@
 #include "model/datalog/datalog_model_checker.h"
 #include "model/rpq/rpq_model.h"
 #include "rpq/rpq_to_datalog.h"
+#include "utility/string_utils.h"
 
 static void analyzeDLProgram (DLProgram *p);
 static void analyzeRule (DLRule *r, Set *idbRels); // , Set *edbRels, Set *factRels);
@@ -154,20 +155,42 @@ analyzeProv (DLProgram *p, KeyValue *kv)
     char *type;
     ASSERT(isA(kv->key, Constant));
 
+    // get provenance type
     type = STRING_VALUE(kv->key);
-    if (streq(type,DL_PROV_WHY))
+    if (isPrefix(type,DL_PROV_WHY))
     {
         setDLProp((DLNode *) p,DL_PROV_WHY, kv->value);
-        //TODO check that is WHY prove
     }
-    if (streq(type,DL_PROV_WHYNOT))
+    //TODO check that is WHY prove
+    if (isPrefix(type,DL_PROV_WHYNOT))
     {
         setDLProp((DLNode *) p,DL_PROV_WHYNOT, kv->value);
-        //TODO check that is WHY prove
     }
-    if (streq(type,DL_PROV_FULL_GP))
+    if (isPrefix(type,DL_PROV_FULL_GP))
     {
         DL_SET_BOOL_PROP(p,DL_PROV_FULL_GP);
+    }
+
+    // check if format is given
+    if (!streq(type,DL_PROV_WHY) || !streq(type,DL_PROV_WHYNOT) || !streq(type,DL_PROV_FULL_GP))
+    {
+        if (isSuffix(type, DL_PROV_FORMAT_GP))
+        {
+            DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_GP);
+        }
+        else if (isSuffix(type, DL_PROV_FORMAT_TUPLE))
+        {
+            DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE);
+        }
+        else
+        {
+            FATAL_LOG("unkown provenance return format: %s", type);
+        }
+    }
+    // otherwise default is full game provenance graph
+    else
+    {
+        DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_GP);
     }
 }
 

@@ -913,6 +913,11 @@ replaceVarWithAttrRef(Node *node, List *context)
             SET_BOOL_STRING_PROP(table, DL_IS_EDB_REL); \
         if (DL_HAS_PROP(dl,DL_IS_FACT_REL)) \
             SET_BOOL_STRING_PROP(table, DL_IS_FACT_REL); \
+        DEBUG_LOG("create table for goal %s(%s)%s%s%s", table->tableName, \
+                stringListToString(getQueryOperatorAttrNames((QueryOperator *) table)), \
+                DL_HAS_PROP(dl,DL_IS_IDB_REL) ? " IDB " : "", \
+                DL_HAS_PROP(dl,DL_IS_FACT_REL) ? " FACT " : "", \
+                DL_HAS_PROP(dl,DL_IS_EDB_REL) ? " EDB " : ""); \
     } while(0)
 
 static QueryOperator *
@@ -923,10 +928,17 @@ translateGoal(DLAtom *r, int goalPos)
     TableAccessOperator *rel;
     List *attrNames = NIL;
     List *dts = NIL;
+    boolean isIDB = DL_HAS_PROP(r,DL_IS_IDB_REL);
+    boolean isEDB = DL_HAS_PROP(r,DL_IS_EDB_REL);
+    boolean isFact = DL_HAS_PROP(r,DL_IS_FACT_REL);
+
+    DEBUG_LOG("goal is marked as %s%s%s",
+            isIDB ? " IDB " : "",
+            isFact ? " FACT " : "",
+            isEDB ? "EDB" : "");
 
     // for idb rels just fake attributes (and for now DTs)
-    if (DL_HAS_PROP(r,DL_IS_IDB_REL) ||
-            (DL_HAS_PROP(r,DL_IS_FACT_REL) && !DL_HAS_PROP(r,DL_IS_EDB_REL)))
+    if (isIDB || (isFact && !isEDB))
     {
         for(int i = 0; i < LIST_LENGTH(r->args); i++)
             attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));
@@ -1128,9 +1140,17 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     TableAccessOperator *rel;
     List *attrNames = NIL;
     List *dts = NIL;
+    boolean isIDB = DL_HAS_PROP(r,DL_IS_IDB_REL);
+    boolean isEDB = DL_HAS_PROP(r,DL_IS_EDB_REL);
+    boolean isFact = DL_HAS_PROP(r,DL_IS_FACT_REL);
+
+    DEBUG_LOG("goal is marked as %s%s%s",
+            isIDB ? " IDB " : "",
+            isFact ? " FACT " : "",
+            isEDB ? "EDB" : "");
 
     // for idb rels just fake attributes (and for now DTs)
-    if (DL_HAS_PROP(r,DL_IS_IDB_REL) || DL_HAS_PROP(r,DL_IS_FACT_REL))
+    if (isIDB || (isFact && !isEDB))
     {
         for(int i = 0; i < LIST_LENGTH(r->args); i++)
         	attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));

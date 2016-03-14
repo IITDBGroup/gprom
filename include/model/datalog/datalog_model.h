@@ -114,6 +114,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_HAS_PROP(node,key) (getDLProp((DLNode *) node, key) != NULL)
 #define DL_GET_PROP(node,key) (getDLProp((DLNode *) node, key))
 #define DL_SET_BOOL_PROP(node,key) setDLProp((DLNode *) node, key, (Node *) createConstBool(TRUE));
+#define DL_SET_STRING_PROP(node,key,value) setDLProp((DLNode *) node, key, (Node *) createConstString(value));
 #define DL_DEL_PROP(node,key) (delDLProp((DLNode *) node, key))
 #define DL_COPY_PROP(node1,node2,key) (setDLProp((DLNode *) node2, key, getDLProp((DLNode *) node1,key)))
 
@@ -126,6 +127,10 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_PROV_WHYNOT "WHYNOT_PROV"
 #define DL_PROV_FULL_GP "FULL_GP_PROV"
 #define DL_PROV_PROG "GAME PROVENANCE PROGRAM"
+
+#define DL_PROV_FORMAT "PROV_FORMAT"
+#define DL_PROV_FORMAT_GP "FULL_GP"
+#define DL_PROV_FORMAT_TUPLE "TUPLE_ONLY"
 
 // property keys for storing analysis results for a program
 #define DL_MAP_RELNAME_TO_RULES "REL_TO_RULES"

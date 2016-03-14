@@ -42,6 +42,7 @@ Node *dlParseResult = NULL;
  */
 %token <stringVal> IDENT
 %token <stringVal> VARIDENT
+%token <stringVal> FORMAT
 
 /* 
  * Functions and operators 
@@ -87,6 +88,7 @@ Node *dlParseResult = NULL;
 %type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement
 %type <node> variable constant expression functionCall binaryOperatorExpression 
 %type <list> bodyAtomList argList exprList rulebody 
+%type <stringVal> optProvFormat
 
 /* start symbol */
 %start program
@@ -146,27 +148,35 @@ rpqStatement:
 	;
 	
 provStatement:
-		WHYPROV '(' relAtom ')' '.'
+		WHYPROV '(' relAtom ')' optProvFormat '.' 
 		{
 			RULELOG("provStatement::WHY");
+			char *str = $5 ? CONCAT_STRINGS("WHY_PROV-", $5) : "WHY_PROV";
 			$$ = (Node *) createNodeKeyValue(
-					(Node *) createConstString("WHY_PROV"), 
+					(Node *) createConstString(str), 
 					(Node *) $3);
 		}
-		| WHYNOTPROV '(' relAtom ')' '.'
+		| WHYNOTPROV '(' relAtom ')' optProvFormat '.'
 		{
 			RULELOG("provStatement::WHYNOT");
+			char *str = $5 ? CONCAT_STRINGS("WHYNOT_PROV-", $5) : "WHY_PROV";
 			$$ = (Node *) createNodeKeyValue(
-					(Node *) createConstString("WHYNOT_PROV"),
+					(Node *) createConstString(str),
 					(Node *) $3);
 		}
-		| GP '.'
+		| GP optProvFormat '.'
 		{
 			RULELOG("provStatement::GP");
+			char *str = $2 ? CONCAT_STRINGS("FULL_GP_PROV-", $2) : "WHY_PROV";
 			$$ = (Node *) createNodeKeyValue(
-					(Node *) createConstString("FULL_GP_PROV"), 
-					(Node *) createConstBool(TRUE));
+					(Node *) createConstString(str),
+					NULL);
 		}
+	;
+	
+optProvFormat:
+		/* EMPTY */ { $$ = NULL; }
+		| FORMAT name { $$ = $2; }
 	;	
 	
 rule:
