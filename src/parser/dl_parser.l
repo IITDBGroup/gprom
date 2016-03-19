@@ -139,8 +139,8 @@ FORMAT		"FORMAT"
 (?i:COUNT)	TOK(AMMSC)
 
 	/* identifier types */
-{variable}	 	UPCASE_TOK(VARIDENT)
 {identifier}	UPCASE_TOK(IDENT)
+	/* {variable}	 	UPCASE_TOK(VARIDENT)*/
 
 {quotedIdentifier}   { 		
 		dllval.stringVal = MALLOC(strlen(dltext) - 1);

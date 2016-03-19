@@ -235,6 +235,8 @@ createGPMoveRules(int getMatched, List* negedbRules,
 
         ASSERT(DL_HAS_PROP(e->head,DL_ORIG_ATOM));
         DLAtom *origAtom = (DLAtom *) DL_GET_PROP(e->head, DL_ORIG_ATOM);
+        char *rel = CONCAT_STRINGS(strdup(origAtom->rel),
+                ruleWon ? "_WON" : "_LOST");
         char *negRel = CONCAT_STRINGS(strdup(origAtom->rel),
                 ruleWon ? "_LOST" : "_WON");
         char *headName = strRemPostfix(strdup(e->head->rel),
@@ -650,7 +652,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	Set *adornedEDBAtoms = NODESET();
 	Set *adornedEDBHelpAtoms = NODESET();
     HashMap *idbAdToRules = NEW_MAP(Node,Node);
-    char *fmt = STRING_VALUE(dlGetProp((DLNode *) solvedProgram, DL_PROV_FORMAT));
+    char *fmt = STRING_VALUE(DL_GET_PROP((DLNode *) solvedProgram, DL_PROV_FORMAT));
     result->rules = copyObject(solvedProgram->rules);
     DLVar *createArgs;
     DLRule *ruleRule;

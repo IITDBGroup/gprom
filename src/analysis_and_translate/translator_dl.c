@@ -118,7 +118,10 @@ translateProgram(DLProgram *p)
 
         ASSERT(!IS_GP_PROV(gpComp));
 
-        return translateParseDL(gpComp);
+        checkDLModel(gpComp);
+        gpComp = translateParseDL(gpComp);
+
+        return gpComp;
     }
 
     // determine pred -> rules

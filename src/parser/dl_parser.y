@@ -140,7 +140,7 @@ statement:
 	;
 
 rpqStatement:
-		RPQ '(' stringConst ',' VARIDENT ',' VARIDENT ',' VARIDENT ')' '.'
+		RPQ '(' stringConst ',' IDENT ',' IDENT ',' IDENT ')' '.'
 		{
 			RULELOG("rpqStatement");
 			$$ = (Node *) makeRPQQuery($3, $5, $7, $9);
@@ -159,7 +159,7 @@ provStatement:
 		| WHYNOTPROV '(' relAtom ')' optProvFormat '.'
 		{
 			RULELOG("provStatement::WHYNOT");
-			char *str = $5 ? CONCAT_STRINGS("WHYNOT_PROV-", $5) : "WHY_PROV";
+			char *str = $5 ? CONCAT_STRINGS("WHYNOT_PROV-", $5) : "WHYNOT_PROV";
 			$$ = (Node *) createNodeKeyValue(
 					(Node *) createConstString(str),
 					(Node *) $3);
@@ -167,7 +167,7 @@ provStatement:
 		| GP optProvFormat '.'
 		{
 			RULELOG("provStatement::GP");
-			char *str = $2 ? CONCAT_STRINGS("FULL_GP_PROV-", $2) : "WHY_PROV";
+			char *str = $2 ? CONCAT_STRINGS("FULL_GP_PROV-", $2) : "GP";
 			$$ = (Node *) createNodeKeyValue(
 					(Node *) createConstString(str),
 					NULL);
@@ -398,7 +398,7 @@ functionCall:
 
 	
 variable:
-		VARIDENT 
+		IDENT 
 			{
 				RULELOG("variable"); 
 				$$ = (Node *) createDLVar($1, DT_STRING); 
