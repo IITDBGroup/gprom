@@ -28,6 +28,7 @@
 #define DOT_POSTFIX "\n}\n"
 
 #define DOT_EDGE_TEMP "\t%s -> %s\n"
+#define DOT_UNDIR_EDGE_TEMP "\t%s -> %s [arrowhead = none]\n"
 
 NEW_ENUM_WITH_TO_STRING(GPNodeType,
         GP_NODE_RULE_WON,
@@ -39,7 +40,8 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
         GP_NODE_NEGREL_WON,
         GP_NODE_NEGREL_LOST,
         GP_NODE_EBD_WON,
-        GP_NODE_EBD_LOST
+        GP_NODE_EBD_LOST,
+        GP_NODE_HYPEREDGE
 );
 
 static char *nodeTypeLabel[] = {
@@ -52,21 +54,9 @@ static char *nodeTypeLabel[] = {
         "notRELWON",
         "notRELLOST",
         "EDBWON",
-        "EDBLOST"
+        "EDBLOST",
+        "RULEHYPEREDGE"
 };
-
-//static char *nodeTypeLabelPostfix[] = {
-//        "WON",
-//        "LOST",
-//        "WON",
-//        "LOST",
-//        "WON",
-//        "LOST",
-//        "WON",
-//        "LOST",
-//        "WON",
-//        "LOST"
-//};
 
 #define WON_COLOR "#CBFFCB"
 #define LOST_COLOR "#FF8383"
@@ -87,6 +77,8 @@ static char *nodeTypeCode[] = {
         // EDB
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
+        // HYPEREDGE
+        "\n\n\tnode [shape=\"point\", style=invis, width=0, height=0]\n"
 };
 
 
@@ -101,6 +93,7 @@ static char *nodeTypeNodeCode[] = {
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"\", texlbl=\"\"]\n",
 };
 
 static GPNodeType getNodeType (char *node);
@@ -150,7 +143,11 @@ executeOutputGP(void *sql)
         DEBUG_LOG("edge <%s - %s> between nodes of types %s, %s", lRawId, rRawId,
                 GPNodeTypeToString(lType), GPNodeTypeToString(rType));
 
-        appendStringInfo(edges, DOT_EDGE_TEMP, lId, rId);
+        // create edge
+        if (rType == GP_NODE_HYPEREDGE)
+            appendStringInfo(edges, DOT_UNDIR_EDGE_TEMP, lId, rId);
+        else
+            appendStringInfo(edges, DOT_EDGE_TEMP, lId, rId);
     }
 
     // for each node type add code to create nodes to script
@@ -285,6 +282,10 @@ getNodeLabel (char *node, GPNodeType t)
         {
             return CONCAT_STRINGS(id, args);
         }
+        case GP_NODE_HYPEREDGE:
+        {
+            return CONCAT_STRINGS(id, args);
+        }
         break;
     }
 
@@ -332,6 +333,10 @@ getTexNodeLabel (char *node, GPNodeType t)
         case GP_NODE_EBD_LOST:
         {
             return CONCAT_STRINGS("$", id, args, "$");
+        }
+        case GP_NODE_HYPEREDGE:
+        {
+            return CONCAT_STRINGS(id, args);
         }
         break;
     }
