@@ -178,6 +178,10 @@ analyzeProv (DLProgram *p, KeyValue *kv)
         {
             DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_GP);
         }
+        else if (isSuffix(type, DL_PROV_FORMAT_GP_REDUCED))
+        {
+            DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_GP_REDUCED);
+        }
         else if (isSuffix(type, DL_PROV_FORMAT_TUPLE))
         {
             DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE);
