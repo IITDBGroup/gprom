@@ -346,7 +346,7 @@ static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, L
 							relWon = FALSE;
 						}
 
-						char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+						char *atomRel = CONCAT_STRINGS("r",strdup(origAtom->rel),
 								relWon ? "_WON" : "_LOST");
 
 						// -> posR
@@ -412,7 +412,7 @@ static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, L
 									lExpr = createSkolemExpr(GP_NODE_RULE,
 											ruleRel, copyObject(r->head->args));
 
-								char *Rel = CONCAT_STRINGS(strdup(origAtom->rel),
+								char *Rel = CONCAT_STRINGS("r",strdup(origAtom->rel),
 												ruleWon ? "_WON" : "_LOST");
 								Node *rExpr = createSkolemExpr(GP_NODE_EDB,
 										Rel, copyObject(a->args));
@@ -806,9 +806,9 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
                         DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
                                 DL_ORIG_ATOM);
 
-                        char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+                        char *atomRel = CONCAT_STRINGS("r",strdup(origAtom->rel),
                                 ruleWon ? "_WON" : "_LOST");
-                        char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+                        char *negAtomRel = CONCAT_STRINGS("r",strdup(origAtom->rel),
                                 !ruleWon ? "_WON" : "_LOST");
 
                         if (!ruleWon)
@@ -1070,7 +1070,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
                             relWon = FALSE;
                         }
 
-                        char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+                        char *atomRel = CONCAT_STRINGS("r",strdup(origAtom->rel),
                                 relWon ? "_WON" : "_LOST");
 
                         // -> posR
@@ -1153,7 +1153,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
                                 lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel,
                                         copyObject(a->args));
 
-                                char *Rel = CONCAT_STRINGS(strdup(origAtom->rel),
+                                char *Rel = CONCAT_STRINGS("r",strdup(origAtom->rel),
                                 				ruleWon ? "_WON" : "_LOST");
                                 rExpr = createSkolemExpr(GP_NODE_EDB,
                                 		Rel, copyObject(a->args));
