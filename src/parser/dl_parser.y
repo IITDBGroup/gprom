@@ -173,7 +173,17 @@ provStatement:
 					NULL);
 		}
 	;
-	
+
+/* optProv:
+		optProvFormat optProvSummarize
+	;
+
+optProvSummarize:
+		/* EMPTY  { $$ = NULL; }
+		| SUMMARIZE name { $$ = $2; }
+	;
+*/
+
 optProvFormat:
 		/* EMPTY */ { $$ = NULL; }
 		| FORMAT name { $$ = $2; }

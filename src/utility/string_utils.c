@@ -148,7 +148,7 @@ isSuffix(char *str, char *suffix)
 
     str = str + (strlen(str) - strlen(suffix));
     while(*suffix != '\0')
-        if (*suffix-- != *str--)
+        if (*suffix++ != *str++)
             return FALSE;
 
     return TRUE;

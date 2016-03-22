@@ -2000,7 +2000,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         moveRules = createGPMoveRules(getMatched, negedbRules, edbRules,
                 unLinkedRules);
     }
-    else if (streq(fmt, DL_PROV_FORMAT_TUPLE))
+    else if (streq(fmt, DL_PROV_FORMAT_TUPLE_ONLY))
     {
         moveRules = createTupleOnlyGraphMoveRules(getMatched, negedbRules, edbRules,
                         unLinkedRules);
