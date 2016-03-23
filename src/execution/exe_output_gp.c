@@ -66,8 +66,8 @@ static char *nodeTypeCode[] = {
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
         // GOAL
-        "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
-        "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"box\", style=\"rounded,filled\", color=black, fillcolor=\"" WON_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"box\", style=\"rounded,filled\", color=black, fillcolor=\"" LOST_COLOR "\"]\n",
         // REL
         "\n\n\tnode [shape=\"ellipse\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
         "\n\n\tnode [shape=\"ellipse\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",

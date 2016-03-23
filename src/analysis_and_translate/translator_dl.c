@@ -1211,10 +1211,12 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
                 DLVar *v = (DLVar*) n;
                 char *name = v->name;
                 int origPos = getAttrPos(posPart, name);
+
                 varNames = appendToTailOfList(varNames, strdup(name));
                 projArgs = appendToTailOfList(projArgs,
                         createFullAttrReference(strdup(name), 0, origPos, INVALID_ATTR, v->dt));
                 //TODO search for real attribute position of attribute named after this variable in schema of pos
+
                 // create unique variable name if same name exists
                 if (!searchListString(projNames,name))
                 	projNames = appendToTailOfList(projNames, strdup(name));
