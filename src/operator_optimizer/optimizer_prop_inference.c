@@ -1750,3 +1750,44 @@ attrRefListToStringList (List *input)
 
     return result;
 }
+
+
+void
+emptyProperty(QueryOperator *root)
+{
+	FOREACH(QueryOperator, o, root->inputs)
+	{
+		/* empty every  property for this operator */
+		if(HAS_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP))
+			setStringProperty(o, PROP_PROJ_PROV_ATTR_DUP, NULL);
+
+		if(HAS_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP_PULLUP))
+			setStringProperty(o, PROP_PROJ_PROV_ATTR_DUP_PULLUP, NULL);
+
+		if(HAS_STRING_PROP(o, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND))
+			setStringProperty(o, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND, NULL);
+
+		if(HAS_STRING_PROP(o, PROP_MERGE_ATTR_REF_CNTS))
+			setStringProperty(o, PROP_MERGE_ATTR_REF_CNTS, NULL);
+
+		if(HAS_STRING_PROP(o, PROP_STORE_LIST_KEY))
+			setStringProperty(o, PROP_STORE_LIST_KEY, NULL);
+
+		if(HAS_STRING_PROP(o, PROP_STORE_BOOL_SET))
+			setStringProperty(o, PROP_STORE_BOOL_SET, NULL);
+
+		if(HAS_STRING_PROP(o, PROP_STORE_SET_ICOLS))
+			setStringProperty(o, PROP_STORE_SET_ICOLS, NULL);
+
+		if(HAS_STRING_PROP(o, PROP_STORE_LIST_SCHEMA_NAMES))
+			setStringProperty(o, PROP_STORE_LIST_SCHEMA_NAMES, NULL);
+
+		if(HAS_STRING_PROP(o, PROP_STORE_SET_EC))
+			setStringProperty(o, PROP_STORE_SET_EC, NULL);
+
+		if(HAS_STRING_PROP(o, PROP_STORE_DUP_MARK))
+			setStringProperty(o,PROP_STORE_DUP_MARK,NULL);
+
+		emptyProperty(o);
+	}
+}
