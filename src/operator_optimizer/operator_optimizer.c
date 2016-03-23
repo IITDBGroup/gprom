@@ -97,10 +97,10 @@ optimizeOneGraph (QueryOperator *root)
     QueryOperator *rewrittenTree = root;
 
     int res;
-    res = callback(5);
-    //res = 1;
+//    res = callback(5);
+//    res = 1;
     int c = 0;
-    if(res == -1)
+//    if(res == -1)
     	res = 0;
     DEBUG_LOG("callback = %d",res);
     while(c <= res)
@@ -987,12 +987,15 @@ removeRedundantDuplicateOperatorBySet(QueryOperator *root)
         {
             int res = callback(2);
 
+            INFO_LOG("res is %d", res);
+
             // only remove if optimizer decides so
-            if (res == 0)
+            if (res == -1)
             {
                 QueryOperator *lChild = OP_LCHILD(root);
                 switchSubtreeWithExisting((QueryOperator *) root, lChild);
                 root = lChild;
+                INFO_LOG("Do remove the guy");
                 return removeRedundantDuplicateOperatorBySet(root);
             }
         }

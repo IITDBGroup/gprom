@@ -347,7 +347,10 @@ exhaustiveGenerateNextChoice (OptimizerState *state)
 static boolean
 exhaustiveContinueOptimization (OptimizerState *state)
 {
+//    if (state->planCount < 100) //TODO undo this
     return TRUE;
+//    else
+//        return FALSE;
 }
 
 static int
