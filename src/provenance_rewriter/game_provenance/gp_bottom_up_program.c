@@ -2195,24 +2195,30 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     // create dummy rules ri^adornment(X) := ri^adornment_unlinked(X) for unlinked rules that have no linked versions yet
     FOREACH(DLRule,unRule,unLinkedRules)
     {
-        if (!hasSetElem(unHeadToRules,unRule->head) && INT_VALUE(getDLProp((DLNode *) unRule,DL_RULE_ID)) == getMatched)
+    	boolean ruleWon = DL_HAS_PROP(unRule->head,DL_WON)
+    	                                   || DL_HAS_PROP(unRule->head,DL_UNDER_NEG_WON);
+
+        if (!hasSetElem(unHeadToRules,unRule->head))
         {
-            DLRule *dummyRule = makeNode(DLRule);
-            DLAtom *dummyBody;
+        	if((!ruleWon && INT_VALUE(getDLProp((DLNode *) unRule,DL_RULE_ID)) == getMatched) || ruleWon)
+        	{
+                DLRule *dummyRule = makeNode(DLRule);
+                DLAtom *dummyBody;
 
-            dummyRule->head = copyObject(unRule->head);
-            dummyRule->head->rel = strRemPostfix(dummyRule->head->rel,
-                    strlen(NON_LINKED_POSTFIX));
+                dummyRule->head = copyObject(unRule->head);
+                dummyRule->head->rel = strRemPostfix(dummyRule->head->rel,
+                        strlen(NON_LINKED_POSTFIX));
 
-            dummyBody = copyObject(unRule->head);
-			dummyRule->body = singleton(dummyBody);
+                dummyBody = copyObject(unRule->head);
+    			dummyRule->body = singleton(dummyBody);
 
-            ((DLNode *) dummyRule)->properties =
-                    copyObject(((DLNode *) unRule)->properties);
+                ((DLNode *) dummyRule)->properties =
+                        copyObject(((DLNode *) unRule)->properties);
 
-            DEBUG_LOG("created rule for still unlinked rule:\n %s",
-                    datalogToOverviewString((Node *) dummyRule));
-            newRules = appendToTailOfList(newRules, dummyRule);
+                DEBUG_LOG("created rule for still unlinked rule:\n %s",
+                        datalogToOverviewString((Node *) dummyRule));
+                newRules = appendToTailOfList(newRules, dummyRule);
+        	}
         }
     }
 
