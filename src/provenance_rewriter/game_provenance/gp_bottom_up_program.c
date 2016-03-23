@@ -602,9 +602,9 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
                         DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
                                 DL_ORIG_ATOM);
 
-                        char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+                        char *atomRel = CONCAT_STRINGS("r", strdup(origAtom->rel),
                                 ruleWon ? "_WON" : "_LOST");
-                        char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+                        char *negAtomRel = CONCAT_STRINGS("r", strdup(origAtom->rel),
                                 !ruleWon ? "_WON" : "_LOST");
 
                         if (!ruleWon)
@@ -628,7 +628,7 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
                         {
                             if (!goalWon)
                             {
-                                rExpr = createSkolemExpr(GP_NODE_POSREL,
+                                rExpr = createSkolemExpr(GP_NODE_EDB,
                                         negAtomRel, copyObject(a->args));
                                 if (ruleWon)
                                     moveRule = createMoveRule(lExpr, rExpr,
@@ -647,7 +647,7 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
                         {
                             if (!goalWon || ruleWon)
                             {
-                                rExpr = createSkolemExpr(GP_NODE_POSREL,
+                                rExpr = createSkolemExpr(GP_NODE_EDB,
                                         atomRel, copyObject(a->args));
                                 if (ruleWon)
                                     moveRule = createMoveRule(lExpr, rExpr,
@@ -1226,7 +1226,7 @@ createGPMoveRules(int getMatched, List* negedbRules,
 
         char *rel = CONCAT_STRINGS(strdup(origAtom->rel),
                 ruleWon ? "_WON" : "_LOST");
-        char *negRel = CONCAT_STRINGS(strdup(origAtom->rel),
+        char *negRel = CONCAT_STRINGS("r", strdup(origAtom->rel),
                 ruleWon ? "_LOST" : "_WON");
         char *headName = strRemPostfix(strdup(e->head->rel),
                 strlen(NON_LINKED_POSTFIX));
