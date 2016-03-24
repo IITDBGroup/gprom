@@ -78,7 +78,8 @@ static char *nodeTypeCode[] = {
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
         // HYPEREDGE
-        "\n\n\tnode [shape=\"point\", style=invis, width=0, height=0]\n"
+//        "\n\n\tnode [shape=\"point\", style=invis, width=0, height=0]\n"
+		"\n\n\tnode [shape=\"point\"]\n"
 };
 
 
