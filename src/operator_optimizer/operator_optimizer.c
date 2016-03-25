@@ -97,8 +97,11 @@ optimizeOneGraph (QueryOperator *root)
     QueryOperator *rewrittenTree = root;
 
     int res;
-    res = callback(5);
-    //res = 1;
+    if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+    	res = callback(5);
+    else
+        res = 0;
+
     int c = 0;
     if(res == -1)
     	res = 0;
