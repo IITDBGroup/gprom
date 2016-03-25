@@ -353,7 +353,7 @@ exhaustiveContinueOptimization (OptimizerState *state)
 static int
 exhaustiveCallback (OptimizerState *state, int numChoices)
 {
-    int choice = -1;
+    int choice = 0;
     List *fixedPath = state->fixedPath;
     List *curPath = state->curPath;
     List *numChoicesOnPath = state->numChoices;
@@ -525,7 +525,7 @@ simannContinueOptimization (OptimizerState *state)
 static int
 simannCallback (OptimizerState *state, int numChoices)
 {
-    int choice = -1;
+    int choice = 0;
     List *curPath = state->curPath;
     List *fixedPath = state->fixedPath;
     List *numChoicesOnPath = state->numChoices;
@@ -887,7 +887,7 @@ static int
 balancedCallback (OptimizerState *state, int numChoices)
 {
 	int cnt = ((BalancedState *)(state->hook))->count;
-	int choice = -1;
+	int choice = 0;
     //List *fixedPath = state->fixedPath;
     List *curPath = state->curPath;
     List *numChoicesOnPath = state->numChoices;

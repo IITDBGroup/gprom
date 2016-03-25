@@ -103,9 +103,11 @@ optimizeOneGraph (QueryOperator *root)
         res = 0;
 
     int c = 0;
-    if(res == -1)
-    	res = 0;
+    //if(res == -1)
+    //	res = 0;
+
     DEBUG_LOG("callback = %d",res);
+    INFO_LOG("callback = %d",res);
     while(c <= res)
     {
     	APPLY_AND_TIME_OPT("factor attributes in conditions",
