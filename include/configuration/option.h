@@ -37,6 +37,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_COST_BASED_MAX_PLANS "cost_based_optimizer_max_plans"
 #define OPTION_COST_BASED_SIMANN_CONST "cost_based_sim_ann_c"
 #define OPTION_COST_BASED_SIMANN_COOLDOWN_RATE "cost_based_sim_ann_cooldown_rate"
+#define OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS "cost_based_num_heuristic_opt_iterations"
 //#define OPTION_
 
 /* define optimization options */

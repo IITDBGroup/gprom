@@ -96,18 +96,23 @@ optimizeOneGraph (QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
 
+    int numHeuOptItens = getIntOption(OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS);
     int res;
+    int c = 0;
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
-    	res = callback(5);
+    {
+    	if(numHeuOptItens == 1 || numHeuOptItens < 1) // <1 used to handle numHeuOptItens = 0, smaller than 0 already be handled which will show the help
+    		res = 0;
+    	else
+    	    res = callback(numHeuOptItens);
+    }
     else
         res = 0;
 
-    int c = 0;
-    //if(res == -1)
-    //	res = 0;
-
     DEBUG_LOG("callback = %d",res);
+    DEBUG_LOG("numHeuOptItens = %d",numHeuOptItens);
     INFO_LOG("callback = %d",res);
+    INFO_LOG("numHeuOptItens = %d",numHeuOptItens);
     while(c <= res)
     {
     	APPLY_AND_TIME_OPT("factor attributes in conditions",

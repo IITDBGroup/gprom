@@ -103,6 +103,7 @@ boolean cost_based_optimizer = FALSE;
 int cost_max_considered_plans = 200;
 int cost_sim_ann_const = 10;
 int cost_sim_ann_cooldown_rate = 5;
+int cost_based_num_heuristic_opt_iterations = 1;
 
 // optimization options
 boolean opt_optimization_push_selections = FALSE;
@@ -453,6 +454,14 @@ OptionInfo opts[] =
                  OPTION_INT,
                  wrapOptionInt(&cost_sim_ann_cooldown_rate),
                  defOptionFloat(5)
+         },
+         {
+        		 OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS,
+                 "-cost_based_num_heuristic_opt_iterations",
+                 "Cost base number of heuristic optimization iterations",
+                 OPTION_INT,
+                 wrapOptionInt(&cost_based_num_heuristic_opt_iterations),
+                 defOptionInt(1)
          },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,
