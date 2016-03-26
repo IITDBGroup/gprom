@@ -100,7 +100,7 @@ boolean opt_translate_update_with_case = FALSE;
 
 // cost based optimization option
 boolean cost_based_optimizer = FALSE;
-int cost_max_considered_plans = -1;
+int cost_max_considered_plans = 200;
 int cost_sim_ann_const = 10;
 int cost_sim_ann_cooldown_rate = 5;
 
@@ -436,7 +436,7 @@ OptionInfo opts[] =
                  "Maximal number of plans considered by cost based optimizer",
                  OPTION_INT,
                  wrapOptionInt(&cost_max_considered_plans),
-                 defOptionInt(-1)
+                 defOptionInt(200)
          },
          {
                  OPTION_COST_BASED_SIMANN_CONST,

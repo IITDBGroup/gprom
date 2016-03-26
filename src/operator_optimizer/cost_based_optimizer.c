@@ -347,7 +347,9 @@ exhaustiveGenerateNextChoice (OptimizerState *state)
 static boolean
 exhaustiveContinueOptimization (OptimizerState *state)
 {
-    return TRUE;
+	int c = getIntOption(OPTION_COST_BASED_MAX_PLANS);
+	return (state->planCount <= c);
+    //return TRUE;
 }
 
 static int
@@ -519,7 +521,7 @@ static boolean
 simannContinueOptimization (OptimizerState *state)
 {
 	AnnealingState *state1 = (AnnealingState *)(state->hook);
-	return state1->temp > 1;
+	return ((state1->temp > 1) && exhaustiveContinueOptimization(state));
 }
 
 static int
@@ -880,7 +882,8 @@ balancedGenerateNextChoice (OptimizerState *state)
 static boolean
 balancedContinueOptimization (OptimizerState *state)
 {
-    return TRUE;
+	return exhaustiveContinueOptimization(state);
+    //return TRUE;
 }
 
 static int
@@ -1078,5 +1081,5 @@ static boolean
 optLessThanExecTimeContinue (OptimizerState *state)
 {
     ERROR_LOG("compare opt time %f to best plan time %f", state->optTime, state->bestPlanExpectedTime);
-    return state->optTime <= state->bestPlanExpectedTime;
+    return ((state->optTime <= state->bestPlanExpectedTime) && exhaustiveContinueOptimization(state));
 }
