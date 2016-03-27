@@ -388,6 +388,8 @@ updateBestPlan (OptimizerState *state)
 {
     ERROR_LOG("current plan cost is %llu", state->currentCost);
     ERROR_LOG("best plan cost is %llu", state->bestPlanCost);
+    if(state->currentCost < 0)
+    	state->currentCost = PLAN_MAX_COST;
 	if(state->currentCost < state->bestPlanCost)
 	{
 		state->bestPlanCost = state->currentCost;
