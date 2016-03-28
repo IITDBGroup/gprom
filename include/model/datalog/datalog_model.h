@@ -63,7 +63,9 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
         GP_NODE_GOAL,
         GP_NODE_POSREL,
         GP_NODE_NEGREL,
-        GP_NODE_EDB
+        GP_NODE_EDB,
+        GP_NODE_RULEHYPER,
+		GP_NODE_GOALHYPER
         );
 
 // provenance
@@ -114,16 +116,27 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_HAS_PROP(node,key) (getDLProp((DLNode *) node, key) != NULL)
 #define DL_GET_PROP(node,key) (getDLProp((DLNode *) node, key))
 #define DL_SET_BOOL_PROP(node,key) setDLProp((DLNode *) node, key, (Node *) createConstBool(TRUE));
+#define DL_SET_STRING_PROP(node,key,value) setDLProp((DLNode *) node, key, (Node *) createConstString(value));
 #define DL_DEL_PROP(node,key) (delDLProp((DLNode *) node, key))
 #define DL_COPY_PROP(node1,node2,key) (setDLProp((DLNode *) node2, key, getDLProp((DLNode *) node1,key)))
 
 // property keys
 #define DL_IS_IDB_REL "IS_IDB_REL"
+#define DL_IS_EDB_REL "IS_EDB_REL"
+#define DL_IS_FACT_REL "IS_FACT_REL"
 
 #define DL_PROV_WHY "WHY_PROV"
 #define DL_PROV_WHYNOT "WHYNOT_PROV"
 #define DL_PROV_FULL_GP "FULL_GP_PROV"
 #define DL_PROV_PROG "GAME PROVENANCE PROGRAM"
+
+#define DL_PROV_FORMAT "PROV_FORMAT"
+#define DL_PROV_FORMAT_GP "FULL_GP"
+#define DL_PROV_FORMAT_GP_REDUCED "REDUCED_GP"
+#define DL_PROV_FORMAT_TUPLE_ONLY "TUPLE_ONLY"
+#define DL_PROV_FORMAT_TUPLE_RULE_TUPLE "TUPLE_RULE_TUPLE"
+#define DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE "TUPLE_RULE_GOAL_TUPLE"
+#define DL_PROV_FORMAT_HEAD_RULE_EDB "HEAD_RULE_EDB"
 
 // property keys for storing analysis results for a program
 #define DL_MAP_RELNAME_TO_RULES "REL_TO_RULES"
@@ -131,6 +144,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_MAP_ADORNED_PREDS_TO_RULES "ADORNED_PREDS_TO_RULES"
 #define DL_IDB_RELS "IDB_RELS"
 #define DL_EDB_RELS "EDB_RELS"
+#define DL_FACT_RELS "FACT_RELS"
 
 #define DL_WON "WON"
 #define DL_LOST "LOST"

@@ -23,12 +23,12 @@
 #include "model/datalog/datalog_model_checker.h"
 #include "model/rpq/rpq_model.h"
 #include "rpq/rpq_to_datalog.h"
+#include "utility/string_utils.h"
 
 static void analyzeDLProgram (DLProgram *p);
-static void analyzeRule (DLRule *r, Set *idbRels, Set *edbRels);
+static void analyzeRule (DLRule *r, Set *idbRels); // , Set *edbRels, Set *factRels);
 static void analyzeProv (DLProgram *p, KeyValue *kv);
-static List * analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules);
-static boolean checkFact (DLAtom *f);
+static List *analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules);
 
 
 Node *
@@ -41,7 +41,7 @@ analyzeDLModel (Node *stmt)
     if (!checkDLModel(stmt))
         FATAL_LOG("failed model check on:\n%s", datalogToOverviewString(stmt));
 
-    DEBUG_LOG("analyzed model is \n%s", nodeToString(stmt));
+    DEBUG_LOG("analyzed model is \n%s", beatify(nodeToString(stmt)));
     INFO_LOG("analyzed model overview is \n%s", datalogToOverviewString(stmt));
 
     return stmt;
@@ -76,8 +76,8 @@ static void
 analyzeDLProgram (DLProgram *p)
 {
     Set *idbRels = STRSET();
-    Set *edbRels = STRSET();
-//    HashMap *relToRule = (HashMap *) getDLProp((DLNode *) p, DL_MAP_RELNAME_TO_RULES);
+//    Set *edbRels = STRSET();
+//    Set *factRels = STRSET();
     List *rules = NIL;
     List *facts = NIL;
     List *rpqRules = NIL;
@@ -98,9 +98,7 @@ analyzeDLProgram (DLProgram *p)
     }
     p->rules = CONCAT_LISTS(rpqRules);
 
-
     createRelToRuleMap((Node *) p);
-    //TODO infer data types for idb predicates
 
     FOREACH(Node,r,p->rules)
     {
@@ -120,7 +118,9 @@ analyzeDLProgram (DLProgram *p)
         // fact
         else if(isA(r,DLAtom))
         {
-            checkFact((DLAtom *) r);
+            DLAtom *f = (DLAtom *) r;
+            checkFact(f);
+//            addToSet(factRels, f->rel);
             facts = appendToTailOfList(facts,r);
         }
         // provenance question
@@ -130,28 +130,23 @@ analyzeDLProgram (DLProgram *p)
             FATAL_LOG("datalog programs can consists of rules, constants, an "
                     "answer relation specification, facts, and provenance "
                     "computations");
-        //TODO check that atom exists and is of right arity and that only constants are used in the fact
     }
 
     // analyze all rules
     FOREACH(DLRule,r,rules)
-        analyzeRule((DLRule *) r, idbRels, edbRels);
+        analyzeRule((DLRule *) r, idbRels); //, edbRels, factRels);
 
     p->rules = rules;
     p->facts = facts;
 
-    // check that answer relation exists
-    if (p->ans)
-    {
-        if (!hasSetElem(idbRels, p->ans))
-            FATAL_LOG("no rules found for specified answer relation"
-                    " %s in program:\n\n%s",
-                    p->ans, datalogToOverviewString((Node *) p));
-    }
-
-    // store some auxiliary results of analysis in properties
-    setDLProp((DLNode *) p, DL_IDB_RELS, (Node *) idbRels);
-    setDLProp((DLNode *) p, DL_EDB_RELS, (Node *) edbRels);
+//    // check that answer relation exists
+//    if (p->ans)
+//    {
+//        if (!hasSetElem(idbRels, p->ans))
+//            FATAL_LOG("no rules found for specified answer relation"
+//                    " %s in program:\n\n%s",
+//                    p->ans, datalogToOverviewString((Node *) p));
+//    }
 }
 
 static void
@@ -160,39 +155,68 @@ analyzeProv (DLProgram *p, KeyValue *kv)
     char *type;
     ASSERT(isA(kv->key, Constant));
 
+    // get provenance type
     type = STRING_VALUE(kv->key);
-    if (streq(type,DL_PROV_WHY))
+    if (isPrefix(type,DL_PROV_WHY))
     {
         setDLProp((DLNode *) p,DL_PROV_WHY, kv->value);
-        //TODO check that is WHY prove
     }
-    if (streq(type,DL_PROV_WHYNOT))
+    //TODO check that is WHY prove
+    if (isPrefix(type,DL_PROV_WHYNOT))
     {
         setDLProp((DLNode *) p,DL_PROV_WHYNOT, kv->value);
-        //TODO check that is WHY prove
     }
-    if (streq(type,DL_PROV_FULL_GP))
+    if (isPrefix(type,DL_PROV_FULL_GP))
     {
         DL_SET_BOOL_PROP(p,DL_PROV_FULL_GP);
+    }
+
+    // check if format is given
+    if (!streq(type,DL_PROV_WHY) && !streq(type,DL_PROV_WHYNOT) && !streq(type,DL_PROV_FULL_GP))
+    {
+        if (isSuffix(type, DL_PROV_FORMAT_GP))
+        {
+            DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_GP);
+        }
+        else if (isSuffix(type, DL_PROV_FORMAT_GP_REDUCED))
+        {
+            DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_GP_REDUCED);
+        }
+        else if (isSuffix(type, DL_PROV_FORMAT_TUPLE_ONLY))
+        {
+            DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_ONLY);
+        }
+        else if (isSuffix(type, DL_PROV_FORMAT_TUPLE_RULE_TUPLE))
+        {
+            DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_TUPLE);
+        }
+        else if (isSuffix(type, DL_PROV_FORMAT_HEAD_RULE_EDB))
+		{
+			DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_HEAD_RULE_EDB);
+		}
+        else if (isSuffix(type, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE))
+        {
+            DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE);
+        }
+        else
+        {
+            FATAL_LOG("unkown provenance return format: %s", type);
+        }
+    }
+    // otherwise default is full game provenance graph
+    else
+    {
+        DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_GP);
     }
 }
 
 static void
-analyzeRule (DLRule *r, Set *idbRels, Set *edbRels)
+analyzeRule (DLRule *r, Set *idbRels) // , Set *edbRels, Set *factRels)
 {
-//    HashMap *varToPredMapping;
-
-//    // check safety
+    // check safety
     if (!checkDLRuleSafety(r))
         FATAL_LOG("rule is not safe: %s",
                         datalogToOverviewString((Node *) r));
-
-    //    if (!checkHeadSafety(r))
-//        FATAL_LOG("head predicate is not safe: %s",
-//                datalogToOverviewString((Node *) r));
-
-    // check that head predicate is not a edb relation
-
 
     // check body
     FOREACH(Node,a,r->body)
@@ -205,36 +229,25 @@ analyzeRule (DLRule *r, Set *idbRels, Set *edbRels)
             {
                 DL_SET_BOOL_PROP(atom,DL_IS_IDB_REL);
             }
-            // else edb, check that exists and has right arity
-            else
-            {
-                addToSet(edbRels,atom->rel);
-                if(!catalogTableExists(atom->rel))
-                    FATAL_LOG("EDB atom %s does not exist", atom->rel);
-            }
-        }
-        if (isA(a, DLComparison))
-        {
-            // check DTs
+//            // else edb, check that exists and has right arity
+//            else
+//            {
+//                boolean isFactRel = hasSetElem (factRels,atom->rel);
+//                boolean isEdbRel = catalogTableExists(atom->rel);
+//                if (isEdbRel)
+//                {
+//                    addToSet(edbRels,atom->rel);
+//                }
+//                if(!(isFactRel || isEdbRel))
+//                    FATAL_LOG("Atom uses predicate %s that is neither IDB nor EDB", atom->rel);
+//            }
         }
     }
 }
 
 /*
- * Check that facts only use constants
+ * Analyse and expand an RPQ expression. RPQ(path_expr,resul_type,edge_relation,result_relation).
  */
-static boolean
-checkFact (DLAtom *f)
-{
-    FOREACH(Node,arg,f->args)
-    {
-        if (!isConstExpr(arg))
-            FATAL_LOG("datalog facts can only contain constant expressions: %s",
-                    datalogToOverviewString((Node *) f));
-    }
-    return TRUE;
-}
-
 static List *
 analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules)
 {

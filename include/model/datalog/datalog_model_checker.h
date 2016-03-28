@@ -15,5 +15,7 @@
 
 boolean checkDLModel (Node *dlModel);
 boolean checkDLRuleSafety (DLRule *r);
+boolean checkFact (DLAtom *f);
+
 
 #endif /* INCLUDE_MODEL_DATALOG_DATALOG_MODEL_CHECKER_H_ */

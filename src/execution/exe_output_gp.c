@@ -28,6 +28,7 @@
 #define DOT_POSTFIX "\n}\n"
 
 #define DOT_EDGE_TEMP "\t%s -> %s\n"
+#define DOT_UNDIR_EDGE_TEMP "\t%s -> %s [arrowhead = none]\n"
 
 NEW_ENUM_WITH_TO_STRING(GPNodeType,
         GP_NODE_RULE_WON,
@@ -39,7 +40,9 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
         GP_NODE_NEGREL_WON,
         GP_NODE_NEGREL_LOST,
         GP_NODE_EBD_WON,
-        GP_NODE_EBD_LOST
+        GP_NODE_EBD_LOST,
+        GP_NODE_HYPEREDGE,
+		GP_NODE_GOALHYPEREDGE
 );
 
 static char *nodeTypeLabel[] = {
@@ -52,21 +55,10 @@ static char *nodeTypeLabel[] = {
         "notRELWON",
         "notRELLOST",
         "EDBWON",
-        "EDBLOST"
+        "EDBLOST",
+        "RULEHYPEREDGE",
+		"GOALHYPEREDGE"
 };
-
-//static char *nodeTypeLabelPostfix[] = {
-//        "WON",
-//        "LOST",
-//        "WON",
-//        "LOST",
-//        "WON",
-//        "LOST",
-//        "WON",
-//        "LOST",
-//        "WON",
-//        "LOST"
-//};
 
 #define WON_COLOR "#CBFFCB"
 #define LOST_COLOR "#FF8383"
@@ -76,8 +68,8 @@ static char *nodeTypeCode[] = {
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
         // GOAL
-        "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
-        "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"box\", style=\"rounded,filled\", color=black, fillcolor=\"" WON_COLOR "\"]\n",
+        "\n\n\tnode [shape=\"box\", style=\"rounded,filled\", color=black, fillcolor=\"" LOST_COLOR "\"]\n",
         // REL
         "\n\n\tnode [shape=\"ellipse\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
         "\n\n\tnode [shape=\"ellipse\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
@@ -87,6 +79,11 @@ static char *nodeTypeCode[] = {
         // EDB
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
+        // HYPEREDGE
+//        "\n\n\tnode [shape=\"point\", style=invis, width=0, height=0]\n"
+		"\n\n\tnode [shape=\"point\"]\n",
+		// GOALHYPEREDGE
+        "\n\n\tnode [shape=\"square\", width=0.011, height=0.011, fillcolor=black]\n"
 };
 
 
@@ -101,6 +98,8 @@ static char *nodeTypeNodeCode[] = {
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"\", texlbl=\"\"]\n",
+		"%s [label=\"\", texlbl=\"\"]\n",
 };
 
 static GPNodeType getNodeType (char *node);
@@ -150,7 +149,11 @@ executeOutputGP(void *sql)
         DEBUG_LOG("edge <%s - %s> between nodes of types %s, %s", lRawId, rRawId,
                 GPNodeTypeToString(lType), GPNodeTypeToString(rType));
 
-        appendStringInfo(edges, DOT_EDGE_TEMP, lId, rId);
+        // create edge
+        if (rType == GP_NODE_HYPEREDGE || rType == GP_NODE_GOALHYPEREDGE)
+            appendStringInfo(edges, DOT_UNDIR_EDGE_TEMP, lId, rId);
+        else
+            appendStringInfo(edges, DOT_EDGE_TEMP, lId, rId);
     }
 
     // for each node type add code to create nodes to script
@@ -285,6 +288,14 @@ getNodeLabel (char *node, GPNodeType t)
         {
             return CONCAT_STRINGS(id, args);
         }
+        case GP_NODE_HYPEREDGE:
+        {
+            return CONCAT_STRINGS(id, args);
+        }
+        case GP_NODE_GOALHYPEREDGE:
+		{
+			return CONCAT_STRINGS(id, args);
+		}
         break;
     }
 
@@ -333,6 +344,14 @@ getTexNodeLabel (char *node, GPNodeType t)
         {
             return CONCAT_STRINGS("$", id, args, "$");
         }
+        case GP_NODE_HYPEREDGE:
+        {
+            return CONCAT_STRINGS(id, args);
+        }
+        case GP_NODE_GOALHYPEREDGE:
+		{
+			return CONCAT_STRINGS(id, args);
+		}
         break;
     }
 

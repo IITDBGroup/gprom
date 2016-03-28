@@ -1439,6 +1439,13 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
         {
             DLProgram *p = (DLProgram *) n;
             appendStringInfoString(str, "PROGRAM:\n");
+            FOREACH(Node,f,p->facts)
+            {
+                indentString(str,4);
+                datalogToStrInternal(str,(Node *) f, 4);
+                appendStringInfo(str, ".\n");
+            }
+
             FOREACH(Node,r,p->rules)
             {
                 if (isA(r,Constant))
@@ -1451,9 +1458,10 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             if (DL_HAS_PROP(p,DL_PROV_WHY) || DL_HAS_PROP(p,DL_PROV_WHYNOT))
             {
                 char *prop = DL_HAS_PROP(p,DL_PROV_WHY) ? DL_PROV_WHY : DL_PROV_WHYNOT;
+                char *format = STRING_VALUE(DL_GET_PROP(p,DL_PROV_FORMAT));
                 Node *question = DL_GET_PROP(p,prop);
 
-                appendStringInfo(str, "%s:\n\t", prop);
+                appendStringInfo(str, "%s (%s):\n\t", prop, format);
                 datalogToStrInternal(str,(Node *) question, 4);
             }
         }

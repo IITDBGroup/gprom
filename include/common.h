@@ -111,6 +111,8 @@
 #if HAVE_STRCMP
 #define streq(_l,_r) (strcmp(_l,_r) == 0)
 #define strpeq(_l,_r) ((_l) == (_r)) || ((_l != NULL) && (_r != NULL) && (strcmp(_l,_r) == 0))
+#define strneq(_l,_r,n) (strncmp(_l,_r,n) == 0)
+#define strStartsWith(_str,_prefix) (strncmp(_str,_prefix,strlen(_prefix)) == 0)
 #endif
 
 

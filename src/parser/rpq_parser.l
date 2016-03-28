@@ -79,7 +79,7 @@ float 			(({integer}|{decimal})([eE][+-]?{integer})?)
 variableStart	[A-Z]
 identStart		[A-Za-z]
 constStart		[a-z]
-identContinue	[A-Za-z0-9_%?]
+identContinue	[A-Za-z0-9_%]
 doublequote     [\"]
 identifier		{identStart}{identContinue}*
 quotedIdentifier	{doublequote}[^\"]+{doublequote}
