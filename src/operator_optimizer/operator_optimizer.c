@@ -113,6 +113,8 @@ optimizeOneGraph (QueryOperator *root)
     DEBUG_LOG("numHeuOptItens = %d",numHeuOptItens);
     INFO_LOG("callback = %d",res);
     INFO_LOG("numHeuOptItens = %d",numHeuOptItens);
+    ERROR_LOG("callback = %d",res);
+    ERROR_LOG("numHeuOptItens = %d",numHeuOptItens);
     while(c <= res)
     {
     	APPLY_AND_TIME_OPT("factor attributes in conditions",
@@ -993,7 +995,7 @@ removeRedundantDuplicateOperatorBySet(QueryOperator *root)
     if (isA(root, DuplicateRemoval) && (GET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET) == TRUE))
     {
         // make an optimization choice
-        if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+        if (getBoolOption(OPTION_COST_BASED_OPTIMIZER) && !getBoolOption(OPTION_COST_BASED_CLOSE_OPTION_REMOVEDP_BY_SET))
         {
             int res = callback(2);
 

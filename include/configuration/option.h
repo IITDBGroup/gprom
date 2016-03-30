@@ -38,6 +38,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_COST_BASED_SIMANN_CONST "cost_based_sim_ann_c"
 #define OPTION_COST_BASED_SIMANN_COOLDOWN_RATE "cost_based_sim_ann_cooldown_rate"
 #define OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS "cost_based_num_heuristic_opt_iterations"
+#define OPTION_COST_BASED_CLOSE_OPTION_REMOVEDP_BY_SET "cost_based_close_option_removedp_by_set"
 //#define OPTION_
 
 /* define optimization options */
@@ -115,6 +116,7 @@ extern boolean opt_optimization_selection_move_around;
 extern boolean opt_optimization_remove_unnecessary_columns;
 extern boolean opt_optimization_remove_unnecessary_window_operators;
 extern boolean opt_optimization_pull_up_duplicate_remove_operators;
+extern boolean cost_based_close_option_removedp_by_set;
 
 // new option interface
 extern char *getStringOption (char *name);
