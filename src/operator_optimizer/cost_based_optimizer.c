@@ -248,11 +248,17 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 
 		// create next plan
 		Node *oModel1 = copyObject(oModel);
-		state->currentPlan = generatePlan(oModel1, applyOptimizations);
 
-		char *result = strdup(state->currentPlan);
+		NEW_AND_ACQUIRE_MEMCONTEXT("CBO_ITERATION_CONTEXT");
+		char *dummyTest = generatePlan(oModel1, applyOptimizations);
+		RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(dummyTest, state->currentPlan);
+		FREE_MEM_CONTEXT("CBO_ITERATION_CONTEXT");
 
-		state->currentCost = getCostEstimation(result);//TODO not what is returned by the function
+//		state->currentPlan // = generatePlan(oModel1, applyOptimizations);
+
+//		char *result = strdup(state->currentPlan);
+
+		state->currentCost = getCostEstimation(state->currentPlan);//TODO not what is returned by the function
 		DEBUG_LOG("Cost of the rewritten Query is = %d\n", state->currentCost);
 		INFO_LOG("plan (%u) for choice %s is\n%s", state->planCount, beatify(nodeToString(state->curPath)),
 				state->currentPlan);
@@ -267,7 +273,7 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 		state->optTime += (double)(tvalAfter.tv_sec - tvalBefore.tv_sec)
 		        + (((double) (tvalAfter.tv_usec - tvalBefore.tv_usec)) / 1000000.0);
 		state->planCount++;
-		FREE(result);
+//		FREE(result);
 		FREE(state->currentPlan);
 	}
 
@@ -304,7 +310,13 @@ estimateRuntime (OptimizerState *state)
 int
 callback (int numChoices)
 {
-    return opt->callback(state,numChoices);
+    int result;
+
+    MemContext *callerContext = RELEASE_MEM_CONTEXT();
+    result = opt->callback(state,numChoices);
+    ACQUIRE_MEM_CONTEXT(callerContext);
+
+    return result;
 }
 
 static boolean
