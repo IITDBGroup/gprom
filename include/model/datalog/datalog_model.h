@@ -64,7 +64,8 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
         GP_NODE_POSREL,
         GP_NODE_NEGREL,
         GP_NODE_EDB,
-        GP_NODE_RULEHYPER
+        GP_NODE_RULEHYPER,
+		GP_NODE_GOALHYPER
         );
 
 // provenance
@@ -134,6 +135,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_PROV_FORMAT_GP_REDUCED "REDUCED_GP"
 #define DL_PROV_FORMAT_TUPLE_ONLY "TUPLE_ONLY"
 #define DL_PROV_FORMAT_TUPLE_RULE_TUPLE "TUPLE_RULE_TUPLE"
+#define DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE "TUPLE_RULE_GOAL_TUPLE"
 #define DL_PROV_FORMAT_HEAD_RULE_EDB "HEAD_RULE_EDB"
 
 // property keys for storing analysis results for a program

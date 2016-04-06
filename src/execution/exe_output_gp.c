@@ -41,7 +41,8 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
         GP_NODE_NEGREL_LOST,
         GP_NODE_EBD_WON,
         GP_NODE_EBD_LOST,
-        GP_NODE_HYPEREDGE
+        GP_NODE_HYPEREDGE,
+		GP_NODE_GOALHYPEREDGE
 );
 
 static char *nodeTypeLabel[] = {
@@ -55,7 +56,8 @@ static char *nodeTypeLabel[] = {
         "notRELLOST",
         "EDBWON",
         "EDBLOST",
-        "RULEHYPEREDGE"
+        "RULEHYPEREDGE",
+		"GOALHYPEREDGE"
 };
 
 #define WON_COLOR "#CBFFCB"
@@ -78,7 +80,10 @@ static char *nodeTypeCode[] = {
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
         // HYPEREDGE
-        "\n\n\tnode [shape=\"point\", style=invis, width=0, height=0]\n"
+//        "\n\n\tnode [shape=\"point\", style=invis, width=0, height=0]\n"
+		"\n\n\tnode [shape=\"point\"]\n",
+		// GOALHYPEREDGE
+        "\n\n\tnode [shape=\"square\", width=0.011, height=0.011, fillcolor=black]\n"
 };
 
 
@@ -94,6 +99,7 @@ static char *nodeTypeNodeCode[] = {
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
         "%s [label=\"\", texlbl=\"\"]\n",
+		"%s [label=\"\", texlbl=\"\"]\n",
 };
 
 static GPNodeType getNodeType (char *node);
@@ -144,7 +150,7 @@ executeOutputGP(void *sql)
                 GPNodeTypeToString(lType), GPNodeTypeToString(rType));
 
         // create edge
-        if (rType == GP_NODE_HYPEREDGE)
+        if (rType == GP_NODE_HYPEREDGE || rType == GP_NODE_GOALHYPEREDGE)
             appendStringInfo(edges, DOT_UNDIR_EDGE_TEMP, lId, rId);
         else
             appendStringInfo(edges, DOT_EDGE_TEMP, lId, rId);
@@ -286,6 +292,10 @@ getNodeLabel (char *node, GPNodeType t)
         {
             return CONCAT_STRINGS(id, args);
         }
+        case GP_NODE_GOALHYPEREDGE:
+		{
+			return CONCAT_STRINGS(id, args);
+		}
         break;
     }
 
@@ -338,6 +348,10 @@ getTexNodeLabel (char *node, GPNodeType t)
         {
             return CONCAT_STRINGS(id, args);
         }
+        case GP_NODE_GOALHYPEREDGE:
+		{
+			return CONCAT_STRINGS(id, args);
+		}
         break;
     }
 
