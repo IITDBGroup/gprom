@@ -249,10 +249,11 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 		// create next plan
 		Node *oModel1 = copyObject(oModel);
 
-		NEW_AND_ACQUIRE_MEMCONTEXT("CBO_ITERATION_CONTEXT");
+		MemContext *cboContext = NEW_MEM_CONTEXT("CBO_ITERATION_CONTEXT");
+		ACQUIRE_MEM_CONTEXT(cboContext);
 		char *dummyTest = generatePlan(oModel1, applyOptimizations);
 		RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(dummyTest, state->currentPlan);
-		FREE_MEM_CONTEXT("CBO_ITERATION_CONTEXT");
+		FREE_MEM_CONTEXT(cboContext);
 
 //		state->currentPlan // = generatePlan(oModel1, applyOptimizations);
 
