@@ -999,6 +999,8 @@ removeRedundantDuplicateOperatorBySet(QueryOperator *root)
         {
             int res = callback(2);
 
+            INFO_LOG("res is %d", res);
+
             // only remove if optimizer decides so
             if (res == 0)
             {
