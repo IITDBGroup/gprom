@@ -1001,7 +1001,6 @@ removeRedundantDuplicateOperatorBySet(QueryOperator *root)
         }
         else
         {
-
             QueryOperator *lChild = OP_LCHILD(root);
 
             switchSubtreeWithExisting((QueryOperator *) root, lChild);

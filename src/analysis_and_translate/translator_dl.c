@@ -693,21 +693,50 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
 {
     List *headArgs = head->args;
     List *projExprs = NIL;
-    HashMap *vToA = NEW_MAP(Constant,Constant);
+    HashMap *vToA = NEW_MAP(Constant,List);
     int pos = 0;
 
-    FORBOTH(Node,bA,a,bodyArgs,joinedGoals->schema->attrDefs)
+    //TODO assume same length = have constants there, assume not same length = have removed constants
+    if (LIST_LENGTH(bodyArgs) == LIST_LENGTH(joinedGoals->schema->attrDefs))
     {
-        if (isA(bA, DLVar))
+        FORBOTH(Node,bA,a,bodyArgs,joinedGoals->schema->attrDefs)
         {
-            DLVar *v = (DLVar *) bA;
-            AttributeDef *d = (AttributeDef *) a;
-            MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
-            					createConstString(d->attrName),
-								createConstInt(pos),
-								createConstInt(d->dataType)));
+            if (isA(bA, DLVar))
+            {
+                DLVar *v = (DLVar *) bA;
+                AttributeDef *d = (AttributeDef *) a;
+                MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
+                                    createConstString(d->attrName),
+                                    createConstInt(pos),
+                                    createConstInt(d->dataType)));
+            }
+
+            pos++;
         }
-        pos++;
+    }
+    else
+    {
+        FORBOTH(Node,bA,a,bodyArgs,joinedGoals->schema->attrDefs)
+        {
+            while(FOREACH_HAS_MORE(bA) && !isA(bA, DLVar))
+            {
+                DUMMY_LC(bA) = DUMMY_LC(bA)->next;
+                bA = (Node *) LC_P_VAL(DUMMY_LC(bA));
+            }
+
+            ASSERT(isA(bA, DLVar));
+    //        if (isA(bA, DLVar))
+    //        {
+                DLVar *v = (DLVar *) bA;
+                AttributeDef *d = (AttributeDef *) a;
+                MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
+                                    createConstString(d->attrName),
+                                    createConstInt(pos),
+                                    createConstInt(d->dataType)));
+    //        }
+
+            pos++;
+        }
     }
 
     FOREACH(Node,a,headArgs)
