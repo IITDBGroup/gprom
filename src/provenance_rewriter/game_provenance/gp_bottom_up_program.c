@@ -1937,7 +1937,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	FOREACH(DLRule,r,solvedProgram->rules)
     {
 	    int numGoals = 0;
-		List *addArg = NIL;
+//		List *addArg = NIL;
 //        List *addBoolConst = NIL;
     	boolean ruleWon = DL_HAS_PROP(r,DL_WON)
                            || DL_HAS_PROP(r,DL_UNDER_NEG_WON);
@@ -1981,7 +1981,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	{
         	    if (isA(n,DLAtom))
         	    {
-        	        vName = CONCAT_STRINGS("L", itoa(j++));
+        	        vName = CONCAT_STRINGS("BL", itoa(j++));
                     createArgs = createDLVar(vName, DT_BOOL);
 
                     numGoals++; // For calculation of length of only new args
@@ -2138,13 +2138,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
            	ruleAtom->rel = CONCAT_STRINGS(strdup(adRuleName), INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) != getMatched ? NON_LINKED_POSTFIX : NON_LINKED_POSTFIX_CHKPOS);
 
     	    newRuleArg = copyObject(origArgs);
-          	addArg = NIL;
+//          	addArg = NIL;
 
         	FOREACH(DLNode,n,ruleRule->body) //TODO for(int i = 0; i < LIST_LENGTH(ruleRule->body); i++), but, e.g.,  Y=3
         	{
         	    if (isA(n,DLAtom))
         	    {
-                    addArg = appendToTailOfList(addArg, createConstBool(TRUE));
+//                    addArg = appendToTailOfList(addArg, createConstBool(TRUE));
                     newRuleArg = appendToTailOfList(newRuleArg, createConstBool(TRUE));
         	    }
         	}
@@ -2167,6 +2167,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 
         DEBUG_LOG("created new head rule:\n%s", datalogToOverviewString((Node *) helpRules));
+
 //        setIDBBody(ruleRule);
         if (ruleWon)
         {
