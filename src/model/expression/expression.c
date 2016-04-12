@@ -536,6 +536,8 @@ createCasts(Node *lExpr, Node *rExpr)
     if (rType == DT_STRING)
         return LIST_MAKE(createCastExpr(lExpr, DT_STRING), rExpr);
 
+    return LIST_MAKE(createCastExpr(lExpr, DT_STRING), createCastExpr(rExpr, DT_STRING));
+
     ASSERT(FALSE);
     return NULL;
 }
