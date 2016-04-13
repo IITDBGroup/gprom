@@ -1177,6 +1177,57 @@ translateGoal(DLAtom *r, int goalPos)
     	}
     	else
    		{
+    		// if only constant exsits, then filter out upfront
+			ProjectionOperator *pdom;
+    		if(typeTransConst && !typeTransVar)
+    		{
+    			// add selection if constants are used in the goal
+				// e.g., R(X,1) with attributes A0,A1 are translated into SELECTION[A1=1](R)
+				QueryOperator *sdom;
+
+				int s = 0;
+				List *selExprForRel = NIL;
+				sdom = (QueryOperator *) rel;
+
+				FOREACH(Node,arg,r->args)
+				{
+					if (isA(arg,Constant))
+					{
+						Node *comp;
+						AttributeDef *a = getAttrDefByPos(sdom,s);
+						comp = (Node *) createOpExpr("=",
+								LIST_MAKE(createFullAttrReference(strdup(a->attrName),
+										0, s, INVALID_ATTR, a->dataType),
+								copyObject(arg)));
+
+						ASSERT(a->dataType == ((Constant *) arg)->constType);
+
+						selExprForRel = appendToTailOfList(selExprForRel, comp);
+					}
+//					else
+//					{
+//						AttributeDef *a = getAttrDefByPos(sdom,s);
+//						varAttrNames = appendToTailOfList(varAttrNames, strdup(a->attrName));
+//					}
+
+					s++;
+				}
+
+				// create a selection if necessary (equate constants, )
+				if (selExprForRel != NIL)
+				{
+					SelectionOperator *sel;
+					Node *cond = andExprList(selExprForRel);
+
+					sel = createSelectionOp(cond, sdom, NIL, NULL);
+					addParent(sdom, (QueryOperator *) sel);
+					sdom = (QueryOperator *) sel;
+				}
+
+				// add projection
+				pdom = (ProjectionOperator *) createProjOnAllAttrs(sdom);
+				addChildOperator((QueryOperator *) pdom, sdom);
+    		}
 //            SetOperator *setDiff;
 //            ProjectionOperator *rename;
 //            QueryOperator *dom;
@@ -1229,10 +1280,20 @@ translateGoal(DLAtom *r, int goalPos)
             addChildOperator((QueryOperator *) rename, dom);
             dom = (QueryOperator *) rename;
 
-            setDiff = createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(dom, rel),
-                    NULL, deepCopyStringList(attrNames));
-            addParent(dom, (QueryOperator *) setDiff);
-            addParent((QueryOperator *) rel, (QueryOperator *) setDiff);
+            if(typeTransConst && !typeTransVar)
+            {
+                setDiff = createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(dom, pdom),
+                        NULL, deepCopyStringList(attrNames));
+                addParent(dom, (QueryOperator *) setDiff);
+                addParent((QueryOperator *) pdom, (QueryOperator *) setDiff);
+            }
+            else
+            {
+                setDiff = createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(dom, rel),
+                        NULL, deepCopyStringList(attrNames));
+                addParent(dom, (QueryOperator *) setDiff);
+                addParent((QueryOperator *) rel, (QueryOperator *) setDiff);
+            }
 
             pInput = (QueryOperator *) setDiff;
    		}
