@@ -126,22 +126,38 @@ pluginTypeToString(MetadataLookupPluginType type)
 int
 initMetadataLookupPlugin (void)
 {
+    MetadataLookupPlugin *myPlugin;
     ASSERT(activePlugin);
-    return activePlugin->initMetadataLookupPlugin();
+
+    activePlugin->metadataLookupContext = CREATE_MEM_CONTEXT("METADATA_LOOKUP_PLUGIN_CONTEXT");
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    int returnVal = activePlugin->initMetadataLookupPlugin();
+    RELEASE_MEM_CONTEXT();
+
+    return returnVal;
 }
 
 int
 shutdownMetadataLookupPlugin (void)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->shutdownMetadataLookupPlugin();
+
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    int resultVal = activePlugin->shutdownMetadataLookupPlugin();
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+    activePlugin->metadataLookupContext = NULL;
+
+    return resultVal;
 }
 
 boolean
 isInitialized (void)
 {
     ASSERT(activePlugin);
-    return activePlugin->isInitialized();
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    boolean result = activePlugin->isInitialized();
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 

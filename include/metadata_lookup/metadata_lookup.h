@@ -89,6 +89,7 @@ typedef struct MetadataLookupPlugin
 
     /* cache for catalog information */
     CatalogCache *cache;
+    MemContext *metadataLookupContext;
 
 } MetadataLookupPlugin;
 
