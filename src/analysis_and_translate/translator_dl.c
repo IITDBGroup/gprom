@@ -29,10 +29,13 @@
 
 static Node *translateProgram(DLProgram *p);
 static QueryOperator *translateFact(DLAtom *f);
-static QueryOperator *translateRule(DLRule *r, boolean typeQ);
+static QueryOperator *translateRule(DLRule *r);
+//static QueryOperator *translateRule(DLRule *r, boolean typeQ);
 static QueryOperator *translateSafeRule(DLRule *r);
-static QueryOperator *translateUnSafeRule(DLRule *r, boolean typeQ, boolean caseC);
-static QueryOperator *translateGoal(DLAtom *r, int goalPos, boolean typeQ, boolean caseC);
+static QueryOperator *translateUnSafeRule(DLRule *r);
+//static QueryOperator *translateUnSafeRule(DLRule *r, boolean typeQ, boolean caseC);
+static QueryOperator *translateGoal(DLAtom *r, int goalPos);
+//static QueryOperator *translateGoal(DLAtom *r, int goalPos, boolean typeQ, boolean caseC);
 static QueryOperator *translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart);
 static void analyzeProgramDTs (DLProgram *p, HashMap *predToRules);
 static void analyzeFactDTs (DLAtom *f, HashMap *predToDTs);
@@ -47,8 +50,8 @@ static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
 static void adaptProjectionAttrRef (QueryOperator *o);
 
 static Node *replaceVarWithAttrRef(Node *node, List *context);
-boolean typeOfQuestion = FALSE;
-boolean caseChecker = FALSE;
+//boolean typeOfQuestion = FALSE;
+//boolean caseChecker = FALSE;
 
 Node *
 translateParseDL(Node *q)
@@ -117,11 +120,11 @@ translateProgram(DLProgram *p)
         DEBUG_LOG("user asked for provenance computation for:\n%s",
                         datalogToOverviewString((Node *) p));
 
-        // check type of question (e.g., WHY or WHYNOT question)
-        if(DL_HAS_PROP(p,DL_PROV_WHY))
-        	typeOfQuestion = TRUE;
-        else if(DL_HAS_PROP(p,DL_PROV_WHYNOT))
-        	typeOfQuestion = FALSE;
+//        // check type of question (e.g., WHY or WHYNOT question)
+//        if(DL_HAS_PROP(p,DL_PROV_WHY))
+//        	typeOfQuestion = TRUE;
+//        else if(DL_HAS_PROP(p,DL_PROV_WHYNOT))
+//        	typeOfQuestion = FALSE;
 
 //        DEBUG_LOG("type of question: %d", typeOfQuestion);
 
@@ -204,8 +207,8 @@ translateProgram(DLProgram *p)
     // translate rules
     FOREACH(DLRule,r,p->rules)
     {
-        QueryOperator *tRule = translateRule(r,typeOfQuestion);
-//        QueryOperator *tRule = translateRule(r);
+//        QueryOperator *tRule = translateRule(r,typeOfQuestion);
+        QueryOperator *tRule = translateRule(r);
         char *headPred = getHeadPredName(r);
 
         DEBUG_LOG("translate rule: %s", datalogToOverviewString((Node *) r));
@@ -451,7 +454,8 @@ translateFact(DLAtom *f)
 }
 
 static QueryOperator *
-translateRule(DLRule *r, boolean typeQ)
+//translateRule(DLRule *r, boolean typeQ)
+translateRule(DLRule *r)
 {
     boolean isSafe = FALSE; //TODO implement real safety check in model checker or analyzer
 
@@ -461,33 +465,33 @@ translateRule(DLRule *r, boolean typeQ)
             isSafe = TRUE;
     }
 
-    int getPos = 0;
-    int varPos = 0;
-    int constantPos = 0;
-
-    FOREACH(DLAtom,da,r->body) //TODO need to implement safer way to categorize those num of attributes in relation not equal to in domain
-    {
-    	FOREACH(Node,at,da->args)
-		{
-    		if(isA(at,DLVar) && varPos >= constantPos)
-    			varPos = getPos;
-
-    		if(isA(at,Constant))
-    			constantPos = getPos;
-
-    		// if variable exists before and after constant in the negated goal, then different type of translation
-    		if(isA(at,DLVar) && da->negated  && getPos == constantPos+1  && getPos == varPos-1 )
-    				caseChecker = TRUE;
-
-    		getPos++;
-		}
-    }
+//    int getPos = 0;
+//    int varPos = 0;
+//    int constantPos = 0;
+//
+//    FOREACH(DLAtom,da,r->body) //TODO need to implement safer way to categorize those num of attributes in relation not equal to in domain
+//    {
+//    	FOREACH(Node,at,da->args)
+//		{
+//    		if(isA(at,DLVar) && varPos >= constantPos)
+//    			varPos = getPos;
+//
+//    		if(isA(at,Constant))
+//    			constantPos = getPos;
+//
+//    		// if variable exists before and after constant in the negated goal, then different type of translation
+//    		if(isA(at,DLVar) && da->negated  && getPos == constantPos+1  && getPos == varPos-1 )
+//    				caseChecker = TRUE;
+//
+//    		getPos++;
+//		}
+//    }
 
     if(isSafe)
         return translateSafeRule(r);
     else
-//    	return translateUnSafeRule(r);
-   		return translateUnSafeRule(r, typeQ, caseChecker);
+    	return translateUnSafeRule(r);
+//   		return translateUnSafeRule(r, typeQ, caseChecker);
 }
 
 /*
@@ -500,8 +504,8 @@ translateRule(DLRule *r, boolean typeQ)
  *  3) the rule head will be a projection followed by duplicate removal (it's bag semantics, baby!)
  */
 static QueryOperator *
-translateUnSafeRule(DLRule *r, boolean typeQ, boolean caseC)
-//translateUnSafeRule(DLRule *r)
+//translateUnSafeRule(DLRule *r, boolean typeQ, boolean caseC)
+translateUnSafeRule(DLRule *r)
 {
     ProjectionOperator *headP;
     DuplicateRemoval *dupRem;
@@ -521,8 +525,8 @@ translateUnSafeRule(DLRule *r, boolean typeQ, boolean caseC)
     {
         if (isA(a,DLAtom))
         {
-            QueryOperator *tG = translateGoal((DLAtom *) a, goalPos++, typeQ, caseC);
-//            QueryOperator *tG = translateGoal((DLAtom *) a, goalPos++);
+//            QueryOperator *tG = translateGoal((DLAtom *) a, goalPos++, typeQ, caseC);
+            QueryOperator *tG = translateGoal((DLAtom *) a, goalPos++);
             goalTrans = appendToTailOfList(goalTrans, tG);
             DEBUG_LOG("translated body goal is: %s", operatorToOverviewString((Node *) tG));
         }
@@ -990,8 +994,8 @@ replaceVarWithAttrRef(Node *node, List *context)
     } while(0)
 
 static QueryOperator *
-translateGoal(DLAtom *r, int goalPos, boolean typeQ, boolean caseC)
-//translateGoal(DLAtom *r, int goalPos)
+//translateGoal(DLAtom *r, int goalPos, boolean typeQ, boolean caseC)
+translateGoal(DLAtom *r, int goalPos)
 {
     ProjectionOperator *renameOnSetDiff;
     QueryOperator *pInput;
@@ -1001,6 +1005,8 @@ translateGoal(DLAtom *r, int goalPos, boolean typeQ, boolean caseC)
     boolean isIDB = DL_HAS_PROP(r,DL_IS_IDB_REL);
     boolean isEDB = DL_HAS_PROP(r,DL_IS_EDB_REL);
     boolean isFact = DL_HAS_PROP(r,DL_IS_FACT_REL);
+	boolean typeTransConst = FALSE;
+	boolean typeTransVar = FALSE;
 
     DEBUG_LOG("goal is marked as %s%s%s",
             isIDB ? " IDB " : "",
@@ -1024,20 +1030,29 @@ translateGoal(DLAtom *r, int goalPos, boolean typeQ, boolean caseC)
 	COPY_PROPS_TO_TABLEACCESS(rel,r);
 
     // is negated goal?
-    ProjectionOperator *rename;
-	ProjectionOperator *pdom;
-
     if (r->negated)
     {
+    	// check if constant exists
+    	FOREACH(Node,t,r->args)
+		{
+    		if(isA(t,Constant))
+    			typeTransConst = TRUE;
+
+    		if(isA(t,DLVar))
+    			typeTransVar = TRUE;
+		}
 
         SetOperator *setDiff;
         QueryOperator *dom;
+        ProjectionOperator *rename;
 
-    	if (typeQ && caseC) // if question is WHY and variable exists after constant
+//    	if (typeQ && caseC) // if question is WHY and variable exists after constant
+        if(typeTransConst && typeTransVar)
     	{
     		// add selection if constants are used in the goal
     		// e.g., R(X,1) with attributes A0,A1 are translated into SELECTION[A1=1](R)
     		QueryOperator *sdom;
+    		ProjectionOperator *pdom;
 
     		int s = 0;
     		List *selExprForRel = NIL;
@@ -1225,8 +1240,9 @@ translateGoal(DLAtom *r, int goalPos, boolean typeQ, boolean caseC)
     else
         pInput = (QueryOperator *) rel;
 
-    // do not generate selection if WHY and negated goal
-    if (!(typeQ && caseC && r->negated))
+    // do not generate selection if constants exist in the only negated body args
+//    if (!(typeQ && caseC && r->negated))
+    if(!(typeTransConst && typeTransVar && r->negated))
     {
         // add selection if constants are used in the goal
         // e.g., R(X,1) with attributes A0,A1 are translated into SELECTION[A1=1](R)
@@ -1310,7 +1326,8 @@ translateGoal(DLAtom *r, int goalPos, boolean typeQ, boolean caseC)
     List *finalNames = NIL;
     int argPos = 0;
 
-    if (!(typeQ && caseC && r->negated))
+//    if (!(typeQ && caseC && r->negated))
+    if(!(typeTransConst && typeTransVar && r->negated))
     {
         FORBOTH(Node,var,attr,r->args,renameOnSetDiff->op.schema->attrDefs)
         {
