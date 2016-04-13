@@ -472,8 +472,7 @@ translateRule(DLRule *r, boolean typeQ)
     		if(isA(at,Constant))
     			constantPos = getPos;
 
-    		if(isA(at,DLVar))
-    			if(getPos == constantPos+1)
+    		if(isA(at,DLVar) && getPos == constantPos+1 && da->negated)
     				caseChecker = TRUE;
 
     		getPos++;
