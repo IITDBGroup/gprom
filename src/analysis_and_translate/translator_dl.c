@@ -461,18 +461,22 @@ translateRule(DLRule *r, boolean typeQ)
             isSafe = TRUE;
     }
 
-    // if variable exists after constant in the body
     int getPos = 0;
+    int varPos = 0;
     int constantPos = 0;
 
-    FOREACH(DLAtom,da,r->body)
+    FOREACH(DLAtom,da,r->body) //TODO need to implement safer way to categorize those num of attributes in relation not equal to in domain
     {
     	FOREACH(Node,at,da->args)
 		{
+    		if(isA(at,DLVar) && varPos >= constantPos)
+    			varPos = getPos;
+
     		if(isA(at,Constant))
     			constantPos = getPos;
 
-    		if(isA(at,DLVar) && getPos == constantPos+1 && da->negated)
+    		// if variable exists before and after constant in the negated goal, then different type of translation
+    		if(isA(at,DLVar) && da->negated  && getPos == constantPos+1  && getPos == varPos-1 )
     				caseChecker = TRUE;
 
     		getPos++;
@@ -1156,7 +1160,7 @@ translateGoal(DLAtom *r, int goalPos, boolean typeQ, boolean caseC)
 
             pInput = (QueryOperator *) setDiff;
     	}
-    	else // if question is WHYNOT
+    	else
    		{
 //            SetOperator *setDiff;
 //            ProjectionOperator *rename;
