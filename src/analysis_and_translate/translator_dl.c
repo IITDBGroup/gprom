@@ -1303,7 +1303,8 @@ translateGoal(DLAtom *r, int goalPos)
 
     // do not generate selection if constants exist in the only negated body args
 //    if (!(typeQ && caseC && r->negated))
-    if(!((typeTransConst && typeTransVar && r->negated) || (typeTransConst && !typeTransVar && r->negated)))
+//    if(!((typeTransConst && typeTransVar && r->negated) || (typeTransConst && !typeTransVar && r->negated)))
+    if(!(typeTransConst && typeTransVar && r->negated))
     {
         // add selection if constants are used in the goal
         // e.g., R(X,1) with attributes A0,A1 are translated into SELECTION[A1=1](R)
@@ -1388,7 +1389,8 @@ translateGoal(DLAtom *r, int goalPos)
     int argPos = 0;
 
 //    if (!(typeQ && caseC && r->negated))
-    if(!((typeTransConst && typeTransVar && r->negated) || (typeTransConst && !typeTransVar && r->negated)))
+//    if(!((typeTransConst && typeTransVar && r->negated) || (typeTransConst && !typeTransVar && r->negated)))
+    if(!(typeTransConst && typeTransVar && r->negated))
     {
         FORBOTH(Node,var,attr,r->args,renameOnSetDiff->op.schema->attrDefs)
         {
