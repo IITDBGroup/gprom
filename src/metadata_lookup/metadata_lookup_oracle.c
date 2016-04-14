@@ -1124,7 +1124,8 @@ oracleGetCostEstimation(char *query)
             break;
         }
     }
-
+    else
+        FATAL_LOG("cost estimation failed for %s", statement1->data);
     FREE(statement1);
 
     StringInfo statement2;
