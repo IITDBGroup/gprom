@@ -252,12 +252,15 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 		MemContext *cboContext = NEW_MEM_CONTEXT("CBO_ITERATION_CONTEXT");
 		ACQUIRE_MEM_CONTEXT(cboContext);
 		char *dummyTest = generatePlan(oModel1, applyOptimizations);
+		ERROR_LOG("query: %s", dummyTest);
 		RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(dummyTest, state->currentPlan);
 		FREE_MEM_CONTEXT(cboContext);
 
 //		state->currentPlan // = generatePlan(oModel1, applyOptimizations);
 
 //		char *result = strdup(state->currentPlan);
+
+		ERROR_LOG("query after: %s", state->currentPlan);
 
 		state->currentCost = getCostEstimation(state->currentPlan);//TODO not what is returned by the function
 		DEBUG_LOG("Cost of the rewritten Query is = %d\n", state->currentCost);
