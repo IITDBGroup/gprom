@@ -377,7 +377,7 @@ typeOf (Node *expr)
 {
     switch(expr->type)
     {
-        case T_AttributeReference:
+    	case T_AttributeReference:
         {
             AttributeReference *a = (AttributeReference *) expr;
             return a->attrType;
@@ -517,12 +517,10 @@ isConstExpr (Node *expr)
     return FALSE;
 }
 
-
-
 List *
 createCasts(Node *lExpr, Node *rExpr)
 {
-    DataType lType, rType;
+	DataType lType, rType;
     lType = typeOf(lExpr);
     rType = typeOf(rExpr);
 

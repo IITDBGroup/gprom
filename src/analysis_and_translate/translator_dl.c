@@ -30,12 +30,9 @@
 static Node *translateProgram(DLProgram *p);
 static QueryOperator *translateFact(DLAtom *f);
 static QueryOperator *translateRule(DLRule *r);
-//static QueryOperator *translateRule(DLRule *r, boolean typeQ);
 static QueryOperator *translateSafeRule(DLRule *r);
 static QueryOperator *translateUnSafeRule(DLRule *r);
-//static QueryOperator *translateUnSafeRule(DLRule *r, boolean typeQ, boolean caseC);
 static QueryOperator *translateGoal(DLAtom *r, int goalPos);
-//static QueryOperator *translateGoal(DLAtom *r, int goalPos, boolean typeQ, boolean caseC);
 static QueryOperator *translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart);
 static void analyzeProgramDTs (DLProgram *p, HashMap *predToRules);
 static void analyzeFactDTs (DLAtom *f, HashMap *predToDTs);
@@ -50,8 +47,7 @@ static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
 static void adaptProjectionAttrRef (QueryOperator *o);
 
 static Node *replaceVarWithAttrRef(Node *node, List *context);
-//boolean typeOfQuestion = FALSE;
-//boolean caseChecker = FALSE;
+boolean castChecker = FALSE;
 
 Node *
 translateParseDL(Node *q)
@@ -207,7 +203,6 @@ translateProgram(DLProgram *p)
     // translate rules
     FOREACH(DLRule,r,p->rules)
     {
-//        QueryOperator *tRule = translateRule(r,typeOfQuestion);
         QueryOperator *tRule = translateRule(r);
         char *headPred = getHeadPredName(r);
 
@@ -454,7 +449,6 @@ translateFact(DLAtom *f)
 }
 
 static QueryOperator *
-//translateRule(DLRule *r, boolean typeQ)
 translateRule(DLRule *r)
 {
     boolean isSafe = FALSE; //TODO implement real safety check in model checker or analyzer
@@ -465,33 +459,10 @@ translateRule(DLRule *r)
             isSafe = TRUE;
     }
 
-//    int getPos = 0;
-//    int varPos = 0;
-//    int constantPos = 0;
-//
-//    FOREACH(DLAtom,da,r->body) //TODO need to implement safer way to categorize those num of attributes in relation not equal to in domain
-//    {
-//    	FOREACH(Node,at,da->args)
-//		{
-//    		if(isA(at,DLVar) && varPos >= constantPos)
-//    			varPos = getPos;
-//
-//    		if(isA(at,Constant))
-//    			constantPos = getPos;
-//
-//    		// if variable exists before and after constant in the negated goal, then different type of translation
-//    		if(isA(at,DLVar) && da->negated  && getPos == constantPos+1  && getPos == varPos-1 )
-//    				caseChecker = TRUE;
-//
-//    		getPos++;
-//		}
-//    }
-
     if(isSafe)
         return translateSafeRule(r);
     else
     	return translateUnSafeRule(r);
-//   		return translateUnSafeRule(r, typeQ, caseChecker);
 }
 
 /*
@@ -504,7 +475,6 @@ translateRule(DLRule *r)
  *  3) the rule head will be a projection followed by duplicate removal (it's bag semantics, baby!)
  */
 static QueryOperator *
-//translateUnSafeRule(DLRule *r, boolean typeQ, boolean caseC)
 translateUnSafeRule(DLRule *r)
 {
     ProjectionOperator *headP;
@@ -525,7 +495,6 @@ translateUnSafeRule(DLRule *r)
     {
         if (isA(a,DLAtom))
         {
-//            QueryOperator *tG = translateGoal((DLAtom *) a, goalPos++, typeQ, caseC);
             QueryOperator *tG = translateGoal((DLAtom *) a, goalPos++);
             goalTrans = appendToTailOfList(goalTrans, tG);
             DEBUG_LOG("translated body goal is: %s", operatorToOverviewString((Node *) tG));
@@ -994,7 +963,6 @@ replaceVarWithAttrRef(Node *node, List *context)
     } while(0)
 
 static QueryOperator *
-//translateGoal(DLAtom *r, int goalPos, boolean typeQ, boolean caseC)
 translateGoal(DLAtom *r, int goalPos)
 {
     ProjectionOperator *renameOnSetDiff;
@@ -1046,8 +1014,7 @@ translateGoal(DLAtom *r, int goalPos)
         QueryOperator *dom;
         ProjectionOperator *rename;
 
-//    	if (typeQ && caseC) // if question is WHY and variable exists after constant
-        if(typeTransConst && typeTransVar)
+        if(typeTransConst && typeTransVar) // if both constants and variables are exist
     	{
     		// add selection if constants are used in the goal
     		// e.g., R(X,1) with attributes A0,A1 are translated into SELECTION[A1=1](R)
@@ -1099,7 +1066,6 @@ translateGoal(DLAtom *r, int goalPos)
     	    pdom = (ProjectionOperator *) createProjOnAttrsByName(sdom, varAttrNames);
     	    addChildOperator((QueryOperator *) pdom, sdom);
 
-
             // get the number of variables in the goal
             int numAttrs = 0;
             FOREACH(Node,arg,r->args)
@@ -1108,7 +1074,7 @@ translateGoal(DLAtom *r, int goalPos)
 
             // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
             // then return (Domain X Domain X ... X Domain) - R
-            dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
+            dom = (QueryOperator *) createTableAccessOp("_DOMAINDBLP", NULL,
                     "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
             List *domainAttrs = singleton("D");
 
@@ -1116,7 +1082,7 @@ translateGoal(DLAtom *r, int goalPos)
             {
                 char *aDomAttrName = CONCAT_STRINGS("D", itoa(i++));
                 QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
-                        "_DOMAIN", NULL, "DummyDom", NIL,
+                        "_DOMAINDBLP", NULL, "DummyDom", NIL,
                         LIST_MAKE("D"), singletonInt(DT_STRING));
 
                 QueryOperator *oldD = dom;
@@ -1131,20 +1097,20 @@ translateGoal(DLAtom *r, int goalPos)
 
             rename = (ProjectionOperator *) createProjOnAllAttrs(dom);
 
-////			// cast data type if typeQ is true
-////            List *newDataType = NIL;
-//			FORBOTH(AttributeDef,p,r,pdom->op.schema->attrDefs,rename->op.schema->attrDefs)
-//            {
-////				newDataType = copyObject(createCasts(p,r));
-//				if(p->dataType != r->dataType)
-//				{
-//					if(p->dataType == DT_STRING)
-//						r->dataType = DT_STRING;
-//					if(r->dataType == DT_STRING)
-//						p->dataType = DT_STRING;
-//				}
-//            }
-////			pdom->op.schema->attrDefs = copyObject(newDataType);
+            //check if cast is needed
+            FOREACH(Node,c,pdom->projExprs)
+            	if(typeOf(c) != DT_STRING)
+                	castChecker = TRUE;
+
+            // if TRUE, then cast to DT_STRING
+            if(castChecker)
+            {
+                List *newDataType = NIL;
+    			FORBOTH(Node,p,r,pdom->projExprs,rename->projExprs)
+    				newDataType = appendToTailOfList(newDataType,getHeadOfListP(createCasts(p,r)));
+
+    			pdom->projExprs = copyObject(newDataType);
+            }
 
             // rename attribute names
     //        List *newAttrNames = NIL;
@@ -1235,7 +1201,7 @@ translateGoal(DLAtom *r, int goalPos)
             int numAttrs = getNumAttrs((QueryOperator *) rel);
             // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
             // then return (Domain X Domain X ... X Domain) - R
-            dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
+            dom = (QueryOperator *) createTableAccessOp("_DOMAINDBLP", NULL,
                     "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
             List *domainAttrs = singleton("D");
 
@@ -1243,7 +1209,7 @@ translateGoal(DLAtom *r, int goalPos)
             {
                 char *aDomAttrName = CONCAT_STRINGS("D", itoa(i++));
                 QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
-                        "_DOMAIN", NULL, "DummyDom", NIL,
+                        "_DOMAINDBLP", NULL, "DummyDom", NIL,
                         LIST_MAKE("D"), singletonInt(DT_STRING));
 
                 QueryOperator *oldD = dom;
@@ -1302,8 +1268,6 @@ translateGoal(DLAtom *r, int goalPos)
         pInput = (QueryOperator *) rel;
 
     // do not generate selection if constants exist in the only negated body args
-//    if (!(typeQ && caseC && r->negated))
-//    if(!((typeTransConst && typeTransVar && r->negated) || (typeTransConst && !typeTransVar && r->negated)))
     if(!(typeTransConst && typeTransVar && r->negated))
     {
         // add selection if constants are used in the goal
@@ -1388,8 +1352,6 @@ translateGoal(DLAtom *r, int goalPos)
     List *finalNames = NIL;
     int argPos = 0;
 
-//    if (!(typeQ && caseC && r->negated))
-//    if(!((typeTransConst && typeTransVar && r->negated) || (typeTransConst && !typeTransVar && r->negated)))
     if(!(typeTransConst && typeTransVar && r->negated))
     {
         FORBOTH(Node,var,attr,r->args,renameOnSetDiff->op.schema->attrDefs)
@@ -1775,6 +1737,24 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
             a->attrName = strdup(n);
     }
 
+    // cast if checker is true e.g., the datatype is DL_INT
+    FOREACH(Node,c,rename->projExprs)
+		if(typeOf(c) != DT_STRING)
+			castChecker = TRUE;
+
+    // if TRUE, then cast to DT_STRING
+    if(castChecker)
+    {
+        List *newDataType = NIL;
+        FOREACH(Node,r,rename->projExprs)
+        {
+        	if(typeOf(r) != DT_STRING)
+        		newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
+        	else
+        		newDataType = appendToTailOfList(newDataType,copyObject(r));
+        }
+    	rename->projExprs = copyObject(newDataType);
+    }
 
     DEBUG_LOG("translated goal %s:\n%s",
             datalogToOverviewString((Node *) r),
