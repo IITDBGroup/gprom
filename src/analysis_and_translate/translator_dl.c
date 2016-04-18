@@ -1074,15 +1074,15 @@ translateGoal(DLAtom *r, int goalPos)
 
             // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
             // then return (Domain X Domain X ... X Domain) - R
-            dom = (QueryOperator *) createTableAccessOp("_DOMAINDBLP", NULL,
+            dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
                     "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
             List *domainAttrs = singleton("D");
 
             for(int i = 1; i < numAttrs; i++)
             {
-                char *aDomAttrName = CONCAT_STRINGS("D", itoa(i++));
+                char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
                 QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
-                        "_DOMAINDBLP", NULL, "DummyDom", NIL,
+                        "_DOMAIN", NULL, "DummyDom", NIL,
                         LIST_MAKE("D"), singletonInt(DT_STRING));
 
                 QueryOperator *oldD = dom;
@@ -1201,15 +1201,15 @@ translateGoal(DLAtom *r, int goalPos)
             int numAttrs = getNumAttrs((QueryOperator *) rel);
             // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
             // then return (Domain X Domain X ... X Domain) - R
-            dom = (QueryOperator *) createTableAccessOp("_DOMAINDBLP", NULL,
+            dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
                     "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
             List *domainAttrs = singleton("D");
 
             for(int i = 1; i < numAttrs; i++)
             {
-                char *aDomAttrName = CONCAT_STRINGS("D", itoa(i++));
+                char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
                 QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
-                        "_DOMAINDBLP", NULL, "DummyDom", NIL,
+                        "_DOMAIN", NULL, "DummyDom", NIL,
                         LIST_MAKE("D"), singletonInt(DT_STRING));
 
                 QueryOperator *oldD = dom;
