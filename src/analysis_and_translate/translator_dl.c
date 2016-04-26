@@ -1074,7 +1074,7 @@ translateGoal(DLAtom *r, int goalPos)
 
             // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
             // then return (Domain X Domain X ... X Domain) - R
-            dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
+            dom = (QueryOperator *) createTableAccessOp("_DOMAINTPCH", NULL,
                     "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
             List *domainAttrs = singleton("D");
 
@@ -1082,7 +1082,7 @@ translateGoal(DLAtom *r, int goalPos)
             {
                 char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
                 QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
-                        "_DOMAIN", NULL, "DummyDom", NIL,
+                        "_DOMAINTPCH", NULL, "DummyDom", NIL,
                         LIST_MAKE("D"), singletonInt(DT_STRING));
 
                 QueryOperator *oldD = dom;
@@ -1107,7 +1107,7 @@ translateGoal(DLAtom *r, int goalPos)
             {
                 List *newDataType = NIL;
     			FORBOTH(Node,p,r,pdom->projExprs,rename->projExprs)
-    				newDataType = appendToTailOfList(newDataType,getHeadOfListP(createCasts(p,r)));
+						newDataType = appendToTailOfList(newDataType,getHeadOfListP(createCasts(p,r)));
 
     			pdom->projExprs = copyObject(newDataType);
             }
@@ -1201,7 +1201,7 @@ translateGoal(DLAtom *r, int goalPos)
             int numAttrs = getNumAttrs((QueryOperator *) rel);
             // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
             // then return (Domain X Domain X ... X Domain) - R
-            dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
+            dom = (QueryOperator *) createTableAccessOp("_DOMAINTPCH", NULL,
                     "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
             List *domainAttrs = singleton("D");
 
@@ -1209,7 +1209,7 @@ translateGoal(DLAtom *r, int goalPos)
             {
                 char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
                 QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
-                        "_DOMAIN", NULL, "DummyDom", NIL,
+                        "_DOMAINTPCH", NULL, "DummyDom", NIL,
                         LIST_MAKE("D"), singletonInt(DT_STRING));
 
                 QueryOperator *oldD = dom;
@@ -1606,6 +1606,8 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
         	rename = (ProjectionOperator *) createProjectionOp(projArgs, (QueryOperator *) rename, NIL, projNames);
 
         	DEBUG_LOG("proj: %s", operatorToOverviewString((Node *) rename));
+
+
     		addChildOperator((QueryOperator *) rename, posPart);
 //        }
 
@@ -1698,6 +1700,25 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     rename = (ProjectionOperator *) createProjOnAllAttrs(pInput);
     addChildOperator((QueryOperator *) rename, pInput);
 
+    // cast if checker is true e.g., the datatype is DL_INT
+//    FOREACH(Node,c,rename->projExprs)
+//		if(typeOf(c) != DT_STRING && typeOf(c) != DT_BOOL)
+//			castChecker = TRUE;
+
+    // if TRUE, then cast to DT_STRING
+//    if(castChecker)
+//    {
+        List *newDataType = NIL;
+        FOREACH(Node,r,rename->projExprs)
+        {
+        	if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL) //TODO check the datatype, if not string, then cast
+        		newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
+        	else
+        		newDataType = appendToTailOfList(newDataType,copyObject(r));
+        }
+    	rename->projExprs = copyObject(newDataType);
+//    }
+
     // change attribute names
     Set *nameSet = STRSET();
     List *finalNames = NIL;
@@ -1735,25 +1756,6 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
 
         if(!streq(a->attrName, name))
             a->attrName = strdup(n);
-    }
-
-    // cast if checker is true e.g., the datatype is DL_INT
-    FOREACH(Node,c,rename->projExprs)
-		if(typeOf(c) != DT_STRING)
-			castChecker = TRUE;
-
-    // if TRUE, then cast to DT_STRING
-    if(castChecker)
-    {
-        List *newDataType = NIL;
-        FOREACH(Node,r,rename->projExprs)
-        {
-        	if(typeOf(r) != DT_STRING)
-        		newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
-        	else
-        		newDataType = appendToTailOfList(newDataType,copyObject(r));
-        }
-    	rename->projExprs = copyObject(newDataType);
     }
 
     DEBUG_LOG("translated goal %s:\n%s",
