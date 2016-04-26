@@ -1606,8 +1606,6 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
         	rename = (ProjectionOperator *) createProjectionOp(projArgs, (QueryOperator *) rename, NIL, projNames);
 
         	DEBUG_LOG("proj: %s", operatorToOverviewString((Node *) rename));
-
-
     		addChildOperator((QueryOperator *) rename, posPart);
 //        }
 
@@ -1708,6 +1706,8 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     // if TRUE, then cast to DT_STRING
 //    if(castChecker)
 //    {
+    if(r->negated)
+    {
         List *newDataType = NIL;
         FOREACH(Node,r,rename->projExprs)
         {
@@ -1717,6 +1717,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
         		newDataType = appendToTailOfList(newDataType,copyObject(r));
         }
     	rename->projExprs = copyObject(newDataType);
+    }
 //    }
 
     // change attribute names
