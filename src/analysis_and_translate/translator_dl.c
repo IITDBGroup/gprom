@@ -47,7 +47,8 @@ static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
 static void adaptProjectionAttrRef (QueryOperator *o);
 
 static Node *replaceVarWithAttrRef(Node *node, List *context);
-boolean castChecker = FALSE;
+boolean castChecker = FALSE; // check if cast is needed between "DOMAIN" and "REL"
+boolean castForPos = FALSE; // check if cast is needed between positive translation and negative
 
 Node *
 translateParseDL(Node *q)
@@ -203,6 +204,8 @@ translateProgram(DLProgram *p)
     // translate rules
     FOREACH(DLRule,r,p->rules)
     {
+    	castChecker = FALSE; // initialize cast checker
+
         QueryOperator *tRule = translateRule(r);
         char *headPred = getHeadPredName(r);
 
@@ -1099,8 +1102,13 @@ translateGoal(DLAtom *r, int goalPos)
 
             //check if cast is needed
             FOREACH(Node,c,pdom->projExprs)
+            {
             	if(typeOf(c) != DT_STRING)
+            	{
                 	castChecker = TRUE;
+            		castForPos = TRUE;
+            	}
+            }
 
             // if TRUE, then cast to DT_STRING
             if(castChecker)
@@ -1699,25 +1707,17 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     addChildOperator((QueryOperator *) rename, pInput);
 
     // cast if checker is true e.g., the datatype is DL_INT
-//    FOREACH(Node,c,rename->projExprs)
-//		if(typeOf(c) != DT_STRING && typeOf(c) != DT_BOOL)
-//			castChecker = TRUE;
-
-    // if TRUE, then cast to DT_STRING
-//    if(castChecker)
+//    if(r->negated)
 //    {
-    if(r->negated)
-    {
-        List *newDataType = NIL;
-        FOREACH(Node,r,rename->projExprs)
-        {
-        	if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL) //TODO check the datatype, if not string, then cast
-        		newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
-        	else
-        		newDataType = appendToTailOfList(newDataType,copyObject(r));
-        }
-    	rename->projExprs = copyObject(newDataType);
-    }
+//        List *newDataType = NIL;
+//        FOREACH(Node,r,rename->projExprs)
+//        {
+//        	if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL) //TODO check the datatype, if not string, then cast
+//        		newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
+//        	else
+//        		newDataType = appendToTailOfList(newDataType,copyObject(r));
+//        }
+//    	rename->projExprs = copyObject(newDataType);
 //    }
 
     // change attribute names
