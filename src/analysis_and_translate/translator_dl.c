@@ -48,7 +48,7 @@ static void adaptProjectionAttrRef (QueryOperator *o);
 
 static Node *replaceVarWithAttrRef(Node *node, List *context);
 boolean castChecker = FALSE; // check if cast is needed between "DOMAIN" and "REL"
-boolean castForPos = FALSE; // check if cast is needed between positive translation and negative
+boolean castForPos; // check if cast is needed between positive translation and negative
 
 Node *
 translateParseDL(Node *q)
@@ -104,6 +104,8 @@ translateProgram(DLProgram *p)
     HashMap *predToRules = NEW_MAP(Constant,List);
     Node *answerRel;
 //    Set *edbRels, idbRels, factRels;
+
+    castForPos = FALSE; // initialize checker (i.e., check if cast is needed between positive translation and negative)
 
     // get names of EDB, IDB and fact predicates
 //    idbRels = (Set *) DL_GET_PROP(p, DL_IDB_RELS);
@@ -243,10 +245,34 @@ translateProgram(DLProgram *p)
         FOREACH(QueryOperator,o,rTs)
         {
             QueryOperator *prev = un;
-            un = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(prev,o), NIL,
-                    getQueryOperatorAttrNames(un));
-            addParent(prev, un);
-            addParent(o, un);
+
+            if(castForPos)
+            {
+                List *newDataType = NIL;
+                ProjectionOperator *projPrev = (ProjectionOperator *) createProjOnAllAttrs(prev);
+                ProjectionOperator *projO = (ProjectionOperator *) createProjOnAllAttrs(o);
+
+    			FORBOTH(Node,p,r,projPrev->projExprs,projO->projExprs)
+                	newDataType = appendToTailOfList(newDataType,getHeadOfListP(createCasts(p,r)));
+
+    			projO->projExprs = copyObject(newDataType);
+    			QueryOperator *newOperator = (QueryOperator *) projO;
+    			addParent(o,newOperator);
+
+				un = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(prev,newOperator), NIL,
+						getQueryOperatorAttrNames(un));
+
+				addParent(prev, un);
+				addParent(newOperator, un);
+            }
+            else
+            {
+    			un = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(prev,o), NIL,
+    					getQueryOperatorAttrNames(un));
+
+    			addParent(prev, un);
+                addParent(o, un);
+            }
         }
 
         // if union is used, then add duplicate removal
@@ -1077,7 +1103,7 @@ translateGoal(DLAtom *r, int goalPos)
 
             // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
             // then return (Domain X Domain X ... X Domain) - R
-            dom = (QueryOperator *) createTableAccessOp("_DOMAINTPCH", NULL,
+            dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
                     "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
             List *domainAttrs = singleton("D");
 
@@ -1085,7 +1111,7 @@ translateGoal(DLAtom *r, int goalPos)
             {
                 char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
                 QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
-                        "_DOMAINTPCH", NULL, "DummyDom", NIL,
+                        "_DOMAIN", NULL, "DummyDom", NIL,
                         LIST_MAKE("D"), singletonInt(DT_STRING));
 
                 QueryOperator *oldD = dom;
@@ -1209,7 +1235,7 @@ translateGoal(DLAtom *r, int goalPos)
             int numAttrs = getNumAttrs((QueryOperator *) rel);
             // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
             // then return (Domain X Domain X ... X Domain) - R
-            dom = (QueryOperator *) createTableAccessOp("_DOMAINTPCH", NULL,
+            dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
                     "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
             List *domainAttrs = singleton("D");
 
@@ -1217,7 +1243,7 @@ translateGoal(DLAtom *r, int goalPos)
             {
                 char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
                 QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
-                        "_DOMAINTPCH", NULL, "DummyDom", NIL,
+                        "_DOMAIN", NULL, "DummyDom", NIL,
                         LIST_MAKE("D"), singletonInt(DT_STRING));
 
                 QueryOperator *oldD = dom;
