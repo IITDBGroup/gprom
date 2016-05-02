@@ -252,12 +252,15 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 		MemContext *cboContext = NEW_MEM_CONTEXT("CBO_ITERATION_CONTEXT");
 		ACQUIRE_MEM_CONTEXT(cboContext);
 		char *dummyTest = generatePlan(oModel1, applyOptimizations);
+		ERROR_LOG("query: %s", dummyTest);
 		RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(dummyTest, state->currentPlan);
 		FREE_MEM_CONTEXT(cboContext);
 
 //		state->currentPlan // = generatePlan(oModel1, applyOptimizations);
 
 //		char *result = strdup(state->currentPlan);
+
+		ERROR_LOG("query after: %s", state->currentPlan);
 
 		state->currentCost = getCostEstimation(state->currentPlan);//TODO not what is returned by the function
 		DEBUG_LOG("Cost of the rewritten Query is = %d\n", state->currentCost);
@@ -360,16 +363,15 @@ exhaustiveGenerateNextChoice (OptimizerState *state)
 static boolean
 exhaustiveContinueOptimization (OptimizerState *state)
 {
-//    if (state->planCount < 100) //TODO undo this
-    return TRUE;
-//    else
-//        return FALSE;
+	int c = getIntOption(OPTION_COST_BASED_MAX_PLANS);
+	return (state->planCount <= c);
+    //return TRUE;
 }
 
 static int
 exhaustiveCallback (OptimizerState *state, int numChoices)
 {
-    int choice = -1;
+    int choice = 0;
     List *fixedPath = state->fixedPath;
     List *curPath = state->curPath;
     List *numChoicesOnPath = state->numChoices;
@@ -402,6 +404,8 @@ updateBestPlan (OptimizerState *state)
 {
     ERROR_LOG("current plan cost is %llu", state->currentCost);
     ERROR_LOG("best plan cost is %llu", state->bestPlanCost);
+    if(state->currentCost < 0)
+    	state->currentCost = PLAN_MAX_COST;
 	if(state->currentCost < state->bestPlanCost)
 	{
 		state->bestPlanCost = state->currentCost;
@@ -535,13 +539,13 @@ static boolean
 simannContinueOptimization (OptimizerState *state)
 {
 	AnnealingState *state1 = (AnnealingState *)(state->hook);
-	return state1->temp > 1;
+	return ((state1->temp > 1) && exhaustiveContinueOptimization(state));
 }
 
 static int
 simannCallback (OptimizerState *state, int numChoices)
 {
-    int choice = -1;
+    int choice = 0;
     List *curPath = state->curPath;
     List *fixedPath = state->fixedPath;
     List *numChoicesOnPath = state->numChoices;
@@ -896,14 +900,15 @@ balancedGenerateNextChoice (OptimizerState *state)
 static boolean
 balancedContinueOptimization (OptimizerState *state)
 {
-    return TRUE;
+	return exhaustiveContinueOptimization(state);
+    //return TRUE;
 }
 
 static int
 balancedCallback (OptimizerState *state, int numChoices)
 {
 	int cnt = ((BalancedState *)(state->hook))->count;
-	int choice = -1;
+	int choice = 0;
     //List *fixedPath = state->fixedPath;
     List *curPath = state->curPath;
     List *numChoicesOnPath = state->numChoices;
@@ -1094,5 +1099,5 @@ static boolean
 optLessThanExecTimeContinue (OptimizerState *state)
 {
     ERROR_LOG("compare opt time %f to best plan time %f", state->optTime, state->bestPlanExpectedTime);
-    return state->optTime <= state->bestPlanExpectedTime;
+    return ((state->optTime <= state->bestPlanExpectedTime) && exhaustiveContinueOptimization(state));
 }

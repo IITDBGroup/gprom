@@ -266,6 +266,17 @@ replaceStringInfo(StringInfo str, int start, char *repl)
     }
 }
 
+void
+replaceStringInfoChar(StringInfo str, char s, char repl)
+{
+    int len = str->len;
+    for(int i = 0; i < len; i++)
+    {
+        if (str->data[i] == s)
+            str->data[i] = repl;
+    }
+}
+
 /*
  * Make sure that a string info has enough space to be enlarged by additional
  * neededSize char's.

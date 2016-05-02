@@ -142,8 +142,8 @@ static void
 handleError (OCI_Error *error)
 {
     errorCache = error;
-    DEBUG_LOG("METADATA LOOKUP - OCILIB Error ORA-%05i - msg : %s\n",
-            OCI_ErrorGetOCICode(error), OCI_ErrorGetString(error));
+    ERROR_LOG("METADATA LOOKUP - OCILIB Error ORA-%05i - msg : %s\nSQL\n===\n%s",
+            OCI_ErrorGetOCICode(error), OCI_ErrorGetString(error), OCI_GetSql(OCI_ErrorGetStatement(error)));
 }
 
 static void
@@ -1089,19 +1089,24 @@ int
 oracleGetCostEstimation(char *query)
 {
     /* Remove the newline characters from the Query */
-    int len = strlen(query);
-    int i = 0;
-    for (i = 0; i < len; i++)
-    {
-        if (query[i] == '\n' || query[i] == ';')
-            query[i] = ' ';
-    }
+//    int len = strlen(query);
+//    int i = 0;
+//    for (i = 0; i < len; i++)
+//    {
+//        if (query[i] == '\n' || query[i] == ';')
+//            query[i] = ' ';
+//    }
 
     unsigned long long int cost = 0L;
 
     StringInfo statement;
     statement = makeStringInfo();
     appendStringInfo(statement, "EXPLAIN PLAN FOR %s", query);
+    replaceStringInfoChar(statement,'\n', ' ');
+    replaceStringInfoChar(statement,';', ' ');
+
+    ERROR_LOG("cost query %s", statement->data);
+
     executeStatement(statement->data);
     FREE(statement);
 
@@ -1112,21 +1117,22 @@ oracleGetCostEstimation(char *query)
     OCI_Resultset *rs1 = executeStatement(statement1->data);
     if (rs1 != NULL)
     {
-	while(OCI_FetchNext(rs1))
+        while(OCI_FetchNext(rs1))
         {
             cost = (unsigned long long int) OCI_GetUnsignedBigInt(rs1,1);
             DEBUG_LOG("Cost is : %u \n", cost);
             break;
         }
     }
-
+    else
+        FATAL_LOG("cost estimation failed for %s", statement1->data);
     FREE(statement1);
 
-StringInfo statement2;
-statement2 = makeStringInfo();
-appendStringInfo(statement2, "DELETE FROM PLAN_TABLE");
-executeStatement(statement2->data);
-FREE(statement2);
+    StringInfo statement2;
+    statement2 = makeStringInfo();
+    appendStringInfo(statement2, "DELETE FROM PLAN_TABLE");
+    executeStatement(statement2->data);
+    FREE(statement2);
 
 //    StringInfo statement3;
 //    statement3 = makeStringInfo();
