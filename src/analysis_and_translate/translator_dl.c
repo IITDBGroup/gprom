@@ -49,6 +49,8 @@ static void adaptProjectionAttrRef (QueryOperator *o);
 static Node *replaceVarWithAttrRef(Node *node, List *context);
 boolean castChecker = FALSE; // check if cast is needed between "DOMAIN" and "REL"
 boolean castForPos = FALSE; // check if cast is needed between positive translation and negative
+char *goalRel = NULL;
+//List *goalVars = NIL;
 
 Node *
 translateParseDL(Node *q)
@@ -1103,16 +1105,19 @@ translateGoal(DLAtom *r, int goalPos)
             //check if cast is needed
             FOREACH(Node,c,pdom->projExprs)
             {
-            	if(typeOf(c) != DT_STRING)
+            	if(typeOf(c) != DT_STRING && typeOf(c) != DT_BOOL)
             	{
                 	castChecker = TRUE;
-            		castForPos = TRUE;
+            		castForPos = TRUE; // check if CAST occurred in general
             	}
             }
 
             // if TRUE, then cast to DT_STRING
             if(castChecker)
             {
+        		goalRel = r->rel; //TODO Implement to find certain part of translation for CAST
+//        		goalVars = r->args;
+
                 List *newDataType = NIL;
     			FORBOTH(Node,p,r,pdom->projExprs,rename->projExprs)
 						newDataType = appendToTailOfList(newDataType,getHeadOfListP(createCasts(p,r)));
@@ -1612,12 +1617,30 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
 //        {
             // add constants to projection
         	rename = (ProjectionOperator *) createProjectionOp(projArgs, (QueryOperator *) rename, NIL, projNames);
-
         	DEBUG_LOG("proj: %s", operatorToOverviewString((Node *) rename));
+
     		addChildOperator((QueryOperator *) rename, posPart);
 //        }
 
-    	dom = (QueryOperator *) rename;
+
+		// if CAST occurred, then apply CAST to the negated part of positive translation
+		// TODO consider more cases (currently only tested with certain query in TPCH)
+		if(castForPos)
+		{
+			List *newDataType = NIL;
+			ProjectionOperator *newRename = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) rename);
+
+			FOREACH(Node,r,newRename->projExprs)
+				if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL)
+					newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
+
+			newRename->projExprs = copyObject(newDataType);
+			addChildOperator((QueryOperator *) newRename, (QueryOperator *) rename);
+			dom = (QueryOperator *) newRename;
+		}
+		else
+			dom = (QueryOperator *) rename;
+
 
         // create set diff
         setDiff = createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(dom, rel),
@@ -1706,19 +1729,25 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     rename = (ProjectionOperator *) createProjOnAllAttrs(pInput);
     addChildOperator((QueryOperator *) rename, pInput);
 
-    // cast if checker is true e.g., the datatype is DL_INT
-//    if(r->negated)
-//    {
-//        List *newDataType = NIL;
-//        FOREACH(Node,r,rename->projExprs)
-//        {
-//        	if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL) //TODO check the datatype, if not string, then cast
-//        		newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
-//        	else
-//        		newDataType = appendToTailOfList(newDataType,copyObject(r));
-//        }
-//    	rename->projExprs = copyObject(newDataType);
-//    }
+
+    // cast if checker is true e.g., the datatype is DL_INT and rel name and variables are same
+    char *posGoalRel = r->rel;
+//    List *posGoalVars = removeListElementsFromAnotherList(goalVars,r->args);
+
+    if(castForPos && strcmp(goalRel,posGoalRel) == 0)
+    {
+        List *newDataType = NIL;
+        FOREACH(Node,r,rename->projExprs)
+        {
+        	if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL) //TODO check the datatype, if not string, then cast
+        		newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
+        	else
+        		newDataType = appendToTailOfList(newDataType,copyObject(r));
+        }
+
+    	rename->projExprs = copyObject(newDataType);
+    	DEBUG_LOG("cast on rename:%s", operatorToOverviewString((Node *) rename));
+    }
 
     // change attribute names
     Set *nameSet = STRSET();
