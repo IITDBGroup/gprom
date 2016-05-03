@@ -48,7 +48,9 @@ static void adaptProjectionAttrRef (QueryOperator *o);
 
 static Node *replaceVarWithAttrRef(Node *node, List *context);
 boolean castChecker = FALSE; // check if cast is needed between "DOMAIN" and "REL"
-boolean castForPos; // check if cast is needed between positive translation and negative
+boolean castForPos = FALSE; // check if cast is needed between positive translation and negative
+char *goalRel = NULL;
+//List *goalVars = NIL;
 
 Node *
 translateParseDL(Node *q)
@@ -104,8 +106,6 @@ translateProgram(DLProgram *p)
     HashMap *predToRules = NEW_MAP(Constant,List);
     Node *answerRel;
 //    Set *edbRels, idbRels, factRels;
-
-    castForPos = FALSE; // initialize checker (i.e., check if cast is needed between positive translation and negative)
 
     // get names of EDB, IDB and fact predicates
 //    idbRels = (Set *) DL_GET_PROP(p, DL_IDB_RELS);
@@ -245,34 +245,10 @@ translateProgram(DLProgram *p)
         FOREACH(QueryOperator,o,rTs)
         {
             QueryOperator *prev = un;
-
-            if(castForPos)
-            {
-                List *newDataType = NIL;
-                ProjectionOperator *projPrev = (ProjectionOperator *) createProjOnAllAttrs(prev);
-                ProjectionOperator *projO = (ProjectionOperator *) createProjOnAllAttrs(o);
-
-    			FORBOTH(Node,p,r,projPrev->projExprs,projO->projExprs)
-                	newDataType = appendToTailOfList(newDataType,getHeadOfListP(createCasts(p,r)));
-
-    			projO->projExprs = copyObject(newDataType);
-    			QueryOperator *newOperator = (QueryOperator *) projO;
-    			addParent(o,newOperator);
-
-				un = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(prev,newOperator), NIL,
-						getQueryOperatorAttrNames(un));
-
-				addParent(prev, un);
-				addParent(newOperator, un);
-            }
-            else
-            {
-    			un = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(prev,o), NIL,
-    					getQueryOperatorAttrNames(un));
-
-    			addParent(prev, un);
-                addParent(o, un);
-            }
+            un = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(prev,o), NIL,
+                    getQueryOperatorAttrNames(un));
+            addParent(prev, un);
+            addParent(o, un);
         }
 
         // if union is used, then add duplicate removal
@@ -1103,7 +1079,7 @@ translateGoal(DLAtom *r, int goalPos)
 
             // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
             // then return (Domain X Domain X ... X Domain) - R
-            dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
+            dom = (QueryOperator *) createTableAccessOp("_DOMAINTPCH", NULL,
                     "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
             List *domainAttrs = singleton("D");
 
@@ -1111,7 +1087,7 @@ translateGoal(DLAtom *r, int goalPos)
             {
                 char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
                 QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
-                        "_DOMAIN", NULL, "DummyDom", NIL,
+                        "_DOMAINTPCH", NULL, "DummyDom", NIL,
                         LIST_MAKE("D"), singletonInt(DT_STRING));
 
                 QueryOperator *oldD = dom;
@@ -1129,16 +1105,19 @@ translateGoal(DLAtom *r, int goalPos)
             //check if cast is needed
             FOREACH(Node,c,pdom->projExprs)
             {
-            	if(typeOf(c) != DT_STRING)
+            	if(typeOf(c) != DT_STRING && typeOf(c) != DT_BOOL)
             	{
                 	castChecker = TRUE;
-            		castForPos = TRUE;
+            		castForPos = TRUE; // check if CAST occurred in general
             	}
             }
 
             // if TRUE, then cast to DT_STRING
             if(castChecker)
             {
+        		goalRel = r->rel; //TODO Implement to find certain part of translation for CAST
+//        		goalVars = r->args;
+
                 List *newDataType = NIL;
     			FORBOTH(Node,p,r,pdom->projExprs,rename->projExprs)
 						newDataType = appendToTailOfList(newDataType,getHeadOfListP(createCasts(p,r)));
@@ -1235,7 +1214,7 @@ translateGoal(DLAtom *r, int goalPos)
             int numAttrs = getNumAttrs((QueryOperator *) rel);
             // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
             // then return (Domain X Domain X ... X Domain) - R
-            dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
+            dom = (QueryOperator *) createTableAccessOp("_DOMAINTPCH", NULL,
                     "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
             List *domainAttrs = singleton("D");
 
@@ -1243,7 +1222,7 @@ translateGoal(DLAtom *r, int goalPos)
             {
                 char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
                 QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
-                        "_DOMAIN", NULL, "DummyDom", NIL,
+                        "_DOMAINTPCH", NULL, "DummyDom", NIL,
                         LIST_MAKE("D"), singletonInt(DT_STRING));
 
                 QueryOperator *oldD = dom;
@@ -1638,12 +1617,30 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
 //        {
             // add constants to projection
         	rename = (ProjectionOperator *) createProjectionOp(projArgs, (QueryOperator *) rename, NIL, projNames);
-
         	DEBUG_LOG("proj: %s", operatorToOverviewString((Node *) rename));
+
     		addChildOperator((QueryOperator *) rename, posPart);
 //        }
 
-    	dom = (QueryOperator *) rename;
+
+		// if CAST occurred, then apply CAST to the negated part of positive translation
+		// TODO consider more cases (currently only tested with certain query in TPCH)
+		if(castForPos)
+		{
+			List *newDataType = NIL;
+			ProjectionOperator *newRename = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) rename);
+
+			FOREACH(Node,r,newRename->projExprs)
+				if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL)
+					newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
+
+			newRename->projExprs = copyObject(newDataType);
+			addChildOperator((QueryOperator *) newRename, (QueryOperator *) rename);
+			dom = (QueryOperator *) newRename;
+		}
+		else
+			dom = (QueryOperator *) rename;
+
 
         // create set diff
         setDiff = createSetOperator(SETOP_DIFFERENCE, LIST_MAKE(dom, rel),
@@ -1732,19 +1729,25 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     rename = (ProjectionOperator *) createProjOnAllAttrs(pInput);
     addChildOperator((QueryOperator *) rename, pInput);
 
-    // cast if checker is true e.g., the datatype is DL_INT
-//    if(r->negated)
-//    {
-//        List *newDataType = NIL;
-//        FOREACH(Node,r,rename->projExprs)
-//        {
-//        	if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL) //TODO check the datatype, if not string, then cast
-//        		newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
-//        	else
-//        		newDataType = appendToTailOfList(newDataType,copyObject(r));
-//        }
-//    	rename->projExprs = copyObject(newDataType);
-//    }
+
+    // cast if checker is true e.g., the datatype is DL_INT and rel name and variables are same
+    char *posGoalRel = r->rel;
+//    List *posGoalVars = removeListElementsFromAnotherList(goalVars,r->args);
+
+    if(castForPos && strcmp(goalRel,posGoalRel) == 0)
+    {
+        List *newDataType = NIL;
+        FOREACH(Node,r,rename->projExprs)
+        {
+        	if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL) //TODO check the datatype, if not string, then cast
+        		newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
+        	else
+        		newDataType = appendToTailOfList(newDataType,copyObject(r));
+        }
+
+    	rename->projExprs = copyObject(newDataType);
+    	DEBUG_LOG("cast on rename:%s", operatorToOverviewString((Node *) rename));
+    }
 
     // change attribute names
     Set *nameSet = STRSET();
