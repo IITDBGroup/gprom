@@ -1623,22 +1623,22 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
 //        }
 
 
-		// if CAST occurred, then apply CAST to the negated part of positive translation
-		// TODO consider more cases (currently only tested with certain query in TPCH)
-		if(castForPos)
-		{
-			List *newDataType = NIL;
-			ProjectionOperator *newRename = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) rename);
-
-			FOREACH(Node,r,newRename->projExprs)
-				if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL)
-					newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
-
-			newRename->projExprs = copyObject(newDataType);
-			addChildOperator((QueryOperator *) newRename, (QueryOperator *) rename);
-			dom = (QueryOperator *) newRename;
-		}
-		else
+//		// if CAST occurred, then apply CAST to the negated part of positive translation
+//		// TODO consider more cases (currently only tested with certain query in TPCH)
+//		if(castForPos)
+//		{
+//			List *newDataType = NIL;
+//			ProjectionOperator *newRename = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) rename);
+//
+//			FOREACH(Node,r,newRename->projExprs)
+//				if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL)
+//					newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
+//
+//			newRename->projExprs = copyObject(newDataType);
+//			addChildOperator((QueryOperator *) newRename, (QueryOperator *) rename);
+//			dom = (QueryOperator *) newRename;
+//		}
+//		else
 			dom = (QueryOperator *) rename;
 
 
@@ -1727,27 +1727,44 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
 
     // add projection
     rename = (ProjectionOperator *) createProjOnAllAttrs(pInput);
+
+    // if CAST occurred, then apply CAST for EDB
+    if(castForPos && isEDB)
+    {
+    	List *newDataType = NIL;
+		FOREACH(Node,r,rename->projExprs)
+		{
+			if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL) //TODO check the datatype, if not string, then cast
+				newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
+			else
+				newDataType = appendToTailOfList(newDataType,copyObject(r));
+		}
+
+		rename->projExprs = copyObject(newDataType);
+    }
+
     addChildOperator((QueryOperator *) rename, pInput);
 
 
-    // cast if checker is true e.g., the datatype is DL_INT and rel name and variables are same
-    char *posGoalRel = r->rel;
-//    List *posGoalVars = removeListElementsFromAnotherList(goalVars,r->args);
+//    // cast if checker is true e.g., the datatype is DL_INT and rel name and variables are same
+//    char *posGoalRel = r->rel;
+////    List *posGoalVars = removeListElementsFromAnotherList(goalVars,r->args);
+//
+//    if(castForPos && strcmp(goalRel,posGoalRel) == 0)
+//    {
+//        List *newDataType = NIL;
+//        FOREACH(Node,r,rename->projExprs)
+//        {
+//        	if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL) //TODO check the datatype, if not string, then cast
+//        		newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
+//        	else
+//        		newDataType = appendToTailOfList(newDataType,copyObject(r));
+//        }
+//
+//    	rename->projExprs = copyObject(newDataType);
+//    	DEBUG_LOG("cast on rename:%s", operatorToOverviewString((Node *) rename));
+//    }
 
-    if(castForPos && strcmp(goalRel,posGoalRel) == 0)
-    {
-        List *newDataType = NIL;
-        FOREACH(Node,r,rename->projExprs)
-        {
-        	if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL) //TODO check the datatype, if not string, then cast
-        		newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
-        	else
-        		newDataType = appendToTailOfList(newDataType,copyObject(r));
-        }
-
-    	rename->projExprs = copyObject(newDataType);
-    	DEBUG_LOG("cast on rename:%s", operatorToOverviewString((Node *) rename));
-    }
 
     // change attribute names
     Set *nameSet = STRSET();
