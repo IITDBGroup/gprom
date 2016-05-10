@@ -58,7 +58,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -116,7 +116,7 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
-			 optionalGroupBy optionalOrderBy setClause  stmtList //insertList 
+			 optionalGroupBy optionalOrderBy setClause  stmtList stmtAtTimeList stmtAtTime//insertList 
 			 identifierList optionalAttrAlias optionalProvWith provOptionList 
 			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo optionalTranslate
 //			 optInsertAttrList
@@ -180,6 +180,27 @@ stmt:
 			$$ = $1;
 		}
     ;
+
+stmtAtTimeList:
+		stmtAtTime ';'
+		{
+			RULELOG("stmtAtTimeList::stmtAtTime");
+			$$ = singleton($1); 
+		}
+		| stmtAtTimeList stmtAtTime ';'
+		{
+			RULELOG("stmtAtTimeList::stmtAtTimeList::stmtAtTime");
+			$$ = appendToTailOfList($1, $2);
+		}	
+	;
+
+stmtAtTime:
+		stmt AS OF SCN intValue 
+		{
+			RULELOG("timedStmt");
+			$$ = makeList($1,$2);
+		} 
+	;
 
 /*
  * Rule to parse all DML queries.
@@ -270,6 +291,15 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
+		| REENACT '(' stmtAtTimeList ')' ';'
+		{
+			RULELOG("provStmt::stmtlist");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $3);
+			p->inputType = PROV_INPUT_UPDATE_SEQUENCE;
+			p->provType = PROV_PI_CS;
+			p->options = $3;
+			$$ = (Node *) p;		
+		} 
     ;
     
 optionalProvAsOf:
