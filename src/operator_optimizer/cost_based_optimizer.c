@@ -159,6 +159,7 @@ static boolean optLessThanExecTimeContinue (OptimizerState *state);
 static List *addOne(List *curPath, List *numChoices);
 static List* minusOne(List *curPath, List *numChoices);
 static boolean checkEqual(List *l1, List *l2);
+static boolean checkCompare(List *l1, List *l2);
 static BalancedInterval* copyBalancedInterval(BalancedInterval *bl);
 static int findCommonPrefixLength(List *l1, List *l2);
 static List* generateNextPlan(int hlflag, List *l, List *h, List *numChoice);
@@ -248,21 +249,11 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 
 		// create next plan
 		Node *oModel1 = copyObject(oModel);
+		state->currentPlan = generatePlan(oModel1, applyOptimizations);
 
-		MemContext *cboContext = NEW_MEM_CONTEXT("CBO_ITERATION_CONTEXT");
-		ACQUIRE_MEM_CONTEXT(cboContext);
-		char *dummyTest = generatePlan(oModel1, applyOptimizations);
-		ERROR_LOG("query: %s", dummyTest);
-		RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(dummyTest, state->currentPlan);
-		FREE_MEM_CONTEXT(cboContext);
+		char *result = strdup(state->currentPlan);
 
-//		state->currentPlan // = generatePlan(oModel1, applyOptimizations);
-
-//		char *result = strdup(state->currentPlan);
-
-		ERROR_LOG("query after: %s", state->currentPlan);
-
-		state->currentCost = getCostEstimation(state->currentPlan);//TODO not what is returned by the function
+		state->currentCost = getCostEstimation(result);//TODO not what is returned by the function
 		DEBUG_LOG("Cost of the rewritten Query is = %d\n", state->currentCost);
 		INFO_LOG("plan (%u) for choice %s is\n%s", state->planCount, beatify(nodeToString(state->curPath)),
 				state->currentPlan);
@@ -277,7 +268,7 @@ doCostBasedOptimization(Node *oModel, boolean applyOptimizations)
 		state->optTime += (double)(tvalAfter.tv_sec - tvalBefore.tv_sec)
 		        + (((double) (tvalAfter.tv_usec - tvalBefore.tv_usec)) / 1000000.0);
 		state->planCount++;
-//		FREE(result);
+		FREE(result);
 		FREE(state->currentPlan);
 	}
 
@@ -314,13 +305,7 @@ estimateRuntime (OptimizerState *state)
 int
 callback (int numChoices)
 {
-    int result;
-
-    MemContext *callerContext = RELEASE_MEM_CONTEXT();
-    result = opt->callback(state,numChoices);
-    ACQUIRE_MEM_CONTEXT(callerContext);
-
-    return result;
+    return opt->callback(state,numChoices);
 }
 
 static boolean
@@ -668,7 +653,7 @@ minusOne(List *curPath, List *numChoices)
 			ycurPath = appendToTailOfListInt(ycurPath,y);
 			FOREACH_INT(c, leftNumChoices)
 			{
-				ycurPath = appendToHeadOfListInt(ycurPath,c-1);
+				ycurPath = appendToTailOfListInt(ycurPath,c-1);
 			}
 			break;
 		}
@@ -683,7 +668,7 @@ checkEqual(List *l1, List *l2)
 {
 	boolean flag = TRUE;
 	int len1 = LIST_LENGTH(l1);
-	int len2 = LIST_LENGTH(l1);
+	int len2 = LIST_LENGTH(l2);
 
 	if(len1 == len2)
 	{
@@ -700,6 +685,43 @@ checkEqual(List *l1, List *l2)
 
 	return flag;
 }
+
+/*
+ * Compare l1 and l2
+ * If l1 < l2, return true
+ * If l1 > l2, return false
+ */
+static boolean
+checkCompare(List *l1, List *l2)
+{
+	boolean flag = FALSE;
+	int len1 = LIST_LENGTH(l1);
+	int len2 = LIST_LENGTH(l2);
+
+	if(len1 == len2 && !checkEqual(l1,l2))
+	{
+		FORBOTH(int, n1, n2, l1, l2)
+		{
+			if(n1 == n2)
+				continue;
+			else if(n1 < n2)
+			{
+				flag = TRUE;
+				break;
+			}
+			else
+			{
+				flag = FALSE;
+				break;
+			}
+
+		}
+	}
+
+	DEBUG_LOG("L1 smaller than L2 : %d\n", flag);
+	return flag;
+}
+
 
 static BalancedInterval*
 copyBalancedInterval(BalancedInterval *bl)
@@ -832,18 +854,33 @@ balancedGenerateNextChoice (OptimizerState *state)
         	//predict next plan: if equal to low, set bl1->lhFlag = 2; if equal to high, set bl1->lfFlag = 3.
         	//when callback, check lfFlag, if 2, do not do left right left... directly add one to low and return; if 3, minus to high and return.
         	List *nextPlan = generateNextPlan(bl1->lhFlag, bl1->beginInterval, bl1->endInterval, state->numChoices);
-        	if(checkEqual(nextPlan, bl1->beginInterval))
+
+        	DEBUG_LOG("LTM next plan:\n N:%s\n B:%s\n E:%s\n",
+        			nodeToString(nextPlan),  nodeToString(bl1->beginInterval),  nodeToString(bl1->endInterval));
+
+        	if(checkEqual(nextPlan, bl1->beginInterval)) // || checkCompare(nextPlan, bl1->beginInterval)
         	{
         		bl1->lhFlag = 2;
         		bl1->helpPath = addOne(bl1->beginInterval, state->numChoices);
         	}
-        	else if(checkEqual(nextPlan, bl1->endInterval))
+        	else if(checkEqual(nextPlan, bl1->endInterval))  // || checkCompare(bl1->endInterval,nextPlan)
         	{
         		bl1->lhFlag = 3;
         		bl1->helpPath = minusOne(bl1->endInterval, state->numChoices);
         	}
+        	else if(checkCompare(nextPlan, bl1->beginInterval)) // || checkCompare(nextPlan, bl1->beginInterval)
+        	{
+        		bl1->lhFlag = 4;
+        		bl1->helpPath = addOne(bl1->beginInterval, state->numChoices);
+        	}
+        	else if(checkCompare(bl1->endInterval, nextPlan))  // || checkCompare(bl1->endInterval,nextPlan)
+        	{
+        		bl1->lhFlag = 5;
+        		bl1->helpPath = minusOne(bl1->endInterval, state->numChoices);
+        	}
         	else
         		bl1->helpPath = copyObject(bl1->beginInterval);
+
         	//add bl1 to the fifo
             fifoList = appendToTailOfList(fifoList, bl1);
         }
@@ -863,14 +900,32 @@ balancedGenerateNextChoice (OptimizerState *state)
         	//predict next plan: if equal to low, set bl1->lhFlag = 2; if equal to high, set bl1->lfFlag = 3.
         	//when callback, check lfFlag, if 2, do not do left right left... directly add one to low and return; if 3, minus to high and return.
         	List *nextPlan = generateNextPlan(bl2->lhFlag, bl2->beginInterval, bl2->endInterval, state->numChoices);
-        	if(checkEqual(nextPlan, bl2->beginInterval))
+
+//            DEBUG_LOG("MTH next plan:\n N:%s\n B:%s\n E:%s\n",
+//                              nodeToString(nextPlan),  nodeToString(bl2->beginInterval),  nodeToString(bl2->endInterval));
+
+        	if(checkEqual(nextPlan, bl2->beginInterval)) //|| checkCompare(nextPlan, bl2->beginInterval)
         	{
         		bl2->lhFlag = 2;
         		bl2->helpPath = addOne(bl2->beginInterval, state->numChoices);
         	}
-        	else if(checkEqual(nextPlan, bl2->endInterval))
+        	else if(checkEqual(nextPlan, bl2->endInterval)) //|| checkCompare(bl2->endInterval,nextPlan)
         	{
         		bl2->lhFlag = 3;
+//        		DEBUG_LOG("HelpPath3.1:\n nextPlan:%s\n endInterval:%s\n ",
+//        		        		        		        			nodeToString(nextPlan), nodeToString(bl2->endInterval));
+        		bl2->helpPath = minusOne(bl2->endInterval, state->numChoices);
+//        		DEBUG_LOG("HelpPath3:\n H:%s\n choice:%s\n ",
+//        		        		        			nodeToString(bl2->helpPath), nodeToString(state->numChoices));
+        	}
+        	else if(checkCompare(nextPlan, bl2->beginInterval)) // || checkCompare(nextPlan, bl1->beginInterval)
+        	{
+        		bl2->lhFlag = 4;
+        		bl2->helpPath = addOne(bl2->beginInterval, state->numChoices);
+        	}
+        	else if(checkCompare(bl2->endInterval, nextPlan))  // || checkCompare(bl1->endInterval,nextPlan)
+        	{
+        		bl2->lhFlag = 5;
         		bl2->helpPath = minusOne(bl2->endInterval, state->numChoices);
         	}
         	else
@@ -878,6 +933,12 @@ balancedGenerateNextChoice (OptimizerState *state)
 
         	//add bl1 to the fifo
             fifoList = appendToTailOfList(fifoList, bl2);
+        }
+
+        FOREACH(BalancedInterval, f, fifoList)
+        {
+            DEBUG_LOG("Before fifo after append:\n B:%s\n E:%s\n",
+                        nodeToString(f->beginInterval),  nodeToString(f->endInterval));
         }
 
 		if(fifoList != NIL)
