@@ -284,6 +284,7 @@ replaceStringInfoChar(StringInfo str, char s, char repl)
 static void
 makeStringInfoSpace(StringInfo str, int neededSize)
 {
+    //TODO check whether with overflow unsigned int (maxlen)
     while(str->len + neededSize >= str->maxlen)
     {
         char *newData;

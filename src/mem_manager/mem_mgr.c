@@ -381,7 +381,7 @@ malloc_(size_t bytes, const char *file, unsigned line)
 //    memset(mem, 178, bytes);
     if (mem == NULL)
     {
-        GENERIC_LOG(LOG_ERROR, file, line, "Fail to malloc.");
+        GENERIC_LOG(LOG_FATAL, file, line, "Fail to malloc.");
     }
     else
     {
