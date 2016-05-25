@@ -3,6 +3,7 @@
 	<classpathentry kind="src" path="javatest"/>
 	<classpathentry kind="src" path="src/interfaces/jdbc/java"/>
 	<classpathentry kind="src" path="autotests"/>
+	<classpathentry kind="src" path="gprom-gui/src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="javalib/log4j-1.2.15.jar"/>
 	<classpathentry kind="lib" path="javalib/postgresql-8.1-404.jdbc3.jar"/>
