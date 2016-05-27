@@ -118,9 +118,9 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
 typedef struct StringInfoData
 {
     char *data;
-    int  len;
-    int maxlen;
-    int cursor;
+    unsigned int  len;
+    unsigned int maxlen;
+    unsigned int cursor;
 } StringInfoData;
 
 typedef StringInfoData *StringInfo;
