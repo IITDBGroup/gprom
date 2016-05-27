@@ -493,11 +493,11 @@ static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbR
             else
             {
                 FOREACH(DLNode,arg,a->args)
-                          {
+                {
                     if (!searchListNode(ruleArgs, (Node *) arg))
                         ruleArgs = appendToTailOfList(ruleArgs,
                                 copyObject(arg));
-                          }
+                }
             }
         }
         DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
@@ -799,11 +799,11 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
             else
             {
                 FOREACH(DLNode,arg,a->args)
-                            {
+                {
                     if (!searchListNode(ruleArgs, (Node *) arg))
                         ruleArgs = appendToTailOfList(ruleArgs,
                                 copyObject(arg));
-                            }
+                }
             }
         }
         DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
@@ -1016,11 +1016,11 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
             else
             {
                 FOREACH(DLNode,arg,a->args)
-                            {
+                {
                     if (!searchListNode(ruleArgs, (Node *) arg))
                         ruleArgs = appendToTailOfList(ruleArgs,
                                 copyObject(arg));
-                            }
+                }
             }
         }
         DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
@@ -1217,11 +1217,11 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
             else
             {
                 FOREACH(DLNode,arg,a->args)
-                          {
+                {
                     if (!searchListNode(ruleArgs, (Node *) arg))
                         ruleArgs = appendToTailOfList(ruleArgs,
                                 copyObject(arg));
-                          }
+				}
             }
         }
         DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
@@ -1565,6 +1565,7 @@ createGPMoveRules(int getMatched, List* negedbRules,
     List *collectRuleId = NIL;
     DLVar* createBoolArgs;
     int ruleIdPos = 0;
+    boolean filterNegHead = FALSE;
 
     FOREACH(DLRule,r,unLinkedRules)
     {
@@ -1598,6 +1599,10 @@ createGPMoveRules(int getMatched, List* negedbRules,
                                 copyObject(arg));
                 }
             }
+
+            if(ruleWon)
+            	if(a->negated && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
+            		filterNegHead = TRUE;
         }
         //        DEBUG_LOG("List Length:%d", LIST_LENGTH(r->body));
         DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
@@ -1621,9 +1626,10 @@ createGPMoveRules(int getMatched, List* negedbRules,
             Node *rExpr;
             DLRule *moveRule;
 
-            if ((((DLAtom *) r->body)->negated
-                    && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
-                            == getMatched) || !((DLAtom *) r->body)->negated)
+//            if ((((DLAtom *) r->body)->negated
+//                    && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
+//                            == getMatched) || !((DLAtom *) r->body)->negated)
+            if(!filterNegHead)
             {
                 lExpr = createSkolemExpr(GP_NODE_NEGREL, negHeadRel,
                         copyObject(origAtom->args));
