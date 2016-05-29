@@ -60,6 +60,8 @@ typedef struct MemContext
     unsigned int curChunkArraySize;
     unsigned long memLeftInChunk;
     char *curAllocPos;
+    long unusedBytes;
+    long freedUnusedBytes;
 } MemContext;
 
 /*

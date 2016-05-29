@@ -251,6 +251,8 @@ newMemContext(char *contextName, const char *file, unsigned line)
     mc->chunkSizes = (unsigned long*) malloc(INIT_CHUNK_ARRAY_SIZE * sizeof(unsigned long));
     mc->curChunkArraySize = INIT_CHUNK_ARRAY_SIZE;
     mc->numChunks = 1;
+    mc->unusedBytes = 0;
+    mc->freedUnusedBytes = 0;
 
     /* create first chunk */
     createFirstChunk(mc);
@@ -414,6 +416,8 @@ createChunk (MemContext *mc, size_t size, const char *file, unsigned line)
             DEFAULT_CHUNK_SIZE :
             size;
     void *mem;
+
+    mc->unusedBytes += mc->memLeftInChunk;
 
     // round up to multiple of default chunk size
     if (size % DEFAULT_CHUNK_SIZE != 0)

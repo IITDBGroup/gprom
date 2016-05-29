@@ -28,6 +28,7 @@ static MemContext *ctx = NULL;
 #define KEY_TOTAL_SIZE "total_size"
 #define KEY_NUM_ALLOC "num_alloc"
 #define KEY_NUM_ACQUIRE "num_acquire"
+#define KEY_UNUSED_BYTES "unused_bytes"
 
 void
 setupMemInstrumentation(void)
