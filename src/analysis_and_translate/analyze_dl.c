@@ -41,8 +41,8 @@ analyzeDLModel (Node *stmt)
     if (!checkDLModel(stmt))
         FATAL_LOG("failed model check on:\n%s", datalogToOverviewString(stmt));
 
-    DEBUG_LOG("analyzed model is \n%s", beatify(nodeToString(stmt)));
-    INFO_LOG("analyzed model overview is \n%s", datalogToOverviewString(stmt));
+    DEBUG_NODE_BEATIFY_LOG("analyzed model is:", stmt);
+    INFO_DL_LOG("analyzed model overview is:", stmt);
 
     return stmt;
 }

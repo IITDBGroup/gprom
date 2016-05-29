@@ -270,6 +270,12 @@ createFirstChunk(MemContext *mc)
     mc->curAllocPos = mc->chunks[0];
     mc->memLeftInChunk = DEFAULT_CHUNK_SIZE;
     mc->numChunks = 1;
+
+    // inform memdebug of new chunk if activated
+     if (opt_memmeasure && !streq(curMemContext->contextName,MEMDEBUG_CONTEXT_NAME))
+     {
+         addContextChunkInfo(curMemContext->contextName, DEFAULT_CHUNK_SIZE);
+     }
 }
 
 /*
@@ -416,8 +422,8 @@ createChunk (MemContext *mc, size_t size, const char *file, unsigned line)
             DEFAULT_CHUNK_SIZE :
             size;
     void *mem;
-
-    mc->unusedBytes += mc->memLeftInChunk;
+    unsigned long int unused = mc->memLeftInChunk;
+    mc->unusedBytes += unused;
 
     // round up to multiple of default chunk size
     if (size % DEFAULT_CHUNK_SIZE != 0)
@@ -435,6 +441,15 @@ createChunk (MemContext *mc, size_t size, const char *file, unsigned line)
         GENERIC_LOG(LOG_TRACE, file, line, "%ld bytes memory @%p allocated.", size,
                 mem);
     }
+
+    // inform memdebug of new chunk if activated
+    if (opt_memmeasure && !streq(curMemContext->contextName,MEMDEBUG_CONTEXT_NAME))
+    {
+        addContextUnused(curMemContext->contextName, unused);
+        addContextChunkInfo(curMemContext->contextName, actualSize);
+    }
+
+    INFO_LOG("Create chunk of size %d in context %s", actualSize, mc->contextName);
 
     // double chunk array size
     if (mc->numChunks == mc->curChunkArraySize)

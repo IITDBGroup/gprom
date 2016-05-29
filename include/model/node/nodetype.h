@@ -192,8 +192,8 @@ extern KeyValue *createNodeKeyValue(Node *key, Node *value);
 /* get a string representation of a node */
 extern char *nodeToString(void *obj);
 extern char *beatify(char *input);
-extern char *operatorToOverviewString(Node *op);
-extern char *datalogToOverviewString(Node *n);
+extern char *operatorToOverviewString(void *op);
+extern char *datalogToOverviewString(void *n);
 extern char *itoa(int value);
 extern void indentString(StringInfo str, int level);
 

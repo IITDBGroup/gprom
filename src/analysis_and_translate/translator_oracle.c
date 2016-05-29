@@ -117,8 +117,8 @@ translateParseOracle (Node *q)
 
     result = translateGeneral(q);
 
-    DEBUG_LOG("result of translation is \n%s", beatify(nodeToString(result)));
-    INFO_LOG("result of translation overview is\n%s", operatorToOverviewString(result));
+    DEBUG_NODE_BEATIFY_LOG("result of translation is:", result);
+    INFO_OP_LOG("result of translation overview is", result);
     ASSERT(equal(result, copyObject(result)));
 
     return result;
@@ -240,8 +240,8 @@ translateSetQuery(SetQuery *sq)
 
 #define LOG_TRANSLATED_OP(message,op) \
     do { \
-        DEBUG_LOG(message, beatify(nodeToString((Node *) op))); \
-        INFO_LOG(message, operatorToOverviewString((Node *) op)); \
+        DEBUG_NODE_BEATIFY_LOG(message, op); \
+        INFO_OP_LOG(message, op); \
     } while (0)
 
 static QueryOperator *
@@ -251,10 +251,10 @@ translateQueryBlock(QueryBlock *qb)
     boolean hasAggOrGroupBy = FALSE;
     boolean hasWindowFuncs = FALSE;
 
-    DEBUG_LOG("translate a QB:\n%s", beatify(nodeToString(qb)));
+    DEBUG_NODE_BEATIFY_LOG("translate a QB:", qb);
 
     QueryOperator *joinTreeRoot = translateFromClause(qb->fromClause);
-    LOG_TRANSLATED_OP("translatedFrom is\n%s", joinTreeRoot);
+    LOG_TRANSLATED_OP("translatedFrom is", joinTreeRoot);
     attrsOffsets = getAttrsOffsets(qb->fromClause);
 
     // adapt attribute references to match new from clause root's schema
@@ -266,22 +266,22 @@ translateQueryBlock(QueryBlock *qb)
     QueryOperator *nestingOp = translateNestedSubquery(qb, joinTreeRoot,
             attrsOffsets);
     if (nestingOp != joinTreeRoot)
-        LOG_TRANSLATED_OP("translatedNesting is\n%s", nestingOp);
+        LOG_TRANSLATED_OP("translatedNesting is", nestingOp);
 
     QueryOperator *select = translateWhereClause(qb->whereClause, nestingOp,
             attrsOffsets);
     if (select != nestingOp)
-        LOG_TRANSLATED_OP("translatedWhere is\n%s", select);
+        LOG_TRANSLATED_OP("translatedWhere is", select);
 
     QueryOperator *aggr = translateAggregation(qb, select, attrsOffsets);
     hasAggOrGroupBy = (aggr != select);
     if (hasAggOrGroupBy)
-        LOG_TRANSLATED_OP("translatedAggregation is\n%s", aggr);
+        LOG_TRANSLATED_OP("translatedAggregation is", aggr);
 
     QueryOperator *wind = translateWindowFuncs(qb, aggr, attrsOffsets);
     hasWindowFuncs = (wind != aggr);
     if (hasWindowFuncs)
-        LOG_TRANSLATED_OP("translatedWindowFuncs is\n%s", wind);
+        LOG_TRANSLATED_OP("translatedWindowFuncs is", wind);
 
     if (hasAggOrGroupBy && hasWindowFuncs)
         FATAL_LOG("Cannot have both window functions and aggregation/group by "
@@ -290,20 +290,20 @@ translateQueryBlock(QueryBlock *qb)
     QueryOperator *having = translateHavingClause(qb->havingClause, wind,
             attrsOffsets);
     if (having != aggr)
-        LOG_TRANSLATED_OP("translatedHaving is\n%s", having);
+        LOG_TRANSLATED_OP("translatedHaving is", having);
 
     QueryOperator *project = translateSelectClause(qb->selectClause, having,
             attrsOffsets, hasAggOrGroupBy);
-    LOG_TRANSLATED_OP("translatedSelect is\n%s", project);
+    LOG_TRANSLATED_OP("translatedSelect is", project);
 
     QueryOperator *distinct = translateDistinct((DistinctClause *) qb->distinct,
             project);
     if (distinct != project)
-        LOG_TRANSLATED_OP("translatedDistinct is\n%s", distinct);
+        LOG_TRANSLATED_OP("translatedDistinct is", distinct);
 
     QueryOperator *orderBy = translateOrderBy(qb, distinct, attrsOffsets);
     if (orderBy != distinct)
-        LOG_TRANSLATED_OP("translatedOrder is\n%s", orderBy);
+        LOG_TRANSLATED_OP("translatedOrder is", orderBy);
 
     return orderBy;
 }
@@ -405,7 +405,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                         break;
                 }
 
-                DEBUG_LOG("result of update translation is, %s", beatify(nodeToString(node)));
+                DEBUG_NODE_BEATIFY_LOG("result of update translation is", node);
 
                 tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, node);
                 tInfo->updateTableNames = appendToTailOfList(
@@ -452,7 +452,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 // mark as root of translated update
                 SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
 
-                DEBUG_LOG("qo model transaction is\n%s", beatify(nodeToString(child)));
+                DEBUG_NODE_BEATIFY_LOG("qo model transaction is", child);
 
                 addChildOperator((QueryOperator *) result, child);
                 i++;
@@ -1209,10 +1209,10 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 //    List *newGroupBy;
     ReplaceGroupByState *state;
 
-    DEBUG_LOG("aggregation and group-by expressions: %s\n\n%s\n\nselect clause:\n\n%s",
-            beatify(nodeToString(((Node *) aggrs))),
-            beatify(nodeToString(((Node *) groupByClause))),
-            beatify(nodeToString(((Node *) qb->selectClause))));
+    DEBUG_NODE_BEATIFY_LOG("aggregation and group-by expressions and select clause:",
+            aggrs,
+            groupByClause,
+            qb->selectClause);
 
     // does query use aggregation or group by at all?
     if (numAgg == 0 && numGroupBy == 0)
@@ -1240,9 +1240,8 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
 
     // replace aggregation function calls and group by expressions in select and having with references to aggregation output attributes
     aggPlusGroup = CONCAT_LISTS(copyList(aggrs), copyList(groupByClause));
-    DEBUG_LOG("adapted aggregation and group-by expressions: %s\n\nselect clause:\n\n%s",
-            beatify(nodeToString(((Node *) aggPlusGroup))),
-            beatify(nodeToString(((Node *) selectClause))));
+    DEBUG_NODE_BEATIFY_LOG("adapted aggregation and group-by expressions and select clause:",
+            aggPlusGroup, selectClause);
 
     state = NEW(ReplaceGroupByState);
     state->expressions = aggPlusGroup;
@@ -1344,8 +1343,8 @@ createProjectionOverNonAttrRefExprs(List **selectClause, Node **havingClause,
     // do we need to another level of projection?
     if (getListLength(projExprs) > 0)
     {
-        INFO_LOG("create new projection for aggregation function inputs and "
-                "group by expressions: %s", beatify(nodeToString(projExprs)));
+        INFO_NODE_BEATIFY_LOG("create new projection for aggregation function inputs and "
+                "group by expressions:", projExprs);
 
         // create alias for each non-AttributeReference expression
         List *attrNames = NIL;

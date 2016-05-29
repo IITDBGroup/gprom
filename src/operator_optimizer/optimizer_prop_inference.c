@@ -48,7 +48,8 @@ computeKeyProp (QueryOperator *root)
         keyList = getKeyInformation(rel->tableName);
         DEBUG_LOG("keyList length: %d", LIST_LENGTH(keyList));
         setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
-        DEBUG_LOG("Table operator %s keys are {%s}", root->schema->name, beatify(nodeToString((keyList))));
+        DEBUG_LOG("Table operator %s", root->schema->name);
+        DEBUG_NODE_BEATIFY_LOG("keys are:", keyList);
         return;
     }
     // CONSTANT REL OPERATOR
@@ -60,18 +61,19 @@ computeKeyProp (QueryOperator *root)
             keyList = appendToTailOfList(keyList, oneKey);
         }
         setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
-        DEBUG_LOG("ConstRel operator %s keys are {%s}", root->schema->name, beatify(nodeToString((keyList))));
+        DEBUG_NODE_BEATIFY_LOG("ConstRel operator %s", root->schema->name);
+        DEBUG_NODE_BEATIFY_LOG("keys are:", keyList);
         return;
     }
 
     // get keys of children
     lKeyList = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_KEY);
-    DEBUG_LOG("LEFT CHILD KEYS %s", beatify(nodeToString(lKeyList)));
+    DEBUG_NODE_BEATIFY_LOG("LEFT CHILD KEYS", lKeyList);
 
     if (IS_BINARY_OP(root))
     {
         rKeyList = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_KEY);
-        DEBUG_LOG("RIGHT CHILD KEYS %s", beatify(nodeToString(rKeyList)));
+        DEBUG_NODE_BEATIFY_LOG("RIGHT CHILD KEYS", rKeyList);
     }
 
     // deal with different operator types
@@ -213,7 +215,7 @@ computeKeyProp (QueryOperator *root)
     	Set *nSet = STRSET();
     	List *nKeyList = NIL;
 
-    	DEBUG_LOG("Aggregation attributes %s", beatify(nodeToString(s1)));
+    	DEBUG_NODE_BEATIFY_LOG("Aggregation attributes", s1);
 
     	// if groupby is empty return all attributes
     	if(j->groupBy==NIL)
@@ -224,7 +226,7 @@ computeKeyProp (QueryOperator *root)
        		FOREACH(Set, key, lKeyList)
        		{
        			nSet = intersectSets(key, s1);
-       			DEBUG_LOG("intersected keys %s", beatify(nodeToString(nSet)));
+       			DEBUG_NODE_BEATIFY_LOG("intersected keys", nSet);
        			nKeyList = appendToTailOfList(nKeyList, nSet);
      		}
     	}
@@ -258,7 +260,8 @@ computeKeyProp (QueryOperator *root)
     keyList = removeContainedKeys(keyList);
 
     setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) keyList);
-    DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
+    DEBUG_LOG("%s operator %s", NodeTagToString(root->type), root->schema->name);
+    DEBUG_NODE_BEATIFY_LOG("keys are:", keyList);
 }
 
 static List *
@@ -267,7 +270,7 @@ removeContainedKeys(List *keys)
     List *finalKeyList = NIL;
     boolean contains = FALSE;
 
-    DEBUG_LOG("remove contained keys: <%s>", beatify(nodeToString((keys))));
+    DEBUG_NODE_BEATIFY_LOG("remove contained keys:", keys);
 
     if (LIST_LENGTH(keys) <= 1)
         return keys;

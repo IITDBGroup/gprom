@@ -417,7 +417,8 @@ printWindowAttrRefs(QueryOperator *op1)
 			attrRefs = concatTwoLists(partitionBy, orderBy);
 			attrRefs = concatTwoLists(attrRefs, frameDef);
 			attrRefs = concatTwoLists(attrRefs, f);
-			DEBUG_LOG("WINATTR %p: %s", (void *) op, beatify(nodeToString(attrRefs)));
+			DEBUG_LOG("WINATTR %p:", (void *) op);
+			DEBUG_NODE_BEATIFY_LOG("", attrRefs);
 		}
 
 	    printWindowAttrRefs(op);

@@ -74,7 +74,7 @@ static void updateStats (Timer *t);
 void
 startTimer(char *name, int line, const char *function, const char *sourceFile)
 {
-    Timer *t;
+    Timer *t = NULL;
     struct timeval st;
 
     if(!isRewriteOptionActivated(OPTION_TIMING))

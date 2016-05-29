@@ -166,6 +166,64 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
     }
 }
 
+void
+logNodes_(LogLevel level, const char *file, unsigned line, boolean beat, char * (*toStringFunc) (void *), const char *message, ...)
+{
+    ASSERT(buffer != NULL);
+
+    NEW_AND_ACQUIRE_MEMCONTEXT("LOG_NODE_CONTEXT");
+
+    if (level <= maxLevel)
+    {
+        FILE *out = getOutput(level);
+        va_list args;
+        void *n;
+        char *outMes;
+
+        va_start(args, message);
+
+        // output loglevel and location of log statement
+        fprintf(out, TB_FG_BG(WHITE,BLACK,"%s"), getHead(level));
+        if (file && line > 0)
+            fprintf(out, TCOL(RED,"(%s:%u) "), file, line);
+        else
+            fprintf(out, "(unknown) ");
+
+        fprintf(out, "%s", message);
+        fprintf(out, "\n\n");
+
+        while((n = va_arg(args, void*)) != NULL)
+        {
+            outMes = toStringFunc(n);
+            if(beat)
+            {
+                outMes = beatify(outMes);
+            }
+            // output a fixed number of chars at a time to not reach fprintf limit
+            int todo = strlen(outMes);
+            char *curBuf = outMes;
+            while(todo > 0)
+            {
+                size_t write = (todo >= 10240) ? 10240 : todo;
+                size_t fw = fwrite(curBuf, sizeof(char), write, out);
+                ASSERT(fw == write);
+                curBuf += write;
+                todo -= write;
+                fflush(out);
+            }
+//            free(outMes);
+        }
+
+        va_end(args);
+
+        // flush output stream
+        fprintf(out, "\n");
+        fflush(out);
+    }
+
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+}
+
 char *
 formatMes(const char *template, ...)
 {

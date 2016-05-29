@@ -210,7 +210,8 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *op1, QueryOperator *op2)
         attrRefs = concatTwoLists(partitionBy, orderBy);
         attrRefs = concatTwoLists(attrRefs, frameDef);
         attrRefs = concatTwoLists(attrRefs, f);
-        DEBUG_LOG("WINATTR %p: %s", (void *) op1, beatify(nodeToString(attrRefs)));
+        DEBUG_LOG("WINATTR %p:", (void *) op1);
+        DEBUG_NODE_BEATIFY_LOG("", attrRefs);
 	}
 	else if (isA(op1,OrderOperator))
 	{

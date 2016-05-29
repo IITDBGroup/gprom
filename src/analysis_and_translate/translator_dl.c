@@ -343,7 +343,7 @@ analyzeProgramDTs (DLProgram *p, HashMap *predToRules)
         setDLProp((DLNode *) r,DL_PRED_DTS,(Node *) varToDT);
     }
 
-    DEBUG_LOG("analyzed DTs for datalog program before translation: %s", beatify(nodeToString((Node *) p)));
+    DEBUG_NODE_BEATIFY_LOG("analyzed DTs for datalog program before translation", p);
 }
 
 static void

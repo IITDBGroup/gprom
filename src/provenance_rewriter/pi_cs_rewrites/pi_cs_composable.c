@@ -31,8 +31,8 @@
 
 #define LOG_RESULT(mes,op) \
     do { \
-    	INFO_LOG(mes,operatorToOverviewString((Node *) op)); \
-    	DEBUG_LOG(mes,beatify(nodeToString((Node *) op))); \
+    	INFO_OP_LOG(mes,op); \
+    	DEBUG_NODE_BEATIFY_LOG(mes,op); \
     } while(0)
 
 // data structures
@@ -175,7 +175,7 @@ rewritePI_CSComposableSelection (SelectionOperator *op)
     ASSERT(OP_LCHILD(op));
 
     DEBUG_LOG("REWRITE-PICS-Composable - Selection");
-    DEBUG_LOG("Operator tree \n%s", beatify(nodeToString(op)));
+    DEBUG_NODE_BEATIFY_LOG("Operator tree", op);
 
     // rewrite child first
     rewritePI_CSComposableOperator(OP_LCHILD(op));
@@ -189,7 +189,7 @@ rewritePI_CSComposableSelection (SelectionOperator *op)
     if (isTupleAtATimeSubtree(OP_LCHILD(op)))
         SET_BOOL_STRING_PROP(op,PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME);
 
-    LOG_RESULT("Selection - Rewritten Operator tree \n%s", op);
+    LOG_RESULT("Selection - Rewritten Operator tree", op);
     return (QueryOperator *) op;
 }
 
@@ -226,7 +226,7 @@ rewritePI_CSComposableProjection (ProjectionOperator *op)
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
     addResultTIDAndProvDupAttrs((QueryOperator *) op, TRUE);
 
-    LOG_RESULT("Projection - Rewritten Operator tree \n%s", op);
+    LOG_RESULT("Projection - Rewritten Operator tree", op);
     return (QueryOperator *) op;
 }
 
@@ -309,7 +309,7 @@ rewritePI_CSComposableJoin (JoinOperator *op)
         SET_STRING_PROP(wOp, PROP_RESULT_TID_ATTR, createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 2));
         SET_STRING_PROP(wOp, PROP_PROV_DUP_ATTR, createConstInt(LIST_LENGTH(wOp->op.schema->attrDefs) - 1));
 
-        LOG_RESULT("Added result TID and prov duplicate window ops:\n%s", wOp);
+        LOG_RESULT("Added result TID and prov duplicate window ops:", wOp);
     }
 
     // add projection to put attributes into order on top of join op
@@ -353,7 +353,7 @@ rewritePI_CSComposableJoin (JoinOperator *op)
         addParent((QueryOperator *) op, (QueryOperator *) prev);
     }
 
-    LOG_RESULT("Join - Rewritten Operator tree \n%s", proj);
+    LOG_RESULT("Join - Rewritten Operator tree", proj);
     return (QueryOperator *) proj;
 }
 
@@ -558,7 +558,7 @@ rewritePI_CSComposableAggregationWithJoin (AggregationOperator *op)
     addParent(aggInput, (QueryOperator *) joinProv);
 
     // adapt schema for final projection
-    DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(proj)));
+    DEBUG_NODE_BEATIFY_LOG("Rewritten Operator tree \n%s", proj);
     return (QueryOperator *) proj;
 }
 
@@ -590,7 +590,7 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op)
     int pos;
 
     DEBUG_LOG("REWRITE-PICS-Composable - Aggregation - Window");
-    DEBUG_LOG("Operator tree \n%s", beatify(nodeToString(op)));
+    DEBUG_NODE_BEATIFY_LOG("Operator tree", op);
 
     // rewrite child
     curChild = rewritePI_CSComposableOperator(OP_LCHILD(op));
@@ -635,8 +635,8 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op)
 
         curChild = (QueryOperator *) curWindow;
         pos++;
-        DEBUG_LOG("Translated aggregation function <%s> into window op:\n%s",
-                beatify(nodeToString(agg)), operatorToOverviewString((Node *) curWindow));
+        DEBUG_NODE_BEATIFY_LOG("Translated aggregation function",agg);
+        DEBUG_OP_LOG("into window op", curWindow);
     }
 
     // add result TID attr and prov dup attr, if group by then use window function, otherwise use projection
@@ -754,7 +754,7 @@ rewritePI_CSComposableAggregationWithWindow (AggregationOperator *op)
     DEBUG_LOG("projection is:\n%s", operatorToOverviewString((Node *) proj));
 
     // return projection
-    LOG_RESULT("Aggregation - Rewritten Operator tree \n%s", op);
+    LOG_RESULT("Aggregation - Rewritten Operator tree", op);
     return (QueryOperator *) proj;
 }
 
@@ -776,7 +776,7 @@ replaceAttrWithCaseForProvDupRemoval (FunctionCall *f, Node *provDupAttrRef)
                 );
     }
 
-    DEBUG_LOG("modified agg function call: <%s>", beatify(nodeToString(f)));
+    DEBUG_NODE_BEATIFY_LOG("modified agg function call:", f);
     return (Node *) f;
 }
 
@@ -854,7 +854,7 @@ rewritePI_CSComposableTableAccess(TableAccessOperator *op)
     addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
     SET_BOOL_STRING_PROP(newpo,PROP_PROVENANCE_OPERATOR_TUPLE_AT_A_TIME);
 
-    LOG_RESULT("Table Access - Rewritten Operator tree \n%s", newpo);
+    LOG_RESULT("Table Access - Rewritten Operator tree", newpo);
     return (QueryOperator *) newpo;
 }
 
@@ -980,6 +980,6 @@ rewritePI_CSComposableOrderOp(OrderOperator *op)
     addProvenanceAttrsToSchema((QueryOperator *) op, child);
     addResultTIDAndProvDupAttrs((QueryOperator *) op, TRUE);
 
-    LOG_RESULT("Order Operator - Rewritten Operator tree \n%s", op);
+    LOG_RESULT("Order Operator - Rewritten Operator tree", op);
     return (QueryOperator *) op;
 }

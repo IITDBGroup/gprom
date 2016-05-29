@@ -352,7 +352,7 @@ exhaustiveGenerateNextChoice (OptimizerState *state)
     state->curPath = NIL;  //Y1
     state->numChoices = NIL; //Z1
 
-    DEBUG_LOG("new X is %s", beatify(nodeToString(X1)));
+    DEBUG_NODE_BEATIFY_LOG("new X is", X1);
 
     return (state->fixedPath != NIL);
 }

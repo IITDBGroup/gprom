@@ -80,10 +80,8 @@ static DLProgram *solveProgram (DLProgram *p, DLAtom *question, boolean neg);
 DLProgram *
 createBottomUpGPprogram (DLProgram *p)
 {
-    DEBUG_LOG("create GP bottom up program for:\n%s",
-            beatify(nodeToString(p)));
-    INFO_LOG("create GP bottom up program for:\n%s",
-            datalogToOverviewString((Node *) p));
+    DEBUG_NODE_BEATIFY_LOG("create GP bottom up program for:",p);
+    INFO_DL_LOG("create GP bottom up program for:",p);
     // why provenance
     if(DL_HAS_PROP(p,DL_PROV_WHY))
     {
@@ -2993,7 +2991,7 @@ unifyProgram (DLProgram *p, DLAtom *question)
     // e.g., Why(Q(1))
     unifyOneWithRuleHeads(predToRules, predToUnRules, question);
 
-    DEBUG_LOG("predToUnRules:\n%s", beatify(nodeToString(predToUnRules)));
+    DEBUG_NODE_BEATIFY_LOG("predToUnRules:", predToUnRules);
 
     // build new pred name to rules map
     FOREACH_HASH_ENTRY(kv,predToUnRules)
@@ -3022,8 +3020,8 @@ unifyProgram (DLProgram *p, DLAtom *question)
     setDLProp((DLNode *) newP, DL_MAP_RELNAME_TO_RULES, (Node *) newPredToRules);
     setDLProp((DLNode *) newP, DL_MAP_UN_PREDS_TO_RULES, (Node *) predToUnRules);
 
-    DEBUG_LOG("unified program is:\n%s", beatify(nodeToString(newP)));
-    INFO_LOG("unified program is:\n%s", datalogToOverviewString((Node *) newP));
+    DEBUG_NODE_BEATIFY_LOG("unified program is:", newP);
+    INFO_DL_LOG("unified program is:", newP);
 
     return newP;
 }
@@ -3258,8 +3256,8 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
     p->rules = adornedRules;
     setDLProp((DLNode *) p, DL_MAP_ADORNED_PREDS_TO_RULES, (Node *) solvPredToRules);
 
-    DEBUG_LOG("adorned (solved) program is:\n%s", beatify(nodeToString(p)));
-    INFO_LOG("adorned (solved) program is:\n%s", datalogToOverviewString((Node *) p));
+    DEBUG_NODE_BEATIFY_LOG("adorned (solved) program is:", p);
+    INFO_DL_LOG("adorned (solved) program is:", p);
 
     return p;
 }
