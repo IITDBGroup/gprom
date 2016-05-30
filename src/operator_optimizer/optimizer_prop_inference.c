@@ -23,8 +23,9 @@
 
 static List *attrRefListToStringList (List *input);
 static List *removeContainedKeys(List *keys);
-static boolean internalRemoveProps(QueryOperator *op, void *context);
-static boolean internalPrintIcols (QueryOperator *op, void *context);
+static boolean removePropsVisitor(QueryOperator *op, void *context);
+static boolean printIcolsVisitor(QueryOperator *op, void *context);
+static boolean printECProVisitor(QueryOperator *root, void *context);
 
 
 void
@@ -316,11 +317,15 @@ computeECProp (QueryOperator *root)
             "************************************************************",
             operatorToOverviewString((Node *) root));
     DEBUG_LOG("*********EC**********\n\tStart bottom-up traversal");
+    START_TIMER("PropertyInference - EC - bottom-up");
 	computeECPropBottomUp(root);
+	STOP_TIMER("PropertyInference - EC - bottom-up");
 	printECPro(root);
 
 	DEBUG_LOG("*********EC**********\n\tStart top-down traversal");
+	START_TIMER("PropertyInference - EC - top-down");
 	computeECPropTopDown(root);
+	STOP_TIMER("PropertyInference - EC - top-down");
 	printECPro(root);
 	STOP_TIMER("PropertyInference - EC");
 }
@@ -347,48 +352,54 @@ printSingleECList(List *l)
 void
 printECPro(QueryOperator *root)
 {
+    START_TIMER("PropertyInference - EC - print");
+    visitQOGraph(root, TRAVERSAL_PRE, printECProVisitor, NULL);
+    STOP_TIMER("PropertyInference - EC - print");
+}
+
+static boolean
+printECProVisitor (QueryOperator *root, void *context)
+{
     StringInfo str = makeStringInfo ();
 
-	appendStringInfoString(str, NodeTagToString(root->type));
-	appendStringInfo(str, " (%p)", root);
+    appendStringInfoString(str, NodeTagToString(root->type));
+    appendStringInfo(str, " (%p)", root);
 
-	Node *nRoot = getStringProperty(root, PROP_STORE_SET_EC);
-	List *list = (List *)nRoot;
-	appendStringInfo(str, "\nList size %d\n", LIST_LENGTH(list));
+    Node *nRoot = getStringProperty(root, PROP_STORE_SET_EC);
+    List *list = (List *)nRoot;
+    appendStringInfo(str, "\nList size %d\n", LIST_LENGTH(list));
 
-	FOREACH(KeyValue, kv, list)
-	{
-	    Set *s = (Set *) kv->key;
-	    Constant *c = (Constant *) kv->value;
+    FOREACH(KeyValue, kv, list)
+    {
+        Set *s = (Set *) kv->key;
+        Constant *c = (Constant *) kv->value;
 
-		appendStringInfoString(str,"{");
+        appendStringInfoString(str,"{");
         FOREACH_SET(char, n, s)
         {
             appendStringInfo(str,"%s%s", (char *)n, FOREACH_SET_HAS_NEXT(n) ? " " : "");
         }
         if (c != NULL)
             appendStringInfo(str," %s", exprToSQL((Node *) c));
-		appendStringInfoString(str, "} ");
-	}
-	appendStringInfoString(str, "\n");
-	DEBUG_LOG("EC %s", str->data);
-
-	if(root->inputs != NULL)
-	{
-		FOREACH(QueryOperator, op, root->inputs)
-		         printECPro(op);
-	}
- }
+        appendStringInfoString(str, "} ");
+    }
+    appendStringInfoString(str, "\n");
+    DEBUG_LOG("EC %s", str->data);
+    return TRUE;
+}
 
 //generate a List of Sets by bottom up(here uses ptr set)
 //for each set, (e.g. {{a,d,5},{c}})a is the pointer point to char a,b, 5 is the pointer point to a constant structure
 void
 computeECPropBottomUp (QueryOperator *root)
 {
-	if(root->inputs != NULL)
+    SET_BOOL_STRING_PROP(root, PROP_STORE_SET_EC_DONE_BU);
+
+    if(root->inputs != NULL)
 	{
 		FOREACH(QueryOperator, op, root->inputs)
-        				computeECPropBottomUp(op);
+		    if (!HAS_STRING_PROP(op, PROP_STORE_SET_EC_DONE_BU))
+                computeECPropBottomUp(op);
 	}
 
 	if(root != NULL)
@@ -1020,11 +1031,22 @@ computeECPropTopDown (QueryOperator *root)
 		setStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC, (Node *)EC);
 	}
 
-	if(root->inputs != NULL)
-	{
-		FOREACH(QueryOperator, op, root->inputs)
-	        				computeECPropTopDown(op);
-	}
+    // check if all parents have been processed
+    boolean allParents = TRUE;
+    FOREACH(QueryOperator, p, root->parents)
+    {
+        allParents &= HAS_STRING_PROP(p, PROP_STORE_SET_EC_DONE_TD);
+    }
+
+    // only proceed to children once op is done
+    if (allParents)
+    {
+        SET_BOOL_STRING_PROP(root, PROP_STORE_SET_EC_DONE_TD);
+        FOREACH(QueryOperator, o, root->inputs)
+        {
+            computeECPropTopDown(o);
+        }
+    }
 }
 
 void
@@ -1769,7 +1791,7 @@ computeReqColProp (QueryOperator *root)
 void
 printIcols(QueryOperator *root)
 {
-    visitQOGraph(root, TRAVERSAL_PRE, internalPrintIcols, NULL);
+    visitQOGraph(root, TRAVERSAL_PRE, printIcolsVisitor, NULL);
 //	Set *icols = (Set*) getStringProperty(root, PROP_STORE_SET_ICOLS);
 //	DEBUG_LOG("icols:%s\n ",nodeToString(icols));
 //
@@ -1780,7 +1802,7 @@ printIcols(QueryOperator *root)
 }
 
 static boolean
-internalPrintIcols (QueryOperator *op, void *context)
+printIcolsVisitor (QueryOperator *op, void *context)
 {
     Set *icols = (Set*) getStringProperty(op, PROP_STORE_SET_ICOLS);
     DEBUG_LOG("op(%s) - icols:%s\n ",op->schema->name, nodeToString(icols));
@@ -1802,7 +1824,7 @@ attrRefListToStringList (List *input)
 void
 emptyProperty(QueryOperator *root)
 {
-    visitQOGraph(root, TRAVERSAL_PRE, internalRemoveProps, NULL);
+    visitQOGraph(root, TRAVERSAL_PRE, removePropsVisitor, NULL);
 //	FOREACH(QueryOperator, o, root->inputs)
 //	{
 //		/* empty every  property for this operator */
@@ -1841,7 +1863,7 @@ emptyProperty(QueryOperator *root)
 }
 
 static boolean
-internalRemoveProps(QueryOperator *op, void *context)
+removePropsVisitor(QueryOperator *op, void *context)
 {
     /* remove every property we use for optimization for this operator */
 

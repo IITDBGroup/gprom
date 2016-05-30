@@ -1739,6 +1739,8 @@ selectionMoveAround(QueryOperator *root)
 */
 
 	computeECProp(root);
+	if (TRUE)//TODO remove this once EC is fixed
+	    return root;
 	introduceSelectionInMoveAround(root);
 
     return root;
