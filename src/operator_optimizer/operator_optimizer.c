@@ -441,11 +441,12 @@ printWindowAttrRefs(QueryOperator *op1)
 QueryOperator *
 removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 {
-
+    SET_BOOL_STRING_PROP(root, PROP_OPT_UNNECESSARY_COLS_REMOVED);
     if(root->inputs != NULL)
     {
         FOREACH(QueryOperator, op, root->inputs)
-            removeUnnecessaryColumnsFromProjections(op);
+            if(!HAS_STRING_PROP(op, PROP_OPT_UNNECESSARY_COLS_REMOVED))
+                removeUnnecessaryColumnsFromProjections(op);
     }
     List *cSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
 	Set *icols = (Set*) getStringProperty(root, PROP_STORE_SET_ICOLS);
