@@ -60,6 +60,7 @@ static MemContext *context = NULL;
 static Timer *getOrCreateTimer (char *name, int line, const char *function,
         const char *sourceFile);
 static void updateStats (Timer *t);
+static int compareTimerName (const void *a, const void *b);
 
 #define CREATE_OR_USE_MEMCONTEXT() \
     do { \
@@ -172,8 +173,10 @@ getOrCreateTimer (char *name, int line, const char *function, const char *source
 void
 outputTimers (void)
 {
-    Timer *t;
+    Timer *t, *total;
     int maxTimerNameLength = 30;
+    int numTimers = -1;
+    Timer **timers = NULL;
 
     CREATE_OR_USE_MEMCONTEXT();
 
@@ -181,14 +184,27 @@ outputTimers (void)
     {
         int len = strlen(t->name);
         maxTimerNameLength = (maxTimerNameLength < len) ? len : maxTimerNameLength;
+        numTimers++;
     }
 
     if(!isRewriteOptionActivated(OPTION_TIMING))
         return;
 
+    timers = MALLOC(sizeof(Timer *) * numTimers);
+    int i = 0;
     for(t = allTimers; t != NULL; t = t->hh.next)
     {
-        printf("timer: %*s - total: %12f sec calls: %9ld avg: %12f min: %12f max: %12f\n",
+        if (!streq(t->name, "TOTAL"))
+            timers[i++] = t;
+        else
+            total = t;
+    }
+    qsort(timers, numTimers, sizeof(Timer*), compareTimerName);
+
+    for(int i = 0; i < numTimers; i++) //t = allTimers; t != NULL; t = t->hh.next)
+    {
+        Timer *t = timers[i];
+        printf("timer: %-*s - total: %12f sec calls: %9ld avg: %12f min: %12f max: %12f\n",
                 maxTimerNameLength,
                 t->name,
                 ((double) t->totalTime) / 1000000.0,
@@ -198,6 +214,27 @@ outputTimers (void)
                 ((double) t->maxTime) / 1000000.0
                 );
     }
+    printf("timer: ====================================================================\n");
+    printf("timer: %-*s - total: %12f sec calls: %9ld avg: %12f min: %12f max: %12f\n",
+            maxTimerNameLength,
+            total->name,
+            ((double) total->totalTime) / 1000000.0,
+            total->numCalls,
+            ((double) total->avgTime) / 1000000.0,
+            ((double) total->minTime) / 1000000.0,
+            ((double) total->maxTime) / 1000000.0
+            );
 
     RELEASE_MEM_CONTEXT();
+}
+
+static int
+compareTimerName (const void *a, const void *b)
+{
+    const Timer **ta, **tb;
+
+    ta = (const Timer **) a;
+    tb = (const Timer **) b;
+
+    return strcmp((*ta)->name, (*tb)->name);
 }

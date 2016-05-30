@@ -328,9 +328,11 @@ removeUnnecessaryWindowOperator(QueryOperator *root)
 QueryOperator *
 removeUnnecessaryColumns(QueryOperator *root)
 {
-	initializeIColProp(root);
+	START_TIMER("PropertyInference - iCols");
+    initializeIColProp(root);
 	computeReqColProp(root);
 	printIcols(root);
+	STOP_TIMER("PropertyInference - iCols");
 	removeUnnecessaryColumnsFromProjections(root);
 
     return root;

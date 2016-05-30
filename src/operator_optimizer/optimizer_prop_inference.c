@@ -24,6 +24,8 @@
 static List *attrRefListToStringList (List *input);
 static List *removeContainedKeys(List *keys);
 static boolean internalRemoveProps(QueryOperator *op, void *context);
+static boolean internalPrintIcols (QueryOperator *op, void *context);
+
 
 void
 computeKeyProp (QueryOperator *root)
@@ -1746,22 +1748,43 @@ computeReqColProp (QueryOperator *root)
 		setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)ericols);
 	}
 
-	FOREACH(QueryOperator, o, root->inputs)
-	{
-		computeReqColProp(o);
-	}
+    // check if all parents have been processed
+    boolean allParents = TRUE;
+    FOREACH(QueryOperator, p, root->parents)
+    {
+        allParents &= HAS_STRING_PROP(p, PROP_STORE_SET_ICOLS_DONE);
+    }
+
+    // only proceed to children once op is done
+    if (allParents)
+    {
+        SET_BOOL_STRING_PROP(root, PROP_STORE_SET_ICOLS_DONE);
+        FOREACH(QueryOperator, o, root->inputs)
+        {
+            computeReqColProp(o);
+        }
+    }
 }
 
 void
 printIcols(QueryOperator *root)
 {
-	Set *icols = (Set*) getStringProperty(root, PROP_STORE_SET_ICOLS);
-	DEBUG_LOG("icols:%s\n ",nodeToString(icols));
+    visitQOGraph(root, TRAVERSAL_PRE, internalPrintIcols, NULL);
+//	Set *icols = (Set*) getStringProperty(root, PROP_STORE_SET_ICOLS);
+//	DEBUG_LOG("icols:%s\n ",nodeToString(icols));
+//
+//	FOREACH(QueryOperator, o, root->inputs)
+//	{
+//		printIcols(o);
+//	}
+}
 
-	FOREACH(QueryOperator, o, root->inputs)
-	{
-		printIcols(o);
-	}
+static boolean
+internalPrintIcols (QueryOperator *op, void *context)
+{
+    Set *icols = (Set*) getStringProperty(op, PROP_STORE_SET_ICOLS);
+    DEBUG_LOG("op(%s) - icols:%s\n ",op->schema->name, nodeToString(icols));
+    return TRUE;
 }
 
 static List *
