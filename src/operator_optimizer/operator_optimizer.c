@@ -972,10 +972,10 @@ removeRedundantDuplicateOperatorBySetWithInit(QueryOperator *root)
     //computeKeyProp(root);
 
     // Set TRUE for each Operator
-    initializeSetProp(root);
-    // Set FALSE for root
-    setStringProperty((QueryOperator *) root, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
-    computeSetProp(root);
+//    initializeSetProp(root);
+//    // Set FALSE for root
+//    setStringProperty((QueryOperator *) root, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
+//    computeSetProp(root);
 
 //    List *icols =  getAttrNames(GET_OPSCHEMA(root));
 //	//char *a = (char *)getHeadOfListP(icols);

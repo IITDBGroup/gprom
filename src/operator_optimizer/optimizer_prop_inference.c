@@ -1326,11 +1326,12 @@ GenerateCondECBasedOnCondOp(List *condList)
 
 void initializeSetProp(QueryOperator *root)
 {
-	SET_BOOL_STRING_PROP((QueryOperator *)root, PROP_STORE_BOOL_SET);
-
+	SET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET);
+	removeStringProperty(root, PROP_STORE_BOOL_SET_ALL_PARENTS_DONE);
 	FOREACH(QueryOperator, o, root->inputs)
 	{
-		initializeSetProp(o);
+	    if (!HAS_STRING_PROP(o, PROP_STORE_BOOL_SET))
+	        initializeSetProp(o);
 	}
 }
 
@@ -1380,11 +1381,22 @@ computeSetProp (QueryOperator *root)
 		}
 	}
 
-	FOREACH(QueryOperator, o, root->inputs)
+	// check if all parents have been processed
+	boolean allParents = TRUE;
+	FOREACH(QueryOperator, p, root->parents)
 	{
-		computeSetProp(o);
+	    allParents &= HAS_STRING_PROP(p, PROP_STORE_BOOL_SET_ALL_PARENTS_DONE);
 	}
 
+	// only proceed to children once op is done
+	if (allParents)
+	{
+	    SET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET_ALL_PARENTS_DONE);
+        FOREACH(QueryOperator, o, root->inputs)
+        {
+            computeSetProp(o);
+        }
+	}
 }
 
 
