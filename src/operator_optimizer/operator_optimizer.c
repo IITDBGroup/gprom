@@ -96,6 +96,8 @@ optimizeOneGraph (QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
 
+    NEW_AND_ACQUIRE_MEMCONTEXT("HEURISTIC OPTIMIZER CONTEXT");
+
     int res;
 //    res = callback(5);
 //    res = 1;
@@ -140,13 +142,18 @@ optimizeOneGraph (QueryOperator *root)
 				OPTIMIZATION_MERGE_OPERATORS);
     	if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
     	{
+    	    START_TIMER("PropertyInference - Keys");
     		computeKeyProp(rewrittenTree);
+    		STOP_TIMER("PropertyInference - Keys");
+
     		//exit(-1);
     		// Set TRUE for each Operator
+    		START_TIMER("PropertyInference - Set");
     		initializeSetProp(rewrittenTree);
     		// Set FALSE for root
     		setStringProperty((QueryOperator *) rewrittenTree, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
     		computeSetProp(rewrittenTree);
+            STOP_TIMER("PropertyInference - Set");
 
     		List *icols =  getAttrNames(GET_OPSCHEMA(root));
     		//char *a = (char *)getHeadOfListP(icols);
@@ -177,9 +184,13 @@ optimizeOneGraph (QueryOperator *root)
 				OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ);
     	DEBUG_LOG("callback = %d in loop %d",res,c);
     	c++;
+        START_TIMER("OptimizeModel - RemoveProperties");
+        ERROR_LOG("number of operators in tree: %d", numOpsInGraph(rewrittenTree));
     	emptyProperty(rewrittenTree);
+    	STOP_TIMER("OptimizeModel - RemoveProperties");
     }
-    return rewrittenTree;
+    FREE_MEM_CONTEXT_AND_RETURN_COPY(QueryOperator,rewrittenTree);
+//    return rewrittenTree;
 }
 
 QueryOperator *

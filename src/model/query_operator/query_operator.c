@@ -16,6 +16,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "model/set/set.h"
 #include "model/query_operator/operator_property.h"
@@ -24,7 +25,11 @@
 //static Schema *mergeSchemas (List *inputs);
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
-static boolean KeyValueKeyEqString (void *kv, void *str);
+//static boolean KeyValueKeyEqString (void *kv, void *str);
+static boolean countUniqueOpsVisitor(QueryOperator *op, void *context);
+static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
+        boolean (*visitF) (QueryOperator *op, void *context), void *context,
+        Set *haveSeen);
 
 
 Schema *
@@ -668,8 +673,9 @@ setProperty (QueryOperator *op, Node *key, Node *value)
         return;
     }
 
-    val = createNodeKeyValue(key, value);
-    op->properties =  (Node *) appendToTailOfList((List *) op->properties, val);
+    addToMap((HashMap *) op->properties, key, value);
+//    val = createNodeKeyValue(key, value);
+//    op->properties =  (Node *) appendToTailOfList((List *) op->properties, val);
 }
 
 Node *
@@ -689,42 +695,54 @@ setStringProperty (QueryOperator *op, char *key, Node *value)
 Node *
 getStringProperty (QueryOperator *op, char *key)
 {
-    KeyValue *kv = getProp(op, (Node *) createConstString(key));
-
-    return kv ? kv->value : NULL;
+    if (op->properties == NULL)
+        op->properties = (Node *) NEW_MAP(Node,Node);
+    return getMapString((HashMap *) op->properties, key);
+//    KeyValue *kv = getProp(op, (Node *) createConstString(key));
+//
+//    return kv ? kv->value : NULL;
 }
 
 void
 removeStringProperty (QueryOperator *op, char *key)
 {
-    List *props = (List *) op->properties;
-    op->properties = (Node *) genericRemoveFromList(props, KeyValueKeyEqString, key);
+    removeMapStringElem((HashMap *) op->properties, key);
+//    List *props = (List *) op->properties;
+//    op->properties = (Node *) genericRemoveFromList(props, KeyValueKeyEqString, key);
 }
 
-static boolean
-KeyValueKeyEqString (void *kv, void *str)
-{
-    ASSERT(isA(kv, KeyValue));
-    KeyValue *kVal = (KeyValue *) kv;
-    ASSERT(isA(kVal->key, Constant));
-    char *keyStr = STRING_VALUE(kVal->key);
-
-    if (strpeq(keyStr, str))
-        return TRUE;
-
-    return FALSE;
-}
+//static boolean
+//KeyValueKeyEqString (void *kv, void *str)
+//{
+//    ASSERT(isA(kv, KeyValue));
+//    KeyValue *kVal = (KeyValue *) kv;
+//    ASSERT(isA(kVal->key, Constant));
+//    char *keyStr = STRING_VALUE(kVal->key);
+//
+//    if (strpeq(keyStr, str))
+//        return TRUE;
+//
+//    return FALSE;
+//}
 
 static KeyValue *
 getProp (QueryOperator *op, Node *key)
 {
-    FOREACH(KeyValue,p,(List *) op->properties)
+    if (op->properties == NULL)
     {
-        if (equal(p->key,key))
-            return p;
+        op->properties = (Node *) NEW_MAP(Node,Node);
     }
 
-    return NULL;
+    return getMapEntry((HashMap *) op->properties, key);
+//    if (mapHasKey(op->properties, key))
+//        return mpa
+//    FOREACH(KeyValue,p,(List *) op->properties)
+//    {
+//        if (equal(p->key,key))
+//            return p;
+//    }
+
+//    return NULL;
 }
 
 void
@@ -1107,12 +1125,26 @@ boolean
 visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context)
 {
+    Set *haveSeen = PSET();
+    return internalVisitQOGraph(q, tOrder, visitF, context, haveSeen);
+}
+
+static boolean
+internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
+        boolean (*visitF) (QueryOperator *op, void *context), void *context, Set *haveSeen)
+{
     if (tOrder == TRAVERSAL_PRE && !visitF(q, context))
         return FALSE;
 
     FOREACH(QueryOperator,c,q->inputs)
-        if (!visitQOGraph(c, tOrder, visitF, context))
-            return FALSE;
+    {
+        if (!hasSetElem(haveSeen, c))
+        {
+            addToSet(haveSeen, c);
+            if (!internalVisitQOGraph(c, tOrder, visitF, context, haveSeen))
+                return FALSE;
+        }
+    }
 
     if (tOrder == TRAVERSAL_POST && !visitF(q, context))
         return FALSE;
@@ -1120,6 +1152,31 @@ visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
     return TRUE;
 }
 
+
+unsigned int
+numOpsInGraph (QueryOperator *root)
+{
+    List *ctx = LIST_MAKE(createConstInt(0), PSET());
+
+    visitQOGraph(root, TRAVERSAL_PRE, countUniqueOpsVisitor, ctx);
+    Constant *c = (Constant *) getNthOfListP(ctx, 0);
+    return INT_VALUE(c);
+}
+
+static boolean
+countUniqueOpsVisitor(QueryOperator *op, void *context)
+{
+    List *l = (List *) context;
+    Constant *c = (Constant *) getNthOfListP(l, 0);
+    Set *s = (Set *) getNthOfListP(l, 1);
+
+    if (!hasSetElem(s,op))
+    {
+        addToSet(s,op);
+        (INT_VALUE(c))++;
+    }
+    return TRUE;
+}
 
 //static Schema *
 //mergeSchemas (List *inputs)

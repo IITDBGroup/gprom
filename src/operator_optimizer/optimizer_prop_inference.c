@@ -16,12 +16,14 @@
 #include "mem_manager/mem_mgr.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "metadata_lookup/metadata_lookup.h"
-#include "include/log/logger.h"
-#include "include/model/query_operator/operator_property.h"
+#include "log/logger.h"
+#include "model/query_operator/operator_property.h"
+#include "instrumentation/timing_instrumentation.h"
 
 
 static List *attrRefListToStringList (List *input);
 static List *removeContainedKeys(List *keys);
+static boolean internalRemoveProps(QueryOperator *op, void *context);
 
 void
 computeKeyProp (QueryOperator *root)
@@ -30,15 +32,20 @@ computeKeyProp (QueryOperator *root)
     List *lKeyList = NIL;
     List *rKeyList = NIL;
 
-    if (root == NULL)
-        return;
 
+    if (root == NULL)
+    {
+        return;
+    }
     // compute key properties of children first
     if(root->inputs != NULL)
         FOREACH(QueryOperator, op, root->inputs)
-            computeKeyProp(op);
-
+        {
+            if (!HAS_STRING_PROP(op,PROP_STORE_LIST_KEY_DONE))
+                computeKeyProp(op);
+        }
     DEBUG_LOG("BEGIN COMPUTE KEYS %s operator %s keys", NodeTagToString(root->type), root->schema->name);
+    SET_BOOL_STRING_PROP(root, PROP_STORE_LIST_KEY_DONE);
 
     // table access operator or constant relation operators have predetermined keys
     // TABLE ACCESS OPERATOR
@@ -299,6 +306,7 @@ removeContainedKeys(List *keys)
 void
 computeECProp (QueryOperator *root)
 {
+    START_TIMER("PropertyInference - EC");
     INFO_LOG("\n************************************************************\n"
             "    PORPERTY INFERENCE STEP: ECs\n"
             "************************************************************\n"
@@ -312,6 +320,7 @@ computeECProp (QueryOperator *root)
 	DEBUG_LOG("*********EC**********\n\tStart top-down traversal");
 	computeECPropTopDown(root);
 	printECPro(root);
+	STOP_TIMER("PropertyInference - EC");
 }
 
 void
@@ -341,7 +350,7 @@ printECPro(QueryOperator *root)
 	appendStringInfoString(str, NodeTagToString(root->type));
 	appendStringInfo(str, " (%p)", root);
 
-	Node *nRoot = getProperty(root, (Node *) createConstString(PROP_STORE_SET_EC));
+	Node *nRoot = getStringProperty(root, PROP_STORE_SET_EC);
 	List *list = (List *)nRoot;
 	appendStringInfo(str, "\nList size %d\n", LIST_LENGTH(list));
 
@@ -628,7 +637,7 @@ computeECPropBottomUp (QueryOperator *root)
 
 		else if(isA(root, DuplicateRemoval))
 		{
-			Node *childECP = getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_EC));
+			Node *childECP = getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
 			List *setList = (List *)childECP;
 			setProperty((QueryOperator *)root, (Node *) createConstString(PROP_STORE_SET_EC), (Node *)setList);
 		}
@@ -636,9 +645,9 @@ computeECPropBottomUp (QueryOperator *root)
 		else if(isA(root,SetOperator))
 		{
 			//get EC of left child and right child
-			Node *lChildECN = getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_EC));
+			Node *lChildECN = getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
 			List *lECSetList = (List *)copyObject(lChildECN);
-			Node *rChildECP = getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_EC));
+			Node *rChildECP = getStringProperty(OP_RCHILD(root), PROP_STORE_SET_EC);
 			List *rECSetList = (List *)copyObject(rChildECP);
 
 			//get schema list of left child and right child
@@ -1438,7 +1447,7 @@ computeReqColProp (QueryOperator *root)
 	/*
 	 * Get root's icols set which can be used in following each operator
 	 */
-	Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
+	Set *icols = (Set*)getStringProperty(root, PROP_STORE_SET_ICOLS);
 
 //    List *AttrDefNames = getQueryOperatorAttrNames(root);
 //    setStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES, (Node *) AttrDefNames);
@@ -1734,7 +1743,7 @@ computeReqColProp (QueryOperator *root)
 void
 printIcols(QueryOperator *root)
 {
-	Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
+	Set *icols = (Set*) getStringProperty(root, PROP_STORE_SET_ICOLS);
 	DEBUG_LOG("icols:%s\n ",nodeToString(icols));
 
 	FOREACH(QueryOperator, o, root->inputs)
@@ -1758,39 +1767,91 @@ attrRefListToStringList (List *input)
 void
 emptyProperty(QueryOperator *root)
 {
-	FOREACH(QueryOperator, o, root->inputs)
-	{
-		/* empty every  property for this operator */
-		if(HAS_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP))
-			setStringProperty(o, PROP_PROJ_PROV_ATTR_DUP, NULL);
-
-		if(HAS_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP_PULLUP))
-			setStringProperty(o, PROP_PROJ_PROV_ATTR_DUP_PULLUP, NULL);
-
-		if(HAS_STRING_PROP(o, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND))
-			setStringProperty(o, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND, NULL);
-
-		if(HAS_STRING_PROP(o, PROP_MERGE_ATTR_REF_CNTS))
-			setStringProperty(o, PROP_MERGE_ATTR_REF_CNTS, NULL);
-
-		if(HAS_STRING_PROP(o, PROP_STORE_LIST_KEY))
-			setStringProperty(o, PROP_STORE_LIST_KEY, NULL);
-
-		if(HAS_STRING_PROP(o, PROP_STORE_BOOL_SET))
-			setStringProperty(o, PROP_STORE_BOOL_SET, NULL);
-
-		if(HAS_STRING_PROP(o, PROP_STORE_SET_ICOLS))
-			setStringProperty(o, PROP_STORE_SET_ICOLS, NULL);
-
-		if(HAS_STRING_PROP(o, PROP_STORE_LIST_SCHEMA_NAMES))
-			setStringProperty(o, PROP_STORE_LIST_SCHEMA_NAMES, NULL);
-
-		if(HAS_STRING_PROP(o, PROP_STORE_SET_EC))
-			setStringProperty(o, PROP_STORE_SET_EC, NULL);
-
-		if(HAS_STRING_PROP(o, PROP_STORE_DUP_MARK))
-			setStringProperty(o,PROP_STORE_DUP_MARK,NULL);
-
-		emptyProperty(o);
-	}
+    visitQOGraph(root, TRAVERSAL_PRE, internalRemoveProps, NULL);
+//	FOREACH(QueryOperator, o, root->inputs)
+//	{
+//		/* empty every  property for this operator */
+//		if(HAS_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP))
+//			setStringProperty(o, PROP_PROJ_PROV_ATTR_DUP, NULL);
+//
+//		if(HAS_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP_PULLUP))
+//			setStringProperty(o, PROP_PROJ_PROV_ATTR_DUP_PULLUP, NULL);
+//
+//		if(HAS_STRING_PROP(o, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND))
+//			setStringProperty(o, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND, NULL);
+//
+//		if(HAS_STRING_PROP(o, PROP_MERGE_ATTR_REF_CNTS))
+//			setStringProperty(o, PROP_MERGE_ATTR_REF_CNTS, NULL);
+//
+//		if(HAS_STRING_PROP(o, PROP_STORE_LIST_KEY))
+//			setStringProperty(o, PROP_STORE_LIST_KEY, NULL);
+//
+//		if(HAS_STRING_PROP(o, PROP_STORE_BOOL_SET))
+//			setStringProperty(o, PROP_STORE_BOOL_SET, NULL);
+//
+//		if(HAS_STRING_PROP(o, PROP_STORE_SET_ICOLS))
+//			setStringProperty(o, PROP_STORE_SET_ICOLS, NULL);
+//
+//		if(HAS_STRING_PROP(o, PROP_STORE_LIST_SCHEMA_NAMES))
+//			setStringProperty(o, PROP_STORE_LIST_SCHEMA_NAMES, NULL);
+//
+//		if(HAS_STRING_PROP(o, PROP_STORE_SET_EC))
+//			setStringProperty(o, PROP_STORE_SET_EC, NULL);
+//
+//		if(HAS_STRING_PROP(o, PROP_STORE_DUP_MARK))
+//			setStringProperty(o,PROP_STORE_DUP_MARK,NULL);
+//
+//		emptyProperty(o);
+//	}
 }
+
+static boolean
+internalRemoveProps(QueryOperator *op, void *context)
+{
+    /* remove every property we use for optimization for this operator */
+
+    removeStringProperty(op, PROP_PROJ_PROV_ATTR_DUP);
+    removeStringProperty(op, PROP_PROJ_PROV_ATTR_DUP_PULLUP);
+    removeStringProperty(op, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND);
+    removeStringProperty(op, PROP_MERGE_ATTR_REF_CNTS);
+    removeStringProperty(op, PROP_STORE_LIST_KEY);
+    removeStringProperty(op, PROP_STORE_BOOL_SET);
+    removeStringProperty(op, PROP_STORE_SET_ICOLS);
+    removeStringProperty(op, PROP_STORE_LIST_SCHEMA_NAMES);
+    removeStringProperty(op, PROP_STORE_SET_EC);
+    removeStringProperty(op, PROP_STORE_DUP_MARK);
+//    removeStringProperty(op, );
+//
+//    if(HAS_STRING_PROP(op, PROP_PROJ_PROV_ATTR_DUP))
+//        setStringProperty(op, PROP_PROJ_PROV_ATTR_DUP, NULL);
+//
+//    if(HAS_STRING_PROP(op, PROP_PROJ_PROV_ATTR_DUP_PULLUP))
+//        setStringProperty(op, PROP_PROJ_PROV_ATTR_DUP_PULLUP, NULL);
+//
+//    if(HAS_STRING_PROP(op, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND))
+//        setStringProperty(op, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND, NULL);
+//
+//    if(HAS_STRING_PROP(op, PROP_MERGE_ATTR_REF_CNTS))
+//        setStringProperty(op, PROP_MERGE_ATTR_REF_CNTS, NULL);
+//
+//    if(HAS_STRING_PROP(op, PROP_STORE_LIST_KEY))
+//        setStringProperty(op, PROP_STORE_LIST_KEY, NULL);
+//
+//    if(HAS_STRING_PROP(op, PROP_STORE_BOOL_SET))
+//        setStringProperty(op, PROP_STORE_BOOL_SET, NULL);
+//
+//    if(HAS_STRING_PROP(op, PROP_STORE_SET_ICOLS))
+//        setStringProperty(op, PROP_STORE_SET_ICOLS, NULL);
+//
+//    if(HAS_STRING_PROP(op, PROP_STORE_LIST_SCHEMA_NAMES))
+//        setStringProperty(op, PROP_STORE_LIST_SCHEMA_NAMES, NULL);
+//
+//    if(HAS_STRING_PROP(op, PROP_STORE_SET_EC))
+//        setStringProperty(op, PROP_STORE_SET_EC, NULL);
+//
+//    if(HAS_STRING_PROP(op, PROP_STORE_DUP_MARK))
+//        setStringProperty(op,PROP_STORE_DUP_MARK,NULL);
+
+    return TRUE;
+}
+
