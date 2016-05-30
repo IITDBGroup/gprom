@@ -441,11 +441,11 @@ printWindowAttrRefs(QueryOperator *op1)
 QueryOperator *
 removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 {
-    SET_BOOL_STRING_PROP(root, PROP_OPT_UNNECESSARY_COLS_REMOVED);
+    SET_BOOL_STRING_PROP(root, PROP_OPT_UNNECESSARY_COLS_REMOVED_DONE);
     if(root->inputs != NULL)
     {
         FOREACH(QueryOperator, op, root->inputs)
-            if(!HAS_STRING_PROP(op, PROP_OPT_UNNECESSARY_COLS_REMOVED))
+            if(!HAS_STRING_PROP(op, PROP_OPT_UNNECESSARY_COLS_REMOVED_DONE))
                 removeUnnecessaryColumnsFromProjections(op);
     }
     List *cSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
@@ -1740,8 +1740,8 @@ selectionMoveAround(QueryOperator *root)
 */
 
 	computeECProp(root);
-	if (TRUE)//TODO remove this once EC is fixed
-	    return root;
+//	if (TRUE)//TODO remove this once EC is fixed
+//	    return root;
 	introduceSelectionInMoveAround(root);
 
     return root;
@@ -1910,10 +1910,12 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 void
 introduceSelectionInMoveAround(QueryOperator *root)
 {
+    SET_BOOL_STRING_PROP(root, PROP_OPT_SELECTION_MOVE_AROUND_DONE);
 	if(root->inputs != NULL)
 	{
 		FOREACH(QueryOperator, op, root->inputs)
-		        		 introduceSelectionInMoveAround(op);
+		    if (!HAS_STRING_PROP(op, PROP_OPT_SELECTION_MOVE_AROUND_DONE))
+		        introduceSelectionInMoveAround(op);
 	}
 
 	List *ECcond = getMoveAroundOpList(root);
@@ -2167,6 +2169,8 @@ introduceSelection(Operator *o, QueryOperator *root)
 {
 	Node *newOp = (Node *)copyObject(o);
 	SelectionOperator *selectionOp = createSelectionOp(newOp, NULL, NIL, getAttrNames(root->schema));
+
+	SET_BOOL_STRING_PROP(selectionOp, PROP_OPT_SELECTION_MOVE_AROUND_DONE);
 
 	// Switch the subtree with this newly created projection
 	switchSubtrees((QueryOperator *) root, (QueryOperator *) selectionOp);
