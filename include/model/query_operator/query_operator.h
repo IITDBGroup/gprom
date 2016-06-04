@@ -287,6 +287,6 @@ NEW_ENUM_WITH_TO_STRING(TraversalOrder,
 extern boolean visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context),
         void *context);
-
+extern unsigned int numOpsInGraph (QueryOperator *root);
 
 #endif /* QUERY_OPERATOR_H_ */

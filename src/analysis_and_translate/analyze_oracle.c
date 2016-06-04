@@ -133,7 +133,7 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
     if(isQBUpdate(stmt) || isQBQuery(stmt))
         enumerateParameters(stmt);
 
-    INFO_LOG("RESULT OF ANALYSIS IS:\n%s", beatify(nodeToString(stmt)));
+    INFO_NODE_BEATIFY_LOG("RESULT OF ANALYSIS IS:", stmt);
 }
 
 static void
@@ -385,7 +385,7 @@ analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms)
     {
         FromItem *cur = (FromItem *) popHeadOfListP(stack);
 
-        DEBUG_LOG("analyze join:\n%s", beatify(nodeToString(cur)));
+        DEBUG_NODE_BEATIFY_LOG("analyze join:", cur);
 
         // only interested in joins
         if (isA(cur,FromJoinExpr))
@@ -401,8 +401,7 @@ analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms)
             if (isA(j->right, FromJoinExpr))
                 stack = appendToTailOfList(stack, j->right);
 
-            DEBUG_LOG("join condition has attrs:\n%s",
-                    beatify(nodeToString(aRefs)));
+            DEBUG_NODE_BEATIFY_LOG("join condition has attrs:",aRefs);
 
             FOREACH(AttributeReference,a,aRefs)
             {
@@ -500,8 +499,7 @@ analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms)
         }
     }
 
-    DEBUG_LOG("finished adapting attr refs in join conds::\n%s",
-            beatify(nodeToString(fromClause)));
+    DEBUG_NODE_BEATIFY_LOG("finished adapting attr refs in join conds:", fromClause);
 }
 
 static boolean
@@ -826,7 +824,7 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     j->from.dataTypes = CONCAT_LISTS((List *) copyObject(left->dataTypes),
             (List *) copyObject(left->dataTypes));
 
-    DEBUG_LOG("join analysis:\n%s", beatify(nodeToString(j)));
+    DEBUG_NODE_BEATIFY_LOG("join analysis:", j);
 }
 
 static void
@@ -1388,7 +1386,7 @@ getFromTreeLeafs (List *from)
         }
     }
 
-    DEBUG_LOG("from leaf items are:\n%s", beatify(nodeToString(result)));
+    DEBUG_NODE_BEATIFY_LOG("from leaf items are:", result);
 
     return result;
 }
@@ -1601,7 +1599,7 @@ analyzeWithStmt (WithStmt *w)
     FOREACH(KeyValue,v,w->withViews)
     {
         setViewFromTableRefAttrs(v->value, analyzedViews);
-        DEBUG_LOG("did set view table refs:\n%s", beatify(nodeToString(v->value)));
+        DEBUG_NODE_BEATIFY_LOG("did set view table refs:", v->value);
         analyzeQueryBlockStmt(v->value, NIL);
         analyzedViews = appendToTailOfList(analyzedViews, v);
     }
@@ -1610,7 +1608,7 @@ analyzeWithStmt (WithStmt *w)
     DEBUG_LOG("did set view table refs:\n%s", beatify(nodeToString(w->query)));
     analyzeQueryBlockStmt(w->query, NIL);
 
-    DEBUG_LOG("analyzed view is:\n%s", beatify(nodeToString(w->query)));
+    DEBUG_NODE_BEATIFY_LOG("analyzed view is:", w->query);
 }
 
 static boolean

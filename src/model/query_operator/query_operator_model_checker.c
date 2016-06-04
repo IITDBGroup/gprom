@@ -146,52 +146,45 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
 
         if (a->name == NULL)
         {
-            ERROR_LOG("attribute NULL name: %s\n\nin%s",
-                    beatify(nodeToString(a)),
-                    operatorToOverviewString((Node *) parent));
+            ERROR_NODE_BEATIFY_LOG("attribute NULL name:", a);
+            ERROR_OP_LOG("parent is",parent);
             return FALSE;
         }
 
         if (input < 0 || input >= LIST_LENGTH(children))
         {
-            ERROR_LOG("attribute %s references input operator that does not "
-                    "exist:\n\n%s",
-                    beatify(nodeToString(a)),
-                    operatorToOverviewString((Node *) parent));
+            ERROR_NODE_BEATIFY_LOG("attribute references input operator that "
+                    "does not exist:",a);
+            ERROR_OP_LOG("parent is",parent);
             return FALSE;
         }
 
         child = (QueryOperator *) getNthOfListP(children, input);
         if (attrPos < 0 || attrPos >= getNumAttrs(child))
         {
-            ERROR_LOG("attribute %s references attribute position that does not "
-                                "exist in child:\n\n%s",
-                                beatify(nodeToString(a)),
-                                operatorToOverviewString((Node *) parent));
+            ERROR_NODE_BEATIFY_LOG("attribute references attribute position that does not "
+                                "exist in child:",a);
+            ERROR_OP_LOG("parent is",parent);
             return FALSE;
         }
 
         childA = getAttrDefByPos(child, attrPos);
         if (strcmp(childA->attrName, a->name) != 0)
         {
-            ERROR_LOG("attribute ref name and child attrdef names are not the "
-                    "same: <%s> and <%s> in\n\n%s", childA->attrName, a->name,
-                    operatorToOverviewString((Node *) parent));
-            DEBUG_LOG("details are: \n%s\n\n%s\n\n%s", nodeToString(a),
-                    nodeToString(childA),
-                    beatify(nodeToString(parent)));
+            ERROR_NODE_BEATIFY_LOG("attribute ref name and child attrdef names are not the "
+                    "same:", childA->attrName, a->name);
+            ERROR_OP_LOG("parent is",parent);
+            DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
             return FALSE;
         }
         if (childA->dataType != a->attrType)
         {
             ERROR_LOG("attribute datatype and child attrdef datatypes are not the "
-                    "same: <%s> and <%s> in\n\n%s",
+                    "same: <%s> and <%s>",
                     DataTypeToString(childA->dataType),
-                    DataTypeToString(a->attrType),
-                    operatorToOverviewString((Node *) parent));
-            DEBUG_LOG("details are: \n%s\n\n%s\n\n%s", nodeToString(a),
-                    nodeToString(childA),
-                    beatify(nodeToString(parent)));
+                    DataTypeToString(a->attrType));
+            ERROR_OP_LOG("parent is",parent);
+            DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
             return FALSE;
         }
        /* else
@@ -246,9 +239,8 @@ checkSchemaConsistency (QueryOperator *op)
         {
             if (!equal(OP_LCHILD(op)->schema->attrDefs, op->schema->attrDefs))
             {
-                ERROR_LOG("Attributes of DuplicateRemoval should match attributes"
-                        " of its child:\n%s",
-                        operatorToOverviewString((Node *) op));
+                ERROR_NODE_BEATIFY_LOG("Attributes of DuplicateRemoval should match attributes"
+                        " of its child:", op);
                 return FALSE;
             }
         }
@@ -260,9 +252,8 @@ checkSchemaConsistency (QueryOperator *op)
 
             if (LIST_LENGTH(op->schema->attrDefs) != LIST_LENGTH(child->schema->attrDefs))
             {
-                ERROR_LOG("Number of attributes of a selection operator should match the "
-                        "number of attributes of its child:\n%s",
-                        operatorToOverviewString((Node *) op));
+                ERROR_OP_LOG("Number of attributes of a selection operator should match the "
+                        "number of attributes of its child:", op);
                 return FALSE;
             }
 

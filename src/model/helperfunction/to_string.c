@@ -1331,6 +1331,7 @@ beatify(char *input)
 
     result = str->data;
     FREE(str);
+    FREE(input);
     return result;
 }
 
@@ -1348,7 +1349,7 @@ itoa(int value)
 }
 
 char *
-datalogToOverviewString(Node *n)
+datalogToOverviewString(void *n)
 {
     StringInfo str = makeStringInfo();
 
@@ -1499,7 +1500,7 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
 }
 
 char *
-operatorToOverviewString(Node *op)
+operatorToOverviewString(void *op)
 {
     StringInfo str = makeStringInfo();
     HashMap *m;

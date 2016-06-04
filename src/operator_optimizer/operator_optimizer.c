@@ -96,7 +96,12 @@ optimizeOneGraph (QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
 
+<<<<<<< HEAD
     int numHeuOptItens = getIntOption(OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS);
+=======
+    NEW_AND_ACQUIRE_MEMCONTEXT("HEURISTIC OPTIMIZER CONTEXT");
+
+>>>>>>> DLsupport
     int res;
     int c = 0;
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
@@ -152,13 +157,18 @@ optimizeOneGraph (QueryOperator *root)
 				OPTIMIZATION_MERGE_OPERATORS);
     	if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
     	{
+    	    START_TIMER("PropertyInference - Keys");
     		computeKeyProp(rewrittenTree);
+    		STOP_TIMER("PropertyInference - Keys");
+
     		//exit(-1);
     		// Set TRUE for each Operator
+    		START_TIMER("PropertyInference - Set");
     		initializeSetProp(rewrittenTree);
     		// Set FALSE for root
     		setStringProperty((QueryOperator *) rewrittenTree, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
     		computeSetProp(rewrittenTree);
+            STOP_TIMER("PropertyInference - Set");
 
     		List *icols =  getAttrNames(GET_OPSCHEMA(root));
     		//char *a = (char *)getHeadOfListP(icols);
@@ -189,9 +199,13 @@ optimizeOneGraph (QueryOperator *root)
 				OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ);
     	DEBUG_LOG("callback = %d in loop %d",res,c);
     	c++;
+        START_TIMER("OptimizeModel - RemoveProperties");
+        ERROR_LOG("number of operators in tree: %d", numOpsInGraph(rewrittenTree));
     	emptyProperty(rewrittenTree);
+    	STOP_TIMER("OptimizeModel - RemoveProperties");
     }
-    return rewrittenTree;
+    FREE_MEM_CONTEXT_AND_RETURN_COPY(QueryOperator,rewrittenTree);
+//    return rewrittenTree;
 }
 
 QueryOperator *
@@ -329,9 +343,11 @@ removeUnnecessaryWindowOperator(QueryOperator *root)
 QueryOperator *
 removeUnnecessaryColumns(QueryOperator *root)
 {
-	initializeIColProp(root);
+	START_TIMER("PropertyInference - iCols");
+    initializeIColProp(root);
 	computeReqColProp(root);
 	printIcols(root);
+	STOP_TIMER("PropertyInference - iCols");
 	removeUnnecessaryColumnsFromProjections(root);
 
     return root;
@@ -429,7 +445,8 @@ printWindowAttrRefs(QueryOperator *op1)
 			attrRefs = concatTwoLists(partitionBy, orderBy);
 			attrRefs = concatTwoLists(attrRefs, frameDef);
 			attrRefs = concatTwoLists(attrRefs, f);
-			DEBUG_LOG("WINATTR %p: %s", (void *) op, beatify(nodeToString(attrRefs)));
+			DEBUG_LOG("WINATTR %p:", (void *) op);
+			DEBUG_NODE_BEATIFY_LOG("", attrRefs);
 		}
 
 	    printWindowAttrRefs(op);
@@ -439,11 +456,12 @@ printWindowAttrRefs(QueryOperator *op1)
 QueryOperator *
 removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 {
-
+    SET_BOOL_STRING_PROP(root, PROP_OPT_UNNECESSARY_COLS_REMOVED_DONE);
     if(root->inputs != NULL)
     {
         FOREACH(QueryOperator, op, root->inputs)
-            removeUnnecessaryColumnsFromProjections(op);
+            if(!HAS_STRING_PROP(op, PROP_OPT_UNNECESSARY_COLS_REMOVED_DONE))
+                removeUnnecessaryColumnsFromProjections(op);
     }
     List *cSchema = (root->inputs != NIL) ? OP_LCHILD(root)->schema->attrDefs : NIL;
 	Set *icols = (Set*) getStringProperty(root, PROP_STORE_SET_ICOLS);
@@ -972,10 +990,10 @@ removeRedundantDuplicateOperatorBySetWithInit(QueryOperator *root)
     //computeKeyProp(root);
 
     // Set TRUE for each Operator
-    initializeSetProp(root);
-    // Set FALSE for root
-    setStringProperty((QueryOperator *) root, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
-    computeSetProp(root);
+//    initializeSetProp(root);
+//    // Set FALSE for root
+//    setStringProperty((QueryOperator *) root, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
+//    computeSetProp(root);
 
 //    List *icols =  getAttrNames(GET_OPSCHEMA(root));
 //	//char *a = (char *)getHeadOfListP(icols);
@@ -1736,6 +1754,8 @@ selectionMoveAround(QueryOperator *root)
 */
 
 	computeECProp(root);
+//	if (TRUE)//TODO remove this once EC is fixed
+//	    return root;
 	introduceSelectionInMoveAround(root);
 
     return root;
@@ -1904,10 +1924,12 @@ removeUnnecessaryCond(QueryOperator *root, Operator *o)
 void
 introduceSelectionInMoveAround(QueryOperator *root)
 {
+    SET_BOOL_STRING_PROP(root, PROP_OPT_SELECTION_MOVE_AROUND_DONE);
 	if(root->inputs != NULL)
 	{
 		FOREACH(QueryOperator, op, root->inputs)
-		        		 introduceSelectionInMoveAround(op);
+		    if (!HAS_STRING_PROP(op, PROP_OPT_SELECTION_MOVE_AROUND_DONE))
+		        introduceSelectionInMoveAround(op);
 	}
 
 	List *ECcond = getMoveAroundOpList(root);
@@ -2161,6 +2183,8 @@ introduceSelection(Operator *o, QueryOperator *root)
 {
 	Node *newOp = (Node *)copyObject(o);
 	SelectionOperator *selectionOp = createSelectionOp(newOp, NULL, NIL, getAttrNames(root->schema));
+
+	SET_BOOL_STRING_PROP(selectionOp, PROP_OPT_SELECTION_MOVE_AROUND_DONE);
 
 	// Switch the subtree with this newly created projection
 	switchSubtrees((QueryOperator *) root, (QueryOperator *) selectionOp);

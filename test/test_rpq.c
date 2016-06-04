@@ -90,8 +90,8 @@ testRPQToDL(void)
     r = (Regex *) parseFromStringrpq("(a|b).c");
     dl = rpqToDatalog(r,RPQ_QUERY_PROV,"e","result");
 
-    DEBUG_LOG("%s", beatify(nodeToString(dl)));
-    INFO_LOG("%s", datalogToOverviewString(dl));
+    DEBUG_NODE_BEATIFY_LOG("", dl);
+    INFO_DL_LOG("", dl);
     INFO_LOG("%s", serializeOperatorModelDL(dl));
 
     return PASS;

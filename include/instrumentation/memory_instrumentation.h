@@ -17,7 +17,9 @@
 
 extern void setupMemInstrumentation(void);
 extern void shutdownMemInstrumentation(void);
-extern void addContext(char *name, int allocationSize, boolean acquired);
+extern void addContext(char *name, unsigned int allocationSize, boolean acquired);
+extern void addContextUnused(char *name, unsigned long unusedSize);
+extern void addContextChunkInfo(char *name, unsigned long newChunkSize);
 extern void outputMemstats(boolean showDetails);
 
 #endif /* MEMORY_INSTRUMENTATION_H_ */

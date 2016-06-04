@@ -28,6 +28,13 @@ static MemContext *ctx = NULL;
 #define KEY_TOTAL_SIZE "total_size"
 #define KEY_NUM_ALLOC "num_alloc"
 #define KEY_NUM_ACQUIRE "num_acquire"
+#define KEY_UNUSED_SIZE "unusedSize"
+#define KEY_NUM_CHUNKS "num_chunks"
+#define KEY_TOTAL_CHUNK_SIZE "total_chunk_size"
+
+static inline HashMap *getInfoHash(char *name);
+
+
 
 void
 setupMemInstrumentation(void)
@@ -49,16 +56,9 @@ shutdownMemInstrumentation(void)
     FREE_MEM_CONTEXT(ctx);
 }
 
-#define ADD_TO_LONG_ENTRY(_map,_key,_value) LONG_VALUE(MAP_GET_STRING(_map,_key)) += _value
-
-void
-addContext(char *name, int allocationSize, boolean acquired)
+static inline HashMap *
+getInfoHash(char *name)
 {
-    if (ctx == NULL)
-        return;
-
-    ACQUIRE_MEM_CONTEXT(ctx);
-
     HashMap *info = NULL;
 
     if (!MAP_HAS_STRING_KEY(ctxInfo,name))
@@ -69,15 +69,64 @@ addContext(char *name, int allocationSize, boolean acquired)
         MAP_ADD_STRING_KEY(info,KEY_TOTAL_SIZE, createConstLong(0L));
         MAP_ADD_STRING_KEY(info,KEY_NUM_ACQUIRE, createConstLong(0L));
         MAP_ADD_STRING_KEY(info,KEY_NUM_ALLOC, createConstLong(0L));
+        MAP_ADD_STRING_KEY(info,KEY_UNUSED_SIZE, createConstLong(0L));
+        MAP_ADD_STRING_KEY(info,KEY_NUM_CHUNKS, createConstLong(0L));
+        MAP_ADD_STRING_KEY(info,KEY_TOTAL_CHUNK_SIZE, createConstLong(0L));
     }
     else
         info = (HashMap *) MAP_GET_STRING(ctxInfo, name);
+
+    return info;
+}
+
+#define ADD_TO_LONG_ENTRY(_map,_key,_value) LONG_VALUE(MAP_GET_STRING(_map,_key)) += _value
+
+void
+addContext(char *name, unsigned int allocationSize, boolean acquired)
+{
+    if (ctx == NULL)
+        return;
+
+    ACQUIRE_MEM_CONTEXT(ctx);
+
+    HashMap *info = getInfoHash(name);
 
     ADD_TO_LONG_ENTRY(info,KEY_TOTAL_SIZE,allocationSize);
     if (acquired)
         ADD_TO_LONG_ENTRY(info,KEY_NUM_ACQUIRE,1);
     if (allocationSize != 0)
         ADD_TO_LONG_ENTRY(info,KEY_NUM_ALLOC,1);
+
+    RELEASE_MEM_CONTEXT();
+}
+
+void
+addContextUnused(char *name, unsigned long unusedSize)
+{
+    if (ctx == NULL)
+        return;
+
+    ACQUIRE_MEM_CONTEXT(ctx);
+
+    HashMap *info = getInfoHash(name);
+
+    ADD_TO_LONG_ENTRY(info,KEY_UNUSED_SIZE,unusedSize);
+
+    RELEASE_MEM_CONTEXT();
+}
+
+void
+addContextChunkInfo(char *name, unsigned long newChunkSize)
+{
+    if (ctx == NULL)
+        return;
+
+    ACQUIRE_MEM_CONTEXT(ctx);
+
+    HashMap *info = getInfoHash(name);
+
+    ADD_TO_LONG_ENTRY(info,KEY_NUM_CHUNKS,1);
+    ADD_TO_LONG_ENTRY(info,KEY_TOTAL_CHUNK_SIZE,newChunkSize);
 
     RELEASE_MEM_CONTEXT();
 }
@@ -105,13 +154,25 @@ outputMemstats(boolean showDetails)
         long numAlloc = LONG_VALUE(MAP_GET_STRING(i, KEY_NUM_ALLOC));
         long numAcquired = LONG_VALUE(MAP_GET_STRING(i, KEY_NUM_ACQUIRE));
         long totalSize = LONG_VALUE(MAP_GET_STRING(i, KEY_TOTAL_SIZE));
+        long numChunks = LONG_VALUE(MAP_GET_STRING(i, KEY_NUM_CHUNKS));
+        long totalChunkSize = LONG_VALUE(MAP_GET_STRING(i, KEY_TOTAL_CHUNK_SIZE));
+        long unusedSize = LONG_VALUE(MAP_GET_STRING(i, KEY_UNUSED_SIZE));
 
-        printf("mem-context: %*s - total MB allocated: %12f | was acquired %9ld times | total number of allocations: %9ld \n",
+        printf("mem-context: %*s - total allocated MB: %12f "
+                "| #acquired %9ld "
+                "| #allocations: %9ld "
+                "| context uses: %12f MB "
+                "| #chunks:  %9ld "
+                "| lost mem: %12f MB"
+                "\n",
                 maxTimerNameLength,
                 name,
                 ((double) totalSize) / 1000000.0,
                 numAcquired,
-                numAlloc
+                numAlloc,
+                ((double) totalChunkSize) / 1000000.0,
+                numChunks,
+                ((double) unusedSize) / 1000000.0
                 );
     }
 

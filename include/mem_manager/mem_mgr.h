@@ -47,10 +47,21 @@ typedef struct Allocation
     UT_hash_handle hh;
 } Allocation;
 
+#define DEFAULT_CHUNK_SIZE 1024 * 1024
+#define INIT_CHUNK_ARRAY_SIZE 256
+
 typedef struct MemContext
 {
     char *contextName;
     Allocation *hashAlloc;
+    char **chunks;
+    unsigned long *chunkSizes;
+    unsigned int numChunks;
+    unsigned int curChunkArraySize;
+    unsigned long memLeftInChunk;
+    char *curAllocPos;
+    long unusedBytes;
+    long freedUnusedBytes;
 } MemContext;
 
 /*
