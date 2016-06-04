@@ -96,12 +96,12 @@ optimizeOneGraph (QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
     int numHeuOptItens = getIntOption(OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS);
-=======
-    NEW_AND_ACQUIRE_MEMCONTEXT("HEURISTIC OPTIMIZER CONTEXT");
-
->>>>>>> DLsupport
+//=======
+//    NEW_AND_ACQUIRE_MEMCONTEXT("HEURISTIC OPTIMIZER CONTEXT");
+//
+//>>>>>>> DLsupport
     int res;
     int c = 0;
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
