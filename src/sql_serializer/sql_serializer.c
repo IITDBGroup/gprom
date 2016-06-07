@@ -38,15 +38,21 @@ static SqlserializerPlugin *assembleDLPlugin(void);
 char *
 serializeOperatorModel(Node *q)
 {
+    char *result;
     ASSERT(plugin);
-    return plugin->serializeOperatorModel(q);
+    NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER_CONTEXT");
+    result = plugin->serializeOperatorModel(q);
+    FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }
 
 char *
 serializeQuery(QueryOperator *q)
 {
+    char *result;
     ASSERT(plugin);
-    return plugin->serializeQuery(q);
+    NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER_CONTEXT");
+    result = plugin->serializeQuery(q);
+    FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
 }
 
 
