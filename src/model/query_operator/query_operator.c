@@ -1125,8 +1125,12 @@ boolean
 visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context)
 {
+    boolean result = FALSE;
+    NEW_AND_ACQUIRE_MEMCONTEXT("QO_GRAPH_VISITOR_CONTEXT");
     Set *haveSeen = PSET();
-    return internalVisitQOGraph(q, tOrder, visitF, context, haveSeen);
+    result = internalVisitQOGraph(q, tOrder, visitF, context, haveSeen);
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+    return result;
 }
 
 static boolean
@@ -1140,8 +1144,13 @@ internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
     {
         if (!hasSetElem(haveSeen, c))
         {
+            boolean result = FALSE;
+            MemContext *ctxt;
             addToSet(haveSeen, c);
-            if (!internalVisitQOGraph(c, tOrder, visitF, context, haveSeen))
+            ctxt = RELEASE_MEM_CONTEXT();
+            result = internalVisitQOGraph(c, tOrder, visitF, context, haveSeen);
+            ACQUIRE_MEM_CONTEXT(ctxt);
+            if (!result)
                 return FALSE;
         }
     }

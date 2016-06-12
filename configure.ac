@@ -107,7 +107,7 @@ AS_IF([test "x$enable_logging" == "xno"], [
 ])
 # Link with google perftools libary
 AC_DEFUN([AC_LINK_PERFTOOLS],
-[AC_ARG_ENABLE(link-perftools, AS_HELP_STRING([--enable-perftools],[Link against google perftools library]))
+[AC_ARG_ENABLE(link-perftools, AS_HELP_STRING([--enable-link-perftools],[Link against google perftools library]))
 AC_MSG_CHECKING([should be linked with google profile library])
 
 AS_IF([test "x$enable_link_perftools" == "xyes"], [
@@ -118,6 +118,18 @@ AS_IF([test "x$enable_link_perftools" == "xyes"], [
 
 AS_IF([test "x$enable_link_perftools" == "xyes"], [
 	AC_CHECK_LIB([profiler],[ProfilerStart],[],[AC_MSG_ERROR([missing google perftools libprofiler])])
+])
+])
+# Activate gprof profiling
+AC_DEFUN([AC_ENABLE_GPROF],
+[AC_ARG_ENABLE(gprof, AS_HELP_STRING([--enable-gprof],[activate profiling with gprof]))
+AC_MSG_CHECKING([activate profiling with gprof])
+
+AS_IF([test "x$enable_gprof" == "xyes"], [
+  AC_MSG_RESULT([yes])
+  CPPFLAGS="$CPPFLAGS -pg"
+],[
+  AC_MSG_RESULT([no])
 ])
 ])
 # enable or disable assertions
@@ -356,6 +368,7 @@ AC_CHECK_LIB([m],[pow],[],[
 # enable/disable features
 AC_LOGGING_ACTIVE
 AC_LINK_PERFTOOLS
+AC_ENABLE_GPROF
 AC_ASSERT_ACTIVE
 AC_DEBUG_ACTIVE
 AC_TIMING_ACTIVE
@@ -413,7 +426,7 @@ echo "
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   Prefix.............: $prefix
   Debug Build........: ${enable_debug:=yes}
-  Link with GNU perftools: ${enable_link_perftools:=no}
+  Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no} 
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes}
   Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}
   Language bindings..: Java - ${enable_java:=yes}
