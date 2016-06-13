@@ -157,8 +157,14 @@ serializeOperatorModelOracle(Node *q)
     char *result = NULL;
 
     // quote ident names if necessary
-    ASSERT(IS_OP(q));
-    visitQOGraph((QueryOperator *) q, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
+    ASSERT(IS_OP(q) || isA(q,List));
+    if (isA(q,List))
+    {
+        FOREACH(QueryOperator,el, (List *) q)
+            visitQOGraph((QueryOperator *) el, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
+    }
+    else
+        visitQOGraph((QueryOperator *) q, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
 
     // shorten attribute names to confrom with Oracle limits
     if (IS_OP(q))
