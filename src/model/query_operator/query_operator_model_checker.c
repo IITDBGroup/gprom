@@ -175,7 +175,7 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
         childA = getAttrDefByPos(child, attrPos);
         if (strcmp(childA->attrName, a->name) != 0)
         {
-            ERROR_NODE_BEATIFY_LOG("attribute ref name and child attrdef names are not the "
+            ERROR_LOG("attribute ref name and child attrdef names are not the "
                     "same:", childA->attrName, a->name);
             ERROR_OP_LOG("parent is",parent);
             DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
@@ -209,6 +209,12 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
 static boolean
 checkSchemaConsistency (QueryOperator *op, void *context)
 {
+    if (LIST_LENGTH(op->schema->attrDefs) == 0)
+    {
+        ERROR_OP_LOG("Cannot have an operator with no result attributes", op);
+        return FALSE;
+    }
+
     switch(op->type)
     {
         case T_ProjectionOperator:
