@@ -186,6 +186,7 @@ extern Constant *createConstInt (int value);
 extern Constant *createConstLong (long value);
 extern Constant *createConstString (char *value);
 extern Constant *createConstFloat (double value);
+extern Constant *createConstBoolFromString (char *v);
 extern Constant *createConstBool (boolean value);
 extern Constant *createNullConst (DataType dt);
 #define INT_VALUE(_c) *((int *) ((Constant *) _c)->value)

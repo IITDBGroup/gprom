@@ -72,7 +72,7 @@ whitespace		({space}+|{comment})
 integer 		[0-9]+
 decimal 		({integer}*\.{integer}+|{integer}+\.{integer}*)
 float 			(({integer}|{decimal})([eE][+-]?{integer})?)
-
+bool			("TRUE"|"FALSE")
 /* names (e.g., tables, attributes) */
 identStart		[A-Za-z]
 identContinue	[A-Za-z0-9_%?]
@@ -87,7 +87,7 @@ parameters		[:]({identifiers}|{integer})
 /* operators */
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
-/*shiftsOps		["<<"|">>"] */
+/*shiftsOps		("<<"|">>") */
 /* string concatenation */
 strconcat		"||"
 
@@ -201,6 +201,8 @@ strconcat		"||"
 (?i:NO)				TOK(NO)
 (?i:CAST)			TOK(CAST)
 
+	/* booleans */
+{bool}			TOK(boolConst)
 
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)

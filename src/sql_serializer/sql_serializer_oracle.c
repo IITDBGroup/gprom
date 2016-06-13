@@ -355,7 +355,7 @@ makeDTOracleConformant(QueryOperator *q)
 static boolean
 replaceNonOracleDTsVisitQO (QueryOperator *node, void *context)
 {
-    replaceNonOracleDTs((Node *) node, context);
+    replaceNonOracleDTs((Node *) node, node);
     return TRUE;
 }
 
@@ -366,7 +366,7 @@ replaceNonOracleDTs (Node *node, void *context)
         return TRUE;
 
     if (node != context && IS_OP(node))
-        return FALSE;
+        return TRUE;
 
     //TODO keep context
     //TODO take care of boolean expressions that are used where Oracle expects

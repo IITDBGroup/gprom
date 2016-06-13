@@ -346,6 +346,17 @@ createConstFloat (double value)
 }
 
 Constant *
+createConstBoolFromString (char *v)
+{
+    if (streq(v,"TRUE") || streq(v,"t") || streq(v,"true"))
+        return createConstBool(TRUE);
+    if (streq(v,"FALSE") || streq(v,"f") || streq(v,"false"))
+        return createConstBool(FALSE);
+    FATAL_LOG("not a boolean value %s", v);
+    return FALSE; //keep compiler quiet
+}
+
+Constant *
 createConstBool (boolean value)
 {
     Constant *result = makeNode(Constant);
