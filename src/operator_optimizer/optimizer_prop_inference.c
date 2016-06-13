@@ -1857,6 +1857,10 @@ removePropsVisitor(QueryOperator *op, void *context)
     removeStringProperty(op, PROP_STORE_SET_EC);
     removeStringProperty(op, PROP_STORE_DUP_MARK);
     removeStringProperty(op, PROP_STORE_MERGE_DONE);
+    removeStringProperty(op, PROP_STORE_REMOVE_RED_PROJ_DONE);
+    removeStringProperty(op, PROP_STORE_REMOVE_RED_DUP_BY_KEY_DONE);
+    removeStringProperty(op, PROP_OPT_REMOVE_RED_DUP_BY_SET_DONE);
+    removeStringProperty(op, PROP_OPT_REMOVE_RED_WIN_DONW);
 
     return TRUE;
 }

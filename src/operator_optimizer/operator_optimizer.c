@@ -77,6 +77,8 @@ static void resetPos(AttributeReference *ar,  List* attrDefs);
 static boolean internalMaterializeProjectionSequences (QueryOperator *root, void *context);
 static QueryOperator *mergeAdjacentOperatorInternal (QueryOperator *root);
 static QueryOperator *removeRedundantProjectionsInternal(QueryOperator *root);
+static QueryOperator *removeRedundantDuplicateOperatorByKeyInternal(QueryOperator *root);
+static QueryOperator *removeUnnecessaryWindowOperatorInternal(QueryOperator *root);
 
 
 Node  *
@@ -307,6 +309,14 @@ upCheckResetPos(QueryOperator *op)
 QueryOperator *
 removeUnnecessaryWindowOperator(QueryOperator *root)
 {
+    root = removeUnnecessaryWindowOperatorInternal(root);
+    removeProp(root, PROP_OPT_REMOVE_RED_WIN_DONW);
+    return root;
+}
+
+static QueryOperator *
+removeUnnecessaryWindowOperatorInternal(QueryOperator *root)
+{
 	if(isA(root, WindowOperator))
 	{
 		Set *icols = (Set *) getStringProperty(root, PROP_STORE_SET_ICOLS);
@@ -353,8 +363,11 @@ removeUnnecessaryWindowOperator(QueryOperator *root)
         }
     }
 
+	SET_BOOL_STRING_PROP(root,PROP_OPT_REMOVE_RED_WIN_DONW);
+
 	FOREACH(QueryOperator, o, root->inputs)
-	      removeUnnecessaryWindowOperator(o);
+	    if (!GET_BOOL_STRING_PROP(o,PROP_OPT_REMOVE_RED_WIN_DONW))
+	        removeUnnecessaryWindowOperatorInternal(o);
 
 	return root;
 }
@@ -1006,21 +1019,8 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 QueryOperator *
 removeRedundantDuplicateOperatorBySetWithInit(QueryOperator *root)
 {
-    //computeKeyProp(root);
-
-    // Set TRUE for each Operator
-//    initializeSetProp(root);
-//    // Set FALSE for root
-//    setStringProperty((QueryOperator *) root, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
-//    computeSetProp(root);
-
-//    List *icols =  getAttrNames(GET_OPSCHEMA(root));
-//	//char *a = (char *)getHeadOfListP(icols);
-//	Set *seticols = MAKE_STR_SET(strdup((char *)getHeadOfListP(icols)));
-//	FOREACH(char, a, icols)
-//		addToSet (seticols, a);
-
-	root = removeRedundantDuplicateOperatorBySet(root);
+    root = removeRedundantDuplicateOperatorBySet(root);
+	removeProp(root, PROP_OPT_REMOVE_RED_DUP_BY_SET_DONE);
 
 	return root;
 }
@@ -1058,15 +1058,26 @@ removeRedundantDuplicateOperatorBySet(QueryOperator *root)
         }
     }
 
+    SET_BOOL_STRING_PROP(root, PROP_OPT_REMOVE_RED_DUP_BY_SET_DONE);
+
     FOREACH(QueryOperator, o, root->inputs)
-        removeRedundantDuplicateOperatorBySet(o);
+        if (!GET_BOOL_STRING_PROP(o, PROP_OPT_REMOVE_RED_DUP_BY_SET_DONE))
+                removeRedundantDuplicateOperatorBySet(o);
 
     return root;
 }
 
-
 QueryOperator *
 removeRedundantDuplicateOperatorByKey(QueryOperator *root)
+{
+    root = removeRedundantDuplicateOperatorByKeyInternal(root);
+    removeProp(root, PROP_STORE_REMOVE_RED_DUP_BY_KEY_DONE);
+    return root;
+}
+
+
+static QueryOperator *
+removeRedundantDuplicateOperatorByKeyInternal(QueryOperator *root)
 {
     QueryOperator *lChild = OP_LCHILD(root);
 
@@ -1085,8 +1096,11 @@ removeRedundantDuplicateOperatorByKey(QueryOperator *root)
         }
     }
 
+    SET_BOOL_STRING_PROP(root, PROP_STORE_REMOVE_RED_DUP_BY_KEY_DONE);
+
     FOREACH(QueryOperator, o, root->inputs)
-        removeRedundantDuplicateOperatorByKey(o);
+        if (!GET_BOOL_STRING_PROP(root, PROP_STORE_REMOVE_RED_DUP_BY_KEY_DONE))
+            removeRedundantDuplicateOperatorByKeyInternal(o);
 
     return root;
 }
@@ -1095,7 +1109,7 @@ QueryOperator *
 pullUpDuplicateRemoval(QueryOperator *root)
 {
 //    if (!HAS_STRING_PROP(root, PROP_STORE_LIST_KEY))
-        computeKeyProp(root); //Boris: this repeatively computes the key prop
+        computeKeyProp(root); //TODO Boris: this repeatively computes the key prop
 
     List *drOp = NULL;
     findDuplicateRemoval(&drOp, root);
@@ -1113,14 +1127,15 @@ pullUpDuplicateRemoval(QueryOperator *root)
 void
 findDuplicateRemoval(List **drOp, QueryOperator *root)
 {
-	if(isA(root, DuplicateRemoval) && !HAS_STRING_PROP(root, PROP_STORE_DUP_MARK))
+    SET_BOOL_STRING_PROP(root, PROP_STORE_DUP_MARK);
+	if(isA(root, DuplicateRemoval))
 	{
 		*drOp = appendToTailOfList(*drOp, (DuplicateRemoval *)root);
-		SET_BOOL_STRING_PROP(root, PROP_STORE_DUP_MARK);
 	}
 
 	FOREACH(QueryOperator, op, root->inputs)
-	      findDuplicateRemoval(drOp, op);
+	    if (!HAS_STRING_PROP(op, PROP_STORE_DUP_MARK))
+	        findDuplicateRemoval(drOp, op);
 }
 
 void
