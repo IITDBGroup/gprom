@@ -194,7 +194,8 @@ optimizeOneGraph (QueryOperator *root)
     	DEBUG_LOG("callback = %d in loop %d",res,c);
     	c++;
         START_TIMER("OptimizeModel - RemoveProperties");
-        ERROR_LOG("number of operators in tree: %d", numOpsInGraph(rewrittenTree));
+        ERROR_LOG("number of operators in graph: %d", numOpsInGraph(rewrittenTree));
+        INFO_LOG("number of operators in tree: %d", numOpsInTree(rewrittenTree));
     	emptyProperty(rewrittenTree);
     	STOP_TIMER("OptimizeModel - RemoveProperties");
     }
@@ -1158,22 +1159,24 @@ doPullUpDuplicateRemoval(DuplicateRemoval *root)
     DEBUG_LOG("count = %d\n",count);
     if(count != 0)
     {
-    int countrolNum = callback(count);
-    if(countrolNum == -1)
-    	countrolNum = 0;
-    /*
-     * if count = 3, countrolNum = callback(3)
-     * (1) countrolNum = 0, DR pull up 1 layer
-     * (2) countrolNum = 1, DR pull up 2 layer
-     * (3) countrolNum = 2, DR pull up 3 layer
-     * Will skip the layer which don't has key
-     */
-    DEBUG_LOG("countrolNum %d", countrolNum);
-    QueryOperator *newOp = (QueryOperator *)root;
-    QueryOperator *child = OP_LCHILD(root);
-    for(int i=0; i<=countrolNum; i++)
-    {
-/*    	//Make sure the new parent has key
+        int countrolNum = count;
+        if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+            callback(count);
+        if(countrolNum == -1)
+            countrolNum = 0;
+        /*
+         * if count = 3, countrolNum = callback(3)
+         * (1) countrolNum = 0, DR pull up 1 layer
+         * (2) countrolNum = 1, DR pull up 2 layer
+         * (3) countrolNum = 2, DR pull up 3 layer
+         * Will skip the layer which don't has key
+         */
+        DEBUG_LOG("countrolNum %d", countrolNum);
+        QueryOperator *newOp = (QueryOperator *)root;
+        QueryOperator *child = OP_LCHILD(root);
+        for(int i=0; i<=countrolNum; i++)
+        {
+            /*    	//Make sure the new parent has key
     	while(TRUE)
     	{
     		keyList = NIL;
@@ -1189,19 +1192,19 @@ doPullUpDuplicateRemoval(DuplicateRemoval *root)
     			break;
 
     	}*/
-    	if(LIST_LENGTH(newOp->parents) == 1)
-    		newOp = ((QueryOperator *) getHeadOfListP(newOp->parents));
-    	else
-    		break;
-    }
-    switchSubtrees((QueryOperator *) root, (QueryOperator *) child);
-    switchSubtrees((QueryOperator *) newOp, (QueryOperator *) root);
+            if(LIST_LENGTH(newOp->parents) == 1)
+                newOp = ((QueryOperator *) getHeadOfListP(newOp->parents));
+            else
+                break;
+        }
+        switchSubtrees((QueryOperator *) root, (QueryOperator *) child);
+        switchSubtrees((QueryOperator *) newOp, (QueryOperator *) root);
 
-    root->op.inputs = NIL;
-    newOp->parents = NIL;
-	addChildOperator((QueryOperator *) root, (QueryOperator *) newOp);
+        root->op.inputs = NIL;
+        newOp->parents = NIL;
+        addChildOperator((QueryOperator *) root, (QueryOperator *) newOp);
 
-	root->op.schema->attrDefs = OP_LCHILD(root)->schema->attrDefs;
+        root->op.schema->attrDefs = OP_LCHILD(root)->schema->attrDefs;
     }
 }
 
