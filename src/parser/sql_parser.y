@@ -48,6 +48,7 @@ Node *bisonParseResult = NULL;
 %token <intVal> intConst
 %token <floatVal> floatConst
 %token <stringVal> stringConst
+%token <stringVal> boolConst
 %token <stringVal> identifier compositeIdentifier
 %token <stringVal> parameter
 %token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' comparisonOps ')' '(' '='
@@ -605,7 +606,8 @@ expression:
 constant: 
         intConst            { RULELOG("constant::INT"); $$ = (Node *) createConstInt($1); }
         | floatConst        { RULELOG("constant::FLOAT"); $$ = (Node *) createConstFloat($1); }
-        | stringConst        { RULELOG("constant::STRING"); $$ = (Node *) createConstString($1); }
+        | stringConst       { RULELOG("constant::STRING"); $$ = (Node *) createConstString($1); }
+        | boolConst			{ RULELOG("constant::BOOL"); $$ = (Node *) createConstBoolFromString($1); }
     ;
             
 /*

@@ -288,5 +288,6 @@ extern boolean visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context),
         void *context);
 extern unsigned int numOpsInGraph (QueryOperator *root);
+extern unsigned int numOpsInTree (QueryOperator *root);
 
 #endif /* QUERY_OPERATOR_H_ */

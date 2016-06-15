@@ -44,7 +44,7 @@ static List *getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, L
 static Node *replaceDLVarMutator (Node *node, HashMap *vToA);
 static Node *createCondFromComparisons (List *comparisons, QueryOperator *in, HashMap *varDTmap);
 static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
-static void adaptProjectionAttrRef (QueryOperator *o);
+static boolean adaptProjectionAttrRef (QueryOperator *o, void *context);
 
 static Node *replaceVarWithAttrRef(Node *node, List *context);
 boolean castChecker = FALSE; // check if cast is needed between "DOMAIN" and "REL"
@@ -1865,14 +1865,14 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
         }
 
         qoRoots = appendToTailOfList(qoRoots, root);
-        adaptProjectionAttrRef(root);
+        visitQOGraph(root, TRAVERSAL_PRE, adaptProjectionAttrRef, NULL);
     }
 
     return qoRoots;
 }
 
-static void
-adaptProjectionAttrRef (QueryOperator *o)
+static boolean
+adaptProjectionAttrRef (QueryOperator *o, void *context)
 {
     if(isA(o,ProjectionOperator))
     {
@@ -1895,7 +1895,9 @@ adaptProjectionAttrRef (QueryOperator *o)
         }
     }
 
-    FOREACH(QueryOperator,c,o->inputs)
-        adaptProjectionAttrRef(c);
+//    FOREACH(QueryOperator,c,o->inputs)
+//        adaptProjectionAttrRef(c);
+
+    return TRUE;
 }
 

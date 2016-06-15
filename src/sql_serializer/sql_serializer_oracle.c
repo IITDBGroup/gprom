@@ -114,9 +114,12 @@ static TemporaryViewMap *viewMap;
 static int viewNameCounter;
 
 /* method declarations */
+static boolean quoteAttributeNamesVisitQO (QueryOperator *op, void *context);
 static boolean quoteAttributeNames (Node *node, void *context);
 
+
 static void  makeDTOracleConformant(QueryOperator *q);
+static boolean replaceNonOracleDTsVisitQO (QueryOperator *node, void *context);
 static boolean replaceNonOracleDTs (Node *node, void *context);
 
 static List *serializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent);
@@ -142,7 +145,7 @@ static char *createAttrName(char *name, int fItem);
 
 static List *createTempView(QueryOperator *q, StringInfo str, QueryOperator *parent);
 static char *createViewName(void);
-static void shortenAttributeNames(QueryOperator *q);
+static boolean shortenAttributeNames(QueryOperator *q, void *context);
 static inline char *getShortAttr(char *newName, int id, boolean quoted);
 static void fixAttrReferences (QueryOperator *q);
 
@@ -153,15 +156,21 @@ serializeOperatorModelOracle(Node *q)
     StringInfo str = makeStringInfo();
     char *result = NULL;
 
-
-
     // quote ident names if necessary
-    quoteAttributeNames(q, NULL);
+    ASSERT(IS_OP(q) || isA(q,List));
+    if (isA(q,List))
+    {
+        FOREACH(QueryOperator,el, (List *) q)
+            visitQOGraph((QueryOperator *) el, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
+    }
+    else
+        visitQOGraph((QueryOperator *) q, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
 
+    // shorten attribute names to confrom with Oracle limits
     if (IS_OP(q))
     {
         // shorten attribute names to oracle's 30 char limit
-        shortenAttributeNames((QueryOperator *) q);
+        visitQOGraph((QueryOperator *) q, TRAVERSAL_PRE,shortenAttributeNames, NULL);
         appendStringInfoString(str, serializeQueryOracle((QueryOperator *) q));
         appendStringInfoChar(str,';');
     }
@@ -169,7 +178,7 @@ serializeOperatorModelOracle(Node *q)
         FOREACH(QueryOperator,o,(List *) q)
         {
             // shorten attribute names to oracle's 30 char limit
-            shortenAttributeNames(o);
+            visitQOGraph(o, TRAVERSAL_PRE,shortenAttributeNames, NULL);
             appendStringInfoString(str, serializeQueryOracle(o));
             appendStringInfoString(str,";\n\n");
         }
@@ -181,15 +190,14 @@ serializeOperatorModelOracle(Node *q)
     return result;
 }
 
-static void
-shortenAttributeNames(QueryOperator *q)
+static boolean
+shortenAttributeNames(QueryOperator *q, void *context)
 {
     Set *newAttrNames = STRSET();
     List *attrs = q->schema->attrDefs;
 
-    FOREACH(QueryOperator,child,q->inputs)
-        shortenAttributeNames(child);
-
+//    FOREACH(QueryOperator,child,q->inputs)
+//        shortenAttributeNames(child);
     fixAttrReferences(q);
 
     FOREACH(AttributeDef,a,attrs)
@@ -218,6 +226,8 @@ shortenAttributeNames(QueryOperator *q)
             a->attrName = strdup(newName);
         }
     }
+
+    return TRUE;
 }
 
 static inline char*
@@ -249,9 +259,19 @@ fixAttrReferences (QueryOperator *q)
 }
 
 static boolean
+quoteAttributeNamesVisitQO (QueryOperator *op, void *context)
+{
+    return quoteAttributeNames((Node *) op, op);
+}
+
+static boolean
 quoteAttributeNames (Node *node, void *context)
 {
     if (node == NULL)
+        return TRUE;
+
+    // do not traverse into query operator nodes to avoid repeated traversal of paths in the graph
+    if (node != context && IS_OP(node))
         return TRUE;
 
     if (isA(node, AttributeReference))
@@ -329,13 +349,23 @@ serializeQueryOracle(QueryOperator *q)
 static void
 makeDTOracleConformant(QueryOperator *q)
 {
-    replaceNonOracleDTs((Node *) q, NULL);
+    visitQOGraph(q, TRAVERSAL_PRE, replaceNonOracleDTsVisitQO, q);
+}
+
+static boolean
+replaceNonOracleDTsVisitQO (QueryOperator *node, void *context)
+{
+    replaceNonOracleDTs((Node *) node, node);
+    return TRUE;
 }
 
 static boolean
 replaceNonOracleDTs (Node *node, void *context)
 {
     if (node == NULL)
+        return TRUE;
+
+    if (node != context && IS_OP(node))
         return TRUE;
 
     //TODO keep context

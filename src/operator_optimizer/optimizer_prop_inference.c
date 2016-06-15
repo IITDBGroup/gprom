@@ -24,6 +24,7 @@
 static List *attrRefListToStringList (List *input);
 static List *removeContainedKeys(List *keys);
 static boolean removePropsVisitor(QueryOperator *op, void *context);
+static boolean removeOnePropVisitor(QueryOperator *op, void *context);
 static boolean printIcolsVisitor(QueryOperator *op, void *context);
 static boolean printECProVisitor(QueryOperator *root, void *context);
 
@@ -1825,48 +1826,26 @@ void
 emptyProperty(QueryOperator *root)
 {
     visitQOGraph(root, TRAVERSAL_PRE, removePropsVisitor, NULL);
-//	FOREACH(QueryOperator, o, root->inputs)
-//	{
-//		/* empty every  property for this operator */
-//		if(HAS_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP))
-//			setStringProperty(o, PROP_PROJ_PROV_ATTR_DUP, NULL);
-//
-//		if(HAS_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP_PULLUP))
-//			setStringProperty(o, PROP_PROJ_PROV_ATTR_DUP_PULLUP, NULL);
-//
-//		if(HAS_STRING_PROP(o, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND))
-//			setStringProperty(o, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND, NULL);
-//
-//		if(HAS_STRING_PROP(o, PROP_MERGE_ATTR_REF_CNTS))
-//			setStringProperty(o, PROP_MERGE_ATTR_REF_CNTS, NULL);
-//
-//		if(HAS_STRING_PROP(o, PROP_STORE_LIST_KEY))
-//			setStringProperty(o, PROP_STORE_LIST_KEY, NULL);
-//
-//		if(HAS_STRING_PROP(o, PROP_STORE_BOOL_SET))
-//			setStringProperty(o, PROP_STORE_BOOL_SET, NULL);
-//
-//		if(HAS_STRING_PROP(o, PROP_STORE_SET_ICOLS))
-//			setStringProperty(o, PROP_STORE_SET_ICOLS, NULL);
-//
-//		if(HAS_STRING_PROP(o, PROP_STORE_LIST_SCHEMA_NAMES))
-//			setStringProperty(o, PROP_STORE_LIST_SCHEMA_NAMES, NULL);
-//
-//		if(HAS_STRING_PROP(o, PROP_STORE_SET_EC))
-//			setStringProperty(o, PROP_STORE_SET_EC, NULL);
-//
-//		if(HAS_STRING_PROP(o, PROP_STORE_DUP_MARK))
-//			setStringProperty(o,PROP_STORE_DUP_MARK,NULL);
-//
-//		emptyProperty(o);
-//	}
+}
+
+void
+removeProp(QueryOperator *op, char *prop)
+{
+    visitQOGraph(op, TRAVERSAL_PRE, removeOnePropVisitor, prop);
+}
+
+static boolean
+removeOnePropVisitor(QueryOperator *op, void *context)
+{
+    char *prop = (char *) context;
+    removeStringProperty(op, prop);
+    return TRUE;
 }
 
 static boolean
 removePropsVisitor(QueryOperator *op, void *context)
 {
     /* remove every property we use for optimization for this operator */
-
     removeStringProperty(op, PROP_PROJ_PROV_ATTR_DUP);
     removeStringProperty(op, PROP_PROJ_PROV_ATTR_DUP_PULLUP);
     removeStringProperty(op, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND);
@@ -1877,37 +1856,11 @@ removePropsVisitor(QueryOperator *op, void *context)
     removeStringProperty(op, PROP_STORE_LIST_SCHEMA_NAMES);
     removeStringProperty(op, PROP_STORE_SET_EC);
     removeStringProperty(op, PROP_STORE_DUP_MARK);
-//    removeStringProperty(op, );
-//
-//    if(HAS_STRING_PROP(op, PROP_PROJ_PROV_ATTR_DUP))
-//        setStringProperty(op, PROP_PROJ_PROV_ATTR_DUP, NULL);
-//
-//    if(HAS_STRING_PROP(op, PROP_PROJ_PROV_ATTR_DUP_PULLUP))
-//        setStringProperty(op, PROP_PROJ_PROV_ATTR_DUP_PULLUP, NULL);
-//
-//    if(HAS_STRING_PROP(op, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND))
-//        setStringProperty(op, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND, NULL);
-//
-//    if(HAS_STRING_PROP(op, PROP_MERGE_ATTR_REF_CNTS))
-//        setStringProperty(op, PROP_MERGE_ATTR_REF_CNTS, NULL);
-//
-//    if(HAS_STRING_PROP(op, PROP_STORE_LIST_KEY))
-//        setStringProperty(op, PROP_STORE_LIST_KEY, NULL);
-//
-//    if(HAS_STRING_PROP(op, PROP_STORE_BOOL_SET))
-//        setStringProperty(op, PROP_STORE_BOOL_SET, NULL);
-//
-//    if(HAS_STRING_PROP(op, PROP_STORE_SET_ICOLS))
-//        setStringProperty(op, PROP_STORE_SET_ICOLS, NULL);
-//
-//    if(HAS_STRING_PROP(op, PROP_STORE_LIST_SCHEMA_NAMES))
-//        setStringProperty(op, PROP_STORE_LIST_SCHEMA_NAMES, NULL);
-//
-//    if(HAS_STRING_PROP(op, PROP_STORE_SET_EC))
-//        setStringProperty(op, PROP_STORE_SET_EC, NULL);
-//
-//    if(HAS_STRING_PROP(op, PROP_STORE_DUP_MARK))
-//        setStringProperty(op,PROP_STORE_DUP_MARK,NULL);
+    removeStringProperty(op, PROP_STORE_MERGE_DONE);
+    removeStringProperty(op, PROP_STORE_REMOVE_RED_PROJ_DONE);
+    removeStringProperty(op, PROP_STORE_REMOVE_RED_DUP_BY_KEY_DONE);
+    removeStringProperty(op, PROP_OPT_REMOVE_RED_DUP_BY_SET_DONE);
+    removeStringProperty(op, PROP_OPT_REMOVE_RED_WIN_DONW);
 
     return TRUE;
 }

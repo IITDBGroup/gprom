@@ -20,12 +20,11 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "model/set/set.h"
 #include "model/query_operator/operator_property.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
 
-
-//static Schema *mergeSchemas (List *inputs);
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
-//static boolean KeyValueKeyEqString (void *kv, void *str);
+static unsigned numOpsInTreeInternal (QueryOperator *q, unsigned int *count);
 static boolean countUniqueOpsVisitor(QueryOperator *op, void *context);
 static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context,
@@ -1125,8 +1124,12 @@ boolean
 visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context)
 {
+    boolean result = FALSE;
+    NEW_AND_ACQUIRE_MEMCONTEXT("QO_GRAPH_VISITOR_CONTEXT");
     Set *haveSeen = PSET();
-    return internalVisitQOGraph(q, tOrder, visitF, context, haveSeen);
+    result = internalVisitQOGraph(q, tOrder, visitF, context, haveSeen);
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+    return result;
 }
 
 static boolean
@@ -1140,8 +1143,13 @@ internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
     {
         if (!hasSetElem(haveSeen, c))
         {
+            boolean result = FALSE;
+            MemContext *ctxt;
             addToSet(haveSeen, c);
-            if (!internalVisitQOGraph(c, tOrder, visitF, context, haveSeen))
+            ctxt = RELEASE_MEM_CONTEXT();
+            result = internalVisitQOGraph(c, tOrder, visitF, context, haveSeen);
+            ACQUIRE_MEM_CONTEXT(ctxt);
+            if (!result)
                 return FALSE;
         }
     }
@@ -1163,6 +1171,7 @@ numOpsInGraph (QueryOperator *root)
     return INT_VALUE(c);
 }
 
+
 static boolean
 countUniqueOpsVisitor(QueryOperator *op, void *context)
 {
@@ -1177,6 +1186,37 @@ countUniqueOpsVisitor(QueryOperator *op, void *context)
     }
     return TRUE;
 }
+
+#define PROP_CHILD_COUNT "CC"
+
+unsigned int
+numOpsInTree (QueryOperator *root)
+{
+    unsigned int result = 0;
+    NEW_AND_ACQUIRE_MEMCONTEXT("QO_GRAPH_VISITOR_CONTEXT");
+    numOpsInTreeInternal(root, &result);
+    removeProp(root, PROP_CHILD_COUNT);
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+    return result;
+}
+
+static unsigned int
+numOpsInTreeInternal (QueryOperator *q, unsigned int *count)
+{
+    unsigned int opC = 1;
+    if (HAS_STRING_PROP(q, PROP_CHILD_COUNT))
+    {
+        opC = INT_VALUE(GET_STRING_PROP(q, PROP_CHILD_COUNT));
+        (*count) += opC;
+        return opC;
+    }
+
+    FOREACH(QueryOperator,c,q->inputs)
+        opC += numOpsInTreeInternal(c, count);
+    SET_STRING_PROP(q, PROP_CHILD_COUNT, createConstInt(opC));
+    return opC;
+}
+
 
 //static Schema *
 //mergeSchemas (List *inputs)

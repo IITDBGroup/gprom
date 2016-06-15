@@ -21,6 +21,7 @@
 #include "model/query_block/query_block.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
+#include "model/query_operator/query_operator.h"
 #include "model/query_operator/schema_utility.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/operator_property.h"
@@ -71,6 +72,14 @@ static void checkCond(QueryOperator *op, Operator *o, boolean *flag);
 //static void resetAttrPosInCond(QueryOperator *root, Operator *condOp);
 static void resetPosInExprs (Node *exprs, List *attrDefs);
 static void resetPos(AttributeReference *ar,  List* attrDefs);
+
+/* materialze projection sequences */
+static boolean internalMaterializeProjectionSequences (QueryOperator *root, void *context);
+static QueryOperator *mergeAdjacentOperatorInternal (QueryOperator *root);
+static QueryOperator *removeRedundantProjectionsInternal(QueryOperator *root);
+static QueryOperator *removeRedundantDuplicateOperatorByKeyInternal(QueryOperator *root);
+static QueryOperator *removeUnnecessaryWindowOperatorInternal(QueryOperator *root);
+
 
 Node  *
 optimizeOperatorModel (Node *root)
@@ -200,7 +209,8 @@ optimizeOneGraph (QueryOperator *root)
     	DEBUG_LOG("callback = %d in loop %d",res,c);
     	c++;
         START_TIMER("OptimizeModel - RemoveProperties");
-        ERROR_LOG("number of operators in tree: %d", numOpsInGraph(rewrittenTree));
+        ERROR_LOG("number of operators in graph: %d", numOpsInGraph(rewrittenTree));
+        INFO_LOG("number of operators in tree: %d", numOpsInTree(rewrittenTree));
     	emptyProperty(rewrittenTree);
     	STOP_TIMER("OptimizeModel - RemoveProperties");
     }
@@ -211,33 +221,60 @@ optimizeOneGraph (QueryOperator *root)
 QueryOperator *
 materializeProjectionSequences (QueryOperator *root)
 {
-    QueryOperator *lChild = OP_LCHILD(root);
-
-    // if two adjacent projections then materialize the lower one
-    if (isA(root, ProjectionOperator) && isA(lChild, ProjectionOperator))
-        SET_BOOL_STRING_PROP(lChild, PROP_MATERIALIZE);
-
-    FOREACH(QueryOperator,o,root->inputs)
-        materializeProjectionSequences(o);
-
+    visitQOGraph(root, TRAVERSAL_PRE, internalMaterializeProjectionSequences, NULL);
     return root;
 }
 
+static boolean
+internalMaterializeProjectionSequences (QueryOperator *root, void *context)
+{
+    QueryOperator *lChild = OP_LCHILD(root);
+
+    if (isA(root, ProjectionOperator) && isA(lChild, ProjectionOperator))
+        SET_BOOL_STRING_PROP(lChild, PROP_MATERIALIZE);
+
+    return TRUE;
+}
 
 QueryOperator *
 mergeAdjacentOperators (QueryOperator *root)
 {
-    if (isA(root, SelectionOperator) && isA(OP_LCHILD(root), SelectionOperator))
-        root = (QueryOperator *) mergeSelection((SelectionOperator *) root);
-    if (isA(root, ProjectionOperator) && isA(OP_LCHILD(root), ProjectionOperator))
+    QueryOperator *newRoot;
+
+    newRoot = mergeAdjacentOperatorInternal(root);
+    removeProp(root, PROP_STORE_MERGE_DONE);
+
+    return newRoot;
+}
+
+
+static QueryOperator *
+mergeAdjacentOperatorInternal (QueryOperator *root)
+{
+    QueryOperator *child = OP_LCHILD(root);
+
+    // cannot merge operator with child if the child has more than one parent
+    if (isA(root, SelectionOperator) && isA(child, SelectionOperator))
     {
-    	int numParents = LIST_LENGTH(OP_LCHILD(root)->parents);
+        int numParents = LIST_LENGTH(child->parents);
+        if(numParents == 1)
+            root = (QueryOperator *) mergeSelection((SelectionOperator *) root);
+    }
+
+    if (isA(root, ProjectionOperator) && isA(child, ProjectionOperator))
+    {
+    	int numParents = LIST_LENGTH(child->parents);
     	if(numParents == 1)
     		root = (QueryOperator *) mergeProjection((ProjectionOperator *) root);
     }
 
+    SET_BOOL_STRING_PROP(root, PROP_STORE_MERGE_DONE);
+
     FOREACH(QueryOperator,o,root->inputs)
-         mergeAdjacentOperators(o);
+    {
+        if(!GET_BOOL_STRING_PROP(o, PROP_STORE_MERGE_DONE))
+            mergeAdjacentOperatorInternal(o);
+    }
 
     return root;
 }
@@ -288,6 +325,14 @@ upCheckResetPos(QueryOperator *op)
 QueryOperator *
 removeUnnecessaryWindowOperator(QueryOperator *root)
 {
+    root = removeUnnecessaryWindowOperatorInternal(root);
+    removeProp(root, PROP_OPT_REMOVE_RED_WIN_DONW);
+    return root;
+}
+
+static QueryOperator *
+removeUnnecessaryWindowOperatorInternal(QueryOperator *root)
+{
 	if(isA(root, WindowOperator))
 	{
 		Set *icols = (Set *) getStringProperty(root, PROP_STORE_SET_ICOLS);
@@ -334,8 +379,11 @@ removeUnnecessaryWindowOperator(QueryOperator *root)
         }
     }
 
+	SET_BOOL_STRING_PROP(root,PROP_OPT_REMOVE_RED_WIN_DONW);
+
 	FOREACH(QueryOperator, o, root->inputs)
-	      removeUnnecessaryWindowOperator(o);
+	    if (!GET_BOOL_STRING_PROP(o,PROP_OPT_REMOVE_RED_WIN_DONW))
+	        removeUnnecessaryWindowOperatorInternal(o);
 
 	return root;
 }
@@ -987,21 +1035,8 @@ removeUnnecessaryColumnsFromProjections(QueryOperator *root)
 QueryOperator *
 removeRedundantDuplicateOperatorBySetWithInit(QueryOperator *root)
 {
-    //computeKeyProp(root);
-
-    // Set TRUE for each Operator
-//    initializeSetProp(root);
-//    // Set FALSE for root
-//    setStringProperty((QueryOperator *) root, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
-//    computeSetProp(root);
-
-//    List *icols =  getAttrNames(GET_OPSCHEMA(root));
-//	//char *a = (char *)getHeadOfListP(icols);
-//	Set *seticols = MAKE_STR_SET(strdup((char *)getHeadOfListP(icols)));
-//	FOREACH(char, a, icols)
-//		addToSet (seticols, a);
-
-	root = removeRedundantDuplicateOperatorBySet(root);
+    root = removeRedundantDuplicateOperatorBySet(root);
+	removeProp(root, PROP_OPT_REMOVE_RED_DUP_BY_SET_DONE);
 
 	return root;
 }
@@ -1038,15 +1073,26 @@ removeRedundantDuplicateOperatorBySet(QueryOperator *root)
         }
     }
 
+    SET_BOOL_STRING_PROP(root, PROP_OPT_REMOVE_RED_DUP_BY_SET_DONE);
+
     FOREACH(QueryOperator, o, root->inputs)
-        removeRedundantDuplicateOperatorBySet(o);
+        if (!GET_BOOL_STRING_PROP(o, PROP_OPT_REMOVE_RED_DUP_BY_SET_DONE))
+                removeRedundantDuplicateOperatorBySet(o);
 
     return root;
 }
 
-
 QueryOperator *
 removeRedundantDuplicateOperatorByKey(QueryOperator *root)
+{
+    root = removeRedundantDuplicateOperatorByKeyInternal(root);
+    removeProp(root, PROP_STORE_REMOVE_RED_DUP_BY_KEY_DONE);
+    return root;
+}
+
+
+static QueryOperator *
+removeRedundantDuplicateOperatorByKeyInternal(QueryOperator *root)
 {
     QueryOperator *lChild = OP_LCHILD(root);
 
@@ -1065,8 +1111,11 @@ removeRedundantDuplicateOperatorByKey(QueryOperator *root)
         }
     }
 
+    SET_BOOL_STRING_PROP(root, PROP_STORE_REMOVE_RED_DUP_BY_KEY_DONE);
+
     FOREACH(QueryOperator, o, root->inputs)
-        removeRedundantDuplicateOperatorByKey(o);
+        if (!GET_BOOL_STRING_PROP(root, PROP_STORE_REMOVE_RED_DUP_BY_KEY_DONE))
+            removeRedundantDuplicateOperatorByKeyInternal(o);
 
     return root;
 }
@@ -1075,7 +1124,7 @@ QueryOperator *
 pullUpDuplicateRemoval(QueryOperator *root)
 {
 //    if (!HAS_STRING_PROP(root, PROP_STORE_LIST_KEY))
-        computeKeyProp(root); //Boris: this repeatively computes the key prop
+        computeKeyProp(root); //TODO Boris: this repeatively computes the key prop
 
     List *drOp = NULL;
     findDuplicateRemoval(&drOp, root);
@@ -1093,14 +1142,15 @@ pullUpDuplicateRemoval(QueryOperator *root)
 void
 findDuplicateRemoval(List **drOp, QueryOperator *root)
 {
-	if(isA(root, DuplicateRemoval) && !HAS_STRING_PROP(root, PROP_STORE_DUP_MARK))
+    SET_BOOL_STRING_PROP(root, PROP_STORE_DUP_MARK);
+	if(isA(root, DuplicateRemoval))
 	{
 		*drOp = appendToTailOfList(*drOp, (DuplicateRemoval *)root);
-		SET_BOOL_STRING_PROP(root, PROP_STORE_DUP_MARK);
 	}
 
 	FOREACH(QueryOperator, op, root->inputs)
-	      findDuplicateRemoval(drOp, op);
+	    if (!HAS_STRING_PROP(op, PROP_STORE_DUP_MARK))
+	        findDuplicateRemoval(drOp, op);
 }
 
 void
@@ -1123,22 +1173,24 @@ doPullUpDuplicateRemoval(DuplicateRemoval *root)
     DEBUG_LOG("count = %d\n",count);
     if(count != 0)
     {
-    int countrolNum = callback(count);
-    if(countrolNum == -1)
-    	countrolNum = 0;
-    /*
-     * if count = 3, countrolNum = callback(3)
-     * (1) countrolNum = 0, DR pull up 1 layer
-     * (2) countrolNum = 1, DR pull up 2 layer
-     * (3) countrolNum = 2, DR pull up 3 layer
-     * Will skip the layer which don't has key
-     */
-    DEBUG_LOG("countrolNum %d", countrolNum);
-    QueryOperator *newOp = (QueryOperator *)root;
-    QueryOperator *child = OP_LCHILD(root);
-    for(int i=0; i<=countrolNum; i++)
-    {
-/*    	//Make sure the new parent has key
+        int countrolNum = count;
+        if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
+            callback(count);
+        if(countrolNum == -1)
+            countrolNum = 0;
+        /*
+         * if count = 3, countrolNum = callback(3)
+         * (1) countrolNum = 0, DR pull up 1 layer
+         * (2) countrolNum = 1, DR pull up 2 layer
+         * (3) countrolNum = 2, DR pull up 3 layer
+         * Will skip the layer which don't has key
+         */
+        DEBUG_LOG("countrolNum %d", countrolNum);
+        QueryOperator *newOp = (QueryOperator *)root;
+        QueryOperator *child = OP_LCHILD(root);
+        for(int i=0; i<=countrolNum; i++)
+        {
+            /*    	//Make sure the new parent has key
     	while(TRUE)
     	{
     		keyList = NIL;
@@ -1154,24 +1206,34 @@ doPullUpDuplicateRemoval(DuplicateRemoval *root)
     			break;
 
     	}*/
-    	if(LIST_LENGTH(newOp->parents) == 1)
-    		newOp = ((QueryOperator *) getHeadOfListP(newOp->parents));
-    	else
-    		break;
-    }
-    switchSubtrees((QueryOperator *) root, (QueryOperator *) child);
-    switchSubtrees((QueryOperator *) newOp, (QueryOperator *) root);
+            if(LIST_LENGTH(newOp->parents) == 1)
+                newOp = ((QueryOperator *) getHeadOfListP(newOp->parents));
+            else
+                break;
+        }
+        switchSubtrees((QueryOperator *) root, (QueryOperator *) child);
+        switchSubtrees((QueryOperator *) newOp, (QueryOperator *) root);
 
-    root->op.inputs = NIL;
-    newOp->parents = NIL;
-	addChildOperator((QueryOperator *) root, (QueryOperator *) newOp);
+        root->op.inputs = NIL;
+        newOp->parents = NIL;
+        addChildOperator((QueryOperator *) root, (QueryOperator *) newOp);
 
-	root->op.schema->attrDefs = OP_LCHILD(root)->schema->attrDefs;
+        root->op.schema->attrDefs = OP_LCHILD(root)->schema->attrDefs;
     }
 }
 
 QueryOperator *
 removeRedundantProjections(QueryOperator *root)
+{
+    QueryOperator *result = removeRedundantProjectionsInternal(root);
+
+    removeProp(root, PROP_STORE_REMOVE_RED_PROJ_DONE);
+
+    return result;
+}
+
+static QueryOperator *
+removeRedundantProjectionsInternal(QueryOperator *root)
 {
     QueryOperator *lChild = OP_LCHILD(root);
 
@@ -1281,8 +1343,11 @@ removeRedundantProjections(QueryOperator *root)
         }
     }
 
+    SET_BOOL_STRING_PROP(root, PROP_STORE_REMOVE_RED_PROJ_DONE);
+
     FOREACH(QueryOperator, o, root->inputs)
-        removeRedundantProjections(o);
+        if (!GET_BOOL_STRING_PROP(root, PROP_STORE_REMOVE_RED_PROJ_DONE))
+            removeRedundantProjectionsInternal(o);
 
     return root;
 }
@@ -1355,76 +1420,76 @@ renameAttrRefs (Node *node, HashMap *nameMap)
 QueryOperator *
 pullingUpProvenanceProjections(QueryOperator *root)
 {
-	//QueryOperator *newRoot = root;
-	FOREACH(QueryOperator, o, root->inputs)
-	{
-		if(isA(o, ProjectionOperator))
-		{
-			ProjectionOperator *op = (ProjectionOperator *)o;
-			if(HAS_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP))
-			{
-				if(GET_BOOL_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP) == TRUE && GET_BOOL_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP_PULLUP) == FALSE)
-				{
-					SET_BOOL_STRING_PROP((QueryOperator *)o, PROP_PROJ_PROV_ATTR_DUP_PULLUP);
-					//Get the attrReference of the provenance attribute
-					List *l1 = getProvenanceAttrReferences(op, o);
 
-					//Get the attrDef name of the provenance attribute
-					List *l2 = getOpProvenanceAttrNames(o);
+    //QueryOperator *newRoot = root;
+    FOREACH(QueryOperator, o, root->inputs)
+    {
+        if(!GET_BOOL_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP_PULLUP))
+        {
+            SET_BOOL_STRING_PROP((QueryOperator *)o, PROP_PROJ_PROV_ATTR_DUP_PULLUP);
+            if(isA(o, ProjectionOperator))
+            {
+                ProjectionOperator *op = (ProjectionOperator *)o;
+                if(GET_BOOL_STRING_PROP(o, PROP_PROJ_PROV_ATTR_DUP))
+                {
+                    //Get the attrReference of the provenance attribute
+                    List *l1 = getProvenanceAttrReferences(op, o);
 
-					//Get the attrReference of non provenance attribute
-					List *l3 = getNormalAttrReferences(op, o);
+                    //Get the attrDef name of the provenance attribute
+                    List *l2 = getOpProvenanceAttrNames(o);
 
-					//Get the attrDef name in the schema of non provenance
-					//attribute
-					List *l4 = getNormalAttrNames(o);
+                    //Get the attrReference of non provenance attribute
+                    List *l3 = getNormalAttrReferences(op, o);
 
-					List *l_prov_attr = NIL;
+                    //Get the attrDef name in the schema of non provenance
+                    //attribute
+                    List *l4 = getNormalAttrNames(o);
 
-					FOREACH(AttributeReference, a, l1)
-					l_prov_attr = appendToTailOfList(l_prov_attr, a->name);
+                    List *l_prov_attr = NIL;
 
-					List *l_normal_attr = NIL;
+                    FOREACH(AttributeReference, a, l1)
+                    l_prov_attr = appendToTailOfList(l_prov_attr, a->name);
 
-					FOREACH(AttributeReference, a, l3)
-					l_normal_attr =  appendToTailOfList(l_normal_attr, a->name);
+                    List *l_normal_attr = NIL;
 
-					List *normalAttrNames = NIL;
-					List *duplicateattrs = NIL;
+                    FOREACH(AttributeReference, a, l3)
+                    l_normal_attr =  appendToTailOfList(l_normal_attr, a->name);
 
-					FORBOTH_LC(lc1, lc2, l_prov_attr, l2)
-					{
-						FORBOTH_LC(lc3 ,lc4, l_normal_attr, l4)
-                        {
-							if(streq(lc1->data.ptr_value, lc3->data.ptr_value))
-							{
-								duplicateattrs = appendToTailOfList(duplicateattrs,lc2->data.ptr_value);
-								normalAttrNames = appendToTailOfList(normalAttrNames, lc4->data.ptr_value);
-								break;
-							}
-                        }
-					}
+                    List *normalAttrNames = NIL;
+                    List *duplicateattrs = NIL;
 
-					//Delete the duplicateattrs from the provenance projection
-					FOREACH_LC(d,duplicateattrs)
-					{
-						//Delete the duplicate attr_ref from the projExprs
-						int pos = getAttrPos(o, LC_P_VAL(d));
-						deleteAttrRefFromProjExprs((ProjectionOperator *)op, pos);
+                    FORBOTH_LC(lc1, lc2, l_prov_attr, l2)
+                    {
+                        FORBOTH_LC(lc3 ,lc4, l_normal_attr, l4)
+                                {
+                            if(streq(lc1->data.ptr_value, lc3->data.ptr_value))
+                            {
+                                duplicateattrs = appendToTailOfList(duplicateattrs,lc2->data.ptr_value);
+                                normalAttrNames = appendToTailOfList(normalAttrNames, lc4->data.ptr_value);
+                                break;
+                            }
+                                }
+                    }
 
-						//Delete the duplicate attr_def from the schema
-						deleteAttrFromSchemaByName((QueryOperator *)op, LC_P_VAL(d));
-					}
+                    //Delete the duplicateattrs from the provenance projection
+                    FOREACH_LC(d,duplicateattrs)
+                    {
+                        //Delete the duplicate attr_ref from the projExprs
+                        int pos = getAttrPos(o, LC_P_VAL(d));
+                        deleteAttrRefFromProjExprs((ProjectionOperator *)op, pos);
 
-					if(LIST_LENGTH(o->parents) == 1)
-						pullup(o, duplicateattrs, normalAttrNames);
+                        //Delete the duplicate attr_def from the schema
+                        deleteAttrFromSchemaByName((QueryOperator *)op, LC_P_VAL(d));
+                    }
 
-				}
-			}
-		}
+                    if(LIST_LENGTH(o->parents) == 1)
+                        pullup(o, duplicateattrs, normalAttrNames);
 
-		pullingUpProvenanceProjections(o);
-	}
+                }
+            }
+            pullingUpProvenanceProjections(o);
+        }
+    }
 
     return root;
 }

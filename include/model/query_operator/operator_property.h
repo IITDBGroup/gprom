@@ -52,11 +52,18 @@
 #define PROP_MERGE_ATTR_REF_CNTS "MERGE SAFE ATTRIBUTE COUNTS"                        // safe to merge this projection with its child
 #define PROP_PROJ_PROV_ATTR_DUP "PROJECTION WITH PROVENANCE ATTRIBUTE DUPLICATION"    // needed by projection pull-up
 #define PROP_PROJ_PROV_ATTR_DUP_PULLUP "PROJECTION WITH PROVENANCE ATTRIBUTE DUPLICATION PULL-UP"  //no need to pull-up if this op already pull-up
+
 /* properties used to store list of set which used in selection move around */
 #define PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND "STORE LIST SET FOR SELECTION MOVE AROUND"
 #define PROP_OPT_SELECTION_MOVE_AROUND_DONE "HAVE DONE SELECTION MOVE AROUND"
 #define PROP_OPT_UNNECESSARY_COLS_REMOVED_DONE "HAVE REMOVED UNNECESSARY"
+#define PROP_STORE_MERGE_DONE "MERGE IS DONE"
+#define PROP_STORE_REMOVE_RED_PROJ_DONE "REMOVED RED PROJ"
+#define PROP_STORE_REMOVE_RED_DUP_BY_KEY_DONE "REMOVED DUP BY KEY"
+#define PROP_OPT_REMOVE_RED_DUP_BY_SET_DONE "REMOVED DUP BY SET"
+#define PROP_OPT_REMOVE_RED_WIN_DONW "REMOVED WIN OP"
 //#define PROP_MERGE_ATTR_REF_CNTS "MERGE SAFE ATTRIBUTE COUNTS"                        // safe to merge this projection with its child?
+
 /* properties to store characteristics of operators for heuristic optimization */
 #define PROP_STORE_LIST_KEY "STORE KEY LIST FOR REMOVE REDUNDANT DUPLICATE"
 #define PROP_STORE_LIST_KEY_DONE "HAVE COMPUTED KEYS"
@@ -70,4 +77,5 @@
 #define PROP_STORE_SET_EC_DONE_BU "STORE EC PROPERTY - DONE BOTTOM UP"
 #define PROP_STORE_SET_EC_DONE_TD "STORE EC PROPERTY - DONE TOP DOWN"
 #define PROP_STORE_DUP_MARK "STORE DUP PROPERTY"  //pull up dup op, avoid loop the same dup op two times
+
 #endif /* OPERATOR_PROPERTY_H_ */
