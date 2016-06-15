@@ -126,11 +126,14 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
     switch(op->provType)
     {
+        QueryOperator *result;
         case PROV_PI_CS:
             if (isRewriteOptionActivated(OPTION_PI_CS_USE_COMPOSABLE))
-                return rewritePI_CSComposable(op);
+                result =  rewritePI_CSComposable(op);
             else
-                return rewritePI_CS(op);
+                result = rewritePI_CS(op);
+            removeParent(result, (QueryOperator *) op);
+            return result;
         case PROV_TRANSFORMATION:
             return rewriteTransformationProvenance((QueryOperator *) op);
     }
