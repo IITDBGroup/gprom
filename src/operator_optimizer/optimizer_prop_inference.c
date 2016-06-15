@@ -1471,8 +1471,7 @@ void initializeIColProp(QueryOperator *root)
 	icols = makeStrSetFromList(icolsList);
 	setStringProperty((QueryOperator *)root, PROP_STORE_SET_ICOLS, (Node *)icols);
 
-	//Set root and its parents PROP_STORE_SET_ICOLS_DONE property, used in parents check at last
-	SET_BOOL_STRING_PROP(root, PROP_STORE_SET_ICOLS_DONE);
+	//Set root's parents PROP_STORE_SET_ICOLS_DONE property, used in parents check at last
 	FOREACH(QueryOperator, p, root->parents)
 		SET_BOOL_STRING_PROP(p, PROP_STORE_SET_ICOLS_DONE);
 }
@@ -1489,10 +1488,6 @@ computeReqColProp (QueryOperator *root)
 	/*
 	 * Get root's icols set which can be used in following each operator
 	 */
-
-	//Set childs PROP_STORE_SET_ICOLS_DONE property, used in parents check at last
-	FOREACH(QueryOperator, p, root->inputs)
-			DEBUG_LOG("set icols done: %d", HAS_STRING_PROP(p, PROP_STORE_SET_ICOLS_DONE));
 
 	Set *icols = (Set*)getStringProperty(root, PROP_STORE_SET_ICOLS);
 
