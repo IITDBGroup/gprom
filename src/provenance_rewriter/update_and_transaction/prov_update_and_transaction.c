@@ -242,8 +242,8 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     reverseList(updates);
     reverseList(op->transactionInfo->updateTableNames);
 
-    DEBUG_LOG("Updates to merge are: \n\n%s", beatify(nodeToString(updates)));
-    INFO_LOG("Updates to merge overview are: \n\n%s", operatorToOverviewString((Node *) updates));
+    DEBUG_NODE_BEATIFY_LOG("Updates to merge are:", updates);
+    INFO_OP_LOG("Updates to merge overview are:", updates);
     /*
      * Merge the individual queries for all updates into one
      */
@@ -253,15 +253,15 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
 
          // find all table access operators
          findTableAccessVisitor((Node *) u, &children);
-         INFO_LOG("Replace table access operators in %s", operatorToOverviewString((Node *) u));
+         INFO_OP_LOG("Replace table access operators in", u);
 
          FOREACH(TableAccessOperator, t, children)
          {
-             INFO_LOG("\tTable Access %s", operatorToOverviewString((Node *) t));
+             INFO_OP_LOG("\tTable Access", t);
              QueryOperator *up = getUpdateForPreviousTableVersion(op,
                      t->tableName, i, updates);
 
-             INFO_LOG("\tUpdate is %s", operatorToOverviewString((Node *) up));
+             INFO_OP_LOG("\tUpdate is", up);
              // previous table version was created by transaction
              if (up != NULL)
                  switchSubtreeWithExisting((QueryOperator *) t, up);
@@ -283,7 +283,7 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
          }
          i++;
     }
-    DEBUG_LOG("Merged updates are: %s", beatify(nodeToString(updates)));
+    DEBUG_NODE_BEATIFY_LOG("Merged updates are:", updates);
 
     // replace updates sequence with root of the whole merged update query
 
@@ -299,8 +299,8 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));
 
-    DEBUG_LOG("Provenance computation for updates that will be passed "
-            "to rewriter: %s", beatify(nodeToString(op)));
+    DEBUG_NODE_BEATIFY_LOG("Provenance computation for updates that will be passed "
+            "to rewriter:", op);
 }
 
 static void
@@ -491,9 +491,8 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	reverseList(updates);
 	reverseList(op->transactionInfo->updateTableNames);
 
-	DEBUG_LOG("Updates to merge are: \n\n%s", beatify(nodeToString(updates)));
-	INFO_LOG("Updates to merge overview are: \n\n%s",
-			operatorToOverviewString((Node *) updates));
+	DEBUG_NODE_BEATIFY_LOG("Updates to merge are:", updates);
+	INFO_OP_LOG("Updates to merge overview are:", updates);
 	/*
 	 * Merge the individual queries for all updates into one
 	 */
@@ -502,15 +501,14 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
 		// find all table access operators
 		findTableAccessVisitor((Node *) u, &children);
-		INFO_LOG("Replace table access operators in %s",
-				operatorToOverviewString((Node *) u));
+		INFO_OP_LOG("Replace table access operators in",u);
 
 		FOREACH(TableAccessOperator, t, children) {
-			INFO_LOG("\tTable Access %s", operatorToOverviewString((Node *) t));
+			INFO_OP_LOG("\tTable Access", t);
 			QueryOperator *up = getUpdateForPreviousTableVersion(op,
 					t->tableName, i, updates);
 
-			INFO_LOG("\tUpdate is %s", operatorToOverviewString((Node *) up));
+			INFO_OP_LOG("\tUpdate is",up);
 			// previous table version was created by transaction
 			if (up != NULL)
 			{
@@ -571,13 +569,13 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	finalProj = (QueryOperator *) createProjectionOp(projExprs, mergeRoot, NIL, finalAttrs);
 	mergeRoot->parents = singleton(finalProj);
 
-	INFO_LOG("Merged updates are: %s", operatorToOverviewString((Node *) finalProj));
-	DEBUG_LOG("Merged updates are: %s", beatify(nodeToString((Node *) finalProj)));
+	INFO_OP_LOG("Merged updates are:", finalProj);
+	DEBUG_NODE_BEATIFY_LOG("Merged updates are:", finalProj);
 
 	// replace updates sequence with root of the whole merged update query
 	addChildOperator((QueryOperator *) op, finalProj);
-	DEBUG_LOG("Provenance computation for updates that will be passed "
-	        "to rewriter: %s", beatify(nodeToString(op)));
+	DEBUG_NODE_BEATIFY_LOG("Provenance computation for updates that will be passed "
+	        "to rewriter:", op);
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) finalProj));
@@ -700,7 +698,7 @@ removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
         }
     }
 
-    DEBUG_LOG("tables that do not only consist of constants are %s", beatify(nodeToString(tableUpdateOrRead)));
+    DEBUG_NODE_BEATIFY_LOG("tables that do not only consist of constants are", tableUpdateOrRead);
 
 //    FOREACH(QueryOperator,u,op->op.inputs)
     for(int i = 0; i < LIST_LENGTH(op->op.inputs); i++)
@@ -800,7 +798,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
         }
     }
 
-    DEBUG_LOG("condition table map is:\n%s", beatify(nodeToString(tabCondMap)));
+    DEBUG_NODE_BEATIFY_LOG("condition table map is:", tabCondMap);
 
     // add selections to only updated tables
     FOREACH(TableAccessOperator,t,updatedTables)
@@ -858,7 +856,7 @@ adaptConditionForReadCommitted(Node *cond, Constant *scn, int attrPos)
                     copyObject(scn)))
         );
 
-    DEBUG_LOG("adapted condition for read committed: %s", beatify(nodeToString(result)));
+    DEBUG_NODE_BEATIFY_LOG("adapted condition for read committed:", result);
 
     return result;
 }
@@ -948,7 +946,7 @@ filterUpdatedInFinalResult (ProvenanceComputation *op)
     }
 
     cond = andExprList(condList);
-    DEBUG_LOG("create condition: %s", beatify(nodeToString(cond)));
+    DEBUG_NODE_BEATIFY_LOG("create condition: %s",cond);
     sel = createSelectionOp(cond, top, NIL, NIL);
 
     switchSubtrees(top, (QueryOperator *) sel);

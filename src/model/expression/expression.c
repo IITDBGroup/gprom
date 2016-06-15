@@ -377,7 +377,7 @@ typeOf (Node *expr)
 {
     switch(expr->type)
     {
-        case T_AttributeReference:
+    	case T_AttributeReference:
         {
             AttributeReference *a = (AttributeReference *) expr;
             return a->attrType;
@@ -515,6 +515,26 @@ isConstExpr (Node *expr)
              break;
     }
     return FALSE;
+}
+
+List *
+createCasts(Node *lExpr, Node *rExpr)
+{
+	DataType lType, rType;
+    lType = typeOf(lExpr);
+    rType = typeOf(rExpr);
+
+    // same expr return inputs
+    if (lType == rType)
+        return LIST_MAKE(lExpr,rExpr);
+
+    // one is DT_STRING, cast the other one
+    if (lType == DT_STRING)
+        return LIST_MAKE(lExpr, createCastExpr(rExpr, DT_STRING));
+    if (rType == DT_STRING)
+        return LIST_MAKE(createCastExpr(lExpr, DT_STRING), rExpr);
+
+    return LIST_MAKE(createCastExpr(lExpr, DT_STRING), createCastExpr(rExpr, DT_STRING));
 }
 
 DataType

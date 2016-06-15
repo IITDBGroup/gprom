@@ -88,7 +88,7 @@ opsToDot (StringInfo str, QueryOperator *op, int *curId)
 
     // set node ids as properties to nodes and create code for nodes except leaf nodes
     determineOpIds(op, curId);
-    DEBUG_LOG("setting op ids: %s", beatify(nodeToString((Node *) op)));
+    DEBUG_NODE_BEATIFY_LOG("setting op ids:", op);
 
     Set *nodeDone = LONGSET();
     outputOpDefs(str, op, nodeDone);

@@ -76,6 +76,7 @@ extern int mapIncrString(HashMap *map, char *key);
 // remove elements from map
 extern void removeAndFreeMapElem (HashMap *map, Node *key);
 extern void removeMapElem (HashMap *map, Node *key);
+extern void removeMapStringElem (HashMap *map, char *key);
 
 // map size
 extern int mapSize (HashMap *map);

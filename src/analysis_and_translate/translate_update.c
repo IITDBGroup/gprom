@@ -102,8 +102,8 @@ translateDelete(Delete *delete)
 
 	addChildOperator((QueryOperator *) so, (QueryOperator *) to);
 
-	INFO_LOG("translated delete:\n%s", operatorToOverviewString((Node *) so));
-	DEBUG_LOG("translated delete:\n%s", beatify(nodeToString((Node *) so)));
+	INFO_OP_LOG("translated delete:", so);
+	DEBUG_NODE_BEATIFY_LOG("translated delete:", so);
 
 	return (QueryOperator *) so;
 }
@@ -167,8 +167,8 @@ translateUpdateUnion(Update *update)
 	// update without WHERE clause
     addChildOperator((QueryOperator *) po, (QueryOperator *) to);
 
-    INFO_LOG("translated update:\n%s", operatorToOverviewString((Node *) po));
-    DEBUG_LOG("translated update:\n%s", beatify(nodeToString((Node *) po)));
+    INFO_OP_LOG("translated update:", po);
+    DEBUG_NODE_BEATIFY_LOG("translated update:", po);
 
     return (QueryOperator *) po;
 }
@@ -227,7 +227,7 @@ translateUpdateWithCase(Update *update)
 	po = createProjectionOp(projExprs, NULL, NIL, deepCopyStringList(attrs));
 
 	addChildOperator((QueryOperator *) po, (QueryOperator *) to);
-	DEBUG_LOG("translated update:\n%s", beatify(nodeToString((Node *) po)));
+	DEBUG_NODE_BEATIFY_LOG("translated update:", po);
 	ASSERT(checkModel((QueryOperator *)po));
 
 	return (QueryOperator *) po;

@@ -29,9 +29,10 @@
 #include "model/query_operator/operator_property.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/set.h"
 
 /* function declarations */
-static QueryOperator *findProvenanceComputations (QueryOperator *op);
+static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *hasSeen);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
 
 /* function definitions */
@@ -64,25 +65,36 @@ provRewriteQueryList (List *list)
 QueryOperator *
 provRewriteQuery (QueryOperator *input)
 {
-    return findProvenanceComputations(input);
+    Set *seen = PSET();
+    return findProvenanceComputations(input, seen);
 }
 
 
-QueryOperator *
-findProvenanceComputations (QueryOperator *op)
+static QueryOperator *
+findProvenanceComputations (QueryOperator *op, Set *hasSeen)
 {
+
     // is provenance computation? then rewrite
     if (isA(op, ProvenanceComputation))
         return rewriteProvenanceComputation((ProvenanceComputation *) op);
 
     // else search for children with provenance
-    FOREACH(QueryOperator, x, op->inputs)
-        findProvenanceComputations(x);
+//    FOREACH(QueryOperator, x, op->inputs)
+//        findProvenanceComputations(x);
+//
+    FOREACH(QueryOperator,c,op->inputs)
+    {
+        if (!hasSetElem(hasSeen, c))
+        {
+            addToSet(hasSeen, c);
+            findProvenanceComputations(c, hasSeen);
+        }
+    }
 
     return op;
 }
 
-QueryOperator *
+static QueryOperator *
 rewriteProvenanceComputation (ProvenanceComputation *op)
 {
     // for a sequence of updates of a transaction merge the sequence into a single
@@ -107,8 +119,8 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     if (isRewriteOptionActivated(OPTION_TREEIFY_OPERATOR_MODEL))
     {
         treeify((QueryOperator *) op);
-        INFO_LOG("treeifyed operator model:\n\n%s", operatorToOverviewString((Node *) op));
-        DEBUG_LOG("treeifyed operator model:\n\n%s", beatify(nodeToString(op)));
+        INFO_OP_LOG("treeifyed operator model:", op);
+        DEBUG_NODE_BEATIFY_LOG("treeifyed operator model:", op);
         ASSERT(isTree((QueryOperator *) op));
     }
 
