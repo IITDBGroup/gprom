@@ -92,7 +92,11 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
 
     /* rpq */
     T_Regex,
-    T_RPQQuery
+    T_RPQQuery,
+
+    /* ddl */
+    T_CreateTable,
+    T_AlterTable
 );
 
 typedef struct Node{

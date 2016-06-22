@@ -291,3 +291,68 @@ createWithStmt (List *views, Node *query)
 
     return result;
 }
+
+CreateTable *
+createCreateTable (char *tName, List *tableElem)
+{
+    CreateTable *result = NEW(CreateTable);
+
+    result->tableName = tName;
+    result->tableElems = tableElem;
+    result->query = NULL;
+
+    return result;
+}
+
+CreateTable *
+createCreateTableQuery (char *tName, Node *q)
+{
+    CreateTable *result = NEW(CreateTable);
+
+    result->tableName = tName;
+    result->tableElems = NIL;
+    result->query = q;
+
+    return result;
+}
+
+AlterTable *
+createAlterTable (char *tName, AlterTableStmtType cmdType,
+        char *colName, char *newColDT)
+{
+    AlterTable *result = NEW(AlterTable);
+
+    result->tableName = tName;
+    result->cmdType = cmdType;
+    result->columnName = colName;
+    result->newColDT = newColDT;
+
+    return result;
+}
+
+
+AlterTable *
+createAlterTableAddColumn (char *tName, char *newColName, char *newColDT)
+{
+    AlterTable *result = NEW(AlterTable);
+
+    result->tableName = tName;
+    result->cmdType = ALTER_TABLE_ADD_COLUMN;
+    result->columnName = newColName;
+    result->newColDT = newColDT;
+
+    return result;
+}
+
+AlterTable *
+createAlterTableRemoveColumn (char *tName, char *colName)
+{
+    AlterTable *result = NEW(AlterTable);
+
+    result->tableName = tName;
+    result->cmdType = ALTER_TABLE_REMOVE_COLUMN;
+    result->columnName = colName;
+    result->newColDT = NULL;
+
+    return result;
+}

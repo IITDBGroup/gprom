@@ -220,6 +220,28 @@ typedef struct Update
     Node *cond;
 } Update;
 
+typedef struct CreateTable
+{
+    NodeTag type;
+    char *tableName;
+    List *tableElems;
+    List *constraints;
+    Node *query;
+} CreateTable;
+
+NEW_ENUM_WITH_TO_STRING(AlterTableStmtType,
+    ALTER_TABLE_ADD_COLUMN,
+    ALTER_TABLE_REMOVE_COLUMN
+);
+
+typedef struct AlterTable
+{
+    NodeTag type;
+    char *tableName;
+    AlterTableStmtType cmdType;
+    char *columnName;
+    char *newColDT;
+} AlterTable;
 
 NEW_ENUM_WITH_TO_STRING(TransactionStmtType,
     TRANSACTION_BEGIN,
@@ -285,5 +307,9 @@ extern Delete *createDelete(char *nodeName, Node *cond);
 extern Update *createUpdate(char *nodeName, List *selectClause, Node *cond);
 extern TransactionStmt *createTransactionStmt (char *stmtType);
 extern WithStmt *createWithStmt (List *views, Node *query);
+extern CreateTable *createCreateTable (char *tName, List *tableElem);
+extern CreateTable *createCreateTableQuery (char *tName, Node *q);
+extern AlterTable *createAlterTableAddColumn (char *tName, char *newColName, char *newColDT);
+extern AlterTable *createAlterTableRemoveColumn (char *tName, char *colName);
 
 #endif /* QUERY_BLOCK_H */

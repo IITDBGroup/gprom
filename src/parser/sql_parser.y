@@ -115,7 +115,9 @@ Node *bisonParseResult = NULL;
  * Types of non-terminal symbols
  */
 %type <node> stmt provStmt dmlStmt queryStmt ddlStmt
-%type <node> createTableStmt alterTableStmt
+%type <node> createTableStmt alterTableStmt alterTableCommand
+%type <list> tableElemList optTableElemList
+%type <node> tableElement 
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
@@ -205,23 +207,78 @@ ddlStmt:
 		}
 	;
 
-createStmtTable:
-		CREATE TABLE ident AS queryStmt ';'
+createTableStmt:
+		CREATE TABLE identifier AS queryStmt ';'
 		{
 			RULELOG("createTable::query");
+			$$ = (Node *) createCreateTableQuery($3,$5);
 		}
-		| CREATE TABLE ident '(' ')' ';'
+		| CREATE TABLE identifier '(' optTableElemList ')' ';'
 		{
 			RULELOG("createTable::");
+			$$ = (Node *) createCreateTable($3,$5);
 		}
 	; 
-		
-alterTableStmt:
-		ALTER TABLE ident ';'
+	
+optTableElemList:
+		/* EMPTY */ 
+		{ 
+			RULELOG("optTableElemList::EMPTY");
+			$$ = NIL; 
+		}
+		| tableElemList
 		{
-			RULELOG("alterTable:");
+			RULELOG("optTableElemList::tableElemList");
+			$$ = $1;
 		}
 	;
+		
+tableElemList:
+		tableElement
+		{
+			RULELOG("tableElemList::tableElement");
+			$$ = singleton($1);
+		}
+		| tableElemList ',' tableElement
+		{
+			RULELOG("tableElemList::tableElement");
+			$$ = appendToTailOfList($1,$3);
+		}
+	;
+	
+tableElement:
+		identifier identifier
+		{
+			RULELOG("tableElement::columnDef");
+			$$ = (Node *) createFullAttrReference($1, INVALID_ATTR, INVALID_ATTR, 
+					INVALID_ATTR, SQLdataTypeToDataType($2));
+		}
+		/* TODO add constraints and make column def more general */
+	;
+		
+alterTableStmt:
+		ALTER TABLE identifier alterTableCommand ';'
+		{
+			RULELOG("alterTable:");
+			AlterTable *a = (AlterTable *) $4;
+			a->tableName = $3;
+			$$ = (Node *) a;
+		}
+	;
+	
+alterTableCommand:
+		ADD COLUMN identifier identifier
+		{
+			RULELOG("alterTableCommand::addColumn");
+			$$ = (Node *) createAlterTableAddColumn(NULL,$3,$4);
+		}
+		| REMOVE COLUMN identifier
+		{
+			RULELOG("alterTableCommand::addColumn");
+			$$ = (Node *) createAlterTableRemoveColumn(NULL,$3);
+		}
+	;
+		
 /*
  * Rule to parse all DML statements.
  */

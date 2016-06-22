@@ -118,6 +118,8 @@ static Update *copyUpdate(Update *from, OperatorMap **opMap);
 static TransactionStmt *copyTransactionStmt(TransactionStmt *from, OperatorMap **opMap);
 static FromProvInfo *copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap);
 static WithStmt *copyWithStmt(WithStmt *from, OperatorMap **opMap);
+static CreateTable *copyCreateTable(CreateTable *from, OperatorMap **opMap);
+static AlterTable *copyAlterTable(AlterTable *from, OperatorMap **opMap);
 
 /* functions to copy datalog model elements */
 static DLAtom *copyDLAtom(DLAtom *from, OperatorMap **opMap);
@@ -818,6 +820,31 @@ copyWithStmt(WithStmt *from, OperatorMap **opMap)
     return new;
 }
 
+static CreateTable *
+copyCreateTable(CreateTable *from, OperatorMap **opMap)
+{
+    COPY_INIT(CreateTable);
+    COPY_STRING_FIELD(tableName);
+    COPY_NODE_FIELD(tableElems);
+    COPY_NODE_FIELD(constraints);
+    COPY_NODE_FIELD(query);
+
+    return new;
+}
+
+static AlterTable *
+copyAlterTable(AlterTable *from, OperatorMap **opMap)
+{
+    COPY_INIT(AlterTable);
+    COPY_STRING_FIELD(tableName);
+    COPY_SCALAR_FIELD(cmdType);
+    COPY_STRING_FIELD(columnName);
+    COPY_STRING_FIELD(newColDT);
+
+    return new;
+}
+
+
 static NestedSubquery *
 copyNestedSubquery(NestedSubquery *from, OperatorMap **opMap)
 {
@@ -1114,6 +1141,12 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_TransactionStmt:
             retval = copyTransactionStmt(from, opMap);
+            break;
+        case T_CreateTable:
+            retval = copyCreateTable(from, opMap);
+            break;
+        case T_AlterTable:
+            retval = copyAlterTable(from, opMap);
             break;
 
              /* query operator model nodes */

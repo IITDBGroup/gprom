@@ -64,6 +64,8 @@ static void outUpdate(StringInfo str, Update *node);
 static void outNestedSubquery(StringInfo str, NestedSubquery *node);
 static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 static void outWithStmt(StringInfo str, WithStmt *node);
+static void outCreateTable(StringInfo str, CreateTable *node);
+static void outAlterTable(StringInfo str, AlterTable *node);
 
 static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
@@ -475,6 +477,26 @@ outWithStmt(StringInfo str, WithStmt *node)
     WRITE_NODE_TYPE(WITH_STMT);
     WRITE_NODE_FIELD(withViews);
     WRITE_NODE_FIELD(query);
+}
+
+static void
+outCreateTable(StringInfo str, CreateTable *node)
+{
+    WRITE_NODE_TYPE(CREATE_TABLE);
+    WRITE_STRING_FIELD(tableName);
+    WRITE_NODE_FIELD(tableElems);
+    WRITE_NODE_FIELD(constraints);
+    WRITE_NODE_FIELD(query);
+}
+
+static void
+outAlterTable(StringInfo str, AlterTable *node)
+{
+    WRITE_NODE_TYPE(ALTER_TABLE);
+    WRITE_STRING_FIELD(tableName);
+    WRITE_ENUM_FIELD(cmdType, AlterTableStmtType);
+    WRITE_STRING_FIELD(columnName);
+    WRITE_STRING_FIELD(newColDT);
 }
 
 static void
@@ -1112,6 +1134,12 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_WithStmt:
                 outWithStmt(str, (WithStmt *) obj);
+                break;
+            case T_CreateTable:
+                outCreateTable(str, (CreateTable *) obj);
+                break;
+            case T_AlterTable:
+                outAlterTable(str, (AlterTable *) obj);
                 break;
 
                 //query operator model nodes
