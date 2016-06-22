@@ -75,6 +75,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> NULLS FIRST LAST ASC DESC
 %token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE
 %token <stringVal> CAST
+%token <stringVal> CREATE ALTER ADD REMOVE COLUMN 
 
 %token <stringVal> DUMMYEXPR
 
@@ -113,7 +114,8 @@ Node *bisonParseResult = NULL;
 /*
  * Types of non-terminal symbols
  */
-%type <node> stmt provStmt dmlStmt queryStmt
+%type <node> stmt provStmt dmlStmt queryStmt ddlStmt
+%type <node> createTableStmt alterTableStmt
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
@@ -155,7 +157,12 @@ stmtList:
 	;
 
 stmt: 
-        dmlStmt    // DML statement can be select, update, insert, delete
+        ddlStmt		// DDL statments
+        {
+        	RULELOG("stmt::ddlStmt");
+        	$$ = $1;
+        }
+        | dmlStmt    // DML statement can be select, update, insert, delete
         {
             RULELOG("stmt::dmlStmt");
             $$ = $1;
@@ -183,7 +190,40 @@ stmt:
     ;
 
 /*
- * Rule to parse all DML queries.
+ * Rule to parse all DDL statements.
+ */
+ddlStmt:
+		createTableStmt
+		{
+			RULELOG("ddlStmt::createTable");
+			$$ = $1;	
+		}
+		| alterTableStmt
+		{
+			RULELOG("ddlStmt::alterTable");
+			$$ = $1;
+		}
+	;
+
+createStmtTable:
+		CREATE TABLE ident AS queryStmt ';'
+		{
+			RULELOG("createTable::query");
+		}
+		| CREATE TABLE ident '(' ')' ';'
+		{
+			RULELOG("createTable::");
+		}
+	; 
+		
+alterTableStmt:
+		ALTER TABLE ident ';'
+		{
+			RULELOG("alterTable:");
+		}
+	;
+/*
+ * Rule to parse all DML statements.
  */
 dmlStmt:
         insertQuery        { RULELOG("dmlStmt::insertQuery"); }
