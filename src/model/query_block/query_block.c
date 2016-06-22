@@ -295,7 +295,7 @@ createWithStmt (List *views, Node *query)
 CreateTable *
 createCreateTable (char *tName, List *tableElem)
 {
-    CreateTable *result = NEW(CreateTable);
+    CreateTable *result = makeNode(CreateTable);
 
     result->tableName = tName;
     result->tableElems = tableElem;
@@ -307,7 +307,7 @@ createCreateTable (char *tName, List *tableElem)
 CreateTable *
 createCreateTableQuery (char *tName, Node *q)
 {
-    CreateTable *result = NEW(CreateTable);
+    CreateTable *result = makeNode(CreateTable);
 
     result->tableName = tName;
     result->tableElems = NIL;
@@ -316,30 +316,16 @@ createCreateTableQuery (char *tName, Node *q)
     return result;
 }
 
-AlterTable *
-createAlterTable (char *tName, AlterTableStmtType cmdType,
-        char *colName, char *newColDT)
-{
-    AlterTable *result = NEW(AlterTable);
-
-    result->tableName = tName;
-    result->cmdType = cmdType;
-    result->columnName = colName;
-    result->newColDT = newColDT;
-
-    return result;
-}
-
 
 AlterTable *
 createAlterTableAddColumn (char *tName, char *newColName, char *newColDT)
 {
-    AlterTable *result = NEW(AlterTable);
+    AlterTable *result = makeNode(AlterTable);
 
     result->tableName = tName;
     result->cmdType = ALTER_TABLE_ADD_COLUMN;
     result->columnName = newColName;
-    result->newColDT = newColDT;
+    result->newColDT = SQLdataTypeToDataType(newColDT);
 
     return result;
 }
@@ -352,7 +338,7 @@ createAlterTableRemoveColumn (char *tName, char *colName)
     result->tableName = tName;
     result->cmdType = ALTER_TABLE_REMOVE_COLUMN;
     result->columnName = colName;
-    result->newColDT = NULL;
+    result->newColDT = DT_INT;
 
     return result;
 }

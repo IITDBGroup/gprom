@@ -208,12 +208,12 @@ ddlStmt:
 	;
 
 createTableStmt:
-		CREATE TABLE identifier AS queryStmt ';'
+		CREATE TABLE identifier AS queryStmt
 		{
 			RULELOG("createTable::query");
 			$$ = (Node *) createCreateTableQuery($3,$5);
 		}
-		| CREATE TABLE identifier '(' optTableElemList ')' ';'
+		| CREATE TABLE identifier '(' optTableElemList ')'
 		{
 			RULELOG("createTable::");
 			$$ = (Node *) createCreateTable($3,$5);
@@ -257,7 +257,7 @@ tableElement:
 	;
 		
 alterTableStmt:
-		ALTER TABLE identifier alterTableCommand ';'
+		ALTER TABLE identifier alterTableCommand
 		{
 			RULELOG("alterTable:");
 			AlterTable *a = (AlterTable *) $4;

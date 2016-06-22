@@ -839,7 +839,7 @@ copyAlterTable(AlterTable *from, OperatorMap **opMap)
     COPY_STRING_FIELD(tableName);
     COPY_SCALAR_FIELD(cmdType);
     COPY_STRING_FIELD(columnName);
-    COPY_STRING_FIELD(newColDT);
+    COPY_SCALAR_FIELD(newColDT);
 
     return new;
 }

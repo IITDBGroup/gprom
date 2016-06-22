@@ -96,6 +96,8 @@ static boolean equalDelete(Delete *a, Delete *b, HashMap *seenOps, MemContext *c
 static boolean equalUpdate(Update *a, Update *b, HashMap *seenOps, MemContext *c);
 static boolean equalTransactionStmt(TransactionStmt *a, TransactionStmt *b, HashMap *seenOps, MemContext *c);
 static boolean equalFromProvInfo (FromProvInfo *a, FromProvInfo *b, HashMap *seenOps, MemContext *c);
+static boolean equalCreateTable (CreateTable *a, CreateTable *b, HashMap *seenOps, MemContext *c);
+static boolean equalAlterTable (AlterTable *a, AlterTable *b, HashMap *seenOps, MemContext *c);
 
 // equal functions for datalog model
 static boolean equalDLAtom (DLAtom *a, DLAtom *b, HashMap *seenOps, MemContext *c);
@@ -900,6 +902,29 @@ equalFromProvInfo (FromProvInfo *a, FromProvInfo *b, HashMap *seenOps, MemContex
     return TRUE;
 }
 
+static boolean
+equalCreateTable (CreateTable *a, CreateTable *b, HashMap *seenOps, MemContext *c)
+{
+    COMPARE_STRING_FIELD(tableName);
+    COMPARE_NODE_FIELD(tableElems);
+    COMPARE_NODE_FIELD(constraints);
+    COMPARE_NODE_FIELD(query);
+
+    return TRUE;
+}
+
+static boolean
+equalAlterTable (AlterTable *a, AlterTable *b, HashMap *seenOps, MemContext *c)
+{
+    COMPARE_STRING_FIELD(tableName);
+    COMPARE_SCALAR_FIELD(cmdType);
+    COMPARE_STRING_FIELD(columnName);
+    COMPARE_SCALAR_FIELD(newColDT);
+
+    return TRUE;
+}
+
+
 static boolean 
 equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b, HashMap *seenOps, MemContext *c)
 {
@@ -1198,6 +1223,12 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
             break;
         case T_TransactionStmt:
             retval = equalTransactionStmt(a,b, seenOps, c);
+            break;
+        case T_CreateTable:
+            retval = equalCreateTable(a,b, seenOps, c);
+            break;
+        case T_AlterTable:
+            retval = equalAlterTable(a,b, seenOps, c);
             break;
         case T_NestingOperator:
             retval = equalNestingOperator(a,b, seenOps, c);

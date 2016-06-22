@@ -496,7 +496,7 @@ outAlterTable(StringInfo str, AlterTable *node)
     WRITE_STRING_FIELD(tableName);
     WRITE_ENUM_FIELD(cmdType, AlterTableStmtType);
     WRITE_STRING_FIELD(columnName);
-    WRITE_STRING_FIELD(newColDT);
+    WRITE_ENUM_FIELD(newColDT, DataType);
 }
 
 static void

@@ -240,7 +240,7 @@ typedef struct AlterTable
     char *tableName;
     AlterTableStmtType cmdType;
     char *columnName;
-    char *newColDT;
+    DataType newColDT;
 } AlterTable;
 
 NEW_ENUM_WITH_TO_STRING(TransactionStmtType,

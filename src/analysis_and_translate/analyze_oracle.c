@@ -32,6 +32,8 @@ static void analyzeSetQuery (SetQuery *q, List *parentFroms);
 static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
 static void analyzeProvenanceOptions (ProvenanceStmt *prov);
 static void analyzeWithStmt (WithStmt *w);
+static void analyzeCreateTable (CreateTable *c);
+static void analyzeAlterTable (AlterTable *a);
 
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 
@@ -125,6 +127,12 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
             break;
         case T_WithStmt:
             analyzeWithStmt((WithStmt *) stmt);
+            break;
+        case T_CreateTable:
+            analyzeCreateTable((CreateTable *) stmt);
+            break;
+        case T_AlterTable:
+            analyzeAlterTable((AlterTable *) stmt);
             break;
         default:
             break;
@@ -1610,6 +1618,23 @@ analyzeWithStmt (WithStmt *w)
 
     DEBUG_NODE_BEATIFY_LOG("analyzed view is:", w->query);
 }
+
+static void
+analyzeCreateTable (CreateTable *c)
+{
+    /*TODO */
+    DEBUG_NODE_BEATIFY_LOG("analyzed create table is:", c);
+    FATAL_LOG("stop");
+}
+
+static void
+analyzeAlterTable (AlterTable *a)
+{
+    /*TODO */
+    DEBUG_NODE_BEATIFY_LOG("analyzed alter table is:", a);
+    FATAL_LOG("stop");
+}
+
 
 static boolean
 setViewFromTableRefAttrs(Node *node, List *views)
