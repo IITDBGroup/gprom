@@ -41,6 +41,7 @@
 #define PROP_PC_TRANS_XID "TRANSACTION_XID"                 // stores transaction XID
 #define PROP_PC_TUPLE_VERSIONS "TUPLE_VERSIONS"             // use rowid + scn pairs as provenance
 #define PROP_PC_STATEMENT_ANNOTATIONS "STATEMENT_ANNOTATIONS" // statement annotations
+#define PROP_PC_REENACT_METADATA "REENACT_METADATA"         // store table information for reenacting DDL commands
 
 /* table access properties */
 #define PROP_TABLE_IS_UPDATED "UPDATED_TABLE"               // is table access for the updated table in an DML translation

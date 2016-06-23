@@ -136,6 +136,8 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             return result;
         case PROV_TRANSFORMATION:
             return rewriteTransformationProvenance((QueryOperator *) op);
+        case PROV_NONE:
+            return OP_LCHILD(op);
     }
     return NULL;
 }

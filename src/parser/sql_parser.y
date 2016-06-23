@@ -59,7 +59,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -366,6 +366,16 @@ provStmt:
 			p->inputType = PROV_INPUT_TRANSACTION;
 			p->provType = PROV_PI_CS;
 			p->options = $3;
+			$$ = (Node *) p;
+		}
+		| REENACT optionalProvWith '(' stmtList ')'
+		{
+			RULELOG("provStmt::reenactStmtlist");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $4);
+			p->inputType = PROV_INPUT_REENACT;
+			p->provType = PROV_NONE;
+			p->asOf = (Node *) NULL;
+			p->options = $2;
 			$$ = (Node *) p;
 		}
     ;

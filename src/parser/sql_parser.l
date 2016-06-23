@@ -205,6 +205,7 @@ strconcat		"||"
 (?i:REMOVE)			TOK(REMOVE)
 (?i:COLUMN)			TOK(COLUMN)
 (?i:CREATE)			TOK(CREATE)
+(?i:REENACT)		TOK(REENACT)
 
 	/* booleans */
 {bool}			TOK(boolConst)

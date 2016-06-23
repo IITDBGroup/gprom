@@ -52,6 +52,10 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
         }
         case PROV_TRANSFORMATION:
             return singleton(strdup("tprov"));
+        case PROV_NONE:
+        {
+            return NIL;
+        }
     }
     return NIL; //keep compiler quiet
 }

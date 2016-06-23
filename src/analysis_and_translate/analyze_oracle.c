@@ -1048,7 +1048,9 @@ analyzeInsert(Insert * f)
     }
 }
 
-static void analyzeDelete(Delete * f) {
+static void
+analyzeDelete(Delete * f)
+{
 	List *attrRefs = NIL;
 	List *subqueries = NIL;
 	List *attrDef = getAttributes(f->nodeName);
@@ -1098,7 +1100,8 @@ static void analyzeDelete(Delete * f) {
 }
 
 static void
-analyzeUpdate(Update* f) {
+analyzeUpdate(Update* f)
+{
 	List *attrRefs = NIL;
 	List *attrDef = getAttributes(f->nodeName);
 	List *dataTypes = getAttributeDataTypes(f->nodeName);
@@ -1507,6 +1510,17 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         case PROV_INPUT_TRANSACTION:
         {
             //TODO need to know updates at this point
+        }
+        break;
+        case PROV_INPUT_REENACT:
+        {
+            //TODO analyze each statement
+
+        }
+        break;
+        case PROV_INPUT_REENACT_WITH_TIMES:
+        {
+
         }
         break;
         case PROV_INPUT_UPDATE:
