@@ -61,17 +61,17 @@ mergeUpdateSequence(ProvenanceComputation *op)
         addUpdateAnnotationAttrs (op);
 
     //TODO add projection to remove update annot attribute
-    QueryOperator *lastUp = (QueryOperator *) getTailOfListP(op->op.inputs);
-    List *normalAttrs = NIL;
-    CREATE_INT_SEQ(normalAttrs, 0, getNumNormalAttrs(lastUp) - 2, 1);
-    DEBUG_LOG("num attrs %i", getNumNormalAttrs(lastUp) - 2);
-
-    QueryOperator *newTop = createProjOnAttrs(lastUp, normalAttrs);
-    newTop->inputs = LIST_MAKE(lastUp);
-    switchSubtrees(lastUp, newTop);
-    lastUp->parents = LIST_MAKE(newTop);
-
-    INFO_LOG("after adding projection:\n%s", operatorToOverviewString((Node *) op));
+//    QueryOperator *lastUp = (QueryOperator *) getTailOfListP(op->op.inputs);
+//    List *normalAttrs = NIL;
+//    CREATE_INT_SEQ(normalAttrs, 0, getNumNormalAttrs(lastUp) - 2, 1);
+//    DEBUG_LOG("num attrs %i", getNumNormalAttrs(lastUp) - 2);
+//
+//    QueryOperator *newTop = createProjOnAttrs(lastUp, normalAttrs);
+//    newTop->inputs = LIST_MAKE(lastUp);
+//    switchSubtrees(lastUp, newTop);
+//    lastUp->parents = LIST_MAKE(newTop);
+//
+//    INFO_LOG("after adding projection:\n%s", operatorToOverviewString((Node *) op));
 
     //TODO check that this is ok
 
