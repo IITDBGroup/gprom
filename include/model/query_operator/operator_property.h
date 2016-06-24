@@ -24,6 +24,9 @@
 #define PROP_ADD_PROVENANCE "ADD_PROVENANCE"                // add the following attribtues to as provenance attributes (but still rewrite and add normal provenance attrs too)
 #define PROP_TRANSLATE_AS "TRANSLATE AS"
 
+// reenactment
+#define PROP_REENACT_SCHEMA_INFO "REENACT_SCHEMA"           // store additional table schemas to support reenactment of DDL commands
+
 // provenance PI-CS composable
 #define PROP_RESULT_TID_ATTR "RESULT_TID_ATTR"              // result tid attribute for PI-CS composable
 #define PROP_PROV_DUP_ATTR "PROV_DUP_ATTR"                  // provenance duplicate counter attribute for PI-CS composable

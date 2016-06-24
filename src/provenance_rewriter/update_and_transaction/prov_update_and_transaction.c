@@ -58,21 +58,22 @@ mergeUpdateSequence(ProvenanceComputation *op)
 
     // add boolean attributes to store whether update did modify a row
     if (addAnnotAttrs)
+    {
         addUpdateAnnotationAttrs (op);
 
-    //TODO add projection to remove update annot attribute
-//    QueryOperator *lastUp = (QueryOperator *) getTailOfListP(op->op.inputs);
-//    List *normalAttrs = NIL;
-//    CREATE_INT_SEQ(normalAttrs, 0, getNumNormalAttrs(lastUp) - 2, 1);
-//    DEBUG_LOG("num attrs %i", getNumNormalAttrs(lastUp) - 2);
-//
-//    QueryOperator *newTop = createProjOnAttrs(lastUp, normalAttrs);
-//    newTop->inputs = LIST_MAKE(lastUp);
-//    switchSubtrees(lastUp, newTop);
-//    lastUp->parents = LIST_MAKE(newTop);
-//
-//    INFO_LOG("after adding projection:\n%s", operatorToOverviewString((Node *) op));
+        //TODO add projection to remove update annot attribute
+        QueryOperator *lastUp = (QueryOperator *) getTailOfListP(op->op.inputs);
+        List *normalAttrs = NIL;
+        CREATE_INT_SEQ(normalAttrs, 0, getNumNormalAttrs(lastUp) - 2, 1);
+        DEBUG_LOG("num attrs %i", getNumNormalAttrs(lastUp) - 2);
 
+        QueryOperator *newTop = createProjOnAttrs(lastUp, normalAttrs);
+        newTop->inputs = LIST_MAKE(lastUp);
+        switchSubtrees(lastUp, newTop);
+        lastUp->parents = LIST_MAKE(newTop);
+
+        INFO_LOG("after adding projection:\n%s", operatorToOverviewString((Node *) op));
+    }
     //TODO check that this is ok
 
     // merge updates to create transaction reenactment query
@@ -123,7 +124,7 @@ addUpdateAnnotationAttrs (ProvenanceComputation *op)
 
         // mark update annotation attribute as provenance
         SET_STRING_PROP(q, PROP_ADD_PROVENANCE, LIST_MAKE(createConstString(annotName)));
-        SET_STRING_PROP(q, PROP_PROV_REL_NAME, createConstString(CONCAT_STRINGS("STATEMENT", itoa(i))));
+        SET_STRING_PROP(q, PROP_PROV_REL_NAME, createConstString(CONCAT_STRINGS("U", itoa(i))));
 
         // use original update to figure out type of each update (UPDATE/DELETE/INSERT)
         // switch

@@ -157,8 +157,8 @@ rewritePI_CSOperator (QueryOperator *op)
             rewrittenOp = rewritePI_CSOrderOp((OrderOperator *) op);
             break;
         case T_JsonTableOperator:
-	     DEBUG_LOG("go JsonTable operator");
-	     rewrittenOp = rewritePI_CSJsonTableOp((JsonTableOperator *) op);
+            DEBUG_LOG("go JsonTable operator");
+            rewrittenOp = rewritePI_CSJsonTableOp((JsonTableOperator *) op);
 	     break;
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
@@ -310,6 +310,14 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs)
     proj = (QueryOperator *) createProjectionOp(projExpr, NULL, NIL, attrNames);
     proj->provAttrs = provAttrPos;
 
+    // if there is also PROP_PC_ADD_PROV set then copy over the properties to the new proj op
+    if(HAS_STRING_PROP(op, PROP_ADD_PROVENANCE))
+    {
+        SET_STRING_PROP(proj, PROP_ADD_PROVENANCE,
+                copyObject(GET_STRING_PROP(op, PROP_ADD_PROVENANCE)));
+        SET_STRING_PROP(proj, PROP_PROV_REL_NAME,
+                copyObject(GET_STRING_PROP(op, PROP_PROV_REL_NAME)));
+    }
     // Switch the subtree with this newly created projection operator.
     switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) proj);
 

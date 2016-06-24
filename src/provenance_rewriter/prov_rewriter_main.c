@@ -32,7 +32,7 @@
 #include "model/set/set.h"
 
 /* function declarations */
-static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *hasSeen);
+static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *haveSeen);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
 
 /* function definitions */
@@ -71,23 +71,19 @@ provRewriteQuery (QueryOperator *input)
 
 
 static QueryOperator *
-findProvenanceComputations (QueryOperator *op, Set *hasSeen)
+findProvenanceComputations (QueryOperator *op, Set *haveSeen)
 {
-
     // is provenance computation? then rewrite
     if (isA(op, ProvenanceComputation))
         return rewriteProvenanceComputation((ProvenanceComputation *) op);
 
     // else search for children with provenance
-//    FOREACH(QueryOperator, x, op->inputs)
-//        findProvenanceComputations(x);
-//
     FOREACH(QueryOperator,c,op->inputs)
     {
-        if (!hasSetElem(hasSeen, c))
+        if (!hasSetElem(haveSeen, c))
         {
-            addToSet(hasSeen, c);
-            findProvenanceComputations(c, hasSeen);
+            addToSet(haveSeen, c);
+            findProvenanceComputations(c, haveSeen);
         }
     }
 
@@ -119,8 +115,8 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     if (isRewriteOptionActivated(OPTION_TREEIFY_OPERATOR_MODEL))
     {
         treeify((QueryOperator *) op);
-        INFO_OP_LOG("treeifyed operator model:", op);
-        DEBUG_NODE_BEATIFY_LOG("treeifyed operator model:", op);
+        INFO_OP_LOG("treeified operator model:", op);
+        DEBUG_NODE_BEATIFY_LOG("treeified operator model:", op);
         ASSERT(isTree((QueryOperator *) op));
     }
 
