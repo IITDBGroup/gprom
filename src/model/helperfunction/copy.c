@@ -503,7 +503,6 @@ copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
     COPY_INIT(AttributeDef);
     COPY_SCALAR_FIELD(dataType);
     COPY_STRING_FIELD(attrName);
-    COPY_SCALAR_FIELD(pos);
 
     return new;
 }

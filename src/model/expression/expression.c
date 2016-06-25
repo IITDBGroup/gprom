@@ -552,7 +552,7 @@ DataType
 SQLdataTypeToDataType (char *dt)
 {
     //TODO outsource to metadatalookup for now does only Oracle
-    if (isPrefix(dt, "NUMERIC") || streq(dt, "NUMBER"))
+    if (isPrefix(dt, "NUMERIC") || streq(dt, "NUMBER") || streq(dt,"INT"))
         return DT_INT; //TODO may also be float
     if (isPrefix(dt, "VARCHAR"))
         return DT_STRING;

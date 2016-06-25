@@ -830,7 +830,6 @@ outAttributeDef (StringInfo str, AttributeDef *node)
 
     WRITE_ENUM_FIELD(dataType, DataType);
     WRITE_STRING_FIELD(attrName);
-    WRITE_INT_FIELD(pos); 
 }
 
 #define WRITE_QUERY_OPERATOR() outQueryOperator(str, (QueryOperator *) node)

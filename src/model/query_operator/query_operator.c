@@ -47,7 +47,6 @@ createAttributeDef (char *name, DataType dt)
 
     result->dataType = dt;
     result->attrName = name;
-    result->pos = 0;
 
     return result;
 }

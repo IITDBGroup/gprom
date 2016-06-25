@@ -658,7 +658,6 @@ hashAttributeDef (uint64_t cur, AttributeDef *node)
 {
     HASH_INT(dataType);
     HASH_STRING(attrName);
-    HASH_INT(pos);
 
     HASH_RETURN();
 }

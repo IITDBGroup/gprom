@@ -12,6 +12,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
 #include "parser/parse_internal.h"
 #include "log/logger.h"
 #include "model/query_operator/operator_property.h"
@@ -250,8 +251,7 @@ tableElement:
 		identifier identifier
 		{
 			RULELOG("tableElement::columnDef");
-			$$ = (Node *) createFullAttrReference($1, INVALID_ATTR, INVALID_ATTR, 
-					INVALID_ATTR, SQLdataTypeToDataType($2));
+			$$ = (Node *) createAttributeDef($1, SQLdataTypeToDataType($2));
 		}
 		/* TODO add constraints and make column def more general */
 	;

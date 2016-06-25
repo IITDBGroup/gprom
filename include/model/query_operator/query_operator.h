@@ -21,7 +21,6 @@ typedef struct AttributeDef
     NodeTag type;
     DataType dataType;
     char *attrName;
-    int pos;
 } AttributeDef;
 
 typedef struct Schema

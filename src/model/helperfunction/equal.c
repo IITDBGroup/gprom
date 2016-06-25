@@ -611,7 +611,7 @@ static boolean
 equalAttributeDef(AttributeDef *a, AttributeDef *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_STRING_FIELD(attrName);
-    COMPARE_SCALAR_FIELD(pos);
+    //COMPARE_SCALAR_FIELD(dataType);
    
     return TRUE;
 }
