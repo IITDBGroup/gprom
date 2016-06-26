@@ -174,11 +174,11 @@ extern void resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *op1,QueryOper
 /* union equal element between two set list */
 extern List *unionEqualElemOfTwoSetList(List *l1, List *l2);
 extern List *addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet);
-
-//extern List *getSelectionCondOperatorList(List *opList, Operator *op);
 extern List *getCondOpList(List *l1, List *l2);
 extern List *getDataTypes (Schema *schema);
 extern List *getAttrNames(Schema *schema);
+extern List *getAttrDefNames (List *defs);
+extern List *getAttrDataTypes (List *defs);
 #define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema
 
 /* create functions */

@@ -442,7 +442,8 @@ static void
 outInsert(StringInfo str, Insert *node)
 {
     WRITE_NODE_TYPE(INSERT);
-    WRITE_STRING_FIELD(tableName);
+    WRITE_NODE_FIELD(schema);
+    WRITE_STRING_FIELD(insertTableName);
     WRITE_STRING_LIST_FIELD(attrList);
     WRITE_NODE_FIELD(query);
 }
@@ -451,7 +452,8 @@ static void
 outDelete(StringInfo str, Delete *node)
 {
     WRITE_NODE_TYPE(DELETE);
-    WRITE_STRING_FIELD(nodeName);
+    WRITE_NODE_FIELD(schema);
+    WRITE_STRING_FIELD(deleteTableName);
     WRITE_NODE_FIELD(cond);
 }
 
@@ -459,7 +461,8 @@ static void
 outUpdate(StringInfo str, Update *node)
 {
     WRITE_NODE_TYPE(UPDATE);
-    WRITE_STRING_FIELD(nodeName);
+    WRITE_NODE_FIELD(schema);
+    WRITE_STRING_FIELD(updateTableName);
     WRITE_NODE_FIELD(selectClause);
     WRITE_NODE_FIELD(cond);
 }
@@ -497,6 +500,8 @@ outAlterTable(StringInfo str, AlterTable *node)
     WRITE_ENUM_FIELD(cmdType, AlterTableStmtType);
     WRITE_STRING_FIELD(columnName);
     WRITE_ENUM_FIELD(newColDT, DataType);
+    WRITE_NODE_FIELD(schema);
+    WRITE_NODE_FIELD(beforeSchema);
 }
 
 static void

@@ -28,6 +28,8 @@
 
 static QueryOperator *getUpdateForPreviousTableVersion (ProvenanceComputation *p, char *tableName, int startPos, List *updates);
 
+static void mergeForTransactionProvenacne(ProvenanceComputation *op);
+static void mergeForReenactOnly(ProvenanceComputation *op);
 static void mergeSerializebleTransaction(ProvenanceComputation *op);
 static void mergeReadCommittedTransaction(ProvenanceComputation *op);
 
@@ -42,10 +44,87 @@ static List *findUpdatedTableAccceses (List *tables);
 static void addUpdateAnnotationAttrs (ProvenanceComputation *op);
 static void addAnnotConstToUnion (QueryOperator *un, boolean leftIsTrue, char *annotName);
 
-
-
 void
 mergeUpdateSequence(ProvenanceComputation *op)
+{
+    if (op->inputType == PROV_INPUT_TRANSACTION)
+    {
+        mergeForTransactionProvenacne(op);
+        return;
+    }
+    if (op->inputType == PROV_INPUT_REENACT
+                || op->inputType == PROV_INPUT_REENACT_WITH_TIMES)
+    {
+        mergeForReenactOnly(op);
+        return;
+    }
+    //TODO op->inputType == PROV_INPUT_UPDATE_SEQUENCE
+    FATAL_LOG("currenly only provenance for transaction and reenactment supported");
+}
+
+static void
+mergeForReenactOnly(ProvenanceComputation *op)
+{
+    List *updates = copyList(op->op.inputs);
+    HashMap *curTranslation = NEW_MAP(Constant, Node);
+    List *tabNames = op->transactionInfo->updateTableNames;
+
+    // cut links to parent
+    removeParentFromOps(op->op.inputs, (QueryOperator *) op);
+    op->op.inputs = NIL;
+
+    // loop through statement replacing ops where necessary
+    DEBUG_NODE_BEATIFY_LOG("reenacted statements to merge are:", updates);
+    INFO_OP_LOG("reenacted statements to merge are:", updates);
+    FORBOTH(void,u,tN,updates,tabNames)
+    {
+        QueryOperator *up = (QueryOperator *) u;
+        char *tName = (char *) tN;
+        List *children = NULL;
+
+        DEBUG_NODE_BEATIFY_LOG("merge", (Node *) up);
+        INFO_OP_LOG("Replace table access operators in", up);
+
+        // find all table access operators
+        findTableAccessVisitor((Node *) up, &children);
+
+        FOREACH(TableAccessOperator, t, children)
+        {
+            // only merge if we already have statement producing previous version of table
+            if (MAP_HAS_STRING_KEY(curTranslation, t->tableName))
+            {
+                INFO_OP_LOG("\tTable Access", t);
+                QueryOperator *prevUpdate = (QueryOperator *)
+                        MAP_GET_STRING(curTranslation, t->tableName);
+
+                INFO_OP_LOG("\tUpdate is", prevUpdate);
+                switchSubtreeWithExisting((QueryOperator *) t, prevUpdate);
+
+                INFO_LOG("Table after merge %s", operatorToOverviewString((Node *) up));
+            }
+        }
+
+        // if reenacted statement updates table then this is the current version of this table
+        if (!streq(tName,"_NONE"))
+        {
+            MAP_ADD_STRING_KEY(curTranslation,tName,up);
+        }
+    }
+
+    // if not then do normal stuff
+    addChildOperator((QueryOperator *) op,
+            (QueryOperator *) getTailOfListP(updates));
+
+    // else find last update to that table
+    //getUpdateForPreviousTableVersion(op,THE_TABLE_NAME, 0, updates);
+    // if NULL then user has asked for non-existing table
+    // FATAL_LOG("table); - exit
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        ASSERT(checkModel((QueryOperator *) op));
+}
+
+static void
+mergeForTransactionProvenacne(ProvenanceComputation *op)
 {
 	ProvenanceTransactionInfo *tInfo = op->transactionInfo;
 	boolean addAnnotAttrs = GET_BOOL_STRING_PROP(op, PROP_PC_STATEMENT_ANNOTATIONS) ||
@@ -690,12 +769,12 @@ removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
         else if (isA(u,Update))
         {
             Update *up = (Update *) u;
-            addToSet(tableUpdateOrRead, up->nodeName);
+            addToSet(tableUpdateOrRead, up->updateTableName);
         }
         else if (isA(u, Delete))
         {
             Delete *d = (Delete *) u;
-            addToSet(tableUpdateOrRead, d->nodeName);
+            addToSet(tableUpdateOrRead, d->deleteTableName);
         }
     }
 

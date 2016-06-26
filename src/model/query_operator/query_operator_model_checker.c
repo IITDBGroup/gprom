@@ -209,7 +209,7 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
 static boolean
 checkSchemaConsistency (QueryOperator *op, void *context)
 {
-    if (LIST_LENGTH(op->schema->attrDefs) == 0)
+    if (LIST_LENGTH(op->schema->attrDefs) == 0 && !isA(op,ProvenanceComputation))
     {
         ERROR_OP_LOG("Cannot have an operator with no result attributes", op);
         return FALSE;

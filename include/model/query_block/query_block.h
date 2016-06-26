@@ -200,7 +200,8 @@ typedef struct NestedSubquery
 typedef struct Insert
 {
     NodeTag type;
-    char *tableName;
+    List *schema;
+    char *insertTableName;
     List *attrList;
     Node *query;
 } Insert;
@@ -208,14 +209,16 @@ typedef struct Insert
 typedef struct Delete
 {
     NodeTag type;
-    char *nodeName;
+    List *schema;
+    char *deleteTableName;
     Node *cond;
 } Delete;
 
 typedef struct Update
 {
     NodeTag type;
-    char *nodeName;
+    List *schema;
+    char *updateTableName;
     List *selectClause;
     Node *cond;
 } Update;
@@ -239,6 +242,8 @@ typedef struct AlterTable
     NodeTag type;
     char *tableName;
     AlterTableStmtType cmdType;
+    List *schema;
+    List *beforeSchema;
     char *columnName;
     DataType newColDT;
 } AlterTable;

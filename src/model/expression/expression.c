@@ -528,6 +528,25 @@ isConstExpr (Node *expr)
     return FALSE;
 }
 
+boolean
+isCondition(Node *expr)
+{
+    if (isA(expr,Operator))
+    {
+        Operator *o = (Operator *) expr;
+        if (streq(o->name, "=")
+                || streq(o->name, "<")
+                || streq(o->name, ">")
+                || streq(o->name, "!=")
+            ) //TODO what else
+            return TRUE;
+    }
+    if (isA(expr,CaseWhen))
+        return TRUE;
+
+    return FALSE;
+}
+
 List *
 createCasts(Node *lExpr, Node *rExpr)
 {

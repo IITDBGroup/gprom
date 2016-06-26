@@ -71,6 +71,7 @@ static List *splitAttrOnDot (char *dotName);
 static List *getFromTreeLeafs (List *from);
 static char *generateAttrNameFromExpr(SelectItem *s);
 static List *splitTableName(char *tableName);
+static void getTableSchema (char *tableName, List **attrDefs, List **attrNames, List **dts);
 static List *getQBAttrDefs(Node *qb);
 static List *getQBAttrNames (Node *qb);
 static List *getQBAttrDTs (Node *qb);
@@ -576,7 +577,7 @@ findNamedFromItem (FromItem *fromItem, char *name)
     }
 
     // is not a join
-    if (strcmp(name, fromItem->name) == 0)
+    if (strpeq(name, fromItem->name))
         return fromItem;
 
     return NULL;
@@ -591,7 +592,7 @@ findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
     // is not a join
     FOREACH(char, r, fromItem->attrNames)
     {
-        if(strcmp(attr->name, r) == 0)
+        if(streq(attr->name, r))
         {
             // is ambigious?
             if (isFound)
@@ -610,7 +611,7 @@ findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
     }
 
     // if it is a tableaccess then allow access to ROWID column
-    if(strcmp(attr->name,"ROWID") == 0 && fromItem->type == T_FromTableRef)
+    if(strpeq(attr->name,"ROWID") && fromItem->type == T_FromTableRef)
     {
         isFound = TRUE;
         foundAttr = LIST_LENGTH(fromItem->attrNames);
@@ -947,11 +948,14 @@ analyzeFromJsonTable(FromJsonTable *f, List **state)
 static void
 analyzeInsert(Insert * f)
 {
-    List *attrNames = getAttributeNames(f->tableName);
-//    List *dataTypes = getAttributeDataTypes(f->tableName);
-    List *attrRefs = getAttributes(f->tableName);
+    List *attrNames = NIL;
+    List *dataTypes = NIL;
+    List *attrDefs = NIL;
     HashMap *attrPos = NULL;
     Set *attrNameSet = makeStrSetFromList(attrNames);
+
+    getTableSchema(f->insertTableName, &attrDefs, &attrNames, &dataTypes);
+    f->schema = copyObject(attrDefs);
 
     // if user has given no attribute list, then get it from table definition
     if (f->attrList == NULL)
@@ -970,7 +974,7 @@ analyzeInsert(Insert * f)
             if (!hasSetElem(attrNameSet,name))
                 FATAL_LOG("INSERT mentions attribute <%s> that is not an "
                         "attribute of table %s:<%s>",
-                        name, f->tableName, stringListToString(attrNames));
+                        name, f->insertTableName, stringListToString(attrNames));
         }
     }
 
@@ -985,7 +989,7 @@ analyzeInsert(Insert * f)
             INFO_LOG("The number of values are not equal to the number "
                     "attributes in the table");
             //TODO add NULL or DEFAULT values for remaining attributes
-            FOREACH(AttributeDef,a,attrRefs)
+            FOREACH(AttributeDef,a,attrDefs)
             {
                 Node *val = NULL;
 
@@ -997,7 +1001,7 @@ analyzeInsert(Insert * f)
                 }
                 else
                 {
-                    List *nameParts = splitTableName(f->tableName);
+                    List *nameParts = splitTableName(f->insertTableName);
                     Node *def = getAttributeDefaultVal(
                             (char *) getNthOfListP(nameParts, 0),
                             (char *) getNthOfListP(nameParts, 1),
@@ -1026,7 +1030,7 @@ analyzeInsert(Insert * f)
             QueryBlock *wrap = createQueryBlock();
             List *selectClause = NIL;
 
-            FOREACH(AttributeDef,a,attrRefs)
+            FOREACH(AttributeDef,a,attrDefs)
             {
                 Node *val = NULL;
                 //	            SelectItem *subItem = NULL;
@@ -1045,7 +1049,7 @@ analyzeInsert(Insert * f)
                 }
                 else
                 {
-                    List *nameParts = splitTableName(f->tableName);
+                    List *nameParts = splitTableName(f->insertTableName);
                     Node *def = getAttributeDefaultVal(
                             (char *) getNthOfListP(nameParts, 0),
                             (char *) getNthOfListP(nameParts, 1),
@@ -1073,17 +1077,17 @@ analyzeDelete(Delete * f)
 {
 	List *attrRefs = NIL;
 	List *subqueries = NIL;
-	List *attrDef = getAttributes(f->nodeName);
+	List *attrDefs = NIL;
 	List *attrNames = NIL;
-	List *dataTypes = getAttributeDataTypes(f->nodeName);
+	List *dataTypes =  NIL;
 	FromTableRef *fakeTable;
 	List *fakeFrom = NIL;
 
-	FOREACH(AttributeDef,a,attrDef)
-		attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
+	getTableSchema(f->deleteTableName, &attrDefs, &attrNames, &dataTypes);
+	f->schema = copyObject(attrDefs);
 
-	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->nodeName), attrNames,
-			strdup(f->nodeName), dataTypes);
+	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->deleteTableName), attrNames,
+			strdup(f->deleteTableName), dataTypes);
 	fakeFrom = singleton(singleton(fakeTable));
 
 	int attrPos = 0;
@@ -1123,18 +1127,18 @@ static void
 analyzeUpdate(Update* f)
 {
 	List *attrRefs = NIL;
-	List *attrDef = getAttributes(f->nodeName);
-	List *dataTypes = getAttributeDataTypes(f->nodeName);
+	List *attrDefs = NIL;
+	List *dataTypes = NIL;
 	List *attrNames = NIL;
 	List *subqueries = NIL;
 	FromTableRef *fakeTable;
 	List *fakeFrom = NIL;
 
-	FOREACH(AttributeDef,a,attrDef)
-		attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
+	getTableSchema(f->updateTableName, &attrDefs, &attrNames, &dataTypes);
+	f->schema = copyObject(attrDefs);
 
-	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->nodeName), attrNames,
-			strdup(f->nodeName), dataTypes);
+	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->updateTableName), attrNames,
+			strdup(f->updateTableName), dataTypes);
 	fakeFrom = singleton(singleton(fakeTable));
 
 //	boolean isFound = FALSE;
@@ -1188,6 +1192,23 @@ analyzeFromSubquery(FromSubquery *sq, List *parentFroms)
 	sq->from.dataTypes = getQBAttrDTs(sq->subquery);
 
 	ASSERT(LIST_LENGTH(sq->from.attrNames) == LIST_LENGTH(expectedAttrs));
+}
+
+static void
+getTableSchema (char *tableName, List **attrDefs, List **attrNames, List **dts)
+{
+    if (schemaInfoHasTable(tableName))
+    {
+        *attrDefs = schemaInfoGetSchema(tableName);
+        *attrNames = schemaInfoGetAttributeNames(tableName);
+        *dts = schemaInfoGetAttributeDataTypes(tableName);
+    }
+    else
+    {
+        *attrDefs = getAttributes(tableName);
+        *attrNames = getAttributeNames(tableName);
+        *dts = getAttributeDataTypes(tableName);
+    }
 }
 
 static List *
@@ -1553,16 +1574,23 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         {
             //TODO analyze each statement
             List *stmts = (List *) q->query;
+//            List *schemaInfos = NIL;
             schemaInfo = NEW_MAP(Node,Node); //maps table name to schema
 
             FOREACH(Node,stmt,stmts)
             {
                 //TODO maintain and extend a schema info
                 analyzeQueryBlockStmt(stmt, NIL);
+//                schemaInfos = appendToTailOfList(schemaInfos, copyObject(schemaInfo));
             }
-            DEBUG_NODE_BEATIFY_LOG("REENACT THIS:", q);
+            // store schema infos in provenancestmt's options for translator
+//            q->options = appendToTailOfList(q->options,
+//                    createNodeKeyValue(
+//                            (Node *) createConstString("SCHEMA_INFOS"),
+//                            (Node *) schemaInfos));
+
+            INFO_NODE_BEATIFY_LOG("REENACT THIS:", q);
             schemaInfo = NULL;
-            FATAL_LOG("stop");
         }
         break;
         case PROV_INPUT_REENACT_WITH_TIMES:
@@ -1706,8 +1734,11 @@ analyzeCreateTable (CreateTable *c)
         {
             if(isA(el,AttributeDef))
                 schema = appendToTailOfList(schema, copyObject(el));
+            else
+                c->constraints = appendToTailOfList(c->constraints, el);//TODO check them
         }
     }
+    c->tableElems = copyObject(schema);
 
     MAP_ADD_STRING_KEY(schemaInfo,c->tableName,schema);
 
@@ -1727,6 +1758,7 @@ analyzeAlterTable (AlterTable *a)
         schema = schemaInfoGetSchema(a->tableName);
     else
         schema = getAttributes(a->tableName);
+    a->beforeSchema = copyObject(schema);
 
     // implement changes to schema based on command
     switch(a->cmdType)
@@ -1758,6 +1790,7 @@ analyzeAlterTable (AlterTable *a)
 
     // store new schema
     MAP_ADD_STRING_KEY(schemaInfo, a->tableName, schema);
+    a->schema = copyObject(schema);
 
     DEBUG_NODE_BEATIFY_LOG("analyzed alter table is:", a);
 }

@@ -761,7 +761,8 @@ static Insert *
 copyInsert(Insert *from, OperatorMap **opMap)
 {
     COPY_INIT(Insert);
-    COPY_STRING_FIELD(tableName);
+    COPY_NODE_FIELD(schema);
+    COPY_STRING_FIELD(insertTableName);
     COPY_STRING_LIST_FIELD(attrList);
     COPY_NODE_FIELD(query);
 
@@ -772,7 +773,8 @@ static Delete *
 copyDelete(Delete *from, OperatorMap **opMap)
 {
     COPY_INIT(Delete);
-    COPY_STRING_FIELD(nodeName);
+    COPY_NODE_FIELD(schema);
+    COPY_STRING_FIELD(deleteTableName);
     COPY_NODE_FIELD(cond);
 
     return new;
@@ -782,7 +784,8 @@ static Update *
 copyUpdate(Update *from, OperatorMap **opMap)
 {
     COPY_INIT(Update);
-    COPY_STRING_FIELD(nodeName);
+    COPY_NODE_FIELD(schema);
+    COPY_STRING_FIELD(updateTableName);
     COPY_NODE_FIELD(selectClause);
     COPY_NODE_FIELD(cond);
 
@@ -839,6 +842,8 @@ copyAlterTable(AlterTable *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(cmdType);
     COPY_STRING_FIELD(columnName);
     COPY_SCALAR_FIELD(newColDT);
+    COPY_NODE_FIELD(schema);
+    COPY_NODE_FIELD(beforeSchema);
 
     return new;
 }

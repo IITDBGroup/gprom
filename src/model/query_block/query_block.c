@@ -235,7 +235,7 @@ Insert *
 createInsert(char *nodeName, Node *query, List *attrs)
 {
     Insert *result = makeNode(Insert);
-    result->tableName = nodeName;
+    result->insertTableName = nodeName;
     result->query = query;
     result->attrList = attrs;
 
@@ -247,7 +247,7 @@ Delete *
 createDelete(char *nodeName, Node *cond)
 {
     Delete *result = makeNode(Delete);
-    result->nodeName = nodeName;
+    result->deleteTableName = nodeName;
     result->cond = cond;
 
     return result;
@@ -258,7 +258,7 @@ Update *
 createUpdate(char *nodeName, List *selectClause, Node *cond)
 {
     Update *result = makeNode(Update);
-    result->nodeName = nodeName;
+    result->updateTableName = nodeName;
     ((Update *) result)->selectClause = selectClause;
     result->cond = cond;
 
@@ -326,6 +326,8 @@ createAlterTableAddColumn (char *tName, char *newColName, char *newColDT)
     result->cmdType = ALTER_TABLE_ADD_COLUMN;
     result->columnName = newColName;
     result->newColDT = SQLdataTypeToDataType(newColDT);
+    result->schema = NIL;
+    result->beforeSchema = NIL;
 
     return result;
 }
@@ -339,6 +341,8 @@ createAlterTableRemoveColumn (char *tName, char *colName)
     result->cmdType = ALTER_TABLE_REMOVE_COLUMN;
     result->columnName = colName;
     result->newColDT = DT_INT;
+    result->schema = NIL;
+    result->beforeSchema = NIL;
 
     return result;
 }

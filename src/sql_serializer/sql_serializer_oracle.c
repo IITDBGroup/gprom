@@ -109,6 +109,11 @@ typedef struct JoinAttrRenameState {
 
 #define ORACLE_IDENT_LIMIT 30
 
+typedef struct ReplaceNonOracleDTsContext {
+    void *curOp;
+    boolean inCond;
+} ReplaceNonOracleDTsContext;
+
 /* variables */
 static TemporaryViewMap *viewMap;
 static int viewNameCounter;
@@ -120,7 +125,9 @@ static boolean quoteAttributeNames (Node *node, void *context);
 
 static void  makeDTOracleConformant(QueryOperator *q);
 static boolean replaceNonOracleDTsVisitQO (QueryOperator *node, void *context);
-static boolean replaceNonOracleDTs (Node *node, void *context);
+static boolean replaceNonOracleDTs (Node *node,
+        ReplaceNonOracleDTsContext *context, void **partentPointer);
+
 
 static List *serializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent);
 static List *serializeQueryBlock (QueryOperator *q, StringInfo str);
@@ -349,27 +356,37 @@ serializeQueryOracle(QueryOperator *q)
 static void
 makeDTOracleConformant(QueryOperator *q)
 {
-    visitQOGraph(q, TRAVERSAL_PRE, replaceNonOracleDTsVisitQO, q);
+    ReplaceNonOracleDTsContext c;
+    c.curOp = q;
+    c.inCond = FALSE;//TODO
+
+    visitQOGraph(q, TRAVERSAL_PRE, replaceNonOracleDTsVisitQO, &c);
 }
 
 static boolean
 replaceNonOracleDTsVisitQO (QueryOperator *node, void *context)
 {
-    replaceNonOracleDTs((Node *) node, node);
+    ReplaceNonOracleDTsContext *c = (ReplaceNonOracleDTsContext *) context;
+    c->curOp = node;
+    c->inCond = (isA(node, SelectionOperator));
+    replaceNonOracleDTs((Node *) node, context, NULL);
     return TRUE;
 }
 
 static boolean
-replaceNonOracleDTs (Node *node, void *context)
+replaceNonOracleDTs (Node *node, ReplaceNonOracleDTsContext *context, void **partentPointer)
 {
     if (node == NULL)
         return TRUE;
 
-    if (node != context && IS_OP(node))
+    if (node != context->curOp && IS_OP(node))
         return TRUE;
 
     //TODO keep context
-    //TODO take care of boolean expressions that are used where Oracle expects
+    //TODO take care of boolean expressions that are used where Oracle expects a condition
+
+    // replace boolean constants with 1/0 in arithmetic contexts (e.g., SELECT)
+    // and with 1=1/1=0 in conditional contexts (e.g., WHERE)
     if (isA(node,Constant))
     {
         Constant *c = (Constant *) node;
@@ -383,10 +400,26 @@ replaceNonOracleDTs (Node *node, void *context)
                 INT_VALUE(c) = 1;
             else
                 INT_VALUE(c) = 0;
+
+            if (context->inCond)
+            {
+                if (val)
+                    *partentPointer = createOpExpr("=",
+                            LIST_MAKE(createConstInt(1),createConstInt(1)));
+                else
+                    *partentPointer = createOpExpr("=",
+                            LIST_MAKE(createConstInt(1),createConstInt(0)));
+            }
+
         }
+        return TRUE;
     }
 
-    return visit(node, replaceNonOracleDTs, context);
+    // are we in arithmetic of non-arithmetic expression (or other nodes)
+    if (IS_EXPR(node))
+        context->inCond = isCondition(node);//TODO do second traversal to solve cases where now an int is used instead of a condition
+
+    return visitWithPointers(node, replaceNonOracleDTs, partentPointer, context);
 }
 
 /*

@@ -96,7 +96,9 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     // for a sequence of updates of a transaction merge the sequence into a single
     // query before rewrite.
     if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE
-            || op->inputType == PROV_INPUT_TRANSACTION)
+            || op->inputType == PROV_INPUT_TRANSACTION
+            || op->inputType == PROV_INPUT_REENACT
+            || op->inputType == PROV_INPUT_REENACT_WITH_TIMES)
     {
         START_TIMER("rewrite - merge update reenactments");
         mergeUpdateSequence(op);

@@ -587,7 +587,7 @@ hashNestedSubquery (uint64_t cur, NestedSubquery *node)
 static uint64_t
 hashInsert (uint64_t cur, Insert *node)
 {
-    HASH_STRING(tableName);
+    HASH_STRING(insertTableName);
     HASH_NODE(attrList);
     HASH_NODE(query);
 
@@ -598,7 +598,7 @@ hashInsert (uint64_t cur, Insert *node)
 static uint64_t
 hashDelete (uint64_t cur, Delete *node)
 {
-    HASH_STRING(nodeName);
+    HASH_STRING(deleteTableName);
     HASH_NODE(cond);
 
     HASH_RETURN();
@@ -608,7 +608,7 @@ hashDelete (uint64_t cur, Delete *node)
 static uint64_t
 hashUpdate (uint64_t cur, Update *node)
 {
-    HASH_STRING(nodeName);
+    HASH_STRING(updateTableName);
     HASH_NODE(selectClause);
     HASH_NODE(cond);
 

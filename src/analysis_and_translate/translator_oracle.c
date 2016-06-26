@@ -146,6 +146,10 @@ translateQueryOracle (Node *node)
             return translateUpdate(node);
         case T_WithStmt:
             return translateWithStmt((WithStmt *) node);
+        case T_CreateTable:
+            return translateCreateTable((CreateTable *) node);
+        case T_AlterTable:
+            return translateAlterTable((AlterTable *) node);
         default:
             ASSERT(FALSE);
             return NULL;
@@ -381,18 +385,18 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 switch (node->type) {
                     case T_Insert:
-                        tableName = ((Insert *) node)->tableName;
+                        tableName = ((Insert *) node)->insertTableName;
                         break;
                     case T_Update:
                     {
                         Update *up = (Update *) node;
 
-                        tableName = up->nodeName;
+                        tableName = up->updateTableName;
                         updateConds = appendToTailOfList(updateConds, copyObject(up->cond));
                     }
                     break;
                     case T_Delete:
-                        tableName = ((Delete *) node)->nodeName;
+                        tableName = ((Delete *) node)->deleteTableName;
                         break;
                     case T_QueryBlock:
                     case T_SetQuery:
@@ -489,13 +493,13 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 /* get table name */
                 switch (n->type) {
                     case T_Insert:
-                        tableName = ((Insert *) n)->tableName;
+                        tableName = ((Insert *) n)->insertTableName;
                         break;
                     case T_Update:
-                        tableName = ((Update *) n)->nodeName;
+                        tableName = ((Update *) n)->updateTableName;
                         break;
                     case T_Delete:
-                        tableName = ((Delete *) n)->nodeName;
+                        tableName = ((Delete *) n)->deleteTableName;
                         break;
                     case T_QueryBlock:
                     case T_SetQuery:
@@ -532,7 +536,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
         case PROV_INPUT_REENACT_WITH_TIMES:
         {
             ProvenanceTransactionInfo *tInfo = makeNode(ProvenanceTransactionInfo);
-
+            HashMap *tableToTranslation = NEW_MAP(Constant, QueryOperator);
             result->transactionInfo = tInfo;
             tInfo->originalUpdates = copyObject(prov->query);
             tInfo->updateTableNames = NIL;
@@ -544,17 +548,23 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 /* get table name */
                 switch (n->type) {
                     case T_Insert:
-                        tableName = ((Insert *) n)->tableName;
+                        tableName = ((Insert *) n)->insertTableName;
                         break;
                     case T_Update:
-                        tableName = ((Update *) n)->nodeName;
+                        tableName = ((Update *) n)->updateTableName;
                         break;
                     case T_Delete:
-                        tableName = ((Delete *) n)->nodeName;
+                        tableName = ((Delete *) n)->deleteTableName;
                         break;
                     case T_QueryBlock:
                     case T_SetQuery:
                         tableName = strdup("_NONE");
+                        break;
+                    case T_AlterTable:
+                        tableName = strdup(((AlterTable *) n)->tableName);
+                        break;
+                    case T_CreateTable:
+                        tableName = strdup(((CreateTable *) n)->tableName);
                         break;
                     default:
                         FATAL_LOG(
@@ -565,10 +575,11 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 tInfo->updateTableNames = appendToTailOfList(
                         tInfo->updateTableNames, strdup(tableName));
-                tInfo->scns = appendToTailOfList(tInfo->scns, createConstLong(0)); //TODO get SCN
 
                 // translate and add update as child to provenance computation
                 child = translateQueryOracle(n);
+                MAP_ADD_STRING_KEY(tableToTranslation, tableName, child);
+
                 addChildOperator((QueryOperator *) result, child);
                 //TODO
             }

@@ -856,7 +856,8 @@ equalNestedSubquery (NestedSubquery *a, NestedSubquery *b, HashMap *seenOps, Mem
 static boolean 
 equalInsert(Insert *a, Insert *b, HashMap *seenOps, MemContext *c)
 {
-    COMPARE_STRING_FIELD(tableName);
+    COMPARE_NODE_FIELD(schema);
+    COMPARE_STRING_FIELD(insertTableName);
     COMPARE_NODE_FIELD(query);
    
     return TRUE;
@@ -866,7 +867,8 @@ equalInsert(Insert *a, Insert *b, HashMap *seenOps, MemContext *c)
 static boolean 
 equalDelete(Delete *a, Delete *b, HashMap *seenOps, MemContext *c)
 {
-    COMPARE_STRING_FIELD(nodeName);
+    COMPARE_NODE_FIELD(schema);
+    COMPARE_STRING_FIELD(deleteTableName);
     COMPARE_NODE_FIELD(cond);
    
     return TRUE;
@@ -876,7 +878,8 @@ equalDelete(Delete *a, Delete *b, HashMap *seenOps, MemContext *c)
 static boolean 
 equalUpdate(Update *a, Update *b, HashMap *seenOps, MemContext *c)
 {
-    COMPARE_STRING_FIELD(nodeName);
+    COMPARE_NODE_FIELD(schema);
+    COMPARE_STRING_FIELD(updateTableName);
     COMPARE_NODE_FIELD(selectClause);
     COMPARE_NODE_FIELD(cond);
    
@@ -920,6 +923,8 @@ equalAlterTable (AlterTable *a, AlterTable *b, HashMap *seenOps, MemContext *c)
     COMPARE_SCALAR_FIELD(cmdType);
     COMPARE_STRING_FIELD(columnName);
     COMPARE_SCALAR_FIELD(newColDT);
+    COMPARE_NODE_FIELD(schema);
+    COMPARE_NODE_FIELD(beforeSchema);
 
     return TRUE;
 }

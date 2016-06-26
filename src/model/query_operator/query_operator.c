@@ -384,26 +384,42 @@ getCondOpList(List *l1, List *l2)
 
 
 List *
-getDataTypes (Schema *schema)
+getDataTypes(Schema *schema)
 {
-    List *result = NIL;
-
-    FOREACH(AttributeDef,a,schema->attrDefs)
-    result = appendToTailOfListInt(result, a->dataType);
-
-    return result;
+    return getAttrDataTypes(schema->attrDefs);
 }
+
+
 
 List *
 getAttrNames(Schema *schema)
 {
+    return getAttrDefNames(schema->attrDefs);
+}
+
+List *
+getAttrDefNames(List *defs)
+{
     List *result = NIL;
 
-    FOREACH(AttributeDef,a,schema->attrDefs)
-    result = appendToTailOfList(result, a->attrName);
+    FOREACH(AttributeDef,a,defs)
+        result = appendToTailOfList(result, a->attrName);
 
     return result;
 }
+
+
+List *
+getAttrDataTypes(List *defs)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeDef,a,defs)
+        result = appendToTailOfListInt(result, a->dataType);
+
+    return result;
+}
+
 
 TableAccessOperator *
 createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
