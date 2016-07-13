@@ -319,7 +319,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
     ProvenanceComputation *result;
 
     result = createProvenanceComputOp(prov->provType, NIL, NIL,
-            prov->selectClause, NULL);
+            prov->selectClause, prov->dts, NULL);
     result->inputType = prov->inputType;
     result->asOf = copyObject(prov->asOf);
     translateProperties(((QueryOperator *) result), prov->options);

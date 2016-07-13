@@ -866,7 +866,8 @@ copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
 {
     COPY_INIT(ProvenanceStmt);
     COPY_NODE_FIELD(query);
-    COPY_NODE_FIELD(selectClause);
+    COPY_STRING_LIST_FIELD(selectClause);
+    COPY_NODE_FIELD(dts);
     COPY_SCALAR_FIELD(provType);
     COPY_SCALAR_FIELD(inputType);
     COPY_NODE_FIELD(transInfo);    

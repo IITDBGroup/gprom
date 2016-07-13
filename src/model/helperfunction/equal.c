@@ -934,7 +934,8 @@ static boolean
 equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(query);
-    COMPARE_NODE_FIELD(selectClause);
+    COMPARE_STRING_LIST_FIELD(selectClause);
+    COMPARE_NODE_FIELD(dts);
     COMPARE_SCALAR_FIELD(provType);
     COMPARE_SCALAR_FIELD(inputType);
     COMPARE_NODE_FIELD(transInfo);

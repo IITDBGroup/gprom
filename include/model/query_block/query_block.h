@@ -76,6 +76,7 @@ typedef struct ProvenanceStmt
     NodeTag type;
     Node *query;
     List *selectClause;
+    List *dts;
     ProvenanceType provType;
     ProvenanceInputType inputType;
     ProvenanceTransactionInfo *transInfo;

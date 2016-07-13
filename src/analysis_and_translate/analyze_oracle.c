@@ -1252,8 +1252,8 @@ getQBAttrDTs (Node *qb)
         break;
         case T_ProvenanceStmt:
         {
-//            ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
-            DTs = NIL; //TODO
+            ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
+            DTs = pStmt->dts;
         }
         break;
         default:
@@ -1605,35 +1605,42 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         break;
         case PROV_INPUT_QUERY:
         {
+            List *provAttrNames = NIL;
+            List *provDts = NIL;
+
             analyzeQueryBlockStmt(q->query, parentFroms);
 
-            // get attributes from left child
-            switch(q->query->type)
-            {
-                case T_QueryBlock:
-                {
-                    QueryBlock *qb = (QueryBlock *) q->query;
-                    FOREACH(SelectItem,s,qb->selectClause)
-                    {
-                        q->selectClause = appendToTailOfList(q->selectClause,
-                                strdup(s->alias));
-                    }
-                }
-                break;
-                case T_SetQuery:
-                    q->selectClause = deepCopyStringList(
-                            ((SetQuery *) q->query)->selectClause);
-                break;
-                case T_ProvenanceStmt:
-                    q->selectClause = deepCopyStringList(
-                            ((ProvenanceStmt *) q->query)->selectClause);
-                break;
-                default:
-                break;
-            }
+            q->selectClause = getQBAttrNames(q->query);
+            q->dts = getQBAttrDTs(q->query);
+//            // get attributes from left child
+//            switch(q->query->type)
+//            {
+//                case T_QueryBlock:
+//                {
+//                    QueryBlock *qb = (QueryBlock *) q->query;
+//                    FOREACH(SelectItem,s,qb->selectClause)
+//                    {
+//                        q->selectClause = appendToTailOfList(q->selectClause,
+//                                strdup(s->alias));
+//                    }
+//                }
+//                break;
+//                case T_SetQuery:
+//                    q->selectClause = deepCopyStringList(
+//                            ((SetQuery *) q->query)->selectClause);
+//                break;
+//                case T_ProvenanceStmt:
+//                    q->selectClause = deepCopyStringList(
+//                            ((ProvenanceStmt *) q->query)->selectClause);
+//                break;
+//                default:
+//                break;
+//            }
 
+            getQBProvenanceAttrList(q,&provAttrNames,&provDts);
             q->selectClause = concatTwoLists(q->selectClause,
-                    getQBProvenanceAttrList(q));
+                    provAttrNames);
+            q->dts = concatTwoLists(q->dts,provDts);
         }
         break;
         case PROV_INPUT_TIME_INTERVAL:

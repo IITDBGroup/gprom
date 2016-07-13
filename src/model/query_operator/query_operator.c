@@ -592,13 +592,13 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
 }
 
 ProvenanceComputation *
-createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, Node *asOf)
+createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, List *dts, Node *asOf)
 {
     ProvenanceComputation *p = makeNode(ProvenanceComputation);
 
     p->op.parents = parents;
     p->op.inputs = inputs;
-    p->op.schema = createSchemaFromLists("PROVENANCE", attrNames, NULL);
+    p->op.schema = createSchemaFromLists("PROVENANCE", attrNames, dts);
     p->provType = provType;
     p->asOf = asOf;
 

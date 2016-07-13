@@ -584,6 +584,7 @@ outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
 
     WRITE_NODE_FIELD(query);
     WRITE_STRING_LIST_FIELD(selectClause);
+    WRITE_NODE_FIELD(dts);
     WRITE_ENUM_FIELD(provType,ProvenanceType);
     WRITE_ENUM_FIELD(inputType,ProvenanceInputType);
     WRITE_NODE_FIELD(transInfo);
@@ -1800,6 +1801,14 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
     FOREACH(AttributeDef,a,op->schema->attrDefs)
         appendStringInfo(str, "%s%s ", a->attrName,
         		searchListInt(op->provAttrs, pos++) ? "*" : "");
+    appendStringInfoString(str, ")");
+
+    // output data types
+    appendStringInfoString(str, "(");
+
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+        appendStringInfo(str, "%s ", DataTypeToString(a->dataType));
+
     appendStringInfoString(str, ")");
 
     // output address and parent addresses
