@@ -13,7 +13,7 @@ import org.apache.log4j.Logger;
  * @author lord_pretzel
  *
  */
-public class PostgresBackendInfo { // implements BackendInfo {
+public class PostgresBackendInfo implements BackendInfo { // Hacky fix?
 
 	static Logger log = Logger.getLogger(PostgresBackendInfo.class);
 	

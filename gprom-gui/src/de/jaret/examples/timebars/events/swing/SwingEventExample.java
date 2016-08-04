@@ -58,7 +58,7 @@ public class SwingEventExample {
         _tbv.setSelectionDelta(6);
         _tbv.setTimeScalePosition(TimeBarViewerInterface.TIMESCALE_POSITION_TOP);
         
-        _tbv.registerTimeBarRenderer((Class<? extends Interval>) SwingEventExample.class, new EventRenderer());
+        //_tbv.registerTimeBarRenderer((Class<? extends Interval>) SwingEventExample.class, new EventRenderer());
         
         
         f.getContentPane().add(_tbv, BorderLayout.CENTER);

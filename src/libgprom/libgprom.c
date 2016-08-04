@@ -22,38 +22,6 @@
 
 #define LIBARY_REWRITE_CONTEXT "LIBGRPROM_QUERY_CONTEXT"
 
-
-
-/* mutex to prevent reentrance of library methods for now */
-//pthread_mutex_t gpromLibMutex = PTHREAD_MUTEX_INITIALIZER;
-//
-//#define LOCK_MUTEX() do { \
-//		printf("TRY TO GET MUTEX\n"); \
-//		fflush(stdout); \
-//		pthread_mutex_lock (&gpromLibMutex); \
-//		printf("GOT MUTEX\n"); \
-//		fflush(stdout); \
-//    } while (0)
-//#define UNLOCK_MUTEX() do { \
-//        printf("ABOUT TO RELEASE MUTEX\n"); \
-//        fflush(stdout); \
-//        pthread_mutex_unlock (&gpromLibMutex); \
-//        printf("RELEASED MUTEX\n"); \
-//        fflush(stdout); \
-//    } while (0)
-//
-//// #define CREATE_MUTEX() pthread_mutex_init(&gpromLibMutex, NULL);
-//#define CREATE_MUTEX()
-//#define DESTROY_MUTEX() pthread_mutex_destroy(&gpromLibMutex); printf("DESTROYED MUTEX\n"); fflush(stdout);
-
-//#define LOCK_MUTEX()
-//    printf("try to log mutex");
-//    pthread_mutex_lock(&gpromLibMutex)
-//
-//#define UNLOCK_MUTEX()
-//    printf("unlock mutex");
-//    pthread_mutex_unlock(&
-// dummy macros for mutexes
 #define LOCK_MUTEX() printf("\nMUTEX\n")
 #define UNLOCK_MUTEX() printf("\nUNLOCK\n")
 #define CREATE_MUTEX()

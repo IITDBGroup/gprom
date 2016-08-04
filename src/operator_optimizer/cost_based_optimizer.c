@@ -34,6 +34,86 @@
 
 #include "math.h"
 
+// Added own implementation of *pow*
+// to avoid messing with compiler options
+// (Needs to link with -lm flag otherwise)
+
+#define MAX_DELTA_DOUBLE 1.0E-15
+#define EULERS_NUMBER 2.718281828459045
+
+double MathAbs_Double (double x) {
+    return ((x >= 0) ? x : -x);
+}
+
+int MathAbs_Int (int x) {
+    return ((x >= 0) ? x : -x);
+}
+
+double MathPow_Double_Int(double x, int n) {
+    double ret;
+    if ((x == 1.0) || (n == 1)) {
+        ret = x;
+    } else if (n < 0) {
+        ret = 1.0 / MathPow_Double_Int(x, -n);
+    } else {
+        ret = 1.0;
+        while (n--) {
+            ret *= x;
+        }
+    }
+    return (ret);
+}
+
+double MathLn_Double(double x) {
+    double ret = 0.0, d;
+    if (x > 0) {
+        int n = 0;
+        do {
+            int a = 2 * n + 1;
+            d = (1.0 / a) * MathPow_Double_Int((x - 1) / (x + 1), a);
+            ret += d;
+            n++;
+        } while (MathAbs_Double(d) > MAX_DELTA_DOUBLE);
+    } else {
+        printf("\nerror: x < 0 in ln(x)\n");
+        exit(-1);
+    }
+    return (ret * 2);
+}
+
+double MathExp_Double(double x) {
+    double ret;
+    if (x == 1.0) {
+        ret = EULERS_NUMBER;
+    } else if (x < 0) {
+        ret = 1.0 / MathExp_Double(-x);
+    } else {
+        int n = 2;
+        double d;
+        ret = 1.0 + x;
+        do {
+            d = x;
+            for (int i = 2; i <= n; i++) {
+                d *= x / i;
+            }
+            ret += d;
+            n++;
+        } while (d > MAX_DELTA_DOUBLE);
+    }
+    return (ret);
+}
+
+double pow(double x, double a) {
+    double ret;
+    if ((x == 1.0) || (a == 1.0)) {
+        ret = x;
+    } else if (a < 0) {
+        ret = 1.0 / pow(x, -a);
+    } else {
+        ret = MathExp_Double(a * MathLn_Double(x));
+    }
+    return (ret);
+}
 /* cost of a plan */
 #define PLAN_MAX_COST ULLONG_MAX
 typedef unsigned long long int PlanCost;
@@ -73,6 +153,8 @@ typedef struct AnnealingState
     List *curPath;
 
 } AnnealingState;
+
+
 
 /* initialize the optimizer's state */
 static inline OptimizerState *
