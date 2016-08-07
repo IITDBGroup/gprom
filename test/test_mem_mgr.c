@@ -2,10 +2,10 @@
  *
  * test_mem_mgr.c
  *    Author: Ying Ni yni6@hawk.iit.edu
- *    One-line description
+ *    Test the memory manager
  *
- *        Here starts the more detailed description where we
- *        explain in more detail how this works.
+ *        These are tests of the GProM memory manager component that
+ *        wraps memory allocation and deallocation function.
  *
  *-------------------------------------------------------------------------
  */
