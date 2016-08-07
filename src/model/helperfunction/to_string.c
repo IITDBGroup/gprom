@@ -20,6 +20,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/datalog/datalog_model.h"
+#include "model/rpq/rpq_model.h"
 #include "utility/string_utils.h"
 
 /* functions to output specific node types */
@@ -63,6 +64,8 @@ static void outUpdate(StringInfo str, Update *node);
 static void outNestedSubquery(StringInfo str, NestedSubquery *node);
 static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 static void outWithStmt(StringInfo str, WithStmt *node);
+static void outCreateTable(StringInfo str, CreateTable *node);
+static void outAlterTable(StringInfo str, AlterTable *node);
 
 static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
@@ -94,6 +97,10 @@ static void outFromJsonTable(StringInfo str, FromJsonTable *node);
 static void outFromJsonColInfoItem(StringInfo str, JsonColInfoItem *node);
 static void outJsonTableOperator(StringInfo str, JsonTableOperator *node);
 static void outJsonPath(StringInfo str, JsonPath *node);
+
+// regex and RPQ
+static void outRegex(StringInfo str, Regex *node);
+static void outRPQQuery(StringInfo str, RPQQuery *node);
 
 // datalog model
 static void outDLAtom(StringInfo str, DLAtom *node);
@@ -435,7 +442,8 @@ static void
 outInsert(StringInfo str, Insert *node)
 {
     WRITE_NODE_TYPE(INSERT);
-    WRITE_STRING_FIELD(tableName);
+    WRITE_NODE_FIELD(schema);
+    WRITE_STRING_FIELD(insertTableName);
     WRITE_STRING_LIST_FIELD(attrList);
     WRITE_NODE_FIELD(query);
 }
@@ -444,7 +452,8 @@ static void
 outDelete(StringInfo str, Delete *node)
 {
     WRITE_NODE_TYPE(DELETE);
-    WRITE_STRING_FIELD(nodeName);
+    WRITE_NODE_FIELD(schema);
+    WRITE_STRING_FIELD(deleteTableName);
     WRITE_NODE_FIELD(cond);
 }
 
@@ -452,7 +461,8 @@ static void
 outUpdate(StringInfo str, Update *node)
 {
     WRITE_NODE_TYPE(UPDATE);
-    WRITE_STRING_FIELD(nodeName);
+    WRITE_NODE_FIELD(schema);
+    WRITE_STRING_FIELD(updateTableName);
     WRITE_NODE_FIELD(selectClause);
     WRITE_NODE_FIELD(cond);
 }
@@ -470,6 +480,28 @@ outWithStmt(StringInfo str, WithStmt *node)
     WRITE_NODE_TYPE(WITH_STMT);
     WRITE_NODE_FIELD(withViews);
     WRITE_NODE_FIELD(query);
+}
+
+static void
+outCreateTable(StringInfo str, CreateTable *node)
+{
+    WRITE_NODE_TYPE(CREATE_TABLE);
+    WRITE_STRING_FIELD(tableName);
+    WRITE_NODE_FIELD(tableElems);
+    WRITE_NODE_FIELD(constraints);
+    WRITE_NODE_FIELD(query);
+}
+
+static void
+outAlterTable(StringInfo str, AlterTable *node)
+{
+    WRITE_NODE_TYPE(ALTER_TABLE);
+    WRITE_STRING_FIELD(tableName);
+    WRITE_ENUM_FIELD(cmdType, AlterTableStmtType);
+    WRITE_STRING_FIELD(columnName);
+    WRITE_ENUM_FIELD(newColDT, DataType);
+    WRITE_NODE_FIELD(schema);
+    WRITE_NODE_FIELD(beforeSchema);
 }
 
 static void
@@ -552,6 +584,7 @@ outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
 
     WRITE_NODE_FIELD(query);
     WRITE_STRING_LIST_FIELD(selectClause);
+    WRITE_NODE_FIELD(dts);
     WRITE_ENUM_FIELD(provType,ProvenanceType);
     WRITE_ENUM_FIELD(inputType,ProvenanceInputType);
     WRITE_NODE_FIELD(transInfo);
@@ -803,7 +836,6 @@ outAttributeDef (StringInfo str, AttributeDef *node)
 
     WRITE_ENUM_FIELD(dataType, DataType);
     WRITE_STRING_FIELD(attrName);
-    WRITE_INT_FIELD(pos); 
 }
 
 #define WRITE_QUERY_OPERATOR() outQueryOperator(str, (QueryOperator *) node)
@@ -959,6 +991,27 @@ outJsonPath(StringInfo str, JsonPath *node)
 	 WRITE_STRING_FIELD(path);
 }
 
+static void
+outRegex(StringInfo str, Regex *node)
+{
+    WRITE_NODE_TYPE(REGEX);
+
+    WRITE_NODE_FIELD(children);
+    WRITE_ENUM_FIELD(opType,RegexOpType);
+    WRITE_STRING_FIELD(label);
+}
+
+static void
+outRPQQuery(StringInfo str, RPQQuery *node)
+{
+    WRITE_NODE_TYPE(RPQQUERY);
+
+    WRITE_NODE_FIELD(q);
+    WRITE_ENUM_FIELD(t,RPQQueryType);
+    WRITE_STRING_FIELD(edgeRel);
+    WRITE_STRING_FIELD(resultRel);
+}
+
 void
 outNode(StringInfo str, void *obj)
 {
@@ -1087,6 +1140,12 @@ outNode(StringInfo str, void *obj)
             case T_WithStmt:
                 outWithStmt(str, (WithStmt *) obj);
                 break;
+            case T_CreateTable:
+                outCreateTable(str, (CreateTable *) obj);
+                break;
+            case T_AlterTable:
+                outAlterTable(str, (AlterTable *) obj);
+                break;
 
                 //query operator model nodes
             case T_QueryOperator:
@@ -1157,6 +1216,12 @@ outNode(StringInfo str, void *obj)
             case T_JsonPath:
             	outJsonPath(str, (JsonPath *) obj);
             	break;
+            case T_Regex:
+                outRegex(str, (Regex *) obj);
+                break;
+            case T_RPQQuery:
+                outRPQQuery(str, (RPQQuery *) obj);
+                break;
             default :
             	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
@@ -1299,6 +1364,7 @@ beatify(char *input)
 
     result = str->data;
     FREE(str);
+    FREE(input);
     return result;
 }
 
@@ -1316,7 +1382,7 @@ itoa(int value)
 }
 
 char *
-datalogToOverviewString(Node *n)
+datalogToOverviewString(void *n)
 {
     StringInfo str = makeStringInfo();
 
@@ -1407,6 +1473,13 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
         {
             DLProgram *p = (DLProgram *) n;
             appendStringInfoString(str, "PROGRAM:\n");
+            FOREACH(Node,f,p->facts)
+            {
+                indentString(str,4);
+                datalogToStrInternal(str,(Node *) f, 4);
+                appendStringInfo(str, ".\n");
+            }
+
             FOREACH(Node,r,p->rules)
             {
                 if (isA(r,Constant))
@@ -1419,9 +1492,10 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             if (DL_HAS_PROP(p,DL_PROV_WHY) || DL_HAS_PROP(p,DL_PROV_WHYNOT))
             {
                 char *prop = DL_HAS_PROP(p,DL_PROV_WHY) ? DL_PROV_WHY : DL_PROV_WHYNOT;
+                char *format = STRING_VALUE(DL_GET_PROP(p,DL_PROV_FORMAT));
                 Node *question = DL_GET_PROP(p,prop);
 
-                appendStringInfo(str, "%s:\n\t", prop);
+                appendStringInfo(str, "%s (%s):\n\t", prop, format);
                 datalogToStrInternal(str,(Node *) question, 4);
             }
         }
@@ -1459,7 +1533,7 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
 }
 
 char *
-operatorToOverviewString(Node *op)
+operatorToOverviewString(void *op)
 {
     StringInfo str = makeStringInfo();
     HashMap *m;
@@ -1727,6 +1801,14 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
     FOREACH(AttributeDef,a,op->schema->attrDefs)
         appendStringInfo(str, "%s%s ", a->attrName,
         		searchListInt(op->provAttrs, pos++) ? "*" : "");
+    appendStringInfoString(str, ")");
+
+    // output data types
+    appendStringInfoString(str, "(");
+
+    FOREACH(AttributeDef,a,op->schema->attrDefs)
+        appendStringInfo(str, "%s ", DataTypeToString(a->dataType));
+
     appendStringInfoString(str, ")");
 
     // output address and parent addresses

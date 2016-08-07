@@ -88,7 +88,15 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_JsonPath,
 			
     /* relation */
-    T_Relation
+    T_Relation,
+
+    /* rpq */
+    T_Regex,
+    T_RPQQuery,
+
+    /* ddl */
+    T_CreateTable,
+    T_AlterTable
 );
 
 typedef struct Node{
@@ -97,7 +105,8 @@ typedef struct Node{
 
 NEW_ENUM_WITH_TO_STRING(ProvenanceType,
     PROV_PI_CS,
-    PROV_TRANSFORMATION
+    PROV_TRANSFORMATION,
+    PROV_NONE /* for reenactment of bag semantics only */
 );
 
 /* what type of database operation(s) a provenance computation is for */
@@ -105,6 +114,8 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
     PROV_INPUT_QUERY,
     PROV_INPUT_UPDATE,
     PROV_INPUT_UPDATE_SEQUENCE,
+    PROV_INPUT_REENACT,
+    PROV_INPUT_REENACT_WITH_TIMES,
     PROV_INPUT_TRANSACTION,
     PROV_INPUT_TIME_INTERVAL
 );
@@ -114,9 +125,9 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
 typedef struct StringInfoData
 {
     char *data;
-    int  len;
-    int maxlen;
-    int cursor;
+    unsigned int  len;
+    unsigned int maxlen;
+    unsigned int cursor;
 } StringInfoData;
 
 typedef StringInfoData *StringInfo;
@@ -170,6 +181,9 @@ extern void appendStringInfoChar(StringInfo str, char ch);
 extern void appendBinaryStringInfo(StringInfo str, const char *data, int datalen);
 extern void prependStringInfo (StringInfo str, const char *format, ...);
 extern void enlargeStringInfo(StringInfo str, int needed);
+extern void removeTailingStringInfo(StringInfo str, int numChars);
+extern void replaceStringInfo(StringInfo str, int start, char *repl);
+extern void replaceStringInfoChar(StringInfo str, char s, char repl);
 #define STRINGLEN(_str) _str->len
 
 // node helpers
@@ -186,13 +200,19 @@ extern KeyValue *createNodeKeyValue(Node *key, Node *value);
 /* get a string representation of a node */
 extern char *nodeToString(void *obj);
 extern char *beatify(char *input);
-extern char *operatorToOverviewString(Node *op);
-extern char *datalogToOverviewString(Node *n);
+extern char *operatorToOverviewString(void *op);
+extern char *datalogToOverviewString(void *n);
 extern char *itoa(int value);
 extern void indentString(StringInfo str, int level);
 
 /* get a dot script for a query operator graph or query block tree */
 extern char *nodeToDot(void *obj);
+
+#define DOT_TO_CONSOLE_WITH_MESSAGE(mes,obj) \
+    do { \
+        if (getBoolOption(OPTION_GRAPHVIZ)) \
+            printf("GRAPHVIZ: %s\n%s",(mes),nodeToDot(obj)); \
+    } while (0)
 
 #define DOT_TO_CONSOLE(obj) \
     do { \

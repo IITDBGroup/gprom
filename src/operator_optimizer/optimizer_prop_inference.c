@@ -16,42 +16,54 @@
 #include "mem_manager/mem_mgr.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
 #include "metadata_lookup/metadata_lookup.h"
-#include "include/log/logger.h"
-#include "include/model/query_operator/operator_property.h"
+#include "log/logger.h"
+#include "model/query_operator/operator_property.h"
+#include "instrumentation/timing_instrumentation.h"
 
 
 static List *attrRefListToStringList (List *input);
+static List *removeContainedKeys(List *keys);
+static boolean removePropsVisitor(QueryOperator *op, void *context);
+static boolean removeOnePropVisitor(QueryOperator *op, void *context);
+static boolean printIcolsVisitor(QueryOperator *op, void *context);
+static boolean printECProVisitor(QueryOperator *root, void *context);
 
-//TODO using a static variable is a problem here, because you just have the last assigned key for a base rleation available which is not sufficient.
-// you need the keys of an operators inputs to determine the operator keys. Since you store them as a property, why not get them from there?
-//static List *keyList = NIL;
 
-//TODO keylist should be a list/set of string sets, because an operator may have more than one candidate key each of which may consist of multiple attributes
 void
 computeKeyProp (QueryOperator *root)
 {
-	DEBUG_LOG("Begin to compute key");
     List *keyList = NIL;
+    List *lKeyList = NIL;
     List *rKeyList = NIL;
 
-    if (root == NULL)
-        return;
 
+    if (root == NULL)
+    {
+        return;
+    }
     // compute key properties of children first
     if(root->inputs != NULL)
         FOREACH(QueryOperator, op, root->inputs)
-            computeKeyProp(op);
+        {
+            if (!HAS_STRING_PROP(op,PROP_STORE_LIST_KEY_DONE))
+                computeKeyProp(op);
+        }
+    DEBUG_LOG("BEGIN COMPUTE KEYS %s operator %s keys", NodeTagToString(root->type), root->schema->name);
+    SET_BOOL_STRING_PROP(root, PROP_STORE_LIST_KEY_DONE);
 
     // table access operator or constant relation operators have predetermined keys
+    // TABLE ACCESS OPERATOR
     if(isA(root, TableAccessOperator))
     {
         TableAccessOperator *rel = (TableAccessOperator *) root;
         keyList = getKeyInformation(rel->tableName);
         DEBUG_LOG("keyList length: %d", LIST_LENGTH(keyList));
         setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
-        DEBUG_LOG("Table operator %s keys are {%s}", root->schema->name, beatify(nodeToString((keyList))));
+        DEBUG_LOG("Table operator %s", root->schema->name);
+        DEBUG_NODE_BEATIFY_LOG("keys are:", keyList);
         return;
     }
+    // CONSTANT REL OPERATOR
     else if (isA(root, ConstRelOperator))
     {
         FOREACH(AttributeDef, a, root->schema->attrDefs)
@@ -60,27 +72,28 @@ computeKeyProp (QueryOperator *root)
             keyList = appendToTailOfList(keyList, oneKey);
         }
         setStringProperty(root, PROP_STORE_LIST_KEY, (Node *)keyList);
-        DEBUG_LOG("ConstRel operator %s keys are {%s}", root->schema->name, beatify(nodeToString((keyList))));
+        DEBUG_NODE_BEATIFY_LOG("ConstRel operator %s", root->schema->name);
+        DEBUG_NODE_BEATIFY_LOG("keys are:", keyList);
         return;
     }
 
     // get keys of children
-    keyList = (List *) copyObject(getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_KEY));
+    lKeyList = (List *) getStringProperty(OP_LCHILD(root), PROP_STORE_LIST_KEY);
+    DEBUG_NODE_BEATIFY_LOG("LEFT CHILD KEYS", lKeyList);
 
     if (IS_BINARY_OP(root))
     {
-//        List *newKeyList = NIL;
-        //should we first copy the keyslist??
         rKeyList = (List *) getStringProperty(OP_RCHILD(root), PROP_STORE_LIST_KEY);
-//        newKeyList = concatTwoLists(keyList, rKeyList);
-//        setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)newKeyList);
+        DEBUG_NODE_BEATIFY_LOG("RIGHT CHILD KEYS", rKeyList);
     }
+
     // deal with different operator types
 
     // here we could use the ECs to determine new keys, e.g., if input has keys {{A}, {C}} and we have selection condition B = C, then we have a new key {{A}, {B}, {C}}
     //if (isA(root, SelectionOperator))
         //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
 
+    // PROJECTION
     if (isA(root, ProjectionOperator))
     {
         List *l1 = ((ProjectionOperator *)root)->projExprs;
@@ -102,7 +115,7 @@ computeKeyProp (QueryOperator *root)
             i++;
         }
 
-        FOREACH(Set,key,keyList)
+        FOREACH(Set,key,lKeyList)
         {
             boolean hasKey = TRUE;
             FOREACH_SET(char, a, key)
@@ -130,66 +143,58 @@ computeKeyProp (QueryOperator *root)
 
                 newKey = appendToTailOfList(newKey, mappedKey);
             }
-
         }
         keyList=newKey;
-        //DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
-        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) newKey);
     }
 
+    // DUPLICATE REMOVAL OPERATOR
     // dup removal operator has a key {all attributes} if the input does not have a key
     if (isA(root, DuplicateRemoval))
     {
-
-    	List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
-    	Set *s1 = makeStrSetFromList(l1);
-		if (!genericSearchList(keyList, equal, s1))
+		if (keyList == NIL)
+			keyList = copyObject(lKeyList);
+		else
 		{
-			keyList = appendToTailOfList(keyList, s1);
+	        List *l1 = getQueryOperatorAttrNames(OP_LCHILD(root));
+		    Set *s1 = makeStrSetFromList(l1);
+		    keyList = singleton(s1);
 		}
-        //setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     }
 
+    // JOIN
     if (isA(root, JoinOperator))
     {
-//    	JoinOperator *j = (JoinOperator *) root;
-    	// crossproduct operator: union sets of keys
-
-    		Set *nSet = STRSET();
-    		List *nKeyList = NIL;
-    		FOREACH(Set,l1,keyList)
-    		{
-    			FOREACH(Set,l2,rKeyList)
-				{
-    				nSet = unionSets (l1, l2);
-    				nKeyList = appendToTailOfList(nKeyList, nSet);
-				}
-    		}
-    		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)nKeyList);
-    		keyList = nKeyList;
-
+    	//  union individual keys
+        Set *nSet = STRSET();
+        List *nKeyList = NIL;
+        FOREACH(Set,l1,lKeyList)
+        {
+            FOREACH(Set,l2,rKeyList)
+            {
+                nSet = unionSets (l1, l2);
+                nKeyList = appendToTailOfList(nKeyList, nSet);
+            }
+        }
+        keyList = nKeyList;
     }
 
-
+    // SET OPERATORS
     if (isA(root, SetOperator))
     {
     	SetOperator *j = (SetOperator *) root;
     	//union operator set to empty
     	if(j->setOpType==SETOP_UNION)
-       	{
     		keyList = NIL;
-    		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
-       	}
     	//intersect operator
     	else if(j->setOpType==SETOP_INTERSECTION)
     	{
-    		//HashMap *map = NEW_MAP(KeyValue, KeyValue);
     		HashMap *map = NEW_MAP(Constant, Constant);
     		List *lAttr = getQueryOperatorAttrNames(OP_LCHILD(root));
     		List *rAttr = getQueryOperatorAttrNames(OP_RCHILD(root));
     		Set *nSet = STRSET();
     		char *nAttr = NULL;
 
+    		keyList = copyObject(lKeyList);
     		FORBOTH(char,l1,l2,rAttr,lAttr)
 			{
     			MAP_ADD_STRING_KEY(map, l1, createConstString(l2));
@@ -202,19 +207,17 @@ computeKeyProp (QueryOperator *root)
 
     			}
     			if (!genericSearchList(keyList, equal, nSet))
-    			{
     				keyList = appendToTailOfList(keyList, nSet);
-    			}
     		}
-    		//setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
     	}
     	//difference operator - returns left child (keyList)
-    	else if(j->setOpType==SETOP_DIFFERENCE){
-
+    	else if (j->setOpType==SETOP_DIFFERENCE)
+    	{
+    	    keyList = copyObject(lKeyList);
     	}
     }
 
-    //Aggregation operator
+    // AGGREGATION
     if (isA(root, AggregationOperator))
     {
     	AggregationOperator *j = (AggregationOperator *) root;
@@ -223,77 +226,91 @@ computeKeyProp (QueryOperator *root)
     	Set *nSet = STRSET();
     	List *nKeyList = NIL;
 
+    	DEBUG_NODE_BEATIFY_LOG("Aggregation attributes", s1);
+
     	// if groupby is empty return all attributes
     	if(j->groupBy==NIL)
-    	{
-    		keyList = NIL;
-    		nKeyList = appendToTailOfList(keyList, s1);
-    	}
+    		nKeyList = singleton(s1);
     	//if group by not empty intersect key with new attributes
        	else
     	{
-       		FOREACH(Set, key, keyList)
+       		FOREACH(Set, key, lKeyList)
        		{
        			nSet = intersectSets(key, s1);
-       			nKeyList = appendToTailOfList(keyList, nSet);
+       			DEBUG_NODE_BEATIFY_LOG("intersected keys", nSet);
+       			nKeyList = appendToTailOfList(nKeyList, nSet);
      		}
     	}
     	keyList = nKeyList;
     }
 
-    //return keys from left input (keyList)
+    // NESTING OPERATOR return keys from left input (keyList)
     if (isA(root, NestingOperator))
     {
+        keyList = copyObject(lKeyList);
     }
 
-    //keep the same keys from input (keyList)
+    // ORDER OPERATOR keep the same keys from input (keyList)
     if (isA(root, OrderOperator))
     {
+        keyList = copyObject(lKeyList);
     }
 
-    //empty keyList
+    // JSON TABLE OPERATOR empty keyList
     if (isA(root, JsonTableOperator))
     	keyList=NIL;
 
-    //child key (return keyList)
+    // SELECTION child key (return keyList)
     if (isA(root, SelectionOperator))
     {
+        keyList = copyObject(lKeyList);
+        //TODO
     }
 
-    //apply EC property
+    // remove contained keys
+    keyList = removeContainedKeys(keyList);
 
-    //DEBUG_LOG("Before Cleaning List: %s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
+    setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *) keyList);
+    DEBUG_LOG("%s operator %s", NodeTagToString(root->type), root->schema->name);
+    DEBUG_NODE_BEATIFY_LOG("keys are:", keyList);
+}
 
-    //clean key list - check for each set (a) if it contains another set (b) in it
-    if (LIST_LENGTH(keyList)>1){
-    	List *finalKeyList = NIL;
-    	boolean contains = FALSE;
-		FOREACH (Set, a, keyList)
-		{
-			FOREACH (Set, b, keyList)
-			{
-				if (a!=b)
-					if(containsSet(b,a))
-					{
-						contains = TRUE;
-						break;
-					}
-			}
-			if (!contains)
-			{
-				finalKeyList = appendToTailOfList(finalKeyList, a);
-			}
-		}
-		keyList = finalKeyList;
+static List *
+removeContainedKeys(List *keys)
+{
+    List *finalKeyList = NIL;
+    boolean contains = FALSE;
+
+    DEBUG_NODE_BEATIFY_LOG("remove contained keys:", keys);
+
+    if (LIST_LENGTH(keys) <= 1)
+        return keys;
+
+    FOREACH (Set, a, keys)
+    {
+        FOREACH (Set, b, keys)
+        {
+            if (a!=b)
+                if(containsSet(b,a))
+                {
+                    contains = TRUE;
+                    break;
+                }
+        }
+        if (!contains)
+        {
+            finalKeyList = appendToTailOfList(finalKeyList, a);
+            contains = FALSE;
+        }
     }
 
-    setStringProperty((QueryOperator *)root, PROP_STORE_LIST_KEY, (Node *)keyList);
-    DEBUG_LOG("%s operator %s keys are {%s}", NodeTagToString(root->type), root->schema->name, beatify(nodeToString(keyList)));
+    return finalKeyList;
 }
 
 void
 computeECProp (QueryOperator *root)
 {
+    START_TIMER("PropertyInference - EC");
     INFO_LOG("\n************************************************************\n"
             "    PORPERTY INFERENCE STEP: ECs\n"
             "************************************************************\n"
@@ -301,12 +318,17 @@ computeECProp (QueryOperator *root)
             "************************************************************",
             operatorToOverviewString((Node *) root));
     DEBUG_LOG("*********EC**********\n\tStart bottom-up traversal");
+    START_TIMER("PropertyInference - EC - bottom-up");
 	computeECPropBottomUp(root);
+	STOP_TIMER("PropertyInference - EC - bottom-up");
 	printECPro(root);
 
 	DEBUG_LOG("*********EC**********\n\tStart top-down traversal");
+	START_TIMER("PropertyInference - EC - top-down");
 	computeECPropTopDown(root);
+	STOP_TIMER("PropertyInference - EC - top-down");
 	printECPro(root);
+	STOP_TIMER("PropertyInference - EC");
 }
 
 void
@@ -331,48 +353,54 @@ printSingleECList(List *l)
 void
 printECPro(QueryOperator *root)
 {
+    START_TIMER("PropertyInference - EC - print");
+    visitQOGraph(root, TRAVERSAL_PRE, printECProVisitor, NULL);
+    STOP_TIMER("PropertyInference - EC - print");
+}
+
+static boolean
+printECProVisitor (QueryOperator *root, void *context)
+{
     StringInfo str = makeStringInfo ();
 
-	appendStringInfoString(str, NodeTagToString(root->type));
-	appendStringInfo(str, " (%p)", root);
+    appendStringInfoString(str, NodeTagToString(root->type));
+    appendStringInfo(str, " (%p)", root);
 
-	Node *nRoot = getProperty(root, (Node *) createConstString(PROP_STORE_SET_EC));
-	List *list = (List *)nRoot;
-	appendStringInfo(str, "\nList size %d\n", LIST_LENGTH(list));
+    Node *nRoot = getStringProperty(root, PROP_STORE_SET_EC);
+    List *list = (List *)nRoot;
+    appendStringInfo(str, "\nList size %d\n", LIST_LENGTH(list));
 
-	FOREACH(KeyValue, kv, list)
-	{
-	    Set *s = (Set *) kv->key;
-	    Constant *c = (Constant *) kv->value;
+    FOREACH(KeyValue, kv, list)
+    {
+        Set *s = (Set *) kv->key;
+        Constant *c = (Constant *) kv->value;
 
-		appendStringInfoString(str,"{");
+        appendStringInfoString(str,"{");
         FOREACH_SET(char, n, s)
         {
             appendStringInfo(str,"%s%s", (char *)n, FOREACH_SET_HAS_NEXT(n) ? " " : "");
         }
         if (c != NULL)
             appendStringInfo(str," %s", exprToSQL((Node *) c));
-		appendStringInfoString(str, "} ");
-	}
-	appendStringInfoString(str, "\n");
-	DEBUG_LOG("EC %s", str->data);
-
-	if(root->inputs != NULL)
-	{
-		FOREACH(QueryOperator, op, root->inputs)
-		         printECPro(op);
-	}
- }
+        appendStringInfoString(str, "} ");
+    }
+    appendStringInfoString(str, "\n");
+    DEBUG_LOG("EC %s", str->data);
+    return TRUE;
+}
 
 //generate a List of Sets by bottom up(here uses ptr set)
 //for each set, (e.g. {{a,d,5},{c}})a is the pointer point to char a,b, 5 is the pointer point to a constant structure
 void
 computeECPropBottomUp (QueryOperator *root)
 {
-	if(root->inputs != NULL)
+    SET_BOOL_STRING_PROP(root, PROP_STORE_SET_EC_DONE_BU);
+
+    if(root->inputs != NULL)
 	{
 		FOREACH(QueryOperator, op, root->inputs)
-        				computeECPropBottomUp(op);
+		    if (!HAS_STRING_PROP(op, PROP_STORE_SET_EC_DONE_BU))
+                computeECPropBottomUp(op);
 	}
 
 	if(root != NULL)
@@ -623,7 +651,7 @@ computeECPropBottomUp (QueryOperator *root)
 
 		else if(isA(root, DuplicateRemoval))
 		{
-			Node *childECP = getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_EC));
+			Node *childECP = getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
 			List *setList = (List *)childECP;
 			setProperty((QueryOperator *)root, (Node *) createConstString(PROP_STORE_SET_EC), (Node *)setList);
 		}
@@ -631,9 +659,9 @@ computeECPropBottomUp (QueryOperator *root)
 		else if(isA(root,SetOperator))
 		{
 			//get EC of left child and right child
-			Node *lChildECN = getProperty(OP_LCHILD(root), (Node *) createConstString(PROP_STORE_SET_EC));
+			Node *lChildECN = getStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC);
 			List *lECSetList = (List *)copyObject(lChildECN);
-			Node *rChildECP = getProperty(OP_RCHILD(root), (Node *) createConstString(PROP_STORE_SET_EC));
+			Node *rChildECP = getStringProperty(OP_RCHILD(root), PROP_STORE_SET_EC);
 			List *rECSetList = (List *)copyObject(rChildECP);
 
 			//get schema list of left child and right child
@@ -1004,11 +1032,22 @@ computeECPropTopDown (QueryOperator *root)
 		setStringProperty(OP_LCHILD(root), PROP_STORE_SET_EC, (Node *)EC);
 	}
 
-	if(root->inputs != NULL)
-	{
-		FOREACH(QueryOperator, op, root->inputs)
-	        				computeECPropTopDown(op);
-	}
+    // check if all parents have been processed
+    boolean allParents = TRUE;
+    FOREACH(QueryOperator, p, root->parents)
+    {
+        allParents &= HAS_STRING_PROP(p, PROP_STORE_SET_EC_DONE_TD);
+    }
+
+    // only proceed to children once op is done
+    if (allParents)
+    {
+        SET_BOOL_STRING_PROP(root, PROP_STORE_SET_EC_DONE_TD);
+        FOREACH(QueryOperator, o, root->inputs)
+        {
+            computeECPropTopDown(o);
+        }
+    }
 }
 
 void
@@ -1312,11 +1351,12 @@ GenerateCondECBasedOnCondOp(List *condList)
 
 void initializeSetProp(QueryOperator *root)
 {
-	SET_BOOL_STRING_PROP((QueryOperator *)root, PROP_STORE_BOOL_SET);
-
+	SET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET);
+	removeStringProperty(root, PROP_STORE_BOOL_SET_ALL_PARENTS_DONE);
 	FOREACH(QueryOperator, o, root->inputs)
 	{
-		initializeSetProp(o);
+	    if (!HAS_STRING_PROP(o, PROP_STORE_BOOL_SET))
+	        initializeSetProp(o);
 	}
 }
 
@@ -1366,11 +1406,22 @@ computeSetProp (QueryOperator *root)
 		}
 	}
 
-	FOREACH(QueryOperator, o, root->inputs)
+	// check if all parents have been processed
+	boolean allParents = TRUE;
+	FOREACH(QueryOperator, p, root->parents)
 	{
-		computeSetProp(o);
+	    allParents &= HAS_STRING_PROP(p, PROP_STORE_BOOL_SET_ALL_PARENTS_DONE);
 	}
 
+	// only proceed to children once op is done
+	if (allParents)
+	{
+	    SET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET_ALL_PARENTS_DONE);
+        FOREACH(QueryOperator, o, root->inputs)
+        {
+            computeSetProp(o);
+        }
+	}
 }
 
 
@@ -1419,6 +1470,10 @@ void initializeIColProp(QueryOperator *root)
 	icolsList = getQueryOperatorAttrNames(root);
 	icols = makeStrSetFromList(icolsList);
 	setStringProperty((QueryOperator *)root, PROP_STORE_SET_ICOLS, (Node *)icols);
+
+	//Set root's parents PROP_STORE_SET_ICOLS_DONE property, used in parents check at last
+	FOREACH(QueryOperator, p, root->parents)
+		SET_BOOL_STRING_PROP(p, PROP_STORE_SET_ICOLS_DONE);
 }
 
 /*
@@ -1433,7 +1488,8 @@ computeReqColProp (QueryOperator *root)
 	/*
 	 * Get root's icols set which can be used in following each operator
 	 */
-	Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
+
+	Set *icols = (Set*)getStringProperty(root, PROP_STORE_SET_ICOLS);
 
 //    List *AttrDefNames = getQueryOperatorAttrNames(root);
 //    setStringProperty(root, PROP_STORE_LIST_SCHEMA_NAMES, (Node *) AttrDefNames);
@@ -1720,22 +1776,43 @@ computeReqColProp (QueryOperator *root)
 		setStringProperty((QueryOperator *) OP_RCHILD(root), PROP_STORE_SET_ICOLS, (Node *)ericols);
 	}
 
-	FOREACH(QueryOperator, o, root->inputs)
-	{
-		computeReqColProp(o);
-	}
+    // check if all parents have been processed
+    boolean allParents = TRUE;
+    FOREACH(QueryOperator, p, root->parents)
+    {
+        allParents &= HAS_STRING_PROP(p, PROP_STORE_SET_ICOLS_DONE);
+    }
+
+    // only proceed to children once op is done
+    if (allParents)
+    {
+        SET_BOOL_STRING_PROP(root, PROP_STORE_SET_ICOLS_DONE);
+        FOREACH(QueryOperator, o, root->inputs)
+        {
+            computeReqColProp(o);
+        }
+    }
 }
 
 void
 printIcols(QueryOperator *root)
 {
-	Set *icols = (Set*)getProperty(root, (Node *) createConstString(PROP_STORE_SET_ICOLS));
-	DEBUG_LOG("icols:%s\n ",nodeToString(icols));
+    visitQOGraph(root, TRAVERSAL_PRE, printIcolsVisitor, NULL);
+//	Set *icols = (Set*) getStringProperty(root, PROP_STORE_SET_ICOLS);
+//	DEBUG_LOG("icols:%s\n ",nodeToString(icols));
+//
+//	FOREACH(QueryOperator, o, root->inputs)
+//	{
+//		printIcols(o);
+//	}
+}
 
-	FOREACH(QueryOperator, o, root->inputs)
-	{
-		printIcols(o);
-	}
+static boolean
+printIcolsVisitor (QueryOperator *op, void *context)
+{
+    Set *icols = (Set*) getStringProperty(op, PROP_STORE_SET_ICOLS);
+    DEBUG_LOG("op(%s) - icols:%s\n ",op->schema->name, nodeToString(icols));
+    return TRUE;
 }
 
 static List *
@@ -1748,3 +1825,48 @@ attrRefListToStringList (List *input)
 
     return result;
 }
+
+
+void
+emptyProperty(QueryOperator *root)
+{
+    visitQOGraph(root, TRAVERSAL_PRE, removePropsVisitor, NULL);
+}
+
+void
+removeProp(QueryOperator *op, char *prop)
+{
+    visitQOGraph(op, TRAVERSAL_PRE, removeOnePropVisitor, prop);
+}
+
+static boolean
+removeOnePropVisitor(QueryOperator *op, void *context)
+{
+    char *prop = (char *) context;
+    removeStringProperty(op, prop);
+    return TRUE;
+}
+
+static boolean
+removePropsVisitor(QueryOperator *op, void *context)
+{
+    /* remove every property we use for optimization for this operator */
+    removeStringProperty(op, PROP_PROJ_PROV_ATTR_DUP);
+    removeStringProperty(op, PROP_PROJ_PROV_ATTR_DUP_PULLUP);
+    removeStringProperty(op, PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND);
+    removeStringProperty(op, PROP_MERGE_ATTR_REF_CNTS);
+    removeStringProperty(op, PROP_STORE_LIST_KEY);
+    removeStringProperty(op, PROP_STORE_BOOL_SET);
+    removeStringProperty(op, PROP_STORE_SET_ICOLS);
+    removeStringProperty(op, PROP_STORE_LIST_SCHEMA_NAMES);
+    removeStringProperty(op, PROP_STORE_SET_EC);
+    removeStringProperty(op, PROP_STORE_DUP_MARK);
+    removeStringProperty(op, PROP_STORE_MERGE_DONE);
+    removeStringProperty(op, PROP_STORE_REMOVE_RED_PROJ_DONE);
+    removeStringProperty(op, PROP_STORE_REMOVE_RED_DUP_BY_KEY_DONE);
+    removeStringProperty(op, PROP_OPT_REMOVE_RED_DUP_BY_SET_DONE);
+    removeStringProperty(op, PROP_OPT_REMOVE_RED_WIN_DONW);
+
+    return TRUE;
+}
+

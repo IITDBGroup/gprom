@@ -29,6 +29,7 @@
 typedef struct ProvSchemaInfo
 {
     List *provAttrs;
+    List *dts;
     RelCount *rels;
 } ProvSchemaInfo;
 
@@ -52,6 +53,10 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
         }
         case PROV_TRANSFORMATION:
             return singleton(strdup("tprov"));
+        case PROV_NONE:
+        {
+            return NIL;
+        }
     }
     return NIL; //keep compiler quiet
 }
@@ -162,8 +167,8 @@ getRelNameCount(RelCount **relCount, char *tableName)
     return relC->count;
 }
 
-List *
-getQBProvenanceAttrList (ProvenanceStmt *stmt)
+void
+getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
 {
     switch(stmt->provType)
     {
@@ -173,12 +178,14 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt)
         {
             ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);
 
+            pSchema->provAttrs = NIL;
+            pSchema->dts = NIL;
             findTablerefVisitor((Node *) stmt->query, pSchema);
-            return pSchema->provAttrs;
+            *attrNames = pSchema->provAttrs;
+            *dts = pSchema->dts;
+            return;
         }
     }
-
-    return NIL;
 }
 
 static boolean
@@ -206,19 +213,23 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
                             getProvenanceAttrName(tableName, attrName,
                                     curRelCount));
                 }
+                FOREACH_INT(dt,f->dataTypes)
+                    status->dts = appendToTailOfListInt(status->dts, dt);
             }
             // show intermediate provenacne
             else if (f->provInfo->intermediateProv)
             {
                 // first get child provenance attributes
                 boolean result = visit(node, findTablerefVisitor, status);
-
+                //TODO is that correct?
                 FOREACH(char,attrName,f->attrNames)
                 {
                     status->provAttrs = appendToTailOfList(status->provAttrs,
                             getProvenanceAttrName(tableName, attrName,
                                     curRelCount));
                 }
+                FOREACH_INT(dt,f->dataTypes)
+                    status->dts = appendToTailOfListInt(status->dts, dt);
 
                 return result;
             }
@@ -227,9 +238,13 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
             {
                 FOREACH(char,attrName,f->provInfo->userProvAttrs)
                 {
+                    DataType dt;
+
                     status->provAttrs = appendToTailOfList(status->provAttrs,
                             getProvenanceAttrName(tableName, attrName,
                                     curRelCount));
+                    dt = getNthOfListInt(f->dataTypes, listPosString(f->attrNames, attrName));
+                    status->dts = appendToTailOfListInt(status->dts, dt);
                 }
             }
             return TRUE;
@@ -243,6 +258,8 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
             FOREACH(char,a,r->from.attrNames)
                 status->provAttrs = appendToTailOfList(status->provAttrs,
                         getProvenanceAttrName(tableName,a, curRelCount));
+            FOREACH_INT(dt,r->from.dataTypes)
+                status->dts = appendToTailOfListInt(status->dts, dt);
         }
     }
 

@@ -108,6 +108,8 @@ ANS			"ANS"
 WHY			"WHY"
 WHYNOT		"WHYNOT"
 GP			"GP"
+RPQ			"RPQ"
+FORMAT		"FORMAT"
 
 /* LITERAL ONES */
 
@@ -126,6 +128,8 @@ GP			"GP"
 {GP}		TOK(GP)
 {WHY}		TOK(WHYPROV)
 {WHYNOT}	TOK(WHYNOTPROV)
+{RPQ}		TOK(RPQ)
+{FORMAT}	TOK(FORMAT)
 
 	/* aggregation functions */
 (?i:AVG)	TOK(AMMSC)
@@ -135,8 +139,8 @@ GP			"GP"
 (?i:COUNT)	TOK(AMMSC)
 
 	/* identifier types */
-{variable}	 	UPCASE_TOK(VARIDENT)
 {identifier}	UPCASE_TOK(IDENT)
+	/* {variable}	 	UPCASE_TOK(VARIDENT)*/
 
 {quotedIdentifier}   { 		
 		dllval.stringVal = MALLOC(strlen(dltext) - 1);

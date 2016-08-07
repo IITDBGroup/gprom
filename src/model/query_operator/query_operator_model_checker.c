@@ -22,6 +22,10 @@
 
 static boolean checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent);
 static boolean checkUniqueAttrNames (QueryOperator *op);
+static boolean checkParentChildLinks (QueryOperator *op, void *context);
+static boolean checkAttributeRefConsistency (QueryOperator *op, void *context);
+static boolean checkSchemaConsistency (QueryOperator *op, void *context);
+
 
 
 boolean
@@ -51,18 +55,18 @@ checkModel (QueryOperator *op)
 {
     NEW_AND_ACQUIRE_MEMCONTEXT("QO_MODEL_CHECKER");
 
-    if (SHOULD(CHECK_OM_PARENT_CHILD_LINKS) && !checkParentChildLinks(op))
+    if (SHOULD(CHECK_OM_PARENT_CHILD_LINKS) && !visitQOGraph(op, TRAVERSAL_PRE, checkParentChildLinks, NULL))
         FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
-    if (SHOULD(CHECK_OM_ATTR_REF) && !checkAttributeRefConsistency(op))
+    if (SHOULD(CHECK_OM_ATTR_REF) && !visitQOGraph(op, TRAVERSAL_PRE, checkAttributeRefConsistency, NULL))
         FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
-    if (SHOULD(CHECK_OM_SCHEMA_CONSISTENCY) && !checkSchemaConsistency(op))
+    if (SHOULD(CHECK_OM_SCHEMA_CONSISTENCY) && !visitQOGraph(op, TRAVERSAL_PRE, checkSchemaConsistency, NULL))
         FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
 
     FREE_CONTEXT_AND_RETURN_BOOL(TRUE);
 }
 
-boolean
-checkAttributeRefConsistency (QueryOperator *op)
+static boolean
+checkAttributeRefConsistency (QueryOperator *op, void *context)
 {
     List *attrRefs = NIL;
 
@@ -117,8 +121,8 @@ checkAttributeRefConsistency (QueryOperator *op)
         // Check Attribute that we use as Json Column should be from/should exist in child
         case T_JsonTableOperator:
         {
-	    JsonTableOperator *o = (JsonTableOperator *)op;
-	    attrRefs = singleton(o->jsonColumn);
+            JsonTableOperator *o = (JsonTableOperator *)op;
+            attrRefs = singleton(o->jsonColumn);
         }
         break;
         default:
@@ -127,9 +131,9 @@ checkAttributeRefConsistency (QueryOperator *op)
     if(!checkAttributeRefList(attrRefs, op->inputs, op))
         return FALSE;
 
-    FOREACH(QueryOperator,child,op->inputs)
-        if (!checkAttributeRefConsistency(child))
-            return FALSE;
+//    FOREACH(QueryOperator,child,op->inputs)
+//        if (!checkAttributeRefConsistency(child))
+//            return FALSE;
 
     return TRUE;
 }
@@ -146,28 +150,25 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
 
         if (a->name == NULL)
         {
-            ERROR_LOG("attribute NULL name: %s\n\nin%s",
-                    beatify(nodeToString(a)),
-                    operatorToOverviewString((Node *) parent));
+            ERROR_NODE_BEATIFY_LOG("attribute NULL name:", a);
+            ERROR_OP_LOG("parent is",parent);
             return FALSE;
         }
 
         if (input < 0 || input >= LIST_LENGTH(children))
         {
-            ERROR_LOG("attribute %s references input operator that does not "
-                    "exist:\n\n%s",
-                    beatify(nodeToString(a)),
-                    operatorToOverviewString((Node *) parent));
+            ERROR_NODE_BEATIFY_LOG("attribute references input operator that "
+                    "does not exist:",a);
+            ERROR_OP_LOG("parent is",parent);
             return FALSE;
         }
 
         child = (QueryOperator *) getNthOfListP(children, input);
         if (attrPos < 0 || attrPos >= getNumAttrs(child))
         {
-            ERROR_LOG("attribute %s references attribute position that does not "
-                                "exist in child:\n\n%s",
-                                beatify(nodeToString(a)),
-                                operatorToOverviewString((Node *) parent));
+            ERROR_NODE_BEATIFY_LOG("attribute references attribute position that does not "
+                                "exist in child:",a);
+            ERROR_OP_LOG("parent is",parent);
             return FALSE;
         }
 
@@ -175,23 +176,19 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
         if (strcmp(childA->attrName, a->name) != 0)
         {
             ERROR_LOG("attribute ref name and child attrdef names are not the "
-                    "same: <%s> and <%s> in\n\n%s", childA->attrName, a->name,
-                    operatorToOverviewString((Node *) parent));
-            DEBUG_LOG("details are: \n%s\n\n%s\n\n%s", nodeToString(a),
-                    nodeToString(childA),
-                    beatify(nodeToString(parent)));
+                    "same:", childA->attrName, a->name);
+            ERROR_OP_LOG("parent is",parent);
+            DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
             return FALSE;
         }
         if (childA->dataType != a->attrType)
         {
             ERROR_LOG("attribute datatype and child attrdef datatypes are not the "
-                    "same: <%s> and <%s> in\n\n%s",
+                    "same: <%s> and <%s>",
                     DataTypeToString(childA->dataType),
-                    DataTypeToString(a->attrType),
-                    operatorToOverviewString((Node *) parent));
-            DEBUG_LOG("details are: \n%s\n\n%s\n\n%s", nodeToString(a),
-                    nodeToString(childA),
-                    beatify(nodeToString(parent)));
+                    DataTypeToString(a->attrType));
+            ERROR_OP_LOG("parent is",parent);
+            DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
             return FALSE;
         }
        /* else
@@ -209,9 +206,15 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
     return TRUE;
 }
 
-boolean
-checkSchemaConsistency (QueryOperator *op)
+static boolean
+checkSchemaConsistency (QueryOperator *op, void *context)
 {
+    if (LIST_LENGTH(op->schema->attrDefs) == 0 && !isA(op,ProvenanceComputation))
+    {
+        ERROR_OP_LOG("Cannot have an operator with no result attributes", op);
+        return FALSE;
+    }
+
     switch(op->type)
     {
         case T_ProjectionOperator:
@@ -246,9 +249,8 @@ checkSchemaConsistency (QueryOperator *op)
         {
             if (!equal(OP_LCHILD(op)->schema->attrDefs, op->schema->attrDefs))
             {
-                ERROR_LOG("Attributes of DuplicateRemoval should match attributes"
-                        " of its child:\n%s",
-                        operatorToOverviewString((Node *) op));
+                ERROR_NODE_BEATIFY_LOG("Attributes of DuplicateRemoval should match attributes"
+                        " of its child:", op);
                 return FALSE;
             }
         }
@@ -260,9 +262,8 @@ checkSchemaConsistency (QueryOperator *op)
 
             if (LIST_LENGTH(op->schema->attrDefs) != LIST_LENGTH(child->schema->attrDefs))
             {
-                ERROR_LOG("Number of attributes of a selection operator should match the "
-                        "number of attributes of its child:\n%s",
-                        operatorToOverviewString((Node *) op));
+                ERROR_OP_LOG("Number of attributes of a selection operator should match the "
+                        "number of attributes of its child:", op);
                 return FALSE;
             }
 
@@ -375,9 +376,9 @@ checkSchemaConsistency (QueryOperator *op)
             break;
     }
 
-    FOREACH(QueryOperator,o,op->inputs)
-        if (!checkSchemaConsistency(o))
-            return FALSE;
+//    FOREACH(QueryOperator,o,op->inputs)
+//        if (!checkSchemaConsistency(o))
+//            return FALSE;
 
     return !SHOULD(CHECK_OM_UNIQUE_ATTR_NAMES)
             || checkUniqueAttrNames(op);
@@ -402,8 +403,8 @@ checkUniqueAttrNames (QueryOperator *op)
     return TRUE;
 }
 
-boolean
-checkParentChildLinks (QueryOperator *op)
+static boolean
+checkParentChildLinks (QueryOperator *op, void *context)
 {
     // check that no operator has itself as child or parent
     FOREACH(QueryOperator,o,op->inputs)
@@ -433,8 +434,8 @@ checkParentChildLinks (QueryOperator *op)
                     operatorToOverviewString((Node *) op));
             return FALSE;
         }
-        if (!checkParentChildLinks(o))
-            return FALSE;
+//        if (!checkParentChildLinks(o))
+//            return FALSE;
     }
 
     // check that this node's parents have this node as a child

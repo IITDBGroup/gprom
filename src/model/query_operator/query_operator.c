@@ -16,15 +16,19 @@
 #include "mem_manager/mem_mgr.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "model/set/set.h"
 #include "model/query_operator/operator_property.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
 
-
-//static Schema *mergeSchemas (List *inputs);
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
-static boolean KeyValueKeyEqString (void *kv, void *str);
+static unsigned numOpsInTreeInternal (QueryOperator *q, unsigned int *count);
+static boolean countUniqueOpsVisitor(QueryOperator *op, void *context);
+static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
+        boolean (*visitF) (QueryOperator *op, void *context), void *context,
+        Set *haveSeen);
 
 
 Schema *
@@ -43,7 +47,6 @@ createAttributeDef (char *name, DataType dt)
 
     result->dataType = dt;
     result->attrName = name;
-    result->pos = 0;
 
     return result;
 }
@@ -210,7 +213,8 @@ resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *op1, QueryOperator *op2)
         attrRefs = concatTwoLists(partitionBy, orderBy);
         attrRefs = concatTwoLists(attrRefs, frameDef);
         attrRefs = concatTwoLists(attrRefs, f);
-        DEBUG_LOG("WINATTR %p: %s", (void *) op1, beatify(nodeToString(attrRefs)));
+        DEBUG_LOG("WINATTR %p:", (void *) op1);
+        DEBUG_NODE_BEATIFY_LOG("", attrRefs);
 	}
 	else if (isA(op1,OrderOperator))
 	{
@@ -380,26 +384,42 @@ getCondOpList(List *l1, List *l2)
 
 
 List *
-getDataTypes (Schema *schema)
+getDataTypes(Schema *schema)
 {
-    List *result = NIL;
-
-    FOREACH(AttributeDef,a,schema->attrDefs)
-    result = appendToTailOfListInt(result, a->dataType);
-
-    return result;
+    return getAttrDataTypes(schema->attrDefs);
 }
+
+
 
 List *
 getAttrNames(Schema *schema)
 {
+    return getAttrDefNames(schema->attrDefs);
+}
+
+List *
+getAttrDefNames(List *defs)
+{
     List *result = NIL;
 
-    FOREACH(AttributeDef,a,schema->attrDefs)
-    result = appendToTailOfList(result, a->attrName);
+    FOREACH(AttributeDef,a,defs)
+        result = appendToTailOfList(result, a->attrName);
 
     return result;
 }
+
+
+List *
+getAttrDataTypes(List *defs)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeDef,a,defs)
+        result = appendToTailOfListInt(result, a->dataType);
+
+    return result;
+}
+
 
 TableAccessOperator *
 createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
@@ -572,13 +592,13 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
 }
 
 ProvenanceComputation *
-createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, Node *asOf)
+createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, List *dts, Node *asOf)
 {
     ProvenanceComputation *p = makeNode(ProvenanceComputation);
 
     p->op.parents = parents;
     p->op.inputs = inputs;
-    p->op.schema = createSchemaFromLists("PROVENANCE", attrNames, NULL);
+    p->op.schema = createSchemaFromLists("PROVENANCE", attrNames, dts);
     p->provType = provType;
     p->asOf = asOf;
 
@@ -667,8 +687,9 @@ setProperty (QueryOperator *op, Node *key, Node *value)
         return;
     }
 
-    val = createNodeKeyValue(key, value);
-    op->properties =  (Node *) appendToTailOfList((List *) op->properties, val);
+    addToMap((HashMap *) op->properties, key, value);
+//    val = createNodeKeyValue(key, value);
+//    op->properties =  (Node *) appendToTailOfList((List *) op->properties, val);
 }
 
 Node *
@@ -688,42 +709,54 @@ setStringProperty (QueryOperator *op, char *key, Node *value)
 Node *
 getStringProperty (QueryOperator *op, char *key)
 {
-    KeyValue *kv = getProp(op, (Node *) createConstString(key));
-
-    return kv ? kv->value : NULL;
+    if (op->properties == NULL)
+        op->properties = (Node *) NEW_MAP(Node,Node);
+    return getMapString((HashMap *) op->properties, key);
+//    KeyValue *kv = getProp(op, (Node *) createConstString(key));
+//
+//    return kv ? kv->value : NULL;
 }
 
 void
 removeStringProperty (QueryOperator *op, char *key)
 {
-    List *props = (List *) op->properties;
-    op->properties = (Node *) genericRemoveFromList(props, KeyValueKeyEqString, key);
+    removeMapStringElem((HashMap *) op->properties, key);
+//    List *props = (List *) op->properties;
+//    op->properties = (Node *) genericRemoveFromList(props, KeyValueKeyEqString, key);
 }
 
-static boolean
-KeyValueKeyEqString (void *kv, void *str)
-{
-    ASSERT(isA(kv, KeyValue));
-    KeyValue *kVal = (KeyValue *) kv;
-    ASSERT(isA(kVal->key, Constant));
-    char *keyStr = STRING_VALUE(kVal->key);
-
-    if (strpeq(keyStr, str))
-        return TRUE;
-
-    return FALSE;
-}
+//static boolean
+//KeyValueKeyEqString (void *kv, void *str)
+//{
+//    ASSERT(isA(kv, KeyValue));
+//    KeyValue *kVal = (KeyValue *) kv;
+//    ASSERT(isA(kVal->key, Constant));
+//    char *keyStr = STRING_VALUE(kVal->key);
+//
+//    if (strpeq(keyStr, str))
+//        return TRUE;
+//
+//    return FALSE;
+//}
 
 static KeyValue *
 getProp (QueryOperator *op, Node *key)
 {
-    FOREACH(KeyValue,p,(List *) op->properties)
+    if (op->properties == NULL)
     {
-        if (equal(p->key,key))
-            return p;
+        op->properties = (Node *) NEW_MAP(Node,Node);
     }
 
-    return NULL;
+    return getMapEntry((HashMap *) op->properties, key);
+//    if (mapHasKey(op->properties, key))
+//        return mpa
+//    FOREACH(KeyValue,p,(List *) op->properties)
+//    {
+//        if (equal(p->key,key))
+//            return p;
+//    }
+
+//    return NULL;
 }
 
 void
@@ -1106,17 +1139,97 @@ boolean
 visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context)
 {
+    boolean result = FALSE;
+    NEW_AND_ACQUIRE_MEMCONTEXT("QO_GRAPH_VISITOR_CONTEXT");
+    Set *haveSeen = PSET();
+    result = internalVisitQOGraph(q, tOrder, visitF, context, haveSeen);
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+    return result;
+}
+
+static boolean
+internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
+        boolean (*visitF) (QueryOperator *op, void *context), void *context, Set *haveSeen)
+{
     if (tOrder == TRAVERSAL_PRE && !visitF(q, context))
         return FALSE;
 
     FOREACH(QueryOperator,c,q->inputs)
-        if (!visitQOGraph(c, tOrder, visitF, context))
-            return FALSE;
+    {
+        if (!hasSetElem(haveSeen, c))
+        {
+            boolean result = FALSE;
+            MemContext *ctxt;
+            addToSet(haveSeen, c);
+            ctxt = RELEASE_MEM_CONTEXT();
+            result = internalVisitQOGraph(c, tOrder, visitF, context, haveSeen);
+            ACQUIRE_MEM_CONTEXT(ctxt);
+            if (!result)
+                return FALSE;
+        }
+    }
 
     if (tOrder == TRAVERSAL_POST && !visitF(q, context))
         return FALSE;
 
     return TRUE;
+}
+
+
+unsigned int
+numOpsInGraph (QueryOperator *root)
+{
+    List *ctx = LIST_MAKE(createConstInt(0), PSET());
+
+    visitQOGraph(root, TRAVERSAL_PRE, countUniqueOpsVisitor, ctx);
+    Constant *c = (Constant *) getNthOfListP(ctx, 0);
+    return INT_VALUE(c);
+}
+
+
+static boolean
+countUniqueOpsVisitor(QueryOperator *op, void *context)
+{
+    List *l = (List *) context;
+    Constant *c = (Constant *) getNthOfListP(l, 0);
+    Set *s = (Set *) getNthOfListP(l, 1);
+
+    if (!hasSetElem(s,op))
+    {
+        addToSet(s,op);
+        (INT_VALUE(c))++;
+    }
+    return TRUE;
+}
+
+#define PROP_CHILD_COUNT "CC"
+
+unsigned int
+numOpsInTree (QueryOperator *root)
+{
+    unsigned int result = 0;
+    NEW_AND_ACQUIRE_MEMCONTEXT("QO_GRAPH_VISITOR_CONTEXT");
+    numOpsInTreeInternal(root, &result);
+    removeProp(root, PROP_CHILD_COUNT);
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+    return result;
+}
+
+static unsigned int
+numOpsInTreeInternal (QueryOperator *q, unsigned int *count)
+{
+    unsigned int opC = 1;
+    if (HAS_STRING_PROP(q, PROP_CHILD_COUNT))
+    {
+        opC = INT_VALUE(GET_STRING_PROP(q, PROP_CHILD_COUNT));
+        (*count) += opC;
+        return opC;
+    }
+
+    FOREACH(QueryOperator,c,q->inputs)
+        opC += numOpsInTreeInternal(c, count);
+    SET_STRING_PROP(q, PROP_CHILD_COUNT, createConstInt(opC));
+    return opC;
 }
 
 

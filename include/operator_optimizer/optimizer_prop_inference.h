@@ -41,4 +41,9 @@ extern Set* AddAttrOfSelectCondToSet(Set *set, Operator *op);
 extern void printECPro(QueryOperator *root);
 extern void printSingleECList(List *l);
 
+/* empty property for each operator used in loop each optimization method*/
+extern void emptyProperty(QueryOperator *root);
+extern void removeProp(QueryOperator *op, char *prop);
+
+
 #endif /* INCLUDE_OPERATOR_OPTIMIZER_OPTIMIZER_PROP_INFERENCE_H_ */

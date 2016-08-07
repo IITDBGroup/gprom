@@ -104,9 +104,7 @@ mergeProjection(ProjectionOperator *op)
         // calculate child reference count vectors needed to determine safety
         opRefCount = calculateChildAttrRefCnts(parent, (QueryOperator *) child);
         childRefCount = calculateChildAttrRefCnts(child, OP_LCHILD(child));
-        DEBUG_LOG("reference counts:\n%s\n\n%s",
-                beatify(nodeToString(opRefCount)),
-                beatify(nodeToString(childRefCount)));
+        DEBUG_NODE_BEATIFY_LOG("reference counts:", opRefCount, childRefCount);
 
         if (!isMergeSafe(opRefCount, childRefCount))
             break;
@@ -118,9 +116,8 @@ mergeProjection(ProjectionOperator *op)
 
         // calculate new reference vector
         mergeReferenceVectors((QueryOperator *) parent, opRefCount, childRefCount);
-        DEBUG_LOG("merged reference count:\n%s",
-                beatify(nodeToString(
-                        GET_STRING_PROP(parent,PROP_MERGE_ATTR_REF_CNTS))));
+        DEBUG_NODE_BEATIFY_LOG("merged reference count:",
+                GET_STRING_PROP(parent,PROP_MERGE_ATTR_REF_CNTS));
 
         START_TIMER("OptimizeModel - replace attrs with expr");
         replaceAttributeRefsMutator((Node *) parent->projExprs, state, NULL);
@@ -345,7 +342,7 @@ calculateChildAttrRefCnts(ProjectionOperator *op, QueryOperator *child)
     i = 0;
     FOREACH(Node,p,op->projExprs)
     {
-        DEBUG_LOG("projection expression: %s", beatify(nodeToString(p)));
+        DEBUG_NODE_BEATIFY_LOG("projection expression:", p);
         Vector *curCount = (Vector *) getVecNode(refCount,i++);
 
         getAttrRefCount(p, curCount);

@@ -109,22 +109,32 @@ typedef struct JoinAttrRenameState {
 
 #define ORACLE_IDENT_LIMIT 30
 
+typedef struct ReplaceNonOracleDTsContext {
+    void *curOp;
+    boolean inCond;
+} ReplaceNonOracleDTsContext;
+
 /* variables */
 static TemporaryViewMap *viewMap;
 static int viewNameCounter;
 
 /* method declarations */
+static boolean quoteAttributeNamesVisitQO (QueryOperator *op, void *context);
 static boolean quoteAttributeNames (Node *node, void *context);
 
+
 static void  makeDTOracleConformant(QueryOperator *q);
-static boolean replaceNonOracleDTs (Node *node, void *context);
+static boolean replaceNonOracleDTsVisitQO (QueryOperator *node, void *context);
+static boolean replaceNonOracleDTs (Node *node,
+        ReplaceNonOracleDTsContext *context, void **partentPointer);
+
 
 static List *serializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *parent);
 static List *serializeQueryBlock (QueryOperator *q, StringInfo str);
 static List *serializeSetOperator (QueryOperator *q, StringInfo str);
 
 static void serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs);
-static void serializeFromItem (QueryOperator *q, StringInfo from,
+static void serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from,
         int *curFromItem, int *attrOffset, List **fromAttrs);
 
 static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
@@ -142,7 +152,7 @@ static char *createAttrName(char *name, int fItem);
 
 static List *createTempView(QueryOperator *q, StringInfo str, QueryOperator *parent);
 static char *createViewName(void);
-static void shortenAttributeNames(QueryOperator *q);
+static boolean shortenAttributeNames(QueryOperator *q, void *context);
 static inline char *getShortAttr(char *newName, int id, boolean quoted);
 static void fixAttrReferences (QueryOperator *q);
 
@@ -153,15 +163,21 @@ serializeOperatorModelOracle(Node *q)
     StringInfo str = makeStringInfo();
     char *result = NULL;
 
-
-
     // quote ident names if necessary
-    quoteAttributeNames(q, NULL);
+    ASSERT(IS_OP(q) || isA(q,List));
+    if (isA(q,List))
+    {
+        FOREACH(QueryOperator,el, (List *) q)
+            visitQOGraph((QueryOperator *) el, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
+    }
+    else
+        visitQOGraph((QueryOperator *) q, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
 
+    // shorten attribute names to confrom with Oracle limits
     if (IS_OP(q))
     {
         // shorten attribute names to oracle's 30 char limit
-        shortenAttributeNames((QueryOperator *) q);
+        visitQOGraph((QueryOperator *) q, TRAVERSAL_PRE,shortenAttributeNames, NULL);
         appendStringInfoString(str, serializeQueryOracle((QueryOperator *) q));
         appendStringInfoChar(str,';');
     }
@@ -169,7 +185,7 @@ serializeOperatorModelOracle(Node *q)
         FOREACH(QueryOperator,o,(List *) q)
         {
             // shorten attribute names to oracle's 30 char limit
-            shortenAttributeNames(o);
+            visitQOGraph(o, TRAVERSAL_PRE,shortenAttributeNames, NULL);
             appendStringInfoString(str, serializeQueryOracle(o));
             appendStringInfoString(str,";\n\n");
         }
@@ -181,15 +197,14 @@ serializeOperatorModelOracle(Node *q)
     return result;
 }
 
-static void
-shortenAttributeNames(QueryOperator *q)
+static boolean
+shortenAttributeNames(QueryOperator *q, void *context)
 {
     Set *newAttrNames = STRSET();
     List *attrs = q->schema->attrDefs;
 
-    FOREACH(QueryOperator,child,q->inputs)
-        shortenAttributeNames(child);
-
+//    FOREACH(QueryOperator,child,q->inputs)
+//        shortenAttributeNames(child);
     fixAttrReferences(q);
 
     FOREACH(AttributeDef,a,attrs)
@@ -218,6 +233,8 @@ shortenAttributeNames(QueryOperator *q)
             a->attrName = strdup(newName);
         }
     }
+
+    return TRUE;
 }
 
 static inline char*
@@ -249,9 +266,19 @@ fixAttrReferences (QueryOperator *q)
 }
 
 static boolean
+quoteAttributeNamesVisitQO (QueryOperator *op, void *context)
+{
+    return quoteAttributeNames((Node *) op, op);
+}
+
+static boolean
 quoteAttributeNames (Node *node, void *context)
 {
     if (node == NULL)
+        return TRUE;
+
+    // do not traverse into query operator nodes to avoid repeated traversal of paths in the graph
+    if (node != context && IS_OP(node))
         return TRUE;
 
     if (isA(node, AttributeReference))
@@ -329,17 +356,37 @@ serializeQueryOracle(QueryOperator *q)
 static void
 makeDTOracleConformant(QueryOperator *q)
 {
-    replaceNonOracleDTs((Node *) q, NULL);
+    ReplaceNonOracleDTsContext c;
+    c.curOp = q;
+    c.inCond = FALSE;//TODO
+
+    visitQOGraph(q, TRAVERSAL_PRE, replaceNonOracleDTsVisitQO, &c);
 }
 
 static boolean
-replaceNonOracleDTs (Node *node, void *context)
+replaceNonOracleDTsVisitQO (QueryOperator *node, void *context)
+{
+    ReplaceNonOracleDTsContext *c = (ReplaceNonOracleDTsContext *) context;
+    c->curOp = node;
+    c->inCond = (isA(node, SelectionOperator));
+    replaceNonOracleDTs((Node *) node, context, NULL);
+    return TRUE;
+}
+
+static boolean
+replaceNonOracleDTs (Node *node, ReplaceNonOracleDTsContext *context, void **partentPointer)
 {
     if (node == NULL)
         return TRUE;
 
+    if (node != context->curOp && IS_OP(node))
+        return TRUE;
+
     //TODO keep context
-    //TODO take care of boolean expressions that are used where Oracle expects
+    //TODO take care of boolean expressions that are used where Oracle expects a condition
+
+    // replace boolean constants with 1/0 in arithmetic contexts (e.g., SELECT)
+    // and with 1=1/1=0 in conditional contexts (e.g., WHERE)
     if (isA(node,Constant))
     {
         Constant *c = (Constant *) node;
@@ -353,10 +400,26 @@ replaceNonOracleDTs (Node *node, void *context)
                 INT_VALUE(c) = 1;
             else
                 INT_VALUE(c) = 0;
+
+            if (context->inCond)
+            {
+                if (val)
+                    *partentPointer = createOpExpr("=",
+                            LIST_MAKE(createConstInt(1),createConstInt(1)));
+                else
+                    *partentPointer = createOpExpr("=",
+                            LIST_MAKE(createConstInt(1),createConstInt(0)));
+            }
+
         }
+        return TRUE;
     }
 
-    return visit(node, replaceNonOracleDTs, context);
+    // are we in arithmetic of non-arithmetic expression (or other nodes)
+    if (IS_EXPR(node))
+        context->inCond = isCondition(node);//TODO do second traversal to solve cases where now an int is used instead of a condition
+
+    return visitWithPointers(node, replaceNonOracleDTs, partentPointer, context);
 }
 
 /*
@@ -684,7 +747,7 @@ serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs)
     int curFromItem = 0, attrOffset = 0;
 
     appendStringInfoString(from, "\nFROM ");
-    serializeFromItem (q, from, &curFromItem, &attrOffset, fromAttrs);
+    serializeFromItem (q, q, from, &curFromItem, &attrOffset, fromAttrs);
 }
 
 static void
@@ -733,10 +796,12 @@ ConstructNestedJsonColItems (JsonColInfoItem *col,StringInfo *from,int *nestedco
 }
 
 static void
-serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
+serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, int *curFromItem,
         int *attrOffset, List **fromAttrs)
 {
-    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE)))
+    // if operator has more than one parent then it will be represented as a CTE
+    // however, when create the code for a CTE (q==fromRoot) then we should create SQL for this op)
+    if (!(LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q, PROP_MATERIALIZE)) || q == fromRoot)
     {
         switch(q->type)
         {
@@ -748,7 +813,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
                 appendStringInfoString(from, "(");
 
                 //left child
-                serializeFromItem(OP_LCHILD(j), from, curFromItem, attrOffset, fromAttrs);
+                serializeFromItem(fromRoot, OP_LCHILD(j), from, curFromItem, attrOffset, fromAttrs);
 
                 // join
                 switch(j->joinType)
@@ -772,7 +837,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
                 // right child
                 rOffset = *curFromItem;
-                serializeFromItem(OP_RCHILD(j), from, curFromItem, attrOffset, fromAttrs);
+                serializeFromItem(fromRoot, OP_RCHILD(j), from, curFromItem, attrOffset, fromAttrs);
 
                 // join condition
                 if (j->cond)
@@ -790,7 +855,7 @@ serializeFromItem (QueryOperator *q, StringInfo from, int *curFromItem,
 
             	QueryOperator *child = OP_LCHILD(jt);
             	// Serialize left child
-            	serializeFromItem(child, from, curFromItem, attrOffset, fromAttrs);
+            	serializeFromItem(fromRoot, child, from, curFromItem, attrOffset, fromAttrs);
 
             	// TODO  Get the attributes of JSON TABLE operator
             	List *jsonAttrNames = getAttrNames(((QueryOperator *) jt)->schema);
@@ -1436,13 +1501,25 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     // get attributes from FROM clause root
     else
     {
-        resultAttrs = getQueryOperatorAttrNames(m->fromRoot);//TODO
+        List *inAttrs = NIL;
+        int fromItem = 0;
 
-        FOREACH(char,name,resultAttrs)
+        // attribute aliases are determined by the fromRoot operator's schema
+        resultAttrs = getQueryOperatorAttrNames(m->fromRoot);//TODO
+        // construct list of from clause attribute names with from clause item aliases
+        FOREACH(List, attrs, fromAttrs)
+        {
+            FOREACH(char,name,attrs)
+                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", itoa(fromItem), ".", name));
+            fromItem++;
+        }
+
+        // construct select clause
+        FORBOTH(char,outName,inName,resultAttrs,inAttrs)
         {
             if (pos++ != 0)
                 appendStringInfoString(select, ", ");
-            appendStringInfoString(select, name);
+            appendStringInfo(select, "%s AS %s", inName, outName);
         }
 
         DEBUG_LOG("FROM root attributes as projection expressions %s", select->data);

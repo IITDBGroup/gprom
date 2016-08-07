@@ -276,14 +276,19 @@ createIsNullExpr (Node *expr)
 Node *
 createIsNotDistinctExpr (Node *lArg, Node *rArg)
 {
-    Operator *eq, *nullTest;
+    Operator *eq; //, *nullTest;
 
-    eq = createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
-    nullTest = createOpExpr("AND", LIST_MAKE(
-            createIsNullExpr(copyObject(lArg)),
-            createIsNullExpr(copyObject(rArg))));
+    eq = createOpExpr("=", LIST_MAKE(
+            createFunctionCall("sys_op_map_nonnull", singleton(copyObject(lArg))),
+            createFunctionCall("sys_op_map_nonnull", singleton(copyObject(rArg)))));
+    return (Node *) eq;
 
-    return (Node *) createOpExpr("OR", LIST_MAKE(eq, nullTest));
+//    eq = createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
+//    nullTest = createOpExpr("AND", LIST_MAKE(
+//            createIsNullExpr(copyObject(lArg)),
+//            createIsNullExpr(copyObject(rArg))));
+//
+//    return (Node *) createOpExpr("OR", LIST_MAKE(eq, nullTest));
 }
 
 Constant *
@@ -341,6 +346,17 @@ createConstFloat (double value)
 }
 
 Constant *
+createConstBoolFromString (char *v)
+{
+    if (streq(v,"TRUE") || streq(v,"t") || streq(v,"true"))
+        return createConstBool(TRUE);
+    if (streq(v,"FALSE") || streq(v,"f") || streq(v,"false"))
+        return createConstBool(FALSE);
+    FATAL_LOG("not a boolean value %s", v);
+    return FALSE; //keep compiler quiet
+}
+
+Constant *
 createConstBool (boolean value)
 {
     Constant *result = makeNode(Constant);
@@ -372,7 +388,7 @@ typeOf (Node *expr)
 {
     switch(expr->type)
     {
-        case T_AttributeReference:
+    	case T_AttributeReference:
         {
             AttributeReference *a = (AttributeReference *) expr;
             return a->attrType;
@@ -512,11 +528,50 @@ isConstExpr (Node *expr)
     return FALSE;
 }
 
+boolean
+isCondition(Node *expr)
+{
+    if (isA(expr,Operator))
+    {
+        Operator *o = (Operator *) expr;
+        if (streq(o->name, "=")
+                || streq(o->name, "<")
+                || streq(o->name, ">")
+                || streq(o->name, "!=")
+            ) //TODO what else
+            return TRUE;
+    }
+    if (isA(expr,CaseWhen))
+        return TRUE;
+
+    return FALSE;
+}
+
+List *
+createCasts(Node *lExpr, Node *rExpr)
+{
+	DataType lType, rType;
+    lType = typeOf(lExpr);
+    rType = typeOf(rExpr);
+
+    // same expr return inputs
+    if (lType == rType)
+        return LIST_MAKE(lExpr,rExpr);
+
+    // one is DT_STRING, cast the other one
+    if (lType == DT_STRING)
+        return LIST_MAKE(lExpr, createCastExpr(rExpr, DT_STRING));
+    if (rType == DT_STRING)
+        return LIST_MAKE(createCastExpr(lExpr, DT_STRING), rExpr);
+
+    return LIST_MAKE(createCastExpr(lExpr, DT_STRING), createCastExpr(rExpr, DT_STRING));
+}
+
 DataType
 SQLdataTypeToDataType (char *dt)
 {
     //TODO outsource to metadatalookup for now does only Oracle
-    if (isPrefix(dt, "NUMERIC") || streq(dt, "NUMBER"))
+    if (isPrefix(dt, "NUMERIC") || streq(dt, "NUMBER") || streq(dt,"INT"))
         return DT_INT; //TODO may also be float
     if (isPrefix(dt, "VARCHAR"))
         return DT_STRING;

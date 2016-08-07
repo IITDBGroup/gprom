@@ -20,6 +20,8 @@ extern char *replaceSubstr(char *str, char *pattern, char *repl);
 extern char *substr(char *str, int from, int to);
 extern char *strRemPostfix(char *str, int postFixSize);
 extern boolean isPrefix(char *str, char *prefix);
+extern boolean isSuffix(char *str, char *suffix);
+extern char *specializeTemplate(char *template, List *args);
 
 // string comparison for sorting
 extern int strCompare(const void *a, const void *b);

@@ -264,6 +264,24 @@ removeMapElem (HashMap *map, Node *key)
     }
 }
 
+void
+removeMapStringElem (HashMap *map, char *key)
+{
+    static Constant *stringDummy = NULL;
+    if (key == NULL)
+        return;
+    if (stringDummy == NULL)
+    {
+        if (hashContext == NULL)
+            hashContext = NEW_MEM_CONTEXT("HASHMAP-CONTEXT");
+        ACQUIRE_MEM_CONTEXT(hashContext);
+        stringDummy = createConstString("");
+        RELEASE_MEM_CONTEXT();
+    }
+    stringDummy->value = key;
+    return removeMapElem(map, (Node *) stringDummy);
+}
+
 int
 mapSize (HashMap *map)
 {

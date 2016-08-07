@@ -5,6 +5,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/datalog/datalog_model.h"
+#include "model/rpq/rpq_model.h"
 #include "model/query_block/query_block.h"
 #include "parser/parse_internal_dl.h"
 #include "log/logger.h"
@@ -41,6 +42,7 @@ Node *dlParseResult = NULL;
  */
 %token <stringVal> IDENT
 %token <stringVal> VARIDENT
+%token <stringVal> FORMAT
 
 /* 
  * Functions and operators 
@@ -54,7 +56,7 @@ Node *dlParseResult = NULL;
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP
+%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -83,9 +85,10 @@ Node *dlParseResult = NULL;
 %type <list> stmtList
 %type <node> statement program
 
-%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement
+%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement
 %type <node> variable constant expression functionCall binaryOperatorExpression 
 %type <list> bodyAtomList argList exprList rulebody 
+%type <stringVal> optProvFormat
 
 /* start symbol */
 %start program
@@ -126,44 +129,72 @@ stmtList:
  *  - facts, e.g., R(1,2);
  * 	- answer relation declarations, e.g., ANS : Q;
  * 	- provenance requests, e.g., WHY(Q(1));
+ *  - RPQ requests, e.g., RPQ('a*.b', typeOfResult, edge, result)
  */
 statement:
 		rule { RULELOG("statement::rule"); $$ = $1; }
 		| fact { RULELOG("statement::fact"); $$ = $1; }
 		| ansrelation { RULELOG("statement::ansrelation"); $$ = $1; }
 		| provStatement { RULELOG("statement::prov"); $$ = $1; }
+		| rpqStatement { RULELOG("statement::rpq"); $$ = $1; }
+	;
+
+rpqStatement:
+		RPQ '(' stringConst ',' IDENT ',' IDENT ',' IDENT ')' '.'
+		{
+			RULELOG("rpqStatement");
+			$$ = (Node *) makeRPQQuery($3, $5, $7, $9);
+		}
 	;
 	
 provStatement:
-		WHYPROV '(' relAtom ')' '.'
+		WHYPROV '(' relAtom ')' optProvFormat '.' 
 		{
 			RULELOG("provStatement::WHY");
+			char *str = $5 ? CONCAT_STRINGS("WHY_PROV-", $5) : "WHY_PROV";
 			$$ = (Node *) createNodeKeyValue(
-					(Node *) createConstString("WHY_PROV"), 
+					(Node *) createConstString(str), 
 					(Node *) $3);
 		}
-		| WHYNOTPROV '(' relAtom ')' '.'
+		| WHYNOTPROV '(' relAtom ')' optProvFormat '.'
 		{
 			RULELOG("provStatement::WHYNOT");
+			char *str = $5 ? CONCAT_STRINGS("WHYNOT_PROV-", $5) : "WHYNOT_PROV";
 			$$ = (Node *) createNodeKeyValue(
-					(Node *) createConstString("WHYNOT_PROV"),
+					(Node *) createConstString(str),
 					(Node *) $3);
 		}
-		| GP '.'
+		| GP optProvFormat '.'
 		{
 			RULELOG("provStatement::GP");
+			char *str = $2 ? CONCAT_STRINGS("FULL_GP_PROV-", $2) : "GP";
 			$$ = (Node *) createNodeKeyValue(
-					(Node *) createConstString("FULL_GP_PROV"), 
-					(Node *) createConstBool(TRUE));
+					(Node *) createConstString(str),
+					NULL);
 		}
+	;
+
+/* optProv:
+		optProvFormat optProvSummarize
+	;
+
+optProvSummarize:
+		/* EMPTY  { $$ = NULL; }
+		| SUMMARIZE name { $$ = $2; }
+	;
+*/
+
+optProvFormat:
+		/* EMPTY */ { $$ = NULL; }
+		| FORMAT name { $$ = $2; }
 	;	
 	
 rule:
 		rulehead RULE_IMPLICATION rulebody '.' 
-			{ 
-				RULELOG("rule::head::body"); 
-				$$ = (Node *) createDLRule((DLAtom *) $1,$3); 
-			}
+		{ 
+			RULELOG("rule::head::body"); 
+			$$ = (Node *) createDLRule((DLAtom *) $1,$3); 
+		}
 	;
 	
 fact:
@@ -377,7 +408,7 @@ functionCall:
 
 	
 variable:
-		VARIDENT 
+		IDENT 
 			{
 				RULELOG("variable"); 
 				$$ = (Node *) createDLVar($1, DT_STRING); 

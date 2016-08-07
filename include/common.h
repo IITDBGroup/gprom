@@ -94,6 +94,11 @@
 #include <unistd.h>
 #endif
 
+/* math */
+#if HAVE_MATH_H
+#include <math.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup
@@ -105,7 +110,9 @@
 /* streq function */
 #if HAVE_STRCMP
 #define streq(_l,_r) (strcmp(_l,_r) == 0)
-#define strpeq(_l,_r) ((_l) == (_r)) || ((_l != NULL) && (_r != NULL) && (strcmp(_l,_r) == 0))
+#define strpeq(_l,_r) (((_l) == (_r)) || ((_l != NULL) && (_r != NULL) && (strcmp(_l,_r) == 0)))
+#define strneq(_l,_r,n) (strncmp(_l,_r,n) == 0)
+#define strStartsWith(_str,_prefix) (strncmp(_str,_prefix,strlen(_prefix)) == 0)
 #endif
 
 
@@ -184,6 +191,8 @@
 #define ASSERT_BARRIER(code) code
 #endif
 
-
+// min and max
+#define MIN(x,y) (x < y ? x : y)
+#define MAX(x,y) (x > y ? x : y)
 
 #endif /* COMMON_H */

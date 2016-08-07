@@ -284,7 +284,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
 	if (IS_QB(rewrittenTree))
 	{
-	    DOT_TO_CONSOLE(rewrittenTree);
+	    DOT_TO_CONSOLE_WITH_MESSAGE("BEFORE REWRITE", rewrittenTree);
 
 	    /*******************new Add for test json import jimp table***************************/
 	    if(isA(rewrittenTree,List) && isA(getHeadOfListP((List *)rewrittenTree), ProjectionOperator))
@@ -308,8 +308,8 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    }
 	    /*******************new Add for test json import jimp table***************************/
 
-	    DEBUG_LOG("provenance rewriter returned:\n\n<%s>", beatify(nodeToString(rewrittenTree)));
-	    INFO_LOG("provenance rewritten query as overview:\n\n%s", operatorToOverviewString(rewrittenTree));
+	    DEBUG_NODE_BEATIFY_LOG("provenance rewriter returned:", rewrittenTree);
+	    INFO_OP_LOG("provenance rewritten query as overview:", rewrittenTree);
 	    STOP_TIMER("rewrite");
 
 	    ASSERT_BARRIER(
@@ -324,7 +324,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    {
 	        START_TIMER("OptimizeModel");
 	        rewrittenTree = optimizeOperatorModel(rewrittenTree);
-	        INFO_LOG("after optimizing AGM graph:\n\n%s", operatorToOverviewString(rewrittenTree));
+	        INFO_OP_LOG("after optimizing AGM graph:", rewrittenTree);
 	        STOP_TIMER("OptimizeModel");
 	    }
 	    else
@@ -334,7 +334,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	        else
 	            rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
 
-	    DOT_TO_CONSOLE(rewrittenTree);
+	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
 	}
 
 	START_TIMER("SQLcodeGen");
@@ -356,15 +356,15 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
 
     START_TIMER("translation");
     oModel = translateParse(parse);
-    DEBUG_LOG("translator returned:\n\n<%s>", beatify(nodeToString(oModel)));
+    DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
     if (IS_OP(oModel))
     {
-        INFO_LOG("translator result as overview:\n\n%s", operatorToOverviewString(oModel));
-        DOT_TO_CONSOLE(oModel);
+        INFO_OP_LOG("translator result as overview:", oModel);
+        DOT_TO_CONSOLE_WITH_MESSAGE("TRANSLATOR OUTPUT", oModel);
     }
     else if (IS_DL_NODE(oModel))
     {
-        INFO_LOG("translator result as overview:\n\n%s", datalogToOverviewString(oModel));
+        INFO_DL_LOG("translator result as overview:", oModel);
     }
     STOP_TIMER("translation");
 

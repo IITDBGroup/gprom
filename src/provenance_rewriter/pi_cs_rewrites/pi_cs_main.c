@@ -28,6 +28,12 @@
 #include "parser/parser_jp.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 
+#define LOG_RESULT(mes,op) \
+    do { \
+        INFO_OP_LOG(mes,op); \
+        DEBUG_NODE_BEATIFY_LOG(mes,op); \
+    } while(0)
+
 static QueryOperator *rewritePI_CSOperator (QueryOperator *op);
 static QueryOperator *rewritePI_CSSelection (SelectionOperator *op);
 static QueryOperator *rewritePI_CSProjection (ProjectionOperator *op);
@@ -60,12 +66,11 @@ rewritePI_CS (ProvenanceComputation  *op)
     // unset relation name counters
     nameState = (RelCount *) NULL;
 
-    DEBUG_LOG("*************************************\nREWRITE INPUT\n"
-            "******************************\n%s",
-            beatify(nodeToString((Node *) op)));
+    DEBUG_NODE_BEATIFY_LOG("*************************************\nREWRITE INPUT\n"
+            "******************************\n", op);
 
     QueryOperator *rewRoot = OP_LCHILD(op);
-    DEBUG_LOG("rewRoot is: %s", beatify(nodeToString(rewRoot)));
+    DEBUG_NODE_BEATIFY_LOG("rewRoot is:", rewRoot);
 
     // cache asOf
     asOf = op->asOf;
@@ -81,7 +86,7 @@ rewritePI_CS (ProvenanceComputation  *op)
 
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) op, rewRoot);
-    DEBUG_LOG("rewritten query root is: %s", beatify(nodeToString(rewRoot)));
+    DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", rewRoot);
 
     // Check if we should export
     if(HAS_STRING_PROP(op, PROP_TRANSLATE_AS))
@@ -152,8 +157,8 @@ rewritePI_CSOperator (QueryOperator *op)
             rewrittenOp = rewritePI_CSOrderOp((OrderOperator *) op);
             break;
         case T_JsonTableOperator:
-	     DEBUG_LOG("go JsonTable operator");
-	     rewrittenOp = rewritePI_CSJsonTableOp((JsonTableOperator *) op);
+            DEBUG_LOG("go JsonTable operator");
+            rewrittenOp = rewritePI_CSJsonTableOp((JsonTableOperator *) op);
 	     break;
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
@@ -305,6 +310,14 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs)
     proj = (QueryOperator *) createProjectionOp(projExpr, NULL, NIL, attrNames);
     proj->provAttrs = provAttrPos;
 
+    // if there is also PROP_PC_ADD_PROV set then copy over the properties to the new proj op
+    if(HAS_STRING_PROP(op, PROP_ADD_PROVENANCE))
+    {
+        SET_STRING_PROP(proj, PROP_ADD_PROVENANCE,
+                copyObject(GET_STRING_PROP(op, PROP_ADD_PROVENANCE)));
+        SET_STRING_PROP(proj, PROP_PROV_REL_NAME,
+                copyObject(GET_STRING_PROP(op, PROP_PROV_REL_NAME)));
+    }
     // Switch the subtree with this newly created projection operator.
     switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) proj);
 
@@ -506,7 +519,7 @@ rewritePI_CSSelection (SelectionOperator *op)
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 
-    DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
+    LOG_RESULT("Rewritten Operator tree", op);
     return (QueryOperator *) op;
 }
 
@@ -534,7 +547,7 @@ rewritePI_CSProjection (ProjectionOperator *op)
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 
-    DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
+    LOG_RESULT("Rewritten Operator tree", op);
     return (QueryOperator *) op;
 }
 
@@ -571,7 +584,7 @@ rewritePI_CSJoin (JoinOperator *op)
 
     // SET PROP IS_REWRITTEN
 
-    DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(op)));
+    LOG_RESULT("Rewritten Operator tree", op);
     return (QueryOperator *) proj;
 }
 
@@ -676,7 +689,7 @@ rewritePI_CSAggregation (AggregationOperator *op)
     addParent(aggInput, (QueryOperator *) joinProv);
 
     // adapt schema for final projection
-    DEBUG_LOG("Rewritten Operator tree \n%s", beatify(nodeToString(proj)));
+    DEBUG_NODE_BEATIFY_LOG("Rewritten Operator tree", proj);
     return (QueryOperator *) proj;
 }
 

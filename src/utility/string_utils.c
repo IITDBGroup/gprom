@@ -132,9 +132,43 @@ strRemPostfix(char *str, int postFixSize)
 boolean
 isPrefix(char *str, char *prefix)
 {
+    if(str == NULL || prefix == NULL)
+        return FALSE;
+
     while(*prefix != '\0' && *prefix++ == *str++)
         ;
     return *prefix == '\0';
+}
+
+boolean
+isSuffix(char *str, char *suffix)
+{
+    if(str == NULL || suffix == NULL || strlen(str) < strlen(suffix))
+        return FALSE;
+
+    str = str + (strlen(str) - strlen(suffix));
+    while(*suffix != '\0')
+        if (*suffix++ != *str++)
+            return FALSE;
+
+    return TRUE;
+}
+
+char *
+specializeTemplate(char *template, List *args)
+{
+    int i = 1;
+    char *result = strdup(template);
+
+    FOREACH(char,arg,args)
+    {
+        char *var = CONCAT_STRINGS("$",itoa(i));
+
+        result = replaceSubstr(result,var,arg);
+        i++;
+    }
+
+    return result;
 }
 
 int

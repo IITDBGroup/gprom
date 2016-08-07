@@ -25,6 +25,7 @@
 #include "model/query_operator/query_operator_model_checker.h"
 #include "analysis_and_translate/translator.h"
 #include "analysis_and_translate/translate_update.h"
+#include "provenance_rewriter/prov_utility.h"
 
 #include "configuration/option.h"
 
@@ -37,7 +38,8 @@ static QueryOperator *translateDelete(Delete *f);
 
 
 QueryOperator *
-translateUpdate(Node *update) {
+translateUpdate(Node *update)
+{
 	switch (update->type) {
 	case T_Insert:
 		return translateInsert((Insert *) update);
@@ -53,16 +55,79 @@ translateUpdate(Node *update) {
 	}
 }
 
+QueryOperator *
+translateCreateTable(CreateTable *c)
+{
+    ConstRelOperator *op;
+    SelectionOperator *sel;
+    List *attrNames = getAttrDefNames(c->tableElems);
+    List *dataTypes = getAttrDataTypes(c->tableElems);
+    List *nulls = NIL;
+
+    // translate a query
+    if (c->query)
+    {
+        return translateQuery(c->query);
+    }
+    // create a new table without content for now use a selection on FALSE over a constant relation
+    else
+    {
+        FOREACH_INT(dt,dataTypes)
+            nulls = appendToTailOfList(nulls, createNullConst(dt));
+
+        op = createConstRelOp(nulls, NIL, attrNames, dataTypes);
+        sel = createSelectionOp((Node *) createConstBool(FALSE),
+                (QueryOperator *) op, NIL, deepCopyStringList(attrNames));
+    }
+
+    return (QueryOperator *) sel;
+}
+
+QueryOperator *
+translateAlterTable(AlterTable *a)
+{
+    TableAccessOperator *in;
+    ProjectionOperator *p = NULL;
+    List *attrNames = getAttrDefNames(a->beforeSchema);
+    List *dataTypes = getAttrDataTypes(a->beforeSchema);
+    List *newAttrs = getAttrDefNames(a->schema);
+
+    //TODO how to deal with other alter tables
+    in = createTableAccessOp(strdup(a->tableName), NULL, strdup(a->tableName), NIL,
+            attrNames, dataTypes);
+    switch(a->cmdType)
+    {
+        case ALTER_TABLE_REMOVE_COLUMN:
+            p = (ProjectionOperator *) createProjOnAttrsByName((QueryOperator *) in, newAttrs);
+        break;
+        case ALTER_TABLE_ADD_COLUMN:
+        {
+            AttributeDef *newAttr = (AttributeDef *) getTailOfListP(a->schema);
+            p = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) in);
+            p->projExprs = appendToTailOfList(p->projExprs, createNullConst(newAttr->dataType));
+            addAttrToSchema((QueryOperator *) p, strdup(newAttr->attrName), newAttr->dataType);
+        }
+        break;
+        default:
+            FATAL_LOG("unknown alter table command %i", a->cmdType);
+    }
+
+    addChildOperator((QueryOperator *) p, (QueryOperator *) in);
+
+    return (QueryOperator *) p;
+}
+
+
 
 static QueryOperator *
 translateInsert(Insert *insert)
 {
-	List *attr = getAttributeNames(insert->tableName);
-	List *dts = getAttributeDataTypes(insert->tableName);
+	List *attr = getAttrDefNames(insert->schema);//getAttributeNames(insert->insertTableName);
+	List *dts = getAttrDataTypes(insert->schema);//getAttributeDataTypes(insert->insertTableName);
 	QueryOperator *insertQuery;
 
 	TableAccessOperator *to;
-	to = createTableAccessOp(insert->tableName, NULL, NULL, NIL, deepCopyStringList(attr), dts);
+	to = createTableAccessOp(insert->insertTableName, NULL, NULL, NIL, deepCopyStringList(attr), dts);
 	SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	if (isA(insert->query,  List))
@@ -80,6 +145,11 @@ translateInsert(Insert *insert)
 	addChildOperator((QueryOperator *) seto, (QueryOperator *) to);
 	addChildOperator((QueryOperator *) seto, insertQuery);
 
+	FORBOTH(AttributeDef,a,cA,GET_OPSCHEMA(seto)->attrDefs,GET_OPSCHEMA(to)->attrDefs)
+	{
+	    a->dataType = cA->dataType;
+	}
+
 	INFO_LOG("translated insert:\n%s", operatorToOverviewString((Node *) seto));
 	DEBUG_LOG("translated insert:\n%s", nodeToString((Node *) seto));
 
@@ -89,10 +159,10 @@ translateInsert(Insert *insert)
 static QueryOperator *
 translateDelete(Delete *delete)
 {
-	List *attr = getAttributeNames(delete->nodeName);
+	List *attr = getAttrDefNames(delete->schema);//getAttributeNames(delete->deleteTableName);
 
 	TableAccessOperator *to;
-	to = createTableAccessOp(strdup(delete->nodeName), NULL, NULL, NIL, deepCopyStringList(attr), NIL);
+	to = createTableAccessOp(strdup(delete->deleteTableName), NULL, NULL, NIL, deepCopyStringList(attr), NIL);
 	SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	SelectionOperator *so;
@@ -102,8 +172,8 @@ translateDelete(Delete *delete)
 
 	addChildOperator((QueryOperator *) so, (QueryOperator *) to);
 
-	INFO_LOG("translated delete:\n%s", operatorToOverviewString((Node *) so));
-	DEBUG_LOG("translated delete:\n%s", beatify(nodeToString((Node *) so)));
+	INFO_OP_LOG("translated delete:", so);
+	DEBUG_NODE_BEATIFY_LOG("translated delete:", so);
 
 	return (QueryOperator *) so;
 }
@@ -111,11 +181,11 @@ translateDelete(Delete *delete)
 static QueryOperator *
 translateUpdateUnion(Update *update)
 {
-    List *attrs = getAttributeNames(update->nodeName);
+    List *attrs = getAttrDefNames(update->schema);//getAttributeNames(update->updateTableName);
 
     // create table access operator
 	TableAccessOperator *to;
-	to = createTableAccessOp(strdup(update->nodeName), NULL, NULL, NIL, deepCopyStringList(attrs), NIL);
+	to = createTableAccessOp(strdup(update->updateTableName), NULL, NULL, NIL, deepCopyStringList(attrs), NIL);
 	SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	// CREATE PROJECTION EXPRESSIONS
@@ -167,8 +237,8 @@ translateUpdateUnion(Update *update)
 	// update without WHERE clause
     addChildOperator((QueryOperator *) po, (QueryOperator *) to);
 
-    INFO_LOG("translated update:\n%s", operatorToOverviewString((Node *) po));
-    DEBUG_LOG("translated update:\n%s", beatify(nodeToString((Node *) po)));
+    INFO_OP_LOG("translated update:", po);
+    DEBUG_NODE_BEATIFY_LOG("translated update:", po);
 
     return (QueryOperator *) po;
 }
@@ -176,13 +246,15 @@ translateUpdateUnion(Update *update)
 static QueryOperator *
 translateUpdateWithCase(Update *update)
 {
-	List *attrs = getAttributeNames(update->nodeName);
-	List *dts = getAttributeDataTypes(update->nodeName);
+//	List *attrs = getAttributeNames(update->updateTableName);
+	List *attrs = getAttrDefNames(update->schema);
+//	List *dts = getAttributeDataTypes(update->updateTableName);
+	List *dts = getAttrDataTypes(update->schema);
 	boolean hasCond = (update->cond != NULL);
 
 	// create table access operator
 	TableAccessOperator *to;
-	to = createTableAccessOp(strdup(update->nodeName), NULL, NULL, NIL,
+	to = createTableAccessOp(strdup(update->updateTableName), NULL, NULL, NIL,
 			deepCopyStringList(attrs), dts);
     SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
@@ -199,20 +271,28 @@ translateUpdateWithCase(Update *update)
 					o->args, 0);
 			if (a->attrPosition == i)
 			{
-			    Node *cond = copyObject(update->cond);
-			    Node *then = copyObject(getNthOfListP(o->args, 1));
-			    Node *els = (Node *) createFullAttrReference(getNthOfListP(attrs, i),
-			                0, i, 0, a->attrType); //TODO
-                CaseExpr *caseExpr;
-                CaseWhen *caseWhen;
+			    if (!hasCond)
+			    {
+			        Node *upAttr = copyObject(getNthOfListP(o->args, 1));
+			        projExpr = (Node *) upAttr;
+			    }
+			    else
+			    {
+                    Node *cond = copyObject(update->cond);
+                    Node *then = copyObject(getNthOfListP(o->args, 1));
+                    Node *els = (Node *) createFullAttrReference(getNthOfListP(attrs, i),
+                                0, i, 0, a->attrType); //TODO
+                    CaseExpr *caseExpr;
+                    CaseWhen *caseWhen;
 
-                if (!hasCond)
-                    cond = (Node *) createConstBool (TRUE);
+//                    if (!hasCond)
+//                        cond = (Node *) createConstBool (TRUE);
 
-                caseWhen = createCaseWhen(cond, then);
-                caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
+                    caseWhen = createCaseWhen(cond, then);
+                    caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
 
-                projExpr = (Node *) caseExpr;
+                    projExpr = (Node *) caseExpr;
+			    }
 			}
 
 		}
@@ -227,7 +307,7 @@ translateUpdateWithCase(Update *update)
 	po = createProjectionOp(projExprs, NULL, NIL, deepCopyStringList(attrs));
 
 	addChildOperator((QueryOperator *) po, (QueryOperator *) to);
-	DEBUG_LOG("translated update:\n%s", beatify(nodeToString((Node *) po)));
+	DEBUG_NODE_BEATIFY_LOG("translated update:", po);
 	ASSERT(checkModel((QueryOperator *)po));
 
 	return (QueryOperator *) po;

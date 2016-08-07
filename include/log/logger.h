@@ -39,11 +39,16 @@ typedef enum LogLevel
 extern void initLogger(void);
 extern void shutdownLogger (void);
 extern void setMaxLevel (LogLevel level);
-extern void log_(LogLevel level, const char *file, unsigned line, const char *template, ...);
+extern void logNodes_(LogLevel level, const char *file, unsigned line,
+        boolean beatify, char * (*toStringFunc) (void *),
+        const char *message, ...);
+extern void log_(LogLevel level, const char *file, unsigned line,
+        const char *template, ...);
 extern char *formatMes(const char *template, ...);
 extern void _debugNode(void *p);
 extern void _debugMessage(char *mes);
-extern void registerLogCallback (void (*callback) (const char *,const char *,int,int));
+extern void registerLogCallback (void (*callback) (const char *,const char *,
+        int,int));
 
 extern LogLevel maxLevel;
 
@@ -57,6 +62,14 @@ extern LogLevel maxLevel;
 #define DEBUG_LOG(template, ...)
 #define TRACE_LOG(template, ...)
 #define GENERIC_LOG(level, file, line, template, ...)
+#define INFO_NODE_LOG(message, ...)
+#define DEBUG_NODE_LOG(message, ...)
+#define ERROR_NODE_BEATIFY_LOG(message, ...)
+#define INFO_NODE_BEATIFY_LOG(message, ...)
+#define DEBUG_NODE_BEATIFY_LOG(message, ...)
+#define INFO_DL_LOG(message, ...)
+#define ERROR_OP_LOG(message, ...)
+#define INFO_OP_LOG(message, ...)
 
 /* user has activated logging (default) */
 #else
@@ -97,6 +110,55 @@ extern LogLevel maxLevel;
 			if (maxLevel >= level) \
 			    log_(level, file, line, (template),  ##__VA_ARGS__); \
 		} while (0)
+
+#define INFO_NODE_LOG(message, ...) \
+    do { \
+        if (maxLevel >= LOG_INFO) \
+            logNodes_(LOG_INFO, __FILE__, __LINE__, FALSE, nodeToString, (message),  ##__VA_ARGS__, NULL); \
+    } while (0)
+#define DEBUG_NODE_LOG(message, ...) \
+    do { \
+        if (maxLevel >= LOG_DEBUG) \
+            logNodes_(LOG_DEBUG, __FILE__, __LINE__, FALSE, nodeToString, (message),  ##__VA_ARGS__, NULL); \
+    } while (0)
+#define ERROR_NODE_BEATIFY_LOG(message, ...) \
+    do { \
+        if (maxLevel >= LOG_ERROR) \
+            logNodes_(LOG_ERROR, __FILE__, __LINE__, TRUE, nodeToString, (message), ##__VA_ARGS__, NULL); \
+    } while (0)
+#define INFO_NODE_BEATIFY_LOG(message, ...) \
+    do { \
+        if (maxLevel >= LOG_INFO) \
+            logNodes_(LOG_INFO, __FILE__, __LINE__, TRUE, nodeToString, (message), ##__VA_ARGS__, NULL); \
+    } while (0)
+#define DEBUG_NODE_BEATIFY_LOG(message, ...) \
+    do { \
+        if (maxLevel >= LOG_DEBUG) \
+            logNodes_(LOG_DEBUG, __FILE__, __LINE__, TRUE, nodeToString, (message), ##__VA_ARGS__, NULL); \
+    } while (0)
+
+#define INFO_DL_LOG(message, ...) \
+    do { \
+        if (maxLevel >= LOG_INFO) \
+            logNodes_(LOG_INFO, __FILE__, __LINE__, FALSE, datalogToOverviewString, (message),  ##__VA_ARGS__, NULL); \
+    } while (0)
+
+#define ERROR_OP_LOG(message, ...) \
+    do { \
+        if (maxLevel >= LOG_ERROR) \
+            logNodes_(LOG_ERROR, __FILE__, __LINE__, FALSE, operatorToOverviewString, (message),  ##__VA_ARGS__, NULL); \
+    } while (0)
+#define INFO_OP_LOG(message, ...) \
+    do { \
+        if (maxLevel >= LOG_INFO) \
+            logNodes_(LOG_INFO, __FILE__, __LINE__, FALSE, operatorToOverviewString, (message),  ##__VA_ARGS__, NULL); \
+    } while (0)
+#define DEBUG_OP_LOG(message, ...) \
+    do { \
+        if (maxLevel >= LOG_DEBUG) \
+            logNodes_(LOG_DEBUG, __FILE__, __LINE__, FALSE, operatorToOverviewString, (message),  ##__VA_ARGS__, NULL); \
+    } while (0)
+
 #endif
 /* logging activated switch */
 

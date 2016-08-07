@@ -293,7 +293,7 @@ fillOidToDTMap (HashMap *oidToDT)
     }
     //TODO FINISH transaction
     PQclear(res);
-    DEBUG_LOG("oid -> DT map:\n%s", beatify(nodeToString(oidToDT)));
+    DEBUG_NODE_BEATIFY_LOG("oid -> DT map:", oidToDT);
 }
 
 static void
@@ -500,7 +500,8 @@ postgresGetAttributes (char *tableName)
     PQclear(res);
     MAP_ADD_STRING_KEY(plugin->plugin.cache->tableAttrDefs, tableName, attrs);
 
-    DEBUG_LOG("table %s attributes are <%s>", tableName, beatify(nodeToString(attrs)));
+    DEBUG_LOG("table %s", tableName);
+    DEBUG_NODE_BEATIFY_LOG("attributes are", attrs);
     RELEASE_MEM_CONTEXT();
 
     return attrs;

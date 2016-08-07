@@ -107,7 +107,7 @@ AS_IF([test "x$enable_logging" == "xno"], [
 ])
 # Link with google perftools libary
 AC_DEFUN([AC_LINK_PERFTOOLS],
-[AC_ARG_ENABLE(link-perftools, AS_HELP_STRING([--enable-perftools],[Link against google perftools library]))
+[AC_ARG_ENABLE(link-perftools, AS_HELP_STRING([--enable-link-perftools],[Link against google perftools library]))
 AC_MSG_CHECKING([should be linked with google profile library])
 
 AS_IF([test "x$enable_link_perftools" == "xyes"], [
@@ -118,6 +118,18 @@ AS_IF([test "x$enable_link_perftools" == "xyes"], [
 
 AS_IF([test "x$enable_link_perftools" == "xyes"], [
 	AC_CHECK_LIB([profiler],[ProfilerStart],[],[AC_MSG_ERROR([missing google perftools libprofiler])])
+])
+])
+# Activate gprof profiling
+AC_DEFUN([AC_ENABLE_GPROF],
+[AC_ARG_ENABLE(gprof, AS_HELP_STRING([--enable-gprof],[activate profiling with gprof]))
+AC_MSG_CHECKING([activate profiling with gprof])
+
+AS_IF([test "x$enable_gprof" == "xyes"], [
+  AC_MSG_RESULT([yes])
+  CPPFLAGS="$CPPFLAGS -pg"
+],[
+  AC_MSG_RESULT([no])
 ])
 ])
 # enable or disable assertions
@@ -282,6 +294,7 @@ AC_CHECK_HEADERS([setjmp.h])
 AC_CHECK_HEADERS([signal.h])
 AC_CHECK_HEADERS([float.h])
 AC_CHECK_HEADERS([pthread.h])
+AC_CHECK_HEADERS([math.h])
 AC_HEADER_ASSERT
 ################################################################################
 # MEMORY ALLOCATION STUFF
@@ -347,9 +360,15 @@ AS_IF([test "x$enable_postgres" == "xno"], [
 ])
 ])
 ################################################################################
+# check for libm
+AC_CHECK_LIB([m],[pow],[],[
+  AC_MSG_ERROR([missing libm library (searching for pow function)])
+])
+################################################################################
 # enable/disable features
 AC_LOGGING_ACTIVE
 AC_LINK_PERFTOOLS
+AC_ENABLE_GPROF
 AC_ASSERT_ACTIVE
 AC_DEBUG_ACTIVE
 AC_TIMING_ACTIVE
@@ -384,6 +403,7 @@ AC_CONFIG_FILES([
 	src/model/node/Makefile
 	src/model/query_block/Makefile
 	src/model/query_operator/Makefile
+	src/model/rpq/Makefile
 	src/model/set/Makefile
     src/operator_optimizer/Makefile
 	src/parser/Makefile
@@ -392,6 +412,7 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/pi_cs_rewrites/Makefile
 	src/provenance_rewriter/transformation_rewrites/Makefile
 	src/provenance_rewriter/update_and_transaction/Makefile
+	src/rpq/Makefile
 	src/sql_serializer/Makefile
 	src/utility/Makefile
 	src/libgprom/Makefile
@@ -405,7 +426,7 @@ echo "
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   Prefix.............: $prefix
   Debug Build........: ${enable_debug:=yes}
-  Link with GNU perftools: ${enable_link_perftools:=no}
+  Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no} 
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes}
   Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}
   Language bindings..: Java - ${enable_java:=yes}

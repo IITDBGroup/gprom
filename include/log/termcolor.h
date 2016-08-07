@@ -50,5 +50,6 @@
 #define TB(_text_) TERM_BOLD _text_ TERM_RESET
 #define T_FG_BG(_fg_,_bg_,_text_) TERM_ALL_ON(NORMAL,_fg_,_bg_) _text_ TERM_RESET
 #define TB_FG_BG(_fg_,_bg_,_text_) TERM_ALL_ON(BOLD,_fg_,_bg_) _text_ TERM_RESET
+#define TBLINK_FG_BG(_fg_,_bg_,_text_) TERM_ALL_ON(BLINK,_fg_,_bg_) _text_ TERM_RESET
 
 #endif /* INCLUDE_LOG_TERMCOLOR_H_ */

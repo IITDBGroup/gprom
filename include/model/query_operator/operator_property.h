@@ -24,6 +24,9 @@
 #define PROP_ADD_PROVENANCE "ADD_PROVENANCE"                // add the following attribtues to as provenance attributes (but still rewrite and add normal provenance attrs too)
 #define PROP_TRANSLATE_AS "TRANSLATE AS"
 
+// reenactment
+#define PROP_REENACT_SCHEMA_INFO "REENACT_SCHEMA"           // store additional table schemas to support reenactment of DDL commands
+
 // provenance PI-CS composable
 #define PROP_RESULT_TID_ATTR "RESULT_TID_ATTR"              // result tid attribute for PI-CS composable
 #define PROP_PROV_DUP_ATTR "PROV_DUP_ATTR"                  // provenance duplicate counter attribute for PI-CS composable
@@ -41,6 +44,7 @@
 #define PROP_PC_TRANS_XID "TRANSACTION_XID"                 // stores transaction XID
 #define PROP_PC_TUPLE_VERSIONS "TUPLE_VERSIONS"             // use rowid + scn pairs as provenance
 #define PROP_PC_STATEMENT_ANNOTATIONS "STATEMENT_ANNOTATIONS" // statement annotations
+#define PROP_PC_REENACT_METADATA "REENACT_METADATA"         // store table information for reenacting DDL commands
 
 /* table access properties */
 #define PROP_TABLE_IS_UPDATED "UPDATED_TABLE"               // is table access for the updated table in an DML translation
@@ -51,14 +55,31 @@
 /* projection properties */
 #define PROP_MERGE_ATTR_REF_CNTS "MERGE SAFE ATTRIBUTE COUNTS"                        // safe to merge this projection with its child
 #define PROP_PROJ_PROV_ATTR_DUP "PROJECTION WITH PROVENANCE ATTRIBUTE DUPLICATION"    // needed by projection pull-up
+#define PROP_PROJ_PROV_ATTR_DUP_PULLUP "PROJECTION WITH PROVENANCE ATTRIBUTE DUPLICATION PULL-UP"  //no need to pull-up if this op already pull-up
+
 /* properties used to store list of set which used in selection move around */
 #define PROP_STORE_LIST_SET_SELECTION_MOVE_AROUND "STORE LIST SET FOR SELECTION MOVE AROUND"
-#define PROP_MERGE_ATTR_REF_CNTS "MERGE SAFE ATTRIBUTE COUNTS"                        // safe to merge this projection with its child?
-/* properties to store list of primary keys for each node. */
+#define PROP_OPT_SELECTION_MOVE_AROUND_DONE "HAVE DONE SELECTION MOVE AROUND"
+#define PROP_OPT_UNNECESSARY_COLS_REMOVED_DONE "HAVE REMOVED UNNECESSARY"
+#define PROP_STORE_MERGE_DONE "MERGE IS DONE"
+#define PROP_STORE_REMOVE_RED_PROJ_DONE "REMOVED RED PROJ"
+#define PROP_STORE_REMOVE_RED_DUP_BY_KEY_DONE "REMOVED DUP BY KEY"
+#define PROP_OPT_REMOVE_RED_DUP_BY_SET_DONE "REMOVED DUP BY SET"
+#define PROP_OPT_REMOVE_RED_WIN_DONW "REMOVED WIN OP"
+//#define PROP_MERGE_ATTR_REF_CNTS "MERGE SAFE ATTRIBUTE COUNTS"                        // safe to merge this projection with its child?
+
+/* properties to store characteristics of operators for heuristic optimization */
 #define PROP_STORE_LIST_KEY "STORE KEY LIST FOR REMOVE REDUNDANT DUPLICATE"
+#define PROP_STORE_LIST_KEY_DONE "HAVE COMPUTED KEYS"
 #define PROP_STORE_BOOL_SET "STORE SET PROPERTY FOR REMOVE REDUNDANT DUPLICATE"
+#define PROP_STORE_BOOL_SET_ALL_PARENTS_DONE "SET PROPERTY ALL PARENT OPS HAVE BEEN PROCESSED"
+#define PROP_STORE_BOOL_SET_DONE "SET PROPERTY COMPUTED"
 #define PROP_STORE_SET_ICOLS "STORE ICOLS PROPERTY FOR REMOVE REDUNDANT DUPLICATE"
+#define PROP_STORE_SET_ICOLS_DONE "DONE STORE ICOLS PROPERTY FOR REMOVE REDUNDANT DUPLICATE"
 #define PROP_STORE_LIST_SCHEMA_NAMES "STORE SCHEMA NAMES PROPERTY FOR REMOVE REDUNDANT DUPLICATE"
 #define PROP_STORE_SET_EC "STORE EC PROPERTY"
+#define PROP_STORE_SET_EC_DONE_BU "STORE EC PROPERTY - DONE BOTTOM UP"
+#define PROP_STORE_SET_EC_DONE_TD "STORE EC PROPERTY - DONE TOP DOWN"
 #define PROP_STORE_DUP_MARK "STORE DUP PROPERTY"  //pull up dup op, avoid loop the same dup op two times
+
 #endif /* OPERATOR_PROPERTY_H_ */
