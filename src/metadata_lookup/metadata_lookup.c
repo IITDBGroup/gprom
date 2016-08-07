@@ -92,9 +92,10 @@ chooseMetadataLookupPlugin (MetadataLookupPluginType plugin)
 void
 setMetadataLookupPlugin (MetadataLookupPlugin *p)
 {
-    activePlugin = p;
-    if (!(p->isInitialized()))
-        p->initMetadataLookupPlugin();
+	activePlugin = p;
+	if (!(p->isInitialized()))
+		p->initMetadataLookupPlugin();
+
 }
 
 static MetadataLookupPluginType
@@ -130,22 +131,39 @@ pluginTypeToString(MetadataLookupPluginType type)
 int
 initMetadataLookupPlugin (void)
 {
+    //MetadataLookupPlugin *myPlugin;
     ASSERT(activePlugin);
-    return activePlugin->initMetadataLookupPlugin();
+
+    //activePlugin->metadataLookupContext = CREATE_MEM_CONTEXT("METADATA_LOOKUP_PLUGIN_CONTEXT");
+	activePlugin->metadataLookupContext = NEW_MEM_CONTEXT("METADATA_LOOKUP_PLUGIN_CONTEXT");
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    int returnVal = activePlugin->initMetadataLookupPlugin();
+    RELEASE_MEM_CONTEXT();
+
+    return returnVal;
 }
 
 int
 shutdownMetadataLookupPlugin (void)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->shutdownMetadataLookupPlugin();
+
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    int resultVal = activePlugin->shutdownMetadataLookupPlugin();
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+    activePlugin->metadataLookupContext = NULL;
+
+    return resultVal;
 }
 
 boolean
 isInitialized (void)
 {
     ASSERT(activePlugin);
-    return activePlugin->isInitialized();
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    boolean result = activePlugin->isInitialized();
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 
@@ -153,48 +171,65 @@ boolean
 catalogTableExists (char * tableName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->catalogTableExists(tableName);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    boolean result = activePlugin->catalogTableExists(tableName);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 boolean
 catalogViewExists (char * viewName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->catalogViewExists(viewName);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    boolean result = activePlugin->catalogViewExists(viewName);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 List *
 getAttributes (char *tableName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->getAttributes(tableName);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    List *result = activePlugin->getAttributes(tableName);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 List *
 getAttributeNames (char *tableName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->getAttributeNames(tableName);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    List *result = activePlugin->getAttributeNames(tableName);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 Node *
 getAttributeDefaultVal (char *schema, char *tableName, char *attrName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->getAttributeDefaultVal(schema, tableName,attrName);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    Node *result = activePlugin->getAttributeDefaultVal(schema, tableName,attrName);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 List *
 getAttributeDataTypes (char *tableName)
 {
-    List *result = NIL;
+    //List *result = NIL;
     List *attrs = NIL;
     ASSERT(activePlugin && activePlugin->isInitialized());
 
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
     attrs = activePlugin->getAttributes(tableName);
+    List *result = NIL;
     FOREACH(AttributeDef,a,attrs)
         result = appendToTailOfListInt(result, a->dataType);
-
+    RELEASE_MEM_CONTEXT();
     return result;
 }
 
@@ -202,49 +237,70 @@ boolean
 isAgg(char *functionName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->isAgg(functionName);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    boolean result = activePlugin->isAgg(functionName);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 boolean
 isWindowFunction(char *functionName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->isWindowFunction(functionName);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    boolean result = activePlugin->isWindowFunction(functionName);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 DataType
 getFuncReturnType (char *fName, List *argTypes)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->getFuncReturnType(fName, argTypes);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    DataType result = activePlugin->getFuncReturnType(fName, argTypes);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 DataType
 getOpReturnType (char *oName, List *argTypes)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->getOpReturnType(oName, argTypes);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    DataType result = activePlugin->getOpReturnType(oName, argTypes);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 char *
 getTableDefinition(char *tableName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->getTableDefinition(tableName);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    char *result = activePlugin->getTableDefinition(tableName);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 char *
 getViewDefinition(char *viewName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->getViewDefinition(viewName);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    char *result = activePlugin->getViewDefinition(viewName);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 List *
 getKeyInformation (char *tableName)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->getKeyInformation(tableName);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    List *result = activePlugin->getKeyInformation(tableName);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 void
@@ -252,42 +308,60 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->getTransactionSQLAndSCNs(xid, scns, sqls, sqlBinds, iso, commitScn);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->getTransactionSQLAndSCNs(xid, scns, sqls, sqlBinds, iso, commitScn);
+    RELEASE_MEM_CONTEXT();
+    //return result;
 }
 
 Relation *
 executeQuery (char *sql)
 {
     ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
-    return activePlugin->executeQuery(sql);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    Relation *result = activePlugin->executeQuery(sql);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 long
 getCommitScn (char *tableName, long maxScn, char *xid)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->getCommitScn(tableName, maxScn, xid);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    long result = activePlugin->getCommitScn(tableName, maxScn, xid);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 Node *
 executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->executeAsTransactionAndGetXID(statements, isoLevel);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    Node *result = activePlugin->executeAsTransactionAndGetXID(statements, isoLevel);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 int
 getCostEstimation(char *query)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->getCostEstimation(query);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    int result = activePlugin->getCostEstimation(query);
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 int
 databaseConnectionOpen (void)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->databaseConnectionOpen();
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    int result = activePlugin->databaseConnectionOpen();
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 
@@ -295,7 +369,10 @@ int
 databaseConnectionClose()
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
-    return activePlugin->databaseConnectionClose();
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    int result = activePlugin->databaseConnectionClose();
+    RELEASE_MEM_CONTEXT();
+    return result;
 }
 
 CatalogCache *
