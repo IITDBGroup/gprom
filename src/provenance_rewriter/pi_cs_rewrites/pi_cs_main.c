@@ -113,6 +113,17 @@ rewritePI_CSOperator (QueryOperator *op)
     if (rewriteAddProv)
         addProvAttrs = (List *)  GET_STRING_PROP(op, PROP_ADD_PROVENANCE);
 
+    DEBUG_LOG("REWRITE OPERATIONS:\n\tshow intermediates: %s\n\tuse prov: %s"
+            "\n\thas prov: %s\n\tadd prov: %s"
+            "\n\tuser prov attrs: %s"
+            "\n\tadd prov attrs: %s",
+            showIntermediate ? "T": "F",
+            noRewriteUseProv ? "T": "F",
+            noRewriteHasProv ? "T": "F",
+            rewriteAddProv ? "T": "F",
+            nodeToString(userProvAttrs),
+            nodeToString(addProvAttrs));
+
     if (noRewriteUseProv)
         return rewritePI_CSAddProvNoRewrite(op, userProvAttrs);
     if (noRewriteHasProv)
