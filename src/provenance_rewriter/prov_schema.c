@@ -148,6 +148,24 @@ getRelCount(ProvSchemaInfo *info, char *tableName)
 }
 
 int
+getCurRelNameCount(RelCount **relCount, char *tableName)
+{
+    RelCount *relC = NULL;
+
+    HASH_FIND_STR((*relCount), tableName, relC);
+    if (relC == NULL)
+    {
+        relC = NEW(RelCount);
+        relC->count = 0;
+        relC->relName = strdup(tableName);
+        HASH_ADD_KEYPTR(hh, (*relCount), relC->relName, strlen(relC->relName),
+                relC);
+    }
+
+    return relC->count;
+}
+
+int
 getRelNameCount(RelCount **relCount, char *tableName)
 {
     RelCount *relC = NULL;
