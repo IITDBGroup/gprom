@@ -117,7 +117,7 @@ rewritePI_CSOperator (QueryOperator *op)
     DEBUG_LOG("REWRITE OPERATIONS:\n\tshow intermediates: %s\n\tuse prov: %s"
             "\n\thas prov: %s\n\tadd prov: %s"
             "\n\tuser prov attrs: %s"
-            "\n\tadd prov attrs: %s",
+            "\n\tadd prov attrs: %s"
             "\n\tignore prov attrs: %s",
             showIntermediate ? "T": "F",
             noRewriteUseProv ? "T": "F",
@@ -301,14 +301,17 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
     provAttrPos = copyObject(op->provAttrs);
 
     // remove ignore prov attributes
-    FOREACH(AttributeReference, a, normalAttrExpr)
+    if (ignoreProvAttrs != NULL)
     {
-        if (!hasSetElem(ignoreProvAttrs, a->name))
+        FOREACH(AttributeReference, a, normalAttrExpr)
         {
-            temp = appendToTailOfList(temp, a);
+            if (!hasSetElem(ignoreProvAttrs, a->name))
+            {
+                temp = appendToTailOfList(temp, a);
+            }
         }
+        normalAttrExpr = temp;
     }
-    normalAttrExpr = temp;
 
     // Get the provenance name for each attribute
     FOREACH(AttributeDef, attr, op->schema->attrDefs)

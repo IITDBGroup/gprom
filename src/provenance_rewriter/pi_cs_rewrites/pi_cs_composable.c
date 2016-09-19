@@ -19,6 +19,7 @@
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
+#include "model/query_operator/query_operator_model_checker.h"
 #include "model/list/list.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/prov_schema.h"
@@ -120,14 +121,42 @@ isTupleAtATimeSubtree(QueryOperator *op)
 static QueryOperator *
 rewritePI_CSComposableOperator (QueryOperator *op)
 {
+    boolean showIntermediate = HAS_STRING_PROP(op,  PROP_SHOW_INTERMEDIATE_PROV);
+    boolean noRewriteUseProv = HAS_STRING_PROP(op, PROP_USE_PROVENANCE);
+    boolean noRewriteHasProv = HAS_STRING_PROP(op, PROP_HAS_PROVENANCE);
+    boolean rewriteAddProv = HAS_STRING_PROP(op, PROP_ADD_PROVENANCE);
+    List *userProvAttrs = (List *) getStringProperty(op, PROP_USER_PROV_ATTRS);
+    List *addProvAttrs = NIL;
+    Set *ignoreProvAttrs = (Set *) getStringProperty(op, PROP_PROV_IGNORE_ATTRS);
+    QueryOperator *rewrittenOp;
+
+    if (rewriteAddProv)
+        addProvAttrs = (List *)  GET_STRING_PROP(op, PROP_ADD_PROVENANCE);
+
+    DEBUG_LOG("REWRITE OPERATIONS:\n\tshow intermediates: %s\n\tuse prov: %s"
+            "\n\thas prov: %s\n\tadd prov: %s"
+            "\n\tuser prov attrs: %s"
+            "\n\tadd prov attrs: %s"
+            "\n\tignore prov attrs: %s",
+            showIntermediate ? "T": "F",
+            noRewriteUseProv ? "T": "F",
+            noRewriteHasProv ? "T": "F",
+            rewriteAddProv ? "T": "F",
+            nodeToString(userProvAttrs),
+            nodeToString(addProvAttrs),
+            nodeToString(ignoreProvAttrs));
+
     switch(op->type)
     {
         case T_SelectionOperator:
-            return rewritePI_CSComposableSelection((SelectionOperator *) op);
+            rewrittenOp = rewritePI_CSComposableSelection((SelectionOperator *) op);
+            break;
         case T_ProjectionOperator:
-            return rewritePI_CSComposableProjection((ProjectionOperator *) op);
+            rewrittenOp = rewritePI_CSComposableProjection((ProjectionOperator *) op);
+            break;
         case T_JoinOperator:
-            return rewritePI_CSComposableJoin((JoinOperator *) op);
+            rewrittenOp = rewritePI_CSComposableJoin((JoinOperator *) op);
+            break;
         case T_AggregationOperator:
         {
         	if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
@@ -142,31 +171,42 @@ rewritePI_CSComposableOperator (QueryOperator *op)
         		else
        				op1 = rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
 
-        		return op1;
+        		rewrittenOp = op1;
        	    }
         	else
         	{
         		if(getBoolOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW))
-					return rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op);
+					rewrittenOp = rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op);
 				else
-					return rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
+					rewrittenOp = rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
         	}
-
+            break;
         }
         case T_Set:
-            return rewritePI_CSComposableSet((SetOperator *) op);
+            rewrittenOp = rewritePI_CSComposableSet((SetOperator *) op);
+            break;
         case T_TableAccessOperator:
-            return rewritePI_CSComposableTableAccess((TableAccessOperator *) op);
+            rewrittenOp = rewritePI_CSComposableTableAccess((TableAccessOperator *) op);
+            break;
         case T_ConstRelOperator:
-            return rewritePI_CSComposableConstRel((ConstRelOperator *) op);
+            rewrittenOp = rewritePI_CSComposableConstRel((ConstRelOperator *) op);
+            break;
         case T_DuplicateRemoval:
-            return rewritePI_CSComposableDuplicateRemOp((DuplicateRemoval *) op);
+            rewrittenOp = rewritePI_CSComposableDuplicateRemOp((DuplicateRemoval *) op);
+            break;
         case T_OrderOperator:
-            return rewritePI_CSComposableOrderOp((OrderOperator *) op);
+            rewrittenOp = rewritePI_CSComposableOrderOp((OrderOperator *) op);
+            break;
         default:
             FATAL_LOG("rewrite for %u not implemented", op->type);
-            return NULL;
+            rewrittenOp = NULL;
+            break;
     }
+
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        ASSERT(checkModel(rewrittenOp));
+
+    return rewrittenOp;
 }
 
 static QueryOperator *
