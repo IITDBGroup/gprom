@@ -219,7 +219,14 @@ addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean sho
     if (isA(op,TableAccessOperator))
         tableName = ((TableAccessOperator *) op)->tableName;
     else
-        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
+    {
+        if (HAS_STRING_PROP(op, PROP_PROV_ADD_REL_NAME))
+        {
+            tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_ADD_REL_NAME));
+        }
+        else
+            tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
+    }
 
     if (showIntermediate)
         relAccessCount = getCurRelNameCount(&nameState, tableName) - 1;
@@ -332,6 +339,7 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
     List *newProvPosList = NIL;
     CREATE_INT_SEQ(newProvPosList, cnt, cnt + LIST_LENGTH(normalAttrExpr) - 1, 1);
     provAttrPos = CONCAT_LISTS(provAttrPos, newProvPosList);
+
     DEBUG_LOG("add intermediate provenance\n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
             stringListToString(attrNames),
             nodeToString(projExpr),
@@ -348,6 +356,8 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
                 copyObject(GET_STRING_PROP(op, PROP_ADD_PROVENANCE)));
         SET_STRING_PROP(proj, PROP_PROV_REL_NAME,
                 copyObject(GET_STRING_PROP(op, PROP_PROV_REL_NAME)));
+        SET_STRING_PROP(proj, PROP_PROV_ADD_REL_NAME,
+                copyObject(GET_STRING_PROP(op, PROP_PROV_ADD_REL_NAME)));
     }
     // Switch the subtree with this newly created projection operator.
     switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) proj);
