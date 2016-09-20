@@ -23,6 +23,7 @@ typedef struct RelCount {
     UT_hash_handle hh;
 } RelCount;
 
+extern int getCurRelNameCount(RelCount **relCount, char *tableName);
 extern int getRelNameCount(RelCount **relCount, char *tableName);
 extern List *getProvenanceAttributes(QueryOperator *q, ProvenanceType type);
 extern List *getProvenanceAttrNames (char *table, List *attrs, int count);
