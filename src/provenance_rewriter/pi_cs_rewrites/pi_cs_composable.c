@@ -236,6 +236,7 @@ composableAddUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, b
     QueryOperator *proj;
     List *attrNames = NIL;
     List *projExpr = NIL;
+    List *attrDefs = NIL;
     List *provAttrPos = NIL;
     List *normalAttrExprs = getNormalAttrProjectionExprs(op);
     List *userPAttrExprs = NIL;
@@ -267,16 +268,27 @@ composableAddUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, b
 
     DEBUG_LOG("REWRITE-PICS - Add Intermediate Provenance Attrs <%s> <%u>",  tableName, relAccessCount);
 
-    attrNames = getQueryOperatorAttrNames(op);
+    // copy all attributes except TID and DUP if they were already added
     provAttrPos = copyObject(op->provAttrs);
+    if (showIntermediate)
+    {
+        attrNames = getAttrNamesWithoutSpecial(op);
+        attrDefs = getAllAttrWithoutSpecial(op);
+    }
+    else
+    {
+        attrNames = getQueryOperatorAttrNames(op);
+        attrDefs = op->schema->attrDefs;
+    }
 
-    // Get the provenance name for each attribute
-    FOREACH(AttributeDef, attr, op->schema->attrDefs)
+    // create schema
+    FOREACH(AttributeDef, attr, attrDefs)
     {
         projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
 
+    // add projection expression for newly added prov attributes
     FOREACH(AttributeReference, a, userPAttrExprs)
     {
         //TODO naming of intermediate results
@@ -289,7 +301,21 @@ composableAddUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, b
     List *newProvPosList = NIL;
     CREATE_INT_SEQ(newProvPosList, cnt, cnt + LIST_LENGTH(userPAttrExprs) - 1, 1);
     provAttrPos = CONCAT_LISTS(provAttrPos, newProvPosList);
-    DEBUG_LOG("add intermediate provenance\n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
+
+    if (showIntermediate)
+    {
+        // result tuple ID attribute
+         newAttrName = strdup(RESULT_TID_ATTR);
+         attrNames = appendToTailOfList(attrNames, newAttrName);
+         projExpr = appendToTailOfList(projExpr, makeNode(RowNumExpr));
+
+         // provenance duplicate attribute
+         newAttrName = strdup(PROV_DUPL_COUNT_ATTR);
+         attrNames = appendToTailOfList(attrNames, newAttrName);
+         projExpr = appendToTailOfList(projExpr, createConstInt(1));
+    }
+
+    DEBUG_LOG("add additional provenance\n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
             stringListToString(attrNames),
             nodeToString(projExpr),
             nodeToString(provAttrPos));
@@ -299,6 +325,7 @@ composableAddUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, b
     proj->inputs = NIL;
     proj->provAttrs = provAttrPos;
 
+
     // Switch the subtree with this newly created projection operator.
     switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) proj);
 
@@ -306,7 +333,14 @@ composableAddUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, b
     addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 
     // add TID and DUP attributes from child
-    addResultTIDAndProvDupAttrs(proj,TRUE);
+    if (!showIntermediate)
+        addResultTIDAndProvDupAttrs(proj,TRUE);
+    else // add properties for TID and DUP attributes
+    {
+        int numAttrs = getNumAttrs((QueryOperator *) proj) - 1;
+        SET_STRING_PROP(proj, PROP_RESULT_TID_ATTR, createConstInt(numAttrs - 1));
+        SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR, createConstInt(numAttrs));
+    }
 
     DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
 
