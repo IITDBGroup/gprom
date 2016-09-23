@@ -35,11 +35,11 @@ extern void gprom_shutdown(void);
 // process an input query
 extern const char *gprom_rewriteQuery(const char *query);
 
-// callback interface for logger (application can process log message)
+// callback interface for logger (application can process log messages)
 // takes message, c-file, line, loglevel
 typedef void (*GProMLoggerCallbackFunction) (const char *,const char *,int,int);
 
-// callback interface for exception handling (application can deal with exception
+// callback interface for exception handling (application can deal with exceptions)
 // takes message, c-file, line, severity
 // return value indicates what to do
 typedef ExceptionHandler (*GProMExceptionCallbackFunction) (const char *, const char *, int, int);

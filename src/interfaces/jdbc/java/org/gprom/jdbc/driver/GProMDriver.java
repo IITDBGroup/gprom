@@ -99,10 +99,13 @@ public class GProMDriver implements Driver {
 			driver = DriverManager.getDriver(backendURL);
 			if (driver == null)
 				throw new Exception("did not find class for driver: " +  driver);
-				
+			log.info("driver class is: " + driver.getClass());
+			
 			// create a jdbc connection to the backend.
 			log.info("trying to connect to: " + backendURL);
+			Thread.sleep(3000);
 			backendConnection = driver.connect(backendURL, info);
+			Thread.sleep(3000);
 			if (backendConnection == null)
 				throw new Exception("was unable to create connection: " + backendURL);
 			log.info("created connection object: " + backendURL);
@@ -126,7 +129,7 @@ public class GProMDriver implements Driver {
 		} catch (Throwable ex) {
 			log.error("Error loading the driver and getting a connection.");
 			LoggerUtil.logException(ex, log);
-//			System.exit(-1);
+			System.exit(2);
 		}
 		return null;
 	}
