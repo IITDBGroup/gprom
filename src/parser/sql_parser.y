@@ -368,14 +368,14 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
-		| REENACT optionalProvWith '(' stmtList ')'
+		| REENACT optionalProvAsOf optionalProvWith '(' stmtList ')'
 		{
 			RULELOG("provStmt::reenactStmtlist");
-			ProvenanceStmt *p = createProvenanceStmt((Node *) $4);
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $5);
 			p->inputType = PROV_INPUT_REENACT;
 			p->provType = PROV_NONE;
-			p->asOf = (Node *) NULL;
-			p->options = $2;
+			p->asOf = (Node *) $2;
+			p->options = $3;
 			$$ = (Node *) p;
 		}
     ;
