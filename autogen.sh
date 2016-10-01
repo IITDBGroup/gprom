@@ -1,4 +1,3 @@
 #!/bin/bash
 make -f Makefile.maintainer
-./mconf.sh
-make -j 32
+echo "NEXT STEPS: run configure and make"
