@@ -1,0 +1,136 @@
+digraph
+{
+	rankdir="TB"
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+RULE_0_LOST_a_a_a_b_ [label="r0 (a,a,a,b)", texlbl="$r_0(a,a,a,b)$"]
+RULE_0_LOST_a_a_a_a_ [label="r0 (a,a,a,a)", texlbl="$r_0(a,a,a,a)$"]
+RULE_0_LOST_a_c_a_b_ [label="r0 (a,c,a,b)", texlbl="$r_0(a,c,a,b)$"]
+RULE_0_LOST_a_a_b_a_ [label="r0 (a,a,b,a)", texlbl="$r_0(a,a,b,a)$"]
+RULE_0_LOST_b_a_a_a_ [label="r0 (b,a,a,a)", texlbl="$r_0(b,a,a,a)$"]
+RULE_0_LOST_b_a_a_b_ [label="r0 (b,a,a,b)", texlbl="$r_0(b,a,a,b)$"]
+RULE_0_LOST_b_b_a_a_ [label="r0 (b,b,a,a)", texlbl="$r_0(b,b,a,a)$"]
+RULE_0_LOST_b_c_a_b_ [label="r0 (b,c,a,b)", texlbl="$r_0(b,c,a,b)$"]
+RULE_0_LOST_a_b_a_a_ [label="r0 (a,b,a,a)", texlbl="$r_0(a,b,a,a)$"]
+RULE_0_LOST_a_b_b_a_ [label="r0 (a,b,b,a)", texlbl="$r_0(a,b,b,a)$"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#CBFFCB"]
+GOAL_0_1_WON_a_b_ [label="g[0,1](a,b)", texlbl="$g_{0}^{1}(a,b)$"]
+GOAL_0_1_WON_a_a_ [label="g[0,1](a,a)", texlbl="$g_{0}^{1}(a,a)$"]
+GOAL_0_2_WON_a_a_ [label="g[0,2](a,a)", texlbl="$g_{0}^{2}(a,a)$"]
+GOAL_0_2_WON_b_a_ [label="g[0,2](b,a)", texlbl="$g_{0}^{2}(b,a)$"]
+GOAL_0_0_WON_a_a_ [label="g[0,0](a,a)", texlbl="$g_{0}^{0}(a,a)$"]
+GOAL_0_0_WON_b_a_ [label="g[0,0](b,a)", texlbl="$g_{0}^{0}(b,a)$"]
+GOAL_0_2_WON_b_c_ [label="g[0,2](b,c)", texlbl="$g_{0}^{2}(b,c)$"]
+GOAL_0_1_WON_b_a_ [label="g[0,1](b,a)", texlbl="$g_{0}^{1}(b,a)$"]
+GOAL_0_0_WON_a_b_ [label="g[0,0](a,b)", texlbl="$g_{0}^{0}(a,b)$"]
+GOAL_0_2_WON_a_b_ [label="g[0,2](a,b)", texlbl="$g_{0}^{2}(a,b)$"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#FF8383"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+REL_HOP3_WON_a_c_ [label="HOP3(a,c)", texlbl="$HOP3(a,c)$"]
+REL_HOP_WON_a_a_ [label="HOP(a,a)", texlbl="$HOP(a,a)$"]
+REL_HOP3_WON_a_a_ [label="HOP3(a,a)", texlbl="$HOP3(a,a)$"]
+REL_HOP3_WON_b_a_ [label="HOP3(b,a)", texlbl="$HOP3(b,a)$"]
+REL_HOP_WON_b_c_ [label="HOP(b,c)", texlbl="$HOP(b,c)$"]
+REL_HOP3_WON_a_b_ [label="HOP3(a,b)", texlbl="$HOP3(a,b)$"]
+REL_HOP_WON_a_b_ [label="HOP(a,b)", texlbl="$HOP(a,b)$"]
+REL_HOP3_WON_b_b_ [label="HOP3(b,b)", texlbl="$HOP3(b,b)$"]
+REL_HOP3_WON_b_c_ [label="HOP3(b,c)", texlbl="$HOP3(b,c)$"]
+REL_HOP_WON_b_a_ [label="HOP(b,a)", texlbl="$HOP(b,a)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+notREL_HOP_LOST_a_a_ [label="not HOP(a,a)", texlbl="$\neg HOP(a,a)$"]
+notREL_HOP_LOST_a_b_ [label="not HOP(a,b)", texlbl="$\neg HOP(a,b)$"]
+notREL_HOP_LOST_b_a_ [label="not HOP(b,a)", texlbl="$\neg HOP(b,a)$"]
+notREL_HOP_LOST_b_c_ [label="not HOP(b,c)", texlbl="$\neg HOP(b,c)$"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+EDB_rHOP_LOST_a_a_ [label="rHOP(a,a)", texlbl="$rHOP(a,a)$"]
+EDB_rHOP_LOST_b_c_ [label="rHOP(b,c)", texlbl="$rHOP(b,c)$"]
+EDB_rHOP_LOST_a_b_ [label="rHOP(a,b)", texlbl="$rHOP(a,b)$"]
+EDB_rHOP_LOST_b_a_ [label="rHOP(b,a)", texlbl="$rHOP(b,a)$"]
+
+
+	node [shape="point"]
+
+
+	node [shape="square", width=0.011, height=0.011, fillcolor=black]
+	RULE_0_LOST_a_a_a_b_ -> GOAL_0_1_WON_a_b_
+	RULE_0_LOST_a_a_a_a_ -> GOAL_0_1_WON_a_a_
+	RULE_0_LOST_a_c_a_b_ -> GOAL_0_1_WON_a_b_
+	RULE_0_LOST_a_a_b_a_ -> GOAL_0_2_WON_a_a_
+	RULE_0_LOST_a_a_a_b_ -> GOAL_0_2_WON_b_a_
+	REL_HOP3_WON_a_c_ -> RULE_0_LOST_a_c_a_b_
+	RULE_0_LOST_a_a_a_b_ -> GOAL_0_0_WON_a_a_
+	RULE_0_LOST_b_a_a_a_ -> GOAL_0_0_WON_b_a_
+	RULE_0_LOST_b_a_a_b_ -> GOAL_0_1_WON_a_b_
+	GOAL_0_1_WON_a_a_ -> notREL_HOP_LOST_a_a_
+	REL_HOP_WON_a_a_ -> EDB_rHOP_LOST_a_a_
+	RULE_0_LOST_b_a_a_b_ -> GOAL_0_0_WON_b_a_
+	RULE_0_LOST_a_c_a_b_ -> GOAL_0_0_WON_a_a_
+	RULE_0_LOST_a_c_a_b_ -> GOAL_0_2_WON_b_c_
+	REL_HOP3_WON_a_a_ -> RULE_0_LOST_a_a_b_a_
+	REL_HOP3_WON_b_a_ -> RULE_0_LOST_b_a_a_a_
+	RULE_0_LOST_b_b_a_a_ -> GOAL_0_0_WON_b_a_
+	RULE_0_LOST_b_b_a_a_ -> GOAL_0_1_WON_a_a_
+	RULE_0_LOST_b_c_a_b_ -> GOAL_0_1_WON_a_b_
+	RULE_0_LOST_a_b_a_a_ -> GOAL_0_1_WON_a_a_
+	REL_HOP_WON_b_c_ -> EDB_rHOP_LOST_b_c_
+	REL_HOP3_WON_a_b_ -> RULE_0_LOST_a_b_a_a_
+	RULE_0_LOST_a_b_a_a_ -> GOAL_0_0_WON_a_a_
+	notREL_HOP_LOST_a_b_ -> REL_HOP_WON_a_b_
+	RULE_0_LOST_a_a_b_a_ -> GOAL_0_1_WON_b_a_
+	GOAL_0_1_WON_b_a_ -> notREL_HOP_LOST_b_a_
+	GOAL_0_1_WON_a_b_ -> notREL_HOP_LOST_a_b_
+	RULE_0_LOST_b_c_a_b_ -> GOAL_0_2_WON_b_c_
+	RULE_0_LOST_a_a_a_a_ -> GOAL_0_2_WON_a_a_
+	GOAL_0_2_WON_a_a_ -> notREL_HOP_LOST_a_a_
+	notREL_HOP_LOST_b_c_ -> REL_HOP_WON_b_c_
+	REL_HOP3_WON_b_b_ -> RULE_0_LOST_b_b_a_a_
+	REL_HOP3_WON_b_c_ -> RULE_0_LOST_b_c_a_b_
+	REL_HOP3_WON_b_a_ -> RULE_0_LOST_b_a_a_b_
+	RULE_0_LOST_a_a_b_a_ -> GOAL_0_0_WON_a_b_
+	GOAL_0_0_WON_a_a_ -> notREL_HOP_LOST_a_a_
+	notREL_HOP_LOST_b_a_ -> REL_HOP_WON_b_a_
+	RULE_0_LOST_a_b_b_a_ -> GOAL_0_1_WON_b_a_
+	RULE_0_LOST_b_a_a_a_ -> GOAL_0_1_WON_a_a_
+	RULE_0_LOST_a_b_b_a_ -> GOAL_0_2_WON_a_b_
+	REL_HOP_WON_a_b_ -> EDB_rHOP_LOST_a_b_
+	REL_HOP3_WON_a_b_ -> RULE_0_LOST_a_b_b_a_
+	REL_HOP3_WON_a_a_ -> RULE_0_LOST_a_a_a_b_
+	REL_HOP3_WON_a_a_ -> RULE_0_LOST_a_a_a_a_
+	RULE_0_LOST_a_a_a_a_ -> GOAL_0_0_WON_a_a_
+	GOAL_0_0_WON_a_b_ -> notREL_HOP_LOST_a_b_
+	RULE_0_LOST_b_b_a_a_ -> GOAL_0_2_WON_a_b_
+	RULE_0_LOST_b_a_a_a_ -> GOAL_0_2_WON_a_a_
+	RULE_0_LOST_b_a_a_b_ -> GOAL_0_2_WON_b_a_
+	RULE_0_LOST_a_b_a_a_ -> GOAL_0_2_WON_a_b_
+	GOAL_0_2_WON_a_b_ -> notREL_HOP_LOST_a_b_
+	REL_HOP_WON_b_a_ -> EDB_rHOP_LOST_b_a_
+	RULE_0_LOST_a_b_b_a_ -> GOAL_0_0_WON_a_b_
+	RULE_0_LOST_b_c_a_b_ -> GOAL_0_0_WON_b_a_
+	GOAL_0_0_WON_b_a_ -> notREL_HOP_LOST_b_a_
+	notREL_HOP_LOST_a_a_ -> REL_HOP_WON_a_a_
+	GOAL_0_2_WON_b_a_ -> notREL_HOP_LOST_b_a_
+	GOAL_0_2_WON_b_c_ -> notREL_HOP_LOST_b_c_
+
+}

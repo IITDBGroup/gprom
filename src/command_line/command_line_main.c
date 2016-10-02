@@ -34,20 +34,25 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "execution/executor.h"
 #include "rewriter.h"
+#include "utility/string_utils.h"
 
 static const char *commandHelp = "\n"
-            "\\q\t\texit CLI\n"
-            "\\h\t\tshow this helptext\n"
-            "\\i\t\tshow help for currently selected parser\n"
-            "\\o\t\tshow current parameter settings\n"
+            "\\q(uit)\t\t\texit CLI\n"
+            "\\h(elp)\t\t\tshow this helptext\n"
+            "\\i(nput language)\tshow help for currently selected parser\n"
+            "\\o(ptions)\t\tshow current parameter settings\n"
+            "\\s(et) PAR VAL\t\tset parameter PAR to value VAL\n"
         ;
 
 static char *prompt = "GProM";
+#define IS_UTILITY(cmd) (strStartsWith((cmd), "\\"))
 
 static void process(char *sql);
-static void inputSQL(void);
+static void inputLoop(void);
+static void utility(char *command);
 static ExceptionHandler handleCLIException (const char *message, const char *file, int line, ExceptionSeverity s);
 static char *readALine(char **str);
+static char *createPromptString (void);
 
 int
 main(int argc, char* argv[])
@@ -60,11 +65,7 @@ main(int argc, char* argv[])
         return EXIT_FAILURE;
 
     registerExceptionCallback(handleCLIException);
-//
-//    prompt = CONCAT_STRINGS("\\[",TERM_ALL_ON(BOLD,WHITE,BLACK),"\\]",
-//            getParserPluginName(), " - ", getConnectionDescription(), "$",
-//            "\\[",TERM_RESET,"\\]");
-    prompt = CONCAT_STRINGS(getParserPluginName(), " - ", getConnectionDescription(), "$");
+    createPromptString();
 
     START_TIMER("TOTAL");
 
@@ -98,8 +99,8 @@ main(int argc, char* argv[])
     {
         printf("GProM Commandline Client\n");
         printf("Please input a SQL command, '\\q' to exit the program, or '\\h' for help\n");
-        printf("=============================================\n\n");
-        inputSQL();
+        printf("======================================================================\n\n");
+        inputLoop();
     }
 
     STOP_TIMER("TOTAL");
@@ -110,8 +111,15 @@ main(int argc, char* argv[])
     return EXIT_SUCCESS;
 }
 
+static char *
+createPromptString (void)
+{
+    prompt = CONCAT_STRINGS(getParserPluginName(), " - ", getConnectionDescription(), "$");
+    return prompt;
+}
+
 static void
-inputSQL(void)
+inputLoop(void)
 {
 	char* sql=(char*) CALLOC(100000,1);
 	while(TRUE)
@@ -127,39 +135,14 @@ inputSQL(void)
 		    exit(EXIT_FAILURE);
 		}
 
-		DEBUG_LOG("process SQL code: ", sql);
+		DEBUG_LOG("process command:\n<%s>", sql);
 
 		// deal with utility commands
-		if(strStartsWith(sql,"\\q"))
+		if (IS_UTILITY(sql))
 		{
-			//printf(TB_FG_BG(WHITE,BLACK,"%s"),"\n\nExit GProM.\n");
-			printf("\n");
-			break;
-		}
-
-		if(strStartsWith(sql,"\\h"))
-        {
-		    printf(TB_FG_BG(WHITE,BLACK,"GPROM CLI COMMANDS") "%s",commandHelp);
-		    printf("\n");
+		    utility(sql);
 		    continue;
-        }
-
-        if(strStartsWith(sql,"\\i"))
-        {
-            printf(TB_FG_BG(WHITE,BLACK,"%s - LANGUAGE OVERVIEW") ":\n%s",
-                    getParserPluginName(), getParserLanguageHelp());
-            printf("\n");
-            continue;
-        }
-
-        if(strStartsWith(sql,"\\o"))
-        {
-            printf(TB_FG_BG(WHITE,BLACK,"PARAMETERS ARE SET AS FOLLOWS") "\n%s",
-                    optionsToStringOnePerLine());
-            printf("\n");
-            continue;
-        }
-
+		}
 
 		// process query
 		TRY
@@ -185,6 +168,88 @@ process(char *sql)
 {
     processInput(sql);
 }
+
+/*
+ * Process utility commands
+ */
+static void
+utility(char *command)
+{
+    // QUIT
+    if(strStartsWith(command,"\\q"))
+    {
+        //printf(TB_FG_BG(WHITE,BLACK,"%s"),"\n\nExit GProM.\n");
+        printf("\n");
+        FREE(command);
+        exit(EXIT_SUCCESS);
+    }
+
+    // SHOW CLI HELP
+    if(strStartsWith(command,"\\h"))
+    {
+        printf(TB_FG_BG(WHITE,BLACK,"GPROM CLI COMMANDS") "%s",commandHelp);
+        printf("\n");
+        return;
+    }
+
+    // SHOW CURRENT PARSER LANGUAGE HELP
+    if(strStartsWith(command,"\\i"))
+    {
+        printf(TB_FG_BG(WHITE,BLACK,"%s - LANGUAGE OVERVIEW") ":\n%s",
+                getParserPluginName(), getParserLanguageHelp());
+        printf("\n");
+        return;
+    }
+
+    // SHOW PARAMETERS
+    if(strStartsWith(command,"\\o"))
+    {
+        printf(TB_FG_BG(WHITE,BLACK,"PARAMETERS ARE SET AS FOLLOWS") "\n%s",
+                optionsToStringOnePerLine());
+        printf("\n");
+        return;
+    }
+
+    // SET PARAMETER
+    if(strStartsWith(command,"\\s"))
+    {
+        List *args = splitString(command, " \t");
+        char *par;
+        char *val;
+        char *previousVal;
+
+        // has 2 args?
+        if (LIST_LENGTH(args) != 3)
+        {
+            printf("\n\\s(et) PAR VAL - requires two parameters, the first PAR is an option name and the second one VAL is a value.\n\n");
+            return;
+        }
+
+        par = getNthOfListP(args, 1);
+        val = getNthOfListP(args, 2);
+
+        // option exists?
+        if (!hasOption(par))
+        {
+            printf("\n<%s> is not a valid option.\n\n", par);
+            return;
+        }
+
+        // get previous value and set new one
+        previousVal = getOptionAsString(par);
+        setOption(par, val);
+
+        // let rewriter figure out if anything is triggered by this option change
+        reactToOptionsChange(par);
+        createPromptString();
+
+        printf("Changed option <%s> from <%s> to <%s>\n\n", par, previousVal, val);
+        return;
+    }
+
+    printf("Unkown command <%s>\n\n", command);
+}
+
 
 /*
  * Function that handles exceptions

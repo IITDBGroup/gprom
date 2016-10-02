@@ -11,6 +11,7 @@
 
 #include "common.h"
 #include "configuration/option.h"
+#include "configuration/option_parser.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "model/expression/expression.h"
@@ -685,6 +686,17 @@ getInfo (char *name)
 }
 
 char *
+getOptionAsString (char *name)
+{
+    OptionInfo *v;
+
+    ASSERT(hasOption(name));
+    v = getInfo(name);
+
+    return valGetString(&v->value, v->valueType);
+}
+
+char *
 getStringOption (char *name)
 {
     ASSERT(hasOption(name));
@@ -715,6 +727,30 @@ getFloatOption (char *name)
 
     return *(getValue(name)->f);
 }
+
+void
+setOption (char *name, char *value)
+{
+    OptionInfo *v;
+    ASSERT(hasOption(name));
+    v = getInfo(name);
+
+    switch(v->valueType)
+    {
+        case OPTION_BOOL:
+            setBoolOption(name, parseBool(value));
+            break;
+        case OPTION_STRING:
+            setStringOption(name, value);
+            break;
+        case OPTION_INT:
+            setIntOption(name, parseInt(value));
+            break;
+        case OPTION_FLOAT:
+            break;
+    }
+}
+
 
 void
 setStringOption (char *name, char *value)

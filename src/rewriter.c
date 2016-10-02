@@ -40,6 +40,7 @@
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
+static void setupPlugin(const char *pluginType);
 
 int
 initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[])
@@ -68,6 +69,30 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
         setupMemInstrumentation();
 
     return EXIT_SUCCESS;
+}
+
+void
+reactToOptionsChange (const char *optName)
+{
+    // need to reinitialize logger
+    if (strStartsWith(optName, "log"))
+    {
+        reinitLogger();
+        return;
+    }
+    // need to reestablish connection
+    //TODO right now this would try to reconnect after one connection parameter has been changed
+    if (strStartsWith(optName, "connection"))
+    {
+        databaseConnectionClose();
+        databaseConnectionOpen();
+        return;
+    }
+    // need to switch a plugin
+    if (strStartsWith(optName, "plugin"))
+    {
+        setupPlugin(optName);
+    }
 }
 
 int
@@ -138,6 +163,86 @@ setupPluginsFromOptions(void)
         chooseOptimizerPluginFromString(pluginName);
     else
         chooseOptimizerPluginFromString("exhaustive");
+}
+
+static void
+setupPlugin(const char *pluginType)
+{
+    char *pluginName;
+    char *be = getStringOption("backend");
+
+    if (streq(pluginType,"plugin.parser"))
+    {
+        // setup parser - individual option overrides backend option
+        if ((pluginName = getStringOption("plugin.parser")) != NULL)
+            chooseParserPluginFromString(pluginName);
+        else
+            chooseParserPluginFromString(be);
+    }
+
+    // setup metadata lookup - individual option overrides backend option
+    if (streq(pluginType,"plugin.metadata"))
+    {
+        pluginName = getStringOption("plugin.metadata");
+        if (strpeq(pluginName,"external"))
+        {
+            printf("\nPLUGIN******************************************\n\n");
+        }
+        else
+        {
+            initMetadataLookupPlugins();//TODO not necessary
+            if (pluginName != NULL)
+                chooseMetadataLookupPluginFromString(pluginName);
+            else
+                chooseMetadataLookupPluginFromString(be);
+            initMetadataLookupPlugin();
+        }
+    }
+
+    // setup analyzer - individual option overrides backend option
+    if (streq(pluginType,"plugin.analyzer"))
+    {
+        if ((pluginName = getStringOption("plugin.analyzer")) != NULL)
+            chooseAnalyzerPluginFromString(pluginName);
+        else
+            chooseAnalyzerPluginFromString(be);
+    }
+
+    // setup analyzer - individual option overrides backend option
+    if (streq(pluginType,"plugin.translator"))
+    {
+        if ((pluginName = getStringOption("plugin.translator")) != NULL)
+            chooseTranslatorPluginFromString(pluginName);
+        else
+            chooseTranslatorPluginFromString(be);
+    }
+
+    // setup  sql serializer - individual option overrides backend option
+    if (streq(pluginType,"plugin."))
+    {
+        if ((pluginName = getStringOption("plugin.sqlserializer")) != NULL)
+            chooseSqlserializerPluginFromString(pluginName);
+        else
+            chooseSqlserializerPluginFromString(be);
+    }
+
+    // setup executor
+    if (streq(pluginType,"plugin.executor"))
+    {
+        if ((pluginName = getStringOption("plugin.executor")) != NULL)
+            chooseExecutorPluginFromString(pluginName);
+        else
+            chooseExecutorPluginFromString("sql");
+    }
+
+    // setup cost-based optimizer
+    if (streq(pluginType,"plugin.cbo"))
+    {
+        if ((pluginName = getStringOption("plugin.cbo")) != NULL)
+            chooseOptimizerPluginFromString(pluginName);
+        else
+            chooseOptimizerPluginFromString("exhaustive");
+    }
 }
 
 void

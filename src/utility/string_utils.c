@@ -55,8 +55,9 @@ splitString(char *str, const char *delim)
 
     if (str == NULL)
         return NIL;
-    while ((token = strsep(&str, ",")) != NULL)
-        result = appendToTailOfList(result, strdup(token));
+    while ((token = strsep(&str, delim)) != NULL)
+        if (*token != '\0')
+            result = appendToTailOfList(result, strdup(token));
 //    token = strsep(str, delim, pos);
 //
 //    while (token)
