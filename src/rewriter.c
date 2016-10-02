@@ -39,6 +39,7 @@
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
+static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 
 int
 initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[])
@@ -210,12 +211,12 @@ shutdownApplication(void)
 void
 processInput(char *input)
 {
-    char *result = rewriteQuery(input);
+    char *result = rewriteQueryInternal(input, TRUE);
     execute(result);
 }
 
-char *
-rewriteQuery(char *input)
+static char *
+rewriteQueryInternal (char *input, boolean rethrowExceptions)
 {
     Node *parse;
     char *result = "";
@@ -234,6 +235,8 @@ rewriteQuery(char *input)
     }
     ON_EXCEPTION
     {
+        if (rethrowExceptions)
+            RETHROW();
         // if an exception is thrown then the query memory context has been
         // destroyed and we can directly create an empty string in the callers
         // context
@@ -241,6 +244,12 @@ rewriteQuery(char *input)
     }
     END_ON_EXCEPTION
     return strdup("");
+}
+
+char *
+rewriteQuery(char *input)
+{
+    return rewriteQueryInternal(input, FALSE);
 }
 
 char *
