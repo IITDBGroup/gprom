@@ -27,7 +27,6 @@ fi
 
 ########################################
 # RUN COMMAND
- ${LOG} "${PROGRAM}" -Pparser dl -Panalyzer dl -Ptranslator dl -Pexecutor sql -Cattr_reference_consistency FALSE -Cschema_consistency FALSE  -Cunique_attr_names FALSE -deactivate treefiy_prov_rewrite_input  ${*:3}
 # -Cattr_reference_consistency FALSE -Cschema_consistency FALSE  -Cunique_attr_names FALSE -Oselections_move_around FALSE  -Oremove_redundant_projections FALSE  -activate optimize_operator_model
 
-${GPROM_SCRIPT} -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga"  -log -loglevel ${LOG} -Pparser dl -Panalyzer dl -Ptranslator dl -Pexecutor sql ${*:3} < ${DLFILE} 
+${GPROM_SCRIPT} -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga"  -log -loglevel ${LOG} -Pparser dl -Panalyzer dl -Ptranslator dl -Pexecutor sql ${*:3} -sqlfile ${DLFILE} 
