@@ -60,7 +60,10 @@ main(int argc, char* argv[])
         return EXIT_FAILURE;
 
     registerExceptionCallback(handleCLIException);
-
+//
+//    prompt = CONCAT_STRINGS("\\[",TERM_ALL_ON(BOLD,WHITE,BLACK),"\\]",
+//            getParserPluginName(), " - ", getConnectionDescription(), "$",
+//            "\\[",TERM_RESET,"\\]");
     prompt = CONCAT_STRINGS(getParserPluginName(), " - ", getConnectionDescription(), "$");
 
     START_TIMER("TOTAL");
