@@ -20,6 +20,40 @@
 #include "instrumentation/timing_instrumentation.h"
 
 static Node *parseInternaldl (void);
+static const char *languageHelp = "The user can specify a datalog program as a list of statements. "
+        "A statement is either a rule, an answer predicate declaration, "
+        "a regular path expression, or a provenance question.\n\n"
+        "Rule\n"
+        "----\n"
+        "Description: declares a logical implication that is used to derive IDB facts.\n"
+        "Syntax: A rule is of the following form:\n"
+        "\t\tQ(X1, ..., Xn) :- BODY .\n"
+        "\twhere Q is an IDB predicate and each Xi is an expression over constants and variables from the body\n"
+        "\tand BODY is a list of RELATIONAL ATOM and COMPARISON ATOM elements\n"
+        "\tA RELATIONAL ATOM is of the form [NOT] R(Y1, ..., Yn) where R is an EDB or IDB predicate and each Yi is either a constant or a variable\n"
+        "\tA COMPARISON ATOM is of the form X op Y WHERE X and Y are constants or variables and op is one of <,>,=,!=\n\n"
+        "Answer Predicate Declaration\n"
+        "----------------------------\n"
+        "Description: determines which IDB predicate defined by a program will be returned as the result of the query.\n"
+        "Syntax: The answer set declaration is of the form:\n"
+        "\t\tANS : Q .\n"
+        "\t where Q is an IDB predicate.\n\n"
+        "Regular Path Expression\n"
+        "-----------------------\n"
+        "Description: declares a rules that matches regular paths over a ternary edge relation (fromNode, edgeLabel, toNode). "
+        "Can be configured to return pairs of nodes that are staring and end points of paths matching the regular expression, "
+        "all edges on a path.\n"
+        "Syntax: \n\n"
+        "Provenance Question\n"
+        "-------------------\n"
+        "Description: if a provenance question is specified then instead of evaluating the program, GProM will return the edge"
+        " relation of a provenance graph explaining the existence respective absence of tuples matching the user question. The "
+        "user can ask why and why-not questions asking for existence respective absence of query results.\n"
+        "Syntax: A provenance question is of form\n"
+        "\t\tWHY ( RELATIONAL ATOM ) .\n"
+        "\tor\n"
+        "\t\tWHYNOT ( RELATIONAL ATOM ) .\n"
+        ;
 
 Node *
 parseStreamdl (FILE *stream)
@@ -36,6 +70,12 @@ parseFromStringdl (char *input)
     dlSetupStringInput(input);
 
     return parseInternaldl();
+}
+
+const char *
+languageHelpDL (void)
+{
+    return languageHelp;
 }
 
 static Node *

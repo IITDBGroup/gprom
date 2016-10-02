@@ -13,6 +13,11 @@
 #include "common.h"
 #include "command_line/command_line_main.h"
 
+#ifdef HAVE_READLINE
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
+
 #include "mem_manager/mem_mgr.h"
 #include "instrumentation/timing_instrumentation.h"
 
@@ -30,10 +35,19 @@
 #include "execution/executor.h"
 #include "rewriter.h"
 
+static const char *commandHelp = "\n"
+            "\\q\t\texit CLI\n"
+            "\\h\t\tshow this helptext\n"
+            "\\i\t\tshow help for currently selected parser\n"
+            "\\o\t\tshow current parameter settings\n"
+        ;
+
+static char *prompt = "GProM";
 
 static void process(char *sql);
 static void inputSQL(void);
 static ExceptionHandler handleCLIException (const char *message, const char *file, int line, ExceptionSeverity s);
+static char *readALine(char **str);
 
 int
 main(int argc, char* argv[])
@@ -46,6 +60,8 @@ main(int argc, char* argv[])
         return EXIT_FAILURE;
 
     registerExceptionCallback(handleCLIException);
+
+    prompt = CONCAT_STRINGS(getParserPluginName(), " - ", getConnectionDescription(), "$");
 
     START_TIMER("TOTAL");
 
@@ -78,7 +94,7 @@ main(int argc, char* argv[])
     else
     {
         printf("GProM Commandline Client\n");
-        printf("Please input a SQL or '(q)uit' to exit the program\n");
+        printf("Please input a SQL command, '\\q' to exit the program, or '\\h' for help\n");
         printf("=============================================\n\n");
         inputSQL();
     }
@@ -99,9 +115,7 @@ inputSQL(void)
 	{
 	    char *returnVal;
 
-	    printf(TB_FG_BG(WHITE,BLACK,"%s"), "GProm $");
-	    printf(" ");
-	    returnVal = gets(sql);
+	    returnVal = readALine(&sql);
 
 		// deal with failure
 		if (returnVal == NULL && ferror(stdin))
@@ -112,13 +126,39 @@ inputSQL(void)
 
 		DEBUG_LOG("process SQL code: ", sql);
 
-		if(*sql=='q')
+		// deal with utility commands
+		if(strStartsWith(sql,"\\q"))
 		{
-			printf(TB_FG_BG(WHITE,BLACK,"%s"),"\n\nExit GProM.\n");
+			//printf(TB_FG_BG(WHITE,BLACK,"%s"),"\n\nExit GProM.\n");
 			printf("\n");
 			break;
 		}
 
+		if(strStartsWith(sql,"\\h"))
+        {
+		    printf(TB_FG_BG(WHITE,BLACK,"GPROM CLI COMMANDS") "%s",commandHelp);
+		    printf("\n");
+		    continue;
+        }
+
+        if(strStartsWith(sql,"\\i"))
+        {
+            printf(TB_FG_BG(WHITE,BLACK,"%s - LANGUAGE OVERVIEW") ":\n%s",
+                    getParserPluginName(), getParserLanguageHelp());
+            printf("\n");
+            continue;
+        }
+
+        if(strStartsWith(sql,"\\o"))
+        {
+            printf(TB_FG_BG(WHITE,BLACK,"PARAMETERS ARE SET AS FOLLOWS") "\n%s",
+                    optionsToStringOnePerLine());
+            printf("\n");
+            continue;
+        }
+
+
+		// process query
 		TRY
 		{
             NEW_AND_ACQUIRE_MEMCONTEXT("PROCESS_CONTEXT");
@@ -158,3 +198,33 @@ handleCLIException (const char *message, const char *file, int line, ExceptionSe
                 file, line, message);
     return EXCEPTION_WIPE;
 }
+
+#ifdef HAVE_READLINE
+
+static char *
+readALine(char **str)
+{
+    char *res;
+
+    /* Get a line from the user. */
+    res = readline (prompt);
+    DEBUG_LOG(res);
+    /* If the line has any text in it, save it to the history. */
+    if (res && *res)
+      add_history (res);
+
+    *str = res;
+    return *str;
+}
+
+#else
+
+static char *
+readALine(char **str)
+{
+    printf(TB_FG_BG(WHITE,BLACK,"%s"), prompt);
+    printf(" ");
+    return gets(*str);
+}
+
+#endif

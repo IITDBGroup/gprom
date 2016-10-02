@@ -62,6 +62,7 @@ typedef struct MetadataLookupPlugin
     int (*databaseConnectionOpen) (void);
     int (*databaseConnectionClose) (void);
     int (*shutdownMetadataLookupPlugin) (void);
+    char * (*connectionDescription) (void);
 
     /* catalog lookup */
     boolean (*catalogTableExists) (char * tableName);
@@ -112,6 +113,7 @@ extern int shutdownMetadataLookupPlugin (void);
 extern int databaseConnectionOpen (void);
 extern int databaseConnectionClose(void);
 extern boolean isInitialized (void);
+extern char *getConnectionDescription (void);
 
 extern boolean catalogTableExists (char * tableName);
 extern boolean catalogViewExists (char * viewName);

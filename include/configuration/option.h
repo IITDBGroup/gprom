@@ -138,6 +138,7 @@ extern boolean optionSet(char *name);
 extern void printOptionsHelp(FILE *stream, char *progName, char *description,
         boolean showValues);
 extern void printCurrentOptions(FILE *stream);
+extern char *optionsToStringOnePerLine(void);
 
 extern void mallocOptions();
 extern void freeOptions();

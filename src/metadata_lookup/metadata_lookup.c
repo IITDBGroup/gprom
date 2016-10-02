@@ -166,6 +166,15 @@ isInitialized (void)
     return result;
 }
 
+char *
+getConnectionDescription (void)
+{
+    ASSERT(activePlugin);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    char *result = activePlugin->connectionDescription();
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
 
 boolean
 catalogTableExists (char * tableName)

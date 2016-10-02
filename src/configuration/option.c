@@ -835,6 +835,26 @@ printCurrentOptions(FILE *stream)
     }
 }
 
+char *
+optionsToStringOnePerLine(void)
+{
+    StringInfo result = makeStringInfo();
+    char *str;
+
+    FOREACH_HASH_KEY(Constant,k,optionPos)
+    {
+        char *name = STRING_VALUE(k);
+        OptionInfo *v = getInfo(name);
+        appendStringInfo(result, "%50s\tVALUE: %s\n",
+                v->option,
+                valGetString(&v->value, v->valueType));
+    }
+
+    str = result->data;
+//    free(result);
+    return str;
+}
+
 static char *
 valGetString(OptionValue *def, OptionType type)
 {

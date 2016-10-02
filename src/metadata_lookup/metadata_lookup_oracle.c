@@ -89,6 +89,7 @@ static void initAggList(void);
 static void freeAggList(void);
 static void initWinfList(void);
 static void freeWinfList(void);
+static char *oracleGetConnectionDescription (void);
 static OCI_Transaction *createTransaction(IsolationLevel isoLevel);
 static OCI_Resultset *executeStatement(char *statement);
 static boolean executeNonQueryStatement(char *statement);
@@ -116,6 +117,7 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->databaseConnectionOpen = oracleDatabaseConnectionOpen;
     plugin->databaseConnectionClose = oracleDatabaseConnectionClose;
     plugin->shutdownMetadataLookupPlugin = oracleShutdownMetadataLookupPlugin;
+    plugin->connectionDescription = oracleGetConnectionDescription;
     plugin->isInitialized = oracleIsInitialized;
     plugin->catalogTableExists = oracleCatalogTableExists;
     plugin->catalogViewExists = oracleCatalogViewExists;
@@ -399,6 +401,12 @@ getConnection()
     if(isConnected())
         return conn;
     return NULL;
+}
+
+static char *
+oracleGetConnectionDescription (void)
+{
+    return CONCAT_STRINGS("Oracle:", getStringOption("connection.user"), "@", getStringOption("connection.host"));
 }
 
 boolean
