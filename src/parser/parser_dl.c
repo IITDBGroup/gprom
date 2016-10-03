@@ -30,8 +30,8 @@ static const char *languageHelp = "The user can specify a datalog program as a l
         "\t\tQ(X1, ..., Xn) :- BODY .\n"
         "\twhere Q is an IDB predicate and each Xi is an expression over constants and variables from the body\n"
         "\tand BODY is a list of RELATIONAL ATOM and COMPARISON ATOM elements\n"
-        "\tA RELATIONAL ATOM is of the form [NOT] R(Y1, ..., Yn) where R is an EDB or IDB predicate and each Yi is either a constant or a variable\n"
-        "\tA COMPARISON ATOM is of the form X op Y WHERE X and Y are constants or variables and op is one of <,>,=,!=\n"
+        "\tA RELATIONAL_ATOM is of the form [NOT] R(Y1, ..., Yn) where R is an EDB or IDB predicate and each Yi is either a constant or a variable\n"
+        "\tA COMPARISON_ATOM is of the form X op Y WHERE X and Y are constants or variables and op is one of <,>,=,!=\n"
         "Example: Q(X) :- R(X,Y), not R(Y,X).\n\n"
         "Answer Predicate Declaration\n"
         "----------------------------\n"
@@ -65,9 +65,9 @@ static const char *languageHelp = "The user can specify a datalog program as a l
         " relation of a provenance graph explaining the existence respective absence of tuples matching the user question. The "
         "user can ask why and why-not questions asking for existence respective absence of query results.\n"
         "Syntax: A provenance question is of form\n"
-        "\t\tWHY ( RELATIONAL ATOM ) .\n"
+        "\t\tWHY ( RELATIONAL_ATOM ) .\n"
         "\tor\n"
-        "\t\tWHYNOT ( RELATIONAL ATOM ) ."
+        "\t\tWHYNOT ( RELATIONAL_ATOM ) .\n"
         "Example: WHY(Q(1,2)).\n"
         ;
 
