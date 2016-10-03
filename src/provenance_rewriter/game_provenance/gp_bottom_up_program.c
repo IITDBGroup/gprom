@@ -1666,7 +1666,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
                                 	rExpr = createSkolemExpr(GP_NODE_POSREL,
                                 	        atomRel, copyObject(a->args));
                                 else
-                                	rExpr = createSkolemExpr(GP_NODE_EDB,
+                                	rExpr = createSkolemExpr(GP_NODE_TUPLE,
                                 			atomRel, copyObject(a->args));
 
                                 if (ruleWon)
@@ -1727,7 +1727,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
                                 	rExpr = createSkolemExpr(GP_NODE_POSREL,
                                 			Rel, copyObject(a->args));
                                 else
-                                	rExpr = createSkolemExpr(GP_NODE_EDB,
+                                	rExpr = createSkolemExpr(GP_NODE_TUPLE,
                                 			Rel, copyObject(a->args));
 
                                 if (ruleWon)
@@ -3220,6 +3220,10 @@ createSkolemExpr (GPNodeType type, char *id, List *args)
             concatArgs = appendToTailOfList(concatArgs,
                         createConstString("EDB_"));
             break;
+        case GP_NODE_TUPLE:
+			concatArgs = appendToTailOfList(concatArgs,
+						createConstString("TUPLE_"));
+			break;
         case GP_NODE_RULEHYPER:
             concatArgs = appendToTailOfList(concatArgs,
                     createConstString("RULEHYPEREDGE_"));
