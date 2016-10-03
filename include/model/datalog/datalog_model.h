@@ -56,6 +56,7 @@ typedef struct DLProgram
     List *rules;
     List *facts;
     char *ans;
+    char *userdomain;
 } DLProgram;
 
 NEW_ENUM_WITH_TO_STRING(GPNodeType,
@@ -81,6 +82,7 @@ extern DLAtom *createDLAtom (char *rel, List *args, boolean negated);
 extern DLVar *createDLVar (char *vName, DataType vType);
 extern boolean isConstAtom (DLAtom *a);
 extern DLRule *createDLRule (DLAtom *head, List *body);
+//extern DLProgram *createDLProgram (List *dlRules, List *facts, char *ans, char *userdomain);
 extern DLProgram *createDLProgram (List *dlRules, List *facts, char *ans);
 extern DLComparison *createDLComparison (char *op, Node *lArg, Node *rArg);
 
@@ -137,6 +139,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_PROV_FORMAT_TUPLE_RULE_TUPLE "TUPLE_RULE_TUPLE"
 #define DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE "TUPLE_RULE_GOAL_TUPLE"
 #define DL_PROV_FORMAT_HEAD_RULE_EDB "HEAD_RULE_EDB"
+#define DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED "TUPLE_RULE_TUPLE_REDUCED"
 
 // property keys for storing analysis results for a program
 #define DL_MAP_RELNAME_TO_RULES "REL_TO_RULES"
