@@ -303,7 +303,7 @@ OptionInfo opts[] =
         {
                 "plugin.parser",
                 "-Pparser",
-                "select parser plugin: oracle",
+                "select parser plugin: oracle, dl",
                 OPTION_STRING,
                 wrapOptionString(&plugin_parser),
                 defOptionString(NULL)
@@ -840,7 +840,7 @@ printOptionsHelp(FILE *stream, char *progName, char *description, boolean showVa
 
         if (showValues)
         {
-            fprintf(stream, "%s%s\n\tDEFAULT VALUE: %s\n\tACTUAL VALUE: %s\n\t%s\n",
+            fprintf(stream, "%-50s\t%-30sDEFAULT VALUE: %s\tACTUAL VALUE: %s\n\t%s\n",
                     v->cmdLine ? v->cmdLine : "-activate/-deactivate ",
                     v->cmdLine ? "" : v->option,
                     defGetString(&v->def, v->valueType),

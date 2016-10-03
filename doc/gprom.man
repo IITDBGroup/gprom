@@ -1,0 +1,130 @@
+.TH gprom 1 "02 October 2016" "version 0.0.1"
+.\" ********************************************************************************
+.SH NAME
+.B gprom
+- a command line interface for the GProM provenance database middleware
+.\" ********************************************************************************
+.SH SYNOPSIS
+.B gprom
+.I [connection_option]
+
+.B gprom \-sql
+.I query
+.I [connection_option]
+
+.B gprom \-sqlfile
+.I file
+.I [connection_options]
+
+.B gprom \-help
+.\" ********************************************************************************
+.SH DESCRIPTION
+\fBGProM\fR is a database middleware that adds provenance support to multiple database backends. \fBgprom\fR
+is a command line interface for GProM. The first form starts an interpreter session where the user runs SQL and utility commands. The second form evaluates a single query given as parameter \fIquery\fR.
+The third form runs all SQL commands from file \fIfile\fR.
+.\" ********************************************************************************
+.SH OPTIONS
+\"********************
+.TP
+.BR \-help
+show help message and quit
+\"********************
+.TP
+.BR \-sql " " \fIquery\fR
+process 
+.I query
+\"********************
+.TP
+.BR \-sqlfile " " \fIfile\fR
+read query to be processed from \fIfile\fR
+\"****************************************
+.SS LOGGING AND DEBUG
+Set logging and debugging options.
+\"********************
+.TP
+.BR \-log 
+activate logging
+\"********************
+.TP
+.BR \-loglevel " " \fIlevel\fR
+set minimum level of log messages to be shown. Valid settings for \fIlevel\fR are \fB0 = NONE\fR, \fB1 = FATAL\fR, \fB2 = ERROR\fR, \fB3 = INFO\fR, \fB4 = DEBUG\fR, \fB5 = TRACE\fR.
+\"****************************************
+.SS PLUGINS
+Configure plugins.
+\"********************
+.TP
+.BR \-P\fIplugin_type\fR " " \fIplugin_name\fR
+Select \fIplugin_name\fR as the active plugin for \fIplugin_type\fR. Most components in GProM are pluggable. See the section on plugins below.
+\"****************************************
+.SS CONNECTION OPTIONS
+Configure the connection to the backend database system.
+\"********************
+.TP
+.BR \-host " " \fIhost\fR
+Host IP address for backend DB connection. Default value: \fIligeti.cs.iit.edu\fR.
+\"********************
+.TP
+.BR \-db " " \fIorcl\fR
+Database name for backend DB connection. For Oracle connections this determines SID or SERVICE_NAME. Default value: \fIorcl\fR
+\"********************
+.TP
+.BR \-user " " \fIuser\fR
+User for backend DB connection. Default value: \fIfga_user\fR
+\"********************
+.TP
+.BR \-passwd " " \fIpassword\fR
+Use password \fIpassword\fR for backend DB connection.
+\"********************************************************************************
+.SH PLUGINS
+Most components in GProM are pluggable and can be replaced. The following components are realized as plugins:
+\"****************************************
+.SS parser
+The parser plugin determines what input language is used.
+.IP
+\fBorcle\fR \- Oracle SQL dialect
+.IP
+\fBdl\fR \- Datalog
+\"****************************************
+.SS executor
+GProM translates statements in an input language with provenance features into a language understood by a database backend (this process is called instrumentation). The executor plugin determines what is done with the instrumented query produced by GProM.
+.IP
+\fBsql\fR \- Print the generated query to \fIstdout\R
+
+.IP
+\fBrun\fR \- Run the generated query and show its result
+
+.IP
+\fBdl\fR \- Output a datalog program (only works if \fIdl\fR analyzer, translator, and parser plugins have been chosen
+\"****************************************
+.SS analyzer
+.IP
+\fBdl\fR \-
+\"****************************************
+.SS translator
+.IP
+\fBdl\fR \-
+\"****************************************
+.SS sqlcodegen
+.IP
+\fBdl\fR \-
+\"****************************************
+.SS cbo
+.IP
+\fBdl\fR \-
+\"********************************************************************************
+.SH EXAMPLES
+\"****************************************
+Connect to an Oracle database (default) at IP \fI1.1.1.1\fR with SID \fIorcl\fR using user \fIusr\fR and password \fImypass\fR at port \fI1521\fR and start an interactive session that shows rewritten SQL text:
+.PP
+.nf
+.RS
+gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
+.RE
+.fi
+.PP
+\"****************************************
+Start an interactive session to 
+\"********************************************************************************
+.SH AUTHOR
+
+
