@@ -28,7 +28,7 @@ typedef enum ParserPluginType
 typedef struct ParserPlugin
 {
     ParserPluginType type;
-
+    const char *languageHelp;
     /* functional interface */
     Node *(*parseStream) (FILE *file);
     Node *(*parseFromString) (char *input);
@@ -37,6 +37,8 @@ typedef struct ParserPlugin
 
 // plugin management
 extern void chooseParserPlugin(ParserPluginType type);
+extern char *getParserPluginName (void);
+extern const char *getParserLanguageHelp (void);
 extern void chooseParserPluginFromString(char *type);
 
 // parser interface wrapper

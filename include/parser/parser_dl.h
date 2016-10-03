@@ -13,5 +13,6 @@
 
 extern Node *parseStreamdl (FILE *stream);
 extern Node *parseFromStringdl (char *input);
+extern const char *languageHelpDL (void);
 
 #endif /* INCLUDE_PARSER_PARSER_DL_H_ */

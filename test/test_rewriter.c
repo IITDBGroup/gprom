@@ -48,7 +48,7 @@ main (int argc, char* argv[])
         if (file == NULL)
             FATAL_LOG("could not open file %s with error %s", fName, strerror(errno));
 
-        result = rewriteQueryFromStream(file);
+        result =  rewriteQueryFromStream(file);
         fclose(file);
         ERROR_LOG("REWRITE RESULT FROM STREAM IS <%s>", result);
     }
@@ -66,8 +66,6 @@ main (int argc, char* argv[])
     OUT_TIMERS();
 
     shutdownApplication();
-//    freeOptions();
-//    destroyMemManager();
 
     return EXIT_SUCCESS;
 }

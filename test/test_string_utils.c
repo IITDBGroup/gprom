@@ -80,5 +80,9 @@ testSplit(void)
     result = splitString(input, ",");
     ASSERT_EQUALS_STRING(result,expected, "elements are AA, b, and c");
 
+    input = strdup("AA  ,, b c");
+    result = splitString(input, ", ");
+    ASSERT_EQUALS_STRING(result,expected, "elements are AA, b, and c");
+
     return PASS;
 }

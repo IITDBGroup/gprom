@@ -20,6 +20,7 @@
 #include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
 
+
 // plugin
 static ParserPlugin *plugin = NULL;
 
@@ -69,13 +70,37 @@ chooseParserPlugin(ParserPluginType type)
     }
 }
 
+char *
+getParserPluginName (void)
+{
+    switch(plugin->type)
+    {
+        case PARSER_PLUGIN_ORACLE:
+            return "Oracle SQL";
+        case PARSER_PLUGIN_POSTGRES:
+            return "Postgres SQL";
+        case PARSER_PLUGIN_HIVE:
+            return "HiveQL";
+        case PARSER_PLUGIN_DL:
+            return "Datalog";
+    }
+}
+
+const char *
+getParserLanguageHelp (void)
+{
+    return plugin->languageHelp;
+}
+
 static ParserPlugin *
 assembleOraclePlugin(void)
 {
     ParserPlugin *p = NEW(ParserPlugin);
 
+    p->type = PARSER_PLUGIN_ORACLE;
     p->parseStream = parseStreamOracle;
     p->parseFromString = parseFromStringOracle;
+    p->languageHelp = languageHelpOracle();
 
     return p;
 }
@@ -85,8 +110,10 @@ assemblePostgresPlugin(void)
 {
     ParserPlugin *p = NEW(ParserPlugin);
 
+    p->type = PARSER_PLUGIN_POSTGRES;
     p->parseStream = parseStreamPostgres;
     p->parseFromString = parseFromStringPostgres;
+    p->languageHelp = "";
 
     return p;
 }
@@ -108,8 +135,10 @@ assembleDLPlugin(void)
 {
     ParserPlugin *p = NEW(ParserPlugin);
 
+    p->type = PARSER_PLUGIN_DL;
     p->parseStream = parseStreamdl;
     p->parseFromString = parseFromStringdl;
+    p->languageHelp = languageHelpDL();
 
     return p;
 }

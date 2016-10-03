@@ -38,3 +38,4 @@ depcache
 build
 autotests
 valgrind.txt
+src/command_line/gprom

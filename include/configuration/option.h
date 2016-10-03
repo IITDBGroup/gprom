@@ -119,11 +119,13 @@ extern boolean opt_optimization_pull_up_duplicate_remove_operators;
 extern boolean cost_based_close_option_removedp_by_set;
 
 // new option interface
+extern char *getOptionAsString (char *name);
 extern char *getStringOption (char *name);
 extern int getIntOption (char *name);
 extern boolean getBoolOption (char *name);
 extern double getFloatOption (char *name);
 
+extern void setOption (char *name, char *value);
 extern void setStringOption (char *name, char *value);
 extern void setIntOption(char *name, int value);
 extern void setBoolOption(char *name, boolean value);
@@ -138,6 +140,7 @@ extern boolean optionSet(char *name);
 extern void printOptionsHelp(FILE *stream, char *progName, char *description,
         boolean showValues);
 extern void printCurrentOptions(FILE *stream);
+extern char *optionsToStringOnePerLine(void);
 
 extern void mallocOptions();
 extern void freeOptions();

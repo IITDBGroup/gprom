@@ -137,7 +137,6 @@
 #define HAVE_ORACLE_BACKEND 1
 #endif
 
-
 // any backend
 #if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND
 #define HAVE_A_BACKEND 1
@@ -148,6 +147,12 @@
 #include <ocilib.h>
 #endif
 
+/********************************************************************************
+ * Readline
+ */
+#if HAVE_LIBREADLINE
+#define HAVE_READLINE 1
+#endif
 
 /*******************************************************************************
  * Definitions

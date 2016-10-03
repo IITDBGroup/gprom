@@ -6,9 +6,9 @@ AM_CFLAGS = -I$(top_srcdir)/include @GPROM_CFLAGS@
 
 # subdirs to build
 if JAVABINDING
-SUBDIRS = include src test javatest
+SUBDIRS = include src test javatest doc
 else
-SUBDIRS = include src test
+SUBDIRS = include src test doc
 endif
 
 # additional directories to include in a distribution package:

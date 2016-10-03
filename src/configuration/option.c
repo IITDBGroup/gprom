@@ -11,6 +11,7 @@
 
 #include "common.h"
 #include "configuration/option.h"
+#include "configuration/option_parser.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
 #include "model/expression/expression.h"
@@ -302,7 +303,7 @@ OptionInfo opts[] =
         {
                 "plugin.parser",
                 "-Pparser",
-                "select parser plugin: oracle",
+                "select parser plugin: oracle, dl",
                 OPTION_STRING,
                 wrapOptionString(&plugin_parser),
                 defOptionString(NULL)
@@ -685,6 +686,17 @@ getInfo (char *name)
 }
 
 char *
+getOptionAsString (char *name)
+{
+    OptionInfo *v;
+
+    ASSERT(hasOption(name));
+    v = getInfo(name);
+
+    return valGetString(&v->value, v->valueType);
+}
+
+char *
 getStringOption (char *name)
 {
     ASSERT(hasOption(name));
@@ -715,6 +727,30 @@ getFloatOption (char *name)
 
     return *(getValue(name)->f);
 }
+
+void
+setOption (char *name, char *value)
+{
+    OptionInfo *v;
+    ASSERT(hasOption(name));
+    v = getInfo(name);
+
+    switch(v->valueType)
+    {
+        case OPTION_BOOL:
+            setBoolOption(name, parseBool(value));
+            break;
+        case OPTION_STRING:
+            setStringOption(name, value);
+            break;
+        case OPTION_INT:
+            setIntOption(name, parseInt(value));
+            break;
+        case OPTION_FLOAT:
+            break;
+    }
+}
+
 
 void
 setStringOption (char *name, char *value)
@@ -804,7 +840,7 @@ printOptionsHelp(FILE *stream, char *progName, char *description, boolean showVa
 
         if (showValues)
         {
-            fprintf(stream, "%s%s\n\tDEFAULT VALUE: %s\n\tACTUAL VALUE: %s\n\t%s\n",
+            fprintf(stream, "%-50s\t%-30sDEFAULT VALUE: %s\tACTUAL VALUE: %s\n\t%s\n",
                     v->cmdLine ? v->cmdLine : "-activate/-deactivate ",
                     v->cmdLine ? "" : v->option,
                     defGetString(&v->def, v->valueType),
@@ -833,6 +869,26 @@ printCurrentOptions(FILE *stream)
                 v->option,
                 valGetString(&v->value, v->valueType));
     }
+}
+
+char *
+optionsToStringOnePerLine(void)
+{
+    StringInfo result = makeStringInfo();
+    char *str;
+
+    FOREACH_HASH_KEY(Constant,k,optionPos)
+    {
+        char *name = STRING_VALUE(k);
+        OptionInfo *v = getInfo(name);
+        appendStringInfo(result, "%50s\tVALUE: %s\n",
+                v->option,
+                valGetString(&v->value, v->valueType));
+    }
+
+    str = result->data;
+//    free(result);
+    return str;
 }
 
 static char *

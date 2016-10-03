@@ -10,4 +10,8 @@ extern boolean isOption(char* const value);
 extern int getNumberOfRewrite(int const argc, char* const argv[]);
 extern void printOptionParseError(FILE *out);
 
+extern boolean parseBool (char *b);
+extern int parseInt (char *i);
+
+
 #endif

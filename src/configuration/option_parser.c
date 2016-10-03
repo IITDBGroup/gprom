@@ -15,6 +15,7 @@
 #include "configuration/option.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
+#include "exception/exception.h"
 
 // use standard malloc to circumvent the memory manager
 #undef malloc
@@ -142,10 +143,10 @@ parseOneOption (char *opt, char* const argv[], const int argc, int *pos)
                 if (*pos < argc && !isOption(argv[*pos]))
                 {
                     char *bVal = argv[*pos];
-                    if (streq(bVal,"TRUE") || streq(bVal,"t") || streq(bVal,"1") || streq(bVal,"true"))
-                        setBoolOption(o,TRUE);
-                    else
-                        setBoolOption(o,FALSE);
+//                    if (streq(bVal,"TRUE") || streq(bVal,"t") || streq(bVal,"1") || streq(bVal,"true"))
+                        setBoolOption(o,parseBool(bVal));
+//                    else
+//                        setBoolOption(o,FALSE);
                 }
                 // otherwise mentioning an option sets it to TRUE
                 else
@@ -177,3 +178,31 @@ printOptionParseError(FILE *out)
 {
     fprintf(out, "ERROR PARSING OPTIONS: %s\n\n", errorMessage ? errorMessage : "");
 }
+
+boolean
+parseBool (char *b)
+{
+    if (streq(b,"TRUE") || streq(b,"T") || streq(b,"t") || streq(b,"1") || streq(b,"true"))
+        return TRUE;
+    if (streq(b,"FALSE") || streq(b,"F") || streq(b,"f") || streq(b,"0") || streq(b,"false"))
+        return FALSE;
+//    THROW(SEVERITY_RECOVERABLE, "<%s> is not a boolean.", b);
+
+    do { \
+            storeExceptionInfo(SEVERITY_RECOVERABLE, formatMes("<%s> is not a boolean.", b),"/Users/lord_pretzel/Documents/workspace/GProM/src/configuration/option_parser.c",189); \
+            if (exceptionBuf != ((void*)0)) \
+                longjmp(*exceptionBuf, 1); \
+            else \
+                exit(1); \
+        } while(0);
+
+    return FALSE;
+}
+
+int
+parseInt (char *i)
+{
+    int result = atoi(i);
+    return result;
+}
+

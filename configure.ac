@@ -218,6 +218,20 @@ AS_IF([test "x$enable_java" == "xno"], [
 ])
 AM_CONDITIONAL(JAVABINDING, test "x$enable_java" != "xno")
 ])
+# enable/disable readline support
+AC_DEFUN([AC_ENABLE_READLINE],
+[
+AC_MSG_CHECKING([should support readline library in CLI interface])
+AC_ARG_ENABLE(readline, AS_HELP_STRING([--disable-readline],[Disable compilation with support for readline library]))
+
+AS_IF([test "x$enable_readline" == "xno"], [
+  AC_DEFINE([DISABLE_READLINE],[],[Disable support for readline])
+  AC_MSG_RESULT([no])
+],
+[
+  AC_MSG_RESULT([yes])
+])
+])
 # set custom compiler flags
 AC_DEFUN([AC_SET_CUSTOM_CFLAGS],
 [
@@ -295,6 +309,8 @@ AC_CHECK_HEADERS([signal.h])
 AC_CHECK_HEADERS([float.h])
 AC_CHECK_HEADERS([pthread.h])
 AC_CHECK_HEADERS([math.h])
+#AC_CHECK_HEADERS([readline/readline.h])
+#AC_CHECK_HEADERS([readline/history.h])
 AC_HEADER_ASSERT
 ################################################################################
 # MEMORY ALLOCATION STUFF
@@ -313,6 +329,9 @@ AC_ENABLE_POSTGRES
 ################################################################################
 # Check which language bindings to build
 AC_ENABLE_JAVA_BINDING
+################################################################################
+# Enable readline in CLI
+AC_ENABLE_READLINE
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
 # check if user has provided us with non-standard locations for OCI/OCILIB libraries
@@ -345,7 +364,14 @@ AS_IF([test "x$enable_oracle" == "xno"], [
   AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
 ])
 ])
-################################################################################
+AC_CHECK_LIB([readline],[readline],[],[
+AS_IF([test "x$enable_readline" == "xno"], [
+  AC_MSG_WARN([missing readline library])
+],
+[
+  AC_MSG_ERROR([missing readline library - if you want to compile without readline support use --disable-readline])
+])
+])################################################################################
 # Postgres access library (libpq)
 # check if user has provided us with a non-standard location for Postgres's libpq library
 AC_LIBPQ_LOCATION
@@ -382,6 +408,7 @@ AC_CONFIG_HEADERS([config.h])
 # DERIVED FILES - MAINLY MAKEFILES
 AC_CONFIG_FILES([
 	Makefile
+	doc/Makefile
 	include/Makefile
 	src/Makefile
 	src/analysis_and_translate/Makefile
@@ -430,6 +457,7 @@ echo "
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes}
   Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}
   Language bindings..: Java - ${enable_java:=yes}
+  Readline support...: ${enable_readline:=yes}
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   CFLAGS ........: $CFLAGS
   CPPFLAGS ......: $CPPFLAGS

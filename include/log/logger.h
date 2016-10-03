@@ -36,6 +36,7 @@ typedef enum LogLevel
     LOG_TRACE = 5
 } LogLevel;
 
+extern void reinitLogger(void);
 extern void initLogger(void);
 extern void shutdownLogger (void);
 extern void setMaxLevel (LogLevel level);
