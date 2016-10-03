@@ -408,6 +408,7 @@ AC_CONFIG_HEADERS([config.h])
 # DERIVED FILES - MAINLY MAKEFILES
 AC_CONFIG_FILES([
 	Makefile
+	doc/Makefile
 	include/Makefile
 	src/Makefile
 	src/analysis_and_translate/Makefile
