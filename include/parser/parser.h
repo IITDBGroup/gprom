@@ -38,7 +38,9 @@ typedef struct ParserPlugin
 // plugin management
 extern void chooseParserPlugin(ParserPluginType type);
 extern char *getParserPluginName (void);
+extern char *getParserPluginNameFromString (char *name);
 extern const char *getParserLanguageHelp (void);
+extern const char *getParserPluginLanguageHelp (char *lang);
 extern void chooseParserPluginFromString(char *type);
 
 // parser interface wrapper

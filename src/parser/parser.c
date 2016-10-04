@@ -25,12 +25,12 @@
 static ParserPlugin *plugin = NULL;
 
 // function defs
-//static Node *parseInternal (void);
-
 static ParserPlugin *assembleOraclePlugin(void);
 static ParserPlugin *assemblePostgresPlugin(void);
 static ParserPlugin *assembleHivePlugin(void);
 static ParserPlugin *assembleDLPlugin(void);
+
+static ParserPluginType getPluginTypeFromString (char *type);
 
 // wrapper interface
 Node *
@@ -71,6 +71,13 @@ chooseParserPlugin(ParserPluginType type)
 }
 
 char *
+getParserPluginNameFromString (char *name)
+{
+    chooseParserPluginFromString(name);
+    return getParserPluginName();
+}
+
+char *
 getParserPluginName (void)
 {
     switch(plugin->type)
@@ -90,6 +97,13 @@ const char *
 getParserLanguageHelp (void)
 {
     return plugin->languageHelp;
+}
+
+const char *
+getParserPluginLanguageHelp (char *lang)
+{
+    chooseParserPluginFromString(lang);
+    return getParserLanguageHelp();
 }
 
 static ParserPlugin *
@@ -148,14 +162,20 @@ chooseParserPluginFromString(char *type)
 {
     INFO_LOG("PLUGIN parser: <%s>", type ? type : "NULL");
 
+    chooseParserPlugin(getPluginTypeFromString(type));
+}
+
+static ParserPluginType
+getPluginTypeFromString (char *type)
+{
     if (streq(type,"oracle"))
-        chooseParserPlugin(PARSER_PLUGIN_ORACLE);
+        return (PARSER_PLUGIN_ORACLE);
     else if (streq(type,"postgres"))
-        chooseParserPlugin(PARSER_PLUGIN_POSTGRES);
+        return (PARSER_PLUGIN_POSTGRES);
     else if (streq(type,"hive"))
-        chooseParserPlugin(PARSER_PLUGIN_HIVE);
+        return (PARSER_PLUGIN_HIVE);
     else if (streq(type,"dl"))
-        chooseParserPlugin(PARSER_PLUGIN_DL);
+        return (PARSER_PLUGIN_DL);
     else
         FATAL_LOG("unkown parser plugin type: <%s>", type);
 }

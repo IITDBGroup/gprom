@@ -51,6 +51,7 @@ typedef struct OptionInfo {
 
 // show help only
 boolean opt_show_help = FALSE;
+char *opt_language_help = NULL;
 
 // connection options
 char *connection_host = NULL;
@@ -190,6 +191,15 @@ OptionInfo opts[] =
                 OPTION_BOOL,
                 wrapOptionString(&opt_show_help),
                 defOptionBool(FALSE)
+        },
+        // show help only and quit
+        {
+                "languagehelp",
+                "-languagehelp",
+                "Show supported provenance requests for a supported frontend language.",
+                OPTION_STRING,
+                wrapOptionString(&opt_language_help),
+                defOptionString(NULL)
         },
         // database backend connection options
         {
@@ -348,7 +358,7 @@ OptionInfo opts[] =
                         "rewritten query and return its result",
                 OPTION_STRING,
                 wrapOptionString(&plugin_executor),
-                defOptionString(NULL)
+                defOptionString("run")
         },
         {
                 "plugin.cbo",
@@ -415,20 +425,23 @@ OptionInfo opts[] =
                 "When composable version of PI-CS provenance is use then rewrite aggregations using window functions.",
                 opt_pi_cs_rewrite_agg_window,
                 TRUE),
-        aRewriteOption(OPTION_OPTIMIZE_OPERATOR_MODEL,
-                NULL,
-                "Apply heuristic and cost based optimizations to operator model",
-                opt_optimize_operator_model,
-                FALSE),
         aRewriteOption(OPTION_TRANSLATE_UPDATE_WITH_CASE,
                 NULL,
                 "Create reenactment query for UPDATE statements using CASE instead of UNION.",
                 opt_translate_update_with_case,
                 TRUE),
-        // Cost Based Optimization Option
-		 {
+        // Optimization Options
+        {
+                OPTION_OPTIMIZE_OPERATOR_MODEL,
+                "-heuristic_opt",
+                "Activate heuristic relational algebra optimization",
+                OPTION_BOOL,
+                wrapOptionBool(&opt_optimize_operator_model),
+                defOptionBool(FALSE)
+        },
+        {
 				OPTION_COST_BASED_OPTIMIZER,
-				"-cost_based_optimizer",
+				"-cbo",
 				"Activate/Deactivate cost based optimizer",
 				OPTION_BOOL,
 				wrapOptionBool(&cost_based_optimizer),
@@ -479,7 +492,7 @@ OptionInfo opts[] =
                 "-Opush_selections",
                 "Optimization: Activate selection move-around",
                 opt_optimization_push_selections,
-                TRUE
+                FALSE
         ),
         anOptimizationOption(OPTIMIZATION_MERGE_OPERATORS,
                 "-Omerge_ops",
@@ -489,13 +502,13 @@ OptionInfo opts[] =
         ),
         anOptimizationOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR,
                 "-Ofactor_attrs",
-                "Optimization: try to factor out attribute references in projection"
+                "Optimization: try to factor attribute references in projection"
                 " expressions to open up new operator merging opportunities",
                 opt_optimization_factor_attrs,
                 FALSE
         ),
         anOptimizationOption(OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ,
-                "-Omaterialize_unsafe",
+                "-Omaterialize_unsafe_proj",
                 "Optimization: add materialization hint for projections that "
                 "if merged with adjacent projection would cause expontential "
                 "expression size blowup",
@@ -509,31 +522,31 @@ OptionInfo opts[] =
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR,
-                "-Oremove_redundant_duplicate_operator",
-                "Optimization: try to remove redundant duplicate operator",
+                "-Oremove_redundant_duplicate_removals",
+                "Optimization: try to remove redundant duplicate removal operators",
                 opt_remove_redundant_duplicate_operator,
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS,
-                "-Oremove_unnecessary_window_operators",
-                "Optimization: try to remove unnecessary window operators",
+                "-Oremove_redundant_window_operators",
+                "Optimization: try to remove redundant window operators",
                 opt_optimization_remove_unnecessary_window_operators,
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS,
                 "-Oremove_unnecessary_columns",
-                "Optimization: try to remove unnecessary columns",
+                "Optimization: try to remove unnecessary columns that are not used by the query",
                 opt_optimization_remove_unnecessary_columns,
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS,
-        		"-Opullup_duplicate_remove_operators",
+        		"-Opullup_duplicate_removals",
         		"Optimization: try to pull up duplicate remove operators",
         		opt_optimization_pull_up_duplicate_remove_operators,
         		TRUE
         ),
         anOptimizationOption(OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ,
-                "-Opulling_up_provenance_proj",
+                "-Opullup_prov_projections",
                 "Optimization: try to pull up provenance projection",
                 opt_optimization_pulling_up_provenance_proj,
                 TRUE
@@ -542,18 +555,18 @@ OptionInfo opts[] =
                 "-Opush_selections_through_joins",
                 "Optimization: try to push selections through joins",
                 opt_optimization_push_selections_through_joins,
-                TRUE
+                FALSE
         ),
         anOptimizationOption(OPTIMIZATION_SELECTION_MOVE_AROUND,
-                "-Oselections_move_around",
-                "Optimization: try to move selection around",
+                "-Oselection_move_around",
+                "Optimization: try to move selection operators around to push them down including side-way information passing",
                 opt_optimization_selection_move_around,
                 TRUE
                 ),
         // sanity model checking options
         anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
                 "-Cunique_attr_names",
-                "Model Check: check that attribute names are unique for each operator's schema.",
+                "Model Check: check that attribute names are unique for each operator's schema",
                 opt_operator_model_unique_schema_attribues,
                 TRUE
         ),

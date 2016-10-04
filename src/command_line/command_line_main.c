@@ -74,6 +74,12 @@ main(int argc, char* argv[])
     {
 
     }
+    else if (getStringOption("languagehelp"))
+    {
+        char *lang = getStringOption("languagehelp");
+        printf(TB_FG_BG(WHITE,BLACK,"%s - LANGUAGE OVERVIEW") ":\n%s",
+                getParserPluginNameFromString(lang), getParserPluginLanguageHelp(lang));
+    }
     else if (getStringOption("input.sql") != NULL)
     {
         result = rewriteQuery(getStringOption("input.sql"));

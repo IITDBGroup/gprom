@@ -6,28 +6,40 @@
 .\" ********************************************************************************
 .SH SYNOPSIS
 .B gprom
-.I [connection_option]
+.I [connection_options]
 
 .B gprom \-sql
 .I query
-.I [connection_option]
+.I [connection_options]
 
 .B gprom \-sqlfile
 .I file
 .I [connection_options]
 
 .B gprom \-help
+
+.B gprom \-languagehelp \fIlanguage\fR
 .\" ********************************************************************************
 .SH DESCRIPTION
-\fBGProM\fR is a database middleware that adds provenance support to multiple database backends. \fBgprom\fR
-is a command line interface for GProM. The first form starts an interpreter session where the user runs SQL and utility commands. The second form evaluates a single query given as parameter \fIquery\fR.
+\fBGProM\fR is a database middleware that adds provenance support to multiple database backends. Provenance is this respect refers to information about how data is produced by database operations. That is, for a row in the database or returned by a query we capture from which rows it was derived and by which operations. The system compiles declarative queries with provenance requests into SQL code and executes this SQL code on a backend database system. GProM supports provenance capture for SQL queries and transactions, and produces provenance graphs explaining existing and missing answers for Datalog queries. Provenance is captured on demand by using a compilation technique called instrumentation. Instrumentation rewrites an SQL query (or past transaction) into a query that returns rows paired with their provenance. The output of the instrumentation process is a regular SQL query that can be executed using any standard relational database. The instrumented query generated from a provenance request returns a standard relation that maps rows to their provenance. GProM extends multiple frontend languages (e.g., SQL and Datalog) with provenance requests and can produce code for multiple backends (currently Oracle).
+
+.PP
+\fBgprom\fR
+is a command line interface for GProM. gprom can be called in several ways as shown above in the synopsis. The first form starts an interactive shell where the user runs SQL and utility commands. The second form evaluates a single query given as parameter \fIquery\fR.
 The third form runs all SQL commands from file \fIfile\fR.
+The last form describes the provenance extensions that GProM supports for a particular frontend language, e.g., \fIoracle\fR for Oracle SQL. See discussion on parser plugins below for a comprehensive list of supported frontend languages. See the \fBEXAMPLES\fR section for some typical usage examples.
 .\" ********************************************************************************
 .SH OPTIONS
+\"****************************************
+.SS HELP
+Options to get help on GProM usage.
 \"********************
 .TP
 .BR \-help
 show help message and quit
+\"****************************************
+.SS INPUT
+These options determine whether GProM operates as an interactive shell or just processes one query. If none of the options below is set, then an interactive shell is opened.
 \"********************
 .TP
 .BR \-sql " " \fIquery\fR
@@ -65,15 +77,42 @@ Host IP address for backend DB connection. Default value: \fIligeti.cs.iit.edu\f
 \"********************
 .TP
 .BR \-db " " \fIorcl\fR
-Database name for backend DB connection. For Oracle connections this determines SID or SERVICE_NAME. Default value: \fIorcl\fR
+Database name for the backend DB connection. For Oracle connections this determines \fISID\fR or \fISERVICE_NAME\fR. Default value: \fIorcl\fR
 \"********************
 .TP
 .BR \-user " " \fIuser\fR
-User for backend DB connection. Default value: \fIfga_user\fR
+User for the backend DB connection. Default value: \fIfga_user\fR
 \"********************
 .TP
 .BR \-passwd " " \fIpassword\fR
-Use password \fIpassword\fR for backend DB connection.
+Use password \fIpassword\fR for the backend DB connection.
+\"********************
+.TP
+.BR \-port " " \fIport\fR
+The TPC/IP network port to use for the backend DB connection.
+\"****************************************
+.SS PROVENANCE FEATURES
+GProM main purpose is to provide provenance support for relational databases by instrumenting operations for provenance capture. These options control certain aspects of provenance instrumentation.
+\"********************
+.TP
+.BR \-host " " \fIhost\fR
+Host IP address for backend DB connection. Default value: \fIligeti.cs.iit.edu\fR.
+\"****************************************
+.SS OPTIMIZATION
+GProM features a heuristic and cost-based optimizer for relational algebra and provenance instrumentation. These options control the optimizer.
+\"********************
+.TP
+.BR \-heuristic_opt
+Apply heuristic application of relational algebra optimization rules. Default value: \fIFALSE\fR.
+\"********************
+.TP
+.BR \-cbo
+Apply cost-based optimization. Default value: \fIFALSE\fR.
+\"********************
+.TP
+.BR \-O\fIoptimization_option\fR
+Activate optimization option. Most options correspond to equivalence preserving relational algebra transformations. \-O\fIoptimization_option\fR activates the option. To deactivate an option use \-O\fIoptimization_option\fR \fIFALSE\fR. For example, \fB\-Omerge_ops\fR activates a rule that merges adjacent selections and projections in a query. See section \fBOPTIMIZATION\fR below for a full list of supported \fIoptimization_option\fR values.
+
 \"********************************************************************************
 .SH PLUGINS
 Most components in GProM are pluggable and can be replaced. The following components are realized as plugins:
@@ -88,33 +127,97 @@ The parser plugin determines what input language is used.
 .SS executor
 GProM translates statements in an input language with provenance features into a language understood by a database backend (this process is called instrumentation). The executor plugin determines what is done with the instrumented query produced by GProM.
 .IP
-\fBsql\fR \- Print the generated query to \fIstdout\R
-
+\fBsql\fR \- Print the generated query to \fIstdout\fR
 .IP
 \fBrun\fR \- Run the generated query and show its result
-
 .IP
 \fBdl\fR \- Output a datalog program (only works if \fIdl\fR analyzer, translator, and parser plugins have been chosen
 \"****************************************
 .SS analyzer
+This plugin checks the output of the parser for semantic correctness.
 .IP
-\fBdl\fR \-
+\fBoracle\fR \- Assumes the input is an SQL query written in Oracle's SQL dialect
+.IP
+\fBdl\fR \- Analyses Datalog inputs
 \"****************************************
 .SS translator
+This plugin translates the input language into \fBrelational algebra\fR which is used as an internal code representation by GProM.
 .IP
-\fBdl\fR \-
+\fBoracle\fR \- Translates Oracle SQL into relational algebra
+.IP
+\fBdl\fR \-	Translates Datalog into relational algebra
+.IP
+\fBdummy\fR \- Do not translate the input (this can be used to produce an output language other than SQL to circumvent the limitations of GProM's relational algebra model, e.g., we currently do not support recursion)
+\"****************************************
+.SS metadatalookup
+The metadata lookup plugin handles communication with the backend database. This involves 1) running queries over the catalog of the backend to do, e.g., semantic analysis and 2) executing queries instrumented for provenance capture to compute the results of provenance requests submitted by the user. To be able to do this, the plugin manages a connection to the backend database using the C library of the backend DBMS. The type of metadata lookup plugin determines how connection parameters will be interpreted. 
+.IP
+\fBoracle\fR \- This plugin manages communication with an Oracle database backend. We use Oracle's \fIOCI\fR interface wrapped by the open source library \fIOCILIB\fR.
+.IP
+\fBpostgres\fR \- This plugin manages communication with a PostgreSQL database backend. We use PostgreSQL's \fIlibpq\fR library.
 \"****************************************
 .SS sqlcodegen
+This plugin translates GProM's internal relational algebra model of queries into queries written in a backend's SQL dialect. 
 .IP
-\fBdl\fR \-
+\fBoracle\fR \- Output SQL code written in Oracle's SQL dialect
+.IP
+\fBdl\fR \- Output a Datalog program
 \"****************************************
 .SS cbo
 .IP
 \fBdl\fR \-
 \"********************************************************************************
+.SH OPTIMIZATION
+\"****************************************
+As mentioned above GProM features a cost-based and heuristic optimization for relational algebra expressions. Heuristic optimization rules are mostly relational algebra equivalences. Cost-base optimization chooses between alternative options for instrumenting a query for provenance capture and controls the application of some of the algebraic equivalence rules we support.
+
+\"********************
+.SS Relational algebra transformations
+GProM currently implement the following transformation rules that are activated with \fB-O\fIrule\fR:
+
+.IP
+\fBmerge_ops\fR \- merge adjacent projection and selection operators. Selections will always be merged. However, merging projections can lead to an explosion of projection expression size. We actively check for such cases and avoid merging if this would increase the expression size dramatically. For example, consider a projection \fBA + A AS B\fR followed by a projection \fBB + B AS C\fR. Merging these two projections would result in the projection expression \fBA + A + A + A AS C\fR which has double the number of \fBA\fR references as the original projection. This optimization is important when computing transaction provenance. For a thorough explanation see the publications referenced on the GProM webpage.
+
+.IP
+\fBfactor_attrs\fR \- try to factor attributes in projection expressions to reduce the number of references to attributes. We currently support addition and multiplication expressions in \fBCASE\fR constructs. For example, \fBCASE WHEN \fIcond\fB THEN A + 2 ELSE A END AS A\fR can be refactored into \fBA + CASE WHEN \fIcond\fB THEN 2 ELSE 0 END AS A\fR to reduce the number of references to attribute \fBA\fR from 2 to 1.
+
+.IP
+\fBmaterialize_unsafe_proj\fR \- Force the backend database to materialize projections that could lead to uncontrolled expression growth if they would be merged with adjacent projections (as explained above for \fBmerge_ops\fR). 
+
+.IP
+\fBremove_redundant_projections\fR \- Removes projections that are unnecessary from a query, e.g., a projection on \fBA, B\fR over a table \fBR(A,B)\fR is redundant and should be removed to simplify the query. 
+
+.IP
+\fBremove_redundant_duplicate_removals\fR \- Removes duplicate removal operators if the application of duplicate removal has no effect on the query result. We check for two cases here: 1) if the input relation has at least one candidate key, then there are no duplicates and the operator has no effect and 2) if the result of the duplicate removal is later subjected to duplicate removal by a downstream operator and none of the operators on the path to this downstream operator are sensitive to the number of duplicates then the operator can be safely removed. 
+
+.IP
+\fBremove_redundant_window_operators\fR \- Remove window operators (corresponding to SQL \fBOVER\fR clause expressions) which produce an output that is not used by any downstream operators.
+
+.IP
+\fBremove_unnecessary_columns\fR \- Based on an analysis of which columns of the relation produced by an operator are used by downstream operators, we add additional projections to remove unused columns.
+
+.IP
+\fBpullup_duplicate_removals\fR \- This optimization tries to pull up duplicate removal operators.
+
+.IP
+\fBpullup_prov_projections\fR \- The provenance instrumentation used by GProM duplicates attributes of input tables using projection and propagates them to produce results annotated with provenance. This optimization tries to pull up such projections to delay the increase of schema sized caused by duplicating attributes. 
+
+.IP
+\fBselection_move_around\fR \- This optimization applies standard selection move-around techniques.
+
+\"********************
+.SS Cost-based optimization options
+
+.IP
+\fB\fR \- 
+
+
+
+
+\"********************************************************************************
 .SH EXAMPLES
 \"****************************************
-Connect to an Oracle database (default) at IP \fI1.1.1.1\fR with SID \fIorcl\fR using user \fIusr\fR and password \fImypass\fR at port \fI1521\fR and start an interactive session that shows rewritten SQL text:
+\fBExample 1.\fR Connect to an Oracle database (default) at IP \fI1.1.1.1\fR with SID \fIorcl\fR using user \fIusr\fR and password \fImypass\fR at port \fI1521\fR and start an interactive session:
 .PP
 .nf
 .RS
@@ -123,8 +226,43 @@ gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
 .fi
 .PP
 \"****************************************
-Start an interactive session to 
+\fBExample 2.\fR Same as above, but output instrumented SQL queries to \fIstdout\fR instead of executing them:
+.PP
+.nf
+.RS
+gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql
+.RE
+.fi
+.PP
+\"****************************************
+\fBExample 3.\fR Using the same database as in examples 1 and 2, capture provenance of a query \fBSELECT a FROM r\fR:
+.PP
+.nf
+.RS
+gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql \\
+      -sql "PROVENANCE OF (SELECT a FROM r);"
+.RE
+.fi
+.PP
 \"********************************************************************************
-.SH AUTHOR
+.SH AUTHORS
+
+.IP
+\fBBahareh Arab\fR (\fIbarab@hawk.iit.edu\fR)
+
+.IP
+\fBSu Feng\fR (\fIsfeng@hawk.iit.edu\fR)
+
+.IP
+\fBBoris Glavic\fR (\fIbglavic@iit.edu\fR)
+
+.IP
+\fBSeokki Lee\fR (\fIslee195@hawk.iit.edu\fR)
+
+.IP
+\fBXing Niu\fR (\fIxniu7@hawk.iit.edu\fR)
+
+\"********************************************************************************
+.SH SEE ALSO
 
 
