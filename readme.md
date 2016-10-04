@@ -1,4 +1,4 @@
-Overview
+# Overview
 
 **GProM** is a database middleware that adds provenance support to multiple database backends. Provenance is information about how data was produced by database operations. That is, for a row in the database or returned by a query we capture from which rows it was derived and by which operations. The system compiles declarative queries with provenance requests into SQL code and executes this SQL code on a backend database system. GProM supports provenance capture for SQL queries and transactions, and produces provenance graphs explaining existing and missing answers for Datalog queries. Provenance is captured on demand by using a compilation technique called *instrumentation*. Instrumentation rewrites an SQL query (or past transaction) into a query that returns rows paired with their provenance. The output of the instrumentation process is a regular SQL query that can be executed using any standard relational database. The instrumented query generated from a provenance request returns a standard relation that maps rows to their provenance. Provenance for transactions is captured retroactively using a declarative replay technique called *reenactment* that we have developed at IIT. GProM extends multiple frontend languages (e.g., SQL and Datalog) with provenance requests and can produce code for multiple backends (currently Oracle). For information about the research behind GProM have a look at the IIT DBGroup's [webpage](http://www.cs.iit.edu/%7edbgroup/research/gprom.php). 
 
@@ -45,7 +45,7 @@ As you can see `PROVENANCE OF (q)` returns the same answer as query `q`, but add
 Oracle SQL - Oracle:usr@1.1.1.1$ \q
 ```
 
-Provenance for SQL queries is only one of the features supported by GProM. A full list of SQL language extensions supported by GProM can be found in the [wiki](https://github.com/lordpretzel/gprom/wiki/language). 
+Provenance for SQL queries is only one of the features supported by GProM. A full list of SQL language extensions supported by GProM can be found in the [wiki](https://github.com/lordpretzel/gprom/wiki/language). See the [man page]() of gprom for further information how to use the CLI of the system. 
 
 # Installation
 
