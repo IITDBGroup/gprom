@@ -280,9 +280,15 @@ AS_IF([test "x$userCFLAGS" == "x"],
 AC_PROG_CC_STDC
 # CAN INLINE FUNCTIONS?
 AC_C_INLINE
+################################################################################
+# CHECK FOR PROGRAM BINARIES
 AM_PROG_AR
 AC_PROG_YACC
 AC_PROG_LEX
+AC_CHECK_PROG([pandoc],[pandoc],[yes])
+AM_CONDITIONAL([HAVE_PROG_PANDOC], [test "x$pandoc" = xyes])
+AC_CHECK_PROG([rman],[rman],[yes])
+AM_CONDITIONAL([HAVE_PROG_RMAN], [test "x$rman" = xyes])
 # INIT LIBTOOL
 LT_INIT
 ################################################################################
