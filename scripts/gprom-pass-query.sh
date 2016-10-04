@@ -21,5 +21,5 @@ fi
 
 ########################################
 # RUN COMMAND
-${GPROM} -log -loglevel ${LOG} -sql "${PROGRAM}" -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga" -activate treefiy_prov_rewrite_input ${*:3}
+${GPROM} -log -loglevel ${LOG} -sql "${PROGRAM}" -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga" -treeify-algebra-graphs ${*:3}
 

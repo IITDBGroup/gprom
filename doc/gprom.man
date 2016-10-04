@@ -37,6 +37,10 @@ Options to get help on GProM usage.
 .TP
 .BR \-help
 show help message and quit
+\"********************
+.TP
+.BR \-languagehelp " " \fIlanguage\fR
+show help for the selected language (see section on parser plugins below for supported language)
 \"****************************************
 .SS INPUT
 These options determine whether GProM operates as an interactive shell or just processes one query. If none of the options below is set, then an interactive shell is opened.
@@ -60,6 +64,30 @@ activate logging
 .TP
 .BR \-loglevel " " \fIlevel\fR
 set minimum level of log messages to be shown. Valid settings for \fIlevel\fR are \fB0 = NONE\fR, \fB1 = FATAL\fR, \fB2 = ERROR\fR, \fB3 = INFO\fR, \fB4 = DEBUG\fR, \fB5 = TRACE\fR.
+\"********************
+.TP
+.BR \-timing 
+measure how much time is spend in each component of the system and output this information at exit
+\"********************
+.TP
+.BR \-memdebug
+measure how much memory is allocated and output memory statistics at exit
+\"********************
+.TP
+.BR \-show_graphviz
+Print graphviz scripts for relational algebra expressions created by GProM internally to \fIstdout\fR
+\"********************
+.TP
+.BR \-graphviz_details
+Show operator parameters in graphviz scripts. Is ignored unless \fB\-show_graphviz\fR is activated
+\"********************
+.TP
+.BR \-aggressive_model_checking
+Aggressively check validity of generated relational algebra graphs after each processing step
+\"********************
+.TP
+.BR \-C " " \fIcheck_option\fR
+Activate \fIcheck_option\fR where \fIcheck_option\fR is one of \fIschema_consistency\fR, \fIunique_attr_names\fR, \fIparent_child_links\fR, or \fIattr_reference_consistency\fR.
 \"****************************************
 .SS PLUGINS
 Configure plugins.
@@ -95,11 +123,31 @@ The TPC/IP network port to use for the backend DB connection.
 GProM main purpose is to provide provenance support for relational databases by instrumenting operations for provenance capture. These options control certain aspects of provenance instrumentation.
 \"********************
 .TP
-.BR \-host " " \fIhost\fR
-Host IP address for backend DB connection. Default value: \fIligeti.cs.iit.edu\fR.
+.BR \-treeify-algebra-graphs
+Transform relational algebra graphs into trees before performing provenance instrumentation. Currently, this option activated by default since GProM's provenance instrumentation cannot deal with graphs yet.
+\"********************
+.TP
+.BR \-prov_reenact_update_with_case
+When reenacting update operations use \fBCASE\fR instead of \fBUNION\fR to simulate an update
+\"********************
+.TP
+.BR \-prov_instrument_agg_window
+When instrumenting an aggregation operator for provenance capture use window function to perform the instrumentation instead of using joins (the default)
+\"********************
+.TP
+.BR \-prov_reenact_only_updated_rows_use_conditions
+If the user requests the provenance of a transaction restricted to rows that where updated by the transaction, then use the conditions of update statements for this transaction to filter out rows from the input of reenactment that where not updated by the transaction
+\"********************
+.TP
+.BR \-prov_reenact_only_updated_rows_use_hist_join
+If the user requests the provenance of a transaction restricted to rows that where updated by the transaction, then use a temporal join between the table at transaction commit and the table at transaction begin to filter out rows from the input of reenactment that where not updated by the transaction
+\"********************
+.TP
+.BR \-prov_use_composable
+Use composable version of provenance instrumentation that adds additional columns which enumerate duplicates of result rows introduced by provenance instrumentation
 \"****************************************
 .SS OPTIMIZATION
-GProM features a heuristic and cost-based optimizer for relational algebra and provenance instrumentation. These options control the optimizer.
+GProM features a heuristic and cost-based optimizer for relational algebra and provenance instrumentation. These options control the optimizer. Additional options are described in the \fBOPTIMIZATION\fR section below.
 \"********************
 .TP
 .BR \-heuristic_opt
@@ -164,8 +212,13 @@ This plugin translates GProM's internal relational algebra model of queries into
 \fBdl\fR \- Output a Datalog program
 \"****************************************
 .SS cbo
+Select search strategy of the cost-based optimizer
 .IP
-\fBdl\fR \-
+\fBexhaustive\fR \- enumerate all options
+.IP
+\fBbalance\fR \- stop optimization after optimization time exceeds estimated runtime of best plan found so far
+.IP
+\fBsim_ann\fR \- use simmulated annealing meta-heuristic
 \"********************************************************************************
 .SH OPTIMIZATION
 \"****************************************
@@ -207,10 +260,23 @@ GProM currently implement the following transformation rules that are activated 
 
 \"********************
 .SS Cost-based optimization options
+The following options control the behavior of GProM's cost-based optimizer:
 
 .IP
-\fB\fR \- 
+\fB\-cbo_choice_point_remove_duplicate_removal\fR \- makes a cost-based choice of whether to remove a duplicate removal operator when possible
 
+.IP
+\fB\-cbo_max_considered_plans\fR \fInum_plans\fR \- stop cost-based optimization after \fInum_plans\fR have been considered.
+
+.IP
+\fB\-cbo_sim_ann_const\fR \fIc\fR \- Set the constant \fIc\fR used by the simulated annealing search strategy to calculate ap, e.g., c = 10, 20, 50 or 100
+
+.IP
+\fB\-cbo_sim_ann_cooldown_rate\fR \- 
+Set the cooling down rate used by simulated annealing. Value has to be between 0.1 and 0.9.
+
+.IP
+\fB\-cbo_num_heuristic_opt_iterations\fR \fInum_iter\fR \- Apply each heuristic optimization rule \fInum_iter\fR times.
 
 
 
