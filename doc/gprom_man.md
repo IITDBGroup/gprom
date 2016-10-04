@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.19.2 -->
-<!-- CreationDate: Mon Oct  3 18:47:12 2016 -->
+<!-- CreationDate: Mon Oct  3 19:17:49 2016 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -27,6 +27,7 @@
 <a href="#OPTIMIZATION">OPTIMIZATION</a><br>
 <a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#AUTHORS">AUTHORS</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
 
 <hr>
 
@@ -64,23 +65,23 @@ middleware</p>
 
 <p style="margin-left:11%; margin-top: 1em"><b>GProM</b> is
 a database middleware that adds provenance support to
-multiple database backends. Provenance is this respect
-refers to information about how data is produced by database
-operations. That is, for a row in the database or returned
-by a query we capture from which rows it was derived and by
-which operations. The system compiles declarative queries
-with provenance requests into SQL code and executes this SQL
-code on a backend database system. GProM supports provenance
-capture for SQL queries and transactions, and produces
-provenance graphs explaining existing and missing answers
-for Datalog queries. Provenance is captured on demand by
-using a compilation technique called instrumentation.
-Instrumentation rewrites an SQL query (or past transaction)
-into a query that returns rows paired with their provenance.
-The output of the instrumentation process is a regular SQL
-query that can be executed using any standard relational
-database. The instrumented query generated from a provenance
-request returns a standard relation that maps rows to their
+multiple database backends. Provenance is information about
+how data was produced by database operations. That is, for a
+row in the database or returned by a query we capture from
+which rows it was derived and by which operations. The
+system compiles declarative queries with provenance requests
+into SQL code and executes this SQL code on a backend
+database system. GProM supports provenance capture for SQL
+queries and transactions, and produces provenance graphs
+explaining existing and missing answers for Datalog queries.
+Provenance is captured on demand by using a compilation
+technique called instrumentation. Instrumentation rewrites
+an SQL query (or past transaction) into a query that returns
+rows paired with their provenance. The output of the
+instrumentation process is a regular SQL query that can be
+executed using any standard relational database. The
+instrumented query generated from a provenance request
+returns a standard relation that maps rows to their
 provenance. GProM extends multiple frontend languages (e.g.,
 SQL and Datalog) with provenance requests and can produce
 code for multiple backends (currently Oracle).</p>
@@ -543,20 +544,23 @@ capture provenance of a query <b>SELECT a FROM r</b>:</p>
 <h2>AUTHORS</h2>
 
 
+<p style="margin-left:22%; margin-top: 1em"><b>Bahareh
+Arab</b> (<i>barab@hawk.iit.edu</i>)</p>
+
+<p style="margin-left:22%; margin-top: 1em"><b>Su Feng</b>
+(<i>sfeng@hawk.iit.edu</i>)</p>
+
 <p style="margin-left:22%; margin-top: 1em"><b>Boris
 Glavic</b> (<i>bglavic@iit.edu</i>)</p>
 
-<p style="margin-left:22%; margin-top: 1em"><b>Xing Niu</b>
-(<i>xniu22@hawk.iit.edu</i>)</p>
-
 <p style="margin-left:22%; margin-top: 1em"><b>Seokki
-Lee</b> (<i>xniu22@hawk.iit.edu</i>)</p>
+Lee</b> (<i>slee195@hawk.iit.edu</i>)</p>
 
-<p style="margin-left:22%; margin-top: 1em"><b>Bahareh
-Arab</b> (<i>xniu22@hawk.iit.edu</i>)</p>
+<p style="margin-left:22%; margin-top: 1em"><b>Xing Niu</b>
+(<i>xniu7@hawk.iit.edu</i>)</p>
 
-<p style="margin-left:22%; margin-top: 1em"><b>Su Feng</b>
-(<i>xniu22@hawk.iit.edu</i>)</p>
+<a name="SEE ALSO"></a>
+<h2>SEE ALSO</h2>
 <hr>
 </body>
 </html>
