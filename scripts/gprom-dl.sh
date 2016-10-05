@@ -9,6 +9,6 @@ popd > /dev/null
 GPROM=${DIR}/../src/command_line/gprom
 ########################################
 # RUN COMMAND
-${GPROM} -log -loglevel 0 -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga" -activate treefiy_prov_rewrite_input -Pparser dl -Panalyzer dl -Ptranslator dl ${*}
+${GPROM} -log -loglevel 0 -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga" -treeify-algebra-graphs -Pparser dl -Panalyzer dl -Ptranslator dl ${*}
 
 
