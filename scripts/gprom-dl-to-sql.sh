@@ -22,5 +22,5 @@ fi
 
 ########################################
 # RUN COMMAND
-${GPROM_SCRIPT} ${LOG} "${PROGRAM}" -Pparser dl -Panalyzer dl -Ptranslator dl -Pexecutor sql -Cattr_reference_consistency FALSE -Cschema_consistency FALSE  -Cunique_attr_names FALSE -deactivate treefiy_prov_rewrite_input  ${*:3}
+${GPROM_SCRIPT} ${LOG} "${PROGRAM}" -Pparser dl -Panalyzer dl -Ptranslator dl -Pexecutor sql -Cattr_reference_consistency FALSE -Cschema_consistency FALSE  -Cunique_attr_names FALSE -treeify-algebra-graphs FALSE ${*:3}
 # -Cattr_reference_consistency FALSE -Cschema_consistency FALSE  -Cunique_attr_names FALSE -Oselections_move_around FALSE  -Oremove_redundant_projections FALSE  -activate optimize_operator_model
