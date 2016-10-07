@@ -1281,7 +1281,8 @@ translateGoal(DLAtom *r, int goalPos)
         pInput = (QueryOperator *) rel;
 
     // do not generate selection if constants exist in the only negated body args
-    if(!(typeTransConst && typeTransVar && r->negated))
+//    if(!(typeTransConst && typeTransVar && r->negated))
+   	if(!(typeTransConst && r->negated))
     {
         // add selection if constants are used in the goal
         // e.g., R(X,1) with attributes A0,A1 are translated into SELECTION[A1=1](R)
