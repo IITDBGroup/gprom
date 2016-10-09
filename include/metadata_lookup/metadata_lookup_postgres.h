@@ -46,6 +46,6 @@ extern List *postgresGetKeyInformation(char *tableName);
 extern void postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Node *postgresExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
-
+extern Relation *postgresExecuteQuery(char *query);
 
 #endif /* METADATA_LOOKUP_POSTGRES_H_ */

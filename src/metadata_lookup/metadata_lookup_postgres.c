@@ -109,6 +109,7 @@ static boolean prepareQuery(char *qName, char *query, int parameters,
         Oid *types);
 static void prepareLookupQueries(void);
 static void fillOidToDTMap (HashMap *oidToDT);
+static char *postgresGetConnectionDescription (void);
 static List *oidVecToDTList (char *oidVec);
 static DataType postgresOidToDT(char *Oid);
 static DataType postgresTypenameToDT (char *typName);
@@ -184,6 +185,8 @@ assemblePostgresMetadataLookupPlugin (void)
     p->executeAsTransactionAndGetXID = postgresExecuteAsTransactionAndGetXID;
     p->getCostEstimation = postgresGetCostEstimation;
     p->getKeyInformation = postgresGetKeyInformation;
+    p->executeQuery = postgresExecuteQuery;
+    p->connectionDescription = postgresGetConnectionDescription;
 
     return p;
 }
@@ -270,6 +273,13 @@ postgresDatabaseConnectionOpen (void)
 
     RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
+}
+
+static char *
+postgresGetConnectionDescription (void)
+{
+    return CONCAT_STRINGS("Postgres:", getStringOption("connection.user"), "@",
+            getStringOption("connection.host"), ":", getStringOption("connection.db"));
 }
 
 static void
@@ -790,6 +800,48 @@ postgresTypenameToDT (char *typName)
     return DT_STRING;
 }
 
+Relation *
+postgresExecuteQuery(char *query)
+{
+    Relation *r = makeNode(Relation);
+    PGresult *rs = execQuery(query);
+    int numRes = PQntuples(rs);
+    int numFields = PQnfields(rs);
+
+    // set schema
+    r->schema = NIL;
+    for(int i = 0; i < numFields; i++)
+    {
+        char *name = PQfname(rs, i);
+        r->schema = appendToTailOfList(r->schema, strdup((char *) name));
+    }
+
+
+    // read rows
+    r->tuples = NIL;
+    for(int i = 0; i < numRes; i++)
+    {
+        List *tuple = NIL;
+        for (int j = 0; j < numFields; j++)
+        {
+            if (PQgetisnull(rs,i,j))
+            {
+                tuple = appendToTailOfList(tuple, strdup("NULL"));
+            }
+            else
+            {
+                char *val = PQgetvalue(rs,i,j);
+                tuple = appendToTailOfList(tuple, strdup(val));
+            }
+        }
+        r->tuples = appendToTailOfList(r->tuples, tuple);
+        DEBUG_LOG("read tuple <%s>", stringListToString(tuple));
+    }
+    PQclear(rs);
+
+    return r;
+}
+
 
 // NO libpq present. Provide dummy methods to keep compiler quiet
 #else
@@ -898,6 +950,12 @@ postgresGetCostEstimation(char *query)
 
 List *
 postgresGetKeyInformation(char *tableName)
+{
+    return NULL;
+}
+
+Relation *
+postgresExecuteQuery(char *query)
 {
     return NULL;
 }

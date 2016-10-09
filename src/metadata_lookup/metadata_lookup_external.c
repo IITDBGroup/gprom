@@ -92,6 +92,10 @@ assembleExternalMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
 static int
 externalInitMetadataLookupPlugin (void)
 {
+    if (activePlugin == NULL || activePlugin->cache == NULL)
+        return EXIT_FAILURE;
+    if (activePlugin->type != METADATA_LOOKUP_PLUGIN_EXTERNAL)
+        return EXIT_SUCCESS;
     EXTERNAL_PLUGIN;
     return extP->isInitialized();
 }
@@ -99,6 +103,10 @@ externalInitMetadataLookupPlugin (void)
 static int
 externalShutdownMetadataLookupPlugin (void)
 {
+    if (activePlugin == NULL || activePlugin->cache == NULL)
+        return EXIT_FAILURE;
+    if (activePlugin->type != METADATA_LOOKUP_PLUGIN_EXTERNAL)
+        return EXIT_SUCCESS;
     EXTERNAL_PLUGIN;
     return extP->shutdownMetadataLookupPlugin();
 }
@@ -121,6 +129,8 @@ static boolean
 externalIsInitialized (void)
 {
     if (activePlugin == NULL || activePlugin->cache == NULL)
+        return FALSE;
+    if (activePlugin->type != METADATA_LOOKUP_PLUGIN_EXTERNAL)
         return FALSE;
     EXTERNAL_PLUGIN;
     return extP->isInitialized();

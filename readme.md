@@ -53,11 +53,11 @@ As you can see, `PROVENANCE OF (q)` returns the same answer as query `q`, but ad
 Oracle SQL - Oracle:usr@1.1.1.1$ \q
 ```
 
-Provenance for SQL queries is only one of the features supported by GProM. A full list of SQL language extensions supported by GProM can be found in the [wiki](https://github.com/lordpretzel/gprom/wiki/). See the [man page](https://github.com/lordpretzel/gprom/blob/master/doc/gprom_man.md) of gprom for further information how to use the CLI of the system. 
+Provenance for SQL queries is only one of the features supported by GProM. A full list of SQL language extensions supported by GProM can be found in the [wiki](https://github.com/IITDBGroup/gprom/wiki/). See the [man page](https://github.com/IITDBGroup/gprom/blob/master/doc/gprom_man.md) of gprom for further information how to use the CLI of the system. 
 
 # Installation
 
-The [wiki](https://github.com/lordpretzel/gprom/wiki/installation) has detailed installation instructions. In a nutshell, GProM can be compiled with support for different database backends and is linked against the C client libraries of these database backends. The installation follows the standard procedure using GNU build tools. Checkout the git repository, install all dependencies and run:
+The [wiki](https://github.com/IITDBGroup/gprom/wiki/installation) has detailed installation instructions. In a nutshell, GProM can be compiled with support for different database backends and is linked against the C client libraries of these database backends. The installation follows the standard procedure using GNU build tools. Checkout the git repository, install all dependencies and run:
 
 ```
 ./autogen.sh
