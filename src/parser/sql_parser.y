@@ -60,7 +60,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT SEMIRING COMBINER
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT SEMIRING COMBINER MULT
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -459,6 +459,13 @@ provOption:
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SEMIRING_COMBINER), 
 					(Node *) createConstString($3));
 		}
+        | SEMIRING COMBINER ADD expression MULT expression
+        {
+            RULELOG("provOption::SEMIRING::COMBINER::ADD::expression::MULT::expression");
+            List *expr = singleton($4);
+            $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SEMIRING_COMBINER),
+                    (Node *) appendToTailOfList(expr, $6));
+        }
 	;
 
 optionalTranslate:

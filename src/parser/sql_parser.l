@@ -208,6 +208,7 @@ strconcat		"||"
 (?i:REENACT)		TOK(REENACT)
 (?i:SEMIRING)		TOK(SEMIRING)
 (?i:COMBINER)		TOK(COMBINER)
+(?i:MULT)           TOK(MULT)
 
 	/* booleans */
 {bool}			TOK(boolConst)
