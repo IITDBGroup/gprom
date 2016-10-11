@@ -176,6 +176,20 @@ AS_IF([test "x$enable_timing" == "xno"], [
 ])
 ])
 # compile with Postgres support
+AC_DEFUN([AC_ENABLE_SQLITE],
+[
+AC_MSG_CHECKING([should be compiled with support for SQLite backends])
+AC_ARG_ENABLE(sqlite, AS_HELP_STRING([--disable-sqlite],[Disable compilation with support for SQLite backends]))
+
+AS_IF([test "x$enable_sqlite" == "xno"], [
+  AC_DEFINE([DISABLE_SQLITE],[],[Disable support for SQLite backends])
+  AC_MSG_RESULT([no])
+],
+[
+  AC_MSG_RESULT([yes])
+])
+])
+# compile with Postgres support
 AC_DEFUN([AC_ENABLE_POSTGRES],
 [
 AC_MSG_CHECKING([should be compiled with support for Postgres backends])
@@ -284,6 +298,8 @@ AC_C_INLINE
 # CHECK FOR PROGRAM BINARIES
 AM_PROG_AR
 AC_PROG_YACC
+BISON_CMD="`AS_ECHO("$YACC") | sed 's/-y//g'`" 
+AC_SUBST([BISON], [${BISON_CMD}])
 AC_PROG_LEX
 AC_CHECK_PROG([pandoc],[pandoc],[yes])
 AM_CONDITIONAL([HAVE_PROG_PANDOC], [test "x$pandoc" = xyes])
@@ -332,6 +348,7 @@ AC_CHECK_FUNCS([strcmp])
 # Check which backends should be supported
 AC_ENABLE_ORACLE
 AC_ENABLE_POSTGRES
+AC_ENABLE_SQLITE
 ################################################################################
 # Check which language bindings to build
 AC_ENABLE_JAVA_BINDING
@@ -377,7 +394,8 @@ AS_IF([test "x$enable_readline" == "xno"], [
 [
   AC_MSG_ERROR([missing readline library - if you want to compile without readline support use --disable-readline])
 ])
-])################################################################################
+])
+################################################################################
 # Postgres access library (libpq)
 # check if user has provided us with a non-standard location for Postgres's libpq library
 AC_LIBPQ_LOCATION
@@ -389,6 +407,17 @@ AS_IF([test "x$enable_postgres" == "xno"], [
 ],
 [
   AC_MSG_ERROR([missing libpq library - if you want to compile without Oracle backend support use --disable-postgres])
+])
+])
+################################################################################
+# SQlite library (libsqlite3)
+# check for the sqlite3 library
+AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
+AS_IF([test "x$enable_sqlite" == "xno"], [
+  AC_MSG_WARN([missing libsqlite3 library])
+],
+[
+  AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
 ])
 ])
 ################################################################################
@@ -461,7 +490,7 @@ echo "
   Debug Build........: ${enable_debug:=yes}
   Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no} 
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes}
-  Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}
+  Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}
   Language bindings..: Java - ${enable_java:=yes}
   Readline support...: ${enable_readline:=yes}
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -471,4 +500,6 @@ echo "
   LDFLAGS........: $LDFLAGS
   C Compiler.....: $C $CPPFLAGS $GPROM_CFLAGS $CFLAGS
   Linker.........: $LD $LDFLAGS $LIBS
+  Bison..........: $BISON 
+  Flex...........: $LEX
 "
