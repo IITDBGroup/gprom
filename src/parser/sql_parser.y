@@ -133,7 +133,7 @@ Node *bisonParseResult = NULL;
 %type <node> jsonTable jsonColInfoItem 
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
-%type <node> optionalProvAsOf provOption
+%type <node> optionalProvAsOf provOption semiringCombinerSpec
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -368,7 +368,7 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
-		| REENACT optionalProvAsOf optionalProvWith '(' stmtList ')'
+		| REENACT optionalProvAsOf optionalProvWith OF '(' stmtList ')'
 		{
 			RULELOG("provStmt::reenactStmtlist");
 			ProvenanceStmt *p = createProvenanceStmt((Node *) $5);
@@ -453,20 +453,30 @@ provOption:
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_STATEMENT_ANNOTATIONS),
 					(Node *) createConstBool(FALSE));
 		}
-		| SEMIRING COMBINER identifier
+		| SEMIRING COMBINER semiringCombinerSpec
 		{
-			RULELOG("provOption::SEMIRING::COMBINER::identifier");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SEMIRING_COMBINER), 
-					(Node *) createConstString($3));
+			RULELOG("provOption::SEMIRING::COMBINER::semiringCombinerSpec");
+            $$ = (Node *)createNodeKeyValue((Node *) createConstString(PROP_PC_SEMIRING_COMBINER),
+            (Node *)$3);
 		}
-        | SEMIRING COMBINER ADD expression MULT expression
-        {
-            RULELOG("provOption::SEMIRING::COMBINER::ADD::expression::MULT::expression");
-            List *expr = singleton($4);
-            $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SEMIRING_COMBINER),
-                    (Node *) appendToTailOfList(expr, $6));
-        }
 	;
+
+semiringCombinerSpec:
+        identifier
+        {
+            //$$ = createConstString($1);
+            RULELOG("semiringCombinerSpec::identifier");
+            $$ = (Node *)createConstString($1);
+
+        }
+        |
+        ADD expression MULT expression
+        {
+            RULELOG("semiringCombinerSpec::ADD::expression::MULT::expression");
+            List * expr = singleton($2);
+            $$ = (Node *)appendToTailOfList(expr,$4);
+        }
+;
 
 optionalTranslate:
                 /* empty */ { RULELOG("optionalTranslate::EMPTY"); $$ = NULL;}
