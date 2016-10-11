@@ -298,6 +298,8 @@ AC_C_INLINE
 # CHECK FOR PROGRAM BINARIES
 AM_PROG_AR
 AC_PROG_YACC
+BISON_CMD="`AS_ECHO("$YACC") | sed 's/-y//g'`" 
+AC_SUBST([BISON], [${BISON_CMD}])
 AC_PROG_LEX
 AC_CHECK_PROG([pandoc],[pandoc],[yes])
 AM_CONDITIONAL([HAVE_PROG_PANDOC], [test "x$pandoc" = xyes])
@@ -498,6 +500,6 @@ echo "
   LDFLAGS........: $LDFLAGS
   C Compiler.....: $C $CPPFLAGS $GPROM_CFLAGS $CFLAGS
   Linker.........: $LD $LDFLAGS $LIBS
-  Bison..........: $YACC 
+  Bison..........: $BISON 
   Flex...........: $LEX
 "

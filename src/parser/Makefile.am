@@ -26,35 +26,35 @@ sql_parser.lex.h sql_parser.lex.c: sql_parser.l
 	$(LEX) -osql_parser.lex.c $<
 
 sql_parser.tab.h sql_parser.tab.c: sql_parser.y
-	bison -Werror -d $<
+	$(BISON) -Werror -d $<
 	
 postgres_parser.lex.h postgres_parser.lex.c: postgres_parser.l
 	$(LEX) -opostgres_parser.lex.c $<
 
 postgres_parser.tab.h postgres_parser.tab.c: postgres_parser.y
-	bison -b postgres_parser -Werror -d $<
+	$(BISON) -b postgres_parser -Werror -d $<
 
 #hive_parser.lex.h hive_parser.lex.c: hive_parser.l
 #	$(LEX) -ohive_parser.lex.c $<
 
 #hive_parser.tab.h hive_parser.tab.c: hive_parser.y
-#	bison -b hive_parser -Werror -d $<
+#	$(BISON) -b hive_parser -Werror -d $<
 
 dl_parser.lex.h dl_parser.lex.c: dl_parser.l
 	$(LEX) -odl_parser.lex.c $<
 
 dl_parser.tab.h dl_parser.tab.c: dl_parser.y
-	bison -b dl_parser -Werror -d $<
+	$(BISON) -b dl_parser -Werror -d $<
 
 jp_parser.lex.h jp_parser.lex.c: jp_parser.l
 	$(LEX) -ojp_parser.lex.c $<
 
 jp_parser.tab.h jp_parser.tab.c: jp_parser.y
-	bison -b jp_parser -Werror -d $<
+	$(BISON) -b jp_parser -Werror -d $<
 	
 rpq_parser.lex.h rpq_parser.lex.c: rpq_parser.l
 	$(LEX) -orpq_parser.lex.c $<
 
 rpq_parser.tab.h rpq_parser.tab.c: rpq_parser.y
-	bison -b rpq_parser -Werror -d $<
+	$(BISON) -b rpq_parser -Werror -d $<
 
