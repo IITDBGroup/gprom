@@ -56,7 +56,7 @@ typedef struct DLProgram
     List *rules;
     List *facts;
     char *ans;
-    char *userdomain;
+//    char *userdomain;
 } DLProgram;
 
 NEW_ENUM_WITH_TO_STRING(GPNodeType,
