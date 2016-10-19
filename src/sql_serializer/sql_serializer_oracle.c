@@ -24,90 +24,11 @@
 #include "model/list/list.h"
 #include "model/set/set.h"
 
+#include "sql_serializer/sql_serializer_common.h"
 
-
-/* data structures */
-typedef enum MatchState {
-    MATCH_START,
-    MATCH_DISTINCT,
-    MATCH_FIRST_PROJ,
-    MATCH_HAVING,
-    MATCH_AGGREGATION,
-    MATCH_SECOND_PROJ,
-    MATCH_WHERE,
-    MATCH_WINDOW,
-    MATCH_ORDER,
-    MATCH_NEXTBLOCK
-} MatchState;
-
-#define OUT_MATCH_STATE(_state) \
-    (_state == MATCH_START ? "MATCH_START" : \
-     _state == MATCH_DISTINCT ? "MATCH_DISTINCT" : \
-     _state == MATCH_FIRST_PROJ ? "MATCH_FIRST_PROJ" : \
-     _state == MATCH_HAVING ? "MATCH_HAVING" : \
-     _state == MATCH_AGGREGATION ? "MATCH_AGGREGATION" : \
-     _state == MATCH_SECOND_PROJ ? "MATCH_SECOND_PROJ" : \
-     _state == MATCH_WHERE ? "MATCH_WHERE" : \
-     _state == MATCH_WINDOW ? "MATCH_WINDOW" : \
-     _state == MATCH_WINDOW ? "MATCH_ORDER" : \
-             "MATCH_NEXTBLOCK" \
-     )
-
-typedef struct QueryBlockMatch {
-    DuplicateRemoval *distinct;
-    ProjectionOperator *firstProj;
-    SelectionOperator *having;
-    AggregationOperator *aggregation;
-    ProjectionOperator *secondProj;
-    SelectionOperator *where;
-    QueryOperator *fromRoot;
-    WindowOperator *windowRoot;
-    OrderOperator *orderBy;
-} QueryBlockMatch;
-
-#define OUT_BLOCK_MATCH(_level,_m,_message) \
-    do { \
-        _level ## _LOG ("MATCH INFO: %s", _message); \
-        _level ## _LOG ("distinct: %s", operatorToOverviewString((Node *) _m->distinct)); \
-        _level ## _LOG ("firstProj: %s", operatorToOverviewString((Node *) _m->firstProj)); \
-        _level ## _LOG ("having: %s", operatorToOverviewString((Node *) _m->having)); \
-        _level ## _LOG ("aggregation: %s", operatorToOverviewString((Node *) _m->aggregation)); \
-        _level ## _LOG ("secondProj: %s", operatorToOverviewString((Node *) _m->secondProj)); \
-        _level ## _LOG ("where: %s", operatorToOverviewString((Node *) _m->where)); \
-        _level ## _LOG ("fromRoot: %s", operatorToOverviewString((Node *) _m->fromRoot)); \
-        _level ## _LOG ("windowRoot: %s", operatorToOverviewString((Node *) _m->windowRoot)); \
-        _level ## _LOG ("orderBy: %s", operatorToOverviewString((Node *) _m->orderBy)); \
-    } while(0)
-
-typedef struct TemporaryViewMap {
-    QueryOperator *viewOp; // the key
-    char *viewName;
-    char *viewDefinition;
-    List *attrNames;
-    UT_hash_handle hh;
-} TemporaryViewMap;
-
-typedef struct UpdateAggAndGroupByAttrState {
-    List *aggNames;
-    List *groupByNames;
-} UpdateAggAndGroupByAttrState;
-
-typedef struct JoinAttrRenameState {
-    int rightFromOffsets;
-    List *fromAttrs;
-} JoinAttrRenameState;
-
-/* macros */
-#define OPEN_PARENS(str) appendStringInfoChar(str, '(')
-#define CLOSE_PARENS(str) appendStringInfoChar(str, ')')
-#define WITH_PARENS(str,operation) \
-    do { \
-        OPEN_PARENS(str); \
-        operation; \
-        CLOSE_PARENS(str); \
-    } while(0)
 
 #define ORACLE_IDENT_LIMIT 30
+#define TEMP_VIEW_NAME_PATTERN "temp_view_%u"
 
 typedef struct ReplaceNonOracleDTsContext {
     void *curOp;
@@ -121,7 +42,6 @@ static int viewNameCounter;
 /* method declarations */
 static boolean quoteAttributeNamesVisitQO (QueryOperator *op, void *context);
 static boolean quoteAttributeNames (Node *node, void *context);
-
 
 static void  makeDTOracleConformant(QueryOperator *q);
 static boolean replaceNonOracleDTsVisitQO (QueryOperator *node, void *context);
@@ -728,10 +648,10 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
         appendStringInfoString(str, whereString->data);
 
     if (STRINGLEN(groupByString) > 0)
-            appendStringInfoString(str, groupByString->data);
+        appendStringInfoString(str, groupByString->data);
 
     if (STRINGLEN(havingString) > 0)
-            appendStringInfoString(str, havingString->data);
+        appendStringInfoString(str, havingString->data);
 
     FREE(matchInfo);
 
@@ -1619,7 +1539,7 @@ createViewName (void)
 {
     StringInfo str = makeStringInfo();
 
-    appendStringInfo(str, "temp_view_of_%u", viewNameCounter++);
+    appendStringInfo(str, TEMP_VIEW_NAME_PATTERN, viewNameCounter++);
 
     return str->data;
 }
