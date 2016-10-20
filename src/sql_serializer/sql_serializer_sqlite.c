@@ -16,14 +16,24 @@
 
 #include "log/logger.h"
 
+#include "sql_serializer/sql_serializer_common.h"
 #include "sql_serializer/sql_serializer_sqlite.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
+#include "sql_serializer_common.c"
 
-#include "sql_serializer/sql_serializer_common.h"
+#include "utility/string_utils.h"
+
+/* vars */
+static SerializeClausesAPI *api = NULL;
+
+/* methods */
+static void createAPI (void);
+
+
 
 char *
 serializeOperatorModelSQLite(Node *q)
@@ -36,6 +46,8 @@ serializeQuerySQLite(QueryOperator *q)
 {
     return "";
 }
+
+
 
 char *
 quoteIdentifierSQLite (char *ident)
@@ -79,4 +91,20 @@ quoteIdentifierSQLite (char *ident)
         ident = CONCAT_STRINGS("\"",ident,"\"");
 
     return ident;
+}
+
+static void
+createAPI (void)
+{
+    if (api == NULL)
+    {
+        api = createAPIStub();
+        api->serializeProjectionAndAggregation =;
+        api->serializeWhere
+            api->serializeSetOperator
+            api->serializeTableAccess
+            api->serializeConstRel
+            api->serializeJoinOperator
+            api->createTempView
+    }
 }

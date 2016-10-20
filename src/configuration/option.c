@@ -208,7 +208,7 @@ OptionInfo opts[] =
                 "Host IP address for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_host),
-                defOptionString("ligeti.cs.iit.edu")
+                defOptionString("")
         },
         {
                 "connection.db",
@@ -216,7 +216,7 @@ OptionInfo opts[] =
                 "Database name for backend DB connection (SID or SERVICE_NAME for Oracle backends).",
                 OPTION_STRING,
                 wrapOptionString(&connection_db),
-                defOptionString("orcl")
+                defOptionString("")
         },
         {
                 "connection.user",
@@ -224,7 +224,7 @@ OptionInfo opts[] =
                 "User for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_user),
-                defOptionString("fga_user")
+                defOptionString("")
         },
         {
                 "connection.passwd",
@@ -232,7 +232,7 @@ OptionInfo opts[] =
                 "Password for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_passwd),
-                defOptionString("fga")
+                defOptionString("")
         },
         {
                 "connection.port",

@@ -56,6 +56,11 @@ static List *serializeSetOperator (QueryOperator *q, StringInfo str);
 static void serializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs);
 static void serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from,
         int *curFromItem, int *attrOffset, List **fromAttrs);
+static void serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
+        List** fromAttrs, int* attrOffset);
+static void serializeConstRel(StringInfo from, ConstRelOperator* t, List** fromAttrs,
+        int* curFromItem);
+
 
 static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
 static boolean updateAttributeNames(Node *node, List *fromAttrs);
@@ -636,7 +641,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     // put everything together
     DEBUG_LOG("mergePartsTogether");
-    //TODO DISTINCT
+
     if (STRINGLEN(selectString) > 0)
         appendStringInfoString(str, selectString->data);
     else
@@ -655,7 +660,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     FREE(matchInfo);
 
-    return attrNames; //TODO return list of attribute names
+    return attrNames;
 }
 
 /*
@@ -676,7 +681,7 @@ ConstructNestedJsonColItems (JsonColInfoItem *col,StringInfo *from,int *nestedco
 	if(col->forOrdinality)
 	{
 		appendStringInfoString(*from, col->forOrdinality);
-		DEBUG_LOG("1111111111111111: %s", col->forOrdinality);
+		DEBUG_LOG("for Ordinality: %s", col->forOrdinality);
 		appendStringInfoString(*from, " FOR ORDINALITY,");
 	}
 
@@ -716,6 +721,157 @@ ConstructNestedJsonColItems (JsonColInfoItem *col,StringInfo *from,int *nestedco
 }
 
 static void
+serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
+        List** fromAttrs, int* attrOffset)
+{
+    char* asOf = NULL;
+
+    // use history join to prefilter updated rows
+    if (HAS_STRING_PROP(t, PROP_USE_HISTORY_JOIN))
+    {
+        List* scnsAndXid = (List*) GET_STRING_PROP(t, PROP_USE_HISTORY_JOIN);
+        Constant *startScn, *commitScn, *commitMinusOne;
+        Constant* xid;
+        StringInfo attrNameStr = makeStringInfo();
+        List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
+        int i = 0;
+        xid = (Constant*) getNthOfListP(scnsAndXid, 0);
+        startScn = (Constant*) getNthOfListP(scnsAndXid, 1);
+        commitScn = (Constant*) getNthOfListP(scnsAndXid, 2);
+        commitMinusOne = createConstLong(LONG_VALUE(commitScn) - 1);
+        FOREACH(char,a,attrNames)
+        {
+            appendStringInfo(attrNameStr, "%s%s", (i++ == 0) ? "" : ", ", a);
+        }
+        // read committed?
+        if (HAS_STRING_PROP(t, PROP_IS_READ_COMMITTED))
+        {
+            appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
+            appendStringInfo(from, "\t(SELECT ROWID AS rid , %s",
+                    attrNameStr->data);
+            appendStringInfo(from,
+                    "\tFROM %s VERSIONS BETWEEN SCN %u AND %u) F0",
+                    t->tableName, LONG_VALUE(commitMinusOne),
+                    LONG_VALUE(commitMinusOne));
+            appendStringInfoString(from, "\n JOIN ");
+            appendStringInfo(from,
+                    "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
+                    t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
+            appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1",
+                    STRING_VALUE(xid));
+            appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",
+                    (*curFromItem)++);
+        }
+        else
+        {
+            appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
+            appendStringInfo(from, "\t(SELECT ROWID AS rid , %s",
+                    attrNameStr->data);
+            appendStringInfo(from, "\tFROM %s AS OF SCN %u) F0", t->tableName,
+                    LONG_VALUE(startScn));
+            appendStringInfoString(from, "\n JOIN ");
+            appendStringInfo(from,
+                    "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
+                    t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
+            appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1",
+                    STRING_VALUE(xid));
+            appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",
+                    (*curFromItem)++);
+        }
+        *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+    }
+    else
+    {
+        // add list of attributes as list to fromAttrs
+        *attrOffset = 0;
+        if (t->asOf)
+        {
+            if (isA(t->asOf, Constant))
+            {
+                Constant* c = (Constant*) t->asOf;
+                if (c->constType == DT_LONG)
+                    asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf));
+                else
+                    asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(",
+                            exprToSQL(t->asOf), ")");
+            }
+            else
+            {
+                List* scns = (List*) t->asOf;
+                Node* begin = (Node*) getNthOfListP(scns, 0);
+                Node* end = (Node*) getNthOfListP(scns, 1);
+                asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ",
+                        exprToSQL(begin), " AND ", exprToSQL(end));
+            }
+        }
+        List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
+        *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+        appendStringInfo(from, "(%s%s F%u)",
+                quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
+                (*curFromItem)++);
+    }
+}
+
+void
+serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
+        int* curFromItem, int* attrOffset, List** fromAttrs)
+{
+    int rOffset;
+    appendStringInfoString(from, "(");
+    //left child
+    serializeFromItem(fromRoot, OP_LCHILD(j), from, curFromItem, attrOffset,
+            fromAttrs);
+    // join
+    switch (j->joinType)
+    {
+        case JOIN_INNER:
+            appendStringInfoString(from, " JOIN ");
+            break;
+        case JOIN_CROSS:
+            appendStringInfoString(from, " CROSS JOIN ");
+            break;
+        case JOIN_LEFT_OUTER:
+            appendStringInfoString(from, " LEFT OUTER JOIN ");
+            break;
+        case JOIN_RIGHT_OUTER:
+            appendStringInfoString(from, " RIGHT OUTER JOIN ");
+            break;
+        case JOIN_FULL_OUTER:
+            appendStringInfoString(from, " FULL OUTER JOIN ");
+            break;
+    }
+    // right child
+    rOffset = *curFromItem;
+    serializeFromItem(fromRoot, OP_RCHILD(j), from, curFromItem, attrOffset,
+            fromAttrs);
+    // join condition
+    if (j->cond)
+        appendStringInfo(from, " ON (%s)",
+                exprToSQLWithNamingScheme(copyObject(j->cond), rOffset,
+                        *fromAttrs));
+}
+
+static void
+serializeConstRel(StringInfo from, ConstRelOperator* t, List** fromAttrs,
+        int* curFromItem)
+{
+    int pos = 0;
+    List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
+    *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+    appendStringInfoString(from, "(SELECT ");
+    FOREACH(char,attrName,attrNames)
+    {
+        Node *value;
+        if (pos != 0)
+            appendStringInfoString(from, ", ");
+        value = getNthOfListP(t->values, pos++);
+        appendStringInfo(from, "%s AS %s", exprToSQL(value), attrName);
+
+    }
+    appendStringInfo(from, "\nFROM dual) F%u", (*curFromItem)++);
+}
+
+static void
 serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, int *curFromItem,
         int *attrOffset, List **fromAttrs)
 {
@@ -729,43 +885,8 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             case T_JoinOperator:
             {
                 JoinOperator *j = (JoinOperator *) q;
-                int rOffset;
-                appendStringInfoString(from, "(");
-
-                //left child
-                serializeFromItem(fromRoot, OP_LCHILD(j), from, curFromItem, attrOffset, fromAttrs);
-
-                // join
-                switch(j->joinType)
-                {
-                    case JOIN_INNER:
-                        appendStringInfoString(from, " JOIN ");
-                    break;
-                    case JOIN_CROSS:
-                        appendStringInfoString(from, " CROSS JOIN ");
-                    break;
-                    case JOIN_LEFT_OUTER:
-                        appendStringInfoString(from, " LEFT OUTER JOIN ");
-                    break;
-                    case JOIN_RIGHT_OUTER:
-                        appendStringInfoString(from, " RIGHT OUTER JOIN ");
-                    break;
-                    case JOIN_FULL_OUTER:
-                        appendStringInfoString(from, " FULL OUTER JOIN ");
-                    break;
-                }
-
-                // right child
-                rOffset = *curFromItem;
-                serializeFromItem(fromRoot, OP_RCHILD(j), from, curFromItem, attrOffset, fromAttrs);
-
-                // join condition
-                if (j->cond)
-                    appendStringInfo(from, " ON (%s)", exprToSQLWithNamingScheme(
-                            copyObject(j->cond), rOffset, *fromAttrs));
-
-                //we don't need the alias part now
-                appendStringInfo(from, ")");
+                serializeJoinOperator(from, fromRoot, j, curFromItem,
+                        attrOffset, fromAttrs);
             }
             break;
             // JSON TABLE OPERATOR
@@ -886,114 +1007,16 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             case T_TableAccessOperator:
             {
             	TableAccessOperator *t = (TableAccessOperator *) q;
-            	char *asOf = NULL;
-            	//                ProvenanceComputation *op;
-            	//                Constant *xid = getTranactionSQLAndSCNs(xid);
-            	// use history join to prefilter updated rows
-            	if (HAS_STRING_PROP(t, PROP_USE_HISTORY_JOIN))
-            	{
-            		List *scnsAndXid = (List *) GET_STRING_PROP(t, PROP_USE_HISTORY_JOIN);
-            		Constant *startScn, *commitScn, *commitMinusOne;
-            		Constant *xid;
-            		StringInfo attrNameStr = makeStringInfo();
-            		List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
-            		int i = 0;
-
-            		xid = (Constant *) getNthOfListP(scnsAndXid,0);
-            		startScn = (Constant *) getNthOfListP(scnsAndXid,1);
-            		commitScn = (Constant *) getNthOfListP(scnsAndXid,2);
-            		commitMinusOne = createConstLong(LONG_VALUE(commitScn) - 1);
-
-            		FOREACH(char,a,attrNames)
-            		{
-            			appendStringInfo(attrNameStr, "%s%s",
-            					(i++ == 0) ? "" : ", ",
-            							a);
-            			// append to string info
-            			// appendStringInfo(from, "%s %s %s %s", a, attrNames);
-
-            		}
-
-                    // read committed?
-                    if (HAS_STRING_PROP(t, PROP_IS_READ_COMMITTED))
-                    {
-                        appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
-                        appendStringInfo(from, "\t(SELECT ROWID AS rid , %s", attrNameStr->data);
-                        appendStringInfo(from, "\tFROM %s VERSIONS BETWEEN SCN %u AND %u) F0",t->tableName,
-                                LONG_VALUE(commitMinusOne),
-                                LONG_VALUE(commitMinusOne));
-                        appendStringInfoString(from, "\n JOIN ");
-                        appendStringInfo(from, "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
-                                t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
-                        appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1", STRING_VALUE(xid));
-                        appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",  (*curFromItem)++);
-                    }
-                    else
-                    {
-                        appendStringInfo(from, "(SELECT %s \nFROM\n", attrNameStr->data);
-                        appendStringInfo(from, "\t(SELECT ROWID AS rid , %s", attrNameStr->data);
-                        appendStringInfo(from, "\tFROM %s AS OF SCN %u) F0",t->tableName, LONG_VALUE(startScn));
-                        appendStringInfoString(from, "\n JOIN ");
-                        appendStringInfo(from, "\t(SELECT ROWID AS rid FROM %s VERSIONS BETWEEN SCN %u AND %u F1 ",
-                                t->tableName, LONG_VALUE(commitScn), LONG_VALUE(commitScn));
-                        appendStringInfo(from, "WHERE VERSIONS_XID = HEXTORAW('%s')) F1", STRING_VALUE(xid));
-                        appendStringInfo(from, " ON (F0.rid = F1.rid)) F%u",  (*curFromItem)++);
-                    }
-
-                    *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-                }
-                else
-                {
-                    // add list of attributes as list to fromAttrs
-                    *attrOffset = 0;
-                    if (t->asOf)
-                    {
-                        if (isA(t->asOf, Constant))
-                        {
-                            Constant *c = (Constant *) t->asOf;
-                            if (c->constType == DT_LONG)
-                                asOf = CONCAT_STRINGS(" AS OF SCN ", exprToSQL(t->asOf));
-                            else
-                                asOf = CONCAT_STRINGS(" AS OF TIMESTAMP to_timestamp(", exprToSQL(t->asOf), ")");
-                        }
-                        else
-                        {
-                            List *scns = (List *) t->asOf;
-                            Node *begin = (Node *) getNthOfListP(scns, 0);
-                            Node *end = (Node *) getNthOfListP(scns, 1);
-
-                            asOf = CONCAT_STRINGS(" VERSIONS BETWEEN SCN ", exprToSQL(begin), " AND ", exprToSQL(end));
-                        }
-                    }
-
-                    List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
-                    *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-                    appendStringInfo(from, "(%s%s F%u)", quoteIdentifierOracle(t->tableName),
-                            asOf ? asOf : "", (*curFromItem)++);
-                }
+                serializeTableAccess(from, t, curFromItem, fromAttrs,
+                        attrOffset);
             }
             break;
             // A constant relation, turn into (SELECT ... FROM dual) subquery
             case T_ConstRelOperator:
-                   {
-                       ConstRelOperator *t = (ConstRelOperator *) q;
-                       int pos = 0;
-                       List *attrNames = getAttrNames(((QueryOperator *) t)->schema);
-
-                       *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-
-                       appendStringInfoString(from, "(SELECT ");
-                       FOREACH(char,attrName,attrNames)
-                       {
-                           Node *value;
-                           if (pos != 0)
-                               appendStringInfoString(from, ", ");
-                           value = getNthOfListP(t->values, pos++);
-                           appendStringInfo(from, "%s AS %s", exprToSQL(value), attrName);
-
-                       }
-                       appendStringInfo(from, "\nFROM dual) F%u", (*curFromItem)++);
-                   }
+            {
+                ConstRelOperator *t = (ConstRelOperator *) q;
+                serializeConstRel(from, t, fromAttrs, curFromItem);
+            }
             break;
             default:
             {

@@ -85,13 +85,43 @@ typedef struct JoinAttrRenameState {
     List *fromAttrs;
 } JoinAttrRenameState;
 
+// struct that stores functions that serialize clauses of a select statement
 typedef struct SerializeClausesAPI {
+    List *(*serializeQueryOperator) (QueryOperator *q, StringInfo str,
+            QueryOperator *parent, struct SerializeClausesAPI *api);
+    List *(*serializeQueryBlock) (QueryOperator *q, StringInfo str, struct SerializeClausesAPI *api);
     List * (*serializeProjectionAndAggregation) (QueryBlockMatch *m, StringInfo select,
-            StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize);
-    void (*serializeFrom) (QueryOperator *q, StringInfo from, List **fromAttrs);
-    void (*serializeWhere) (SelectionOperator *q, StringInfo where, List *fromAttrs);
-    List *(*serializeSetOperator) (QueryOperator *q, StringInfo str);
+            StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize, struct SerializeClausesAPI *api);
+    void (*serializeFrom) (QueryOperator *q, StringInfo from, List **fromAttrs, struct SerializeClausesAPI *api);
+    void (*serializeWhere) (SelectionOperator *q, StringInfo where, List *fromAttrs, , struct SerializeClausesAPI *api);
+    List *(*serializeSetOperator) (QueryOperator *q, StringInfo str, struct SerializeClausesAPI *api);
+    void (*serializeFromItem) (QueryOperator *fromRoot, QueryOperator *q, StringInfo from,
+            int *curFromItem, int *attrOffset, List **fromAttrs, struct SerializeClausesAPI *api);
+    void (*serializeTableAccess) (StringInfo from, TableAccessOperator* t, int* curFromItem,
+            List** fromAttrs, int* attrOffset, struct SerializeClausesAPI *api);
+    void (*serializeConstRel) (StringInfo from, ConstRelOperator* t, List** fromAttrs,
+            int* curFromItem, struct SerializeClausesAPI *api);
+    void (*serializeJoinOperator) (StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
+            int* curFromItem, int* attrOffset, List** fromAttrs, struct SerializeClausesAPI *api);
+    List *(*createTempView) (QueryOperator *q, StringInfo str,
+            QueryOperator *parent, struct SerializeClausesAPI *api);
 } SerializeClausesAPI;
+
+/* generic functions for serializing queries that call an API provided as a parameter */
+extern SerializeClausesAPI *createAPIStub (void);
+extern List *genSerializeQueryOperator (QueryOperator *q, StringInfo str,
+        QueryOperator *parent, SerializeClausesAPI *api);
+extern List *genSerializeQueryBlock (QueryOperator *q, StringInfo str,
+        SerializeClausesAPI *api);
+extern void genSerializeFrom (QueryOperator *q, StringInfo from,
+        List **fromAttrs, SerializeClausesAPI *api);
+extern void genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q,
+        StringInfo from, int *curFromItem, int *attrOffset, List **fromAttrs,
+        SerializeClausesAPI *api);
+extern List *genCreateTempView (QueryOperator *q, StringInfo str,
+        QueryOperator *parent, SerializeClausesAPI *api);
+
+
 
 /* macros */
 #define OPEN_PARENS(str) appendStringInfoChar(str, '(')
