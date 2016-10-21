@@ -119,5 +119,6 @@ extern int mapSize (HashMap *map);
                                 DUMMY_HASHEL(_elem_)->hh.next) != NULL) ? \
                                         DUMMY_HASHEL(_elem_)->data : NULL))
 
+#define FOREACH_HASH_HAS_MORE(_elem_) (DUMMY_HASHEL(_elem_)->hh.next != NULL)
 
 #endif /* HASHMAP_H_ */

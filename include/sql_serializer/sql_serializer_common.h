@@ -13,9 +13,10 @@
 
 #include "model/query_operator/query_operator.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 
 /* data structures */
-typedef enum MatchState {
+NEW_ENUM_WITH_TO_STRING(MatchState,
     MATCH_START,
     MATCH_DISTINCT,
     MATCH_FIRST_PROJ,
@@ -26,20 +27,22 @@ typedef enum MatchState {
     MATCH_WINDOW,
     MATCH_ORDER,
     MATCH_NEXTBLOCK
-} MatchState;
+);
 
-#define OUT_MATCH_STATE(_state) \
-    (_state == MATCH_START ? "MATCH_START" : \
-     _state == MATCH_DISTINCT ? "MATCH_DISTINCT" : \
-     _state == MATCH_FIRST_PROJ ? "MATCH_FIRST_PROJ" : \
-     _state == MATCH_HAVING ? "MATCH_HAVING" : \
-     _state == MATCH_AGGREGATION ? "MATCH_AGGREGATION" : \
-     _state == MATCH_SECOND_PROJ ? "MATCH_SECOND_PROJ" : \
-     _state == MATCH_WHERE ? "MATCH_WHERE" : \
-     _state == MATCH_WINDOW ? "MATCH_WINDOW" : \
-     _state == MATCH_WINDOW ? "MATCH_ORDER" : \
-             "MATCH_NEXTBLOCK" \
-     )
+//#define OUT_MATCH_STATE(_state) \
+//    (_state == MATCH_START ? "MATCH_START" : \
+//     _state == MATCH_DISTINCT ? "MATCH_DISTINCT" : \
+//     _state == MATCH_FIRST_PROJ ? "MATCH_FIRST_PROJ" : \
+//     _state == MATCH_HAVING ? "MATCH_HAVING" : \
+//     _state == MATCH_AGGREGATION ? "MATCH_AGGREGATION" : \
+//     _state == MATCH_SECOND_PROJ ? "MATCH_SECOND_PROJ" : \
+//     _state == MATCH_WHERE ? "MATCH_WHERE" : \
+//     _state == MATCH_WINDOW ? "MATCH_WINDOW" : \
+//     _state == MATCH_WINDOW ? "MATCH_ORDER" : \
+//             "MATCH_NEXTBLOCK" \
+//     )
+
+#define OUT_MATCH_STATE(_state) MatchStateToString(_state)
 
 typedef struct QueryBlockMatch {
     DuplicateRemoval *distinct;
@@ -85,6 +88,22 @@ typedef struct JoinAttrRenameState {
     List *fromAttrs;
 } JoinAttrRenameState;
 
+#define MAP_HAS_POINTER(map,p) MAP_HAS_LONG_KEY(map, (long) p)
+#define MAP_GET_POINTER(map,p) MAP_GET_LONG(map,(long) p)
+#define MAP_ADD_POINTER(map,p,val) MAP_ADD_LONG_KEY(map, (long) p, val)
+
+#define TVIEW_NAME_FIELD "ViewName"
+#define TVIEW_ATTRNAMES_FIELD "AttrNames"
+#define TVIEW_DEF_FIELD "Definition"
+
+#define TVIEW_GET_NAME(tview) STRING_VALUE(MAP_GET_STRING(tview, TVIEW_NAME_FIELD))
+#define TVIEW_GET_ATTRNAMES(tview) ((List *) MAP_GET_STRING(tview, TVIEW_ATTRNAMES_FIELD))
+#define TVIEW_GET_DEF(tview) STRING_VALUE(MAP_GET_STRING(tview, TVIEW_DEF_FIELD))
+
+#define TVIEW_SET_NAME(tview, name) MAP_ADD_STRING_KEY(tview, strdup(TVIEW_NAME_FIELD), createConstString(name))
+#define TVIEW_SET_ATTRNAMES(tview, attrs) MAP_ADD_STRING_KEY(tview, strdup(TVIEW_ATTRNAMES_FIELD), attrs)
+#define TVIEW_SET_DEF(tview,def) MAP_ADD_STRING_KEY(tview, strdup(TVIEW_DEF_FIELD), createConstString(def))
+
 // struct that stores functions that serialize clauses of a select statement
 typedef struct SerializeClausesAPI {
     List *(*serializeQueryOperator) (QueryOperator *q, StringInfo str,
@@ -93,7 +112,7 @@ typedef struct SerializeClausesAPI {
     List * (*serializeProjectionAndAggregation) (QueryBlockMatch *m, StringInfo select,
             StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize, struct SerializeClausesAPI *api);
     void (*serializeFrom) (QueryOperator *q, StringInfo from, List **fromAttrs, struct SerializeClausesAPI *api);
-    void (*serializeWhere) (SelectionOperator *q, StringInfo where, List *fromAttrs, , struct SerializeClausesAPI *api);
+    void (*serializeWhere) (SelectionOperator *q, StringInfo where, List *fromAttrs, struct SerializeClausesAPI *api);
     List *(*serializeSetOperator) (QueryOperator *q, StringInfo str, struct SerializeClausesAPI *api);
     void (*serializeFromItem) (QueryOperator *fromRoot, QueryOperator *q, StringInfo from,
             int *curFromItem, int *attrOffset, List **fromAttrs, struct SerializeClausesAPI *api);
@@ -105,6 +124,8 @@ typedef struct SerializeClausesAPI {
             int* curFromItem, int* attrOffset, List** fromAttrs, struct SerializeClausesAPI *api);
     List *(*createTempView) (QueryOperator *q, StringInfo str,
             QueryOperator *parent, struct SerializeClausesAPI *api);
+    HashMap *tempViewMap;
+    int viewCounter;
 } SerializeClausesAPI;
 
 /* generic functions for serializing queries that call an API provided as a parameter */
@@ -118,8 +139,11 @@ extern void genSerializeFrom (QueryOperator *q, StringInfo from,
 extern void genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q,
         StringInfo from, int *curFromItem, int *attrOffset, List **fromAttrs,
         SerializeClausesAPI *api);
+extern void genSerializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs,
+        SerializeClausesAPI *api);
 extern List *genCreateTempView (QueryOperator *q, StringInfo str,
         QueryOperator *parent, SerializeClausesAPI *api);
+extern char *exprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs);
 
 
 

@@ -69,7 +69,7 @@ static boolean updateAttributeNamesSimple(Node *node, List *attrNames);
 static List *serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize);
 
-static char *exprToSQLWithNamingScheme(Node *expr, int rOffset, List *fromAttrs);
+static char *oracleExprToSQLWithNamingScheme(Node *expr, int rOffset, List *fromAttrs);
 static boolean renameAttrsVisitor(Node *node, JoinAttrRenameState *state);
 
 static char *createAttrName(char *name, int fItem);
@@ -847,7 +847,7 @@ serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
     // join condition
     if (j->cond)
         appendStringInfo(from, " ON (%s)",
-                exprToSQLWithNamingScheme(copyObject(j->cond), rOffset,
+                oracleExprToSQLWithNamingScheme(copyObject(j->cond), rOffset,
                         *fromAttrs));
 }
 
@@ -1045,7 +1045,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
 }
 
 static char *
-exprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs)
+oracleExprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs)
 {
     JoinAttrRenameState *state = NEW(JoinAttrRenameState);
 

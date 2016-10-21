@@ -23,6 +23,19 @@
 
 #include "sql_serializer/sql_serializer_common.h"
 
+#define TEMP_VIEW_NAME_PATTERN "_temp_view_%u"
+
+static char *createViewName (SerializeClausesAPI *api);
+static boolean updateAttributeNames(Node *node, List *fromAttrs);
+static boolean renameAttrsVisitor (Node *node, JoinAttrRenameState *state);
+static char *createAttrName (char *name, int fItem);
+static boolean updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state);
+static boolean updateAttributeNamesSimple(Node *node, List *attrNames);
+
+/*
+ * create API struct
+ */
+
 SerializeClausesAPI *
 createAPIStub (void)
 {
@@ -32,13 +45,15 @@ createAPIStub (void)
     api->serializeQueryBlock = genSerializeQueryBlock;
     api->serializeProjectionAndAggregation = NULL;
     api->serializeFrom = genSerializeFrom;
-    api->serializeWhere = NULL;
+    api->serializeWhere = genSerializeWhere;
     api->serializeSetOperator = NULL;
     api->serializeFromItem = genSerializeFromItem;
     api->serializeTableAccess = NULL;
     api->serializeConstRel = NULL;
     api->serializeJoinOperator = NULL;
     api->createTempView = genCreateTempView;
+    api->tempViewMap = NEW_MAP(Constant, Node);
+    api->viewCounter = 0;
 
     return api;
 }
@@ -350,7 +365,7 @@ genSerializeFrom (QueryOperator *q, StringInfo from, List **fromAttrs, Serialize
     int curFromItem = 0, attrOffset = 0;
 
     appendStringInfoString(from, "\nFROM ");
-    api->serializeFromItem (q, q, from, &curFromItem, &attrOffset, fromAttrs);
+    api->serializeFromItem (q, q, from, &curFromItem, &attrOffset, fromAttrs, api);
 }
 
 void
@@ -368,7 +383,7 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
             {
                 JoinOperator *j = (JoinOperator *) q;
                 api->serializeJoinOperator(from, fromRoot, j, curFromItem,
-                        attrOffset, fromAttrs);
+                        attrOffset, fromAttrs, api);
             }
             break;
             // Table Access
@@ -376,24 +391,24 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
             {
                 TableAccessOperator *t = (TableAccessOperator *) q;
                 api->serializeTableAccess(from, t, curFromItem, fromAttrs,
-                        attrOffset);
+                        attrOffset, api);
             }
             break;
             // A constant relation, turn into (SELECT ... FROM dual) subquery
             case T_ConstRelOperator:
             {
                 ConstRelOperator *t = (ConstRelOperator *) q;
-                api->serializeConstRel(from, t, fromAttrs, curFromItem);
+                api->serializeConstRel(from, t, fromAttrs, curFromItem, api);
             }
             break;
             default:
             {
                 List *attrNames;
 
-                appendStringInfoString(from, "((");
+                appendStringInfoString(from, "(");
                 attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), api); //TODO ok to use first?
                 *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-                appendStringInfo(from, ") F%u)", (*curFromItem)++);
+                appendStringInfo(from, ") F%u", (*curFromItem)++);
             }
             break;
         }
@@ -413,6 +428,50 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
 }
 
 /*
+ * Translate a selection into a WHERE clause
+ */
+void
+genSerializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs, SerializeClausesAPI *api)
+{
+    appendStringInfoString(where, "\nWHERE ");
+    updateAttributeNames((Node *) q->cond, (List *) fromAttrs);
+    appendStringInfoString(where, exprToSQL(q->cond));
+}
+
+static boolean
+updateAttributeNames(Node *node, List *fromAttrs)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+        char *newName;
+        List *outer = NIL;
+        int fromItem = -1;
+        int attrPos = 0;
+
+        // LOOP THROUGH fromItems (outer list)
+        FOREACH(List, attrs, fromAttrs)
+        {
+            attrPos += LIST_LENGTH(attrs);
+            fromItem++;
+            if (attrPos > a->attrPosition)
+            {
+                outer = attrs;
+                break;
+            }
+        }
+        attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
+        newName = getNthOfListP(outer, attrPos);
+        a->name = CONCAT_STRINGS("F", itoa(fromItem), ".", newName);;
+    }
+
+    return visit(node, updateAttributeNames, fromAttrs);
+}
+
+/*
  * Main entry point for serialization.
  */
 List *
@@ -422,9 +481,9 @@ genSerializeQueryOperator (QueryOperator *q, StringInfo str, QueryOperator *pare
     if (LIST_LENGTH(q->parents) > 1 || HAS_STRING_PROP(q,PROP_MATERIALIZE))
         return api->createTempView (q, str, parent, api);
     else if (isA(q, SetOperator))
-        return api->serializeSetOperator(q, str);
+        return api->serializeSetOperator(q, str, api);
     else
-        return api->serializeQueryBlock(q, str);
+        return api->serializeQueryBlock(q, str, api);
 }
 
 /*
@@ -434,31 +493,36 @@ List *
 genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, SerializeClausesAPI *api)
 {
     StringInfo viewDef = makeStringInfo();
-    char *viewName = createViewName();
-    TemporaryViewMap *view;
+    char *viewName = createViewName(api);
+    HashMap *tempViewMap = api->tempViewMap;
     List *resultAttrs;
+    HashMap *view;
 
     // check whether we already have create a view for this op
-    HASH_FIND_PTR(viewMap, &q, view);
-    if (view != NULL)
+
+    if (MAP_HAS_POINTER(tempViewMap, q))
     {
+        view = (HashMap *) MAP_GET_POINTER(tempViewMap, q);
+        char *name = strdup(TVIEW_GET_NAME(view));
+
         if (isA(parent, SetOperator))
-            appendStringInfo(str, "(SELECT * FROM %s)", strdup(view->viewName));
+            appendStringInfo(str, "(SELECT * FROM %s)", name);
         else
-            appendStringInfoString(str, strdup(view->viewName));
-        return deepCopyStringList(view->attrNames);
+            appendStringInfoString(str, name);
+
+        return deepCopyStringList(TVIEW_GET_ATTRNAMES(view));
     }
 
     // create sql code to create view
     appendStringInfo(viewDef, "%s AS (", viewName);
     if (isA(q, SetOperator))
-        resultAttrs = serializeSetOperator(q, viewDef);
+        resultAttrs = api->serializeSetOperator(q, viewDef, api);
     else
-        resultAttrs = serializeQueryBlock(q, viewDef);
+        resultAttrs = api->serializeQueryBlock(q, viewDef, api);
 
     appendStringInfoString(viewDef, ")");
 
-    DEBUG_LOG("created view definition:\n%s", viewDef->data);
+    DEBUG_LOG("created view definition:\n%s for %p", viewDef->data, q);
 
     // add reference to view
     if (isA(parent, SetOperator))
@@ -467,13 +531,147 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
         appendStringInfoString(str, strdup(viewName));
 
     // add to view table
-    view = NEW(TemporaryViewMap);
-    view->viewName = viewName;
-    view->viewOp = q;
-    view->viewDefinition = viewDef->data;
-    view->attrNames = resultAttrs;
-    HASH_ADD_PTR(viewMap, viewOp, view);
+    view = NEW_MAP(Constant,Node);
+    TVIEW_SET_NAME(view, strdup(viewName));
+    TVIEW_SET_DEF(view, strdup(viewDef->data));
+    TVIEW_SET_ATTRNAMES(view, resultAttrs);
+    MAP_ADD_POINTER(tempViewMap, q, view);
 
     return resultAttrs;
 }
 
+static char *
+createViewName (SerializeClausesAPI *api)
+{
+    StringInfo str = makeStringInfo();
+
+    appendStringInfo(str, TEMP_VIEW_NAME_PATTERN, api->viewCounter++);
+
+    return str->data;
+}
+
+char *
+exprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs)
+{
+    JoinAttrRenameState *state = NEW(JoinAttrRenameState);
+
+    state->rightFromOffsets = rOffset;
+    state->fromAttrs = fromAttrs;
+    renameAttrsVisitor(expr, state);
+
+    FREE(state);
+    return exprToSQL(expr);
+}
+
+static boolean
+renameAttrsVisitor (Node *node, JoinAttrRenameState *state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+        boolean isRight = (a->fromClauseItem == 0) ? FALSE : TRUE;
+        int pos = 0, fPos = 0;
+        int rOffset = state->rightFromOffsets;
+        ListCell *lc;
+        char *name;
+        List *from = NIL;
+
+        // if right join input find first from item from right input
+        if (isRight)
+            for(lc = getHeadOfList(state->fromAttrs); fPos < rOffset; lc = lc->next, fPos++)
+                ;
+        else
+            lc = getHeadOfList(state->fromAttrs);
+
+        // find from position and attr name
+        for(; lc != NULL; lc = lc->next)
+        {
+            List *attrs = (List *) LC_P_VAL(lc);
+            pos += LIST_LENGTH(attrs);
+            if (pos > a->attrPosition)
+            {
+                from = attrs;
+                break;
+            }
+            fPos++;
+        }
+
+        pos = a->attrPosition - pos + LIST_LENGTH(from);
+        name = getNthOfListP(from, pos);
+
+        a->name = createAttrName(name, fPos);
+
+        return TRUE;
+    }
+
+    return visit(node, renameAttrsVisitor, state);
+}
+
+static char *
+createAttrName (char *name, int fItem)
+{
+   StringInfo str = makeStringInfo();
+   char *result = NULL;
+
+   appendStringInfo(str, "F%u.%s", fItem, name);
+   result = str->data;
+   FREE(str);
+
+   return result;
+}
+
+static boolean
+updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+        char *newName;
+        int attrPos = a->attrPosition;
+
+        // is aggregation function
+        if (attrPos < LIST_LENGTH(state->aggNames))
+            newName = strdup(getNthOfListP(state->aggNames, attrPos));
+        else
+        {
+            attrPos -= LIST_LENGTH(state->aggNames);
+            newName = strdup(getNthOfListP(state->groupByNames, attrPos));
+        }
+        DEBUG_LOG("attr <%d> is <%s>", a->attrPosition, newName);
+
+        a->name = newName;
+    }
+
+    return visit(node, updateAggsAndGroupByAttrs, state);
+}
+
+static boolean
+updateAttributeNamesSimple(Node *node, List *attrNames)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+        char *newName = getNthOfListP(attrNames, a->attrPosition);
+        a->name = strdup(newName);
+    }
+
+    return visit(node, updateAttributeNamesSimple, attrNames);
+}
+
+#define UPDATE_ATTR_NAME(cond,expr,falseAttrs,trueAttrs) \
+    do { \
+        Node *_localExpr = (Node *) (expr); \
+        if (m->secondProj == NULL) \
+            updateAttributeNames(_localExpr, falseAttrs); \
+        else \
+            updateAttributeNamesSimple(_localExpr, trueAttrs); \
+    } while(0)
