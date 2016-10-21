@@ -4,6 +4,14 @@
 
 GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC driver (currently not fully functional).
 
+# Documentation
+
+* [Installation Instructions](https://github.com/IITDBGroup/gprom/wiki/installation)
+* [GProM Commandline Shell Manual](https://github.com/IITDBGroup/gprom/blob/master/doc/gprom_man.md)
+* Provenance Language Features
+  * [SQL](https://github.com/IITDBGroup/gprom/wiki/sql_extensions)
+  * [Datalog](https://github.com/IITDBGroup/gprom/wiki/sql_extensions)
+
 # Features
 
 + Flexible on-demand provenance capture and querying for SQL queries using language-level instrumentation, i.e., by running SQL queries.
