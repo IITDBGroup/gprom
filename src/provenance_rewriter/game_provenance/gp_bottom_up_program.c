@@ -77,7 +77,7 @@ static DLProgram *unifyProgram (DLProgram *p, DLAtom *question);
 static void unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom);
 static DLProgram *solveProgram (DLProgram *p, DLAtom *question, boolean neg);
 
-char *idbHeadPred = NULL;
+//char *idbHeadPred = NULL;
 
 DLProgram *
 createBottomUpGPprogram (DLProgram *p)
@@ -1662,7 +1662,8 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
                                         copyObject(a->args));
 
                                 // check the goal predicate contains the head predicate
-                                if(idbHeadPred != NULL && strstr(a->rel,idbHeadPred) != NULL)
+//                                if(idbHeadPred != NULL && strstr(a->rel,idbHeadPred) != NULL)
+                                if(DL_HAS_PROP(a, DL_IS_IDB_REL))
                                 	rExpr = createSkolemExpr(GP_NODE_POSREL,
                                 	        atomRel, copyObject(a->args));
                                 else
@@ -1723,7 +1724,8 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
                                 				ruleWon ? "_WON" : "_LOST");
 
                                 // check the goal predicate contains the head predicate
-                                if(idbHeadPred != NULL && strstr(a->rel,idbHeadPred) != NULL)
+//                                if(idbHeadPred != NULL && strstr(a->rel,idbHeadPred) != NULL)
+                                if(DL_HAS_PROP(a, DL_IS_IDB_REL))
                                 	rExpr = createSkolemExpr(GP_NODE_POSREL,
                                 			Rel, copyObject(a->args));
                                 else
@@ -2210,17 +2212,17 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	// New Implementation Test
 //    DLRule *origRule;
 //    List *newGoalArgs = NIL;
-	List *headPred = NIL;
-	List *bodyPred = NIL;
+//	List *headPred = NIL;
+//	List *bodyPred = NIL;
 
 	FOREACH(DLRule,r,solvedProgram->rules)
     {
-		// collect predicates
-		headPred = appendToTailOfList(headPred, copyObject(r->head));
-
-		if (getFirstRule == 0)
-			FOREACH(DLAtom,p,r->body)
-				bodyPred = appendToTailOfList(bodyPred, copyObject(p));
+//		// collect predicates
+//		headPred = appendToTailOfList(headPred, copyObject(r->head));
+//
+//		if (getFirstRule == 0)
+//			FOREACH(DLAtom,p,r->body)
+//				bodyPred = appendToTailOfList(bodyPred, copyObject(p));
 
 
 	    int numGoals = 0;
@@ -2665,16 +2667,16 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         getFirstRule++;
     }
 
-	// check if the rule for ANS is multi-level to use for move rules later for simplified models
-	// TODO: apply to all simplified models as currently only for REDUCED GP
-	FORBOTH(DLAtom,h,b,headPred,bodyPred)
-	{
-		char *hp = (char *) h->rel;
-		char *bp = (char *) b->rel;
-
-		if(streq(hp,bp))
-			idbHeadPred = hp;
-	}
+//	// check if the rule for ANS is multi-level to use for move rules later for simplified models
+//	// TODO: apply to all simplified models as currently only for REDUCED GP
+//	FORBOTH(DLAtom,h,b,headPred,bodyPred)
+//	{
+//		char *hp = (char *) h->rel;
+//		char *bp = (char *) b->rel;
+//
+//		if(streq(hp,bp))
+//			idbHeadPred = hp;
+//	}
 
 
     DEBUG_LOG("------------- STEP 1 ---------------\n: created unlinked rules:\n%s\nand unliked help rules rules:\n%s\nand help rules:\n%s",
