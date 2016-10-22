@@ -6,11 +6,16 @@ pushd $(dirname "${0}") > /dev/null
 DIR=$(pwd -L)
 popd > /dev/null
 # GProM binary
+CONF_FILE=.gprom
 GPROM=${DIR}/../src/command_line/gprom
+GPROM_CONF=${DIR}/../${CONF_FILE}
+########################################
+# READ USER CONFIGUATION
+source ${DIR}/gprom_basic.sh
 ########################################
 # PARAMETERS
 PROGRAM="${2}"
-LOG="${1}"
+LOG="-log -loglevel ${1}"
 ARGS="${*:3}"
 
 if [ $# -lt 2 ]; then
@@ -21,5 +26,4 @@ fi
 
 ########################################
 # RUN COMMAND
-${GPROM} -log -loglevel ${LOG} -sql "${PROGRAM}" -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga" -treeify-algebra-graphs ${*:3}
-
+${GPROM} ${LOG} -sql "${PROGRAM}" ${CONNECTION_PARAMS} -treeify-algebra-graphs ${*:3}

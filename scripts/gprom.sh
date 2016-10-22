@@ -10,7 +10,7 @@ CONF_FILE=.gprom
 GPROM=${DIR}/../src/command_line/gprom
 GPROM_CONF=${DIR}/../${CONF_FILE}
 ########################################
-# create parameters
+# READ USER CONFIGUATION
 source ${DIR}/gprom_basic.sh
 ########################################
 # RUN COMMAND

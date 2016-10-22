@@ -849,6 +849,8 @@ serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
         appendStringInfo(from, " ON (%s)",
                 oracleExprToSQLWithNamingScheme(copyObject(j->cond), rOffset,
                         *fromAttrs));
+
+    appendStringInfoString(from, ")");
 }
 
 static void

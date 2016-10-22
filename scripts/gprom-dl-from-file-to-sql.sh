@@ -7,15 +7,21 @@ DIR=$(pwd -L)
 popd > /dev/null
 # GProM script
 GPROM_SCRIPT=${DIR}/gprom.sh
-
+CONF_FILE=.gprom
+GPROM_CONF=${DIR}/../${CONF_FILE}
+########################################
+# READ USER CONFIGUATION
+source ${DIR}/gprom_basic.sh
 ########################################
 # PARAMETERS
 DLFILE="${2}"
-LOG="${1}"
+LOG="-log -loglevel ${1}"
 
 if [ $# -lt 2 ]; then
 	echo "Description: read a Datalog program with provenance requests and regular path queries from a file and translate into SQL."
+	echo " "
     echo "Usage: pass at least two parameters, the first one is the loglevel [0 : NONE up to 5 : TRACE] and the second one is the file storing the input program."
+	echo " "
     echo "gprom-dl-from-file-to-sql.sh 3 myfile.dl"
     exit 1
 fi
@@ -27,6 +33,4 @@ fi
 
 ########################################
 # RUN COMMAND
-# -Cattr_reference_consistency FALSE -Cschema_consistency FALSE  -Cunique_attr_names FALSE -Oselections_move_around FALSE  -Oremove_redundant_projections FALSE  -activate optimize_operator_model
-
-${GPROM_SCRIPT} -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd "fga"  -log -loglevel ${LOG} -Pparser dl -Panalyzer dl -Ptranslator dl -Pexecutor sql ${*:3} -sqlfile ${DLFILE} 
+${GPROM_SCRIPT} ${CONNECTION_PARAMS} ${LOG} ${GPROM_DL_PLUGINS} -Pexecutor sql ${*:3} -sqlfile ${DLFILE} 

@@ -31,3 +31,6 @@ if [ "${GPROM_LOG}X" != "X" ]; then
 else
     LOG="-log -loglevel 0"
 fi
+########################################
+# COMBINED CONFIGURATIONS USED BY SCRIPTS
+GPROM_DL_PLUGINS="-Pparser dl -Panalyzer dl -Ptranslator dl"
