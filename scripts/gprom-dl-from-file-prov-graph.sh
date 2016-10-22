@@ -26,9 +26,9 @@ fi
 	
 if [ $# -lt 2 ]; then
 	echo "Description: read a Datalog program with provenance requests from an input file, run it, create a dot script of the resulting provenance graph, and create a pdf from this dot script using graphviz."
-    echo "Usage: pass at least two parameters, the first one is the file storing the Datalog query and provenance request and the second one is the name of the file storing the output provenance graph."
+    echo "Usage: pass at least two parameters, the first one is the file storing the Datalog query and provenance request and the second one is the name of the file name for the output provenance graph."
 	echo " "
-    echo "gprom-dl-prov-graph.sh \"Q(X) :- R(X,Y). WHY(Q(1)).\" myquery.dl my_prov_graph" 
+    echo "gprom-dl-from-file-prov-graph.sh myquery.dl my_prov_graph" 
     exit 1
 fi
 
