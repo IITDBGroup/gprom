@@ -20,6 +20,7 @@ ARGS="${*:3}"
 
 if [ $# -lt 2 ]; then
     echo "Provide at least two parameters, the first one is the loglevel [0 : NONE up to 5 : TRACE] and the second one is a query."
+	echo " "
     echo "gprom-pass-arg.sh 3 \"SELECT * FROM r;\""
     exit 1
 fi

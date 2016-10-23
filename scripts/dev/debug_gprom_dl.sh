@@ -1,7 +1,26 @@
 #!/bin/bash
+#!/bin/bash
+########################################
+# VARS
+# Directory this script resides in
+pushd $(dirname "${0}") > /dev/null
+DIR=$(pwd -L)
+popd > /dev/null
+# GProM binary
+CONF_FILE=.gprom
+GPROM=${DIR}/../../src/command_line/gprom
+GPROM_CONF=${DIR}/../../${CONF_FILE}
+########################################
+# READ USER CONFIGUATION
+source ${DIR}/../gprom_basic.sh
+########################################
+if [ $# -le 1 ]; then
+	echo "Description: use gdb to debug gprom for Datalog queries"
+	echo " "
+    echo "Usage: give at least two parameters, the first one is a loglevel, the second one is a Datalog query."
+    echo "debug_gprom.sh 3 \"Q(X) :- R(X,Y).;\""
+    exit 1
+fi
 PROGRAM="${2}"
 LOG="${1}"
-./test/debugrewriter.sh ${LOG} "${PROGRAM}" -Pparser dl -Panalyzer dl -Ptranslator dl -Pexecutor sql -deactivate treefiy_prov_rewrite_input ${*:3} 
-
-
-# -Cattr_reference_consistency FALSE -Cunique_attr_names FALSE -Cschema_consistency FALSE -activate optimize_operator_model -Oremove_redundant_projections FALSE  ${*:3}
+${DIR}/debug_gprom.sh ${LOG} "${PROGRAM}" ${GPROM_DL_PLUGINS} -Pexecutor sql -treeify-algebra-graphs FALSE ${*:3} 

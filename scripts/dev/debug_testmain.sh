@@ -1,18 +1,32 @@
 #!/bin/bash
+########################################
+# VARS
+# Directory this script resides in
+pushd $(dirname "${0}") > /dev/null
+DIR=$(pwd -L)
+popd > /dev/null
+# GProM binary
+CONF_FILE=.gprom
+GPROM=${DIR}/../../src/command_line/gprom
+GPROM_CONF=${DIR}/../../${CONF_FILE}
+########################################
+# READ USER CONFIGUATION
+source ${DIR}/../gprom_basic.sh
+########################################
 if [ $# -le 1 ]; then
-	LOG=""
+	LOG="-log -loglevel 0"
 else
 	LOG="-log -loglevel $1"	
 	ARGS="${*:2}"
 fi
+
 SCRIPT=debug.script
-DIR=$(pwd)/$(dirname "${0}")
 
 # SET PATH TO FIND libgprom
-DYLD_LIBRARY_PATH="${DIR}/../src/libgprom/.libs:$DYLD_LIBRARY_PATH"
+DYLD_LIBRARY_PATH="${DIR}/../../src/libgprom/.libs:$DYLD_LIBRARY_PATH"
 DYLD_LIBRARY_PATH=`echo "$DYLD_LIBRARY_PATH" | /sw/bin/sed 's/::*$//'`
 export DYLD_LIBRARY_PATH
 echo "DYLD_LIBRARY_PATH ${DYLD_LIBRARY_PATH}"
 
-echo "run -host ligeti.cs.iit.edu -db orcl -port 1521 -user fga_user -passwd \"fga\" ${LOG} ${ARGS}" > ./$SCRIPT
-gdb test/.libs/testmain -x $SCRIPT
+echo "run ${CONNECTION_PARAMS} ${LOG} ${ARGS}" > ./$SCRIPT
+gdb ${DIR}/../../test/.libs/testmain -x $SCRIPT
