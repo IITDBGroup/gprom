@@ -203,6 +203,8 @@ The metadata lookup plugin handles communication with the backend database. This
 \fBoracle\fR \- This plugin manages communication with an Oracle database backend. We use Oracle's \fIOCI\fR interface wrapped by the open source library \fIOCILIB\fR.
 .IP
 \fBpostgres\fR \- This plugin manages communication with a PostgreSQL database backend. We use PostgreSQL's \fIlibpq\fR library.
+.IP
+\fBsqlite\fR \- This plugin manages communication with a SQLite database backend. We use PostgreSQL's \fIsqlite3-dev\fR library.
 \"****************************************
 .SS sqlcodegen
 This plugin translates GProM's internal relational algebra model of queries into queries written in a backend's SQL dialect. 
@@ -210,6 +212,8 @@ This plugin translates GProM's internal relational algebra model of queries into
 \fBoracle\fR \- Output SQL code written in Oracle's SQL dialect
 .IP
 \fBdl\fR \- Output a Datalog program
+.IP
+\fBsqlite\fR \- Output SQL code written in SQLite's SQL dialect
 \"****************************************
 .SS cbo
 Select search strategy of the cost-based optimizer
@@ -301,11 +305,21 @@ gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql
 .fi
 .PP
 \"****************************************
-\fBExample 3.\fR Using the same database as in examples 1 and 2, capture provenance of a query \fBSELECT a FROM r\fR:
+\fBExample 3.\fR Using the same database as in examples 1 and 2, return an SQL Query that captures provenance of the query \fBSELECT a FROM r\fR:
 .PP
 .nf
 .RS
 gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql \\
+      -sql "PROVENANCE OF (SELECT a FROM r);"
+.RE
+.fi
+.PP
+\"****************************************
+\fBExample 4.\fR Connect to SQLite database test.db and return provenance for the query \fBSELECT a FROM r\fR:
+.PP
+.nf
+.RS
+gprom -db test.db -Pmetadata sqlite -Psqlserializer sqlite \\
       -sql "PROVENANCE OF (SELECT a FROM r);"
 .RE
 .fi
