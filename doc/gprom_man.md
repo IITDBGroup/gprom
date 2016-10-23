@@ -186,6 +186,8 @@ The metadata lookup plugin handles communication with the backend database. This
 
 **postgres** - This plugin manages communication with a PostgreSQL database backend. We use PostgreSQL’s *libpq* library.   
 
+**sqlite** - This plugin manages communication with a SQLite database backend. We use PostgreSQL’s *sqlite3-dev* library.   
+
 ### [sqlcodegen](#toc17)
 
 This plugin translates GProM’s internal relational algebra model of queries into queries written in a backend’s SQL dialect.
@@ -193,6 +195,8 @@ This plugin translates GProM’s internal relational algebra model of queries in
 **oracle** - Output SQL code written in Oracle’s SQL dialect   
 
 **dl** - Output a Datalog program   
+
+**sqlite** - Output SQL code written in SQLite’s SQL dialect   
 
 ### [cbo](#toc18)
 
@@ -259,10 +263,15 @@ Set the cooling down rate used by simulated annealing. Value has to be between 0
 
     gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql
 
-**Example 3.** Using the same database as in examples 1 and 2, capture provenance of a query **SELECT a FROM r**:
+**Example 3.** Using the same database as in examples 1 and 2, return an SQL Query that captures provenance of the query **SELECT a FROM r**:
 
     gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql
     \
+          -sql "PROVENANCE OF (SELECT a FROM r);"
+
+**Example 4.** Connect to SQLite database test.db and return provenance for the query **SELECT a FROM r**:
+
+    gprom -db test.db -Pmetadata sqlite -Psqlserializer sqlite \
           -sql "PROVENANCE OF (SELECT a FROM r);"
 
 [Authors](#toc23)

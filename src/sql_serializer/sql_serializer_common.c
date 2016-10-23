@@ -506,7 +506,7 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
         char *name = strdup(TVIEW_GET_NAME(view));
 
         if (isA(parent, SetOperator))
-            appendStringInfo(str, "(SELECT * FROM %s)", name);
+            appendStringInfo(str, "SELECT * FROM %s", name);
         else
             appendStringInfoString(str, name);
 
@@ -526,7 +526,7 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
 
     // add reference to view
     if (isA(parent, SetOperator))
-        appendStringInfo(str, "(SELECT * FROM %s)", strdup(viewName));
+        appendStringInfo(str, "SELECT * FROM %s", strdup(viewName));
     else
         appendStringInfoString(str, strdup(viewName));
 

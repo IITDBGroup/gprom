@@ -32,6 +32,7 @@
 static SerializeClausesAPI *api = NULL;
 
 /* methods */
+static boolean replaceBoolWithInt (Node *node, void *context);
 static void createAPI (void);
 static void serializeJoinOperator(StringInfo from, QueryOperator* fromRoot, JoinOperator* j,
         int* curFromItem, int* attrOffset, List** fromAttrs, SerializeClausesAPI *api);
@@ -81,6 +82,9 @@ serializeQuerySQLite(QueryOperator *q)
     NEW_AND_ACQUIRE_MEMCONTEXT("SQL_SERIALIZER");
     str = makeStringInfo();
     viewDef = makeStringInfo();
+
+    // replace boolean with ints
+    replaceBoolWithInt((Node *) q, NULL);
 
     // initialize basic structures and then call the worker
     api->tempViewMap = NEW_MAP(Constant, Node);
@@ -164,6 +168,35 @@ quoteIdentifierSQLite (char *ident)
 
     return ident;
 }
+
+static boolean
+replaceBoolWithInt (Node *node, void *context)
+{
+    if (node == NULL)
+        return TRUE;
+
+    // replace boolean constants with 1/0
+    if (isA(node,Constant))
+    {
+        Constant *c = (Constant *) node;
+
+        if (c->constType == DT_BOOL)
+        {
+            boolean val = BOOL_VALUE(c);
+            c->constType = DT_INT;
+            c->value = NEW(int);
+            if (val)
+                INT_VALUE(c) = 1;
+            else
+                INT_VALUE(c) = 0;
+
+        }
+        return TRUE;
+    }
+
+    return visit(node, replaceBoolWithInt, context);
+}
+
 
 static void
 createAPI (void)
@@ -575,7 +608,7 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
 }
 
 /*
- * Serialize a set operation UNION/MINUS/INTERSECT
+ * Serialize a set operation UNION/EXCEPT/INTERSECT
  */
 static List *
 serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api)
@@ -596,7 +629,7 @@ serializeSetOperator (QueryOperator *q, StringInfo str, SerializeClausesAPI *api
             appendStringInfoString(str, " INTERSECT ");
             break;
         case SETOP_DIFFERENCE:
-            appendStringInfoString(str, " MINUS ");
+            appendStringInfoString(str, " EXCEPT ");
             break;
     }
 
