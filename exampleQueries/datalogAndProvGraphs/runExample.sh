@@ -16,4 +16,4 @@ SCRIPT=../../scripts/gprom-dl-from-file-to-sql.sh
 
 ########################################
 # EXECUTE SCRIPT
-${SCRIPT} 0 ${INFILE} -Psqlserializer sqlite -Pmetadata sqlite -db ./dlexam.db -Pexecutor run
+${SCRIPT} 0 ${INFILE} -Psqlserializer sqlite -Pmetadata sqlite -db ./dlexam.db -Pexecutor run ${2:*}

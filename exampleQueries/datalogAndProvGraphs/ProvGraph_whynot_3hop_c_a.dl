@@ -1,0 +1,1 @@
+hop3(X,Y) :- hop(X,A), hop(A,B), hop(B,Y). WHYNOT(hop3('c','a')) FORMAT REDUCED_GP.
