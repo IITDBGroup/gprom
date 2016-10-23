@@ -297,7 +297,7 @@ OptionInfo opts[] =
         {
                 "backend",
                 "-backend",
-                "select backend database type: postgres, oracle - this determines parser, metadata-lookup, and sql-code generator",
+                "select backend database type: postgres, oracle, sqlite - this determines parser, metadata-lookup, and sql-code generator",
                 OPTION_STRING,
                 wrapOptionString(&backend),
                 defOptionString("oracle")
