@@ -13,8 +13,9 @@ GPROM_CONF=${DIR}/../../${CONF_FILE}
 # READ USER CONFIGUATION
 source ${DIR}/../gprom_basic.sh
 ########################################
-if [ $# -le 1 ]; then
+if [ $# -le 0 ]; then
 	LOG="-log -loglevel 0"
+	ARGS="${*}"
 else
 	LOG="-log -loglevel $1"	
 	ARGS="${*:2}"

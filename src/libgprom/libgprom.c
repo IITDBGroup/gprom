@@ -150,6 +150,18 @@ gprom_optionExists(const char *name)
 }
 
 void
+gprom_setOptionsFromMap()
+{
+
+}
+
+void
+gprom_setOption(const char *name, const char *value)
+{
+    return setOption((char *) name, strdup((char *) value));
+}
+
+void
 gprom_setStringOption (const char *name, const char *value)
 {
     return setStringOption((char *) name, strdup((char *) value));

@@ -22,4 +22,4 @@ fi
 LOG="-log -loglevel $1"
 SQL="$2"
 ARGS="${*:3}"
-valgrind --log-file=./valgrind.txt --tool=memcheck -v --track-origins=yes --leak-check=full --show-leak-kinds=all --malloc-fill=01 --free-fill=FF --leak-check=yes --dsymutil=yes ${GPROM} ${CONNECTION_PARAMS} ${LOG} -sql "${SQL}" -treefiy_algebra_graph TRUE ${ARGS}
+valgrind --log-file=./valgrind.txt --tool=memcheck -v --track-origins=yes --leak-check=full --show-leak-kinds=all --malloc-fill=01 --free-fill=FF --leak-check=yes --dsymutil=yes ${GPROM} ${CONNECTION_PARAMS} ${LOG} -sql "${SQL}" -treeify-algebra-graphs ${ARGS}

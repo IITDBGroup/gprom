@@ -4,6 +4,7 @@
 #include "common.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
+#include "model/set/hashmap.h"
 #include "utility/enum_magic.h"
 
 NEW_ENUM_WITH_TO_STRING(
@@ -15,17 +16,25 @@ NEW_ENUM_WITH_TO_STRING(
 );
 //typedef enum OptionType {
 
-/* define backend specific options */
+/* connection options */
+#define OPTION_CONN_USER "connection.user"
+#define OPTION_CONN_PASSWD "connection.passwd"
+#define OPTION_CONN_DB "connection.db"
+#define OPTION_CONN_PORT "connection.port"
+#define OPTION_CONN_HOST "connection.host"
+
+/* backend specific options */
 #define OPTION_ORACLE_AUDITTABLE "backendOpts.oracle.logtable"
 #define OPTION_ORACLE_USE_SERVICE "backendOpts.oracle.use_service"
 
-/* define rewrite methods */
+/* debug option methods */
 #define OPTION_TIMING "timing"
 #define OPTION_MEMMEASURE "memdebug"
 #define OPTION_GRAPHVIZ "graphviz"
 #define OPTION_GRAPHVIZ_DETAILS "graphviz_details"
 #define OPTION_AGGRESSIVE_MODEL_CHECKING "aggressive_model_checking"
 
+/* provennace and some optimization options */
 #define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"
 #define OPTION_UPDATE_ONLY_USE_HISTORY_JOIN "only_updated_use_history"
 #define OPTION_TREEIFY_OPERATOR_MODEL "treefiy_prov_rewrite_input"
@@ -41,7 +50,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_COST_BASED_CLOSE_OPTION_REMOVEDP_BY_SET "cost_based_close_option_removedp_by_set"
 //#define OPTION_
 
-/* define optimization options */
+/* optimization options */
 #define OPTIMIZATION_SELECTION_PUSHING "optimization.push_selections"
 #define OPTIMIZATION_MERGE_OPERATORS "optimization.merge_operators"
 #define OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR "optimization.factor_proj_attr_in_expr"
@@ -55,7 +64,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS "optimization.remove_unnecessary_window_operators"
 #define OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS "optimization.pull_up_deplicate_remove_operators"
 
-/* define model checking options */
+/* model checking options */
 #define CHECK_OM_UNIQUE_ATTR_NAMES "check.unique_attrs"
 #define CHECK_OM_PARENT_CHILD_LINKS "check.parent_child_links"
 #define CHECK_OM_SCHEMA_CONSISTENCY "check.schema_consistency"
@@ -130,6 +139,7 @@ extern void setStringOption (char *name, char *value);
 extern void setIntOption(char *name, int value);
 extern void setBoolOption(char *name, boolean value);
 extern void setFloatOption(char *name, double value);
+extern void setOptionsFromMap(HashMap *opts);
 
 extern boolean hasOption(char *name);
 extern boolean hasCommandOption(char *name);
@@ -141,6 +151,7 @@ extern void printOptionsHelp(FILE *stream, char *progName, char *description,
         boolean showValues);
 extern void printCurrentOptions(FILE *stream);
 extern char *optionsToStringOnePerLine(void);
+extern HashMap *optionsToHashMap(void);
 
 extern void mallocOptions();
 extern void freeOptions();

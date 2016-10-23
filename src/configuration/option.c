@@ -203,7 +203,7 @@ OptionInfo opts[] =
         },
         // database backend connection options
         {
-                "connection.host",
+                OPTION_CONN_HOST,
                 "-host",
                 "Host IP address for backend DB connection.",
                 OPTION_STRING,
@@ -211,7 +211,7 @@ OptionInfo opts[] =
                 defOptionString("")
         },
         {
-                "connection.db",
+                OPTION_CONN_DB,
                 "-db",
                 "Database name for backend DB connection (SID or SERVICE_NAME for Oracle backends).",
                 OPTION_STRING,
@@ -219,7 +219,7 @@ OptionInfo opts[] =
                 defOptionString("")
         },
         {
-                "connection.user",
+                OPTION_CONN_USER,
                 "-user",
                 "User for backend DB connection.",
                 OPTION_STRING,
@@ -227,7 +227,7 @@ OptionInfo opts[] =
                 defOptionString("")
         },
         {
-                "connection.passwd",
+                OPTION_CONN_PASSWD,
                 "-passwd",
                 "Password for backend DB connection.",
                 OPTION_STRING,
@@ -235,7 +235,7 @@ OptionInfo opts[] =
                 defOptionString("")
         },
         {
-                "connection.port",
+                OPTION_CONN_PORT,
                 "-port",
                 "TCP/IP port for backend DB connection.",
                 OPTION_INT,
@@ -811,6 +811,18 @@ setFloatOption(char *name, double value)
     *(v->f) = value;
 }
 
+void
+setOptionsFromMap(HashMap *opts)
+{
+    FOREACH_HASH_ENTRY(k,opts)
+    {
+        char *name = STRING_VALUE(k->key);
+        char *value = STRING_VALUE(k->value);
+
+        setOption(name, value);
+    }
+}
+
 boolean
 hasOption(char *name)
 {
@@ -908,6 +920,21 @@ optionsToStringOnePerLine(void)
     str = result->data;
 //    free(result);
     return str;
+}
+
+HashMap *
+optionsToHashMap(void)
+{
+    HashMap *result = NEW_MAP(Constant,Constant);
+
+    FOREACH_HASH_KEY(Constant,k,optionPos)
+    {
+        char *name = STRING_VALUE(k);
+        OptionInfo *v = getInfo(name);
+        MAP_ADD_STRING_KEY(result,name, createConstString(valGetString(&v->value, v->valueType)));
+    }
+
+    return result;
 }
 
 static char *
