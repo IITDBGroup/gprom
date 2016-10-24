@@ -29,20 +29,23 @@ NEW_ENUM_WITH_TO_STRING(MatchState,
     MATCH_NEXTBLOCK
 );
 
-//#define OUT_MATCH_STATE(_state) \
-//    (_state == MATCH_START ? "MATCH_START" : \
-//     _state == MATCH_DISTINCT ? "MATCH_DISTINCT" : \
-//     _state == MATCH_FIRST_PROJ ? "MATCH_FIRST_PROJ" : \
-//     _state == MATCH_HAVING ? "MATCH_HAVING" : \
-//     _state == MATCH_AGGREGATION ? "MATCH_AGGREGATION" : \
-//     _state == MATCH_SECOND_PROJ ? "MATCH_SECOND_PROJ" : \
-//     _state == MATCH_WHERE ? "MATCH_WHERE" : \
-//     _state == MATCH_WINDOW ? "MATCH_WINDOW" : \
-//     _state == MATCH_WINDOW ? "MATCH_ORDER" : \
-//             "MATCH_NEXTBLOCK" \
-//     )
-
 #define OUT_MATCH_STATE(_state) MatchStateToString(_state)
+
+
+/*
+#define OUT_MATCH_STATE(_state) \
+    (_state == MATCH_START ? "MATCH_START" : \
+     _state == MATCH_DISTINCT ? "MATCH_DISTINCT" : \
+     _state == MATCH_FIRST_PROJ ? "MATCH_FIRST_PROJ" : \
+     _state == MATCH_HAVING ? "MATCH_HAVING" : \
+     _state == MATCH_AGGREGATION ? "MATCH_AGGREGATION" : \
+     _state == MATCH_SECOND_PROJ ? "MATCH_SECOND_PROJ" : \
+     _state == MATCH_WHERE ? "MATCH_WHERE" : \
+     _state == MATCH_WINDOW ? "MATCH_WINDOW" : \
+     _state == MATCH_WINDOW ? "MATCH_ORDER" : \
+             "MATCH_NEXTBLOCK" \
+     )
+*/
 
 typedef struct QueryBlockMatch {
     DuplicateRemoval *distinct;
