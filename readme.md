@@ -7,6 +7,7 @@ GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC 
 # Documentation
 
 * [Installation Instructions](https://github.com/IITDBGroup/gprom/wiki/installation)
+* [Tutorial](https://github.com/IITDBGroup/gprom/wiki/tutorial)
 * [GProM Commandline Shell Manual](https://github.com/IITDBGroup/gprom/blob/master/doc/gprom_man.md)
 * Provenance Language Features
   * [SQL](https://github.com/IITDBGroup/gprom/wiki/sql_extensions)
