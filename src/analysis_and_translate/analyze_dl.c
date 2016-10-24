@@ -123,6 +123,11 @@ analyzeDLProgram (DLProgram *p)
 //            addToSet(factRels, f->rel);
             facts = appendToTailOfList(facts,r);
         }
+//        else if(isA(r,Domain)) // user defined domain
+//		{
+//        	Domain *d = (Domain *) r;
+//			p->userdomain = d->domainName;
+//		}
         // provenance question
         else if(isA(r,KeyValue))
             analyzeProv(p, (KeyValue *) r);
@@ -198,6 +203,10 @@ analyzeProv (DLProgram *p, KeyValue *kv)
         {
             DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE);
         }
+        else if (isSuffix(type, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED))
+		{
+			DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED);
+		}
         else
         {
             FATAL_LOG("unkown provenance return format: %s", type);

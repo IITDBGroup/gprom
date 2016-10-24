@@ -1,0 +1,105 @@
+digraph
+{
+	rankdir="TB"
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+RULE_0_WON_Alex_Benton_Paul_Erdoes_Joseph_ORourke_Boris_Aronov_ [label="r0 (Alex Benton,Paul Erdoes,Joseph ORourke,Boris Aronov)", texlbl="$r_0(Alex Benton,Paul Erdoes,Joseph ORourke,Boris Aronov)$"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+RULE_2_LOST_Alex_Benton_c_ [label="r2 (Alex Benton,c)", texlbl="$r_2(Alex Benton,c)$"]
+RULE_2_LOST_Alex_Benton_b_ [label="r2 (Alex Benton,b)", texlbl="$r_2(Alex Benton,b)$"]
+RULE_1_LOST_Alex_Benton_ [label="r1 (Alex Benton)", texlbl="$r_1(Alex Benton)$"]
+RULE_2_LOST_Alex_Benton_a_ [label="r2 (Alex Benton,a)", texlbl="$r_2(Alex Benton,a)$"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#CBFFCB"]
+GOAL_0_0_WON_Alex_Benton_Joseph_ORourke_ [label="g[0,0](Alex Benton,Joseph ORourke)", texlbl="$g_{0}^{0}(Alex Benton,Joseph ORourke)$"]
+GOAL_0_3_WON_Alex_Benton_ [label="g[0,3](Alex Benton)", texlbl="$g_{0}^{3}(Alex Benton)$"]
+GOAL_0_2_WON_Boris_Aronov_Paul_Erdoes_ [label="g[0,2](Boris Aronov,Paul Erdoes)", texlbl="$g_{0}^{2}(Boris Aronov,Paul Erdoes)$"]
+GOAL_0_1_WON_Joseph_ORourke_Boris_Aronov_ [label="g[0,1](Joseph ORourke,Boris Aronov)", texlbl="$g_{0}^{1}(Joseph ORourke,Boris Aronov)$"]
+GOAL_0_4_WON_Alex_Benton_ [label="g[0,4](Alex Benton)", texlbl="$g_{0}^{4}(Alex Benton)$"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#FF8383"]
+GOAL_2_1_LOST_b_Paul_Erdoes_ [label="g[2,1](b,Paul Erdoes)", texlbl="$g_{2}^{1}(b,Paul Erdoes)$"]
+GOAL_1_0_LOST_Alex_Benton_Paul_Erdoes_ [label="g[1,0](Alex Benton,Paul Erdoes)", texlbl="$g_{1}^{0}(Alex Benton,Paul Erdoes)$"]
+GOAL_2_0_LOST_Alex_Benton_c_ [label="g[2,0](Alex Benton,c)", texlbl="$g_{2}^{0}(Alex Benton,c)$"]
+GOAL_2_0_LOST_Alex_Benton_b_ [label="g[2,0](Alex Benton,b)", texlbl="$g_{2}^{0}(Alex Benton,b)$"]
+GOAL_2_0_LOST_Alex_Benton_a_ [label="g[2,0](Alex Benton,a)", texlbl="$g_{2}^{0}(Alex Benton,a)$"]
+GOAL_2_1_LOST_c_Paul_Erdoes_ [label="g[2,1](c,Paul Erdoes)", texlbl="$g_{2}^{1}(c,Paul Erdoes)$"]
+GOAL_2_1_LOST_a_Paul_Erdoes_ [label="g[2,1](a,Paul Erdoes)", texlbl="$g_{2}^{1}(a,Paul Erdoes)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+REL_DBLP_1M_WON_Alex_Benton_Joseph_ORourke_ [label="DBLP_1M(Alex Benton,Joseph ORourke)", texlbl="$DBLP_1M(Alex Benton,Joseph ORourke)$"]
+REL_DBLP_1M_WON_Joseph_ORourke_Boris_Aronov_ [label="DBLP_1M(Joseph ORourke,Boris Aronov)", texlbl="$DBLP_1M(Joseph ORourke,Boris Aronov)$"]
+REL_DBLP_1M_WON_Boris_Aronov_Paul_Erdoes_ [label="DBLP_1M(Boris Aronov,Paul Erdoes)", texlbl="$DBLP_1M(Boris Aronov,Paul Erdoes)$"]
+REL_ONLY3HOP_WON_Alex_Benton_Paul_Erdoes_ [label="ONLY3HOP(Alex Benton,Paul Erdoes)", texlbl="$ONLY3HOP(Alex Benton,Paul Erdoes)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+REL_DBLP_1M_LOST_b_Paul_Erdoes_ [label="DBLP_1M(b,Paul Erdoes)", texlbl="$DBLP_1M(b,Paul Erdoes)$"]
+REL_HOP1_LOST_Alex_Benton_ [label="HOP1(Alex Benton)", texlbl="$HOP1(Alex Benton)$"]
+REL_DBLP_1M_LOST_Alex_Benton_Paul_Erdoes_ [label="DBLP_1M(Alex Benton,Paul Erdoes)", texlbl="$DBLP_1M(Alex Benton,Paul Erdoes)$"]
+REL_HOP2_LOST_Alex_Benton_ [label="HOP2(Alex Benton)", texlbl="$HOP2(Alex Benton)$"]
+REL_DBLP_1M_LOST_Alex_Benton_c_ [label="DBLP_1M(Alex Benton,c)", texlbl="$DBLP_1M(Alex Benton,c)$"]
+REL_DBLP_1M_LOST_Alex_Benton_a_ [label="DBLP_1M(Alex Benton,a)", texlbl="$DBLP_1M(Alex Benton,a)$"]
+REL_DBLP_1M_LOST_Alex_Benton_b_ [label="DBLP_1M(Alex Benton,b)", texlbl="$DBLP_1M(Alex Benton,b)$"]
+REL_DBLP_1M_LOST_a_Paul_Erdoes_ [label="DBLP_1M(a,Paul Erdoes)", texlbl="$DBLP_1M(a,Paul Erdoes)$"]
+REL_DBLP_1M_LOST_c_Paul_Erdoes_ [label="DBLP_1M(c,Paul Erdoes)", texlbl="$DBLP_1M(c,Paul Erdoes)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="point"]
+
+
+	node [shape="square", width=0.011, height=0.011, fillcolor=black]
+	GOAL_2_1_LOST_b_Paul_Erdoes_ -> REL_DBLP_1M_LOST_b_Paul_Erdoes_
+	GOAL_0_0_WON_Alex_Benton_Joseph_ORourke_ -> REL_DBLP_1M_WON_Alex_Benton_Joseph_ORourke_
+	GOAL_0_3_WON_Alex_Benton_ -> REL_HOP1_LOST_Alex_Benton_
+	GOAL_1_0_LOST_Alex_Benton_Paul_Erdoes_ -> REL_DBLP_1M_LOST_Alex_Benton_Paul_Erdoes_
+	REL_HOP2_LOST_Alex_Benton_ -> RULE_2_LOST_Alex_Benton_c_
+	RULE_2_LOST_Alex_Benton_c_ -> GOAL_2_0_LOST_Alex_Benton_c_
+	RULE_2_LOST_Alex_Benton_b_ -> GOAL_2_1_LOST_b_Paul_Erdoes_
+	RULE_0_WON_Alex_Benton_Paul_Erdoes_Joseph_ORourke_Boris_Aronov_ -> GOAL_0_2_WON_Boris_Aronov_Paul_Erdoes_
+	RULE_0_WON_Alex_Benton_Paul_Erdoes_Joseph_ORourke_Boris_Aronov_ -> GOAL_0_3_WON_Alex_Benton_
+	RULE_1_LOST_Alex_Benton_ -> GOAL_1_0_LOST_Alex_Benton_Paul_Erdoes_
+	RULE_0_WON_Alex_Benton_Paul_Erdoes_Joseph_ORourke_Boris_Aronov_ -> GOAL_0_1_WON_Joseph_ORourke_Boris_Aronov_
+	RULE_2_LOST_Alex_Benton_b_ -> GOAL_2_0_LOST_Alex_Benton_b_
+	GOAL_2_0_LOST_Alex_Benton_c_ -> REL_DBLP_1M_LOST_Alex_Benton_c_
+	GOAL_2_0_LOST_Alex_Benton_a_ -> REL_DBLP_1M_LOST_Alex_Benton_a_
+	GOAL_0_1_WON_Joseph_ORourke_Boris_Aronov_ -> REL_DBLP_1M_WON_Joseph_ORourke_Boris_Aronov_
+	GOAL_0_2_WON_Boris_Aronov_Paul_Erdoes_ -> REL_DBLP_1M_WON_Boris_Aronov_Paul_Erdoes_
+	RULE_2_LOST_Alex_Benton_a_ -> GOAL_2_0_LOST_Alex_Benton_a_
+	GOAL_2_0_LOST_Alex_Benton_b_ -> REL_DBLP_1M_LOST_Alex_Benton_b_
+	RULE_2_LOST_Alex_Benton_c_ -> GOAL_2_1_LOST_c_Paul_Erdoes_
+	GOAL_0_4_WON_Alex_Benton_ -> REL_HOP2_LOST_Alex_Benton_
+	REL_HOP1_LOST_Alex_Benton_ -> RULE_1_LOST_Alex_Benton_
+	REL_HOP2_LOST_Alex_Benton_ -> RULE_2_LOST_Alex_Benton_a_
+	GOAL_2_1_LOST_a_Paul_Erdoes_ -> REL_DBLP_1M_LOST_a_Paul_Erdoes_
+	RULE_0_WON_Alex_Benton_Paul_Erdoes_Joseph_ORourke_Boris_Aronov_ -> GOAL_0_4_WON_Alex_Benton_
+	REL_HOP2_LOST_Alex_Benton_ -> RULE_2_LOST_Alex_Benton_b_
+	REL_ONLY3HOP_WON_Alex_Benton_Paul_Erdoes_ -> RULE_0_WON_Alex_Benton_Paul_Erdoes_Joseph_ORourke_Boris_Aronov_
+	RULE_0_WON_Alex_Benton_Paul_Erdoes_Joseph_ORourke_Boris_Aronov_ -> GOAL_0_0_WON_Alex_Benton_Joseph_ORourke_
+	RULE_2_LOST_Alex_Benton_a_ -> GOAL_2_1_LOST_a_Paul_Erdoes_
+	GOAL_2_1_LOST_c_Paul_Erdoes_ -> REL_DBLP_1M_LOST_c_Paul_Erdoes_
+
+}

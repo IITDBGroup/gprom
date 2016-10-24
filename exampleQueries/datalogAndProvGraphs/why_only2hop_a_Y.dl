@@ -1,0 +1,1 @@
+only2hop(X,Y) :- hop(X,A), hop(A,Y), not hop(X,Y). WHY(only2hop('a',Y)) FORMAT REDUCED_GP. ANS:only2hop.
