@@ -1,0 +1,53 @@
+digraph
+{
+	rankdir="TB"
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+RULE_0_LOST_c_b_ [label="r0 (c,b)", texlbl="$r_0(c,b)$"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#FF8383"]
+GOAL_0_0_LOST_c_b_ [label="g[0,0](c,b)", texlbl="$g_{0}^{0}(c,b)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+REL_HOP_LOST_c_b_ [label="HOP(c,b)", texlbl="$HOP(c,b)$"]
+REL_XWITHYNOTZ_LOST_c_b_ [label="XWITHYNOTZ(c,b)", texlbl="$XWITHYNOTZ(c,b)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="point"]
+
+
+	node [shape="square", width=0.011, height=0.011, fillcolor=black]
+	RULE_0_LOST_c_b_ -> GOAL_0_0_LOST_c_b_
+	GOAL_0_0_LOST_c_b_ -> REL_HOP_LOST_c_b_
+	REL_XWITHYNOTZ_LOST_c_b_ -> RULE_0_LOST_c_b_
+
+}
