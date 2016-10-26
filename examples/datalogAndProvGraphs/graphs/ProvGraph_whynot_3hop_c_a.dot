@@ -6,37 +6,42 @@ digraph
 
 
 	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
-RULE_0_LOST_c_a_a_c_ [label="r0 (c,a,a,c)", texlbl="$r_0(c,a,a,c)$"]
-RULE_0_LOST_c_a_c_c_ [label="r0 (c,a,c,c)", texlbl="$r_0(c,a,c,c)$"]
-RULE_0_LOST_c_a_b_c_ [label="r0 (c,a,b,c)", texlbl="$r_0(c,a,b,c)$"]
-RULE_0_LOST_c_a_b_b_ [label="r0 (c,a,b,b)", texlbl="$r_0(c,a,b,b)$"]
-RULE_0_LOST_c_a_c_a_ [label="r0 (c,a,c,a)", texlbl="$r_0(c,a,c,a)$"]
-RULE_0_LOST_c_a_c_b_ [label="r0 (c,a,c,b)", texlbl="$r_0(c,a,c,b)$"]
-RULE_0_LOST_c_a_a_a_ [label="r0 (c,a,a,a)", texlbl="$r_0(c,a,a,a)$"]
-RULE_0_LOST_c_a_a_b_ [label="r0 (c,a,a,b)", texlbl="$r_0(c,a,a,b)$"]
 RULE_0_LOST_c_a_b_a_ [label="r0 (c,a,b,a)", texlbl="$r_0(c,a,b,a)$"]
+RULE_0_LOST_c_a_a_a_ [label="r0 (c,a,a,a)", texlbl="$r_0(c,a,a,a)$"]
+RULE_0_LOST_c_a_c_c_ [label="r0 (c,a,c,c)", texlbl="$r_0(c,a,c,c)$"]
+RULE_0_LOST_c_a_a_c_ [label="r0 (c,a,a,c)", texlbl="$r_0(c,a,a,c)$"]
+RULE_0_LOST_c_a_c_b_ [label="r0 (c,a,c,b)", texlbl="$r_0(c,a,c,b)$"]
+RULE_0_LOST_c_a_b_b_ [label="r0 (c,a,b,b)", texlbl="$r_0(c,a,b,b)$"]
+RULE_0_LOST_c_a_b_c_ [label="r0 (c,a,b,c)", texlbl="$r_0(c,a,b,c)$"]
+RULE_0_LOST_c_a_a_b_ [label="r0 (c,a,a,b)", texlbl="$r_0(c,a,a,b)$"]
+RULE_0_LOST_c_a_c_a_ [label="r0 (c,a,c,a)", texlbl="$r_0(c,a,c,a)$"]
 
 
 	node [shape="box", style="rounded,filled", color=black, fillcolor="#CBFFCB"]
 
 
 	node [shape="box", style="rounded,filled", color=black, fillcolor="#FF8383"]
+GOAL_0_0_LOST_c_b_ [label="g[0,0](c,b)", texlbl="$g_{0}^{0}(c,b)$"]
 GOAL_0_0_LOST_c_a_ [label="g[0,0](c,a)", texlbl="$g_{0}^{0}(c,a)$"]
 GOAL_0_0_LOST_c_c_ [label="g[0,0](c,c)", texlbl="$g_{0}^{0}(c,c)$"]
-GOAL_0_0_LOST_c_b_ [label="g[0,0](c,b)", texlbl="$g_{0}^{0}(c,b)$"]
 GOAL_0_1_LOST_a_c_ [label="g[0,1](a,c)", texlbl="$g_{0}^{1}(a,c)$"]
-GOAL_0_1_LOST_c_c_ [label="g[0,1](c,c)", texlbl="$g_{0}^{1}(c,c)$"]
-GOAL_0_1_LOST_b_b_ [label="g[0,1](b,b)", texlbl="$g_{0}^{1}(b,b)$"]
-GOAL_0_1_LOST_c_a_ [label="g[0,1](c,a)", texlbl="$g_{0}^{1}(c,a)$"]
 GOAL_0_1_LOST_c_b_ [label="g[0,1](c,b)", texlbl="$g_{0}^{1}(c,b)$"]
 GOAL_0_2_LOST_c_a_ [label="g[0,2](c,a)", texlbl="$g_{0}^{2}(c,a)$"]
+GOAL_0_1_LOST_b_b_ [label="g[0,1](b,b)", texlbl="$g_{0}^{1}(b,b)$"]
+GOAL_0_1_LOST_c_a_ [label="g[0,1](c,a)", texlbl="$g_{0}^{1}(c,a)$"]
+GOAL_0_1_LOST_c_c_ [label="g[0,1](c,c)", texlbl="$g_{0}^{1}(c,c)$"]
 
 
 	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
 
 
 	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+REL_HOP_LOST_c_a_ [label="HOP(c,a)", texlbl="$HOP(c,a)$"]
 REL_HOP3_LOST_c_a_ [label="HOP3(c,a)", texlbl="$HOP3(c,a)$"]
+REL_HOP_LOST_c_c_ [label="HOP(c,c)", texlbl="$HOP(c,c)$"]
+REL_HOP_LOST_b_b_ [label="HOP(b,b)", texlbl="$HOP(b,b)$"]
+REL_HOP_LOST_c_b_ [label="HOP(c,b)", texlbl="$HOP(c,b)$"]
+REL_HOP_LOST_a_c_ [label="HOP(a,c)", texlbl="$HOP(a,c)$"]
 
 
 	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
@@ -49,51 +54,52 @@ REL_HOP3_LOST_c_a_ [label="HOP3(c,a)", texlbl="$HOP3(c,a)$"]
 
 
 	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
-EDB_rHOP_LOST_c_a_ [label="rHOP(c,a)", texlbl="$rHOP(c,a)$"]
-EDB_rHOP_LOST_c_c_ [label="rHOP(c,c)", texlbl="$rHOP(c,c)$"]
-EDB_rHOP_LOST_c_b_ [label="rHOP(c,b)", texlbl="$rHOP(c,b)$"]
-EDB_rHOP_LOST_a_c_ [label="rHOP(a,c)", texlbl="$rHOP(a,c)$"]
-EDB_rHOP_LOST_b_b_ [label="rHOP(b,b)", texlbl="$rHOP(b,b)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
 
 
 	node [shape="point"]
 
 
 	node [shape="square", width=0.011, height=0.011, fillcolor=black]
-	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_a_c_
-	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_c_c_
-	RULE_0_LOST_c_a_a_c_ -> GOAL_0_0_LOST_c_a_
-	RULE_0_LOST_c_a_c_c_ -> GOAL_0_0_LOST_c_c_
-	RULE_0_LOST_c_a_b_c_ -> GOAL_0_0_LOST_c_b_
-	RULE_0_LOST_c_a_b_b_ -> GOAL_0_0_LOST_c_b_
-	RULE_0_LOST_c_a_c_a_ -> GOAL_0_0_LOST_c_c_
-	RULE_0_LOST_c_a_c_b_ -> GOAL_0_0_LOST_c_c_
-	RULE_0_LOST_c_a_a_a_ -> GOAL_0_0_LOST_c_a_
-	RULE_0_LOST_c_a_a_b_ -> GOAL_0_0_LOST_c_a_
 	RULE_0_LOST_c_a_b_a_ -> GOAL_0_0_LOST_c_b_
-	GOAL_0_0_LOST_c_a_ -> EDB_rHOP_LOST_c_a_
-	GOAL_0_0_LOST_c_c_ -> EDB_rHOP_LOST_c_c_
-	GOAL_0_0_LOST_c_b_ -> EDB_rHOP_LOST_c_b_
+	RULE_0_LOST_c_a_a_a_ -> GOAL_0_0_LOST_c_a_
+	RULE_0_LOST_c_a_c_c_ -> GOAL_0_0_LOST_c_c_
 	RULE_0_LOST_c_a_a_c_ -> GOAL_0_1_LOST_a_c_
-	RULE_0_LOST_c_a_c_c_ -> GOAL_0_1_LOST_c_c_
-	RULE_0_LOST_c_a_b_b_ -> GOAL_0_1_LOST_b_b_
-	RULE_0_LOST_c_a_c_a_ -> GOAL_0_1_LOST_c_a_
 	RULE_0_LOST_c_a_c_b_ -> GOAL_0_1_LOST_c_b_
-	GOAL_0_1_LOST_a_c_ -> EDB_rHOP_LOST_a_c_
-	GOAL_0_1_LOST_c_c_ -> EDB_rHOP_LOST_c_c_
-	GOAL_0_1_LOST_b_b_ -> EDB_rHOP_LOST_b_b_
-	GOAL_0_1_LOST_c_a_ -> EDB_rHOP_LOST_c_a_
-	GOAL_0_1_LOST_c_b_ -> EDB_rHOP_LOST_c_b_
-	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_b_c_
 	RULE_0_LOST_c_a_a_c_ -> GOAL_0_2_LOST_c_a_
-	RULE_0_LOST_c_a_c_c_ -> GOAL_0_2_LOST_c_a_
-	RULE_0_LOST_c_a_b_c_ -> GOAL_0_2_LOST_c_a_
-	GOAL_0_2_LOST_c_a_ -> EDB_rHOP_LOST_c_a_
-	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_b_b_
-	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_c_a_
+	GOAL_0_2_LOST_c_a_ -> REL_HOP_LOST_c_a_
 	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_c_b_
-	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_a_a_
+	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_c_c_
+	RULE_0_LOST_c_a_b_b_ -> GOAL_0_1_LOST_b_b_
+	RULE_0_LOST_c_a_b_c_ -> GOAL_0_0_LOST_c_b_
+	RULE_0_LOST_c_a_a_b_ -> GOAL_0_0_LOST_c_a_
+	GOAL_0_1_LOST_c_a_ -> REL_HOP_LOST_c_a_
+	GOAL_0_1_LOST_c_c_ -> REL_HOP_LOST_c_c_
 	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_a_b_
+	RULE_0_LOST_c_a_b_b_ -> GOAL_0_0_LOST_c_b_
+	RULE_0_LOST_c_a_c_b_ -> GOAL_0_0_LOST_c_c_
+	RULE_0_LOST_c_a_c_a_ -> GOAL_0_1_LOST_c_a_
+	RULE_0_LOST_c_a_b_c_ -> GOAL_0_2_LOST_c_a_
 	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_b_a_
+	RULE_0_LOST_c_a_a_c_ -> GOAL_0_0_LOST_c_a_
+	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_b_c_
+	RULE_0_LOST_c_a_c_c_ -> GOAL_0_2_LOST_c_a_
+	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_b_b_
+	GOAL_0_0_LOST_c_a_ -> REL_HOP_LOST_c_a_
+	GOAL_0_1_LOST_b_b_ -> REL_HOP_LOST_b_b_
+	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_c_a_
+	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_a_c_
+	RULE_0_LOST_c_a_c_a_ -> GOAL_0_0_LOST_c_c_
+	GOAL_0_0_LOST_c_c_ -> REL_HOP_LOST_c_c_
+	GOAL_0_0_LOST_c_b_ -> REL_HOP_LOST_c_b_
+	GOAL_0_1_LOST_c_b_ -> REL_HOP_LOST_c_b_
+	RULE_0_LOST_c_a_c_c_ -> GOAL_0_1_LOST_c_c_
+	GOAL_0_1_LOST_a_c_ -> REL_HOP_LOST_a_c_
+	REL_HOP3_LOST_c_a_ -> RULE_0_LOST_c_a_a_a_
 
 }
