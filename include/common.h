@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <ctype.h>
+#include <errno.h>
 
 /*******************************************************************************
  * Portability

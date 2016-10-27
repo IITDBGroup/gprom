@@ -42,3 +42,4 @@ valgrind.txt
 src/command_line/gprom
 doc/gprom_man.html
 .gprom
+scripts/.gitignore
