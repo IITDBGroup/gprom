@@ -91,11 +91,14 @@ public class GProMJDBCTest {
 		
 		log.error("statement created");
 //		ResultSet rs = st.executeQuery("SELECT a FROM r;");
-		ResultSet rs = st.executeQuery("SELECT \"a\" FROM \"o\";");
+		ResultSet rs;
+		rs = st.executeQuery("PROVENANCE OF (SELECT * FROM o);");
 		printResult(rs);
 		
-//		rs = st.executeQuery("PROVENANCE OF (SELECT * FROM R);");
-//		printResult(rs);
+		
+		rs = st.executeQuery("SELECT \"a\" FROM \"o\";");
+		printResult(rs);
+		
 //		
 //		// test error
 //		try {

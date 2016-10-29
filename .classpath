@@ -16,5 +16,6 @@
 	<classpathentry kind="lib" path="javatestlib/slf4j-api-1.5.2.jar"/>
 	<classpathentry kind="lib" path="javatestlib/slf4j-simple-1.5.2.jar"/>
 	<classpathentry kind="lib" path="javatestlib/ojdbc7dms_g.jar"/>
+	<classpathentry kind="lib" path="ant/ivy-2.4.0.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>

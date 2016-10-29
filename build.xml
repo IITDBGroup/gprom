@@ -1,13 +1,21 @@
-<project name="GProMJDBC" default="generateDriverJar" basedir=".">
+<project 
+	name="GProMJDBC" 
+	default="generateDriverJar" 
+	basedir="."
+	xmlns:ivy="antlib:org.apache.ivy.ant"
+	>
 
 	<!-- task defs -->
 	<property name="antlibdir" value="${basedir}/ant" />
 	<import file="${antlibdir}/one-jar-ant-task.xml"/>   
-	<taskdef resource="net/sf/antcontrib/antcontrib.properties">
-	  <classpath>
-	    <pathelement location="${antlibdir}/ant-contrib.jar"/>
-	  </classpath>
-	</taskdef>
+	
+	<!-- Ivy -->
+    <property name="ivy.install.version" value="2.1.0" />
+    <condition property="ivy.home" value="${env.IVY_HOME}">
+      <isset property="env.IVY_HOME" />
+    </condition>
+    <property name="ivy.jar.dir" value="${antlibdir}" />
+    <property name="ivy.jar.file" value="${ivy.jar.dir}/ivy.jar" />
 	
 	<!-- do not add ant classpath to javac classpath -->
 	<presetdef name="javac">
@@ -52,9 +60,48 @@
 		<fileset dir="${librarydir}"/>
 	</path>
 	
+	<!-- TARGETS -->	
+	<!-- Ivy -->
+    <target name="download-ivy" unless="offline">
+
+        <mkdir dir="${ivy.jar.dir}"/>
+        <!-- download Ivy from web site so that it can be used even without any special installation -->
+        <get src="http://repo2.maven.org/maven2/org/apache/ivy/ivy/${ivy.install.version}/ivy-${ivy.install.version}.jar" 
+             dest="${ivy.jar.file}" usetimestamp="true"/>
+    </target>
+
+    <target name="init-ivy" depends="download-ivy">
+      <!-- try to load ivy here from ivy home, in case the user has not already dropped
+              it into ant's lib dir (note that the latter copy will always take precedence).
+              We will not fail as long as local lib dir exists (it may be empty) and
+              ivy is in at least one of ant's lib dir or the local lib dir. -->
+        <path id="ivy.lib.path">
+            <fileset dir="${ivy.jar.dir}" includes="*.jar"/>
+        </path>
+        <taskdef resource="org/apache/ivy/ant/antlib.xml"
+                 uri="antlib:org.apache.ivy.ant" classpathref="ivy.lib.path"/>
+    </target>
 	
-	<!-- targets -->
-	<target name="handleOS">
+	<target name="download-dependencies" depends="init-ivy">
+		 <ivy:resolve />
+		 <ivy:retrieve sync="false" type="jar" pattern="${librarydir}/[artifact].[ext]" />
+	     <move todir="${antlibdir}">
+			<fileset dir="${librarydir}">
+		      <include name="ant*.jar"/>
+		    </fileset>
+		</move>
+	</target>
+
+	<target name="setup-additional-anttasks" depends="download-dependencies">
+		<taskdef resource="net/sf/antcontrib/antcontrib.properties">
+		  <classpath>
+		    <pathelement location="${antlibdir}/ant-contrib.jar"/>
+		  </classpath>
+		</taskdef>
+	</target>
+	
+	<!-- check OS type -->
+	<target name="handleOS" depends="setup-additional-anttasks">
 		<if>
 	        <equals arg1="${isMac}" arg2="true" />
 	        <then>
@@ -75,6 +122,7 @@
 		</if>
     </target>
 	
+	<!-- build targets -->
 	<target name="clean" depends="handleOS">
 		<mkdir dir="${binarydir}" />
 		<mkdir dir="${binarydir}/darwin" />
@@ -100,6 +148,13 @@
 		<javac srcdir="${sourcedir}" destdir="${binarydir}"  debug="on">
 			<classpath refid="classpath"/>
 			<compilerarg value="-Xlint:unchecked" />		
+		</javac>
+	</target>
+	
+	<target name="compileTests" depends="compile">
+		<javac srcdir="${testsourcedir}" destdir="${binarydir}" debug="on">
+			<classpath refid="classpath"/>
+			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
 	

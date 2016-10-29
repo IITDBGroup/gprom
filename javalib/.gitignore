@@ -1,0 +1,15 @@
+activation.jar
+geronimo-jms_1.1_spec.jar
+hamcrest-core.jar
+hsqldb.jar
+javaee-api.jar
+jna-platform.jar
+jna.jar
+jnaerator-runtime.jar
+junit.jar
+mail.jar
+mysql-connector-java.jar
+ochafik-util.jar
+postgresql.jar
+sqlite-jdbc.jar
+hsqldb.jar
