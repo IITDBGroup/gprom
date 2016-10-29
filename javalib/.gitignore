@@ -11,5 +11,9 @@ mail.jar
 mysql-connector-java.jar
 ochafik-util.jar
 postgresql.jar
+sqlite-jdbc.jarxercesImpl.jar
+xml-apis.jar
 sqlite-jdbc.jar
-hsqldb.jar
+xercesImpl.jar
+xml-apis.jar
+xml-resolver.jar

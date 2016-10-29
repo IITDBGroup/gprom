@@ -15,5 +15,6 @@
    <dependency org="org.hsqldb" name="hsqldb" rev="2.3.4"/>
    <dependency org="com.nativelibs4java" name="jnaerator-runtime" rev="0.12"/>
    <dependency org="org.apache.ant" name="ant-junit" rev="1.9.7"/>
+   <dependency org="xerces" name="xercesImpl" rev="2.11.0"/>
  </dependencies>
 </ivy-module>
