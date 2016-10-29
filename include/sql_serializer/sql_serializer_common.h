@@ -147,7 +147,18 @@ extern void genSerializeWhere (SelectionOperator *q, StringInfo where, List *fro
 extern List *genCreateTempView (QueryOperator *q, StringInfo str,
         QueryOperator *parent, SerializeClausesAPI *api);
 extern char *exprToSQLWithNamingScheme (Node *expr, int rOffset, List *fromAttrs);
+extern boolean updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state);
+extern boolean updateAttributeNames(Node *node, List *fromAttrs);
+extern boolean updateAttributeNamesSimple(Node *node, List *attrNames);
 
+#define UPDATE_ATTR_NAME(cond,expr,falseAttrs,trueAttrs) \
+    do { \
+        Node *_localExpr = (Node *) (expr); \
+        if (m->secondProj == NULL) \
+            updateAttributeNames(_localExpr, falseAttrs); \
+        else \
+            updateAttributeNamesSimple(_localExpr, trueAttrs); \
+    } while(0)
 
 
 /* macros */

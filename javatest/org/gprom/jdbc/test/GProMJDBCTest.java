@@ -28,19 +28,19 @@ public class GProMJDBCTest {
 	
 	public static void main (String[] args) throws Exception {
 		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
-		String driverURL = "oracle.jdbc.OracleDriver";
-//		String driverURL = "org.postgresql.Driver";
+//		String driverURL = "oracle.jdbc.OracleDriver";
+		String driverURL = "org.postgresql.Driver";
 //		String url = "jdbc:hsqldb:file:/Users/alex/db/mydb";
-		String username = "fga_user";
-		String password = "fga";
-//		String username = "postgres";
-//		String password = "";
-		String host = "ligeti.cs.iit.edu";
-		String port = "1521";
-		String sid = "orcl";
-		String url = "jdbc:gprom:oracle:thin:" + username + "/" + password + 
-				"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
-//		String url = "jdbc:gprom:postgresql://127.0.0.1:5432/testdb";
+//		String username = "fga_user";
+//		String password = "fga";
+		String username = "postgres";
+		String password = "";
+//		String host = "ligeti.cs.iit.edu";
+//		String port = "1521";
+//		String sid = "orcl";
+//		String url = "jdbc:gprom:oracle:thin:" + username + "/" + password + 
+//				"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
+		String url = "jdbc:gprom:postgresql://127.0.0.1:5432/testdb";
 		GProMConnection con = null;
 		Native.setProtected(true);
 		log.error(url);
@@ -90,7 +90,8 @@ public class GProMJDBCTest {
 		
 		
 		log.error("statement created");
-		ResultSet rs = st.executeQuery("SELECT a FROM r;");
+//		ResultSet rs = st.executeQuery("SELECT a FROM r;");
+		ResultSet rs = st.executeQuery("SELECT \"a\" FROM \"o\";");
 		printResult(rs);
 		
 //		rs = st.executeQuery("PROVENANCE OF (SELECT * FROM R);");

@@ -103,9 +103,9 @@ public class GProMDriver implements Driver {
 			
 			// create a jdbc connection to the backend.
 			log.info("trying to connect to: " + backendURL);
-			Thread.sleep(3000);
+			Thread.sleep(500);
 			backendConnection = driver.connect(backendURL, info);
-			Thread.sleep(3000);
+			Thread.sleep(500);
 			if (backendConnection == null)
 				throw new Exception("was unable to create connection: " + backendURL);
 			log.info("created connection object: " + backendURL);

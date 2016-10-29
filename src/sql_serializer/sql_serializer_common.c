@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------
  *
- * sql_serializer_common.h
+ * sql_serializer_common.c
  *			  
  *		
  *		AUTHOR: lord_pretzel
@@ -26,11 +26,8 @@
 #define TEMP_VIEW_NAME_PATTERN "_temp_view_%u"
 
 static char *createViewName (SerializeClausesAPI *api);
-static boolean updateAttributeNames(Node *node, List *fromAttrs);
 static boolean renameAttrsVisitor (Node *node, JoinAttrRenameState *state);
 static char *createAttrName (char *name, int fItem);
-static boolean updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state);
-static boolean updateAttributeNamesSimple(Node *node, List *attrNames);
 
 /*
  * create API struct
@@ -438,7 +435,7 @@ genSerializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs, Seri
     appendStringInfoString(where, exprToSQL(q->cond));
 }
 
-static boolean
+boolean
 updateAttributeNames(Node *node, List *fromAttrs)
 {
     if (node == NULL)
@@ -623,7 +620,7 @@ createAttrName (char *name, int fItem)
    return result;
 }
 
-static boolean
+boolean
 updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state)
 {
     if (node == NULL)
@@ -651,7 +648,7 @@ updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state)
     return visit(node, updateAggsAndGroupByAttrs, state);
 }
 
-static boolean
+boolean
 updateAttributeNamesSimple(Node *node, List *attrNames)
 {
     if (node == NULL)
@@ -667,11 +664,3 @@ updateAttributeNamesSimple(Node *node, List *attrNames)
     return visit(node, updateAttributeNamesSimple, attrNames);
 }
 
-#define UPDATE_ATTR_NAME(cond,expr,falseAttrs,trueAttrs) \
-    do { \
-        Node *_localExpr = (Node *) (expr); \
-        if (m->secondProj == NULL) \
-            updateAttributeNames(_localExpr, falseAttrs); \
-        else \
-            updateAttributeNamesSimple(_localExpr, trueAttrs); \
-    } while(0)

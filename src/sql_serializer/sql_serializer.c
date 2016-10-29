@@ -20,6 +20,7 @@
 #include "sql_serializer/sql_serializer_oracle.h"
 #include "sql_serializer/sql_serializer_dl.h"
 #include "sql_serializer/sql_serializer_sqlite.h"
+#include "sql_serializer/sql_serializer_postgres.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
@@ -106,7 +107,9 @@ assemblePostgresPlugin(void)
 {
     SqlserializerPlugin *p = NEW(SqlserializerPlugin);
 
-    FATAL_LOG("not implemented yet");
+    p->serializeOperatorModel = serializeOperatorModelPostgres;
+    p->serializeQuery = serializeQueryPostgres;
+    p->quoteIdentifier = quoteIdentifierPostgres;
 
     return p;
 }

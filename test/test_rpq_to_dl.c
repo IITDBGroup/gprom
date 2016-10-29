@@ -30,10 +30,11 @@
 #include "execution/executor.h"
 #include "rewriter.h"
 
-static boolean matchesKeyword (char *in);
 
 /* if OCI is not available then add dummy versions */
 #if HAVE_A_BACKEND
+
+static boolean matchesKeyword (char *in);
 
 int
 main (int argc, char* argv[])
@@ -118,6 +119,15 @@ main (int argc, char* argv[])
 }
 
 
+static boolean
+matchesKeyword (char *in)
+{
+    if (streq(in, "-tosql"))
+        return TRUE;
+    if (streq(in, "-rpqtype"))
+        return TRUE;
+    return FALSE;
+}
 
 /* if OCI or OCILIB are not avaible replace with dummy test */
 #else
@@ -128,16 +138,6 @@ int main()
 }
 
 #endif
-
-static boolean
-matchesKeyword (char *in)
-{
-    if (streq(in, "-tosql"))
-        return TRUE;
-    if (streq(in, "-rpqtype"))
-        return TRUE;
-    return FALSE;
-}
 
 
 

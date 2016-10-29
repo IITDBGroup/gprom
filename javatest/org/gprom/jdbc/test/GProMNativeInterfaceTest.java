@@ -28,7 +28,8 @@ public class GProMNativeInterfaceTest {
 		GProMWrapper w = GProMWrapper.inst;
 		
 		w.init();
-		w.setupFromOptions(new String[] { "-log", "-loglevel", "4", "-backend", "oracle", "-user", "tpch", "-passwd", "IaDdpdr"});
+		w.setupFromOptions(new String[] { "-log", "-loglevel", "4", "-Pmetadata", "external", "-user", "fga_user", "-passwd", "fga"});
+	//	w.setupFromOptions(new String[] { "-log", "-loglevel", "4", "-backend", "oracle", "-user", "tpch", "-passwd", "IaDdpdr"});
 		w.setLogLevel(4);
 		w.setBoolOption("log.active", true);
 		log.error("log.level=" +  w.getIntOption("log.level"));

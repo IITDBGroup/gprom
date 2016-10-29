@@ -22,8 +22,8 @@
 
 #define LIBARY_REWRITE_CONTEXT "LIBGRPROM_QUERY_CONTEXT"
 
-#define LOCK_MUTEX() printf("\nMUTEX\n")
-#define UNLOCK_MUTEX() printf("\nUNLOCK\n")
+#define LOCK_MUTEX() printf("\nMUTEX\n%s:%u", __FILE__, __LINE__)
+#define UNLOCK_MUTEX() printf("\nUNLOCK\n%s:%u", __FILE__, __LINE__)
 #define CREATE_MUTEX()
 #define DESTROY_MUTEX()
 

@@ -63,8 +63,9 @@ static void serializeConstRel(StringInfo from, ConstRelOperator* t, List** fromA
 
 
 static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
-static boolean updateAttributeNames(Node *node, List *fromAttrs);
-static boolean updateAttributeNamesSimple(Node *node, List *attrNames);
+static boolean updateAttributeNamesOracle(Node *node, List *fromAttrs);
+static boolean updateAttributeNamesSimpleOracle(Node *node, List *attrNames);
+static boolean updateAggsAndGroupByAttrsOracle(Node *node, UpdateAggAndGroupByAttrState *state);
 
 static List *serializeProjectionAndAggregation(QueryBlockMatch *m, StringInfo select,
         StringInfo having, StringInfo groupBy, List *fromAttrs, boolean materialize);
@@ -80,6 +81,7 @@ static char *createViewName(void);
 static boolean shortenAttributeNames(QueryOperator *q, void *context);
 static inline char *getShortAttr(char *newName, int id, boolean quoted);
 static void fixAttrReferences (QueryOperator *q);
+
 
 
 char *
@@ -937,7 +939,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             	appendStringInfoString(from, "(");
 
             	// Call updateAtrrNames on jsonColumn and then serialize
-            	updateAttributeNames((Node*)jt->jsonColumn, *fromAttrs);
+            	updateAttributeNamesOracle((Node*)jt->jsonColumn, *fromAttrs);
 
             	appendStringInfo(from, exprToSQL((Node*)jt->jsonColumn));
             	appendStringInfoString(from, ",");
@@ -1143,12 +1145,12 @@ static void
 serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs)
 {
     appendStringInfoString(where, "\nWHERE ");
-    updateAttributeNames((Node *) q->cond, (List *) fromAttrs);
+    updateAttributeNamesOracle((Node *) q->cond, (List *) fromAttrs);
     appendStringInfoString(where, exprToSQL(q->cond));
 }
 
 static boolean
-updateAttributeNames(Node *node, List *fromAttrs)
+updateAttributeNamesOracle(Node *node, List *fromAttrs)
 {
     if (node == NULL)
         return TRUE;
@@ -1177,11 +1179,11 @@ updateAttributeNames(Node *node, List *fromAttrs)
         a->name = CONCAT_STRINGS("F", itoa(fromItem), ".", newName);;
     }
 
-    return visit(node, updateAttributeNames, fromAttrs);
+    return visit(node, updateAttributeNamesOracle, fromAttrs);
 }
 
 static boolean
-updateAttributeNamesSimple(Node *node, List *attrNames)
+updateAttributeNamesSimpleOracle(Node *node, List *attrNames)
 {
     if (node == NULL)
         return TRUE;
@@ -1193,11 +1195,11 @@ updateAttributeNamesSimple(Node *node, List *attrNames)
         a->name = strdup(newName);
     }
 
-    return visit(node, updateAttributeNamesSimple, attrNames);
+    return visit(node, updateAttributeNamesSimpleOracle, attrNames);
 }
 
 static boolean
-updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state)
+updateAggsAndGroupByAttrsOracle(Node *node, UpdateAggAndGroupByAttrState *state)
 {
     if (node == NULL)
         return TRUE;
@@ -1221,16 +1223,16 @@ updateAggsAndGroupByAttrs(Node *node, UpdateAggAndGroupByAttrState *state)
         a->name = newName;
     }
 
-    return visit(node, updateAggsAndGroupByAttrs, state);
+    return visit(node, updateAggsAndGroupByAttrsOracle, state);
 }
 
-#define UPDATE_ATTR_NAME(cond,expr,falseAttrs,trueAttrs) \
+#define UPDATE_ATTR_NAME_ORACLE(cond,expr,falseAttrs,trueAttrs) \
     do { \
         Node *_localExpr = (Node *) (expr); \
         if (m->secondProj == NULL) \
-            updateAttributeNames(_localExpr, falseAttrs); \
+            updateAttributeNamesOracle(_localExpr, falseAttrs); \
         else \
-            updateAttributeNamesSimple(_localExpr, trueAttrs); \
+            updateAttributeNamesSimpleOracle(_localExpr, trueAttrs); \
     } while(0)
 
 /*
@@ -1266,7 +1268,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     {
         FOREACH(Node,n,m->secondProj->projExprs)
         {
-            updateAttributeNames(n, fromAttrs);
+            updateAttributeNamesOracle(n, fromAttrs);
             firstProjs = appendToTailOfList(firstProjs, exprToSQL(n));
         }
         DEBUG_LOG("second projection (aggregation and group by or window inputs) is %s",
@@ -1282,7 +1284,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         // aggregation
         FOREACH(Node,expr,agg->aggrs)
         {
-            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), expr, fromAttrs, firstProjs);
 //            if (m->secondProj == NULL)
 //                updateAttributeNames(expr, fromAttrs);
 //            else
@@ -1300,7 +1302,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             else
                 appendStringInfoString (groupBy, ", ");
 
-            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), expr, fromAttrs, firstProjs);
 //            if (m->secondProj == NULL)
 //                updateAttributeNames(expr, fromAttrs);
 //            else
@@ -1333,14 +1335,14 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
             DEBUG_LOG("BEFORE: window function = %s", exprToSQL((Node *) winOpGetFunc(
                                 (WindowOperator *) curOp)));
 
-            UPDATE_ATTR_NAME((m->secondProj == NULL), expr, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), expr, fromAttrs, firstProjs);
 //            if (m->secondProj == NULL)
 //                updateAttributeNames(expr, fromAttrs);
 //            else
 //                updateAttributeNamesSimple(expr, firstProjs);
-            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->partitionBy, fromAttrs, firstProjs);
-            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->orderBy, fromAttrs, firstProjs);
-            UPDATE_ATTR_NAME((m->secondProj == NULL), wOp->frameDef, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), wOp->partitionBy, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), wOp->orderBy, fromAttrs, firstProjs);
+            UPDATE_ATTR_NAME_ORACLE((m->secondProj == NULL), wOp->frameDef, fromAttrs, firstProjs);
 
             windowFs = appendToHeadOfList(windowFs, exprToSQL((Node *) winOpGetFunc(
                     (WindowOperator *) curOp)));
@@ -1365,7 +1367,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
     {
         SelectionOperator *sel = (SelectionOperator *) m->having;
         DEBUG_LOG("having condition %s", nodeToString(sel->cond));
-        updateAggsAndGroupByAttrs(sel->cond, state);
+        updateAggsAndGroupByAttrsOracle(sel->cond, state);
         appendStringInfo(having, "\nHAVING %s", exprToSQL(sel->cond));
         DEBUG_LOG("having translation %s", having->data);
     }
@@ -1389,13 +1391,13 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 
             // is projection over aggregation
             if (agg)
-                updateAggsAndGroupByAttrs(a, state); //TODO check that this method is still valid
+                updateAggsAndGroupByAttrsOracle(a, state); //TODO check that this method is still valid
             // is projection over window functions
             else if (winR)
-                updateAggsAndGroupByAttrs(a, state);
+                updateAggsAndGroupByAttrsOracle(a, state);
             // is projection in query without aggregation
             else
-                updateAttributeNames(a, fromAttrs);
+                updateAttributeNamesOracle(a, fromAttrs);
             appendStringInfo(select, "%s%s", exprToSQL(a), attrName ? CONCAT_STRINGS(" AS ", attrName) : "");
         }
 

@@ -299,7 +299,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	@Override
 	public void setupOptions(PropertyWrapper options) throws Exception {
 		for (String key: options.stringPropertyNames()) {
-			log.debug("key: "+ key + " type: " + typeOfOption(key));
+			log.debug("key: "+ key + " type: " + typeOfOption(key) + " value: " + options.getString(key));
 			
 			switch(typeOfOption(key)) {
 			case Boolean:
