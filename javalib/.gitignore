@@ -17,3 +17,5 @@ sqlite-jdbc.jar
 xercesImpl.jar
 xml-apis.jar
 xml-resolver.jar
+slf4j-api.jar
+slf4j-simple.jar
