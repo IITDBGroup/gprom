@@ -12,7 +12,6 @@
 	<classpathentry kind="lib" path="javalib"/>
 	<classpathentry kind="lib" path="/usr/local/lib"/>
 	<classpathentry kind="lib" path="javatestlib/dbunit.jar" sourcepath="/DBUnit"/>
-	<classpathentry kind="lib" path="javatestlib/junit-4.5.jar"/>
 	<classpathentry kind="lib" path="javatestlib/slf4j-api-1.5.2.jar"/>
 	<classpathentry kind="lib" path="javatestlib/slf4j-simple-1.5.2.jar"/>
 	<classpathentry kind="lib" path="javatestlib/ojdbc7dms_g.jar"/>

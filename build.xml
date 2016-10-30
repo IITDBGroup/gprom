@@ -85,7 +85,7 @@
 	
 	<target name="download-dependencies" depends="init-ivy">
 		 <ivy:resolve />
-		 <ivy:retrieve sync="false" type="jar" pattern="${librarydir}/[artifact]-[revision].[ext]" />
+		 <ivy:retrieve sync="false" type="jar" pattern="${librarydir}/[artifact].[ext]" />
 		 <!-- move to ant dir -->
 	     <move todir="${antlibdir}">
 			<fileset dir="${librarydir}">
