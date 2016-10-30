@@ -56,15 +56,9 @@
 		<os family="mac" />
 	</condition>
 	
-	<!-- classpath -->
-	<path id="classpath">
-		<fileset dir="${librarydir}"/>
-	</path>
-	
 	<!-- TARGETS -->	
 	<!-- Ivy -->
     <target name="download-ivy" unless="offline">
-
         <mkdir dir="${ivy.jar.dir}"/>
         <!-- download Ivy from web site so that it can be used even without any special installation -->
         <get src="http://repo2.maven.org/maven2/org/apache/ivy/ivy/${ivy.install.version}/ivy-${ivy.install.version}.jar" 
@@ -92,7 +86,7 @@
 		      <include name="ant*.jar"/>
 		    </fileset>
 		</move>
-		<!-- move -->
+		<!-- move and copy to test library dir -->
 	     <move todir="${testlibrarydir}">
 			<fileset dir="${librarydir}">
 		      <include name="xerces*.jar"/>
@@ -100,6 +94,38 @@
 		      <include name="slf4j*.jar"/>
 		    </fileset>
 		</move>
+		<copy todir="${testlibrarydir}">
+			<fileset dir="${librarydir}">
+				<include name="log4j.jar"/>
+				<include name="postgresql.jar"/>
+				<include name="mysql-connector-java.jar"/>
+				<include name="junit.jar"/>
+				<include name="jna.jar"/>
+			</fileset>
+		</copy>
+		<!-- classpath -->
+		<path id="classpath">
+			<fileset dir="${librarydir}"/>
+		</path>
+		<path id="testclasspath">
+			<fileset dir="${testlibrarydir}"/>
+		</path>
+		<pathconvert property="jarClasspath" pathsep="    ">
+			<path>
+				<fileset dir="${librarydir}">
+					<exclude name="ant*.jar" />
+					<exclude name="ivy.jar" />
+				</fileset>
+			</path>
+			<mapper>
+				<chainedmapper>
+					<flattenmapper/>
+					<globmapper from="*.jar" to="lib/*.jar" casesensitive="no"/>
+				</chainedmapper>
+			</mapper>
+		</pathconvert>
+		<property name="fullJarClasspath" value="${jarClasspath}   resource/    lib/" />
+		<echo message="${fullJarClasspath}" />
 	</target>
 
 	<target name="setup-additional-anttasks" depends="download-dependencies">
@@ -163,7 +189,7 @@
 	
 	<target name="compileTests" depends="compile">
 		<javac srcdir="${testsourcedir}" destdir="${binarydir}" debug="on">
-			<classpath refid="classpath"/>
+			<classpath refid="testclasspath"/>
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
@@ -174,13 +200,7 @@
 		<jar destfile="${gpromJar.simple}" basedir="${binarydir}">
 		 	<manifest>
 				<attribute name="Created-By" value="Illinois Institute of Technology, Department for Computer Science, DBGroup" />
-				<attribute name="Class-Path" value="
-								lib/hsqldb.jar
-								lib/postgresql-8.1-404.jdbc3.jar
-								lib/log4j-1.2.15.jar
-								lib/servlet.jar
-								lib/
-							" />
+				<attribute name="Class-Path" value="${fullJarClasspath}" />
 			</manifest>
 		</jar>
 	</target>
@@ -195,14 +215,7 @@
                 <attribute name="One-Jar-Expand-Dir" value="./.expand"/>
                 <attribute name="One-Jar-Show-Expand" value="true"/> -->
             	<attribute name="One-Jar-Main-Class" value="org.gprom.jdbc.test.GProMJDBCTest" />
-            	<attribute name="Class-Path" value="
-            									lib/postgresql-8.1-404.jdbc3.jar
-            									lib/log4j-1.2.15.jar
-            									lib/jna-4.1.0.jar
-            									lib/ojdbc7.jar
-            									lib/sqlist-jdbc-3.8.10.1.jar
-            									lib/
-            								" />
+            	<attribute name="Class-Path" value="${fullJarClasspath}" />
             </manifest>
             <main>
                 <fileset dir="${binarydir}/"/>
