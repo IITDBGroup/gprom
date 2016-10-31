@@ -1,13 +1,8 @@
 package org.gprom.jdbc.test;
 
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
-import org.gprom.jdbc.driver.*;
-import org.gprom.jdbc.jna.*;
+import org.gprom.jdbc.jna.GProMWrapper;
 
 public class GProMNativeInterfaceTest {
 	// Variable

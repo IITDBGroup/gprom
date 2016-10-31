@@ -1,7 +1,5 @@
 package org.gprom.jdbc.driver;
 
-import java.io.IOException;
-import java.net.URL;
 import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
@@ -14,11 +12,8 @@ import org.apache.log4j.Logger;
 import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
-
-import static org.gprom.jdbc.driver.GProMDriverProperties.*;
-
-import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin;
+import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.metadata_lookup.oracle.OracleMetadataLookup;
 import org.gprom.jdbc.metadata_lookup.postgres.PostgresMetadataLookup;
 import org.gprom.jdbc.utility.LoggerUtil;
@@ -27,7 +22,7 @@ import org.gprom.jdbc.utility.PropertyWrapper;
 /**
  * GProMDriver extends the SQL driver for adding a perm assistance
  * 
- * @author lorpretzel
+ * @author lordpretzel
  * 
  */
 public class GProMDriver implements Driver {
@@ -103,9 +98,7 @@ public class GProMDriver implements Driver {
 			
 			// create a jdbc connection to the backend.
 			log.info("trying to connect to: " + backendURL);
-			Thread.sleep(500);
 			backendConnection = driver.connect(backendURL, info);
-			Thread.sleep(500);
 			if (backendConnection == null)
 				throw new Exception("was unable to create connection: " + backendURL);
 			log.info("created connection object: " + backendURL);

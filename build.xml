@@ -78,6 +78,7 @@
     </target>
 	
 	<target name="download-dependencies" depends="init-ivy">
+<!--		 <ivy:settings file="${basedir}/ivysettings.xml"/>-->
 		 <ivy:resolve />
 		 <ivy:retrieve sync="false" type="jar" pattern="${librarydir}/[artifact].[ext]" />
 		 <!-- move to ant dir -->

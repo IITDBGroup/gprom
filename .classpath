@@ -14,10 +14,19 @@
 	<classpathentry kind="lib" path="javatestlib/dbunit.jar" sourcepath="/DBUnit"/>
 	<classpathentry kind="lib" path="javatestlib/slf4j-api-1.5.2.jar"/>
 	<classpathentry kind="lib" path="javatestlib/slf4j-simple-1.5.2.jar"/>
-	<classpathentry kind="lib" path="javatestlib/ojdbc7dms_g.jar"/>
 	<classpathentry kind="lib" path="ant/ivy-2.4.0.jar"/>
 	<classpathentry kind="lib" path="javalib/log4j.jar"/>
 	<classpathentry kind="lib" path="javalib/jna-platform.jar"/>
 	<classpathentry kind="lib" path="javalib/jna.jar"/>
+	<classpathentry kind="lib" path="javalib/postgresql.jar"/>
+	<classpathentry kind="lib" path="javalib/junit.jar"/>
+	<classpathentry kind="lib" path="javalib/sqlite-jdbc.jar"/>
+	<classpathentry kind="lib" path="javalib/mysql-connector-java.jar"/>
+	<classpathentry kind="lib" path="javalib/hsqldb.jar"/>
+	<classpathentry kind="lib" path="javatestlib/ojdbc7_g.jar"/>
+	<classpathentry kind="lib" path="javatestlib/dms.jar"/>
+	<classpathentry kind="lib" path="javalib/ojdbc7.jar"/>
+	<classpathentry kind="lib" path="javalib/dms.jar"/>
+	<classpathentry kind="lib" path="javalib/ojdbc7_g.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>
