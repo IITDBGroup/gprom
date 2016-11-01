@@ -20,6 +20,6 @@
    <dependency org="xerces" name="xercesImpl" rev="2.11.0"/>
    <dependency org="org.slf4j" name="slf4j-api" rev="1.7.21"/>
    <dependency org="org.slf4j" name="slf4j-simple" rev="1.7.21"/>
-   <dependency org="com.oracle.jdbc" name="ojdbc7" rev="12.1.0.2"/>
+<!--   <dependency org="com.oracle.jdbc" name="ojdbc7" rev="12.1.0.2"/> -->
  </dependencies>
 </ivy-module>
