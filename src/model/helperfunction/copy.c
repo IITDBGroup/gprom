@@ -124,6 +124,7 @@ static AlterTable *copyAlterTable(AlterTable *from, OperatorMap **opMap);
 /* functions to copy datalog model elements */
 static DLAtom *copyDLAtom(DLAtom *from, OperatorMap **opMap);
 static DLVar *copyDLVar(DLVar *from, OperatorMap **opMap);
+static DLDomain *copyDLDomain(DLDomain *from, OperatorMap **opMap);
 static DLComparison *copyDLComparison(DLComparison *from, OperatorMap **opMap);
 static DLRule *copyDLRule(DLRule *from, OperatorMap **opMap);
 static DLProgram *copyDLProgram(DLProgram *from, OperatorMap **opMap);
@@ -284,6 +285,17 @@ copyDLComparison(DLComparison *from, OperatorMap **opMap)
     return new;
 }
 
+static DLDomain *
+copyDLDomain(DLDomain *from, OperatorMap **opMap)
+{
+    COPY_INIT(DLDomain);
+
+    COPY_STRING_FIELD(name);
+    COPY_NODE_FIELD(n.properties);
+
+    return new;
+}
+
 static DLRule *
 copyDLRule(DLRule *from, OperatorMap **opMap)
 {
@@ -304,6 +316,7 @@ copyDLProgram(DLProgram *from, OperatorMap **opMap)
     COPY_NODE_FIELD(rules);
     COPY_NODE_FIELD(facts);
     COPY_STRING_FIELD(ans);
+    COPY_STRING_FIELD(dom);
     COPY_NODE_FIELD(n.properties);
 
     return new;
@@ -1212,6 +1225,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_DLComparison:
             retval = copyDLComparison(from, opMap);
+            break;
+        case T_DLDomain:
+            retval = copyDLDomain(from, opMap);
             break;
         case T_JsonTableOperator:
         	retval = copyJsonTableOperator(from, opMap);

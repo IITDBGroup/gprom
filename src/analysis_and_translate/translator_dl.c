@@ -32,7 +32,7 @@ static QueryOperator *translateFact(DLAtom *f);
 static QueryOperator *translateRule(DLRule *r);
 static QueryOperator *translateSafeRule(DLRule *r);
 static QueryOperator *translateUnSafeRule(DLRule *r);
-static QueryOperator *translateGoal(DLAtom *r, int goalPos);
+static QueryOperator *translateUnSafeGoal(DLAtom *r, int goalPos);
 static QueryOperator *translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart);
 static void analyzeProgramDTs (DLProgram *p, HashMap *predToRules);
 static void analyzeFactDTs (DLAtom *f, HashMap *predToDTs);
@@ -47,10 +47,12 @@ static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
 static boolean adaptProjectionAttrRef (QueryOperator *o, void *context);
 
 static Node *replaceVarWithAttrRef(Node *node, List *context);
-boolean castChecker = FALSE; // check if cast is needed between "DOMAIN" and "REL"
-boolean castForPos = FALSE; // check if cast is needed between positive translation and negative
-char *goalRel = NULL;
+static boolean castChecker = FALSE; // check if cast is needed between "DOMAIN" and "REL"
+static boolean castForPos = FALSE; // check if cast is needed between positive translation and negative
+static char *goalRel = NULL;
 //List *goalVars = NIL;
+boolean associateDomain = FALSE; // check if associate domain exists
+List *dTransRules = NIL;
 
 Node *
 translateParseDL(Node *q)
@@ -203,36 +205,48 @@ translateProgram(DLProgram *p)
 //        }
     }
 
+    // check associate domain
+    if (p->dom != NULL)
+    	associateDomain = TRUE;
+
     // translate rules
     FOREACH(DLRule,r,p->rules)
     {
     	castChecker = FALSE; // initialize cast checker
 
-        QueryOperator *tRule = translateRule(r);
-        char *headPred = getHeadPredName(r);
+    	// not translate rules for associate domain
+    	if (associateDomain && strcmp(r->head->rel,p->dom) == 0)
+    	{
+    		dTransRules = appendToTailOfList(dTransRules, (List *) r);
+    	}
+    	else
+    	{
+            QueryOperator *tRule = translateRule(r);
+            char *headPred = getHeadPredName(r);
 
-        DEBUG_LOG("translate rule: %s", datalogToOverviewString((Node *) r));
+            DEBUG_LOG("translate rule: %s", datalogToOverviewString((Node *) r));
 
-        if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-             ASSERT(checkModel((QueryOperator *) tRule));
+            if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+                 ASSERT(checkModel((QueryOperator *) tRule));
 
-        APPEND_TO_MAP_VALUE_LIST(predToTrans,headPred,tRule);
-//        // not first rule for this pred
-//        if(MAP_HAS_STRING_KEY(predToTrans,headPred))
-//        {
-//            KeyValue *kv = MAP_GET_STRING_ENTRY(predToTrans,headPred);
-//            List *ruleTrans = (List *) kv->value;
-//            ruleTrans = appendToTailOfList(ruleTrans, tRule);
-//            kv->value = (Node *) ruleTrans;
-//        }
-//        // first rule for this pred
-//        else
-//        {
-//            List *ruleTrans = singleton(tRule);
-//            MAP_ADD_STRING_KEY(predToTrans,headPred,ruleTrans);
-//        }
-//        singleRuleTrans = appendToTailOfList(singleRuleTrans,
-//                tRule);
+            APPEND_TO_MAP_VALUE_LIST(predToTrans,headPred,tRule);
+    //        // not first rule for this pred
+    //        if(MAP_HAS_STRING_KEY(predToTrans,headPred))
+    //        {
+    //            KeyValue *kv = MAP_GET_STRING_ENTRY(predToTrans,headPred);
+    //            List *ruleTrans = (List *) kv->value;
+    //            ruleTrans = appendToTailOfList(ruleTrans, tRule);
+    //            kv->value = (Node *) ruleTrans;
+    //        }
+    //        // first rule for this pred
+    //        else
+    //        {
+    //            List *ruleTrans = singleton(tRule);
+    //            MAP_ADD_STRING_KEY(predToTrans,headPred,ruleTrans);
+    //        }
+    //        singleRuleTrans = appendToTailOfList(singleRuleTrans,
+    //                tRule);
+    	}
     }
 
     // for each predicate create a union between all translated rules
@@ -500,7 +514,7 @@ translateUnSafeRule(DLRule *r)
     {
         if (isA(a,DLAtom))
         {
-            QueryOperator *tG = translateGoal((DLAtom *) a, goalPos++);
+            QueryOperator *tG = translateUnSafeGoal((DLAtom *) a, goalPos++);
             goalTrans = appendToTailOfList(goalTrans, tG);
             DEBUG_LOG("translated body goal is: %s", operatorToOverviewString((Node *) tG));
         }
@@ -968,7 +982,7 @@ replaceVarWithAttrRef(Node *node, List *context)
     } while(0)
 
 static QueryOperator *
-translateGoal(DLAtom *r, int goalPos)
+translateUnSafeGoal(DLAtom *r, int goalPos)
 {
     ProjectionOperator *renameOnSetDiff;
     QueryOperator *pInput;
@@ -1019,7 +1033,7 @@ translateGoal(DLAtom *r, int goalPos)
         QueryOperator *dom;
         ProjectionOperator *rename;
 
-        if(typeTransConst && typeTransVar) // if both constants and variables are exist
+        if(typeTransConst && typeTransVar) // if both constants and variables exist
     	{
     		// add selection if constants are used in the goal
     		// e.g., R(X,1) with attributes A0,A1 are translated into SELECTION[A1=1](R)
@@ -1077,29 +1091,68 @@ translateGoal(DLAtom *r, int goalPos)
             	if (!isA(arg,Constant))
             		numAttrs++;
 
-            // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
-            // then return (Domain X Domain X ... X Domain) - R
-            dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
-                    "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
-            List *domainAttrs = singleton("D");
-
-            for(int i = 1; i < numAttrs; i++)
+            // if associate domains exist, then use it for computation
+        	QueryOperator *dRule;
+            if (associateDomain && LIST_LENGTH(dTransRules) > 0)
             {
-                char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
-                QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
-                        "_DOMAIN", NULL, "DummyDom", NIL,
-                        LIST_MAKE("D"), singletonInt(DT_STRING));
+				dRule = translateRule((DLRule *) getNthOfListP(dTransRules,0));
 
-                QueryOperator *oldD = dom;
-                domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-                dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-                        LIST_MAKE(dom, aDom), NULL,
-                        domainAttrs);
+				for(int i = 1; i < LIST_LENGTH(dTransRules); i++)
+				{
+					QueryOperator *uDom = translateRule((DLRule *) getNthOfListP(dTransRules,i));
+					QueryOperator *oldUd = dRule;
 
-                addParent(aDom, dom);
-                addParent(oldD, dom);
+					dRule = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(dRule,uDom), NIL, getQueryOperatorAttrNames(uDom));
+
+					addParent(uDom, dRule);
+					addParent(oldUd, dRule);
+				}
+
+                // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
+                // then return (Domain X Domain X ... X Domain) - R
+                dom = dRule;
+                List *domainAttrs = singleton("D");
+
+                for(int i = 1; i < numAttrs; i++)
+                {
+                    char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+                    QueryOperator *aDom = dom;
+
+                    QueryOperator *oldD = dom;
+                    domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
+                    dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
+                            LIST_MAKE(dom, aDom), NULL,
+                            domainAttrs);
+
+                    addParent(aDom, dom);
+                    addParent(oldD, dom);
+                }
             }
+            else
+            {
+                // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
+                // then return (Domain X Domain X ... X Domain) - R
+                dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
+                        "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
+                List *domainAttrs = singleton("D");
 
+                for(int i = 1; i < numAttrs; i++)
+                {
+                    char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+                    QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
+                            "_DOMAIN", NULL, "DummyDom", NIL,
+                            LIST_MAKE("D"), singletonInt(DT_STRING));
+
+                    QueryOperator *oldD = dom;
+                    domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
+                    dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
+                            LIST_MAKE(dom, aDom), NULL,
+                            domainAttrs);
+
+                    addParent(aDom, dom);
+                    addParent(oldD, dom);
+                }
+            }
             rename = (ProjectionOperator *) createProjOnAllAttrs(dom);
 
             //check if cast is needed
@@ -1212,29 +1265,69 @@ translateGoal(DLAtom *r, int goalPos)
 //            QueryOperator *dom;
 
             int numAttrs = getNumAttrs((QueryOperator *) rel);
-            // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
-            // then return (Domain X Domain X ... X Domain) - R
-            dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
-                    "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
-            List *domainAttrs = singleton("D");
 
-            for(int i = 1; i < numAttrs; i++)
-            {
-                char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
-                QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
-                        "_DOMAIN", NULL, "DummyDom", NIL,
-                        LIST_MAKE("D"), singletonInt(DT_STRING));
+            // if associate domains exist, then use it for computation
+			QueryOperator *dRule;
+			if (associateDomain && LIST_LENGTH(dTransRules) > 0)
+			{
+				dRule = translateRule((DLRule *) getNthOfListP(dTransRules,0));
 
-                QueryOperator *oldD = dom;
-                domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
-                dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
-                        LIST_MAKE(dom, aDom), NULL,
-                        domainAttrs);
+				for(int i = 1; i < LIST_LENGTH(dTransRules); i++)
+				{
+					QueryOperator *uDom = translateRule((DLRule *) getNthOfListP(dTransRules,i));
+					QueryOperator *oldUd = dRule;
 
-                addParent(aDom, dom);
-                addParent(oldD, dom);
-            }
+					dRule = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(dRule,uDom), NIL, getQueryOperatorAttrNames(uDom));
 
+					addParent(uDom, dRule);
+					addParent(oldUd, dRule);
+				}
+
+                // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
+                // then return (Domain X Domain X ... X Domain) - R
+                dom = dRule;
+                List *domainAttrs = singleton("D");
+
+                for(int i = 1; i < numAttrs; i++)
+                {
+                    char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+                    QueryOperator *aDom = dom;
+
+                    QueryOperator *oldD = dom;
+                    domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
+                    dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
+                            LIST_MAKE(dom, aDom), NULL,
+                            domainAttrs);
+
+                    addParent(aDom, dom);
+                    addParent(oldD, dom);
+                }
+			}
+			else
+			{
+			   // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
+			   // then return (Domain X Domain X ... X Domain) - R
+			   dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
+					   "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
+			   List *domainAttrs = singleton("D");
+
+			   for(int i = 1; i < numAttrs; i++)
+			   {
+				   char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+				   QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
+						   "_DOMAIN", NULL, "DummyDom", NIL,
+						   LIST_MAKE("D"), singletonInt(DT_STRING));
+
+				   QueryOperator *oldD = dom;
+				   domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
+				   dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
+						   LIST_MAKE(dom, aDom), NULL,
+						   domainAttrs);
+
+				   addParent(aDom, dom);
+				   addParent(oldD, dom);
+			   }
+			}
             rename = (ProjectionOperator *) createProjOnAllAttrs(dom);
 
             // rename attribute names

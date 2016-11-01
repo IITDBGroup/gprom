@@ -56,7 +56,7 @@ Node *dlParseResult = NULL;
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ
+%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -85,7 +85,7 @@ Node *dlParseResult = NULL;
 %type <list> stmtList
 %type <node> statement program
 
-%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement
+%type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement associateDomain
 %type <node> variable constant expression functionCall binaryOperatorExpression 
 %type <list> bodyAtomList argList exprList rulebody 
 %type <stringVal> optProvFormat
@@ -102,7 +102,7 @@ program:
 		stmtList 
 			{ 
 				RULELOG("program::stmtList");
-				$$ = (Node *) createDLProgram ($1, NULL, NULL);
+				$$ = (Node *) createDLProgram ($1, NULL, NULL, NULL);
 				dlParseResult = (Node *) $$;
 				DEBUG_LOG("parsed %s", nodeToString($$));
 			}
@@ -125,9 +125,10 @@ stmtList:
 /*
  * Statements can be:
  *
- * 	- rules, e.g., Q(X) :- R(X,Y);
+ * 	- rules, e.g., Q(X) :- R(X,Y); DQ(X) :- R(X,Y); DQ(X) :- R(Y,X);
  *  - facts, e.g., R(1,2);
  * 	- answer relation declarations, e.g., ANS : Q;
+ * 	- associated domain declarations, e.g., USERDOMAIN : DQ;
  * 	- provenance requests, e.g., WHY(Q(1));
  *  - RPQ requests, e.g., RPQ('a*.b', typeOfResult, edge, result)
  */
@@ -135,6 +136,7 @@ statement:
 		rule { RULELOG("statement::rule"); $$ = $1; }
 		| fact { RULELOG("statement::fact"); $$ = $1; }
 		| ansrelation { RULELOG("statement::ansrelation"); $$ = $1; }
+		| associateDomain { RULELOG("statement::associateDomain"); $$ = $1; }		
 		| provStatement { RULELOG("statement::prov"); $$ = $1; }
 		| rpqStatement { RULELOG("statement::rpq"); $$ = $1; }
 	;
@@ -206,6 +208,14 @@ ansrelation:
 		{
 			RULELOG("ansrelation");
 			$$ = (Node *) createConstString($3);
+		}
+	;
+
+associateDomain:
+		USERDOMAIN ':' name '.'
+		{
+			RULELOG("associateDomain");
+			$$ = (Node *) createDLDomain($3);
 		}
 	;
 

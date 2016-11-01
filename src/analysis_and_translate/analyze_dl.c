@@ -123,11 +123,12 @@ analyzeDLProgram (DLProgram *p)
 //            addToSet(factRels, f->rel);
             facts = appendToTailOfList(facts,r);
         }
-//        else if(isA(r,Domain)) // user defined domain
-//		{
-//        	Domain *d = (Domain *) r;
-//			p->userdomain = d->domainName;
-//		}
+        // associated domain
+        else if(isA(r,DLDomain))
+		{
+        	DLDomain *d = (DLDomain *) r;
+			p->dom = d->name;
+		}
         // provenance question
         else if(isA(r,KeyValue))
             analyzeProv(p, (KeyValue *) r);

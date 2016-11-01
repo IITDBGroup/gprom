@@ -19,7 +19,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_KeyValue,
 
     /* expression nodes */
-    T_Constant,
+	T_Constant,
     T_AttributeReference,
     T_SQLParameter,
     T_FunctionCall,
@@ -80,6 +80,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_DLRule,
     T_DLProgram,
     T_DLComparison,
+	T_DLDomain,
 
     /* Json Table Node */
     T_FromJsonTable,
