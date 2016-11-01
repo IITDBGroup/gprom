@@ -12,6 +12,7 @@ import org.apache.log4j.Logger;
 import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.backends.OracleBackendInfo;
 import org.gprom.jdbc.backends.PostgresBackendInfo;
+import org.gprom.jdbc.backends.SQLiteBackendInfo;
 import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
@@ -26,7 +27,8 @@ public interface GProMJDBCUtil {
 		Oracle,
 		HSQL,
 		Postgres,
-		Hive
+		Hive,
+		SQLite
 	}
 	
 	// interface
@@ -120,6 +122,8 @@ public interface GProMJDBCUtil {
 				return OracleBackendInfo.inst;
 			case Postgres:
 				return PostgresBackendInfo.inst;
+			case SQLite:
+				return SQLiteBackendInfo.inst;
 			default:
 				return null;
 			}
