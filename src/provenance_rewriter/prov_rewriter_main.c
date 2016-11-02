@@ -17,6 +17,7 @@
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
+#include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
@@ -30,6 +31,8 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
+
+#include "utility/string_utils.h"
 
 /* function declarations */
 static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *haveSeen);
@@ -122,6 +125,9 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         ASSERT(isTree((QueryOperator *) op));
     }
 
+    //semiring comb operations
+    boolean isCombinerActivated = isSemiringCombinerActivated((QueryOperator *) op);
+
     switch(op->provType)
     {
         QueryOperator *result;
@@ -131,6 +137,13 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             else
                 result = rewritePI_CS(op);
             removeParent(result, (QueryOperator *) op);
+
+            //semiring comb operations
+            if(isCombinerActivated){
+            	result = addSemiringCombiner(result);
+            	INFO_OP_LOG("Add semiring combiner:", result);
+            }
+
             return result;
         case PROV_TRANSFORMATION:
             return rewriteTransformationProvenance((QueryOperator *) op);
