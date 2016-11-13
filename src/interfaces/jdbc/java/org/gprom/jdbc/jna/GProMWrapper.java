@@ -84,7 +84,7 @@ public class GProMWrapper implements GProMJavaInterface {
 			}
 			exceptions.clear();
 			log.error("have encountered exception");
-			throw new NativeException("Error during rewrite:\n" + mes.toString());
+			throw new NativeGProMLibException("Error during rewrite:\n" + mes.toString());
 		}
 		//TODO use string builder to avoid creation of two large strings
 		result = result.replaceFirst(";\\s+\\z", "");

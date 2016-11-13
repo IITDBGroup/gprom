@@ -86,8 +86,18 @@ gprom_rewriteQuery(const char *query)
     NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
     char *result = "";
     char *returnResult;
-    result = rewriteQuery((char *) query);
-    RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
+    TRY
+    {
+        result = rewriteQueryWithRethrow((char *) query);
+        UNLOCK_MUTEX();
+        RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
+    }
+    ON_EXCEPTION
+    {
+        ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+    }
+    END_ON_EXCEPTION
+
     UNLOCK_MUTEX();
     return returnResult;
 }

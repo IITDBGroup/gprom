@@ -7,18 +7,18 @@ import java.sql.SQLException;
  * @author alex
  *
  */
-public class NativeException extends SQLException {
+public class NativeGProMLibException extends SQLException {
 
 	/**
 	 * 
 	 */
 	private static final long serialVersionUID = 1L;
 
-	public NativeException(){
+	public NativeGProMLibException(){
 		super();
 	}
 	
-	public NativeException(String s){
+	public NativeGProMLibException(String s){
 		super(s);
 	}
 }

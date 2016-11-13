@@ -34,6 +34,7 @@ extern int shutdownApplication(void);
 
 extern void processInput(char *input);
 extern char *rewriteQuery(char *input);
+extern char *rewriteQueryWithRethrow(char *input);
 extern char *rewriteQueryFromStream (FILE *stream);
 extern char *rewriteQueryWithOptimization(char *input);
 extern char *generatePlan(Node *oModel, boolean applyOptimizations);

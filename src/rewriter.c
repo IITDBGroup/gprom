@@ -358,6 +358,12 @@ rewriteQuery(char *input)
 }
 
 char *
+rewriteQueryWithRethrow(char *input)
+{
+    return rewriteQueryInternal(input, TRUE);
+}
+
+char *
 rewriteQueryFromStream (FILE *stream) {
     Node *parse;
     char *result;

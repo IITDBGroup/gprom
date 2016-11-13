@@ -13,6 +13,8 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriverProperties;
+import org.gprom.jdbc.jna.NativeGProMLibException;
+
 import com.sun.jna.Native;
 
 /**
@@ -89,11 +91,17 @@ public class GProMJDBCTest {
 		log.error("statement created");
 //		ResultSet rs = st.executeQuery("SELECT a FROM r;");
 		ResultSet rs;
-		rs = st.executeQuery("PROVENANCE OF (SELECT * FROM R);");
-		printResult(rs);
+		try {
+			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
+			printResult(rs);
+		}
+		catch (NativeGProMLibException e) {
+			log.error("###############################\n" + e.getMessage() + "\n###############################\n");
+		}
 		
-		rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
-		printResult(rs);
+//		
+//		rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
+//		printResult(rs);
 		
 //		rs = st.executeQuery("SELECT \"a\" FROM \"o\";");
 //		printResult(rs);
