@@ -120,7 +120,19 @@ testSuites(void)
 int
 main(int argc, char* argv[])
 {
-    READ_OPTIONS_AND_INIT("testmain", "Regression test suite. Runs a bunch of whitebox tests on components of the system.");
+    READ_OPTIONS_AND_BASIC_INIT("testmain", "Regression test suite. Runs a bunch of whitebox tests on components of the system.");
+
+    // setup options to use sqlite
+    setOption("connection.db", "../examples/test.db");
+    setOption("plugin.sqlserializer", "sqlite");
+    setOption("plugin.metadata", "sqlite");
+    setOption("plugin.parser", "oracle");
+    setOption("plugin.analyzer", "oracle");
+    setOption("plugin.translator", "oracle");
+
+    setupPluginsFromOptions();
+
+    // print options
     DEBUG_LOG("configuration:\n\n");
     printCurrentOptions(stdout);
 

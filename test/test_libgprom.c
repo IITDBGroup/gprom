@@ -56,9 +56,12 @@ static rc
 testConfiguration(void)
 {
     setOpts();
-    gprom_setStringOption("backend", "oracle");
+    gprom_setStringOption("backend", "sqlite");
+    gprom_setStringOption("plugin.parser", "oracle");
+    gprom_setStringOption("plugin.analyzer", "oracle");
+    gprom_setStringOption("plugin.translator", "oracle");
 
-    ASSERT_EQUALS_STRING("oracle", gprom_getStringOption("backend"), "backend=oracle");
+    ASSERT_EQUALS_STRING("sqlite", gprom_getStringOption("backend"), "backend=sqlite");
     ASSERT_EQUALS_STRING(STRING_VALUE(MAP_GET_STRING(options,OPTION_CONN_HOST)),
             gprom_getStringOption(OPTION_CONN_HOST),
             "connection host as provided by user");
@@ -75,7 +78,7 @@ testRewrite(void)
     gprom_configFromOptions();
 
     const char *result = gprom_rewriteQuery("SELECT * FROM r;");
-    ASSERT_EQUALS_STRING("\nSELECT F0.A AS A, F0.B AS B\nFROM (R F0);\n\n\n", result, "SELECT * FROM r;");
+    ASSERT_EQUALS_STRING("\nSELECT F0.A AS A, F0.B AS B\nFROM R AS F0;\n\n\n", result, "SELECT * FROM r;");
 
     return PASS;
 }
@@ -84,7 +87,9 @@ static rc
 testLoopBackMetadata(void)
 {
     setOpts();
-    gprom_setStringOption("backend", "oracle");
-
+    gprom_setStringOption("backend", "sqlite");
+    gprom_setStringOption("plugin.parser", "oracle");
+    gprom_setStringOption("plugin.analyzer", "oracle");
+    gprom_setStringOption("plugin.translator", "oracle");
     return PASS;
 }

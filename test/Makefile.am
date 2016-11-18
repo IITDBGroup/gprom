@@ -1,7 +1,7 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include
 AM_CFLAGS = @GPROM_CFLAGS@ -I.
 
-noinst_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
+check_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
 				testserializer testvisit testrewriter testpicsrewrite \
 				testrpq
 
@@ -40,3 +40,6 @@ testpicsrewrite_LDADD = ../src/libsrc.la
 
 testrpq_SOURCES = test_rpq_to_dl.c
 testrpq_LDADD = ../src/libsrc.la
+
+# running test cases as with make check
+TESTS = testmain

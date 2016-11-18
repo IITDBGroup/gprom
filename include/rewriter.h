@@ -32,6 +32,13 @@ extern int shutdownApplication(void);
         return EXIT_FAILURE;    \
     } while(0)
 
+#define READ_OPTIONS_AND_BASIC_INIT(app,helpText) \
+    do { \
+        int _retVal = initBasicModulesAndReadOptions(app, helpText, argc, argv); \
+        if (_retVal != EXIT_SUCCESS) \
+        return EXIT_FAILURE;    \
+    } while(0)
+
 extern void processInput(char *input);
 extern char *rewriteQuery(char *input);
 extern char *rewriteQueryWithRethrow(char *input);

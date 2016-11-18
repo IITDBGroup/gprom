@@ -27,5 +27,3 @@ EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
 	$(top_srcdir)/test/testmain.sh
 
 # TODO add java
-# Tests run
-TESTS = /test/testmain.sh
