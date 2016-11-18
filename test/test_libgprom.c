@@ -45,6 +45,10 @@ static void
 setOpts (void)
 {
     // copy connection options provided by user
+    gprom_setStringOption("backend", "sqlite");
+    gprom_setStringOption("plugin.parser", "oracle");
+    gprom_setStringOption("plugin.analyzer", "oracle");
+    gprom_setStringOption("plugin.translator", "oracle");
     gprom_setOption(OPTION_CONN_USER, STRING_VALUE(MAP_GET_STRING(options, OPTION_CONN_USER)));
     gprom_setOption(OPTION_CONN_DB, STRING_VALUE(MAP_GET_STRING(options, OPTION_CONN_DB)));
     gprom_setOption(OPTION_CONN_PORT, STRING_VALUE(MAP_GET_STRING(options, OPTION_CONN_PORT)));
@@ -56,10 +60,6 @@ static rc
 testConfiguration(void)
 {
     setOpts();
-    gprom_setStringOption("backend", "sqlite");
-    gprom_setStringOption("plugin.parser", "oracle");
-    gprom_setStringOption("plugin.analyzer", "oracle");
-    gprom_setStringOption("plugin.translator", "oracle");
 
     ASSERT_EQUALS_STRING("sqlite", gprom_getStringOption("backend"), "backend=sqlite");
     ASSERT_EQUALS_STRING(STRING_VALUE(MAP_GET_STRING(options,OPTION_CONN_HOST)),
@@ -87,9 +87,5 @@ static rc
 testLoopBackMetadata(void)
 {
     setOpts();
-    gprom_setStringOption("backend", "sqlite");
-    gprom_setStringOption("plugin.parser", "oracle");
-    gprom_setStringOption("plugin.analyzer", "oracle");
-    gprom_setStringOption("plugin.translator", "oracle");
     return PASS;
 }
