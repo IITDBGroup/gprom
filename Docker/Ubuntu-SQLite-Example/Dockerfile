@@ -2,6 +2,7 @@
 # Derived from ubuntu distribution
 ########################################
 FROM ubuntu:latest
+MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
 # Create working directories
 ########################################

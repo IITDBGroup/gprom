@@ -1,0 +1,20 @@
+####################
+# set up languages
+language: c
+
+####################
+# install packages
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y ant autotools-dev autoconf bison flex git libsqlite3-dev libtool libreadline6 libreadline6-dev sqlite3 gnuplot
+
+####################
+# build script
+script:
+  - make -f Makefile.maintainer && ./configure --disable-oracle --disable-postgres && make && make test
+
+####################
+# branch configuration
+branches:
+  only:
+  - master
