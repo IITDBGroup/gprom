@@ -22,6 +22,7 @@ RUN apt-get -y update && apt-get install -y \
 	libreadline6 \
 	libreadline6-dev \
 	sqlite3 \
+	gnuplot \
 	&& rm -rf /var/lib/apt/lists/*
 ########################################
 # Clone GProM github repository
