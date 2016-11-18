@@ -11,7 +11,7 @@ before_install:
 ####################
 # build script
 script:
-  - make -f Makefile.maintainer && ./configure --disable-oracle --disable-postgres && make && make test
+  - make -f Makefile.maintainer && ./configure --disable-oracle --disable-postgres && make && make check
 
 ####################
 # branch configuration
