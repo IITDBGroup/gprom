@@ -44,3 +44,7 @@ doc/gprom_man.html
 .gprom
 scripts/.gitignore
 /Debug/
+test/test-suite.log
+test/testmain.log
+test/testmain.trs
+test/testrpq
