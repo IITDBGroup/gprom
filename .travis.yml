@@ -24,17 +24,15 @@ os:
   - linux
   - osx
 
+sudo: required
+osx_image: xcode7.3
+dist: trusty
+
 ####################
 # build matrix
 matrix:
   include:
-    - os: linux
-      dist: trusty
-      sudo: required
-    - os: linux
-      dist: precise
-      sudo: required
-    - os: osx
-      osx_image: xcode7.3
+  - { os: linux }
+  - { os: osx }
   allow_failures:
     - os: osx
