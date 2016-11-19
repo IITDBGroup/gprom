@@ -8,7 +8,7 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
 	brew outdated bison || brew upgrade bison
 	brew outdated flex || brew upgrade flex
 	brew outdated sqlite || brew upgrade sqlite
-	brew outdated libreadline || brew upgrade libreadline
+	brew outdated readline || brew upgrade readline
 # LINUX	
 else
 	sudo apt-get -qq update
