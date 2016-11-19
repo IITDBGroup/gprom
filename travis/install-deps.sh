@@ -2,6 +2,11 @@
 
 # MAC OS X
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
+	# Directory this script resides in
+	pushd $(dirname "${0}") > /dev/null
+	DIR=$(pwd -L)
+	popd > /dev/null
+	# install dependencies
 	brew update
 	brew outdated ant || brew upgrade ant
 	brew outdated libtool || brew upgrade libtool
@@ -9,6 +14,8 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
 	brew outdated flex || brew upgrade flex
 	brew outdated sqlite || brew upgrade sqlite
 	brew outdated readline || brew upgrade readline
+	# fix libtoolize and libtool
+	sudo ln -s `which glibtoolize` /usr/bin/libtoolize
 # LINUX	
 else
 	sudo apt-get -qq update

@@ -10,7 +10,7 @@ before_install:
 ####################
 # build script
 script:
-  - make -f Makefile.maintainer && ./configure --disable-oracle --disable-postgres && make && make check
+  - export PATH=.:${PATH} && make -f Makefile.maintainer && ./configure --disable-oracle --disable-postgres && make && make check
 
 ####################
 # branch configuration
@@ -20,13 +20,8 @@ branches:
 
 ####################
 # os environments
-#os:
-#  - linux
-#  - osx
-
 sudo: required
 osx_image: xcode7.3
-#
 
 ####################
 # build matrix
