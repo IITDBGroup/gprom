@@ -129,9 +129,9 @@ main(int argc, char* argv[])
     // get directory where testmain resides to determine location of the test database
     char *path=argv[0];
     StringInfo dbPath = makeStringInfo();
-    path = strRemPostfix(path, 9);
+    path = getFullMatchingSubstring(path, "^([^/]*[/])+");
     appendStringInfoString(dbPath, path);
-    appendStringInfoString(dbPath, "/../../examples/test.db");
+    appendStringInfoString(dbPath, "../../examples/test.db");
     if (!fileExists(dbPath->data))
         FATAL_LOG("SQLite test database not found where expected:\n", dbPath->data);
     printf("dbPath: %s\n", dbPath->data);
