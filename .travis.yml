@@ -5,8 +5,7 @@ language: c
 ####################
 # install packages
 before_install:
-  - sudo apt-get -qq update
-  - sudo apt-get install -y ant autotools-dev autoconf bison flex git libsqlite3-dev libtool libreadline6 libreadline6-dev sqlite3 gnuplot
+  - travis/install-deps.sh
 
 ####################
 # build script
@@ -18,3 +17,23 @@ script:
 branches:
   only:
   - master
+
+####################
+# os environments
+os:
+  - linux
+  - osx
+
+####################
+# build matrix
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: required
+    - os: linux
+      dist: precise
+    - os: osx
+      osx_image: xcode7.2
+  allow_failures:
+    - os: osx
