@@ -290,6 +290,8 @@ copyDLDomain(DLDomain *from, OperatorMap **opMap)
 {
     COPY_INIT(DLDomain);
 
+    COPY_STRING_FIELD(rel);
+    COPY_STRING_FIELD(attr);
     COPY_STRING_FIELD(name);
     COPY_NODE_FIELD(n.properties);
 
@@ -316,7 +318,7 @@ copyDLProgram(DLProgram *from, OperatorMap **opMap)
     COPY_NODE_FIELD(rules);
     COPY_NODE_FIELD(facts);
     COPY_STRING_FIELD(ans);
-    COPY_STRING_FIELD(dom);
+    COPY_NODE_FIELD(doms);
     COPY_NODE_FIELD(n.properties);
 
     return new;

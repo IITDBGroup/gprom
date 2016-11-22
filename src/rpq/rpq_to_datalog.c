@@ -100,7 +100,7 @@ rpqToDatalog(Regex *rpq, RPQQueryType type, char *edgeRel, char *outRel)
     // add rule for result generation
     rules = addResultRules(rules, GET_MATCH_REL(rpq), c);
 
-    dl = createDLProgram(rules, NIL, strdup(c->resultRel), NULL);
+    dl = createDLProgram(rules, NIL, strdup(c->resultRel), NIL);
 
     return (Node *) dl;
 }

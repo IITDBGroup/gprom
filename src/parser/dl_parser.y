@@ -56,7 +56,7 @@ Node *dlParseResult = NULL;
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN
+%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -117,7 +117,7 @@ stmtList:
 			}
 		| stmtList statement 
 			{
-				RULELOG("stmtlist::stmtList::statement");
+				RULELOG("stmtList::stmtList::statement");
 				$$ = appendToTailOfList($1, $2); 
 			}
 	;
@@ -128,7 +128,7 @@ stmtList:
  * 	- rules, e.g., Q(X) :- R(X,Y); DQ(X) :- R(X,Y); DQ(X) :- R(Y,X);
  *  - facts, e.g., R(1,2);
  * 	- answer relation declarations, e.g., ANS : Q;
- * 	- associated domain declarations, e.g., USERDOMAIN : DQ;
+ * 	- associated domain declarations, e.g., USERDOMAIN OF rel.attr IS DQ;
  * 	- provenance requests, e.g., WHY(Q(1));
  *  - RPQ requests, e.g., RPQ('a*.b', typeOfResult, edge, result)
  */
@@ -211,11 +211,34 @@ ansrelation:
 		}
 	;
 
+/*
+domainSet:
+ 		domainList 
+ 			{ 
+ 				RULELOG("domainSet::domainList"); 
+ 				$$ = (Node *) $1; 
+ 			}		
+	;
+			
+domainList:
+		associateDomain		
+			{
+				RULELOG("domainList::associateDomain");
+				$$ = singleton($1); 
+			}   	
+ 		| domainList ',' associateDomain 
+			{
+				RULELOG("domainList::associateDomain");
+				$$ = appendToTailOfList($1,$3); 
+			}
+	;
+*/
+		
 associateDomain:
-		USERDOMAIN ':' name '.'
+		USERDOMAIN OF name '.' name IS name '.'
 		{
 			RULELOG("associateDomain");
-			$$ = (Node *) createDLDomain($3);
+			$$ = (Node *) createDLDomain($3,$5,$7);
 		}
 	;
 

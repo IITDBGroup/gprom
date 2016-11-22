@@ -400,7 +400,7 @@ outDLProgram(StringInfo str, DLProgram *node)
     WRITE_NODE_FIELD(rules);
     WRITE_NODE_FIELD(facts);
     WRITE_STRING_FIELD(ans);
-    WRITE_STRING_FIELD(dom);
+    WRITE_NODE_FIELD(doms);
     WRITE_NODE_FIELD(n.properties);
 }
 
@@ -418,6 +418,8 @@ outDLDomain(StringInfo str, DLDomain *node)
 {
     WRITE_NODE_TYPE(DLDOMAIN);
 
+    WRITE_STRING_FIELD(rel);
+    WRITE_STRING_FIELD(attr);
     WRITE_STRING_FIELD(name);
     WRITE_NODE_FIELD(n.properties);
 }
@@ -1505,6 +1507,8 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             {
                 if (isA(r,Constant))
                     appendStringInfoString(str, "ANSWER RELATION:\n\t");
+                else if (isA(r,DLDomain))
+                	appendStringInfoString(str, "ASSOCIATE DOMAIN:\n\t");
                 datalogToStrInternal(str,(Node *) r, 4);
             }
             if (p->ans)

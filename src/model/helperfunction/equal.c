@@ -190,7 +190,7 @@ equalDLProgram (DLProgram *a, DLProgram *b, HashMap *seenOps, MemContext *c)
     COMPARE_NODE_FIELD(rules);
     COMPARE_NODE_FIELD(facts);
     COMPARE_STRING_FIELD(ans);
-    COMPARE_STRING_FIELD(dom);
+    COMPARE_NODE_FIELD(doms);
     COMPARE_NODE_FIELD(n.properties);
 
     return TRUE;
@@ -208,6 +208,8 @@ equalDLComparison (DLComparison *a, DLComparison *b, HashMap *seenOps, MemContex
 static boolean
 equalDLDomain (DLDomain *a, DLDomain *b, HashMap *seenOps, MemContext *c)
 {
+	COMPARE_STRING_FIELD(rel);
+	COMPARE_STRING_FIELD(attr);
 	COMPARE_STRING_FIELD(name);
     COMPARE_NODE_FIELD(n.properties);
 

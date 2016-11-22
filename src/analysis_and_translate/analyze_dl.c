@@ -81,6 +81,7 @@ analyzeDLProgram (DLProgram *p)
     List *rules = NIL;
     List *facts = NIL;
     List *rpqRules = NIL;
+    List *doms = NIL;
 
     // expand RPQ queries
     FOREACH(Node,r,p->rules)
@@ -123,19 +124,16 @@ analyzeDLProgram (DLProgram *p)
 //            addToSet(factRels, f->rel);
             facts = appendToTailOfList(facts,r);
         }
-        // associated domain
+        // associate domain
         else if(isA(r,DLDomain))
-		{
-        	DLDomain *d = (DLDomain *) r;
-			p->dom = d->name;
-		}
+        	doms = appendToTailOfList(doms,r);
         // provenance question
         else if(isA(r,KeyValue))
             analyzeProv(p, (KeyValue *) r);
         else
             FATAL_LOG("datalog programs can consists of rules, constants, an "
-                    "answer relation specification, facts, and provenance "
-                    "computations");
+                    "answer relation specification, facts, associate domain specification, "
+            		"and provenance computations");
     }
 
     // analyze all rules
@@ -144,6 +142,7 @@ analyzeDLProgram (DLProgram *p)
 
     p->rules = rules;
     p->facts = facts;
+    p->doms = doms;
 
 //    // check that answer relation exists
 //    if (p->ans)
