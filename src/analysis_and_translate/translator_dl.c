@@ -1300,7 +1300,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //								dom = (QueryOperator *) getNthOfListP(transList,0);
 //								domainAttrs = singleton("D");
 
-								//TODO: how to figure out which translated domain shoud be repeated
+								//TODO: how to figure out which translated domain should be repeated
 								for(int i = 0; i < addAttr; i++)
 								{
 									char *aDomAttrName = CONCAT_STRINGS("D", itoa(i+1));
@@ -1338,7 +1338,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 
 								for(int i = 0; i < LIST_LENGTH(transList); i++)
 								{
-									char *aDomAttrName = CONCAT_STRINGS("D", itoa(i+1));
+									char *aDomAttrName = CONCAT_STRINGS("D", itoa(i+2));
 									QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
 									QueryOperator *oldD = dom;
 
@@ -1696,7 +1696,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 						{
 							if (unionList == NIL)
 							{
-								//TODO: how to figure out which translated domain shoud be repeated
+								//TODO: how to figure out which translated domain should be repeated
 								dom = (QueryOperator *) getNthOfListP(transList,0);
 								domainAttrs = singleton("D");
 
@@ -1737,7 +1737,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 
 								for(int i = 0; i < LIST_LENGTH(transList); i++)
 								{
-									char *aDomAttrName = CONCAT_STRINGS("D", itoa(i+1));
+									char *aDomAttrName = CONCAT_STRINGS("D", itoa(i+2));
 									QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
 									QueryOperator *oldD = dom;
 
