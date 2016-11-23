@@ -11,6 +11,7 @@ import java.util.Properties;
 
 import org.gprom.jdbc.driver.GProMConnection;
 import org. gprom.jdbc.test.testgenerator.dataset.DataAndQueryGenerator;
+import org.junit.BeforeClass;
 import org.apache.log4j.Logger;
 import org.dbunit.Assertion;
 import org.dbunit.DBTestCase;
@@ -21,19 +22,20 @@ import org.dbunit.dataset.ITable;
 import org.dbunit.dataset.xml.XmlDataSet;
 import org.dbunit.operation.DatabaseOperation;
 
-public class AbstractGProMTester extends DBTestCase {
+
+public class AbstractGProMTester {
 
 	static Logger log = Logger.getLogger(AbstractGProMTester.class);
 	
 	protected String path;
 	protected Properties oldProps;
 	
-	public AbstractGProMTester (String name) {
-		super(name);
+	public AbstractGProMTester () {
+		
 	}
 	
+	@BeforeClass
 	protected void setUp () throws Exception {
-		super.setUp();
 		setDBTestCaseProps();
 	}
 
@@ -52,7 +54,6 @@ public class AbstractGProMTester extends DBTestCase {
 	
     protected void tearDown() throws Exception {
     	resetOptions();
-    	super.tearDown();
     }
 	
 	/**
@@ -76,7 +77,6 @@ public class AbstractGProMTester extends DBTestCase {
 	/* (non-Javadoc)
 	 * @see org.dbunit.DatabaseTestCase#getDataSet()
 	 */
-	@Override
 	protected IDataSet getDataSet () throws Exception {
 //		return null;
 		return new XmlDataSet(new FileInputStream(new File(path + "/testdb/smallTestDB.xml")));

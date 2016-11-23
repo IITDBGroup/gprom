@@ -18,9 +18,9 @@
     <property name="ivy.jar.file" value="${ivy.jar.dir}/ivy.jar" />
 	
 	<!-- do not add ant classpath to javac classpath -->
-	<presetdef name="javac">
+<!--	<presetdef name="javac">
 		<javac includeantruntime="false" />
-	</presetdef>
+	</presetdef> -->
 	
 	<!-- main directories -->
 	<property name="sourcedir" value="${basedir}/src/interfaces/jdbc/java" />
@@ -93,6 +93,7 @@
 		      <include name="xerces*.jar"/>
 		      <include name="xml*.jar"/>
 		      <include name="slf4j*.jar"/>
+			  <include name="junit.jar" />
 		    </fileset>
 		</move>
 		<copy todir="${testlibrarydir}">
@@ -182,14 +183,19 @@
 		</copy>
 		<copy file="${gpromlib}" tofile="${gpromlib.bin}" />
 		<copy file="${conffile}" tofile="${binarydir}/GPRoMDriver.properties" />
-		<javac srcdir="${sourcedir}" destdir="${binarydir}"  debug="on">
+		<javac srcdir="${sourcedir}" 
+				destdir="${binarydir}"  
+				debug="on" 
+			    fork="true" 
+			    includeantruntime="false"
+				verbose="true">
 			<classpath refid="classpath"/>
 			<compilerarg value="-Xlint:unchecked" />		
 		</javac>
 	</target>
 	
 	<target name="compileTests" depends="compile">
-		<javac srcdir="${testsourcedir}" destdir="${binarydir}" debug="on">
+		<javac srcdir="${testsourcedir}" destdir="${binarydir}" debug="on" fork="true" includeantruntime="false" verbose="true">
 			<classpath refid="testclasspath"/>
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>

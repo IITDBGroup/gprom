@@ -21,25 +21,14 @@ import com.sun.jna.Native;
  * @author lord_pretzel
  *
  */
-public class GProMJDBCTest {
+public class SQLiteJDBCTest {
 
-	static Logger log = Logger.getLogger(GProMJDBCTest.class);
+	static Logger log = Logger.getLogger(SQLiteJDBCTest.class);
 	
 	public static void main (String[] args) throws Exception {
 		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
-		String driverURL = "oracle.jdbc.OracleDriver";
-//		String driverURL = "org.postgresql.Driver";
-//		String url = "jdbc:hsqldb:file:/Users/alex/db/mydb";
-		String username = "fga_user";
-		String password = "fga";
-//		String username = "postgres";
-//		String password = "";
-		String host = "ligeti.cs.iit.edu";
-		String port = "1521";
-		String sid = "orcl";
-		String url = "jdbc:gprom:oracle:thin:" + username + "/" + password + 
-				"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
-//		String url = "jdbc:gprom:postgresql://127.0.0.1:5432/testdb";
+		String driverURL = "org.sqlite.JDBC";
+		String url = "jdbc:gprom:sqlite:examples/test.db";
 		GProMConnection con = null;
 		Native.setProtected(true);
 		log.error(url);
@@ -57,8 +46,6 @@ public class GProMJDBCTest {
 			log.error("made it this far");
 			Properties info = new Properties();
 			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "TRUE");
-			info.setProperty("user", username);
-			info.setProperty("password", password);
 			log.error("made it this far");
 			con = (GProMConnection) DriverManager.getConnection(url,info);
 			log.error("made it this far");
@@ -89,11 +76,10 @@ public class GProMJDBCTest {
 		
 		
 		log.error("statement created");
-		
+//		ResultSet rs = st.executeQuery("SELECT a FROM r;");
 		ResultSet rs;
-		rs = st.executeQuery("SELECT a FROM r;");
 		try {
-			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
+			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM r);");
 			printResult(rs);
 		}
 		catch (NativeGProMLibException e) {
@@ -101,8 +87,8 @@ public class GProMJDBCTest {
 		}
 		
 //		
-//		rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
-//		printResult(rs);
+		rs = st.executeQuery("PROVENANCE OF (SELECT sum(a) FROM R);");
+		printResult(rs);
 		
 //		rs = st.executeQuery("SELECT \"a\" FROM \"o\";");
 //		printResult(rs);

@@ -3,7 +3,6 @@ package PACKAGE;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.gprom.jdbc.test.testgenerator.ReportPrinter;
-import junit.framework.JUnit4TestAdapter;
 
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
@@ -11,7 +10,4 @@ import junit.framework.JUnit4TestAdapter;
 	})
 public class NAME {
 
-	public static junit.framework.Test suite() {
-		return new JUnit4TestAdapter(NAME.class);
-	}
 }

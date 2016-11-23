@@ -135,6 +135,17 @@ public class ConnectionManager {
 			
 			return url;
 		}
+		if (ConnectionOptions.getInstance().getBackend().equals("SQLite"))
+		{
+			String host =ConnectionOptions.getInstance().getHost();
+			String db = ConnectionOptions.getInstance().getDbName();
+			
+			log.debug("");
+			String url = "jdbc:gprom:sqlite:";
+
+			
+			return url;			
+		}
 		else
 			throw new Exception("backend not supported: " + ConnectionOptions.getInstance().getBackend());
 	}

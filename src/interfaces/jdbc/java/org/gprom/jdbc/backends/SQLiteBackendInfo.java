@@ -56,10 +56,10 @@ public class SQLiteBackendInfo implements BackendInfo {
 	@Override
 	public String getDatabase(String url) throws Exception {
 		String result;
-		Matcher m = Pattern.compile("\\(HOST=[^)]+\\)").matcher(url);
-		if (!m.find())
-			return "";
-		result = m.group().replace("(HOST=", "").replace(")", "");
+//		Matcher m = Pattern.compile("\\(HOST=[^)]+\\)").matcher(url);
+//		if (!m.find())
+//			return "";
+		result = url.replace("jdbc:gprom:sqlite:", "");
 		log.debug("DB: " + result);
 		return result;
 	}

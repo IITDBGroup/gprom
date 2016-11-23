@@ -4,6 +4,7 @@
 	
 	<!-- ant defs -->
 	<property name="antlibdir" value="${projectroot}/ant" />
+	
 	<taskdef resource="net/sf/antcontrib/antcontrib.properties">
 	  <classpath>
 	    <pathelement location="${antlibdir}/ant-contrib.jar"/>
@@ -124,7 +125,7 @@
 		        cache="depcache"
 		        closure="yes"/>
 		<javac srcdir="${sourcedir}" destdir="${binarydir}" classpathref="libraries" 
-			debug="on" excludes="**/.svn*">
+			debug="on" excludes="**/.svn*" fork="true" includeantruntime="false">
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
@@ -139,7 +140,12 @@
 	</target>
 	
 	<target name="genTests" depends="jarGenerator">
-		<java classname="org.gprom.jdbc.test.testgenerator.TestGenerator" classpathref="createTestsClasspath">
+		<java 
+			classname="org.gprom.jdbc.test.testgenerator.TestGenerator" 
+			classpathref="createTestsClasspath"
+			fork="true" 
+			dir="${basedir}"
+		>
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" 
 				value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
 			<sysproperty key="generator.resourcedir" value="${resourcedir}" />

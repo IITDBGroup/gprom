@@ -3,17 +3,20 @@ package PACKAGE;
 import java.sql.SQLException;
 
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
 import org.gprom.jdbc.test.testgenerator.AbstractGProMTester;
 import org.gprom.jdbc.test.testgenerator.ConnectionOptions;
 import org.gprom.jdbc.test.testgenerator.OptionsManager;
 
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class NAME extends AbstractGProMTester {
 
 	public NAME (String name) {
 		super (name);
 		try {
-			path = "BASEPATH";
+			path = "PATH";
 			ConnectionOptions.getInstance().setPath("PATH");
 		} catch (Exception e) {
 			e.printStackTrace();

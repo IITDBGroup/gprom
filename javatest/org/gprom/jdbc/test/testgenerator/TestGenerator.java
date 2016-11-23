@@ -275,6 +275,9 @@ public class TestGenerator {
 			result.append(bufRead.readLine() + "\n");
 		}
 		
+		bufRead.close();
+		reader.close();
+		
 		return result.toString();
 	}
 
