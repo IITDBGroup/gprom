@@ -1247,6 +1247,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 				else
 				{
 					// make unions if exist
+					// TODO: how to union for the different group, e.g., DQ occurs multiple times and DQ1 occurs multiple times
 					if(LIST_LENGTH(unionList) != 0)
 					{
 						dQuery = (QueryOperator *) getNthOfListP(unionList,0);
@@ -1646,6 +1647,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 				else
 				{
 					// make unions if exist
+					// TODO: how to union for the different group, e.g., DQ occurs multiple times and DQ1 occurs multiple times
 					if(LIST_LENGTH(unionList) != 0)
 					{
 						dQuery = (QueryOperator *) getNthOfListP(unionList,0);
