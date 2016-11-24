@@ -15,7 +15,8 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
 	brew outdated sqlite || brew upgrade sqlite
 	brew outdated readline || brew upgrade readline
 	# fix libtoolize and libtool
-	sudo ln -s `which glibtoolize` /usr/bin/libtoolize
+	brew reinstall libtool
+	#sudo ln -s `which glibtoolize` /usr/bin/libtoolize
 # LINUX	
 else
 	sudo apt-get -qq update

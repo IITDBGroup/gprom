@@ -11,21 +11,21 @@ import org.gprom.jdbc.test.testgenerator.ConnectionOptions;
 import org.gprom.jdbc.test.testgenerator.OptionsManager;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public class NAME extends AbstractGProMTester {
+public class $NAME extends AbstractGProMTester {
 
-	public NAME (String name) {
+	public $NAME (String name) {
 		super (name);
 		try {
-			path = "PATH";
-			ConnectionOptions.getInstance().setPath("PATH");
+			path = "$PATH";
+			ConnectionOptions.getInstance().setPath("$PATH");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 	
 	protected void setUp () throws Exception {
-		path = "BASEDIR";
-		ConnectionOptions.getInstance().setPath("PATH");
+		path = "$BASEDIR";
+		ConnectionOptions.getInstance().setPath("$PATH");
 		super.setUp();
 		setFile();
 	}
@@ -35,7 +35,7 @@ public class NAME extends AbstractGProMTester {
 	}
 	
     public void setFile () throws SQLException, Exception {
-		setGenerator("FILE");
+		setGenerator("$FILE");
 		OptionsManager.getInstance().setOptions (SETTING);
     }
 	
