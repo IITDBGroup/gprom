@@ -1627,11 +1627,11 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //					if(!typeTransConst && typeTransVar) // only variables exist
 //					{
 						int varPosition = -1;
-						int progPos = 0;
+//						int progPos = 0;
 
 						FOREACH(DLRule,h,origProg)
 						{
-							progPos++;
+//							progPos++;
 
 							if(strcmp(h->head->rel,edbRel) == 0)
 							{
@@ -1643,8 +1643,8 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 									{
 										if(LIST_LENGTH(h->head->args) < LIST_LENGTH(a->args))
 										{
-											if(progPos == 1)
-											{
+//											if(progPos == 1)
+//											{
 												if(searchListString(a->args,(char *) getNthOfListP(h->head->args,i)))
 												{
 													edbRel = a->rel;
@@ -1653,7 +1653,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 													char *atomAttr = (char *) getNthOfListP(ordAttr,varPosition);
 													ADD_TO_MAP(analyzeAtom,createStringKeyValue(atomAttr,edbRel));
 												}
-											}
+//											}
 										}
 										else if(varPosition != -1)
 										{
