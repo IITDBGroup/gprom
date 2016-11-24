@@ -20,8 +20,5 @@ import org.junit.runners.Suite;
 	})
 public class GProMAllMetadataLookup {
 
-	public static junit.framework.Test suite() {
-		return new JUnit4TestAdapter(GProMAllMetadataLookup.class);
-	}
 }
 

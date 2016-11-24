@@ -20,3 +20,7 @@ xml-resolver.jar
 slf4j-api.jar
 slf4j-simple.jar
 log4j.jar
+dms.jar
+log4j.jar
+ojdbc7_g.jar
+stringtemplate.jar

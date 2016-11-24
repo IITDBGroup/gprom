@@ -14,7 +14,7 @@ public class Row {
 
 	private final String[] values;
 	
-	public Row (String[] values) {
+	public Row (String ... values) {
 		this.values = values;
 	}
 	
@@ -26,11 +26,12 @@ public class Row {
 		values = r.toArray(new String[0]);
 	}
 	
+	
 	public int hashCode() {
 		return Arrays.hashCode(values);
 	}
 	
-	public boolean equal (Object o) {
+	public boolean equals (Object o) {
 		if (!(o instanceof Row))
 			return false;
 		Row other = (Row) o;

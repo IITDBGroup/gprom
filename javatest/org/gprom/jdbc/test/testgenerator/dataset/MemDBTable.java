@@ -4,6 +4,7 @@
 package org.gprom.jdbc.test.testgenerator.dataset;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -115,7 +116,7 @@ public class MemDBTable implements DBTable {
 			return false;
 		
 		DBTable t2 = (DBTable) o;
-		if (!getColumnNames().equals(t2.getColumnNames()))
+		if (!Arrays.equals(getColumnNames(),t2.getColumnNames()))
 			return false;
 		if (isOrdered != t2.isOrdered())
 			return false;
@@ -137,6 +138,7 @@ public class MemDBTable implements DBTable {
 		for(String c: columnNames) {
 			r.append(" " + c + " |");
 		}
+		r.append("\n");
 		
 		for(Row row: rows) {
 			r.append(row.toString());

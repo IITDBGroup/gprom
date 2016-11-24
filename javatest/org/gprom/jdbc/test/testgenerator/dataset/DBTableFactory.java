@@ -57,14 +57,14 @@ public class DBTableFactory {
 		
 		/* get lines and output them */
 		for (int i = 2; i < lines.length; i++) {
+			List<String> row = new ArrayList<String> ();
 			rows = lines[i].split("\\|");
 			/* replace escapted '|' characters */
 			for(int j = 0; j < numColumns; j++) {
 				rows[j] = rows[j].replaceAll("\\$MID\\$", "|");
 			}
-
+			
 			for (int j = 0; j < rows.length; j++) {
-				List<String> row = new ArrayList<String> ();
 				if (rows[j].trim().equals("(null)")) {
 					row.add(null);
 				}
@@ -78,8 +78,8 @@ public class DBTableFactory {
 						value = value.replace('@', ' ');
 					row.add(value);
 				}
-				t.addRow(new Row(row));
 			}
+			t.addRow(new Row(row));
 		}
 		
 		return t;
@@ -93,16 +93,17 @@ public class DBTableFactory {
 			ResultSetMetaData m = r.getMetaData();
 			
 			// add columns
-			for (int i = 0; i < m.getColumnCount(); i++) {
+			for (int i = 1; i <= m.getColumnCount(); i++) {
 				t.addColumn(m.getColumnName(i));
 			}
 			
 			// add rows
 			while(r.next()) {
 				List<String> values = new ArrayList<String> ();
-				for(int i = 0; i < m.getColumnCount(); i++) {
+				for(int i = 1; i <= m.getColumnCount(); i++) {
 					values.add(r.getString(i));
 				}
+				t.addRow(new Row(values));
 			}
 			
 		} catch (SQLException e) {

@@ -6,6 +6,7 @@ package org.gprom.jdbc.test.junit;
 import junit.framework.JUnit4TestAdapter;
 
 import org.gprom.jdbc.test.junit.Metadatalookup.GProMAllMetadataLookup;
+import org.gprom.jdbc.test.junit.testgenerator.GProMAllTestGenerator;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 
@@ -15,7 +16,8 @@ import org.junit.runners.Suite;
  */
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
-	GProMAllMetadataLookup.class
+	GProMAllMetadataLookup.class,
+	GProMAllTestGenerator.class
 	})
 public class GProMAllTests {
 
