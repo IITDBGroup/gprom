@@ -26,6 +26,7 @@ public class GProMJDBCTest {
 	static Logger log = Logger.getLogger(GProMJDBCTest.class);
 	
 	public static void main (String[] args) throws Exception {
+		
 		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
 		String driverURL = "oracle.jdbc.OracleDriver";
 //		String driverURL = "org.postgresql.Driver";

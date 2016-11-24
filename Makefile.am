@@ -17,13 +17,27 @@ endif
 # - .y and .l files
 # - YACC and FLEX generated files
 # - scripts for running executables and scripts
+# - java source code and build files (ivy/ant)
 EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
-	$(top_srcdir)/include \
-	$(top_srcdir)/src/parser/*.y \
-	$(top_srcdir)/src/parser/*.l \
-	$(top_srcdir)/src/parser/*.lex.c \
-	$(top_srcdir)/src/parser/*.tab.c \
-	$(top_srcdir)/src/parser/*.tab.h \
-	$(top_srcdir)/test/testmain.sh
+	$(top_builddir)/build.xml \
+	$(top_builddir)/ivy.xml \
+	$(top_builddir)/include \
+	$(top_builddir)/src/interfaces/jdbc \
+	$(top_builddir)/src/parser/*.y \
+	$(top_builddir)/src/parser/*.l \
+	$(top_builddir)/src/parser/*.lex.c \
+	$(top_builddir)/src/parser/*.tab.c \
+	$(top_builddir)/src/parser/*.tab.h \
+	$(top_builddir)/scripts/*.sh \
+	$(top_builddir)/scripts/dev/*.sh \
+	$(top_builddir)/examples \
+	$(top_builddir)/doc/gprom.man \
+	$(top_builddir)/javatest \
+	$(top_builddir)/blackboxtests/build.xml \
+	$(top_builddir)/blackboxtests/PI_CS_queries/*.xml \
+	$(top_builddir)/blackboxtests/testdb/testDB.sql.in \
+	$(top_builddir)/blackboxtests/TestTemplates/*.stg  
+	
+	
 
 # TODO add java

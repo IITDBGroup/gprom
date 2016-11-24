@@ -48,3 +48,4 @@ test/test-suite.log
 test/testmain.log
 test/testmain.trs
 test/testrpq
+gprom-*.tar.gz
