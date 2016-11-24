@@ -12,7 +12,6 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
 	autoreconf --force --install
 # LINUX	
 else
-	cd ${DIR}/..
 	make -f Makefile.maintainer
 fi
 
