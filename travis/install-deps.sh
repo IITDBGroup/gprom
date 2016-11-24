@@ -16,6 +16,8 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
 	brew outdated readline || brew upgrade readline
 	# fix libtoolize and libtool
 	brew reinstall libtool
+	brew unlink bison
+	brew link bison --force
 	#sudo ln -s `which glibtoolize` /usr/bin/libtoolize
 # LINUX	
 else
