@@ -9,16 +9,22 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.InvalidPropertiesFormatException;
 
+import org.apache.log4j.Logger;
 import org. gprom.jdbc.test.testgenerator.dataset.DataAndQueryGenerator;
+import org.stringtemplate.v4.ST;
+import org.stringtemplate.v4.STGroup;
+import org.stringtemplate.v4.STGroupFile;
 
 public class TestGenerator {
 
+	Logger log = Logger.getLogger(TestGenerator.class);
+	
 	public static int settingNum;
 	
-	public static final String PACKAGE_NAME = System.getProperty("generator.package");
-	private static String packageDir = System.getProperty("generator.sourcedir") + "/" + PACKAGE_NAME.replace('.', '/');
-	public static final String resourceDir = System.getProperty("generator.resourcedir");
-	private static String testMethodString = "\n\n\t@Test\n"
+	public static  String PACKAGE_NAME;
+	private static String packageDir;
+	public static String resourceDir;
+	private static final String testMethodString = "\n\n\t@Test\n"
 		    + "\tpublic void testNAME () throws SQLException, Exception {\n"
 		    + "\t\ttestSingleQuery(NUM);\n"
 		    + "\t}\n";
@@ -30,8 +36,10 @@ public class TestGenerator {
 	private File testDir;
 	private String packageName;
 	private GProMSuite allTests;
+	private STGroup g;
 	
 	public TestGenerator (File testDir, String packageName) throws IOException {
+
 		this.testDir = testDir;
 		ConnectionOptions.getInstance().setPath(testDir.getPath());
 		OptionsManager.getInstance().reloadOptions();
@@ -47,11 +55,17 @@ public class TestGenerator {
 		dir = new File(packageDir);
 		if (!dir.isDirectory())
 			dir.mkdirs();
+		
+		g = new STGroupFile(resourceDir + "/TestTemplates/testcase.stg");
 	}
 	
 	public static void main (String[] args) throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
 		TestGenerator gen;
 		File dir;
+		PACKAGE_NAME = System.getProperty("generator.package");
+		packageDir = System.getProperty("generator.sourcedir");
+		packageDir += "/" + PACKAGE_NAME.replace('.', '/');
+		resourceDir = System.getProperty("generator.resourcedir");
 		
 		dir = new File (resourceDir + "/PI_CS_queries/");
 		gen = new TestGenerator (dir, PACKAGE_NAME);
@@ -122,30 +136,40 @@ public class TestGenerator {
 			optionSuite.addChildWithDupes(new GProMSuite("AllTests_" + (i + 1)));
 		}
 		
-		output = TestSuite;
-		output = output.replace("PACKAGE", packageName);
-		output = output.replace("NAME", optionSuite.getName());
-		output = output.replace("CHILDREN", optionSuite.getClassText());
+		ST suiteclassfile = g.getInstanceOf("suiteclassfile");
+		suiteclassfile.add("package", packageName);
+		suiteclassfile.add("name", optionSuite.getName());
+		for(GProMSuite child: optionSuite.getChildren())
+			suiteclassfile.add("child", child.getClassName());
 		
-		writeFile(optionSuite.getName(), output);
+//		output = TestSuite;
+//		output = output.replace("PACKAGE", packageName);
+//		output = output.replace("NAME", optionSuite.getName());
+//		output = output.replace("CHILDREN", optionSuite.getClassText());
+		
+		writeFile(optionSuite.getName(), suiteclassfile.render());
 	}
 	
 	private void generateSetOption (int optionNum) throws IOException {
-		String output;
+//		String output;
 		
-		output = OptionsTestCase;
-				
-		output = output.replace("PACKAGE", packageName);
-		output = output.replaceAll("NAME", "SetOptions_" + optionNum);
-		output = output.replace("SETTING", "" + optionNum);
+		ST optionsclass = g.getInstanceOf("optionsclassfile");
+		optionsclass.add("num", optionNum);
+		optionsclass.add("package", packageName);
 		
-		writeFile("SetOptions_" + optionNum, output);
+//		output = OptionsTestCase;
+//				
+//		output = output.replace("PACKAGE", packageName);
+//		output = output.replaceAll("NAME", "SetOptions_" + optionNum);
+//		output = output.replace("SETTING", "" + optionNum);
+//		
+		writeFile("SetOptions_" + optionNum, optionsclass.render());
 	}
 	
 	private void finalizeSuites () throws IOException {
 		java.util.Iterator<String> iter;
 		GProMSuite suite;
-		String output;
+//		String output;
 		
 		allTests.addChild(new GProMSuite("ReportPrinter"));
 		iter = suites.keySet().iterator();
@@ -154,12 +178,19 @@ public class TestGenerator {
 			suite = suites.get(iter.next());
 			
 			if (suite.getChildren().size() > 0) {
-				output = TestSuite;
-				output = output.replace("PACKAGE", packageName);
-				output = output.replace("NAME", suite.getClassName());
-				output = output.replace("CHILDREN", suite.getClassText());
 				
-				writeFile(suite.getClassName(), output);
+				ST suiteclassfile = g.getInstanceOf("suiteclassfile");
+				suiteclassfile.add("package", packageName);
+				suiteclassfile.add("name", suite.getClassName());
+				for(GProMSuite child: suite.getChildren())
+					suiteclassfile.add("child", child.getClassName());
+				
+//				output = TestSuite;
+//				output = output.replace("PACKAGE", packageName);
+//				output = output.replace("NAME", suite.getClassName());
+//				output = output.replace("CHILDREN", suite.getClassText());
+//				
+				writeFile(suite.getClassName(), suiteclassfile.render());
 			}
 		}
 	}
@@ -176,21 +207,39 @@ public class TestGenerator {
 		runName = generateName (name);
 		suite = suites.get(runName);
 		
-		output = TestCase;
-		output = output.replace("PACKAGE", packageName);
-		output = output.replace("NAME", suite.getClassName());
-		output = output.replace("FILE", suite.getFileName());
-		output = output.replace("SETTING", "" + settingNum);
-		output = output.replace("PATH", this.getTestDir().toString() + "/");
-		output = output.replace("BASEDIR", resourceDir);
+		STGroup g = new STGroupFile(resourceDir + "/TestTemplates/testcase.stg");
+		ST testcl = g.getInstanceOf("testclass");
+		testcl.add("name", suite.getClassName());
+		testcl.add("file", suite.getFileName());
+		testcl.add("setting", settingNum);
+		testcl.add("path", this.getTestDir().toString() + "/");
+		testcl.add("basedir", resourceDir);
+		
 		for (int i = 1; i <= generator.getNumTest(); i++) {
 			if (!generator.isInExcludes(settingNum, i))
-				tests.append(testMethodString.replace("NAME", "Query_" + i).replace("NUM", i + ""));
+				testcl.add("casenum", i);
 		}
 		
-		output = output.replace("TESTS", tests.toString());
+		ST testclassfile = g.getInstanceOf("testclassfile");
+		testclassfile.add("package", packageName);
+		testclassfile.add("class", testcl.render());
+		log.error(testclassfile.render());
 		
-		writeFile(suite.getClassName(), output);
+//		output = TestCase;
+//		output = output.replace("PACKAGE", packageName);
+//		output = output.replace("NAME", suite.getClassName());
+//		output = output.replace("FILE", suite.getFileName());
+//		output = output.replace("SETTING", "" + settingNum);
+//		output = output.replace("PATH", this.getTestDir().toString() + "/");
+//		output = output.replace("BASEDIR", resourceDir);
+//		for (int i = 1; i <= generator.getNumTest(); i++) {
+//			if (!generator.isInExcludes(settingNum, i))
+//				tests.append(testMethodString.replace("NAME", "Query_" + i).replace("NUM", i + ""));
+//		}
+//		
+//		output = output.replace("TESTS", tests.toString());
+		
+		writeFile(suite.getClassName(), testclassfile.render());
 	}
 	
 	private String generateName (String name) {

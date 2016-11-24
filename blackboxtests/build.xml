@@ -20,6 +20,7 @@
 	<property name="testbinarydir" value="${binarydir}/org/gprom/jdbc/test/autotests" />	
 	<property name="librarydir" value="${projectroot}/javatestlib" />
 	<property name="mainlibrarydir" value="${projectroot}/javalib" />
+	<property name="antlibrarydir" value="${projectroot}/ant" />
 	<property name="resourcedir" value="${projectroot}/blackboxtests"/>
 	<property name="builddir" value="${projectroot}/build"/>
 	<property name="generatorjar" value="${librarydir}/gprom-test-gen.jar" />
@@ -31,7 +32,8 @@
 	
 	<path id="libraries">
 		<fileset dir="${librarydir}" /> 
-		<fileset dir="${mainlibrarydir}" /> 
+		<fileset dir="${mainlibrarydir}" />
+		<fileset dir="${antlibrarydir}" />
 		<fileset dir="${ant.library.dir}">
 			<include name="**/*.jar" />
 		</fileset>
@@ -40,6 +42,9 @@
 	<path id="createTestsClasspath">
 		<path refid="libraries" />
 		<pathelement path="${resourcedir}" />
+		<fileset dir="${ant.library.dir}">
+			<include name="**/*.jar" />
+		</fileset>
 	</path>
 	
 	<path id="runTestsClasspath">
@@ -160,7 +165,7 @@
 		        cache="depcache"
 		        closure="yes"/>
 		<javac srcdir="${testsourcedir}" destdir="${binarydir}" classpathref="runTestsClasspath" 
-			debug="on">
+			debug="on" fork="true" includeantruntime="false">
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
