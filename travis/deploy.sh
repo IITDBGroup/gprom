@@ -20,9 +20,9 @@ popd > /dev/null
 CONFIGFILE="${DIR}/../config.h"
 
 # check whether this is a tag
-IS_TAG=`git describe --exact-match HEAD | grep -o -e '[0-9]\+.[0-9]\+.[0-9]\+'`
+IS_TAG=`git describe --exact-match HEAD | grep -o -e '^[0-9]\+.[0-9]\+.[0-9]\+'`
 
-if [[ "X$IS_TAG" == "X" ]]
+if [[ "X${?}" != "X0" ]]
 then
 	echo "not a tag, do not push release to github"
 	exit 0
