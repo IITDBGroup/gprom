@@ -4,6 +4,6 @@ pushd $(dirname "${0}") > /dev/null
 DIR=$(pwd -L)
 popd > /dev/null
 pushd ${DIR}
-ant runSimpleTests
+ant runTests
 RESULT="${?}"
 exit ${RESULT}
