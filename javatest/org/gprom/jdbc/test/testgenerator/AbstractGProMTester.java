@@ -36,15 +36,18 @@ public class AbstractGProMTester {
 	 * 
 	 */
 	protected static void resetOptions() throws NumberFormatException, Exception {
+		log.debug("SHOULD RESET GPROM JDBC OPTIONS?");
 		if (oldProps != null) {
 			GProMConnection g = ConnectionManager.getInstance().getGProMConnection();
 			
 			for(Entry<?, ?> e: oldProps.entrySet()) {
     			String key = (String) e.getKey();
     			String value = (String) e.getValue();
-    			log.debug("set key " + key + " to " + value);
+    			log.debug("reset options: set key " + key + " to " + value);
     			g.getW().setOption(key, value);
     		}
+			
+			g.getW().reconfPlugins();
 		}
 	}
     
@@ -120,7 +123,7 @@ public class AbstractGProMTester {
     			String key = (String) e.getKey();
     			String value = (String) e.getValue();
     			oldProps.setProperty(key, g.getW().getOption(key));
-    			log.debug("set key " + key + " to " + value);
+    			log.debug("set up <" + name + "> set key " + key + " to " + value);
     			g.getW().setOption(key, value);
     		}
     		
@@ -135,6 +138,7 @@ public class AbstractGProMTester {
     	DBTable actualResult = null;
     	String queryString;
     	boolean markedError;
+    	boolean isOrdered;
     	DataAndQueryGenerator generator;
     	
     	generator = TestInfoHolder.getInstance().getCurrentGenerator();
@@ -143,7 +147,7 @@ public class AbstractGProMTester {
     	
     	Properties options = TestInfoHolder.getInstance().getCurrentGenerator().getOptions();
     	
-    	if (options != null)
+    	if (options != null && oldProps == null)
     	{
     		oldProps = new Properties();
     		for(Entry<?, ?> e: options.entrySet()) {
@@ -156,19 +160,25 @@ public class AbstractGProMTester {
     		
     		g.getW().reconfPlugins();
     	}
-    	else
-    		oldProps = null;
 
     	
     	expecteds = generator.getExpectedResults("q" + num);
 		queryString = generator.getQuery("q" + num);
 		markedError = generator.isError("q" + num); 
+		isOrdered = generator.isOrdered("q" + num);
+		
+		if(isOrdered) {
+			for(DBTable t: expecteds) {
+				t.setOrdered(true);
+			}
+		}
 		
 		logTestResult (TestInfoHolder.getInstance().getGeneratorName() + "\t", queryString, num, markedError);
 		
 		try {
 			if (!markedError) {
 				actualResult = DBTableFactory.inst.tableFromQuery(g, queryString);
+				actualResult.setOrdered(isOrdered);
 	    		assertTrue(TableCompartor.inst.compareTableAgainstMany(actualResult, expecteds));
 			}
 		}

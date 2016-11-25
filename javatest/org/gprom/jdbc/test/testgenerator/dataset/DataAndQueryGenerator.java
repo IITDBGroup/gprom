@@ -155,6 +155,10 @@ public class DataAndQueryGenerator {
 		return expectedResult;
 	}
 	
+	public boolean isOrdered (String key) {
+		return properties.containsKey(key + ".ordered");
+	}
+	
 	public boolean isError (String key) {
 		String query;
 		String expected;

@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.apache.log4j.Logger;
+import org.gprom.jdbc.utility.LoggerUtil;
 
 import java.sql.ResultSetMetaData;
 
@@ -104,13 +105,16 @@ public class DBTableFactory {
 					values.add(r.getString(i));
 				}
 				t.addRow(new Row(values));
-			}
-			
-		} catch (SQLException e) {
-			s.close();
+			}			
+		} catch (Throwable e) {
+			LoggerUtil.logDebugException(e, log);
+			System.out.println(e);
 			throw(e);
+		} finally {
+			s.close();
+			log.error("XXXXXXXXXXXXXXXXXXXXXX");
 		}
-		s.close();
+		
 		return t;
 	}
 	

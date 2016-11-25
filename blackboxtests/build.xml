@@ -22,13 +22,14 @@
 	<property name="mainlibrarydir" value="${projectroot}/javalib" />
 	<property name="antlibrarydir" value="${projectroot}/ant" />
 	<property name="resourcedir" value="${projectroot}/blackboxtests"/>
+	<property name="testcasedir" value="${resourcedir}/testcases"/>
 	<property name="builddir" value="${projectroot}/build"/>
 	<property name="generatorjar" value="${librarydir}/gprom-test-gen.jar" />
 	<property name="buildjar" value="${builddir}/gprom-jdbc-test.jar" />
 	
 	<!-- settings -->
 	<property name="permserver.options" value="--debug_print_rewritten=off --log_error_verbosity=terse --log_min_messages=error --client_min_messages=error --log_directory=${basedir}"/>
-	<property name="TestName" value="AllTestsOptions" />
+	<property name="TestName" value="AllTests_1" />
 	
 	<path id="libraries">
 		<fileset dir="${librarydir}" /> 
@@ -42,6 +43,9 @@
 	<path id="createTestsClasspath">
 		<path refid="libraries" />
 		<pathelement path="${resourcedir}" />
+		<fileset dir="${mainlibrarydir}" />
+		<fileset dir="${antlibrarydir}" />
+		<pathelement path="${binarydir}" />
 		<fileset dir="${ant.library.dir}">
 			<include name="**/*.jar" />
 		</fileset>
@@ -154,6 +158,7 @@
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" 
 				value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
 			<sysproperty key="generator.resourcedir" value="${resourcedir}" />
+			<sysproperty key="generator.testcasedir" value="${testcasedir}" />
 			<sysproperty key="generator.sourcedir" value="${testsourcedir}" />
 			<sysproperty key="generator.package" value="${packageName}" />
 		</java>
@@ -231,9 +236,10 @@
 	</target>
 	
 	<target name="runTests">
-		<junit printsummary="on" haltonfailure="false">
+		<junit printsummary="withOutAndErr" haltonfailure="false" showoutput="true" enableTestListenerEvents="true">
 			<classpath refid="runTestsClasspath"/>
-			<test name="org.perm.autotests.${TestName}" haltonfailure="false" />
+			<test name="org.gprom.jdbc.test.gprom.GProMAllTests" haltonfailure="false" />
+			<test name="org.gprom.jdbc.test.autotests.${TestName}" haltonfailure="false" />
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
 		</junit>
 	</target>

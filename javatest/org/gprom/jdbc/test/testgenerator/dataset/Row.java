@@ -26,6 +26,13 @@ public class Row {
 		values = r.toArray(new String[0]);
 	}
 	
+	public int getNumCols () {
+		return values.length;
+	}
+	
+	public String getCol (int i) {
+		return values[i];
+	}
 	
 	public int hashCode() {
 		return Arrays.hashCode(values);
@@ -40,7 +47,6 @@ public class Row {
 	
 	public String toString() {
 		StringBuilder result = new StringBuilder();
-		result.append("|");
 		for(String c: values) {
 			result.append(" ");
 			result.append(c);
@@ -48,4 +54,16 @@ public class Row {
 		}
 		return result.toString();
 	}
+	
+	public String toStringPatched (int[] widths) {
+		StringBuilder result = new StringBuilder();
+		int i = 0;
+		for(String c: values) {
+			result.append(" ");
+			result.append(MemDBTable.patch(c, widths[i++]));
+			result.append(" |");
+		}
+		return result.toString();
+	}
+	
 }

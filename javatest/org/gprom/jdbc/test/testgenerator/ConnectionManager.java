@@ -102,7 +102,7 @@ public class ConnectionManager {
 		
 		gCon = (GProMConnection) con;
 		iCon = new GProMDatabaseConnection();
-		
+		gCon.getW().setLogLevel(1);
 		OptionsManager.getInstance().resetOptions (con);
 	}
 	

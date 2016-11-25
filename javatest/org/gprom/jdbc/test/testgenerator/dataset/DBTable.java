@@ -17,6 +17,7 @@ public interface DBTable {
 	public Set<Row> getRows();
 	public List<Row> getRowList();
 	public boolean isOrdered();
+	public void setOrdered(boolean isOrdered);
 	public boolean hasRow(Row row);
 	public int getNumRows();
 }

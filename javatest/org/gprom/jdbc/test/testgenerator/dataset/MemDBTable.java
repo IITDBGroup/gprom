@@ -133,18 +133,55 @@ public class MemDBTable implements DBTable {
 	
 	public String toString() {
 		StringBuilder r = new StringBuilder();
-		
-		r.append("|");
+		int width;
+		int[] colWidth = new int[columnNames.size()];
+		int curWidth;
+		int curAttrWidth;
+//		r.append("|");
+		curWidth = 0;
+		int i = 0;
 		for(String c: columnNames) {
-			r.append(" " + c + " |");
+			colWidth[i] = 0;
+			curAttrWidth = c.length();
+			curWidth +=curAttrWidth;
+			colWidth[i] = Math.max(colWidth[i], curAttrWidth);
+			i++;
 		}
+		width = curWidth;
+		for(Row row: rows) {
+			curWidth = 0;
+			for (int j = 0; j < row.getNumCols(); j++)  {
+				if (row.getCol(j) != null)
+					curAttrWidth = row.getCol(j).length();
+				else
+					curAttrWidth = 6;
+				curWidth +=curAttrWidth;
+				colWidth[j] = Math.max(colWidth[j], curAttrWidth);
+				width = Math.max(curWidth, width);
+			}
+		}
+		i = 0;
+		for(String c: columnNames) {
+			r.append(" " + patch(c, colWidth[i++]) + " |");
+		}
+		r.append("\n");
+		for(int j = 0; j < width + (3 * colWidth.length); j++)
+			r.append("-");
 		r.append("\n");
 		
 		for(Row row: rows) {
-			r.append(row.toString());
+			r.append(row.toStringPatched(colWidth));
 			r.append("\n");
 		}
 		return r.toString();
 	}
 
+	public static String patch(String in, int desiredLen) {
+		StringBuilder result = new StringBuilder();
+		if (in != null)
+			result.append(in);
+		while(result.length() < desiredLen)
+			result.append(" ");
+		return result.toString();
+	}
 }

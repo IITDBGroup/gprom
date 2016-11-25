@@ -25,7 +25,7 @@ X | Y |
 SELECT a as x, b as y, d as z FROM R INNER JOIN S ON R.a = S.c;
 </entry>
 <entry key="q3.result">
-X | Y | 
+X | Y | Z |
 ----------+-----------------+-----------------
 2|3|2|
 2|1|2|
@@ -52,11 +52,14 @@ X | Y | Z |
 SELECT c as x, d as y, a as z, b as w FROM S FULL JOIN R ON b = d;
 </entry>
 <entry key="q5.result">
-X | Y | 
+ X | Y | Z | W |
 ----------+-----------------+-----------------
-2|2|1|2|
-3|3|2|3|
-2|3|2|3|
+ 1 | 4 | (null) | (null) |
+ 3 | 3 | 2 | 3 |
+ 2 | 3 | 2 | 3 |
+ 2 | 2 | 1 | 2 |
+ (null) | (null) | 2 | 1 |
+ (null) | (null) | 1 | 1 |
 </entry>
 
 <entry key="q6.query">
@@ -72,7 +75,7 @@ X |
 SELECT a as x, b as y, d as z FROM R, S WHERE R.a = S.c;
 </entry>
 <entry key="q7.result">
-X | Y | 
+X | Y | Z |
 ----------+-----------------+-----------------
 2|3|2|
 2|1|2|

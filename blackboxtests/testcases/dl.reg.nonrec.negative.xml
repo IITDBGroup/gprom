@@ -9,9 +9,13 @@ plugin.analyzer=dl,
 plugin.translator=dl
 </entry>
 
-<entry key="q.query">
+<entry key="q1.query">
+Q(X) :- R(X,Y), not R(Y,X).
 </entry>
-<entry key="q.result">
+<entry key="q1.result">
+A0|
+----------------------------------------
+2|
 </entry>
 
 <entry key="q.query">

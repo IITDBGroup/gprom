@@ -41,10 +41,26 @@ public class TestTableModel {
 		Row r1,r2;
 		r1 = new Row("1","2");
 		r2 = new Row("1","2");
-		assertEquals("1","1");
 		assertEquals(r1.toString() + " == " + r2.toString(), r1,r2);
 	}
 
+	@Test
+	public void testRowConstructors () {
+		Row r1,r2,r3;
+		List<String> val = new ArrayList<String> ();
+		val.add("1");
+		val.add(null);
+		val.add("2");
+		val.add(null);
+		
+		r1 = new Row("1",null,"2",null);
+		r2 = new Row(r1);
+		r3 = new Row(val);
+		assertEquals(r1,r2);
+		assertEquals(r1,r3);
+		assertEquals(r1.toString() + " == " + r2.toString(), r1,r2);
+	}
+	
 	@Test
 	public void testTables () {
 		MemDBTable t1 = new MemDBTable();
@@ -59,6 +75,22 @@ public class TestTableModel {
 		t2.addColumn("b");
 		t2.addRow(new Row("1", "1"));
 		t2.addRow(new Row("1", "2"));
+		assertEquals(t1.toString() + " == " + t2.toString(), t1, t2);
+		
+		t1 = new MemDBTable();
+		t2 = new MemDBTable();
+		
+		t1.addColumn("a");
+		t1.addColumn("b");
+		t1.addColumn("c");
+		t1.addColumn("d");
+		t1.addRow(new Row("1", null, "2", null));
+		
+		t2.addColumn("a");
+		t2.addColumn("b");
+		t2.addColumn("c");
+		t2.addColumn("d");
+		t2.addRow(new Row("1", null, "2", null));
 		assertEquals(t1.toString() + " == " + t2.toString(), t1, t2);
 	}
 }
