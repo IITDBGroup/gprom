@@ -32,8 +32,12 @@
 	<property name="TestName" value="AllTests_1" />
 	
 	<path id="libraries">
-		<fileset dir="${librarydir}" /> 
-		<fileset dir="${mainlibrarydir}" />
+		<fileset dir="${librarydir}">
+			<include name="**/*.jar" />
+		</fileset>
+		<fileset dir="${mainlibrarydir}">
+			<include name="**/*.jar" />
+		</fileset>
 		<fileset dir="${antlibrarydir}" />
 		<fileset dir="${ant.library.dir}">
 			<include name="**/*.jar" />
@@ -52,7 +56,13 @@
 	</path>
 	
 	<path id="runTestsClasspath">
-		<path refid="libraries" />
+		<fileset dir="${librarydir}">
+			<include name="**/*.jar" />
+		</fileset>
+		<fileset dir="${mainlibrarydir}">
+			<include name="**/*.jar" />
+		</fileset>
+		<pathelement path="${projectroot}" />
 		<pathelement path="${binarydir}"/>
 	</path>
 	
@@ -235,13 +245,29 @@
 		<antcall target="killPermServer"/>
 	</target>
 	
-	<target name="runTests">
-		<junit printsummary="withOutAndErr" haltonfailure="false" showoutput="true" enableTestListenerEvents="true">
+	<target name="runTests" depends="compileTests">
+		<junit printsummary="withOutAndErr" haltonfailure="false" showoutput="true" enableTestListenerEvents="true" fork="true">
 			<classpath refid="runTestsClasspath"/>
-			<test name="org.gprom.jdbc.test.gprom.GProMAllTests" haltonfailure="false" />
+			<test name="org.gprom.jdbc.test.junit.GProMAllTests" haltonfailure="false" />
 			<test name="org.gprom.jdbc.test.autotests.${TestName}" haltonfailure="false" />
+			<formatter type="brief" usefile="false" />
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
 		</junit>
 	</target>
-		
+
+	<target name="runSimpleTestsOnly">
+<!--		<pathconvert property="testtest" pathsep="    ">
+					<path refid="runTestsClasspath">
+					</path>
+		</pathconvert>
+		<echo message="${testtest}" /> -->
+		<junit printsummary="withOutAndErr" haltonfailure="false" showoutput="true" enableTestListenerEvents="true" fork="true">
+			<classpath refid="runTestsClasspath"/>
+			<test name="org.gprom.jdbc.test.junit.GProMAllTests" haltonfailure="false" />
+			<formatter type="brief" usefile="false" />
+			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
+		</junit>
+	</target>
+
+	
 </project>

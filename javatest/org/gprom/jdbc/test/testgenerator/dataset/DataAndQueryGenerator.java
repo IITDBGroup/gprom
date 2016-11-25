@@ -15,10 +15,6 @@ import java.util.Properties;
 import java.util.Vector;
 
 import org.apache.log4j.Logger;
-import org.dbunit.dataset.DataSetException;
-import org.dbunit.dataset.ITable;
-import org.dbunit.dataset.xml.XmlDataSet;
-
 
 /**
  *
@@ -73,13 +69,13 @@ public class DataAndQueryGenerator {
 		return result;
 	}
 	
-	public DBTable getExpectedResult (String key) throws DataSetException, IOException {
+	public DBTable getExpectedResult (String key) throws IOException {
 		DBTable result;
 		
 		return  getResult (key + ".result");
 	}
 	
-	public DBTable[] getExpectedResults (String key) throws DataSetException {
+	public DBTable[] getExpectedResults (String key)  {
 		Vector<DBTable> expectedResults;
 		DBTable[] result;
 		String resultKey;
@@ -140,7 +136,7 @@ public class DataAndQueryGenerator {
 		return excludeSettings;
 	}
 	
-	private DBTable getResult (String key) throws DataSetException {
+	private DBTable getResult (String key)  {
 		DBTable expectedResult;
 		String resultString;
 		

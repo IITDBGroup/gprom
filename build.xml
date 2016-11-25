@@ -103,6 +103,7 @@
 				<include name="mysql-connector-java.jar"/>
 				<include name="junit.jar"/>
 				<include name="jna.jar"/>
+				<include name="stringtemplate.jar"/>
 			</fileset>
 		</copy>
 		<!-- classpath -->

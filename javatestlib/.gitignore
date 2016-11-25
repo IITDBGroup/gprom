@@ -9,3 +9,4 @@ log4j.jar
 mysql-connector-java.jar
 ojdbc7dms_g.jar
 postgresql.jar
+stringtemplate.jar

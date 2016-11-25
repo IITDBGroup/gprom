@@ -7,6 +7,7 @@ AM_CFLAGS = -I$(top_srcdir)/include @GPROM_CFLAGS@
 # subdirs to build
 if JAVABINDING
 SUBDIRS = include src test javatest doc
+TESTS = blackboxtests/runtests.sh
 else
 SUBDIRS = include src test doc
 endif

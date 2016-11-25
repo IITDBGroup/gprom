@@ -9,7 +9,6 @@ import java.sql.Statement;
 import java.util.Properties;
 
 import org.apache.log4j.Logger;
-import org.dbunit.database.IDatabaseConnection;
 import org.postgresql.util.PSQLException;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriver;
@@ -34,7 +33,7 @@ public class ConnectionManager {
 	
 	private Connection con;
 	private GProMConnection gCon;
-	private IDatabaseConnection iCon;
+
 	
 	private ConnectionManager () throws Exception {
 		createConnection ();
@@ -58,13 +57,6 @@ public class ConnectionManager {
 		return gCon;
 	}
 	
-	
-	public IDatabaseConnection getIDatabaseConnection () throws Exception {
-		if (iCon == null || !testConnection()) {
-			createConnection ();
-		}
-		return iCon;
-	}
 	
 	private void createConnection () throws Exception {
 		Class.forName("org.gprom.jdbc.driver.GProMDriver");
@@ -101,7 +93,6 @@ public class ConnectionManager {
 		}
 		
 		gCon = (GProMConnection) con;
-		iCon = new GProMDatabaseConnection();
 		gCon.getW().setLogLevel(1);
 		OptionsManager.getInstance().resetOptions (con);
 	}

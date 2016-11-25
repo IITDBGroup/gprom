@@ -15,7 +15,7 @@ import org.junit.runners.Suite;
  */
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
-	TestPostgresMetadataLookup.class,
+	//TestPostgresMetadataLookup.class,
 	TestOracleMetadataLookup.class
 	})
 public class GProMAllMetadataLookup {
