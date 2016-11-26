@@ -8,11 +8,11 @@
 .B gprom
 .I [connection_options]
 
-.B gprom \-sql
+.B gprom \-query
 .I query
 .I [connection_options]
 
-.B gprom \-sqlfile
+.B gprom \-queryfile
 .I file
 .I [connection_options]
 
@@ -46,12 +46,12 @@ show help for the selected language (see section on parser plugins below for sup
 These options determine whether GProM operates as an interactive shell or just processes one query. If none of the options below is set, then an interactive shell is opened.
 \"********************
 .TP
-.BR \-sql " " \fIquery\fR
+.BR \-query " " \fIquery\fR
 process 
 .I query
 \"********************
 .TP
-.BR \-sqlfile " " \fIfile\fR
+.BR \-queryfile " " \fIfile\fR
 read query to be processed from \fIfile\fR
 \"****************************************
 .SS LOGGING AND DEBUG
@@ -90,11 +90,19 @@ Aggressively check validity of generated relational algebra graphs after each pr
 Activate \fIcheck_option\fR where \fIcheck_option\fR is one of \fIschema_consistency\fR, \fIunique_attr_names\fR, \fIparent_child_links\fR, or \fIattr_reference_consistency\fR.
 \"****************************************
 .SS PLUGINS
-Configure plugins.
+Configure plugins. Plugins determine mosts of GProM's behavior including selecting frontend languages and backend database backends.
 \"********************
 .TP
 .BR \-P\fIplugin_type\fR " " \fIplugin_name\fR
 Select \fIplugin_name\fR as the active plugin for \fIplugin_type\fR. Most components in GProM are pluggable. See the section on plugins below.
+\"********************
+.TP
+.BR \-backend\fR " " \fIbackend_name\fR
+Select \fIbackend\fR as the active database backend. This overwrites most other plugin options. Individual plugin options take precedence over this options enabling the other plugins to be customized.
+\"********************
+.TP
+.BR \-frontend\fR " " \fIfrontend_name\fR
+Select the \fIfrontend_name\fR as the active frontend language. This is the language in which the user communicates with GProM. For instance, \fIoracle\fR corresponds to Oracle's SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling the other plugins to be customized. \fIfrontend\fR takes precedence over \fIbackend\fR.
 \"****************************************
 .SS CONNECTION OPTIONS
 Configure the connection to the backend database system.
@@ -209,9 +217,11 @@ The metadata lookup plugin handles communication with the backend database. This
 .SS sqlcodegen
 This plugin translates GProM's internal relational algebra model of queries into queries written in a backend's SQL dialect. 
 .IP
+\fBdl\fR \- Output a Datalog program
+.IP
 \fBoracle\fR \- Output SQL code written in Oracle's SQL dialect
 .IP
-\fBdl\fR \- Output a Datalog program
+\fBpostgres\fR \- Output SQL code written in PostgreSQL's SQL dialect
 .IP
 \fBsqlite\fR \- Output SQL code written in SQLite's SQL dialect
 \"****************************************
@@ -287,11 +297,11 @@ Set the cooling down rate used by simulated annealing. Value has to be between 0
 \"********************************************************************************
 .SH EXAMPLES
 \"****************************************
-\fBExample 1.\fR Connect to an Oracle database (default) at IP \fI1.1.1.1\fR with SID \fIorcl\fR using user \fIusr\fR and password \fImypass\fR at port \fI1521\fR and start an interactive session:
+\fBExample 1.\fR Connect to an Oracle database (\fIoracle\fR) at IP \fI1.1.1.1\fR with SID \fIorcl\fR using user \fIusr\fR and password \fImypass\fR at port \fI1521\fR and start an interactive session:
 .PP
 .nf
 .RS
-gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
+gprom -backend oracle -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
 .RE
 .fi
 .PP
@@ -300,7 +310,7 @@ gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
 .PP
 .nf
 .RS
-gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql
+gprom -backend oracle -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql
 .RE
 .fi
 .PP
@@ -309,8 +319,8 @@ gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql
 .PP
 .nf
 .RS
-gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql \\
-      -sql "PROVENANCE OF (SELECT a FROM r);"
+gprom -backend oracle -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql \\
+      -query "PROVENANCE OF (SELECT a FROM r);"
 .RE
 .fi
 .PP
@@ -319,8 +329,18 @@ gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql 
 .PP
 .nf
 .RS
-gprom -db test.db -Pmetadata sqlite -Psqlserializer sqlite \\
-      -sql "PROVENANCE OF (SELECT a FROM r);"
+gprom -backend sqlite -db test.db \\
+      -query "PROVENANCE OF (SELECT a FROM r);"
+.RE
+.fi
+.PP
+\"****************************************
+\fBExample 5.\fR Connect to SQLite database test.db and return results of the Datalog query \fBQ(X) :- R(X,Y).\fR:
+.PP
+.nf
+.RS
+gprom -backend sqlite -frontend dl -db test.db \\
+      -query "Q(X) :- R(X,Y)."
 .RE
 .fi
 .PP

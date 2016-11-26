@@ -10,9 +10,9 @@
 
 **gprom** *\[connection\_options\]*
 
-**gprom -sql** *query* *\[connection\_options\]*
+**gprom -query** *query* *\[connection\_options\]*
 
-**gprom -sqlfile** *file* *\[connection\_options\]*
+**gprom -queryfile** *file* *\[connection\_options\]*
 
 **gprom -help**
 
@@ -42,10 +42,10 @@ show help for the selected language (see section on parser plugins below for sup
 
 These options determine whether GProM operates as an interactive shell or just processes one query. If none of the options below is set, then an interactive shell is opened.
 
-**-sql** ***query***   
+**-query** ***query***   
 process *query*
 
-**-sqlfile** ***file***   
+**-queryfile** ***file***   
 read query to be processed from *file*
 
 ### [Logging and Debug](#toc6)
@@ -78,10 +78,16 @@ Activate *check\_option* where *check\_option* is one of *schema\_consistency*, 
 
 ### [Plugins](#toc7)
 
-Configure plugins.
+Configure plugins. Plugins determine mosts of GProM’s behavior including selecting frontend languages and backend database backends.
 
 **-P*plugin\_type*** ***plugin\_name***   
 Select *plugin\_name* as the active plugin for *plugin\_type*. Most components in GProM are pluggable. See the section on plugins below.
+
+**-backend** ***backend\_name***   
+Select *backend* as the active database backend. This overwrites most other plugin options. Individual plugin options take precedence over this options enabling the other plugins to be customized.
+
+**-frontend** ***frontend\_name***   
+Select the *frontend\_name* as the active frontend language. This is the language in which the user communicates with GProM. For instance, *oracle* corresponds to Oracle’s SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling the other plugins to be customized. *frontend* takes precedence over *backend*.
 
 ### [Connection Options](#toc8)
 
@@ -192,9 +198,11 @@ The metadata lookup plugin handles communication with the backend database. This
 
 This plugin translates GProM’s internal relational algebra model of queries into queries written in a backend’s SQL dialect.
 
+**dl** - Output a Datalog program   
+
 **oracle** - Output SQL code written in Oracle’s SQL dialect   
 
-**dl** - Output a Datalog program   
+**postgres** - Output SQL code written in PostgreSQL’s SQL dialect   
 
 **sqlite** - Output SQL code written in SQLite’s SQL dialect   
 
@@ -255,24 +263,30 @@ Set the cooling down rate used by simulated annealing. Value has to be between 0
 [Examples](#toc22)
 ------------------
 
-**Example 1.** Connect to an Oracle database (default) at IP *1.1.1.1* with SID *orcl* using user *usr* and password *mypass* at port *1521* and start an interactive session:
+**Example 1.** Connect to an Oracle database (*oracle*) at IP *1.1.1.1* with SID *orcl* using user *usr* and password *mypass* at port *1521* and start an interactive session:
 
-    gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
+    gprom -backend oracle -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
 
 **Example 2.** Same as above, but output instrumented SQL queries to *stdout* instead of executing them:
 
-    gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql
+    gprom -backend oracle -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
+    -Pexecutor sql
 
 **Example 3.** Using the same database as in examples 1 and 2, return an SQL Query that captures provenance of the query **SELECT a FROM r**:
 
-    gprom -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl -Pexecutor sql
-    \
-          -sql "PROVENANCE OF (SELECT a FROM r);"
+    gprom -backend oracle -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
+    -Pexecutor sql \
+          -query "PROVENANCE OF (SELECT a FROM r);"
 
 **Example 4.** Connect to SQLite database test.db and return provenance for the query **SELECT a FROM r**:
 
-    gprom -db test.db -Pmetadata sqlite -Psqlserializer sqlite \
-          -sql "PROVENANCE OF (SELECT a FROM r);"
+    gprom -backend sqlite -db test.db \
+          -query "PROVENANCE OF (SELECT a FROM r);"
+
+**Example 5.** Connect to SQLite database test.db and return results of the Datalog query **Q(X) :- R(X,Y).**:
+
+    gprom -backend sqlite -frontend dl -db test.db \
+          -query "Q(X) :- R(X,Y)."
 
 [Authors](#toc23)
 -----------------

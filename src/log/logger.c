@@ -103,7 +103,7 @@ void
 setMaxLevel (LogLevel level)
 {
     maxLevel = level;
-    log_(LOG_ERROR, __FILE__, __LINE__, "log level set to: %u", maxLevel);
+    log_(LOG_INFO, __FILE__, __LINE__, "log level set to: %u", maxLevel);
 }
 
 void

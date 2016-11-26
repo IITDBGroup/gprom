@@ -7,6 +7,13 @@ if [ -f ${GPROM_CONF} ]; then
 	source ${GPROM_CONF}
 fi
 ########################################
+# set backend
+if [ "${GPROM_BACKEND}X" != "X" ]; then
+	BACKEND="-backend ${GPROM_BACKEND}"
+else
+	BACKEND="-backend sqlite"
+fi
+########################################
 # DETERMINE CONNECTION PARAMETER
 if [ "${GPROM_IP}X" != "X" ]; then
 	HOST="-host ${GPROM_IP}"
@@ -23,7 +30,7 @@ fi
 if [ "${GPROM_PORT}X" != "X" ]; then
 	PORT="-port ${GPROM_PORT}"
 fi
-CONNECTION_PARAMS="${HOST} ${DB} ${PORT} ${USER} ${PASSWD}"
+CONNECTION_PARAMS="${BACKEND} ${HOST} ${DB} ${PORT} ${USER} ${PASSWD}"
 ########################################
 # LOGGING
 if [ "${GPROM_LOG}X" != "X" ]; then

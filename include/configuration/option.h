@@ -27,6 +27,25 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_ORACLE_AUDITTABLE "backendOpts.oracle.logtable"
 #define OPTION_ORACLE_USE_SERVICE "backendOpts.oracle.use_service"
 
+/* input options */
+#define OPTION_INPUT_SQL "input.sql"
+#define OPTION_INPUT_SQL_FILE "input.sqlFile"
+#define OPTION_INPUT_QUERY "input.query"
+#define OPTION_INPUT_QUERY_FILE "input.queryFile"
+
+
+/* plugin options */
+#define OPTION_BACKEND "backend"
+#define OPTION_FRONTEND "frontend"
+#define OPTION_PLUGIN_ANALYZER "plugin.analyzer"
+#define OPTION_PLUGIN_METADATA "plugin.metadata"
+#define OPTION_PLUGIN_PARSER "plugin.parser"
+#define OPTION_PLUGIN_SQLCODEGEN "plugin.sqlcodegen"
+#define OPTION_PLUGIN_SQLSERIALIZER "plugin.serializer"
+#define OPTION_PLUGIN_TRANSLATOR "plugin.translator"
+#define OPTION_PLUGIN_EXECUTOR "plugin.executor"
+#define OPTION_PLUGIN_CBO "plugin.cbo"
+
 /* debug option methods */
 #define OPTION_TIMING "timing"
 #define OPTION_MEMMEASURE "memdebug"
@@ -146,6 +165,9 @@ extern boolean hasCommandOption(char *name);
 extern char *commandOptionGetOption(char *name);
 extern OptionType getOptionType(char *name);
 extern boolean optionSet(char *name);
+
+extern char *getBackendPlugin(char *be, char *pluginOpt);
+extern char *getFrontendPlugin(char *fe, char *pluginOpt);
 
 extern void printOptionsHelp(FILE *stream, char *progName, char *description,
         boolean showValues);
