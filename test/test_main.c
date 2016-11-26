@@ -10,10 +10,6 @@
  *-------------------------------------------------------------------------
  */
 
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <unistd.h>
 #include "common.h"
 #include "utility/string_utils.h"
 #include "mem_manager/mem_mgr.h"
@@ -22,75 +18,6 @@
 #include "configuration/option.h"
 #include "configuration/option_parser.h"
 #include "rewriter.h"
-
-static boolean fileExists (char *file);
-
-int test_count = 0;
-int test_rec_depth = 0;
-
-void
-checkResult(int r, char *msg, const char *file, const char *func, int line,
-        int tests_passed)
-{
-    char *indentation = getIndent(test_rec_depth);
-
-    if (tests_passed == -1)
-    {
-        if (r == PASS)
-        {
-            printf("%s" T_FG_BG(BLACK,GREEN,"TEST PASS") TBCOL(GREEN,"[%s-%s-%u]:")
-                    " %s\n", indentation, file, func, line, msg);
-            test_count++;
-            free(indentation);
-            return;
-        }
-        else
-        {
-            printf("%s" T_FG_BG(WHITE,RED,"TEST FAIL") TBCOL(RED,"[%s-%s-%u]:")
-                    " %s\n", indentation, file, func,line, msg);
-            free(indentation);
-            exit(1);
-        }
-    }
-    else
-    {
-        if (r == PASS)
-        {
-            printf("%s" T_FG_BG(BLACK,GREEN,"TEST SUITE")
-                    TBCOL(GREEN,"[%s-%s-%u]:") " %s - PASSED %u TESTS\n",
-                    indentation, file, func, line, msg, tests_passed);
-            test_count++;
-            free(indentation);
-            return;
-        }
-        else
-        {
-            printf("%s" T_FG_BG(BLACK,RED,"TEST SUITE FAILED") TBCOL(RED,"[%s-%s-%u]:")
-                    " %s AFTER %u TESTS\n",
-                    indentation, file, func, line, msg, tests_passed);
-            free(indentation);
-            exit(1);
-        }
-    }
-}
-
-char *
-getIndent(int depth)
-{
-    char *result = malloc(depth + 1);
-
-    for(int i = 0; i < depth; i++)
-        result[i] = '\t';
-    result[depth] = '\0';
-
-    return result;
-}
-
-boolean
-testQuery (char *query, char *expectedResult)
-{
-    return TRUE;
-}
 
 void
 testSuites(void)
@@ -131,19 +58,21 @@ main(int argc, char* argv[])
     StringInfo dbPath = makeStringInfo();
     path = getFullMatchingSubstring(path, "^([^/]*[/])+");
     appendStringInfoString(dbPath, path);
-    appendStringInfoString(dbPath, "../../examples/test.db");
+    appendStringInfoString(dbPath, "../examples/test.db");
     if (!fileExists(dbPath->data))
         FATAL_LOG("SQLite test database not found where expected:\n", dbPath->data);
     printf("dbPath: %s\n", dbPath->data);
 
-    // setup options to use sqlite
-    setOption("connection.db", dbPath->data);
-    setOption("plugin.sqlserializer", "sqlite");
-    setOption("plugin.metadata", "sqlite");
-    setOption("plugin.parser", "oracle");
-    setOption("plugin.analyzer", "oracle");
-    setOption("plugin.translator", "oracle");
-
+    // setup options to use sqlite unless the user has specified a backend (in which case we use the user provided connection parameters)
+    if(getStringOption("backend") == NULL)
+    {
+        setOption("connection.db", dbPath->data);
+        setOption("plugin.sqlserializer", "sqlite");
+        setOption("plugin.metadata", "sqlite");
+        setOption("plugin.parser", "oracle");
+        setOption("plugin.analyzer", "oracle");
+        setOption("plugin.translator", "oracle");
+    }
     setupPluginsFromOptions();
 
     // print options
@@ -157,14 +86,3 @@ main(int argc, char* argv[])
     return EXIT_SUCCESS;
 }
 
-boolean
-fileExists (char *file)
-{
-    FILE *f;
-    if ((f = fopen(file, "r")))
-    {
-        fclose(f);
-        return 1;
-    }
-    return 0;
-}

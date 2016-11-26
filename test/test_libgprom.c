@@ -13,6 +13,7 @@
 #include "test_main.h"
 
 #include "libgprom/libgprom.h"
+#include "utility/string_utils.h"
 #include "configuration/option.h"
 #include "model/expression/expression.h"
 #include "model/set/hashmap.h"
@@ -21,11 +22,53 @@
 static rc testConfiguration(void);
 static rc testRewrite(void);
 static rc testLoopBackMetadata(void);
+static rc testExceptionCatching(void);
 
+
+static int hitCallback = 0;
 static HashMap *options = NULL;
 
+static ExceptionHandler handleE (const char *message, const char *file, int line, ExceptionSeverity s);
+//static void setup(void);
 static void setOpts (void);
 static void resetOpts (void);
+
+int
+main(int argc, char* argv[])
+{
+    READ_OPTIONS_AND_BASIC_INIT("testlibgprom", "Regression test suite. Runs a bunch of whitebox tests on libgprom.");
+
+    // get directory where testmain resides to determine location of the test database
+    char *path=argv[0];
+    StringInfo dbPath = makeStringInfo();
+    path = getFullMatchingSubstring(path, "^([^/]*[/])+");
+    appendStringInfoString(dbPath, path);
+    appendStringInfoString(dbPath, "../../examples/test.db");
+    if (!fileExists(dbPath->data))
+        FATAL_LOG("SQLite test database not found where expected:\n", dbPath->data);
+    printf("dbPath: %s\n", dbPath->data);
+
+    // setup options to use sqlite unless the user has specified a backend (in which case we use the user provided connection parameters)
+    if(getStringOption("backend") == NULL)
+    {
+        setOption("connection.db", dbPath->data);
+        setOption("plugin.sqlserializer", "sqlite");
+        setOption("plugin.metadata", "sqlite");
+        setOption("plugin.parser", "oracle");
+        setOption("plugin.analyzer", "oracle");
+        setOption("plugin.translator", "oracle");
+    }
+
+    // print options
+    DEBUG_LOG("configuration:\n\n");
+    printCurrentOptions(stdout);
+
+    testLibGProM();
+
+
+
+    return EXIT_SUCCESS;
+}
 
 rc
 testLibGProM(void)
@@ -37,6 +80,7 @@ testLibGProM(void)
     RUN_TEST(testConfiguration(), "test configuration interface");
     RUN_TEST(testRewrite(), "test rewrite function");
     RUN_TEST(testLoopBackMetadata(), "test loop back metadata lookup");
+    RUN_TEST(testExceptionCatching(), "test exception mechanism");
 
     resetOpts();
 
@@ -71,6 +115,8 @@ setOpts (void)
     gprom_setOption("plugin.parser", "oracle");
     gprom_setOption("plugin.analyzer", "oracle");
     gprom_setOption("plugin.translator", "oracle");
+    gprom_setOption("plugin.metadata", "sqlite");
+    gprom_setOption("plugin.sqlserializer", "sqlite");
     gprom_setOption(OPTION_CONN_USER, STRING_VALUE(MAP_GET_STRING(options, OPTION_CONN_USER)));
     gprom_setOption(OPTION_CONN_DB, STRING_VALUE(MAP_GET_STRING(options, OPTION_CONN_DB)));
     gprom_setOption(OPTION_CONN_PORT, STRING_VALUE(MAP_GET_STRING(options, OPTION_CONN_PORT)));
@@ -111,3 +157,35 @@ testLoopBackMetadata(void)
     setOpts();
     return PASS;
 }
+
+static rc
+testExceptionCatching(void)
+{
+    MemContext *cur = getCurMemContext();
+    MemContext *after;
+
+    // try the same with libgprom
+    hitCallback = 0;
+    gprom_init();
+    gprom_configFromOptions();
+    gprom_registerExceptionCallbackFunction((GProMExceptionCallbackFunction) handleE);
+
+    char *result = (char *) gprom_rewriteQuery("SELECT * FRO R;");
+    after = getCurMemContext();
+
+    ASSERT_EQUALS_INT(1,hitCallback, "exception handler was called once");
+    ASSERT_EQUALS_STRING("", result, "empty string result");
+    ASSERT_EQUALS_STRINGP(cur->contextName, after->contextName, "back to context before exception");
+
+    gprom_shutdown();
+
+    return PASS;
+}
+
+static ExceptionHandler
+handleE (const char *message, const char *file, int line, ExceptionSeverity s)
+{
+    hitCallback++;
+    return EXCEPTION_ABORT;
+}
+

@@ -19,6 +19,7 @@ RUN apt-get -y update && apt-get install -y \
 	bison \
 	flex \
 	git \
+	graphviz \
 	openjdk-7-jdk \
 	libpq-dev \
 	libreadline6 \
