@@ -14,6 +14,7 @@ GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC 
 * Provenance Language Features
   * [SQL](https://github.com/IITDBGroup/gprom/wiki/sql_extensions)
   * [Datalog](https://github.com/IITDBGroup/gprom/wiki/lang_datalog)
+* [Docker containers](https://github.com/IITDBGroup/gprom/wiki/docker)
 * [Optimization](https://github.com/IITDBGroup/gprom/wiki/research_optimization)
 * [Reenactment](https://github.com/IITDBGroup/gprom/wiki/research_reenactment)
 * [Provenance Graphs for Datalog](https://github.com/IITDBGroup/gprom/wiki/datalog_prov)
@@ -28,7 +29,7 @@ GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC 
 
 # Usage #
 
-To use **gprom**, the interactive shell of GProM, you will need to have one of the supported backend databases installed. For casual use cases, you can stick to SQLite. However, to fully exploit the features of GProM, you should use Oracle. When starting gprom, you have to specify connection parameters to the database. For example, using one of the convenience wrapper scripts that ship with GProM, you can connected to a test SQLite database included in the repository by running the following command in the main source folder after installation:
+To use **gprom**, the interactive shell of GProM, you will need to have one of the supported backend databases installed. For casual use cases, you can stick to SQLite. However, to fully exploit the features of GProM, you should use Oracle. We also provide several docker containers with gprom preinstalled (see [here](https://github.com/IITDBGroup/gprom/wiki/docker)) When starting gprom, you have to specify connection parameters to the database. For example, using one of the convenience wrapper scripts that ship with GProM, you can connected to a test SQLite database included in the repository by running the following command in the main source folder after installation:
 
 ```
 ./scripts/gprom-sqlite.sh -db ./examples/test.db
