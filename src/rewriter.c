@@ -150,41 +150,22 @@ setupPluginsFromOptions(void)
     {
         initMetadataLookupPlugins();
         CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA, chooseMetadataLookupPluginFromString);
-//        if (pluginName != NULL)
-//            chooseMetadataLookupPluginFromString(pluginName);
-//        else if (be != NULL)
-//            chooseMetadataLookupPluginFromString(be);
-//        else
-//            FATAL_LOG("no backend is set and no parser plugin provided either, e.g., use -backend BACKEND to set a backend");
         initMetadataLookupPlugin();
     }
 
     // setup analyzer - individual option overrides backend option
     CHOOSE_PLUGIN(OPTION_PLUGIN_ANALYZER, chooseAnalyzerPluginFromString);
-//    if ((pluginName = getStringOption("plugin.analyzer")) != NULL)
-//        chooseAnalyzerPluginFromString(pluginName);
-//    else
-//        chooseAnalyzerPluginFromString(be);
 
     // setup analyzer - individual option overrides backend option
     CHOOSE_PLUGIN(OPTION_PLUGIN_TRANSLATOR, chooseTranslatorPluginFromString);
-//    if ((pluginName = getStringOption("plugin.translator")) != NULL)
-//        chooseTranslatorPluginFromString(pluginName);
-//    else
-//        chooseTranslatorPluginFromString(be);
 
     // setup analyzer - individual option overrides backend option
     CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLSERIALIZER, chooseSqlserializerPluginFromString);
     CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLCODEGEN, chooseSqlserializerPluginFromString);
-//    if ((pluginName = getStringOption("plugin.sqlserializer")) != NULL)
-//        chooseSqlserializerPluginFromString(pluginName);
-//    else
-//        chooseSqlserializerPluginFromString(be);
+
     // setup analyzer - individual option overrides backend option
     pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
     chooseExecutorPluginFromString(pluginName);
-//    else
-//        chooseExecutorPluginFromString("sql");
 
     // setup cost-based optimizer
     if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)

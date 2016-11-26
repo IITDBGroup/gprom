@@ -41,7 +41,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_PLUGIN_METADATA "plugin.metadata"
 #define OPTION_PLUGIN_PARSER "plugin.parser"
 #define OPTION_PLUGIN_SQLCODEGEN "plugin.sqlcodegen"
-#define OPTION_PLUGIN_SQLSERIALIZER "plugin.serializer"
+#define OPTION_PLUGIN_SQLSERIALIZER "plugin.sqlserializer"
 #define OPTION_PLUGIN_TRANSLATOR "plugin.translator"
 #define OPTION_PLUGIN_EXECUTOR "plugin.executor"
 #define OPTION_PLUGIN_CBO "plugin.cbo"

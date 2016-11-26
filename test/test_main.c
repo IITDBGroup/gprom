@@ -63,15 +63,19 @@ main(int argc, char* argv[])
         FATAL_LOG("SQLite test database not found where expected:\n", dbPath->data);
     printf("dbPath: %s\n", dbPath->data);
 
+    // print options
+    DEBUG_LOG("configuration:\n\n");
+    printCurrentOptions(stdout);
+
     // setup options to use sqlite unless the user has specified a backend (in which case we use the user provided connection parameters)
     if(getStringOption("backend") == NULL)
     {
         setOption("connection.db", dbPath->data);
-        setOption("plugin.sqlserializer", "sqlite");
-        setOption("plugin.metadata", "sqlite");
-        setOption("plugin.parser", "oracle");
-        setOption("plugin.analyzer", "oracle");
-        setOption("plugin.translator", "oracle");
+        setOption(OPTION_PLUGIN_SQLCODEGEN, "sqlite");
+        setOption(OPTION_PLUGIN_METADATA, "sqlite");
+        setOption(OPTION_PLUGIN_PARSER, "oracle");
+        setOption(OPTION_PLUGIN_ANALYZER, "oracle");
+        setOption(OPTION_PLUGIN_TRANSLATOR, "oracle");
     }
     setupPluginsFromOptions();
 
