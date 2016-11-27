@@ -40,7 +40,7 @@ else
 fi
 ########################################
 # COMBINED CONFIGURATIONS USED BY SCRIPTS
-GPROM_DL_PLUGINS="-Pparser dl -Panalyzer dl -Ptranslator dl"
+GPROM_DL_PLUGINS="-frontend dl"
 ########################################
 # FUNCTION THAT CHECKS WHETHER PROGRAM EXISTS
 checkProgram() {

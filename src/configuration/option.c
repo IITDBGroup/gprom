@@ -663,7 +663,7 @@ BackendInfo backends[]  = {
             "oracle",   // parser
             "oracle",   // metadata
             "oracle",   // sqlserializer
-            "oracle",   // translator
+            "oracle"   // translator
         },
         {
             "postgres",   // name
@@ -671,7 +671,7 @@ BackendInfo backends[]  = {
             "oracle",   // parser
             "postgres",   // metadata
             "postgres",    // sqlserializer
-            "oracle",   // translator
+            "oracle"   // translator
         },
         {
             "sqlite",   // name
@@ -679,7 +679,7 @@ BackendInfo backends[]  = {
             "oracle",   // parser
             "sqlite",   // metadata
             "sqlite",    // sqlserializer
-            "oracle",   // translator
+            "oracle"   // translator
         },
         {
             "STOPPER", NULL, NULL, NULL, NULL, NULL
@@ -692,13 +692,13 @@ FrontendInfo frontends[]  = {
             "oracle",   // name
             "oracle",   // analyzer
             "oracle",   // parser
-            "oracle",   // translator
+            "oracle"   // translator
         },
         {
             "dl",   // name
             "dl",   // analyzer
             "dl",   // parser
-            "dl",   // translator
+            "dl"   // translator
         },
         {
             "STOPPER", NULL, NULL, NULL
