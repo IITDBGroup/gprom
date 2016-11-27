@@ -1,8 +1,8 @@
 ########################################
 # Derived from ubuntu distribution
 ########################################
-# FROM sath89/oracle-12c:latest
 FROM collinestes/docker-node-oracle
+MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
 # Create working directories
 ########################################
@@ -27,6 +27,7 @@ RUN apt-get -y update && apt-get install -y \
 	libsqlite3-dev \
 	libtool \
 	make \
+	man-db \
 	sqlite3 \
 	&& rm -rf /var/lib/apt/lists/*
 ENV JAVA_HOME /usr/lib/jvm/java-7-openjdk-amd64

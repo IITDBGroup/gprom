@@ -21,6 +21,7 @@ RUN apt-get -y update && apt-get install -y \
 	libsqlite3-dev \
 	libtool \
 	make \
+	man-db \
 	libreadline6 \
 	libreadline6-dev \
 	sqlite3 \
