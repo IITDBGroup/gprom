@@ -6,7 +6,7 @@ MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
 # Create working directories
 ########################################
-WORKDIR /gprom
+WORKDIR /home/ubuntu
 ########################################
 # Install packages needed for building
 ########################################

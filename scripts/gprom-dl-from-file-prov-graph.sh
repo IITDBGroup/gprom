@@ -9,6 +9,7 @@ popd > /dev/null
 GPROM_SCRIPT=${DIR}/gprom.sh
 CONF_FILE=.gprom
 GPROM_CONF=${DIR}/../${CONF_FILE}
+LINUX_PDFPROGS=""
 ########################################
 # READ USER CONFIGUATION
 source ${DIR}/gprom_basic.sh
@@ -48,7 +49,18 @@ echo "-- run graphviz on ${DOTFILE} to produce PDF file ${PDFFILE}"
 dot -Tpdf -o ${PDFFILE} ${DOTFILE}
 
 ##########
-echo "-- if running on a mac open the pdf file"
-if [[ $OSTYPE == darwin* ]]; then 
+echo "-- open the pdf file"
+if [[ $OSTYPE == darwin* ]]; then
+	echo "    - on a mac use open"
 	open ${PDFFILE}
+else
+	for $P in $LINUX_PDFPROGS; do
+		if checkProgram $P;
+		then
+			$P ${PDFFILE} > /dev/null 2>&1 &
+			exit 0
+		fi
+		echo "    - apparently you do not have ${P}"
+	done
+	echo "did not find a pdf viewer, please open ${PDFFILE} manually"
 fi

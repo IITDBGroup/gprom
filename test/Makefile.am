@@ -45,5 +45,5 @@ testlibgprom_SOURCES = test_libgprom.c test_common.c
 testlibgprom_LDADD = $(top_srcdir)/src/libgprom/libgprom.la $(top_srcdir)/src/libsrc.la 
 
 
-# running test cases as with make check
+# running test cases with make check
 TESTS = testmain

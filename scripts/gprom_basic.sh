@@ -41,3 +41,15 @@ fi
 ########################################
 # COMBINED CONFIGURATIONS USED BY SCRIPTS
 GPROM_DL_PLUGINS="-Pparser dl -Panalyzer dl -Ptranslator dl"
+########################################
+# FUNCTION THAT CHECKS WHETHER PROGRAM EXISTS
+checkProgram() {
+	_PROGRAM="${1}"
+	echo "checking whether ${_PROGRAM} exists"
+	if command -v ${_PROGRAM} > /dev/null 2>&1
+	then
+	   return 0
+	else
+	   return 1
+	fi
+}
