@@ -52,11 +52,12 @@ main(int argc, char* argv[])
     if(getStringOption("backend") == NULL)
     {
         setOption("connection.db", dbPath->data);
-        setOption("plugin.sqlserializer", "sqlite");
-        setOption("plugin.metadata", "sqlite");
-        setOption("plugin.parser", "oracle");
-        setOption("plugin.analyzer", "oracle");
-        setOption("plugin.translator", "oracle");
+        setOption(OPTION_BACKEND, "sqlite");
+        setOption(OPTION_PLUGIN_SQLSERIALIZER, "sqlite");
+        setOption(OPTION_PLUGIN_METADATA, "sqlite");
+        setOption(OPTION_PLUGIN_PARSER, "oracle");
+        setOption(OPTION_PLUGIN_ANALYZER, "oracle");
+        setOption(OPTION_PLUGIN_TRANSLATOR, "oracle");
     }
 
     // print options
@@ -65,7 +66,8 @@ main(int argc, char* argv[])
 
     testLibGProM();
 
-
+    printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
+            "Total %d Test(s) Passed\n\n", test_count);
 
     return EXIT_SUCCESS;
 }
@@ -161,13 +163,11 @@ testLoopBackMetadata(void)
 static rc
 testExceptionCatching(void)
 {
-    MemContext *cur = getCurMemContext();
+//    MemContext *cur = getCurMemContext();
     MemContext *after;
 
     // try the same with libgprom
     hitCallback = 0;
-    gprom_init();
-    gprom_configFromOptions();
     gprom_registerExceptionCallbackFunction((GProMExceptionCallbackFunction) handleE);
 
     char *result = (char *) gprom_rewriteQuery("SELECT * FRO R;");
@@ -175,7 +175,7 @@ testExceptionCatching(void)
 
     ASSERT_EQUALS_INT(1,hitCallback, "exception handler was called once");
     ASSERT_EQUALS_STRING("", result, "empty string result");
-    ASSERT_EQUALS_STRINGP(cur->contextName, after->contextName, "back to context before exception");
+    ASSERT_EQUALS_STRINGP("LIBGRPROM_QUERY_CONTEXT", after->contextName, "back to context before exception");
 
     gprom_shutdown();
 
