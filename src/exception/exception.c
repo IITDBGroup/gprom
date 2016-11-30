@@ -30,6 +30,7 @@ static void sigsegv_handler(int signo);
 
 // macros
 #define SEVER_TO_STRING(s) ((s == SEVERITY_PANIC) ? TB("PANIC") : ((s == SEVERITY_RECOVERABLE) ? TB("RECOVERABLE") : TB("SIGSEGV")))
+#define SEVER_TO_STRING_NO_COLOR(s) ((s == SEVERITY_PANIC) ? "PANIC" : ((s == SEVERITY_RECOVERABLE) ? "RECOVERABLE" : "SIGSEGV"))
 
 // for storing pointer to long jmp stack
 sigjmp_buf *exceptionBuf = NULL;
@@ -115,6 +116,16 @@ storeExceptionInfo(ExceptionSeverity s, const char *message, const char *f, int 
     RELEASE_MEM_CONTEXT();
     file = f;
     line = l;
+}
+
+char *
+currentExceptionToString(void)
+{
+    StringInfo result = makeStringInfo();
+
+    appendStringInfo(result, "(%s) %s - %u - <%s>", SEVER_TO_STRING_NO_COLOR(severity), file, line, exceptionMessage);
+
+    return result->data;
 }
 
 static void

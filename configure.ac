@@ -176,6 +176,20 @@ AS_IF([test "x$enable_timing" == "xno"], [
 ])
 ])
 # compile with Postgres support
+AC_DEFUN([AC_ENABLE_SQLITE],
+[
+AC_MSG_CHECKING([should be compiled with support for SQLite backends])
+AC_ARG_ENABLE(sqlite, AS_HELP_STRING([--disable-sqlite],[Disable compilation with support for SQLite backends]))
+
+AS_IF([test "x$enable_sqlite" == "xno"], [
+  AC_DEFINE([DISABLE_SQLITE],[],[Disable support for SQLite backends])
+  AC_MSG_RESULT([no])
+],
+[
+  AC_MSG_RESULT([yes])
+])
+])
+# compile with Postgres support
 AC_DEFUN([AC_ENABLE_POSTGRES],
 [
 AC_MSG_CHECKING([should be compiled with support for Postgres backends])
@@ -256,7 +270,7 @@ AC_MSG_RESULT($GPROM_CFLAGS)
 ################################################################################
 AC_INIT([GProM],[0.0.1],[bglavic@iit.edu])
 AC_CONFIG_AUX_DIR(config)
-AM_INIT_AUTOMAKE([-Wall foreign])
+AM_INIT_AUTOMAKE([-Wall foreign tar-pax])
 AC_CONFIG_MACRO_DIR([m4])
 AC_SUBST([ACLOCAL_AMFLAGS],[-I m4])
 ################################################################################
@@ -280,9 +294,17 @@ AS_IF([test "x$userCFLAGS" == "x"],
 AC_PROG_CC_STDC
 # CAN INLINE FUNCTIONS?
 AC_C_INLINE
+################################################################################
+# CHECK FOR PROGRAM BINARIES
 AM_PROG_AR
 AC_PROG_YACC
+BISON_CMD="`AS_ECHO("$YACC") | sed 's/-y//g'`" 
+AC_SUBST([BISON], [${BISON_CMD}])
 AC_PROG_LEX
+AC_CHECK_PROG([pandoc],[pandoc],[yes])
+AM_CONDITIONAL([HAVE_PROG_PANDOC], [test "x$pandoc" = xyes])
+AC_CHECK_PROG([rman],[rman],[yes])
+AM_CONDITIONAL([HAVE_PROG_RMAN], [test "x$rman" = xyes])
 # INIT LIBTOOL
 LT_INIT
 ################################################################################
@@ -326,6 +348,7 @@ AC_CHECK_FUNCS([strcmp])
 # Check which backends should be supported
 AC_ENABLE_ORACLE
 AC_ENABLE_POSTGRES
+AC_ENABLE_SQLITE
 ################################################################################
 # Check which language bindings to build
 AC_ENABLE_JAVA_BINDING
@@ -334,36 +357,45 @@ AC_ENABLE_JAVA_BINDING
 AC_ENABLE_READLINE
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
+AS_CASE(["$enable_oracle"], 
+  [yes], [
 # check if user has provided us with non-standard locations for OCI/OCILIB libraries
-AC_OCI_LOCATION
-AC_OCIH_LOCATION
-AC_OCI_LIB_LOCATION
-AC_OCILIB_LOCATION
+  AC_OCI_LOCATION
+  AC_OCIH_LOCATION
+  AC_OCI_LIB_LOCATION
+  AC_OCILIB_LOCATION
 # check for the libraries
-AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
-AS_IF([test "x$enable_oracle" == "xno"], [
-  AC_MSG_WARN([missing OCI library])
-],
-[
-  AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+  AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
+    AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  AC_CHECK_LIB([occi],[OCIHandleFree],[],[
+  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])	
+  ])
+  AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
+    AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  ],
+  [no], [],
+  [
+# check if user has provided us with non-standard locations for OCI/OCILIB libraries
+  AC_OCI_LOCATION
+  AC_OCIH_LOCATION
+  AC_OCI_LIB_LOCATION
+  AC_OCILIB_LOCATION
+# check for the libraries
+  AC_CHECK_LIB([clntsh],[OCIInitialize],[],[
+    AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  AC_CHECK_LIB([occi],[OCIHandleFree],[],[
+  	AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])	
+  ])
+  AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
+    AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
+  ])
+  ]
 ])
-])
-AC_CHECK_LIB([occi],[OCIHandleFree],[],[
-AS_IF([test "x$enable_oracle" == "xno"], [
-  AC_MSG_WARN([missing OCI library])
-],
-[
-  AC_MSG_ERROR([missing OCI library - if you want to compile without Oracle backend support use --disable-oracle])
-])
-])
-AC_CHECK_LIB([ocilib],[OCI_Cleanup],[],[
-AS_IF([test "x$enable_oracle" == "xno"], [
-  AC_MSG_RESULT([missing OCILIB library])
-],
-[
-  AC_MSG_ERROR([missing OCILIB library - if you want to compile without Oracle backend support use --disable-oracle])
-])
-])
+################################################################################
+# Readline
 AC_CHECK_LIB([readline],[readline],[],[
 AS_IF([test "x$enable_readline" == "xno"], [
   AC_MSG_WARN([missing readline library])
@@ -371,20 +403,51 @@ AS_IF([test "x$enable_readline" == "xno"], [
 [
   AC_MSG_ERROR([missing readline library - if you want to compile without readline support use --disable-readline])
 ])
-])################################################################################
+])
+################################################################################
 # Postgres access library (libpq)
+AS_CASE(["$enable_postgres"], 
+  [yes], [
 # check if user has provided us with a non-standard location for Postgres's libpq library
-AC_LIBPQ_LOCATION
-AC_CHECK_HEADERS([libpq-fe.h])
+  AC_LIBPQ_LOCATION
+  AC_CHECK_HEADERS([libpq-fe.h])
 # check for the libpq library
-AC_CHECK_LIB([pq],[PQconndefaults],[],[
-AS_IF([test "x$enable_postgres" == "xno"], [
-  AC_MSG_WARN([missing libpq library])
-],
-[
-  AC_MSG_ERROR([missing libpq library - if you want to compile without Oracle backend support use --disable-postgres])
-])
-])
+  AC_CHECK_LIB([pq],[PQconndefaults],[],[
+    AC_MSG_ERROR([missing libpq library - if you want to compile without Oracle backend support use --disable-postgres])
+  ])
+  ],
+  [no], [],
+  [
+# check if user has provided us with a non-standard location for Postgres's libpq library
+  AC_LIBPQ_LOCATION
+  AC_CHECK_HEADERS([libpq-fe.h])
+# check for the libpq library
+  AC_CHECK_LIB([pq],[PQconndefaults],[],[
+    AC_MSG_ERROR([missing libpq library - if you want to compile without Oracle backend support use --disable-postgres])
+  ])  
+  ]
+)
+################################################################################
+# SQlite library (libsqlite3)
+# check for the sqlite3 library
+AS_CASE(["$enable_sqlite"], 
+	[yes], [
+	AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
+    	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
+	])
+	],
+	[no], [], 
+	[
+	AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
+    	AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
+	])
+	]
+)
+#AS_IF([test "x$enable_sqlite" == "xno"], [
+#  AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
+#    AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
+#  ])
+#])
 ################################################################################
 # check for libm
 AC_CHECK_LIB([m],[pow],[],[
@@ -455,7 +518,7 @@ echo "
   Debug Build........: ${enable_debug:=yes}
   Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no} 
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes}
-  Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}
+  Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}
   Language bindings..: Java - ${enable_java:=yes}
   Readline support...: ${enable_readline:=yes}
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -465,4 +528,6 @@ echo "
   LDFLAGS........: $LDFLAGS
   C Compiler.....: $C $CPPFLAGS $GPROM_CFLAGS $CFLAGS
   Linker.........: $LD $LDFLAGS $LIBS
+  Bison..........: $BISON 
+  Flex...........: $LEX
 "

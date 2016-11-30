@@ -1,0 +1,47 @@
+digraph
+{
+	rankdir="TB"
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#FF8383"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+REL_HOP3_WON_a_c_ [label="HOP3(a,c)", texlbl="$HOP3(a,c)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+EDB_rHOP_WON_a_a_ [label="rHOP(a,a)", texlbl="$rHOP(a,a)$"]
+EDB_rHOP_WON_a_b_ [label="rHOP(a,b)", texlbl="$rHOP(a,b)$"]
+EDB_rHOP_WON_b_c_ [label="rHOP(b,c)", texlbl="$rHOP(b,c)$"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="point"]
+
+
+	node [shape="square", width=0.011, height=0.011, fillcolor=black]
+	REL_HOP3_WON_a_c_ -> EDB_rHOP_WON_a_a_
+	REL_HOP3_WON_a_c_ -> EDB_rHOP_WON_a_b_
+	REL_HOP3_WON_a_c_ -> EDB_rHOP_WON_b_c_
+
+}

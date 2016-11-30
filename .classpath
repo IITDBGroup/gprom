@@ -5,16 +5,24 @@
 	<classpathentry kind="src" path="autotests"/>
 	<classpathentry kind="src" path="gprom-gui/src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="javalib/log4j-1.2.15.jar"/>
-	<classpathentry kind="lib" path="javalib/postgresql-8.1-404.jdbc3.jar"/>
-	<classpathentry kind="lib" path="javalib/jna-4.1.0.jar"/>
 	<classpathentry kind="lib" path="/Users/lord_pretzel/Documents/workspace/GProM/ant/one-jar-ant-task-0.97.jar"/>
 	<classpathentry kind="lib" path="javalib"/>
 	<classpathentry kind="lib" path="/usr/local/lib"/>
-	<classpathentry kind="lib" path="javalib/ojdbc7.jar"/>
 	<classpathentry kind="lib" path="javatestlib/dbunit.jar" sourcepath="/DBUnit"/>
-	<classpathentry kind="lib" path="javatestlib/junit-4.5.jar"/>
-	<classpathentry kind="lib" path="javatestlib/slf4j-api-1.5.2.jar"/>
-	<classpathentry kind="lib" path="javatestlib/slf4j-simple-1.5.2.jar"/>
+	<classpathentry kind="lib" path="javalib/log4j.jar"/>
+	<classpathentry kind="lib" path="javalib/jna-platform.jar"/>
+	<classpathentry kind="lib" path="javalib/jna.jar"/>
+	<classpathentry kind="lib" path="javalib/postgresql.jar"/>
+	<classpathentry kind="lib" path="javalib/sqlite-jdbc.jar"/>
+	<classpathentry kind="lib" path="javalib/mysql-connector-java.jar"/>
+	<classpathentry kind="lib" path="javalib/hsqldb.jar"/>
+	<classpathentry kind="lib" path="javalib/dms.jar"/>
+	<classpathentry kind="lib" path="javalib/ojdbc7_g.jar"/>
+	<classpathentry kind="lib" path="javatestlib/junit.jar"/>
+	<classpathentry kind="lib" path="javatestlib/slf4j-api.jar"/>
+	<classpathentry kind="lib" path="javatestlib/slf4j-simple.jar"/>
+	<classpathentry kind="lib" path="javalib/stringtemplate.jar"/>
+	<classpathentry kind="lib" path="ant/antlr-runtime.jar"/>
+	<classpathentry kind="lib" path="javalib/hamcrest-core.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>

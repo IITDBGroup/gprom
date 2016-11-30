@@ -27,12 +27,12 @@
 
 
 /* types of supported plugins */
-typedef enum MetadataLookupPluginType
-{
+NEW_ENUM_WITH_TO_STRING(MetadataLookupPluginType,
     METADATA_LOOKUP_PLUGIN_ORACLE,
     METADATA_LOOKUP_PLUGIN_POSTGRES,
+    METADATA_LOOKUP_PLUGIN_SQLITE,
     METADATA_LOOKUP_PLUGIN_EXTERNAL
-} MetadataLookupPluginType;
+);
 
 /* catalog cache */
 typedef struct CatalogCache

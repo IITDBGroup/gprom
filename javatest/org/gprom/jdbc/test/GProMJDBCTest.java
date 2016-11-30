@@ -3,7 +3,6 @@
  */
 package org.gprom.jdbc.test;
 
-import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -14,7 +13,7 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriverProperties;
-import org.gprom.jdbc.jna.GProMWrapper;
+import org.gprom.jdbc.jna.NativeGProMLibException;
 
 import com.sun.jna.Native;
 
@@ -27,6 +26,7 @@ public class GProMJDBCTest {
 	static Logger log = Logger.getLogger(GProMJDBCTest.class);
 	
 	public static void main (String[] args) throws Exception {
+		
 		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
 		String driverURL = "oracle.jdbc.OracleDriver";
 //		String driverURL = "org.postgresql.Driver";
@@ -71,8 +71,8 @@ public class GProMJDBCTest {
 		System.out.println("Connection was successfully");
 
 		con.getW().setLogLevel(4);
-		con.getW().setBoolOption("pi_cs_use_composable", true);
-		con.getW().setBoolOption("optimize_operator_model", true);
+		con.getW().setBoolOption("pi_cs_use_composable", false);
+		con.getW().setBoolOption("optimize_operator_model", false);
 		con.getW().setBoolOption("aggressive_model_checking", true);
 		log.error("log.level=" + con.getW().getIntOption("log.level"));
 		log.error("log.active=" +  con.getW().getBoolOption("log.active"));
@@ -90,11 +90,24 @@ public class GProMJDBCTest {
 		
 		
 		log.error("statement created");
-		ResultSet rs = st.executeQuery("SELECT a FROM r;");
-		printResult(rs);
 		
-//		rs = st.executeQuery("PROVENANCE OF (SELECT * FROM R);");
+		ResultSet rs;
+		rs = st.executeQuery("SELECT a FROM r;");
+		try {
+			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
+			printResult(rs);
+		}
+		catch (NativeGProMLibException e) {
+			log.error("###############################\n" + e.getMessage() + "\n###############################\n");
+		}
+		
+//		
+//		rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
 //		printResult(rs);
+		
+//		rs = st.executeQuery("SELECT \"a\" FROM \"o\";");
+//		printResult(rs);
+//		
 //		
 //		// test error
 //		try {

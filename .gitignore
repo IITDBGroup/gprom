@@ -1,6 +1,7 @@
 *.o
 *.lo
 *.la
+.DS_Store
 .deps
 .libs
 Makefile
@@ -39,3 +40,12 @@ build
 autotests
 valgrind.txt
 src/command_line/gprom
+doc/gprom_man.html
+.gprom
+scripts/.gitignore
+/Debug/
+test/test-suite.log
+test/testmain.log
+test/testmain.trs
+test/testrpq
+gprom-*.tar.gz

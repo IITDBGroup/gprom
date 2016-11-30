@@ -21,6 +21,7 @@
 #include "metadata_lookup/metadata_lookup_oracle.h"
 #include "metadata_lookup/metadata_lookup_postgres.h"
 #include "metadata_lookup/metadata_lookup_external.h"
+#include "metadata_lookup/metadata_lookup_sqlite.h"
 
 MetadataLookupPlugin *activePlugin = NULL;
 List *availablePlugins = NIL;
@@ -40,6 +41,9 @@ initMetadataLookupPlugins (void)
 #endif
 #ifdef HAVE_POSTGRES_BACKEND
     availablePlugins = appendToTailOfList(availablePlugins, assemblePostgresMetadataLookupPlugin());
+#endif
+#if HAVE_SQLITE_BACKEND
+    availablePlugins = appendToTailOfList(availablePlugins, assembleSqliteMetadataLookupPlugin());
 #endif
     availablePlugins = appendToTailOfList(availablePlugins, assembleExternalMetadataLookupPlugin(NULL));
 
@@ -86,7 +90,7 @@ chooseMetadataLookupPlugin (MetadataLookupPluginType plugin)
             return;
         }
     }
-    FATAL_LOG("did not find plugin");
+    FATAL_LOG("did not find plugin <%s>", MetadataLookupPluginTypeToString(plugin));
 }
 
 void
@@ -105,6 +109,8 @@ stringToPluginType(char *type)
         return METADATA_LOOKUP_PLUGIN_ORACLE;
     if (strcmp(type, "postgres") == 0)
         return METADATA_LOOKUP_PLUGIN_POSTGRES;
+    if (strcmp(type, "sqlite") == 0)
+        return METADATA_LOOKUP_PLUGIN_SQLITE;
     if (strcmp(type, "external") == 0)
         return METADATA_LOOKUP_PLUGIN_EXTERNAL;
     FATAL_LOG("unkown plugin type <%s>", type);
@@ -120,9 +126,12 @@ pluginTypeToString(MetadataLookupPluginType type)
         return "oracle";
     case METADATA_LOOKUP_PLUGIN_POSTGRES:
         return "postgres";
+    case METADATA_LOOKUP_PLUGIN_SQLITE:
+        return "sqlite";
     case METADATA_LOOKUP_PLUGIN_EXTERNAL:
         return "external";
     }
+    THROW(SEVERITY_RECOVERABLE, "unkown plugin type <%u>", type);
     return NULL; //keep compiler quiet
 }
 

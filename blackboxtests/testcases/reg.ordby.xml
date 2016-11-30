@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Regular Order By Test cases</comment>
+
+<entry key="q1.query">
+SELECT a AS a, b FROM R ORDER BY a, b DESC;
+</entry>
+<entry key="q1.result">
+         A  |        B
+----------+----------
+         1   |       2 
+         1   |       1 
+         2   |       3 
+         2   |       1 
+</entry>
+<entry key="q1.ordered" />
+
+
+</properties>

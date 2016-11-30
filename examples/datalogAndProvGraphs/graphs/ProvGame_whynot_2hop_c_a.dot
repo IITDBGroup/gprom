@@ -1,0 +1,70 @@
+digraph
+{
+	rankdir="TB"
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+RULE_0_WON_c_a_c_ [label="r0 (c,a,c)", texlbl="$r_0(c,a,c)$"]
+RULE_0_WON_c_a_a_ [label="r0 (c,a,a)", texlbl="$r_0(c,a,a)$"]
+RULE_0_WON_c_a_b_ [label="r0 (c,a,b)", texlbl="$r_0(c,a,b)$"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#FF8383"]
+GOAL_0_0_LOST_c_c_ [label="g[0,0](c,c)", texlbl="$g_{0}^{0}(c,c)$"]
+GOAL_0_0_LOST_c_a_ [label="g[0,0](c,a)", texlbl="$g_{0}^{0}(c,a)$"]
+GOAL_0_0_LOST_c_b_ [label="g[0,0](c,b)", texlbl="$g_{0}^{0}(c,b)$"]
+GOAL_0_1_LOST_c_a_ [label="g[0,1](c,a)", texlbl="$g_{0}^{1}(c,a)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+REL_HOP_LOST_c_c_ [label="HOP(c,c)", texlbl="$HOP(c,c)$"]
+REL_HOP_LOST_c_a_ [label="HOP(c,a)", texlbl="$HOP(c,a)$"]
+REL_HOP_LOST_c_b_ [label="HOP(c,b)", texlbl="$HOP(c,b)$"]
+REL_HOP2_LOST_c_a_ [label="HOP2(c,a)", texlbl="$HOP2(c,a)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+notREL_HOP_WON_c_c_ [label="not HOP(c,c)", texlbl="$\neg HOP(c,c)$"]
+notREL_HOP_WON_c_a_ [label="not HOP(c,a)", texlbl="$\neg HOP(c,a)$"]
+notREL_HOP_WON_c_b_ [label="not HOP(c,b)", texlbl="$\neg HOP(c,b)$"]
+notREL_HOP2_WON_c_a_ [label="not HOP2(c,a)", texlbl="$\neg HOP2(c,a)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="point"]
+
+
+	node [shape="square", width=0.011, height=0.011, fillcolor=black]
+	notREL_HOP_WON_c_c_ -> REL_HOP_LOST_c_c_
+	notREL_HOP_WON_c_a_ -> REL_HOP_LOST_c_a_
+	notREL_HOP_WON_c_b_ -> REL_HOP_LOST_c_b_
+	notREL_HOP2_WON_c_a_ -> REL_HOP2_LOST_c_a_
+	REL_HOP2_LOST_c_a_ -> RULE_0_WON_c_a_c_
+	RULE_0_WON_c_a_c_ -> GOAL_0_0_LOST_c_c_
+	RULE_0_WON_c_a_a_ -> GOAL_0_0_LOST_c_a_
+	RULE_0_WON_c_a_b_ -> GOAL_0_0_LOST_c_b_
+	GOAL_0_0_LOST_c_c_ -> notREL_HOP_WON_c_c_
+	GOAL_0_0_LOST_c_a_ -> notREL_HOP_WON_c_a_
+	GOAL_0_0_LOST_c_b_ -> notREL_HOP_WON_c_b_
+	RULE_0_WON_c_a_c_ -> GOAL_0_1_LOST_c_a_
+	GOAL_0_1_LOST_c_a_ -> notREL_HOP_WON_c_a_
+	REL_HOP2_LOST_c_a_ -> RULE_0_WON_c_a_a_
+	REL_HOP2_LOST_c_a_ -> RULE_0_WON_c_a_b_
+
+}

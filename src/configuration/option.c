@@ -25,6 +25,8 @@
 //Options* options;
 HashMap *optionPos; // optionname -> position of option in list
 HashMap *cmdOptionPos;
+HashMap *backendInfo;
+HashMap *frontendInfo;
 
 typedef union OptionValue {
     char **string;
@@ -49,8 +51,25 @@ typedef struct OptionInfo {
     OptionDefault def;
 } OptionInfo;
 
+typedef struct FrontendInfo {
+    char *frontendName;
+    char *analyzer;
+    char *parser;
+    char *translator;
+} FrontendInfo;
+
+typedef struct BackendInfo {
+    char *backendName;
+    char *analyzer;
+    char *parser;
+    char *metadata;
+    char *sqlserializer;
+    char *translator;
+} BackendInfo;
+
 // show help only
 boolean opt_show_help = FALSE;
+char *opt_language_help = NULL;
 
 // connection options
 char *connection_host = NULL;
@@ -73,6 +92,7 @@ char *sqlFile = NULL;
 
 // database backend
 char *backend = NULL;
+char *frontend = NULL;
 char *plugin_metadata = NULL;
 char *plugin_parser = NULL;
 char *plugin_sqlcodegen = NULL;
@@ -191,41 +211,50 @@ OptionInfo opts[] =
                 wrapOptionString(&opt_show_help),
                 defOptionBool(FALSE)
         },
+        // show help only and quit
+        {
+                "languagehelp",
+                "-languagehelp",
+                "Show supported provenance requests for a supported frontend language.",
+                OPTION_STRING,
+                wrapOptionString(&opt_language_help),
+                defOptionString(NULL)
+        },
         // database backend connection options
         {
-                "connection.host",
+                OPTION_CONN_HOST,
                 "-host",
                 "Host IP address for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_host),
-                defOptionString("ligeti.cs.iit.edu")
+                defOptionString("")
         },
         {
-                "connection.db",
+                OPTION_CONN_DB,
                 "-db",
                 "Database name for backend DB connection (SID or SERVICE_NAME for Oracle backends).",
                 OPTION_STRING,
                 wrapOptionString(&connection_db),
-                defOptionString("orcl")
+                defOptionString("")
         },
         {
-                "connection.user",
+                OPTION_CONN_USER,
                 "-user",
                 "User for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_user),
-                defOptionString("fga_user")
+                defOptionString("")
         },
         {
-                "connection.passwd",
+                OPTION_CONN_PASSWD,
                 "-passwd",
                 "Password for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_passwd),
-                defOptionString("fga")
+                defOptionString("")
         },
         {
-                "connection.port",
+                OPTION_CONN_PORT,
                 "-port",
                 "TCP/IP port for backend DB connection.",
                 OPTION_INT,
@@ -268,40 +297,64 @@ OptionInfo opts[] =
         },
         // input options
         {
-                "input.sql",
+                OPTION_INPUT_SQL,
                 "-sql",
-                "input SQL text",
+                "input query",
                 OPTION_STRING,
                 wrapOptionString(&sql),
                 defOptionString(NULL)
         },
         {
-                "input.sqlFile",
+                OPTION_INPUT_QUERY,
+                "-query",
+                "input query",
+                OPTION_STRING,
+                wrapOptionString(&sql),
+                defOptionString(NULL)
+        },
+        {
+                 OPTION_INPUT_QUERY_FILE,
+                 "-queryFile",
+                 "input query file name",
+                 OPTION_STRING,
+                 wrapOptionString(&sqlFile),
+                 defOptionString(NULL)
+        },
+        {
+                OPTION_INPUT_SQL_FILE,
                 "-sqlfile",
                 "input SQL file name",
                 OPTION_STRING,
                 wrapOptionString(&sqlFile),
                 defOptionString(NULL)
         },
-        // backend and plugin selection
+        // backend, frontend and plugin selection
         {
-                "backend",
+                OPTION_BACKEND,
                 "-backend",
-                "select backend database type: postgres, oracle - this determines parser, metadata-lookup, and sql-code generator",
+                "select backend database type: postgres, oracle, sqlite - this determines analyzer, parser, metadata-lookup, sql-code generator, and translator plugins",
                 OPTION_STRING,
                 wrapOptionString(&backend),
-                defOptionString("oracle")
+                defOptionString(NULL)
         },
         {
-                "plugin.metadata",
+                OPTION_FRONTEND,
+                "-frontend",
+                "select frontend language: oracle, dl - this determines analyzer, parser, and translator plugins",
+                OPTION_STRING,
+                wrapOptionString(&frontend),
+                defOptionString(NULL)
+        },
+        {
+                OPTION_PLUGIN_METADATA,
                 "-Pmetadata",
-                "select metadatalookup plugin: postgres, oracle",
+                "select metadatalookup plugin: oracle, postgres, sqlite",
                 OPTION_STRING,
                 wrapOptionString(&plugin_metadata),
                 defOptionString(NULL)
         },
         {
-                "plugin.parser",
+                OPTION_PLUGIN_PARSER,
                 "-Pparser",
                 "select parser plugin: oracle, dl",
                 OPTION_STRING,
@@ -309,23 +362,23 @@ OptionInfo opts[] =
                 defOptionString(NULL)
         },
         {
-                "plugin.sqlcodegen",
+                OPTION_PLUGIN_SQLCODEGEN,
                 "-Psqlcodegen",
-                "select SQL code generator plugin: oracle",
+                "select SQL code generator plugin: oracle, postgres, sqlite",
                 OPTION_STRING,
-                wrapOptionString(&plugin_sqlcodegen),
+                wrapOptionString(&plugin_sql_serializer),
                 defOptionString(NULL)
         },
         {
-                "plugin.analyzer",
+                OPTION_PLUGIN_ANALYZER,
                 "-Panalyzer",
-                "select parser result model analyzer: oracle",
+                "select parser result model analyzer: oracle, dl",
                 OPTION_STRING,
                 wrapOptionString(&plugin_analyzer),
                 defOptionString(NULL)
         },
         {
-                "plugin.translator",
+                OPTION_PLUGIN_TRANSLATOR,
                 "-Ptranslator",
                 "select parser result to relational algebra translator: oracle",
                 OPTION_STRING,
@@ -333,25 +386,25 @@ OptionInfo opts[] =
                 defOptionString(NULL)
         },
         {
-                "plugin.sqlserializer",
+                OPTION_PLUGIN_SQLSERIALIZER,
                 "-Psqlserializer",
-                "select SQL code generator plugin: oracle",
+                "select SQL code generator plugin: oracle, postgres, sqlite",
                 OPTION_STRING,
                 wrapOptionString(&plugin_sql_serializer),
                 defOptionString(NULL)
         },
         {
-                "plugin.executor",
+                OPTION_PLUGIN_EXECUTOR,
                 "-Pexecutor",
                 "select Executor plugin: sql (output rewritten SQL code), "
                         "gp (output Game provenance), run (execute the "
                         "rewritten query and return its result",
                 OPTION_STRING,
                 wrapOptionString(&plugin_executor),
-                defOptionString(NULL)
+                defOptionString("run")
         },
         {
-                "plugin.cbo",
+                OPTION_PLUGIN_CBO,
                 "-Pcbo",
                 "select Cost-Based Optimizer plugin: exhaustive (enumerate all options), "
                         "balance (stop optimization after optimization time exceeds estimated runtime of best plan), "
@@ -361,82 +414,91 @@ OptionInfo opts[] =
                 defOptionString(NULL)
         },
         // boolean instrumentation options
-        aRewriteOption(OPTION_TIMING,
-                NULL,
+        {
+                OPTION_TIMING,
+                "-timing",
                 "measure and output execution time of modules.",
-                opt_timing,
-                FALSE),
-        aRewriteOption(OPTION_MEMMEASURE,
-                NULL,
+                OPTION_BOOL,
+                wrapOptionBool(&opt_timing),
+                defOptionBool(FALSE)
+        },
+        {
+                OPTION_MEMMEASURE,
+                "-memdebug",
                 "measure and output memory allocation stats.",
-                opt_memmeasure,
-                FALSE),
+                OPTION_BOOL,
+                wrapOptionBool(&opt_memmeasure),
+                defOptionBool(FALSE)
+        },
         aRewriteOption(OPTION_GRAPHVIZ,
-                NULL,
-                "output created query operator models as graphviz scripts.",
+                "-show_graphviz",
+                "output created relational algebra graphs as graphviz scripts.",
                 opt_graphviz_output,
                 FALSE),
         aRewriteOption(OPTION_GRAPHVIZ_DETAILS,
-                NULL,
+                "-graphviz_details",
                 "show operator parameters in graphviz scripts.",
                 opt_graphviz_detail ,
                 FALSE),
         // boolean rewrite options
         aRewriteOption(OPTION_AGGRESSIVE_MODEL_CHECKING,
-                NULL,
+                "-aggressive_model_checking",
                 "do aggressive validity checking of AGM models.",
                 opt_aggressive_model_checking,
                 FALSE),
         aRewriteOption(OPTION_UPDATE_ONLY_USE_CONDS,
-                NULL,
+                "-prov_reenact_only_updated_rows_use_conditions",
                 "Use disjunctions of update conditions to filter out tuples from "
                 "transaction provenance that are not updated by the transaction.",
                 opt_update_only_conditions,
                 TRUE),
         aRewriteOption(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN,
-                NULL,
+                "-prov_reenact_only_updated_rows_use_hist_join",
                 "Use a join between the version at commit time with the table version"
                 " at transaction start to prefilter rows that were not updated by the transaction.",
                 opt_only_updated_use_history,
                 FALSE),
         aRewriteOption(OPTION_TREEIFY_OPERATOR_MODEL,
-                NULL,
+                "-treeify-algebra-graphs",
                 "Turn AGM graph into a tree before passing it off to the provenance rewriter.",
                 opt_treeify_opterator_model,
                 TRUE),
         aRewriteOption(OPTION_PI_CS_USE_COMPOSABLE,
-                NULL,
+                "-prov_use_composable",
                 "Use composable version of PI-CS provenance that adds additional columns which"
                 " enumerate duplicates introduced by provenance.",
                 opt_pi_cs_composable,
                 FALSE),
         aRewriteOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW,
-                NULL,
+                "-prov_instrument_agg_window",
                 "When composable version of PI-CS provenance is use then rewrite aggregations using window functions.",
                 opt_pi_cs_rewrite_agg_window,
                 TRUE),
-        aRewriteOption(OPTION_OPTIMIZE_OPERATOR_MODEL,
-                NULL,
-                "Apply heuristic and cost based optimizations to operator model",
-                opt_optimize_operator_model,
-                FALSE),
         aRewriteOption(OPTION_TRANSLATE_UPDATE_WITH_CASE,
-                NULL,
+                "-prov_reenact_update_with_case",
                 "Create reenactment query for UPDATE statements using CASE instead of UNION.",
                 opt_translate_update_with_case,
                 TRUE),
-        // Cost Based Optimization Option
-		 {
+        // Optimization Options
+        {
+                OPTION_OPTIMIZE_OPERATOR_MODEL,
+                "-heuristic_opt",
+                "Activate heuristic relational algebra optimization",
+                OPTION_BOOL,
+                wrapOptionBool(&opt_optimize_operator_model),
+                defOptionBool(FALSE)
+        },
+        {
 				OPTION_COST_BASED_OPTIMIZER,
-				"-cost_based_optimizer",
-				"Activate/Deactivate cost based optimizer",
+				"-cbo",
+				"Activate cost based optimizer",
 				OPTION_BOOL,
 				wrapOptionBool(&cost_based_optimizer),
 				defOptionBool(FALSE)
 		 },
          {
         		OPTION_COST_BASED_CLOSE_OPTION_REMOVEDP_BY_SET,
-                "-cost_based_close_option_removedp_by_set",
+                "-cbo_choice_point_remove_duplicate_removal",
                 "Close cost based remove duplicate remove op by set option",
                 OPTION_BOOL,
                 wrapOptionBool(&cost_based_close_option_removedp_by_set),
@@ -444,7 +506,7 @@ OptionInfo opts[] =
          },
          {
                  OPTION_COST_BASED_MAX_PLANS,
-                 "-max_considered_plans",
+                 "-cbo_max_considered_plans",
                  "Maximal number of plans considered by cost based optimizer",
                  OPTION_INT,
                  wrapOptionInt(&cost_max_considered_plans),
@@ -452,23 +514,23 @@ OptionInfo opts[] =
          },
          {
                  OPTION_COST_BASED_SIMANN_CONST,
-                 "-cost_sim_ann_const",
-                 "Cost base simulate annealing a c value used in calculate ap, eg. c = 10, 20, 50 or 100",
+                 "-cbo_sim_ann_const",
+                 "Cost based optimzation: set the constant used by simulated  annealing to calculate ap, e.g., c = 10, 20, 50 or 100",
                  OPTION_INT,
                  wrapOptionInt(&cost_sim_ann_const),
                  defOptionInt(10)
          },
          {
                  OPTION_COST_BASED_SIMANN_COOLDOWN_RATE,
-                 "-cost_sim_ann_cooldown_rate",
-                 "Cost base simulate annealing cooling down rate between 0.1 and 0.9, 1 means 0.1",
+                 "-cbo_sim_ann_cooldown_rate",
+                 "Cost based optimization: Set the cool down rate used by simulated annealing between 0.1 and 0.9, 1 means 0.1",
                  OPTION_INT,
                  wrapOptionInt(&cost_sim_ann_cooldown_rate),
                  defOptionFloat(5)
          },
          {
         		 OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS,
-                 "-cost_based_num_heuristic_opt_iterations",
+                 "-cbo_num_heuristic_opt_iterations",
                  "Cost base number of heuristic optimization iterations",
                  OPTION_INT,
                  wrapOptionInt(&cost_based_num_heuristic_opt_iterations),
@@ -479,7 +541,7 @@ OptionInfo opts[] =
                 "-Opush_selections",
                 "Optimization: Activate selection move-around",
                 opt_optimization_push_selections,
-                TRUE
+                FALSE
         ),
         anOptimizationOption(OPTIMIZATION_MERGE_OPERATORS,
                 "-Omerge_ops",
@@ -489,13 +551,13 @@ OptionInfo opts[] =
         ),
         anOptimizationOption(OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR,
                 "-Ofactor_attrs",
-                "Optimization: try to factor out attribute references in projection"
+                "Optimization: try to factor attribute references in projection"
                 " expressions to open up new operator merging opportunities",
                 opt_optimization_factor_attrs,
                 FALSE
         ),
         anOptimizationOption(OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ,
-                "-Omaterialize_unsafe",
+                "-Omaterialize_unsafe_proj",
                 "Optimization: add materialization hint for projections that "
                 "if merged with adjacent projection would cause expontential "
                 "expression size blowup",
@@ -509,31 +571,31 @@ OptionInfo opts[] =
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR,
-                "-Oremove_redundant_duplicate_operator",
-                "Optimization: try to remove redundant duplicate operator",
+                "-Oremove_redundant_duplicate_removals",
+                "Optimization: try to remove redundant duplicate removal operators",
                 opt_remove_redundant_duplicate_operator,
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS,
-                "-Oremove_unnecessary_window_operators",
-                "Optimization: try to remove unnecessary window operators",
+                "-Oremove_redundant_window_operators",
+                "Optimization: try to remove redundant window operators",
                 opt_optimization_remove_unnecessary_window_operators,
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS,
                 "-Oremove_unnecessary_columns",
-                "Optimization: try to remove unnecessary columns",
+                "Optimization: try to remove unnecessary columns that are not used by the query",
                 opt_optimization_remove_unnecessary_columns,
                 TRUE
         ),
         anOptimizationOption(OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS,
-        		"-Opullup_duplicate_remove_operators",
+        		"-Opullup_duplicate_removals",
         		"Optimization: try to pull up duplicate remove operators",
         		opt_optimization_pull_up_duplicate_remove_operators,
         		TRUE
         ),
         anOptimizationOption(OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ,
-                "-Opulling_up_provenance_proj",
+                "-Opullup_prov_projections",
                 "Optimization: try to pull up provenance projection",
                 opt_optimization_pulling_up_provenance_proj,
                 TRUE
@@ -542,18 +604,18 @@ OptionInfo opts[] =
                 "-Opush_selections_through_joins",
                 "Optimization: try to push selections through joins",
                 opt_optimization_push_selections_through_joins,
-                TRUE
+                FALSE
         ),
         anOptimizationOption(OPTIMIZATION_SELECTION_MOVE_AROUND,
-                "-Oselections_move_around",
-                "Optimization: try to move selection around",
+                "-Oselection_move_around",
+                "Optimization: try to move selection operators around to push them down including side-way information passing",
                 opt_optimization_selection_move_around,
                 TRUE
                 ),
         // sanity model checking options
         anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
                 "-Cunique_attr_names",
-                "Model Check: check that attribute names are unique for each operator's schema.",
+                "Model Check: check that attribute names are unique for each operator's schema",
                 opt_operator_model_unique_schema_attribues,
                 TRUE
         ),
@@ -593,12 +655,64 @@ OptionInfo opts[] =
         }
 };
 
+// backend plugins information
+BackendInfo backends[]  = {
+        {
+            "oracle",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "oracle",   // metadata
+            "oracle",   // sqlserializer
+            "oracle"   // translator
+        },
+        {
+            "postgres",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "postgres",   // metadata
+            "postgres",    // sqlserializer
+            "oracle"   // translator
+        },
+        {
+            "sqlite",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "sqlite",   // metadata
+            "sqlite",    // sqlserializer
+            "oracle"   // translator
+        },
+        {
+            "STOPPER", NULL, NULL, NULL, NULL, NULL
+        }
+};
+
+// frontend plugins information
+FrontendInfo frontends[]  = {
+        {
+            "oracle",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "oracle"   // translator
+        },
+        {
+            "dl",   // name
+            "dl",   // analyzer
+            "dl",   // parser
+            "dl"   // translator
+        },
+        {
+            "STOPPER", NULL, NULL, NULL
+        }
+};
+
 static void
 initOptions(void)
 {
     // create hashmap option -> position in option info array for lookup
     optionPos = NEW_MAP(Constant,Constant);
     cmdOptionPos = NEW_MAP(Constant,Constant);
+    backendInfo = NEW_MAP(Constant,HashMap);
+    frontendInfo = NEW_MAP(Constant,HashMap);
 
     // add options to hashmap and set all options to default values
     for(int i = 0; strcmp(opts[i].option,"STOPPER") != 0; i++)
@@ -613,6 +727,36 @@ initOptions(void)
             MAP_ADD_STRING_KEY(cmdOptionPos, o->option, createConstInt(i));
         else
             MAP_ADD_STRING_KEY(cmdOptionPos, o->cmdLine, createConstInt(i));
+    }
+
+    // create backend infos
+    for(int i = 0; strcmp(backends[i].backendName,"STOPPER") != 0; i++)
+    {
+        HashMap *newMap = NEW_MAP(Constant, Constant);
+        char *name = backends[i].backendName;
+
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_ANALYZER, backends[i].analyzer);
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_PARSER, backends[i].parser);
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_METADATA, backends[i].metadata);
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_SQLSERIALIZER, backends[i].sqlserializer);
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_SQLCODEGEN, backends[i].sqlserializer); //for backward compatibility for now
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_TRANSLATOR, backends[i].translator);
+
+
+        MAP_ADD_STRING_KEY(backendInfo, name, newMap);
+    }
+
+    // create frontend infos
+    for(int i = 0; strcmp(frontends[i].frontendName,"STOPPER") != 0; i++)
+    {
+        HashMap *newMap = NEW_MAP(Constant, Constant);
+        char *name = frontends[i].frontendName;
+
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_ANALYZER, frontends[i].analyzer);
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_PARSER, frontends[i].parser);
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_TRANSLATOR, frontends[i].translator);
+
+        MAP_ADD_STRING_KEY(frontendInfo, name, newMap);
     }
 }
 
@@ -792,6 +936,18 @@ setFloatOption(char *name, double value)
     *(v->f) = value;
 }
 
+void
+setOptionsFromMap(HashMap *opts)
+{
+    FOREACH_HASH_ENTRY(k,opts)
+    {
+        char *name = STRING_VALUE(k->key);
+        char *value = STRING_VALUE(k->value);
+
+        setOption(name, value);
+    }
+}
+
 boolean
 hasOption(char *name)
 {
@@ -840,7 +996,7 @@ printOptionsHelp(FILE *stream, char *progName, char *description, boolean showVa
 
         if (showValues)
         {
-            fprintf(stream, "%-50s\t%-30sDEFAULT VALUE: %s\tACTUAL VALUE: %s\n\t%s\n",
+            fprintf(stream, "%-50s\t%-30sDEFAULT VALUE: %s\tACTUAL VALUE: %s\n\t%s\n\n",
                     v->cmdLine ? v->cmdLine : "-activate/-deactivate ",
                     v->cmdLine ? "" : v->option,
                     defGetString(&v->def, v->valueType),
@@ -889,6 +1045,37 @@ optionsToStringOnePerLine(void)
     str = result->data;
 //    free(result);
     return str;
+}
+
+HashMap *
+optionsToHashMap(void)
+{
+    HashMap *result = NEW_MAP(Constant,Constant);
+
+    FOREACH_HASH_KEY(Constant,k,optionPos)
+    {
+        char *name = STRING_VALUE(k);
+        OptionInfo *v = getInfo(name);
+        MAP_ADD_STRING_KEY(result,name, createConstString(valGetString(&v->value, v->valueType)));
+    }
+
+    return result;
+}
+
+char *
+getBackendPlugin(char *be, char *pluginOpt)
+{
+    HashMap *bInfo = (HashMap *) MAP_GET_STRING(backendInfo, be);
+
+    return STRING_VALUE(MAP_GET_STRING(bInfo, pluginOpt));
+}
+
+char *
+getFrontendPlugin(char *fe, char *pluginOpt)
+{
+    HashMap *fInfo = (HashMap *) MAP_GET_STRING(frontendInfo, fe);
+
+    return STRING_VALUE(MAP_GET_STRING(fInfo, pluginOpt));
 }
 
 static char *

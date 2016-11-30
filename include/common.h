@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <ctype.h>
+#include <errno.h>
 
 /*******************************************************************************
  * Portability
@@ -137,8 +138,13 @@
 #define HAVE_ORACLE_BACKEND 1
 #endif
 
+// sqlite
+#if HAVE_LIBSQLITE3
+#define HAVE_SQLITE_BACKEND 1
+#endif
+
 // any backend
-#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND
+#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND || HAVE_LIBSQLITE3
 #define HAVE_A_BACKEND 1
 #endif
 

@@ -1,0 +1,112 @@
+packageDeclaration(package) ::= "package <package>;"
+importPackage(package) ::= "import <package>;"
+
+testcaseimports() ::= <<
+<[
+"java.sql.SQLException",
+"org.junit.Test",
+"org.junit.runners.MethodSorters",
+"org.junit.BeforeClass",
+"org.junit.AfterClass",
+"org.junit.FixMethodOrder",
+"org.gprom.jdbc.test.testgenerator.AbstractGProMTester",
+"org.gprom.jdbc.test.testgenerator.ConnectionOptions",
+"org.gprom.jdbc.test.testgenerator.OptionsManager"
+]:importPackage(); separator = "\n">
+>>
+
+numFromName(x) ::= "Query_<x>"
+
+testcase(num) ::= <<
+@Test
+public void test<num:numFromName()> () throws SQLException, Exception {
+	testSingleQuery(<num>);
+};
+>>
+
+
+testclass(name,path,basedir,file,setting,casenum) ::= <<
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+public class <name> extends AbstractGProMTester {
+
+	public <name> () {
+		try {
+			path = "<path>";
+			ConnectionOptions.getInstance().setPath("<path>");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	@BeforeClass
+	public static void setUp () throws Exception {
+		path = "<basedir>";
+		ConnectionOptions.getInstance().setPath("<path>");
+		AbstractGProMTester.setUp();
+		setFile();
+	}
+
+	@AfterClass
+	public static void tearDown () throws Exception {
+		AbstractGProMTester.tearDown();
+	}
+
+    public static void setFile () throws SQLException, Exception {
+		setGenerator("<file>");
+		OptionsManager.getInstance().setOptions (<setting>);
+    }
+
+	<casenum:testcase(); separator="\n\n">
+
+}>>
+
+testclassfile(package,class) ::= <<
+<packageDeclaration(package)>
+
+<testcaseimports()>
+
+<class>;
+>>
+
+optionname(num) ::= "SetOptions_<num>"
+
+optionsclassfile(package,num) ::= <<
+package <package>;
+
+import java.sql.SQLException;
+
+import org.junit.Test;
+import org.gprom.jdbc.test.testgenerator.AbstractGProMTester;
+import org.gprom.jdbc.test.testgenerator.OptionsManager;
+
+public class <num:optionname()> extends AbstractGProMTester {
+
+	public <num:optionname()> () {
+		super ();
+	}
+
+	@Test
+    public void testOptions () throws SQLException, Exception {
+		OptionsManager.getInstance().setOptions (<num>);
+    }
+
+}
+>>
+
+classname(x) ::= "<x>.class"
+
+suiteclassfile(package,name,child) ::= <<
+<packageDeclaration(package)>
+
+import org.junit.runner.RunWith;
+import org.junit.runners.Suite;
+import org.gprom.jdbc.test.testgenerator.ReportPrinter;
+
+@RunWith(Suite.class)
+@Suite.SuiteClasses({
+		<child:classname(); separator=",\n">
+	})
+public class <name> {
+
+}
+>>

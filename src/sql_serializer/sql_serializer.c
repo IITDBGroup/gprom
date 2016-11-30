@@ -19,6 +19,8 @@
 #include "sql_serializer/sql_serializer.h"
 #include "sql_serializer/sql_serializer_oracle.h"
 #include "sql_serializer/sql_serializer_dl.h"
+#include "sql_serializer/sql_serializer_sqlite.h"
+#include "sql_serializer/sql_serializer_postgres.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
@@ -33,6 +35,7 @@ static SqlserializerPlugin *assembleOraclePlugin(void);
 static SqlserializerPlugin *assemblePostgresPlugin(void);
 static SqlserializerPlugin *assembleHivePlugin(void);
 static SqlserializerPlugin *assembleDLPlugin(void);
+static SqlserializerPlugin *assembleSQLitePlugin(void);
 
 // wrapper interface
 char *
@@ -81,6 +84,9 @@ chooseSqlserializerPlugin(SqlserializerPluginType type)
         case SQLSERIALIZER_PLUGIN_DL:
             plugin = assembleDLPlugin();
             break;
+        case SQLSERIALIZER_PLUGIN_SQLITE:
+            plugin = assembleSQLitePlugin();
+            break;
     }
 }
 
@@ -101,7 +107,9 @@ assemblePostgresPlugin(void)
 {
     SqlserializerPlugin *p = NEW(SqlserializerPlugin);
 
-    FATAL_LOG("not implemented yet");
+    p->serializeOperatorModel = serializeOperatorModelPostgres;
+    p->serializeQuery = serializeQueryPostgres;
+    p->quoteIdentifier = quoteIdentifierPostgres;
 
     return p;
 }
@@ -128,6 +136,18 @@ assembleDLPlugin(void)
     return p;
 }
 
+static SqlserializerPlugin *
+assembleSQLitePlugin(void)
+{
+    SqlserializerPlugin *p = NEW(SqlserializerPlugin);
+
+    p->serializeOperatorModel = serializeOperatorModelSQLite;
+    p->serializeQuery = serializeQuerySQLite;
+    p->quoteIdentifier = quoteIdentifierSQLite;
+
+    return p;
+}
+
 void
 chooseSqlserializerPluginFromString(char *type)
 {
@@ -141,6 +161,8 @@ chooseSqlserializerPluginFromString(char *type)
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_HIVE);
     else if (streq(type,"dl"))
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_DL);
+    else if (streq(type,"sqlite"))
+        chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_SQLITE);
     else
         FATAL_LOG("unkown sqlserializer plugin type: <%s>", type);
 }

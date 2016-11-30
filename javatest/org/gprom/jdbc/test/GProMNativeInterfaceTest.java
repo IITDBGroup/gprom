@@ -1,13 +1,8 @@
 package org.gprom.jdbc.test;
 
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
-import org.gprom.jdbc.driver.*;
-import org.gprom.jdbc.jna.*;
+import org.gprom.jdbc.jna.GProMWrapper;
 
 public class GProMNativeInterfaceTest {
 	// Variable
@@ -28,7 +23,8 @@ public class GProMNativeInterfaceTest {
 		GProMWrapper w = GProMWrapper.inst;
 		
 		w.init();
-		w.setupFromOptions(new String[] { "-log", "-loglevel", "4", "-backend", "oracle", "-user", "tpch", "-passwd", "IaDdpdr"});
+		w.setupFromOptions(new String[] { "-log", "-loglevel", "4", "-Pmetadata", "external", "-user", "fga_user", "-passwd", "fga"});
+	//	w.setupFromOptions(new String[] { "-log", "-loglevel", "4", "-backend", "oracle", "-user", "tpch", "-passwd", "IaDdpdr"});
 		w.setLogLevel(4);
 		w.setBoolOption("log.active", true);
 		log.error("log.level=" +  w.getIntOption("log.level"));

@@ -1,0 +1,61 @@
+digraph
+{
+	rankdir="TB"
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+RULE_0_WON_a_c_a_b_ [label="r0 (a,c,a,b)", texlbl="$r_0(a,c,a,b)$"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#CBFFCB"]
+GOAL_0_0_WON_a_a_ [label="g[0,0](a,a)", texlbl="$g_{0}^{0}(a,a)$"]
+GOAL_0_1_WON_a_b_ [label="g[0,1](a,b)", texlbl="$g_{0}^{1}(a,b)$"]
+GOAL_0_2_WON_b_c_ [label="g[0,2](b,c)", texlbl="$g_{0}^{2}(b,c)$"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#FF8383"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+REL_HOP_WON_a_a_ [label="HOP(a,a)", texlbl="$HOP(a,a)$"]
+REL_HOP_WON_b_c_ [label="HOP(b,c)", texlbl="$HOP(b,c)$"]
+REL_HOP_WON_a_b_ [label="HOP(a,b)", texlbl="$HOP(a,b)$"]
+REL_HOP3_WON_a_c_ [label="HOP3(a,c)", texlbl="$HOP3(a,c)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="point"]
+
+
+	node [shape="square", width=0.011, height=0.011, fillcolor=black]
+	GOAL_0_0_WON_a_a_ -> REL_HOP_WON_a_a_
+	RULE_0_WON_a_c_a_b_ -> GOAL_0_1_WON_a_b_
+	GOAL_0_2_WON_b_c_ -> REL_HOP_WON_b_c_
+	RULE_0_WON_a_c_a_b_ -> GOAL_0_0_WON_a_a_
+	GOAL_0_1_WON_a_b_ -> REL_HOP_WON_a_b_
+	REL_HOP3_WON_a_c_ -> RULE_0_WON_a_c_a_b_
+	RULE_0_WON_a_c_a_b_ -> GOAL_0_2_WON_b_c_
+
+}
