@@ -9,6 +9,8 @@ popd > /dev/null
 GPROM_SCRIPT=${DIR}/gprom-pass-query.sh
 ########################################
 # READ USER CONFIGUATION
+CONF_FILE=.gprom
+GPROM_CONF=${DIR}/../${CONF_FILE}
 source ${DIR}/gprom_basic.sh
 ########################################
 # PARAMETERS
