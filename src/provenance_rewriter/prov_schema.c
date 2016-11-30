@@ -21,6 +21,7 @@
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
 #include "provenance_rewriter/prov_schema.h"
+#include "provenance_rewriter/semiring_combiner/sc_main.h"
 
 /* consts */
 #define PROV_ATTR_PREFIX "PROV_"
@@ -199,6 +200,14 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
             pSchema->provAttrs = NIL;
             pSchema->dts = NIL;
             findTablerefVisitor((Node *) stmt->query, pSchema);
+
+            //semiring combiner check
+            if(isSemiringCombinerActivatedPs(stmt)){
+            		*attrNames = singleton("PROV");
+            		*dts = singletonInt(getSemiringCombinerDatatype(stmt,pSchema->dts));
+            		return;
+            }
+
             *attrNames = pSchema->provAttrs;
             *dts = pSchema->dts;
             return;

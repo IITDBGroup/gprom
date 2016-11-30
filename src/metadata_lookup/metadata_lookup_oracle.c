@@ -1002,6 +1002,15 @@ oracleGetViewDefinition(char *viewName)
 DataType
 oracleGetOpReturnType (char *oName, List *dataTypes)
 {
+	if(streq(oName,"*")){
+		if (LIST_LENGTH(dataTypes) != 2)
+			FATAL_LOG("multiplication should take two input parameters");
+		DataType a = (DataType)getNthOfListP(dataTypes,0);
+		DataType b = (DataType)getNthOfListP(dataTypes,1);
+		if(a!=b)
+			FATAL_LOG("multiplication should take two input parameters of the same type");
+		return a;
+	}
     return DT_STRING;
 }
 

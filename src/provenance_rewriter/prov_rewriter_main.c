@@ -126,7 +126,13 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     }
 
     //semiring comb operations
-    boolean isCombinerActivated = isSemiringCombinerActivated((QueryOperator *) op);
+    boolean isCombinerActivated = isSemiringCombinerActivatedOp((QueryOperator *) op);
+    char *sc_func;
+    Node *sc_expr;
+    if(isCombinerActivated){
+    	sc_func = getSemiringCombinerFuncName((QueryOperator *) op);
+    	sc_expr = getSemiringCombinerExpr((QueryOperator *) op);
+    }
 
     switch(op->provType)
     {
@@ -140,7 +146,9 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
             //semiring comb operations
             if(isCombinerActivated){
-            	result = addSemiringCombiner(result);
+            	INFO_LOG(sc_func);
+            	INFO_LOG(nodeToString(sc_expr));
+            	result = addSemiringCombiner(result,sc_func,sc_expr);
             	INFO_OP_LOG("Add semiring combiner:", result);
             }
 

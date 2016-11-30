@@ -693,7 +693,7 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 List *
 removeFromTail(List *X)
 {
-	DEBUG_LOG("remove from list %s", nodeToString(X));
+	//DEBUG_LOG("remove from list %s", nodeToString(X));
 	List *result = NIL;
 	ListCell *el;
 	int l = LIST_LENGTH(X);
