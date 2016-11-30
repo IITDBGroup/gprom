@@ -78,6 +78,9 @@ static void unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom
 static DLProgram *solveProgram (DLProgram *p, DLAtom *question, boolean neg);
 
 //char *idbHeadPred = NULL;
+List *programRules = NIL;
+List *domainRules = NIL;
+
 
 DLProgram *
 createBottomUpGPprogram (DLProgram *p)
@@ -109,6 +112,27 @@ createWhyGPprogram (DLProgram *p, DLAtom *why)
     DLProgram *solvedProgram;
 //    DLProgram *result;
 
+	if (LIST_LENGTH(p->doms) != 0)
+	{
+		List *domHead = NIL;
+
+		FOREACH(DLDomain,d,p->doms)
+			domHead = appendToTailOfList(domHead,d->name);
+
+
+		FOREACH(DLRule,r,p->rules)
+		{
+			if (searchListString(domHead,r->head->rel))
+				domainRules = appendToTailOfList(domainRules, (List *) r);
+			else
+				programRules = appendToTailOfList(programRules, (List *) r);
+		}
+		p->rules = programRules;
+
+		INFO_DL_LOG("create new GP bottom up program for:", p);
+		DEBUG_LOG("Associated Domain:\n%s", datalogToOverviewString((Node *) domainRules));
+	}
+
     enumerateRules (p);
     solvedProgram = copyObject(p);
     solvedProgram = unifyProgram(solvedProgram, why);
@@ -133,40 +157,40 @@ createWhyNotGPprogram (DLProgram *p, DLAtom *whyNot)
 {
 	DLProgram *solvedProgram;
 
-//	List *onlyProgram = NIL;
-//	List *domainRules = NIL;
-//
-//	// Check if user defined domain exists
-//	if (strlen(p->userdomain) != 0)
-//	{
-//		onlyProgram = copyObject(p->rules);
-//
-//		FOREACH(DLRule,r,onlyProgram)
-//		{
-//			if (strcmp(r->head->rel,p->userdomain) != 0)
-//				p->rules = copyObject((List *) r);
-//			else
-//				domainRules = appendToTailOfList(domainRules, (List *) r);
-//		}
-//	}
-//	INFO_DL_LOG("create new GP bottom up program for:",p);
-//	DEBUG_LOG("user defined DOMAIN:\n%s", datalogToOverviewString((Node *) domainRules));
+	if (LIST_LENGTH(p->doms) != 0)
+	{
+		List *domHead = NIL;
+		FOREACH(DLDomain,d,p->doms)
+		domHead = appendToTailOfList(domHead,d->name);
+
+		FOREACH(DLRule,r,p->rules)
+		{
+			if (searchListString(domHead,r->head->rel))
+				domainRules = appendToTailOfList(domainRules, (List *) r);
+			else
+				programRules = appendToTailOfList(programRules, (List *) r);
+		}
+		p->rules = programRules;
+
+		INFO_DL_LOG("create new GP bottom up program for:", p);
+		DEBUG_LOG("Associated Domain:\n%s", datalogToOverviewString((Node *) domainRules));
+	}
 
 	enumerateRules (p);
 	solvedProgram = copyObject(p);
 	solvedProgram = unifyProgram(solvedProgram, whyNot);
 	solvedProgram = solveProgram(solvedProgram, whyNot, TRUE);
 
-    	p->n.properties = NULL;
-    	setDLProp((DLNode *) solvedProgram, DL_PROV_PROG, (Node *) p);
+	p->n.properties = NULL;
+	setDLProp((DLNode *) solvedProgram, DL_PROV_PROG, (Node *) p);
 
-    	solvedProgram = rewriteSolvedProgram(solvedProgram);
-    	DL_DEL_PROP(solvedProgram, DL_PROV_WHYNOT);
+	solvedProgram = rewriteSolvedProgram(solvedProgram);
+	DL_DEL_PROP(solvedProgram, DL_PROV_WHYNOT);
 
-    	INFO_LOG("program for computing WhyNot-prov: %s",
-             datalogToOverviewString((Node *) solvedProgram));
+	INFO_LOG("program for computing WhyNot-prov: %s",
+		 datalogToOverviewString((Node *) solvedProgram));
 
-    	return solvedProgram;
+	return solvedProgram;
 }
 
 static DLProgram *
@@ -2192,6 +2216,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     List *moveRules = NIL;
     List *origArgs = NIL;
     List *newRuleArg = NIL;
+    List *origProg = NIL;
 	Set *adornedEDBAtoms = NODESET();
 	Set *adornedEDBHelpAtoms = NODESET();
     HashMap *idbAdToRules = NEW_MAP(Node,Node);
@@ -2214,6 +2239,14 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //    List *newGoalArgs = NIL;
 //	List *headPred = NIL;
 //	List *bodyPred = NIL;
+
+	// store orig program to analyze later on
+	if(solvedProgram->doms != NIL)
+	{
+		origProg = solvedProgram->rules;
+		FOREACH(DLRule,a,origProg)
+			DL_SET_BOOL_PROP(a,DL_ORIGINAL_RULE);
+	}
 
 	FOREACH(DLRule,r,solvedProgram->rules)
     {
@@ -2722,8 +2755,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
        	CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(atRule));
 
         negedbRules = appendToTailOfList(negedbRules, atRule);
-       	DEBUG_LOG("new EDB help rule generated:\n%s", datalogToOverviewString((Node *) negedbRules));
     }
+   	DEBUG_LOG("new EDB help rule generated:\n%s", datalogToOverviewString((Node *) negedbRules));
 
     FOREACH_SET(DLAtom,edb,adornedEDBAtoms)
     {
@@ -2771,11 +2804,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(atRule));
 
        	edbRules = appendToTailOfList(edbRules, atRule);
-       	DEBUG_LOG("new EDB rule generated:\n%s", datalogToOverviewString((Node *) edbRules));
-
     }
+   	DEBUG_LOG("new EDB rule generated:\n%s", datalogToOverviewString((Node *) edbRules));
 
-    // mark IDB predicates in body //TODO neceassary here?
+    // mark IDB predicates in body //TODO necessary here?
     FOREACH(DLRule,r,unLinkedRules)
         setIDBBody(r);
 
@@ -3099,10 +3131,20 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     	                           || DL_HAS_PROP(r,DL_UNDER_NEG_WON));
     }
 
-    if (ruleWon)
-        solvedProgram->rules = CONCAT_LISTS(moveRules, edbRules, helpRules, unLinkedRules, newRules);
+    if (solvedProgram->doms == NIL)
+    {
+        if (ruleWon)
+            solvedProgram->rules = CONCAT_LISTS(moveRules, edbRules, helpRules, unLinkedRules, newRules);
+        else
+        	solvedProgram->rules = CONCAT_LISTS(moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
+    }
     else
-    	solvedProgram->rules = CONCAT_LISTS(moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
+    {
+        if (ruleWon)
+            solvedProgram->rules = CONCAT_LISTS(origProg, domainRules, moveRules, edbRules, helpRules, unLinkedRules, newRules);
+        else
+        	solvedProgram->rules = CONCAT_LISTS(origProg, domainRules, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
+    }
 
 
     INFO_LOG("gp program is:\n%s", datalogToOverviewString((Node *) solvedProgram));
@@ -3271,8 +3313,10 @@ enumerateRules (DLProgram *p)
 {
     int i = 0;
 
-    FOREACH(DLRule,r,p->rules)
-        setDLProp((DLNode *) r, DL_RULE_ID, (Node *) createConstInt(i++));
+   	FOREACH(DLRule,r,p->rules)
+    	setDLProp((DLNode *) r, DL_RULE_ID, (Node *) createConstInt(i++));
+
+//   	INFO_DL_LOG("enumerated program:", p);
 }
 
 /*
@@ -3332,6 +3376,7 @@ unifyProgram (DLProgram *p, DLAtom *question)
             datalogToOverviewString((Node *) newRules));
 
     // build new program based on generated rules
+    newP->doms = p->doms;
     newP->ans = strdup(p->ans);
     newP->facts = p->facts;
     newP->rules = newRules;
@@ -3388,6 +3433,9 @@ unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom)
                 datalogToOverviewString((Node *) r),
                 datalogToOverviewString((Node *) un));
     }
+
+    if(LIST_LENGTH(domainRules) != 0)
+    	DEBUG_LOG("Associated Domain:\n%s", datalogToOverviewString((Node *) domainRules));
 
     // store mapping of this head atom to all unified rules for it
     addToMap(rToUn, (Node *) lookupAtom, (Node *) unRules);
@@ -3578,6 +3626,7 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
 
     DEBUG_NODE_BEATIFY_LOG("adorned (solved) program is:", p);
     INFO_DL_LOG("adorned (solved) program is:", p);
+    DEBUG_LOG("Associated Domain:\n%s", datalogToOverviewString((Node *) domainRules));
 
     return p;
 }
