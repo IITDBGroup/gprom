@@ -58,7 +58,7 @@ static void initCache(CatalogCache *c);
         { \
             StringInfo _newmes = makeStringInfo(); \
             appendStringInfo(_newmes, _message, ##__VA_ARGS__); \
-            FATAL_LOG("error (%s)\n%s\n\n%s", strdup((char *) sqlite3_errstr(_rc)), strdup((char *) sqlite3_errmsg(plugin->conn)), _newmes->data); \
+            FATAL_LOG("error (%s)\n%u\n\n%s", _rc, strdup((char *) sqlite3_errmsg(plugin->conn)), _newmes->data); \
         } \
     } while(0)
 
