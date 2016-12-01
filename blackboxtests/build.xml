@@ -61,8 +61,8 @@
 		</fileset>
 		<fileset dir="${mainlibrarydir}">
 			<include name="**/*.jar" />
-			<include name="GProMDriver.properties" />
 		</fileset>
+		<pathelement path="${mainlibrarydir}" />
 		<pathelement path="${resourcedir}" />
 		<pathelement path="${binarydir}"/>
 	</path>
