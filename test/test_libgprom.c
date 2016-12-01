@@ -174,7 +174,7 @@ testExceptionCatching(void)
     after = getCurMemContext();
 
     ASSERT_EQUALS_INT(1,hitCallback, "exception handler was called once");
-    ASSERT_EQUALS_STRING("", result, "empty string result");
+    ASSERT_EQUALS_STRINGP(NULL, result, "empty string result");
     ASSERT_EQUALS_STRINGP("LIBGRPROM_QUERY_CONTEXT", after->contextName, "back to context before exception");
 
     gprom_shutdown();
