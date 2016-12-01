@@ -82,41 +82,41 @@ static void
 functionCallToSQL (StringInfo str, FunctionCall *node)
 {
 
-	int flag = 0;
-	if (streq(node->functionname, "AGG_STRAGG"))
-	{
-		flag = 1;
-                /* Zeroth approach our first version */
-		//appendStringInfoString(str, "replace(rtrim(extract(xmlagg(xmlelement(E,");
-                /* Zhen 1st approach */
-                //appendStringInfoString(str, "replace(rtrim(xmlquery('/E/text()' passing xmlagg(xmlelement(E,");
-                /* Zhen 2nd approach */
-                //appendStringInfoString(str, "replace(rtrim(xmlagg(XMLParse(content ");
-                /* Zhen 3rd approach */
-                //appendStringInfoString(str, "replace(rtrim(xmlserialize(content xmlagg(XMLParse(content ");
-                /* Zhen 4th approach modified 3rd*/
-                appendStringInfoString(str, "replace(rtrim(xmlserialize(content xmlagg(xmlcdata( ");
-                /* Zhen 5th approach modified 2nd */
-                //appendStringInfoString(str, "replace(rtrim(xmlagg(xmlcdata( ");
-	}
-	else
-		appendStringInfoString(str, node->functionname);
+    int flag = 0;
+    if (streq(node->functionname, "AGG_STRAGG"))
+    {
+        flag = 1;
+        /* Zeroth approach our first version */
+        //appendStringInfoString(str, "replace(rtrim(extract(xmlagg(xmlelement(E,");
+        /* Zhen 1st approach */
+        //appendStringInfoString(str, "replace(rtrim(xmlquery('/E/text()' passing xmlagg(xmlelement(E,");
+        /* Zhen 2nd approach */
+        //appendStringInfoString(str, "replace(rtrim(xmlagg(XMLParse(content ");
+        /* Zhen 3rd approach */
+        //appendStringInfoString(str, "replace(rtrim(xmlserialize(content xmlagg(XMLParse(content ");
+        /* Zhen 4th approach modified 3rd*/
+        appendStringInfoString(str, "replace(rtrim(xmlserialize(content xmlagg(xmlcdata( ");
+        /* Zhen 5th approach modified 2nd */
+        //appendStringInfoString(str, "replace(rtrim(xmlagg(xmlcdata( ");
+    }
+    else
+        appendStringInfoString(str, node->functionname);
 
-		appendStringInfoString(str, "(");
+    appendStringInfoString(str, "(");
 
-		int i = 0;
-		//Node *entity;
-		FOREACH(Node,arg,node->args)
-		{
-			appendStringInfoString(str, ((i++ == 0) ? "" : ", "));
-			exprToSQLString(str, arg);
-			//entity = arg;
-		}
+    int i = 0;
+    //Node *entity;
+    FOREACH(Node,arg,node->args)
+    {
+        appendStringInfoString(str, ((i++ == 0) ? "" : ", "));
+        exprToSQLString(str, arg);
+        //entity = arg;
+    }
 
     if (flag == 1)
     {
         /* Zeroth approach our first version */
-    	//appendStringInfoString(str, "))),'/E/text()').getclobval(),','),chr(38) || 'quot;','\"'");
+        //appendStringInfoString(str, "))),'/E/text()').getclobval(),','),chr(38) || 'quot;','\"'");
         /* Zhen 1st approach */
         //appendStringInfoString(str, "))) returning content).getclobval(),','),chr(38) || 'quot;','\"'");
         /* Zhen 2nd approach */
@@ -128,13 +128,13 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
         /* Zhen 5th approach modified 2nd */
         //appendStringInfoString(str, "), 1)).getclobval(),','),chr(38) || 'quot;','\"'");
 
-//    	appendStringInfoString(str, "',')");
-//    	appendStringInfoString(str, " WITHIN GROUP (ORDER BY ");
-//    	exprToSQLString(str, entity);
+        //    	appendStringInfoString(str, "',')");
+        //    	appendStringInfoString(str, " WITHIN GROUP (ORDER BY ");
+        //    	exprToSQLString(str, entity);
     }
     appendStringInfoString(str,")");
 
-/*	int flag = 0;
+    /*	int flag = 0;
 	if (streq(node->functionname, "AGG_STRAGG"))
 	{
 		flag = 1;
