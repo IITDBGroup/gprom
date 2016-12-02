@@ -3236,10 +3236,11 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 									DLAtom *domAtom = makeNode(DLAtom);
 									domAtom->rel = value;
+									domAtom->args = singleton(arg);
 
-									char *varName = CONCAT_STRINGS("V", itoa(varPosition));
-									DLVar *createVar = createDLVar(varName, DT_STRING);
-									domAtom->args = singleton(createVar);
+//									char *varName = CONCAT_STRINGS("V", itoa(varPosition));
+//									DLVar *createVar = createDLVar(varName, DT_STRING);
+//									domAtom->args = singleton(createVar);
 
 									eachNegedbRule->body = appendToTailOfList(eachNegedbRule->body, domAtom);
 								}
@@ -3454,10 +3455,11 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 									DLAtom *domAtom = makeNode(DLAtom);
 									domAtom->rel = value;
+									domAtom->args = singleton(arg);
 
-									char *varName = CONCAT_STRINGS("V", itoa(varPosition));
-									DLVar *createVar = createDLVar(varName, DT_STRING);
-									domAtom->args = singleton(createVar);
+//									char *varName = CONCAT_STRINGS("V", itoa(varPosition));
+//									DLVar *createVar = createDLVar(varName, DT_STRING);
+//									domAtom->args = singleton(createVar);
 
 									eachNegheadRule->body = appendToTailOfList(eachNegheadRule->body, domAtom);
 								}
