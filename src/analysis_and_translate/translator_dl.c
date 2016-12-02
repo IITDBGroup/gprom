@@ -1585,17 +1585,37 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 					char *atomAttr = NULL;
 
 	    			// store the head predicate name for which domain rules are necessary
-					for(int varPosition = 0; varPosition < LIST_LENGTH(r->args); varPosition++)
+					if(LIST_LENGTH(r->args) == 1)
 					{
-	    				atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
-
-						FOREACH(DLDomain,d,dlDom)
+						for(int varPosition = 0; varPosition < LIST_LENGTH(r->args); varPosition++)
 						{
-							if(strcmp(d->attr,atomAttr) == 0 && strcmp(d->rel,bodyAtomRel) == 0)
+		    				atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
+
+							FOREACH(DLDomain,d,dlDom)
 							{
-								char *key = (char *) CONCAT_STRINGS(d->attr,".",d->rel);
-								char *value = d->name;
-								ADD_TO_MAP(analyzeAtom,createStringKeyValue(key,value));
+								if(strcmp(d->rel,bodyAtomRel) == 0)
+								{
+									char *key = (char *) CONCAT_STRINGS(d->attr,".",d->rel);
+									char *value = d->name;
+									ADD_TO_MAP(analyzeAtom,createStringKeyValue(key,value));
+								}
+							}
+						}
+					}
+					else
+					{
+						for(int varPosition = 0; varPosition < LIST_LENGTH(r->args); varPosition++)
+						{
+		    				atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
+
+							FOREACH(DLDomain,d,dlDom)
+							{
+								if(strcmp(d->attr,atomAttr) == 0 && strcmp(d->rel,bodyAtomRel) == 0)
+								{
+									char *key = (char *) CONCAT_STRINGS(d->attr,".",d->rel);
+									char *value = d->name;
+									ADD_TO_MAP(analyzeAtom,createStringKeyValue(key,value));
+								}
 							}
 						}
 					}
