@@ -1571,15 +1571,15 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 					FOREACH(DLRule,h,origProg)
 						origHead = appendToTailOfList(origHead,h->head->rel);
 
-					if(!searchListString(origHead,bodyAtomRel))
-						edbAttr = getAttributeNames(bodyAtomRel);
-					else
+					if(searchListString(origHead,bodyAtomRel))
 					{
 						FOREACH(DLRule,h,origProg)
 							if(strcmp(h->head->rel,bodyAtomRel) == 0)
 								FOREACH(DLAtom,a,h->body)
 										bodyAtomRel = a->rel;
+
 					}
+					edbAttr = getAttributeNames(bodyAtomRel);
 
 	    			HashMap *analyzeAtom = NEW_MAP(Constant,List);
 					char *atomAttr = NULL;
@@ -1587,10 +1587,10 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 	    			// store the head predicate name for which domain rules are necessary
 					for(int varPosition = 0; varPosition < LIST_LENGTH(r->args); varPosition++)
 					{
-		    			FOREACH(DLDomain,d,dlDom)
-						{
-		    				atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
+	    				atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
 
+						FOREACH(DLDomain,d,dlDom)
+						{
 							if(strcmp(d->attr,atomAttr) == 0 && strcmp(d->rel,bodyAtomRel) == 0)
 							{
 								char *key = (char *) CONCAT_STRINGS(d->attr,".",d->rel);
