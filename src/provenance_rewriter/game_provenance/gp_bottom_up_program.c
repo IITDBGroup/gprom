@@ -3180,6 +3180,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					char *atomAttr = NULL;
 //					int numOfAttr = LIST_LENGTH(a->args);
 //					int bodyLeng = LIST_LENGTH(eachNegedbRule->body);
+					List *domHeadList = NIL;
 
 	    			FOREACH(Node,arg,a->args)
 					{
@@ -3202,8 +3203,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 										domAtom->rel = value;
 										domAtom->args = singleton(arg);
 
-										if(!searchListNode(eachNegedbRule->body, (Node *) domAtom))
-											eachNegedbRule->body = appendToHeadOfList(eachNegedbRule->body, domAtom);
+										if(!searchListNode(domHeadList, (Node *) domAtom))
+											domHeadList = appendToTailOfList(domHeadList, domAtom);
 				    				}
 				    			}
 
@@ -3265,6 +3266,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //							}
 //	    				}
 	    				varPosition++;
+					}
+	    			reverseList(domHeadList);
+					for(int i = 0; i < LIST_LENGTH(domHeadList); i++)
+					{
+						DLAtom *domAtom = (DLAtom *) getNthOfListP(domHeadList,i);
+						eachNegedbRule->body = appendToHeadOfList(eachNegedbRule->body, domAtom);
 					}
 
 //	    			if(mapSize(analyzeAtom) == 0)
@@ -3378,6 +3385,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 					int varPosition = 0;
 					char *atomAttr = NULL;
+					List *domHeadList = NIL;
 
 					FOREACH(Node,arg,a->args)
 					{
@@ -3407,8 +3415,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 										domAtom->rel = value;
 										domAtom->args = singleton(arg);
 
-										if(!searchListNode(eachNegheadRule->body, (Node *) domAtom))
-											eachNegheadRule->body = appendToHeadOfList(eachNegheadRule->body, domAtom);
+										if(!searchListNode(domHeadList, (Node *) domAtom))
+											domHeadList = appendToTailOfList(domHeadList, domAtom);
 									}
 								}
 
@@ -3486,6 +3494,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //							}
 //						}
 						varPosition++;
+					}
+
+					reverseList(domHeadList);
+					for(int i = 0; i < LIST_LENGTH(domHeadList); i++)
+					{
+						DLAtom *domAtom = (DLAtom *) getNthOfListP(domHeadList,i);
+						eachNegheadRule->body = appendToHeadOfList(eachNegheadRule->body, domAtom);
 					}
 
 //	    			if(mapSize(analyzeAtom) == 0)
