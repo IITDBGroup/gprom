@@ -3602,9 +3602,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     else
     {
         if (ruleWon)
-            solvedProgram->rules = CONCAT_LISTS(origProg, associateDomainRule, moveRules, edbRules, helpRules, unLinkedRules, newRules);
+            solvedProgram->rules = CONCAT_LISTS(associateDomainRule, moveRules, edbRules, helpRules, unLinkedRules, newRules);
         else
-        	solvedProgram->rules = CONCAT_LISTS(origProg, associateDomainRule, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
+        	solvedProgram->rules = CONCAT_LISTS(associateDomainRule, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
     }
 
 
