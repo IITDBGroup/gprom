@@ -3151,7 +3151,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 		{
     		edbAttr = NIL;
     		DLRule *eachNegedbRule = r;
-    		boolean argConst = FALSE;
+//    		boolean argConst = FALSE;
 			boolean argVar = FALSE;
 
     		FOREACH(DLAtom,a,r->body)
@@ -3169,8 +3169,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					// check if constant exists
 					FOREACH(Node,arg,a->args)
 					{
-						if(isA(arg,Constant))
-							argConst = TRUE;
+//						if(isA(arg,Constant))
+//							argConst = TRUE;
 
 						if(isA(arg,DLVar))
 							argVar = TRUE;
@@ -3203,7 +3203,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 										domAtom->args = singleton(arg);
 
 										if(!searchListNode(eachNegedbRule->body, (Node *) domAtom))
-											eachNegedbRule->body = appendToTailOfList(eachNegedbRule->body, domAtom);
+											eachNegedbRule->body = appendToHeadOfList(eachNegedbRule->body, domAtom);
 				    				}
 				    			}
 
@@ -3213,47 +3213,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 									{
 				    					if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
 				    					{
-						    				newDomRule = unifyRule(r,singleton(arg));
-
-			    							if(!searchListNode(associateDomainRule,(Node *) newDomRule))
-												associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
-				    					}
-									}
-								}
-							}
-						}
-	    				else if(argConst && !argVar)
-	    				{
-	    					atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
-
-							FOREACH(DLDomain,d,solvedProgram->doms)
-							{
-								if(strcmp(d->attr,atomAttr) == 0 && strcmp(d->rel,atomRel) == 0)
-								{
-									char *key = (char *) CONCAT_STRINGS(atomAttr,".",atomRel);
-									char *value = d->name;
-									ADD_TO_MAP(analyzeAtom,createStringKeyValue(key,value));
-
-									DLAtom *domAtom = makeNode(DLAtom);
-									domAtom->rel = value;
-									domAtom->args = singleton(arg);
-
-//									char *varName = CONCAT_STRINGS("V", itoa(varPosition));
-//									DLVar *createVar = createDLVar(varName, DT_STRING);
-//									domAtom->args = singleton(createVar);
-
-									eachNegedbRule->body = appendToTailOfList(eachNegedbRule->body, domAtom);
-								}
-							}
-
-							if(associateDomainRule == NIL)
-							{
-				    			FOREACH(DLRule,r,domainRules)
-								{
-				    				FOREACH_HASH(Constant,c,analyzeAtom)
-									{
-				    					if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
-				    					{
+//						    				newDomRule = unifyRule(r,singleton(arg));
 				    						newDomRule = r;
 
 			    							if(!searchListNode(associateDomainRule,(Node *) newDomRule))
@@ -3262,12 +3222,53 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 									}
 								}
 							}
-	    				}
+						}
+//	    				else if(argConst && !argVar)
+//	    				{
+//	    					atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
+//
+//							FOREACH(DLDomain,d,solvedProgram->doms)
+//							{
+//								if(strcmp(d->attr,atomAttr) == 0 && strcmp(d->rel,atomRel) == 0)
+//								{
+//									char *key = (char *) CONCAT_STRINGS(atomAttr,".",atomRel);
+//									char *value = d->name;
+//									ADD_TO_MAP(analyzeAtom,createStringKeyValue(key,value));
+//
+//									DLAtom *domAtom = makeNode(DLAtom);
+//									domAtom->rel = value;
+//									domAtom->args = singleton(arg);
+//
+////									char *varName = CONCAT_STRINGS("V", itoa(varPosition));
+////									DLVar *createVar = createDLVar(varName, DT_STRING);
+////									domAtom->args = singleton(createVar);
+//
+//									eachNegedbRule->body = appendToTailOfList(eachNegedbRule->body, domAtom);
+//								}
+//							}
+//
+//							if(associateDomainRule == NIL)
+//							{
+//				    			FOREACH(DLRule,r,domainRules)
+//								{
+//				    				FOREACH_HASH(Constant,c,analyzeAtom)
+//									{
+//				    					if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
+//				    					{
+//				    						newDomRule = r;
+//
+//			    							if(!searchListNode(associateDomainRule,(Node *) newDomRule))
+//												associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
+//				    					}
+//									}
+//								}
+//							}
+//	    				}
 	    				varPosition++;
 					}
 
-	    			if(mapSize(analyzeAtom) == 0)
-						FATAL_LOG("domain is not defined: %s", CONCAT_STRINGS(atomRel,".",atomAttr));
+//	    			if(mapSize(analyzeAtom) == 0)
+//						FATAL_LOG("domain is not defined: %s", CONCAT_STRINGS(atomRel,".",atomAttr));
 
 //	    			FOREACH(Node,arg,a->args)
 //					{
@@ -3351,7 +3352,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     	FOREACH(DLRule,h,helpRules)
 		{
 			DLRule *eachNegheadRule = h;
-			boolean argConst = FALSE;
+//			boolean argConst = FALSE;
 			boolean argVar = FALSE;
 
 			FOREACH(DLAtom,a,h->body)
@@ -3368,8 +3369,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					// check if constant exists
 					FOREACH(Node,arg,a->args)
 					{
-						if(isA(arg,Constant))
-							argConst = TRUE;
+//						if(isA(arg,Constant))
+//							argConst = TRUE;
 
 						if(isA(arg,DLVar))
 							argVar = TRUE;
@@ -3407,7 +3408,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 										domAtom->args = singleton(arg);
 
 										if(!searchListNode(eachNegheadRule->body, (Node *) domAtom))
-											eachNegheadRule->body = appendToTailOfList(eachNegheadRule->body, domAtom);
+											eachNegheadRule->body = appendToHeadOfList(eachNegheadRule->body, domAtom);
 									}
 								}
 
@@ -3417,63 +3418,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 									{
 										if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
 										{
-											newDomRule = unifyRule(r,singleton(arg));
-
-											if(!searchListNode(associateDomainRule,(Node *) newDomRule))
-												associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
-										}
-									}
-								}
-							}
-						}
-						else if(argConst && !argVar)
-						{
-							FOREACH(DLRule,h,origProg)
-								if(strcmp(h->head->rel,bodyAtomRel) == 0)
-									FOREACH(DLAtom,a,h->body)
-	//										if(DL_HAS_PROP(a,DL_IS_EDB_REL))
-											bodyAtomRel = a->rel;
-
-//							if(strcmp(bodyAtomRel,atomRel) == 0)
-//							{
-//								eachNegheadRule->body = appendToTailOfList(eachNegheadRule->body,newDomRule->head);
-//
-//								if(!searchListNode(associateDomainRule,(Node *) newDomRule))
-//									associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
-//							}
-
-							atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
-
-							int i = 0;
-							FOREACH(DLDomain,d,solvedProgram->doms)
-							{
-								if(strcmp(d->attr,atomAttr) == 0 && strcmp(d->rel,bodyAtomRel) == 0)
-								{
-									char *key = (char *) CONCAT_STRINGS(atomAttr,".",bodyAtomRel);
-									char *value = d->name;
-									ADD_TO_MAP(analyzeAtom,createStringKeyValue(key,value));
-
-									DLAtom *domAtom = makeNode(DLAtom);
-									domAtom->rel = value;
-									domAtom->args = singleton(arg);
-
-//									char *varName = CONCAT_STRINGS("V", itoa(varPosition));
-//									DLVar *createVar = createDLVar(varName, DT_STRING);
-//									domAtom->args = singleton(createVar);
-
-									eachNegheadRule->body = appendToTailOfList(eachNegheadRule->body, domAtom);
-								}
-								i++;
-							}
-
-							if(associateDomainRule == NIL)
-							{
-								FOREACH(DLRule,r,domainRules)
-								{
-									FOREACH_HASH(Constant,c,analyzeAtom)
-									{
-										if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
-										{
+//											newDomRule = unifyRule(r,singleton(arg));
 											newDomRule = r;
 
 											if(!searchListNode(associateDomainRule,(Node *) newDomRule))
@@ -3483,11 +3428,68 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 								}
 							}
 						}
+//						else if(argConst && !argVar)
+//						{
+//							FOREACH(DLRule,h,origProg)
+//								if(strcmp(h->head->rel,bodyAtomRel) == 0)
+//									FOREACH(DLAtom,a,h->body)
+//	//										if(DL_HAS_PROP(a,DL_IS_EDB_REL))
+//											bodyAtomRel = a->rel;
+//
+////							if(strcmp(bodyAtomRel,atomRel) == 0)
+////							{
+////								eachNegheadRule->body = appendToTailOfList(eachNegheadRule->body,newDomRule->head);
+////
+////								if(!searchListNode(associateDomainRule,(Node *) newDomRule))
+////									associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
+////							}
+//
+//							atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
+//
+//							int i = 0;
+//							FOREACH(DLDomain,d,solvedProgram->doms)
+//							{
+//								if(strcmp(d->attr,atomAttr) == 0 && strcmp(d->rel,bodyAtomRel) == 0)
+//								{
+//									char *key = (char *) CONCAT_STRINGS(atomAttr,".",bodyAtomRel);
+//									char *value = d->name;
+//									ADD_TO_MAP(analyzeAtom,createStringKeyValue(key,value));
+//
+//									DLAtom *domAtom = makeNode(DLAtom);
+//									domAtom->rel = value;
+//									domAtom->args = singleton(arg);
+//
+////									char *varName = CONCAT_STRINGS("V", itoa(varPosition));
+////									DLVar *createVar = createDLVar(varName, DT_STRING);
+////									domAtom->args = singleton(createVar);
+//
+//									eachNegheadRule->body = appendToTailOfList(eachNegheadRule->body, domAtom);
+//								}
+//								i++;
+//							}
+//
+//							if(associateDomainRule == NIL)
+//							{
+//								FOREACH(DLRule,r,domainRules)
+//								{
+//									FOREACH_HASH(Constant,c,analyzeAtom)
+//									{
+//										if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
+//										{
+//											newDomRule = r;
+//
+//											if(!searchListNode(associateDomainRule,(Node *) newDomRule))
+//												associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
+//										}
+//									}
+//								}
+//							}
+//						}
 						varPosition++;
 					}
 
-	    			if(mapSize(analyzeAtom) == 0)
-						FATAL_LOG("domain is not defined: %s", CONCAT_STRINGS(atomRel,".",atomAttr));
+//	    			if(mapSize(analyzeAtom) == 0)
+//						FATAL_LOG("domain is not defined: %s", CONCAT_STRINGS(atomRel,".",atomAttr));
 
 //					FOREACH(Node,arg,a->args)
 //					{
@@ -3600,9 +3602,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     else
     {
         if (ruleWon)
-            solvedProgram->rules = CONCAT_LISTS(moveRules, edbRules, helpRules, unLinkedRules, newRules, associateDomainRule);
+            solvedProgram->rules = CONCAT_LISTS(origProg, associateDomainRule, moveRules, edbRules, helpRules, unLinkedRules, newRules);
         else
-        	solvedProgram->rules = CONCAT_LISTS(moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules, associateDomainRule);
+        	solvedProgram->rules = CONCAT_LISTS(origProg, associateDomainRule, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
     }
 
 

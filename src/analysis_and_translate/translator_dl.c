@@ -26,6 +26,7 @@
 #include "model/datalog/datalog_model_checker.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
+#include "utility/string_utils.h"
 
 static Node *translateProgram(DLProgram *p);
 static QueryOperator *translateFact(DLAtom *f);
@@ -51,10 +52,10 @@ static boolean castChecker = FALSE; // check if cast is needed between "DOMAIN" 
 static boolean castForPos = FALSE; // check if cast is needed between positive translation and negative
 static char *goalRel = NULL;
 //List *goalVars = NIL;
-//boolean associateDomain = FALSE; // check if associate domain exists
-//List *dlDom = NIL;
-//List *dRules = NIL;
-//List *origProg = NIL;
+boolean associateDomain = FALSE; // check if associate domain exists
+List *dlDom = NIL;
+List *dRules = NIL;
+List *origProg = NIL;
 
 
 Node *
@@ -208,31 +209,35 @@ translateProgram(DLProgram *p)
 //        }
     }
 
-//    // check associate domain
-//    List *domName = NIL;
-//    if (LIST_LENGTH(p->doms) != 0)
-//    {
-//    	associateDomain = TRUE;
-//    	dlDom = p->doms;
-//
-//    	FOREACH(DLDomain,d,p->doms)
-//    	domName = appendToTailOfList(domName,d->name);
-//    }
+    // check associate domain
+    List *domName = NIL;
+    if (LIST_LENGTH(p->doms) != 0)
+    {
+    	associateDomain = TRUE;
+    	dlDom = p->doms;
+
+    	FOREACH(DLDomain,d,p->doms)
+    	domName = appendToTailOfList(domName,d->name);
+    }
 
     // translate rules
     FOREACH(DLRule,r,p->rules)
     {
     	castChecker = FALSE; // initialize cast checker
 
-//    	// TODO: find the better way to filter out original program
-//    	if(associateDomain && DL_HAS_PROP(r,DL_ORIGINAL_RULE) && LIST_LENGTH(dRules) == 0)
-//    	    		origProg = appendToTailOfList(origProg,(List *) r);
+    	// TODO: find the better way to filter out original program
+    	if(associateDomain && DL_HAS_PROP(r,DL_ORIGINAL_RULE) && LIST_LENGTH(dRules) == 0)
+    		origProg = appendToTailOfList(origProg,(List *) r);
 //    	// not translate rules for associate domain
 //    	else if (associateDomain && searchListString(domName,r->head->rel))
 //        	dRules = appendToTailOfList(dRules, (List *) r);
-//    	else
-//    	{
-            QueryOperator *tRule = translateRule(r);
+    	else
+    	{
+    		// copy associate domain rules
+    		if (associateDomain && searchListString(domName,r->head->rel))
+    			dRules = appendToTailOfList(dRules, (List *) r);
+
+    		QueryOperator *tRule = translateRule(r);
             char *headPred = getHeadPredName(r);
 
             DEBUG_LOG("translate rule: %s", datalogToOverviewString((Node *) r));
@@ -257,7 +262,7 @@ translateProgram(DLProgram *p)
     //        }
     //        singleRuleTrans = appendToTailOfList(singleRuleTrans,
     //                tRule);
-//    	}
+    	}
     }
 
     // for each predicate create a union between all translated rules
@@ -993,7 +998,7 @@ replaceVarWithAttrRef(Node *node, List *context)
     } while(0)
 
 
-List *ordAttr = NIL;
+List *edbAttr = NIL;
 
 static QueryOperator *
 translateUnSafeGoal(DLAtom *r, int goalPos)
@@ -1031,6 +1036,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 	COPY_PROPS_TO_TABLEACCESS(rel,r);
 
 //    char *atomRel = NULL;
+
     // is negated goal?
     if (r->negated)
     {
@@ -1112,44 +1118,21 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //            if (associateDomain && LIST_LENGTH(dRules) > 0)
 //            {
 //    			atomRel = r->rel;
+//    			atomRel = replaceSubstr(atomRel, "R", "");
+//    			atomRel = replaceSubstr(atomRel, "_WON", "");
+//    			atomRel = replaceSubstr(atomRel, "_nonlinked", "");
 //
-//    			//TODO: find better way to do replace string to get only edb relation name
-//    			char *edbRel = atomRel;
-//    			char *find = "R";
-//    			char *replace = "";
-//
-//    			for(int i = 0; i < 3; i++)
-//    			{
-//    				if(i == 1) find = "_WON";
-//    				else if (i == 2) find = "_nonlinked";
-//
-//    				char *dest = MALLOC(strlen(edbRel)-strlen(find)+strlen(replace)+1);
-//    				char *ptr;
-//
-//    				strcpy (dest, edbRel);
-//    				ptr = strstr (dest, find);
-//
-//    				if (ptr)
-//    				{
-//    					memmove (ptr+strlen(replace), ptr+strlen(find), strlen(ptr+strlen(find))+1);
-//    					strncpy (ptr, replace, strlen(replace));
-//    				}
-//
-//    				edbRel = dest;
-//    			}
-//
-//    			HashMap *analyzeAtom = NEW_MAP(Constant,List);
+////    			HashMap *analyzeAtom = NEW_MAP(Constant,List);
 //
 //				List *origHead = NIL;
 //				FOREACH(DLRule,h,origProg)
 //					origHead = appendToTailOfList(origHead,h->head->rel);
 //
 //				// collect actual attribute name from table
-//				// TODO: find the better way to collect the information, i.e., which variable corresponds to which attribute
-//			    int varPosition = 0;
-//				if(!searchListString(origHead,edbRel))
+////			    int varPosition = 0;
+//				if(!searchListString(origHead,atomRel))
 //				{
-//					ordAttr = getAttributeNames(edbRel);
+//					edbAttr = getAttributeNames(atomRel);
 //
 //					// store attr name and rel name as key and value pairs
 //					FOREACH(Node,arg,r->args)
@@ -1572,7 +1555,125 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //            QueryOperator *dom;
 
             int numAttrs = getNumAttrs((QueryOperator *) rel);
-//        	QueryOperator *dTransRule;
+        	QueryOperator *dTransRule;
+			List *transList = NIL;
+
+            if(typeTransConst && !typeTransVar && associateDomain && LIST_LENGTH(dRules) > 0)
+            {
+//            	if (associateDomain && LIST_LENGTH(dRules) > 0) // use associate domains if exist
+//            	{
+            		char *bodyAtomRel = r->rel;
+					bodyAtomRel = replaceSubstr(bodyAtomRel, "R", "");
+					bodyAtomRel = replaceSubstr(bodyAtomRel, "_WON", "");
+					bodyAtomRel = replaceSubstr(bodyAtomRel, "_nonlinked", "");
+
+					List *origHead = NIL;
+					FOREACH(DLRule,h,origProg)
+						origHead = appendToTailOfList(origHead,h->head->rel);
+
+					if(!searchListString(origHead,bodyAtomRel))
+						edbAttr = getAttributeNames(bodyAtomRel);
+					else
+					{
+						FOREACH(DLRule,h,origProg)
+							if(strcmp(h->head->rel,bodyAtomRel) == 0)
+								FOREACH(DLAtom,a,h->body)
+										bodyAtomRel = a->rel;
+					}
+
+	    			HashMap *analyzeAtom = NEW_MAP(Constant,List);
+					char *atomAttr = NULL;
+
+	    			// store the head predicate name for which domain rules are necessary
+					for(int varPosition = 0; varPosition < LIST_LENGTH(r->args); varPosition++)
+					{
+		    			FOREACH(DLDomain,d,dlDom)
+						{
+		    				atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
+
+							if(strcmp(d->attr,atomAttr) == 0 && strcmp(d->rel,bodyAtomRel) == 0)
+							{
+								char *key = (char *) CONCAT_STRINGS(d->attr,".",d->rel);
+								char *value = d->name;
+								ADD_TO_MAP(analyzeAtom,createStringKeyValue(key,value));
+							}
+						}
+					}
+
+					QueryOperator *dQuery;
+					List *domainAttrs = NIL;
+
+					// translate domain rules
+    				FOREACH_HASH(Constant,c,analyzeAtom)
+					{
+    					List *unionList = NIL;
+
+    					for(int i = 0; i < LIST_LENGTH(dRules); i++)
+    	    			{
+    						char *dHead = ((DLRule *) getNthOfListP(dRules,i))->head->rel;
+
+    						if(strcmp(dHead,STRING_VALUE(c)) == 0)
+    						{
+    							dTransRule = translateRule((DLRule *) getNthOfListP(dRules,i));
+
+    							// if another head atom exist in the list of domain rules, then store it for union later
+    							int numOfUnion = 0;
+    							FOREACH(DLRule,d,dRules)
+    								if(strcmp(d->head->rel,dHead) == 0)
+    									numOfUnion++;
+
+    							if(numOfUnion - 1 > 0)
+    								unionList = appendToTailOfList(unionList,dTransRule);
+    							else
+    								transList = appendToTailOfList(transList,dTransRule);
+    						}
+    	    			}
+
+    					if(unionList != NIL)
+    					{
+    						dQuery = (QueryOperator *) getNthOfListP(unionList,0);
+
+    						for(int i = 1; i < LIST_LENGTH(unionList); i++)
+    						{
+    							QueryOperator *uDom = (QueryOperator *) getNthOfListP(unionList,i);
+    							QueryOperator *oldUd = dQuery;
+
+    							dQuery = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(dQuery,uDom), NIL, getQueryOperatorAttrNames(uDom));
+
+    							addParent(uDom, dQuery);
+    							addParent(oldUd, dQuery);
+    						}
+
+    						transList = appendToTailOfList(transList,dQuery);
+    					}
+					}
+
+					if(transList == NIL)
+						FATAL_LOG("No translated rules for associate domains.");
+					else
+					{
+						// compute Domain X Domain X ... X Domain number of attributes of goal relation R times
+						// then return (Domain X Domain X ... X Domain) - R
+						dom = (QueryOperator *) getNthOfListP(transList,0);
+						domainAttrs = singleton("D");
+
+						for(int i = 1; i < LIST_LENGTH(transList); i++)
+						{
+							char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+							QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
+							QueryOperator *oldD = dom;
+
+							domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
+							dom = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL,
+									LIST_MAKE(dom, aDom), NULL,
+									domainAttrs);
+
+							addParent(aDom, dom);
+							addParent(oldD, dom);
+						}
+					}
+//            	}
+            }
 
 //        	if (associateDomain && LIST_LENGTH(dRules) > 0) // use associate domains if exist
 //			{
@@ -1931,8 +2032,8 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 ////					}
 ////				}
 //			}
-//			else // if associate domain does not exist, then use previous method
-//			{
+			else // if associate domain does not exist, then use previous method
+			{
 			   // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
 			   // then return (Domain X Domain X ... X Domain) - R
 			   dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
@@ -1955,7 +2056,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 				   addParent(aDom, dom);
 				   addParent(oldD, dom);
 			   }
-//			}
+			}
             rename = (ProjectionOperator *) createProjOnAllAttrs(dom);
 
             // rename attribute names
