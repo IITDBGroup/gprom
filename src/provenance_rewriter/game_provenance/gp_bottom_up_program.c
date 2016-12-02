@@ -3236,8 +3236,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 									DLAtom *domAtom = makeNode(DLAtom);
 									domAtom->rel = value;
-//									domAtom->args = singleton(createConstString("X"));
-									domAtom->args = singleton(arg);
+
+									char *varName = CONCAT_STRINGS("V", itoa(varPosition));
+									DLVar *createVar = createDLVar(varName, DT_STRING);
+									domAtom->args = singleton(createVar);
 
 									eachNegedbRule->body = appendToTailOfList(eachNegedbRule->body, domAtom);
 								}
@@ -3438,8 +3440,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //								if(!searchListNode(associateDomainRule,(Node *) newDomRule))
 //									associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
 //							}
+
 							atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
 
+							int i = 0;
 							FOREACH(DLDomain,d,solvedProgram->doms)
 							{
 								if(strcmp(d->attr,atomAttr) == 0 && strcmp(d->rel,bodyAtomRel) == 0)
@@ -3450,11 +3454,14 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 									DLAtom *domAtom = makeNode(DLAtom);
 									domAtom->rel = value;
-//									domAtom->args = singleton(createConstString("X"));
-									domAtom->args = singleton(arg);
+
+									char *varName = CONCAT_STRINGS("V", itoa(varPosition));
+									DLVar *createVar = createDLVar(varName, DT_STRING);
+									domAtom->args = singleton(createVar);
 
 									eachNegheadRule->body = appendToTailOfList(eachNegheadRule->body, domAtom);
 								}
+								i++;
 							}
 
 							if(associateDomainRule == NIL)
