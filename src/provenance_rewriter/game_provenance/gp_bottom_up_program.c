@@ -3177,6 +3177,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					}
 
 					int varPosition = 0;
+					char *atomAttr = NULL;
 //					int numOfAttr = LIST_LENGTH(a->args);
 //					int bodyLeng = LIST_LENGTH(eachNegedbRule->body);
 
@@ -3186,7 +3187,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						{
 	    					if (!isA(arg,Constant))
 							{
-								char *atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
+								atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
 
 				    			FOREACH(DLDomain,d,solvedProgram->doms)
 				    			{
@@ -3223,7 +3224,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						}
 	    				else if(argConst && !argVar)
 	    				{
-	    					char *atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
+	    					atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
 
 							FOREACH(DLDomain,d,solvedProgram->doms)
 							{
@@ -3235,28 +3236,35 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 									DLAtom *domAtom = makeNode(DLAtom);
 									domAtom->rel = value;
-									domAtom->args = singleton(createConstString("X"));
+//									domAtom->args = singleton(createConstString("X"));
+									domAtom->args = singleton(arg);
 
 									eachNegedbRule->body = appendToTailOfList(eachNegedbRule->body, domAtom);
 								}
 							}
 
-			    			FOREACH(DLRule,r,domainRules)
+							if(associateDomainRule == NIL)
 							{
-			    				FOREACH_HASH(Constant,c,analyzeAtom)
+				    			FOREACH(DLRule,r,domainRules)
 								{
-			    					if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
-			    					{
-			    						newDomRule = r;
+				    				FOREACH_HASH(Constant,c,analyzeAtom)
+									{
+				    					if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
+				    					{
+				    						newDomRule = r;
 
-		    							if(!searchListNode(associateDomainRule,(Node *) newDomRule))
-											associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
-			    					}
+			    							if(!searchListNode(associateDomainRule,(Node *) newDomRule))
+												associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
+				    					}
+									}
 								}
 							}
 	    				}
 	    				varPosition++;
 					}
+
+	    			if(mapSize(analyzeAtom) == 0)
+						FATAL_LOG("domain is not defined: %s", CONCAT_STRINGS(atomRel,".",atomAttr));
 
 //	    			FOREACH(Node,arg,a->args)
 //					{
@@ -3365,6 +3373,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					}
 
 					int varPosition = 0;
+					char *atomAttr = NULL;
 
 					FOREACH(Node,arg,a->args)
 					{
@@ -3379,7 +3388,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 							if (!isA(arg,Constant))
 							{
-								char *atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
+								atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
 
 								FOREACH(DLDomain,d,solvedProgram->doms)
 								{
@@ -3429,7 +3438,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //								if(!searchListNode(associateDomainRule,(Node *) newDomRule))
 //									associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
 //							}
-							char *atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
+							atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
 
 							FOREACH(DLDomain,d,solvedProgram->doms)
 							{
@@ -3441,22 +3450,26 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 									DLAtom *domAtom = makeNode(DLAtom);
 									domAtom->rel = value;
-									domAtom->args = singleton(createConstString("X"));
+//									domAtom->args = singleton(createConstString("X"));
+									domAtom->args = singleton(arg);
 
 									eachNegheadRule->body = appendToTailOfList(eachNegheadRule->body, domAtom);
 								}
 							}
 
-							FOREACH(DLRule,r,domainRules)
+							if(associateDomainRule == NIL)
 							{
-								FOREACH_HASH(Constant,c,analyzeAtom)
+								FOREACH(DLRule,r,domainRules)
 								{
-									if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
+									FOREACH_HASH(Constant,c,analyzeAtom)
 									{
-										newDomRule = r;
+										if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
+										{
+											newDomRule = r;
 
-										if(!searchListNode(associateDomainRule,(Node *) newDomRule))
-											associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
+											if(!searchListNode(associateDomainRule,(Node *) newDomRule))
+												associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
+										}
 									}
 								}
 							}
@@ -3464,6 +3477,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						varPosition++;
 					}
 
+	    			if(mapSize(analyzeAtom) == 0)
+						FATAL_LOG("domain is not defined: %s", CONCAT_STRINGS(atomRel,".",atomAttr));
 
 //					FOREACH(Node,arg,a->args)
 //					{
