@@ -809,8 +809,8 @@ joinGoalTranslations (DLRule *r, List *goalTrans)
 
     // find attribute names
     FOREACH(QueryOperator,g,goalTrans)
-        FOREACH(char,a,getQueryOperatorAttrNames(g))
-            addToSet(allNames,a);
+		FOREACH(char,a,getQueryOperatorAttrNames(g))
+			addToSet(allNames,a);
 
     FOREACH(QueryOperator,g,goalTrans)
     {
