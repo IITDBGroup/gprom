@@ -2,7 +2,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/include
 # overwrite Werror for warning created by yacc/lex
 AM_CFLAGS = @GPROM_CFLAGS_OPT@ 
 
-BUILT_SOURCES = sql_parser.lex.h sql_parser.tab.h \ 
+BUILT_SOURCES = sql_parser.lex.h sql_parser.tab.h \
 				postgres_parser.lex.h postgres_parser.tab.h \
 				dl_parser.tab.h dl_parser.lex.h \
 				jp_parser.tab.h jp_parser.lex.h \

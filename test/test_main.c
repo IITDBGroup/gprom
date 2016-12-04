@@ -19,6 +19,8 @@
 #include "configuration/option_parser.h"
 #include "rewriter.h"
 
+static char *getDBPath (int argc, char* argv[]);
+
 void
 testSuites(void)
 {
@@ -48,20 +50,18 @@ testSuites(void)
             "Total %d Test(s) Passed\n\n", test_count);
 }
 
+#define xstr(s) str(s)
+#define str(s) #s
+#define TOPDIR xstr(GPROM_TOP_SRCDIR)
+
 int
 main(int argc, char* argv[])
 {
     READ_OPTIONS_AND_BASIC_INIT("testmain", "Regression test suite. Runs a bunch of whitebox tests on components of the system.");
 
     // get directory where testmain resides to determine location of the test database
-    char *path=argv[0];
-    StringInfo dbPath = makeStringInfo();
-    path = getFullMatchingSubstring(path, "^([^/]*[/])+");
-    appendStringInfoString(dbPath, path);
-    appendStringInfoString(dbPath, "../examples/test.db");
-    if (!fileExists(dbPath->data))
-        FATAL_LOG("SQLite test database not found where expected:\n", dbPath->data);
-    printf("dbPath: %s\n", dbPath->data);
+    char *path = getDBPath(argc,argv);
+    printf("dbPath: %s\n", path);
 
     // print options
     DEBUG_LOG("configuration:\n\n");
@@ -70,7 +70,7 @@ main(int argc, char* argv[])
     // setup options to use sqlite unless the user has specified a backend (in which case we use the user provided connection parameters)
     if(getStringOption("backend") == NULL)
     {
-        setOption("connection.db", dbPath->data);
+        setOption("connection.db", strdup(path));
         setOption(OPTION_PLUGIN_SQLCODEGEN, "sqlite");
         setOption(OPTION_PLUGIN_METADATA, "sqlite");
         setOption(OPTION_PLUGIN_PARSER, "oracle");
@@ -90,3 +90,45 @@ main(int argc, char* argv[])
     return EXIT_SUCCESS;
 }
 
+
+static char *
+getDBPath (int argc, char* argv[])
+{
+    StringInfo dbPath = makeStringInfo();
+    char *self = argv[0];
+
+    // try to find file relative to our own directory
+    self = getFullMatchingSubstring(self, "^([^/]*[/])+");
+    appendStringInfoString(dbPath, self);
+    appendStringInfoString(dbPath, "/../examples/test.db");
+    if (fileExists(dbPath->data))
+    {
+        return dbPath->data;
+    }
+    printf("SQLite test database not found where expected relative to ourselves:\n%s", dbPath->data);
+
+    // use TOPDIR to find
+    dbPath = makeStringInfo();
+    appendStringInfoString(dbPath, TOPDIR);
+    appendStringInfoString(dbPath, "/examples/test.db");
+    if (fileExists(dbPath->data))
+    {
+        return dbPath->data;
+    }
+    printf("SQLite test database not found relative to top src dir:\n%s", dbPath->data);
+
+    // check if arg 1 is given check whether it is a database
+    if (argc >= 1)
+    {
+        dbPath = makeStringInfo();
+        appendStringInfoString(dbPath, argv[1]);
+        if (fileExists(dbPath->data))
+        {
+            return dbPath->data;
+        }
+        printf("SQLite test database not found based on the path given as first parameter argument:\n%s", dbPath->data);
+    }
+
+    FATAL_LOG("did not find test.db database");
+    return NULL;
+}

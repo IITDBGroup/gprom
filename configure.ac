@@ -295,6 +295,10 @@ AC_PROG_CC_STDC
 # CAN INLINE FUNCTIONS?
 AC_C_INLINE
 ################################################################################
+# SET OUTPUT VARIABLE FOR TOP SOURCE DIR
+AC_DEFINE_UNQUOTED([GPROM_TOP_SRCDIR],[pushd "$(srcdir)" > /dev/null; pwd], ["absolute path to top source dir"])
+GPROM_SRCDIR="$(pushd "$(srcdir)" > /dev/null; pwd)"
+################################################################################
 # CHECK FOR PROGRAM BINARIES
 AM_PROG_AR
 AC_PROG_YACC
@@ -515,6 +519,7 @@ echo "
   ($PACKAGE_NAME) version $PACKAGE_VERSION
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   Prefix.............: $prefix
+  Top src dir........: $GPROM_SRCDIR
   Debug Build........: ${enable_debug:=yes}
   Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no} 
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes}
