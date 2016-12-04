@@ -105,7 +105,7 @@ getDBPath (int argc, char* argv[])
 
     // use TOPDIR to find
     dbPath = makeStringInfo();
-    appendStringInfoString(dbPath, GPROM_TOP_SRCDIR);
+    appendStringInfoString(dbPath, GPROM_TOPDIR);
     appendStringInfoString(dbPath, "/examples/test.db");
     if (fileExists(dbPath->data))
     {

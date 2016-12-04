@@ -1,5 +1,6 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/test
-AM_CFLAGS = @GPROM_CFLAGS@ -I.
+AM_CFLAGS = @GPROM_CFLAGS@
+AM_CPPFLAGS += -DGPROM_TOPDIR=\"$(srcdir)/\"
 
 check_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
 				testserializer testvisit testrewriter testpicsrewrite \
