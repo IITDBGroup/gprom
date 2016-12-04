@@ -23,25 +23,25 @@ endif
 # - scripts for running executables and scripts
 # - java source code and build files (ivy/ant)
 EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
-	$(top_builddir)/ant/one-jar* \
-	$(top_builddir)/ant/ivy.jar \
-	$(top_builddir)/build.xml \
-	$(top_builddir)/ivy.xml \
+	$(top_srcdir)/ant/one-jar* \
+	$(top_srcdir)/ant/ivy.jar \
+	$(top_srcdir)/build.xml \
+	$(top_srcdir)/ivy.xml \
 	$(top_builddir)/include \
 	$(top_builddir)/src/interfaces/jdbc \
-	$(top_builddir)/src/parser/*.y \
-	$(top_builddir)/src/parser/*.l \
-	$(top_builddir)/src/parser/*.lex.c \
-	$(top_builddir)/src/parser/*.tab.c \
-	$(top_builddir)/src/parser/*.tab.h \
-	$(top_builddir)/scripts/*.sh \
-	$(top_builddir)/scripts/dev/*.sh \
-	$(top_builddir)/examples \
+	$(top_srcdir)/src/parser/*.y \
+	$(top_srcdir)/src/parser/*.l \
+	$(top_srcdir)/src/parser/*.lex.c \
+	$(top_srcdir)/src/parser/*.tab.c \
+	$(top_srcdir)/src/parser/*.tab.h \
+	$(top_srcdir)/scripts/*.sh \
+	$(top_srcdir)/scripts/dev/*.sh \
+	$(top_srcdir)/examples \
 	$(top_builddir)/doc/gprom.man \
 	$(top_builddir)/javatest \
-	$(top_builddir)/blackboxtests/build.xml \
-	$(top_builddir)/blackboxtests/testcases/*.xml \
-	$(top_builddir)/blackboxtests/testdb/testDB.sql.in \
-	$(top_builddir)/blackboxtests/TestTemplates/*.stg
+	$(top_srcdir)/blackboxtests/build.xml \
+	$(top_srcdir)/blackboxtests/testcases/*.xml \
+	$(top_srcdir)/blackboxtests/testdb/testDB.sql.in \
+	$(top_srcdir)/blackboxtests/TestTemplates/*.stg
 
 # TODO add java
