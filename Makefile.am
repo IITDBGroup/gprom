@@ -1,5 +1,8 @@
 ACLOCAL_AMFLAGS = -I m4
 
+# configure for distcheck (need to disable Java since Java build requires writing files and distcheck runs everything read-only 
+AM_DISTCHECK_CONFIGURE_FLAGS=--disable-oracle --disable-java
+
 # add include dir to C compile flags
 AM_CPPFLAGS = -I$(top_srcdir)/include
 AM_CFLAGS = -I$(top_srcdir)/include @GPROM_CFLAGS@
@@ -20,6 +23,8 @@ endif
 # - scripts for running executables and scripts
 # - java source code and build files (ivy/ant)
 EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
+	$(top_builddir)/ant/one-jar* \
+	$(top_builddir)/ant/ivy.jar \
 	$(top_builddir)/build.xml \
 	$(top_builddir)/ivy.xml \
 	$(top_builddir)/include \
@@ -35,10 +40,8 @@ EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
 	$(top_builddir)/doc/gprom.man \
 	$(top_builddir)/javatest \
 	$(top_builddir)/blackboxtests/build.xml \
-	$(top_builddir)/blackboxtests/PI_CS_queries/*.xml \
+	$(top_builddir)/blackboxtests/testcases/*.xml \
 	$(top_builddir)/blackboxtests/testdb/testDB.sql.in \
-	$(top_builddir)/blackboxtests/TestTemplates/*.stg  
-	
-	
+	$(top_builddir)/blackboxtests/TestTemplates/*.stg
 
 # TODO add java
