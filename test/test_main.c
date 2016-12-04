@@ -101,7 +101,7 @@ getDBPath (int argc, char* argv[])
     {
         return dbPath->data;
     }
-    printf("SQLite test database not found where expected relative to ourselves:\n%s", dbPath->data);
+    printf("SQLite test database not found where expected relative to ourselves:\n<%s>\\n\\n", dbPath->data);
 
     // use TOPDIR to find
     dbPath = makeStringInfo();
@@ -111,7 +111,7 @@ getDBPath (int argc, char* argv[])
     {
         return dbPath->data;
     }
-    printf("SQLite test database not found relative to top src dir:\n%s", dbPath->data);
+    printf("SQLite test database not found relative to top src dir:\n<%s>\n\n", dbPath->data);
 
     // check if arg 1 is given check whether it is a database
     if (argc >= 1)
@@ -122,7 +122,7 @@ getDBPath (int argc, char* argv[])
         {
             return dbPath->data;
         }
-        printf("SQLite test database not found based on the path given as first parameter argument:\n%s", dbPath->data);
+        printf("SQLite test database not found based on the path given as first parameter argument:\n<%s>\n\n", dbPath->data);
     }
 
     FATAL_LOG("did not find test.db database");
