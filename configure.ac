@@ -296,7 +296,8 @@ AC_PROG_CC_STDC
 AC_C_INLINE
 ################################################################################
 # SET OUTPUT VARIABLE FOR TOP SOURCE DIR
-AC_DEFINE_UNQUOTED([GPROM_TOP_SRCDIR],[pushd "$(srcdir)" > /dev/null; pwd], ["absolute path to top source dir"])
+mysrcdir="$(pushd "$(srcdir)" > /dev/null; pwd)"
+AC_DEFINE_UNQUOTED([GPROM_TOP_SRCDIR],["${mysrcdir}"], ["absolute path to top source dir"])
 GPROM_SRCDIR="$(pushd "$(srcdir)" > /dev/null; pwd)"
 ################################################################################
 # CHECK FOR PROGRAM BINARIES

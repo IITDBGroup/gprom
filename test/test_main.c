@@ -50,10 +50,6 @@ testSuites(void)
             "Total %d Test(s) Passed\n\n", test_count);
 }
 
-#define xstr(s) str(s)
-#define str(s) #s
-#define TOPDIR xstr(GPROM_TOP_SRCDIR)
-
 int
 main(int argc, char* argv[])
 {
@@ -109,7 +105,7 @@ getDBPath (int argc, char* argv[])
 
     // use TOPDIR to find
     dbPath = makeStringInfo();
-    appendStringInfoString(dbPath, TOPDIR);
+    appendStringInfoString(dbPath, GPROM_TOP_SRCDIR);
     appendStringInfoString(dbPath, "/examples/test.db");
     if (fileExists(dbPath->data))
     {
