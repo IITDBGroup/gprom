@@ -15,7 +15,7 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
 # LINUX	
 else
 	make dist
-	#make distcheck
+	export DISTCHECK_CONFIGURE_FLAGS="--disable-postgres" && make distcheck
 fi
 
 popd > /dev/null
