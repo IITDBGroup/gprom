@@ -603,6 +603,7 @@ outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
     WRITE_NODE_FIELD(transInfo);
     WRITE_NODE_FIELD(asOf);
     WRITE_NODE_FIELD(options);
+    WRITE_STRING_FIELD(summaryType);
 }
 
 static void

@@ -206,6 +206,7 @@ strconcat		"||"
 (?i:COLUMN)			TOK(COLUMN)
 (?i:CREATE)			TOK(CREATE)
 (?i:REENACT)		TOK(REENACT)
+(?i:SUMMARIZED)		TOK(SUMMARIZED)
 
 	/* booleans */
 {bool}			TOK(boolConst)

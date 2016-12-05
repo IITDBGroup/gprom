@@ -60,7 +60,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT SUMMARIZED
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -74,7 +74,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> CASE WHEN THEN ELSE END
 %token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 %token <stringVal> NULLS FIRST LAST ASC DESC
-%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE
+%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE 
 %token <stringVal> CAST
 %token <stringVal> CREATE ALTER ADD REMOVE COLUMN 
 
@@ -137,7 +137,7 @@ Node *bisonParseResult = NULL;
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
-%type <stringVal> optionalFormat optionalWrapper optionalstringConst
+%type <stringVal> optionalFormat optionalWrapper optionalstringConst 
 
 %start stmtList
 
@@ -345,8 +345,8 @@ provStmt:
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $2;
-                   // p->options = $3;
-                   p->options = concatTwoLists($3, $8);
+            // p->options = $3;
+            p->options = concatTwoLists($3, $8);
             $$ = (Node *) p;
         }
 		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmtList ')'
@@ -378,8 +378,30 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
+		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier
+        {
+            RULELOG("provStmt::summaryStmt");
+            Node *stmt = $6;
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = PROV_PI_CS;
+		    p->asOf = (Node *) $2;
+            p->options = concatTwoLists($3, $8);
+            p->summaryType = $11;  
+            $$ = (Node *) p;
+        }
     ;
-    
+
+/*
+summaryType:
+		identifier 
+		{ 
+			RULELOG("summaryType::ident");
+			$$ = (Node *) createConstString($1); 
+		}
+	;
+*/
+  
 optionalProvAsOf:
 		/* empty */			{ RULELOG("optionalProvAsOf::EMPTY"); $$ = NULL; }
 		| AS OF SCN intConst
@@ -473,6 +495,7 @@ optionalstringConst:
 		}
         ;
 
+        
 /*
  * Rule to parse delete query
  */ 
@@ -1493,8 +1516,8 @@ delimIdentifier:
 			RULELOG("identifierList::list::ident"); 
 			$$ = CONCAT_STRINGS($1, ".", $3); //TODO 
 		}  
+	;
 
-	
 %%
 
 
