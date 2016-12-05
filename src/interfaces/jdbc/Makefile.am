@@ -14,6 +14,6 @@ $(GPROM_JDBC_JAR): $(JAVA_JDBC_SRC) $(GPROM_LIBRARY)
 	ant -f $(ANT_BUILDFILE) generateDriverJar
 
 # clean should also run ant's clean task
-clean-local:
-	ant -f $(ANT_BUILDFILE) distClean
+#clean-local:
+#	ant -f $(ANT_BUILDFILE) distClean
 endif

@@ -91,7 +91,9 @@ RUN cd /home/ubuntu/gprom \
 	&& make -f Makefile.maintainer \
 	&& ./configure --with-oci-headers=/opt/oracle/instantclient/sdk/include/ --with-oci-lib=/opt/oracle/instantclient \
 	&& make \
-	&& make install
+	&& make install \
+	&& make dist \
+	&& make distcheck
 ########################################
 # Expose VNC port
 ########################################

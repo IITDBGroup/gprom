@@ -85,7 +85,7 @@ gprom_rewriteQuery(const char *query)
     LOCK_MUTEX();
     NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
     char *result = "";
-    char *returnResult;
+    char *returnResult = NULL;
     TRY
     {
         result = rewriteQueryWithRethrow((char *) query);

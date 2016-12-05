@@ -1517,7 +1517,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
     	else // if only constants or only variables exist
    		{
     		// if only constant exsits, then filter out upfront
-			ProjectionOperator *pdom;
+			ProjectionOperator *pdom = NULL;
     		if(typeTransConst && !typeTransVar)
     		{
     			// add selection if constants are used in the goal

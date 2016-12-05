@@ -1655,7 +1655,7 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 
                 		FOREACH(char, attrName, LostNormalList)
                 		{
-                			DataType type ;
+                			DataType type = DT_INT;
                 			char *name = NULL;
                 			FORBOTH(Node, t, n, childType, childName)
                 			{
