@@ -528,25 +528,6 @@ isConstExpr (Node *expr)
     return FALSE;
 }
 
-boolean
-isCondition(Node *expr)
-{
-    if (isA(expr,Operator))
-    {
-        Operator *o = (Operator *) expr;
-        if (streq(o->name, "=")
-                || streq(o->name, "<")
-                || streq(o->name, ">")
-                || streq(o->name, "!=")
-            ) //TODO what else
-            return TRUE;
-    }
-    if (isA(expr,CaseWhen))
-        return TRUE;
-
-    return FALSE;
-}
-
 List *
 createCasts(Node *lExpr, Node *rExpr)
 {
@@ -571,7 +552,7 @@ DataType
 SQLdataTypeToDataType (char *dt)
 {
     //TODO outsource to metadatalookup for now does only Oracle
-    if (isPrefix(dt, "NUMERIC") || streq(dt, "NUMBER") || streq(dt,"INT"))
+    if (isPrefix(dt, "NUMERIC") || streq(dt, "NUMBER"))
         return DT_INT; //TODO may also be float
     if (isPrefix(dt, "VARCHAR"))
         return DT_STRING;

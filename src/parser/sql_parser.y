@@ -12,7 +12,6 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
-#include "model/query_operator/query_operator.h"
 #include "parser/parse_internal.h"
 #include "log/logger.h"
 #include "model/query_operator/operator_property.h"
@@ -60,7 +59,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -76,7 +75,6 @@ Node *bisonParseResult = NULL;
 %token <stringVal> NULLS FIRST LAST ASC DESC
 %token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE
 %token <stringVal> CAST
-%token <stringVal> CREATE ALTER ADD REMOVE COLUMN 
 
 %token <stringVal> DUMMYEXPR
 
@@ -115,10 +113,7 @@ Node *bisonParseResult = NULL;
 /*
  * Types of non-terminal symbols
  */
-%type <node> stmt provStmt dmlStmt queryStmt ddlStmt
-%type <node> createTableStmt alterTableStmt alterTableCommand
-%type <list> tableElemList optTableElemList
-%type <node> tableElement 
+%type <node> stmt provStmt dmlStmt queryStmt
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
@@ -160,12 +155,7 @@ stmtList:
 	;
 
 stmt: 
-        ddlStmt		// DDL statments
-        {
-        	RULELOG("stmt::ddlStmt");
-        	$$ = $1;
-        }
-        | dmlStmt    // DML statement can be select, update, insert, delete
+        dmlStmt    // DML statement can be select, update, insert, delete
         {
             RULELOG("stmt::dmlStmt");
             $$ = $1;
@@ -193,94 +183,7 @@ stmt:
     ;
 
 /*
- * Rule to parse all DDL statements.
- */
-ddlStmt:
-		createTableStmt
-		{
-			RULELOG("ddlStmt::createTable");
-			$$ = $1;	
-		}
-		| alterTableStmt
-		{
-			RULELOG("ddlStmt::alterTable");
-			$$ = $1;
-		}
-	;
-
-createTableStmt:
-		CREATE TABLE identifier AS queryStmt
-		{
-			RULELOG("createTable::query");
-			$$ = (Node *) createCreateTableQuery($3,$5);
-		}
-		| CREATE TABLE identifier '(' optTableElemList ')'
-		{
-			RULELOG("createTable::");
-			$$ = (Node *) createCreateTable($3,$5);
-		}
-	; 
-	
-optTableElemList:
-		/* EMPTY */ 
-		{ 
-			RULELOG("optTableElemList::EMPTY");
-			$$ = NIL; 
-		}
-		| tableElemList
-		{
-			RULELOG("optTableElemList::tableElemList");
-			$$ = $1;
-		}
-	;
-		
-tableElemList:
-		tableElement
-		{
-			RULELOG("tableElemList::tableElement");
-			$$ = singleton($1);
-		}
-		| tableElemList ',' tableElement
-		{
-			RULELOG("tableElemList::tableElement");
-			$$ = appendToTailOfList($1,$3);
-		}
-	;
-	
-tableElement:
-		identifier identifier
-		{
-			RULELOG("tableElement::columnDef");
-			$$ = (Node *) createAttributeDef($1, SQLdataTypeToDataType($2));
-		}
-		/* TODO add constraints and make column def more general */
-	;
-		
-alterTableStmt:
-		ALTER TABLE identifier alterTableCommand
-		{
-			RULELOG("alterTable:");
-			AlterTable *a = (AlterTable *) $4;
-			a->tableName = $3;
-			$$ = (Node *) a;
-		}
-	;
-	
-alterTableCommand:
-		ADD COLUMN identifier identifier
-		{
-			RULELOG("alterTableCommand::addColumn");
-			$$ = (Node *) createAlterTableAddColumn(NULL,$3,$4);
-		}
-		| REMOVE COLUMN identifier
-		{
-			RULELOG("alterTableCommand::addColumn");
-			$$ = (Node *) createAlterTableRemoveColumn(NULL,$3);
-		}
-	;
-		
-/*
- * Rule to parse all DML statements.
+ * Rule to parse all DML queries.
  */
 dmlStmt:
         insertQuery        { RULELOG("dmlStmt::insertQuery"); }
@@ -366,16 +269,6 @@ provStmt:
 			p->inputType = PROV_INPUT_TRANSACTION;
 			p->provType = PROV_PI_CS;
 			p->options = $3;
-			$$ = (Node *) p;
-		}
-		| REENACT optionalProvWith '(' stmtList ')'
-		{
-			RULELOG("provStmt::reenactStmtlist");
-			ProvenanceStmt *p = createProvenanceStmt((Node *) $4);
-			p->inputType = PROV_INPUT_REENACT;
-			p->provType = PROV_NONE;
-			p->asOf = (Node *) NULL;
-			p->options = $2;
 			$$ = (Node *) p;
 		}
     ;

@@ -19,7 +19,6 @@
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
-#include "model/query_operator/query_operator_model_checker.h"
 #include "model/list/list.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/prov_schema.h"
@@ -44,12 +43,6 @@ static RelCount *nameState;
 static boolean isTupleAtATimeSubtree(QueryOperator *op);
 
 static QueryOperator *rewritePI_CSComposableOperator (QueryOperator *op);
-static QueryOperator *rewritePI_CSComposableUseProvNoRewrite (QueryOperator *op, List *userProvAttrs);
-static QueryOperator *rewritePI_CSComposableAddProvNoRewrite (QueryOperator *op, List *userProvAttrs);
-static QueryOperator *composableAddUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean showIntermediate);
-static QueryOperator *composableAddIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignoreProvAttrs);
-
-
 static QueryOperator *rewritePI_CSComposableSelection (SelectionOperator *op);
 static QueryOperator *rewritePI_CSComposableProjection (ProjectionOperator *op);
 static QueryOperator *rewritePI_CSComposableJoin (JoinOperator *op);
@@ -65,9 +58,6 @@ static void addResultTIDAndProvDupAttrs (QueryOperator *op, boolean addToSchema)
 static void addChildResultTIDAndProvDupAttrsToSchema (QueryOperator *op);
 static List *getResultTidAndProvDupAttrsProjExprs(QueryOperator * op);
 static void addNormalAttrsWithoutSpecialToSchema(QueryOperator *target, QueryOperator *source);
-static List *getAttrNamesWithoutSpecial(QueryOperator *op);
-//static List *getNormalAttrNamesWithoutSpecial(QueryOperator *op);
-static List *getAllAttrWithoutSpecial(QueryOperator *op);
 static List *getNormalAttrWithoutSpecial(QueryOperator *op);
 static List *removeSpecialAttrsFromNormalProjectionExprs(List *projExpr);
 static void aggCreateParitionAndOrderBy(AggregationOperator* op,
@@ -130,48 +120,14 @@ isTupleAtATimeSubtree(QueryOperator *op)
 static QueryOperator *
 rewritePI_CSComposableOperator (QueryOperator *op)
 {
-    boolean showIntermediate = HAS_STRING_PROP(op,  PROP_SHOW_INTERMEDIATE_PROV);
-    boolean noRewriteUseProv = HAS_STRING_PROP(op, PROP_USE_PROVENANCE);
-    boolean noRewriteHasProv = HAS_STRING_PROP(op, PROP_HAS_PROVENANCE);
-    boolean rewriteAddProv = HAS_STRING_PROP(op, PROP_ADD_PROVENANCE);
-    List *userProvAttrs = (List *) getStringProperty(op, PROP_USER_PROV_ATTRS);
-    List *addProvAttrs = NIL;
-    Set *ignoreProvAttrs = (Set *) getStringProperty(op, PROP_PROV_IGNORE_ATTRS);
-    QueryOperator *rewrittenOp;
-
-    if (rewriteAddProv)
-        addProvAttrs = (List *)  GET_STRING_PROP(op, PROP_ADD_PROVENANCE);
-
-    DEBUG_LOG("REWRITE OPERATIONS:\n\tshow intermediates: %s\n\tuse prov: %s"
-            "\n\thas prov: %s\n\tadd prov: %s"
-            "\n\tuser prov attrs: %s"
-            "\n\tadd prov attrs: %s"
-            "\n\tignore prov attrs: %s",
-            showIntermediate ? "T": "F",
-            noRewriteUseProv ? "T": "F",
-            noRewriteHasProv ? "T": "F",
-            rewriteAddProv ? "T": "F",
-            nodeToString(userProvAttrs),
-            nodeToString(addProvAttrs),
-            nodeToString(ignoreProvAttrs));
-
-    if (noRewriteUseProv)
-        return rewritePI_CSComposableAddProvNoRewrite(op, userProvAttrs);
-    if (noRewriteHasProv)
-        return rewritePI_CSComposableUseProvNoRewrite(op, userProvAttrs);
-
-
     switch(op->type)
     {
         case T_SelectionOperator:
-            rewrittenOp = rewritePI_CSComposableSelection((SelectionOperator *) op);
-            break;
+            return rewritePI_CSComposableSelection((SelectionOperator *) op);
         case T_ProjectionOperator:
-            rewrittenOp = rewritePI_CSComposableProjection((ProjectionOperator *) op);
-            break;
+            return rewritePI_CSComposableProjection((ProjectionOperator *) op);
         case T_JoinOperator:
-            rewrittenOp = rewritePI_CSComposableJoin((JoinOperator *) op);
-            break;
+            return rewritePI_CSComposableJoin((JoinOperator *) op);
         case T_AggregationOperator:
         {
         	if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
@@ -186,514 +142,30 @@ rewritePI_CSComposableOperator (QueryOperator *op)
         		else
        				op1 = rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
 
-        		rewrittenOp = op1;
+        		return op1;
        	    }
         	else
         	{
         		if(getBoolOption(OPTION_PI_CS_COMPOSABLE_REWRITE_AGG_WINDOW))
-					rewrittenOp = rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op);
+					return rewritePI_CSComposableAggregationWithWindow((AggregationOperator *) op);
 				else
-					rewrittenOp = rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
+					return rewritePI_CSComposableAggregationWithJoin((AggregationOperator *) op);
         	}
-            break;
+
         }
         case T_Set:
-            rewrittenOp = rewritePI_CSComposableSet((SetOperator *) op);
-            break;
+            return rewritePI_CSComposableSet((SetOperator *) op);
         case T_TableAccessOperator:
-            rewrittenOp = rewritePI_CSComposableTableAccess((TableAccessOperator *) op);
-            break;
+            return rewritePI_CSComposableTableAccess((TableAccessOperator *) op);
         case T_ConstRelOperator:
-            rewrittenOp = rewritePI_CSComposableConstRel((ConstRelOperator *) op);
-            break;
+            return rewritePI_CSComposableConstRel((ConstRelOperator *) op);
         case T_DuplicateRemoval:
-            rewrittenOp = rewritePI_CSComposableDuplicateRemOp((DuplicateRemoval *) op);
-            break;
+            return rewritePI_CSComposableDuplicateRemOp((DuplicateRemoval *) op);
         case T_OrderOperator:
-            rewrittenOp = rewritePI_CSComposableOrderOp((OrderOperator *) op);
-            break;
+            return rewritePI_CSComposableOrderOp((OrderOperator *) op);
         default:
             FATAL_LOG("rewrite for %u not implemented", op->type);
-            rewrittenOp = NULL;
-            break;
-    }
-
-    if (showIntermediate)
-        rewrittenOp = composableAddIntermediateProvenance(rewrittenOp, userProvAttrs, ignoreProvAttrs);
-
-    if (rewriteAddProv)
-        rewrittenOp = composableAddUserProvenanceAttributes(rewrittenOp, addProvAttrs, showIntermediate);
-
-    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-        ASSERT(checkModel(rewrittenOp));
-
-    return rewrittenOp;
-}
-
-static QueryOperator *
-composableAddUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean showIntermediate)
-{
-    QueryOperator *proj;
-    List *attrNames = NIL;
-    List *projExpr = NIL;
-    List *attrDefs = NIL;
-    List *provAttrPos = NIL;
-    List *normalAttrExprs = getNormalAttrProjectionExprs(op);
-    List *userPAttrExprs = NIL;
-    int cnt = 0;
-    char *newAttrName;
-    int relAccessCount;
-    char *tableName; // = "INTERMEDIATE";
-    Set *userNames = STRSET();
-
-    // create set for fast access
-    FOREACH(Constant,n,userProvAttrs)
-        addToSet(userNames,STRING_VALUE(n));
-
-    FOREACH(AttributeReference,a,normalAttrExprs)
-    {
-        if (hasSetElem(userNames, a->name))
-            userPAttrExprs = appendToTailOfList(userPAttrExprs,a);
-    }
-
-    if (isA(op,TableAccessOperator))
-        tableName = ((TableAccessOperator *) op)->tableName;
-    else
-    {
-        if (HAS_STRING_PROP(op, PROP_PROV_ADD_REL_NAME))
-        {
-            tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_ADD_REL_NAME));
-        }
-        else
-            tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
-    }
-
-    if (showIntermediate)
-        relAccessCount = getCurRelNameCount(&nameState, tableName) - 1;
-    else
-        relAccessCount = getRelNameCount(&nameState, tableName);
-
-    DEBUG_LOG("REWRITE-PICS - Add Intermediate Provenance Attrs <%s> <%u>",  tableName, relAccessCount);
-
-    // copy all attributes except TID and DUP if they were already added
-    provAttrPos = copyObject(op->provAttrs);
-//    if (showIntermediate)
-//    {
-        attrNames = getAttrNamesWithoutSpecial(op);
-        attrDefs = getAllAttrWithoutSpecial(op);
-//    }
-//    else
-//    {
-//        attrNames = getQueryOperatorAttrNames(op);
-//        attrDefs = op->schema->attrDefs;
-//    }
-
-    // create schema
-    FOREACH(AttributeDef, attr, attrDefs)
-    {
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
-        cnt++;
-    }
-
-    // add projection expression for newly added prov attributes
-    FOREACH(AttributeReference, a, userPAttrExprs)
-    {
-        //TODO naming of intermediate results
-        newAttrName = getProvenanceAttrName(tableName, a->name, relAccessCount);
-        DEBUG_LOG("new attr name: %s", newAttrName);
-        attrNames = appendToTailOfList(attrNames, newAttrName);
-        projExpr = appendToTailOfList(projExpr, a);
-    }
-
-    List *newProvPosList = NIL;
-    CREATE_INT_SEQ(newProvPosList, cnt, cnt + LIST_LENGTH(userPAttrExprs) - 1, 1);
-    provAttrPos = CONCAT_LISTS(provAttrPos, newProvPosList);
-
-//    if (showIntermediate)
-//    {
-        // result tuple ID attribute
-         newAttrName = strdup(RESULT_TID_ATTR);
-         attrNames = appendToTailOfList(attrNames, newAttrName);
-         projExpr = appendToTailOfList(projExpr, makeNode(RowNumExpr));
-
-         // provenance duplicate attribute
-         newAttrName = strdup(PROV_DUPL_COUNT_ATTR);
-         attrNames = appendToTailOfList(attrNames, newAttrName);
-         projExpr = appendToTailOfList(projExpr, createConstInt(1));
-//    }
-
-    DEBUG_LOG("add additional provenance\n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
-            stringListToString(attrNames),
-            nodeToString(projExpr),
-            nodeToString(provAttrPos));
-
-    // Create a new projection operator with these new attributes
-    proj = (QueryOperator *) createProjectionOp(projExpr, op, NIL, attrNames);
-    proj->inputs = NIL;
-    proj->provAttrs = provAttrPos;
-
-
-    // Switch the subtree with this newly created projection operator.
-    switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) proj);
-
-    // Add child to the newly created projections operator,
-    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
-
-    // add TID and DUP attributes from child
-//    if (!showIntermediate)
-//        addResultTIDAndProvDupAttrs(proj,TRUE);
-//    else // add properties for TID and DUP attributes
-//    {
-        int numAttrs = getNumAttrs((QueryOperator *) proj) - 1;
-        SET_STRING_PROP(proj, PROP_RESULT_TID_ATTR, createConstInt(numAttrs - 1));
-        SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR, createConstInt(numAttrs));
-//    }
-
-    DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
-
-    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-        ASSERT(checkModel((QueryOperator *) proj));
-
-    return proj;
-}
-
-static QueryOperator *
-composableAddIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignoreProvAttrs)
-{
-    QueryOperator *proj;
-    List *attrNames = NIL;
-    List *projExpr = NIL;
-    List *provAttrPos = NIL;
-    List *normalAttrExpr = removeSpecialAttrsFromNormalProjectionExprs(getNormalAttrProjectionExprs(op));
-    List *temp = NIL;
-    int cnt = 0;
-    char *newAttrName;
-    int relAccessCount;
-    char *tableName; // = "INTERMEDIATE";
-
-    if (isA(op,TableAccessOperator))
-        tableName = ((TableAccessOperator *) op)->tableName;
-    else
-        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
-
-    relAccessCount = getRelNameCount(&nameState, tableName);
-
-    DEBUG_LOG("REWRITE-PICS - Add Intermediate Provenance Attrs <%s> <%u>",  tableName, relAccessCount);
-
-    attrNames = getAttrNamesWithoutSpecial(op);
-    provAttrPos = copyObject(op->provAttrs);
-
-    // remove ignore prov attributes
-    if (ignoreProvAttrs != NULL)
-    {
-        FOREACH(AttributeReference, a, normalAttrExpr)
-        {
-            if (!hasSetElem(ignoreProvAttrs, a->name))
-            {
-                temp = appendToTailOfList(temp, a);
-            }
-        }
-        normalAttrExpr = temp;
-    }
-
-    // Get the provenance name for each attribute
-    FOREACH(AttributeDef, attr, getAllAttrWithoutSpecial(op))
-    {
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
-        cnt++;
-    }
-
-    FOREACH(AttributeReference, a, normalAttrExpr)
-    {
-        //TODO naming of intermediate results
-        newAttrName = getProvenanceAttrName(tableName, a->name, relAccessCount);
-        DEBUG_LOG("new attr name: %s", newAttrName);
-        attrNames = appendToTailOfList(attrNames, newAttrName);
-        projExpr = appendToTailOfList(projExpr, a);
-    }
-
-    List *newProvPosList = NIL;
-    CREATE_INT_SEQ(newProvPosList, cnt, cnt + LIST_LENGTH(normalAttrExpr) - 1, 1);
-    provAttrPos = CONCAT_LISTS(provAttrPos, newProvPosList);
-
-    // add TID and DUP attributes
-    projExpr = CONCAT_LISTS(projExpr, getResultTidAndProvDupAttrsProjExprs(op));
-    attrNames = appendToTailOfList(attrNames, strdup(RESULT_TID_ATTR));
-    attrNames = appendToTailOfList(attrNames, strdup(PROV_DUPL_COUNT_ATTR));
-
-    DEBUG_LOG("add intermediate provenance\n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
-            stringListToString(attrNames),
-            nodeToString(projExpr),
-            nodeToString(provAttrPos));
-
-    // Create a new projection operator with these new attributes
-    proj = (QueryOperator *) createProjectionOp(projExpr, NULL, NIL, attrNames);
-    proj->provAttrs = provAttrPos;
-
-    // if there is also PROP_PC_ADD_PROV set then copy over the properties to the new proj op
-    if(HAS_STRING_PROP(op, PROP_ADD_PROVENANCE))
-    {
-        SET_STRING_PROP(proj, PROP_ADD_PROVENANCE,
-                copyObject(GET_STRING_PROP(op, PROP_ADD_PROVENANCE)));
-        SET_STRING_PROP(proj, PROP_PROV_REL_NAME,
-                copyObject(GET_STRING_PROP(op, PROP_PROV_REL_NAME)));
-        SET_STRING_PROP(proj, PROP_PROV_ADD_REL_NAME,
-                copyObject(GET_STRING_PROP(op, PROP_PROV_ADD_REL_NAME)));
-    }
-    // Switch the subtree with this newly created projection operator.
-    switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) proj);
-
-    // Add child to the newly created projections operator,
-    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
-
-    int tidAttrPos = getNumAttrs(proj) -2;
-    SET_STRING_PROP(proj, PROP_RESULT_TID_ATTR, createConstInt(tidAttrPos));
-    SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR, createConstInt(tidAttrPos + 1));
-
-    DEBUG_LOG("added projection: %s", operatorToOverviewString((Node *) proj));
-
-    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-        ASSERT(checkModel((QueryOperator *) proj));
-
-    return proj;
-}
-
-
-
-static QueryOperator *
-rewritePI_CSComposableAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
-{
-//    List *tableAttr;
-    List *provAttr = NIL;
-    List *projExpr = NIL;
-    char *newAttrName;
-    int relAccessCount;
-    int numProvAttrs = LIST_LENGTH(userProvAttrs);
-    int numNormalAttrs = LIST_LENGTH(op->schema->attrDefs);
-    int cnt = 0;
-    char *tableName; // = "INTERMEDIATE";
-
-    if (isA(op,TableAccessOperator))
-        tableName = ((TableAccessOperator *) op)->tableName;
-    else
-        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
-
-    relAccessCount = getRelNameCount(&nameState, tableName);
-
-    DEBUG_LOG("REWRITE-PICS - Composable - Add Provenance Attrs <%s> <%u>",
-            tableName, relAccessCount);
-
-    // Get the provenance name for each attribute
-    FOREACH(AttributeDef, attr, op->schema->attrDefs)
-    {
-        provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(
-                attr->attrName, 0, cnt, 0, attr->dataType));
-        cnt++;
-    }
-
-    cnt = 0;
-    FOREACH(Constant, attr, userProvAttrs)
-    {
-        char *name = STRING_VALUE(attr);
-        AttributeDef *a;
-
-        newAttrName = getProvenanceAttrName(tableName, name, relAccessCount);
-        provAttr = appendToTailOfList(provAttr, newAttrName);
-        cnt = getAttrPos(op,name);
-        a = getAttrDefByPos(op,cnt);
-        projExpr = appendToTailOfList(projExpr, createFullAttrReference(name, 0,
-                cnt, 0, a->dataType));
-    }
-
-    // result tuple ID attribute
-    newAttrName = strdup(RESULT_TID_ATTR);
-    provAttr = appendToTailOfList(provAttr, newAttrName);
-    projExpr = appendToTailOfList(projExpr, makeNode(RowNumExpr));
-
-    // provenance duplicate attribute
-    newAttrName = strdup(PROV_DUPL_COUNT_ATTR);
-    provAttr = appendToTailOfList(provAttr, newAttrName);
-    projExpr = appendToTailOfList(projExpr, createConstInt(1));
-
-    List *newProvPosList = NIL;
-    CREATE_INT_SEQ(newProvPosList, numNormalAttrs, numNormalAttrs + numProvAttrs + 1, 1);
-
-    DEBUG_LOG("no rewrite add provenance, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
-            stringListToString(provAttr),
-            nodeToString(projExpr),
-            nodeToString(newProvPosList));
-
-    // Create a new projection operator with these new attributes
-    ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
-    newpo->op.provAttrs = newProvPosList;
-
-    int numAttrs = getNumAttrs((QueryOperator *) newpo) - 1;
-    SET_STRING_PROP(newpo, PROP_RESULT_TID_ATTR, createConstInt(numAttrs - 1));
-    SET_STRING_PROP(newpo, PROP_PROV_DUP_ATTR, createConstInt(numAttrs));
-
-//    addResultTIDAndProvDupAttrs((QueryOperator *) newpo, FALSE);
-
-    // Switch the subtree with this newly created projection operator.
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
-
-    // Add child to the newly created projections operator,
-    addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
-
-    DEBUG_LOG("rewrite add provenance attrs:\n%s", operatorToOverviewString((Node *) newpo));
-
-    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-        ASSERT(checkModel((QueryOperator *) newpo));
-
-    return (QueryOperator *) newpo;
-}
-
-static QueryOperator *
-rewritePI_CSComposableUseProvNoRewrite (QueryOperator *op, List *userProvAttrs)
-{
-    char *newAttrName;
-    List *provAttrs = op->provAttrs;
-    int relAccessCount;
-    char *tableName; // = "USER";
-    boolean isTableAccess = isA(op,TableAccessOperator);
-
-    if (isTableAccess)
-        tableName = ((TableAccessOperator *) op)->tableName;
-    else
-        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
-
-    DEBUG_LOG("Use existing provenance attributes %s for %s",
-            beatify(nodeToString(userProvAttrs)), tableName);
-
-    relAccessCount = getRelNameCount(&nameState, tableName);
-
-    // for table access operations we need to add a projection that renames the attributes
-    if (isTableAccess)
-    {
-        QueryOperator *proj;
-        ProjectionOperator *theProj;
-
-        proj = createProjOnAllAttrs(op);
-        theProj = (ProjectionOperator *) proj;
-
-        // Switch the subtree with this newly created projection operator
-        switchSubtrees(op, proj);
-
-        // Add child to the newly created projection operator
-        addChildOperator(proj, op);
-
-        FOREACH(Constant,a,userProvAttrs)
-        {
-            char *name = STRING_VALUE(a);
-            int pos = getAttrPos(proj, name);
-            AttributeDef *attr;
-
-            attr = getNthOfListP(proj->schema->attrDefs, pos);
-            name = getProvenanceAttrName(tableName, name, relAccessCount);
-            attr->attrName = name;
-            provAttrs = appendToTailOfListInt(provAttrs, pos);
-
-            // in parent operators adapt attribute references to use new name
-            FOREACH(QueryOperator,p,proj->parents)
-            {
-                List *aRefs = findOperatorAttrRefs(p);
-                int childPos = getChildPosInParent(p,proj);
-
-                FOREACH(AttributeReference,a,aRefs)
-                {
-                    if (a->fromClauseItem == childPos && a->attrPosition == pos)
-                        a->name = strdup(name);
-                }
-            }
-        }
-
-        // result tuple ID attribute
-        int curPos = getNumAttrs(proj);
-        newAttrName = strdup(RESULT_TID_ATTR);
-        proj->schema->attrDefs = appendToTailOfList(proj->schema->attrDefs,
-                        createAttributeDef(newAttrName, DT_INT));
-        theProj->projExprs = appendToTailOfList(theProj->projExprs, makeNode(RowNumExpr));
-
-        // provenance duplicate attribute
-        newAttrName = strdup(PROV_DUPL_COUNT_ATTR);
-        proj->schema->attrDefs = appendToTailOfList(proj->schema->attrDefs,
-                createAttributeDef(newAttrName, DT_INT));
-        theProj->projExprs = appendToTailOfList(theProj->projExprs, createConstInt(1));
-
-        // prov attributes and store TID and DUP attributes as property
-        proj->provAttrs = provAttrs;
-        SET_STRING_PROP(proj, PROP_RESULT_TID_ATTR, createConstInt(curPos));
-        SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR, createConstInt(curPos + 1));
-
-        if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-            ASSERT(checkModel(proj));
-
-        return proj;
-    }
-    // for non-tableaccess operators simply change the attribute names and mark the attributes as provenance attributes
-    else
-    {
-        ProjectionOperator *proj;
-        QueryOperator *projOp;
-
-        FOREACH(Constant,a,userProvAttrs)
-        {
-            char *name = STRING_VALUE(a);
-            int pos = getAttrPos(op, name);
-            AttributeDef *attr;
-
-            attr = getNthOfListP(op->schema->attrDefs, pos);
-            name = getProvenanceAttrName(tableName, name, relAccessCount);
-            attr->attrName = name;
-            provAttrs = appendToTailOfListInt(provAttrs, pos);
-
-            // in parent operators adapt attribute references to use new name
-            FOREACH(QueryOperator,p,op->parents)
-            {
-                List *aRefs = findOperatorAttrRefs(p);
-                int childPos = getChildPosInParent(p,op);
-
-                FOREACH(AttributeReference,a,aRefs)
-                {
-                    if (a->fromClauseItem == childPos && a->attrPosition == pos)
-                        a->name = strdup(name);
-                }
-            }
-        }
-
-        op->provAttrs = provAttrs;
-
-        if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-            ASSERT(checkModel(op));
-
-        // create projection so we can add TID and DUP attrs
-        projOp = createProjOnAllAttrs(op);
-        proj = (ProjectionOperator *) projOp;
-
-        // Switch the subtree with this newly created projection operator.
-        switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
-
-        // Add child to the newly created projections operator,
-        addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
-
-        // result tuple ID attribute
-        int curPos = getNumAttrs(projOp);
-        newAttrName = strdup(RESULT_TID_ATTR);
-        projOp->schema->attrDefs = appendToTailOfList(projOp->schema->attrDefs,
-                        createAttributeDef(newAttrName, DT_INT));
-        proj->projExprs = appendToTailOfList(proj->projExprs, makeNode(RowNumExpr));
-
-        // provenance duplicate attribute
-        newAttrName = strdup(PROV_DUPL_COUNT_ATTR);
-        projOp->schema->attrDefs = appendToTailOfList(projOp->schema->attrDefs,
-                createAttributeDef(newAttrName, DT_INT));
-        proj->projExprs = appendToTailOfList(proj->projExprs, createConstInt(1));
-
-        // prov attributes and store TID and DUP attributes as property
-        SET_STRING_PROP(proj, PROP_RESULT_TID_ATTR, createConstInt(curPos));
-        SET_STRING_PROP(proj, PROP_PROV_DUP_ATTR, createConstInt(curPos + 1));
-
-        return projOp;
+            return NULL;
     }
 }
 
@@ -1440,49 +912,6 @@ addNormalAttrsWithoutSpecialToSchema(QueryOperator *target, QueryOperator *sourc
 {
     List *newAttrs = (List *) copyObject(getNormalAttrWithoutSpecial(source));
     target->schema->attrDefs = concatTwoLists(target->schema->attrDefs, newAttrs);
-}
-
-static List *
-getAttrNamesWithoutSpecial(QueryOperator *op)
-{
-    List *attr;
-    List *attrNames = NIL;
-
-    attr = getAllAttrWithoutSpecial(op);
-    FOREACH(AttributeDef,a,attr)
-        attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
-
-    return attrNames;
-}
-
-
-//static List *
-//getNormalAttrNamesWithoutSpecial(QueryOperator *op)
-//{
-//    List *attr;
-//    List *attrNames = NIL;
-//
-//    attr = getNormalAttrWithoutSpecial(op);
-//    FOREACH(AttributeDef,a,attr)
-//        attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
-//
-//    return attrNames;
-//}
-
-static List *
-getAllAttrWithoutSpecial(QueryOperator *op)
-{
-    List *norm = copyObject(op->schema->attrDefs);
-    List *result = NIL;
-
-    FOREACH(AttributeDef,a,norm)
-    {
-        if (strcmp(a->attrName, RESULT_TID_ATTR) != 0
-                && strcmp(a->attrName, PROV_DUPL_COUNT_ATTR) != 0)
-            result = appendToTailOfList(result, a);
-    }
-
-    return result;
 }
 
 static List *

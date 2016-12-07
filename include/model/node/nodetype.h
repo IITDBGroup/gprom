@@ -92,11 +92,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
 
     /* rpq */
     T_Regex,
-    T_RPQQuery,
-
-    /* ddl */
-    T_CreateTable,
-    T_AlterTable
+    T_RPQQuery
 );
 
 typedef struct Node{
@@ -105,8 +101,7 @@ typedef struct Node{
 
 NEW_ENUM_WITH_TO_STRING(ProvenanceType,
     PROV_PI_CS,
-    PROV_TRANSFORMATION,
-    PROV_NONE /* for reenactment of bag semantics only */
+    PROV_TRANSFORMATION
 );
 
 /* what type of database operation(s) a provenance computation is for */
@@ -114,8 +109,6 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
     PROV_INPUT_QUERY,
     PROV_INPUT_UPDATE,
     PROV_INPUT_UPDATE_SEQUENCE,
-    PROV_INPUT_REENACT,
-    PROV_INPUT_REENACT_WITH_TIMES,
     PROV_INPUT_TRANSACTION,
     PROV_INPUT_TIME_INTERVAL
 );
@@ -183,7 +176,6 @@ extern void prependStringInfo (StringInfo str, const char *format, ...);
 extern void enlargeStringInfo(StringInfo str, int needed);
 extern void removeTailingStringInfo(StringInfo str, int numChars);
 extern void replaceStringInfo(StringInfo str, int start, char *repl);
-extern void replaceStringInfoChar(StringInfo str, char s, char repl);
 #define STRINGLEN(_str) _str->len
 
 // node helpers

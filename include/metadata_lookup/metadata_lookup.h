@@ -23,7 +23,6 @@
 #include "model/set/set.h"
 #include "model/relation/relation.h"
 #include "model/query_block/query_block.h"
-#include "mem_manager/mem_mgr.h"
 
 
 /* types of supported plugins */
@@ -90,7 +89,6 @@ typedef struct MetadataLookupPlugin
 
     /* cache for catalog information */
     CatalogCache *cache;
-    MemContext *metadataLookupContext;
 
 } MetadataLookupPlugin;
 

@@ -32,7 +32,7 @@
 #include "model/set/set.h"
 
 /* function declarations */
-static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *haveSeen);
+static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *hasSeen);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
 
 /* function definitions */
@@ -71,19 +71,23 @@ provRewriteQuery (QueryOperator *input)
 
 
 static QueryOperator *
-findProvenanceComputations (QueryOperator *op, Set *haveSeen)
+findProvenanceComputations (QueryOperator *op, Set *hasSeen)
 {
+
     // is provenance computation? then rewrite
     if (isA(op, ProvenanceComputation))
         return rewriteProvenanceComputation((ProvenanceComputation *) op);
 
     // else search for children with provenance
+//    FOREACH(QueryOperator, x, op->inputs)
+//        findProvenanceComputations(x);
+//
     FOREACH(QueryOperator,c,op->inputs)
     {
-        if (!hasSetElem(haveSeen, c))
+        if (!hasSetElem(hasSeen, c))
         {
-            addToSet(haveSeen, c);
-            findProvenanceComputations(c, haveSeen);
+            addToSet(hasSeen, c);
+            findProvenanceComputations(c, hasSeen);
         }
     }
 
@@ -96,9 +100,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     // for a sequence of updates of a transaction merge the sequence into a single
     // query before rewrite.
     if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE
-            || op->inputType == PROV_INPUT_TRANSACTION
-            || op->inputType == PROV_INPUT_REENACT
-            || op->inputType == PROV_INPUT_REENACT_WITH_TIMES)
+            || op->inputType == PROV_INPUT_TRANSACTION)
     {
         START_TIMER("rewrite - merge update reenactments");
         mergeUpdateSequence(op);
@@ -117,8 +119,8 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     if (isRewriteOptionActivated(OPTION_TREEIFY_OPERATOR_MODEL))
     {
         treeify((QueryOperator *) op);
-        INFO_OP_LOG("treeified operator model:", op);
-        DEBUG_NODE_BEATIFY_LOG("treeified operator model:", op);
+        INFO_OP_LOG("treeifyed operator model:", op);
+        DEBUG_NODE_BEATIFY_LOG("treeifyed operator model:", op);
         ASSERT(isTree((QueryOperator *) op));
     }
 
@@ -134,8 +136,6 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             return result;
         case PROV_TRANSFORMATION:
             return rewriteTransformationProvenance((QueryOperator *) op);
-        case PROV_NONE:
-            return OP_LCHILD(op);
     }
     return NULL;
 }

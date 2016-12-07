@@ -64,8 +64,6 @@ static void outUpdate(StringInfo str, Update *node);
 static void outNestedSubquery(StringInfo str, NestedSubquery *node);
 static void outTransactionStmt(StringInfo str, TransactionStmt *node);
 static void outWithStmt(StringInfo str, WithStmt *node);
-static void outCreateTable(StringInfo str, CreateTable *node);
-static void outAlterTable(StringInfo str, AlterTable *node);
 
 static void outSelectItem (StringInfo str, SelectItem *node);
 static void writeCommonFromItemFields(StringInfo str, FromItem *node);
@@ -442,8 +440,7 @@ static void
 outInsert(StringInfo str, Insert *node)
 {
     WRITE_NODE_TYPE(INSERT);
-    WRITE_NODE_FIELD(schema);
-    WRITE_STRING_FIELD(insertTableName);
+    WRITE_STRING_FIELD(tableName);
     WRITE_STRING_LIST_FIELD(attrList);
     WRITE_NODE_FIELD(query);
 }
@@ -452,8 +449,7 @@ static void
 outDelete(StringInfo str, Delete *node)
 {
     WRITE_NODE_TYPE(DELETE);
-    WRITE_NODE_FIELD(schema);
-    WRITE_STRING_FIELD(deleteTableName);
+    WRITE_STRING_FIELD(nodeName);
     WRITE_NODE_FIELD(cond);
 }
 
@@ -461,8 +457,7 @@ static void
 outUpdate(StringInfo str, Update *node)
 {
     WRITE_NODE_TYPE(UPDATE);
-    WRITE_NODE_FIELD(schema);
-    WRITE_STRING_FIELD(updateTableName);
+    WRITE_STRING_FIELD(nodeName);
     WRITE_NODE_FIELD(selectClause);
     WRITE_NODE_FIELD(cond);
 }
@@ -480,28 +475,6 @@ outWithStmt(StringInfo str, WithStmt *node)
     WRITE_NODE_TYPE(WITH_STMT);
     WRITE_NODE_FIELD(withViews);
     WRITE_NODE_FIELD(query);
-}
-
-static void
-outCreateTable(StringInfo str, CreateTable *node)
-{
-    WRITE_NODE_TYPE(CREATE_TABLE);
-    WRITE_STRING_FIELD(tableName);
-    WRITE_NODE_FIELD(tableElems);
-    WRITE_NODE_FIELD(constraints);
-    WRITE_NODE_FIELD(query);
-}
-
-static void
-outAlterTable(StringInfo str, AlterTable *node)
-{
-    WRITE_NODE_TYPE(ALTER_TABLE);
-    WRITE_STRING_FIELD(tableName);
-    WRITE_ENUM_FIELD(cmdType, AlterTableStmtType);
-    WRITE_STRING_FIELD(columnName);
-    WRITE_ENUM_FIELD(newColDT, DataType);
-    WRITE_NODE_FIELD(schema);
-    WRITE_NODE_FIELD(beforeSchema);
 }
 
 static void
@@ -584,7 +557,6 @@ outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
 
     WRITE_NODE_FIELD(query);
     WRITE_STRING_LIST_FIELD(selectClause);
-    WRITE_NODE_FIELD(dts);
     WRITE_ENUM_FIELD(provType,ProvenanceType);
     WRITE_ENUM_FIELD(inputType,ProvenanceInputType);
     WRITE_NODE_FIELD(transInfo);
@@ -836,6 +808,7 @@ outAttributeDef (StringInfo str, AttributeDef *node)
 
     WRITE_ENUM_FIELD(dataType, DataType);
     WRITE_STRING_FIELD(attrName);
+    WRITE_INT_FIELD(pos); 
 }
 
 #define WRITE_QUERY_OPERATOR() outQueryOperator(str, (QueryOperator *) node)
@@ -1139,12 +1112,6 @@ outNode(StringInfo str, void *obj)
                 break;
             case T_WithStmt:
                 outWithStmt(str, (WithStmt *) obj);
-                break;
-            case T_CreateTable:
-                outCreateTable(str, (CreateTable *) obj);
-                break;
-            case T_AlterTable:
-                outAlterTable(str, (AlterTable *) obj);
                 break;
 
                 //query operator model nodes
@@ -1801,14 +1768,6 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
     FOREACH(AttributeDef,a,op->schema->attrDefs)
         appendStringInfo(str, "%s%s ", a->attrName,
         		searchListInt(op->provAttrs, pos++) ? "*" : "");
-    appendStringInfoString(str, ")");
-
-    // output data types
-    appendStringInfoString(str, "(");
-
-    FOREACH(AttributeDef,a,op->schema->attrDefs)
-        appendStringInfo(str, "%s ", DataTypeToString(a->dataType));
-
     appendStringInfoString(str, ")");
 
     // output address and parent addresses

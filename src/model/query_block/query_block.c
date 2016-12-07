@@ -235,7 +235,7 @@ Insert *
 createInsert(char *nodeName, Node *query, List *attrs)
 {
     Insert *result = makeNode(Insert);
-    result->insertTableName = nodeName;
+    result->tableName = nodeName;
     result->query = query;
     result->attrList = attrs;
 
@@ -247,7 +247,7 @@ Delete *
 createDelete(char *nodeName, Node *cond)
 {
     Delete *result = makeNode(Delete);
-    result->deleteTableName = nodeName;
+    result->nodeName = nodeName;
     result->cond = cond;
 
     return result;
@@ -258,7 +258,7 @@ Update *
 createUpdate(char *nodeName, List *selectClause, Node *cond)
 {
     Update *result = makeNode(Update);
-    result->updateTableName = nodeName;
+    result->nodeName = nodeName;
     ((Update *) result)->selectClause = selectClause;
     result->cond = cond;
 
@@ -288,61 +288,6 @@ createWithStmt (List *views, Node *query)
 
     result->withViews = views;
     result->query = query;
-
-    return result;
-}
-
-CreateTable *
-createCreateTable (char *tName, List *tableElem)
-{
-    CreateTable *result = makeNode(CreateTable);
-
-    result->tableName = tName;
-    result->tableElems = tableElem;
-    result->query = NULL;
-
-    return result;
-}
-
-CreateTable *
-createCreateTableQuery (char *tName, Node *q)
-{
-    CreateTable *result = makeNode(CreateTable);
-
-    result->tableName = tName;
-    result->tableElems = NIL;
-    result->query = q;
-
-    return result;
-}
-
-
-AlterTable *
-createAlterTableAddColumn (char *tName, char *newColName, char *newColDT)
-{
-    AlterTable *result = makeNode(AlterTable);
-
-    result->tableName = tName;
-    result->cmdType = ALTER_TABLE_ADD_COLUMN;
-    result->columnName = newColName;
-    result->newColDT = SQLdataTypeToDataType(newColDT);
-    result->schema = NIL;
-    result->beforeSchema = NIL;
-
-    return result;
-}
-
-AlterTable *
-createAlterTableRemoveColumn (char *tName, char *colName)
-{
-    AlterTable *result = NEW(AlterTable);
-
-    result->tableName = tName;
-    result->cmdType = ALTER_TABLE_REMOVE_COLUMN;
-    result->columnName = colName;
-    result->newColDT = DT_INT;
-    result->schema = NIL;
-    result->beforeSchema = NIL;
 
     return result;
 }

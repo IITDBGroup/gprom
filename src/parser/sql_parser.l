@@ -200,12 +200,6 @@ strconcat		"||"
 (?i:ANNOTATIONS)	TOK(ANNOTATIONS)
 (?i:NO)				TOK(NO)
 (?i:CAST)			TOK(CAST)
-(?i:ALTER)			TOK(ALTER)
-(?i:ADD)			TOK(ADD)
-(?i:REMOVE)			TOK(REMOVE)
-(?i:COLUMN)			TOK(COLUMN)
-(?i:CREATE)			TOK(CREATE)
-(?i:REENACT)		TOK(REENACT)
 
 	/* booleans */
 {bool}			TOK(boolConst)

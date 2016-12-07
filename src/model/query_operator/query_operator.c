@@ -47,6 +47,7 @@ createAttributeDef (char *name, DataType dt)
 
     result->dataType = dt;
     result->attrName = name;
+    result->pos = 0;
 
     return result;
 }
@@ -384,42 +385,26 @@ getCondOpList(List *l1, List *l2)
 
 
 List *
-getDataTypes(Schema *schema)
+getDataTypes (Schema *schema)
 {
-    return getAttrDataTypes(schema->attrDefs);
+    List *result = NIL;
+
+    FOREACH(AttributeDef,a,schema->attrDefs)
+    result = appendToTailOfListInt(result, a->dataType);
+
+    return result;
 }
-
-
 
 List *
 getAttrNames(Schema *schema)
 {
-    return getAttrDefNames(schema->attrDefs);
-}
-
-List *
-getAttrDefNames(List *defs)
-{
     List *result = NIL;
 
-    FOREACH(AttributeDef,a,defs)
-        result = appendToTailOfList(result, a->attrName);
+    FOREACH(AttributeDef,a,schema->attrDefs)
+    result = appendToTailOfList(result, a->attrName);
 
     return result;
 }
-
-
-List *
-getAttrDataTypes(List *defs)
-{
-    List *result = NIL;
-
-    FOREACH(AttributeDef,a,defs)
-        result = appendToTailOfListInt(result, a->dataType);
-
-    return result;
-}
-
 
 TableAccessOperator *
 createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
@@ -592,13 +577,13 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
 }
 
 ProvenanceComputation *
-createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, List *dts, Node *asOf)
+createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, Node *asOf)
 {
     ProvenanceComputation *p = makeNode(ProvenanceComputation);
 
     p->op.parents = parents;
     p->op.inputs = inputs;
-    p->op.schema = createSchemaFromLists("PROVENANCE", attrNames, dts);
+    p->op.schema = createSchemaFromLists("PROVENANCE", attrNames, NULL);
     p->provType = provType;
     p->asOf = asOf;
 

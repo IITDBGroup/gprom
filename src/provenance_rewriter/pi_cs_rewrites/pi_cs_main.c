@@ -46,8 +46,8 @@ static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 static QueryOperator *rewritePI_CSOrderOp(OrderOperator *op);
 static QueryOperator *rewritePI_CSJsonTableOp(JsonTableOperator *op);
 
-static QueryOperator *addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean showIntermediate);
-static QueryOperator *addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignoreProvAttrs);
+static QueryOperator *addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs);
+static QueryOperator *addIntermediateProvenance (QueryOperator *op, List *userProvAttrs);
 static QueryOperator *rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs);
 static QueryOperator *rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs);
 
@@ -108,24 +108,10 @@ rewritePI_CSOperator (QueryOperator *op)
     boolean rewriteAddProv = HAS_STRING_PROP(op, PROP_ADD_PROVENANCE);
     List *userProvAttrs = (List *) getStringProperty(op, PROP_USER_PROV_ATTRS);
     List *addProvAttrs = NIL;
-    Set *ignoreProvAttrs = (Set *) getStringProperty(op, PROP_PROV_IGNORE_ATTRS);
     QueryOperator *rewrittenOp;
 
     if (rewriteAddProv)
         addProvAttrs = (List *)  GET_STRING_PROP(op, PROP_ADD_PROVENANCE);
-
-    DEBUG_LOG("REWRITE OPERATIONS:\n\tshow intermediates: %s\n\tuse prov: %s"
-            "\n\thas prov: %s\n\tadd prov: %s"
-            "\n\tuser prov attrs: %s"
-            "\n\tadd prov attrs: %s"
-            "\n\tignore prov attrs: %s",
-            showIntermediate ? "T": "F",
-            noRewriteUseProv ? "T": "F",
-            noRewriteHasProv ? "T": "F",
-            rewriteAddProv ? "T": "F",
-            nodeToString(userProvAttrs),
-            nodeToString(addProvAttrs),
-            nodeToString(ignoreProvAttrs));
 
     if (noRewriteUseProv)
         return rewritePI_CSAddProvNoRewrite(op, userProvAttrs);
@@ -171,8 +157,8 @@ rewritePI_CSOperator (QueryOperator *op)
             rewrittenOp = rewritePI_CSOrderOp((OrderOperator *) op);
             break;
         case T_JsonTableOperator:
-            DEBUG_LOG("go JsonTable operator");
-            rewrittenOp = rewritePI_CSJsonTableOp((JsonTableOperator *) op);
+	     DEBUG_LOG("go JsonTable operator");
+	     rewrittenOp = rewritePI_CSJsonTableOp((JsonTableOperator *) op);
 	     break;
         default:
             FATAL_LOG("no rewrite implemented for operator ", nodeToString(op));
@@ -180,10 +166,10 @@ rewritePI_CSOperator (QueryOperator *op)
     }
 
     if (showIntermediate)
-        rewrittenOp = addIntermediateProvenance(rewrittenOp, userProvAttrs, ignoreProvAttrs);
+        rewrittenOp = addIntermediateProvenance(rewrittenOp, userProvAttrs);
 
     if (rewriteAddProv)
-        rewrittenOp = addUserProvenanceAttributes(rewrittenOp, addProvAttrs, showIntermediate);
+        rewrittenOp = addUserProvenanceAttributes(rewrittenOp, addProvAttrs);
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel(rewrittenOp));
@@ -192,7 +178,7 @@ rewritePI_CSOperator (QueryOperator *op)
 }
 
 static QueryOperator *
-addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean showIntermediate)
+addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs)
 {
     QueryOperator *proj;
     List *attrNames = NIL;
@@ -219,19 +205,9 @@ addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean sho
     if (isA(op,TableAccessOperator))
         tableName = ((TableAccessOperator *) op)->tableName;
     else
-    {
-        if (HAS_STRING_PROP(op, PROP_PROV_ADD_REL_NAME))
-        {
-            tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_ADD_REL_NAME));
-        }
-        else
-            tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
-    }
+        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
 
-    if (showIntermediate)
-        relAccessCount = getCurRelNameCount(&nameState, tableName) - 1;
-    else
-        relAccessCount = getRelNameCount(&nameState, tableName);
+    relAccessCount = getRelNameCount(&nameState, tableName);
 
     DEBUG_LOG("REWRITE-PICS - Add Intermediate Provenance Attrs <%s> <%u>",  tableName, relAccessCount);
 
@@ -282,14 +258,13 @@ addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean sho
 }
 
 static QueryOperator *
-addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignoreProvAttrs)
+addIntermediateProvenance (QueryOperator *op, List *userProvAttrs)
 {
     QueryOperator *proj;
     List *attrNames = NIL;
     List *projExpr = NIL;
     List *provAttrPos = NIL;
     List *normalAttrExpr = getNormalAttrProjectionExprs(op);
-    List *temp = NIL;
     int cnt = 0;
     char *newAttrName;
     int relAccessCount;
@@ -306,19 +281,6 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
 
     attrNames = getQueryOperatorAttrNames(op);
     provAttrPos = copyObject(op->provAttrs);
-
-    // remove ignore prov attributes
-    if (ignoreProvAttrs != NULL)
-    {
-        FOREACH(AttributeReference, a, normalAttrExpr)
-        {
-            if (!hasSetElem(ignoreProvAttrs, a->name))
-            {
-                temp = appendToTailOfList(temp, a);
-            }
-        }
-        normalAttrExpr = temp;
-    }
 
     // Get the provenance name for each attribute
     FOREACH(AttributeDef, attr, op->schema->attrDefs)
@@ -339,7 +301,6 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
     List *newProvPosList = NIL;
     CREATE_INT_SEQ(newProvPosList, cnt, cnt + LIST_LENGTH(normalAttrExpr) - 1, 1);
     provAttrPos = CONCAT_LISTS(provAttrPos, newProvPosList);
-
     DEBUG_LOG("add intermediate provenance\n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
             stringListToString(attrNames),
             nodeToString(projExpr),
@@ -349,16 +310,6 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
     proj = (QueryOperator *) createProjectionOp(projExpr, NULL, NIL, attrNames);
     proj->provAttrs = provAttrPos;
 
-    // if there is also PROP_PC_ADD_PROV set then copy over the properties to the new proj op
-    if(HAS_STRING_PROP(op, PROP_ADD_PROVENANCE))
-    {
-        SET_STRING_PROP(proj, PROP_ADD_PROVENANCE,
-                copyObject(GET_STRING_PROP(op, PROP_ADD_PROVENANCE)));
-        SET_STRING_PROP(proj, PROP_PROV_REL_NAME,
-                copyObject(GET_STRING_PROP(op, PROP_PROV_REL_NAME)));
-        SET_STRING_PROP(proj, PROP_PROV_ADD_REL_NAME,
-                copyObject(GET_STRING_PROP(op, PROP_PROV_ADD_REL_NAME)));
-    }
     // Switch the subtree with this newly created projection operator.
     switchSubtreeWithExisting((QueryOperator *) op, (QueryOperator *) proj);
 
@@ -392,7 +343,6 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
         tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
 
     relAccessCount = getRelNameCount(&nameState, tableName);
-
     DEBUG_LOG("REWRITE-PICS - Add Provenance Attrs <%s> <%u>",
             tableName, relAccessCount);
 

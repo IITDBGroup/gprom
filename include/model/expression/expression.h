@@ -201,7 +201,6 @@ extern Constant *createNullConst (DataType dt);
 extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
 extern boolean isConstExpr (Node *expr);
-extern boolean isCondition(Node *expr);
 
 /* casting related */
 extern List *createCasts(Node *lExpr, Node *rExpr);

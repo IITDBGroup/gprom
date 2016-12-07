@@ -100,11 +100,9 @@ boolean opt_translate_update_with_case = FALSE;
 
 // cost based optimization option
 boolean cost_based_optimizer = FALSE;
-boolean cost_based_close_option_removedp_by_set = FALSE;
-int cost_max_considered_plans = 200;
+int cost_max_considered_plans = -1;
 int cost_sim_ann_const = 10;
 int cost_sim_ann_cooldown_rate = 5;
-int cost_based_num_heuristic_opt_iterations = 1;
 
 // optimization options
 boolean opt_optimization_push_selections = FALSE;
@@ -119,7 +117,6 @@ boolean opt_optimization_selection_move_around = FALSE;
 boolean opt_optimization_remove_unnecessary_columns = FALSE;
 boolean opt_optimization_remove_unnecessary_window_operators = FALSE;
 boolean opt_optimization_pull_up_duplicate_remove_operators = FALSE;
-
 
 // sanity check options
 boolean opt_operator_model_unique_schema_attribues = FALSE;
@@ -425,20 +422,12 @@ OptionInfo opts[] =
                 opt_translate_update_with_case,
                 TRUE),
         // Cost Based Optimization Option
-		 {
-				OPTION_COST_BASED_OPTIMIZER,
-				"-cost_based_optimizer",
-				"Activate/Deactivate cost based optimizer",
-				OPTION_BOOL,
-				wrapOptionBool(&cost_based_optimizer),
-				defOptionBool(FALSE)
-		 },
          {
-        		OPTION_COST_BASED_CLOSE_OPTION_REMOVEDP_BY_SET,
-                "-cost_based_close_option_removedp_by_set",
-                "Close cost based remove duplicate remove op by set option",
+                 OPTION_COST_BASED_OPTIMIZER,
+                "-cost_based_optimizer",
+                "Activate/Deactivate cost based optimizer",
                 OPTION_BOOL,
-                wrapOptionBool(&cost_based_close_option_removedp_by_set),
+                wrapOptionBool(&cost_based_optimizer),
                 defOptionBool(FALSE)
          },
          {
@@ -447,7 +436,7 @@ OptionInfo opts[] =
                  "Maximal number of plans considered by cost based optimizer",
                  OPTION_INT,
                  wrapOptionInt(&cost_max_considered_plans),
-                 defOptionInt(200)
+                 defOptionInt(-1)
          },
          {
                  OPTION_COST_BASED_SIMANN_CONST,
@@ -464,14 +453,6 @@ OptionInfo opts[] =
                  OPTION_INT,
                  wrapOptionInt(&cost_sim_ann_cooldown_rate),
                  defOptionFloat(5)
-         },
-         {
-        		 OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS,
-                 "-cost_based_num_heuristic_opt_iterations",
-                 "Cost base number of heuristic optimization iterations",
-                 OPTION_INT,
-                 wrapOptionInt(&cost_based_num_heuristic_opt_iterations),
-                 defOptionInt(1)
          },
         // AGM (Query operator model) individual optimizations
         anOptimizationOption(OPTIMIZATION_SELECTION_PUSHING,

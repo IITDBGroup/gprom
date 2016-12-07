@@ -197,8 +197,8 @@ extern boolean equalStringList (List *a, List *b);
 /* search for elements in list */
 extern boolean searchList(List *list, void *value);
 extern boolean searchListInt(List *list, int value);
-extern boolean searchListNode(List *list, Node *value);
 extern boolean searchListString(List *list, char *value);
+extern boolean searchListNode(List *list, Node *value);
 extern boolean genericSearchList(List *list, boolean (*eq) (void *, void *), void *value);
 
 extern int listPosString (List *list, char *value);

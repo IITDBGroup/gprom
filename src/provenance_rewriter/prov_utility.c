@@ -138,6 +138,7 @@ createProjOnAttrs(QueryOperator *op, List *attrPos)
     ProjectionOperator *p;
     List *projExprs = NIL;
     List *attrNames = NIL;
+//    int i = 0;
 
     FOREACH_INT(i,attrPos)
     {
@@ -148,6 +149,20 @@ createProjOnAttrs(QueryOperator *op, List *attrPos)
         projExprs = appendToTailOfList(projExprs, att);
         attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
     }
+
+//    FOREACH(AttributeDef,a,op->schema->attrDefs)
+//    {
+//        AttributeReference *att;
+//
+//        //TODO use set would be better
+//        if (searchListInt(attrPos, i))
+//        {
+//            att = createFullAttrReference(strdup(a->attrName), 0, i, INVALID_ATTR, a->dataType);
+//            projExprs = appendToTailOfList(projExprs, att);
+//            attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
+//        }
+//        i++;
+//    }
 
     DEBUG_LOG("projection expressions: %s", nodeToString((Node*) projExprs));
 

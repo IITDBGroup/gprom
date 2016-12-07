@@ -72,8 +72,8 @@ processException(void)
         {
             // kill ourselves
             case EXCEPTION_DIE:
-                fprintf(stderr, TBLINK_FG_BG(WHITE,RED,"EXCEPTION") " Handler requested us to die because of exception at " \
-                        TCOL(RED,"(%s:%u) ") "\n\n%s\n",
+                fprintf(stderr, TB_FG_BG(WHITE,BLACK,"EXCEPTION") " Handler requested us to die because of exception at " \
+                        TCOL(RED,"(%s:%u) ") "\n\n%s",
                         file, line, exceptionMessage);
                 exit(1);
                 break;
@@ -89,8 +89,8 @@ processException(void)
         }
         if (severity == SEVERITY_PANIC)
         {
-            fprintf(stderr, TBLINK_FG_BG(WHITE,RED,"EXCEPTION") " Do not know how to recover from this %s exception at " \
-                    TCOL(RED,"(%s:%u) ") "\n\n%s\n",
+            fprintf(stderr, TB_FG_BG(WHITE,BLACK,"EXCEPTION") " Do not know how to recover from this %s exception at " \
+                    TCOL(RED,"(%s:%u) ") "\n\n%s",
                     SEVER_TO_STRING(severity), file, line, exceptionMessage);
             exit(1);
         }
@@ -98,8 +98,8 @@ processException(void)
     // if no exception handler is available then print exception information and exit
     else
     {
-        fprintf(stderr, TBLINK_FG_BG(WHITE,RED,"EXCEPTION") " No handler registered for %s exception that has "
-                "occured at " TCOL(RED,"(%s:%u) ") "\n\n%s\n",
+        fprintf(stderr, TB_FG_BG(WHITE,BLACK,"EXCEPTION") " No handler registered for %s exception that has "
+                "occured at " TCOL(RED,"(%s:%u) ") "\n\n%s",
                     SEVER_TO_STRING(severity), file, line, exceptionMessage);
         exit(1);
     }

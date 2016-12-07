@@ -105,31 +105,15 @@ optimizeOneGraph (QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
 
-    //NEW_AND_ACQUIRE_MEMCONTEXT("HEURISTIC OPTIMIZER CONTEXT");
-//<<<<<<< HEAD
-    int numHeuOptItens = getIntOption(OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS);
-//=======
     NEW_AND_ACQUIRE_MEMCONTEXT("HEURISTIC OPTIMIZER CONTEXT");
 
-//>>>>>>> master
     int res;
+//    res = callback(5);
+//    res = 1;
     int c = 0;
-    if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
-    {
-    	if(numHeuOptItens == 1 || numHeuOptItens < 1) // <1 used to handle numHeuOptItens = 0, smaller than 0 already be handled which will show the help
-    		res = 0;
-    	else
-    	    res = callback(numHeuOptItens);
-    }
-    else
-        res = 0;
-
+//    if(res == -1)
+    	res = 0;
     DEBUG_LOG("callback = %d",res);
-    DEBUG_LOG("numHeuOptItens = %d",numHeuOptItens);
-    INFO_LOG("callback = %d",res);
-    INFO_LOG("numHeuOptItens = %d",numHeuOptItens);
-    ERROR_LOG("callback = %d",res);
-    ERROR_LOG("numHeuOptItens = %d",numHeuOptItens);
     while(c <= res)
     {
     	APPLY_AND_TIME_OPT("factor attributes in conditions",
@@ -1049,18 +1033,19 @@ removeRedundantDuplicateOperatorBySet(QueryOperator *root)
     if (isA(root, DuplicateRemoval) && (GET_BOOL_STRING_PROP(root, PROP_STORE_BOOL_SET) == TRUE))
     {
         // make an optimization choice
-        if (getBoolOption(OPTION_COST_BASED_OPTIMIZER) && !getBoolOption(OPTION_COST_BASED_CLOSE_OPTION_REMOVEDP_BY_SET))
+        if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
         {
             int res = callback(2);
 
             INFO_LOG("res is %d", res);
 
             // only remove if optimizer decides so
-            if (res == 0)
+            if (res == -1)
             {
                 QueryOperator *lChild = OP_LCHILD(root);
                 switchSubtreeWithExisting((QueryOperator *) root, lChild);
                 root = lChild;
+                INFO_LOG("Do remove the guy");
                 return removeRedundantDuplicateOperatorBySet(root);
             }
         }
