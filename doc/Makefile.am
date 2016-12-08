@@ -18,7 +18,7 @@ $(GPROM_MAN_MD): $(GPROM_MAN_HTML)
 $(GPROM_MAN_HTML): $(GPROM_MAN)
 	rman -S -f HTML gprom.man | sed -e 's/[*]*//g' > gprom_man.html
 
-clean-local:
-	rm $(GPROM_MAN_HTML) $(GPROM_MAN_MD)
+CLEAN_FILES = $(GPROM_MAN_HTML) $(GPROM_MAN_MD)
+
 endif
 endif
