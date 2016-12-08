@@ -2,7 +2,7 @@ AM_CPPFLAGS = -I$(top_builddir)/include
 AM_CFLAGS = @GPROM_CFLAGS@
 
 ANT_BUILDFILE=$(top_srcdir)/build.xml
-GPROM_JDBC_JAR=$(top_builddir)/build/gprom-jdbc.jar
+GPROM_JDBC_JAR=$(top_builddir)/jdbcbuild/gprom-jdbc.jar
 GPROM_LIBRARY=$(top_builddir)/src/libgprom/libgprom.la
 JAVA_JDBC_SRC=$(wildcard ./*.java)
 
