@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
 <properties>
-<comment>Why GP questions for Positive Nonrecursive Datalog Test cases</comment>
+<comment>Associate Domain for Datalog Test cases</comment>
 
 <entry key="options">
 plugin.parser=dl,
@@ -15,53 +15,41 @@ Q(X) :- R(X,Y). D(X) :- R(X,Y). WHYNOT(Q(6)). USERDOMAIN OF R.B IS D.
 <entry key="q1.result">
 A0|A1|
 ----------------------------------------
-notREL_R_WON(6,3)|REL_R_LOST(6,3)|
 notREL_R_WON(6,2)|REL_R_LOST(6,2)|
-notREL_R_WON(6,4)|REL_R_LOST(6,4)|
-REL_Q_LOST(6)|RULE_0_WON(6,3)|
-RULE_0_WON(6,3)|GOAL_0_0_LOST(6,3)|
 notREL_Q_WON(6)|REL_Q_LOST(6)|
 RULE_0_WON(6,2)|GOAL_0_0_LOST(6,2)|
-GOAL_0_0_LOST(6,3)|notREL_R_WON(6,3)|
 notREL_R_WON(6,1)|REL_R_LOST(6,1)|
-REL_Q_LOST(6)|RULE_0_WON(6,4)|
 REL_Q_LOST(6)|RULE_0_WON(6,2)|
 GOAL_0_0_LOST(6,1)|notREL_R_WON(6,1)|
-GOAL_0_0_LOST(6,4)|notREL_R_WON(6,4)|
-notREL_R_WON(6,5)|REL_R_LOST(6,5)|
-REL_Q_LOST(6)|RULE_0_WON(6,5)|
 RULE_0_WON(6,1)|GOAL_0_0_LOST(6,1)|
-GOAL_0_0_LOST(6,5)|notREL_R_WON(6,5)|
 GOAL_0_0_LOST(6,2)|notREL_R_WON(6,2)|
 REL_Q_LOST(6)|RULE_0_WON(6,1)|
-RULE_0_WON(6,5)|GOAL_0_0_LOST(6,5)|
-RULE_0_WON(6,4)|GOAL_0_0_LOST(6,4)|
 </entry>
 
 <entry key="q2.query">
 Q(X) :- R(X,Y). D(X) :- R(Y,X). WHYNOT(Q(6)). USERDOMAIN OF R.B IS D.
 </entry>
 <entry key="q2.result">
- A0|A1|
+A0|A1|
 ----------------------------------------
 notREL_R_WON(6,3)|REL_R_LOST(6,3)|
+notREL_R_WON(6,2)|REL_R_LOST(6,2)|
 REL_Q_LOST(6)|RULE_0_WON(6,3)|
 RULE_0_WON(6,3)|GOAL_0_0_LOST(6,3)|
 notREL_Q_WON(6)|REL_Q_LOST(6)|
+RULE_0_WON(6,2)|GOAL_0_0_LOST(6,2)|
 GOAL_0_0_LOST(6,3)|notREL_R_WON(6,3)|
 notREL_R_WON(6,1)|REL_R_LOST(6,1)|
+REL_Q_LOST(6)|RULE_0_WON(6,2)|
 GOAL_0_0_LOST(6,1)|notREL_R_WON(6,1)|
-notREL_R_WON(6,5)|REL_R_LOST(6,5)|
-REL_Q_LOST(6)|RULE_0_WON(6,5)|
 RULE_0_WON(6,1)|GOAL_0_0_LOST(6,1)|
-GOAL_0_0_LOST(6,5)|notREL_R_WON(6,5)|
+GOAL_0_0_LOST(6,2)|notREL_R_WON(6,2)|
 REL_Q_LOST(6)|RULE_0_WON(6,1)|
-RULE_0_WON(6,5)|GOAL_0_0_LOST(6,5)|
 </entry>
 
 
 <entry key="q3.query">
-Q(X) :- hop(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c')). USERDOMAIN OF HOP.O IS D.
+Q(X) :- HOP(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c')). USERDOMAIN OF HOP.B IS D.
 </entry>
 <entry key="q3.result">
 A0|A1|
@@ -82,7 +70,7 @@ REL_Q_LOST(c)|RULE_0_WON(c,b)|
 </entry>
 
 <entry key="q4.query">
-Q(X) :- hop(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c')). USERDOMAIN OF HOP.O IS D.
+Q(X) :- HOP(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c')). USERDOMAIN OF HOP.B IS D.
 </entry>
 <entry key="q4.result">
  A0|A1|
@@ -99,7 +87,7 @@ REL_Q_LOST(c)|RULE_0_WON(c,b)|
 </entry>
 
 <entry key="q5.query">
-Q(X,Y) :- hop(X,Z), hop(Z,Y), not hop(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- HOP(X,Z), HOP(Z,Y), not HOP(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q5.result">
 A0|A1|
@@ -122,7 +110,7 @@ REL_Q_LOST(c,a)|RULE_0_WON(c,a,c)|
 </entry>
 
 <entry key="q6.query">
-Q(X,Y) :- hop(X,Z), hop(Z,Y), not hop(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- HOP(X,Z), HOP(Z,Y), not HOP(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q6.result">
 A0|A1|
@@ -140,7 +128,7 @@ REL_Q_LOST(c,a)|RULE_0_WON(c,a,a)|
 
 <!--  comparison atoms not yet supported -->
 <entry key="q7.query">
-Q(X,Y) :- hop(X,Z), hop(Z,Y), not hop(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- HOP(X,Z), HOP(Z,Y), not HOP(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q7.result">
 A0|A1|
@@ -187,7 +175,7 @@ REL_Q_LOST(c,a)|RULE_0_WON(c,a,c)|
 </entry>
 
 <entry key="q8.query">
-Q(X,Y) :- hop(X,Z), hop(Z,Y), not hop(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- HOP(X,Z), HOP(Z,Y), not HOP(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q8.result">
 A0|A1|
@@ -212,7 +200,7 @@ REL_Q_LOST(c,b)|RULE_0_WON(c,b,b)|
 </entry>
 
 <entry key="q9.query">
-Q(X,Y) :- hop(X,A), Q2(A,Y). Q2(X,Y) :- hop(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- HOP(X,A), Q2(A,Y). Q2(X,Y) :- HOP(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q9.result">
 A0|A1|
@@ -239,7 +227,7 @@ REL_Q_LOST(c,a)|RULE_0_WON(c,a,c)|
 </entry>
 
 <entry key="q10.query">
-Q(X,Y) :- hop(X,A), Q2(A,Y). Q2(X,Y) :- hop(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- HOP(X,A), Q2(A,Y). Q2(X,Y) :- HOP(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q10.result">
 A0|A1|
@@ -256,7 +244,7 @@ REL_Q_LOST(c,a)|RULE_0_WON(c,a,a)|
 </entry>
 
 <entry key="q11.query">
-Q(X,Y) :- hop(X,A), Q2(A,Y). Q2(X,Y) :- hop(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- HOP(X,A), Q2(A,Y). Q2(X,Y) :- HOP(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q11.result">
 A0|A1|
@@ -323,7 +311,7 @@ GOAL_1_0_LOST(c,b)|notREL_HOP_WON(c,b)|
 </entry>
 
 <entry key="q12.query">
-Q(X,Y) :- hop(X,A), Q2(A,Y). Q2(X,Y) :- hop(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- HOP(X,A), Q2(A,Y). Q2(X,Y) :- HOP(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q12.result">
 A0|A1|
@@ -352,7 +340,7 @@ notREL_Q2_WON(b,b)|REL_Q2_LOST(b,b)|
 </entry>
 
 <entry key="q13.query">
-Q(X,Y) :- hop(X,A), Q2(A,Y). Q2(X,Y) :- hop(X,A), hop(A,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- HOP(X,A), Q2(A,Y). Q2(X,Y) :- HOP(X,A), HOP(A,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q13.result">
 A0|A1|
@@ -387,7 +375,7 @@ REL_Q2_LOST(c,a)|RULE_1_WON(c,a,b)|
 </entry>
 
 <entry key="q14.query">
-Q(X,Y) :- hop(X,A), Q2(A,Y). Q2(X,Y) :- hop(X,A), hop(A,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- HOP(X,A), Q2(A,Y). Q2(X,Y) :- HOP(X,A), HOP(A,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q14.result">
 A0|A1|
@@ -404,7 +392,7 @@ REL_Q_LOST(c,a)|RULE_0_WON(c,a,a)|
 </entry>
 
 <entry key="q15.query">
-Q(X,Y) :- hop(X,A), Q2(A,Y). Q2(X,Y) :- hop(X,A), hop(A,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- HOP(X,A), Q2(A,Y). Q2(X,Y) :- HOP(X,A), HOP(A,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q15.result">
 A0|A1|
@@ -491,7 +479,7 @@ REL_Q2_LOST(c,a)|RULE_1_WON(c,a,b)|
 </entry>
 
 <entry key="q16.query">
-Q(X,Y) :- hop(X,A), Q2(A,Y). Q2(X,Y) :- hop(X,A), hop(A,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- HOP(X,A), Q2(A,Y). Q2(X,Y) :- HOP(X,A), HOP(A,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q16.result">
 A0|A1|
@@ -513,7 +501,7 @@ REL_Q_LOST(c,b)|RULE_0_WON(c,b,b)|
 </entry>
 
 <entry key="q17.query">
-Q(X,Y) :- Q2(X,Y). Q2(C,D) :- hop(C,D). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- Q2(X,Y). Q2(C,D) :- HOP(C,D). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q17.result">
 A0|A1|
@@ -530,7 +518,7 @@ GOAL_0_0_LOST(c,a)|notREL_Q2_WON(c,a)|
 </entry>
 
 <entry key="q18.query">
-Q(X,Y) :- Q2(X,Y). Q2(C,D) :- hop(C,D). D(X) :- HOP(X,Y). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- Q2(X,Y). Q2(C,D) :- HOP(C,D). D(X) :- HOP(X,Y). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q18.result">
 A0|A1|
@@ -547,7 +535,7 @@ GOAL_0_0_LOST(c,a)|notREL_Q2_WON(c,a)|
 </entry>
 
 <entry key="q19.query">
-Q(X,Y) :- Q2(X,Y). Q2(C,D) :- hop(C,D). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- Q2(X,Y). Q2(C,D) :- HOP(C,D). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q19.result">
 A0|A1|
@@ -582,7 +570,7 @@ GOAL_1_0_LOST(c,b)|notREL_HOP_WON(c,b)|
 </entry>
 
 <entry key="q20.query">
-Q(X,Y) :- Q2(X,Y). Q2(C,D) :- hop(C,D). D(X) :- HOP(X,Y). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X,Y) :- Q2(X,Y). Q2(C,D) :- HOP(C,D). D(X) :- HOP(X,Y). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q20.result">
 A0|A1|
@@ -608,7 +596,7 @@ GOAL_1_0_LOST(c,b)|notREL_HOP_WON(c,b)|
 </entry>
 
 <entry key="q21.query">
-Q(X) :- Q2(X,Y). Q2(X,Y) :- hop(X,A), hop(A,Z), hop(Z,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c')). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X) :- Q2(X,Y). Q2(X,Y) :- HOP(X,A), HOP(A,Z), HOP(Z,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q21.result">
 A0|A1|
@@ -731,7 +719,7 @@ REL_Q2_LOST(c,a)|RULE_1_WON(c,a,c,b)|
 </entry>
 
 <entry key="q22.query">
-Q(X) :- Q2(X,Y). Q2(X,Y) :- hop(X,A), hop(A,Z), hop(Z,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c')). USERDOMAIN OF HOP.O IS D. USERDOMAIN OF HOP.I IS D.
+Q(X) :- Q2(X,Y). Q2(X,Y) :- HOP(X,A), HOP(A,Z), HOP(Z,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
 <entry key="q22.result">
 A0|A1|
