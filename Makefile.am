@@ -38,6 +38,8 @@ EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
 	$(top_srcdir)/scripts/dev/*.sh \
 	$(top_srcdir)/examples \
 	$(top_builddir)/doc/gprom.man \
+	$(top_builddir)/doc/gprom_man.html \
+	$(top_builddir)/doc/gprom_man.md \
 	$(top_builddir)/javatest \
 	$(top_srcdir)/blackboxtests/build.xml \
 	$(top_srcdir)/blackboxtests/testcases/*.xml \
