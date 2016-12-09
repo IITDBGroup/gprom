@@ -3,6 +3,15 @@ AM_CFLAGS = @GPROM_CFLAGS@
 
 man1_MANS				= gprom.man
 
+BUILD_SOURCES=create-html
+
+.PHONY = create-html
+
+create-html:
+	@if test -f gprom_man.html; then :; else \
+		rman -S -f HTML gprom.man | sed -e 's/[*]*//g' > gprom_man.html \
+	fi
+
 GPROM_MAN=gprom.man
 GPROM_MAN_HTML=gprom_man.html
 GPROM_MAN_MD=gprom_man.md
