@@ -14,8 +14,11 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
 	#make distcheck
 # LINUX	
 else
-	make dist
-	export DISTCHECK_CONFIGURE_FLAGS="--disable-postgres" && make distcheck
+	_DISTRIBUTION=`lsb_release -rs`
+	if [[ $_DISTRIBUTION != '12.04' ]]; then
+		make dist
+		export DISTCHECK_CONFIGURE_FLAGS="--disable-postgres" && make distcheck
+	fi
 fi
 
 popd > /dev/null
