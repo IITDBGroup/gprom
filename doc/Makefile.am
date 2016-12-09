@@ -3,6 +3,11 @@ AM_CFLAGS = @GPROM_CFLAGS@
 
 man1_MANS				= gprom.man
 
+GPROM_MAN=gprom.man
+GPROM_MAN_HTML=gprom_man.html
+GPROM_MAN_MD=gprom_man.md
+
+CLEANFILES = $(GPROM_MAN_HTML) $(GPROM_MAN_MD)
 
 if HAVE_PROG_RMAN 
 
@@ -18,11 +23,6 @@ create-html:
 
 endif
 
-GPROM_MAN=gprom.man
-GPROM_MAN_HTML=gprom_man.html
-GPROM_MAN_MD=gprom_man.md
-
-CLEANFILES = $(GPROM_MAN_HTML) $(GPROM_MAN_MD)
 
 # create markdown page from gprom manual page
 if HAVE_PROG_PANDOC
@@ -30,7 +30,10 @@ if HAVE_PROG_RMAN
 all-local: $(GPROM_MAN_MD)
 
 $(GPROM_MAN_MD): $(GPROM_MAN_HTML)
-	pandoc -f html -t markdown_github $(GPROM_MAN_HTML) -o $(GPROM_MAN_MD)
+	result=`pandoc -f html -t markdown_github $(GPROM_MAN_HTML) -o $(GPROM_MAN_MD)`
+	@if test -f $(GPROM_MAN_MD); then :; else \
+		pandoc -f html -t markdown $(GPROM_MAN_HTML) -o $(GPROM_MAN_MD); \
+	fi
 
 $(GPROM_MAN_HTML): $(GPROM_MAN)
 	rman -S -f HTML $(GPROM_MAN) | sed -e 's/[*]*//g' > $(GPROM_MAN_HTML)
