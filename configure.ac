@@ -428,7 +428,7 @@ AS_CASE(["$enable_postgres"],
   AC_CHECK_HEADERS([libpq-fe.h])
 # check for the libpq library
   AC_CHECK_LIB([pq],[PQconndefaults],[],[
-    AC_MSG_ERROR([missing libpq library - if you want to compile without Oracle backend support use --disable-postgres])
+    AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
   ])  
   ]
 )
