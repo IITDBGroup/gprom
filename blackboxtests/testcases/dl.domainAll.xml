@@ -10,48 +10,9 @@ plugin.translator=dl
 </entry>
 
 <entry key="q1.query">
-Q(X) :- R(X,Y). D(X) :- R(X,Y). WHYNOT(Q(6)). USERDOMAIN OF R.B IS D.
-</entry>
-<entry key="q1.result">
-A0|A1|
-----------------------------------------
-notREL_R_WON(6,2)|REL_R_LOST(6,2)|
-notREL_Q_WON(6)|REL_Q_LOST(6)|
-RULE_0_WON(6,2)|GOAL_0_0_LOST(6,2)|
-notREL_R_WON(6,1)|REL_R_LOST(6,1)|
-REL_Q_LOST(6)|RULE_0_WON(6,2)|
-GOAL_0_0_LOST(6,1)|notREL_R_WON(6,1)|
-RULE_0_WON(6,1)|GOAL_0_0_LOST(6,1)|
-GOAL_0_0_LOST(6,2)|notREL_R_WON(6,2)|
-REL_Q_LOST(6)|RULE_0_WON(6,1)|
-</entry>
-
-<entry key="q2.query">
-Q(X) :- R(X,Y). D(X) :- R(Y,X). WHYNOT(Q(6)). USERDOMAIN OF R.B IS D.
-</entry>
-<entry key="q2.result">
-A0|A1|
-----------------------------------------
-notREL_R_WON(6,3)|REL_R_LOST(6,3)|
-notREL_R_WON(6,2)|REL_R_LOST(6,2)|
-REL_Q_LOST(6)|RULE_0_WON(6,3)|
-RULE_0_WON(6,3)|GOAL_0_0_LOST(6,3)|
-notREL_Q_WON(6)|REL_Q_LOST(6)|
-RULE_0_WON(6,2)|GOAL_0_0_LOST(6,2)|
-GOAL_0_0_LOST(6,3)|notREL_R_WON(6,3)|
-notREL_R_WON(6,1)|REL_R_LOST(6,1)|
-REL_Q_LOST(6)|RULE_0_WON(6,2)|
-GOAL_0_0_LOST(6,1)|notREL_R_WON(6,1)|
-RULE_0_WON(6,1)|GOAL_0_0_LOST(6,1)|
-GOAL_0_0_LOST(6,2)|notREL_R_WON(6,2)|
-REL_Q_LOST(6)|RULE_0_WON(6,1)|
-</entry>
-
-
-<entry key="q3.query">
 Q(X) :- HOP(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c')). USERDOMAIN OF HOP.B IS D.
 </entry>
-<entry key="q3.result">
+<entry key="q1.result">
 A0|A1|
 ----------------------------------------
 notREL_HOP_WON(c,c)|REL_HOP_LOST(c,c)|
@@ -69,10 +30,10 @@ notREL_Q_WON(c)|REL_Q_LOST(c)|
 REL_Q_LOST(c)|RULE_0_WON(c,b)|
 </entry>
 
-<entry key="q4.query">
+<entry key="q2.query">
 Q(X) :- HOP(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c')). USERDOMAIN OF HOP.B IS D.
 </entry>
-<entry key="q4.result">
+<entry key="q2.result">
  A0|A1|
 ----------------------------------------
 notREL_HOP_WON(c,a)|REL_HOP_LOST(c,a)|
@@ -86,10 +47,10 @@ notREL_Q_WON(c)|REL_Q_LOST(c)|
 REL_Q_LOST(c)|RULE_0_WON(c,b)|
 </entry>
 
-<entry key="q5.query">
+<entry key="q3.query">
 Q(X,Y) :- HOP(X,Z), HOP(Z,Y), not HOP(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
-<entry key="q5.result">
+<entry key="q3.result">
 A0|A1|
 ----------------------------------------
 RULE_0_WON(c,a,c)|GOAL_0_0_LOST(c,c)|
@@ -109,10 +70,10 @@ REL_Q_LOST(c,a)|RULE_0_WON(c,a,a)|
 REL_Q_LOST(c,a)|RULE_0_WON(c,a,c)|
 </entry>
 
-<entry key="q6.query">
+<entry key="q4.query">
 Q(X,Y) :- HOP(X,Z), HOP(Z,Y), not HOP(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
-<entry key="q6.result">
+<entry key="q4.result">
 A0|A1|
 ----------------------------------------
 RULE_0_WON(c,a,a)|GOAL_0_0_LOST(c,a)|
@@ -127,10 +88,10 @@ REL_Q_LOST(c,a)|RULE_0_WON(c,a,a)|
 </entry>
 
 <!--  comparison atoms not yet supported -->
-<entry key="q7.query">
+<entry key="q5.query">
 Q(X,Y) :- HOP(X,Z), HOP(Z,Y), not HOP(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
-<entry key="q7.result">
+<entry key="q5.result">
 A0|A1|
 ----------------------------------------
 notREL_HOP_WON(b,b)|REL_HOP_LOST(b,b)|
@@ -174,10 +135,10 @@ REL_Q_LOST(c,b)|RULE_0_WON(c,b,c)|
 REL_Q_LOST(c,a)|RULE_0_WON(c,a,c)|
 </entry>
 
-<entry key="q8.query">
+<entry key="q6.query">
 Q(X,Y) :- HOP(X,Z), HOP(Z,Y), not HOP(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
-<entry key="q8.result">
+<entry key="q6.result">
 A0|A1|
 ----------------------------------------
 notREL_HOP_WON(b,b)|REL_HOP_LOST(b,b)|
@@ -199,10 +160,10 @@ REL_Q_LOST(c,a)|RULE_0_WON(c,a,a)|
 REL_Q_LOST(c,b)|RULE_0_WON(c,b,b)|
 </entry>
 
-<entry key="q9.query">
+<entry key="q7.query">
 Q(X,Y) :- HOP(X,A), Q2(A,Y). Q2(X,Y) :- HOP(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
-<entry key="q9.result">
+<entry key="q7.result">
 A0|A1|
 ----------------------------------------
 RULE_0_WON(c,a,c)|GOAL_0_0_LOST(c,c)|
@@ -226,10 +187,10 @@ REL_Q2_LOST(c,a)|RULE_1_WON(c,a)|
 REL_Q_LOST(c,a)|RULE_0_WON(c,a,c)|
 </entry>
 
-<entry key="q10.query">
+<entry key="q8.query">
 Q(X,Y) :- HOP(X,A), Q2(A,Y). Q2(X,Y) :- HOP(X,Y). D(X) :- HOP(X,Y). WHYNOT(Q('c','a')). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
-<entry key="q10.result">
+<entry key="q8.result">
 A0|A1|
 ----------------------------------------
 RULE_0_WON(c,a,a)|GOAL_0_0_LOST(c,a)|
@@ -243,10 +204,10 @@ GOAL_0_0_LOST(c,b)|notREL_HOP_WON(c,b)|
 REL_Q_LOST(c,a)|RULE_0_WON(c,a,a)|
 </entry>
 
-<entry key="q11.query">
+<entry key="q9.query">
 Q(X,Y) :- HOP(X,A), Q2(A,Y). Q2(X,Y) :- HOP(X,Y). D(X) :- HOP(X,Y). D(X) :- HOP(Y,X). WHYNOT(Q('c',Y)). USERDOMAIN OF HOP.B IS D. USERDOMAIN OF HOP.A IS D.
 </entry>
-<entry key="q11.result">
+<entry key="q9.result">
 A0|A1|
 ----------------------------------------
 notREL_HOP_WON(b,b)|REL_HOP_LOST(b,b)|
@@ -308,6 +269,44 @@ REL_Q2_LOST(c,c)|RULE_1_WON(c,c)|
 REL_Q2_LOST(c,b)|RULE_1_WON(c,b)|
 RULE_1_WON(c,b)|GOAL_1_0_LOST(c,b)|
 GOAL_1_0_LOST(c,b)|notREL_HOP_WON(c,b)|
+</entry>
+
+<entry key="q10.query">
+Q(X) :- R(X,Y). D(X) :- R(X,Y). WHYNOT(Q(6)). USERDOMAIN OF R.B IS D.
+</entry>
+<entry key="q10.result">
+A0|A1|
+----------------------------------------
+notREL_R_WON(6,2)|REL_R_LOST(6,2)|
+notREL_Q_WON(6)|REL_Q_LOST(6)|
+RULE_0_WON(6,2)|GOAL_0_0_LOST(6,2)|
+notREL_R_WON(6,1)|REL_R_LOST(6,1)|
+REL_Q_LOST(6)|RULE_0_WON(6,2)|
+GOAL_0_0_LOST(6,1)|notREL_R_WON(6,1)|
+RULE_0_WON(6,1)|GOAL_0_0_LOST(6,1)|
+GOAL_0_0_LOST(6,2)|notREL_R_WON(6,2)|
+REL_Q_LOST(6)|RULE_0_WON(6,1)|
+</entry>
+
+<entry key="q11.query">
+Q(X) :- R(X,Y). D(X) :- R(Y,X). WHYNOT(Q(6)). USERDOMAIN OF R.B IS D.
+</entry>
+<entry key="q11.result">
+A0|A1|
+----------------------------------------
+notREL_R_WON(6,3)|REL_R_LOST(6,3)|
+notREL_R_WON(6,2)|REL_R_LOST(6,2)|
+REL_Q_LOST(6)|RULE_0_WON(6,3)|
+RULE_0_WON(6,3)|GOAL_0_0_LOST(6,3)|
+notREL_Q_WON(6)|REL_Q_LOST(6)|
+RULE_0_WON(6,2)|GOAL_0_0_LOST(6,2)|
+GOAL_0_0_LOST(6,3)|notREL_R_WON(6,3)|
+notREL_R_WON(6,1)|REL_R_LOST(6,1)|
+REL_Q_LOST(6)|RULE_0_WON(6,2)|
+GOAL_0_0_LOST(6,1)|notREL_R_WON(6,1)|
+RULE_0_WON(6,1)|GOAL_0_0_LOST(6,1)|
+GOAL_0_0_LOST(6,2)|notREL_R_WON(6,2)|
+REL_Q_LOST(6)|RULE_0_WON(6,1)|
 </entry>
 
 <entry key="q12.query">
@@ -768,21 +767,6 @@ RULE_1_WON(c,b,a,a)|GOAL_1_0_LOST(c,a)|
 GOAL_1_0_LOST(c,b)|notREL_HOP_WON(c,b)|
 RULE_1_WON(c,b,b,b)|GOAL_1_2_LOST(b,b)|
 GOAL_1_2_LOST(c,b)|notREL_HOP_WON(c,b)|
-</entry>
-
-<entry key="q23.query">
-</entry>
-<entry key="q23.result">
-</entry>
-
-<entry key="q24.query">
-</entry>
-<entry key="q24.result">
-</entry>
-
-<entry key="q25.query">
-</entry>
-<entry key="q25.result">
 </entry>
 
 <entry key="q.query">
