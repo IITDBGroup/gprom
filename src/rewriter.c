@@ -32,6 +32,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "execution/executor.h"
+#include "provenance_rewriter/prov_utility.h"
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
@@ -41,6 +42,7 @@
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
+static Node *rewriteSummaryOutput (Node *rewrittenTree);
 
 int
 initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[])
@@ -447,6 +449,12 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	            rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
 
 	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
+
+
+	    // rewrite for summarization
+	    ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) rewrittenTree);
+		if (ps->summaryType != NULL && parents != NIL)
+			rewrittenTree = rewriteSummaryOutput(rewrittenTree);
 	}
 
 	START_TIMER("SQLcodeGen");
@@ -497,4 +505,138 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     	rewrittenSQL = generatePlan(oModel, applyOptimizations);
 
     return rewrittenSQL;
+}
+
+static Node *
+rewriteSummaryOutput (Node *rewrittenTree)
+{
+	List *inputs = NIL;
+	List *attrNames = NIL;
+
+	QueryOperator *transInput = (QueryOperator *) getHeadOfListP(parents);
+	QueryOperator *prov = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
+
+	int pos = 0;
+	List *projExpr = NIL;
+	ProjectionOperator *op;
+
+	// create projection for having only prov attrs
+	// TODO: cause error as the attributes are shortened
+//	FOREACH(AttributeDef,p,parentsAttrs)
+//	{
+//		projExpr = appendToTailOfList(projExpr,
+//				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+//		pos++;
+//
+//	}
+//	DEBUG_LOG("projection expressions for prov attrs: %s", projExpr);
+//
+//	op = createProjectionOp(projExpr, prov, NIL, NIL);
+//	prov = (QueryOperator *) op;
+//
+//	prov->schema->attrDefs = NIL;
+//	addProvenanceAttrsToSchema(prov, OP_LCHILD(prov));
+
+
+//	// create const rel
+//	QueryOperator *hasProv = (QueryOperator *) createConstRelOp(singleton(createConstString("1")), NIL,
+//					deepCopyStringList(singleton(strdup("HAS_PROV"))), NIL);
+//
+//	List *joinList = LIST_MAKE(prov,hasProv);
+//	attrNames = concatTwoLists(getAttrNames(prov->schema), getAttrNames(hasProv->schema));
+//
+//	QueryOperator *com = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, joinList, NIL, attrNames);
+//
+//	hasProv->parents = singleton(com);
+//	prov->parents = singleton(com);
+////			prov = com;
+
+//	prov->schema->attrDefs = removeListElementsFromAnotherList(transInput->schema->attrDefs,prov->schema->attrDefs);
+
+	FOREACH(AttributeDef,p,prov->schema->attrDefs)
+	{
+		projExpr = appendToTailOfList(projExpr,
+				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+		pos++;
+	}
+	projExpr = appendToTailOfList(projExpr,createConstInt(1));
+
+	// add an attrubute for prov
+	int attrPos = LIST_LENGTH(projExpr) - 1;
+	AttributeDef *hasProv = (AttributeDef *) createFullAttrReference(strdup("HAS_PROV"), 0, attrPos, 0, DT_INT);
+
+	List *newAttrs = concatTwoLists(getAttrNames(prov->schema),singleton(hasProv->attrName));
+	op = createProjectionOp(projExpr, prov, NIL, newAttrs);
+
+	prov->parents = singleton(op);
+	prov = (QueryOperator *) op;
+
+	// create join condition
+	Node *curCond = NULL;
+	Node *joinCond;
+	int aPos = 0;
+
+	FOREACH(AttributeDef,attrs,transInput->schema->attrDefs)
+	{
+		char *a = attrs->attrName;
+
+		Node *attrCond;
+		AttributeReference *lA, *rA;
+
+		lA = createFullAttrReference(strdup(a), 0, aPos, 0, attrs->dataType);
+
+		char *a2 = STRING_VALUE(getNthOfListP(parentsAttrs,aPos));
+		int rPos = aPos + LIST_LENGTH(transInput->schema->attrDefs);
+
+		if(strcmp(a,a2) == 0)
+			FATAL_LOG("USING join is using ambiguous attribute references <%s>", a);
+		else
+			rA = createFullAttrReference(strdup(a2), 1, rPos, 0, attrs->dataType);
+
+		aPos++;
+
+		// create equality condition and update global condition
+		attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+		curCond = AND_EXPRS(attrCond,curCond);
+	}
+
+	joinCond = curCond;
+	inputs = LIST_MAKE(transInput,prov);
+
+	// create join operator
+//	List *distAttrs = removeListElementsFromAnotherList(getAttrNames(transInput->schema), getAttrNames(prov->schema));
+	attrNames = concatTwoLists(getAttrNames(transInput->schema), getAttrNames(prov->schema));
+	QueryOperator *r = (QueryOperator *) createJoinOp(JOIN_LEFT_OUTER, joinCond, inputs, NIL, attrNames);
+
+	// set the parent of the operator's children
+	OP_LCHILD(r)->parents = OP_RCHILD(r)->parents = singleton(r);
+
+	// create projection for join
+	projExpr = NIL;
+	pos = 0;
+
+	FOREACH(AttributeDef,a,r->schema->attrDefs)
+	{
+		projExpr = appendToTailOfList(projExpr,
+				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+		pos++;
+	}
+	DEBUG_LOG("projection expressions for join: %s", projExpr);
+
+	op = createProjectionOp(projExpr, r, NIL, getAttrNames(r->schema));
+//	addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(prov));
+	r->parents = singleton(op);
+	r = (QueryOperator *) op;
+
+	// create duplicate removal
+	QueryOperator *dr = (QueryOperator *) createDuplicateRemovalOp(projExpr, r, NIL, getAttrNames(r->schema));
+	r->parents = singleton(dr);
+	r = (QueryOperator *) dr;
+
+	rewrittenTree = (Node *) r;
+
+	DEBUG_NODE_BEATIFY_LOG("rewritten query for summarization returned:", rewrittenTree);
+	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
+
+	return rewrittenTree;
 }

@@ -44,6 +44,7 @@ typedef struct ReplaceGroupByState {
 
 // function declarations
 static Node *translateGeneral(Node *node);
+//static Node *translateSummary(Node *input, Node *node);
 
 /* Three branches of translating a Query */
 static QueryOperator *translateSetQuery(SetQuery *sq);
@@ -160,17 +161,73 @@ static Node *
 translateGeneral (Node *node)
 {
     Node *result;
+    QueryOperator *r;
 
     if (isA(node, List))
     {
         result = (Node *) copyList((List *) node);
         FOREACH(Node,stmt,(List *) result)
-            stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+        {
+            ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
+
+            if(prov->summaryType == NULL)
+                stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+            else
+            {
+            	QueryOperator *transInput = translateQueryBlock((QueryBlock *) prov->query);
+
+            	r = translateQueryOracle(stmt);
+            	r->parents = singleton(transInput);
+
+            	stmt_his_cell->data.ptr_value = (Node *) r;
+            }
+        }
     }
     else
-        result = (Node *) translateQueryOracle(node);
+    {
+        ProvenanceStmt *prov = (ProvenanceStmt *) node;
+
+        if(prov->summaryType == NULL)
+        	result = (Node *) translateQueryOracle(node);
+        else
+        {
+        	QueryOperator *transInput = translateQueryBlock((QueryBlock *) prov->query);
+
+        	r = translateQueryOracle(node);
+        	r->parents = singleton(transInput);
+
+        	result = (Node *) r;
+        }
+    }
+
     return result;
 }
+//
+//static Node *
+//translateSummary (Node *input, Node *node)
+//{
+//    Node *result;
+//
+//    ProvenanceStmt *inputStmt = (ProvenanceStmt *) input;
+//	QueryOperator *transInput = translateQueryBlock((QueryBlock *) inputStmt->query);
+////    prov->selectClause = appendToHeadOfList(prov->selectClause, createConstString("1"));
+//
+////    // create join operator
+////    List *inputs = NIL;
+////    QueryOperator *prov = (QueryOperator *) node;
+////	inputs = LIST_MAKE(transInput,prov);
+////
+////	List *attrNames = concatTwoLists(getAttrNames(transInput->schema),getAttrNames(prov->schema));
+////    QueryOperator *r = (QueryOperator *) createJoinOp(JOIN_LEFT_OUTER, NULL, inputs, NIL, attrNames);
+//
+////    addChildOperator(r,transInput);
+////    addChildOperator(r,prov);
+//
+//	transInput->parents = singleton(node);
+//
+//    result = (Node *) transInput;
+//    return result;
+//}
 
 static QueryOperator *
 translateSetQuery(SetQuery *sq)
@@ -699,7 +756,7 @@ buildJoinTreeFromOperatorList(List *opList)
             /* get data types from inputs and attribute names from parameter
              * to create schema */
             List *l1 = getDataTypes(oldRoot->schema);
-	    List *l2 = getDataTypes(op->schema);
+            List *l2 = getDataTypes(op->schema);
             op->schema = createSchemaFromLists(op->schema->name, attrNames, concatTwoLists(l1, l2));
 
             root = op;
@@ -709,8 +766,8 @@ buildJoinTreeFromOperatorList(List *opList)
             QueryOperator *oldRoot = (QueryOperator *) root;
             List *inputs = NIL;
             // set children of the join node
-	    inputs = appendToTailOfList(inputs, oldRoot);
-	    inputs = appendToTailOfList(inputs, op);
+			inputs = appendToTailOfList(inputs, oldRoot);
+			inputs = appendToTailOfList(inputs, op);
 
             // contact children's attribute names as the node's attribute
             // names
@@ -720,7 +777,7 @@ buildJoinTreeFromOperatorList(List *opList)
             root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
 
             // set the parent of the operator's children
-	    OP_LCHILD(root)->parents = singleton(root);
+            OP_LCHILD(root)->parents = singleton(root);
             OP_RCHILD(root)->parents = singleton(root);
         }
     }

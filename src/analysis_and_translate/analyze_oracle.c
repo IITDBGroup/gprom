@@ -1654,9 +1654,17 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 //            }
 
             getQBProvenanceAttrList(q,&provAttrNames,&provDts);
-            q->selectClause = concatTwoLists(q->selectClause,
-                    provAttrNames);
-            q->dts = concatTwoLists(q->dts,provDts);
+
+            if(q->summaryType == NULL)
+            {
+            	q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
+                q->dts = concatTwoLists(q->dts,provDts);
+            }
+            else
+            {
+            	q->selectClause = provAttrNames;
+                q->dts = provDts;
+            }
         }
         break;
         case PROV_INPUT_TIME_INTERVAL:

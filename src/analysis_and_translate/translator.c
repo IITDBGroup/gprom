@@ -44,7 +44,7 @@ static TranslatorPlugin *assembleDummyPlugin(void);
 
 static Node *echoNode (Node *in);
 static QueryOperator *echoNodeAsQB (Node *in);
-
+//List *parents = NIL;
 
 Node *
 translateParse(Node *q)
@@ -56,6 +56,18 @@ translateParse(Node *q)
     NEW_AND_ACQUIRE_MEMCONTEXT("TRANSLATOR_CONTEXT");
     analyzeParseModel(q);
     result = plugin->translateParse(q);
+
+    //TODO: temporarily store translated input query
+    parents = NIL;
+    parentsAttrs = NIL;
+
+    QueryOperator *input = (QueryOperator *) getHeadOfListP((List *) result);
+
+    if(input->parents != NIL)
+    	parents = input->parents;
+
+    if(input->schema->attrDefs != NIL)
+    	parentsAttrs = input->schema->attrDefs;
 
     FREE_MEM_CONTEXT_AND_RETURN_COPY(Node,result);
 }
