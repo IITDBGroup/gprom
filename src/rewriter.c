@@ -652,10 +652,25 @@ rewriteSummaryOutput (Node *rewrittenTree)
 	DEBUG_LOG("projection expressions for join: %s", projExpr);
 
 //	attrNames = concatLists(getAttrNames(transInput->schema), getAttrDefNames(parentsAttrs), singleton(hasProv->attrName));
-	attrNames = concatLists(getAttrNames(transInput->schema), getAttrNames(prov->schema), singleton(hasProv->attrName));
+	attrNames = concatTwoLists(getAttrNames(transInput->schema), getAttrNames(prov->schema));
 	op = createProjectionOp(projExpr, provJoin, NIL, attrNames);
 	provJoin->parents = singleton(op);
 	provJoin = (QueryOperator *) op;
+
+//	// Additional projection for removing duplicate attributes
+//	projExpr = NIL;
+//	pos = LIST_LENGTH(transInput->schema->attrDefs);
+//
+//	FOREACH(AttributeDef,a,prov->schema->attrDefs)
+//	{
+//		projExpr = appendToTailOfList(projExpr,
+//				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+//		pos++;
+//	}
+//
+//	op = createProjectionOp(projExpr, provJoin, NIL, getAttrNames(prov->schema));
+//	provJoin->parents = singleton(op);
+//	provJoin = (QueryOperator *) op;
 
 	// create duplicate removal
 	QueryOperator *dr = (QueryOperator *) createDuplicateRemovalOp(projExpr, provJoin, NIL, getAttrNames(provJoin->schema));
