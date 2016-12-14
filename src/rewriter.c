@@ -553,6 +553,19 @@ rewriteSummaryOutput (Node *rewrittenTree)
 
 //	prov->schema->attrDefs = removeListElementsFromAnotherList(transInput->schema->attrDefs,prov->schema->attrDefs);
 
+
+	QueryOperator *origProv = prov;
+
+	// create selection for user prov question
+	// TODO: temporary where clause (apply from parse)
+	AttributeReference *lC = createFullAttrReference(strdup("A"), 0, 0, 0, DT_INT);
+	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(2)));
+
+	SelectionOperator *so = createSelectionOp(whereClause, prov, NIL, getAttrNames(prov->schema));
+	prov->parents = singleton(so);
+	prov = (QueryOperator *) so;
+
+	// create projection for adding "HAS_PROV" attribute
 	FOREACH(AttributeDef,p,prov->schema->attrDefs)
 	{
 		projExpr = appendToTailOfList(projExpr,
@@ -561,8 +574,8 @@ rewriteSummaryOutput (Node *rewrittenTree)
 	}
 	projExpr = appendToTailOfList(projExpr,createConstInt(1));
 
-	// add an attrubute for prov
-	int attrPos = LIST_LENGTH(projExpr) - 1;
+	// add an attribute for prov
+	int attrPos = LIST_LENGTH(transInput->schema->attrDefs) + LIST_LENGTH(prov->schema->attrDefs);
 	AttributeDef *hasProv = (AttributeDef *) createFullAttrReference(strdup("HAS_PROV"), 0, attrPos, 0, DT_INT);
 
 	List *newAttrs = concatTwoLists(getAttrNames(prov->schema),singleton(hasProv->attrName));
@@ -599,41 +612,57 @@ rewriteSummaryOutput (Node *rewrittenTree)
 		attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
 		curCond = AND_EXPRS(attrCond,curCond);
 	}
-
 	joinCond = curCond;
+
 	inputs = LIST_MAKE(transInput,prov);
 
 	// create join operator
-//	List *distAttrs = removeListElementsFromAnotherList(getAttrNames(transInput->schema), getAttrNames(prov->schema));
 	attrNames = concatTwoLists(getAttrNames(transInput->schema), getAttrNames(prov->schema));
-	QueryOperator *r = (QueryOperator *) createJoinOp(JOIN_LEFT_OUTER, joinCond, inputs, NIL, attrNames);
+	QueryOperator *provJoin = (QueryOperator *) createJoinOp(JOIN_LEFT_OUTER, joinCond, inputs, NIL, attrNames);
 
 	// set the parent of the operator's children
-	OP_LCHILD(r)->parents = OP_RCHILD(r)->parents = singleton(r);
+	OP_LCHILD(provJoin)->parents = OP_RCHILD(provJoin)->parents = singleton(provJoin);
 
 	// create projection for join
 	projExpr = NIL;
 	pos = 0;
 
-	FOREACH(AttributeDef,a,r->schema->attrDefs)
+	FOREACH(AttributeDef,a,transInput->schema->attrDefs)
 	{
 		projExpr = appendToTailOfList(projExpr,
 				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
 		pos++;
 	}
+
+	FOREACH(AttributeDef,a,origProv->schema->attrDefs)
+	{
+		projExpr = appendToTailOfList(projExpr,
+				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+		pos++;
+	}
+
+	Node *cond = (Node *) createIsNullExpr((Node *) hasProv);
+	Node *then = (Node *) createConstInt(0);
+	Node *els = (Node *) createConstInt(1);
+
+	CaseWhen *caseWhen = createCaseWhen(cond, then);
+	CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
+
+	projExpr = appendToTailOfList(projExpr, (List *) caseExpr);
 	DEBUG_LOG("projection expressions for join: %s", projExpr);
 
-	op = createProjectionOp(projExpr, r, NIL, getAttrNames(r->schema));
-//	addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(prov));
-	r->parents = singleton(op);
-	r = (QueryOperator *) op;
+//	attrNames = concatLists(getAttrNames(transInput->schema), getAttrDefNames(parentsAttrs), singleton(hasProv->attrName));
+	attrNames = concatLists(getAttrNames(transInput->schema), getAttrNames(prov->schema), singleton(hasProv->attrName));
+	op = createProjectionOp(projExpr, provJoin, NIL, attrNames);
+	provJoin->parents = singleton(op);
+	provJoin = (QueryOperator *) op;
 
 	// create duplicate removal
-	QueryOperator *dr = (QueryOperator *) createDuplicateRemovalOp(projExpr, r, NIL, getAttrNames(r->schema));
-	r->parents = singleton(dr);
-	r = (QueryOperator *) dr;
+	QueryOperator *dr = (QueryOperator *) createDuplicateRemovalOp(projExpr, provJoin, NIL, getAttrNames(provJoin->schema));
+	provJoin->parents = singleton(dr);
+	provJoin = (QueryOperator *) dr;
 
-	rewrittenTree = (Node *) r;
+	rewrittenTree = (Node *) provJoin;
 
 	DEBUG_NODE_BEATIFY_LOG("rewritten query for summarization returned:", rewrittenTree);
 	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
