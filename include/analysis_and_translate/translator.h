@@ -42,6 +42,6 @@ extern void chooseTranslatorPluginFromString(char *type);
 // wrapper interface
 extern Node *translateParse(Node *q);
 extern QueryOperator *translateQuery (Node *node);
-extern List *parents;
+//extern List *parents;
 
 #endif /* TRANSLATOR_H_ */

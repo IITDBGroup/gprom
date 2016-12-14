@@ -450,9 +450,9 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
 	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
 
-
 	    // rewrite for summarization
 	    ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) rewrittenTree);
+
 		if (ps->summaryType != NULL)
 			rewrittenTree = rewriteSummaryOutput(rewrittenTree);
 	}
@@ -507,53 +507,20 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     return rewrittenSQL;
 }
 
-static Node *
+Node *
 rewriteSummaryOutput (Node *rewrittenTree)
 {
 	List *inputs = NIL;
 	List *attrNames = NIL;
 
-	QueryOperator *transInput = (QueryOperator *) getHeadOfListP(parents);
+//	QueryOperator *transInput = (QueryOperator *) getHeadOfListP(parents);
+
 	QueryOperator *prov = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
+	QueryOperator *transInput = (QueryOperator *) prov->properties;
 
 	int pos = 0;
 	List *projExpr = NIL;
 	ProjectionOperator *op;
-
-	// create projection for having only prov attrs
-	// TODO: cause error as the attributes are shortened
-//	FOREACH(AttributeDef,p,parentsAttrs)
-//	{
-//		projExpr = appendToTailOfList(projExpr,
-//				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
-//		pos++;
-//
-//	}
-//	DEBUG_LOG("projection expressions for prov attrs: %s", projExpr);
-//
-//	op = createProjectionOp(projExpr, prov, NIL, NIL);
-//	prov = (QueryOperator *) op;
-//
-//	prov->schema->attrDefs = NIL;
-//	addProvenanceAttrsToSchema(prov, OP_LCHILD(prov));
-
-
-//	// create const rel
-//	QueryOperator *hasProv = (QueryOperator *) createConstRelOp(singleton(createConstString("1")), NIL,
-//					deepCopyStringList(singleton(strdup("HAS_PROV"))), NIL);
-//
-//	List *joinList = LIST_MAKE(prov,hasProv);
-//	attrNames = concatTwoLists(getAttrNames(prov->schema), getAttrNames(hasProv->schema));
-//
-//	QueryOperator *com = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, joinList, NIL, attrNames);
-//
-//	hasProv->parents = singleton(com);
-//	prov->parents = singleton(com);
-////			prov = com;
-
-//	prov->schema->attrDefs = removeListElementsFromAnotherList(transInput->schema->attrDefs,prov->schema->attrDefs);
-
-
 	QueryOperator *origProv = prov;
 
 	// create selection for user prov question

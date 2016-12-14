@@ -66,7 +66,12 @@ QueryOperator *
 provRewriteQuery (QueryOperator *input)
 {
     Set *seen = PSET();
-    return findProvenanceComputations(input, seen);
+    Node *inputProp = input->properties;
+
+    QueryOperator *result = findProvenanceComputations(input, seen);
+    result->properties = inputProp;
+
+    return result;
 }
 
 

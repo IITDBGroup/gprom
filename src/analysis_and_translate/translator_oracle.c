@@ -177,7 +177,8 @@ translateGeneral (Node *node)
             	QueryOperator *transInput = translateQueryBlock((QueryBlock *) prov->query);
 
             	r = translateQueryOracle(stmt);
-            	r->parents = singleton(transInput);
+//            	r->parents = singleton(transInput);
+            	r->properties = (Node *) transInput;
 
             	stmt_his_cell->data.ptr_value = (Node *) r;
             }
@@ -194,7 +195,8 @@ translateGeneral (Node *node)
         	QueryOperator *transInput = translateQueryBlock((QueryBlock *) prov->query);
 
         	r = translateQueryOracle(node);
-        	r->parents = singleton(transInput);
+//        	r->parents = singleton(transInput);
+        	r->properties = (Node *) transInput;
 
         	result = (Node *) r;
         }
