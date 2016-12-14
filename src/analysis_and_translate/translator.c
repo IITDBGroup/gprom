@@ -44,7 +44,9 @@ static TranslatorPlugin *assembleDummyPlugin(void);
 
 static Node *echoNode (Node *in);
 static QueryOperator *echoNodeAsQB (Node *in);
-//List *parents = NIL;
+
+List *parents = NIL;
+List *parentsAttrs = NIL;
 
 Node *
 translateParse(Node *q)
@@ -58,9 +60,6 @@ translateParse(Node *q)
     result = plugin->translateParse(q);
 
     //TODO: temporarily store translated input query
-    parents = NIL;
-    parentsAttrs = NIL;
-
     QueryOperator *input = (QueryOperator *) getHeadOfListP((List *) result);
 
     if(input->parents != NIL)
