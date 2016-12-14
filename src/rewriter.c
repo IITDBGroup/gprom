@@ -453,7 +453,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
 	    // rewrite for summarization
 	    ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) rewrittenTree);
-		if (ps->summaryType != NULL && parents != NIL)
+		if (ps->summaryType != NULL)
 			rewrittenTree = rewriteSummaryOutput(rewrittenTree);
 	}
 
@@ -598,8 +598,8 @@ rewriteSummaryOutput (Node *rewrittenTree)
 
 		lA = createFullAttrReference(strdup(a), 0, aPos, 0, attrs->dataType);
 
-		char *a2 = STRING_VALUE(getNthOfListP(parentsAttrs,aPos));
 		int rPos = aPos + LIST_LENGTH(transInput->schema->attrDefs);
+		char *a2 = STRING_VALUE(getNthOfListP(prov->schema->attrDefs,rPos));
 
 		if(strcmp(a,a2) == 0)
 			FATAL_LOG("USING join is using ambiguous attribute references <%s>", a);
@@ -651,7 +651,6 @@ rewriteSummaryOutput (Node *rewrittenTree)
 	projExpr = appendToTailOfList(projExpr, (List *) caseExpr);
 	DEBUG_LOG("projection expressions for join: %s", projExpr);
 
-//	attrNames = concatLists(getAttrNames(transInput->schema), getAttrDefNames(parentsAttrs), singleton(hasProv->attrName));
 	attrNames = concatTwoLists(getAttrNames(transInput->schema), getAttrNames(prov->schema));
 	op = createProjectionOp(projExpr, provJoin, NIL, attrNames);
 	provJoin->parents = singleton(op);

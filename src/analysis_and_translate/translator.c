@@ -46,7 +46,6 @@ static Node *echoNode (Node *in);
 static QueryOperator *echoNodeAsQB (Node *in);
 
 List *parents = NIL;
-List *parentsAttrs = NIL;
 
 Node *
 translateParse(Node *q)
@@ -64,9 +63,6 @@ translateParse(Node *q)
 
     if(input->parents != NIL)
     	parents = input->parents;
-
-    if(input->schema->attrDefs != NIL)
-    	parentsAttrs = input->schema->attrDefs;
 
     FREE_MEM_CONTEXT_AND_RETURN_COPY(Node,result);
 }
