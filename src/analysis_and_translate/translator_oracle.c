@@ -204,32 +204,6 @@ translateGeneral (Node *node)
 
     return result;
 }
-//
-//static Node *
-//translateSummary (Node *input, Node *node)
-//{
-//    Node *result;
-//
-//    ProvenanceStmt *inputStmt = (ProvenanceStmt *) input;
-//	QueryOperator *transInput = translateQueryBlock((QueryBlock *) inputStmt->query);
-////    prov->selectClause = appendToHeadOfList(prov->selectClause, createConstString("1"));
-//
-////    // create join operator
-////    List *inputs = NIL;
-////    QueryOperator *prov = (QueryOperator *) node;
-////	inputs = LIST_MAKE(transInput,prov);
-////
-////	List *attrNames = concatTwoLists(getAttrNames(transInput->schema),getAttrNames(prov->schema));
-////    QueryOperator *r = (QueryOperator *) createJoinOp(JOIN_LEFT_OUTER, NULL, inputs, NIL, attrNames);
-//
-////    addChildOperator(r,transInput);
-////    addChildOperator(r,prov);
-//
-//	transInput->parents = singleton(node);
-//
-//    result = (Node *) transInput;
-//    return result;
-//}
 
 static QueryOperator *
 translateSetQuery(SetQuery *sq)
