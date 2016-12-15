@@ -44,6 +44,8 @@ static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
 
+char *summaryType = NULL;
+
 int
 initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[])
 {
@@ -451,9 +453,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
 
 	    // rewrite for summarization
-	    ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) rewrittenTree);
-
-		if (ps->summaryType != NULL)
+	    if (summaryType != NULL)
 			rewrittenTree = rewriteSummaryOutput(rewrittenTree);
 	}
 
@@ -473,6 +473,12 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
 {
     char *rewrittenSQL = NULL;
     Node *oModel;
+
+    // store summary type
+    ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
+
+    if (ps->summaryType != NULL)
+    	summaryType = ps->summaryType;
 
     START_TIMER("translation");
     oModel = translateParse(parse);

@@ -19,9 +19,3 @@
 
 extern Node *rewriteSummaryOutput (Node *rewrittenTree);
 extern Node *rewriteProvJoinOutput (Node *rewrittenTree);
-
-//void
-//dummyFunction (void)
-//{
-//    DEBUG_LOG("TEST");
-//}

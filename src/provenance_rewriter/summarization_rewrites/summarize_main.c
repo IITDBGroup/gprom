@@ -15,6 +15,8 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 
+#include "model/node/nodetype.h"
+#include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 #include "provenance_rewriter/prov_rewriter.h"
 #include "sql_serializer/sql_serializer.h"
@@ -23,17 +25,91 @@
 
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 
+static Node *rewriteSampleOutput (Node * input);
+
 
 Node *
 rewriteSummaryOutput (Node *rewrittenTree)
 {
 	Node *result;
+	Node *provJoin;
+	Node *samples;
+//	Node *patterns;
+//	Node *scanSamples;
 
-	result = rewriteProvJoinOutput(rewrittenTree);
+	provJoin = rewriteProvJoinOutput(rewrittenTree);
+	samples = rewriteSampleOutput(provJoin);
+//	patterns = rewritePatternOutput(rewrittenTree);
+//	scanSamples = rewriteScanSampleOutput(rewrittenTree);
 
-//	Node *samples = rewriteSampleOutput(rewrittenTree);
-//	Node *patterns = rewritePatternOutput(rewrittenTree);
-//	Node *scanSamples = rewriteScanSampleOutput(rewrittenTree);
+//	result = provJoin;
+	result = samples;
+
+	return result;
+}
+
+static Node *
+rewriteSampleOutput (Node *input)
+{
+	Node *result;
+
+	// random sampling
+	// TODO: check if oracle has random sampling
+	QueryOperator *provJoin = (QueryOperator *) input;
+
+	// create selection for the prov instance
+	int aPos = LIST_LENGTH(provJoin->schema->attrDefs) - 1;
+	AttributeReference *lC = createFullAttrReference(strdup("HAS_PROV"), 0, aPos, 0, DT_INT);
+
+	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
+	SelectionOperator *so = createSelectionOp(whereClause, provJoin, NIL, getAttrNames(provJoin->schema));
+
+	provJoin->parents = singleton(so);
+	provJoin = (QueryOperator *) so;
+
+	// create projection for adding "HAS_PROV" attribute
+	int pos = 0;
+	List *projExpr = NIL;
+	ProjectionOperator *op;
+
+	FOREACH(AttributeDef,p,provJoin->schema->attrDefs)
+	{
+		projExpr = appendToTailOfList(projExpr,
+				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+		pos++;
+	}
+
+	op = createProjectionOp(projExpr, provJoin, NIL, getAttrNames(provJoin->schema));
+	provJoin->parents = singleton(op);
+	provJoin = (QueryOperator *) op;
+
+	// create order by operator
+	List *ordCond = NIL;
+	ordCond = appendToTailOfList(ordCond, createFullAttrReference(strdup("DBMS_RANDOM.RANDOM"), 0, 0, 0, DT_STRING));
+
+	for (int i = 1; i < LIST_LENGTH(provJoin->schema->attrDefs); i++)
+	{
+		AttributeReference *ar = createFullAttrReference(CONCAT_STRINGS("NULL",itoa(i)), 0, i, 0, DT_STRING);
+		ordCond = appendToTailOfList(ordCond,ar);
+	}
+
+	OrderOperator *ord = createOrderOp(ordCond, provJoin, NIL);
+	provJoin->parents = singleton(ord);
+	provJoin = (QueryOperator *) ord;
+
+//	// create selection for returning only 2 tuples from random order
+//	AttributeReference *sC = createAttributeReference(strdup("ROWNUM"));
+//
+//	Node *selCond = (Node *) createOpExpr("<=",LIST_MAKE(sC,createConstInt(2)));
+//	so = createSelectionOp(selCond, provJoin, NIL, getAttrNames(provJoin->schema));
+//
+//	provJoin->parents = singleton(so);
+//	provJoin = (QueryOperator *) so;
+
+	result = (Node *) provJoin;
+
+	DEBUG_NODE_BEATIFY_LOG("sampling for summarization:", result);
+	INFO_OP_LOG("sampling for summarization as overview:", result);
 
 	return result;
 }
@@ -56,10 +132,10 @@ rewriteProvJoinOutput (Node *rewrittenTree)
 
 	// create selection for user prov question
 	// TODO: temporary where clause (apply from parse)
-	AttributeReference *lC = createFullAttrReference(strdup("A"), 0, 0, 0, DT_INT);
-	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(2)));
-
+	AttributeReference *lC = createFullAttrReference(strdup("B"), 0, 1, 0, DT_INT);
+	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
 	SelectionOperator *so = createSelectionOp(whereClause, prov, NIL, getAttrNames(prov->schema));
+
 	prov->parents = singleton(so);
 	prov = (QueryOperator *) so;
 
@@ -149,25 +225,15 @@ rewriteProvJoinOutput (Node *rewrittenTree)
 	projExpr = appendToTailOfList(projExpr, (List *) caseExpr);
 	DEBUG_LOG("projection expressions for join: %s", projExpr);
 
-	attrNames = concatTwoLists(getAttrNames(transInput->schema), getAttrNames(prov->schema));
-	op = createProjectionOp(projExpr, provJoin, NIL, attrNames);
+//	attrNames = concatTwoLists(getAttrNames(transInput->schema), getAttrNames(prov->schema));
+
+	Set *allNames = STRSET();
+	List *uniqueAttrNames = CONCAT_LISTS(getQueryOperatorAttrNames(provJoin),singleton(hasProv->attrName));
+	makeNamesUnique(uniqueAttrNames, allNames);
+
+	op = createProjectionOp(projExpr, provJoin, NIL, uniqueAttrNames);
 	provJoin->parents = singleton(op);
 	provJoin = (QueryOperator *) op;
-
-//	// Additional projection for removing duplicate attributes
-//	projExpr = NIL;
-//	pos = LIST_LENGTH(transInput->schema->attrDefs);
-//
-//	FOREACH(AttributeDef,a,prov->schema->attrDefs)
-//	{
-//		projExpr = appendToTailOfList(projExpr,
-//				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
-//		pos++;
-//	}
-//
-//	op = createProjectionOp(projExpr, provJoin, NIL, getAttrNames(prov->schema));
-//	provJoin->parents = singleton(op);
-//	provJoin = (QueryOperator *) op;
 
 	// create duplicate removal
 	QueryOperator *dr = (QueryOperator *) createDuplicateRemovalOp(projExpr, provJoin, NIL, getAttrNames(provJoin->schema));
