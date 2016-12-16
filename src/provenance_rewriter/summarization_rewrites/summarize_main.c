@@ -14,6 +14,7 @@
 #include "instrumentation/timing_instrumentation.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "configuration/option.h"
 
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
@@ -29,21 +30,25 @@ static Node *rewriteSampleOutput (Node * input);
 
 
 Node *
-rewriteSummaryOutput (Node *rewrittenTree)
+rewriteSummaryOutput (char *summaryType, Node *rewrittenTree)
 {
+	char *sType = summaryType;
+
 	Node *result;
 	Node *provJoin;
 	Node *samples;
-//	Node *patterns;
+	Node *patterns;
 //	Node *scanSamples;
 
 	provJoin = rewriteProvJoinOutput(rewrittenTree);
 	samples = rewriteSampleOutput(provJoin);
-//	patterns = rewritePatternOutput(rewrittenTree);
+
+	if (strcmp(sType,"LCA") == 0)
+		patterns = samples;
+//		patterns = rewritePatternOutput(samples);
 //	scanSamples = rewriteScanSampleOutput(rewrittenTree);
 
-//	result = provJoin;
-	result = samples;
+	result = patterns;
 
 	return result;
 }

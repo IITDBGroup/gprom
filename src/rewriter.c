@@ -454,7 +454,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
 	    // rewrite for summarization
 	    if (summaryType != NULL)
-			rewrittenTree = rewriteSummaryOutput(rewrittenTree);
+			rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree);
 	}
 
 	START_TIMER("SQLcodeGen");
