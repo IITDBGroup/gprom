@@ -1157,6 +1157,7 @@ serializeOrder (OrderOperator *q, StringInfo order, List *fromAttrs)
 
     char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs),"(","");
     ordExpr = replaceSubstr(ordExpr,")","");
+    ordExpr = replaceSubstr(ordExpr,"'","");
     appendStringInfoString(order, ordExpr);
 }
 

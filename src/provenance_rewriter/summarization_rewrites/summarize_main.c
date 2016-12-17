@@ -23,6 +23,7 @@
 #include "sql_serializer/sql_serializer.h"
 #include "operator_optimizer/operator_optimizer.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "utility/string_utils.h"
 
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 
@@ -57,17 +58,18 @@ static Node *
 rewriteSampleOutput (Node *input)
 {
 	Node *result;
+	List *attrNames = NIL;
 
-	// random sampling
-	// TODO: check if oracle has random sampling
+	// random sampling from hasProv = 1
 	QueryOperator *provJoin = (QueryOperator *) input;
+	attrNames = getAttrNames(provJoin->schema);
 
 	// create selection for the prov instance
 	int aPos = LIST_LENGTH(provJoin->schema->attrDefs) - 1;
 	AttributeReference *lC = createFullAttrReference(strdup("HAS_PROV"), 0, aPos, 0, DT_INT);
 
 	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
-	SelectionOperator *so = createSelectionOp(whereClause, provJoin, NIL, getAttrNames(provJoin->schema));
+	SelectionOperator *so = createSelectionOp(whereClause, provJoin, NIL, attrNames);
 
 	provJoin->parents = singleton(so);
 	provJoin = (QueryOperator *) so;
@@ -84,34 +86,65 @@ rewriteSampleOutput (Node *input)
 		pos++;
 	}
 
-	op = createProjectionOp(projExpr, provJoin, NIL, getAttrNames(provJoin->schema));
+	op = createProjectionOp(projExpr, provJoin, NIL, attrNames);
 	provJoin->parents = singleton(op);
 	provJoin = (QueryOperator *) op;
 
 	// create order by operator
-	List *ordCond = NIL;
-	ordCond = appendToTailOfList(ordCond, createFullAttrReference(strdup("DBMS_RANDOM.RANDOM"), 0, 0, 0, DT_STRING));
+	Node *ordCond = (Node *) createConstString("DBMS_RANDOM.RANDOM");
+	OrderExpr *ordExpr = createOrderExpr(ordCond, SORT_ASC, SORT_NULLS_LAST);
 
-	for (int i = 1; i < LIST_LENGTH(provJoin->schema->attrDefs); i++)
-	{
-		AttributeReference *ar = createFullAttrReference(CONCAT_STRINGS("NULL",itoa(i)), 0, i, 0, DT_STRING);
-		ordCond = appendToTailOfList(ordCond,ar);
-	}
-
-	OrderOperator *ord = createOrderOp(ordCond, provJoin, NIL);
+	OrderOperator *ord = createOrderOp(singleton(ordExpr), provJoin, NIL);
 	provJoin->parents = singleton(ord);
 	provJoin = (QueryOperator *) ord;
 
-//	// create selection for returning only 2 tuples from random order
-//	AttributeReference *sC = createAttributeReference(strdup("ROWNUM"));
-//
-//	Node *selCond = (Node *) createOpExpr("<=",LIST_MAKE(sC,createConstInt(2)));
-//	so = createSelectionOp(selCond, provJoin, NIL, getAttrNames(provJoin->schema));
-//
-//	provJoin->parents = singleton(so);
-//	provJoin = (QueryOperator *) so;
+	// create selection for returning only 2 tuples from random order
+	Node *selCond = (Node *) createOpExpr("<=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(2)));
+	so = createSelectionOp(selCond, provJoin, NIL, attrNames);
 
-	result = (Node *) provJoin;
+	provJoin->parents = singleton(so);
+	provJoin = (QueryOperator *) so;
+
+	op = createProjectionOp(projExpr, provJoin, NIL, attrNames);
+	provJoin->parents = singleton(op);
+	provJoin = (QueryOperator *) op;
+
+	// random sampling from hasProv <> 1
+	QueryOperator *nonProvJoin = (QueryOperator *) input;
+
+	whereClause = (Node *) createOpExpr("<>",LIST_MAKE(lC,createConstInt(1)));
+	so = createSelectionOp(whereClause, nonProvJoin, NIL, attrNames);
+
+	nonProvJoin->parents = singleton(so);
+	nonProvJoin = (QueryOperator *) so;
+
+	// create projection for adding "HAS_PROV" attribute
+	op = createProjectionOp(projExpr, nonProvJoin, NIL, attrNames);
+	nonProvJoin->parents = singleton(op);
+	nonProvJoin = (QueryOperator *) op;
+
+	// create order by operator
+	ord = createOrderOp(singleton(ordExpr), nonProvJoin, NIL);
+	nonProvJoin->parents = singleton(ord);
+	nonProvJoin = (QueryOperator *) ord;
+
+	// create selection for returning only 3 tuples from random order
+	selCond = (Node *) createOpExpr("<=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(3)));
+	so = createSelectionOp(selCond, nonProvJoin, NIL, attrNames);
+
+	nonProvJoin->parents = singleton(so);
+	nonProvJoin = (QueryOperator *) so;
+
+	op = createProjectionOp(projExpr, nonProvJoin, NIL, attrNames);
+	nonProvJoin->parents = singleton(op);
+	nonProvJoin = (QueryOperator *) op;
+
+	// create UNION operator to get all sample
+	List *allInput = LIST_MAKE(provJoin,nonProvJoin);
+	QueryOperator *unionOp = (QueryOperator *) createSetOperator(SETOP_UNION, allInput, NIL, attrNames);
+	OP_LCHILD(unionOp)->parents = OP_RCHILD(unionOp)->parents = singleton(unionOp);
+
+	result = (Node *) unionOp;
 
 	DEBUG_NODE_BEATIFY_LOG("sampling for summarization:", result);
 	INFO_OP_LOG("sampling for summarization as overview:", result);
