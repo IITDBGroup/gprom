@@ -474,7 +474,7 @@ inferOpResultDTs (QueryOperator *op)
         {
             JsonTableOperator *o = (JsonTableOperator *)op;
             resultDTs = getDataTypes(GET_OPSCHEMA(OP_LCHILD(op)));
-            FOREACH(JsonColInfoItem, a, o->columns)
+            for(int i = 0; i < LIST_LENGTH(o->columns); i++)
                 resultDTs = appendToTailOfListInt(resultDTs, DT_VARCHAR2); //TODO until more types supported
         }
         break;
