@@ -1020,6 +1020,15 @@ oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists)
             }
         }
     }
+
+    if (streq(oName, "||"))
+    {
+        DataType lType = getNthOfListInt(dataTypes, 0);
+        DataType rType = getNthOfListInt(dataTypes, 1);
+
+        if (lType == rType && lType == DT_STRING)
+            return DT_STRING;
+    }
     //TODO more operators
     *opExists = FALSE;
 

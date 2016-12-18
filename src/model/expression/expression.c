@@ -51,7 +51,8 @@ static boolean findAllNodesVisitor(Node *node, FindNotesContext *context);
 static boolean findAttrReferences (Node *node, List **state);
 static boolean findDLVars (Node *node, List **state);
 static boolean findDLVarsIgnoreProps (Node *node, List **state);
-static DataType typeOfOp (Operator *op);
+static DataType typeOfOp (Operator *op, boolean *exists);
+static DataType typeOfOpSplit (char *opName, List *argDTs, boolean *exists);
 static DataType typeOfFunc (FunctionCall *f);
 static Node *addCastsMutator (Node *node, boolean errorOnFailure);
 static void castOperatorArgs(Operator *o);
@@ -437,7 +438,8 @@ typeOf (Node *expr)
         case T_Operator:
         {
             Operator *o = (Operator *) expr;
-            return typeOfOp(o);
+            boolean exists = FALSE;
+            return typeOfOp(o, &exists);
         }
         case T_CaseExpr:
         {
@@ -738,12 +740,15 @@ castOperatorArgs(Operator *o)
     // check whether function exists for common type or any type this type can be cast into
     while(previousType != DT_STRING)
     {
+        DEBUG_LOG("try type %s", DataTypeToString(commonLca));
+        curTypes = NIL;
         REPLICATE_ELEM(curTypes, commonLca, numArgs);
         if (opExists(o->name, curTypes))
         {
             FOREACH(Node,arg,o->args)
             {
-                arg_his_cell->data.ptr_value = createCastExpr(arg, commonLca);
+                if (typeOf(arg) != commonLca)
+                    arg_his_cell->data.ptr_value = createCastExpr(arg, commonLca);
             }
             return;
         }
@@ -858,7 +863,10 @@ typeOfInOpModel (Node *expr, List *inputOperators)
         case T_FunctionCall:
             return typeOfFunc((FunctionCall *) expr);
         case T_Operator:
-            return typeOfOp((Operator *) expr);
+        {
+            boolean exists = FALSE;
+            return typeOfOp((Operator *) expr, &exists);
+        }
         case T_Constant:
             return typeOf(expr);
         case T_CaseExpr:
@@ -880,56 +888,78 @@ typeOfInOpModel (Node *expr, List *inputOperators)
 
 /* figure out operator return type */
 static DataType
-typeOfOp (Operator *op)
+typeOfOp (Operator *op, boolean *exists)
 {
-    List *argDTs = NIL;
-    boolean opExists = FALSE;
-    DataType result;
+    char *opName = op->name;
+    List *dts = typeOfArgs(op->args);
+    DataType result = typeOfOpSplit(opName, dts, exists);
 
-    argDTs = typeOfArgs(op->args);
+    if (!*exists)
+        DEBUG_NODE_BEATIFY_LOG("operator with this argument types does not exist",op);
+    return result;
+}
+
+static DataType
+typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
+{
+    *exists = TRUE;
+    DataType result;
+    DataType dLeft;
+    DataType dRight;
+
+    DEBUG_LOG("check whether op <%s> exists with argument types <%s>", opName, nodeToString(argDTs));
+
+    if (LIST_LENGTH(argDTs) >= 1)
+        dLeft = getNthOfListInt(argDTs,0);
+    if (LIST_LENGTH(argDTs) >= 2)
+        dRight = getNthOfListInt(argDTs,1);
 
     // logical operators
-    if (streq(op->name,"OR")
-            || streq(op->name,"AND")
-            || streq(op->name,"NOT")
-            )
-        return DT_BOOL;
-    // standard arithmetic operators
-    if (streq(op->name,"+")
-            || streq(op->name,"*")
-            || streq(op->name,"/")
-            || streq(op->name,"-")
+    if (streq(opName,"OR")
+            || streq(opName,"AND")
+            || streq(opName,"NOT")
             )
     {
-        DataType dLeft = getNthOfListInt(argDTs,0);
-        DataType dRight = getNthOfListInt(argDTs,1);
-
+        if (dLeft == dRight && dLeft == DT_BOOL)
+            return DT_BOOL;
+    }
+    // standard arithmetic operators
+    if (streq(opName,"+")
+            || streq(opName,"*")
+            || streq(opName,"/")
+            || streq(opName,"-")
+            )
+    {
         // if the same input data types then we can safely assume that we get the same return data type
         // otherwise we use the metadata lookup plugin to make sure we get the right type
-        if(dLeft == dRight)
+        if(dLeft == dRight && (dLeft == DT_INT || dLeft == DT_FLOAT))
             return dLeft;
     }
 
     // string ops
-    if (streq(op->name,"||"))
-        return DT_STRING;
-
+    if (streq(opName,"||"))
+    {
+        if (dLeft == dRight && dLeft == DT_STRING)
+            return DT_STRING;
+    }
     // comparison operators
-    if (streq(op->name,"<")
-            || streq(op->name,">")
-            || streq(op->name,"<=")
-            || streq(op->name,"=>")
-            || streq(op->name,"<>")
-            || streq(op->name,"^=")
-            || streq(op->name,"=")
-            || streq(op->name,"!=")
+    if (streq(opName,"<")
+            || streq(opName,">")
+            || streq(opName,"<=")
+            || streq(opName,"=>")
+            || streq(opName,"<>")
+            || streq(opName,"^=")
+            || streq(opName,"=")
+            || streq(opName,"!=")
                 )
-        return DT_BOOL;
+    {
+        if (dLeft == dRight)
+            return DT_BOOL;
+    }
 
-    result = getOpReturnType(op->name, argDTs, &opExists);
+    *exists = FALSE;
 
-    if (!opExists)
-        DEBUG_NODE_BEATIFY_LOG("operator with this argument types does not exist",op);
+    result = getOpReturnType(opName, argDTs, exists);
 
     return result;
 }
@@ -940,7 +970,7 @@ opExists (char *opName, List *argDTs)
     boolean fExists = FALSE;
     DataType result;
 
-    result = getFuncReturnType(opName, argDTs, &fExists);
+    result = typeOfOpSplit(opName, argDTs, &fExists);
 
     return fExists;
 }

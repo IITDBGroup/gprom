@@ -262,8 +262,39 @@ sqliteGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 DataType
 sqliteGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
-    //TODO
+
     *opExists = TRUE;
+
+    if (streq(oName, "+") || streq(oName, "*")  || streq(oName, "-") || streq(oName, "/"))
+    {
+        if (LIST_LENGTH(argTypes) == 2)
+        {
+            DataType lType = getNthOfListInt(argTypes, 0);
+            DataType rType = getNthOfListInt(argTypes, 1);
+
+            if (lType == rType)
+            {
+                if (lType == DT_INT)
+                    return DT_INT;
+                if (lType == DT_FLOAT)
+                    return DT_FLOAT;
+            }
+        }
+    }
+
+    if (streq(oName, "||"))
+    {
+        DataType lType = getNthOfListInt(argTypes, 0);
+        DataType rType = getNthOfListInt(argTypes, 1);
+
+        if (lType == rType && lType == DT_STRING)
+            return DT_STRING;
+    }
+    //TODO more operators
+    *opExists = FALSE;
+
+    return DT_STRING;
+
     return DT_STRING;
 }
 
