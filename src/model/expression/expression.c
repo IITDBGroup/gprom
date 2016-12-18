@@ -968,9 +968,8 @@ static boolean
 opExists (char *opName, List *argDTs)
 {
     boolean fExists = FALSE;
-    DataType result;
 
-    result = typeOfOpSplit(opName, argDTs, &fExists);
+    typeOfOpSplit(opName, argDTs, &fExists);
 
     return fExists;
 }

@@ -127,6 +127,10 @@ typedef struct List
 #define LC_STRING_VAL(lc) ((char *) ((ListCell *) lc)->data.ptr_value)
 #define LC_INT_VAL(lc) (((ListCell *) lc)->data.int_value)
 #define LC_NEXT(lc) (((ListCell *) lc)->next)
+#define LC_ADVANCE(lc) \
+    do {    \
+        lc = lc->next;  \
+    } while(0)
 /*
  * Create a integer list starting from _start to _end increasing _step
  */

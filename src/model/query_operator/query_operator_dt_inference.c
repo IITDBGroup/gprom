@@ -58,6 +58,8 @@ introduceCastsWhereNecessary(QueryOperator *q)
                 }
                 castOpSchema(lChild, lcaDTs);
                 castOpSchema(rChild, lcaDTs);
+
+                DEBUG_NODE_BEATIFY_LOG("introduced casts for inputs of set operator", q);
             }
         }
             break;
@@ -147,12 +149,20 @@ addCastsToExpressions(QueryOperator *q)
 
     adaptAttributeRefList(q, q->inputs);
     adaptOpSchema(q);
+
+    DEBUG_OP_LOG("after casting op is:", q);
 }
 
 static void
 adaptOpSchema (QueryOperator *q)
 {
-
+    List *dts = inferOpResultDTs(q);
+    ListCell *dtCell = dts->head;
+    FOREACH(AttributeDef, a, GET_OPSCHEMA(q)->attrDefs)
+    {
+        a->dataType = LC_INT_VAL(dtCell);
+        LC_ADVANCE(dtCell);
+    }
 }
 
 static boolean
