@@ -22,11 +22,14 @@ if [ $# -le 1 ]; then
 fi
 LLDB=lldb
 LOG="-log -loglevel $1"
-SQL=$2
+SQL="$2"
 ARGS="${*:3}"
 SCRIPT=debug.script
 
-echo "run ${CONNECTION_PARAMS} ${LOG} -treeify-algebra-graphs -sql \"${SQL}\" ${ARGS}" > ./$SCRIPT
+echo "
+run ${CONNECTION_PARAMS} ${LOG} -treeify-algebra-graphs -sql \"${SQL}\" ${ARGS}
 
-${LLDB} -- ${GPROM} ${CONNECTION_PARAMS} ${LOG} -treeify-algebra-graphs -sql \"${SQL}\" ${ARGS}
+"
+
+${LLDB} process launch -- ${GPROM} ${CONNECTION_PARAMS} ${LOG} -treeify-algebra-graphs -sql "${SQL}" ${ARGS}
 #rm -f $SCRIPT

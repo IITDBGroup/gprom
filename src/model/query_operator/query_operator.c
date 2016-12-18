@@ -420,6 +420,106 @@ getAttrDataTypes(List *defs)
     return result;
 }
 
+List *
+inferOpResultDTs (QueryOperator *op)
+{
+    List *resultDTs = NIL;
+
+    switch(op->type)
+    {
+        case T_ProjectionOperator:
+        {
+            ProjectionOperator *o = (ProjectionOperator *) op;
+            FOREACH(Node,e,o->projExprs)
+            {
+                resultDTs = appendToTailOfListInt(resultDTs, typeOf(e));
+            }
+        }
+        break;
+        case T_JoinOperator:
+        {
+            resultDTs = CONCAT_LISTS(getDataTypes(GET_OPSCHEMA(OP_LCHILD(op))), getDataTypes(GET_OPSCHEMA(OP_RCHILD(op))));
+        }
+        break;
+        case T_AggregationOperator:
+        {
+            AggregationOperator *o = (AggregationOperator *) op;
+            FOREACH(Node,e,o->aggrs)
+            {
+                resultDTs = appendToTailOfListInt(resultDTs, typeOf(e));
+            }
+            FOREACH(Node,e,o->groupBy)
+            {
+                resultDTs = appendToTailOfListInt(resultDTs, typeOf(e));
+            }
+        }
+        break;
+        case T_WindowOperator:
+        {
+            WindowOperator *o = (WindowOperator *) op;
+            resultDTs = getDataTypes(GET_OPSCHEMA(OP_LCHILD(op)));
+            resultDTs = appendToTailOfListInt(resultDTs, typeOf(o->f));
+        }
+        break;
+        case T_SelectionOperator:
+        case T_OrderOperator:
+        case T_DuplicateRemoval:
+        case T_SetOperator:
+        {
+            resultDTs = getDataTypes(GET_OPSCHEMA(OP_LCHILD(op)));
+        }
+        break;
+                // Check Attribute that we use as Json Column should be from/should exist in child
+        case T_JsonTableOperator:
+        {
+            JsonTableOperator *o = (JsonTableOperator *)op;
+            resultDTs = getDataTypes(GET_OPSCHEMA(OP_LCHILD(op)));
+            FOREACH(JsonColInfoItem, a, o->columns)
+                resultDTs = appendToTailOfListInt(resultDTs, DT_VARCHAR2); //TODO until more types supported
+        }
+        break;
+        case T_TableAccessOperator:
+        {
+            resultDTs = getDataTypes(GET_OPSCHEMA(op));
+        }
+        break;
+        case T_ProvenanceComputation:
+        {
+            resultDTs = getDataTypes(GET_OPSCHEMA(op));//TODO
+        }
+        break;
+        case T_NestingOperator:
+        {
+            NestingOperator *n = (NestingOperator *) op;
+            DataType nType;
+
+            resultDTs = getDataTypes(GET_OPSCHEMA(OP_LCHILD(op)));
+
+            switch(n->nestingType)
+            {
+                case NESTQ_EXISTS:
+                case NESTQ_ANY:
+                case NESTQ_ALL:
+                case NESTQ_UNIQUE:
+                {
+                    nType = DT_BOOL;
+                }
+                case NESTQ_SCALAR:
+                {
+                    nType = DT_STRING; //TODO
+                }
+                break;
+            }
+
+            resultDTs = appendToTailOfListInt(resultDTs, nType);
+        }
+        break;
+        default:
+            break;
+    }
+    return resultDTs;
+}
+
 
 TableAccessOperator *
 createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,

@@ -405,6 +405,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
             case T_ConstRelOperator :
             case T_SetOperator:
             case T_JsonTableOperator:
+            case T_NestingOperator:
                 matchInfo->fromRoot = cur;
                 state = MATCH_NEXTBLOCK;
                 cur = OP_LCHILD(cur);
@@ -927,7 +928,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             		}
             		if(flag == FALSE)
             		{
-            			attrNames = appendToTailOfList(attrNames, jsonAttr);
+            			attrNames = appendToTailOfList(attrNames, strdup(jsonAttr));
             		}
             	}
 
@@ -1003,8 +1004,67 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
 
             	for(int i=0; i<nestedcount; i++)
             		appendStringInfoString(from, ")");
-            	appendStringInfoString(from, " AS ");
-            	appendStringInfo(from, "F%u", (*curFromItem)++);
+//            	appendStringInfoString(from, " AS ");
+            	appendStringInfo(from, " F%u", (*curFromItem)++);
+            }
+            break;
+            case T_NestingOperator:
+            {
+                NestingOperator *no = (NestingOperator *) q;
+                char *subAttr = getTailOfListP(getQueryOperatorAttrNames(q));
+                QueryOperator *input = OP_LCHILD(no);
+                QueryOperator *subquery = OP_RCHILD(no);
+                // Serialize input
+                serializeFromItem(fromRoot, input, from, curFromItem, attrOffset, fromAttrs);
+
+                // Add it to list of fromAttrs
+                *fromAttrs = appendToTailOfList(*fromAttrs, LIST_MAKE(strdup(subAttr)));
+
+                // create lateral subquery for nested subquery
+                //TODO only necessary if correlation is used
+                //TODO correlated attributes would not work unless we do more bookkeeping and make sure from clause aliases are different in the nested subquery translation
+                appendStringInfoString(from, ",");
+                appendStringInfo(from, " LATERAL ");
+                appendStringInfoString(from, "(");
+
+                switch(no->nestingType)
+                {
+                   case NESTQ_EXISTS:
+                   {
+                       appendStringInfo(from, "SELECT count(*) AS %s FROM (", strdup(subAttr));
+                       serializeQueryOperator(subquery, from, (QueryOperator *) no);
+                       appendStringInfoString(from, ") F0");
+                   }
+                   break;
+                   case NESTQ_ANY:
+                   {
+                       char *expr = exprToSQL(no->cond);
+                       appendStringInfo(from, "SELECT MAX(CASE WHEN (%s) THEN 1 ELSE 0 END) AS %s FROM (", expr, strdup(subAttr));
+                       serializeQueryOperator(subquery, from, (QueryOperator *) no);
+                       appendStringInfoString(from, ") F0");
+                   }
+                   break;
+                   case NESTQ_ALL:
+                   {
+
+                   }
+                   break;
+                   case NESTQ_UNIQUE:
+                   {
+                       //TODO
+                   }
+                   break;
+                   case NESTQ_SCALAR:
+                   {
+                       AttributeDef *a = getTailOfListP(GET_OPSCHEMA(subquery)->attrDefs);
+                       a->attrName = strdup(subAttr);
+                       serializeQueryOperator(subquery, from, (QueryOperator *) no);
+                   }
+                   break;
+                }
+
+                appendStringInfoString(from, ")");
+                appendStringInfo(from, " F%u", (*curFromItem)++);
             }
             break;
             // Table Access

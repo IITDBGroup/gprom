@@ -179,6 +179,7 @@ extern List *getDataTypes (Schema *schema);
 extern List *getAttrNames(Schema *schema);
 extern List *getAttrDefNames (List *defs);
 extern List *getAttrDataTypes (List *defs);
+extern List *inferOpResultDTs (QueryOperator *op);
 #define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema
 
 /* create functions */

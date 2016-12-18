@@ -253,15 +253,17 @@ sqliteIsWindowFunction(char *functionName)
 }
 
 DataType
-sqliteGetFuncReturnType (char *fName, List *argTypes)
+sqliteGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
+    *funcExists = TRUE;
     return DT_STRING; //TODO
 }
 
 DataType
-sqliteGetOpReturnType (char *oName, List *argTypes)
+sqliteGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
     //TODO
+    *opExists = TRUE;
     return DT_STRING;
 }
 

@@ -69,8 +69,8 @@ static QueryOperator *translateNestedSubquery(QueryBlock *qb,
         QueryOperator *joinTreeRoot, List *attrsOffsets);
 extern boolean findNestedSubqueries(Node *node, List **state);
 static List *getListOfNestedSubqueries(QueryBlock *qb);
-static void replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb);
-static Node *replaceNestedSubqueryWithAuxExpr(Node *node, int *state);
+static void replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb, HashMap *qToAttr);
+static Node *replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr);
 
 /* Functions of translating where clause in a QueryBlock */
 static QueryOperator *translateWhereClause(Node *whereClause,
@@ -1020,10 +1020,11 @@ static QueryOperator *
 translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrsOffsets)
 {
     List *nestedSubqueries = getListOfNestedSubqueries(qb);
-
+    HashMap *subqueryToAttribute = NEW_MAP(Node,KeyValue);
     QueryOperator *lChild = joinTreeRoot;
     NestingOperator *no = NULL;
     int i = 1;
+
     FOREACH(NestedSubquery, nsq, nestedSubqueries)
     {
         // change attributes positions in "expr = ANY(...)"
@@ -1050,9 +1051,13 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
         List *attrNames = getAttrNames(lChild->schema);
         List *dts = getDataTypes(lChild->schema);
 
-        // add an auxiliary attribute, which is the evaluation of the nested subquery
-        attrNames = appendToTailOfList(attrNames,
-                CONCAT_STRINGS("nesting_eval_", itoa(i++)));
+        // add an auxiliary attribute, which stores the result of evaluating the nested subquery expr
+        char *attrName = CONCAT_STRINGS("nesting_eval_", itoa(i++));
+        addToMap(subqueryToAttribute, (Node *) nsq,
+                (Node *) createNodeKeyValue((Node *) createConstString(attrName),
+                                            (Node *)createConstInt(LIST_LENGTH(attrNames))));
+
+        attrNames = appendToTailOfList(attrNames,strdup(attrName));
         if (nsq->nestingType == NESTQ_EXISTS)
             dts = appendToTailOfListInt(dts, DT_BOOL);
         else if (nsq->nestingType == NESTQ_SCALAR)
@@ -1069,12 +1074,14 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 
         // set this nesting operator as the next nesting operator's left child
         lChild = (QueryOperator *) no;
+        DEBUG_OP_LOG("Created nesting operator", no);
+        DEBUG_NODE_BEATIFY_LOG("Created nesting operator for nested subquery", nsq);
     }
 
     if (no == NULL)
         return joinTreeRoot;
 
-    replaceAllNestedSubqueriesWithAuxExprs(qb);
+    replaceAllNestedSubqueriesWithAuxExprs(qb, subqueryToAttribute);
     return ((QueryOperator *) no);
 }
 
@@ -1096,35 +1103,39 @@ getListOfNestedSubqueries(QueryBlock *qb)
 }
 
 static void
-replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb)
+replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb, HashMap *qToAttr)
 {
-    int i = 1;
     qb->selectClause = (List *) replaceNestedSubqueryWithAuxExpr(
-            (Node *) qb->selectClause, &i);
-    qb->distinct = replaceNestedSubqueryWithAuxExpr((Node *) qb->distinct, &i);
+            (Node *) qb->selectClause, qToAttr);
+    qb->distinct = replaceNestedSubqueryWithAuxExpr((Node *) qb->distinct, qToAttr);
     qb->fromClause = (List *) replaceNestedSubqueryWithAuxExpr(
-            (Node *) qb->fromClause, &i);
+            (Node *) qb->fromClause, qToAttr);
     qb->whereClause = replaceNestedSubqueryWithAuxExpr((Node *) qb->whereClause,
-            &i);
+            qToAttr);
     qb->groupByClause = (List *) replaceNestedSubqueryWithAuxExpr(
-            (Node *) qb->groupByClause, &i);
+            (Node *) qb->groupByClause, qToAttr);
     qb->havingClause = replaceNestedSubqueryWithAuxExpr(
-            (Node *) qb->havingClause, &i);
+            (Node *) qb->havingClause, qToAttr);
     qb->orderByClause = (List*) replaceNestedSubqueryWithAuxExpr(
-            (Node *) qb->orderByClause, &i);
+            (Node *) qb->orderByClause, qToAttr);
+
+    DEBUG_NODE_BEATIFY_LOG("After replacing subqueries:", qb);
 }
 
 static Node *
-replaceNestedSubqueryWithAuxExpr(Node *node, int *state)
+replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr)
 {
     if (node == NULL)
         return NULL;
 
     if (isA(node, NestedSubquery))
     {
+        KeyValue *info = (KeyValue *) getMap(qToAttr, node);
+        char *attrName = STRING_VALUE(info->key);
+        int attrPos = INT_VALUE(info->value);
+
         // create auxiliary attribute reference "nesting_eval_i" to the nested subquery
-        int i = (*state)++;
-        AttributeReference *attr = createAttributeReference(CONCAT_STRINGS("nesting_eval_", itoa(i)));
+        AttributeReference *attr = createFullAttrReference(strdup(attrName), 0, attrPos, INVALID_ATTR, typeOf(node));
 
         // if scalar subquery, e.g., WHERE a  = (SELECT count(*) FROM s),
         // then just replace nested subquery with auxiliary attribute reference "nesting_eval_i"
@@ -1143,7 +1154,7 @@ replaceNestedSubqueryWithAuxExpr(Node *node, int *state)
     if (isQBQuery(node))
         return node;
 
-    return mutate(node, replaceNestedSubqueryWithAuxExpr, state);
+    return mutate(node, replaceNestedSubqueryWithAuxExpr, qToAttr);
 }
 
 static QueryOperator *
