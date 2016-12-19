@@ -62,7 +62,8 @@
 		<fileset dir="${mainlibrarydir}">
 			<include name="**/*.jar" />
 		</fileset>
-		<pathelement path="${projectroot}" />
+		<pathelement path="${mainlibrarydir}" />
+		<pathelement path="${resourcedir}" />
 		<pathelement path="${binarydir}"/>
 	</path>
 	
@@ -106,10 +107,6 @@
 	</target>
 	
 	<target name="adaptDDLScripts">
-		<var name="testdbscript" value="${resourcedir}/testdb/tpch.sql" />
-		<antcall target="adaptTestDDLScript" />
-		<var name="testdbscript" value="${resourcedir}/testdb/wherecs.sql" />
-		<antcall target="adaptTestDDLScript" />	
 		<var name="testdbscript" value="${resourcedir}/testdb/testDB.sql" />
 		<antcall target="adaptTestDDLScript" />
 	</target>

@@ -73,8 +73,8 @@ typedef struct MetadataLookupPlugin
 
     boolean (*isAgg) (char *functionName);
     boolean (*isWindowFunction) (char *functionName);
-    DataType (*getFuncReturnType) (char *fName, List *argTypes);
-    DataType (*getOpReturnType) (char *oName, List *argTypes);
+    DataType (*getFuncReturnType) (char *fName, List *argTypes, boolean *funcExists);
+    DataType (*getOpReturnType) (char *oName, List *argTypes, boolean *funcExists);
 
     char * (*getTableDefinition) (char *tableName);
     char * (*getViewDefinition) (char *viewName);
@@ -123,8 +123,8 @@ extern Node *getAttributeDefaultVal (char *schema, char *tableName, char *attrNa
 extern List *getAttributeDataTypes (char *tableName);
 extern boolean isAgg(char *functionName);
 extern boolean isWindowFunction(char *functionName);
-extern DataType getFuncReturnType (char *fName, List *argTypes);
-extern DataType getOpReturnType (char *oName, List *argTypes);
+extern DataType getFuncReturnType (char *fName, List *argTypes, boolean *funcExists);
+extern DataType getOpReturnType (char *oName, List *argTypes, boolean *opExists);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
 extern List *getKeyInformation (char *tableName);

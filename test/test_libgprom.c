@@ -33,6 +33,8 @@ static ExceptionHandler handleE (const char *message, const char *file, int line
 static void setOpts (void);
 static void resetOpts (void);
 
+char *_testStringBuf;
+
 int
 main(int argc, char* argv[])
 {
@@ -64,7 +66,9 @@ main(int argc, char* argv[])
     DEBUG_LOG("configuration:\n\n");
     printCurrentOptions(stdout);
 
+    _testStringBuf = (char *) malloc(STRING_BUFFER_SIZE);
     testLibGProM();
+    free(_testStringBuf);
 
     printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
             "Total %d Test(s) Passed\n\n", test_count);
@@ -174,7 +178,7 @@ testExceptionCatching(void)
     after = getCurMemContext();
 
     ASSERT_EQUALS_INT(1,hitCallback, "exception handler was called once");
-    ASSERT_EQUALS_STRING("", result, "empty string result");
+    ASSERT_EQUALS_STRINGP(NULL, result, "empty string result");
     ASSERT_EQUALS_STRINGP("LIBGRPROM_QUERY_CONTEXT", after->contextName, "back to context before exception");
 
     gprom_shutdown();

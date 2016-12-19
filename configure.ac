@@ -295,6 +295,11 @@ AC_PROG_CC_STDC
 # CAN INLINE FUNCTIONS?
 AC_C_INLINE
 ################################################################################
+# SET OUTPUT VARIABLE FOR TOP SOURCE DIR
+mysrcdir="$(pushd "$(srcdir)" > /dev/null; pwd)"
+AC_DEFINE_UNQUOTED([GPROM_TOP_SRCDIR],["${mysrcdir}"], ["absolute path to top source dir"])
+GPROM_SRCDIR="$(pushd "$(srcdir)" > /dev/null; pwd)"
+################################################################################
 # CHECK FOR PROGRAM BINARIES
 AM_PROG_AR
 AC_PROG_YACC
@@ -413,7 +418,7 @@ AS_CASE(["$enable_postgres"],
   AC_CHECK_HEADERS([libpq-fe.h])
 # check for the libpq library
   AC_CHECK_LIB([pq],[PQconndefaults],[],[
-    AC_MSG_ERROR([missing libpq library - if you want to compile without Oracle backend support use --disable-postgres])
+    AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
   ])
   ],
   [no], [],
@@ -423,7 +428,7 @@ AS_CASE(["$enable_postgres"],
   AC_CHECK_HEADERS([libpq-fe.h])
 # check for the libpq library
   AC_CHECK_LIB([pq],[PQconndefaults],[],[
-    AC_MSG_ERROR([missing libpq library - if you want to compile without Oracle backend support use --disable-postgres])
+    AC_MSG_ERROR([missing libpq library - if you want to compile without Postgres backend support use --disable-postgres])
   ])  
   ]
 )
@@ -515,6 +520,7 @@ echo "
   ($PACKAGE_NAME) version $PACKAGE_VERSION
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   Prefix.............: $prefix
+  Top src dir........: $GPROM_SRCDIR
   Debug Build........: ${enable_debug:=yes}
   Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no} 
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes}

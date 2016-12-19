@@ -1000,14 +1000,46 @@ oracleGetViewDefinition(char *viewName)
 }
 
 DataType
-oracleGetOpReturnType (char *oName, List *dataTypes)
+oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists)
 {
+    *opExists = TRUE;
+
+    if (streq(oName, "+") || streq(oName, "*")  || streq(oName, "-") || streq(oName, "/"))
+    {
+        if (LIST_LENGTH(dataTypes) == 2)
+        {
+            DataType lType = getNthOfListInt(dataTypes, 0);
+            DataType rType = getNthOfListInt(dataTypes, 1);
+
+            if (lType == rType)
+            {
+                if (lType == DT_INT)
+                    return DT_INT;
+                if (lType == DT_FLOAT)
+                    return DT_FLOAT;
+            }
+        }
+    }
+
+    if (streq(oName, "||"))
+    {
+        DataType lType = getNthOfListInt(dataTypes, 0);
+        DataType rType = getNthOfListInt(dataTypes, 1);
+
+        if (lType == rType && lType == DT_STRING)
+            return DT_STRING;
+    }
+    //TODO more operators
+    *opExists = FALSE;
+
     return DT_STRING;
 }
 
 DataType
-oracleGetFuncReturnType (char *fName, List *dataTypes)
+oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
 {
+    *funcExists = TRUE;
+
     // aggregation functions
     if (streq(fName,"sum")
             || streq(fName, "min")
@@ -1055,6 +1087,10 @@ oracleGetFuncReturnType (char *fName, List *dataTypes)
         return DT_INT;
     if (streq(fName, "DENSE_RANK"))
         return DT_INT;
+
+   //TODO
+
+    *funcExists = FALSE;
 
     return DT_STRING;
 }
@@ -1532,13 +1568,13 @@ assembleOracleMetadataLookupPlugin (void)
 }
 
 DataType
-oracleGetOpReturnType (char *oName, List *dataTypes)
+oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists)
 {
     return DT_STRING;
 }
 
 DataType
-oracleGetFuncReturnType (char *fName, List *dataTypes)
+oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
 {
     return DT_STRING;
 }

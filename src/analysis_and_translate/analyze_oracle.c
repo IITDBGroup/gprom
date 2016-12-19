@@ -890,24 +890,24 @@ analyzeFromTableRef(FromTableRef *f)
 static void
 recursiveAppendAttrNames(JsonColInfoItem *attr, List **attrNames, List **attrTypes)
 {
-	if (attr->nested)
-	{
-		FOREACH(JsonColInfoItem, attr1, attr->nested)
-        		{
-			if(attr1->nested)
-				recursiveAppendAttrNames(attr1, attrNames, attrTypes);
-			else
-			{
-				*attrNames = appendToTailOfList(*attrNames, attr1->attrName);
-				*attrTypes = appendToTailOfListInt(*attrTypes, 5);
-			}
-        		}
-	}
-	else
-	{
-		*attrNames = appendToTailOfList(*attrNames, attr->attrName);
-		*attrTypes = appendToTailOfListInt(*attrTypes, 5);
-	}
+    if (attr->nested)
+    {
+        FOREACH(JsonColInfoItem, attr1, attr->nested)
+        {
+            if(attr1->nested)
+                recursiveAppendAttrNames(attr1, attrNames, attrTypes);
+            else
+            {
+                *attrNames = appendToTailOfList(*attrNames, attr1->attrName);
+                *attrTypes = appendToTailOfListInt(*attrTypes, DT_VARCHAR2);
+            }
+        }
+    }
+    else
+    {
+        *attrNames = appendToTailOfList(*attrNames, attr->attrName);
+        *attrTypes = appendToTailOfListInt(*attrTypes, DT_VARCHAR2);
+    }
 }
 
 static void
@@ -920,31 +920,6 @@ analyzeFromJsonTable(FromJsonTable *f, List **state)
 	FOREACH(JsonColInfoItem, attr1, f->columns)
 	{
 		recursiveAppendAttrNames(attr1, &attrNames, &attrTypes);
-
-		//TODO Add if streq for other datatypes as well
-		/*
-        switch (attr->attrType)
-        {
-        case DT_INT:
-        	attrTypes = appendToTailOfListInt(attrTypes, 0);
-        	break;
-        case DT_LONG:
-        	attrTypes = appendToTailOfListInt(attrTypes, 1);
-        	break;
-        case DT_STRING:
-        	attrTypes = appendToTailOfListInt(attrTypes, 2);
-        	break;
-        case DT_FLOAT:
-        	attrTypes = appendToTailOfListInt(attrTypes, 3);
-        	break;
-        case DT_BOOL:
-        	attrTypes = appendToTailOfListInt(attrTypes, 4);
-        	break;
-        case DT_VARCHAR2:
-        	attrTypes = appendToTailOfListInt(attrTypes, 5);
-        	break;
-        }
-		 */
 	}
 
 	if (f->from.attrNames == NIL)

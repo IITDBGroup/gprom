@@ -243,6 +243,9 @@ opToDot(StringInfo str, QueryOperator *op, Set *nodeDone)
                 case JOIN_FULL_OUTER:
                     joinSymbol = "\\fullouterjoin";
                     break;
+	        default:
+		    joinSymbol = "";
+		    break;
             }
 
             if (showParameters)

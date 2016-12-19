@@ -35,6 +35,9 @@ typedef int rc;
 extern int test_rec_depth;
 extern int test_count;
 
+#define STRING_BUFFER_SIZE (32 * 1024 * 1024)
+extern char *_testStringBuf;
+
 #define RUN_TEST(testCase, msg) \
     do { \
         char *indentation = getIndent(test_rec_depth); \
@@ -82,15 +85,13 @@ extern int test_count;
 	        _type _bVal = (_type) (b); \
 	        boolean result = _equals(_aVal,_bVal); \
 	        TRACE_LOG("result was: <%s>", result ? "TRUE": "FALSE"); \
-	        char *m = (char *) malloc(2048); \
 	        if (!result) \
-	            sprintf(m, ("expected <" format ">, but was " \
+	            sprintf(_testStringBuf, ("expected <" format ">, but was " \
                         "<" format ">: %s"), TOSTRING_TOKENIZE(_tostring)(_aVal), TOSTRING_TOKENIZE(_tostring)(_bVal), message); \
 	        else \
-	            sprintf(m, ("as expected <" format "> was equal to" \
+	            sprintf(_testStringBuf, ("as expected <" format "> was equal to" \
                         " <" format ">: %s"), TOSTRING_TOKENIZE(_tostring)(_aVal), TOSTRING_TOKENIZE(_tostring)(_bVal), message); \
-	        CHECK_RESULT((result ? PASS : FAIL), m); \
-	        free(m); \
+	        CHECK_RESULT((result ? PASS : FAIL), _testStringBuf); \
 	    } while(0)
 
 #define ASSERT_EQUALS_NODE(a,b,message) \
@@ -152,5 +153,6 @@ extern rc testDatalogModel(void);
 extern rc testHash(void);
 extern rc testLibGProM(void);
 extern rc testRPQ(void);
+extern rc testAutocast(void);
 
 #endif

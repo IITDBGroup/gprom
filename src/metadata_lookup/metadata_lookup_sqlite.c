@@ -52,6 +52,17 @@ static DataType stringToDT (char *dataType);
 static char *sqliteGetConnectionDescription (void);
 static void initCache(CatalogCache *c);
 
+#define HANDLE_ERROR_MSG(_rc,_expected,_message, ...) \
+    do { \
+        if (_rc != _expected) \
+        { \
+            StringInfo _newmes = makeStringInfo(); \
+            appendStringInfo(_newmes, _message, ##__VA_ARGS__); \
+            FATAL_LOG("error (%s)\n%u\n\n%s", _rc, strdup((char *) sqlite3_errmsg(plugin->conn)), _newmes->data); \
+        } \
+    } while(0)
+
+
 MetadataLookupPlugin *
 assembleSqliteMetadataLookupPlugin (void)
 {
@@ -121,10 +132,13 @@ sqliteDatabaseConnectionOpen (void)
 {
     char *dbfile = getStringOption("connection.db");
     int rc;
+    if (dbfile == NULL)
+        FATAL_LOG("no database file given (<connection.db> parameter)");
+
     rc = sqlite3_open(dbfile, &(plugin->conn));
-    if(rc)
+    if(rc != SQLITE_OK)
     {
-          ERROR_LOG("Can not open database: %s\n", sqlite3_errmsg(plugin->conn));
+          HANDLE_ERROR_MSG(rc, SQLITE_OK, "Can not open database <%s>", dbfile);
           sqlite3_close(plugin->conn);
           return EXIT_FAILURE;
     }
@@ -134,7 +148,10 @@ sqliteDatabaseConnectionOpen (void)
 int
 sqliteDatabaseConnectionClose()
 {
-    sqlite3_close(plugin->conn);
+    int rc;
+    rc = sqlite3_close(plugin->conn);
+
+    HANDLE_ERROR_MSG(rc, SQLITE_OK, "Can not close database");
 
     return EXIT_SUCCESS;
 }
@@ -184,12 +201,13 @@ sqliteGetAttributes (char *tableName)
     sqlite3_stmt *rs;
     StringInfo q;
     List *result = NIL;
+    int rc;
 
     q = makeStringInfo();
     appendStringInfo(q, QUERY_TABLE_COL_COUNT, tableName);
     rs = runQuery(q->data);
 
-    while(sqlite3_step(rs) == SQLITE_ROW)
+    while((rc = sqlite3_step(rs)) == SQLITE_ROW)
     {
         const unsigned char *colName = sqlite3_column_text(rs,1);
         const unsigned char *dt = sqlite3_column_text(rs,2);
@@ -201,6 +219,8 @@ sqliteGetAttributes (char *tableName)
                          );
         result = appendToTailOfList(result, a);
     }
+
+    HANDLE_ERROR_MSG(rc, SQLITE_DONE, "error getting attributes of table <%s>", tableName);
 
     return result;
 }
@@ -233,15 +253,48 @@ sqliteIsWindowFunction(char *functionName)
 }
 
 DataType
-sqliteGetFuncReturnType (char *fName, List *argTypes)
+sqliteGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
+    *funcExists = TRUE;
     return DT_STRING; //TODO
 }
 
 DataType
-sqliteGetOpReturnType (char *oName, List *argTypes)
+sqliteGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
-    //TODO
+
+    *opExists = TRUE;
+
+    if (streq(oName, "+") || streq(oName, "*")  || streq(oName, "-") || streq(oName, "/"))
+    {
+        if (LIST_LENGTH(argTypes) == 2)
+        {
+            DataType lType = getNthOfListInt(argTypes, 0);
+            DataType rType = getNthOfListInt(argTypes, 1);
+
+            if (lType == rType)
+            {
+                if (lType == DT_INT)
+                    return DT_INT;
+                if (lType == DT_FLOAT)
+                    return DT_FLOAT;
+            }
+        }
+    }
+
+    if (streq(oName, "||"))
+    {
+        DataType lType = getNthOfListInt(argTypes, 0);
+        DataType rType = getNthOfListInt(argTypes, 1);
+
+        if (lType == rType && lType == DT_STRING)
+            return DT_STRING;
+    }
+    //TODO more operators
+    *opExists = FALSE;
+
+    return DT_STRING;
+
     return DT_STRING;
 }
 
@@ -285,12 +338,15 @@ sqliteExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
     return NULL;
 }
 
+
+
 Relation *
 sqliteExecuteQuery(char *query)
 {
     Relation *r = makeNode(Relation);
     sqlite3_stmt *rs = runQuery(query);
     int numFields = sqlite3_column_count(rs);
+    int rc = SQLITE_OK;
 
     // set schema
     r->schema = NIL;
@@ -302,7 +358,7 @@ sqliteExecuteQuery(char *query)
 
     // read rows
     r->tuples = NIL;
-    while(sqlite3_step(rs) == SQLITE_ROW)
+    while((rc = sqlite3_step(rs)) == SQLITE_ROW)
     {
         List *tuple = NIL;
         for (int j = 0; j < numFields; j++)
@@ -320,7 +376,11 @@ sqliteExecuteQuery(char *query)
         r->tuples = appendToTailOfList(r->tuples, tuple);
         DEBUG_LOG("read tuple <%s>", stringListToString(tuple));
     }
-    sqlite3_finalize(rs);
+
+    HANDLE_ERROR_MSG(rc,SQLITE_DONE, "failed to execute query <%s>", query);
+
+    rc = sqlite3_finalize(rs);
+    HANDLE_ERROR_MSG(rc,SQLITE_OK, "failed to finalize query <%s>", query);
 
     return r;
 }
@@ -334,8 +394,8 @@ runQuery (char *q)
 
     DEBUG_LOG("run query:\n<%s>", q);
     rc = sqlite3_prepare(conn, q, -1, &stmt, NULL);
-    if (rc != SQLITE_OK)
-        FATAL_LOG("failed to execute query. Error:\n%s\n\n%s", sqlite3_errmsg(conn), q);
+    HANDLE_ERROR_MSG(rc, SQLITE_OK, "failed to prepare query <%s>", q);
+
     return stmt;
 }
 

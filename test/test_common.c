@@ -10,7 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 
-#include "test/test_main.h"
+#include "test_main.h"
 
 int test_count = 0;
 int test_rec_depth = 0;

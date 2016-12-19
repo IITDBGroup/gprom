@@ -267,7 +267,7 @@ static List*createTupleRuleTupleReducedGraphMoveRules(int getMatched, List* nege
         Node *rExpr;
         DLRule *moveRule;
         int goalPos = -1;
-        boolean goalChk;
+        boolean goalChk = FALSE;
         List *newRuleHeadArgs = NIL;
         List *boolArgs = removeVars(r->head->args, ruleArgs);
 
@@ -513,7 +513,7 @@ static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, L
 		int goalPos = -1;
 
 		// remove over generated move rules
-		boolean goalChk;
+		boolean goalChk = FALSE;
 		List *newRuleHeadArgs = NIL;
 		List *boolArgs = removeVars(r->head->args, ruleArgs);
 
@@ -821,7 +821,7 @@ static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbR
         int goalPos = -1;
 
         // remove over generated move rules
-        boolean goalChk;
+        boolean goalChk = FALSE;
         List *newRuleHeadArgs = NIL;
         List *boolArgs = removeVars(r->head->args, ruleArgs);
 
@@ -1101,7 +1101,7 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
         Node *rExpr;
         DLRule *moveRule;
         int goalPos = -1;
-        boolean goalChk;
+        boolean goalChk = FALSE;
         List *newRuleHeadArgs = NIL;
         List *boolArgs = removeVars(r->head->args, ruleArgs);
 
@@ -1318,7 +1318,7 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
         Node *rExpr;
         DLRule *moveRule;
         int goalPos = -1;
-        boolean goalChk;
+        boolean goalChk = FALSE;
         List *newRuleHeadArgs = NIL;
         List *boolArgs = removeVars(r->head->args, ruleArgs);
 
@@ -1554,7 +1554,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
         int goalPos = -1;
 
         // remove over generated move rules
-        boolean goalChk;
+        boolean goalChk = FALSE;
         List *newRuleHeadArgs = NIL;
         List *boolArgs = removeVars(r->head->args, ruleArgs);
 
@@ -1972,7 +1972,7 @@ createGPMoveRules(int getMatched, List* negedbRules,
         int goalPos = -1;
 
         // remove over generated move rules
-        boolean goalChk;
+        boolean goalChk = FALSE;
         List *newRuleHeadArgs = NIL;
         List *boolArgs = removeVars(r->head->args, ruleArgs);
 
@@ -2974,7 +2974,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     }
 
     // double check if the user question is correct
-    DLAtom *adAtom;
+    DLAtom *adAtom = NULL;
     getFirstRule = 0;
     getMatched = 0;
 //    List *unlinkedHeads = NIL;
@@ -3027,7 +3027,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 	// filter out incorrect linked rules
 	List *removeRules = NIL;
-	List *nRuleBodyArgs;
+	List *nRuleBodyArgs = NIL;
 	DEBUG_LOG("newRules before removing:\n%s", datalogToOverviewString((Node *) newRules));
 
 	FOREACH(DLRule,nRule,newRules)
