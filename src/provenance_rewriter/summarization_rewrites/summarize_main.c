@@ -24,10 +24,12 @@
 #include "operator_optimizer/operator_optimizer.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
+#include "model/query_operator/operator_property.h"
 
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 
 static Node *rewriteSampleOutput (Node * input);
+static Node *rewritePatternOutput (char *summaryType, Node * input);
 
 
 Node *
@@ -37,19 +39,136 @@ rewriteSummaryOutput (char *summaryType, Node *rewrittenTree)
 
 	Node *result;
 	Node *provJoin;
-	Node *samples;
+	Node *sample;
 	Node *patterns;
 //	Node *scanSamples;
 
 	provJoin = rewriteProvJoinOutput(rewrittenTree);
-	samples = rewriteSampleOutput(provJoin);
-
-	if (strcmp(sType,"LCA") == 0)
-		patterns = samples;
-//		patterns = rewritePatternOutput(samples);
+	sample = rewriteSampleOutput(provJoin);
+	patterns = rewritePatternOutput(sType, sample);
 //	scanSamples = rewriteScanSampleOutput(rewrittenTree);
 
 	result = patterns;
+
+	return result;
+}
+
+static Node *
+rewritePatternOutput (char *summaryType, Node *input)
+{
+	Node *result;
+
+	// compute Lowest Common Ancestors (LCA)
+	if (strcmp(summaryType,"LCA") == 0)
+	{
+		QueryOperator *allSample = (QueryOperator *) input;
+
+		// return only sample tuples having provenance
+		QueryOperator *provSample = (QueryOperator *) input;
+
+		int aPos = LIST_LENGTH(provSample->schema->attrDefs) - 1;
+		AttributeReference *lC = createFullAttrReference(strdup("HAS_PROV"), 0, aPos, 0, DT_INT);
+
+		Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
+		SelectionOperator *so = createSelectionOp(whereClause, provSample, NIL, getAttrNames(provSample->schema));
+
+		provSample->parents = singleton(so);
+		provSample = (QueryOperator *) so;
+
+		// create projection operator
+		List *projExpr = NIL;
+		int pos = LIST_LENGTH(allSample->schema->attrDefs);
+
+		FOREACH(AttributeDef,a,provSample->schema->attrDefs)
+		{
+			projExpr = appendToTailOfList(projExpr,
+					createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+			pos++;
+		}
+
+		ProjectionOperator *op = createProjectionOp(projExpr, provSample, NIL, getAttrNames(provSample->schema));
+		provSample->parents = singleton(op);
+
+		// create CROSS_JOIN operator
+		List *crossInput = LIST_MAKE(allSample, provSample);
+		List *attrNames = concatTwoLists(getAttrNames(allSample->schema),getAttrNames(provSample->schema));
+		QueryOperator *patternJoin = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, crossInput, NIL, attrNames);
+
+		// set the parent of the operator's children
+		OP_LCHILD(patternJoin)->parents = OP_RCHILD(patternJoin)->parents = singleton(patternJoin);
+
+		// create projection operator
+		projExpr = NIL;
+		List *lProjExpr = NIL;
+		List *rProjExpr = NIL;
+		pos = 0;
+
+		FOREACH(AttributeDef,a,allSample->schema->attrDefs)
+		{
+			lProjExpr = appendToTailOfList(lProjExpr,
+					createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+			pos++;
+		}
+
+		FOREACH(AttributeDef,a,provSample->schema->attrDefs)
+		{
+			rProjExpr = appendToTailOfList(rProjExpr,
+					createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+			pos++;
+		}
+
+		FORBOTH(Node,l,r,lProjExpr,rProjExpr)
+		{
+			AttributeDef *a = (AttributeDef *) r;
+
+			if (strcmp(a->attrName,"HAS_PROV") != 0)
+			{
+				DataType d = a->dataType;
+				Node *cond = (Node *) createOpExpr("=",LIST_MAKE(l,r));
+
+				Node *then = l;
+				Node *els = (Node *) createNullConst(d);
+
+				CaseWhen *caseWhen = createCaseWhen(cond, then);
+				CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
+
+				projExpr = appendToTailOfList(projExpr, (List *) caseExpr);
+			}
+//			else
+//				projExpr = appendToTailOfList(projExpr, (List *) l);
+		}
+
+		op = createProjectionOp(projExpr, patternJoin, NIL, getAttrNames(patternJoin->schema));
+		patternJoin->parents = singleton(op);
+		patternJoin = (QueryOperator *) op;
+
+		// create duplicate removal
+		projExpr = NIL;
+		pos = 0;
+
+		FOREACH(AttributeDef,a,patternJoin->schema->attrDefs)
+		{
+			projExpr = appendToTailOfList(projExpr,
+					createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+
+			pos++;
+		}
+
+		QueryOperator *dr = (QueryOperator *) createDuplicateRemovalOp(projExpr, patternJoin, NIL, getAttrNames(patternJoin->schema));
+		patternJoin->parents = singleton(dr);
+		patternJoin = (QueryOperator *) dr;
+
+		result = (Node *) patternJoin;
+//		SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
+
+		DEBUG_NODE_BEATIFY_LOG("pattern generation for summarization:", result);
+		INFO_OP_LOG("pattern generation for summarization as overview:", result);
+	}
+	else
+	{
+		result = NULL;
+		INFO_OP_LOG("Not implemented yet!!");
+	}
 
 	return result;
 }
@@ -145,6 +264,7 @@ rewriteSampleOutput (Node *input)
 	OP_LCHILD(unionOp)->parents = OP_RCHILD(unionOp)->parents = singleton(unionOp);
 
 	result = (Node *) unionOp;
+	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("sampling for summarization:", result);
 	INFO_OP_LOG("sampling for summarization as overview:", result);
@@ -273,12 +393,13 @@ rewriteProvJoinOutput (Node *rewrittenTree)
 	provJoin->parents = singleton(op);
 	provJoin = (QueryOperator *) op;
 
-	// create duplicate removal
-	QueryOperator *dr = (QueryOperator *) createDuplicateRemovalOp(projExpr, provJoin, NIL, getAttrNames(provJoin->schema));
-	provJoin->parents = singleton(dr);
-	provJoin = (QueryOperator *) dr;
+//	// create duplicate removal
+//	QueryOperator *dr = (QueryOperator *) createDuplicateRemovalOp(projExpr, provJoin, NIL, getAttrNames(provJoin->schema));
+//	provJoin->parents = singleton(dr);
+//	provJoin = (QueryOperator *) dr;
 
 	rewrittenTree = (Node *) provJoin;
+	SET_BOOL_STRING_PROP(rewrittenTree, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("rewritten query for summarization returned:", rewrittenTree);
 	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
