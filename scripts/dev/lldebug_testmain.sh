@@ -21,7 +21,6 @@ else
 	ARGS="${*:2}"
 fi
 LLDB=lldb
-LOG="-log -loglevel $1"
 SQL="$2"
 ARGS="${*:3}"
 SCRIPT=debug.script
@@ -30,5 +29,5 @@ echo "
 process launch -- ${GPROM} ${LOG} ${ARGS}
 "
 
-${LLDB} process launch -- ${GPROM} ${LOG} ${ARGS}
+${LLDB} ${GPROM} process launch -- ${LOG} ${ARGS}
 #rm -f $SCRIPT

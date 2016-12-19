@@ -31,5 +31,5 @@ run ${CONNECTION_PARAMS} ${LOG} -treeify-algebra-graphs -sql \"${SQL}\" ${ARGS}
 
 "
 
-${LLDB} process launch -- ${GPROM} ${CONNECTION_PARAMS} ${LOG} -treeify-algebra-graphs -sql "${SQL}" ${ARGS}
+${LLDB} ${GPROM} process launch -- ${CONNECTION_PARAMS} ${LOG} -treeify-algebra-graphs -sql "${SQL}" ${ARGS}
 #rm -f $SCRIPT
