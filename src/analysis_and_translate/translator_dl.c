@@ -22,6 +22,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
+#include "model/query_operator/query_operator_dt_inference.h"
 #include "model/datalog/datalog_model.h"
 #include "model/datalog/datalog_model_checker.h"
 #include "provenance_rewriter/prov_utility.h"
@@ -47,9 +48,9 @@ static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
 static boolean adaptProjectionAttrRef (QueryOperator *o, void *context);
 
 static Node *replaceVarWithAttrRef(Node *node, List *context);
-static boolean castChecker = FALSE; // check if cast is needed between "DOMAIN" and "REL"
-static boolean castForPos = FALSE; // check if cast is needed between positive translation and negative
-static char *goalRel = NULL;
+//static boolean castChecker = FALSE; // check if cast is needed between "DOMAIN" and "REL"
+//static boolean castForPos = FALSE; // check if cast is needed between positive translation and negative
+//static char *goalRel = NULL;
 //List *goalVars = NIL;
 boolean associateDomain = FALSE; // check if associate domain exists
 List *dlDom = NIL;
@@ -73,8 +74,25 @@ translateParseDL(Node *q)
     else
         FATAL_LOG("currently only DLProgram node type translation supported");
 
-    INFO_LOG("translated DL model:\n\n%s", operatorToOverviewString(result));
-//    FATAL_LOG("");
+    INFO_OP_LOG("translated DL model before casting:\n", result);
+
+    // apply casts where necessary
+    if (isA(result, List))
+    {
+        List *translation = (List *) result;
+        FOREACH(QueryOperator,c,translation)
+        {
+            introduceCastsWhereNecessary(c);
+            ASSERT(checkModel(c));
+        }
+    }
+    else if (IS_OP(result))
+    {
+        introduceCastsWhereNecessary((QueryOperator *) result);
+        ASSERT(checkModel((QueryOperator *) result));
+    }
+    INFO_OP_LOG("translated DL model:\n", result);
+
 
     return result;
 }
@@ -222,7 +240,7 @@ translateProgram(DLProgram *p)
     // translate rules
     FOREACH(DLRule,r,p->rules)
     {
-    	castChecker = FALSE; // initialize cast checker
+//    	castChecker = FALSE; // initialize cast checker
 
     	// TODO: find the better way to filter out original program
     	if(associateDomain && DL_HAS_PROP(r,DL_ORIGINAL_RULE) && LIST_LENGTH(dRules) == 0)
@@ -238,8 +256,10 @@ translateProgram(DLProgram *p)
             DEBUG_LOG("translate rule: %s", datalogToOverviewString((Node *) r));
 
             if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-                 ASSERT(checkModel((QueryOperator *) tRule));
-
+            {
+                introduceCastsWhereNecessary((QueryOperator *) tRule);
+                ASSERT(checkModel((QueryOperator *) tRule));
+            }
             APPEND_TO_MAP_VALUE_LIST(predToTrans,headPred,tRule);
     //        // not first rule for this pred
     //        if(MAP_HAS_STRING_KEY(predToTrans,headPred))
@@ -303,8 +323,10 @@ translateProgram(DLProgram *p)
 
     answerRel = MAP_GET_STRING(predToTrans, p->ans);
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-         ASSERT(checkModel((QueryOperator *) answerRel));
-
+    {
+        introduceCastsWhereNecessary((QueryOperator *) answerRel);
+        //ASSERT(checkModel((QueryOperator *) answerRel));
+    }
     return answerRel;
 }
 
@@ -1461,29 +1483,29 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
             }
 
             rename = (ProjectionOperator *) createProjOnAllAttrs(dom);
-
-            //check if cast is needed
-            FOREACH(Node,c,pdom->projExprs)
-            {
-            	if(typeOf(c) != DT_STRING && typeOf(c) != DT_BOOL)
-            	{
-                	castChecker = TRUE;
-            		castForPos = TRUE; // check if CAST occurred in general
-            	}
-            }
-
-            // if TRUE, then cast to DT_STRING
-            if(castChecker)
-            {
-        		goalRel = r->rel; //TODO Implement to find certain part of translation for CAST
-//        		goalVars = r->args;
-
-                List *newDataType = NIL;
-    			FORBOTH(Node,p,r,pdom->projExprs,rename->projExprs)
-						newDataType = appendToTailOfList(newDataType,getHeadOfListP(createCasts(p,r)));
-
-    			pdom->projExprs = copyObject(newDataType);
-            }
+            //TODO check whether this works
+//            //check if cast is needed
+//            FOREACH(Node,c,pdom->projExprs)
+//            {
+//            	if(typeOf(c) != DT_STRING && typeOf(c) != DT_BOOL)
+//            	{
+//                	castChecker = TRUE;
+//            		castForPos = TRUE; // check if CAST occurred in general
+//            	}
+//            }
+//
+//            // if TRUE, then cast to DT_STRING
+//            if(castChecker)
+//            {
+//        		goalRel = r->rel; //TODO Implement to find certain part of translation for CAST
+////        		goalVars = r->args;
+//
+//                List *newDataType = NIL;
+//    			FORBOTH(Node,p,r,pdom->projExprs,rename->projExprs)
+//						newDataType = appendToTailOfList(newDataType,getHeadOfListP(createCasts(p,r)));
+//
+//    			pdom->projExprs = copyObject(newDataType);
+//            }
 
             // rename attribute names
     //        List *newAttrNames = NIL;
@@ -2450,20 +2472,21 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     // add projection
     rename = (ProjectionOperator *) createProjOnAllAttrs(pInput);
 
+    //TODO casts removed
     // if CAST occurred, then apply CAST for EDB
-    if(castForPos && isEDB)
-    {
-    	List *newDataType = NIL;
-		FOREACH(Node,r,rename->projExprs)
-		{
-			if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL) //TODO check the datatype, if not string, then cast
-				newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
-			else
-				newDataType = appendToTailOfList(newDataType,copyObject(r));
-		}
-
-		rename->projExprs = copyObject(newDataType);
-    }
+//    if(castForPos && isEDB)
+//    {
+//    	List *newDataType = NIL;
+//		FOREACH(Node,r,rename->projExprs)
+//		{
+//			if(typeOf(r) != DT_STRING && typeOf(r) != DT_BOOL) //TODO check the datatype, if not string, then cast
+//				newDataType = appendToTailOfList(newDataType,createCastExpr(r,DT_STRING));
+//			else
+//				newDataType = appendToTailOfList(newDataType,copyObject(r));
+//		}
+//
+//		rename->projExprs = copyObject(newDataType);
+//    }
 
     addChildOperator((QueryOperator *) rename, pInput);
 

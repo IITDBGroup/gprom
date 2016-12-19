@@ -20,7 +20,7 @@
 
 static void addCastsToExpressions(QueryOperator *q);
 static void adaptOpSchema (QueryOperator *q);
-static boolean adaptAttributeRefList (QueryOperator *parent, List *children);
+static void adaptAttributeRefList (QueryOperator *parent, List *children);
 static List *queryOperatorGetAttrRefs(QueryOperator *q);
 static void castOpSchema (QueryOperator *op, List *dts);
 
@@ -37,7 +37,7 @@ introduceCastsWhereNecessary(QueryOperator *q)
     // introduce cast for expressions that are used by the operator
     addCastsToExpressions(q);
 
-    // for set operators we need to encsure that the inputs are union compatible
+    // for set operators we need to ensure that the inputs are union compatible
     switch(q->type)
     {
         case T_SetOperator:
@@ -58,6 +58,7 @@ introduceCastsWhereNecessary(QueryOperator *q)
                 }
                 castOpSchema(lChild, lcaDTs);
                 castOpSchema(rChild, lcaDTs);
+                adaptOpSchema(q);
 
                 DEBUG_NODE_BEATIFY_LOG("introduced casts for inputs of set operator", q);
             }
@@ -99,7 +100,7 @@ castOpSchema (QueryOperator *op, List *dts)
         }
     }
 
-    adaptOpSchema(op);
+    adaptOpSchema((QueryOperator *) p);
 }
 
 static void
@@ -143,8 +144,23 @@ addCastsToExpressions(QueryOperator *q)
             w->f= addCastsToExpr(w->f, TRUE);
         }
         break;
+        case T_NestingOperator:
+        {
+            NestingOperator *n = (NestingOperator *) q;
+            n->cond = addCastsToExpr(n->cond, TRUE);
+        }
+        break;
+        case T_SetOperator:
+        case T_OrderOperator:
+        case T_JsonTableOperator:
+        case T_DuplicateRemoval:
+        case T_ConstRelOperator:
+        { //TODO
+
+        }
+        break;
         default:
-            FATAL_LOG("not a query operator");
+            FATAL_LOG("not a query operator %s", beatify(nodeToString(q)));
     }
 
     adaptAttributeRefList(q, q->inputs);
@@ -165,7 +181,7 @@ adaptOpSchema (QueryOperator *q)
     }
 }
 
-static boolean
+static void
 adaptAttributeRefList (QueryOperator *parent, List *children)
 {
     List *attrRefs = queryOperatorGetAttrRefs(parent);
@@ -177,62 +193,16 @@ adaptAttributeRefList (QueryOperator *parent, List *children)
         QueryOperator *child;
         AttributeDef *childA;
 
-        if (a->name == NULL)
-        {
-            ERROR_NODE_BEATIFY_LOG("attribute NULL name:", a);
-            ERROR_OP_LOG("parent is",parent);
-            return FALSE;
-        }
-
-        if (input < 0 || input >= LIST_LENGTH(children))
-        {
-            ERROR_NODE_BEATIFY_LOG("attribute references input operator that "
-                    "does not exist:",a);
-            ERROR_OP_LOG("parent is",parent);
-            return FALSE;
-        }
-
         child = (QueryOperator *) getNthOfListP(children, input);
-        if (attrPos < 0 || attrPos >= getNumAttrs(child))
-        {
-            ERROR_NODE_BEATIFY_LOG("attribute references attribute position that does not "
-                                "exist in child:",a);
-            ERROR_OP_LOG("parent is",parent);
-            return FALSE;
-        }
-
         childA = getAttrDefByPos(child, attrPos);
-        if (strcmp(childA->attrName, a->name) != 0)
-        {
-            ERROR_LOG("attribute ref name and child attrdef names are not the "
-                    "same:", childA->attrName, a->name);
-            ERROR_OP_LOG("parent is",parent);
-            DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
-            return FALSE;
-        }
+
+        // different datatype adapt parent
         if (childA->dataType != a->attrType)
         {
-            ERROR_LOG("attribute datatype and child attrdef datatypes are not the "
-                    "same: <%s> and <%s>",
-                    DataTypeToString(childA->dataType),
-                    DataTypeToString(a->attrType));
-            ERROR_OP_LOG("parent is",parent);
-            DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
-            return FALSE;
+            DEBUG_NODE_BEATIFY_LOG("adapt parent attr ref:", a, childA);
+            a->attrType = childA->dataType;
         }
-       /* else
-        {
-            DEBUG_LOG("attribute datatype and child attrdef datatypes are not the "
-                    "same: <%s> and <%s> in\n\n%s",
-                    DataTypeToString(childA->dataType),
-                    DataTypeToString(a->attrType),
-                    operatorToOverviewString((Node *) parent));;
-            DEBUG_LOG("details are: \n%s\n\n%s\n\n", nodeToString(a),
-                    nodeToString(childA));
-        }*/
     }
-
-    return TRUE;
 }
 
 static List *

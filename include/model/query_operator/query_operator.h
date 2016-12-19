@@ -148,8 +148,10 @@ typedef struct JsonTableOperator
         || isA(op,SelectionOperator)                    \
         || isA(op,AggregationOperator)                  \
         || isA(op,DuplicateRemoval)                     \
-        || isA(op,WindowOperator)                      \
-		|| isA(op,OrderOperator))
+        || isA(op,WindowOperator)                       \
+		|| isA(op,OrderOperator)                        \
+		|| isA(op,JsonTableOperator)                    \
+		)
 
 #define IS_BINARY_OP(op) (isA(op,JoinOperator)          \
         || isA(op,SetOperator)                          \

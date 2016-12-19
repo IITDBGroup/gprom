@@ -630,9 +630,20 @@ addCastsMutator (Node *node, boolean errorOnFailure)
 {
     Node *casted = node;
 
+    if (node == NULL)
+        return NULL;
+
     // deal with nodes that have childres, process children first
     switch(node->type)
     {
+        case T_List:
+        {
+            FOREACH(Node,e,(List *) node)
+            {
+                addCastsMutator(e, errorOnFailure);
+            }
+        }
+        break;
         case T_AttributeReference:
         case T_Constant:
         case T_DLVar:

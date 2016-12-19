@@ -109,7 +109,7 @@ typedef struct List
             (_list1_)->head) != NULL) ? \
                     DUMMY_LC(_ival1_)->data.int_value : -1), \
         _ival2_ = (((DUMMY_LC(_ival2_) = \
-            (_list1_)->head) != NULL) ? \
+            (_list2_)->head) != NULL) ? \
                     DUMMY_LC(_ival2_)->data.int_value : -1) \
         ; \
             DUMMY_LC(_ival1_) != NULL && DUMMY_LC(_ival2_) != NULL; \
