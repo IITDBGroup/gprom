@@ -410,6 +410,11 @@ AS_IF([test "x$enable_readline" == "xno"], [
 ])
 ])
 ################################################################################
+# CPlex
+AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
+  AC_MSG_ERROR([missing cplex library])
+])
+################################################################################
 # Postgres access library (libpq)
 AS_CASE(["$enable_postgres"], 
   [yes], [
