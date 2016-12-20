@@ -19,8 +19,8 @@ SUBDIRS = configuration 		\
 		. 						\
 		command_line			\
 		libgprom				\
-		interfaces				
-		
+		interfaces				\
+		symbolic_eval
 
 noinst_LTLIBRARIES 		= libsrc.la
 libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \

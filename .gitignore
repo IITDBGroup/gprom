@@ -53,3 +53,4 @@ test-suite.log
 dpkg
 #*
 .#*
+test/testexprcplex

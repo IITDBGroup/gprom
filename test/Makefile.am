@@ -8,7 +8,7 @@ AM_CPPFLAGS += -DGPROM_TOPDIR=\"$(top_srcdir)/\"
  
 check_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
 				testserializer testvisit testrewriter testpicsrewrite \
-				testrpq testlibgprom 
+				testrpq testlibgprom testexprcplex
 
 # testcplex
 
@@ -21,6 +21,9 @@ testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 		   test_autocast.c
 
 testmain_LDADD = $(top_builddir)/src/libsrc.la
+
+testexprcplex_SOURCES = test_expr_to_cplex.c
+testexprcplex_LDADD = $(top_builddir)/src/libsrc.la
 
 # testcplex_SOURCES = test_cplex.c
 # testcplex_LDADD = $(top_builddir)/src/libsrc.la

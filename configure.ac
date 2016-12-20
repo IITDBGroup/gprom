@@ -411,9 +411,9 @@ AS_IF([test "x$enable_readline" == "xno"], [
 ])
 ################################################################################
 # CPlex
-AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
-  AC_MSG_ERROR([missing cplex library])
-])
+#AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
+#  AC_MSG_ERROR([missing cplex library])
+#])
 ################################################################################
 # Postgres access library (libpq)
 AS_CASE(["$enable_postgres"], 
@@ -514,6 +514,7 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/update_and_transaction/Makefile
 	src/rpq/Makefile
 	src/sql_serializer/Makefile
+	src/symbolic_eval/Makefile
 	src/utility/Makefile
 	src/libgprom/Makefile
 	test/Makefile
