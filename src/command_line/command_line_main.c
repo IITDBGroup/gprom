@@ -46,6 +46,7 @@ static const char *commandHelp = "\n"
 
 static char *prompt = "GProM";
 #define IS_UTILITY(cmd) (strStartsWith((cmd), "\\"))
+static boolean isInteractiveSession;
 
 static void process(char *sql);
 static void inputLoop(void);
@@ -64,6 +65,11 @@ main(int argc, char* argv[])
     if (optionsInit)
         return EXIT_FAILURE;
 
+    isInteractiveSession = !(getStringOption("languagehelp") != NULL
+            || getBoolOption("help")
+            || getStringOption("input.sql") != NULL
+            || getStringOption("input.sqlFile") != NULL);
+
     registerExceptionCallback(handleCLIException);
     createPromptString();
 
@@ -74,7 +80,7 @@ main(int argc, char* argv[])
     {
 
     }
-    else if (getStringOption("languagehelp"))
+    else if (getStringOption("languagehelp") != NULL)
     {
         char *lang = getStringOption("languagehelp");
         printf(TB_FG_BG(WHITE,BLACK,"%s - LANGUAGE OVERVIEW") ":\n%s",
@@ -270,7 +276,11 @@ handleCLIException (const char *message, const char *file, int line, ExceptionSe
     else
         printf(TCOL(RED,"(%s:%u) ") "\n%s\n",
                 file, line, message);
-    return EXCEPTION_WIPE;
+    // throw error if in non-interactive mode, otherwise try to recover by wiping memcontext
+    if (isInteractiveSession)
+        return EXCEPTION_WIPE;
+    else
+        return EXCEPTION_DIE;
 }
 
 #ifdef HAVE_READLINE
