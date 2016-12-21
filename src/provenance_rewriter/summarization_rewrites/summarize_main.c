@@ -35,6 +35,8 @@ static Node *rewriteSampleOutput (Node * input);
 static Node *rewritePatternOutput (char *summaryType, Node * input);
 static Node *rewriteScanSampleOutput (Node *sampleInput, Node * patternInput);
 static Node *rewriteCandidateOutput (Node *scanSampleInput);
+static Node *rewriteComputeFracOutput (Node *candidateInput, Node * sampleInput);
+static Node *rewriteMostGenExplOutput (Node *computeFracInput);
 
 Node *
 rewriteSummaryOutput (char *summaryType, Node *rewrittenTree)
@@ -47,14 +49,149 @@ rewriteSummaryOutput (char *summaryType, Node *rewrittenTree)
 	Node *patterns;
 	Node *scanSamples;
 	Node *candidates;
+	Node *computeFrac;
 
 	provJoin = rewriteProvJoinOutput(rewrittenTree);
 	samples = rewriteSampleOutput(provJoin);
 	patterns = rewritePatternOutput(sType, samples);
 	scanSamples = rewriteScanSampleOutput(samples, patterns);
 	candidates = rewriteCandidateOutput(scanSamples);
+	computeFrac = rewriteComputeFracOutput(candidates, samples);
+	result = rewriteMostGenExplOutput(computeFrac);
 
-	result = candidates;
+	return result;
+}
+
+static Node *
+rewriteMostGenExplOutput (Node *computeFracInput)
+{
+	Node *result;
+
+	QueryOperator *computeFrac = (QueryOperator *) computeFracInput;
+
+	// create selection for returning top most general explanation
+	Node *selCond = (Node *) createOpExpr("=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(1)));
+	SelectionOperator *so = createSelectionOp(selCond, computeFrac, NIL, getAttrNames(computeFrac->schema));
+
+	computeFrac->parents = singleton(so);
+	computeFrac = (QueryOperator *) so;
+
+	// create projection operator
+	int pos = 0;
+	List *projExpr = NIL;
+	ProjectionOperator *op;
+
+	FOREACH(AttributeDef,p,computeFrac->schema->attrDefs)
+	{
+		projExpr = appendToTailOfList(projExpr,
+				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+		pos++;
+	}
+
+	op = createProjectionOp(projExpr, computeFrac, NIL, getAttrNames(computeFrac->schema));
+	computeFrac->parents = singleton(op);
+	computeFrac = (QueryOperator *) op;
+
+	result = (Node *) computeFrac;
+
+	DEBUG_NODE_BEATIFY_LOG("most general explanation from summarization:", result);
+	INFO_OP_LOG("most general explanation from summarization as overview:", result);
+
+	return result;
+}
+
+static Node *
+rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
+{
+	Node *result;
+
+	QueryOperator *candidates = (QueryOperator *) candidateInput;
+	QueryOperator *samples = (QueryOperator *) sampleInput;
+
+	// get total count for prov
+	int aPos = LIST_LENGTH(samples->schema->attrDefs) - 1;
+	AttributeReference *lC = createFullAttrReference(strdup("HAS_PROV"), 0, aPos, 0, DT_INT);
+
+	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
+	SelectionOperator *so = createSelectionOp(whereClause, samples, NIL, getAttrNames(samples->schema));
+
+	samples->parents = singleton(so);
+	samples = (QueryOperator *) so;
+
+	// create projection operator
+	AttributeReference *countProv = createFullAttrReference(strdup("*"), 0, aPos, 0, DT_INT);
+	FunctionCall *fcCount = createFunctionCall("COUNT", singleton(countProv));
+	fcCount->isAgg = TRUE;
+	countProv->name = strdup("totalProv");
+
+	ProjectionOperator *op = createProjectionOp(singleton(fcCount), samples, NIL, singleton(countProv->name));
+	samples->parents = singleton(op);
+	samples = (QueryOperator *) op;
+
+	// cross product with candidates to compute
+	List *crossInput = LIST_MAKE(samples,candidates);
+	List *attrNames = concatTwoLists(getAttrNames(samples->schema),getAttrNames(candidates->schema));
+	QueryOperator *computeFrac = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, crossInput, NIL, attrNames);
+
+	// set the parent of the operator's children
+	OP_LCHILD(computeFrac)->parents = OP_RCHILD(computeFrac)->parents = singleton(computeFrac);
+
+	// create projection operator
+	int pos = 0;
+	List *projExpr = NIL;
+	AttributeReference *totProv;
+	AttributeReference *covProv;
+	AttributeReference *numProv;
+
+	FOREACH(AttributeDef,p,computeFrac->schema->attrDefs)
+	{
+		if (pos == 0)
+			totProv = createFullAttrReference(strdup("totalProv"), 0, pos, 0, p->dataType);
+
+		if (pos == 1)
+			covProv = createFullAttrReference(strdup("Covered"), 0, pos, 0, p->dataType);
+
+		if (pos == 2)
+			numProv = createFullAttrReference(strdup("numInProv"), 0, pos, 0, p->dataType);
+
+		projExpr = appendToTailOfList(projExpr,
+				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+		pos++;
+	}
+
+	// add attribute for accuracy
+//	AttributeReference *numProv = createFullAttrReference(strdup("numInProv"), 0, 2, 0, DT_INT);
+//	AttributeReference *covProv = createFullAttrReference(strdup("Covered"), 0, 1, 0, DT_INT);
+	Node* accuRate = (Node *) createOpExpr("/",LIST_MAKE(numProv,covProv));
+	projExpr = appendToTailOfList(projExpr, accuRate);
+
+	// add attribute for coverage
+//	AttributeReference *totProv = createFullAttrReference(strdup("totalProv"), 0, 0, 0, DT_INT);
+	Node* covRate = (Node *) createOpExpr("/",LIST_MAKE(numProv,totProv));
+	projExpr = appendToTailOfList(projExpr, covRate);
+
+	attrNames = CONCAT_LISTS(attrNames, singleton("Accuracy"), singleton("Coverage"));
+	op = createProjectionOp(projExpr, computeFrac, NIL, attrNames);
+	computeFrac->parents = singleton(op);
+	computeFrac = (QueryOperator *) op;
+
+	// create ORDER BY
+	// TODO: probably put another projection for order by operation
+//	AttributeReference *accuR = createFullAttrReference(strdup("Accuracy"), 0,
+//							LIST_LENGTH(computeFrac->schema->attrDefs) - 2, 0, DT_INT);
+
+	OrderExpr *accExpr = createOrderExpr((Node *) accuRate, SORT_DESC, SORT_NULLS_LAST);
+	OrderExpr *covExpr = createOrderExpr((Node *) covRate, SORT_DESC, SORT_NULLS_LAST);
+
+	OrderOperator *ord = createOrderOp(LIST_MAKE(accExpr, covExpr), computeFrac, NIL);
+	computeFrac->parents = singleton(ord);
+	computeFrac = (QueryOperator *) ord;
+
+	result = (Node *) computeFrac;
+	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
+
+	DEBUG_NODE_BEATIFY_LOG("compute fraction for summarization:", result);
+	INFO_OP_LOG("compute fraction for summarization as overview:", result);
 
 	return result;
 }
@@ -154,6 +291,7 @@ rewriteCandidateOutput (Node *scanSampleInput)
 	scanSamples = (QueryOperator *) op;
 
 	result = (Node *) scanSamples;
+	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("candidate patterns for summarization:", result);
 	INFO_OP_LOG("candidate patterns for summarization as overview:", result);
