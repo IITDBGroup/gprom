@@ -108,7 +108,7 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	QueryOperator *candidates = (QueryOperator *) candidateInput;
 	QueryOperator *samples = (QueryOperator *) sampleInput;
 
-	// get total count for prov
+	// get total count for prov from samples
 	int aPos = LIST_LENGTH(samples->schema->attrDefs) - 1;
 	AttributeReference *lC = createFullAttrReference(strdup("HAS_PROV"), 0, aPos, 0, DT_INT);
 
@@ -648,17 +648,21 @@ rewriteProvJoinOutput (Node *rewrittenTree)
 
 	// create selection for user prov question
 	// TODO: temporary where clause (apply from parse)
-	AttributeReference *lC = createFullAttrReference(strdup("B"), 0, 1, 0, DT_INT);
-	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
-	SelectionOperator *so = createSelectionOp(whereClause, prov, NIL, getAttrNames(prov->schema));
+//	AttributeReference *lC = createFullAttrReference(strdup("B"), 0, 1, 0, DT_INT);
+//	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
+
+//	AttributeReference *lC = createFullAttrReference(strdup("I"), 0, 0, 0, DT_INT);
+//	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstString("a")));
+//
+//	SelectionOperator *so = createSelectionOp(whereClause, prov, NIL, getAttrNames(prov->schema));
 
 //	attrNames = getAttrDefNames(getNormalAttrs(prov));
 //	SelectionOperator *so = createSelectionOp(whereClause, prov, NIL, attrNames);
 //	addProvenanceAttrsToSchema((QueryOperator *) so, OP_LCHILD(so));
 
-	prov->parents = singleton(so);
-	prov = (QueryOperator *) so;
-	prov->provAttrs = provAttrs;
+//	prov->parents = singleton(so);
+//	prov = (QueryOperator *) so;
+//	prov->provAttrs = provAttrs;
 
 	// create projection for adding "HAS_PROV" attribute
 	FOREACH(AttributeDef,p,prov->schema->attrDefs)
