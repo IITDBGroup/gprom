@@ -29,10 +29,12 @@
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 
 static List *provAttrs = NIL;
+static List *origAttrs = NIL;
+
 static Node *rewriteSampleOutput (Node * input);
 static Node *rewritePatternOutput (char *summaryType, Node * input);
 static Node *rewriteScanSampleOutput (Node *sampleInput, Node * patternInput);
-//static Node *rewriteCandidateOutput (Node *scanSampleInput);
+static Node *rewriteCandidateOutput (Node *scanSampleInput);
 
 Node *
 rewriteSummaryOutput (char *summaryType, Node *rewrittenTree)
@@ -44,33 +46,120 @@ rewriteSummaryOutput (char *summaryType, Node *rewrittenTree)
 	Node *samples;
 	Node *patterns;
 	Node *scanSamples;
-//	Node *candidates;
+	Node *candidates;
 
 	provJoin = rewriteProvJoinOutput(rewrittenTree);
 	samples = rewriteSampleOutput(provJoin);
 	patterns = rewritePatternOutput(sType, samples);
 	scanSamples = rewriteScanSampleOutput(samples, patterns);
-//	candidates = rewriteCandidateOutput(scanSamples);
+	candidates = rewriteCandidateOutput(scanSamples);
 
-	result = scanSamples;
+	result = candidates;
 
 	return result;
 }
-//
-//static Node *
-//rewriteCandidateOutput (Node *scanSampleInput)
-//{
-//	Node *result;
-//
-//	QueryOperator *scanSamples = (QueryOperator *) scanSampleInput;
-//
-//	List *aggrs = removeFromTail(scanSamples);
-//	List *attrNames = removeFromTail(scanSamples->schema->attrDefs);
-//
-//	AggregationOperator *gb = (AggregationOperator *) createAggregationOp(aggrs, groupby, scanSamples, NIL, attrNames);
-//
-//	return result;
-//}
+
+static Node *
+rewriteCandidateOutput (Node *scanSampleInput)
+{
+	Node *result;
+
+	QueryOperator *scanSamples = (QueryOperator *) scanSampleInput;
+
+	// create group by operator
+	List *groupBy = NIL;
+	int gPos = 0;
+
+	FOREACH(AttributeDef,a,scanSamples->schema->attrDefs)
+	{
+		if (strcmp(a->attrName,"HAS_PROV") != 0)
+		{
+			groupBy = appendToTailOfList(groupBy,
+					createFullAttrReference(strdup(a->attrName), 0, gPos, 0, a->dataType));
+
+			gPos++;
+		}
+	}
+
+	List *aggrs = NIL;
+
+	AttributeReference *sumHasProv = createFullAttrReference(strdup("HAS_PROV"), 0, gPos, 0, DT_INT);
+	FunctionCall *fc = createFunctionCall("SUM", singleton(sumHasProv));
+	fc->isAgg = TRUE;
+
+	AttributeReference *countProv = createFullAttrReference(strdup("*"), 0, gPos, 0, DT_INT);
+	FunctionCall *fcCount = createFunctionCall("COUNT", singleton(countProv));
+	fcCount->isAgg = TRUE;
+
+	aggrs = appendToTailOfList(aggrs,fcCount);
+	aggrs = appendToTailOfList(aggrs,fc);
+
+	// create new attribute names for aggregation output schema
+	List *attrNames = concatTwoLists(singleton("Covered"), singleton("NumInProv"));
+
+//	for (int i = 0; i < LIST_LENGTH(aggrs); i++)
+//		attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("NumInProv", itoa(i)));
+
+	List *attrs = getAttrDefNames(removeFromTail(scanSamples->schema->attrDefs));
+	attrNames = concatTwoLists(attrNames, attrs);
+
+	AggregationOperator *gb = (AggregationOperator *) createAggregationOp(aggrs, groupBy, scanSamples, NIL, attrNames);
+	scanSamples->parents = singleton(gb);
+	scanSamples = (QueryOperator *) gb;
+//	scanSamples->provAttrs = provAttrs;
+
+	// create projection operator
+	List *projExpr = NIL;
+	List *origExprs = NIL;
+	List *caseExprs = NIL;
+	int pos = 0;
+
+	FOREACH(AttributeDef,a,scanSamples->schema->attrDefs)
+	{
+		projExpr = appendToTailOfList(projExpr,
+				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+
+		pos++;
+	}
+
+	pos = 2;
+	FOREACH(AttributeDef,a,origAttrs)
+	{
+		origExprs = appendToTailOfList(origExprs,
+				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+
+		pos++;
+	}
+
+	attrs = NIL;
+
+	FOREACH(Node,n,origExprs)
+	{
+		AttributeDef *a = (AttributeDef *) n;
+
+		Node *cond = (Node *) createIsNullExpr((Node *) a);
+		Node *then = (Node *) createConstInt(1);
+		Node *els = (Node *) createConstInt(0);
+
+		CaseWhen *caseWhen = createCaseWhen(cond, then);
+		CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
+
+		caseExprs = appendToTailOfList(caseExprs, (List *) caseExpr);
+		attrs = appendToTailOfList(attrs, CONCAT_STRINGS("use",a->attrName));
+	}
+
+	attrNames = concatTwoLists(getAttrNames(scanSamples->schema), attrs);
+	ProjectionOperator *op = createProjectionOp(concatTwoLists(projExpr,caseExprs), scanSamples, NIL, attrNames);
+	scanSamples->parents = singleton(op);
+	scanSamples = (QueryOperator *) op;
+
+	result = (Node *) scanSamples;
+
+	DEBUG_NODE_BEATIFY_LOG("candidate patterns for summarization:", result);
+	INFO_OP_LOG("candidate patterns for summarization as overview:", result);
+
+	return result;
+}
 
 static Node *
 rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
@@ -87,7 +176,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 
 	FOREACH(AttributeDef,attrs,samples->schema->attrDefs)
 	{
-		if (strcmp(attrs->attrName,"HAS_PROV") != 0)
+		if (searchListNode(origAttrs, (Node *) attrs))
 		{
 			char *a = attrs->attrName;
 			AttributeReference *lA, *rA;
@@ -106,9 +195,8 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 			Node *attrCond = OR_EXPRS(joinCond,isNullCond);
 
 			curCond = AND_EXPRS(attrCond,curCond);
+			aPos++;
 		}
-
-		aPos++;
 	}
 
 	// create join operator
@@ -150,10 +238,10 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 
 	scanSample->parents = singleton(op);
 	scanSample = (QueryOperator *) op;
-	scanSample->provAttrs = provAttrs;
+//	scanSample->provAttrs = provAttrs;
 
 	result = (Node *) scanSample;
-//	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
+	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("join patterns with samples for summarization:", result);
 	INFO_OP_LOG("join patterns with samples for summarization as overview:", result);
@@ -216,24 +304,30 @@ rewritePatternOutput (char *summaryType, Node *input)
 
 		FOREACH(AttributeDef,a,allSample->schema->attrDefs)
 		{
-			lProjExpr = appendToTailOfList(lProjExpr,
-					createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
-			pos++;
+			if(searchListNode(origAttrs,(Node *) a))
+			{
+				lProjExpr = appendToTailOfList(lProjExpr,
+						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+				pos++;
+			}
 		}
 
 		FOREACH(AttributeDef,a,provSample->schema->attrDefs)
 		{
-			rProjExpr = appendToTailOfList(rProjExpr,
-					createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
-			pos++;
+			if(searchListNode(origAttrs,(Node *) a))
+			{
+				rProjExpr = appendToTailOfList(rProjExpr,
+						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+				pos++;
+			}
 		}
 
 		FORBOTH(Node,l,r,lProjExpr,rProjExpr)
 		{
 			AttributeDef *a = (AttributeDef *) r;
 
-			if (strcmp(a->attrName,"HAS_PROV") != 0)
-			{
+//			if (strcmp(a->attrName,"HAS_PROV") != 0)
+//			{
 				DataType d = a->dataType;
 				Node *cond = (Node *) createOpExpr("=",LIST_MAKE(l,r));
 
@@ -244,7 +338,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 				CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
 
 				projExpr = appendToTailOfList(projExpr, (List *) caseExpr);
-			}
+//			}
 //			else
 //				projExpr = appendToTailOfList(projExpr, r);
 		}
@@ -407,6 +501,7 @@ rewriteProvJoinOutput (Node *rewrittenTree)
 	QueryOperator *prov = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
 	QueryOperator *transInput = (QueryOperator *) prov->properties;
 	provAttrs = getProvenanceAttrs(prov);
+	origAttrs = getNormalAttrs(prov);
 
 	int pos = 0;
 	List *projExpr = NIL;
