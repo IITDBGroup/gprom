@@ -1,7 +1,7 @@
 ########################################
 # Derived from ubuntu distribution
 ########################################
-FROM iitdbgroup/gprom-ubuntu-example-sqlite:latest
+FROM iitdbgroup/gprom-debian-all-backends:latest
 MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
 # Install python
@@ -14,7 +14,7 @@ RUN apt-get -y update && apt-get install -y \
 # Copy connection settings
 ########################################
 RUN mv /gprom/src/clients/pythonweb /web
-CP connsettings.py web/provgraph_web/
+COPY connsettings.py /web/provgraph_web/
 ########################################
 # install python packages
 ########################################

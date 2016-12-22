@@ -104,4 +104,4 @@ def showgraph():
     return render_template('queryresult.html', query=query, gpromlog=gpromlog, dotlog=dotlog, imagefile=imagefile, returnedError=(returncode != 0), action=action, queryResult=queryResult,allQueries=allQueries)
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0')

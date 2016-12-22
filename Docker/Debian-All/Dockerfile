@@ -7,7 +7,6 @@ MAINTAINER Boris Glavic <bglavic@iit.edu>
 # Create working directories
 ########################################
 WORKDIR /gprom
-WORKDIR examples
 ########################################
 # Install packages needed for building
 ########################################

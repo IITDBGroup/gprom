@@ -11,4 +11,9 @@ def createdb():
     from provgraph_web.models import db
     db.create_all()
 
+@manager.command
+def startserver():
+    from provgraph_web import app
+    app.run(host='0.0.0.0')
+    
 manager.run()
