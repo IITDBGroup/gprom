@@ -18,7 +18,8 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'F34TF$($e36D';
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///provgraph_web.db'
 conv = Ansi2HTMLConverter()
-    
+w = GProMWrapper(user=GPROM_USER,passwd=GPROM_PASSWD,host=GPROM_HOST,port=GPROM_PORT,db=GPROM_DB,backend=GPROM_BACKEND)
+
 ########################################
 # Load DB model
 from models import *
@@ -58,7 +59,6 @@ def queryload():
 def showgraph():
     if not 'query' in session:
         return abort(403)
-    w = GProMWrapper()
     query = session['query']
     action = session['action']
     # generate a graph

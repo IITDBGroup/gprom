@@ -21,7 +21,7 @@ class GProMWrapper:
    'Wrapper around the gprom commandline'
 
    # stores connection parameters and other gprom options
-   def __init__(self, user='fga_user', passwd='fga', host='ligeti.cs.iit.edu', port='1521', db='orcl', frontend='dl', backend='oracle', plugins={ 'executor' : 'run' }):
+   def __init__(self, user, passwd, host, port='1521', db='orcl', frontend='dl', backend='oracle', plugins={ 'executor' : 'run' }):
       self.user = user
       self.passwd = passwd
       self.host = host
