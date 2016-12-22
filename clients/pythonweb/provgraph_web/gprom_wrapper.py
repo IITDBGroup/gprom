@@ -84,20 +84,20 @@ class GProMWrapper:
    def runDLQuery (self,query,mode='run'):
        errcode, output = self.executeAndCollectErrors(query,mode=mode)
        return errcode, output
-   
-# w = GProMWrapper()
-# #cmd = w.constructCommand('Q(X):-R(X,Y).')
-# #print cmd
-# #err, std, errcode = run_command(cmd)
-# #print err, std, errcode
-# #errcode, glog,dlog = w.generateProvGraph('Q(X):-R(X,Y).WHY(Q(1)).','test.png', 'test.dot')
-# #print errcode, glog, dlog
-# code,st = w.runDLQuery('Q(X) :- R(X,Y).')
-# #print st
-# lines=st.split('\n')
-# numAttr=lines[0].count('|')
-# lines=[ l for l in lines if not(not l or l.isspace()) ]
-# lines=map(lambda x: '| ' + x + 'X', lines)
-# lines[1] = '|' + (' -- | ' * numAttr)
-# result='\n'.join(lines)
-# print result
+
+   def printHelp (self):
+       err, std, errcode = run_command("gprom -help")
+       print "GProM Commandline Python Wrapper give Datalog query as first arg or just call gprom directly which supports the following args\n" + '-' * 80 + "\n" + std + err
+
+# if run as a script the run query given as first parameter
+if __name__ == "__main__":
+    import sys
+    w = GProMWrapper()
+    if len(sys.argv) < 2:
+        w.printHelp()
+    else:
+        code, output = w.runDLQuery(sys.argv[1])
+        if code == 0:
+            print output
+        else:
+            print "there was an error:\n\n" + output

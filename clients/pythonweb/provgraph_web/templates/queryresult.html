@@ -1,11 +1,6 @@
 {% extends "layout.html" %}
 {% block content %}
-<h1>GProM Datalog Provenance Graph Generator</h1>
-   <form method="post" action="{{ url_for('querysubmit') }}">
-        <p><label>Query:</label> <textarea name="query" required>{{ query }}</textarea></p>
-        <p><button type="submit" name="gengraph">Generate Graph</button><button type="submit" name="genquery">Run Query</button></p>
-</form>
-
+{% include "queryactions.html" %}
 {%- if returnedError == False and action == 'graph' -%}
 <h1>Provenance Graph</h1>
 <embed type="image/svg+xml" id="provgraph_svg" src="{{ url_for('static', filename=imagefile) }}" />

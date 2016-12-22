@@ -23,6 +23,9 @@ th {
     background-color: #000000;
     color: white;
 }
+select {
+	width=100%;
+}
 .terminalwrapper { display: block; color: #000000; background-color: #EEEEEE; white-space: pre-wrap; word-wrap: break-word; }
 .ansi2html-content { display: block; white-space: pre-wrap; word-wrap: break-word; color: #000000; background-color: #FFFFFF;}
 .ansi2html-content span {  display:block; }

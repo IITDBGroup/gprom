@@ -4,9 +4,6 @@ from hashlib import md5
 from ansi2html import Ansi2HTMLConverter
 import markdown
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'F34TF$($e36D';
-
 @app.route('/')
 def home():
     return render_template('index.html')
