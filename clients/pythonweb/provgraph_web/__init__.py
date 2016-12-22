@@ -68,7 +68,7 @@ def showgraph():
         imagefile = queryhash + '.svg'
         absImagepath = os.path.join(APP_STATIC, imagefile)
         if not(os.path.exists(absImagepath)):
-            dotpath = os.path.join(APP_ROOT, 'pg.dot')        
+            dotpath = os.path.join(APP_ROOT, 'tmp/pg.dot')        
             returncode, gpromlog, dotlog = w.generateProvGraph(query, absImagepath, dotpath)
             gpromlog = conv.convert(gpromlog,full=False)
             dotlog = conv.convert(dotlog,full=False)

@@ -30,4 +30,4 @@ ENTRYPOINT ["/web/manage.py"]
 ########################################
 # Per start the webserver
 ########################################
-CMD ["runserver"]
+CMD ["startserver"]

@@ -42,7 +42,7 @@ class GProMWrapper:
            else:
                gprom_cmd+=['-P'+key, value]
        # pass quoted query
-       quotedQuery='$\'' + query.replace("'","\\\'") + '\''
+       quotedQuery='"' + query + '"'
        gprom_cmd+=['-query', quotedQuery]
        # create one string
        gprom_cmd=' '.join(map(str,gprom_cmd))
