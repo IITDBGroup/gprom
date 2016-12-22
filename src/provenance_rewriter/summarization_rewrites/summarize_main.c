@@ -191,7 +191,7 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("compute fraction for summarization:", result);
-	INFO_OP_LOG("compute fraction for summarization as overview:", result);
+//	INFO_OP_LOG("compute fraction for summarization as overview:", result);
 
 	return result;
 }
@@ -294,7 +294,7 @@ rewriteCandidateOutput (Node *scanSampleInput)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("candidate patterns for summarization:", result);
-	INFO_OP_LOG("candidate patterns for summarization as overview:", result);
+//	INFO_OP_LOG("candidate patterns for summarization as overview:", result);
 
 	return result;
 }
@@ -382,7 +382,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("join patterns with samples for summarization:", result);
-	INFO_OP_LOG("join patterns with samples for summarization as overview:", result);
+//	INFO_OP_LOG("join patterns with samples for summarization as overview:", result);
 
 	return result;
 }
@@ -507,7 +507,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 		SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 		DEBUG_NODE_BEATIFY_LOG("pattern generation for summarization:", result);
-		INFO_OP_LOG("pattern generation for summarization as overview:", result);
+//		INFO_OP_LOG("pattern generation for summarization as overview:", result);
 	}
 	else
 	{
@@ -623,7 +623,7 @@ rewriteSampleOutput (Node *input)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("sampling for summarization:", result);
-	INFO_OP_LOG("sampling for summarization as overview:", result);
+//	INFO_OP_LOG("sampling for summarization as overview:", result);
 
 	return result;
 }
@@ -685,6 +685,7 @@ rewriteProvJoinOutput (Node *rewrittenTree)
 	prov->provAttrs = provAttrs;
 
 	// create join condition
+	// TODO: find the corresponding provenance attribute to join
 	Node *curCond = NULL;
 	int aPos = 0;
 
@@ -697,13 +698,24 @@ rewriteProvJoinOutput (Node *rewrittenTree)
 
 		lA = createFullAttrReference(strdup(a), 0, aPos, 0, attrs->dataType);
 
-		int rPos = aPos + LIST_LENGTH(transInput->schema->attrDefs);
-		char *a2 = STRING_VALUE(getNthOfListP(prov->schema->attrDefs,rPos));
+//		int rPos = aPos + LIST_LENGTH(transInput->schema->attrDefs);
+//		char *a2 = STRING_VALUE(getNthOfListP(prov->schema->attrDefs,rPos));
+		char *a2 = NULL;
 
-		if(strcmp(a,a2) == 0)
-			FATAL_LOG("USING join is using ambiguous attribute references <%s>", a);
-		else
-			rA = createFullAttrReference(strdup(a2), 1, rPos, 0, attrs->dataType);
+		for(int rPos = LIST_LENGTH(transInput->schema->attrDefs); rPos < LIST_LENGTH(prov->schema->attrDefs); rPos++)
+		{
+			char *attrProv = STRING_VALUE(getNthOfListP(prov->schema->attrDefs,rPos));
+
+			if (isSuffix(attrProv,a))
+			{
+				a2 = attrProv;
+
+				if(strcmp(a,a2) == 0)
+					FATAL_LOG("USING join is using ambiguous attribute references <%s>", a);
+				else
+					rA = createFullAttrReference(strdup(a2), 1, rPos, 0, attrs->dataType);
+			}
+		}
 
 		aPos++;
 
@@ -783,7 +795,7 @@ rewriteProvJoinOutput (Node *rewrittenTree)
 	SET_BOOL_STRING_PROP(rewrittenTree, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("rewritten query for summarization returned:", rewrittenTree);
-	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
+//	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
 
 	return rewrittenTree;
 }
