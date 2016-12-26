@@ -31,3 +31,6 @@ ENTRYPOINT ["/web/manage.py"]
 # Per start the webserver
 ########################################
 CMD ["startserver"]
+RUN echo "/usr/local/bin/" >> /etc/ld.so.conf \
+	&& echo "/opt/oracle/instantclient/" >> /etc/ld.so.conf \
+	&& /sbin/ldconfig
