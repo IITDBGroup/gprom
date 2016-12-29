@@ -79,8 +79,9 @@ static void unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom
 static DLProgram *solveProgram (DLProgram *p, DLAtom *question, boolean neg);
 
 //char *idbHeadPred = NULL;
-List *programRules = NIL;
-List *domainRules = NIL;
+static List *programRules = NIL;
+static List *domainRules = NIL;
+static HashMap *comparisonAtom;
 
 
 DLProgram *
@@ -143,6 +144,32 @@ createWhyGPprogram (DLProgram *p, DLAtom *why)
 
 		INFO_DL_LOG("create new GP bottom up program for:", p);
 		DEBUG_LOG("Associated Domain:\n%s", datalogToOverviewString((Node *) domainRules));
+	}
+
+	if (p->comp != NULL)
+	{
+		List *compArgs = NIL;
+
+		FOREACH(DLComparison,c,p->comp)
+			FOREACH(Node,args,c->opExpr->args)
+				if(isA(args,DLVar))
+					compArgs = appendToTailOfList(compArgs,args);
+
+		 comparisonAtom = NEW_MAP(Constant,List);
+
+		FOREACH(DLRule,r,p->rules)
+		{
+			FOREACH(DLAtom,a,r->body)
+				if (DL_HAS_PROP(a,DL_IS_EDB_REL))
+					FOREACH(DLVar,v,compArgs)
+						if(searchListNode(a->args,(Node *) v))
+							ADD_TO_MAP(comparisonAtom,createNodeKeyValue((Node *) createConstString(a->rel), (Node *) v));
+
+//			r->n.properties = comparisonAtom;
+		}
+
+		INFO_DL_LOG("comparison operator:", p->comp);
+		DEBUG_LOG("comparison operator:\n%s", datalogToOverviewString(p->comp));
 	}
 
     enumerateRules (p);
@@ -2792,6 +2819,36 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         atHead->rel = adAtomName;
         atBody = copyObject(edb);
 
+        // add comparison into the body
+        if(solvedProgram->comp != NIL)
+        {
+        	char *bodyArg = NULL;
+            List *bodyComp = NIL;
+
+            FOREACH(Node,b,atBody->args)
+            	if(isA(b,DLVar))
+            		bodyArg = ((DLVar *) b)->name;
+
+        	FOREACH(DLComparison,c,solvedProgram->comp)
+			{
+        		Node *compCond = getMap(comparisonAtom,(Node *) createConstString(edb->rel));
+
+            	if (searchListNode(c->opExpr->args, compCond))
+            	{
+            		FOREACH(Node,n,c->opExpr->args)
+						if(isA(n,DLVar))
+            				((DLVar *) n)->name = bodyArg;
+
+            		bodyComp = appendToTailOfList(bodyComp, c);
+            	}
+			}
+//        	atBody = (DLAtom *) bodyComp;
+        	bodyComp  = appendToHeadOfList(bodyComp, atBody);
+        	atRule = createDLRule(atHead, bodyComp);
+        }
+        else
+        {
+
         //DEBUG_LOG("checkStart:\n%s", datalogToOverviewString((Node *) atRule));
         // is under negated
         //if (ruleNeg)
@@ -2801,12 +2858,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         //}
         //else
         //{
-        atRule = createDLRule(atHead, singleton(atBody));
+        	atRule = createDLRule(atHead, singleton(atBody));
 //        if (!ruleWon)
 //        	atBody->negated = FALSE;
 //        }
 //        DEBUG_LOG("checkEnd:\n%s", datalogToOverviewString((Node *) atRule));
-
+        }
 
         // add rules to new rules list
         setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) edb);
@@ -3860,6 +3917,7 @@ unifyProgram (DLProgram *p, DLAtom *question)
     newP->facts = p->facts;
     newP->rules = newRules;
     newP->n.properties = copyObject(p->n.properties);
+    newP->comp = p->comp;
 
     setDLProp((DLNode *) newP, DL_MAP_RELNAME_TO_RULES, (Node *) newPredToRules);
     setDLProp((DLNode *) newP, DL_MAP_UN_PREDS_TO_RULES, (Node *) predToUnRules);
