@@ -723,10 +723,12 @@ translateSafeRule(DLRule *r)
 //    }
 
     headP = createProjectionOp(projExprs,
-            sel ? (QueryOperator *) sel : joinedGoals,
+//            sel ? (QueryOperator *) sel : joinedGoals,
+    		joinedGoals,
             NIL,
             headNames);
-    addParent(sel ? (QueryOperator *) sel : joinedGoals, (QueryOperator *) headP);
+//    addParent(sel ? (QueryOperator *) sel : joinedGoals, (QueryOperator *) headP);
+    addParent(joinedGoals, (QueryOperator *) headP);
 
     // add duplicate removal operator
     dupRem = createDuplicateRemovalOp(NULL, (QueryOperator *) headP, NIL,

@@ -2375,7 +2375,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //	List *bodyPred = NIL;
 
 	// store orig program to analyze later on
-	if(solvedProgram->doms != NIL)
+	if(!LIST_EMPTY(solvedProgram->doms))
 	{
 		origProg = solvedProgram->rules;
 		FOREACH(DLRule,a,origProg)
@@ -3323,7 +3323,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     // check domain rules are assigned by the user
 	List *associateDomainRule;
 
-    if (solvedProgram->doms != NIL)
+    if (!LIST_EMPTY(solvedProgram->doms))
 	{
     	associateDomainRule = NIL;
     	DLRule *newDomRule;
