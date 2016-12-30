@@ -2429,10 +2429,18 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
         origArgs = removeVars(makeUniqueVarList(getRuleVars(ruleRule)), ruleRule->head->args);
 
-        List *endArgs = singleton(getTailOfListP(origArgs));
-        origArgs = removeFromTail(origArgs);
+        List *endArgs = NIL;
 
-        origArgs = CONCAT_LISTS(ruleRule->head->args, endArgs, origArgs);
+        if(!LIST_EMPTY(origArgs))
+        {
+            endArgs = singleton(getTailOfListP(origArgs));
+            origArgs = removeFromTail(origArgs);
+            origArgs = CONCAT_LISTS(ruleRule->head->args, endArgs, origArgs);
+        }
+        else
+        	origArgs = CONCAT_LISTS(ruleRule->head->args, origArgs);
+
+
         newRuleArg = copyObject(origArgs);
         // add args for boolean
         if (!ruleWon) {
