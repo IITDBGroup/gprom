@@ -81,8 +81,8 @@ static DLProgram *solveProgram (DLProgram *p, DLAtom *question, boolean neg);
 //char *idbHeadPred = NULL;
 static List *programRules = NIL;
 static List *domainRules = NIL;
-static HashMap *compAtom;
-static HashMap *compRule;
+//static HashMap *compAtom;
+//static HashMap *compRule;
 
 
 DLProgram *
@@ -171,17 +171,17 @@ createWhyGPprogram (DLProgram *p, DLAtom *why)
     p->n.properties = NULL;
     setDLProp((DLNode *) solvedProgram, DL_PROV_PROG, (Node *) p);
 
-    // comparison expression
-	if (p->comp != NIL)
-	{
-		compAtom = NEW_MAP(Constant,List);
-		compRule = NEW_MAP(Constant,List);
-
-		FOREACH(DLComparison,c,p->comp)
-			FOREACH(Node,args,c->opExpr->args)
-				if(isA(args,DLVar))
-					ADD_TO_MAP(compAtom, createNodeKeyValue(args,(Node *) c));
-
+//    // comparison expression
+//	if (p->comp != NIL)
+//	{
+//		compAtom = NEW_MAP(Constant,List);
+//		compRule = NEW_MAP(Constant,List);
+//
+//		FOREACH(DLComparison,c,p->comp)
+//			FOREACH(Node,args,c->opExpr->args)
+//				if(isA(args,DLVar))
+//					ADD_TO_MAP(compAtom, createNodeKeyValue(args,(Node *) c));
+//
 //		FOREACH(DLRule,r,solvedProgram->rules)
 //		{
 //			FOREACH(DLAtom,a,r->body)
@@ -201,10 +201,10 @@ createWhyGPprogram (DLProgram *p, DLAtom *why)
 ////				}
 //			}
 //		}
-
-		INFO_DL_LOG("comparison operator:", p->comp);
-		DEBUG_LOG("comparison operator:\n%s", datalogToOverviewString(p->comp));
-	}
+//
+//		INFO_DL_LOG("comparison operator:", p->comp);
+//		DEBUG_LOG("comparison operator:\n%s", datalogToOverviewString(p->comp));
+//	}
 
     solvedProgram = rewriteSolvedProgram(solvedProgram);
     DL_DEL_PROP(solvedProgram, DL_PROV_WHY);
@@ -3985,7 +3985,7 @@ unifyProgram (DLProgram *p, DLAtom *question)
     newP->facts = p->facts;
     newP->rules = newRules;
     newP->n.properties = copyObject(p->n.properties);
-    newP->comp = p->comp;
+//    newP->comp = p->comp;
 
     setDLProp((DLNode *) newP, DL_MAP_RELNAME_TO_RULES, (Node *) newPredToRules);
     setDLProp((DLNode *) newP, DL_MAP_UN_PREDS_TO_RULES, (Node *) predToUnRules);
