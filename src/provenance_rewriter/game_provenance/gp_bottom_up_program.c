@@ -2807,35 +2807,40 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 				FOREACH(DLAtom,a,ruleRule->body) //TODO comparison atoms
 				{
-					getPos = listPos + LIST_LENGTH(origArgs);
+					Node *atom = (Node *) a;
 
-					// if an edb atom
-					if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
+					if(isA(atom,DLAtom))
 					{
-						DLAtom *at;
-						AD_NORM_COPY(at,a);
-//						if (searchListInt(searchBoolArgs, 0))
-//						if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) || getFirstRule != 0)
+						getPos = listPos + LIST_LENGTH(origArgs);
+
+						// if an edb atom
+						if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
+						{
+							DLAtom *at;
+							AD_NORM_COPY(at,a);
+	//						if (searchListInt(searchBoolArgs, 0))
+	//						if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) || getFirstRule != 0)
+							if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)))
+								addToSet(adornedEDBHelpAtoms, at);
+							else
+								addToSet(adornedEDBAtoms, at);
+						}
+
+						// check the args to make TRUE -> WON and FALSE -> LOST
+						char *adBodyName = NULL;
+						boolean goalChk = BOOL_VALUE(getNthOfListP(newRuleArg, getPos));
+
+	//					adBodyName = CONCAT_STRINGS("R", a->rel, "_", (getNthOfListInt(searchBoolArgs, listPos) == 1) ? "WON" : "LOST", NON_LINKED_POSTFIX);
+						adBodyName = CONCAT_STRINGS("R", a->rel, "_", goalChk ? "WON" : "LOST", NON_LINKED_POSTFIX);
+
+						listPos++;
+
+	//					if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) || getFirstRule != 0)
 						if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)))
-							addToSet(adornedEDBHelpAtoms, at);
-						else
-							addToSet(adornedEDBAtoms, at);
+							setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(a));
+
+						a->rel = adBodyName;
 					}
-
-					// check the args to make TRUE -> WON and FALSE -> LOST
-					char *adBodyName = NULL;
-					boolean goalChk = BOOL_VALUE(getNthOfListP(newRuleArg, getPos));
-
-//					adBodyName = CONCAT_STRINGS("R", a->rel, "_", (getNthOfListInt(searchBoolArgs, listPos) == 1) ? "WON" : "LOST", NON_LINKED_POSTFIX);
-					adBodyName = CONCAT_STRINGS("R", a->rel, "_", goalChk ? "WON" : "LOST", NON_LINKED_POSTFIX);
-
-					listPos++;
-
-//					if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) || getFirstRule != 0)
-					if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)))
-						setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(a));
-
-					a->rel = adBodyName;
 				}
 
 //				if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) || getFirstRule != 0)
