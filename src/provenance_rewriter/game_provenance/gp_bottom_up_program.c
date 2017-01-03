@@ -3594,9 +3594,16 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 							FOREACH(DLRule,h,origProg)
 								if(strcmp(h->head->rel,bodyAtomRel) == 0)
 									FOREACH(DLAtom,a,h->body)
-										FOREACH(DLVar,v,h->head->args)
-											if(!isA(v,Constant) && searchListNode(a->args,(Node *) v))
-												bodyAtomRel = a->rel;
+									{
+										Node *n = (Node *) a;
+
+										if(isA(n,DLAtom))
+										{
+											FOREACH(DLVar,v,h->head->args)
+												if(!isA(v,Constant) && searchListNode(a->args,(Node *) v))
+													bodyAtomRel = a->rel;
+										}
+									}
 
 							if (!isA(arg,Constant))
 							{
