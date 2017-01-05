@@ -43,7 +43,7 @@ static const char *commandHelp = "\n"
             "\\i(nput language)\tshow help for currently selected parser\n"
             "\\o(ptions)\t\tshow current parameter settings\n"
             "\\s(et) PAR VAL\t\tset parameter PAR to value VAL\n"
-            "\\b(ackend) QUERY\t\tsend QUERY directly to the backend"
+            "\\b(ackend) QUERY\tsend QUERY directly to the backend"
         ;
 
 static char *prompt = "GProM";
@@ -74,20 +74,25 @@ main(int argc, char* argv[])
     char *result;
     boolean optionsInit;
 
-
-    optionsInit = initBasicModulesAndReadOptions("gprom", "GProM command line application.", argc, argv);
+    // initialize basic modules (memory manager, logger, options storage)
+    optionsInit = initBasicModules();
     if (optionsInit)
         return EXIT_FAILURE;
+
+    // register exception handler
+    registerExceptionCallback(handleCLIException);
+
+    // read configuration and history files
+    readConf();
+
+    // read options, determine session type, and setup plugins
+    readOptions("gprom", "GProM command line application.", argc, argv);
 
     isInteractiveSession = !(getStringOption("languagehelp") != NULL
             || getBoolOption("help")
             || getStringOption("input.sql") != NULL
             || getStringOption("input.sqlFile") != NULL);
 
-    registerExceptionCallback(handleCLIException);
-
-    // read configuration and history files
-    readConf();
     setupPluginsFromOptions();
 
     // create prompt

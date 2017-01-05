@@ -43,12 +43,26 @@ static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
 
 int
-initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[])
+initBasicModules (void)
 {
     initMemManager();
     mallocOptions();
     initLogger();
 
+    return EXIT_SUCCESS;
+}
+
+
+int
+initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[])
+{
+    initBasicModules();
+    return readOptions(appName, appHelpText, argc, argv);
+}
+
+int
+readOptions (char *appName, char *appHelpText, int argc, char* argv[])
+{
     if(parseOption(argc, argv) != 0)
     {
         printOptionParseError(stdout);
@@ -95,17 +109,17 @@ reactToOptionsChange (const char *optName)
     }
 }
 
-int
-initBasicModules (void)
-{
-    initMemManager();
-    mallocOptions();
-    initLogger();
-    if (opt_memmeasure)
-        setupMemInstrumentation();
-
-    return EXIT_SUCCESS;
-}
+//int
+//initBasicModules (void)
+//{
+//    initMemManager();
+//    mallocOptions();
+//    initLogger();
+//    if (opt_memmeasure)
+//        setupMemInstrumentation();
+//
+//    return EXIT_SUCCESS;
+//}
 
 #define CHOOSE_PLUGIN(_plugin,_method) \
     do { \
