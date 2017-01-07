@@ -785,12 +785,12 @@ rewritePI_CSComposableJoin (JoinOperator *op)
     o->schema->attrDefs = sublist(copyObject(o->schema->attrDefs), 0, numLAttrs - 1);
 
     // adapt schema for join op
-    clearAttrsFromSchema((QueryOperator *) op);
-    addNormalAttrsWithoutSpecialToSchema((QueryOperator *) op, lChild);
+//    clearAttrsFromSchema((QueryOperator *) op);
+//    addNormalAttrsWithoutSpecialToSchema((QueryOperator *) op, lChild);
     addProvenanceAttrsToSchema((QueryOperator *) op, lChild);
     addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) op);
 
-    addNormalAttrsWithoutSpecialToSchema((QueryOperator *) op, rChild);
+    o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs, rNormAttrs);
     addProvenanceAttrsToSchema((QueryOperator *) op, rChild);
     addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) op);
 
