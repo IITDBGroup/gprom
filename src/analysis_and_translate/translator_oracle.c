@@ -24,6 +24,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
+#include "model/query_operator/query_operator_model_checker.h"
 
 #include "analysis_and_translate/analyzer.h"
 //#include "analysis_and_translate/translator.h"
@@ -44,6 +45,8 @@ typedef struct ReplaceGroupByState {
 
 // function declarations
 static Node *translateGeneral(Node *node);
+static boolean disambiguiteAttrNames(Node *node, Set *done);
+static void adaptSchemaFromChildren(QueryOperator *o);
 
 /* Three branches of translating a Query */
 static QueryOperator *translateSetQuery(SetQuery *sq);
@@ -56,6 +59,7 @@ static QueryOperator *translateWithStmt(WithStmt *with);
 static QueryOperator *translateFromClause(List *fromClause);
 static QueryOperator *buildJoinTreeFromOperatorList(List *opList);
 static List *translateFromClauseToOperatorList(List *fromClause);
+//static void addPrefixToAttrNames (List *str, char *prefix);
 static List *getAttrsOffsets(List *fromClause);
 static inline QueryOperator *createTableAccessOpFromFromTableRef(
         FromTableRef *ftr);
@@ -169,7 +173,142 @@ translateGeneral (Node *node)
     }
     else
         result = (Node *) translateQueryOracle(node);
+
+    Set *done = PSET();
+    disambiguiteAttrNames(result, done);
+
     return result;
+}
+
+static boolean
+disambiguiteAttrNames(Node *node, Set *done)
+{
+    QueryOperator *op;
+    boolean changed = FALSE;
+
+    if (hasSetElem(done, node))
+        return FALSE;
+
+    if (isA(node, List))
+    {
+        FOREACH(QueryOperator,q,(List *) node)
+        {
+            changed |= disambiguiteAttrNames((Node *) q, done);
+        }
+        return changed;
+    }
+
+    op = (QueryOperator *) node;
+
+    FOREACH(Node,child,op->inputs)
+    {
+        changed |= disambiguiteAttrNames(child, done);
+    }
+
+    // if children have changed we need to fix operator's attributes
+    if (changed)
+    {
+        DEBUG_OP_LOG("child operator's schema has changed", op);
+        // first adapt attribute references
+        List *attrRefs = getAttrRefsInOperator(op);
+        FOREACH(AttributeReference,a,attrRefs)
+        {
+            QueryOperator *child;
+            AttributeDef *childA;
+            int input = a->fromClauseItem;
+            int attrPos = a->attrPosition;
+
+            child = (QueryOperator *) getNthOfListP(op->inputs, input);
+            childA = getAttrDefByPos(child, attrPos);
+            if (!strpeq(a->name,childA->attrName))
+            {
+                a->name = strdup(childA->attrName);
+            }
+        }
+        // adapt schema based on changed attributes
+        adaptSchemaFromChildren(op);
+    }
+
+    //TODO What other ops to consider
+    if (isA(node,JoinOperator) || isA(node,ProjectionOperator))
+    {
+        if(!checkUniqueAttrNames(op))
+        {
+            makeAttrNamesUnique(op);
+            changed = TRUE;
+            DEBUG_OP_LOG("join or projection attributes are not unique", op);
+        }
+    }
+
+    addToSet(done, node);
+    return changed;
+}
+
+static void
+adaptSchemaFromChildren(QueryOperator *o)
+{
+    switch(o->type)
+    {
+        case T_SelectionOperator:
+        case T_SetOperator:
+        case T_DuplicateRemoval:
+        case T_OrderOperator:
+        {
+            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+        }
+        break;
+        case T_ProjectionOperator:
+        {
+            ProjectionOperator *p = (ProjectionOperator *) o;
+            FORBOTH(Node,proj,a,p->projExprs,o->schema->attrDefs)
+            {
+                AttributeDef *aDef = (AttributeDef *) a;
+                if (isA(proj,AttributeReference))
+                {
+                    AttributeReference *ref = (AttributeReference *) proj;
+                    if (!strpeq(aDef->attrName, ref->name))
+                    {
+                        aDef->attrName = strdup(ref->name);
+                    }
+                }
+            }
+        }
+        break;
+        case T_JoinOperator:
+        {
+            List *lAttrs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+            List *rAttrs = copyObject(OP_RCHILD(o)->schema->attrDefs);
+            o->schema->attrDefs = CONCAT_LISTS(lAttrs, rAttrs);
+        }
+        break;
+        case T_NestingOperator:
+        case T_WindowOperator:
+        {
+            Node *lastOne = getTailOfListP(o->schema->attrDefs);
+            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+            o->schema->attrDefs = appendToTailOfList(o->schema->attrDefs, lastOne);
+        }
+        break;
+        case T_JsonTableOperator:
+        {
+            List *childAttr = OP_LCHILD(o)->schema->attrDefs;
+            FORBOTH(AttributeDef,a,childA,o->schema->attrDefs,childAttr)
+            {
+                if (!strpeq(a->attrName, childA->attrName))
+                {
+                    a->attrName = strdup(childA->attrName);
+                }
+            }
+        }
+        break;
+        case T_ProvenanceComputation:
+        {
+            //TODO should never end up here?
+        }
+        break;
+        default:
+            break;
+    }
 }
 
 static QueryOperator *
@@ -673,6 +812,7 @@ translateFromClause(List *fromClause)
 static QueryOperator *
 buildJoinTreeFromOperatorList(List *opList)
 {
+    int pos = 0;
     DEBUG_LOG("build join tree from operator list\n%s", nodeToString(opList));
 
     QueryOperator *root = (QueryOperator *) getHeadOfListP(opList);
@@ -699,7 +839,7 @@ buildJoinTreeFromOperatorList(List *opList)
             /* get data types from inputs and attribute names from parameter
              * to create schema */
             List *l1 = getDataTypes(oldRoot->schema);
-	    List *l2 = getDataTypes(op->schema);
+            List *l2 = getDataTypes(op->schema);
             op->schema = createSchemaFromLists(op->schema->name, attrNames, concatTwoLists(l1, l2));
 
             root = op;
@@ -709,26 +849,41 @@ buildJoinTreeFromOperatorList(List *opList)
             QueryOperator *oldRoot = (QueryOperator *) root;
             List *inputs = NIL;
             // set children of the join node
-	    inputs = appendToTailOfList(inputs, oldRoot);
-	    inputs = appendToTailOfList(inputs, op);
+            inputs = appendToTailOfList(inputs, oldRoot);
+            inputs = appendToTailOfList(inputs, op);
+            List *lAttrs = getAttrNames(oldRoot->schema);
+            List *rAttrs = getAttrNames(op->schema);
 
+//            addPrefixToAttrNames(lAttrs, itoa(pos));
+//            addPrefixToAttrNames(rAttrs, itoa(pos + 1));
             // contact children's attribute names as the node's attribute
             // names
-            List *attrNames = concatTwoLists(getAttrNames(oldRoot->schema), getAttrNames(op->schema));
+            List *attrNames = concatTwoLists(lAttrs, rAttrs);
 
             // create join operator
             root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
 
             // set the parent of the operator's children
-	    OP_LCHILD(root)->parents = singleton(root);
+            OP_LCHILD(root)->parents = singleton(root);
             OP_RCHILD(root)->parents = singleton(root);
         }
+        pos++;
     }
 
     DEBUG_LOG("join tree for translated from is\n%s", nodeToString(root));
 
     return root;
 }
+
+//static void
+//addPrefixToAttrNames (List *str, char *prefix)
+//{
+//    FOREACH_LC(lc, str)
+//    {
+//        char *s =  LC_STRING_VAL(lc);
+//        LC_P_VAL(lc) = CONCAT_STRINGS(prefix,"_",s);
+//    }
+//}
 
 static List *
 getAttrsOffsets(List *fromClause)

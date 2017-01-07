@@ -597,8 +597,18 @@ static QueryOperator *
 rewritePI_CSJoin (JoinOperator *op)
 {
     DEBUG_LOG("REWRITE-PICS - Join");
+    QueryOperator *o = (QueryOperator *) op;
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
+    List *rNormAttrs;
+    int numLAttrs, numRAttrs;
+
+    numLAttrs = LIST_LENGTH(lChild->schema->attrDefs);
+    numRAttrs = LIST_LENGTH(rChild->schema->attrDefs);
+
+    // get attributes from right input
+    rNormAttrs = sublist(o->schema->attrDefs, numLAttrs, numLAttrs + numRAttrs - 1);
+    o->schema->attrDefs = sublist(copyObject(o->schema->attrDefs), 0, numLAttrs - 1);
 
     // rewrite children
     // if (!HAS_STRING_PROP(PROP...))
@@ -607,11 +617,11 @@ rewritePI_CSJoin (JoinOperator *op)
     rChild = rewritePI_CSOperator(rChild);
 
     // adapt schema for join op
-    clearAttrsFromSchema((QueryOperator *) op);
-    addNormalAttrsToSchema((QueryOperator *) op, lChild);
-    addProvenanceAttrsToSchema((QueryOperator *) op, lChild);
-    addNormalAttrsToSchema((QueryOperator *) op, rChild);
-    addProvenanceAttrsToSchema((QueryOperator *) op, rChild);
+//    clearAttrsFromSchema((QueryOperator *) op);
+//    addNormalAttrsToSchema(o, lChild);
+    addProvenanceAttrsToSchema(o, lChild);
+    o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs, rNormAttrs);
+    addProvenanceAttrsToSchema(o, rChild);
 
     // add projection to put attributes into order on top of join op
     List *projExpr = CONCAT_LISTS(
