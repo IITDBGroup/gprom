@@ -601,11 +601,22 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 i++;
             }
 
-            // get commit scn
-            char *tableName = (char *) getHeadOfListP(tInfo->updateTableNames);
-            tInfo->commitSCN = createConstLong(getCommitScn(tableName,
-                    LONG_VALUE(getHeadOfListP(tInfo->scns)),
-                    xid));
+            // get commit scn, some tables that were targeted by statements might not have been modified
+            long commitScn = INVALID_SCN;
+
+            FOREACH(char,tableName,tInfo->updateTableNames)
+            {
+                commitScn = getCommitScn(tableName,
+                        LONG_VALUE(getHeadOfListP(tInfo->scns)),
+                        xid);
+                if (commitScn != INVALID_SCN)
+                    break;
+            }
+
+            if (commitScn == INVALID_SCN)
+                FATAL_NODE_LOG("unable to determine commit SCN for transaction", tInfo);
+
+            tInfo->commitSCN = createConstLong(commitScn);
 
             // if only updated rows shows be returned then we need to store the update conditions
             // because we might need that to filter out those tuples

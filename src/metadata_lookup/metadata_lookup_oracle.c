@@ -894,7 +894,11 @@ oracleGetCommitScn (char *tableName, long maxScn, char *xid)
         while(OCI_FetchNext(rs))
             commitScn = (long) OCI_GetBigInt(rs,1);
 
-        ASSERT(commitScn != 0);
+        if(commitScn != 0)
+        {
+            FREE(statement);
+            return INVALID_SCN;
+        }
 
         DEBUG_LOG("statement %s \n\nfinished and returned commit SCN %u",
                 statement->data, maxScn);
