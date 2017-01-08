@@ -86,7 +86,7 @@ main(int argc, char* argv[])
     readConf();
 
     // read options, determine session type, and setup plugins
-    readOptions("gprom", "GProM command line application.", argc, argv);
+    int returnVal = readOptions("gprom", "GProM command line application.", argc, argv);
 
     isInteractiveSession = !(getStringOption("languagehelp") != NULL
             || getBoolOption("help")
@@ -101,7 +101,7 @@ main(int argc, char* argv[])
     START_TIMER("TOTAL");
 
     // read from terminal
-    if (getBoolOption("help"))
+    if (returnVal != EXIT_SUCCESS)
     {
 
     }

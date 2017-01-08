@@ -26,7 +26,7 @@ exeRunQuery (void *code)
     char *adaptedQuery;
     int *colSizes;
     int numCol;
-    int numRows;
+//    int numRows;
     int totalSize = 0;
 
     // remove semicolon
@@ -37,7 +37,7 @@ exeRunQuery (void *code)
     res = executeQuery((char *) adaptedQuery);
 
     numCol = LIST_LENGTH(res->schema);
-    numRows = LIST_LENGTH(res->tuples);
+//    numRows = LIST_LENGTH(res->tuples);
     colSizes = MALLOC(numCol * sizeof(int));
 
     // determine column sizes

@@ -63,14 +63,16 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
 int
 readOptions (char *appName, char *appHelpText, int argc, char* argv[])
 {
-    if(parseOption(argc, argv) != 0)
+    int parserReturn = parseOption(argc, argv);
+
+    if(parserReturn == OPTION_PARSER_RETURN_ERROR)
     {
         printOptionParseError(stdout);
         printOptionsHelp(stdout, appName, appHelpText, TRUE);
         return EXIT_FAILURE;
     }
 
-    if (getBoolOption("help"))
+    if (parserReturn == OPTION_PARSER_RETURN_HELP || getBoolOption("help"))
     {
         printOptionsHelp(stdout, appName, appHelpText, FALSE);
         return EXIT_FAILURE;
