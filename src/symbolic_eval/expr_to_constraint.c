@@ -40,7 +40,7 @@ static int setToConstr(List * attrList, Node * query, CPXENVptr env,
 		CPXLPptr lp);
 static int invertCondToConstr(Update* f, CPXENVptr env, CPXLPptr lp);
 
-static void setCplexObjects(char *tbName) {
+void setCplexObjects(char *tbName) {
 	if (cplexObjects == NULL) {
 		cplexObjects = NEW(CplexObjects);
 		cplexObjects->tableName = tbName;
@@ -91,7 +91,7 @@ static int convertUpdate(Update* f, CPXENVptr env, CPXLPptr lp) {
 	}
 
 	//there is not any common attribute in setClause and condition
-	if (isFound==FALSE)
+	if (!isFound)
 		return condToConstr(f->cond, env, lp);
 	else
 		return invertCondToConstr(f ,env, lp);
