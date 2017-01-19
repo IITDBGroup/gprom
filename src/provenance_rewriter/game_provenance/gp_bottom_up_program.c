@@ -3164,7 +3164,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     				atomRel = replaceSubstr(atomRel, "_nonlinked", "");
 
     				if(strlen(atomRel) == 0)
+    				{
     					atomRel = strdup("R");
+    				}
 
 					edbAttr = getAttributeNames(atomRel);
 	    			HashMap *analyzeAtom = NEW_MAP(Constant,List);
