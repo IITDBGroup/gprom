@@ -675,11 +675,11 @@ BackendInfo backends[]  = {
         },
         {
             "sqlite",   // name
-            "oracle",   // analyzer
+            "sqlite",   // analyzer
             "oracle",   // parser
             "sqlite",   // metadata
             "sqlite",    // sqlserializer
-            "oracle"   // translator
+            "sqlite"   // translator
         },
         {
             "STOPPER", NULL, NULL, NULL, NULL, NULL

@@ -9,6 +9,8 @@ import java.util.Properties;
 import org.apache.log4j.Level;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
+import com.sun.jna.Pointer;
+
 /**
  * @author lord_pretzel
  *
@@ -50,6 +52,8 @@ public interface GProMJavaInterface {
 	
 	/* rewrite */
 	public String gpromRewriteQuery (String query) throws SQLException;
+	public GProMStructure rewriteQueryToOperatorModel (String query) throws Exception;
+    
 	
 	/* initialization */
 	public void init ();

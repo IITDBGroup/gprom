@@ -17,6 +17,10 @@
 #include "log/logger.h"
 #include "libgprom/libgprom.h"
 #include "rewriter.h"
+#include "parser/parser.h"
+#include "provenance_rewriter/prov_rewriter.h"
+//#include "analysis_and_translate/analyzer.h"
+#include "analysis_and_translate/translator.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "metadata_lookup/metadata_lookup_external.h"
 
@@ -199,4 +203,38 @@ void
 gprom_registerMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
 {
     setMetadataLookupPlugin(assembleExternalMetadataLookupPlugin(plugin));
+}
+
+GProMNode *
+gprom_rewriteQueryToOperatorModel(const char *query)
+{
+    LOCK_MUTEX();
+    NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+    //char *result = "";
+    Node *parse;
+    Node *oModel;
+    Node *rewrittenTree;
+    //GProMNode* returnResult;
+    TRY
+    {
+    	parse = parseFromString((char *)query);
+		DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+
+		oModel = translateParse(parse);
+		DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
+
+		rewrittenTree = provRewriteQBModel(oModel);
+		//returnResult = copyObject(rewrittenTree);
+
+    	UNLOCK_MUTEX();
+    	RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+    }
+    ON_EXCEPTION
+    {
+        ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+    }
+    END_ON_EXCEPTION
+
+    UNLOCK_MUTEX();
+    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
 }

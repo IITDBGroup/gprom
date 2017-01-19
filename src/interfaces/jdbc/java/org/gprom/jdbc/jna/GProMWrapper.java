@@ -91,6 +91,182 @@ public class GProMWrapper implements GProMJavaInterface {
 		log.info("HAVE REWRITTEN:\n\n" + query + "\n\ninto:\n\n" + result);
 		return result;
 	}
+	
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#rewriteQueryToOperatorModel(java.lang.String)
+	 */
+	@Override
+	public GProMStructure rewriteQueryToOperatorModel(String query) throws Exception {
+		Pointer p =  GProM_JNA.INSTANCE.gprom_rewriteQueryToOperatorModel(query);
+		GProMStructure result;
+		
+		GProMNode gpromNode = new GProMNode(p);
+		result = castGProMNode(gpromNode);
+		
+		// check whether exception has occured
+		if (exceptions.size() > 0) {
+			StringBuilder mes = new StringBuilder();
+			for(ExceptionInfo i: exceptions)
+			{
+				mes.append("ERROR (" + i + ")");
+				mes.append(i.toString());
+				mes.append("\n\n");
+			}
+			exceptions.clear();
+			log.error("have encountered exception");
+			throw new NativeGProMLibException("Error during rewrite:\n" + mes.toString());
+		}
+		
+		return result;
+	}
+	
+	public GProMStructure castGProMNode(GProMNode node){
+		int nodeType = node.type;
+		
+		switch(nodeType)
+	    {
+	        /* collection type nodes*/
+	        case GProM_JNA.GProMNodeTag.GProM_T_List:
+	        case GProM_JNA.GProMNodeTag.GProM_T_IntList:
+	            return new GProMList(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_Set:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_HashMap:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_Vector:
+	            return new GProMNode(node.getPointer());
+
+	        /* expression model */
+	        case GProM_JNA.GProMNodeTag.GProM_T_AttributeReference:
+	            return new GProMAttributeReference(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_FunctionCall:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_KeyValue:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_Operator:
+	            return new GProMQueryOperator(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_Schema:
+	            return new GProMSchema(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_AttributeDef:
+	            return new GProMAttributeDef(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_SQLParameter:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_CaseExpr:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_CaseWhen:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_IsNullExpr:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_WindowBound:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_WindowFrame:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_WindowDef:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_WindowFunction:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_RowNumExpr:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_OrderExpr:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_CastExpr:
+	            return new GProMNode(node.getPointer());
+	        /* query block model nodes */
+//	        case GProM_JNA.GProMNodeTag.GProM_T_SetOp:
+//	            return new GProMNode(node.getPointer());
+//	        case GProM_JNA.GProMNodeTag.GProM_T_SetQuery:
+//	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_ProvenanceStmt:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_ProvenanceTransactionInfo:
+	            return new GProMProvenanceTransactionInfo(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_QueryBlock:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_WithStmt:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_SelectItem:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_Constant:
+	            return new GProMConstant(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_NestedSubquery:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_FromTableRef:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_FromSubquery:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_FromJoinExpr:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_FromProvInfo:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_DistinctClause:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_Insert:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_Delete:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_Update:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_TransactionStmt:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_CreateTable:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_AlterTable:
+	            return new GProMNode(node.getPointer());
+	        /* query operator model nodes */
+	        case GProM_JNA.GProMNodeTag.GProM_T_SelectionOperator:
+	            return new GProMSelectionOperator(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_ProjectionOperator:
+	            return new GProMProjectionOperator(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_JoinOperator:
+	            return new GProMJoinOperator(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_AggregationOperator:
+	            return new GProMAggregationOperator(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_ProvenanceComputation:
+	            return new GProMProvenanceComputation(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_TableAccessOperator:
+	            return new GProMTableAccessOperator(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_SetOperator:
+	            return new GProMSetOperator(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_DuplicateRemoval:
+	            return new GProMDuplicateRemoval(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_ConstRelOperator:
+	            return new GProMConstRelOperator(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_NestingOperator:
+	            return new GProMNestingOperator(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_WindowOperator:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_OrderOperator:
+	            return new GProMOrderOperator(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_FromJsonTable:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_JsonColInfoItem:
+		    return new GProMNode(node.getPointer());
+		    /* datalog model nodes */
+	        case GProM_JNA.GProMNodeTag.GProM_T_DLAtom:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_DLVar:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_DLRule:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_DLProgram:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_DLComparison:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_DLDomain:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_JsonTableOperator:
+	        	return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_JsonPath:
+	        	return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_Regex:
+	            return new GProMNode(node.getPointer());
+	        case GProM_JNA.GProMNodeTag.GProM_T_RPQQuery:
+	            return new GProMNode(node.getPointer());
+	        default:
+	            return null;
+	            
+	    }
+	}
 
 	public void init () {
 		loggerCallback = new GProM_JNA.GProMLoggerCallbackFunction () {

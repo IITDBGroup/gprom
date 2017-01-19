@@ -27,6 +27,7 @@
 #include "analysis_and_translate/translator.h"
 #include "analysis_and_translate/translator_oracle.h"
 #include "analysis_and_translate/translator_dl.h"
+#include "analysis_and_translate/translator_sqlite.h"
 
 #include "parser/parser.h"
 
@@ -41,6 +42,7 @@ static TranslatorPlugin *assemblePostgresPlugin(void);
 static TranslatorPlugin *assembleHivePlugin(void);
 static TranslatorPlugin *assembleDLPlugin(void);
 static TranslatorPlugin *assembleDummyPlugin(void);
+static TranslatorPlugin *assembleSqlitePlugin(void);
 
 static Node *echoNode (Node *in);
 static QueryOperator *echoNodeAsQB (Node *in);
@@ -92,6 +94,9 @@ chooseTranslatorPlugin(TranslatorPluginType type)
         case TRANSLATOR_PLUGIN_DUMMY:
             plugin = assembleDummyPlugin();
             break;
+        case TRANSLATOR_PLUGIN_SQLITE:
+			plugin = assembleSqlitePlugin();
+			break;
     }
 }
 
@@ -148,6 +153,17 @@ assembleDummyPlugin(void)
     return p;
 }
 
+static TranslatorPlugin *
+assembleSqlitePlugin(void)
+{
+    TranslatorPlugin *p = NEW(TranslatorPlugin);
+
+    p->translateParse = translateParseSqlite;
+    p->translateQuery = translateQuerySqlite;
+
+    return p;
+}
+
 static Node *
 echoNode (Node *in)
 {
@@ -176,6 +192,8 @@ chooseTranslatorPluginFromString(char *type)
         chooseTranslatorPlugin(TRANSLATOR_PLUGIN_DL);
     else if (streq(type,"dummy"))
         chooseTranslatorPlugin(TRANSLATOR_PLUGIN_DUMMY);
+    else if (streq(type,"sqlite"))
+            chooseTranslatorPlugin(TRANSLATOR_PLUGIN_SQLITE);
     else
         FATAL_LOG("unkown translator plugin type: <%s>", type);
 }

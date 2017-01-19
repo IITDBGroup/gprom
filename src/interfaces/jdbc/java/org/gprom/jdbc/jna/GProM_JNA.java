@@ -3,6 +3,7 @@
  */
 package org.gprom.jdbc.jna;
 
+import java.util.Arrays;
 import java.util.List;
 
 import com.sun.jna.Callback;
@@ -12,6 +13,7 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.StringArray;
 import com.sun.jna.Structure;
+import com.sun.jna.Union;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
 
@@ -192,4 +194,158 @@ public interface GProM_JNA extends Library {
 //	}
 
 	void gprom_registerMetadataLookupPlugin(GProMMetadataLookupPlugin plugin);
+
+	
+	public static interface GProMNodeTag {
+		public static final int GProM_T_Invalid = 0;
+		public static final int GProM_T_Node = 1;
+
+	    /* collection types */
+	    public static final int GProM_T_List = 2;
+	    public static final int GProM_T_IntList = 3;
+	    public static final int GProM_T_Set = 4;
+	    public static final int GProM_T_HashMap = 5;
+	    public static final int GProM_T_Vector = 6;
+
+	    /* options */
+	    public static final int GProM_T_KeyValue = 7;
+
+	    /* expression nodes */
+		public static final int GProM_T_Constant = 8;
+	    public static final int GProM_T_AttributeReference = 9;
+	    public static final int GProM_T_SQLParameter = 10;
+	    public static final int GProM_T_FunctionCall = 11;
+	    public static final int GProM_T_Operator = 12;
+	    public static final int GProM_T_CaseExpr = 13;
+	    public static final int GProM_T_CaseWhen = 14;
+	    public static final int GProM_T_IsNullExpr = 15;
+	    public static final int GProM_T_WindowBound = 16;
+	    public static final int GProM_T_WindowFrame = 17;
+	    public static final int GProM_T_WindowDef = 18;
+	    public static final int GProM_T_WindowFunction = 19;
+	    public static final int GProM_T_RowNumExpr = 20;
+	    public static final int GProM_T_OrderExpr = 21;
+	    public static final int GProM_T_CastExpr = 22;
+
+	    /* query block model nodes */
+	    public static final int GProM_T_SetQuery = 23;
+	    public static final int GProM_T_ProvenanceStmt = 24;
+	    public static final int GProM_T_ProvenanceTransactionInfo = 25;
+	    public static final int GProM_T_QueryBlock = 26;
+	    public static final int GProM_T_SelectItem = 27;
+	    public static final int GProM_T_FromItem = 28;
+	    public static final int GProM_T_FromProvInfo = 29;
+	    public static final int GProM_T_FromTableRef = 30;
+	    public static final int GProM_T_FromSubquery = 31;
+	    public static final int GProM_T_FromJoinExpr = 32;
+	    public static final int GProM_T_DistinctClause = 33;
+	    public static final int GProM_T_NestedSubquery = 34;
+	    public static final int GProM_T_Insert = 35;
+	    public static final int GProM_T_Delete = 36;
+	    public static final int GProM_T_Update = 37;
+	    public static final int GProM_T_TransactionStmt = 38;
+	    public static final int GProM_T_WithStmt = 39;
+	    public static final int GProM_T_DDLStatement = 40;
+	    public static final int GProM_T_UtilityStatement = 41;
+
+	    /* query operator model nodes */
+	    public static final int GProM_T_Schema = 42;
+	    public static final int GProM_T_AttributeDef = 43;
+	    public static final int GProM_T_QueryOperator = 44;
+	    public static final int GProM_T_SelectionOperator = 45;
+	    public static final int GProM_T_ProjectionOperator = 46;
+	    public static final int GProM_T_JoinOperator = 47;
+	    public static final int GProM_T_AggregationOperator = 48;
+	    public static final int GProM_T_ProvenanceComputation = 49;
+	    public static final int GProM_T_TableAccessOperator = 50;
+	    public static final int GProM_T_SetOperator = 51;
+	    public static final int GProM_T_DuplicateRemoval = 52;
+	    public static final int GProM_T_ConstRelOperator = 53;
+	    public static final int GProM_T_NestingOperator = 54;
+	    public static final int GProM_T_WindowOperator = 55;
+	    public static final int GProM_T_OrderOperator = 56;
+
+	    /* datalog model nodes */
+	    public static final int GProM_T_DLNode = 57;
+	    public static final int GProM_T_DLAtom = 58;
+	    public static final int GProM_T_DLVar = 59;
+	    public static final int GProM_T_DLRule = 60;
+	    public static final int GProM_T_DLProgram = 61;
+	    public static final int GProM_T_DLComparison = 62;
+		public static final int GProM_T_DLDomain = 63;
+
+	    /* Json Table Node */
+	    public static final int GProM_T_FromJsonTable = 64;
+	    public static final int GProM_T_JsonTableOperator = 65;
+	    public static final int GProM_T_JsonColInfoItem = 66;
+	    public static final int GProM_T_JsonPath = 67;
+
+	    /* relation */
+	    public static final int GProM_T_Relation = 68;
+
+	    /* rpq */
+	    public static final int GProM_T_Regex = 69;
+	    public static final int GProM_T_RPQQuery = 70;
+
+	    /* ddl */
+	    public static final int GProM_T_CreateTable = 71;
+	    public static final int GProM_T_AlterTable = 72;
+	}
+	
+	public static interface GProMDataType {
+		public static final int GProM_DT_INT = 0;
+		public static final int GProM_DT_LONG = 1;
+		public static final int GProM_DT_STRING = 2;
+		public static final int GProM_DT_FLOAT = 3;
+		public static final int GProM_DT_BOOL = 4;
+		public static final int GProM_DT_VARCHAR2 = 5;
+	}
+	
+	public static interface GProMJoinType {
+	    public static final int GProM_JOIN_INNER = 0;
+	    public static final int GProM_JOIN_CROSS = 1;
+	    public static final int GProM_JOIN_LEFT_OUTER = 2;
+	    public static final int GProM_JOIN_RIGHT_OUTER = 3;
+	    public static final int GProM_JOIN_FULL_OUTER = 4;
+	} 
+	
+	public static interface GProMSetOpType{
+	        public static final int GProM_SETOP_UNION = 0;
+	        public static final int GProM_SETOP_INTERSECTION = 1;
+	        public static final int GProM_SETOP_DIFFERENCE = 2;
+	} 
+	
+	public static interface GProMProvenanceType {
+	    public static final int GProM_PROV_PI_CS = 0;
+	    public static final int GProM_PROV_TRANSFORMATION = 1;
+	    public static final int GProM_PROV_NONE = 2;/* for reenactment of bag semantics only */
+	} 
+	
+	/* what type of database operation(s) a provenance computation is for */
+	public static interface GProMProvenanceInputType {
+	    public static final int GProM_PROV_INPUT_QUERY = 0;
+	    public static final int GProM_PROV_INPUT_UPDATE = 1;
+	    public static final int GProM_PROV_INPUT_UPDATE_SEQUENCE = 2;
+	    public static final int GProM_PROV_INPUT_REENACT = 3;
+	    public static final int GProM_PROV_INPUT_REENACT_WITH_TIMES = 4;
+	    public static final int GProM_PROV_INPUT_TRANSACTION = 5;
+	    public static final int GProM_PROV_INPUT_TIME_INTERVAL = 6;
+	} 
+	
+	public static interface GProMIsolationLevel {
+	    public static final int GProM_ISOLATION_SERIALIZABLE = 0;
+	    public static final int GProM_ISOLATION_READ_COMMITTED = 1;
+	    public static final int GProM_ISOLATION_READ_ONLY = 2;
+	} 
+	
+	public static interface GProMNestingExprType {
+		    public static final int GProM_NESTQ_EXISTS = 0;
+		    public static final int GProM_NESTQ_ANY = 1;
+		    public static final int GProM_NESTQ_ALL = 2;
+		    public static final int GProM_NESTQ_UNIQUE = 3;
+		    public static final int GProM_NESTQ_SCALAR = 4;
+	} 
+	
+	public Pointer gprom_rewriteQueryToOperatorModel (String query);
+    
 }
