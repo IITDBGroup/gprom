@@ -512,7 +512,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 	else
 	{
 		result = NULL;
-		INFO_OP_LOG("Not implemented yet!!");
+		INFO_OP_LOG("Other pattern generation techniques have not implemented yet!!");
 	}
 
 	return result;
