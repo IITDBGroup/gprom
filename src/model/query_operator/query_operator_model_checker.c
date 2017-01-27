@@ -18,10 +18,10 @@
 #include "model/set/set.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
+#include "provenance_rewriter/prov_utility.h"
 #include "configuration/option.h"
 
 static boolean checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent);
-static boolean checkUniqueAttrNames (QueryOperator *op);
 static boolean checkParentChildLinks (QueryOperator *op, void *context);
 static boolean checkAttributeRefConsistency (QueryOperator *op, void *context);
 static boolean checkSchemaConsistency (QueryOperator *op, void *context);
@@ -384,7 +384,7 @@ checkSchemaConsistency (QueryOperator *op, void *context)
             || checkUniqueAttrNames(op);
 }
 
-static boolean
+boolean
 checkUniqueAttrNames (QueryOperator *op)
 {
     Set *names = STRSET();
@@ -401,6 +401,24 @@ checkUniqueAttrNames (QueryOperator *op)
     }
 
     return TRUE;
+}
+
+void
+makeAttrNamesUnique (QueryOperator *op)
+{
+    List *newNames = getAttrNames(op->schema);
+
+    makeNamesUnique(newNames, NULL);
+
+    FORBOTH(void,nameN,aN,newNames,op->schema->attrDefs)
+    {
+        AttributeDef *a = (AttributeDef *) aN;
+        char *name = (char *) nameN;
+
+        DEBUG_LOG("Attribute <%s> renamed to <%s>",
+                    a->attrName, name);
+        a->attrName = name;
+    }
 }
 
 static boolean

@@ -78,6 +78,12 @@ extern sigjmp_buf *exceptionBuf;
 		exceptionBuf = save_previous_jmpbuf; \
     } while (0);
 
+#define PROCESS_EXCEPTION_AND_DIE() \
+    do { \
+         processException(); \
+         exit(1); \
+    } while (0)
+
 //TODO
 #define CATCH \
     } else {

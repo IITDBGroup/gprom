@@ -766,21 +766,29 @@ rewritePI_CSComposableJoin (JoinOperator *op)
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
     QueryOperator *prev = NULL;
+    QueryOperator *o = (QueryOperator *) op;
     boolean noDupInput = isTupleAtATimeSubtree((QueryOperator *) op);
     boolean lChildNoDup = isTupleAtATimeSubtree(lChild);
     boolean rChildNoDup = isTupleAtATimeSubtree(rChild);
+    List *rNormAttrs;
+    int numLAttrs, numRAttrs;
+
+    numLAttrs = LIST_LENGTH(lChild->schema->attrDefs);
+    numRAttrs = LIST_LENGTH(rChild->schema->attrDefs);
 
     // rewrite children
     lChild = rewritePI_CSComposableOperator(lChild);
     rChild = rewritePI_CSComposableOperator(rChild);
 
+    // get attributes from right input
+    rNormAttrs = sublist(o->schema->attrDefs, numLAttrs, numLAttrs + numRAttrs - 1);
+    o->schema->attrDefs = sublist(copyObject(o->schema->attrDefs), 0, numLAttrs - 1);
+
     // adapt schema for join op
-    clearAttrsFromSchema((QueryOperator *) op);
-    addNormalAttrsWithoutSpecialToSchema((QueryOperator *) op, lChild);
     addProvenanceAttrsToSchema((QueryOperator *) op, lChild);
     addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) op);
 
-    addNormalAttrsWithoutSpecialToSchema((QueryOperator *) op, rChild);
+    o->schema->attrDefs = CONCAT_LISTS(o->schema->attrDefs, rNormAttrs);
     addProvenanceAttrsToSchema((QueryOperator *) op, rChild);
     addChildResultTIDAndProvDupAttrsToSchema((QueryOperator *) op);
 
