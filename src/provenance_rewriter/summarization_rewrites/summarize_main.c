@@ -53,7 +53,7 @@ rewriteSummaryOutput (char *summaryType, Node *rewrittenTree)
 
 	provJoin = rewriteProvJoinOutput(rewrittenTree);
 	samples = rewriteSampleOutput(provJoin);
-	patterns = rewritePatternOutput(sType, samples);
+	patterns = rewritePatternOutput(sType, samples); //TODO: different types of pattern generation
 	scanSamples = rewriteScanSampleOutput(samples, patterns);
 	candidates = rewriteCandidateOutput(scanSamples);
 	computeFrac = rewriteComputeFracOutput(candidates, samples);
@@ -159,16 +159,21 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 		pos++;
 	}
 
+	// round up after second decimal number
+	Node *rdup = (Node *) createConstInt(atoi("2"));
+
 	// add attribute for accuracy
 //	AttributeReference *numProv = createFullAttrReference(strdup("numInProv"), 0, 2, 0, DT_INT);
 //	AttributeReference *covProv = createFullAttrReference(strdup("Covered"), 0, 1, 0, DT_INT);
-	Node* accuRate = (Node *) createOpExpr("/",LIST_MAKE(numProv,covProv));
-	projExpr = appendToTailOfList(projExpr, accuRate);
+	Node *accuRate = (Node *) createOpExpr("/",LIST_MAKE(numProv,covProv));
+	FunctionCall *rdupAr = createFunctionCall("ROUND", LIST_MAKE(accuRate, rdup));
+	projExpr = appendToTailOfList(projExpr, rdupAr);
 
 	// add attribute for coverage
 //	AttributeReference *totProv = createFullAttrReference(strdup("totalProv"), 0, 0, 0, DT_INT);
 	Node* covRate = (Node *) createOpExpr("/",LIST_MAKE(numProv,totProv));
-	projExpr = appendToTailOfList(projExpr, covRate);
+	FunctionCall *rdupCr = createFunctionCall("ROUND", LIST_MAKE(accuRate, rdup));
+	projExpr = appendToTailOfList(projExpr, rdupCr);
 
 	attrNames = CONCAT_LISTS(attrNames, singleton("Accuracy"), singleton("Coverage"));
 	op = createProjectionOp(projExpr, computeFrac, NIL, attrNames);
@@ -180,8 +185,8 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 //	AttributeReference *accuR = createFullAttrReference(strdup("Accuracy"), 0,
 //							LIST_LENGTH(computeFrac->schema->attrDefs) - 2, 0, DT_INT);
 
-	OrderExpr *accExpr = createOrderExpr((Node *) accuRate, SORT_DESC, SORT_NULLS_LAST);
-	OrderExpr *covExpr = createOrderExpr((Node *) covRate, SORT_DESC, SORT_NULLS_LAST);
+	OrderExpr *accExpr = createOrderExpr(accuRate, SORT_DESC, SORT_NULLS_LAST);
+	OrderExpr *covExpr = createOrderExpr(covRate, SORT_DESC, SORT_NULLS_LAST);
 
 	OrderOperator *ord = createOrderOp(LIST_MAKE(accExpr, covExpr), computeFrac, NIL);
 	computeFrac->parents = singleton(ord);
@@ -191,7 +196,7 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("compute fraction for summarization:", result);
-	INFO_OP_LOG("compute fraction for summarization as overview:", result);
+//	INFO_OP_LOG("compute fraction for summarization as overview:", result);
 
 	return result;
 }
@@ -294,7 +299,7 @@ rewriteCandidateOutput (Node *scanSampleInput)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("candidate patterns for summarization:", result);
-	INFO_OP_LOG("candidate patterns for summarization as overview:", result);
+//	INFO_OP_LOG("candidate patterns for summarization as overview:", result);
 
 	return result;
 }
@@ -382,7 +387,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("join patterns with samples for summarization:", result);
-	INFO_OP_LOG("join patterns with samples for summarization as overview:", result);
+//	INFO_OP_LOG("join patterns with samples for summarization as overview:", result);
 
 	return result;
 }
@@ -507,7 +512,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 		SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 		DEBUG_NODE_BEATIFY_LOG("pattern generation for summarization:", result);
-		INFO_OP_LOG("pattern generation for summarization as overview:", result);
+//		INFO_OP_LOG("pattern generation for summarization as overview:", result);
 	}
 	else
 	{
@@ -623,7 +628,7 @@ rewriteSampleOutput (Node *input)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("sampling for summarization:", result);
-	INFO_OP_LOG("sampling for summarization as overview:", result);
+//	INFO_OP_LOG("sampling for summarization as overview:", result);
 
 	return result;
 }
@@ -818,7 +823,7 @@ rewriteProvJoinOutput (Node *rewrittenTree)
 	SET_BOOL_STRING_PROP(rewrittenTree, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("rewritten query for summarization returned:", rewrittenTree);
-	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
+//	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
 
 	return rewrittenTree;
 }
