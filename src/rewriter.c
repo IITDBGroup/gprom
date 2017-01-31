@@ -32,6 +32,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "execution/executor.h"
+#include "provenance_rewriter/prov_utility.h"
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
@@ -447,6 +448,32 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	            else
 	                TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
 	    )
+
+//	    if (getBoolOption(OPTION_INPUTDB))
+//	    {
+//	    	List *rels = NIL;
+//	    	List *inputRels = NIL;
+//	    	HashMap *taOp = NEW_MAP(Constant,List);
+//
+//	    	findTableAccessVisitor((Node *) rewrittenTree, &rels);
+//
+//	    	FOREACH(TableAccessOperator,r,rels)
+//			{
+//	    		boolean isEDB = HAS_STRING_PROP(r,DL_IS_EDB_REL);
+//
+//	    		if(isEDB)
+//	    		{
+//	    			ProjectionOperator *proj = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) r);
+//	    			addChildOperator((QueryOperator *) proj, (QueryOperator *) r);
+//	    			MAP_ADD_STRING_KEY(taOp,r->tableName,proj);
+//	    		}
+//			}
+//
+//	    	FOREACH_HASH(QueryOperator,value,taOp)
+//	    		inputRels = appendToTailOfList(inputRels,value);
+//
+//	    	rewrittenTree = (Node *) inputRels;
+//	    }
 
 	    if(applyOptimizations)
 	    {

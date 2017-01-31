@@ -16,6 +16,8 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "execution/exe_run_query.h"
 #include "utility/string_utils.h"
+#include "analysis_and_translate/translator_dl.h"
+#include "configuration/option.h"
 
 void
 exeRunQuery (void *code)
@@ -29,69 +31,88 @@ exeRunQuery (void *code)
 //    int numRows;
     int totalSize = 0;
 
-    // remove semicolon
-    adaptedQuery = replaceSubstr(code, ";", ""); //TODO not safe if ; in strings
+    // list of statement
+    List *stmtList = splitString(code, ";");
 
-    // execute query
-    INFO_LOG("run query:\n%s", (char *) adaptedQuery);
-    res = executeQuery((char *) adaptedQuery);
+//    // remove semicolon
+//    adaptedQuery = replaceSubstr(code, ";", ""); //TODO not safe if ; in strings
 
-    numCol = LIST_LENGTH(res->schema);
-//    numRows = LIST_LENGTH(res->tuples);
-    colSizes = MALLOC(numCol * sizeof(int));
-
-    // determine column sizes
-    i = 0;
-    FOREACH(char,a,res->schema)
+    for(int s = 0; s < LIST_LENGTH(stmtList)-1; s++)
     {
-        colSizes[i++] = strlen(a) + 2;
-    }
+//        res = executeQuery((char *) adaptedQuery);
+    	adaptedQuery = (char *) getNthOfListP(stmtList,s);
 
-    FOREACH(List,t,res->tuples)
-    {
+    	// execute query
+        INFO_LOG("run query:\n%s", (char *) adaptedQuery);
+
+    	res = executeQuery((char *) adaptedQuery);
+
+        // output table name for the input database
+    	if (getBoolOption(OPTION_INPUTDB))
+    	{
+//    		FOREACH_HASH(char,r,taRel)
+    		char *r = (char *) MAP_GET_STRING(taRel,itoa(s));
+   			printf("%s", r);
+    		printf("\n");
+    	}
+
+        numCol = LIST_LENGTH(res->schema);
+    //    numRows = LIST_LENGTH(res->tuples);
+        colSizes = MALLOC(numCol * sizeof(int));
+
+        // determine column sizes
         i = 0;
-        FOREACH(char,a,t)
+        FOREACH(char,a,res->schema)
         {
-            int len = a ? strlen(a) : 4;
-            colSizes[i] = colSizes[i] < len + 2 ? len + 2 : colSizes[i];
-            i++;
+            colSizes[i++] = strlen(a) + 2;
         }
-    }
 
-    for (i = 0; i < numCol; i++)
-        totalSize += colSizes[i] + 1;
-
-    // output columns
-    i = 0;
-    FOREACH(char,a,res->schema)
-    {
-        printf(" %s", a);
-        for(int j = strlen(a) + 1; j < colSizes[i]; j++)
-            printf(" ");
-        printf("|");
-        i++;
-    }
-    printf("\n");
-    for (int j = 0; j < totalSize; j++)
-        printf("-");
-    printf("\n");
-
-    // output results
-    FOREACH(List,t,res->tuples)
-    {
-        i = 0;
-        FOREACH(char,a,t)
+        FOREACH(List,t,res->tuples)
         {
-            char *out = a ? a : "NULL";
-            printf(" %s", out);
-            for(int j = strlen(out) + 1; j < colSizes[i]; j++)
+            i = 0;
+            FOREACH(char,a,t)
+            {
+                int len = a ? strlen(a) : 4;
+                colSizes[i] = colSizes[i] < len + 2 ? len + 2 : colSizes[i];
+                i++;
+            }
+        }
+
+        for (i = 0; i < numCol; i++)
+            totalSize += colSizes[i] + 1;
+
+        // output columns
+        i = 0;
+        FOREACH(char,a,res->schema)
+        {
+            printf(" %s", a);
+            for(int j = strlen(a) + 1; j < colSizes[i]; j++)
                 printf(" ");
             printf("|");
             i++;
         }
         printf("\n");
+        for (int j = 0; j < totalSize; j++)
+            printf("-");
+        printf("\n");
 
-        if ((l++ % 1000) == 0)
-            fflush(stdout);
+        // output results
+        FOREACH(List,t,res->tuples)
+        {
+            i = 0;
+            FOREACH(char,a,t)
+            {
+                char *out = a ? a : "NULL";
+                printf(" %s", out);
+                for(int j = strlen(out) + 1; j < colSizes[i]; j++)
+                    printf(" ");
+                printf("|");
+                i++;
+            }
+            printf("\n");
+
+            if ((l++ % 1000) == 0)
+                fflush(stdout);
+        }
     }
 }

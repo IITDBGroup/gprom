@@ -103,6 +103,7 @@ char *plugin_executor = NULL;
 char *plugin_cbo = NULL;
 
 // instrumentation options
+boolean opt_inputdb = FALSE;
 boolean opt_timing = FALSE;
 boolean opt_memmeasure = FALSE;
 boolean opt_graphviz_output = FALSE;
@@ -398,7 +399,7 @@ OptionInfo opts[] =
                 "-Pexecutor",
                 "select Executor plugin: sql (output rewritten SQL code), "
                         "gp (output Game provenance), run (execute the "
-                        "rewritten query and return its result",
+                        "rewritten query and return its result)",
                 OPTION_STRING,
                 wrapOptionString(&plugin_executor),
                 defOptionString("run")
@@ -415,6 +416,14 @@ OptionInfo opts[] =
         },
         // boolean instrumentation options
         {
+                OPTION_INPUTDB,
+                "-inputdb",
+                "output input database relations.",
+                OPTION_BOOL,
+                wrapOptionBool(&opt_inputdb),
+                defOptionBool(FALSE)
+        },
+		{
                 OPTION_TIMING,
                 "-timing",
                 "measure and output execution time of modules.",

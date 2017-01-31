@@ -47,6 +47,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_PLUGIN_CBO "plugin.cbo"
 
 /* debug option methods */
+#define OPTION_INPUTDB "inputdb"
 #define OPTION_TIMING "timing"
 #define OPTION_MEMMEASURE "memdebug"
 #define OPTION_GRAPHVIZ "graphviz"
