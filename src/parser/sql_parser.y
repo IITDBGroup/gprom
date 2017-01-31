@@ -60,7 +60,7 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT SUMMARIZED
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT
 %token <stringVal> FROM
 %token <stringVal> AS
 %token <stringVal> WHERE
@@ -76,7 +76,8 @@ Node *bisonParseResult = NULL;
 %token <stringVal> NULLS FIRST LAST ASC DESC
 %token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE 
 %token <stringVal> CAST
-%token <stringVal> CREATE ALTER ADD REMOVE COLUMN 
+%token <stringVal> CREATE ALTER ADD REMOVE COLUMN
+%token <stringVal> SUMMARIZED TO EXPLAIN
 
 %token <stringVal> DUMMYEXPR
 
@@ -117,8 +118,8 @@ Node *bisonParseResult = NULL;
  */
 %type <node> stmt provStmt dmlStmt queryStmt ddlStmt
 %type <node> createTableStmt alterTableStmt alterTableCommand
-%type <list> tableElemList optTableElemList
-%type <node> tableElement 
+%type <list> tableElemList optTableElemList attrElemList
+%type <node> tableElement attr
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
@@ -388,6 +389,19 @@ provStmt:
 		    p->asOf = (Node *) $2;
             p->options = concatTwoLists($3, $8);
             p->summaryType = $11;  
+            $$ = (Node *) p;
+        }
+        | PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')'
+        {
+            RULELOG("provStmt::summaryStmt");
+            Node *stmt = $6;
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = PROV_PI_CS;
+		    p->asOf = (Node *) $2;
+            p->options = concatTwoLists($3, $8);
+            p->summaryType = $11;
+            p->userQuestion = $15;  
             $$ = (Node *) p;
         }
     ;
@@ -1516,6 +1530,32 @@ delimIdentifier:
 			RULELOG("identifierList::list::ident"); 
 			$$ = CONCAT_STRINGS($1, ".", $3); //TODO 
 		}  
+	;
+	
+attrElemList:
+		attr
+            {
+                RULELOG("userQuestList::identifier");
+                $$ = singleton($1);
+            }
+        | attrElemList ',' attr
+            {
+                RULELOG("attrElemList::attrElemList::identifier");
+                $$ = appendToTailOfList($1, $3);
+            }
+    ;
+
+attr:
+ 		constant 
+ 			{ 
+ 				RULELOG("arg:constant");
+ 				$$ = $1; 
+			}
+		| '*'
+			{ 
+ 				RULELOG("arg:star");
+ 				$$ = (Node *) createConstString(strdup("*")); 
+			}
 	;
 
 %%

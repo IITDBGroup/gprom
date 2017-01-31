@@ -31,6 +31,8 @@
 static List *provAttrs = NIL;
 static List *origAttrs = NIL;
 
+static Node *rewriteUserQuestion (List *userQuestion, Node *rewrittenTree);
+static Node *rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree);
 static Node *rewriteSampleOutput (Node * input);
 static Node *rewritePatternOutput (char *summaryType, Node * input);
 static Node *rewriteScanSampleOutput (Node *sampleInput, Node * patternInput);
@@ -39,8 +41,9 @@ static Node *rewriteComputeFracOutput (Node *candidateInput, Node * sampleInput)
 static Node *rewriteMostGenExplOutput (Node *computeFracInput);
 
 Node *
-rewriteSummaryOutput (char *summaryType, Node *rewrittenTree)
+rewriteSummaryOutput (char *summaryType, Node *rewrittenTree, List *userQuestion)
 {
+	List *uQuestion = userQuestion;
 	char *sType = summaryType;
 
 	Node *result;
@@ -51,7 +54,10 @@ rewriteSummaryOutput (char *summaryType, Node *rewrittenTree)
 	Node *candidates;
 	Node *computeFrac;
 
-	provJoin = rewriteProvJoinOutput(rewrittenTree);
+	if (uQuestion != NIL)
+		rewrittenTree = rewriteUserQuestion(uQuestion, rewrittenTree);
+
+	provJoin = rewriteProvJoinOutput(uQuestion, rewrittenTree);
 	samples = rewriteSampleOutput(provJoin);
 	patterns = rewritePatternOutput(sType, samples); //TODO: different types of pattern generation
 	scanSamples = rewriteScanSampleOutput(samples, patterns);
@@ -70,7 +76,7 @@ rewriteMostGenExplOutput (Node *computeFracInput)
 	QueryOperator *computeFrac = (QueryOperator *) computeFracInput;
 
 	// create selection for returning top most general explanation
-	Node *selCond = (Node *) createOpExpr("=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(1)));
+	Node *selCond = (Node *) createOpExpr("<=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(10)));
 	SelectionOperator *so = createSelectionOp(selCond, computeFrac, NIL, getAttrNames(computeFrac->schema));
 
 	computeFrac->parents = singleton(so);
@@ -447,7 +453,8 @@ rewritePatternOutput (char *summaryType, Node *input)
 
 		FOREACH(AttributeDef,a,allSample->schema->attrDefs)
 		{
-			if(searchListNode(origAttrs,(Node *) a))
+//			if(searchListNode(origAttrs,(Node *) a))
+			if(strcmp(a->attrName,strdup("HAS_PROV")) != 0)
 			{
 				lProjExpr = appendToTailOfList(lProjExpr,
 						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
@@ -455,9 +462,11 @@ rewritePatternOutput (char *summaryType, Node *input)
 			}
 		}
 
+		pos++;
 		FOREACH(AttributeDef,a,provSample->schema->attrDefs)
 		{
-			if(searchListNode(origAttrs,(Node *) a))
+//			if(searchListNode(origAttrs,(Node *) a))
+			if(strcmp(a->attrName,strdup("HAS_PROV")) != 0)
 			{
 				rProjExpr = appendToTailOfList(rProjExpr,
 						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
@@ -633,15 +642,20 @@ rewriteSampleOutput (Node *input)
 	return result;
 }
 
-Node *
-rewriteProvJoinOutput (Node *rewrittenTree)
+static Node *
+rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 {
 	List *inputs = NIL;
 	List *attrNames = NIL;
+	QueryOperator *prov;
 
 //	QueryOperator *transInput = (QueryOperator *) getHeadOfListP(parents);
 
-	QueryOperator *prov = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
+	if(userQuestion == NULL)
+		prov = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
+	else
+		prov = (QueryOperator *) rewrittenTree;
+
 	QueryOperator *transInput = (QueryOperator *) prov->properties;
 	provAttrs = getProvenanceAttrs(prov);
 	origAttrs = getNormalAttrs(prov);
@@ -824,6 +838,66 @@ rewriteProvJoinOutput (Node *rewrittenTree)
 
 	DEBUG_NODE_BEATIFY_LOG("rewritten query for summarization returned:", rewrittenTree);
 //	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
+
+	return rewrittenTree;
+}
+
+static Node *
+rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
+{
+	QueryOperator *input = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
+	Node *prop = input->properties;
+
+	// check the list for constant value to create sel condition
+	int attrPos = 0;
+	Node *curCond = NULL;
+	SelectionOperator *so;
+
+	FOREACH(Constant,c,userQuestion)
+	{
+		if (strcmp(strdup(c->value),"*") != 0)
+		{
+			char *attr = getAttrNameByPos(input,attrPos);
+			AttributeDef *aDef = getAttrDefByName(input,attr);
+
+			AttributeReference *quest = createFullAttrReference(strdup(attr), 0, attrPos, 0, aDef->dataType);
+			Node *selCond = (Node *) createOpExpr("=",LIST_MAKE(quest,c));
+
+			if(attrPos == 0)
+				curCond = selCond;
+			else
+				curCond = AND_EXPRS(curCond,selCond);
+		}
+
+		attrPos++;
+	}
+	so = createSelectionOp(curCond, input, NIL, getAttrNames(input->schema));
+
+	input->parents = singleton(so);
+	input = (QueryOperator *) so;
+
+	// create projection operator
+	int pos = 0;
+	List *projExpr = NIL;
+	ProjectionOperator *op;
+
+	FOREACH(AttributeDef,p,input->schema->attrDefs)
+	{
+		projExpr = appendToTailOfList(projExpr,
+				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+		pos++;
+	}
+
+	op = createProjectionOp(projExpr, input, NIL, getAttrNames(input->schema));
+	input->parents = singleton(op);
+	input = (QueryOperator *) op;
+
+	input->properties = prop;
+	rewrittenTree = (Node *) input;
+//	SET_BOOL_STRING_PROP(rewrittenTree, PROP_MATERIALIZE);
+
+	DEBUG_NODE_BEATIFY_LOG("provenance question for suumarization:", rewrittenTree);
+//	INFO_OP_LOG("provenance question for suumarization as overview:", rewrittenTree);
 
 	return rewrittenTree;
 }

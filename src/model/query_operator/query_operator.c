@@ -887,7 +887,7 @@ getNormalAttrNames(QueryOperator *op)
     List *result = NIL;
 
     FOREACH(AttributeDef, a, defs)
-    result = appendToTailOfList(result, strdup(a->attrName));
+    	result = appendToTailOfList(result, strdup(a->attrName));
 
     return result;
 }

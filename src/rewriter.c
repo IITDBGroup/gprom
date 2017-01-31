@@ -44,6 +44,7 @@ static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
 
+List *userQuestion = NIL;
 char *summaryType = NULL;
 
 int
@@ -454,7 +455,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
 	    // rewrite for summarization
 	    if (summaryType != NULL)
-			rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree);
+			rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree, userQuestion);
 	}
 
 	START_TIMER("SQLcodeGen");
@@ -477,8 +478,11 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     // store summary type
     ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
 
-    if (ps->summaryType != NULL)
+    if (ps->summaryType != NULL || ps->userQuestion != NIL)
+    {
+    	userQuestion = ps->userQuestion;
     	summaryType = ps->summaryType;
+    }
 
     START_TIMER("translation");
     oModel = translateParse(parse);
