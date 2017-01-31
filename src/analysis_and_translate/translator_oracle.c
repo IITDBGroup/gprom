@@ -521,13 +521,22 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 /* get table name */
                 char *tableName = NULL;
+                ReenactUpdateType updateType;
 
                 switch (node->type) {
                     case T_Insert:
-                        tableName = ((Insert *) node)->insertTableName;
-                        break;
+                    {
+                        Insert *i = (Insert *) node;
+                        if (isA(i->query,  List))
+                            updateType = UPDATE_TYPE_INSERT_VALUES;
+                        else
+                            updateType = UPDATE_TYPE_INSERT_QUERY;
+                        tableName = i->insertTableName;
+                    }
+                    break;
                     case T_Update:
                     {
+                        updateType = UPDATE_TYPE_UPDATE;
                         Update *up = (Update *) node;
 
                         tableName = up->updateTableName;
@@ -535,6 +544,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                     }
                     break;
                     case T_Delete:
+                        updateType = UPDATE_TYPE_DELETE;
                         tableName = ((Delete *) node)->deleteTableName;
                         break;
                     case T_QueryBlock:
@@ -594,7 +604,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 // mark as root of translated update
                 SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
-
+                SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(updateType));
                 DEBUG_NODE_BEATIFY_LOG("qo model transaction is", child);
 
                 addChildOperator((QueryOperator *) result, child);
@@ -606,6 +616,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
             FOREACH(char,tableName,tInfo->updateTableNames)
             {
+                DEBUG_LOG("try to get commit SCN from table <%s>", tableName);
                 commitScn = getCommitScn(tableName,
                         LONG_VALUE(getHeadOfListP(tInfo->scns)),
                         xid);
@@ -614,7 +625,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             }
 
             if (commitScn == INVALID_SCN)
-                FATAL_NODE_LOG("unable to determine commit SCN for transaction", tInfo);
+                FATAL_NODE_BEATIFY_LOG("unable to determine commit SCN for transaction", tInfo);
 
             tInfo->commitSCN = createConstLong(commitScn);
 
@@ -637,7 +648,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             tInfo->originalUpdates = copyObject(prov->query);
             tInfo->updateTableNames = NIL;
 
-            FOREACH(Node,n,(List *) prov->query) {
+            FOREACH(Node,n,(List *) prov->query)
+            {
                 char *tableName = NULL;
 
                 /* get table name */
