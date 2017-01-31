@@ -83,6 +83,7 @@ typedef struct ProvenanceStmt
     Node *asOf;
     List *options;
     char *summaryType;
+    List *userQuestion;
 } ProvenanceStmt;
 
 typedef struct SelectItem
