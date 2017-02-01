@@ -404,7 +404,111 @@ typedef struct GProMOrderOperator
 	GProMList *orderExprs;
 } GProMOrderOperator;
 
+typedef struct GProMFunctionCall {
+	GProMNodeTag type;
+    char* functionname;
+    GProMList *args;
+    int isAgg;
+} GProMFunctionCall;
+
+typedef struct GProMOperator {
+	GProMNodeTag type;
+    char* name;
+    GProMList *args;
+} GProMOperator;
+
+typedef struct GProMSQLParameter {
+	GProMNodeTag type;
+    char* name;
+    int position;
+    GProMDataType parType;
+} GProMSQLParameter;
+
+typedef struct GProMRowNumExpr {
+	GProMNodeTag type;
+} GProMRowNumExpr;
+
+typedef struct GProMCaseExpr {
+	GProMNodeTag type;
+    GProMNode *expr;
+    GProMList *whenClauses;
+    GProMNode *elseRes;
+} GProMCaseExpr;
+
+typedef struct GProMCaseWhen {
+	GProMNodeTag type;
+    GProMNode *when;
+    GProMNode *then;
+} GProMCaseWhen;
+
+typedef struct GProMIsNullExpr {
+	GProMNodeTag type;
+    GProMNode *expr;
+} GProMIsNullExpr;
+
+typedef enum GProMWindowBoundType {
+	GProM_WINBOUND_UNBOUND_PREC,
+	GProM_WINBOUND_CURRENT_ROW,
+	GProM_WINBOUND_EXPR_PREC,
+	GProM_WINBOUND_EXPR_FOLLOW
+} GProMWindowBoundType;
+
+typedef struct GProMWindowBound {
+	GProMNodeTag type;
+    GProMWindowBoundType bType;
+    GProMNode *expr;
+} GProMWindowBound;
+
+typedef enum GProMWinFrameType {
+	GProM_WINFRAME_ROWS,
+	GProM_WINFRAME_RANGE
+} GProMWinFrameType;
+
+typedef struct GProMWindowFrame {
+	GProMNodeTag type;
+    GProMWinFrameType frameType;
+    GProMWindowBound *lower;
+    GProMWindowBound *higher;
+} GProMWindowFrame;
+
+typedef struct GProMWindowDef {
+	GProMNodeTag type;
+    GProMList *partitionBy;
+    GProMList *orderBy;
+    GProMWindowFrame *frame;
+} GProMWindowDef;
+
+typedef struct GProMWindowFunction {
+    int type;
+    GProMFunctionCall *f;
+    GProMWindowDef *win;
+} GProMWindowFunction;
+
+typedef struct GProMCastExpr {
+	GProMNodeTag type;
+    GProMDataType resultDT;
+    GProMNode *expr;
+} GProMCastExpr;
+
+typedef enum GProMSortOrder {
+	GProM_SORT_ASC,
+	GProM_SORT_DESC
+} GProMSortOrder;
+
+typedef enum GProMSortNullOrder {
+	GProM_SORT_NULLS_FIRST,
+	GProM_SORT_NULLS_LAST
+} GProMSortNullOrder;
+
+typedef struct GProMOrderExpr {
+	GProMNodeTag type;
+    GProMNode *expr;
+    GProMSortOrder order;
+    GProMSortNullOrder nullOrder;
+} GProMOrderExpr;
 
 extern GProMNode * gprom_rewriteQueryToOperatorModel(const char *query);
+
+extern GProMNode * gprom_provRewriteOperator(GProMNode * nodeFromMimir);
 
 #endif /* INCLUDE_LIBGPROM_LIBGPROM_H_ */

@@ -238,3 +238,32 @@ gprom_rewriteQueryToOperatorModel(const char *query)
     UNLOCK_MUTEX();
     RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
 }
+
+GProMNode *
+gprom_provRewriteOperator(GProMNode * nodeFromMimir)
+{
+	LOCK_MUTEX();
+	    NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+	    //char *result = "";
+	    Node *rewrittenTree;
+	    Node *copiedTree;
+	    //GProMNode* returnResult;
+	    TRY
+	    {
+
+	    	copiedTree = copyObject(nodeFromMimir);
+			rewrittenTree = provRewriteQBModel(copiedTree);
+
+
+	    	UNLOCK_MUTEX();
+	    	RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+	    }
+	    ON_EXCEPTION
+	    {
+	        ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+	    }
+	    END_ON_EXCEPTION
+
+	    UNLOCK_MUTEX();
+	    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
+}

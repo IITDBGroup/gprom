@@ -120,6 +120,34 @@ public class GProMWrapper implements GProMJavaInterface {
 		return result;
 	}
 	
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#rewriteQueryToOperatorModel(java.lang.String)
+	 */
+	@Override
+	public GProMStructure provRewriteOperator(Pointer nodeFromMimir) throws Exception {
+		Pointer p =  GProM_JNA.INSTANCE.gprom_provRewriteOperator(nodeFromMimir);
+		GProMStructure result;
+		
+		GProMNode gpromNode = new GProMNode(p);
+		result = castGProMNode(gpromNode);
+		
+		// check whether exception has occured
+		if (exceptions.size() > 0) {
+			StringBuilder mes = new StringBuilder();
+			for(ExceptionInfo i: exceptions)
+			{
+				mes.append("ERROR (" + i + ")");
+				mes.append(i.toString());
+				mes.append("\n\n");
+			}
+			exceptions.clear();
+			log.error("have encountered exception");
+			throw new NativeGProMLibException("Error during rewrite:\n" + mes.toString());
+		}
+		
+		return result;
+	}
+	
 	public GProMStructure castGProMNode(GProMNode node){
 		int nodeType = node.type;
 		
@@ -140,37 +168,37 @@ public class GProMWrapper implements GProMJavaInterface {
 	        case GProM_JNA.GProMNodeTag.GProM_T_AttributeReference:
 	            return new GProMAttributeReference(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_FunctionCall:
-	            return new GProMNode(node.getPointer());
+	            return new GProMFunctionCall(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_KeyValue:
 	            return new GProMNode(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_Operator:
-	            return new GProMQueryOperator(node.getPointer());
+	            return new GProMOperator(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_Schema:
 	            return new GProMSchema(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_AttributeDef:
 	            return new GProMAttributeDef(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_SQLParameter:
-	            return new GProMNode(node.getPointer());
+	            return new GProMSQLParameter(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_CaseExpr:
-	            return new GProMNode(node.getPointer());
+	            return new GProMCaseExpr(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_CaseWhen:
-	            return new GProMNode(node.getPointer());
+	            return new GProMCaseWhen(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_IsNullExpr:
-	            return new GProMNode(node.getPointer());
+	            return new GProMIsNullExpr(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_WindowBound:
-	            return new GProMNode(node.getPointer());
+	            return new GProMWindowBound(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_WindowFrame:
-	            return new GProMNode(node.getPointer());
+	            return new GProMWindowFrame(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_WindowDef:
-	            return new GProMNode(node.getPointer());
+	            return new GProMWindowDef(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_WindowFunction:
 	            return new GProMNode(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_RowNumExpr:
-	            return new GProMNode(node.getPointer());
+	            return new GProMRowNumExpr(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_OrderExpr:
-	            return new GProMNode(node.getPointer());
+	            return new GProMOrderExpr(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_CastExpr:
-	            return new GProMNode(node.getPointer());
+	            return new GProMCastExpr(node.getPointer());
 	        /* query block model nodes */
 //	        case GProM_JNA.GProMNodeTag.GProM_T_SetOp:
 //	            return new GProMNode(node.getPointer());
@@ -234,7 +262,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	        case GProM_JNA.GProMNodeTag.GProM_T_NestingOperator:
 	            return new GProMNestingOperator(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_WindowOperator:
-	            return new GProMNode(node.getPointer());
+	            return new GProMWindowOperator(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_OrderOperator:
 	            return new GProMOrderOperator(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_FromJsonTable:

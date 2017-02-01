@@ -346,6 +346,34 @@ public interface GProM_JNA extends Library {
 		    public static final int GProM_NESTQ_SCALAR = 4;
 	} 
 	
+	public static interface GProMWindowBoundType {
+		public static final int GProM_WINBOUND_UNBOUND_PREC = 0;
+		public static final int GProM_WINBOUND_CURRENT_ROW = 1;
+		public static final int GProM_WINBOUND_EXPR_PREC = 2;
+		public static final int GProM_WINBOUND_EXPR_FOLLOW = 3;
+	}
+	
+	public static interface GProMWinFrameType {
+		public static final int GProM_WINFRAME_ROWS = 0;
+		public static final int GProM_WINFRAME_RANGE = 1;
+	}
+	
+	public static interface GProMSortOrder {
+		public static final int GProM_SORT_ASC = 0;
+		public static final int GProM_SORT_DESC = 1;
+	}
+	
+	public static interface GProMSortNullOrder {
+		public static final int GProM_SORT_NULLS_FIRST = 0;
+		public static final int GProM_SORT_NULLS_LAST = 1;
+	}
+	
+	public static final int GProM_INVALID_PARAM = (int)-1;
+	public static final int GProM_INVALID_ATTR = (int)-1;
+	public static final int GProM_INVALID_FROM_ITEM = (int)-1;
+	
 	public Pointer gprom_rewriteQueryToOperatorModel (String query);
     
+	public Pointer gprom_provRewriteOperator(Pointer nodeFromMimir);
+
 }
