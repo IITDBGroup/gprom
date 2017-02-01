@@ -705,10 +705,10 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 
 	// create join condition
 	// TODO: find the corresponding provenance attribute to join
-	boolean suffix = FALSE;
+//	boolean suffix = FALSE;
 	Node *curCond = NULL;
 	int aPos = 0;
-
+	int chkPos = 0;
 
 	FOREACH(AttributeDef,attrs,transInput->schema->attrDefs)
 	{
@@ -721,49 +721,79 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 
 		// check suffix upfront to recognize if attributes are renamed
 		// TODO: how to recognize which renamed normal attributes correspond to provenance attributes
-		for(int rPos = LIST_LENGTH(transInput->schema->attrDefs); rPos < LIST_LENGTH(prov->schema->attrDefs); rPos++)
+
+		int orgAttr = LIST_LENGTH(transInput->schema->attrDefs);
+
+		for(int provAttr = orgAttr; provAttr < LIST_LENGTH(prov->schema->attrDefs); provAttr++)
 		{
-			char *attrProv = STRING_VALUE(getNthOfListP(prov->schema->attrDefs,rPos));
+//			char *rName = NULL;
+			AttributeDef *r = getAttrDefByPos(prov,provAttr);
 
-			if (isSuffix(attrProv,a))
-				suffix = TRUE;
-		}
+//			if(isPrefix(r->attrName,"PROV"))
+//				rName = r->attrName;
 
-		if (LIST_LENGTH(provAttrs) > LIST_LENGTH(origAttrs) && suffix)
-		{
-			char *a2 = NULL;
-
-			for(int rPos = LIST_LENGTH(transInput->schema->attrDefs); rPos < LIST_LENGTH(prov->schema->attrDefs); rPos++)
+			if(isSuffix(r->attrName,a))
 			{
-				char *attrProv = STRING_VALUE(getNthOfListP(prov->schema->attrDefs,rPos));
-
-				if (isSuffix(attrProv,a))
-				{
-					a2 = attrProv;
-
-					if(strcmp(a,a2) == 0)
-						FATAL_LOG("USING join is using ambiguous attribute references <%s>", a);
-					else
-						rA = createFullAttrReference(strdup(a2), 1, rPos, 0, attrs->dataType);
-				}
+				rA = createFullAttrReference(strdup(r->attrName), 1, provAttr, 0, r->dataType);
+				attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+				chkPos++;
 			}
-		}
-		else
-		{
-			int rPos = aPos + LIST_LENGTH(transInput->schema->attrDefs);
-			char *a2 = STRING_VALUE(getNthOfListP(prov->schema->attrDefs,rPos));
-
-			if(strcmp(a,a2) == 0)
+			else if(strcmp(a,r->attrName) == 0)
 				FATAL_LOG("USING join is using ambiguous attribute references <%s>", a);
-			else
-				rA = createFullAttrReference(strdup(a2), 1, rPos, 0, attrs->dataType);
 		}
+
+		if(chkPos == 1)
+			curCond = attrCond;
+		else if (chkPos > 1)
+			curCond = AND_EXPRS(curCond,attrCond);
 
 		aPos++;
+	}
 
-		// create equality condition and update global condition
-		attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
-		curCond = AND_EXPRS(attrCond,curCond);
+	// if attribute name has renamed
+	if(curCond == NULL)
+	{
+		List *orgRef = ((ProjectionOperator *) transInput)->projExprs;
+//		int newPos = 0;
+//
+//		// assign new attribute position for the input query
+//		FOREACH(AttributeReference,a,orgRef)
+//		{
+//			a->attrPosition = newPos;
+//			newPos++;
+//		}
+
+		int attrPos = 0;
+
+		FOREACH(AttributeReference,a,orgRef)
+		{
+			Node *attrCond;
+			AttributeReference *lA, *rA;
+
+			int matPos = a->attrPosition + LIST_LENGTH(orgRef);
+			lA = createFullAttrReference(strdup(a->name), 0, attrPos, 0, a->attrType);
+
+//			for(int rPos = 0; rPos < LIST_LENGTH(prov->schema->attrDefs); rPos++)
+			List *provRef = ((ProjectionOperator *) prov)->projExprs;
+
+			FOREACH(AttributeReference,rPos,provRef)
+			{
+				if(rPos->attrPosition == matPos)
+				{
+//					AttributeDef *r = getAttrDefByPos(prov,rPos);
+					rA = createFullAttrReference(strdup(rPos->name), 1, rPos->attrPosition, 0, rPos->attrType);
+					attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+					chkPos++;
+				}
+			}
+
+			if(chkPos == 1)
+				curCond = attrCond;
+			else if(chkPos > 1)
+				curCond = AND_EXPRS(curCond,attrCond);
+
+			attrPos++;
+		}
 	}
 
 	inputs = LIST_MAKE(transInput,prov);
@@ -837,7 +867,7 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 	SET_BOOL_STRING_PROP(rewrittenTree, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("rewritten query for summarization returned:", rewrittenTree);
-//	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
+	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
 
 	return rewrittenTree;
 }
@@ -849,6 +879,7 @@ rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
 	Node *prop = input->properties;
 
 	// check the list for constant value to create sel condition
+	int chkPos = 0;
 	int attrPos = 0;
 	Node *curCond = NULL;
 	SelectionOperator *so;
@@ -863,10 +894,12 @@ rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
 			AttributeReference *quest = createFullAttrReference(strdup(attr), 0, attrPos, 0, aDef->dataType);
 			Node *selCond = (Node *) createOpExpr("=",LIST_MAKE(quest,c));
 
-			if(attrPos == 0)
+			if(chkPos == 0)
 				curCond = selCond;
 			else
 				curCond = AND_EXPRS(curCond,selCond);
+
+			chkPos++;
 		}
 
 		attrPos++;
