@@ -326,10 +326,11 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 	Node *curCond = NULL;
 //	int sLen = LIST_LENGTH(samples->schema->attrDefs) - 1;
 
-	FOREACH(AttributeDef,attrs,samples->schema->attrDefs)
+//	FOREACH(AttributeDef,attrs,samples->schema->attrDefs)
+	FOREACH(AttributeDef,attrs,origAttrs)
 	{
-		if (searchListNode(origAttrs, (Node *) attrs))
-		{
+//		if (searchListNode(origAttrs, (Node *) attrs))
+//		{
 			char *a = attrs->attrName;
 			AttributeReference *lA, *rA = NULL;
 
@@ -349,7 +350,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 				curCond = AND_EXPRS(attrCond,curCond);
 			}
 			aPos++;
-		}
+//		}
 	}
 
 	// create join operator
@@ -871,7 +872,7 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 	SET_BOOL_STRING_PROP(rewrittenTree, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("rewritten query for summarization returned:", rewrittenTree);
-	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
+//	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
 
 	return rewrittenTree;
 }
