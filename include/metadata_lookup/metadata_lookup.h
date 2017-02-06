@@ -95,6 +95,7 @@ typedef struct MetadataLookupPlugin
 
 } MetadataLookupPlugin;
 
+#define INVALID_SCN -1
 
 /* store active plugin */
 extern MetadataLookupPlugin *activePlugin;

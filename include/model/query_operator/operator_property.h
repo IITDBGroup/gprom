@@ -36,6 +36,7 @@
 
 // provenance of transaction
 #define PROP_PROV_IS_UPDATE_ROOT "UPDATE_ROOT"              // root of a translated update reenactment query
+#define PROP_PROV_ORIG_UPDATE_TYPE "ORIG_UPDATE_TYPE"       // store type of update for reenacted queries
 
 /* Operator type specific properties */
 /* provenance computation specific properties */

@@ -747,13 +747,8 @@ static void
 removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
 {
     Set *tableUpdateOrRead = STRSET();
-//    List *tableNames;
-//    ProvenanceTransactionInfo *t = op->transactionInfo;
 
-//    tableNames = deepCopyStringList(t->updateTableNames);
-//    reverseList(tableNames);
-
-
+    // determine tables that are read by an INSERT query or updated
     FOREACH(Node, u, op->transactionInfo->originalUpdates)
     {
         if(isA(u,Insert))
@@ -765,6 +760,7 @@ removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
                 List *tableFromItems = findAllNodes(i->query, T_FromTableRef);
                 FOREACH(FromTableRef,f,tableFromItems)
                     addToSet(tableUpdateOrRead, f->tableId);
+                addToSet(tableUpdateOrRead, i->insertTableName);
             }
         }
         else if (isA(u,Update))
@@ -785,20 +781,24 @@ removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
     for(int i = 0; i < LIST_LENGTH(op->op.inputs); i++)
     {
         List *tables = NIL;
-        findTableAccessVisitor((Node *) op, &tables);
+        ReenactUpdateType t = INT_VALUE(GET_STRING_PROP(op,PROP_PROV_ORIG_UPDATE_TYPE));
 
         // for every access to a table that is not read by a query or update, i.e., it is only affected by an
         // INSERT INTO R VALUES (...), we can replace R union {t} with {t}
-        FOREACH(TableAccessOperator,t,tables)
+        if (t == UPDATE_TYPE_INSERT_VALUES)
         {
-            if (!hasSetElem(tableUpdateOrRead, t->tableName))
+            findTableAccessVisitor((Node *) op, &tables);
+            FOREACH(TableAccessOperator,t,tables)
             {
-                QueryOperator *un = OP_FIRST_PARENT(t);
-                QueryOperator *c = OP_RCHILD(un);
-                ASSERT(isA(un,SetOperator) && isA(c,ConstRelOperator));
+                if (!hasSetElem(tableUpdateOrRead, t->tableName))
+                {
+                    QueryOperator *un = OP_FIRST_PARENT(t);
+                    QueryOperator *c = OP_RCHILD(un);
+                    ASSERT(isA(un,SetOperator) && isA(c,ConstRelOperator));
 
-                c->parents = NIL;
-                switchSubtrees(un, c);
+                    c->parents = NIL;
+                    switchSubtrees(un, c);
+                }
             }
         }
     }

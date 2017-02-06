@@ -268,11 +268,24 @@ AC_SUBST([GPROM_CFLAGS_ERROR],[$GPROM_CFLAGS_ERROR])
 AC_MSG_RESULT($GPROM_CFLAGS)
 ])
 ################################################################################
+# Init autoconf
 AC_INIT([GProM],[0.0.1],[bglavic@iit.edu])
 AC_CONFIG_AUX_DIR(config)
 AM_INIT_AUTOMAKE([-Wall foreign tar-pax])
 AC_CONFIG_MACRO_DIR([m4])
 AC_SUBST([ACLOCAL_AMFLAGS],[-I m4])
+################################################################################
+AC_CANONICAL_HOST
+AS_CASE([$host_os],
+   [*linux*], [OSTYPE=linux],
+   [*darwin*], [OSTYPE=osx],
+   [*windows*],[OSTYPE=windows],
+   [OSTYPE=unknown]
+)
+AC_SUBST([OSTYPE])
+AC_SUBST([OSDETAILS],$host_os)
+AC_DEFINE_UNQUOTED([OS_TYPE],["${OSTYPE}"],[type of operating system])
+AC_DEFINE_UNQUOTED([OS_DETAILS],["${host_os}"],[OS version])
 ################################################################################
 # CHECK FOR C COMPILER AND FEATURES, BINUTILS, AND BISON + FLEX
 AS_IF([test "x$CFLAGS" != "x"],
@@ -336,6 +349,7 @@ AC_CHECK_HEADERS([signal.h])
 AC_CHECK_HEADERS([float.h])
 AC_CHECK_HEADERS([pthread.h])
 AC_CHECK_HEADERS([math.h])
+AC_CHECK_HEADERS([pwd.h])
 #AC_CHECK_HEADERS([readline/readline.h])
 #AC_CHECK_HEADERS([readline/history.h])
 AC_HEADER_ASSERT
@@ -525,6 +539,7 @@ AC_OUTPUT
 echo "
   ($PACKAGE_NAME) version $PACKAGE_VERSION
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  OS.................: $OSTYPE ($host_os)
   Prefix.............: $prefix
   Top src dir........: $GPROM_SRCDIR
   Debug Build........: ${enable_debug:=yes}

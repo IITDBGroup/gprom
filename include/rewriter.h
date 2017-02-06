@@ -16,8 +16,9 @@
 
 #define QUERY_MEM_CONTEXT "QUERY_CONTEXT"
 
-extern int initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[]);
 extern int initBasicModules (void);
+extern int initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[]);
+extern int readOptions (char *appName, char *appHelpText, int argc, char* argv[]);
 extern void reactToOptionsChange (const char *optName);
 
 extern void setupPluginsFromOptions(void);
