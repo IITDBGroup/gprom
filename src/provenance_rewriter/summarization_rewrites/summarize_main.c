@@ -328,7 +328,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 		if (searchListNode(origAttrs, (Node *) attrs))
 		{
 			char *a = attrs->attrName;
-			AttributeReference *lA, *rA;
+			AttributeReference *lA, *rA = NULL;
 
 			lA = createFullAttrReference(strdup(a), 0, aPos, 0, attrs->dataType);
 
