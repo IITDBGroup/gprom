@@ -319,8 +319,11 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 	QueryOperator *patterns = (QueryOperator *) patternInput;
 
 	// create join condition
-	Node *curCond = NULL;
 	int aPos = 0;
+	Node *joinCond = NULL;
+	Node *isNullCond = NULL;
+	Node *attrCond = NULL;
+	Node *curCond = NULL;
 //	int sLen = LIST_LENGTH(samples->schema->attrDefs) - 1;
 
 	FOREACH(AttributeDef,attrs,samples->schema->attrDefs)
@@ -336,14 +339,15 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 //			int rPos = aPos + sLen + 1;
 
 			if(strcmp(a,a2) == 0)
+			{
 				rA = createFullAttrReference(strdup(a2), 1, aPos, 0, attrs->dataType);
 
-			// create equality condition and update global condition
-			Node *joinCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
-			Node *isNullCond = (Node *) createIsNullExpr((Node *) rA);
-			Node *attrCond = OR_EXPRS(joinCond,isNullCond);
-
-			curCond = AND_EXPRS(attrCond,curCond);
+				// create equality condition and update global condition
+				joinCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+				isNullCond = (Node *) createIsNullExpr((Node *) rA);
+				attrCond = OR_EXPRS(joinCond,isNullCond);
+				curCond = AND_EXPRS(attrCond,curCond);
+			}
 			aPos++;
 		}
 	}
