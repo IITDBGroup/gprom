@@ -145,9 +145,9 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	// create projection operator
 	int pos = 0;
 	List *projExpr = NIL;
-	AttributeReference *totProv;
-	AttributeReference *covProv;
-	AttributeReference *numProv;
+	AttributeReference *totProv, *covProv, *numProv = NULL;
+//	AttributeReference *covProv;
+//	AttributeReference *numProv;
 
 	FOREACH(AttributeDef,p,computeFrac->schema->attrDefs)
 	{
@@ -719,7 +719,7 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 		char *a = attrs->attrName;
 
 		Node *attrCond;
-		AttributeReference *lA, *rA;
+		AttributeReference *lA, *rA = NULL;
 
 		lA = createFullAttrReference(strdup(a), 0, aPos, 0, attrs->dataType);
 
@@ -772,7 +772,7 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 		FOREACH(AttributeReference,a,orgRef)
 		{
 			Node *attrCond;
-			AttributeReference *lA, *rA;
+			AttributeReference *lA, *rA = NULL;
 
 			int matPos = a->attrPosition + LIST_LENGTH(orgRef);
 			lA = createFullAttrReference(strdup(a->name), 0, attrPos, 0, a->attrType);
