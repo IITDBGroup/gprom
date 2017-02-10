@@ -29,7 +29,7 @@
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 
 static List *provAttrs = NIL;
-static List *origAttrs = NIL;
+static List *normAttrs = NIL;
 
 static Node *rewriteUserQuestion (List *userQuestion, Node *rewrittenTree);
 static Node *rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree);
@@ -178,7 +178,7 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	// add attribute for coverage
 //	AttributeReference *totProv = createFullAttrReference(strdup("totalProv"), 0, 0, 0, DT_INT);
 	Node* covRate = (Node *) createOpExpr("/",LIST_MAKE(numProv,totProv));
-	FunctionCall *rdupCr = createFunctionCall("ROUND", LIST_MAKE(accuRate, rdup));
+	FunctionCall *rdupCr = createFunctionCall("ROUND", LIST_MAKE(covRate, rdup));
 	projExpr = appendToTailOfList(projExpr, rdupCr);
 
 	attrNames = CONCAT_LISTS(attrNames, singleton("Accuracy"), singleton("Coverage"));
@@ -271,7 +271,7 @@ rewriteCandidateOutput (Node *scanSampleInput)
 	}
 
 	pos = 2;
-	FOREACH(AttributeDef,a,origAttrs)
+	FOREACH(AttributeDef,a,normAttrs)
 	{
 		origExprs = appendToTailOfList(origExprs,
 				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
@@ -327,9 +327,9 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 //	int sLen = LIST_LENGTH(samples->schema->attrDefs) - 1;
 
 //	FOREACH(AttributeDef,attrs,samples->schema->attrDefs)
-	FOREACH(AttributeDef,attrs,origAttrs)
+	FOREACH(AttributeDef,attrs,normAttrs)
 	{
-//		if (searchListNode(origAttrs, (Node *) attrs))
+//		if (searchListNode(normAttrs, (Node *) attrs))
 //		{
 			char *a = attrs->attrName;
 			AttributeReference *lA, *rA = NULL;
@@ -458,7 +458,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 
 		FOREACH(AttributeDef,a,allSample->schema->attrDefs)
 		{
-//			if(searchListNode(origAttrs,(Node *) a))
+//			if(searchListNode(normAttrs,(Node *) a))
 			if(strcmp(a->attrName,strdup("HAS_PROV")) != 0)
 			{
 				lProjExpr = appendToTailOfList(lProjExpr,
@@ -470,7 +470,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 		pos++;
 		FOREACH(AttributeDef,a,provSample->schema->attrDefs)
 		{
-//			if(searchListNode(origAttrs,(Node *) a))
+//			if(searchListNode(normAttrs,(Node *) a))
 			if(strcmp(a->attrName,strdup("HAS_PROV")) != 0)
 			{
 				rProjExpr = appendToTailOfList(rProjExpr,
@@ -663,12 +663,12 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 
 	QueryOperator *transInput = (QueryOperator *) prov->properties;
 	provAttrs = getProvenanceAttrs(prov);
-	origAttrs = getNormalAttrs(prov);
+	normAttrs = getNormalAttrs(prov);
 
 	int pos = 0;
 	List *projExpr = NIL;
 	ProjectionOperator *op;
-	QueryOperator *origProv = prov;
+//	QueryOperator *origProv = prov;
 
 	// create selection for user prov question
 	// TODO: temporary where clause (apply from parse)
@@ -815,17 +815,20 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 	projExpr = NIL;
 	pos = 0;
 
-//	FOREACH(AttributeDef,a,transInput->schema->attrDefs)
-//	{
-//		projExpr = appendToTailOfList(projExpr,
-//				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
-//		pos++;
-//	}
-
-	FOREACH(AttributeDef,a,origProv->schema->attrDefs)
+	FOREACH(AttributeDef,a,transInput->schema->attrDefs)
 	{
 		projExpr = appendToTailOfList(projExpr,
 				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+		pos++;
+	}
+
+	FOREACH(AttributeDef,a,prov->schema->attrDefs)
+	{
+		if(isPrefix(a->attrName,"PROV_"))
+		{
+			projExpr = appendToTailOfList(projExpr,
+					createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+		}
 		pos++;
 	}
 
