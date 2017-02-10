@@ -25,7 +25,7 @@
 #include "metadata_lookup/metadata_lookup_external.h"
 
 #define LIBARY_REWRITE_CONTEXT "LIBGRPROM_QUERY_CONTEXT"
-
+#define printf(...) 0
 #define LOCK_MUTEX() printf("\nMUTEX\n%s:%u", __FILE__, __LINE__)
 #define UNLOCK_MUTEX() printf("\nUNLOCK\n%s:%u", __FILE__, __LINE__)
 #define CREATE_MUTEX()
@@ -209,12 +209,12 @@ GProMNode *
 gprom_rewriteQueryToOperatorModel(const char *query)
 {
     LOCK_MUTEX();
-    NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+    //NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
     //char *result = "";
     Node *parse;
     Node *oModel;
     Node *rewrittenTree;
-    //GProMNode* returnResult;
+    GProMNode* returnResult;
     TRY
     {
     	parse = parseFromString((char *)query);
@@ -224,10 +224,11 @@ gprom_rewriteQueryToOperatorModel(const char *query)
 		DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
 
 		rewrittenTree = provRewriteQBModel(oModel);
-		//returnResult = copyObject(rewrittenTree);
+		returnResult = (GProMNode*)copyObject(rewrittenTree);
 
     	UNLOCK_MUTEX();
-    	RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+    	//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+    	return returnResult;
     }
     ON_EXCEPTION
     {
@@ -236,7 +237,8 @@ gprom_rewriteQueryToOperatorModel(const char *query)
     END_ON_EXCEPTION
 
     UNLOCK_MUTEX();
-    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
+    //RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
+    return NULL;
 }
 
 GProMNode *
@@ -266,4 +268,48 @@ gprom_provRewriteOperator(GProMNode * nodeFromMimir)
 
 	    UNLOCK_MUTEX();
 	    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
+}
+
+char *
+gprom_nodeToString(GProMNode * nodeFromMimir)
+{
+	LOCK_MUTEX();
+	//NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+	char *returnResult = NULL;
+	//char *result = "";
+	//Node *copiedTree;
+	TRY
+	{
+		//copiedTree = copyObject(nodeFromMimir);
+		returnResult = strdup(beatify(nodeToString(nodeFromMimir)));
+
+		UNLOCK_MUTEX();
+		//RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
+		//RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(beatify(nodeToString(nodeFromMimir)),returnResult);
+		return returnResult;
+	}
+	ON_EXCEPTION
+	{
+		ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+	}
+	END_ON_EXCEPTION
+
+	UNLOCK_MUTEX();
+	return returnResult;
+}
+
+void
+gprom_createMemContext(void)
+{
+	LOCK_MUTEX();
+	NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+	UNLOCK_MUTEX();
+}
+
+void
+gprom_freeMemContext(void)
+{
+	LOCK_MUTEX();
+	RELEASE_MEM_CONTEXT();
+	UNLOCK_MUTEX();
 }

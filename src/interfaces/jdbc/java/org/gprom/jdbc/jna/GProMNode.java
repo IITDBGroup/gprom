@@ -27,7 +27,8 @@ public class GProMNode extends GProMStructure {
 		this.type = type;
 	}
 	public static class ByReference extends GProMNode implements Structure.ByReference {
-		
+		public ByReference() { super(); }
+		public ByReference(Pointer p) { super(p); }
 	};
 	public static class ByValue extends GProMNode implements Structure.ByValue {
 		

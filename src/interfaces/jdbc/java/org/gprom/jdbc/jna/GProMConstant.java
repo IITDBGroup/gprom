@@ -41,11 +41,14 @@ public class GProMConstant extends GProMStructure {
 		this.constType = constType;
 		this.value = value;
 		this.isNull = isNull;
+		write();
 	}
 	public static class ByReference extends GProMConstant implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMConstant implements Structure.ByValue {
-		
+		public ByValue(int type, int constType, Pointer value, int isNull) {
+			super(type, constType, value, isNull);
+		}
 	};
 }

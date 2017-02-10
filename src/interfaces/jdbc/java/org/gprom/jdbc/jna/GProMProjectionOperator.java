@@ -29,11 +29,14 @@ public class GProMProjectionOperator extends GProMStructure {
 		super();
 		this.op = op;
 		this.projExprs = projExprs;
+		write();
 	}
 	public static class ByReference extends GProMProjectionOperator implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMProjectionOperator implements Structure.ByValue {
-		
+		public ByValue(GProMQueryOperator op, org.gprom.jdbc.jna.GProMList.ByReference projExprs){
+			super(op, projExprs);
+		}
 	};
 }

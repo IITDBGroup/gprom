@@ -111,7 +111,7 @@ public class GProMDriver implements Driver {
 			while(infoIter.hasNext()){
 				propEntry = infoIter.next();
 				if(propEntry.getKey() instanceof String){
-					if(((String)propEntry.getKey()).startsWith("plugin.")){
+					if(((String)propEntry.getKey()).startsWith("plugin.") || ((String)propEntry.getKey()).startsWith("log.")){
 						backendOpts.put(propEntry.getKey(), propEntry.getValue());
 					}
 				}

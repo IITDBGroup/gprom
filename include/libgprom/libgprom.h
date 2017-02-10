@@ -207,6 +207,13 @@ GProM_DT_BOOL,
 GProM_DT_VARCHAR2
 } GProMDataType;
 
+typedef struct GProMAttributeDef
+{
+	GProMNodeTag type;
+	GProMDataType dataType;
+	char *attrName;
+} GProMAttributeDef;
+
 typedef struct GProMListCell
 {
     union
@@ -228,13 +235,6 @@ typedef struct GProMList
 typedef struct GProMNode{
 	GProMNodeTag type;
 } GProMNode;
-
-typedef struct GProMAttributeDef
-{
-	GProMNodeTag type;
-	GProMDataType dataType;
-    char *attrName;
-} GProMAttributeDef;
 
 typedef struct GProMAttributeReference {
     GProMNodeTag type;
@@ -510,5 +510,11 @@ typedef struct GProMOrderExpr {
 extern GProMNode * gprom_rewriteQueryToOperatorModel(const char *query);
 
 extern GProMNode * gprom_provRewriteOperator(GProMNode * nodeFromMimir);
+
+extern char * gprom_nodeToString(GProMNode * nodeFromMimir);
+
+extern void gprom_createMemContext(void);
+
+extern void gprom_freeMemContext(void);
 
 #endif /* INCLUDE_LIBGPROM_LIBGPROM_H_ */

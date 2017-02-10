@@ -75,6 +75,7 @@ extern LogLevel maxLevel;
 /* user has activated logging (default) */
 #else
 
+
 #define FATAL_LOG(template, ...) \
     do { \
         log_(LOG_FATAL, __FILE__, __LINE__, (template),  ##__VA_ARGS__); \

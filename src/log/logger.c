@@ -28,6 +28,8 @@
 
 #define INIT_BUF_SIZE 4096
 
+#define printf(...) 0
+
 // private vars
 static char *h[] =
     {"FATAL", "ERROR ", "WARN", "INFO", "DEBUG", "TRACE"};

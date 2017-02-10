@@ -29,11 +29,14 @@ public class GProMTableAccessOperator extends GProMStructure {
 		this.op = op;
 		this.tableName = tableName;
 		this.asOf = asOf;
+		write();
 	}
 	public static class ByReference extends GProMTableAccessOperator implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMTableAccessOperator implements Structure.ByValue {
-		
+		public ByValue(GProMQueryOperator op, String tableName, org.gprom.jdbc.jna.GProMNode.ByReference asOf) {
+			super(op, tableName, asOf);
+		}
 	};
 }

@@ -22,17 +22,24 @@ public class GProMListCell extends GProMStructure {
 			super();
 			this.ptr_value = ptr_value;
 			setType(Pointer.class);
+			write();
 		}
 		public data_union(int int_value) {
 			super();
 			this.int_value = int_value;
 			setType(Integer.TYPE);
+			write();
 		}
 		public static class ByReference extends data_union implements Structure.ByReference {
 			
 		};
 		public static class ByValue extends data_union implements Structure.ByValue {
-			
+			public ByValue(Pointer ptr_value) {
+				super(ptr_value);
+			}
+			public ByValue(int int_value) {
+				super(int_value);
+			}
 		};
 	};
 	public GProMListCell() {

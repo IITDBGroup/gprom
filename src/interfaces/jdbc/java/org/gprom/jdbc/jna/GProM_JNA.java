@@ -376,4 +376,9 @@ public interface GProM_JNA extends Library {
     
 	public Pointer gprom_provRewriteOperator(Pointer nodeFromMimir);
 
+	public Pointer gprom_nodeToString(Pointer nodeFromMimir);
+	
+	public void gprom_createMemContext();
+	public void gprom_freeMemContext();
+
 }

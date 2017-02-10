@@ -7,7 +7,7 @@ public abstract class GProMStructure extends Structure
 {
 	 public GProMStructure(Pointer address) { 
 	    super(address); 
-	    read(); 
+	    read();
 	  } 
 	 public GProMStructure() { 
 	    super();

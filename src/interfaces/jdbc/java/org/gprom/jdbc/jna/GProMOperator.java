@@ -28,11 +28,14 @@ public class GProMOperator extends GProMStructure {
 		this.type = type;
 		this.name = name;
 		this.args = args;
+		write();
 	}
 	public static class ByReference extends GProMOperator implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMOperator implements Structure.ByValue {
-		
+		public ByValue(int type, String name, org.gprom.jdbc.jna.GProMList.ByReference args) {
+			super(type, name, args);
+		}
 	};
 }

@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.catalogTableExists_callback;
@@ -46,6 +47,10 @@ public abstract class AbstractMetadataLookup {
 
 	private static Logger log = Logger.getLogger(AbstractMetadataLookup.class);
 
+	static {
+		log.setLevel(Level.OFF);
+	}
+	
 	protected GProMMetadataLookupPlugin plugin;
 	protected Connection con;
 	private Statement stat;
@@ -522,7 +527,7 @@ public abstract class AbstractMetadataLookup {
 		if (dt.equals("VARCHAR") || dt.equals("VARCHAR2")) {
 			return "DT_STRING";
 		}
-		if (dt.equals("INT")) {
+		if (dt.equals("INT") || dt.equals("INTEGER")) {
 			return "DT_INT";
 		}
 		if (dt.equals("DECIMAL")) {

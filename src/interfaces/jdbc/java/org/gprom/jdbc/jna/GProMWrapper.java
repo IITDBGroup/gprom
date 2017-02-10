@@ -58,9 +58,23 @@ public class GProMWrapper implements GProMJavaInterface {
 	public static GProMWrapper inst = new GProMWrapper ();
 
 	public static GProMWrapper getInstance () {
-		return inst;
+		return inst; 
 	}
 
+	private boolean silenceLogger = false;
+	public void setSilenceLogger(boolean silenceLogger){
+		this.silenceLogger = silenceLogger;
+		if(silenceLogger){
+			libLog.setLevel(Level.OFF);
+			log.setLevel(Level.OFF);
+		}
+		else{
+			Level ll = intToLogLevel( GProM_JNA.INSTANCE.gprom_getIntOption("log.level"));
+			libLog.setLevel(ll);
+			log.setLevel(ll);
+		}
+	}
+	
 	private GProMWrapper () {
 		exceptions = new ArrayList<ExceptionInfo> ();
 	}
@@ -121,7 +135,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	}
 	
 	/* (non-Javadoc)
-	 * @see org.gprom.jdbc.jna.GProMJavaInterface#rewriteQueryToOperatorModel(java.lang.String)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#provRewriteOperator(com.sun.jna.Pointer)
 	 */
 	@Override
 	public GProMStructure provRewriteOperator(Pointer nodeFromMimir) throws Exception {
@@ -146,6 +160,43 @@ public class GProMWrapper implements GProMJavaInterface {
 		}
 		
 		return result;
+	}
+	
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#gpromNodeToString(com.sun.jna.Pointer)
+	 */
+	@Override
+	public String gpromNodeToString(Pointer nodeFromMimir) throws Exception {
+		Pointer p =  GProM_JNA.INSTANCE.gprom_nodeToString(nodeFromMimir);
+		String result = p.getString(0);
+		
+		// check whether exception has occured
+		if (exceptions.size() > 0) {
+			StringBuilder mes = new StringBuilder();
+			for(ExceptionInfo i: exceptions)
+			{
+				mes.append("ERROR (" + i + ")");
+				mes.append(i.toString());
+				mes.append("\n\n");
+			}
+			exceptions.clear();
+			log.error("have encountered exception");
+			throw new NativeGProMLibException("Error during rewrite:\n" + mes.toString());
+		}
+		//TODO use string builder to avoid creation of two large strings
+		result = result.replaceFirst(";\\s+\\z", "");
+		//log.info("NodeToString:\n\n" + result );
+		return result;
+	}
+	
+	@Override
+	public void gpromCreateMemContext(){
+		GProM_JNA.INSTANCE.gprom_createMemContext();
+	}
+	
+	@Override
+	public void gpromFreeMemContext(){
+		GProM_JNA.INSTANCE.gprom_freeMemContext();
 	}
 	
 	public GProMStructure castGProMNode(GProMNode node){
@@ -366,7 +417,6 @@ public class GProMWrapper implements GProMJavaInterface {
 
 	private void logCallbackFunction (String message, String file, int line, int level) {
 		String printMes = file + " at " + line + ": " + message;
-
 		libLog.log(intToLogLevel(level), printMes);
 	}
 

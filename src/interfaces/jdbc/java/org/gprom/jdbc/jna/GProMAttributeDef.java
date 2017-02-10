@@ -3,6 +3,7 @@ import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import java.util.Arrays;
 import java.util.List;
+
 public class GProMAttributeDef extends GProMStructure {
 	/**
 	 * @see GProMNodeTag<br>
@@ -23,7 +24,7 @@ public class GProMAttributeDef extends GProMStructure {
 		super(address);
 	}
 	protected List<? > getFieldOrder() {
-		return Arrays.asList("type", "dataType", "attrName");
+		return Arrays.asList("type", "dataType", "attrName" );
 	}
 	/**
 	 * @param type @see GProMNodeTag<br>
@@ -37,11 +38,14 @@ public class GProMAttributeDef extends GProMStructure {
 		this.type = type;
 		this.dataType = dataType;
 		this.attrName = attrName;
+		write();
 	}
 	public static class ByReference extends GProMAttributeDef implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMAttributeDef implements Structure.ByValue {
-		
+		public ByValue(int type, int dataType, String attrName) {
+			super(type, dataType, attrName);
+		}
 	};
 }

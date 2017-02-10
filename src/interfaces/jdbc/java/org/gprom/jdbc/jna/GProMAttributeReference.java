@@ -43,11 +43,14 @@ public class GProMAttributeReference extends GProMStructure {
 		this.attrPosition = attrPosition;
 		this.outerLevelsUp = outerLevelsUp;
 		this.attrType = attrType;
+		write();
 	}
 	public static class ByReference extends GProMAttributeReference implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMAttributeReference implements Structure.ByValue {
-		
+		public ByValue(int type, String name, int fromClauseItem, int attrPosition, int outerLevelsUp, int attrType){
+			super(type, name, fromClauseItem, attrPosition, outerLevelsUp, attrType );
+		}
 	};
 }

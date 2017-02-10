@@ -65,11 +65,14 @@ public class GProMQueryOperator extends GProMStructure {
 		this.parents = parents;
 		this.provAttrs = provAttrs;
 		this.properties = properties;
+		write();
 	}
 	public static class ByReference extends GProMQueryOperator implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMQueryOperator implements Structure.ByValue {
-		
+		public ByValue(int type, org.gprom.jdbc.jna.GProMList.ByReference inputs, org.gprom.jdbc.jna.GProMSchema.ByReference schema, org.gprom.jdbc.jna.GProMList.ByReference parents, org.gprom.jdbc.jna.GProMList.ByReference provAttrs, org.gprom.jdbc.jna.GProMNode.ByReference properties){
+			super(type, inputs, schema, parents, provAttrs, properties);
+		}
 	};
 }

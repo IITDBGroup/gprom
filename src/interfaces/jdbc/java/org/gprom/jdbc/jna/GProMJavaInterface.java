@@ -54,7 +54,9 @@ public interface GProMJavaInterface {
 	public String gpromRewriteQuery (String query) throws SQLException;
 	public GProMStructure rewriteQueryToOperatorModel (String query) throws Exception;
 	public GProMStructure provRewriteOperator(Pointer nodeFromMimir) throws Exception;
-		
+	public String gpromNodeToString (Pointer nodeFromMimir) throws Exception;
+	public void gpromCreateMemContext();
+	public void gpromFreeMemContext();	
 	
 	/* initialization */
 	public void init ();

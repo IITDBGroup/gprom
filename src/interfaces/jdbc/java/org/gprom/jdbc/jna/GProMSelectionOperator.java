@@ -10,7 +10,7 @@ public class GProMSelectionOperator extends GProMStructure {
 	 * condition expression<br>
 	 * C type : GProMNode*
 	 */
-	public org.gprom.jdbc.jna.GProMNode.ByReference cond;
+	public GProMNode.ByReference cond;
 	public GProMSelectionOperator() {
 		super();
 	}
@@ -25,15 +25,18 @@ public class GProMSelectionOperator extends GProMStructure {
 	 * @param cond condition expression<br>
 	 * C type : GProMNode*
 	 */
-	public GProMSelectionOperator(GProMQueryOperator op, org.gprom.jdbc.jna.GProMNode.ByReference cond) {
+	public GProMSelectionOperator(GProMQueryOperator op, GProMNode.ByReference cond) {
 		super();
 		this.op = op;
 		this.cond = cond;
+		write();
 	}
 	public static class ByReference extends GProMSelectionOperator implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMSelectionOperator implements Structure.ByValue {
-		
+		public ByValue(GProMQueryOperator op, GProMNode.ByReference cond) {
+			super(op, cond);
+		}
 	};
 }

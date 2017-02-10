@@ -1239,7 +1239,7 @@ outNode(StringInfo str, void *obj)
                 outRPQQuery(str, (RPQQuery *) obj);
                 break;
             default :
-            	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
+            	INFO_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
                 break;
         }
