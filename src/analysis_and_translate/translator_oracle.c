@@ -108,6 +108,8 @@ static List *getListOfAggregFunctionCalls(List *selectClause,
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
 static boolean visitFindWindowFuncs(Node *n, List **wfs);
 static boolean replaceWithViewRefsMutator(Node *node, List *views);
+static char *summaryType = NULL;
+static Node *prop = NULL;
 
 
 Node *
@@ -174,12 +176,9 @@ translateGeneral (Node *node)
                 stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
             else
             {
-            	QueryOperator *transInput = translateQueryBlock((QueryBlock *) prov->query);
-
+            	summaryType = prov->summaryType;
             	r = translateQueryOracle(stmt);
-//            	r->parents = singleton(transInput);
-            	r->properties = (Node *) transInput;
-
+            	r->properties = copyObject(prop);
             	stmt_his_cell->data.ptr_value = (Node *) r;
             }
         }
@@ -192,12 +191,9 @@ translateGeneral (Node *node)
         	result = (Node *) translateQueryOracle(node);
         else
         {
-        	QueryOperator *transInput = translateQueryBlock((QueryBlock *) prov->query);
-
+        	summaryType = prov->summaryType;
         	r = translateQueryOracle(node);
-//        	r->parents = singleton(transInput);
-        	r->properties = (Node *) transInput;
-
+        	r->properties = copyObject(prop);
         	result = (Node *) r;
         }
     }
@@ -342,6 +338,9 @@ translateQueryBlock(QueryBlock *qb)
     QueryOperator *orderBy = translateOrderBy(qb, distinct, attrsOffsets);
     if (orderBy != distinct)
         LOG_TRANSLATED_OP("translatedOrder is", orderBy);
+
+    if(summaryType != NULL)
+    	prop = (Node *) orderBy;
 
     return orderBy;
 }

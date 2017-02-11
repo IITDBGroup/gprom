@@ -76,7 +76,7 @@ rewriteMostGenExplOutput (Node *computeFracInput)
 	QueryOperator *computeFrac = (QueryOperator *) computeFracInput;
 
 	// create selection for returning top most general explanation
-	Node *selCond = (Node *) createOpExpr("<=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(10)));
+	Node *selCond = (Node *) createOpExpr("=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(1)));
 	SelectionOperator *so = createSelectionOp(selCond, computeFrac, NIL, getAttrNames(computeFrac->schema));
 
 	computeFrac->parents = singleton(so);
@@ -670,24 +670,6 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 	ProjectionOperator *op;
 //	QueryOperator *origProv = prov;
 
-	// create selection for user prov question
-	// TODO: temporary where clause (apply from parse)
-//	AttributeReference *lC = createFullAttrReference(strdup("B"), 0, 1, 0, DT_INT);
-//	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
-
-//	AttributeReference *lC = createFullAttrReference(strdup("I"), 0, 0, 0, DT_INT);
-//	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstString("a")));
-//
-//	SelectionOperator *so = createSelectionOp(whereClause, prov, NIL, getAttrNames(prov->schema));
-
-//	attrNames = getAttrDefNames(getNormalAttrs(prov));
-//	SelectionOperator *so = createSelectionOp(whereClause, prov, NIL, attrNames);
-//	addProvenanceAttrsToSchema((QueryOperator *) so, OP_LCHILD(so));
-
-//	prov->parents = singleton(so);
-//	prov = (QueryOperator *) so;
-//	prov->provAttrs = provAttrs;
-
 	// create projection for adding "HAS_PROV" attribute
 	FOREACH(AttributeDef,p,prov->schema->attrDefs)
 	{
@@ -908,14 +890,15 @@ rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
 				curCond = AND_EXPRS(curCond,selCond);
 
 			chkPos++;
+
+			so = createSelectionOp(curCond, input, NIL, getAttrNames(input->schema));
+
+			input->parents = singleton(so);
+			input = (QueryOperator *) so;
 		}
 
 		attrPos++;
 	}
-	so = createSelectionOp(curCond, input, NIL, getAttrNames(input->schema));
-
-	input->parents = singleton(so);
-	input = (QueryOperator *) so;
 
 	// create projection operator
 	int pos = 0;
