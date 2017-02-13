@@ -91,6 +91,26 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
+# cplex library location
+AC_DEFUN([AC_CPLEX_LOCATION],
+[AC_ARG_WITH(libpq, [  --with-cplex], , )
+AC_MSG_CHECKING([for user provided cplex location])
+if test "x$with_cplex" != x; then
+	if test -d "$with_cplex"; then
+		CPLEXSYSTEM=x86-64_linux
+		CPLEXLIBFORMAT=static_pic
+		LDFLAGS="$LDFLAGS -L$with_cplex/lib/$CPLEXSYSTEM/$CPLEXLIBFORMAT"
+    	CPPFLAGS="$CPPFLAGS -I$with_cplex/include"
+    	#CFLAGS="$CFLAGS -m64 -fPIC"
+    	AC_MSG_RESULT([yes, $with_cplex])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no cplex library found in location $with_cplex])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
 # Activate/Deactivate logging
 AC_DEFUN([AC_LOGGING_ACTIVE],
 [
@@ -128,6 +148,18 @@ AC_MSG_CHECKING([activate profiling with gprof])
 AS_IF([test "x$enable_gprof" == "xyes"], [
   AC_MSG_RESULT([yes])
   CPPFLAGS="$CPPFLAGS -pg"
+],[
+  AC_MSG_RESULT([no])
+])
+])
+# Activate cplex support
+AC_DEFUN([AC_ENABLE_CPLEX],
+[AC_ARG_ENABLE(cplex, AS_HELP_STRING([--enable-cplex],[activate support for cplex]))
+AC_MSG_CHECKING([activate linking against cplex])
+
+AS_IF([test "x$enable_cplex" == "xyes"], [
+  AC_MSG_RESULT([yes])
+  #CPPFLAGS="$CPPFLAGS -pg"
 ],[
   AC_MSG_RESULT([no])
 ])
@@ -375,6 +407,31 @@ AC_ENABLE_JAVA_BINDING
 # Enable readline in CLI
 AC_ENABLE_READLINE
 ################################################################################
+# Enable cplex
+AC_ENABLE_CPLEX
+################################################################################
+# cplex library
+AS_CASE(["$enable_cplex"], 
+  [yes], [
+# check if user has provided us with non-standard locations for OCI/OCILIB libraries
+  AC_CPLEX_LOCATION
+# check for the libraries
+  AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
+    AC_MSG_ERROR([missing cplex library - if you want to compile without cplex  support do not use --enable-cplex])
+  ])
+  ],
+  [no], [],
+  [
+# check if user has provided us with non-standard locations for OCI/OCILIB libraries
+  AC_CPLEX_LOCATION
+ 
+# check for the libraries
+  AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
+    AC_MSG_ERROR([missing cplex library - if you want to compile without cplex  support do not use --enable-cplex])
+  ])
+  ]
+])
+################################################################################
 # Oracle access libraries (OCI and OCILIB)
 AS_CASE(["$enable_oracle"], 
   [yes], [
@@ -478,6 +535,11 @@ AC_CHECK_LIB([m],[pow],[],[
   AC_MSG_ERROR([missing libm library (searching for pow function)])
 ])
 ################################################################################
+# check for lpthread
+#AC_CHECK_LIB([pthread],[FUNCTION],[],[
+#  AC_MSG_ERROR([missing libpthread library (searching for FUNCTION function)])
+#])
+################################################################################
 # enable/disable features
 AC_LOGGING_ACTIVE
 AC_LINK_PERFTOOLS
@@ -544,7 +606,7 @@ echo "
   Top src dir........: $GPROM_SRCDIR
   Debug Build........: ${enable_debug:=yes}
   Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no} 
-  Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes}
+  Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=yes}
   Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}
   Language bindings..: Java - ${enable_java:=yes}
   Readline support...: ${enable_readline:=yes}
