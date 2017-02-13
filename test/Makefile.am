@@ -2,13 +2,42 @@ AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/test
 AM_CFLAGS = @GPROM_CFLAGS@
 # AM_CFLAGS = @GPROM_CFLAGS@
 AM_CPPFLAGS += -DGPROM_TOPDIR=\"$(top_srcdir)/\"
-# AM_CPPFLAGS += -I$$$cplexinclude$$$
-# AM_LDFLAGS += -L/path/to/cplex/cplexXX/lib/archi/tecture -lcplex -lm -lpthread
+
+LIBFORMAT  = static_pic
+
+#------------------------------------------------------------
+#
+# When you adapt this makefile to compile your CPLEX programs
+# please copy this makefile and set CPLEXDIR and CONCERTDIR to
+# the directories where CPLEX and CONCERT are installed.
+#
+#------------------------------------------------------------
+
+CPLEXDIR      = /home/bahar/opt/ibm/ILOG/CPLEX_Studio127/cplex
+
+# ---------------------------------------------------------------------
+# Compiler options 
+# ---------------------------------------------------------------------
+
+COPT  = -m64 -fPIC -fno-strict-aliasing
+
+# ---------------------------------------------------------------------
+# Link options and libraries
+# ---------------------------------------------------------------------
+SYSTEM     = x86-64_linux
+CPLEXLIBDIR   = $(CPLEXDIR)/lib/$(SYSTEM)/$(LIBFORMAT)
+
+CPLEXINCDIR   = $(CPLEXDIR)/include
+
+AM_CFLAGS += $(COPT)
+AM_CPPFLAGS += -I$(CPLEXINCDIR)
+AM_LDFLAGS = -L$(CPLEXLIBDIR) -lcplex -lpthread
 # use = instead
  
 check_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
 				testserializer testvisit testrewriter testpicsrewrite \
-				testrpq testlibgprom testexprcplex
+				testrpq testlibgprom
+bin_PROGRAMS = testexprcplex
 
 # testcplex
 
@@ -23,7 +52,7 @@ testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 testmain_LDADD = $(top_builddir)/src/libsrc.la
 
 testexprcplex_SOURCES = test_expr_to_cplex.c
-testexprcplex_LDADD = $(top_builddir)/src/libsrc.la
+testexprcplex_LDADD = $(top_builddir)/src/libsrc.la 
 
 # testcplex_SOURCES = test_cplex.c
 # testcplex_LDADD = $(top_builddir)/src/libsrc.la
