@@ -79,6 +79,7 @@ RUN cd /home/ubuntu/ocilib/src \
 	&& ./configure --with-oracle-headers-path=/opt/oracle/instantclient/sdk/include --with-oracle-lib-path=/opt/oracle/instantclient \
 	&& make \
 	&& make install \
+	&& echo "/usr/local/bin/" >> /etc/ld.so.conf \
 	&& /sbin/ldconfig
 ########################################
 # Clone GProM github repository

@@ -57,12 +57,17 @@ static Node *replaceVarWithAttrRef(Node *node, List *context);
 //List *dlDom = NIL;
 //List *dRules = NIL;
 //List *origProg = NIL;
+boolean provQ = FALSE;
 
 
 Node *
 translateParseDL(Node *q)
 {
     Node *result = NULL;
+    char *ans = ((DLProgram *) q)->ans;
+
+    if(ans != NULL)
+    	provQ = TRUE;
 
     INFO_LOG("translate DL model:\n\n%s", datalogToOverviewString(q));
 
@@ -723,10 +728,12 @@ translateSafeRule(DLRule *r)
 //    }
 
     headP = createProjectionOp(projExprs,
-            sel ? (QueryOperator *) sel : joinedGoals,
+//            sel ? (QueryOperator *) sel : joinedGoals,
+    		joinedGoals,
             NIL,
             headNames);
-    addParent(sel ? (QueryOperator *) sel : joinedGoals, (QueryOperator *) headP);
+//    addParent(sel ? (QueryOperator *) sel : joinedGoals, (QueryOperator *) headP);
+    addParent(joinedGoals, (QueryOperator *) headP);
 
     // add duplicate removal operator
     dupRem = createDuplicateRemovalOp(NULL, (QueryOperator *) headP, NIL,
@@ -2746,6 +2753,10 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
                 switchSubtreeWithExisting((QueryOperator *) r,idbImpl);
                 DEBUG_LOG("replaced idb Table %s with\n:%s", r->tableName,
                         operatorToOverviewString((Node *) idbImpl));
+
+                // remove after switch subtree if no provenance question exists
+                if(!provQ)
+					removeMapStringElem(predToTrans,r->tableName);
             }
             // is fact which is edb
             else if (isFact && isEDB && MAP_HAS_STRING_KEY(predToTrans,r->tableName))

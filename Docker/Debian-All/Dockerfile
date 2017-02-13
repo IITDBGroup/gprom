@@ -7,7 +7,6 @@ MAINTAINER Boris Glavic <bglavic@iit.edu>
 # Create working directories
 ########################################
 WORKDIR /gprom
-WORKDIR examples
 ########################################
 # Install packages needed for building
 ########################################
@@ -42,7 +41,10 @@ RUN cd /ocilib/src \
 	&& sh reconf \
 	&& ./configure --with-oracle-headers-path=/opt/oracle/instantclient/sdk/include --with-oracle-lib-path=/opt/oracle/instantclient \
 	&& make \
-	&& make install
+	&& make install \
+	&& echo "/usr/local/bin/" >> /etc/ld.so.conf \
+	&& echo "/opt/oracle/instantclient/" >> /etc/ld.so.conf \
+	&& /sbin/ldconfig
 ########################################
 # Clone GProM github repository
 ########################################
