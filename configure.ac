@@ -407,29 +407,29 @@ AC_ENABLE_JAVA_BINDING
 # Enable readline in CLI
 AC_ENABLE_READLINE
 ################################################################################
+# check for libm
+AC_CHECK_LIB([m],[pow],[],[
+  AC_MSG_ERROR([missing libm library (searching for pow function)])
+])
+################################################################################
 # Enable cplex
 AC_ENABLE_CPLEX
 ################################################################################
 # cplex library
 AS_CASE(["$enable_cplex"], 
   [yes], [
+  AC_CHECK_LIB([pthread],[pthread_self],[],[
+    AC_MSG_ERROR([missing libpthread library (searching for pthread_self function)])
+  ])
 # check if user has provided us with non-standard locations for OCI/OCILIB libraries
-  AC_CPLEX_LOCATION
+  AC_CPLEX_LOCATION  
 # check for the libraries
   AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
     AC_MSG_ERROR([missing cplex library - if you want to compile without cplex  support do not use --enable-cplex])
   ])
   ],
   [no], [],
-  [
-# check if user has provided us with non-standard locations for OCI/OCILIB libraries
-  AC_CPLEX_LOCATION
- 
-# check for the libraries
-  AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
-    AC_MSG_ERROR([missing cplex library - if you want to compile without cplex  support do not use --enable-cplex])
-  ])
-  ]
+  []
 ])
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
@@ -528,16 +528,6 @@ AS_CASE(["$enable_sqlite"],
 #  AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
 #    AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
 #  ])
-#])
-################################################################################
-# check for libm
-AC_CHECK_LIB([m],[pow],[],[
-  AC_MSG_ERROR([missing libm library (searching for pow function)])
-])
-################################################################################
-# check for lpthread
-#AC_CHECK_LIB([pthread],[FUNCTION],[],[
-#  AC_MSG_ERROR([missing libpthread library (searching for FUNCTION function)])
 #])
 ################################################################################
 # enable/disable features
