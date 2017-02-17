@@ -257,7 +257,7 @@ rewriteCandidateOutput (Node *scanSampleInput)
 
 	// create projection operator
 	List *projExpr = NIL;
-	List *origExprs = NIL;
+//	List *origExprs = NIL;
 	List *caseExprs = NIL;
 	int pos = 0;
 
@@ -269,30 +269,33 @@ rewriteCandidateOutput (Node *scanSampleInput)
 		pos++;
 	}
 
-	pos = 2;
-	FOREACH(AttributeDef,a,normAttrs)
-	{
-		origExprs = appendToTailOfList(origExprs,
-				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
-
-		pos++;
-	}
+//	pos = 2;
+//	FOREACH(AttributeDef,a,normAttrs)
+//	{
+//		origExprs = appendToTailOfList(origExprs,
+//				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+//
+//		pos++;
+//	}
 
 	attrs = NIL;
 
-	FOREACH(Node,n,origExprs)
+	FOREACH(AttributeDef,n,projExpr)
 	{
-		AttributeDef *a = (AttributeDef *) n;
+//		AttributeDef *a = (AttributeDef *) n;
 
-		Node *cond = (Node *) createIsNullExpr((Node *) a);
-		Node *then = (Node *) createConstInt(1);
-		Node *els = (Node *) createConstInt(0);
+		if (isPrefix(n->attrName,"PROV_"))
+		{
+			Node *cond = (Node *) createIsNullExpr((Node *) n);
+			Node *then = (Node *) createConstInt(1);
+			Node *els = (Node *) createConstInt(0);
 
-		CaseWhen *caseWhen = createCaseWhen(cond, then);
-		CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
+			CaseWhen *caseWhen = createCaseWhen(cond, then);
+			CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
 
-		caseExprs = appendToTailOfList(caseExprs, (List *) caseExpr);
-		attrs = appendToTailOfList(attrs, CONCAT_STRINGS("use",a->attrName));
+			caseExprs = appendToTailOfList(caseExprs, (List *) caseExpr);
+			attrs = appendToTailOfList(attrs, CONCAT_STRINGS("use",n->attrName));
+		}
 	}
 
 	attrNames = concatTwoLists(getAttrNames(scanSamples->schema), attrs);
@@ -325,18 +328,17 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 	Node *curCond = NULL;
 //	int sLen = LIST_LENGTH(samples->schema->attrDefs) - 1;
 
-//	FOREACH(AttributeDef,attrs,samples->schema->attrDefs)
-	FOREACH(AttributeDef,attrs,normAttrs)
+	FOREACH(AttributeDef,attrs,samples->schema->attrDefs)
 	{
-//		if (searchListNode(normAttrs, (Node *) attrs))
-//		{
+		if (strcmp(attrs->attrName,"HAS_PROV") != 0)
+		{
 			char *a = attrs->attrName;
 			AttributeReference *lA, *rA = NULL;
 
 			lA = createFullAttrReference(strdup(a), 0, aPos, 0, attrs->dataType);
 
 			char *a2 = STRING_VALUE(getNthOfListP(patterns->schema->attrDefs,aPos));
-//			int rPos = aPos + sLen + 1;
+	//			int rPos = aPos + sLen + 1;
 
 			if(strcmp(a,a2) == 0)
 			{
@@ -349,7 +351,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 				curCond = AND_EXPRS(attrCond,curCond);
 			}
 			aPos++;
-//		}
+		}
 	}
 
 	// create join operator
@@ -378,7 +380,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 		}
 		else if (pos > hasPos && hasPos != 0)
 		{
-			if (!isPrefix(p->attrName,"PROV_"))
+			if (isPrefix(p->attrName,"PROV_"))
 				projExpr = appendToTailOfList(projExpr,
 						createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
 		}
@@ -390,7 +392,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 
 	List *subAttrs = NIL;
 	FOREACH(char,a,getAttrNames(patterns->schema))
-		if (!isPrefix(a,"PROV_"))
+		if (isPrefix(a,"PROV_"))
 			subAttrs = appendToTailOfList(subAttrs,a);
 
 	attrNames = concatTwoLists(subAttrs,singleton(hp->name));
@@ -656,18 +658,20 @@ rewriteSampleOutput (Node *input)
 static Node *
 rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 {
+	Node *result;
 	List *inputs = NIL;
 	List *attrNames = NIL;
 	QueryOperator *prov;
-
-//	QueryOperator *transInput = (QueryOperator *) getHeadOfListP(parents);
 
 	if(userQuestion == NULL)
 		prov = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
 	else
 		prov = (QueryOperator *) rewrittenTree;
 
+	// take the input query out for use with join operator later
 	QueryOperator *transInput = (QueryOperator *) prov->properties;
+
+	// store normal and provenance attributes for later use
 	if (provAttrs == NIL || normAttrs == NIL)
 	{
 		provAttrs = getProvenanceAttrs(prov);
@@ -700,66 +704,51 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 	prov->provAttrs = provAttrs;
 
 	// create join condition
-	// TODO: find the corresponding provenance attribute to join
+	// TODO: find the corresponding provenance attribute to join if the name of attrs repeats
 //	boolean suffix = FALSE;
 	Node *curCond = NULL;
 	int aPos = 0;
 	int chkPos = 0;
+	int orgAttr = LIST_LENGTH(transInput->schema->attrDefs);
 
 	FOREACH(AttributeDef,attrs,transInput->schema->attrDefs)
 	{
 		char *a = attrs->attrName;
 
-		Node *attrCond;
+		Node *attrCond = NULL;
 		AttributeReference *lA, *rA = NULL;
 
 		lA = createFullAttrReference(strdup(a), 0, aPos, 0, attrs->dataType);
 
 		// check suffix upfront to recognize if attributes are renamed
-		// TODO: how to recognize which renamed normal attributes correspond to provenance attributes
-
-		int orgAttr = LIST_LENGTH(transInput->schema->attrDefs);
-
 		for(int provAttr = orgAttr; provAttr < LIST_LENGTH(prov->schema->attrDefs); provAttr++)
 		{
-//			char *rName = NULL;
 			AttributeDef *r = getAttrDefByPos(prov,provAttr);
-
-//			if(isPrefix(r->attrName,"PROV"))
-//				rName = r->attrName;
 
 			if(isSuffix(r->attrName,a))
 			{
 				rA = createFullAttrReference(strdup(r->attrName), 1, provAttr, 0, r->dataType);
 				attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
 				chkPos++;
+
+				if(chkPos == 1)
+					curCond = attrCond;
+				else if (chkPos > 1)
+					curCond = AND_EXPRS(curCond,attrCond);
 			}
 			else if(strcmp(a,r->attrName) == 0)
 				FATAL_LOG("USING join is using ambiguous attribute references <%s>", a);
 		}
-
-		if(chkPos == 1)
-			curCond = attrCond;
-		else if (chkPos > 1)
-			curCond = AND_EXPRS(curCond,attrCond);
-
 		aPos++;
 	}
 
-	// if attribute name has renamed
-	if(curCond == NULL)
+	// no matches exist on name, then match by position
+	if(curCond == NULL || chkPos > orgAttr) // then there exist repeating attrs
 	{
 		List *orgRef = ((ProjectionOperator *) transInput)->projExprs;
-//		int newPos = 0;
-//
-//		// assign new attribute position for the input query
-//		FOREACH(AttributeReference,a,orgRef)
-//		{
-//			a->attrPosition = newPos;
-//			newPos++;
-//		}
-
+		chkPos = 0;
 		attrPos = 0;
+		curCond = NULL;
 
 		FOREACH(AttributeReference,a,orgRef)
 		{
@@ -780,14 +769,13 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 					rA = createFullAttrReference(strdup(rPos->name), 1, rPos->attrPosition, 0, rPos->attrType);
 					attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
 					chkPos++;
+
+					if(chkPos == 1)
+						curCond = attrCond;
+					else if(chkPos > 1)
+						curCond = AND_EXPRS(curCond,attrCond);
 				}
 			}
-
-			if(chkPos == 1)
-				curCond = attrCond;
-			else if(chkPos > 1)
-				curCond = AND_EXPRS(curCond,attrCond);
-
 			attrPos++;
 		}
 	}
@@ -844,36 +832,20 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 	provJoin = (QueryOperator *) op;
 	provJoin->provAttrs = provAttrs;
 
-//	// create projection for join
-//	projExpr = NIL;
-//	pos = 0;
-//
-//	FOREACH(AttributeDef,a,origProv->schema->attrDefs)
-//	{
-//		projExpr = appendToTailOfList(projExpr,
-//				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
-//		pos++;
-//	}
-//	projExpr = appendToTailOfList(projExpr, hasProv);
-//
-//	uniqueAttrNames = CONCAT_LISTS(getAttrNames(origProv->schema),singleton(hasProv->attrName));
-//	op = createProjectionOp(projExpr, provJoin, NIL, uniqueAttrNames);
-//	provJoin->parents = singleton(op);
-//	provJoin = (QueryOperator *) op;
-//	provJoin->provAttrs = provAttrs;
+	result = (Node *) provJoin;
+	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
-	rewrittenTree = (Node *) provJoin;
-	SET_BOOL_STRING_PROP(rewrittenTree, PROP_MATERIALIZE);
-
-	DEBUG_NODE_BEATIFY_LOG("rewritten query for summarization returned:", rewrittenTree);
+	DEBUG_NODE_BEATIFY_LOG("rewritten query for summarization returned:", result);
 //	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
 
-	return rewrittenTree;
+	return result;
 }
 
 static Node *
 rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
 {
+	Node *result;
+
 	QueryOperator *input = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
 	Node *prop = input->properties;
 
@@ -917,13 +889,19 @@ rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
 
 	// create projection operator
 	int pos = 0;
+//	List *attrs = NIL;
 	List *projExpr = NIL;
 	ProjectionOperator *op;
 
 	FOREACH(AttributeDef,p,input->schema->attrDefs)
 	{
-		projExpr = appendToTailOfList(projExpr,
-				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+//		if(isPrefix(p->attrName,"PROV_"))
+//		{
+//			attrs = appendToTailOfList(attrs,p->attrName);
+
+			projExpr = appendToTailOfList(projExpr,
+					createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+//		}
 		pos++;
 	}
 
@@ -932,11 +910,11 @@ rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
 	input = (QueryOperator *) op;
 
 	input->properties = prop;
-	rewrittenTree = (Node *) input;
+	result = (Node *) input;
 //	SET_BOOL_STRING_PROP(rewrittenTree, PROP_MATERIALIZE);
 
-	DEBUG_NODE_BEATIFY_LOG("provenance question for summarization:", rewrittenTree);
-//	INFO_OP_LOG("provenance question for summarization as overview:", rewrittenTree);
+	DEBUG_NODE_BEATIFY_LOG("provenance question for summarization:", result);
+//	INFO_OP_LOG("provenance question for summarization as overview:", result);
 
-	return rewrittenTree;
+	return result;
 }
