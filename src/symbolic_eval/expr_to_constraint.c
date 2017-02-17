@@ -38,7 +38,6 @@ static int condToConstr(Node * cond, CPXENVptr env, CPXLPptr lp);
 static List *getOpExpStack(List *stackList, Operator *opExpList);
 static int setToConstr(List * attrList, Node * query, CPXENVptr env,
 		CPXLPptr lp);
-static int invertCondToConstr(Update* f, CPXENVptr env, CPXLPptr lp);
 
 void setCplexObjects(char *tbName) {
 	if (cplexObjects == NULL) {
@@ -60,15 +59,15 @@ void setCplexObjects(char *tbName) {
 static int exprToEval(Node *expr, CPXENVptr env, CPXLPptr lp) {
 	int status = 0;
 
-	switch (n->type) {
+	switch (expr->type) {
 	case T_Update:
-		status = convertUpdate((Update *) n, CPXENVptr env, CPXLPptr lp);
+		status = convertUpdate((Update *) expr, CPXENVptr env, CPXLPptr lp);
 		break;
 	case T_Delete:
-		status = convertDelete((Delete *) n, CPXENVptr env, CPXLPptr lp);
+		status = convertDelete((Delete *) expr, CPXENVptr env, CPXLPptr lp);
 		break;
 	case T_Insert:
-		status = convertInsert((Insert *) n, CPXENVptr env, CPXLPptr lp);
+		status = convertInsert((Insert *) expr, CPXENVptr env, CPXLPptr lp);
 		break;
 	}
 
@@ -77,24 +76,7 @@ static int exprToEval(Node *expr, CPXENVptr env, CPXLPptr lp) {
 
 static int convertUpdate(Update* f, CPXENVptr env, CPXLPptr lp) {
 	setCplexObjects(f->updateTableName);
-	boolean isFound = FALSE;
-	List *selAttr = NIL;
-	List *conAttr = NIL;
-	selAttr = getAttrNameFromOpExpList(selAttr, (Operator *) f->selectClause);
-	conAttr = getAttrNameFromOpExpList(conAttr, (Operator *) f->cond);
-	FOREACH(char,attr,conAttr)
-	{
-		if (searchListString(selAttr, attr)) {
-			isFound = TRUE;
-			break;
-		}
-	}
-
-	//there is not any common attribute in setClause and condition
-	if (!isFound)
-		return condToConstr(f->cond, env, lp);
-	else
-		return invertCondToConstr(f ,env, lp);
+	return condToConstr(f->cond, env, lp);
 
 }
 static int convertDelete(Delete * f, CPXENVptr env, CPXLPptr lp) {
@@ -130,9 +112,7 @@ static int condToConstr(Node * cond, CPXENVptr env, CPXLPptr lp) {
 
 	int status = 0;
 	List *result = NIL;
-	if (isA(cond, Operator)) {
-		result = getAttrNameFromOpExpList(result, (Operator *) cond);
-	}
+	result = getAttrNameFromOpExpList(result, (Operator *) cond);
 
 	int numCols = getListLength(result);
 
@@ -168,40 +148,41 @@ static int condToConstr(Node * cond, CPXENVptr env, CPXLPptr lp) {
 	rhs[0] = (double *) (((Constant *) right)->value);
 
 	//if the condition likes c>10
-	if (isA(right, AttributeReference)) {
+	if (isA(left, AttributeReference)) {
 		//we have just one attribute
-		objIndex = getObjectIndex(((AttributeReference *) right)->name);
+		objIndex = getObjectIndex(((AttributeReference *) left)->name);
 		rmatind[0] = objIndex;
 		rmatval[0] = 1.0;
 	}
 	//else every attr should has a coefficient for example 1*a+2*b>10
-	else if (isA(right, Operator)) {
+	else if (isA(left, Operator)) {
 		int i = 0;
 		int pluse = 1;
 		List *stack = NIL;
-		stack = getOpExpStack(stack, (Operator *) right);
+		stack = getOpExpStack(stack, (Operator *) left);
 		int last = getListLength(stack) - 1;
-		Node *sign, *right, *left, *op = NIL;
+		Node *sign, *r, *l, *op = NIL;
 		while (last > i) {
 			pluse = 1;
-			right = (Node *) getNthOfListP(stack, last--);
-			left = (Node *) getNthOfListP(stack, last--);
+			r = (Node *) getNthOfListP(stack, last--);
+			l = (Node *) getNthOfListP(stack, last--);
 			op = (Node *) getNthOfListP(stack, last--);
 			if (last > i) {
 				sign = (Node *) getNthOfListP(stack, i);
 				if (streq(((Operator *) sign)->name, "-"))
 					pluse = -1;
 			}
-			//opName should be * based on the creation rule
-			//if (streq(opName, "*")) {
-			if (isA(right, AttributeReference) && isA(left, Constant)) {
-				objIndex = getObjectIndex(((AttributeReference *) right)->name);
+
+			//operator name should be * based on the creation rule
+			//if (streq(((Operator *) op)->name, "*"))
+			if (isA(r, AttributeReference) && isA(l, Constant)) {
+				objIndex = getObjectIndex(((AttributeReference *) r)->name);
 				rmatind[i] = objIndex;
-				rmatval[i] = (double *) (((Constant *) left)->value) * pluse;
-			} else if (isA(left, AttributeReference) && isA(right, Constant)) {
-				objIndex = getObjectIndex(((AttributeReference *) left)->name);
+				rmatval[i] = (double *) (((Constant *) l)->value) * pluse;
+			} else if (isA(l, AttributeReference) && isA(r, Constant)) {
+				objIndex = getObjectIndex(((AttributeReference *) l)->name);
 				rmatind[i] = objIndex;
-				rmatval[i] = (double *) (((Constant *) right)->value) * pluse;
+				rmatval[i] = (double *) (((Constant *) r)->value) * pluse;
 
 			}
 			i++;
@@ -252,7 +233,14 @@ static int condToConstr(Node * cond, CPXENVptr env, CPXLPptr lp) {
 
 		int status = 0;
 
-		int numCols = getListLength(attrList);
+		int numCols = 0;
+		FOREACH(Constant,c,query)
+		{
+			if (isA(c->constType,
+					INT) || isA(c->constType, FLOAT) || isA(c->constType, LONG)) {
+				numCols++;
+			}
+		}
 
 		int objIndex = 0;
 		int numRows = numCols;
@@ -291,7 +279,20 @@ static int condToConstr(Node * cond, CPXENVptr env, CPXLPptr lp) {
 	}
 
 	//to be done
-	static int invertCondToConstr(Update* f, CPXENVptr env, CPXLPptr lp) {
+	int invertCondToConstr(Update* f, CPXENVptr env, CPXLPptr lp) {
 		int status = 0;
+		boolean isFound = FALSE;
+			List *selAttr = NIL;
+			List *conAttr = NIL;
+			selAttr = getAttrNameFromOpExpList(selAttr, (Operator *) f->selectClause);
+			conAttr = getAttrNameFromOpExpList(conAttr, (Operator *) f->cond);
+			FOREACH(char,attr,conAttr)
+			{
+				if (searchListString(selAttr, attr)) {
+					isFound = TRUE;
+					break;
+				}
+			}
+
 		return status;
 	}

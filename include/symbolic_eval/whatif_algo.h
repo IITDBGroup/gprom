@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------
  *
- * expr_to_constraint.h
+ * whatif_algo.h
  *		
  *
  *		AUTHOR: lord_pretzel
@@ -8,8 +8,8 @@
  *-----------------------------------------------------------------------------
  */
 
-#ifndef INCLUDE_SYMBOLIC_EVAL_EXPR_TO_CONSTRAINT_H_
-#define INCLUDE_SYMBOLIC_EVAL_EXPR_TO_CONSTRAINT_H_
+#ifndef INCLUDE_WHATIF_ALGORITHM_H_
+#define INCLUDE_WHATIF_ALGORITHM_H_
 
 #include <ilcplex/cplex.h>
 #include "common.h"
@@ -22,24 +22,10 @@
 #include "model/expression/expression.h"
 #include "parser/parser.h"
 #include "symbolic_eval/expr_to_constraint.h"
+#include "symbolic_eval/whatif_algo.h"
 #include "model/set/hashmap.h"
 #include "model/relation/relation.h"
 #include "model/query_operator/query_operator.h"
 
-#define DEFAULT_NUM_COLS 100
-#define DEFAULT_COLNAME_SIZE 20
 
-typedef struct CplexObjects {
-	char *tableName;
-	HashMap *attrIndex;        // hashmap attributename -> attribute index in obj
-	double *obj[DEFAULT_NUM_COLS];
-	double *lb[DEFAULT_NUM_COLS];
-	double *ub[DEFAULT_NUM_COLS];
-	char **colname;
-} CplexObjects;
-
-
-extern int exprToEval(Node *expr, CPXENVptr env, CPXLPptr lp);
-extern int invertCondToConstr(Update* f, CPXENVptr env, CPXLPptr lp);
-
-#endif /* INCLUDE_SYMBOLIC_EVAL_EXPR_TO_CONSTRAINT_H_ */
+#endif /* WHATIF_ALGORITHM_H_ */
