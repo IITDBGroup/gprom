@@ -230,7 +230,6 @@ rewriteCandidateOutput (Node *scanSampleInput)
 	}
 
 	List *aggrs = NIL;
-
 	AttributeReference *sumHasProv = createFullAttrReference(strdup("HAS_PROV"), 0, gPos, 0, DT_INT);
 	FunctionCall *fc = createFunctionCall("SUM", singleton(sumHasProv));
 	fc->isAgg = TRUE;
@@ -378,16 +377,23 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 					createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
 		}
 		else if (pos > hasPos && hasPos != 0)
-			projExpr = appendToTailOfList(projExpr,
-					createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
-
+		{
+			if (!isPrefix(p->attrName,"PROV_"))
+				projExpr = appendToTailOfList(projExpr,
+						createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+		}
 		pos++;
 	}
 
 	AttributeReference *hp = (AttributeReference *) getHeadOfListP(hasExpr);
 	projExpr = appendToTailOfList(projExpr, hp);
 
-	attrNames = concatTwoLists(getAttrNames(patterns->schema),singleton(hp->name));
+	List *subAttrs = NIL;
+	FOREACH(char,a,getAttrNames(patterns->schema))
+		if (!isPrefix(a,"PROV_"))
+			subAttrs = appendToTailOfList(subAttrs,a);
+
+	attrNames = concatTwoLists(subAttrs,singleton(hp->name));
 	op = createProjectionOp(projExpr, scanSample, NIL, attrNames);
 
 	scanSample->parents = singleton(op);
@@ -662,8 +668,11 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 		prov = (QueryOperator *) rewrittenTree;
 
 	QueryOperator *transInput = (QueryOperator *) prov->properties;
-	provAttrs = getProvenanceAttrs(prov);
-	normAttrs = getNormalAttrs(prov);
+	if (provAttrs == NIL || normAttrs == NIL)
+	{
+		provAttrs = getProvenanceAttrs(prov);
+		normAttrs = getNormalAttrs(prov);
+	}
 
 	int pos = 0;
 	List *projExpr = NIL;
@@ -750,7 +759,7 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 //			newPos++;
 //		}
 
-		int attrPos = 0;
+		attrPos = 0;
 
 		FOREACH(AttributeReference,a,orgRef)
 		{
@@ -868,6 +877,12 @@ rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
 	QueryOperator *input = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
 	Node *prop = input->properties;
 
+	if (provAttrs == NIL || normAttrs == NIL)
+	{
+		provAttrs = getProvenanceAttrs(input);
+		normAttrs = getNormalAttrs(input);
+	}
+
 	// check the list for constant value to create sel condition
 	int chkPos = 0;
 	int attrPos = 0;
@@ -920,8 +935,8 @@ rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
 	rewrittenTree = (Node *) input;
 //	SET_BOOL_STRING_PROP(rewrittenTree, PROP_MATERIALIZE);
 
-	DEBUG_NODE_BEATIFY_LOG("provenance question for suumarization:", rewrittenTree);
-//	INFO_OP_LOG("provenance question for suumarization as overview:", rewrittenTree);
+	DEBUG_NODE_BEATIFY_LOG("provenance question for summarization:", rewrittenTree);
+//	INFO_OP_LOG("provenance question for summarization as overview:", rewrittenTree);
 
 	return rewrittenTree;
 }
