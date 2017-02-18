@@ -93,7 +93,7 @@ fi
 ])
 # cplex library location
 AC_DEFUN([AC_CPLEX_LOCATION],
-[AC_ARG_WITH(libpq, [  --with-cplex], , )
+[AC_ARG_WITH(cplex, [  --with-cplex], , )
 AC_MSG_CHECKING([for user provided cplex location])
 if test "x$with_cplex" != x; then
 	if test -d "$with_cplex"; then
