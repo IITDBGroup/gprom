@@ -19,6 +19,7 @@ GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC 
 * [Optimization](https://github.com/IITDBGroup/gprom/wiki/research_optimization)
 * [Reenactment](https://github.com/IITDBGroup/gprom/wiki/research_reenactment)
 * [Provenance Graphs for Datalog](https://github.com/IITDBGroup/gprom/wiki/datalog_prov)
+* [Online Demo for Provenance Graph Viewer](http://ec2-35-164-188-60.us-west-2.compute.amazonaws.com:5000)
 
 # Features
 
