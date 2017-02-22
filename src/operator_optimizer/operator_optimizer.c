@@ -135,78 +135,83 @@ optimizeOneGraph (QueryOperator *root)
     	APPLY_AND_TIME_OPT("factor attributes in conditions",
     			factorAttrsInExpressions,
 				OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
-    	APPLY_AND_TIME_OPT("selection move around",
-    			selectionMoveAround,
-				OPTIMIZATION_SELECTION_MOVE_AROUND);
-    	APPLY_AND_TIME_OPT("pull up duplicate remove operators",
-    			pullUpDuplicateRemoval,
-				OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
-    	APPLY_AND_TIME_OPT("remove unnecessary columns",
-    			removeUnnecessaryColumns,
-				OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
-    	APPLY_AND_TIME_OPT("remove unnecessary window operators",
-    			removeUnnecessaryWindowOperator,
-				OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS);
+//    	APPLY_AND_TIME_OPT("selection move around",
+//    			selectionMoveAround,
+//				OPTIMIZATION_SELECTION_MOVE_AROUND);
+//    	APPLY_AND_TIME_OPT("pull up duplicate remove operators",
+//    			pullUpDuplicateRemoval,
+//				OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
+//    	APPLY_AND_TIME_OPT("remove unnecessary columns",
+//    			removeUnnecessaryColumns,
+//				OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
+//    	APPLY_AND_TIME_OPT("remove unnecessary window operators",
+//    			removeUnnecessaryWindowOperator,
+//				OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS);
+//    	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
+//    			mergeAdjacentOperators,
+//				OPTIMIZATION_MERGE_OPERATORS);
+//    	APPLY_AND_TIME_OPT("selection pushdown",
+//    			pushDownSelectionOperatorOnProv,
+//				OPTIMIZATION_SELECTION_PUSHING);
+//    	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
+//    			mergeAdjacentOperators,
+//				OPTIMIZATION_MERGE_OPERATORS);
+//    	APPLY_AND_TIME_OPT("pushdown selections through joins",
+//    			pushDownSelectionThroughJoinsOperatorOnProv,
+//				OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS);
+//    	APPLY_AND_TIME_OPT("factor attributes in conditions",
+//    			factorAttrsInExpressions,
+//				OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
+//    	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
+//    			mergeAdjacentOperators,
+//				OPTIMIZATION_MERGE_OPERATORS);
+//    	if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
+//    	{
+//    	    START_TIMER("PropertyInference - Keys");
+//    		computeKeyProp(rewrittenTree);
+//    		STOP_TIMER("PropertyInference - Keys");
+//
+//    		//exit(-1);
+//    		// Set TRUE for each Operator
+//    		START_TIMER("PropertyInference - Set");
+//    		initializeSetProp(rewrittenTree);
+//    		// Set FALSE for root
+//    		setStringProperty((QueryOperator *) rewrittenTree, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
+//    		computeSetProp(rewrittenTree);
+//            STOP_TIMER("PropertyInference - Set");
+//
+//    		List *icols =  getAttrNames(GET_OPSCHEMA(root));
+//    		//char *a = (char *)getHeadOfListP(icols);
+//    		Set *seticols = MAKE_STR_SET(strdup((char *)getHeadOfListP(icols)));
+//    		FOREACH(char, a, icols)
+//    		addToSet (seticols, a);
+//    	}
+//    	/*    APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
+//            removeRedundantDuplicateOperatorBySet,
+//            OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);*/
+//    	APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
+//    			removeRedundantDuplicateOperatorBySetWithInit,
+//				OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
+//    	APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by key",
+//    			removeRedundantDuplicateOperatorByKey,
+//				OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
+//    	APPLY_AND_TIME_OPT("remove redundant projection operators",
+//    			removeRedundantProjections,
+//				OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS);
+//    	APPLY_AND_TIME_OPT("pull up provenance projections",
+//    			pullingUpProvenanceProjections,
+//				OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ);
     	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
     			mergeAdjacentOperators,
 				OPTIMIZATION_MERGE_OPERATORS);
-    	APPLY_AND_TIME_OPT("selection pushdown",
-    			pushDownSelectionOperatorOnProv,
-				OPTIMIZATION_SELECTION_PUSHING);
-    	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
-    			mergeAdjacentOperators,
-				OPTIMIZATION_MERGE_OPERATORS);
-    	APPLY_AND_TIME_OPT("pushdown selections through joins",
-    			pushDownSelectionThroughJoinsOperatorOnProv,
-				OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS);
-    	APPLY_AND_TIME_OPT("factor attributes in conditions",
-    			factorAttrsInExpressions,
-				OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
-    	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
-    			mergeAdjacentOperators,
-				OPTIMIZATION_MERGE_OPERATORS);
-    	if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
-    	{
-    	    START_TIMER("PropertyInference - Keys");
-    		computeKeyProp(rewrittenTree);
-    		STOP_TIMER("PropertyInference - Keys");
+//    	APPLY_AND_TIME_OPT("materialize projections that are unsafe to be merged",
+//    			materializeProjectionSequences,
+//				OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ);
 
-    		//exit(-1);
-    		// Set TRUE for each Operator
-    		START_TIMER("PropertyInference - Set");
-    		initializeSetProp(rewrittenTree);
-    		// Set FALSE for root
-    		setStringProperty((QueryOperator *) rewrittenTree, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
-    		computeSetProp(rewrittenTree);
-            STOP_TIMER("PropertyInference - Set");
+    	APPLY_AND_TIME_OPT("push down aggregation through join",
+    			pushDownAggregationThroughJoin,
+				OPTIMIZATION_PUSH_DOWN_AGGREGATION_THROUGH_JOIN);
 
-    		List *icols =  getAttrNames(GET_OPSCHEMA(root));
-    		//char *a = (char *)getHeadOfListP(icols);
-    		Set *seticols = MAKE_STR_SET(strdup((char *)getHeadOfListP(icols)));
-    		FOREACH(char, a, icols)
-    		addToSet (seticols, a);
-    	}
-    	/*    APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
-            removeRedundantDuplicateOperatorBySet,
-            OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);*/
-    	APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
-    			removeRedundantDuplicateOperatorBySetWithInit,
-				OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
-    	APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by key",
-    			removeRedundantDuplicateOperatorByKey,
-				OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
-    	APPLY_AND_TIME_OPT("remove redundant projection operators",
-    			removeRedundantProjections,
-				OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS);
-    	APPLY_AND_TIME_OPT("pull up provenance projections",
-    			pullingUpProvenanceProjections,
-				OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ);
-    	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
-    			mergeAdjacentOperators,
-				OPTIMIZATION_MERGE_OPERATORS);
-    	APPLY_AND_TIME_OPT("materialize projections that are unsafe to be merged",
-    			materializeProjectionSequences,
-				OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ);
     	DEBUG_LOG("callback = %d in loop %d",res,c);
     	c++;
         START_TIMER("OptimizeModel - RemoveProperties");
@@ -2260,4 +2265,125 @@ introduceSelection(Operator *o, QueryOperator *root)
 
 	//reset the attr_ref position
 	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *)selectionOp,(QueryOperator *)root);
+}
+
+
+QueryOperator *
+pushDownAggregationThroughJoin(QueryOperator *root)
+{
+	//QueryOperator *newRoot = root;
+	QueryOperator *child = OP_LCHILD(root);
+	//List *opList = NIL;
+
+	if(isA(root, AggregationOperator) && isA(child, JoinOperator))
+	{
+		boolean cond1 = FALSE;
+		boolean cond2 = FALSE;
+//		boolean cond3 = FALSE;
+
+		AggregationOperator *agg = (AggregationOperator *) root;
+		JoinOperator *jOp = (JoinOperator *) child;
+
+		/* Condition 1 */
+		List *aggList = getAttrReferences((Node *) agg->aggrs);
+		Set *aggSet = STRSET();
+
+		FOREACH(AttributeReference, a, aggList)
+		    addToSet(aggSet,strdup(a->name));
+
+		List *groupByList = getAttrReferences((Node *) agg->groupBy);
+		Set *groupBySet = STRSET();
+		FOREACH(AttributeReference, a, groupByList)
+		    addToSet(groupBySet,strdup(a->name));
+
+		List *joinCondList = getAttrReferences((Node *) jOp->cond);
+		Set *joinCondSet = STRSET();
+		FOREACH(AttributeReference, a, joinCondList)
+		    addToSet(joinCondSet,strdup(a->name));
+
+		Set *joinUgrouBySet = unionSets(joinCondSet, groupBySet);
+		Set *cond1Set = intersectSets(joinUgrouBySet,aggSet);
+
+		//if(EMPTY_SET(cond1Set))
+		cond1 = EMPTY_SET(cond1Set);
+		DEBUG_LOG("Condition 1 is : %d", cond1);
+
+		/* Condition 2 */
+        Set *joinIgroupBySet = intersectSets(joinCondSet, groupBySet);
+        if(setSize(joinIgroupBySet) == setSize(groupBySet))
+        	cond2 = TRUE;
+        DEBUG_LOG("Condition 2 is : %d", cond2);
+
+        if(cond1 && cond2)
+        	switchAggregationWithJoinToLeftChild(agg, jOp);
+	}
+
+	FOREACH(QueryOperator, o, root->inputs)
+	          pushDownAggregationThroughJoin(o);
+
+	return root;
+}
+
+void
+switchAggregationWithJoinToLeftChild(AggregationOperator *aggOp, JoinOperator *jOp)
+{
+	QueryOperator *pAgg = OP_FIRST_PARENT(aggOp);
+	QueryOperator *lChild = OP_LCHILD(jOp);
+
+    // set join
+	jOp->op.parents = aggOp->op.parents;
+	pAgg->inputs = singleton(jOp);
+	jOp->op.inputs = replaceNode(jOp->op.inputs, lChild, aggOp);
+
+    // Set aggregation
+	aggOp->op.parents = singleton(jOp);
+	aggOp->op.inputs = singleton(lChild);
+	lChild->parents = singleton(aggOp);
+
+    /* adapt attribute name*/
+	List *aggrs = getAttrReferences((Node *) aggOp->aggrs);
+	List *groupBy = getAttrReferences((Node *) aggOp->groupBy);
+	List *aggOpAttrRefs = concatTwoLists(aggrs, groupBy);
+	List *aggOpAttrDefs = aggOp->op.schema->attrDefs;
+
+
+	Node *cond = ((JoinOperator *)jOp)->cond;
+	List *condAttrRefs = getAttrReferences(cond);
+	List *joinAttrDefs = jOp->op.schema->attrDefs;
+
+    FOREACH(AttributeReference, c, condAttrRefs)
+	{
+          FORBOTH(Node, a, s, aggOpAttrRefs, aggOpAttrDefs)
+		  {
+        	   AttributeReference *ar = (AttributeReference *) a;
+        	   AttributeDef *ad = (AttributeDef *) s;
+        	   DEBUG_LOG("\n %s, %s, %s  \n", c->name, ar->name, ad->attrName);
+               if(streq(c->name,ar->name))
+               {
+            	   c->attrType = ad->dataType;
+            	   c->name = ad->attrName;
+               }
+		  }
+	}
+
+    FOREACH(AttributeDef, d, joinAttrDefs)
+    {
+    	FORBOTH(Node, a, s, aggOpAttrRefs, aggOpAttrDefs)
+    	{
+    		AttributeReference *ar = (AttributeReference *) a;
+    		AttributeDef *ad = (AttributeDef *) s;
+    		DEBUG_LOG("\n %s, %s, %s  \n", d->attrName, ar->name, ad->attrName);
+    		if(streq(d->attrName,ar->name))
+    		{
+    			d->dataType = ad->dataType;
+    			d->attrName = ad->attrName;
+    		}
+    	}
+    }
+
+    //adapt attribute position
+	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) aggOp, lChild);
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) jOp, (QueryOperator *) aggOp);
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) pAgg, (QueryOperator *) jOp);
+
 }

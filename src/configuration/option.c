@@ -120,6 +120,9 @@ boolean opt_optimization_remove_unnecessary_columns = FALSE;
 boolean opt_optimization_remove_unnecessary_window_operators = FALSE;
 boolean opt_optimization_pull_up_duplicate_remove_operators = FALSE;
 
+// optimization options for group by operator
+boolean opt_optimization_push_down_aggregation_through_join = FALSE;
+
 
 // sanity check options
 boolean opt_operator_model_unique_schema_attribues = FALSE;
@@ -548,7 +551,13 @@ OptionInfo opts[] =
                 "Optimization: try to move selection around",
                 opt_optimization_selection_move_around,
                 TRUE
-                ),
+        ),
+		anOptimizationOption(OPTIMIZATION_PUSH_DOWN_AGGREGATION_THROUGH_JOIN,
+				"-Opush_down_aggregation_through_join",
+				"Optimization: try to push down aggregation through join",
+				opt_optimization_push_down_aggregation_through_join,
+				TRUE
+		),
         // sanity model checking options
         anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
                 "-Cunique_attr_names",

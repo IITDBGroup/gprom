@@ -59,4 +59,8 @@ extern QueryOperator *pushDownSelectionThroughJoinsOperatorOnProv(QueryOperator 
 /* try to implement selection move around */
 extern QueryOperator *selectionMoveAround(QueryOperator *root);
 
+/* try to implement push down group by operator through join*/
+extern QueryOperator *pushDownAggregationThroughJoin(QueryOperator *root);
+extern void switchAggregationWithJoinToLeftChild(AggregationOperator *Agg, JoinOperator *j);
+
 #endif /* OPERATOR_OPTIMIZER_H_ */
