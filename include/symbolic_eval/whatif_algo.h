@@ -3,7 +3,7 @@
  * whatif_algo.h
  *		
  *
- *		AUTHOR: lord_pretzel
+ *		AUTHOR: Bahareh
  *
  *-----------------------------------------------------------------------------
  */
@@ -27,5 +27,6 @@
 #include "model/relation/relation.h"
 #include "model/query_operator/query_operator.h"
 
+extern List *dependAlgo(List *exprs);
 
 #endif /* WHATIF_ALGORITHM_H_ */

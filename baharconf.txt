@@ -1,0 +1,241 @@
+checking for a BSD-compatible install... /usr/bin/install -c
+checking whether build environment is sane... yes
+checking for a thread-safe mkdir -p... /bin/mkdir -p
+checking for gawk... no
+checking for mawk... mawk
+checking whether make sets $(MAKE)... yes
+checking whether make supports nested variables... yes
+checking how to create a pax tar archive... gnutar
+checking build system type... x86_64-unknown-linux-gnu
+checking host system type... x86_64-unknown-linux-gnu
+checking for gcc... gcc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables... 
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether we are using the GNU C compiler... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to accept ISO C89... none needed
+checking whether gcc understands -c and -o together... yes
+checking for style of include used by make... GNU
+checking dependency style of gcc... gcc3
+checking for gcc option to accept ISO C99... -std=gnu99
+checking for gcc -std=gnu99 option to accept ISO Standard C... (cached) -std=gnu99
+checking for inline... inline
+checking for ar... ar
+checking the archiver (ar) interface... ar
+checking for bison... bison -y
+checking for flex... flex
+checking lex output file root... lex.yy
+checking lex library... -lfl
+checking whether yytext is a pointer... yes
+checking for pandoc... no
+checking for rman... no
+checking how to print strings... printf
+checking for a sed that does not truncate output... /bin/sed
+checking for grep that handles long lines and -e... /bin/grep
+checking for egrep... /bin/grep -E
+checking for fgrep... /bin/grep -F
+checking for ld used by gcc -std=gnu99... /usr/bin/ld
+checking if the linker (/usr/bin/ld) is GNU ld... yes
+checking for BSD- or MS-compatible name lister (nm)... /usr/bin/nm -B
+checking the name lister (/usr/bin/nm -B) interface... BSD nm
+checking whether ln -s works... yes
+checking the maximum length of command line arguments... 1572864
+checking whether the shell understands some XSI constructs... yes
+checking whether the shell understands "+="... yes
+checking how to convert x86_64-unknown-linux-gnu file names to x86_64-unknown-linux-gnu format... func_convert_file_noop
+checking how to convert x86_64-unknown-linux-gnu file names to toolchain format... func_convert_file_noop
+checking for /usr/bin/ld option to reload object files... -r
+checking for objdump... objdump
+checking how to recognize dependent libraries... pass_all
+checking for dlltool... no
+checking how to associate runtime and link libraries... printf %s\n
+checking for archiver @FILE support... @
+checking for strip... strip
+checking for ranlib... ranlib
+checking command to parse /usr/bin/nm -B output from gcc -std=gnu99 object... ok
+checking for sysroot... no
+checking for mt... mt
+checking if mt is a manifest tool... no
+checking how to run the C preprocessor... gcc -std=gnu99 -E
+checking for ANSI C header files... yes
+checking for sys/types.h... yes
+checking for sys/stat.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for memory.h... yes
+checking for strings.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for unistd.h... yes
+checking for dlfcn.h... yes
+checking for objdir... .libs
+checking if gcc -std=gnu99 supports -fno-rtti -fno-exceptions... no
+checking for gcc -std=gnu99 option to produce PIC... -fPIC -DPIC
+checking if gcc -std=gnu99 PIC flag -fPIC -DPIC works... yes
+checking if gcc -std=gnu99 static flag -static works... yes
+checking if gcc -std=gnu99 supports -c -o file.o... yes
+checking if gcc -std=gnu99 supports -c -o file.o... (cached) yes
+checking whether the gcc -std=gnu99 linker (/usr/bin/ld -m elf_x86_64) supports shared libraries... yes
+checking whether -lc should be explicitly linked in... no
+checking dynamic linker characteristics... GNU/Linux ld.so
+checking how to hardcode library paths into programs... immediate
+checking whether stripping libraries is possible... yes
+checking if libtool supports shared libraries... yes
+checking whether to build shared libraries... yes
+checking whether to build static libraries... yes
+checking for size_t... yes
+checking for int8_t... yes
+checking for int16_t... yes
+checking for int32_t... yes
+checking for uint8_t... yes
+checking for uint16_t... yes
+checking for uint32_t... yes
+checking for uint64_t... yes
+checking for ptrdiff_t... yes
+checking stddef.h usability... yes
+checking stddef.h presence... yes
+checking for stddef.h... yes
+checking libintl.h usability... yes
+checking libintl.h presence... yes
+checking for libintl.h... yes
+checking stdarg.h usability... yes
+checking stdarg.h presence... yes
+checking for stdarg.h... yes
+checking time.h usability... yes
+checking time.h presence... yes
+checking for time.h... yes
+checking limits.h usability... yes
+checking limits.h presence... yes
+checking for limits.h... yes
+checking regex.h usability... yes
+checking regex.h presence... yes
+checking for regex.h... yes
+checking setjmp.h usability... yes
+checking setjmp.h presence... yes
+checking for setjmp.h... yes
+checking signal.h usability... yes
+checking signal.h presence... yes
+checking for signal.h... yes
+checking float.h usability... yes
+checking float.h presence... yes
+checking for float.h... yes
+checking pthread.h usability... yes
+checking pthread.h presence... yes
+checking for pthread.h... yes
+checking math.h usability... yes
+checking math.h presence... yes
+checking for math.h... yes
+checking pwd.h usability... yes
+checking pwd.h presence... yes
+checking for pwd.h... yes
+checking whether to enable assertions... yes
+checking malloc.h usability... yes
+checking malloc.h presence... yes
+checking for malloc.h... yes
+checking for working alloca.h... yes
+checking for alloca... yes
+checking for stdlib.h... (cached) yes
+checking for GNU libc compatible malloc... yes
+checking for stdlib.h... (cached) yes
+checking for GNU libc compatible realloc... yes
+checking for memset... yes
+checking for strdup... yes
+checking for strcmp... yes
+checking should be compiled with support for Oracle backends... yes
+checking should be compiled with support for Postgres backends... yes
+checking should be compiled with support for SQLite backends... yes
+checking build with Java bindings including JDBC driver... yes
+checking should support readline library in CLI interface... yes
+checking for pow in -lm... yes
+checking activate linking against cplex... no
+checking for user provided OCI location... not set
+checking for user provided OCI header location... yes, found at /home/bahar/instantclient/sdk/include
+checking for user provided OCI library location... yes, found at /home/bahar/instantclient
+checking for user provided OCILIB location... yes, /home/bahar/instantclient/ocilib
+checking for OCIInitialize in -lclntsh... yes
+checking for OCIHandleFree in -locci... yes
+checking for OCI_Cleanup in -locilib... yes
+checking for readline in -lreadline... yes
+checking for user provided libpq location... not set
+checking libpq-fe.h usability... no
+checking libpq-fe.h presence... no
+checking for libpq-fe.h... no
+checking for PQconndefaults in -lpq... yes
+checking for sqlite3_open in -lsqlite3... yes
+checking should be compiled with logging... yes
+checking should be linked with google profile library... no
+checking activate profiling with gprof... no
+checking should be compiled with assertion support... yes
+checking should be compiled with debug symbols... yes
+checking should be compiled with timing instrumentation... yes
+checking set custom C compiler flags... -g -O0 -Wall -Werror
+checking that generated files are newer than configure... done
+configure: creating ./config.status
+config.status: creating Makefile
+config.status: creating doc/Makefile
+config.status: creating include/Makefile
+config.status: creating src/Makefile
+config.status: creating src/analysis_and_translate/Makefile
+config.status: creating src/command_line/Makefile
+config.status: creating src/configuration/Makefile
+config.status: creating src/exception/Makefile
+config.status: creating src/execution/Makefile
+config.status: creating src/instrumentation/Makefile
+config.status: creating src/interfaces/Makefile
+config.status: creating src/interfaces/jdbc/Makefile
+config.status: creating src/log/Makefile
+config.status: creating src/mem_manager/Makefile
+config.status: creating src/metadata_lookup/Makefile
+config.status: creating src/model/Makefile
+config.status: creating src/model/datalog/Makefile
+config.status: creating src/model/expression/Makefile
+config.status: creating src/model/helperfunction/Makefile
+config.status: creating src/model/list/Makefile
+config.status: creating src/model/node/Makefile
+config.status: creating src/model/query_block/Makefile
+config.status: creating src/model/query_operator/Makefile
+config.status: creating src/model/rpq/Makefile
+config.status: creating src/model/set/Makefile
+config.status: creating src/operator_optimizer/Makefile
+config.status: creating src/parser/Makefile
+config.status: creating src/provenance_rewriter/Makefile
+config.status: creating src/provenance_rewriter/game_provenance/Makefile
+config.status: creating src/provenance_rewriter/pi_cs_rewrites/Makefile
+config.status: creating src/provenance_rewriter/transformation_rewrites/Makefile
+config.status: creating src/provenance_rewriter/update_and_transaction/Makefile
+config.status: creating src/rpq/Makefile
+config.status: creating src/sql_serializer/Makefile
+config.status: creating src/symbolic_eval/Makefile
+config.status: creating src/utility/Makefile
+config.status: creating src/libgprom/Makefile
+config.status: creating test/Makefile
+config.status: creating javatest/Makefile
+config.status: creating config.h
+config.status: config.h is unchanged
+config.status: executing depfiles commands
+config.status: executing libtool commands
+
+  (GProM) version 0.0.1
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  OS.................: linux (linux-gnu)
+  Prefix.............: /usr/local
+  Top src dir........: /home/bahar/eclipse/Projects/Project
+  Debug Build........: yes
+  Profiling..........: google perftools: no, gprof: no
+  Features...........: Assertions:no Logging:yes Timing:yes cplex:yes
+  Backends supported.: Oracle - yes, Postgres - yes, SQLite - yes
+  Language bindings..: Java - yes
+  Readline support...: yes
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  CFLAGS ........: 
+  CPPFLAGS ......:  -I/home/bahar/instantclient/sdk/include/include -I/home/bahar/instantclient/ocilib/../include -g
+  GPROM_CFLAGS...: -g -O0 -Wall -Werror
+  LDFLAGS........:  -L/home/bahar/instantclient -L/home/bahar/instantclient/ocilib
+  C Compiler.....:   -I/home/bahar/instantclient/sdk/include/include -I/home/bahar/instantclient/ocilib/../include -g -g -O0 -Wall -Werror 
+  Linker.........: /usr/bin/ld -m elf_x86_64  -L/home/bahar/instantclient -L/home/bahar/instantclient/ocilib -lsqlite3 -lpq -lreadline -locilib -locci -lclntsh -lm 
+  Bison..........: bison 
+  Flex...........: flex
+

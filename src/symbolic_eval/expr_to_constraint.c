@@ -3,7 +3,7 @@
  * expr_to_constraint.c
  *			  
  *		
- *		AUTHOR: lord_pretzel
+ *		AUTHOR: Bahareh
  *
  *		
  *
@@ -30,16 +30,13 @@ static default_lb = 0;
 static default_ub = CPX_MAX;
 
 static void setCplexObjects(char *tbName);
-static int convertUpdate(Update* f, CPXENVptr env, CPXLPptr lp);
-static int convertDelete(Delete * f, CPXENVptr env, CPXLPptr lp);
-static int convertInsert(Insert* f, CPXENVptr env, CPXLPptr lp);
-static int getObjectIndex(char * attrName);
-static int condToConstr(Node * cond, CPXENVptr env, CPXLPptr lp);
+static int exprToEval(Node *expr, boolean invert, CPXENVptr env, CPXLPptr lp);
+static int getObjectIndex(char *attrName);
+static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp);
 static List *getOpExpStack(List *stackList, Operator *opExpList);
-static int setToConstr(List * attrList, Node * query, CPXENVptr env,
-		CPXLPptr lp);
+static int setToConstr(List *attrList, Node * query, CPXENVptr env, CPXLPptr lp);
 
-void setCplexObjects(char *tbName) {
+static void setCplexObjects(char *tbName) {
 	if (cplexObjects == NULL) {
 		cplexObjects = NEW(CplexObjects);
 		cplexObjects->tableName = tbName;
@@ -56,40 +53,31 @@ void setCplexObjects(char *tbName) {
 	}
 }
 
-static int exprToEval(Node *expr, CPXENVptr env, CPXLPptr lp) {
+static int exprToEval(Node *expr, boolean invert, CPXENVptr env, CPXLPptr lp) {
 	int status = 0;
 
 	switch (expr->type) {
 	case T_Update:
-		status = convertUpdate((Update *) expr, CPXENVptr env, CPXLPptr lp);
+		setCplexObjects(((Update *) expr)->updateTableName);
+		if (!invert)
+			status = condToConstr(((Update *) expr)->cond, env, lp);
+		else
+			status = invertCondToConstr((Update *) expr, env, lp);
 		break;
 	case T_Delete:
-		status = convertDelete((Delete *) expr, CPXENVptr env, CPXLPptr lp);
+		setCplexObjects(((Delete *) expr)->deleteTableName);
+		status = condToConstr(((Delete *) expr)->cond, env, lp);
 		break;
 	case T_Insert:
-		status = convertInsert((Insert *) expr, CPXENVptr env, CPXLPptr lp);
+		setCplexObjects(((Insert *) expr)->insertTableName);
+		status = setToConstr(((Insert *) expr)->attrList,
+				((Insert *) expr)->query, env, lp);
 		break;
 	}
-
 	return status;
 }
 
-static int convertUpdate(Update* f, CPXENVptr env, CPXLPptr lp) {
-	setCplexObjects(f->updateTableName);
-	return condToConstr(f->cond, env, lp);
-
-}
-static int convertDelete(Delete * f, CPXENVptr env, CPXLPptr lp) {
-	setCplexObjects(f->deleteTableName);
-	return condToConstr(f->cond, env, lp);
-
-}
-static int convertInsert(Insert* f, CPXENVptr env, CPXLPptr lp) {
-	setCplexObjects(f->insertTableName);
-	return setToConstr(f->attrList, f->query, env, lp);
-}
-
-static int getObjectIndex(char * attrName) {
+static int getObjectIndex(char *attrName) {
 
 	int index = 0;
 
@@ -108,7 +96,7 @@ static int getObjectIndex(char * attrName) {
 
 }
 
-static int condToConstr(Node * cond, CPXENVptr env, CPXLPptr lp) {
+static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp) {
 
 	int status = 0;
 	List *result = NIL;
@@ -228,7 +216,7 @@ static int condToConstr(Node * cond, CPXENVptr env, CPXLPptr lp) {
 
 	}
 
-	static int setToConstr(List * attrList, Node * query, CPXENVptr env,
+	static int setToConstr(List *attrList, Node *query, CPXENVptr env,
 			CPXLPptr lp) {
 
 		int status = 0;
@@ -236,8 +224,8 @@ static int condToConstr(Node * cond, CPXENVptr env, CPXLPptr lp) {
 		int numCols = 0;
 		FOREACH(Constant,c,query)
 		{
-			if (isA(c->constType,
-					INT) || isA(c->constType, FLOAT) || isA(c->constType, LONG)) {
+			if (c->constType == DT_INT || c->constType == DT_FLOAT
+					|| c->constType == DT_LONG) {
 				numCols++;
 			}
 		}
@@ -257,8 +245,8 @@ static int condToConstr(Node * cond, CPXENVptr env, CPXLPptr lp) {
 
 		FOREACH(Constant,c,query)
 		{
-			if (isA(c->constType,
-					INT) || isA(c->constType, FLOAT) || isA(c->constType, LONG)) {
+			if (c->constType == DT_INT || c->constType == DT_FLOAT
+					|| c->constType == DT_LONG) {
 				rmatbeg[i] = i;
 				rowname[i] = "row";
 				attr = (char *) getNthOfListP(attrList, j);
@@ -279,20 +267,162 @@ static int condToConstr(Node * cond, CPXENVptr env, CPXLPptr lp) {
 	}
 
 	//to be done
-	int invertCondToConstr(Update* f, CPXENVptr env, CPXLPptr lp) {
+	static int invertCondToConstr(Update *f, CPXENVptr env, CPXLPptr lp) {
 		int status = 0;
 		boolean isFound = FALSE;
-			List *selAttr = NIL;
-			List *conAttr = NIL;
-			selAttr = getAttrNameFromOpExpList(selAttr, (Operator *) f->selectClause);
-			conAttr = getAttrNameFromOpExpList(conAttr, (Operator *) f->cond);
-			FOREACH(char,attr,conAttr)
-			{
-				if (searchListString(selAttr, attr)) {
-					isFound = TRUE;
-					break;
-				}
+		List *selAttr = NIL;
+		List *conAttr = NIL;
+		selAttr = getAttrNameFromOpExpList(selAttr,
+				(Operator *) f->selectClause);
+		conAttr = getAttrNameFromOpExpList(conAttr, (Operator *) f->cond);
+		FOREACH(char,attr,conAttr)
+		{
+			if (searchListString(selAttr, attr)) {
+				isFound = TRUE;
+				break;
+			}
+		}
+
+		if (isFound == FALSE) {
+			return condToConstr(((Update *) f)->cond, env, lp);
+		}
+		//to be done
+		else {
+			return status;
+		}
+	}
+
+	boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
+		int status = 0;
+		boolean result = TRUE;
+		int solstat;
+		double objval;
+		double *x = NULL;
+		double *pi = NULL;
+		double *slack = NULL;
+		double *dj = NULL;
+		int cur_numrows, cur_numcols;
+
+		CPXENVptr env = NULL;
+		CPXLPptr lp = NULL;
+
+		/* Initialize the CPLEX environment */
+		if (env == NULL) {
+			char errmsg[CPXMESSAGEBUFSIZE];
+			CPXgeterrorstring(env, status, errmsg);
+			ERROR_LOG("Could not open CPLEX environment.\n%s", errmsg);
+		}
+
+		env = CPXopenCPLEX(&status);
+		/* Turn on output to the screen */
+
+		status = CPXsetintparam(env, CPXPARAM_ScreenOutput, CPX_ON);
+		if (status) {
+			ERROR_LOG("Failure to turn on screen indicator, error %d.\n",
+					status);
+		}
+
+		/* Turn on data checking */
+
+		status = CPXsetintparam(env, CPXPARAM_Read_DataCheck,
+		CPX_DATACHECK_WARN);
+		if (status) {
+			ERROR_LOG("Failure to turn on data checking, error %d.\n", status);
+		}
+
+		/* Create the problem. */
+
+		lp = CPXcreateprob(env, &status, "lpex1");
+
+		/* A returned pointer of NULL may mean that not enough memory
+		 was available or there was some other problem.  In the case of
+		 failure, an error message will have been written to the error
+		 channel from inside CPLEX.  In this example, the setting of
+		 the parameter CPXPARAM_ScreenOutput causes the error message to
+		 appear on stdout.  */
+
+		if (lp == NULL) {
+			ERROR_LOG("Failed to create LP.\n");
+		}
+
+		/* Now populate the problem with the data.  For building large
+		 problems, consider setting the row, column and nonzero growth
+		 parameters before performing this task. */
+		status = exprToEval(expr1, inv1, env, lp);
+
+		if (status) {
+			ERROR_LOG("Failed to populate problem.\n");
+		}
+
+		status = exprToEval(expr2, inv2, env, lp);
+
+		if (status) {
+			ERROR_LOG("Failed to populate problem.\n");
+		}
+		/* Optimize the problem and obtain solution. */
+
+		status = CPXlpopt(env, lp);
+		if (status) {
+			ERROR_LOG("Failed to optimize LP.\n");
+		}
+
+		/* The size of the problem should be obtained by asking CPLEX what
+		 the actual size is, rather than using sizes from when the problem
+		 was built.  cur_numrows and cur_numcols store the current number
+		 of rows and columns, respectively.  */
+
+		cur_numrows = CPXgetnumrows(env, lp);
+		cur_numcols = CPXgetnumcols(env, lp);
+
+		x = (double *) malloc(cur_numcols * sizeof(double))
+		;
+		slack = (double *) malloc(cur_numrows * sizeof(double))
+		;
+		dj = (double *) malloc(cur_numcols * sizeof(double))
+		;
+		pi = (double *) malloc(cur_numrows * sizeof(double))
+		;
+
+		if (x == NULL || slack == NULL || dj == NULL || pi == NULL) {
+			status = CPXERR_NO_MEMORY;
+			ERROR_LOG("Could not allocate memory for solution.\n");
+		}
+
+		status = CPXsolution(env, lp, &solstat, &objval, x, pi, slack, dj);
+		if (status) {
+			DEBUG_LOG("False: Failed to obtain solution.\n");
+			result = FALSE;
+
+		} else {
+			DEBUG_LOG("True: Obtained solution.\n");
+			result = TRUE;
+		}
+
+		//TERMINATE:
+
+		/* Free up the problem as allocated by CPXcreateprob, if necessary */
+
+		if (lp != NULL) {
+			status = CPXfreeprob(env, &lp);
+			if (status) {
+				DEBUG_LOG("CPXfreeprob failed, error code %d.\n", status);
+			}
+		}
+
+		/* Free up the CPLEX environment, if necessary */
+
+		if (env != NULL) {
+			status = CPXcloseCPLEX(&env);
+
+			/* Note that CPXcloseCPLEX produces no output,
+			 so the only way to see the cause of the error is to use
+			 CPXgeterrorstring.  For other CPLEX routines, the errors will
+			 be seen if the CPXPARAM_ScreenOutput indicator is set to CPX_ON. */
+
+			if (status) {
+				DEBUG_LOG("Could not close CPLEX environment.\n");
 			}
 
-		return status;
+			return result;
+		}
 	}

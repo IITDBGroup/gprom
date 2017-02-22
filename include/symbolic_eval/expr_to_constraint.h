@@ -38,8 +38,6 @@ typedef struct CplexObjects {
 	char **colname;
 } CplexObjects;
 
-
-extern int exprToEval(Node *expr, CPXENVptr env, CPXLPptr lp);
-extern int invertCondToConstr(Update* f, CPXENVptr env, CPXLPptr lp);
+extern boolean exprToSat(Node *expr1,boolean inv1, Node *expr2, boolean inv2);
 
 #endif /* INCLUDE_SYMBOLIC_EVAL_EXPR_TO_CONSTRAINT_H_ */
