@@ -2362,17 +2362,56 @@ pushDownAggregationThroughJoin(QueryOperator *root)
             DEBUG_LOG("Condition 3 is : %d", cond3);
         }
 
-
-
-
         if(cond1 && cond2 && cond3)
         	switchAggregationWithJoinToLeftChild(agg, jOp);
+        else if(cond1)
+        	addAdditionalAggregationBelowJoin(agg,jOp);
+
+
 	}
 
 	FOREACH(QueryOperator, o, root->inputs)
 	          pushDownAggregationThroughJoin(o);
 
 	return root;
+}
+
+
+void
+addAdditionalAggregationBelowJoin(AggregationOperator *aggOp, JoinOperator *jOp)
+{
+	QueryOperator *lChild = OP_LCHILD(jOp);
+
+	//copy agg
+	AggregationOperator *newAgg = (AggregationOperator*) copyObject(aggOp);
+
+	//reset parents and children
+    newAgg->op.parents = singleton(jOp);
+    newAgg->op.inputs = singleton(lChild);
+
+	jOp->op.inputs = replaceNode(jOp->op.inputs, lChild, newAgg);
+	lChild->parents = singleton(newAgg);
+
+    //group by
+	Node *cond = ((JoinOperator *)jOp)->cond;
+	List *condAttrRefs = getAttrReferences(cond);
+	List *childSchemaList = getAttrNames(lChild->schema);
+
+    newAgg->groupBy = NIL;
+    FOREACH(AttributeReference, a, condAttrRefs)
+    {
+    	if(searchListString(childSchemaList, a->name))
+    		newAgg->groupBy = appendToTailOfList(newAgg->groupBy, copyObject(a));
+    }
+
+    //agg
+    List *newAggSchemaDefs = copyObject(lChild->schema->attrDefs);
+    newAgg->op.schema->attrDefs = newAggSchemaDefs;
+
+    //reset position
+	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) newAgg, lChild);
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) jOp, (QueryOperator *) newAgg);
+
 }
 
 void

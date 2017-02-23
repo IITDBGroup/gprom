@@ -61,6 +61,7 @@ extern QueryOperator *selectionMoveAround(QueryOperator *root);
 
 /* try to implement push down group by operator through join*/
 extern QueryOperator *pushDownAggregationThroughJoin(QueryOperator *root);
-extern void switchAggregationWithJoinToLeftChild(AggregationOperator *Agg, JoinOperator *j);
+extern void switchAggregationWithJoinToLeftChild(AggregationOperator *aggOp, JoinOperator *jOp);
+extern void addAdditionalAggregationBelowJoin(AggregationOperator *aggOp, JoinOperator *jOp);
 
 #endif /* OPERATOR_OPTIMIZER_H_ */
