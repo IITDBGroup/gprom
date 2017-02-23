@@ -30,6 +30,7 @@
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "model/set/set.h"
 #include "operator_optimizer/optimizer_prop_inference.h"
+#include "metadata_lookup/metadata_lookup.h"
 
 // macros for running and timing an optimization rule and logging the resulting AGM graph.
 #define OPTIMIZER_LOG_PREFIX "\n**********************************************" \
@@ -2279,7 +2280,7 @@ pushDownAggregationThroughJoin(QueryOperator *root)
 	{
 		boolean cond1 = FALSE;
 		boolean cond2 = FALSE;
-//		boolean cond3 = FALSE;
+		boolean cond3 = FALSE;
 
 		AggregationOperator *agg = (AggregationOperator *) root;
 		JoinOperator *jOp = (JoinOperator *) child;
@@ -2306,15 +2307,65 @@ pushDownAggregationThroughJoin(QueryOperator *root)
 
 		//if(EMPTY_SET(cond1Set))
 		cond1 = EMPTY_SET(cond1Set);
-		DEBUG_LOG("Condition 1 is : %d", cond1);
 
 		/* Condition 2 */
         Set *joinIgroupBySet = intersectSets(joinCondSet, groupBySet);
         if(setSize(joinIgroupBySet) == setSize(groupBySet))
         	cond2 = TRUE;
-        DEBUG_LOG("Condition 2 is : %d", cond2);
 
-        if(cond1 && cond2)
+        /* Condition 3 */
+       // QueryOperator *lChild = OP_LCHILD(jOp);
+        QueryOperator *rChild = OP_RCHILD(jOp);
+
+//        if(isA(lChild, TableAccessOperator))
+//        {
+//        	TableAccessOperator *lRel = (TableAccessOperator *) lChild;
+//        	List *lKeyList = getKeyInformation(lRel->tableName);
+//        	DEBUG_LOG("left keyList length: %d", LIST_LENGTH(lKeyList));
+//        	DEBUG_NODE_BEATIFY_LOG("left keys are:", lKeyList);
+//        	DEBUG_LOG("Table operator %s", lChild->schema->name);
+//        }
+
+
+        if(isA(rChild, TableAccessOperator))
+        {
+        	TableAccessOperator *rRel = (TableAccessOperator *) rChild;
+        	List *rKeyList = getKeyInformation(rRel->tableName);
+
+//        	DEBUG_LOG("Right keyList length: %d", LIST_LENGTH(rKeyList));
+//        	DEBUG_NODE_BEATIFY_LOG("right keys are:", rKeyList);
+//        	DEBUG_LOG("Table operator %s", rChild->schema->name);
+//        	DEBUG_LOG("join set length : %d", setSize(joinCondSet));
+
+        	List *rSchemaList = getAttrNames(rRel->op.schema);
+        	Set *rSchemaSet = makeStrSetFromList(rSchemaList);
+            Set *rJoinCond = intersectSets(joinCondSet,rSchemaSet);
+
+//            FOREACH_SET(char, c, rJoinCond)
+//               DEBUG_LOG("right join cond attr : %s", c);
+
+            //check if attribute in join condition is equal to the primary key in right child
+            FOREACH(Set, s, rKeyList)
+            {
+//              DEBUG_LOG("join set size %d, key set size %d", setSize(rJoinCond), setSize(s));
+//              DEBUG_LOG("after difference the set size %d", setSize(setDifference(rJoinCond,s)));
+                if(setSize(rJoinCond) == setSize(s) && setSize(setDifference(rJoinCond,s)) == 0)
+                {
+                      cond3 = TRUE;
+                      break;
+                }
+            }
+
+            /* output the value of these 3 condition */
+    		DEBUG_LOG("Condition 1 is : %d", cond1);
+            DEBUG_LOG("Condition 2 is : %d", cond2);
+            DEBUG_LOG("Condition 3 is : %d", cond3);
+        }
+
+
+
+
+        if(cond1 && cond2 && cond3)
         	switchAggregationWithJoinToLeftChild(agg, jOp);
 	}
 
