@@ -59,7 +59,7 @@ static DLProgram *createFullGPprogram (DLProgram *p);
 static void enumerateRules (DLProgram *p);
 static List *removeVars (List *vars, List *remVars);
 boolean searchVars (List *vars, List *searVars);
-static List *makeUniqueVarList (List *vars);
+//static List *makeUniqueVarList (List *vars);
 static void setIDBBody (DLRule *r);
 
 static DLProgram *rewriteSolvedProgram (DLProgram *solvedProgram);
@@ -2427,19 +2427,41 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         ruleRule = copyObject(r);
 //        origRule = copyObject(r);
 
-        origArgs = removeVars(makeUniqueVarList(getRuleVars(ruleRule)), ruleRule->head->args);
+//        origArgs = removeVars(makeUniqueVarList(getRuleVars(ruleRule)), ruleRule->head->args);
 
-        List *endArgs = NIL;
+//        List *endArgs = NIL;
+//
+//        if(!LIST_EMPTY(origArgs))
+//        {
 
-        if(!LIST_EMPTY(origArgs))
-        {
-            endArgs = singleton(getTailOfListP(origArgs));
-            origArgs = removeFromTail(origArgs);
-            origArgs = CONCAT_LISTS(ruleRule->head->args, endArgs, origArgs);
-        }
-        else
-        	origArgs = CONCAT_LISTS(ruleRule->head->args, origArgs);
+//        // store all args
+//        List *allArgs = NIL;
+//        FOREACH(DLAtom,a,ruleRule->body)
+//        	FOREACH(Node,n,a->args)
+//				allArgs = appendToTailOfList(allArgs,n);
 
+        // insert head args
+        origArgs = CONCAT_LISTS(ruleRule->head->args, origArgs);
+
+//        // insert very end arg if not exists
+//        Node *endArg = (Node *) getTailOfListP(allArgs);
+//
+//        if(!searchListNode(origArgs,endArg))
+//        	origArgs = appendToTailOfList(origArgs,endArg);
+
+        // add intermediate args
+		FOREACH(DLAtom,a,ruleRule->body)
+        	if(isA((Node *) a, DLAtom))
+				FOREACH(Node,n,a->args)
+					if(!searchListNode(origArgs,n))
+						origArgs = appendToTailOfList(origArgs,n);
+
+//            endArgs = singleton(getTailOfListP(origArgs));
+//            origArgs = removeFromTail(origArgs);
+//            origArgs = CONCAT_LISTS(ruleRule->head->args, endArgs, origArgs);
+//        }
+//        else
+//        	origArgs = CONCAT_LISTS(ruleRule->head->args, origArgs);
 
         newRuleArg = copyObject(origArgs);
         // add args for boolean
@@ -3888,20 +3910,20 @@ searchVars (List *vars, List *searVars)
     	return TRUE;
 }
 
-static List *
-makeUniqueVarList (List *vars)
-{
-    Set *varSet = NODESET();
-    List *result = NIL;
-
-    FOREACH(DLVar,v,vars)
-        addToSet(varSet,v);
-
-    FOREACH_SET(DLVar,v,varSet)
-        result = appendToTailOfList(result, v);
-
-    return result;
-}
+//static List *
+//makeUniqueVarList (List *vars)
+//{
+//    Set *varSet = NODESET();
+//    List *result = NIL;
+//
+//    FOREACH(DLVar,v,vars)
+//        addToSet(varSet,v);
+//
+//    FOREACH_SET(DLVar,v,varSet)
+//        result = appendToTailOfList(result, v);
+//
+//    return result;
+//}
 
 static DLRule *
 createMoveRule(Node *lExpr, Node *rExpr, char *bodyAtomName, List *bodyArgs)
