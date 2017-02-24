@@ -3356,7 +3356,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     			if(a->negated)
     			{
     				atomRel = a->rel;
-    				atomRel = replaceSubstr(atomRel, "R", "");
+
+    				int atomLeng = strlen(atomRel) - 1;
+    				atomRel = substr(atomRel, 1, atomLeng);
+
     				atomRel = replaceSubstr(atomRel, "_WON", "");
     				atomRel = replaceSubstr(atomRel, "_nonlinked", "");
 
@@ -3569,7 +3572,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				if(a->negated)
 				{
 					char *bodyAtomRel = a->rel;
-					bodyAtomRel = replaceSubstr(bodyAtomRel, "R", "");
+
+					int atomLeng = strlen(bodyAtomRel) - 1;
+					bodyAtomRel = substr(bodyAtomRel, 1, atomLeng);
+
 					bodyAtomRel = replaceSubstr(bodyAtomRel, "_WON", "");
 					bodyAtomRel = replaceSubstr(bodyAtomRel, "_nonlinked", "");
 
