@@ -25,9 +25,9 @@
 #include "model/query_operator/query_operator.h"
 
 static CplexObjects *cplexObjects = NULL; // global pointer to current cplex objects
-static objectIndex = 0;
-static default_lb = 0;
-static default_ub = CPX_MAX;
+static int objectIndex = 0;
+static double default_lb = 0;
+static double default_ub = CPX_MAX;
 
 static void setCplexObjects(char *tbName);
 static int exprToEval(Node *expr, boolean invert, CPXENVptr env, CPXLPptr lp);
