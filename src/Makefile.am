@@ -37,7 +37,7 @@ libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
 						instrumentation/libinstrumentation.la \
 						execution/libexecution.la \
 						utility/libutils.la \
-						rpq/librpq.la\
+						rpq/librpq.la \
 						symbolic_eval/libsymboliceval.la
 
 libsrc_la_SOURCES 		= rewriter.c
