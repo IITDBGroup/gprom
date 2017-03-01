@@ -32,9 +32,9 @@
 typedef struct CplexObjects {
 	char *tableName;
 	HashMap *attrIndex;        // hashmap attributename -> attribute index in obj
-	double *obj[DEFAULT_NUM_COLS];
-	double *lb[DEFAULT_NUM_COLS];
-	double *ub[DEFAULT_NUM_COLS];
+	double *obj;
+	double *lb;
+	double *ub;
 	char **colname;
 } CplexObjects;
 

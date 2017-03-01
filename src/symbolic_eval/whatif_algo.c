@@ -53,13 +53,15 @@ static void addTBToList(List *list, Node *n) {
 	case T_Insert:
 		list = appendToTailOfList(list, ((Insert *) n)->insertTableName);
 		break;
+	default:
+		break;
 	}
 }
 
 List *dependAlgo(List *exprs) {
 	Node *up = popHeadOfListP(exprs);
 	Node *wUp = popHeadOfListP(exprs);
-	initWhatif(up,wUp);
+	initWhatif(up, wUp);
 
 	char *tbName;
 
@@ -75,6 +77,8 @@ List *dependAlgo(List *exprs) {
 			break;
 		case T_Insert:
 			tbName = ((Insert *) e)->insertTableName;
+			break;
+		default:
 			break;
 		}
 		if (searchListString(tables, tbName)) {
