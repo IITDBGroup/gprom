@@ -208,6 +208,72 @@ translateGeneral (Node *node)
     return result;
 }
 
+
+static boolean
+disambiguiteAttrNames(Node *node, Set *done)
+{
+    QueryOperator *op;
+    boolean changed = FALSE;
+
+    if (hasSetElem(done, node))
+        return FALSE;
+
+    if (isA(node, List))
+    {
+        FOREACH(QueryOperator,q,(List *) node)
+        {
+            changed |= disambiguiteAttrNames((Node *) q, done);
+        }
+        return changed;
+    }
+
+    op = (QueryOperator *) node;
+
+    FOREACH(Node,child,op->inputs)
+    {
+        changed |= disambiguiteAttrNames(child, done);
+    }
+
+    // if children have changed we need to fix operator's attributes
+    if (changed)
+    {
+        DEBUG_OP_LOG("child operator's schema has changed", op);
+        // first adapt attribute references
+        List *attrRefs = getAttrRefsInOperator(op);
+        FOREACH(AttributeReference,a,attrRefs)
+        {
+            QueryOperator *child;
+            AttributeDef *childA;
+            int input = a->fromClauseItem;
+            int attrPos = a->attrPosition;
+
+            child = (QueryOperator *) getNthOfListP(op->inputs, input);
+            childA = getAttrDefByPos(child, attrPos);
+            if (!strpeq(a->name,childA->attrName))
+            {
+                a->name = strdup(childA->attrName);
+            }
+        }
+        // adapt schema based on changed attributes
+        adaptSchemaFromChildren(op);
+    }
+
+    //TODO What other ops to consider
+    if (isA(node,JoinOperator) || isA(node,ProjectionOperator))
+    {
+        if(!checkUniqueAttrNames(op))
+        {
+            makeAttrNamesUnique(op);
+            changed = TRUE;
+            DEBUG_OP_LOG("join or projection attributes are not unique", op);
+        }
+    }
+
+    addToSet(done, node);
+    return changed;
+}
+
+
 static QueryOperator *
 translateSetQuery(SetQuery *sq)
 {
