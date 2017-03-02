@@ -273,6 +273,72 @@ disambiguiteAttrNames(Node *node, Set *done)
     return changed;
 }
 
+static void
+adaptSchemaFromChildren(QueryOperator *o)
+{
+    switch(o->type)
+    {
+        case T_SelectionOperator:
+        case T_SetOperator:
+        case T_DuplicateRemoval:
+        case T_OrderOperator:
+        {
+            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+        }
+        break;
+        case T_ProjectionOperator:
+        {
+            ProjectionOperator *p = (ProjectionOperator *) o;
+            FORBOTH(Node,proj,a,p->projExprs,o->schema->attrDefs)
+            {
+                AttributeDef *aDef = (AttributeDef *) a;
+                if (isA(proj,AttributeReference))
+                {
+                    AttributeReference *ref = (AttributeReference *) proj;
+                    if (!strpeq(aDef->attrName, ref->name))
+                    {
+                        aDef->attrName = strdup(ref->name);
+                    }
+                }
+            }
+        }
+        break;
+        case T_JoinOperator:
+        {
+            List *lAttrs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+            List *rAttrs = copyObject(OP_RCHILD(o)->schema->attrDefs);
+            o->schema->attrDefs = CONCAT_LISTS(lAttrs, rAttrs);
+        }
+        break;
+        case T_NestingOperator:
+        case T_WindowOperator:
+        {
+            Node *lastOne = getTailOfListP(o->schema->attrDefs);
+            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+            o->schema->attrDefs = appendToTailOfList(o->schema->attrDefs, lastOne);
+        }
+        break;
+        case T_JsonTableOperator:
+        {
+            List *childAttr = OP_LCHILD(o)->schema->attrDefs;
+            FORBOTH(AttributeDef,a,childA,o->schema->attrDefs,childAttr)
+            {
+                if (!strpeq(a->attrName, childA->attrName))
+                {
+                    a->attrName = strdup(childA->attrName);
+                }
+            }
+        }
+        break;
+        case T_ProvenanceComputation:
+        {
+            //TODO should never end up here?
+        }
+        break;
+        default:
+            break;
+    }
+}
 
 static QueryOperator *
 translateSetQuery(SetQuery *sq)
