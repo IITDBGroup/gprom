@@ -107,10 +107,6 @@
 	</target>
 	
 	<target name="adaptDDLScripts">
-		<var name="testdbscript" value="${resourcedir}/testdb/tpch.sql" />
-		<antcall target="adaptTestDDLScript" />
-		<var name="testdbscript" value="${resourcedir}/testdb/wherecs.sql" />
-		<antcall target="adaptTestDDLScript" />	
 		<var name="testdbscript" value="${resourcedir}/testdb/testDB.sql" />
 		<antcall target="adaptTestDDLScript" />
 	</target>

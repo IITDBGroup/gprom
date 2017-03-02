@@ -362,6 +362,9 @@ makeNamesUnique (List *names, Set *allNames)
             newName = CONCAT_STRINGS(oldName, itoa(count));
             while(hasSetElem(allNames, newName))
                 newName = CONCAT_STRINGS(oldName, itoa(++count));
+
+            if(searchListString(names, newName))
+            	newName = CONCAT_STRINGS(oldName, itoa(++count));
         }
 
         LC_P_VAL(lc) = newName;

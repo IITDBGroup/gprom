@@ -320,6 +320,7 @@ copyDLProgram(DLProgram *from, OperatorMap **opMap)
     COPY_STRING_FIELD(ans);
     COPY_NODE_FIELD(doms);
     COPY_NODE_FIELD(n.properties);
+    COPY_NODE_FIELD(comp);
 
     return new;
 }

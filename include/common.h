@@ -100,6 +100,11 @@
 #include <math.h>
 #endif
 
+/* pwd */
+#if HAVE_PWD_H
+#include <pwd.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup

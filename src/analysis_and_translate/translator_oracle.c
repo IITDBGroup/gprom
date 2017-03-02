@@ -24,6 +24,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
+#include "model/query_operator/query_operator_model_checker.h"
 
 #include "analysis_and_translate/analyzer.h"
 //#include "analysis_and_translate/translator.h"
@@ -45,6 +46,8 @@ typedef struct ReplaceGroupByState {
 // function declarations
 static Node *translateGeneral(Node *node);
 //static Node *translateSummary(Node *input, Node *node);
+static boolean disambiguiteAttrNames(Node *node, Set *done);
+static void adaptSchemaFromChildren(QueryOperator *o);
 
 /* Three branches of translating a Query */
 static QueryOperator *translateSetQuery(SetQuery *sq);
@@ -57,6 +60,7 @@ static QueryOperator *translateWithStmt(WithStmt *with);
 static QueryOperator *translateFromClause(List *fromClause);
 static QueryOperator *buildJoinTreeFromOperatorList(List *opList);
 static List *translateFromClauseToOperatorList(List *fromClause);
+//static void addPrefixToAttrNames (List *str, char *prefix);
 static List *getAttrsOffsets(List *fromClause);
 static inline QueryOperator *createTableAccessOpFromFromTableRef(
         FromTableRef *ftr);
@@ -70,8 +74,8 @@ static QueryOperator *translateNestedSubquery(QueryBlock *qb,
         QueryOperator *joinTreeRoot, List *attrsOffsets);
 extern boolean findNestedSubqueries(Node *node, List **state);
 static List *getListOfNestedSubqueries(QueryBlock *qb);
-static void replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb);
-static Node *replaceNestedSubqueryWithAuxExpr(Node *node, int *state);
+static void replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb, HashMap *qToAttr);
+static Node *replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr);
 
 /* Functions of translating where clause in a QueryBlock */
 static QueryOperator *translateWhereClause(Node *whereClause,
@@ -198,6 +202,9 @@ translateGeneral (Node *node)
         }
     }
 
+    Set *done = PSET();
+    disambiguiteAttrNames(result, done);
+	
     return result;
 }
 
@@ -414,13 +421,22 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 /* get table name */
                 char *tableName = NULL;
+                ReenactUpdateType updateType;
 
                 switch (node->type) {
                     case T_Insert:
-                        tableName = ((Insert *) node)->insertTableName;
-                        break;
+                    {
+                        Insert *i = (Insert *) node;
+                        if (isA(i->query,  List))
+                            updateType = UPDATE_TYPE_INSERT_VALUES;
+                        else
+                            updateType = UPDATE_TYPE_INSERT_QUERY;
+                        tableName = i->insertTableName;
+                    }
+                    break;
                     case T_Update:
                     {
+                        updateType = UPDATE_TYPE_UPDATE;
                         Update *up = (Update *) node;
 
                         tableName = up->updateTableName;
@@ -428,6 +444,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                     }
                     break;
                     case T_Delete:
+                        updateType = UPDATE_TYPE_DELETE;
                         tableName = ((Delete *) node)->deleteTableName;
                         break;
                     case T_QueryBlock:
@@ -487,18 +504,30 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 // mark as root of translated update
                 SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
-
+                SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(updateType));
                 DEBUG_NODE_BEATIFY_LOG("qo model transaction is", child);
 
                 addChildOperator((QueryOperator *) result, child);
                 i++;
             }
 
-            // get commit scn
-            char *tableName = (char *) getHeadOfListP(tInfo->updateTableNames);
-            tInfo->commitSCN = createConstLong(getCommitScn(tableName,
-                    LONG_VALUE(getHeadOfListP(tInfo->scns)),
-                    xid));
+            // get commit scn, some tables that were targeted by statements might not have been modified
+            long commitScn = INVALID_SCN;
+
+            FOREACH(char,tableName,tInfo->updateTableNames)
+            {
+                DEBUG_LOG("try to get commit SCN from table <%s>", tableName);
+                commitScn = getCommitScn(tableName,
+                        LONG_VALUE(getHeadOfListP(tInfo->scns)),
+                        xid);
+                if (commitScn != INVALID_SCN)
+                    break;
+            }
+
+            if (commitScn == INVALID_SCN)
+                FATAL_NODE_BEATIFY_LOG("unable to determine commit SCN for transaction", tInfo);
+
+            tInfo->commitSCN = createConstLong(commitScn);
 
             // if only updated rows shows be returned then we need to store the update conditions
             // because we might need that to filter out those tuples
@@ -519,7 +548,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             tInfo->originalUpdates = copyObject(prov->query);
             tInfo->updateTableNames = NIL;
 
-            FOREACH(Node,n,(List *) prov->query) {
+            FOREACH(Node,n,(List *) prov->query)
+            {
                 char *tableName = NULL;
 
                 /* get table name */
@@ -705,6 +735,7 @@ translateFromClause(List *fromClause)
 static QueryOperator *
 buildJoinTreeFromOperatorList(List *opList)
 {
+    int pos = 0;
     DEBUG_LOG("build join tree from operator list\n%s", nodeToString(opList));
 
     QueryOperator *root = (QueryOperator *) getHeadOfListP(opList);
@@ -741,12 +772,16 @@ buildJoinTreeFromOperatorList(List *opList)
             QueryOperator *oldRoot = (QueryOperator *) root;
             List *inputs = NIL;
             // set children of the join node
-			inputs = appendToTailOfList(inputs, oldRoot);
-			inputs = appendToTailOfList(inputs, op);
+            inputs = appendToTailOfList(inputs, oldRoot);
+            inputs = appendToTailOfList(inputs, op);
+            List *lAttrs = getAttrNames(oldRoot->schema);
+            List *rAttrs = getAttrNames(op->schema);
 
+//            addPrefixToAttrNames(lAttrs, itoa(pos));
+//            addPrefixToAttrNames(rAttrs, itoa(pos + 1));
             // contact children's attribute names as the node's attribute
             // names
-            List *attrNames = concatTwoLists(getAttrNames(oldRoot->schema), getAttrNames(op->schema));
+            List *attrNames = concatTwoLists(lAttrs, rAttrs);
 
             // create join operator
             root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
@@ -755,12 +790,23 @@ buildJoinTreeFromOperatorList(List *opList)
             OP_LCHILD(root)->parents = singleton(root);
             OP_RCHILD(root)->parents = singleton(root);
         }
+        pos++;
     }
 
     DEBUG_LOG("join tree for translated from is\n%s", nodeToString(root));
 
     return root;
 }
+
+//static void
+//addPrefixToAttrNames (List *str, char *prefix)
+//{
+//    FOREACH_LC(lc, str)
+//    {
+//        char *s =  LC_STRING_VAL(lc);
+//        LC_P_VAL(lc) = CONCAT_STRINGS(prefix,"_",s);
+//    }
+//}
 
 static List *
 getAttrsOffsets(List *fromClause)
@@ -1052,10 +1098,11 @@ static QueryOperator *
 translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrsOffsets)
 {
     List *nestedSubqueries = getListOfNestedSubqueries(qb);
-
+    HashMap *subqueryToAttribute = NEW_MAP(Node,KeyValue);
     QueryOperator *lChild = joinTreeRoot;
     NestingOperator *no = NULL;
     int i = 1;
+
     FOREACH(NestedSubquery, nsq, nestedSubqueries)
     {
         // change attributes positions in "expr = ANY(...)"
@@ -1082,9 +1129,13 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
         List *attrNames = getAttrNames(lChild->schema);
         List *dts = getDataTypes(lChild->schema);
 
-        // add an auxiliary attribute, which is the evaluation of the nested subquery
-        attrNames = appendToTailOfList(attrNames,
-                CONCAT_STRINGS("nesting_eval_", itoa(i++)));
+        // add an auxiliary attribute, which stores the result of evaluating the nested subquery expr
+        char *attrName = CONCAT_STRINGS("nesting_eval_", itoa(i++));
+        addToMap(subqueryToAttribute, (Node *) nsq,
+                (Node *) createNodeKeyValue((Node *) createConstString(attrName),
+                                            (Node *)createConstInt(LIST_LENGTH(attrNames))));
+
+        attrNames = appendToTailOfList(attrNames,strdup(attrName));
         if (nsq->nestingType == NESTQ_EXISTS)
             dts = appendToTailOfListInt(dts, DT_BOOL);
         else if (nsq->nestingType == NESTQ_SCALAR)
@@ -1101,12 +1152,14 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
 
         // set this nesting operator as the next nesting operator's left child
         lChild = (QueryOperator *) no;
+        DEBUG_OP_LOG("Created nesting operator", no);
+        DEBUG_NODE_BEATIFY_LOG("Created nesting operator for nested subquery", nsq);
     }
 
     if (no == NULL)
         return joinTreeRoot;
 
-    replaceAllNestedSubqueriesWithAuxExprs(qb);
+    replaceAllNestedSubqueriesWithAuxExprs(qb, subqueryToAttribute);
     return ((QueryOperator *) no);
 }
 
@@ -1128,35 +1181,39 @@ getListOfNestedSubqueries(QueryBlock *qb)
 }
 
 static void
-replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb)
+replaceAllNestedSubqueriesWithAuxExprs(QueryBlock *qb, HashMap *qToAttr)
 {
-    int i = 1;
     qb->selectClause = (List *) replaceNestedSubqueryWithAuxExpr(
-            (Node *) qb->selectClause, &i);
-    qb->distinct = replaceNestedSubqueryWithAuxExpr((Node *) qb->distinct, &i);
+            (Node *) qb->selectClause, qToAttr);
+    qb->distinct = replaceNestedSubqueryWithAuxExpr((Node *) qb->distinct, qToAttr);
     qb->fromClause = (List *) replaceNestedSubqueryWithAuxExpr(
-            (Node *) qb->fromClause, &i);
+            (Node *) qb->fromClause, qToAttr);
     qb->whereClause = replaceNestedSubqueryWithAuxExpr((Node *) qb->whereClause,
-            &i);
+            qToAttr);
     qb->groupByClause = (List *) replaceNestedSubqueryWithAuxExpr(
-            (Node *) qb->groupByClause, &i);
+            (Node *) qb->groupByClause, qToAttr);
     qb->havingClause = replaceNestedSubqueryWithAuxExpr(
-            (Node *) qb->havingClause, &i);
+            (Node *) qb->havingClause, qToAttr);
     qb->orderByClause = (List*) replaceNestedSubqueryWithAuxExpr(
-            (Node *) qb->orderByClause, &i);
+            (Node *) qb->orderByClause, qToAttr);
+
+    DEBUG_NODE_BEATIFY_LOG("After replacing subqueries:", qb);
 }
 
 static Node *
-replaceNestedSubqueryWithAuxExpr(Node *node, int *state)
+replaceNestedSubqueryWithAuxExpr(Node *node, HashMap *qToAttr)
 {
     if (node == NULL)
         return NULL;
 
     if (isA(node, NestedSubquery))
     {
+        KeyValue *info = (KeyValue *) getMap(qToAttr, node);
+        char *attrName = STRING_VALUE(info->key);
+        int attrPos = INT_VALUE(info->value);
+
         // create auxiliary attribute reference "nesting_eval_i" to the nested subquery
-        int i = (*state)++;
-        AttributeReference *attr = createAttributeReference(CONCAT_STRINGS("nesting_eval_", itoa(i)));
+        AttributeReference *attr = createFullAttrReference(strdup(attrName), 0, attrPos, INVALID_ATTR, typeOf(node));
 
         // if scalar subquery, e.g., WHERE a  = (SELECT count(*) FROM s),
         // then just replace nested subquery with auxiliary attribute reference "nesting_eval_i"
@@ -1175,7 +1232,7 @@ replaceNestedSubqueryWithAuxExpr(Node *node, int *state)
     if (isQBQuery(node))
         return node;
 
-    return mutate(node, replaceNestedSubqueryWithAuxExpr, state);
+    return mutate(node, replaceNestedSubqueryWithAuxExpr, qToAttr);
 }
 
 static QueryOperator *

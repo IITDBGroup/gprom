@@ -33,6 +33,7 @@
 #define HASH_INT(a) cur = hashInt(cur, node->a)
 #define HASH_BOOLEAN(a) cur = hashBool(cur, node->a)
 #define HASH_NODE(a) cur = hashValueInternal(cur, node->a)
+#define HASH_STRING_LIST(a) cur = hashStringList(cur, node->a);
 
 // hash functions for simple types
 static inline uint64_t hashInt(uint64_t cur, int value);
@@ -520,7 +521,7 @@ static uint64_t
 hashFromItem (uint64_t cur, FromItem *node)
 {
     HASH_STRING(name);
-    HASH_NODE(attrNames);
+    HASH_STRING_LIST(attrNames);
     HASH_NODE(dataTypes);
     HASH_NODE(provInfo);
 
@@ -893,6 +894,7 @@ hashValueInternal(uint64_t h, void *a)
     switch(n->type)
     {
         case T_List:
+        case T_IntList:
             return hashList(h,(List *) n);
         /* expression nodes */
         case T_Set:

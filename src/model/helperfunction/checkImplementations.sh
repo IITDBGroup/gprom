@@ -3,6 +3,10 @@
 # It retrieves the node types from nodetype.h so if a node type is not mentioned there it will
 # not be found. However, this is a serious error anyways
 
+pushd $(dirname "${0}") > /dev/null
+DIR=$(pwd -L)
+popd > /dev/null
+
 searchForFunctions()
 {
     cFile=$1
@@ -14,7 +18,7 @@ searchForFunctions()
     for t in ${nodeTypes};
     do
 	curFunction="${functionPrefix}${t}"
-	check=`cat ${cFile} | grep "^${curFunction}"`
+	check=`cat ${DIR}/${cFile} | grep "^${curFunction}"`
 	if [ "${check}X" == "X" ]; then
 	    echo "did not find ${curFunction}"
 	fi
@@ -30,14 +34,14 @@ searchForVisitAndMutate()
     echo "****************************************"
 	for t in ${nodeTypes};
 	do
-		check=`cat ${cFile} | grep "${t}"`
+		check=`cat ${DIR}/${cFile} | grep "${t}"`
 		if [ "${check}X" == "X" ]; then
 			echo "did not find visit ${t}"
 		fi
 	done
 }
 
-NodeTypesT=`grep ../../../include/model/node/nodetype.h -e 'T_[a-zA-Z]\+' -o | tr '\n' ' '`
+NodeTypesT=`grep ${DIR}/../../../include/model/node/nodetype.h -e 'T_[a-zA-Z]\+' -o | tr '\n' ' '`
 NodeTypes=`echo "${NodeTypesT}" | sed -e 's/T_//g' -e 's/Invalid//g' -e 's/FromItem//g' -e 's/QueryOperator//g'`
 echo "found node types:"; echo "${NodeTypes}"
 

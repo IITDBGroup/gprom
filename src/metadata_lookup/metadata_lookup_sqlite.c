@@ -58,7 +58,7 @@ static void initCache(CatalogCache *c);
         { \
             StringInfo _newmes = makeStringInfo(); \
             appendStringInfo(_newmes, _message, ##__VA_ARGS__); \
-            FATAL_LOG("error (%s)\n%u\n\n%s", _rc, strdup((char *) sqlite3_errmsg(plugin->conn)), _newmes->data); \
+            FATAL_LOG("error (%s)\n%u\n\n%s", strdup((char *) sqlite3_errmsg(plugin->conn)), _rc, _newmes->data); \
         } \
     } while(0)
 
@@ -253,15 +253,48 @@ sqliteIsWindowFunction(char *functionName)
 }
 
 DataType
-sqliteGetFuncReturnType (char *fName, List *argTypes)
+sqliteGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
+    *funcExists = TRUE;
     return DT_STRING; //TODO
 }
 
 DataType
-sqliteGetOpReturnType (char *oName, List *argTypes)
+sqliteGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
-    //TODO
+
+    *opExists = TRUE;
+
+    if (streq(oName, "+") || streq(oName, "*")  || streq(oName, "-") || streq(oName, "/"))
+    {
+        if (LIST_LENGTH(argTypes) == 2)
+        {
+            DataType lType = getNthOfListInt(argTypes, 0);
+            DataType rType = getNthOfListInt(argTypes, 1);
+
+            if (lType == rType)
+            {
+                if (lType == DT_INT)
+                    return DT_INT;
+                if (lType == DT_FLOAT)
+                    return DT_FLOAT;
+            }
+        }
+    }
+
+    if (streq(oName, "||"))
+    {
+        DataType lType = getNthOfListInt(argTypes, 0);
+        DataType rType = getNthOfListInt(argTypes, 1);
+
+        if (lType == rType && lType == DT_STRING)
+            return DT_STRING;
+    }
+    //TODO more operators
+    *opExists = FALSE;
+
+    return DT_STRING;
+
     return DT_STRING;
 }
 

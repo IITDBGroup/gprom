@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+{% block content %}
+{% include "queryactions.html" %}
+{%- if returnedError == False and action == 'graph' -%}
+<h1>Provenance Graph</h1>
+<embed type="image/svg+xml" id="provgraph_svg" src="{{ url_for('static', filename=imagefile) }}" />
+
+<script type="text/javascript">
+      window.onload = function() {
+        svgPanZoom('#provgraph_svg', {
+          zoomEnabled: true,
+          controlIconsEnabled: true
+        });
+      };
+</script>
+ 
+{% endif %}
+{%- if returnedError == False and action == 'run' -%}
+<h1>Query Result</h1>
+<p>
+{{ queryResult|safe }}
+<p>
+{% endif %}
+{%- if returnedError == True -%}
+<h1>Error running query:</h1>
+<h3>GProM Error Log</h3>
+<div class="terminalwrapper">
+{{ gpromlog|safe  }}
+</div>
+{%- if action == 'graph' -%}
+<h3>Graphviz Error Log</h3>
+<p>
+{{ dotlog|safe }}
+</p>
+{% endif %}
+{% endif %}
+{% endblock %}

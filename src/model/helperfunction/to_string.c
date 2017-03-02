@@ -402,6 +402,7 @@ outDLProgram(StringInfo str, DLProgram *node)
     WRITE_STRING_FIELD(ans);
     WRITE_NODE_FIELD(doms);
     WRITE_NODE_FIELD(n.properties);
+    WRITE_NODE_FIELD(comp);
 }
 
 static void

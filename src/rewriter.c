@@ -48,20 +48,36 @@ List *userQuestion = NIL;
 char *summaryType = NULL;
 
 int
-initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[])
+initBasicModules (void)
 {
     initMemManager();
     mallocOptions();
     initLogger();
 
-    if(parseOption(argc, argv) != 0)
+    return EXIT_SUCCESS;
+}
+
+
+int
+initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[])
+{
+    initBasicModules();
+    return readOptions(appName, appHelpText, argc, argv);
+}
+
+int
+readOptions (char *appName, char *appHelpText, int argc, char* argv[])
+{
+    int parserReturn = parseOption(argc, argv);
+
+    if(parserReturn == OPTION_PARSER_RETURN_ERROR)
     {
         printOptionParseError(stdout);
         printOptionsHelp(stdout, appName, appHelpText, TRUE);
         return EXIT_FAILURE;
     }
 
-    if (getBoolOption("help"))
+    if (parserReturn == OPTION_PARSER_RETURN_HELP || getBoolOption("help"))
     {
         printOptionsHelp(stdout, appName, appHelpText, FALSE);
         return EXIT_FAILURE;
@@ -100,17 +116,17 @@ reactToOptionsChange (const char *optName)
     }
 }
 
-int
-initBasicModules (void)
-{
-    initMemManager();
-    mallocOptions();
-    initLogger();
-    if (opt_memmeasure)
-        setupMemInstrumentation();
-
-    return EXIT_SUCCESS;
-}
+//int
+//initBasicModules (void)
+//{
+//    initMemManager();
+//    mallocOptions();
+//    initLogger();
+//    if (opt_memmeasure)
+//        setupMemInstrumentation();
+//
+//    return EXIT_SUCCESS;
+//}
 
 #define CHOOSE_PLUGIN(_plugin,_method) \
     do { \
