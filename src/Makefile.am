@@ -16,11 +16,12 @@ SUBDIRS = configuration 		\
 		operator_optimizer 		\
 		execution				\
 		rpq						\
+		symbolic_eval			\
 		. 						\
 		command_line			\
 		libgprom				\
-		interfaces				\
-		symbolic_eval
+		interfaces				
+
 
 noinst_LTLIBRARIES 		= libsrc.la
 libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
