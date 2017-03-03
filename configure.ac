@@ -1,6 +1,17 @@
 ################################################################################
-################################################################################
-# DEFINTIONS OF HELPER FUNCTIONS FOR GETTING USER OPTIONS
+# DEFINTIONS OF HELPER FUNCTIONS
+# Check whether we compile 32 or 64 bit code
+AC_DEFUN([AC_MACHINE_ARCH],
+[
+	AC_CHECK_SIZEOF([void*])
+	if test "x$ac_cv_sizeof_voidp" == x4; then
+		MYARCH=32
+	else
+		MYARCH=64
+	fi
+	AC_SUBST([COMPILER_OSARCH],${MYARCH})
+	AC_DEFINE_UNQUOTED([COMPILER_OSARCH],["${MYARCH}"],[32/64 bit architecture])
+])
 # OCI location
 AC_DEFUN([AC_OCI_LOCATION],
 [AC_ARG_WITH(oci, [  --with-oci], , )
@@ -97,7 +108,8 @@ AC_DEFUN([AC_CPLEX_LOCATION],
 AC_MSG_CHECKING([for user provided cplex location])
 if test "x$with_cplex" != x; then
 	if test -d "$with_cplex"; then
-		CPLEXSYSTEM=x86-64_linux
+		# TODO - create actual mapping from archtiecture detected by configure to cplex representation of architectures (e.g., x64-64 instead of x64_64) 
+		CPLEXSYSTEM=x86-$MYARCH_$OSTYPE
 		CPLEXLIBFORMAT=static_pic
 		LDFLAGS="$LDFLAGS -L$with_cplex/lib/$CPLEXSYSTEM/$CPLEXLIBFORMAT"
     	CPPFLAGS="$CPPFLAGS -I$with_cplex/include"
@@ -307,6 +319,7 @@ AM_INIT_AUTOMAKE([-Wall foreign tar-pax])
 AC_CONFIG_MACRO_DIR([m4])
 AC_SUBST([ACLOCAL_AMFLAGS],[-I m4])
 ################################################################################
+# DETERMINE OS AND ARCHITECTURE SETTINGS AND EXPOSE THEM
 AC_CANONICAL_HOST
 AS_CASE([$host_os],
    [*linux*], [OSTYPE=linux],
@@ -316,8 +329,11 @@ AS_CASE([$host_os],
 )
 AC_SUBST([OSTYPE])
 AC_SUBST([OSDETAILS],$host_os)
+AC_SUBST([OSARCH],$host_cpu)
 AC_DEFINE_UNQUOTED([OS_TYPE],["${OSTYPE}"],[type of operating system])
 AC_DEFINE_UNQUOTED([OS_DETAILS],["${host_os}"],[OS version])
+AC_DEFINE_UNQUOTED([OS_ARCH],["${OSARCH}"],[OS architecture])
+AC_MACHINE_ARCH
 ################################################################################
 # CHECK FOR C COMPILER AND FEATURES, BINUTILS, AND BISON + FLEX
 AS_IF([test "x$CFLAGS" != "x"],
@@ -591,7 +607,7 @@ AC_OUTPUT
 echo "
   ($PACKAGE_NAME) version $PACKAGE_VERSION
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  OS.................: $OSTYPE ($host_os)
+  OS.................: $OSTYPE-$OSARCH ($OSDETAILS) 
   Prefix.............: $prefix
   Top src dir........: $GPROM_SRCDIR
   Debug Build........: ${enable_debug:=yes}

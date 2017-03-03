@@ -3,37 +3,7 @@ AM_CFLAGS = @GPROM_CFLAGS@
 # AM_CFLAGS = @GPROM_CFLAGS@
 AM_CPPFLAGS += -DGPROM_TOPDIR=\"$(top_srcdir)/\"
 
-LIBFORMAT  = static_pic
 
-#------------------------------------------------------------
-#
-# When you adapt this makefile to compile your CPLEX programs
-# please copy this makefile and set CPLEXDIR and CONCERTDIR to
-# the directories where CPLEX and CONCERT are installed.
-#
-#------------------------------------------------------------
-
-CPLEXDIR      = /home/bahar/opt/ibm/ILOG/CPLEX_Studio127/cplex
-
-# ---------------------------------------------------------------------
-# Compiler options 
-# ---------------------------------------------------------------------
-
-COPT  = -m64 -fPIC -fno-strict-aliasing
-
-# ---------------------------------------------------------------------
-# Link options and libraries
-# ---------------------------------------------------------------------
-SYSTEM     = x86-64_linux
-CPLEXLIBDIR   = $(CPLEXDIR)/lib/$(SYSTEM)/$(LIBFORMAT)
-
-CPLEXINCDIR   = $(CPLEXDIR)/include
-
-AM_CFLAGS += $(COPT)
-AM_CPPFLAGS += -I$(CPLEXINCDIR)
-AM_LDFLAGS = -L$(CPLEXLIBDIR) -lcplex -lpthread
-# use = instead
- 
 check_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
 				testserializer testvisit testrewriter testpicsrewrite \
 				testrpq testlibgprom

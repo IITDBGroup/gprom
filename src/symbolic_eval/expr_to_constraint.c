@@ -9,7 +9,12 @@
  *
  *-----------------------------------------------------------------------------
  */
+
+// only include cplex headers if the library is available
+#ifdef HAVE_LIBCPLEX
 #include <ilcplex/cplex.h>
+#endif
+
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
@@ -23,6 +28,8 @@
 #include "model/set/hashmap.h"
 #include "model/relation/relation.h"
 #include "model/query_operator/query_operator.h"
+
+#ifdef HAVE_LIBCPLEX
 
 static CplexObjects *cplexObjects = NULL; // global pointer to current cplex objects
 static int objectIndex = 0;
@@ -117,7 +124,7 @@ static int setToConstr(List *attrList, Node *query, CPXENVptr env, CPXLPptr lp) 
 		int rmatind[numZ];
 		double rmatval[numZ];
 
-		int i, j = 0;
+		int i = 0, j = 0;
 		char *attr;
 
 		FOREACH(Constant,c,(List *)query)
@@ -287,7 +294,9 @@ static int exprToEval(Node *expr, boolean invert, CPXENVptr env, CPXLPptr lp) {
 	return status;
 }
 
-boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
+boolean
+exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2)
+{
 	int status = 0;
 	boolean result = FALSE;
 	int solstat;
@@ -415,3 +424,15 @@ boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
 
 	return result;
 }
+
+// ********************************************************************************
+// dummy replacement if cplex is not available
+#else
+
+boolean
+exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2)
+{
+    return TRUE;
+}
+
+#endif

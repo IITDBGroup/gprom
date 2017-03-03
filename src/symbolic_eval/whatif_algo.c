@@ -9,7 +9,13 @@
  *
  *-----------------------------------------------------------------------------
  */
-#include <ilcplex/cplex.h>
+
+// only include cplex headers if the library is available
+//TODO why this was included?
+//#ifdef HAVE_LIBCPLEX
+//#include <ilcplex/cplex.h>
+//#endif
+
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
