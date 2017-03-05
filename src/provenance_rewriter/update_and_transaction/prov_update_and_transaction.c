@@ -132,6 +132,13 @@ mergeForTransactionProvenacne(ProvenanceComputation *op)
 	        || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN)
 	        || getBoolOption(OPTION_COST_BASED_OPTIMIZER));
 
+	// remove table access of inserts where
+	if (op->inputType == PROV_INPUT_TRANSACTION
+	                && HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
+    {
+	     removeInputTablesWithOnlyInserts(op);
+    }
+
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));
 
@@ -691,8 +698,6 @@ restrictToUpdatedRows (ProvenanceComputation *op)
 
     INFO_LOG("RESTRICT TO UPDATED ROWS");
 
-    removeInputTablesWithOnlyInserts(op);
-
     FOREACH(Node,up,t->originalUpdates)
         simpleOnly &= isSimpleUpdate(up);
 
@@ -777,17 +782,19 @@ removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
 
     DEBUG_NODE_BEATIFY_LOG("tables that do not only consist of constants are", tableUpdateOrRead);
 
-//    FOREACH(QueryOperator,u,op->op.inputs)
+//TODO for transaction reenactment his is applied after merging which does not work RC-SI where projection is added, but properties are not moved to new top node
+    FOREACH(QueryOperator,u,op->op.inputs)
     for(int i = 0; i < LIST_LENGTH(op->op.inputs); i++)
     {
         List *tables = NIL;
-        ReenactUpdateType t = INT_VALUE(GET_STRING_PROP(op,PROP_PROV_ORIG_UPDATE_TYPE));
+        QueryOperator *child = (QueryOperator *) getNthOfListP(op->op.inputs, i);
+        ReenactUpdateType t = INT_VALUE(GET_STRING_PROP(child,PROP_PROV_ORIG_UPDATE_TYPE));
 
         // for every access to a table that is not read by a query or update, i.e., it is only affected by an
         // INSERT INTO R VALUES (...), we can replace R union {t} with {t}
         if (t == UPDATE_TYPE_INSERT_VALUES)
         {
-            findTableAccessVisitor((Node *) op, &tables);
+            findTableAccessVisitor((Node *) child, &tables);
             FOREACH(TableAccessOperator,t,tables)
             {
                 if (!hasSetElem(tableUpdateOrRead, t->tableName))
