@@ -69,7 +69,7 @@ List *dependAlgo(List *exprs) {
 	Node *wUp = popHeadOfListP(exprs);
 	initWhatif(up, wUp);
 
-	char *tbName;
+	char *tbName = NULL;
 
 	FOREACH(Node,e,exprs)
 	{

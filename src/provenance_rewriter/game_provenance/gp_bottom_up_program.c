@@ -3334,14 +3334,14 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
     /* ************************************************************ */
     // check domain rules are assigned by the user
-	List *associateDomainRule;
+	List *associateDomainRule = NIL;
 
     if (!LIST_EMPTY(solvedProgram->doms))
 	{
     	associateDomainRule = NIL;
     	DLRule *newDomRule;
 
-   		List *edbAttr;
+   		List *edbAttr = NIL;
    		char *atomRel = NULL;
 
     	FOREACH(DLRule,r,negedbRules)

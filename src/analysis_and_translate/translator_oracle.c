@@ -521,7 +521,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 /* get table name */
                 char *tableName = NULL;
-                ReenactUpdateType updateType;
+                ReenactUpdateType updateType = UPDATE_TYPE_DELETE;
 
                 switch (node->type) {
                     case T_Insert:
