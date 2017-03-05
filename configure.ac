@@ -4,11 +4,13 @@
 AC_DEFUN([AC_MACHINE_ARCH],
 [
 	AC_CHECK_SIZEOF([void*])
+	AC_MSG_CHECKING([checking whether to use 32bit or 64bit])
 	if test "x$ac_cv_sizeof_voidp" == x4; then
 		MYARCH=32
 	else
 		MYARCH=64
 	fi
+	AC_MSG_RESULT([${MYARCH}])
 	AC_SUBST([COMPILER_OSARCH],${MYARCH})
 	AC_DEFINE_UNQUOTED([COMPILER_OSARCH],["${MYARCH}"],[32/64 bit architecture])
 ])
@@ -109,7 +111,7 @@ AC_MSG_CHECKING([for user provided cplex location])
 if test "x$with_cplex" != x; then
 	if test -d "$with_cplex"; then
 		# TODO - create actual mapping from archtiecture detected by configure to cplex representation of architectures (e.g., x64-64 instead of x64_64) 
-		CPLEXSYSTEM=x86-$MYARCH_$OSTYPE
+		CPLEXSYSTEM=x86-${MYARCH}_${OSTYPE}
 		CPLEXLIBFORMAT=static_pic
 		LDFLAGS="$LDFLAGS -L$with_cplex/lib/$CPLEXSYSTEM/$CPLEXLIBFORMAT"
     	CPPFLAGS="$CPPFLAGS -I$with_cplex/include"
