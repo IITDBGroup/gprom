@@ -19,6 +19,7 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_operator/query_operator_model_checker.h"
 #include "provenance_rewriter/prov_rewriter.h"
 #include "sql_serializer/sql_serializer.h"
 #include "operator_optimizer/operator_optimizer.h"
@@ -58,12 +59,17 @@ rewriteSummaryOutput (char *summaryType, Node *rewrittenTree, List *userQuestion
 		rewrittenTree = rewriteUserQuestion(uQuestion, rewrittenTree);
 
 	provJoin = rewriteProvJoinOutput(uQuestion, rewrittenTree);
+	INFO_OP_LOG("step 1" , provJoin);
 	samples = rewriteSampleOutput(provJoin);
+	INFO_OP_LOG("step 2" , samples);
 	patterns = rewritePatternOutput(sType, samples); //TODO: different types of pattern generation
 	scanSamples = rewriteScanSampleOutput(samples, patterns);
 	candidates = rewriteCandidateOutput(scanSamples);
 	computeFrac = rewriteComputeFracOutput(candidates, samples);
 	result = rewriteMostGenExplOutput(computeFrac);
+
+	 if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        ASSERT(checkModel((QueryOperator *) result));
 
 	return result;
 }
@@ -611,7 +617,7 @@ rewriteSampleOutput (Node *input)
 	whereClause = (Node *) createOpExpr("<>",LIST_MAKE(lC,createConstInt(1)));
 	so = createSelectionOp(whereClause, nonProvJoin, NIL, attrNames);
 
-	nonProvJoin->parents = singleton(so);
+	nonProvJoin->parents = appendToTailOfList(nonProvJoin->parents, so);
 	nonProvJoin = (QueryOperator *) so;
 	nonProvJoin->provAttrs = provAttrs;
 

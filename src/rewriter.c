@@ -453,6 +453,10 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	                TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
 	    )
 
+        // rewrite for summarization
+        if (summaryType != NULL)
+            rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree, userQuestion);
+
 	    if(applyOptimizations)
 	    {
 	        START_TIMER("OptimizeModel");
@@ -468,10 +472,6 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	            rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
 
 	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
-
-	    // rewrite for summarization
-	    if (summaryType != NULL)
-			rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree, userQuestion);
 	}
 
 	START_TIMER("SQLcodeGen");
