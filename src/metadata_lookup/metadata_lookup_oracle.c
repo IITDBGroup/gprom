@@ -1043,11 +1043,12 @@ DataType
 oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
 {
     *funcExists = TRUE;
+    char *capName = strToUpper(fName);
 
     // aggregation functions
-    if (streq(fName,"sum")
-            || streq(fName, "min")
-            || streq(fName, "max")
+    if (streq(capName,"SUM")
+            || streq(capName, "MIN")
+            || streq(capName, "MAX")
         )
     {
         ASSERT(LIST_LENGTH(dataTypes) == 1);
@@ -1065,7 +1066,7 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
         }
     }
 
-    if (streq(fName,"avg"))
+    if (streq(capName,"AVG"))
     {
         ASSERT(LIST_LENGTH(dataTypes) == 1);
         DataType argType = getNthOfListInt(dataTypes,0);
@@ -1081,10 +1082,10 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
         }
     }
 
-    if (streq(fName,"count"))
+    if (streq(capName,"COUNT"))
         return DT_LONG;
 
-    if (streq(fName,"xmlagg"))
+    if (streq(capName,"XMLAGG"))
         return DT_STRING;
 
     if (streq(fName,"ROW_NUMBER"))
