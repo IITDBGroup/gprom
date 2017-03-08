@@ -457,6 +457,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
     QueryOperator *child;
     ProvenanceComputation *result;
 
+    //get type from options
+
     result = createProvenanceComputOp(prov->provType, NIL, NIL,
             prov->selectClause, prov->dts, NULL);
     result->inputType = prov->inputType;

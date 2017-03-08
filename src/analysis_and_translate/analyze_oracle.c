@@ -1657,10 +1657,12 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
         /* provenance type */
         if (!strcmp(key, "TYPE"))
         {
-            if (!strcmp(value, "PICS"))
+            if (streq(value, "PICS"))
                 prov->provType = PROV_PI_CS;
             else if (!strcmp(value, "TRANSFORMATION"))
                 prov->provType = PROV_TRANSFORMATION;
+            else if (!strcmp(value, "XML"))
+                prov->provType = PROV_XML;
             else
                 FATAL_LOG("Unkown provenance type: <%s>", value);
         }

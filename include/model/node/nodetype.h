@@ -107,6 +107,7 @@ typedef struct Node{
 NEW_ENUM_WITH_TO_STRING(ProvenanceType,
     PROV_PI_CS,
     PROV_TRANSFORMATION,
+    PROV_XML,
     PROV_NONE /* for reenactment of bag semantics only */
 );
 
