@@ -783,7 +783,7 @@ removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
     DEBUG_NODE_BEATIFY_LOG("tables that do not only consist of constants are", tableUpdateOrRead);
 
 //TODO for transaction reenactment his is applied after merging which does not work RC-SI where projection is added, but properties are not moved to new top node
-    FOREACH(QueryOperator,u,op->op.inputs)
+//    FOREACH(QueryOperator,u,op->op.inputs)
     for(int i = 0; i < LIST_LENGTH(op->op.inputs); i++)
     {
         List *tables = NIL;

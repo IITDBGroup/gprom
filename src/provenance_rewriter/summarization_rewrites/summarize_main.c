@@ -59,9 +59,7 @@ rewriteSummaryOutput (char *summaryType, Node *rewrittenTree, List *userQuestion
 		rewrittenTree = rewriteUserQuestion(uQuestion, rewrittenTree);
 
 	provJoin = rewriteProvJoinOutput(uQuestion, rewrittenTree);
-	INFO_OP_LOG("step 1" , provJoin);
 	samples = rewriteSampleOutput(provJoin);
-	INFO_OP_LOG("step 2" , samples);
 	patterns = rewritePatternOutput(sType, samples); //TODO: different types of pattern generation
 	scanSamples = rewriteScanSampleOutput(samples, patterns);
 	candidates = rewriteCandidateOutput(scanSamples);
@@ -127,7 +125,7 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
 	SelectionOperator *so = createSelectionOp(whereClause, samples, NIL, getAttrNames(samples->schema));
 
-	samples->parents = singleton(so);
+	samples->parents = appendToTailOfList(samples->parents,so);
 	samples = (QueryOperator *) so;
 
 	// create projection operator
@@ -146,7 +144,9 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	QueryOperator *computeFrac = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, crossInput, NIL, attrNames);
 
 	// set the parent of the operator's children
-	OP_LCHILD(computeFrac)->parents = OP_RCHILD(computeFrac)->parents = singleton(computeFrac);
+//	OP_LCHILD(computeFrac)->parents = OP_RCHILD(computeFrac)->parents = singleton(computeFrac);
+	samples->parents = appendToTailOfList(samples->parents,computeFrac);
+	candidates->parents = singleton(computeFrac);
 
 	// create projection operator
 	int pos = 0;
@@ -208,7 +208,7 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("compute fraction for summarization:", result);
-//	INFO_OP_LOG("compute fraction for summarization as overview:", result);
+	INFO_OP_LOG("compute fraction for summarization as overview:", result);
 
 	return result;
 }
@@ -313,7 +313,7 @@ rewriteCandidateOutput (Node *scanSampleInput)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("candidate patterns for summarization:", result);
-//	INFO_OP_LOG("candidate patterns for summarization as overview:", result);
+	INFO_OP_LOG("candidate patterns for summarization as overview:", result);
 
 	return result;
 }
@@ -366,7 +366,9 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 	QueryOperator *scanSample = (QueryOperator *) createJoinOp(JOIN_INNER, curCond, inputs, NIL, attrNames);
 
 	// set the parent of the operator's children
-	OP_LCHILD(scanSample)->parents = OP_RCHILD(scanSample)->parents = singleton(scanSample);
+//	OP_LCHILD(scanSample)->parents = OP_RCHILD(scanSample)->parents = singleton(scanSample);
+	samples->parents = appendToTailOfList(samples->parents,scanSample);
+	patterns->parents = singleton(scanSample);
 //	scanSample->provAttrs = provAttrs;
 
 	// create projection for adding "HAS_PROV" attribute
@@ -412,7 +414,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("join patterns with samples for summarization:", result);
-//	INFO_OP_LOG("join patterns with samples for summarization as overview:", result);
+	INFO_OP_LOG("join patterns with samples for summarization as overview:", result);
 
 	return result;
 }
@@ -461,7 +463,9 @@ rewritePatternOutput (char *summaryType, Node *input)
 		QueryOperator *patternJoin = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, crossInput, NIL, attrNames);
 
 		// set the parent of the operator's children
-		OP_LCHILD(patternJoin)->parents = OP_RCHILD(patternJoin)->parents = singleton(patternJoin);
+//		OP_LCHILD(patternJoin)->parents = OP_RCHILD(patternJoin)->parents = singleton(patternJoin);
+		allSample->parents = appendToTailOfList(allSample->parents,patternJoin);
+		provSample->parents = singleton(patternJoin);
 //		patternJoin->provAttrs = provAttrs;
 
 		// create projection operator
@@ -540,7 +544,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 		SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 		DEBUG_NODE_BEATIFY_LOG("pattern generation for summarization:", result);
-//		INFO_OP_LOG("pattern generation for summarization as overview:", result);
+		INFO_OP_LOG("pattern generation for summarization as overview:", result);
 	}
 	else
 	{
@@ -656,7 +660,7 @@ rewriteSampleOutput (Node *input)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("sampling for summarization:", result);
-//	INFO_OP_LOG("sampling for summarization as overview:", result);
+	INFO_OP_LOG("sampling for summarization as overview:", result);
 
 	return result;
 }
@@ -842,7 +846,7 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("rewritten query for summarization returned:", result);
-//	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
+	INFO_OP_LOG("rewritten query for summarization as overview:", rewrittenTree);
 
 	return result;
 }
@@ -883,15 +887,14 @@ rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
 				curCond = AND_EXPRS(curCond,selCond);
 
 			chkPos++;
-
-			so = createSelectionOp(curCond, input, NIL, getAttrNames(input->schema));
-
-			input->parents = singleton(so);
-			input = (QueryOperator *) so;
 		}
 
 		attrPos++;
 	}
+	so = createSelectionOp(curCond, input, NIL, getAttrNames(input->schema));
+
+	input->parents = singleton(so);
+	input = (QueryOperator *) so;
 
 	// create projection operator
 	int pos = 0;
@@ -920,7 +923,7 @@ rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
 //	SET_BOOL_STRING_PROP(rewrittenTree, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("provenance question for summarization:", result);
-//	INFO_OP_LOG("provenance question for summarization as overview:", result);
+	INFO_OP_LOG("provenance question for summarization as overview:", result);
 
 	return result;
 }
