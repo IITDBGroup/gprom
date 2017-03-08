@@ -3356,12 +3356,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
     /* ************************************************************ */
     // check domain rules are assigned by the user
-	List *associateDomainRule;
+//	List *associateDomainRule;
 
     if (!LIST_EMPTY(solvedProgram->doms))
 	{
-    	associateDomainRule = NIL;
-    	DLRule *newDomRule;
+//    	associateDomainRule = NIL;
+//    	DLRule *newDomRule;
 
    		List *edbAttr;
    		char *atomRel = NULL;
@@ -3435,20 +3435,20 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				    				}
 				    			}
 
-				    			FOREACH(DLRule,r,domainRules)
-								{
-				    				FOREACH_HASH(Constant,c,analyzeAtom)
-									{
-				    					if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
-				    					{
-//						    				newDomRule = unifyRule(r,singleton(arg));
-				    						newDomRule = r;
-
-			    							if(!searchListNode(associateDomainRule,(Node *) newDomRule))
-												associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
-				    					}
-									}
-								}
+//				    			FOREACH(DLRule,r,domainRules)
+//								{
+//				    				FOREACH_HASH(Constant,c,analyzeAtom)
+//									{
+//				    					if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
+//				    					{
+////						    				newDomRule = unifyRule(r,singleton(arg));
+//				    						newDomRule = r;
+//
+//			    							if(!searchListNode(associateDomainRule,(Node *) newDomRule))
+//												associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
+//				    					}
+//									}
+//								}
 							}
 						}
 //	    				else if(argConst && !argVar)
@@ -3657,20 +3657,20 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 									}
 								}
 
-								FOREACH(DLRule,r,domainRules)
-								{
-									FOREACH_HASH(Constant,c,analyzeAtom)
-									{
-										if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
-										{
-//											newDomRule = unifyRule(r,singleton(arg));
-											newDomRule = r;
-
-											if(!searchListNode(associateDomainRule,(Node *) newDomRule))
-												associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
-										}
-									}
-								}
+//								FOREACH(DLRule,r,domainRules)
+//								{
+//									FOREACH_HASH(Constant,c,analyzeAtom)
+//									{
+//										if(strcmp(r->head->rel,STRING_VALUE(c)) == 0)
+//										{
+////											newDomRule = unifyRule(r,singleton(arg));
+//											newDomRule = r;
+//
+//											if(!searchListNode(associateDomainRule,(Node *) newDomRule))
+//												associateDomainRule = appendToTailOfList(associateDomainRule,(List *) newDomRule);
+//										}
+//									}
+//								}
 							}
 						}
 //						else if(argConst && !argVar)
@@ -3832,7 +3832,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     				datalogToOverviewString((Node *) negedbRules),
     				datalogToOverviewString((Node *) edbRules),
     	            datalogToOverviewString((Node *) moveRules),
-					datalogToOverviewString((Node *) associateDomainRule));
+					datalogToOverviewString((Node *) domainRules));
 	}
 
     solvedProgram->ans = "move";
@@ -3854,9 +3854,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     else
     {
         if (ruleWon)
-            solvedProgram->rules = CONCAT_LISTS(associateDomainRule, moveRules, edbRules, helpRules, unLinkedRules, newRules);
+            solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, helpRules, unLinkedRules, newRules);
         else
-        	solvedProgram->rules = CONCAT_LISTS(associateDomainRule, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
+        	solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
     }
 
 

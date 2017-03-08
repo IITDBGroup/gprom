@@ -158,11 +158,14 @@ translateProgram(DLProgram *p)
             		dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
 
         			TableAccessOperator *rel = createTableAccessOp(a->rel, NULL, a->rel, NIL, attrNames, dts);
+
+//        			Node *cond = (Node *) createOpExpr("<",LIST_MAKE(makeNode(RowNumExpr),createConstInt(10)));
+//        			SelectionOperator *sel = createSelectionOp(cond, (QueryOperator *) rel, NIL, NULL);
+
         			ProjectionOperator *proj = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) rel);
-
         			addChildOperator((QueryOperator *) proj, (QueryOperator *) rel);
-        			MAP_ADD_STRING_KEY(taOp,a->rel,proj);
 
+        			MAP_ADD_STRING_KEY(taOp,a->rel,proj);
         			key++;
         		}
 			}
