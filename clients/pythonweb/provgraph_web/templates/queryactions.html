@@ -1,0 +1,13 @@
+<h1>GProM Datalog Provenance Graph Generator</h1>
+<form method="post" action="{{ url_for('querysubmit') }}">
+        <p><label>Query:</label> <textarea name="query" required>{{ query }}</textarea></p>
+        <p><button type="submit" name="gengraph">Generate Graph</button><button type="submit" name="genquery">Run Query</button></p>
+</form>
+<form method="post" action="{{ url_for('queryload') }}">
+   <select name="storedQueryForm">
+       {% for q in allQueries %}
+       <option value="{{ q.id }}">{{ q.query }} was run as: {{ q.graphOrResult }}</option>
+       {% endfor %}
+    </select>
+    <button type="submit">load query</button>
+</form>

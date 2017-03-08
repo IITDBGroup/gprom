@@ -41,7 +41,9 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
         GP_NODE_NEGREL_LOST,
         GP_NODE_EBD_WON,
         GP_NODE_EBD_LOST,
-        GP_NODE_HYPEREDGE,
+        GP_NODE_TUPLE_WON,
+        GP_NODE_TUPLE_LOST,
+		GP_NODE_HYPEREDGE,
 		GP_NODE_GOALHYPEREDGE
 );
 
@@ -56,7 +58,9 @@ static char *nodeTypeLabel[] = {
         "notRELLOST",
         "EDBWON",
         "EDBLOST",
-        "RULEHYPEREDGE",
+		"TUPLEWON",
+		"TUPLELOST",
+		"RULEHYPEREDGE",
 		"GOALHYPEREDGE"
 };
 
@@ -79,7 +83,10 @@ static char *nodeTypeCode[] = {
         // EDB
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
         "\n\n\tnode [shape=\"box\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
-        // HYPEREDGE
+		// TUPLE
+		"\n\n\tnode [shape=\"ellipse\", style=filled, color=black, fillcolor=\"" WON_COLOR "\"]\n",
+		"\n\n\tnode [shape=\"ellipse\", style=filled, color=black, fillcolor=\"" LOST_COLOR "\"]\n",
+		// HYPEREDGE
 //        "\n\n\tnode [shape=\"point\", style=invis, width=0, height=0]\n"
 		"\n\n\tnode [shape=\"point\"]\n",
 		// GOALHYPEREDGE
@@ -88,6 +95,8 @@ static char *nodeTypeCode[] = {
 
 
 static char *nodeTypeNodeCode[] = {
+        "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\"]\n",
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
@@ -288,6 +297,11 @@ getNodeLabel (char *node, GPNodeType t)
         {
             return CONCAT_STRINGS(id, args);
         }
+        case GP_NODE_TUPLE_WON:
+		case GP_NODE_TUPLE_LOST:
+		{
+			return CONCAT_STRINGS(id, args);
+		}
         case GP_NODE_HYPEREDGE:
         {
             return CONCAT_STRINGS(id, args);
@@ -344,6 +358,11 @@ getTexNodeLabel (char *node, GPNodeType t)
         {
             return CONCAT_STRINGS("$", id, args, "$");
         }
+        case GP_NODE_TUPLE_WON:
+		case GP_NODE_TUPLE_LOST:
+		{
+			return CONCAT_STRINGS("$", id, args, "$");
+		}
         case GP_NODE_HYPEREDGE:
         {
             return CONCAT_STRINGS(id, args);

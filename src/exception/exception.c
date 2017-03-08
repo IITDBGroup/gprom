@@ -30,6 +30,7 @@ static void sigsegv_handler(int signo);
 
 // macros
 #define SEVER_TO_STRING(s) ((s == SEVERITY_PANIC) ? TB("PANIC") : ((s == SEVERITY_RECOVERABLE) ? TB("RECOVERABLE") : TB("SIGSEGV")))
+#define SEVER_TO_STRING_NO_COLOR(s) ((s == SEVERITY_PANIC) ? "PANIC" : ((s == SEVERITY_RECOVERABLE) ? "RECOVERABLE" : "SIGSEGV"))
 
 // for storing pointer to long jmp stack
 sigjmp_buf *exceptionBuf = NULL;
@@ -72,8 +73,8 @@ processException(void)
         {
             // kill ourselves
             case EXCEPTION_DIE:
-                fprintf(stderr, TB_FG_BG(WHITE,BLACK,"EXCEPTION") " Handler requested us to die because of exception at " \
-                        TCOL(RED,"(%s:%u) ") "\n\n%s",
+                fprintf(stderr, TBLINK_FG_BG(WHITE,RED,"EXCEPTION") " Handler requested us to die because of exception at " \
+                        TCOL(RED,"(%s:%u) ") "\n\n%s\n",
                         file, line, exceptionMessage);
                 exit(1);
                 break;
@@ -89,8 +90,8 @@ processException(void)
         }
         if (severity == SEVERITY_PANIC)
         {
-            fprintf(stderr, TB_FG_BG(WHITE,BLACK,"EXCEPTION") " Do not know how to recover from this %s exception at " \
-                    TCOL(RED,"(%s:%u) ") "\n\n%s",
+            fprintf(stderr, TBLINK_FG_BG(WHITE,RED,"EXCEPTION") " Do not know how to recover from this %s exception at " \
+                    TCOL(RED,"(%s:%u) ") "\n\n%s\n",
                     SEVER_TO_STRING(severity), file, line, exceptionMessage);
             exit(1);
         }
@@ -98,8 +99,8 @@ processException(void)
     // if no exception handler is available then print exception information and exit
     else
     {
-        fprintf(stderr, TB_FG_BG(WHITE,BLACK,"EXCEPTION") " No handler registered for %s exception that has "
-                "occured at " TCOL(RED,"(%s:%u) ") "\n\n%s",
+        fprintf(stderr, TBLINK_FG_BG(WHITE,RED,"EXCEPTION") " No handler registered for %s exception that has "
+                "occured at " TCOL(RED,"(%s:%u) ") "\n\n%s\n",
                     SEVER_TO_STRING(severity), file, line, exceptionMessage);
         exit(1);
     }
@@ -115,6 +116,16 @@ storeExceptionInfo(ExceptionSeverity s, const char *message, const char *f, int 
     RELEASE_MEM_CONTEXT();
     file = f;
     line = l;
+}
+
+char *
+currentExceptionToString(void)
+{
+    StringInfo result = makeStringInfo();
+
+    appendStringInfo(result, "(%s) %s - %u - <%s>", SEVER_TO_STRING_NO_COLOR(severity), file, line, exceptionMessage);
+
+    return result->data;
 }
 
 static void

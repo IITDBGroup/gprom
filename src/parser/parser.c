@@ -20,16 +20,17 @@
 #include "log/logger.h"
 #include "instrumentation/timing_instrumentation.h"
 
+
 // plugin
 static ParserPlugin *plugin = NULL;
 
 // function defs
-//static Node *parseInternal (void);
-
 static ParserPlugin *assembleOraclePlugin(void);
 static ParserPlugin *assemblePostgresPlugin(void);
 static ParserPlugin *assembleHivePlugin(void);
 static ParserPlugin *assembleDLPlugin(void);
+
+static ParserPluginType getPluginTypeFromString (char *type);
 
 // wrapper interface
 Node *
@@ -69,13 +70,51 @@ chooseParserPlugin(ParserPluginType type)
     }
 }
 
+char *
+getParserPluginNameFromString (char *name)
+{
+    chooseParserPluginFromString(name);
+    return getParserPluginName();
+}
+
+char *
+getParserPluginName (void)
+{
+    switch(plugin->type)
+    {
+        case PARSER_PLUGIN_ORACLE:
+            return "Oracle SQL";
+        case PARSER_PLUGIN_POSTGRES:
+            return "Postgres SQL";
+        case PARSER_PLUGIN_HIVE:
+            return "HiveQL";
+        case PARSER_PLUGIN_DL:
+            return "Datalog";
+    }
+}
+
+const char *
+getParserLanguageHelp (void)
+{
+    return plugin->languageHelp;
+}
+
+const char *
+getParserPluginLanguageHelp (char *lang)
+{
+    chooseParserPluginFromString(lang);
+    return getParserLanguageHelp();
+}
+
 static ParserPlugin *
 assembleOraclePlugin(void)
 {
     ParserPlugin *p = NEW(ParserPlugin);
 
+    p->type = PARSER_PLUGIN_ORACLE;
     p->parseStream = parseStreamOracle;
     p->parseFromString = parseFromStringOracle;
+    p->languageHelp = languageHelpOracle();
 
     return p;
 }
@@ -85,8 +124,10 @@ assemblePostgresPlugin(void)
 {
     ParserPlugin *p = NEW(ParserPlugin);
 
+    p->type = PARSER_PLUGIN_POSTGRES;
     p->parseStream = parseStreamPostgres;
     p->parseFromString = parseFromStringPostgres;
+    p->languageHelp = "";
 
     return p;
 }
@@ -108,8 +149,10 @@ assembleDLPlugin(void)
 {
     ParserPlugin *p = NEW(ParserPlugin);
 
+    p->type = PARSER_PLUGIN_DL;
     p->parseStream = parseStreamdl;
     p->parseFromString = parseFromStringdl;
+    p->languageHelp = languageHelpDL();
 
     return p;
 }
@@ -119,14 +162,20 @@ chooseParserPluginFromString(char *type)
 {
     INFO_LOG("PLUGIN parser: <%s>", type ? type : "NULL");
 
-    if (streq(type,"oracle"))
-        chooseParserPlugin(PARSER_PLUGIN_ORACLE);
-    else if (streq(type,"postgres"))
-        chooseParserPlugin(PARSER_PLUGIN_POSTGRES);
-    else if (streq(type,"hive"))
-        chooseParserPlugin(PARSER_PLUGIN_HIVE);
-    else if (streq(type,"dl"))
-        chooseParserPlugin(PARSER_PLUGIN_DL);
+    chooseParserPlugin(getPluginTypeFromString(type));
+}
+
+static ParserPluginType
+getPluginTypeFromString (char *type)
+{
+    if (strpeq(type,"oracle"))
+        return (PARSER_PLUGIN_ORACLE);
+    else if (strpeq(type,"postgres"))
+        return (PARSER_PLUGIN_POSTGRES);
+    else if (strpeq(type,"hive"))
+        return (PARSER_PLUGIN_HIVE);
+    else if (strpeq(type,"dl"))
+        return (PARSER_PLUGIN_DL);
     else
         FATAL_LOG("unkown parser plugin type: <%s>", type);
 }

@@ -22,6 +22,7 @@ static rc testFunctionCall (void);
 static rc testConstant (void);
 static rc testOperator (void);
 static rc testExpressionToSQL (void);
+static rc testAutoCasting (void);
 
 /* check expression model */
 rc
@@ -32,7 +33,7 @@ testExpr (void)
     RUN_TEST(testConstant(), "test constant nodes");
     RUN_TEST(testOperator(), "test operator nodes");
     RUN_TEST(testExpressionToSQL(), "test code that translates an expression tree into SQL code");
-
+    RUN_TEST(testAutoCasting(), "test code that introduces casts for function and operator arguments where necessary");
     return PASS;
 }
 
@@ -132,6 +133,43 @@ testExpressionToSQL()
 
     o = createOpExpr("+", LIST_MAKE(createAttributeReference("a"), createConstInt(2)));
     ASSERT_EQUALS_STRING("(a + 2)", exprToSQL((Node *) o), "translate expression into SQL code (a + 2)");
+
+    return PASS;
+}
+
+static rc
+testAutoCasting (void)
+{
+    Operator *o, *result, *exp;
+
+    // check addition with float and int
+    o = createOpExpr("+", LIST_MAKE(createConstFloat(1), createConstInt(2)));
+    result = (Operator *) addCastsToExpr((Node *) o, FALSE);
+    exp = createOpExpr("+", LIST_MAKE(createConstFloat(1), createCastExpr((Node *) createConstInt(2), DT_FLOAT)));
+
+    ASSERT_EQUALS_NODE(exp,result,"1.0 + 2 -> 1 + CAST(2 AS FLOAT)");
+
+    // check cast for equality
+    o = createOpExpr("=", LIST_MAKE(createConstString("1"), createConstInt(2)));
+    result = (Operator *) addCastsToExpr((Node *) o, FALSE);
+    exp = createOpExpr("=", LIST_MAKE(createConstString("1"), createCastExpr((Node *) createConstInt(2), DT_STRING)));
+
+    ASSERT_EQUALS_NODE(exp,result,"\"1\" = 2 -> \"1\" = CAST(2 AS STRING)");
+
+    // check where both args have to be casted
+    o = createOpExpr("||", LIST_MAKE(createConstFloat(1.0), createConstInt(2)));
+    result = (Operator *) addCastsToExpr((Node *) o, FALSE);
+    exp = createOpExpr("||", LIST_MAKE(createCastExpr((Node *) createConstFloat(1.0), DT_STRING), createCastExpr((Node *) createConstInt(2), DT_STRING)));
+
+    ASSERT_EQUALS_NODE(exp,result,"1.0 || 2 -> CAST(1.0 AS STRING) || CAST(2 AS STRING)");
+
+    // check parse nested expressions
+    o = createOpExpr("*", LIST_MAKE(createConstFloat(1), createOpExpr("+", LIST_MAKE(createConstInt(2), createConstFloat(1.0)))));
+    result = (Operator *) addCastsToExpr((Node *) o, FALSE);
+    exp = createOpExpr("*", LIST_MAKE(createConstFloat(1),
+            createOpExpr("+", LIST_MAKE(createCastExpr((Node *) createConstInt(2), DT_FLOAT), createConstFloat(1.0)))));
+
+    ASSERT_EQUALS_NODE(exp,result,"1.0 * (2 + 1.0)  = 2 -> \"1\" = 1.0 * (CAST(2 AS FLOAT) + 1.0)");
 
     return PASS;
 }

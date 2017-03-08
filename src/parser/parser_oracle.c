@@ -19,6 +19,17 @@
 #include "sql_parser.tab.h"
 #include "instrumentation/timing_instrumentation.h"
 
+static const char *languageHelp = "The user can specify a datalog program as a list of statements. "
+        "A statement is either a rule, an answer predicate declaration, "
+        "a regular path expression, or a provenance question.\n\n"
+        "RULE: A rule is of the following form:\n"
+        "\t\tQ(X1, ..., Xn) :- BODY .\n"
+        "\twhere Q is an IDB predicate and each Xi is an expression over constants and variables from the body\n"
+        "\tand BODY is a list of RELATIONAL ATOM and COMPARISON ATOM elements\n"
+        "\tA RELATIONAL ATOM is of the form [NOT] R(Y1, ..., Yn) where R is an EDB or IDB predicate and each Yi is either a constant of a variable\n"
+        "\tA COMPARISON ATOM is of the form X op Y WHERE X and Y are constants or variables and op is one of <,>,=,!=\n"
+        ;
+
 static Node *parseInternalOracle (void);
 
 Node *
@@ -36,6 +47,12 @@ parseFromStringOracle (char *input)
     setupStringInput(input);
 
     return parseInternalOracle();
+}
+
+const char *
+languageHelpOracle (void)
+{
+    return languageHelp;
 }
 
 static Node *

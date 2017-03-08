@@ -27,12 +27,12 @@
 
 
 /* types of supported plugins */
-typedef enum MetadataLookupPluginType
-{
+NEW_ENUM_WITH_TO_STRING(MetadataLookupPluginType,
     METADATA_LOOKUP_PLUGIN_ORACLE,
     METADATA_LOOKUP_PLUGIN_POSTGRES,
+    METADATA_LOOKUP_PLUGIN_SQLITE,
     METADATA_LOOKUP_PLUGIN_EXTERNAL
-} MetadataLookupPluginType;
+);
 
 /* catalog cache */
 typedef struct CatalogCache
@@ -62,6 +62,7 @@ typedef struct MetadataLookupPlugin
     int (*databaseConnectionOpen) (void);
     int (*databaseConnectionClose) (void);
     int (*shutdownMetadataLookupPlugin) (void);
+    char * (*connectionDescription) (void);
 
     /* catalog lookup */
     boolean (*catalogTableExists) (char * tableName);
@@ -72,8 +73,8 @@ typedef struct MetadataLookupPlugin
 
     boolean (*isAgg) (char *functionName);
     boolean (*isWindowFunction) (char *functionName);
-    DataType (*getFuncReturnType) (char *fName, List *argTypes);
-    DataType (*getOpReturnType) (char *oName, List *argTypes);
+    DataType (*getFuncReturnType) (char *fName, List *argTypes, boolean *funcExists);
+    DataType (*getOpReturnType) (char *oName, List *argTypes, boolean *funcExists);
 
     char * (*getTableDefinition) (char *tableName);
     char * (*getViewDefinition) (char *viewName);
@@ -94,6 +95,7 @@ typedef struct MetadataLookupPlugin
 
 } MetadataLookupPlugin;
 
+#define INVALID_SCN -1
 
 /* store active plugin */
 extern MetadataLookupPlugin *activePlugin;
@@ -112,6 +114,7 @@ extern int shutdownMetadataLookupPlugin (void);
 extern int databaseConnectionOpen (void);
 extern int databaseConnectionClose(void);
 extern boolean isInitialized (void);
+extern char *getConnectionDescription (void);
 
 extern boolean catalogTableExists (char * tableName);
 extern boolean catalogViewExists (char * viewName);
@@ -121,8 +124,8 @@ extern Node *getAttributeDefaultVal (char *schema, char *tableName, char *attrNa
 extern List *getAttributeDataTypes (char *tableName);
 extern boolean isAgg(char *functionName);
 extern boolean isWindowFunction(char *functionName);
-extern DataType getFuncReturnType (char *fName, List *argTypes);
-extern DataType getOpReturnType (char *oName, List *argTypes);
+extern DataType getFuncReturnType (char *fName, List *argTypes, boolean *funcExists);
+extern DataType getOpReturnType (char *oName, List *argTypes, boolean *opExists);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
 extern List *getKeyInformation (char *tableName);

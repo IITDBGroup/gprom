@@ -20,12 +20,11 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "model/set/set.h"
 #include "model/query_operator/operator_property.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
 
-
-//static Schema *mergeSchemas (List *inputs);
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
-//static boolean KeyValueKeyEqString (void *kv, void *str);
+static unsigned numOpsInTreeInternal (QueryOperator *q, unsigned int *count);
 static boolean countUniqueOpsVisitor(QueryOperator *op, void *context);
 static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context), void *context,
@@ -48,7 +47,6 @@ createAttributeDef (char *name, DataType dt)
 
     result->dataType = dt;
     result->attrName = name;
-    result->pos = 0;
 
     return result;
 }
@@ -386,26 +384,152 @@ getCondOpList(List *l1, List *l2)
 
 
 List *
-getDataTypes (Schema *schema)
+getDataTypes(Schema *schema)
+{
+    return getAttrDataTypes(schema->attrDefs);
+}
+
+
+
+List *
+getAttrNames(Schema *schema)
+{
+    return getAttrDefNames(schema->attrDefs);
+}
+
+List *
+getAttrDefNames(List *defs)
 {
     List *result = NIL;
 
-    FOREACH(AttributeDef,a,schema->attrDefs)
-    result = appendToTailOfListInt(result, a->dataType);
+    FOREACH(AttributeDef,a,defs)
+        result = appendToTailOfList(result, a->attrName);
+
+    return result;
+}
+
+
+List *
+getAttrDataTypes(List *defs)
+{
+    List *result = NIL;
+
+    FOREACH(AttributeDef,a,defs)
+        result = appendToTailOfListInt(result, a->dataType);
 
     return result;
 }
 
 List *
-getAttrNames(Schema *schema)
+inferOpResultDTs (QueryOperator *op)
 {
-    List *result = NIL;
+    List *resultDTs = NIL;
 
-    FOREACH(AttributeDef,a,schema->attrDefs)
-    result = appendToTailOfList(result, a->attrName);
+    switch(op->type)
+    {
+        case T_ProjectionOperator:
+        {
+            ProjectionOperator *o = (ProjectionOperator *) op;
+            FOREACH(Node,e,o->projExprs)
+            {
+                resultDTs = appendToTailOfListInt(resultDTs, typeOf(e));
+            }
+        }
+        break;
+        case T_JoinOperator:
+        {
+            resultDTs = CONCAT_LISTS(getDataTypes(GET_OPSCHEMA(OP_LCHILD(op))), getDataTypes(GET_OPSCHEMA(OP_RCHILD(op))));
+        }
+        break;
+        case T_AggregationOperator:
+        {
+            AggregationOperator *o = (AggregationOperator *) op;
+            FOREACH(Node,e,o->aggrs)
+            {
+                resultDTs = appendToTailOfListInt(resultDTs, typeOf(e));
+            }
+            FOREACH(Node,e,o->groupBy)
+            {
+                resultDTs = appendToTailOfListInt(resultDTs, typeOf(e));
+            }
+        }
+        break;
+        case T_WindowOperator:
+        {
+            WindowOperator *o = (WindowOperator *) op;
+            resultDTs = getDataTypes(GET_OPSCHEMA(OP_LCHILD(op)));
+            resultDTs = appendToTailOfListInt(resultDTs, typeOf(o->f));
+        }
+        break;
+        case T_SelectionOperator:
+        case T_OrderOperator:
+        case T_DuplicateRemoval:
+        case T_SetOperator:
+        {
+            resultDTs = getDataTypes(GET_OPSCHEMA(OP_LCHILD(op)));
+        }
+        break;
+                // Check Attribute that we use as Json Column should be from/should exist in child
+        case T_JsonTableOperator:
+        {
+            JsonTableOperator *o = (JsonTableOperator *)op;
+            resultDTs = getDataTypes(GET_OPSCHEMA(OP_LCHILD(op)));
+            for(int i = 0; i < LIST_LENGTH(o->columns); i++)
+                resultDTs = appendToTailOfListInt(resultDTs, DT_VARCHAR2); //TODO until more types supported
+        }
+        break;
+        case T_TableAccessOperator:
+        {
+            resultDTs = getDataTypes(GET_OPSCHEMA(op));
+        }
+        break;
+        case T_ProvenanceComputation:
+        {
+            resultDTs = getDataTypes(GET_OPSCHEMA(op));//TODO
+        }
+        break;
+        case T_NestingOperator:
+        {
+            NestingOperator *n = (NestingOperator *) op;
+            DataType nType;
 
-    return result;
+            resultDTs = getDataTypes(GET_OPSCHEMA(OP_LCHILD(op)));
+
+            switch(n->nestingType)
+            {
+                case NESTQ_EXISTS:
+                case NESTQ_ANY:
+                case NESTQ_ALL:
+                case NESTQ_UNIQUE:
+                {
+                    nType = DT_BOOL;
+                }
+                case NESTQ_SCALAR:
+                {
+                    nType = DT_STRING; //TODO
+                }
+                break;
+            }
+
+            resultDTs = appendToTailOfListInt(resultDTs, nType);
+        }
+        break;
+        case T_ConstRelOperator:
+        {
+            ConstRelOperator *c = (ConstRelOperator *) op;
+            FOREACH(Node,v,c->values)
+            {
+                resultDTs = appendToTailOfListInt(resultDTs, typeOf(v));
+            }
+        }
+        break;
+        default:
+            FATAL_LOG("needs to be implemented!");
+            break;
+    }
+    return resultDTs;
 }
+
 
 TableAccessOperator *
 createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
@@ -578,13 +702,13 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
 }
 
 ProvenanceComputation *
-createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, Node *asOf)
+createProvenanceComputOp(ProvenanceType provType, List *inputs, List *parents, List *attrNames, List *dts, Node *asOf)
 {
     ProvenanceComputation *p = makeNode(ProvenanceComputation);
 
     p->op.parents = parents;
     p->op.inputs = inputs;
-    p->op.schema = createSchemaFromLists("PROVENANCE", attrNames, NULL);
+    p->op.schema = createSchemaFromLists("PROVENANCE", attrNames, dts);
     p->provType = provType;
     p->asOf = asOf;
 
@@ -1172,6 +1296,7 @@ numOpsInGraph (QueryOperator *root)
     return INT_VALUE(c);
 }
 
+
 static boolean
 countUniqueOpsVisitor(QueryOperator *op, void *context)
 {
@@ -1186,6 +1311,37 @@ countUniqueOpsVisitor(QueryOperator *op, void *context)
     }
     return TRUE;
 }
+
+#define PROP_CHILD_COUNT "CC"
+
+unsigned int
+numOpsInTree (QueryOperator *root)
+{
+    unsigned int result = 0;
+    NEW_AND_ACQUIRE_MEMCONTEXT("QO_GRAPH_VISITOR_CONTEXT");
+    numOpsInTreeInternal(root, &result);
+    removeProp(root, PROP_CHILD_COUNT);
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+    return result;
+}
+
+static unsigned int
+numOpsInTreeInternal (QueryOperator *q, unsigned int *count)
+{
+    unsigned int opC = 1;
+    if (HAS_STRING_PROP(q, PROP_CHILD_COUNT))
+    {
+        opC = INT_VALUE(GET_STRING_PROP(q, PROP_CHILD_COUNT));
+        (*count) += opC;
+        return opC;
+    }
+
+    FOREACH(QueryOperator,c,q->inputs)
+        opC += numOpsInTreeInternal(c, count);
+    SET_STRING_PROP(q, PROP_CHILD_COUNT, createConstInt(opC));
+    return opC;
+}
+
 
 //static Schema *
 //mergeSchemas (List *inputs)

@@ -72,7 +72,7 @@ whitespace		({space}+|{comment})
 integer 		[0-9]+
 decimal 		({integer}*\.{integer}+|{integer}+\.{integer}*)
 float 			(({integer}|{decimal})([eE][+-]?{integer})?)
-
+bool			("TRUE"|"FALSE")
 /* names (e.g., tables, attributes) */
 identStart		[A-Za-z]
 identContinue	[A-Za-z0-9_%?]
@@ -87,7 +87,7 @@ parameters		[:]({identifiers}|{integer})
 /* operators */
 /* comparisonOps	['!'|'<'|'>'|'=']{1,2} */ 
 comparisonOps   ("="|"<>"|"!="|"<"|">"|"<="|">=")
-/*shiftsOps		["<<"|">>"] */
+/*shiftsOps		("<<"|">>") */
 /* string concatenation */
 strconcat		"||"
 
@@ -200,7 +200,15 @@ strconcat		"||"
 (?i:ANNOTATIONS)	TOK(ANNOTATIONS)
 (?i:NO)				TOK(NO)
 (?i:CAST)			TOK(CAST)
+(?i:ALTER)			TOK(ALTER)
+(?i:ADD)			TOK(ADD)
+(?i:REMOVE)			TOK(REMOVE)
+(?i:COLUMN)			TOK(COLUMN)
+(?i:CREATE)			TOK(CREATE)
+(?i:REENACT)		TOK(REENACT)
 
+	/* booleans */
+{bool}			TOK(boolConst)
 
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)

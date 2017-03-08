@@ -22,38 +22,10 @@
 
 #define LIBARY_REWRITE_CONTEXT "LIBGRPROM_QUERY_CONTEXT"
 
-
-
-/* mutex to prevent reentrance of library methods for now */
-pthread_mutex_t gpromLibMutex = PTHREAD_MUTEX_INITIALIZER;
-
-#define LOCK_MUTEX() do { \
-		printf("TRY TO GET MUTEX\n"); \
-		fflush(stdout); \
-		pthread_mutex_lock (&gpromLibMutex); \
-		printf("GOT MUTEX\n"); \
-		fflush(stdout); \
-    } while (0)
-#define UNLOCK_MUTEX() do { \
-        printf("ABOUT TO RELEASE MUTEX\n"); \
-        fflush(stdout); \
-        pthread_mutex_unlock (&gpromLibMutex); \
-        printf("RELEASED MUTEX\n"); \
-        fflush(stdout); \
-    } while (0)
-
-// #define CREATE_MUTEX() pthread_mutex_init(&gpromLibMutex, NULL);
+#define LOCK_MUTEX() printf("\nMUTEX\n%s:%u", __FILE__, __LINE__)
+#define UNLOCK_MUTEX() printf("\nUNLOCK\n%s:%u", __FILE__, __LINE__)
 #define CREATE_MUTEX()
-#define DESTROY_MUTEX() pthread_mutex_destroy(&gpromLibMutex); printf("DESTROYED MUTEX\n"); fflush(stdout);
-
-//#define LOCK_MUTEX()
-//    printf("try to log mutex");
-//    pthread_mutex_lock(&gpromLibMutex)
-//
-//#define UNLOCK_MUTEX()
-//    printf("unlock mutex");
-//    pthread_mutex_unlock(&
-
+#define DESTROY_MUTEX()
 
 void
 gprom_init(void)
@@ -113,9 +85,19 @@ gprom_rewriteQuery(const char *query)
     LOCK_MUTEX();
     NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
     char *result = "";
-    char *returnResult;
-    result = rewriteQuery((char *) query);
-    RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
+    char *returnResult = NULL;
+    TRY
+    {
+        result = rewriteQueryWithRethrow((char *) query);
+        UNLOCK_MUTEX();
+        RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
+    }
+    ON_EXCEPTION
+    {
+        ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+    }
+    END_ON_EXCEPTION
+
     UNLOCK_MUTEX();
     return returnResult;
 }
@@ -175,6 +157,18 @@ boolean
 gprom_optionExists(const char *name)
 {
     return hasOption((char *) name);
+}
+
+void
+gprom_setOptionsFromMap()
+{
+
+}
+
+void
+gprom_setOption(const char *name, const char *value)
+{
+    return setOption((char *) name, strdup((char *) value));
 }
 
 void

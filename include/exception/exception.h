@@ -12,6 +12,7 @@
 #define INCLUDE_EXCEPTION_EXCEPTION_H_
 
 #include "common.h"
+#include "log/logger.h"
 #include "utility/enum_magic.h"
 
 /*
@@ -30,11 +31,11 @@ NEW_ENUM_WITH_TO_STRING(ExceptionHandler,
 /*
  * Enum indicating severity of an exception
  */
-typedef enum ExceptionSeverity {
+NEW_ENUM_WITH_TO_STRING(ExceptionSeverity,
     SEVERITY_PANIC,
     SEVERITY_RECOVERABLE,
     SEVERITY_SIGSEGV
-} ExceptionSeverity;
+);
 
 // callback function for exception handling
 typedef ExceptionHandler (*GProMExceptionCallbackFunctionInternal) (const char *, const char *, int, ExceptionSeverity);
@@ -45,6 +46,7 @@ extern void registerSignalHandler(void);
 extern void deregisterSignalHandler(void);
 extern void processException(void);
 extern void storeExceptionInfo(ExceptionSeverity s, const char *message, const char *f, int l);
+extern char *currentExceptionToString(void);
 
 extern sigjmp_buf *exceptionBuf;
 
@@ -52,26 +54,35 @@ extern sigjmp_buf *exceptionBuf;
 #define TRY \
     do { \
         sigjmp_buf _exceptionBuf; \
+        sigjmp_buf *save_previous_jmpbuf = exceptionBuf; \
         if(!setjmp(_exceptionBuf)) { \
         	exceptionBuf = &_exceptionBuf; \
 
 #define END_TRY \
         } else { \
 			processException(); \
+			exceptionBuf = save_previous_jmpbuf; \
 		}   \
-		exceptionBuf = NULL; \
+		exceptionBuf = save_previous_jmpbuf; \
     } while (0);
 
 // try-on-exception block implementation
 #define ON_EXCEPTION \
-    } else {
-
+    } else { \
+        exceptionBuf = save_previous_jmpbuf;
 
 #define END_ON_EXCEPTION \
             processException(); \
             exceptionBuf = NULL; \
         } \
+		exceptionBuf = save_previous_jmpbuf; \
     } while (0);
+
+#define PROCESS_EXCEPTION_AND_DIE() \
+    do { \
+         processException(); \
+         exit(1); \
+    } while (0)
 
 //TODO
 #define CATCH \
@@ -94,5 +105,12 @@ extern sigjmp_buf *exceptionBuf;
         else \
             exit(1); \
     } while(0)
+
+// rethrow an exception in an ON_EXCEPTION block
+#define RETHROW() \
+    do { \
+    	longjmp(*exceptionBuf, 1); \
+    } while(0)
+
 
 #endif /* INCLUDE_EXCEPTION_EXCEPTION_H_ */

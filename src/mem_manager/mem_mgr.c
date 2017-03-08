@@ -79,18 +79,18 @@ destroyMemManager(void)
     }
     // free all contexts in the context stack except default context
 
-    ASSERT(topContextNode->mc == defaultMemContext);
-    ASSERT(curMemContext == defaultMemContext);
-    int size = memContextSize(defaultMemContext);
-    if (size > 0)
-    {
-        CLEAR_CUR_MEM_CONTEXT();
-        free(defaultMemContext);
-    }
-    else if (size == 0)
-    {
-        free(defaultMemContext);
-    }
+//    ASSERT(topContextNode->mc == defaultMemContext);
+//    ASSERT(curMemContext == defaultMemContext);
+//    int size = memContextSize(defaultMemContext);
+//    if (size > 0)
+//    {
+//        CLEAR_CUR_MEM_CONTEXT();
+//        free(defaultMemContext);
+//    }
+//    else if (size == 0)
+//    {
+//        free(defaultMemContext);
+//    }
     // free default context
 
     free(topContextNode); // free default context node

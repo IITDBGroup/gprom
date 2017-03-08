@@ -346,4 +346,14 @@ public class PropertyWrapper extends Properties {
 	public int getSubPropertiesNum (String prefix) {
 		return this.keySet().size();
 	}
+	
+	public PropertyWrapper trimProperties () {
+		for(Object key: keySet()) {
+			String k = (String) key;
+			String val = (String) get(k);
+			val = val.trim();
+			put(key, val);
+		}
+		return this;
+	}
 }

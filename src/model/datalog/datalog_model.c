@@ -75,13 +75,14 @@ createDLRule (DLAtom *head, List *body)
 
 
 DLProgram *
-createDLProgram (List *dlRules, List *facts, char *ans)
+createDLProgram (List *dlRules, List *facts, char *ans, List *doms)
 {
     DLProgram *result = makeNode(DLProgram);
 
     result->rules = dlRules;
     result->facts = facts;
     result->ans = ans;
+    result->doms = doms;
 
     return result;
 }
@@ -92,6 +93,18 @@ createDLComparison (char *op, Node *lArg, Node *rArg)
     DLComparison *result = makeNode(DLComparison);
 
     result->opExpr = createOpExpr(op, LIST_MAKE(lArg, rArg));
+
+    return result;
+}
+
+DLDomain *
+createDLDomain (char *rel, char *attr, char *dom)
+{
+    DLDomain *result = makeNode(DLDomain);
+
+    result->rel = rel;
+    result->attr = attr;
+    result->name = dom;
 
     return result;
 }

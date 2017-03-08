@@ -33,6 +33,7 @@
 #define HASH_INT(a) cur = hashInt(cur, node->a)
 #define HASH_BOOLEAN(a) cur = hashBool(cur, node->a)
 #define HASH_NODE(a) cur = hashValueInternal(cur, node->a)
+#define HASH_STRING_LIST(a) cur = hashStringList(cur, node->a);
 
 // hash functions for simple types
 static inline uint64_t hashInt(uint64_t cur, int value);
@@ -520,7 +521,7 @@ static uint64_t
 hashFromItem (uint64_t cur, FromItem *node)
 {
     HASH_STRING(name);
-    HASH_NODE(attrNames);
+    HASH_STRING_LIST(attrNames);
     HASH_NODE(dataTypes);
     HASH_NODE(provInfo);
 
@@ -587,7 +588,7 @@ hashNestedSubquery (uint64_t cur, NestedSubquery *node)
 static uint64_t
 hashInsert (uint64_t cur, Insert *node)
 {
-    HASH_STRING(tableName);
+    HASH_STRING(insertTableName);
     HASH_NODE(attrList);
     HASH_NODE(query);
 
@@ -598,7 +599,7 @@ hashInsert (uint64_t cur, Insert *node)
 static uint64_t
 hashDelete (uint64_t cur, Delete *node)
 {
-    HASH_STRING(nodeName);
+    HASH_STRING(deleteTableName);
     HASH_NODE(cond);
 
     HASH_RETURN();
@@ -608,7 +609,7 @@ hashDelete (uint64_t cur, Delete *node)
 static uint64_t
 hashUpdate (uint64_t cur, Update *node)
 {
-    HASH_STRING(nodeName);
+    HASH_STRING(updateTableName);
     HASH_NODE(selectClause);
     HASH_NODE(cond);
 
@@ -658,7 +659,6 @@ hashAttributeDef (uint64_t cur, AttributeDef *node)
 {
     HASH_INT(dataType);
     HASH_STRING(attrName);
-    HASH_INT(pos);
 
     HASH_RETURN();
 }
@@ -894,6 +894,7 @@ hashValueInternal(uint64_t h, void *a)
     switch(n->type)
     {
         case T_List:
+        case T_IntList:
             return hashList(h,(List *) n);
         /* expression nodes */
         case T_Set:

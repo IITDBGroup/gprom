@@ -109,6 +109,7 @@ static boolean prepareQuery(char *qName, char *query, int parameters,
         Oid *types);
 static void prepareLookupQueries(void);
 static void fillOidToDTMap (HashMap *oidToDT);
+static char *postgresGetConnectionDescription (void);
 static List *oidVecToDTList (char *oidVec);
 static DataType postgresOidToDT(char *Oid);
 static DataType postgresTypenameToDT (char *typName);
@@ -184,6 +185,8 @@ assemblePostgresMetadataLookupPlugin (void)
     p->executeAsTransactionAndGetXID = postgresExecuteAsTransactionAndGetXID;
     p->getCostEstimation = postgresGetCostEstimation;
     p->getKeyInformation = postgresGetKeyInformation;
+    p->executeQuery = postgresExecuteQuery;
+    p->connectionDescription = postgresGetConnectionDescription;
 
     return p;
 }
@@ -237,16 +240,12 @@ postgresDatabaseConnectionOpen (void)
     ACQUIRE_MEM_CONTEXT(memContext);
 
     /* create connection string */
-//    if (op->host)
-        appendStringInfo(connStr, " host=%s", getStringOption("connection.host"));
-//    if (op->db)
-        appendStringInfo(connStr, " dbname=%s", getStringOption("connection.db"));
-//    if (op->user)
-        appendStringInfo(connStr, " user=%s", getStringOption("connection.user"));
+    appendStringInfo(connStr, " host=%s", getStringOption("connection.host"));
+    appendStringInfo(connStr, " dbname=%s", getStringOption("connection.db"));
+    appendStringInfo(connStr, " user=%s", getStringOption("connection.user"));
     if (optionSet("connection.passwd"))
         appendStringInfo(connStr, " password=%s", getStringOption("connection.passwd"));
-//    if (op->port)
-        appendStringInfo(connStr, " port=%u", getIntOption("connection.port"));
+    appendStringInfo(connStr, " port=%u", getIntOption("connection.port"));
 
     /* try to connect to db */
     plugin->conn = PQconnectdb(connStr->data);
@@ -270,6 +269,13 @@ postgresDatabaseConnectionOpen (void)
 
     RELEASE_MEM_CONTEXT();
     return EXIT_SUCCESS;
+}
+
+static char *
+postgresGetConnectionDescription (void)
+{
+    return CONCAT_STRINGS("Postgres:", getStringOption("connection.user"), "@",
+            getStringOption("connection.host"), ":", getStringOption("connection.db"));
 }
 
 static void
@@ -355,14 +361,15 @@ postgresIsInitialized (void)
 }
 
 DataType
-postgresGetFuncReturnType (char *fName, List *argTypes)
+postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
     PGresult *res = NULL;
     DataType resType = DT_STRING;
+    *funcExists = TRUE;
 
     ACQUIRE_MEM_CONTEXT(memContext);
 
-    //TODO cache operator information
+    //TODO cache function information
     res = execPrepared(NAME_GET_FUNC_DEFS,
             LIST_MAKE(createConstString(fName),
                     createConstInt(LIST_LENGTH(argTypes))));
@@ -374,22 +381,26 @@ postgresGetFuncReturnType (char *fName, List *argTypes)
         List *argDTs = oidVecToDTList(argTypes);
 
         if (equal(argDTs, argTypes)) //TODO compatible data types
+        {
+            RELEASE_MEM_CONTEXT();
             return postgresOidToDT(retType);
+        }
     }
 
     PQclear(res);
 
     RELEASE_MEM_CONTEXT();
-
+    *funcExists = FALSE;
     return resType;
 }
 
 DataType
-postgresGetOpReturnType (char *oName, List *argTypes)
+postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
     PGresult *res = NULL;
     DataType resType = DT_STRING;
 
+    *opExists = TRUE;
     ACQUIRE_MEM_CONTEXT(memContext);
 
     //TODO cache operator information
@@ -399,11 +410,20 @@ postgresGetOpReturnType (char *oName, List *argTypes)
 
     for(int i = 0; i < PQntuples(res); i++)
     {
+        char *retType = PQgetvalue(res,i,0);
+        char *argTypes = PQgetvalue(res,i,1);
+        List *argDTs = oidVecToDTList(argTypes);
 
+        if (equal(argDTs, argTypes)) //TODO compatible data types
+        {
+            RELEASE_MEM_CONTEXT();
+            return postgresOidToDT(retType);
+        }
     }
 
     PQclear(res);
     RELEASE_MEM_CONTEXT();
+    *opExists = FALSE;
 
     return resType;
 }
@@ -790,6 +810,48 @@ postgresTypenameToDT (char *typName)
     return DT_STRING;
 }
 
+Relation *
+postgresExecuteQuery(char *query)
+{
+    Relation *r = makeNode(Relation);
+    PGresult *rs = execQuery(query);
+    int numRes = PQntuples(rs);
+    int numFields = PQnfields(rs);
+
+    // set schema
+    r->schema = NIL;
+    for(int i = 0; i < numFields; i++)
+    {
+        char *name = PQfname(rs, i);
+        r->schema = appendToTailOfList(r->schema, strdup((char *) name));
+    }
+
+
+    // read rows
+    r->tuples = NIL;
+    for(int i = 0; i < numRes; i++)
+    {
+        List *tuple = NIL;
+        for (int j = 0; j < numFields; j++)
+        {
+            if (PQgetisnull(rs,i,j))
+            {
+                tuple = appendToTailOfList(tuple, strdup("NULL"));
+            }
+            else
+            {
+                char *val = PQgetvalue(rs,i,j);
+                tuple = appendToTailOfList(tuple, strdup(val));
+            }
+        }
+        r->tuples = appendToTailOfList(r->tuples, tuple);
+        DEBUG_LOG("read tuple <%s>", stringListToString(tuple));
+    }
+    PQclear(rs);
+
+    return r;
+}
+
 
 // NO libpq present. Provide dummy methods to keep compiler quiet
 #else
@@ -898,6 +960,12 @@ postgresGetCostEstimation(char *query)
 
 List *
 postgresGetKeyInformation(char *tableName)
+{
+    return NULL;
+}
+
+Relation *
+postgresExecuteQuery(char *query)
 {
     return NULL;
 }

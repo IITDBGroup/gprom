@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Why GP questions for Positive Nonrecursive Datalog Test cases</comment>
+
+<entry key="options">
+plugin.parser=dl,
+plugin.analyzer=dl,
+plugin.translator=dl
+</entry>
+
+<entry key="q1.query">
+Q(X) :- R(X,Y). WHY(Q(1)).
+</entry>
+<entry key="q1.result">
+A0 | A1 |
+---------
+ GOAL_0_0_WON(1,2) | notREL_R_LOST(1,2) |
+ GOAL_0_0_WON(1,1) | notREL_R_LOST(1,1) |
+ REL_Q_WON(1) | RULE_0_LOST(1,2) |
+ RULE_0_LOST(1,2) | GOAL_0_0_WON(1,2) |
+ RULE_0_LOST(1,1) | GOAL_0_0_WON(1,1) |
+ REL_R_WON(1,1) | EDB_rR_LOST(1,1) |
+ REL_R_WON(1,2) | EDB_rR_LOST(1,2) |
+ REL_Q_WON(1) | RULE_0_LOST(1,1) |
+ notREL_R_LOST(1,2) | REL_R_WON(1,2) |
+ notREL_R_LOST(1,1) | REL_R_WON(1,1) |
+</entry>
+
+<entry key="q2.query">
+Q(X,Y) :- R(X,Y). WHY(Q(1,1)).
+</entry>
+<entry key="q2.result">
+ A0                 | A1                 |
+-----------------------------------------
+ REL_Q_WON(1,1)     | RULE_0_LOST(1,1)   |
+ GOAL_0_0_WON(1,1)  | notREL_R_LOST(1,1) |
+ RULE_0_LOST(1,1)   | GOAL_0_0_WON(1,1)  |
+ REL_R_WON(1,1)     | EDB_rR_LOST(1,1)   |
+ notREL_R_LOST(1,1) | REL_R_WON(1,1)     |
+</entry>
+
+
+<entry key="q3.query">
+Q(X) :- R(X,Y). Q(X) :- R(Y,X). ANS : Q. WHY(Q(2)).
+</entry>
+<entry key="q3.result">
+ A0                 | A1                 |
+-----------------------------------------
+ REL_R_WON(2,1)     | EDB_rR_LOST(2,1)   |
+ REL_R_WON(2,3)     | EDB_rR_LOST(2,3)   |
+ REL_Q_WON(2)       | RULE_0_LOST(2,3)   |
+ REL_Q_WON(2)       | RULE_0_LOST(2,1)   |
+ notREL_R_LOST(1,2) | REL_R_WON(1,2)     |
+ REL_Q_WON(2)       | RULE_1_LOST(2,1)   |
+ GOAL_1_0_WON(1,2)  | notREL_R_LOST(1,2) |
+ RULE_0_LOST(2,1)   | GOAL_0_0_WON(2,1)  |
+ RULE_1_LOST(2,1)   | GOAL_1_0_WON(1,2)  |
+ RULE_0_LOST(2,3)   | GOAL_0_0_WON(2,3)  |
+ REL_R_WON(1,2)     | EDB_rR_LOST(1,2)   |
+ notREL_R_LOST(2,3) | REL_R_WON(2,3)     |
+ notREL_R_LOST(2,1) | REL_R_WON(2,1)     |
+ GOAL_0_0_WON(2,3)  | notREL_R_LOST(2,3) |
+ GOAL_0_0_WON(2,1)  | notREL_R_LOST(2,1) |
+</entry>
+
+<entry key="q4.query">
+Q(X,Y,Z) :- R(X,Y),S(Y,Z). WHY(Q(1,2,2)).
+</entry>
+<entry key="q4.result">
+ A0                 | A1                 |
+-----------------------------------------
+ GOAL_0_0_WON(1,2)  | notREL_R_LOST(1,2) |
+ REL_Q_WON(1,2,2)   | RULE_0_LOST(1,2,2) |
+ RULE_0_LOST(1,2,2) | GOAL_0_1_WON(2,2)  |
+ REL_R_WON(1,2)     | EDB_rR_LOST(1,2)   |
+ notREL_S_LOST(2,2) | REL_S_WON(2,2)     |
+ notREL_R_LOST(1,2) | REL_R_WON(1,2)     |
+ GOAL_0_1_WON(2,2)  | notREL_S_LOST(2,2) |
+ REL_S_WON(2,2)     | EDB_rS_LOST(2,2)   |
+ RULE_0_LOST(1,2,2) | GOAL_0_0_WON(1,2)  |
+</entry>
+
+<entry key="q5.query">
+Q(X,Y) :- UN(X,Y). UN(X,Y) :- R(X,Y). UN(X,Y) :- R(Y,X). ANS : Q. WHY(Q(2,1)).
+</entry>
+<entry key="q5.result">
+ A0                  | A1                  |
+------------------------------------------
+ REL_R_WON(2,1)      | EDB_rR_LOST(2,1)    |
+ RULE_2_LOST(2,1)    | GOAL_2_0_WON(1,2)   |
+ GOAL_1_0_WON(2,1)   | notREL_R_LOST(2,1)  |
+ GOAL_0_0_WON(2,1)   | notREL_UN_LOST(2,1) |
+ REL_UN_WON(2,1)     | RULE_2_LOST(2,1)    |
+ notREL_R_LOST(1,2)  | REL_R_WON(1,2)      |
+ notREL_UN_LOST(2,1) | REL_UN_WON(2,1)     |
+ GOAL_2_0_WON(1,2)   | notREL_R_LOST(1,2)  |
+ REL_Q_WON(2,1)      | RULE_0_LOST(2,1)    |
+ RULE_1_LOST(2,1)    | GOAL_1_0_WON(2,1)   |
+ RULE_0_LOST(2,1)    | GOAL_0_0_WON(2,1)   |
+ REL_R_WON(1,2)      | EDB_rR_LOST(1,2)    |
+ notREL_R_LOST(2,1)  | REL_R_WON(2,1)      |
+ REL_UN_WON(2,1)     | RULE_1_LOST(2,1)    |
+</entry>
+
+<entry key="q6.query">
+Q(X,X) :- R(X,X). WHY(Q(1,1)).
+</entry>
+<entry key="q6.result">
+ A0                 | A1                 |
+-----------------------------------------
+ REL_Q_WON(1,1)     | RULE_0_LOST(1,1)   |
+ GOAL_0_0_WON(1,1)  | notREL_R_LOST(1,1) |
+ RULE_0_LOST(1,1)   | GOAL_0_0_WON(1,1)  |
+ REL_R_WON(1,1)     | EDB_rR_LOST(1,1)   |
+ notREL_R_LOST(1,1) | REL_R_WON(1,1)     |
+</entry>
+
+<!--  comparison atoms not yet supported -->
+<entry key="q7.query">
+Q(X,X) :- R(X,Y), X=2. WHY(Q(2,2)).
+</entry>
+<entry key="q7.result">
+</entry>
+
+<entry key="q8.query">
+Q(X) :- R(X,Y), X &lt; 10. 
+Q(X) :- R(X,Y), Y &gt; 10. 
+ANS : Q.
+WHY(Q(1))).
+</entry>
+<entry key="q8.result">
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+
+</properties>

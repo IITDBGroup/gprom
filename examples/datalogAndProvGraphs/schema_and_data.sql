@@ -1,0 +1,11 @@
+CREATE TABLE hop (
+	   I VARCHAR(200),
+	   O VARCHAR(200),
+	   PRIMARY KEY (I,O)
+);
+
+INSERT INTO hop VALUES ('a','a');
+INSERT INTO hop VALUES ('a','b');
+INSERT INTO hop VALUES ('b','a');
+INSERT INTO hop VALUES ('b','c');
+COMMIT;

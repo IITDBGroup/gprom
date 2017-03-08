@@ -89,6 +89,7 @@ static void initAggList(void);
 static void freeAggList(void);
 static void initWinfList(void);
 static void freeWinfList(void);
+static char *oracleGetConnectionDescription (void);
 static OCI_Transaction *createTransaction(IsolationLevel isoLevel);
 static OCI_Resultset *executeStatement(char *statement);
 static boolean executeNonQueryStatement(char *statement);
@@ -116,6 +117,7 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->databaseConnectionOpen = oracleDatabaseConnectionOpen;
     plugin->databaseConnectionClose = oracleDatabaseConnectionClose;
     plugin->shutdownMetadataLookupPlugin = oracleShutdownMetadataLookupPlugin;
+    plugin->connectionDescription = oracleGetConnectionDescription;
     plugin->isInitialized = oracleIsInitialized;
     plugin->catalogTableExists = oracleCatalogTableExists;
     plugin->catalogViewExists = oracleCatalogViewExists;
@@ -399,6 +401,12 @@ getConnection()
     if(isConnected())
         return conn;
     return NULL;
+}
+
+static char *
+oracleGetConnectionDescription (void)
+{
+    return CONCAT_STRINGS("Oracle:", getStringOption("connection.user"), "@", getStringOption("connection.host"));
 }
 
 boolean
@@ -886,7 +894,11 @@ oracleGetCommitScn (char *tableName, long maxScn, char *xid)
         while(OCI_FetchNext(rs))
             commitScn = (long) OCI_GetBigInt(rs,1);
 
-        ASSERT(commitScn != 0);
+        if(commitScn == 0)
+        {
+            FREE(statement);
+            return INVALID_SCN;
+        }
 
         DEBUG_LOG("statement %s \n\nfinished and returned commit SCN %u",
                 statement->data, maxScn);
@@ -992,14 +1004,46 @@ oracleGetViewDefinition(char *viewName)
 }
 
 DataType
-oracleGetOpReturnType (char *oName, List *dataTypes)
+oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists)
 {
+    *opExists = TRUE;
+
+    if (streq(oName, "+") || streq(oName, "*")  || streq(oName, "-") || streq(oName, "/"))
+    {
+        if (LIST_LENGTH(dataTypes) == 2)
+        {
+            DataType lType = getNthOfListInt(dataTypes, 0);
+            DataType rType = getNthOfListInt(dataTypes, 1);
+
+            if (lType == rType)
+            {
+                if (lType == DT_INT)
+                    return DT_INT;
+                if (lType == DT_FLOAT)
+                    return DT_FLOAT;
+            }
+        }
+    }
+
+    if (streq(oName, "||"))
+    {
+        DataType lType = getNthOfListInt(dataTypes, 0);
+        DataType rType = getNthOfListInt(dataTypes, 1);
+
+        if (lType == rType && lType == DT_STRING)
+            return DT_STRING;
+    }
+    //TODO more operators
+    *opExists = FALSE;
+
     return DT_STRING;
 }
 
 DataType
-oracleGetFuncReturnType (char *fName, List *dataTypes)
+oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
 {
+    *funcExists = TRUE;
+
     // aggregation functions
     if (streq(fName,"sum")
             || streq(fName, "min")
@@ -1047,6 +1091,10 @@ oracleGetFuncReturnType (char *fName, List *dataTypes)
         return DT_INT;
     if (streq(fName, "DENSE_RANK"))
         return DT_INT;
+
+   //TODO
+
+    *funcExists = FALSE;
 
     return DT_STRING;
 }
@@ -1385,7 +1433,7 @@ oracleDatabaseConnectionClose()
 	if(context==NULL)
 	{
 		ERROR_LOG("Metadata context already freed.");
-		return EXIT_FAILURE;
+		return EXIT_SUCCESS;
 	}
 	else
 	{
@@ -1524,13 +1572,13 @@ assembleOracleMetadataLookupPlugin (void)
 }
 
 DataType
-oracleGetOpReturnType (char *oName, List *dataTypes)
+oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists)
 {
     return DT_STRING;
 }
 
 DataType
-oracleGetFuncReturnType (char *fName, List *dataTypes)
+oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
 {
     return DT_STRING;
 }

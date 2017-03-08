@@ -69,6 +69,15 @@ getOutput(LogLevel level)
 }
 
 void
+reinitLogger(void)
+{
+    free(buffer->data);
+    free(buffer);
+
+    initLogger();
+}
+
+void
 initLogger(void)
 {
 //    printf("************* INIT");
@@ -78,7 +87,6 @@ initLogger(void)
     buffer->cursor = 0;
     buffer->data = (char *) malloc(INIT_BUF_SIZE);
     memset(buffer->data, 0, INIT_BUF_SIZE);
-//    logCallback = NULL;
 
     maxLevel = getIntOption("log.level");
 }
@@ -95,6 +103,7 @@ void
 setMaxLevel (LogLevel level)
 {
     maxLevel = level;
+    log_(LOG_INFO, __FILE__, __LINE__, "log level set to: %u", maxLevel);
 }
 
 void
@@ -134,7 +143,8 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
 
         if (logCallback != NULL)
         {
-            printf("********************************************");
+            printf("\nCALL LOGGER ********************************************\n");
+            fflush(stdout);
             logCallback(buffer->data, file, line, level);
             return;
         }
@@ -175,6 +185,8 @@ logNodes_(LogLevel level, const char *file, unsigned line, boolean beat, char * 
 
     if (level <= maxLevel)
     {
+        if (logCallback == NULL)
+        {
         FILE *out = getOutput(level);
         va_list args;
         void *n;
@@ -219,6 +231,34 @@ logNodes_(LogLevel level, const char *file, unsigned line, boolean beat, char * 
         // flush output stream
         fprintf(out, "\n");
         fflush(out);
+        }
+        // use callback
+        else
+        {
+            void *n;
+            char *outMes;
+            va_list args;
+            StringInfo out = makeStringInfo();
+
+            va_start(args, message);
+
+            while((n = va_arg(args, void*)) != NULL)
+            {
+                outMes = toStringFunc(n);
+                if(beat)
+                {
+                    outMes = beatify(outMes);
+                }
+                // output a fixed number of chars at a time to not reach fprintf limit
+                appendStringInfo(out, outMes);
+            }
+
+            va_end(args);
+
+            printf("\nCALL LOGGER ********************************************\n");
+            fflush(stdout);
+            logCallback(out->data, file, line, level);
+        }
     }
 
     FREE_AND_RELEASE_CUR_MEM_CONTEXT();

@@ -43,6 +43,14 @@ typedef struct DLComparison
     Operator *opExpr;
 } DLComparison;
 
+typedef struct DLDomain
+{
+    DLNode n;
+    char *rel;
+    char *attr;
+    char *name;
+} DLDomain;
+
 typedef struct DLRule
 {
     DLNode n;
@@ -56,6 +64,8 @@ typedef struct DLProgram
     List *rules;
     List *facts;
     char *ans;
+    List *doms;
+    List *comp;
 } DLProgram;
 
 NEW_ENUM_WITH_TO_STRING(GPNodeType,
@@ -64,6 +74,7 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
         GP_NODE_POSREL,
         GP_NODE_NEGREL,
         GP_NODE_EDB,
+		GP_NODE_TUPLE,
         GP_NODE_RULEHYPER,
 		GP_NODE_GOALHYPER
         );
@@ -81,8 +92,9 @@ extern DLAtom *createDLAtom (char *rel, List *args, boolean negated);
 extern DLVar *createDLVar (char *vName, DataType vType);
 extern boolean isConstAtom (DLAtom *a);
 extern DLRule *createDLRule (DLAtom *head, List *body);
-extern DLProgram *createDLProgram (List *dlRules, List *facts, char *ans);
+extern DLProgram *createDLProgram (List *dlRules, List *facts, char *ans, List *doms);
 extern DLComparison *createDLComparison (char *op, Node *lArg, Node *rArg);
+extern DLDomain *createDLDomain (char *rel, char *attr, char *dom);
 
 // get information about DL program elements
 extern char *getHeadPredName(DLRule *r);
@@ -137,6 +149,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_PROV_FORMAT_TUPLE_RULE_TUPLE "TUPLE_RULE_TUPLE"
 #define DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE "TUPLE_RULE_GOAL_TUPLE"
 #define DL_PROV_FORMAT_HEAD_RULE_EDB "HEAD_RULE_EDB"
+#define DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED "TUPLE_RULE_TUPLE_REDUCED"
 
 // property keys for storing analysis results for a program
 #define DL_MAP_RELNAME_TO_RULES "REL_TO_RULES"

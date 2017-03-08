@@ -96,6 +96,8 @@ static boolean equalDelete(Delete *a, Delete *b, HashMap *seenOps, MemContext *c
 static boolean equalUpdate(Update *a, Update *b, HashMap *seenOps, MemContext *c);
 static boolean equalTransactionStmt(TransactionStmt *a, TransactionStmt *b, HashMap *seenOps, MemContext *c);
 static boolean equalFromProvInfo (FromProvInfo *a, FromProvInfo *b, HashMap *seenOps, MemContext *c);
+static boolean equalCreateTable (CreateTable *a, CreateTable *b, HashMap *seenOps, MemContext *c);
+static boolean equalAlterTable (AlterTable *a, AlterTable *b, HashMap *seenOps, MemContext *c);
 
 // equal functions for datalog model
 static boolean equalDLAtom (DLAtom *a, DLAtom *b, HashMap *seenOps, MemContext *c);
@@ -103,6 +105,7 @@ static boolean equalDLVar (DLVar *a, DLVar *b, HashMap *seenOps, MemContext *c);
 static boolean equalDLRule (DLRule *a, DLRule *b, HashMap *seenOps, MemContext *c);
 static boolean equalDLProgram (DLProgram *a, DLProgram *b, HashMap *seenOps, MemContext *c);
 static boolean equalDLComparison (DLComparison *a, DLComparison *b, HashMap *seenOps, MemContext *c);
+static boolean equalDLDomain (DLDomain *a, DLDomain *b, HashMap *seenOps, MemContext *c);
 
 // equal functions for regex model
 static boolean equalRegex (Regex *a, Regex *b, HashMap *seenOps, MemContext *c);
@@ -187,7 +190,9 @@ equalDLProgram (DLProgram *a, DLProgram *b, HashMap *seenOps, MemContext *c)
     COMPARE_NODE_FIELD(rules);
     COMPARE_NODE_FIELD(facts);
     COMPARE_STRING_FIELD(ans);
+    COMPARE_NODE_FIELD(doms);
     COMPARE_NODE_FIELD(n.properties);
+    COMPARE_NODE_FIELD(comp);
 
     return TRUE;
 }
@@ -196,6 +201,17 @@ static boolean
 equalDLComparison (DLComparison *a, DLComparison *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(opExpr);
+    COMPARE_NODE_FIELD(n.properties);
+
+    return TRUE;
+}
+
+static boolean
+equalDLDomain (DLDomain *a, DLDomain *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_STRING_FIELD(rel);
+	COMPARE_STRING_FIELD(attr);
+	COMPARE_STRING_FIELD(name);
     COMPARE_NODE_FIELD(n.properties);
 
     return TRUE;
@@ -609,7 +625,7 @@ static boolean
 equalAttributeDef(AttributeDef *a, AttributeDef *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_STRING_FIELD(attrName);
-    COMPARE_SCALAR_FIELD(pos);
+    //COMPARE_SCALAR_FIELD(dataType);
    
     return TRUE;
 }
@@ -854,7 +870,8 @@ equalNestedSubquery (NestedSubquery *a, NestedSubquery *b, HashMap *seenOps, Mem
 static boolean 
 equalInsert(Insert *a, Insert *b, HashMap *seenOps, MemContext *c)
 {
-    COMPARE_STRING_FIELD(tableName);
+    COMPARE_NODE_FIELD(schema);
+    COMPARE_STRING_FIELD(insertTableName);
     COMPARE_NODE_FIELD(query);
    
     return TRUE;
@@ -864,7 +881,8 @@ equalInsert(Insert *a, Insert *b, HashMap *seenOps, MemContext *c)
 static boolean 
 equalDelete(Delete *a, Delete *b, HashMap *seenOps, MemContext *c)
 {
-    COMPARE_STRING_FIELD(nodeName);
+    COMPARE_NODE_FIELD(schema);
+    COMPARE_STRING_FIELD(deleteTableName);
     COMPARE_NODE_FIELD(cond);
    
     return TRUE;
@@ -874,7 +892,8 @@ equalDelete(Delete *a, Delete *b, HashMap *seenOps, MemContext *c)
 static boolean 
 equalUpdate(Update *a, Update *b, HashMap *seenOps, MemContext *c)
 {
-    COMPARE_STRING_FIELD(nodeName);
+    COMPARE_NODE_FIELD(schema);
+    COMPARE_STRING_FIELD(updateTableName);
     COMPARE_NODE_FIELD(selectClause);
     COMPARE_NODE_FIELD(cond);
    
@@ -900,11 +919,37 @@ equalFromProvInfo (FromProvInfo *a, FromProvInfo *b, HashMap *seenOps, MemContex
     return TRUE;
 }
 
+static boolean
+equalCreateTable (CreateTable *a, CreateTable *b, HashMap *seenOps, MemContext *c)
+{
+    COMPARE_STRING_FIELD(tableName);
+    COMPARE_NODE_FIELD(tableElems);
+    COMPARE_NODE_FIELD(constraints);
+    COMPARE_NODE_FIELD(query);
+
+    return TRUE;
+}
+
+static boolean
+equalAlterTable (AlterTable *a, AlterTable *b, HashMap *seenOps, MemContext *c)
+{
+    COMPARE_STRING_FIELD(tableName);
+    COMPARE_SCALAR_FIELD(cmdType);
+    COMPARE_STRING_FIELD(columnName);
+    COMPARE_SCALAR_FIELD(newColDT);
+    COMPARE_NODE_FIELD(schema);
+    COMPARE_NODE_FIELD(beforeSchema);
+
+    return TRUE;
+}
+
+
 static boolean 
 equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(query);
-    COMPARE_NODE_FIELD(selectClause);
+    COMPARE_STRING_LIST_FIELD(selectClause);
+    COMPARE_NODE_FIELD(dts);
     COMPARE_SCALAR_FIELD(provType);
     COMPARE_SCALAR_FIELD(inputType);
     COMPARE_NODE_FIELD(transInfo);
@@ -1199,6 +1244,12 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
         case T_TransactionStmt:
             retval = equalTransactionStmt(a,b, seenOps, c);
             break;
+        case T_CreateTable:
+            retval = equalCreateTable(a,b, seenOps, c);
+            break;
+        case T_AlterTable:
+            retval = equalAlterTable(a,b, seenOps, c);
+            break;
         case T_NestingOperator:
             retval = equalNestingOperator(a,b, seenOps, c);
             break;
@@ -1235,6 +1286,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
             break;
         case T_DLComparison:
             retval = equalDLComparison(a,b, seenOps, c);
+            break;
+        case T_DLDomain:
+            retval = equalDLDomain(a,b, seenOps, c);
             break;
         case T_Regex:
             retval = equalRegex(a,b, seenOps, c);

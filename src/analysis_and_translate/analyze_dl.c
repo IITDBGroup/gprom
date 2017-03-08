@@ -26,7 +26,7 @@
 #include "utility/string_utils.h"
 
 static void analyzeDLProgram (DLProgram *p);
-static void analyzeRule (DLRule *r, Set *idbRels); // , Set *edbRels, Set *factRels);
+static void analyzeRule (DLRule *r, Set *idbRels, DLProgram *p); // , Set *edbRels, Set *factRels);
 static void analyzeProv (DLProgram *p, KeyValue *kv);
 static List *analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules);
 
@@ -81,6 +81,7 @@ analyzeDLProgram (DLProgram *p)
     List *rules = NIL;
     List *facts = NIL;
     List *rpqRules = NIL;
+    List *doms = NIL;
 
     // expand RPQ queries
     FOREACH(Node,r,p->rules)
@@ -123,21 +124,25 @@ analyzeDLProgram (DLProgram *p)
 //            addToSet(factRels, f->rel);
             facts = appendToTailOfList(facts,r);
         }
+        // associate domain
+        else if(isA(r,DLDomain))
+        	doms = appendToTailOfList(doms,r);
         // provenance question
         else if(isA(r,KeyValue))
             analyzeProv(p, (KeyValue *) r);
         else
             FATAL_LOG("datalog programs can consists of rules, constants, an "
-                    "answer relation specification, facts, and provenance "
-                    "computations");
+                    "answer relation specification, facts, associate domain specification, "
+            		"and provenance computations");
     }
 
     // analyze all rules
     FOREACH(DLRule,r,rules)
-        analyzeRule((DLRule *) r, idbRels); //, edbRels, factRels);
+        analyzeRule((DLRule *) r, idbRels, p); //, edbRels, factRels);
 
     p->rules = rules;
     p->facts = facts;
+    p->doms = doms;
 
 //    // check that answer relation exists
 //    if (p->ans)
@@ -198,6 +203,10 @@ analyzeProv (DLProgram *p, KeyValue *kv)
         {
             DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE);
         }
+        else if (isSuffix(type, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED))
+		{
+			DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED);
+		}
         else
         {
             FATAL_LOG("unkown provenance return format: %s", type);
@@ -211,7 +220,7 @@ analyzeProv (DLProgram *p, KeyValue *kv)
 }
 
 static void
-analyzeRule (DLRule *r, Set *idbRels) // , Set *edbRels, Set *factRels)
+analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *factRels)
 {
     // check safety
     if (!checkDLRuleSafety(r))
@@ -242,7 +251,31 @@ analyzeRule (DLRule *r, Set *idbRels) // , Set *edbRels, Set *factRels)
 //                    FATAL_LOG("Atom uses predicate %s that is neither IDB nor EDB", atom->rel);
 //            }
         }
+
+        if (isA(a,DLComparison))
+        {
+        	p->comp = appendToTailOfList(p->comp, a);
+
+        	INFO_DL_LOG("comparison expression:", p->comp);
+			DEBUG_LOG("comparison expression:\n%s", datalogToOverviewString(p->comp));
+        }
     }
+
+//    // seperate comparison from the rule
+//    List *ruleBody = NIL;
+//
+//    if (p->comp != NULL)
+//    {
+//        FOREACH(Node,a,r->body)
+//		{
+//        	if (!isA(a,DLComparison))
+//        	{
+//        		ruleBody = appendToTailOfList(ruleBody, a);
+//        	}
+//		}
+//
+//        r->body = ruleBody;
+//    }
 }
 
 /*

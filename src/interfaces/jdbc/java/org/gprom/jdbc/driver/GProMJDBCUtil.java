@@ -11,6 +11,8 @@ import java.util.Properties;
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.backends.OracleBackendInfo;
+import org.gprom.jdbc.backends.PostgresBackendInfo;
+import org.gprom.jdbc.backends.SQLiteBackendInfo;
 import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
@@ -25,7 +27,8 @@ public interface GProMJDBCUtil {
 		Oracle,
 		HSQL,
 		Postgres,
-		Hive
+		Hive,
+		SQLite
 	}
 	
 	// interface
@@ -52,7 +55,8 @@ public interface GProMJDBCUtil {
 			loadProps();
 			try {
 				prefix = stripGProMPrefix(jdbcURL).split(":")[1];
-				backStr = driverProps.getProperty("urlPrefix." + prefix);
+				backStr = driverProps.getProperty("urlPrefix." + prefix).trim();
+				log.debug("prefix: <" + prefix + "> backstr: <" + backStr +">");
 				return BackendType.valueOf(backStr);
 			}
 			catch (MalformedURLException e) {
@@ -107,7 +111,7 @@ public interface GProMJDBCUtil {
 		
 		public PropertyWrapper getOptionsForBackend (BackendType type) {
 			loadProps();
-			return driverProps.getAllProps("gpromOptions." + type);
+			return driverProps.getAllProps("gpromOptions." + type).trimProperties();
 		}
 		
 		public BackendInfo getBackendInfo (BackendType type) {
@@ -116,6 +120,10 @@ public interface GProMJDBCUtil {
 				return null;
 			case Oracle:
 				return OracleBackendInfo.inst;
+			case Postgres:
+				return PostgresBackendInfo.inst;
+			case SQLite:
+				return SQLiteBackendInfo.inst;
 			default:
 				return null;
 			}

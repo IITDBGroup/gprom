@@ -21,7 +21,6 @@ typedef struct AttributeDef
     NodeTag type;
     DataType dataType;
     char *attrName;
-    int pos;
 } AttributeDef;
 
 typedef struct Schema
@@ -95,6 +94,13 @@ typedef struct ProvenanceComputation
     Node *asOf;
 } ProvenanceComputation;
 
+NEW_ENUM_WITH_TO_STRING(ReenactUpdateType,
+        UPDATE_TYPE_DELETE,
+        UPDATE_TYPE_UPDATE,
+        UPDATE_TYPE_INSERT_VALUES,
+        UPDATE_TYPE_INSERT_QUERY
+);
+
 typedef struct UpdateOperator
 {
     QueryOperator op;
@@ -149,8 +155,10 @@ typedef struct JsonTableOperator
         || isA(op,SelectionOperator)                    \
         || isA(op,AggregationOperator)                  \
         || isA(op,DuplicateRemoval)                     \
-        || isA(op,WindowOperator)                      \
-		|| isA(op,OrderOperator))
+        || isA(op,WindowOperator)                       \
+		|| isA(op,OrderOperator)                        \
+		|| isA(op,JsonTableOperator)                    \
+		)
 
 #define IS_BINARY_OP(op) (isA(op,JoinOperator)          \
         || isA(op,SetOperator)                          \
@@ -175,11 +183,12 @@ extern void resetPosOfAttrRefBaseOnBelowLayerSchema(QueryOperator *op1,QueryOper
 /* union equal element between two set list */
 extern List *unionEqualElemOfTwoSetList(List *l1, List *l2);
 extern List *addOneEqlOpAttrToListSet(Node *n1,Node *n2,List *listSet);
-
-//extern List *getSelectionCondOperatorList(List *opList, Operator *op);
 extern List *getCondOpList(List *l1, List *l2);
 extern List *getDataTypes (Schema *schema);
 extern List *getAttrNames(Schema *schema);
+extern List *getAttrDefNames (List *defs);
+extern List *getAttrDataTypes (List *defs);
+extern List *inferOpResultDTs (QueryOperator *op);
 #define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema
 
 /* create functions */
@@ -199,7 +208,7 @@ extern SetOperator *createSetOperator (SetOpType setOpType, List *inputs,
 extern DuplicateRemoval *createDuplicateRemovalOp (List *attrs,
         QueryOperator *input, List *parents, List *attrNames);
 extern ProvenanceComputation *createProvenanceComputOp(ProvenanceType provType,
-        List *inputs, List *parents, List *attrNames, Node *asOf);
+        List *inputs, List *parents, List *attrNames, List *dts, Node *asOf);
 extern ConstRelOperator *createConstRelOp(List *values,List *parents,
         List *attrNames, List *dataTypes);
 extern NestingOperator *createNestingOp(NestingExprType nestingType, Node *cond,
@@ -229,6 +238,7 @@ extern Node *getProperty (QueryOperator *op, Node *key);
 extern void setStringProperty (QueryOperator *op, char *key, Node *value);
 extern Node *getStringProperty (QueryOperator *op, char *key);
 extern void removeStringProperty (QueryOperator *op, char *key);
+#define SET_KEYVAL_PROPERTY(op,kv) (setProperty(((QueryOperator *) op), kv->key, kv->value))
 #define HAS_PROP(op,key) (getProperty(((QueryOperator *) op),key) != NULL)
 #define HAS_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key) != NULL)
 #define SET_STRING_PROP(op,key,value) (setStringProperty((QueryOperator *) op, \
@@ -288,5 +298,6 @@ extern boolean visitQOGraph (QueryOperator *q, TraversalOrder tOrder,
         boolean (*visitF) (QueryOperator *op, void *context),
         void *context);
 extern unsigned int numOpsInGraph (QueryOperator *root);
+extern unsigned int numOpsInTree (QueryOperator *root);
 
 #endif /* QUERY_OPERATOR_H_ */

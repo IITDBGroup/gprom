@@ -109,7 +109,7 @@ typedef struct List
             (_list1_)->head) != NULL) ? \
                     DUMMY_LC(_ival1_)->data.int_value : -1), \
         _ival2_ = (((DUMMY_LC(_ival2_) = \
-            (_list1_)->head) != NULL) ? \
+            (_list2_)->head) != NULL) ? \
                     DUMMY_LC(_ival2_)->data.int_value : -1) \
         ; \
             DUMMY_LC(_ival1_) != NULL && DUMMY_LC(_ival2_) != NULL; \
@@ -127,6 +127,10 @@ typedef struct List
 #define LC_STRING_VAL(lc) ((char *) ((ListCell *) lc)->data.ptr_value)
 #define LC_INT_VAL(lc) (((ListCell *) lc)->data.int_value)
 #define LC_NEXT(lc) (((ListCell *) lc)->next)
+#define LC_ADVANCE(lc) \
+    do {    \
+        lc = lc->next;  \
+    } while(0)
 /*
  * Create a integer list starting from _start to _end increasing _step
  */
@@ -197,8 +201,8 @@ extern boolean equalStringList (List *a, List *b);
 /* search for elements in list */
 extern boolean searchList(List *list, void *value);
 extern boolean searchListInt(List *list, int value);
-extern boolean searchListString(List *list, char *value);
 extern boolean searchListNode(List *list, Node *value);
+extern boolean searchListString(List *list, char *value);
 extern boolean genericSearchList(List *list, boolean (*eq) (void *, void *), void *value);
 
 extern int listPosString (List *list, char *value);

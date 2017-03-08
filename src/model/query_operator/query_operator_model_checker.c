@@ -18,10 +18,10 @@
 #include "model/set/set.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
+#include "provenance_rewriter/prov_utility.h"
 #include "configuration/option.h"
 
 static boolean checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent);
-static boolean checkUniqueAttrNames (QueryOperator *op);
 static boolean checkParentChildLinks (QueryOperator *op, void *context);
 static boolean checkAttributeRefConsistency (QueryOperator *op, void *context);
 static boolean checkSchemaConsistency (QueryOperator *op, void *context);
@@ -175,7 +175,7 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
         childA = getAttrDefByPos(child, attrPos);
         if (strcmp(childA->attrName, a->name) != 0)
         {
-            ERROR_NODE_BEATIFY_LOG("attribute ref name and child attrdef names are not the "
+            ERROR_LOG("attribute ref name and child attrdef names are not the "
                     "same:", childA->attrName, a->name);
             ERROR_OP_LOG("parent is",parent);
             DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
@@ -209,6 +209,12 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
 static boolean
 checkSchemaConsistency (QueryOperator *op, void *context)
 {
+    if (LIST_LENGTH(op->schema->attrDefs) == 0 && !isA(op,ProvenanceComputation))
+    {
+        ERROR_OP_LOG("Cannot have an operator with no result attributes", op);
+        return FALSE;
+    }
+
     switch(op->type)
     {
         case T_ProjectionOperator:
@@ -378,7 +384,7 @@ checkSchemaConsistency (QueryOperator *op, void *context)
             || checkUniqueAttrNames(op);
 }
 
-static boolean
+boolean
 checkUniqueAttrNames (QueryOperator *op)
 {
     Set *names = STRSET();
@@ -395,6 +401,24 @@ checkUniqueAttrNames (QueryOperator *op)
     }
 
     return TRUE;
+}
+
+void
+makeAttrNamesUnique (QueryOperator *op)
+{
+    List *newNames = getAttrNames(op->schema);
+
+    makeNamesUnique(newNames, NULL);
+
+    FORBOTH(void,nameN,aN,newNames,op->schema->attrDefs)
+    {
+        AttributeDef *a = (AttributeDef *) aN;
+        char *name = (char *) nameN;
+
+        DEBUG_LOG("Attribute <%s> renamed to <%s>",
+                    a->attrName, name);
+        a->attrName = name;
+    }
 }
 
 static boolean

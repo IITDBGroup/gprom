@@ -179,6 +179,8 @@ outputTimers (void)
     Timer **timers = NULL;
 
     CREATE_OR_USE_MEMCONTEXT();
+    total = NULL;
+    t = NULL;
 
     for(t = allTimers; t != NULL; t = t->hh.next)
     {
@@ -215,6 +217,8 @@ outputTimers (void)
                 );
     }
     printf("timer: ====================================================================\n");
+    if (total != NULL)
+      {
     printf("timer: %-*s - total: %12f sec calls: %9ld avg: %12f min: %12f max: %12f\n",
             maxTimerNameLength,
             total->name,
@@ -224,7 +228,7 @@ outputTimers (void)
             ((double) total->minTime) / 1000000.0,
             ((double) total->maxTime) / 1000000.0
             );
-
+      }
     RELEASE_MEM_CONTEXT();
 }
 

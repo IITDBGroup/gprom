@@ -1,0 +1,1 @@
+hop2(X,Y) :- hop(X,A), hop(A,Y). WHYNOT(hop2('c','a')).

@@ -15,10 +15,6 @@ import java.util.Properties;
 import java.util.Vector;
 
 import org.apache.log4j.Logger;
-import org.dbunit.dataset.DataSetException;
-import org.dbunit.dataset.ITable;
-import org.dbunit.dataset.xml.XmlDataSet;
-
 
 /**
  *
@@ -73,20 +69,19 @@ public class DataAndQueryGenerator {
 		return result;
 	}
 	
-	public ITable getExpectedResult (String key) throws DataSetException, IOException {
-		XmlDataSet result;
+	public DBTable getExpectedResult (String key) throws IOException {
+		DBTable result;
 		
-		result = getResult (key + ".result");
-		return result.getTable("transformed");
+		return  getResult (key + ".result");
 	}
 	
-	public ITable[] getExpectedResults (String key) throws DataSetException {
-		Vector<XmlDataSet> expectedResults;
-		ITable[] result;
+	public DBTable[] getExpectedResults (String key)  {
+		Vector<DBTable> expectedResults;
+		DBTable[] result;
 		String resultKey;
 		int num;
 		
-		 expectedResults = new Vector<XmlDataSet> ();
+		expectedResults = new Vector<DBTable> ();
 		
 		expectedResults.add (getResult(key + ".result"));
 		
@@ -98,10 +93,7 @@ public class DataAndQueryGenerator {
 			resultKey = key + ".result" + num;
 		}
 		
-		result = new ITable[expectedResults.size()];
-		for (int i = 0; i < result.length; i++) {
-			result[i] = expectedResults.get(i).getTable("transformed");
-		}
+		result = expectedResults.toArray(new DBTable[0]);
 		
 		return result;
 	}
@@ -144,10 +136,9 @@ public class DataAndQueryGenerator {
 		return excludeSettings;
 	}
 	
-	private XmlDataSet getResult (String key) throws DataSetException {
-		XmlDataSet expectedResult;
+	private DBTable getResult (String key)  {
+		DBTable expectedResult;
 		String resultString;
-		String xmlString ="";
 		
 		resultString = properties.getProperty(key);
 		
@@ -155,12 +146,13 @@ public class DataAndQueryGenerator {
 			return null;
 		}
 		
-		xmlString = transformStringResultSetToXML (resultString);
-		expectedResult = new XmlDataSet(new StringReader(xmlString));
-		
-		//XmlDataSet.write(expectedResult, System.out);
+		expectedResult = DBTableFactory.inst.tableFromString(resultString);
 		
 		return expectedResult;
+	}
+	
+	public boolean isOrdered (String key) {
+		return properties.containsKey(key + ".ordered");
 	}
 	
 	public boolean isError (String key) {
@@ -176,67 +168,7 @@ public class DataAndQueryGenerator {
 	public String getQuery (String key) {
 		return properties.getProperty(key + ".query");
 	}
-	
-	private String transformStringResultSetToXML (String resultSet) {
-		String[] lines;
-		String[] columns;
-		String[] rows;
-		int numColumns;
-		StringBuffer result;
-		String value;
 		
-		result = new StringBuffer();
-		result.append(header);
-		
-		/* split lines */
-		lines = removeEmptyLines(resultSet.split("\n"));
-		
-		/* get columns */
-		columns = lines[0].split("\\|");
-		numColumns = columns.length;
-		
-		/* output columns */
-		for (int i = 0; i < numColumns; i++) {
-			result.append("\t\t<column>" + columns[i].trim() + "</column>\n");
-		}
-		
-		/* get lines and output them */
-		for (int i = 2; i < lines.length; i++) {
-			rows = lines[i].split("\\|");
-			
-			/* replace escapted '|' characters */
-			for(int j = 0; j < numColumns; j++) {
-				rows[j] = rows[j].replaceAll("\\$MID\\$", "|");
-			}
-			
-			result.append("\t\t<row>\n\t\t\t");
-			
-			for (int j = 0; j < rows.length; j++) {
-				if (rows[j].trim().equals("(null)")) {
-					result.append("<null></null>");
-				}
-				else if (rows[j].trim().equals("EMPTYSTRING")) {
-					result.append("<value></value>");
-				}
-				else {
-					value = rows[j].trim();
-					value = escapeXml(value);
-					if(value.startsWith("@"))
-						value = value.replace('@', ' ');
-					result.append("<value>" + value + "</value>");
-				}
-			}
-			result.append("\n\t\t</row>\n");
-		}
-		
-		
-		result.append(footer);
-		
-		//System.out.println(result.toString());
-		
-		return result.toString();
-	}
-	
 	protected String[] removeEmptyLines(String[] in) {
 		String[] result;
 		List<String> buf = new ArrayList<String> ();
@@ -269,22 +201,5 @@ public class DataAndQueryGenerator {
 		return result - 1;
 	}
 	
-	private String escapeXml (String xml) {
-		StringBuilder result;
-		char[] chars;
-		
-		result = new StringBuilder();
-		chars = xml.toCharArray();
-		
-		for(int i = 0; i < chars.length; i++) {
-			if (chars[i] == '<')
-				result.append("&lt;");
-			else if (chars[i] == '>')
-				result.append("&gt;");
-			else
-				result.append(chars[i]);
-		}		
-		
-		return result.toString();
-	}
+
 }

@@ -118,10 +118,13 @@ static Update *copyUpdate(Update *from, OperatorMap **opMap);
 static TransactionStmt *copyTransactionStmt(TransactionStmt *from, OperatorMap **opMap);
 static FromProvInfo *copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap);
 static WithStmt *copyWithStmt(WithStmt *from, OperatorMap **opMap);
+static CreateTable *copyCreateTable(CreateTable *from, OperatorMap **opMap);
+static AlterTable *copyAlterTable(AlterTable *from, OperatorMap **opMap);
 
 /* functions to copy datalog model elements */
 static DLAtom *copyDLAtom(DLAtom *from, OperatorMap **opMap);
 static DLVar *copyDLVar(DLVar *from, OperatorMap **opMap);
+static DLDomain *copyDLDomain(DLDomain *from, OperatorMap **opMap);
 static DLComparison *copyDLComparison(DLComparison *from, OperatorMap **opMap);
 static DLRule *copyDLRule(DLRule *from, OperatorMap **opMap);
 static DLProgram *copyDLProgram(DLProgram *from, OperatorMap **opMap);
@@ -282,6 +285,19 @@ copyDLComparison(DLComparison *from, OperatorMap **opMap)
     return new;
 }
 
+static DLDomain *
+copyDLDomain(DLDomain *from, OperatorMap **opMap)
+{
+    COPY_INIT(DLDomain);
+
+    COPY_STRING_FIELD(rel);
+    COPY_STRING_FIELD(attr);
+    COPY_STRING_FIELD(name);
+    COPY_NODE_FIELD(n.properties);
+
+    return new;
+}
+
 static DLRule *
 copyDLRule(DLRule *from, OperatorMap **opMap)
 {
@@ -302,7 +318,9 @@ copyDLProgram(DLProgram *from, OperatorMap **opMap)
     COPY_NODE_FIELD(rules);
     COPY_NODE_FIELD(facts);
     COPY_STRING_FIELD(ans);
+    COPY_NODE_FIELD(doms);
     COPY_NODE_FIELD(n.properties);
+    COPY_NODE_FIELD(comp);
 
     return new;
 }
@@ -501,7 +519,6 @@ copyAttributeDef(AttributeDef *from, OperatorMap **opMap)
     COPY_INIT(AttributeDef);
     COPY_SCALAR_FIELD(dataType);
     COPY_STRING_FIELD(attrName);
-    COPY_SCALAR_FIELD(pos);
 
     return new;
 }
@@ -760,7 +777,8 @@ static Insert *
 copyInsert(Insert *from, OperatorMap **opMap)
 {
     COPY_INIT(Insert);
-    COPY_STRING_FIELD(tableName);
+    COPY_NODE_FIELD(schema);
+    COPY_STRING_FIELD(insertTableName);
     COPY_STRING_LIST_FIELD(attrList);
     COPY_NODE_FIELD(query);
 
@@ -771,7 +789,8 @@ static Delete *
 copyDelete(Delete *from, OperatorMap **opMap)
 {
     COPY_INIT(Delete);
-    COPY_STRING_FIELD(nodeName);
+    COPY_NODE_FIELD(schema);
+    COPY_STRING_FIELD(deleteTableName);
     COPY_NODE_FIELD(cond);
 
     return new;
@@ -781,7 +800,8 @@ static Update *
 copyUpdate(Update *from, OperatorMap **opMap)
 {
     COPY_INIT(Update);
-    COPY_STRING_FIELD(nodeName);
+    COPY_NODE_FIELD(schema);
+    COPY_STRING_FIELD(updateTableName);
     COPY_NODE_FIELD(selectClause);
     COPY_NODE_FIELD(cond);
 
@@ -818,6 +838,33 @@ copyWithStmt(WithStmt *from, OperatorMap **opMap)
     return new;
 }
 
+static CreateTable *
+copyCreateTable(CreateTable *from, OperatorMap **opMap)
+{
+    COPY_INIT(CreateTable);
+    COPY_STRING_FIELD(tableName);
+    COPY_NODE_FIELD(tableElems);
+    COPY_NODE_FIELD(constraints);
+    COPY_NODE_FIELD(query);
+
+    return new;
+}
+
+static AlterTable *
+copyAlterTable(AlterTable *from, OperatorMap **opMap)
+{
+    COPY_INIT(AlterTable);
+    COPY_STRING_FIELD(tableName);
+    COPY_SCALAR_FIELD(cmdType);
+    COPY_STRING_FIELD(columnName);
+    COPY_SCALAR_FIELD(newColDT);
+    COPY_NODE_FIELD(schema);
+    COPY_NODE_FIELD(beforeSchema);
+
+    return new;
+}
+
+
 static NestedSubquery *
 copyNestedSubquery(NestedSubquery *from, OperatorMap **opMap)
 {
@@ -835,7 +882,8 @@ copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
 {
     COPY_INIT(ProvenanceStmt);
     COPY_NODE_FIELD(query);
-    COPY_NODE_FIELD(selectClause);
+    COPY_STRING_LIST_FIELD(selectClause);
+    COPY_NODE_FIELD(dts);
     COPY_SCALAR_FIELD(provType);
     COPY_SCALAR_FIELD(inputType);
     COPY_NODE_FIELD(transInfo);    
@@ -1115,6 +1163,12 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_TransactionStmt:
             retval = copyTransactionStmt(from, opMap);
             break;
+        case T_CreateTable:
+            retval = copyCreateTable(from, opMap);
+            break;
+        case T_AlterTable:
+            retval = copyAlterTable(from, opMap);
+            break;
 
              /* query operator model nodes */
         case T_SelectionOperator:
@@ -1174,6 +1228,9 @@ copyInternal(void *from, OperatorMap **opMap)
             break;
         case T_DLComparison:
             retval = copyDLComparison(from, opMap);
+            break;
+        case T_DLDomain:
+            retval = copyDLDomain(from, opMap);
             break;
         case T_JsonTableOperator:
         	retval = copyJsonTableOperator(from, opMap);

@@ -32,8 +32,11 @@ static void analyzeSetQuery (SetQuery *q, List *parentFroms);
 static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
 static void analyzeProvenanceOptions (ProvenanceStmt *prov);
 static void analyzeWithStmt (WithStmt *w);
+static void analyzeCreateTable (CreateTable *c);
+static void analyzeAlterTable (AlterTable *a);
 
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
+static void analyzeWhere (QueryBlock *qb, List *parentFroms);
 
 // search for attributes and other relevant node types
 static void adaptAttrPosOffset(FromItem *f, FromItem *decendent, AttributeReference *a);
@@ -69,9 +72,17 @@ static List *splitAttrOnDot (char *dotName);
 static List *getFromTreeLeafs (List *from);
 static char *generateAttrNameFromExpr(SelectItem *s);
 static List *splitTableName(char *tableName);
+static void getTableSchema (char *tableName, List **attrDefs, List **attrNames, List **dts);
+static List *getQBAttrDefs(Node *qb);
 static List *getQBAttrNames (Node *qb);
 static List *getQBAttrDTs (Node *qb);
+static boolean compareAttrDefName(AttributeDef *a, AttributeDef *b);
 static boolean setViewFromTableRefAttrs(Node *node, List *views);
+static boolean schemaInfoHasTable(char *tableName);
+static List *schemaInfoGetSchema(char *tableName);
+static List *schemaInfoGetAttributeNames (char *tableName);
+static List *schemaInfoGetAttributeDataTypes (char *tableName);
+
 
 /* str functions */
 static inline char *
@@ -84,6 +95,8 @@ strToUpper(char *in)
     return result;
 }
 
+/* holder for schema information when analyzing reenactment with potential DDL */
+static HashMap *schemaInfo = NULL;
 
 Node *
 analyzeOracleModel (Node *stmt)
@@ -125,6 +138,12 @@ analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
             break;
         case T_WithStmt:
             analyzeWithStmt((WithStmt *) stmt);
+            break;
+        case T_CreateTable:
+            analyzeCreateTable((CreateTable *) stmt);
+            break;
+        case T_AlterTable:
+            analyzeAlterTable((AlterTable *) stmt);
             break;
         default:
             break;
@@ -319,6 +338,10 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     // find nested subqueries and analyze them
     analyzeNestedSubqueries(qb, parentFroms);
     DEBUG_LOG("Analyzed nested subqueries");
+
+    // analyze where clause if exists
+    if (qb->whereClause != NULL)
+        analyzeWhere(qb, parentFroms);
 
     INFO_LOG("Analysis done");
 }
@@ -559,7 +582,7 @@ findNamedFromItem (FromItem *fromItem, char *name)
     }
 
     // is not a join
-    if (strcmp(name, fromItem->name) == 0)
+    if (strpeq(name, fromItem->name))
         return fromItem;
 
     return NULL;
@@ -574,7 +597,7 @@ findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
     // is not a join
     FOREACH(char, r, fromItem->attrNames)
     {
-        if(strcmp(attr->name, r) == 0)
+        if(streq(attr->name, r))
         {
             // is ambigious?
             if (isFound)
@@ -593,7 +616,7 @@ findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
     }
 
     // if it is a tableaccess then allow access to ROWID column
-    if(strcmp(attr->name,"ROWID") == 0 && fromItem->type == T_FromTableRef)
+    if(strpeq(attr->name,"ROWID") && fromItem->type == T_FromTableRef)
     {
         isFound = TRUE;
         foundAttr = LIST_LENGTH(fromItem->attrNames);
@@ -828,16 +851,38 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
 }
 
 static void
+analyzeWhere (QueryBlock *qb, List *parentFroms)
+{
+    DataType returnType = typeOf(qb->whereClause);
+
+    if (returnType != DT_BOOL)
+        THROW(SEVERITY_RECOVERABLE,
+                "WHERE clause result type should be DT_BOOL, but was %s:\n<%s>",
+                DataTypeToString(returnType), nodeToString(qb->whereClause));
+}
+
+static void
 analyzeFromTableRef(FromTableRef *f)
 {
     // attribute names already set (view or temporary view for now)
-    if (f->from.attrNames == NIL)
-        f->from.attrNames = getAttributeNames(f->tableId);
+    // if we have schema information based on reenacting DDL then this overrides actual catalog information
+    if (schemaInfoHasTable(f->tableId))
+    {
+        if (f->from.attrNames == NIL)
+            f->from.attrNames = schemaInfoGetAttributeNames(f->tableId);
 
-    if(!(f->from.dataTypes))
-        f->from.dataTypes = getAttributeDataTypes(f->tableId);
+        if(!(f->from.dataTypes))
+            f->from.dataTypes = schemaInfoGetAttributeDataTypes(f->tableId);
+    }
+    // otherwise use actual catalog information
+    else
+    {
+        if (f->from.attrNames == NIL)
+            f->from.attrNames = getAttributeNames(f->tableId);
 
-
+        if(!(f->from.dataTypes))
+            f->from.dataTypes = getAttributeDataTypes(f->tableId);
+    }
     if(f->from.name == NULL)
     	f->from.name = f->tableId;
 }
@@ -845,24 +890,24 @@ analyzeFromTableRef(FromTableRef *f)
 static void
 recursiveAppendAttrNames(JsonColInfoItem *attr, List **attrNames, List **attrTypes)
 {
-	if (attr->nested)
-	{
-		FOREACH(JsonColInfoItem, attr1, attr->nested)
-        		{
-			if(attr1->nested)
-				recursiveAppendAttrNames(attr1, attrNames, attrTypes);
-			else
-			{
-				*attrNames = appendToTailOfList(*attrNames, attr1->attrName);
-				*attrTypes = appendToTailOfListInt(*attrTypes, 5);
-			}
-        		}
-	}
-	else
-	{
-		*attrNames = appendToTailOfList(*attrNames, attr->attrName);
-		*attrTypes = appendToTailOfListInt(*attrTypes, 5);
-	}
+    if (attr->nested)
+    {
+        FOREACH(JsonColInfoItem, attr1, attr->nested)
+        {
+            if(attr1->nested)
+                recursiveAppendAttrNames(attr1, attrNames, attrTypes);
+            else
+            {
+                *attrNames = appendToTailOfList(*attrNames, attr1->attrName);
+                *attrTypes = appendToTailOfListInt(*attrTypes, DT_VARCHAR2);
+            }
+        }
+    }
+    else
+    {
+        *attrNames = appendToTailOfList(*attrNames, attr->attrName);
+        *attrTypes = appendToTailOfListInt(*attrTypes, DT_VARCHAR2);
+    }
 }
 
 static void
@@ -875,31 +920,6 @@ analyzeFromJsonTable(FromJsonTable *f, List **state)
 	FOREACH(JsonColInfoItem, attr1, f->columns)
 	{
 		recursiveAppendAttrNames(attr1, &attrNames, &attrTypes);
-
-		//TODO Add if streq for other datatypes as well
-		/*
-        switch (attr->attrType)
-        {
-        case DT_INT:
-        	attrTypes = appendToTailOfListInt(attrTypes, 0);
-        	break;
-        case DT_LONG:
-        	attrTypes = appendToTailOfListInt(attrTypes, 1);
-        	break;
-        case DT_STRING:
-        	attrTypes = appendToTailOfListInt(attrTypes, 2);
-        	break;
-        case DT_FLOAT:
-        	attrTypes = appendToTailOfListInt(attrTypes, 3);
-        	break;
-        case DT_BOOL:
-        	attrTypes = appendToTailOfListInt(attrTypes, 4);
-        	break;
-        case DT_VARCHAR2:
-        	attrTypes = appendToTailOfListInt(attrTypes, 5);
-        	break;
-        }
-		 */
 	}
 
 	if (f->from.attrNames == NIL)
@@ -919,11 +939,14 @@ analyzeFromJsonTable(FromJsonTable *f, List **state)
 static void
 analyzeInsert(Insert * f)
 {
-    List *attrNames = getAttributeNames(f->tableName);
-//    List *dataTypes = getAttributeDataTypes(f->tableName);
-    List *attrRefs = getAttributes(f->tableName);
+    List *attrNames = NIL;
+    List *dataTypes = NIL;
+    List *attrDefs = NIL;
     HashMap *attrPos = NULL;
     Set *attrNameSet = makeStrSetFromList(attrNames);
+
+    getTableSchema(f->insertTableName, &attrDefs, &attrNames, &dataTypes);
+    f->schema = copyObject(attrDefs);
 
     // if user has given no attribute list, then get it from table definition
     if (f->attrList == NULL)
@@ -942,7 +965,7 @@ analyzeInsert(Insert * f)
             if (!hasSetElem(attrNameSet,name))
                 FATAL_LOG("INSERT mentions attribute <%s> that is not an "
                         "attribute of table %s:<%s>",
-                        name, f->tableName, stringListToString(attrNames));
+                        name, f->insertTableName, stringListToString(attrNames));
         }
     }
 
@@ -957,7 +980,7 @@ analyzeInsert(Insert * f)
             INFO_LOG("The number of values are not equal to the number "
                     "attributes in the table");
             //TODO add NULL or DEFAULT values for remaining attributes
-            FOREACH(AttributeDef,a,attrRefs)
+            FOREACH(AttributeDef,a,attrDefs)
             {
                 Node *val = NULL;
 
@@ -969,7 +992,7 @@ analyzeInsert(Insert * f)
                 }
                 else
                 {
-                    List *nameParts = splitTableName(f->tableName);
+                    List *nameParts = splitTableName(f->insertTableName);
                     Node *def = getAttributeDefaultVal(
                             (char *) getNthOfListP(nameParts, 0),
                             (char *) getNthOfListP(nameParts, 1),
@@ -998,7 +1021,7 @@ analyzeInsert(Insert * f)
             QueryBlock *wrap = createQueryBlock();
             List *selectClause = NIL;
 
-            FOREACH(AttributeDef,a,attrRefs)
+            FOREACH(AttributeDef,a,attrDefs)
             {
                 Node *val = NULL;
                 //	            SelectItem *subItem = NULL;
@@ -1017,7 +1040,7 @@ analyzeInsert(Insert * f)
                 }
                 else
                 {
-                    List *nameParts = splitTableName(f->tableName);
+                    List *nameParts = splitTableName(f->insertTableName);
                     Node *def = getAttributeDefaultVal(
                             (char *) getNthOfListP(nameParts, 0),
                             (char *) getNthOfListP(nameParts, 1),
@@ -1040,20 +1063,22 @@ analyzeInsert(Insert * f)
     }
 }
 
-static void analyzeDelete(Delete * f) {
+static void
+analyzeDelete(Delete * f)
+{
 	List *attrRefs = NIL;
 	List *subqueries = NIL;
-	List *attrDef = getAttributes(f->nodeName);
+	List *attrDefs = NIL;
 	List *attrNames = NIL;
-	List *dataTypes = getAttributeDataTypes(f->nodeName);
+	List *dataTypes =  NIL;
 	FromTableRef *fakeTable;
 	List *fakeFrom = NIL;
 
-	FOREACH(AttributeDef,a,attrDef)
-		attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
+	getTableSchema(f->deleteTableName, &attrDefs, &attrNames, &dataTypes);
+	f->schema = copyObject(attrDefs);
 
-	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->nodeName), attrNames,
-			strdup(f->nodeName), dataTypes);
+	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->deleteTableName), attrNames,
+			strdup(f->deleteTableName), dataTypes);
 	fakeFrom = singleton(singleton(fakeTable));
 
 	int attrPos = 0;
@@ -1090,20 +1115,21 @@ static void analyzeDelete(Delete * f) {
 }
 
 static void
-analyzeUpdate(Update* f) {
+analyzeUpdate(Update* f)
+{
 	List *attrRefs = NIL;
-	List *attrDef = getAttributes(f->nodeName);
-	List *dataTypes = getAttributeDataTypes(f->nodeName);
+	List *attrDefs = NIL;
+	List *dataTypes = NIL;
 	List *attrNames = NIL;
 	List *subqueries = NIL;
 	FromTableRef *fakeTable;
 	List *fakeFrom = NIL;
 
-	FOREACH(AttributeDef,a,attrDef)
-		attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
+	getTableSchema(f->updateTableName, &attrDefs, &attrNames, &dataTypes);
+	f->schema = copyObject(attrDefs);
 
-	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->nodeName), attrNames,
-			strdup(f->nodeName), dataTypes);
+	fakeTable = (FromTableRef *) createFromTableRef(strdup(f->updateTableName), attrNames,
+			strdup(f->updateTableName), dataTypes);
 	fakeFrom = singleton(singleton(fakeTable));
 
 //	boolean isFound = FALSE;
@@ -1159,6 +1185,39 @@ analyzeFromSubquery(FromSubquery *sq, List *parentFroms)
 	ASSERT(LIST_LENGTH(sq->from.attrNames) == LIST_LENGTH(expectedAttrs));
 }
 
+static void
+getTableSchema (char *tableName, List **attrDefs, List **attrNames, List **dts)
+{
+    if (schemaInfoHasTable(tableName))
+    {
+        *attrDefs = schemaInfoGetSchema(tableName);
+        *attrNames = schemaInfoGetAttributeNames(tableName);
+        *dts = schemaInfoGetAttributeDataTypes(tableName);
+    }
+    else
+    {
+        *attrDefs = getAttributes(tableName);
+        *attrNames = getAttributeNames(tableName);
+        *dts = getAttributeDataTypes(tableName);
+    }
+}
+
+static List *
+getQBAttrDefs(Node *qb)
+{
+    List *result = NIL;
+    List *attrs = getQBAttrNames(qb);
+    List *dts = getQBAttrDTs(qb);
+
+    FORBOTH_LC(nameLc, dtLc, attrs, dts)
+    {
+        result = appendToTailOfList(result,
+                createAttributeDef(LC_STRING_VAL(nameLc), LC_INT_VAL(dtLc)));
+    }
+
+    return result;
+}
+
 static List *
 getQBAttrDTs (Node *qb)
 {
@@ -1184,8 +1243,8 @@ getQBAttrDTs (Node *qb)
         break;
         case T_ProvenanceStmt:
         {
-//            ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
-            DTs = NIL; //TODO
+            ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
+            DTs = pStmt->dts;
         }
         break;
         default:
@@ -1195,6 +1254,7 @@ getQBAttrDTs (Node *qb)
 
     return DTs;
 }
+
 
 static List *
 getQBAttrNames (Node *qb)
@@ -1494,11 +1554,39 @@ analyzeSetQuery (SetQuery *q, List *parentFroms)
 static void
 analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 {
-
-    switch (q->inputType) {
+    switch (q->inputType)
+    {
         case PROV_INPUT_TRANSACTION:
         {
             //TODO need to know updates at this point
+        }
+        break;
+        case PROV_INPUT_REENACT:
+        {
+            //TODO analyze each statement
+            List *stmts = (List *) q->query;
+//            List *schemaInfos = NIL;
+            schemaInfo = NEW_MAP(Node,Node); //maps table name to schema
+
+            FOREACH(Node,stmt,stmts)
+            {
+                //TODO maintain and extend a schema info
+                analyzeQueryBlockStmt(stmt, NIL);
+//                schemaInfos = appendToTailOfList(schemaInfos, copyObject(schemaInfo));
+            }
+            // store schema infos in provenancestmt's options for translator
+//            q->options = appendToTailOfList(q->options,
+//                    createNodeKeyValue(
+//                            (Node *) createConstString("SCHEMA_INFOS"),
+//                            (Node *) schemaInfos));
+
+            INFO_NODE_BEATIFY_LOG("REENACT THIS:", q);
+            schemaInfo = NULL;
+        }
+        break;
+        case PROV_INPUT_REENACT_WITH_TIMES:
+        {
+
         }
         break;
         case PROV_INPUT_UPDATE:
@@ -1508,35 +1596,42 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         break;
         case PROV_INPUT_QUERY:
         {
+            List *provAttrNames = NIL;
+            List *provDts = NIL;
+
             analyzeQueryBlockStmt(q->query, parentFroms);
 
-            // get attributes from left child
-            switch(q->query->type)
-            {
-                case T_QueryBlock:
-                {
-                    QueryBlock *qb = (QueryBlock *) q->query;
-                    FOREACH(SelectItem,s,qb->selectClause)
-                    {
-                        q->selectClause = appendToTailOfList(q->selectClause,
-                                strdup(s->alias));
-                    }
-                }
-                break;
-                case T_SetQuery:
-                    q->selectClause = deepCopyStringList(
-                            ((SetQuery *) q->query)->selectClause);
-                break;
-                case T_ProvenanceStmt:
-                    q->selectClause = deepCopyStringList(
-                            ((ProvenanceStmt *) q->query)->selectClause);
-                break;
-                default:
-                break;
-            }
+            q->selectClause = getQBAttrNames(q->query);
+            q->dts = getQBAttrDTs(q->query);
+//            // get attributes from left child
+//            switch(q->query->type)
+//            {
+//                case T_QueryBlock:
+//                {
+//                    QueryBlock *qb = (QueryBlock *) q->query;
+//                    FOREACH(SelectItem,s,qb->selectClause)
+//                    {
+//                        q->selectClause = appendToTailOfList(q->selectClause,
+//                                strdup(s->alias));
+//                    }
+//                }
+//                break;
+//                case T_SetQuery:
+//                    q->selectClause = deepCopyStringList(
+//                            ((SetQuery *) q->query)->selectClause);
+//                break;
+//                case T_ProvenanceStmt:
+//                    q->selectClause = deepCopyStringList(
+//                            ((ProvenanceStmt *) q->query)->selectClause);
+//                break;
+//                default:
+//                break;
+//            }
 
+            getQBProvenanceAttrList(q,&provAttrNames,&provDts);
             q->selectClause = concatTwoLists(q->selectClause,
-                    getQBProvenanceAttrList(q));
+                    provAttrNames);
+            q->dts = concatTwoLists(q->dts,provDts);
         }
         break;
         case PROV_INPUT_TIME_INTERVAL:
@@ -1611,6 +1706,99 @@ analyzeWithStmt (WithStmt *w)
     DEBUG_NODE_BEATIFY_LOG("analyzed view is:", w->query);
 }
 
+static void
+analyzeCreateTable (CreateTable *c)
+{
+    /*TODO support context */
+    boolean tableExists;
+
+    tableExists = catalogTableExists(c->tableName)
+            || catalogViewExists(c->tableName)
+            || schemaInfoHasTable(c->tableName);
+    if (tableExists)
+        FATAL_LOG("trying to create table that already exists: %s", c->tableName);
+
+    // if is CREATE TABLE x AS SELECT ..., then analyze query
+    if (c->query)
+        analyzeQueryBlockStmt(c->query, NIL);
+
+    // create schema info
+    List *schema = NIL;
+    if (c->query)
+        schema = getQBAttrDefs(c->query);
+    else
+    {
+        FOREACH(Node,el,c->tableElems)
+        {
+            if(isA(el,AttributeDef))
+                schema = appendToTailOfList(schema, copyObject(el));
+            else
+                c->constraints = appendToTailOfList(c->constraints, el);//TODO check them
+        }
+    }
+    c->tableElems = copyObject(schema);
+
+    MAP_ADD_STRING_KEY(schemaInfo,c->tableName,schema);
+
+    DEBUG_NODE_BEATIFY_LOG("analyzed create table is:", c);
+}
+
+static void
+analyzeAlterTable (AlterTable *a)
+{
+    List *schema;
+
+    if(!catalogTableExists(a->tableName) && !schemaInfoHasTable(a->tableName))
+        FATAL_LOG("trying to alter table %s that does not exist", a->tableName);
+
+    // get schema of table
+    if(schemaInfoHasTable(a->tableName))
+        schema = schemaInfoGetSchema(a->tableName);
+    else
+        schema = getAttributes(a->tableName);
+    a->beforeSchema = copyObject(schema);
+
+    // implement changes to schema based on command
+    switch(a->cmdType)
+    {
+        case ALTER_TABLE_ADD_COLUMN:
+        {
+            AttributeDef *newA = createAttributeDef(strdup(a->columnName), a->newColDT);
+            if (genericSearchList(schema,
+                    (int (*) (void *, void *)) compareAttrDefName,
+                    newA))
+                FATAL_LOG("cannot add already existing column %s to table %s",
+                        a->columnName, a->tableName);
+            schema = appendToTailOfList(schema, newA);
+        }
+        break;
+        case ALTER_TABLE_REMOVE_COLUMN:
+        {
+            AttributeDef *rmA = createAttributeDef(strdup(a->columnName), DT_INT);
+            if(!genericSearchList(schema,
+                    (int (*) (void *, void *)) compareAttrDefName,
+                    rmA))
+                FATAL_LOG("cannot remove non-existing column %s from table %s",
+                                        a->columnName, a->tableName);
+            schema = genericRemoveFromList(schema,
+                    (int (*) (void *, void *)) compareAttrDefName, rmA);
+        }
+        break;
+    }
+
+    // store new schema
+    MAP_ADD_STRING_KEY(schemaInfo, a->tableName, schema);
+    a->schema = copyObject(schema);
+
+    DEBUG_NODE_BEATIFY_LOG("analyzed alter table is:", a);
+}
+
+static boolean
+compareAttrDefName(AttributeDef *a, AttributeDef *b)
+{
+    return (streq(a->attrName, b->attrName));
+}
+
 static boolean
 setViewFromTableRefAttrs(Node *node, List *views)
 {
@@ -1639,6 +1827,50 @@ setViewFromTableRefAttrs(Node *node, List *views)
 
     return visit(node, setViewFromTableRefAttrs, views);
 }
+
+static boolean
+schemaInfoHasTable(char *tableName)
+{
+    if(!schemaInfo)
+        return FALSE;
+    return MAP_HAS_STRING_KEY(schemaInfo,tableName);
+}
+
+static List *
+schemaInfoGetSchema(char *tableName)
+{
+    if(!schemaInfo)
+    {
+        FATAL_LOG("request table information, but no schema information has been cached yet");
+        return NULL;
+    }
+    return (List *) MAP_GET_STRING(schemaInfo,tableName);
+}
+
+static List *
+schemaInfoGetAttributeNames (char *tableName)
+{
+    List *attrDefs = schemaInfoGetSchema(tableName);
+    List *result = NIL;
+
+    FOREACH(AttributeDef, a, attrDefs)
+        result = appendToTailOfList(result, strdup(a->attrName));
+
+    return result;
+}
+
+static List *
+schemaInfoGetAttributeDataTypes (char *tableName)
+{
+    List *attrDefs = schemaInfoGetSchema(tableName);
+    List *result = NIL;
+
+    FOREACH(AttributeDef, a, attrDefs)
+        result = appendToTailOfListInt(result, a->dataType);
+
+    return result;
+}
+
 
 static boolean
 findAttrReferences (Node *node, List **state)

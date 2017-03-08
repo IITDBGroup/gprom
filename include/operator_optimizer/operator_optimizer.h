@@ -12,7 +12,7 @@
 #define OPERATOR_OPTIMIZER_H_
 
 #include "model/query_operator/query_operator.h"
-#include "include/model/set/set.h"
+#include "model/set/set.h"
 
 /* apply all optimizations */
 extern Node *optimizeOperatorModel (Node *root);

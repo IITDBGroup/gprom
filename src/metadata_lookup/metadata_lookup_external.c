@@ -38,8 +38,8 @@ static List *externalGetAttributeNames (char *tableName);
 extern Node *externalGetAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 static boolean externalIsAgg(char *functionName);
 static boolean externalIsWindowFunction(char *functionName);
-static DataType externalGetFuncReturnType (char *fName, List *argTypes);
-static DataType externalGetOpReturnType (char *oName, List *argTypes);
+static DataType externalGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists);
+static DataType externalGetOpReturnType (char *oName, List *argTypes, boolean *opExists);
 static char *externalGetTableDefinition(char *tableName);
 static char *externalGetViewDefinition(char *viewName);
 static List *externalGetKeyInformation (char *tableName);
@@ -92,6 +92,10 @@ assembleExternalMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
 static int
 externalInitMetadataLookupPlugin (void)
 {
+    if (activePlugin == NULL || activePlugin->cache == NULL)
+        return EXIT_FAILURE;
+    if (activePlugin->type != METADATA_LOOKUP_PLUGIN_EXTERNAL)
+        return EXIT_SUCCESS;
     EXTERNAL_PLUGIN;
     return extP->isInitialized();
 }
@@ -99,6 +103,10 @@ externalInitMetadataLookupPlugin (void)
 static int
 externalShutdownMetadataLookupPlugin (void)
 {
+    if (activePlugin == NULL || activePlugin->cache == NULL)
+        return EXIT_FAILURE;
+    if (activePlugin->type != METADATA_LOOKUP_PLUGIN_EXTERNAL)
+        return EXIT_SUCCESS;
     EXTERNAL_PLUGIN;
     return extP->shutdownMetadataLookupPlugin();
 }
@@ -121,6 +129,8 @@ static boolean
 externalIsInitialized (void)
 {
     if (activePlugin == NULL || activePlugin->cache == NULL)
+        return FALSE;
+    if (activePlugin->type != METADATA_LOOKUP_PLUGIN_EXTERNAL)
         return FALSE;
     EXTERNAL_PLUGIN;
     return extP->isInitialized();
@@ -204,7 +214,7 @@ externalIsWindowFunction(char *functionName)
 }
 
 static DataType
-externalGetFuncReturnType (char *fName, List *argTypes)
+externalGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
     EXTERNAL_PLUGIN;
     char ** args;
@@ -222,7 +232,7 @@ externalGetFuncReturnType (char *fName, List *argTypes)
 }
 
 static DataType
-externalGetOpReturnType (char *oName, List *argTypes)
+externalGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
     EXTERNAL_PLUGIN;
     char **args;

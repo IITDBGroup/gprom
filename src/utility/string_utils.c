@@ -46,6 +46,34 @@ getMatchingSubstring(const char *string, const char *pattern)
     return result;
 }
 
+char *
+getFullMatchingSubstring(const char *string, const char *pattern)
+{
+    char *result;
+    regex_t p;
+    const int n_matches = 2;
+    regmatch_t m[n_matches];
+    int matchRes;
+    int length;
+
+    // compile
+    regcomp(&p, pattern, REG_EXTENDED);
+
+    // match
+    matchRes = regexec (&p, string, n_matches, m, 0);
+    ASSERT(matchRes == 0);
+
+    // return substring
+    length = m[0].rm_eo - m[0].rm_so;
+    result = MALLOC(length + 1);
+    memcpy(result, string + m[0].rm_so, length);
+    result[length] = '\0';
+
+    TRACE_LOG("matched <%s> string <%s> with result <%s>", pattern, string, result);
+
+    return result;
+}
+
 List *
 splitString(char *str, const char *delim)
 {
@@ -55,8 +83,9 @@ splitString(char *str, const char *delim)
 
     if (str == NULL)
         return NIL;
-    while ((token = strsep(&str, ",")) != NULL)
-        result = appendToTailOfList(result, strdup(token));
+    while ((token = strsep(&str, delim)) != NULL)
+        if (*token != '\0')
+            result = appendToTailOfList(result, strdup(token));
 //    token = strsep(str, delim, pos);
 //
 //    while (token)
@@ -135,6 +164,9 @@ isPrefix(char *str, char *prefix)
     if(str == NULL || prefix == NULL)
         return FALSE;
 
+    if (prefix[0] != str[0])
+        return FALSE;
+
     while(*prefix != '\0' && *prefix++ == *str++)
         ;
     return *prefix == '\0';
@@ -152,6 +184,32 @@ isSuffix(char *str, char *suffix)
             return FALSE;
 
     return TRUE;
+}
+
+boolean
+isSubstr(char *str, char *substr)
+{
+    if(str == NULL || substr == NULL || strlen(str) < strlen(substr))
+        return FALSE;
+
+    return strstr(str, substr) != NULL;
+}
+
+char *
+strtrim (char *in)
+{
+    StringInfo result = makeStringInfo();
+
+    if (in == NULL)
+        return NULL;
+
+    while(*in != '\0')
+    {
+        if (*in != '\t' && *in != ' ' && *in != '\n')
+            appendStringInfoChar(result, *in);
+        in++;
+    }
+    return result->data;
 }
 
 char *

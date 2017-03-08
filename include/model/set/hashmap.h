@@ -66,6 +66,7 @@ extern boolean addToMap (HashMap *map, Node *key, Node *value);
 		addToMap((HashMap *) map, (Node *) _kv->key, (Node *) _kv->value); \
 	} while(0)
 #define MAP_ADD_STRING_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstString(key), (Node *) value)
+#define MAP_ADD_STRING_KEY_AND_VAL(map, key, value) addToMap((HashMap *) map, (Node *) createConstString(key), (Node *) createConstString(value))
 #define MAP_ADD_INT_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstInt(key), (Node *) value)
 #define MAP_ADD_LONG_KEY(map, key, value) addToMap((HashMap *) map, (Node *) createConstLong(key), (Node *) value)
 
@@ -119,5 +120,6 @@ extern int mapSize (HashMap *map);
                                 DUMMY_HASHEL(_elem_)->hh.next) != NULL) ? \
                                         DUMMY_HASHEL(_elem_)->data : NULL))
 
+#define FOREACH_HASH_HAS_MORE(_elem_) (DUMMY_HASHEL(_elem_)->hh.next != NULL)
 
 #endif /* HASHMAP_H_ */

@@ -39,22 +39,40 @@
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
+static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
+static void setupPlugin(const char *pluginType);
 
 int
-initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[])
+initBasicModules (void)
 {
     initMemManager();
     mallocOptions();
     initLogger();
 
-    if(parseOption(argc, argv) != 0)
+    return EXIT_SUCCESS;
+}
+
+
+int
+initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char* argv[])
+{
+    initBasicModules();
+    return readOptions(appName, appHelpText, argc, argv);
+}
+
+int
+readOptions (char *appName, char *appHelpText, int argc, char* argv[])
+{
+    int parserReturn = parseOption(argc, argv);
+
+    if(parserReturn == OPTION_PARSER_RETURN_ERROR)
     {
         printOptionParseError(stdout);
         printOptionsHelp(stdout, appName, appHelpText, TRUE);
         return EXIT_FAILURE;
     }
 
-    if (getBoolOption("help"))
+    if (parserReturn == OPTION_PARSER_RETURN_HELP || getBoolOption("help"))
     {
         printOptionsHelp(stdout, appName, appHelpText, FALSE);
         return EXIT_FAILURE;
@@ -69,29 +87,74 @@ initBasicModulesAndReadOptions (char *appName, char *appHelpText, int argc, char
     return EXIT_SUCCESS;
 }
 
-int
-initBasicModules (void)
+void
+reactToOptionsChange (const char *optName)
 {
-    initMemManager();
-    mallocOptions();
-    initLogger();
-    if (opt_memmeasure)
-        setupMemInstrumentation();
-
-    return EXIT_SUCCESS;
+    // need to reinitialize logger
+    if (strStartsWith(optName, "log"))
+    {
+        reinitLogger();
+        return;
+    }
+    // need to reestablish connection
+    //TODO right now this would try to reconnect after one connection parameter has been changed
+    if (strStartsWith(optName, "connection"))
+    {
+        databaseConnectionClose();
+        databaseConnectionOpen();
+        return;
+    }
+    // need to switch a plugin
+    if (strStartsWith(optName, "plugin"))
+    {
+        setupPlugin(optName);
+    }
 }
+
+//int
+//initBasicModules (void)
+//{
+//    initMemManager();
+//    mallocOptions();
+//    initLogger();
+//    if (opt_memmeasure)
+//        setupMemInstrumentation();
+//
+//    return EXIT_SUCCESS;
+//}
+
+#define CHOOSE_PLUGIN(_plugin,_method) \
+    do { \
+    	if ((pluginName = getStringOption(_plugin)) != NULL) \
+            _method(pluginName); \
+        else if (fe != NULL) \
+            _method(getFrontendPlugin(fe,_plugin)); \
+    	else if (be != NULL) \
+		    _method(getBackendPlugin(be, _plugin)); \
+        else \
+            FATAL_LOG("no backend is set and no " _plugin " provided either, e.g., use -backend BACKEND to set a backend"); \
+    } while (0);
+
+#define CHOOSE_BE_PLUGIN(_plugin,_method) \
+    do { \
+        if ((pluginName = getStringOption(_plugin)) != NULL) \
+            _method(pluginName); \
+        else if (be != NULL) \
+            _method(getBackendPlugin(be, _plugin)); \
+        else \
+            FATAL_LOG("no backend is set and no " _plugin " provided either, e.g., use -backend BACKEND to set a backend"); \
+    } while (0);
+
 
 void
 setupPluginsFromOptions(void)
 {
     char *be = getStringOption("backend");
+    char *fe = getStringOption("frontend");
     char *pluginName = be;
 
     // setup parser - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.parser")) != NULL)
-        chooseParserPluginFromString(pluginName);
-    else
-        chooseParserPluginFromString(be);
+    CHOOSE_PLUGIN(OPTION_PLUGIN_PARSER, chooseParserPluginFromString);
 
     // setup metadata lookup - individual option overrides backend option
     pluginName = getStringOption("plugin.metadata");
@@ -102,41 +165,92 @@ setupPluginsFromOptions(void)
     else
     {
         initMetadataLookupPlugins();
-        if (pluginName != NULL)
-            chooseMetadataLookupPluginFromString(pluginName);
-        else
-            chooseMetadataLookupPluginFromString(be);
+        CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA, chooseMetadataLookupPluginFromString);
         initMetadataLookupPlugin();
     }
 
     // setup analyzer - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.analyzer")) != NULL)
-        chooseAnalyzerPluginFromString(pluginName);
-    else
-        chooseAnalyzerPluginFromString(be);
+    CHOOSE_PLUGIN(OPTION_PLUGIN_ANALYZER, chooseAnalyzerPluginFromString);
 
     // setup analyzer - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.translator")) != NULL)
-        chooseTranslatorPluginFromString(pluginName);
-    else
-        chooseTranslatorPluginFromString(be);
+    CHOOSE_PLUGIN(OPTION_PLUGIN_TRANSLATOR, chooseTranslatorPluginFromString);
 
     // setup analyzer - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.sqlserializer")) != NULL)
-        chooseSqlserializerPluginFromString(pluginName);
-    else
-        chooseSqlserializerPluginFromString(be);
+    CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLSERIALIZER, chooseSqlserializerPluginFromString);
+    CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLCODEGEN, chooseSqlserializerPluginFromString);
+
     // setup analyzer - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.executor")) != NULL)
-        chooseExecutorPluginFromString(pluginName);
-    else
-        chooseExecutorPluginFromString("sql");
+    pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
+    chooseExecutorPluginFromString(pluginName);
 
     // setup cost-based optimizer
-    if ((pluginName = getStringOption("plugin.cbo")) != NULL)
+    if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
         chooseOptimizerPluginFromString(pluginName);
     else
         chooseOptimizerPluginFromString("exhaustive");
+}
+
+static void
+setupPlugin(const char *pluginType)
+{
+    char *pluginName;
+    char *be = getStringOption("backend");
+    char *fe = getStringOption("frontend");
+
+    if (streq(pluginType,OPTION_PLUGIN_PARSER))
+    {
+        CHOOSE_PLUGIN(OPTION_PLUGIN_PARSER, chooseParserPluginFromString);
+    }
+
+    // setup metadata lookup - individual option overrides backend option
+    if (streq(pluginType,OPTION_PLUGIN_METADATA))
+    {
+        pluginName = getStringOption(OPTION_PLUGIN_METADATA);
+        if (strpeq(pluginName,"external"))
+        {
+            printf("\nPLUGIN******************************************\n\n");
+        }
+        else
+        {
+            initMetadataLookupPlugins();//TODO not necessary
+            CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA, chooseMetadataLookupPluginFromString);
+            initMetadataLookupPlugin();
+        }
+    }
+
+    // setup analyzer - individual option overrides backend option
+    if (streq(pluginType,OPTION_PLUGIN_ANALYZER))
+    {
+        CHOOSE_PLUGIN(OPTION_PLUGIN_ANALYZER, chooseAnalyzerPluginFromString);
+    }
+
+    // setup analyzer - individual option overrides backend option
+    if (streq(pluginType,OPTION_PLUGIN_TRANSLATOR))
+    {
+        CHOOSE_PLUGIN(OPTION_PLUGIN_TRANSLATOR, chooseTranslatorPluginFromString);
+    }
+
+    // setup  sql serializer - individual option overrides backend option
+    if (streq(pluginType,OPTION_PLUGIN_SQLSERIALIZER))
+    {
+        CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLSERIALIZER, chooseSqlserializerPluginFromString);
+    }
+
+    // setup executor
+    if (streq(pluginType,OPTION_PLUGIN_EXECUTOR))
+    {
+        pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
+        chooseExecutorPluginFromString(pluginName);
+    }
+
+    // setup cost-based optimizer
+    if (streq(pluginType,OPTION_PLUGIN_CBO))
+    {
+        if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
+            chooseOptimizerPluginFromString(pluginName);
+        else
+            chooseOptimizerPluginFromString("exhaustive");
+    }
 }
 
 void
@@ -210,12 +324,12 @@ shutdownApplication(void)
 void
 processInput(char *input)
 {
-    char *result = rewriteQuery(input);
+    char *result = rewriteQueryInternal(input, TRUE);
     execute(result);
 }
 
-char *
-rewriteQuery(char *input)
+static char *
+rewriteQueryInternal (char *input, boolean rethrowExceptions)
 {
     Node *parse;
     char *result = "";
@@ -234,6 +348,8 @@ rewriteQuery(char *input)
     }
     ON_EXCEPTION
     {
+        if (rethrowExceptions)
+            RETHROW();
         // if an exception is thrown then the query memory context has been
         // destroyed and we can directly create an empty string in the callers
         // context
@@ -241,6 +357,18 @@ rewriteQuery(char *input)
     }
     END_ON_EXCEPTION
     return strdup("");
+}
+
+char *
+rewriteQuery(char *input)
+{
+    return rewriteQueryInternal(input, FALSE);
+}
+
+char *
+rewriteQueryWithRethrow(char *input)
+{
+    return rewriteQueryInternal(input, TRUE);
 }
 
 char *

@@ -34,7 +34,7 @@ public class TestHiveMetadataLookup {
 	
 	@BeforeClass
 	public static void setup () throws SQLException, ClassNotFoundException {
-		PropertyConfigurator.configure("javalib/log4j.properties");
+//		PropertyConfigurator.configure("javalib/log4j.properties");
 		//TODO adapt to Hive
 //		String username = "fga_user";
 //		String password = "fga";

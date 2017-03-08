@@ -19,7 +19,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_KeyValue,
 
     /* expression nodes */
-    T_Constant,
+	T_Constant,
     T_AttributeReference,
     T_SQLParameter,
     T_FunctionCall,
@@ -80,6 +80,7 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
     T_DLRule,
     T_DLProgram,
     T_DLComparison,
+	T_DLDomain,
 
     /* Json Table Node */
     T_FromJsonTable,
@@ -92,7 +93,11 @@ NEW_ENUM_WITH_TO_STRING(NodeTag,
 
     /* rpq */
     T_Regex,
-    T_RPQQuery
+    T_RPQQuery,
+
+    /* ddl */
+    T_CreateTable,
+    T_AlterTable
 );
 
 typedef struct Node{
@@ -101,7 +106,8 @@ typedef struct Node{
 
 NEW_ENUM_WITH_TO_STRING(ProvenanceType,
     PROV_PI_CS,
-    PROV_TRANSFORMATION
+    PROV_TRANSFORMATION,
+    PROV_NONE /* for reenactment of bag semantics only */
 );
 
 /* what type of database operation(s) a provenance computation is for */
@@ -109,6 +115,8 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
     PROV_INPUT_QUERY,
     PROV_INPUT_UPDATE,
     PROV_INPUT_UPDATE_SEQUENCE,
+    PROV_INPUT_REENACT,
+    PROV_INPUT_REENACT_WITH_TIMES,
     PROV_INPUT_TRANSACTION,
     PROV_INPUT_TIME_INTERVAL
 );

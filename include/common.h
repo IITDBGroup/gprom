@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <ctype.h>
+#include <errno.h>
 
 /*******************************************************************************
  * Portability
@@ -99,6 +100,11 @@
 #include <math.h>
 #endif
 
+/* pwd */
+#if HAVE_PWD_H
+#include <pwd.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup
@@ -110,7 +116,7 @@
 /* streq function */
 #if HAVE_STRCMP
 #define streq(_l,_r) (strcmp(_l,_r) == 0)
-#define strpeq(_l,_r) ((_l) == (_r)) || ((_l != NULL) && (_r != NULL) && (strcmp(_l,_r) == 0))
+#define strpeq(_l,_r) (((_l) == (_r)) || ((_l != NULL) && (_r != NULL) && (strcmp(_l,_r) == 0)))
 #define strneq(_l,_r,n) (strncmp(_l,_r,n) == 0)
 #define strStartsWith(_str,_prefix) (strncmp(_str,_prefix,strlen(_prefix)) == 0)
 #endif
@@ -137,9 +143,13 @@
 #define HAVE_ORACLE_BACKEND 1
 #endif
 
+// sqlite
+#if HAVE_LIBSQLITE3
+#define HAVE_SQLITE_BACKEND 1
+#endif
 
 // any backend
-#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND
+#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND || HAVE_LIBSQLITE3
 #define HAVE_A_BACKEND 1
 #endif
 
@@ -148,6 +158,12 @@
 #include <ocilib.h>
 #endif
 
+/********************************************************************************
+ * Readline
+ */
+#if HAVE_LIBREADLINE
+#define HAVE_READLINE 1
+#endif
 
 /*******************************************************************************
  * Definitions

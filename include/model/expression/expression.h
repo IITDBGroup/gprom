@@ -186,6 +186,7 @@ extern Constant *createConstInt (int value);
 extern Constant *createConstLong (long value);
 extern Constant *createConstString (char *value);
 extern Constant *createConstFloat (double value);
+extern Constant *createConstBoolFromString (char *v);
 extern Constant *createConstBool (boolean value);
 extern Constant *createNullConst (DataType dt);
 #define INT_VALUE(_c) *((int *) ((Constant *) _c)->value)
@@ -200,9 +201,12 @@ extern Constant *createNullConst (DataType dt);
 extern DataType typeOf (Node *expr);
 extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
 extern boolean isConstExpr (Node *expr);
+extern boolean isCondition(Node *expr);
 
 /* casting related */
 extern List *createCasts(Node *lExpr, Node *rExpr);
+extern Node *addCastsToExpr(Node *expr, boolean errorOnFailure);
+extern DataType lcaType (DataType l, DataType r);
 
 extern DataType SQLdataTypeToDataType (char *dt);
 
@@ -227,5 +231,6 @@ extern Node *changeListOpToAnOpNode(List *l1);
 
 /* find all nodes of a certain type */
 extern List *findAllNodes(Node *node, NodeTag type);
+
 
 #endif /* EXPRESSION_H */
