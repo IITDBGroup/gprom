@@ -106,13 +106,10 @@ optimizeOneGraph (QueryOperator *root)
 {
     QueryOperator *rewrittenTree = root;
 
-    //NEW_AND_ACQUIRE_MEMCONTEXT("HEURISTIC OPTIMIZER CONTEXT");
-//<<<<<<< HEAD
+
     int numHeuOptItens = getIntOption(OPTION_COST_BASED_NUM_HEURISTIC_OPT_ITERATIONS);
-//=======
     NEW_AND_ACQUIRE_MEMCONTEXT("HEURISTIC OPTIMIZER CONTEXT");
 
-//>>>>>>> master
     int res;
     int c = 0;
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
@@ -221,7 +218,7 @@ optimizeOneGraph (QueryOperator *root)
     	STOP_TIMER("OptimizeModel - RemoveProperties");
     }
     FREE_MEM_CONTEXT_AND_RETURN_COPY(QueryOperator,rewrittenTree);
-//    return rewrittenTree;
+    return rewrittenTree;
 }
 
 QueryOperator *
@@ -1440,7 +1437,7 @@ pullingUpProvenanceProjections(QueryOperator *root)
                     List *l1 = getProvenanceAttrReferences(op, o);
 
                     //Get the attrDef name of the provenance attribute
-                    List *l2 = getOpProvenanceAttrNames(o);
+                    List *l2 = getNormalAttrNames(o);
 
                     //Get the attrReference of non provenance attribute
                     List *l3 = getNormalAttrReferences(op, o);
@@ -2274,6 +2271,7 @@ pushDownAggregationThroughJoin(QueryOperator *root)
 {
 	//QueryOperator *newRoot = root;
 	QueryOperator *child = OP_LCHILD(root);
+	QueryOperator *parent = OP_FIRST_PARENT(root);
 	//List *opList = NIL;
 
 	if(isA(root, AggregationOperator) && isA(child, JoinOperator))
@@ -2284,6 +2282,10 @@ pushDownAggregationThroughJoin(QueryOperator *root)
 
 		AggregationOperator *agg = (AggregationOperator *) root;
 		JoinOperator *jOp = (JoinOperator *) child;
+		QueryOperator *lChild = OP_LCHILD(jOp);
+
+    	List *lSchemaList = getAttrNames(lChild->schema);
+    	Set *lSchemaSet = makeStrSetFromList(lSchemaList);
 
 		/* Condition 1 */
 		List *aggList = getAttrReferences((Node *) agg->aggrs);
@@ -2306,11 +2308,11 @@ pushDownAggregationThroughJoin(QueryOperator *root)
 		Set *cond1Set = intersectSets(joinUgrouBySet,aggSet);
 
 		//if(EMPTY_SET(cond1Set))
-		cond1 = EMPTY_SET(cond1Set);
+		cond1 = EMPTY_SET(cond1Set) && containsSet(aggSet, lSchemaSet);
 
 		/* Condition 2 */
         Set *joinIgroupBySet = intersectSets(joinCondSet, groupBySet);
-        if(setSize(joinIgroupBySet) == setSize(groupBySet))
+        if(setSize(joinIgroupBySet) == setSize(groupBySet) && containsSet(joinIgroupBySet, lSchemaSet))
         	cond2 = TRUE;
 
         /* Condition 3 */
@@ -2362,11 +2364,22 @@ pushDownAggregationThroughJoin(QueryOperator *root)
             DEBUG_LOG("Condition 3 is : %d", cond3);
         }
 
-        if(cond1 && cond2 && cond3)
-        	switchAggregationWithJoinToLeftChild(agg, jOp);
-        else if(cond1)
-        	addAdditionalAggregationBelowJoin(agg,jOp);
+        List *newGroupByAttrRefs = NIL;
+        FOREACH_SET(char, c, joinIgroupBySet)
+        {
+        	FOREACH(AttributeReference, ar, joinCondList)
+		   {
+        		if(streq(c,ar->name) && !searchList(newGroupByAttrRefs, ar) && cond2)
+        			newGroupByAttrRefs = appendToTailOfList(newGroupByAttrRefs, copyObject(ar));
+		   }
+        }
 
+        if(cond1 && cond2 && cond3) //CASE 1
+        	switchAggregationWithJoinToLeftChild(agg, jOp);
+        else if(cond1 && cond3)  //CASE 2
+        	addAdditionalAggregationBelowJoin(agg, jOp);
+        else if(cond2 && cond3 && isA(parent, ProjectionOperator))   //CASE 3
+        	addCountAggregationBelowJoin(agg, jOp, newGroupByAttrRefs);
 
 	}
 
@@ -2376,6 +2389,129 @@ pushDownAggregationThroughJoin(QueryOperator *root)
 	return root;
 }
 
+void
+addCountAggregationBelowJoin(AggregationOperator *aggOp, JoinOperator *jOp, List *groupByAttrRefs)
+{
+	/* got the error when introduce new projection
+	QueryOperator *lChild = OP_LCHILD(jOp);
+	List *lChildAttrDefsNames = getAttrNames(lChild->schema);
+	List *newlChildAttrDefsNames = NIL;
+	FOREACH(char, c, lChildAttrDefsNames)
+		newlChildAttrDefsNames = appendToTailOfList(newlChildAttrDefsNames, strdup(c));
+	int pos = 0;
+	List *newAttrRef = NIL;
+    FOREACH(AttributeDef, ad, lChild->schema->attrDefs)
+	{
+    	AttributeReference *ar = createFullAttrReference(ad->attrName, 0, pos, 0, ad->dataType);
+    	newAttrRef = appendToTailOfList(newAttrRef, ar);
+    	pos ++;
+	}
+    ProjectionOperator *newPrj = createProjectionOp(newAttrRef, lChild, singleton(jOp), newlChildAttrDefsNames);
+    jOp->op.inputs = replaceNode(jOp->op.inputs, lChild, newPrj);
+    lChild->parents = singleton(newPrj);
+    */
+
+	QueryOperator *lChild = OP_LCHILD(jOp);
+	QueryOperator *rChild = OP_RCHILD(jOp);
+
+	/* new projection 1,B, 1->*  */
+	//projExprs
+	List *newProjExprs = NIL;
+	List *newProjDefs = NIL;
+	List *onlyGroupByAttrDefs = NIL;
+	Constant *star =  createConstInt(1);
+	newProjExprs = appendToTailOfList(newProjExprs, star);
+
+	AttributeDef *starDef = createAttributeDef("STAR", DT_INT);
+	newProjDefs = appendToTailOfList(newProjDefs,starDef);
+
+	FOREACH(AttributeReference, a, groupByAttrRefs)
+	{
+		newProjExprs = appendToTailOfList(newProjExprs, copyObject(a));
+		newProjDefs = appendToTailOfList(newProjDefs, createAttributeDef(strdup(a->name), a->attrType));
+		onlyGroupByAttrDefs = appendToTailOfList(onlyGroupByAttrDefs, createAttributeDef(strdup(a->name), a->attrType));
+	}
+
+	//projSchema
+	ProjectionOperator *newProj = (ProjectionOperator *) copyObject(getHeadOfListP(aggOp->op.parents));
+
+	newProj->projExprs = newProjExprs;
+	newProj->op.schema->attrDefs = newProjDefs;
+
+	newProj->op.inputs = singleton(lChild);
+	lChild->parents = singleton(newProj);
+
+	/* new count aggregation op */
+	//aggrs
+	AttributeReference *starAttRef = createAttributeReference("STAR");
+	starAttRef->attrType = DT_INT;
+
+	//groupBy
+
+	AggregationOperator *newAgg =  (AggregationOperator *) copyObject(aggOp);
+	jOp->op.inputs = replaceNode(jOp->op.inputs, lChild, newAgg);
+	newAgg->op.parents = singleton(jOp);
+	newAgg->op.inputs = singleton(newProj);
+	newProj->op.parents = singleton(newAgg);
+
+	FunctionCall *f = getHeadOfListP(newAgg->aggrs);
+	f->functionname = "COUNT";
+	AttributeReference *ar = getHeadOfListP(f->args);
+	ar->name = "STAR";
+
+	List *newAggDefs = NIL;
+	AttributeDef *ad1 = createAttributeDef("OCNT",DT_INT);
+	newAggDefs = appendToTailOfList(newAggDefs, ad1);
+
+	FOREACH(AttributeReference, ar, groupByAttrRefs)
+		newAggDefs = appendToTailOfList(newAggDefs, createAttributeDef(strdup(ar->name),ar->attrType));
+	newAgg->op.schema->attrDefs = newAggDefs;
+
+	List *newJOpDefs = concatTwoLists(copyList(newAggDefs), copyList(rChild->schema->attrDefs));
+	jOp->op.schema->attrDefs = newJOpDefs;
+
+	resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) jOp, (QueryOperator *) newAgg);
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) newAgg, (QueryOperator *) newProj);
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) newProj, (QueryOperator *) lChild);
+
+
+    //proj
+	ProjectionOperator *topProj = (ProjectionOperator *) OP_FIRST_PARENT(aggOp);//(ProjectionOperator *) copyObject(getHeadOfListP(aggOp->op.parents));
+    topProj->op.inputs = singleton(jOp);
+    jOp->op.parents  = singleton(topProj);
+
+    //the operator ocnt * D
+    List *topProjNewAttrRefs = NIL;
+    List *operatorList = NIL;
+    AttributeReference *ocntAttrRef = createFullAttrReference(ad1->attrName, 0, 0, 0, ad1->dataType);
+    List *oldAggAttrRefList = getAttrReferences((Node *) aggOp->aggrs);
+    AttributeReference *oldAggAttrRef = getHeadOfListP(oldAggAttrRefList);
+    operatorList = appendToTailOfList(operatorList, ocntAttrRef);
+    operatorList = appendToTailOfList(operatorList, copyObject(oldAggAttrRef));
+    Operator *st = createOpExpr("*",operatorList);
+    topProjNewAttrRefs =  appendToTailOfList(topProjNewAttrRefs, st);
+    topProjNewAttrRefs = concatTwoLists(topProjNewAttrRefs, copyList(groupByAttrRefs));
+    topProj->projExprs = topProjNewAttrRefs;
+
+    FORBOTH(Node, a1, a2, topProj->projExprs, topProj->op.schema->attrDefs)
+    {
+    	if(isA(a1, AttributeReference) && isA(a2, AttributeDef))
+    		((AttributeDef *) a2)->dataType = ((AttributeReference *) a1)->attrType;
+    	else if(isA(a1, Operator) && isA(a2, AttributeDef))
+    	{
+    		FOREACH(Node, n, getAttrReferences(a1))
+		    {
+    			if(isA(n, AttributeReference))
+    			{
+    				((AttributeDef *) a2)->dataType = ((AttributeReference *) n)->attrType;
+    				break;
+    			}
+		    }
+    	}
+    }
+
+    resetPosOfAttrRefBaseOnBelowLayerSchema((QueryOperator *) topProj, (QueryOperator *) jOp);
+}
 
 void
 addAdditionalAggregationBelowJoin(AggregationOperator *aggOp, JoinOperator *jOp)

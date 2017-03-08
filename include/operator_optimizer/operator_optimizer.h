@@ -63,5 +63,6 @@ extern QueryOperator *selectionMoveAround(QueryOperator *root);
 extern QueryOperator *pushDownAggregationThroughJoin(QueryOperator *root);
 extern void switchAggregationWithJoinToLeftChild(AggregationOperator *aggOp, JoinOperator *jOp);
 extern void addAdditionalAggregationBelowJoin(AggregationOperator *aggOp, JoinOperator *jOp);
+extern void addCountAggregationBelowJoin(AggregationOperator *aggOp, JoinOperator *jOp, List *groupByAttrRefs);
 
 #endif /* OPERATOR_OPTIMIZER_H_ */
