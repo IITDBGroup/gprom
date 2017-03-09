@@ -591,8 +591,8 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv)
 	randomProvL->provAttrs = provAttrs;
 
 	// create projection for computing sample size for the right input
-	AttributeReference *countProv = createFullAttrReference(strdup("1"), 0, 0, 0, DT_INT);
-	FunctionCall *fcCount = createFunctionCall("COUNT", singleton(countProv));
+//	AttributeReference *countProv = createFullAttrReference(strdup("1"), 0, 0, 0, DT_INT);
+	FunctionCall *fcCount = createFunctionCall("COUNT", singleton(createConstInt(1)));
 	fcCount->isAgg = TRUE;
 
 	Node* sampSize = (Node *) createOpExpr("*",LIST_MAKE(fcCount,createConstFloat(0.3)));
@@ -615,7 +615,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv)
 			{
 				AttributeReference *lA, *rA = NULL;
 				lA = createFullAttrReference(strdup(l->attrName), 0, LIST_LENGTH(left->schema->attrDefs)-1, 0, l->dataType);
-				rA = createFullAttrReference(strdup(r->attrName), 0, 0, 0, r->dataType);
+				rA = createFullAttrReference(strdup(r->attrName), 1, 0, 0, r->dataType);
 				joinCond = (Node *) createOpExpr("<=",LIST_MAKE(lA,rA));
 			}
 		}
@@ -692,7 +692,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv)
 			{
 				AttributeReference *lA, *rA = NULL;
 				lA = createFullAttrReference(strdup(l->attrName), 0, LIST_LENGTH(left->schema->attrDefs)-1, 0, l->dataType);
-				rA = createFullAttrReference(strdup(r->attrName), 0, 0, 0, r->dataType);
+				rA = createFullAttrReference(strdup(r->attrName), 1, 0, 0, r->dataType);
 				joinCond = (Node *) createOpExpr("<=",LIST_MAKE(lA,rA));
 			}
 		}
