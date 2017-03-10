@@ -209,6 +209,7 @@ strconcat		"||"
 (?i:SUMMARIZED)		TOK(SUMMARIZED)
 (?i:TO)				TOK(TO)
 (?i:EXPLAIN)		TOK(EXPLAIN)
+(?i:SAMPLE)			TOK(SAMPLE)
 
 
 	/* booleans */

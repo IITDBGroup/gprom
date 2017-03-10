@@ -46,6 +46,7 @@ static void setupPlugin(const char *pluginType);
 
 List *userQuestion = NIL;
 char *summaryType = NULL;
+int sampleSize = 0;
 
 int
 initBasicModules (void)
@@ -455,7 +456,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
         // rewrite for summarization
         if (summaryType != NULL)
-            rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree, userQuestion);
+            rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree, userQuestion, sampleSize);
 
 	    if(applyOptimizations)
 	    {
@@ -494,11 +495,14 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     // store summary type
     ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
 
-    if (ps->summaryType != NULL || ps->userQuestion != NIL)
-    {
+    if (ps->userQuestion != NIL)
     	userQuestion = ps->userQuestion;
+
+    if (ps->summaryType != NULL)
     	summaryType = ps->summaryType;
-    }
+
+    if (ps->sampleSize != 0)
+    	sampleSize = ps->sampleSize;
 
     START_TIMER("translation");
     oModel = translateParse(parse);

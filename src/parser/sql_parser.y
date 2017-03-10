@@ -77,7 +77,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE 
 %token <stringVal> CAST
 %token <stringVal> CREATE ALTER ADD REMOVE COLUMN
-%token <stringVal> SUMMARIZED TO EXPLAIN
+%token <stringVal> SUMMARIZED TO EXPLAIN SAMPLE
 
 %token <stringVal> DUMMYEXPR
 
@@ -402,6 +402,20 @@ provStmt:
             p->options = concatTwoLists($3, $8);
             p->summaryType = $11;
             p->userQuestion = $15;  
+            $$ = (Node *) p;
+        }
+        | PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')' WITH SAMPLE '(' intConst ')'
+        {
+            RULELOG("provStmt::summaryStmt");
+            Node *stmt = $6;
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = PROV_PI_CS;
+		    p->asOf = (Node *) $2;
+            p->options = concatTwoLists($3, $8);
+            p->summaryType = $11;
+            p->userQuestion = $15;
+            p->sampleSize = $20;  
             $$ = (Node *) p;
         }
     ;

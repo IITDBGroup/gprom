@@ -36,7 +36,7 @@ static Node *rewriteUserQuestion (List *userQuestion, Node *rewrittenTree);
 static Node *rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree);
 static Node *rewriteRandomProvTuples (Node *input);
 static Node *rewriteRandomNonProvTuples (Node *input);
-static Node *rewriteSampleOutput (Node *randProv, Node *randNonProv);
+static Node *rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize);
 static Node *rewritePatternOutput (char *summaryType, Node *input);
 static Node *rewriteScanSampleOutput (Node *sampleInput, Node *patternInput);
 static Node *rewriteCandidateOutput (Node *scanSampleInput);
@@ -44,10 +44,10 @@ static Node *rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput);
 static Node *rewriteMostGenExplOutput (Node *computeFracInput);
 
 Node *
-rewriteSummaryOutput (char *summaryType, Node *rewrittenTree, List *userQuestion)
+rewriteSummaryOutput (char *summaryType, Node *rewrittenTree, List *userQuestion, int sampleSize)
 {
-	List *uQuestion = userQuestion;
-	char *sType = summaryType;
+//	List *uQuestion = userQuestion;
+//	char *sType = summaryType;
 
 	Node *result;
 	Node *provJoin;
@@ -59,14 +59,14 @@ rewriteSummaryOutput (char *summaryType, Node *rewrittenTree, List *userQuestion
 	Node *candidates;
 	Node *computeFrac;
 
-	if (uQuestion != NIL)
-		rewrittenTree = rewriteUserQuestion(uQuestion, rewrittenTree);
+	if (userQuestion != NIL)
+		rewrittenTree = rewriteUserQuestion(userQuestion, rewrittenTree);
 
-	provJoin = rewriteProvJoinOutput(uQuestion, rewrittenTree);
+	provJoin = rewriteProvJoinOutput(userQuestion, rewrittenTree);
 	randomProv = rewriteRandomProvTuples(provJoin);
 	randomNonProv = rewriteRandomNonProvTuples(provJoin);
-	samples = rewriteSampleOutput(randomProv, randomNonProv);
-	patterns = rewritePatternOutput(sType, samples); //TODO: different types of pattern generation
+	samples = rewriteSampleOutput(randomProv, randomNonProv, sampleSize);
+	patterns = rewritePatternOutput(summaryType, samples); //TODO: different types of pattern generation
 	scanSamples = rewriteScanSampleOutput(samples, patterns);
 	candidates = rewriteCandidateOutput(scanSamples);
 	computeFrac = rewriteComputeFracOutput(candidates, samples);
@@ -562,7 +562,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 }
 
 static Node *
-rewriteSampleOutput (Node *randProv, Node *randNonProv)
+rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 {
 	Node *result;
 	List *attrNames = NIL;
@@ -595,7 +595,14 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv)
 	FunctionCall *fcCount = createFunctionCall("COUNT", singleton(createConstInt(1)));
 	fcCount->isAgg = TRUE;
 
-	Node* sampSize = (Node *) createOpExpr("*",LIST_MAKE(fcCount,createConstFloat(0.3)));
+	float spSize = 0.0;
+
+	if (sampleSize != 0)
+		spSize = (float) sampleSize / 100;
+	else
+		spSize = 0.1; // TODO: Whole or still do sampling?
+
+	Node* sampSize = (Node *) createOpExpr("*",LIST_MAKE(fcCount,createConstFloat(spSize)));
 	FunctionCall *fcCeil = createFunctionCall("CEIL", singleton(sampSize));
 
 	ProjectionOperator *rightOp = createProjectionOp(singleton(fcCeil), randomProvR, NIL, singleton(strdup("sampNum")));

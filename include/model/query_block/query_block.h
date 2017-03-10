@@ -84,6 +84,7 @@ typedef struct ProvenanceStmt
     List *options;
     char *summaryType;
     List *userQuestion;
+    int sampleSize;
 } ProvenanceStmt;
 
 typedef struct SelectItem

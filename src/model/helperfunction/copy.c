@@ -891,6 +891,8 @@ copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
     COPY_NODE_FIELD(options);
     COPY_STRING_FIELD(summaryType);
     COPY_NODE_FIELD(userQuestion);
+    COPY_NODE_FIELD(userQuestion);
+    COPY_SCALAR_FIELD(sampleSize);
 
     return new;
 }
