@@ -893,6 +893,7 @@ copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
     COPY_NODE_FIELD(userQuestion);
     COPY_NODE_FIELD(userQuestion);
     COPY_SCALAR_FIELD(sampleSize);
+    COPY_SCALAR_FIELD(topK);
 
     return new;
 }

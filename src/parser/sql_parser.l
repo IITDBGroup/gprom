@@ -210,6 +210,7 @@ strconcat		"||"
 (?i:TO)				TOK(TO)
 (?i:EXPLAIN)		TOK(EXPLAIN)
 (?i:SAMPLE)			TOK(SAMPLE)
+(?i:TOP)			TOK(TOP)
 
 
 	/* booleans */

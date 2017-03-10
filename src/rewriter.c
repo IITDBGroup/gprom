@@ -47,6 +47,7 @@ static void setupPlugin(const char *pluginType);
 List *userQuestion = NIL;
 char *summaryType = NULL;
 int sampleSize = 0;
+int topK = 0;
 
 int
 initBasicModules (void)
@@ -456,7 +457,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
         // rewrite for summarization
         if (summaryType != NULL)
-            rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree, userQuestion, sampleSize);
+            rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree, userQuestion, sampleSize, topK);
 
 	    if(applyOptimizations)
 	    {
@@ -503,6 +504,9 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
 
     if (ps->sampleSize != 0)
     	sampleSize = ps->sampleSize;
+
+    if (ps->topK != 0)
+    	topK = ps->topK;
 
     START_TIMER("translation");
     oModel = translateParse(parse);

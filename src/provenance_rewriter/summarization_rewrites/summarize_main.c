@@ -41,10 +41,10 @@ static Node *rewritePatternOutput (char *summaryType, Node *input);
 static Node *rewriteScanSampleOutput (Node *sampleInput, Node *patternInput);
 static Node *rewriteCandidateOutput (Node *scanSampleInput);
 static Node *rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput);
-static Node *rewriteMostGenExplOutput (Node *computeFracInput);
+static Node *rewriteMostGenExplOutput (Node *computeFracInput, int topK);
 
 Node *
-rewriteSummaryOutput (char *summaryType, Node *rewrittenTree, List *userQuestion, int sampleSize)
+rewriteSummaryOutput (char *summaryType, Node *rewrittenTree, List *userQuestion, int sampleSize, int topK)
 {
 //	List *uQuestion = userQuestion;
 //	char *sType = summaryType;
@@ -70,7 +70,7 @@ rewriteSummaryOutput (char *summaryType, Node *rewrittenTree, List *userQuestion
 	scanSamples = rewriteScanSampleOutput(samples, patterns);
 	candidates = rewriteCandidateOutput(scanSamples);
 	computeFrac = rewriteComputeFracOutput(candidates, samples);
-	result = rewriteMostGenExplOutput(computeFrac);
+	result = rewriteMostGenExplOutput(computeFrac, topK);
 
 	 if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) result));
@@ -79,14 +79,18 @@ rewriteSummaryOutput (char *summaryType, Node *rewrittenTree, List *userQuestion
 }
 
 static Node *
-rewriteMostGenExplOutput (Node *computeFracInput)
+rewriteMostGenExplOutput (Node *computeFracInput, int topK)
 {
 	Node *result;
 
 	QueryOperator *computeFrac = (QueryOperator *) computeFracInput;
 
 	// create selection for returning top most general explanation
-	Node *selCond = (Node *) createOpExpr("=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(1)));
+	Node *selCond = NULL;
+
+	if (topK != 0)
+		selCond = (Node *) createOpExpr("<=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(topK)));
+
 	SelectionOperator *so = createSelectionOp(selCond, computeFrac, NIL, getAttrNames(computeFrac->schema));
 
 	computeFrac->parents = singleton(so);
