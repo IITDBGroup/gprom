@@ -29,6 +29,13 @@
 
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 
+#define NUM_PROV_ATTR "NumInProv"
+#define HAS_PROV_ATTR "HAS_PROV"
+#define TOTAL_PROV_ATTR "TotalProv"
+#define ACCURACY_ATTR "Accuracy"
+#define COVERAGE_ATTR "Coverage"
+#define COVERED_ATTR "Covered"
+
 static List *provAttrs = NIL;
 static List *normAttrs = NIL;
 
@@ -130,7 +137,7 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 
 	// get total count for prov from samples
 	int aPos = LIST_LENGTH(samples->schema->attrDefs) - 1;
-	AttributeReference *lC = createFullAttrReference(strdup("HAS_PROV"), 0, aPos, 0, DT_INT);
+	AttributeReference *lC = createFullAttrReference(strdup(HAS_PROV_ATTR), 0, aPos, 0, DT_INT);
 
 	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
 	SelectionOperator *so = createSelectionOp(whereClause, samples, NIL, getAttrNames(samples->schema));
@@ -139,12 +146,12 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	samples = (QueryOperator *) so;
 
 	// create projection operator
-	AttributeReference *countProv = createFullAttrReference(strdup("*"), 0, aPos, 0, DT_INT);
+	Constant *countProv = createConstInt(1);
 	FunctionCall *fcCount = createFunctionCall("COUNT", singleton(countProv));
 	fcCount->isAgg = TRUE;
-	countProv->name = strdup("totalProv");
+	//countProv->name = strdup(TOTAL_PROV_ATTR);
 
-	ProjectionOperator *op = createProjectionOp(singleton(fcCount), samples, NIL, singleton(countProv->name));
+	ProjectionOperator *op = createProjectionOp(singleton(fcCount), samples, NIL, singleton(strdup(TOTAL_PROV_ATTR)));
 	samples->parents = singleton(op);
 	samples = (QueryOperator *) op;
 
@@ -168,13 +175,13 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	FOREACH(AttributeDef,p,computeFrac->schema->attrDefs)
 	{
 		if (pos == 0)
-			totProv = createFullAttrReference(strdup("totalProv"), 0, pos, 0, p->dataType);
+			totProv = createFullAttrReference(strdup(TOTAL_PROV_ATTR), 0, pos, 0, p->dataType);
 
 		if (pos == 1)
-			covProv = createFullAttrReference(strdup("Covered"), 0, pos, 0, p->dataType);
+			covProv = createFullAttrReference(strdup(COVERED_ATTR), 0, pos, 0, p->dataType);
 
 		if (pos == 2)
-			numProv = createFullAttrReference(strdup("numInProv"), 0, pos, 0, p->dataType);
+			numProv = createFullAttrReference(strdup(NUM_PROV_ATTR), 0, pos, 0, p->dataType);
 
 		projExpr = appendToTailOfList(projExpr,
 				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
@@ -185,26 +192,26 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	Node *rdup = (Node *) createConstInt(atoi("2"));
 
 	// add attribute for accuracy
-//	AttributeReference *numProv = createFullAttrReference(strdup("numInProv"), 0, 2, 0, DT_INT);
-//	AttributeReference *covProv = createFullAttrReference(strdup("Covered"), 0, 1, 0, DT_INT);
+//	AttributeReference *numProv = createFullAttrReference(strdup(NUM_PROV_ATTR), 0, 2, 0, DT_INT);
+//	AttributeReference *covProv = createFullAttrReference(strdup(COVERED_ATTR), 0, 1, 0, DT_INT);
 	Node *accuRate = (Node *) createOpExpr("/",LIST_MAKE(numProv,covProv));
 	FunctionCall *rdupAr = createFunctionCall("ROUND", LIST_MAKE(accuRate, rdup));
 	projExpr = appendToTailOfList(projExpr, rdupAr);
 
 	// add attribute for coverage
-//	AttributeReference *totProv = createFullAttrReference(strdup("totalProv"), 0, 0, 0, DT_INT);
+//	AttributeReference *totProv = createFullAttrReference(strdup(TOTAL_PROV_ATTR), 0, 0, 0, DT_INT);
 	Node* covRate = (Node *) createOpExpr("/",LIST_MAKE(numProv,totProv));
 	FunctionCall *rdupCr = createFunctionCall("ROUND", LIST_MAKE(covRate, rdup));
 	projExpr = appendToTailOfList(projExpr, rdupCr);
 
-	attrNames = CONCAT_LISTS(attrNames, singleton("Accuracy"), singleton("Coverage"));
+	attrNames = CONCAT_LISTS(attrNames, singleton(ACCURACY_ATTR), singleton(COVERAGE_ATTR));
 	op = createProjectionOp(projExpr, computeFrac, NIL, attrNames);
 	computeFrac->parents = singleton(op);
 	computeFrac = (QueryOperator *) op;
 
 	// create ORDER BY
 	// TODO: probably put another projection for order by operation
-//	AttributeReference *accuR = createFullAttrReference(strdup("Accuracy"), 0,
+//	AttributeReference *accuR = createFullAttrReference(strdup(ACCURACY_ATTR), 0,
 //							LIST_LENGTH(computeFrac->schema->attrDefs) - 2, 0, DT_INT);
 
 	OrderExpr *accExpr = createOrderExpr(accuRate, SORT_DESC, SORT_NULLS_LAST);
@@ -236,7 +243,7 @@ rewriteCandidateOutput (Node *scanSampleInput)
 
 	FOREACH(AttributeDef,a,scanSamples->schema->attrDefs)
 	{
-		if (strcmp(a->attrName,"HAS_PROV") != 0)
+		if (strcmp(a->attrName,HAS_PROV_ATTR) != 0)
 		{
 			groupBy = appendToTailOfList(groupBy,
 					createFullAttrReference(strdup(a->attrName), 0, gPos, 0, a->dataType));
@@ -246,11 +253,11 @@ rewriteCandidateOutput (Node *scanSampleInput)
 	}
 
 	List *aggrs = NIL;
-	AttributeReference *sumHasProv = createFullAttrReference(strdup("HAS_PROV"), 0, gPos, 0, DT_INT);
+	AttributeReference *sumHasProv = createFullAttrReference(strdup(HAS_PROV_ATTR), 0, gPos, 0, DT_INT);
 	FunctionCall *fc = createFunctionCall("SUM", singleton(sumHasProv));
 	fc->isAgg = TRUE;
 
-	AttributeReference *countProv = createFullAttrReference(strdup("*"), 0, gPos, 0, DT_INT);
+	Constant *countProv = createConstInt(1);
 	FunctionCall *fcCount = createFunctionCall("COUNT", singleton(countProv));
 	fcCount->isAgg = TRUE;
 
@@ -258,10 +265,10 @@ rewriteCandidateOutput (Node *scanSampleInput)
 	aggrs = appendToTailOfList(aggrs,fc);
 
 	// create new attribute names for aggregation output schema
-	List *attrNames = concatTwoLists(singleton("Covered"), singleton("NumInProv"));
+	List *attrNames = concatTwoLists(singleton(COVERED_ATTR), singleton(NUM_PROV_ATTR));
 
 //	for (int i = 0; i < LIST_LENGTH(aggrs); i++)
-//		attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("NumInProv", itoa(i)));
+//		attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS(NUM_PROV_ATTR, itoa(i)));
 
 	List *attrs = getAttrDefNames(removeFromTail(scanSamples->schema->attrDefs));
 	attrNames = concatTwoLists(attrNames, attrs);
@@ -346,7 +353,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 
 	FOREACH(AttributeDef,attrs,samples->schema->attrDefs)
 	{
-		if (strcmp(attrs->attrName,"HAS_PROV") != 0)
+		if (strcmp(attrs->attrName,HAS_PROV_ATTR) != 0)
 		{
 			char *a = attrs->attrName;
 			AttributeReference *lA, *rA = NULL;
@@ -381,7 +388,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 	patterns->parents = singleton(scanSample);
 //	scanSample->provAttrs = provAttrs;
 
-	// create projection for adding "HAS_PROV" attribute
+	// create projection for adding HAS_PROV_ATTR attribute
 	int pos = 0;
 	int hasPos = 0;
 	List *projExpr = NIL;
@@ -390,7 +397,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 
 	FOREACH(AttributeDef,p,scanSample->schema->attrDefs)
 	{
-		if (strcmp(p->attrName,"HAS_PROV") == 0)
+		if (strcmp(p->attrName,HAS_PROV_ATTR) == 0)
 		{
 			hasPos = pos;
 			hasExpr = appendToTailOfList(hasExpr,
@@ -443,7 +450,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 		QueryOperator *provSample = (QueryOperator *) input;
 
 		int aPos = LIST_LENGTH(provSample->schema->attrDefs) - 1;
-		AttributeReference *lC = createFullAttrReference(strdup("HAS_PROV"), 0, aPos, 0, DT_INT);
+		AttributeReference *lC = createFullAttrReference(strdup(HAS_PROV_ATTR), 0, aPos, 0, DT_INT);
 
 		Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
 		SelectionOperator *so = createSelectionOp(whereClause, provSample, NIL, getAttrNames(provSample->schema));
@@ -487,7 +494,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 		FOREACH(AttributeDef,a,allSample->schema->attrDefs)
 		{
 //			if(searchListNode(normAttrs,(Node *) a))
-			if(strcmp(a->attrName,strdup("HAS_PROV")) != 0)
+			if(strcmp(a->attrName,strdup(HAS_PROV_ATTR)) != 0)
 			{
 				lProjExpr = appendToTailOfList(lProjExpr,
 						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
@@ -499,7 +506,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 		FOREACH(AttributeDef,a,provSample->schema->attrDefs)
 		{
 //			if(searchListNode(normAttrs,(Node *) a))
-			if(strcmp(a->attrName,strdup("HAS_PROV")) != 0)
+			if(strcmp(a->attrName,strdup(HAS_PROV_ATTR)) != 0)
 			{
 				rProjExpr = appendToTailOfList(rProjExpr,
 						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
@@ -511,7 +518,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 		{
 			AttributeDef *a = (AttributeDef *) r;
 
-//			if (strcmp(a->attrName,"HAS_PROV") != 0)
+//			if (strcmp(a->attrName,HAS_PROV_ATTR) != 0)
 //			{
 				DataType d = a->dataType;
 				Node *cond = (Node *) createOpExpr("=",LIST_MAKE(l,r));
@@ -751,7 +758,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 //
 //	// create selection for the prov instance
 //	int aPos = LIST_LENGTH(provJoin->schema->attrDefs) - 1;
-//	AttributeReference *lC = createFullAttrReference(strdup("HAS_PROV"), 0, aPos, 0, DT_INT);
+//	AttributeReference *lC = createFullAttrReference(strdup(HAS_PROV_ATTR), 0, aPos, 0, DT_INT);
 //
 //	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
 //	SelectionOperator *so = createSelectionOp(whereClause, provJoin, NIL, attrNames);
@@ -760,7 +767,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 //	provJoin = (QueryOperator *) so;
 //	provJoin->provAttrs = provAttrs;
 //
-//	// create projection for adding "HAS_PROV" attribute
+//	// create projection for adding HAS_PROV_ATTR attribute
 //	int pos = 0;
 //	List *projExpr = NIL;
 //	ProjectionOperator *op;
@@ -809,7 +816,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 //	nonProvJoin = (QueryOperator *) so;
 //	nonProvJoin->provAttrs = provAttrs;
 //
-//	// create projection for adding "HAS_PROV" attribute
+//	// create projection for adding HAS_PROV_ATTR attribute
 //	op = createProjectionOp(projExpr, nonProvJoin, NIL, attrNames);
 //	nonProvJoin->parents = singleton(op);
 //	nonProvJoin = (QueryOperator *) op;
@@ -862,7 +869,7 @@ rewriteRandomProvTuples (Node *input)
 
 	// create selection for the prov instance
 	int aPos = LIST_LENGTH(randomProv->schema->attrDefs) - 1;
-	AttributeReference *lC = createFullAttrReference(strdup("HAS_PROV"), 0, aPos, 0, DT_INT);
+	AttributeReference *lC = createFullAttrReference(strdup(HAS_PROV_ATTR), 0, aPos, 0, DT_INT);
 
 	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
 	SelectionOperator *so = createSelectionOp(whereClause, randomProv, NIL, attrNames);
@@ -871,7 +878,7 @@ rewriteRandomProvTuples (Node *input)
 	randomProv = (QueryOperator *) so;
 	randomProv->provAttrs = provAttrs;
 
-	// create projection for adding "HAS_PROV" attribute
+	// create projection for adding HAS_PROV_ATTR attribute
 	int pos = 0;
 	List *projExpr = NIL;
 	ProjectionOperator *op;
@@ -918,7 +925,7 @@ rewriteRandomNonProvTuples (Node *input)
 
 	// create selection for the prov instance
 	int aPos = LIST_LENGTH(randomNonProv->schema->attrDefs) - 1;
-	AttributeReference *lC = createFullAttrReference(strdup("HAS_PROV"), 0, aPos, 0, DT_INT);
+	AttributeReference *lC = createFullAttrReference(strdup(HAS_PROV_ATTR), 0, aPos, 0, DT_INT);
 
 	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(0)));
 	SelectionOperator *so = createSelectionOp(whereClause, randomNonProv, NIL, attrNames);
@@ -927,7 +934,7 @@ rewriteRandomNonProvTuples (Node *input)
 	randomNonProv = (QueryOperator *) so;
 	randomNonProv->provAttrs = provAttrs;
 
-	// create projection for adding "HAS_PROV" attribute
+	// create projection for adding HAS_PROV_ATTR attribute
 	int pos = 0;
 	List *projExpr = NIL;
 	ProjectionOperator *op;
@@ -990,7 +997,7 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 	ProjectionOperator *op;
 //	QueryOperator *origProv = prov;
 
-	// create projection for adding "HAS_PROV" attribute
+	// create projection for adding HAS_PROV_ATTR attribute
 	FOREACH(AttributeDef,p,prov->schema->attrDefs)
 	{
 		projExpr = appendToTailOfList(projExpr,
@@ -1001,7 +1008,7 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 
 	// add an attribute for prov
 	int attrPos = LIST_LENGTH(transInput->schema->attrDefs) + LIST_LENGTH(prov->schema->attrDefs);
-	AttributeDef *hasProv = (AttributeDef *) createFullAttrReference(strdup("HAS_PROV"), 0, attrPos, 0, DT_INT);
+	AttributeDef *hasProv = (AttributeDef *) createFullAttrReference(strdup(HAS_PROV_ATTR), 0, attrPos, 0, DT_INT);
 
 	List *newAttrs = concatTwoLists(getAttrNames(prov->schema),singleton(hasProv->attrName));
 	op = createProjectionOp(projExpr, prov, NIL, newAttrs);

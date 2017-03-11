@@ -106,7 +106,8 @@ fi
 ])
 # cplex library location
 AC_DEFUN([AC_CPLEX_LOCATION],
-[AC_ARG_WITH(cplex, [  --with-cplex], , )
+[
+AC_ARG_WITH(cplex, [  --with-cplex], , )
 AC_MSG_CHECKING([for user provided cplex location])
 if test "x$with_cplex" != x; then
 	if test -d "$with_cplex"; then
@@ -168,7 +169,8 @@ AS_IF([test "x$enable_gprof" == "xyes"], [
 ])
 # Activate cplex support
 AC_DEFUN([AC_ENABLE_CPLEX],
-[AC_ARG_ENABLE(cplex, AS_HELP_STRING([--enable-cplex],[activate support for cplex]))
+[
+AC_ARG_ENABLE(cplex, AS_HELP_STRING([--enable-cplex],[activate support for cplex]))
 AC_MSG_CHECKING([activate linking against cplex])
 
 AS_IF([test "x$enable_cplex" == "xyes"], [
@@ -316,6 +318,14 @@ AC_MSG_RESULT($GPROM_CFLAGS)
 ################################################################################
 # Init autoconf
 AC_INIT([GProM],[0.0.1],[bglavic@iit.edu])
+# CFLAGS from user or set to nothing
+AS_IF([test "x$CFLAGS" != "x"],
+[
+	userCFLAGS="$CFLAGS"
+],
+[]
+)
+: ${CFLAGS=""}
 AC_CONFIG_AUX_DIR(config)
 AM_INIT_AUTOMAKE([-Wall foreign tar-pax])
 AC_CONFIG_MACRO_DIR([m4])
@@ -338,30 +348,25 @@ AC_DEFINE_UNQUOTED([OS_ARCH],["${OSARCH}"],[OS architecture])
 AC_MACHINE_ARCH
 ################################################################################
 # CHECK FOR C COMPILER AND FEATURES, BINUTILS, AND BISON + FLEX
-AS_IF([test "x$CFLAGS" != "x"],
-[
-	userCFLAGS="$CFLAGS"	
-],
-[]
-) 
-AC_PROG_CC
-# restore user CFLAGS
-AS_IF([test "x$userCFLAGS" == "x"],
-[
-	CFLAGS=""
-],
-[
-	CFLAGS="$userCFLAGS"
-]
-) 
+#CFLAGS="${GPROM_CFLAGS}"
 AC_PROG_CC_STDC
+# restore user CFLAGS
+#CFLAGS=""
+#AS_IF([test "x$userCFLAGS" == "x"],
+#[
+#	CFLAGS=""
+#],
+#[
+#	CFLAGS="$userCFLAGS"
+#]
+#)
 # CAN INLINE FUNCTIONS?
 AC_C_INLINE
 ################################################################################
 # SET OUTPUT VARIABLE FOR TOP SOURCE DIR
-mysrcdir="$(pushd "$(srcdir)" > /dev/null; pwd)"
+mysrcdir="$(pushd "${srcdir}" > /dev/null; pwd)"
 AC_DEFINE_UNQUOTED([GPROM_TOP_SRCDIR],["${mysrcdir}"], ["absolute path to top source dir"])
-GPROM_SRCDIR="$(pushd "$(srcdir)" > /dev/null; pwd)"
+GPROM_SRCDIR="$(pushd "${srcdir}" > /dev/null; pwd)"
 ################################################################################
 # CHECK FOR PROGRAM BINARIES
 AM_PROG_AR
@@ -448,7 +453,7 @@ AS_CASE(["$enable_cplex"],
   ],
   [no], [],
   []
-])
+)
 ################################################################################
 # Oracle access libraries (OCI and OCILIB)
 AS_CASE(["$enable_oracle"], 
