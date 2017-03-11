@@ -604,6 +604,10 @@ outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
     WRITE_NODE_FIELD(transInfo);
     WRITE_NODE_FIELD(asOf);
     WRITE_NODE_FIELD(options);
+    WRITE_STRING_FIELD(summaryType);
+    WRITE_NODE_FIELD(userQuestion);
+    WRITE_INT_FIELD(sampleSize);
+    WRITE_INT_FIELD(topK);
 }
 
 static void

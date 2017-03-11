@@ -32,15 +32,22 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "execution/executor.h"
+#include "provenance_rewriter/prov_utility.h"
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
 
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
+#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
+
+List *userQuestion = NIL;
+char *summaryType = NULL;
+int sampleSize = 0;
+int topK = 0;
 
 int
 initBasicModules (void)
@@ -448,6 +455,10 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	                TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
 	    )
 
+        // rewrite for summarization
+        if (summaryType != NULL)
+            rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree, userQuestion, sampleSize, topK);
+
 	    if(applyOptimizations)
 	    {
 	        START_TIMER("OptimizeModel");
@@ -481,6 +492,21 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
 {
     char *rewrittenSQL = NULL;
     Node *oModel;
+
+    // store summary type
+    ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
+
+    if (ps->userQuestion != NIL)
+    	userQuestion = ps->userQuestion;
+
+    if (ps->summaryType != NULL)
+    	summaryType = ps->summaryType;
+
+    if (ps->sampleSize != 0)
+    	sampleSize = ps->sampleSize;
+
+    if (ps->topK != 0)
+    	topK = ps->topK;
 
     START_TIMER("translation");
     oModel = translateParse(parse);

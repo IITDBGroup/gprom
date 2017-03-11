@@ -45,6 +45,7 @@ typedef struct ReplaceGroupByState {
 
 // function declarations
 static Node *translateGeneral(Node *node);
+//static Node *translateSummary(Node *input, Node *node);
 static boolean disambiguiteAttrNames(Node *node, Set *done);
 static void adaptSchemaFromChildren(QueryOperator *o);
 
@@ -111,6 +112,8 @@ static List *getListOfAggregFunctionCalls(List *selectClause,
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
 static boolean visitFindWindowFuncs(Node *n, List **wfs);
 static boolean replaceWithViewRefsMutator(Node *node, List *views);
+static char *summaryType = NULL;
+static Node *prop = NULL;
 
 
 Node *
@@ -164,21 +167,47 @@ static Node *
 translateGeneral (Node *node)
 {
     Node *result;
+    QueryOperator *r;
 
     if (isA(node, List))
     {
         result = (Node *) copyList((List *) node);
         FOREACH(Node,stmt,(List *) result)
-            stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+        {
+            ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
+
+            if(prov->summaryType == NULL)
+                stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+            else
+            {
+            	summaryType = prov->summaryType;
+            	r = translateQueryOracle(stmt);
+            	r->properties = copyObject(prop);
+            	stmt_his_cell->data.ptr_value = (Node *) r;
+            }
+        }
     }
     else
-        result = (Node *) translateQueryOracle(node);
+    {
+        ProvenanceStmt *prov = (ProvenanceStmt *) node;
+
+        if(prov->summaryType == NULL)
+        	result = (Node *) translateQueryOracle(node);
+        else
+        {
+        	summaryType = prov->summaryType;
+        	r = translateQueryOracle(node);
+        	r->properties = copyObject(prop);
+        	result = (Node *) r;
+        }
+    }
 
     Set *done = PSET();
     disambiguiteAttrNames(result, done);
-
+	
     return result;
 }
+
 
 static boolean
 disambiguiteAttrNames(Node *node, Set *done)
@@ -448,6 +477,9 @@ translateQueryBlock(QueryBlock *qb)
     QueryOperator *orderBy = translateOrderBy(qb, distinct, attrsOffsets);
     if (orderBy != distinct)
         LOG_TRANSLATED_OP("translatedOrder is", orderBy);
+
+    if(summaryType != NULL)
+    	prop = (Node *) orderBy;
 
     return orderBy;
 }

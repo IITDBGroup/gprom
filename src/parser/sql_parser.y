@@ -74,9 +74,10 @@ Node *bisonParseResult = NULL;
 %token <stringVal> CASE WHEN THEN ELSE END
 %token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 %token <stringVal> NULLS FIRST LAST ASC DESC
-%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE
+%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE 
 %token <stringVal> CAST
-%token <stringVal> CREATE ALTER ADD REMOVE COLUMN 
+%token <stringVal> CREATE ALTER ADD REMOVE COLUMN
+%token <stringVal> SUMMARIZED TO EXPLAIN SAMPLE TOP
 
 %token <stringVal> DUMMYEXPR
 
@@ -117,8 +118,8 @@ Node *bisonParseResult = NULL;
  */
 %type <node> stmt provStmt dmlStmt queryStmt ddlStmt
 %type <node> createTableStmt alterTableStmt alterTableCommand
-%type <list> tableElemList optTableElemList
-%type <node> tableElement 
+%type <list> tableElemList optTableElemList attrElemList
+%type <node> tableElement attr
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
@@ -137,7 +138,7 @@ Node *bisonParseResult = NULL;
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
-%type <stringVal> optionalFormat optionalWrapper optionalstringConst
+%type <stringVal> optionalFormat optionalWrapper optionalstringConst 
 
 %start stmtList
 
@@ -345,8 +346,8 @@ provStmt:
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $2;
-                   // p->options = $3;
-                   p->options = concatTwoLists($3, $8);
+            // p->options = $3;
+            p->options = concatTwoLists($3, $8);
             $$ = (Node *) p;
         }
 		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmtList ')'
@@ -378,8 +379,72 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
+		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier
+        {
+            RULELOG("provStmt::summaryStmt");
+            Node *stmt = $6;
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = PROV_PI_CS;
+		    p->asOf = (Node *) $2;
+            p->options = concatTwoLists($3, $8);
+            p->summaryType = $11;  
+            $$ = (Node *) p;
+        }
+        | PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')'
+        {
+            RULELOG("provStmt::summaryStmt");
+            Node *stmt = $6;
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = PROV_PI_CS;
+		    p->asOf = (Node *) $2;
+            p->options = concatTwoLists($3, $8);
+            p->summaryType = $11;
+            p->userQuestion = $15;  
+            $$ = (Node *) p;
+        }
+        | PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')' WITH SAMPLE '(' intConst ')'
+        {
+            RULELOG("provStmt::summaryStmt");
+            Node *stmt = $6;
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = PROV_PI_CS;
+		    p->asOf = (Node *) $2;
+            p->options = concatTwoLists($3, $8);
+            p->summaryType = $11;
+            p->userQuestion = $15;
+            p->sampleSize = $20;  
+            $$ = (Node *) p;
+        }
+        | TOP intConst PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')' WITH SAMPLE '(' intConst ')'
+        {
+            RULELOG("provStmt::summaryStmt");
+            Node *stmt = $8;
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = PROV_PI_CS;
+		    p->asOf = (Node *) $4;
+            p->options = concatTwoLists($5, $10);
+            p->summaryType = $13;
+            p->userQuestion = $17;
+            p->sampleSize = $22;
+            p->topK = $2;  
+            $$ = (Node *) p;
+        }
     ;
-    
+
+/*
+summaryType:
+		identifier 
+		{ 
+			RULELOG("summaryType::ident");
+			$$ = (Node *) createConstString($1); 
+		}
+	;
+*/
+  
 optionalProvAsOf:
 		/* empty */			{ RULELOG("optionalProvAsOf::EMPTY"); $$ = NULL; }
 		| AS OF SCN intConst
@@ -473,6 +538,7 @@ optionalstringConst:
 		}
         ;
 
+        
 /*
  * Rule to parse delete query
  */ 
@@ -1493,8 +1559,34 @@ delimIdentifier:
 			RULELOG("identifierList::list::ident"); 
 			$$ = CONCAT_STRINGS($1, ".", $3); //TODO 
 		}  
-
+	;
 	
+attrElemList:
+		attr
+            {
+                RULELOG("userQuestList::identifier");
+                $$ = singleton($1);
+            }
+        | attrElemList ',' attr
+            {
+                RULELOG("attrElemList::attrElemList::identifier");
+                $$ = appendToTailOfList($1, $3);
+            }
+    ;
+
+attr:
+ 		constant 
+ 			{ 
+ 				RULELOG("arg:constant");
+ 				$$ = $1; 
+			}
+		| '*'
+			{ 
+ 				RULELOG("arg:star");
+ 				$$ = (Node *) createConstString(strdup("*")); 
+			}
+	;
+
 %%
 
 

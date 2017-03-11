@@ -45,7 +45,6 @@ static TranslatorPlugin *assembleDummyPlugin(void);
 static Node *echoNode (Node *in);
 static QueryOperator *echoNodeAsQB (Node *in);
 
-
 Node *
 translateParse(Node *q)
 {
