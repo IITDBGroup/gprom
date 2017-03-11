@@ -923,7 +923,7 @@ rewriteRandomNonProvTuples (Node *input)
 	Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(0)));
 	SelectionOperator *so = createSelectionOp(whereClause, randomNonProv, NIL, attrNames);
 
-	randomNonProv->parents = singleton(so);
+	randomNonProv->parents = appendToTailOfList(randomNonProv->parents, so);
 	randomNonProv = (QueryOperator *) so;
 	randomNonProv->provAttrs = provAttrs;
 
