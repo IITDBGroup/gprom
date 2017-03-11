@@ -914,9 +914,9 @@ static DataType
 typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
 {
     *exists = TRUE;
-    DataType result;
-    DataType dLeft;
-    DataType dRight;
+    DataType result = DT_INT;
+    DataType dLeft = DT_INT;
+    DataType dRight = DT_INT;
 
     DEBUG_LOG("check whether op <%s> exists with argument types <%s>", opName, nodeToString(argDTs));
 
