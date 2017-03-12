@@ -150,6 +150,7 @@ boolean opt_operator_model_unique_schema_attribues = FALSE;
 boolean opt_operator_model_parent_child_links = FALSE;
 boolean opt_operator_model_schema_consistency = FALSE;
 boolean opt_operator_model_attr_reference_consistency = FALSE;
+boolean opt_operator_model_data_structure_consistency = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -651,6 +652,13 @@ OptionInfo opts[] =
                 "expressions are consistent. For instance, they have to "
                 "refer to existing inputs and attributes.",
                 opt_operator_model_attr_reference_consistency,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,
+                "-Cdata_structure_consistency",
+                "Model Check: check that nodes in a query operator graph are not sharing "
+                "datastructures incorrectly.",
+                opt_operator_model_data_structure_consistency,
                 TRUE
         ),
         // stopper to indicate end of array

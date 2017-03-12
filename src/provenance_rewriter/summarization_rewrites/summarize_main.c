@@ -35,6 +35,9 @@
 #define ACCURACY_ATTR "Accuracy"
 #define COVERAGE_ATTR "Coverage"
 #define COVERED_ATTR "Covered"
+#define SAMP_NUM_PREFIX "SampNum"
+#define SAMP_NUM_L_ATTR SAMP_NUM_PREFIX "Left"
+#define SAMP_NUM_R_ATTR SAMP_NUM_PREFIX "Right"
 
 static List *provAttrs = NIL;
 static List *normAttrs = NIL;
@@ -363,7 +366,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 			char *a2 = STRING_VALUE(getNthOfListP(patterns->schema->attrDefs,aPos));
 	//			int rPos = aPos + sLen + 1;
 
-			if(strcmp(a,a2) == 0)
+			if(streq(a,a2))
 			{
 				rA = createFullAttrReference(strdup(a2), 1, aPos, 0, attrs->dataType);
 
@@ -381,6 +384,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 	List *inputs = LIST_MAKE(samples,patterns);
 	List *attrNames = concatTwoLists(getAttrNames(samples->schema),getAttrNames(patterns->schema));
 	QueryOperator *scanSample = (QueryOperator *) createJoinOp(JOIN_INNER, curCond, inputs, NIL, attrNames);
+	makeAttrNamesUnique(scanSample);
 
 	// set the parent of the operator's children
 //	OP_LCHILD(scanSample)->parents = OP_RCHILD(scanSample)->parents = singleton(scanSample);
@@ -425,7 +429,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 
 	scanSample->parents = singleton(op);
 	scanSample = (QueryOperator *) op;
-//	scanSample->provAttrs = provAttrs;
+//	scanSample->provAttrs = copyObject(provAttrs);
 
 	result = (Node *) scanSample;
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
@@ -457,7 +461,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 
 		provSample->parents = singleton(so);
 		provSample = (QueryOperator *) so;
-		provSample->provAttrs = provAttrs;
+		provSample->provAttrs = copyObject(provAttrs);
 
 		// create projection operator
 		List *projExpr = NIL;
@@ -472,24 +476,26 @@ rewritePatternOutput (char *summaryType, Node *input)
 
 		ProjectionOperator *op = createProjectionOp(projExpr, provSample, NIL, getAttrNames(provSample->schema));
 		provSample->parents = singleton(op);
-		provSample->provAttrs = provAttrs;
+		provSample->provAttrs = copyObject(provAttrs);
 
 		// create CROSS_JOIN operator
 		List *crossInput = LIST_MAKE(allSample, provSample);
 		List *attrNames = concatTwoLists(getAttrNames(allSample->schema),getAttrNames(provSample->schema));
 		QueryOperator *patternJoin = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, crossInput, NIL, attrNames);
+		makeAttrNamesUnique(patternJoin);
 
 		// set the parent of the operator's children
 //		OP_LCHILD(patternJoin)->parents = OP_RCHILD(patternJoin)->parents = singleton(patternJoin);
 		allSample->parents = appendToTailOfList(allSample->parents,patternJoin);
 		provSample->parents = singleton(patternJoin);
-//		patternJoin->provAttrs = provAttrs;
+//		patternJoin->provAttrs = copyObject(provAttrs);
 
 		// create projection operator
 		projExpr = NIL;
 		List *lProjExpr = NIL;
 		List *rProjExpr = NIL;
 		pos = 0;
+		int numAttr = getNumAttrs(allSample);
 
 		FOREACH(AttributeDef,a,allSample->schema->attrDefs)
 		{
@@ -497,22 +503,26 @@ rewritePatternOutput (char *summaryType, Node *input)
 			if(strcmp(a->attrName,strdup(HAS_PROV_ATTR)) != 0)
 			{
 				lProjExpr = appendToTailOfList(lProjExpr,
-						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+						createFullAttrReference(strdup(getAttrNameByPos(patternJoin, pos)),
+						        0, pos, 0, a->dataType));
+                rProjExpr = appendToTailOfList(rProjExpr,
+                        createFullAttrReference(strdup(getAttrNameByPos(patternJoin, pos + numAttr)),
+                                0, pos + numAttr, 0, a->dataType));
 				pos++;
 			}
 		}
 
-		pos++;
-		FOREACH(AttributeDef,a,provSample->schema->attrDefs)
-		{
-//			if(searchListNode(normAttrs,(Node *) a))
-			if(strcmp(a->attrName,strdup(HAS_PROV_ATTR)) != 0)
-			{
-				rProjExpr = appendToTailOfList(rProjExpr,
-						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
-				pos++;
-			}
-		}
+//		pos++;
+//		FOREACH(AttributeDef,a,provSample->schema->attrDefs)
+//		{
+////			if(searchListNode(normAttrs,(Node *) a))
+//			if(strcmp(a->attrName,strdup(HAS_PROV_ATTR)) != 0)
+//			{
+//				rProjExpr = appendToTailOfList(rProjExpr,
+//						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+//				pos++;
+//			}
+//		}
 
 		FORBOTH(Node,l,r,lProjExpr,rProjExpr)
 		{
@@ -538,7 +548,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 		op = createProjectionOp(projExpr, patternJoin, NIL, getAttrNames(patternJoin->schema));
 		patternJoin->parents = singleton(op);
 		patternJoin = (QueryOperator *) op;
-		patternJoin->provAttrs = provAttrs;
+		patternJoin->provAttrs = copyObject(provAttrs);
 
 		// create duplicate removal
 		projExpr = NIL;
@@ -555,7 +565,7 @@ rewritePatternOutput (char *summaryType, Node *input)
 		QueryOperator *dr = (QueryOperator *) createDuplicateRemovalOp(projExpr, patternJoin, NIL, getAttrNames(patternJoin->schema));
 		patternJoin->parents = singleton(dr);
 		patternJoin = (QueryOperator *) dr;
-		patternJoin->provAttrs = provAttrs;
+		patternJoin->provAttrs = copyObject(provAttrs);
 
 		result = (Node *) patternJoin;
 		SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
@@ -594,12 +604,12 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 		pos++;
 	}
 	projExpr = appendToTailOfList(projExpr, makeNode(RowNumExpr));
-	attrNames = appendToTailOfList(attrNames, strdup("sampNum"));
+	attrNames = appendToTailOfList(attrNames, strdup(SAMP_NUM_L_ATTR));
 
 	ProjectionOperator *leftOp = createProjectionOp(projExpr, randomProvL, NIL, attrNames);
 	randomProvL->parents = singleton(leftOp);
 	randomProvL = (QueryOperator *) leftOp;
-	randomProvL->provAttrs = provAttrs;
+	randomProvL->provAttrs = copyObject(provAttrs);
 
 	// create projection for computing sample size for the right input
 //	AttributeReference *countProv = createFullAttrReference(strdup("1"), 0, 0, 0, DT_INT);
@@ -616,7 +626,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 	Node* sampSize = (Node *) createOpExpr("*",LIST_MAKE(fcCount,createConstFloat(spSize)));
 	FunctionCall *fcCeil = createFunctionCall("CEIL", singleton(sampSize));
 
-	ProjectionOperator *rightOp = createProjectionOp(singleton(fcCeil), randomProvR, NIL, singleton(strdup("sampNum")));
+	ProjectionOperator *rightOp = createProjectionOp(singleton(fcCeil), randomProvR, NIL, singleton(strdup(SAMP_NUM_R_ATTR)));
 	randomProvR->parents = appendToTailOfList(randomProvR->parents, rightOp);
 	randomProvR = (QueryOperator *) rightOp;
 
@@ -629,7 +639,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 	{
 		FOREACH(AttributeDef,r,right->schema->attrDefs)
 		{
-			if (strcmp(l->attrName,r->attrName) == 0)
+			if (streq(l->attrName,SAMP_NUM_L_ATTR) && streq(r->attrName,SAMP_NUM_R_ATTR))
 			{
 				AttributeReference *lA, *rA = NULL;
 				lA = createFullAttrReference(strdup(l->attrName), 0, LIST_LENGTH(left->schema->attrDefs)-1, 0, l->dataType);
@@ -653,7 +663,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 
 	FOREACH(AttributeDef,p,randProvJoin->schema->attrDefs)
 	{
-		if (strcmp(p->attrName,"sampNum") != 0)
+		if (!isPrefix(p->attrName,SAMP_NUM_PREFIX))
 		{
 			projExpr = appendToTailOfList(projExpr,
 					createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
@@ -665,7 +675,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 	ProjectionOperator *op = createProjectionOp(projExpr, randProvJoin, NIL, attrNames);
 	randProvJoin->parents = singleton(op);
 	randProvJoin = (QueryOperator *) op;
-	randProvJoin->provAttrs = provAttrs;
+	randProvJoin->provAttrs = copyObject(provAttrs);
 
 
 	// sampling from random ordered non-provenance tuples
@@ -685,15 +695,15 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 		pos++;
 	}
 	projExpr = appendToTailOfList(projExpr, makeNode(RowNumExpr));
-	attrNames = appendToTailOfList(attrNames, strdup("sampNum"));
+	attrNames = appendToTailOfList(attrNames, strdup(SAMP_NUM_L_ATTR));
 
 	leftOp = createProjectionOp(projExpr, randomNonProvL, NIL, attrNames);
 	randomNonProvL->parents = singleton(leftOp);
 	randomNonProvL = (QueryOperator *) leftOp;
-	randomNonProvL->provAttrs = provAttrs;
+	randomNonProvL->provAttrs = copyObject(provAttrs);
 
 	// create projection for computing sample size for the right input
-	rightOp = createProjectionOp(singleton(fcCeil), randomNonProvR, NIL, singleton(strdup("sampNum")));
+	rightOp = createProjectionOp(singleton(fcCeil), randomNonProvR, NIL, singleton(strdup(SAMP_NUM_R_ATTR)));
 	randomNonProvR->parents = appendToTailOfList(randomNonProvR->parents, rightOp);
 	randomNonProvR = (QueryOperator *) rightOp;
 
@@ -706,7 +716,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 	{
 		FOREACH(AttributeDef,r,right->schema->attrDefs)
 		{
-			if (strcmp(l->attrName,r->attrName) == 0)
+		    if (streq(l->attrName,SAMP_NUM_L_ATTR) && streq(r->attrName,SAMP_NUM_R_ATTR))
 			{
 				AttributeReference *lA, *rA = NULL;
 				lA = createFullAttrReference(strdup(l->attrName), 0, LIST_LENGTH(left->schema->attrDefs)-1, 0, l->dataType);
@@ -730,7 +740,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 
 	FOREACH(AttributeDef,p,randNonProvJoin->schema->attrDefs)
 	{
-		if (strcmp(p->attrName,"sampNum") != 0)
+		if (!isPrefix(p->attrName,SAMP_NUM_PREFIX))
 		{
 			projExpr = appendToTailOfList(projExpr,
 					createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
@@ -742,13 +752,13 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 	op = createProjectionOp(projExpr, randNonProvJoin, NIL, attrNames);
 	randNonProvJoin->parents = singleton(op);
 	randNonProvJoin = (QueryOperator *) op;
-	randNonProvJoin->provAttrs = provAttrs;
+	randNonProvJoin->provAttrs = copyObject(provAttrs);
 
 	// create UNION operator to get all sample
 	List *allInput = LIST_MAKE(randProvJoin,randNonProvJoin);
 	QueryOperator *unionOp = (QueryOperator *) createSetOperator(SETOP_UNION, allInput, NIL, attrNames);
 	OP_LCHILD(unionOp)->parents = OP_RCHILD(unionOp)->parents = singleton(unionOp);
-	unionOp->provAttrs = provAttrs;
+	unionOp->provAttrs = copyObject(provAttrs);
 
 
 //
@@ -765,7 +775,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 //
 //	provJoin->parents = singleton(so);
 //	provJoin = (QueryOperator *) so;
-//	provJoin->provAttrs = provAttrs;
+//	provJoin->provAttrs = copyObject(provAttrs);
 //
 //	// create projection for adding HAS_PROV_ATTR attribute
 //	int pos = 0;
@@ -782,7 +792,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 //	op = createProjectionOp(projExpr, provJoin, NIL, attrNames);
 //	provJoin->parents = singleton(op);
 //	provJoin = (QueryOperator *) op;
-//	provJoin->provAttrs = provAttrs;
+//	provJoin->provAttrs = copyObject(provAttrs);
 //
 //	// create order by operator
 //	Node *ordCond = (Node *) createConstString("DBMS_RANDOM.RANDOM");
@@ -791,7 +801,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 //	OrderOperator *ord = createOrderOp(singleton(ordExpr), provJoin, NIL);
 //	provJoin->parents = singleton(ord);
 //	provJoin = (QueryOperator *) ord;
-//	provJoin->provAttrs = provAttrs;
+//	provJoin->provAttrs = copyObject(provAttrs);
 //
 //	// create selection for returning only 2 tuples from random order
 //	Node *selCond = (Node *) createOpExpr("<=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(2)));
@@ -799,12 +809,12 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 //
 //	provJoin->parents = singleton(so);
 //	provJoin = (QueryOperator *) so;
-//	provJoin->provAttrs = provAttrs;
+//	provJoin->provAttrs = copyObject(provAttrs);
 //
 //	op = createProjectionOp(projExpr, provJoin, NIL, attrNames);
 //	provJoin->parents = singleton(op);
 //	provJoin = (QueryOperator *) op;
-//	provJoin->provAttrs = provAttrs;
+//	provJoin->provAttrs = copyObject(provAttrs);
 //
 //	// random sampling from hasProv <> 1
 //	QueryOperator *nonProvJoin = (QueryOperator *) input;
@@ -814,19 +824,19 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 //
 //	nonProvJoin->parents = appendToTailOfList(nonProvJoin->parents, so);
 //	nonProvJoin = (QueryOperator *) so;
-//	nonProvJoin->provAttrs = provAttrs;
+//	nonProvJoin->provAttrs = copyObject(provAttrs);
 //
 //	// create projection for adding HAS_PROV_ATTR attribute
 //	op = createProjectionOp(projExpr, nonProvJoin, NIL, attrNames);
 //	nonProvJoin->parents = singleton(op);
 //	nonProvJoin = (QueryOperator *) op;
-//	nonProvJoin->provAttrs = provAttrs;
+//	nonProvJoin->provAttrs = copyObject(provAttrs);
 //
 //	// create order by operator
 //	ord = createOrderOp(singleton(ordExpr), nonProvJoin, NIL);
 //	nonProvJoin->parents = singleton(ord);
 //	nonProvJoin = (QueryOperator *) ord;
-//	nonProvJoin->provAttrs = provAttrs;
+//	nonProvJoin->provAttrs = copyObject(provAttrs);
 //
 //	// create selection for returning only 3 tuples from random order
 //	selCond = (Node *) createOpExpr("<=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(3)));
@@ -834,18 +844,18 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize)
 //
 //	nonProvJoin->parents = singleton(so);
 //	nonProvJoin = (QueryOperator *) so;
-//	nonProvJoin->provAttrs = provAttrs;
+//	nonProvJoin->provAttrs = copyObject(provAttrs);
 //
 //	op = createProjectionOp(projExpr, nonProvJoin, NIL, attrNames);
 //	nonProvJoin->parents = singleton(op);
 //	nonProvJoin = (QueryOperator *) op;
-//	nonProvJoin->provAttrs = provAttrs;
+//	nonProvJoin->provAttrs = copyObject(provAttrs);
 //
 //	// create UNION operator to get all sample
 //	List *allInput = LIST_MAKE(provJoin,nonProvJoin);
 //	QueryOperator *unionOp = (QueryOperator *) createSetOperator(SETOP_UNION, allInput, NIL, attrNames);
 //	OP_LCHILD(unionOp)->parents = OP_RCHILD(unionOp)->parents = singleton(unionOp);
-//	unionOp->provAttrs = provAttrs;
+//	unionOp->provAttrs = copyObject(provAttrs);
 
 
 	result = (Node *) unionOp;
@@ -876,7 +886,7 @@ rewriteRandomProvTuples (Node *input)
 
 	randomProv->parents = singleton(so);
 	randomProv = (QueryOperator *) so;
-	randomProv->provAttrs = provAttrs;
+	randomProv->provAttrs = copyObject(provAttrs);
 
 	// create projection for adding HAS_PROV_ATTR attribute
 	int pos = 0;
@@ -893,7 +903,7 @@ rewriteRandomProvTuples (Node *input)
 	op = createProjectionOp(projExpr, randomProv, NIL, attrNames);
 	randomProv->parents = singleton(op);
 	randomProv = (QueryOperator *) op;
-	randomProv->provAttrs = provAttrs;
+	randomProv->provAttrs = copyObject(provAttrs);
 
 	// create order by operator
 	Node *ordCond = (Node *) createConstString("DBMS_RANDOM.RANDOM");
@@ -902,7 +912,7 @@ rewriteRandomProvTuples (Node *input)
 	OrderOperator *ord = createOrderOp(singleton(ordExpr), randomProv, NIL);
 	randomProv->parents = singleton(ord);
 	randomProv = (QueryOperator *) ord;
-	randomProv->provAttrs = provAttrs;
+	randomProv->provAttrs = copyObject(provAttrs);
 
 	result = (Node *) randomProv;
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
@@ -932,7 +942,7 @@ rewriteRandomNonProvTuples (Node *input)
 
 	randomNonProv->parents = appendToTailOfList(randomNonProv->parents, so);
 	randomNonProv = (QueryOperator *) so;
-	randomNonProv->provAttrs = provAttrs;
+	randomNonProv->provAttrs = copyObject(provAttrs);
 
 	// create projection for adding HAS_PROV_ATTR attribute
 	int pos = 0;
@@ -949,7 +959,7 @@ rewriteRandomNonProvTuples (Node *input)
 	op = createProjectionOp(projExpr, randomNonProv, NIL, attrNames);
 	randomNonProv->parents = singleton(op);
 	randomNonProv = (QueryOperator *) op;
-	randomNonProv->provAttrs = provAttrs;
+	randomNonProv->provAttrs = copyObject(provAttrs);
 
 	// create order by operator
 	Node *ordCond = (Node *) createConstString("DBMS_RANDOM.RANDOM");
@@ -958,7 +968,7 @@ rewriteRandomNonProvTuples (Node *input)
 	OrderOperator *ord = createOrderOp(singleton(ordExpr), randomNonProv, NIL);
 	randomNonProv->parents = singleton(ord);
 	randomNonProv = (QueryOperator *) ord;
-	randomNonProv->provAttrs = provAttrs;
+	randomNonProv->provAttrs = copyObject(provAttrs);
 
 	result = (Node *) randomNonProv;
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
@@ -1015,7 +1025,7 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 
 	prov->parents = singleton(op);
 	prov = (QueryOperator *) op;
-	prov->provAttrs = provAttrs;
+	prov->provAttrs = copyObject(provAttrs);
 
 	// create join condition
 	// TODO: find the corresponding provenance attribute to join if the name of attrs repeats
@@ -1099,10 +1109,11 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 	// create join operator
 	attrNames = concatTwoLists(getAttrNames(transInput->schema), getAttrNames(prov->schema));
 	QueryOperator *provJoin = (QueryOperator *) createJoinOp(JOIN_LEFT_OUTER, curCond, inputs, NIL, attrNames);
+	makeAttrNamesUnique(provJoin);
 
 	// set the parent of the operator's children
 	OP_LCHILD(provJoin)->parents = OP_RCHILD(provJoin)->parents = singleton(provJoin);
-//	provJoin->provAttrs = provAttrs;
+//	provJoin->provAttrs = copyObject(provAttrs);
 
 	// create projection for join
 	projExpr = NIL;
@@ -1144,7 +1155,7 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 	op = createProjectionOp(projExpr, provJoin, NIL, getAttrNames(prov->schema));
 	provJoin->parents = singleton(op);
 	provJoin = (QueryOperator *) op;
-	provJoin->provAttrs = provAttrs;
+	provJoin->provAttrs = copyObject(provAttrs);
 
 	result = (Node *) provJoin;
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
@@ -1195,7 +1206,7 @@ rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
 
 		attrPos++;
 	}
-	so = createSelectionOp(curCond, input, NIL, getAttrNames(input->schema));
+	so = createSelectionOp(curCond, input, NIL, NIL);
 
 	input->parents = singleton(so);
 	input = (QueryOperator *) so;

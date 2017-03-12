@@ -401,7 +401,9 @@ provStmt:
 		    p->asOf = (Node *) $2;
             p->options = concatTwoLists($3, $8);
             p->summaryType = $11;
-            p->userQuestion = $15;  
+            p->userQuestion = $15;
+            p->sampleSize = 10;
+            p->topK = 1;  
             $$ = (Node *) p;
         }
         | PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')' WITH SAMPLE '(' intConst ')'
@@ -415,7 +417,8 @@ provStmt:
             p->options = concatTwoLists($3, $8);
             p->summaryType = $11;
             p->userQuestion = $15;
-            p->sampleSize = $20;  
+            p->sampleSize = $20;
+            p->topK = 1;  
             $$ = (Node *) p;
         }
         | TOP intConst PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')' WITH SAMPLE '(' intConst ')'

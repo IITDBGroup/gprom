@@ -90,6 +90,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define CHECK_OM_UNIQUE_ATTR_NAMES "check.unique_attrs"
 #define CHECK_OM_PARENT_CHILD_LINKS "check.parent_child_links"
 #define CHECK_OM_SCHEMA_CONSISTENCY "check.schema_consistency"
+#define CHECK_OM_DATA_STRUCTURE_CONSISTENCY "check.data_structure_consistency"
 #define CHECK_OM_ATTR_REF "check.attr_ref_consistency"
 
 // declare option fields

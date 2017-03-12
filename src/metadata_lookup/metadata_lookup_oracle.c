@@ -1017,11 +1017,10 @@ oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists)
 
             if (lType == rType)
             {
-                if (lType == DT_INT)
-                    return DT_INT;
-                if (lType == DT_FLOAT)
-                    return DT_FLOAT;
+                if (lType == DT_INT || lType == DT_FLOAT || lType == DT_LONG)
+                    return lType;
             }
+            return lcaType(lType, rType);
         }
     }
 
@@ -1068,17 +1067,19 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
 
     if (streq(capName,"AVG"))
     {
-        ASSERT(LIST_LENGTH(dataTypes) == 1);
-        DataType argType = getNthOfListInt(dataTypes,0);
-
-        switch(argType)
+        if(LIST_LENGTH(dataTypes) == 1)
         {
-            case DT_INT:
-            case DT_LONG:
-            case DT_FLOAT:
-                return DT_FLOAT;
-            default:
-                return DT_STRING;
+            DataType argType = getNthOfListInt(dataTypes,0);
+
+            switch(argType)
+            {
+                case DT_INT:
+                case DT_LONG:
+                case DT_FLOAT:
+                    return DT_FLOAT;
+                default:
+                    return DT_STRING;
+            }
         }
     }
 
@@ -1093,6 +1094,46 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
     if (streq(fName, "DENSE_RANK"))
         return DT_INT;
 
+    if (streq(capName,"CEIL"))
+    {
+        if(LIST_LENGTH(dataTypes) == 1)
+        {
+            DataType argType = getNthOfListInt(dataTypes,0);
+            switch(argType)
+            {
+                case DT_INT:
+                    return DT_INT;
+                case DT_LONG:
+                case DT_FLOAT:
+                    return DT_LONG;
+                default:
+                    ;
+            }
+        }
+    }
+
+    if (streq(capName,"ROUND"))
+    {
+        if(LIST_LENGTH(dataTypes) == 2)
+        {
+            DataType argType = getNthOfListInt(dataTypes,0);
+            DataType parType = getNthOfListInt(dataTypes,1);
+
+            if (parType == DT_INT)
+            {
+                switch(argType)
+                {
+                    case DT_INT:
+                        return DT_INT;
+                    case DT_LONG:
+                    case DT_FLOAT:
+                        return DT_LONG;
+                    default:
+                        ;
+                }
+            }
+        }
+    }
    //TODO
 
     *funcExists = FALSE;
