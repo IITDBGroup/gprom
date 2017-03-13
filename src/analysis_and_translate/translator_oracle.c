@@ -174,13 +174,25 @@ translateGeneral (Node *node)
         result = (Node *) copyList((List *) node);
         FOREACH(Node,stmt,(List *) result)
         {
-            ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
 
-            if(prov->summaryType == NULL)
+        	ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
+
+            FOREACH(Node,n,prov->sumOpts)
+            {
+				if(isA(n,List))
+				{
+					List *sumOpts = (List *) n;
+
+					FOREACH(KeyValue,sn,sumOpts)
+						if(streq(STRING_VALUE(sn->key),"sumtype"))
+							summaryType = STRING_VALUE(sn->value);
+				}
+            }
+
+            if(summaryType == NULL)
                 stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
             else
             {
-            	summaryType = prov->summaryType;
             	r = translateQueryOracle(stmt);
             	r->properties = copyObject(prop);
             	stmt_his_cell->data.ptr_value = (Node *) r;
@@ -191,11 +203,22 @@ translateGeneral (Node *node)
     {
         ProvenanceStmt *prov = (ProvenanceStmt *) node;
 
-        if(prov->summaryType == NULL)
+        FOREACH(Node,n,prov->sumOpts)
+        {
+			if(isA(n,List))
+			{
+				List *sumOpts = (List *) n;
+
+				FOREACH(KeyValue,sn,sumOpts)
+					if(streq(STRING_VALUE(sn->key),"sumtype"))
+						summaryType = STRING_VALUE(sn->value);
+			}
+        }
+
+        if(summaryType == NULL)
         	result = (Node *) translateQueryOracle(node);
         else
         {
-        	summaryType = prov->summaryType;
         	r = translateQueryOracle(node);
         	r->properties = copyObject(prop);
         	result = (Node *) r;

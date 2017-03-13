@@ -54,11 +54,46 @@ static Node *rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput);
 static Node *rewriteMostGenExplOutput (Node *computeFracInput, int topK);
 
 Node *
-rewriteSummaryOutput (char *summaryType, Node *rewrittenTree, List *userQuestion, int sampleSize, int topK)
+rewriteSummaryOutput (Node *rewrittenTree, List *summOpts)
 {
-//	List *uQuestion = userQuestion;
-//	char *sType = summaryType;
+	// options for summarization
+	List *userQuestion = NIL;
+	char *summaryType = NULL;
+	int sampleSize = 0;
+	int topK = 0;
 
+	if (summOpts != NIL)
+	{
+		FOREACH(Node,n,summOpts)
+		{
+			if(isA(n,KeyValue))
+			{
+				KeyValue *kv = (KeyValue *) n;
+
+				if(streq(STRING_VALUE(kv->key),"topk"))
+					topK = INT_VALUE(kv->value);
+			}
+
+			if(isA(n,List))
+			{
+				List *explSamp = (List *) n;
+
+				FOREACH(KeyValue,kv,explSamp)
+				{
+					if(streq(STRING_VALUE(kv->key),"sumtype"))
+						summaryType = STRING_VALUE(kv->value);
+
+					if(streq(STRING_VALUE(kv->key),"toexpl"))
+						userQuestion = (List *) kv->value;
+
+					if(streq(STRING_VALUE(kv->key),"sumsamp"))
+						sampleSize = INT_VALUE(kv->value);
+				}
+			}
+		}
+	}
+
+	// summarization steps
 	Node *result;
 	Node *provJoin;
 	Node *randomProv;
@@ -100,6 +135,8 @@ rewriteMostGenExplOutput (Node *computeFracInput, int topK)
 
 	if (topK != 0)
 		selCond = (Node *) createOpExpr("<=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(topK)));
+	else
+		selCond = (Node *) createOpExpr("<=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(1))); // TODO: top1 or more?
 
 	SelectionOperator *so = createSelectionOp(selCond, computeFrac, NIL, getAttrNames(computeFrac->schema));
 

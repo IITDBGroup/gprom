@@ -955,10 +955,7 @@ equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b, HashMap *seenOps, MemC
     COMPARE_NODE_FIELD(transInfo);
     COMPARE_NODE_FIELD(asOf);
     COMPARE_NODE_FIELD(options);
-    COMPARE_STRING_FIELD(summaryType);
-    COMPARE_NODE_FIELD(userQuestion);
-    COMPARE_SCALAR_FIELD(sampleSize);
-    COMPARE_SCALAR_FIELD(topK);
+    COMPARE_NODE_FIELD(sumOpts);
 
     return TRUE;
 }
