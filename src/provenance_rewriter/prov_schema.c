@@ -194,6 +194,12 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     {
         case PROV_PI_CS:
             //TODO
+        case PROV_XML:
+        {
+        	*attrNames = appendToTailOfList(*attrNames, "PROV");
+        	*dts = appendToTailOfListInt(*dts, DT_STRING);
+        	return;
+	    }
         default:
         {
             ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);

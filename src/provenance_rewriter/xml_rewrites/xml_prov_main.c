@@ -15,6 +15,11 @@
 #include "log/logger.h"
 #include "model/list/list.h"
 
+#define LOG_RESULT(mes,op) \
+    do { \
+        INFO_OP_LOG(mes,op); \
+        DEBUG_NODE_BEATIFY_LOG(mes,op); \
+    } while(0)
 
 
 static QueryOperator *rewriteXMLOperator (QueryOperator *op);
@@ -132,6 +137,42 @@ static QueryOperator
 static QueryOperator
 *rewriteXMLProjection (ProjectionOperator *op)
 {
+	 ASSERT(OP_LCHILD(op));
+
+    DEBUG_LOG("REWRITE-XML - Projection");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+    // rewrite child
+    rewriteXMLOperator(OP_LCHILD(op));
+
+    // add projection expressions for provenance attrs
+    QueryOperator *child = OP_LCHILD(op);
+
+    int ocnt = 0;
+    FOREACH(AttributeDef, ad, child->schema->attrDefs)
+    {
+    	if(streq(ad->attrName, "PROV"))
+    	{
+    		op->op.schema->attrDefs = appendToTailOfList(op->op.schema->attrDefs, copyObject(ad));
+    		op->projExprs = appendToTailOfList(op->projExprs,
+    				createFullAttrReference(ad->attrName, 0, ocnt, 0, ad->dataType));
+    	}
+    	ocnt ++;
+    }
+
+//    FOREACH_INT(a, child->provAttrs)
+//    {
+//        AttributeDef *att = getAttrDef(child,a);
+//        DEBUG_LOG("attr: %s", nodeToString(att));
+//         op->projExprs = appendToTailOfList(op->projExprs,
+//                 createFullAttrReference(att->attrName, 0, a, 0, att->dataType));
+//    }
+//
+//    // adapt schema
+    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+//
+    LOG_RESULT("Rewritten Operator tree", op);
+
 	return (QueryOperator *)op;
 }
 static QueryOperator
@@ -153,7 +194,69 @@ static QueryOperator
 static QueryOperator
 *rewriteXMLTableAccess(TableAccessOperator *op)
 {
-	return (QueryOperator *)op;
+	  List *provAttr = NIL;
+    List *projExpr = NIL;
+
+    int cnt = 0;
+
+    DEBUG_LOG("REWRITE-XML - Table Access <%s>", op->tableName);
+
+    // Get the povenance name for each attribute
+    FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
+    {
+        provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+        cnt++;
+    }
+
+    //create function call
+    Constant *tup = createConstString("tuple");
+    Constant *quo = createConstString(",");
+    List *funArgs = NIL;
+    funArgs = appendToTailOfList(funArgs, tup);
+
+    cnt = 0;
+    int schemaLen = LIST_LENGTH(op->op.schema->attrDefs);
+    FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
+    {
+    	funArgs = appendToTailOfList(funArgs, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+    	if(schemaLen != cnt + 1)
+    		funArgs = appendToTailOfList(funArgs, copyObject(quo));
+        cnt++;
+    }
+
+//    List *newProvPosList = NIL;
+//    CREATE_INT_SEQ(newProvPosList, 1, (1 * 2) - 1, 1);
+//    FOREACH(Node, n, funArgs)
+//    {
+//    	DEBUG_LOG("functioncall: %s", nodeToString(n));
+//    }
+
+    FunctionCall *funXML = createFunctionCall("XMLELEMENT", funArgs);
+    provAttr = appendToTailOfList(provAttr, "PROV");
+    projExpr = appendToTailOfList(projExpr, funXML);
+
+//    DEBUG_LOG("rewrite table access, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
+//            stringListToString(provAttr),
+//            nodeToString(projExpr)
+//            );
+
+    // Create a new projection operator with these new attributes
+    ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
+    //newpo->op.provAttrs = newProvPosList;
+    SET_BOOL_STRING_PROP((QueryOperator *)newpo, PROP_PROJ_PROV_ATTR_DUP);
+
+    // Switch the subtree with this newly created projection operator.
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+
+    // Add child to the newly created projections operator,
+    addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+
+    DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) newpo));
+
+
+
+    return (QueryOperator *) newpo;
 }
 static QueryOperator
 *rewriteXMLConstRel(ConstRelOperator *op)
