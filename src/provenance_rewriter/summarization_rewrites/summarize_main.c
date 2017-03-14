@@ -391,21 +391,18 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 	Node *curCond = NULL;
 //	int sLen = LIST_LENGTH(samples->schema->attrDefs) - 1;
 
-	FOREACH(AttributeDef,attrs,samples->schema->attrDefs)
+	FOREACH(AttributeDef,ar,patterns->schema->attrDefs)
 	{
-		if (strcmp(attrs->attrName,HAS_PROV_ATTR) != 0)
+		FOREACH(AttributeDef,al,samples->schema->attrDefs)
 		{
-			char *a = attrs->attrName;
 			AttributeReference *lA, *rA = NULL;
 
-			lA = createFullAttrReference(strdup(a), 0, aPos, 0, attrs->dataType);
-
-			char *a2 = STRING_VALUE(getNthOfListP(patterns->schema->attrDefs,aPos));
-	//			int rPos = aPos + sLen + 1;
-
-			if(streq(a,a2))
+			if(isPrefix(ar->attrName,al->attrName))
 			{
-				rA = createFullAttrReference(strdup(a2), 1, aPos, 0, attrs->dataType);
+				int alPos = LIST_LENGTH(normAttrs) + aPos;
+
+				lA = createFullAttrReference(strdup(al->attrName), 0, alPos, 0, al->dataType);
+				rA = createFullAttrReference(strdup(ar->attrName), 1, aPos, 0, ar->dataType);
 
 				// create equality condition and update global condition
 				joinCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
@@ -413,8 +410,8 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 				attrCond = OR_EXPRS(joinCond,isNullCond);
 				curCond = AND_EXPRS(attrCond,curCond);
 			}
-			aPos++;
 		}
+		aPos++;
 	}
 
 	// create join operator
@@ -561,12 +558,16 @@ rewritePatternOutput (char *summaryType, Node *input)
 //			}
 //		}
 
+		List *provAttrNames = NIL;
+
 		FORBOTH(Node,l,r,lProjExpr,rProjExpr)
 		{
 			AttributeDef *a = (AttributeDef *) r;
 
-//			if (strcmp(a->attrName,HAS_PROV_ATTR) != 0)
-//			{
+			if(isPrefix(a->attrName,"PROV_"))
+			{
+				provAttrNames = appendToTailOfList(provAttrNames,a->attrName);
+
 				DataType d = a->dataType;
 				Node *cond = (Node *) createOpExpr("=",LIST_MAKE(l,r));
 
@@ -577,12 +578,10 @@ rewritePatternOutput (char *summaryType, Node *input)
 				CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
 
 				projExpr = appendToTailOfList(projExpr, (List *) caseExpr);
-//			}
-//			else
-//				projExpr = appendToTailOfList(projExpr, r);
+			}
 		}
 
-		op = createProjectionOp(projExpr, patternJoin, NIL, getAttrNames(patternJoin->schema));
+		op = createProjectionOp(projExpr, patternJoin, NIL, provAttrNames);
 		patternJoin->parents = singleton(op);
 		patternJoin = (QueryOperator *) op;
 		patternJoin->provAttrs = copyObject(provAttrs);
