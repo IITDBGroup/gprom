@@ -32,8 +32,8 @@
 #define NUM_PROV_ATTR "NumInProv"
 #define HAS_PROV_ATTR "HAS_PROV"
 #define TOTAL_PROV_ATTR "TotalProv"
-#define ACCURACY_ATTR "Accuracy"
-#define COVERAGE_ATTR "Coverage"
+#define ACCURACY_ATTR "Precision"
+#define COVERAGE_ATTR "Recall"
 #define COVERED_ATTR "Covered"
 #define SAMP_NUM_PREFIX "SampNum"
 #define SAMP_NUM_L_ATTR SAMP_NUM_PREFIX "Left"
@@ -234,14 +234,14 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	// add attribute for accuracy
 //	AttributeReference *numProv = createFullAttrReference(strdup(NUM_PROV_ATTR), 0, 2, 0, DT_INT);
 //	AttributeReference *covProv = createFullAttrReference(strdup(COVERED_ATTR), 0, 1, 0, DT_INT);
-	Node *accuRate = (Node *) createOpExpr("/",LIST_MAKE(numProv,covProv));
-	FunctionCall *rdupAr = createFunctionCall("ROUND", LIST_MAKE(accuRate, rdup));
+	Node *precRate = (Node *) createOpExpr("/",LIST_MAKE(numProv,covProv));
+	FunctionCall *rdupAr = createFunctionCall("ROUND", LIST_MAKE(precRate, rdup));
 	projExpr = appendToTailOfList(projExpr, rdupAr);
 
 	// add attribute for coverage
 //	AttributeReference *totProv = createFullAttrReference(strdup(TOTAL_PROV_ATTR), 0, 0, 0, DT_INT);
-	Node* covRate = (Node *) createOpExpr("/",LIST_MAKE(numProv,totProv));
-	FunctionCall *rdupCr = createFunctionCall("ROUND", LIST_MAKE(covRate, rdup));
+	Node* recRate = (Node *) createOpExpr("/",LIST_MAKE(numProv,totProv));
+	FunctionCall *rdupCr = createFunctionCall("ROUND", LIST_MAKE(recRate, rdup));
 	projExpr = appendToTailOfList(projExpr, rdupCr);
 
 	attrNames = CONCAT_LISTS(attrNames, singleton(ACCURACY_ATTR), singleton(COVERAGE_ATTR));
@@ -254,8 +254,8 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 //	AttributeReference *accuR = createFullAttrReference(strdup(ACCURACY_ATTR), 0,
 //							LIST_LENGTH(computeFrac->schema->attrDefs) - 2, 0, DT_INT);
 
-	OrderExpr *accExpr = createOrderExpr(accuRate, SORT_DESC, SORT_NULLS_LAST);
-	OrderExpr *covExpr = createOrderExpr(covRate, SORT_DESC, SORT_NULLS_LAST);
+	OrderExpr *accExpr = createOrderExpr(precRate, SORT_DESC, SORT_NULLS_LAST);
+	OrderExpr *covExpr = createOrderExpr(recRate, SORT_DESC, SORT_NULLS_LAST);
 
 	OrderOperator *ord = createOrderOp(LIST_MAKE(accExpr, covExpr), computeFrac, NIL);
 	computeFrac->parents = singleton(ord);
