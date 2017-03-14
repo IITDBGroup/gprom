@@ -231,6 +231,74 @@ static QueryOperator
 static QueryOperator
 *rewriteXMLAggregation (AggregationOperator *op)
 {
+
+	QueryOperator *agg = (QueryOperator *)op;
+	int aggrLen = LIST_LENGTH(op->aggrs);
+	int aggDefLen = LIST_LENGTH(agg->schema->attrDefs);
+	List *newProjDefs = copyList(agg->schema->attrDefs);
+	List *newProjExprs = NIL;
+	int attrPosProj = 0;
+    FOREACH(AttributeDef, ad, newProjDefs)
+	{
+    	if(attrPosProj == aggrLen)
+    		attrPosProj ++;
+        newProjExprs = appendToTailOfList(newProjExprs, createFullAttrReference(ad->attrName, 0, attrPosProj, 0, ad->dataType));
+        attrPosProj ++;
+	}
+    newProjDefs = appendToTailOfList(newProjDefs, createAttributeDef("PROV", DT_STRING));
+
+
+
+	rewriteXMLOperator(OP_LCHILD(op));
+	QueryOperator *lChild = OP_LCHILD(op);
+
+
+    //create function call
+    List *funArgs = NIL;
+    //int schemaLen = LIST_LENGTH(op->op.schema->attrDefs);
+    FOREACH_INT(i, lChild->provAttrs)
+    {
+    	AttributeDef *ad = getNthOfListP(lChild->schema->attrDefs, i);
+    	funArgs = appendToTailOfList(funArgs, createFullAttrReference(ad->attrName, 0, i, 0, ad->dataType));
+    }
+    FunctionCall *funXMLAGG = createFunctionCall("XMLAGG", funArgs);
+    op->aggrs = appendToTailOfList(op->aggrs, funXMLAGG);
+
+
+    AttributeDef *provDef = createAttributeDef(CONCAT_STRINGS("AGGR_", itoa(aggrLen)), DT_STRING);
+    List *newAggDefs = NIL;
+    List *proAggDefs = NIL;
+    List *postAggDefs = NIL;
+    int cnt =0;
+    FOREACH(AttributeDef, ad, op->op.schema->attrDefs)
+    {
+    	if(cnt < aggrLen)
+    		proAggDefs = appendToTailOfList(proAggDefs, ad);
+    	else
+    		postAggDefs = appendToTailOfList(postAggDefs, ad);
+    	cnt ++;
+    }
+    newAggDefs = CONCAT_LISTS(proAggDefs, singleton(provDef), postAggDefs);
+    op->op.schema->attrDefs = newAggDefs;
+
+
+    //new proj
+    List *funArgsProj = NIL;
+    AttributeReference *provAttrProj = createFullAttrReference(strdup(provDef->attrName), 0, aggrLen, 0, provDef->dataType);
+    Constant *adds = createConstString("adds");
+    funArgsProj = appendToTailOfList(funArgsProj, adds);
+    funArgsProj = appendToTailOfList(funArgsProj, provAttrProj);
+    FunctionCall *funXML = createFunctionCall("XMLELEMENT", funArgsProj);
+    newProjExprs = appendToTailOfList(newProjExprs,funXML);
+
+
+    ProjectionOperator *proj = createProjectionOp(newProjExprs, NULL, NIL, NIL);
+    proj->op.schema->attrDefs = newProjDefs;
+    proj->op.provAttrs = singletonInt(aggDefLen);
+
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
+
 	return (QueryOperator *)op;
 }
 static QueryOperator
@@ -329,11 +397,14 @@ static QueryOperator
 {
       int i = getHeadOfListInt(op->provAttrs);
       AttributeDef *ad = getNthOfListP(op->schema->attrDefs, i);
-      StringInfo str = makeStringInfo();
-      appendStringInfoString(str, ad->attrName);
-      appendStringInfoString(str, "_");
-      appendStringInfoString(str, suffix);
-      ad->attrName = str->data;
+//      StringInfo str = makeStringInfo();
+//      appendStringInfoString(str, ad->attrName);
+//      appendStringInfoString(str, "_");
+//      appendStringInfoString(str, suffix);
+//      ad->attrName = str->data;
+
+      ad->attrName = CONCAT_STRINGS(ad->attrName, "_", suffix);
+
 
 	return (QueryOperator *)op;
 }
