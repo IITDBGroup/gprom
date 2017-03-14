@@ -34,6 +34,8 @@ static QueryOperator *rewriteXMLDuplicateRemOp(DuplicateRemoval *op);
 static QueryOperator *rewriteXMLOrderOp(OrderOperator *op);
 static QueryOperator *rewriteXMLJsonTableOp(JsonTableOperator *op);
 
+static QueryOperator *renameProvName(QueryOperator *op, char *suffix);
+
 
 QueryOperator *
 rewriteXML (ProvenanceComputation  *op)
@@ -148,29 +150,17 @@ static QueryOperator
     // add projection expressions for provenance attrs
     QueryOperator *child = OP_LCHILD(op);
 
-    int ocnt = 0;
-    FOREACH(AttributeDef, ad, child->schema->attrDefs)
+    FOREACH_INT(a, child->provAttrs)
     {
-    	if(streq(ad->attrName, "PROV"))
-    	{
-    		op->op.schema->attrDefs = appendToTailOfList(op->op.schema->attrDefs, copyObject(ad));
-    		op->projExprs = appendToTailOfList(op->projExprs,
-    				createFullAttrReference(ad->attrName, 0, ocnt, 0, ad->dataType));
-    	}
-    	ocnt ++;
+        AttributeDef *att = getAttrDef(child,a);
+        DEBUG_LOG("attr: %s", nodeToString(att));
+         op->projExprs = appendToTailOfList(op->projExprs,
+                 createFullAttrReference(att->attrName, 0, a, 0, att->dataType));
     }
 
-//    FOREACH_INT(a, child->provAttrs)
-//    {
-//        AttributeDef *att = getAttrDef(child,a);
-//        DEBUG_LOG("attr: %s", nodeToString(att));
-//         op->projExprs = appendToTailOfList(op->projExprs,
-//                 createFullAttrReference(att->attrName, 0, a, 0, att->dataType));
-//    }
-//
-//    // adapt schema
+    // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
-//
+
     LOG_RESULT("Rewritten Operator tree", op);
 
 	return (QueryOperator *)op;
@@ -179,7 +169,64 @@ static QueryOperator
 *rewriteXMLJoin (JoinOperator *op)
 {
 
-	return (QueryOperator *)op;
+    DEBUG_LOG("REWRITE-XML - Join");
+    QueryOperator *o = (QueryOperator *) op;
+    QueryOperator *lChild = OP_LCHILD(op);
+    QueryOperator *rChild = OP_RCHILD(op);
+
+    // rewrite children
+    lChild = rewriteXMLOperator(lChild);
+    rChild = rewriteXMLOperator(rChild);
+
+    // adapt schema for join op
+    renameProvName(lChild, "L");
+    renameProvName(rChild, "R");
+    o->schema->attrDefs = concatTwoLists(copyList(lChild->schema->attrDefs), copyList(rChild->schema->attrDefs));
+
+    //adapt join prov position
+    int numLAttrs, numRAttrs;
+    List *provList = NIL;
+    numLAttrs = LIST_LENGTH(lChild->schema->attrDefs);
+    numRAttrs = LIST_LENGTH(rChild->schema->attrDefs);
+    provList = appendToTailOfListInt(provList,numLAttrs-1);
+    provList = appendToTailOfListInt(provList,numLAttrs+numRAttrs-1);
+    o->provAttrs = provList;
+
+    // add projection to put attributes into order on top of join op
+    //create function call
+    Constant *mult = createConstString("mult");
+    Constant *quo = createConstString(",");
+    List *funArgs = NIL;
+    funArgs = appendToTailOfList(funArgs, mult);
+
+    int schemaLen = LIST_LENGTH(o->schema->attrDefs);
+    FOREACH_INT(i,o->provAttrs)
+    {
+    	AttributeDef *ad = getNthOfListP(o->schema->attrDefs, i);
+    	funArgs = appendToTailOfList(funArgs, createFullAttrReference(ad->attrName, 0, i, 0, ad->dataType));
+    	if(schemaLen != i + 1)
+    		funArgs = appendToTailOfList(funArgs, copyObject(quo));
+    }
+
+    FunctionCall *funXML = createFunctionCall("XMLELEMENT", funArgs);
+
+    List *projExpr = CONCAT_LISTS(
+            getNormalAttrProjectionExprs((QueryOperator *) o),
+            singleton(funXML));
+    ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
+
+    addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) o);
+    proj->op.schema->attrDefs = appendToTailOfList(proj->op.schema->attrDefs,createAttributeDef("PROV", DT_STRING));
+    proj->op.provAttrs = singletonInt(numLAttrs+numRAttrs-2);
+
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
+
+    // SET PROP IS_REWRITTEN
+
+    LOG_RESULT("Rewritten Operator tree", op);
+    return (QueryOperator *) op;
+
 }
 static QueryOperator
 *rewriteXMLAggregation (AggregationOperator *op)
@@ -194,8 +241,9 @@ static QueryOperator
 static QueryOperator
 *rewriteXMLTableAccess(TableAccessOperator *op)
 {
-	  List *provAttr = NIL;
+	List *provAttr = NIL;
     List *projExpr = NIL;
+    List *newProvPosList = NIL;
 
     int cnt = 0;
 
@@ -208,6 +256,7 @@ static QueryOperator
         projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
+    newProvPosList = appendToTailOfListInt(newProvPosList, cnt);
 
     //create function call
     Constant *tup = createConstString("tuple");
@@ -225,13 +274,6 @@ static QueryOperator
         cnt++;
     }
 
-//    List *newProvPosList = NIL;
-//    CREATE_INT_SEQ(newProvPosList, 1, (1 * 2) - 1, 1);
-//    FOREACH(Node, n, funArgs)
-//    {
-//    	DEBUG_LOG("functioncall: %s", nodeToString(n));
-//    }
-
     FunctionCall *funXML = createFunctionCall("XMLELEMENT", funArgs);
     provAttr = appendToTailOfList(provAttr, "PROV");
     projExpr = appendToTailOfList(projExpr, funXML);
@@ -243,7 +285,7 @@ static QueryOperator
 
     // Create a new projection operator with these new attributes
     ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
-    //newpo->op.provAttrs = newProvPosList;
+    newpo->op.provAttrs = newProvPosList;
     SET_BOOL_STRING_PROP((QueryOperator *)newpo, PROP_PROJ_PROV_ATTR_DUP);
 
     // Switch the subtree with this newly created projection operator.
@@ -276,5 +318,22 @@ static QueryOperator
 static QueryOperator
 *rewriteXMLJsonTableOp(JsonTableOperator *op)
 {
+	return (QueryOperator *)op;
+}
+
+
+
+
+static QueryOperator
+*renameProvName(QueryOperator *op, char *suffix)
+{
+      int i = getHeadOfListInt(op->provAttrs);
+      AttributeDef *ad = getNthOfListP(op->schema->attrDefs, i);
+      StringInfo str = makeStringInfo();
+      appendStringInfoString(str, ad->attrName);
+      appendStringInfoString(str, "_");
+      appendStringInfoString(str, suffix);
+      ad->attrName = str->data;
+
 	return (QueryOperator *)op;
 }
