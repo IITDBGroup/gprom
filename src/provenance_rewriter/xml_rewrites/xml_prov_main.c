@@ -439,7 +439,15 @@ static QueryOperator
 static QueryOperator
 *rewriteXMLOrderOp(OrderOperator *op)
 {
-	return (QueryOperator *)op;
+	QueryOperator *child = OP_LCHILD(op);
+
+	// rewrite child
+	rewriteXMLOperator(child);
+
+	// adapt provenance attr list and schema
+	addProvenanceAttrsToSchema((QueryOperator *) op, child);
+
+	return (QueryOperator *) op;
 }
 static QueryOperator
 *rewriteXMLJsonTableOp(JsonTableOperator *op)
