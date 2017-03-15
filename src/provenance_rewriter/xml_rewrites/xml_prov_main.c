@@ -22,6 +22,14 @@
     } while(0)
 
 
+#define TUPLE "tuple"
+#define COMMA ","
+#define PROV "PROV"
+#define XMLELEMENT "XMLELEMENT"
+#define XMLAGG "XMLAGG"
+#define MULT "MULT"
+#define ADDS "ADDS"
+
 static QueryOperator *rewriteXMLOperator (QueryOperator *op);
 static QueryOperator *rewriteXMLSelection (SelectionOperator *op);
 static QueryOperator *rewriteXMLProjection (ProjectionOperator *op);
@@ -160,7 +168,6 @@ static QueryOperator
 
     // adapt schema
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
-
     LOG_RESULT("Rewritten Operator tree", op);
 
 	return (QueryOperator *)op;
@@ -170,7 +177,7 @@ static QueryOperator
 {
 
     DEBUG_LOG("REWRITE-XML - Join");
-    QueryOperator *o = (QueryOperator *) op;
+    QueryOperator *jOp = (QueryOperator *) op;
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
 
@@ -179,9 +186,11 @@ static QueryOperator
     rChild = rewriteXMLOperator(rChild);
 
     // adapt schema for join op
+    // PROV in left child -> PROV_L, PROV in right child -> PROV_R
     renameProvName(lChild, "L");
     renameProvName(rChild, "R");
-    o->schema->attrDefs = concatTwoLists(copyList(lChild->schema->attrDefs), copyList(rChild->schema->attrDefs));
+    // new join op schema: A, B, PROV_L, C, D, PROV_R
+    jOp->schema->attrDefs = concatTwoLists(copyList(lChild->schema->attrDefs), copyList(rChild->schema->attrDefs));
 
     //adapt join prov position
     int numLAttrs, numRAttrs;
@@ -190,43 +199,46 @@ static QueryOperator
     numRAttrs = LIST_LENGTH(rChild->schema->attrDefs);
     provList = appendToTailOfListInt(provList,numLAttrs-1);
     provList = appendToTailOfListInt(provList,numLAttrs+numRAttrs-1);
-    o->provAttrs = provList;
+    jOp->provAttrs = provList; //in this example, 2, 5  2->PROV_L  5->PROV_R
 
     // add projection to put attributes into order on top of join op
     //create function call
-    Constant *mult = createConstString("mult");
-    Constant *quo = createConstString(",");
+    Constant *mult = createConstString(MULT);
+    Constant *cma = createConstString(COMMA);
+    int schemaLen = LIST_LENGTH(jOp->schema->attrDefs);
+
     List *funArgs = NIL;
     funArgs = appendToTailOfList(funArgs, mult);
 
-    int schemaLen = LIST_LENGTH(o->schema->attrDefs);
-    FOREACH_INT(i,o->provAttrs)
+    FOREACH_INT(i,jOp->provAttrs)
     {
-    	AttributeDef *ad = getNthOfListP(o->schema->attrDefs, i);
+    	AttributeDef *ad = getNthOfListP(jOp->schema->attrDefs, i);
     	funArgs = appendToTailOfList(funArgs, createFullAttrReference(ad->attrName, 0, i, 0, ad->dataType));
     	if(schemaLen != i + 1)
-    		funArgs = appendToTailOfList(funArgs, copyObject(quo));
+    		funArgs = appendToTailOfList(funArgs, copyObject(cma));
     }
 
-    FunctionCall *funXML = createFunctionCall("XMLELEMENT", funArgs);
+    // XMLELEMENT('MULT', PROV_L, ',', PROV_R)
+    FunctionCall *funXML = createFunctionCall(XMLELEMENT, funArgs);
 
+    // A, B, C, D, XMLELEMENT('MULT', PROV_L, ',', PROV_R)
     List *projExpr = CONCAT_LISTS(
-            getNormalAttrProjectionExprs((QueryOperator *) o),
+            getNormalAttrProjectionExprs((QueryOperator *) jOp),
             singleton(funXML));
     ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, NIL);
 
-    addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) o);
-    proj->op.schema->attrDefs = appendToTailOfList(proj->op.schema->attrDefs,createAttributeDef("PROV", DT_STRING));
+    //A, B, C, D
+    addNormalAttrsToSchema((QueryOperator *) proj, (QueryOperator *) jOp);
+    //PROV
+    proj->op.schema->attrDefs = appendToTailOfList(proj->op.schema->attrDefs,createAttributeDef(PROV, DT_STRING));
     proj->op.provAttrs = singletonInt(numLAttrs+numRAttrs-2);
 
     switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
     addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 
-    // SET PROP IS_REWRITTEN
-
     LOG_RESULT("Rewritten Operator tree", op);
-    return (QueryOperator *) op;
 
+    return (QueryOperator *) op;
 }
 static QueryOperator
 *rewriteXMLAggregation (AggregationOperator *op)
@@ -235,65 +247,64 @@ static QueryOperator
 	QueryOperator *agg = (QueryOperator *)op;
 	int aggrLen = LIST_LENGTH(op->aggrs);
 	int aggDefLen = LIST_LENGTH(agg->schema->attrDefs);
-	List *newProjDefs = copyList(agg->schema->attrDefs);
-	List *newProjExprs = NIL;
+	List *projDefs = copyList(agg->schema->attrDefs);
+	List *projExprs = NIL;
 	int attrPosProj = 0;
-    FOREACH(AttributeDef, ad, newProjDefs)
+
+    FOREACH(AttributeDef, ad, projDefs)
 	{
     	if(attrPosProj == aggrLen)
     		attrPosProj ++;
-        newProjExprs = appendToTailOfList(newProjExprs, createFullAttrReference(ad->attrName, 0, attrPosProj, 0, ad->dataType));
+    	projExprs = appendToTailOfList(projExprs, createFullAttrReference(ad->attrName, 0, attrPosProj, 0, ad->dataType));
         attrPosProj ++;
 	}
-    newProjDefs = appendToTailOfList(newProjDefs, createAttributeDef("PROV", DT_STRING));
-
-
+    projDefs = appendToTailOfList(projDefs, createAttributeDef(PROV, DT_STRING));
 
 	rewriteXMLOperator(OP_LCHILD(op));
+
 	QueryOperator *lChild = OP_LCHILD(op);
 
-
-    //create function call
+	//modify aggregation op
+    //create function call in agg op
     List *funArgs = NIL;
-    //int schemaLen = LIST_LENGTH(op->op.schema->attrDefs);
     FOREACH_INT(i, lChild->provAttrs)
     {
     	AttributeDef *ad = getNthOfListP(lChild->schema->attrDefs, i);
     	funArgs = appendToTailOfList(funArgs, createFullAttrReference(ad->attrName, 0, i, 0, ad->dataType));
     }
-    FunctionCall *funXMLAGG = createFunctionCall("XMLAGG", funArgs);
+    FunctionCall *funXMLAGG = createFunctionCall(XMLAGG, funArgs);
     op->aggrs = appendToTailOfList(op->aggrs, funXMLAGG);
-
 
     AttributeDef *provDef = createAttributeDef(CONCAT_STRINGS("AGGR_", itoa(aggrLen)), DT_STRING);
     List *newAggDefs = NIL;
-    List *proAggDefs = NIL;
-    List *postAggDefs = NIL;
+    List *preAggDefs = NIL;
+    List *aftAggDefs = NIL;
     int cnt =0;
     FOREACH(AttributeDef, ad, op->op.schema->attrDefs)
     {
     	if(cnt < aggrLen)
-    		proAggDefs = appendToTailOfList(proAggDefs, ad);
+    		preAggDefs = appendToTailOfList(preAggDefs, ad);
     	else
-    		postAggDefs = appendToTailOfList(postAggDefs, ad);
+    		aftAggDefs = appendToTailOfList(aftAggDefs, ad);
     	cnt ++;
     }
-    newAggDefs = CONCAT_LISTS(proAggDefs, singleton(provDef), postAggDefs);
+    //AGGR_0 AGGR_1 GROUP_0
+    newAggDefs = CONCAT_LISTS(preAggDefs, singleton(provDef), aftAggDefs);
     op->op.schema->attrDefs = newAggDefs;
-
 
     //new proj
     List *funArgsProj = NIL;
     AttributeReference *provAttrProj = createFullAttrReference(strdup(provDef->attrName), 0, aggrLen, 0, provDef->dataType);
-    Constant *adds = createConstString("adds");
+    Constant *adds = createConstString(ADDS);
     funArgsProj = appendToTailOfList(funArgsProj, adds);
     funArgsProj = appendToTailOfList(funArgsProj, provAttrProj);
-    FunctionCall *funXML = createFunctionCall("XMLELEMENT", funArgsProj);
-    newProjExprs = appendToTailOfList(newProjExprs,funXML);
+    FunctionCall *funXML = createFunctionCall(XMLELEMENT, funArgsProj);
 
+    //AGGR_0 GROUP_0 XMLELEMENT('ADDS', AGGR_1)
+    projExprs = appendToTailOfList(projExprs,funXML);
 
-    ProjectionOperator *proj = createProjectionOp(newProjExprs, NULL, NIL, NIL);
-    proj->op.schema->attrDefs = newProjDefs;
+    ProjectionOperator *proj = createProjectionOp(projExprs, NULL, NIL, NIL);
+    proj->op.schema->attrDefs = projDefs;
     proj->op.provAttrs = singletonInt(aggDefLen);
 
     switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
@@ -311,62 +322,63 @@ static QueryOperator
 {
 	List *provAttr = NIL;
     List *projExpr = NIL;
-    List *newProvPosList = NIL;
-
+    List *provPos = NIL;
     int cnt = 0;
 
     DEBUG_LOG("REWRITE-XML - Table Access <%s>", op->tableName);
 
-    // Get the povenance name for each attribute
+    // Get the provenance name for each attribute
     FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
     {
         provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
         projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
         cnt++;
     }
-    newProvPosList = appendToTailOfListInt(newProvPosList, cnt);
+    provPos = appendToTailOfListInt(provPos, cnt);
 
     //create function call
-    Constant *tup = createConstString("tuple");
-    Constant *quo = createConstString(",");
+    Constant *tup = createConstString(TUPLE);  // 'tuple'
+    Constant *cma = createConstString(COMMA);  // ','
     List *funArgs = NIL;
-    funArgs = appendToTailOfList(funArgs, tup);
 
+    List *attrDefs = op->op.schema->attrDefs;
+    int schemaLen = LIST_LENGTH(attrDefs);
+    funArgs = appendToTailOfList(funArgs, copyObject(tup));
     cnt = 0;
-    int schemaLen = LIST_LENGTH(op->op.schema->attrDefs);
-    FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
+
+    //construct functionCall XMLELEMENT(tuple, A , ',' , B) AS PROV
+    FOREACH(AttributeDef, attr, attrDefs)
     {
     	funArgs = appendToTailOfList(funArgs, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
     	if(schemaLen != cnt + 1)
-    		funArgs = appendToTailOfList(funArgs, copyObject(quo));
+    		funArgs = appendToTailOfList(funArgs, copyObject(cma));
         cnt++;
     }
 
-    FunctionCall *funXML = createFunctionCall("XMLELEMENT", funArgs);
-    provAttr = appendToTailOfList(provAttr, "PROV");
-    projExpr = appendToTailOfList(projExpr, funXML);
+    FunctionCall *funXML = createFunctionCall(XMLELEMENT, funArgs);
+    provAttr = appendToTailOfList(provAttr, PROV);  //add 'PROV'
+    projExpr = appendToTailOfList(projExpr, funXML); //add XMLELEMENT(tuple, A , ',' , B)
 
-//    DEBUG_LOG("rewrite table access, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
-//            stringListToString(provAttr),
-//            nodeToString(projExpr)
-//            );
+    DEBUG_LOG("rewrite table access, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
+            stringListToString(provAttr),
+            nodeToString(projExpr),
+            nodeToString(funXML));
 
     // Create a new projection operator with these new attributes
-    ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
-    newpo->op.provAttrs = newProvPosList;
-    SET_BOOL_STRING_PROP((QueryOperator *)newpo, PROP_PROJ_PROV_ATTR_DUP);
+    // A, B, XMLELEMENT(tuple, A , ',' , B) -> A, B, PROV
+    ProjectionOperator *proj = createProjectionOp(projExpr, NULL, NIL, provAttr);
+    proj->op.provAttrs = provPos;
+    SET_BOOL_STRING_PROP((QueryOperator *)proj, PROP_PROJ_PROV_ATTR_DUP);
 
     // Switch the subtree with this newly created projection operator.
-    switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
 
     // Add child to the newly created projections operator,
-    addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+    addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 
-    DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) newpo));
+    DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) proj));
 
-
-
-    return (QueryOperator *) newpo;
+    return (QueryOperator *) proj;
 }
 static QueryOperator
 *rewriteXMLConstRel(ConstRelOperator *op)
@@ -395,16 +407,9 @@ static QueryOperator
 static QueryOperator
 *renameProvName(QueryOperator *op, char *suffix)
 {
-      int i = getHeadOfListInt(op->provAttrs);
-      AttributeDef *ad = getNthOfListP(op->schema->attrDefs, i);
-//      StringInfo str = makeStringInfo();
-//      appendStringInfoString(str, ad->attrName);
-//      appendStringInfoString(str, "_");
-//      appendStringInfoString(str, suffix);
-//      ad->attrName = str->data;
-
-      ad->attrName = CONCAT_STRINGS(ad->attrName, "_", suffix);
-
+	int i = getHeadOfListInt(op->provAttrs);
+	AttributeDef *ad = getNthOfListP(op->schema->attrDefs, i);
+	ad->attrName = CONCAT_STRINGS(ad->attrName, "_", suffix);
 
 	return (QueryOperator *)op;
 }
