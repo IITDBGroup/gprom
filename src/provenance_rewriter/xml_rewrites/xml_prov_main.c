@@ -383,7 +383,8 @@ static QueryOperator
     provPos = appendToTailOfListInt(provPos, cnt);
 
     //create function call
-    Constant *tup = createConstString(TUPLE);  // 'tuple'
+    //Constant *tup = createConstString(TUPLE);  // 'tuple'
+    Constant *tup = createConstString(strdup(op->tableName));  // 'tuple'
     Constant *cma = createConstString(COMMA);  // ','
     List *funArgs = NIL;
 
@@ -454,8 +455,6 @@ static QueryOperator
 {
 	return (QueryOperator *)op;
 }
-
-
 
 
 static QueryOperator
