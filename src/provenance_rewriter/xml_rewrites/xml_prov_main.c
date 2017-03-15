@@ -141,8 +141,19 @@ QueryOperator *rewriteXMLOperator (QueryOperator *op)
 static QueryOperator
 *rewriteXMLSelection (SelectionOperator *op)
 {
+	ASSERT(OP_LCHILD(op));
 
-	return (QueryOperator *)op;
+	DEBUG_LOG("REWRITE-XML - Selection");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	// rewrite child first
+	rewriteXMLOperator(OP_LCHILD(op));
+
+	// adapt schema
+	addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+
+	LOG_RESULT("Rewritten Operator tree", op);
+	return (QueryOperator *) op;
 }
 static QueryOperator
 *rewriteXMLProjection (ProjectionOperator *op)
@@ -315,7 +326,42 @@ static QueryOperator
 static QueryOperator
 *rewriteXMLSet (SetOperator *op)
 {
-	return (QueryOperator *)op;
+	DEBUG_LOG("REWRITE-XML - Set");
+
+	QueryOperator *lChild = OP_LCHILD(op);
+	QueryOperator *rChild = OP_RCHILD(op);
+
+	switch(op->setOpType)
+	{
+	case SETOP_UNION:
+	{
+
+		// rewrite children
+		lChild = rewriteXMLOperator(lChild);
+		rChild = rewriteXMLOperator(rChild);
+
+		return (QueryOperator *) op;
+	}
+	case SETOP_INTERSECTION:
+	{
+		// rewrite children
+		lChild = rewriteXMLOperator(lChild);
+		rChild = rewriteXMLOperator(rChild);
+
+		return (QueryOperator *) op;
+	}
+	case SETOP_DIFFERENCE:
+	{
+		// rewrite children
+		lChild = rewriteXMLOperator(lChild);
+		rChild = rewriteXMLOperator(rChild);
+
+		return (QueryOperator *) op;
+	}
+	default:
+		break;
+	}
+	return NULL;
 }
 static QueryOperator
 *rewriteXMLTableAccess(TableAccessOperator *op)
