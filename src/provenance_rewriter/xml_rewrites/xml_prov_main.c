@@ -43,6 +43,9 @@ static QueryOperator *rewriteXMLOrderOp(OrderOperator *op);
 static QueryOperator *rewriteXMLJsonTableOp(JsonTableOperator *op);
 
 static QueryOperator *renameProvName(QueryOperator *op, char *suffix);
+static void replaceOperatorInOpTree(QueryOperator *orginal, QueryOperator *new);
+static void addOperatorOnTopOfOp(QueryOperator *op, QueryOperator *top);
+static FunctionCall *createProvXMLFunctionCall(QueryOperator *op, char *type1, char *type2);
 
 
 QueryOperator *
@@ -435,7 +438,49 @@ static QueryOperator
 static QueryOperator
 *rewriteXMLDuplicateRemOp(DuplicateRemoval *op)
 {
-	return (QueryOperator *)op;
+
+    QueryOperator *child = OP_LCHILD(op);
+    QueryOperator *theOp = (QueryOperator *) op;
+
+    //rewrite child op
+    rewriteXMLOperator(child);
+
+    //create aggregation
+    //List *childDefs = child->schema.attrDefs;
+    List *aggrs = NIL;
+    List *groupBy = NIL;
+    List *attrNames = NIL;
+
+    //create functional call
+    FunctionCall *funXMLAGG = createProvXMLFunctionCall(child, XMLAGG, NULL);
+    aggrs = appendToTailOfList(aggrs, funXMLAGG);
+
+    groupBy = getNormalAttrProjectionExprs(child);
+    //attrNames = getAttrNames(child->schema);
+    attrNames = concatTwoLists(getOpProvenanceAttrNames(child) ,getNormalAttrNames(child));
+
+    AggregationOperator *agg = createAggregationOp(aggrs, groupBy, NULL, NIL, attrNames);
+    ((QueryOperator *) agg)->provAttrs = singletonInt(0);
+
+    //replace theOp with agg if no additional proj on the top of agg
+    replaceOperatorInOpTree(theOp, (QueryOperator *) agg);
+
+    //create new proj on top of agg to get A, B, xmlelement(adds, prov)
+    QueryOperator *aggOp = (QueryOperator *) agg;
+    //List *projExprs = concatTwoLists(getNormalAttrProjectionExprs(aggOp), getProvAttrProjectionExprs(aggOp));
+    List *projExprs = getNormalAttrProjectionExprs(aggOp);
+    List *projAttrNames = concatTwoLists(getNormalAttrNames(aggOp),getOpProvenanceAttrNames(aggOp));
+
+    //create function call
+    FunctionCall *funXMLELEMENT = createProvXMLFunctionCall(aggOp, XMLELEMENT, ADDS);
+    projExprs = appendToTailOfList(projExprs, funXMLELEMENT);
+
+    ProjectionOperator *proj = createProjectionOp(projExprs, NULL, NIL, projAttrNames);
+    ((QueryOperator *) proj)->provAttrs = singletonInt(LIST_LENGTH(projAttrNames) - 1);
+    addOperatorOnTopOfOp(aggOp, (QueryOperator *) proj);
+
+
+	return (QueryOperator *) proj;
 }
 static QueryOperator
 *rewriteXMLOrderOp(OrderOperator *op)
@@ -465,4 +510,43 @@ static QueryOperator
 	ad->attrName = CONCAT_STRINGS(ad->attrName, "_", suffix);
 
 	return (QueryOperator *)op;
+}
+
+static FunctionCall
+*createProvXMLFunctionCall(QueryOperator *op, char *type1, char *type2)
+{
+    List *funArgs = NIL;
+
+    if(type2 != NULL)
+    {
+    	Constant *func = createConstString(type2);
+    	funArgs = appendToTailOfList(funArgs, func);
+    }
+    FOREACH_INT(i, op->provAttrs)
+    {
+    	AttributeDef *ad1 = getNthOfListP(op->schema->attrDefs, i);
+    	funArgs = appendToTailOfList(funArgs, createFullAttrReference(ad1->attrName, 0, i, 0, ad1->dataType));
+    }
+    FunctionCall *funXMLELEMENT = createFunctionCall(type1, funArgs);
+
+    return funXMLELEMENT;
+}
+
+
+static void
+addOperatorOnTopOfOp(QueryOperator *op, QueryOperator *top)
+{
+	switchSubtreeWithExisting(op, top);
+	op->parents = singleton(top);
+	top->inputs = singleton(op);
+}
+
+static void
+replaceOperatorInOpTree(QueryOperator *orginal, QueryOperator *new)
+{
+	QueryOperator *child = OP_LCHILD(orginal);
+    new->inputs = orginal->inputs;
+    orginal->inputs = NIL;
+    switchSubtreeWithExisting(orginal, new);
+    replaceNode(child->parents, (Node *)orginal, (Node *)new);
 }
