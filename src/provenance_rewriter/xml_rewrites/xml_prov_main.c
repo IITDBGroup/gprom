@@ -45,7 +45,7 @@ static QueryOperator *rewriteXMLJsonTableOp(JsonTableOperator *op);
 static QueryOperator *renameProvName(QueryOperator *op, char *suffix);
 static void replaceOperatorInOpTree(QueryOperator *orginal, QueryOperator *new);
 static void addOperatorOnTopOfOp(QueryOperator *op, QueryOperator *top);
-static FunctionCall *createProvXMLFunctionCall(QueryOperator *op, char *type1, char *type2);
+static FunctionCall *createProvXMLFunctionCall(QueryOperator *op, char *type1, char *type2, int flag);
 
 
 QueryOperator *
@@ -217,23 +217,24 @@ static QueryOperator
 
     // add projection to put attributes into order on top of join op
     //create function call
-    Constant *mult = createConstString(MULT);
-    Constant *cma = createConstString(COMMA);
-    int schemaLen = LIST_LENGTH(jOp->schema->attrDefs);
-
-    List *funArgs = NIL;
-    funArgs = appendToTailOfList(funArgs, mult);
-
-    FOREACH_INT(i,jOp->provAttrs)
-    {
-    	AttributeDef *ad = getNthOfListP(jOp->schema->attrDefs, i);
-    	funArgs = appendToTailOfList(funArgs, createFullAttrReference(ad->attrName, 0, i, 0, ad->dataType));
-    	if(schemaLen != i + 1)
-    		funArgs = appendToTailOfList(funArgs, copyObject(cma));
-    }
-
-    // XMLELEMENT('MULT', PROV_L, ',', PROV_R)
-    FunctionCall *funXML = createFunctionCall(XMLELEMENT, funArgs);
+//    Constant *mult = createConstString(MULT);
+//    Constant *cma = createConstString(COMMA);
+//    int schemaLen = LIST_LENGTH(jOp->schema->attrDefs);
+//
+//    List *funArgs = NIL;
+//    funArgs = appendToTailOfList(funArgs, mult);
+//
+//    FOREACH_INT(i,jOp->provAttrs)
+//    {
+//    	AttributeDef *ad = getNthOfListP(jOp->schema->attrDefs, i);
+//    	funArgs = appendToTailOfList(funArgs, createFullAttrReference(ad->attrName, 0, i, 0, ad->dataType));
+//    	if(schemaLen != i + 1)
+//    		funArgs = appendToTailOfList(funArgs, copyObject(cma));
+//    }
+//
+//    // XMLELEMENT('MULT', PROV_L, ',', PROV_R)
+//    FunctionCall *funXML = createFunctionCall(XMLELEMENT, funArgs);
+    FunctionCall *funXML = createProvXMLFunctionCall(jOp, XMLELEMENT, MULT, 1);
 
     // A, B, C, D, XMLELEMENT('MULT', PROV_L, ',', PROV_R)
     List *projExpr = CONCAT_LISTS(
@@ -346,7 +347,6 @@ static QueryOperator
 
 		addProvenanceAttrsToSchema(setOp, lChild);
 
-
 		return (QueryOperator *) op;
 	}
 	case SETOP_INTERSECTION:
@@ -355,7 +355,65 @@ static QueryOperator
 		lChild = rewriteXMLOperator(lChild);
 		rChild = rewriteXMLOperator(rChild);
 
-		return (QueryOperator *) op;
+		//copy lChild attr names for later use when creating proj
+		List *lChildAttrNames = getAttrDefNames(lChild->schema->attrDefs);
+	    // PROV in left child -> PROV_L, PROV in right child -> PROV_R
+	    renameProvName(lChild, "L");
+	    renameProvName(rChild, "R");
+
+		//change intersect to a join with a projection on top
+		List *lAttrNames =  getAttrDefNames(lChild->schema->attrDefs);
+		List *rAttrNames =  getAttrDefNames(rChild->schema->attrDefs);
+        List *joinAttrNames = concatTwoLists(lAttrNames, rAttrNames);
+        List *condExprs = NIL;
+
+        List *lAttrExprs = getNormalAttrProjectionExprs(lChild);
+        List *rAttrExprs = getNormalAttrProjectionExprs(rChild);
+        ASSERT(LIST_LENGTH(lAttrExprs) == LIST_LENGTH(rAttrExprs));
+        //A=C B=D
+        FORBOTH(AttributeReference,l,r,lAttrExprs,rAttrExprs)
+        {
+        	r->fromClauseItem = 1;
+        	condExprs =  appendToTailOfList(condExprs, (Node *) createOpExpr("=", LIST_MAKE(l, r)));
+        }
+        // A=C AND B=D AND ....
+        Node *joinCond  = andExprList(condExprs);
+
+		JoinOperator *join = createJoinOp(JOIN_INNER, joinCond, setOp->inputs, setOp->parents, joinAttrNames);
+//		JoinOperator *join = createJoinOp(JOIN_INNER, joinCond, NIL, NIL, joinAttrNames);
+	    QueryOperator *joinOp = (QueryOperator *) join;
+	    joinOp->provAttrs = appendToTailOfListInt(joinOp->provAttrs, LIST_LENGTH(lChild->schema->attrDefs) - 1);
+	    joinOp->provAttrs = appendToTailOfListInt(joinOp->provAttrs, LIST_LENGTH(lChild->schema->attrDefs)
+	    		+ LIST_LENGTH(rChild->schema->attrDefs) -1);
+		switchSubtrees(setOp, (QueryOperator *)join);
+		replaceNode(lChild->parents, (Node *)op, (Node *)join);
+		replaceNode(rChild->parents, (Node *)op, (Node *)join);
+
+	    //QueryOperator *child = OP_LCHILD(orginal);
+//	    joinOp->inputs = setOp->inputs;
+//	    setOp->inputs = NIL;
+//	    //switchSubtrees(setOp, joinOp);
+//	    joinOp->parents = setOp->parents;
+//	    ((QueryOperator *) getHeadOfListP(setOp->parents))->inputs = singleton(joinOp);
+//	    setOp->parents = NIL;
+////	    replaceNode(lChild->parents, (Node *)setOp, (Node *)joinOp);
+////	    replaceNode(rChild->parents, (Node *)setOp, (Node *)joinOp);
+//	    lChild->parents = singleton(join);
+//	    rChild->parents = singleton(join);
+
+		//create proj on top of join
+		//A B xmlelement(mult, p1, ',', p2)
+        List *projExprs = getNormalAttrProjectionExprs(lChild);
+
+       //create function call xmlelement(mult, p1, ',', p2)
+        FunctionCall *funXML = createProvXMLFunctionCall(joinOp, XMLELEMENT, MULT, 1);
+        projExprs = appendToTailOfList(projExprs, funXML);
+        ProjectionOperator *proj = createProjectionOp(projExprs, NULL, NIL, lChildAttrNames);
+        ((QueryOperator *) proj)->provAttrs = copyList(lChild->provAttrs);
+
+        addOperatorOnTopOfOp(joinOp, (QueryOperator *) proj);
+
+		return (QueryOperator *) proj;
 	}
 	case SETOP_DIFFERENCE:
 	{
@@ -447,7 +505,7 @@ static QueryOperator
     QueryOperator *theOp = (QueryOperator *) op;
 
     //rewrite child op
-    rewriteXMLOperator(child);
+   child = rewriteXMLOperator(child);
 
     //create aggregation
     List *aggrs = NIL;
@@ -455,7 +513,7 @@ static QueryOperator
     List *attrNames = NIL;
 
     //create functional call
-    FunctionCall *funXMLAGG = createProvXMLFunctionCall(child, XMLAGG, NULL);
+    FunctionCall *funXMLAGG = createProvXMLFunctionCall(child, XMLAGG, NULL, 0);
     aggrs = appendToTailOfList(aggrs, funXMLAGG);
 
     groupBy = getNormalAttrProjectionExprs(child);
@@ -473,7 +531,7 @@ static QueryOperator
     List *projAttrNames = concatTwoLists(getNormalAttrNames(aggOp),getOpProvenanceAttrNames(aggOp));
 
     //create function call
-    FunctionCall *funXMLELEMENT = createProvXMLFunctionCall(aggOp, XMLELEMENT, ADDS);
+    FunctionCall *funXMLELEMENT = createProvXMLFunctionCall(aggOp, XMLELEMENT, ADDS, 0);
     projExprs = appendToTailOfList(projExprs, funXMLELEMENT);
 
     ProjectionOperator *proj = createProjectionOp(projExprs, NULL, NIL, projAttrNames);
@@ -514,7 +572,7 @@ static QueryOperator
 }
 
 static FunctionCall
-*createProvXMLFunctionCall(QueryOperator *op, char *type1, char *type2)
+*createProvXMLFunctionCall(QueryOperator *op, char *type1, char *type2, int flag)
 {
     List *funArgs = NIL;
 
@@ -523,11 +581,28 @@ static FunctionCall
     	Constant *func = createConstString(type2);
     	funArgs = appendToTailOfList(funArgs, func);
     }
-    FOREACH_INT(i, op->provAttrs)
+    if(flag == 0)
     {
-    	AttributeDef *ad1 = getNthOfListP(op->schema->attrDefs, i);
-    	funArgs = appendToTailOfList(funArgs, createFullAttrReference(ad1->attrName, 0, i, 0, ad1->dataType));
+    	FOREACH_INT(i, op->provAttrs)
+    	{
+    		AttributeDef *ad1 = getNthOfListP(op->schema->attrDefs, i);
+    		funArgs = appendToTailOfList(funArgs, createFullAttrReference(ad1->attrName, 0, i, 0, ad1->dataType));
+    	}
     }
+    else if(flag == 1)
+    {
+    	Constant *cma = createConstString(COMMA);
+    	int schemaLen = LIST_LENGTH(op->schema->attrDefs);
+
+        FOREACH_INT(i,op->provAttrs)
+        {
+        	AttributeDef *ad = getNthOfListP(op->schema->attrDefs, i);
+        	funArgs = appendToTailOfList(funArgs, createFullAttrReference(ad->attrName, 0, i, 0, ad->dataType));
+        	if(schemaLen != i + 1)
+        		funArgs = appendToTailOfList(funArgs, copyObject(cma));
+        }
+    }
+
     FunctionCall *funXMLELEMENT = createFunctionCall(type1, funArgs);
 
     return funXMLELEMENT;
@@ -548,6 +623,7 @@ replaceOperatorInOpTree(QueryOperator *orginal, QueryOperator *new)
 	QueryOperator *child = OP_LCHILD(orginal);
     new->inputs = orginal->inputs;
     orginal->inputs = NIL;
-    switchSubtreeWithExisting(orginal, new);
+    //switchSubtreeWithExisting(orginal, new);
+    switchSubtrees(orginal, new);
     replaceNode(child->parents, (Node *)orginal, (Node *)new);
 }
