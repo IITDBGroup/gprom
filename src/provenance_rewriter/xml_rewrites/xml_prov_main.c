@@ -331,6 +331,7 @@ static QueryOperator
 {
 	DEBUG_LOG("REWRITE-XML - Set");
 
+	QueryOperator *setOp = (QueryOperator *) op;
 	QueryOperator *lChild = OP_LCHILD(op);
 	QueryOperator *rChild = OP_RCHILD(op);
 
@@ -342,6 +343,9 @@ static QueryOperator
 		// rewrite children
 		lChild = rewriteXMLOperator(lChild);
 		rChild = rewriteXMLOperator(rChild);
+
+		addProvenanceAttrsToSchema(setOp, lChild);
+
 
 		return (QueryOperator *) op;
 	}
@@ -446,7 +450,6 @@ static QueryOperator
     rewriteXMLOperator(child);
 
     //create aggregation
-    //List *childDefs = child->schema.attrDefs;
     List *aggrs = NIL;
     List *groupBy = NIL;
     List *attrNames = NIL;
@@ -456,7 +459,6 @@ static QueryOperator
     aggrs = appendToTailOfList(aggrs, funXMLAGG);
 
     groupBy = getNormalAttrProjectionExprs(child);
-    //attrNames = getAttrNames(child->schema);
     attrNames = concatTwoLists(getOpProvenanceAttrNames(child) ,getNormalAttrNames(child));
 
     AggregationOperator *agg = createAggregationOp(aggrs, groupBy, NULL, NIL, attrNames);
@@ -467,7 +469,6 @@ static QueryOperator
 
     //create new proj on top of agg to get A, B, xmlelement(adds, prov)
     QueryOperator *aggOp = (QueryOperator *) agg;
-    //List *projExprs = concatTwoLists(getNormalAttrProjectionExprs(aggOp), getProvAttrProjectionExprs(aggOp));
     List *projExprs = getNormalAttrProjectionExprs(aggOp);
     List *projAttrNames = concatTwoLists(getNormalAttrNames(aggOp),getOpProvenanceAttrNames(aggOp));
 
