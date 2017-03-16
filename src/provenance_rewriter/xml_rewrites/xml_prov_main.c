@@ -43,6 +43,7 @@ static QueryOperator *rewriteXMLOrderOp(OrderOperator *op);
 static QueryOperator *rewriteXMLJsonTableOp(JsonTableOperator *op);
 
 static QueryOperator *renameProvName(QueryOperator *op, char *suffix);
+static QueryOperator *changeProvName(QueryOperator *op, char *new);
 static void replaceOperatorInOpTree(QueryOperator *orginal, QueryOperator *new);
 static void addOperatorOnTopOfOp(QueryOperator *op, QueryOperator *top);
 static FunctionCall *createProvXMLFunctionCall(QueryOperator *op, char *type1, char *type2, int flag);
@@ -425,17 +426,48 @@ static QueryOperator
 	    renameProvName(lChild, "L");
 	    renameProvName(rChild, "R");
 
-		//change intersect to a join with a projection on top
-		List *lAttrNames =  getAttrDefNames(lChild->schema->attrDefs);
-		List *rAttrNames =  getAttrDefNames(rChild->schema->attrDefs);
-        List *joinAttrNames = concatTwoLists(lAttrNames, rAttrNames);
+	    //create two projs
+		//proj1 A B   proj2 B C
+		List *lAttrNames = getNormalAttrNames(lChild);
+		List *rAttrNames = getNormalAttrNames(rChild);
+		List *llAttrNames = NIL;
+		List *rrAttrNames = NIL;
+
+		FOREACH(char, c, lAttrNames)
+		{
+			char *a = CONCAT_STRINGS(c, "_", "R");
+			llAttrNames = appendToTailOfList(llAttrNames, a);
+		}
+		FOREACH(char, c, rAttrNames)
+		{
+			char *a = CONCAT_STRINGS(c, "_", "R");
+			rrAttrNames = appendToTailOfList(rrAttrNames, a);
+		}
+
+		List *lProjExprs = getNormalAttrProjectionExprs(lChild);
+		List *rProjExprs = getNormalAttrProjectionExprs(rChild);
+
+        ProjectionOperator *lProj = createProjectionOp(lProjExprs, NULL, NIL, llAttrNames);
+        ProjectionOperator *rProj = createProjectionOp(rProjExprs, NULL, NIL, rrAttrNames);
+
+        addOperatorOnTopOfOp(lChild, (QueryOperator *) lProj);
+        addOperatorOnTopOfOp(rChild, (QueryOperator *) rProj);
+
+        setOp->schema->attrDefs = copyObject (((QueryOperator *) lProj)->schema->attrDefs);
+
+
+        //create join on top of lChild and set
+        // A B prov_l   A B
+		List *lJoinAttrNames =  getAttrDefNames(lChild->schema->attrDefs);
+		List *rJoinAttrNames =  getAttrDefNames(setOp->schema->attrDefs);
+        List *joinAttrNames = concatTwoLists(lJoinAttrNames, rJoinAttrNames);
         List *condExprs = NIL;
 
-        List *lAttrExprs = getNormalAttrProjectionExprs(lChild);
-        List *rAttrExprs = getNormalAttrProjectionExprs(rChild);
-        ASSERT(LIST_LENGTH(lAttrExprs) == LIST_LENGTH(rAttrExprs));
+        List *lJoinAttrExprs = getNormalAttrProjectionExprs(lChild);
+        List *rJoinAttrExprs = getNormalAttrProjectionExprs(setOp);
+        ASSERT(LIST_LENGTH(lJoinAttrExprs) == LIST_LENGTH(rJoinAttrExprs));
         //A=C B=D
-        FORBOTH(AttributeReference,l,r,lAttrExprs,rAttrExprs)
+        FORBOTH(AttributeReference,l,r,lJoinAttrExprs,rJoinAttrExprs)
         {
         	r->fromClauseItem = 1;
         	condExprs =  appendToTailOfList(condExprs, (Node *) createOpExpr("=", LIST_MAKE(l, r)));
@@ -443,41 +475,22 @@ static QueryOperator
         // A=C AND B=D AND ....
         Node *joinCond  = andExprList(condExprs);
 
-		JoinOperator *join = createJoinOp(JOIN_INNER, joinCond, setOp->inputs, setOp->parents, joinAttrNames);
+		JoinOperator *join = createJoinOp(JOIN_INNER, joinCond, concatTwoLists(singleton(lChild),singleton(setOp)), setOp->parents, joinAttrNames);
 //		JoinOperator *join = createJoinOp(JOIN_INNER, joinCond, NIL, NIL, joinAttrNames);
 	    QueryOperator *joinOp = (QueryOperator *) join;
 	    joinOp->provAttrs = appendToTailOfListInt(joinOp->provAttrs, LIST_LENGTH(lChild->schema->attrDefs) - 1);
-	    joinOp->provAttrs = appendToTailOfListInt(joinOp->provAttrs, LIST_LENGTH(lChild->schema->attrDefs)
-	    		+ LIST_LENGTH(rChild->schema->attrDefs) -1);
+
 		switchSubtrees(setOp, (QueryOperator *)join);
-		replaceNode(lChild->parents, (Node *)op, (Node *)join);
-		replaceNode(rChild->parents, (Node *)op, (Node *)join);
+		setOp->parents = singleton(join);
+		lChild->parents = appendToHeadOfList(lChild->parents, join);
 
-		//create proj on top of join
-		//A B PROV_L
-		List *lChildAttrNames = getAttrDefNames(lChild->schema->attrDefs);
-        List *projExprs = NIL;
-        int cnt = 0;
-        FOREACH(AttributeDef, ad, lChild->schema->attrDefs)
-        {
-        	projExprs = appendToTailOfList(projExprs, createFullAttrReference(ad->attrName, 0, cnt, 0, ad->dataType));
-        	cnt ++;
-        }
 
-        ProjectionOperator *proj = createProjectionOp(projExprs, NULL, NIL, lChildAttrNames);
-        ((QueryOperator *) proj)->provAttrs = copyList(lChild->provAttrs);
+		//add top proj  A, B, prov
+		ProjectionOperator *topProj = (ProjectionOperator *) createProjOnAllAttrs(lChild);
+		addOperatorOnTopOfOp((QueryOperator *) join, (QueryOperator *) topProj);
+		changeProvName((QueryOperator *) topProj, "PROV");
 
-        addOperatorOnTopOfOp(joinOp, (QueryOperator *) proj);
-        QueryOperator *projOp = (QueryOperator *) proj;
-
-        //final minus op on top between proj and left child of join
-        SetOperator *set = createSetOperator(SETOP_DIFFERENCE, concatTwoLists(singleton(lChild),singleton(proj)) , projOp->parents ,lChildAttrNames);
-        switchSubtrees(projOp, (QueryOperator *)set);
-        projOp->parents = singleton(set);
-        lChild->parents = appendToHeadOfList(lChild->parents, set);
-        ((QueryOperator *) set)->provAttrs = copyList(projOp->provAttrs);
-
-		return (QueryOperator *) setOp;
+		return (QueryOperator *) topProj;
 	}
 	default:
 		break;
@@ -626,6 +639,17 @@ static QueryOperator
 
 	return (QueryOperator *)op;
 }
+
+static QueryOperator
+*changeProvName(QueryOperator *op, char *new)
+{
+	int i = getHeadOfListInt(op->provAttrs);
+	AttributeDef *ad = getNthOfListP(op->schema->attrDefs, i);
+	ad->attrName = new;
+
+	return (QueryOperator *)op;
+}
+
 
 static FunctionCall
 *createProvXMLFunctionCall(QueryOperator *op, char *type1, char *type2, int flag)
