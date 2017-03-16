@@ -140,8 +140,6 @@ QueryOperator *rewriteXMLOperator (QueryOperator *op)
 	return rewrittenOp;
 }
 
-
-
 static QueryOperator
 *rewriteXMLSelection (SelectionOperator *op)
 {
@@ -341,7 +339,6 @@ static QueryOperator
 	{
 	case SETOP_UNION:
 	{
-
 		// rewrite children
 		lChild = rewriteXMLOperator(lChild);
 		rChild = rewriteXMLOperator(rChild);
@@ -358,18 +355,74 @@ static QueryOperator
 
 		//copy lChild attr names for later use when creating proj
 		List *lChildAttrNames = getAttrDefNames(lChild->schema->attrDefs);
+		//List *rChildAttrNames = getAttrDefNames(rChild->schema->attrDefs);
+
 	    // PROV in left child -> PROV_L, PROV in right child -> PROV_R
 	    renameProvName(lChild, "L");
 	    renameProvName(rChild, "R");
 
+        //create two group by  A,B,xmlagg(prov)
+        List *lAggrs = NIL;
+        List *rAggrs = NIL;
+        List *lGroupBy = NIL;
+        List *rGroupBy = NIL;
+        List *lGroupByAttrNames = NIL;
+        List *rGroupByAttrNames = NIL;
+
+        //create function call
+        FunctionCall *lFunAgg = createProvXMLFunctionCall(lChild, XMLAGG, NULL, 0);
+        FunctionCall *rFunAgg = createProvXMLFunctionCall(rChild, XMLAGG, NULL, 0);
+        lAggrs = singleton(lFunAgg);
+        rAggrs = singleton(rFunAgg);
+
+        lGroupBy = getNormalAttrProjectionExprs(lChild);
+        rGroupBy = getNormalAttrProjectionExprs(rChild);
+
+        lGroupByAttrNames = concatTwoLists(getOpProvenanceAttrNames(lChild),getNormalAttrNames(lChild));
+        rGroupByAttrNames = concatTwoLists(getOpProvenanceAttrNames(rChild),getNormalAttrNames(rChild));
+
+        AggregationOperator *lAgg = createAggregationOp(lAggrs, lGroupBy, NULL, NIL, lGroupByAttrNames);
+        AggregationOperator *rAgg = createAggregationOp(rAggrs, rGroupBy, NULL, NIL, rGroupByAttrNames);
+
+        QueryOperator *lAggOp = (QueryOperator *) lAgg;
+        QueryOperator *rAggOp = (QueryOperator *) rAgg;
+
+        lAggOp->provAttrs = singletonInt(0);
+        rAggOp->provAttrs = singletonInt(0);
+
+        addOperatorOnTopOfOp(lChild, lAggOp);
+        addOperatorOnTopOfOp(rChild, rAggOp);
+
+        //create two projs on top of each agg
+		//A B xmlelement(adds, prov)
+        List *lProjExprs = getNormalAttrProjectionExprs(lAggOp);
+        List *rProjExprs = getNormalAttrProjectionExprs(rAggOp);
+
+        //create function call xmlelement(mult, p1, ',', p2)
+        FunctionCall *lFunXML = createProvXMLFunctionCall(lAggOp, XMLELEMENT, ADDS, 0);
+        FunctionCall *rFunXML = createProvXMLFunctionCall(rAggOp, XMLELEMENT, ADDS, 0);
+        lProjExprs = appendToTailOfList(lProjExprs, lFunXML);
+        rProjExprs = appendToTailOfList(rProjExprs, rFunXML);
+        ProjectionOperator *lProj = createProjectionOp(lProjExprs, NULL, NIL, getAttrDefNames(lChild->schema->attrDefs));
+        ProjectionOperator *rProj = createProjectionOp(rProjExprs, NULL, NIL, getAttrDefNames(rChild->schema->attrDefs));
+
+        QueryOperator *lProjOp = (QueryOperator *) lProj;
+        QueryOperator *rProjOp = (QueryOperator *) rProj;
+
+        lProjOp->provAttrs = copyList(lChild->provAttrs);
+        rProjOp->provAttrs = copyList(rChild->provAttrs);
+
+        addOperatorOnTopOfOp(lAggOp, lProjOp);
+        addOperatorOnTopOfOp(rAggOp, rProjOp);
+
 		//change intersect to a join with a projection on top
-		List *lAttrNames =  getAttrDefNames(lChild->schema->attrDefs);
-		List *rAttrNames =  getAttrDefNames(rChild->schema->attrDefs);
+		List *lAttrNames =  getAttrDefNames(lProjOp->schema->attrDefs);
+		List *rAttrNames =  getAttrDefNames(rProjOp->schema->attrDefs);
         List *joinAttrNames = concatTwoLists(lAttrNames, rAttrNames);
         List *condExprs = NIL;
 
-        List *lAttrExprs = getNormalAttrProjectionExprs(lChild);
-        List *rAttrExprs = getNormalAttrProjectionExprs(rChild);
+        List *lAttrExprs = getNormalAttrProjectionExprs(lProjOp);
+        List *rAttrExprs = getNormalAttrProjectionExprs(rProjOp);
         ASSERT(LIST_LENGTH(lAttrExprs) == LIST_LENGTH(rAttrExprs));
         //A=C B=D
         FORBOTH(AttributeReference,l,r,lAttrExprs,rAttrExprs)
@@ -387,8 +440,8 @@ static QueryOperator
 	    joinOp->provAttrs = appendToTailOfListInt(joinOp->provAttrs, LIST_LENGTH(lChild->schema->attrDefs)
 	    		+ LIST_LENGTH(rChild->schema->attrDefs) -1);
 		switchSubtrees(setOp, (QueryOperator *)join);
-		replaceNode(lChild->parents, (Node *)op, (Node *)join);
-		replaceNode(rChild->parents, (Node *)op, (Node *)join);
+		replaceNode(lProjOp->parents, (Node *)op, (Node *)join);
+		replaceNode(rProjOp->parents, (Node *)op, (Node *)join);
 
 	    //QueryOperator *child = OP_LCHILD(orginal);
 //	    joinOp->inputs = setOp->inputs;
@@ -404,9 +457,9 @@ static QueryOperator
 
 		//create proj on top of join
 		//A B xmlelement(mult, p1, ',', p2)
-        List *projExprs = getNormalAttrProjectionExprs(lChild);
+        List *projExprs = getNormalAttrProjectionExprs(lProjOp);
 
-       //create function call xmlelement(mult, p1, ',', p2)
+        //create function call xmlelement(mult, p1, ',', p2)
         FunctionCall *funXML = createProvXMLFunctionCall(joinOp, XMLELEMENT, MULT, 1);
         projExprs = appendToTailOfList(projExprs, funXML);
         ProjectionOperator *proj = createProjectionOp(projExprs, NULL, NIL, lChildAttrNames);
@@ -455,7 +508,6 @@ static QueryOperator
 
         setOp->schema->attrDefs = copyObject (((QueryOperator *) lProj)->schema->attrDefs);
 
-
         //create join on top of lChild and set
         // A B prov_l   A B
 		List *lJoinAttrNames =  getAttrDefNames(lChild->schema->attrDefs);
@@ -483,7 +535,6 @@ static QueryOperator
 		switchSubtrees(setOp, (QueryOperator *)join);
 		setOp->parents = singleton(join);
 		lChild->parents = appendToHeadOfList(lChild->parents, join);
-
 
 		//add top proj  A, B, prov
 		ProjectionOperator *topProj = (ProjectionOperator *) createProjOnAllAttrs(lChild);
