@@ -421,7 +421,63 @@ static QueryOperator
 		lChild = rewriteXMLOperator(lChild);
 		rChild = rewriteXMLOperator(rChild);
 
-		return (QueryOperator *) op;
+	    // PROV in left child -> PROV_L, PROV in right child -> PROV_R
+	    renameProvName(lChild, "L");
+	    renameProvName(rChild, "R");
+
+		//change intersect to a join with a projection on top
+		List *lAttrNames =  getAttrDefNames(lChild->schema->attrDefs);
+		List *rAttrNames =  getAttrDefNames(rChild->schema->attrDefs);
+        List *joinAttrNames = concatTwoLists(lAttrNames, rAttrNames);
+        List *condExprs = NIL;
+
+        List *lAttrExprs = getNormalAttrProjectionExprs(lChild);
+        List *rAttrExprs = getNormalAttrProjectionExprs(rChild);
+        ASSERT(LIST_LENGTH(lAttrExprs) == LIST_LENGTH(rAttrExprs));
+        //A=C B=D
+        FORBOTH(AttributeReference,l,r,lAttrExprs,rAttrExprs)
+        {
+        	r->fromClauseItem = 1;
+        	condExprs =  appendToTailOfList(condExprs, (Node *) createOpExpr("=", LIST_MAKE(l, r)));
+        }
+        // A=C AND B=D AND ....
+        Node *joinCond  = andExprList(condExprs);
+
+		JoinOperator *join = createJoinOp(JOIN_INNER, joinCond, setOp->inputs, setOp->parents, joinAttrNames);
+//		JoinOperator *join = createJoinOp(JOIN_INNER, joinCond, NIL, NIL, joinAttrNames);
+	    QueryOperator *joinOp = (QueryOperator *) join;
+	    joinOp->provAttrs = appendToTailOfListInt(joinOp->provAttrs, LIST_LENGTH(lChild->schema->attrDefs) - 1);
+	    joinOp->provAttrs = appendToTailOfListInt(joinOp->provAttrs, LIST_LENGTH(lChild->schema->attrDefs)
+	    		+ LIST_LENGTH(rChild->schema->attrDefs) -1);
+		switchSubtrees(setOp, (QueryOperator *)join);
+		replaceNode(lChild->parents, (Node *)op, (Node *)join);
+		replaceNode(rChild->parents, (Node *)op, (Node *)join);
+
+		//create proj on top of join
+		//A B PROV_L
+		List *lChildAttrNames = getAttrDefNames(lChild->schema->attrDefs);
+        List *projExprs = NIL;
+        int cnt = 0;
+        FOREACH(AttributeDef, ad, lChild->schema->attrDefs)
+        {
+        	projExprs = appendToTailOfList(projExprs, createFullAttrReference(ad->attrName, 0, cnt, 0, ad->dataType));
+        	cnt ++;
+        }
+
+        ProjectionOperator *proj = createProjectionOp(projExprs, NULL, NIL, lChildAttrNames);
+        ((QueryOperator *) proj)->provAttrs = copyList(lChild->provAttrs);
+
+        addOperatorOnTopOfOp(joinOp, (QueryOperator *) proj);
+        QueryOperator *projOp = (QueryOperator *) proj;
+
+        //final minus op on top between proj and left child of join
+        SetOperator *set = createSetOperator(SETOP_DIFFERENCE, concatTwoLists(singleton(lChild),singleton(proj)) , projOp->parents ,lChildAttrNames);
+        switchSubtrees(projOp, (QueryOperator *)set);
+        projOp->parents = singleton(set);
+        lChild->parents = appendToHeadOfList(lChild->parents, set);
+        ((QueryOperator *) set)->provAttrs = copyList(projOp->provAttrs);
+
+		return (QueryOperator *) setOp;
 	}
 	default:
 		break;
