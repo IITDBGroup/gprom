@@ -42,10 +42,13 @@ static QueryOperator *rewriteXMLDuplicateRemOp(DuplicateRemoval *op);
 static QueryOperator *rewriteXMLOrderOp(OrderOperator *op);
 static QueryOperator *rewriteXMLJsonTableOp(JsonTableOperator *op);
 
+static ProjectionOperator *createNormalAttrProjOnChild(QueryOperator *child);
+static AggregationOperator *createAggOpUsedInIntersect(QueryOperator *child);
+static ProjectionOperator *createProjOpUsedInIntersect(QueryOperator *child);
 static QueryOperator *renameProvName(QueryOperator *op, char *suffix);
 static QueryOperator *changeProvName(QueryOperator *op, char *new);
 static void replaceOperatorInOpTree(QueryOperator *orginal, QueryOperator *new);
-static void addOperatorOnTopOfOp(QueryOperator *op, QueryOperator *top);
+static void addOperatorOnTopOfOp(QueryOperator *rOp, QueryOperator *top, QueryOperator *lOp);
 static FunctionCall *createProvXMLFunctionCall(QueryOperator *op, char *type1, char *type2, int flag);
 
 
@@ -216,23 +219,6 @@ static QueryOperator
 
     // add projection to put attributes into order on top of join op
     //create function call
-//    Constant *mult = createConstString(MULT);
-//    Constant *cma = createConstString(COMMA);
-//    int schemaLen = LIST_LENGTH(jOp->schema->attrDefs);
-//
-//    List *funArgs = NIL;
-//    funArgs = appendToTailOfList(funArgs, mult);
-//
-//    FOREACH_INT(i,jOp->provAttrs)
-//    {
-//    	AttributeDef *ad = getNthOfListP(jOp->schema->attrDefs, i);
-//    	funArgs = appendToTailOfList(funArgs, createFullAttrReference(ad->attrName, 0, i, 0, ad->dataType));
-//    	if(schemaLen != i + 1)
-//    		funArgs = appendToTailOfList(funArgs, copyObject(cma));
-//    }
-//
-//    // XMLELEMENT('MULT', PROV_L, ',', PROV_R)
-//    FunctionCall *funXML = createFunctionCall(XMLELEMENT, funArgs);
     FunctionCall *funXML = createProvXMLFunctionCall(jOp, XMLELEMENT, MULT, 1);
 
     // A, B, C, D, XMLELEMENT('MULT', PROV_L, ',', PROV_R)
@@ -362,58 +348,25 @@ static QueryOperator
 	    renameProvName(rChild, "R");
 
         //create two group by  A,B,xmlagg(prov)
-        List *lAggrs = NIL;
-        List *rAggrs = NIL;
-        List *lGroupBy = NIL;
-        List *rGroupBy = NIL;
-        List *lGroupByAttrNames = NIL;
-        List *rGroupByAttrNames = NIL;
-
-        //create function call
-        FunctionCall *lFunAgg = createProvXMLFunctionCall(lChild, XMLAGG, NULL, 0);
-        FunctionCall *rFunAgg = createProvXMLFunctionCall(rChild, XMLAGG, NULL, 0);
-        lAggrs = singleton(lFunAgg);
-        rAggrs = singleton(rFunAgg);
-
-        lGroupBy = getNormalAttrProjectionExprs(lChild);
-        rGroupBy = getNormalAttrProjectionExprs(rChild);
-
-        lGroupByAttrNames = concatTwoLists(getOpProvenanceAttrNames(lChild),getNormalAttrNames(lChild));
-        rGroupByAttrNames = concatTwoLists(getOpProvenanceAttrNames(rChild),getNormalAttrNames(rChild));
-
-        AggregationOperator *lAgg = createAggregationOp(lAggrs, lGroupBy, NULL, NIL, lGroupByAttrNames);
-        AggregationOperator *rAgg = createAggregationOp(rAggrs, rGroupBy, NULL, NIL, rGroupByAttrNames);
+        AggregationOperator *lAgg = createAggOpUsedInIntersect(lChild);
+        AggregationOperator *rAgg = createAggOpUsedInIntersect(rChild);
 
         QueryOperator *lAggOp = (QueryOperator *) lAgg;
         QueryOperator *rAggOp = (QueryOperator *) rAgg;
 
-        lAggOp->provAttrs = singletonInt(0);
-        rAggOp->provAttrs = singletonInt(0);
-
-        addOperatorOnTopOfOp(lChild, lAggOp);
-        addOperatorOnTopOfOp(rChild, rAggOp);
+        addOperatorOnTopOfOp(lChild, lAggOp, NULL);
+        addOperatorOnTopOfOp(rChild, rAggOp, NULL);
 
         //create two projs on top of each agg
 		//A B xmlelement(adds, prov)
-        List *lProjExprs = getNormalAttrProjectionExprs(lAggOp);
-        List *rProjExprs = getNormalAttrProjectionExprs(rAggOp);
-
-        //create function call xmlelement(mult, p1, ',', p2)
-        FunctionCall *lFunXML = createProvXMLFunctionCall(lAggOp, XMLELEMENT, ADDS, 0);
-        FunctionCall *rFunXML = createProvXMLFunctionCall(rAggOp, XMLELEMENT, ADDS, 0);
-        lProjExprs = appendToTailOfList(lProjExprs, lFunXML);
-        rProjExprs = appendToTailOfList(rProjExprs, rFunXML);
-        ProjectionOperator *lProj = createProjectionOp(lProjExprs, NULL, NIL, getAttrDefNames(lChild->schema->attrDefs));
-        ProjectionOperator *rProj = createProjectionOp(rProjExprs, NULL, NIL, getAttrDefNames(rChild->schema->attrDefs));
+        ProjectionOperator *lProj = createProjOpUsedInIntersect(lChild);
+        ProjectionOperator *rProj = createProjOpUsedInIntersect(rChild);
 
         QueryOperator *lProjOp = (QueryOperator *) lProj;
         QueryOperator *rProjOp = (QueryOperator *) rProj;
 
-        lProjOp->provAttrs = copyList(lChild->provAttrs);
-        rProjOp->provAttrs = copyList(rChild->provAttrs);
-
-        addOperatorOnTopOfOp(lAggOp, lProjOp);
-        addOperatorOnTopOfOp(rAggOp, rProjOp);
+        addOperatorOnTopOfOp(lAggOp, lProjOp, NULL);
+        addOperatorOnTopOfOp(rAggOp, rProjOp, NULL);
 
 		//change intersect to a join with a projection on top
 		List *lAttrNames =  getAttrDefNames(lProjOp->schema->attrDefs);
@@ -465,7 +418,7 @@ static QueryOperator
         ProjectionOperator *proj = createProjectionOp(projExprs, NULL, NIL, lChildAttrNames);
         ((QueryOperator *) proj)->provAttrs = copyList(lChild->provAttrs);
 
-        addOperatorOnTopOfOp(joinOp, (QueryOperator *) proj);
+        addOperatorOnTopOfOp(joinOp, (QueryOperator *) proj, NULL);
 
 		return (QueryOperator *) proj;
 	}
@@ -481,30 +434,11 @@ static QueryOperator
 
 	    //create two projs
 		//proj1 A B   proj2 B C
-		List *lAttrNames = getNormalAttrNames(lChild);
-		List *rAttrNames = getNormalAttrNames(rChild);
-		List *llAttrNames = NIL;
-		List *rrAttrNames = NIL;
+        ProjectionOperator *lProj = createNormalAttrProjOnChild(lChild);
+        ProjectionOperator *rProj = createNormalAttrProjOnChild(rChild);
 
-		FOREACH(char, c, lAttrNames)
-		{
-			char *a = CONCAT_STRINGS(c, "_", "R");
-			llAttrNames = appendToTailOfList(llAttrNames, a);
-		}
-		FOREACH(char, c, rAttrNames)
-		{
-			char *a = CONCAT_STRINGS(c, "_", "R");
-			rrAttrNames = appendToTailOfList(rrAttrNames, a);
-		}
-
-		List *lProjExprs = getNormalAttrProjectionExprs(lChild);
-		List *rProjExprs = getNormalAttrProjectionExprs(rChild);
-
-        ProjectionOperator *lProj = createProjectionOp(lProjExprs, NULL, NIL, llAttrNames);
-        ProjectionOperator *rProj = createProjectionOp(rProjExprs, NULL, NIL, rrAttrNames);
-
-        addOperatorOnTopOfOp(lChild, (QueryOperator *) lProj);
-        addOperatorOnTopOfOp(rChild, (QueryOperator *) rProj);
+        addOperatorOnTopOfOp(lChild, (QueryOperator *) lProj, NULL);
+        addOperatorOnTopOfOp(rChild, (QueryOperator *) rProj, NULL);
 
         setOp->schema->attrDefs = copyObject (((QueryOperator *) lProj)->schema->attrDefs);
 
@@ -532,13 +466,14 @@ static QueryOperator
 	    QueryOperator *joinOp = (QueryOperator *) join;
 	    joinOp->provAttrs = appendToTailOfListInt(joinOp->provAttrs, LIST_LENGTH(lChild->schema->attrDefs) - 1);
 
-		switchSubtrees(setOp, (QueryOperator *)join);
-		setOp->parents = singleton(join);
-		lChild->parents = appendToHeadOfList(lChild->parents, join);
+	    addOperatorOnTopOfOp(setOp, (QueryOperator *)join, lChild);
+//		switchSubtrees(setOp, (QueryOperator *)join);
+//		setOp->parents = singleton(join);
+//		lChild->parents = appendToHeadOfList(lChild->parents, join);
 
 		//add top proj  A, B, prov
 		ProjectionOperator *topProj = (ProjectionOperator *) createProjOnAllAttrs(lChild);
-		addOperatorOnTopOfOp((QueryOperator *) join, (QueryOperator *) topProj);
+		addOperatorOnTopOfOp((QueryOperator *) join, (QueryOperator *) topProj, NULL);
 		changeProvName((QueryOperator *) topProj, "PROV");
 
 		return (QueryOperator *) topProj;
@@ -625,7 +560,7 @@ static QueryOperator
     QueryOperator *theOp = (QueryOperator *) op;
 
     //rewrite child op
-   child = rewriteXMLOperator(child);
+    child = rewriteXMLOperator(child);
 
     //create aggregation
     List *aggrs = NIL;
@@ -634,8 +569,8 @@ static QueryOperator
 
     //create functional call
     FunctionCall *funXMLAGG = createProvXMLFunctionCall(child, XMLAGG, NULL, 0);
-    aggrs = appendToTailOfList(aggrs, funXMLAGG);
 
+    aggrs = appendToTailOfList(aggrs, funXMLAGG);
     groupBy = getNormalAttrProjectionExprs(child);
     attrNames = concatTwoLists(getOpProvenanceAttrNames(child) ,getNormalAttrNames(child));
 
@@ -656,8 +591,7 @@ static QueryOperator
 
     ProjectionOperator *proj = createProjectionOp(projExprs, NULL, NIL, projAttrNames);
     ((QueryOperator *) proj)->provAttrs = singletonInt(LIST_LENGTH(projAttrNames) - 1);
-    addOperatorOnTopOfOp(aggOp, (QueryOperator *) proj);
-
+    addOperatorOnTopOfOp(aggOp, (QueryOperator *) proj, NULL);
 
 	return (QueryOperator *) proj;
 }
@@ -680,6 +614,63 @@ static QueryOperator
 	return (QueryOperator *)op;
 }
 
+
+static AggregationOperator
+*createAggOpUsedInIntersect(QueryOperator *child)
+{
+     List *aggrs = NIL;
+     List *groupBy = NIL;
+     List *groupByAttrNames = NIL;
+
+     //create function call
+     FunctionCall *funAgg = createProvXMLFunctionCall(child, XMLAGG, NULL, 0);
+     aggrs = singleton(funAgg);
+
+     groupBy = getNormalAttrProjectionExprs(child);
+     groupByAttrNames = concatTwoLists(getOpProvenanceAttrNames(child),getNormalAttrNames(child));
+     AggregationOperator *agg = createAggregationOp(aggrs, groupBy, NULL, NIL, groupByAttrNames);
+
+     QueryOperator *aggOp = (QueryOperator *) agg;
+     aggOp->provAttrs = singletonInt(0);
+
+     return agg;
+}
+
+
+static ProjectionOperator
+*createProjOpUsedInIntersect(QueryOperator *child)
+{
+    List *projExprs = getNormalAttrProjectionExprs(child);
+
+    //create function call xmlelement(mult, p1, ',', p2)
+    FunctionCall *funXML = createProvXMLFunctionCall(child, XMLELEMENT, ADDS, 0);
+    projExprs = appendToTailOfList(projExprs, funXML);
+    ProjectionOperator *proj = createProjectionOp(projExprs, NULL, NIL, getAttrDefNames(child->schema->attrDefs));
+
+    QueryOperator *projOp = (QueryOperator *) proj;
+    projOp->provAttrs = copyList(child->provAttrs);
+
+    return proj;
+}
+
+
+static ProjectionOperator
+*createNormalAttrProjOnChild(QueryOperator *child)
+{
+	List *attrNames = getNormalAttrNames(child);
+	List *newAttrNames = NIL;
+
+	FOREACH(char, c, attrNames)
+	{
+		char *a = CONCAT_STRINGS(c, "_", "R");
+		newAttrNames = appendToTailOfList(newAttrNames, a);
+	}
+
+	List *lProjExprs = getNormalAttrProjectionExprs(child);
+    ProjectionOperator *proj = createProjectionOp(lProjExprs, NULL, NIL, newAttrNames);
+
+    return proj;
+}
 
 static QueryOperator
 *renameProvName(QueryOperator *op, char *suffix)
@@ -740,21 +731,31 @@ static FunctionCall
 }
 
 
+//if have rOp, add rOp as the new right child of the top op
 static void
-addOperatorOnTopOfOp(QueryOperator *op, QueryOperator *top)
+addOperatorOnTopOfOp(QueryOperator *rOp, QueryOperator *top, QueryOperator *lOp)
 {
-	switchSubtreeWithExisting(op, top);
-	op->parents = singleton(top);
-	top->inputs = singleton(op);
+	if(lOp == NULL)
+	{
+		switchSubtrees(rOp, top);
+		rOp->parents = singleton(top);
+		top->inputs = singleton(rOp);
+	}
+	else
+	{
+		switchSubtrees(rOp, top);
+		rOp->parents = singleton(top);
+		lOp->parents = appendToTailOfList(lOp->parents, top);
+		top->inputs = concatTwoLists(singleton(lOp), singleton(rOp));
+	}
 }
 
 static void
 replaceOperatorInOpTree(QueryOperator *orginal, QueryOperator *new)
 {
-	QueryOperator *child = OP_LCHILD(orginal);
+	switchSubtrees(orginal, new);
     new->inputs = orginal->inputs;
     orginal->inputs = NIL;
-    //switchSubtreeWithExisting(orginal, new);
-    switchSubtrees(orginal, new);
-    replaceNode(child->parents, (Node *)orginal, (Node *)new);
+    FOREACH(QueryOperator, o, new->inputs)
+    	replaceNode(o->parents, (Node *)orginal, (Node *)new);
 }
