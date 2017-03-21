@@ -494,19 +494,22 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     Node *oModel;
 
     // store summary type
-    ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
+    if (isA(parse, List) && isA(getHeadOfListP((List *) parse), ProvenanceStmt))
+    {
+        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
 
-    if (ps->userQuestion != NIL)
-    	userQuestion = ps->userQuestion;
+        if (ps->userQuestion != NIL)
+            userQuestion = ps->userQuestion;
 
-    if (ps->summaryType != NULL)
-    	summaryType = ps->summaryType;
+        if (ps->summaryType != NULL)
+            summaryType = ps->summaryType;
 
-    if (ps->sampleSize != 0)
-    	sampleSize = ps->sampleSize;
+        if (ps->sampleSize != 0)
+            sampleSize = ps->sampleSize;
 
-    if (ps->topK != 0)
-    	topK = ps->topK;
+        if (ps->topK != 0)
+            topK = ps->topK;
+    }
 
     START_TIMER("translation");
     oModel = translateParse(parse);
