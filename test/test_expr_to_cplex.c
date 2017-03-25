@@ -43,17 +43,22 @@ int main(int argc, char* argv[]) {
 	else {
 		result = parseFromString(getStringOption("input.query"));
 
-		DEBUG_LOG("Address of returned node is <%p>", result);
-		ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(result));
+		//DEBUG_LOG("Address of returned node is <%p>", result);
+		//ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(result));
 		ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s",
 				beatify(nodeToString(result)));
 
+		//ERROR_LOG("Result of CPLEX IS: %d \n", checkCplex((List *) result));
+
+
 		List *updates = dependAlgo((List *) result);
 
-		DEBUG_LOG("Address of returned node is <%p>", updates);
-		ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(updates));
+		DEBUG_LOG("List of dependent statements:\n");
+		//DEBUG_LOG("Address of returned node is <%p>", updates);
+		//ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(updates));
 		ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s",
 				beatify(nodeToString(updates)));
+		ERROR_LOG("End of List of dependent statements:\n");
 
 	}
 

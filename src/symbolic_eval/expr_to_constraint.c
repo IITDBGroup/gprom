@@ -28,53 +28,61 @@
 #include "model/set/hashmap.h"
 #include "model/relation/relation.h"
 #include "model/query_operator/query_operator.h"
+#include "metadata_lookup/metadata_lookup.h"
 
 #ifdef HAVE_LIBCPLEX
 
 static CplexObjects *cplexObjects = NULL; // global pointer to current cplex objects
-static int objectIndex = 0;
+static int totalObjects = 0;
 static double default_lb = 0;
-static double default_ub = CPX_MAX;
+static double default_ub = CPX_INFBOUND;
 
-static void setCplexObjects(char *tbName);
+static void setCplexObjects(Node *expr);
 static int getObjectIndex(char *attrName);
 static List *getOpExpStack(List *stackList, Operator *opExpList);
+static double constrToDouble(Constant *cons);
 static int setToConstr(List *attrList, Node * query, CPXENVptr env, CPXLPptr lp);
 static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp);
 static int invertCondToConstr(Update *f, CPXENVptr env, CPXLPptr lp);
 static int exprToEval(Node *expr, boolean invert, CPXENVptr env, CPXLPptr lp);
 
-static void setCplexObjects(char *tbName) {
+static void setCplexObjects(Node *expr) {
 	if (cplexObjects == NULL) {
 		cplexObjects = NEW(CplexObjects);
-		cplexObjects->tableName = tbName;
 		cplexObjects->attrIndex = NEW_MAP(Constant, Constant);
-		cplexObjects->obj = (double *) MALLOC(
-				DEFAULT_NUM_COLS * sizeof(double));
-		cplexObjects->lb = (double *) MALLOC(DEFAULT_NUM_COLS * sizeof(double));
-		cplexObjects->ub = (double *) MALLOC(DEFAULT_NUM_COLS * sizeof(double));
-		cplexObjects->colname = (char **) MALLOC(
-				DEFAULT_NUM_COLS * sizeof(char*));
+		List *schema = NIL;
+		DEBUG_LOG("working setCplexObjects.\n");
+		switch (expr->type) {
+		case T_Update:
+			cplexObjects->tableName = ((Update *) expr)->updateTableName;
+			break;
+		case T_Delete:
+			cplexObjects->tableName = ((Delete *) expr)->deleteTableName;
+			break;
+		case T_Insert:
+			cplexObjects->tableName = ((Insert *) expr)->insertTableName;
+			break;
+		default:
+			break;
+		}
+
+		schema = getAttributeNames(cplexObjects->tableName);
+		FOREACH(char,a,schema)
+		{
+			MAP_ADD_STRING_KEY(cplexObjects->attrIndex, a,
+					createConstInt(totalObjects));
+			cplexObjects->colname[totalObjects] = a;
+			cplexObjects->lb[totalObjects] = default_lb;
+			cplexObjects->ub[totalObjects] = default_ub;
+			cplexObjects->obj[totalObjects] = 1;
+			totalObjects++;
+		}
+		DEBUG_LOG(" number of cplex columns %d.\n", totalObjects);
 	}
 }
 
 static int getObjectIndex(char *attrName) {
-
-	int index = 0;
-
-	if (!MAP_HAS_STRING_KEY(cplexObjects->attrIndex, attrName)) {
-		MAP_ADD_STRING_KEY(cplexObjects->attrIndex, attrName,
-				createConstInt(objectIndex));
-		cplexObjects->colname[objectIndex] = attrName;
-		cplexObjects->lb[objectIndex] = default_lb;
-		cplexObjects->ub[objectIndex] = default_ub;
-		cplexObjects->obj[objectIndex] = 1;
-		index = objectIndex;
-		objectIndex++;
-	} else {
-		index = INT_VALUE(MAP_GET_STRING(cplexObjects->attrIndex,attrName));
-	}
-	return index;
+	return INT_VALUE(MAP_GET_STRING(cplexObjects->attrIndex,(char *)attrName));
 }
 
 static List *
@@ -97,7 +105,24 @@ getOpExpStack(List *stackList, Operator *opExpList) {
 	}
 
 	return stackList;
+}
 
+static double constrToDouble(Constant *cons) {
+
+	switch (cons->constType) {
+	case DT_INT:
+		return (double) INT_VALUE(cons);
+	case DT_FLOAT:
+		return (double) FLOAT_VALUE(cons);
+	case DT_BOOL:
+		return (double) BOOL_VALUE(cons);
+	case DT_LONG:
+		return (double) LONG_VALUE(cons);
+	case DT_VARCHAR2:
+	case DT_STRING:
+		return 0;
+	}
+	return 0;
 }
 
 static int setToConstr(List *attrList, Node *query, CPXENVptr env, CPXLPptr lp) {
@@ -137,8 +162,7 @@ static int setToConstr(List *attrList, Node *query, CPXENVptr env, CPXLPptr lp) 
 				rmatind[i] = getObjectIndex(attr);
 				rmatval[i] = 1.0;
 				sense[i] = 'E';
-				rhs[i] = LONG_VALUE(c);
-				//rhs[i] = (double)(((Constant) c)->value);
+				rhs[i] = constrToDouble((Constant *) c);
 				i++;
 			}
 			j++;
@@ -154,90 +178,96 @@ static int setToConstr(List *attrList, Node *query, CPXENVptr env, CPXLPptr lp) 
 static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp) {
 
 	int status = 0;
-	List *result = NIL;
-	result = getAttrNameFromOpExpList(result, (Operator *) cond);
-
-	int numCols = getListLength(result);
-
-	int objIndex = 0;
-	int numRows = 1;
-	int numZ = numRows * numCols;
-	int rmatbeg[numRows];
-	double rhs[numRows];
-	char sense[numRows];
-	char *rowname[numRows];
-	int rmatind[numZ];
-	double rmatval[numZ];
-
-	rmatbeg[0] = 0;
-	rowname[0] = "row1";
 
 	char *opName = ((Operator *) cond)->name;
+	if (strcmp(opName, "AND") == 0) {
+		DEBUG_LOG("we have AND Operator");
+		condToConstr((Node *) getHeadOfListP(((Operator *) cond)->args), env,
+				lp);
+		condToConstr((Node *) getTailOfListP(((Operator *) cond)->args), env,
+				lp);
+	} else {
 
-	if (strcmp(opName, "=") == 0) {
-		sense[0] = 'E';
-	} else if (strcmp(opName, ">") == 0 || strcmp(opName, ">=") == 0) {
-		sense[0] = 'G';
-	} else if (strcmp(opName, "<") == 0 || strcmp(opName, "<=") == 0) {
-		sense[0] = 'L';
-	}
+		List *result = NIL;
+		result = getAttrNameFromOpExpList(result, (Operator *) cond);
 
-	Node *left = (Node *) getHeadOfListP(((Operator *) cond)->args);
-	Node *right = (Node *) getTailOfListP(((Operator *) cond)->args);
-	rhs[0] = LONG_VALUE(right);
-	//if the condition likes c>10
-	if (isA(left, AttributeReference)) {
-		//we have just one attribute
-		objIndex = getObjectIndex(((AttributeReference *) left)->name);
-		rmatind[0] = objIndex;
-		rmatval[0] = 1.0;
-	}
-	//else every attr should has a coefficient for example 1*a+2*b>10
-	else if (isA(left, Operator)) {
-		int i = 0;
-		int pluse = 1;
-		List *stack = NIL;
-		stack = getOpExpStack(stack, (Operator *) left);
-		int last = getListLength(stack) - 1;
-		Node *sign, *r, *l;
-		while (last > i) {
-			pluse = 1;
-			r = (Node *) getNthOfListP(stack, last--);
-			l = (Node *) getNthOfListP(stack, last--);
-			//op = (Node *) getNthOfListP(stack, last--);
-			if (last > i) {
-				sign = (Node *) getNthOfListP(stack, i);
-				if (streq(((Operator *) sign)->name, "-"))
-					pluse = -1;
+		int numCols = getListLength(result);
+		int index = 0;
+		int numRows = 1;
+		int numZ = numRows * numCols;
+		int rmatbeg[numRows];
+		double rhs[numRows];
+		char sense[numRows];
+		char *rowname[numRows];
+		int rmatind[numZ];
+		double rmatval[numZ];
+
+		rmatbeg[0] = 0;
+		rowname[0] = "row1";
+
+		if (strcmp(opName, "=") == 0) {
+			sense[0] = 'E';
+		} else if (strcmp(opName, ">") == 0 || strcmp(opName, ">=") == 0) {
+			sense[0] = 'G';
+		} else if (strcmp(opName, "<") == 0 || strcmp(opName, "<=") == 0) {
+			sense[0] = 'L';
+		}
+
+		Node *left = (Node *) getHeadOfListP(((Operator *) cond)->args);
+		Node *right = (Node *) getTailOfListP(((Operator *) cond)->args);
+		rhs[0] = constrToDouble((Constant *) right);
+		DEBUG_LOG("Processing Value =  %10f \n", rhs[0]);
+		//if the condition likes c>10
+		if (isA(left, AttributeReference)) {
+			//we have just one attribute
+			index = getObjectIndex(((AttributeReference *) left)->name);
+			rmatind[0] = index;
+			rmatval[0] = 1.0;
+		}
+		//else every attr should has a coefficient for example 1*a+2*b>10
+		else if (isA(left, Operator)) {
+			int i = 0;
+			int pluse = 1;
+			List *stack = NIL;
+			stack = getOpExpStack(stack, (Operator *) left);
+			int last = getListLength(stack) - 1;
+			Node *sign, *r, *l;
+			while (last > i) {
+				pluse = 1;
+				r = (Node *) getNthOfListP(stack, last--);
+				l = (Node *) getNthOfListP(stack, last--);
+				//op = (Node *) getNthOfListP(stack, last--);
+				if (last > i) {
+					sign = (Node *) getNthOfListP(stack, i);
+					if (streq(((Operator *) sign)->name, "-"))
+						pluse = -1;
+				}
+
+				//operator name should be * based on the creation rule
+				//if (streq(((Operator *) op)->name, "*"))
+				if (isA(r, AttributeReference) && isA(l, Constant)) {
+					index = getObjectIndex(((AttributeReference *) r)->name);
+					rmatind[i] = index;
+					rmatval[i] = constrToDouble((Constant *) l) * pluse;
+				} else if (isA(l, AttributeReference) && isA(r, Constant)) {
+					index = getObjectIndex(((AttributeReference *) l)->name);
+					rmatind[i] = index;
+					rmatval[i] = constrToDouble((Constant *) r) * pluse;
+
+				}
+				i++;
 			}
+		}
 
-			//operator name should be * based on the creation rule
-			//if (streq(((Operator *) op)->name, "*"))
-			if (isA(r, AttributeReference) && isA(l, Constant)) {
-				objIndex = getObjectIndex(((AttributeReference *) r)->name);
-				rmatind[i] = objIndex;
-				rmatval[i] = LONG_VALUE(l) * pluse;
-			} else if (isA(l, AttributeReference) && isA(r, Constant)) {
-				objIndex = getObjectIndex(((AttributeReference *) l)->name);
-				rmatind[i] = objIndex;
-				rmatval[i] = LONG_VALUE(r) * pluse;
+		status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg,
+				rmatind, rmatval, NULL, rowname);
 
-			}
-			i++;
-			//}
+		if (status) {
+			ERROR_LOG(
+					"Failure to convert update and add a row to cplex problem %d.\n",
+					status);
 		}
 	}
-	/*
-	 //cond OR and AND wasn't considered
-	 else if(streq(o->name, "AND") || streq(o->name, "OR"))
-	 {
-
-	 return;
-	 }
-	 */
-
-	status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg, rmatind,
-			rmatval, NULL, rowname);
 
 	return status;
 
@@ -273,18 +303,15 @@ static int exprToEval(Node *expr, boolean invert, CPXENVptr env, CPXLPptr lp) {
 
 	switch (expr->type) {
 	case T_Update:
-		setCplexObjects(((Update *) expr)->updateTableName);
 		if (!invert)
 			status = condToConstr(((Update *) expr)->cond, env, lp);
 		else
 			status = invertCondToConstr((Update *) expr, env, lp);
 		break;
 	case T_Delete:
-		setCplexObjects(((Delete *) expr)->deleteTableName);
 		status = condToConstr(((Delete *) expr)->cond, env, lp);
 		break;
 	case T_Insert:
-		setCplexObjects(((Insert *) expr)->insertTableName);
 		status = setToConstr(((Insert *) expr)->attrList,
 				((Insert *) expr)->query, env, lp);
 		break;
@@ -294,9 +321,7 @@ static int exprToEval(Node *expr, boolean invert, CPXENVptr env, CPXLPptr lp) {
 	return status;
 }
 
-boolean
-exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2)
-{
+boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
 	int status = 0;
 	boolean result = FALSE;
 	int solstat;
@@ -311,6 +336,8 @@ exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2)
 	CPXLPptr lp = NULL;
 
 	/* Initialize the CPLEX environment */
+	env = CPXopenCPLEX(&status);
+
 	if (env == NULL) {
 		char errmsg[CPXMESSAGEBUFSIZE];
 		CPXgeterrorstring(env, status, errmsg);
@@ -327,8 +354,7 @@ exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2)
 
 	/* Turn on data checking */
 
-	status = CPXsetintparam(env, CPXPARAM_Read_DataCheck,
-	CPX_DATACHECK_WARN);
+	status = CPXsetintparam(env, CPXPARAM_Read_DataCheck, CPX_DATACHECK_WARN);
 	if (status) {
 		ERROR_LOG("Failure to turn on data checking, error %d.\n", status);
 	}
@@ -351,17 +377,31 @@ exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2)
 	/* Now populate the problem with the data.  For building large
 	 problems, consider setting the row, column and nonzero growth
 	 parameters before performing this task. */
+
+	setCplexObjects(expr1);
+
+	status = CPXnewcols(env, lp, totalObjects, cplexObjects->obj,
+			cplexObjects->lb, cplexObjects->ub, NULL, cplexObjects->colname);
+	if (status) {
+		ERROR_LOG("Failure to create cplex columns %d.\n", status);
+	}
+	DEBUG_LOG("after creating cplex columns");
+
+	/* Now populate the problem with the data.  For building large
+	 problems, consider setting the row, column and nonzero growth
+	 parameters before performing this task. */
 	status = exprToEval(expr1, inv1, env, lp);
 
 	if (status) {
-		ERROR_LOG("Failed to populate problem.\n");
+		ERROR_LOG("Failed to populate problem for the first expression.\n");
 	}
 
 	status = exprToEval(expr2, inv2, env, lp);
 
 	if (status) {
-		ERROR_LOG("Failed to populate problem.\n");
+		ERROR_LOG("Failed to populate problem for the second expression.\n");
 	}
+
 	/* Optimize the problem and obtain solution. */
 
 	status = CPXlpopt(env, lp);
@@ -396,8 +436,15 @@ exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2)
 		result = TRUE;
 	}
 
-	//TERMINATE:
+	DEBUG_LOG("\nSolution status = %d\n", solstat);
+	DEBUG_LOG("Solution value  = %f\n\n", objval);
 
+	int j;
+	for (j = 0; j < cur_numcols; j++) {
+		DEBUG_LOG("Column %d:  Value =  %10f  Reduced cost = %10f\n", j, x[j],
+				dj[j]);
+	}
+	//TERMINATE:
 	/* Free up the problem as allocated by CPXcreateprob, if necessary */
 
 	if (lp != NULL) {
@@ -427,12 +474,12 @@ exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2)
 
 // ********************************************************************************
 // dummy replacement if cplex is not available
-#else
 
-boolean
-exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2)
-{
-    return TRUE;
-}
+ #else
 
-#endif
+ boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
+ return TRUE;
+ }
+
+ #endif
+

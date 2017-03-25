@@ -15,7 +15,6 @@
 //#ifdef HAVE_LIBCPLEX
 //#include <ilcplex/cplex.h>
 //#endif
-
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
@@ -35,7 +34,8 @@ static List *cond = NIL; // global pointer to the list of conditions
 static List *tables = NIL; // global pointer to the list of tables
 
 static void initWhatif(Node *update, Node *wUpdate);
-static void addTBToList(List *list, Node *n);
+static List *addTBToList(List *list, Node *n);
+static char *getTBName(Node *n);
 
 //initialize whatif algo and set the original update and the whatifquery
 static void initWhatif(Node *update, Node *wUpdate) {
@@ -43,62 +43,62 @@ static void initWhatif(Node *update, Node *wUpdate) {
 	cond = appendToTailOfList(cond, update);
 	cond = appendToTailOfList(cond, wUpdate);
 
-	addTBToList(tables, update);
-	addTBToList(tables, wUpdate);
+	tables = addTBToList(tables, update);
+	tables = addTBToList(tables, wUpdate);
 }
 
-static void addTBToList(List *list, Node *n) {
+static List *addTBToList(List *list, Node *n) {
+	char *tbName = getTBName(n);
+	if (tbName != NULL && !searchListString(tables, tbName)) {
+		list = appendToTailOfList(list, tbName);
+	}
+	return list;
+}
 
+static char *getTBName(Node *n) {
+	char *tbName = NULL;
 	switch (n->type) {
 	case T_Update:
-		list = appendToTailOfList(list, ((Update *) n)->updateTableName);
+		tbName = ((Update *) n)->updateTableName;
 		break;
 	case T_Delete:
-		list = appendToTailOfList(list, ((Delete *) n)->deleteTableName);
+		tbName = ((Delete *) n)->deleteTableName;
 		break;
 	case T_Insert:
-		list = appendToTailOfList(list, ((Insert *) n)->insertTableName);
+		tbName = ((Insert *) n)->insertTableName;
 		break;
 	default:
 		break;
 	}
+	return tbName;
+}
+
+boolean checkCplex(List *exprs) {
+	Node *u = popHeadOfListP(exprs);
+	Node *e = popHeadOfListP(exprs);
+	return exprToSat(u, TRUE, e, FALSE);
 }
 
 List *dependAlgo(List *exprs) {
+
 	Node *up = popHeadOfListP(exprs);
 	Node *wUp = popHeadOfListP(exprs);
 	initWhatif(up, wUp);
 
 	char *tbName = NULL;
-
 	FOREACH(Node,e,exprs)
 	{
-
-		switch (e->type) {
-		case T_Update:
-			tbName = ((Update *) e)->updateTableName;
-			break;
-		case T_Delete:
-			tbName = ((Delete *) e)->deleteTableName;
-			break;
-		case T_Insert:
-			tbName = ((Insert *) e)->insertTableName;
-			break;
-		default:
-			break;
-		}
+		tbName = getTBName(e);
 		if (searchListString(tables, tbName)) {
 			FOREACH(Node,u,cond)
 			{
 				if (exprToSat(u, TRUE, e, FALSE)) {
 					cond = appendToTailOfList(cond, e);
-					//if (!searchListString(tables, tbName))
-					//addTBToList(tables, e);
+					tables = addTBToList(tables, e);
+					break;
 				}
 			}
 		}
 	}
-
 	return cond;
 }
-
