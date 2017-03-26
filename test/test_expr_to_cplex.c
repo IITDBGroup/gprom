@@ -27,6 +27,12 @@
 #include "rewriter.h"
 #include "symbolic_eval/expr_to_constraint.h"
 #include "symbolic_eval/whatif_algo.h"
+#include "common.h"
+#include "parser/parser.h"
+#include "model/query_operator/query_operator.h"
+#include "analysis_and_translate/translator.h"
+#include "sql_serializer/sql_serializer.h"
+#include "analysis_and_translate/translator_oracle.h"
 
 int main(int argc, char* argv[]) {
 	Node *result;
@@ -43,23 +49,25 @@ int main(int argc, char* argv[]) {
 	else {
 		result = parseFromString(getStringOption("input.query"));
 
-		//DEBUG_LOG("Address of returned node is <%p>", result);
 		//ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(result));
-		ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s",
-				beatify(nodeToString(result)));
+		DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s",	beatify(nodeToString(result)));
 
 		//ERROR_LOG("Result of CPLEX IS: %d \n", checkCplex((List *) result));
 
-
 		List *updates = dependAlgo((List *) result);
 
-		DEBUG_LOG("List of dependent statements:\n");
-		//DEBUG_LOG("Address of returned node is <%p>", updates);
+		ERROR_LOG("Number of dependent statements %d:\n", updates->length);
 		//ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(updates));
-		ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s",
-				beatify(nodeToString(updates)));
-		ERROR_LOG("End of List of dependent statements:\n");
+		//ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(updates)));
 
+		ProvenanceStmt *provStat;
+		char *sql;
+		Node *qoModel;
+		provStat = createProvenanceStmt((Node *) updates);
+		qoModel = translateParseOracle((Node *) provStat);
+		//qoModel = translateParse((Node *) provStat);
+		sql = serializeOperatorModel(qoModel);
+		ERROR_LOG("SERIALIZED SQL:\n%s", sql);
 	}
 
 	shutdownApplication();

@@ -436,6 +436,8 @@ boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
 		result = TRUE;
 	}
 
+	//check solution result
+
 	DEBUG_LOG("\nSolution status = %d\n", solstat);
 	DEBUG_LOG("Solution value  = %f\n\n", objval);
 
@@ -444,6 +446,8 @@ boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
 		DEBUG_LOG("Column %d:  Value =  %10f  Reduced cost = %10f\n", j, x[j],
 				dj[j]);
 	}
+
+
 	//TERMINATE:
 	/* Free up the problem as allocated by CPXcreateprob, if necessary */
 
