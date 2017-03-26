@@ -30,6 +30,7 @@
 #include "common.h"
 #include "parser/parser.h"
 #include "model/query_operator/query_operator.h"
+#include "analysis_and_translate/analyzer.h"
 #include "analysis_and_translate/translator.h"
 #include "sql_serializer/sql_serializer.h"
 #include "analysis_and_translate/translator_oracle.h"
@@ -64,7 +65,13 @@ int main(int argc, char* argv[]) {
 		char *sql;
 		Node *qoModel;
 		provStat = createProvenanceStmt((Node *) updates);
+		provStat->provType = PROV_NONE;
+		provStat->inputType = PROV_INPUT_REENACT;
+		ERROR_NODE_BEATIFY_LOG("prov:\n", provStat);
+		provStat = (ProvenanceStmt *) analyzeParseModel((Node *) provStat);
+		ERROR_NODE_BEATIFY_LOG("analysis:\n", provStat);
 		qoModel = translateParseOracle((Node *) provStat);
+		ERROR_NODE_BEATIFY_LOG("qo model:\n", provStat);
 		//qoModel = translateParse((Node *) provStat);
 		sql = serializeOperatorModel(qoModel);
 		ERROR_LOG("SERIALIZED SQL:\n%s", sql);
