@@ -38,7 +38,6 @@
 
 int main(int argc, char* argv[]) {
 	Node *result;
-//    int retVal;
 
 // initialize components
 	READ_OPTIONS_AND_INIT("testexprcplex", "Run expr to cplex.");
@@ -51,16 +50,19 @@ int main(int argc, char* argv[]) {
 	else {
 		result = parseFromString(getStringOption("input.query"));
 
-		//ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(result));
-		DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s",	beatify(nodeToString(result)));
+		//DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(result));
+		DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
 
 		//ERROR_LOG("Result of CPLEX IS: %d \n", checkCplex((List *) result));
 
 		List *updates = dependAlgo((List *) result);
 
-		ERROR_LOG("Number of dependent statements %d:\n", updates->length);
-		//ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(updates));
-		//ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(updates)));
+		ERROR_LOG("Number of dependent statements %d:\n", updates->length - 2);
+		//DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(updates));
+		//DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(updates)));
+
+		Node *originalUp;
+		originalUp = popHeadOfListP(updates);
 
 		ProvenanceStmt *provStat;
 		char *sql;
@@ -68,16 +70,32 @@ int main(int argc, char* argv[]) {
 		provStat = createProvenanceStmt((Node *) updates);
 		provStat->provType = PROV_NONE;
 		provStat->inputType = PROV_INPUT_REENACT;
-		ERROR_NODE_BEATIFY_LOG("prov:\n", provStat);
+		DEBUG_NODE_BEATIFY_LOG("prov:\n", provStat);
 		provStat = (ProvenanceStmt *) analyzeParseModel((Node *) provStat);
-		ERROR_NODE_BEATIFY_LOG("analysis:\n", provStat);
+		DEBUG_NODE_BEATIFY_LOG("analysis:\n", provStat);
 		qoModel = translateParseOracle((Node *) provStat);
-		ERROR_NODE_BEATIFY_LOG("qo model:\n", provStat);
+		DEBUG_NODE_BEATIFY_LOG("qo model:\n", provStat);
 		qoModel = provRewriteQBModel(qoModel);
-		ERROR_NODE_BEATIFY_LOG("after prov rewrite:\n", provStat);
+		DEBUG_NODE_BEATIFY_LOG("after prov rewrite:\n", provStat);
 		//qoModel = translateParse((Node *) provStat);
 		sql = serializeOperatorModel(qoModel);
-		ERROR_LOG("SERIALIZED SQL:\n%s", sql);
+		ERROR_LOG("SERIALIZED SQL Reenactment For Whatif Query:\n%s", sql);
+
+		//replace new update with original updates and create reenactment again
+		popHeadOfListP(updates);
+		updates = appendToHeadOfList(updates, originalUp);
+		provStat = createProvenanceStmt((Node *) updates);
+		provStat->provType = PROV_NONE;
+		provStat->inputType = PROV_INPUT_REENACT;
+		DEBUG_NODE_BEATIFY_LOG("prov:\n", provStat);
+		provStat = (ProvenanceStmt *) analyzeParseModel((Node *) provStat);
+		DEBUG_NODE_BEATIFY_LOG("analysis:\n", provStat);
+		qoModel = translateParseOracle((Node *) provStat);
+		DEBUG_NODE_BEATIFY_LOG("qo model:\n", provStat);
+		qoModel = provRewriteQBModel(qoModel);
+		DEBUG_NODE_BEATIFY_LOG("after prov rewrite:\n", provStat);
+		sql = serializeOperatorModel(qoModel);
+		ERROR_LOG("SERIALIZED SQL Reenactment For Original update:\n%s", sql);
 	}
 
 	shutdownApplication();
