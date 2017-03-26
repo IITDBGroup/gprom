@@ -158,6 +158,7 @@ typedef struct JsonTableOperator
         || isA(op,WindowOperator)                       \
 		|| isA(op,OrderOperator)                        \
 		|| isA(op,JsonTableOperator)                    \
+		|| isA(op,ProvenanceComputation)                \
 		)
 
 #define IS_BINARY_OP(op) (isA(op,JoinOperator)          \
