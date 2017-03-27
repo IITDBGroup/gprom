@@ -385,7 +385,6 @@ boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
 	if (status) {
 		ERROR_LOG("Failure to create cplex columns %d.\n", status);
 	}
-	DEBUG_LOG("after creating cplex columns");
 
 	/* Now populate the problem with the data.  For building large
 	 problems, consider setting the row, column and nonzero growth

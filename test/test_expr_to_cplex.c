@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
 
 		List *updates = dependAlgo((List *) result);
 
-		ERROR_LOG("Number of dependent statements %d:\n", updates->length - 2);
+		ERROR_LOG("Number of dependent statements: %d \n", updates->length - 2);
 		//DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(updates));
 		//DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(updates)));
 
