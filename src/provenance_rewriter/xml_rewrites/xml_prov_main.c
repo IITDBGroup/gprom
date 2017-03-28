@@ -359,8 +359,8 @@ static QueryOperator
 
         //create two projs on top of each agg
 		//A B xmlelement(adds, prov)
-        ProjectionOperator *lProj = createProjOpUsedInIntersect(lChild);
-        ProjectionOperator *rProj = createProjOpUsedInIntersect(rChild);
+        ProjectionOperator *lProj = createProjOpUsedInIntersect(lAggOp);
+        ProjectionOperator *rProj = createProjOpUsedInIntersect(rAggOp);
 
         QueryOperator *lProjOp = (QueryOperator *) lProj;
         QueryOperator *rProjOp = (QueryOperator *) rProj;
@@ -387,14 +387,17 @@ static QueryOperator
         Node *joinCond  = andExprList(condExprs);
 
 		JoinOperator *join = createJoinOp(JOIN_INNER, joinCond, setOp->inputs, setOp->parents, joinAttrNames);
-//		JoinOperator *join = createJoinOp(JOIN_INNER, joinCond, NIL, NIL, joinAttrNames);
 	    QueryOperator *joinOp = (QueryOperator *) join;
 	    joinOp->provAttrs = appendToTailOfListInt(joinOp->provAttrs, LIST_LENGTH(lChild->schema->attrDefs) - 1);
 	    joinOp->provAttrs = appendToTailOfListInt(joinOp->provAttrs, LIST_LENGTH(lChild->schema->attrDefs)
 	    		+ LIST_LENGTH(rChild->schema->attrDefs) -1);
 		switchSubtrees(setOp, (QueryOperator *)join);
-		replaceNode(lProjOp->parents, (Node *)op, (Node *)join);
-		replaceNode(rProjOp->parents, (Node *)op, (Node *)join);
+
+		lProjOp->parents = singleton(join);
+		rProjOp->parents = singleton(join);
+
+//		replaceNode(lProjOp->parents, (Node *)op, (Node *)join);
+//		replaceNode(rProjOp->parents, (Node *)op, (Node *)join);
 
 	    //QueryOperator *child = OP_LCHILD(orginal);
 //	    joinOp->inputs = setOp->inputs;
