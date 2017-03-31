@@ -92,7 +92,8 @@ List *dependAlgo(List *exprs) {
 		if (searchListString(tables, tbName)) {
 			FOREACH(Node,u,cond)
 			{
-				if (exprToSat(u, TRUE, e, FALSE)) {
+				//if (exprToSat(u, TRUE, e, FALSE)) {
+				if (exprToSat(u, FALSE, e, FALSE)) {
 					cond = appendToTailOfList(cond, e);
 					tables = addTBToList(tables, e);
 					break;
