@@ -10,10 +10,9 @@
  *-----------------------------------------------------------------------------
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
+#include "common.h"
+#include "log/termcolor.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "configuration/option.h"
@@ -35,12 +34,19 @@
 #include "sql_serializer/sql_serializer.h"
 #include "analysis_and_translate/translator_oracle.h"
 #include "provenance_rewriter/prov_rewriter.h"
+#include "operator_optimizer/operator_optimizer.h"
+#include "exception/exception.h"
+
+
+static ExceptionHandler handleCLIException (const char *message, const char *file, int line, ExceptionSeverity s);
 
 int main(int argc, char* argv[]) {
 	Node *result;
 
 // initialize components
 	READ_OPTIONS_AND_INIT("testexprcplex", "Run expr to cplex.");
+	// register exception handler
+	 registerExceptionCallback(handleCLIException);
 
 	// read from terminal
 	if (getStringOption("input.query") == NULL) {
@@ -48,6 +54,8 @@ int main(int argc, char* argv[]) {
 	}
 	// parse input string
 	else {
+	    TRY
+	    {
 		result = parseFromString(getStringOption("input.query"));
 
 		//DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(result));
@@ -77,6 +85,8 @@ int main(int argc, char* argv[]) {
 		DEBUG_NODE_BEATIFY_LOG("qo model:\n", provStat);
 		qoModel = provRewriteQBModel(qoModel);
 		DEBUG_NODE_BEATIFY_LOG("after prov rewrite:\n", provStat);
+		qoModel = optimizeOperatorModel(qoModel);
+		DEBUG_NODE_BEATIFY_LOG("after opt:\n", provStat);
 		//qoModel = translateParse((Node *) provStat);
 		sql = serializeOperatorModel(qoModel);
 		ERROR_LOG("SERIALIZED SQL Reenactment For Whatif Query:\n%s", sql);
@@ -96,9 +106,36 @@ int main(int argc, char* argv[]) {
 		DEBUG_NODE_BEATIFY_LOG("after prov rewrite:\n", provStat);
 		sql = serializeOperatorModel(qoModel);
 		ERROR_LOG("SERIALIZED SQL Reenactment For Original update:\n%s", sql);
+	    }
+	    ON_EXCEPTION
+	    {
+	        // if an exception is thrown then the query memory context has been
+	        // destroyed and we can directly create an empty string in the callers
+	        // context
+	        DEBUG_LOG("allocated in memory context: %s", getCurMemContext()->contextName);
+	    }
+	    END_ON_EXCEPTION
 	}
 
 	shutdownApplication();
 
 	return EXIT_SUCCESS;
+}
+
+/*
+ * Function that handles exceptions
+ */
+static ExceptionHandler
+handleCLIException (const char *message, const char *file, int line, ExceptionSeverity s)
+{
+    if (streq(file, "sql_parser.l"))
+    {
+        printf(TCOL(RED, "PARSE ERORR:") " %s", message);
+    }
+    else
+        printf(TCOL(RED,"(%s:%u) ") "\n%s\n",
+                file, line, message);
+
+    // throw error if in non-interactive mode, otherwise try to recover by wiping memcontext
+    return EXCEPTION_DIE;
 }

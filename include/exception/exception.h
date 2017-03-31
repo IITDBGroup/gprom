@@ -12,7 +12,6 @@
 #define INCLUDE_EXCEPTION_EXCEPTION_H_
 
 #include "common.h"
-#include "log/logger.h"
 #include "utility/enum_magic.h"
 
 /*

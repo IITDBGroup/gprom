@@ -16,6 +16,7 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "exception/exception.h"
+#include "log/logger.h"
 
 // use standard malloc to circumvent the memory manager
 #undef malloc
