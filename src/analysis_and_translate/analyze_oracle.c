@@ -25,6 +25,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "provenance_rewriter/prov_schema.h"
 #include "parser/parser.h"
+#include "temporal_queries/temporal_rewriter.h"
 
 static void analyzeStmtList (List *l, List *parentFroms);
 static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
@@ -57,6 +58,7 @@ static void analyzeUpdate(Update *f);
 static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms);
+static boolean correctFromTableVisitor (Node *node, void *context);
 
 // analyze function calls and nested subqueries
 static void analyzeFunctionCall(QueryBlock *qb);
@@ -254,12 +256,14 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
         // analyze FromProvInfo if exists
         if (f->provInfo)
         {
+            FromProvInfo *fp = f->provInfo;
+
             /* if the user provides a list of attributes (that store provenance
              * or should be duplicated as provenance attributes) then we need
              * to make sure these attributes exist. */
-            if (f->provInfo->userProvAttrs)
+            if (fp->userProvAttrs)
             {
-                FOREACH(char,name,f->provInfo->userProvAttrs)
+                FOREACH(char,name,fp->userProvAttrs)
                 {
                     if(!searchListString(f->attrNames, name))
                     {
@@ -273,13 +277,21 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                     }
                 }
             }
-        }
 
-        /*
-         * boolean baserel;
-    boolean intermediateProv;
-    List *userProvAttrs;
-         */
+            // if user declared some attributes as provenance (HAS PROVENANCE) then these attributes are temporatily removed
+            // since they should not be referenced by query for which we are computing provenance
+            if (fp->baserel == FALSE && fp->intermediateProv == FALSE && fp->userProvAttrs != NIL)
+            {
+                INFO_LOG("from clause item HAS PROVENANCE activated - remove provenance attributes from schema for analysis");
+                FOREACH(char,provAttr,fp->userProvAttrs)
+                {
+                    int pos = listPosString(f->attrNames, provAttr);
+                    DEBUG_LOG("attribute %s at position %u", provAttr, pos);
+                    f->attrNames = removeListElemAtPos(f->attrNames, pos);
+                    f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+                }
+            }
+        }
 
         DEBUG_LOG("analyzed from item <%s>", nodeToString(f));
     }
@@ -1572,13 +1584,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             {
                 //TODO maintain and extend a schema info
                 analyzeQueryBlockStmt(stmt, NIL);
-//                schemaInfos = appendToTailOfList(schemaInfos, copyObject(schemaInfo));
             }
-            // store schema infos in provenancestmt's options for translator
-//            q->options = appendToTailOfList(q->options,
-//                    createNodeKeyValue(
-//                            (Node *) createConstString("SCHEMA_INFOS"),
-//                            (Node *) schemaInfos));
 
             INFO_NODE_BEATIFY_LOG("REENACT THIS:", q);
             schemaInfo = NULL;
@@ -1603,47 +1609,27 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 
             q->selectClause = getQBAttrNames(q->query);
             q->dts = getQBAttrDTs(q->query);
-//            // get attributes from left child
-//            switch(q->query->type)
-//            {
-//                case T_QueryBlock:
-//                {
-//                    QueryBlock *qb = (QueryBlock *) q->query;
-//                    FOREACH(SelectItem,s,qb->selectClause)
-//                    {
-//                        q->selectClause = appendToTailOfList(q->selectClause,
-//                                strdup(s->alias));
-//                    }
-//                }
-//                break;
-//                case T_SetQuery:
-//                    q->selectClause = deepCopyStringList(
-//                            ((SetQuery *) q->query)->selectClause);
-//                break;
-//                case T_ProvenanceStmt:
-//                    q->selectClause = deepCopyStringList(
-//                            ((ProvenanceStmt *) q->query)->selectClause);
-//                break;
-//                default:
-//                break;
-//            }
-
+            // if the user has specified provenance attributes using HAS PROVENANCE then we have temporarily removed these  attributes for
+            // semantic analysis, now we need to recover the correct schema for determining provenance attribute datatypes and translation
+            correctFromTableVisitor(q->query, NULL);
             getQBProvenanceAttrList(q,&provAttrNames,&provDts);
-
-//            if(q->summaryType == NULL)
-//            {
-            	q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
-                q->dts = concatTwoLists(q->dts,provDts);
-//            }
-//            else
-//            {
-//            	q->selectClause = provAttrNames;
-//                q->dts = provDts;
-//            }
+            q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
+            q->dts = concatTwoLists(q->dts,provDts);
         }
         break;
-        case PROV_INPUT_TIME_INTERVAL:
-            break;
+        case PROV_INPUT_TEMPORAL_QUERY:
+        {
+            analyzeQueryBlockStmt(q->query, parentFroms);
+
+            q->selectClause = getQBAttrNames(q->query);
+            q->dts = getQBAttrDTs(q->query);
+            q->selectClause = concatTwoLists(q->selectClause,LIST_MAKE(strdup(TBEGIN_NAME), strdup(TEND_NAME)));
+            //TODO use better DT for temporal attributes
+            q->dts = concatTwoLists(q->dts,CONCAT_LISTS(singletonInt(DT_LONG), singletonInt(DT_LONG)));
+            //TODO check that table access has temporal attributes
+            correctFromTableVisitor(q->query, NULL);
+        }
+        break;
         case PROV_INPUT_UPDATE_SEQUENCE:
             break;
         default:
@@ -1651,6 +1637,39 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
     }
 
 	analyzeProvenanceOptions(q);
+}
+
+static boolean
+correctFromTableVisitor (Node *node, void *context)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if(isFromItem(node))
+    {
+        switch (node->type)
+        {
+            case T_FromTableRef:
+            {
+                FromItem *f = (FromItem *) node;
+                f->attrNames = NIL;
+                f->dataTypes = NIL;
+                analyzeFromTableRef((FromTableRef *) node);
+            }
+            break;
+            case T_FromSubquery:
+            {
+                FromSubquery *sq = (FromSubquery *) node;
+                sq->from.attrNames = getQBAttrNames(sq->subquery);
+                sq->from.dataTypes = getQBAttrDTs(sq->subquery);
+            }
+            break;
+            default:
+                break;
+        }
+    }
+
+    return visit(node, correctFromTableVisitor, context);
 }
 
 static void

@@ -19,6 +19,7 @@
 #define PROP_SHOW_INTERMEDIATE_PROV "SHOW_INTERMEDIATE_PROV" // show provenance for this intermediate subquery result
 #define PROP_USE_PROVENANCE "USE_PROVENANCE"                // duplicate user provided attributes as provenance
 #define PROP_HAS_PROVENANCE "HAS_PROVENANCE"                // indicates the subquery already has associated provenance
+#define PROP_DUMMY_HAS_PROV_PROJ "DUMMY_HAS_PROV_PROJ"      // indicates that this is a dummy projection introduced for HAS PROVENANCE
 #define PROP_USER_PROV_ATTRS "USER_PROV_ATTRS"              // list of user selected provenance attribtues
 #define PROP_PROV_REL_NAME "PROVENANCE_REL_NAME"            // in provenance attributes refer to subquery as this name
 #define PROP_PROV_ADD_REL_NAME "PROVENANCE_ADD_REL_NAME"            // in provenance attributes that are added refer to subquery as this name
@@ -84,5 +85,11 @@
 #define PROP_STORE_SET_EC_DONE_BU "STORE EC PROPERTY - DONE BOTTOM UP"
 #define PROP_STORE_SET_EC_DONE_TD "STORE EC PROPERTY - DONE TOP DOWN"
 #define PROP_STORE_DUP_MARK "STORE DUP PROPERTY"  //pull up dup op, avoid loop the same dup op two times
+
+/* properties for temporal queries */
+#define PROP_TEMP_TBEGIN_ATTR "TEMPORAL_INTERVAL_BEGIN"
+#define PROP_TEMP_TEND_ATTR "TEMPORAL_INTERVAL_END"
+#define PROP_TEMP_DO_COALESCE "TEMPORAL_DO_COALESCE"
+#define PROP_TEMP_NORMALIZE_INPUTS "TEMPORAL_NORM_INPUTS"
 
 #endif /* OPERATOR_PROPERTY_H_ */

@@ -119,7 +119,7 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
     PROV_INPUT_REENACT,
     PROV_INPUT_REENACT_WITH_TIMES,
     PROV_INPUT_TRANSACTION,
-    PROV_INPUT_TIME_INTERVAL
+    PROV_INPUT_TEMPORAL_QUERY
 );
 
 /* stringinfo provides the string data type*/

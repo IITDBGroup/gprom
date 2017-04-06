@@ -211,7 +211,8 @@ strconcat		"||"
 (?i:EXPLAIN)		TOK(EXPLAIN)
 (?i:SAMPLE)			TOK(SAMPLE)
 (?i:TOP)			TOK(TOP)
-
+(?i:TEMPORAL)		TOK(TEMPORAL)
+(?i:TIME)			TOK(TIME)
 
 	/* booleans */
 {bool}			TOK(boolConst)

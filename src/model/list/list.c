@@ -731,14 +731,38 @@ removeFromHead(List *X)
     result->head = head->next;
     result->length--;
 
-//    FOREACH_INT(lc, X)
-//    {
-//        if(c != 0)
-//           result = appendToTailOfListInt(result, lc);
-//
-//        c++;
-//    }
     return result;
+}
+
+List *
+removeListElemAtPos (List *list, int pos)
+{
+    ListCell *lc, *prev;
+    ASSERT(LIST_LENGTH(list) > pos && pos > 0);
+
+    if (LIST_LENGTH(list) == 1)
+        return NIL;
+
+    for(lc = list->head, prev = NULL; lc != NULL; prev = lc, lc = lc->next)
+    {
+        if (pos-- <= 0)
+        {
+            if (lc == list->head)
+            {
+                list->head = lc->next;
+            }
+            else
+            {
+                prev->next = lc->next;
+            }
+            list->length--;
+            if (lc == list->tail)
+                list->tail = prev;
+            break;
+        }
+    }
+
+    return list;
 }
 
 //remove all the elements of list l1 from list l2, l1 is a sublist of l2

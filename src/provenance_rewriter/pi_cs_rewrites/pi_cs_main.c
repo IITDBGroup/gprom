@@ -105,6 +105,7 @@ rewritePI_CSOperator (QueryOperator *op)
     boolean showIntermediate = HAS_STRING_PROP(op,  PROP_SHOW_INTERMEDIATE_PROV);
     boolean noRewriteUseProv = HAS_STRING_PROP(op, PROP_USE_PROVENANCE);
     boolean noRewriteHasProv = HAS_STRING_PROP(op, PROP_HAS_PROVENANCE);
+    boolean isDummyHasProvProj = HAS_STRING_PROP(op, PROP_DUMMY_HAS_PROV_PROJ);
     boolean rewriteAddProv = HAS_STRING_PROP(op, PROP_ADD_PROVENANCE);
     List *userProvAttrs = (List *) getStringProperty(op, PROP_USER_PROV_ATTRS);
     List *addProvAttrs = NIL;
@@ -129,8 +130,11 @@ rewritePI_CSOperator (QueryOperator *op)
 
     if (noRewriteUseProv)
         return rewritePI_CSAddProvNoRewrite(op, userProvAttrs);
-    if (noRewriteHasProv)
+    if (isDummyHasProvProj)
+    {
+        userProvAttrs = (List *) getStringProperty(OP_LCHILD(op), PROP_USER_PROV_ATTRS);
         return rewritePI_CSUseProvNoRewrite(op, userProvAttrs);
+    }
 
     switch(op->type)
     {

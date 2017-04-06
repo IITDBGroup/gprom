@@ -1111,10 +1111,10 @@ AttributeDef *
 getAttrDefByName(QueryOperator *op, char *attr)
 {
     FOREACH(AttributeDef,a,op->schema->attrDefs)
-            {
+    {
         if (strcmp(a->attrName, attr) == 0)
             return a;
-            }
+    }
 
     return NULL;
 }

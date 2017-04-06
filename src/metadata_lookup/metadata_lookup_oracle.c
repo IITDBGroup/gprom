@@ -1134,6 +1134,18 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
             }
         }
     }
+
+    if (streq(capName, "GREATEST") || streq(capName, "LEAST"))
+    {
+        DataType dt = getNthOfListInt(dataTypes, 0);
+
+        FOREACH_INT(argDT, dataTypes)
+        {
+            dt = lcaType(dt, argDT);
+        }
+
+        return dt;
+    }
    //TODO
 
     *funcExists = FALSE;

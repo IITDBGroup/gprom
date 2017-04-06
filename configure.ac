@@ -606,6 +606,7 @@ AC_CONFIG_FILES([
 	src/rpq/Makefile
 	src/sql_serializer/Makefile
 	src/symbolic_eval/Makefile
+	src/temporal_queries/Makefile
 	src/utility/Makefile
 	src/libgprom/Makefile
 	test/Makefile
