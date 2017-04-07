@@ -46,7 +46,6 @@ typedef struct ReplaceGroupByState {
 // function declarations
 static Node *translateGeneral(Node *node);
 //static Node *translateSummary(Node *input, Node *node);
-static boolean disambiguiteAttrNames(Node *node, Set *done);
 static void adaptSchemaFromChildren(QueryOperator *o);
 
 /* Three branches of translating a Query */
@@ -174,31 +173,45 @@ translateGeneral (Node *node)
         result = (Node *) copyList((List *) node);
         FOREACH(Node,stmt,(List *) result)
         {
-            ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
+            if (isA(stmt, ProvenanceStmt))
+            {
+                ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
 
-            if(prov->summaryType == NULL)
-                stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+                if(prov->summaryType == NULL)
+                    stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+                else
+                {
+                    summaryType = prov->summaryType;
+                    r = translateQueryOracle(stmt);
+                    r->properties = copyObject(prop);
+                    stmt_his_cell->data.ptr_value = (Node *) r;
+                }
+            }
             else
             {
-            	summaryType = prov->summaryType;
-            	r = translateQueryOracle(stmt);
-            	r->properties = copyObject(prop);
-            	stmt_his_cell->data.ptr_value = (Node *) r;
+                stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
             }
         }
     }
     else
     {
-        ProvenanceStmt *prov = (ProvenanceStmt *) node;
+        if (isA(node, ProvenanceStmt))
+        {
+            ProvenanceStmt *prov = (ProvenanceStmt *) node;
 
-        if(prov->summaryType == NULL)
-        	result = (Node *) translateQueryOracle(node);
+            if(prov->summaryType == NULL)
+                result = (Node *) translateQueryOracle(node);
+            else
+            {
+                summaryType = prov->summaryType;
+                r = translateQueryOracle(node);
+                r->properties = copyObject(prop);
+                result = (Node *) r;
+            }
+        }
         else
         {
-        	summaryType = prov->summaryType;
-        	r = translateQueryOracle(node);
-        	r->properties = copyObject(prop);
-        	result = (Node *) r;
+            result = (Node *) translateQueryOracle(node);
         }
     }
 
@@ -209,7 +222,7 @@ translateGeneral (Node *node)
 }
 
 
-static boolean
+boolean
 disambiguiteAttrNames(Node *node, Set *done)
 {
     QueryOperator *op;
@@ -951,11 +964,22 @@ getAttrsOffsets(List *fromClause)
 //    int len = getListLength(fromClause);
     List *offsets = NIL;
     int curOffset = 0;
+    FromProvInfo *fp;
 
     FOREACH(FromItem, from, fromClause)
     {
+       int numAttrs;
        offsets = appendToTailOfListInt(offsets, curOffset);
-       curOffset += getListLength(from->attrNames);
+       numAttrs = getListLength(from->attrNames);
+       if (from->provInfo != NULL)
+       {
+           fp = from->provInfo;
+           if(!fp->intermediateProv && !fp->baserel && fp->userProvAttrs)
+           {
+               numAttrs -= LIST_LENGTH(fp->userProvAttrs);
+           }
+       }
+       curOffset += numAttrs;
     }
 
     DEBUG_LOG("attribute offsets for from clause items are %s",
@@ -1038,22 +1062,27 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
         ProjectionOperator *p;
         List *attrs, *newAttrs;
         List *provAttrs = from->userProvAttrs;
+        List *provPos = NIL;
 
         attrs = getQueryOperatorAttrNames(op);
         newAttrs = NIL;
 
         FOREACH(char,name,attrs)
         {
-            if(!searchListString(name, provAttrs))
+            if(!searchListString(provAttrs, name))
             {
                 newAttrs = appendToTailOfList(newAttrs, strdup(name));
             }
+            else
+            {
+                provPos = appendToTailOfListInt(provPos, getAttrPos(op, name));
+            }
         }
-        p = createProjOnAttrsByName(op, attrs);
-
+        p = (ProjectionOperator *) createProjOnAttrsByName(op, newAttrs);
+        op->provAttrs = provPos;
         // mark as dummy projection so it can be excluded from rewrite
         SET_BOOL_STRING_PROP(p, PROP_DUMMY_HAS_PROV_PROJ);
-
+        addChildOperator((QueryOperator *) p,op);
         return (QueryOperator *) p;
     }
 
