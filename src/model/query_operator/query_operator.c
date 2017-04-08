@@ -790,6 +790,11 @@ createOrderOp(List *orderExprs, QueryOperator *input, List *parents)
 void
 setProperty (QueryOperator *op, Node *key, Node *value)
 {
+    if (op->properties == NULL)
+    {
+        op->properties = (Node *) NEW_MAP(Node,Node);
+    }
+
     KeyValue *val = getProp(op, key);
 
     if (val)
@@ -799,8 +804,6 @@ setProperty (QueryOperator *op, Node *key, Node *value)
     }
 
     addToMap((HashMap *) op->properties, key, value);
-//    val = createNodeKeyValue(key, value);
-//    op->properties =  (Node *) appendToTailOfList((List *) op->properties, val);
 }
 
 Node *

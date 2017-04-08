@@ -18,5 +18,8 @@
 #define TEMPORAL_DT DT_INT
 
 extern QueryOperator *rewriteImplicitTemporal (QueryOperator *q);
+extern void addCoalescingAndAlignment (QueryOperator *q);
+extern QueryOperator *addCoalesce (QueryOperator *input);
+extern QueryOperator *addTemporalAlignment (QueryOperator *input, QueryOperator *reference);
 
 #endif /* INCLUDE_TEMPORAL_QUERIES_TEMPORAL_REWRITER_H_ */

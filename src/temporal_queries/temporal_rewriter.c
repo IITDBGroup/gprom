@@ -32,6 +32,7 @@ static QueryOperator *tempRewrSetOperator (SetOperator *o);
 
 static void setTempAttrProps(QueryOperator *o);
 static AttributeReference *getTempAttrRef (QueryOperator *o, boolean begin);
+static void coalescingAndAlignmentVisitor (QueryOperator *q, Set *done);
 
 #define LOG_RESULT(mes,op) DEBUG_OP_LOG(mes,op);
 
@@ -43,6 +44,9 @@ rewriteImplicitTemporal (QueryOperator *q)
 //    ProvenanceComputation *p = (ProvenanceComputation *) q;
     ASSERT(LIST_LENGTH(q->inputs) == 1);
     QueryOperator *top = getHeadOfListP(q->inputs);
+
+
+    addCoalescingAndAlignment(top);
 
     top = temporalRewriteOperator (top);
     Set *done = PSET();
@@ -373,3 +377,73 @@ getTempAttrRef (QueryOperator *o, boolean begin)
     result = createFullAttrReference(strdup(d->attrName), 0, pos, INVALID_ATTR, TEMPORAL_DT);
     return result;
 }
+
+/*
+ * determine where in a temporal query we have to apply the two temporal normalization
+ * operations "coalesce" and "align". This method only marks operators that should
+ * be subjected to one of these normalization operators.
+ */
+void
+addCoalescingAndAlignment (QueryOperator *q)
+{
+    Set *done = PSET();
+    // mark children first
+    SET_BOOL_STRING_PROP(q,PROP_TEMP_DO_COALESCE);
+    DEBUG_OP_LOG("mark top operator for coalescing", q);
+
+    coalescingAndAlignmentVisitor(q, done);
+}
+
+static void
+coalescingAndAlignmentVisitor (QueryOperator *q, Set *done)
+{
+    if (hasSetElem(done,q))
+        return;
+
+    FOREACH(QueryOperator,child,q->inputs)
+        coalescingAndAlignmentVisitor(child, done);
+
+    switch(q->type)
+    {
+        case T_AggregationOperator:
+        {
+            QueryOperator* child = OP_LCHILD(q);
+            SET_BOOL_STRING_PROP(child,PROP_TEMP_DO_COALESCE);
+            DEBUG_OP_LOG("mark aggregation input for coalescing", q);
+        }
+        break;
+        case T_SetOperator:
+        {
+            SetOperator *s = (SetOperator *) q;
+            if (s->setOpType == SETOP_DIFFERENCE || s->setOpType == SETOP_INTERSECTION)
+            {
+                SET_BOOL_STRING_PROP(q,PROP_TEMP_NORMALIZE_INPUTS);
+                DEBUG_OP_LOG("mark setop for normalization of inputs", q);
+            }
+        }
+        break;
+        default:
+            break;
+    }
+
+    addToSet(done, q);
+}
+
+/* add algebra expressions to coalesce the output of an operator */
+QueryOperator *
+addCoalesce (QueryOperator *input)
+{
+    return input;
+}
+
+/*
+ * aligns the output of "input" to temporally align with "reference"
+ * this normalization has to be applied to the inputs of set difference
+ * for R - S we rewrite it into A(R,S) - A(S,R)
+ */
+QueryOperator *
+addTemporalAlignment (QueryOperator *input, QueryOperator *reference)
+{
+    return input;
+}
+
