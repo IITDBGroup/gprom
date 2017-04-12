@@ -1625,7 +1625,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             q->dts = getQBAttrDTs(q->query);
             q->selectClause = concatTwoLists(q->selectClause,LIST_MAKE(strdup(TBEGIN_NAME), strdup(TEND_NAME)));
             //TODO use better DT for temporal attributes
-            q->dts = concatTwoLists(q->dts,CONCAT_LISTS(singletonInt(DT_LONG), singletonInt(DT_LONG)));
+            q->dts = concatTwoLists(q->dts,CONCAT_LISTS(singletonInt(TEMPORAL_DT), singletonInt(TEMPORAL_DT)));
             //TODO check that table access has temporal attributes
             correctFromTableVisitor(q->query, NULL);
         }

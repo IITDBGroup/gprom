@@ -44,13 +44,29 @@ rewriteImplicitTemporal (QueryOperator *q)
 //    ProvenanceComputation *p = (ProvenanceComputation *) q;
     ASSERT(LIST_LENGTH(q->inputs) == 1);
     QueryOperator *top = getHeadOfListP(q->inputs);
-
+    List *topSchema;
 
     addCoalescingAndAlignment(top);
 
     top = temporalRewriteOperator (top);
+
+    // make sure we do not introduce name clashes, but keep the top operator's schema intact
     Set *done = PSET();
+    topSchema = copyObject(q->schema->attrDefs);
     disambiguiteAttrNames((Node *) top, done);
+    if (isA(top,ProjectionOperator))
+        top->schema->attrDefs = topSchema;
+    else
+    {
+        QueryOperator *proj = createProjOnAllAttrs(top);
+        addChildOperator(proj, top);
+        switchSubtrees((QueryOperator *) top, proj);
+        proj->schema->attrDefs = topSchema;
+    }
+
+    // adapt inputs of parents to remove provenance computation
+    switchSubtrees((QueryOperator *) q, top);
+    DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
 
     return top;
 }
