@@ -814,10 +814,14 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
             {
                 DLVar *v = (DLVar *) bA;
                 AttributeDef *d = (AttributeDef *) a;
-                MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
-                                    createConstString(d->attrName),
-                                    createConstInt(pos),
-                                    createConstInt(d->dataType)));
+
+                if(streq(v->name,d->attrName))
+                {
+					MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
+										createConstString(d->attrName),
+										createConstInt(pos),
+										createConstInt(d->dataType)));
+                }
             }
 
             pos++;
