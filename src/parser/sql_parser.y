@@ -102,7 +102,7 @@ Node *bisonParseResult = NULL;
 %left comparisonOps
 %right NOT
 %left AND OR
-%right ISNULL
+%right IS NULLVAL
 %nonassoc  LIKE IN  BETWEEN
 
 /* Arithmetic operators : FOR TESTING */
@@ -918,6 +918,16 @@ unaryOperatorExpression:
                 List *expr = singleton($2);
                 $$ = (Node *) createOpExpr($1, expr);
             }
+         | expression IS NULLVAL
+         {
+         	RULELOG("unaryOperatorExpression::IS NULL");
+         	$$ = (Node *) createIsNullExpr($1);
+         }
+         | expression IS NOT NULLVAL
+         {
+         	RULELOG("unaryOperatorExpression::IS NOT NULL");
+         	$$ = (Node *) createOpExpr("NOT", singleton(createIsNullExpr($1)));
+         }     
     ;
     
 /*

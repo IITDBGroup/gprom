@@ -19,6 +19,9 @@ typedef struct Operator {
     List *args;
 } Operator;
 
+#define OPNAME_AND "AND"
+#define OPNAME_OR "OR"
+#define OPNAME_NOT "NOT"
 
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
