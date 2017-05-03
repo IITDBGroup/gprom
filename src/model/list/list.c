@@ -738,7 +738,7 @@ List *
 removeListElemAtPos (List *list, int pos)
 {
     ListCell *lc, *prev;
-    ASSERT(LIST_LENGTH(list) > pos && pos > 0);
+    ASSERT(LIST_LENGTH(list) > pos && pos >= 0);
 
     if (LIST_LENGTH(list) == 1)
         return NIL;

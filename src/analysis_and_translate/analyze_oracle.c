@@ -287,7 +287,9 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                 {
                     int pos = listPosString(f->attrNames, provAttr);
                     DEBUG_LOG("attribute %s at position %u", provAttr, pos);
+                    DEBUG_LOG("999999999999999");
                     f->attrNames = removeListElemAtPos(f->attrNames, pos);
+                    DEBUG_LOG("888888888888");
                     f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
                 }
             }

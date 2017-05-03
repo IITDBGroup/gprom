@@ -120,7 +120,6 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             STOP_TIMER("rewrite - restrict to updated rows");
         }
     }
-
     if (op->inputType == PROV_INPUT_TEMPORAL_QUERY)
     {
             return rewriteImplicitTemporal((QueryOperator *) op);
