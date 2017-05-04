@@ -456,9 +456,11 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    )
 
         // rewrite for summarization
-        if (summaryType != NULL){
+        if (summaryType != NULL)
+        {
             rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree, userQuestion, sampleSize, topK);
-		}
+        }
+
 	    if(applyOptimizations)
 	    {
 	        START_TIMER("OptimizeModel");
@@ -467,11 +469,19 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	        STOP_TIMER("OptimizeModel");
 	    }
 	    else
+	    {
 	        if (isA(rewrittenTree, List))
+	        {
 	            FOREACH(QueryOperator,o,(List *) rewrittenTree)
-	            LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
+                {
+                    LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
+                }
+	        }
 	        else
+	        {
 	            rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
+	        }
+	    }
 
 	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
 	}
