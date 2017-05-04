@@ -455,6 +455,7 @@ addCoalesce (QueryOperator *input)
 {
 
 	QueryOperator *op = input;
+	List *parents = op->parents;
 
 	//---------------------------------------------------------------------------------------
     //Construct T1: a union on two projections
@@ -740,8 +741,11 @@ addCoalesce (QueryOperator *input)
 			t5AName, t4Op, NIL);
     t4Op->parents = singleton(t5w);
 
-    //Projection: SELECT  salary, diffFollowing, diffPrevious, numOpen, ts as t_b, winf_0 as t_e
     QueryOperator *t5wOp = (QueryOperator *) t5w;
+    AttributeDef *winf0Def = getAttrDefByName(t5wOp, t5AName);
+    winf0Def->dataType = DT_INT;
+
+    //Projection: SELECT  salary, diffFollowing, diffPrevious, numOpen, ts as t_b, winf_0 as t_e
 
     List *t5ProjExpr = NIL;
     List *t5ProjNames = NIL;
@@ -812,23 +816,35 @@ addCoalesce (QueryOperator *input)
 
     List *t6ProjNames = LIST_MAKE(t6Def1->attrName,TBEGIN_NAME,TEND_NAME);
 
-    ProjectionOperator *t6 = createProjectionOp(t6ProjExpr, t6JoinOp, NIL, t6ProjNames);
-    t6JoinOp->parents = singleton(t6);
+    ProjectionOperator *top = createProjectionOp(t6ProjExpr, t6JoinOp, NIL, t6ProjNames);
+    t6JoinOp->parents = singleton(top);
 
-	//---------------------------------------------------------------------------------------
-    //Construct Top order by:    order by salary, TSTART
-    QueryOperator *t6Op = (QueryOperator *) t6;
+//	//---------------------------------------------------------------------------------------
+//    //Construct Top order by:    order by salary, TSTART
+//    QueryOperator *t6Op = (QueryOperator *) t6;
+//
+//    AttributeDef *topDef1 = (AttributeDef *) getHeadOfListP(t6Op->schema->attrDefs);
+//    AttributeReference *topRef1 = createFullAttrReference(strdup(topDef1->attrName), 0, 0, INVALID_ATTR, topDef1->dataType);
+//	AttributeReference *topRef2 = createAttrsRefByName(t6Op, TBEGIN_NAME);
+//
+//    OrderOperator *top = createOrderOp(LIST_MAKE(topRef1,topRef2),t6Op, NIL);
+//    t6Op->parents = singleton(top);
 
-    AttributeDef *topDef1 = (AttributeDef *) getHeadOfListP(t6Op->schema->attrDefs);
-    AttributeReference *topRef1 = createFullAttrReference(strdup(topDef1->attrName), 0, 0, INVALID_ATTR, topDef1->dataType);
-	AttributeReference *topRef2 = createAttrsRefByName(t6Op, TBEGIN_NAME);
+    //setTempAttrProps((QueryOperator *) top);
+    QueryOperator *topOp = (QueryOperator *) top;
 
-    OrderOperator *top = createOrderOp(LIST_MAKE(topRef1,topRef2),t6Op, NIL);
-    t6Op->parents = singleton(top);
-
-    setTempAttrProps((QueryOperator *) top);
-
-
+    if(parents != NIL)
+    {
+    	FOREACH(QueryOperator, p, parents)
+    		{
+    		FOREACH(QueryOperator,pChild,p->inputs)
+				{
+    			if (equal(pChild,op))
+    				pChild_his_cell->data.ptr_value = top;
+				}
+    		}
+    	topOp->parents = parents;
+    }
     return (QueryOperator *) top;
 }
 
