@@ -18,6 +18,7 @@
 
 #include "sql_serializer/sql_serializer.h"
 #include "sql_serializer/sql_serializer_oracle.h"
+#include "sql_serializer/sql_serializer_spark.h"
 #include "sql_serializer/sql_serializer_dl.h"
 #include "sql_serializer/sql_serializer_sqlite.h"
 #include "sql_serializer/sql_serializer_postgres.h"
@@ -36,6 +37,7 @@ static SqlserializerPlugin *assemblePostgresPlugin(void);
 static SqlserializerPlugin *assembleHivePlugin(void);
 static SqlserializerPlugin *assembleDLPlugin(void);
 static SqlserializerPlugin *assembleSQLitePlugin(void);
+static SqlserializerPlugin *assembleSparkPlugin(void);
 
 // wrapper interface
 char *
@@ -86,6 +88,9 @@ chooseSqlserializerPlugin(SqlserializerPluginType type)
             break;
         case SQLSERIALIZER_PLUGIN_SQLITE:
             plugin = assembleSQLitePlugin();
+            break;
+			 case SQLSERIALIZER_PLUGIN_SPARK:
+            plugin = assembleSparkPlugin();
             break;
     }
 }
@@ -148,6 +153,18 @@ assembleSQLitePlugin(void)
     return p;
 }
 
+static SqlserializerPlugin *
+assembleSparkPlugin(void)
+{
+    SqlserializerPlugin *p = NEW(SqlserializerPlugin);
+
+    p->serializeOperatorModel = serializeOperatorModelSpark;
+    p->serializeQuery = serializeQuerySpark;
+    p->quoteIdentifier = quoteIdentifierSpark;
+
+    return p;
+}
+
 void
 chooseSqlserializerPluginFromString(char *type)
 {
@@ -163,6 +180,8 @@ chooseSqlserializerPluginFromString(char *type)
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_DL);
     else if (streq(type,"sqlite"))
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_SQLITE);
+    else if (streq(type,"sparksql"))
+        chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_SPARK);
     else
         FATAL_LOG("unkown sqlserializer plugin type: <%s>", type);
 }

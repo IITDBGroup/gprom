@@ -456,9 +456,9 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    )
 
         // rewrite for summarization
-        if (summaryType != NULL)
+        if (summaryType != NULL){
             rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree, userQuestion, sampleSize, topK);
-
+		}
 	    if(applyOptimizations)
 	    {
 	        START_TIMER("OptimizeModel");
