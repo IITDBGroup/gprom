@@ -830,7 +830,6 @@ addCoalesce (QueryOperator *input)
 //    OrderOperator *top = createOrderOp(LIST_MAKE(topRef1,topRef2),t6Op, NIL);
 //    t6Op->parents = singleton(top);
 
-    //setTempAttrProps((QueryOperator *) top);
     QueryOperator *topOp = (QueryOperator *) top;
 
     if(parents != NIL)
@@ -845,6 +844,18 @@ addCoalesce (QueryOperator *input)
     		}
     	topOp->parents = parents;
     }
+
+    setTempAttrProps((QueryOperator *) top);
+    int pCount = 0;
+    FOREACH(AttributeDef, a, topOp->schema->attrDefs)
+    {
+    	if(streq(a->attrName, TBEGIN_NAME) || streq(a->attrName, TEND_NAME))
+    		topOp->provAttrs = appendToTailOfListInt(topOp->provAttrs, pCount);
+    	pCount ++;
+    }
+
+
+
     return (QueryOperator *) top;
 }
 
