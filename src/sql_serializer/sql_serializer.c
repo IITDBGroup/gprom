@@ -89,7 +89,7 @@ chooseSqlserializerPlugin(SqlserializerPluginType type)
         case SQLSERIALIZER_PLUGIN_SQLITE:
             plugin = assembleSQLitePlugin();
             break;
-			 case SQLSERIALIZER_PLUGIN_SPARK:
+        case SQLSERIALIZER_PLUGIN_SPARK:
             plugin = assembleSparkPlugin();
             break;
     }
