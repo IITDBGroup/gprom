@@ -9,12 +9,12 @@
  *
  *-----------------------------------------------------------------------------
  */
-
-// only include cplex headers if the library is available
-#ifdef HAVE_LIBCPLEX
-#include <ilcplex/cplex.h>
-#endif
-
+/*
+ // only include cplex headers if the library is available
+ #ifdef HAVE_LIBCPLEX
+ #include <ilcplex/cplex.h>
+ #endif
+ */
 #include "common.h"
 #include "log/logger.h"
 #include "mem_manager/mem_mgr.h"
@@ -30,7 +30,7 @@
 #include "model/query_operator/query_operator.h"
 #include "metadata_lookup/metadata_lookup.h"
 
-#ifdef HAVE_LIBCPLEX
+//#ifdef HAVE_LIBCPLEX
 
 static CplexObjects *cplexObjects = NULL; // global pointer to current cplex objects
 static int totalObjects = 0;
@@ -43,7 +43,8 @@ static List *getOpExpStack(List *stackList, Operator *opExpList);
 static double constrToDouble(Constant *cons);
 static int setToConstr(List *attrList, Node * query, CPXENVptr env, CPXLPptr lp);
 static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp);
-static int invertCondToConstr(Update *f, CPXENVptr env, CPXLPptr lp);
+static int invertCondToConstr(Node *cond, List *selectClause, CPXENVptr env,
+		CPXLPptr lp);
 static int exprToEval(Node *expr, boolean invert, CPXENVptr env, CPXLPptr lp);
 
 static void setCplexObjects(Node *expr) {
@@ -126,7 +127,6 @@ static double constrToDouble(Constant *cons) {
 }
 
 static int setToConstr(List *attrList, Node *query, CPXENVptr env, CPXLPptr lp) {
-
 	int status = 0;
 
 	if (isA(query, List)) {
@@ -150,7 +150,6 @@ static int setToConstr(List *attrList, Node *query, CPXENVptr env, CPXLPptr lp) 
 		double rmatval[numZ];
 
 		int i = 0, j = 0;
-		char *attr;
 
 		FOREACH(Constant,c,(List *)query)
 		{
@@ -158,8 +157,7 @@ static int setToConstr(List *attrList, Node *query, CPXENVptr env, CPXLPptr lp) 
 					|| c->constType == DT_LONG) {
 				rmatbeg[i] = i;
 				rowname[i] = "row";
-				attr = (char *) getNthOfListP(attrList, j);
-				rmatind[i] = getObjectIndex(attr);
+				rmatind[i] = j;
 				rmatval[i] = 1.0;
 				sense[i] = 'E';
 				rhs[i] = constrToDouble((Constant *) c);
@@ -171,7 +169,6 @@ static int setToConstr(List *attrList, Node *query, CPXENVptr env, CPXLPptr lp) 
 		status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg,
 				rmatind, rmatval, NULL, rowname);
 	}
-
 	return status;
 }
 
@@ -203,7 +200,7 @@ static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp) {
 		double rmatval[numZ];
 
 		rmatbeg[0] = 0;
-		rowname[0] = "row1";
+		rowname[0] = "row";
 
 		if (strcmp(opName, "=") == 0) {
 			sense[0] = 'E';
@@ -273,29 +270,115 @@ static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp) {
 
 }
 
-//to be done
-static int invertCondToConstr(Update *f, CPXENVptr env, CPXLPptr lp) {
+static int invertCondToConstr(Node *cond, List *selectClause, CPXENVptr env,
+		CPXLPptr lp) {
 	int status = 0;
-	boolean isFound = FALSE;
-	List *selAttr = NIL;
-	List *conAttr = NIL;
-	selAttr = getAttrNameFromOpExpList(selAttr, (Operator *) f->selectClause);
-	conAttr = getAttrNameFromOpExpList(conAttr, (Operator *) f->cond);
-	FOREACH(char,attr,conAttr)
-	{
-		if (searchListString(selAttr, attr)) {
-			isFound = TRUE;
-			break;
+	char *opName = ((Operator *) cond)->name;
+	if (strcmp(opName, "AND") == 0) {
+		invertCondToConstr((Node *) getHeadOfListP(((Operator *) cond)->args),
+				selectClause, env, lp);
+		invertCondToConstr((Node *) getTailOfListP(((Operator *) cond)->args),
+				selectClause, env, lp);
+	} else {
+		boolean isFound = FALSE;
+		List *selAttr = NIL;
+		List *conAttr = NIL;
+
+		conAttr = getAttrNameFromOpExpList(conAttr, (Operator *) cond);
+		Operator *selOpt = createOpExpr("sel", selectClause);
+		selAttr = getAttrNameFromOpExpList(selAttr, selOpt);
+
+		FOREACH(char,attr,conAttr)
+		{
+			if (searchListString(selAttr, attr)) {
+				isFound = TRUE;
+				break;
+			}
+		}
+		if (!isFound)
+			return condToConstr(cond, env, lp);
+		else {
+			int numCols = getListLength(conAttr);
+			int index = 0;
+			int numRows = 1;
+			int numZ = numRows * numCols;
+			int rmatbeg[numRows];
+			double rhs[numRows];
+			char sense[numRows];
+			char *rowname[numRows];
+			int rmatind[numZ];
+			double rmatval[numZ];
+
+			rmatbeg[0] = 0;
+			rowname[0] = "rowInv";
+
+			if (strcmp(opName, "=") == 0) {
+				sense[0] = 'E';
+			} else if (strcmp(opName, ">") == 0 || strcmp(opName, ">=") == 0) {
+				sense[0] = 'G';
+			} else if (strcmp(opName, "<") == 0 || strcmp(opName, "<=") == 0) {
+				sense[0] = 'L';
+			}
+
+			Node *left = (Node *) getHeadOfListP(((Operator *) cond)->args);
+			Node *right = (Node *) getTailOfListP(((Operator *) cond)->args);
+			char *attrName = ((AttributeReference *) left)->name;
+
+			//if the condition likes c>10
+			if (isA(left, AttributeReference)) {
+				index = getObjectIndex(attrName);
+				rmatind[0] = index;
+				rmatval[0] = 1.0;
+				double condVal = constrToDouble((Constant *) right);
+
+				Node *projExpr = NULL;
+				Node *selectAttr = NULL;
+				char *selectAttName;
+
+				FOREACH(SelectItem, s, selectClause)
+				{
+					selectAttr = getHeadOfListP((List *) s->expr);
+					selectAttName = ((AttributeReference *) selectAttr)->name;
+					if (strcmp(selectAttName, attrName) == 0) {
+						projExpr = copyObject(
+								(Node *) getTailOfListP((List *) s->expr));
+						break;
+					}
+				}
+
+				if (projExpr != NULL) {
+					Node *invertNode = (Node *) getTailOfListP(
+							((Operator *) projExpr)->args);
+					double invertVal = constrToDouble((Constant *) invertNode);
+
+					char *op = ((Operator *) projExpr)->name;
+					if (strcmp(op, "+") == 0) {
+						rhs[0] = condVal + invertVal;
+					} else if (strcmp(op, "-") == 0) {
+						rhs[0] = condVal - invertVal;
+					} else if (strcmp(op, "/") == 0) {
+						rhs[0] = condVal / invertVal;
+					} else if (strcmp(op, "*") == 0) {
+						rhs[0] = condVal * invertVal;
+					}
+				} else
+					rhs[0] = condVal;
+				DEBUG_LOG("Processing Invert Condition Value =  %10f \n",
+						rhs[0]);
+
+				status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense,
+						rmatbeg, rmatind, rmatval, NULL, rowname);
+
+				if (status) {
+					ERROR_LOG(
+							"Failure to convert and invert update and did not add a row to cplex problem %d.\n",
+							status);
+				}
+			}
 		}
 	}
 
-	if (isFound == FALSE) {
-		return condToConstr(((Update *) f)->cond, env, lp);
-	}
-	//to be done
-	else {
-		return status;
-	}
+	return status;
 }
 
 static int exprToEval(Node *expr, boolean invert, CPXENVptr env, CPXLPptr lp) {
@@ -306,7 +389,8 @@ static int exprToEval(Node *expr, boolean invert, CPXENVptr env, CPXLPptr lp) {
 		if (!invert)
 			status = condToConstr(((Update *) expr)->cond, env, lp);
 		else
-			status = invertCondToConstr((Update *) expr, env, lp);
+			status = invertCondToConstr(((Update *) expr)->cond,
+					((Update *) expr)->selectClause, env, lp);
 		break;
 	case T_Delete:
 		status = condToConstr(((Delete *) expr)->cond, env, lp);
@@ -446,7 +530,6 @@ boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
 				dj[j]);
 	}
 
-
 	//TERMINATE:
 	/* Free up the problem as allocated by CPXcreateprob, if necessary */
 
@@ -477,7 +560,7 @@ boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
 
 // ********************************************************************************
 // dummy replacement if cplex is not available
-
+/*
  #else
 
  boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
@@ -485,4 +568,4 @@ boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2) {
  }
 
  #endif
-
+ */
