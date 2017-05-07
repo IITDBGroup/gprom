@@ -34,6 +34,8 @@ static void setTempAttrProps(QueryOperator *o);
 static AttributeReference *getTempAttrRef (QueryOperator *o, boolean begin);
 static void coalescingAndAlignmentVisitor (QueryOperator *q, Set *done);
 
+//static void addCoalesceForAllOp(QueryOperator *op);
+
 #define LOG_RESULT(mes,op) DEBUG_OP_LOG(mes,op);
 
 #define ONE 1
@@ -70,6 +72,7 @@ rewriteImplicitTemporal (QueryOperator *q)
     switchSubtrees((QueryOperator *) q, top);
     DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
 
+    //addCoalesceForAllOp(top);
     top = addCoalesce(top);
 
     return top;
@@ -449,6 +452,24 @@ coalescingAndAlignmentVisitor (QueryOperator *q, Set *done)
     addToSet(done, q);
 }
 
+//static void
+//addCoalesceForAllOp(QueryOperator *op)
+//{
+//
+//	if(op->inputs != NIL)
+//	{
+//		FOREACH(QueryOperator,c,op->inputs)
+//		{
+//			addCoalesceForAllOp(c);
+//		}
+//
+//		if(op->inputs != NIL)
+//			addCoalesce(op);
+//	}
+//	//visitQOGraph(top, TRAVERSAL_POST, addCoalesce, NULL);
+//}
+
+
 /* add algebra expressions to coalesce the output of an operator */
 QueryOperator *
 addCoalesce (QueryOperator *input)
@@ -461,6 +482,7 @@ addCoalesce (QueryOperator *input)
     //Construct T1: a union on two projections
     Constant *c0 = createConstInt(ZERO);
     Constant *c1 = createConstInt(ONE);
+    List *norAttrnames = getNormalAttrNames(op);
 
     //construct projExprs (SALARY 0 1 T_B )
     //construct projExprs (SALARY 1 0 T_E )
@@ -508,9 +530,16 @@ addCoalesce (QueryOperator *input)
 
     QueryOperator *t1Op = (QueryOperator *) t1;
     //partationBy
-    AttributeDef *t2PBDef1 = (AttributeDef *) getHeadOfListP(t1Op->schema->attrDefs);
-    AttributeReference *t2PBRef1 = createFullAttrReference(strdup(t2PBDef1->attrName), 0, 0, INVALID_ATTR, t2PBDef1->dataType);
-    List *t2PartitionBy1 = singleton(t2PBRef1);
+    List *t2PartitionBy1 = NIL;
+    FOREACH(char, c, norAttrnames)
+    {
+    	 AttributeDef *t2PBDef1 = getAttrDefByName(t1Op, c);
+    	 AttributeReference *t2PBRef1 = createFullAttrReference(strdup(t2PBDef1->attrName), 0, 0, INVALID_ATTR, t2PBDef1->dataType);
+    	 t2PartitionBy1 = appendToTailOfList(t2PartitionBy1,t2PBRef1);
+    }
+//    AttributeDef *t2PBDef1 = (AttributeDef *) getHeadOfListP(t1Op->schema->attrDefs);
+//    AttributeReference *t2PBRef1 = createFullAttrReference(strdup(t2PBDef1->attrName), 0, 0, INVALID_ATTR, t2PBDef1->dataType);
+//    List *t2PartitionBy1 = singleton(t2PBRef1);
 
     //groupBy
     AttributeDef *t2GBDef1 = (AttributeDef *) getTailOfListP(t1Op->schema->attrDefs);
@@ -539,9 +568,16 @@ addCoalesce (QueryOperator *input)
 
     QueryOperator *t2W1Op = (QueryOperator *) t2W1;
     //partationBy
-    AttributeDef *t2PBDef2 = (AttributeDef *) getHeadOfListP(t2W1Op->schema->attrDefs);
-    AttributeReference *t2PBRef2 = createFullAttrReference(strdup(t2PBDef2->attrName), 0, 0, INVALID_ATTR, t2PBDef2->dataType);
-    List *t2PartitionBy2 = singleton(t2PBRef2);
+    List *t2PartitionBy2 = NIL;
+    FOREACH(char, c, norAttrnames)
+    {
+    	 AttributeDef *t2PBDef2 = getAttrDefByName(t2W1Op, c);
+    	 AttributeReference *t2PBRef2 = createFullAttrReference(strdup(t2PBDef2->attrName), 0, 0, INVALID_ATTR, t2PBDef2->dataType);
+    	 t2PartitionBy2 = appendToTailOfList(t2PartitionBy2,t2PBRef2);
+    }
+//    AttributeDef *t2PBDef2 = (AttributeDef *) getHeadOfListP(t2W1Op->schema->attrDefs);
+//    AttributeReference *t2PBRef2 = createFullAttrReference(strdup(t2PBDef2->attrName), 0, 0, INVALID_ATTR, t2PBDef2->dataType);
+//    List *t2PartitionBy2 = singleton(t2PBRef2);
 
     //groupBy
     AttributeDef *t2GBDef2 = (AttributeDef *) getAttrDefByName(t2W1Op, TS);
@@ -569,9 +605,15 @@ addCoalesce (QueryOperator *input)
     List *t2ProjExpr = NIL;
 
     //salary
-    AttributeDef *t2NorDef= (AttributeDef *) getHeadOfListP(t2W2Op->schema->attrDefs);
-    AttributeReference *t2NorRef = createFullAttrReference(strdup(strdup(t2NorDef->attrName)), 0, 0, INVALID_ATTR, t2NorDef->dataType);
-    t2ProjExpr = appendToTailOfList(t2ProjExpr, t2NorRef);
+    FOREACH(char, c, norAttrnames)
+    {
+    	 AttributeDef *t2NorDef = getAttrDefByName(t2W2Op, c);
+    	 AttributeReference *t2NorRef = createFullAttrReference(strdup(strdup(t2NorDef->attrName)), 0, 0, INVALID_ATTR, t2NorDef->dataType);
+    	 t2ProjExpr = appendToTailOfList(t2ProjExpr, t2NorRef);
+    }
+//    AttributeDef *t2NorDef= (AttributeDef *) getHeadOfListP(t2W2Op->schema->attrDefs);
+//    AttributeReference *t2NorRef = createFullAttrReference(strdup(strdup(t2NorDef->attrName)), 0, 0, INVALID_ATTR, t2NorDef->dataType);
+//    t2ProjExpr = appendToTailOfList(t2ProjExpr, t2NorRef);
 
     //sum(w_0) - sum(w_1)
     AttributeReference *t2Winf0 = createAttrsRefByName(t2W2Op, "winf_0");
@@ -584,7 +626,9 @@ addCoalesce (QueryOperator *input)
     AttributeReference *t2TS = createAttrsRefByName(t2W2Op, TS);
     t2ProjExpr = appendToTailOfList(t2ProjExpr, t2TS);
 
-    List *T2AttrNames = LIST_MAKE(strdup(t2NorDef->attrName),"NUMOPEN",strdup(TS));
+    //List *T2AttrNames = LIST_MAKE(strdup(t2NorDef->attrName),"NUMOPEN",strdup(TS));
+    List *T2AttrNames = LIST_MAKE("NUMOPEN",strdup(TS));
+    T2AttrNames = concatTwoLists(deepCopyStringList(norAttrnames),T2AttrNames);
 
     ProjectionOperator *t2 = createProjectionOp(t2ProjExpr, t2W2Op, NIL, T2AttrNames);
     t2W2Op->parents = singleton(t2);
@@ -598,9 +642,17 @@ addCoalesce (QueryOperator *input)
     WindowFrame *t3wf1 = createWindowFrame(WINFRAME_ROWS,t3wb1,copyObject(t3wb1));
 
     //partationBy
-    AttributeDef *t3pbDef1 = (AttributeDef *) getHeadOfListP(t2Op->schema->attrDefs);
-    AttributeReference *t3pbRef1 = createFullAttrReference(strdup(t3pbDef1->attrName), 0, 0, INVALID_ATTR, t3pbDef1->dataType);
-    List *t3PartitionBy1 = singleton(t3pbRef1);
+    List *t3PartitionBy1 = NIL;
+    FOREACH(char, c, norAttrnames)
+    {
+    	 AttributeDef *t3pbDef1 = getAttrDefByName(t2Op, c);
+    	 AttributeReference *t3pbRef1 = createFullAttrReference(strdup(t3pbDef1->attrName), 0, 0, INVALID_ATTR, t3pbDef1->dataType);
+    	 t3PartitionBy1 = appendToTailOfList(t3PartitionBy1,t3pbRef1);
+
+    }
+//    AttributeDef *t3pbDef1 = (AttributeDef *) getHeadOfListP(t2Op->schema->attrDefs);
+//    AttributeReference *t3pbRef1 = createFullAttrReference(strdup(t3pbDef1->attrName), 0, 0, INVALID_ATTR, t3pbDef1->dataType);
+//    List *t3PartitionBy1 = singleton(t3pbRef1);
 
     //groupBy
     AttributeDef *t3gbDef1 = (AttributeDef *) getTailOfListP(t2Op->schema->attrDefs);
@@ -629,9 +681,17 @@ addCoalesce (QueryOperator *input)
     WindowFrame *t3wf2 = createWindowFrame(WINFRAME_ROWS,t3wb2,copyObject(t3wb2));
 
     //partationBy
-    AttributeDef *t3pbDef2 = (AttributeDef *) getHeadOfListP(t3w1Op->schema->attrDefs);
-    AttributeReference *t3pbRef2 = createFullAttrReference(strdup(t3pbDef2->attrName), 0, 0, INVALID_ATTR, t3pbDef2->dataType);
-    List *t3PartitionBy2 = singleton(t3pbRef2);
+    List *t3PartitionBy2 = NIL;
+    FOREACH(char, c, norAttrnames)
+    {
+        AttributeDef *t3pbDef2 = getAttrDefByName(t3w1Op,c);
+        AttributeReference *t3pbRef2 = createFullAttrReference(strdup(t3pbDef2->attrName), 0, 0, INVALID_ATTR, t3pbDef2->dataType);
+        t3PartitionBy2 = appendToTailOfList(t3PartitionBy2,t3pbRef2);
+    }
+
+//    AttributeDef *t3pbDef2 = (AttributeDef *) getHeadOfListP(t3w1Op->schema->attrDefs);
+//    AttributeReference *t3pbRef2 = createFullAttrReference(strdup(t3pbDef2->attrName), 0, 0, INVALID_ATTR, t3pbDef2->dataType);
+//    List *t3PartitionBy2 = singleton(t3pbRef2);
 
     //groupBy
     AttributeReference *t3gpRef2 = createAttrsRefByName(t3w1Op, TS);
@@ -659,9 +719,15 @@ addCoalesce (QueryOperator *input)
     List *t3ProjExpr = NIL;
 
     //salary
-    AttributeDef *t3ProjDef1 = (AttributeDef *) getHeadOfListP(t3w2Op->schema->attrDefs);
-    AttributeReference *t3ProjRef1 = createFullAttrReference(strdup(t3ProjDef1->attrName), 0, 0, INVALID_ATTR, t3ProjDef1->dataType);
-    t3ProjExpr = appendToTailOfList(t3ProjExpr, t3ProjRef1);
+    FOREACH(char, c, norAttrnames)
+    {
+    	 AttributeDef *t3ProjDef1 = getAttrDefByName(t3w2Op,c);
+    	 AttributeReference *t3ProjRef1 = createFullAttrReference(strdup(t3ProjDef1->attrName), 0, 0, INVALID_ATTR, t3ProjDef1->dataType);
+    	 t3ProjExpr = appendToTailOfList(t3ProjExpr, t3ProjRef1);
+    }
+//    AttributeDef *t3ProjDef1 = (AttributeDef *) getHeadOfListP(t3w2Op->schema->attrDefs);
+//    AttributeReference *t3ProjRef1 = createFullAttrReference(strdup(t3ProjDef1->attrName), 0, 0, INVALID_ATTR, t3ProjDef1->dataType);
+//    t3ProjExpr = appendToTailOfList(t3ProjExpr, t3ProjRef1);
 
     //COALESCE((NUMOPEN - winf_0),666)
     AttributeReference *t3ProjNOpen1 = createAttrsRefByName(t3w2Op, NUMOPEN);
@@ -683,7 +749,8 @@ addCoalesce (QueryOperator *input)
     t3ProjExpr = appendToTailOfList(t3ProjExpr, t3ProjTS);
 
     //Proj names
-    List *t3ProjAttrNames = LIST_MAKE(strdup(t3ProjDef1->attrName), "DIFFFOLLOWING", "DIFFPREVIOUS", "NUMOPEN", "TS");
+    List *t3ProjAttrNames = LIST_MAKE("DIFFFOLLOWING", "DIFFPREVIOUS", "NUMOPEN", "TS");
+    t3ProjAttrNames = concatTwoLists(deepCopyStringList(norAttrnames),t3ProjAttrNames);
 
     ProjectionOperator *t3Proj = createProjectionOp(t3ProjExpr, t3w2Op, NIL, t3ProjAttrNames);
     t3w2Op->parents = singleton(t3Proj);
@@ -719,9 +786,16 @@ addCoalesce (QueryOperator *input)
     WindowFrame *t5wf = createWindowFrame(WINFRAME_ROWS,t5wb,copyObject(t5wb));
 
     //partationBy
-    AttributeDef *t5pbDef = (AttributeDef *) getHeadOfListP(t4Op->schema->attrDefs);
-    AttributeReference *t5pbRef = createFullAttrReference(strdup(t5pbDef->attrName), 0, 0, INVALID_ATTR, t5pbDef->dataType);
-    List *t5PartitionBy = singleton(t5pbRef);
+    List *t5PartitionBy = NIL;
+    FOREACH(char, c, norAttrnames)
+    {
+    	AttributeDef *t5pbDef = getAttrDefByName(t4Op,c);
+    	AttributeReference *t5pbRef = createFullAttrReference(strdup(t5pbDef->attrName), 0, 0, INVALID_ATTR, t5pbDef->dataType);
+    	t5PartitionBy = appendToTailOfList(t5PartitionBy,t5pbRef);
+    }
+//    AttributeDef *t5pbDef = (AttributeDef *) getHeadOfListP(t4Op->schema->attrDefs);
+//    AttributeReference *t5pbRef = createFullAttrReference(strdup(t5pbDef->attrName), 0, 0, INVALID_ATTR, t5pbDef->dataType);
+//    List *t5PartitionBy = singleton(t5pbRef);
 
     //groupBy
     AttributeReference *t5gbRef = createAttrsRefByName(t4Op, TS);
@@ -785,6 +859,9 @@ addCoalesce (QueryOperator *input)
     //TNTAB AS (SELECT rownum n from dual connect by level <= (SELECT max(numOpen) FROM T5))
 	TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
 
+	//set boolean prop (when translate to SQL, translate to above SQL not this table)
+	SET_BOOL_STRING_PROP(TNTAB, PROP_TEMP_TNTAB);
+
 	//---------------------------------------------------------------------------------------
     //Construct T6:    SELECT TSTART, TEND, SALARY FROM T5, TNTAB WHERE T5.numOpen <= n
 
@@ -808,13 +885,24 @@ addCoalesce (QueryOperator *input)
     //Top projection SELECT SALARY,T_B, T_E
     QueryOperator *t6JoinOp = (QueryOperator *) t6Join;
 
-    AttributeDef *t6Def1 = (AttributeDef *) getHeadOfListP(t6JoinOp->schema->attrDefs);
-    AttributeReference *t6Ref1 = createFullAttrReference(strdup(t6Def1->attrName), 0, 0, INVALID_ATTR, t6Def1->dataType);
+    List *t6ProjExpr = NIL;
+    FOREACH(char, c, norAttrnames)
+    {
+    	AttributeDef *t6Def1 = getAttrDefByName(t6JoinOp,c);
+        AttributeReference *t6Ref1 = createFullAttrReference(strdup(t6Def1->attrName), 0, 0, INVALID_ATTR, t6Def1->dataType);
+        t6ProjExpr = appendToTailOfList(t6ProjExpr, t6Ref1);
+    }
+
+//    AttributeDef *t6Def1 = (AttributeDef *) getHeadOfListP(t6JoinOp->schema->attrDefs);
+//    AttributeReference *t6Ref1 = createFullAttrReference(strdup(t6Def1->attrName), 0, 0, INVALID_ATTR, t6Def1->dataType);
 	AttributeReference *t6Ref2 = createAttrsRefByName(t6JoinOp, TBEGIN_NAME);
 	AttributeReference *t6Ref3 = createAttrsRefByName(t6JoinOp, TEND_NAME);
-    List *t6ProjExpr = LIST_MAKE(t6Ref1,t6Ref2,t6Ref3);
+//    List *t6ProjExpr = LIST_MAKE(t6Ref1,t6Ref2,t6Ref3);
+    t6ProjExpr = appendToTailOfList(t6ProjExpr, t6Ref2);
+    t6ProjExpr = appendToTailOfList(t6ProjExpr, t6Ref3);
 
-    List *t6ProjNames = LIST_MAKE(t6Def1->attrName,TBEGIN_NAME,TEND_NAME);
+    List *t6ProjNames = LIST_MAKE(TBEGIN_NAME,TEND_NAME);
+    t6ProjNames = concatTwoLists(deepCopyStringList(norAttrnames),t6ProjNames);
 
     ProjectionOperator *top = createProjectionOp(t6ProjExpr, t6JoinOp, NIL, t6ProjNames);
     t6JoinOp->parents = singleton(top);
@@ -853,8 +941,6 @@ addCoalesce (QueryOperator *input)
     		topOp->provAttrs = appendToTailOfListInt(topOp->provAttrs, pCount);
     	pCount ++;
     }
-
-
 
     return (QueryOperator *) top;
 }
