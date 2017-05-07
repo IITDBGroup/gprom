@@ -7,7 +7,11 @@ DIR=$(pwd -L)
 popd > /dev/null
 # GProM script
 GPROM_SCRIPT=${DIR}/gprom-pass-query.sh
-
+########################################
+# READ USER CONFIGUATION
+CONF_FILE=.gprom
+GPROM_CONF=${DIR}/../${CONF_FILE}
+source ${DIR}/gprom_basic.sh
 ########################################
 # PARAMETERS
 PROGRAM="${2}"
@@ -19,8 +23,6 @@ if [ $# -lt 2 ]; then
     echo "gprom-dl-to-sql.sh 3 \"Q(X) :- R(X,Y). WHY(Q(1)).\""
     exit 1
 fi
-
 ########################################
 # RUN COMMAND
-${GPROM_SCRIPT} ${LOG} "${PROGRAM}" -Pparser dl -Panalyzer dl -Ptranslator dl -Pexecutor sql -Cattr_reference_consistency FALSE -Cschema_consistency FALSE  -Cunique_attr_names FALSE -treeify-algebra-graphs FALSE ${*:3}
-# -Cattr_reference_consistency FALSE -Cschema_consistency FALSE  -Cunique_attr_names FALSE -Oselections_move_around FALSE  -Oremove_redundant_projections FALSE  -activate optimize_operator_model
+${GPROM_SCRIPT} ${LOG} "${PROGRAM}" ${GPROM_DL_PLUGINS} -Pexecutor sql -Cattr_reference_consistency FALSE -Cschema_consistency FALSE  -Cunique_attr_names FALSE -treeify-algebra-graphs FALSE ${*:3}

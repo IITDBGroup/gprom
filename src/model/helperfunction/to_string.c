@@ -108,6 +108,7 @@ static void outDLVar(StringInfo str, DLVar *node);
 static void outDLRule(StringInfo str, DLRule *node);
 static void outDLProgram(StringInfo str, DLProgram *node);
 static void outDLComparison(StringInfo str, DLComparison *node);
+static void outDLDomain(StringInfo str, DLDomain *node);
 
 // create overview string for an operator tree
 static int compareOpInfos (const void *l, const void *r);
@@ -399,6 +400,7 @@ outDLProgram(StringInfo str, DLProgram *node)
     WRITE_NODE_FIELD(rules);
     WRITE_NODE_FIELD(facts);
     WRITE_STRING_FIELD(ans);
+    WRITE_NODE_FIELD(doms);
     WRITE_NODE_FIELD(n.properties);
 }
 
@@ -408,6 +410,17 @@ outDLComparison(StringInfo str, DLComparison *node)
     WRITE_NODE_TYPE(DLCOMPARISON);
 
     WRITE_NODE_FIELD(opExpr);
+    WRITE_NODE_FIELD(n.properties);
+}
+
+static void
+outDLDomain(StringInfo str, DLDomain *node)
+{
+    WRITE_NODE_TYPE(DLDOMAIN);
+
+    WRITE_STRING_FIELD(rel);
+    WRITE_STRING_FIELD(attr);
+    WRITE_STRING_FIELD(name);
     WRITE_NODE_FIELD(n.properties);
 }
 
@@ -1203,6 +1216,9 @@ outNode(StringInfo str, void *obj)
             case T_DLComparison:
                 outDLComparison(str, (DLComparison *) obj);
                 break;
+            case T_DLDomain:
+                outDLDomain(str, (DLDomain *) obj);
+                break;
             /* Json stuff */
             case T_FromJsonTable:
                 outFromJsonTable(str, (FromJsonTable *)obj);
@@ -1455,6 +1471,13 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             appendStringInfoString(str, ".\n");
         }
         break;
+        case T_DLDomain:
+        {
+            DLDomain *d = (DLDomain *) n;
+
+            appendStringInfo(str, "(%s)", exprToSQL((Node *) d->name));
+        }
+        break;
         case T_DLComparison:
         {
             DLComparison *c = (DLComparison *) n;
@@ -1484,6 +1507,8 @@ datalogToStrInternal(StringInfo str, Node *n, int indent)
             {
                 if (isA(r,Constant))
                     appendStringInfoString(str, "ANSWER RELATION:\n\t");
+                else if (isA(r,DLDomain))
+                	appendStringInfoString(str, "ASSOCIATE DOMAIN:\n\t");
                 datalogToStrInternal(str,(Node *) r, 4);
             }
             if (p->ans)

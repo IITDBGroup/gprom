@@ -14,6 +14,7 @@
 #include "model/list/list.h"
 
 extern char *getMatchingSubstring(const char *string, const char *pattern);
+extern char *getFullMatchingSubstring(const char *string, const char *pattern);
 extern List *splitString(char *string, const char *delim);
 extern char *strEndTok(char *string, char *delim);
 extern char *replaceSubstr(char *str, char *pattern, char *repl);

@@ -25,6 +25,8 @@
 //Options* options;
 HashMap *optionPos; // optionname -> position of option in list
 HashMap *cmdOptionPos;
+HashMap *backendInfo;
+HashMap *frontendInfo;
 
 typedef union OptionValue {
     char **string;
@@ -48,6 +50,22 @@ typedef struct OptionInfo {
     OptionValue value;
     OptionDefault def;
 } OptionInfo;
+
+typedef struct FrontendInfo {
+    char *frontendName;
+    char *analyzer;
+    char *parser;
+    char *translator;
+} FrontendInfo;
+
+typedef struct BackendInfo {
+    char *backendName;
+    char *analyzer;
+    char *parser;
+    char *metadata;
+    char *sqlserializer;
+    char *translator;
+} BackendInfo;
 
 // show help only
 boolean opt_show_help = FALSE;
@@ -74,6 +92,7 @@ char *sqlFile = NULL;
 
 // database backend
 char *backend = NULL;
+char *frontend = NULL;
 char *plugin_metadata = NULL;
 char *plugin_parser = NULL;
 char *plugin_sqlcodegen = NULL;
@@ -203,39 +222,39 @@ OptionInfo opts[] =
         },
         // database backend connection options
         {
-                "connection.host",
+                OPTION_CONN_HOST,
                 "-host",
                 "Host IP address for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_host),
-                defOptionString("ligeti.cs.iit.edu")
+                defOptionString("")
         },
         {
-                "connection.db",
+                OPTION_CONN_DB,
                 "-db",
                 "Database name for backend DB connection (SID or SERVICE_NAME for Oracle backends).",
                 OPTION_STRING,
                 wrapOptionString(&connection_db),
-                defOptionString("orcl")
+                defOptionString("")
         },
         {
-                "connection.user",
+                OPTION_CONN_USER,
                 "-user",
                 "User for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_user),
-                defOptionString("fga_user")
+                defOptionString("")
         },
         {
-                "connection.passwd",
+                OPTION_CONN_PASSWD,
                 "-passwd",
                 "Password for backend DB connection.",
                 OPTION_STRING,
                 wrapOptionString(&connection_passwd),
-                defOptionString("fga")
+                defOptionString("")
         },
         {
-                "connection.port",
+                OPTION_CONN_PORT,
                 "-port",
                 "TCP/IP port for backend DB connection.",
                 OPTION_INT,
@@ -278,40 +297,64 @@ OptionInfo opts[] =
         },
         // input options
         {
-                "input.sql",
+                OPTION_INPUT_SQL,
                 "-sql",
-                "input SQL text",
+                "input query",
                 OPTION_STRING,
                 wrapOptionString(&sql),
                 defOptionString(NULL)
         },
         {
-                "input.sqlFile",
+                OPTION_INPUT_QUERY,
+                "-query",
+                "input query",
+                OPTION_STRING,
+                wrapOptionString(&sql),
+                defOptionString(NULL)
+        },
+        {
+                 OPTION_INPUT_QUERY_FILE,
+                 "-queryFile",
+                 "input query file name",
+                 OPTION_STRING,
+                 wrapOptionString(&sqlFile),
+                 defOptionString(NULL)
+        },
+        {
+                OPTION_INPUT_SQL_FILE,
                 "-sqlfile",
                 "input SQL file name",
                 OPTION_STRING,
                 wrapOptionString(&sqlFile),
                 defOptionString(NULL)
         },
-        // backend and plugin selection
+        // backend, frontend and plugin selection
         {
-                "backend",
+                OPTION_BACKEND,
                 "-backend",
-                "select backend database type: postgres, oracle - this determines parser, metadata-lookup, and sql-code generator",
+                "select backend database type: postgres, oracle, sqlite - this determines analyzer, parser, metadata-lookup, sql-code generator, and translator plugins",
                 OPTION_STRING,
                 wrapOptionString(&backend),
-                defOptionString("oracle")
+                defOptionString(NULL)
         },
         {
-                "plugin.metadata",
+                OPTION_FRONTEND,
+                "-frontend",
+                "select frontend language: oracle, dl - this determines analyzer, parser, and translator plugins",
+                OPTION_STRING,
+                wrapOptionString(&frontend),
+                defOptionString(NULL)
+        },
+        {
+                OPTION_PLUGIN_METADATA,
                 "-Pmetadata",
-                "select metadatalookup plugin: postgres, oracle",
+                "select metadatalookup plugin: oracle, postgres, sqlite",
                 OPTION_STRING,
                 wrapOptionString(&plugin_metadata),
                 defOptionString(NULL)
         },
         {
-                "plugin.parser",
+                OPTION_PLUGIN_PARSER,
                 "-Pparser",
                 "select parser plugin: oracle, dl",
                 OPTION_STRING,
@@ -319,23 +362,23 @@ OptionInfo opts[] =
                 defOptionString(NULL)
         },
         {
-                "plugin.sqlcodegen",
+                OPTION_PLUGIN_SQLCODEGEN,
                 "-Psqlcodegen",
-                "select SQL code generator plugin: oracle",
+                "select SQL code generator plugin: oracle, postgres, sqlite",
                 OPTION_STRING,
-                wrapOptionString(&plugin_sqlcodegen),
+                wrapOptionString(&plugin_sql_serializer),
                 defOptionString(NULL)
         },
         {
-                "plugin.analyzer",
+                OPTION_PLUGIN_ANALYZER,
                 "-Panalyzer",
-                "select parser result model analyzer: oracle",
+                "select parser result model analyzer: oracle, dl",
                 OPTION_STRING,
                 wrapOptionString(&plugin_analyzer),
                 defOptionString(NULL)
         },
         {
-                "plugin.translator",
+                OPTION_PLUGIN_TRANSLATOR,
                 "-Ptranslator",
                 "select parser result to relational algebra translator: oracle",
                 OPTION_STRING,
@@ -343,15 +386,15 @@ OptionInfo opts[] =
                 defOptionString(NULL)
         },
         {
-                "plugin.sqlserializer",
+                OPTION_PLUGIN_SQLSERIALIZER,
                 "-Psqlserializer",
-                "select SQL code generator plugin: oracle",
+                "select SQL code generator plugin: oracle, postgres, sqlite",
                 OPTION_STRING,
                 wrapOptionString(&plugin_sql_serializer),
                 defOptionString(NULL)
         },
         {
-                "plugin.executor",
+                OPTION_PLUGIN_EXECUTOR,
                 "-Pexecutor",
                 "select Executor plugin: sql (output rewritten SQL code), "
                         "gp (output Game provenance), run (execute the "
@@ -361,7 +404,7 @@ OptionInfo opts[] =
                 defOptionString("run")
         },
         {
-                "plugin.cbo",
+                OPTION_PLUGIN_CBO,
                 "-Pcbo",
                 "select Cost-Based Optimizer plugin: exhaustive (enumerate all options), "
                         "balance (stop optimization after optimization time exceeds estimated runtime of best plan), "
@@ -612,12 +655,64 @@ OptionInfo opts[] =
         }
 };
 
+// backend plugins information
+BackendInfo backends[]  = {
+        {
+            "oracle",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "oracle",   // metadata
+            "oracle",   // sqlserializer
+            "oracle"   // translator
+        },
+        {
+            "postgres",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "postgres",   // metadata
+            "postgres",    // sqlserializer
+            "oracle"   // translator
+        },
+        {
+            "sqlite",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "sqlite",   // metadata
+            "sqlite",    // sqlserializer
+            "oracle"   // translator
+        },
+        {
+            "STOPPER", NULL, NULL, NULL, NULL, NULL
+        }
+};
+
+// frontend plugins information
+FrontendInfo frontends[]  = {
+        {
+            "oracle",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "oracle"   // translator
+        },
+        {
+            "dl",   // name
+            "dl",   // analyzer
+            "dl",   // parser
+            "dl"   // translator
+        },
+        {
+            "STOPPER", NULL, NULL, NULL
+        }
+};
+
 static void
 initOptions(void)
 {
     // create hashmap option -> position in option info array for lookup
     optionPos = NEW_MAP(Constant,Constant);
     cmdOptionPos = NEW_MAP(Constant,Constant);
+    backendInfo = NEW_MAP(Constant,HashMap);
+    frontendInfo = NEW_MAP(Constant,HashMap);
 
     // add options to hashmap and set all options to default values
     for(int i = 0; strcmp(opts[i].option,"STOPPER") != 0; i++)
@@ -632,6 +727,36 @@ initOptions(void)
             MAP_ADD_STRING_KEY(cmdOptionPos, o->option, createConstInt(i));
         else
             MAP_ADD_STRING_KEY(cmdOptionPos, o->cmdLine, createConstInt(i));
+    }
+
+    // create backend infos
+    for(int i = 0; strcmp(backends[i].backendName,"STOPPER") != 0; i++)
+    {
+        HashMap *newMap = NEW_MAP(Constant, Constant);
+        char *name = backends[i].backendName;
+
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_ANALYZER, backends[i].analyzer);
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_PARSER, backends[i].parser);
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_METADATA, backends[i].metadata);
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_SQLSERIALIZER, backends[i].sqlserializer);
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_SQLCODEGEN, backends[i].sqlserializer); //for backward compatibility for now
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_TRANSLATOR, backends[i].translator);
+
+
+        MAP_ADD_STRING_KEY(backendInfo, name, newMap);
+    }
+
+    // create frontend infos
+    for(int i = 0; strcmp(frontends[i].frontendName,"STOPPER") != 0; i++)
+    {
+        HashMap *newMap = NEW_MAP(Constant, Constant);
+        char *name = frontends[i].frontendName;
+
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_ANALYZER, frontends[i].analyzer);
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_PARSER, frontends[i].parser);
+        MAP_ADD_STRING_KEY_AND_VAL(newMap, OPTION_PLUGIN_TRANSLATOR, frontends[i].translator);
+
+        MAP_ADD_STRING_KEY(frontendInfo, name, newMap);
     }
 }
 
@@ -811,6 +936,18 @@ setFloatOption(char *name, double value)
     *(v->f) = value;
 }
 
+void
+setOptionsFromMap(HashMap *opts)
+{
+    FOREACH_HASH_ENTRY(k,opts)
+    {
+        char *name = STRING_VALUE(k->key);
+        char *value = STRING_VALUE(k->value);
+
+        setOption(name, value);
+    }
+}
+
 boolean
 hasOption(char *name)
 {
@@ -859,7 +996,7 @@ printOptionsHelp(FILE *stream, char *progName, char *description, boolean showVa
 
         if (showValues)
         {
-            fprintf(stream, "%-50s\t%-30sDEFAULT VALUE: %s\tACTUAL VALUE: %s\n\t%s\n",
+            fprintf(stream, "%-50s\t%-30sDEFAULT VALUE: %s\tACTUAL VALUE: %s\n\t%s\n\n",
                     v->cmdLine ? v->cmdLine : "-activate/-deactivate ",
                     v->cmdLine ? "" : v->option,
                     defGetString(&v->def, v->valueType),
@@ -908,6 +1045,37 @@ optionsToStringOnePerLine(void)
     str = result->data;
 //    free(result);
     return str;
+}
+
+HashMap *
+optionsToHashMap(void)
+{
+    HashMap *result = NEW_MAP(Constant,Constant);
+
+    FOREACH_HASH_KEY(Constant,k,optionPos)
+    {
+        char *name = STRING_VALUE(k);
+        OptionInfo *v = getInfo(name);
+        MAP_ADD_STRING_KEY(result,name, createConstString(valGetString(&v->value, v->valueType)));
+    }
+
+    return result;
+}
+
+char *
+getBackendPlugin(char *be, char *pluginOpt)
+{
+    HashMap *bInfo = (HashMap *) MAP_GET_STRING(backendInfo, be);
+
+    return STRING_VALUE(MAP_GET_STRING(bInfo, pluginOpt));
+}
+
+char *
+getFrontendPlugin(char *fe, char *pluginOpt)
+{
+    HashMap *fInfo = (HashMap *) MAP_GET_STRING(frontendInfo, fe);
+
+    return STRING_VALUE(MAP_GET_STRING(fInfo, pluginOpt));
 }
 
 static char *

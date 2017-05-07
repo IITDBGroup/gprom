@@ -1,20 +1,25 @@
-PROVENANCE REWRITER PROTOTYPE
+GPROM
 ========================================
 
-This is the first prototype for a provenance middleware for Oracle. The 
-application consists of a parser, rewriter, and SQL serializer components.
-The application takes user SQL queries with new provenance language constructs
-and translates them into Oracle conform SQL code. For example, if table
-R has two columns A and B, then 
-
-PROVENANCE OF (SELECT a FROM R); 
-
-would be translated into
-
-SELECT A1 AS B, A2 AS PROV_R_A, A3 AS PROV_R_B
-FROM ((
-SELECT A, B, A AS PROV_R_A, B AS PROV_R_B
-FROM ((R) F0) F0); 
+GProM is a database middleware that adds provenance support to multiple database
+backends. Provenance is information about how data was produced by database
+operations. That is, for a row in the database or returned by a query we capture
+from which rows it was derived and by which operations. The system compiles
+declarative queries with provenance requests into SQL code and executes this SQL
+code on a backend database system. GProM supports provenance capture for SQL
+queries and transactions, and produces provenance graphs explaining existing and
+missing answers for Datalog queries. Provenance is captured on demand by using a
+compilation technique called instrumentation. Instrumentation rewrites an SQL
+query (or past transaction) into a query that returns rows paired with their
+provenance. The output of the instrumentation process is a regular SQL query
+that can be executed using any standard relational database. The instrumented
+query generated from a provenance request returns a standard relation that maps
+rows to their provenance. Provenance for transactions is captured retroactively
+using a declarative replay technique called reenactment that we have developed
+at IIT. GProM extends multiple frontend languages (e.g., SQL and Datalog) with
+provenance requests and can produce code for multiple backends (currently
+Oracle). For information about the research behind GProM have a look at the IIT
+DBGroup's webpage: http://www.cs.iit.edu/~dbgroup/.
 
 INSTALLATION
 ========================================
@@ -22,104 +27,14 @@ INSTALLATION
 Short version:
 ====================
 
-
+./autogen.sh
 ./configure
 make
-make install
-
-Dependencies:
-	Oracle OCI library (http://en.wikipedia.org/wiki/Oracle_Call_Interface)
-	open source OCILIB library (http://orclib.sourceforge.net/)
-
-Use the following configure options to set library locations:
-
---with-oci=X		: set location of Oracle OCI library
---with-oci-lib=X  	: set location of Oracle OCI library shared library files
---with-oci-headers	: set location of Oracle OCI library header files
---with-ocilib		: set location of OCILIB library
---disable-logging   : disable logging
---disable-assert	: disable assertion checking
---disable-debug		: compile without debug symbols
---enable-perftools  : link against google perftools library
+sudo make install
 
 Long version:
 ====================
 
-1) Download Oracle Instantclient and install:
-	- http://www.oracle.com/technetwork/database/features/instant-client/index-097480.html
-	You need the basic, sdk, and sqlplus packages
-	- install and set up your environment (google for instructions for your OS)
-	- test by, e.g., running sqlplus to connect to a known Oracle instance
-2) Download and install OCILIB:
-	- Download from http://orclib.sourceforge.net/
-	- Download the pdf manual and follow the installation instructions. It's 
-	basically ./configure, make, make install, but you may have to tell 
-	configure about your OCI library location if it is non-standard:
-		--with-oracle-headers-path=X 
-		--with-oracle-lib-path=Y
-3) Configure, make, install
-	- run ./configure, use options if either OCI or OCILIB are installed in 
-	non-standard locations:
-           - to set OCI location:
-		--with-oci=X
-           - to set OCI library and header locations separately
-		--with-oci-lib=X
-		--with-oci-headers=X
-           - to set OCILIB location
-		--with-ocilib=X
-	- Check that the OCI and OCILIB libraries were found. You should see the
-	following lines in the configure output:
-		
-		checking for OCIInitialize in -lclntsh... yes
-		checking for OCIHandleFree in -locci... yes
-		checking for OCI_Cleanup in -locilib... yes 
-	
-	- run ./make
-	
-4) Run tests
-	- run ./test/testmain, use options described below to enable tests that 
-	require database access to connect to an Oracle instance (see TESTS). 
+For detailed instruction see the GProM wiki:
 
-TESTS
-========================================
-run ./test/testmain to execute a suite of tests. The tests accept the following
- options:
- 
-	-log		: activates logging
-	-loglevel X	: sets the loglevel to X, e.g., 3 = DEBUG
-	-host		: host name of the database server
-	-user		: user name for the database connection
-	-passwd		: password for the database connection
-	-db			: SID of the Oracle instance to connect to
-	-port X		: try to connect to the database on port X 
-
-For your convenience we provide a script ./test/testmain.sh that connects to a 
-default Oracle server.
-
-In addition the test folder contains several binaries for testing various parts
- of the system:
- 
-	-test/testparser	: run the parser on an SQL input and output the 
-						generated parse tree.
-	-test/testanalysis	: run parser and semantic analysis on SQL input. Output
-						both parse tree and the result of the analysis.
-	-test/testtranslate	: run parser, semantic analysis, and translation into 
-						internal query representation (similar to relational 
-						algebra).
-	-test/testserializer: same as translate, but serialize the internal query
-						representation back to SQL text.
-	-test/testrewrite	: before serialization into SQL code call provenance
-						rewriter.
-	-test/testpicsrewrite: rewrite by directly calling PI-CS rewrite method.
-
-All these binaries accept the same inputs as the testmain binary and in 
-addition support the following command line options.
-
-	-sql X 		: Use X as SQL input. If this option is not given the input is
-				read from stdin.
-	
-For example:
-
-./test/testparser -sql "SELECT * FROM R;" -log -loglevel 3			
-./test/testtranslate -host fourier.cs.iit.edu -db orcl -port 1521 -user X -passwd Y -sql "SELECT b FROM r;" -log -loglevel 3
-	 
+https://github.com/IITDBGroup/gprom/wiki/installation

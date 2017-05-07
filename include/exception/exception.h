@@ -31,11 +31,11 @@ NEW_ENUM_WITH_TO_STRING(ExceptionHandler,
 /*
  * Enum indicating severity of an exception
  */
-typedef enum ExceptionSeverity {
+NEW_ENUM_WITH_TO_STRING(ExceptionSeverity,
     SEVERITY_PANIC,
     SEVERITY_RECOVERABLE,
     SEVERITY_SIGSEGV
-} ExceptionSeverity;
+);
 
 // callback function for exception handling
 typedef ExceptionHandler (*GProMExceptionCallbackFunctionInternal) (const char *, const char *, int, ExceptionSeverity);
@@ -46,6 +46,7 @@ extern void registerSignalHandler(void);
 extern void deregisterSignalHandler(void);
 extern void processException(void);
 extern void storeExceptionInfo(ExceptionSeverity s, const char *message, const char *f, int l);
+extern char *currentExceptionToString(void);
 
 extern sigjmp_buf *exceptionBuf;
 

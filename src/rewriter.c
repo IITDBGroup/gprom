@@ -107,17 +107,38 @@ initBasicModules (void)
     return EXIT_SUCCESS;
 }
 
+#define CHOOSE_PLUGIN(_plugin,_method) \
+    do { \
+    	if ((pluginName = getStringOption(_plugin)) != NULL) \
+            _method(pluginName); \
+        else if (fe != NULL) \
+            _method(getFrontendPlugin(fe,_plugin)); \
+    	else if (be != NULL) \
+		    _method(getBackendPlugin(be, _plugin)); \
+        else \
+            FATAL_LOG("no backend is set and no " _plugin " provided either, e.g., use -backend BACKEND to set a backend"); \
+    } while (0);
+
+#define CHOOSE_BE_PLUGIN(_plugin,_method) \
+    do { \
+        if ((pluginName = getStringOption(_plugin)) != NULL) \
+            _method(pluginName); \
+        else if (be != NULL) \
+            _method(getBackendPlugin(be, _plugin)); \
+        else \
+            FATAL_LOG("no backend is set and no " _plugin " provided either, e.g., use -backend BACKEND to set a backend"); \
+    } while (0);
+
+
 void
 setupPluginsFromOptions(void)
 {
     char *be = getStringOption("backend");
+    char *fe = getStringOption("frontend");
     char *pluginName = be;
 
     // setup parser - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.parser")) != NULL)
-        chooseParserPluginFromString(pluginName);
-    else
-        chooseParserPluginFromString(be);
+    CHOOSE_PLUGIN(OPTION_PLUGIN_PARSER, chooseParserPluginFromString);
 
     // setup metadata lookup - individual option overrides backend option
     pluginName = getStringOption("plugin.metadata");
@@ -128,38 +149,26 @@ setupPluginsFromOptions(void)
     else
     {
         initMetadataLookupPlugins();
-        if (pluginName != NULL)
-            chooseMetadataLookupPluginFromString(pluginName);
-        else
-            chooseMetadataLookupPluginFromString(be);
+        CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA, chooseMetadataLookupPluginFromString);
         initMetadataLookupPlugin();
     }
 
     // setup analyzer - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.analyzer")) != NULL)
-        chooseAnalyzerPluginFromString(pluginName);
-    else
-        chooseAnalyzerPluginFromString(be);
+    CHOOSE_PLUGIN(OPTION_PLUGIN_ANALYZER, chooseAnalyzerPluginFromString);
 
     // setup analyzer - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.translator")) != NULL)
-        chooseTranslatorPluginFromString(pluginName);
-    else
-        chooseTranslatorPluginFromString(be);
+    CHOOSE_PLUGIN(OPTION_PLUGIN_TRANSLATOR, chooseTranslatorPluginFromString);
 
     // setup analyzer - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.sqlserializer")) != NULL)
-        chooseSqlserializerPluginFromString(pluginName);
-    else
-        chooseSqlserializerPluginFromString(be);
+    CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLSERIALIZER, chooseSqlserializerPluginFromString);
+    CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLCODEGEN, chooseSqlserializerPluginFromString);
+
     // setup analyzer - individual option overrides backend option
-    if ((pluginName = getStringOption("plugin.executor")) != NULL)
-        chooseExecutorPluginFromString(pluginName);
-    else
-        chooseExecutorPluginFromString("sql");
+    pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
+    chooseExecutorPluginFromString(pluginName);
 
     // setup cost-based optimizer
-    if ((pluginName = getStringOption("plugin.cbo")) != NULL)
+    if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
         chooseOptimizerPluginFromString(pluginName);
     else
         chooseOptimizerPluginFromString("exhaustive");
@@ -170,20 +179,17 @@ setupPlugin(const char *pluginType)
 {
     char *pluginName;
     char *be = getStringOption("backend");
+    char *fe = getStringOption("frontend");
 
-    if (streq(pluginType,"plugin.parser"))
+    if (streq(pluginType,OPTION_PLUGIN_PARSER))
     {
-        // setup parser - individual option overrides backend option
-        if ((pluginName = getStringOption("plugin.parser")) != NULL)
-            chooseParserPluginFromString(pluginName);
-        else
-            chooseParserPluginFromString(be);
+        CHOOSE_PLUGIN(OPTION_PLUGIN_PARSER, chooseParserPluginFromString);
     }
 
     // setup metadata lookup - individual option overrides backend option
-    if (streq(pluginType,"plugin.metadata"))
+    if (streq(pluginType,OPTION_PLUGIN_METADATA))
     {
-        pluginName = getStringOption("plugin.metadata");
+        pluginName = getStringOption(OPTION_PLUGIN_METADATA);
         if (strpeq(pluginName,"external"))
         {
             printf("\nPLUGIN******************************************\n\n");
@@ -191,54 +197,40 @@ setupPlugin(const char *pluginType)
         else
         {
             initMetadataLookupPlugins();//TODO not necessary
-            if (pluginName != NULL)
-                chooseMetadataLookupPluginFromString(pluginName);
-            else
-                chooseMetadataLookupPluginFromString(be);
+            CHOOSE_BE_PLUGIN(OPTION_PLUGIN_METADATA, chooseMetadataLookupPluginFromString);
             initMetadataLookupPlugin();
         }
     }
 
     // setup analyzer - individual option overrides backend option
-    if (streq(pluginType,"plugin.analyzer"))
+    if (streq(pluginType,OPTION_PLUGIN_ANALYZER))
     {
-        if ((pluginName = getStringOption("plugin.analyzer")) != NULL)
-            chooseAnalyzerPluginFromString(pluginName);
-        else
-            chooseAnalyzerPluginFromString(be);
+        CHOOSE_PLUGIN(OPTION_PLUGIN_ANALYZER, chooseAnalyzerPluginFromString);
     }
 
     // setup analyzer - individual option overrides backend option
-    if (streq(pluginType,"plugin.translator"))
+    if (streq(pluginType,OPTION_PLUGIN_TRANSLATOR))
     {
-        if ((pluginName = getStringOption("plugin.translator")) != NULL)
-            chooseTranslatorPluginFromString(pluginName);
-        else
-            chooseTranslatorPluginFromString(be);
+        CHOOSE_PLUGIN(OPTION_PLUGIN_TRANSLATOR, chooseTranslatorPluginFromString);
     }
 
     // setup  sql serializer - individual option overrides backend option
-    if (streq(pluginType,"plugin."))
+    if (streq(pluginType,OPTION_PLUGIN_SQLSERIALIZER))
     {
-        if ((pluginName = getStringOption("plugin.sqlserializer")) != NULL)
-            chooseSqlserializerPluginFromString(pluginName);
-        else
-            chooseSqlserializerPluginFromString(be);
+        CHOOSE_BE_PLUGIN(OPTION_PLUGIN_SQLSERIALIZER, chooseSqlserializerPluginFromString);
     }
 
     // setup executor
-    if (streq(pluginType,"plugin.executor"))
+    if (streq(pluginType,OPTION_PLUGIN_EXECUTOR))
     {
-        if ((pluginName = getStringOption("plugin.executor")) != NULL)
-            chooseExecutorPluginFromString(pluginName);
-        else
-            chooseExecutorPluginFromString("sql");
+        pluginName = getStringOption(OPTION_PLUGIN_EXECUTOR);
+        chooseExecutorPluginFromString(pluginName);
     }
 
     // setup cost-based optimizer
-    if (streq(pluginType,"plugin.cbo"))
+    if (streq(pluginType,OPTION_PLUGIN_CBO))
     {
-        if ((pluginName = getStringOption("plugin.cbo")) != NULL)
+        if ((pluginName = getStringOption(OPTION_PLUGIN_CBO)) != NULL)
             chooseOptimizerPluginFromString(pluginName);
         else
             chooseOptimizerPluginFromString("exhaustive");
@@ -355,6 +347,12 @@ char *
 rewriteQuery(char *input)
 {
     return rewriteQueryInternal(input, FALSE);
+}
+
+char *
+rewriteQueryWithRethrow(char *input)
+{
+    return rewriteQueryInternal(input, TRUE);
 }
 
 char *

@@ -41,4 +41,11 @@ autotests
 valgrind.txt
 src/command_line/gprom
 doc/gprom_man.html
-/test/testrpq
+.gprom
+scripts/.gitignore
+/Debug/
+test/test-suite.log
+test/testmain.log
+test/testmain.trs
+test/testrpq
+gprom-*.tar.gz

@@ -1,18 +1,26 @@
-<project name="GProMJDBC" default="generateDriverJar" basedir=".">
+<project 
+	name="GProMJDBC" 
+	default="generateDriverJar" 
+	basedir="."
+	xmlns:ivy="antlib:org.apache.ivy.ant"
+	>
 
 	<!-- task defs -->
 	<property name="antlibdir" value="${basedir}/ant" />
 	<import file="${antlibdir}/one-jar-ant-task.xml"/>   
-	<taskdef resource="net/sf/antcontrib/antcontrib.properties">
-	  <classpath>
-	    <pathelement location="${antlibdir}/ant-contrib.jar"/>
-	  </classpath>
-	</taskdef>
+	
+	<!-- Ivy -->
+    <property name="ivy.install.version" value="2.4.0" />
+    <condition property="ivy.home" value="${env.IVY_HOME}">
+      <isset property="env.IVY_HOME" />
+    </condition>
+    <property name="ivy.jar.dir" value="${antlibdir}" />
+    <property name="ivy.jar.file" value="${ivy.jar.dir}/ivy.jar" />
 	
 	<!-- do not add ant classpath to javac classpath -->
-	<presetdef name="javac">
+<!--	<presetdef name="javac">
 		<javac includeantruntime="false" />
-	</presetdef>
+	</presetdef> -->
 	
 	<!-- main directories -->
 	<property name="sourcedir" value="${basedir}/src/interfaces/jdbc/java" />
@@ -20,6 +28,7 @@
 	<property name="binarydir" value="${basedir}/javabin" />
 	<property name="builddir" value="${basedir}/jdbcbuild" />
 	<property name="librarydir" value="${basedir}/javalib" />
+	<property name="testlibrarydir" value="${basedir}/javatestlib" />
 	<property name="gpromJar.simple" value="${builddir}/gpromjdbc.jar" />
 	<property name="gpromJar.selfContained" value="${builddir}/gpromjdbc-all.jar" />
 
@@ -47,14 +56,91 @@
 		<os family="mac" />
 	</condition>
 	
-	<!-- classpath -->
-	<path id="classpath">
-		<fileset dir="${librarydir}"/>
-	</path>
+	<!-- TARGETS -->	
+	<!-- Ivy -->
+    <target name="download-ivy" unless="offline">
+        <mkdir dir="${ivy.jar.dir}"/>
+        <!-- download Ivy from web site so that it can be used even without any special installation -->
+        <get src="http://repo2.maven.org/maven2/org/apache/ivy/ivy/${ivy.install.version}/ivy-${ivy.install.version}.jar" 
+             dest="${ivy.jar.file}" usetimestamp="true"/>
+    </target>
+
+    <target name="init-ivy" depends="download-ivy">
+      <!-- try to load ivy here from ivy home, in case the user has not already dropped
+              it into ant's lib dir (note that the latter copy will always take precedence).
+              We will not fail as long as local lib dir exists (it may be empty) and
+              ivy is in at least one of ant's lib dir or the local lib dir. -->
+        <path id="ivy.lib.path">
+            <fileset dir="${ivy.jar.dir}" includes="*.jar"/>
+        </path>
+        <taskdef resource="org/apache/ivy/ant/antlib.xml"
+                 uri="antlib:org.apache.ivy.ant" classpathref="ivy.lib.path"/>
+    </target>
 	
+	<target name="download-dependencies" depends="init-ivy">
+<!--		 <ivy:settings file="${basedir}/ivysettings.xml"/>-->
+		 <ivy:resolve />
+		 <ivy:retrieve sync="false" type="jar" pattern="${librarydir}/[artifact].[ext]" />
+		 <!-- move to ant dir -->
+	     <move todir="${antlibdir}">
+			<fileset dir="${librarydir}">
+		      <include name="ant*.jar"/>
+		    </fileset>
+		</move>
+		<!-- move and copy to test library dir -->
+	     <move todir="${testlibrarydir}">
+			<fileset dir="${librarydir}">
+		      <include name="xerces*.jar"/>
+		      <include name="xml*.jar"/>
+		      <include name="slf4j*.jar"/>
+			  <include name="junit.jar" />
+		    </fileset>
+		</move>
+		<copy todir="${testlibrarydir}">
+			<fileset dir="${librarydir}">
+				<include name="log4j.jar"/>
+				<include name="postgresql.jar"/>
+				<include name="mysql-connector-java.jar"/>
+				<include name="junit.jar"/>
+				<include name="jna.jar"/>
+				<include name="stringtemplate.jar"/>
+			</fileset>
+		</copy>
+		<!-- classpath -->
+		<path id="classpath">
+			<fileset dir="${librarydir}"/>
+		</path>
+		<path id="testclasspath">
+			<fileset dir="${testlibrarydir}"/>
+		</path>
+		<pathconvert property="jarClasspath" pathsep="    ">
+			<path>
+				<fileset dir="${librarydir}">
+					<exclude name="ant*.jar" />
+					<exclude name="ivy.jar" />
+				</fileset>
+			</path>
+			<mapper>
+				<chainedmapper>
+					<flattenmapper/>
+					<globmapper from="*.jar" to="lib/*.jar" casesensitive="no"/>
+				</chainedmapper>
+			</mapper>
+		</pathconvert>
+		<property name="fullJarClasspath" value="${jarClasspath}   resource/    lib/" />
+		<echo message="${fullJarClasspath}" />
+	</target>
+
+	<target name="setup-additional-anttasks" depends="download-dependencies">
+		<taskdef resource="net/sf/antcontrib/antcontrib.properties">
+		  <classpath>
+		    <pathelement location="${antlibdir}/ant-contrib.jar"/>
+		  </classpath>
+		</taskdef>
+	</target>
 	
-	<!-- targets -->
-	<target name="handleOS">
+	<!-- check OS type -->
+	<target name="handleOS" depends="setup-additional-anttasks">
 		<if>
 	        <equals arg1="${isMac}" arg2="true" />
 	        <then>
@@ -75,6 +161,7 @@
 		</if>
     </target>
 	
+	<!-- build targets -->
 	<target name="clean" depends="handleOS">
 		<mkdir dir="${binarydir}" />
 		<mkdir dir="${binarydir}/darwin" />
@@ -97,9 +184,21 @@
 		</copy>
 		<copy file="${gpromlib}" tofile="${gpromlib.bin}" />
 		<copy file="${conffile}" tofile="${binarydir}/GPRoMDriver.properties" />
-		<javac srcdir="${sourcedir}" destdir="${binarydir}"  debug="on">
+		<javac srcdir="${sourcedir}" 
+				destdir="${binarydir}"  
+				debug="on" 
+			    fork="true" 
+			    includeantruntime="false"
+				verbose="true">
 			<classpath refid="classpath"/>
 			<compilerarg value="-Xlint:unchecked" />		
+		</javac>
+	</target>
+	
+	<target name="compileTests" depends="compile">
+		<javac srcdir="${testsourcedir}" destdir="${binarydir}" debug="on" fork="true" includeantruntime="false" verbose="true">
+			<classpath refid="testclasspath"/>
+			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
 	
@@ -109,13 +208,7 @@
 		<jar destfile="${gpromJar.simple}" basedir="${binarydir}">
 		 	<manifest>
 				<attribute name="Created-By" value="Illinois Institute of Technology, Department for Computer Science, DBGroup" />
-				<attribute name="Class-Path" value="
-								lib/hsqldb.jar
-								lib/postgresql-8.1-404.jdbc3.jar
-								lib/log4j-1.2.15.jar
-								lib/servlet.jar
-								lib/
-							" />
+				<attribute name="Class-Path" value="${fullJarClasspath}" />
 			</manifest>
 		</jar>
 	</target>
@@ -130,14 +223,7 @@
                 <attribute name="One-Jar-Expand-Dir" value="./.expand"/>
                 <attribute name="One-Jar-Show-Expand" value="true"/> -->
             	<attribute name="One-Jar-Main-Class" value="org.gprom.jdbc.test.GProMJDBCTest" />
-            	<attribute name="Class-Path" value="
-            									lib/postgresql-8.1-404.jdbc3.jar
-            									lib/log4j-1.2.15.jar
-            									lib/jna-4.1.0.jar
-            									lib/ojdbc7.jar
-            									lib/sqlist-jdbc-3.8.10.1.jar
-            									lib/
-            								" />
+            	<attribute name="Class-Path" value="${fullJarClasspath}" />
             </manifest>
             <main>
                 <fileset dir="${binarydir}/"/>

@@ -90,7 +90,7 @@ chooseMetadataLookupPlugin (MetadataLookupPluginType plugin)
             return;
         }
     }
-    FATAL_LOG("did not find plugin");
+    FATAL_LOG("did not find plugin <%s>", MetadataLookupPluginTypeToString(plugin));
 }
 
 void
@@ -110,7 +110,7 @@ stringToPluginType(char *type)
     if (strcmp(type, "postgres") == 0)
         return METADATA_LOOKUP_PLUGIN_POSTGRES;
     if (strcmp(type, "sqlite") == 0)
-            return METADATA_LOOKUP_PLUGIN_SQLITE;
+        return METADATA_LOOKUP_PLUGIN_SQLITE;
     if (strcmp(type, "external") == 0)
         return METADATA_LOOKUP_PLUGIN_EXTERNAL;
     FATAL_LOG("unkown plugin type <%s>", type);
@@ -131,7 +131,7 @@ pluginTypeToString(MetadataLookupPluginType type)
     case METADATA_LOOKUP_PLUGIN_EXTERNAL:
         return "external";
     }
-    THROW(SEVERITY_RECOVERABLE, "unkown plugin type %u", type);
+    THROW(SEVERITY_RECOVERABLE, "unkown plugin type <%u>", type);
     return NULL; //keep compiler quiet
 }
 

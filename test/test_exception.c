@@ -14,7 +14,6 @@
 #include "exception/exception.h"
 #include "test_main.h"
 #include "rewriter.h"
-#include "libgprom/libgprom.h"
 
 static ExceptionHandler handleE (const char *message, const char *file, int line, ExceptionSeverity s);
 static int hitCallback = 0;
@@ -116,21 +115,6 @@ testCatching(void)
     ASSERT_EQUALS_INT(1,hitCallback, "exception handler was called once");
     ASSERT_EQUALS_STRING("", result, "empty string result");
     ASSERT_EQUALS_STRINGP(cur->contextName, after->contextName, "back to context before exception");
-
-    // try the same with libgprom
-    hitCallback = 0;
-    gprom_init();
-    gprom_configFromOptions();
-    gprom_registerExceptionCallbackFunction((GProMExceptionCallbackFunction) handleE);
-
-    result = (char *) gprom_rewriteQuery("SELECT * FRO R;");
-    after = getCurMemContext();
-
-    ASSERT_EQUALS_INT(1,hitCallback, "exception handler was called once");
-    ASSERT_EQUALS_STRING("", result, "empty string result");
-    ASSERT_EQUALS_STRINGP(cur->contextName, after->contextName, "back to context before exception");
-
-    gprom_shutdown();
 
     return PASS;
 }

@@ -36,6 +36,7 @@ static void analyzeCreateTable (CreateTable *c);
 static void analyzeAlterTable (AlterTable *a);
 
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
+static void analyzeWhere (QueryBlock *qb, List *parentFroms);
 
 // search for attributes and other relevant node types
 static void adaptAttrPosOffset(FromItem *f, FromItem *decendent, AttributeReference *a);
@@ -337,6 +338,10 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     // find nested subqueries and analyze them
     analyzeNestedSubqueries(qb, parentFroms);
     DEBUG_LOG("Analyzed nested subqueries");
+
+    // analyze where clause if exists
+    if (qb->whereClause != NULL)
+        analyzeWhere(qb, parentFroms);
 
     INFO_LOG("Analysis done");
 }
@@ -843,6 +848,17 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
             (List *) copyObject(left->dataTypes));
 
     DEBUG_NODE_BEATIFY_LOG("join analysis:", j);
+}
+
+static void
+analyzeWhere (QueryBlock *qb, List *parentFroms)
+{
+    DataType returnType = typeOf(qb->whereClause);
+
+    if (returnType != DT_BOOL)
+        THROW(SEVERITY_RECOVERABLE,
+                "WHERE clause result type should be DT_BOOL, but was %s:\n<%s>",
+                DataTypeToString(returnType), nodeToString(qb->whereClause));
 }
 
 static void

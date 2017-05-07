@@ -1,7 +1,5 @@
 package org.gprom.jdbc.driver;
 
-import java.io.IOException;
-import java.net.URL;
 import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
@@ -14,20 +12,18 @@ import org.apache.log4j.Logger;
 import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
-
-import static org.gprom.jdbc.driver.GProMDriverProperties.*;
-
-import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin;
+import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.metadata_lookup.oracle.OracleMetadataLookup;
 import org.gprom.jdbc.metadata_lookup.postgres.PostgresMetadataLookup;
+import org.gprom.jdbc.metadata_lookup.sqlite.SQLiteMetadataLookup;
 import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 /**
  * GProMDriver extends the SQL driver for adding a perm assistance
  * 
- * @author lorpretzel
+ * @author lordpretzel
  * 
  */
 public class GProMDriver implements Driver {
@@ -103,9 +99,7 @@ public class GProMDriver implements Driver {
 			
 			// create a jdbc connection to the backend.
 			log.info("trying to connect to: " + backendURL);
-			Thread.sleep(3000);
 			backendConnection = driver.connect(backendURL, info);
-			Thread.sleep(3000);
 			if (backendConnection == null)
 				throw new Exception("was unable to create connection: " + backendURL);
 			log.info("created connection object: " + backendURL);
@@ -143,6 +137,8 @@ public class GProMDriver implements Driver {
 			return new OracleMetadataLookup(con).getPlugin();
 		case Postgres:
 			return new PostgresMetadataLookup(con).getPlugin();
+		case SQLite:
+			return new SQLiteMetadataLookup(con).getPlugin();
 		default:
 			throw new SQLException("no JDBC metadata lookup for Backend " + backend.toString());
 		}
@@ -174,11 +170,16 @@ public class GProMDriver implements Driver {
 				passwd = userOpts.getProperty("password");	
 		}
 		
-		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Database, db);
-		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Host, host);
-		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.User, user);
-		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Password, passwd);
-		GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Port, port);
+		if (db != null)
+			GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Database, db);
+		if (host != null)
+			GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Host, host);
+		if (user != null)
+			GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.User, user);
+		if (passwd != null)
+			GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Password, passwd);
+		if (port != null)
+			GProMWrapper.inst.setConnectionOption(opts, ConnectionParam.Port, port);
 	}
 
 	public DriverPropertyInfo[] getPropertyInfo(String url, Properties info)

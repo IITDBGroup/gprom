@@ -1,0 +1,1 @@
+XwithYnotZ(X,Y) :- hop(X,Y), not Q(X). Q(X) :- hop(X,'a'). WHYNOT(XwithYnotZ('c','b')) FORMAT REDUCED_GP.

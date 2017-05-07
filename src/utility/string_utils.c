@@ -46,6 +46,34 @@ getMatchingSubstring(const char *string, const char *pattern)
     return result;
 }
 
+char *
+getFullMatchingSubstring(const char *string, const char *pattern)
+{
+    char *result;
+    regex_t p;
+    const int n_matches = 2;
+    regmatch_t m[n_matches];
+    int matchRes;
+    int length;
+
+    // compile
+    regcomp(&p, pattern, REG_EXTENDED);
+
+    // match
+    matchRes = regexec (&p, string, n_matches, m, 0);
+    ASSERT(matchRes == 0);
+
+    // return substring
+    length = m[0].rm_eo - m[0].rm_so;
+    result = MALLOC(length + 1);
+    memcpy(result, string + m[0].rm_so, length);
+    result[length] = '\0';
+
+    TRACE_LOG("matched <%s> string <%s> with result <%s>", pattern, string, result);
+
+    return result;
+}
+
 List *
 splitString(char *str, const char *delim)
 {

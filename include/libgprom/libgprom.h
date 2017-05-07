@@ -57,6 +57,7 @@ extern double gprom_getFloatOption (const char *name);
 extern const char *gprom_getOptionType(const char *name);
 extern boolean gprom_optionExists(const char *name);
 
+extern void gprom_setOption(const char *name, const char *value);
 extern void gprom_setStringOption (const char *name, const char *value);
 extern void gprom_setIntOption(const char *name, int value);
 extern void gprom_setBoolOption(const char *name, boolean value);

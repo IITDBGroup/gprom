@@ -53,11 +53,15 @@ static Node *mergeSameResultCase (Node *node, void *state);
  *          - Note: can appear after repeated application of 1) or 2)
  *      4) CASE WHEN C1 THEN f(CASE WHEN C1 THEN X ELSE Y END, Z) ELSE U END
  *          - Conditions:
- *          - Rewrite: CASE WHEN C1 THEN f(X,Z) ELSE U END
+ *          - Rewrite: CASE WHEN C1 THEN f(X) ELSE U END
  *      5) CASE WHEN C1 THEN X ELSE (CASE WHEN C2 THEN X ELSE Y END) END
  *          - Conditions: X does not mention an attribute that C1 or C2 mentions
  *          - Rewrite: CASE WHEN (C1 OR C2) THEN X ELSE Y END
  *          - Method: mergeSameResultCase
+ *      6) CASE WHEN C1 THEN X ELSE (CASE WHEN C2 THEN Y ELSE Z END) END
+ *          - Conditions: C1
+ *
+ *
  */
 QueryOperator *
 projectionFactorAttrReferences(ProjectionOperator *op)

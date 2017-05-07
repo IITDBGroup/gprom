@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
 import org.gprom.jdbc.metadata_lookup.oracle.OracleMetadataLookup;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -34,7 +33,6 @@ public class TestOracleMetadataLookup {
 	
 	@BeforeClass
 	public static void setup () throws SQLException, ClassNotFoundException {
-		PropertyConfigurator.configure("javalib/log4j.properties");
 		String username = "fga_user";
 		String password = "fga";
 		String host = "ligeti.cs.iit.edu";

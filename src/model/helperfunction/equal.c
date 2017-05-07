@@ -105,6 +105,7 @@ static boolean equalDLVar (DLVar *a, DLVar *b, HashMap *seenOps, MemContext *c);
 static boolean equalDLRule (DLRule *a, DLRule *b, HashMap *seenOps, MemContext *c);
 static boolean equalDLProgram (DLProgram *a, DLProgram *b, HashMap *seenOps, MemContext *c);
 static boolean equalDLComparison (DLComparison *a, DLComparison *b, HashMap *seenOps, MemContext *c);
+static boolean equalDLDomain (DLDomain *a, DLDomain *b, HashMap *seenOps, MemContext *c);
 
 // equal functions for regex model
 static boolean equalRegex (Regex *a, Regex *b, HashMap *seenOps, MemContext *c);
@@ -189,6 +190,7 @@ equalDLProgram (DLProgram *a, DLProgram *b, HashMap *seenOps, MemContext *c)
     COMPARE_NODE_FIELD(rules);
     COMPARE_NODE_FIELD(facts);
     COMPARE_STRING_FIELD(ans);
+    COMPARE_NODE_FIELD(doms);
     COMPARE_NODE_FIELD(n.properties);
 
     return TRUE;
@@ -198,6 +200,17 @@ static boolean
 equalDLComparison (DLComparison *a, DLComparison *b, HashMap *seenOps, MemContext *c)
 {
     COMPARE_NODE_FIELD(opExpr);
+    COMPARE_NODE_FIELD(n.properties);
+
+    return TRUE;
+}
+
+static boolean
+equalDLDomain (DLDomain *a, DLDomain *b, HashMap *seenOps, MemContext *c)
+{
+	COMPARE_STRING_FIELD(rel);
+	COMPARE_STRING_FIELD(attr);
+	COMPARE_STRING_FIELD(name);
     COMPARE_NODE_FIELD(n.properties);
 
     return TRUE;
@@ -1272,6 +1285,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
             break;
         case T_DLComparison:
             retval = equalDLComparison(a,b, seenOps, c);
+            break;
+        case T_DLDomain:
+            retval = equalDLDomain(a,b, seenOps, c);
             break;
         case T_Regex:
             retval = equalRegex(a,b, seenOps, c);

@@ -4,6 +4,7 @@
 	
 	<!-- ant defs -->
 	<property name="antlibdir" value="${projectroot}/ant" />
+	
 	<taskdef resource="net/sf/antcontrib/antcontrib.properties">
 	  <classpath>
 	    <pathelement location="${antlibdir}/ant-contrib.jar"/>
@@ -19,18 +20,25 @@
 	<property name="testbinarydir" value="${binarydir}/org/gprom/jdbc/test/autotests" />	
 	<property name="librarydir" value="${projectroot}/javatestlib" />
 	<property name="mainlibrarydir" value="${projectroot}/javalib" />
+	<property name="antlibrarydir" value="${projectroot}/ant" />
 	<property name="resourcedir" value="${projectroot}/blackboxtests"/>
+	<property name="testcasedir" value="${resourcedir}/testcases"/>
 	<property name="builddir" value="${projectroot}/build"/>
 	<property name="generatorjar" value="${librarydir}/gprom-test-gen.jar" />
 	<property name="buildjar" value="${builddir}/gprom-jdbc-test.jar" />
 	
 	<!-- settings -->
 	<property name="permserver.options" value="--debug_print_rewritten=off --log_error_verbosity=terse --log_min_messages=error --client_min_messages=error --log_directory=${basedir}"/>
-	<property name="TestName" value="AllTestsOptions" />
+	<property name="TestName" value="AllTests_1" />
 	
 	<path id="libraries">
-		<fileset dir="${librarydir}" /> 
-		<fileset dir="${mainlibrarydir}" /> 
+		<fileset dir="${librarydir}">
+			<include name="**/*.jar" />
+		</fileset>
+		<fileset dir="${mainlibrarydir}">
+			<include name="**/*.jar" />
+		</fileset>
+		<fileset dir="${antlibrarydir}" />
 		<fileset dir="${ant.library.dir}">
 			<include name="**/*.jar" />
 		</fileset>
@@ -39,10 +47,23 @@
 	<path id="createTestsClasspath">
 		<path refid="libraries" />
 		<pathelement path="${resourcedir}" />
+		<fileset dir="${mainlibrarydir}" />
+		<fileset dir="${antlibrarydir}" />
+		<pathelement path="${binarydir}" />
+		<fileset dir="${ant.library.dir}">
+			<include name="**/*.jar" />
+		</fileset>
 	</path>
 	
 	<path id="runTestsClasspath">
-		<path refid="libraries" />
+		<fileset dir="${librarydir}">
+			<include name="**/*.jar" />
+		</fileset>
+		<fileset dir="${mainlibrarydir}">
+			<include name="**/*.jar" />
+		</fileset>
+		<pathelement path="${mainlibrarydir}" />
+		<pathelement path="${resourcedir}" />
 		<pathelement path="${binarydir}"/>
 	</path>
 	
@@ -124,7 +145,7 @@
 		        cache="depcache"
 		        closure="yes"/>
 		<javac srcdir="${sourcedir}" destdir="${binarydir}" classpathref="libraries" 
-			debug="on" excludes="**/.svn*">
+			debug="on" excludes="**/.svn*" fork="true" includeantruntime="false">
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
@@ -139,10 +160,16 @@
 	</target>
 	
 	<target name="genTests" depends="jarGenerator">
-		<java classname="org.gprom.jdbc.test.testgenerator.TestGenerator" classpathref="createTestsClasspath">
+		<java 
+			classname="org.gprom.jdbc.test.testgenerator.TestGenerator" 
+			classpathref="createTestsClasspath"
+			fork="true" 
+			dir="${basedir}"
+		>
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" 
 				value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
 			<sysproperty key="generator.resourcedir" value="${resourcedir}" />
+			<sysproperty key="generator.testcasedir" value="${testcasedir}" />
 			<sysproperty key="generator.sourcedir" value="${testsourcedir}" />
 			<sysproperty key="generator.package" value="${packageName}" />
 		</java>
@@ -154,7 +181,7 @@
 		        cache="depcache"
 		        closure="yes"/>
 		<javac srcdir="${testsourcedir}" destdir="${binarydir}" classpathref="runTestsClasspath" 
-			debug="on">
+			debug="on" fork="true" includeantruntime="false">
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
@@ -219,12 +246,31 @@
 		<antcall target="killPermServer"/>
 	</target>
 	
-	<target name="runTests">
-		<junit printsummary="on" haltonfailure="false">
+	<target name="runTests" depends="compileTests">
+		<junit printsummary="withOutAndErr" haltonfailure="true" haltonerror="true" showoutput="true" enableTestListenerEvents="true" fork="true">
 			<classpath refid="runTestsClasspath"/>
-			<test name="org.perm.autotests.${TestName}" haltonfailure="false" />
+			<test name="org.gprom.jdbc.test.junit.GProMAllTests" haltonfailure="false" />
+			<test name="org.gprom.jdbc.test.autotests.${TestName}" haltonfailure="false" />
+			<formatter type="brief" usefile="false" />
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
+			<sysproperty key="log4j.configuration" value="log4jtest.properties" />
 		</junit>
 	</target>
-		
+
+	<target name="runSimpleTestsOnly">
+<!--		<pathconvert property="testtest" pathsep="    ">
+					<path refid="runTestsClasspath">
+					</path>
+		</pathconvert>
+		<echo message="${testtest}" /> -->
+		<junit printsummary="withOutAndErr" haltonfailure="false" showoutput="true" enableTestListenerEvents="true" fork="true">
+			<classpath refid="runTestsClasspath"/>
+			<test name="org.gprom.jdbc.test.junit.GProMAllTests" haltonfailure="false" />
+			<formatter type="brief" usefile="false" />
+			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
+			<sysproperty key="log4j.configuration" value="log4jtest.properties" />
+		</junit>
+	</target>
+
+	
 </project>

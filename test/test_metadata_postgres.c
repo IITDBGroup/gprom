@@ -41,7 +41,7 @@ static rc testDatabaseConnectionClose(void);
 rc
 testMetadataLookupPostgres(void)
 {
-    if (streq(getStringOption("backend"),"postgres"))
+    if (strpeq(getStringOption("backend"),"postgres"))
     {
         RUN_TEST(setupMetadataLookup(),"setup tables");
         RUN_TEST(testCatalogTableExists(), "test catalog table exists");

@@ -1,0 +1,1 @@
+only3hop(X,Y) :- DBLP_1M(X,A), DBLP_1M(A,B), DBLP_1M(B,Y), not hop1(X), not hop2(X). hop1(X) :- DBLP_1M(X,'Paul Erdoes). hop2(X) :- DBLP_1M(X,A), DBLP_1M(A,'Paul Erdoes'). WHY(only3hop('Alex Benton','Paul Erdoes')) FORMAT REDUCED_GP. ANS:only3hop.

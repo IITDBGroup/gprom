@@ -1402,7 +1402,7 @@ oracleDatabaseConnectionClose()
 	if(context==NULL)
 	{
 		ERROR_LOG("Metadata context already freed.");
-		return EXIT_FAILURE;
+		return EXIT_SUCCESS;
 	}
 	else
 	{

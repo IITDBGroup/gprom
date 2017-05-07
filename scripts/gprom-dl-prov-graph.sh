@@ -7,7 +7,11 @@ DIR=$(pwd -L)
 popd > /dev/null
 # GProM script
 GPROM_SCRIPT=${DIR}/gprom-pass-query.sh
-
+CONF_FILE=.gprom
+GPROM_CONF=${DIR}/../${CONF_FILE}
+########################################
+# READ USER CONFIGUATION
+source ${DIR}/gprom_basic.sh
 ########################################
 # PARAMETERS
 PROGRAM="${1}"
@@ -24,15 +28,26 @@ fi
 
 ########################################
 # RUN COMMAND
-
+##########
 echo "-- compute edge relation of provenance graph"
-${GPROM_SCRIPT} 0 "${1}" -Pparser dl -Panalyzer dl -Ptranslator dl -Pexecutor gp -Cattr_reference_consistency FALSE -Cunique_attr_names FALSE -Cschema_consistency FALSE ${*:3} > ${DOTFILE}
-#-activate optimize_operator_model  -Oremove_redundant_projections FALSE -Oselections_move_around FALSE 
-
+${GPROM_SCRIPT} 0 "${1}" ${GPROM_DL_PLUGINS} -Pexecutor gp -Cattr_reference_consistency FALSE -Cunique_attr_names FALSE -Cschema_consistency FALSE ${*:3} > ${DOTFILE}
+##########
 echo "-- run graphviz on ${DOTFILE} to produce PDF file ${PDFFILE}"
 dot -Tpdf -o ${PDFFILE} ${DOTFILE}
 
-echo "-- if running on a mac open the pdf file"
-if [[ $OSTYPE == darwin* ]]; then 
+##########
+echo "-- open the pdf file"
+if [[ $OSTYPE == darwin* ]]; then
+	echo "    - on a mac use open"
 	open ${PDFFILE}
+else
+	for $P in $LINUX_PDFPROGS; do
+		if checkProgram $P;
+		then
+			$P ${PDFFILE} > /dev/null 2>&1 &
+			exit 0
+		fi
+		echo "    - apparently you do not have ${P}"
+	done
+	echo "did not find a pdf viewer, please open ${PDFFILE} manually"
 fi

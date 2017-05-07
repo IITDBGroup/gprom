@@ -1,0 +1,69 @@
+digraph
+{
+	rankdir="TB"
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+RULE_0_LOST_a_c_b_ [label="r0 (a,c,b)", texlbl="$r_0(a,c,b)$"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#CBFFCB"]
+GOAL_0_1_WON_b_c_ [label="g[0,1](b,c)", texlbl="$g_{0}^{1}(b,c)$"]
+GOAL_0_2_WON_a_c_ [label="g[0,2](a,c)", texlbl="$g_{0}^{2}(a,c)$"]
+GOAL_0_0_WON_a_b_ [label="g[0,0](a,b)", texlbl="$g_{0}^{0}(a,b)$"]
+
+
+	node [shape="box", style="rounded,filled", color=black, fillcolor="#FF8383"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+REL_ONLY2HOP_WON_a_c_ [label="ONLY2HOP(a,c)", texlbl="$ONLY2HOP(a,c)$"]
+REL_HOP_WON_b_c_ [label="HOP(b,c)", texlbl="$HOP(b,c)$"]
+REL_HOP_WON_a_b_ [label="HOP(a,b)", texlbl="$HOP(a,b)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+REL_HOP_LOST_a_c_ [label="HOP(a,c)", texlbl="$HOP(a,c)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+notREL_HOP_LOST_a_b_ [label="not HOP(a,b)", texlbl="$\neg HOP(a,b)$"]
+notREL_HOP_LOST_b_c_ [label="not HOP(b,c)", texlbl="$\neg HOP(b,c)$"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="box", style=filled, color=black, fillcolor="#FF8383"]
+EDB_rHOP_LOST_b_c_ [label="rHOP(b,c)", texlbl="$rHOP(b,c)$"]
+EDB_rHOP_LOST_a_b_ [label="rHOP(a,b)", texlbl="$rHOP(a,b)$"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#CBFFCB"]
+
+
+	node [shape="ellipse", style=filled, color=black, fillcolor="#FF8383"]
+
+
+	node [shape="point"]
+
+
+	node [shape="square", width=0.011, height=0.011, fillcolor=black]
+	REL_ONLY2HOP_WON_a_c_ -> RULE_0_LOST_a_c_b_
+	REL_HOP_WON_b_c_ -> EDB_rHOP_LOST_b_c_
+	notREL_HOP_LOST_a_b_ -> REL_HOP_WON_a_b_
+	GOAL_0_1_WON_b_c_ -> notREL_HOP_LOST_b_c_
+	notREL_HOP_LOST_b_c_ -> REL_HOP_WON_b_c_
+	GOAL_0_2_WON_a_c_ -> REL_HOP_LOST_a_c_
+	RULE_0_LOST_a_c_b_ -> GOAL_0_2_WON_a_c_
+	REL_HOP_WON_a_b_ -> EDB_rHOP_LOST_a_b_
+	GOAL_0_0_WON_a_b_ -> notREL_HOP_LOST_a_b_
+	RULE_0_LOST_a_c_b_ -> GOAL_0_1_WON_b_c_
+	RULE_0_LOST_a_c_b_ -> GOAL_0_0_WON_a_b_
+
+}
