@@ -146,8 +146,8 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
             //semiring comb operations
             if(isCombinerActivated){
-            	INFO_LOG(sc_func);
-            	INFO_LOG(nodeToString(sc_expr));
+            	//INFO_LOG(sc_func);
+            	//INFO_LOG(nodeToString(sc_expr));
             	result = addSemiringCombiner(result,sc_func,sc_expr);
             	INFO_OP_LOG("Add semiring combiner:", result);
             }

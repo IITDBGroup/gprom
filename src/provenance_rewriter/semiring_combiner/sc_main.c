@@ -122,11 +122,9 @@ QueryOperator * addSemiringCombiner(QueryOperator * result, char * funcN, Node *
 	List *attrNames = getNormalAttrNames((QueryOperator *)result);
 	List *projExprs = getNormalAttrProjectionExprs((QueryOperator *)result);
 	List *provExprs = getProvAttrProjectionExprs((QueryOperator *)result);
-	INFO_LOG("creating expression tree:");
 	Node *expre = NULL;
 	char *opN = ((Operator *)expr)->name;
 	Node *singExpr = (Node *)getNthOfListP(((Operator *)expr)->args,0);
-	INFO_LOG("creating expression tree:");
 	FOREACH(Node,nd,provExprs) {
 		if(!expre)
 			expre = deepReplaceAttrRef((Node *)copyObject(singExpr),nd);
@@ -160,5 +158,8 @@ QueryOperator * addSemiringCombiner(QueryOperator * result, char * funcN, Node *
 	return result;
 }
 
-
-
+extern void addSCOptionToChild(QueryOperator *op, QueryOperator *to) {
+	if(HAS_STRING_PROP(op,PROP_PC_SC_AGGR_OPT)){
+		SET_STRING_PROP(to, PROP_PC_SC_AGGR_OPT, GET_STRING_PROP(op,PROP_PC_SC_AGGR_OPT));
+	}
+}
