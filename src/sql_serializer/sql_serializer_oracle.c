@@ -817,9 +817,20 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         }
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
         *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-        appendStringInfo(from, "(%s%s F%u)",
-                quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
-                (*curFromItem)++);
+
+        if(streq(t->tableName,"TNTAB_EMPHIST_100K"))
+        {
+        	appendStringInfo(from, "(%s%s F%u)",
+        			"(SELECT ROWNUM N from DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((temp_view_0) F0)))", asOf ? asOf : "",
+        					(*curFromItem)++);
+        	//appendStringInfo(from, "_test");
+        }
+        else
+        {
+        	appendStringInfo(from, "(%s%s F%u)",
+        			quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
+        					(*curFromItem)++);
+        }
     }
 }
 
@@ -1079,8 +1090,8 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             case T_TableAccessOperator:
             {
             	TableAccessOperator *t = (TableAccessOperator *) q;
-                serializeTableAccess(from, t, curFromItem, fromAttrs,
-                        attrOffset);
+            	serializeTableAccess(from, t, curFromItem, fromAttrs,
+            			attrOffset);
             }
             break;
             // A constant relation, turn into (SELECT ... FROM dual) subquery

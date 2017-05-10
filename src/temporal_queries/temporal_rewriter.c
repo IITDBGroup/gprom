@@ -364,7 +364,6 @@ tempRewrSetOperator (SetOperator *o)
             break;
     }
 
-
     setTempAttrProps((QueryOperator *) o);
 
     return (QueryOperator *) o;
@@ -855,6 +854,37 @@ addCoalesce (QueryOperator *input)
     SelectionOperator *t5 = createSelectionOp(t5Cond, t5ProjOp, NIL, deepCopyStringList(t5ProjNames));
     t5ProjOp->parents = singleton(t5);
 
+    QueryOperator *t5Op = (QueryOperator *)t5;
+
+    //additional projection
+    List *top1Refs = NIL;
+    int top1Count = 0;
+    List *top1Names = deepCopyStringList(getAttrNames(t5Op->schema));
+    FOREACH(AttributeDef, ad, t5Op->schema->attrDefs)
+    {
+        AttributeReference *top1Ref = createFullAttrReference(strdup(ad->attrName), 0, top1Count, INVALID_ATTR, ad->dataType);
+        top1Refs = appendToTailOfList(top1Refs,top1Ref);
+        top1Count ++;
+    }
+    ProjectionOperator *top1 = createProjectionOp(top1Refs, t5Op, NIL, top1Names);
+    t5Op->parents = singleton(top1);
+    QueryOperator *top1Op = (QueryOperator *) top1;
+
+    //additional projection
+    List *top2Refs = NIL;
+    int top2Count = 0;
+    List *top2Names = deepCopyStringList(getAttrNames(top1Op->schema));
+    FOREACH(AttributeDef, ad, top1Op->schema->attrDefs)
+    {
+        AttributeReference *top2Ref = createFullAttrReference(strdup(ad->attrName), 0, top2Count, INVALID_ATTR, ad->dataType);
+        top2Refs = appendToTailOfList(top2Refs,top2Ref);
+        top2Count ++;
+    }
+    ProjectionOperator *top2 = createProjectionOp(top2Refs, top1Op, NIL, top2Names);
+    top1Op->parents = singleton(top2);
+    QueryOperator *top2Op = (QueryOperator *) top2;
+
+
     //-----------------------------------------------------------------------------------------------------------------
     //TNTAB AS (SELECT rownum n from dual connect by level <= (SELECT max(numOpen) FROM T5))
 	TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
@@ -866,11 +896,11 @@ addCoalesce (QueryOperator *input)
     //Construct T6:    SELECT TSTART, TEND, SALARY FROM T5, TNTAB WHERE T5.numOpen <= n
 
 	//join cond = numOpen <= N (SALARY DIFFFOLLOWING DIFFPREVIOUS NUMOPEN T_B T_E N)
-    QueryOperator *t5Op = (QueryOperator *)t5;
     QueryOperator *TNTABOp = (QueryOperator *)TNTAB;
+    //QueryOperator *top1Op = (QueryOperator *)t5Op;
 
     //cond
-	AttributeReference *t6CondRef1 = createAttrsRefByName(t5Op, "NUMOPEN");
+	AttributeReference *t6CondRef1 = createAttrsRefByName(top2Op, "NUMOPEN");
 	AttributeReference *t6CondRef2 = createAttrsRefByName(TNTABOp, "N");
 	t6CondRef2->fromClauseItem = 1;
 	Operator *t6JoinCond = createOpExpr("<=", LIST_MAKE(t6CondRef1,t6CondRef2));
@@ -878,8 +908,8 @@ addCoalesce (QueryOperator *input)
     List *t6JoinNames = deepCopyStringList(t5ProjNames);
     t6JoinNames = appendToTailOfList(t6JoinNames, "N");
 
-    JoinOperator *t6Join = createJoinOp(JOIN_INNER,(Node *) t6JoinCond, LIST_MAKE(t5, TNTAB), NIL, t6JoinNames);
-    t5Op->parents = singleton(t6Join);
+    JoinOperator *t6Join = createJoinOp(JOIN_INNER,(Node *) t6JoinCond, LIST_MAKE(top2, TNTAB), NIL, t6JoinNames);
+    top2Op->parents = singleton(t6Join);
     TNTABOp->parents = singleton(t6Join);
 
     //Top projection SELECT SALARY,T_B, T_E
@@ -907,6 +937,22 @@ addCoalesce (QueryOperator *input)
     ProjectionOperator *top = createProjectionOp(t6ProjExpr, t6JoinOp, NIL, t6ProjNames);
     t6JoinOp->parents = singleton(top);
 
+
+    QueryOperator *topOp = (QueryOperator *) top;
+  	//---------------------------------------------------------------------------------------
+    //additional projection
+//    List *top1Refs = NIL;
+//    int top1Count = 0;
+//    List *top1Names = deepCopyStringList(getAttrNames(topOp->schema));
+//    FOREACH(AttributeDef, ad, topOp->schema->attrDefs)
+//    {
+//        AttributeReference *top1Ref = createFullAttrReference(strdup(ad->attrName), 0, top1Count, INVALID_ATTR, ad->dataType);
+//        top1Refs = appendToTailOfList(top1Refs,top1Ref);
+//        top1Count ++;
+//    }
+//    ProjectionOperator *top1 = createProjectionOp(top1Refs, topOp, NIL, top1Names);
+//    topOp->parents = singleton(top1);
+
 //	//---------------------------------------------------------------------------------------
 //    //Construct Top order by:    order by salary, TSTART
 //    QueryOperator *t6Op = (QueryOperator *) t6;
@@ -918,7 +964,7 @@ addCoalesce (QueryOperator *input)
 //    OrderOperator *top = createOrderOp(LIST_MAKE(topRef1,topRef2),t6Op, NIL);
 //    t6Op->parents = singleton(top);
 
-    QueryOperator *topOp = (QueryOperator *) top;
+
 
     if(parents != NIL)
     {
