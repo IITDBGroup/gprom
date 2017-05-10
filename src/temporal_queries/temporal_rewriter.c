@@ -866,7 +866,8 @@ addCoalesce (QueryOperator *input)
         top1Refs = appendToTailOfList(top1Refs,top1Ref);
         top1Count ++;
     }
-    ProjectionOperator *top1 = createProjectionOp(top1Refs, t5Op, NIL, top1Names);
+    ProjectionOperator *top1 = createProjectionOp(top1Refs, t5Op, NIL, top1Names); //
+    SET_BOOL_STRING_PROP(top1,PROP_MATERIALIZE);
     t5Op->parents = singleton(top1);
     QueryOperator *top1Op = (QueryOperator *) top1;
 
@@ -890,7 +891,7 @@ addCoalesce (QueryOperator *input)
 	TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
 
 	//set boolean prop (when translate to SQL, translate to above SQL not this table)
-	SET_BOOL_STRING_PROP(TNTAB, PROP_TEMP_TNTAB);
+	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) top1));
 
 	//---------------------------------------------------------------------------------------
     //Construct T6:    SELECT TSTART, TEND, SALARY FROM T5, TNTAB WHERE T5.numOpen <= n

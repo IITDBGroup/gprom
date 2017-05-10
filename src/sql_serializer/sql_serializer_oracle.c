@@ -818,11 +818,14 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
         *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
 
-        if(streq(t->tableName,"TNTAB_EMPHIST_100K"))
+        if(streq(t->tableName,"TNTAB_EMPHIST_100K")) // check PROP_TEMP_TNTAB
         {
+            QueryOperator *inp = (QueryOperator *) LONG_VALUE(GET_STRING_PROP(t,PROP_TEMP_TNTAB));
+            StringInfo tabName = createStringInfo();
+            // add right parameter List *result = createView(inp, tabName);
         	appendStringInfo(from, "(%s%s F%u)",
-        			"(SELECT ROWNUM N from DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((temp_view_0) F0)))", asOf ? asOf : "",
-        					(*curFromItem)++);
+        			"(SELECT ROWNUM N from DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((%s) F0)))", tabName->data); // asOf ? asOf : "",
+        					// (*curFromItem)++);
         	//appendStringInfo(from, "_test");
         }
         else
