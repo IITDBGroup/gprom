@@ -203,6 +203,17 @@ andExprList (List *exprs)
 }
 
 Node *
+orExprList (List *exprs)
+{
+    Node *result = popHeadOfListP(exprs);
+
+    FOREACH(Node,e,exprs)
+        result = OR_EXPRS(result,e);
+
+    return result;
+}
+
+Node *
 orExprs (Node *expr, ...)
 {
     Node *result = NULL;

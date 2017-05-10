@@ -164,6 +164,7 @@ extern AttributeReference *createFullAttrReference (char *name, int fromClause, 
         int outerLevelsUp, DataType attrType);
 extern CastExpr *createCastExpr (Node *expr, DataType resultDt);
 extern Node *andExprList (List *exprs);
+extern Node *orExprList (List *exprs);
 extern Node *andExprs (Node *expr, ...);
 extern Node *orExprs (Node *expr, ...);
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL)
