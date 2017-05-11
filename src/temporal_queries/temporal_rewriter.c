@@ -34,7 +34,7 @@ static void setTempAttrProps(QueryOperator *o);
 static AttributeReference *getTempAttrRef (QueryOperator *o, boolean begin);
 static void coalescingAndAlignmentVisitor (QueryOperator *q, Set *done);
 
-static QueryOperator* addCoalesceForAllOp(QueryOperator *op);
+
 
 #define LOG_RESULT(mes,op) DEBUG_OP_LOG(mes,op);
 
@@ -72,8 +72,11 @@ rewriteImplicitTemporal (QueryOperator *q)
     switchSubtrees((QueryOperator *) q, top);
     DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
 
-    top = addCoalesceForAllOp(top);
+    //top = addCoalesceForAllOp(top);
     //top = addCoalesce(top);
+
+    List *attrNames = singleton("SALARY");
+    top = addTemporalAlignment(top, top, attrNames);
 
     return top;
 }
@@ -452,7 +455,7 @@ coalescingAndAlignmentVisitor (QueryOperator *q, Set *done)
 }
 
 /* add coalesce for each operator */
-static QueryOperator*
+QueryOperator*
 addCoalesceForAllOp(QueryOperator *op)
 {
 	QueryOperator *result = NULL;
@@ -1000,8 +1003,251 @@ addCoalesce (QueryOperator *input)
  * for R - S we rewrite it into A(R,S) - A(S,R)
  */
 QueryOperator *
-addTemporalAlignment (QueryOperator *input, QueryOperator *reference)
+addTemporalAlignment (QueryOperator *input, QueryOperator *reference, List *attrNames)
 {
-    return input;
+	QueryOperator *left = input;
+	QueryOperator *right = reference;
+
+	//---------------------------------------------------------------------------------------
+    //Construct CP: a union on four projections
+    Constant *c1 = createConstInt(ONE);
+
+    //construct first union (CP1)
+    //SELECT TSTART AS T, salary FROM LEFTY
+    //UNION
+    //SELECT TEND AS T, salary FROM LEFTY
+    List *leftProjExpr1 = NIL;
+    List *leftProjExpr2 = NIL;
+
+    AttributeDef *leftBeginDef  = (AttributeDef *) getStringProperty(left, PROP_TEMP_TBEGIN_ATTR);
+    int leftBeginPos = getAttrPos(left, leftBeginDef->attrName);
+    AttributeReference *leftBeginRef = createFullAttrReference(strdup(leftBeginDef->attrName), 0, leftBeginPos, INVALID_ATTR, leftBeginDef->dataType);
+    leftProjExpr1 = appendToTailOfList(leftProjExpr1, leftBeginRef);
+
+    AttributeDef *leftEndDef  = (AttributeDef *) getStringProperty(left, PROP_TEMP_TEND_ATTR);
+    int leftEndPos = getAttrPos(left, leftEndDef->attrName);
+    AttributeReference *leftEndRef = createFullAttrReference(strdup(leftEndDef->attrName), 0, leftEndPos, INVALID_ATTR, leftEndDef->dataType);
+    leftProjExpr2 = appendToTailOfList(leftProjExpr2, leftEndRef);
+
+    FOREACH(char, c, attrNames)
+    {
+    	AttributeReference *leftRef = createAttrsRefByName(left, c);
+    	leftProjExpr1 = appendToTailOfList(leftProjExpr1, leftRef);
+    	leftProjExpr2 = appendToTailOfList(leftProjExpr2, copyObject(leftRef));
+    }
+
+    //construct schema T SALARY  for BOTH
+    List *leftAttrNames = singleton("T");
+    leftAttrNames = concatTwoLists(leftAttrNames,deepCopyStringList(attrNames));
+
+    ProjectionOperator *leftProj1 = createProjectionOp(leftProjExpr1, left, NIL, deepCopyStringList(leftAttrNames));
+    ProjectionOperator *leftProj2 = createProjectionOp(leftProjExpr2, left, NIL, deepCopyStringList(leftAttrNames));
+    left->parents = LIST_MAKE(leftProj1,leftProj2);
+
+    //construct union on top (u1)
+    SetOperator *u1 = createSetOperator(SETOP_UNION, LIST_MAKE(leftProj1, leftProj2), NIL,
+    		deepCopyStringList(leftAttrNames));
+    ((QueryOperator *) leftProj1)->parents = singleton(u1);
+    ((QueryOperator *) leftProj2)->parents = singleton(u1);
+
+    //duplicate removal on top (CP1)
+	DuplicateRemoval *d1 = createDuplicateRemovalOp(NIL, (QueryOperator *) u1,
+			NIL, deepCopyStringList(leftAttrNames));
+
+	QueryOperator *u1Op = (QueryOperator *) u1;
+	u1Op->parents = singleton(d1);
+
+    //construct second union (CP2)
+    //CP1
+    //UNION
+    //SELECT TEND AS T, salary FROM LEFTY
+    List *rightProjExpr1 = NIL;
+    List *rightProjExpr2 = NIL;
+
+    AttributeReference *rightBeginRef  = createAttrsRefByName(right, TBEGIN_NAME);
+    rightProjExpr1 = appendToTailOfList(rightProjExpr1, rightBeginRef);
+
+    AttributeReference *rightEndRef  = createAttrsRefByName(right, TEND_NAME);
+    rightProjExpr2 = appendToTailOfList(rightProjExpr2, rightEndRef);
+
+    FOREACH(char, c, attrNames)
+    {
+    	AttributeReference *rightRef = createAttrsRefByName(right, c);
+    	rightProjExpr1 = appendToTailOfList(rightProjExpr1, rightRef);
+    	rightProjExpr2 = appendToTailOfList(rightProjExpr2, copyObject(rightRef));
+    }
+
+    List *rightAttrNames  = leftAttrNames;
+    ProjectionOperator *rightProj1 = createProjectionOp(rightProjExpr1, right, NIL, deepCopyStringList(rightAttrNames));
+    ProjectionOperator *rightProj2 = createProjectionOp(rightProjExpr2, right, NIL, deepCopyStringList(rightAttrNames));
+    right->parents = concatTwoLists(right->parents,LIST_MAKE(rightProj1,rightProj2));
+
+    //UNION u2
+    SetOperator *u2 = createSetOperator(SETOP_UNION, LIST_MAKE(d1, rightProj1), NIL,
+    		deepCopyStringList(rightAttrNames));
+    ((QueryOperator *) d1)->parents = singleton(u2);
+    ((QueryOperator *) rightProj1)->parents = singleton(u2);
+
+    //duplicate removal on top (CP1)
+	DuplicateRemoval *d2 = createDuplicateRemovalOp(NIL, (QueryOperator *) u2,
+			NIL, deepCopyStringList(rightAttrNames));
+
+	QueryOperator *u2Op = (QueryOperator *) u2;
+	u2Op->parents = singleton(d2);
+
+	//construct third union (u3)
+    SetOperator *u3 = createSetOperator(SETOP_UNION, LIST_MAKE(d2, rightProj2), NIL,
+    		deepCopyStringList(rightAttrNames));
+    ((QueryOperator *) d2)->parents = singleton(u3);
+    ((QueryOperator *) rightProj2)->parents = singleton(u3);
+
+    //duplicate removal on top (CP3)
+	DuplicateRemoval *d3 = createDuplicateRemovalOp(NIL, (QueryOperator *) u3,
+			NIL, deepCopyStringList(rightAttrNames));
+
+	QueryOperator *u3Op = (QueryOperator *) u3;
+	u3Op->parents = singleton(d3);
+
+	//additional proj rename SALARY -> SALARY_1
+	QueryOperator *d3Op = (QueryOperator *) d3;
+    List *projCPTempNames = getAttrNames(d3Op->schema);
+    List *projCPNames = NIL;
+    List *projCPExprs = NIL;
+
+    //keep two list used in later for condition e.g., salary, job  and salary_1, job_1  (salary=salary_1, job=job_1)
+    List *leftList = NIL;
+    List *rightList = NIL;
+
+    FOREACH(char, c, projCPTempNames)
+    {
+    	projCPExprs = appendToTailOfList(projCPExprs,createAttrsRefByName(d3Op,c));
+    	if(!streq(c, "T"))
+    	{
+    		char *cc = concatStrings(c,"_1");
+    		projCPNames = appendToTailOfList(projCPNames,cc);
+    		leftList = appendToTailOfList(leftList, strdup(c));
+    		rightList = appendToTailOfList(rightList, strdup(cc));
+    	}
+    	else
+    		projCPNames = appendToTailOfList(projCPNames,strdup(c));
+    }
+
+    ProjectionOperator *projCP = createProjectionOp(projCPExprs, d3Op, NIL, projCPNames);
+    d3Op->parents = singleton(projCP);
+    QueryOperator *projCPOp = (QueryOperator *) projCP;
+
+    //---------------------------------------------------------------------------------------
+	//INTERVALS
+    FunctionCall *intervalFunc = createFunctionCall("ROW_NUMBER",NIL);
+    List *intervalOrderBy = singleton(copyObject(c1));
+
+    char *intervalFuncName = "winf_0";
+    WindowOperator *intervalW = createWindowOp((Node *) intervalFunc,
+            NULL,
+			intervalOrderBy,
+            NULL,
+			intervalFuncName, left, NIL);
+
+    left->parents = appendToTailOfList(left->parents, intervalW);
+
+    //projection T_B T_E SALARY ID
+    QueryOperator *intervalWOp = (QueryOperator *) intervalW;
+    List *intervalTempNames = getAttrNames(intervalWOp->schema);
+    List *intervalNames = NIL;
+    List *intervalExprs = NIL;
+    FOREACH(char, c, intervalTempNames)
+    {
+    	intervalExprs = appendToTailOfList(intervalExprs,createAttrsRefByName(intervalWOp,c));
+    	if(streq(c, intervalFuncName))
+    		intervalNames = appendToTailOfList(intervalNames,"ID");
+    	else
+    		intervalNames = appendToTailOfList(intervalNames,strdup(c));
+    }
+
+    ProjectionOperator *interval = createProjectionOp(intervalExprs, intervalWOp, NIL, intervalNames);
+    intervalWOp->parents = singleton(interval);
+    QueryOperator *intervalOp = (QueryOperator *) interval;
+
+    //JOINCP
+    List *joinCPNames = concatTwoLists(deepCopyStringList(getAttrNames(intervalOp->schema)), deepCopyStringList(getAttrNames(projCPOp->schema)));
+    JoinOperator *joinCP = createJoinOp(JOIN_CROSS,NULL, LIST_MAKE(interval,projCP), NIL, joinCPNames);
+    intervalOp->parents = singleton(joinCP);
+    projCPOp->parents = singleton(joinCP);
+
+    QueryOperator *joinCPOp = (QueryOperator *)joinCP;
+    //selection cond
+    List *joinCPcondList = NIL;
+    FORBOTH(char, cl, cr, leftList, rightList)
+    {
+        AttributeReference *al = createAttrsRefByName(joinCPOp, cl);
+        AttributeReference *ar = createAttrsRefByName(joinCPOp, cr);
+        Operator *oJoinCP = createOpExpr("=", LIST_MAKE(al,ar));
+        joinCPcondList = appendToTailOfList(joinCPcondList,oJoinCP);
+    }
+
+    //c.T >= l.TSTART, c.T < l.TEND
+    AttributeReference *oJoinCPT = createAttrsRefByName(joinCPOp, "T");
+    AttributeReference *oJoinCPB = createAttrsRefByName(joinCPOp, TBEGIN_NAME);
+    AttributeReference *oJoinCPE = createAttrsRefByName(joinCPOp, TEND_NAME);
+
+    Operator *oJoinCP1 = createOpExpr(">=", LIST_MAKE(oJoinCPT,oJoinCPB));
+    Operator *oJoinCP2 = createOpExpr("<", LIST_MAKE(copyObject(oJoinCPT),oJoinCPE));
+    joinCPcondList = appendToTailOfList(joinCPcondList,oJoinCP1);
+    joinCPcondList = appendToTailOfList(joinCPcondList,oJoinCP2);
+
+    Node *joinJOINCPcond = andExprList(joinCPcondList);
+    SelectionOperator *selJOINCP = createSelectionOp(joinJOINCPcond, joinCPOp, NIL, deepCopyStringList(joinCPNames));
+    joinCPOp->parents = singleton(selJOINCP);
+
+    QueryOperator *selJOINCPOp = (QueryOperator *) selJOINCP;
+    //proj on top
+    List *projJOINCPNames = deepCopyStringList(getAttrNames(intervalOp->schema));
+    projJOINCPNames = appendToTailOfList(projJOINCPNames, "T");
+    List *projJOINCPExprs = NIL;
+    FOREACH(char, c, projJOINCPNames)
+    	projJOINCPExprs = appendToTailOfList(projJOINCPExprs,createAttrsRefByName(selJOINCPOp,c));
+
+    ProjectionOperator *projJOINCP = createProjectionOp(projJOINCPExprs, selJOINCPOp, NIL, projJOINCPNames);
+    selJOINCPOp->parents = singleton(projJOINCP);
+
+    QueryOperator *projJOINCPOp = (QueryOperator *) projJOINCP;
+    //---------------------------------------------------------------------------------------
+    //top
+    //top window
+    AttributeReference *topT = createAttrsRefByName(projJOINCPOp,"T");
+    AttributeReference *topID = createAttrsRefByName(projJOINCPOp,"ID");
+
+    FunctionCall *topFunc = createFunctionCall("LEAD",singleton(copyObject(topT)));
+    List *topOrderBy = singleton(copyObject(topT));
+    List *topPartBy = singleton(copyObject(topID));
+
+    char *topFuncName = "winf_0";
+    WindowOperator *topW = createWindowOp((Node *) topFunc,
+    		topPartBy,
+			topOrderBy,
+            NULL,
+			topFuncName, projJOINCPOp, NIL);
+
+    projJOINCPOp->parents = appendToTailOfList(projJOINCPOp->parents, topW);
+
+    QueryOperator *topWOp = (QueryOperator *) topW;
+
+    //topProj
+    AttributeReference *topProjE = createAttrsRefByName(topWOp,TEND_NAME);
+    AttributeReference *topProjwin = createAttrsRefByName(topWOp,topFuncName);
+    FunctionCall *topProjFunc = createFunctionCall("COALESCE",LIST_MAKE(topProjwin,topProjE));
+    List *topProjExprs = LIST_MAKE(copyObject(topT), topProjFunc);
+    List *topProjNames = LIST_MAKE(TBEGIN_NAME,TEND_NAME);
+
+    FOREACH(char, c, leftList)
+    {
+    	topProjExprs = appendToTailOfList(topProjExprs, createAttrsRefByName(topWOp,c));
+    	topProjNames = appendToTailOfList(topProjNames, strdup(c));
+    }
+
+    ProjectionOperator *topProj = createProjectionOp(topProjExprs, topWOp, NIL, topProjNames);
+    topWOp->parents = singleton(topProj);
+
+    return (QueryOperator *) topProj;
 }
 
