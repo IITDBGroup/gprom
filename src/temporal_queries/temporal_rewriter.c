@@ -34,7 +34,7 @@ static void setTempAttrProps(QueryOperator *o);
 static AttributeReference *getTempAttrRef (QueryOperator *o, boolean begin);
 static void coalescingAndAlignmentVisitor (QueryOperator *q, Set *done);
 
-//static void addCoalesceForAllOp(QueryOperator *op);
+static QueryOperator* addCoalesceForAllOp(QueryOperator *op);
 
 #define LOG_RESULT(mes,op) DEBUG_OP_LOG(mes,op);
 
@@ -72,8 +72,8 @@ rewriteImplicitTemporal (QueryOperator *q)
     switchSubtrees((QueryOperator *) q, top);
     DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
 
-    //addCoalesceForAllOp(top);
-    top = addCoalesce(top);
+    top = addCoalesceForAllOp(top);
+    //top = addCoalesce(top);
 
     return top;
 }
@@ -451,22 +451,23 @@ coalescingAndAlignmentVisitor (QueryOperator *q, Set *done)
     addToSet(done, q);
 }
 
-//static void
-//addCoalesceForAllOp(QueryOperator *op)
-//{
-//
-//	if(op->inputs != NIL)
-//	{
-//		FOREACH(QueryOperator,c,op->inputs)
-//		{
-//			addCoalesceForAllOp(c);
-//		}
-//
-//		if(op->inputs != NIL)
-//			addCoalesce(op);
-//	}
-//	//visitQOGraph(top, TRAVERSAL_POST, addCoalesce, NULL);
-//}
+/* add coalesce for each operator */
+static QueryOperator*
+addCoalesceForAllOp(QueryOperator *op)
+{
+	QueryOperator *result = NULL;
+
+	if(op->inputs != NIL)
+	{
+		FOREACH(QueryOperator,c,op->inputs)
+			addCoalesceForAllOp(c);
+
+		if(GET_STRING_PROP(op, PROP_TEMP_DO_COALESCE))
+			result = addCoalesce(op);
+	}
+
+	return result;
+}
 
 
 /* add algebra expressions to coalesce the output of an operator */
@@ -856,34 +857,34 @@ addCoalesce (QueryOperator *input)
 
     QueryOperator *t5Op = (QueryOperator *)t5;
 
-    //additional projection
-    List *top1Refs = NIL;
-    int top1Count = 0;
-    List *top1Names = deepCopyStringList(getAttrNames(t5Op->schema));
-    FOREACH(AttributeDef, ad, t5Op->schema->attrDefs)
-    {
-        AttributeReference *top1Ref = createFullAttrReference(strdup(ad->attrName), 0, top1Count, INVALID_ATTR, ad->dataType);
-        top1Refs = appendToTailOfList(top1Refs,top1Ref);
-        top1Count ++;
-    }
-    ProjectionOperator *top1 = createProjectionOp(top1Refs, t5Op, NIL, top1Names); //
-    SET_BOOL_STRING_PROP(top1,PROP_MATERIALIZE);
-    t5Op->parents = singleton(top1);
-    QueryOperator *top1Op = (QueryOperator *) top1;
-
-    //additional projection
-    List *top2Refs = NIL;
-    int top2Count = 0;
-    List *top2Names = deepCopyStringList(getAttrNames(top1Op->schema));
-    FOREACH(AttributeDef, ad, top1Op->schema->attrDefs)
-    {
-        AttributeReference *top2Ref = createFullAttrReference(strdup(ad->attrName), 0, top2Count, INVALID_ATTR, ad->dataType);
-        top2Refs = appendToTailOfList(top2Refs,top2Ref);
-        top2Count ++;
-    }
-    ProjectionOperator *top2 = createProjectionOp(top2Refs, top1Op, NIL, top2Names);
-    top1Op->parents = singleton(top2);
-    QueryOperator *top2Op = (QueryOperator *) top2;
+//    //additional projection
+//    List *top1Refs = NIL;
+//    int top1Count = 0;
+//    List *top1Names = deepCopyStringList(getAttrNames(t5Op->schema));
+//    FOREACH(AttributeDef, ad, t5Op->schema->attrDefs)
+//    {
+//        AttributeReference *top1Ref = createFullAttrReference(strdup(ad->attrName), 0, top1Count, INVALID_ATTR, ad->dataType);
+//        top1Refs = appendToTailOfList(top1Refs,top1Ref);
+//        top1Count ++;
+//    }
+//    ProjectionOperator *top1 = createProjectionOp(top1Refs, t5Op, NIL, top1Names); //
+//    SET_BOOL_STRING_PROP(top1,PROP_MATERIALIZE);
+//    t5Op->parents = singleton(top1);
+//    QueryOperator *top1Op = (QueryOperator *) top1;
+//
+//    //additional projection
+//    List *top2Refs = NIL;
+//    int top2Count = 0;
+//    List *top2Names = deepCopyStringList(getAttrNames(top1Op->schema));
+//    FOREACH(AttributeDef, ad, top1Op->schema->attrDefs)
+//    {
+//        AttributeReference *top2Ref = createFullAttrReference(strdup(ad->attrName), 0, top2Count, INVALID_ATTR, ad->dataType);
+//        top2Refs = appendToTailOfList(top2Refs,top2Ref);
+//        top2Count ++;
+//    }
+//    ProjectionOperator *top2 = createProjectionOp(top2Refs, top1Op, NIL, top2Names);
+//    top1Op->parents = singleton(top2);
+//    QueryOperator *top2Op = (QueryOperator *) top2;
 
 
     //-----------------------------------------------------------------------------------------------------------------
@@ -891,7 +892,8 @@ addCoalesce (QueryOperator *input)
 	TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
 
 	//set boolean prop (when translate to SQL, translate to above SQL not this table)
-	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) top1));
+	//SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) top1));
+	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) t5));
 
 	//---------------------------------------------------------------------------------------
     //Construct T6:    SELECT TSTART, TEND, SALARY FROM T5, TNTAB WHERE T5.numOpen <= n
@@ -901,7 +903,7 @@ addCoalesce (QueryOperator *input)
     //QueryOperator *top1Op = (QueryOperator *)t5Op;
 
     //cond
-	AttributeReference *t6CondRef1 = createAttrsRefByName(top2Op, "NUMOPEN");
+	AttributeReference *t6CondRef1 = createAttrsRefByName(t5Op, "NUMOPEN");
 	AttributeReference *t6CondRef2 = createAttrsRefByName(TNTABOp, "N");
 	t6CondRef2->fromClauseItem = 1;
 	Operator *t6JoinCond = createOpExpr("<=", LIST_MAKE(t6CondRef1,t6CondRef2));
@@ -909,8 +911,8 @@ addCoalesce (QueryOperator *input)
     List *t6JoinNames = deepCopyStringList(t5ProjNames);
     t6JoinNames = appendToTailOfList(t6JoinNames, "N");
 
-    JoinOperator *t6Join = createJoinOp(JOIN_INNER,(Node *) t6JoinCond, LIST_MAKE(top2, TNTAB), NIL, t6JoinNames);
-    top2Op->parents = singleton(t6Join);
+    JoinOperator *t6Join = createJoinOp(JOIN_INNER,(Node *) t6JoinCond, LIST_MAKE(t5, TNTAB), NIL, t6JoinNames);
+    t5Op->parents = singleton(t6Join);
     TNTABOp->parents = singleton(t6Join);
 
     //Top projection SELECT SALARY,T_B, T_E

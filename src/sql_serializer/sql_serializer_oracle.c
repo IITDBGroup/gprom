@@ -818,15 +818,17 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
         *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
 
-        if(streq(t->tableName,"TNTAB_EMPHIST_100K")) // check PROP_TEMP_TNTAB
+        //for temporal database coalesce
+        if(HAS_STRING_PROP(t,PROP_TEMP_TNTAB))
         {
             QueryOperator *inp = (QueryOperator *) LONG_VALUE(GET_STRING_PROP(t,PROP_TEMP_TNTAB));
-            StringInfo tabName = createStringInfo();
-            // add right parameter List *result = createView(inp, tabName);
-        	appendStringInfo(from, "(%s%s F%u)",
-        			"(SELECT ROWNUM N from DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((%s) F0)))", tabName->data); // asOf ? asOf : "",
-        					// (*curFromItem)++);
-        	//appendStringInfo(from, "_test");
+            StringInfo tabName = makeStringInfo();
+            QueryOperator *inpParent = (QueryOperator *) getHeadOfListP(inp->parents);
+            createTempView(inp, tabName,inpParent);
+            appendStringInfo(from, " ((SELECT ROWNUM N FROM DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((%s)))) F%u)",
+            		tabName->data, (*curFromItem)++);
+//            appendStringInfo(from, " ((SELECT ROWNUM N FROM DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((%s) F0))) F%u)",
+//            		tabName->data, (*curFromItem)++);
         }
         else
         {
