@@ -1239,10 +1239,13 @@ addTemporalAlignment (QueryOperator *input, QueryOperator *reference, List *attr
     List *topProjExprs = LIST_MAKE(copyObject(topT), topProjFunc);
     List *topProjNames = LIST_MAKE(TBEGIN_NAME,TEND_NAME);
 
-    FOREACH(char, c, leftList)
+    FOREACH(char, c, getAttrNames(left->schema))
     {
-    	topProjExprs = appendToTailOfList(topProjExprs, createAttrsRefByName(topWOp,c));
-    	topProjNames = appendToTailOfList(topProjNames, strdup(c));
+    	if(!streq(c,leftBeginDef->attrName) && !streq(c,leftEndDef->attrName))
+    	{
+    		topProjExprs = appendToTailOfList(topProjExprs, createAttrsRefByName(topWOp,c));
+    		topProjNames = appendToTailOfList(topProjNames, strdup(c));
+    	}
     }
 
     ProjectionOperator *topProj = createProjectionOp(topProjExprs, topWOp, NIL, topProjNames);
