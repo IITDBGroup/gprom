@@ -6,6 +6,7 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/set/hashmap.h"
+#include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "metadata_lookup/metadata_lookup.h"
 
@@ -15,8 +16,8 @@
 /* function declarations */
 Node *deepReplaceAttrRef(Node * expr, Node *af);//replace all attributeReferences to af
 //QueryOperator * addSemiringCombiner(QueryOperator * result);
-Node *UncertOp(Operator *expr, HashMap *hmp);
-Node *UncertIf(CaseExpr *expr, HashMap *hmp);
+Node *UncertOp(Operator *expr, HashMap *hmp, Set *st);
+Node *UncertIf(CaseExpr *expr, HashMap *hmp, Set *st);
 
 Node *deepReplaceAttrRef(Node * expr, Node *af){
 	switch(expr->type){
@@ -125,8 +126,13 @@ extern void addSCOptionToChild(QueryOperator *op, QueryOperator *to) {
 	}
 }
 
+//uncertainty func
 Node *
-getUncertaintyExpr(Node *expr, HashMap *hmp) {
+getUncertaintyExpr(Node *expr, HashMap *hmp, Set *st) {
+	//INFO_LOG("expression: %s ,  %p", exprToSQL(expr), expr);
+	if(hasSetElem(st,expr)){
+		return (Node *)createConstBool(FALSE);
+	}
 	switch(expr->type){
 		case T_Constant: {
 			return (Node *)createConstBool(TRUE);
@@ -135,10 +141,10 @@ getUncertaintyExpr(Node *expr, HashMap *hmp) {
 			return getMap(hmp, expr);
 		}
 		case T_Operator: {
-			return UncertOp((Operator *)expr, hmp);
+			return UncertOp((Operator *)expr, hmp, st);
 		}
 		case T_CaseExpr: {
-			return UncertIf((CaseExpr *)expr, hmp);
+			return UncertIf((CaseExpr *)expr, hmp, st);
 		}
 		default: {
 			FATAL_LOG("unknown expression type for uncertainty: %s", nodeToString(expr));
@@ -146,19 +152,19 @@ getUncertaintyExpr(Node *expr, HashMap *hmp) {
 	}
 	return NULL;
 }
-
+//uncertainty func
 Node *
-UncertIf(CaseExpr *expr, HashMap *hmp) {
+UncertIf(CaseExpr *expr, HashMap *hmp, Set* st) {
 	List *result = NIL;
 	List *elselist = NIL;
 	if(expr->elseRes){
-		elselist = singleton(getUncertaintyExpr(expr->elseRes, hmp));
+		elselist = singleton(getUncertaintyExpr(expr->elseRes, hmp, st));
 	}
 	Node *c;
 	if(expr->expr){
 		FOREACH(Node,nd,expr->whenClauses) {
 			Node *tmp = (Node *)createOpExpr("=", appendToTailOfList(singleton(expr->expr),((CaseWhen *)nd)->when));
-			c = AND_EXPRS(getUncertaintyExpr(tmp, hmp),getUncertaintyExpr(((CaseWhen *)nd)->then, hmp),tmp);
+			c = AND_EXPRS(getUncertaintyExpr(tmp, hmp, st),getUncertaintyExpr(((CaseWhen *)nd)->then, hmp, st),tmp);
 			if(!result) {
 				result = singleton(c);
 			} else {
@@ -166,33 +172,33 @@ UncertIf(CaseExpr *expr, HashMap *hmp) {
 			}
 			if(elselist) {
 				appendToTailOfList(elselist, (Node *)createOpExpr("NOT",singleton(tmp)));
-				appendToTailOfList(elselist, getUncertaintyExpr(tmp, hmp));
+				appendToTailOfList(elselist, getUncertaintyExpr(tmp, hmp, st));
 			}
 		}
 	} else {
 		FOREACH(Node,nd,expr->whenClauses) {
-			c = AND_EXPRS(getUncertaintyExpr(((CaseWhen *)nd)->when, hmp),getUncertaintyExpr(((CaseWhen *)nd)->then, hmp),((CaseWhen *)nd)->when);
+			c = AND_EXPRS(getUncertaintyExpr(((CaseWhen *)nd)->when, hmp, st),getUncertaintyExpr(((CaseWhen *)nd)->then, hmp, st),((CaseWhen *)nd)->when);
 			if(!result) {
 				result = singleton(c);
 			} else {
 				appendToTailOfList(result, c);
 			}
-			c = AND_EXPRS((Node *)createOpExpr("NOT",singleton(((CaseWhen *)nd)->when)), getUncertaintyExpr(((CaseWhen *)nd)->when, hmp));
+			c = AND_EXPRS((Node *)createOpExpr("NOT",singleton(((CaseWhen *)nd)->when)), getUncertaintyExpr(((CaseWhen *)nd)->when, hmp, st));
 			if(elselist) {
 				appendToTailOfList(elselist, (Node *)createOpExpr("NOT",singleton(((CaseWhen *)nd)->when)));
-				appendToTailOfList(elselist, getUncertaintyExpr(((CaseWhen *)nd)->when, hmp));
+				appendToTailOfList(elselist, getUncertaintyExpr(((CaseWhen *)nd)->when, hmp, st));
 			}
 		}
 	}
 	return OR_EXPRS(orExprList(result),andExprList(elselist));
 }
-
+//uncertainty func
 Node *
-UncertOp(Operator *expr, HashMap *hmp) {
+UncertOp(Operator *expr, HashMap *hmp, Set* st) {
 	if(strcmp(expr->name,"*")==0) {
 		Node * e1 = (Node *)(getNthOfListP(expr->args, 0));
 		Node * e2 = (Node *)(getNthOfListP(expr->args, 1));
-		Node *c1 = AND_EXPRS(getUncertaintyExpr(e1, hmp),getUncertaintyExpr(e2, hmp));
+		Node *c1 = AND_EXPRS(getUncertaintyExpr(e1, hmp, st),getUncertaintyExpr(e2, hmp, st));
 		Node *c2 = (Node *)createOpExpr("=", appendToTailOfList(singleton(e1), (Node *)createConstInt(0)));
 		Node *c3 = (Node *)createOpExpr("=", appendToTailOfList(singleton(e2), (Node *)createConstInt(0)));
 		return OR_EXPRS(c1,c2,c3);
@@ -202,14 +208,14 @@ UncertOp(Operator *expr, HashMap *hmp) {
 		List *all = NIL;
 		FOREACH(Node,nd,expr->args) {
 			if(!c1) {
-				c1 = singleton(getUncertaintyExpr(nd, hmp));
+				c1 = singleton(getUncertaintyExpr(nd, hmp, st));
 			} else {
-				appendToTailOfList(c1, getUncertaintyExpr(nd, hmp));
+				appendToTailOfList(c1, getUncertaintyExpr(nd, hmp, st));
 			}
 			if(!all) {
-				all = singleton(AND_EXPRS(nd, getUncertaintyExpr(nd, hmp)));
+				all = singleton(AND_EXPRS(nd, getUncertaintyExpr(nd, hmp, st)));
 			} else {
-				appendToTailOfList(all, AND_EXPRS(nd, getUncertaintyExpr(nd, hmp)));
+				appendToTailOfList(all, AND_EXPRS(nd, getUncertaintyExpr(nd, hmp, st)));
 			}
 		}
 		appendToTailOfList(all, andExprList(c1));
@@ -220,14 +226,14 @@ UncertOp(Operator *expr, HashMap *hmp) {
 		List *all = NIL;
 		FOREACH(Node,nd,expr->args) {
 			if(!c1) {
-				c1 = singleton(getUncertaintyExpr(nd, hmp));
+				c1 = singleton(getUncertaintyExpr(nd, hmp, st));
 			} else {
-				appendToTailOfList(c1, getUncertaintyExpr(nd, hmp));
+				appendToTailOfList(c1, getUncertaintyExpr(nd, hmp, st));
 			}
 			if(!all) {
-				all = singleton(AND_EXPRS((Node *)createOpExpr("NOT",singleton(nd)), getUncertaintyExpr(nd, hmp)));
+				all = singleton(AND_EXPRS((Node *)createOpExpr("NOT",singleton(nd)), getUncertaintyExpr(nd, hmp, st)));
 			} else {
-				appendToTailOfList(all, AND_EXPRS((Node *)createOpExpr("NOT",singleton(nd)), getUncertaintyExpr(nd, hmp)));
+				appendToTailOfList(all, AND_EXPRS((Node *)createOpExpr("NOT",singleton(nd)), getUncertaintyExpr(nd, hmp, st)));
 			}
 		}
 		appendToTailOfList(all, andExprList(c1));
@@ -237,9 +243,9 @@ UncertOp(Operator *expr, HashMap *hmp) {
 		List * lst = NIL;
 		FOREACH(Node,nd,expr->args) {
 			if(!lst) {
-				lst = singleton(getUncertaintyExpr(nd, hmp));
+				lst = singleton(getUncertaintyExpr(nd, hmp, st));
 			} else {
-				appendToTailOfList(lst, getUncertaintyExpr(nd, hmp));
+				appendToTailOfList(lst, getUncertaintyExpr(nd, hmp, st));
 			}
 		}
 		//INFO_LOG("listlen: %d", LIST_LENGTH(lst));
@@ -290,7 +296,8 @@ QueryOperator * addSemiringCombiner(QueryOperator * result, char * funcN, Node *
 	//Node *exppp = (Node *)createOpExpr("OR", appendToTailOfList(singleton(createAttributeReference("A")),createAttributeReference("B")));
 	/*Node *cwen = (Node *)createCaseWhen((Node *)createAttributeReference("A"),(Node *)createConstInt(0));
 	Node *exppp = (Node *)createCaseExpr((Node *)createAttributeReference("B"), singleton(cwen), (Node *)createConstInt(1));*/
-	Node *cwen = (Node *)createCaseWhen((Node *)createOpExpr("=", appendToTailOfList(singleton((Node *)createAttributeReference("A")),(Node *)createAttributeReference("B"))),(Node *)createConstInt(0));
+	Node *aeb = (Node *)createOpExpr("=", appendToTailOfList(singleton((Node *)createAttributeReference("A")),(Node *)createAttributeReference("B")));
+	Node *cwen = (Node *)createCaseWhen(aeb,(Node *)createConstInt(0));
 	Node *cwen2 = (Node *)createCaseWhen((Node *)createOpExpr("=", appendToTailOfList(singleton((Node *)createAttributeReference("A")),(Node *)createAttributeReference("C"))),(Node *)createConstInt(1));
 	Node *exppp = (Node *)createCaseExpr(NULL, appendToTailOfList(singleton(cwen), cwen2), (Node *)createConstInt(2));
 	INFO_LOG("expression in: ");
@@ -301,7 +308,9 @@ QueryOperator * addSemiringCombiner(QueryOperator * result, char * funcN, Node *
 			ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("B"), (Node *)createAttributeReference("U_B")));
 			ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("C"), (Node *)createAttributeReference("U_C")));
 			ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("D"), (Node *)createAttributeReference("U_D")));
-	Node * retexp = getUncertaintyExpr(exppp, hmp);
+	Set *st = PSET();
+	addToSet(st, aeb);
+	Node * retexp = getUncertaintyExpr(exppp, hmp, st);
 	INFO_LOG("expression out: ");
 	INFO_LOG(exprToSQL(retexp));
 	//test end
