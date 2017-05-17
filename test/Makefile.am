@@ -3,7 +3,7 @@ AM_CFLAGS = @GPROM_CFLAGS@ -I.
 
 check_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
 				testserializer testvisit testrewriter testpicsrewrite \
-				testrpq testlibgprom
+				testrpq testlibgprom testuncert
 
 testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 		   test_logger.c test_mem_mgr.c test_to_string.c \
@@ -16,6 +16,9 @@ testmain_LDADD = $(top_srcdir)/src/libsrc.la
 
 testparser_SOURCES = test_parser.c
 testparser_LDADD = $(top_srcdir)/src/libsrc.la
+
+testuncert_SOURCES = test_uncert.c
+testuncert_LDADD = $(top_srcdir)/src/libsrc.la
 
 testupana_SOURCES = test_update_analysis.c
 testupana_LDADD = $(top_srcdir)/src/libsrc.la

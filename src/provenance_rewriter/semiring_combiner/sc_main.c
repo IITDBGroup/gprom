@@ -147,7 +147,7 @@ getUncertaintyExpr(Node *expr, HashMap *hmp, Set *st) {
 			return UncertIf((CaseExpr *)expr, hmp, st);
 		}
 		default: {
-			FATAL_LOG("unknown expression type for uncertainty: %s", nodeToString(expr));
+			FATAL_LOG("unknown expression type for uncertainty:(%d) %s", expr->type, nodeToString(expr));
 		}
 	}
 	return NULL;
@@ -292,28 +292,7 @@ QueryOperator * addSemiringCombiner(QueryOperator * result, char * funcN, Node *
 	proj2->provAttrs = singletonInt(getListLength(attrNames)-1);
 	switchSubtrees(aggr, proj2);
 	aggr->parents = singleton(proj2);
-	//testing expression uncertainty propagation
-	//Node *exppp = (Node *)createOpExpr("OR", appendToTailOfList(singleton(createAttributeReference("A")),createAttributeReference("B")));
-	/*Node *cwen = (Node *)createCaseWhen((Node *)createAttributeReference("A"),(Node *)createConstInt(0));
-	Node *exppp = (Node *)createCaseExpr((Node *)createAttributeReference("B"), singleton(cwen), (Node *)createConstInt(1));*/
-	Node *aeb = (Node *)createOpExpr("=", appendToTailOfList(singleton((Node *)createAttributeReference("A")),(Node *)createAttributeReference("B")));
-	Node *cwen = (Node *)createCaseWhen(aeb,(Node *)createConstInt(0));
-	Node *cwen2 = (Node *)createCaseWhen((Node *)createOpExpr("=", appendToTailOfList(singleton((Node *)createAttributeReference("A")),(Node *)createAttributeReference("C"))),(Node *)createConstInt(1));
-	Node *exppp = (Node *)createCaseExpr(NULL, appendToTailOfList(singleton(cwen), cwen2), (Node *)createConstInt(2));
-	INFO_LOG("expression in: ");
-	INFO_LOG(exprToSQL(exppp));
 	result = proj2;
-	HashMap * hmp = NEW_MAP(Node, Node);
-			ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("A"), (Node *)createAttributeReference("U_A")));
-			ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("B"), (Node *)createAttributeReference("U_B")));
-			ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("C"), (Node *)createAttributeReference("U_C")));
-			ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("D"), (Node *)createAttributeReference("U_D")));
-	Set *st = PSET();
-	addToSet(st, aeb);
-	Node * retexp = getUncertaintyExpr(exppp, hmp, st);
-	INFO_LOG("expression out: ");
-	INFO_LOG(exprToSQL(retexp));
-	//test end
 	return result;
 }
 
