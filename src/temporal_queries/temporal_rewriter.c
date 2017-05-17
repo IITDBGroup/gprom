@@ -1339,7 +1339,7 @@ addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference,
 	}
 	agg1Names = appendToHeadOfList(agg1Names, "AGGR_0");
 
-	AggregationOperator *agg1CP = createAggregationOp(aggrs1,agg1GroupBy, leftProj1Op, NIL, agg1Names);
+	AggregationOperator *agg1CP = createAggregationOp(aggrs1, agg1GroupBy, leftProj1Op, NIL, agg1Names);
 	leftProj1Op->parents = singleton(agg1CP);
 
 	//proj on agg 1 COUNT(*) AS S, 0 AS E, T_B AS T, SALARY
@@ -1493,7 +1493,187 @@ addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference,
     ((QueryOperator *) u1)->parents = singleton(u3);
     ((QueryOperator *) du2)->parents = singleton(u3);
 
-	return (QueryOperator *) u3;
+
+    QueryOperator *u3Op = (QueryOperator *) u3;
+    //CP_merge agg + proj
+    List *groupByCPMerge = NIL;
+    List *aggS = NIL;
+    List *aggE = NIL;
+    List *attrNamesCPMerge = NIL;
+
+    attrNamesCPMerge = appendToTailOfList(attrNamesCPMerge, "S");
+    attrNamesCPMerge = appendToTailOfList(attrNamesCPMerge, "E");
+	FOREACH(AttributeDef, d, u3Op->schema->attrDefs)
+	{
+		AttributeReference *a = createAttrsRefByName(u3Op, d->attrName);
+		if(!streq("S", d->attrName) && !streq("E", d->attrName))
+		{
+			groupByCPMerge = appendToTailOfList(groupByCPMerge, a);
+			attrNamesCPMerge = appendToTailOfList(attrNamesCPMerge, strdup(d->attrName));
+		}
+		else if(streq("S", d->attrName))
+			aggS = appendToTailOfList(aggS,a);
+		else if(streq("E", d->attrName))
+			aggE = appendToTailOfList(aggE,a);
+	}
+
+	FunctionCall *sumS = createFunctionCall("SUM",aggS);
+	FunctionCall *sumE = createFunctionCall("SUM",aggE);
+	List *functionCallList = LIST_MAKE(sumS,sumE);
+
+	AggregationOperator *aggCPMerge = createAggregationOp(functionCallList,groupByCPMerge, u3Op, NIL, attrNamesCPMerge);
+    u3Op->parents = singleton(aggCPMerge);
+
+    QueryOperator *aggCPMergeOp = (QueryOperator *) aggCPMerge;
+
+    //internals
+
+    //w1
+    WindowBound *internalsWB1 = createWindowBound(WINBOUND_UNBOUND_PREC,NULL);
+    WindowFrame *internalsWF1 = createWindowFrame(WINFRAME_RANGE,internalsWB1,NULL);
+
+    //OrderBy
+    AttributeReference *attrTW1 = createAttrsRefByName(aggCPMergeOp, "T");
+    List *internalsOrderBy1 = singleton(copyObject(attrTW1));
+
+    //partationBy
+    List *internalPartitionBy1 = NIL;
+    FOREACH(char, c, attrNames)
+    	 internalPartitionBy1 = appendToTailOfList(internalPartitionBy1,createAttrsRefByName(aggCPMergeOp, c));
+
+    WindowDef *internalWDef1 = createWindowDef(internalPartitionBy1,internalsOrderBy1,internalsWF1);
+
+    FunctionCall *internalFC1 = createFunctionCall("SUM",singleton(createAttrsRefByName(aggCPMergeOp, "S")));
+    WindowFunction *winternalF1 = createWindowFunction(internalFC1,internalWDef1);
+
+    char *internalWNames1 = "winf_0";
+    WindowOperator *internalW1 = createWindowOp(copyObject(winternalF1->f),
+    		copyObject(winternalF1->win->partitionBy),
+			copyObject(winternalF1->win->orderBy),
+			copyObject(winternalF1->win->frame),
+			internalWNames1, aggCPMergeOp, NIL);
+
+    aggCPMergeOp->parents = singleton(internalW1);
+    QueryOperator *internalW1Op = (QueryOperator *) internalW1;
+
+
+    //w2
+    WindowFrame *internalsWF2 = createWindowFrame(WINFRAME_RANGE,copyObject(internalsWB1),NULL);
+    List *internalsOrderBy2 = singleton(copyObject(attrTW1));
+    //partationBy
+    List *internalPartitionBy2 = NIL;
+    FOREACH(char, c, attrNames)
+    	 internalPartitionBy2 = appendToTailOfList(internalPartitionBy2,createAttrsRefByName(internalW1Op, c));
+
+    WindowDef *internalWDef2 = createWindowDef(internalPartitionBy2,internalsOrderBy2,internalsWF2);
+
+    FunctionCall *internalFC2 = createFunctionCall("SUM",singleton(createAttrsRefByName(internalW1Op, "E")));
+    WindowFunction *winternalF2 = createWindowFunction(internalFC2,internalWDef2);
+
+    char *internalWNames2 = "winf_1";
+    WindowOperator *internalW2 = createWindowOp(copyObject(winternalF2->f),
+    		copyObject(winternalF2->win->partitionBy),
+			copyObject(winternalF2->win->orderBy),
+			copyObject(winternalF2->win->frame),
+			internalWNames2, internalW1Op, NIL);
+
+    internalW1Op->parents = singleton(internalW2);
+
+    QueryOperator *internalW2Op = (QueryOperator *) internalW2;
+
+    //w3
+    //WindowFrame *internalsWF2 = createWindowFrame(WINFRAME_RANGE,copyObject(internalsWB1),NULL);
+    List *internalsOrderBy3 = singleton(copyObject(attrTW1));
+    //partationBy
+    List *internalPartitionBy3 = NIL;
+    FOREACH(char, c, attrNames)
+    	 internalPartitionBy3 = appendToTailOfList(internalPartitionBy3,createAttrsRefByName(internalW2Op, c));
+
+    WindowDef *internalWDef3 = createWindowDef(internalPartitionBy3,internalsOrderBy3,NULL);
+
+    FunctionCall *internalFC3 = createFunctionCall("LEAD",singleton(createAttrsRefByName(internalW1Op, "T")));
+    WindowFunction *winternalF3 = createWindowFunction(internalFC3,internalWDef3);
+
+    char *internalWNames3 = "winf_3";
+    WindowOperator *internalW3 = createWindowOp(copyObject(winternalF3->f),
+    		copyObject(winternalF3->win->partitionBy),
+			copyObject(winternalF3->win->orderBy),
+			copyObject(winternalF3->win->frame),
+			internalWNames3, internalW2Op, NIL);
+
+    internalW2Op->parents = singleton(internalW3);
+
+    QueryOperator *internalW3Op = (QueryOperator *) internalW3;
+
+    //top proj for intervals winf_0  - winf_1, T, winf_3, salary
+    List *intervalsProjExpr = NIL;
+    List *intervalsProjNames = NIL;
+    Operator *multiplicity = createOpExpr("-",
+    		LIST_MAKE(createAttrsRefByName(internalW3Op, strdup(internalWNames1)),createAttrsRefByName(internalW3Op, strdup(internalWNames2))));
+    intervalsProjExpr = appendToTailOfList(intervalsProjExpr, multiplicity);
+    intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, "T"));
+    intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, strdup(internalWNames3)));
+
+    intervalsProjNames = appendToTailOfList(intervalsProjNames, "NUMOPEN");
+    intervalsProjNames = appendToTailOfList(intervalsProjNames, "T_B");
+    intervalsProjNames = appendToTailOfList(intervalsProjNames, "T_E");
+
+    FOREACH(AttributeDef, d, internalW3Op->schema->attrDefs)
+    {
+    	if(!streq(d->attrName, "T") && !streq(d->attrName, "S") && !streq(d->attrName, "E")
+    			&& !streq(d->attrName,internalWNames1) && !streq(d->attrName,internalWNames2) && !streq(d->attrName,internalWNames3))
+    	{
+    		intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, strdup(d->attrName)));
+    		intervalsProjNames = appendToTailOfList(intervalsProjNames, strdup(d->attrName));
+    	}
+    }
+    ProjectionOperator *intervalsProj = createProjectionOp(intervalsProjExpr, internalW3Op, NIL, intervalsProjNames);
+    internalW3Op->parents = singleton(intervalsProj);
+
+    QueryOperator *intervalsProjOp = (QueryOperator *) intervalsProj;
+    //-----------------------------------------------------------------------------------------------------------------
+    //TNTAB AS (SELECT rownum n FROM dual connect by level <= (SELECT MAX(MULTIPLICITY) FROM INTERVALS))
+	TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
+
+	//set boolean prop (when translate to SQL, translate to above SQL not this table)
+	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) intervalsProj));
+
+	//---------------------------------------------------------------------------------------
+    //Construct Top
+
+    QueryOperator *TNTABOp = (QueryOperator *)TNTAB;
+
+    //join
+	AttributeReference *topAttrNum = createAttrsRefByName(intervalsProjOp, "NUMOPEN");
+	AttributeReference *topAttrN = createAttrsRefByName(TNTABOp, "N");
+	topAttrN->fromClauseItem = 1;
+	Operator *topCond1 = createOpExpr(">", LIST_MAKE(topAttrNum,copyObject(c0)));
+	Operator *topCond2 = createOpExpr(">=", LIST_MAKE(topAttrNum,topAttrN));
+	Node *topCond = andExprList(LIST_MAKE(topCond1, topCond2));
+
+
+    List *topNames = deepCopyStringList(getAttrNames(intervalsProjOp->schema));
+    topNames = appendToTailOfList(topNames, "N");
+
+    JoinOperator *topJoin = createJoinOp(JOIN_INNER, topCond, LIST_MAKE(intervalsProj, TNTAB), NIL, topNames);
+    intervalsProjOp->parents = singleton(topJoin);
+    TNTABOp->parents = singleton(topJoin);
+
+    QueryOperator *topJoinOp = (QueryOperator *) topJoin;
+    //projection on top
+    List *topProjNames = NIL;
+    FOREACH(AttributeDef, d, topJoinOp->schema->attrDefs)
+    {
+    	if(!streq(d->attrName, "N"))
+    		topProjNames = appendToTailOfList(topProjNames, strdup(d->attrName));
+    }
+
+    QueryOperator *topProjOp = createProjOnAttrsByName(topJoinOp , topProjNames);
+    topProjOp->inputs = singleton(topJoin);
+    topJoinOp->parents = singleton(topProjOp);
+
+
+	return (QueryOperator *) topProjOp;
 }
 
 
