@@ -76,7 +76,8 @@ rewriteImplicitTemporal (QueryOperator *q)
     //top = addCoalesce(top);
 
     List *attrNames = singleton("SALARY");
-    top = addTemporalAlignment(top, top, attrNames);
+    //top = addTemporalAlignment(top, top, attrNames);
+    top = addTemporalAlignmentUsingWindow(top, top, attrNames);
 
     return top;
 }
@@ -1001,6 +1002,13 @@ addCoalesce (QueryOperator *input)
  * aligns the output of "input" to temporally align with "reference"
  * this normalization has to be applied to the inputs of set difference
  * for R - S we rewrite it into A(R,S) - A(S,R)
+ *
+ *
+ * -- normalize(R,S) ON X means split intervals of R such that all intervals in the result that have the same value for X are either equal or disjoint.
+ * -- this is achieved by splitting intervals in R at change points (starting or end points of intervals in R or S that have the same value for X)
+ * ----------------------------------------
+ * -- join based implementation using window functions
+ * ----------------------------------------
  */
 QueryOperator *
 addTemporalAlignment (QueryOperator *input, QueryOperator *reference, List *attrNames)
@@ -1253,4 +1261,239 @@ addTemporalAlignment (QueryOperator *input, QueryOperator *reference, List *attr
 
     return (QueryOperator *) topProj;
 }
+
+/*
+* --------------------------------------------------------------------------------
+* -- new version using window functions
+* --------------------------------------------------------------------------------
+*
+* -- This form of normalization only works if we do not need attributes other
+* -- than TSART, TEND, and the attributes we normalized on.
+* -- normalize(LEFTY, RIGHTY) ON salary (Output has schema (TSTART, TEND, salary))
+* -- assumes half-open intervals [TSTART, TEND) otherwise we need +/-1 on
+* -- timestamps
+*/
+
+QueryOperator *
+addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference, List *attrNames)
+{
+	QueryOperator *left = input;
+	QueryOperator *right = reference;
+
+	//---------------------------------------------------------------------------------------
+    //Construct CP:
+    Constant *c1 = createConstInt(ONE);
+    Constant *c0 = createConstInt(ZERO);
+
+    //construct first union all (Q1 UNION ALL Q2)
+    //SELECT COUNT(*) AS S, 0 AS E, TSTART AS T, SALARY
+    //FROM LEFTY
+    //GROUP BY TSTART, SALARY
+    //UNION ALL
+    //SELECT 0 AS S, COUNT(*) AS E, TEND AS T, SALARY
+    //FROM LEFTY
+    //GROUP BY TEND, SALARY
+
+    //base projections used in Q1, then two aggr on Q1, each agg with 1 proj on top, at last union all
+    List *leftProjExpr1 = NIL;
+    //List *leftProjExpr2 = NIL;
+    List *leftProjAttrNames1 = NIL;
+
+    leftProjAttrNames1 = getAttrNames(left->schema);
+    FOREACH(AttributeDef, ad, left->schema->attrDefs)
+    {
+    	int leftBeginPos = getAttrPos(left, ad->attrName);
+    	AttributeReference *leftBeginRef = createFullAttrReference(strdup(ad->attrName), 0, leftBeginPos, INVALID_ATTR, ad->dataType);
+    	leftProjExpr1 = appendToTailOfList(leftProjExpr1, leftBeginRef);
+    }
+
+    leftProjAttrNames1 = appendToHeadOfList(leftProjAttrNames1, "AGG_GB_ARG0");
+    leftProjExpr1 = appendToHeadOfList(leftProjExpr1, copyObject(c1));
+
+    ProjectionOperator *leftProj1 = createProjectionOp(leftProjExpr1, left, NIL, deepCopyStringList(leftProjAttrNames1));
+
+    left->parents = singleton(leftProj1);
+
+    //agg 1
+    QueryOperator *leftProj1Op = (QueryOperator *) leftProj1;
+    List *agg1GroupBy = NIL;
+    FOREACH(char, c, attrNames)
+    {
+    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+    	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
+    }
+    agg1GroupBy = appendToHeadOfList(agg1GroupBy, createAttrsRefByName(leftProj1Op, "T_B"));
+
+    AttributeReference *agg1Attr = createAttrsRefByName(leftProj1Op, "AGG_GB_ARG0");
+	FunctionCall *agg1Func = createFunctionCall(strdup("COUNT"),
+			singleton(agg1Attr));
+	List *aggrs1 = singleton(agg1Func);
+	List *agg1Names = NIL;
+
+	FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
+	{
+		if(!streq("AGG_GB_ARG0", d->attrName) && !streq("T_E", d->attrName))
+		{
+			agg1Names = appendToTailOfList(agg1Names, strdup(d->attrName));
+		}
+	}
+	agg1Names = appendToHeadOfList(agg1Names, "AGGR_0");
+
+	AggregationOperator *agg1CP = createAggregationOp(aggrs1,agg1GroupBy, leftProj1Op, NIL, agg1Names);
+	leftProj1Op->parents = singleton(agg1CP);
+
+	//proj on agg 1 COUNT(*) AS S, 0 AS E, T_B AS T, SALARY
+	QueryOperator *agg1CPOp = (QueryOperator *) agg1CP;
+	QueryOperator *proj1CPOp = createProjOnAllAttrs(agg1CPOp);
+	proj1CPOp->inputs = singleton(agg1CPOp);
+	agg1CPOp->parents = singleton(proj1CPOp);
+
+	//add 0 AS E
+    ProjectionOperator *proj1CP = (ProjectionOperator *) proj1CPOp;
+    proj1CP->projExprs = appendToTailOfList(proj1CP->projExprs, copyObject(c0));
+    proj1CPOp->schema->attrDefs = appendToTailOfList(proj1CPOp->schema->attrDefs,createAttributeDef("E", DT_INT));
+
+    //rename count(*) and T_B
+    FOREACH(AttributeDef, d, proj1CPOp->schema->attrDefs)
+    {
+    	if(streq(d->attrName,"AGGR_0"))
+    		d->attrName = "S";
+    	else if(streq(d->attrName, "T_B"))
+    		d->attrName = "T";
+    }
+
+
+    //agg2
+    //agg 1
+    List *agg2GroupBy = NIL;
+    FOREACH(char, c, attrNames)
+    {
+    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+    	agg2GroupBy = appendToTailOfList(agg2GroupBy, a);
+    }
+    agg2GroupBy = appendToHeadOfList(agg2GroupBy, createAttrsRefByName(leftProj1Op, "T_E"));
+
+    AttributeReference *agg2Attr = createAttrsRefByName(leftProj1Op, "AGG_GB_ARG0");
+	FunctionCall *agg2Func = createFunctionCall(strdup("COUNT"),
+			singleton(agg2Attr));
+	List *aggrs2 = singleton(agg2Func);
+	List *agg2Names = NIL;
+
+	FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
+	{
+		if(!streq("AGG_GB_ARG0", d->attrName) && !streq("T_B", d->attrName))
+		{
+			agg2Names = appendToTailOfList(agg2Names, strdup(d->attrName));
+		}
+	}
+	agg2Names = appendToHeadOfList(agg2Names, "AGGR_0");
+
+	AggregationOperator *agg2CP = createAggregationOp(aggrs2,agg2GroupBy, leftProj1Op, NIL, agg2Names);
+	leftProj1Op->parents = appendToTailOfList(leftProj1Op->parents, agg2CP);
+
+	//proj on agg 2 COUNT(*) AS S, 0 AS E, T_E AS T, SALARY
+	QueryOperator *agg2CPOp = (QueryOperator *) agg2CP;
+	QueryOperator *proj2CPOp = createProjOnAllAttrs(agg2CPOp);
+	proj2CPOp->inputs = singleton(agg2CPOp);
+	agg2CPOp->parents = singleton(proj2CPOp);
+
+	//add 0 AS E
+    ProjectionOperator *proj2CP = (ProjectionOperator *) proj2CPOp;
+    proj2CP->projExprs = appendToTailOfList(proj2CP->projExprs, copyObject(c0));
+    proj2CPOp->schema->attrDefs = appendToTailOfList(proj2CPOp->schema->attrDefs,createAttributeDef("E", DT_INT));
+
+    //rename count(*) and T_E
+    FOREACH(AttributeDef, d, proj2CPOp->schema->attrDefs)
+    {
+    	if(streq(d->attrName,"AGGR_0"))
+    		d->attrName = "S";
+    	else if(streq(d->attrName, "T_E"))
+    		d->attrName = "T";
+    }
+
+    //construct union on top (u1)
+    SetOperator *u1 = createSetOperator(SETOP_UNION, LIST_MAKE(proj1CP, proj2CP), NIL,
+    		deepCopyStringList(getAttrNames(proj2CPOp->schema)));
+    ((QueryOperator *) proj1CP)->parents = singleton(u1);
+    ((QueryOperator *) proj2CP)->parents = singleton(u1);
+
+
+    //  part 2 of CP
+    //  SELECT *
+    //  FROM (
+    //  SELECT 0 AS S, SALARY, TSTART AS T, 0 AS E
+    //  FROM RIGHTY
+    //  UNION
+    //  SELECT 0 AS S, SALARY, TEND AS T, 0 AS E
+    //  FROM RIGHTY) RIGHT_CP
+
+    //proj 1
+    List *rightProj1Expr = NIL;
+    List *rightProj1Names = NIL;
+    FOREACH(char, c, attrNames)
+    {
+    	AttributeReference *a = createAttrsRefByName(right, c);
+    	rightProj1Expr = appendToTailOfList(rightProj1Expr, a);
+    	rightProj1Names = appendToTailOfList(rightProj1Names, strdup(c));
+    }
+    rightProj1Expr = appendToTailOfList(rightProj1Expr, createAttrsRefByName(right, "T_B"));
+    rightProj1Names = appendToTailOfList(rightProj1Names, "T");
+
+    rightProj1Expr = appendToTailOfList(rightProj1Expr,copyObject(c0));
+    rightProj1Expr = appendToHeadOfList(rightProj1Expr,copyObject(c0));
+    rightProj1Names = appendToTailOfList(rightProj1Names, "E");
+    rightProj1Names = appendToHeadOfList(rightProj1Names, "S");
+
+    ProjectionOperator *rightProj1 = createProjectionOp(rightProj1Expr, right, NIL, deepCopyStringList(rightProj1Names));
+    //QueryOperator *rightProj1Op = (QueryOperator *) rightProj1;
+    /*
+     * if change (R,R,..) the second R to S, then using following command
+     * right->parents = singleton(rightProj1);
+     */
+    right->parents = appendToTailOfList(right->parents,rightProj1);
+
+    //proj 2
+    List *rightProj2Expr = NIL;
+    List *rightProj2Names = deepCopyStringList(rightProj1Names);
+    FOREACH(char, c, attrNames)
+    {
+    	AttributeReference *a = createAttrsRefByName(right, c);
+    	rightProj2Expr = appendToTailOfList(rightProj2Expr, a);
+    	//rightProj2Names = appendToTailOfList(rightProj2Names, strdup(c));
+    }
+    rightProj2Expr = appendToTailOfList(rightProj2Expr, createAttrsRefByName(right, "T_E"));
+    //rightProj2Names = appendToTailOfList(rightProj2Names, "T");
+
+    rightProj2Expr = appendToTailOfList(rightProj2Expr,copyObject(c0));
+    rightProj2Expr = appendToHeadOfList(rightProj2Expr,copyObject(c0));
+    //rightProj2Names = appendToTailOfList(rightProj2Names, "E");
+    //rightProj2Names = appendToHeadOfList(rightProj2Names, "S");
+
+    ProjectionOperator *rightProj2 = createProjectionOp(rightProj2Expr, right, NIL, rightProj2Names);
+    //QueryOperator *rightProj1Op = (QueryOperator *) rightProj1;
+    right->parents = appendToTailOfList(right->parents, rightProj2);
+
+    //construct union on top (u2)
+    SetOperator *u2 = createSetOperator(SETOP_UNION, LIST_MAKE(rightProj1, rightProj2), NIL,
+    		deepCopyStringList(rightProj1Names));
+    ((QueryOperator *) rightProj1)->parents = singleton(u2);
+    ((QueryOperator *) rightProj2)->parents = singleton(u2);
+
+    //duplicate removal on top of u2
+	DuplicateRemoval *du2 = createDuplicateRemovalOp(NIL, (QueryOperator *) u2,
+			NIL, deepCopyStringList(rightProj1Names));
+
+	QueryOperator *u2Op = (QueryOperator *) u2;
+	u2Op->parents = singleton(du2);
+
+	//CP
+    //construct union on top (u3)  union u1 and du2
+    SetOperator *u3 = createSetOperator(SETOP_UNION, LIST_MAKE(u1, du2), NIL,
+    		deepCopyStringList(rightProj1Names));
+    ((QueryOperator *) u1)->parents = singleton(u3);
+    ((QueryOperator *) du2)->parents = singleton(u3);
+
+	return (QueryOperator *) u3;
+}
+
 
