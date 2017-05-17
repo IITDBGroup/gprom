@@ -1672,6 +1672,14 @@ addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference,
     topProjOp->inputs = singleton(topJoin);
     topJoinOp->parents = singleton(topProjOp);
 
+    setTempAttrProps(topProjOp);
+    int pCount = 0;
+    FOREACH(AttributeDef, a, topProjOp->schema->attrDefs)
+    {
+    	if(streq(a->attrName, TBEGIN_NAME) || streq(a->attrName, TEND_NAME))
+    		topProjOp->provAttrs = appendToTailOfListInt(topProjOp->provAttrs, pCount);
+    	pCount ++;
+    }
 
 	return (QueryOperator *) topProjOp;
 }
