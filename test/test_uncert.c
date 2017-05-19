@@ -58,8 +58,18 @@ main (int argc, char* argv[])
 					ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("C"), (Node *)createAttributeReference("U_C")));
 					ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("D"), (Node *)createAttributeReference("U_D")));
 	Set *st = PSET();
-	result = (Node *)getHeadOfListP((List *)result);
-
+	if(isA(result, List)) {
+		result = (Node *)getHeadOfListP((List *)result);
+	}
+	if(isA(result, Operator)) {
+		//result = result
+	}
+	else if(isA(result, QueryBlock)){
+		result = ((QueryBlock *)result)->whereClause;
+	}
+	else {
+		ERROR_LOG("Invalid input: %s", nodeToString(result));
+	}
 	INFO_LOG("expression in: %s\n", exprToSQL(result));
 		Node * retexp = getUncertaintyExpr(result, hmp, st);
 		INFO_LOG("expression out: %s\n", exprToSQL(retexp));
