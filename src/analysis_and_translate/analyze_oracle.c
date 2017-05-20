@@ -223,6 +223,8 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 
             	    DUMMY_LC(f)->data.ptr_value = f1;
             	}
+            	else
+            	    THROW(SEVERITY_RECOVERABLE, "table %s does not exist", tr->tableId);
             }
             break;
             default:
