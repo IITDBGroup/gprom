@@ -699,6 +699,14 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
+            "monetdb",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "monetdb",   // metadata
+            "sqlite",    // sqlserializer
+            "oracle"   // translator
+        },
+        {
             "STOPPER", NULL, NULL, NULL, NULL, NULL
         }
 };

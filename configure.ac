@@ -87,7 +87,7 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
-# libpq library location
+# Postgres libpq library location
 AC_DEFUN([AC_LIBPQ_LOCATION],
 [AC_ARG_WITH(libpq, [  --with-libpq], , )
 AC_MSG_CHECKING([for user provided libpq location])
@@ -99,6 +99,23 @@ if test "x$with_libpq" != x; then
 	else
     	AC_MSG_RESULT([no])
     	AC_WARN([no libpq library found in location $with_libpq])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
+# MonetDB Mapi library location
+AC_DEFUN([AC_MAPI_LOCATION],
+[AC_ARG_WITH(mapi, [  --with-mapi], , )
+AC_MSG_CHECKING([for user provided MonetDB mapi library location])
+if test "x$with_mapi" != x; then
+	if test -d "$with_mapi"; then
+		LDFLAGS="$LDFLAGS -L$with_mapi"
+    	CPPFLAGS="$CPPFLAGS -I$with_mapi/../include"
+    	AC_MSG_RESULT([yes, $with_mapi])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no libpq library found in location $with_mapi])
 	fi
 else
 	AC_MSG_RESULT([not set])
@@ -223,7 +240,7 @@ AS_IF([test "x$enable_timing" == "xno"], [
   AC_MSG_RESULT([yes])
 ])
 ])
-# compile with Postgres support
+# compile with SQLite support
 AC_DEFUN([AC_ENABLE_SQLITE],
 [
 AC_MSG_CHECKING([should be compiled with support for SQLite backends])
@@ -231,6 +248,20 @@ AC_ARG_ENABLE(sqlite, AS_HELP_STRING([--disable-sqlite],[Disable compilation wit
 
 AS_IF([test "x$enable_sqlite" == "xno"], [
   AC_DEFINE([DISABLE_SQLITE],[],[Disable support for SQLite backends])
+  AC_MSG_RESULT([no])
+],
+[
+  AC_MSG_RESULT([yes])
+])
+])
+# compile with MonetDB support
+AC_DEFUN([AC_ENABLE_MONETDB],
+[
+AC_MSG_CHECKING([should be compiled with support for MonetDB backends])
+AC_ARG_ENABLE(monetdb, AS_HELP_STRING([--disable-monetdb],[Disable compilation with support for MonetDB backends]))
+
+AS_IF([test "x$enable_monetdb" == "xno"], [
+  AC_DEFINE([DISABLE_MONETDB],[],[Disable support for MonetDB backends])
   AC_MSG_RESULT([no])
 ],
 [
@@ -423,6 +454,7 @@ AC_CHECK_FUNCS([strcmp])
 AC_ENABLE_ORACLE
 AC_ENABLE_POSTGRES
 AC_ENABLE_SQLITE
+AC_ENABLE_MONETDB
 ################################################################################
 # Check which language bindings to build
 AC_ENABLE_JAVA_BINDING
@@ -509,7 +541,7 @@ AS_IF([test "x$enable_readline" == "xno"], [
 #  AC_MSG_ERROR([missing cplex library])
 #])
 ################################################################################
-# Postgres access library (libpq)
+# Postgres C client library (libpq)
 AS_CASE(["$enable_postgres"], 
   [yes], [
 # check if user has provided us with a non-standard location for Postgres's libpq library
@@ -547,11 +579,29 @@ AS_CASE(["$enable_sqlite"],
 	])
 	]
 )
-#AS_IF([test "x$enable_sqlite" == "xno"], [
-#  AC_CHECK_LIB([sqlite3],[sqlite3_open],[],[
-#    AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
-#  ])
-#])
+################################################################################
+# MonetDB C client library (mapi)
+AS_CASE(["$enable_monetdb"], 
+  [yes], [
+# user has provided us with a non-standard location for MonetDB Mapi library
+  AC_MAPI_LOCATION
+  AC_CHECK_HEADERS([monetdb/mapi.h])
+# check for the mapi library
+  AC_CHECK_LIB([mapi],[mapi_unquote],[],[
+    AC_MSG_ERROR([missing mapi library - if you want to compile without MonetDB backend support use --disable-monetdb])
+  ])
+  ],
+  [no], [],
+  [
+# user has not provided us with a non-standard location for MonetDB Mapi library
+  AC_MAPI_LOCATION
+  AC_CHECK_HEADERS([monetdb/mapi.h])
+# check for the libpq library
+  AC_CHECK_LIB([mapi],[mapi_unquote],[],[
+    AC_MSG_ERROR([missing mapi library - if you want to compile without MonetDB backend support use --disable-monetdb])
+  ])  
+  ]
+)
 ################################################################################
 # enable/disable features
 AC_LOGGING_ACTIVE
@@ -622,7 +672,7 @@ echo "
   Debug Build........: ${enable_debug:=yes}
   Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no} 
   Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no}
-  Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}
+  Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}, MonetDB - ${enable_monetdb:=yes}
   Language bindings..: Java - ${enable_java:=yes}
   Readline support...: ${enable_readline:=yes}
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX

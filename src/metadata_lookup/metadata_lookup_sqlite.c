@@ -294,8 +294,6 @@ sqliteGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
     *opExists = FALSE;
 
     return DT_STRING;
-
-    return DT_STRING;
 }
 
 char *
