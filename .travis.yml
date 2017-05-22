@@ -10,7 +10,7 @@ before_install:
 ####################
 # build script
 script:
-  - export PATH=.:${PATH} && ./travis/autogen.sh && ./travis/configure.sh && make && make install && make check && ./travis/distcheck.sh
+  - export PATH=.:${PATH} && ./travis/autogen.sh && ./travis/configure.sh && make && sudo make install && make check && ./travis/distcheck.sh
 
 ####################
 # branch configuration
