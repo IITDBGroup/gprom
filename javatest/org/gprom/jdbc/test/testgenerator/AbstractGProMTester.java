@@ -1,20 +1,23 @@
 package org.gprom.jdbc.test.testgenerator;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import java.sql.SQLException;
 import java.util.Map.Entry;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.test.testgenerator.dataset.DBTable;
 import org.gprom.jdbc.test.testgenerator.dataset.DBTableFactory;
 import org. gprom.jdbc.test.testgenerator.dataset.DataAndQueryGenerator;
 import org.gprom.jdbc.test.testgenerator.dataset.TableCompartor;
-import static org.junit.Assert.*;
 
 public class AbstractGProMTester {
 
-	static Logger log = Logger.getLogger(AbstractGProMTester.class);
+	static Logger log = LogManager.getLogger(AbstractGProMTester.class);
 	
 	static protected String path;
 	static protected Properties oldProps;

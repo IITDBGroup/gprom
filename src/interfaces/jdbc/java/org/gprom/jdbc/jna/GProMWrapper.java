@@ -8,8 +8,9 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 import com.sun.jna.Pointer;
@@ -20,8 +21,8 @@ import com.sun.jna.Pointer;
  */
 public class GProMWrapper implements GProMJavaInterface {
 
-	static Logger libLog = Logger.getLogger("LIBGPROM");
-	static Logger log = Logger.getLogger(GProMWrapper.class);
+	static Logger libLog = LogManager.getLogger("LIBGPROM");
+	static Logger log = LogManager.getLogger(GProMWrapper.class);
 
 	public static final String KEY_CONNECTION_HOST = "connection.host";
 	public static final String KEY_CONNECTION_DATABASE = "connection.db";
@@ -70,8 +71,9 @@ public class GProMWrapper implements GProMJavaInterface {
 	 */
 	@Override
 	public String gpromRewriteQuery(String query) throws SQLException {
+		log.debug("WILL REWRITE:\n\n{}", query);
+		
 		Pointer p =  GProM_JNA.INSTANCE.gprom_rewriteQuery(query);
-		String result = p.getString(0);
 		
 		// check whether exception has occured
 		if (exceptions.size() > 0) {
@@ -87,6 +89,7 @@ public class GProMWrapper implements GProMJavaInterface {
 			throw new NativeGProMLibException("Error during rewrite:\n" + mes.toString());
 		}
 		//TODO use string builder to avoid creation of two large strings
+		String result = p.getString(0);
 		result = result.replaceFirst(";\\s+\\z", "");
 		log.info("HAVE REWRITTEN:\n\n" + query + "\n\ninto:\n\n" + result);
 		return result;

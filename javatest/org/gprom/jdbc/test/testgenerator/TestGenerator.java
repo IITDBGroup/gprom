@@ -9,7 +9,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.InvalidPropertiesFormatException;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org. gprom.jdbc.test.testgenerator.dataset.DataAndQueryGenerator;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.STGroup;
@@ -17,7 +18,7 @@ import org.stringtemplate.v4.STGroupFile;
 
 public class TestGenerator {
 
-	Logger log = Logger.getLogger(TestGenerator.class);
+	Logger log = LogManager.getLogger(TestGenerator.class);
 	
 	public static int settingNum;
 	

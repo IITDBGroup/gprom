@@ -249,7 +249,7 @@
 			<test name="org.gprom.jdbc.test.autotests.${TestName}" haltonfailure="false" />
 			<formatter type="brief" usefile="false" />
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-			<sysproperty key="log4j.configuration" value="log4jtest.properties" />
+			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
 		</junit>
 	</target>
 
@@ -264,7 +264,7 @@
 			<test name="org.gprom.jdbc.test.junit.GProMAllTests" haltonfailure="false" />
 			<formatter type="brief" usefile="false" />
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-			<sysproperty key="log4j.configuration" value="log4jtest.properties" />
+			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
 		</junit>
 	</target>
 

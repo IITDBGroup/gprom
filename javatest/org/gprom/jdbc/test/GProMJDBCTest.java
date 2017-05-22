@@ -8,12 +8,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
+import java.util.Scanner;
 
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriverProperties;
 import org.gprom.jdbc.jna.NativeGProMLibException;
+import org.gprom.jdbc.utility.PropertyConfigurator;
 
 import com.sun.jna.Native;
 
@@ -23,26 +25,40 @@ import com.sun.jna.Native;
  */
 public class GProMJDBCTest {
 
-	static Logger log = Logger.getLogger(GProMJDBCTest.class);
+	static {
+		System.setProperty("log4j.configurationFile", "blackboxtests/log4jtest.properties");
+	}
+	
+	static Logger log = LogManager.getLogger(GProMJDBCTest.class);
 	
 	public static void main (String[] args) throws Exception {
 		
-		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
+		//PropertyConfigurator.configureAndWatch("blackboxtests/log4jtest.properties");
 		String driverURL = "oracle.jdbc.OracleDriver";
 //		String driverURL = "org.postgresql.Driver";
 //		String url = "jdbc:hsqldb:file:/Users/alex/db/mydb";
 		String username = "fga_user";
-		String password = "fga";
+		String password; // = "XXX";
 //		String username = "postgres";
 //		String password = "";
 		String host = "ligeti.cs.iit.edu";
 		String port = "1521";
 		String sid = "orcl";
-		String url = "jdbc:gprom:oracle:thin:" + username + "/" + password + 
-				"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
+		String url;
 //		String url = "jdbc:gprom:postgresql://127.0.0.1:5432/testdb";
+		
+		//get password
+		System.out.print("enter password: ");
+		Scanner in = new Scanner(System.in);
+		password = in.nextLine();
+		
+		// setup url
+		url = "jdbc:gprom:oracle:thin:" + username + "/" + password + 
+				"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
+		
 		GProMConnection con = null;
 		Native.setProtected(true);
+		log.debug("XXXXXXXXXXXX");
 		log.error(url);
 		try{
 			log.error("made it this far");

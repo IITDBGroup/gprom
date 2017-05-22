@@ -52,9 +52,12 @@ initMetadataLookupPlugins (void)
 #if HAVE_SQLITE_BACKEND
     availablePlugins = appendToTailOfList(availablePlugins, assembleSqliteMetadataLookupPlugin());
 #endif
+#if HAVE_MONETDB_BACKEND
+    availablePlugins = appendToTailOfList(availablePlugins, assembleMonetdbMetadataLookupPlugin());
+#endif
     availablePlugins = appendToTailOfList(availablePlugins, assembleExternalMetadataLookupPlugin(NULL));
 
-    availablePlugins = appendToTailOfList(availablePlugins, assembleMonetdbMetadataLookupPlugin());
+
 
     return EXIT_SUCCESS;
 }

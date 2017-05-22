@@ -8,7 +8,8 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
@@ -28,7 +29,7 @@ import org.gprom.jdbc.utility.PropertyWrapper;
  */
 public class GProMDriver implements Driver {
 	/** logger */
-	private static Logger log = Logger.getLogger(GProMDriver.class);
+	private static Logger log = LogManager.getLogger(GProMDriver.class);
 	
 	
 	protected Driver driver;

@@ -673,13 +673,6 @@ monetdbExecuteQuery(char *query)
     return NULL;
 }
 
-static char *
-monetdbGetConnectionDescription (void)
-{
-    return NULL;
-}
-
-
 #endif
 
 
