@@ -29,7 +29,7 @@ exeRunQuery (void *code)
     int *colSizes;
     int numCol;
 //    int numRows;
-    int totalSize = 0;
+    int totalSize;
 
     // list of statement
     List *stmtList = splitString(code, ";");
@@ -39,6 +39,7 @@ exeRunQuery (void *code)
 
     for(int s = 0; s < LIST_LENGTH(stmtList)-1; s++)
     {
+    	totalSize = 0;
 //        res = executeQuery((char *) adaptedQuery);
     	adaptedQuery = (char *) getNthOfListP(stmtList,s);
 

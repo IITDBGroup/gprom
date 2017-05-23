@@ -65,6 +65,8 @@ static void setIDBBody (DLRule *r);
 static DLProgram *rewriteSolvedProgram (DLProgram *solvedProgram);
 static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
         List* unLinkedRules);
+static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
+		List* unLinkedRules);
 static List*createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
         List* unLinkedRules);
 static List*createGPMoveRules(int getMatched, List* negedbRules, List* edbRules,
@@ -445,7 +447,7 @@ static List*createTupleRuleTupleReducedGraphMoveRules(int getMatched, List* nege
 							{
 								if (!goalWon)
 								{
-									rExpr = createSkolemExpr(GP_NODE_EDB,
+									rExpr = createSkolemExpr(GP_NODE_TUPLE,
 											negAtomRel, copyObject(a->args));
 									if (ruleWon)
 										moveRule = createMoveRule(lExpr, rExpr,
@@ -464,7 +466,7 @@ static List*createTupleRuleTupleReducedGraphMoveRules(int getMatched, List* nege
 							{
 								if (!goalWon || ruleWon)
 								{
-									rExpr = createSkolemExpr(GP_NODE_EDB,
+									rExpr = createSkolemExpr(GP_NODE_TUPLE,
 											atomRel, copyObject(a->args));
 									if (ruleWon)
 										moveRule = createMoveRule(lExpr, rExpr,
@@ -695,7 +697,7 @@ static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, L
 								relWon = FALSE;
 							}
 
-							char *atomRel = CONCAT_STRINGS("r",strdup(origAtom->rel),
+							char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
 									relWon ? "_WON" : "_LOST");
 
 							// -> posR
@@ -726,7 +728,7 @@ static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, L
 	//
 	//								lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel,
 	//										copyObject(a->args));
-									Node *rExpr = createSkolemExpr(GP_NODE_EDB,
+									Node *rExpr = createSkolemExpr(GP_NODE_TUPLE,
 											atomRel, copyObject(a->args));
 									DLRule *moveRule;
 									if (ruleWon)
@@ -761,9 +763,9 @@ static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, L
 										lExpr = createSkolemExpr(GP_NODE_RULE,
 												ruleRel, copyObject(r->head->args));
 
-									char *Rel = CONCAT_STRINGS("r",strdup(origAtom->rel),
+									char *Rel = CONCAT_STRINGS(strdup(origAtom->rel),
 													ruleWon ? "_WON" : "_LOST");
-									Node *rExpr = createSkolemExpr(GP_NODE_EDB,
+									Node *rExpr = createSkolemExpr(GP_NODE_TUPLE,
 											Rel, copyObject(a->args));
 
 									DLRule *moveRule;
@@ -1420,7 +1422,7 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
         List *boolArgs = removeVars(r->head->args, ruleArgs);
 
         // head atom
-        lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
+        lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
                                copyObject(origAtom->args));
 
         // create a list for collecting rule id
@@ -1496,9 +1498,9 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
                             DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
                                     DL_ORIG_ATOM);
 
-                            char *atomRel = CONCAT_STRINGS("r",strdup(origAtom->rel),
+                            char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
                                     ruleWon ? "_WON" : "_LOST");
-                            char *negAtomRel = CONCAT_STRINGS("r",strdup(origAtom->rel),
+                            char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
                                     !ruleWon ? "_WON" : "_LOST");
 
                             if (!ruleWon)
@@ -1525,7 +1527,7 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
                             {
                                 if (!goalWon)
                                 {
-                                    rExpr = createSkolemExpr(GP_NODE_EDB,
+                                    rExpr = createSkolemExpr(GP_NODE_TUPLE,
                                             negAtomRel, copyObject(a->args));
                                     if (ruleWon)
                                         moveRule = createMoveRule(lExpr, rExpr,
@@ -1544,7 +1546,7 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
                             {
                                 if (!goalWon || ruleWon)
                                 {
-                                    rExpr = createSkolemExpr(GP_NODE_EDB,
+                                    rExpr = createSkolemExpr(GP_NODE_TUPLE,
                                             atomRel, copyObject(a->args));
                                     if (ruleWon)
                                         moveRule = createMoveRule(lExpr, rExpr,
