@@ -28,11 +28,14 @@ public class GProMCaseWhen extends GProMStructure {
 		this.type = type;
 		this.when = when;
 		this.then = then;
+		write();
 	}
 	public static class ByReference extends GProMCaseWhen implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMCaseWhen implements Structure.ByValue {
-		
+		public ByValue(int type, org.gprom.jdbc.jna.GProMNode.ByReference when, org.gprom.jdbc.jna.GProMNode.ByReference then) {
+			super(type, when, then);
+		}
 	};
 }

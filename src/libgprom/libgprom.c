@@ -25,9 +25,9 @@
 #include "metadata_lookup/metadata_lookup_external.h"
 
 #define LIBARY_REWRITE_CONTEXT "LIBGRPROM_QUERY_CONTEXT"
-#define printf(...) 0
-#define LOCK_MUTEX() printf("\nMUTEX\n%s:%u", __FILE__, __LINE__)
-#define UNLOCK_MUTEX() printf("\nUNLOCK\n%s:%u", __FILE__, __LINE__)
+//#define printf(...) 0
+#define LOCK_MUTEX() 0//printf("\nMUTEX\n%s:%u", __FILE__, __LINE__)
+#define UNLOCK_MUTEX() 0//printf("\nUNLOCK\n%s:%u", __FILE__, __LINE__)
 #define CREATE_MUTEX()
 #define DESTROY_MUTEX()
 
@@ -87,14 +87,15 @@ const char *
 gprom_rewriteQuery(const char *query)
 {
     LOCK_MUTEX();
-    NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+    //NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
     char *result = "";
-    char *returnResult = NULL;
+    //char *returnResult = NULL;
     TRY
     {
         result = rewriteQueryWithRethrow((char *) query);
+        return result;
         UNLOCK_MUTEX();
-        RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
+        //RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
     }
     ON_EXCEPTION
     {
@@ -103,7 +104,7 @@ gprom_rewriteQuery(const char *query)
     END_ON_EXCEPTION
 
     UNLOCK_MUTEX();
-    return returnResult;
+    return result;//returnResult;
 }
 
 
@@ -218,15 +219,15 @@ gprom_rewriteQueryToOperatorModel(const char *query)
     TRY
     {
     	parse = parseFromString((char *)query);
-		DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+		//DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
 
 		oModel = translateParse(parse);
-		DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
+		//DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
 
 		rewrittenTree = provRewriteQBModel(oModel);
-		returnResult = (GProMNode*)copyObject(rewrittenTree);
 
     	UNLOCK_MUTEX();
+    	returnResult = (GProMNode*)rewrittenTree;
     	//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
     	return returnResult;
     }
@@ -242,14 +243,14 @@ gprom_rewriteQueryToOperatorModel(const char *query)
 }
 
 GProMNode *
-gprom_provRewriteOperator(GProMNode * nodeFromMimir)
+gprom_provRewriteOperator(GProMNode* nodeFromMimir)
 {
 	LOCK_MUTEX();
-	    NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+	    //NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
 	    //char *result = "";
 	    Node *rewrittenTree;
 	    Node *copiedTree;
-	    //GProMNode* returnResult;
+	    GProMNode* returnResult;
 	    TRY
 	    {
 
@@ -258,7 +259,9 @@ gprom_provRewriteOperator(GProMNode * nodeFromMimir)
 
 
 	    	UNLOCK_MUTEX();
-	    	RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+	    	returnResult = (GProMNode*)rewrittenTree;
+	    	//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+	    	return returnResult;
 	    }
 	    ON_EXCEPTION
 	    {
@@ -267,7 +270,72 @@ gprom_provRewriteOperator(GProMNode * nodeFromMimir)
 	    END_ON_EXCEPTION
 
 	    UNLOCK_MUTEX();
-	    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
+	    //RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
+	    return NULL;
+}
+
+GProMNode *
+gprom_optimizeOperatorModel(GProMNode * nodeFromMimir)
+{
+	LOCK_MUTEX();
+	NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
+	    //NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+	    //char *result = "";
+	    Node *rewrittenTree;
+	    Node *copiedTree;
+	    GProMNode* returnResult;
+	    TRY
+	    {
+
+	    	copiedTree = copyObject(nodeFromMimir);
+
+	    	rewrittenTree = optimizeOperatorModelRW(copiedTree);
+
+			UNLOCK_MUTEX();
+			returnResult = (GProMNode*)rewrittenTree;
+			//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+			return returnResult;
+		}
+		ON_EXCEPTION
+		{
+			ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+		}
+		END_ON_EXCEPTION
+
+		UNLOCK_MUTEX();
+		//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
+		return NULL;
+}
+
+char *
+gprom_operatorModelToSql(GProMNode * nodeFromMimir)
+{
+	LOCK_MUTEX();
+	NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
+	    //NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+	    //char *result = "";
+	    char *rewrittenSQL;
+	    Node *copiedTree;
+	    TRY
+	    {
+
+	    	copiedTree = copyObject(nodeFromMimir);
+
+	    	rewrittenSQL = serializeOperatorModelRW(copiedTree);
+
+			UNLOCK_MUTEX();
+			//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+			return rewrittenSQL;
+		}
+		ON_EXCEPTION
+		{
+			ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+		}
+		END_ON_EXCEPTION
+
+		UNLOCK_MUTEX();
+		//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
+		return NULL;
 }
 
 char *
@@ -276,12 +344,12 @@ gprom_nodeToString(GProMNode * nodeFromMimir)
 	LOCK_MUTEX();
 	//NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
 	char *returnResult = NULL;
-	//char *result = "";
+	//char *result = NULL;
 	//Node *copiedTree;
 	TRY
 	{
 		//copiedTree = copyObject(nodeFromMimir);
-		returnResult = strdup(beatify(nodeToString(nodeFromMimir)));
+		returnResult = jsonify(nodeToString(nodeFromMimir));
 
 		UNLOCK_MUTEX();
 		//RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
@@ -298,18 +366,55 @@ gprom_nodeToString(GProMNode * nodeFromMimir)
 	return returnResult;
 }
 
-void
+char *
+gprom_OperatorModelToQuery(GProMNode * nodeFromMimir)
+{
+	LOCK_MUTEX();
+	Node * copiedTree;
+    char *result ;
+    NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
+    TRY
+    {
+    	copiedTree = copyObject(nodeFromMimir);
+        result = generatePlan(copiedTree, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
+        RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+    }
+    ON_EXCEPTION
+    {
+    	ERROR_LOG("allocated in memory context: %s", currentExceptionToString());
+    }
+    END_ON_EXCEPTION
+    return result;
+}
+
+void *
 gprom_createMemContext(void)
 {
 	LOCK_MUTEX();
-	NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+	MemContext *_newcontext_ = NEW_MEM_CONTEXT(LIBARY_REWRITE_CONTEXT);
+	ACQUIRE_MEM_CONTEXT(_newcontext_);
 	UNLOCK_MUTEX();
+	return _newcontext_;
+}
+
+void *
+gprom_createMemContextName(const char * ctxName)
+{
+	LOCK_MUTEX();
+	MemContext *_newcontext_ = NEW_MEM_CONTEXT((char *)ctxName);
+	ACQUIRE_MEM_CONTEXT(_newcontext_);
+	UNLOCK_MUTEX();
+	return _newcontext_;
 }
 
 void
-gprom_freeMemContext(void)
+gprom_freeMemContext(void * memContext)
 {
 	LOCK_MUTEX();
+	//UNLOCK_MUTEX();
+	MemContext *_newcontext_ = (MemContext *) memContext;
+	ACQUIRE_MEM_CONTEXT(_newcontext_);
+	FREE_CUR_MEM_CONTEXT();
 	RELEASE_MEM_CONTEXT();
 	UNLOCK_MUTEX();
 }

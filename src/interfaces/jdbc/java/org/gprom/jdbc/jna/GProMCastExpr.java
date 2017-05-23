@@ -28,11 +28,14 @@ public class GProMCastExpr extends GProMStructure {
 		this.type = type;
 		this.resultDT = resultDT;
 		this.expr = expr;
+		write();
 	}
 	public static class ByReference extends GProMCastExpr implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMCastExpr implements Structure.ByValue {
-		
+		public ByValue(int type, int resultDT, org.gprom.jdbc.jna.GProMNode.ByReference expr) {
+			super(type, resultDT, expr);
+		}
 	};
 }

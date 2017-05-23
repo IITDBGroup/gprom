@@ -18,11 +18,14 @@ public class GProMRowNumExpr extends GProMStructure {
 	public GProMRowNumExpr(int type) {
 		super();
 		this.type = type;
+		write();
 	}
 	public static class ByReference extends GProMRowNumExpr implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMRowNumExpr implements Structure.ByValue {
-		
+		public ByValue(int type) {
+			super(type);
+		}
 	};
 }

@@ -85,7 +85,7 @@ public class GProMMetadataLookupPlugin extends Structure {
 		int apply(String functionName);
 	};
 	public interface getFuncReturnType_callback extends Callback {
-		String apply(String fName, PointerByReference args, int numArgs);
+		String apply(String fName, Pointer args, int numArgs);
 	};
 	public interface getOpReturnType_callback extends Callback {
 		String apply(String oName, PointerByReference args, int numArgs);

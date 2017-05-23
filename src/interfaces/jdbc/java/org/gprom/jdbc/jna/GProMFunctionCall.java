@@ -30,11 +30,14 @@ public class GProMFunctionCall extends GProMStructure {
 		this.functionname = functionname;
 		this.args = args;
 		this.isAgg = isAgg;
+		write();
 	}
 	public static class ByReference extends GProMFunctionCall implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMFunctionCall implements Structure.ByValue {
-		
+		public ByValue(int type, String functionname, org.gprom.jdbc.jna.GProMList.ByReference args, int isAgg) {
+			super(type, functionname, args, isAgg);
+		}
 	};
 }

@@ -83,7 +83,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	 * @see org.gprom.jdbc.jna.GProMJavaInterface#gpromRewriteQuery(java.lang.String)
 	 */
 	@Override
-	public String gpromRewriteQuery(String query) throws SQLException {
+	public synchronized String gpromRewriteQuery(String query) throws SQLException {
 		Pointer p =  GProM_JNA.INSTANCE.gprom_rewriteQuery(query);
 		String result = p.getString(0);
 		
@@ -110,7 +110,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	 * @see org.gprom.jdbc.jna.GProMJavaInterface#rewriteQueryToOperatorModel(java.lang.String)
 	 */
 	@Override
-	public GProMStructure rewriteQueryToOperatorModel(String query) throws Exception {
+	public synchronized GProMStructure rewriteQueryToOperatorModel(String query) throws Exception {
 		Pointer p =  GProM_JNA.INSTANCE.gprom_rewriteQueryToOperatorModel(query);
 		GProMStructure result;
 		
@@ -138,7 +138,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	 * @see org.gprom.jdbc.jna.GProMJavaInterface#provRewriteOperator(com.sun.jna.Pointer)
 	 */
 	@Override
-	public GProMStructure provRewriteOperator(Pointer nodeFromMimir) throws Exception {
+	public synchronized GProMStructure provRewriteOperator(Pointer nodeFromMimir) throws Exception {
 		Pointer p =  GProM_JNA.INSTANCE.gprom_provRewriteOperator(nodeFromMimir);
 		GProMStructure result;
 		
@@ -166,7 +166,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	 * @see org.gprom.jdbc.jna.GProMJavaInterface#gpromNodeToString(com.sun.jna.Pointer)
 	 */
 	@Override
-	public String gpromNodeToString(Pointer nodeFromMimir) throws Exception {
+	public synchronized String gpromNodeToString(Pointer nodeFromMimir) throws Exception {
 		Pointer p =  GProM_JNA.INSTANCE.gprom_nodeToString(nodeFromMimir);
 		String result = p.getString(0);
 		
@@ -189,14 +189,99 @@ public class GProMWrapper implements GProMJavaInterface {
 		return result;
 	}
 	
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#gpromNodeToString(com.sun.jna.Pointer)
+	 */
 	@Override
-	public void gpromCreateMemContext(){
-		GProM_JNA.INSTANCE.gprom_createMemContext();
+	public synchronized String gpromOperatorModelToQuery(Pointer nodeFromMimir) throws Exception {
+		Pointer p =  GProM_JNA.INSTANCE.gprom_OperatorModelToQuery(nodeFromMimir);
+		String result = p.getString(0);
+		
+		// check whether exception has occured
+		if (exceptions.size() > 0) {
+			StringBuilder mes = new StringBuilder();
+			for(ExceptionInfo i: exceptions)
+			{
+				mes.append("ERROR (" + i + ")");
+				mes.append(i.toString());
+				mes.append("\n\n");
+			}
+			exceptions.clear();
+			log.error("have encountered exception");
+			throw new NativeGProMLibException("Error during rewrite:\n" + mes.toString());
+		}
+		//TODO use string builder to avoid creation of two large strings
+		result = result.replaceFirst(";\\s+\\z", "");
+		//log.info("NodeToString:\n\n" + result );
+		return result;
+	}
+	
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#optimizeOperatorModel(com.sun.jna.Pointer)
+	 */
+	@Override
+	public synchronized GProMStructure optimizeOperatorModel(Pointer nodeFromMimir) throws Exception {
+		Pointer p =  GProM_JNA.INSTANCE.gprom_optimizeOperatorModel(nodeFromMimir);
+		GProMStructure result;
+		
+		GProMNode gpromNode = new GProMNode(p);
+		result = castGProMNode(gpromNode);
+		
+		// check whether exception has occured
+		if (exceptions.size() > 0) {
+			StringBuilder mes = new StringBuilder();
+			for(ExceptionInfo i: exceptions)
+			{
+				mes.append("ERROR (" + i + ")");
+				mes.append(i.toString());
+				mes.append("\n\n");
+			}
+			exceptions.clear();
+			log.error("have encountered exception");
+			throw new NativeGProMLibException("Error during rewrite:\n" + mes.toString());
+		}
+		
+		return result;
+	}
+	
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#operatorModelToSql(com.sun.jna.Pointer)
+	 */
+	@Override
+	public String operatorModelToSql (Pointer nodeFromMimir)throws Exception {
+		Pointer p =  GProM_JNA.INSTANCE.gprom_operatorModelToSql(nodeFromMimir);
+		String result = p.getString(0);
+		
+		// check whether exception has occured
+		if (exceptions.size() > 0) {
+			StringBuilder mes = new StringBuilder();
+			for(ExceptionInfo i: exceptions)
+			{
+				mes.append("ERROR (" + i + ")");
+				mes.append(i.toString());
+				mes.append("\n\n");
+			}
+			exceptions.clear();
+			log.error("have encountered exception");
+			throw new NativeGProMLibException("Error during rewrite:\n" + mes.toString());
+		}
+		
+		return result;
 	}
 	
 	@Override
-	public void gpromFreeMemContext(){
-		GProM_JNA.INSTANCE.gprom_freeMemContext();
+	public synchronized Pointer gpromCreateMemContext(){
+		return GProM_JNA.INSTANCE.gprom_createMemContext();
+	}
+	
+	@Override
+	public synchronized Pointer createMemContextName(String ctxName){
+		return GProM_JNA.INSTANCE.gprom_createMemContextName(ctxName);
+	}
+	
+	@Override
+	public synchronized void gpromFreeMemContext(Pointer memContext){
+		GProM_JNA.INSTANCE.gprom_freeMemContext(memContext);
 	}
 	
 	public GProMStructure castGProMNode(GProMNode node){

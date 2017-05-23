@@ -3,6 +3,8 @@
  */
 package org.gprom.jdbc.metadata_lookup;
 
+import static org.gprom.jdbc.utility.LoggerUtil.logException;
+
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -13,10 +15,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
+import org.gprom.jdbc.jna.GProMList;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.catalogTableExists_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.catalogViewExists_callback;
@@ -36,8 +38,7 @@ import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.isWindowFunction_callback;
 import org.gprom.jdbc.utility.LoggerUtil;
 
 import com.sun.jna.ptr.PointerByReference;
-
-import static org.gprom.jdbc.utility.LoggerUtil.*;
+import com.sun.jna.Pointer;
 
 /**
  * @author lord_pretzel
@@ -214,10 +215,10 @@ public abstract class AbstractMetadataLookup {
 		plugin.getFuncReturnType = new getFuncReturnType_callback() {
 
 			@Override
-			public String apply(String fName, PointerByReference args,
+			public String apply(String fName, Pointer args,
 					int numArgs) {
-				String[] fArgs;
-				fArgs = args.getPointer().getStringArray(0, numArgs);
+				GProMList fArgs;
+				fArgs = new GProMList(args);//.getStringArray(0, numArgs);
 				return getFuncReturnType(fName, fArgs, numArgs);
 			}
 			
@@ -364,7 +365,7 @@ public abstract class AbstractMetadataLookup {
 	 * @param numArgs
 	 * @return
 	 */
-	public String getFuncReturnType(String fName, String[] stringArray,
+	public String getFuncReturnType(String fName, GProMList stringArray,
 			int numArgs) {
 		ResultSet rs;
 		FunctionDesc f = null;

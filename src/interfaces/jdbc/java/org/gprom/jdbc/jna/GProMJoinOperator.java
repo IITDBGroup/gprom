@@ -37,11 +37,14 @@ public class GProMJoinOperator extends GProMStructure {
 		this.op = op;
 		this.joinType = joinType;
 		this.cond = cond;
+		write();
 	}
 	public static class ByReference extends GProMJoinOperator implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMJoinOperator implements Structure.ByValue {
-		
+		public ByValue(GProMQueryOperator op, int joinType, org.gprom.jdbc.jna.GProMNode.ByReference cond) {
+			super(op, joinType, cond);
+		}
 	};
 }

@@ -45,11 +45,14 @@ public class GProMProvenanceComputation extends GProMStructure {
 		this.inputType = inputType;
 		this.transactionInfo = transactionInfo;
 		this.asOf = asOf;
+		write();
 	}
 	public static class ByReference extends GProMProvenanceComputation implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMProvenanceComputation implements Structure.ByValue {
-		
+		public ByValue(GProMQueryOperator op, int provType, int inputType, org.gprom.jdbc.jna.GProMProvenanceTransactionInfo.ByReference transactionInfo, org.gprom.jdbc.jna.GProMNode.ByReference asOf) {
+			super(op, provType, inputType, transactionInfo, asOf);
+		}
 	};
 }

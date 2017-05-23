@@ -32,11 +32,14 @@ public class GProMCaseExpr extends GProMStructure {
 		this.expr = expr;
 		this.whenClauses = whenClauses;
 		this.elseRes = elseRes;
+		write();
 	}
 	public static class ByReference extends GProMCaseExpr implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMCaseExpr implements Structure.ByValue {
-		
+		public ByValue(int type, org.gprom.jdbc.jna.GProMNode.ByReference expr, org.gprom.jdbc.jna.GProMList.ByReference whenClauses, org.gprom.jdbc.jna.GProMNode.ByReference elseRes) {
+			super(type, expr, whenClauses, elseRes);
+		}
 	};
 }

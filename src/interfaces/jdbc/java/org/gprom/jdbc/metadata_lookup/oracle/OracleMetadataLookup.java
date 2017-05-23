@@ -3,15 +3,16 @@
  */
 package org.gprom.jdbc.metadata_lookup.oracle;
 
+import static org.gprom.jdbc.utility.LoggerUtil.logException;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.jna.GProMJavaInterface.DataType;
+import org.gprom.jdbc.jna.GProMList;
 import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
-
-import static org.gprom.jdbc.utility.LoggerUtil.*;
 
 /**
  * @author lord_pretzel
@@ -58,7 +59,7 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 	}
 
 	@Override
-	public String getFuncReturnType(String fName, String[] stringArray,
+	public String getFuncReturnType(String fName, GProMList stringArray,
 			int numArgs) {
 	    fName = fName.toLowerCase();
 		
@@ -68,7 +69,7 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 	            || fName.equals( "max")
 	        )
 	    {
-	        DataType argType = DataType.valueOf(stringArray[0]);
+	        DataType argType = DataType.valueOf(stringArray.head.data.ptr_value.getString(0));
 
 	        switch(argType)
 	        {
@@ -84,7 +85,7 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 
 	    if (fName.equals("avg"))
 	    {
-	    	DataType argType = DataType.valueOf(stringArray[0]);
+	    	DataType argType = DataType.valueOf(stringArray.head.data.ptr_value.getString(0));
 
 	        switch(argType)
 	        {

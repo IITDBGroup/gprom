@@ -25,7 +25,6 @@
 #include "model/query_block/query_block.h"
 #include "mem_manager/mem_mgr.h"
 
-
 /* types of supported plugins */
 NEW_ENUM_WITH_TO_STRING(MetadataLookupPluginType,
     METADATA_LOOKUP_PLUGIN_ORACLE,

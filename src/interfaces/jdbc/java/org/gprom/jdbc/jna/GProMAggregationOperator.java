@@ -37,11 +37,14 @@ public class GProMAggregationOperator extends GProMStructure {
 		this.op = op;
 		this.aggrs = aggrs;
 		this.groupBy = groupBy;
+		write();
 	}
 	public static class ByReference extends GProMAggregationOperator implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMAggregationOperator implements Structure.ByValue {
-		
+		public ByValue(GProMQueryOperator op, org.gprom.jdbc.jna.GProMList.ByReference aggrs, org.gprom.jdbc.jna.GProMList.ByReference groupBy) {
+			super(op, aggrs, groupBy);
+		}
 	};
 }

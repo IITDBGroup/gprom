@@ -83,7 +83,7 @@ typedef struct GProMMetadataLookupPlugin
 
     boolean (*isAgg) (char *functionName);
     boolean (*isWindowFunction) (char *functionName);
-    char * (*getFuncReturnType) (char *fName, char **args, int numArgs);
+    char * (*getFuncReturnType) (char *fName, List* args, int numArgs);
     char * (*getOpReturnType) (char *oName, char **args, int numArgs);
 
     char * (*getTableDefinition) (char *tableName);
@@ -511,10 +511,16 @@ extern GProMNode * gprom_rewriteQueryToOperatorModel(const char *query);
 
 extern GProMNode * gprom_provRewriteOperator(GProMNode * nodeFromMimir);
 
+extern GProMNode * gprom_optimizeOperatorModel(GProMNode * nodeFromMimir);
+
 extern char * gprom_nodeToString(GProMNode * nodeFromMimir);
 
-extern void gprom_createMemContext(void);
+extern char * gprom_OperatorModelToQuery(GProMNode * nodeFromMimir);
 
-extern void gprom_freeMemContext(void);
+extern void * gprom_createMemContext(void);
+
+extern void * gprom_createMemContextName(const char * ctxName);
+
+extern void gprom_freeMemContext(void * memContext);
 
 #endif /* INCLUDE_LIBGPROM_LIBGPROM_H_ */

@@ -1003,7 +1003,7 @@ typeOfFunc (FunctionCall *f)
     DataType result;
 
     argDTs = typeOfArgs(f->args);
-    result = getFuncReturnType(f->functionname, argDTs, &fExists);
+    result = getFuncReturnType(f->functionname, f->args, &fExists);
     if (!fExists)
         DEBUG_NODE_BEATIFY_LOG("Function does not exist: %s", f);
     return result;

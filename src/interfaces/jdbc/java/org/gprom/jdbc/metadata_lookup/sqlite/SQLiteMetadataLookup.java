@@ -11,6 +11,7 @@ import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.gprom.jdbc.jna.GProMJavaInterface.DataType;
+import org.gprom.jdbc.jna.GProMList;
 import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
 
 /**
@@ -49,20 +50,21 @@ public class SQLiteMetadataLookup extends AbstractMetadataLookup {
 	}
 	
 	@Override
-	public String getFuncReturnType(String fName, String[] stringArray,
+	public String getFuncReturnType(String fName, GProMList stringArray,
 			int numArgs) {
 				
 		// aggregation functions
-	    if (fName.equals("sum")
-	            || fName.equals( "min")
-	            || fName.equals( "max")
+	    if (fName.equalsIgnoreCase("sum")
+	            || fName.equalsIgnoreCase( "min")
+	            || fName.equalsIgnoreCase( "max")
 	        )
 	    {
-	        DataType argType = DataType.valueOf(stringArray[0]);
+	        DataType argType = DataType.valueOf(stringArray.head.data.ptr_value.getString(0));
 
 	        switch(argType)
 	        {
 	            case DT_INT:
+	            	return DataType.DT_INT.name();
 	            case DT_LONG:
 	                return DataType.DT_LONG.name();
 	            case DT_FLOAT:
@@ -72,13 +74,14 @@ public class SQLiteMetadataLookup extends AbstractMetadataLookup {
 	        }
 	    }
 	    
-	    if (fName.equals("total"))
+	    if (fName.equalsIgnoreCase("total"))
 	    {
-	        DataType argType = DataType.valueOf(stringArray[0]);
+	        DataType argType = DataType.valueOf(stringArray.head.data.ptr_value.getString(0));
 
 	        switch(argType)
 	        {
 	            case DT_INT:
+	            	return DataType.DT_INT.name();
 	            case DT_LONG:
 	            case DT_FLOAT:
 	            default:
@@ -87,13 +90,14 @@ public class SQLiteMetadataLookup extends AbstractMetadataLookup {
 	    }
 	    
 
-	    if (fName.equals("avg"))
+	    if (fName.equalsIgnoreCase("avg"))
 	    {
-	    	DataType argType = DataType.valueOf(stringArray[0]);
+	    	DataType argType = DataType.valueOf(stringArray.head.data.ptr_value.getString(0));
 
 	        switch(argType)
 	        {
 	            case DT_INT:
+	            	return DataType.DT_INT.name();
 	            case DT_LONG:
 	            case DT_FLOAT:
 	                return DataType.DT_FLOAT.name();
@@ -102,10 +106,10 @@ public class SQLiteMetadataLookup extends AbstractMetadataLookup {
 	        }
 	    }
 
-	    if (fName.equals("count"))
-	        return DataType.DT_LONG.name();
+	    if (fName.equalsIgnoreCase("count"))
+	        return DataType.DT_INT.name();
 
-	    if (fName.equals("group_concat"))
+	    if (fName.equalsIgnoreCase("group_concat"))
 	        return DataType.DT_STRING.name();
 
 	    return DataType.DT_STRING.name();

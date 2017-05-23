@@ -217,36 +217,36 @@ static DataType
 externalGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
     EXTERNAL_PLUGIN;
-    char ** args;
+    //char ** args;
     int numArgs;
-    int i;
+    //int i;
 
     numArgs = LIST_LENGTH(argTypes);
-    args = MALLOC(sizeof(char *) * numArgs);
+    /*args = MALLOC(sizeof(char *) * numArgs);
 
     i = 0;
     FOREACH_INT(d,argTypes)
-        args[i++] = DataTypeToString(d);
+        args[i++] = DataTypeToString(d);*/
 
-    return stringToDataType(extP->getFuncReturnType(fName, args, numArgs));
+    return stringToDataType(extP->getFuncReturnType(fName, argTypes, numArgs));
 }
 
 static DataType
 externalGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
     EXTERNAL_PLUGIN;
-    char **args;
+    //char **args;
     int numArgs;
-    int i;
+    //int i;
 
     numArgs = LIST_LENGTH(argTypes);
-    args = MALLOC(sizeof(char *) * numArgs);
+    /*args = MALLOC(sizeof(char *) * numArgs);
 
     i = 0;
     FOREACH_INT(d,argTypes)
-        args[i++] = DataTypeToString(d);
+        args[i++] = DataTypeToString(d);*/
 //TODO leaking
-    return stringToDataType(extP->getFuncReturnType(oName, args, numArgs));
+    return stringToDataType(extP->getFuncReturnType(oName, argTypes, numArgs));
 }
 
 static char *

@@ -324,6 +324,8 @@ rewriteQueryInternal (char *input, boolean rethrowExceptions)
     {
         parse = parseFromString(input);
 
+        //return jsonify(nodeToString(translateParse(parse)));
+
         DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
 
         result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
@@ -382,6 +384,30 @@ rewriteQueryWithOptimization(char *input)
     INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
 
     return result;
+}
+
+Node *
+optimizeOperatorModelRW(Node *oModel)
+{
+	Node *rewrittenTree;
+	rewrittenTree = optimizeOperatorModel(oModel);
+	return rewrittenTree;
+}
+
+char *
+serializeOperatorModelRW(Node *oModel)
+{
+	StringInfo result = makeStringInfo();
+	char *rewrittenSQL = NULL;
+	START_TIMER("SQLcodeGen");
+	appendStringInfo(result, "%s\n", serializeOperatorModel(oModel));
+	STOP_TIMER("SQLcodeGen");
+
+	rewrittenSQL = result->data;
+	//FREE(result);
+
+	return rewrittenSQL;
+
 }
 
 char *

@@ -22,11 +22,14 @@ public class GProMIsNullExpr extends GProMStructure {
 		super();
 		this.type = type;
 		this.expr = expr;
+		write();
 	}
 	public static class ByReference extends GProMIsNullExpr implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMIsNullExpr implements Structure.ByValue {
-		
+		public ByValue (int type, org.gprom.jdbc.jna.GProMNode.ByReference expr) {
+			super(type, expr);
+		}
 	};
 }

@@ -378,7 +378,14 @@ public interface GProM_JNA extends Library {
 
 	public Pointer gprom_nodeToString(Pointer nodeFromMimir);
 	
-	public void gprom_createMemContext();
-	public void gprom_freeMemContext();
+	public Pointer gprom_OperatorModelToQuery(Pointer nodeFromMimir);
+	
+	public Pointer gprom_optimizeOperatorModel(Pointer nodeFromMimir);
+	
+	public Pointer gprom_operatorModelToSql(Pointer nodeFromMimir);
+	
+	public Pointer gprom_createMemContext();
+	public Pointer gprom_createMemContextName(String ctxName);
+	public void gprom_freeMemContext(Pointer memContext);
 
 }

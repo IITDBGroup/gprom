@@ -45,5 +45,7 @@ extern char *rewriteQueryWithRethrow(char *input);
 extern char *rewriteQueryFromStream (FILE *stream);
 extern char *rewriteQueryWithOptimization(char *input);
 extern char *generatePlan(Node *oModel, boolean applyOptimizations);
+extern Node *optimizeOperatorModelRW(Node *oModel);
+extern char *serializeOperatorModelRW(Node *oModel);
 
 #endif /* REWRITER_H_ */
