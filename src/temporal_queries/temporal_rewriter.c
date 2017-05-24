@@ -1317,11 +1317,20 @@ addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference,
     //agg 1
     QueryOperator *leftProj1Op = (QueryOperator *) leftProj1;
     List *agg1GroupBy = NIL;
-    FOREACH(char, c, attrNames)
+//    FOREACH(char, c, attrNames)
+//    {
+//    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+//    	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
+//    }
+    FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
     {
-    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
-    	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
+    	if(!streq("AGG_GB_ARG0", d->attrName) && !streq("T_E", d->attrName) && !streq("T_B", d->attrName))
+    	{
+        	AttributeReference *a = createAttrsRefByName(leftProj1Op, d->attrName);
+        	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
+    	}
     }
+
     agg1GroupBy = appendToHeadOfList(agg1GroupBy, createAttrsRefByName(leftProj1Op, "T_B"));
 
     AttributeReference *agg1Attr = createAttrsRefByName(leftProj1Op, "AGG_GB_ARG0");
@@ -1333,9 +1342,7 @@ addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference,
 	FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
 	{
 		if(!streq("AGG_GB_ARG0", d->attrName) && !streq("T_E", d->attrName))
-		{
 			agg1Names = appendToTailOfList(agg1Names, strdup(d->attrName));
-		}
 	}
 	agg1Names = appendToHeadOfList(agg1Names, "AGGR_0");
 
@@ -1362,15 +1369,23 @@ addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference,
     		d->attrName = "T";
     }
 
-
     //agg2
     //agg 1
     List *agg2GroupBy = NIL;
-    FOREACH(char, c, attrNames)
+//    FOREACH(char, c, attrNames)
+//    {
+//    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+//    	agg2GroupBy = appendToTailOfList(agg2GroupBy, a);
+//    }
+    FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
     {
-    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
-    	agg2GroupBy = appendToTailOfList(agg2GroupBy, a);
+    	if(!streq("AGG_GB_ARG0", d->attrName) && !streq("T_E", d->attrName) && !streq("T_B", d->attrName))
+    	{
+        	AttributeReference *a = createAttrsRefByName(leftProj1Op, d->attrName);
+        	agg2GroupBy = appendToTailOfList(agg2GroupBy, a);
+    	}
     }
+
     agg2GroupBy = appendToHeadOfList(agg2GroupBy, createAttrsRefByName(leftProj1Op, "T_E"));
 
     AttributeReference *agg2Attr = createAttrsRefByName(leftProj1Op, "AGG_GB_ARG0");
@@ -1382,9 +1397,7 @@ addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference,
 	FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
 	{
 		if(!streq("AGG_GB_ARG0", d->attrName) && !streq("T_B", d->attrName))
-		{
 			agg2Names = appendToTailOfList(agg2Names, strdup(d->attrName));
-		}
 	}
 	agg2Names = appendToHeadOfList(agg2Names, "AGGR_0");
 
@@ -1430,12 +1443,24 @@ addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference,
     //proj 1
     List *rightProj1Expr = NIL;
     List *rightProj1Names = NIL;
-    FOREACH(char, c, attrNames)
+//    FOREACH(char, c, attrNames)
+//    {
+//    	AttributeReference *a = createAttrsRefByName(right, c);
+//    	rightProj1Expr = appendToTailOfList(rightProj1Expr, a);
+//    	rightProj1Names = appendToTailOfList(rightProj1Names, strdup(c));
+//    }
+
+    FOREACH(AttributeDef, d, right->schema->attrDefs)
     {
-    	AttributeReference *a = createAttrsRefByName(right, c);
-    	rightProj1Expr = appendToTailOfList(rightProj1Expr, a);
-    	rightProj1Names = appendToTailOfList(rightProj1Names, strdup(c));
+    	if(!streq("AGG_GB_ARG0", d->attrName) && !streq("T_E", d->attrName) && !streq("T_B", d->attrName))
+    	{
+        	AttributeReference *a = createAttrsRefByName(right, d->attrName);
+        	rightProj1Expr = appendToTailOfList(rightProj1Expr, a);
+        	rightProj1Names = appendToTailOfList(rightProj1Names, strdup(d->attrName));
+    	}
     }
+
+
     rightProj1Expr = appendToTailOfList(rightProj1Expr, createAttrsRefByName(right, "T_B"));
     rightProj1Names = appendToTailOfList(rightProj1Names, "T");
 
@@ -1455,12 +1480,21 @@ addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference,
     //proj 2
     List *rightProj2Expr = NIL;
     List *rightProj2Names = deepCopyStringList(rightProj1Names);
-    FOREACH(char, c, attrNames)
+//    FOREACH(char, c, attrNames)
+//    {
+//    	AttributeReference *a = createAttrsRefByName(right, c);
+//    	rightProj2Expr = appendToTailOfList(rightProj2Expr, a);
+//    	//rightProj2Names = appendToTailOfList(rightProj2Names, strdup(c));
+//    }
+    FOREACH(AttributeDef, d, right->schema->attrDefs)
     {
-    	AttributeReference *a = createAttrsRefByName(right, c);
-    	rightProj2Expr = appendToTailOfList(rightProj2Expr, a);
-    	//rightProj2Names = appendToTailOfList(rightProj2Names, strdup(c));
+    	if(!streq("AGG_GB_ARG0", d->attrName) && !streq("T_E", d->attrName) && !streq("T_B", d->attrName))
+    	{
+        	AttributeReference *a = createAttrsRefByName(right, d->attrName);
+        	rightProj2Expr = appendToTailOfList(rightProj2Expr, a);
+    	}
     }
+
     rightProj2Expr = appendToTailOfList(rightProj2Expr, createAttrsRefByName(right, "T_E"));
     //rightProj2Names = appendToTailOfList(rightProj2Names, "T");
 
