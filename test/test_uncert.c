@@ -3,7 +3,7 @@
  * test_uncert.c
  *			  
  *		
- *		AUTHOR: lord_pretzel
+ *		AUTHOR: Su Feng
  *
  *		
  *
@@ -15,6 +15,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
 #include "configuration/option_parser.h"
+#include "analysis_and_translate/translator.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "parser/parser.h"
@@ -25,13 +26,14 @@
 #include "metadata_lookup/metadata_lookup.h"
 
 #include "provenance_rewriter/prov_utility.h"
-#include "provenance_rewriter/semiring_combiner/sc_main.h"
+#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "utility/string_utils.h"
 
 int
 main (int argc, char* argv[])
 {
 	Node *result;
+	Node *qoModel;
 
 	READ_OPTIONS_AND_INIT("testparser", "Run parser stage only.");
 
@@ -39,20 +41,20 @@ main (int argc, char* argv[])
 	if (getStringOption("input.sql") == NULL)
 	    {
 	        result = parseStream(stdin);
-	     	INFO_LOG("Address of returned node is <%p>", result);
-	     	INFO_LOG("PARSE RESULT FROM STREAM IS <%s>", beatify(nodeToString(result)));
+	     	//INFO_LOG("Address of returned node is <%p>", result);
+	     	//INFO_LOG("PARSE RESULT FROM STREAM IS <%s>", beatify(nodeToString(result)));
 	    }
 	    // parse input string
 	    else
 	    {
 	        result = parseFromString(getStringOption("input.sql"));
 
-	        INFO_LOG("Address of returned node is <%p>", result);
+	        //INFO_LOG("Address of returned node is <%p>", result);
 	        //ERROR_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(result));
-	        INFO_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
+	        //INFO_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
 	    }
 	//testing expression uncertainty propagation
-	HashMap * hmp = NEW_MAP(Node, Node);
+	/*HashMap * hmp = NEW_MAP(Node, Node);
 					ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("A"), (Node *)createAttributeReference("U_A")));
 					ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("B"), (Node *)createAttributeReference("U_B")));
 					ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("C"), (Node *)createAttributeReference("U_C")));
@@ -72,7 +74,13 @@ main (int argc, char* argv[])
 	}
 	INFO_LOG("expression in: %s\n", exprToSQL(result));
 		Node * retexp = getUncertaintyExpr(result, hmp, st);
-		INFO_LOG("expression out: %s\n", exprToSQL(retexp));
+		INFO_LOG("expression out: %s\n", exprToSQL(retexp));*/
+
+	//testing query operator
+	qoModel = translateParse(result);
+	//INFO_LOG("TRANSLATION RESULT FROM STRING IS:\n%s", nodeToString(qoModel));
+
+
 
 	    shutdownApplication();
 
