@@ -1590,7 +1590,28 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         break;
         case PROV_INPUT_REENACT_WITH_TIMES:
         {
+            //TODO analyze each statement
+            List *stmtsWithT = (List *) q->query;
+//            List *schemaInfos = NIL;
+            schemaInfo = NEW_MAP(Node,Node); //maps table name to schema
 
+            FOREACH(KeyValue,stmt,stmtsWithT)
+            {
+                Node *s = stmt->key;
+
+                //TODO maintain and extend a schema info
+                //TODO check that times are increasing in sequence
+                analyzeQueryBlockStmt(s, NIL);
+//                schemaInfos = appendToTailOfList(schemaInfos, copyObject(schemaInfo));
+            }
+            // store schema infos in provenancestmt's options for translator
+//            q->options = appendToTailOfList(q->options,
+//                    createNodeKeyValue(
+//                            (Node *) createConstString("SCHEMA_INFOS"),
+//                            (Node *) schemaInfos));
+
+            INFO_NODE_BEATIFY_LOG("REENACT THIS:", q);
+            schemaInfo = NULL;
         }
         break;
         case PROV_INPUT_UPDATE:
@@ -1607,43 +1628,11 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 
             q->selectClause = getQBAttrNames(q->query);
             q->dts = getQBAttrDTs(q->query);
-//            // get attributes from left child
-//            switch(q->query->type)
-//            {
-//                case T_QueryBlock:
-//                {
-//                    QueryBlock *qb = (QueryBlock *) q->query;
-//                    FOREACH(SelectItem,s,qb->selectClause)
-//                    {
-//                        q->selectClause = appendToTailOfList(q->selectClause,
-//                                strdup(s->alias));
-//                    }
-//                }
-//                break;
-//                case T_SetQuery:
-//                    q->selectClause = deepCopyStringList(
-//                            ((SetQuery *) q->query)->selectClause);
-//                break;
-//                case T_ProvenanceStmt:
-//                    q->selectClause = deepCopyStringList(
-//                            ((ProvenanceStmt *) q->query)->selectClause);
-//                break;
-//                default:
-//                break;
-//            }
 
             getQBProvenanceAttrList(q,&provAttrNames,&provDts);
 
-//            if(q->summaryType == NULL)
-//            {
-            	q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
-                q->dts = concatTwoLists(q->dts,provDts);
-//            }
-//            else
-//            {
-//            	q->selectClause = provAttrNames;
-//                q->dts = provDts;
-//            }
+            q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
+            q->dts = concatTwoLists(q->dts,provDts);
         }
         break;
         case PROV_INPUT_TIME_INTERVAL:

@@ -98,7 +98,9 @@ NEW_ENUM_WITH_TO_STRING(ReenactUpdateType,
         UPDATE_TYPE_DELETE,
         UPDATE_TYPE_UPDATE,
         UPDATE_TYPE_INSERT_VALUES,
-        UPDATE_TYPE_INSERT_QUERY
+        UPDATE_TYPE_INSERT_QUERY,
+        UPDATE_TYPE_DDL,
+        UPDATE_TYPE_QUERY
 );
 
 typedef struct UpdateOperator
