@@ -4,18 +4,15 @@
 package org.gprom.jdbc.test.junit.Metadatalookup;
 
 import static org.gprom.jdbc.utility.LoggerUtil.logException;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.metadata_lookup.oracle.OracleMetadataLookup;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -27,7 +24,7 @@ import org.junit.Test;
  */
 public class TestHiveMetadataLookup {
 
-	static Logger log = Logger.getLogger(TestHiveMetadataLookup.class);
+	static Logger log = LogManager.getLogger(TestHiveMetadataLookup.class);
 	
 	static OracleMetadataLookup p;
 	static Connection c;

@@ -9,11 +9,12 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriverProperties;
 import org.gprom.jdbc.jna.NativeGProMLibException;
+import org.gprom.jdbc.utility.PropertyConfigurator;
 
 import com.sun.jna.Native;
 
@@ -23,10 +24,10 @@ import com.sun.jna.Native;
  */
 public class SQLiteJDBCTest {
 
-	static Logger log = Logger.getLogger(SQLiteJDBCTest.class);
+	static Logger log = LogManager.getLogger(SQLiteJDBCTest.class);
 	
 	public static void main (String[] args) throws Exception {
-		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
+		PropertyConfigurator.configureAndWatch("blackboxtests/log4jtest.properties");
 		String driverURL = "org.sqlite.JDBC";
 		String url = "jdbc:gprom:sqlite:examples/test.db";
 		GProMConnection con = null;

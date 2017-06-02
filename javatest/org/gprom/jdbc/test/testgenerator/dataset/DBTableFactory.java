@@ -11,7 +11,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.utility.LoggerUtil;
 
 import java.sql.ResultSetMetaData;
@@ -24,7 +25,7 @@ import java.sql.ResultSetMetaData;
  */
 public class DBTableFactory {
 
-	Logger log = Logger.getLogger(DBTableFactory.class);
+	Logger log = LogManager.getLogger(DBTableFactory.class);
 	
 	public static DBTableFactory inst = new DBTableFactory();
 	

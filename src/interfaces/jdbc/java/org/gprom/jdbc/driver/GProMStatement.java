@@ -10,13 +10,14 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMWrapper;
 
 public class GProMStatement implements GProMStatementInterface {
 	// static fields
-	static Logger log = Logger.getLogger(GProMStatement.class);
+	static Logger log = LogManager.getLogger(GProMStatement.class);
 
 	private static final String[] gpromKeywords = { "PROVENANCE", "BASERELATION",
 			"TRANSSQL" };

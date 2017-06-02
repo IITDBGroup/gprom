@@ -210,8 +210,10 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             case T_FromTableRef:
             {
                 FromTableRef *tr = (FromTableRef *)f;
+                boolean tableExists = catalogTableExists(tr->tableId);
+                boolean viewExists = catalogViewExists(tr->tableId);
             	//check if it is a table or a view
-            	if (!catalogTableExists(tr->tableId) && catalogViewExists(tr->tableId))
+            	if (!tableExists && viewExists)
             	{
             	    char * view = getViewDefinition(((FromTableRef *)f)->tableId);
             	    char *newName = f->name ? f->name : tr->tableId; // if no alias then use view name
@@ -225,6 +227,8 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 
             	    DUMMY_LC(f)->data.ptr_value = f1;
             	}
+            	if (!tableExists && !viewExists)
+            	    THROW(SEVERITY_RECOVERABLE, "table %s does not exist", tr->tableId);
             }
             break;
             default:

@@ -62,7 +62,7 @@ checkModel (QueryOperator *op)
         FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
     if (SHOULD(CHECK_OM_SCHEMA_CONSISTENCY) && !visitQOGraph(op, TRAVERSAL_PRE, checkSchemaConsistency, NULL))
         FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
-    if (SHOULD(CHECK_OM_DATA_STRUCTURE_CONSISTENCY) && !visitQOGraph(op, TRAVERSAL_PRE, checkForDatastructureReuse, NULL))
+    if (SHOULD(CHECK_OM_DATA_STRUCTURE_CONSISTENCY) && !visitQOGraph(op, TRAVERSAL_POST, checkForDatastructureReuse, NEW_MAP(Constant, Constant)))
         FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
 
     FREE_CONTEXT_AND_RETURN_BOOL(TRUE);
@@ -396,7 +396,7 @@ typedef struct ReuseDataStructureContext
 static boolean
 checkForDatastructureReuse (QueryOperator *op, void *context)
 {
-    HashMap *pointers = (HashMap *) (context ? context : NEW_MAP(Constant,Constant));
+    HashMap *pointers = (HashMap *) context;
     Set *c;
     long opAddr = (long) op;
 
@@ -440,7 +440,7 @@ checkReuseVisitor (Node *node, void *context)
         return TRUE;
 
     // do not traverse into query operators
-    if (isA(node, QueryOperator))
+    if (IS_OP(node))
     {
         return TRUE;
     }
