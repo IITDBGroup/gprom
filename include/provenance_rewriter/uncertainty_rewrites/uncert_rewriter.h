@@ -4,4 +4,5 @@
 
 
 extern QueryOperator *rewriteUncert(QueryOperator *op);
-extern Node *getUncertaintyExpr(Node *expr, HashMap *hmp, Set* st); //hashmap of attrref->attrref(attribute->attribute uncertainty)
+extern Node *getUncertaintyExpr(Node *expr, HashMap *hmp); //hashmap of attrref->attrref(attribute->attribute uncertainty)
+extern Node *removeUncertOpFromExpr(Node *expr);

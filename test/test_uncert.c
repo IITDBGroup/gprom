@@ -28,12 +28,17 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "utility/string_utils.h"
+#include "execution/executor.h"
+#include "sql_serializer/sql_serializer.h"
+
+void testExpr(Node *result);
+void testQuery(Node *result);
+void testRemoveUncert(Node* result);
 
 int
 main (int argc, char* argv[])
 {
 	Node *result;
-	Node *qoModel;
 
 	READ_OPTIONS_AND_INIT("testparser", "Run parser stage only.");
 
@@ -54,36 +59,67 @@ main (int argc, char* argv[])
 	        //INFO_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
 	    }
 	//testing expression uncertainty propagation
-	/*HashMap * hmp = NEW_MAP(Node, Node);
-					ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("A"), (Node *)createAttributeReference("U_A")));
-					ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("B"), (Node *)createAttributeReference("U_B")));
-					ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("C"), (Node *)createAttributeReference("U_C")));
-					ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("D"), (Node *)createAttributeReference("U_D")));
-	Set *st = PSET();
-	if(isA(result, List)) {
-		result = (Node *)getHeadOfListP((List *)result);
-	}
-	if(isA(result, Operator)) {
-		//result = result
-	}
-	else if(isA(result, QueryBlock)){
-		result = ((QueryBlock *)result)->whereClause;
-	}
-	else {
-		ERROR_LOG("Invalid input: %s", nodeToString(result));
-	}
-	INFO_LOG("expression in: %s\n", exprToSQL(result));
-		Node * retexp = getUncertaintyExpr(result, hmp, st);
-		INFO_LOG("expression out: %s\n", exprToSQL(retexp));*/
-
-	//testing query operator
-	qoModel = translateParse(result);
-	//INFO_LOG("TRANSLATION RESULT FROM STRING IS:\n%s", nodeToString(qoModel));
-
-
+	//testExpr(result);
+	//testRemoveUncert(result);
+	testQuery(result);
 
 	    shutdownApplication();
 
 	    return EXIT_SUCCESS;
 		//test end
+}
+
+void testExpr(Node *result){
+	HashMap * hmp = NEW_MAP(Node, Node);
+						ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("A"), (Node *)createAttributeReference("U_A")));
+						ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("B"), (Node *)createAttributeReference("U_B")));
+						ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("C"), (Node *)createAttributeReference("U_C")));
+						ADD_TO_MAP(hmp, createNodeKeyValue((Node *)createAttributeReference("D"), (Node *)createAttributeReference("U_D")));
+		if(isA(result, List)) {
+			result = (Node *)getHeadOfListP((List *)result);
+		}
+		if(isA(result, Operator) || isA(result, CaseExpr)) {
+			//result = result
+		}
+		else if(isA(result, QueryBlock)){
+			result = ((QueryBlock *)result)->whereClause;
+		}
+		else {
+			ERROR_LOG("Invalid input: %s", nodeToString(result));
+		}
+		INFO_LOG("expression in: %s\n", exprToSQL(result));
+			Node * retexp = getUncertaintyExpr(result, hmp);
+			INFO_LOG("expression out: %s\n", exprToSQL(retexp));
+}
+
+void testRemoveUncert(Node* result){
+	if(isA(result, List)) {
+				result = (Node *)getHeadOfListP((List *)result);
+			}
+			if(isA(result, Operator) || isA(result, CaseExpr)) {
+				//result = result
+			}
+			else if(isA(result, QueryBlock)){
+				result = ((QueryBlock *)result)->whereClause;
+			}
+			else {
+				ERROR_LOG("Invalid input: %s", nodeToString(result));
+			}
+			INFO_LOG("expression in: %s\n", exprToSQL(result));
+			Node * retexp = removeUncertOpFromExpr(result);
+			INFO_LOG("expression out: %s\n", exprToSQL(retexp));
+}
+
+void testQuery(Node *result) {
+	//testing query operator
+	Node *qoModel = translateParse(result);
+	INFO_LOG("TRANSLATION RESULT FROM STRING IS:\n%s", nodeToString(qoModel));
+
+	QueryOperator *ret = rewriteUncert((QueryOperator *)getHeadOfListP((List *)qoModel));
+	INFO_OP_LOG("Rewritten query: ", ret);
+
+	char *plan = serializeOperatorModel((Node *)ret);
+	INFO_LOG("Rewritten SQL: %s", plan);
+
+	execute(plan);
 }
