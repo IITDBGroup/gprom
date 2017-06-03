@@ -115,6 +115,21 @@ mergeForReenactOnly(ProvenanceComputation *op)
     addChildOperator((QueryOperator *) op,
             (QueryOperator *) getTailOfListP(updates));
 
+    // if no provenance is requested and we are doing REENACT AS OF, then we have to set
+    // the asOf field of each table access operator
+    if (op->provType == PROV_NONE && op->asOf != NULL)
+    {
+        List *tables = NIL;
+
+        // find all table access operators
+        findTableAccessVisitor((Node *) op->op.inputs, &tables);
+
+        FOREACH(TableAccessOperator,t,tables)
+        {
+            t->asOf = copyObject(op->asOf);
+        }
+    }
+
     // else find last update to that table
     //getUpdateForPreviousTableVersion(op,THE_TABLE_NAME, 0, updates);
     // if NULL then user has asked for non-existing table

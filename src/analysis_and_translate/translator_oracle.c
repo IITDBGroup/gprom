@@ -529,6 +529,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             tInfo->updateTableNames = NIL;
             tInfo->scns = scns;
             tInfo->transIsolation = isoLevel;
+            tInfo->originalUpdates = NIL;
 
             int i = 0;
             // call parser and analyser and translate nodes
@@ -678,7 +679,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             }
 
             result->transactionInfo = tInfo;
-            tInfo->originalUpdates = copyObject(prov->query);
+            tInfo->originalUpdates = NIL;
             tInfo->updateTableNames = NIL;
             tInfo->transIsolation = ISOLATION_SERIALIZABLE;
             tInfo->scns = NIL;
@@ -708,6 +709,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 if (cond != NULL)
                     updateConds = appendToTailOfList(updateConds, copyObject(cond));
+
+                tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, n);
 
                 // translate and add update as child to provenance computation
                 child = translateQueryOracle(n);

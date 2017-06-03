@@ -335,7 +335,7 @@ createAlterTableAddColumn (char *tName, char *newColName, char *newColDT)
 AlterTable *
 createAlterTableRemoveColumn (char *tName, char *colName)
 {
-    AlterTable *result = NEW(AlterTable);
+    AlterTable *result = makeNode(AlterTable);
 
     result->tableName = tName;
     result->cmdType = ALTER_TABLE_REMOVE_COLUMN;

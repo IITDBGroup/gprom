@@ -111,7 +111,9 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         STOP_TIMER("rewrite - merge update reenactments");
 
         // need to restrict to updated rows?
-        if (op->inputType == PROV_INPUT_TRANSACTION
+        if ((op->inputType == PROV_INPUT_TRANSACTION
+                || op->inputType == PROV_INPUT_REENACT_WITH_TIMES
+                || op->inputType == PROV_INPUT_REENACT)
                 && HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
         {
             START_TIMER("rewrite - restrict to updated rows");
