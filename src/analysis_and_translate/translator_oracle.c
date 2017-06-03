@@ -566,7 +566,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 DEBUG_NODE_BEATIFY_LOG("result of update translation is", node);
 
                 // store in transaction info
-                if (updateCond != NULL)
+                //TODO ok to do that?
+//                if (updateCond != NULL)
                     updateConds = appendToTailOfList(updateConds, copyObject(updateCond));
 
                 tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, node);
@@ -707,7 +708,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                     tInfo->scns = appendToTailOfList(tInfo->scns, withT->value);
                 }
 
-                if (cond != NULL)
+//                if (cond != NULL)
                     updateConds = appendToTailOfList(updateConds, copyObject(cond));
 
                 tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, n);

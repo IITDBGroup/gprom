@@ -186,7 +186,88 @@ REENACT WITH PROVENANCE (INSERT INTO R VALUES (1,2); UPDATE R SET A = 100 WHERE 
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R VALUES (1,1); UPDATE R SET A = 100 WHERE B = 2;);
 </entry>
 <entry key="q15.result">
+ A   | B | PROV_R_A | PROV_R_B | PROV_query_A | PROV_query_B | PROV_U0_ins | PROV_U1_up |
+-----------------------------------------------------------------------------------------
+ 1   | 1 | 1        | 1        | (null)         | (null)         | 0           | 0          |
+ 100 | 2 | 1        | 2        | (null)         | (null)         | 0           | 1          |
+ 2   | 1 | 2        | 1        | (null)         | (null)         | 0           | 0          |
+ 2   | 3 | 2        | 3        | (null)         | (null)         | 0           | 0          |
+ 1   | 1 | (null)     | (null)     | 1            | 1            | 1           | 0          |
 </entry>
+
+
+<entry key="q16.query">
+REENACT WITH PROVENANCE ONLY UPDATED SHOW INTERMEDIATE STATEMENT ANNOTATIONS ( UPDATE R SET A = 39;);
+</entry>
+<entry key="q16.result">
+ A  | B | PROV_R_A | PROV_R_B | PROV_U1__R_A | PROV_U1__R_B | PROV_U0_up |
+--------------------------------------------------------------------------
+ 39 | 1 | 1        | 1        | 39           | 1            | 1          |
+ 39 | 2 | 1        | 2        | 39           | 2            | 1          |
+ 39 | 1 | 2        | 1        | 39           | 1            | 1          |
+ 39 | 3 | 2        | 3        | 39           | 3            | 1          |
+</entry>
+
+<entry key="q17.query">
+REENACT WITH PROVENANCE STATEMENT ANNOTATIONS ONLY UPDATED (INSERT INTO R VALUES (1,1); UPDATE R SET A = 100 WHERE B = 2;);
+</entry>
+<entry key="q17.result">
+ A | B | PROV_query_A | PROV_query_B | PROV_U0_ins | PROV_U1_up |
+-----------------------------------------------------------------
+ 1 | 1 | 1            | 1            | 1           | 0          |
+</entry>
+
+<entry key="q18.query">
+REENACT WITH PROVENANCE ONLY UPDATED SHOW INTERMEDIATE STATEMENT ANNOTATIONS ( UPDATE R SET A = 39; INSERT INTO R VALUES (50,50); );
+</entry>
+<entry key="q18.result">
+ A  | B  | PROV_R_A | PROV_R_B | PROV_U1__R_A | PROV_U1__R_B | PROV_U0_up | PROV_query_A | PROV_query_B | PROV_U2__R_A | PROV_U2__R_B | PROV_U1_ins |
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+ 39 | 1  | 1        | 1        | 39           | 1            | 1          | (null)         | (null)         | 39           | 1            | 0           |
+ 39 | 2  | 1        | 2        | 39           | 2            | 1          | (null)         | (null)         | 39           | 2            | 0           |
+ 39 | 1  | 2        | 1        | 39           | 1            | 1          | (null)         | (null)         | 39           | 1            | 0           |
+ 39 | 3  | 2        | 3        | 39           | 3            | 1          | (null)         | (null)         | 39           | 3            | 0           |
+ 50 | 50 | (null)     | (null)     | (null)         | (null)         | (null)       | 50           | 50           | 50           | 50           | 1           |
+</entry>
+
+
+<entry key="q19.query"> <!--  segfault -->
+REENACT WITH PROVENANCE STATEMENT ANNOTATIONS ONLY UPDATED (INSERT INTO R VALUES (1,1); INSERT INTO R VALUES (1,2); );
+</entry>
+<entry key="q19.result">
+ A | B | PROV_query_A | PROV_query_B | PROV_U0_ins | PROV_query_1_A | PROV_query_1_B | PROV_U1_ins |
+----------------------------------------------------------------------------------------------------
+ 1 | 1 | 1            | 1            | 1           | (null)           | (null)           | 0           |
+ 1 | 2 | (null)         | (null)         | (null)        | 1              | 2              | 1           |
+</entry>
+
+
+<entry key="q20.query">
+REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R VALUES (1,1); INSERT INTO R VALUES (1,2); );
+</entry>
+<entry key="q20.result">
+ A | B | PROV_R_A | PROV_R_B | PROV_query_A | PROV_query_B | PROV_U0_ins | PROV_query_1_A | PROV_query_1_B | PROV_U1_ins |
+--------------------------------------------------------------------------------------------------------------------------
+ 1 | 1 | 1        | 1        | (null)         | (null)         | 0           | (null)           | (null)           | 0           |
+ 1 | 2 | 1        | 2        | (null)         | (null)         | 0           | (null)           | (null)           | 0           |
+ 2 | 1 | 2        | 1        | (null)         | (null)         | 0           | (null)           | (null)           | 0           |
+ 2 | 3 | 2        | 3        | (null)         | (null)         | 0           | (null)           | (null)           | 0           |
+ 1 | 1 | (null)     | (null)     | 1            | 1            | 1           | (null)           | (null)           | 0           |
+ 1 | 2 | (null)     | (null)     | (null)         | (null)         | (null)        | 1              | 2              | 1           |
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+
+
 
 <entry key="q.query">
 </entry>

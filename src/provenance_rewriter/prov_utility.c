@@ -196,8 +196,8 @@ switchSubtrees(QueryOperator *orig, QueryOperator *new)
         else
         {
             FOREACH(QueryOperator,pChild,parent->inputs)
-            {
-                if (equal(pChild,orig))
+            {//TODO check whether this change is correct: we want to check for pointer equality here
+                if (pChild == orig)
                     pChild_his_cell->data.ptr_value = new;
             }
         }
@@ -238,7 +238,7 @@ switchSubtreeWithExisting (QueryOperator *orig, QueryOperator *new)
         {
             FOREACH(QueryOperator,pChild,parent->inputs)
             {
-                if (equal(pChild,orig))
+                if (pChild == orig)
                     pChild_his_cell->data.ptr_value = new;
             }
         }

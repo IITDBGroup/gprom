@@ -74,6 +74,11 @@ mergeForReenactOnly(ProvenanceComputation *op)
             || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN)) //TODO I think the point is for the post-filtering version of ONLY UPDATED we need these attributes, by why do we need it for history join?
             || getBoolOption(OPTION_COST_BASED_OPTIMIZER)); //TODO why activate for CBO?
 
+    if (HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
+    {
+         removeInputTablesWithOnlyInserts(op);
+    }
+
     // annotation attributes if requested
     if (addAnnotAttrs)
     {
@@ -161,9 +166,11 @@ mergeForTransactionProvenance(ProvenanceComputation *op)
 	        || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN) //TODO I think the point is for the post-filtering version of ONLY UPDATED we need these attributes, by why do we need it for history join?
 	        || getBoolOption(OPTION_COST_BASED_OPTIMIZER)); //TODO why activate for CBO?
 
+	//TODO not safe as implemented here, thus deactivate by using dummy property
 	// remove table access of inserts where
 	if (op->inputType == PROV_INPUT_TRANSACTION
 	                && HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
+//	                && HAS_STRING_PROP(op, "this property does not exist"))
     {
 	     removeInputTablesWithOnlyInserts(op);
     }
@@ -253,7 +260,28 @@ addUpdateAnnotationAttrs (ProvenanceComputation *op)
         // switch
         switch (u->type) {
             case T_Insert:
-                addAnnotConstToUnion(q, FALSE, annotName);
+            {
+                if (isA(q, SetOperator))
+                    addAnnotConstToUnion(q, FALSE, annotName);
+                else
+                {
+                    ProjectionOperator *p;
+
+                    p = (ProjectionOperator *) createProjOnAllAttrs(q);
+                    switchSubtrees(q, (QueryOperator *) p);
+                    addChildOperator((QueryOperator *) p,q);
+                    //TODO ok to move properties to parent?
+                    p->op.properties = q->properties;
+                    q->properties = (Node *) NEW_MAP(Node,Node);
+
+                    p->projExprs = appendToTailOfList(p->projExprs, (Node *) createConstBool(TRUE));
+
+                    // add attribute name for annotation attribute to schema
+                    p->op.schema->attrDefs =
+                            appendToTailOfList(p->op.schema->attrDefs,
+                                    createAttributeDef(strdup(annotName), DT_BOOL));
+                }
+            }
             break;
             case T_Update:
             {
@@ -267,11 +295,20 @@ addUpdateAnnotationAttrs (ProvenanceComputation *op)
                     Node *cond = getNthOfListP(
                             (List *) GET_STRING_PROP(op, PROP_PC_UPDATE_COND), i);
 
-                    // add proj expr CASE WHEN C THEN TRUE ELSE FALSE END
-                    annotAttr = (Node *) createCaseExpr(NULL,
-                            LIST_MAKE(createCaseWhen(cond,
-                                    (Node *) createConstBool(TRUE))),
-                            (Node *) createConstBool(FALSE));
+                    // update has no condition
+                    if (cond == NULL)
+                    {
+                        annotAttr = (Node *) createConstBool(TRUE);
+                    }
+                    else
+                    {
+                        // add proj expr CASE WHEN C THEN TRUE ELSE FALSE END
+                        annotAttr = (Node *) createCaseExpr(NULL,
+                                LIST_MAKE(createCaseWhen(cond,
+                                        (Node *) createConstBool(TRUE))),
+                                        (Node *) createConstBool(FALSE));
+                    }
+
                     p->projExprs = appendToTailOfList(p->projExprs, annotAttr);
 
                     // add attribute name for annotation attribute to schema
@@ -779,10 +816,16 @@ restrictToUpdatedRows (ProvenanceComputation *op)
 }
 
 /**
- * for inserts into tables that are not read or written afterwards we do not have to scan the table.
+ * for inserts into tables that are not read or written afterwards we should not scan the table if the
+ * user requested to only see rows affected by the transaction. If the first statement affecting a table
+ * is an insert, then can replace the union between the table and the insert's query or VALUES clause
+ * with the query (ConstRelOperator), e.g.,
  *
  *  R u {t} -> {t}
  *
+ *  or
+ *
+ *  R u Q -> Q
  */
 static void
 removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
@@ -790,60 +833,83 @@ removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
     Set *tableUpdateOrRead = STRSET();
 
     // determine tables that are read by an INSERT query or updated
-    FOREACH(Node, u, op->transactionInfo->originalUpdates)
-    {
-        if(isA(u,Insert))
-        {
-            Insert *i = (Insert *) u;
-
-            if (!isA(i->query,  List))
-            {
-                List *tableFromItems = findAllNodes(i->query, T_FromTableRef);
-                FOREACH(FromTableRef,f,tableFromItems)
-                    addToSet(tableUpdateOrRead, f->tableId);
-                addToSet(tableUpdateOrRead, i->insertTableName);
-            }
-        }
-        else if (isA(u,Update))
-        {
-            Update *up = (Update *) u;
-            addToSet(tableUpdateOrRead, up->updateTableName);
-        }
-        else if (isA(u, Delete))
-        {
-            Delete *d = (Delete *) u;
-            addToSet(tableUpdateOrRead, d->deleteTableName);
-        }
-    }
+//    FOREACH(Node, u, op->transactionInfo->originalUpdates)
+//    {
+//        if(isA(u,Insert))
+//        {
+//            Insert *i = (Insert *) u;
+//
+//            if (!isA(i->query,  List))
+//            {
+//                List *tableFromItems = findAllNodes(i->query, T_FromTableRef);
+//                FOREACH(FromTableRef,f,tableFromItems)
+//                    addToSet(tableUpdateOrRead, f->tableId);
+//                addToSet(tableUpdateOrRead, i->insertTableName);
+//            }
+//        }
+//        else if (isA(u,Update))
+//        {
+//            Update *up = (Update *) u;
+//            addToSet(tableUpdateOrRead, up->updateTableName);
+//        }
+//        else if (isA(u, Delete))
+//        {
+//            Delete *d = (Delete *) u;
+//            addToSet(tableUpdateOrRead, d->deleteTableName);
+//        }
+//    }
 
     DEBUG_NODE_BEATIFY_LOG("tables that do not only consist of constants are", tableUpdateOrRead);
 
 //TODO for transaction reenactment his is applied after merging which does not work RC-SI where projection is added, but properties are not moved to new top node
-//    FOREACH(QueryOperator,u,op->op.inputs)
+
     for(int i = 0; i < LIST_LENGTH(op->op.inputs); i++)
     {
         List *tables = NIL;
         QueryOperator *child = (QueryOperator *) getNthOfListP(op->op.inputs, i);
         ReenactUpdateType t = INT_VALUE(GET_STRING_PROP(child,PROP_PROV_ORIG_UPDATE_TYPE));
+        char *upTable = getNthOfListP(op->transactionInfo->updateTableNames, i);
 
-        // for every access to a table that is not read by a query or update, i.e., it is only affected by an
-        // INSERT INTO R VALUES (...), we can replace R union {t} with {t}
+        // if the first statement updating a table is an INSERT then we can replace the
+        // union of the insert with its right input.
+        // e.g., for INSERT INTO R VALUES (...), we can replace R union {t} with {t}
         if (t == UPDATE_TYPE_INSERT_VALUES)
         {
             findTableAccessVisitor((Node *) child, &tables);
-            FOREACH(TableAccessOperator,t,tables)
+            FOREACH(TableAccessOperator,ta,tables)
             {
-                if (!hasSetElem(tableUpdateOrRead, t->tableName))
+                if (!hasSetElem(tableUpdateOrRead, upTable))
                 {
-                    QueryOperator *un = OP_FIRST_PARENT(t);
+                    QueryOperator *un = OP_FIRST_PARENT(ta);
                     QueryOperator *c = OP_RCHILD(un);
                     ASSERT(isA(un,SetOperator) && isA(c,ConstRelOperator));
 
                     c->parents = NIL;
                     switchSubtrees(un, c);
+                    c->properties = un->properties; //copy properties
+                    un->properties = NULL;
+                    addToSet (tableUpdateOrRead, ta->tableName);
                 }
             }
         }
+        else if (t == UPDATE_TYPE_INSERT_QUERY)         //TODO deal with UPDATE_TYPE_INSERT_QUERY
+        {
+            TableAccessOperator *ta = (TableAccessOperator *) OP_LCHILD(child);
+            ASSERT(isA(ta,TableAccessOperator));
+
+            if (!hasSetElem(tableUpdateOrRead, upTable))
+            {
+                QueryOperator *un = OP_FIRST_PARENT(ta);
+                QueryOperator *c = OP_RCHILD(un);
+                ASSERT(isA(un,SetOperator));
+
+                c->parents = NIL;
+                switchSubtrees(un, c);
+                c->properties = un->properties; //copy properties
+            }
+        }
+
+        addToSet(tableUpdateOrRead, upTable);
     }
 }
 
