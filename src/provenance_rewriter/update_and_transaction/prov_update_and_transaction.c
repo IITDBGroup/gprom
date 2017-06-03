@@ -28,7 +28,7 @@
 
 static QueryOperator *getUpdateForPreviousTableVersion (ProvenanceComputation *p, char *tableName, int startPos, List *updates);
 
-static void mergeForTransactionProvenacne(ProvenanceComputation *op);
+static void mergeForTransactionProvenance(ProvenanceComputation *op);
 static void mergeForReenactOnly(ProvenanceComputation *op);
 static void mergeSerializebleTransaction(ProvenanceComputation *op);
 static void mergeReadCommittedTransaction(ProvenanceComputation *op);
@@ -41,6 +41,7 @@ static Node *adaptConditionForReadCommitted(Node *cond, Constant *scn, int attrP
 
 static List *findUpdatedTableAccceses (List *tables);
 
+static void removeUpdateAnnotAttr (ProvenanceComputation *op);
 static void addUpdateAnnotationAttrs (ProvenanceComputation *op);
 static void addAnnotConstToUnion (QueryOperator *un, boolean leftIsTrue, char *annotName);
 
@@ -49,7 +50,7 @@ mergeUpdateSequence(ProvenanceComputation *op)
 {
     if (op->inputType == PROV_INPUT_TRANSACTION)
     {
-        mergeForTransactionProvenacne(op);
+        mergeForTransactionProvenance(op);
         return;
     }
     if (op->inputType == PROV_INPUT_REENACT
@@ -65,9 +66,25 @@ mergeUpdateSequence(ProvenanceComputation *op)
 static void
 mergeForReenactOnly(ProvenanceComputation *op)
 {
-    List *updates = copyList(op->op.inputs);
+    List *updates;
     HashMap *curTranslation = NEW_MAP(Constant, Node);
     List *tabNames = op->transactionInfo->updateTableNames;
+    boolean addAnnotAttrs = GET_BOOL_STRING_PROP(op, PROP_PC_STATEMENT_ANNOTATIONS) ||
+             !((isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS)
+            || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN)) //TODO I think the point is for the post-filtering version of ONLY UPDATED we need these attributes, by why do we need it for history join?
+            || getBoolOption(OPTION_COST_BASED_OPTIMIZER)); //TODO why activate for CBO?
+
+    // annotation attributes if requested
+    if (addAnnotAttrs)
+    {
+        addUpdateAnnotationAttrs (op);
+        removeUpdateAnnotAttr(op);
+
+        INFO_LOG("after adding projection:\n%s", operatorToOverviewString((Node *) op));
+    }
+
+    // updates to process
+    updates = copyList(op->op.inputs);
 
     // cut links to parent
     removeParentFromOps(op->op.inputs, (QueryOperator *) op);
@@ -111,7 +128,7 @@ mergeForReenactOnly(ProvenanceComputation *op)
         }
     }
 
-    // if not then do normal stuff
+    // add root of final reenactment query to
     addChildOperator((QueryOperator *) op,
             (QueryOperator *) getTailOfListP(updates));
 
@@ -130,22 +147,19 @@ mergeForReenactOnly(ProvenanceComputation *op)
         }
     }
 
-    // else find last update to that table
-    //getUpdateForPreviousTableVersion(op,THE_TABLE_NAME, 0, updates);
-    // if NULL then user has asked for non-existing table
-    // FATAL_LOG("table); - exit
+
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));
 }
 
 static void
-mergeForTransactionProvenacne(ProvenanceComputation *op)
+mergeForTransactionProvenance(ProvenanceComputation *op)
 {
 	ProvenanceTransactionInfo *tInfo = op->transactionInfo;
 	boolean addAnnotAttrs = GET_BOOL_STRING_PROP(op, PROP_PC_STATEMENT_ANNOTATIONS) ||
 	         !(isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS)
-	        || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN)
-	        || getBoolOption(OPTION_COST_BASED_OPTIMIZER));
+	        || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN) //TODO I think the point is for the post-filtering version of ONLY UPDATED we need these attributes, by why do we need it for history join?
+	        || getBoolOption(OPTION_COST_BASED_OPTIMIZER)); //TODO why activate for CBO?
 
 	// remove table access of inserts where
 	if (op->inputType == PROV_INPUT_TRANSACTION
@@ -160,18 +174,8 @@ mergeForTransactionProvenacne(ProvenanceComputation *op)
     // add boolean attributes to store whether update did modify a row
     if (addAnnotAttrs)
     {
-        addUpdateAnnotationAttrs (op);
-
-        //TODO add projection to remove update annot attribute
-        QueryOperator *lastUp = (QueryOperator *) getTailOfListP(op->op.inputs);
-        List *normalAttrs = NIL;
-        CREATE_INT_SEQ(normalAttrs, 0, getNumNormalAttrs(lastUp) - 2, 1);
-        DEBUG_LOG("num attrs %i", getNumNormalAttrs(lastUp) - 2);
-
-        QueryOperator *newTop = createProjOnAttrs(lastUp, normalAttrs);
-        newTop->inputs = LIST_MAKE(lastUp);
-        switchSubtrees(lastUp, newTop);
-        lastUp->parents = LIST_MAKE(newTop);
+        addUpdateAnnotationAttrs(op);
+        removeUpdateAnnotAttr(op);
 
         INFO_LOG("after adding projection:\n%s", operatorToOverviewString((Node *) op));
     }
@@ -194,6 +198,23 @@ mergeForTransactionProvenacne(ProvenanceComputation *op)
         ASSERT(checkModel((QueryOperator *) op));
 
 	INFO_LOG("updates after merge:\n%s", operatorToOverviewString((Node *) op));
+}
+
+static void
+removeUpdateAnnotAttr (ProvenanceComputation *op)
+{
+    //TODO add projection to remove update annot attribute
+    QueryOperator *lastUp = (QueryOperator *) getTailOfListP(op->op.inputs);
+    List *normalAttrs = NIL;
+    CREATE_INT_SEQ(normalAttrs, 0, getNumNormalAttrs(lastUp) - 2, 1);
+    DEBUG_LOG("num attrs %i", getNumNormalAttrs(lastUp) - 2);
+
+    QueryOperator *newTop = createProjOnAttrs(lastUp, normalAttrs);
+    newTop->inputs = LIST_MAKE(lastUp);
+    switchSubtrees(lastUp, newTop);
+    lastUp->parents = LIST_MAKE(newTop);
+
+    INFO_LOG("after adding projection:\n%s", operatorToOverviewString((Node *) op));
 }
 
 static void
