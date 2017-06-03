@@ -136,7 +136,7 @@ REENACT WITH PROVENANCE (INSERT INTO R (SELECT * FROM R WHERE B = 2); INSERT INT
  1 | 2 | (null)     | (null)     | (null)       | (null)       | (null)       | (null)       | 1          | 2          |
 </entry>
 
-<entry key="q12.query"><!--  currently broken -->
+<entry key="q12.query"><!--  https://github.com/IITDBGroup/gprom/issues/9 -->
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R (SELECT * FROM R WHERE B = 2); INSERT INTO R (SELECT * FROM R WHERE B = 2););
 </entry>
 <entry key="q12.result">
@@ -182,9 +182,10 @@ REENACT WITH PROVENANCE (INSERT INTO R VALUES (1,2); UPDATE R SET A = 100 WHERE 
  100 | 2 | (null)     | (null)     | (null)         | (null)         | 1              | 2              |
 </entry>
 
-<entry key="q.query">
+<entry key="q15.query"> <!--  https://github.com/IITDBGroup/gprom/issues/10  -->
+REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R VALUES (1,1); UPDATE R SET A = 100 WHERE B = 2;);
 </entry>
-<entry key="q.result">
+<entry key="q15.result">
 </entry>
 
 <entry key="q.query">
