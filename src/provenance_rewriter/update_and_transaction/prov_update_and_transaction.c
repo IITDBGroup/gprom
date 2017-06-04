@@ -29,14 +29,15 @@
 static QueryOperator *getUpdateForPreviousTableVersion (ProvenanceComputation *p, char *tableName, int startPos, List *updates);
 
 static void mergeForTransactionProvenance(ProvenanceComputation *op);
+static boolean needAnnotAttributes(ProvenanceComputation *p);
 static void mergeForReenactOnly(ProvenanceComputation *op);
 static void mergeSerializebleTransaction(ProvenanceComputation *op);
 static void mergeReadCommittedTransaction(ProvenanceComputation *op);
 
 static void addConditionsToBaseTables (ProvenanceComputation *op);
+static boolean onlyUpdatedNeedsResultFiltering (ProvenanceComputation *op);
 static void removeInputTablesWithOnlyInserts (ProvenanceComputation *op);
 static void extractUpdatedFromTemporalHistory (ProvenanceComputation *op);
-static void filterUpdatedInFinalResult (ProvenanceComputation *op);
 static Node *adaptConditionForReadCommitted(Node *cond, Constant *scn, int attrPos);
 
 static List *findUpdatedTableAccceses (List *tables);
@@ -69,10 +70,11 @@ mergeForReenactOnly(ProvenanceComputation *op)
     List *updates;
     HashMap *curTranslation = NEW_MAP(Constant, Node);
     List *tabNames = op->transactionInfo->updateTableNames;
-    boolean addAnnotAttrs = GET_BOOL_STRING_PROP(op, PROP_PC_STATEMENT_ANNOTATIONS) ||
-             !((isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS)
-            || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN)) //TODO I think the point is for the post-filtering version of ONLY UPDATED we need these attributes, by why do we need it for history join?
-            || getBoolOption(OPTION_COST_BASED_OPTIMIZER)); //TODO why activate for CBO?
+    boolean addAnnotAttrs = needAnnotAttributes(op);
+//    GET_BOOL_STRING_PROP(op, PROP_PC_STATEMENT_ANNOTATIONS) ||
+//             !((isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS)
+//            || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN)) //TODO I think the point is for the post-filtering version of ONLY UPDATED we need these attributes, by why do we need it for history join?
+//            || getBoolOption(OPTION_COST_BASED_OPTIMIZER)); //TODO why activate for CBO?
 
     if (HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
     {
@@ -157,20 +159,35 @@ mergeForReenactOnly(ProvenanceComputation *op)
         ASSERT(checkModel((QueryOperator *) op));
 }
 
+static boolean
+needAnnotAttributes(ProvenanceComputation *p)
+{
+    boolean result = GET_BOOL_STRING_PROP(p, PROP_PC_STATEMENT_ANNOTATIONS);
+
+    // if user has requested to only return updated rows then we may need statement annotations
+    if (HAS_STRING_PROP(p,PROP_PC_ONLY_UPDATED))
+    {
+        result = result || !(isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS)
+                                || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN));
+        result = result || onlyUpdatedNeedsResultFiltering(p);
+    }
+
+    return result;
+}
+
 static void
 mergeForTransactionProvenance(ProvenanceComputation *op)
 {
 	ProvenanceTransactionInfo *tInfo = op->transactionInfo;
-	boolean addAnnotAttrs = GET_BOOL_STRING_PROP(op, PROP_PC_STATEMENT_ANNOTATIONS) ||
-	         !(isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS)
-	        || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN) //TODO I think the point is for the post-filtering version of ONLY UPDATED we need these attributes, by why do we need it for history join?
-	        || getBoolOption(OPTION_COST_BASED_OPTIMIZER)); //TODO why activate for CBO?
+	boolean addAnnotAttrs = needAnnotAttributes(op);
+//	GET_BOOL_STRING_PROP(op, PROP_PC_STATEMENT_ANNOTATIONS) ||
+//	         !(isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS)
+//	        || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN) //TODO I think the point is for the post-filtering version of ONLY UPDATED we need these attributes, by why do we need it for history join?
+//	        || getBoolOption(OPTION_COST_BASED_OPTIMIZER)); //TODO why activate for CBO?
 
-	//TODO not safe as implemented here, thus deactivate by using dummy property
 	// remove table access of inserts where
 	if (op->inputType == PROV_INPUT_TRANSACTION
 	                && HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
-//	                && HAS_STRING_PROP(op, "this property does not exist"))
     {
 	     removeInputTablesWithOnlyInserts(op);
     }
@@ -448,7 +465,7 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
 
     // replace updates sequence with root of the whole merged update query
 
-    // check if user asks for specific table
+    //TODO check if user asks for specific table
 
     // if not then do normal stuff
     addChildOperator((QueryOperator *) op, (QueryOperator *) getHeadOfListP(updates));
@@ -499,7 +516,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 		                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
 		    lC->projExprs = appendToTailOfList(lC->projExprs,
 		            createFullAttrReference("VERSIONS_STARTSCN", 0,
-		                    getNumAttrs(OP_LCHILD(lC)), INVALID_ATTR,
+		                    getNumAttrs(OP_LCHILD(lC)), 0,
 		                    DT_LONG));
 
 		    rC->op.schema->attrDefs = appendToTailOfList(rC->op.schema->attrDefs,
@@ -555,7 +572,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
             // adding SCN < update SCN condition
             scnAttr = createFullAttrReference("VERSIONS_STARTSCN", 0,
-                    getNumAttrs(OP_LCHILD(q)), INVALID_ATTR, DT_LONG);
+                    getNumAttrs(OP_LCHILD(q)), 0, DT_LONG);
             newCond = (Node *) createOpExpr("<=",
                     LIST_MAKE((Node *) scnAttr,
                             copyObject(getNthOfListP(scns,i))));
@@ -584,7 +601,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	                        (Node *) createFullAttrReference("VERSIONS_STARTSCN",
 	                                0,
 	                                getNumAttrs(OP_LCHILD(q)),
-	                                INVALID_ATTR,
+	                                0,
 	                                DT_LONG));
 	                q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
 	                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
@@ -608,7 +625,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
 						// adding SCN < update SCN condition
 						scnAttr = createFullAttrReference("VERSIONS_STARTSCN", 0,
-						        getNumAttrs(OP_LCHILD(q)), INVALID_ATTR, DT_LONG);
+						        getNumAttrs(OP_LCHILD(q)), 0, DT_LONG);
 						newCond = (Node *) createOpExpr("<=",
 								LIST_MAKE((Node *) scnAttr,
 								        copyObject(getNthOfListP(scns,i))));
@@ -620,7 +637,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 				}
 
                //make new case for SCN
-                Node *els = (Node *) createFullAttrReference("VERSIONS_STARTSCN", 0, getNumAttrs(OP_LCHILD(proj)), INVALID_ATTR, DT_LONG);
+                Node *els = (Node *) createFullAttrReference("VERSIONS_STARTSCN", 0, getNumAttrs(OP_LCHILD(proj)), 0, DT_LONG);
 
                 // TODO do not modify the SCN attribute to avoid exponential expression size blow-up
                 newProjExpr = (Node *) els; // caseExpr
@@ -767,15 +784,23 @@ void
 restrictToUpdatedRows (ProvenanceComputation *op)
 {
     boolean simpleOnly = TRUE;
-    ProvenanceTransactionInfo *t = op->transactionInfo;
 
     INFO_LOG("RESTRICT TO UPDATED ROWS");
 
-    FOREACH(Node,up,t->originalUpdates)
-        simpleOnly &= isSimpleUpdate(up);
+    simpleOnly = !onlyUpdatedNeedsResultFiltering(op);
 
     DEBUG_LOG("is simple, %u", simpleOnly);
 
+    // do we need to filter out non-updated rows in the end, if yes then record this since we have to
+    // first apply the provenance rewrite first before we can do this
+    if (!simpleOnly)
+    {
+        INFO_LOG("filtering of updated rows in final result required.");
+        SET_BOOL_STRING_PROP(op, PROP_PC_REQUIRES_POSTFILTERING);
+//        filterUpdatedInFinalResult(op);
+    }
+
+    // if is simple and CBO is activated then make a choice between prefiltering and history join
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
     {
     	int res;
@@ -787,26 +812,20 @@ restrictToUpdatedRows (ProvenanceComputation *op)
    		else
    			extractUpdatedFromTemporalHistory(op);
     }
+    // else check which option is checked
     else
     {
-    	//TODO for now be conservative when to apply things
 		// use conditions of updates to filter out non-updated tuples early on
 		if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS))
 		{
-			DEBUG_LOG("Use conditions to restrict to updated;");
+			INFO_LOG("Use update conditions to restrict to updated;");
 			addConditionsToBaseTables(op);
 		}
 		// use history to get tuples updated by transaction and limit provenance tracing to these tuples
 		else if (isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN))
 		{
-			DEBUG_LOG("Use history join to restrict to updated;");
+		    INFO_LOG("Use history join to restrict to updated;");
 			extractUpdatedFromTemporalHistory(op);
-		}
-		// simply filter out non-updated rows in the end
-		else
-		{
-			DEBUG_LOG("filtering of updated rows in final result not supported yet.");
-			filterUpdatedInFinalResult(op);
 		}
     }
 
@@ -816,10 +835,40 @@ restrictToUpdatedRows (ProvenanceComputation *op)
 }
 
 /**
+ * Determines whether reenactment can be restricted to rows affected by a
+ * transaction (ONLY UPDATED) by prefiltering or history join, or if
+ * statement annotations (boolean attributes that are true if a tuple was
+ * affected by particular statement) are required to filter the output of
+ * reenactment. Return TRUE if filtering the output is required. The following
+ * rules apply:
+ *
+ * 1) transaction has only updates and deletes: return FALSE
+ * 2) if transaction has an INSERT INTO SELECT: return TRUE
+ * 3) else the following applies:
+ *  let R be the table for which we want to track provenance and R_1 to R_n
+ *  the other tables updated by the input transaction T
+ */
+
+static boolean
+onlyUpdatedNeedsResultFiltering (ProvenanceComputation *op)
+{
+    boolean result = TRUE;//TODO sometimes postfiltering is only required for some ops
+    FOREACH(Node,up,op->transactionInfo->originalUpdates)
+        result &= isSimpleUpdate(up);
+    return !result;
+}
+
+
+/**
  * for inserts into tables that are not read or written afterwards we should not scan the table if the
- * user requested to only see rows affected by the transaction. If the first statement affecting a table
- * is an insert, then can replace the union between the table and the insert's query or VALUES clause
- * with the query (ConstRelOperator), e.g.,
+ * user requested to only see rows affected by the transaction. If
+ *
+ * 1) the first statement affecting a table is an insert
+ * 2) this table is only affected by INSERT INTO VALUES, INSERT INTO SELECT that do not access
+ * the modified query in their query, and DELETES
+ *
+ * then we should replace the union between the table and
+ * the insert's query or VALUES clause with the query (ConstRelOperator), e.g.,
  *
  *  R u {t} -> {t}
  *
@@ -831,33 +880,42 @@ static void
 removeInputTablesWithOnlyInserts (ProvenanceComputation *op)
 {
     Set *tableUpdateOrRead = STRSET();
+    Set *firstSeenTable = STRSET();
 
     // determine tables that are read by an INSERT query or updated
-//    FOREACH(Node, u, op->transactionInfo->originalUpdates)
-//    {
-//        if(isA(u,Insert))
-//        {
-//            Insert *i = (Insert *) u;
-//
-//            if (!isA(i->query,  List))
-//            {
-//                List *tableFromItems = findAllNodes(i->query, T_FromTableRef);
-//                FOREACH(FromTableRef,f,tableFromItems)
-//                    addToSet(tableUpdateOrRead, f->tableId);
-//                addToSet(tableUpdateOrRead, i->insertTableName);
-//            }
-//        }
-//        else if (isA(u,Update))
-//        {
-//            Update *up = (Update *) u;
-//            addToSet(tableUpdateOrRead, up->updateTableName);
-//        }
-//        else if (isA(u, Delete))
-//        {
-//            Delete *d = (Delete *) u;
-//            addToSet(tableUpdateOrRead, d->deleteTableName);
-//        }
-//    }
+    FOREACH(Node, u, op->transactionInfo->originalUpdates)
+    {
+        char *tableName = NULL;
+
+        if(isA(u,Insert))
+        {
+            Insert *i = (Insert *) u;
+            tableName = i->insertTableName;
+
+            if (!isA(i->query,  List))
+            {
+                List *tableFromItems = findAllNodes(i->query, T_FromTableRef);
+                FOREACH(FromTableRef,f,tableFromItems)
+                {
+                    if (hasSetElem(firstSeenTable, f->tableId))
+                        addToSet(tableUpdateOrRead, f->tableId);
+                }
+            }
+        }
+        else if (isA(u,Update))
+        {
+            Update *up = (Update *) u;
+            tableName = up->updateTableName;
+            addToSet(tableUpdateOrRead, up->updateTableName);
+        }
+        else if (isA(u, Delete))
+        {
+            Delete *d = (Delete *) u;
+            tableName = d->deleteTableName;
+            addToSet(tableUpdateOrRead, d->deleteTableName);
+        }
+        addToSet(firstSeenTable, tableName);
+    }
 
     DEBUG_NODE_BEATIFY_LOG("tables that do not only consist of constants are", tableUpdateOrRead);
 
@@ -955,6 +1013,8 @@ addConditionsToBaseTables (ProvenanceComputation *op)
             addToSet(readFromTableNames, strdup(t->tableName));
     }
 
+    DEBUG_LOG("updated tables\n%s\nread tables\n%s", beatify(nodeToString(updatedTableNames)), beatify(nodeToString(readFromTableNames)));
+
     // create map from table name to condition (for update only tables)
     int i = 0;
     FORBOTH(void,name,up,tableNames,origUpdates)
@@ -967,7 +1027,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
             if(!hasSetElem(readFromTableNames,tableName)) //HAO in second loop this check
             {
                 KeyValue *tableMap = MAP_GET_STRING_ENTRY(tabCondMap, tableName); // getMapCond(tableCondMap, tableName);
-                Node *cond = copyObject((Node *) getNthOfListP(upConds, pos));
+                Node *cond = copyObject((Node *) getNthOfListP(upConds, i)); //TODO correct?
 
                 // for read committed we have to also check the version column to only
                 // check the condition for rows versions that will be seen by an update
@@ -978,14 +1038,20 @@ addConditionsToBaseTables (ProvenanceComputation *op)
                             INT_VALUE(MAP_GET_STRING(numAttrs, tableName)));
                 }
 
+
+                if (cond == NULL)
+                {
+                    cond = (Node *) createConstBool(TRUE);
+                }
+
                 if (tableMap == NULL)
                     MAP_ADD_STRING_KEY(tabCondMap, tableName, singleton(cond));
                 else
                     tableMap->value = (Node *) appendToTailOfList((List *) tableMap->value, cond);
             }
             pos++;
-            i++;
         }
+        i++;
     }
 
     DEBUG_NODE_BEATIFY_LOG("condition table map is:", tabCondMap);
@@ -1031,7 +1097,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     // from these tables
     mixedTableNames = intersectSets(readFromTableNames,updatedTableNames);
     if (!EMPTY_SET(mixedTableNames))
-        filterUpdatedInFinalResult(op);
+        SET_BOOL_STRING_PROP(op, PROP_PC_REQUIRES_POSTFILTERING);
 }
 
 static Node *
@@ -1102,13 +1168,13 @@ extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
         }
 	}
 
-	//TODO need to postfilter for remaining ones
+	//TODO need to postfilter for remaining ones (store table names here?)
     mixedTableNames = intersectSets(readFromTableNames,updatedTableNames);
     if (!EMPTY_SET(mixedTableNames))
-        filterUpdatedInFinalResult(op);
+        SET_BOOL_STRING_PROP(op, PROP_PC_REQUIRES_POSTFILTERING);
 }
 
-static void
+void
 filterUpdatedInFinalResult (ProvenanceComputation *op)
 {
     //TODO will only work if called directly and annotation attributes have been added beforehand
@@ -1142,7 +1208,7 @@ filterUpdatedInFinalResult (ProvenanceComputation *op)
     switchSubtrees(top, (QueryOperator *) sel);
 }
 
-//TODO check is still needed once we extend to nested subqueries
+
 boolean
 isSimpleUpdate(Node *update)
 {

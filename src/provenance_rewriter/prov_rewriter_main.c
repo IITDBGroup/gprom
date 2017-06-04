@@ -99,6 +99,8 @@ findProvenanceComputations (QueryOperator *op, Set *haveSeen)
 static QueryOperator *
 rewriteProvenanceComputation (ProvenanceComputation *op)
 {
+    QueryOperator *result;
+
     // for a sequence of updates of a transaction merge the sequence into a single
     // query before rewrite.
     if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE
@@ -122,6 +124,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         }
     }
 
+    // turn operator graph into a tree since provenance rewrites currently expect a tree
     if (isRewriteOptionActivated(OPTION_TREEIFY_OPERATOR_MODEL))
     {
         treeify((QueryOperator *) op);
@@ -130,23 +133,35 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         ASSERT(isTree((QueryOperator *) op));
     }
 
+    // apply provenance rewriting if required
     switch(op->provType)
     {
-        QueryOperator *result;
         case PROV_PI_CS:
             if (isRewriteOptionActivated(OPTION_PI_CS_USE_COMPOSABLE))
                 result =  rewritePI_CSComposable(op);
             else
                 result = rewritePI_CS(op);
             removeParent(result, (QueryOperator *) op);
-            return result;
+            break;
         case PROV_TRANSFORMATION:
-            return rewriteTransformationProvenance((QueryOperator *) op);
+            result =  rewriteTransformationProvenance((QueryOperator *) op);
+            break;
         case PROV_XML:
-            return rewriteXML(op); //TODO
+            result = rewriteXML(op); //TODO
+            break;
         case PROV_NONE:
-            return OP_LCHILD(op);
+            result = OP_LCHILD(op);
+            break;
     }
-    return NULL;
+
+    // for reenactment we may have to postfilter results if only rows affected by the transaction should be shown
+    if (HAS_STRING_PROP(op,PROP_PC_REQUIRES_POSTFILTERING))
+    {
+        START_TIMER("rewrite - restrict to updated rows by postfiltering");
+        filterUpdatedInFinalResult(op);
+        STOP_TIMER("rewrite - restrict to updated rows by postfiltering");
+    }
+
+    return result;
 }
 
