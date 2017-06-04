@@ -14,7 +14,7 @@
 #include "model/query_operator/query_operator.h"
 
 extern void mergeUpdateSequence(ProvenanceComputation *op);
-extern void filterUpdatedInFinalResult (ProvenanceComputation *op);
+extern QueryOperator *filterUpdatedInFinalResult (ProvenanceComputation *op, QueryOperator *rewritten);
 extern void restrictToUpdatedRows (ProvenanceComputation *op);
 extern boolean isSimpleUpdate(Node *update);
 

@@ -140,6 +140,15 @@ REENACT WITH PROVENANCE (INSERT INTO R (SELECT * FROM R WHERE B = 2); INSERT INT
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R (SELECT * FROM R WHERE B = 2); INSERT INTO R (SELECT * FROM R WHERE B = 2););
 </entry>
 <entry key="q12.result">
+ A | B | PROV_R_A | PROV_R_B | PROV_R_1_A | PROV_R_1_B | PROV_U0_ins | PROV_R_2_A | PROV_R_2_B | PROV_R_3_A | PROV_R_3_B | PROV_U0_1_ins | PROV_U1_ins |
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ 1 | 1 | 1        | 1        | (null)       | (null)       | 0           | (null)       | (null)       | (null)       | (null)       | (null)          | 0           |
+ 1 | 2 | 1        | 2        | (null)       | (null)       | 0           | (null)       | (null)       | (null)       | (null)       | (null)          | 0           |
+ 2 | 1 | 2        | 1        | (null)       | (null)       | 0           | (null)       | (null)       | (null)       | (null)       | (null)          | 0           |
+ 2 | 3 | 2        | 3        | (null)       | (null)       | 0           | (null)       | (null)       | (null)       | (null)       | (null)          | 0           |
+ 1 | 2 | (null)     | (null)     | 1          | 2          | 1           | (null)       | (null)       | (null)       | (null)       | (null)          | 0           |
+ 1 | 2 | (null)     | (null)     | (null)       | (null)       | (null)        | 1          | 2          | (null)       | (null)       | 0             | 1           |
+ 1 | 2 | (null)     | (null)     | (null)       | (null)       | (null)        | (null)       | (null)       | 1          | 2          | 1             | 1           |
 </entry>
 
 <entry key="q13.query">
@@ -212,9 +221,10 @@ REENACT WITH PROVENANCE ONLY UPDATED SHOW INTERMEDIATE STATEMENT ANNOTATIONS ( U
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS ONLY UPDATED (INSERT INTO R VALUES (1,1); UPDATE R SET A = 100 WHERE B = 2;);
 </entry>
 <entry key="q17.result">
- A | B | PROV_query_A | PROV_query_B | PROV_U0_ins | PROV_U1_up |
------------------------------------------------------------------
- 1 | 1 | 1            | 1            | 1           | 0          |
+ A   | B | PROV_R_A | PROV_R_B | PROV_query_A | PROV_query_B | PROV_U0_ins | PROV_U1_up |
+-----------------------------------------------------------------------------------------
+ 100 | 2 | 1        | 2        | (null)         | (null)         | 0           | 1          |
+ 1   | 1 | (null)     | (null)     | 1            | 1            | 1           | 0          |
 </entry>
 
 <entry key="q18.query">
@@ -231,7 +241,7 @@ REENACT WITH PROVENANCE ONLY UPDATED SHOW INTERMEDIATE STATEMENT ANNOTATIONS ( U
 </entry>
 
 
-<entry key="q19.query"> <!--  segfault -->
+<entry key="q19.query">
 REENACT WITH PROVENANCE STATEMENT ANNOTATIONS ONLY UPDATED (INSERT INTO R VALUES (1,1); INSERT INTO R VALUES (1,2); );
 </entry>
 <entry key="q19.result">
@@ -256,17 +266,42 @@ REENACT WITH PROVENANCE STATEMENT ANNOTATIONS (INSERT INTO R VALUES (1,1); INSER
  1 | 2 | (null)     | (null)     | (null)         | (null)         | (null)        | 1              | 2              | 1           |
 </entry>
 
-<entry key="q.query">
+<entry key="q21.query">
+REENACT WITH PROVENANCE ONLY UPDATED (INSERT INTO R (SELECT * FROM R WHERE B = 2); );
 </entry>
-<entry key="q.result">
+<entry key="q21.result">
+ A | B | PROV_R_A | PROV_R_B | PROV_U0_ins |
+--------------------------------------------
+ 1 | 2 | 1        | 2        | 1           |
 </entry>
+
+<entry key="q22.query">
+REENACT WITH PROVENANCE ONLY UPDATED (INSERT INTO R (SELECT * FROM R WHERE B = 2); INSERT INTO R (SELECT * FROM R WHERE B = 2); );
+</entry>
+<entry key="q22.result">
+ A | B | PROV_R_A | PROV_R_B | PROV_R_1_A | PROV_R_1_B | PROV_U0_ins | PROV_R_2_A | PROV_R_2_B | PROV_R_3_A | PROV_R_3_B | PROV_U0_1_ins | PROV_U1_ins |
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ 1 | 2 | NULL     | NULL     | 1          | 2          | 1           | NULL       | NULL       | NULL       | NULL       | NULL          | 0           |
+ 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | 1          | 2          | NULL       | NULL       | 0             | 1           |
+ 1 | 2 | NULL     | NULL     | NULL       | NULL       | NULL        | NULL       | NULL       | 1          | 2          | 1             | 1           |
+</entry>
+
 
 <entry key="q.query">
 </entry>
 <entry key="q.result">
 </entry>
 
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
 
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
 
 
 <entry key="q.query">

@@ -25,12 +25,23 @@
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "configuration/option.h"
+#include "utility/string_utils.h"
+
+
+#define STATEMENT_ANNOTATION_SUFFIX_INSERT "ins"
+#define STATEMENT_ANNOTATION_SUFFIX_UPDATE "up"
+#define STATEMENT_ANNOTATION_SUFFIX_DELETE "del"
+
+#define IS_STATEMENT_ANNOT_ATTR(a) (isSuffix(a,STATEMENT_ANNOTATION_SUFFIX_INSERT) \
+        || isSuffix(a,STATEMENT_ANNOTATION_SUFFIX_UPDATE) \
+        || isSuffix(a,STATEMENT_ANNOTATION_SUFFIX_DELETE))
 
 static QueryOperator *getUpdateForPreviousTableVersion (ProvenanceComputation *p, char *tableName, int startPos, List *updates);
 
 static void mergeForTransactionProvenance(ProvenanceComputation *op);
 static boolean needAnnotAttributes(ProvenanceComputation *p);
 static void mergeForReenactOnly(ProvenanceComputation *op);
+static QueryOperator *createProjToRemoveAnnot (QueryOperator *o);
 static void mergeSerializebleTransaction(ProvenanceComputation *op);
 static void mergeReadCommittedTransaction(ProvenanceComputation *op);
 
@@ -49,6 +60,17 @@ static void addAnnotConstToUnion (QueryOperator *un, boolean leftIsTrue, char *a
 void
 mergeUpdateSequence(ProvenanceComputation *op)
 {
+    List *updateTypes = NIL;
+
+    // create list of the types of updates
+    FOREACH(QueryOperator,up,op->op.inputs)
+    {
+        ReenactUpdateType t = INT_VALUE(GET_STRING_PROP(up, PROP_PROV_ORIG_UPDATE_TYPE));
+        updateTypes = appendToTailOfListInt(updateTypes, t);
+    }
+    SET_STRING_PROP(op, PROP_PROV_ORIG_UPDATE_TYPE, updateTypes);
+
+    // merge based on type of request
     if (op->inputType == PROV_INPUT_TRANSACTION)
     {
         mergeForTransactionProvenance(op);
@@ -70,12 +92,11 @@ mergeForReenactOnly(ProvenanceComputation *op)
     List *updates;
     HashMap *curTranslation = NEW_MAP(Constant, Node);
     List *tabNames = op->transactionInfo->updateTableNames;
+    List *updateTypes = (List *) GET_STRING_PROP(op, PROP_PROV_ORIG_UPDATE_TYPE);
     boolean addAnnotAttrs = needAnnotAttributes(op);
-//    GET_BOOL_STRING_PROP(op, PROP_PC_STATEMENT_ANNOTATIONS) ||
-//             !((isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS)
-//            || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN)) //TODO I think the point is for the post-filtering version of ONLY UPDATED we need these attributes, by why do we need it for history join?
-//            || getBoolOption(OPTION_COST_BASED_OPTIMIZER)); //TODO why activate for CBO?
+    int i;
 
+    // if we only want tuple affected by the transaction then in some cases the first insert should avoid the union with the table
     if (HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
     {
          removeInputTablesWithOnlyInserts(op);
@@ -87,7 +108,7 @@ mergeForReenactOnly(ProvenanceComputation *op)
         addUpdateAnnotationAttrs (op);
         removeUpdateAnnotAttr(op);
 
-        INFO_LOG("after adding projection:\n%s", operatorToOverviewString((Node *) op));
+        INFO_LOG("after adding annotation attributes:\n%s", operatorToOverviewString((Node *) op));
     }
 
     // updates to process
@@ -100,11 +121,14 @@ mergeForReenactOnly(ProvenanceComputation *op)
     // loop through statement replacing ops where necessary
     DEBUG_NODE_BEATIFY_LOG("reenacted statements to merge are:", updates);
     INFO_OP_LOG("reenacted statements to merge are:", updates);
+
+    i = 0;
     FORBOTH(void,u,tN,updates,tabNames)
     {
         QueryOperator *up = (QueryOperator *) u;
         char *tName = (char *) tN;
         List *children = NULL;
+        ReenactUpdateType typ = getNthOfListInt(updateTypes, i);
 
         DEBUG_NODE_BEATIFY_LOG("merge", (Node *) up);
         INFO_OP_LOG("Replace table access operators in", up);
@@ -121,6 +145,9 @@ mergeForReenactOnly(ProvenanceComputation *op)
                 QueryOperator *prevUpdate = (QueryOperator *)
                         MAP_GET_STRING(curTranslation, t->tableName);
 
+                if (typ == UPDATE_TYPE_INSERT_QUERY && addAnnotAttrs)
+                    prevUpdate = createProjToRemoveAnnot(prevUpdate);
+
                 INFO_OP_LOG("\tUpdate is", prevUpdate);
                 switchSubtreeWithExisting((QueryOperator *) t, prevUpdate);
 
@@ -133,6 +160,8 @@ mergeForReenactOnly(ProvenanceComputation *op)
         {
             MAP_ADD_STRING_KEY(curTranslation,tName,up);
         }
+
+        i++;
     }
 
     // add root of final reenactment query to
@@ -159,6 +188,22 @@ mergeForReenactOnly(ProvenanceComputation *op)
         ASSERT(checkModel((QueryOperator *) op));
 }
 
+static QueryOperator *
+createProjToRemoveAnnot (QueryOperator *o)
+{
+    List *normalAttrs = NIL;
+    CREATE_INT_SEQ(normalAttrs, 0, getNumNormalAttrs(o) - 2, 1);
+    DEBUG_LOG("num attrs %i", getNumNormalAttrs(o) - 2);
+
+    QueryOperator *newTop = createProjOnAttrs(o, normalAttrs);
+    newTop->inputs = LIST_MAKE(o);
+    addParent(o, newTop);
+
+    DEBUG_OP_LOG("added projection to remove statement annotation:", newTop);
+
+    return newTop;
+}
+
 static boolean
 needAnnotAttributes(ProvenanceComputation *p)
 {
@@ -180,10 +225,6 @@ mergeForTransactionProvenance(ProvenanceComputation *op)
 {
 	ProvenanceTransactionInfo *tInfo = op->transactionInfo;
 	boolean addAnnotAttrs = needAnnotAttributes(op);
-//	GET_BOOL_STRING_PROP(op, PROP_PC_STATEMENT_ANNOTATIONS) ||
-//	         !(isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_CONDS)
-//	        || isRewriteOptionActivated(OPTION_UPDATE_ONLY_USE_HISTORY_JOIN) //TODO I think the point is for the post-filtering version of ONLY UPDATED we need these attributes, by why do we need it for history join?
-//	        || getBoolOption(OPTION_COST_BASED_OPTIMIZER)); //TODO why activate for CBO?
 
 	// remove table access of inserts where
 	if (op->inputType == PROV_INPUT_TRANSACTION
@@ -256,13 +297,13 @@ addUpdateAnnotationAttrs (ProvenanceComputation *op)
 
         switch (u->type) {
             case T_Insert:
-                annotName = strdup("ins");
+                annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_INSERT);
                 break;
             case T_Update:
-                annotName = strdup("up");
+                annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_UPDATE);
                 break;
             case T_Delete:
-                annotName = strdup("del");
+                annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_DELETE);
                 break;
             default:
                 FATAL_LOG("expected insert, update, or delete");
@@ -410,7 +451,8 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
 {
     List *updates = copyList(op->op.inputs);
     int i = 0;
-//    char *useTable = NULL;
+    boolean addAnnotAttrs = needAnnotAttributes(op);
+    List *updateTypes = (List *) GET_STRING_PROP(op, PROP_PROV_ORIG_UPDATE_TYPE);
 
     // cut links to parent
     removeParentFromOps(op->op.inputs, (QueryOperator *) op);
@@ -428,6 +470,7 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     FOREACH(QueryOperator, u, updates)
     {
          List *children = NULL;
+         ReenactUpdateType typ = getNthOfListInt(updateTypes, i);
 
          // find all table access operators
          findTableAccessVisitor((Node *) u, &children);
@@ -438,6 +481,9 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
              INFO_OP_LOG("\tTable Access", t);
              QueryOperator *up = getUpdateForPreviousTableVersion(op,
                      t->tableName, i, updates);
+
+             if (typ == UPDATE_TYPE_INSERT_QUERY && addAnnotAttrs)
+                 up = createProjToRemoveAnnot(up);
 
              INFO_OP_LOG("\tUpdate is", up);
              // previous table version was created by transaction
@@ -797,7 +843,6 @@ restrictToUpdatedRows (ProvenanceComputation *op)
     {
         INFO_LOG("filtering of updated rows in final result required.");
         SET_BOOL_STRING_PROP(op, PROP_PC_REQUIRES_POSTFILTERING);
-//        filterUpdatedInFinalResult(op);
     }
 
     // if is simple and CBO is activated then make a choice between prefiltering and history join
@@ -979,10 +1024,8 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     List *updatedTables;
     List *allTables = NIL;
     List *origUpdates;
-//    List *tableCondMap = NIL;
     HashMap *tabCondMap = NEW_MAP(Constant,List);
     int pos = 0;
-//    KeyValue *tableCond;
     Set *readFromTableNames = STRSET();
     Set *updatedTableNames = STRSET();
     Set *mixedTableNames = NULL;
@@ -1174,8 +1217,8 @@ extractUpdatedFromTemporalHistory (ProvenanceComputation *op)
         SET_BOOL_STRING_PROP(op, PROP_PC_REQUIRES_POSTFILTERING);
 }
 
-void
-filterUpdatedInFinalResult (ProvenanceComputation *op)
+QueryOperator *
+filterUpdatedInFinalResult (ProvenanceComputation *op, QueryOperator *rewritten)
 {
     //TODO will only work if called directly and annotation attributes have been added beforehand
     //TODO extend to support making it work as a fallback method, easiest solution would be to determine whether this is necessary early on
@@ -1183,14 +1226,14 @@ filterUpdatedInFinalResult (ProvenanceComputation *op)
 
     // add final conditions that filters out rows
     SelectionOperator *sel;
-    QueryOperator *top = OP_LCHILD(op);
+    QueryOperator *top = rewritten;
     Node *cond;
     List *condList = NIL;
     int i = 0;
 
     FOREACH(AttributeDef,a,top->schema->attrDefs)
     {
-        if (strncmp(a->attrName,"PROV_STATEMENT", strlen("PROV_STATEMENT")) == 0)
+        if (IS_STATEMENT_ANNOT_ATTR(a->attrName))
         {
             condList = appendToTailOfList(condList, createOpExpr("=",
                     LIST_MAKE(createFullAttrReference(strdup(a->attrName), 0, i,
@@ -1201,11 +1244,16 @@ filterUpdatedInFinalResult (ProvenanceComputation *op)
         i++;
     }
 
-    cond = andExprList(condList);
+    cond = orExprList(condList);
     DEBUG_NODE_BEATIFY_LOG("create condition: %s",cond);
     sel = createSelectionOp(cond, top, NIL, NIL);
+    addParent(top, (QueryOperator *) sel);
+
+    INFO_OP_LOG("added selection for postfiltering", sel);
 
     switchSubtrees(top, (QueryOperator *) sel);
+
+    return (QueryOperator *) sel;
 }
 
 

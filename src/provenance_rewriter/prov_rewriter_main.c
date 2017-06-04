@@ -100,6 +100,7 @@ static QueryOperator *
 rewriteProvenanceComputation (ProvenanceComputation *op)
 {
     QueryOperator *result;
+    boolean requiresPostFiltering = FALSE;
 
     // for a sequence of updates of a transaction merge the sequence into a single
     // query before rewrite.
@@ -120,6 +121,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         {
             START_TIMER("rewrite - restrict to updated rows");
             restrictToUpdatedRows(op);
+            requiresPostFiltering = HAS_STRING_PROP(op,PROP_PC_REQUIRES_POSTFILTERING);
             STOP_TIMER("rewrite - restrict to updated rows");
         }
     }
@@ -155,11 +157,12 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     }
 
     // for reenactment we may have to postfilter results if only rows affected by the transaction should be shown
-    if (HAS_STRING_PROP(op,PROP_PC_REQUIRES_POSTFILTERING))
+    if (requiresPostFiltering)
     {
         START_TIMER("rewrite - restrict to updated rows by postfiltering");
-        filterUpdatedInFinalResult(op);
+        result = filterUpdatedInFinalResult(op, result);
         STOP_TIMER("rewrite - restrict to updated rows by postfiltering");
+        INFO_OP_LOG("after adding selection for postfiltering", result);
     }
 
     return result;
