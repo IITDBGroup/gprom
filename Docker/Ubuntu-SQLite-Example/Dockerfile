@@ -44,4 +44,4 @@ ENTRYPOINT ["/usr/local/bin/gprom"]
 ########################################
 # Per default connect to the example SQLite database
 ########################################
-CMD ["-Psqlserializer", "sqlite", "-Pmetadata", "sqlite", "-db", "/gprom/src/examples/test.db"]
+CMD ["-backend", "sqlite", "-db", "/gprom/src/examples/test.db"]
