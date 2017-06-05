@@ -62,7 +62,7 @@ mergeUpdateSequence(ProvenanceComputation *op)
 {
     List *updateTypes = NIL;
 
-    // create list of the types of updates
+    // create a list storing the types of updates using in the transaction
     FOREACH(QueryOperator,up,op->op.inputs)
     {
         ReenactUpdateType t = INT_VALUE(GET_STRING_PROP(up, PROP_PROV_ORIG_UPDATE_TYPE));
@@ -312,7 +312,7 @@ addUpdateAnnotationAttrs (ProvenanceComputation *op)
         // mark update annotation attribute as provenance
         SET_STRING_PROP(q, PROP_ADD_PROVENANCE, LIST_MAKE(createConstString(annotName)));
         SET_STRING_PROP(q, PROP_PROV_IGNORE_ATTRS, MAKE_STR_SET(strdup(annotName)));
-        SET_STRING_PROP(q, PROP_PROV_ADD_REL_NAME, createConstString(CONCAT_STRINGS("U", itoa(i))));
+        SET_STRING_PROP(q, PROP_PROV_ADD_REL_NAME, createConstString(CONCAT_STRINGS("U", itoa(i + 1))));
 
         // use original update to figure out type of each update (UPDATE/DELETE/INSERT)
         // switch
@@ -534,10 +534,9 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
     int i = 0;
     QueryOperator *mergeRoot = NULL;
     QueryOperator *finalProj = NULL;
+    boolean addAnnotAttrs = needAnnotAttributes(op);
 
-    removeParentFromOps(op->op.inputs, (QueryOperator *) op);
-
-	// Loop through update translations and add version_startscn condition + attribute
+    // Loop through update translations and add version_startscn condition + attribute
 	FORBOTH_LC(uLc, trLc, op->transactionInfo->originalUpdates, op->op.inputs)
 	{
 	    QueryOperator *q = (QueryOperator *) LC_P_VAL(trLc);
@@ -549,58 +548,113 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 		// case t_InsertStmt:t:
 		case T_Insert:
 		{
-		    //TODO deal with
-		    QueryOperator *newQ = isA(q, ProjectionOperator) ? OP_LCHILD(q) : q;
-            ProjectionOperator *lC = (ProjectionOperator *) OP_LCHILD(newQ);
-//		    TableAccessOperator *t = (TableAccessOperator *) OP_LCHILD(lC);
-		    ProjectionOperator *rC = (ProjectionOperator *) OP_RCHILD(newQ);
-		    QueryOperator *qRoot = OP_LCHILD(rC);
-		    ProjectionOperator *p;
-
-            // is R UNION INSERTS transform into R + SCN UNION PROJECTION [*, SCN] (q)
-		    lC->op.schema->attrDefs = appendToTailOfList(lC->op.schema->attrDefs,
-		                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
-		    lC->projExprs = appendToTailOfList(lC->projExprs,
-		            createFullAttrReference("VERSIONS_STARTSCN", 0,
-		                    getNumAttrs(OP_LCHILD(lC)), 0,
-		                    DT_LONG));
-
-		    rC->op.schema->attrDefs = appendToTailOfList(rC->op.schema->attrDefs,
-		            createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
-		    rC->projExprs = appendToTailOfList(rC->projExprs,
-		            copyObject(getNthOfListP(scns,i)));
-
-		    // add attributes to union and table access
-		    newQ->schema->attrDefs = appendToTailOfList(newQ->schema->attrDefs,
-		            createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
-
-		    // add projection over query, add constant SCN attr, switch with query
-		    if (!isA(q, ProjectionOperator))
+		    QueryOperator *qRoot = NULL;
+		    //TODO deal with ConstRel inserts
+		    // check whether q is a set operation
+		    if (isA(q, SetOperator))
 		    {
-                p = (ProjectionOperator *) createProjOnAllAttrs(qRoot);
-                addChildOperator((QueryOperator *) p,qRoot);
+                QueryOperator *newQ = isA(q, ProjectionOperator) ? OP_LCHILD(q) : q;
+                QueryOperator *lChild = OP_LCHILD(newQ);
+                QueryOperator *rChild = OP_RCHILD(newQ);
+                ProjectionOperator *lC; // = (ProjectionOperator *) OP_LCHILD(newQ); //TODO correct to assume that child is a projection?
+                ProjectionOperator *rC; // = (ProjectionOperator *) OP_RCHILD(newQ); //TODO correct to assume that child is a projection?
+                ProjectionOperator *p;
+
+                // left input may already be projections, if not, then create projections on all attributes
+                if (!isA(lChild, ProjectionOperator))
+                {
+                    lC = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) lChild);
+                    addChildOperator((QueryOperator *) lC, (QueryOperator *) lChild);
+                    switchSubtrees(lChild, (QueryOperator *) lC);
+                }
+                else
+                    lC = (ProjectionOperator *) lChild;
+
+                // right inputs may already be projections, if not, then create projections on all attributes
+                // also set query root
+                if (!isA(rChild, ProjectionOperator))
+                {
+                    rC = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) rChild);
+                    addChildOperator((QueryOperator *) rC, (QueryOperator *) rChild);
+                    switchSubtrees(rChild, (QueryOperator *) rC);
+                }
+                else
+                    rC = (ProjectionOperator *) rChild;
+
+                if (addAnnotAttrs)
+                {
+                    qRoot = OP_LCHILD(rChild);
+                }
+                else
+                    qRoot = rChild;
+
+                ASSERT(isA(lC,ProjectionOperator) && isA(rC,ProjectionOperator));
+
+                // is R UNION INSERTS transform into R + SCN UNION PROJECTION [*, SCN] (q)
+                lC->op.schema->attrDefs = appendToTailOfList(lC->op.schema->attrDefs,
+                                    createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+                lC->projExprs = appendToTailOfList(lC->projExprs,
+                        createFullAttrReference("VERSIONS_STARTSCN", 0,
+                                getNumAttrs(OP_LCHILD(lC)), 0,
+                                DT_LONG));
+
+                rC->op.schema->attrDefs = appendToTailOfList(rC->op.schema->attrDefs,
+                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+                rC->projExprs = appendToTailOfList(rC->projExprs,
+                        copyObject(getNthOfListP(scns,i)));
+
+                // add attributes to union and table access
+                newQ->schema->attrDefs = appendToTailOfList(newQ->schema->attrDefs,
+                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+
+                // add projection over query, add constant SCN attr, switch with query
+                if (!isA(q, ProjectionOperator))
+                {
+                    p = (ProjectionOperator *) createProjOnAllAttrs(qRoot);
+                    addChildOperator((QueryOperator *) p,qRoot);
+                    p->op.schema->attrDefs = appendToTailOfList(p->op.schema->attrDefs,
+                            createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+                    p->projExprs = appendToTailOfList(p->projExprs,copyObject(getNthOfListP(scns,i)));
+                    switchSubtrees(qRoot,(QueryOperator *) p);
+                } //TODO ok that there is no else here?
+
+		    }
+		    // no union, then this is an insert only case where we avoid the union, just add projection on top
+		    else
+		    {
+		        qRoot = q;
+		        ProjectionOperator *p;
+
+		        if (!isA(q, ProjectionOperator))
+		        {
+		            p = (ProjectionOperator *) createProjOnAllAttrs(qRoot);
+		            addChildOperator((QueryOperator *) p,qRoot);
+	                switchSubtrees(qRoot,(QueryOperator *) p);
+		        }
+		        else
+		            p = (ProjectionOperator *) q;
 
                 p->op.schema->attrDefs = appendToTailOfList(p->op.schema->attrDefs,
                         createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
                 p->projExprs = appendToTailOfList(p->projExprs,copyObject(getNthOfListP(scns,i)));
-
-                switchSubtrees(qRoot,(QueryOperator *) p);
 		    }
 
-		    // add projection over table access operators to remove SCN attribute that will be added later
-	        List *children = NULL;
+            // add projection over table access operators to remove SCN attribute that will be added later
+            List *children = NULL;
 
-	        // find all table access operators
-	        findTableAccessVisitor((Node *) qRoot, &children);
-	        INFO_LOG("Replace table access operators in %s",
-	                operatorToOverviewString((Node *) q));
+            // find all table access operators
+            findTableAccessVisitor((Node *) qRoot, &children);
+            INFO_LOG("Replace table access operators in %s",
+                    operatorToOverviewString((Node *) q));
 
-	        FOREACH(TableAccessOperator, t, children)
-	        {
-	            ProjectionOperator *po = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) t);
-	            addChildOperator((QueryOperator *) po, (QueryOperator *) t);
-	            switchSubtrees((QueryOperator *) t,(QueryOperator *) po);
-	        }
+            FOREACH(TableAccessOperator, t, children)
+            {
+                ProjectionOperator *po = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) t);
+                addChildOperator((QueryOperator *) po, (QueryOperator *) t);
+                switchSubtrees((QueryOperator *) t,(QueryOperator *) po);
+            }
+
+            DEBUG_OP_LOG("after replacement", q);
 		}
         break;
         // case T_DeleteStmt:
@@ -705,6 +759,8 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
         i++;
 	}
 
+	// remove provenance compuation as parent from ops
+	removeParentFromOps(op->op.inputs, (QueryOperator *) op);
 	List *updates = copyList(op->op.inputs);
 	i = 0;
 
@@ -738,11 +794,12 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 			{
                 //TODO adapt SCN attribute reference
 			    // FIX parent projection expressions attribute reference
-                FOREACH(ProjectionOperator,p,t->op.parents)
-                {
-                    AttributeReference *a = getTailOfListP(p->projExprs);
-                    a->attrPosition = getNumAttrs((QueryOperator *) up) - 1;
-                }
+			    //TODO what was the point of this, this seems wrong????????? Removed it for now
+//                FOREACH(ProjectionOperator,p,t->op.parents)
+//                {
+//                    AttributeReference *a = getTailOfListP(p->projExprs);
+//                    a->attrPosition = getNumAttrs((QueryOperator *) up) - 1;
+//                }
 				switchSubtreeWithExisting((QueryOperator *) t, up);
 			}
 			// previous table version is the one at transaction begin
