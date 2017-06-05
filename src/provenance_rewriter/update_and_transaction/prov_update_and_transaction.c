@@ -36,6 +36,8 @@
         || isSuffix(a,STATEMENT_ANNOTATION_SUFFIX_UPDATE) \
         || isSuffix(a,STATEMENT_ANNOTATION_SUFFIX_DELETE))
 
+#define VERSIONS_STARTSCN_ATTR "VERSIONS_STARTSCN"
+
 static QueryOperator *getUpdateForPreviousTableVersion (ProvenanceComputation *p, char *tableName, int startPos, List *updates);
 
 static void mergeForTransactionProvenance(ProvenanceComputation *op);
@@ -45,6 +47,7 @@ static QueryOperator *createProjToRemoveAnnot (QueryOperator *o);
 static void mergeSerializebleTransaction(ProvenanceComputation *op);
 static void mergeReadCommittedTransaction(ProvenanceComputation *op);
 
+static void addIgnoreAttr (QueryOperator *o, char *attrName);
 static void addConditionsToBaseTables (ProvenanceComputation *op);
 static boolean onlyUpdatedNeedsResultFiltering (ProvenanceComputation *op);
 static void removeInputTablesWithOnlyInserts (ProvenanceComputation *op);
@@ -278,8 +281,9 @@ removeUpdateAnnotAttr (ProvenanceComputation *op)
     newTop->inputs = LIST_MAKE(lastUp);
     switchSubtrees(lastUp, newTop);
     lastUp->parents = LIST_MAKE(newTop);
+    SET_BOOL_STRING_PROP(newTop,PROP_PC_PROJ_TO_REMOVE_SANNOT);
 
-    INFO_LOG("after adding projection:\n%s", operatorToOverviewString((Node *) op));
+    INFO_OP_LOG("after adding projection to remove annotation attrs:\n", op);
 }
 
 static void
@@ -313,6 +317,7 @@ addUpdateAnnotationAttrs (ProvenanceComputation *op)
         SET_STRING_PROP(q, PROP_ADD_PROVENANCE, LIST_MAKE(createConstString(annotName)));
         SET_STRING_PROP(q, PROP_PROV_IGNORE_ATTRS, MAKE_STR_SET(strdup(annotName)));
         SET_STRING_PROP(q, PROP_PROV_ADD_REL_NAME, createConstString(CONCAT_STRINGS("U", itoa(i + 1))));
+        SET_STRING_PROP(q, PROP_PC_VERSION_SCN_ATTR, createConstString(annotName));
 
         // use original update to figure out type of each update (UPDATE/DELETE/INSERT)
         // switch
@@ -535,12 +540,14 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
     QueryOperator *mergeRoot = NULL;
     QueryOperator *finalProj = NULL;
     boolean addAnnotAttrs = needAnnotAttributes(op);
+    Set *tableUpdatedBefore = STRSET();
 
     // Loop through update translations and add version_startscn condition + attribute
 	FORBOTH_LC(uLc, trLc, op->transactionInfo->originalUpdates, op->op.inputs)
 	{
 	    QueryOperator *q = (QueryOperator *) LC_P_VAL(trLc);
 	    Node *u = (Node *) LC_P_VAL(uLc);
+	    char *tableName = NULL;
 
 		// use original update to figure out type of each update (UPDATE/DELETE/INSERT)
 		// switch
@@ -548,8 +555,10 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 		// case t_InsertStmt:t:
 		case T_Insert:
 		{
+		    Insert *ins = (Insert *) u;
+		    tableName = ins->insertTableName;
 		    QueryOperator *qRoot = NULL;
-		    //TODO deal with ConstRel inserts
+
 		    // check whether q is a set operation
 		    if (isA(q, SetOperator))
 		    {
@@ -559,6 +568,8 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
                 ProjectionOperator *lC; // = (ProjectionOperator *) OP_LCHILD(newQ); //TODO correct to assume that child is a projection?
                 ProjectionOperator *rC; // = (ProjectionOperator *) OP_RCHILD(newQ); //TODO correct to assume that child is a projection?
                 ProjectionOperator *p;
+
+                addIgnoreAttr(newQ,VERSIONS_STARTSCN_ATTR);
 
                 // left input may already be projections, if not, then create projections on all attributes
                 if (!isA(lChild, ProjectionOperator))
@@ -592,20 +603,20 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
                 // is R UNION INSERTS transform into R + SCN UNION PROJECTION [*, SCN] (q)
                 lC->op.schema->attrDefs = appendToTailOfList(lC->op.schema->attrDefs,
-                                    createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+                                    createAttributeDef(VERSIONS_STARTSCN_ATTR, DT_LONG));
                 lC->projExprs = appendToTailOfList(lC->projExprs,
-                        createFullAttrReference("VERSIONS_STARTSCN", 0,
+                        createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0,
                                 getNumAttrs(OP_LCHILD(lC)), 0,
                                 DT_LONG));
 
                 rC->op.schema->attrDefs = appendToTailOfList(rC->op.schema->attrDefs,
-                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+                        createAttributeDef(VERSIONS_STARTSCN_ATTR, DT_LONG));
                 rC->projExprs = appendToTailOfList(rC->projExprs,
                         copyObject(getNthOfListP(scns,i)));
 
                 // add attributes to union and table access
                 newQ->schema->attrDefs = appendToTailOfList(newQ->schema->attrDefs,
-                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+                        createAttributeDef(VERSIONS_STARTSCN_ATTR, DT_LONG));
 
                 // add projection over query, add constant SCN attr, switch with query
                 if (!isA(q, ProjectionOperator))
@@ -613,7 +624,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
                     p = (ProjectionOperator *) createProjOnAllAttrs(qRoot);
                     addChildOperator((QueryOperator *) p,qRoot);
                     p->op.schema->attrDefs = appendToTailOfList(p->op.schema->attrDefs,
-                            createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+                            createAttributeDef(VERSIONS_STARTSCN_ATTR, DT_LONG));
                     p->projExprs = appendToTailOfList(p->projExprs,copyObject(getNthOfListP(scns,i)));
                     switchSubtrees(qRoot,(QueryOperator *) p);
                 } //TODO ok that there is no else here?
@@ -625,6 +636,8 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 		        qRoot = q;
 		        ProjectionOperator *p;
 
+		        addIgnoreAttr(qRoot,VERSIONS_STARTSCN_ATTR);
+
 		        if (!isA(q, ProjectionOperator))
 		        {
 		            p = (ProjectionOperator *) createProjOnAllAttrs(qRoot);
@@ -635,7 +648,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 		            p = (ProjectionOperator *) q;
 
                 p->op.schema->attrDefs = appendToTailOfList(p->op.schema->attrDefs,
-                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+                        createAttributeDef(VERSIONS_STARTSCN_ATTR, DT_LONG));
                 p->projExprs = appendToTailOfList(p->projExprs,copyObject(getNthOfListP(scns,i)));
 		    }
 
@@ -660,6 +673,8 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
         // case T_DeleteStmt:
 		case T_Delete:
 		{
+            Delete *del = (Delete *) u;
+            tableName = del->deleteTableName;
             AttributeReference *scnAttr;
             Node *newCond;
             SelectionOperator *s = (SelectionOperator *) q;
@@ -671,7 +686,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
             DEBUG_LOG("Deal with condition: %s", exprToSQL((Node *) s->cond));
 
             // adding SCN < update SCN condition
-            scnAttr = createFullAttrReference("VERSIONS_STARTSCN", 0,
+            scnAttr = createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0,
                     getNumAttrs(OP_LCHILD(q)), 0, DT_LONG);
             newCond = (Node *) createOpExpr("<=",
                     LIST_MAKE((Node *) scnAttr,
@@ -679,36 +694,55 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
             s->cond = OR_EXPRS(s->cond, newCond);
 
 		    q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
-		                          createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+		                          createAttributeDef(VERSIONS_STARTSCN_ATTR, DT_LONG));
+		    addIgnoreAttr(q,VERSIONS_STARTSCN_ATTR);
 		}
         break;
         // case T_UpdateStmt:
 		case T_Update:
+		{
+		    Update *upd = (Update *) u;
+		    tableName = upd->updateTableName;
 			// either CASE translation OR union translation
 			//if its case translation
 			if (isA(q,ProjectionOperator))
 			{
                 Node *newWhen = NULL;
 			    ProjectionOperator *proj = (ProjectionOperator *) q;
-				List *projExprs = proj->projExprs;
+				List *projExprs;
 				Node *newProjExpr;
-				boolean annotProj = isA(OP_LCHILD(proj), ProjectionOperator);
+				int attrPos = INVALID_ATTR;
 
-				// just modify schema of outer projection
-				if (annotProj)
+//				boolean annotProj = isA(OP_LCHILD(proj), ProjectionOperator);
+				if (HAS_STRING_PROP(proj, PROP_PC_PROJ_TO_REMOVE_SANNOT))
 				{
-	                proj->projExprs = appendToTailOfList(projExprs,
-	                        (Node *) createFullAttrReference("VERSIONS_STARTSCN",
-	                                0,
-	                                getNumAttrs(OP_LCHILD(q)),
-	                                0,
-	                                DT_LONG));
-	                q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
-	                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
-
-	                proj = (ProjectionOperator *) OP_LCHILD(proj);
-	                projExprs = proj->projExprs;
+				    proj = (ProjectionOperator *) OP_LCHILD(proj);
 				}
+				projExprs = proj->projExprs;
+				// just modify schema of outer projection
+//				if (addAnnotAttrs)
+//				{
+//	                proj->projExprs = appendToTailOfList(projExprs,
+//	                        (Node *) createFullAttrReference(VERSIONS_STARTSCN_ATTR,
+//	                                0,
+//	                                getNumAttrs(OP_LCHILD(q)),
+//	                                0,
+//	                                DT_LONG));
+//	                q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
+//	                        createAttributeDef(VERSIONS_STARTSCN_ATTR, DT_LONG));
+//
+//	                proj = (ProjectionOperator *) OP_LCHILD(proj);
+//	                projExprs = proj->projExprs;
+//				}
+
+				// attribute position of STARTSCN attribute in the child
+				// if this is the first update then it will be the last attribute
+				// of the child operator + 1. If this is not the first update
+				// and annotation attributes are added then we have to add another
+				// +1
+				attrPos = getNumAttrs(OP_LCHILD(proj));
+				if (hasSetElem(tableUpdatedBefore, tableName) && addAnnotAttrs)
+				    attrPos++;
 
 				//Add SCN foreach CaseEpr
 				FOREACH(Node, expr, projExprs)
@@ -724,8 +758,8 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 						DEBUG_LOG("Deal with case: %s", exprToSQL((Node *) cexp));
 
 						// adding SCN < update SCN condition
-						scnAttr = createFullAttrReference("VERSIONS_STARTSCN", 0,
-						        getNumAttrs(OP_LCHILD(q)), 0, DT_LONG);
+						scnAttr = createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0,
+						        attrPos, 0, DT_LONG);
 						newCond = (Node *) createOpExpr("<=",
 								LIST_MAKE((Node *) scnAttr,
 								        copyObject(getNthOfListP(scns,i))));
@@ -737,25 +771,30 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 				}
 
                //make new case for SCN
-                Node *els = (Node *) createFullAttrReference("VERSIONS_STARTSCN", 0, getNumAttrs(OP_LCHILD(proj)), 0, DT_LONG);
+                Node *els = (Node *) createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0, attrPos, 0, DT_LONG);
 
                 // TODO do not modify the SCN attribute to avoid exponential expression size blow-up
                 newProjExpr = (Node *) els; // caseExpr
                 proj->projExprs =
                         appendToTailOfList(projExprs, newProjExpr);
                 proj->op.schema->attrDefs = appendToTailOfList(proj->op.schema->attrDefs,
-                        createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+                        createAttributeDef(VERSIONS_STARTSCN_ATTR, DT_LONG));
+                addIgnoreAttr((QueryOperator *) proj, VERSIONS_STARTSCN_ATTR);
+                DEBUG_OP_LOG("update with SCN attribute:", proj);
 			}
 			else
 			{
 			    FATAL_LOG("merging for READ COMMITTED and Union Update translation not supported yet.");
 			}
-			break;
+		}
+        break;
 		default:
 		    FATAL_LOG("should never have ended up here");
 			break;
 		}
 
+		// add tableName to set
+		addToSet(tableUpdatedBefore, tableName);
         i++;
 	}
 
@@ -817,7 +856,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 			                        getQueryOperatorAttrNames(
 			                                (QueryOperator *) t)));
                     ((QueryOperator *) t)->schema->attrDefs = appendToTailOfList(((QueryOperator *) t)->schema->attrDefs,
-                            createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+                            createAttributeDef(VERSIONS_STARTSCN_ATTR, DT_LONG));
 			    }
 
                 t->asOf = (Node *) LIST_MAKE(scnC, copyObject(scnC));
@@ -839,7 +878,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
     FOREACH(AttributeDef, attr, mergeRoot->schema->attrDefs)
     {
-        if (strcmp(attr->attrName,"VERSIONS_STARTSCN") != 0)
+        if (strcmp(attr->attrName,VERSIONS_STARTSCN_ATTR) != 0)
         {
             projExprs = appendToTailOfList(projExprs, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
             finalAttrs = appendToTailOfList(finalAttrs, strdup(attr->attrName));
@@ -862,6 +901,18 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
         ASSERT(checkModel((QueryOperator *) finalProj));
 }
 
+static void
+addIgnoreAttr (QueryOperator *o, char *attrName)
+{
+    if (HAS_STRING_PROP(o,PROP_PROV_IGNORE_ATTRS))
+    {
+        Set *ignoreAttrs;
+        ignoreAttrs = (Set *) GET_STRING_PROP(o,PROP_PROV_IGNORE_ATTRS);
+        addToSet(ignoreAttrs, strdup(attrName));
+    }
+    else
+        SET_STRING_PROP(o, PROP_PROV_IGNORE_ATTRS, MAKE_STR_SET(strdup(attrName)));
+}
 
 
 static QueryOperator *
@@ -1208,7 +1259,7 @@ adaptConditionForReadCommitted(Node *cond, Constant *scn, int attrPos)
     result = AND_EXPRS (
             cond,
             createOpExpr("<=", LIST_MAKE(createFullAttrReference(
-                    "VERSIONS_STARTSCN", 0, attrPos, INVALID_ATTR, scn->constType),
+                    VERSIONS_STARTSCN_ATTR, 0, attrPos, INVALID_ATTR, scn->constType),
                     copyObject(scn)))
         );
 
