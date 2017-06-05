@@ -34,7 +34,7 @@ RUN git clone https://github.com/IITDBGroup/gprom.git /gprom/src
 ########################################
 RUN cd /gprom/src \
 	&& make -f Makefile.maintainer \
-	&& ./configure --disable-oracle --disable-postgres --disable-java \
+	&& ./configure --disable-oracle --disable-postgres --disable-monetdb --disable-java \
 	&& make \
 	&& make install
 ########################################

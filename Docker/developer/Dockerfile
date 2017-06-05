@@ -8,6 +8,10 @@ MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
 WORKDIR /home/ubuntu
 ########################################
+# Install monetdb
+########################################
+touch /etc/apt/sources.list.d/monetdb.list
+########################################
 # Install packages needed for building
 ########################################
 RUN apt-get -y update && apt-get install -y \
@@ -76,7 +80,7 @@ RUN git clone https://github.com/vrogier/ocilib.git /home/ubuntu/ocilib/src
 ########################################
 RUN cd /home/ubuntu/ocilib/src \
 	&& sh reconf \
-	&& ./configure --with-oracle-headers-path=/opt/oracle/instantclient/sdk/include --with-oracle-lib-path=/opt/oracle/instantclient \
+	&& ./configure --with-oracle-headers-path=/opt/oracle/instantclient/sdk/include --with-oracle-lib-path=/opt/oracle/instantclient --disable-monetdb \
 	&& make \
 	&& make install \
 	&& echo "/usr/local/bin/" >> /etc/ld.so.conf \

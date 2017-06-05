@@ -39,7 +39,7 @@ RUN git clone https://github.com/vrogier/ocilib.git /ocilib/src
 ########################################
 RUN cd /ocilib/src \
 	&& sh reconf \
-	&& ./configure --with-oracle-headers-path=/opt/oracle/instantclient/sdk/include --with-oracle-lib-path=/opt/oracle/instantclient \
+	&& ./configure --with-oracle-headers-path=/opt/oracle/instantclient/sdk/include --with-oracle-lib-path=/opt/oracle/instantclient --disable-monetdb \
 	&& make \
 	&& make install \
 	&& echo "/usr/local/bin/" >> /etc/ld.so.conf \
