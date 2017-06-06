@@ -558,6 +558,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 		    Insert *ins = (Insert *) u;
 		    tableName = ins->insertTableName;
 		    QueryOperator *qRoot = NULL;
+		    int attrPos = INVALID_ATTR;
 
 		    // check whether q is a set operation
 		    if (isA(q, SetOperator))
@@ -570,6 +571,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
                 ProjectionOperator *p;
 
                 addIgnoreAttr(newQ,VERSIONS_STARTSCN_ATTR);
+
 
                 // left input may already be projections, if not, then create projections on all attributes
                 if (!isA(lChild, ProjectionOperator))
@@ -602,11 +604,17 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
                 ASSERT(isA(lC,ProjectionOperator) && isA(rC,ProjectionOperator));
 
                 // is R UNION INSERTS transform into R + SCN UNION PROJECTION [*, SCN] (q)
+
+                // determine attribute position in child
+                attrPos = getNumAttrs(OP_LCHILD(lC));
+                if (hasSetElem(tableUpdatedBefore, tableName) && addAnnotAttrs)
+                    attrPos++;
+
                 lC->op.schema->attrDefs = appendToTailOfList(lC->op.schema->attrDefs,
                                     createAttributeDef(VERSIONS_STARTSCN_ATTR, DT_LONG));
                 lC->projExprs = appendToTailOfList(lC->projExprs,
                         createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0,
-                                getNumAttrs(OP_LCHILD(lC)), 0,
+                                attrPos, 0, //original was getNumAttrs(OP_LCHILD(lC))
                                 DT_LONG));
 
                 rC->op.schema->attrDefs = appendToTailOfList(rC->op.schema->attrDefs,
@@ -678,7 +686,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
             AttributeReference *scnAttr;
             Node *newCond;
             SelectionOperator *s = (SelectionOperator *) q;
-
+            //TODO attr pos
 		    // assume it is selection over input (for new translation has to be adapted)
 		    ASSERT(isA(q,SelectionOperator));
 
