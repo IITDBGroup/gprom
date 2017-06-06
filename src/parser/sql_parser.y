@@ -62,6 +62,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT
 %token <stringVal> FROM
+%token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
 %token <stringVal> WHERE
 %token <stringVal> DISTINCT
@@ -569,6 +570,12 @@ provOption:
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_GEN_PROVENANCE),
 					(Node *) createConstBool(TRUE));
 		}
+		| ISOLATION LEVEL identifier
+		{
+			RULELOG("provOption::ISOLATION::LEVEL");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_ISOLATION_LEVEL),
+					(Node *) createConstString($3));
+		} 
 	;
 
 optionalTranslate:

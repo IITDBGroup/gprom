@@ -670,6 +670,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             boolean isWithTimes = (prov->inputType == PROV_INPUT_REENACT_WITH_TIMES);
             boolean showIntermediate = HAS_STRING_PROP(result,PROP_PC_SHOW_INTERMEDIATE);
             boolean useRowidScn = HAS_STRING_PROP(result,PROP_PC_TUPLE_VERSIONS);
+            boolean hasIsolevel = HAS_STRING_PROP(result,PROP_PC_ISOLATION_LEVEL);
             List *updateConds = NIL;
             int i = 0;
 
@@ -678,6 +679,19 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             {
                 result->provType = PROV_PI_CS;
             }
+
+            if (hasIsolevel)
+            {
+                char *isoLevel = STRING_VALUE(GET_STRING_PROP(result,PROP_PC_ISOLATION_LEVEL));
+                if (streq(toUpper(isoLevel), "SERIALIZABLE"))
+                    tInfo->transIsolation = ISOLATION_SERIALIZABLE;
+                else if (streq(toUpper(isoLevel), "READCOMMITTED"))
+                    tInfo->transIsolation = ISOLATION_READ_COMMITTED;
+                else
+                    FATAL_LOG("isolation level has to be either SERIALIZABLE or READCOMMITTED");
+            }
+            if (tInfo->transIsolation == ISOLATION_READ_COMMITTED && prov->inputType == PROV_INPUT_REENACT)
+                FATAL_LOG("isolation level READ COMMITTED requires an AS OF clause for each reenacted DML.");
 
             result->transactionInfo = tInfo;
             tInfo->originalUpdates = NIL;

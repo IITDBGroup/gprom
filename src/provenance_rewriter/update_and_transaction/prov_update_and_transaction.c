@@ -82,7 +82,11 @@ mergeUpdateSequence(ProvenanceComputation *op)
     if (op->inputType == PROV_INPUT_REENACT
                 || op->inputType == PROV_INPUT_REENACT_WITH_TIMES)
     {
-        mergeForReenactOnly(op);
+        if (op->transactionInfo->transIsolation == ISOLATION_SERIALIZABLE)
+            mergeForReenactOnly(op);
+        if (op->transactionInfo->transIsolation == ISOLATION_READ_COMMITTED)
+            mergeForTransactionProvenance(op); //TODO ok to do that?
+
         return;
     }
     //TODO op->inputType == PROV_INPUT_UPDATE_SEQUENCE
