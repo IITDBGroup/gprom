@@ -1,8 +1,8 @@
 package org.gprom.jdbc.jna;
-import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import java.util.Arrays;
 import java.util.List;
+
 public class GProMProvenanceComputation extends GProMStructure {
 	/** C type : GProMQueryOperator */
 	public GProMQueryOperator op;
@@ -23,7 +23,7 @@ public class GProMProvenanceComputation extends GProMStructure {
 	public GProMProvenanceComputation() {
 		super();
 	}
-	public GProMProvenanceComputation(Pointer address) {
+	public GProMProvenanceComputation(com.sun.jna.Pointer address){
 		super(address);
 	}
 	protected List<? > getFieldOrder() {
@@ -51,8 +51,9 @@ public class GProMProvenanceComputation extends GProMStructure {
 		
 	};
 	public static class ByValue extends GProMProvenanceComputation implements Structure.ByValue {
-		public ByValue(GProMQueryOperator op, int provType, int inputType, org.gprom.jdbc.jna.GProMProvenanceTransactionInfo.ByReference transactionInfo, org.gprom.jdbc.jna.GProMNode.ByReference asOf) {
-			super(op, provType, inputType, transactionInfo, asOf);
+		public ByValue(GProMQueryOperator op, int provType, int inputType, org.gprom.jdbc.jna.GProMProvenanceTransactionInfo.ByReference transactionInfo, org.gprom.jdbc.jna.GProMNode.ByReference asOf){
+			super(op,provType,inputType,transactionInfo,asOf);
 		}
+		
 	};
 }

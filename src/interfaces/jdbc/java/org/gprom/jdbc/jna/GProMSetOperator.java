@@ -1,8 +1,8 @@
 package org.gprom.jdbc.jna;
-import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import java.util.Arrays;
 import java.util.List;
+
 public class GProMSetOperator extends GProMStructure {
 	/** C type : GProMQueryOperator */
 	public GProMQueryOperator op;
@@ -14,7 +14,7 @@ public class GProMSetOperator extends GProMStructure {
 	public GProMSetOperator() {
 		super();
 	}
-	public GProMSetOperator(Pointer address) {
+	public GProMSetOperator(com.sun.jna.Pointer address){
 		super(address);
 	}
 	protected List<? > getFieldOrder() {
@@ -29,11 +29,15 @@ public class GProMSetOperator extends GProMStructure {
 		super();
 		this.op = op;
 		this.setOpType = setOpType;
+		write();
 	}
 	public static class ByReference extends GProMSetOperator implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMSetOperator implements Structure.ByValue {
+		public ByValue(GProMQueryOperator op, int setOpType){
+			super(op,setOpType);
+		}
 		
 	};
 }

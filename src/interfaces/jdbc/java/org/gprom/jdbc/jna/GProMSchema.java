@@ -1,25 +1,26 @@
 package org.gprom.jdbc.jna;
-import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import java.util.Arrays;
 import java.util.List;
+
+
 public class GProMSchema extends GProMStructure {
 	/**
 	 * @see GProMNodeTag<br>
 	 * C type : GProMNodeTag
 	 */
 	public int type;
-	/** C type : char* */
+	/** C type : String */
 	public String name;
 	/**
-	 * AttributeDef type<br>
+	 * GProMAttributeDef type<br>
 	 * C type : GProMList*
 	 */
 	public org.gprom.jdbc.jna.GProMList.ByReference attrDefs;
 	public GProMSchema() {
 		super();
 	}
-	public GProMSchema(Pointer address) {
+	public GProMSchema(com.sun.jna.Pointer address){
 		super(address);
 	}
 	protected List<? > getFieldOrder() {
@@ -28,8 +29,8 @@ public class GProMSchema extends GProMStructure {
 	/**
 	 * @param type @see GProMNodeTag<br>
 	 * C type : GProMNodeTag<br>
-	 * @param name C type : char*<br>
-	 * @param attrDefs AttributeDef type<br>
+	 * @param name C type : String<br>
+	 * @param attrDefs GProMAttributeDef type<br>
 	 * C type : GProMList*
 	 */
 	public GProMSchema(int type, String name, org.gprom.jdbc.jna.GProMList.ByReference attrDefs) {
@@ -37,11 +38,15 @@ public class GProMSchema extends GProMStructure {
 		this.type = type;
 		this.name = name;
 		this.attrDefs = attrDefs;
+		write();
 	}
 	public static class ByReference extends GProMSchema implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMSchema implements Structure.ByValue {
+		public ByValue(int type, String name, org.gprom.jdbc.jna.GProMList.ByReference attrDefs){
+			super(type,name,attrDefs);
+		}
 		
 	};
 }

@@ -1,8 +1,8 @@
 package org.gprom.jdbc.jna;
-import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import java.util.Arrays;
 import java.util.List;
+
 public class GProMSelectionOperator extends GProMStructure {
 	/** C type : GProMQueryOperator */
 	public GProMQueryOperator op;
@@ -10,11 +10,11 @@ public class GProMSelectionOperator extends GProMStructure {
 	 * condition expression<br>
 	 * C type : GProMNode*
 	 */
-	public GProMNode.ByReference cond;
+	public org.gprom.jdbc.jna.GProMNode.ByReference cond;
 	public GProMSelectionOperator() {
 		super();
 	}
-	public GProMSelectionOperator(Pointer address) {
+	public GProMSelectionOperator(com.sun.jna.Pointer address){
 		super(address);
 	}
 	protected List<? > getFieldOrder() {
@@ -25,7 +25,7 @@ public class GProMSelectionOperator extends GProMStructure {
 	 * @param cond condition expression<br>
 	 * C type : GProMNode*
 	 */
-	public GProMSelectionOperator(GProMQueryOperator op, GProMNode.ByReference cond) {
+	public GProMSelectionOperator(GProMQueryOperator op, org.gprom.jdbc.jna.GProMNode.ByReference cond) {
 		super();
 		this.op = op;
 		this.cond = cond;
@@ -35,8 +35,9 @@ public class GProMSelectionOperator extends GProMStructure {
 		
 	};
 	public static class ByValue extends GProMSelectionOperator implements Structure.ByValue {
-		public ByValue(GProMQueryOperator op, GProMNode.ByReference cond) {
-			super(op, cond);
+		public ByValue(GProMQueryOperator op, org.gprom.jdbc.jna.GProMNode.ByReference cond){
+			super(op,cond);
 		}
+		
 	};
 }

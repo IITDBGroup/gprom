@@ -4,12 +4,13 @@ import com.sun.jna.Structure;
 import com.sun.jna.Union;
 import java.util.Arrays;
 import java.util.List;
+
 public class GProMListCell extends GProMStructure {
 	/** C type : data_union */
 	public data_union data;
 	/** C type : GProMListCell* */
 	public GProMListCell.ByReference next;
-	/** <i>native declaration : line 118</i> */
+	/** <i>native declaration : line 10</i> */
 	public static class data_union extends Union {
 		/** C type : void* */
 		public Pointer ptr_value;
@@ -24,16 +25,19 @@ public class GProMListCell extends GProMStructure {
 			setType(Pointer.class);
 			write();
 		}
+
 		public data_union(int int_value) {
 			super();
 			this.int_value = int_value;
 			setType(Integer.TYPE);
 			write();
 		}
+
 		public static class ByReference extends data_union implements Structure.ByReference {
 			
 		};
 		public static class ByValue extends data_union implements Structure.ByValue {
+			
 			public ByValue(Pointer ptr_value) {
 				super(ptr_value);
 			}
@@ -45,7 +49,7 @@ public class GProMListCell extends GProMStructure {
 	public GProMListCell() {
 		super();
 	}
-	public GProMListCell(Pointer address) {
+	public GProMListCell(com.sun.jna.Pointer address){
 		super(address);
 	}
 	protected List<? > getFieldOrder() {
@@ -59,11 +63,15 @@ public class GProMListCell extends GProMStructure {
 		super();
 		this.data = data;
 		this.next = next;
+		write();
 	}
 	public static class ByReference extends GProMListCell implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMListCell implements Structure.ByValue {
+		public ByValue(data_union data, GProMListCell.ByReference next){
+			super(data,next);
+		}
 		
 	};
 }

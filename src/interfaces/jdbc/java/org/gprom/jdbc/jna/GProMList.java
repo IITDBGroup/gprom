@@ -1,8 +1,8 @@
 package org.gprom.jdbc.jna;
-import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import java.util.Arrays;
 import java.util.List;
+
 public class GProMList extends GProMStructure {
 	/**
 	 * @see GProMNodeTag<br>
@@ -17,7 +17,7 @@ public class GProMList extends GProMStructure {
 	public GProMList() {
 		super();
 	}
-	public GProMList(Pointer address) {
+	public GProMList(com.sun.jna.Pointer address){
 		super(address);
 	}
 	protected List<? > getFieldOrder() {
@@ -35,11 +35,15 @@ public class GProMList extends GProMStructure {
 		this.length = length;
 		this.head = head;
 		this.tail = tail;
+		write();
 	}
 	public static class ByReference extends GProMList implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMList implements Structure.ByValue {
+		public ByValue(int type, int length, org.gprom.jdbc.jna.GProMListCell.ByReference head, org.gprom.jdbc.jna.GProMListCell.ByReference tail){
+			super(type,length,head,tail);
+		}
 		
 	};
 }

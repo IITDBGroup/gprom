@@ -1,8 +1,8 @@
 package org.gprom.jdbc.jna;
-import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import java.util.Arrays;
 import java.util.List;
+
 public class GProMProvenanceTransactionInfo extends GProMStructure {
 	/**
 	 * @see GProMNodeTag<br>
@@ -25,7 +25,7 @@ public class GProMProvenanceTransactionInfo extends GProMStructure {
 	public GProMProvenanceTransactionInfo() {
 		super();
 	}
-	public GProMProvenanceTransactionInfo(Pointer address) {
+	public GProMProvenanceTransactionInfo(com.sun.jna.Pointer address){
 		super(address);
 	}
 	protected List<? > getFieldOrder() {
@@ -49,11 +49,15 @@ public class GProMProvenanceTransactionInfo extends GProMStructure {
 		this.originalUpdates = originalUpdates;
 		this.scns = scns;
 		this.commitSCN = commitSCN;
+		write();
 	}
 	public static class ByReference extends GProMProvenanceTransactionInfo implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMProvenanceTransactionInfo implements Structure.ByValue {
+		public ByValue(int type, int transIsolation, org.gprom.jdbc.jna.GProMList.ByReference updateTableNames, org.gprom.jdbc.jna.GProMList.ByReference originalUpdates, org.gprom.jdbc.jna.GProMList.ByReference scns, org.gprom.jdbc.jna.GProMConstant.ByReference commitSCN){
+			super(type,transIsolation,updateTableNames,originalUpdates,scns,commitSCN);
+		}
 		
 	};
 }

@@ -107,8 +107,9 @@ typedef struct Node{
 NEW_ENUM_WITH_TO_STRING(ProvenanceType,
     PROV_PI_CS,
     PROV_TRANSFORMATION,
-    PROV_NONE /* for reenactment of bag semantics only */
+    PROV_NONE
 );
+//PROV_NONE /* for reenactment of bag semantics only */
 
 /* what type of database operation(s) a provenance computation is for */
 NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,

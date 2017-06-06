@@ -1,10 +1,13 @@
 package org.gprom.jdbc.jna;
-import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import java.util.Arrays;
 import java.util.List;
 
 public class GProMCaseWhen extends GProMStructure {
+	/**
+	 * @see GProMNodeTag<br>
+	 * C type : GProMNodeTag
+	 */
 	public int type;
 	/** C type : GProMNode* */
 	public org.gprom.jdbc.jna.GProMNode.ByReference when;
@@ -13,13 +16,15 @@ public class GProMCaseWhen extends GProMStructure {
 	public GProMCaseWhen() {
 		super();
 	}
-	public GProMCaseWhen(Pointer address) {
+	public GProMCaseWhen(com.sun.jna.Pointer address){
 		super(address);
 	}
 	protected List<? > getFieldOrder() {
 		return Arrays.asList("type", "when", "then");
 	}
 	/**
+	 * @param type @see GProMNodeTag<br>
+	 * C type : GProMNodeTag<br>
 	 * @param when C type : GProMNode*<br>
 	 * @param then C type : GProMNode*
 	 */
@@ -34,8 +39,9 @@ public class GProMCaseWhen extends GProMStructure {
 		
 	};
 	public static class ByValue extends GProMCaseWhen implements Structure.ByValue {
-		public ByValue(int type, org.gprom.jdbc.jna.GProMNode.ByReference when, org.gprom.jdbc.jna.GProMNode.ByReference then) {
-			super(type, when, then);
+		public ByValue(int type, org.gprom.jdbc.jna.GProMNode.ByReference when, org.gprom.jdbc.jna.GProMNode.ByReference then){
+			super(type,when,then);
 		}
+		
 	};
 }

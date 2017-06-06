@@ -1,15 +1,16 @@
 package org.gprom.jdbc.jna;
-import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import java.util.Arrays;
 import java.util.List;
+
+
 public class GProMAttributeReference extends GProMStructure {
 	/**
 	 * @see GProMNodeTag<br>
 	 * C type : GProMNodeTag
 	 */
 	public int type;
-	/** C type : const char* */
+	/** C type : String */
 	public String name;
 	public int fromClauseItem;
 	public int attrPosition;
@@ -22,7 +23,7 @@ public class GProMAttributeReference extends GProMStructure {
 	public GProMAttributeReference() {
 		super();
 	}
-	public GProMAttributeReference(Pointer address) {
+	public GProMAttributeReference(com.sun.jna.Pointer address){
 		super(address);
 	}
 	protected List<? > getFieldOrder() {
@@ -31,7 +32,7 @@ public class GProMAttributeReference extends GProMStructure {
 	/**
 	 * @param type @see GProMNodeTag<br>
 	 * C type : GProMNodeTag<br>
-	 * @param name C type : const char*<br>
+	 * @param name C type : String<br>
 	 * @param attrType @see GProMDataType<br>
 	 * C type : GProMDataType
 	 */
@@ -50,7 +51,8 @@ public class GProMAttributeReference extends GProMStructure {
 	};
 	public static class ByValue extends GProMAttributeReference implements Structure.ByValue {
 		public ByValue(int type, String name, int fromClauseItem, int attrPosition, int outerLevelsUp, int attrType){
-			super(type, name, fromClauseItem, attrPosition, outerLevelsUp, attrType );
+			super(type,name,fromClauseItem,attrPosition,outerLevelsUp,attrType);
 		}
+		
 	};
 }

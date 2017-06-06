@@ -1,19 +1,20 @@
 package org.gprom.jdbc.jna;
-import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import java.util.Arrays;
 import java.util.List;
+
+
 public class GProMTableAccessOperator extends GProMStructure {
 	/** C type : GProMQueryOperator */
 	public GProMQueryOperator op;
-	/** C type : char* */
+	/** C type : String */
 	public String tableName;
 	/** C type : GProMNode* */
 	public org.gprom.jdbc.jna.GProMNode.ByReference asOf;
 	public GProMTableAccessOperator() {
 		super();
 	}
-	public GProMTableAccessOperator(Pointer address) {
+	public GProMTableAccessOperator(com.sun.jna.Pointer address){
 		super(address);
 	}
 	protected List<? > getFieldOrder() {
@@ -21,7 +22,7 @@ public class GProMTableAccessOperator extends GProMStructure {
 	}
 	/**
 	 * @param op C type : GProMQueryOperator<br>
-	 * @param tableName C type : char*<br>
+	 * @param tableName C type : String<br>
 	 * @param asOf C type : GProMNode*
 	 */
 	public GProMTableAccessOperator(GProMQueryOperator op, String tableName, org.gprom.jdbc.jna.GProMNode.ByReference asOf) {
@@ -35,8 +36,9 @@ public class GProMTableAccessOperator extends GProMStructure {
 		
 	};
 	public static class ByValue extends GProMTableAccessOperator implements Structure.ByValue {
-		public ByValue(GProMQueryOperator op, String tableName, org.gprom.jdbc.jna.GProMNode.ByReference asOf) {
-			super(op, tableName, asOf);
+		public ByValue(GProMQueryOperator op, String tableName, org.gprom.jdbc.jna.GProMNode.ByReference asOf){
+			super(op,tableName,asOf);
 		}
+		
 	};
 }

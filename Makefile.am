@@ -46,6 +46,10 @@ EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
 	$(top_srcdir)/blackboxtests/testdb/testDB.sql.in \
 	$(top_srcdir)/blackboxtests/TestTemplates/*.stg
 
+gen-libgprom-header:
+	javac -cp javalibgen/jnaerator.jar javalibgen/GenLibGProMH.java
+	java -cp javalibgen/jnaerator.jar:javalibgen/ GenLibGProMH $(top_srcdir)/
+
 # Debian packaging
 APP_NAME=gprom
 TMP_DIR=dpkg

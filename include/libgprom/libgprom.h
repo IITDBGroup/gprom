@@ -103,6 +103,7 @@ typedef struct GProMMetadataLookupPlugin
 extern void gprom_registerMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin);
 
 typedef enum GProMNodeTag{
+
     GProM_T_Invalid,
     GProM_T_Node,
 
@@ -180,12 +181,12 @@ typedef enum GProMNodeTag{
     GProM_T_DLComparison,
 	GProM_T_DLDomain,
 
-    /* Json Table Node */
+    /* Json Table GProMNode */
     GProM_T_FromJsonTable,
     GProM_T_JsonTableOperator,
     GProM_T_JsonColInfoItem,
     GProM_T_JsonPath,
-
+			
     /* relation */
     GProM_T_Relation,
 
@@ -199,19 +200,20 @@ typedef enum GProMNodeTag{
 } GProMNodeTag;
 
 typedef enum GProMDataType{
-GProM_DT_INT,
-GProM_DT_LONG,
-GProM_DT_STRING,
-GProM_DT_FLOAT,
-GProM_DT_BOOL,
-GProM_DT_VARCHAR2
+
+    GProM_DT_INT,
+    GProM_DT_LONG,
+    GProM_DT_STRING,
+    GProM_DT_FLOAT,
+    GProM_DT_BOOL,
+    GProM_DT_VARCHAR2
 } GProMDataType;
 
 typedef struct GProMAttributeDef
 {
-	GProMNodeTag type;
-	GProMDataType dataType;
-	char *attrName;
+    GProMNodeTag type;
+    GProMDataType dataType;
+    char *attrName;
 } GProMAttributeDef;
 
 typedef struct GProMListCell
@@ -226,14 +228,14 @@ typedef struct GProMListCell
 
 typedef struct GProMList
 {
-	GProMNodeTag type;
+    GProMNodeTag type;
     int     length;
     GProMListCell *head;
     GProMListCell *tail;
 } GProMList;
 
 typedef struct GProMNode{
-	GProMNodeTag type;
+    GProMNodeTag type;
 } GProMNode;
 
 typedef struct GProMAttributeReference {
@@ -247,124 +249,128 @@ typedef struct GProMAttributeReference {
 
 typedef struct GProMSchema
 {
-	GProMNodeTag type;
+    GProMNodeTag type;
     char *name;
-    GProMList *attrDefs; // AttributeDef type
+    GProMList *attrDefs; // GProMAttributeDef type
 } GProMSchema;
 
 typedef struct GProMQueryOperator
 {
-	GProMNodeTag type;
-	GProMList *inputs; // children of the operator node, QueryOperator type
-    GProMSchema *schema; // attributes and their data types of result tables, Schema type
-    GProMList *parents; // direct parents of the operator node, QueryOperator type
+    GProMNodeTag type;
+    GProMList *inputs; // children of the operator node, GProMQueryOperator type
+    GProMSchema *schema; // attributes and their data types of result tables, GProMSchema type
+    GProMList *parents; // direct parents of the operator node, GProMQueryOperator type
     GProMList *provAttrs; // positions of provenance attributes in the operator's schema
     GProMNode *properties; // generic node to store flexible list or map of properties (KeyValue) for query operators
 } GProMQueryOperator; // common fields that all operators have
 
 typedef struct GProMTableAccessOperator
 {
-	GProMQueryOperator op;
+    GProMQueryOperator op;
     char *tableName;
     GProMNode *asOf;
 } GProMTableAccessOperator;
 
 typedef struct GProMSelectionOperator
 {
-	GProMQueryOperator op;
-	GProMNode *cond; // condition expression
+    GProMQueryOperator op;
+    GProMNode *cond; // condition expression
 } GProMSelectionOperator;
 
 typedef struct GProMProjectionOperator
 {
-	GProMQueryOperator op;
-	GProMList *projExprs; // projection expressions
+    GProMQueryOperator op;
+    GProMList *projExprs; // projection expressions
 } GProMProjectionOperator;
 
-typedef enum {
-	GProM_JOIN_INNER,
-	GProM_JOIN_CROSS,
-	GProM_JOIN_LEFT_OUTER,
-	GProM_JOIN_RIGHT_OUTER,
-	GProM_JOIN_FULL_OUTER
+typedef enum GProMJoinType{
+
+    GProM_JOIN_INNER,
+    GProM_JOIN_CROSS,
+    GProM_JOIN_LEFT_OUTER,
+    GProM_JOIN_RIGHT_OUTER,
+    GProM_JOIN_FULL_OUTER
 } GProMJoinType;
 
 typedef struct GProMJoinOperator
 {
-	GProMQueryOperator op;
+    GProMQueryOperator op;
     GProMJoinType joinType;
     GProMNode *cond; // join condition expression
 } GProMJoinOperator;
 
 typedef struct GProMAggregationOperator
 {
-	GProMQueryOperator op;
-    GProMList *aggrs; // aggregation expressions, FunctionCall type
+    GProMQueryOperator op;
+    GProMList *aggrs; // aggregation expressions, GProMFunctionCall type
     GProMList *groupBy; // group by expressions
 } GProMAggregationOperator;
 
-typedef enum {
-	GProM_SETOP_UNION,
-	GProM_SETOP_INTERSECTION,
-	GProM_SETOP_DIFFERENCE
-} GProMSetOpType;
+typedef enum GProMSetOpType{
 
+        GProM_SETOP_UNION,
+        GProM_SETOP_INTERSECTION,
+        GProM_SETOP_DIFFERENCE
+} GProMSetOpType;
 
 typedef struct GProMSetOperator
 {
-	GProMQueryOperator op;
-	GProMSetOpType setOpType;
+    GProMQueryOperator op;
+    GProMSetOpType setOpType;
 } GProMSetOperator;
 
 typedef struct GProMDuplicateRemoval
 {
-	GProMQueryOperator op;
-	GProMList *attrs; // attributes that need duplicate removal, AttributeReference type
+    GProMQueryOperator op;
+    GProMList *attrs; // attributes that need duplicate removal, GProMAttributeReference type
 } GProMDuplicateRemoval;
 
-typedef enum {
-	GProM_PROV_PI_CS,
-	GProM_PROV_TRANSFORMATION,
-	GProM_PROV_NONE /* for reenactment of bag semantics only */
+typedef enum GProMProvenanceType{
+
+    GProM_PROV_PI_CS,
+    GProM_PROV_TRANSFORMATION,
+    GProM_PROV_NONE
 } GProMProvenanceType;
 
 /* what type of database operation(s) a provenance computation is for */
-typedef enum {
-	GProM_PROV_INPUT_QUERY,
-	GProM_PROV_INPUT_UPDATE,
-	GProM_PROV_INPUT_UPDATE_SEQUENCE,
-	GProM_PROV_INPUT_REENACT,
-	GProM_PROV_INPUT_REENACT_WITH_TIMES,
-	GProM_PROV_INPUT_TRANSACTION,
-	GProM_PROV_INPUT_TIME_INTERVAL
+typedef enum GProMProvenanceInputType{
+
+    GProM_PROV_INPUT_QUERY,
+    GProM_PROV_INPUT_UPDATE,
+    GProM_PROV_INPUT_UPDATE_SEQUENCE,
+    GProM_PROV_INPUT_REENACT,
+    GProM_PROV_INPUT_REENACT_WITH_TIMES,
+    GProM_PROV_INPUT_TRANSACTION,
+    GProM_PROV_INPUT_TIME_INTERVAL
 } GProMProvenanceInputType;
 
-typedef enum {
-	GProM_ISOLATION_SERIALIZABLE,
-	GProM_ISOLATION_READ_COMMITTED,
-	GProM_ISOLATION_READ_ONLY
+typedef enum GProMIsolationLevel{
+
+    GProM_ISOLATION_SERIALIZABLE,
+    GProM_ISOLATION_READ_COMMITTED,
+    GProM_ISOLATION_READ_ONLY
 } GProMIsolationLevel;
 
 typedef struct GProMConstant {
-	GProMNodeTag type;
-	GProMDataType constType;
+    GProMNodeTag type;
+    GProMDataType constType;
     void *value;
-    boolean isNull;
+    int isNull;
 } GProMConstant;
 
 typedef struct GProMProvenanceTransactionInfo
 {
-	GProMNodeTag type;
-	GProMIsolationLevel transIsolation;
-	GProMList *updateTableNames;
-	GProMList *originalUpdates;
-	GProMList *scns;
-	GProMConstant *commitSCN;
+    GProMNodeTag type;
+    GProMIsolationLevel transIsolation;
+    GProMList *updateTableNames;
+    GProMList *originalUpdates;
+    GProMList *scns;
+    GProMConstant *commitSCN;
 } GProMProvenanceTransactionInfo;
 
 typedef struct GProMProvenanceComputation
 {
-	GProMQueryOperator op;
+    GProMQueryOperator op;
     GProMProvenanceType provType;
     GProMProvenanceInputType inputType;
     GProMProvenanceTransactionInfo *transactionInfo;
@@ -373,22 +379,23 @@ typedef struct GProMProvenanceComputation
 
 typedef struct GProMUpdateOperator
 {
-	GProMQueryOperator op;
+    GProMQueryOperator op;
     char *tableName;
 } GProMUpdateOperator;
 
 typedef struct GProMConstRelOperator
 {
-	GProMQueryOperator op;
+    GProMQueryOperator op;
     GProMList *values;
 } GProMConstRelOperator;
 
-typedef enum {
-	GProM_NESTQ_EXISTS,
-	GProM_NESTQ_ANY,
-	GProM_NESTQ_ALL,
-	GProM_NESTQ_UNIQUE,
-	GProM_NESTQ_SCALAR
+typedef enum GProMNestingExprType{
+
+    GProM_NESTQ_EXISTS,
+    GProM_NESTQ_ANY,
+    GProM_NESTQ_ALL,
+    GProM_NESTQ_UNIQUE,
+    GProM_NESTQ_SCALAR
 } GProMNestingExprType;
 
 typedef struct GProMNestingOperator
@@ -400,108 +407,112 @@ typedef struct GProMNestingOperator
 
 typedef struct GProMOrderOperator
 {
-	GProMQueryOperator op;
-	GProMList *orderExprs;
+    GProMQueryOperator op;
+    GProMList *orderExprs;
 } GProMOrderOperator;
 
 typedef struct GProMFunctionCall {
-	GProMNodeTag type;
-    char* functionname;
+    GProMNodeTag type;
+    char *functionname;
     GProMList *args;
     int isAgg;
 } GProMFunctionCall;
 
 typedef struct GProMOperator {
-	GProMNodeTag type;
-    char* name;
+    GProMNodeTag type;
+    char *name;
     GProMList *args;
 } GProMOperator;
 
 typedef struct GProMSQLParameter {
-	GProMNodeTag type;
-    char* name;
+    GProMNodeTag type;
+    char *name;
     int position;
     GProMDataType parType;
 } GProMSQLParameter;
 
 typedef struct GProMRowNumExpr {
-	GProMNodeTag type;
+    GProMNodeTag type;
 } GProMRowNumExpr;
 
 typedef struct GProMCaseExpr {
-	GProMNodeTag type;
+    GProMNodeTag type;
     GProMNode *expr;
     GProMList *whenClauses;
     GProMNode *elseRes;
 } GProMCaseExpr;
 
 typedef struct GProMCaseWhen {
-	GProMNodeTag type;
+    GProMNodeTag type;
     GProMNode *when;
     GProMNode *then;
 } GProMCaseWhen;
 
 typedef struct GProMIsNullExpr {
-	GProMNodeTag type;
+    GProMNodeTag type;
     GProMNode *expr;
 } GProMIsNullExpr;
 
-typedef enum GProMWindowBoundType {
-	GProM_WINBOUND_UNBOUND_PREC,
-	GProM_WINBOUND_CURRENT_ROW,
-	GProM_WINBOUND_EXPR_PREC,
-	GProM_WINBOUND_EXPR_FOLLOW
+typedef enum GProMWindowBoundType{
+
+    GProM_WINBOUND_UNBOUND_PREC,
+    GProM_WINBOUND_CURRENT_ROW,
+    GProM_WINBOUND_EXPR_PREC,
+    GProM_WINBOUND_EXPR_FOLLOW
 } GProMWindowBoundType;
 
 typedef struct GProMWindowBound {
-	GProMNodeTag type;
+    GProMNodeTag type;
     GProMWindowBoundType bType;
     GProMNode *expr;
 } GProMWindowBound;
 
-typedef enum GProMWinFrameType {
-	GProM_WINFRAME_ROWS,
-	GProM_WINFRAME_RANGE
+typedef enum GProMWinFrameType{
+
+    GProM_WINFRAME_ROWS,
+    GProM_WINFRAME_RANGE
 } GProMWinFrameType;
 
 typedef struct GProMWindowFrame {
-	GProMNodeTag type;
+    GProMNodeTag type;
     GProMWinFrameType frameType;
     GProMWindowBound *lower;
     GProMWindowBound *higher;
 } GProMWindowFrame;
 
 typedef struct GProMWindowDef {
-	GProMNodeTag type;
+    GProMNodeTag type;
     GProMList *partitionBy;
     GProMList *orderBy;
     GProMWindowFrame *frame;
 } GProMWindowDef;
 
 typedef struct GProMWindowFunction {
-    int type;
+    GProMNodeTag type;
     GProMFunctionCall *f;
     GProMWindowDef *win;
 } GProMWindowFunction;
 
 typedef struct GProMCastExpr {
-	GProMNodeTag type;
+    GProMNodeTag type;
     GProMDataType resultDT;
     GProMNode *expr;
 } GProMCastExpr;
 
-typedef enum GProMSortOrder {
-	GProM_SORT_ASC,
-	GProM_SORT_DESC
+typedef enum GProMSortOrder{
+
+    GProM_SORT_ASC,
+    GProM_SORT_DESC
 } GProMSortOrder;
 
-typedef enum GProMSortNullOrder {
-	GProM_SORT_NULLS_FIRST,
-	GProM_SORT_NULLS_LAST
+typedef enum GProMSortNullOrder{
+
+    GProM_SORT_NULLS_FIRST,
+    GProM_SORT_NULLS_LAST
 } GProMSortNullOrder;
 
 typedef struct GProMOrderExpr {
-	GProMNodeTag type;
+    GProMNodeTag type;
     GProMNode *expr;
     GProMSortOrder order;
     GProMSortNullOrder nullOrder;

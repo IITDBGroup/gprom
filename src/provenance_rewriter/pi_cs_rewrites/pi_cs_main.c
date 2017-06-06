@@ -643,7 +643,6 @@ rewritePI_CSAggregation (AggregationOperator *op)
     QueryOperator *aggInput;
     QueryOperator *origAgg;
     int numGroupAttrs = LIST_LENGTH(op->groupBy);
-
     DEBUG_LOG("REWRITE-PICS - Aggregation");
 
     // copy aggregation input
@@ -660,7 +659,6 @@ rewritePI_CSAggregation (AggregationOperator *op)
         List *provAttrs = NIL;
         ProjectionOperator *groupByProj;
         List *gbNames = aggOpGetGroupByAttrNames(op);
-
         // adapt right side group by attr names
         FOREACH_LC(lc,gbNames)
         {
@@ -700,6 +698,7 @@ rewritePI_CSAggregation (AggregationOperator *op)
 			else
 				joinCond = (Node *) createIsNotDistinctExpr((Node *) lA, (Node *) rA);
 			pos++;
+
 		}
 	}
 	// or for without group by

@@ -1,8 +1,8 @@
 package org.gprom.jdbc.jna;
-import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import java.util.Arrays;
 import java.util.List;
+
 public class GProMNestingOperator extends GProMStructure {
 	/** C type : GProMQueryOperator */
 	public GProMQueryOperator op;
@@ -16,7 +16,7 @@ public class GProMNestingOperator extends GProMStructure {
 	public GProMNestingOperator() {
 		super();
 	}
-	public GProMNestingOperator(Pointer address) {
+	public GProMNestingOperator(com.sun.jna.Pointer address){
 		super(address);
 	}
 	protected List<? > getFieldOrder() {
@@ -33,11 +33,15 @@ public class GProMNestingOperator extends GProMStructure {
 		this.op = op;
 		this.nestingType = nestingType;
 		this.cond = cond;
+		write();
 	}
 	public static class ByReference extends GProMNestingOperator implements Structure.ByReference {
 		
 	};
 	public static class ByValue extends GProMNestingOperator implements Structure.ByValue {
+		public ByValue(GProMQueryOperator op, int nestingType, org.gprom.jdbc.jna.GProMNode.ByReference cond){
+			super(op,nestingType,cond);
+		}
 		
 	};
 }
