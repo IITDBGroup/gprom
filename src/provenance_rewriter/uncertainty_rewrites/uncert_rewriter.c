@@ -28,6 +28,19 @@ static QueryOperator * rewrite_UncertJoin(QueryOperator *op);
 static QueryOperator *rewrite_UncertAggregation(QueryOperator *op);
 void addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
 
+List *putMidListToEnd(List *in, int p1, int p2);
+
+List *putMidListToEnd(List *in, int p1, int p2) {
+	if(!in){
+		return in;
+	}
+	List *uncert = sublist(in, p2, in->length-1);
+	List *gbby = sublist(in, p1, p2-1);
+	in = sublist(in, 0, p1-1);
+	in = CONCAT_LISTS(in, uncert, gbby);
+	return in;
+}
+
 Node *
 createCaseOperator(Node *expr){
 	CaseWhen * cwhen = createCaseWhen(expr, (Node *)createConstInt(1));
@@ -326,58 +339,101 @@ static QueryOperator *rewrite_UncertAggregation(QueryOperator *op) {
 	//INFO_LOG("REWRITE-UNCERT - Aggregation");
 	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
+	//record original schema info
+	List *projExpr = getNormalAttrProjectionExprs(OP_LCHILD(op));
+	List *attrName = getNormalAttrNames(OP_LCHILD(op));
+
 	// rewrite child first
 	rewriteUncert(OP_LCHILD(op));
-
-	//INFO_LOG("AttrRefList: %s", nodeToString(nan));
 
 	HashMap * hmp = NEW_MAP(Node, Node);
 	HashMap * hmpProj = NEW_MAP(Node, Node);
 	HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
 
-	// create projection before aggregation
-
-	List *attrName = getNormalAttrNames(OP_LCHILD(op));
-	List *projExpr = NIL;
-	FOREACH(Node, nd, ((AggregationOperator *)op)->aggrs){
-		appendToTailOfList(projExpr, (Node *)createConstInt(-1));
-	}
-	if(((AggregationOperator *)op)->groupBy){
-		FOREACH(Node, nd, ((AggregationOperator *)op)->groupBy){
-			appendToTailOfList(projExpr, nd);
-		}
-	}
-	appendToTailOfList(projExpr, getUncertaintyExpr((Node *)createAttributeReference("R"), hmpIn));
+	// create projection before aggregation (for now we mark all aggregation result into uncertain)
 
 	QueryOperator *proj = (QueryOperator *)createProjectionOp(projExpr, OP_LCHILD(op), singleton(op), attrName);
+
 	op->inputs = singleton(proj);
 	OP_LCHILD(proj)->parents = singleton(proj);
 
-	FOREACH(Node, nd, attrName){
+	List *uncertExpr = NIL;
+	Set *groupbyRef = makeNodeSetFromList(((AggregationOperator *)op)->groupBy);
+
+	FOREACH(Node, nd, projExpr){
 		addUncertAttrToSchema(hmpProj, proj, nd);
+		if(hasSetElem(groupbyRef, nd)){
+			uncertExpr = appendToTailOfList(uncertExpr, getUncertaintyExpr(nd, hmpIn));
+		} else {
+			uncertExpr = appendToTailOfList(uncertExpr, (Node *)createConstInt(-1));
+		}
 	}
 	addUncertAttrToSchema(hmpProj, proj, (Node *)createAttributeReference("R"));
+	Node *rU = getUncertaintyExpr((Node *)createAttributeReference("R"), hmpIn);
+	FOREACH(Node, nd, ((AggregationOperator *)op)->groupBy){
+		rU = (Node *)createFunctionCall("LEAST", appendToTailOfList(singleton(rU), getUncertaintyExpr(nd, hmpIn)));
+	}
+	uncertExpr = appendToTailOfList(uncertExpr, rU);
 
+	concatTwoLists(((ProjectionOperator *)proj)->projExprs, uncertExpr);
+	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmpProj);
 
 	//add uncertainty to Aggregation
 
-	FOREACH(Node, nd, ((AggregationOperator *)op)->aggrs){
-			addUncertAttrToSchema(hmp, op, nd);
-			appendToTailOfList(projExpr, (Node *)createConstInt(-1));
-		}
+	List *attrUaggr = NIL;
+	projExpr = getNormalAttrProjectionExprs(op);
 
+
+
+	FOREACH(Node, nd, projExpr){
+		addUncertAttrToSchema(hmp, op, nd);
+	}
+	addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference("R"));
+
+	int argl = LIST_LENGTH(((AggregationOperator *)op)->aggrs);
+	int grpl = LIST_LENGTH(((AggregationOperator *)op)->groupBy);
 	if(((AggregationOperator *)op)->groupBy){
-
-		FOREACH(Node, nd, ((AggregationOperator *)op)->groupBy){
-			addUncertAttrToSchema(hmp, op, nd);
-			appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall("MAX", singleton(getUncertaintyExpr(nd, hmpIn))));
-		}
+		argl = LIST_LENGTH(((AggregationOperator *)op)->aggrs);
+		grpl = LIST_LENGTH(((AggregationOperator *)op)->groupBy);
+		op->schema->attrDefs = putMidListToEnd(op->schema->attrDefs, argl, argl+grpl);
 	}
 
-	Node *rU = getUncertaintyExpr((Node *)createAttributeReference("R"), hmpIn);
-	addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference("R"));
-	appendToTailOfList(((AggregationOperator *)op)->aggrs, createFunctionCall("MAX", singleton(rU)));
+	FOREACH(Node, nd, ((AggregationOperator *)op)->aggrs){
+		Node * tmp = (Node *)getHeadOfListP(((FunctionCall *)nd)->args);
+		attrUaggr = appendToTailOfList(attrUaggr, (Node *)createFunctionCall("MAX", singleton(getUncertaintyExpr(tmp, hmpProj))));
+	}
 
+	FOREACH(Node, nd, ((AggregationOperator *)op)->groupBy){
+		attrUaggr = appendToTailOfList(attrUaggr, (Node *)createFunctionCall("MAX", singleton(getUncertaintyExpr(nd, hmpProj))));
+	}
+
+	rU = getUncertaintyExpr((Node *)createAttributeReference("R"), hmpIn);
+	attrUaggr = appendToTailOfList(attrUaggr, createFunctionCall("MAX", singleton(rU)));
+	concatTwoLists(((AggregationOperator *)op)->aggrs, attrUaggr);
+	setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+
+	//todo
+	//create project to reorder the attributes when groupby.
+	if(((AggregationOperator *)op)->groupBy){
+		HashMap *hmp3 = NEW_MAP(Node, Node);
+		projExpr = getNormalAttrProjectionExprs(op);
+		attrName = getNormalAttrNames(op);
+		int uncertl = LIST_LENGTH(projExpr)-argl-grpl;
+		putMidListToEnd(projExpr, argl, argl+uncertl);
+		putMidListToEnd(attrName, argl, argl+uncertl);
+		attrName = sublist(attrName, 0, (attrName->length)-uncertl-1);
+
+		QueryOperator *proj2 = (QueryOperator *)createProjectionOp(projExpr, op, NIL, attrName);
+		switchSubtrees(op, proj2);
+		op->parents = singleton(proj2);
+
+		FOREACH(Node, nd, getNormalAttrProjectionExprs(proj2)){
+			addUncertAttrToSchema(hmp3, proj2, nd);
+		}
+		addUncertAttrToSchema(hmp3, proj2, (Node *)createAttributeReference("R"));
+		setStringProperty(proj2, "UNCERT_MAPPING", (Node *)hmp3);
+		return proj2;
+	}
 	return op;
 }
 
