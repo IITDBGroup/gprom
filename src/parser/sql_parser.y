@@ -574,7 +574,13 @@ provOption:
 		{
 			RULELOG("provOption::ISOLATION::LEVEL");
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_ISOLATION_LEVEL),
-					(Node *) createConstString($3));
+					(Node *) createConstString(strdup($3)));
+		}
+		| COMMIT_TRANS SCN intConst
+		{
+			RULELOG("provOption::COMMIT::SCN");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COMMIT_SCN),
+					(Node *) createConstLong($3));
 		} 
 	;
 
@@ -584,7 +590,7 @@ optionalTranslate:
 		TRANSLATE AS optionalstringConst 
 		{
 			RULELOG("optionaltranslate::TRANSLATE::AS");
-			$$ = singleton((Node *) createStringKeyValue("TRANSLATE AS", $3));
+			$$ = singleton((Node *) createStringKeyValue(strdup("TRANSLATE AS"), $3));
 		}
         ;
 

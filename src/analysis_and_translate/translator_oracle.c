@@ -36,6 +36,8 @@
 
 #include "provenance_rewriter/prov_utility.h"
 
+#include "utility/string_utils.h"
+
 // data types
 typedef struct ReplaceGroupByState {
     List *expressions;
@@ -671,6 +673,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             boolean showIntermediate = HAS_STRING_PROP(result,PROP_PC_SHOW_INTERMEDIATE);
             boolean useRowidScn = HAS_STRING_PROP(result,PROP_PC_TUPLE_VERSIONS);
             boolean hasIsolevel = HAS_STRING_PROP(result,PROP_PC_ISOLATION_LEVEL);
+            boolean hasCommitSCN = HAS_STRING_PROP(result,PROP_PC_COMMIT_SCN);
             List *updateConds = NIL;
             int i = 0;
 
@@ -680,23 +683,33 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 result->provType = PROV_PI_CS;
             }
 
+            if (hasCommitSCN)
+                tInfo->commitSCN = (Constant *) GET_STRING_PROP(result, PROP_PC_COMMIT_SCN);
+
             if (hasIsolevel)
             {
                 char *isoLevel = STRING_VALUE(GET_STRING_PROP(result,PROP_PC_ISOLATION_LEVEL));
-                if (streq(toUpper(isoLevel), "SERIALIZABLE"))
+
+                DEBUG_LOG("has isolevel %s", isoLevel);
+
+                if (streq(strToUpper(isoLevel), "SERIALIZABLE"))
                     tInfo->transIsolation = ISOLATION_SERIALIZABLE;
-                else if (streq(toUpper(isoLevel), "READCOMMITTED"))
+                else if (streq(strToUpper(isoLevel), "READCOMMITTED"))
                     tInfo->transIsolation = ISOLATION_READ_COMMITTED;
                 else
-                    FATAL_LOG("isolation level has to be either SERIALIZABLE or READCOMMITTED");
+                    FATAL_LOG("isolation level has to be either SERIALIZABLE or READCOMMITTED not <%s>", isoLevel);
             }
+            else
+                tInfo->transIsolation = ISOLATION_SERIALIZABLE;
+
             if (tInfo->transIsolation == ISOLATION_READ_COMMITTED && prov->inputType == PROV_INPUT_REENACT)
                 FATAL_LOG("isolation level READ COMMITTED requires an AS OF clause for each reenacted DML.");
+            if (tInfo->transIsolation == ISOLATION_READ_COMMITTED && !hasCommitSCN)
+                FATAL_LOG("isolation level READ COMMITTED requires a commit scn to be specified using WITH COMMIT SCN scn.");
 
             result->transactionInfo = tInfo;
             tInfo->originalUpdates = NIL;
             tInfo->updateTableNames = NIL;
-            tInfo->transIsolation = ISOLATION_SERIALIZABLE;
             tInfo->scns = NIL;
 
             FOREACH(Node,stmt,(List *) prov->query)

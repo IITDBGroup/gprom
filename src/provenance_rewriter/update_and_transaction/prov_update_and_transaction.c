@@ -47,6 +47,7 @@ static QueryOperator *createProjToRemoveAnnot (QueryOperator *o);
 static void mergeSerializebleTransaction(ProvenanceComputation *op);
 static void mergeReadCommittedTransaction(ProvenanceComputation *op);
 
+static boolean isAttrUpdated (Node *expr, AttributeDef *a);
 static void addIgnoreAttr (QueryOperator *o, char *attrName);
 static void addConditionsToBaseTables (ProvenanceComputation *op);
 static boolean onlyUpdatedNeedsResultFiltering (ProvenanceComputation *op);
@@ -671,7 +672,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
             findTableAccessVisitor((Node *) qRoot, &children);
             INFO_LOG("Replace table access operators in %s",
                     operatorToOverviewString((Node *) q));
-
+            //TODO use merge if necessary
             FOREACH(TableAccessOperator, t, children)
             {
                 ProjectionOperator *po = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) t);
@@ -724,7 +725,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 				List *projExprs;
 				Node *newProjExpr;
 				int attrPos = INVALID_ATTR;
-
+				int j = 0;
 //				boolean annotProj = isA(OP_LCHILD(proj), ProjectionOperator);
 				if (HAS_STRING_PROP(proj, PROP_PC_PROJ_TO_REMOVE_SANNOT))
 				{
@@ -759,6 +760,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 				//Add SCN foreach CaseEpr
 				FOREACH(Node, expr, projExprs)
 				{
+				    // is part of the set clause for an update with WHERE clause
 					if(isA(expr,CaseExpr))
 				    {
 					    AttributeReference *scnAttr;
@@ -780,6 +782,37 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 						whenC->when = newWhen;
 						DEBUG_LOG("Updated case is: %s", exprToSQL((Node *) cexp));
 				    }
+					// check if is part of the set clause for an update without WHERE clause
+					else if (j < LIST_LENGTH(upd->schema))
+					{
+					    AttributeDef *attrDef = getNthOfListP(upd->schema,j);
+					    if (isAttrUpdated(expr, attrDef))
+					    {
+					        ListCell *exprP = expr_his_cell;
+					        CaseExpr *c;
+					        CaseWhen *whenC;
+					        Node *els;
+					        Node *cond;
+					        AttributeReference *scnAttr;
+
+	                        scnAttr = createFullAttrReference(VERSIONS_STARTSCN_ATTR, 0,
+	                                attrPos, 0, DT_LONG);
+	                        cond = (Node *) createOpExpr("<=",
+	                                LIST_MAKE((Node *) scnAttr,
+	                                        copyObject(getNthOfListP(scns,i))));
+
+	                        whenC = createCaseWhen(cond, expr);
+	                        els = (Node *) createFullAttrReference(strdup(attrDef->attrName), 0, j, 0, attrDef->dataType);
+
+	                        c = createCaseExpr(NULL,singleton(whenC), els);
+	                        LC_P_VAL(exprP) = c;
+					    }
+					}
+					else
+					{
+					    //TODO ignore or update too?
+					}
+					j++;
 				}
 
                //make new case for SCN
@@ -911,6 +944,21 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) finalProj));
+}
+
+static boolean
+isAttrUpdated (Node *expr, AttributeDef *a)
+{
+    char *attrN = a->attrName;
+    if (isA(expr, AttributeReference))
+    {
+        AttributeReference *aRef = (AttributeReference *) expr;
+        if (streq(aRef->name, attrN))
+        {
+            return FALSE;
+        }
+    }
+    return TRUE;
 }
 
 static void

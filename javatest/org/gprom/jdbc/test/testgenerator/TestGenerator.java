@@ -8,13 +8,16 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.InvalidPropertiesFormatException;
+import java.util.Locale;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org. gprom.jdbc.test.testgenerator.dataset.DataAndQueryGenerator;
+import org.stringtemplate.v4.NumberRenderer;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.STGroup;
 import org.stringtemplate.v4.STGroupFile;
+import org.stringtemplate.v4.StringRenderer;
 
 public class TestGenerator {
 
@@ -32,6 +35,20 @@ public class TestGenerator {
 	private String packageName;
 	private GProMSuite allTests;
 	private STGroup g;
+	
+	public class MyIntRenderer extends NumberRenderer {
+	    @Override
+	    public String toString(Object o, String formatString, Locale locale) {
+	        if (formatString == null || !formatString.startsWith("pad"))
+	            return super.toString(o, formatString, locale);
+	       // pad integer from left with 0's
+	        int padLen = Integer.parseInt(formatString.substring(4, formatString.length() - 1));
+	        String thing = o.toString();
+	        while(thing.length() < padLen)
+	        	thing = "0" + thing;
+	        return thing;
+	    }
+	}
 	
 	public TestGenerator (File testDir, String packageName) throws IOException {
 
@@ -161,6 +178,7 @@ public class TestGenerator {
 		suite = suites.get(runName);
 		
 		STGroup g = new STGroupFile(resourceDir + "/TestTemplates/testcase.stg");
+		g.registerRenderer(Integer.class, new MyIntRenderer());
 		ST testcl = g.getInstanceOf("testclass");
 		testcl.add("name", suite.getClassName());
 		testcl.add("file", suite.getFileName());
@@ -179,6 +197,13 @@ public class TestGenerator {
 		log.error(testclassfile.render());
 		
 		writeFile(suite.getClassName(), testclassfile.render());
+	}
+	
+	private String padInt (int in, int len) {
+		String res = Integer.toString(in);
+		while(res.length() < len)
+			res = "0" + res;
+		return res;
 	}
 	
 	private String generateName (String name) {
