@@ -1224,6 +1224,12 @@ addConditionsToBaseTables (ProvenanceComputation *op)
             addToSet(readFromTableNames, strdup(t->tableName));
     }
 
+    // if we have no info about table then we need to create one
+    FOREACH(char,tab,tableNames)
+    {
+
+    }
+
     DEBUG_LOG("updated tables\n%s\nread tables\n%s", beatify(nodeToString(updatedTableNames)), beatify(nodeToString(readFromTableNames)));
 
     // create map from table name to condition (for update only tables)
@@ -1235,7 +1241,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
         {
             char *tableName = (char *) name;
 
-            if(!hasSetElem(readFromTableNames,tableName)) //HAO in second loop this check
+            if(!hasSetElem(readFromTableNames,tableName) && hasSetElem(updatedTableNames, tableName)) //HAO in second loop this check
             {
                 KeyValue *tableMap = MAP_GET_STRING_ENTRY(tabCondMap, tableName); // getMapCond(tableCondMap, tableName);
                 Node *cond = copyObject((Node *) getNthOfListP(upConds, i)); //TODO correct?

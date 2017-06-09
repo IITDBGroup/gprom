@@ -201,6 +201,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 {
     List *attrRefs = NIL;
 
+    // unfold views
     FOREACH(FromItem,f,qb->fromClause)
     {
         switch(f->type)
@@ -208,7 +209,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             case T_FromTableRef:
             {
                 FromTableRef *tr = (FromTableRef *)f;
-                boolean tableExists = catalogTableExists(tr->tableId);
+                boolean tableExists = catalogTableExists(tr->tableId) || schemaInfoHasTable(tr->tableId);
                 boolean viewExists = catalogViewExists(tr->tableId);
             	//check if it is a table or a view
             	if (!tableExists && viewExists)
