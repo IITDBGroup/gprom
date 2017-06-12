@@ -317,20 +317,33 @@ replaceNonOracleDTs (Node *node, ReplaceNonOracleDTsContext *context, void **par
     if (isA(node,Constant))
     {
         Constant *c = (Constant *) node;
+        boolean val = FALSE;
+        boolean isNull = FALSE;
 
         if (c->constType == DT_BOOL)
         {
-            boolean val = BOOL_VALUE(c);
-            c->constType = DT_INT;
-            c->value = NEW(int);
-            if (val)
-                INT_VALUE(c) = 1;
+            if (c->isNull)
+            {
+                c->constType = DT_INT;
+                isNull = TRUE;
+            }
             else
-                INT_VALUE(c) = 0;
+            {
+                val = BOOL_VALUE(c);
+                c->constType = DT_INT;
+                c->value = NEW(int);
+                if (val)
+                    INT_VALUE(c) = 1;
+                else
+                    INT_VALUE(c) = 0;
+            }
 
             if (context->inCond)
             {
-                if (val)
+                if (isNull)
+                    *partentPointer = createOpExpr("=",
+                        LIST_MAKE(createConstInt(1),createNullConst(DT_INT)));
+                else if (val)
                     *partentPointer = createOpExpr("=",
                             LIST_MAKE(createConstInt(1),createConstInt(1)));
                 else

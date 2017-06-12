@@ -5,6 +5,7 @@ package org.gprom.jdbc.test.junit.Metadatalookup;
 
 import static org.gprom.jdbc.utility.LoggerUtil.logException;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -13,6 +14,7 @@ import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.gprom.jdbc.metadata_lookup.oracle.OracleMetadataLookup;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -24,13 +26,23 @@ import org.junit.Test;
  */
 public class TestHiveMetadataLookup {
 
-	static Logger log = LogManager.getLogger(TestHiveMetadataLookup.class);
+	static Logger log;
 	
 	static OracleMetadataLookup p;
 	static Connection c;
 	
+	static {
+		System.setProperty("log4j.configurationFile", "blackboxtests/log4jtest.properties");
+		log = LogManager.getLogger(TestHiveMetadataLookup.class);
+	}
+	
 	@BeforeClass
 	public static void setup () throws SQLException, ClassNotFoundException {
+//				LoggerContext context = (org.apache.logging.log4j.core.LoggerContext) LogManager.getContext(false);
+//		File file = new File("blackboxtests/log4jtest.properties");
+//		 
+//		// this will force a reconfiguration
+//		context.setConfigLocation(file.toURI());
 //		PropertyConfigurator.configure("javalib/log4j.properties");
 		//TODO adapt to Hive
 //		String username = "fga_user";
@@ -53,7 +65,9 @@ public class TestHiveMetadataLookup {
 
 	@Test
 	public void tableExists () throws SQLException {
+		log.debug("*********");
 		Statement st = c.createStatement();
+		
 		createTestTable(st);
 		
 //		assertTrue(p.tableExists("TESTJDBCTABLE") == 1);

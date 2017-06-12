@@ -41,7 +41,8 @@ public class GProMJDBCTest {
 		String password; // = "XXX";
 //		String username = "postgres";
 //		String password = "";
-		String host = "ligeti.cs.iit.edu";
+//		String host = "ligeti.cs.iit.edu";
+		String host = "127.0.0.1";
 		String port = "1521";
 		String sid = "orcl";
 		String url;

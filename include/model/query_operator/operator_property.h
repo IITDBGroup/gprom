@@ -47,7 +47,14 @@
 #define PROP_PC_TRANS_XID "TRANSACTION_XID"                 // stores transaction XID
 #define PROP_PC_TUPLE_VERSIONS "TUPLE_VERSIONS"             // use rowid + scn pairs as provenance
 #define PROP_PC_STATEMENT_ANNOTATIONS "STATEMENT_ANNOTATIONS" // statement annotations
+#define PROP_PC_STATEMENT_ANNOT_ATTR "ST_ATTR"              // attribute storing the statement annotion
+#define PROP_PC_PROJ_TO_REMOVE_SANNOT "PROJ_REMOVES_S_ANN"  // marks projection operator that removes statement annotations
+#define PROP_PC_VERSION_SCN_ATTR "SCN_ATTR"                 // attribute storing the version annotation
 #define PROP_PC_REENACT_METADATA "REENACT_METADATA"         // store table information for reenacting DDL commands
+#define PROP_PC_GEN_PROVENANCE "GENERATE_PROVENANCE"        // used for REENACT to indicate that provenance should be computed
+#define PROP_PC_REQUIRES_POSTFILTERING "REQUIRES_POSTFILTER"    // set to true if the output of reenactment needs to be filtered based on version annotation attributes
+#define PROP_PC_ISOLATION_LEVEL "REENACT_ISOLEVEL"          // set isolation level for reenactment
+#define PROP_PC_COMMIT_SCN "COMMIT_SCN"                     // stores commit SCN for REENACT WITH COMMIT SCN
 
 /* table access properties */
 #define PROP_TABLE_IS_UPDATED "UPDATED_TABLE"               // is table access for the updated table in an DML translation
