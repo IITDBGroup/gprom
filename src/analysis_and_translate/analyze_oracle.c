@@ -271,6 +271,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                         if (strcmp(name,"ROWID") == 0 || f->type == T_FromTableRef)
                         {
                             f->attrNames = appendToTailOfList(f->attrNames, strdup("ROWID"));
+                            f->dataTypes = appendToTailOfListInt(f->dataTypes, DT_LONG);
                         }
                         else
                             FATAL_LOG("did not find provenance attr %s in from "
@@ -626,6 +627,7 @@ findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
         isFound = TRUE;
         foundAttr = LIST_LENGTH(fromItem->attrNames);
         fromItem->attrNames = appendToTailOfList(fromItem->attrNames, strdup("ROWID"));
+        fromItem->dataTypes = appendToTailOfListInt(fromItem->dataTypes, DT_LONG);
     }
 
     return foundAttr;
