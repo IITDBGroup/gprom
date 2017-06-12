@@ -1225,10 +1225,10 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     }
 
     // if we have no info about table then we need to create one
-    FOREACH(char,tab,tableNames)
-    {
-
-    }
+//    FOREACH(char,tab,tableNames)
+//    {
+//
+//    }
 
     DEBUG_LOG("updated tables\n%s\nread tables\n%s", beatify(nodeToString(updatedTableNames)), beatify(nodeToString(readFromTableNames)));
 
