@@ -13,6 +13,7 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
 
+
 /* function declarations */
 Node *UncertOp(Operator *expr, HashMap *hmp);
 Node *UncertIf(CaseExpr *expr, HashMap *hmp);
@@ -26,6 +27,9 @@ static QueryOperator *rewrite_UncertProjection(QueryOperator *op);
 static QueryOperator *rewrite_UncertTableAccess(QueryOperator *op);
 static QueryOperator * rewrite_UncertJoin(QueryOperator *op);
 static QueryOperator *rewrite_UncertAggregation(QueryOperator *op);
+static QueryOperator *rewrite_UncertDuplicateRemoval(QueryOperator *op);
+static QueryOperator *rewrite_UncertSet(QueryOperator *op);
+char *getUncertString(char *in);
 void addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef);
 
 List *putMidListToEnd(List *in, int p1, int p2);
@@ -63,7 +67,7 @@ Node *removeUncertOpFromExpr(Node *expr) {
 						return (Node *)getHeadOfListP(((Operator *)expr)->args);
 					}
 				FOREACH(Node, nd, ((Operator *)expr)->args){
-					removeUncertOpFromExpr(nd);
+					replaceNode(((Operator *)expr)->args, nd, removeUncertOpFromExpr(nd));
 				}
 				return expr;
 				break;
@@ -84,7 +88,7 @@ Node *removeUncertOpFromExpr(Node *expr) {
 					return (Node *)getHeadOfListP(((FunctionCall *)expr)->args);
 				}
 				FOREACH(Node, nd, ((FunctionCall *)expr)->args){
-					removeUncertOpFromExpr(nd);
+					replaceNode(((Operator *)expr)->args, nd, removeUncertOpFromExpr(nd));
 				}
 				return expr;
 				break;
@@ -325,12 +329,101 @@ rewriteUncert(QueryOperator * op) {
 			rewrittenOp = rewrite_UncertAggregation(op);
 			INFO_OP_LOG("Uncertainty Rewrite Aggregation:", rewrittenOp);
 			break;
+		case T_DuplicateRemoval:
+			rewrittenOp = rewrite_UncertDuplicateRemoval(op);
+			INFO_OP_LOG("Uncertainty Rewrite DuplicateRemoval:", rewrittenOp);
+			break;
+		case T_SetOperator:
+			rewrittenOp = rewrite_UncertSet(op);
+			INFO_OP_LOG("Uncertainty Rewrite Set:", rewrittenOp);
+			break;
 		default:
 			FATAL_LOG("rewrite for %u not implemented", op->type);
 			rewrittenOp = NULL;
 			break;
 	}
 	return rewrittenOp;
+}
+
+
+static QueryOperator *rewrite_UncertSet(QueryOperator *op){
+	ASSERT(OP_LCHILD(op));
+	ASSERT(OP_RCHILD(op));
+
+	//INFO_LOG("REWRITE-UNCERT - Set");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	// rewrite child first
+	rewriteUncert(OP_LCHILD(op));
+	rewriteUncert(OP_RCHILD(op));
+
+	HashMap * hmp = NEW_MAP(Node, Node);
+
+	List *projExpr = getNormalAttrProjectionExprs(op);
+
+	FOREACH(Node, nd, projExpr){
+		addUncertAttrToSchema(hmp, op, nd);
+	}
+	addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference("R"));
+	setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
+
+	return op;
+}
+
+
+static QueryOperator *rewrite_UncertDuplicateRemoval(QueryOperator *op){
+	ASSERT(OP_LCHILD(op));
+
+	//INFO_LOG("REWRITE-UNCERT - DuplicateRemoval");
+	DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+	//record original schema info
+	List *projExpr = getNormalAttrProjectionExprs(OP_LCHILD(op));
+	List *attrName = getNormalAttrNames(OP_LCHILD(op));
+
+	// rewrite child first
+	rewriteUncert(OP_LCHILD(op));
+
+	HashMap * hmp = NEW_MAP(Node, Node);
+	HashMap * hmpIn = (HashMap *)getStringProperty(OP_LCHILD(op), "UNCERT_MAPPING");
+
+	//create Aggregation
+	Node *rUExpr = getUncertaintyExpr((Node *)createAttributeReference("R"), hmpIn);
+	List *aggrList = NIL;
+	List *uattrName = NIL;
+	FOREACH(Node, nd, projExpr){
+		Node *maxExpr =	(Node *)createFunctionCall("MAX", singleton(getUncertaintyExpr(nd, hmpIn)));
+		aggrList = appendToTailOfList(aggrList, maxExpr);
+		rUExpr = (Node *)createFunctionCall("LEAST", appendToTailOfList(singleton(rUExpr), getUncertaintyExpr(nd, hmpIn)));
+		uattrName = appendToTailOfList(uattrName, getUncertString(((AttributeReference *)nd)->name));
+	}
+	Node *maxExpr =	(Node *)createFunctionCall("MAX", singleton(rUExpr));
+	aggrList = appendToTailOfList(aggrList, maxExpr);
+	uattrName = appendToTailOfList(uattrName, "U_R");
+	uattrName = concatTwoLists(uattrName, attrName);
+
+	QueryOperator *aggrOp = (QueryOperator *)createAggregationOp(aggrList, projExpr, OP_LCHILD(op), NIL, uattrName);
+
+	//create Projection
+	List *projExpr2 = getNormalAttrProjectionExprs(aggrOp);
+
+	List *exprInput = sublist(projExpr2, aggrList->length, projExpr2->length-1);
+	projExpr2 = sublist(projExpr2, 0, aggrList->length-1);
+	exprInput = concatTwoLists(exprInput, projExpr2);
+
+	QueryOperator *projOp =	(QueryOperator *)createProjectionOp(exprInput, aggrOp, NIL, attrName);
+	aggrOp->parents = appendToTailOfList(aggrOp->parents, projOp);
+	switchSubtrees(op, projOp);
+
+	projExpr = getNormalAttrProjectionExprs(projOp);
+
+	FOREACH(Node, nd, projExpr){
+		addUncertAttrToSchema(hmp, projOp, nd);
+	}
+	addUncertAttrToSchema(hmp, projOp, (Node *)createAttributeReference("R"));
+	setStringProperty(projOp, "UNCERT_MAPPING", (Node *)hmp);
+
+	return projOp;
 }
 
 static QueryOperator *rewrite_UncertAggregation(QueryOperator *op) {
@@ -383,8 +476,6 @@ static QueryOperator *rewrite_UncertAggregation(QueryOperator *op) {
 	List *attrUaggr = NIL;
 	projExpr = getNormalAttrProjectionExprs(op);
 
-
-
 	FOREACH(Node, nd, projExpr){
 		addUncertAttrToSchema(hmp, op, nd);
 	}
@@ -412,7 +503,6 @@ static QueryOperator *rewrite_UncertAggregation(QueryOperator *op) {
 	concatTwoLists(((AggregationOperator *)op)->aggrs, attrUaggr);
 	setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
 
-	//todo
 	//create project to reorder the attributes when groupby.
 	if(((AggregationOperator *)op)->groupBy){
 		HashMap *hmp3 = NEW_MAP(Node, Node);
@@ -572,7 +662,7 @@ static QueryOperator *rewrite_UncertProjection(QueryOperator *op) {
     	Node *projexpr = (Node *)getNthOfListP(((ProjectionOperator *)op)->projExprs,LIST_LENGTH(uncertlist));
     	Node *reExpr = getUncertaintyExpr(projexpr, hmpIn);
     	uncertlist = appendToTailOfList(uncertlist, reExpr);
-    	removeUncertOpFromExpr(projexpr);
+    	replaceNode(((ProjectionOperator *)op)->projExprs, projexpr, removeUncertOpFromExpr(projexpr));
     }
     ((ProjectionOperator *)op)->projExprs = concatTwoLists(((ProjectionOperator *)op)->projExprs, uncertlist);
     addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference("R"));
@@ -602,10 +692,14 @@ static QueryOperator *rewrite_UncertTableAccess(QueryOperator *op) {
 }
 
 void addUncertAttrToSchema(HashMap *hmp, QueryOperator *target, Node * aRef){
-	StringInfo str = makeStringInfo();
-	appendStringInfo(str, "%s", "U_");
-	appendStringInfo(str, "%s", ((AttributeReference *)aRef)->name);
-	addAttrToSchema(target, str->data, DT_INT);
+	addAttrToSchema(target, getUncertString(((AttributeReference *)aRef)->name), DT_INT);
 	((AttributeReference *)aRef)->outerLevelsUp = 0;
 	ADD_TO_MAP(hmp, createNodeKeyValue(aRef, (Node *)getTailOfListP(getNormalAttrProjectionExprs(target))));
+}
+
+char *getUncertString(char *in) {
+	StringInfo str = makeStringInfo();
+	appendStringInfo(str, "%s", "U_");
+	appendStringInfo(str, "%s", in);
+	return str->data;
 }
