@@ -64,7 +64,6 @@ public class VersionGraph {
 	}
 
 	public VersionGraph() {
-		// TODO Auto-generated constructor stub
 		Nodes = new ArrayList<Node>();
 		Edges = new ArrayList<Edge>();
 		Configuration = null; 
@@ -73,6 +72,12 @@ public class VersionGraph {
 		this.Nodes= Nodes;
 		this.Edges= Edges;
 		this.Configuration= Configuration;
+	}
+	public void AddEdge(Edge d) {
+		Edges.add(d);
+	}
+	public void AddNode(Node t){
+		Nodes.add(t);
 	}
 
 }

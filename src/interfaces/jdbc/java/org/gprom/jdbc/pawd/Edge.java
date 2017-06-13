@@ -3,7 +3,7 @@
  */
 package org.gprom.jdbc.pawd;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 
 /**
  * @author Amer
@@ -11,15 +11,15 @@ import java.util.Arrays;
  */
 public class Edge {
 	
-	String[] startNodes;
-	String[] endNodes;
+	ArrayList<Node> startNodes;
+	ArrayList<Node> endNodes;
 	String Transformation;
 	
 
 	/**
 	 * @return the startNodes
 	 */
-	public String[] getStartNodes() {
+	public ArrayList<Node> getStartNodes() {
 		return startNodes;
 	}
 
@@ -27,7 +27,7 @@ public class Edge {
 	/**
 	 * @param startNodes the startNodes to set
 	 */
-	public void setStartNodes(String[] startNodes) {
+	public void setStartNodes(ArrayList<Node> startNodes) {
 		this.startNodes = startNodes;
 	}
 
@@ -35,7 +35,7 @@ public class Edge {
 	/**
 	 * @return the endNodes
 	 */
-	public String[] getEndNodes() {
+	public ArrayList<Node> getEndNodes() {
 		return endNodes;
 	}
 
@@ -43,7 +43,7 @@ public class Edge {
 	/**
 	 * @param endNodes the endNodes to set
 	 */
-	public void setEndNodes(String[] endNodes) {
+	public void setEndNodes(ArrayList<Node> endNodes) {
 		this.endNodes = endNodes;
 	}
 
@@ -77,20 +77,19 @@ public class Edge {
 
 
 
-	/* (non-Javadoc)
-	 * @see java.lang.Object#toString()
-	 */
+
+
+
 	@Override
 	public String toString() {
-		return Arrays.toString(startNodes) + ", " + Arrays.toString(endNodes)
-				+ ", " + Transformation;
+		return startNodes + ", " + endNodes + "," + Transformation;
 	}
 
 
 	/**
 	 * Non-default constructor 
 	 */
-	public Edge(String[] startNodes, String[] endNodes, String Transformation){
+	public Edge(ArrayList<Node> startNodes, ArrayList<Node> endNodes, String Transformation){
 		this.startNodes = startNodes;
 		this.endNodes = endNodes;
 		this.Transformation = Transformation;
