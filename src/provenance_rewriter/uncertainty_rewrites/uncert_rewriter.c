@@ -367,6 +367,19 @@ static QueryOperator *rewrite_UncertSet(QueryOperator *op){
 	addUncertAttrToSchema(hmp, op, (Node *)createAttributeReference("R"));
 	setStringProperty(op, "UNCERT_MAPPING", (Node *)hmp);
 
+	//todo set output row to uncertain in case of set difference
+	if(((SetOperator *)op)->setOpType == SETOP_DIFFERENCE){
+		List *projExpr = getNormalAttrProjectionExprs(op);
+		projExpr = removeFromTail(projExpr);
+		projExpr = appendToTailOfList(projExpr, createConstInt(-1));
+
+		QueryOperator *proj = (QueryOperator *)createProjectionOp(projExpr, op, NIL, getNormalAttrNames(op));
+		switchSubtrees(op, proj);
+		op->parents = singleton(proj);
+		setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+
+		return proj;
+	}
 	return op;
 }
 
