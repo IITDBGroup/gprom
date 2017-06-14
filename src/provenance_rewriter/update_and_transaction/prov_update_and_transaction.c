@@ -38,7 +38,6 @@
 
 #define VERSIONS_STARTSCN_ATTR "VERSIONS_STARTSCN"
 
-static QueryOperator *getUpdateForPreviousTableVersion (ProvenanceComputation *p, char *tableName, int startPos, List *updates);
 
 static void mergeForTransactionProvenance(ProvenanceComputation *op);
 static boolean needAnnotAttributes(ProvenanceComputation *p);
@@ -47,6 +46,8 @@ static QueryOperator *createProjToRemoveAnnot (QueryOperator *o);
 static void mergeSerializebleTransaction(ProvenanceComputation *op);
 static void mergeReadCommittedTransaction(ProvenanceComputation *op);
 
+static QueryOperator *getUpdateForPreviousTableVersion (ProvenanceComputation *p, char *tableName, int startPos, List *updates);
+static QueryOperator *getLastUpdateForTable (ProvenanceComputation *p, char *tableName);
 static boolean isAttrUpdated (Node *expr, AttributeDef *a);
 static void addIgnoreAttr (QueryOperator *o, char *attrName);
 static void addConditionsToBaseTables (ProvenanceComputation *op);
@@ -248,8 +249,7 @@ mergeForTransactionProvenance(ProvenanceComputation *op)
 	boolean addAnnotAttrs = needAnnotAttributes(op);
 
 	// remove table access of inserts where
-	if (op->inputType == PROV_INPUT_TRANSACTION
-	                && HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
+	if (HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
     {
 	     removeInputTablesWithOnlyInserts(op);
     }
@@ -289,9 +289,18 @@ mergeForTransactionProvenance(ProvenanceComputation *op)
 static void
 removeUpdateAnnotAttr (ProvenanceComputation *op)
 {
-    //TODO add projection to remove update annot attribute
-    QueryOperator *lastUp = (QueryOperator *) getTailOfListP(op->op.inputs);
+    char *reenactTargetTable = GET_STRING_PROP_STRING_VAL(op, PROP_PC_TABLE);
+    QueryOperator *lastUp;
     List *normalAttrs = NIL;
+
+    // get last statement affecting the table which we are tracking
+    if (reenactTargetTable == NULL)
+        lastUp = (QueryOperator *) getTailOfListP(op->op.inputs);
+    else
+    {
+        lastUp = getLastUpdateForTable(op, reenactTargetTable);
+    }
+
     CREATE_INT_SEQ(normalAttrs, 0, getNumNormalAttrs(lastUp) - 2, 1);
     DEBUG_LOG("num attrs %i", getNumNormalAttrs(lastUp) - 2);
 
@@ -997,6 +1006,31 @@ addIgnoreAttr (QueryOperator *o, char *attrName)
     }
     else
         SET_STRING_PROP(o, PROP_PROV_IGNORE_ATTRS, MAKE_STR_SET(strdup(attrName)));
+}
+
+static QueryOperator *
+getLastUpdateForTable (ProvenanceComputation *p, char *tableName)
+{
+    List *tablenames = p->transactionInfo->updateTableNames;
+    Node *child = NULL;
+    int i = 0;
+
+    FOREACH(char,t,tablenames)
+    {
+        if (streq(t,tableName))
+        {
+            child = getNthOfListP(p->op.inputs, i);
+        }
+        i++;
+    }
+
+    if (child == NULL)
+        FATAL_LOG("did not find any statement updating table %s in transaction\n\n%s",
+                tableName, beatify(nodeToString(p->transactionInfo->originalUpdates)));
+
+    DEBUG_OP_LOG("last update", child);
+
+    return (QueryOperator *) child;
 }
 
 
