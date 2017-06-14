@@ -115,6 +115,17 @@ REENACT WITH ONLY UPDATED (INSERT INTO R VALUES (1,1); INSERT INTO R VALUES (1,2
 <entry key="q10.result">
 </entry>
 
+<entry key="q11.query">
+REENACT WITH ISOLATION LEVEL READCOMMITTED COMMIT SCN 2000 (INSERT INTO R VALUES (1,1); AS OF SCN 1000 INSERT INTO R VALUES (2,2); AS OF SCN 1001 UPDATE R SET A = 3 WHERE B = 1; AS OF SCN 1002);
+</entry>
+<entry key="q11.result">
+</entry>
+
+<entry key="q12.query">
+</entry>
+<entry key="q12.result">
+</entry>
+
 <entry key="q.query">
 </entry>
 <entry key="q.result">
