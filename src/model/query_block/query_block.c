@@ -23,12 +23,14 @@ createSetQuery(char *setOp, boolean all, Node *lChild,
 {
     SetQuery *result = makeNode(SetQuery);
 
-    if (!strcmp(setOp, "UNION"))
+    if (streq(setOp, "UNION"))
         result->setOp = SETOP_UNION;
-    if (!strcmp(setOp, "INTERSECT"))
+    else if (streq(setOp, "INTERSECT"))
         result->setOp = SETOP_INTERSECTION;
-    if (!strcmp(setOp, "MINUS"))
+    else if (streq(setOp, "MINUS"))
         result->setOp = SETOP_DIFFERENCE;
+    else
+        FATAL_LOG("set operation has to be one of UNION, INTERSECT, MINUS and not <%s>", setOp);
 
     result->all = all;
     result->selectClause = NIL;
