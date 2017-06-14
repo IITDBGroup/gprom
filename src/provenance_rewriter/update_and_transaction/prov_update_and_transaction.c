@@ -42,7 +42,7 @@ static QueryOperator *getUpdateForPreviousTableVersion (ProvenanceComputation *p
 
 static void mergeForTransactionProvenance(ProvenanceComputation *op);
 static boolean needAnnotAttributes(ProvenanceComputation *p);
-static void mergeForReenactOnly(ProvenanceComputation *op);
+//static void mergeForReenactOnly(ProvenanceComputation *op);
 static QueryOperator *createProjToRemoveAnnot (QueryOperator *o);
 static void mergeSerializebleTransaction(ProvenanceComputation *op);
 static void mergeReadCommittedTransaction(ProvenanceComputation *op);
@@ -75,18 +75,18 @@ mergeUpdateSequence(ProvenanceComputation *op)
     SET_STRING_PROP(op, PROP_PROV_ORIG_UPDATE_TYPE, updateTypes);
 
     // merge based on type of request
-    if (op->inputType == PROV_INPUT_TRANSACTION)
-    {
-        mergeForTransactionProvenance(op);
-        return;
-    }
-    if (op->inputType == PROV_INPUT_REENACT
+//    if (op->inputType == PROV_INPUT_TRANSACTION)
+//    {
+//        mergeForTransactionProvenance(op);
+//        return;
+//    }
+    if (op->inputType == PROV_INPUT_TRANSACTION || op->inputType == PROV_INPUT_REENACT
                 || op->inputType == PROV_INPUT_REENACT_WITH_TIMES)
     {
-        if (op->transactionInfo->transIsolation == ISOLATION_SERIALIZABLE)
-            mergeForReenactOnly(op);
-        if (op->transactionInfo->transIsolation == ISOLATION_READ_COMMITTED)
-            mergeForTransactionProvenance(op); //TODO ok to do that?
+//        if (op->transactionInfo->transIsolation == ISOLATION_SERIALIZABLE)
+//            mergeForReenactOnly(op);
+//        if (op->transactionInfo->transIsolation == ISOLATION_READ_COMMITTED)
+            mergeForTransactionProvenance(op);
 
         return;
     }
@@ -95,29 +95,30 @@ mergeUpdateSequence(ProvenanceComputation *op)
 }
 
 static void
-mergeForReenactOnly(ProvenanceComputation *op)
+mergeSerializebleTransaction(ProvenanceComputation *op)
 {
     List *updates;
     HashMap *curTranslation = NEW_MAP(Constant, Node);
     List *tabNames = op->transactionInfo->updateTableNames;
     List *updateTypes = (List *) GET_STRING_PROP(op, PROP_PROV_ORIG_UPDATE_TYPE);
+    char *reenactTargetTable = GET_STRING_PROP_STRING_VAL(op, PROP_PC_TABLE);
     boolean addAnnotAttrs = needAnnotAttributes(op);
     int i;
 
-    // if we only want tuple affected by the transaction then in some cases the first insert should avoid the union with the table
-    if (HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
-    {
-         removeInputTablesWithOnlyInserts(op);
-    }
-
-    // annotation attributes if requested
-    if (addAnnotAttrs)
-    {
-        addUpdateAnnotationAttrs (op);
-        removeUpdateAnnotAttr(op);
-
-        INFO_LOG("after adding annotation attributes:\n%s", operatorToOverviewString((Node *) op));
-    }
+//    // if we only want tuple affected by the transaction then in some cases the first insert should avoid the union with the table
+//    if (HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
+//    {
+//         removeInputTablesWithOnlyInserts(op);
+//    }
+//
+//    // annotation attributes if requested
+//    if (addAnnotAttrs)
+//    {
+//        addUpdateAnnotationAttrs (op);
+//        removeUpdateAnnotAttr(op);
+//
+//        INFO_LOG("after adding annotation attributes:\n%s", operatorToOverviewString((Node *) op));
+//    }
 
     // updates to process
     updates = copyList(op->op.inputs);
@@ -172,10 +173,22 @@ mergeForReenactOnly(ProvenanceComputation *op)
         i++;
     }
 
-    // add root of final reenactment query to
-    addChildOperator((QueryOperator *) op,
-            (QueryOperator *) getTailOfListP(updates));
+    // add root of final reenactment query as only child of provenance computation
+    // if the user has specified what table's provenance to track, then use the last update affecting that table
+    if (reenactTargetTable != NULL)
+    {
+        Node *lastUp = MAP_GET_STRING(curTranslation, reenactTargetTable);
 
+        if (lastUp == NULL)
+            FATAL_LOG("cannot track provenance of table %s that is not affected by the transaction:", reenactTargetTable);
+
+        addChildOperator((QueryOperator *) op, (QueryOperator *) lastUp);
+    }
+    else
+    {
+        addChildOperator((QueryOperator *) op,
+                (QueryOperator *) getTailOfListP(updates));
+    }
     // if no provenance is requested and we are doing REENACT AS OF, then we have to set
     // the asOf field of each table access operator
     if (op->provType == PROV_NONE && op->asOf != NULL)
@@ -456,86 +469,86 @@ addAnnotConstToUnion (QueryOperator *un, boolean leftIsTrue, char *annotName)
             appendToTailOfList(un->schema->attrDefs, createAttributeDef(strdup(annotName), DT_BOOL));
 }
 
-static void
-mergeSerializebleTransaction(ProvenanceComputation *op)
-{
-    List *updates = copyList(op->op.inputs);
-    int i = 0;
-    boolean addAnnotAttrs = needAnnotAttributes(op);
-    List *updateTypes = (List *) GET_STRING_PROP(op, PROP_PROV_ORIG_UPDATE_TYPE);
-
-    // cut links to parent
-    removeParentFromOps(op->op.inputs, (QueryOperator *) op);
-    op->op.inputs = NIL;
-
-    // reverse list
-    reverseList(updates);
-    reverseList(op->transactionInfo->updateTableNames);
-
-    DEBUG_NODE_BEATIFY_LOG("Updates to merge are:", updates);
-    INFO_OP_LOG("Updates to merge overview are:", updates);
-    /*
-     * Merge the individual queries for all updates into one
-     */
-    FOREACH(QueryOperator, u, updates)
-    {
-         List *children = NULL;
-         ReenactUpdateType typ = getNthOfListInt(updateTypes, i);
-
-         // find all table access operators
-         findTableAccessVisitor((Node *) u, &children);
-         INFO_OP_LOG("Replace table access operators in", u);
-
-         FOREACH(TableAccessOperator, t, children)
-         {
-             INFO_OP_LOG("\tTable Access", t);
-             QueryOperator *up = getUpdateForPreviousTableVersion(op,
-                     t->tableName, i, updates);
-
-             if (typ == UPDATE_TYPE_INSERT_QUERY && addAnnotAttrs)
-                 up = createProjToRemoveAnnot(up);
-
-             INFO_OP_LOG("\tUpdate is", up);
-             // previous table version was created by transaction
-             if (up != NULL)
-                 switchSubtreeWithExisting((QueryOperator *) t, up);
-             // previous table version is the one at transaction begin
-             else
-             {
-                 Constant *startScn = copyObject((Constant *) getHeadOfListP(op->transactionInfo->scns));
-
-                 // if user provenance attribute
-                 if (HAS_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION))
-                 {
-                     t->asOf = (Node *) LIST_MAKE(startScn, copyObject(startScn));
-                 }
-                 else
-                     t->asOf = (Node *) startScn;
-             }
-
-             INFO_LOG("Table after merge %s", operatorToOverviewString((Node *) u));
-         }
-         i++;
-    }
-    DEBUG_NODE_BEATIFY_LOG("Merged updates are:", updates);
-
-    // replace updates sequence with root of the whole merged update query
-
-    //TODO check if user asks for specific table
-
-    // if not then do normal stuff
-    addChildOperator((QueryOperator *) op, (QueryOperator *) getHeadOfListP(updates));
-
-    // else find last update to that table
-    //getUpdateForPreviousTableVersion(op,THE_TABLE_NAME, 0, updates);
-    // if NULL then user has asked for non-existing table
-    // FATAL_LOG("table); - exit
-    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-        ASSERT(checkModel((QueryOperator *) op));
-
-    DEBUG_NODE_BEATIFY_LOG("Provenance computation for updates that will be passed "
-            "to rewriter:", op);
-}
+//static void
+//mergeSerializebleTransaction(ProvenanceComputation *op)
+//{
+//    List *updates = copyList(op->op.inputs);
+//    int i = 0;
+//    boolean addAnnotAttrs = needAnnotAttributes(op);
+//    List *updateTypes = (List *) GET_STRING_PROP(op, PROP_PROV_ORIG_UPDATE_TYPE);
+//
+//    // cut links to parent
+//    removeParentFromOps(op->op.inputs, (QueryOperator *) op);
+//    op->op.inputs = NIL;
+//
+//    // reverse list
+//    reverseList(updates);
+//    reverseList(op->transactionInfo->updateTableNames);
+//
+//    DEBUG_NODE_BEATIFY_LOG("Updates to merge are:", updates);
+//    INFO_OP_LOG("Updates to merge overview are:", updates);
+//    /*
+//     * Merge the individual queries for all updates into one
+//     */
+//    FOREACH(QueryOperator, u, updates)
+//    {
+//         List *children = NULL;
+//         ReenactUpdateType typ = getNthOfListInt(updateTypes, i);
+//
+//         // find all table access operators
+//         findTableAccessVisitor((Node *) u, &children);
+//         INFO_OP_LOG("Replace table access operators in", u);
+//
+//         FOREACH(TableAccessOperator, t, children)
+//         {
+//             INFO_OP_LOG("\tTable Access", t);
+//             QueryOperator *up = getUpdateForPreviousTableVersion(op,
+//                     t->tableName, i, updates);
+//
+//             if (typ == UPDATE_TYPE_INSERT_QUERY && addAnnotAttrs)
+//                 up = createProjToRemoveAnnot(up);
+//
+//             INFO_OP_LOG("\tUpdate is", up);
+//             // previous table version was created by transaction
+//             if (up != NULL)
+//                 switchSubtreeWithExisting((QueryOperator *) t, up);
+//             // previous table version is the one at transaction begin
+//             else
+//             {
+//                 Constant *startScn = copyObject((Constant *) getHeadOfListP(op->transactionInfo->scns));
+//
+//                 // if user provenance attribute
+//                 if (HAS_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION))
+//                 {
+//                     t->asOf = (Node *) LIST_MAKE(startScn, copyObject(startScn));
+//                 }
+//                 else
+//                     t->asOf = (Node *) startScn;
+//             }
+//
+//             INFO_LOG("Table after merge %s", operatorToOverviewString((Node *) u));
+//         }
+//         i++;
+//    }
+//    DEBUG_NODE_BEATIFY_LOG("Merged updates are:", updates);
+//
+//    // replace updates sequence with root of the whole merged update query
+//
+//    //TODO check if user asks for specific table
+//
+//    // if not then do normal stuff
+//    addChildOperator((QueryOperator *) op, (QueryOperator *) getHeadOfListP(updates));
+//
+//    // else find last update to that table
+//    //getUpdateForPreviousTableVersion(op,THE_TABLE_NAME, 0, updates);
+//    // if NULL then user has asked for non-existing table
+//    // FATAL_LOG("table); - exit
+//    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+//        ASSERT(checkModel((QueryOperator *) op));
+//
+//    DEBUG_NODE_BEATIFY_LOG("Provenance computation for updates that will be passed "
+//            "to rewriter:", op);
+//}
 
 static void
 mergeReadCommittedTransaction(ProvenanceComputation *op)
@@ -546,6 +559,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
     QueryOperator *finalProj = NULL;
     boolean addAnnotAttrs = needAnnotAttributes(op);
     Set *tableUpdatedBefore = STRSET();
+    char *reenactTargetTable = GET_STRING_PROP_STRING_VAL(op, PROP_PC_TABLE);
 
     // Loop through update translations and add version_startscn condition + attribute
 	FORBOTH_LC(uLc, trLc, op->transactionInfo->originalUpdates, op->op.inputs)
@@ -917,8 +931,19 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	List *finalAttrs, *projExprs = NIL;
 	int cnt = 0;
 
-	mergeRoot = (QueryOperator *) getHeadOfListP(updates);
-//	mergeAttrs = getQueryOperatorAttrNames(mergeRoot);
+	// if user has specified what table's provenance to track then get last statement targeting this table
+	if (reenactTargetTable != NULL)
+	{
+	    mergeRoot = getUpdateForPreviousTableVersion(op,
+	            reenactTargetTable, 0, updates);
+
+        if (mergeRoot == NULL)
+            FATAL_LOG("cannot track provenance of table %s that is not affected by the transaction:", reenactTargetTable);
+	}
+	else
+	    mergeRoot = (QueryOperator *) getHeadOfListP(updates);
+
+	// create projection expressions
 	finalAttrs = NIL;
 
     FOREACH(AttributeDef, attr, mergeRoot->schema->attrDefs)
@@ -1200,13 +1225,21 @@ addConditionsToBaseTables (ProvenanceComputation *op)
     HashMap *numAttrs = NEW_MAP(Constant,Constant);
     ProvenanceTransactionInfo *t = op->transactionInfo;
     Constant *constT = createConstBool(TRUE);
+    char *reenactTargetTable = GET_STRING_PROP_STRING_VAL(op, PROP_PC_TABLE);
+
 
     upConds = (List *) GET_STRING_PROP(op, PROP_PC_UPDATE_COND);
     tableNames = deepCopyStringList(t->updateTableNames);
-    reverseList(tableNames);
+//    reverseList(tableNames);
     origUpdates = t->originalUpdates;
     findTableAccessVisitor((Node *) op, &allTables); //HAO fetch all table accesses
     updatedTables  = findUpdatedTableAccceses (allTables);
+
+    if (reenactTargetTable == NULL)
+    {
+        reenactTargetTable = (char *) getNthOfListP(t->updateTableNames,0);
+    }
+    DEBUG_LOG("only gather conditions of table <%s> choosen for provenance tracking", reenactTargetTable);
 
     // check which tables are updated and which tables are read accessed (e.g., in query)
     // only updated tables can be safely prefiltered
@@ -1283,7 +1316,7 @@ addConditionsToBaseTables (ProvenanceComputation *op)
 
         DEBUG_LOG("selection conditions are: ", cond);
 
-        if (cond != NULL)
+        if (streq(tableName,reenactTargetTable) &&  cond != NULL)
         {
             List *args = (List *) cond;
             boolean allTrue = FALSE;

@@ -40,6 +40,7 @@
 
 /* Operator type specific properties */
 /* provenance computation specific properties */
+#define PROP_PC_PROV_TYPE "PROV_TYPE"                       // type of provenance to track
 #define PROP_PC_TABLE "TRACK_TABLE"                         // updated table to trace proveance of transaction for
 #define PROP_PC_UPDATE_COND "UPDATE_CONDS"                  // conditions of updates in transaction
 #define PROP_PC_ONLY_UPDATED "ONLY_UPDATED"                 // show only provenance of updated rows in transaction

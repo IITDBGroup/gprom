@@ -25,6 +25,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "provenance_rewriter/prov_schema.h"
 #include "parser/parser.h"
+#include "model/query_operator/operator_property.h"
 
 static void analyzeStmtList (List *l, List *parentFroms);
 static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
@@ -1659,7 +1660,7 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
         char *value = STRING_VALUE(kv->value);
 
         /* provenance type */
-        if (!strcmp(key, "TYPE"))
+        if (!strcmp(key, PROP_PC_PROV_TYPE))
         {
             if (streq(value, "PICS"))
                 prov->provType = PROV_PI_CS;

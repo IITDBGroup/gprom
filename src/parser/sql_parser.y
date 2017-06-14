@@ -527,12 +527,12 @@ provOption:
 		TYPE stringConst 
 		{ 
 			RULELOG("provOption::TYPE"); 
-			$$ = (Node *) createStringKeyValue("TYPE", $2); 
+			$$ = (Node *) createStringKeyValue(PROP_PC_PROV_TYPE, $2); 
 		}
 		| TABLE identifier
 		{
 			RULELOG("provOption::TABLE");
-			$$ = (Node *) createStringKeyValue("TABLE", $2);
+			$$ = (Node *) createStringKeyValue(PROP_PC_TABLE, $2);
 		}
 		| ONLY UPDATED
 		{
