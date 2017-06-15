@@ -1,10 +1,25 @@
 pipeline {
-    agent { docker 'gliderlabs/alpine:latest' }
+    agent {
+		  docker {
+		  		 image 'ubuntu:latest'
+				 args '--user root'
+		  }
+	}
     stages {
-        stage('build') {
+        stage('install-dependencies') {
             steps {
-                sh 'apk add --no-cache gcc'
+                sh 'apt-get -y update'
+				sh 'apt-get install -y autotools-dev autoconf bison flex git graphviz libsqlite3-dev libtool make man-db libreadline6 libreadline6-dev sqlite3'
+				sh 'rm -rf /var/lib/apt/lists/*'
             }
         }
+		stage('build') {
+		    steps {
+				sh 'make -f Makefile.maintainer'
+				sh './configure --disable-oracle --disable-postgres --disable-monetdb --disable-java'
+				sh 'make'
+				sh 'make install'
+			}
+		}
     }
 }
