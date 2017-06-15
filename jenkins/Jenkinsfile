@@ -3,6 +3,7 @@ pipeline {
 		  dockerfile {
 		  		 dir 'jenkins/Docker/AllBackends'
 				 reuseNode true
+				 args '--user root'
 		  }
 	}
     stages {
@@ -14,7 +15,13 @@ pipeline {
 				sh 'make install'
 			}
 		}
-		stage('test') {
+		stage('dist-and-distcheck') {
+			steps {
+				sh 'make dist'
+				sh 'make distcheck'
+			}
+		}
+		stage('c-tests') {
 			steps {
 				sh 'pushd test && make check && popd'
 			}
