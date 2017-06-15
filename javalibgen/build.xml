@@ -1,29 +1,31 @@
-<project name="GProMLibraryHeaderGenerator" default="genLibraryHeader" basedir=".">
-
-	<property name="projectroot" value="${basedir}/.." />
+<project 
+	name="GProMLibraryHeaderGenerator" 
+	default="genLibraryHeader" 
+	basedir="."
+	xmlns:ivy="antlib:org.apache.ivy.ant"
+	>
 	
-	<!-- ant defs -->
-	<property name="antlibdir" value="${projectroot}/ant" />
-	
-	<taskdef resource="net/sf/antcontrib/antcontrib.properties">
-	  <classpath>
-	    <pathelement location="${antlibdir}/ant-contrib.jar"/>
-	  </classpath>
-	</taskdef>
+	<property name="projectroot" value="${basedir}/../" />
 	
 	<!-- directories -->
-	<property name="sourcedir" value="${projectroot}/javalibgen" />
-	<property name="binarydir" value="${projectroot}/javabin" />
-	<property name="packageName" value="org.gprom.libgen" />
-	<property name="librarydir" value="${projectroot}/javatestlib" />
-	<property name="mainlibrarydir" value="${projectroot}/javalib" />
+	<property name="gensourcedir" value="${projectroot}/javalibgen" />
+	<property name="genlibrarydir" value="${gensourcedir}/lib" />
+	<property name="genbinarydir" value="${gensourcedir}/javabin" />
+	<property name="genPackageName" value="org.gprom.libgen" />
 	<property name="antlibrarydir" value="${projectroot}/ant" />
 	<property name="builddir" value="${projectroot}/build"/>
 	
-	<!-- settings -->
+	<!-- Ivy -->
+    <property name="ivy.install.version" value="2.4.0" />
+    <condition property="ivy.home" value="${env.IVY_HOME}">
+      <isset property="env.IVY_HOME" />
+    </condition>
+    <property name="ivy.jar.dir" value="${antlibdir}" />
+    <property name="ivy.jar.file" value="${ivy.jar.dir}/ivy.jar" />
 	
-	<path id="libraries">
-		<fileset dir="${basedir}">
+	<!-- settings -->
+<!--	<path id="libraries">
+		<fileset dir="${genlibrarydir}">
 			<include name="**/*.jar" />
 		</fileset>
 		<fileset dir="${antlibrarydir}" />
@@ -33,34 +35,56 @@
 	</path>
 
 	<path id="runGenClasspath">
-		<fileset dir="${basedir}">
+		<fileset dir="${genlibrarydir}">
 			<include name="**/*.jar" />
 		</fileset>
-	<!--	<fileset dir="${mainlibrarydir}">
-			<include name="**/*.jar" />
-		</fileset> -->
-		<pathelement path="${mainlibrarydir}" />
 		<pathelement path="${binarydir}"/>
-	</path>
+	</path> -->
 	
+	<!-- ******************************************************************************** -->
+	<!-- * 						TARGETS													* -->
+	<!-- ******************************************************************************** -->
 	
-	<target name="compile">
-		<depend srcdir="${sourcedir}"
+	<target name="init-ivy-gen">
+		<ant antfile="${projectroot}/build.xml" target="download-dependencies" inheritAll="false" dir="${projectroot}" />
+		<path id="ivy.lib.path">
+            <fileset dir="${ivy.jar.dir}" includes="*.jar"/>
+        </path>
+        <taskdef resource="org/apache/ivy/ant/antlib.xml"
+                 uri="antlib:org.apache.ivy.ant" classpathref="ivy.lib.path"/>
+	</target>
+	
+	<target name="download-dependencies-gen" depends="init-ivy-gen">
+		<mkdir dir="${genlibrarydir}"/>
+<!--		 <ivy:settings file="${basedir}/ivysettings.xml"/>-->
+		 <ivy:resolve />
+		 <ivy:retrieve sync="false" type="jar" pattern="${genlibrarydir}/[artifact].[ext]" />
+	</target>
+	
+	<target name="compileLibGenerator" > <!-- depends="download-dependencies-gen"> -->
+		<!-- classpath -->
+		<path id="genclasspath">
+			<fileset dir="${genlibrarydir}"/>
+			<pathelement path="${genbinarydir}"/>
+		</path>
+		<mkdir dir="${genbinarydir}" />
+		<echo message="COMPILE ${gensourcedir} to ${genbinarydir}" />
+	<!--	<depend srcdir="${gensourcedir}"
 		        destdir="${binarydir}"
 		        cache="depcache"
-		        closure="yes"/>
-		<javac srcdir="${sourcedir}" destdir="${binarydir}" classpathref="libraries" 
-			debug="on" excludes="**/.svn*" fork="true" includeantruntime="false">
+		        closure="yes"/> -->
+		<javac srcdir="${gensourcedir}" destdir="${genbinarydir}" classpathref="genclasspath" 
+			debug="on" fork="true" includeantruntime="false">
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
 	
-	<target name="genLibraryHeader" depends="compile">
+	<target name="genLibraryHeader" depends="compileLibGenerator">
 		<java 
 			classname="org.gprom.libgen.GenLibGProMH" 
-			classpathref="runGenClasspath"
+			classpathref="genclasspath"
 			fork="true" 
-			dir="${basedir}"
+			dir="${gensourcedir}"
 		>
 			<arg value="${projectroot}" />
 		</java>
