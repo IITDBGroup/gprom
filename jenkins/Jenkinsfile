@@ -1,24 +1,21 @@
 pipeline {
     agent {
-		  docker {
-		  		 image 'ubuntu:latest'
-				 args '--user root'
+		  dockerfile {
+		  		 dir 'jenkins/Docker/AllBackends'
 		  }
 	}
     stages {
-        stage('install-dependencies') {
-            steps {
-                sh 'apt-get -y update'
-				sh 'apt-get install -y autotools-dev autoconf bison flex git graphviz libsqlite3-dev libtool make man-db libreadline6 libreadline6-dev sqlite3'
-				sh 'rm -rf /var/lib/apt/lists/*'
-            }
-        }
 		stage('build') {
 		    steps {
 				sh 'make -f Makefile.maintainer'
-				sh './configure --disable-oracle --disable-postgres --disable-monetdb --disable-java'
+				sh './configure --with-oci-headers=/opt/oracle/instantclient/sdk/include/ --with-oci-lib=/opt/oracle/instantclient'
 				sh 'make'
 				sh 'make install'
+			}
+		}
+		stage('test') {
+			steps {
+				sh 'pushd test && make check && popd'
 			}
 		}
     }
