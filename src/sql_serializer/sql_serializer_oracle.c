@@ -14,7 +14,6 @@
 #include "common.h"
 #include "instrumentation/timing_instrumentation.h"
 #include "mem_manager/mem_mgr.h"
-
 #include "log/logger.h"
 
 #include "sql_serializer/sql_serializer_oracle.h"
@@ -23,6 +22,7 @@
 #include "model/query_operator/operator_property.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
+#include "utility/string_utils.h"
 
 #include "sql_serializer/sql_serializer_common.h"
 
@@ -61,7 +61,7 @@ static void serializeTableAccess(StringInfo from, TableAccessOperator* t, int* c
 static void serializeConstRel(StringInfo from, ConstRelOperator* t, List** fromAttrs,
         int* curFromItem);
 
-
+static void serializeOrder (OrderOperator *q, StringInfo order, List *fromAttrs);
 static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
 static boolean updateAttributeNamesOracle(Node *node, List *fromAttrs);
 static boolean updateAttributeNamesSimpleOracle(Node *node, List *attrNames);
@@ -317,20 +317,33 @@ replaceNonOracleDTs (Node *node, ReplaceNonOracleDTsContext *context, void **par
     if (isA(node,Constant))
     {
         Constant *c = (Constant *) node;
+        boolean val = FALSE;
+        boolean isNull = FALSE;
 
         if (c->constType == DT_BOOL)
         {
-            boolean val = BOOL_VALUE(c);
-            c->constType = DT_INT;
-            c->value = NEW(int);
-            if (val)
-                INT_VALUE(c) = 1;
+            if (c->isNull)
+            {
+                c->constType = DT_INT;
+                isNull = TRUE;
+            }
             else
-                INT_VALUE(c) = 0;
+            {
+                val = BOOL_VALUE(c);
+                c->constType = DT_INT;
+                c->value = NEW(int);
+                if (val)
+                    INT_VALUE(c) = 1;
+                else
+                    INT_VALUE(c) = 0;
+            }
 
             if (context->inCond)
             {
-                if (val)
+                if (isNull)
+                    *partentPointer = createOpExpr("=",
+                        LIST_MAKE(createConstInt(1),createNullConst(DT_INT)));
+                else if (val)
                     *partentPointer = createOpExpr("=",
                             LIST_MAKE(createConstInt(1),createConstInt(1)));
                 else
@@ -376,6 +389,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
     StringInfo selectString = makeStringInfo();
     StringInfo groupByString = makeStringInfo();
     StringInfo havingString = makeStringInfo();
+    StringInfo orderString = makeStringInfo();
     MatchState state = MATCH_START;
     QueryOperator *cur = q;
     List *attrNames = getAttrNames(q->schema);
@@ -642,6 +656,10 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
     serializeProjectionAndAggregation(matchInfo, selectString, havingString,
             groupByString, fromAttrs, topMaterialize);
 
+    DEBUG_LOG("serializeOrder");
+    if(matchInfo->orderBy != NULL)
+        serializeOrder(matchInfo->orderBy, orderString, fromAttrs);
+
     // put everything together
     DEBUG_LOG("mergePartsTogether");
 
@@ -660,6 +678,9 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
 
     if (STRINGLEN(havingString) > 0)
         appendStringInfoString(str, havingString->data);
+
+    if (STRINGLEN(orderString) > 0)
+        appendStringInfoString(str, orderString->data);
 
     FREE(matchInfo);
 
@@ -1199,6 +1220,21 @@ createAttrName (char *name, int fItem)
 }
 
 /*
+ * Translate a order expr into a ORDER BY clause
+ */
+static void
+serializeOrder (OrderOperator *q, StringInfo order, List *fromAttrs)
+{
+    appendStringInfoString(order, "\nORDER BY ");
+    updateAttributeNamesOracle((Node *) q->orderExprs, (List *) fromAttrs);
+
+    char *ordExpr = replaceSubstr(exprToSQL((Node *) q->orderExprs),"(","");
+    ordExpr = replaceSubstr(ordExpr,")","");
+    ordExpr = replaceSubstr(ordExpr,"'","");
+    appendStringInfoString(order, ordExpr);
+}
+
+/*
  * Translate a selection into a WHERE clause
  */
 static void
@@ -1236,7 +1272,7 @@ updateAttributeNamesOracle(Node *node, List *fromAttrs)
         }
         attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
         newName = getNthOfListP(outer, attrPos);
-        a->name = CONCAT_STRINGS("F", itoa(fromItem), ".", newName);;
+        a->name = CONCAT_STRINGS("F", itoa(fromItem), ".", newName);
     }
 
     return visit(node, updateAttributeNamesOracle, fromAttrs);
@@ -1378,6 +1414,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         state->aggNames = aggs;
         state->groupByNames = groupBys;
     }
+
     // window functions
     if (winR != NULL)
     {

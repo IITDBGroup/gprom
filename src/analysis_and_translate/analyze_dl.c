@@ -26,7 +26,7 @@
 #include "utility/string_utils.h"
 
 static void analyzeDLProgram (DLProgram *p);
-static void analyzeRule (DLRule *r, Set *idbRels); // , Set *edbRels, Set *factRels);
+static void analyzeRule (DLRule *r, Set *idbRels, DLProgram *p); // , Set *edbRels, Set *factRels);
 static void analyzeProv (DLProgram *p, KeyValue *kv);
 static List *analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules);
 
@@ -138,7 +138,7 @@ analyzeDLProgram (DLProgram *p)
 
     // analyze all rules
     FOREACH(DLRule,r,rules)
-        analyzeRule((DLRule *) r, idbRels); //, edbRels, factRels);
+        analyzeRule((DLRule *) r, idbRels, p); //, edbRels, factRels);
 
     p->rules = rules;
     p->facts = facts;
@@ -220,7 +220,7 @@ analyzeProv (DLProgram *p, KeyValue *kv)
 }
 
 static void
-analyzeRule (DLRule *r, Set *idbRels) // , Set *edbRels, Set *factRels)
+analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *factRels)
 {
     // check safety
     if (!checkDLRuleSafety(r))
@@ -251,7 +251,31 @@ analyzeRule (DLRule *r, Set *idbRels) // , Set *edbRels, Set *factRels)
 //                    FATAL_LOG("Atom uses predicate %s that is neither IDB nor EDB", atom->rel);
 //            }
         }
+
+        if (isA(a,DLComparison))
+        {
+        	p->comp = appendToTailOfList(p->comp, a);
+
+        	INFO_DL_LOG("comparison expression:", p->comp);
+			DEBUG_LOG("comparison expression:\n%s", datalogToOverviewString(p->comp));
+        }
     }
+
+//    // seperate comparison from the rule
+//    List *ruleBody = NIL;
+//
+//    if (p->comp != NULL)
+//    {
+//        FOREACH(Node,a,r->body)
+//		{
+//        	if (!isA(a,DLComparison))
+//        	{
+//        		ruleBody = appendToTailOfList(ruleBody, a);
+//        	}
+//		}
+//
+//        r->body = ruleBody;
+//    }
 }
 
 /*

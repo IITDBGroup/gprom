@@ -192,6 +192,7 @@ equalDLProgram (DLProgram *a, DLProgram *b, HashMap *seenOps, MemContext *c)
     COMPARE_STRING_FIELD(ans);
     COMPARE_NODE_FIELD(doms);
     COMPARE_NODE_FIELD(n.properties);
+    COMPARE_NODE_FIELD(comp);
 
     return TRUE;
 }
@@ -954,6 +955,10 @@ equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b, HashMap *seenOps, MemC
     COMPARE_NODE_FIELD(transInfo);
     COMPARE_NODE_FIELD(asOf);
     COMPARE_NODE_FIELD(options);
+    COMPARE_STRING_FIELD(summaryType);
+    COMPARE_NODE_FIELD(userQuestion);
+    COMPARE_SCALAR_FIELD(sampleSize);
+    COMPARE_SCALAR_FIELD(topK);
 
     return TRUE;
 }

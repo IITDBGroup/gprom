@@ -35,11 +35,12 @@ void
 gprom_init(void)
 {
     CREATE_MUTEX();
-    LOCK_MUTEX();
     initMemManager();
+    LOCK_MUTEX();
     mallocOptions();
     initLogger();
     registerSignalHandler();
+    setWipeContext(LIBARY_REWRITE_CONTEXT);
     UNLOCK_MUTEX();
 }
 
@@ -102,7 +103,6 @@ gprom_rewriteQuery(const char *query)
         ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
     }
     END_ON_EXCEPTION
-
     UNLOCK_MUTEX();
     return result;//returnResult;
 }

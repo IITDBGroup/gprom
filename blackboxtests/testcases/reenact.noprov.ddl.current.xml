@@ -45,6 +45,15 @@ A|B|
 2|3|
 </entry>
 
+<entry key="q5.query">
+REENACT (CREATE TABLE mytable (A INT, B INT); INSERT INTO mytable VALUES(1,1); UPDATE mytable SET b = b + 1; ALTER TABLE mytable ADD COLUMN C INT; ALTER TABLE mytable REMOVE COLUMN C;);
+</entry>
+<entry key="q5.result">
+ A | B |
+--------
+ 1 | 2 |
+</entry>
+
 <entry key="q.query">
 </entry>
 <entry key="q.result">

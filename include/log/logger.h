@@ -113,53 +113,67 @@ extern LogLevel maxLevel;
 			    log_(level, file, line, (template),  ##__VA_ARGS__); \
 		} while (0)
 
-#define INFO_NODE_LOG(message, ...) \
+#define NODE_LOG(loglevel,message, ...) \
     do { \
-        if (maxLevel >= LOG_INFO) \
-            logNodes_(LOG_INFO, __FILE__, __LINE__, FALSE, nodeToString, (message),  ##__VA_ARGS__, NULL); \
-    } while (0)
-#define DEBUG_NODE_LOG(message, ...) \
-    do { \
-        if (maxLevel >= LOG_DEBUG) \
-            logNodes_(LOG_DEBUG, __FILE__, __LINE__, FALSE, nodeToString, (message),  ##__VA_ARGS__, NULL); \
-    } while (0)
-#define ERROR_NODE_BEATIFY_LOG(message, ...) \
-    do { \
-        if (maxLevel >= LOG_ERROR) \
-            logNodes_(LOG_ERROR, __FILE__, __LINE__, TRUE, nodeToString, (message), ##__VA_ARGS__, NULL); \
-    } while (0)
-#define INFO_NODE_BEATIFY_LOG(message, ...) \
-    do { \
-        if (maxLevel >= LOG_INFO) \
-            logNodes_(LOG_INFO, __FILE__, __LINE__, TRUE, nodeToString, (message), ##__VA_ARGS__, NULL); \
-    } while (0)
-#define DEBUG_NODE_BEATIFY_LOG(message, ...) \
-    do { \
-        if (maxLevel >= LOG_DEBUG) \
-            logNodes_(LOG_DEBUG, __FILE__, __LINE__, TRUE, nodeToString, (message), ##__VA_ARGS__, NULL); \
+        if (maxLevel >= loglevel) \
+        logNodes_(loglevel, __FILE__, __LINE__, FALSE, nodeToString, (message),  ##__VA_ARGS__, NULL); \
     } while (0)
 
-#define INFO_DL_LOG(message, ...) \
+#define DEBUG_NODE_LOG(message, ...) NODE_LOG(LOG_DEBUG,message, ##__VA_ARGS__)
+#define INFO_NODE_LOG(message, ...) NODE_LOG(LOG_INFO,message, ##__VA_ARGS__)
+#define ERROR_NODE_LOG(message, ...) NODE_LOG(LOG_ERROR,message, ##__VA_ARGS__)
+#define FATAL_NODE_LOG(message, ...) \
     do { \
-        if (maxLevel >= LOG_INFO) \
-            logNodes_(LOG_INFO, __FILE__, __LINE__, FALSE, datalogToOverviewString, (message),  ##__VA_ARGS__, NULL); \
+        NODE_LOG(LOG_FATAL,message, ##__VA_ARGS__); \
+        THROW(SEVERITY_RECOVERABLE,(message), ##__VA_ARGS__); \
+    } while (0);
+
+#define NODE_BEATIFY_LOG(loglevel,message, ...) \
+    do { \
+        if (maxLevel >= loglevel) \
+        logNodes_(loglevel, __FILE__, __LINE__, TRUE, nodeToString, (message),  ##__VA_ARGS__, NULL); \
     } while (0)
 
-#define ERROR_OP_LOG(message, ...) \
+#define DEBUG_NODE_BEATIFY_LOG(message, ...) NODE_BEATIFY_LOG(LOG_DEBUG,message, ##__VA_ARGS__)
+#define INFO_NODE_BEATIFY_LOG(message, ...) NODE_BEATIFY_LOG(LOG_INFO,message, ##__VA_ARGS__)
+#define ERROR_NODE_BEATIFY_LOG(message, ...) NODE_BEATIFY_LOG(LOG_ERROR,message, ##__VA_ARGS__)
+#define FATAL_NODE_BEATIFY_LOG(message, ...) \
     do { \
-        if (maxLevel >= LOG_ERROR) \
-            logNodes_(LOG_ERROR, __FILE__, __LINE__, FALSE, operatorToOverviewString, (message),  ##__VA_ARGS__, NULL); \
-    } while (0)
-#define INFO_OP_LOG(message, ...) \
+        NODE_BEATIFY_LOG(LOG_FATAL,message, ##__VA_ARGS__); \
+        THROW(SEVERITY_RECOVERABLE,(message), ##__VA_ARGS__); \
+    } while (0);
+
+
+#define DL_LOG(loglevel, message, ...) \
     do { \
-        if (maxLevel >= LOG_INFO) \
-            logNodes_(LOG_INFO, __FILE__, __LINE__, FALSE, operatorToOverviewString, (message),  ##__VA_ARGS__, NULL); \
+        if (maxLevel >= loglevel) \
+            logNodes_(loglevel, __FILE__, __LINE__, FALSE, datalogToOverviewString, (message),  ##__VA_ARGS__, NULL); \
     } while (0)
-#define DEBUG_OP_LOG(message, ...) \
+
+#define DEBUG_DL_LOG(message, ...) DL_LOG(LOG_DEBUG,message, ##__VA_ARGS__)
+#define INFO_DL_LOG(message, ...) DL_LOG(LOG_INFO,message, ##__VA_ARGS__)
+#define ERROR_DL_LOG(message, ...) DL_LOG(LOG_ERROR,message, ##__VA_ARGS__)
+#define FATAL_DL_LOG(message, ...) \
     do { \
-        if (maxLevel >= LOG_DEBUG) \
-            logNodes_(LOG_DEBUG, __FILE__, __LINE__, FALSE, operatorToOverviewString, (message),  ##__VA_ARGS__, NULL); \
+        DL_LOG(LOG_FATAL,message, ##__VA_ARGS__); \
+        THROW(SEVERITY_RECOVERABLE,(message), ##__VA_ARGS__); \
+    } while (0);
+
+#define OP_LOG(loglevel, message, ...) \
+    do { \
+        if (maxLevel >= loglevel) \
+            logNodes_(loglevel, __FILE__, __LINE__, FALSE, operatorToOverviewString, (message),  ##__VA_ARGS__, NULL); \
     } while (0)
+
+#define DEBUG_OP_LOG(message, ...) OP_LOG(LOG_DEBUG,message, ##__VA_ARGS__)
+#define INFO_OP_LOG(message, ...) OP_LOG(LOG_INFO,message, ##__VA_ARGS__)
+#define ERROR_OP_LOG(message, ...) OP_LOG(LOG_ERROR,message, ##__VA_ARGS__)
+#define FATAL_OP_LOG(message, ...) \
+    do { \
+        OP_LOG(LOG_FATAL,message, ##__VA_ARGS__); \
+        THROW(SEVERITY_RECOVERABLE,(message), ##__VA_ARGS__); \
+    } while (0);
+
 
 #endif
 /* logging activated switch */

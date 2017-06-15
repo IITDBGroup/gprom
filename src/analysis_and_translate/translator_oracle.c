@@ -24,6 +24,7 @@
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
+#include "model/query_operator/query_operator_model_checker.h"
 
 #include "analysis_and_translate/analyzer.h"
 //#include "analysis_and_translate/translator.h"
@@ -35,6 +36,8 @@
 
 #include "provenance_rewriter/prov_utility.h"
 
+#include "utility/string_utils.h"
+
 // data types
 typedef struct ReplaceGroupByState {
     List *expressions;
@@ -44,11 +47,17 @@ typedef struct ReplaceGroupByState {
 
 // function declarations
 static Node *translateGeneral(Node *node);
+//static Node *translateSummary(Node *input, Node *node);
+static boolean disambiguiteAttrNames(Node *node, Set *done);
+static void adaptSchemaFromChildren(QueryOperator *o);
 
 /* Three branches of translating a Query */
 static QueryOperator *translateSetQuery(SetQuery *sq);
 static QueryOperator *translateQueryBlock(QueryBlock *qb);
 static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov);
+static void markTableAccessForRowidProv (QueryOperator *o);
+static void getAffectedTableAndOperationType (Node *stmt,
+        ReenactUpdateType *stmtType, char **tableName, Node **updateCond);
 static void translateProperties(QueryOperator *q, List *properties);
 static QueryOperator *translateWithStmt(WithStmt *with);
 
@@ -56,6 +65,7 @@ static QueryOperator *translateWithStmt(WithStmt *with);
 static QueryOperator *translateFromClause(List *fromClause);
 static QueryOperator *buildJoinTreeFromOperatorList(List *opList);
 static List *translateFromClauseToOperatorList(List *fromClause);
+//static void addPrefixToAttrNames (List *str, char *prefix);
 static List *getAttrsOffsets(List *fromClause);
 static inline QueryOperator *createTableAccessOpFromFromTableRef(
         FromTableRef *ftr);
@@ -107,6 +117,8 @@ static List *getListOfAggregFunctionCalls(List *selectClause,
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
 static boolean visitFindWindowFuncs(Node *n, List **wfs);
 static boolean replaceWithViewRefsMutator(Node *node, List *views);
+static char *summaryType = NULL;
+static Node *prop = NULL;
 
 
 Node *
@@ -160,16 +172,177 @@ static Node *
 translateGeneral (Node *node)
 {
     Node *result;
+    QueryOperator *r;
 
     if (isA(node, List))
     {
         result = (Node *) copyList((List *) node);
         FOREACH(Node,stmt,(List *) result)
-            stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+        {
+            ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
+
+            if(prov->summaryType == NULL)
+                stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+            else
+            {
+            	summaryType = prov->summaryType;
+            	r = translateQueryOracle(stmt);
+            	r->properties = copyObject(prop);
+            	stmt_his_cell->data.ptr_value = (Node *) r;
+            }
+        }
     }
     else
-        result = (Node *) translateQueryOracle(node);
+    {
+        ProvenanceStmt *prov = (ProvenanceStmt *) node;
+
+        if(prov->summaryType == NULL)
+        	result = (Node *) translateQueryOracle(node);
+        else
+        {
+        	summaryType = prov->summaryType;
+        	r = translateQueryOracle(node);
+        	r->properties = copyObject(prop);
+        	result = (Node *) r;
+        }
+    }
+
+    Set *done = PSET();
+    disambiguiteAttrNames(result, done);
+	
     return result;
+}
+
+
+static boolean
+disambiguiteAttrNames(Node *node, Set *done)
+{
+    QueryOperator *op;
+    boolean changed = FALSE;
+
+    if (hasSetElem(done, node))
+        return FALSE;
+
+    if (isA(node, List))
+    {
+        FOREACH(QueryOperator,q,(List *) node)
+        {
+            changed |= disambiguiteAttrNames((Node *) q, done);
+        }
+        return changed;
+    }
+
+    op = (QueryOperator *) node;
+
+    FOREACH(Node,child,op->inputs)
+    {
+        changed |= disambiguiteAttrNames(child, done);
+    }
+
+    // if children have changed we need to fix operator's attributes
+    if (changed)
+    {
+        DEBUG_OP_LOG("child operator's schema has changed", op);
+        // first adapt attribute references
+        List *attrRefs = getAttrRefsInOperator(op);
+        FOREACH(AttributeReference,a,attrRefs)
+        {
+            QueryOperator *child;
+            AttributeDef *childA;
+            int input = a->fromClauseItem;
+            int attrPos = a->attrPosition;
+
+            child = (QueryOperator *) getNthOfListP(op->inputs, input);
+            childA = getAttrDefByPos(child, attrPos);
+            if (!strpeq(a->name,childA->attrName))
+            {
+                a->name = strdup(childA->attrName);
+            }
+        }
+        // adapt schema based on changed attributes
+        adaptSchemaFromChildren(op);
+    }
+
+    //TODO What other ops to consider
+    if (isA(node,JoinOperator) || isA(node,ProjectionOperator))
+    {
+        if(!checkUniqueAttrNames(op))
+        {
+            makeAttrNamesUnique(op);
+            changed = TRUE;
+            DEBUG_OP_LOG("join or projection attributes are not unique", op);
+        }
+    }
+
+    addToSet(done, node);
+    return changed;
+}
+
+static void
+adaptSchemaFromChildren(QueryOperator *o)
+{
+    switch(o->type)
+    {
+        case T_SelectionOperator:
+        case T_SetOperator:
+        case T_DuplicateRemoval:
+        case T_OrderOperator:
+        {
+            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+        }
+        break;
+        case T_ProjectionOperator:
+        {
+            ProjectionOperator *p = (ProjectionOperator *) o;
+            FORBOTH(Node,proj,a,p->projExprs,o->schema->attrDefs)
+            {
+                AttributeDef *aDef = (AttributeDef *) a;
+                if (isA(proj,AttributeReference))
+                {
+                    AttributeReference *ref = (AttributeReference *) proj;
+                    if (!strpeq(aDef->attrName, ref->name))
+                    {
+                        aDef->attrName = strdup(ref->name);
+                    }
+                }
+            }
+        }
+        break;
+        case T_JoinOperator:
+        {
+            List *lAttrs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+            List *rAttrs = copyObject(OP_RCHILD(o)->schema->attrDefs);
+            o->schema->attrDefs = CONCAT_LISTS(lAttrs, rAttrs);
+        }
+        break;
+        case T_NestingOperator:
+        case T_WindowOperator:
+        {
+            Node *lastOne = getTailOfListP(o->schema->attrDefs);
+            o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
+            o->schema->attrDefs = appendToTailOfList(o->schema->attrDefs, lastOne);
+        }
+        break;
+        case T_JsonTableOperator:
+        {
+            List *childAttr = OP_LCHILD(o)->schema->attrDefs;
+            FORBOTH(AttributeDef,a,childA,o->schema->attrDefs,childAttr)
+            {
+                if (!strpeq(a->attrName, childA->attrName))
+                {
+                    a->attrName = strdup(childA->attrName);
+                }
+            }
+        }
+        break;
+        case T_ProvenanceComputation:
+        {
+            //TODO should never end up here?
+        }
+        break;
+        default:
+            break;
+    }
 }
 
 static QueryOperator *
@@ -310,6 +483,9 @@ translateQueryBlock(QueryBlock *qb)
     if (orderBy != distinct)
         LOG_TRANSLATED_OP("translatedOrder is", orderBy);
 
+    if(summaryType != NULL)
+    	prop = (Node *) orderBy;
+
     return orderBy;
 }
 
@@ -318,6 +494,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
     QueryOperator *child;
     ProvenanceComputation *result;
 
+    //get type from options
     result = createProvenanceComputOp(prov->provType, NIL, NIL,
             prov->selectClause, prov->dts, NULL);
     result->inputType = prov->inputType;
@@ -354,6 +531,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             tInfo->updateTableNames = NIL;
             tInfo->scns = scns;
             tInfo->transIsolation = isoLevel;
+            tInfo->originalUpdates = NIL;
 
             int i = 0;
             // call parser and analyser and translate nodes
@@ -380,36 +558,19 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 }
                 STOP_TIMER("translation - transaction - analyze binds");
 
-                /* get table name */
+                /* get table name and other information about the statement */
                 char *tableName = NULL;
+                ReenactUpdateType updateType = UPDATE_TYPE_DELETE;
+                Node *updateCond = NULL;
 
-                switch (node->type) {
-                    case T_Insert:
-                        tableName = ((Insert *) node)->insertTableName;
-                        break;
-                    case T_Update:
-                    {
-                        Update *up = (Update *) node;
-
-                        tableName = up->updateTableName;
-                        updateConds = appendToTailOfList(updateConds, copyObject(up->cond));
-                    }
-                    break;
-                    case T_Delete:
-                        tableName = ((Delete *) node)->deleteTableName;
-                        break;
-                    case T_QueryBlock:
-                    case T_SetQuery:
-                        tableName = strdup("_NONE");
-                        break;
-                    default:
-                        FATAL_LOG(
-                                "Unexpected node type %u as input to provenance computation",
-                                node->type);
-                        break;
-                }
+                getAffectedTableAndOperationType(node, &updateType, &tableName, &updateCond);
 
                 DEBUG_NODE_BEATIFY_LOG("result of update translation is", node);
+
+                // store in transaction info
+                //TODO ok to do that?
+//                if (updateCond != NULL)
+                    updateConds = appendToTailOfList(updateConds, copyObject(updateCond));
 
                 tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, node);
                 tInfo->updateTableNames = appendToTailOfList(
@@ -428,53 +589,41 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                             CONCAT_STRINGS("U", itoa(i + 1), "_", strdup(tableName))));
                 }
 
-                // use ROWID + SCN as provenance, set provenance attribute for each table
+                // use ROWID + SCN as provenance, set provenance attributes for each table
                 if (useRowidScn)
                 {
-                    List *tables = NIL;
-                    findTableAccessVisitor((Node *) child, &tables);
-
-                    FOREACH(TableAccessOperator,t,tables)
-                    {
-                        if (HAS_STRING_PROP(t,PROP_TABLE_IS_UPDATED))
-                        {
-                            SET_BOOL_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION);
-                            SET_BOOL_STRING_PROP(t,PROP_USE_PROVENANCE);
-                            SET_STRING_PROP(t,PROP_USER_PROV_ATTRS,
-                                    stringListToConstList(LIST_MAKE(
-                                            strdup("ROWID"),
-                                            strdup("VERSIONS_STARTSCN"))));
-
-                            t->op.schema->attrDefs = appendToTailOfList(t->op.schema->attrDefs,
-                                    createAttributeDef("ROWID", DT_STRING));
-                            t->op.schema->attrDefs = appendToTailOfList(t->op.schema->attrDefs,
-                                    createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
-                        }
-                    }
+                    markTableAccessForRowidProv(child);
                 }
 
                 // mark as root of translated update
                 SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
-
-                DEBUG_NODE_BEATIFY_LOG("qo model transaction is", child);
+                SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(updateType));
+                DEBUG_NODE_BEATIFY_LOG("qo model of update for transaction is\n", child);
 
                 addChildOperator((QueryOperator *) result, child);
                 i++;
             }
 
-            // get commit scn
-            char *tableName = (char *) getHeadOfListP(tInfo->updateTableNames);
-            tInfo->commitSCN = createConstLong(getCommitScn(tableName,
-                    LONG_VALUE(getHeadOfListP(tInfo->scns)),
-                    xid));
+            // get commit scn, some tables that were targeted by statements might not have been modified
+            long commitScn = INVALID_SCN;
 
-            // if only updated rows shows be returned then we need to store the update conditions
-            // because we might need that to filter out those tuples
-            //          if (HAS_STRING_PROP(result,PROP_PC_ONLY_UPDATED))
-            //          {
+            FOREACH(char,tableName,tInfo->updateTableNames)
+            {
+                DEBUG_LOG("try to get commit SCN from table <%s>", tableName);
+                commitScn = getCommitScn(tableName,
+                        LONG_VALUE(getHeadOfListP(tInfo->scns)),
+                        xid);
+                if (commitScn != INVALID_SCN)
+                    break;
+            }
+
+            if (commitScn == INVALID_SCN)
+                FATAL_NODE_BEATIFY_LOG("unable to determine commit SCN for transaction", tInfo);
+
+            tInfo->commitSCN = createConstLong(commitScn);
+
             DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
             setStringProperty((QueryOperator *) result, PROP_PC_UPDATE_COND, (Node *) updateConds);
-            //          }
 
             DEBUG_LOG("constructed translated provenance computation for PROVENANCE OF TRANSACTION");
         }
@@ -486,32 +635,15 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             result->transactionInfo = tInfo;
             tInfo->originalUpdates = copyObject(prov->query);
             tInfo->updateTableNames = NIL;
+            tInfo->transIsolation = ISOLATION_SERIALIZABLE;
+            tInfo->scns = NIL;
 
-            FOREACH(Node,n,(List *) prov->query) {
+            FOREACH(Node,n,(List *) prov->query)
+            {
                 char *tableName = NULL;
 
                 /* get table name */
-                switch (n->type) {
-                    case T_Insert:
-                        tableName = ((Insert *) n)->insertTableName;
-                        break;
-                    case T_Update:
-                        tableName = ((Update *) n)->updateTableName;
-                        break;
-                    case T_Delete:
-                        tableName = ((Delete *) n)->deleteTableName;
-                        break;
-                    case T_QueryBlock:
-                    case T_SetQuery:
-                        tableName = strdup("_NONE");
-                        break;
-                    default:
-                        FATAL_LOG(
-                                "Unexpected node type %u as input to provenance computation",
-                                n->type);
-                        break;
-                }
-
+                getAffectedTableAndOperationType(n, NULL, &tableName, NULL);
                 tInfo->updateTableNames = appendToTailOfList(
                         tInfo->updateTableNames, strdup(tableName));
                 tInfo->scns = appendToTailOfList(tInfo->scns, createConstLong(0)); //TODO get SCN
@@ -537,57 +669,203 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
         {
             ProvenanceTransactionInfo *tInfo = makeNode(ProvenanceTransactionInfo);
             HashMap *tableToTranslation = NEW_MAP(Constant, QueryOperator);
-            result->transactionInfo = tInfo;
-            tInfo->originalUpdates = copyObject(prov->query);
-            tInfo->updateTableNames = NIL;
+            boolean isWithTimes = (prov->inputType == PROV_INPUT_REENACT_WITH_TIMES);
+            boolean showIntermediate = HAS_STRING_PROP(result,PROP_PC_SHOW_INTERMEDIATE);
+            boolean useRowidScn = HAS_STRING_PROP(result,PROP_PC_TUPLE_VERSIONS);
+            boolean hasIsolevel = HAS_STRING_PROP(result,PROP_PC_ISOLATION_LEVEL);
+            boolean hasCommitSCN = HAS_STRING_PROP(result,PROP_PC_COMMIT_SCN);
+            List *updateConds = NIL;
+            int i = 0;
 
-            FOREACH(Node,n,(List *) prov->query)
+            // user has asked for provenance?
+            if (HAS_STRING_PROP(result, PROP_PC_GEN_PROVENANCE))
+            {
+                result->provType = PROV_PI_CS;
+            }
+
+            if (hasCommitSCN)
+                tInfo->commitSCN = (Constant *) GET_STRING_PROP(result, PROP_PC_COMMIT_SCN);
+
+            if (hasIsolevel)
+            {
+                char *isoLevel = STRING_VALUE(GET_STRING_PROP(result,PROP_PC_ISOLATION_LEVEL));
+
+                DEBUG_LOG("has isolevel %s", isoLevel);
+
+                if (streq(strToUpper(isoLevel), "SERIALIZABLE"))
+                    tInfo->transIsolation = ISOLATION_SERIALIZABLE;
+                else if (streq(strToUpper(isoLevel), "READCOMMITTED"))
+                    tInfo->transIsolation = ISOLATION_READ_COMMITTED;
+                else
+                    FATAL_LOG("isolation level has to be either SERIALIZABLE or READCOMMITTED not <%s>", isoLevel);
+            }
+            else
+                tInfo->transIsolation = ISOLATION_SERIALIZABLE;
+
+            if (tInfo->transIsolation == ISOLATION_READ_COMMITTED && prov->inputType == PROV_INPUT_REENACT)
+                FATAL_LOG("isolation level READ COMMITTED requires an AS OF clause for each reenacted DML.");
+            if (tInfo->transIsolation == ISOLATION_READ_COMMITTED && !hasCommitSCN)
+                FATAL_LOG("isolation level READ COMMITTED requires a commit scn to be specified using WITH COMMIT SCN scn.");
+
+            result->transactionInfo = tInfo;
+            tInfo->originalUpdates = NIL;
+            tInfo->updateTableNames = NIL;
+            tInfo->scns = NIL;
+
+            FOREACH(Node,stmt,(List *) prov->query)
             {
                 char *tableName = NULL;
+                Node *n;
+                KeyValue *withT = (isWithTimes) ? ((KeyValue *) stmt) : NULL;
+                ReenactUpdateType stmtType;
+                Node *cond = NULL;
 
-                /* get table name */
-                switch (n->type) {
-                    case T_Insert:
-                        tableName = ((Insert *) n)->insertTableName;
-                        break;
-                    case T_Update:
-                        tableName = ((Update *) n)->updateTableName;
-                        break;
-                    case T_Delete:
-                        tableName = ((Delete *) n)->deleteTableName;
-                        break;
-                    case T_QueryBlock:
-                    case T_SetQuery:
-                        tableName = strdup("_NONE");
-                        break;
-                    case T_AlterTable:
-                        tableName = strdup(((AlterTable *) n)->tableName);
-                        break;
-                    case T_CreateTable:
-                        tableName = strdup(((CreateTable *) n)->tableName);
-                        break;
-                    default:
-                        FATAL_LOG(
-                                "Unexpected node type %u as input to provenance computation",
-                                n->type);
-                        break;
-                }
+                // get statement
+                n = (isWithTimes) ? withT->key : stmt;
 
+                /* get table name and other info */
+                getAffectedTableAndOperationType(n, &stmtType, &tableName, &cond);
+
+                // store info
                 tInfo->updateTableNames = appendToTailOfList(
                         tInfo->updateTableNames, strdup(tableName));
+
+                if (isWithTimes)
+                {
+                    tInfo->scns = appendToTailOfList(tInfo->scns, withT->value);
+                }
+
+//                if (cond != NULL)
+                    updateConds = appendToTailOfList(updateConds, copyObject(cond));
+
+                tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, n);
 
                 // translate and add update as child to provenance computation
                 child = translateQueryOracle(n);
                 MAP_ADD_STRING_KEY(tableToTranslation, tableName, child);
 
                 addChildOperator((QueryOperator *) result, child);
+
+                // mark for showing intermediate results
+                if (showIntermediate)
+                {
+                    SET_BOOL_STRING_PROP(child, PROP_SHOW_INTERMEDIATE_PROV);
+                    SET_STRING_PROP(child, PROP_PROV_REL_NAME, createConstString(
+                            CONCAT_STRINGS("U", itoa(i + 1), "_", strdup(tableName))));
+                }
+
+                // use ROWID + SCN as provenance, set provenance attributes for each table
+                if (useRowidScn)
+                {
+                    markTableAccessForRowidProv(child);
+                }
+
+                // mark as root of translated update
+                SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
+                SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(stmtType));
+                DEBUG_NODE_BEATIFY_LOG("qo model of update for transaction is\n", child);
+
+                i++;
                 //TODO
             }
+
+            DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
+            setStringProperty((QueryOperator *) result, PROP_PC_UPDATE_COND, (Node *) updateConds);
+
             break;
         }
     }
     return (QueryOperator *) result;
 }
+
+static void
+markTableAccessForRowidProv (QueryOperator *o)
+{
+    List *tables = NIL;
+    findTableAccessVisitor((Node *) o, &tables);
+
+    FOREACH(TableAccessOperator,t,tables)
+    {
+        if (HAS_STRING_PROP(t,PROP_TABLE_IS_UPDATED))
+        {
+            SET_BOOL_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION);
+            SET_BOOL_STRING_PROP(t,PROP_USE_PROVENANCE);
+            SET_STRING_PROP(t,PROP_USER_PROV_ATTRS,
+                    stringListToConstList(LIST_MAKE(
+                            strdup("ROWID"),
+                            strdup("VERSIONS_STARTSCN"))));
+
+            t->op.schema->attrDefs = appendToTailOfList(t->op.schema->attrDefs,
+                    createAttributeDef("ROWID", DT_STRING));
+            t->op.schema->attrDefs = appendToTailOfList(t->op.schema->attrDefs,
+                    createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+        }
+    }
+}
+
+/**
+ * determines a stmts update type, affected table, and (if the stmt is an UPDATE) it's condition
+ * the last three arguments are use to store the result.
+ */
+static void
+getAffectedTableAndOperationType (Node *stmt, ReenactUpdateType *stmtType, char **tableName, Node **updateCond)
+{
+    Node *cond = NULL;
+    ReenactUpdateType operType;
+    char *tName = NULL;
+
+    switch (stmt->type) {
+        case T_Insert:
+        {
+            Insert *i = (Insert *) stmt;
+            if (isA(i->query,  List))
+                operType = UPDATE_TYPE_INSERT_VALUES;
+            else
+                operType = UPDATE_TYPE_INSERT_QUERY;
+            tName = i->insertTableName;
+        }
+        break;
+        case T_Update:
+        {
+            operType = UPDATE_TYPE_UPDATE;
+            Update *up = (Update *) stmt;
+
+            tName = up->updateTableName;
+            cond = copyObject(up->cond);
+        }
+        break;
+        case T_Delete:
+            operType = UPDATE_TYPE_DELETE;
+            tName = ((Delete *) stmt)->deleteTableName;
+            break;
+        case T_QueryBlock:
+        case T_SetQuery:
+            tName = strdup("_NONE");
+            operType = UPDATE_TYPE_QUERY;
+            break;
+        case T_AlterTable:
+            tName = strdup(((AlterTable *) stmt)->tableName);
+            operType = UPDATE_TYPE_DDL;
+            break;
+        case T_CreateTable:
+            tName = strdup(((CreateTable *) stmt)->tableName);
+            operType = UPDATE_TYPE_DDL;
+            break;
+        default:
+            FATAL_LOG(
+                    "Unexpected node type %u as input to provenance computation",
+                    stmt->type);
+            break;
+    }
+
+    if (stmtType)
+        *stmtType = operType;
+    if (tableName)
+        *tableName = tName;
+    if (updateCond)
+        *updateCond = cond;
+}
+
 
 static void
 translateProperties(QueryOperator *q, List *properties)
@@ -673,6 +951,7 @@ translateFromClause(List *fromClause)
 static QueryOperator *
 buildJoinTreeFromOperatorList(List *opList)
 {
+    int pos = 0;
     DEBUG_LOG("build join tree from operator list\n%s", nodeToString(opList));
 
     QueryOperator *root = (QueryOperator *) getHeadOfListP(opList);
@@ -699,7 +978,7 @@ buildJoinTreeFromOperatorList(List *opList)
             /* get data types from inputs and attribute names from parameter
              * to create schema */
             List *l1 = getDataTypes(oldRoot->schema);
-	    List *l2 = getDataTypes(op->schema);
+            List *l2 = getDataTypes(op->schema);
             op->schema = createSchemaFromLists(op->schema->name, attrNames, concatTwoLists(l1, l2));
 
             root = op;
@@ -709,26 +988,41 @@ buildJoinTreeFromOperatorList(List *opList)
             QueryOperator *oldRoot = (QueryOperator *) root;
             List *inputs = NIL;
             // set children of the join node
-	    inputs = appendToTailOfList(inputs, oldRoot);
-	    inputs = appendToTailOfList(inputs, op);
+            inputs = appendToTailOfList(inputs, oldRoot);
+            inputs = appendToTailOfList(inputs, op);
+            List *lAttrs = getAttrNames(oldRoot->schema);
+            List *rAttrs = getAttrNames(op->schema);
 
+//            addPrefixToAttrNames(lAttrs, itoa(pos));
+//            addPrefixToAttrNames(rAttrs, itoa(pos + 1));
             // contact children's attribute names as the node's attribute
             // names
-            List *attrNames = concatTwoLists(getAttrNames(oldRoot->schema), getAttrNames(op->schema));
+            List *attrNames = concatTwoLists(lAttrs, rAttrs);
 
             // create join operator
             root = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
 
             // set the parent of the operator's children
-	    OP_LCHILD(root)->parents = singleton(root);
+            OP_LCHILD(root)->parents = singleton(root);
             OP_RCHILD(root)->parents = singleton(root);
         }
+        pos++;
     }
 
     DEBUG_LOG("join tree for translated from is\n%s", nodeToString(root));
 
     return root;
 }
+
+//static void
+//addPrefixToAttrNames (List *str, char *prefix)
+//{
+//    FOREACH_LC(lc, str)
+//    {
+//        char *s =  LC_STRING_VAL(lc);
+//        LC_P_VAL(lc) = CONCAT_STRINGS(prefix,"_",s);
+//    }
+//}
 
 static List *
 getAttrsOffsets(List *fromClause)

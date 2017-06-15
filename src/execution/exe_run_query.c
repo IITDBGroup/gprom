@@ -26,6 +26,7 @@ exeRunQuery (void *code)
     char *adaptedQuery;
     int *colSizes;
     int numCol;
+//    int numRows;
     int totalSize = 0;
 
     // remove semicolon
@@ -36,6 +37,7 @@ exeRunQuery (void *code)
     res = executeQuery((char *) adaptedQuery);
 
     numCol = LIST_LENGTH(res->schema);
+//    numRows = LIST_LENGTH(res->tuples);
     colSizes = MALLOC(numCol * sizeof(int));
 
     // determine column sizes
@@ -50,7 +52,8 @@ exeRunQuery (void *code)
         i = 0;
         FOREACH(char,a,t)
         {
-            colSizes[i] = colSizes[i] < strlen(a) + 2 ? strlen(a) + 2 : colSizes[i];
+            int len = a ? strlen(a) : 4;
+            colSizes[i] = colSizes[i] < len + 2 ? len + 2 : colSizes[i];
             i++;
         }
     }
@@ -79,8 +82,9 @@ exeRunQuery (void *code)
         i = 0;
         FOREACH(char,a,t)
         {
-            printf(" %s", a);
-            for(int j = strlen(a) + 1; j < colSizes[i]; j++)
+            char *out = a ? a : "NULL";
+            printf(" %s", out);
+            for(int j = strlen(out) + 1; j < colSizes[i]; j++)
                 printf(" ");
             printf("|");
             i++;

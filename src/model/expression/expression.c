@@ -38,6 +38,9 @@ static CastGraphEdge stopper = STOPPER;
 static CastGraphEdge castGraph[] = {
         { DT_INT, DT_FLOAT },
         { DT_INT, DT_STRING },
+        { DT_INT, DT_LONG },
+        { DT_LONG, DT_FLOAT },
+        { DT_LONG, DT_STRING },
         { DT_FLOAT, DT_STRING },
         { DT_BOOL, DT_INT },
         { DT_BOOL, DT_STRING },
@@ -216,7 +219,7 @@ andExprs (Node *expr, ...)
     if (LIST_LENGTH(argList) == 1)
         return expr;
 
-    result = (Node *) createOpExpr("AND", argList);
+    result = (Node *) createOpExpr(OPNAME_AND, argList);
 
     return result;
 }
@@ -251,7 +254,18 @@ orExprs (Node *expr, ...)
     if (LIST_LENGTH(argList) == 1)
         return expr;
 
-    result = (Node *) createOpExpr("OR", argList);
+    result = (Node *) createOpExpr(OPNAME_OR, argList);
+
+    return result;
+}
+
+Node *
+orExprList (List *exprs)
+{
+    Node *result = popHeadOfListP(exprs);
+
+    FOREACH(Node,e,exprs)
+        result = OR_EXPRS(result,e);
 
     return result;
 }
@@ -314,11 +328,11 @@ createIsNotDistinctExpr (Node *lArg, Node *rArg)
     return (Node *) eq;
 
 //    eq = createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
-//    nullTest = createOpExpr("AND", LIST_MAKE(
+//    nullTest = createOpExpr(OPNAME_AND, LIST_MAKE(
 //            createIsNullExpr(copyObject(lArg)),
 //            createIsNullExpr(copyObject(rArg))));
 //
-//    return (Node *) createOpExpr("OR", LIST_MAKE(eq, nullTest));
+//    return (Node *) createOpExpr(OPNAME_OR, LIST_MAKE(eq, nullTest));
 }
 
 Constant *
@@ -914,9 +928,9 @@ static DataType
 typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
 {
     *exists = TRUE;
-    DataType result;
-    DataType dLeft;
-    DataType dRight;
+    DataType result = DT_INT;
+    DataType dLeft = DT_INT;
+    DataType dRight = DT_INT;
 
     DEBUG_LOG("check whether op <%s> exists with argument types <%s>", opName, nodeToString(argDTs));
 
@@ -926,14 +940,20 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
         dRight = getNthOfListInt(argDTs,1);
 
     // logical operators
-    if (streq(opName,"OR")
-            || streq(opName,"AND")
-            || streq(opName,"NOT")
+    if (streq(opName,OPNAME_OR)
+            || streq(opName,OPNAME_AND)
             )
     {
         if (dLeft == dRight && dLeft == DT_BOOL)
             return DT_BOOL;
     }
+
+    if (streq(opName,OPNAME_NOT))
+    {
+        if (dLeft == DT_BOOL)
+            return DT_BOOL;
+    }
+
     // standard arithmetic operators
     if (streq(opName,"+")
             || streq(opName,"*")
@@ -943,7 +963,7 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
     {
         // if the same input data types then we can safely assume that we get the same return data type
         // otherwise we use the metadata lookup plugin to make sure we get the right type
-        if(dLeft == dRight && (dLeft == DT_INT || dLeft == DT_FLOAT))
+        if(dLeft == dRight && (dLeft == DT_INT || dLeft == DT_FLOAT || dLeft == DT_LONG))
             return dLeft;
     }
 
@@ -1135,7 +1155,7 @@ getSelectionCondOperatorList(Node *expr, List **opList)
     // only are interested in operators here
 	if (isA(expr,Operator)) {
 	    Operator *op = (Operator *) copyObject(expr);
-	    if(streq(op->name,"AND"))
+	    if(streq(op->name,OPNAME_AND))
 	    {
 	        FOREACH(Node,arg,op->args)
                 getSelectionCondOperatorList(arg,opList);
@@ -1152,7 +1172,7 @@ changeListOpToAnOpNode(List *l1)
     Node *opNode1;
 
     if (LIST_LENGTH(l1) == 2)
-        opNode1 = (Node *) createOpExpr("AND", (List *) l1);
+        opNode1 = (Node *) createOpExpr(OPNAME_AND, (List *) l1);
     else if(LIST_LENGTH(l1) > 2)
     {
         int i;
@@ -1164,7 +1184,7 @@ changeListOpToAnOpNode(List *l1)
         helpList = appendToTailOfList(helpList, helpO1);
         helpList = appendToTailOfList(helpList, helpO2);
 
-	Operator *helpO = createOpExpr("AND", (List *) helpList);
+	Operator *helpO = createOpExpr(OPNAME_AND, (List *) helpList);
         int length_l1 = LIST_LENGTH(l1);
 
         for(i=0; i<length_l1; i++)
@@ -1174,7 +1194,7 @@ changeListOpToAnOpNode(List *l1)
             helpO = getHeadOfListP(l1);
             l1 = REMOVE_FROM_LIST_PTR(l1, helpO);
             helpList = appendToTailOfList(helpList, helpO);
-            helpO =  createOpExpr("AND", (List *) helpList);
+            helpO =  createOpExpr(OPNAME_AND, (List *) helpList);
         }
         opNode1 = (Node *)helpO;
     }
