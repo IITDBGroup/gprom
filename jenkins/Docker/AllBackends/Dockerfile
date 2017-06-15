@@ -34,6 +34,8 @@ RUN apt-get -y update && apt-get install -y \
 	libtool \
 	make \
 	man-db \
+	rman \
+	pandoc \
 	sqlite3 \
 	monetdb5-sql \
 	monetdb-client \
