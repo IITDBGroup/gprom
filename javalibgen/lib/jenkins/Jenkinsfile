@@ -1,0 +1,10 @@
+pipeline {
+    agent { docker 'gliderlabs/alpine:latest' }
+    stages {
+        stage('build') {
+            steps {
+                sh 'apk add --no-cache gcc'
+            }
+        }
+    }
+}
