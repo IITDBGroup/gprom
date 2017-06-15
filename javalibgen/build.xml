@@ -33,12 +33,12 @@
 	</path>
 
 	<path id="runGenClasspath">
-		<fileset dir="${librarydir}">
+		<fileset dir="${basedir}">
 			<include name="**/*.jar" />
 		</fileset>
-		<fileset dir="${mainlibrarydir}">
+	<!--	<fileset dir="${mainlibrarydir}">
 			<include name="**/*.jar" />
-		</fileset>
+		</fileset> -->
 		<pathelement path="${mainlibrarydir}" />
 		<pathelement path="${binarydir}"/>
 	</path>

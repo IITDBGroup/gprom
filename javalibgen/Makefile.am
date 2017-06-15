@@ -3,7 +3,7 @@ AM_CFLAGS = @GPROM_CFLAGS@
 
 ANT_BUILDFILE=build.xml
 GPROM_JDBC_JAR=$(top_builddir)/jdbcbuild/gprom-jdbc.jar
-GPROM_LIBRARY=$(top_builddir)/src/libgprom/libgprom.la
+GPROM_LIBRARY=$(top_builddir)/src/libgprom/libgprom_internal.la
 JAVA_GEN_SRC=org/gprom/libgen/GenLibGProMH.java
 JAVA_GEN_CLASS=$(top_builddir)/javabin/org/gprom/libgen/GenLibGProMH.class
  
