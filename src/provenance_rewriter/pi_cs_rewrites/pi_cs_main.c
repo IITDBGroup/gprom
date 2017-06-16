@@ -46,8 +46,11 @@ static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 static QueryOperator *rewritePI_CSOrderOp(OrderOperator *op);
 static QueryOperator *rewritePI_CSJsonTableOp(JsonTableOperator *op);
 
-static QueryOperator *addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean showIntermediate);
-static QueryOperator *addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignoreProvAttrs);
+static QueryOperator *addUserProvenanceAttributes (QueryOperator *op,
+        List *userProvAttrs, boolean showIntermediate, char *provRelName,
+        char *provAddRelName);
+static QueryOperator *addIntermediateProvenance (QueryOperator *op,
+        List *userProvAttrs, Set *ignoreProvAttrs, char *provRelName);
 static QueryOperator *rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs);
 static QueryOperator *rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs);
 
@@ -111,6 +114,10 @@ rewritePI_CSOperator (QueryOperator *op)
     List *addProvAttrs = NIL;
     Set *ignoreProvAttrs = (Set *) getStringProperty(op, PROP_PROV_IGNORE_ATTRS);
     QueryOperator *rewrittenOp;
+    char *provRelName = HAS_STRING_PROP(op, PROP_PROV_REL_NAME) ?
+            STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME)) : NULL;
+    char *provAddRelName = HAS_STRING_PROP(op, PROP_PROV_ADD_REL_NAME) ?
+            STRING_VALUE(getStringProperty(op, PROP_PROV_ADD_REL_NAME)) : NULL;
 
     if (rewriteAddProv)
         addProvAttrs = (List *)  GET_STRING_PROP(op, PROP_ADD_PROVENANCE);
@@ -184,10 +191,10 @@ rewritePI_CSOperator (QueryOperator *op)
     }
 
     if (showIntermediate)
-        rewrittenOp = addIntermediateProvenance(rewrittenOp, userProvAttrs, ignoreProvAttrs);
+        rewrittenOp = addIntermediateProvenance(rewrittenOp, userProvAttrs, ignoreProvAttrs, provRelName);
 
     if (rewriteAddProv)
-        rewrittenOp = addUserProvenanceAttributes(rewrittenOp, addProvAttrs, showIntermediate);
+        rewrittenOp = addUserProvenanceAttributes(rewrittenOp, addProvAttrs, showIntermediate, provRelName, provAddRelName);
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel(rewrittenOp));
@@ -196,7 +203,7 @@ rewritePI_CSOperator (QueryOperator *op)
 }
 
 static QueryOperator *
-addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean showIntermediate)
+addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean showIntermediate, char *provRelName, char *provAddRelName)
 {
     QueryOperator *proj;
     List *attrNames = NIL;
@@ -224,12 +231,12 @@ addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean sho
         tableName = ((TableAccessOperator *) op)->tableName;
     else
     {
-        if (HAS_STRING_PROP(op, PROP_PROV_ADD_REL_NAME))
-        {
-            tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_ADD_REL_NAME));
-        }
+        if (provAddRelName != NULL)
+            tableName = provAddRelName;
+        else if (provRelName != NULL)
+            tableName = provRelName;
         else
-            tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
+            FATAL_LOG("should have at least add provenance rel name or provenance rel name given");
     }
 
     if (showIntermediate)
@@ -286,7 +293,7 @@ addUserProvenanceAttributes (QueryOperator *op, List *userProvAttrs, boolean sho
 }
 
 static QueryOperator *
-addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignoreProvAttrs)
+addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignoreProvAttrs, char *provRelName)
 {
     QueryOperator *proj;
     List *attrNames = NIL;
@@ -302,7 +309,7 @@ addIntermediateProvenance (QueryOperator *op, List *userProvAttrs, Set *ignorePr
     if (isA(op,TableAccessOperator))
         tableName = ((TableAccessOperator *) op)->tableName;
     else
-        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
+        tableName = provRelName;
 
     relAccessCount = getRelNameCount(&nameState, tableName);
 

@@ -826,32 +826,13 @@ getStringProperty (QueryOperator *op, char *key)
     if (op->properties == NULL)
         op->properties = (Node *) NEW_MAP(Node,Node);
     return getMapString((HashMap *) op->properties, key);
-//    KeyValue *kv = getProp(op, (Node *) createConstString(key));
-//
-//    return kv ? kv->value : NULL;
 }
 
 void
 removeStringProperty (QueryOperator *op, char *key)
 {
     removeMapStringElem((HashMap *) op->properties, key);
-//    List *props = (List *) op->properties;
-//    op->properties = (Node *) genericRemoveFromList(props, KeyValueKeyEqString, key);
 }
-
-//static boolean
-//KeyValueKeyEqString (void *kv, void *str)
-//{
-//    ASSERT(isA(kv, KeyValue));
-//    KeyValue *kVal = (KeyValue *) kv;
-//    ASSERT(isA(kVal->key, Constant));
-//    char *keyStr = STRING_VALUE(kVal->key);
-//
-//    if (strpeq(keyStr, str))
-//        return TRUE;
-//
-//    return FALSE;
-//}
 
 static KeyValue *
 getProp (QueryOperator *op, Node *key)
@@ -1345,20 +1326,3 @@ numOpsInTreeInternal (QueryOperator *q, unsigned int *count)
     SET_STRING_PROP(q, PROP_CHILD_COUNT, createConstInt(opC));
     return opC;
 }
-
-
-//static Schema *
-//mergeSchemas (List *inputs)
-//{
-//    Schema *result = NULL;
-//
-//    FOREACH(QueryOperator,O,inputs)
-//    {
-//        if (result == NULL)
-//            result = (Schema *) copyObject(O->schema);
-//        else
-//            result->attrDefs = concatTwoLists(result->attrDefs, copyObject(O->schema->attrDefs));
-//    }
-//
-//    return result;
-//}

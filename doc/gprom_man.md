@@ -73,21 +73,21 @@ Show operator parameters in graphviz scripts. Is ignored unless **-show\_graphvi
 **-aggressive\_model\_checking**   
 Aggressively check validity of generated relational algebra graphs after each processing step
 
-**-C** ***check\_option***   
+**-C***check\_option*   
 Activate *check\_option* where *check\_option* is one of *schema\_consistency*, *unique\_attr\_names*, *parent\_child\_links*, or *attr\_reference\_consistency*.
 
 ### [Plugins](#toc7)
 
-Configure plugins. Plugins determine mosts of GProM’s behavior including selecting frontend languages and backend database backends.
+Configure plugins. Plugins determine mosts of GProM’s behavior including selecting frontend languages and database backends.
 
 **-P*plugin\_type*** ***plugin\_name***   
 Select *plugin\_name* as the active plugin for *plugin\_type*. Most components in GProM are pluggable. See the section on plugins below.
 
 **-backend** ***backend\_name***   
-Select *backend* as the active database backend. This overwrites most other plugin options. Individual plugin options take precedence over this options enabling the other plugins to be customized.
+Select *backend* as the active database backend. This overwrites most other plugin options. Individual plugin options take precedence over this options enabling plugins to be customized.
 
 **-frontend** ***frontend\_name***   
-Select the *frontend\_name* as the active frontend language. This is the language in which the user communicates with GProM. For instance, *oracle* corresponds to Oracle’s SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling the other plugins to be customized. *frontend* takes precedence over *backend*.
+Select the *frontend\_name* as the active frontend language. This is the language in which the user communicates with GProM. For instance, *oracle* corresponds to Oracle’s SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling plugins to be customized. *frontend* takes precedence over *backend*.
 
 ### [Connection Options](#toc8)
 
@@ -192,7 +192,9 @@ The metadata lookup plugin handles communication with the backend database. This
 
 **postgres** - This plugin manages communication with a PostgreSQL database backend. We use PostgreSQL’s *libpq* library.   
 
-**sqlite** - This plugin manages communication with a SQLite database backend. We use PostgreSQL’s *sqlite3-dev* library.   
+**sqlite** - This plugin manages communication with a SQLite database backend. We use the *sqlite3-dev* library.   
+
+**monetdb** - This plugin manages communication with a MonetDB database backend. We use the MonetDB’s *mapi* library.   
 
 ### [sqlcodegen](#toc17)
 
@@ -272,7 +274,7 @@ Set the cooling down rate used by simulated annealing. Value has to be between 0
     gprom -backend oracle -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
     -Pexecutor sql
 
-**Example 3.** Using the same database as in examples 1 and 2, return an SQL Query that captures provenance of the query **SELECT a FROM r**:
+**Example 3.** Using the same database as in examples 1 and 2, return an SQL Query that captures provenance for the query **SELECT a FROM r**:
 
     gprom -backend oracle -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
     -Pexecutor sql \
@@ -301,8 +303,15 @@ Set the cooling down rate used by simulated annealing. Value has to be between 0
 
 **Xing Niu** (*xniu7@hawk.iit.edu*)   
 
-[See Also](#toc24)
+[Bugs](#toc24)
+--------------
+
+To see a list of current bugs or to report a new bug: [*https://github.com/IITDBGroup/gprom/issues*](https://github.com/IITDBGroup/gprom/issues)   
+
+[See Also](#toc25)
 ------------------
+
+To learn more about the research behind GProM see [*http://www.cs.iit.edu/%7edbgroup/research/gprom.php*](http://www.cs.iit.edu/%7edbgroup/research/gprom.php)   
 
 ------------------------------------------------------------------------
 
@@ -343,4 +352,6 @@ Set the cooling down rate used by simulated annealing. Value has to be between 0
 
 [Authors](#sect23)
 
-[See Also](#sect24)
+[Bugs](#sect24)
+
+[See Also](#sect25)

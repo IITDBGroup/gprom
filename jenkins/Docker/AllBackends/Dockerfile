@@ -34,6 +34,8 @@ RUN apt-get -y update && apt-get install -y \
 	libtool \
 	make \
 	man-db \
+	rman \
+	pandoc \
 	sqlite3 \
 	monetdb5-sql \
 	monetdb-client \
@@ -59,23 +61,3 @@ RUN cd /ocilib/src \
 	&& echo "/usr/local/bin/" >> /etc/ld.so.conf \
 	&& echo "/opt/oracle/instantclient/" >> /etc/ld.so.conf \
 	&& /sbin/ldconfig
-########################################
-# Clone GProM github repository
-########################################
-RUN git clone https://github.com/IITDBGroup/gprom.git /gprom/src
-########################################
-# Build GProM
-########################################
-RUN cd /gprom/src \
-	&& make -f Makefile.maintainer \
-	&& ./configure --with-oci-headers=/opt/oracle/instantclient/sdk/include/ --with-oci-lib=/opt/oracle/instantclient \
-	&& make \
-	&& make install
-########################################
-# Per default start the gprom command line interface
-########################################
-ENTRYPOINT ["/usr/local/bin/gprom"]
-########################################
-# Per default connect to the example SQLite database
-########################################
-CMD ["-help"]

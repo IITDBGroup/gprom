@@ -80,7 +80,7 @@ public class GProMWrapper implements GProMJavaInterface {
 			StringBuilder mes = new StringBuilder();
 			for(ExceptionInfo i: exceptions)
 			{
-				mes.append("ERROR (" + i + ")");
+				mes.append("ERROR (" + i + ")\n");
 				mes.append(i.toString());
 				mes.append("\n\n");
 			}
@@ -174,7 +174,7 @@ public class GProMWrapper implements GProMJavaInterface {
 		String printMes = "EXCEPTION: " + file + " at " + line + ": " + message;
 		libLog.error(printMes);
 		exceptions.add(new ExceptionInfo(message, file, line, intToSeverity(severity)));
-		return exceptionHandlerToInt(ExceptionHandler.Abort);
+		return exceptionHandlerToInt(ExceptionHandler.Wipe);
 	}
 
 	

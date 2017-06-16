@@ -19,27 +19,49 @@
 #include "model/set/hashmap.h"
 #include "rewriter.h"
 
-static rc testConfiguration(void);
-static rc testRewrite(void);
-static rc testLoopBackMetadata(void);
-static rc testExceptionCatching(void);
-
 
 static int hitCallback = 0;
 static HashMap *options = NULL;
+
+static rc testConfiguration();
+static rc testRewrite(void);
+static rc testLoopBackMetadata(void);
+static rc testExceptionCatching(void);
 
 static ExceptionHandler handleE (const char *message, const char *file, int line, ExceptionSeverity s);
 //static void setup(void);
 static void setOpts (void);
 static void resetOpts (void);
+static rc testLibGProM(int argc, char *argv[]);
+
 
 char *_testStringBuf;
 
 int
 main(int argc, char* argv[])
 {
-    READ_OPTIONS_AND_BASIC_INIT("testlibgprom", "Regression test suite. Runs a bunch of whitebox tests on libgprom.");
+    _testStringBuf = (char *) malloc(STRING_BUFFER_SIZE);
+    testLibGProM(argc, argv);
+    free(_testStringBuf);
 
+    printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
+            "Total %d Test(s) Passed\n\n", test_count);
+
+    return EXIT_SUCCESS;
+}
+
+static rc
+testLibGProM(int argc, char *argv[])
+{
+    gprom_init();
+
+    // print options
+    DEBUG_LOG("configuration:\n\n");
+    printCurrentOptions(stdout);
+
+    INFO_LOG("Before options");
+    gprom_readOptions(argc, argv);
+    INFO_LOG("After options");
     // get directory where testmain resides to determine location of the test database
     char *path=argv[0];
     StringInfo dbPath = makeStringInfo();
@@ -61,34 +83,24 @@ main(int argc, char* argv[])
         setOption(OPTION_PLUGIN_ANALYZER, "oracle");
         setOption(OPTION_PLUGIN_TRANSLATOR, "oracle");
     }
-
-    // print options
+    ERROR_LOG("Before tests");
+    gprom_configFromOptions();
+    gprom_setMaxLogLevel(4);
     DEBUG_LOG("configuration:\n\n");
     printCurrentOptions(stdout);
 
-    _testStringBuf = (char *) malloc(STRING_BUFFER_SIZE);
-    testLibGProM();
-    free(_testStringBuf);
 
-    printf("\n" T_FG_BG(WHITE,BLACK,"                                                            ") "\n"
-            "Total %d Test(s) Passed\n\n", test_count);
-
-    return EXIT_SUCCESS;
-}
-
-rc
-testLibGProM(void)
-{
     options = optionsToHashMap();
 
-    gprom_init();
-
+    INFO_LOG("Start tests");
     RUN_TEST(testConfiguration(), "test configuration interface");
     RUN_TEST(testRewrite(), "test rewrite function");
     RUN_TEST(testLoopBackMetadata(), "test loop back metadata lookup");
     RUN_TEST(testExceptionCatching(), "test exception mechanism");
 
     resetOpts();
+
+    gprom_shutdown();
 
     return PASS;
 }
@@ -109,13 +121,15 @@ resetOpts (void)
      RESET_OPT(OPTION_CONN_PORT);
      RESET_OPT(OPTION_CONN_HOST);
      RESET_OPT(OPTION_CONN_PASSWD);
+     gprom_setMaxLogLevel(getIntOption("log.level"));
+     DEBUG_LOG("reset options");
 }
 
 static void
 setOpts (void)
 {
     // copy connection options provided by user
-    gprom_setOption("log.active", "true");
+    gprom_setOption("log.active", "TRUE");
     gprom_setOption("log.level", STRING_VALUE(MAP_GET_STRING(options, "log.level")));
     gprom_setOption("backend", "sqlite");
     gprom_setOption("plugin.parser", "oracle");
@@ -128,6 +142,7 @@ setOpts (void)
     gprom_setOption(OPTION_CONN_PORT, STRING_VALUE(MAP_GET_STRING(options, OPTION_CONN_PORT)));
     gprom_setOption(OPTION_CONN_HOST, STRING_VALUE(MAP_GET_STRING(options, OPTION_CONN_HOST)));
     gprom_setOption(OPTION_CONN_PASSWD, STRING_VALUE(MAP_GET_STRING(options, OPTION_CONN_PASSWD)));
+    DEBUG_LOG("test logging");
 }
 
 static rc
@@ -179,9 +194,13 @@ testExceptionCatching(void)
 
     ASSERT_EQUALS_INT(1,hitCallback, "exception handler was called once");
     ASSERT_EQUALS_STRINGP(NULL, result, "empty string result");
-    ASSERT_EQUALS_STRINGP("LIBGRPROM_QUERY_CONTEXT", after->contextName, "back to context before exception");
+    ASSERT_EQUALS_STRINGP("DEFAULT_MEMORY_CONTEXT", after->contextName, "back to context before exception");
 
-    gprom_shutdown();
+    result = (char *) gprom_rewriteQuery("SELECT * FROM NOTEXISTSTABLE;");
+
+    ASSERT_EQUALS_INT(2,hitCallback, "exception handler was called twice");
+    ASSERT_EQUALS_STRINGP(NULL, result, "empty string result");
+    ASSERT_EQUALS_STRINGP("DEFAULT_MEMORY_CONTEXT", after->contextName, "back to context before exception");
 
     return PASS;
 }

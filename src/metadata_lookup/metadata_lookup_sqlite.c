@@ -222,6 +222,8 @@ sqliteGetAttributes (char *tableName)
 
     HANDLE_ERROR_MSG(rc, SQLITE_DONE, "error getting attributes of table <%s>", tableName);
 
+    DEBUG_NODE_LOG("columns are: ", result);
+
     return result;
 }
 

@@ -63,6 +63,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT 
 %token <stringVal> TEMPORAL TIME
 %token <stringVal> FROM
+%token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
 %token <stringVal> WHERE
 %token <stringVal> DISTINCT
@@ -124,7 +125,7 @@ Node *bisonParseResult = NULL;
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
-			 optionalGroupBy optionalOrderBy setClause  stmtList //insertList 
+			 optionalGroupBy optionalOrderBy setClause  stmtList stmtWithTimeList //insertList 
 			 identifierList optionalAttrAlias optionalProvWith provOptionList 
 			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo optionalTranslate
 //			 optInsertAttrList
@@ -135,7 +136,7 @@ Node *bisonParseResult = NULL;
 %type <node> jsonTable jsonColInfoItem 
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
-%type <node> optionalProvAsOf provOption
+%type <node> optionalProvAsOf provAsOf provOption
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -380,6 +381,25 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
+		| REENACT optionalProvAsOf optionalProvWith '(' stmtWithTimeList ')'
+		{
+			RULELOG("provStmt::reenactStmtWithTimeList");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $5);
+			p->inputType = PROV_INPUT_REENACT_WITH_TIMES;
+			p->provType = PROV_NONE;
+			p->asOf = (Node *) $2;
+			p->options = $3;
+			$$ = (Node *) p;
+		}
+		| REENACT optionalProvAsOf optionalProvWith TRANSACTION stringConst
+		{
+			RULELOG("provStmt::transaction");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) createConstString($5));
+			p->inputType = PROV_INPUT_TRANSACTION;
+			p->provType = PROV_NONE;
+			p->options = $3;
+			$$ = (Node *) p;
+		}
 		| TEMPORAL '(' stmt ')'
 		{
 			RULELOG("provStmt::temporal");
@@ -458,21 +478,44 @@ summaryType:
 		}
 	;
 */
-  
+
+stmtWithTimeList: 
+		stmt ';' provAsOf
+		{ 
+			RULELOG("stmtWithTimeList::stmt"); 
+			KeyValue *kv = createNodeKeyValue((Node *) $1, (Node *) $3);
+			$$ = singleton(kv);
+		}
+		| stmtWithTimeList stmt ';' provAsOf 
+		{
+			RULELOG("stmtWithTimeList::stmtWithTimeList::stmt");
+			KeyValue *kv = createNodeKeyValue((Node *) $2, (Node *) $4);
+			$$ = appendToTailOfList($1, kv);	
+		}
+	;
+	  
 optionalProvAsOf:
 		/* empty */			{ RULELOG("optionalProvAsOf::EMPTY"); $$ = NULL; }
-		| AS OF SCN intConst
+		| provAsOf
 		{
-			RULELOG("optionalProvAsOf::SCN");
+			RULELOG("optionalProvAsOf::provAsOf");
+			$$ = $1;
+		}
+	;
+	
+provAsOf:
+		AS OF SCN intConst
+		{
+			RULELOG("provAsOf::SCN");
 			$$ = (Node *) createConstLong($4);
 		}
 		| AS OF TIMESTAMP stringConst
 		{
-			RULELOG("optionalProvAsOf::TIMESTAMP");
+			RULELOG("provAsOf::TIMESTAMP");
 			$$ = (Node *) createConstString($4);
 		}
 	;
-	
+
 optionalProvWith:
 		/* empty */			{ RULELOG("optionalProvWith::EMPTY"); $$ = NIL; }
 		| WITH provOptionList
@@ -495,12 +538,12 @@ provOption:
 		TYPE stringConst 
 		{ 
 			RULELOG("provOption::TYPE"); 
-			$$ = (Node *) createStringKeyValue("TYPE", $2); 
+			$$ = (Node *) createStringKeyValue(PROP_PC_PROV_TYPE, $2); 
 		}
 		| TABLE identifier
 		{
 			RULELOG("provOption::TABLE");
-			$$ = (Node *) createStringKeyValue("TABLE", $2);
+			$$ = (Node *) createStringKeyValue(PROP_PC_TABLE, $2);
 		}
 		| ONLY UPDATED
 		{
@@ -532,6 +575,24 @@ provOption:
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_STATEMENT_ANNOTATIONS),
 					(Node *) createConstBool(FALSE));
 		}
+		| PROVENANCE
+		{
+			RULELOG("provOption::PROVENANCE");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_GEN_PROVENANCE),
+					(Node *) createConstBool(TRUE));
+		}
+		| ISOLATION LEVEL identifier
+		{
+			RULELOG("provOption::ISOLATION::LEVEL");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_ISOLATION_LEVEL),
+					(Node *) createConstString(strdup($3)));
+		}
+		| COMMIT_TRANS SCN intConst
+		{
+			RULELOG("provOption::COMMIT::SCN");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COMMIT_SCN),
+					(Node *) createConstLong($3));
+		} 
 	;
 
 optionalTranslate:
@@ -540,7 +601,7 @@ optionalTranslate:
 		TRANSLATE AS optionalstringConst 
 		{
 			RULELOG("optionaltranslate::TRANSLATE::AS");
-			$$ = singleton((Node *) createStringKeyValue("TRANSLATE AS", $3));
+			$$ = singleton((Node *) createStringKeyValue(strdup("TRANSLATE AS"), $3));
 		}
         ;
 

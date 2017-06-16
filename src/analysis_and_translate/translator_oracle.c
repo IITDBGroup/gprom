@@ -36,6 +36,8 @@
 
 #include "provenance_rewriter/prov_utility.h"
 
+#include "utility/string_utils.h"
+
 // data types
 typedef struct ReplaceGroupByState {
     List *expressions;
@@ -52,6 +54,9 @@ static void adaptSchemaFromChildren(QueryOperator *o);
 static QueryOperator *translateSetQuery(SetQuery *sq);
 static QueryOperator *translateQueryBlock(QueryBlock *qb);
 static QueryOperator *translateProvenanceStmt(ProvenanceStmt *prov);
+static void markTableAccessForRowidProv (QueryOperator *o);
+static void getAffectedTableAndOperationType (Node *stmt,
+        ReenactUpdateType *stmtType, char **tableName, Node **updateCond);
 static void translateProperties(QueryOperator *q, List *properties);
 static QueryOperator *translateWithStmt(WithStmt *with);
 
@@ -503,7 +508,6 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
     ProvenanceComputation *result;
 
     //get type from options
-
     result = createProvenanceComputOp(prov->provType, NIL, NIL,
             prov->selectClause, prov->dts, NULL);
     result->inputType = prov->inputType;
@@ -540,6 +544,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             tInfo->updateTableNames = NIL;
             tInfo->scns = scns;
             tInfo->transIsolation = isoLevel;
+            tInfo->originalUpdates = NIL;
 
             int i = 0;
             // call parser and analyser and translate nodes
@@ -566,46 +571,19 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 }
                 STOP_TIMER("translation - transaction - analyze binds");
 
-                /* get table name */
+                /* get table name and other information about the statement */
                 char *tableName = NULL;
                 ReenactUpdateType updateType = UPDATE_TYPE_DELETE;
+                Node *updateCond = NULL;
 
-                switch (node->type) {
-                    case T_Insert:
-                    {
-                        Insert *i = (Insert *) node;
-                        if (isA(i->query,  List))
-                            updateType = UPDATE_TYPE_INSERT_VALUES;
-                        else
-                            updateType = UPDATE_TYPE_INSERT_QUERY;
-                        tableName = i->insertTableName;
-                    }
-                    break;
-                    case T_Update:
-                    {
-                        updateType = UPDATE_TYPE_UPDATE;
-                        Update *up = (Update *) node;
-
-                        tableName = up->updateTableName;
-                        updateConds = appendToTailOfList(updateConds, copyObject(up->cond));
-                    }
-                    break;
-                    case T_Delete:
-                        updateType = UPDATE_TYPE_DELETE;
-                        tableName = ((Delete *) node)->deleteTableName;
-                        break;
-                    case T_QueryBlock:
-                    case T_SetQuery:
-                        tableName = strdup("_NONE");
-                        break;
-                    default:
-                        FATAL_LOG(
-                                "Unexpected node type %u as input to provenance computation",
-                                node->type);
-                        break;
-                }
+                getAffectedTableAndOperationType(node, &updateType, &tableName, &updateCond);
 
                 DEBUG_NODE_BEATIFY_LOG("result of update translation is", node);
+
+                // store in transaction info
+                //TODO ok to do that?
+//                if (updateCond != NULL)
+                    updateConds = appendToTailOfList(updateConds, copyObject(updateCond));
 
                 tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, node);
                 tInfo->updateTableNames = appendToTailOfList(
@@ -624,35 +602,16 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                             CONCAT_STRINGS("U", itoa(i + 1), "_", strdup(tableName))));
                 }
 
-                // use ROWID + SCN as provenance, set provenance attribute for each table
+                // use ROWID + SCN as provenance, set provenance attributes for each table
                 if (useRowidScn)
                 {
-                    List *tables = NIL;
-                    findTableAccessVisitor((Node *) child, &tables);
-
-                    FOREACH(TableAccessOperator,t,tables)
-                    {
-                        if (HAS_STRING_PROP(t,PROP_TABLE_IS_UPDATED))
-                        {
-                            SET_BOOL_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION);
-                            SET_BOOL_STRING_PROP(t,PROP_USE_PROVENANCE);
-                            SET_STRING_PROP(t,PROP_USER_PROV_ATTRS,
-                                    stringListToConstList(LIST_MAKE(
-                                            strdup("ROWID"),
-                                            strdup("VERSIONS_STARTSCN"))));
-
-                            t->op.schema->attrDefs = appendToTailOfList(t->op.schema->attrDefs,
-                                    createAttributeDef("ROWID", DT_STRING));
-                            t->op.schema->attrDefs = appendToTailOfList(t->op.schema->attrDefs,
-                                    createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
-                        }
-                    }
+                    markTableAccessForRowidProv(child);
                 }
 
                 // mark as root of translated update
                 SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
                 SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(updateType));
-                DEBUG_NODE_BEATIFY_LOG("qo model transaction is", child);
+                DEBUG_NODE_BEATIFY_LOG("qo model of update for transaction is\n", child);
 
                 addChildOperator((QueryOperator *) result, child);
                 i++;
@@ -676,13 +635,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
             tInfo->commitSCN = createConstLong(commitScn);
 
-            // if only updated rows shows be returned then we need to store the update conditions
-            // because we might need that to filter out those tuples
-            //          if (HAS_STRING_PROP(result,PROP_PC_ONLY_UPDATED))
-            //          {
             DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
             setStringProperty((QueryOperator *) result, PROP_PC_UPDATE_COND, (Node *) updateConds);
-            //          }
 
             DEBUG_LOG("constructed translated provenance computation for PROVENANCE OF TRANSACTION");
         }
@@ -694,33 +648,15 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             result->transactionInfo = tInfo;
             tInfo->originalUpdates = copyObject(prov->query);
             tInfo->updateTableNames = NIL;
+            tInfo->transIsolation = ISOLATION_SERIALIZABLE;
+            tInfo->scns = NIL;
 
             FOREACH(Node,n,(List *) prov->query)
             {
                 char *tableName = NULL;
 
                 /* get table name */
-                switch (n->type) {
-                    case T_Insert:
-                        tableName = ((Insert *) n)->insertTableName;
-                        break;
-                    case T_Update:
-                        tableName = ((Update *) n)->updateTableName;
-                        break;
-                    case T_Delete:
-                        tableName = ((Delete *) n)->deleteTableName;
-                        break;
-                    case T_QueryBlock:
-                    case T_SetQuery:
-                        tableName = strdup("_NONE");
-                        break;
-                    default:
-                        FATAL_LOG(
-                                "Unexpected node type %u as input to provenance computation",
-                                n->type);
-                        break;
-                }
-
+                getAffectedTableAndOperationType(n, NULL, &tableName, NULL);
                 tInfo->updateTableNames = appendToTailOfList(
                         tInfo->updateTableNames, strdup(tableName));
                 tInfo->scns = appendToTailOfList(tInfo->scns, createConstLong(0)); //TODO get SCN
@@ -749,57 +685,203 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
         {
             ProvenanceTransactionInfo *tInfo = makeNode(ProvenanceTransactionInfo);
             HashMap *tableToTranslation = NEW_MAP(Constant, QueryOperator);
-            result->transactionInfo = tInfo;
-            tInfo->originalUpdates = copyObject(prov->query);
-            tInfo->updateTableNames = NIL;
+            boolean isWithTimes = (prov->inputType == PROV_INPUT_REENACT_WITH_TIMES);
+            boolean showIntermediate = HAS_STRING_PROP(result,PROP_PC_SHOW_INTERMEDIATE);
+            boolean useRowidScn = HAS_STRING_PROP(result,PROP_PC_TUPLE_VERSIONS);
+            boolean hasIsolevel = HAS_STRING_PROP(result,PROP_PC_ISOLATION_LEVEL);
+            boolean hasCommitSCN = HAS_STRING_PROP(result,PROP_PC_COMMIT_SCN);
+            List *updateConds = NIL;
+            int i = 0;
 
-            FOREACH(Node,n,(List *) prov->query)
+            // user has asked for provenance?
+            if (HAS_STRING_PROP(result, PROP_PC_GEN_PROVENANCE))
+            {
+                result->provType = PROV_PI_CS;
+            }
+
+            if (hasCommitSCN)
+                tInfo->commitSCN = (Constant *) GET_STRING_PROP(result, PROP_PC_COMMIT_SCN);
+
+            if (hasIsolevel)
+            {
+                char *isoLevel = STRING_VALUE(GET_STRING_PROP(result,PROP_PC_ISOLATION_LEVEL));
+
+                DEBUG_LOG("has isolevel %s", isoLevel);
+
+                if (streq(strToUpper(isoLevel), "SERIALIZABLE"))
+                    tInfo->transIsolation = ISOLATION_SERIALIZABLE;
+                else if (streq(strToUpper(isoLevel), "READCOMMITTED"))
+                    tInfo->transIsolation = ISOLATION_READ_COMMITTED;
+                else
+                    FATAL_LOG("isolation level has to be either SERIALIZABLE or READCOMMITTED not <%s>", isoLevel);
+            }
+            else
+                tInfo->transIsolation = ISOLATION_SERIALIZABLE;
+
+            if (tInfo->transIsolation == ISOLATION_READ_COMMITTED && prov->inputType == PROV_INPUT_REENACT)
+                FATAL_LOG("isolation level READ COMMITTED requires an AS OF clause for each reenacted DML.");
+            if (tInfo->transIsolation == ISOLATION_READ_COMMITTED && !hasCommitSCN)
+                FATAL_LOG("isolation level READ COMMITTED requires a commit scn to be specified using WITH COMMIT SCN scn.");
+
+            result->transactionInfo = tInfo;
+            tInfo->originalUpdates = NIL;
+            tInfo->updateTableNames = NIL;
+            tInfo->scns = NIL;
+
+            FOREACH(Node,stmt,(List *) prov->query)
             {
                 char *tableName = NULL;
+                Node *n;
+                KeyValue *withT = (isWithTimes) ? ((KeyValue *) stmt) : NULL;
+                ReenactUpdateType stmtType;
+                Node *cond = NULL;
 
-                /* get table name */
-                switch (n->type) {
-                    case T_Insert:
-                        tableName = ((Insert *) n)->insertTableName;
-                        break;
-                    case T_Update:
-                        tableName = ((Update *) n)->updateTableName;
-                        break;
-                    case T_Delete:
-                        tableName = ((Delete *) n)->deleteTableName;
-                        break;
-                    case T_QueryBlock:
-                    case T_SetQuery:
-                        tableName = strdup("_NONE");
-                        break;
-                    case T_AlterTable:
-                        tableName = strdup(((AlterTable *) n)->tableName);
-                        break;
-                    case T_CreateTable:
-                        tableName = strdup(((CreateTable *) n)->tableName);
-                        break;
-                    default:
-                        FATAL_LOG(
-                                "Unexpected node type %u as input to provenance computation",
-                                n->type);
-                        break;
-                }
+                // get statement
+                n = (isWithTimes) ? withT->key : stmt;
 
+                /* get table name and other info */
+                getAffectedTableAndOperationType(n, &stmtType, &tableName, &cond);
+
+                // store info
                 tInfo->updateTableNames = appendToTailOfList(
                         tInfo->updateTableNames, strdup(tableName));
+
+                if (isWithTimes)
+                {
+                    tInfo->scns = appendToTailOfList(tInfo->scns, withT->value);
+                }
+
+//                if (cond != NULL)
+                    updateConds = appendToTailOfList(updateConds, copyObject(cond));
+
+                tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, n);
 
                 // translate and add update as child to provenance computation
                 child = translateQueryOracle(n);
                 MAP_ADD_STRING_KEY(tableToTranslation, tableName, child);
 
                 addChildOperator((QueryOperator *) result, child);
+
+                // mark for showing intermediate results
+                if (showIntermediate)
+                {
+                    SET_BOOL_STRING_PROP(child, PROP_SHOW_INTERMEDIATE_PROV);
+                    SET_STRING_PROP(child, PROP_PROV_REL_NAME, createConstString(
+                            CONCAT_STRINGS("U", itoa(i + 1), "_", strdup(tableName))));
+                }
+
+                // use ROWID + SCN as provenance, set provenance attributes for each table
+                if (useRowidScn)
+                {
+                    markTableAccessForRowidProv(child);
+                }
+
+                // mark as root of translated update
+                SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
+                SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(stmtType));
+                DEBUG_NODE_BEATIFY_LOG("qo model of update for transaction is\n", child);
+
+                i++;
                 //TODO
             }
+
+            DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
+            setStringProperty((QueryOperator *) result, PROP_PC_UPDATE_COND, (Node *) updateConds);
+
             break;
         }
     }
     return (QueryOperator *) result;
 }
+
+static void
+markTableAccessForRowidProv (QueryOperator *o)
+{
+    List *tables = NIL;
+    findTableAccessVisitor((Node *) o, &tables);
+
+    FOREACH(TableAccessOperator,t,tables)
+    {
+        if (HAS_STRING_PROP(t,PROP_TABLE_IS_UPDATED))
+        {
+            SET_BOOL_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION);
+            SET_BOOL_STRING_PROP(t,PROP_USE_PROVENANCE);
+            SET_STRING_PROP(t,PROP_USER_PROV_ATTRS,
+                    stringListToConstList(LIST_MAKE(
+                            strdup("ROWID"),
+                            strdup("VERSIONS_STARTSCN"))));
+
+            t->op.schema->attrDefs = appendToTailOfList(t->op.schema->attrDefs,
+                    createAttributeDef("ROWID", DT_STRING));
+            t->op.schema->attrDefs = appendToTailOfList(t->op.schema->attrDefs,
+                    createAttributeDef("VERSIONS_STARTSCN", DT_LONG));
+        }
+    }
+}
+
+/**
+ * determines a stmts update type, affected table, and (if the stmt is an UPDATE) it's condition
+ * the last three arguments are use to store the result.
+ */
+static void
+getAffectedTableAndOperationType (Node *stmt, ReenactUpdateType *stmtType, char **tableName, Node **updateCond)
+{
+    Node *cond = NULL;
+    ReenactUpdateType operType;
+    char *tName = NULL;
+
+    switch (stmt->type) {
+        case T_Insert:
+        {
+            Insert *i = (Insert *) stmt;
+            if (isA(i->query,  List))
+                operType = UPDATE_TYPE_INSERT_VALUES;
+            else
+                operType = UPDATE_TYPE_INSERT_QUERY;
+            tName = i->insertTableName;
+        }
+        break;
+        case T_Update:
+        {
+            operType = UPDATE_TYPE_UPDATE;
+            Update *up = (Update *) stmt;
+
+            tName = up->updateTableName;
+            cond = copyObject(up->cond);
+        }
+        break;
+        case T_Delete:
+            operType = UPDATE_TYPE_DELETE;
+            tName = ((Delete *) stmt)->deleteTableName;
+            break;
+        case T_QueryBlock:
+        case T_SetQuery:
+            tName = strdup("_NONE");
+            operType = UPDATE_TYPE_QUERY;
+            break;
+        case T_AlterTable:
+            tName = strdup(((AlterTable *) stmt)->tableName);
+            operType = UPDATE_TYPE_DDL;
+            break;
+        case T_CreateTable:
+            tName = strdup(((CreateTable *) stmt)->tableName);
+            operType = UPDATE_TYPE_DDL;
+            break;
+        default:
+            FATAL_LOG(
+                    "Unexpected node type %u as input to provenance computation",
+                    stmt->type);
+            break;
+    }
+
+    if (stmtType)
+        *stmtType = operType;
+    if (tableName)
+        *tableName = tName;
+    if (updateCond)
+        *updateCond = cond;
+}
+
 
 static void
 translateProperties(QueryOperator *q, List *properties)

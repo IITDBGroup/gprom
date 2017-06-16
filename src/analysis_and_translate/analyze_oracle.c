@@ -25,6 +25,7 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "provenance_rewriter/prov_schema.h"
 #include "parser/parser.h"
+#include "model/query_operator/operator_property.h"
 #include "temporal_queries/temporal_rewriter.h"
 
 static void analyzeStmtList (List *l, List *parentFroms);
@@ -203,6 +204,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 {
     List *attrRefs = NIL;
 
+    // unfold views
     FOREACH(FromItem,f,qb->fromClause)
     {
         switch(f->type)
@@ -210,7 +212,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             case T_FromTableRef:
             {
                 FromTableRef *tr = (FromTableRef *)f;
-                boolean tableExists = catalogTableExists(tr->tableId);
+                boolean tableExists = catalogTableExists(tr->tableId) || schemaInfoHasTable(tr->tableId);
                 boolean viewExists = catalogViewExists(tr->tableId);
             	//check if it is a table or a view
             	if (!tableExists && viewExists)
@@ -274,6 +276,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                         if (strcmp(name,"ROWID") == 0 || f->type == T_FromTableRef)
                         {
                             f->attrNames = appendToTailOfList(f->attrNames, strdup("ROWID"));
+                            f->dataTypes = appendToTailOfListInt(f->dataTypes, DT_LONG);
                         }
                         else
                             FATAL_LOG("did not find provenance attr %s in from "
@@ -639,6 +642,7 @@ findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
         isFound = TRUE;
         foundAttr = LIST_LENGTH(fromItem->attrNames);
         fromItem->attrNames = appendToTailOfList(fromItem->attrNames, strdup("ROWID"));
+        fromItem->dataTypes = appendToTailOfListInt(fromItem->dataTypes, DT_LONG);
     }
 
     return foundAttr;
@@ -1590,7 +1594,13 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             {
                 //TODO maintain and extend a schema info
                 analyzeQueryBlockStmt(stmt, NIL);
+//                schemaInfos = appendToTailOfList(schemaInfos, copyObject(schemaInfo));
             }
+            // store schema infos in provenancestmt's options for translator
+//            q->options = appendToTailOfList(q->options,
+//                    createNodeKeyValue(
+//                            (Node *) createConstString("SCHEMA_INFOS"),
+//                            (Node *) schemaInfos));
 
             INFO_NODE_BEATIFY_LOG("REENACT THIS:", q);
             schemaInfo = NULL;
@@ -1598,7 +1608,28 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         break;
         case PROV_INPUT_REENACT_WITH_TIMES:
         {
+            //TODO analyze each statement
+            List *stmtsWithT = (List *) q->query;
+//            List *schemaInfos = NIL;
+            schemaInfo = NEW_MAP(Node,Node); //maps table name to schema
 
+            FOREACH(KeyValue,stmt,stmtsWithT)
+            {
+                Node *s = stmt->key;
+
+                //TODO maintain and extend a schema info
+                //TODO check that times are increasing in sequence
+                analyzeQueryBlockStmt(s, NIL);
+//                schemaInfos = appendToTailOfList(schemaInfos, copyObject(schemaInfo));
+            }
+            // store schema infos in provenancestmt's options for translator
+//            q->options = appendToTailOfList(q->options,
+//                    createNodeKeyValue(
+//                            (Node *) createConstString("SCHEMA_INFOS"),
+//                            (Node *) schemaInfos));
+
+            INFO_NODE_BEATIFY_LOG("REENACT THIS:", q);
+            schemaInfo = NULL;
         }
         break;
         case PROV_INPUT_UPDATE:
@@ -1619,6 +1650,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             // semantic analysis, now we need to recover the correct schema for determining provenance attribute datatypes and translation
             correctFromTableVisitor(q->query, NULL);
             getQBProvenanceAttrList(q,&provAttrNames,&provDts);
+
             q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
             q->dts = concatTwoLists(q->dts,provDts);
         }
@@ -1688,7 +1720,7 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
         char *value = STRING_VALUE(kv->value);
 
         /* provenance type */
-        if (!strcmp(key, "TYPE"))
+        if (!strcmp(key, PROP_PC_PROV_TYPE))
         {
             if (streq(value, "PICS"))
                 prov->provType = PROV_PI_CS;
