@@ -124,7 +124,7 @@ static List *oidVecToDTList (char *oidVec);
             PQclear(_res); \
 		} while(0)
 
-#define CLOSE_CONN_AND_FATAL(__VA_ARGS__) \
+#define CLOSE_CONN_AND_FATAL(...) \
 		do { \
 			PQfinish(plugin->conn); \
 			FATAL_LOG(__VA_ARGS__); \
