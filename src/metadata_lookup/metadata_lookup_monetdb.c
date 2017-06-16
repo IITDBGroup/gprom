@@ -93,6 +93,7 @@ assembleMonetdbMetadataLookupPlugin (void)
     p->getCostEstimation = monetdbGetCostEstimation;
     p->getKeyInformation = monetdbGetKeyInformation;
     p->executeQuery = monetdbExecuteQuery;
+    p->executeQueryIgnoreResult = monetdbExecuteQueryIgnoreResults;
     p->connectionDescription = monetdbGetConnectionDescription;
 
     plugin->dbConn = NULL;
@@ -500,6 +501,24 @@ monetdbExecuteQuery(char *query)
     mapi_close_handle(result);
 
     return r;
+}
+
+void
+monetdbExecuteQueryIgnoreResults(char *query)
+{
+    MapiHdl result;
+
+    result = executeQueryInternal(query);
+
+    THROW_ON_ERROR(result, query);
+
+    // read rows
+    while(mapi_fetch_row(result)) //TODO deal with errors during fetch
+        ;
+
+    THROW_ON_ERROR(result, query);
+
+    mapi_close_handle(result);
 }
 
 static MapiHdl

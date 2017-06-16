@@ -25,7 +25,7 @@ static void outputResult(Relation *res);
 void
 exeRunQuery (void *code)
 {
-    Relation *res;
+    Relation *res = NULL;
     char *adaptedQuery;
     boolean showResult = getBoolOption(OPTION_SHOW_QUERY_RESULT);
     boolean showTime = getBoolOption(OPTION_TIME_QUERIES);
@@ -47,7 +47,10 @@ exeRunQuery (void *code)
             gettimeofday(&st, NULL);
         }
 
-        res = executeQuery((char *) adaptedQuery);
+        if (showResult)
+            res = executeQuery((char *) adaptedQuery);
+        else
+            executeQueryIgnoreResult((char *) adaptedQuery);
 
         if (showTime)
         {
