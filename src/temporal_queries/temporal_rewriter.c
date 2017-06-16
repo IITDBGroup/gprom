@@ -73,11 +73,11 @@ rewriteImplicitTemporal (QueryOperator *q)
     DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
 
     //top = addCoalesceForAllOp(top);
-    //top = addCoalesce(top);
+    top = addCoalesce(top);
 
-    List *attrNames = singleton("SALARY");
+//    List *attrNames = singleton("SALARY");
     //top = addTemporalAlignment(top, top, attrNames);
-    top = addTemporalAlignmentUsingWindow(top, top, attrNames);
+//    top = addTemporalAlignmentUsingWindow(top, top, attrNames);
 
     return top;
 }
