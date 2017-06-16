@@ -107,6 +107,9 @@ boolean opt_timing = FALSE;
 boolean opt_memmeasure = FALSE;
 boolean opt_graphviz_output = FALSE;
 boolean opt_graphviz_detail = FALSE;
+boolean opt_show_query_runtime = FALSE;
+char *time_query_format = NULL;
+boolean opt_show_query_result = TRUE;
 
 // rewrite options
 boolean opt_aggressive_model_checking = FALSE;
@@ -444,6 +447,26 @@ OptionInfo opts[] =
                 "show operator parameters in graphviz scripts.",
                 opt_graphviz_detail ,
                 FALSE),
+        aRewriteOption(OPTION_TIME_QUERIES,
+                "-time_queries",
+                "measure query runtimes (only makes a difference for executor <run>).",
+                opt_show_query_runtime,
+                FALSE),
+        {
+                OPTION_TIME_QUERY_OUTPUT_FORMAT,
+                "-time_query_format",
+                "format used for printing query timing results. "
+                        "The format is printf compatible and should contain "
+                        "exactly on %f element (additional formating such as %12f is ok)",
+                OPTION_STRING,
+                wrapOptionString(&time_query_format),
+                defOptionString(NULL)
+        },
+        aRewriteOption(OPTION_SHOW_QUERY_RESULT,
+                "-show_result",
+                "show query result (only makes a difference for executor <run>).",
+                opt_show_query_result,
+                TRUE),
         // boolean rewrite options
         aRewriteOption(OPTION_AGGRESSIVE_MODEL_CHECKING,
                 "-aggressive_model_checking",

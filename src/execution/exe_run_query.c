@@ -16,28 +16,76 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "execution/exe_run_query.h"
 #include "utility/string_utils.h"
+#include "configuration/option.h"
+
+static void outputResult(Relation *res);
+
+
 
 void
 exeRunQuery (void *code)
 {
     Relation *res;
-    int i = 0;
-    int l = 0;
     char *adaptedQuery;
-    int *colSizes;
-    int numCol;
-//    int numRows;
-    int totalSize = 0;
+    boolean showResult = getBoolOption(OPTION_SHOW_QUERY_RESULT);
+    boolean showTime = getBoolOption(OPTION_TIME_QUERIES);
+    struct timeval st;
+    struct timeval et;
+    char *format = getStringOption(OPTION_TIME_QUERY_OUTPUT_FORMAT);
 
     // remove semicolon
     adaptedQuery = replaceSubstr(code, ";", ""); //TODO not safe if ; in strings
 
     // execute query
-    INFO_LOG("run query:\n%s", (char *) adaptedQuery);
+    INFO_LOG("run query (show results: %s, time query: %s):\n%s", showResult ? "yes" : "no", showTime ? "yes" : "no", (char *) adaptedQuery);
+
+    if (showTime)
+    {
+        gettimeofday(&st, NULL);
+    }
+
     res = executeQuery((char *) adaptedQuery);
 
+    if (showTime)
+    {
+        gettimeofday(&et, NULL);
+    }
+
+    if (showResult == TRUE)
+    {
+        outputResult(res);
+    }
+
+    if (showTime)
+    {
+        long usecDiff;
+        long secDiff;
+        double msecs;
+
+        secDiff = et.tv_sec - st.tv_sec;
+        usecDiff = et.tv_usec - st.tv_usec;
+
+        msecs = secDiff * 1000 + (((double) usecDiff) / 1000.0);
+        if (showResult)
+            printf("\n");
+
+        if (format != NULL)
+            printf(format, msecs);
+        else
+            printf("query took %12f msec\n", msecs);
+        fflush(stdout);
+    }
+}
+
+static void
+outputResult(Relation *res)
+{
+    int *colSizes;
+    int numCol;
+    int totalSize = 0;
+    int i = 0;
+    int l = 0;
     numCol = LIST_LENGTH(res->schema);
-//    numRows = LIST_LENGTH(res->tuples);
     colSizes = MALLOC(numCol * sizeof(int));
 
     // determine column sizes
@@ -95,3 +143,4 @@ exeRunQuery (void *code)
             fflush(stdout);
     }
 }
+
