@@ -134,6 +134,7 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->executeAsTransactionAndGetXID = oracleExecuteAsTransactionAndGetXID;
     plugin->getCommitScn = oracleGetCommitScn;
     plugin->executeQuery = oracleGenExecQuery;
+    plugin->executeQueryIgnoreResult = oracleGenExecQueryIgnoreResult;
     plugin->getCostEstimation = oracleGetCostEstimation;
     plugin->getKeyInformation = oracleGetKeyInformation;
 
@@ -1426,6 +1427,23 @@ oracleGenExecQuery (char *query)
     return r;
 }
 
+void
+oracleGenExecQueryIgnoreResult (char *query)
+{
+    int numAttrs;
+    OCI_Resultset *rs;
+
+    rs = executeStatement(query);
+    numAttrs = OCI_GetColumnCount(rs);
+
+    // fetch tuples
+    while(OCI_FetchNext(rs))
+        ;
+
+    // cleanup
+    OCI_ReleaseResultsets(st);
+}
+
 static OCI_Transaction *
 createTransaction(IsolationLevel isoLevel)
 {
@@ -1586,6 +1604,12 @@ char *
 oracleExecuteStatement(char *statement)
 {
 	return NULL;
+}
+
+void
+oracleGenExecQueryIgnoreResult (char *query)
+{
+
 }
 
 Node *

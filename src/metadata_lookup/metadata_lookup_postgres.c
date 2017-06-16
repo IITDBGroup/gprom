@@ -186,6 +186,7 @@ assemblePostgresMetadataLookupPlugin (void)
     p->getCostEstimation = postgresGetCostEstimation;
     p->getKeyInformation = postgresGetKeyInformation;
     p->executeQuery = postgresExecuteQuery;
+    p->executeQueryIgnoreResult = postgresExecuteQueryIgnoreResult;
     p->connectionDescription = postgresGetConnectionDescription;
 
     return p;
@@ -852,6 +853,40 @@ postgresExecuteQuery(char *query)
     return r;
 }
 
+void
+postgresExecuteQueryIgnoreResult (char *query)
+{
+    PGresult *res = NULL;
+    ASSERT(postgresIsInitialized());
+    PGconn *c = plugin->conn;
+    boolean done = FALSE;
+
+    // start transaction
+    res = PQexec(c, CONCAT_STRINGS("BEGIN TRANSACTION;"));
+        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+            CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
+                    PQerrorMessage(c));
+    PQclear(res);
+
+    // create a cursor
+    DEBUG_LOG("create cursor for %s", query);
+    res = PQexec(c, CONCAT_STRINGS("DECLARE myportal CURSOR FOR ", query));
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+        CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
+                PQerrorMessage(c));
+    PQclear(res);
+
+    while(!done)
+    {
+        res = PQexec(c, "FETCH 1000 FROM myportal");
+        if (PQresultStatus(res) != PGRES_TUPLES_OK)
+            CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c));
+
+        int numRes = PQntuples(res);
+        if (numRes == 0)
+            done = TRUE;
+    }
+}
 
 // NO libpq present. Provide dummy methods to keep compiler quiet
 #else
@@ -968,6 +1003,12 @@ Relation *
 postgresExecuteQuery(char *query)
 {
     return NULL;
+}
+
+void
+postgresExecuteQueryIgnoreResult (char *query)
+{
+
 }
 
 #endif

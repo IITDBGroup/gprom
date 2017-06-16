@@ -88,6 +88,7 @@ typedef struct MetadataLookupPlugin
     /* execution */
     Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
     Relation * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
+    void (*executeQueryIgnoreResult) (char *query);
     int (*getCostEstimation)(char *query);
 
     /* cache for catalog information */
@@ -134,6 +135,7 @@ extern List *getKeyInformation (char *tableName);
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Relation *executeQuery (char *sql);
+extern void executeQueryIgnoreResult (char *sql);
 extern long getCommitScn (char *tableName, long maxScn, char *xid);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern int getCostEstimation(char *query);
