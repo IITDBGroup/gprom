@@ -30,7 +30,7 @@ pipeline {
 			steps {
 				sh 'cp /opt/oracle/instantclient/ojdbc7.jar javalib/ojdbc7.jar'
 				sh 'cp blackboxtests/testcases/default_options.txt blackboxtests/testcases/options.txt'
-				sh 'make check'
+				sh 'cd blackboxtests && ant runTests'
 			}
 		}
     }
