@@ -32,6 +32,7 @@ exeRunQuery (void *code)
     struct timeval st;
     struct timeval et;
     char *format = getStringOption(OPTION_TIME_QUERY_OUTPUT_FORMAT);
+    int repeats = getIntOption(OPTION_REPEAT_QUERY);
 
     // remove semicolon
     adaptedQuery = replaceSubstr(code, ";", ""); //TODO not safe if ; in strings
@@ -39,41 +40,44 @@ exeRunQuery (void *code)
     // execute query
     INFO_LOG("run query (show results: %s, time query: %s):\n%s", showResult ? "yes" : "no", showTime ? "yes" : "no", (char *) adaptedQuery);
 
-    if (showTime)
+    for (int i = 0; i < repeats; i++)
     {
-        gettimeofday(&st, NULL);
-    }
+        if (showTime)
+        {
+            gettimeofday(&st, NULL);
+        }
 
-    res = executeQuery((char *) adaptedQuery);
+        res = executeQuery((char *) adaptedQuery);
 
-    if (showTime)
-    {
-        gettimeofday(&et, NULL);
-    }
+        if (showTime)
+        {
+            gettimeofday(&et, NULL);
+        }
 
-    if (showResult == TRUE)
-    {
-        outputResult(res);
-    }
+        if (showResult == TRUE)
+        {
+            outputResult(res);
+        }
 
-    if (showTime)
-    {
-        long usecDiff;
-        long secDiff;
-        double msecs;
+        if (showTime)
+        {
+            long usecDiff;
+            long secDiff;
+            double msecs;
 
-        secDiff = et.tv_sec - st.tv_sec;
-        usecDiff = et.tv_usec - st.tv_usec;
+            secDiff = et.tv_sec - st.tv_sec;
+            usecDiff = et.tv_usec - st.tv_usec;
 
-        msecs = secDiff * 1000 + (((double) usecDiff) / 1000.0);
-        if (showResult)
-            printf("\n");
+            msecs = secDiff * 1000 + (((double) usecDiff) / 1000.0);
+            if (showResult)
+                printf("\n");
 
-        if (format != NULL)
-            printf(format, msecs);
-        else
-            printf("query took %12f msec\n", msecs);
-        fflush(stdout);
+            if (format != NULL)
+                printf(format, msecs);
+            else
+                printf("query took %12f msec\n", msecs);
+            fflush(stdout);
+        }
     }
 }
 

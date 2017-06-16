@@ -54,6 +54,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_AGGRESSIVE_MODEL_CHECKING "aggressive_model_checking"
 #define OPTION_TIME_QUERIES "time_queries"
 #define OPTION_TIME_QUERY_OUTPUT_FORMAT "time_query_format"
+#define OPTION_REPEAT_QUERY "repeat_query_count"
 #define OPTION_SHOW_QUERY_RESULT "show_query_result"
 
 /* provennace and some optimization options */

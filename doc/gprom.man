@@ -54,6 +54,25 @@ process
 .BR \-queryfile " " \fIfile\fR
 read query to be processed from \fIfile\fR
 \"****************************************
+.SS OUTPUT AND TIMING QUERIES
+These options control what information GProM is printing for an executed query.
+\"********************
+.TP
+.BR \-time_queries
+measure runtimes of executing rewritten queries. This option is ignored for all executor plugins except for \fIrun\fR.
+\"********************
+.TP
+.BR \-time_query_format
+if \fI-time_queries\fR is activated, then this format is used for printing query runtimes. The format is printf compatible and should contain exactly on \fI%f\fR element (additional formating such as \fI%12f\fR is ok).
+\"********************
+.TP
+.BR \-repeat_query_count
+execute each query this many times. This is mainly useful for timing queries.
+\"********************
+.TP
+.BR \-show_result
+show query result (default if \fItrue\fR). This option is ignored for all executor plugins except for \fIrun\fR. The main use case for deactivating this is to measure query runtimes without spending time on serializing query results.
+\"****************************************
 .SS LOGGING AND DEBUG
 Set logging and debugging options.
 \"********************
