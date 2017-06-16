@@ -48,7 +48,12 @@ public class GProMSuite {
 	public String getFileName () {
 		String fileName;
 		
-		fileName = name.replaceAll("\\_(\\d)*", ""); 
+		fileName = name.replaceAll("\\_(\\d)*", "");
+		
+		if (name.contains("_Test")) {
+			fileName = fileName.replaceAll("Test", "");
+		}
+		
 		return fileName;
 	}
 	

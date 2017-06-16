@@ -23,8 +23,18 @@ pipeline {
 		}
 		stage('c-tests') {
 			steps {
-				sh 'pushd test && make check && popd'
+				sh 'cd test && make check'
 			}
 		}
+		stage('junit-regression-tests') {
+			steps {
+				sh 'make check'
+			}
+		}
+    }
+	post {
+        always {
+            junit 'blackboxtests/results/**/*.xml'
+        }
     }
 }

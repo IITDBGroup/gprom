@@ -2,16 +2,13 @@
 Backend=Oracle
 
 # general connection options
-Host=ligeti.cs.iit.edu
-# Host=127.0.0.1
+#Host=ligeti.cs.iit.edu
+Host=127.0.0.1
 Port=1521
 DBName=testuser
 User=testuser
 Password=testuser_man
 Schema=public
-
-# path of these tests
-Path=resource/PI_CS_queries/
 
 # Oracle specific configuration
 Oracle.SID=orcl
