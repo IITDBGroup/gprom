@@ -109,6 +109,7 @@ boolean opt_graphviz_output = FALSE;
 boolean opt_graphviz_detail = FALSE;
 boolean opt_show_query_runtime = FALSE;
 char *time_query_format = NULL;
+int query_repeat_count = 1;
 boolean opt_show_query_result = TRUE;
 
 // rewrite options
@@ -461,6 +462,14 @@ OptionInfo opts[] =
                 OPTION_STRING,
                 wrapOptionString(&time_query_format),
                 defOptionString(NULL)
+        },
+        {
+                OPTION_REPEAT_QUERY,
+                "-repeat_query_count",
+                "execute query this many times (useful for timing).",
+                OPTION_INT,
+                wrapOptionInt(&query_repeat_count),
+                defOptionInt(1)
         },
         aRewriteOption(OPTION_SHOW_QUERY_RESULT,
                 "-show_result",
