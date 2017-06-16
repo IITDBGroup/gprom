@@ -61,7 +61,3 @@ RUN cd /ocilib/src \
 	&& echo "/usr/local/bin/" >> /etc/ld.so.conf \
 	&& echo "/opt/oracle/instantclient/" >> /etc/ld.so.conf \
 	&& /sbin/ldconfig
-########################################
-# copy ojdbc driver into gprom lib dir
-########################################
-RUN cp /opt/oracle/instantclient/ojdbc7.jar /home/ubuntu/gprom/javalib/ojdbc7.jar
