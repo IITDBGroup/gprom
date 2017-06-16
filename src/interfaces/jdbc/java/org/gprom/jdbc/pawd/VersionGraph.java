@@ -14,9 +14,25 @@ public class VersionGraph {
 	/**
 	 * 
 	 */
+	public static long idCounter = 0;
+	
+	public static synchronized String IDGenerator()
+	{
+	    return String.valueOf(idCounter++);
+	}
+	public static synchronized String IDCurrent(){
+		return String.valueOf(idCounter);
+	}
+	public static synchronized void setidCounter(long count){
+		idCounter= count;
+	}
+	
 	ArrayList<Node> Nodes;
 	ArrayList<Edge> Edges;
 	String [] Configuration;
+	
+	
+ 
 	/**
 	 * @return the nodes
 	 */
@@ -79,5 +95,7 @@ public class VersionGraph {
 	public void AddNode(Node t){
 		Nodes.add(t);
 	}
+	
 
 }
+

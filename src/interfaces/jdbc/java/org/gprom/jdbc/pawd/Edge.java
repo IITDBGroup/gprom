@@ -5,6 +5,8 @@ package org.gprom.jdbc.pawd;
 
 import java.util.ArrayList;
 
+import org.gprom.jdbc.pawd.VersionGraphStore.Operation;
+
 /**
  * @author Amer
  *
@@ -13,7 +15,7 @@ public class Edge {
 	
 	ArrayList<Node> startNodes;
 	ArrayList<Node> endNodes;
-	String Transformation;
+	Operation Transformation;
 	
 
 	/**
@@ -51,7 +53,7 @@ public class Edge {
 	/**
 	 * @return the transformation
 	 */
-	public String getTransformation() {
+	public Operation getTransformation() {
 		return Transformation;
 	}
 
@@ -59,7 +61,7 @@ public class Edge {
 	/**
 	 * @param transformation the transformation to set
 	 */
-	public void setTransformation(String transformation) {
+	public void setTransformation(Operation transformation) {
 		Transformation = transformation;
 	}
 
@@ -74,12 +76,6 @@ public class Edge {
 		// TODO Auto-generated constructor stub
 	}
 
-
-
-
-
-
-
 	@Override
 	public String toString() {
 		return startNodes + ", " + endNodes + "," + Transformation;
@@ -89,7 +85,7 @@ public class Edge {
 	/**
 	 * Non-default constructor 
 	 */
-	public Edge(ArrayList<Node> startNodes, ArrayList<Node> endNodes, String Transformation){
+	public Edge(ArrayList<Node> startNodes, ArrayList<Node> endNodes, Operation Transformation){
 		this.startNodes = startNodes;
 		this.endNodes = endNodes;
 		this.Transformation = Transformation;

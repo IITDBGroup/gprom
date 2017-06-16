@@ -24,5 +24,7 @@
 	<classpathentry kind="lib" path="javalib/hamcrest-core.jar"/>
 	<classpathentry kind="lib" path="javalib/log4j-api.jar"/>
 	<classpathentry kind="lib" path="javalib/log4j-core.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Amer/Downloads/Software/gson-2.8.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Amer/Downloads/Software/java-json.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>

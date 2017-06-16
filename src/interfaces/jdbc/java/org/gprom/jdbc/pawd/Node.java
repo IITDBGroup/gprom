@@ -2,19 +2,32 @@
  * 
  */
 package org.gprom.jdbc.pawd;
+import java.util.Calendar;
 
 /**
  * @author Amer
  *
  */
 public class Node {
+	
+	
+
+	/**
+	 * @return the time
+	 */
+
+	public Calendar getTime() {
+		return Time;
+	}
 
 	/**
 	 * 
 	 */
 	String Id;
+	//make class of Id generator and serralize 
 	boolean Materialized;
 	String Description;
+	Calendar Time;
 	
 	/**
 	 * @return the id
@@ -59,10 +72,17 @@ public class Node {
 	}
 
 	public Node() {
-		Id = "0";//I am not sure how versions will be saved so I can increment IDs.
+		Id = VersionGraph.IDGenerator();
 		Materialized = false ;
 		Description = null ;
-		// TODO Auto-generated constructor stub
+		Time = Calendar.getInstance();
+	}
+	public Node(boolean Materialized, String Description){
+
+		Id= VersionGraph.IDGenerator();
+		this.Materialized=Materialized;
+		this.Description= Description;
+		Time = Calendar.getInstance();
 	}
 
 	/* (non-Javadoc)
@@ -70,7 +90,7 @@ public class Node {
 	 */
 	@Override
 	public String toString() {
-		return Id + "," + Materialized + ", " + Description;
+		return Id + "," + Materialized + ", " + Description+ " ," + Time;
 	}
 
 }
