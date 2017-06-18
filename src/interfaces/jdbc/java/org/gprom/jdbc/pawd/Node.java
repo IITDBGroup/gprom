@@ -2,8 +2,8 @@
  * 
  */
 package org.gprom.jdbc.pawd;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
-
 /**
  * @author Amer
  *
@@ -24,7 +24,6 @@ public class Node {
 	 * 
 	 */
 	String Id;
-	//make class of Id generator and serralize 
 	boolean Materialized;
 	String Description;
 	Calendar Time;
@@ -78,11 +77,16 @@ public class Node {
 		Time = Calendar.getInstance();
 	}
 	public Node(boolean Materialized, String Description){
-
 		Id= VersionGraph.IDGenerator();
 		this.Materialized=Materialized;
 		this.Description= Description;
 		Time = Calendar.getInstance();
+	}
+	public Node( String ID, boolean Materialized, String Description,Calendar time){
+		Id= ID;
+		this.Materialized=Materialized;
+		this.Description= Description;
+		this.Time = time;
 	}
 
 	/* (non-Javadoc)
@@ -90,7 +94,14 @@ public class Node {
 	 */
 	@Override
 	public String toString() {
-		return Id + "," + Materialized + ", " + Description+ " ," + Time;
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyy MMM dd HH:mm:ss");
+		return "Node [Id=" + Id + 
+				", Materialized=" + Materialized + 
+				", Description=" + Description + 
+				", Time=" + sdf.format(Time.getTime())+ "]";
 	}
+
+
+	
 
 }

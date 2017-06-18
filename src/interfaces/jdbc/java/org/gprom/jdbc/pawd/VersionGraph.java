@@ -14,17 +14,17 @@ public class VersionGraph {
 	/**
 	 * 
 	 */
-	public static long idCounter = 0;
+	private static long idCounter = 0;
 	
 	public static synchronized String IDGenerator()
 	{
 	    return String.valueOf(idCounter++);
 	}
-	public static synchronized String IDCurrent(){
-		return String.valueOf(idCounter);
+	public static long getIdCounter() {
+		return idCounter;
 	}
-	public static synchronized void setidCounter(long count){
-		idCounter= count;
+	public static void setIdCounter(long idCounter) {
+		VersionGraph.idCounter = idCounter;
 	}
 	
 	ArrayList<Node> Nodes;
@@ -89,12 +89,18 @@ public class VersionGraph {
 		this.Edges= Edges;
 		this.Configuration= Configuration;
 	}
+	public VersionGraph(ArrayList<Node> Nodes, ArrayList<Edge> Edges){
+		this.Nodes= Nodes;
+		this.Edges= Edges;
+		this.Configuration= null;
+	}
 	public void AddEdge(Edge d) {
 		Edges.add(d);
 	}
 	public void AddNode(Node t){
 		Nodes.add(t);
 	}
+
 	
 
 }

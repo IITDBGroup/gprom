@@ -76,9 +76,14 @@ public class Edge {
 		// TODO Auto-generated constructor stub
 	}
 
+
+
+	/* (non-Javadoc)
+	 * @see java.lang.Object#toString()
+	 */
 	@Override
 	public String toString() {
-		return startNodes + ", " + endNodes + "," + Transformation;
+		return "Edge [startNodes=" + startNodes + ", endNodes=" + endNodes + ", Transformation=" + Transformation + "]";
 	}
 
 

@@ -6,11 +6,14 @@ package org.gprom.jdbc.pawd;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
+//uncomment this once you want to pretty print the graph
+//import com.google.gson.Gson;
+//import com.google.gson.GsonBuilder;
+//import com.google.gson.JsonElement;
+//import com.google.gson.JsonParser;
 
 /**
  * @author Amer
@@ -19,37 +22,54 @@ import org.json.JSONException;
 public class VersionGraphManger implements VersionGraphStore {
 	
 
-	//helper method for putting arrays of JSON objects together
-	private JSONArray concatArray(JSONArray... arrs)
-	        throws JSONException {
-	    JSONArray result = new JSONArray();
-	    for (JSONArray arr : arrs) {
-	        for (int i = 0; i < arr.length(); i++) {
-	            result.put(arr.get(i));
-	        }
-	    }
-	    return result;
+	public JSONObject Save(VersionGraph V){
+	    JSONObject GraphJSONObject = new JSONObject();
+		try
+		{
+			//adding nodes as JSON OBjects
+		    JSONArray NodesArray= new JSONArray();
+		    for (Node node : V.getNodes())
+		    {
+		         JSONObject nodeJSON = new JSONObject();
+		         nodeJSON.put("Id", node.getId());
+		         nodeJSON.put("Materialized", node.isMaterialized());
+		         nodeJSON.put("Description", node.getDescription());
+		         nodeJSON.put("Time", node.getTime());
+		         NodesArray.put(nodeJSON);
+		    }
+			GraphJSONObject.put("Nodes", NodesArray);
+		    //adding edges as JSON OBJECTS
+		    JSONArray EdgesArray = new JSONArray();
+		    for (Edge edge : V.getEdges())
+		    {
+		         JSONObject edgeJSON = new JSONObject();
+		         edgeJSON.put("StartNodes", edge.getStartNodes());
+		         edgeJSON.put("EndNodes", edge.getEndNodes());
+		         edgeJSON.put("Transformation", edge.getTransformation());
+		         EdgesArray.put(edgeJSON);
+		    }
+			GraphJSONObject.put("Edges", EdgesArray);
+			//adding configuration
+		    GraphJSONObject.put("Configuration", V.getConfiguration());
+		    //adding IDcounter
+	        GraphJSONObject.put("counterID", VersionGraph.getIdCounter());
+//		    Gson gson = new GsonBuilder().setPrettyPrinting().create();
+//		    JsonParser jp = new JsonParser();
+//		    JsonElement je = jp.parse( GraphJSONObject.toString());
+//		    String prettyJsonString = gson.toJson(je);
+//		    System.out.println("Printing Graph Info" +prettyJsonString);
+//		    System.out.println("hi"+ GraphJSONObject);
+		    return GraphJSONObject;
+		} catch (JSONException jse) {
+		    jse.printStackTrace();
+		    return null;
+		}
 	}
 	
-	public void Save(VersionGraph V) throws JSONException{
-		JSONArray GraphNodesArray= new JSONArray(V.getNodes());
-		JSONArray GraphEdgesArray= new JSONArray(V.getEdges());
-	    JSONArray GraphConfigArray= new JSONArray(V.getConfiguration());
-	    JSONArray GraphIDArray = new JSONArray(Long.toString(VersionGraph.idCounter));
-	    JSONArray GraphJSONArray =
-	    		concatArray(GraphConfigArray,GraphEdgesArray,GraphNodesArray, GraphIDArray);
-	    System.out.println(GraphJSONArray); 
-	}
-	
-	public VersionGraph Load(JSONArray GraphJSONArray){
-		String GraphJSONArrayString = GraphJSONArray.toString();
-		ArrayList<Node> Nodes = new Gson().fromJson(GraphJSONArrayString, new TypeToken<List<Node>>(){}.getType());
-		ArrayList<Edge> Edges = new Gson().fromJson(GraphJSONArrayString, new TypeToken<List<Edge>>(){}.getType());
-		String[] Configuration = new Gson().fromJson(GraphJSONArrayString, new TypeToken<List<String>>(){}.getType());
-		VersionGraph V = new VersionGraph(Nodes,Edges,Configuration);
-		//I am not sure about this, it needs further testing.
-		String c= new Gson().fromJson(GraphJSONArrayString, new TypeToken<String>(){}.getType());
-		VersionGraph.setidCounter(Long.parseLong(c));
+	public VersionGraph Load(JSONObject GraphJSONObject){
+		//this still needs implementation
+		//I need to fix the rest of this method
+		VersionGraph V = new VersionGraph();
 		return V;
 	}
 	
@@ -60,7 +80,7 @@ public class VersionGraphManger implements VersionGraphStore {
 				config.add(t.getId());
 			}
 		}
-		V.setConfiguation((String[]) config.toArray());
+		V.setConfiguation( config.toArray(new String[0]));
 	}
 	
 	public class ConnectionInfo{
