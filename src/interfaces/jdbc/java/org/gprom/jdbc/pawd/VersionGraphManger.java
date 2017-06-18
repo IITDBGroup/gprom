@@ -6,19 +6,19 @@ package org.gprom.jdbc.pawd;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import com.google.gson.Gson;
 //uncomment this once you want to pretty print the graph
 //import com.google.gson.Gson;
 //import com.google.gson.GsonBuilder;
 //import com.google.gson.JsonElement;
 //import com.google.gson.JsonParser;
 //import com.google.gson.GsonBuilder;
-import com.google.gson.reflect.TypeToken;
 
 /**
  * @author Amer
@@ -70,30 +70,46 @@ public class VersionGraphManger implements VersionGraphStore {
 		    return null;
 		}
 	}
-	public ArrayList<Node> getNodeArrayList(JSONArray nodesJSONArray){
+	public ArrayList<Node> getNodeArrayList(JSONArray nodesJSONArray) {
 		ArrayList<Node> NodesList = new ArrayList<Node>();
-		try {
+		//this code isn't very neat as I encountered issues with parsing
+		//I would be very open to better ways of doing this
+		try{
 			for(int i = 0 ; i <nodesJSONArray.length();i++){
 				JSONObject newnode = nodesJSONArray.getJSONObject(i);
-				String nodeID = newnode.getString("Id");
-				Calendar t = (Calendar) newnode.get("Time");
-				boolean mat = newnode.getBoolean("Materialized");
-				String Desc = newnode.getString("Description");
+				String nodeID = newnode.getString("id");
+				Object obj = newnode.get("time");
+				Calendar t = Calendar.getInstance();
+				Pattern gregorianPattern = Pattern.compile("^java.util.GregorianCalendar\\[time=(\\d+).*"); 
+				Matcher matcher = gregorianPattern.matcher(obj.toString());
+				if(matcher.matches()) {
+					t.setTimeInMillis(Long.parseLong(matcher.group(1)));
+				}
+				boolean mat = newnode.getBoolean("materialized");
+				String Desc = newnode.getString("description");
 				Node nodeclassobj = new Node(nodeID,mat,Desc,t );
 				NodesList.add(nodeclassobj);
 			}
 			return NodesList;
-	}
-		catch (JSONException e) {
-			System.out.println("Error we failed");
-			e.printStackTrace();
+		}catch (JSONException jse){
 		}
-		return NodesList;
-	}
+		try{
+			for(int i = 0 ; i <nodesJSONArray.length();i++){
+			JSONObject newnode = nodesJSONArray.getJSONObject(i);
+			String nodeID = newnode.getString("Id");
+			Calendar t = (Calendar) newnode.get("Time");
+			boolean mat = newnode.getBoolean("Materialized");
+			String Desc = newnode.getString("Description");
+			Node nodeclassobj = new Node(nodeID,mat,Desc,t );
+			NodesList.add(nodeclassobj);
+			}
+			return NodesList;
+		}catch (JSONException jse){
+				jse.printStackTrace();
+			}return NodesList;
+		}
 	
 	public VersionGraph Load(JSONObject GraphJSONObject){
-		//this still needs implementation
-		//I need to fix the rest of this method
 		JSONArray nodes;
 		JSONArray edges;
 		String[] Configuaration;
@@ -109,12 +125,8 @@ public class VersionGraphManger implements VersionGraphStore {
 			//adding edges
 			for(int i = 0 ; i <edges.length();i++){
 				JSONObject newedge = edges.getJSONObject(i);
-				String jsonStrStartNdoes = newedge.getJSONArray("StartNodes").toString();
-				String jsonStrEndNodes = newedge.getJSONArray("StartNodes").toString();
-				ArrayList<Node> startNodes =
-						new Gson().fromJson(jsonStrStartNdoes, new TypeToken<List<Node>>(){}.getType());
-				ArrayList<Node> endNodes =
-						new Gson().fromJson(jsonStrEndNodes, new TypeToken<List<Node>>(){}.getType());
+				ArrayList<Node> startNodes = getNodeArrayList(newedge.getJSONArray("StartNodes"));
+				ArrayList<Node> endNodes = getNodeArrayList(newedge.getJSONArray("EndNodes"));
 				Operation trans = (Operation) newedge.get("Transformation");
 				Edge edgeclassobj = new Edge(startNodes, endNodes,trans);
 				EdgesList.add(edgeclassobj);

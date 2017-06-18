@@ -94,7 +94,7 @@ public class Node {
 	 */
 	@Override
 	public String toString() {
-		SimpleDateFormat sdf = new SimpleDateFormat("yyyy MMM dd HH:mm:ss");
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");
 		return "[Id=" + Id + 
 				", Materialized=" + Materialized + 
 				", Description=" + Description + 
