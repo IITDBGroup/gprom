@@ -47,12 +47,14 @@ public class ApplicationTest {
 		Edge edge4 = new Edge(NodeSet1,NodeSet4,op2);
 		//construct Arraylist of EDGES
 		ArrayList<Edge> EdgeSetAll = new ArrayList<>( Arrays.asList(edge1, edge2,edge3,edge4));
+		System.out.println(EdgeSetAll);
 		//create a version graph
 		VersionGraph Graph1 = new VersionGraph(NodeSetAll, EdgeSetAll,null);
 		VersionGraphStore myinterface = new VersionGraphManger();
 		myinterface.Configure(Graph1);
+		System.out.print(
 		myinterface.Load(
-				myinterface.Save(Graph1));
+				myinterface.Save(Graph1)));
 		
 
 	}

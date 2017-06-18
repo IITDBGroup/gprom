@@ -95,10 +95,10 @@ public class Node {
 	@Override
 	public String toString() {
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyy MMM dd HH:mm:ss");
-		return "Node [Id=" + Id + 
+		return "[Id=" + Id + 
 				", Materialized=" + Materialized + 
 				", Description=" + Description + 
-				", Time=" + sdf.format(Time.getTime())+ "]";
+				", Time=" + sdf.format(Time.getTime())+ "]\n";
 	}
 
 

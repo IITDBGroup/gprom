@@ -4,6 +4,7 @@
 package org.gprom.jdbc.pawd;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * @author Amer
@@ -16,14 +17,18 @@ public class VersionGraph {
 	 */
 	private static long idCounter = 0;
 	
+	/* (non-Javadoc)
+	 * @see java.lang.Object#toString()
+	 */
+	
 	public static synchronized String IDGenerator()
 	{
 	    return String.valueOf(idCounter++);
 	}
-	public static long getIdCounter() {
+	public static synchronized long getIdCounter() {
 		return idCounter;
 	}
-	public static void setIdCounter(long idCounter) {
+	public static synchronized void setIdCounter(long idCounter) {
 		VersionGraph.idCounter = idCounter;
 	}
 	
@@ -101,7 +106,13 @@ public class VersionGraph {
 		Nodes.add(t);
 	}
 
-	
+	@Override
+	public String toString() {
+		return "VersionGraph ["
+				+ "\nNodes=\n" + Nodes + "\n Edges=\n" + Edges + "\n Configuration=" + Arrays.toString(Configuration)
+				+ "\n]"
+				+ "IdCounter = "+ idCounter;
+	}
 
 }
 

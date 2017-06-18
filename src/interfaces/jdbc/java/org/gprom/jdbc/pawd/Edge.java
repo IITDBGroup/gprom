@@ -83,7 +83,7 @@ public class Edge {
 	 */
 	@Override
 	public String toString() {
-		return "Edge [startNodes=" + startNodes + ", endNodes=" + endNodes + ", Transformation=" + Transformation + "]";
+		return "Edge[\n startNodes=" + startNodes + "\n endNodes=" + endNodes + "\n Transformation=" + Transformation + "]";
 	}
 
 
