@@ -1206,6 +1206,7 @@ translateFromJoinExpr(FromJoinExpr *fje)
             FATAL_LOG("did not expect node <%s> in from list", nodeToString(input1));
             break;
     }
+    input1 = translateFromProvInfo(input1, fje->left);
     switch (fje->right->type)
     {
         case T_FromTableRef:
@@ -1222,7 +1223,7 @@ translateFromJoinExpr(FromJoinExpr *fje)
             FATAL_LOG("did not expect node <%s> in from list", nodeToString(input2));
             break;
     }
-
+    input2 = translateFromProvInfo(input2, fje->right);
     ASSERT(input1 && input2);
 
     // set children of the join operator node
