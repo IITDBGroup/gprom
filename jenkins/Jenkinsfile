@@ -13,6 +13,7 @@ pipeline {
 				sh './configure --with-oci-headers=/opt/oracle/instantclient/sdk/include/ --with-oci-lib=/opt/oracle/instantclient'
 				sh 'make'
 				sh 'make install'
+				sh 'echo "/usr/local/lib/" > /etc/ld.so.conf.d/usrlocal.conf && ldconfig'
 			}
 		}
 		stage('dist-and-distcheck') {

@@ -19,7 +19,7 @@ import org.apache.logging.log4j.Logger;
 public class LoggerUtil {
 
 	public static void logException (Throwable e, Logger log) {
-		log.error(getCompleteTrace(e));
+		log.error(e.toString() + "\n\n" + getCompleteTrace(e));
 	}
 	
 	public static void logException (Exception e, Logger log, String message) {
