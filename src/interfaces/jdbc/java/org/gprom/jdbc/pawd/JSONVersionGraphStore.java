@@ -24,7 +24,7 @@ import org.json.JSONObject;
  * @author Amer
  *
  */
-public class VersionGraphManger implements VersionGraphStore {
+public class JSONVersionGraphStore implements VersionGraphStore {
 	
 
 	public JSONObject Save(VersionGraph V){

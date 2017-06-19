@@ -51,7 +51,7 @@ public class ApplicationTest {
 		//System.out.println(EdgeSetAll);
 		//create a version graph
 		VersionGraph Graph1 = new VersionGraph(NodeSetAll, EdgeSetAll,null);
-		VersionGraphStore myinterface = new VersionGraphManger();
+		VersionGraphStore myinterface = new JSONVersionGraphStore();
 		myinterface.Configure(Graph1);
 		JSONObject ser = myinterface.Save(Graph1);
 		System.out.print(ser.toString(1));
