@@ -9,6 +9,7 @@ import java.util.Arrays;
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation;
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation.OpType;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * @author Amer
@@ -52,9 +53,9 @@ public class ApplicationTest {
 		VersionGraph Graph1 = new VersionGraph(NodeSetAll, EdgeSetAll,null);
 		VersionGraphStore myinterface = new VersionGraphManger();
 		myinterface.Configure(Graph1);
-		System.out.print(
-		myinterface.Load(
-				myinterface.Save(Graph1)));
+		JSONObject ser = myinterface.Save(Graph1);
+		System.out.print(ser.toString(1));
+		myinterface.Load(ser);
 		
 
 	}
