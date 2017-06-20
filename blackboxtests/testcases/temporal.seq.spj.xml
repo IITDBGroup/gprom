@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Temporal Sequenced Rewrites Test Cases for SPJ queries</comment>
+
+<entry key="q1.query">
+TEMPORAL (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
+</entry>
+<entry key="q1.result">
+</entry>
+
+<entry key="q2.query">
+TEMPORAL (SELECT A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
+</entry>
+<entry key="q2.result">
+</entry>
+
+<entry key="q3.query">
+TEMPORAL (SELECT A + 2 AS X, B * 2 AS C FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
+</entry>
+<entry key="q3.result">
+</entry>
+
+<entry key="q4.query">
+TEMPORAL (SELECT A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A != B);
+</entry>
+<entry key="q4.result">
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+
+</properties>
