@@ -6,19 +6,11 @@ package org.gprom.jdbc.pawd;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
+import org.gprom.jdbc.pawd.VersionGraphStore.Operation.OpType;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-//uncomment this once you want to pretty print the graph
-//import com.google.gson.Gson;
-//import com.google.gson.GsonBuilder;
-//import com.google.gson.JsonElement;
-//import com.google.gson.JsonParser;
-//import com.google.gson.GsonBuilder;
 
 /**
  * @author Amer
@@ -29,28 +21,25 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 
 	public JSONObject Save(VersionGraph V){
 	    JSONObject GraphJSONObject = new JSONObject();
+	    
 		try
 		{
 			//adding nodes as JSON OBjects
-		    JSONArray NodesArray= new JSONArray();
-		    for (Node node : V.getNodes())
-		    {
-		         JSONObject nodeJSON = new JSONObject();
-		         nodeJSON.put("Id", node.getId());
-		         nodeJSON.put("Materialized", node.isMaterialized());
-		         nodeJSON.put("Description", node.getDescription());
-		         nodeJSON.put("Time", node.getTime());
-		         NodesArray.put(nodeJSON);
-		    }
+		    JSONArray NodesArray= getJSONArray(V.getNodes());
 			GraphJSONObject.put("Nodes", NodesArray);
 		    //adding edges as JSON OBJECTS
 		    JSONArray EdgesArray = new JSONArray();
 		    for (Edge edge : V.getEdges())
 		    {
 		         JSONObject edgeJSON = new JSONObject();
-		         edgeJSON.put("StartNodes", edge.getStartNodes());
-		         edgeJSON.put("EndNodes", edge.getEndNodes());
-		         edgeJSON.put("Transformation", edge.getTransformation());
+		         JSONArray StartNodesJSON = getJSONArray(edge.getStartNodes());
+		         edgeJSON.put("StartNodes", StartNodesJSON);
+		         JSONArray EndNodesJSON = getJSONArray(edge.getEndNodes());
+		         edgeJSON.put("EndNodes", EndNodesJSON);
+		         JSONObject trans = new JSONObject();
+		         trans.put("Code",edge.getTransformation().Code );
+		         trans.put("Operation",edge.getTransformation().Op );
+		         edgeJSON.put("Transformation", trans);
 		         EdgesArray.put(edgeJSON);
 		    }
 			GraphJSONObject.put("Edges", EdgesArray);
@@ -58,41 +47,15 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		    GraphJSONObject.put("Configuration", V.getConfiguration());
 		    //adding IDcounter
 	        GraphJSONObject.put("counterID", VersionGraph.getIdCounter());
-//		    Gson gson = new GsonBuilder().setPrettyPrinting().create();
-//		    JsonParser jp = new JsonParser();
-//		    JsonElement je = jp.parse( GraphJSONObject.toString());
-//		    String prettyJsonString = gson.toJson(je);
-//		    System.out.println("Printing Graph Info" +prettyJsonString);
-//		    System.out.println("hi"+ GraphJSONObject);
 		    return GraphJSONObject;
 		} catch (JSONException jse) {
 		    jse.printStackTrace();
 		    return null;
 		}
 	}
+	//helper method to get an arraylist of nodes from a JSON Array
 	public ArrayList<Node> getNodeArrayList(JSONArray nodesJSONArray) {
 		ArrayList<Node> NodesList = new ArrayList<Node>();
-		//this code isn't very neat as I encountered issues with parsing
-		//I would be very open to better ways of doing this
-		try{
-			for(int i = 0 ; i <nodesJSONArray.length();i++){
-				JSONObject newnode = nodesJSONArray.getJSONObject(i);
-				String nodeID = newnode.getString("id");
-				Object obj = newnode.get("time");
-				Calendar t = Calendar.getInstance();
-				Pattern gregorianPattern = Pattern.compile("^java.util.GregorianCalendar\\[time=(\\d+).*"); 
-				Matcher matcher = gregorianPattern.matcher(obj.toString());
-				if(matcher.matches()) {
-					t.setTimeInMillis(Long.parseLong(matcher.group(1)));
-				}
-				boolean mat = newnode.getBoolean("materialized");
-				String Desc = newnode.getString("description");
-				Node nodeclassobj = new Node(nodeID,mat,Desc,t );
-				NodesList.add(nodeclassobj);
-			}
-			return NodesList;
-		}catch (JSONException jse){
-		}
 		try{
 			for(int i = 0 ; i <nodesJSONArray.length();i++){
 			JSONObject newnode = nodesJSONArray.getJSONObject(i);
@@ -106,9 +69,31 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 			return NodesList;
 		}catch (JSONException jse){
 				jse.printStackTrace();
-			}return NodesList;
+				return null;
+			}
 		}
 	
+	//helper method to parse an array of edges to a JSONArray
+	public JSONArray getJSONArray(ArrayList<Node> Nodes){
+		JSONArray NodesArray= new JSONArray();
+		//adding nodes as JSON OBjects
+		try{
+			for (Node node : Nodes)
+			{
+				JSONObject nodeJSON = new JSONObject();
+				nodeJSON.put("Id", node.getId());
+				nodeJSON.put("Materialized", node.isMaterialized());
+				nodeJSON.put("Description", node.getDescription());
+				nodeJSON.put("Time", node.getTime());
+				NodesArray.put(nodeJSON);
+			}
+		} catch (JSONException jse) {
+			jse.printStackTrace();
+			return null;
+		}
+		return NodesArray;
+	}
+
 	public VersionGraph Load(JSONObject GraphJSONObject){
 		JSONArray nodes;
 		JSONArray edges;
@@ -127,7 +112,12 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 				JSONObject newedge = edges.getJSONObject(i);
 				ArrayList<Node> startNodes = getNodeArrayList(newedge.getJSONArray("StartNodes"));
 				ArrayList<Node> endNodes = getNodeArrayList(newedge.getJSONArray("EndNodes"));
-				Operation trans = (Operation) newedge.get("Transformation");
+				//it was necessary to break up the object like that to because 
+				//when I tried with Gson builder it failed
+				//to take care of the enum.
+				String code = newedge.getJSONObject("Transformation").get("Code").toString();
+				OpType operation = OpType.valueOf(newedge.getJSONObject("Transformation").get("Operation").toString());
+				Operation trans = new Operation(code, operation);
 				Edge edgeclassobj = new Edge(startNodes, endNodes,trans);
 				EdgesList.add(edgeclassobj);
 			}

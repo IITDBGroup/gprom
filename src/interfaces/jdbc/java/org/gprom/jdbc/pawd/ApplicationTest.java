@@ -35,12 +35,8 @@ public class ApplicationTest {
 		ArrayList<Node> NodeSet4 = new ArrayList<>( Arrays.asList(node2, node4));
 		ArrayList<Node> NodeSetAll = new ArrayList<>(Arrays.asList(node1,node2,node3,node4));
 		//construct sample operations for edge creation
-		Operation op1 = new Operation();
-		op1.Code = "SELECT * FROM R";
-		op1.Op= OpType.Query;
-		Operation op2 = new Operation();
-		op2.Code = "UPDATE R SET x=0 *";
-		op2.Op= OpType.Update;
+		Operation op1 = new Operation("SELECT * FROM R",OpType.Query);
+		Operation op2 = new Operation("UPDATE R SET x=0 *",OpType.Update);
 		//sample set of edges
 		Edge edge1 = new Edge(NodeSet1,NodeSet2,op1);
 		Edge edge2 = new Edge(NodeSet3,NodeSet4,op2);
@@ -55,7 +51,7 @@ public class ApplicationTest {
 		myinterface.Configure(Graph1);
 		JSONObject ser = myinterface.Save(Graph1);
 		System.out.print(ser.toString(1));
-		myinterface.Load(ser);
+		System.out.println(myinterface.Load(ser));
 		
 
 	}
