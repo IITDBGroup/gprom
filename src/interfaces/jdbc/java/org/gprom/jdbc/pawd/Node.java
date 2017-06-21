@@ -3,7 +3,7 @@
  */
 package org.gprom.jdbc.pawd;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
+import java.util.Date;
 /**
  * @author Amer
  *
@@ -16,7 +16,7 @@ public class Node {
 	 * @return the time
 	 */
 
-	public Calendar getTime() {
+	public Date getTime() {
 		return Time;
 	}
 
@@ -26,7 +26,7 @@ public class Node {
 	String Id;
 	boolean Materialized;
 	String Description;
-	Calendar Time;
+	Date Time;
 	
 	/**
 	 * @return the id
@@ -74,15 +74,15 @@ public class Node {
 		Id = VersionGraph.IDGenerator();
 		Materialized = false ;
 		Description = null ;
-		Time = Calendar.getInstance();
+		Time = new Date();
 	}
 	public Node(boolean Materialized, String Description){
 		Id= VersionGraph.IDGenerator();
 		this.Materialized=Materialized;
 		this.Description= Description;
-		Time = Calendar.getInstance();
+		Time = new Date();
 	}
-	public Node( String ID, boolean Materialized, String Description,Calendar time){
+	public Node( String ID, boolean Materialized, String Description,Date time){
 		Id= ID;
 		this.Materialized=Materialized;
 		this.Description= Description;
@@ -98,7 +98,7 @@ public class Node {
 		return "[Id=" + Id + 
 				", Materialized=" + Materialized + 
 				", Description=" + Description + 
-				", Time=" + sdf.format(Time.getTime())+ "]\n";
+				", Time=" + sdf.format(Time)+ "]\n";
 	}
 
 

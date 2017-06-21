@@ -4,8 +4,9 @@
 package org.gprom.jdbc.pawd;
 
 import java.util.ArrayList;
-import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
+
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation.OpType;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -60,7 +61,7 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 			for(int i = 0 ; i <nodesJSONArray.length();i++){
 			JSONObject newnode = nodesJSONArray.getJSONObject(i);
 			String nodeID = newnode.getString("Id");
-			Calendar t = (Calendar) newnode.get("Time");
+			Date t = (Date) newnode.get("Time");
 			boolean mat = newnode.getBoolean("Materialized");
 			String Desc = newnode.getString("Description");
 			Node nodeclassobj = new Node(nodeID,mat,Desc,t );
@@ -98,7 +99,7 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		JSONArray nodes;
 		JSONArray edges;
 		String[] Configuaration;
-		ArrayList<Edge> EdgesList = new ArrayList<Edge>();
+		ArrayList<Edge> EdgesList =new ArrayList<Edge>();
 		VersionGraph V;
 		ArrayList<Node>NodesList;
 		try {
