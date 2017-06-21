@@ -45,8 +45,13 @@ public class ApplicationTest {
 		//construct Arraylist of EDGES
 		ArrayList<Edge> EdgeSetAll = new ArrayList<>( Arrays.asList(edge1, edge2,edge3,edge4));
 		//System.out.println(EdgeSetAll);
+		//construct the VersionEdges
+		VersionEdge VE1 = new VersionEdge(node1,node2);
+		VersionEdge VE2 = new VersionEdge(node1,node3);
+		//construct arraylist of versionedges
+		ArrayList<VersionEdge> VersionEdgeSetAll = new ArrayList<>(Arrays.asList(VE1,VE2));
 		//create a version graph
-		VersionGraph Graph1 = new VersionGraph(NodeSetAll, EdgeSetAll,null);
+		VersionGraph Graph1 = new VersionGraph(NodeSetAll, EdgeSetAll,VersionEdgeSetAll,null);
 		VersionGraphStore myinterface = new JSONVersionGraphStore();
 		myinterface.Configure(Graph1);
 		JSONObject ser = myinterface.Save(Graph1);

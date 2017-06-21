@@ -18,11 +18,40 @@ import org.json.JSONObject;
  *
  */
 public class JSONVersionGraphStore implements VersionGraphStore {
-	
+	//helper method converting a JSONobject to node
+	public Node JSONtoNode(JSONObject newnode ){
+		try{
+			String nodeID = newnode.getString("Id");
+			Date t = (Date) newnode.get("Time");
+			boolean mat = newnode.getBoolean("Materialized");
+			String Desc = newnode.getString("Description");
+			Node node = new Node(nodeID,mat,Desc,t );
+			return node;
+		}
+		catch(JSONException jse){
+			jse.printStackTrace();
+			return null;
+		}
+	}
+	//helper method converting a node object to a JSOn Object
+	public JSONObject NodetoJSON(Node node){
+		JSONObject nodeJSON = new JSONObject();
+		try {
+			nodeJSON.put("Id", node.getId());
+			nodeJSON.put("Materialized", node.isMaterialized());
+			nodeJSON.put("Description", node.getDescription());
+			nodeJSON.put("Time", node.getTime());
+			return nodeJSON;
+		} catch (JSONException e) {
+			e.printStackTrace();
+			return null;
+		}
+
+		
+	}
 
 	public JSONObject Save(VersionGraph V){
 	    JSONObject GraphJSONObject = new JSONObject();
-	    
 		try
 		{
 			//adding nodes as JSON OBjects
@@ -44,6 +73,21 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		         EdgesArray.put(edgeJSON);
 		    }
 			GraphJSONObject.put("Edges", EdgesArray);
+			//adding VersionEdges
+			JSONArray VEdgesArray = new JSONArray();
+			for (VersionEdge VE: V.getVersionEdges()){
+				JSONObject vedgeJSON = new JSONObject();
+				//adding original node
+				JSONObject nodeJSON = NodetoJSON(VE.getOriginal());
+				vedgeJSON.put("Original", nodeJSON);
+				//adding derived node
+				nodeJSON = NodetoJSON(VE.getDerivative());
+				vedgeJSON.put("Derivative", nodeJSON);
+				//adding time
+				vedgeJSON.put("Time", VE.getTime());
+				VEdgesArray.put(vedgeJSON);
+			}
+			GraphJSONObject.put("VersionEdges", VEdgesArray);
 			//adding configuration
 		    GraphJSONObject.put("Configuration", V.getConfiguration());
 		    //adding IDcounter
@@ -60,11 +104,7 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		try{
 			for(int i = 0 ; i <nodesJSONArray.length();i++){
 			JSONObject newnode = nodesJSONArray.getJSONObject(i);
-			String nodeID = newnode.getString("Id");
-			Date t = (Date) newnode.get("Time");
-			boolean mat = newnode.getBoolean("Materialized");
-			String Desc = newnode.getString("Description");
-			Node nodeclassobj = new Node(nodeID,mat,Desc,t );
+			Node nodeclassobj = JSONtoNode(newnode);
 			NodesList.add(nodeclassobj);
 			}
 			return NodesList;
@@ -78,33 +118,28 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 	public JSONArray getJSONArray(ArrayList<Node> Nodes){
 		JSONArray NodesArray= new JSONArray();
 		//adding nodes as JSON OBjects
-		try{
 			for (Node node : Nodes)
 			{
-				JSONObject nodeJSON = new JSONObject();
-				nodeJSON.put("Id", node.getId());
-				nodeJSON.put("Materialized", node.isMaterialized());
-				nodeJSON.put("Description", node.getDescription());
-				nodeJSON.put("Time", node.getTime());
+				JSONObject nodeJSON = NodetoJSON(node);
 				NodesArray.put(nodeJSON);
 			}
-		} catch (JSONException jse) {
-			jse.printStackTrace();
-			return null;
-		}
 		return NodesArray;
 	}
 
 	public VersionGraph Load(JSONObject GraphJSONObject){
 		JSONArray nodes;
 		JSONArray edges;
+		JSONArray vedges;
 		String[] Configuaration;
 		ArrayList<Edge> EdgesList =new ArrayList<Edge>();
+		ArrayList<VersionEdge> VEdgesList = new ArrayList<VersionEdge>();
 		VersionGraph V;
 		ArrayList<Node>NodesList;
 		try {
 			nodes = GraphJSONObject.getJSONArray("Nodes");
 			edges = GraphJSONObject.getJSONArray("Edges");
+			vedges = GraphJSONObject.getJSONArray("VersionEdges");
+			System.out.println("$$$$$$$$$$"+vedges+"$$$$$$$$$$\n");
 			Configuaration = (String[]) GraphJSONObject.get("Configuration");
 			long counter = GraphJSONObject.getLong("counterID");
 			NodesList = getNodeArrayList(nodes);
@@ -122,7 +157,18 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 				Edge edgeclassobj = new Edge(startNodes, endNodes,trans);
 				EdgesList.add(edgeclassobj);
 			}
-			V = new VersionGraph(NodesList,EdgesList,Configuaration);
+			for(int i = 0 ;i <vedges.length();i++){
+				JSONObject newVEdge= vedges.getJSONObject(i);
+				System.out.println("$$$$$$$$$$"+newVEdge+"$$$$$$$$$$\n");
+				JSONObject newnode = (JSONObject) newVEdge.get("Original");
+				Node p = JSONtoNode(newnode);
+				newnode = (JSONObject) newVEdge.get("Derivative");
+				Node c = JSONtoNode(newnode);
+				Date tt = (Date) newVEdge.get("Time");
+				VersionEdge VE = new VersionEdge(p,c,tt);
+				VEdgesList.add(VE);
+			}
+			V = new VersionGraph(NodesList,EdgesList,VEdgesList,Configuaration);
 			VersionGraph.setIdCounter(counter);
 			return V;
 		} catch (JSONException e) {

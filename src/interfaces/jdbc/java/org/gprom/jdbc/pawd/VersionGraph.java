@@ -34,6 +34,7 @@ public class VersionGraph {
 	
 	ArrayList<Node> Nodes;
 	ArrayList<Edge> Edges;
+	ArrayList<VersionEdge> VersionEdges;
 	String [] Configuration;
 	
 	
@@ -87,17 +88,34 @@ public class VersionGraph {
 	public VersionGraph() {
 		Nodes = new ArrayList<Node>();
 		Edges = new ArrayList<Edge>();
+		VersionEdges = new ArrayList<VersionEdge>();
 		Configuration = null; 
+		
 	}
-	public VersionGraph(ArrayList<Node> Nodes, ArrayList<Edge> Edges, String[] Configuration){
+	public VersionGraph(ArrayList<Node> Nodes, ArrayList<Edge> Edges
+			,ArrayList<VersionEdge> VersionEdges, String[] Configuration){
 		this.Nodes= Nodes;
 		this.Edges= Edges;
+		this.VersionEdges= VersionEdges;
 		this.Configuration= Configuration;
 	}
-	public VersionGraph(ArrayList<Node> Nodes, ArrayList<Edge> Edges){
+	public VersionGraph(ArrayList<Node> Nodes, ArrayList<Edge> Edges,ArrayList<VersionEdge> VersionEdges){
 		this.Nodes= Nodes;
 		this.Edges= Edges;
+		this.VersionEdges= VersionEdges;
 		this.Configuration= null;
+	}
+	/**
+	 * @return the versionEdges
+	 */
+	public ArrayList<VersionEdge> getVersionEdges() {
+		return VersionEdges;
+	}
+	/**
+	 * @param versionEdges the versionEdges to set
+	 */
+	public void setVersionEdges(ArrayList<VersionEdge> versionEdges) {
+		VersionEdges = versionEdges;
 	}
 	public void AddEdge(Edge d) {
 		Edges.add(d);
@@ -105,11 +123,17 @@ public class VersionGraph {
 	public void AddNode(Node t){
 		Nodes.add(t);
 	}
+	public void AddVersionEdge(VersionEdge e){
+		VersionEdges.add(e);
+	}
 
 	@Override
 	public String toString() {
 		return "VersionGraph ["
-				+ "\nNodes=\n" + Nodes + "\n Edges=\n" + Edges + "\n Configuration=" + Arrays.toString(Configuration)
+				+ "\nNodes=\n" + Arrays.toString(Nodes.toArray())
+				+ "\n Edges=\n" + Arrays.toString(Edges.toArray())
+				+ "\n VersionEdges=" + Arrays.toString(VersionEdges.toArray())
+				+ "\n Configuration=" + Arrays.toString(Configuration)
 				+ "\n]"
 				+ "IdCounter = "+ idCounter;
 	}
