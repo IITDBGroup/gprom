@@ -1442,11 +1442,9 @@ oracleGenExecQuery (char *query)
 void
 oracleGenExecQueryIgnoreResult (char *query)
 {
-    int numAttrs;
     OCI_Resultset *rs;
 
     rs = executeStatement(query);
-    numAttrs = OCI_GetColumnCount(rs);
 
     // fetch tuples
     while(OCI_FetchNext(rs))

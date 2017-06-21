@@ -252,7 +252,7 @@
 			<formatter type="xml"/>
 	        <batchtest todir="${basedir}/results">
 	            <fileset dir="${testsourcedir}">
-	                <include name="**/com/gprom/jdbc/test/autotests/**/*_Test.java"/>
+	                <include name="**/*_Test.java"/>
 	            </fileset>
 	        </batchtest>
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
