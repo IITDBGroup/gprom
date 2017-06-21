@@ -75,10 +75,6 @@ rewriteImplicitTemporal (QueryOperator *q)
     //top = addCoalesceForAllOp(top);
     top = addCoalesce(top);
 
-//    List *attrNames = singleton("SALARY");
-    //top = addTemporalAlignment(top, top, attrNames);
-//    top = addTemporalAlignmentUsingWindow(top, top, attrNames);
-
     return top;
 }
 
@@ -88,53 +84,68 @@ temporalRewriteOperator(QueryOperator *op)
     QueryOperator *rewrittenOp = NULL;
 
     if (HAS_STRING_PROP(op, PROP_DUMMY_HAS_PROV_PROJ))
-        return tempRewrTemporalSource(op);
-
-    switch(op->type)
+        rewrittenOp = tempRewrTemporalSource(op);
+    else
     {
-        case T_SelectionOperator:
-            DEBUG_LOG("go selection");
-            rewrittenOp = tempRewrSelection((SelectionOperator *) op);
-            break;
-        case T_ProjectionOperator:
-            DEBUG_LOG("go projection");
-            rewrittenOp = tempRewrProjection((ProjectionOperator *) op);
-            break;
-        case T_AggregationOperator:
-            DEBUG_LOG("go aggregation");
-            rewrittenOp = tempRewrAggregation ((AggregationOperator *) op);
-            break;
-        case T_JoinOperator:
-            DEBUG_LOG("go join");
-            rewrittenOp = tempRewrJoin((JoinOperator *) op);
-            break;
-        case T_SetOperator:
-            DEBUG_LOG("go set");
-            rewrittenOp = tempRewrSetOperator((SetOperator *) op);
-            break;
-//        case T_TableAccessOperator:
-//            DEBUG_LOG("go table access");
-//            rewrittenOp = tempRewrTableAccess((TableAccessOperator *) op);
-//            break;
-//        case T_ConstRelOperator:
-//            DEBUG_LOG("go const rel operator");
-//            rewrittenOp = tempRewrConstRel((ConstRelOperator *) op);
-//            break;
-//        case T_DuplicateRemoval:
-//            DEBUG_LOG("go duplicate removal operator");
-//            rewrittenOp = tempRewrDuplicateRemOp((DuplicateRemoval *) op);
-//            break;
-//        case T_OrderOperator:
-//            DEBUG_LOG("go order operator");
-//            rewrittenOp = tempRewrOrderOp((OrderOperator *) op);
-//            break;
-//        case T_JsonTableOperator:
-//            DEBUG_LOG("go JsonTable operator");
-//            rewrittenOp = tempRewrJsonTableOp((JsonTableOperator *) op);
-//            break;
-        default:
-            FATAL_LOG("no rewrite implemented for operator %s", beatify(nodeToString(op)));
-            return NULL;
+        switch(op->type)
+        {
+            case T_SelectionOperator:
+                DEBUG_LOG("go selection");
+                rewrittenOp = tempRewrSelection((SelectionOperator *) op);
+                break;
+            case T_ProjectionOperator:
+                DEBUG_LOG("go projection");
+                rewrittenOp = tempRewrProjection((ProjectionOperator *) op);
+                break;
+            case T_AggregationOperator:
+                DEBUG_LOG("go aggregation");
+                rewrittenOp = tempRewrAggregation ((AggregationOperator *) op);
+                break;
+            case T_JoinOperator:
+                DEBUG_LOG("go join");
+                rewrittenOp = tempRewrJoin((JoinOperator *) op);
+                break;
+            case T_SetOperator:
+                DEBUG_LOG("go set");
+                rewrittenOp = tempRewrSetOperator((SetOperator *) op);
+                break;
+    //        case T_TableAccessOperator:
+    //            DEBUG_LOG("go table access");
+    //            rewrittenOp = tempRewrTableAccess((TableAccessOperator *) op);
+    //            break;
+    //        case T_ConstRelOperator:
+    //            DEBUG_LOG("go const rel operator");
+    //            rewrittenOp = tempRewrConstRel((ConstRelOperator *) op);
+    //            break;
+    //        case T_DuplicateRemoval:
+    //            DEBUG_LOG("go duplicate removal operator");
+    //            rewrittenOp = tempRewrDuplicateRemOp((DuplicateRemoval *) op);
+    //            break;
+    //        case T_OrderOperator:
+    //            DEBUG_LOG("go order operator");
+    //            rewrittenOp = tempRewrOrderOp((OrderOperator *) op);
+    //            break;
+    //        case T_JsonTableOperator:
+    //            DEBUG_LOG("go JsonTable operator");
+    //            rewrittenOp = tempRewrJsonTableOp((JsonTableOperator *) op);
+    //            break;
+            default:
+                FATAL_LOG("no rewrite implemented for operator %s", beatify(nodeToString(op)));
+                return NULL;
+        }
+    }
+
+    if (HAS_STRING_PROP(op, PROP_TEMP_NORMALIZE_INPUTS))
+    {
+        List *attrsConsts = (List *) GET_STRING_PROP(op, PROP_TEMP_NORMALIZE_INPUTS);
+        List *attrs = NIL;
+
+        FOREACH(Constant,c,attrsConsts)
+        {
+            attrs = appendToTailOfList(attrs, strdup(STRING_VALUE(c)));
+        }
+
+        rewrittenOp = addTemporalAlignment(rewrittenOp, rewrittenOp, attrs);
     }
 
     return rewrittenOp;
@@ -434,7 +445,17 @@ coalescingAndAlignmentVisitor (QueryOperator *q, Set *done)
         case T_AggregationOperator:
         {
             QueryOperator* child = OP_LCHILD(q);
-            SET_BOOL_STRING_PROP(child,PROP_TEMP_DO_COALESCE);
+            AggregationOperator *a = (AggregationOperator *) q;
+            List *attrs = NIL;
+
+            FOREACH(AttributeReference,g,a->groupBy)
+            {
+                char *attrName = getAttrNameByPos(child, g->attrPosition);
+
+                attrs = appendToTailOfList(attrs, createConstString(attrName));
+            }
+
+            SET_STRING_PROP(child,PROP_TEMP_NORMALIZE_INPUTS, attrs);
             DEBUG_OP_LOG("mark aggregation input for coalescing", q);
         }
         break;
@@ -1052,7 +1073,8 @@ addTemporalAlignment (QueryOperator *input, QueryOperator *reference, List *attr
 {
 	QueryOperator *left = input;
 	QueryOperator *right = reference;
-
+	List *parents = left->parents;
+	List *newParents;
 	//---------------------------------------------------------------------------------------
     //Construct CP: a union on four projections
     Constant *c1 = createConstInt(ONE);
@@ -1088,6 +1110,8 @@ addTemporalAlignment (QueryOperator *input, QueryOperator *reference, List *attr
     ProjectionOperator *leftProj1 = createProjectionOp(leftProjExpr1, left, NIL, deepCopyStringList(leftAttrNames));
     ProjectionOperator *leftProj2 = createProjectionOp(leftProjExpr2, left, NIL, deepCopyStringList(leftAttrNames));
     left->parents = LIST_MAKE(leftProj1,leftProj2);
+//    addParent(left, (QueryOperator *) leftProj1);
+//    addParent(left, (QueryOperator *) leftProj2);
 
     //construct union on top (u1)
     SetOperator *u1 = createSetOperator(SETOP_UNION, LIST_MAKE(leftProj1, leftProj2), NIL,
@@ -1281,8 +1305,8 @@ addTemporalAlignment (QueryOperator *input, QueryOperator *reference, List *attr
     AttributeReference *topProjE = createAttrsRefByName(topWOp,TEND_NAME);
     AttributeReference *topProjwin = createAttrsRefByName(topWOp,topFuncName);
     FunctionCall *topProjFunc = createFunctionCall("COALESCE",LIST_MAKE(topProjwin,topProjE));
-    List *topProjExprs = LIST_MAKE(copyObject(topT), topProjFunc);
-    List *topProjNames = LIST_MAKE(TBEGIN_NAME,TEND_NAME);
+    List *topProjExprs = NIL;
+    List *topProjNames = NIL;
 
     FOREACH(char, c, getAttrNames(left->schema))
     {
@@ -1293,8 +1317,18 @@ addTemporalAlignment (QueryOperator *input, QueryOperator *reference, List *attr
     	}
     }
 
+    topProjExprs = CONCAT_LISTS(topProjExprs, LIST_MAKE(copyObject(topT), topProjFunc));
+    topProjNames = CONCAT_LISTS(topProjNames, LIST_MAKE(TBEGIN_NAME,TEND_NAME));
+
     ProjectionOperator *topProj = createProjectionOp(topProjExprs, topWOp, NIL, topProjNames);
     topWOp->parents = singleton(topProj);
+    setTempAttrProps((QueryOperator *) topProj);
+
+    // switch subtrees
+    newParents = input->parents;
+    input->parents = parents;
+    switchSubtrees(input, (QueryOperator *) topProj);
+    input->parents = newParents;
 
     return (QueryOperator *) topProj;
 }
@@ -1751,6 +1785,8 @@ addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference,
     		topProjOp->provAttrs = appendToTailOfListInt(topProjOp->provAttrs, pCount);
     	pCount ++;
     }
+
+    switchSubtreeWithExisting(input, (QueryOperator *) topProjOp);
 
 	return (QueryOperator *) topProjOp;
 }
