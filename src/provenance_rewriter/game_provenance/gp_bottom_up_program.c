@@ -65,6 +65,8 @@ static void setIDBBody (DLRule *r);
 static DLProgram *rewriteSolvedProgram (DLProgram *solvedProgram);
 static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
         List* unLinkedRules);
+static List*createTupleRuleTupleReducedGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
+        List* unLinkedRules);
 static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
 		List* unLinkedRules);
 static List*createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
@@ -1281,9 +1283,9 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
                             DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
                                     DL_ORIG_ATOM);
 
-                            char *atomRel = CONCAT_STRINGS("r", strdup(origAtom->rel),
+                            char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
                                     ruleWon ? "_WON" : "_LOST");
-                            char *negAtomRel = CONCAT_STRINGS("r", strdup(origAtom->rel),
+                            char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
                                     !ruleWon ? "_WON" : "_LOST");
 
                             if (!ruleWon)
@@ -1310,7 +1312,7 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
                             {
                                 if (!goalWon)
                                 {
-                                    rExpr = createSkolemExpr(GP_NODE_EDB,
+                                    rExpr = createSkolemExpr(GP_NODE_TUPLE,
                                             negAtomRel, copyObject(a->args));
                                     if (ruleWon)
                                         moveRule = createMoveRule(lExpr, rExpr,
@@ -1329,7 +1331,7 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
                             {
                                 if (!goalWon || ruleWon)
                                 {
-                                    rExpr = createSkolemExpr(GP_NODE_EDB,
+                                    rExpr = createSkolemExpr(GP_NODE_TUPLE,
                                             atomRel, copyObject(a->args));
                                     if (ruleWon)
                                         moveRule = createMoveRule(lExpr, rExpr,
@@ -3846,21 +3848,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     	                           || DL_HAS_PROP(r,DL_UNDER_NEG_WON));
     }
 
-    if (solvedProgram->doms == NIL)
-    {
-        if (ruleWon)
-            solvedProgram->rules = CONCAT_LISTS(moveRules, edbRules, helpRules, unLinkedRules, newRules);
-        else
-        	solvedProgram->rules = CONCAT_LISTS(moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
-    }
+    if (ruleWon)
+        solvedProgram->rules = CONCAT_LISTS(solvedProgram->doms ? domainRules : NIL, moveRules, edbRules, helpRules, unLinkedRules, newRules);
     else
-    {
-        if (ruleWon)
-            solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, helpRules, unLinkedRules, newRules);
-        else
-        	solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
-    }
-
+    	solvedProgram->rules = CONCAT_LISTS(solvedProgram->doms ? domainRules : NIL, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
 
     INFO_LOG("gp program is:\n%s", datalogToOverviewString((Node *) solvedProgram));
 
