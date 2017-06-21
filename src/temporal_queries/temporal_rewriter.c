@@ -499,6 +499,7 @@ addCoalesce (QueryOperator *input)
     t1ProjExpr1 = appendToTailOfList(t1ProjExpr1, copyObject(c1));
     t1ProjExpr2 = appendToTailOfList(t1ProjExpr2, copyObject(c1));
     t1ProjExpr2 = appendToTailOfList(t1ProjExpr2, copyObject(c0));
+    int attrPos = 0;
 
     AttributeDef *t1BeginDef  = (AttributeDef *) getStringProperty(op, PROP_TEMP_TBEGIN_ATTR);
     int t1BeginPos = getAttrPos(op, t1BeginDef->attrName);
@@ -535,11 +536,13 @@ addCoalesce (QueryOperator *input)
     QueryOperator *t1Op = (QueryOperator *) t1;
     //partationBy
     List *t2PartitionBy1 = NIL;
+    attrPos = 0;
     FOREACH(char, c, norAttrnames)
     {
     	 AttributeDef *t2PBDef1 = getAttrDefByName(t1Op, c);
-    	 AttributeReference *t2PBRef1 = createFullAttrReference(strdup(t2PBDef1->attrName), 0, 0, INVALID_ATTR, t2PBDef1->dataType);
+    	 AttributeReference *t2PBRef1 = createFullAttrReference(strdup(t2PBDef1->attrName), 0, attrPos, INVALID_ATTR, t2PBDef1->dataType);
     	 t2PartitionBy1 = appendToTailOfList(t2PartitionBy1,t2PBRef1);
+    	 attrPos++;
     }
 //    AttributeDef *t2PBDef1 = (AttributeDef *) getHeadOfListP(t1Op->schema->attrDefs);
 //    AttributeReference *t2PBRef1 = createFullAttrReference(strdup(t2PBDef1->attrName), 0, 0, INVALID_ATTR, t2PBDef1->dataType);
@@ -573,11 +576,13 @@ addCoalesce (QueryOperator *input)
     QueryOperator *t2W1Op = (QueryOperator *) t2W1;
     //partationBy
     List *t2PartitionBy2 = NIL;
+    attrPos = 0;
     FOREACH(char, c, norAttrnames)
     {
     	 AttributeDef *t2PBDef2 = getAttrDefByName(t2W1Op, c);
-    	 AttributeReference *t2PBRef2 = createFullAttrReference(strdup(t2PBDef2->attrName), 0, 0, INVALID_ATTR, t2PBDef2->dataType);
+    	 AttributeReference *t2PBRef2 = createFullAttrReference(strdup(t2PBDef2->attrName), 0, attrPos, INVALID_ATTR, t2PBDef2->dataType);
     	 t2PartitionBy2 = appendToTailOfList(t2PartitionBy2,t2PBRef2);
+    	 attrPos++;
     }
 //    AttributeDef *t2PBDef2 = (AttributeDef *) getHeadOfListP(t2W1Op->schema->attrDefs);
 //    AttributeReference *t2PBRef2 = createFullAttrReference(strdup(t2PBDef2->attrName), 0, 0, INVALID_ATTR, t2PBDef2->dataType);
@@ -609,11 +614,13 @@ addCoalesce (QueryOperator *input)
     List *t2ProjExpr = NIL;
 
     //salary
+    attrPos = 0;
     FOREACH(char, c, norAttrnames)
     {
     	 AttributeDef *t2NorDef = getAttrDefByName(t2W2Op, c);
-    	 AttributeReference *t2NorRef = createFullAttrReference(strdup(strdup(t2NorDef->attrName)), 0, 0, INVALID_ATTR, t2NorDef->dataType);
+    	 AttributeReference *t2NorRef = createFullAttrReference(strdup(strdup(t2NorDef->attrName)), 0, attrPos, INVALID_ATTR, t2NorDef->dataType);
     	 t2ProjExpr = appendToTailOfList(t2ProjExpr, t2NorRef);
+         attrPos++;
     }
 //    AttributeDef *t2NorDef= (AttributeDef *) getHeadOfListP(t2W2Op->schema->attrDefs);
 //    AttributeReference *t2NorRef = createFullAttrReference(strdup(strdup(t2NorDef->attrName)), 0, 0, INVALID_ATTR, t2NorDef->dataType);
@@ -647,12 +654,13 @@ addCoalesce (QueryOperator *input)
 
     //partationBy
     List *t3PartitionBy1 = NIL;
+    attrPos = 0;
     FOREACH(char, c, norAttrnames)
     {
     	 AttributeDef *t3pbDef1 = getAttrDefByName(t2Op, c);
-    	 AttributeReference *t3pbRef1 = createFullAttrReference(strdup(t3pbDef1->attrName), 0, 0, INVALID_ATTR, t3pbDef1->dataType);
+    	 AttributeReference *t3pbRef1 = createFullAttrReference(strdup(t3pbDef1->attrName), 0, attrPos, INVALID_ATTR, t3pbDef1->dataType);
     	 t3PartitionBy1 = appendToTailOfList(t3PartitionBy1,t3pbRef1);
-
+    	 attrPos++;
     }
 //    AttributeDef *t3pbDef1 = (AttributeDef *) getHeadOfListP(t2Op->schema->attrDefs);
 //    AttributeReference *t3pbRef1 = createFullAttrReference(strdup(t3pbDef1->attrName), 0, 0, INVALID_ATTR, t3pbDef1->dataType);
@@ -686,11 +694,13 @@ addCoalesce (QueryOperator *input)
 
     //partationBy
     List *t3PartitionBy2 = NIL;
+    attrPos = 0;
     FOREACH(char, c, norAttrnames)
     {
         AttributeDef *t3pbDef2 = getAttrDefByName(t3w1Op,c);
-        AttributeReference *t3pbRef2 = createFullAttrReference(strdup(t3pbDef2->attrName), 0, 0, INVALID_ATTR, t3pbDef2->dataType);
+        AttributeReference *t3pbRef2 = createFullAttrReference(strdup(t3pbDef2->attrName), 0, attrPos, INVALID_ATTR, t3pbDef2->dataType);
         t3PartitionBy2 = appendToTailOfList(t3PartitionBy2,t3pbRef2);
+        attrPos++;
     }
 
 //    AttributeDef *t3pbDef2 = (AttributeDef *) getHeadOfListP(t3w1Op->schema->attrDefs);
@@ -723,11 +733,13 @@ addCoalesce (QueryOperator *input)
     List *t3ProjExpr = NIL;
 
     //salary
+    attrPos = 0;
     FOREACH(char, c, norAttrnames)
     {
     	 AttributeDef *t3ProjDef1 = getAttrDefByName(t3w2Op,c);
-    	 AttributeReference *t3ProjRef1 = createFullAttrReference(strdup(t3ProjDef1->attrName), 0, 0, INVALID_ATTR, t3ProjDef1->dataType);
+    	 AttributeReference *t3ProjRef1 = createFullAttrReference(strdup(t3ProjDef1->attrName), 0, attrPos, INVALID_ATTR, t3ProjDef1->dataType);
     	 t3ProjExpr = appendToTailOfList(t3ProjExpr, t3ProjRef1);
+    	 attrPos++;
     }
 //    AttributeDef *t3ProjDef1 = (AttributeDef *) getHeadOfListP(t3w2Op->schema->attrDefs);
 //    AttributeReference *t3ProjRef1 = createFullAttrReference(strdup(t3ProjDef1->attrName), 0, 0, INVALID_ATTR, t3ProjDef1->dataType);
@@ -791,11 +803,13 @@ addCoalesce (QueryOperator *input)
 
     //partationBy
     List *t5PartitionBy = NIL;
+    attrPos = 0;
     FOREACH(char, c, norAttrnames)
     {
     	AttributeDef *t5pbDef = getAttrDefByName(t4Op,c);
-    	AttributeReference *t5pbRef = createFullAttrReference(strdup(t5pbDef->attrName), 0, 0, INVALID_ATTR, t5pbDef->dataType);
+    	AttributeReference *t5pbRef = createFullAttrReference(strdup(t5pbDef->attrName), 0, attrPos, INVALID_ATTR, t5pbDef->dataType);
     	t5PartitionBy = appendToTailOfList(t5PartitionBy,t5pbRef);
+    	attrPos++;
     }
 //    AttributeDef *t5pbDef = (AttributeDef *) getHeadOfListP(t4Op->schema->attrDefs);
 //    AttributeReference *t5pbRef = createFullAttrReference(strdup(t5pbDef->attrName), 0, 0, INVALID_ATTR, t5pbDef->dataType);
@@ -923,11 +937,13 @@ addCoalesce (QueryOperator *input)
     QueryOperator *t6JoinOp = (QueryOperator *) t6Join;
 
     List *t6ProjExpr = NIL;
-    FOREACH(char, c, norAttrnames)
+    attrPos = 0;
+    FOREACH(char, c, norAttrnames) //TODO Boris: why not use utility functions from provenance utility such as createProjOnAttrs
     {
     	AttributeDef *t6Def1 = getAttrDefByName(t6JoinOp,c);
-        AttributeReference *t6Ref1 = createFullAttrReference(strdup(t6Def1->attrName), 0, 0, INVALID_ATTR, t6Def1->dataType);
+        AttributeReference *t6Ref1 = createFullAttrReference(strdup(t6Def1->attrName), 0, attrPos, INVALID_ATTR, t6Def1->dataType);
         t6ProjExpr = appendToTailOfList(t6ProjExpr, t6Ref1);
+        attrPos++;
     }
 
 //    AttributeDef *t6Def1 = (AttributeDef *) getHeadOfListP(t6JoinOp->schema->attrDefs);
