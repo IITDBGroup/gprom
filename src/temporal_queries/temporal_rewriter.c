@@ -40,7 +40,7 @@ static void coalescingAndAlignmentVisitor (QueryOperator *q, Set *done);
 
 #define ONE 1
 #define ZERO 0
-
+#define INT_MINVAL -2000000000
 
 QueryOperator *
 rewriteImplicitTemporal (QueryOperator *q)
@@ -474,7 +474,24 @@ addCoalesceForAllOp(QueryOperator *op)
 }
 
 
-/* add algebra expressions to coalesce the output of an operator */
+/* add algebra expressions to coalesce the output of an operator
+ *
+ * T1 - union of count of starting and ending tuples with same values for each time point
+ *      this computes all "change points", i.e,. interval start or end points
+ *
+ * WITH T0 (tstart, tend, A, B) AS (
+      SELECT T_BEGIN AS TSTART, T_END AS TEND, A, B
+      FROM TEMP_TEST WHERE A = 1 AND B = 1
+    ),
+    T1 (Start_ts, End_ts, ts, A,B) AS (
+      SELECT 1, 0, TSTART, A, B
+      FROM T0
+      UNION ALL
+      SELECT 0, 1, TEND, A,B
+      FROM T0
+    )
+ *
+ */
 QueryOperator *
 addCoalesce (QueryOperator *input)
 {
@@ -483,7 +500,7 @@ addCoalesce (QueryOperator *input)
 	List *parents = op->parents;
 
 	//---------------------------------------------------------------------------------------
-    //Construct T1: a union on two projections
+    // Construct T1: a union on two projections
     Constant *c0 = createConstInt(ZERO);
     Constant *c1 = createConstInt(ONE);
     List *norAttrnames = getNormalAttrNames(op);
@@ -527,7 +544,7 @@ addCoalesce (QueryOperator *input)
     ((QueryOperator *) t1Proj2)->parents = singleton(t1);
 
 	//---------------------------------------------------------------------------------------
-    //Construct T2: SELECT salary, SUM(T_B) - SUM(T_E), TS
+    //Construct T2: SELECT DISTINCT A, B, SUM(T_B) - SUM(T_E), TS
 
     //Window 1 (SUM(S_B), PARTITION BY salary, GROUP_BY TS, RANGE UNBOUNDED PRECEDING
     WindowBound *wbT2W1 = createWindowBound(WINBOUND_UNBOUND_PREC,NULL);
@@ -641,16 +658,20 @@ addCoalesce (QueryOperator *input)
     List *T2AttrNames = LIST_MAKE("NUMOPEN",strdup(TS));
     T2AttrNames = concatTwoLists(deepCopyStringList(norAttrnames),T2AttrNames);
 
-    ProjectionOperator *t2 = createProjectionOp(t2ProjExpr, t2W2Op, NIL, T2AttrNames);
-    t2W2Op->parents = singleton(t2);
+    ProjectionOperator *t2topP = createProjectionOp(t2ProjExpr, t2W2Op, NIL, T2AttrNames);
+    t2W2Op->parents = singleton(t2topP);
+
+    DuplicateRemoval *t2;
+    t2 = createDuplicateRemovalOp(NIL, (QueryOperator *) t2topP, NIL, NIL);
+    addParent((QueryOperator *) t2topP, (QueryOperator *) t2);
 
 	//---------------------------------------------------------------------------------------
     //Construct T3: (diffFollowing, diffPrevious, numOpen, ts, salary)
     QueryOperator *t2Op = (QueryOperator *) t2;
 
-    //window 1 : FIRST_VALUE(numOpen) OVER (PARTITION BY salary ORDER BY ts ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING
-    WindowBound *t3wb1 = createWindowBound(WINBOUND_EXPR_FOLLOW,(Node *)singleton(copyObject(c1)));
-    WindowFrame *t3wf1 = createWindowFrame(WINFRAME_ROWS,t3wb1,copyObject(t3wb1));
+    //window 1 : LEAD(numOpen) OVER (PARTITION BY salary ORDER BY ts ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING
+//    WindowBound *t3wb1 = createWindowBound(WINBOUND_EXPR_FOLLOW,(Node *)singleton(copyObject(c1)));
+//    WindowFrame *t3wf1 = createWindowFrame(WINFRAME_ROWS,t3wb1,copyObject(t3wb1));
 
     //partationBy
     List *t3PartitionBy1 = NIL;
@@ -671,10 +692,10 @@ addCoalesce (QueryOperator *input)
     AttributeReference *t3gbRef1 = createFullAttrReference(strdup(t3gbDef1->attrName), 0, LIST_LENGTH(t2Op->schema->attrDefs) - 1, INVALID_ATTR, t3gbDef1->dataType);
     List *t3GroupBy1 = singleton(t3gbRef1);
 
-    WindowDef *t3wd1 = createWindowDef(t3PartitionBy1,t3GroupBy1,t3wf1);
+    WindowDef *t3wd1 = createWindowDef(t3PartitionBy1,t3GroupBy1,NULL);
 
     AttributeReference *t3fcRef = createAttrsRefByName(t2Op, NUMOPEN);
-    FunctionCall *t3fc = createFunctionCall("FIRST_VALUE",singleton(t3fcRef));
+    FunctionCall *t3fc = createFunctionCall("LEAD",singleton(t3fcRef));
 
     WindowFunction *t3wf = createWindowFunction(t3fc,t3wd1);
 
@@ -689,8 +710,8 @@ addCoalesce (QueryOperator *input)
     //window 2 : FIRST_VALUE(numOpen) OVER (PARTITION BY salary ORDER BY ts ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING
     QueryOperator *t3w1Op = (QueryOperator *) t3w1;
 
-    WindowBound *t3wb2 = createWindowBound(WINBOUND_EXPR_PREC,(Node *)singleton(copyObject(c1)));
-    WindowFrame *t3wf2 = createWindowFrame(WINFRAME_ROWS,t3wb2,copyObject(t3wb2));
+//    WindowBound *t3wb2 = createWindowBound(WINBOUND_EXPR_PREC,(Node *)singleton(copyObject(c1)));
+//    WindowFrame *t3wf2 = createWindowFrame(WINFRAME_ROWS,t3wb2,copyObject(t3wb2));
 
     //partationBy
     List *t3PartitionBy2 = NIL;
@@ -711,10 +732,10 @@ addCoalesce (QueryOperator *input)
     AttributeReference *t3gpRef2 = createAttrsRefByName(t3w1Op, TS);
     List *t3GroupBy2 = singleton(t3gpRef2);
 
-    WindowDef *t3wd2 = createWindowDef(t3PartitionBy2,t3GroupBy2,t3wf2);
+    WindowDef *t3wd2 = createWindowDef(t3PartitionBy2,t3GroupBy2,NULL);
 
     AttributeReference *t3fcRef2 = createAttrsRefByName(t3w1Op, NUMOPEN);
-    FunctionCall *t3fc2 = createFunctionCall("FIRST_VALUE",singleton(t3fcRef2));
+    FunctionCall *t3fc2 = createFunctionCall("LAG",singleton(t3fcRef2));
 
     WindowFunction *t3wff = createWindowFunction(t3fc2,t3wd2);
 
@@ -726,13 +747,13 @@ addCoalesce (QueryOperator *input)
 			t3ANamef, t3w1Op, NIL);
     t3w1Op->parents = singleton(t3w2);
 
-    //projection :  Projection[SALARY COALESCE((NUMOPEN - W0),666) COALESCE((NUMOPEN - W1),666) NUMOPEN TS ]
+    //projection :  Projection[ATTRS COALESCE((NUMOPEN - W0),small_value) COALESCE((NUMOPEN - W1),small_value) NUMOPEN TS ]
     //(DIFFFOLLOWING DIFFPREVIOUS NUMOPEN TS SALARY)
     QueryOperator *t3w2Op = (QueryOperator *)t3w2;
-    Constant *c6 = createConstInt(666);
+    Constant *c6 = createConstInt(INT_MINVAL);
     List *t3ProjExpr = NIL;
 
-    //salary
+    // regular attributes
     attrPos = 0;
     FOREACH(char, c, norAttrnames)
     {
@@ -771,24 +792,24 @@ addCoalesce (QueryOperator *input)
     ProjectionOperator *t3Proj = createProjectionOp(t3ProjExpr, t3w2Op, NIL, t3ProjAttrNames);
     t3w2Op->parents = singleton(t3Proj);
 
-	DuplicateRemoval *t3Dr = createDuplicateRemovalOp(NIL, (QueryOperator *) t3Proj,
-			NIL, deepCopyStringList(t3ProjAttrNames));
-
-	QueryOperator *t3ProjOp = (QueryOperator *)t3Proj;
-	t3ProjOp->parents = singleton(t3Dr);
+//	DuplicateRemoval *t3Dr = createDuplicateRemovalOp(NIL, (QueryOperator *) t3Proj,
+//			NIL, deepCopyStringList(t3ProjAttrNames));
+//
+//	QueryOperator *t3ProjOp = (QueryOperator *)t3Proj;
+//	t3ProjOp->parents = singleton(t3Dr);
 
 	//---------------------------------------------------------------------------------------
     //Construct T4:   SELECT * FROM T3 SELECTION: WHERE diffFollowing != 0 OR diffPrevious != 0
-	QueryOperator *t3Op = (QueryOperator *) t3Dr;
+	QueryOperator *t3Op = (QueryOperator *) t3Proj;
 
-	AttributeReference *t4dfRef = createAttrsRefByName(t3Op, "DIFFFOLLOWING");
+//	AttributeReference *t4dfRef = createAttrsRefByName(t3Op, "DIFFFOLLOWING");
 	AttributeReference *t4dpRef = createAttrsRefByName(t3Op, "DIFFPREVIOUS");
 
-    Operator *t4O1 = createOpExpr("!=", LIST_MAKE(t4dfRef,copyObject(c0)));
+//    Operator *t4O1 = createOpExpr("!=", LIST_MAKE(t4dfRef,copyObject(c0)));
     Operator *t4O2 = createOpExpr("!=", LIST_MAKE(t4dpRef,copyObject(c0)));
-    Node *t4Cond = OR_EXPRS((Node *)t4O1,(Node *)t4O2);
+//    Node *t4Cond = OR_EXPRS((Node *)t4O1,(Node *)t4O2);
 
-    SelectionOperator *t4 = createSelectionOp(t4Cond, t3Op, NIL, deepCopyStringList(t3ProjAttrNames));
+    SelectionOperator *t4 = createSelectionOp((Node *)t4O2, t3Op, NIL, deepCopyStringList(t3ProjAttrNames));
     t3Op->parents = singleton(t4);
 
 	//---------------------------------------------------------------------------------------
@@ -862,15 +883,15 @@ addCoalesce (QueryOperator *input)
     //SELECTION : WHERE diffPrevious != 0 AND tend IS NOT NULL
 	QueryOperator *t5ProjOp = (QueryOperator *) t5Proj;
 
-	AttributeReference *t5CondRef1 = createAttrsRefByName(t5ProjOp, "DIFFPREVIOUS");
+//	AttributeReference *t5CondRef1 = createAttrsRefByName(t5ProjOp, "DIFFPREVIOUS");
 	AttributeReference *t5CondRef2 = createAttrsRefByName(t5ProjOp, TEND_NAME);
 
-    Operator *t5O1 = createOpExpr("!=", LIST_MAKE(t5CondRef1,copyObject(c0)));
+//    Operator *t5O1 = createOpExpr("!=", LIST_MAKE(t5CondRef1,copyObject(c0)));
     IsNullExpr *t5O2 = createIsNullExpr((Node *) singleton(t5CondRef2));
     Operator *t5O3 = createOpExpr("NOT", singleton(t5O2));
-    Node *t5Cond = AND_EXPRS((Node *)t5O1,(Node *)t5O3);
+//    Node *t5Cond = AND_EXPRS((Node *)t5O1,(Node *)t5O3);
 
-    SelectionOperator *t5 = createSelectionOp(t5Cond, t5ProjOp, NIL, deepCopyStringList(t5ProjNames));
+    SelectionOperator *t5 = createSelectionOp((Node *) t5O3, t5ProjOp, NIL, deepCopyStringList(t5ProjNames));
     t5ProjOp->parents = singleton(t5);
 
     QueryOperator *t5Op = (QueryOperator *)t5;
@@ -924,7 +945,7 @@ addCoalesce (QueryOperator *input)
 	AttributeReference *t6CondRef1 = createAttrsRefByName(t5Op, "NUMOPEN");
 	AttributeReference *t6CondRef2 = createAttrsRefByName(TNTABOp, "N");
 	t6CondRef2->fromClauseItem = 1;
-	Operator *t6JoinCond = createOpExpr("<=", LIST_MAKE(t6CondRef1,t6CondRef2));
+	Operator *t6JoinCond = createOpExpr(">=", LIST_MAKE(t6CondRef1,t6CondRef2));
 
     List *t6JoinNames = deepCopyStringList(t5ProjNames);
     t6JoinNames = appendToTailOfList(t6JoinNames, "N");

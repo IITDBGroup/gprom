@@ -692,6 +692,9 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
 {
     DuplicateRemoval *dr = makeNode(DuplicateRemoval);
 
+    if (attrNames == NIL)
+        attrNames = getQueryOperatorAttrNames(input);
+
     dr->attrs = attrs;
     dr->op.inputs = singleton(input);
     dr->op.schema = createSchemaFromLists("DUPREM", attrNames, getDataTypes(input->schema));
