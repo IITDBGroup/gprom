@@ -32,7 +32,7 @@ static QueryOperator *tempRewrSetOperator (SetOperator *o);
 
 static void setTempAttrProps(QueryOperator *o);
 static AttributeReference *getTempAttrRef (QueryOperator *o, boolean begin);
-static void coalescingAndAlignmentVisitor (QueryOperator *q, Set *done);
+static void coalescingAndNormalizationVisitor (QueryOperator *q, Set *done);
 
 
 
@@ -50,7 +50,7 @@ rewriteImplicitTemporal (QueryOperator *q)
     QueryOperator *top = getHeadOfListP(q->inputs);
     List *topSchema;
 
-    addCoalescingAndAlignment(top);
+    addCoalescingAndNormalization(top);
 
     top = temporalRewriteOperator (top);
 
@@ -82,6 +82,8 @@ static QueryOperator *
 temporalRewriteOperator(QueryOperator *op)
 {
     QueryOperator *rewrittenOp = NULL;
+    List *attrsConsts = (List *) GET_STRING_PROP(op, PROP_TEMP_NORMALIZE_INPUTS);
+    boolean addNormalzation = HAS_STRING_PROP(op, PROP_TEMP_NORMALIZE_INPUTS);
 
     if (HAS_STRING_PROP(op, PROP_DUMMY_HAS_PROV_PROJ))
         rewrittenOp = tempRewrTemporalSource(op);
@@ -135,9 +137,8 @@ temporalRewriteOperator(QueryOperator *op)
         }
     }
 
-    if (HAS_STRING_PROP(op, PROP_TEMP_NORMALIZE_INPUTS))
+    if (addNormalzation)
     {
-        List *attrsConsts = (List *) GET_STRING_PROP(op, PROP_TEMP_NORMALIZE_INPUTS);
         List *attrs = NIL;
 
         FOREACH(Constant,c,attrsConsts)
@@ -145,7 +146,7 @@ temporalRewriteOperator(QueryOperator *op)
             attrs = appendToTailOfList(attrs, strdup(STRING_VALUE(c)));
         }
 
-        rewrittenOp = addTemporalAlignment(rewrittenOp, rewrittenOp, attrs);
+        rewrittenOp = addTemporalNormalization(rewrittenOp, rewrittenOp, attrs);
     }
 
     return rewrittenOp;
@@ -421,24 +422,24 @@ getTempAttrRef (QueryOperator *o, boolean begin)
  * be subjected to one of these normalization operators.
  */
 void
-addCoalescingAndAlignment (QueryOperator *q)
+addCoalescingAndNormalization (QueryOperator *q)
 {
     Set *done = PSET();
     // mark children first
     SET_BOOL_STRING_PROP(q,PROP_TEMP_DO_COALESCE);
     DEBUG_OP_LOG("mark top operator for coalescing", q);
 
-    coalescingAndAlignmentVisitor(q, done);
+    coalescingAndNormalizationVisitor(q, done);
 }
 
 static void
-coalescingAndAlignmentVisitor (QueryOperator *q, Set *done)
+coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
 {
     if (hasSetElem(done,q))
         return;
 
     FOREACH(QueryOperator,child,q->inputs)
-        coalescingAndAlignmentVisitor(child, done);
+        coalescingAndNormalizationVisitor(child, done);
 
     switch(q->type)
     {
@@ -456,7 +457,7 @@ coalescingAndAlignmentVisitor (QueryOperator *q, Set *done)
             }
 
             SET_STRING_PROP(child,PROP_TEMP_NORMALIZE_INPUTS, attrs);
-            DEBUG_OP_LOG("mark aggregation input for coalescing", q);
+            DEBUG_OP_LOG("mark aggregation input for normalization", q);
         }
         break;
         case T_SetOperator:
@@ -1069,12 +1070,15 @@ addCoalesce (QueryOperator *input)
  * ----------------------------------------
  */
 QueryOperator *
-addTemporalAlignment (QueryOperator *input, QueryOperator *reference, List *attrNames)
+addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *attrNames)
 {
 	QueryOperator *left = input;
 	QueryOperator *right = reference;
 	List *parents = left->parents;
 	List *newParents;
+
+    DEBUG_OP_LOG("add join-based temporal normalization for operator ", input, reference);
+
 	//---------------------------------------------------------------------------------------
     //Construct CP: a union on four projections
     Constant *c1 = createConstInt(ONE);
@@ -1346,10 +1350,12 @@ addTemporalAlignment (QueryOperator *input, QueryOperator *reference, List *attr
 */
 
 QueryOperator *
-addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference, List *attrNames)
+addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *reference, List *attrNames)
 {
 	QueryOperator *left = input;
 	QueryOperator *right = reference;
+
+	DEBUG_OP_LOG("add window-based temporal normalization for operator ", input, reference);
 
 	//---------------------------------------------------------------------------------------
     //Construct CP:

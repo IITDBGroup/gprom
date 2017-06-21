@@ -20,10 +20,10 @@
 #define TEMPORAL_DT DT_INT
 
 extern QueryOperator *rewriteImplicitTemporal (QueryOperator *q);
-extern void addCoalescingAndAlignment (QueryOperator *q);
+extern void addCoalescingAndNormalization (QueryOperator *q);
 extern QueryOperator *addCoalesce (QueryOperator *input);
-extern QueryOperator *addTemporalAlignment (QueryOperator *input, QueryOperator *reference, List *attrs);
-extern QueryOperator *addTemporalAlignmentUsingWindow (QueryOperator *input, QueryOperator *reference, List *attrs);
+extern QueryOperator *addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *attrs);
+extern QueryOperator *addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *reference, List *attrs);
 extern QueryOperator* addCoalesceForAllOp(QueryOperator *op);
 
 #endif /* INCLUDE_TEMPORAL_QUERIES_TEMPORAL_REWRITER_H_ */

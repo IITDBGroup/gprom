@@ -28,9 +28,10 @@ TEMPORAL (SELECT count(*) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GRO
  1   | 2 | 1   | 4   |
 </entry>
 
-<entry key="q.query">
+<entry key="q3.query">
+TEMPORAL (SELECT count(*) FROM (SELECT count(*) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A) a);
 </entry>
-<entry key="q.result">
+<entry key="q3.result">
 </entry>
 
 <entry key="q.query">
