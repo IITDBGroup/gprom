@@ -84,6 +84,26 @@ public class VersionGraph {
 	public void setConfiguation(String[] configuration) {
 		Configuration = configuration;
 	}
+	//get the edge that has Node node in the end nodes
+	public ArrayList<Edge> getChildEdges(Node node){
+		ArrayList<Edge> childedges = new ArrayList<Edge>();
+		for(Edge e: Edges){
+			if(e.getEndNodes().get(0).equals(node)){
+				childedges.add(e);
+			}
+		}
+		return childedges;
+	}
+	//get the edge that has Node node in the starting nodes
+	public ArrayList<Edge> getParentEdges(Node node){
+		ArrayList<Edge> parentedges = new ArrayList<Edge>();
+		for(Edge e: Edges){
+			if(e.getStartNodes().get(0).equals(node)){
+				parentedges.add(e);
+			}
+		}
+		return parentedges;
+	}
 
 	public VersionGraph() {
 		Nodes = new ArrayList<Node>();

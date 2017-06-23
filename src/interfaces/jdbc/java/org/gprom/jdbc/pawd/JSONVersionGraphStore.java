@@ -4,6 +4,7 @@
 package org.gprom.jdbc.pawd;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
@@ -139,7 +140,6 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 			nodes = GraphJSONObject.getJSONArray("Nodes");
 			edges = GraphJSONObject.getJSONArray("Edges");
 			vedges = GraphJSONObject.getJSONArray("VersionEdges");
-			System.out.println("$$$$$$$$$$"+vedges+"$$$$$$$$$$\n");
 			Configuaration = (String[]) GraphJSONObject.get("Configuration");
 			long counter = GraphJSONObject.getLong("counterID");
 			NodesList = getNodeArrayList(nodes);
@@ -159,7 +159,6 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 			}
 			for(int i = 0 ;i <vedges.length();i++){
 				JSONObject newVEdge= vedges.getJSONObject(i);
-				System.out.println("$$$$$$$$$$"+newVEdge+"$$$$$$$$$$\n");
 				JSONObject newnode = (JSONObject) newVEdge.get("Original");
 				Node p = JSONtoNode(newnode);
 				newnode = (JSONObject) newVEdge.get("Derivative");
@@ -188,6 +187,37 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		V.setConfiguation( config.toArray(new String[0]));
 	}
 	
+	public void Update(VersionGraph V, Node R, Node Rprime){
+		Edge u1 = V.getChildEdges(Rprime).get(0);
+		if(V.getParentEdges(R).isEmpty())
+			return;
+		for(Edge Q : V.getParentEdges(R)){
+		//Edge Q = V.getParentEdges(R).get(0);
+			if(!Q.equals(u1)){
+				//creating the new node
+				for(Node S: Q.getEndNodes()){
+					Node newnode = new Node();
+					String description = S.getDescription();
+					newnode.setDescription(description +"'");
+					//creating the new edge 
+					ArrayList<Node> startnodes = new ArrayList<>(Arrays.asList(Rprime));
+					if(Q.getStartNodes().size()>1){
+						startnodes.addAll(Q.startNodes);
+						startnodes.remove(R);
+					}
+					ArrayList<Node> endnodes = new ArrayList<>(Arrays.asList(newnode));
+					Edge newedge = new Edge(startnodes,endnodes,Q.getTransformation());
+					//creating the version edge
+					VersionEdge newve= new VersionEdge(S,newnode);
+					V.AddVersionEdge(newve);
+					V.AddEdge(newedge);
+					V.AddNode(newnode);
+					Update(V, S ,newnode);
+				}
+			}
+		}
+	}
+	//Update(V,n);
 	public class ConnectionInfo{
 		String Username;
 		String Password;

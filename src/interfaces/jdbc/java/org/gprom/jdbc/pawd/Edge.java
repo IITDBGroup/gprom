@@ -4,6 +4,7 @@
 package org.gprom.jdbc.pawd;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation;
 
@@ -83,7 +84,7 @@ public class Edge {
 	 */
 	@Override
 	public String toString() {
-		return "Edge[\n startNodes=" + startNodes + "\n endNodes=" + endNodes + "\n Transformation=" + Transformation + "]\n";
+		return "Edge[\n startNodes=\n" + startNodes + "\n endNodes=\n" + endNodes + "\n Transformation=" + Transformation + "]\n";
 	}
 
 
@@ -94,6 +95,11 @@ public class Edge {
 		this.startNodes = startNodes;
 		this.endNodes = endNodes;
 		this.Transformation = Transformation;
+	}
+	public Edge(Node startNode, Node endNode, Operation Transformation){
+		this.startNodes= new ArrayList<>( Arrays.asList(startNode));
+		this.endNodes = new ArrayList<>(Arrays.asList(endNode));
+		this.Transformation= Transformation;
 	}
 
 }
