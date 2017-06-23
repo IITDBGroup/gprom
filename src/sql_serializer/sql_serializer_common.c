@@ -22,9 +22,12 @@
 #include "model/set/set.h"
 
 #include "sql_serializer/sql_serializer_common.h"
+#include "sql_serializer/sql_serializer.h"
 
 #define TEMP_VIEW_NAME_PATTERN "_temp_view_%u"
 
+static boolean quoteAttributeNamesVisitQO (QueryOperator *op, void *context);
+static boolean quoteAttributeNames (Node *node, void *context);
 static char *createViewName (SerializeClausesAPI *api);
 static boolean renameAttrsVisitor (Node *node, JoinAttrRenameState *state);
 static char *createAttrName (char *name, int fItem);
@@ -53,6 +56,55 @@ createAPIStub (void)
     api->viewCounter = 0;
 
     return api;
+}
+
+void
+genQuoteAttributeNames (Node *q)
+{
+    // quote ident names if necessary
+    ASSERT(IS_OP(q) || isA(q,List));
+    if (isA(q,List))
+    {
+        FOREACH(QueryOperator,el, (List *) q)
+            visitQOGraph((QueryOperator *) el, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
+    }
+    else
+        visitQOGraph((QueryOperator *) q, TRAVERSAL_PRE, quoteAttributeNamesVisitQO, NULL);
+}
+
+static boolean
+quoteAttributeNamesVisitQO (QueryOperator *op, void *context)
+{
+    return quoteAttributeNames((Node *) op, op);
+}
+
+static boolean
+quoteAttributeNames (Node *node, void *context)
+{
+     if (node == NULL)
+        return TRUE;
+
+    // do not traverse into query operator nodes to avoid repeated traversal of paths in the graph
+    if (node != context && IS_OP(node))
+        return TRUE;
+
+    if (isA(node, AttributeReference))
+    {
+        AttributeReference *a = (AttributeReference *) node;
+        a->name = quoteIdentifier(a->name);
+    }
+    if (isA(node, SelectItem))
+    {
+        SelectItem *a = (SelectItem *) node;
+        a->alias = quoteIdentifier(a->alias);
+    }
+    if (isA(node, AttributeDef))
+    {
+        AttributeDef *a = (AttributeDef *) node;
+        a->attrName = quoteIdentifier(a->attrName);
+    }
+
+    return visit(node, quoteAttributeNames, context);
 }
 
 /*
@@ -502,10 +554,10 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
         view = (HashMap *) MAP_GET_POINTER(tempViewMap, q);
         char *name = strdup(TVIEW_GET_NAME(view));
 
-        if (isA(parent, SetOperator))
+//        if (isA(parent, SetOperator))
             appendStringInfo(str, "SELECT * FROM %s", name);
-        else
-            appendStringInfoString(str, name);
+//        else
+//            appendStringInfoString(str, name);
 
         return deepCopyStringList(TVIEW_GET_ATTRNAMES(view));
     }
@@ -522,10 +574,10 @@ genCreateTempView (QueryOperator *q, StringInfo str, QueryOperator *parent, Seri
     DEBUG_LOG("created view definition:\n%s for %p", viewDef->data, q);
 
     // add reference to view
-    if (isA(parent, SetOperator))
+//    if (isA(parent, SetOperator))
         appendStringInfo(str, "SELECT * FROM %s", strdup(viewName));
-    else
-        appendStringInfoString(str, strdup(viewName));
+//    else
+//        appendStringInfoString(str, strdup(viewName));
 
     // add to view table
     view = NEW_MAP(Constant,Node);
