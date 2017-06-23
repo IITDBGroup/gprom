@@ -73,7 +73,7 @@ rewriteImplicitTemporal (QueryOperator *q)
     DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
 
     //top = addCoalesceForAllOp(top);
-    //top = addCoalesce(top);
+    top = addCoalesce(top);
 
     return top;
 }
