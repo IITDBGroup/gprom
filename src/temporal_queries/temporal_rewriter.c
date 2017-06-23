@@ -1232,7 +1232,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     {
     	intervalExprs = appendToTailOfList(intervalExprs,createAttrsRefByName(intervalWOp,c));
     	if(streq(c, intervalFuncName))
-    		intervalNames = appendToTailOfList(intervalNames,"ID");
+    		intervalNames = appendToTailOfList(intervalNames,"IDD");
     	else
     		intervalNames = appendToTailOfList(intervalNames,strdup(c));
     }
@@ -1288,13 +1288,13 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     //top
     //top window
     AttributeReference *topT = createAttrsRefByName(projJOINCPOp,"T");
-    AttributeReference *topID = createAttrsRefByName(projJOINCPOp,"ID");
+    AttributeReference *topID = createAttrsRefByName(projJOINCPOp,"IDD");
 
     FunctionCall *topFunc = createFunctionCall("LEAD",singleton(copyObject(topT)));
     List *topOrderBy = singleton(copyObject(topT));
     List *topPartBy = singleton(copyObject(topID));
 
-    char *topFuncName = "winf_0";
+    char *topFuncName = "winf_1";
     WindowOperator *topW = createWindowOp((Node *) topFunc,
     		topPartBy,
 			topOrderBy,
@@ -1327,6 +1327,15 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     ProjectionOperator *topProj = createProjectionOp(topProjExprs, topWOp, NIL, topProjNames);
     topWOp->parents = singleton(topProj);
     setTempAttrProps((QueryOperator *) topProj);
+
+    QueryOperator *topProjOp = (QueryOperator *) topProj;
+    int pCount = 0;
+    FOREACH(AttributeDef, a, topProjOp->schema->attrDefs)
+    {
+    	if(streq(a->attrName, TBEGIN_NAME) || streq(a->attrName, TEND_NAME))
+    		topProjOp->provAttrs = appendToTailOfListInt(topProjOp->provAttrs, pCount);
+    	pCount ++;
+    }
 
     // switch subtrees
     newParents = input->parents;
