@@ -25,5 +25,9 @@
 	<classpathentry kind="lib" path="javalib/log4j-api.jar"/>
 	<classpathentry kind="lib" path="javalib/log4j-core.jar"/>
 	<classpathentry kind="lib" path="javalib/json-jena.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Amer/Downloads/Software/java-json.jar"/>
+	<classpathentry kind="lib" path="/gprom.gui/lib/jaretutil-0.32.jar"/>
+	<classpathentry kind="lib" path="/gprom.gui/lib/ojdbc6.jar"/>
+	<classpathentry kind="lib" path="/gprom.gui/lib/timebars-1.49.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>

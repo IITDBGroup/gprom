@@ -48,31 +48,31 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 			return null;
 		}
 
-		
+
 	}
 
 	public JSONObject Save(VersionGraph V){
-	    JSONObject GraphJSONObject = new JSONObject();
+		JSONObject GraphJSONObject = new JSONObject();
 		try
 		{
 			//adding nodes as JSON OBjects
-		    JSONArray NodesArray= getJSONArray(V.getNodes());
+			JSONArray NodesArray= getJSONArray(V.getNodes());
 			GraphJSONObject.put("Nodes", NodesArray);
-		    //adding edges as JSON OBJECTS
-		    JSONArray EdgesArray = new JSONArray();
-		    for (Edge edge : V.getEdges())
-		    {
-		         JSONObject edgeJSON = new JSONObject();
-		         JSONArray StartNodesJSON = getJSONArray(edge.getStartNodes());
-		         edgeJSON.put("StartNodes", StartNodesJSON);
-		         JSONArray EndNodesJSON = getJSONArray(edge.getEndNodes());
-		         edgeJSON.put("EndNodes", EndNodesJSON);
-		         JSONObject trans = new JSONObject();
-		         trans.put("Code",edge.getTransformation().Code );
-		         trans.put("Operation",edge.getTransformation().Op );
-		         edgeJSON.put("Transformation", trans);
-		         EdgesArray.put(edgeJSON);
-		    }
+			//adding edges as JSON OBJECTS
+			JSONArray EdgesArray = new JSONArray();
+			for (Edge edge : V.getEdges())
+			{
+				JSONObject edgeJSON = new JSONObject();
+				JSONArray StartNodesJSON = getJSONArray(edge.getStartNodes());
+				edgeJSON.put("StartNodes", StartNodesJSON);
+				JSONArray EndNodesJSON = getJSONArray(edge.getEndNodes());
+				edgeJSON.put("EndNodes", EndNodesJSON);
+				JSONObject trans = new JSONObject();
+				trans.put("Code",edge.getTransformation().Code );
+				trans.put("Operation",edge.getTransformation().Op );
+				edgeJSON.put("Transformation", trans);
+				EdgesArray.put(edgeJSON);
+			}
 			GraphJSONObject.put("Edges", EdgesArray);
 			//adding VersionEdges
 			JSONArray VEdgesArray = new JSONArray();
@@ -90,13 +90,13 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 			}
 			GraphJSONObject.put("VersionEdges", VEdgesArray);
 			//adding configuration
-		    GraphJSONObject.put("Configuration", V.getConfiguration());
-		    //adding IDcounter
-	        GraphJSONObject.put("counterID", VersionGraph.getIdCounter());
-		    return GraphJSONObject;
+			GraphJSONObject.put("Configuration", V.getConfiguration());
+			//adding IDcounter
+			GraphJSONObject.put("counterID", VersionGraph.getIdCounter());
+			return GraphJSONObject;
 		} catch (JSONException jse) {
-		    jse.printStackTrace();
-		    return null;
+			jse.printStackTrace();
+			return null;
 		}
 	}
 	//helper method to get an arraylist of nodes from a JSON Array
@@ -104,26 +104,25 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		ArrayList<Node> NodesList = new ArrayList<Node>();
 		try{
 			for(int i = 0 ; i <nodesJSONArray.length();i++){
-			JSONObject newnode = nodesJSONArray.getJSONObject(i);
-			Node nodeclassobj = JSONtoNode(newnode);
-			NodesList.add(nodeclassobj);
+				JSONObject newnode = nodesJSONArray.getJSONObject(i);
+				Node nodeclassobj = JSONtoNode(newnode);
+				NodesList.add(nodeclassobj);
 			}
 			return NodesList;
 		}catch (JSONException jse){
-				jse.printStackTrace();
-				return null;
-			}
+			jse.printStackTrace();
+			return null;
 		}
-	
+	}
+
 	//helper method to parse an array of edges to a JSONArray
 	public JSONArray getJSONArray(ArrayList<Node> Nodes){
 		JSONArray NodesArray= new JSONArray();
 		//adding nodes as JSON OBjects
-			for (Node node : Nodes)
-			{
-				JSONObject nodeJSON = NodetoJSON(node);
-				NodesArray.put(nodeJSON);
-			}
+		for (Node node : Nodes){
+			JSONObject nodeJSON = NodetoJSON(node);
+			NodesArray.put(nodeJSON);
+		}
 		return NodesArray;
 	}
 
@@ -176,7 +175,7 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		}
 		return null;
 	}
-	
+
 	public void Configure(VersionGraph V){
 		List<String> config = new ArrayList<>();
 		for(Node t: V.getNodes()){
@@ -186,34 +185,35 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		}
 		V.setConfiguation( config.toArray(new String[0]));
 	}
-	
+	public void UpdateCall(VersionGraph V, Node Rprime){
+		Node R = V.getChildEdges(Rprime).get(0).getStartNodes().get(0);
+		Update(V,R,Rprime);
+	}
 	public void Update(VersionGraph V, Node R, Node Rprime){
 		Edge u1 = V.getChildEdges(Rprime).get(0);
 		if(V.getParentEdges(R).isEmpty())
 			return;
-		for(Edge Q : V.getParentEdges(R)){
-		//Edge Q = V.getParentEdges(R).get(0);
-			if(!Q.equals(u1)){
-				//creating the new node
-				for(Node S: Q.getEndNodes()){
-					Node newnode = new Node();
-					String description = S.getDescription();
-					newnode.setDescription(description +"'");
-					//creating the new edge 
-					ArrayList<Node> startnodes = new ArrayList<>(Arrays.asList(Rprime));
-					if(Q.getStartNodes().size()>1){
-						startnodes.addAll(Q.startNodes);
-						startnodes.remove(R);
-					}
-					ArrayList<Node> endnodes = new ArrayList<>(Arrays.asList(newnode));
-					Edge newedge = new Edge(startnodes,endnodes,Q.getTransformation());
-					//creating the version edge
-					VersionEdge newve= new VersionEdge(S,newnode);
-					V.AddVersionEdge(newve);
-					V.AddEdge(newedge);
-					V.AddNode(newnode);
-					Update(V, S ,newnode);
-				}
+		//removing the edge we started with
+		ArrayList<Edge> edges = V.getParentEdges(R);
+		edges.remove(u1);
+		for(Edge Q : edges){
+			for(Node S: Q.getEndNodes()){
+				Node newnode = new Node();
+				String description = S.getDescription();
+				newnode.setDescription(description +"'");
+				//creating the new edge 
+				ArrayList<Node> startnodes = new ArrayList<>(Arrays.asList(Rprime));
+				//check for the care where we have multiple input nodes for a given edge
+				startnodes.addAll(Q.startNodes);
+				startnodes.remove(R);
+				ArrayList<Node> endnodes = new ArrayList<>(Arrays.asList(newnode));
+				Edge newedge = new Edge(startnodes,endnodes,Q.getTransformation());
+				//creating the version edge
+				VersionEdge newve= new VersionEdge(S,newnode);
+				V.AddVersionEdge(newve);
+				V.AddEdge(newedge);
+				V.AddNode(newnode);
+				Update(V, S ,newnode);
 			}
 		}
 	}

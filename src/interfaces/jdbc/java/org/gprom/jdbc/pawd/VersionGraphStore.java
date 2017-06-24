@@ -17,7 +17,7 @@ public interface VersionGraphStore {
 	 */
 
 	public VersionGraph Load(JSONObject GraphJSONArray);
-	public void Update(VersionGraph V, Node s, Node t);
+	public void UpdateCall(VersionGraph V, Node s);
 	public JSONObject Save(VersionGraph V);
 	//store as a JSON object
 	public void Configure(VersionGraph V);

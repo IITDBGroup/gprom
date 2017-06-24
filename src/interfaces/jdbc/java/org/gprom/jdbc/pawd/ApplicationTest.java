@@ -59,7 +59,7 @@ public class ApplicationTest {
 		VersionGraph Graph1 = new VersionGraph(NodeSetAll, EdgeSetAll,VersionEdgeSetAll,null);
 		VersionGraphStore myinterface = new JSONVersionGraphStore();
 		myinterface.Configure(Graph1);
-		myinterface.Update(Graph1,R,Rprime);
+		myinterface.UpdateCall(Graph1,Rprime);
 		JSONObject ser = myinterface.Save(Graph1);
 		System.out.print(ser.toString(1));
 		System.out.println(myinterface.Load(ser));
