@@ -34,6 +34,27 @@
 // Mem context
 #define CONTEXT_NAME "PostgresMemContext"
 
+#define EXPLAIN_FUNC_NAME "_get_explain_json"
+#define CREATE_EXPLAIN_FUNC "create or replace function " EXPLAIN_FUNC_NAME "(in qry text, out r jsonb) returns setof jsonb as $$" \
+		"declare " \
+            "explcmd text; " \
+        "begin " \
+            "explcmd := ('EXPLAIN (FORMAT JSON) ' || qry); " \
+            "for r in execute explcmd loop " \
+                "return next; " \
+            "end loop; " \
+            "return; " \
+        "end; $$ language plpgsql;"
+
+#define NAME_EXPLAIN_FUNC_EXISTS "GProM_CheckExplainFunctionExists"
+#define PARAMS_EXPLAIN_FUNC_EXISTS 0
+#define QUERY_EXPLAIN_FUNC_EXISTS "SELECT EXISTS (SELECT * FROM pg_catalog.pg_proc WHERE proname = '" EXPLAIN_FUNC_NAME "');"
+
+#define NAME_QUERY_GET_COST "GProM_GetQueryCost"
+#define PARAMS_QUERY_GET_COST 1
+#define QUERY_QUERY_GET_COST "SELECT (((plan->0->'Plan'->>'Total Cost')::numeric::float8) * 100.0)::int" \
+    " FROM " EXPLAIN_FUNC_NAME "($1::text) AS p(plan);"
+
 #define NAME_TABLE_GET_ATTRS "GPRoM_GetTableAttributeNames"
 #define PARAMS_TABLE_GET_ATTRS 1
 #define QUERY_TABLE_GET_ATTRS "SELECT attname, atttypid " \
@@ -103,6 +124,7 @@
 #ifdef HAVE_POSTGRES_BACKEND
 
 // functions
+static void execStmt (char *stmt);
 static PGresult *execQuery(char *query);
 static void execCommit(void);
 static PGresult *execPrepared(char *qName, List *values);
@@ -310,6 +332,28 @@ fillOidToDTMap (HashMap *oidToDT)
 static void
 prepareLookupQueries(void)
 {
+    PGresult *res;
+    boolean funcExists = FALSE;
+    // create explain function for costing queries if necessary
+    PREP_QUERY(EXPLAIN_FUNC_EXISTS);
+
+    res = execPrepared(NAME_EXPLAIN_FUNC_EXISTS, NIL);
+    for(int i = 0; i < PQntuples(res); i++)
+    {
+        char *ex = PQgetvalue(res,i,0);
+        if (streq(ex, "True"))
+            funcExists = TRUE;
+    }
+    PQclear(res);
+
+    // create explain function
+    if (!funcExists)
+    {
+        execStmt(CREATE_EXPLAIN_FUNC);
+    }
+
+    // prepare other queries used for metadata lookup
+    PREP_QUERY(QUERY_GET_COST);
     PREP_QUERY(TABLE_GET_ATTRS);
     PREP_QUERY(TABLE_EXISTS);
     PREP_QUERY(VIEW_GET_ATTRS);
@@ -319,6 +363,7 @@ prepareLookupQueries(void)
     PREP_QUERY(GET_VIEW_DEF);
     PREP_QUERY(GET_FUNC_DEFS);
     PREP_QUERY(GET_OP_DEFS);
+    PREP_QUERY(GET_PK);
 }
 
 int
@@ -646,8 +691,19 @@ postgresGetViewDefinition(char *viewName)
 int
 postgresGetCostEstimation(char *query)
 {
-    FATAL_LOG("not supported yet");
-    return 0;
+    PGresult *res = NULL;
+    int cost = 0;
+    // do query
+    ACQUIRE_MEM_CONTEXT(memContext);
+    res = execPrepared(NAME_QUERY_GET_COST, singleton(createConstString(query)));
+
+    // loop through results
+    for(int i = 0; i < PQntuples(res); i++)
+    {
+        cost = atoi(PQgetvalue(res,i,0));
+    }
+
+    return cost;
 }
 
 List *
@@ -687,6 +743,29 @@ postgresExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel
     FATAL_LOG("not supported for postgres yet");
 
     return (Node *) xid;
+}
+
+static void
+execStmt (char *stmt)
+{
+    PGresult *res = NULL;
+    ASSERT(postgresIsInitialized());
+    PGconn *c = plugin->conn;;
+
+    res = PQexec(c, "BEGIN TRANSACTION;");
+        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+            CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for statement failed: %s",
+                    PQerrorMessage(c));
+    PQclear(res);
+
+    DEBUG_LOG("execute statement %s", stmt);
+    res = PQexec(c, stmt);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+        CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
+                PQerrorMessage(c));
+    PQclear(res);
+
+    execCommit();
 }
 
 static PGresult *

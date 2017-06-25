@@ -53,6 +53,7 @@ serializeOperatorModelPostgres(Node *q)
 
     // quote idents for postgres
     genQuoteAttributeNames(q);
+    DEBUG_OP_LOG("after attr quoting", q);
 
     // shorten attribute names to confrom with Oracle limits
     if (IS_OP(q))
@@ -89,9 +90,6 @@ serializeQueryPostgres(QueryOperator *q)
     // initialize basic structures and then call the worker
     api->tempViewMap = NEW_MAP(Constant, Node);
     api->viewCounter = 0;
-
-    // simulate non Oracle conformant data types and expressions (boolean)
-//    makeDTOracleConformant(q);
 
     // call main entry point for translation
     api->serializeQueryOperator (q, str, NULL, api);
