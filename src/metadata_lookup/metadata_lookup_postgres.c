@@ -104,6 +104,7 @@
 
 // functions
 static PGresult *execQuery(char *query);
+static void execCommit(void);
 static PGresult *execPrepared(char *qName, List *values);
 static boolean prepareQuery(char *qName, char *query, int parameters,
         Oid *types);
@@ -300,6 +301,9 @@ fillOidToDTMap (HashMap *oidToDT)
     }
     //TODO FINISH transaction
     PQclear(res);
+
+    execCommit();
+
     DEBUG_NODE_BEATIFY_LOG("oid -> DT map:", oidToDT);
 }
 
@@ -373,7 +377,7 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
     //TODO cache function information
     res = execPrepared(NAME_GET_FUNC_DEFS,
             LIST_MAKE(createConstString(fName),
-                    createConstInt(LIST_LENGTH(argTypes))));
+                    createConstString(itoa(LIST_LENGTH(argTypes)))));
 
     for(int i = 0; i < PQntuples(res); i++)
     {
@@ -406,8 +410,7 @@ postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 
     //TODO cache operator information
     res = execPrepared(NAME_GET_OP_DEFS,
-            LIST_MAKE(createConstString(oName),
-                    createConstInt(LIST_LENGTH(argTypes))));
+            LIST_MAKE(createConstString(oName)));
 
     for(int i = 0; i < PQntuples(res); i++)
     {
@@ -501,7 +504,7 @@ postgresGetAttributes (char *tableName)
     ASSERT(postgresCatalogTableExists(tableName));
 
     if (MAP_HAS_STRING_KEY(plugin->plugin.cache->tableAttrDefs, tableName))
-        return (List *) MAP_GET_STRING(plugin->plugin.cache->tableAttrDefs,tableName);
+        return (List *) (MAP_GET_STRING(plugin->plugin.cache->tableAttrDefs,tableName));
 
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
@@ -693,9 +696,9 @@ execQuery(char *query)
     ASSERT(postgresIsInitialized());
     PGconn *c = plugin->conn;
 
-    res = PQexec(c, CONCAT_STRINGS("BEGIN TRANSACTION;"));
+    res = PQexec(c, "BEGIN TRANSACTION;");
         if (PQresultStatus(res) != PGRES_COMMAND_OK)
-            CLOSE_RES_CONN_AND_FATAL(res, "DECLARE CURSOR failed: %s",
+            CLOSE_RES_CONN_AND_FATAL(res, "BEGIN TRANSACTION for DECLARE CURSOR failed: %s",
                     PQerrorMessage(c));
     PQclear(res);
 
@@ -711,6 +714,19 @@ execQuery(char *query)
         CLOSE_RES_CONN_AND_FATAL(res, "FETCH ALL failed: %s", PQerrorMessage(c));
 
     return res;
+}
+
+static void
+execCommit(void)
+{
+    PGresult *res = NULL;
+    ASSERT(postgresIsInitialized());
+    PGconn *c = plugin->conn;
+    res = PQexec(c, "COMMIT;");
+        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+            CLOSE_RES_CONN_AND_FATAL(res, "COMMIT for DECLARE CURSOR failed: %s",
+                    PQerrorMessage(c));
+    PQclear(res);
 }
 
 static PGresult *
@@ -849,6 +865,7 @@ postgresExecuteQuery(char *query)
         DEBUG_LOG("read tuple <%s>", stringListToString(tuple));
     }
     PQclear(rs);
+    execCommit();
 
     return r;
 }

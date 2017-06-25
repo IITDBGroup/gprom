@@ -585,7 +585,7 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
             StringInfo tabName = makeStringInfo();
             QueryOperator *inpParent = (QueryOperator *) getHeadOfListP(inp->parents);
             api->createTempView(inp, tabName,inpParent, api);
-            appendStringInfo(from, "generate_series(1,(SELECT MAX(NUMOPEN) FROM (%s) F0)) F%u",
+            appendStringInfo(from, "generate_series(1,(SELECT MAX(NUMOPEN) FROM (%s) F0)) F%u(n)",
                     tabName->data, (*curFromItem)++);
 //            appendStringInfo(from, " ((SELECT ROWNUM N FROM DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((%s) F0))) F%u)",
 //                  tabName->data, (*curFromItem)++);

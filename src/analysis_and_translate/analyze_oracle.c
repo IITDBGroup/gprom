@@ -275,6 +275,8 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                     {
                         if (strcmp(name,"ROWID") == 0 || f->type == T_FromTableRef)
                         {
+                            f->attrNames = deepCopyStringList(f->attrNames);
+                            f->dataTypes = copyObject(f->dataTypes);
                             f->attrNames = appendToTailOfList(f->attrNames, strdup("ROWID"));
                             f->dataTypes = appendToTailOfListInt(f->dataTypes, DT_LONG);
                         }
@@ -294,9 +296,9 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                 {
                     int pos = listPosString(f->attrNames, provAttr);
                     DEBUG_LOG("attribute %s at position %u", provAttr, pos);
-                    DEBUG_LOG("999999999999999");
+                    f->attrNames = deepCopyStringList(f->attrNames);
+                    f->dataTypes = copyObject(f->dataTypes);
                     f->attrNames = removeListElemAtPos(f->attrNames, pos);
-                    DEBUG_LOG("888888888888");
                     f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
                 }
             }
