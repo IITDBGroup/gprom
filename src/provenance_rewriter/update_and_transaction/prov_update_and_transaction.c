@@ -330,7 +330,8 @@ removeUpdateAnnotAttr (ProvenanceComputation *op)
 static void
 addUpdateAnnotationAttrs (ProvenanceComputation *op)
 {
-    int i = 0;
+    int i = 0, j = 0;
+    List *noProv = (List *) GET_STRING_PROP(op, PROP_REENACT_NO_TRACK_LIST);
 
     // add projection for each update to create the update attribute
     FORBOTH_LC(uLc, trLc, op->transactionInfo->originalUpdates, op->op.inputs)
@@ -338,107 +339,112 @@ addUpdateAnnotationAttrs (ProvenanceComputation *op)
         QueryOperator *q = (QueryOperator *) LC_P_VAL(trLc);
         Node *u = (Node *) LC_P_VAL(uLc);
         char *annotName = NULL;
+        boolean noP = BOOL_VALUE(getNthOfListP(noProv, i));
 
-        switch (u->type) {
-            case T_Insert:
-                annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_INSERT);
-                break;
-            case T_Update:
-                annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_UPDATE);
-                break;
-            case T_Delete:
-                annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_DELETE);
-                break;
-            default:
-                FATAL_LOG("expected insert, update, or delete");
-        }
+        if (!noP)
+        {
+            switch (u->type) {
+                case T_Insert:
+                    annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_INSERT);
+                    break;
+                case T_Update:
+                    annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_UPDATE);
+                    break;
+                case T_Delete:
+                    annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_DELETE);
+                    break;
+                default:
+                    FATAL_LOG("expected insert, update, or delete");
+            }
 
-        // mark update annotation attribute as provenance
-        SET_STRING_PROP(q, PROP_ADD_PROVENANCE, LIST_MAKE(createConstString(annotName)));
-        SET_STRING_PROP(q, PROP_PROV_IGNORE_ATTRS, MAKE_STR_SET(strdup(annotName)));
-        SET_STRING_PROP(q, PROP_PROV_ADD_REL_NAME, createConstString(CONCAT_STRINGS("U", itoa(i + 1))));
-        SET_STRING_PROP(q, PROP_PC_VERSION_SCN_ATTR, createConstString(annotName));
+            // mark update annotation attribute as provenance
+            SET_STRING_PROP(q, PROP_ADD_PROVENANCE, LIST_MAKE(createConstString(annotName)));
+            SET_STRING_PROP(q, PROP_PROV_IGNORE_ATTRS, MAKE_STR_SET(strdup(annotName)));
+            SET_STRING_PROP(q, PROP_PROV_ADD_REL_NAME, createConstString(CONCAT_STRINGS("U", itoa(j + 1))));
+            SET_STRING_PROP(q, PROP_PC_VERSION_SCN_ATTR, createConstString(annotName));
 
-        // use original update to figure out type of each update (UPDATE/DELETE/INSERT)
-        // switch
-        switch (u->type) {
-            case T_Insert:
-            {
-                if (isA(q, SetOperator))
-                    addAnnotConstToUnion(q, FALSE, annotName);
-                else
+            // use original update to figure out type of each update (UPDATE/DELETE/INSERT)
+            // switch
+            switch (u->type) {
+                case T_Insert:
+                {
+                    if (isA(q, SetOperator))
+                        addAnnotConstToUnion(q, FALSE, annotName);
+                    else
+                    {
+                        ProjectionOperator *p;
+
+                        p = (ProjectionOperator *) createProjOnAllAttrs(q);
+                        switchSubtrees(q, (QueryOperator *) p);
+                        addChildOperator((QueryOperator *) p,q);
+                        //TODO ok to move properties to parent?
+                        p->op.properties = q->properties;
+                        q->properties = (Node *) NEW_MAP(Node,Node);
+
+                        p->projExprs = appendToTailOfList(p->projExprs, (Node *) createConstBool(TRUE));
+
+                        // add attribute name for annotation attribute to schema
+                        p->op.schema->attrDefs =
+                                appendToTailOfList(p->op.schema->attrDefs,
+                                        createAttributeDef(strdup(annotName), DT_BOOL));
+                    }
+                }
+                break;
+                case T_Update:
+                {
+                    // if update CASE translation was used
+                    if (isA(q,ProjectionOperator))
+                    {
+                        Node *annotAttr;
+                        ProjectionOperator *p = (ProjectionOperator *) q;
+                        Node *cond = getNthOfListP(
+                                (List *) GET_STRING_PROP(op, PROP_PC_UPDATE_COND), i);
+
+                        // update has no condition
+                        if (cond == NULL)
+                        {
+                            annotAttr = (Node *) createConstBool(TRUE);
+                        }
+                        else
+                        {
+                            // add proj expr CASE WHEN C THEN TRUE ELSE FALSE END
+                            annotAttr = (Node *) createCaseExpr(NULL,
+                                    LIST_MAKE(createCaseWhen(cond,
+                                            (Node *) createConstBool(TRUE))),
+                                            (Node *) createConstBool(FALSE));
+                        }
+
+                        p->projExprs = appendToTailOfList(p->projExprs, annotAttr);
+
+                        // add attribute name for annotation attribute to schema
+                        p->op.schema->attrDefs =
+                                appendToTailOfList(p->op.schema->attrDefs,
+                                        createAttributeDef(strdup(annotName), DT_BOOL));
+                    }
+                    // else union was used
+                    else
+                        addAnnotConstToUnion(q, TRUE, annotName);
+                }
+                break;
+                case T_Delete:
                 {
                     ProjectionOperator *p;
 
                     p = (ProjectionOperator *) createProjOnAllAttrs(q);
                     switchSubtrees(q, (QueryOperator *) p);
-                    addChildOperator((QueryOperator *) p,q);
-                    //TODO ok to move properties to parent?
-                    p->op.properties = q->properties;
-                    q->properties = (Node *) NEW_MAP(Node,Node);
 
-                    p->projExprs = appendToTailOfList(p->projExprs, (Node *) createConstBool(TRUE));
+                    p->projExprs = appendToTailOfList(p->projExprs, (Node *) createConstBool(FALSE));
 
                     // add attribute name for annotation attribute to schema
                     p->op.schema->attrDefs =
                             appendToTailOfList(p->op.schema->attrDefs,
                                     createAttributeDef(strdup(annotName), DT_BOOL));
                 }
+                break;
+                default:
+                    FATAL_LOG("expected insert, update, or delete");
             }
-            break;
-            case T_Update:
-            {
-                // if update CASE translation was used
-                if (isA(q,ProjectionOperator))
-                {
-                    Node *annotAttr;
-                    ProjectionOperator *p = (ProjectionOperator *) q;
-                    Node *cond = getNthOfListP(
-                            (List *) GET_STRING_PROP(op, PROP_PC_UPDATE_COND), i);
-
-                    // update has no condition
-                    if (cond == NULL)
-                    {
-                        annotAttr = (Node *) createConstBool(TRUE);
-                    }
-                    else
-                    {
-                        // add proj expr CASE WHEN C THEN TRUE ELSE FALSE END
-                        annotAttr = (Node *) createCaseExpr(NULL,
-                                LIST_MAKE(createCaseWhen(cond,
-                                        (Node *) createConstBool(TRUE))),
-                                        (Node *) createConstBool(FALSE));
-                    }
-
-                    p->projExprs = appendToTailOfList(p->projExprs, annotAttr);
-
-                    // add attribute name for annotation attribute to schema
-                    p->op.schema->attrDefs =
-                            appendToTailOfList(p->op.schema->attrDefs,
-                                    createAttributeDef(strdup(annotName), DT_BOOL));
-                }
-                // else union was used
-                else
-                    addAnnotConstToUnion(q, TRUE, annotName);
-            }
-            break;
-            case T_Delete:
-            {
-                ProjectionOperator *p;
-
-                p = (ProjectionOperator *) createProjOnAllAttrs(q);
-                switchSubtrees(q, (QueryOperator *) p);
-
-                p->projExprs = appendToTailOfList(p->projExprs, (Node *) createConstBool(FALSE));
-
-                // add attribute name for annotation attribute to schema
-                p->op.schema->attrDefs =
-                        appendToTailOfList(p->op.schema->attrDefs,
-                                createAttributeDef(strdup(annotName), DT_BOOL));
-            }
-            break;
-            default:
-                FATAL_LOG("expected insert, update, or delete");
+            j++;
         }
 
         i++;

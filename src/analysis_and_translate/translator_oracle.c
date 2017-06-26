@@ -503,7 +503,8 @@ translateQueryBlock(QueryBlock *qb)
 }
 
 static QueryOperator *
-translateProvenanceStmt(ProvenanceStmt *prov) {
+translateProvenanceStmt(ProvenanceStmt *prov)
+{
     QueryOperator *child;
     ProvenanceComputation *result;
 
@@ -527,6 +528,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             Constant *commitSCN = createConstLong(-1L);
             boolean showIntermediate = HAS_STRING_PROP(result,PROP_PC_SHOW_INTERMEDIATE);
             boolean useRowidScn = HAS_STRING_PROP(result,PROP_PC_TUPLE_VERSIONS);
+            List *noProv = NIL;
+            int i = 0;
 
             DEBUG_LOG("Provenance for transaction");
 
@@ -546,7 +549,6 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             tInfo->transIsolation = isoLevel;
             tInfo->originalUpdates = NIL;
 
-            int i = 0;
             // call parser and analyser and translate nodes
             FOREACH(char,sql,sqls)
             {
@@ -613,6 +615,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(updateType));
                 DEBUG_NODE_BEATIFY_LOG("qo model of update for transaction is\n", child);
 
+                noProv = appendToTailOfList(noProv, createConstBool(TRUE));
+
                 addChildOperator((QueryOperator *) result, child);
                 i++;
             }
@@ -636,7 +640,9 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             tInfo->commitSCN = createConstLong(commitScn);
 
             DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
-            setStringProperty((QueryOperator *) result, PROP_PC_UPDATE_COND, (Node *) updateConds);
+            DEBUG_LOG("no prov: %s", nodeToString(noProv));
+            SET_STRING_PROP(result, PROP_PC_UPDATE_COND, updateConds);
+            SET_STRING_PROP(result, PROP_REENACT_NO_TRACK_LIST, noProv);
 
             DEBUG_LOG("constructed translated provenance computation for PROVENANCE OF TRANSACTION");
         }
@@ -692,7 +698,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             boolean hasCommitSCN = HAS_STRING_PROP(result,PROP_PC_COMMIT_SCN);
             List *updateConds = NIL;
             List *noProv = NIL;
-            int i = 0;
+            int i = 0, j = 0;
 
             // user has asked for provenance?
             if (HAS_STRING_PROP(result, PROP_PC_GEN_PROVENANCE))
@@ -771,11 +777,12 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 addChildOperator((QueryOperator *) result, child);
 
                 // mark for showing intermediate results
-                if (showIntermediate)
+                if (showIntermediate && !isNoProv)
                 {
                     SET_BOOL_STRING_PROP(child, PROP_SHOW_INTERMEDIATE_PROV);
                     SET_STRING_PROP(child, PROP_PROV_REL_NAME, createConstString(
-                            CONCAT_STRINGS("U", itoa(i + 1), "_", strdup(tableName))));
+                            CONCAT_STRINGS("U", itoa(j + 1), "_", strdup(tableName))));
+                    j++;
                 }
 
                 // use ROWID + SCN as provenance, set provenance attributes for each table
