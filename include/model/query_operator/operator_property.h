@@ -28,6 +28,9 @@
 
 // reenactment
 #define PROP_REENACT_SCHEMA_INFO "REENACT_SCHEMA"           // store additional table schemas to support reenactment of DDL commands
+#define PROP_REENACT_ASOF "REENACT_AS_OF"                   // store as of when the reenactment should happen
+#define PROP_REENACT_DO_NOT_TRACK_PROV "REENACT_DO_NOT_TRACK_PROV"     // do not track provenance for the statement marked in this way
+#define PROP_REENACT_NO_TRACK_LIST "REENACTMENT_NO_PROV_TRACK_LIST"    // list that indicates for each reenacted statement whether to track provenance or not
 
 // provenance PI-CS composable
 #define PROP_RESULT_TID_ATTR "RESULT_TID_ATTR"              // result tid attribute for PI-CS composable

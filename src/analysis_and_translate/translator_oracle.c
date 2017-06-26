@@ -675,6 +675,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             boolean hasIsolevel = HAS_STRING_PROP(result,PROP_PC_ISOLATION_LEVEL);
             boolean hasCommitSCN = HAS_STRING_PROP(result,PROP_PC_COMMIT_SCN);
             List *updateConds = NIL;
+            List *noProv = NIL;
             int i = 0;
 
             // user has asked for provenance?
@@ -712,16 +713,24 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             tInfo->updateTableNames = NIL;
             tInfo->scns = NIL;
 
-            FOREACH(Node,stmt,(List *) prov->query)
+            FOREACH(KeyValue,stmtWithOpts,(List *) prov->query)
             {
                 char *tableName = NULL;
-                Node *n;
-                KeyValue *withT = (isWithTimes) ? ((KeyValue *) stmt) : NULL;
+                Node *n = stmtWithOpts->key;
+                List *opts = (List *) stmtWithOpts->value;
+                HashMap *optMap = NEW_MAP(Constant,Node);
+                boolean isNoProv;
+
+                // convert options into hashmap
+                FOREACH(KeyValue,opt,opts)
+                {
+                    addToMap(optMap, opt->key, opt->value);
+                }
+                isNoProv = MAP_HAS_STRING_KEY(optMap, PROP_REENACT_DO_NOT_TRACK_PROV);
+                noProv = appendToTailOfList(noProv, createConstBool(isNoProv));
+
                 ReenactUpdateType stmtType;
                 Node *cond = NULL;
-
-                // get statement
-                n = (isWithTimes) ? withT->key : stmt;
 
                 /* get table name and other info */
                 getAffectedTableAndOperationType(n, &stmtType, &tableName, &cond);
@@ -732,11 +741,10 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 if (isWithTimes)
                 {
-                    tInfo->scns = appendToTailOfList(tInfo->scns, withT->value);
+                    tInfo->scns = appendToTailOfList(tInfo->scns, MAP_GET_STRING(optMap, PROP_REENACT_ASOF));
                 }
 
-//                if (cond != NULL)
-                    updateConds = appendToTailOfList(updateConds, copyObject(cond));
+                updateConds = appendToTailOfList(updateConds, copyObject(cond));
 
                 tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, n);
 
@@ -762,16 +770,20 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 // mark as root of translated update
                 SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
+                if (isNoProv)
+                    SET_BOOL_STRING_PROP(child, PROP_REENACT_DO_NOT_TRACK_PROV);
                 SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(stmtType));
                 DEBUG_NODE_BEATIFY_LOG("qo model of update for transaction is\n", child);
 
                 i++;
+
                 //TODO
             }
-
+            //TODO check that no prov statements are a prefix of all the statements updating a table
             DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
-            setStringProperty((QueryOperator *) result, PROP_PC_UPDATE_COND, (Node *) updateConds);
-
+            DEBUG_LOG("no prov: %s", nodeToString(noProv));
+            SET_STRING_PROP(result, PROP_PC_UPDATE_COND, updateConds);
+            SET_STRING_PROP(result, PROP_REENACT_NO_TRACK_LIST, noProv);
             break;
         }
     }

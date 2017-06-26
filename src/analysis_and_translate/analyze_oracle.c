@@ -32,6 +32,7 @@ static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
 static void analyzeSetQuery (SetQuery *q, List *parentFroms);
 static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
 static void analyzeProvenanceOptions (ProvenanceStmt *prov);
+static boolean reenactOptionHasTimes (List *opts);
 static void analyzeWithStmt (WithStmt *w);
 static void analyzeCreateTable (CreateTable *c);
 static void analyzeAlterTable (AlterTable *a);
@@ -1571,15 +1572,16 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         break;
         case PROV_INPUT_REENACT:
         {
-            //TODO analyze each statement
             List *stmts = (List *) q->query;
-//            List *schemaInfos = NIL;
             schemaInfo = NEW_MAP(Node,Node); //maps table name to schema
+            boolean hasTimes = FALSE;
 
-            FOREACH(Node,stmt,stmts)
+            FOREACH(KeyValue,sInfo,stmts)
             {
+                Node *stmt = sInfo->key;
                 //TODO maintain and extend a schema info
                 analyzeQueryBlockStmt(stmt, NIL);
+                hasTimes |= reenactOptionHasTimes((List *) sInfo->value);
 //                schemaInfos = appendToTailOfList(schemaInfos, copyObject(schemaInfo));
             }
             // store schema infos in provenancestmt's options for translator
@@ -1588,31 +1590,17 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 //                            (Node *) createConstString("SCHEMA_INFOS"),
 //                            (Node *) schemaInfos));
 
-            INFO_NODE_BEATIFY_LOG("REENACT THIS:", q);
-            schemaInfo = NULL;
-        }
-        break;
-        case PROV_INPUT_REENACT_WITH_TIMES:
-        {
-            //TODO analyze each statement
-            List *stmtsWithT = (List *) q->query;
-//            List *schemaInfos = NIL;
-            schemaInfo = NEW_MAP(Node,Node); //maps table name to schema
-
-            FOREACH(KeyValue,stmt,stmtsWithT)
+            if (hasTimes)
             {
-                Node *s = stmt->key;
-
-                //TODO maintain and extend a schema info
-                //TODO check that times are increasing in sequence
-                analyzeQueryBlockStmt(s, NIL);
-//                schemaInfos = appendToTailOfList(schemaInfos, copyObject(schemaInfo));
+                FOREACH(KeyValue,sInfo,stmts)
+                {
+                    if (!reenactOptionHasTimes((List *) sInfo->value))
+                    {
+                        FATAL_NODE_BEATIFY_LOG("AS OF should be specified for all statments to be reenacted or none!", q);
+                    }
+                }
+                q->inputType = PROV_INPUT_REENACT_WITH_TIMES;
             }
-            // store schema infos in provenancestmt's options for translator
-//            q->options = appendToTailOfList(q->options,
-//                    createNodeKeyValue(
-//                            (Node *) createConstString("SCHEMA_INFOS"),
-//                            (Node *) schemaInfos));
 
             INFO_NODE_BEATIFY_LOG("REENACT THIS:", q);
             schemaInfo = NULL;
@@ -1648,6 +1636,17 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
     }
 
 	analyzeProvenanceOptions(q);
+}
+
+static boolean
+reenactOptionHasTimes (List *opts)
+{
+    FOREACH(KeyValue,kv,opts)
+    {
+        if (streq(STRING_VALUE(kv->key), PROP_REENACT_ASOF))
+            return TRUE;
+    }
+    return FALSE;
 }
 
 static void

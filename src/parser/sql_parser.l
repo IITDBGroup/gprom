@@ -213,6 +213,7 @@ strconcat		"||"
 (?i:TOP)			TOK(TOP)
 (?i:ISOLATION)		TOK(ISOLATION)
 (?i:LEVEL)			TOK(LEVEL)
+(?i:OPTIONS)		TOK(OPTIONS)
 
 	/* booleans */
 {bool}			TOK(boolConst)
