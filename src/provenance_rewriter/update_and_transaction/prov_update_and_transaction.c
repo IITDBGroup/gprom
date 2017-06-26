@@ -109,20 +109,37 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     if (op->provType != PROV_NONE)
     {
         HashMap *lastNoProvPerTable = NEW_MAP(Constant,Node);
+        i = 0;
 
-        FORBOTH(Node,stmt,isNoProv,op->op.inputs, isNoProvs)
+        DEBUG_NODE_BEATIFY_LOG("mark statements to be ignored for provenance tracking", isNoProvs);
+
+        FORBOTH(Node,stmt,isNoProv, updates, isNoProvs)
         {
             QueryOperator *o = (QueryOperator *) stmt;
             boolean noP = BOOL_VALUE(isNoProv);
+            char *tableName = (char *) getNthOfListP(tabNames, i);
+
+            DEBUG_LOG("statement %u on table %s is provenance: %s", i, tableName, noP ? "yes" : "no");
+
             if (noP)
             {
-
+                MAP_ADD_STRING_KEY(lastNoProvPerTable, tableName, o);
             }
+            i++;
         }
-        FOREACH_HASH(QueryOperator,o,lastNoProvPerTable)
+
+        DEBUG_NODE_BEATIFY_LOG("the following statements will be marked to be "
+                "ignored for provenance tracking", lastNoProvPerTable);
+
+        FOREACH_HASH_ENTRY(kv,lastNoProvPerTable)
         {
+            QueryOperator *o = (QueryOperator *) kv->value;
+            char *tableName = STRING_VALUE(kv->key);
+
             SET_BOOL_STRING_PROP(o,PROP_USE_PROVENANCE);
-            setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
+            SET_STRING_PROP(o, PROP_USER_PROV_ATTRS,
+                    (Node *) stringListToConstList(getQueryOperatorAttrNames(o)));
+            SET_STRING_PROP(o, PROP_PROV_REL_NAME, (Node *) createConstString(tableName));
         }
     }
 
@@ -202,7 +219,6 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
             t->asOf = copyObject(op->asOf);
         }
     }
-
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));
