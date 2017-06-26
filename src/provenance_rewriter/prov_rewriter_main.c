@@ -22,6 +22,7 @@
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 #include "provenance_rewriter/xml_rewrites/xml_prov_main.h"
+#include "temporal_queries/temporal_rewriter.h"
 
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
@@ -124,6 +125,10 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             requiresPostFiltering = HAS_STRING_PROP(op,PROP_PC_REQUIRES_POSTFILTERING);
             STOP_TIMER("rewrite - restrict to updated rows");
         }
+    }
+    if (op->inputType == PROV_INPUT_TEMPORAL_QUERY)
+    {
+            return rewriteImplicitTemporal((QueryOperator *) op);
     }
 
     // turn operator graph into a tree since provenance rewrites currently expect a tree

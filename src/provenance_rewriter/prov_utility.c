@@ -169,6 +169,16 @@ createProjOnAttrsByName(QueryOperator *op, List *attrNames)
     return createProjOnAttrs(op, attrPos);
 }
 
+AttributeReference *
+createAttrsRefByName(QueryOperator *op, char *attrNames)
+{
+	AttributeDef *ad = copyObject(getAttrDefByName(op, attrNames));
+	int t2W1TBDefPos = getAttrPos(op, ad->attrName);
+	AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, t2W1TBDefPos, INVALID_ATTR, ad->dataType);
+
+	return ar;
+}
+
 
 /*
  * Given a subtree rooted a "orig" replace this subtree with the tree rooted

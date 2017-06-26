@@ -40,6 +40,7 @@
 	char *result = strdup(yytext); \
 	yylval.stringVal = result; \
 	for(; *result != '\0'; (*(result) = toupper(*result)), result++); \
+	TRACE_LOG("Upcased TOKEN <%s>", yylval.stringVal); \
 	return name; \
 	}
 #define TOKSAVE(name,field,function) { \
@@ -81,7 +82,7 @@ doublequote     [\"]
 quotedIdentifier		{doublequote}[^\"]+{doublequote}
 identifiers				({identStart}{identContinue}*)
 identifierPart			({identifiers}|{quotedIdentifier})
-compositeIdentifier		({identifierPart}({identDelim}{identifierPart}))*
+compositeIdentifier		({identifierPart}({identDelim}{identifierPart})+)
 parameters		[:]({identifiers}|{integer})
 
 /* operators */
@@ -214,6 +215,8 @@ strconcat		"||"
 (?i:ISOLATION)		TOK(ISOLATION)
 (?i:LEVEL)			TOK(LEVEL)
 (?i:OPTIONS)		TOK(OPTIONS)
+(?i:TEMPORAL)		TOK(TEMPORAL)
+(?i:TIME)			TOK(TIME)
 
 	/* booleans */
 {bool}			TOK(boolConst)
@@ -221,6 +224,7 @@ strconcat		"||"
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)
 {compositeIdentifier}	UPCASE_TOK(compositeIdentifier)
+
 {quotedIdentifier}   { 		
 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
@@ -256,7 +260,7 @@ strconcat		"||"
 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
 		yylval.stringVal[strlen(yytext) - 2] = '\0';
-		TRACE_LOG("Lexed TOKEN <stringConst> with VALUE <%s>", yytext);
+		TRACE_LOG("Lexed TOKEN <stringConst> (quoted) with VALUE <%s>", yytext);
 		return stringConst;
 	}
 

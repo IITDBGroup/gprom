@@ -61,6 +61,7 @@ Node *bisonParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS
+%token <stringVal> TEMPORAL TIME
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
@@ -387,6 +388,16 @@ provStmt:
 			p->inputType = PROV_INPUT_TRANSACTION;
 			p->provType = PROV_NONE;
 			p->options = $3;
+			$$ = (Node *) p;
+		}
+		| TEMPORAL '(' stmt ')'
+		{
+			RULELOG("provStmt::temporal");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $3);
+			p->inputType = PROV_INPUT_TEMPORAL_QUERY;
+			p->provType = PROV_NONE;
+			p->asOf = NULL;
+			p->options = NIL;
 			$$ = (Node *) p;
 		}
 		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier
@@ -1477,6 +1488,14 @@ optionalFromProv:
 				p->userProvAttrs = $5;
 				$$ = (Node *) p;
 			}
+		| WITH TIME '(' identifierList ')'
+		{
+			RULELOG("optionalFromProv::userProvAttr");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			p->baserel = FALSE;
+			p->userProvAttrs = $4;				 
+			$$ = (Node *) p; 
+		}
 	;
     
 optionalAttrAlias:

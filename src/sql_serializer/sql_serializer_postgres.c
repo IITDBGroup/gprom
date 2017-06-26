@@ -48,7 +48,13 @@ serializeOperatorModelPostgres(Node *q)
     StringInfo str = makeStringInfo();
     char *result = NULL;
 
+    // create the api
     createAPI();
+
+    // quote idents for postgres
+    genQuoteAttributeNames(q);
+    DEBUG_OP_LOG("after attr quoting", q);
+
     // shorten attribute names to confrom with Oracle limits
     if (IS_OP(q))
     {
@@ -84,9 +90,6 @@ serializeQueryPostgres(QueryOperator *q)
     // initialize basic structures and then call the worker
     api->tempViewMap = NEW_MAP(Constant, Node);
     api->viewCounter = 0;
-
-    // simulate non Oracle conformant data types and expressions (boolean)
-//    makeDTOracleConformant(q);
 
     // call main entry point for translation
     api->serializeQueryOperator (q, str, NULL, api);
@@ -142,6 +145,8 @@ quoteIdentifierPostgres (char *ident)
             case '_':
                 break;
             case ' ':
+            case '(':
+            case ')':
                 needsQuotes = TRUE;
                 break;
             case '"':
@@ -567,11 +572,30 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
                         exprToSQL(begin), " AND ", exprToSQL(end));
             }
         }
+
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
         *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-        appendStringInfo(from, "%s%s AS F%u",
-                quoteIdentifierPostgres(t->tableName), asOf ? asOf : "",
-                (*curFromItem)++);
+
+        //for temporal database coalesce
+        if(HAS_STRING_PROP(t,PROP_TEMP_TNTAB))
+        {
+            QueryOperator *inp = (QueryOperator *) LONG_VALUE(GET_STRING_PROP(t,PROP_TEMP_TNTAB));
+            StringInfo tabName = makeStringInfo();
+            QueryOperator *inpParent = (QueryOperator *) getHeadOfListP(inp->parents);
+            api->createTempView(inp, tabName,inpParent, api);
+            appendStringInfo(from, "generate_series(1,(SELECT MAX(NUMOPEN) FROM (%s) F0)) F%u(n)",
+                    tabName->data, (*curFromItem)++);
+//            appendStringInfo(from, " ((SELECT ROWNUM N FROM DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((%s) F0))) F%u)",
+//                  tabName->data, (*curFromItem)++);
+        }
+        else
+        {
+            appendStringInfo(from, "%s%s AS F%u",
+                    quoteIdentifierPostgres(t->tableName), asOf ? asOf : "",
+                    (*curFromItem)++);
+        }
+
+
     }
 }
 

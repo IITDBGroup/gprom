@@ -48,7 +48,6 @@ typedef struct ReplaceGroupByState {
 // function declarations
 static Node *translateGeneral(Node *node);
 //static Node *translateSummary(Node *input, Node *node);
-static boolean disambiguiteAttrNames(Node *node, Set *done);
 static void adaptSchemaFromChildren(QueryOperator *o);
 
 /* Three branches of translating a Query */
@@ -72,7 +71,7 @@ static inline QueryOperator *createTableAccessOpFromFromTableRef(
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje);
 static QueryOperator *translateFromSubquery(FromSubquery *fsq);
 static QueryOperator *translateFromJsonTable(FromJsonTable *fjt);
-static void translateFromProvInfo(QueryOperator *op, FromItem *f);
+static QueryOperator *translateFromProvInfo(QueryOperator *op, FromItem *f);
 
 /* Functions of translating nested subquery in a QueryBlock */
 static QueryOperator *translateNestedSubquery(QueryBlock *qb,
@@ -179,31 +178,45 @@ translateGeneral (Node *node)
         result = (Node *) copyList((List *) node);
         FOREACH(Node,stmt,(List *) result)
         {
-            ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
+            if (isA(stmt, ProvenanceStmt))
+            {
+                ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
 
-            if(prov->summaryType == NULL)
-                stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+                if(prov->summaryType == NULL)
+                    stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+                else
+                {
+                    summaryType = prov->summaryType;
+                    r = translateQueryOracle(stmt);
+                    r->properties = copyObject(prop);
+                    stmt_his_cell->data.ptr_value = (Node *) r;
+                }
+            }
             else
             {
-            	summaryType = prov->summaryType;
-            	r = translateQueryOracle(stmt);
-            	r->properties = copyObject(prop);
-            	stmt_his_cell->data.ptr_value = (Node *) r;
+                stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
             }
         }
     }
     else
     {
-        ProvenanceStmt *prov = (ProvenanceStmt *) node;
+        if (isA(node, ProvenanceStmt))
+        {
+            ProvenanceStmt *prov = (ProvenanceStmt *) node;
 
-        if(prov->summaryType == NULL)
-        	result = (Node *) translateQueryOracle(node);
+            if(prov->summaryType == NULL)
+                result = (Node *) translateQueryOracle(node);
+            else
+            {
+                summaryType = prov->summaryType;
+                r = translateQueryOracle(node);
+                r->properties = copyObject(prop);
+                result = (Node *) r;
+            }
+        }
         else
         {
-        	summaryType = prov->summaryType;
-        	r = translateQueryOracle(node);
-        	r->properties = copyObject(prop);
-        	result = (Node *) r;
+            result = (Node *) translateQueryOracle(node);
         }
     }
 
@@ -214,7 +227,7 @@ translateGeneral (Node *node)
 }
 
 
-static boolean
+boolean
 disambiguiteAttrNames(Node *node, Set *done)
 {
     QueryOperator *op;
@@ -661,8 +674,11 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             addChildOperator((QueryOperator *) result, child);
         }
         break;
-        case PROV_INPUT_TIME_INTERVAL:
-            //TODO
+        case PROV_INPUT_TEMPORAL_QUERY:
+        {
+            child = translateQueryOracle(prov->query);
+            addChildOperator((QueryOperator *) result, child);
+        }
             break;
         case PROV_INPUT_REENACT:
         case PROV_INPUT_REENACT_WITH_TIMES:
@@ -1042,11 +1058,22 @@ getAttrsOffsets(List *fromClause)
 //    int len = getListLength(fromClause);
     List *offsets = NIL;
     int curOffset = 0;
+    FromProvInfo *fp;
 
     FOREACH(FromItem, from, fromClause)
     {
+       int numAttrs;
        offsets = appendToTailOfListInt(offsets, curOffset);
-       curOffset += getListLength(from->attrNames);
+       numAttrs = getListLength(from->attrNames);
+       if (from->provInfo != NULL)
+       {
+           fp = from->provInfo;
+           if(!fp->intermediateProv && !fp->baserel && fp->userProvAttrs)
+           {
+               numAttrs -= LIST_LENGTH(fp->userProvAttrs);
+           }
+       }
+       curOffset += numAttrs;
     }
 
     DEBUG_LOG("attribute offsets for from clause items are %s",
@@ -1084,23 +1111,25 @@ translateFromClauseToOperatorList(List *fromClause)
                 break;
         }
 
-        translateFromProvInfo(op, from);
+        op = translateFromProvInfo(op, from);
 
         ASSERT(op);
         opList = appendToTailOfList(opList, op);
     }
 
     ASSERT(opList);
-    DEBUG_LOG("translated from clause into list of operator trees is \n%s", nodeToString(opList));
+    DEBUG_LOG("translated from clause into list of operator trees is \n%s", beatify(nodeToString(opList)));
     return opList;
 }
 
-static void
+static QueryOperator *
 translateFromProvInfo(QueryOperator *op, FromItem *f)
 {
     FromProvInfo *from = f->provInfo;
+    boolean hasProv = FALSE;
+
     if (from == NULL)
-        return;
+        return op;
 
     /* treat as base relation or show intermediate provenance? */
     if (from->intermediateProv)
@@ -1108,7 +1137,10 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
     else if (from->baserel)
         SET_BOOL_STRING_PROP(op,PROP_USE_PROVENANCE);
     else
+    {
         SET_BOOL_STRING_PROP(op,PROP_HAS_PROVENANCE);
+        hasProv = TRUE;
+    }
 
     /* user provided provenance attributes or all attributes of subquery? */
     if (from->userProvAttrs != NIL)
@@ -1118,6 +1150,37 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 
     /* set name for op */
     setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
+
+    if (hasProv)
+    {
+        ProjectionOperator *p;
+        List *attrs, *newAttrs;
+        List *provAttrs = from->userProvAttrs;
+        List *provPos = NIL;
+
+        attrs = getQueryOperatorAttrNames(op);
+        newAttrs = NIL;
+
+        FOREACH(char,name,attrs)
+        {
+            if(!searchListString(provAttrs, name))
+            {
+                newAttrs = appendToTailOfList(newAttrs, strdup(name));
+            }
+            else
+            {
+                provPos = appendToTailOfListInt(provPos, getAttrPos(op, name));
+            }
+        }
+        p = (ProjectionOperator *) createProjOnAttrsByName(op, newAttrs);
+        op->provAttrs = provPos;
+        // mark as dummy projection so it can be excluded from rewrite
+        SET_BOOL_STRING_PROP(p, PROP_DUMMY_HAS_PROV_PROJ);
+        addChildOperator((QueryOperator *) p,op);
+        return (QueryOperator *) p;
+    }
+
+    return op;
 }
 
 static inline QueryOperator *
@@ -1155,6 +1218,7 @@ translateFromJoinExpr(FromJoinExpr *fje)
             FATAL_LOG("did not expect node <%s> in from list", nodeToString(input1));
             break;
     }
+    input1 = translateFromProvInfo(input1, fje->left);
     switch (fje->right->type)
     {
         case T_FromTableRef:
@@ -1171,7 +1235,7 @@ translateFromJoinExpr(FromJoinExpr *fje)
             FATAL_LOG("did not expect node <%s> in from list", nodeToString(input2));
             break;
     }
-
+    input2 = translateFromProvInfo(input2, fje->right);
     ASSERT(input1 && input2);
 
     // set children of the join operator node

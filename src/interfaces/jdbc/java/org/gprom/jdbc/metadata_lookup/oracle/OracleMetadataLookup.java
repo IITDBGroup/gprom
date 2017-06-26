@@ -12,6 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.jna.GProMJavaInterface.DataType;
 import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
 
+import com.sun.jna.StringArray;
+
 import static org.gprom.jdbc.utility.LoggerUtil.*;
 
 /**
@@ -109,8 +111,65 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 	    if (fName.equals("dense_rank"))
 	        return "DT_INT";
 
+	    if (fName.equals("ceil"))
+	    {
+	        if(stringArray.length == 1)
+	        {
+	        	DataType argType = DataType.valueOf(stringArray[0]);
+	            switch(argType)
+	            {
+	                case DT_INT:
+	                    return "DT_INT";
+	                case DT_LONG:
+	                case DT_FLOAT:
+	                    return "DT_LONG";
+	                default:
+	                    ;
+	            }
+	        }
+	    }
+
+	    if (fName.equals("round")) {
+	    	 if(stringArray.length == 2) {
+	    		 DataType argType = DataType.valueOf(stringArray[0]);
+	    		 DataType parType = DataType.valueOf(stringArray[1]);
+
+	            if (parType.equals(DataType.DT_INT))
+	            {
+	                switch(argType)
+	                {
+	                    case DT_INT:
+	                        return "DT_INT";
+	                    case DT_LONG:
+	                    case DT_FLOAT:
+	                        return "DT_LONG";
+	                    default:
+	                        ;
+	                }
+	            }
+	        }
+	    }
+
+	    if (fName.equals("greatest") || fName.equals("least")
+	            || fName.equals("coalesce") || fName.equals("lead")
+	            || fName.equals("lag") || fName.equals("first_value"))
+	    {
+	    	DataType dt = DataType.valueOf(stringArray[0]);
+
+	        for(String g: stringArray)
+	        {
+	        	DataType argDT = DataType.valueOf(g);
+	            dt = lcaType(dt, argDT);
+	        }
+
+	        return dt.toString();
+	    }
+	    
 	    return "DT_STRING";
 	}
+	
+	
+	
 	
 	/* (non-Javadoc)
 	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#getOpReturnType(java.lang.String, java.lang.String[], int)

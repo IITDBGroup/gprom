@@ -830,9 +830,25 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
         }
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
         *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-        appendStringInfo(from, "(%s%s F%u)",
-                quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
-                (*curFromItem)++);
+
+        //for temporal database coalesce
+        if(HAS_STRING_PROP(t,PROP_TEMP_TNTAB))
+        {
+            QueryOperator *inp = (QueryOperator *) LONG_VALUE(GET_STRING_PROP(t,PROP_TEMP_TNTAB));
+            StringInfo tabName = makeStringInfo();
+            QueryOperator *inpParent = (QueryOperator *) getHeadOfListP(inp->parents);
+            createTempView(inp, tabName,inpParent);
+            appendStringInfo(from, " ((SELECT ROWNUM N FROM DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((%s)))) F%u)",
+            		tabName->data, (*curFromItem)++);
+//            appendStringInfo(from, " ((SELECT ROWNUM N FROM DUAL CONNECT BY LEVEL <= (SELECT MAX(NUMOPEN) FROM ((%s) F0))) F%u)",
+//            		tabName->data, (*curFromItem)++);
+        }
+        else
+        {
+        	appendStringInfo(from, "(%s%s F%u)",
+        			quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
+        					(*curFromItem)++);
+        }
     }
 }
 
@@ -1092,8 +1108,8 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             case T_TableAccessOperator:
             {
             	TableAccessOperator *t = (TableAccessOperator *) q;
-                serializeTableAccess(from, t, curFromItem, fromAttrs,
-                        attrOffset);
+            	serializeTableAccess(from, t, curFromItem, fromAttrs,
+            			attrOffset);
             }
             break;
             // A constant relation, turn into (SELECT ... FROM dual) subquery
