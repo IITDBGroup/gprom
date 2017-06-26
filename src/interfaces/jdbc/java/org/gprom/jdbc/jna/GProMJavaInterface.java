@@ -19,7 +19,9 @@ public interface GProMJavaInterface {
 		DT_STRING,
 		DT_INT,
 		DT_LONG,
-		DT_FLOAT
+		DT_FLOAT,
+		DT_BOOL,
+		DT_VARCHAR2
 	}
 	
 	public enum OptionType {

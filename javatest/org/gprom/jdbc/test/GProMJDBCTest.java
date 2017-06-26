@@ -37,7 +37,8 @@ public class GProMJDBCTest {
 		String driverURL = "oracle.jdbc.OracleDriver";
 //		String driverURL = "org.postgresql.Driver";
 //		String url = "jdbc:hsqldb:file:/Users/alex/db/mydb";
-		String username = "fga_user";
+//		String username = "fga_user";
+		String username = "testuser";
 		String password; // = "XXX";
 //		String username = "postgres";
 //		String password = "";
@@ -109,9 +110,10 @@ public class GProMJDBCTest {
 		log.error("statement created");
 		
 		ResultSet rs;
-		rs = st.executeQuery("SELECT a FROM r;");
+//		rs = st.executeQuery("SELECT a FROM r;");
 		try {
-			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
+//			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
+			rs = st.executeQuery("TEMPORAL (SELECT L.A AS LA FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L, (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1) R WHERE L.B = R.A);");
 			printResult(rs);
 		}
 		catch (NativeGProMLibException e) {
