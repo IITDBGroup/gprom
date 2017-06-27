@@ -150,25 +150,105 @@ TEMPORAL (SELECT 1 AS boo FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
 </entry>
 
 <entry key="q10.query">
+TEMPORAL (SELECT L.A AS LA
+	FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L JOIN
+		 (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1) R
+		ON (L.B = R.A)
+);
 </entry>
 <entry key="q10.result">
+LA | T_B | T_E |
+-----------------
+ 1  | 1   | 2   |
+ 1  | 1   | 2   |
+ 1  | 1   | 2   |
+ 1  | 2   | 6   |
+ 1  | 2   | 6   |
+ 1  | 2   | 6   |
+ 1  | 2   | 6   |
+ 1  | 2   | 6   |
+ 1  | 2   | 6   |
+ 1  | 6   | 10  |
+ 1  | 6   | 10  |
 </entry>
 
+<entry key="q11.query">
+TEMPORAL (
+	SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
+	FROM 
+		(SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L 
+		JOIN 
+		(SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1) R 
+		ON (L.B = R.A)
+); 
+</entry>
+<entry key="q11.result">
+ LA | LB | RA | RB | T_B | T_E |
+--------------------------------
+ 1  | 1  | 1  | 1  | 1   | 2   |
+ 1  | 1  | 1  | 1  | 2   | 6   |
+ 1  | 1  | 1  | 1  | 2   | 6   |
+ 1  | 1  | 1  | 1  | 2   | 6   |
+ 1  | 1  | 1  | 1  | 2   | 6   |
+ 1  | 1  | 1  | 1  | 6   | 10  |
+ 1  | 1  | 1  | 2  | 1   | 6   |
+ 1  | 1  | 1  | 2  | 1   | 6   |
+ 1  | 1  | 1  | 2  | 6   | 10  |
+</entry>
 
-<entry key="q.query">
+<entry key="q12.query">
+TEMPORAL (
+	SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
+	FROM 
+		TEMP_TEST WITH TIME(T_BEGIN, T_END) L 
+		JOIN 
+		TEMP_TEST WITH TIME(T_BEGIN, T_END) R 
+		ON (L.B = R.A)
+);
 </entry>
-<entry key="q.result">
+<entry key="q12.result">
+ LA | LB | RA | RB | T_B | T_E |
+--------------------------------
+ 1  | 1  | 1  | 1  | 1   | 2   |
+ 1  | 1  | 1  | 1  | 2   | 6   |
+ 1  | 1  | 1  | 1  | 2   | 6   |
+ 1  | 1  | 1  | 1  | 2   | 6   |
+ 1  | 1  | 1  | 1  | 2   | 6   |
+ 1  | 1  | 1  | 1  | 6   | 10  | 
+ 1  | 1  | 1  | 2  | 1   | 6   |
+ 1  | 1  | 1  | 2  | 1   | 6   |
+ 1  | 1  | 1  | 2  | 6   | 10  |
+ 1  | 2  | 2  | 1  | 1   | 2   |
+ 1  | 2  | 2  | 1  | 1   | 2   |
+ 1  | 2  | 2  | 1  | 2   | 4   |
+ 2  | 1  | 1  | 1  | 1   | 2   |
+ 2  | 1  | 1  | 1  | 2   | 4   |
+ 2  | 1  | 1  | 1  | 2   | 4   |
+ 2  | 1  | 1  | 2  | 1   | 2   |
+ 2  | 1  | 1  | 2  | 1   | 2   |
+ 2  | 1  | 1  | 2  | 2   | 4   |
 </entry>
 
-
-<entry key="q.query">
+<entry key="q13.query">
+TEMPORAL (
+	SELECT count(*) AS x
+	FROM (
+		SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
+		FROM 
+			TEMP_TEST WITH TIME(T_BEGIN, T_END) L 
+			JOIN 
+			TEMP_TEST WITH TIME(T_BEGIN, T_END) R 
+			ON (L.B = R.A)
+	)
+);
 </entry>
-<entry key="q.result">
-</entry>
-
-<entry key="q.query">
-</entry>
-<entry key="q.result">
+<entry key="q13.result">
+ X  | T_B | T_E |
+-----------------
+ 8  | 1   | 2   |
+ 10 | 2   | 4   |
+ 6  | 4   | 6   |
+ 2  | 6   | 10  |
 </entry>
 
 <entry key="q.query">

@@ -982,6 +982,7 @@ postgresExecuteQueryIgnoreResult (char *query)
         if (numRes == 0)
             done = TRUE;
     }
+    execCommit();
 }
 
 // NO libpq present. Provide dummy methods to keep compiler quiet

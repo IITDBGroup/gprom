@@ -42,6 +42,7 @@ static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 static void analyzeWhere (QueryBlock *qb, List *parentFroms);
 
 // search for attributes and other relevant node types
+static void analyzeFromProvInfo (FromItem *f);
 static void adaptAttrPosOffset(FromItem *f, FromItem *decendent, AttributeReference *a);
 static void adaptAttributeRefs(List* attrRefs, List* parentFroms);
 static boolean findAttrReferences (Node *node, List **state);
@@ -254,56 +255,13 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                 analyzeJoin((FromJoinExpr *) f, parentFroms);
                 break;
             case T_FromJsonTable:
-	        analyzeFromJsonTable((FromJsonTable *)f, &attrRefs);
+                analyzeFromJsonTable((FromJsonTable *)f, &attrRefs);
 	        break;
             default:
             	break;
         }
 
-        // analyze FromProvInfo if exists
-        if (f->provInfo)
-        {
-            FromProvInfo *fp = f->provInfo;
-
-            /* if the user provides a list of attributes (that store provenance
-             * or should be duplicated as provenance attributes) then we need
-             * to make sure these attributes exist. */
-            if (fp->userProvAttrs)
-            {
-                FOREACH(char,name,fp->userProvAttrs)
-                {
-                    if(!searchListString(f->attrNames, name))
-                    {
-                        if (strcmp(name,"ROWID") == 0 || f->type == T_FromTableRef)
-                        {
-                            f->attrNames = deepCopyStringList(f->attrNames);
-                            f->dataTypes = copyObject(f->dataTypes);
-                            f->attrNames = appendToTailOfList(f->attrNames, strdup("ROWID"));
-                            f->dataTypes = appendToTailOfListInt(f->dataTypes, DT_LONG);
-                        }
-                        else
-                            FATAL_LOG("did not find provenance attr %s in from "
-                                "item attrs %s", name, stringListToString(f->attrNames));
-                    }
-                }
-            }
-
-            // if user declared some attributes as provenance (HAS PROVENANCE) then these attributes are temporatily removed
-            // since they should not be referenced by query for which we are computing provenance
-            if (fp->baserel == FALSE && fp->intermediateProv == FALSE && fp->userProvAttrs != NIL)
-            {
-                INFO_LOG("from clause item HAS PROVENANCE activated - remove provenance attributes from schema for analysis");
-                FOREACH(char,provAttr,fp->userProvAttrs)
-                {
-                    int pos = listPosString(f->attrNames, provAttr);
-                    DEBUG_LOG("attribute %s at position %u", provAttr, pos);
-                    f->attrNames = deepCopyStringList(f->attrNames);
-                    f->dataTypes = copyObject(f->dataTypes);
-                    f->attrNames = removeListElemAtPos(f->attrNames, pos);
-                    f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
-                }
-            }
-        }
+        analyzeFromProvInfo(f);
 
         DEBUG_LOG("analyzed from item <%s>", nodeToString(f));
     }
@@ -390,6 +348,55 @@ analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms)
     // analyze each subquery
     FOREACH(NestedSubquery,q,nestedSubqueries)
         analyzeQueryBlockStmt(q->query, parentFroms);
+}
+
+static void
+analyzeFromProvInfo (FromItem *f)
+{
+    // analyze FromProvInfo if exists
+    if (f->provInfo)
+    {
+        FromProvInfo *fp = f->provInfo;
+
+        /* if the user provides a list of attributes (that store provenance
+         * or should be duplicated as provenance attributes) then we need
+         * to make sure these attributes exist. */
+        if (fp->userProvAttrs)
+        {
+            FOREACH(char,name,fp->userProvAttrs)
+            {
+                if(!searchListString(f->attrNames, name))
+                {
+                    if (strcmp(name,"ROWID") == 0 || f->type == T_FromTableRef)
+                    {
+                        f->attrNames = deepCopyStringList(f->attrNames);
+                        f->dataTypes = copyObject(f->dataTypes);
+                        f->attrNames = appendToTailOfList(f->attrNames, strdup("ROWID"));
+                        f->dataTypes = appendToTailOfListInt(f->dataTypes, DT_LONG);
+                    }
+                    else
+                        FATAL_LOG("did not find provenance attr %s in from "
+                            "item attrs %s", name, stringListToString(f->attrNames));
+                }
+            }
+        }
+
+        // if user declared some attributes as provenance (HAS PROVENANCE) then these attributes are temporarily removed
+        // since they should not be referenced by query for which we are computing provenance
+        if (fp->baserel == FALSE && fp->intermediateProv == FALSE && fp->userProvAttrs != NIL)
+        {
+            INFO_LOG("from clause item HAS PROVENANCE activated - remove provenance attributes from schema for analysis");
+            FOREACH(char,provAttr,fp->userProvAttrs)
+            {
+                int pos = listPosString(f->attrNames, provAttr);
+                DEBUG_LOG("attribute %s at position %u", provAttr, pos);
+                f->attrNames = deepCopyStringList(f->attrNames);
+                f->dataTypes = copyObject(f->dataTypes);
+                f->attrNames = removeListElemAtPos(f->attrNames, pos);
+                f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+            }
+        }
+    }
 }
 
 static void
@@ -816,8 +823,11 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     switch(left->type)
     {
         case T_FromTableRef:
+        {
         	analyzeFromTableRef((FromTableRef *)left);
-            break;
+            analyzeFromProvInfo(left);
+        }
+        break;
         case T_FromJoinExpr:
             analyzeJoin((FromJoinExpr *)left, parentFroms);
             break;
@@ -834,8 +844,11 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     switch(right->type)
 	{
 		case T_FromTableRef:
-			analyzeFromTableRef((FromTableRef *)right);
-			break;
+		{
+            analyzeFromTableRef((FromTableRef *)right);
+		    analyzeFromProvInfo(right);
+		}
+        break;
 		case T_FromJoinExpr:
 			analyzeJoin((FromJoinExpr *) right, parentFroms);
 			break;
