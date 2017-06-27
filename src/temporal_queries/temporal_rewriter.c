@@ -456,6 +456,9 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
                 attrs = appendToTailOfList(attrs, createConstString(attrName));
             }
 
+            if(attrs == NIL)
+            	attrs = appendToTailOfList(attrs, createConstString("!EMPTY!"));
+
             SET_STRING_PROP(child,PROP_TEMP_NORMALIZE_INPUTS, attrs);
             DEBUG_OP_LOG("mark aggregation input for normalization", q);
         }
@@ -1072,6 +1075,9 @@ addCoalesce (QueryOperator *input)
 QueryOperator *
 addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *attrNames)
 {
+	if(attrNames->length == 1 && streq(getHeadOfListP(attrNames),"!EMPTY!"))
+		attrNames = NIL;
+
 	QueryOperator *left = input;
 	QueryOperator *right = reference;
 	List *parents = left->parents;

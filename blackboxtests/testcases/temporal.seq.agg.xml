@@ -34,10 +34,8 @@ TEMPORAL (SELECT count(*) FROM (SELECT count(*) AS BOO, A FROM TEMP_TEST WITH TI
 <entry key="q3.result">
  COUNT(1) | T_B | T_E |
 -----------------------
- 1        | 2   | 4   |
  1        | 4   | 13  |
- 2        | 1   | 2   |
- 1        | 2   | 4   |
+ 2        | 1   | 4   |
 </entry>
 
 <entry key="q.query">
