@@ -12,6 +12,7 @@
 
 #include "common.h"
 #include "log/logger.h"
+#include "configuration/option.h"
 #include "mem_manager/mem_mgr.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
@@ -73,7 +74,8 @@ rewriteImplicitTemporal (QueryOperator *q)
     DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
 
     //top = addCoalesceForAllOp(top);
-    top = addCoalesce(top);
+    if(getBoolOption(TEMPORAL_USE_COALSECE))
+    	top = addCoalesce(top);
 
     return top;
 }
@@ -146,7 +148,11 @@ temporalRewriteOperator(QueryOperator *op)
             attrs = appendToTailOfList(attrs, strdup(STRING_VALUE(c)));
         }
 
-        rewrittenOp = addTemporalNormalization(rewrittenOp, rewrittenOp, attrs);
+        if(getBoolOption(TEMPORAL_USE_NORMALIZATION_WINDOW))
+        	rewrittenOp = addTemporalNormalizationUsingWindow(rewrittenOp, rewrittenOp, attrs);
+        else if(getBoolOption(TEMPORAL_USE_NORMALIZATION))
+        	rewrittenOp = addTemporalNormalization(rewrittenOp, rewrittenOp, attrs);
+
     }
 
     return rewrittenOp;

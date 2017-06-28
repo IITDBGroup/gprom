@@ -97,6 +97,11 @@ NEW_ENUM_WITH_TO_STRING(
 #define CHECK_OM_DATA_STRUCTURE_CONSISTENCY "check.data_structure_consistency"
 #define CHECK_OM_ATTR_REF "check.attr_ref_consistency"
 
+/* temporal database options */
+#define TEMPORAL_USE_COALSECE "temporal_use_coalesce"
+#define TEMPORAL_USE_NORMALIZATION "temporal_use_normalization"
+#define TEMPORAL_USE_NORMALIZATION_WINDOW "temporal_use_normalization_window"
+
 // declare option fields
 // show help only
 extern boolean opt_show_help;
@@ -153,6 +158,11 @@ extern boolean opt_optimization_remove_unnecessary_columns;
 extern boolean opt_optimization_remove_unnecessary_window_operators;
 extern boolean opt_optimization_pull_up_duplicate_remove_operators;
 extern boolean cost_based_close_option_removedp_by_set;
+
+// temporal database options
+extern boolean temporal_use_coalesce;
+extern boolean temporal_use_normalization;
+extern boolean temporal_use_normalization_window;
 
 // optimization options for group by
 extern boolean opt_optimization_push_down_group_by_operator_through_join;
