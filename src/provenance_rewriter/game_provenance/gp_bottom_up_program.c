@@ -2352,7 +2352,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     List *negedbRules = NIL;
     List *edbRules = NIL;
     List *moveRules = NIL;
-    List *origArgs = NIL;
     List *newRuleArg = NIL;
     List *origProg = NIL;
 	Set *adornedEDBAtoms = NODESET();
@@ -2397,6 +2396,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 
 	    int numGoals = 0;
+	    List *origArgs = NIL;
+
 //		List *addArg = NIL;
 //        List *addBoolConst = NIL;
     	boolean ruleWon = DL_HAS_PROP(r,DL_WON)
@@ -2455,10 +2456,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
         // add intermediate args
 		FOREACH(DLAtom,a,ruleRule->body)
+        {
         	if(isA((Node *) a, DLAtom))
 				FOREACH(Node,n,a->args)
 					if(!searchListNode(origArgs,n))
 						origArgs = appendToTailOfList(origArgs,n);
+        }
 
 //            endArgs = singleton(getTailOfListP(origArgs));
 //            origArgs = removeFromTail(origArgs);
@@ -2468,6 +2471,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //        	origArgs = CONCAT_LISTS(ruleRule->head->args, origArgs);
 
         newRuleArg = copyObject(origArgs);
+
         // add args for boolean
         if (!ruleWon) {
 

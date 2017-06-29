@@ -538,7 +538,7 @@ setVarDTs (Node *expr, HashMap *varToDT)
     List *vars = getDLVarsIgnoreProps (expr);
 //    List *vars = getDLVars (expr);
     FOREACH(DLVar,v,vars)
-        v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
+    	v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
 }
 
 static QueryOperator *
@@ -902,6 +902,11 @@ joinGoalTranslations (DLRule *r, List *goalTrans)
         List *attrNames = CONCAT_LISTS(getQueryOperatorAttrNames(result),
                 getQueryOperatorAttrNames(g));
         makeNamesUnique(attrNames, allNames);
+
+        // TODO: if many variables(attrs) exist in the rule,
+        //		 then creating unique var name by adding another digit of number with incremental is not enough
+        if (LIST_LENGTH(attrNames) > 10)
+        	makeNamesUnique(attrNames, allNames);
 
         cond = createJoinCondOnCommonAttrs(result,g, origAttrs);
 
