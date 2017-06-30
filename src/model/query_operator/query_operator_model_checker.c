@@ -297,7 +297,7 @@ checkSchemaConsistency (QueryOperator *op, void *context)
                 ERROR_LOG("Number of attributes of a join operator should be the "
                         "addition of the number of attributes of its children:\n%s\n"
                         "expected:\n%u\nbut was\n%u",
-                        operatorToOverviewString((Node *) op),
+                        jsonify(nodeToString((Node *) op)),
                         LIST_LENGTH(lChild->schema->attrDefs) +
                                 LIST_LENGTH(rChild->schema->attrDefs),
                         LIST_LENGTH(o->op.schema->attrDefs));

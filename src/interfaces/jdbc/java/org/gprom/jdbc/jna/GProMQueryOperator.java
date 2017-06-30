@@ -30,7 +30,7 @@ public class GProMQueryOperator extends GProMStructure {
 	 */
 	public org.gprom.jdbc.jna.GProMList.ByReference provAttrs;
 	/**
-	 * generic node to store flexible list or map of properties (KeyValue) for query operators<br>
+	 * generic node to store flexible list or map of properties (GProMKeyValue) for query operators<br>
 	 * C type : GProMNode*
 	 */
 	public org.gprom.jdbc.jna.GProMNode.ByReference properties;
@@ -54,7 +54,7 @@ public class GProMQueryOperator extends GProMStructure {
 	 * C type : GProMList*<br>
 	 * @param provAttrs positions of provenance attributes in the operator's schema<br>
 	 * C type : GProMList*<br>
-	 * @param properties generic node to store flexible list or map of properties (KeyValue) for query operators<br>
+	 * @param properties generic node to store flexible list or map of properties (GProMKeyValue) for query operators<br>
 	 * C type : GProMNode*
 	 */
 	public GProMQueryOperator(int type, org.gprom.jdbc.jna.GProMList.ByReference inputs, org.gprom.jdbc.jna.GProMSchema.ByReference schema, org.gprom.jdbc.jna.GProMList.ByReference parents, org.gprom.jdbc.jna.GProMList.ByReference provAttrs, org.gprom.jdbc.jna.GProMNode.ByReference properties) {

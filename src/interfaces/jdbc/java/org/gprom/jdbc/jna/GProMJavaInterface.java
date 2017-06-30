@@ -60,7 +60,8 @@ public interface GProMJavaInterface {
 	public String gpromOperatorModelToQuery(Pointer nodeFromMimir) throws Exception;
 	public Pointer gpromCreateMemContext();
 	public Pointer createMemContextName(String ctxName);
-	public void gpromFreeMemContext(Pointer memContext);	
+	public void gpromFreeMemContext(Pointer memContext);
+	public GProMHashMap gpromAddToMap(Pointer hashmap,Pointer key, Pointer value) throws Exception;	
 	
 	/* initialization */
 	public void init ();

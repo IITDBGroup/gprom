@@ -214,7 +214,7 @@ outList(StringInfo str, List *node)
         {
             FOREACH_INT(i, node)
             {
-                appendStringInfo(str, "i%d", i);
+                appendStringInfo(str, "%d", i);
                 if (i_his_cell->next)
                     appendStringInfoString(str, ", ");
             }
@@ -223,7 +223,7 @@ outList(StringInfo str, List *node)
         {
             FOREACH(Node,n,node)
             {
-                outNode(str, n);
+            	outNode(str, n);
                 if (n_his_cell->next)
                     appendStringInfoString(str, ", ");
             }
@@ -334,15 +334,17 @@ outHashMap(StringInfo str, HashMap *node)
     List *entryStrings = NIL;
     List *sortEntries = NIL;
 
-    appendStringInfo(str, "{");
+    appendStringInfo(str, "map|[");
 
     // create list of serializations for each hash entry
     FOREACH_HASH_ENTRY(el,node)
     {
         StringInfo hashStr = makeStringInfo();
+        appendStringInfoString(hashStr,"{key|");
         outNode(hashStr, el->key);
-        appendStringInfoString(hashStr," => ");
+        appendStringInfoString(hashStr,":value|");
         outNode(hashStr, el->value);
+        appendStringInfoString(hashStr,"}");
         entryStrings = appendToTailOfList(entryStrings, strdup(hashStr->data));
     }
 
@@ -357,7 +359,7 @@ outHashMap(StringInfo str, HashMap *node)
         appendStringInfo(str, "%s", s_his_cell->next ? ", " : "");
     }
 
-    appendStringInfo(str, "}");
+    appendStringInfo(str, "]");
 }
 
 // datalog model
@@ -555,14 +557,14 @@ outConstant (StringInfo str, Constant *node)
                 appendStringInfo(str, "'%s'", (char *) node->value);
                 break;
             case DT_BOOL:
-                appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
+                appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "true" : "false");
                 break;
             case DT_LONG:
                 appendStringInfo(str, "%ld", *((long *) node->value));
                 break;
             case DT_VARCHAR2:
-	        appendStringInfo(str, "'%s'", (char *) node->value);
-	        break;
+				appendStringInfo(str, "'%s'", (char *) node->value);
+				break;
         }
 
     WRITE_BOOL_FIELD(isNull);

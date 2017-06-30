@@ -261,7 +261,7 @@ typedef struct GProMQueryOperator
     GProMSchema *schema; // attributes and their data types of result tables, GProMSchema type
     GProMList *parents; // direct parents of the operator node, GProMQueryOperator type
     GProMList *provAttrs; // positions of provenance attributes in the operator's schema
-    GProMNode *properties; // generic node to store flexible list or map of properties (KeyValue) for query operators
+    GProMNode *properties; // generic node to store flexible list or map of properties (GProMKeyValue) for query operators
 } GProMQueryOperator; // common fields that all operators have
 
 typedef struct GProMTableAccessOperator
@@ -533,5 +533,104 @@ extern void * gprom_createMemContext(void);
 extern void * gprom_createMemContextName(const char * ctxName);
 
 extern void gprom_freeMemContext(void * memContext);
+
+typedef struct GProMUT_hash_bucket {
+   struct GProMUT_hash_handle *hh_head;
+   unsigned count;
+
+   /* expand_mult is normally set to 0. In this situation, the max chain length
+    * threshold is enforced at its default value, HASH_BKT_CAPACITY_THRESH. (If
+    * the bucket's chain exceeds this length, bucket expansion is triggered). 
+    * However, setting expand_mult to a non-zero value delays bucket expansion
+    * (that would be triggered by additions to this particular bucket)
+    * until its chain length reaches a *multiple* of HASH_BKT_CAPACITY_THRESH.
+    * (The multiplier is simply expand_mult+1). The whole idea of this
+    * multiplier is to reduce bucket expansions, since they are expensive, in
+    * situations where we know that a particular bucket tends to be overused.
+    * It is better to let its chain length grow to a longer yet-still-bounded
+    * value, than to do an O(n) bucket expansion too often. 
+    */
+   unsigned expand_mult;
+
+} GProMUT_hash_bucket;
+
+typedef struct GProMUT_hash_table {
+   GProMUT_hash_bucket *buckets;
+   unsigned num_buckets, log2_num_buckets;
+   unsigned num_items;
+   struct GProMUT_hash_handle *tail; /* tail hh in app order, for fast append    */
+   int hho; /* hash handle offset (byte pos of hash handle in element */
+
+   /* in an ideal situation (all buckets used equally), no bucket would have
+    * more than ceil(#items/#buckets) items. that's the ideal chain length. */
+   unsigned ideal_chain_maxlen;
+
+   /* nonideal_items is the number of items in the hash whose chain position
+    * exceeds the ideal chain maxlen. these items pay the penalty for an uneven
+    * hash distribution; reaching them in a chain traversal takes >ideal steps */
+   unsigned nonideal_items;
+
+   /* ineffective expands occur when a bucket doubling was performed, but 
+    * afterward, more than half the items in the hash had nonideal chain
+    * positions. If this happens on two consecutive expansions we inhibit any
+    * further expansion, as it's not helping; this happens when the hash
+    * function isn't a good fit for the key domain. When expansion is inhibited
+    * the hash will still work, albeit no longer in constant time. */
+   unsigned ineff_expands, noexpand;
+
+   uint32_t signature; /* used only to find hash tables in external analysis */
+#ifdef HASH_BLOOM
+   uint32_t bloom_sig; /* used only to test bloom exists in external analysis */
+   uint8_t *bloom_bv;
+   char bloom_nbits;
+#endif
+
+} GProMUT_hash_table;
+
+typedef struct GProMUT_hash_handle {
+   struct GProMUT_hash_table *tbl;
+   void *prev;                       /* prev element in app order      */
+   void *next;                       /* next element in app order      */
+   struct GProMUT_hash_handle *hh_prev;   /* previous hh in bucket order    */
+   struct GProMUT_hash_handle *hh_next;   /* next hh in bucket order        */
+   void *key;                        /* ptr to enclosing struct's key  */
+   unsigned keylen;                  /* enclosing struct's key len     */
+   unsigned hashv;                   /* result of hash-fcn(key)        */
+} GProMUT_hash_handle;
+
+typedef struct GProMHashElem {
+    void *data;
+    void *key;
+    GProMUT_hash_handle hh;
+} GProMHashElem;
+
+typedef struct GProMHashMap {
+    GProMNodeTag type;
+    GProMNodeTag keyType;
+    GProMNodeTag valueType;
+    int typelen;
+    int (*eq) (void *, void*);
+    void * (*cpy) (void *);
+    GProMHashElem *elem;
+} GProMHashMap;
+
+extern GProMHashMap* gprom_addToMap(GProMHashMap* map, GProMNode * key, GProMNode * value);
+
+typedef struct GProMKeyValue
+{
+    GProMNodeTag type;
+    GProMNode *key;
+    GProMNode *value;
+} GProMKeyValue;
+
+typedef struct GProMWindowOperator
+{
+    GProMQueryOperator op;
+    GProMList *partitionBy;
+    GProMList *orderBy;
+    GProMWindowFrame *frameDef;
+    char *attrName;
+    GProMNode *f;
+} GProMWindowOperator;
 
 #endif /* INCLUDE_LIBGPROM_LIBGPROM_H_ */

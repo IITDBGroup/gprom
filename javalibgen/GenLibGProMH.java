@@ -43,6 +43,8 @@ public class GenLibGProMH {
 	private static String nodeDir = "include/model/node/nodetype.h";
 	private static String listDir = "include/model/list/list.h";
 	private static String expressionDir = "include/model/expression/expression.h";
+	private static String uthashDir = "include/uthash.h";
+	private static String hashmapDir = "include/model/set/hashmap.h";
 	private static ArrayList<LibraryItem> libraryItems = new ArrayList<LibraryItem>(Arrays.asList( 
 			new StructLibraryItem(GenLibGProMH.queryOperatorDir, "AttributeDef"),
 			new StructInternalUnionLibraryItem(GenLibGProMH.listDir, "ListCell"),
@@ -58,6 +60,7 @@ public class GenLibGProMH {
 			new StructLibraryItem(GenLibGProMH.queryOperatorDir, "AggregationOperator"),
 			new StructLibraryItem(GenLibGProMH.queryOperatorDir, "SetOperator"),
 			new StructLibraryItem(GenLibGProMH.queryOperatorDir, "DuplicateRemoval"),
+			new StructLibraryItem(GenLibGProMH.queryOperatorDir, "WindowOperator"),
 			new StructLibraryItem(GenLibGProMH.expressionDir, "Constant"),
 			new StructLibraryItem(GenLibGProMH.queryBlockDir, "ProvenanceTransactionInfo"),
 			new StructLibraryItem(GenLibGProMH.queryOperatorDir, "ProvenanceComputation"),
@@ -78,6 +81,12 @@ public class GenLibGProMH {
 			new StructLibraryItem(GenLibGProMH.expressionDir, "WindowFunction"),
 			new StructLibraryItem(GenLibGProMH.expressionDir, "CastExpr"),
 			new StructLibraryItem(GenLibGProMH.expressionDir, "OrderExpr"),
+			new StructLibraryItem(GenLibGProMH.nodeDir, "KeyValue"),
+			new StructLibraryItem(GenLibGProMH.uthashDir, "UT_hash_bucket"),
+			new StructLibraryItem(GenLibGProMH.uthashDir, "UT_hash_table"),
+			new StructLibraryItem(GenLibGProMH.uthashDir, "UT_hash_handle"),
+			new StructLibraryItem(GenLibGProMH.hashmapDir, "HashElem"),
+			new StructLibraryItem(GenLibGProMH.hashmapDir, "HashMap"),
 			new EnumWithToStringLibraryItem(GenLibGProMH.nodeDir, "NodeTag"),
 			new EnumWithToStringLibraryItem(GenLibGProMH.expressionDir, "DataType"),
 			new EnumWithToStringLibraryItem(GenLibGProMH.queryBlockDir, "JoinType"),
@@ -141,7 +150,8 @@ public class GenLibGProMH {
 			    		System.err.println("---------------------------------");
 				    	System.err.println("----Missing Dest Library Item----");
 				    	System.err.println("----------"+currentItem.getName()+"---------");
-				    	System.err.println("---------------------------------");
+				    	System.err.println("----------Adding As New----------");
+				    	dstFileContents = dstFileContents.replace("#endif /* INCLUDE_LIBGPROM_LIBGPROM_H_ */", destItemString + "\n\n#endif /* INCLUDE_LIBGPROM_LIBGPROM_H_ */");
 			    	}	
 			    }
 			    else{
@@ -244,7 +254,7 @@ public class GenLibGProMH {
                         	replacedOutput = Pattern.compile("(public static class ByValue extends data_union.*?)\\};",Pattern.DOTALL).matcher(replacedOutput).replaceAll( "$1\tpublic ByValue(Pointer ptr_value) {\n\t\t\t\tsuper(ptr_value);\n\t\t\t}\n\t\t\tpublic ByValue(int int_value) {\n\t\t\t\tsuper(int_value);\n\t\t\t}\n\t\t};" );
                         	replacedOutput = Pattern.compile("(public static class ByReference extends GProMNode.*?)\\};",Pattern.DOTALL).matcher(replacedOutput).replaceAll( "$1\tpublic ByReference() { super(); }\n\t\tpublic ByReference(com.sun.jna.Pointer p) { super(p); }\n\t};" );
                         	// --------------------------------------------------------------------------------------------
-                        	Pattern classNamePattern = Pattern.compile("public class ([a-zA-Z]+) extends Structure");
+                        	Pattern classNamePattern = Pattern.compile("public class ([a-zA-Z_]+) extends Structure");
 	                        Matcher classNameMatcher = classNamePattern.matcher(replacedOutput);
 	                        if(classNameMatcher.find()){
 	                    		String className = classNameMatcher.group(1);
@@ -381,14 +391,15 @@ class StructLibraryItem extends LibraryItem {
 		super(fileName, name);
 	}
 	public String getSrcMatchRegex(){
-		return "typedef\\s+struct\\s+("+this.name+")(\\s*\\{\\s+[\\sa-zA-Z0-9*,;\\/().']+\\}\\s*)("+this.name+")\\s*;"; 
+		return "typedef\\s+struct\\s+("+this.name+")(\\s*\\{\\s+[\\sa-zA-Z0-9*,;\\/().'_<>+#-]+\\}\\s*)("+this.name+")\\s*;"; 
 	}
 	public String getDstMatchRegex(){
-		return "typedef\\s+struct\\s+("+GenLibGProMH.libraryNamePrefix+this.name+")(\\s*\\{\\s+[\\sa-zA-Z0-9*,;\\/().']+\\}\\s*)("+GenLibGProMH.libraryNamePrefix+this.name+")\\s*;"; 
+		return "typedef\\s+struct\\s+("+GenLibGProMH.libraryNamePrefix+this.name+")(\\s*\\{\\s+[\\sa-zA-Z0-9*,;\\/().'_<>+#-]+\\}\\s*)("+GenLibGProMH.libraryNamePrefix+this.name+")\\s*;"; 
 	}
 	public String getDstReplacementString(Matcher libItemMatcher){
 		String matchedString = libItemMatcher.group();
 		matchedString = matchedString.replaceAll("boolean\\s+", "int ");
+		matchedString = matchedString.replaceAll("ptrdiff_t\\s+", "int ");
 		return matchedString.replaceAll(libItemMatcher.group(1), GenLibGProMH.libraryNamePrefix+libItemMatcher.group(1));
 	}
 }
@@ -399,14 +410,15 @@ class StructInternalUnionLibraryItem extends LibraryItem {
 		super(fileName, name);
 	}
 	public String getSrcMatchRegex(){
-		return "typedef\\s+struct\\s+("+this.name+")(\\s*\\{\\s+[\\sa-zA-Z0-9*,\\{\\};_\\/().']+\\}\\s*)("+this.name+")\\s*;"; 
+		return "typedef\\s+struct\\s+("+this.name+")(\\s*\\{\\s+[\\sa-zA-Z0-9*,\\{\\};_\\/().'<>+#-]+\\}\\s*)("+this.name+")\\s*;"; 
 	}
 	public String getDstMatchRegex(){
-		return "typedef\\s+struct\\s+("+GenLibGProMH.libraryNamePrefix+this.name+")(\\s*\\{\\s+[\\sa-zA-Z0-9*,\\{\\};_\\/().']+\\}\\s*)("+GenLibGProMH.libraryNamePrefix+this.name+")\\s*;"; 
+		return "typedef\\s+struct\\s+("+GenLibGProMH.libraryNamePrefix+this.name+")(\\s*\\{\\s+[\\sa-zA-Z0-9*,\\{\\};_\\/().'<>+#-]+\\}\\s*)("+GenLibGProMH.libraryNamePrefix+this.name+")\\s*;"; 
 	}
 	public String getDstReplacementString(Matcher libItemMatcher){
 		String matchedString = libItemMatcher.group();
 		matchedString = matchedString.replaceAll("boolean\\s+", "int ");
+		matchedString = matchedString.replaceAll("ptrdiff_t\\s+", "int ");
 		return matchedString.replaceAll(libItemMatcher.group(1), GenLibGProMH.libraryNamePrefix+libItemMatcher.group(1));
 	}
 }

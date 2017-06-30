@@ -284,6 +284,28 @@ public class GProMWrapper implements GProMJavaInterface {
 		GProM_JNA.INSTANCE.gprom_freeMemContext(memContext);
 	}
 	
+	@Override
+	public synchronized GProMHashMap gpromAddToMap(Pointer hashmap,Pointer key, Pointer value) throws Exception{
+		
+		GProMHashMap result = GProM_JNA.INSTANCE.gprom_addToMap(hashmap, key, value);
+		
+		// check whether exception has occured
+		if (exceptions.size() > 0) {
+			StringBuilder mes = new StringBuilder();
+			for(ExceptionInfo i: exceptions)
+			{
+				mes.append("ERROR (" + i + ")");
+				mes.append(i.toString());
+				mes.append("\n\n");
+			}
+			exceptions.clear();
+			log.error("have encountered exception");
+			throw new NativeGProMLibException("Error during rewrite:\n" + mes.toString());
+		}
+		
+		return result;
+	}
+	
 	public GProMStructure castGProMNode(GProMNode node){
 		int nodeType = node.type;
 		
@@ -296,7 +318,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	        case GProM_JNA.GProMNodeTag.GProM_T_Set:
 	            return new GProMNode(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_HashMap:
-	            return new GProMNode(node.getPointer());
+	            return new GProMHashMap(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_Vector:
 	            return new GProMNode(node.getPointer());
 
@@ -306,7 +328,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	        case GProM_JNA.GProMNodeTag.GProM_T_FunctionCall:
 	            return new GProMFunctionCall(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_KeyValue:
-	            return new GProMNode(node.getPointer());
+	            return new GProMKeyValue(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_Operator:
 	            return new GProMOperator(node.getPointer());
 	        case GProM_JNA.GProMNodeTag.GProM_T_Schema:

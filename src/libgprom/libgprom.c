@@ -16,6 +16,7 @@
 #include "configuration/option_parser.h"
 #include "log/logger.h"
 #include "libgprom/libgprom.h"
+#include "model/set/hashmap.h"
 #include "rewriter.h"
 #include "parser/parser.h"
 #include "provenance_rewriter/prov_rewriter.h"
@@ -417,4 +418,45 @@ gprom_freeMemContext(void * memContext)
 	FREE_CUR_MEM_CONTEXT();
 	RELEASE_MEM_CONTEXT();
 	UNLOCK_MUTEX();
+}
+
+
+GProMHashMap* gprom_addToMap(GProMHashMap* map, GProMNode * key, GProMNode * value)
+{
+
+	LOCK_MUTEX();
+		   //NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+		    HashMap* newMap;
+			Node *newKey;
+		    Node *newValue;
+		    GProMHashMap* returnResult;
+		    TRY
+		    {
+
+				newKey = (Node*)copyObject(key);
+		    	newValue = (Node*)copyObject(value);
+
+		    	if(map == NULL){
+		    		newMap = newHashMap(newKey->type, newValue->type, NULL, NULL);
+		    	}
+		    	else
+		    		newMap = (HashMap*)copyObject(map);
+
+		    	addToMap(newMap, newKey, newValue);
+
+		    	UNLOCK_MUTEX();
+
+				returnResult = (GProMHashMap*)copyObject(newMap);
+				//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+				return returnResult;
+			}
+			ON_EXCEPTION
+			{
+				ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+			}
+			END_ON_EXCEPTION
+
+			UNLOCK_MUTEX();
+			//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
+			return NULL;
 }

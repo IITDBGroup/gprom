@@ -27,6 +27,8 @@ public interface GProM_JNA extends Library {
 	GProM_JNA INSTANCE = (GProM_JNA) Native.loadLibrary("gprom", 
 			GProM_JNA.class);
 
+	public static final Object GC_LOCK = new Object();
+	
 	// library methods
 	// initialization
 	public void gprom_init();
@@ -196,298 +198,298 @@ public interface GProM_JNA extends Library {
 	void gprom_registerMetadataLookupPlugin(GProMMetadataLookupPlugin plugin);
 
 	public static interface GProMNodeTag {
-		/** <i>native declaration : line 202</i> */
+		/** <i>native declaration : line 292</i> */
 		public static final int GProM_T_Invalid = 0;
-		/** <i>native declaration : line 203</i> */
+		/** <i>native declaration : line 293</i> */
 		public static final int GProM_T_Node = 1;
 		/**
 		 * collection types<br>
-		 * <i>native declaration : line 206</i>
+		 * <i>native declaration : line 296</i>
 		 */
 		public static final int GProM_T_List = 2;
-		/** <i>native declaration : line 207</i> */
+		/** <i>native declaration : line 297</i> */
 		public static final int GProM_T_IntList = 3;
-		/** <i>native declaration : line 208</i> */
+		/** <i>native declaration : line 298</i> */
 		public static final int GProM_T_Set = 4;
-		/** <i>native declaration : line 209</i> */
+		/** <i>native declaration : line 299</i> */
 		public static final int GProM_T_HashMap = 5;
-		/** <i>native declaration : line 210</i> */
+		/** <i>native declaration : line 300</i> */
 		public static final int GProM_T_Vector = 6;
 		/**
 		 * options<br>
-		 * <i>native declaration : line 213</i>
+		 * <i>native declaration : line 303</i>
 		 */
 		public static final int GProM_T_KeyValue = 7;
 		/**
 		 * expression nodes<br>
-		 * <i>native declaration : line 216</i>
+		 * <i>native declaration : line 306</i>
 		 */
 		public static final int GProM_T_Constant = 8;
-		/** <i>native declaration : line 217</i> */
+		/** <i>native declaration : line 307</i> */
 		public static final int GProM_T_AttributeReference = 9;
-		/** <i>native declaration : line 218</i> */
+		/** <i>native declaration : line 308</i> */
 		public static final int GProM_T_SQLParameter = 10;
-		/** <i>native declaration : line 219</i> */
+		/** <i>native declaration : line 309</i> */
 		public static final int GProM_T_FunctionCall = 11;
-		/** <i>native declaration : line 220</i> */
+		/** <i>native declaration : line 310</i> */
 		public static final int GProM_T_Operator = 12;
-		/** <i>native declaration : line 221</i> */
+		/** <i>native declaration : line 311</i> */
 		public static final int GProM_T_CaseExpr = 13;
-		/** <i>native declaration : line 222</i> */
+		/** <i>native declaration : line 312</i> */
 		public static final int GProM_T_CaseWhen = 14;
-		/** <i>native declaration : line 223</i> */
+		/** <i>native declaration : line 313</i> */
 		public static final int GProM_T_IsNullExpr = 15;
-		/** <i>native declaration : line 224</i> */
+		/** <i>native declaration : line 314</i> */
 		public static final int GProM_T_WindowBound = 16;
-		/** <i>native declaration : line 225</i> */
+		/** <i>native declaration : line 315</i> */
 		public static final int GProM_T_WindowFrame = 17;
-		/** <i>native declaration : line 226</i> */
+		/** <i>native declaration : line 316</i> */
 		public static final int GProM_T_WindowDef = 18;
-		/** <i>native declaration : line 227</i> */
+		/** <i>native declaration : line 317</i> */
 		public static final int GProM_T_WindowFunction = 19;
-		/** <i>native declaration : line 228</i> */
+		/** <i>native declaration : line 318</i> */
 		public static final int GProM_T_RowNumExpr = 20;
-		/** <i>native declaration : line 229</i> */
+		/** <i>native declaration : line 319</i> */
 		public static final int GProM_T_OrderExpr = 21;
-		/** <i>native declaration : line 230</i> */
+		/** <i>native declaration : line 320</i> */
 		public static final int GProM_T_CastExpr = 22;
 		/**
 		 * query block model nodes<br>
-		 * <i>native declaration : line 233</i>
+		 * <i>native declaration : line 323</i>
 		 */
 		public static final int GProM_T_SetQuery = 23;
-		/** <i>native declaration : line 234</i> */
+		/** <i>native declaration : line 324</i> */
 		public static final int GProM_T_ProvenanceStmt = 24;
-		/** <i>native declaration : line 235</i> */
+		/** <i>native declaration : line 325</i> */
 		public static final int GProM_T_ProvenanceTransactionInfo = 25;
-		/** <i>native declaration : line 236</i> */
+		/** <i>native declaration : line 326</i> */
 		public static final int GProM_T_QueryBlock = 26;
-		/** <i>native declaration : line 237</i> */
+		/** <i>native declaration : line 327</i> */
 		public static final int GProM_T_SelectItem = 27;
-		/** <i>native declaration : line 238</i> */
+		/** <i>native declaration : line 328</i> */
 		public static final int GProM_T_FromItem = 28;
-		/** <i>native declaration : line 239</i> */
+		/** <i>native declaration : line 329</i> */
 		public static final int GProM_T_FromProvInfo = 29;
-		/** <i>native declaration : line 240</i> */
+		/** <i>native declaration : line 330</i> */
 		public static final int GProM_T_FromTableRef = 30;
-		/** <i>native declaration : line 241</i> */
+		/** <i>native declaration : line 331</i> */
 		public static final int GProM_T_FromSubquery = 31;
-		/** <i>native declaration : line 242</i> */
+		/** <i>native declaration : line 332</i> */
 		public static final int GProM_T_FromJoinExpr = 32;
-		/** <i>native declaration : line 243</i> */
+		/** <i>native declaration : line 333</i> */
 		public static final int GProM_T_DistinctClause = 33;
-		/** <i>native declaration : line 244</i> */
+		/** <i>native declaration : line 334</i> */
 		public static final int GProM_T_NestedSubquery = 34;
-		/** <i>native declaration : line 245</i> */
+		/** <i>native declaration : line 335</i> */
 		public static final int GProM_T_Insert = 35;
-		/** <i>native declaration : line 246</i> */
+		/** <i>native declaration : line 336</i> */
 		public static final int GProM_T_Delete = 36;
-		/** <i>native declaration : line 247</i> */
+		/** <i>native declaration : line 337</i> */
 		public static final int GProM_T_Update = 37;
-		/** <i>native declaration : line 248</i> */
+		/** <i>native declaration : line 338</i> */
 		public static final int GProM_T_TransactionStmt = 38;
-		/** <i>native declaration : line 249</i> */
+		/** <i>native declaration : line 339</i> */
 		public static final int GProM_T_WithStmt = 39;
-		/** <i>native declaration : line 250</i> */
+		/** <i>native declaration : line 340</i> */
 		public static final int GProM_T_DDLStatement = 40;
-		/** <i>native declaration : line 251</i> */
+		/** <i>native declaration : line 341</i> */
 		public static final int GProM_T_UtilityStatement = 41;
 		/**
 		 * query operator model nodes<br>
-		 * <i>native declaration : line 254</i>
+		 * <i>native declaration : line 344</i>
 		 */
 		public static final int GProM_T_Schema = 42;
-		/** <i>native declaration : line 255</i> */
+		/** <i>native declaration : line 345</i> */
 		public static final int GProM_T_AttributeDef = 43;
-		/** <i>native declaration : line 256</i> */
+		/** <i>native declaration : line 346</i> */
 		public static final int GProM_T_QueryOperator = 44;
-		/** <i>native declaration : line 257</i> */
+		/** <i>native declaration : line 347</i> */
 		public static final int GProM_T_SelectionOperator = 45;
-		/** <i>native declaration : line 258</i> */
+		/** <i>native declaration : line 348</i> */
 		public static final int GProM_T_ProjectionOperator = 46;
-		/** <i>native declaration : line 259</i> */
+		/** <i>native declaration : line 349</i> */
 		public static final int GProM_T_JoinOperator = 47;
-		/** <i>native declaration : line 260</i> */
+		/** <i>native declaration : line 350</i> */
 		public static final int GProM_T_AggregationOperator = 48;
-		/** <i>native declaration : line 261</i> */
+		/** <i>native declaration : line 351</i> */
 		public static final int GProM_T_ProvenanceComputation = 49;
-		/** <i>native declaration : line 262</i> */
+		/** <i>native declaration : line 352</i> */
 		public static final int GProM_T_TableAccessOperator = 50;
-		/** <i>native declaration : line 263</i> */
+		/** <i>native declaration : line 353</i> */
 		public static final int GProM_T_SetOperator = 51;
-		/** <i>native declaration : line 264</i> */
+		/** <i>native declaration : line 354</i> */
 		public static final int GProM_T_DuplicateRemoval = 52;
-		/** <i>native declaration : line 265</i> */
+		/** <i>native declaration : line 355</i> */
 		public static final int GProM_T_ConstRelOperator = 53;
-		/** <i>native declaration : line 266</i> */
+		/** <i>native declaration : line 356</i> */
 		public static final int GProM_T_NestingOperator = 54;
-		/** <i>native declaration : line 267</i> */
+		/** <i>native declaration : line 357</i> */
 		public static final int GProM_T_WindowOperator = 55;
-		/** <i>native declaration : line 268</i> */
+		/** <i>native declaration : line 358</i> */
 		public static final int GProM_T_OrderOperator = 56;
 		/**
 		 * datalog model nodes<br>
-		 * <i>native declaration : line 271</i>
+		 * <i>native declaration : line 361</i>
 		 */
 		public static final int GProM_T_DLNode = 57;
-		/** <i>native declaration : line 272</i> */
+		/** <i>native declaration : line 362</i> */
 		public static final int GProM_T_DLAtom = 58;
-		/** <i>native declaration : line 273</i> */
+		/** <i>native declaration : line 363</i> */
 		public static final int GProM_T_DLVar = 59;
-		/** <i>native declaration : line 274</i> */
+		/** <i>native declaration : line 364</i> */
 		public static final int GProM_T_DLRule = 60;
-		/** <i>native declaration : line 275</i> */
+		/** <i>native declaration : line 365</i> */
 		public static final int GProM_T_DLProgram = 61;
-		/** <i>native declaration : line 276</i> */
+		/** <i>native declaration : line 366</i> */
 		public static final int GProM_T_DLComparison = 62;
-		/** <i>native declaration : line 277</i> */
+		/** <i>native declaration : line 367</i> */
 		public static final int GProM_T_DLDomain = 63;
 		/**
 		 * Json Table GProMNode<br>
-		 * <i>native declaration : line 280</i>
+		 * <i>native declaration : line 370</i>
 		 */
 		public static final int GProM_T_FromJsonTable = 64;
-		/** <i>native declaration : line 281</i> */
+		/** <i>native declaration : line 371</i> */
 		public static final int GProM_T_JsonTableOperator = 65;
-		/** <i>native declaration : line 282</i> */
+		/** <i>native declaration : line 372</i> */
 		public static final int GProM_T_JsonColInfoItem = 66;
-		/** <i>native declaration : line 283</i> */
+		/** <i>native declaration : line 373</i> */
 		public static final int GProM_T_JsonPath = 67;
 		/**
 		 * relation<br>
-		 * <i>native declaration : line 286</i>
+		 * <i>native declaration : line 376</i>
 		 */
 		public static final int GProM_T_Relation = 68;
 		/**
 		 * rpq<br>
-		 * <i>native declaration : line 289</i>
+		 * <i>native declaration : line 379</i>
 		 */
 		public static final int GProM_T_Regex = 69;
-		/** <i>native declaration : line 290</i> */
+		/** <i>native declaration : line 380</i> */
 		public static final int GProM_T_RPQQuery = 70;
 		/**
 		 * ddl<br>
-		 * <i>native declaration : line 293</i>
+		 * <i>native declaration : line 383</i>
 		 */
 		public static final int GProM_T_CreateTable = 71;
-		/** <i>native declaration : line 294</i> */
+		/** <i>native declaration : line 384</i> */
 		public static final int GProM_T_AlterTable = 72;
 	};
 
 	public static interface GProMDataType {
-		/** <i>native declaration : line 298</i> */
+		/** <i>native declaration : line 388</i> */
 		public static final int GProM_DT_INT = 0;
-		/** <i>native declaration : line 299</i> */
+		/** <i>native declaration : line 389</i> */
 		public static final int GProM_DT_LONG = 1;
-		/** <i>native declaration : line 300</i> */
+		/** <i>native declaration : line 390</i> */
 		public static final int GProM_DT_STRING = 2;
-		/** <i>native declaration : line 301</i> */
+		/** <i>native declaration : line 391</i> */
 		public static final int GProM_DT_FLOAT = 3;
-		/** <i>native declaration : line 302</i> */
+		/** <i>native declaration : line 392</i> */
 		public static final int GProM_DT_BOOL = 4;
-		/** <i>native declaration : line 303</i> */
+		/** <i>native declaration : line 393</i> */
 		public static final int GProM_DT_VARCHAR2 = 5;
 	};
 
 	public static interface GProMJoinType {
-		/** <i>native declaration : line 307</i> */
+		/** <i>native declaration : line 397</i> */
 		public static final int GProM_JOIN_INNER = 0;
-		/** <i>native declaration : line 308</i> */
+		/** <i>native declaration : line 398</i> */
 		public static final int GProM_JOIN_CROSS = 1;
-		/** <i>native declaration : line 309</i> */
+		/** <i>native declaration : line 399</i> */
 		public static final int GProM_JOIN_LEFT_OUTER = 2;
-		/** <i>native declaration : line 310</i> */
+		/** <i>native declaration : line 400</i> */
 		public static final int GProM_JOIN_RIGHT_OUTER = 3;
-		/** <i>native declaration : line 311</i> */
+		/** <i>native declaration : line 401</i> */
 		public static final int GProM_JOIN_FULL_OUTER = 4;
 	};
 
 	public static interface GProMSetOpType {
-		/** <i>native declaration : line 315</i> */
+		/** <i>native declaration : line 405</i> */
 		public static final int GProM_SETOP_UNION = 0;
-		/** <i>native declaration : line 316</i> */
+		/** <i>native declaration : line 406</i> */
 		public static final int GProM_SETOP_INTERSECTION = 1;
-		/** <i>native declaration : line 317</i> */
+		/** <i>native declaration : line 407</i> */
 		public static final int GProM_SETOP_DIFFERENCE = 2;
 	};
 
 	public static interface GProMProvenanceType {
-		/** <i>native declaration : line 321</i> */
+		/** <i>native declaration : line 411</i> */
 		public static final int GProM_PROV_PI_CS = 0;
-		/** <i>native declaration : line 322</i> */
+		/** <i>native declaration : line 412</i> */
 		public static final int GProM_PROV_TRANSFORMATION = 1;
-		/** <i>native declaration : line 323</i> */
+		/** <i>native declaration : line 413</i> */
 		public static final int GProM_PROV_NONE = 2;
 	};
 
 	public static interface GProMProvenanceInputType {
-		/** <i>native declaration : line 327</i> */
+		/** <i>native declaration : line 417</i> */
 		public static final int GProM_PROV_INPUT_QUERY = 0;
-		/** <i>native declaration : line 328</i> */
+		/** <i>native declaration : line 418</i> */
 		public static final int GProM_PROV_INPUT_UPDATE = 1;
-		/** <i>native declaration : line 329</i> */
+		/** <i>native declaration : line 419</i> */
 		public static final int GProM_PROV_INPUT_UPDATE_SEQUENCE = 2;
-		/** <i>native declaration : line 330</i> */
+		/** <i>native declaration : line 420</i> */
 		public static final int GProM_PROV_INPUT_REENACT = 3;
-		/** <i>native declaration : line 331</i> */
+		/** <i>native declaration : line 421</i> */
 		public static final int GProM_PROV_INPUT_REENACT_WITH_TIMES = 4;
-		/** <i>native declaration : line 332</i> */
+		/** <i>native declaration : line 422</i> */
 		public static final int GProM_PROV_INPUT_TRANSACTION = 5;
-		/** <i>native declaration : line 333</i> */
+		/** <i>native declaration : line 423</i> */
 		public static final int GProM_PROV_INPUT_TIME_INTERVAL = 6;
 	};
 
 	public static interface GProMIsolationLevel {
-		/** <i>native declaration : line 337</i> */
+		/** <i>native declaration : line 427</i> */
 		public static final int GProM_ISOLATION_SERIALIZABLE = 0;
-		/** <i>native declaration : line 338</i> */
+		/** <i>native declaration : line 428</i> */
 		public static final int GProM_ISOLATION_READ_COMMITTED = 1;
-		/** <i>native declaration : line 339</i> */
+		/** <i>native declaration : line 429</i> */
 		public static final int GProM_ISOLATION_READ_ONLY = 2;
 	};
 
 	public static interface GProMNestingExprType {
-		/** <i>native declaration : line 343</i> */
+		/** <i>native declaration : line 433</i> */
 		public static final int GProM_NESTQ_EXISTS = 0;
-		/** <i>native declaration : line 344</i> */
+		/** <i>native declaration : line 434</i> */
 		public static final int GProM_NESTQ_ANY = 1;
-		/** <i>native declaration : line 345</i> */
+		/** <i>native declaration : line 435</i> */
 		public static final int GProM_NESTQ_ALL = 2;
-		/** <i>native declaration : line 346</i> */
+		/** <i>native declaration : line 436</i> */
 		public static final int GProM_NESTQ_UNIQUE = 3;
-		/** <i>native declaration : line 347</i> */
+		/** <i>native declaration : line 437</i> */
 		public static final int GProM_NESTQ_SCALAR = 4;
 	};
 
 	public static interface GProMWindowBoundType {
-		/** <i>native declaration : line 351</i> */
+		/** <i>native declaration : line 441</i> */
 		public static final int GProM_WINBOUND_UNBOUND_PREC = 0;
-		/** <i>native declaration : line 352</i> */
+		/** <i>native declaration : line 442</i> */
 		public static final int GProM_WINBOUND_CURRENT_ROW = 1;
-		/** <i>native declaration : line 353</i> */
+		/** <i>native declaration : line 443</i> */
 		public static final int GProM_WINBOUND_EXPR_PREC = 2;
-		/** <i>native declaration : line 354</i> */
+		/** <i>native declaration : line 444</i> */
 		public static final int GProM_WINBOUND_EXPR_FOLLOW = 3;
 	};
 
 	public static interface GProMWinFrameType {
-		/** <i>native declaration : line 358</i> */
+		/** <i>native declaration : line 448</i> */
 		public static final int GProM_WINFRAME_ROWS = 0;
-		/** <i>native declaration : line 359</i> */
+		/** <i>native declaration : line 449</i> */
 		public static final int GProM_WINFRAME_RANGE = 1;
 	};
 
 	public static interface GProMSortOrder {
-		/** <i>native declaration : line 363</i> */
+		/** <i>native declaration : line 453</i> */
 		public static final int GProM_SORT_ASC = 0;
-		/** <i>native declaration : line 364</i> */
+		/** <i>native declaration : line 454</i> */
 		public static final int GProM_SORT_DESC = 1;
 	};
 
 	public static interface GProMSortNullOrder {
-		/** <i>native declaration : line 368</i> */
+		/** <i>native declaration : line 458</i> */
 		public static final int GProM_SORT_NULLS_FIRST = 0;
-		/** <i>native declaration : line 369</i> */
+		/** <i>native declaration : line 459</i> */
 		public static final int GProM_SORT_NULLS_LAST = 1;
 	};
 	
@@ -510,5 +512,6 @@ public interface GProM_JNA extends Library {
 	public Pointer gprom_createMemContext();
 	public Pointer gprom_createMemContextName(String ctxName);
 	public void gprom_freeMemContext(Pointer memContext);
+	public GProMHashMap gprom_addToMap(Pointer hashmap, Pointer key, Pointer value);
 
 }
