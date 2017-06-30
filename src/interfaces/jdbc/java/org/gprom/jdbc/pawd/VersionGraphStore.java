@@ -4,8 +4,10 @@
 package org.gprom.jdbc.pawd;
 
 
-import org.json.JSONObject;
 
+import java.util.ArrayList;
+
+import org.json.JSONObject;
 /**
  * @author Amer
  *
@@ -19,6 +21,8 @@ public interface VersionGraphStore {
 	public VersionGraph Load(JSONObject GraphJSONArray);
 	public void UpdateCall(VersionGraph V, Node s);
 	public JSONObject Save(VersionGraph V);
+	public ArrayList<VersionGraph> getPath(VersionGraph V,Node n);
+	//public VersionGraph genPathes(ArrayList<VersionGraph>Graphs,VersionGraph V,Node t);
 	//store as a JSON object
 	public void Configure(VersionGraph V);
 	//method for saving configuration

@@ -85,14 +85,13 @@ public class VersionGraph {
 		Configuration = configuration;
 	}
 	//get the edge that has Node node in the end nodes
-	public ArrayList<Edge> getChildEdges(Node node){
-		ArrayList<Edge> childedges = new ArrayList<Edge>();
+	public Edge getChildEdge(Node node){
 		for(Edge e: Edges){
 			if(e.getEndNodes().get(0).equals(node)){
-				childedges.add(e);
+				return e;
 			}
 		}
-		return childedges;
+		return null;
 	}
 	//get the edge that has Node node in the starting nodes
 	public ArrayList<Edge> getParentEdges(Node node){

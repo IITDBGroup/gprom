@@ -125,7 +125,64 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		}
 		return NodesArray;
 	}
+	
+	//helper method to combine graphs
+	public VersionGraph Absorb(VersionGraph V,VersionGraph G) {
+		ArrayList<Node> newNodes = new ArrayList<Node>();
+		ArrayList<Edge> newEdges = new ArrayList<Edge>();
+		newNodes.addAll(V.getNodes());
+		newEdges.addAll(V.getEdges());
+		if(G.getNodes() !=null  && G.getEdges()!= null) {
+			newNodes.removeAll(G.getNodes());
+			newNodes.addAll(G.getNodes());
+			newEdges.removeAll(G.getEdges());
+			newEdges.addAll(G.getEdges());
+		}
+		V.setEdges(newEdges);
+		V.setNodes(newNodes);
+		return V;
+	}
 
+	
+	public ArrayList<VersionGraph> getPath(VersionGraph V,Node n){
+		ArrayList<VersionGraph> Graphs =  new ArrayList<VersionGraph>();
+		//System.out.println(
+		//consider that you can filter out these Subgraphs by checking the materialized attribute
+		//then return this list again
+		//the formula for counting the number of possible materialization plans is exponential
+		//it is in the = 2^n0 * 2^n1  where n is the number of nodes in a branch
+		Graphs.add(genPathes(V,n));
+				//);
+		return Graphs;
+	}
+	public VersionGraph genPathes (VersionGraph V, Node n){
+		Edge e = V.getChildEdge(n);
+		if(e == null)
+			return null;
+		VersionGraph VG = new VersionGraph();
+		VG.AddNode(n);
+		VG.AddEdge(e);
+		if(n.isMaterialized())
+			return VG;
+		Node j = e.getStartNodes().get(0);
+		VersionGraph S = genPathes(V,j);
+		if(S != null) 
+			VG= Absorb(VG,S);
+		else
+			VG.AddNode(j);
+		for(int i = 1;i<e.getStartNodes().size();i++){
+			Node t = e.getStartNodes().get(i);
+			VersionGraph k = genPathes(V,t);
+			if (k != null) 
+				VG = Absorb(VG,k);
+			else 
+				VG.AddNode(t);
+		}
+		return VG;
+	}
+	
+	
+	
 	public VersionGraph Load(JSONObject GraphJSONObject){
 		JSONArray nodes;
 		JSONArray edges;
@@ -183,14 +240,14 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 				config.add(t.getId());
 			}
 		}
-		V.setConfiguation( config.toArray(new String[0]));
+		V.setConfiguation(config.toArray(new String[0]));
 	}
 	public void UpdateCall(VersionGraph V, Node Rprime){
-		Node R = V.getChildEdges(Rprime).get(0).getStartNodes().get(0);
+		Node R = V.getChildEdge(Rprime).getStartNodes().get(0);
 		Update(V,R,Rprime);
 	}
 	public void Update(VersionGraph V, Node R, Node Rprime){
-		Edge u1 = V.getChildEdges(Rprime).get(0);
+		Edge u1 = V.getChildEdge(Rprime);
 		if(V.getParentEdges(R).isEmpty())
 			return;
 		//removing the edge we started with

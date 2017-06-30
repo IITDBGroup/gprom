@@ -20,7 +20,6 @@
 	<classpathentry kind="lib" path="javatestlib/slf4j-api.jar"/>
 	<classpathentry kind="lib" path="javatestlib/slf4j-simple.jar"/>
 	<classpathentry kind="lib" path="javalib/stringtemplate.jar"/>
-	<classpathentry kind="lib" path="ant/antlr-runtime.jar"/>
 	<classpathentry kind="lib" path="javalib/hamcrest-core.jar"/>
 	<classpathentry kind="lib" path="javalib/log4j-api.jar"/>
 	<classpathentry kind="lib" path="javalib/log4j-core.jar"/>
