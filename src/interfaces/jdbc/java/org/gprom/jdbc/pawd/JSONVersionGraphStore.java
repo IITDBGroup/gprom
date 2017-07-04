@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation.OpType;
 import org.json.JSONArray;
@@ -181,7 +183,25 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		return VG;
 	}
 	
-	
+	public String Compose(VersionGraph V, Node s) {
+		Edge ce = V.getChildEdge(s);
+		if(ce == null) {
+			return s.getDescription();
+		}
+		String q = ce.getTransformation().getCode();
+		String pattern = "(\\${2}\\d\\${2})";
+		Pattern r = Pattern.compile(pattern);
+		Matcher m = r.matcher(q);
+		m.find();
+		int index = Integer.parseInt(String.valueOf(q.charAt(m.start()+2)));
+		Node t = ce.getStartNodes().get(index-1);
+		String replacement = "("+Compose(V,t)+")";
+		//System.out.println(m.find());
+		StringBuffer sb = new StringBuffer();
+		m.appendReplacement(sb, replacement);
+		m.appendTail(sb);
+		return sb.toString();
+	}
 	
 	public VersionGraph Load(JSONObject GraphJSONObject){
 		JSONArray nodes;

@@ -21,6 +21,7 @@ public interface VersionGraphStore {
 	public VersionGraph Load(JSONObject GraphJSONArray);
 	public void UpdateCall(VersionGraph V, Node s);
 	public JSONObject Save(VersionGraph V);
+	public String Compose(VersionGraph V, Node s);
 	public ArrayList<VersionGraph> getPath(VersionGraph V,Node n);
 	//public VersionGraph genPathes(ArrayList<VersionGraph>Graphs,VersionGraph V,Node t);
 	//store as a JSON object
