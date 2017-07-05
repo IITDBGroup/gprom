@@ -24,6 +24,7 @@ extern void addCoalescingAndNormalization (QueryOperator *q);
 extern QueryOperator *addCoalesce (QueryOperator *input);
 extern QueryOperator *addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *attrs);
 extern QueryOperator *addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *reference, List *attrs);
-extern QueryOperator* addCoalesceForAllOp(QueryOperator *op);
+extern QueryOperator *addCoalesceForAllOp(QueryOperator *op);
+extern QueryOperator *addTemporalNormalizationAggregation(QueryOperator* op, List* aggList, List* attrList);
 
 #endif /* INCLUDE_TEMPORAL_QUERIES_TEMPORAL_REWRITER_H_ */
