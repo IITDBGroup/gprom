@@ -26,6 +26,15 @@ th {
 select {
 	width=100%;
 }
+
+/*
+.container { width: 100%; display: flex; }
+.left { flex: 1; }
+.right { width: 500px; }
+*/
+.container { width: 100%; }
+.left { min-width: 200px; flex-grow: 400px; display: inline-block; float: left; margin-right: 50px }
+.right { width: 500px; display: inline-block; float: left; }
 .terminalwrapper { display: block; color: #000000; background-color: #EEEEEE; white-space: pre-wrap; word-wrap: break-word; }
 .ansi2html-content { display: block; white-space: pre-wrap; word-wrap: break-word; color: #000000; background-color: #FFFFFF;}
 .ansi2html-content span {  display:block; }
