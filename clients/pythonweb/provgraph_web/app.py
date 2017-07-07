@@ -15,7 +15,7 @@ def querysubmit():
     if request.form.has_key('genquery'):
         session['action'] = 'run'
     elif request.form.has_key('genprovgame'):
-	session['action'] = 'provgame
+	session['action'] = 'provgame'
     elif request.form.has_key('genprovgraph'):
         session['action'] = 'provgraph'
     elif request.form.has_key('gentriograph'):
