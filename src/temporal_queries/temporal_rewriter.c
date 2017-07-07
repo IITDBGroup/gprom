@@ -75,7 +75,7 @@ rewriteImplicitTemporal (QueryOperator *q)
 
     //top = addCoalesceForAllOp(top);
     if(getBoolOption(TEMPORAL_USE_COALSECE))
-    	top = addCoalesce(top);
+    	    top = addCoalesce(top);
 
 //    List *aggList = singleton("SALARY");
 //    List *attrList = singleton("DEPT_NO");
@@ -969,7 +969,8 @@ addCoalesce (QueryOperator *input)
 	//set boolean prop (when translate to SQL, translate to above SQL not this table)
 	//SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) top1));
 	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) t5));
-
+	// ensure that t5 is treated as a common table expression
+	SET_BOOL_STRING_PROP(t5, PROP_MATERIALIZE);
 	//---------------------------------------------------------------------------------------
     //Construct T6:    SELECT TSTART, TEND, SALARY FROM T5, TNTAB WHERE T5.numOpen <= n
 
