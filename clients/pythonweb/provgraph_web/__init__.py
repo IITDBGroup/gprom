@@ -109,6 +109,7 @@ def showgraph():
     action = session['action']
     # generate a graph
     provQuest = query.find('WHY')
+    lines=[]
     if action == 'provgame' or action == 'provgraph' or action == 'triograph' or action == 'lingraph':
 	if provQuest > 0:
             if action == 'provgraph':
@@ -165,10 +166,10 @@ def showgraph():
     returncode, dblog = w.runInputDB(query)        
     inputDB = dblog
     dblog = conv.convert(dblog,full=False)
+    rels = []
     if returncode == 0:
         lines=inputDB.split('\n')
 	# collect relation names
-	rels = []
 	for eachel in lines:
 	    if eachel.count('|') < 1 and eachel.count('-') < 1 and len(eachel) > 0:
 		rels += [eachel]
