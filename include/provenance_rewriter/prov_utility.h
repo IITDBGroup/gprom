@@ -30,6 +30,7 @@ extern QueryOperator *createProjOnAllAttrs(QueryOperator *op);
 extern QueryOperator *createProjOnAttrs(QueryOperator *op, List *attrPos);
 extern QueryOperator *createProjOnAttrsByName(QueryOperator *op, List *attrNames);
 extern AttributeReference *createAttrsRefByName(QueryOperator *op, char *attrNames);
+extern AttributeReference *createAttrRefByPos(QueryOperator *op, int pos);
 
 // graph manipulation
 extern void switchSubtrees(QueryOperator *orig, QueryOperator *new);

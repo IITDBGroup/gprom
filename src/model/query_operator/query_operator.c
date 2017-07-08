@@ -726,6 +726,15 @@ createConstRelOp(List *values, List *parents, List *attrNames, List *dataTypes)
     co->values=values;
     co->op.type=T_ConstRelOperator;
     co->op.inputs=NULL;
+
+    if (dataTypes == NIL)
+    {
+        FOREACH(Node,v, values)
+        {
+            dataTypes = appendToTailOfListInt(dataTypes, typeOf(v));
+        }
+    }
+
     co->op.schema= createSchemaFromLists("ConstRel", attrNames, dataTypes);
     co->op.parents=parents;
     co->op.provAttrs=NIL;

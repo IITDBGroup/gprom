@@ -159,6 +159,7 @@ boolean opt_operator_model_data_structure_consistency = FALSE;
 boolean temporal_use_coalesce =	 TRUE;
 boolean temporal_use_normalization = TRUE;
 boolean temporal_use_normalization_window = FALSE;
+boolean temporal_agg_combine_with_norm = TRUE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -686,6 +687,12 @@ OptionInfo opts[] =
                 "Temporaldb: Activate normalization using window",
 				temporal_use_normalization_window,
                 FALSE
+        ),
+        anTemporaldbOption(TEMPORAL_AGG_WITH_NORM,
+                "-" TEMPORAL_AGG_WITH_NORM,
+                "Temporaldb: rewrite and aggregation by applying a rewrite that combines aggregation with normalization",
+                temporal_agg_combine_with_norm,
+                TRUE
         ),
         // sanity model checking options
         anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,

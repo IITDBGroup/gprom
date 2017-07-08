@@ -216,27 +216,31 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                 FromTableRef *tr = (FromTableRef *)f;
                 boolean tableExists = catalogTableExists(tr->tableId) || schemaInfoHasTable(tr->tableId);
                 boolean viewExists = catalogViewExists(tr->tableId);
-            	//check if it is a table or a view
-            	if (!tableExists && viewExists)
-            	{
-            	    char * view = getViewDefinition(((FromTableRef *)f)->tableId);
-            	    char *newName = f->name ? f->name : tr->tableId; // if no alias then use view name
-            	    DEBUG_LOG("view: %s", view);
-            	    StringInfo s = makeStringInfo();
-            	    appendStringInfoString(s,view);
-            	    appendStringInfoString(s,";");
-            	    view = s->data;
-            	    Node * n1 = getHeadOfListP((List *) parseFromString((char *) view));
-            	    FromItem * f1 = createFromSubquery(newName,NIL,(Node *) n1);
 
-            	    DUMMY_LC(f)->data.ptr_value = f1;
-            	}
-            	if (!tableExists && !viewExists)
-            	    THROW(SEVERITY_RECOVERABLE, "table %s does not exist", tr->tableId);
+                if (f->attrNames != NIL)
+                    tableExists = TRUE; //TODO is that ok? this is proposed to be the case when this is a CTE
+
+                //check if it is a table or a view
+                if (!tableExists && viewExists)
+                {
+                    char * view = getViewDefinition(((FromTableRef *)f)->tableId);
+                    char *newName = f->name ? f->name : tr->tableId; // if no alias then use view name
+                    DEBUG_LOG("view: %s", view);
+                    StringInfo s = makeStringInfo();
+                    appendStringInfoString(s,view);
+                    appendStringInfoString(s,";");
+                    view = s->data;
+                    Node * n1 = getHeadOfListP((List *) parseFromString((char *) view));
+                    FromItem * f1 = createFromSubquery(newName,NIL,(Node *) n1);
+
+                    DUMMY_LC(f)->data.ptr_value = f1;
+                }
+                if (!tableExists && !viewExists)
+                    THROW(SEVERITY_RECOVERABLE, "table %s does not exist", tr->tableId);
             }
             break;
             default:
-            	break;
+                break;
         }
     }
 

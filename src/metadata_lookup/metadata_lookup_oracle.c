@@ -1138,7 +1138,8 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
 
     if (streq(capName, "GREATEST") || streq(capName, "LEAST")
             || streq(capName, "COALESCE") || streq(capName, "LEAD")
-            || streq(capName, "LAG") || streq(capName, "FIRST_VALUE"))
+            || streq(capName, "LAG") || streq(capName, "FIRST_VALUE")
+            || streq(capName, "LAST_VALUE"))
     {
         DataType dt = getNthOfListInt(dataTypes, 0);
 

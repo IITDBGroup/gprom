@@ -101,6 +101,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define TEMPORAL_USE_COALSECE "temporal_use_coalesce"
 #define TEMPORAL_USE_NORMALIZATION "temporal_use_normalization"
 #define TEMPORAL_USE_NORMALIZATION_WINDOW "temporal_use_normalization_window"
+#define TEMPORAL_AGG_WITH_NORM "temporal_combine_agg_and_norm"
 
 // declare option fields
 // show help only
