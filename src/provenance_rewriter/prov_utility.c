@@ -173,6 +173,9 @@ AttributeReference *
 createAttrsRefByName(QueryOperator *op, char *attrNames)
 {
 	AttributeDef *ad = copyObject(getAttrDefByName(op, attrNames));
+
+	ASSERT(ad != NULL);
+
 	int defPos = getAttrPos(op, ad->attrName);
 	AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, defPos, INVALID_ATTR, ad->dataType);
 
@@ -183,6 +186,8 @@ AttributeReference *
 createAttrRefByPos(QueryOperator *op, int pos)
 {
     AttributeDef *ad = copyObject(getAttrDefByPos(op, pos));
+    ASSERT(ad != NULL);
+
     AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, pos, INVALID_ATTR, ad->dataType);
 
     return ar;
