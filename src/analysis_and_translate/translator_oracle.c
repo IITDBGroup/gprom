@@ -258,6 +258,7 @@ disambiguiteAttrNames(Node *node, Set *done)
         DEBUG_OP_LOG("child operator's schema has changed", op);
         // first adapt attribute references
         List *attrRefs = getAttrRefsInOperator(op);
+        //TODO keep track of what attributes are renamed by a projection and store this to not override renaming
         FOREACH(AttributeReference,a,attrRefs)
         {
             QueryOperator *child;
@@ -304,7 +305,7 @@ adaptSchemaFromChildren(QueryOperator *o)
             o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
         }
         break;
-        case T_ProjectionOperator:
+        case T_ProjectionOperator: //TODO do not rename attribute if this is already a rename
         {
             ProjectionOperator *p = (ProjectionOperator *) o;
             FORBOTH(Node,proj,a,p->projExprs,o->schema->attrDefs)

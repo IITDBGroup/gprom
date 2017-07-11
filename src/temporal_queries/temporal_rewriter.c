@@ -1537,10 +1537,10 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     //rename count(*) and T_E
     FOREACH(AttributeDef, d, proj2CPOp->schema->attrDefs)
     {
-    	if(streq(d->attrName,"AGGR_0"))
-    		d->attrName = "S";
-    	else if(streq(d->attrName, TEND_NAME))
-    		d->attrName = "T";
+            if(streq(d->attrName,"AGGR_0"))
+                d->attrName = "S";
+            else if(streq(d->attrName, TEND_NAME))
+                d->attrName = "T";
     }
 
     //construct union on top (u1)
@@ -1909,10 +1909,11 @@ createProjDoublingAggAttrs(QueryOperator *agg, int numNewAggs, boolean add, bool
     {
         AttributeReference *timeA = createAttrsRefByName(agg,TEND_NAME);    //T_E AS TS
         projExprs = appendToTailOfList(projExprs, timeA);
-        resultAttrNames = appendToTailOfList(resultAttrNames, TIMEPOINT_ATTR);
+        resultAttrNames = appendToTailOfList(resultAttrNames, strdup(TIMEPOINT_ATTR));
     }
 
     result = createProjectionOp(projExprs, agg, NIL, resultAttrNames);
+    DEBUG_OP_LOG("created projection", result);
     return result;
 }
 
@@ -2088,6 +2089,15 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         addParent((QueryOperator *) neutralCRel, (QueryOperator *) unionDummy);
         top = (QueryOperator *) unionDummy;
     }
+
+    // add
+    QueryOperator *oldTop = top;
+    top = createProjOnAllAttrs(oldTop);
+    top->inputs = LIST_MAKE(oldTop);
+    switchSubtrees((QueryOperator *) oldTop, (QueryOperator *) top);
+    addParent((QueryOperator *) oldTop, (QueryOperator *) top);
+
+    //    addChildOperator(top, oldTop);
 
     // ****************************************
 	//1 Operator
@@ -2303,7 +2313,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
             rRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
 
             Operator *whenOperator = createOpExpr("=", LIST_MAKE(copyObject(lRef), copyObject(c0)));
-            CaseWhen *whenT4 = createCaseWhen((Node *) whenOperator, (Node *) copyObject(c0));
+            CaseWhen *whenT4 = createCaseWhen((Node *) whenOperator, (Node *) createConstFloat(0.0));
             //List *whenList = singleton(whenT4);
             Operator *elseT4 = createOpExpr("/", LIST_MAKE(copyObject(rRef), copyObject(lRef)));
             CaseExpr *caseExprT4 = createCaseExpr(NULL, singleton(whenT4), (Node *) elseT4);
