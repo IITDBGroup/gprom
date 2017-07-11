@@ -22,6 +22,7 @@
 #include "provenance_rewriter/prov_utility.h"
 #include "temporal_queries/temporal_rewriter.h"
 #include "analysis_and_translate/translator_oracle.h"
+#include "utility/string_utils.h"
 
 static QueryOperator *temporalRewriteOperator(QueryOperator *op);
 static QueryOperator *tempRewrSelection (SelectionOperator *o);
@@ -1939,17 +1940,28 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     AttributeReference *tb, *te;
     QueryOperator *op = (QueryOperator *) agg;
     QueryOperator *c = OP_LCHILD(op);
-    List *origAggs = copyObject(agg->aggrs);
+    List *origAggs;
     boolean isGB = (agg->groupBy != NIL);
-    int numAggs = LIST_LENGTH(origAggs);
-    int numGB = LIST_LENGTH(agg->groupBy);
+    int numAggs;
+    int numGB;
 //    int numNewGB = numGB + 2;
-    int numNewAggs = numAggs;
+    int numNewAggs;
     List *gbNames = NIL;
     List *aggNames = NIL;
     QueryOperator *top = NULL;
     Constant *c1 = createConstInt(ONE);
     Constant *c0 = createConstInt(ZERO);
+
+    // make aggregation functions upper case
+    FOREACH(FunctionCall,f,agg->aggrs)
+    {
+        f->functionname = strToUpper(f->functionname);
+    }
+
+    origAggs = copyObject(agg->aggrs);
+    numAggs = LIST_LENGTH(origAggs);
+    numGB = LIST_LENGTH(agg->groupBy);
+    numNewAggs = numAggs;
 
     if (isGB)
         gbNames = aggOpGetGroupByAttrNames(agg);
@@ -1968,6 +1980,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     int ePos = INVALID_ATTR;
     tb = getTempAttrRef(c, TRUE);
     te = getTempAttrRef(c, FALSE);
+
 
     // translate aggregation into pre-aggregation
     FORBOTH(Node,agg,def,origAggs,op->schema->attrDefs)

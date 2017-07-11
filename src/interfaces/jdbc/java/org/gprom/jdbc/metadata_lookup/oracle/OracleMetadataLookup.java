@@ -152,13 +152,13 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 
 	    if (fName.equals("greatest") || fName.equals("least")
 	            || fName.equals("coalesce") || fName.equals("lead")
-	            || fName.equals("lag") || fName.equals("first_value"))
-	    {
-	    	DataType dt = DataType.valueOf(stringArray[0]);
+	            || fName.equals("lag") || fName.equals("first_value") 
+	            || fName.equals("last_value")) {
+	    		DataType dt = DataType.valueOf(stringArray[0]);
 
 	        for(String g: stringArray)
 	        {
-	        	DataType argDT = DataType.valueOf(g);
+	        		DataType argDT = DataType.valueOf(g);
 	            dt = lcaType(dt, argDT);
 	        }
 
