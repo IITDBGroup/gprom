@@ -45,6 +45,8 @@ typedef struct ReplaceGroupByState {
     int attrOffset;
 } ReplaceGroupByState;
 
+#define PROP_PROJ_RENAMED_ATTRS "RenamedProjAttrs"
+
 // function declarations
 static Node *translateGeneral(Node *node);
 //static Node *translateSummary(Node *input, Node *node);
@@ -259,6 +261,28 @@ disambiguiteAttrNames(Node *node, Set *done)
         // first adapt attribute references
         List *attrRefs = getAttrRefsInOperator(op);
         //TODO keep track of what attributes are renamed by a projection and store this to not override renaming
+        if (isA(op, ProjectionOperator))
+        {
+            ProjectionOperator *p = (ProjectionOperator *) op;
+            Set *renamedAttrs = STRSET();
+
+            // find renamed attributes
+            FORBOTH(Node,projExpr,attr,p->projExprs, op->schema->attrDefs)
+            {
+                AttributeReference *aRef;
+                AttributeDef *aDef = (AttributeDef *) attr;
+
+                // only consider the case A AS B
+                if(isA(projExpr, AttributeReference))
+                {
+                    aRef = (AttributeReference *) projExpr;
+                    if (!streq(aRef->name, aDef->attrName))
+                       addToSet(renamedAttrs, strdup(aDef->attrName));
+                }
+            }
+            SET_STRING_PROP(op, PROP_PROJ_RENAMED_ATTRS, renamedAttrs);
+        }
+
         FOREACH(AttributeReference,a,attrRefs)
         {
             QueryOperator *child;
@@ -308,13 +332,15 @@ adaptSchemaFromChildren(QueryOperator *o)
         case T_ProjectionOperator: //TODO do not rename attribute if this is already a rename
         {
             ProjectionOperator *p = (ProjectionOperator *) o;
+            Set *renamedAttrs = (Set *) GET_STRING_PROP(o, PROP_PROJ_RENAMED_ATTRS);
+
             FORBOTH(Node,proj,a,p->projExprs,o->schema->attrDefs)
             {
                 AttributeDef *aDef = (AttributeDef *) a;
                 if (isA(proj,AttributeReference))
                 {
                     AttributeReference *ref = (AttributeReference *) proj;
-                    if (!strpeq(aDef->attrName, ref->name))
+                    if (!strpeq(aDef->attrName, ref->name) && !hasSetElem(renamedAttrs, aDef->attrName))
                     {
                         aDef->attrName = strdup(ref->name);
                     }
