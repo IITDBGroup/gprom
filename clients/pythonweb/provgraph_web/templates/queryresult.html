@@ -1,10 +1,19 @@
 {% extends "layout.html" %}
 {% block content %}
 {% include "queryactions.html" %}
-{%- if returnedError == False and action == 'graph' -%}
-<h1>Provenance Graph</h1>
-<embed type="image/svg+xml" id="provgraph_svg" src="{{ url_for('static', filename=imagefile) }}" />
+{%- if returnedError == False and (action == 'provgame' or action == 'provgraph' or action == 'triograph' or action == 'lingraph') -%}
+<div class="container">
+<div class="left">
+{%- if action == 'provgame' -%}
+<h1><p>Provenance Game</p></h1>
+{%- else -%}
+<h1><p>Provenance Graph</p></h1>
+{% endif %}
 
+{%- if imagefile == '' -%}
+<p>No graphs can be generated with no provenance questions.</p>
+{%- else -%}
+<embed type="image/svg+xml" id="provgraph_svg" src="{{ url_for('static', filename=imagefile) }}" />
 <script type="text/javascript">
       window.onload = function() {
         svgPanZoom('#provgraph_svg', {
@@ -13,14 +22,149 @@
         });
       };
 </script>
- 
 {% endif %}
+</div>
+<div class="right">
+<!-- show input relations -->
+<p>
+{% for relDB in rels %}
+    <h1>{{ relDB|safe }}</h1>
+    {% if rels.index(relDB) < (rels|length)-1 %}
+	<table border=0>
+	<!-- attributes (table head) -->
+	{% for insDB in lines[lines.index(relDB)+1:lines.index(relDB)+2] %}
+		<tr>		
+		{% for attr in insDB.split('|') %}
+		    {% if attr != "" %}
+			<th> {{ attr|safe }} </th>
+		    {% endif %}
+	 	{% endfor %}
+		</tr>
+	{% endfor %}
+	<!-- tuples -->
+	{% for insDB in lines[lines.index(relDB)+2:lines.index(rels[rels.index(relDB)+1])] %}
+	    {% if '-' not in insDB and insDB != "" %}
+		<tr>		
+		{% for attr in insDB.split('|') %}
+		    {% if attr != "" %}
+			<td> {{ attr|safe }} </td>
+		    {% endif %}
+	 	{% endfor %}
+		</tr>
+	    {% endif %}
+	{% endfor %}
+	</table>
+    {% else %}
+	<!-- for the last relation -->
+	<table border=0>
+	<!-- attributes (table head) -->
+	{% for insDB in lines[lines.index(rels[(rels|length)-1])+1:lines.index(rels[(rels|length)-1])+2] %}
+		<tr>
+		{% for attr in insDB.split('|') %}
+		    {% if attr != "" %}
+		    <th> {{ attr|safe }} </th>
+		    {% endif %}
+	 	{% endfor %}
+		</tr>
+	{% endfor %}
+	<!-- tuples -->
+	{% for insDB in lines[lines.index(rels[(rels|length)-1])+2:lines|length] %}
+	    {% if '-' not in insDB and insDB != "" %}
+		<tr>
+		{% for attr in insDB.split('|') %}
+		    {% if attr != "" %}
+		    <td> {{ attr|safe }} </td>
+		    {% endif %}
+	 	{% endfor %}
+		</tr>
+	    {% endif %}
+	{% endfor %}
+	</table>
+    {% endif %}
+{% endfor %}
+</p>
+</div>
+</div>
+{% endif %}
+
 {%- if returnedError == False and action == 'run' -%}
-<h1>Query Result</h1>
+<div class="container">
+<div class="left">
+<h1><p>Query Result</p></h1>
 <p>
 {{ queryResult|safe }}
+</p>
+</div>
+<div class="right">
+<!-- show input relations -->
 <p>
+{% for relDB in rels %}
+    <h1>{{ relDB|safe }}</h1>
+    {% if rels.index(relDB) < (rels|length)-1 %}
+	<table border=0>
+	<!-- attributes (table head) -->
+	{% for insDB in lines[lines.index(relDB)+1:lines.index(relDB)+2] %}
+		<tr>		
+		{% for attr in insDB.split('|') %}
+		    {% if attr != "" %}
+			<th> {{ attr|safe }} </th>
+		    {% endif %}
+	 	{% endfor %}
+		</tr>
+	{% endfor %}
+	<!-- tuples -->
+	{% for insDB in lines[lines.index(relDB)+2:lines.index(rels[rels.index(relDB)+1])] %}
+	    {% if '-' not in insDB and insDB != "" %}
+		<tr>		
+		{% for attr in insDB.split('|') %}
+		    {% if attr != "" %}
+			<td> {{ attr|safe }} </td>
+		    {% endif %}
+	 	{% endfor %}
+		</tr>
+	    {% endif %}
+	{% endfor %}
+	</table>
+    {% else %}
+	<!-- for the last relation -->
+	<table border=0>
+	<!-- attributes (table head) -->
+	{% for insDB in lines[lines.index(rels[(rels|length)-1])+1:lines.index(rels[(rels|length)-1])+2] %}
+		<tr>
+		{% for attr in insDB.split('|') %}
+		    {% if attr != "" %}
+		    <th> {{ attr|safe }} </th>
+		    {% endif %}
+	 	{% endfor %}
+		</tr>
+	{% endfor %}
+	<!-- tuples -->
+	{% for insDB in lines[lines.index(rels[(rels|length)-1])+2:lines|length] %}
+	    {% if '-' not in insDB and insDB != "" %}
+		<tr>
+		{% for attr in insDB.split('|') %}
+		    {% if attr != "" %}
+		    <td> {{ attr|safe }} </td>
+		    {% endif %}
+	 	{% endfor %}
+		</tr>
+	    {% endif %}
+	{% endfor %}
+	</table>
+    {% endif %}
+{% endfor %}
+</p>
+<!-- 
+{% for relDB in rels %}
+<h1>{{ relDB|safe }}</h1>
+{% endfor %}
+<p>
+{{ insDB|safe }}
+</p>
+-->
+</div>
 {% endif %}
+
 {%- if returnedError == True -%}
 <h1>Error running query:</h1>
 <h3>GProM Error Log</h3>

@@ -30,6 +30,7 @@ The third form runs all SQL commands from file \fIfile\fR.
 The last form describes the provenance extensions that GProM supports for a particular frontend language, e.g., \fIoracle\fR for Oracle SQL. See discussion on parser plugins below for a comprehensive list of supported frontend languages. See the \fBEXAMPLES\fR section for some typical usage examples.
 .\" ********************************************************************************
 .SH OPTIONS
+Boolean options take a single argument, e.g., \fB-time_queries\fR \fITRUE\fR activates timing of queries and \fB-time_queries\fR \fIFALSE\fR deactivates this options. 
 \"****************************************
 .SS HELP
 Options to get help on GProM usage.
@@ -40,10 +41,10 @@ show help message and quit
 \"********************
 .TP
 .BR \-languagehelp " " \fIlanguage\fR
-show help for the selected language (see section on parser plugins below for supported language)
+show help for the selected language (see section on parser plugins below for a list of supported languages)
 \"****************************************
 .SS INPUT
-These options determine whether GProM operates as an interactive shell or just processes one query. If none of the options below is set, then an interactive shell is opened.
+These options determine whether GProM operates as an interactive shell or just processes one query. If none of the options below is set, then an interactive shell is created.
 \"********************
 .TP
 .BR \-query " " \fIquery\fR
@@ -172,6 +173,21 @@ If the user requests the provenance of a transaction restricted to rows that whe
 .TP
 .BR \-prov_use_composable
 Use composable version of provenance instrumentation that adds additional columns which enumerate duplicates of result rows introduced by provenance instrumentation
+\"****************************************
+.SS TEMPORAL FEATURES
+GProM also implements a form of temporal queries called sequenced semantics over interval-timestamped data. These options control the application of normalization operations applied by the rewrites for sequenced semantics.
+\"********************
+.TP
+.BR \-temporal_use_coalesce
+If activated (the default), then GProM applies coalescing to the result of a temporal query to produce a unique interval-timestamped representation of a temporal query result.
+\"********************
+.TP
+.BR \-temporal_use_normalization
+If activated (the default), then GProM normalizes the input to temporal aggregation and set difference operators. The correctness of results depends on normalization. Thus, this option should only be deactivated for testing.
+\"********************
+.TP
+.BR \-temporal_use_normalization_window
+GProM supports two implementations of temporal normalization one based on joins and one which uses analytical functions (window functions). If this option is activated, then GProM applies the window based implementation.
 \"****************************************
 .SS OPTIMIZATION
 GProM features a heuristic and cost-based optimizer for relational algebra and provenance instrumentation. These options control the optimizer. Additional options are described in the \fBOPTIMIZATION\fR section below.
