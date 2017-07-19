@@ -36,6 +36,7 @@ static void setTempAttrProps(QueryOperator *o);
 static AttributeReference *getTempAttrRef (QueryOperator *o, boolean begin);
 static void coalescingAndNormalizationVisitor (QueryOperator *q, Set *done);
 static ProjectionOperator *createProjDoublingAggAttrs(QueryOperator *agg, int numNewAggs, boolean add, boolean isGB);
+static QueryOperator *addNormalizationSetDiff (QueryOperator *input, QueryOperator *reference, List *attrNames);
 
 
 #define LOG_RESULT(mes,op) DEBUG_OP_LOG(mes,op);
@@ -87,6 +88,7 @@ rewriteImplicitTemporal (QueryOperator *q)
 //    List *attrList = singleton("DEPT_NO");
 //    top = addTemporalNormalizationAggregation(top, aggList, attrList);
 
+//    top = addNormalizationSetDiff(top,top, singleton("SALARY"));
 
     return top;
 }
@@ -135,10 +137,10 @@ temporalRewriteOperator(QueryOperator *op)
     //            DEBUG_LOG("go const rel operator");
     //            rewrittenOp = tempRewrConstRel((ConstRelOperator *) op);
     //            break;
-    //        case T_DuplicateRemoval:
-    //            DEBUG_LOG("go duplicate removal operator");
-    //            rewrittenOp = tempRewrDuplicateRemOp((DuplicateRemoval *) op);
-    //            break;
+//            case T_DuplicateRemoval:
+//                DEBUG_LOG("go duplicate removal operator");
+//                rewrittenOp = tempRewrDuplicateRemOp((DuplicateRemoval *) op);
+//                break;
     //        case T_OrderOperator:
     //            DEBUG_LOG("go order operator");
     //            rewrittenOp = tempRewrOrderOp((OrderOperator *) op);
@@ -391,7 +393,8 @@ tempRewrSetOperator (SetOperator *o)
     {
         case SETOP_UNION:
         {
-            addProvenanceAttrsToSchema((QueryOperator *) o, (QueryOperator *) lOp);
+        	addProvenanceAttrsToSchema((QueryOperator *) o, (QueryOperator *) lOp);
+
         }
         break;
         case SETOP_INTERSECTION:
@@ -401,7 +404,6 @@ tempRewrSetOperator (SetOperator *o)
     }
 
     setTempAttrProps((QueryOperator *) o);
-
     return (QueryOperator *) o;
 }
 
@@ -2404,3 +2406,558 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     return (QueryOperator *) diff;
 }
 
+
+QueryOperator *
+addNormalizationSetDiff (QueryOperator *input, QueryOperator *reference, List *attrNames)
+{
+
+	QueryOperator *left = input;
+	//QueryOperator *right = reference;
+
+	DEBUG_OP_LOG("add window-based temporal normalization for operator ", input, reference);
+
+	//---------------------------------------------------------------------------------------
+    //Construct CP:
+    Constant *c1 = createConstInt(ONE);
+    Constant *c0 = createConstInt(ZERO);
+
+    //construct first union all (Q1 UNION ALL Q2)
+    //SELECT COUNT(*) AS S, 0 AS E, TSTART AS T, SALARY
+    //FROM LEFTY
+    //GROUP BY TSTART, SALARY
+    //UNION ALL
+    //SELECT 0 AS S, COUNT(*) AS E, TEND AS T, SALARY
+    //FROM LEFTY
+    //GROUP BY TEND, SALARY
+
+    //base projections used in Q1, then two aggr on Q1, each agg with 1 proj on top, at last union all
+    List *leftProjExpr1 = NIL;
+    //List *leftProjExpr2 = NIL;
+    List *leftProjAttrNames1 = NIL;
+
+    leftProjAttrNames1 = getAttrNames(left->schema);
+    FOREACH(AttributeDef, ad, left->schema->attrDefs)
+    {
+    	int leftBeginPos = getAttrPos(left, ad->attrName);
+    	AttributeReference *leftBeginRef = createFullAttrReference(strdup(ad->attrName), 0, leftBeginPos, INVALID_ATTR, ad->dataType);
+    	leftProjExpr1 = appendToTailOfList(leftProjExpr1, leftBeginRef);
+    }
+
+    leftProjAttrNames1 = appendToHeadOfList(leftProjAttrNames1, "AGG_GB_ARG0");
+    leftProjExpr1 = appendToHeadOfList(leftProjExpr1, copyObject(c1));
+
+    ProjectionOperator *leftProj1 = createProjectionOp(leftProjExpr1, left, NIL, deepCopyStringList(leftProjAttrNames1));
+
+    left->parents = singleton(leftProj1);
+
+    //agg 1
+    QueryOperator *leftProj1Op = (QueryOperator *) leftProj1;
+    List *agg1GroupBy = NIL;
+//    FOREACH(char, c, attrNames)
+//    {
+//    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+//    	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
+//    }
+    FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
+    {
+    	if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName) && !streq(TBEGIN_NAME, d->attrName))
+    	{
+        	AttributeReference *a = createAttrsRefByName(leftProj1Op, d->attrName);
+        	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
+    	}
+    }
+
+    agg1GroupBy = appendToHeadOfList(agg1GroupBy, createAttrsRefByName(leftProj1Op, TBEGIN_NAME));
+
+    AttributeReference *agg1Attr = createAttrsRefByName(leftProj1Op, "AGG_GB_ARG0");
+	FunctionCall *agg1Func = createFunctionCall(strdup("COUNT"),
+			singleton(agg1Attr));
+	List *aggrs1 = singleton(agg1Func);
+	List *agg1Names = NIL;
+
+	FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
+	{
+		if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName))
+			agg1Names = appendToTailOfList(agg1Names, strdup(d->attrName));
+	}
+	agg1Names = appendToHeadOfList(agg1Names, "AGGR_0");
+
+	AggregationOperator *agg1CP = createAggregationOp(aggrs1, agg1GroupBy, leftProj1Op, NIL, agg1Names);
+	leftProj1Op->parents = singleton(agg1CP);
+
+	//proj on agg 1 COUNT(*) AS S, 0 AS E, T_B AS T, SALARY
+	QueryOperator *agg1CPOp = (QueryOperator *) agg1CP;
+	QueryOperator *proj1CPOp = createProjOnAllAttrs(agg1CPOp);
+	proj1CPOp->inputs = singleton(agg1CPOp);
+	agg1CPOp->parents = singleton(proj1CPOp);
+
+	//add 0 AS E
+    ProjectionOperator *proj1CP = (ProjectionOperator *) proj1CPOp;
+    proj1CP->projExprs = appendToTailOfList(proj1CP->projExprs, copyObject(c0));
+    proj1CPOp->schema->attrDefs = appendToTailOfList(proj1CPOp->schema->attrDefs,createAttributeDef("E", DT_INT));
+
+    //rename count(*) and T_B
+    FOREACH(AttributeDef, d, proj1CPOp->schema->attrDefs)
+    {
+    	if(streq(d->attrName,"AGGR_0"))
+    		d->attrName = "S";
+    	else if(streq(d->attrName, TBEGIN_NAME))
+    		d->attrName = "T";
+    }
+
+    //agg2
+    List *agg2GroupBy = NIL;
+//    FOREACH(char, c, attrNames)
+//    {
+//    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+//    	agg2GroupBy = appendToTailOfList(agg2GroupBy, a);
+//    }
+    FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
+    {
+    	if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName) && !streq(TBEGIN_NAME, d->attrName))
+    	{
+        	AttributeReference *a = createAttrsRefByName(leftProj1Op, d->attrName);
+        	agg2GroupBy = appendToTailOfList(agg2GroupBy, a);
+    	}
+    }
+
+    agg2GroupBy = appendToHeadOfList(agg2GroupBy, createAttrsRefByName(leftProj1Op, TEND_NAME));
+
+    AttributeReference *agg2Attr = createAttrsRefByName(leftProj1Op, "AGG_GB_ARG0");
+	FunctionCall *agg2Func = createFunctionCall(strdup("COUNT"),
+			singleton(agg2Attr));
+	List *aggrs2 = singleton(agg2Func);
+	List *agg2Names = NIL;
+
+	FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
+	{
+		if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TBEGIN_NAME, d->attrName))
+			agg2Names = appendToTailOfList(agg2Names, strdup(d->attrName));
+	}
+	agg2Names = appendToHeadOfList(agg2Names, "AGGR_0");
+
+	AggregationOperator *agg2CP = createAggregationOp(aggrs2,agg2GroupBy, leftProj1Op, NIL, agg2Names);
+	leftProj1Op->parents = appendToTailOfList(leftProj1Op->parents, agg2CP);
+
+	//proj on agg 2  0 AS S, COUNT(*) AS E, T_E AS T, SALARY
+	QueryOperator *agg2CPOp = (QueryOperator *) agg2CP;
+	AttributeReference *aggr_0_ref = createAttrsRefByName(agg2CPOp, "AGGR_0");
+
+
+	List *agg2ProjExpr = NIL;
+	List *agg2NameList = NIL;
+	agg2ProjExpr = appendToTailOfList(agg2ProjExpr, copyObject(c0));
+	agg2NameList = appendToTailOfList(agg2NameList, "S");
+	FOREACH(AttributeDef, ad, agg2CPOp->schema->attrDefs)
+	{
+		if(!streq(ad->attrName, "AGGR_0"))
+		{
+			AttributeReference *a = createAttrsRefByName(agg2CPOp, ad->attrName);
+			agg2ProjExpr = appendToTailOfList(agg2ProjExpr, a);
+
+			if(streq(ad->attrName, "T_E"))
+				agg2NameList = appendToTailOfList(agg2NameList, "T");
+			else
+				agg2NameList = appendToTailOfList(agg2NameList, ad->attrName);
+		}
+	}
+	agg2ProjExpr = appendToTailOfList(agg2ProjExpr, aggr_0_ref);
+	agg2NameList = appendToTailOfList(agg2NameList, "E");
+
+	ProjectionOperator *proj2CP = createProjectionOp (agg2ProjExpr, agg2CPOp, NIL, agg2NameList);
+	agg2CPOp->parents = singleton(proj2CP);
+
+	QueryOperator *proj2CPOp = (QueryOperator *) proj2CP;
+
+    //construct union on top (u1)
+    SetOperator *u1 = createSetOperator(SETOP_UNION, LIST_MAKE(proj1CP, proj2CP), NIL,
+    		deepCopyStringList(getAttrNames(proj2CPOp->schema)));
+    ((QueryOperator *) proj1CP)->parents = singleton(u1);
+    ((QueryOperator *) proj2CP)->parents = singleton(u1);
+
+
+
+    //second union
+//    UNION ALL
+//     SELECT - COUNT(*) AS S, SALARY, TSTART AS T,  0 AS E
+//     FROM RIGHTY
+//     GROUP BY TSTART, SALARY
+
+    //COUNT(*) FROM RIGHTY GROUP BY TSTART, SALARY
+
+    //base projections used in Q1, then two aggr on Q1, each agg with 1 proj on top, at last union all
+    List *rightProjExpr1 = NIL;
+    List *rightProjAttrNames1 = NIL;
+    QueryOperator *right = reference;
+
+    rightProjAttrNames1 = getAttrNames(right->schema);
+    FOREACH(AttributeDef, ad, right->schema->attrDefs)
+    {
+    	int rightBeginPos = getAttrPos(right, ad->attrName);
+    	AttributeReference *rightBeginRef = createFullAttrReference(strdup(ad->attrName), 0, rightBeginPos, INVALID_ATTR, ad->dataType);
+    	rightProjExpr1 = appendToTailOfList(rightProjExpr1, rightBeginRef);
+    }
+
+    rightProjAttrNames1 = appendToHeadOfList(rightProjAttrNames1, "AGG_GB_ARG0");
+    rightProjExpr1 = appendToHeadOfList(rightProjExpr1, copyObject(c1));
+
+    ProjectionOperator *rightProj = createProjectionOp(rightProjExpr1, right, NIL, deepCopyStringList(rightProjAttrNames1));
+    right->parents = singleton(rightProj);
+
+    //agg 1
+    QueryOperator *rightProjOp = (QueryOperator *) rightProj;
+    List *agg1GroupByRight = NIL;
+//    FOREACH(char, c, attrNames)
+//    {
+//    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+//    	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
+//    }
+    FOREACH(AttributeDef, d, rightProjOp->schema->attrDefs)
+    {
+    	if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName) && !streq(TBEGIN_NAME, d->attrName))
+    	{
+        	AttributeReference *a = createAttrsRefByName(rightProjOp, d->attrName);
+        	agg1GroupByRight = appendToTailOfList(agg1GroupByRight, a);
+    	}
+    }
+
+    agg1GroupByRight = appendToHeadOfList(agg1GroupByRight, createAttrsRefByName(rightProjOp, TBEGIN_NAME));
+
+    AttributeReference *agg1AttrRight = createAttrsRefByName(rightProjOp, "AGG_GB_ARG0");
+	FunctionCall *agg1FuncRight = createFunctionCall(strdup("COUNT"),
+			singleton(agg1AttrRight));
+	List *aggrs1Right = singleton(agg1FuncRight);
+	List *agg1NamesRight = NIL;
+
+	FOREACH(AttributeDef, d, rightProjOp->schema->attrDefs)
+	{
+		if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName))
+			agg1NamesRight = appendToTailOfList(agg1NamesRight, strdup(d->attrName));
+	}
+	agg1NamesRight = appendToHeadOfList(agg1NamesRight, "AGGR_0");
+
+	AggregationOperator *agg1CPRight = createAggregationOp(aggrs1Right, agg1GroupByRight, rightProjOp, NIL, agg1NamesRight);
+	rightProjOp->parents = singleton(agg1CPRight);
+
+	QueryOperator *agg1CPRightOp = (QueryOperator *)agg1CPRight;
+
+    // SELECT - COUNT(*) AS S, SALARY, TSTART AS T,  0 AS E
+    AttributeReference *aggr_0_ref_u2 = createAttrsRefByName(agg1CPRightOp, "AGGR_0");
+    Operator *minusCount_u2 = createOpExpr("-", LIST_MAKE(copyObject(c0),aggr_0_ref_u2));
+
+    //SELECT - COUNT(*) AS S, SALARY, TSTART AS T,  0 AS E
+
+    List *projExprU2 = NIL;
+    List *nameListU2 = NIL;
+
+    projExprU2 = appendToTailOfList(projExprU2, minusCount_u2);
+    nameListU2 = appendToTailOfList(nameListU2, "S");
+
+	FOREACH(AttributeDef, ad, agg1CPRightOp->schema->attrDefs)
+	{
+		if(!streq(ad->attrName, "AGGR_0"))
+		{
+			AttributeReference *a = createAttrsRefByName(agg1CPRightOp, ad->attrName);
+			projExprU2 = appendToTailOfList(projExprU2, a);
+
+			if(streq(ad->attrName, "T_B"))
+				nameListU2 = appendToTailOfList(nameListU2, "T");
+			else
+				nameListU2 = appendToTailOfList(nameListU2, ad->attrName);
+		}
+	}
+
+    projExprU2 = appendToTailOfList(projExprU2, copyObject(c0));
+    nameListU2 = appendToTailOfList(nameListU2, "E");
+
+	ProjectionOperator *projU2 = createProjectionOp (projExprU2, agg1CPRightOp, NIL, nameListU2);
+	agg1CPRightOp->parents = appendToTailOfList(agg1CPRightOp->parents,projU2);
+	QueryOperator *projU2Op = (QueryOperator *) projU2;
+
+    //construct union on top (u2)
+    SetOperator *u2 = createSetOperator(SETOP_UNION, LIST_MAKE(u1, projU2), NIL,
+    		deepCopyStringList(getAttrNames(projU2Op->schema)));
+    ((QueryOperator *) u1)->parents = singleton(u2);
+    ((QueryOperator *) projU2Op)->parents = singleton(u2);
+
+
+    //third union
+//    UNION ALL
+//    SELECT 0 AS S, SALARY, TEND AS T,  - COUNT(*) AS E
+//    FROM RIGHTY
+//    GROUP BY TEND, SALARY
+
+    //  COUNT(*)  FROM RIGHTY GROUP BY TEND, SALARY
+    //agg 2
+//    QueryOperator *rightProj2Op = (QueryOperator *) rightProj;
+    List *agg2GroupByRight = NIL;
+//    FOREACH(char, c, attrNames)
+//    {
+//    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+//    	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
+//    }
+    FOREACH(AttributeDef, d, rightProjOp->schema->attrDefs)
+    {
+    	if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName) && !streq(TBEGIN_NAME, d->attrName))
+    	{
+        	AttributeReference *a = createAttrsRefByName(rightProjOp, d->attrName);
+        	agg2GroupByRight = appendToTailOfList(agg2GroupByRight, a);
+    	}
+    }
+
+    agg2GroupByRight = appendToHeadOfList(agg2GroupByRight, createAttrsRefByName(rightProjOp, TEND_NAME));
+
+    AttributeReference *agg2AttrRight = createAttrsRefByName(rightProjOp, "AGG_GB_ARG0");
+	FunctionCall *agg2FuncRight = createFunctionCall(strdup("COUNT"),
+			singleton(agg2AttrRight));
+	List *aggrs2Right = singleton(agg2FuncRight);
+	List *agg2NamesRight = NIL;
+
+	FOREACH(AttributeDef, d, rightProjOp->schema->attrDefs)
+	{
+		if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TBEGIN_NAME, d->attrName))
+			agg2NamesRight = appendToTailOfList(agg2NamesRight, strdup(d->attrName));
+	}
+	agg2NamesRight = appendToHeadOfList(agg2NamesRight, "AGGR_0");
+
+	AggregationOperator *agg2CPRight = createAggregationOp(aggrs2Right, agg2GroupByRight, rightProjOp, NIL, agg2NamesRight);
+	rightProjOp->parents = appendToTailOfList(rightProjOp->parents, agg2CPRight);
+
+	QueryOperator *agg2CPRightOp = (QueryOperator *)agg2CPRight;
+
+	//SELECT 0 AS S, SALARY, TEND AS T,  - COUNT(*) AS E
+
+    AttributeReference *aggr_0_ref_u3 = createAttrsRefByName(agg2CPRightOp, "AGGR_0");
+    Operator *minusCount_u3 = createOpExpr("-", LIST_MAKE(copyObject(c0),aggr_0_ref_u3));
+
+    List *projExprU3 = NIL;
+    List *nameListU3 = NIL;
+
+    projExprU3 = appendToTailOfList(projExprU3, copyObject(c0));
+    nameListU3 = appendToTailOfList(nameListU3, "S");
+
+	FOREACH(AttributeDef, ad, agg2CPRightOp->schema->attrDefs)
+	{
+		if(!streq(ad->attrName, "AGGR_0"))
+		{
+			AttributeReference *a = createAttrsRefByName(agg2CPRightOp, ad->attrName);
+			projExprU3 = appendToTailOfList(projExprU3, a);
+
+			if(streq(ad->attrName, "T_E"))
+				nameListU3 = appendToTailOfList(nameListU3, "T");
+			else
+				nameListU3 = appendToTailOfList(nameListU3, ad->attrName);
+		}
+	}
+
+    projExprU3 = appendToTailOfList(projExprU3, minusCount_u3);
+    nameListU3 = appendToTailOfList(nameListU3, "E");
+
+	ProjectionOperator *projU3 = createProjectionOp (projExprU3, agg2CPRightOp, NIL, nameListU3);
+	agg2CPRightOp->parents = appendToTailOfList(agg2CPRightOp->parents,projU3);
+	QueryOperator *projU3Op = (QueryOperator *) projU3;
+
+    //construct union on top (u3)
+    SetOperator *u3 = createSetOperator(SETOP_UNION, LIST_MAKE(u2, projU3), NIL,
+    		deepCopyStringList(getAttrNames(projU3Op->schema)));
+    ((QueryOperator *) u2)->parents = singleton(u3);
+    ((QueryOperator *) projU3Op)->parents = singleton(u3);
+
+    QueryOperator *u3Op = (QueryOperator *) u3;
+
+//    -- merge change points
+//    , CP_MERGED AS (
+//      SELECT SUM(S) AS S, SUM(E) AS E, T, SALARY
+//      FROM CP
+//      GROUP BY T, SALARY
+//    )
+    //CP_merge agg + proj
+    List *groupByCPMerge = NIL;
+    List *aggS = NIL;
+    List *aggE = NIL;
+    List *attrNamesCPMerge = NIL;
+
+    attrNamesCPMerge = appendToTailOfList(attrNamesCPMerge, "S");
+    attrNamesCPMerge = appendToTailOfList(attrNamesCPMerge, "E");
+	FOREACH(AttributeDef, d, u3Op->schema->attrDefs)
+	{
+		AttributeReference *a = createAttrsRefByName(u3Op, d->attrName);
+		if(!streq("S", d->attrName) && !streq("E", d->attrName))
+		{
+			groupByCPMerge = appendToTailOfList(groupByCPMerge, a);
+			attrNamesCPMerge = appendToTailOfList(attrNamesCPMerge, strdup(d->attrName));
+		}
+		else if(streq("S", d->attrName))
+			aggS = appendToTailOfList(aggS,a);
+		else if(streq("E", d->attrName))
+			aggE = appendToTailOfList(aggE,a);
+	}
+
+	FunctionCall *sumS = createFunctionCall("SUM",aggS);
+	FunctionCall *sumE = createFunctionCall("SUM",aggE);
+	List *functionCallList = LIST_MAKE(sumS,sumE);
+
+	AggregationOperator *aggCPMerge = createAggregationOp(functionCallList,groupByCPMerge, u3Op, NIL, attrNamesCPMerge);
+    u3Op->parents = singleton(aggCPMerge);
+
+    QueryOperator *aggCPMergeOp = (QueryOperator *) aggCPMerge;
+
+
+
+    //internals
+
+     //w1
+     WindowBound *internalsWB1 = createWindowBound(WINBOUND_UNBOUND_PREC,NULL);
+     WindowFrame *internalsWF1 = createWindowFrame(WINFRAME_RANGE,internalsWB1,NULL);
+
+     //OrderBy
+     AttributeReference *attrTW1 = createAttrsRefByName(aggCPMergeOp, "T");
+     List *internalsOrderBy1 = singleton(copyObject(attrTW1));
+
+     //partationBy
+     List *internalPartitionBy1 = NIL;
+     FOREACH(char, c, attrNames)
+     	 internalPartitionBy1 = appendToTailOfList(internalPartitionBy1,createAttrsRefByName(aggCPMergeOp, c));
+
+     WindowDef *internalWDef1 = createWindowDef(internalPartitionBy1,internalsOrderBy1,internalsWF1);
+
+     FunctionCall *internalFC1 = createFunctionCall("SUM",singleton(createAttrsRefByName(aggCPMergeOp, "S")));
+     WindowFunction *winternalF1 = createWindowFunction(internalFC1,internalWDef1);
+
+     char *internalWNames1 = "winf_0";
+     WindowOperator *internalW1 = createWindowOp(copyObject(winternalF1->f),
+     		copyObject(winternalF1->win->partitionBy),
+ 			copyObject(winternalF1->win->orderBy),
+ 			copyObject(winternalF1->win->frame),
+ 			internalWNames1, aggCPMergeOp, NIL);
+
+     aggCPMergeOp->parents = singleton(internalW1);
+     QueryOperator *internalW1Op = (QueryOperator *) internalW1;
+
+
+     //w2
+     WindowFrame *internalsWF2 = createWindowFrame(WINFRAME_RANGE,copyObject(internalsWB1),NULL);
+     List *internalsOrderBy2 = singleton(copyObject(attrTW1));
+     //partationBy
+     List *internalPartitionBy2 = NIL;
+     FOREACH(char, c, attrNames)
+     	 internalPartitionBy2 = appendToTailOfList(internalPartitionBy2,createAttrsRefByName(internalW1Op, c));
+
+     WindowDef *internalWDef2 = createWindowDef(internalPartitionBy2,internalsOrderBy2,internalsWF2);
+
+     FunctionCall *internalFC2 = createFunctionCall("SUM",singleton(createAttrsRefByName(internalW1Op, "E")));
+     WindowFunction *winternalF2 = createWindowFunction(internalFC2,internalWDef2);
+
+     char *internalWNames2 = "winf_1";
+     WindowOperator *internalW2 = createWindowOp(copyObject(winternalF2->f),
+     		copyObject(winternalF2->win->partitionBy),
+ 			copyObject(winternalF2->win->orderBy),
+ 			copyObject(winternalF2->win->frame),
+ 			internalWNames2, internalW1Op, NIL);
+
+     internalW1Op->parents = singleton(internalW2);
+
+     QueryOperator *internalW2Op = (QueryOperator *) internalW2;
+
+     //w3
+     //WindowFrame *internalsWF2 = createWindowFrame(WINFRAME_RANGE,copyObject(internalsWB1),NULL);
+     List *internalsOrderBy3 = singleton(copyObject(attrTW1));
+     //partationBy
+     List *internalPartitionBy3 = NIL;
+     FOREACH(char, c, attrNames)
+     	 internalPartitionBy3 = appendToTailOfList(internalPartitionBy3,createAttrsRefByName(internalW2Op, c));
+
+     WindowDef *internalWDef3 = createWindowDef(internalPartitionBy3,internalsOrderBy3,NULL);
+
+     FunctionCall *internalFC3 = createFunctionCall("LEAD",singleton(createAttrsRefByName(internalW1Op, "T")));
+     WindowFunction *winternalF3 = createWindowFunction(internalFC3,internalWDef3);
+
+     char *internalWNames3 = "winf_3";
+     WindowOperator *internalW3 = createWindowOp(copyObject(winternalF3->f),
+     		copyObject(winternalF3->win->partitionBy),
+ 			copyObject(winternalF3->win->orderBy),
+ 			copyObject(winternalF3->win->frame),
+ 			internalWNames3, internalW2Op, NIL);
+
+     internalW2Op->parents = singleton(internalW3);
+
+     QueryOperator *internalW3Op = (QueryOperator *) internalW3;
+
+     //top proj for intervals winf_0  - winf_1, T, winf_3, salary
+     List *intervalsProjExpr = NIL;
+     List *intervalsProjNames = NIL;
+     Operator *multiplicity = createOpExpr("-",
+    		 LIST_MAKE(createAttrsRefByName(internalW3Op, strdup(internalWNames1)),createAttrsRefByName(internalW3Op, strdup(internalWNames2))));
+     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, multiplicity);
+     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, "T"));
+     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, strdup(internalWNames3)));
+
+     intervalsProjNames = appendToTailOfList(intervalsProjNames, "NUMOPEN");
+     intervalsProjNames = appendToTailOfList(intervalsProjNames, TBEGIN_NAME);
+     intervalsProjNames = appendToTailOfList(intervalsProjNames, TEND_NAME);
+
+     FOREACH(AttributeDef, d, internalW3Op->schema->attrDefs)
+     {
+    	 if(!streq(d->attrName, "T") && !streq(d->attrName, "S") && !streq(d->attrName, "E")
+    			 && !streq(d->attrName,internalWNames1) && !streq(d->attrName,internalWNames2) && !streq(d->attrName,internalWNames3))
+    	 {
+    		 intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, strdup(d->attrName)));
+    		 intervalsProjNames = appendToTailOfList(intervalsProjNames, strdup(d->attrName));
+    	 }
+     }
+     ProjectionOperator *intervalsProj = createProjectionOp(intervalsProjExpr, internalW3Op, NIL, intervalsProjNames);
+     internalW3Op->parents = singleton(intervalsProj);
+
+     QueryOperator *intervalsProjOp = (QueryOperator *) intervalsProj;
+     //-----------------------------------------------------------------------------------------------------------------
+     //TNTAB AS (SELECT rownum n FROM dual connect by level <= (SELECT MAX(MULTIPLICITY) FROM INTERVALS))
+     TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
+
+     //set boolean prop (when translate to SQL, translate to above SQL not this table)
+     SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) intervalsProj));
+
+     //---------------------------------------------------------------------------------------
+     //Construct Top
+
+     QueryOperator *TNTABOp = (QueryOperator *)TNTAB;
+
+     //join
+     AttributeReference *topAttrNum = createAttrsRefByName(intervalsProjOp, "NUMOPEN");
+     AttributeReference *topAttrN = createAttrsRefByName(TNTABOp, "N");
+     topAttrN->fromClauseItem = 1;
+     Operator *topCond1 = createOpExpr(">", LIST_MAKE(topAttrNum,copyObject(c0)));
+     Operator *topCond2 = createOpExpr(">=", LIST_MAKE(topAttrNum,topAttrN));
+     Node *topCond = andExprList(LIST_MAKE(topCond1, topCond2));
+
+
+     List *topNames = deepCopyStringList(getAttrNames(intervalsProjOp->schema));
+     topNames = appendToTailOfList(topNames, "N");
+
+     JoinOperator *topJoin = createJoinOp(JOIN_INNER, topCond, LIST_MAKE(intervalsProj, TNTAB), NIL, topNames);
+     intervalsProjOp->parents = singleton(topJoin);
+     TNTABOp->parents = singleton(topJoin);
+
+     QueryOperator *topJoinOp = (QueryOperator *) topJoin;
+     //projection on top
+     List *topProjNames = NIL;
+     FOREACH(AttributeDef, d, topJoinOp->schema->attrDefs)
+     {
+     	if(!streq(d->attrName, "N"))
+     		topProjNames = appendToTailOfList(topProjNames, strdup(d->attrName));
+     }
+
+     QueryOperator *topProjOp = createProjOnAttrsByName(topJoinOp , topProjNames);
+     topProjOp->inputs = singleton(topJoin);
+     topJoinOp->parents = singleton(topProjOp);
+
+     setTempAttrProps(topProjOp);
+     int pCount = 0;
+     FOREACH(AttributeDef, a, topProjOp->schema->attrDefs)
+     {
+     	if(streq(a->attrName, TBEGIN_NAME) || streq(a->attrName, TEND_NAME))
+     		topProjOp->provAttrs = appendToTailOfListInt(topProjOp->provAttrs, pCount);
+     	pCount ++;
+     }
+
+	return (QueryOperator *) topProjOp;
+}
