@@ -70,7 +70,7 @@ Node *bisonParseResult = NULL;
 %token <stringVal> STARALL
 %token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN EXCEPT EXISTS
 %token <stringVal> AMMSC NULLVAL ROWNUM ALL ANY IS SOME
-%token <stringVal> UNION INTERSECT MINUS
+%token <stringVal> UNION INTERSECT MINUS 
 %token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
 %token <stringVal> INT BEGIN_TRANS COMMIT_TRANS ROLLBACK_TRANS
 %token <stringVal> CASE WHEN THEN ELSE END
@@ -752,15 +752,15 @@ insertContent:
  */
 
 setOperatorQuery:     // Need to look into createFunction
-        queryStmt INTERSECT queryStmt
+        queryStmt INTERSECT optionalAll queryStmt
             {
                 RULELOG("setOperatorQuery::INTERSECT");
-                $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
+                $$ = (Node *) createSetQuery($2, ($3 != NULL), $1, $4);
             }
-        | queryStmt MINUS queryStmt 
+        | queryStmt MINUS optionalAll queryStmt 
             {
                 RULELOG("setOperatorQuery::MINUS");
-                $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
+                $$ = (Node *) createSetQuery($2, ($3 != NULL), $1, $4);
             }
         | queryStmt UNION optionalAll queryStmt
             {

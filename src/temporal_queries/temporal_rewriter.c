@@ -80,6 +80,8 @@ rewriteImplicitTemporal (QueryOperator *q)
     switchSubtrees((QueryOperator *) q, top);
     DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
 
+
+
     //top = addCoalesceForAllOp(top);
     if(getBoolOption(TEMPORAL_USE_COALSECE))
     	    top = addCoalesce(top);
@@ -87,8 +89,8 @@ rewriteImplicitTemporal (QueryOperator *q)
 //    List *aggList = singleton("SALARY");
 //    List *attrList = singleton("DEPT_NO");
 //    top = addTemporalNormalizationAggregation(top, aggList, attrList);
-
-//    top = addNormalizationSetDiff(top,top, singleton("SALARY"));
+    if (0 == 1)
+        top = addNormalizationSetDiff(top,top, singleton("SALARY"));
 
     return top;
 }

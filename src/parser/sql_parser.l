@@ -130,6 +130,7 @@ strconcat		"||"
 (?i:UNION)        	TOK(UNION)
 (?i:INTERSECT)      TOK(INTERSECT)
 (?i:MINUS)        	TOK(MINUS)
+(?i:EXCEPT)        	TOK(EXCEPT)
 (?i:JOIN)        	TOK(JOIN)
 (?i:LEFT)        	TOK(LEFT)
 (?i:RIGHT)        	TOK(RIGHT)
