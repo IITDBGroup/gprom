@@ -118,7 +118,7 @@ temporalRewriteOperator(QueryOperator *op)
                 break;
             case T_AggregationOperator:
                 DEBUG_LOG("go aggregation");
-                if(getBoolOption(TEMPORAL_AGG_WITH_NORM))
+                if(getBoolOption(TEMPORAL_AGG_WITH_NORM)) //TODO check that not min/max
                     rewrittenOp = rewriteTemporalAggregationWithNormalization((AggregationOperator *) op);
                 else
                     rewrittenOp = tempRewrAggregation ((AggregationOperator *) op);
@@ -128,8 +128,15 @@ temporalRewriteOperator(QueryOperator *op)
                 rewrittenOp = tempRewrJoin((JoinOperator *) op);
                 break;
             case T_SetOperator:
-                DEBUG_LOG("go set");
-                rewrittenOp = tempRewrSetOperator((SetOperator *) op);
+            {
+                SetOperator *setOp = (SetOperator *) op;
+                DEBUG_LOG("go set");//TODO check whether to use SetDiff + Normalize rewrite
+
+                if (setOp->setOpType == SETOP_DIFFERENCE)
+                    addNormalizationSetDiff(NULL, NULL, NIL); //TODO
+                else
+                    rewrittenOp = tempRewrSetOperator((SetOperator *) op);
+            }
                 break;
     //        case T_TableAccessOperator:
     //            DEBUG_LOG("go table access");
@@ -400,8 +407,12 @@ tempRewrSetOperator (SetOperator *o)
         }
         break;
         case SETOP_INTERSECTION:
+        {
+            addProvenanceAttrsToSchema((QueryOperator *) o, (QueryOperator *) lOp);
+        }
             break;
         case SETOP_DIFFERENCE:
+
             break;
     }
 
@@ -469,7 +480,7 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
     {
         case T_AggregationOperator:
         {
-            if (!getBoolOption(TEMPORAL_AGG_WITH_NORM))
+            if (!getBoolOption(TEMPORAL_AGG_WITH_NORM)) //TODO check that not min or max
             {
                 QueryOperator* child = OP_LCHILD(q);
                 AggregationOperator *a = (AggregationOperator *) q;
@@ -496,10 +507,12 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
         break;
         case T_SetOperator:
         {
-            SetOperator *s = (SetOperator *) q;
+            SetOperator *s = (SetOperator *) q;//TODO not do this anymore if SET DIFF
             if (s->setOpType == SETOP_DIFFERENCE || s->setOpType == SETOP_INTERSECTION)
             {
-                SET_BOOL_STRING_PROP(q,PROP_TEMP_NORMALIZE_INPUTS);
+                List *attrs = NIL;
+                //TODO add all attributes
+                SET_STRING_PROP(q,PROP_TEMP_NORMALIZE_INPUTS, attrs);
                 DEBUG_OP_LOG("mark setop for normalization of inputs", q);
             }
         }
