@@ -89,6 +89,9 @@ static List *schemaInfoGetAttributeNames (char *tableName);
 static List *schemaInfoGetAttributeDataTypes (char *tableName);
 
 
+static List *temporalAttrTypes = NIL;  //used to store the datatype of temporal data (T_BEGIN and T_END)
+
+
 /* str functions */
 static inline char *
 strToUpper(char *in)
@@ -919,11 +922,16 @@ analyzeFromTableRef(FromTableRef *f)
     // otherwise use actual catalog information
     else
     {
-        if (f->from.attrNames == NIL)
+        if (f->from.attrNames == NIL){
             f->from.attrNames = getAttributeNames(f->tableId);
+        }
 
         if(!(f->from.dataTypes))
+        {
             f->from.dataTypes = getAttributeDataTypes(f->tableId);
+            if(temporalAttrTypes == NIL)  //copy temporal attrs  T_BEGIN and T_END datatype, since it run two times, only need to time so check if temporalAttrTypes == NIL
+            	temporalAttrTypes = copyObject(f->from.dataTypes);
+        }
     }
     if(f->from.name == NULL)
     	f->from.name = f->tableId;
@@ -1674,7 +1682,8 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             //TODO check that table access has temporal attributes
 
             q->selectClause = concatTwoLists(q->selectClause,LIST_MAKE(strdup(TBEGIN_NAME), strdup(TEND_NAME)));
-            q->dts = concatTwoLists(q->dts,CONCAT_LISTS(singletonInt(TEMPORAL_DT), singletonInt(TEMPORAL_DT)));
+            //q->dts = concatTwoLists(q->dts,CONCAT_LISTS(singletonInt(TEMPORAL_DT), singletonInt(TEMPORAL_DT)));
+            q->dts = concatTwoLists(q->dts,CONCAT_LISTS(singletonInt(getTailOfListInt(temporalAttrTypes)), singletonInt(getTailOfListInt(temporalAttrTypes))));
         }
         break;
         case PROV_INPUT_UPDATE_SEQUENCE:

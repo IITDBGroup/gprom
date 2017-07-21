@@ -49,6 +49,8 @@ static ProjectionOperator *createProjDoublingAggAttrs(QueryOperator *agg, int nu
 #define TIMEPOINT_ATTR "TS"
 #define NEXT_TS_ATTR "_next_ts"
 
+static boolean minmax = FALSE;
+
 QueryOperator *
 rewriteImplicitTemporal (QueryOperator *q)
 {
@@ -117,7 +119,7 @@ temporalRewriteOperator(QueryOperator *op)
                 break;
             case T_AggregationOperator:
                 DEBUG_LOG("go aggregation");
-                if(getBoolOption(TEMPORAL_AGG_WITH_NORM)) //TODO check that not min/max
+                if(getBoolOption(TEMPORAL_AGG_WITH_NORM) && !minmax) //TODO check that not min/max
                     rewrittenOp = rewriteTemporalAggregationWithNormalization((AggregationOperator *) op);
                 else
                     rewrittenOp = tempRewrAggregation ((AggregationOperator *) op);
@@ -487,7 +489,19 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
     {
         case T_AggregationOperator:
         {
-            if (!getBoolOption(TEMPORAL_AGG_WITH_NORM)) //TODO check that not min or max
+
+        	if(isA(q, AggregationOperator))
+        	{
+        		AggregationOperator *aggOp = (AggregationOperator *) q;
+        		FOREACH(FunctionCall, fc, aggOp->aggrs)
+        		   if(streq(fc->functionname,"MIN") || streq(fc->functionname,"MAX") || streq(fc->functionname,"min") || streq(fc->functionname,"max"))
+        		   {
+        			  minmax = TRUE;
+        			  break;
+        		   }
+        	}
+
+            if (!getBoolOption(TEMPORAL_AGG_WITH_NORM) && !minmax) //TODO check that not min or max
             {
                 QueryOperator* child = OP_LCHILD(q);
                 AggregationOperator *a = (AggregationOperator *) q;
