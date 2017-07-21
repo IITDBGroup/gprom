@@ -36,7 +36,6 @@ static void setTempAttrProps(QueryOperator *o);
 static AttributeReference *getTempAttrRef (QueryOperator *o, boolean begin);
 static void coalescingAndNormalizationVisitor (QueryOperator *q, Set *done);
 static ProjectionOperator *createProjDoublingAggAttrs(QueryOperator *agg, int numNewAggs, boolean add, boolean isGB);
-static QueryOperator *addNormalizationSetDiff (QueryOperator *input, QueryOperator *reference, List *attrNames);
 
 
 #define LOG_RESULT(mes,op) DEBUG_OP_LOG(mes,op);
@@ -66,8 +65,9 @@ rewriteImplicitTemporal (QueryOperator *q)
     Set *done = PSET();
     topSchema = copyObject(q->schema->attrDefs);
     disambiguiteAttrNames((Node *) top, done);
-    if (isA(top,ProjectionOperator))
-        top->schema->attrDefs = topSchema;
+    if (isA(top,ProjectionOperator)){
+       // top->schema->attrDefs = topSchema;
+    	}
     else
     {
         QueryOperator *proj = createProjOnAllAttrs(top);
@@ -89,8 +89,7 @@ rewriteImplicitTemporal (QueryOperator *q)
 //    List *aggList = singleton("SALARY");
 //    List *attrList = singleton("DEPT_NO");
 //    top = addTemporalNormalizationAggregation(top, aggList, attrList);
-    if (0 == 1)
-        top = addNormalizationSetDiff(top,top, singleton("SALARY"));
+
 
     return top;
 }
@@ -133,11 +132,17 @@ temporalRewriteOperator(QueryOperator *op)
                 DEBUG_LOG("go set");//TODO check whether to use SetDiff + Normalize rewrite
 
                 if (setOp->setOpType == SETOP_DIFFERENCE)
-                    addNormalizationSetDiff(NULL, NULL, NIL); //TODO
+                	rewrittenOp = rewriteTemporalSetDiffWithNormalization((SetOperator *) op); //TODO
                 else
                     rewrittenOp = tempRewrSetOperator((SetOperator *) op);
             }
                 break;
+//            case T_SetOperator:
+//            {
+//                DEBUG_LOG("go set");//TODO check whether to use SetDiff + Normalize rewrite
+//                rewrittenOp = tempRewrSetOperator((SetOperator *) op);
+//            }
+//                break;
     //        case T_TableAccessOperator:
     //            DEBUG_LOG("go table access");
     //            rewrittenOp = tempRewrTableAccess((TableAccessOperator *) op);
@@ -412,7 +417,9 @@ tempRewrSetOperator (SetOperator *o)
         }
             break;
         case SETOP_DIFFERENCE:
-
+        {
+            addProvenanceAttrsToSchema((QueryOperator *) o, (QueryOperator *) lOp);
+        }
             break;
     }
 
@@ -508,10 +515,11 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
         case T_SetOperator:
         {
             SetOperator *s = (SetOperator *) q;//TODO not do this anymore if SET DIFF
-            if (s->setOpType == SETOP_DIFFERENCE || s->setOpType == SETOP_INTERSECTION)
+            //if (s->setOpType == SETOP_DIFFERENCE || s->setOpType == SETOP_INTERSECTION)
+            if (s->setOpType == SETOP_INTERSECTION)
             {
-                List *attrs = NIL;
-                //TODO add all attributes
+            	//add all attributes
+                List *attrs = getAttrNames(q->schema);
                 SET_STRING_PROP(q,PROP_TEMP_NORMALIZE_INPUTS, attrs);
                 DEBUG_OP_LOG("mark setop for normalization of inputs", q);
             }
@@ -2418,18 +2426,14 @@ QueryOperator *
 rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 {
     //TODO
-    return (QueryOperator *) diff;
-}
+	QueryOperator *o = (QueryOperator *) diff;
+	QueryOperator *left = OP_LCHILD(o);
+	QueryOperator *right = OP_RCHILD(o);
 
+	left = temporalRewriteOperator(left);
+	right = temporalRewriteOperator(right);
 
-QueryOperator *
-addNormalizationSetDiff (QueryOperator *input, QueryOperator *reference, List *attrNames)
-{
-
-	QueryOperator *left = input;
-	//QueryOperator *right = reference;
-
-	DEBUG_OP_LOG("add window-based temporal normalization for operator ", input, reference);
+    List *attrNames = getNormalAttrNames(o);
 
 	//---------------------------------------------------------------------------------------
     //Construct CP:
@@ -2603,7 +2607,6 @@ addNormalizationSetDiff (QueryOperator *input, QueryOperator *reference, List *a
     //base projections used in Q1, then two aggr on Q1, each agg with 1 proj on top, at last union all
     List *rightProjExpr1 = NIL;
     List *rightProjAttrNames1 = NIL;
-    QueryOperator *right = reference;
 
     rightProjAttrNames1 = getAttrNames(right->schema);
     FOREACH(AttributeDef, ad, right->schema->attrDefs)
@@ -2901,15 +2904,12 @@ addNormalizationSetDiff (QueryOperator *input, QueryOperator *reference, List *a
      //top proj for intervals winf_0  - winf_1, T, winf_3, salary
      List *intervalsProjExpr = NIL;
      List *intervalsProjNames = NIL;
-     Operator *multiplicity = createOpExpr("-",
-    		 LIST_MAKE(createAttrsRefByName(internalW3Op, strdup(internalWNames1)),createAttrsRefByName(internalW3Op, strdup(internalWNames2))));
-     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, multiplicity);
-     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, "T"));
-     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, strdup(internalWNames3)));
 
+     Operator *multiplicity = createOpExpr("-",
+    	 LIST_MAKE(createAttrsRefByName(internalW3Op, strdup(internalWNames1)),createAttrsRefByName(internalW3Op, strdup(internalWNames2))));
+     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, multiplicity);
      intervalsProjNames = appendToTailOfList(intervalsProjNames, "NUMOPEN");
-     intervalsProjNames = appendToTailOfList(intervalsProjNames, TBEGIN_NAME);
-     intervalsProjNames = appendToTailOfList(intervalsProjNames, TEND_NAME);
+
 
      FOREACH(AttributeDef, d, internalW3Op->schema->attrDefs)
      {
@@ -2920,8 +2920,23 @@ addNormalizationSetDiff (QueryOperator *input, QueryOperator *reference, List *a
     		 intervalsProjNames = appendToTailOfList(intervalsProjNames, strdup(d->attrName));
     	 }
      }
+
+     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, "T"));
+     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, strdup(internalWNames3)));
+
+     intervalsProjNames = appendToTailOfList(intervalsProjNames, TBEGIN_NAME);
+     intervalsProjNames = appendToTailOfList(intervalsProjNames, TEND_NAME);
+
+
+
+     DEBUG_LOG("ProjExpr size: %d, ProjNames size: %d", LIST_LENGTH(intervalsProjExpr), LIST_LENGTH(intervalsProjNames));
+
+
      ProjectionOperator *intervalsProj = createProjectionOp(intervalsProjExpr, internalW3Op, NIL, intervalsProjNames);
      internalW3Op->parents = singleton(intervalsProj);
+
+     DEBUG_LOG("ProjExpr size: %d, ProjSchemaNames size: %d", LIST_LENGTH(intervalsProj->projExprs), LIST_LENGTH(((QueryOperator *) intervalsProj)->schema->attrDefs));
+
 
      QueryOperator *intervalsProjOp = (QueryOperator *) intervalsProj;
      //-----------------------------------------------------------------------------------------------------------------
@@ -2974,5 +2989,12 @@ addNormalizationSetDiff (QueryOperator *input, QueryOperator *reference, List *a
      	pCount ++;
      }
 
-	return (QueryOperator *) topProjOp;
+
+    switchSubtrees(o, (QueryOperator *) topProjOp);
+
+//  addProvenanceAttrsToSchema((QueryOperator *) o, (QueryOperator *) lOp);
+    LOG_RESULT("Rewritten set difference + normalization", topProjOp);
+
+    return (QueryOperator *) topProjOp;
 }
+
