@@ -50,6 +50,7 @@ static ProjectionOperator *createProjDoublingAggAttrs(QueryOperator *agg, int nu
 #define NEXT_TS_ATTR "_next_ts"
 
 static boolean minmax = FALSE;
+static int T_BEtype = -1;
 
 QueryOperator *
 rewriteImplicitTemporal (QueryOperator *q)
@@ -487,6 +488,15 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
 
     switch(q->type)
     {
+
+    	case T_TableAccessOperator:
+    	{
+    		//get T_BEGIN/T_END data type
+    		QueryOperator *o = (QueryOperator *) q;
+    		AttributeDef *tad = getTailOfListP(o->schema->attrDefs);
+    		T_BEtype = tad->dataType;
+    	}
+    	break;
         case T_AggregationOperator:
         {
 
@@ -2128,9 +2138,20 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         // add dummy value for open interval counter attributes
         constVals = appendToTailOfList(constVals, createConstInt(0));
 
-        // add minimal and maximal value for the domain of the time attributes
-        constVals = appendToTailOfList(constVals, createConstInt(INT_MINVAL));
-        constVals = appendToTailOfList(constVals, createConstInt(INT_MAXVAL));
+        if(T_BEtype == 0)
+        {
+        	// add minimal and maximal value for the domain of the time attributes
+        	constVals = appendToTailOfList(constVals, createConstInt(INT_MINVAL));
+        	constVals = appendToTailOfList(constVals, createConstInt(INT_MAXVAL));
+        }
+        else
+        {
+        	// use date format
+        	FunctionCall *dateBegin = createFunctionCall("TO_DATE", LIST_MAKE(createConstInt(1),createConstString("J")));
+        	FunctionCall *dateEnd = createFunctionCall("TO_DATE", LIST_MAKE(createConstString("9999-01-01"),createConstString("SYYYY-MM-DD")));
+        	constVals = appendToTailOfList(constVals, dateBegin);
+        	constVals = appendToTailOfList(constVals, dateEnd);
+        }
 
         neutralCRel = createConstRelOp(constVals, NIL, aNames, NIL);
         unionDummy = createSetOperator(SETOP_UNION, LIST_MAKE(agg,neutralCRel), NIL, deepCopyStringList(aNames));
