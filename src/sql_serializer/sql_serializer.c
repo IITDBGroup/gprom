@@ -19,6 +19,7 @@
 #include "sql_serializer/sql_serializer.h"
 #include "sql_serializer/sql_serializer_oracle.h"
 #include "sql_serializer/sql_serializer_dl.h"
+#include "sql_serializer/sql_serializer_lb.h"
 #include "sql_serializer/sql_serializer_sqlite.h"
 #include "sql_serializer/sql_serializer_postgres.h"
 #include "model/node/nodetype.h"
@@ -35,6 +36,7 @@ static SqlserializerPlugin *assembleOraclePlugin(void);
 static SqlserializerPlugin *assemblePostgresPlugin(void);
 static SqlserializerPlugin *assembleHivePlugin(void);
 static SqlserializerPlugin *assembleDLPlugin(void);
+static SqlserializerPlugin *assembleLBPlugin(void);
 static SqlserializerPlugin *assembleSQLitePlugin(void);
 
 // wrapper interface
@@ -83,6 +85,9 @@ chooseSqlserializerPlugin(SqlserializerPluginType type)
             break;
         case SQLSERIALIZER_PLUGIN_DL:
             plugin = assembleDLPlugin();
+            break;
+        case SQLSERIALIZER_PLUGIN_LB:
+            plugin = assembleLBPlugin();
             break;
         case SQLSERIALIZER_PLUGIN_SQLITE:
             plugin = assembleSQLitePlugin();
@@ -137,6 +142,18 @@ assembleDLPlugin(void)
 }
 
 static SqlserializerPlugin *
+assembleLBPlugin(void)
+{
+    SqlserializerPlugin *p = NEW(SqlserializerPlugin);
+
+    p->serializeOperatorModel = serializeOperatorModelLB;
+    p->serializeQuery = serializeQueryLB;
+    p->quoteIdentifier = quoteIdentifierLB;
+
+    return p;
+}
+
+static SqlserializerPlugin *
 assembleSQLitePlugin(void)
 {
     SqlserializerPlugin *p = NEW(SqlserializerPlugin);
@@ -161,6 +178,8 @@ chooseSqlserializerPluginFromString(char *type)
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_HIVE);
     else if (streq(type,"dl"))
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_DL);
+    else if (streq(type,"lb"))
+            chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_LB);
     else if (streq(type,"sqlite"))
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_SQLITE);
     else

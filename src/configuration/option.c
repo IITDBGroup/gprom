@@ -389,7 +389,7 @@ OptionInfo opts[] =
         {
                 OPTION_PLUGIN_SQLSERIALIZER,
                 "-Psqlserializer",
-                "select SQL code generator plugin: oracle, postgres, sqlite",
+                "select SQL code generator plugin: oracle, postgres, sqlite, dl, lb",
                 OPTION_STRING,
                 wrapOptionString(&plugin_sql_serializer),
                 defOptionString(NULL)
