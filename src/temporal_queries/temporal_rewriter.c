@@ -2129,6 +2129,11 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
             {
                 constVals = appendToTailOfList(constVals, createConstInt(0));
             }
+            else if(streq(fName, "AVG"))
+            {
+                constVals = appendToTailOfList(constVals, createNullConst(DT_INT));
+                constVals = appendToTailOfList(constVals, createConstInt(0));
+            }
             else
             {
                 constVals = appendToTailOfList(constVals, createNullConst(typeOf((Node *) f)));
