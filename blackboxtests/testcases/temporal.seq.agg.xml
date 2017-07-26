@@ -42,9 +42,38 @@ TEMPORAL (SELECT count(*) FROM (SELECT count(*) AS BOO, A FROM TEMP_TEST WITH TI
  0        | 13          | 2000000000 |
 </entry>
 
-<entry key="q.query">
+<entry key="q4.query">
+TEMPORAL (SELECT count(1) FROM TEMP_DATE WITH TIME(T_BEGIN, T_END));
 </entry>
-<entry key="q.result">
+<entry key="q4.result">
+ COUNT(1) | T_B        | T_E        |
+-------------------------------------
+ 0        | 4712-01-01 | 2017-01-01 |
+ 1        | 2017-01-01 | 2017-01-05 |
+ 2        | 2017-01-05 | 2017-02-15 |
+ 1        | 2017-02-15 | 2017-04-07 |
+ 0        | 2017-04-07 | 9999-01-01 |
+</entry>
+
+<entry key="q5.query">
+TEMPORAL (SELECT min(B) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A);
+</entry>
+<entry key="q5.result">
+ BOO | A | T_B | T_E |
+----------------------
+ 1   | 1 | 1   | 10  |
+ 2   | 1 | 10  | 13  |
+ 1   | 2 | 1   | 4   |
+</entry>
+
+<entry key="q6.query">
+TEMPORAL (SELECT max(B) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A);
+</entry>
+<entry key="q6.result">
+ BOO | A | T_B | T_E |
+----------------------
+ 1   | 2 | 1   | 4   |
+ 2   | 1 | 1   | 13  |
 </entry>
 
 <entry key="q.query">

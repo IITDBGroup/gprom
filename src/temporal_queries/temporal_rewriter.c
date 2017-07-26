@@ -499,41 +499,41 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
     	break;
         case T_AggregationOperator:
         {
-
-        	if(isA(q, AggregationOperator))
-        	{
-        		AggregationOperator *aggOp = (AggregationOperator *) q;
-        		FOREACH(FunctionCall, fc, aggOp->aggrs)
-        		   if(streq(fc->functionname,"MIN") || streq(fc->functionname,"MAX") || streq(fc->functionname,"min") || streq(fc->functionname,"max"))
-        		   {
-        			  minmax = TRUE;
-        			  break;
-        		   }
-        	}
-
-            if (!getBoolOption(TEMPORAL_AGG_WITH_NORM) && !minmax) //TODO check that not min or max
-            {
-                QueryOperator* child = OP_LCHILD(q);
-                AggregationOperator *a = (AggregationOperator *) q;
-                List *attrs = NIL;
-
-                FOREACH(AttributeReference,g,a->groupBy)
+                if(isA(q, AggregationOperator))
                 {
-                    char *attrName = getAttrNameByPos(child, g->attrPosition);
-
-                    attrs = appendToTailOfList(attrs, createConstString(attrName));
+                    AggregationOperator *aggOp = (AggregationOperator *) q;
+                    FOREACH(FunctionCall, fc, aggOp->aggrs)
+                    if(streq(fc->functionname,"MIN") || streq(fc->functionname,"MAX") || streq(fc->functionname,"min") || streq(fc->functionname,"max"))
+                    {
+                        minmax = TRUE;
+                        break;
+                    }
                 }
 
-                if(attrs == NIL)
-                    attrs = appendToTailOfList(attrs, createConstString("!EMPTY!"));
+                if (!getBoolOption(TEMPORAL_AGG_WITH_NORM) || minmax) //TODO check that not min or max
+                {
+                    QueryOperator* child = OP_LCHILD(q);
+                    AggregationOperator *a = (AggregationOperator *) q;
+                    List *attrs = NIL;
 
-                SET_STRING_PROP(child,PROP_TEMP_NORMALIZE_INPUTS, attrs);
-                DEBUG_OP_LOG("mark aggregation input for normalization", q);
-            }
-            else
-            {
-                DEBUG_LOG("use combined aggregation+normalization, no separate normalization is required");
-            }
+                    FOREACH(AttributeReference,g,a->groupBy)
+                    {
+                        char *attrName = getAttrNameByPos(child, g->attrPosition);
+
+                        attrs = appendToTailOfList(attrs, createConstString(attrName));
+                    }
+
+                    if(attrs == NIL)
+                        attrs = appendToTailOfList(attrs, createConstString("!EMPTY!"));
+
+                    SET_STRING_PROP(child,PROP_TEMP_NORMALIZE_INPUTS, attrs);
+                    DEBUG_OP_LOG("mark aggregation input for normalization", q);
+                }
+                // otherwise we need to normalize
+                else
+                {
+                    DEBUG_LOG("use combined aggregation+normalization, no separate normalization is required");
+                }
         }
         break;
         case T_SetOperator:
