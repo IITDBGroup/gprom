@@ -31,7 +31,7 @@ char *
 serializeOperatorModelLB(Node *q)
 {
     StringInfo str = makeStringInfo();
-
+    //TODO change operators and functions in expressions to LogiQL equivalent
     datalogToStr(str, q, 0);
 
     return str->data;
