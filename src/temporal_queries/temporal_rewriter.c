@@ -2526,7 +2526,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     	}
     }
 
-    agg1GroupBy = appendToHeadOfList(agg1GroupBy, createAttrsRefByName(leftProj1Op, TBEGIN_NAME));
+    agg1GroupBy = appendToTailOfList(agg1GroupBy, createAttrsRefByName(leftProj1Op, TBEGIN_NAME));
 
     AttributeReference *agg1Attr = createAttrsRefByName(leftProj1Op, "AGG_GB_ARG0");
 	FunctionCall *agg1Func = createFunctionCall(strdup("COUNT"),
@@ -2580,7 +2580,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     	}
     }
 
-    agg2GroupBy = appendToHeadOfList(agg2GroupBy, createAttrsRefByName(leftProj1Op, TEND_NAME));
+    agg2GroupBy = appendToTailOfList(agg2GroupBy, createAttrsRefByName(leftProj1Op, TEND_NAME));
 
     AttributeReference *agg2Attr = createAttrsRefByName(leftProj1Op, "AGG_GB_ARG0");
 	FunctionCall *agg2Func = createFunctionCall(strdup("COUNT"),
@@ -2679,7 +2679,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     	}
     }
 
-    agg1GroupByRight = appendToHeadOfList(agg1GroupByRight, createAttrsRefByName(rightProjOp, TBEGIN_NAME));
+    agg1GroupByRight = appendToTailOfList(agg1GroupByRight, createAttrsRefByName(rightProjOp, TBEGIN_NAME));
 
     AttributeReference *agg1AttrRight = createAttrsRefByName(rightProjOp, "AGG_GB_ARG0");
 	FunctionCall *agg1FuncRight = createFunctionCall(strdup("COUNT"),
@@ -2763,7 +2763,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     	}
     }
 
-    agg2GroupByRight = appendToHeadOfList(agg2GroupByRight, createAttrsRefByName(rightProjOp, TEND_NAME));
+    agg2GroupByRight = appendToTailOfList(agg2GroupByRight, createAttrsRefByName(rightProjOp, TEND_NAME));
 
     AttributeReference *agg2AttrRight = createAttrsRefByName(rightProjOp, "AGG_GB_ARG0");
 	FunctionCall *agg2FuncRight = createFunctionCall(strdup("COUNT"),
