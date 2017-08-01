@@ -323,9 +323,9 @@ tempRewrJoin (JoinOperator *op)
     switchSubtrees((QueryOperator *) op, (QueryOperator *) proj);
     addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 
-    setTempAttrProps((QueryOperator *) o);
+    setTempAttrProps((QueryOperator *) proj);
 
-    LOG_RESULT("Rewritten join", op);
+    LOG_RESULT("Rewritten join", proj);
     return (QueryOperator *) proj;
 }
 
@@ -457,7 +457,7 @@ getTempAttrRef (QueryOperator *o, boolean begin)
     }
 
     pos = getAttrPos(o, d->attrName);
-    result = createFullAttrReference(strdup(d->attrName), 0, pos, INVALID_ATTR, TEMPORAL_DT);
+    result = createFullAttrReference(strdup(d->attrName), 0, pos, INVALID_ATTR, T_BEtype); //TODO use actual temporal DT
     return result;
 }
 
