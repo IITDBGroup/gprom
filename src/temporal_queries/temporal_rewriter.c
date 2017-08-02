@@ -3020,21 +3020,38 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      topProjOp->inputs = singleton(topJoin);
      topJoinOp->parents = singleton(topProjOp);
 
-     setTempAttrProps(topProjOp);
+
+     //additionl proj to remove attribute (multiplicity or numopen)
+     List *addProjNames = NIL;
+     FOREACH(char, c, getAttrNames(topProjOp->schema))
+     {
+    	 if(!streq(c, "NUMOPEN"))
+    		 addProjNames = appendToTailOfList(addProjNames, strdup(c));
+     }
+
+     QueryOperator *addProj = createProjOnAttrsByName(topProjOp , addProjNames);
+     QueryOperator *addProjOp = (QueryOperator *) addProj;
+     addProjOp->inputs = singleton(topProjOp);
+     topProjOp->parents = singleton(addProjOp);
+
+
+
+     setTempAttrProps(addProjOp);
      int pCount = 0;
-     FOREACH(AttributeDef, a, topProjOp->schema->attrDefs)
+     FOREACH(AttributeDef, a, addProjOp->schema->attrDefs)
      {
      	if(streq(a->attrName, TBEGIN_NAME) || streq(a->attrName, TEND_NAME))
-     		topProjOp->provAttrs = appendToTailOfListInt(topProjOp->provAttrs, pCount);
+     		addProjOp->provAttrs = appendToTailOfListInt(addProjOp->provAttrs, pCount);
      	pCount ++;
      }
 
 
-    switchSubtrees(o, (QueryOperator *) topProjOp);
+
+    switchSubtrees(o, (QueryOperator *) addProjOp);
 
 //  addProvenanceAttrsToSchema((QueryOperator *) o, (QueryOperator *) lOp);
-    LOG_RESULT("Rewritten set difference + normalization", topProjOp);
+    LOG_RESULT("Rewritten set difference + normalization", addProjOp);
 
-    return (QueryOperator *) topProjOp;
+    return (QueryOperator *) addProjOp;
 }
 
