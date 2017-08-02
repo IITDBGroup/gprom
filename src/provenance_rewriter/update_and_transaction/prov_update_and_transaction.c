@@ -867,7 +867,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	if (reenactTargetTable != NULL)
 	{
 	    mergeRoot = getUpdateForPreviousTableVersion(op,
-	            reenactTargetTable, 0, updates);
+	            reenactTargetTable, -1, updates);
 
         if (mergeRoot == NULL)
             FATAL_LOG("cannot track provenance of table %s that is not affected by the transaction:", reenactTargetTable);
