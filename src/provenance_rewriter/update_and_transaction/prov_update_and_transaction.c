@@ -894,6 +894,9 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	INFO_OP_LOG("Merged updates are:", finalProj);
 	DEBUG_NODE_BEATIFY_LOG("Merged updates are:", finalProj);
 
+	// reverse tableNames again to avoid problems with adding conditions for ONLY UPDATED
+	reverseList(op->transactionInfo->updateTableNames);
+
 	// replace updates sequence with root of the whole merged update query
 	addChildOperator((QueryOperator *) op, finalProj);
 	DEBUG_NODE_BEATIFY_LOG("Provenance computation for updates that will be passed "
@@ -998,14 +1001,14 @@ restrictToUpdatedRows (ProvenanceComputation *op)
     // if is simple and CBO is activated then make a choice between prefiltering and history join
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
     {
-    	int res;
+        int res;
 
-    	res = callback(2);
+        res = callback(2);
 
-    	if (res == 1)
-    		addConditionsToBaseTables(op);
-   		else
-   			extractUpdatedFromTemporalHistory(op);
+        if (res == 1)
+            addConditionsToBaseTables(op);
+        else
+            extractUpdatedFromTemporalHistory(op);
     }
     // else check which option is checked
     else

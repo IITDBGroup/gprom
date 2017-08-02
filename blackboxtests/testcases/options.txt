@@ -2,8 +2,8 @@
 Backend=Oracle
 
 # general connection options
-Host=127.0.0.1
-#Host=ligeti.cs.iit.edu
+#Host=127.0.0.1
+Host=ligeti.cs.iit.edu
 Port=1521
 DBName=testuser
 User=testuser
