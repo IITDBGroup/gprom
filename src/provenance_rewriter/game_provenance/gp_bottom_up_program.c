@@ -13,6 +13,7 @@
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "configuration/option.h"
 
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/node/nodetype.h"
@@ -3797,8 +3798,8 @@ createSkolemExpr (GPNodeType type, char *id, List *args)
     // create expression to concatenate parts of the skolem string
     result = popHeadOfListP(concatArgs);
     while(!LIST_EMPTY(concatArgs))
-        result = (Node *) createOpExpr("||", LIST_MAKE(result,
-                popHeadOfListP(concatArgs)));
+   		result = (Node *) createOpExpr(streq("lb",getStringOption("plugin.sqlserializer")) ? "+" : "||",
+    				LIST_MAKE(result,popHeadOfListP(concatArgs)));
 
     DEBUG_LOG("result expression is: %s", exprToSQL(result));
 
