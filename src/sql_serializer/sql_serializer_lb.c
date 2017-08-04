@@ -32,7 +32,12 @@ char *
 serializeOperatorModelLB(Node *q)
 {
     StringInfo str = makeStringInfo();
+
     //TODO change operators and functions in expressions to LogiQL equivalent
+    // add a rule for query output in lb
+    appendStringInfo(str,"%s","_(X,Y) <- _move(X,Y)");
+	appendStringInfoString(str, ".\n");
+
     datalogToStr(str, q, 0);
 
     return str->data;
