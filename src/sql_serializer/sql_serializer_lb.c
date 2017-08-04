@@ -22,6 +22,7 @@
 #include "model/datalog/datalog_model.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
+#include "utility/string_utils.h"
 
 static void datalogToStr(StringInfo str, Node *n, int indent);
 static char *constToLB(Constant *c);
@@ -55,7 +56,13 @@ datalogToStr(StringInfo str, Node *n, int indent)
 
             if (a->negated)
                 appendStringInfoString(str, "! ");
-            appendStringInfo(str, "%s(", a->rel);
+
+            // make IDB predicate local
+            if (DL_HAS_PROP(a,DL_IS_IDB_REL) || !DL_HAS_PROP(a,DL_IS_EDB_REL))
+            	appendStringInfo(str, "%s(", CONCAT_STRINGS("_", a->rel));
+            else
+            	appendStringInfo(str, "%s(", a->rel);
+
             FOREACH(Node,arg,a->args)
             {
                 datalogToStr(str, arg, indent);
@@ -131,7 +138,10 @@ datalogToStr(StringInfo str, Node *n, int indent)
         default:
         {
             if (IS_EXPR(n))
-                appendStringInfo(str, "%s", exprToSQL(n));
+            {
+            	char *result = replaceSubstr(exprToSQL(n), " || ", " + ");
+            	appendStringInfo(str, "%s", result);
+            }
             else
                 FATAL_LOG("should have never come here, datalog program should"
                         " not have nodes like this: %s",
