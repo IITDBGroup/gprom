@@ -144,7 +144,9 @@ datalogToStr(StringInfo str, Node *n, int indent)
         {
             if (IS_EXPR(n))
             {
-            	char *result = replaceSubstr(exprToSQL(n), " || ", " + ");
+            	char *result = NULL;
+            	result = replaceSubstr(exprToSQL(n), " || ", " + ");
+            	result = replaceSubstr(result, "'", "\"");
             	appendStringInfo(str, "%s", result);
             }
             else
