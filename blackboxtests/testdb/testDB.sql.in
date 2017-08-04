@@ -101,3 +101,10 @@ INSERT INTO TEMP_DATE VALUES (1,1, to_date('2017-01-01', 'yyyy-mm-dd'), to_date(
 INSERT INTO TEMP_DATE VALUES (1,1, to_date('2017-01-05', 'yyyy-mm-dd'), to_date('2017-02-15', 'yyyy-mm-dd'));
 INSERT INTO TEMP_DATE VALUES (1,1, to_date('2017-02-01', 'yyyy-mm-dd'), to_date('2017-04-07', 'yyyy-mm-dd'));
 COMMIT;
+
+CREATE TABLE FBA_TEST (
+	A INT,
+	B INT
+);
+
+ALTER TABLE FBA_TEST FLASHBACK ARCHIVE

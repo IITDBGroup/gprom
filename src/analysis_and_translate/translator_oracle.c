@@ -642,7 +642,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
                 SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(updateType));
                 DEBUG_NODE_BEATIFY_LOG("qo model of update for transaction is\n", child);
 
-                noProv = appendToTailOfList(noProv, createConstBool(TRUE));
+                noProv = appendToTailOfList(noProv, createConstBool(FALSE));
 
                 addChildOperator((QueryOperator *) result, child);
                 i++;

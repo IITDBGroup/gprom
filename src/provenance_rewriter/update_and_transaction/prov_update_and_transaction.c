@@ -505,6 +505,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
     boolean addAnnotAttrs = needAnnotAttributes(op);
     Set *tableUpdatedBefore = STRSET();
     char *reenactTargetTable = GET_STRING_PROP_STRING_VAL(op, PROP_PC_TABLE);
+    List *isNoProvs = (List *) GET_STRING_PROP(op, PROP_REENACT_NO_TRACK_LIST);
 
     // Loop through update translations and add version_startscn condition + attribute
 	FORBOTH_LC(uLc, trLc, op->transactionInfo->originalUpdates, op->op.inputs)
@@ -512,6 +513,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	    QueryOperator *q = (QueryOperator *) LC_P_VAL(trLc);
 	    Node *u = (Node *) LC_P_VAL(uLc);
 	    char *tableName = NULL;
+	    boolean prevIsNoProv = (i == 0) ? FALSE : BOOL_VALUE(getNthOfListP(isNoProvs, i-1));
 
 		// use original update to figure out type of each update (UPDATE/DELETE/INSERT)
 		// switch
@@ -571,7 +573,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
                 // determine attribute position in child
                 attrPos = getNumAttrs(OP_LCHILD(lC));
-                if (hasSetElem(tableUpdatedBefore, tableName) && addAnnotAttrs)
+                if (hasSetElem(tableUpdatedBefore, tableName) && addAnnotAttrs && !prevIsNoProv)
                     attrPos++;
 
                 lC->op.schema->attrDefs = appendToTailOfList(lC->op.schema->attrDefs,
@@ -698,7 +700,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 				// and annotation attributes are added then we have to add another
 				// +1
 				attrPos = getNumAttrs(OP_LCHILD(proj));
-				if (hasSetElem(tableUpdatedBefore, tableName) && addAnnotAttrs)
+				if (hasSetElem(tableUpdatedBefore, tableName) && addAnnotAttrs && !prevIsNoProv)
 				    attrPos++;
 
 				//Add SCN foreach CaseEpr
@@ -865,7 +867,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	if (reenactTargetTable != NULL)
 	{
 	    mergeRoot = getUpdateForPreviousTableVersion(op,
-	            reenactTargetTable, 0, updates);
+	            reenactTargetTable, -1, updates);
 
         if (mergeRoot == NULL)
             FATAL_LOG("cannot track provenance of table %s that is not affected by the transaction:", reenactTargetTable);
@@ -891,6 +893,9 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
 	INFO_OP_LOG("Merged updates are:", finalProj);
 	DEBUG_NODE_BEATIFY_LOG("Merged updates are:", finalProj);
+
+	// reverse tableNames again to avoid problems with adding conditions for ONLY UPDATED
+	reverseList(op->transactionInfo->updateTableNames);
 
 	// replace updates sequence with root of the whole merged update query
 	addChildOperator((QueryOperator *) op, finalProj);
@@ -996,14 +1001,14 @@ restrictToUpdatedRows (ProvenanceComputation *op)
     // if is simple and CBO is activated then make a choice between prefiltering and history join
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
     {
-    	int res;
+        int res;
 
-    	res = callback(2);
+        res = callback(2);
 
-    	if (res == 1)
-    		addConditionsToBaseTables(op);
-   		else
-   			extractUpdatedFromTemporalHistory(op);
+        if (res == 1)
+            addConditionsToBaseTables(op);
+        else
+            extractUpdatedFromTemporalHistory(op);
     }
     // else check which option is checked
     else

@@ -1033,6 +1033,17 @@ oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists)
         if (lType == rType && lType == DT_STRING)
             return DT_STRING;
     }
+
+    oName = strToUpper(oName);
+    if (streq(oName, "LIKE"))
+    {
+//        DataType lDt = getNthOfListInt(dataTypes, 0);
+//        DataType rDt = getNthOfListInt(dataTypes, 1);
+//
+//        if(lDt == rDt && lDt == DT_STRING)
+            return DT_BOOL;
+    }
+
     //TODO more operators
     *opExists = FALSE;
 
@@ -1151,6 +1162,7 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
         return dt;
     }
    //TODO
+
 
     *funcExists = FALSE;
 
