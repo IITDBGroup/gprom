@@ -34,10 +34,21 @@ serializeOperatorModelLB(Node *q)
     StringInfo str = makeStringInfo();
 
     //TODO change operators and functions in expressions to LogiQL equivalent
-    // add a rule for query output in lb
-    appendStringInfo(str,"%s","_(X,Y) <- _move(X,Y)");
-	appendStringInfoString(str, ".\n");
 
+    // add a rule to output query result in lb
+    DLProgram *p = (DLProgram *) q;
+	char *headPred = NULL;
+	int i = 0;
+
+	FOREACH(DLRule,a,p->rules)
+	{
+		if (i == 0)
+			headPred = a->head->rel;
+
+		i++;
+	}
+
+	appendStringInfo(str,"%s",CONCAT_STRINGS("_(X,Y) <- _", headPred, "(X,Y).\n"));
     datalogToStr(str, q, 0);
 
     return str->data;
@@ -144,6 +155,7 @@ datalogToStr(StringInfo str, Node *n, int indent)
         {
             if (IS_EXPR(n))
             {
+            	// replace string concat and single quote to plus and double for lb
             	char *result = NULL;
             	result = replaceSubstr(exprToSQL(n), " || ", " + ");
             	result = replaceSubstr(result, "'", "\"");
