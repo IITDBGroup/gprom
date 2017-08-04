@@ -873,9 +873,9 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     {
         List *expectedAttrs = analyzeNaturalJoinRef((FromTableRef *)j->left,
                 (FromTableRef *)j->right);
-    	if (j->from.attrNames == NULL)
-    	    j->from.attrNames = expectedAttrs;
-    	ASSERT(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
+        if (j->from.attrNames == NULL)
+            j->from.attrNames = expectedAttrs;
+        ASSERT(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
     }
     //JOIN_COND_USING
     //JOIN_COND_ON
@@ -890,7 +890,7 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     }
 
     j->from.dataTypes = CONCAT_LISTS((List *) copyObject(left->dataTypes),
-            (List *) copyObject(left->dataTypes));
+            (List *) copyObject(right->dataTypes));
 
     DEBUG_NODE_BEATIFY_LOG("join analysis:", j);
 }
