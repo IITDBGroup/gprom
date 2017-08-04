@@ -265,6 +265,61 @@ TEMPORAL (SELECT * FROM TEMP_DATE WITH TIME(T_BEGIN, T_END) WHERE A = 1);
  1 | 1 | 2017-02-15 | 2017-04-07 |
 </entry>
 
+<entry key="q15.query">
+TEMPORAL (SELECT a.A FROM TEMP_DATE WITH TIME(T_BEGIN, T_END) a, TEMP_DATE WITH TIME(T_BEGIN, T_END) b WHERE a.A = 1 AND B.A = 1);
+</entry>
+<entry key="q15.result">
+ A | T_B        | T_E        |
+------------------------------
+ 1 | 2017-01-01 | 2017-01-05 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-02-15 | 2017-04-07 |
+</entry>
+
+<entry key="q16.query">
+TEMPORAL (SELECT a.A FROM TEMP_DATE WITH TIME(T_BEGIN, T_END) a JOIN TEMP_DATE WITH TIME(T_BEGIN, T_END) b ON a.A=b.A WHERE a.A = 1 AND B.A = 1);
+</entry>
+<entry key="q16.result">
+A | T_B        | T_E        |
+------------------------------
+ 1 | 2017-01-01 | 2017-01-05 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-02-15 | 2017-04-07 |
+</entry>
+
+
+<entry key="q17.query">
+TEMPORAL (
+	SELECT a.A 
+	FROM 
+		TEMP_DATE WITH TIME(T_BEGIN, T_END) a 
+		JOIN
+		TEMP_DATE WITH TIME(T_BEGIN, T_END) b ON (a.A=b.A) 
+		JOIN 
+		TEMP_DATE WITH TIME(T_BEGIN, T_END) c ON (b.A=c.A) 
+	WHERE a.A = 1 AND B.A = 1);
+</entry>
+<entry key="q17.result">
+ A | T_B        | T_E        |
+------------------------------
+ 1 | 2017-01-01 | 2017-01-05 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-02-15 | 2017-04-07 |
+</entry>
+
 <entry key="q.query">
 </entry>
 <entry key="q.result">
