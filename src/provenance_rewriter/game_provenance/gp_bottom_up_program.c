@@ -602,7 +602,7 @@ static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, L
 				Node *lExpr;
 				Node *rExpr;
 				DLRule *moveRule;
-				lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
+				lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
 						copyObject(origAtom->args));
 				rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
 						copyObject(
@@ -615,7 +615,7 @@ static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, L
 		}
 		else
 		{
-			Node *lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
+			Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
 					copyObject(origAtom->args));
 			Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
 					copyObject(r->head->args));
@@ -911,7 +911,7 @@ static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbR
                     newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
                             getNthOfListP(replaceBoolArgs, k));
 
-				Node *lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
+				Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
 						copyObject(origAtom->args));
 				Node *rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel,
 						copyObject(
@@ -924,7 +924,7 @@ static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbR
         }
         else
         {
-            Node *lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
+            Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
                     copyObject(origAtom->args));
             Node *rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel,
                     copyObject(r->head->args));
@@ -1222,7 +1222,7 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
                             getNthOfListP(replaceBoolArgs, k));
 
                 // head atom -> rule hyper edge
-				lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
+				lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
 									   copyObject(origAtom->args));
 				rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel,
 						copyObject(
@@ -1236,7 +1236,7 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
         else
         {
             // head atom -> rule hyper edge
-            lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
+            lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
                                    copyObject(origAtom->args));
             rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel,
                     copyObject(
@@ -1675,7 +1675,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
                     newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
                             getNthOfListP(replaceBoolArgs, k));
 
-                Node *lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
+                Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
                         copyObject(origAtom->args));
                 Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
                         copyObject(
@@ -1688,7 +1688,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
         }
         else
         {
-            Node *lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
+            Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
                     copyObject(origAtom->args));
             Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
                     copyObject(r->head->args));
@@ -1801,7 +1801,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
                                     // check the goal predicate contains the head predicate
     //                                if(idbHeadPred != NULL && strstr(a->rel,idbHeadPred) != NULL)
                                     if(DL_HAS_PROP(a, DL_IS_IDB_REL))
-                                    	rExpr = createSkolemExpr(GP_NODE_POSREL,
+                                    	rExpr = createSkolemExpr(GP_NODE_TUPLE,
                                     	        atomRel, copyObject(a->args));
                                     else
                                     	rExpr = createSkolemExpr(GP_NODE_TUPLE,
@@ -1863,7 +1863,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
                                     // check the goal predicate contains the head predicate
     //                                if(idbHeadPred != NULL && strstr(a->rel,idbHeadPred) != NULL)
                                     if(DL_HAS_PROP(a, DL_IS_IDB_REL))
-                                    	rExpr = createSkolemExpr(GP_NODE_POSREL,
+                                    	rExpr = createSkolemExpr(GP_NODE_TUPLE,
                                     			Rel, copyObject(a->args));
                                     else
                                     	rExpr = createSkolemExpr(GP_NODE_TUPLE,
