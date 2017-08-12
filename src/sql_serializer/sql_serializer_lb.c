@@ -15,6 +15,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 
+#include "analysis_and_translate/translator_dl.h"
 #include "sql_serializer/sql_serializer_oracle.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
@@ -24,6 +25,7 @@
 #include "model/set/set.h"
 #include "utility/string_utils.h"
 
+static void fixProgramDataTypes(DLProgram *p, HashMap *predToRules);
 static void datalogToStr(StringInfo str, Node *n, int indent);
 static Node *fixExpression(Node *n);
 static Node *fixExpressionMutator (Node *n, void *context);
@@ -39,12 +41,18 @@ char *
 serializeOperatorModelLB(Node *q)
 {
     StringInfo str = makeStringInfo();
+    HashMap *predToRules = NEW_MAP(Constant,List);
 
     //TODO change operators and functions in expressions to LogiQL equivalent
 
     // add a rule to output query result in lb
     DLProgram *p = (DLProgram *) q;
-	char *headPred = NULL;
+
+    // fix data types
+    fixProgramDataTypes(p, predToRules);
+
+    // add predicate
+    char *headPred = NULL;
 	int i = 0;
 
 	FOREACH(DLRule,a,p->rules)
@@ -62,6 +70,25 @@ serializeOperatorModelLB(Node *q)
 }
 
 //TODO 1) sanitize constants (remove '' from strings), they have to be lower-case), sanitize rel names (lowercase), translate expressions (e.g., string concat to skolems)
+
+static void
+fixProgramDataTypes(DLProgram *p, HashMap *predToRules)
+{
+    // determine pred -> rules
+    FOREACH(DLRule,r,p->rules)
+    {
+        char *headPred = getHeadPredName(r);
+        APPEND_TO_MAP_VALUE_LIST(predToRules,headPred,r);
+    }
+    FOREACH(DLAtom,f,p->facts)
+    {
+        char *relName = f->rel;
+        APPEND_TO_MAP_VALUE_LIST(predToRules,relName,f);
+    }
+
+    // analyze rules to determine data types
+    analyzeProgramDTs(p, predToRules);
+}
 
 static void
 datalogToStr(StringInfo str, Node *n, int indent)

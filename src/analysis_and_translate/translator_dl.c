@@ -15,6 +15,7 @@
 #include "configuration/option.h"
 #include "log/logger.h"
 
+#include "analysis_and_translate/translator_dl.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
@@ -36,7 +37,6 @@ static QueryOperator *translateSafeRule(DLRule *r);
 static QueryOperator *translateUnSafeRule(DLRule *r);
 static QueryOperator *translateUnSafeGoal(DLAtom *r, int goalPos);
 static QueryOperator *translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart);
-static void analyzeProgramDTs (DLProgram *p, HashMap *predToRules);
 static void analyzeFactDTs (DLAtom *f, HashMap *predToDTs);
 static void analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules);
 static void setVarDTs (Node *expr, HashMap *varToDT);
@@ -112,21 +112,6 @@ translateQueryDL(Node *node)
     return NULL;
 }
 
-#define APPEND_TO_MAP_VALUE_LIST(map,key,elem) \
-    do { \
-        if(MAP_HAS_STRING_KEY((map),(key))) \
-        { \
-            KeyValue *_kv = MAP_GET_STRING_ENTRY((map),(key)); \
-            List *_valList = (List *) _kv->value; \
-            _valList = appendToTailOfList(_valList, (elem)); \
-            _kv->value = (Node *) _valList; \
-        } \
-        else \
-        { \
-            List *_valList = singleton((elem)); \
-            MAP_ADD_STRING_KEY((map),(key),_valList); \
-        } \
-    } while(0)
 
 static Node *
 translateProgram(DLProgram *p)
@@ -136,45 +121,45 @@ translateProgram(DLProgram *p)
     // activate option for returning input database
     if (getBoolOption(OPTION_INPUTDB))
     {
-    	List *inputRels = NIL;
-    	HashMap *taOp = NEW_MAP(Constant,List);
+        List *inputRels = NIL;
+        HashMap *taOp = NEW_MAP(Constant,List);
 
-    	// store relation names
-    	int key = 0;
-    	taRel = NEW_MAP(Constant,List);
+        // store relation names
+        int key = 0;
+        taRel = NEW_MAP(Constant,List);
 
-    	FOREACH(DLRule,r,p->rules)
-		{
-    		FOREACH(DLAtom,a,r->body)
-			{
-        		if(DL_HAS_PROP(a,DL_IS_EDB_REL))
-        		{
-        			MAP_ADD_STRING_KEY(taRel,itoa(key),a->rel);
+        FOREACH(DLRule,r,p->rules)
+        {
+            FOREACH(DLAtom,a,r->body)
+			        {
+                if(DL_HAS_PROP(a,DL_IS_EDB_REL))
+                {
+                    MAP_ADD_STRING_KEY(taRel,itoa(key),a->rel);
 
-        	    	List *attrNames = NIL;
-        	    	List *dts = NIL;
+                    List *attrNames = NIL;
+                    List *dts = NIL;
 
-        			attrNames = getAttributeNames(a->rel);
-            		dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
+                    attrNames = getAttributeNames(a->rel);
+                    dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
 
-        			TableAccessOperator *rel = createTableAccessOp(a->rel, NULL, a->rel, NIL, attrNames, dts);
+                    TableAccessOperator *rel = createTableAccessOp(a->rel, NULL, a->rel, NIL, attrNames, dts);
 
-//        			Node *cond = (Node *) createOpExpr("<",LIST_MAKE(makeNode(RowNumExpr),createConstInt(10)));
-//        			SelectionOperator *sel = createSelectionOp(cond, (QueryOperator *) rel, NIL, NULL);
+                    //        			Node *cond = (Node *) createOpExpr("<",LIST_MAKE(makeNode(RowNumExpr),createConstInt(10)));
+                    //        			SelectionOperator *sel = createSelectionOp(cond, (QueryOperator *) rel, NIL, NULL);
 
-        			ProjectionOperator *proj = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) rel);
-        			addChildOperator((QueryOperator *) proj, (QueryOperator *) rel);
+                    ProjectionOperator *proj = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) rel);
+                    addChildOperator((QueryOperator *) proj, (QueryOperator *) rel);
 
-        			MAP_ADD_STRING_KEY(taOp,a->rel,proj);
-        			key++;
-        		}
-			}
-		}
+                    MAP_ADD_STRING_KEY(taOp,a->rel,proj);
+                    key++;
+                }
+			        }
+        }
 
-    	FOREACH_HASH(QueryOperator,value,taOp)
-    		inputRels = appendToTailOfList(inputRels,value);
+        FOREACH_HASH(QueryOperator,value,taOp)
+        inputRels = appendToTailOfList(inputRels,value);
 
-    	answerRel = (Node *) inputRels;
+        answerRel = (Node *) inputRels;
     }
     else
     {
@@ -390,7 +375,7 @@ translateProgram(DLProgram *p)
     return answerRel;
 }
 
-static void
+void
 analyzeProgramDTs (DLProgram *p, HashMap *predToRules)
 {
     HashMap *predToDTs = NEW_MAP(Constant,List);
