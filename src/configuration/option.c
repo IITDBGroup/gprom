@@ -142,12 +142,14 @@ boolean opt_optimization_remove_unnecessary_columns = FALSE;
 boolean opt_optimization_remove_unnecessary_window_operators = FALSE;
 boolean opt_optimization_pull_up_duplicate_remove_operators = FALSE;
 
-
 // sanity check options
 boolean opt_operator_model_unique_schema_attribues = FALSE;
 boolean opt_operator_model_parent_child_links = FALSE;
 boolean opt_operator_model_schema_consistency = FALSE;
 boolean opt_operator_model_attr_reference_consistency = FALSE;
+
+// dl rewrite options
+boolean opt_whynot_adv = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -329,6 +331,14 @@ OptionInfo opts[] =
                 wrapOptionString(&sqlFile),
                 defOptionString(NULL)
         },
+        {
+                OPTION_INPUTDB,
+                "-inputdb",
+                "output input database relations.",
+                OPTION_BOOL,
+                wrapOptionBool(&opt_inputdb),
+                defOptionBool(FALSE)
+        },
         // backend, frontend and plugin selection
         {
                 OPTION_BACKEND,
@@ -415,14 +425,6 @@ OptionInfo opts[] =
                 defOptionString(NULL)
         },
         // boolean instrumentation options
-        {
-                OPTION_INPUTDB,
-                "-inputdb",
-                "output input database relations.",
-                OPTION_BOOL,
-                wrapOptionBool(&opt_inputdb),
-                defOptionBool(FALSE)
-        },
 		{
                 OPTION_TIMING,
                 "-timing",
@@ -653,6 +655,15 @@ OptionInfo opts[] =
                 opt_operator_model_attr_reference_consistency,
                 TRUE
         ),
+        // dl rewrite options
+		{
+				OPTION_WHYNOT_ADV,
+				"-whynot_adv",
+				"advanced way to create firing rules for whynot.",
+				OPTION_BOOL,
+				wrapOptionBool(&opt_whynot_adv),
+				defOptionBool(FALSE)
+		},
         // stopper to indicate end of array
         {
                 "STOPPER",

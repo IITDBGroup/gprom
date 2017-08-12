@@ -32,7 +32,7 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_INPUT_SQL_FILE "input.sqlFile"
 #define OPTION_INPUT_QUERY "input.query"
 #define OPTION_INPUT_QUERY_FILE "input.queryFile"
-
+#define OPTION_INPUTDB "inputdb"
 
 /* plugin options */
 #define OPTION_BACKEND "backend"
@@ -47,14 +47,13 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_PLUGIN_CBO "plugin.cbo"
 
 /* debug option methods */
-#define OPTION_INPUTDB "inputdb"
 #define OPTION_TIMING "timing"
 #define OPTION_MEMMEASURE "memdebug"
 #define OPTION_GRAPHVIZ "graphviz"
 #define OPTION_GRAPHVIZ_DETAILS "graphviz_details"
 #define OPTION_AGGRESSIVE_MODEL_CHECKING "aggressive_model_checking"
 
-/* provennace and some optimization options */
+/* provenance and some optimization options */
 #define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"
 #define OPTION_UPDATE_ONLY_USE_HISTORY_JOIN "only_updated_use_history"
 #define OPTION_TREEIFY_OPERATOR_MODEL "treefiy_prov_rewrite_input"
@@ -89,6 +88,9 @@ NEW_ENUM_WITH_TO_STRING(
 #define CHECK_OM_PARENT_CHILD_LINKS "check.parent_child_links"
 #define CHECK_OM_SCHEMA_CONSISTENCY "check.schema_consistency"
 #define CHECK_OM_ATTR_REF "check.attr_ref_consistency"
+
+/* dl rewrite options */
+#define OPTION_WHYNOT_ADV "whynot_adv"
 
 // declare option fields
 // show help only
