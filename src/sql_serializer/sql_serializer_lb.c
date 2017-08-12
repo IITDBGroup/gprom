@@ -55,6 +55,7 @@ serializeOperatorModelLB(Node *q)
     // add predicate
     char *headPred = NULL;
 	int i = 0;
+	int numArgs = 0;
 
 	headPred = p->ans;
 
@@ -71,8 +72,29 @@ serializeOperatorModelLB(Node *q)
 
 	replaceSingleOccVarsWithUnderscore(p);
 
-	// output head
-	appendStringInfo(str,"%s",CONCAT_STRINGS("_(X,Y) <- _", headPred, "(X,Y).\n"));
+	FOREACH(DLRule,r,p->rules)
+    {
+	    if (streq(headPred, getHeadPredName(r)))
+	    {
+	        DLAtom *a = r->head;
+	        numArgs = LIST_LENGTH(a->args);
+	    }
+    }
+
+
+	// output query rule (predicate _ in LB)
+	appendStringInfoString(str, "_(");
+	for(i = 0; i < numArgs; i++)
+	{
+	    appendStringInfo(str, "X%u%s", i, (i < numArgs -1 ? ", " : ""));
+	}
+	appendStringInfo(str, ") <- _%s(", headPred);
+	for(i = 0; i < numArgs; i++)
+    {
+        appendStringInfo(str, "X%u%s", i, (i < numArgs -1 ? ", " : ""));
+    }
+    appendStringInfoString(str, ").\n");
+//	appendStringInfo(str,"%s",CONCAT_STRINGS("_(X,Y) <- _", headPred, "(X,Y).\n"));
     datalogToStr(str, q, 0);
 
     return str->data;
