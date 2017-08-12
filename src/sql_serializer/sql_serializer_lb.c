@@ -26,6 +26,7 @@
 #include "utility/string_utils.h"
 
 static void fixProgramDataTypes(DLProgram *p, HashMap *predToRules);
+static void replaceSingleOccVarsWithUnderscore(DLProgram *p);
 static void datalogToStr(StringInfo str, Node *n, int indent);
 static Node *fixExpression(Node *n);
 static Node *fixExpressionMutator (Node *n, void *context);
@@ -55,14 +56,22 @@ serializeOperatorModelLB(Node *q)
     char *headPred = NULL;
 	int i = 0;
 
-	FOREACH(DLRule,a,p->rules)
-	{
-		if (i == 0)
-			headPred = a->head->rel;
+	headPred = p->ans;
 
-		i++;
+	if (headPred == NULL)
+	{
+        FOREACH(DLRule,a,p->rules)
+        {
+            if (i == 0)
+                headPred = a->head->rel;
+
+            i++;
+        }
 	}
 
+	replaceSingleOccVarsWithUnderscore(p);
+
+	// output head
 	appendStringInfo(str,"%s",CONCAT_STRINGS("_(X,Y) <- _", headPred, "(X,Y).\n"));
     datalogToStr(str, q, 0);
 
@@ -70,6 +79,12 @@ serializeOperatorModelLB(Node *q)
 }
 
 //TODO 1) sanitize constants (remove '' from strings), they have to be lower-case), sanitize rel names (lowercase), translate expressions (e.g., string concat to skolems)
+
+static void
+replaceSingleOccVarsWithUnderscore(DLProgram *p)
+{
+
+}
 
 static void
 fixProgramDataTypes(DLProgram *p, HashMap *predToRules)
@@ -109,9 +124,9 @@ datalogToStr(StringInfo str, Node *n, int indent)
 
             // make IDB predicate local
             if (DL_HAS_PROP(a,DL_IS_IDB_REL) || !DL_HAS_PROP(a,DL_IS_EDB_REL))
-            	appendStringInfo(str, "%s(", CONCAT_STRINGS("_", a->rel));
+                appendStringInfo(str, "%s(", CONCAT_STRINGS("_", a->rel));
             else
-            	appendStringInfo(str, "%s(", a->rel);
+            	    appendStringInfo(str, "%s(", a->rel);
 
             FOREACH(Node,arg,a->args)
             {
@@ -364,7 +379,7 @@ dataTypeToLB (DataType d)
         case DT_FLOAT:
              return "float";
         case DT_BOOL:
-             return "bool";
+             return "boolean";
         default:
             return "string"; //TODO
     }

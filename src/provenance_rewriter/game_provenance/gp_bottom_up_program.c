@@ -26,6 +26,7 @@
 //#define ADD_ARGS "L"
 #define NON_LINKED_POSTFIX "_nonlinked"
 #define NON_LINKED_POSTFIX_CHKPOS "_nonlinked_chkpos"
+#define MOVE_RULE_PRED "move"
 
 #define CONCAT_MAP_LIST(map,key,newList) \
     do { \
@@ -103,9 +104,9 @@ createBottomUpGPprogram (DLProgram *p)
 
         programRules = NIL;
         domainRules = NIL;
+        p->ans = strdup(MOVE_RULE_PRED);
 
         return program;
-
     }
     // why not
     else if(DL_HAS_PROP(p,DL_PROV_WHYNOT))
@@ -115,6 +116,7 @@ createBottomUpGPprogram (DLProgram *p)
 
         programRules = NIL;
         domainRules = NIL;
+        p->ans = strdup(MOVE_RULE_PRED);
 
         return program;
     }
