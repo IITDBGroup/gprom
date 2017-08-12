@@ -1171,7 +1171,7 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
         char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
                 strlen(NON_LINKED_POSTFIX));
         Node *lExpr;
-        Node *rExpr;
+        Node *rExpr = NULL;
         DLRule *moveRule;
         int goalPos = -1;
 
