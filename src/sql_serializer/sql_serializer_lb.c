@@ -61,13 +61,14 @@ serializeOperatorModelLB(Node *q)
 
 	if (headPred == NULL)
 	{
-        FOREACH(DLRule,a,p->rules)
-        {
-            if (i == 0)
+	    DLRule *a = (DLRule *) getNthOfListP(p->rules,0);
+//        FOREACH(DLRule,a,p->rules)
+//        {
+//            if (i == 0)
                 headPred = a->head->rel;
 
-            i++;
-        }
+//            i++;
+//        }
 	}
 
 	replaceSingleOccVarsWithUnderscore(p);
