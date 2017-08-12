@@ -106,7 +106,17 @@ serializeOperatorModelLB(Node *q)
 static void
 replaceSingleOccVarsWithUnderscore(DLProgram *p)
 {
+	FOREACH(DLRule,r,p->rules)
+	{
+		List *headArgs = r->head->args;
 
+		FOREACH(DLAtom,a,r->body)
+		{
+			FOREACH(DLVar,v,a->args)
+				if (!searchListNode(headArgs,(Node *) v))
+					v->name = CONCAT_STRINGS("_",v->name);
+		}
+	}
 }
 
 static void
