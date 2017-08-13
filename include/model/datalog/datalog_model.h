@@ -103,6 +103,9 @@ extern List *getBodyVars (DLRule *r);
 List *getBodyArgs (DLRule *r);
 extern List *getBodyPredVars (DLRule *r);
 extern List *getHeadVars (DLRule *r);
+extern List *getHeadExprVars (DLRule *r);
+extern List *getAtomExprVars (DLAtom *a);
+extern List *getExprVars(Node *expr);
 
 //extern List *getAtomVars (DLAtom *r);
 

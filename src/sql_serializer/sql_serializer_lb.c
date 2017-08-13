@@ -102,22 +102,42 @@ replaceSingleOccVarsWithUnderscore(DLProgram *p)
 {
 	FOREACH(DLRule,r,p->rules)
 	{
-		List *headArgs = r->head->args;
-		char *headRel = r->head->rel;
+		List *headVars = getHeadExprVars(r);
+		HashMap *varToCount = NEW_MAP(DLVar, Constant);
+		List *allVars;
 
+		// head vars cannot be replaced with _
+		FOREACH(DLVar,v,headVars)
+		{
+		    MAP_INCR_STRING_KEY(varToCount,v->name);
+		}
+
+		// might be comparison atom
 		FOREACH(DLAtom,a,r->body)
 		{
 			FOREACH(Node,n,a->args)
 			{
-				if (!searchListNode(headArgs,n))
-				{
-					if (isA(n,DLVar) && !streq(headRel,"move"))
-					{
-						DLVar *v = (DLVar *) n;
-						v->name = CONCAT_STRINGS("_",v->name);
-					}
-				}
+	            Set *argVars = makeNodeSetFromList(getExprVars(n));
+
+	            FOREACH_SET(DLVar,v,argVars)
+	            {
+	                MAP_INCR_STRING_KEY(varToCount,strdup(v->name));
+	            }
 			}
+		}
+
+		DEBUG_NODE_BEATIFY_LOG("var counts", varToCount);
+
+		// replace all occurances of variables that
+		allVars = getExprVars((Node *) r);
+		FOREACH(DLVar,v,allVars)
+		{
+		    int c = INT_VALUE(MAP_GET_STRING(varToCount, v->name));
+		    if (c == 0)
+		    {
+		        DEBUG_LOG("replace var %s with _", v->name);
+		        v->name = strdup("_");
+		    }
 		}
 	}
 }
