@@ -62,13 +62,7 @@ serializeOperatorModelLB(Node *q)
 	if (headPred == NULL)
 	{
 	    DLRule *a = (DLRule *) getNthOfListP(p->rules,0);
-//        FOREACH(DLRule,a,p->rules)
-//        {
-//            if (i == 0)
-                headPred = a->head->rel;
-
-//            i++;
-//        }
+        headPred = a->head->rel;
 	}
 
 	replaceSingleOccVarsWithUnderscore(p);
@@ -109,12 +103,21 @@ replaceSingleOccVarsWithUnderscore(DLProgram *p)
 	FOREACH(DLRule,r,p->rules)
 	{
 		List *headArgs = r->head->args;
+		char *headRel = r->head->rel;
 
 		FOREACH(DLAtom,a,r->body)
 		{
-			FOREACH(DLVar,v,a->args)
-				if (!searchListNode(headArgs,(Node *) v))
-					v->name = CONCAT_STRINGS("_",v->name);
+			FOREACH(Node,n,a->args)
+			{
+				if (!searchListNode(headArgs,n))
+				{
+					if (isA(n,DLVar) && !streq(headRel,"move"))
+					{
+						DLVar *v = (DLVar *) n;
+						v->name = CONCAT_STRINGS("_",v->name);
+					}
+				}
+			}
 		}
 	}
 }
