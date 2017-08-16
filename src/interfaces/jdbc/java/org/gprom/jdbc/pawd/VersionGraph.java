@@ -156,6 +156,23 @@ public class VersionGraph {
 				+ "\n]"
 				+ "IdCounter = "+ idCounter;
 	}
+	@Override
+	public boolean equals(Object other){
+	    if (other == null) return false;
+	    if (other == this) return true;
+	    if (!(other instanceof VersionGraph))return false;
+	    VersionGraph otherVG = (VersionGraph)other;
+	    if (Configuration.equals(otherVG.getConfiguration())){
+	    	if(Nodes.equals(otherVG.getNodes())){
+		    	if(otherVG.getEdges().equals(Edges)){
+	    			if(VersionEdges.equals(otherVG.getVersionEdges())){
+	    				return true;
+	    			}
+	    		}
+	    	}
+	    }
+	    return false;
+	}
 
 }
 

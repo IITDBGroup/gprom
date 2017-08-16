@@ -101,7 +101,18 @@ public class Node {
 				", Time=" + sdf.format(Time)+ "]\n";
 	}
 
-
+	@Override
+	public boolean equals(Object other){
+	    if (other == null) return false;
+	    if (other == this) return true;
+	    if (!(other instanceof Node))return false;
+	    Node otherNode = (Node)other;
+	    if(		Id == otherNode.getId() 
+	    	&& otherNode.getDescription() == Description
+	    	&& Materialized == otherNode.isMaterialized()
+	    	&& otherNode.getTime() == Time) return true;
+	    else return false;
+	}
 	
 
 }

@@ -29,6 +29,7 @@ public interface VersionGraphStore {
 	//method for saving configuration
 	public class Operation {
 		String Code;
+		OpType Op;
 		public Operation(String code, OpType op) {
 			Code = code;
 			Op = op;
@@ -64,10 +65,19 @@ public interface VersionGraphStore {
 		public String toString() {
 			return "[Code=" + Code + ", Op=" + Op + "]";
 		}
-		OpType Op;
+
 		public enum OpType{
 			Query,
 			Update
+		}
+		@Override 
+		public boolean equals(Object other){
+		    if (other == null) return false;
+		    if (other == this) return true;
+		    if (!(other instanceof Operation))return false;
+		    Operation otherOp = (Operation)other;
+		    if(otherOp.getCode().equals(Code) && otherOp.Op.equals(Op)) return true;
+		    return false;
 		}
 
 	}

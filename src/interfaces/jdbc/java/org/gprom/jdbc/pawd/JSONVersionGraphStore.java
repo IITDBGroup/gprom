@@ -186,6 +186,9 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 	public String Compose(VersionGraph V, Node s) {
 		Edge ce = V.getChildEdge(s);
 		if(ce == null) {
+			//return "_REL_"+s.getId();
+			//return Materialize(s.getDescription());
+			s.setMaterialized(true);
 			return s.getDescription();
 		}
 		String q = ce.getTransformation().getCode();
@@ -202,7 +205,9 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		m.appendTail(sb);
 		return sb.toString();
 	}
-	
+	public String Materialize(String node) {
+		return "Create Table AS ("+node+")";
+	}
 	public VersionGraph Load(JSONObject GraphJSONObject){
 		JSONArray nodes;
 		JSONArray edges;

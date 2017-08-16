@@ -76,4 +76,15 @@ public class VersionEdge {
 	public void setTime(Date time) {
 		Time = time;
 	}
+	@Override
+	public boolean equals(Object other){
+	    if (other == null) return false;
+	    if (other == this) return true;
+	    if (!(other instanceof VersionEdge))return false;
+	    VersionEdge otherVE = (VersionEdge) other;
+	    if(otherVE.getOriginal().equals(Original)
+	    	&& otherVE.getDerivative().equals(Derivative)
+	    	&& otherVE.getTime().equals(Time)) return true;
+	    else return false;
+	}
 }

@@ -101,5 +101,20 @@ public class Edge {
 		this.endNodes = new ArrayList<>(Arrays.asList(endNode));
 		this.Transformation= Transformation;
 	}
+	@Override
+	public boolean equals(Object other){
+	    if (other == null) return false;
+	    if (other == this) return true;
+	    if (!(other instanceof Edge))return false;
+	    Edge otherEdge = (Edge)other;
+	    if(otherEdge.getEndNodes().equals(endNodes)){
+	    	if(otherEdge.getStartNodes().equals(startNodes)){
+	    		if(Transformation.equals(otherEdge.getTransformation())){
+	    			return true;
+	    		}
+	    	}	
+	    }
+	    return false;
+	}
 
 }

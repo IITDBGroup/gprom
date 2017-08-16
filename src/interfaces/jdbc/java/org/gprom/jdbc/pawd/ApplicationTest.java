@@ -43,7 +43,7 @@ public class ApplicationTest {
 //		ArrayList<Node> NodeSet5 = new ArrayList<>( Arrays.asList(node5));
 		ArrayList<Node> NodeSetAll = new ArrayList<>(Arrays.asList(R,S,T));
 		//construct sample operations for edge creation
-		Operation op1 = new Operation("SELECT a, b * 2 AS b FROM $$1$$;",OpType.Query);
+		Operation op1 = new Operation("SELECT a, b * 2 AS b FROM $$1$$",OpType.Query);
 		Operation op2 = new Operation("SELECT sum(a), b FROM $$1$$ GROUP BY b",OpType.Update);
 		//sample set of edges
 		Edge edge1 = new Edge(R,S,op1);
@@ -92,4 +92,5 @@ public class ApplicationTest {
 		m.appendTail(sb);
 		System.out.println(sb.toString());
 	}
+
 }
