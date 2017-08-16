@@ -4231,16 +4231,18 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     	/*
     	 * no associate domain exits. Create a DL rule for domain based on the EDB atoms.
     	 */
+    	List *edbRels = NIL;
+
     	FOREACH(DLRule,r,solvedProgram->rules)
 		{
     		FOREACH(DLAtom,a,r->body)
 			{
-    			if (DL_HAS_PROP(a,DL_IS_EDB_REL))
+    			if (DL_HAS_PROP(a,DL_IS_EDB_REL)
+    					&& !searchListString(edbRels,strdup(a->rel)))
     			{
-    				if (a->negated)
-    					a->negated = FALSE;
+					edbRels = appendToTailOfList(edbRels,strdup(a->rel));
 
-    				FOREACH(DLVar,v,a->args)
+					FOREACH(DLVar,v,a->args)
 					{
 						DLRule *domRule = makeNode(DLRule);
 						DLAtom *domHead = makeNode(DLAtom);
@@ -4318,28 +4320,57 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 		}
 
 		// add DOM head to the neg body using hashmap
-		FOREACH(DLRule,nh,helpRules)
-    	{
-			List *addAtom = NIL;
+    	FOREACH(DLRule,eachRule,helpRules)
+		{
+			List *addDomHead = NIL;
 
-    		FOREACH(DLAtom,na,nh->body)
+			FOREACH(DLAtom,eachAtom,eachRule->body)
 			{
-    			if (na->negated)
-    			{
-    				FOREACH(Node,n,na->args)
+				if(eachAtom->negated)
+				{
+					FOREACH(Node,n,eachAtom->args)
 					{
 						if (isA(n,DLVar))
 						{
-	    					if (hasMapKey(domToNegAtom,(Node *) singleton(n)))
-	    	    				addAtom = appendToTailOfList(addAtom, getMap(domToNegAtom, (Node *) singleton(n)));
+							DLAtom *domHead = makeNode(DLAtom);
+							domHead->rel = "DOM";
+							domHead->args = singleton((DLVar *) n);
+
+							addDomHead = appendToTailOfList(addDomHead,domHead);
 						}
 					}
-    			}
+				}
 			}
 
-    		if (addAtom != NIL)
-    			nh->body = appendToTailOfList(nh->body,addAtom);
-    	}
+			FOREACH(DLAtom,a,addDomHead)
+				FOREACH(Node,n,a->args)
+					if (isA(n,DLVar))
+						eachRule->body = appendToTailOfList(eachRule->body,a);
+		}
+
+//
+//    	FOREACH(DLRule,nh,helpRules)
+//    	{
+//			List *addAtom = NIL;
+//
+//    		FOREACH(DLAtom,na,nh->body)
+//			{
+//    			if (na->negated)
+//    			{
+//    				FOREACH(Node,n,na->args)
+//					{
+//						if (isA(n,DLVar))
+//						{
+//	    					if (hasMapKey(domToNegAtom,(Node *) singleton(n)))
+//	    	    				addAtom = appendToTailOfList(addAtom, getMap(domToNegAtom, (Node *) singleton(n)));
+//						}
+//					}
+//    			}
+//			}
+//
+//    		if (addAtom != NIL)
+//    			nh->body = appendToTailOfList(nh->body,addAtom);
+//    	}
 
 		// replace DOM head var name and constant to variable
 		FOREACH(DLRule,dr,domainRules)
