@@ -4219,12 +4219,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 			h = eachNegheadRule;
 		}
-
-    	FOREACH(DLRule,r,negedbRules)
-    		setIDBBody(r);
-
-    	FOREACH(DLRule,r,helpRules)
-    		setIDBBody(r);
 	}
     else
     {
@@ -4247,7 +4241,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						DLRule *domRule = makeNode(DLRule);
 						DLAtom *domHead = makeNode(DLAtom);
 
-						domHead->rel = "DOM";
+						domHead->rel = "DQ";
 						domHead->args = singleton(v);
 
 						DLAtom *domBody = copyObject(a);
@@ -4259,18 +4253,18 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			}
 		}
 
-    	HashMap *domToNegAtom = NEW_MAP(List,DLAtom);
+//    	HashMap *domToNegAtom = NEW_MAP(List,DLAtom);
 
     	// make the dom rule union
     	FOREACH(DLRule,dr,domainRules)
     	{
-        	/*
-        	 * store DOM head for later use for neg user question predicate
-        	 * key = domain head / value = domain rule
-        	 */
-    		Node *key = (Node *) copyObject(dr->head->args);
-			Node *value = (Node *) copyObject(dr->head);
-    		ADD_TO_MAP(domToNegAtom, createNodeKeyValue(key,value));
+//        	/*
+//        	 * store DOM head for later use for neg user question predicate
+//        	 * key = domain head / value = domain rule
+//        	 */
+//    		Node *key = (Node *) copyObject(dr->head->args);
+//			Node *value = (Node *) copyObject(dr->head);
+//    		ADD_TO_MAP(domToNegAtom, createNodeKeyValue(key,value));
 
     		// replace var name in the body of the rule
         	HashMap *domVarToAtom = NEW_MAP(DLVar,DLVar);
@@ -4304,7 +4298,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     					if (isA(n,DLVar))
     					{
         					DLAtom *domHead = makeNode(DLAtom);
-        					domHead->rel = "DOM";
+        					domHead->rel = "DQ";
         					domHead->args = singleton((DLVar *) n);
 
         					addDomHead = appendToTailOfList(addDomHead,domHead);
@@ -4313,10 +4307,11 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				}
 			}
 
+    		reverseList(addDomHead);
     		FOREACH(DLAtom,a,addDomHead)
     			FOREACH(Node,n,a->args)
     				if (isA(n,DLVar))
-    					eachRule->body = appendToTailOfList(eachRule->body,a);
+    					eachRule->body = appendToHeadOfList(eachRule->body,a);
 		}
 
 		// add DOM head to the neg body using hashmap
@@ -4333,7 +4328,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						if (isA(n,DLVar))
 						{
 							DLAtom *domHead = makeNode(DLAtom);
-							domHead->rel = "DOM";
+							domHead->rel = "DQ";
 							domHead->args = singleton((DLVar *) n);
 
 							addDomHead = appendToTailOfList(addDomHead,domHead);
@@ -4342,10 +4337,11 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				}
 			}
 
+			reverseList(addDomHead);
 			FOREACH(DLAtom,a,addDomHead)
 				FOREACH(Node,n,a->args)
 					if (isA(n,DLVar))
-						eachRule->body = appendToTailOfList(eachRule->body,a);
+						eachRule->body = appendToHeadOfList(eachRule->body,a);
 		}
 
 //
@@ -4409,6 +4405,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			}
 		}
     }
+
+	FOREACH(DLRule,r,negedbRules)
+		setIDBBody(r);
+
+	FOREACH(DLRule,r,helpRules)
+		setIDBBody(r);
 
 	DEBUG_LOG("------------- STEP 5 ---------------\ncreated unlinked rules:\n%s\nand unlinked help rules:\n%s\nand linked rules:\n%s\nand help rules:\n%s\nand EDB help rules:\n%s\nand EDB rules:\n%s\nand move rules:\n%s\nand domain rules:\n%s",
 	            datalogToOverviewString((Node *) unLinkedRules),
