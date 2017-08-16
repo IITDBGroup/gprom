@@ -4431,14 +4431,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     	                           || DL_HAS_PROP(r,DL_UNDER_NEG_WON));
     }
 
-    solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, ruleWon ? NIL : negedbRules,
-    										edbRules, helpRules, unLinkedRules,
-												ruleWon ? NIL : unLinkedHelpRules, newRules);
-
-//    if (ruleWon)
-//        solvedProgram->rules = CONCAT_LISTS(solvedProgram->doms ? domainRules : NIL, moveRules, edbRules, helpRules, unLinkedRules, newRules);
-//    else
-//    	solvedProgram->rules = CONCAT_LISTS(solvedProgram->doms ? domainRules : NIL, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
+    if (ruleWon)
+        solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, helpRules, unLinkedRules, newRules);
+    else
+    	solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
 
     INFO_LOG("gp program is:\n%s", datalogToOverviewString((Node *) solvedProgram));
 
