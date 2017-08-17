@@ -4222,188 +4222,196 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	}
     else
     {
-    	/*
-    	 * no associate domain exits. Create a DL rule for domain based on the EDB atoms.
-    	 */
-    	List *edbRels = NIL;
-
-    	FOREACH(DLRule,r,solvedProgram->rules)
-		{
-    		FOREACH(DLAtom,a,r->body)
-			{
-    			if (DL_HAS_PROP(a,DL_IS_EDB_REL)
-    					&& !searchListString(edbRels,strdup(a->rel)))
-    			{
-					edbRels = appendToTailOfList(edbRels,strdup(a->rel));
-
-					FOREACH(DLVar,v,a->args)
-					{
-						DLRule *domRule = makeNode(DLRule);
-						DLAtom *domHead = makeNode(DLAtom);
-
-						domHead->rel = "DQ";
-						domHead->args = singleton(v);
-
-						DLAtom *domBody = copyObject(a);
-						domRule = createDLRule(domHead, singleton(domBody));
-
-						domainRules = appendToTailOfList(domainRules,domRule);
-					}
-    			}
-			}
-		}
-
-//    	HashMap *domToNegAtom = NEW_MAP(List,DLAtom);
-
-    	// make the dom rule union
-    	FOREACH(DLRule,dr,domainRules)
+    	if(DL_HAS_PROP(solvedProgram,DL_PROV_WHYNOT))
     	{
-//        	/*
-//        	 * store DOM head for later use for neg user question predicate
-//        	 * key = domain head / value = domain rule
-//        	 */
-//    		Node *key = (Node *) copyObject(dr->head->args);
-//			Node *value = (Node *) copyObject(dr->head);
-//    		ADD_TO_MAP(domToNegAtom, createNodeKeyValue(key,value));
+        	/*
+        	 * no associate domain exits. Create a DL rule for domain based on the EDB atoms.
+        	 */
+        	List *edbRels = NIL;
 
-    		// replace var name in the body of the rule
-        	HashMap *domVarToAtom = NEW_MAP(DLVar,DLVar);
-        	DLVar *v = (DLVar *) getNthOfListP(dr->head->args,0);
-   			DLVar *nv = createDLVar(strdup("DV"), DT_STRING);
-    		ADD_TO_MAP(domVarToAtom, createNodeKeyValue((Node *) v, (Node *) nv));
-
-    		List *newVars = NIL;
-    		FOREACH(DLAtom,a,dr->body)
+        	FOREACH(DLRule,r,solvedProgram->rules)
     		{
-    			FOREACH(Node,n,a->args)
-				{
-    				newVars = appendToTailOfList(newVars,
-    								hasMapKey(domVarToAtom,n) ? getMap(domVarToAtom,n) : n);
-				}
-    			a->args = newVars;
+        		FOREACH(DLAtom,a,r->body)
+    			{
+        			if (DL_HAS_PROP(a,DL_IS_EDB_REL)
+        					&& !searchListString(edbRels,strdup(a->rel)))
+        			{
+        				if (a->negated)
+        					a->negated = FALSE;
+
+    					edbRels = appendToTailOfList(edbRels,strdup(a->rel));
+
+    					FOREACH(DLVar,v,a->args)
+    					{
+    						DLRule *domRule = makeNode(DLRule);
+    						DLAtom *domHead = makeNode(DLAtom);
+
+    						domHead->rel = "DQ";
+    						domHead->args = singleton(v);
+
+    						DLAtom *domBody = copyObject(a);
+    						domRule = createDLRule(domHead, singleton(domBody));
+
+    						domainRules = appendToTailOfList(domainRules,domRule);
+    					}
+        			}
+    			}
+    		}
+
+    //    	HashMap *domToNegAtom = NEW_MAP(List,DLAtom);
+
+        	// make the dom rule union
+        	FOREACH(DLRule,dr,domainRules)
+        	{
+    //        	/*
+    //        	 * store DOM head for later use for neg user question predicate
+    //        	 * key = domain head / value = domain rule
+    //        	 */
+    //    		Node *key = (Node *) copyObject(dr->head->args);
+    //			Node *value = (Node *) copyObject(dr->head);
+    //    		ADD_TO_MAP(domToNegAtom, createNodeKeyValue(key,value));
+
+        		// replace var name in the body of the rule
+            	HashMap *domVarToAtom = NEW_MAP(DLVar,DLVar);
+            	DLVar *v = (DLVar *) getNthOfListP(dr->head->args,0);
+       			DLVar *nv = createDLVar(strdup("DV"), DT_STRING);
+        		ADD_TO_MAP(domVarToAtom, createNodeKeyValue((Node *) v, (Node *) nv));
+
+        		List *newVars = NIL;
+        		FOREACH(DLAtom,a,dr->body)
+        		{
+        			FOREACH(Node,n,a->args)
+    				{
+        				newVars = appendToTailOfList(newVars,
+        								hasMapKey(domVarToAtom,n) ? getMap(domVarToAtom,n) : n);
+    				}
+        			a->args = newVars;
+        		}
+        	}
+
+        	// add DOM head to the neg atom for edb help rules
+        	FOREACH(DLRule,eachRule,negedbRules)
+    		{
+        		List *addDomHead = NIL;
+
+        		FOREACH(DLAtom,eachAtom,eachRule->body)
+    			{
+        			if(eachAtom->negated)
+        			{
+        				FOREACH(Node,n,eachAtom->args)
+    					{
+        					if (isA(n,DLVar))
+        					{
+            					DLAtom *domHead = makeNode(DLAtom);
+            					domHead->rel = "DQ";
+            					domHead->args = singleton((DLVar *) n);
+
+            					addDomHead = appendToTailOfList(addDomHead,domHead);
+        					}
+    					}
+    				}
+    			}
+
+        		reverseList(addDomHead);
+        		FOREACH(DLAtom,a,addDomHead)
+        			FOREACH(Node,n,a->args)
+        				if (isA(n,DLVar))
+        					eachRule->body = appendToHeadOfList(eachRule->body,a);
+    		}
+
+    		// add DOM head to the neg body using hashmap
+        	FOREACH(DLRule,eachRule,helpRules)
+    		{
+    			List *addDomHead = NIL;
+
+    			FOREACH(DLAtom,eachAtom,eachRule->body)
+    			{
+    				if(eachAtom->negated)
+    				{
+    					FOREACH(Node,n,eachAtom->args)
+    					{
+    						if (isA(n,DLVar))
+    						{
+    							DLAtom *domHead = makeNode(DLAtom);
+    							domHead->rel = "DQ";
+    							domHead->args = singleton((DLVar *) n);
+
+    							addDomHead = appendToTailOfList(addDomHead,domHead);
+    						}
+    					}
+    				}
+    			}
+
+    			reverseList(addDomHead);
+    			FOREACH(DLAtom,a,addDomHead)
+    				FOREACH(Node,n,a->args)
+    					if (isA(n,DLVar))
+    						eachRule->body = appendToHeadOfList(eachRule->body,a);
+    		}
+
+    //
+    //    	FOREACH(DLRule,nh,helpRules)
+    //    	{
+    //			List *addAtom = NIL;
+    //
+    //    		FOREACH(DLAtom,na,nh->body)
+    //			{
+    //    			if (na->negated)
+    //    			{
+    //    				FOREACH(Node,n,na->args)
+    //					{
+    //						if (isA(n,DLVar))
+    //						{
+    //	    					if (hasMapKey(domToNegAtom,(Node *) singleton(n)))
+    //	    	    				addAtom = appendToTailOfList(addAtom, getMap(domToNegAtom, (Node *) singleton(n)));
+    //						}
+    //					}
+    //    			}
+    //			}
+    //
+    //    		if (addAtom != NIL)
+    //    			nh->body = appendToTailOfList(nh->body,addAtom);
+    //    	}
+
+    		// replace DOM head var name and constant to variable
+    		FOREACH(DLRule,dr,domainRules)
+    		{
+    			DLVar *v;
+    			Node *n = (Node *) getNthOfListP(dr->head->args,0);
+
+    			if (isA(n,DLVar))
+    			{
+    				v = (DLVar *) n;
+    				v->name = strdup("DV");
+    			}
+
+    			if (isA(n,Constant))
+    			{
+    				v = createDLVar(strdup("DV"), DT_STRING);
+    				dr->head->args = singleton(v);
+    			}
+
+
+    			List *newDomBodyArgs = NIL;
+
+    			FOREACH(DLAtom,ba,dr->body)
+    			{
+    				int i = 0;
+
+    				FOREACH(Node,bn,ba->args)
+    				{
+    					if (isA(bn,Constant))
+    					{
+    						DLVar *replaceConst = createDLVar(CONCAT_STRINGS(strdup("C"),itoa(i++)), DT_STRING);
+    						newDomBodyArgs = appendToTailOfList(newDomBodyArgs,replaceConst);
+    					}
+    					else
+    						newDomBodyArgs = appendToTailOfList(newDomBodyArgs,(DLVar *) bn);
+    				}
+    				ba->args = copyObject(newDomBodyArgs);
+    			}
     		}
     	}
-
-    	// add DOM head to the neg atom for edb help rules
-    	FOREACH(DLRule,eachRule,negedbRules)
-		{
-    		List *addDomHead = NIL;
-
-    		FOREACH(DLAtom,eachAtom,eachRule->body)
-			{
-    			if(eachAtom->negated)
-    			{
-    				FOREACH(Node,n,eachAtom->args)
-					{
-    					if (isA(n,DLVar))
-    					{
-        					DLAtom *domHead = makeNode(DLAtom);
-        					domHead->rel = "DQ";
-        					domHead->args = singleton((DLVar *) n);
-
-        					addDomHead = appendToTailOfList(addDomHead,domHead);
-    					}
-					}
-				}
-			}
-
-    		reverseList(addDomHead);
-    		FOREACH(DLAtom,a,addDomHead)
-    			FOREACH(Node,n,a->args)
-    				if (isA(n,DLVar))
-    					eachRule->body = appendToHeadOfList(eachRule->body,a);
-		}
-
-		// add DOM head to the neg body using hashmap
-    	FOREACH(DLRule,eachRule,helpRules)
-		{
-			List *addDomHead = NIL;
-
-			FOREACH(DLAtom,eachAtom,eachRule->body)
-			{
-				if(eachAtom->negated)
-				{
-					FOREACH(Node,n,eachAtom->args)
-					{
-						if (isA(n,DLVar))
-						{
-							DLAtom *domHead = makeNode(DLAtom);
-							domHead->rel = "DQ";
-							domHead->args = singleton((DLVar *) n);
-
-							addDomHead = appendToTailOfList(addDomHead,domHead);
-						}
-					}
-				}
-			}
-
-			reverseList(addDomHead);
-			FOREACH(DLAtom,a,addDomHead)
-				FOREACH(Node,n,a->args)
-					if (isA(n,DLVar))
-						eachRule->body = appendToHeadOfList(eachRule->body,a);
-		}
-
-//
-//    	FOREACH(DLRule,nh,helpRules)
-//    	{
-//			List *addAtom = NIL;
-//
-//    		FOREACH(DLAtom,na,nh->body)
-//			{
-//    			if (na->negated)
-//    			{
-//    				FOREACH(Node,n,na->args)
-//					{
-//						if (isA(n,DLVar))
-//						{
-//	    					if (hasMapKey(domToNegAtom,(Node *) singleton(n)))
-//	    	    				addAtom = appendToTailOfList(addAtom, getMap(domToNegAtom, (Node *) singleton(n)));
-//						}
-//					}
-//    			}
-//			}
-//
-//    		if (addAtom != NIL)
-//    			nh->body = appendToTailOfList(nh->body,addAtom);
-//    	}
-
-		// replace DOM head var name and constant to variable
-		FOREACH(DLRule,dr,domainRules)
-		{
-			DLVar *v;
-			Node *n = (Node *) getNthOfListP(dr->head->args,0);
-
-			if (isA(n,DLVar))
-			{
-				v = (DLVar *) n;
-				v->name = strdup("DV");
-			}
-
-			if (isA(n,Constant))
-			{
-				v = createDLVar(strdup("DV"), DT_STRING);
-				dr->head->args = singleton(v);
-			}
-
-
-			List *newDomBodyArgs = NIL;
-
-			FOREACH(DLAtom,ba,dr->body)
-			{
-				FOREACH(Node,bn,ba->args)
-				{
-					if (isA(bn,Constant))
-					{
-						DLVar *replaceConst = createDLVar(strdup("C"), DT_STRING);
-						newDomBodyArgs = appendToTailOfList(newDomBodyArgs,replaceConst);
-					}
-					else
-						newDomBodyArgs = appendToTailOfList(newDomBodyArgs,(DLVar *) bn);
-				}
-				ba->args = copyObject(newDomBodyArgs);
-			}
-		}
     }
 
 	FOREACH(DLRule,r,negedbRules)
