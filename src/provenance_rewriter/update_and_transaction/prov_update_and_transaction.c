@@ -96,6 +96,7 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     char *reenactTargetTable = GET_STRING_PROP_STRING_VAL(op, PROP_PC_TABLE);
     List *isNoProvs = (List *) GET_STRING_PROP(op, PROP_REENACT_NO_TRACK_LIST);
     boolean addAnnotAttrs = needAnnotAttributes(op);
+    ProvenanceTransactionInfo *t = op->transactionInfo;
     int i;
 
     // updates to process
@@ -207,16 +208,22 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     }
     // if no provenance is requested and we are doing REENACT AS OF, then we have to set
     // the asOf field of each table access operator
-    if (op->provType == PROV_NONE && op->asOf != NULL)
+    if (op->provType != PROV_NONE || (op->provType == PROV_NONE && op->asOf != NULL))
     {
         List *tables = NIL;
+        Node *asOf;
+
+        if (op->inputType == PROV_INPUT_REENACT)
+            asOf = op->asOf;
+        else
+            asOf = getNthOfListP(t->scns, 0);
 
         // find all table access operators
         findTableAccessVisitor((Node *) op->op.inputs, &tables);
 
         FOREACH(TableAccessOperator,t,tables)
         {
-            t->asOf = copyObject(op->asOf);
+            t->asOf = copyObject(asOf);
         }
     }
 
