@@ -206,9 +206,10 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
         addChildOperator((QueryOperator *) op,
                 (QueryOperator *) getTailOfListP(updates));
     }
-    // if no provenance is requested and we are doing REENACT AS OF, then we have to set
-    // the asOf field of each table access operator
-    if (op->provType != PROV_NONE || (op->provType == PROV_NONE && op->asOf != NULL))
+    // if we are doing REENACT AS OF , then we have to set
+    // the asOf field of each table access operator. Same applies if we are computing
+    // transaction provenance.
+    if (op->provType != PROV_NONE || (op->asOf != NULL))
     {
         List *tables = NIL;
         Node *asOf;
