@@ -6,7 +6,9 @@ package org.gprom.jdbc.pawd;
 
 
 import java.util.ArrayList;
+import java.util.Map;
 
+import org.gprom.jdbc.pawd.VersionGraphStore.Operation.Materialization;
 import org.json.JSONObject;
 /**
  * @author Amer
@@ -21,7 +23,7 @@ public interface VersionGraphStore {
 	public VersionGraph Load(JSONObject GraphJSONArray);
 	public void UpdateCall(VersionGraph V, Node s);
 	public JSONObject Save(VersionGraph V);
-	public String Compose(VersionGraph V, Node s);
+	public String Compose(VersionGraph V, Node s, Map<Node,Materialization> MaterializationPlan);
 	public ArrayList<VersionGraph> getPath(VersionGraph V,Node n);
 	//public VersionGraph genPathes(ArrayList<VersionGraph>Graphs,VersionGraph V,Node t);
 	//store as a JSON object
@@ -69,6 +71,10 @@ public interface VersionGraphStore {
 		public enum OpType{
 			Query,
 			Update
+		}
+		public enum Materialization{
+			isMaterialized,
+			notMaterialized
 		}
 		@Override 
 		public boolean equals(Object other){

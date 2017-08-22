@@ -2,14 +2,19 @@
  * 
  */
 package org.gprom.jdbc.pawd;
+import org.stringtemplate.v4.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.EmptyStackException;
 import java.util.List;
+import java.util.Map;
+import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.gprom.jdbc.pawd.VersionGraphStore.Operation.Materialization;
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation.OpType;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -182,31 +187,127 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		}
 		return VG;
 	}
-	
-	public String Compose(VersionGraph V, Node s) {
-		Edge ce = V.getChildEdge(s);
+	public String Compose(VersionGraph V, Node startNode, Map<Node,Materialization> MPlan){
+		Stack<Node> fullStack = new Stack<Node>();
+		String lastq= null;
+		fullStack.push(startNode);
+		while(V.getChildEdge(startNode) != null){
+			Edge currentEdge = V.getChildEdge(startNode);
+			int my_size = currentEdge.getStartNodes().size();
+			//this block of code is temporary
+			if(my_size>1){
+				String [] parentsSQL = new String[my_size] ;
+				ArrayList<Node> parents = new ArrayList<Node>();
+				for(int i=0;i<my_size;i++){
+//					System.out.println("looping "+i);
+//					System.out.println("Edge is "+ currentEdge);
+					Node current = currentEdge.getStartNodes().get(i);
+//					System.out.println("current Node "+ current);
+					parents.add(current);
+					parentsSQL[i] = Compose(V,current,MPlan);
+				}
+				if(MPlan.get(startNode)== Materialization.isMaterialized){
+					lastq = Materialize(ConstructFromMany(V,parents,parentsSQL), startNode);
+				}else{
+					lastq = ConstructFromMany(V,parents,parentsSQL);
+				}
+				return lastq;
+			}
+			//end of temp block
+			startNode = currentEdge.getStartNodes().get(0);
+			fullStack.push(startNode);
+		}
+		while (!fullStack.isEmpty()) {
+			try {
+				Node end = fullStack.pop();
+				Node start = end;
+				while (MPlan.get(start) == Materialization.notMaterialized) {
+					try {
+						start = fullStack.pop();
+					}catch (EmptyStackException e) {
+				       //  System.out.println("empty stack");
+				         break;
+					}
+				}
+//				System.out.println("this is lastq before = "+ lastq);
+//				System.out.println("this is start "+ start.getDescription());
+//				System.out.println("this is end "+ end.getDescription());
+				if(MPlan.get(start)== Materialization.isMaterialized){
+					lastq = Materialize(Construct(V,start,end,lastq), start);
+				}else{
+					lastq = Construct(V,start,end,lastq);
+				}
+//				System.out.println("this is lastq after = "+ lastq);
+			} catch (EmptyStackException e) {
+//		         System.out.println("empty stack");
+		         break;
+			}
+		}
+		return lastq;
+	}
+	//construct an sql query of a series of nodes from start --> end 
+	public String ConstructFromMany(VersionGraph V, ArrayList<Node> parents, String[] parentsSQL){
+//		System.out.println("Construction from MANY");
+		Edge ce = V.getParentEdge(parents);
+		String q = ce.getTransformation().getCode();
+		String pattern = "(\\${2}\\d\\${2})";
+		Pattern r = Pattern.compile(pattern);
+		Matcher m = r.matcher(q);
+		StringBuffer sb = new StringBuffer();
+		String replacement = "";
+		int index;
+		while(m.find()){
+			index = Integer.parseInt(q.substring(m.start()+2, m.end()-2));
+			replacement= "("+parentsSQL[index-1]+")";
+			m.appendReplacement(sb, replacement);
+		}
+		m.appendTail(sb);
+//		System.out.println("replacement of ConstructMany : "+replacement);
+		return sb.toString();
+	}
+	public String Construct(VersionGraph V, Node start, Node end,String parentQ) {
+		Edge ce = V.getChildEdge(start);
 		if(ce == null) {
-			//return "_REL_"+s.getId();
-			//return Materialize(s.getDescription());
-			s.setMaterialized(true);
-			return s.getDescription();
+//			System.out.println("Construct start "+ start.getDescription());
+//			System.out.println("Construct end "+ end.getDescription());
+//			System.out.println("the return"+end.getDescription());
+			return start.getDescription();
 		}
 		String q = ce.getTransformation().getCode();
 		String pattern = "(\\${2}\\d\\${2})";
 		Pattern r = Pattern.compile(pattern);
 		Matcher m = r.matcher(q);
-		m.find();
-		int index = Integer.parseInt(String.valueOf(q.charAt(m.start()+2)));
-		Node t = ce.getStartNodes().get(index-1);
-		String replacement = "("+Compose(V,t)+")";
-		//System.out.println(m.find());
 		StringBuffer sb = new StringBuffer();
+		String replacement;
+		m.find();
+		int index = Integer.parseInt(q.substring(m.start()+2, m.end()-2));
+		if(start.equals(end)){
+			replacement ="("+ parentQ+")";
+		}
+		else{
+			start = ce.getStartNodes().get(index-1);
+			replacement= "("+Construct(V,start,end,parentQ)+")";
+		}
 		m.appendReplacement(sb, replacement);
+		
+		//System.out.println(m.find());
 		m.appendTail(sb);
+//		System.out.println("replacement"+replacement);
 		return sb.toString();
 	}
-	public String Materialize(String node) {
-		return "Create Table AS ("+node+")";
+	//materialize a node
+	//set the materialized value
+	//add a new table to JDBC
+	public String Materialize(String sql, Node node) {
+			node.setMaterialized(true);
+			JDBCConnect conn= new JDBCConnect();
+			String newName = "REL_"+node.getDescription();
+			ST query = new ST("CREATE TABLE <NodeID> AS SELECT * FROM (<NodeDesc>)");
+			query.add("NodeID", newName);
+			query.add("NodeDesc", sql);
+			String q = query.render();
+			conn.RunUpdate(q);
+			return newName;
 	}
 	public VersionGraph Load(JSONObject GraphJSONObject){
 		JSONArray nodes;
@@ -257,7 +358,6 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 		}
 		return null;
 	}
-
 	public void Configure(VersionGraph V){
 		List<String> config = new ArrayList<>();
 		for(Node t: V.getNodes()){
@@ -299,60 +399,6 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 			}
 		}
 	}
-	//Update(V,n);
-	public class ConnectionInfo{
-		String Username;
-		String Password;
-		String URL;
-		String Database;
-		/**
-		 * @return the username
-		 */
-		public String getUsername() {
-			return Username;
-		}
-		/**
-		 * @param username the username to set
-		 */
-		public void setUsername(String username) {
-			Username = username;
-		}
-		/**
-		 * @return the password
-		 */
-		public String getPassword() {
-			return Password;
-		}
-		/**
-		 * @param password the password to set
-		 */
-		public void setPassword(String password) {
-			Password = password;
-		}
-		/**
-		 * @return the uRL
-		 */
-		public String getURL() {
-			return URL;
-		}
-		/**
-		 * @param uRL the uRL to set
-		 */
-		public void setURL(String uRL) {
-			URL = uRL;
-		}
-		/**
-		 * @return the database
-		 */
-		public String getDatabase() {
-			return Database;
-		}
-		/**
-		 * @param database the database to set
-		 */
-		public void setDatabase(String database) {
-			Database = database;
-		}
-	}
+
 
 }

@@ -93,7 +93,15 @@ public class VersionGraph {
 		}
 		return null;
 	}
-	//get the edge that has Node node in the starting nodes
+	public Edge getParentEdge(ArrayList<Node> nodes){
+		for(Edge e: Edges){
+			if(e.getStartNodes().equals(nodes)){
+				return e;
+			}
+		}
+		return null;
+	}
+	//get the edges that has Node node in the starting nodes
 	public ArrayList<Edge> getParentEdges(Node node){
 		ArrayList<Edge> parentedges = new ArrayList<Edge>();
 		for(Edge e: Edges){
