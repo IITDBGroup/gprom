@@ -10,7 +10,13 @@ import java.util.Date;
  */
 public class Node {
 	
-	
+	/**
+	 * 
+	 */
+	String Id;
+	boolean Materialized;
+	String Description;
+	Date Time;
 
 	/**
 	 * @return the time
@@ -20,13 +26,7 @@ public class Node {
 		return Time;
 	}
 
-	/**
-	 * 
-	 */
-	String Id;
-	boolean Materialized;
-	String Description;
-	Date Time;
+
 	
 	/**
 	 * @return the id
@@ -110,9 +110,10 @@ public class Node {
 	    if(		Id == otherNode.getId() 
 	    	&& otherNode.getDescription() == Description
 	    	&& Materialized == otherNode.isMaterialized()
-	    	&& otherNode.getTime() == Time) return true;
+	    	&& otherNode.getTime() == Time) return true; //TODO use .equals
 	    else return false;
 	}
 	
+	//TODO hashCode
 
 }

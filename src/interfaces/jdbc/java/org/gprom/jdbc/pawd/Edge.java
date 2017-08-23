@@ -5,6 +5,7 @@ package org.gprom.jdbc.pawd;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation;
 
@@ -14,15 +15,15 @@ import org.gprom.jdbc.pawd.VersionGraphStore.Operation;
  */
 public class Edge {
 	
-	ArrayList<Node> startNodes;
-	ArrayList<Node> endNodes;
-	Operation Transformation;
+	List<Node> startNodes;
+	List<Node> endNodes;
+	Operation transformation;
 	
 
 	/**
 	 * @return the startNodes
 	 */
-	public ArrayList<Node> getStartNodes() {
+	public List<Node> getStartNodes() {
 		return startNodes;
 	}
 
@@ -30,7 +31,7 @@ public class Edge {
 	/**
 	 * @param startNodes the startNodes to set
 	 */
-	public void setStartNodes(ArrayList<Node> startNodes) {
+	public void setStartNodes(List<Node> startNodes) {
 		this.startNodes = startNodes;
 	}
 
@@ -38,7 +39,7 @@ public class Edge {
 	/**
 	 * @return the endNodes
 	 */
-	public ArrayList<Node> getEndNodes() {
+	public List<Node> getEndNodes() {
 		return endNodes;
 	}
 
@@ -46,7 +47,7 @@ public class Edge {
 	/**
 	 * @param endNodes the endNodes to set
 	 */
-	public void setEndNodes(ArrayList<Node> endNodes) {
+	public void setEndNodes(List<Node> endNodes) {
 		this.endNodes = endNodes;
 	}
 
@@ -55,7 +56,7 @@ public class Edge {
 	 * @return the transformation
 	 */
 	public Operation getTransformation() {
-		return Transformation;
+		return transformation;
 	}
 
 
@@ -63,7 +64,7 @@ public class Edge {
 	 * @param transformation the transformation to set
 	 */
 	public void setTransformation(Operation transformation) {
-		Transformation = transformation;
+		transformation = transformation;
 	}
 
 
@@ -73,7 +74,7 @@ public class Edge {
 	public Edge() {
 		this.startNodes= null;
 		this.endNodes = null;
-		this.Transformation= null;
+		this.transformation= null;
 		// TODO Auto-generated constructor stub
 	}
 
@@ -84,23 +85,25 @@ public class Edge {
 	 */
 	@Override
 	public String toString() {
-		return "Edge[\n startNodes=\n" + startNodes + "\n endNodes=\n" + endNodes + "\n Transformation=" + Transformation + "]\n";
+		return "Edge[\n startNodes=\n" + startNodes + "\n endNodes=\n" + endNodes + "\n Transformation=" + transformation + "]\n";
 	}
 
 
 	/**
 	 * Non-default constructor 
 	 */
-	public Edge(ArrayList<Node> startNodes, ArrayList<Node> endNodes, Operation Transformation){
+	public Edge(List<Node> startNodes, List<Node> endNodes, Operation Transformation){
 		this.startNodes = startNodes;
 		this.endNodes = endNodes;
-		this.Transformation = Transformation;
+		this.transformation = Transformation;
 	}
+	
 	public Edge(Node startNode, Node endNode, Operation Transformation){
-		this.startNodes= new ArrayList<>( Arrays.asList(startNode));
-		this.endNodes = new ArrayList<>(Arrays.asList(endNode));
-		this.Transformation= Transformation;
+		this.startNodes= new ArrayList<Node>( Arrays.asList(startNode));
+		this.endNodes = new ArrayList<Node>(Arrays.asList(endNode));
+		this.transformation= Transformation;
 	}
+	
 	@Override
 	public boolean equals(Object other){
 	    if (other == null) return false;
@@ -109,7 +112,7 @@ public class Edge {
 	    Edge otherEdge = (Edge)other;
 	    if(otherEdge.getEndNodes().equals(endNodes)){
 	    	if(otherEdge.getStartNodes().equals(startNodes)){
-	    		if(Transformation.equals(otherEdge.getTransformation())){
+	    		if(transformation.equals(otherEdge.getTransformation())){
 	    			return true;
 	    		}
 	    	}	
@@ -117,4 +120,14 @@ public class Edge {
 	    return false;
 	}
 
+	@Override
+	public int hashCode() {
+		int result = startNodes.hashCode();
+		result = result * 31 + endNodes.hashCode();
+		result = result * 31 + transformation.hashCode();
+		
+		return result;
+	}
+	
+	
 }

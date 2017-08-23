@@ -4,6 +4,7 @@
 package org.gprom.jdbc.pawd;
 import org.stringtemplate.v4.*;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -25,7 +26,17 @@ import org.json.JSONObject;
  * @author Amer
  *
  */
-public class JSONVersionGraphStore implements VersionGraphStore {
+public class JSONVersionGraphStore implements VersionGraphStore {//TODO make this JSONVersionGraphSerializer, because that is what it does
+	
+	//TODO remove later
+//	public String genericSerializer (Object o) throws IllegalArgumentException, IllegalAccessException {
+//		Class myclazz = o.getClass();
+//		Field[] myfields = myclazz.getFields();
+//		Field f = myfields[0];
+//		Class fieldType = f.getType();
+//		Object f1Values = f.get(o);
+//	}
+	
 	//helper method converting a JSONobject to node
 	public Node JSONtoNode(JSONObject newnode ){
 		try{
@@ -123,10 +134,10 @@ public class JSONVersionGraphStore implements VersionGraphStore {
 	}
 
 	//helper method to parse an array of edges to a JSONArray
-	public JSONArray getJSONArray(ArrayList<Node> Nodes){
+	public JSONArray getJSONArray(List<Node> list){
 		JSONArray NodesArray= new JSONArray();
 		//adding nodes as JSON OBjects
-		for (Node node : Nodes){
+		for (Node node : list){
 			JSONObject nodeJSON = NodetoJSON(node);
 			NodesArray.put(nodeJSON);
 		}
