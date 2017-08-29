@@ -87,4 +87,12 @@ public class VersionEdge {
 	    	&& otherVE.getTime().equals(Time)) return true;
 	    else return false;
 	}
+	@Override
+	public int hashCode(){
+		int result = Original.hashCode();
+		result = result *31 + Derivative.hashCode();
+		result = result *31 + Time.hashCode();
+		return result;
+	}
+	
 }

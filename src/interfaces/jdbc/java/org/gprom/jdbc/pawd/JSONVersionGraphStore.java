@@ -110,7 +110,7 @@ public class JSONVersionGraphStore implements VersionGraphStore {//TODO make thi
 			//adding configuration
 			GraphJSONObject.put("Configuration", V.getConfiguration());
 			//adding IDcounter
-			GraphJSONObject.put("counterID", VersionGraph.getIdCounter());
+			GraphJSONObject.put("counterID", V.getIdCounter());
 			return GraphJSONObject;
 		} catch (JSONException jse) {
 			jse.printStackTrace();
@@ -361,7 +361,7 @@ public class JSONVersionGraphStore implements VersionGraphStore {//TODO make thi
 				VEdgesList.add(VE);
 			}
 			V = new VersionGraph(NodesList,EdgesList,VEdgesList,Configuaration);
-			VersionGraph.setIdCounter(counter);
+			V.setIdCounter(counter);
 			return V;
 		} catch (JSONException e) {
 			System.out.println("Error we failed");

@@ -110,10 +110,18 @@ public class Node {
 	    if(		Id == otherNode.getId() 
 	    	&& otherNode.getDescription() == Description
 	    	&& Materialized == otherNode.isMaterialized()
-	    	&& otherNode.getTime() == Time) return true; //TODO use .equals
+	    	&& otherNode.getTime().equals(Time)) return true; 
 	    else return false;
 	}
 	
 	//TODO hashCode
+	@Override
+	public int hashCode(){
+		int result = Description.hashCode();
+		result = result * 31 + Id.hashCode();
+		result = result * 31 + Time.hashCode();
+		result = result *31 + (Materialized ? 1 : 0);
+		return result;
+	}
 
 }

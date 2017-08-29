@@ -64,7 +64,7 @@ public class Edge {
 	 * @param transformation the transformation to set
 	 */
 	public void setTransformation(Operation transformation) {
-		transformation = transformation;
+		this.transformation = transformation;
 	}
 
 
@@ -75,7 +75,6 @@ public class Edge {
 		this.startNodes= null;
 		this.endNodes = null;
 		this.transformation= null;
-		// TODO Auto-generated constructor stub
 	}
 
 

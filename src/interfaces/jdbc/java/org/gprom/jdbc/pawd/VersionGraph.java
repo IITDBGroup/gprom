@@ -21,14 +21,13 @@ public class VersionGraph {
 	 * @see java.lang.Object#toString()
 	 */
 	
-	public static synchronized String IDGenerator()
-	{
+	public static String IDGenerator(){
 	    return String.valueOf(idCounter++);
 	}
-	public static synchronized long getIdCounter() {
+	public static long getIdCounter() {
 		return idCounter;
 	}
-	public static synchronized void setIdCounter(long idCounter) {
+	public static void setIdCounter(long idCounter) {
 		VersionGraph.idCounter = idCounter;
 	}
 	
@@ -93,9 +92,9 @@ public class VersionGraph {
 		}
 		return null;
 	}
-	public Edge getParentEdge(ArrayList<Node> nodes){
+	public Edge getParentEdge(ArrayList<Node> parents ,Node child){
 		for(Edge e: Edges){
-			if(e.getStartNodes().equals(nodes)){
+			if(e.getStartNodes().equals(parents) && e.getEndNodes().get(0).equals(child) ){
 				return e;
 			}
 		}
@@ -180,6 +179,14 @@ public class VersionGraph {
 	    	}
 	    }
 	    return false;
+	}
+	@Override 
+	public int hashCode(){
+		int result = Nodes.hashCode();
+		result = result *31 + Edges.hashCode();
+		result = result *31 + VersionEdges.hashCode();
+		result = result *31 + Configuration.hashCode();
+		return result;
 	}
 
 }

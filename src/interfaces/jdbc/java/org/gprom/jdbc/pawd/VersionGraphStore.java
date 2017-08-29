@@ -5,29 +5,21 @@ package org.gprom.jdbc.pawd;
 
 
 
-import java.util.ArrayList;
-import java.util.Map;
-
-import org.gprom.jdbc.pawd.VersionGraphStore.Operation.Materialization;
 import org.json.JSONObject;
 /**
  * @author Amer
  *
  */
-public interface VersionGraphStore {//TODO split this into VersionGraphManager and VersionGraphStore and make store more generic load without parameters, save with onlhy VersionGraph and conifg(Properties options) to set store specific parameters, e.g., JSON file path
+public interface VersionGraphStore {//TODO split this into VersionGraphManager and VersionGraphStore 
+	//and make store more generic load without parameters, 
+	//save with only VersionGraph and conifg(Properties options) to set store specific parameters, e.g., JSON file path
 
 	/**
 	 * 
 	 */
 
 	public VersionGraph Load(JSONObject GraphJSONArray);
-	public void UpdateCall(VersionGraph V, Node s);
 	public JSONObject Save(VersionGraph V);
-	public String Compose(VersionGraph V, Node s, Map<Node,Materialization> MaterializationPlan);
-	public ArrayList<VersionGraph> getPath(VersionGraph V,Node n);
-	//public VersionGraph genPathes(ArrayList<VersionGraph>Graphs,VersionGraph V,Node t);
-	//store as a JSON object
-	public void Configure(VersionGraph V);
 	//method for saving configuration
 	public class Operation {
 		String Code;
