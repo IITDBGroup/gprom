@@ -16,7 +16,7 @@ import org.json.JSONObject;
  * @author Amer
  *
  */
-public class JSONVersionGraphSerializer implements VersionGraphStore {//TODO make this JSONVersionGraphSerializer, because that is what it does
+public class JSONVersionGraphSerializer implements VersionGraphStore {
 	
 	//TODO remove later
 //	public String genericSerializer (Object o) throws IllegalArgumentException, IllegalAccessException {

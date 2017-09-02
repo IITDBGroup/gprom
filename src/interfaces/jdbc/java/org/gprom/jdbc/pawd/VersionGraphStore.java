@@ -12,7 +12,8 @@ import org.json.JSONObject;
  */
 public interface VersionGraphStore {//TODO split this into VersionGraphManager and VersionGraphStore 
 	//and make store more generic load without parameters, 
-	//save with only VersionGraph and conifg(Properties options) to set store specific parameters, e.g., JSON file path
+	//save with only VersionGraph and config(Properties options) 
+	//to set store specific parameters, e.g., JSON file path
 
 	/**
 	 * 

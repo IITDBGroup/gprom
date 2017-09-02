@@ -7,7 +7,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.gprom.jdbc.pawd.Edge;
-import org.gprom.jdbc.pawd.JDBCConnect;
+//import org.gprom.jdbc.pawd.JDBCConnect;
 import org.gprom.jdbc.pawd.Node;
 import org.gprom.jdbc.pawd.VersionEdge;
 import org.gprom.jdbc.pawd.VersionGraph;
@@ -62,7 +62,7 @@ public class VersionGraphCompose {
 
 	@After
 	public void tearDown() throws Exception {
-		JDBCConnect mine= new JDBCConnect();
+		//JDBCConnect mine= new JDBCConnect();
 		for (Map.Entry<Node, Materialization> entry : MaterializationPlan.entrySet()) {
 			  if (entry.getValue().equals(Materialization.isMaterialized)) {
 				  String tblName = entry.getKey().getDescription();
@@ -78,8 +78,8 @@ public class VersionGraphCompose {
 		myManager.Configure(Graph1);
 		String q = myManager.Compose(Graph1, T,MaterializationPlan);
 		System.out.println(q);
-		JDBCConnect mine= new JDBCConnect();
-		mine.RunQuery("Select * FROM ("+q+")");
+		//JDBCConnect mine= new JDBCConnect();
+		//mine.RunQuery("Select * FROM ("+q+")");
 	}
 
 }

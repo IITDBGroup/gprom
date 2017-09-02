@@ -114,7 +114,6 @@ public class Node {
 	    else return false;
 	}
 	
-	//TODO hashCode
 	@Override
 	public int hashCode(){
 		int result = Description.hashCode();

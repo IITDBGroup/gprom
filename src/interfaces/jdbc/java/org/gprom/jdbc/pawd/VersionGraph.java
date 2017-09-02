@@ -188,6 +188,20 @@ public class VersionGraph {
 		result = result *31 + Configuration.hashCode();
 		return result;
 	}
+	public void Absorb(VersionGraph V) {
+		ArrayList<Node> newNodes = new ArrayList<Node>();
+		ArrayList<Edge> newEdges = new ArrayList<Edge>();
+		newNodes.addAll(V.getNodes());
+		newEdges.addAll(V.getEdges());
+		if(getNodes() !=null  && getEdges()!= null) {
+			newNodes.removeAll(getNodes());
+			newNodes.addAll(getNodes());
+			newEdges.removeAll(getEdges());
+			newEdges.addAll(getEdges());
+		}
+		this.setEdges(newEdges);
+		this.setNodes(newNodes);
+	}
 
 }
 
