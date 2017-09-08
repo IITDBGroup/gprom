@@ -5,6 +5,8 @@ package org.gprom.jdbc.pawd;
 
 
 
+import java.util.Properties;
+
 import org.json.JSONObject;
 /**
  * @author Amer
@@ -19,6 +21,10 @@ public interface VersionGraphStore {//TODO split this into VersionGraphManager a
 	 * 
 	 */
 
+	public void initialize(Properties options) throws IllegalArgumentException;
+	
+	public VersionGraph load(String versionGraphId) throws Exception;
+	public void save(VersionGraph g) throws Exception;
 	public VersionGraph Load(JSONObject GraphJSONArray);
 	public JSONObject Save(VersionGraph V);
 	//method for saving configuration
