@@ -14,7 +14,6 @@ import org.gprom.jdbc.pawd.Node;
 import org.gprom.jdbc.pawd.VersionEdge;
 import org.gprom.jdbc.pawd.VersionGraph;
 import org.gprom.jdbc.pawd.VersionGraphManager;
-import org.gprom.jdbc.pawd.VersionGraphStore;
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation;
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation.OpType;
 import org.json.JSONObject;
@@ -73,11 +72,10 @@ public class VersionGraphLoadSave {
 	}
 	@Test
 	public void test() {
-		VersionGraphStore myinterface = new JSONVersionGraphSerializer();
 		VersionGraphManager myManager = new VersionGraphManager();
-		myManager.Configure(VG1);
-		JSONObject ser = myinterface.Save(VG1);
-		VG2 = myinterface.Load(ser);
+		VG1.Configure();
+		JSONObject ser = JSONVersionGraphSerializer.getInstance().Save(VG1);
+		VG2 = JSONVersionGraphSerializer.getInstance().Load(ser);
 		assertTrue(VG1.equals(VG1));
 		assertTrue(VG1.equals(VG2));
 		

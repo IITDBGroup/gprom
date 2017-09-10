@@ -3,7 +3,6 @@ package org.gprom.jdbc.pawd;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -55,7 +54,7 @@ public class VersionGraphManager {
 	// generate actual subset by index sequence
 	private ArrayList<Node> getSubset(ArrayList<Node> input, int[] subset) {
 		ArrayList<Node> result = new ArrayList<Node>(subset.length);
-	    for (int i = 0; i < subset.length; i++) 
+	    for (int i = 0; i < subset.length; i++)
 	        result.add(input.get(subset[i]));
 	    return result;
 	}
@@ -133,7 +132,7 @@ public class VersionGraphManager {
 		Pattern r = Pattern.compile(pattern);
 		Matcher m = r.matcher(q);
 		StringBuffer sb = new StringBuffer();
-		String replacement = "";
+		String replacement;
 		int index;
 		while(m.find()){
 			index = Integer.parseInt(q.substring(m.start()+2, m.end()-2));
@@ -149,13 +148,13 @@ public class VersionGraphManager {
 	//add a new table to JDBC
 	private String Materialize(String sql, Node node) {
 			node.setMaterialized(true);
-			//JDBCConnect conn= new JDBCConnect();
+			JDBCConnect conn= new JDBCConnect();
 			String newName = "REL_"+node.getDescription();
 			ST query = new ST("CREATE TABLE <NodeID> AS SELECT * FROM (<NodeDesc>)");
 			query.add("NodeID", newName);
 			query.add("NodeDesc", sql);
-	//		String q = query.render();
-			//conn.RunUpdate(q);
+			String q = query.render();
+			conn.RunUpdate(q);
 			return newName;
 	}
 	
@@ -191,14 +190,5 @@ public class VersionGraphManager {
 			}
 		}
 	}
-	
-	public void Configure(VersionGraph V){
-		List<String> config = new ArrayList<>();
-		for(Node t: V.getNodes()){
-			if (t.Materialized){
-				config.add(t.getId());
-			}
-		}
-		V.setConfiguation(config.toArray(new String[0]));
-	}
+
 }

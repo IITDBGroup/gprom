@@ -1,6 +1,4 @@
-/**
- * 
- */
+
 package org.gprom.jdbc.pawd;
 
 
@@ -12,7 +10,8 @@ import org.json.JSONObject;
  * @author Amer
  *
  */
-public interface VersionGraphStore {//TODO split this into VersionGraphManager and VersionGraphStore 
+public interface VersionGraphStore {
+	//TODO split this into VersionGraphManager and VersionGraphStore
 	//and make store more generic load without parameters, 
 	//save with only VersionGraph and config(Properties options) 
 	//to set store specific parameters, e.g., JSON file path
@@ -22,11 +21,8 @@ public interface VersionGraphStore {//TODO split this into VersionGraphManager a
 	 */
 
 	public void initialize(Properties options) throws IllegalArgumentException;
-	
 	public VersionGraph load(String versionGraphId) throws Exception;
 	public void save(VersionGraph g) throws Exception;
-	public VersionGraph Load(JSONObject GraphJSONArray);
-	public JSONObject Save(VersionGraph V);
 	//method for saving configuration
 	public class Operation {
 		String Code;
@@ -85,6 +81,12 @@ public interface VersionGraphStore {//TODO split this into VersionGraphManager a
 		    return false;
 		}
 
+		@Override
+		public int hashCode() {
+			int result = Code.hashCode();
+			result = 31 * result + Op.hashCode();
+			return result;
+		}
 	}
 
 }

@@ -91,7 +91,7 @@ public class Edge {
 	/**
 	 * Non-default constructor 
 	 */
-	public Edge(List<Node> startNodes, List<Node> endNodes, Operation Transformation){
+	public Edge(ArrayList<Node> startNodes, ArrayList<Node> endNodes, Operation Transformation){
 		this.startNodes = startNodes;
 		this.endNodes = endNodes;
 		this.transformation = Transformation;

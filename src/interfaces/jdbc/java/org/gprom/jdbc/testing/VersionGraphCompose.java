@@ -6,12 +6,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.gprom.jdbc.pawd.Edge;
+import org.gprom.jdbc.pawd.*;
 //import org.gprom.jdbc.pawd.JDBCConnect;
-import org.gprom.jdbc.pawd.Node;
-import org.gprom.jdbc.pawd.VersionEdge;
-import org.gprom.jdbc.pawd.VersionGraph;
-import org.gprom.jdbc.pawd.VersionGraphManager;
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation;
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation.Materialization;
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation.OpType;
@@ -62,12 +58,12 @@ public class VersionGraphCompose {
 
 	@After
 	public void tearDown() throws Exception {
-		//JDBCConnect mine= new JDBCConnect();
+		JDBCConnect mine= new JDBCConnect();
 		for (Map.Entry<Node, Materialization> entry : MaterializationPlan.entrySet()) {
 			  if (entry.getValue().equals(Materialization.isMaterialized)) {
 				  String tblName = entry.getKey().getDescription();
 				  System.out.println("Deleting "+tblName);
-				 // mine.RunUpdate("DROP TABLE REL_"+ tblName );
+				  mine.RunUpdate("DROP TABLE REL_"+ tblName );
 			  }
 			}
 	}
@@ -75,11 +71,11 @@ public class VersionGraphCompose {
 	@Test
 	public void test() {
 		VersionGraphManager myManager = new VersionGraphManager();
-		myManager.Configure(Graph1);
+		Graph1.Configure();
 		String q = myManager.Compose(Graph1, T,MaterializationPlan);
 		System.out.println(q);
-		//JDBCConnect mine= new JDBCConnect();
-		//mine.RunQuery("Select * FROM ("+q+")");
+		JDBCConnect mine= new JDBCConnect();
+		mine.RunQuery("Select * FROM ("+q+")");
 	}
 
 }

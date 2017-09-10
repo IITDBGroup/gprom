@@ -5,6 +5,7 @@ package org.gprom.jdbc.pawd;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * @author Amer
@@ -203,5 +204,14 @@ public class VersionGraph {
 		this.setNodes(newNodes);
 	}
 
+    public void Configure(){
+        List<String> config = new ArrayList<>();
+        for(Node t: getNodes()){
+            if (t.Materialized){
+                config.add(t.getId());
+            }
+        }
+        setConfiguation(config.toArray(new String[0]));
+    }
 }
 

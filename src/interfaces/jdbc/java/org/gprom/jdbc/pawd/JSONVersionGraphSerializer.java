@@ -6,6 +6,7 @@ package org.gprom.jdbc.pawd;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import org.gprom.jdbc.pawd.VersionGraphStore.Operation;
 import org.gprom.jdbc.pawd.VersionGraphStore.Operation.OpType;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -16,7 +17,16 @@ import org.json.JSONObject;
  * @author Amer
  *
  */
-public class JSONVersionGraphSerializer implements VersionGraphStore {
+
+public class JSONVersionGraphSerializer {
+	private static JSONVersionGraphSerializer ourInstance = new JSONVersionGraphSerializer();
+
+	public static JSONVersionGraphSerializer getInstance() {
+		return ourInstance;
+	}
+
+	private JSONVersionGraphSerializer() {
+	}
 	
 	//TODO remove later
 //	public String genericSerializer (Object o) throws IllegalArgumentException, IllegalAccessException {
@@ -57,6 +67,16 @@ public class JSONVersionGraphSerializer implements VersionGraphStore {
 		}
 
 
+	}
+	public static String[] toStringArray(JSONArray array) {
+		if(array==null)
+			return null;
+
+		String[] arr=new String[array.length()];
+		for(int i=0; i<arr.length; i++) {
+			arr[i]=array.optString(i);
+		}
+		return arr;
 	}
 
 	public JSONObject Save(VersionGraph V){
