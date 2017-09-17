@@ -16,27 +16,35 @@ public class VersionGraph {
 	/**
 	 * 
 	 */
-	private static long idCounter = 0;
-	
+	private String id;
+	private long nodeIDCounter = 0;
+	private ArrayList <Node> Nodes;
+	private ArrayList<Edge> Edges;
+	private ArrayList<VersionEdge> VersionEdges;
+	private String [] Configuration;
+
+	public String getId() {
+		return id;
+	}
+
+	public void setId(String id) {
+		this.id = id;
+	}
 	/* (non-Javadoc)
 	 * @see java.lang.Object#toString()
 	 */
 	
-	public static String IDGenerator(){
-	    return String.valueOf(idCounter++);
+	public String nodeIDGenerator(){
+	    return String.valueOf(nodeIDCounter++);
 	}
-	public static long getIdCounter() {
-		return idCounter;
+	public long getNodeIDCounter() {
+		return nodeIDCounter;
 	}
-	public static void setIdCounter(long idCounter) {
-		VersionGraph.idCounter = idCounter;
+	public void setNodeIDCounter(long nodeIDCounter) {
+		this.nodeIDCounter = nodeIDCounter;
 	}
 	
-	ArrayList<Node> Nodes;
-	ArrayList<Edge> Edges;
-	ArrayList<VersionEdge> VersionEdges;
-	String [] Configuration;
-	
+
 	
  
 	/**
@@ -79,9 +87,9 @@ public class VersionGraph {
 	}
 
 	/**
-	 * @param configuation the configuration to set
+	 * @param configuration the configuration to set
 	 */
-	public void setConfiguation(String[] configuration) {
+	public void setConfiguration(String[] configuration) {
 		Configuration = configuration;
 	}
 	//get the edge that has Node node in the end nodes
@@ -113,11 +121,20 @@ public class VersionGraph {
 	}
 
 	public VersionGraph() {
+		id = String.valueOf(GraphIdGenerator.getInstance().generateNextId());
 		Nodes = new ArrayList<Node>();
 		Edges = new ArrayList<Edge>();
 		VersionEdges = new ArrayList<VersionEdge>();
 		Configuration = null; 
 		
+	}
+	public VersionGraph(String id, ArrayList<Node> Nodes, ArrayList<Edge> Edges
+			,ArrayList<VersionEdge> VersionEdges, String[] Configuration){
+		this.id = id;
+		this.Nodes= Nodes;
+		this.Edges= Edges;
+		this.VersionEdges= VersionEdges;
+		this.Configuration= Configuration;
 	}
 	public VersionGraph(ArrayList<Node> Nodes, ArrayList<Edge> Edges
 			,ArrayList<VersionEdge> VersionEdges, String[] Configuration){
@@ -130,7 +147,7 @@ public class VersionGraph {
 		this.Nodes= Nodes;
 		this.Edges= Edges;
 		this.VersionEdges= VersionEdges;
-		this.Configuration= null;
+		Configure();
 	}
 	/**
 	 * @return the versionEdges
@@ -162,7 +179,7 @@ public class VersionGraph {
 				+ "\n VersionEdges=" + Arrays.toString(VersionEdges.toArray())
 				+ "\n Configuration=" + Arrays.toString(Configuration)
 				+ "\n]"
-				+ "IdCounter = "+ idCounter;
+				+ "IdCounter = "+ nodeIDCounter;
 	}
 	@Override
 	public boolean equals(Object other){
@@ -170,16 +187,12 @@ public class VersionGraph {
 	    if (other == this) return true;
 	    if (!(other instanceof VersionGraph))return false;
 	    VersionGraph otherVG = (VersionGraph)other;
-	    if (Configuration.equals(otherVG.getConfiguration())){
-	    	if(Nodes.equals(otherVG.getNodes())){
-		    	if(otherVG.getEdges().equals(Edges)){
-	    			if(VersionEdges.equals(otherVG.getVersionEdges())){
-	    				return true;
-	    			}
-	    		}
-	    	}
-	    }
-	    return false;
+		boolean nodes, edges, vedges , conf;
+		conf = Arrays.equals(Configuration,otherVG.getConfiguration());
+		nodes = Nodes.equals(otherVG.getNodes());
+		edges = otherVG.getEdges().equals(Edges);
+		vedges =VersionEdges.equals(otherVG.getVersionEdges());
+	    return conf && nodes && edges && vedges;
 	}
 	@Override 
 	public int hashCode(){
@@ -211,7 +224,7 @@ public class VersionGraph {
                 config.add(t.getId());
             }
         }
-        setConfiguation(config.toArray(new String[0]));
+        setConfiguration(config.toArray(new String[0]));
     }
 }
 

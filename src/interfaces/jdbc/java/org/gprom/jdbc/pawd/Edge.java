@@ -7,8 +7,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.gprom.jdbc.pawd.VersionGraphStore.Operation;
-
 /**
  * @author Amer
  *
@@ -16,8 +14,8 @@ import org.gprom.jdbc.pawd.VersionGraphStore.Operation;
 public class Edge {
 	
 	List<Node> startNodes;
-	List<Node> endNodes;
-	Operation transformation;
+	private List<Node> endNodes;
+	private Operation transformation;
 	
 
 	/**

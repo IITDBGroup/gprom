@@ -1,30 +1,31 @@
 package org.gprom.jdbc.testing;
 
 
+import org.gprom.jdbc.pawd.*;
+import org.gprom.jdbc.pawd.Operation.Materialization;
+import org.gprom.jdbc.pawd.Operation.OpType;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.gprom.jdbc.pawd.*;
 //import org.gprom.jdbc.pawd.JDBCConnect;
-import org.gprom.jdbc.pawd.VersionGraphStore.Operation;
-import org.gprom.jdbc.pawd.VersionGraphStore.Operation.Materialization;
-import org.gprom.jdbc.pawd.VersionGraphStore.Operation.OpType;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 public class VersionGraphCompose {
-	VersionGraph Graph1 ;
-	Node T;
-	Map <Node, Materialization> MaterializationPlan = new HashMap<Node, Materialization>();
+	private VersionGraph Graph1 ;
+	private Node T;
+	private final Map <Node, Materialization> MaterializationPlan = new HashMap<Node, Materialization>();
 	@Before
 	public void setUp() throws Exception {
-		Node R = new Node(false, "R");
-		Node S = new Node(false, "S");
-		T = new Node(false,"T");
-		Node J = new Node(false,"J");
+		Graph1 = new VersionGraph();
+		Node R = new Node(Graph1.nodeIDGenerator(),false, "R");
+		Node S = new Node(Graph1.nodeIDGenerator(),false, "S");
+		T = new Node(Graph1.nodeIDGenerator(),false,"T");
+		Node J = new Node(Graph1.nodeIDGenerator(),false,"J");
 		//construct different arraylist for Edge construction
 		ArrayList<Node> NodeSetAll = new ArrayList<>(Arrays.asList(J,R,S,T));
 		ArrayList<Node> startNodes = new ArrayList<>(Arrays.asList(R,J));
@@ -43,9 +44,13 @@ public class VersionGraphCompose {
 		ArrayList<Edge> EdgeSetAll = new ArrayList<>( Arrays.asList(edge1,edge2));//edge3,edge4,edge5,edge6));
 		//System.out.println(EdgeSetAll);
 		//construct arraylist of versionedges
-		ArrayList<VersionEdge> VersionEdgeSetAll = new ArrayList<>();
+		ArrayList<VersionEdge> VersionEdgeSetAll = new ArrayList<VersionEdge>();
+		Graph1.setEdges(EdgeSetAll);
+		Graph1.setVersionEdges(VersionEdgeSetAll);
+		Graph1.setNodes(NodeSetAll);
+		Graph1.Configure();
 		//create a version graph
-		Graph1 = new VersionGraph(NodeSetAll, EdgeSetAll,VersionEdgeSetAll,null);
+
 
 
 		//setting up materialization plan
@@ -55,7 +60,6 @@ public class VersionGraphCompose {
 		MaterializationPlan.put(T,Materialization.isMaterialized);
 		MaterializationPlan.put(J,Materialization.isMaterialized);
 	}
-
 	@After
 	public void tearDown() throws Exception {
 		JDBCConnect mine= new JDBCConnect();

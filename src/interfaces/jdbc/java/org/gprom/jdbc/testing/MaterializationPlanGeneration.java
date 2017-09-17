@@ -4,38 +4,33 @@
 package org.gprom.jdbc.testing;
 
 
+import org.gprom.jdbc.pawd.*;
+import org.gprom.jdbc.pawd.Operation.Materialization;
+import org.gprom.jdbc.pawd.Operation.OpType;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
-
-import org.gprom.jdbc.pawd.Edge;
-import org.gprom.jdbc.pawd.Node;
-import org.gprom.jdbc.pawd.VersionEdge;
-import org.gprom.jdbc.pawd.VersionGraph;
-import org.gprom.jdbc.pawd.VersionGraphManager;
-import org.gprom.jdbc.pawd.VersionGraphStore.Operation;
-import org.gprom.jdbc.pawd.VersionGraphStore.Operation.Materialization;
-import org.gprom.jdbc.pawd.VersionGraphStore.Operation.OpType;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 /**
  * @author Amer
  *
  */
 public class MaterializationPlanGeneration {
-	VersionGraph VG1;
-	Node T;
+	private VersionGraph VG1;
+	private Node T;
 	/**
 	 * @throws java.lang.Exception
 	 */
 	@Before
 	public void setUp() throws Exception {
-		Node R = new Node(false, "R");
-		Node S = new Node(false, "S");
-		T = new Node(false,"T");
-		Node Rprime = new Node(false, "R'");
+		VG1 = new VersionGraph();
+		Node R = new Node(VG1.nodeIDGenerator(),false, "R");
+		Node S = new Node(VG1.nodeIDGenerator(),false, "S");
+		T = new Node(VG1.nodeIDGenerator(),false,"T");
+		Node Rprime = new Node(VG1.nodeIDGenerator(),false, "R'");
 		//construct different arraylist for Edge construction
 		ArrayList<Node> NodeSetAll = new ArrayList<>(Arrays.asList(R,S,T,Rprime));
 		//construct sample operations for edge creation
@@ -50,14 +45,10 @@ public class MaterializationPlanGeneration {
 		VersionEdge VE1 = new VersionEdge(R,Rprime);
 		ArrayList<VersionEdge> VersionEdgeSetAll = new ArrayList<>( Arrays.asList(VE1));
 		//create a version graph
-		VG1 = new VersionGraph(NodeSetAll, EdgeSetAll,VersionEdgeSetAll,null);
-	}
-
-	/**
-	 * @throws java.lang.Exception
-	 */
-	@After
-	public void tearDown() throws Exception {
+		VG1.setEdges(EdgeSetAll);
+		VG1.setVersionEdges(VersionEdgeSetAll);
+		VG1.setNodes(NodeSetAll);
+		VG1.Configure();
 	}
 
 	@Test

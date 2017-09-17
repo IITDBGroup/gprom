@@ -13,10 +13,10 @@ public class Node {
 	/**
 	 * 
 	 */
-	String Id;
+	private String Id;
 	boolean Materialized;
-	String Description;
-	Date Time;
+	private String Description;
+	private Date Time;
 
 	/**
 	 * @return the time
@@ -25,9 +25,13 @@ public class Node {
 	public Date getTime() {
 		return Time;
 	}
+	/**
+	 * @param time the Time to set
+	 */
+	public void setTime(Date time) {
+		Time = time;
+	}
 
-
-	
 	/**
 	 * @return the id
 	 */
@@ -45,7 +49,7 @@ public class Node {
 	/**
 	 * @return the materialized
 	 */
-	public boolean isMaterialized() {
+	public boolean getMaterialized() {
 		return Materialized;
 	}
 
@@ -70,18 +74,20 @@ public class Node {
 		Description = description;
 	}
 
+	public Node(String ID, boolean Materialized, String Description) {
+		Id = ID;
+		this.Materialized = Materialized ;
+		this.Description = Description ;
+		Time = new Date();
+	}
+
 	public Node() {
-		Id = VersionGraph.IDGenerator();
+		Id = "0";
 		Materialized = false ;
 		Description = null ;
 		Time = new Date();
 	}
-	public Node(boolean Materialized, String Description){
-		Id= VersionGraph.IDGenerator();
-		this.Materialized=Materialized;
-		this.Description= Description;
-		Time = new Date();
-	}
+
 	public Node( String ID, boolean Materialized, String Description,Date time){
 		Id= ID;
 		this.Materialized=Materialized;
@@ -107,11 +113,10 @@ public class Node {
 	    if (other == this) return true;
 	    if (!(other instanceof Node))return false;
 	    Node otherNode = (Node)other;
-	    if(		Id == otherNode.getId() 
-	    	&& otherNode.getDescription() == Description
-	    	&& Materialized == otherNode.isMaterialized()
-	    	&& otherNode.getTime().equals(Time)) return true; 
-	    else return false;
+	    return Id.equals(otherNode.getId())
+	    	&& otherNode.getDescription().equals(Description)
+	    	&& Materialized == otherNode.getMaterialized()
+	    	&& otherNode.getTime().equals(Time);
 	}
 	
 	@Override

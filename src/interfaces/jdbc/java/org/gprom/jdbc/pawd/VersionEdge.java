@@ -14,9 +14,9 @@ public class VersionEdge {
 	/**
 	 * 
 	 */
-	Node Original;
-	Node Derivative;
-	Date Time;
+	 Node Original;
+	 Node Derivative;
+	 Date Time;
 	public VersionEdge() {
 		Original = null;
 		Derivative = null;
@@ -82,10 +82,9 @@ public class VersionEdge {
 	    if (other == this) return true;
 	    if (!(other instanceof VersionEdge))return false;
 	    VersionEdge otherVE = (VersionEdge) other;
-	    if(otherVE.getOriginal().equals(Original)
-	    	&& otherVE.getDerivative().equals(Derivative)
-	    	&& otherVE.getTime().equals(Time)) return true;
-	    else return false;
+        return otherVE.getOriginal().equals(Original)
+                && otherVE.getDerivative().equals(Derivative)
+                && otherVE.getTime().equals(Time);
 	}
 	@Override
 	public int hashCode(){

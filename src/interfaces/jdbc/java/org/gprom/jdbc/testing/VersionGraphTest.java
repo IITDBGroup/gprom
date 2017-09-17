@@ -5,7 +5,7 @@ import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
 
 @RunWith(Suite.class)
-@SuiteClasses({ VersionGraphLoadSave.class, VersionGraphCompose.class })
+@SuiteClasses({JSONVersionGraphLoadSave.class, VersionGraphCompose.class })
 public class VersionGraphTest {
 
 }

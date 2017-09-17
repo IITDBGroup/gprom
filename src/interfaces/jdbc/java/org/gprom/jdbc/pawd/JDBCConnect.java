@@ -8,15 +8,31 @@ import java.sql.*;
  *
  */
 public class JDBCConnect {
+
 	// JDBC driver name and database URL
-   static final String JDBC_DRIVER = "oracle.jdbc.driver.OracleDriver";  
-   static final String DB_URL = "jdbc:oracle:thin:@ligeti.cs.iit.edu:1521:orcl";
+	private static String JDBC_DRIVER ="oracle.jdbc.driver.OracleDriver";
+   	private static String DB_URL ="jdbc:oracle:thin:@ligeti.cs.iit.edu:1521:orcl";
 
    //  Database credentials
-   static final String USER = "fga_user" ;
-   static final String PASS = "fga";
-   Connection conn = null;
-   Statement stmt = null;
+   private static String USER = "fga_user" ;
+   private static String PASS = "fga";
+   private Connection conn = null;
+   private Statement stmt = null;
+	/**
+	* this is just a dummy constructor
+	 * */
+   public JDBCConnect(){
+   }
+
+   /**
+	* none-default constructor
+   * */
+	public JDBCConnect(String JDBC_DRIVER,String DB_URL,String USER,String PASS){
+		JDBCConnect.JDBC_DRIVER = JDBC_DRIVER;
+		JDBCConnect.DB_URL = DB_URL;
+		JDBCConnect.USER = USER;
+		JDBCConnect.PASS = PASS;
+	}
    public void RunUpdate(String sql){
 	   try{
 		      //STEP 2: Register JDBC driver
@@ -44,7 +60,8 @@ public class JDBCConnect {
 		         if(stmt!=null)
 		            conn.close();
 		      }catch(SQLException se){
-		      }// do nothing
+		      	System.out.println(se.getSQLState());
+		      }
 		      try{
 		         if(conn!=null)
 		            conn.close();
@@ -91,7 +108,8 @@ public class JDBCConnect {
 		         if(stmt!=null)
 		            conn.close();
 		      }catch(SQLException se){
-		      }// do nothing
+				  System.out.println(se.getSQLState());
+		      }
 		      try{
 		         if(conn!=null)
 		            conn.close();

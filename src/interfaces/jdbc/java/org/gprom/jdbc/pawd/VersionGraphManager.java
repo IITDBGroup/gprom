@@ -1,14 +1,14 @@
 package org.gprom.jdbc.pawd;
 
+import org.stringtemplate.v4.ST;
+
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.gprom.jdbc.pawd.VersionGraphStore.Operation.Materialization;
-import org.stringtemplate.v4.ST;
 
 public class VersionGraphManager {
 	//generates all combinations of nodes sets for Materialization plans
@@ -22,6 +22,7 @@ public class VersionGraphManager {
 		}
 		return Plans;
 	}
+	//helper function for genMaterializationPlans
 	private ArrayList<ArrayList<Node>> genCombinationOfSizeK(int k, ArrayList<Node> input){
 		// input array
         // sequence length   k
@@ -49,23 +50,25 @@ public class VersionGraphManager {
 		}
 		return subsets;
 	}
-	
-
-	// generate actual subset by index sequence
+	//helper function generate actual subset by index sequence
 	private ArrayList<Node> getSubset(ArrayList<Node> input, int[] subset) {
 		ArrayList<Node> result = new ArrayList<Node>(subset.length);
 	    for (int i = 0; i < subset.length; i++)
 	        result.add(input.get(subset[i]));
 	    return result;
 	}
-	//function will generate materialization plans for a given Graph starting at Node
-	public ArrayList<Map<Node, Materialization>> genMaterializationPlans(VersionGraph V,Node n){
-		ArrayList<Map<Node, Materialization>> AllPlans =  new ArrayList<Map<Node, Materialization>>();
+
+	/**
+	 * @param V parent versionGraph
+	 * @param n node we want all the materialization plans for
+	 * */
+	public ArrayList<Map<Node, Operation.Materialization>> genMaterializationPlans(VersionGraph V, Node n){
+		ArrayList<Map<Node, Operation.Materialization>> AllPlans =  new ArrayList<Map<Node, Operation.Materialization>>();
 		ArrayList<Node> input = generateSubGraph(V,n).getNodes();
 		for(ArrayList<Node> plan:AllPlans(input)){
-			Map<Node,Materialization> myPlan =  new HashMap<Node,Materialization>();
+			Map<Node,Operation.Materialization> myPlan =  new HashMap<Node,Operation.Materialization>();
 			for(Node t : input){
-				myPlan.put(t,(plan.contains(t))? Materialization.isMaterialized: Materialization.notMaterialized);
+				myPlan.put(t,(plan.contains(t))? Operation.Materialization.isMaterialized: Operation.Materialization.notMaterialized);
 			}
 			AllPlans.add(myPlan);
 		}
@@ -80,7 +83,7 @@ public class VersionGraphManager {
 		VersionGraph VG = new VersionGraph();
 		VG.AddNode(n);
 		VG.AddEdge(e);
-		if(n.isMaterialized())
+		if(n.getMaterialized())
 			return VG;
 		Node j = e.getStartNodes().get(0);
 		VersionGraph S = generateSubGraph(V,j);
@@ -99,7 +102,7 @@ public class VersionGraphManager {
 		return VG;
 	}
 	//compose a qurey based on a materialization plan for a specific starting ndoe
-	public String Compose(VersionGraph V, Node startNode, Map<Node,Materialization> MPlan){
+	public String Compose(VersionGraph V, Node startNode, Map<Node,Operation.Materialization> MPlan){
 		Edge currentEdge = V.getChildEdge(startNode);
 		String [] parentsSQL = null;
 		ArrayList<Node> parents = null;
@@ -114,14 +117,13 @@ public class VersionGraphManager {
 				parentsSQL[i] = Compose(V,current,MPlan);
 				}
 		}
-		if(MPlan.get(startNode)== Materialization.isMaterialized){
+		if(MPlan.get(startNode)== Operation.Materialization.isMaterialized){
 			return  Materialize(ConstructFromMany(V,parents,parentsSQL,startNode), startNode);
 		}else{
 			return  ConstructFromMany(V,parents,parentsSQL,startNode);
 		}
 	}
-	//helper function
-	//construct an sql query of a series of nodes from start --> end 
+	//	helper function construct an sql query of a series of nodes from start --> end
 	private String ConstructFromMany(VersionGraph V, ArrayList<Node> parents, String[] parentsSQL,Node child){
 		Edge ce = V.getParentEdge(parents, child);
 		if(ce == null){
@@ -142,22 +144,27 @@ public class VersionGraphManager {
 		m.appendTail(sb);
 		return sb.toString();
 	}
-	//helper function
-	//materialize a node
-	//set the materialized value
-	//add a new table to JDBC
+	//	helper function materialize a node set the materialized value add a new table to JDBC*/
 	private String Materialize(String sql, Node node) {
+		String newName = "REL_"+node.getDescription();
+		if(!node.getMaterialized()){
 			node.setMaterialized(true);
 			JDBCConnect conn= new JDBCConnect();
-			String newName = "REL_"+node.getDescription();
 			ST query = new ST("CREATE TABLE <NodeID> AS SELECT * FROM (<NodeDesc>)");
 			query.add("NodeID", newName);
 			query.add("NodeDesc", sql);
 			String q = query.render();
 			conn.RunUpdate(q);
-			return newName;
+		}
+		return newName;
 	}
-	
+
+	/**
+	 *
+	 * @param V VersionGraph of parent node
+	 * @param Rprime the node that has been created after an update
+	 *  this function will create a versionEdge connecting parent node R and its child Rprime
+	 */
 	public void update(VersionGraph V, Node Rprime){
 		Node R = V.getChildEdge(Rprime).getStartNodes().get(0);
 		updateCall(V,R,Rprime);
@@ -189,6 +196,20 @@ public class VersionGraphManager {
 				updateCall(V, S ,newnode);
 			}
 		}
+	}
+
+
+	/**
+	 *
+	 * @param V VersionGraph of parent node
+	 * @param n node we want to generate cheapest materialization plan for
+	 *
+	 * @return cheapest materialization plan
+	 */
+	public Map<Node, Operation.Materialization> genCheapestMaterializationPlanTree (VersionGraph V, Node n){
+		// TODO implement simple Tree for "Cheapest Materialization plan"
+
+		return null;
 	}
 
 }
