@@ -52,7 +52,7 @@ process
 .I query
 \"********************
 .TP
-.BR \-queryfile " " \fIfile\fR
+.BR \-queryFile " " \fIfile\fR
 read query to be processed from \fIfile\fR
 \"****************************************
 .SS OUTPUT AND TIMING QUERIES
