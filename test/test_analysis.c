@@ -4,9 +4,7 @@
  *      Author: zephyr
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "common.h"
 
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"

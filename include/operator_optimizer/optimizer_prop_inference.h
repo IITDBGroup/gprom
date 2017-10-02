@@ -12,7 +12,7 @@
 #define INCLUDE_OPERATOR_OPTIMIZER_OPTIMIZER_PROP_INFERENCE_H_
 
 #include "model/query_operator/query_operator.h"
-#include "include/model/set/set.h"
+#include "model/set/set.h"
 
 extern void computeKeyProp (QueryOperator *root);
 

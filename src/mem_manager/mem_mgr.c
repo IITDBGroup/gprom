@@ -117,8 +117,8 @@ setCurMemContext(MemContext *mc, const char *file, unsigned line)
             addContext(mc->contextName, 0, TRUE);
 
         curMemContext = topContextNode->mc;
-        GENERIC_LOG(LOG_DEBUG, file, line, "Set current memory context to '%s'@%p.",
-                curMemContext->contextName, curMemContext);
+        //GENERIC_LOG(LOG_DEBUG, file, line, "Set current memory context to '%s'@%p.",
+         //       curMemContext->contextName, curMemContext);
     }
 
 }
@@ -389,7 +389,7 @@ freeMemContextAndChildren(char *contextName)
     if (!found)
     {
         fprintf(stderr, "trying to free memory context that currently not on the stack %s", contextName);
-        exit(1);
+        //exit(1);
     }
 
     // free all children and requested memory context

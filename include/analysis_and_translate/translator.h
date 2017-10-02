@@ -21,7 +21,8 @@ typedef enum TranslatorPluginType
     TRANSLATOR_PLUGIN_POSTGRES,
     TRANSLATOR_PLUGIN_HIVE,
     TRANSLATOR_PLUGIN_DL,
-    TRANSLATOR_PLUGIN_DUMMY
+    TRANSLATOR_PLUGIN_DUMMY,
+	TRANSLATOR_PLUGIN_SQLITE
 } TranslatorPluginType;
 
 /* plugin definition */

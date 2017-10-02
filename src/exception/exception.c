@@ -26,6 +26,7 @@ static const char *exceptionMessage = NULL;
 static const char *file = NULL;
 static int line = -1;
 static void sigsegv_handler(int signo);
+static char *wipeContext = QUERY_MEM_CONTEXT;
 
 
 // macros
@@ -80,7 +81,8 @@ processException(void)
                 break;
             // abort current query and wipe per query memory context
             case EXCEPTION_ABORT:
-                freeMemContextAndChildren(QUERY_MEM_CONTEXT);
+                fprintf(stderr, "ABORT BASED ON EXCEPTION wipe <%s>\n", wipeContext);
+                freeMemContextAndChildren(wipeContext);
                 break;
             // abort current query and wipe all but the top memory context
             // afterwards all components have to be reinitialized
@@ -127,6 +129,14 @@ currentExceptionToString(void)
 
     return result->data;
 }
+
+void
+setWipeContext(char *wContext)
+{
+    wipeContext = wContext;
+}
+
+
 
 static void
 sigsegv_handler(int signo)

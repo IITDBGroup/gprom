@@ -122,7 +122,7 @@ public class TestOracleMetadataLookup {
 		String expected = "DT_FLOAT";
 		String result;
 		
-		result = p.getFuncReturnType("SUM", new String[] { "DT_FLOAT" }, 1);
+		result = p.getFuncReturnType("SUM", /*new String[] { "DT_FLOAT" }*/null, 1);
 		assertEquals(expected, result);
 	}
 	

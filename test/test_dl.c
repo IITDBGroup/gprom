@@ -10,7 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 
-#include "test/test_main.h"
+#include "test_main.h"
 #include "model/list/list.h"
 #include "model/datalog/datalog_model.h"
 

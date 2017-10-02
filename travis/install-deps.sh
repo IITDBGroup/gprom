@@ -24,5 +24,5 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
 # LINUX	
 else
 	sudo apt-get -qq update
-	sudo apt-get install -y ant autotools-dev autoconf bison flex git libsqlite3-dev libtool libreadline6 libreadline6-dev sqlite3 gnuplot
+	sudo apt-get install -y ant autotools-dev autoconf bison flex git libsqlite3-dev libtool libreadline6 libreadline6-dev sqlite3 gnuplot pandoc rman
 fi

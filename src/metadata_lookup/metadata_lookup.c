@@ -272,21 +272,21 @@ isWindowFunction(char *functionName)
 }
 
 DataType
-getFuncReturnType (char *fName, List *argTypes)
+getFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    DataType result = activePlugin->getFuncReturnType(fName, argTypes);
+    DataType result = activePlugin->getFuncReturnType(fName, argTypes, funcExists);
     RELEASE_MEM_CONTEXT();
     return result;
 }
 
 DataType
-getOpReturnType (char *oName, List *argTypes)
+getOpReturnType (char *oName, List *argTypes, boolean *funcExists)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    DataType result = activePlugin->getOpReturnType(oName, argTypes);
+    DataType result = activePlugin->getOpReturnType(oName, argTypes, funcExists);
     RELEASE_MEM_CONTEXT();
     return result;
 }

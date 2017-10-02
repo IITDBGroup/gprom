@@ -23,7 +23,8 @@
 NEW_ENUM_WITH_TO_STRING(SetOpType,
         SETOP_UNION,
         SETOP_INTERSECTION,
-        SETOP_DIFFERENCE);
+        SETOP_DIFFERENCE
+);
 
 typedef struct SetQuery
 {

@@ -26,12 +26,42 @@ typedef struct FindNotesContext
     List **result;
 } FindNotesContext;
 
+typedef struct CastGraphEdge
+{
+    DataType in;
+    DataType out;
+} CastGraphEdge;
+
+#define STOPPER { DT_BOOL, DT_BOOL }
+static CastGraphEdge stopper = STOPPER;
+
+static CastGraphEdge castGraph[] = {
+        { DT_INT, DT_FLOAT },
+        { DT_INT, DT_STRING },
+        { DT_FLOAT, DT_STRING },
+        { DT_BOOL, DT_INT },
+        { DT_BOOL, DT_STRING },
+        STOPPER
+};
+
+#define PREFSTOPPER -1
+static int typePreferences[] = { DT_BOOL, DT_INT, DT_FLOAT, DT_STRING, PREFSTOPPER };
+
 static boolean findAllNodesVisitor(Node *node, FindNotesContext *context);
 static boolean findAttrReferences (Node *node, List **state);
 static boolean findDLVars (Node *node, List **state);
 static boolean findDLVarsIgnoreProps (Node *node, List **state);
-static DataType typeOfOp (Operator *op);
+static DataType typeOfOp (Operator *op, boolean *exists);
+static DataType typeOfOpSplit (char *opName, List *argDTs, boolean *exists);
 static DataType typeOfFunc (FunctionCall *f);
+static Node *addCastsMutator (Node *node, boolean errorOnFailure);
+static void castOperatorArgs(Operator *o);
+static void castFunctionArgs(FunctionCall *f);
+static List*typeOfArgs(List* args);
+static boolean opExists (char *opName, List *argDTs);
+static boolean funcExists (char *fName, List *argDTs);
+static DataType nextCastableType (DataType in);
+static Set *castsAsSet(DataType in);
 
 
 AttributeReference *
@@ -419,7 +449,8 @@ typeOf (Node *expr)
         case T_Operator:
         {
             Operator *o = (Operator *) expr;
-            return typeOfOp(o);
+            boolean exists = FALSE;
+            return typeOfOp(o, &exists);
         }
         case T_CaseExpr:
         {
@@ -439,6 +470,27 @@ typeOf (Node *expr)
             return ((DLVar *) expr)->dt;
         case T_CastExpr:
             return ((CastExpr *) expr)->resultDT;
+        case T_NestedSubquery:
+        {
+            NestedSubquery *q = (NestedSubquery *) expr;
+
+            switch(q->nestingType)
+            {
+                case NESTQ_EXISTS:
+                case NESTQ_ANY:
+                case NESTQ_ALL:
+                case NESTQ_UNIQUE:
+                {
+                    return DT_BOOL;
+                }
+                case NESTQ_SCALAR:
+                {
+                    return DT_STRING; //TODO
+                }
+                break;
+            }
+        }
+        break;
         default:
              FATAL_LOG("unknown expression type for node: %s", nodeToString(expr));
              break;
@@ -578,6 +630,239 @@ createCasts(Node *lExpr, Node *rExpr)
     return LIST_MAKE(createCastExpr(lExpr, DT_STRING), createCastExpr(rExpr, DT_STRING));
 }
 
+Node *
+addCastsToExpr(Node *expr, boolean errorOnFailure)
+{
+    return addCastsMutator(expr, errorOnFailure);
+}
+
+static Node *
+addCastsMutator (Node *node, boolean errorOnFailure)
+{
+    Node *casted = node;
+
+    if (node == NULL)
+        return NULL;
+
+    // deal with nodes that have childres, process children first
+    switch(node->type)
+    {
+        case T_List:
+        {
+            FOREACH(Node,e,(List *) node)
+            {
+                addCastsMutator(e, errorOnFailure);
+            }
+        }
+        break;
+        case T_AttributeReference:
+        case T_Constant:
+        case T_DLVar:
+        case T_IsNullExpr:
+        case T_RowNumExpr:
+        case T_SQLParameter:
+        case T_OrderExpr:
+        {
+            return node;
+        }
+        case T_FunctionCall:
+        {
+            FunctionCall *f = (FunctionCall *) node;
+            FOREACH(Node,arg,f->args)
+                arg_his_cell->data.ptr_value = addCastsMutator(arg, errorOnFailure);
+            castFunctionArgs(f);
+        }
+        break;
+        case T_WindowFunction:
+        {
+            WindowFunction *w = (WindowFunction *) node;
+            FunctionCall *f = w->f;
+            FOREACH(Node,arg,f->args)
+                arg_his_cell->data.ptr_value = addCastsMutator(arg, errorOnFailure);
+            castFunctionArgs(f);
+        }
+        break;
+        case T_Operator:
+        {
+            Operator *o = (Operator *) node;
+            FOREACH(Node,arg,o->args)
+                arg_his_cell->data.ptr_value = addCastsMutator(arg, errorOnFailure);
+            castOperatorArgs(o);
+        }
+        break;
+        case T_CaseExpr:
+        {
+            CaseExpr *c = (CaseExpr *) node;
+            DataType whenLca;
+
+            if (c->elseRes)
+                whenLca = typeOf(c->elseRes);
+            else
+            {
+                CaseWhen *w = (CaseWhen *) getNthOfList(c->whenClauses,0);
+                whenLca = typeOf(w->then);
+            }
+            FOREACH(CaseWhen,w, c->whenClauses)
+            {
+                whenLca = lcaType(whenLca,typeOf(w->then));
+            }
+
+            FOREACH(CaseWhen,w, c->whenClauses)
+            {
+                if(whenLca != typeOf(w->then))
+                {
+                    w->then = (Node *) createCastExpr(w->then, whenLca);
+                }
+            }
+
+            return node;
+        }
+        case T_CastExpr://TODO
+            return node;
+        default:
+            FATAL_LOG("unknown expression type for node: %s", nodeToString(node));
+            break;
+    }
+
+    return casted;
+}
+
+#define REPLICATE_ELEM(_result, _elem, _num) \
+    do { \
+        for(int _i = 0 ; _i < _num; _i++) \
+        { \
+            _result = appendToTailOfListInt(_result, _elem); \
+        } \
+    } while(0)
+
+static void
+castOperatorArgs(Operator *o)
+{
+    List *args = o->args;
+    List *inTypes = NIL;
+    DataType commonLca;
+    List *curTypes = NIL;
+    int numArgs = LIST_LENGTH(o->args);
+
+    // determine expression types
+    FOREACH(Node,arg,args)
+    {
+        inTypes = appendToTailOfListInt(inTypes, typeOf(arg));
+    }
+
+    // determine a common type these expressions can be cast into
+    commonLca = getNthOfListInt(inTypes, 0);
+    FOREACH_INT(dt, inTypes)
+    {
+        commonLca = lcaType(dt, commonLca);
+    }
+
+    DataType previousType = DT_INT;
+
+    // check whether function exists for common type or any type this type can be cast into
+    while(previousType != DT_STRING)
+    {
+        DEBUG_LOG("try type %s", DataTypeToString(commonLca));
+        curTypes = NIL;
+        REPLICATE_ELEM(curTypes, commonLca, numArgs);
+        if (opExists(o->name, curTypes))
+        {
+            FOREACH(Node,arg,o->args)
+            {
+                if (typeOf(arg) != commonLca)
+                    arg_his_cell->data.ptr_value = createCastExpr(arg, commonLca);
+            }
+            return;
+        }
+        previousType = commonLca;
+        commonLca = nextCastableType(commonLca);
+    }
+
+    ERROR_NODE_BEATIFY_LOG("did not find a way to cast arguments of operator", o);
+}
+
+
+
+
+static void
+castFunctionArgs(FunctionCall *f)
+{
+    List *args = f->args;
+    List *inTypes = NIL;
+    List *curTypes = NIL;
+    int numArgs = LIST_LENGTH(inTypes);
+    char *fName = f->functionname;
+    DataType commonLca;
+
+    // determine expression types
+    inTypes = typeOfArgs(args);
+
+    if (funcExists(fName, inTypes))
+        return;
+
+    // determine a common type these expressions can be cast into
+    //TODO deal with casting when function takes different arguments
+    commonLca = getNthOfListInt(inTypes, 0);
+    FOREACH_INT(dt, inTypes)
+    {
+        commonLca = lcaType(dt, commonLca);
+    }
+
+    DataType previousType = DT_INT;
+
+    // check whether function exists for common type or any type this type can be cast into
+    while(previousType != DT_STRING)
+    {
+        REPLICATE_ELEM(curTypes, commonLca, numArgs);
+        if (funcExists(fName, curTypes))
+        {
+            FOREACH(Node,arg,f->args)
+            {
+                arg_his_cell->data.ptr_value = createCastExpr(arg, commonLca);
+            }
+            return;
+        }
+        previousType = commonLca;
+        commonLca = nextCastableType(commonLca);
+    }
+
+    ERROR_NODE_BEATIFY_LOG("did not find a way to cast arguments of function", f);
+}
+
+DataType
+lcaType (DataType l, DataType r)
+{
+    Set *lCasts = INTSET();
+    Set *rCasts = INTSET();
+
+    // same type no cast needed
+    if (l == r)
+        return l;
+
+    int i = 0;
+    for (CastGraphEdge e = castGraph[i]; castGraph[i].in != stopper.in || castGraph[i].out != stopper.out; e = castGraph[i++])
+    {
+        if (e.in == l)
+            addIntToSet(lCasts, e.out);
+        if (e.in == r)
+            addIntToSet(rCasts, e.out);
+    }
+
+    if (hasSetIntElem(rCasts,l))
+        return l;
+    if (hasSetIntElem(lCasts,r))
+        return r;
+
+    i = 0;
+    for(int d = typePreferences[i]; typePreferences[i] != PREFSTOPPER; d = typePreferences[i++])
+    {
+        if (hasSetIntElem(lCasts,d) && hasSetIntElem(rCasts,d))
+            return d;
+    }
+
+    return DT_STRING;
+}
+
 DataType
 SQLdataTypeToDataType (char *dt)
 {
@@ -600,7 +885,10 @@ typeOfInOpModel (Node *expr, List *inputOperators)
         case T_FunctionCall:
             return typeOfFunc((FunctionCall *) expr);
         case T_Operator:
-            return typeOfOp((Operator *) expr);
+        {
+            boolean exists = FALSE;
+            return typeOfOp((Operator *) expr, &exists);
+        }
         case T_Constant:
             return typeOf(expr);
         case T_CaseExpr:
@@ -622,52 +910,99 @@ typeOfInOpModel (Node *expr, List *inputOperators)
 
 /* figure out operator return type */
 static DataType
-typeOfOp (Operator *op)
+typeOfOp (Operator *op, boolean *exists)
 {
-    List *argDTs = NIL;
+    char *opName = op->name;
+    List *dts = typeOfArgs(op->args);
+    DataType result = typeOfOpSplit(opName, dts, exists);
 
-    FOREACH(Node,arg,op->args)
-        argDTs = appendToTailOfListInt(argDTs,typeOf(arg));
+    if (!*exists)
+        DEBUG_NODE_BEATIFY_LOG("operator with this argument types does not exist",op);
+    return result;
+}
+
+static DataType
+typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
+{
+    *exists = TRUE;
+    DataType result;
+    DataType dLeft;
+    DataType dRight;
+
+    DEBUG_LOG("check whether op <%s> exists with argument types <%s>", opName, nodeToString(argDTs));
+
+    if (LIST_LENGTH(argDTs) >= 1)
+        dLeft = getNthOfListInt(argDTs,0);
+    if (LIST_LENGTH(argDTs) >= 2)
+        dRight = getNthOfListInt(argDTs,1);
 
     // logical operators
-    if (streq(op->name,"OR")
-            || streq(op->name,"AND")
-            || streq(op->name,"NOT")
-            )
-        return DT_BOOL;
-    // standard arithmetic operators
-    if (streq(op->name,"+")
-            || streq(op->name,"*")
-            || streq(op->name,"/")
-            || streq(op->name,"-")
+    if (streq(opName,"OR")
+            || streq(opName,"AND")
+            || streq(opName,"NOT")
             )
     {
-        DataType dLeft = getNthOfListInt(argDTs,0);
-        DataType dRight = getNthOfListInt(argDTs,1);
-
+        if (dLeft == dRight && dLeft == DT_BOOL)
+            return DT_BOOL;
+    }
+    // standard arithmetic operators
+    if (streq(opName,"+")
+            || streq(opName,"*")
+            || streq(opName,"/")
+            || streq(opName,"-")
+            )
+    {
         // if the same input data types then we can safely assume that we get the same return data type
         // otherwise we use the metadata lookup plugin to make sure we get the right type
-        if(dLeft == dRight)
+        if(dLeft == dRight && (dLeft == DT_INT || dLeft == DT_FLOAT))
             return dLeft;
     }
 
     // string ops
-    if (streq(op->name,"||"))
-        return DT_STRING;
-
+    if (streq(opName,"||"))
+    {
+        if (dLeft == dRight && dLeft == DT_STRING)
+            return DT_STRING;
+    }
     // comparison operators
-    if (streq(op->name,"<")
-            || streq(op->name,">")
-            || streq(op->name,"<=")
-            || streq(op->name,"=>")
-            || streq(op->name,"<>")
-            || streq(op->name,"^=")
-            || streq(op->name,"=")
-            || streq(op->name,"!=")
+    if (streq(opName,"<")
+            || streq(opName,">")
+            || streq(opName,"<=")
+            || streq(opName,"=>")
+            || streq(opName,"<>")
+            || streq(opName,"^=")
+            || streq(opName,"=")
+            || streq(opName,"!=")
                 )
-        return DT_BOOL;
+    {
+        if (dLeft == dRight)
+            return DT_BOOL;
+    }
 
-    return getOpReturnType(op->name, argDTs);
+    *exists = FALSE;
+
+    result = getOpReturnType(opName, argDTs, exists);
+
+    return result;
+}
+
+static boolean
+opExists (char *opName, List *argDTs)
+{
+    boolean fExists = FALSE;
+
+    typeOfOpSplit(opName, argDTs, &fExists);
+
+    return fExists;
+}
+
+static List*
+typeOfArgs(List* args)
+{
+    List *argDTs = NIL;
+    FOREACH(Node,arg,args)
+        argDTs = appendToTailOfListInt(argDTs, typeOf(arg));
+    return argDTs;
 }
 
 /* figure out function return type */
@@ -675,12 +1010,61 @@ static DataType
 typeOfFunc (FunctionCall *f)
 {
     List *argDTs = NIL;
+    boolean fExists = FALSE;
+    DataType result;
 
-    FOREACH(Node,arg,f->args)
-            argDTs = appendToTailOfListInt(argDTs,typeOf(arg));
-
-    return getFuncReturnType(f->functionname, argDTs);
+    argDTs = typeOfArgs(f->args);
+    result = getFuncReturnType(f->functionname, f->args, &fExists);
+    if (!fExists)
+        DEBUG_NODE_BEATIFY_LOG("Function does not exist: %s", f);
+    return result;
 }
+
+static boolean
+funcExists (char *fName, List *argDTs)
+{
+    boolean fExists = FALSE;
+
+    getFuncReturnType(fName, argDTs, &fExists);
+
+    return fExists;
+}
+
+static Set *
+castsAsSet(DataType in)
+{
+    Set *parents = INTSET();
+    int i = 0;
+    for (CastGraphEdge e = castGraph[i];
+            castGraph[i].in != stopper.in || castGraph[i].out != stopper.out;
+            e = castGraph[i++])
+    {
+        if (e.in == in)
+            addIntToSet(parents, e.out);
+    }
+    return parents;
+}
+
+static DataType
+nextCastableType (DataType in)
+{
+    Set *parents = INTSET();
+
+    if (in == DT_STRING)
+        return in;
+
+    parents = castsAsSet(in);
+
+    int i = 0;
+    for(DataType d = typePreferences[i]; typePreferences[i] != PREFSTOPPER; d = typePreferences[i++])
+    {
+        if (hasSetIntElem(parents,d))
+            return d;
+    }
+
+    return DT_STRING;
+}
+
 
 
 /* search functions */

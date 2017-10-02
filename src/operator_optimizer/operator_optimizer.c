@@ -43,7 +43,7 @@
 #define APPLY_AND_TIME_OPT(optName,optMethod,configOption) \
     if(getBoolOption(configOption)) \
     { \
-    	INFO_LOG("START: %s", optName); \
+    	DEBUG_LOG("START: %s", optName); \
         START_TIMER("OptimizeModel - " optName); \
         rewrittenTree = optMethod((QueryOperator *) rewrittenTree); \
         TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree)); \
@@ -210,7 +210,7 @@ optimizeOneGraph (QueryOperator *root)
     	DEBUG_LOG("callback = %d in loop %d",res,c);
     	c++;
         START_TIMER("OptimizeModel - RemoveProperties");
-        ERROR_LOG("number of operators in graph: %d", numOpsInGraph(rewrittenTree));
+        INFO_LOG("number of operators in graph: %d", numOpsInGraph(rewrittenTree));
         INFO_LOG("number of operators in tree: %d", numOpsInTree(rewrittenTree));
     	emptyProperty(rewrittenTree);
     	STOP_TIMER("OptimizeModel - RemoveProperties");
@@ -393,7 +393,7 @@ QueryOperator *
 removeUnnecessaryColumns(QueryOperator *root)
 {
 	START_TIMER("PropertyInference - iCols");
-    initializeIColProp(root);
+	initializeIColProp(root);
 	computeReqColProp(root);
 	printIcols(root);
 	STOP_TIMER("PropertyInference - iCols");
@@ -1136,7 +1136,6 @@ pullUpDuplicateRemoval(QueryOperator *root)
     	if(op->op.parents != NIL && numParent == 1)
     		doPullUpDuplicateRemoval(op);
     }
-
     return root;
 }
 
@@ -1655,7 +1654,7 @@ pullup(QueryOperator *op, List *duplicateattrs, List *normalAttrNames)
 
                 		FOREACH(char, attrName, LostNormalList)
                 		{
-                			DataType type ;
+                			DataType type = DT_INT;
                 			char *name = NULL;
                 			FORBOTH(Node, t, n, childType, childName)
                 			{

@@ -100,6 +100,11 @@
 #include <math.h>
 #endif
 
+/* pwd */
+#if HAVE_PWD_H
+#include <pwd.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup
@@ -115,7 +120,6 @@
 #define strneq(_l,_r,n) (strncmp(_l,_r,n) == 0)
 #define strStartsWith(_str,_prefix) (strncmp(_str,_prefix,strlen(_prefix)) == 0)
 #endif
-
 
 
 /* exit for main function */

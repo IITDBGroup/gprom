@@ -106,6 +106,16 @@ public class GProMDriver implements Driver {
 			
 			// extract backend connection parameters from JDBC connection
 			extractConnectionParameters(backendURL, backendOpts, backend, info);
+			java.util.Iterator<java.util.HashMap.Entry<Object, Object>> infoIter = info.entrySet().iterator();
+			java.util.HashMap.Entry<Object, Object> propEntry;
+			while(infoIter.hasNext()){
+				propEntry = infoIter.next();
+				if(propEntry.getKey() instanceof String){
+					if(((String)propEntry.getKey()).startsWith("plugin.") || ((String)propEntry.getKey()).startsWith("log.")){
+						backendOpts.put(propEntry.getKey(), propEntry.getValue());
+					}
+				}
+			}
 			
 			// setup GProM C libraries options and plugins
 			w.setupOptions(backendOpts);

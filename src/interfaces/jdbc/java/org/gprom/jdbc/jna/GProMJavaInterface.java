@@ -9,6 +9,8 @@ import java.util.Properties;
 import org.apache.log4j.Level;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
+import com.sun.jna.Pointer;
+
 /**
  * @author lord_pretzel
  *
@@ -50,6 +52,16 @@ public interface GProMJavaInterface {
 	
 	/* rewrite */
 	public String gpromRewriteQuery (String query) throws SQLException;
+	public GProMStructure rewriteQueryToOperatorModel (String query) throws Exception;
+	public GProMStructure provRewriteOperator(Pointer nodeFromMimir) throws Exception;
+	public GProMStructure optimizeOperatorModel(Pointer nodeFromMimir) throws Exception;
+	public String operatorModelToSql (Pointer nodeFromMimir) throws Exception;
+	public String gpromNodeToString (Pointer nodeFromMimir) throws Exception;
+	public String gpromOperatorModelToQuery(Pointer nodeFromMimir) throws Exception;
+	public Pointer gpromCreateMemContext();
+	public Pointer createMemContextName(String ctxName);
+	public void gpromFreeMemContext(Pointer memContext);
+	public GProMHashMap gpromAddToMap(Pointer hashmap,Pointer key, Pointer value) throws Exception;	
 	
 	/* initialization */
 	public void init ();

@@ -38,8 +38,8 @@ static List *externalGetAttributeNames (char *tableName);
 extern Node *externalGetAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 static boolean externalIsAgg(char *functionName);
 static boolean externalIsWindowFunction(char *functionName);
-static DataType externalGetFuncReturnType (char *fName, List *argTypes);
-static DataType externalGetOpReturnType (char *oName, List *argTypes);
+static DataType externalGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists);
+static DataType externalGetOpReturnType (char *oName, List *argTypes, boolean *opExists);
 static char *externalGetTableDefinition(char *tableName);
 static char *externalGetViewDefinition(char *viewName);
 static List *externalGetKeyInformation (char *tableName);
@@ -214,39 +214,39 @@ externalIsWindowFunction(char *functionName)
 }
 
 static DataType
-externalGetFuncReturnType (char *fName, List *argTypes)
+externalGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
     EXTERNAL_PLUGIN;
-    char ** args;
+    //char ** args;
     int numArgs;
-    int i;
+    //int i;
 
     numArgs = LIST_LENGTH(argTypes);
-    args = MALLOC(sizeof(char *) * numArgs);
+    /*args = MALLOC(sizeof(char *) * numArgs);
 
     i = 0;
     FOREACH_INT(d,argTypes)
-        args[i++] = DataTypeToString(d);
+        args[i++] = DataTypeToString(d);*/
 
-    return stringToDataType(extP->getFuncReturnType(fName, args, numArgs));
+    return stringToDataType(extP->getFuncReturnType(fName, argTypes, numArgs));
 }
 
 static DataType
-externalGetOpReturnType (char *oName, List *argTypes)
+externalGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
     EXTERNAL_PLUGIN;
-    char **args;
+    //char **args;
     int numArgs;
-    int i;
+    //int i;
 
     numArgs = LIST_LENGTH(argTypes);
-    args = MALLOC(sizeof(char *) * numArgs);
+    /*args = MALLOC(sizeof(char *) * numArgs);
 
     i = 0;
     FOREACH_INT(d,argTypes)
-        args[i++] = DataTypeToString(d);
+        args[i++] = DataTypeToString(d);*/
 //TODO leaking
-    return stringToDataType(extP->getFuncReturnType(oName, args, numArgs));
+    return stringToDataType(extP->getFuncReturnType(oName, argTypes, numArgs));
 }
 
 static char *

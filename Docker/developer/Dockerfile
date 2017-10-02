@@ -79,6 +79,7 @@ RUN cd /home/ubuntu/ocilib/src \
 	&& ./configure --with-oracle-headers-path=/opt/oracle/instantclient/sdk/include --with-oracle-lib-path=/opt/oracle/instantclient \
 	&& make \
 	&& make install \
+	&& echo "/usr/local/bin/" >> /etc/ld.so.conf \
 	&& /sbin/ldconfig
 ########################################
 # Clone GProM github repository
@@ -91,7 +92,9 @@ RUN cd /home/ubuntu/gprom \
 	&& make -f Makefile.maintainer \
 	&& ./configure --with-oci-headers=/opt/oracle/instantclient/sdk/include/ --with-oci-lib=/opt/oracle/instantclient \
 	&& make \
-	&& make install
+	&& make install \
+	&& make dist \
+	&& make distcheck
 ########################################
 # Expose VNC port
 ########################################

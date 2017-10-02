@@ -206,6 +206,8 @@ extern boolean isCondition(Node *expr);
 
 /* casting related */
 extern List *createCasts(Node *lExpr, Node *rExpr);
+extern Node *addCastsToExpr(Node *expr, boolean errorOnFailure);
+extern DataType lcaType (DataType l, DataType r);
 
 extern DataType SQLdataTypeToDataType (char *dt);
 
@@ -230,5 +232,6 @@ extern Node *changeListOpToAnOpNode(List *l1);
 
 /* find all nodes of a certain type */
 extern List *findAllNodes(Node *node, NodeTag type);
+
 
 #endif /* EXPRESSION_H */

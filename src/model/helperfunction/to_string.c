@@ -124,7 +124,7 @@ static void datalogToStrInternal(StringInfo str, Node *n, int indent);
 		((a) ? "true" : "false")
 
 #define WRITE_NODE_TYPE(nodelabel)  \
-		appendStringInfoString(str,  CppAsString(nodelabel));
+		appendStringInfoString(str, "type|'" CppAsString(nodelabel) "'");
 
 #define CppAsString(token) #token
 
@@ -148,7 +148,7 @@ static void datalogToStrInternal(StringInfo str, Node *n, int indent);
 
 /* enum-type field as integer*/
 #define WRITE_ENUM_FIELD(fldname, enumtype)  \
-		appendStringInfo(str, ":" CppAsString(fldname) "|%s - %d", enumtype ## ToString(node->fldname), (int)node->fldname)
+		appendStringInfo(str, ":" CppAsString(fldname) "|'%s - %d'", enumtype ## ToString(node->fldname), (int)node->fldname)
 
 /* float field*/
 #define WRITE_FLOAT_FIELD(fldname, format)  \
@@ -174,7 +174,7 @@ static void datalogToStrInternal(StringInfo str, Node *n, int indent);
 
 /* write the pointer address of a node used for debugging operator model graphs */
 #define WRITE_NODE_ADDRESS() \
-		appendStringInfo(str, ":ADDRESS|%p", node)
+		appendStringInfo(str, ":ADDRESS|'%p'", node)
 
 /* write a field that contains a list of pointers to other nodes */
 #define WRITE_POINTER_LIST_FIELD(fldname) \
@@ -187,26 +187,26 @@ static void datalogToStrInternal(StringInfo str, Node *n, int indent);
 static void
 outPointerList (StringInfo str, List *node)
 {
-    appendStringInfo(str, "(");
+    appendStringInfo(str, "[");
 
     if (node != NIL)
     {
         FOREACH(void,p,node)
                 {
-            appendStringInfo(str, "%p", p);
+            appendStringInfo(str, "'%p'", p);
             if (p_his_cell->next)
-                appendStringInfoString(str, " ");
+                appendStringInfoString(str, ", ");
                 }
     }
 
-    appendStringInfoString(str, ")");
+    appendStringInfoString(str, "]");
 }
 
 /* outNode from node append it to string*/
 static void
 outList(StringInfo str, List *node)
 {
-    appendStringInfo(str, "(");
+    appendStringInfo(str, "[");
 
     if (node != NIL)
     {
@@ -214,23 +214,23 @@ outList(StringInfo str, List *node)
         {
             FOREACH_INT(i, node)
             {
-                appendStringInfo(str, "i%d", i);
+                appendStringInfo(str, "%d", i);
                 if (i_his_cell->next)
-                    appendStringInfoString(str, " ");
+                    appendStringInfoString(str, ", ");
             }
         }
         else
         {
             FOREACH(Node,n,node)
             {
-                outNode(str, n);
+            	outNode(str, n);
                 if (n_his_cell->next)
-                    appendStringInfoString(str, " ");
+                    appendStringInfoString(str, ", ");
             }
         }
     }
 
-    appendStringInfoString(str, ")");
+    appendStringInfoString(str, "]");
 }
 
 char *
@@ -246,16 +246,16 @@ stringListToString (List *node)
 static void
 outStringList (StringInfo str, List *node)
 {
-    appendStringInfo(str, "(");
+    appendStringInfo(str, "[");
 
     FOREACH(char,s,node)
     {
         appendStringInfo(str, "\"%s\"", s);
         if (s_his_cell->next)
-            appendStringInfoString(str, " ");
+            appendStringInfoString(str, ", ");
     }
 
-    appendStringInfoString(str, ")");
+    appendStringInfoString(str, "]");
 }
 
 static void
@@ -334,15 +334,17 @@ outHashMap(StringInfo str, HashMap *node)
     List *entryStrings = NIL;
     List *sortEntries = NIL;
 
-    appendStringInfo(str, "{");
+    appendStringInfo(str, "map|[");
 
     // create list of serializations for each hash entry
     FOREACH_HASH_ENTRY(el,node)
     {
         StringInfo hashStr = makeStringInfo();
+        appendStringInfoString(hashStr,"{key|");
         outNode(hashStr, el->key);
-        appendStringInfoString(hashStr," => ");
+        appendStringInfoString(hashStr,":value|");
         outNode(hashStr, el->value);
+        appendStringInfoString(hashStr,"}");
         entryStrings = appendToTailOfList(entryStrings, strdup(hashStr->data));
     }
 
@@ -357,7 +359,7 @@ outHashMap(StringInfo str, HashMap *node)
         appendStringInfo(str, "%s", s_his_cell->next ? ", " : "");
     }
 
-    appendStringInfo(str, "}");
+    appendStringInfo(str, "]");
 }
 
 // datalog model
@@ -538,10 +540,10 @@ outConstant (StringInfo str, Constant *node)
     WRITE_NODE_TYPE(CONSTANT);
 
     WRITE_ENUM_FIELD(constType, DataType);
-    appendStringInfoString(str, ":value ");
+    appendStringInfoString(str, ":value| ");
 
     if (node->isNull)
-        appendStringInfoString(str, "NULL");
+        appendStringInfoString(str, "null");
     else
         switch(node->constType)
         {
@@ -555,14 +557,14 @@ outConstant (StringInfo str, Constant *node)
                 appendStringInfo(str, "'%s'", (char *) node->value);
                 break;
             case DT_BOOL:
-                appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
+                appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "true" : "false");
                 break;
             case DT_LONG:
                 appendStringInfo(str, "%ld", *((long *) node->value));
                 break;
             case DT_VARCHAR2:
-	        appendStringInfo(str, "'%s'", (char *) node->value);
-	        break;
+				appendStringInfo(str, "'%s'", (char *) node->value);
+				break;
         }
 
     WRITE_BOOL_FIELD(isNull);
@@ -1029,7 +1031,7 @@ void
 outNode(StringInfo str, void *obj)
 {
     if(obj == NULL)
-        appendStringInfoString(str, "<>");
+        appendStringInfoString(str, "null");
     else if(isA(obj, List) || isA(obj, IntList))
         outList(str, obj);
     else
@@ -1239,7 +1241,7 @@ outNode(StringInfo str, void *obj)
                 outRPQQuery(str, (RPQQuery *) obj);
                 break;
             default :
-            	FATAL_LOG("do not know how to output node of type %d", nodeTag(obj));
+            	INFO_LOG("do not know how to output node of type %d", nodeTag(obj));
                 //outNode(str, obj);
                 break;
         }
@@ -1383,6 +1385,116 @@ beatify(char *input)
     FREE(input);
     return result;
 }
+
+char *
+jsonify(char *input)
+{
+    StringInfo str = makeStringInfo();
+    char *result;
+    int indentation = 0;
+    boolean inString = FALSE;
+    boolean inStringConst = FALSE;
+
+    TRACE_LOG("beatify string of len <%u>\n%s", strlen(input), input);
+
+    if(input == NULL)
+        return NULL;
+
+    for(; *input != '\0'; input++)
+    {
+        char c = *input;
+        if (inString)
+        {
+            switch(c)
+            {
+                case '"':
+                    inString = FALSE;
+                default:
+                    appendStringInfoChar (str, c);
+                    break;
+            }
+        }
+        else if (inStringConst)
+        {
+            switch(c)
+            {
+                case '\'':
+                {
+                    inStringConst = FALSE;
+                    appendStringInfoChar (str, c);
+                }
+                break;
+                case '\\':
+                {
+                    if ((c + 1) == '\'')
+                    {
+                        c++;
+                        appendStringInfoString(str, "\\'");
+                    }
+                    else
+                        appendStringInfoChar (str, c);
+                }
+                break;
+                default:
+                    appendStringInfoChar (str, c);
+            }
+        }
+        else
+        {
+            switch (c)
+            {
+                case '[':
+                    indentation++;
+                    appendStringInfoString(str, "[\n");
+                    //appendStringInfoChar(str, '\n');
+                    indentString(str, indentation);
+                    break;
+                case '{':
+                    appendStringInfoChar(str, '\n');
+                    indentString(str, indentation);
+                    indentation++;
+                    appendStringInfoString(str, "{\n");
+                    indentString(str, indentation);
+                    break;
+                case ']':
+                	indentation--;
+					appendStringInfoChar(str, '\n');
+					indentString(str, indentation);
+					appendStringInfo(str, "%c",c);
+					break;
+                case '}':
+                    indentation--;
+                    appendStringInfoChar(str, '\n');
+                    indentString(str, indentation);
+                    appendStringInfo(str, "%c",c);
+                    break;
+                case ':':
+                    appendStringInfoString(str,",\n");
+                    indentString(str, indentation);
+                    break;
+                case '|':
+                    appendStringInfoString(str,": ");
+                    break;
+                case '"':
+                    inString = TRUE;
+                    appendStringInfoChar (str, c);
+                    break;
+                case '\'':
+                    inStringConst = TRUE;
+                    appendStringInfoChar (str, c);
+                    break;
+                default:
+                    appendStringInfoChar (str, c);
+            }
+        }
+    }
+
+    result = str->data;
+    FREE(str);
+    FREE(input);
+    return result;
+}
+
 
 char *
 itoa(int value)

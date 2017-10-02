@@ -361,14 +361,15 @@ postgresIsInitialized (void)
 }
 
 DataType
-postgresGetFuncReturnType (char *fName, List *argTypes)
+postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
     PGresult *res = NULL;
     DataType resType = DT_STRING;
+    *funcExists = TRUE;
 
     ACQUIRE_MEM_CONTEXT(memContext);
 
-    //TODO cache operator information
+    //TODO cache function information
     res = execPrepared(NAME_GET_FUNC_DEFS,
             LIST_MAKE(createConstString(fName),
                     createConstInt(LIST_LENGTH(argTypes))));
@@ -380,22 +381,26 @@ postgresGetFuncReturnType (char *fName, List *argTypes)
         List *argDTs = oidVecToDTList(argTypes);
 
         if (equal(argDTs, argTypes)) //TODO compatible data types
+        {
+            RELEASE_MEM_CONTEXT();
             return postgresOidToDT(retType);
+        }
     }
 
     PQclear(res);
 
     RELEASE_MEM_CONTEXT();
-
+    *funcExists = FALSE;
     return resType;
 }
 
 DataType
-postgresGetOpReturnType (char *oName, List *argTypes)
+postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
     PGresult *res = NULL;
     DataType resType = DT_STRING;
 
+    *opExists = TRUE;
     ACQUIRE_MEM_CONTEXT(memContext);
 
     //TODO cache operator information
@@ -405,11 +410,20 @@ postgresGetOpReturnType (char *oName, List *argTypes)
 
     for(int i = 0; i < PQntuples(res); i++)
     {
+        char *retType = PQgetvalue(res,i,0);
+        char *argTypes = PQgetvalue(res,i,1);
+        List *argDTs = oidVecToDTList(argTypes);
 
+        if (equal(argDTs, argTypes)) //TODO compatible data types
+        {
+            RELEASE_MEM_CONTEXT();
+            return postgresOidToDT(retType);
+        }
     }
 
     PQclear(res);
     RELEASE_MEM_CONTEXT();
+    *opExists = FALSE;
 
     return resType;
 }

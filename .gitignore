@@ -50,3 +50,7 @@ test/testmain.trs
 test/testrpq
 gprom-*.tar.gz
 /test/testuncert
+test-suite.log
+dpkg
+#*
+.#*
