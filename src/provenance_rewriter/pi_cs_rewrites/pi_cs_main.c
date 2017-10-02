@@ -27,6 +27,7 @@
 #include "model/set/hashmap.h"
 #include "parser/parser_jp.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
+#include "provenance_rewriter/semiring_combiner/sc_main.h"
 
 #define LOG_RESULT(mes,op) \
     do { \
@@ -78,6 +79,11 @@ rewritePI_CS (ProvenanceComputation  *op)
     // get provenance attrs
 //    provAttrs = getQueryOperatorAttrNames((QueryOperator *) op);
 
+    //check for SC aggregation optimizer
+        if(isSemiringCombinerActivatedOp((QueryOperator *) op)){
+        	SET_STRING_PROP(rewRoot, PROP_PC_SC_AGGR_OPT, (Node *)createConstString(getSemiringCombinerFuncName((QueryOperator *) op)));
+        }
+
     // rewrite subquery under provenance computation
     rewritePI_CSOperator(rewRoot);
 
@@ -102,6 +108,7 @@ rewritePI_CS (ProvenanceComputation  *op)
 static QueryOperator *
 rewritePI_CSOperator (QueryOperator *op)
 {
+	boolean combinerAggrOpt = HAS_STRING_PROP(op,  PROP_PC_SC_AGGR_OPT);
     boolean showIntermediate = HAS_STRING_PROP(op,  PROP_SHOW_INTERMEDIATE_PROV);
     boolean noRewriteUseProv = HAS_STRING_PROP(op, PROP_USE_PROVENANCE);
     boolean noRewriteHasProv = HAS_STRING_PROP(op, PROP_HAS_PROVENANCE);
@@ -132,6 +139,9 @@ rewritePI_CSOperator (QueryOperator *op)
     if (noRewriteHasProv)
         return rewritePI_CSUseProvNoRewrite(op, userProvAttrs);
 
+    if(combinerAggrOpt) {
+    	INFO_OP_LOG("go SEMIRING COMBINER aggregation optimization:",op);
+    }
     switch(op->type)
     {
         case T_SelectionOperator:
@@ -143,6 +153,9 @@ rewritePI_CSOperator (QueryOperator *op)
             rewrittenOp = rewritePI_CSProjection((ProjectionOperator *) op);
             break;
         case T_AggregationOperator:
+        	if(combinerAggrOpt) {
+        		INFO_LOG("go SEMIRING COMBINER aggregation optimization!");
+        	}
             DEBUG_LOG("go aggregation");
             rewrittenOp = rewritePI_CSAggregation ((AggregationOperator *) op);
             break;
@@ -555,6 +568,9 @@ rewritePI_CSSelection (SelectionOperator *op)
     DEBUG_LOG("REWRITE-PICS - Selection");
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));
 
+    //add semiring options
+    addSCOptionToChild((QueryOperator *) op,OP_LCHILD(op));
+
     // rewrite child first
     rewritePI_CSOperator(OP_LCHILD(op));
 
@@ -572,6 +588,9 @@ rewritePI_CSProjection (ProjectionOperator *op)
 
     DEBUG_LOG("REWRITE-PICS - Projection");
     DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+    //add semiring options
+    addSCOptionToChild((QueryOperator *) op,OP_LCHILD(op));
 
     // rewrite child
     rewritePI_CSOperator(OP_LCHILD(op));
@@ -601,8 +620,14 @@ rewritePI_CSJoin (JoinOperator *op)
     QueryOperator *rChild = OP_RCHILD(op);
 
     // rewrite children
+
+    //add semiring options
+    addSCOptionToChild((QueryOperator *) op,lChild);
     // if (!HAS_STRING_PROP(PROP...))
     lChild = rewritePI_CSOperator(lChild);
+
+    //add semiring options
+    addSCOptionToChild((QueryOperator *) op,rChild);
     // if (!HAS_STRING_PROP(PROP...))
     rChild = rewritePI_CSOperator(rChild);
 
@@ -649,6 +674,7 @@ rewritePI_CSAggregation (AggregationOperator *op)
     origAgg = (QueryOperator *) op;
     aggInput = copyUnrootedSubtree(OP_LCHILD(op));
     // rewrite aggregation input copy
+
     aggInput = rewritePI_CSOperator(aggInput);
 
     // add projection including group by expressions if necessary
@@ -741,6 +767,9 @@ rewritePI_CSSet(SetOperator *op)
 
     QueryOperator *lChild = OP_LCHILD(op);
     QueryOperator *rChild = OP_RCHILD(op);
+    //add semiring options
+    addSCOptionToChild((QueryOperator *) op,lChild);
+    addSCOptionToChild((QueryOperator *) op,rChild);
 
     switch(op->setOpType)
     {
