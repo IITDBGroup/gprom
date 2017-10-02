@@ -34,7 +34,7 @@ public class LoggerUtil {
 	
 	public static void logExceptionAndFail (Exception e, Logger log) {
 		log.fatal(getCompleteTrace(e));
-		System.exit(1);
+		//System.exit(1);
 	}
 	
 	public static String getCompleteTrace (Throwable e) {

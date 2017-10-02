@@ -5,14 +5,12 @@ import com.sun.jna.Structure;
 
 public abstract class GProMStructure extends Structure 
 {
-	 
 	 public GProMStructure(Pointer address) { 
 	    super(address); 
 	    read();
-	  } 
+	 } 
 	 public GProMStructure() { 
 	    super();
-	    
 	 } 
 	 
 	 /*
@@ -36,11 +34,15 @@ public abstract class GProMStructure extends Structure
 	  * 
 	  */
 	 private void keepAlive() {
-		 synchronized(GProM_JNA.GC_LOCK){}
+		 //System.out.println(this.getClass().getCanonicalName()+"@"+ this.hashCode() +" T:" +Thread.currentThread().getId()+ " --> delaying GC: " + System.nanoTime() );
+		 synchronized(GProM_JNA.GC_LOCK){
+			 //System.out.println(this.getClass().getCanonicalName()+"@"+ this.hashCode() +" T:" +Thread.currentThread().getId()+ " --> allow GC to proceede: " + System.nanoTime());
+		 }
 	 }
 	 @Override
      protected void finalize() throws Throwable {
 		 keepAlive();
+		 //System.out.println(this.getClass().getCanonicalName()+"@"+ this.hashCode() +" T:" +Thread.currentThread().getId()+ " --> finalize: " + System.nanoTime());
          super.finalize();
      }
 	

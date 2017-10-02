@@ -10,6 +10,7 @@
  *-----------------------------------------------------------------------------
  */
 
+//#include <pthread.h>
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
@@ -27,17 +28,29 @@
 
 #define LIBARY_REWRITE_CONTEXT "LIBGRPROM_QUERY_CONTEXT"
 //#define printf(...) 0
-#define LOCK_MUTEX() 0//printf("\nMUTEX\n%s:%u", __FILE__, __LINE__)
-#define UNLOCK_MUTEX() 0//printf("\nUNLOCK\n%s:%u", __FILE__, __LINE__)
-#define CREATE_MUTEX()
-#define DESTROY_MUTEX()
+//pthread_mutex_t mlock;
+#define LOCK_MUTEX() //pthread_mutex_lock(&mlock); printf("\nMUTEX\n%s:%u", __FILE__, __LINE__)
+#define UNLOCK_MUTEX() //pthread_mutex_unlock(&mlock); printf("\nUNLOCK\n%s:%u", __FILE__, __LINE__)
+#define CREATE_MUTEX() //pthread_mutex_init(&mlock, NULL)
+#define DESTROY_MUTEX() //pthread_mutex_destroy(&mlock)
+
+#define PRINT_TRY(counter) //printf("\ntry: line: %u counter: %u", __LINE__, counter)
+#define PRINT_EXCEPT(counter) //printf("\nexcept: line: %u counter: %u", __LINE__, counter)
+
+void
+rebootFunc(void)
+{
+	gprom_shutdown();
+	gprom_init();
+}
 
 void
 gprom_init(void)
 {
-    CREATE_MUTEX();
-    LOCK_MUTEX();
+	CREATE_MUTEX();
     initMemManager();
+    LOCK_MUTEX();
+    setWipeContext(LIBARY_REWRITE_CONTEXT);
     mallocOptions();
     initLogger();
     registerSignalHandler();
@@ -91,18 +104,27 @@ gprom_rewriteQuery(const char *query)
     //NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
     char *result = "";
     //char *returnResult = NULL;
+    int counter = 0;
     TRY
+	{
+    	TRY
     {
-        result = rewriteQueryWithRethrow((char *) query);
-        return result;
-        UNLOCK_MUTEX();
-        //RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
+    	PRINT_TRY(counter);
+		if(counter++ == 0){
+			result = rewriteQueryWithRethrow((char *) query);
+			UNLOCK_MUTEX();
+			//RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
+			return result;
+        }
     }
     ON_EXCEPTION
     {
-        ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+    	PRINT_EXCEPT(counter);
+    	NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT)
     }
     END_ON_EXCEPTION
+}
+		    END_TRY
 
     UNLOCK_MUTEX();
     return result;//returnResult;
@@ -217,26 +239,36 @@ gprom_rewriteQueryToOperatorModel(const char *query)
     Node *oModel;
     Node *rewrittenTree;
     GProMNode* returnResult;
+    int counter = 0;
     TRY
     {
-    	parse = parseFromString((char *)query);
-		//DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
+    TRY
 
-		oModel = translateParse(parse);
-		//DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
+    {
+    	PRINT_TRY(counter);
+    	if(counter++ == 0){
+			parse = parseFromString((char *)query);
+			//DEBUG_LOG("parser returned:\n\n<%s>", nodeToString(parse));
 
-		rewrittenTree = provRewriteQBModel(oModel);
+			oModel = translateParse(parse);
+			//DEBUG_NODE_BEATIFY_LOG("translator returned:", oModel);
 
-    	UNLOCK_MUTEX();
-    	returnResult = (GProMNode*)rewrittenTree;
-    	//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
-    	return returnResult;
+			rewrittenTree = provRewriteQBModel(oModel);
+
+			UNLOCK_MUTEX();
+			returnResult = (GProMNode*)rewrittenTree;
+			//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+			return returnResult;
+    	}
     }
     ON_EXCEPTION
-    {
-        ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+	{
+    	PRINT_EXCEPT(counter);
+    	NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT)
+	}
+	END_ON_EXCEPTION
     }
-    END_ON_EXCEPTION
+    END_TRY
 
     UNLOCK_MUTEX();
     //RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
@@ -252,24 +284,30 @@ gprom_provRewriteOperator(GProMNode* nodeFromMimir)
 	    Node *rewrittenTree;
 	    Node *copiedTree;
 	    GProMNode* returnResult;
+	    int counter = 0;
 	    TRY
-	    {
+	        {TRY
+		{
+	    	PRINT_TRY(counter);
+	    	if(counter++ == 0){
+				copiedTree = copyObject(nodeFromMimir);
+				rewrittenTree = provRewriteQBModel(copiedTree);
 
-	    	copiedTree = copyObject(nodeFromMimir);
-			rewrittenTree = provRewriteQBModel(copiedTree);
 
-
-	    	UNLOCK_MUTEX();
-	    	returnResult = (GProMNode*)rewrittenTree;
-	    	//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
-	    	return returnResult;
+				UNLOCK_MUTEX();
+				returnResult = (GProMNode*)rewrittenTree;
+				//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+				return returnResult;
+	        }
 	    }
-	    ON_EXCEPTION
-	    {
-	        ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
-	    }
-	    END_ON_EXCEPTION
-
+		ON_EXCEPTION
+		{
+			PRINT_EXCEPT(counter);
+			NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT)
+		}
+		END_ON_EXCEPTION
+	        }
+	        		    END_TRY
 	    UNLOCK_MUTEX();
 	    //RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
 	    return NULL;
@@ -279,30 +317,36 @@ GProMNode *
 gprom_optimizeOperatorModel(GProMNode * nodeFromMimir)
 {
 	LOCK_MUTEX();
-	NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
+	//NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
 	    //NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
 	    //char *result = "";
 	    Node *rewrittenTree;
 	    Node *copiedTree;
 	    GProMNode* returnResult;
+	    int counter = 0;
 	    TRY
+	        {TRY
 	    {
+	    	PRINT_TRY(counter);
+	    	if(counter++ == 0){
+	        	copiedTree = copyObject(nodeFromMimir);
 
-	    	copiedTree = copyObject(nodeFromMimir);
+				rewrittenTree = optimizeOperatorModelRW(copiedTree);
 
-	    	rewrittenTree = optimizeOperatorModelRW(copiedTree);
-
-			UNLOCK_MUTEX();
-			returnResult = (GProMNode*)rewrittenTree;
-			//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
-			return returnResult;
+				UNLOCK_MUTEX();
+				returnResult = (GProMNode*)rewrittenTree;
+				//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+				return returnResult;
+	        }
 		}
-		ON_EXCEPTION
+	    ON_EXCEPTION
 		{
-			ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+	    	PRINT_EXCEPT(counter);
+	    	NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT)
 		}
 		END_ON_EXCEPTION
-
+	        }
+	        		    END_TRY
 		UNLOCK_MUTEX();
 		//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
 		return NULL;
@@ -312,28 +356,34 @@ char *
 gprom_operatorModelToSql(GProMNode * nodeFromMimir)
 {
 	LOCK_MUTEX();
-	NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
+	//NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
 	    //NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
 	    //char *result = "";
 	    char *rewrittenSQL;
 	    Node *copiedTree;
+	    int counter = 0;
 	    TRY
+	        {TRY
 	    {
+	    	PRINT_TRY(counter);
+	    	if(counter++ == 0){
+				copiedTree = copyObject(nodeFromMimir);
 
-	    	copiedTree = copyObject(nodeFromMimir);
+				rewrittenSQL = serializeOperatorModelRW(copiedTree);
 
-	    	rewrittenSQL = serializeOperatorModelRW(copiedTree);
-
-			UNLOCK_MUTEX();
-			//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
-			return rewrittenSQL;
+				UNLOCK_MUTEX();
+				//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+				return rewrittenSQL;
+	        }
 		}
-		ON_EXCEPTION
+	    ON_EXCEPTION
 		{
-			ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+	    	PRINT_EXCEPT(counter);
+	    	NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT)
 		}
 		END_ON_EXCEPTION
-
+	        }
+	        		    END_TRY
 		UNLOCK_MUTEX();
 		//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
 		return NULL;
@@ -347,22 +397,29 @@ gprom_nodeToString(GProMNode * nodeFromMimir)
 	char *returnResult = NULL;
 	//char *result = NULL;
 	//Node *copiedTree;
+	int counter = 0;
 	TRY
+	    {TRY
 	{
-		//copiedTree = copyObject(nodeFromMimir);
-		returnResult = jsonify(nodeToString(nodeFromMimir));
+		PRINT_TRY(counter);
+		if(counter++ == 0){
+			//copiedTree = copyObject(nodeFromMimir);
+			returnResult = jsonify(nodeToString(nodeFromMimir));
 
-		UNLOCK_MUTEX();
-		//RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
-		//RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(beatify(nodeToString(nodeFromMimir)),returnResult);
-		return returnResult;
+			UNLOCK_MUTEX();
+			//RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
+			//RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(beatify(nodeToString(nodeFromMimir)),returnResult);
+			return returnResult;
+	    }
 	}
 	ON_EXCEPTION
 	{
-		ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+		PRINT_EXCEPT(counter);
+		NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT)
 	}
 	END_ON_EXCEPTION
-
+	    }
+	    		    END_TRY
 	UNLOCK_MUTEX();
 	return returnResult;
 }
@@ -372,20 +429,31 @@ gprom_OperatorModelToQuery(GProMNode * nodeFromMimir)
 {
 	LOCK_MUTEX();
 	Node * copiedTree;
-    char *result ;
-    NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
+    char *result = "";
+    //NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
+    int counter = 0;
     TRY
-    {
-    	copiedTree = copyObject(nodeFromMimir);
-        result = generatePlan(copiedTree, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
-        RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+        {TRY
+	{
+    	PRINT_TRY(counter);
+    	if(counter++ == 0){
+			copiedTree = copyObject(nodeFromMimir);
+			result = generatePlan(copiedTree, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
+			UNLOCK_MUTEX();
+			//RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+			return result;
+		}
     }
-    ON_EXCEPTION
-    {
-    	ERROR_LOG("allocated in memory context: %s", currentExceptionToString());
-    }
-    END_ON_EXCEPTION
-    return result;
+	ON_EXCEPTION
+	{
+		PRINT_EXCEPT(counter);
+		NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT)
+	}
+	END_ON_EXCEPTION
+        }
+        		    END_TRY
+	UNLOCK_MUTEX();
+	return result;
 }
 
 void *
@@ -425,36 +493,43 @@ GProMHashMap* gprom_addToMap(GProMHashMap* map, GProMNode * key, GProMNode * val
 {
 
 	LOCK_MUTEX();
-		   //NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+		   ///NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
 		    HashMap* newMap;
 			Node *newKey;
 		    Node *newValue;
 		    GProMHashMap* returnResult;
+		    int counter = 0;
 		    TRY
-		    {
+		        {TRY
+			{
+		    	PRINT_TRY(counter);
+		    	if(counter++ == 0){
+					newKey = (Node*)copyObject(key);
+					newValue = (Node*)copyObject(value);
 
-				newKey = (Node*)copyObject(key);
-		    	newValue = (Node*)copyObject(value);
+					if(map == NULL){
+						newMap = newHashMap(newKey->type, newValue->type, NULL, NULL);
+					}
+					else
+						newMap = (HashMap*)copyObject(map);
 
-		    	if(map == NULL){
-		    		newMap = newHashMap(newKey->type, newValue->type, NULL, NULL);
-		    	}
-		    	else
-		    		newMap = (HashMap*)copyObject(map);
+					addToMap(newMap, newKey, newValue);
 
-		    	addToMap(newMap, newKey, newValue);
+					UNLOCK_MUTEX();
 
-		    	UNLOCK_MUTEX();
-
-				returnResult = (GProMHashMap*)copyObject(newMap);
-				//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
-				return returnResult;
+					returnResult = (GProMHashMap*)copyObject(newMap);
+					//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+					return returnResult;
+				}
 			}
 			ON_EXCEPTION
 			{
-				ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+				PRINT_EXCEPT(counter);
+				NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT)
 			}
 			END_ON_EXCEPTION
+		        }
+		    END_TRY
 
 			UNLOCK_MUTEX();
 			//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
