@@ -522,6 +522,8 @@ extern GProMNode * gprom_rewriteQueryToOperatorModel(const char *query);
 
 extern GProMNode * gprom_provRewriteOperator(GProMNode * nodeFromMimir);
 
+extern GProMNode * gprom_taintRewriteOperator(GProMNode* nodeFromMimir);
+
 extern GProMNode * gprom_optimizeOperatorModel(GProMNode * nodeFromMimir);
 
 extern char * gprom_nodeToString(GProMNode * nodeFromMimir);
@@ -615,6 +617,8 @@ typedef struct GProMHashMap {
 } GProMHashMap;
 
 extern GProMHashMap* gprom_addToMap(GProMHashMap* map, GProMNode * key, GProMNode * value);
+extern GProMNode * gprom_getMap(GProMHashMap* map, GProMNode* key);
+extern GProMNode * gprom_getMapString(GProMHashMap* map, char* key);
 
 typedef struct GProMKeyValue
 {

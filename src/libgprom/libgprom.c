@@ -21,6 +21,7 @@
 #include "rewriter.h"
 #include "parser/parser.h"
 #include "provenance_rewriter/prov_rewriter.h"
+#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 //#include "analysis_and_translate/analyzer.h"
 #include "analysis_and_translate/translator.h"
 #include "metadata_lookup/metadata_lookup.h"
@@ -35,7 +36,7 @@
 #define DESTROY_MUTEX() //pthread_mutex_destroy(&mlock)
 
 #define PRINT_TRY(counter) //printf("\ntry: line: %u counter: %u", __LINE__, counter)
-#define PRINT_EXCEPT(counter) //printf("\nexcept: line: %u counter: %u", __LINE__, counter)
+#define PRINT_EXCEPT(counter) printf("\nexcept: [libgprom.c] line: %u counter: %u\n", __LINE__, counter)
 
 void
 rebootFunc(void)
@@ -314,6 +315,44 @@ gprom_provRewriteOperator(GProMNode* nodeFromMimir)
 }
 
 GProMNode *
+gprom_taintRewriteOperator(GProMNode* nodeFromMimir)
+{
+	LOCK_MUTEX();
+	    //NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+	    //char *result = "";
+	    Node *rewrittenTree;
+	    Node *copiedTree;
+	    GProMNode* returnResult;
+	    int counter = 0;
+	    TRY
+	        {TRY
+		{
+	    	PRINT_TRY(counter);
+	    	if(counter++ == 0){
+				copiedTree = copyObject(nodeFromMimir);
+				rewrittenTree = (Node *)rewriteUncert((QueryOperator *)copiedTree);
+
+
+				UNLOCK_MUTEX();
+				returnResult = (GProMNode*)rewrittenTree;
+				//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+				return returnResult;
+	        }
+	    }
+		ON_EXCEPTION
+		{
+			PRINT_EXCEPT(counter);
+			NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT)
+		}
+		END_ON_EXCEPTION
+	        }
+	        		    END_TRY
+	    UNLOCK_MUTEX();
+	    //RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
+	    return NULL;
+}
+
+GProMNode *
 gprom_optimizeOperatorModel(GProMNode * nodeFromMimir)
 {
 	LOCK_MUTEX();
@@ -518,6 +557,85 @@ GProMHashMap* gprom_addToMap(GProMHashMap* map, GProMNode * key, GProMNode * val
 					UNLOCK_MUTEX();
 
 					returnResult = (GProMHashMap*)copyObject(newMap);
+					//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+					return returnResult;
+				}
+			}
+			ON_EXCEPTION
+			{
+				PRINT_EXCEPT(counter);
+				NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT)
+			}
+			END_ON_EXCEPTION
+		        }
+		    END_TRY
+
+			UNLOCK_MUTEX();
+			//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
+			return NULL;
+}
+
+GProMNode * gprom_getMap(GProMHashMap* map, GProMNode* key)
+{
+
+	LOCK_MUTEX();
+		   ///NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+		    HashMap* newMap;
+			Node *newKey;
+			Node *gotValue;
+			GProMNode* returnResult;
+		    int counter = 0;
+		    TRY
+		        {TRY
+			{
+		    	PRINT_TRY(counter);
+		    	if(counter++ == 0){
+		    		newMap = (HashMap*)copyObject(map);
+		    		newKey = (Node*)copyObject(key);
+
+					gotValue =  getMap(newMap, newKey);
+
+					UNLOCK_MUTEX();
+
+					returnResult = (GProMNode*)copyObject(gotValue);
+					//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
+					return returnResult;
+				}
+			}
+			ON_EXCEPTION
+			{
+				PRINT_EXCEPT(counter);
+				NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT)
+			}
+			END_ON_EXCEPTION
+		        }
+		    END_TRY
+
+			UNLOCK_MUTEX();
+			//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, NULL);
+			return NULL;
+}
+
+GProMNode * gprom_getMapString(GProMHashMap* map, char* key)
+{
+
+	LOCK_MUTEX();
+		   ///NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+		    HashMap* newMap;
+			Node *gotValue;
+			GProMNode* returnResult;
+		    int counter = 0;
+		    TRY
+		        {TRY
+			{
+		    	PRINT_TRY(counter);
+		    	if(counter++ == 0){
+		    		newMap = (HashMap*)copyObject(map);
+					gotValue =  getMapString(newMap, key);
+
+					UNLOCK_MUTEX();
+
+					returnResult = (GProMNode*)copyObject(gotValue);
 					//RELEASE_MEM_CONTEXT_AND_RETURN_COPY(GProMNode, rewrittenTree);
 					return returnResult;
 				}

@@ -501,6 +501,8 @@ public interface GProM_JNA extends Library {
     
 	public Pointer gprom_provRewriteOperator(Pointer nodeFromMimir);
 
+	public Pointer gprom_taintRewriteOperator(Pointer nodeFromMimir);
+
 	public Pointer gprom_nodeToString(Pointer nodeFromMimir);
 	
 	public Pointer gprom_OperatorModelToQuery(Pointer nodeFromMimir);
@@ -513,5 +515,7 @@ public interface GProM_JNA extends Library {
 	public Pointer gprom_createMemContextName(String ctxName);
 	public void gprom_freeMemContext(Pointer memContext);
 	public GProMHashMap gprom_addToMap(Pointer hashmap, Pointer key, Pointer value);
+	public Pointer gprom_getMap(Pointer hashmap, Pointer key);
+	public Pointer gprom_getMapString(Pointer hashmap, String key);
 
 }

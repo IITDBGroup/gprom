@@ -108,9 +108,11 @@ getSemiringCombinerDatatype(ProvenanceStmt *stmt, List *dts) {
 					FATAL_LOG("unknown expression type for SC option: %s", nodeToString(kv->value));
 				}
 			}
-			DataType dtFuncIn = getOpReturnType(scop,sublist(dts,0,1));
+			boolean * opExists = NULL;
+			boolean * funcExists = NULL;
+			DataType dtFuncIn = getOpReturnType(scop,sublist(dts,0,1),opExists);
 			//INFO_LOG("SC: getting SC datatype: %d.", dtFuncIn);
-			return getFuncReturnType(funcn,singletonInt(dtFuncIn));
+			return getFuncReturnType(funcn,singletonInt(dtFuncIn),funcExists);
 		}
 	}
 	FATAL_LOG("No semiring combiner info in provenance options.");

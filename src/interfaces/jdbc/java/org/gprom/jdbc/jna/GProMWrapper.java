@@ -163,6 +163,34 @@ public class GProMWrapper implements GProMJavaInterface {
 	}
 	
 	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#taintRewriteOperator(com.sun.jna.Pointer)
+	 */
+	@Override
+	public synchronized GProMStructure taintRewriteOperator(Pointer nodeFromMimir) throws Exception {
+		Pointer p =  GProM_JNA.INSTANCE.gprom_taintRewriteOperator(nodeFromMimir);
+		GProMStructure result;
+		
+		GProMNode gpromNode = new GProMNode(p);
+		result = castGProMNode(gpromNode);
+		
+		// check whether exception has occured
+		if (exceptions.size() > 0) {
+			StringBuilder mes = new StringBuilder();
+			for(ExceptionInfo i: exceptions)
+			{
+				mes.append("ERROR (" + i + ")");
+				mes.append(i.toString());
+				mes.append("\n\n");
+			}
+			exceptions.clear();
+			log.error("have encountered exception");
+			throw new NativeGProMLibException("Error during taint rewrite:\n" + mes.toString());
+		}
+		
+		return result;
+	}
+	
+	/* (non-Javadoc)
 	 * @see org.gprom.jdbc.jna.GProMJavaInterface#gpromNodeToString(com.sun.jna.Pointer)
 	 */
 	@Override
@@ -300,7 +328,59 @@ public class GProMWrapper implements GProMJavaInterface {
 			}
 			exceptions.clear();
 			log.error("have encountered exception");
-			throw new NativeGProMLibException("Error during rewrite:\n" + mes.toString());
+			throw new NativeGProMLibException("Error during add to map:\n" + mes.toString());
+		}
+		
+		return result;
+	}
+	
+	@Override
+	public synchronized GProMStructure gpromGetMap(Pointer hashmap,Pointer key) throws Exception{
+		
+		Pointer p =  GProM_JNA.INSTANCE.gprom_getMap(hashmap, key);
+		GProMStructure result;
+		
+		GProMNode gpromNode = new GProMNode(p);
+		result = castGProMNode(gpromNode);
+		
+		// check whether exception has occured
+		if (exceptions.size() > 0) {
+			StringBuilder mes = new StringBuilder();
+			for(ExceptionInfo i: exceptions)
+			{
+				mes.append("ERROR (" + i + ")");
+				mes.append(i.toString());
+				mes.append("\n\n");
+			}
+			exceptions.clear();
+			log.error("have encountered exception");
+			throw new NativeGProMLibException("Error during get map:\n" + mes.toString());
+		}
+		
+		return result;
+	}
+	
+	@Override
+	public synchronized GProMStructure gpromGetMapString(Pointer hashmap,String key) throws Exception{
+		
+		Pointer p =  GProM_JNA.INSTANCE.gprom_getMapString(hashmap, key);
+		GProMStructure result;
+		
+		GProMNode gpromNode = new GProMNode(p);
+		result = castGProMNode(gpromNode);
+		
+		// check whether exception has occured
+		if (exceptions.size() > 0) {
+			StringBuilder mes = new StringBuilder();
+			for(ExceptionInfo i: exceptions)
+			{
+				mes.append("ERROR (" + i + ")");
+				mes.append(i.toString());
+				mes.append("\n\n");
+			}
+			exceptions.clear();
+			log.error("have encountered exception");
+			throw new NativeGProMLibException("Error during get map string:\n" + mes.toString());
 		}
 		
 		return result;
