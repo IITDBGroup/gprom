@@ -66,13 +66,13 @@ public class GProMWrapper implements GProMJavaInterface {
 	public void setSilenceLogger(boolean silenceLogger){
 		this.silenceLogger = silenceLogger;
 		if(silenceLogger){
-			libLog.setLevel(Level.OFF);
-			log.setLevel(Level.OFF);
+			//libLog.setLevel(Level.OFF);
+			//log.setLevel(Level.OFF);
 		}
 		else{
 			Level ll = intToLogLevel( GProM_JNA.INSTANCE.gprom_getIntOption("log.level"));
-			libLog.setLevel(ll);
-			log.setLevel(ll);
+			//libLog.setLevel(ll);
+			//log.setLevel(ll);
 		}
 	}
 	

@@ -270,17 +270,6 @@ orExprs (Node *expr, ...)
     return result;
 }
 
-Node *
-orExprList (List *exprs)
-{
-    Node *result = popHeadOfListP(exprs);
-
-    FOREACH(Node,e,exprs)
-        result = OR_EXPRS(result,e);
-
-    return result;
-}
-
 FunctionCall *
 createFunctionCall(char *fName, List *args)
 {

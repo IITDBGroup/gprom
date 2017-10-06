@@ -1,7 +1,7 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include
 AM_CFLAGS = @GPROM_CFLAGS@
 
-SUBDIRS = pi_cs_rewrites transformation_rewrites update_and_transaction game_provenance semiring_combiner uncertainty xml_rewrites summarization_rewrites
+SUBDIRS = pi_cs_rewrites transformation_rewrites update_and_transaction game_provenance semiring_combiner uncertainty_rewrites xml_rewrites summarization_rewrites
 
 noinst_LTLIBRARIES        				= libprovenance_rewriter.la
 libprovenance_rewriter_la_SOURCES		= prov_rewriter_main.c prov_utility.c prov_schema.c

@@ -51,7 +51,7 @@ public abstract class AbstractMetadataLookup {
 	private static Logger log = LogManager.getLogger(AbstractMetadataLookup.class);
 
 	static {
-		log.setLevel(Level.OFF);
+		//log.setLevel(Level.OFF);
 	}
 	
 	protected GProMMetadataLookupPlugin plugin;

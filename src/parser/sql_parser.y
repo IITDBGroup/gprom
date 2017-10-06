@@ -62,7 +62,6 @@ Node *bisonParseResult = NULL;
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT SEMIRING COMBINER MULT
 %token <stringVal> FROM
-%token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
 %token <stringVal> WHERE
 %token <stringVal> DISTINCT
@@ -75,10 +74,9 @@ Node *bisonParseResult = NULL;
 %token <stringVal> CASE WHEN THEN ELSE END
 %token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 %token <stringVal> NULLS FIRST LAST ASC DESC
-%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE 
+%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE
 %token <stringVal> CAST
-%token <stringVal> CREATE ALTER ADD REMOVE COLUMN
-%token <stringVal> SUMMARIZED TO EXPLAIN SAMPLE TOP
+%token <stringVal> CREATE ALTER ADD REMOVE COLUMN 
 
 %token <stringVal> DUMMYEXPR
 
@@ -102,7 +100,7 @@ Node *bisonParseResult = NULL;
 %left comparisonOps
 %right NOT
 %left AND OR
-%right IS NULLVAL
+%right ISNULL
 %nonassoc  LIKE IN  BETWEEN
 
 /* Arithmetic operators : FOR TESTING */
@@ -119,12 +117,12 @@ Node *bisonParseResult = NULL;
  */
 %type <node> stmt provStmt dmlStmt queryStmt ddlStmt
 %type <node> createTableStmt alterTableStmt alterTableCommand
-%type <list> tableElemList optTableElemList attrElemList
-%type <node> tableElement attr
+%type <list> tableElemList optTableElemList
+%type <node> tableElement 
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
-			 optionalGroupBy optionalOrderBy setClause  stmtList stmtWithTimeList //insertList 
+			 optionalGroupBy optionalOrderBy setClause  stmtList //insertList 
 			 identifierList optionalAttrAlias optionalProvWith provOptionList 
 			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo optionalTranslate
 //			 optInsertAttrList
@@ -139,7 +137,7 @@ Node *bisonParseResult = NULL;
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
-%type <stringVal> optionalFormat optionalWrapper optionalstringConst 
+%type <stringVal> optionalFormat optionalWrapper optionalstringConst
 
 %start stmtList
 
@@ -347,8 +345,8 @@ provStmt:
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $2;
-            // p->options = $3;
-            p->options = concatTwoLists($3, $8);
+                   // p->options = $3;
+                   p->options = concatTwoLists($3, $8);
             $$ = (Node *) p;
         }
 		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmtList ')'
@@ -380,131 +378,22 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
-		| REENACT optionalProvAsOf optionalProvWith '(' stmtWithTimeList ')'
-		{
-			RULELOG("provStmt::reenactStmtWithTimeList");
-			ProvenanceStmt *p = createProvenanceStmt((Node *) $5);
-			p->inputType = PROV_INPUT_REENACT_WITH_TIMES;
-			p->provType = PROV_NONE;
-			p->asOf = (Node *) $2;
-			p->options = $3;
-			$$ = (Node *) p;
-		}
-		| REENACT optionalProvAsOf optionalProvWith TRANSACTION stringConst
-		{
-			RULELOG("provStmt::transaction");
-			ProvenanceStmt *p = createProvenanceStmt((Node *) createConstString($5));
-			p->inputType = PROV_INPUT_TRANSACTION;
-			p->provType = PROV_NONE;
-			p->options = $3;
-			$$ = (Node *) p;
-		}
-		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier
-        {
-            RULELOG("provStmt::summaryStmt");
-            Node *stmt = $6;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
-		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $2;
-            p->options = concatTwoLists($3, $8);
-            p->summaryType = $11;  
-            $$ = (Node *) p;
-        }
-        | PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')'
-        {
-            RULELOG("provStmt::summaryStmt");
-            Node *stmt = $6;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
-		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $2;
-            p->options = concatTwoLists($3, $8);
-            p->summaryType = $11;
-            p->userQuestion = $15;
-            p->sampleSize = 10;
-            p->topK = 1;  
-            $$ = (Node *) p;
-        }
-        | PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')' WITH SAMPLE '(' intConst ')'
-        {
-            RULELOG("provStmt::summaryStmt");
-            Node *stmt = $6;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
-		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $2;
-            p->options = concatTwoLists($3, $8);
-            p->summaryType = $11;
-            p->userQuestion = $15;
-            p->sampleSize = $20;
-            p->topK = 1;  
-            $$ = (Node *) p;
-        }
-        | TOP intConst PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')' WITH SAMPLE '(' intConst ')'
-        {
-            RULELOG("provStmt::summaryStmt");
-            Node *stmt = $8;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
-		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $4;
-            p->options = concatTwoLists($5, $10);
-            p->summaryType = $13;
-            p->userQuestion = $17;
-            p->sampleSize = $22;
-            p->topK = $2;  
-            $$ = (Node *) p;
-        }
     ;
-
-/*
-summaryType:
-		identifier 
-		{ 
-			RULELOG("summaryType::ident");
-			$$ = (Node *) createConstString($1); 
-		}
-	;
-*/
-
-stmtWithTimeList: 
-		stmt ';' provAsOf
-		{ 
-			RULELOG("stmtWithTimeList::stmt"); 
-			KeyValue *kv = createNodeKeyValue((Node *) $1, (Node *) $3);
-			$$ = singleton(kv);
-		}
-		| stmtWithTimeList stmt ';' provAsOf 
-		{
-			RULELOG("stmtWithTimeList::stmtWithTimeList::stmt");
-			KeyValue *kv = createNodeKeyValue((Node *) $2, (Node *) $4);
-			$$ = appendToTailOfList($1, kv);	
-		}
-	;
-	  
+    
 optionalProvAsOf:
 		/* empty */			{ RULELOG("optionalProvAsOf::EMPTY"); $$ = NULL; }
-		| provAsOf
+		| AS OF SCN intConst
 		{
-			RULELOG("optionalProvAsOf::provAsOf");
-			$$ = $1;
-		}
-	;
-	
-provAsOf:
-		AS OF SCN intConst
-		{
-			RULELOG("provAsOf::SCN");
+			RULELOG("optionalProvAsOf::SCN");
 			$$ = (Node *) createConstLong($4);
 		}
 		| AS OF TIMESTAMP stringConst
 		{
-			RULELOG("provAsOf::TIMESTAMP");
+			RULELOG("optionalProvAsOf::TIMESTAMP");
 			$$ = (Node *) createConstString($4);
 		}
 	;
-
+	
 optionalProvWith:
 		/* empty */			{ RULELOG("optionalProvWith::EMPTY"); $$ = NIL; }
 		| WITH provOptionList
@@ -527,12 +416,12 @@ provOption:
 		TYPE stringConst 
 		{ 
 			RULELOG("provOption::TYPE"); 
-			$$ = (Node *) createStringKeyValue(PROP_PC_PROV_TYPE, $2); 
+			$$ = (Node *) createStringKeyValue("TYPE", $2); 
 		}
 		| TABLE identifier
 		{
 			RULELOG("provOption::TABLE");
-			$$ = (Node *) createStringKeyValue(PROP_PC_TABLE, $2);
+			$$ = (Node *) createStringKeyValue("TABLE", $2);
 		}
 		| ONLY UPDATED
 		{
@@ -570,24 +459,6 @@ provOption:
             $$ = (Node *)createNodeKeyValue((Node *) createConstString(PROP_PC_SEMIRING_COMBINER),
             (Node *)$3);
 		}
-		| PROVENANCE
-		{
-			RULELOG("provOption::PROVENANCE");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_GEN_PROVENANCE),
-					(Node *) createConstBool(TRUE));
-		}
-		| ISOLATION LEVEL identifier
-		{
-			RULELOG("provOption::ISOLATION::LEVEL");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_ISOLATION_LEVEL),
-					(Node *) createConstString(strdup($3)));
-		}
-		| COMMIT_TRANS SCN intConst
-		{
-			RULELOG("provOption::COMMIT::SCN");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COMMIT_SCN),
-					(Node *) createConstLong($3));
-		} 
 	;
 
 semiringCombinerSpec:
@@ -613,7 +484,7 @@ optionalTranslate:
 		TRANSLATE AS optionalstringConst 
 		{
 			RULELOG("optionaltranslate::TRANSLATE::AS");
-			$$ = singleton((Node *) createStringKeyValue(strdup("TRANSLATE AS"), $3));
+			$$ = singleton((Node *) createStringKeyValue("TRANSLATE AS", $3));
 		}
         ;
 
@@ -990,16 +861,6 @@ unaryOperatorExpression:
                 List *expr = singleton($2);
                 $$ = (Node *) createOpExpr($1, expr);
             }
-         | expression IS NULLVAL
-         {
-         	RULELOG("unaryOperatorExpression::IS NULL");
-         	$$ = (Node *) createIsNullExpr($1);
-         }
-         | expression IS NOT NULLVAL
-         {
-         	RULELOG("unaryOperatorExpression::IS NOT NULL");
-         	$$ = (Node *) createOpExpr("NOT", singleton(createIsNullExpr($1)));
-         }     
     ;
     
 /*
@@ -1655,34 +1516,8 @@ delimIdentifier:
 			RULELOG("identifierList::list::ident"); 
 			$$ = CONCAT_STRINGS($1, ".", $3); //TODO 
 		}  
-	;
+
 	
-attrElemList:
-		attr
-            {
-                RULELOG("userQuestList::identifier");
-                $$ = singleton($1);
-            }
-        | attrElemList ',' attr
-            {
-                RULELOG("attrElemList::attrElemList::identifier");
-                $$ = appendToTailOfList($1, $3);
-            }
-    ;
-
-attr:
- 		constant 
- 			{ 
- 				RULELOG("arg:constant");
- 				$$ = $1; 
-			}
-		| '*'
-			{ 
- 				RULELOG("arg:star");
- 				$$ = (Node *) createConstString(strdup("*")); 
-			}
-	;
-
 %%
 
 
