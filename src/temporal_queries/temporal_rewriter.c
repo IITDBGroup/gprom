@@ -869,10 +869,11 @@ addCoalesce (QueryOperator *input)
 
     //COALESCE((NUMOPEN - winf_0),666)
     AttributeReference *t3ProjNOpen1 = createAttrsRefByName(t3w2Op, NUMOPEN);
-    AttributeReference *t3ProjW01 = createAttrsRefByName(t3w2Op, "winf_0");
-    Operator *t3O1 = createOpExpr("-", LIST_MAKE(t3ProjNOpen1,t3ProjW01));
-    FunctionCall *t3Projfc1 = createFunctionCall("COALESCE",LIST_MAKE(t3O1,copyObject(c6)));
-    t3ProjExpr = appendToTailOfList(t3ProjExpr, t3Projfc1);
+    //comment out DIFFFOLLOWING attr
+//    AttributeReference *t3ProjW01 = createAttrsRefByName(t3w2Op, "winf_0");
+//    Operator *t3O1 = createOpExpr("-", LIST_MAKE(t3ProjNOpen1,t3ProjW01));
+//    FunctionCall *t3Projfc1 = createFunctionCall("COALESCE",LIST_MAKE(t3O1,copyObject(c6)));
+//    t3ProjExpr = appendToTailOfList(t3ProjExpr, t3Projfc1);
 
     //COALESCE((NUMOPEN - winf_1),666)
     AttributeReference *t3ProjNOpen2 = copyObject(t3ProjNOpen1);
@@ -887,7 +888,8 @@ addCoalesce (QueryOperator *input)
     t3ProjExpr = appendToTailOfList(t3ProjExpr, t3ProjTS);
 
     //Proj names
-    List *t3ProjAttrNames = LIST_MAKE("DIFFFOLLOWING", "DIFFPREVIOUS", "NUMOPEN", TIMEPOINT_ATTR);
+    //List *t3ProjAttrNames = LIST_MAKE("DIFFFOLLOWING", "DIFFPREVIOUS", "NUMOPEN", TIMEPOINT_ATTR);
+    List *t3ProjAttrNames = LIST_MAKE("DIFFPREVIOUS", "NUMOPEN", TIMEPOINT_ATTR);
     t3ProjAttrNames = concatTwoLists(deepCopyStringList(norAttrnames),t3ProjAttrNames);
 
     ProjectionOperator *t3Proj = createProjectionOp(t3ProjExpr, t3w2Op, NIL, t3ProjAttrNames);
