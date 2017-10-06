@@ -1,1 +1,1 @@
-include_HEADERS = libgprom/libgprom.h
+include_HEADERS = libgprom/libgprom.h	libgprom/libgprom-internal.h

@@ -6,7 +6,7 @@ package org.gprom.jdbc.jna;
 import java.sql.SQLException;
 import java.util.Properties;
 
-import org.apache.log4j.Level;
+import org.apache.logging.log4j.Level;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 import com.sun.jna.Pointer;

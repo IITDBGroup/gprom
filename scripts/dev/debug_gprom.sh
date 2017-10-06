@@ -20,7 +20,10 @@ if [ $# -le 1 ]; then
     echo "debug_gprom.sh 3 \"SELECT * FROM r;\""
     exit 1
 fi
+
 LLDB=lldb
+GDB=gdb
+
 LOG="-log -loglevel $1"
 SQL=$2
 ARGS="${*:3}"
@@ -28,5 +31,11 @@ SCRIPT=debug.script
 
 echo "run ${CONNECTION_PARAMS} ${LOG} -treeify-algebra-graphs -sql \"${SQL}\" ${ARGS}" > ./$SCRIPT
 
-${LLDB} -- ${GPROM} ${CONNECTION_PARAMS} ${LOG} -treeify-algebra-graphs -sql \"${SQL}\" ${ARGS}
+# Mac or Linux
+if [[ $OSTYPE == darwin* ]]; then
+	${LLDB} -- ${GPROM} ${CONNECTION_PARAMS} ${LOG} -treeify-algebra-graphs -sql \"${SQL}\" ${ARGS}
+else
+	${GDB} ${GPROM} -x ./$SCRIPT
+fi
+
 #rm -f $SCRIPT

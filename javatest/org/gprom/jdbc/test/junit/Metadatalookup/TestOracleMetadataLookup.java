@@ -3,7 +3,9 @@
  */
 package org.gprom.jdbc.test.junit.Metadatalookup;
 
-import static org.junit.Assert.*;
+import static org.gprom.jdbc.utility.LoggerUtil.logException;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -12,13 +14,12 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.metadata_lookup.oracle.OracleMetadataLookup;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import static org.gprom.jdbc.utility.LoggerUtil.*;
 
 /**
  * @author lord_pretzel
@@ -26,7 +27,7 @@ import static org.gprom.jdbc.utility.LoggerUtil.*;
  */
 public class TestOracleMetadataLookup {
 	
-	static Logger log = Logger.getLogger(TestOracleMetadataLookup.class);
+	static Logger log = LogManager.getLogger(TestOracleMetadataLookup.class);
 	
 	static OracleMetadataLookup p;
 	static Connection c;

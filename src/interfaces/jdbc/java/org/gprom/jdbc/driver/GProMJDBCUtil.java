@@ -8,7 +8,8 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.backends.OracleBackendInfo;
 import org.gprom.jdbc.backends.PostgresBackendInfo;
@@ -45,7 +46,7 @@ public interface GProMJDBCUtil {
 	public static GProMJDBCUtil inst = new GProMJDBCUtil () {
 
 		private PropertyWrapper driverProps = null;
-		Logger log = Logger.getLogger(GProMJDBCUtil.class); 
+		Logger log = LogManager.getLogger(GProMJDBCUtil.class); 
 		
 		@Override
 		public BackendType getBackendTypeFromURL(String jdbcURL) throws GProMSQLException {

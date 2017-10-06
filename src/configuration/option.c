@@ -141,12 +141,16 @@ boolean opt_optimization_remove_unnecessary_columns = FALSE;
 boolean opt_optimization_remove_unnecessary_window_operators = FALSE;
 boolean opt_optimization_pull_up_duplicate_remove_operators = FALSE;
 
+// optimization options for group by operator
+boolean opt_optimization_push_down_aggregation_through_join = FALSE;
+
 
 // sanity check options
 boolean opt_operator_model_unique_schema_attribues = FALSE;
 boolean opt_operator_model_parent_child_links = FALSE;
 boolean opt_operator_model_schema_consistency = FALSE;
 boolean opt_operator_model_attr_reference_consistency = FALSE;
+boolean opt_operator_model_data_structure_consistency = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -611,7 +615,13 @@ OptionInfo opts[] =
                 "Optimization: try to move selection operators around to push them down including side-way information passing",
                 opt_optimization_selection_move_around,
                 TRUE
-                ),
+        ),
+		anOptimizationOption(OPTIMIZATION_PUSH_DOWN_AGGREGATION_THROUGH_JOIN,
+				"-Opush_down_aggregation_through_join",
+				"Optimization: try to push down aggregation through join",
+				opt_optimization_push_down_aggregation_through_join,
+				TRUE
+		),
         // sanity model checking options
         anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
                 "-Cunique_attr_names",
@@ -642,6 +652,13 @@ OptionInfo opts[] =
                 "expressions are consistent. For instance, they have to "
                 "refer to existing inputs and attributes.",
                 opt_operator_model_attr_reference_consistency,
+                TRUE
+        ),
+        anSanityCheckOption(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,
+                "-Cdata_structure_consistency",
+                "Model Check: check that nodes in a query operator graph are not sharing "
+                "datastructures incorrectly.",
+                opt_operator_model_data_structure_consistency,
                 TRUE
         ),
         // stopper to indicate end of array
@@ -680,6 +697,14 @@ BackendInfo backends[]  = {
             "sqlite",   // metadata
             "sqlite",    // sqlserializer
             "sqlite"   // translator
+        },
+        {
+            "monetdb",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "monetdb",   // metadata
+            "sqlite",    // sqlserializer
+            "oracle"   // translator
         },
         {
             "STOPPER", NULL, NULL, NULL, NULL, NULL

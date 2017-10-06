@@ -65,6 +65,7 @@ typedef struct DLProgram
     List *facts;
     char *ans;
     List *doms;
+    List *comp;
 } DLProgram;
 
 NEW_ENUM_WITH_TO_STRING(GPNodeType,

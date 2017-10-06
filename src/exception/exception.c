@@ -28,7 +28,6 @@ static int line = -1;
 static void sigsegv_handler(int signo);
 static char *wipeContext = QUERY_MEM_CONTEXT;
 
-
 // macros
 #define SEVER_TO_STRING(s) ((s == SEVERITY_PANIC) ? TB("PANIC") : ((s == SEVERITY_RECOVERABLE) ? TB("RECOVERABLE") : TB("SIGSEGV")))
 #define SEVER_TO_STRING_NO_COLOR(s) ((s == SEVERITY_PANIC) ? "PANIC" : ((s == SEVERITY_RECOVERABLE) ? "RECOVERABLE" : "SIGSEGV"))
@@ -135,8 +134,6 @@ setWipeContext(char *wContext)
 {
     wipeContext = wContext;
 }
-
-
 
 static void
 sigsegv_handler(int signo)

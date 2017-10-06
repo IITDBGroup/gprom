@@ -6,7 +6,7 @@ DIR=$(pwd -L)
 popd > /dev/null
 pushd ${DIR}/..
 
-CONF_OPTIONS=--disable-postgres
+CONF_OPTIONS=--disable-postgres --disable-monetdb
  
 # Mac OS X
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then

@@ -1,21 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry kind="src" path="javatest"/>
+	<classpathentry kind="src" path="javalibgen"/>
 	<classpathentry kind="src" path="src/interfaces/jdbc/java"/>
 	<classpathentry kind="src" path="autotests"/>
-	<classpathentry kind="src" path="gprom-gui/src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="ant/one-jar-ant-task-0.97.jar"/>
 	<classpathentry kind="lib" path="javalib"/>
 	<classpathentry kind="lib" path="/usr/local/lib"/>
-	<classpathentry kind="lib" path="javalib/log4j.jar"/>
 	<classpathentry kind="lib" path="javalib/jna-platform.jar"/>
 	<classpathentry kind="lib" path="javalib/jna.jar"/>
 	<classpathentry kind="lib" path="javalib/postgresql.jar"/>
 	<classpathentry kind="lib" path="javalib/sqlite-jdbc.jar"/>
 	<classpathentry kind="lib" path="javalib/mysql-connector-java.jar"/>
 	<classpathentry kind="lib" path="javalib/hsqldb.jar"/>
-	<classpathentry kind="lib" path="javalib/dms.jar"/>
 	<classpathentry kind="lib" path="javalib/ojdbc7_g.jar"/>
 	<classpathentry kind="lib" path="javatestlib/junit.jar"/>
 	<classpathentry kind="lib" path="javatestlib/slf4j-api.jar"/>
@@ -23,5 +21,38 @@
 	<classpathentry kind="lib" path="javalib/stringtemplate.jar"/>
 	<classpathentry kind="lib" path="ant/antlr-runtime.jar"/>
 	<classpathentry kind="lib" path="javalib/hamcrest-core.jar"/>
+	<classpathentry kind="lib" path="javalib/log4j-api.jar"/>
+	<classpathentry kind="lib" path="javalib/log4j-core.jar"/>
+	<classpathentry kind="lib" path="javalib/jnaerator.jar"/>
+	<classpathentry kind="lib" path="javalib/jnaerator-parser.jar"/>
+	<classpathentry kind="lib" path="javalib/jnaerator-rococoa-runtime.jar"/>
+	<classpathentry kind="lib" path="javalib/jnaerator-runtime.jar"/>
+	<classpathentry kind="lib" path="javalib/ochafik-swing.jar"/>
+	<classpathentry kind="lib" path="javalib/ochafik-util.jar"/>
+	<classpathentry kind="lib" path="javalib/jboss-jms-api_1.1_spec.jar"/>
+	<classpathentry kind="lib" path="javalib/activation.jar"/>
+	<classpathentry kind="lib" path="javalib/anarres-jnaerator.jar"/>
+	<classpathentry kind="lib" path="javalib/asm.jar"/>
+	<classpathentry kind="lib" path="javalib/cglib.jar"/>
+	<classpathentry kind="lib" path="javalib/commons-collections.jar"/>
+	<classpathentry kind="lib" path="javalib/commons-compress.jar"/>
+	<classpathentry kind="lib" path="javalib/commons-csv.jar"/>
+	<classpathentry kind="lib" path="javalib/disruptor.jar"/>
+	<classpathentry kind="lib" path="javalib/dx.jar"/>
+	<classpathentry kind="lib" path="javalib/ecj.jar"/>
+	<classpathentry kind="lib" path="javalib/jansi.jar"/>
+	<classpathentry kind="lib" path="javalib/java-getopt.jar"/>
+	<classpathentry kind="lib" path="javalib/javax.mail.jar"/>
+	<classpathentry kind="lib" path="javalib/javax.persistence.jar"/>
+	<classpathentry kind="lib" path="javalib/jcommander.jar"/>
+	<classpathentry kind="lib" path="javalib/jctools-core.jar"/>
+	<classpathentry kind="lib" path="javalib/jeromq.jar"/>
+	<classpathentry kind="lib" path="javalib/kafka-clients.jar"/>
+	<classpathentry kind="lib" path="javalib/lz4.jar"/>
+	<classpathentry kind="lib" path="javalib/org.osgi.core.jar"/>
+	<classpathentry kind="lib" path="javalib/rococoa-core.jar"/>
+	<classpathentry kind="lib" path="javatestlib/jna.jar"/>
+	<classpathentry kind="lib" path="javalib/android.jar"/>
+	<classpathentry kind="lib" path="javalibgen/jnaerator.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>

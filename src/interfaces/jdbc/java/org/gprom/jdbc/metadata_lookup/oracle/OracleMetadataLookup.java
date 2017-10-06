@@ -9,7 +9,8 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.jna.GProMJavaInterface.DataType;
 import org.gprom.jdbc.jna.GProMList;
 import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
@@ -20,7 +21,7 @@ import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
  */
 public class OracleMetadataLookup extends AbstractMetadataLookup {
 
-	static Logger log = Logger.getLogger(OracleMetadataLookup.class);
+	static Logger log = LogManager.getLogger(OracleMetadataLookup.class);
 	
 	public static String[] aggrs = {"max","min","avg","count","sum","first",
 		"last","corr","covar_pop","covar_samp","grouping","regr","stddev",

@@ -1,10 +1,15 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/test
 AM_CFLAGS = @GPROM_CFLAGS@
+# AM_CFLAGS = @GPROM_CFLAGS@
 AM_CPPFLAGS += -DGPROM_TOPDIR=\"$(top_srcdir)/\"
+
 
 check_PROGRAMS = testmain testparser testupana testanalysis testtranslate \
 				testserializer testvisit testrewriter testpicsrewrite \
 				testrpq testlibgprom testuncert
+bin_PROGRAMS = testexprcplex
+
+# testcplex
 
 testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 		   test_logger.c test_mem_mgr.c test_to_string.c \
@@ -15,6 +20,12 @@ testmain_SOURCES = test_main.c test_copy.c test_equal.c test_expr.c \
 		   test_autocast.c
 
 testmain_LDADD = $(top_builddir)/src/libsrc.la
+
+testexprcplex_SOURCES = test_expr_to_cplex.c
+testexprcplex_LDADD = $(top_builddir)/src/libsrc.la 
+
+# testcplex_SOURCES = test_cplex.c
+# testcplex_LDADD = $(top_builddir)/src/libsrc.la
 
 testparser_SOURCES = test_parser.c
 testparser_LDADD = $(top_builddir)/src/libsrc.la

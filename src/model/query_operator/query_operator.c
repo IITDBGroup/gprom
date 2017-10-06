@@ -59,7 +59,7 @@ createSchemaFromLists (char *name, List *attrNames, List *dataTypes)
     result->name = strdup(name);
     result->attrDefs = NIL;
 
-    if (dataTypes == NULL)
+    if (dataTypes == NIL)
     {
         FOREACH(char,n,attrNames)
         {
@@ -775,11 +775,12 @@ createOrderOp(List *orderExprs, QueryOperator *input, List *parents)
 {
     OrderOperator *o = makeNode(OrderOperator);
     List *inputAttrs = getQueryOperatorAttrNames(input);
+    List *dts = getDataTypes(input->schema);
 
     o->orderExprs = orderExprs;
     o->op.type = T_OrderOperator;
     o->op.inputs = singleton(input);
-    o->op.schema =  createSchemaFromLists("ORDER", inputAttrs, NIL);
+    o->op.schema =  createSchemaFromLists("ORDER", inputAttrs, dts);
     o->op.parents = parents;
     o->op.provAttrs = NIL;
 
@@ -822,32 +823,13 @@ getStringProperty (QueryOperator *op, char *key)
     if (op->properties == NULL)
         op->properties = (Node *) NEW_MAP(Node,Node);
     return getMapString((HashMap *) op->properties, key);
-//    KeyValue *kv = getProp(op, (Node *) createConstString(key));
-//
-//    return kv ? kv->value : NULL;
 }
 
 void
 removeStringProperty (QueryOperator *op, char *key)
 {
     removeMapStringElem((HashMap *) op->properties, key);
-//    List *props = (List *) op->properties;
-//    op->properties = (Node *) genericRemoveFromList(props, KeyValueKeyEqString, key);
 }
-
-//static boolean
-//KeyValueKeyEqString (void *kv, void *str)
-//{
-//    ASSERT(isA(kv, KeyValue));
-//    KeyValue *kVal = (KeyValue *) kv;
-//    ASSERT(isA(kVal->key, Constant));
-//    char *keyStr = STRING_VALUE(kVal->key);
-//
-//    if (strpeq(keyStr, str))
-//        return TRUE;
-//
-//    return FALSE;
-//}
 
 static KeyValue *
 getProp (QueryOperator *op, Node *key)
@@ -997,7 +979,7 @@ getNormalAttrNames(QueryOperator *op)
     List *result = NIL;
 
     FOREACH(AttributeDef, a, defs)
-    result = appendToTailOfList(result, strdup(a->attrName));
+    	result = appendToTailOfList(result, strdup(a->attrName));
 
     return result;
 }
@@ -1341,20 +1323,3 @@ numOpsInTreeInternal (QueryOperator *q, unsigned int *count)
     SET_STRING_PROP(q, PROP_CHILD_COUNT, createConstInt(opC));
     return opC;
 }
-
-
-//static Schema *
-//mergeSchemas (List *inputs)
-//{
-//    Schema *result = NULL;
-//
-//    FOREACH(QueryOperator,O,inputs)
-//    {
-//        if (result == NULL)
-//            result = (Schema *) copyObject(O->schema);
-//        else
-//            result->attrDefs = concatTwoLists(result->attrDefs, copyObject(O->schema->attrDefs));
-//    }
-//
-//    return result;
-//}

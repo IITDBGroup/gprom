@@ -1,6 +1,9 @@
+package org.gprom.libgen;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,6 +31,7 @@ public class GenLibGProMH {
 			System.exit(1);
 		}
 		String srcRoot = args[0];	
+		System.setProperty("user.dir", srcRoot);
 		GenLibGProMH libGProMHeaderGenerator = new GenLibGProMH(srcRoot);
 		libGProMHeaderGenerator.generateLibGProMEntries();
 	}
@@ -35,7 +39,8 @@ public class GenLibGProMH {
 	private String srcRoot;
 	
 	public static String libraryNamePrefix = "GProM";
-	private static String libraryDestinationHeaderFile = "include/libgprom/libgprom.h";
+	private static String librarySourceHeaderFile = "include/libgprom/libgprom.h";
+	private static String libraryDestinationHeaderFile = "include/libgprom/libgprom-internal.h";
 	private static String javaSrcDestinationDir = "src/interfaces/jdbc/java/";
 	private static String javaLibraryDestinationFile = javaSrcDestinationDir + "org/gprom/jdbc/jna/GProM_JNA.java";
 	private static String queryOperatorDir = "include/model/query_operator/query_operator.h";
@@ -105,6 +110,10 @@ public class GenLibGProMH {
 		this.srcRoot = srcRoot;
 	}
 	
+	private Path getCHeader (String fileName) {
+		return Paths.get(srcRoot, fileName);
+	}
+	
 	public void generateLibGProMEntries(){
 		System.err.println("---------------------------------- generateLibGProMEntries ---------------------------------");
 		try{
@@ -118,7 +127,7 @@ public class GenLibGProMH {
 			libItemIter = libraryItems.iterator();
 			LibraryItem currentItem;
 			String srcFileContents;
-			String dstFileContents = new String(Files.readAllBytes(Paths.get(GenLibGProMH.libraryDestinationHeaderFile)));
+			String dstFileContents = new String(Files.readAllBytes(getCHeader(GenLibGProMH.libraryDestinationHeaderFile)));
 			Pattern libItemPattern;
 			Matcher libItemMatcher;
 			Pattern libDstItemPattern;
@@ -200,6 +209,7 @@ public class GenLibGProMH {
         }
         config.cacheDir = new File("cache");
 		
+        
 		Feedback feedback = new Feedback() {
              @Override
              public void setStatus(final String string) {}
@@ -242,7 +252,11 @@ public class GenLibGProMH {
                         throw new IOException("File '" + file + "' already exists (use forceOverwrite = true; to overwrite).");
                     }
                 }
-                file.getAbsoluteFile().getParentFile().mkdirs();
+                else
+                {
+                	file.getAbsoluteFile().getParentFile().mkdirs();
+                	file.createNewFile();
+                }
                 return new PrintWriter(file) {
                 	@Override
                     public void write(String s, int off, int len)  {
@@ -349,9 +363,9 @@ public class GenLibGProMH {
 		}
 	}
 	
-	public static void writeLibGproMHeaderFile(String contents){
+	public void writeLibGproMHeaderFile(String contents){
 		try{
-			File libgpromhFile = new File(GenLibGProMH.libraryDestinationHeaderFile);
+			File libgpromhFile = new File(srcRoot, GenLibGProMH.libraryDestinationHeaderFile);
 			FileOutputStream libgpromhFOS = new FileOutputStream(libgpromhFile, false); // true to append
 			byte[] contentBytes = contents.getBytes(); 
 			libgpromhFOS.write(contentBytes);

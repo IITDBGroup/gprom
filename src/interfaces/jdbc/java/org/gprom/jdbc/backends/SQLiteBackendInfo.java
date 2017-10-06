@@ -6,7 +6,8 @@ package org.gprom.jdbc.backends;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * @author lord_pretzel
@@ -14,7 +15,7 @@ import org.apache.log4j.Logger;
  */
 public class SQLiteBackendInfo implements BackendInfo {
 
-	static Logger log = Logger.getLogger(SQLiteBackendInfo.class);
+	static Logger log = LogManager.getLogger(SQLiteBackendInfo.class);
 
 	public static SQLiteBackendInfo inst = new SQLiteBackendInfo();
 	

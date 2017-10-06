@@ -47,7 +47,6 @@ static TranslatorPlugin *assembleSqlitePlugin(void);
 static Node *echoNode (Node *in);
 static QueryOperator *echoNodeAsQB (Node *in);
 
-
 Node *
 translateParse(Node *q)
 {

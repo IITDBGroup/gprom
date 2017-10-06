@@ -86,11 +86,11 @@ Show operator parameters in graphviz scripts. Is ignored unless \fB\-show_graphv
 Aggressively check validity of generated relational algebra graphs after each processing step
 \"********************
 .TP
-.BR \-C " " \fIcheck_option\fR
+.BR \-C \fIcheck_option\fR
 Activate \fIcheck_option\fR where \fIcheck_option\fR is one of \fIschema_consistency\fR, \fIunique_attr_names\fR, \fIparent_child_links\fR, or \fIattr_reference_consistency\fR.
 \"****************************************
 .SS PLUGINS
-Configure plugins. Plugins determine mosts of GProM's behavior including selecting frontend languages and backend database backends.
+Configure plugins. Plugins determine mosts of GProM's behavior including selecting frontend languages and database backends.
 \"********************
 .TP
 .BR \-P\fIplugin_type\fR " " \fIplugin_name\fR
@@ -98,11 +98,11 @@ Select \fIplugin_name\fR as the active plugin for \fIplugin_type\fR. Most compon
 \"********************
 .TP
 .BR \-backend\fR " " \fIbackend_name\fR
-Select \fIbackend\fR as the active database backend. This overwrites most other plugin options. Individual plugin options take precedence over this options enabling the other plugins to be customized.
+Select \fIbackend\fR as the active database backend. This overwrites most other plugin options. Individual plugin options take precedence over this options enabling plugins to be customized.
 \"********************
 .TP
 .BR \-frontend\fR " " \fIfrontend_name\fR
-Select the \fIfrontend_name\fR as the active frontend language. This is the language in which the user communicates with GProM. For instance, \fIoracle\fR corresponds to Oracle's SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling the other plugins to be customized. \fIfrontend\fR takes precedence over \fIbackend\fR.
+Select the \fIfrontend_name\fR as the active frontend language. This is the language in which the user communicates with GProM. For instance, \fIoracle\fR corresponds to Oracle's SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling plugins to be customized. \fIfrontend\fR takes precedence over \fIbackend\fR.
 \"****************************************
 .SS CONNECTION OPTIONS
 Configure the connection to the backend database system.
@@ -212,7 +212,10 @@ The metadata lookup plugin handles communication with the backend database. This
 .IP
 \fBpostgres\fR \- This plugin manages communication with a PostgreSQL database backend. We use PostgreSQL's \fIlibpq\fR library.
 .IP
-\fBsqlite\fR \- This plugin manages communication with a SQLite database backend. We use PostgreSQL's \fIsqlite3-dev\fR library.
+\fBsqlite\fR \- This plugin manages communication with a SQLite database backend. We use the \fIsqlite3-dev\fR library.
+.IP
+\fBmonetdb\fR \- This plugin manages communication with a MonetDB database backend. We use the MonetDB's \fImapi\fR library.
+
 \"****************************************
 .SS sqlcodegen
 This plugin translates GProM's internal relational algebra model of queries into queries written in a backend's SQL dialect. 
@@ -315,7 +318,7 @@ gprom -backend oracle -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
 .fi
 .PP
 \"****************************************
-\fBExample 3.\fR Using the same database as in examples 1 and 2, return an SQL Query that captures provenance of the query \fBSELECT a FROM r\fR:
+\fBExample 3.\fR Using the same database as in examples 1 and 2, return an SQL Query that captures provenance for the query \fBSELECT a FROM r\fR:
 .PP
 .nf
 .RS
@@ -363,6 +366,15 @@ gprom -backend sqlite -frontend dl -db test.db \\
 \fBXing Niu\fR (\fIxniu7@hawk.iit.edu\fR)
 
 \"********************************************************************************
+.SH BUGS
+
+.IP
+To see a list of current bugs or to report a new bug: \fIhttps://github.com/IITDBGroup/gprom/issues\fR
+
+
+
+\"********************************************************************************
 .SH SEE ALSO
 
-
+.IP
+To learn more about the research behind GProM see \fIhttp://www.cs.iit.edu/%7edbgroup/research/gprom.php\fR

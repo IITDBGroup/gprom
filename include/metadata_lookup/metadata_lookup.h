@@ -30,6 +30,7 @@ NEW_ENUM_WITH_TO_STRING(MetadataLookupPluginType,
     METADATA_LOOKUP_PLUGIN_ORACLE,
     METADATA_LOOKUP_PLUGIN_POSTGRES,
     METADATA_LOOKUP_PLUGIN_SQLITE,
+    METADATA_LOOKUP_PLUGIN_MONETDB,
     METADATA_LOOKUP_PLUGIN_EXTERNAL
 );
 
@@ -94,6 +95,7 @@ typedef struct MetadataLookupPlugin
 
 } MetadataLookupPlugin;
 
+#define INVALID_SCN -1
 
 /* store active plugin */
 extern MetadataLookupPlugin *activePlugin;
