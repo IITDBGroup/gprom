@@ -468,10 +468,10 @@ genSerializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from
         {
             List *attrNames;
 
-            appendStringInfoString(from, "((");
+            appendStringInfoString(from, "(");
             attrNames = api->serializeQueryOperator(q, from, (QueryOperator *) getNthOfListP(q->parents,0), api); //TODO ok to use first?
             *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-            appendStringInfo(from, ") F%u)", (*curFromItem)++);
+            appendStringInfo(from, ") F%u", (*curFromItem)++);
         }
     }
 }
