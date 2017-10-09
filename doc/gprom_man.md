@@ -47,7 +47,7 @@ These options determine whether GProM operates as an interactive shell or just p
 **-query** ***query***   
 process *query*
 
-**-queryfile** ***file***   
+**-queryFile** ***file***   
 read query to be processed from *file*
 
 ### [Output and Timing Queries](#toc6)
