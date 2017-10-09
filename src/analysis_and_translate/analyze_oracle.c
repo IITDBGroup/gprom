@@ -1508,9 +1508,18 @@ generateAttrNameFromExpr(SelectItem *s)
     char c;
     StringInfo str = makeStringInfo();
 
-    while((c = *name++) != '\0')
-        if (c != ' ')
-            appendStringInfoChar(str, toupper(c));
+    if (streq(getOptionAsString(OPTION_BACKEND),"oracle"))
+    {
+        while((c = *name++) != '\0')
+            if (c != ' ')
+                appendStringInfoChar(str, toupper(c));
+    }
+    else
+    {
+        while((c = *name++) != '\0')
+            if (c != ' ')
+                appendStringInfoChar(str, c);
+    }
 
     return str->data;
 }

@@ -479,6 +479,9 @@ stringListToConstList(List *list)
 List *
 concatTwoLists(List *lista, List*listb)
 {
+    if (lista == listb)
+        listb = copyList(listb);
+
 	if (lista == NIL)
 		return  listb;
 	if (listb == NIL)
