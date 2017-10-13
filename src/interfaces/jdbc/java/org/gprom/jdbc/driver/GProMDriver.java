@@ -126,7 +126,7 @@ public class GProMDriver implements Driver {
 			else {
 				w.setupPlugins();
 			}
-			w.setLogLevel(4);
+			//w.setLogLevel(4);
 			log.debug("have setup options: " + w.toString());
 			
 			return new GProMConnection(backendConnection,

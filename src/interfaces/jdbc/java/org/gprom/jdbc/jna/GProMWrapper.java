@@ -62,18 +62,9 @@ public class GProMWrapper implements GProMJavaInterface {
 		return inst;
 	}
 
-	private boolean silenceLogger = false;
-	public void setSilenceLogger(boolean silenceLogger){
-		this.silenceLogger = silenceLogger;
-		if(silenceLogger){
-			//libLog.setLevel(Level.OFF);
-			//log.setLevel(Level.OFF);
-		}
-		else{
-			Level ll = intToLogLevel( GProM_JNA.INSTANCE.gprom_getIntOption("log.level"));
-			//libLog.setLevel(ll);
-			//log.setLevel(ll);
-		}
+	private int initialLogLevel = 4;
+	public void setInitialLogLevel(int logLevel){
+		this.initialLogLevel = logLevel;
 	}
 	
 	private GProMWrapper () {
@@ -556,7 +547,7 @@ public class GProMWrapper implements GProMJavaInterface {
 		GProM_JNA.INSTANCE.gprom_registerLoggerCallbackFunction(loggerCallback);
 		GProM_JNA.INSTANCE.gprom_registerExceptionCallbackFunction(exceptionCallback);
 		GProM_JNA.INSTANCE.gprom_init();
-		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(4);
+		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(this.initialLogLevel);
 	}
 
 	public void setLogLevel (int level)
@@ -608,13 +599,19 @@ public class GProMWrapper implements GProMJavaInterface {
 	private void logCallbackFunction (String message, String file, int line, int level) {
 		String printMes = file + " at " + line + ": " + message;
 		libLog.log(intToLogLevel(level), printMes);
+		System.out.println(intToLogLevel(level) +": " + printMes);
 	}
 
 	private int exceptionCallbackFunction(String message, String file,
 			int line, int severity) {
-		String printMes = "EXCEPTION: " + file + " at " + line + ": " + message;
-		libLog.error(printMes);
-		exceptions.add(new ExceptionInfo(message, file, line, intToSeverity(severity)));
+		try{
+			String printMes = "EXCEPTION: " + file + " at " + line + ": " + message;
+			libLog.error(printMes);
+			exceptions.add(new ExceptionInfo(message, file, line, intToSeverity(severity)));
+			System.out.println(printMes);
+		}catch(Throwable t){
+			System.out.println("the exception handler trew an exception." );
+		}
 		return exceptionHandlerToInt(ExceptionHandler.Abort);
 	}
 
@@ -802,7 +799,7 @@ public class GProMWrapper implements GProMJavaInterface {
 		case Wipe:
 			return 2;
 		default:
-			return 0;
+			return 1;
 		}
 	}
 	
