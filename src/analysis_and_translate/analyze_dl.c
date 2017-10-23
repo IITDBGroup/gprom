@@ -265,21 +265,10 @@ analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *fact
         }
     }
 
-//    // seperate comparison from the rule
-//    List *ruleBody = NIL;
-//
-//    if (p->comp != NULL)
-//    {
-//        FOREACH(Node,a,r->body)
-//		{
-//        	if (!isA(a,DLComparison))
-//        	{
-//        		ruleBody = appendToTailOfList(ruleBody, a);
-//        	}
-//		}
-//
-//        r->body = ruleBody;
-//    }
+    // check head if agg functions exist
+    FOREACH(Node,ha,r->head->args)
+    	if (isA(ha,FunctionCall))
+    		p->func = appendToTailOfList(p->func, ha);
 }
 
 /*

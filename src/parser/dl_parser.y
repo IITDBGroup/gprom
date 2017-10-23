@@ -102,7 +102,7 @@ program:
 		stmtList 
 			{ 
 				RULELOG("program::stmtList");
-				$$ = (Node *) createDLProgram ($1, NULL, NULL, NULL);
+				$$ = (Node *) createDLProgram ($1, NULL, NULL, NULL, NULL);
 				dlParseResult = (Node *) $$;
 				DEBUG_LOG("parsed %s", nodeToString($$));
 			}
@@ -431,11 +431,15 @@ functionCall:
             {
                 RULELOG("functionCall::IDENTIFIER::exprList");
 				FunctionCall *f = createFunctionCall($1, $3);
+				f->isAgg = TRUE;
+				$$ = (Node *) f;
             }
 		| AMMSC '(' exprList ')'          
             {
                 RULELOG("functionCall::AMMSC::exprList");
-				FunctionCall *f = createFunctionCall($1, $3); 
+				FunctionCall *f = createFunctionCall($1, $3);
+				f->isAgg = TRUE;
+				$$ = (Node *) f;
             }
     ;
 

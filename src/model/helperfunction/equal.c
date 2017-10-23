@@ -193,6 +193,7 @@ equalDLProgram (DLProgram *a, DLProgram *b, HashMap *seenOps, MemContext *c)
     COMPARE_NODE_FIELD(doms);
     COMPARE_NODE_FIELD(n.properties);
     COMPARE_NODE_FIELD(comp);
+    COMPARE_NODE_FIELD(func);
 
     return TRUE;
 }

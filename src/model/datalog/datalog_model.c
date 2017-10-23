@@ -76,7 +76,7 @@ createDLRule (DLAtom *head, List *body)
 
 
 DLProgram *
-createDLProgram (List *dlRules, List *facts, char *ans, List *doms)
+createDLProgram (List *dlRules, List *facts, char *ans, List *doms, List *func)
 {
     DLProgram *result = makeNode(DLProgram);
 
@@ -84,6 +84,7 @@ createDLProgram (List *dlRules, List *facts, char *ans, List *doms)
     result->facts = facts;
     result->ans = ans;
     result->doms = doms;
+    result->func = func;
 
     return result;
 }
