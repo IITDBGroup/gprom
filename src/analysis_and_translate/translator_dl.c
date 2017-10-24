@@ -767,6 +767,7 @@ translateSafeRule(DLRule *r)
     List *newProjExprs = NIL;
     boolean hasAgg = FALSE;
 
+    // check if there exist aggr functions
     FOREACH(Node,a,r->head->args)
     	if(isA(a,FunctionCall))
     		hasAgg = TRUE;
@@ -780,57 +781,73 @@ translateSafeRule(DLRule *r)
         List *funcNames = NIL;
         List *aggrFuncs = NIL;
 
-        int aggri = 0;
-        int groupbyi = 0;
+        int aggri = -1;
+        int groupbyi = -1;
 
-        FOREACH(Node,a,projExprs)
+        // gather group by expressions
+        FOREACH(Node,e,projExprs)
         {
-        	if(!isA(a,FunctionCall))
+        	if(!isA(e,FunctionCall))
         	{
-        		groupByClause = appendToTailOfList(groupByClause, copyObject(a));
+        		groupByClause = appendToTailOfList(groupByClause, copyObject(e));
 
-
-        		AttributeReference *groupbyRef = (AttributeReference *) a;
-        		char *groupbyName = CONCAT_STRINGS("GROUP_", itoa(groupbyi++));
-        		groupbyRef->name = groupbyName;
-
+        		char *groupbyName = CONCAT_STRINGS("GROUP_", itoa(groupbyi + 1));
         		groupbyNames = appendToTailOfList(groupbyNames, groupbyName);
-        		newProjExprs = appendToTailOfList(newProjExprs,groupbyRef);
         	}
         }
 
-    	FOREACH(Node,a,projExprs)
+        // gather aggr function expressions
+    	FOREACH(Node,e,projExprs)
         {
-        	if(isA(a,FunctionCall))
+        	if(isA(e,FunctionCall))
         	{
-        		FunctionCall *f = (FunctionCall *) a;
+        		FunctionCall *f = (FunctionCall *) e;
 
         		if(f->isAgg)
         		{
         			aggrFuncs = appendToTailOfList(aggrFuncs, copyObject(f));
 
-        			char *aggrName = CONCAT_STRINGS("AGGR_", itoa(aggri++));
+        			char *aggrName = CONCAT_STRINGS("AGGR_", itoa(aggri + 1));
         			funcNames = appendToTailOfList(funcNames, aggrName);
-
-        	    	FOREACH(AttributeReference,aggrRef,f->args)
-        	    	{
-                		aggrRef->name = aggrName;
-                		aggrRef->attrType = DT_LONG;
-                		newProjExprs = appendToTailOfList(newProjExprs,aggrRef);
-        	    	}
         		}
         	}
         }
 
-    	// copy aggregation function calls and groupBy expressions
-		// and create aggregation operator
+    	// create aggregation operator
     	attrNames = CONCAT_LISTS(copyList(funcNames), copyList(groupbyNames));
 		ao = createAggregationOp(aggrFuncs, groupByClause, joinedGoals, NIL, attrNames);
 		OP_LCHILD(ao)->parents = singleton(ao);
 //		addParent(joinedGoals, (QueryOperator *) ao);
 
-    	headNames = attrNames;
-//		headNames = CONCAT_LISTS(copyList(groupbyNames),copyList(funcNames));
+		// create new projExprs for projection operator
+		AttributeReference *a;
+		groupbyi = 0;
+		aggri = 0;
+
+		// To re-order the attributes, create expressions with group by first
+		FOREACH(AttributeDef,n,ao->op.schema->attrDefs)
+		{
+			if(isPrefix(n->attrName,"GROUP_"))
+			{
+				a = createFullAttrReference(strdup(n->attrName), 0, groupbyi, -1, n->dataType);
+				newProjExprs = appendToTailOfList(newProjExprs, a);
+			}
+			groupbyi++;
+		}
+
+		// Then, create aggr function expressions
+		FOREACH(AttributeDef,n,ao->op.schema->attrDefs)
+		{
+			if(isPrefix(n->attrName,"AGGR_"))
+			{
+				a = createFullAttrReference(strdup(n->attrName), 0, aggri, -1, n->dataType);
+				newProjExprs = appendToTailOfList(newProjExprs, a);
+			}
+			aggri++;
+		}
+
+		// Re-order attribute names according to the expressions
+		headNames = CONCAT_LISTS(copyList(groupbyNames),copyList(funcNames));
     }
     else
     {
@@ -838,9 +855,6 @@ translateSafeRule(DLRule *r)
 		for (; i < LIST_LENGTH(projExprs); i++)
 			headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", itoa(i)));
     }
-
-    // TODO: attributes in the projection operator is not correctly ordered
-    // e.g., aggrs come first and then group by attributes followed
 
     headP = createProjectionOp(hasAgg ? newProjExprs : projExprs,
 //            sel ? (QueryOperator *) sel : joinedGoals,
