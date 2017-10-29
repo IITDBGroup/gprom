@@ -267,16 +267,22 @@ tempRewrJoin (JoinOperator *op)
     rEnd = getTempAttrRef(rChild, FALSE);
     rEnd->fromClauseItem = 1;
 
-    cond = OR_EXPRS(
-            AND_EXPRS(
-                    (Node *) createOpExpr("<=", LIST_MAKE(copyObject(lBegin), copyObject(rBegin))),
-                    (Node *) createOpExpr("<=", LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
-            ),
-            AND_EXPRS(
-                    (Node *) createOpExpr("<=", LIST_MAKE(copyObject(rBegin), copyObject(lBegin))),
-                    (Node *) createOpExpr("<=", LIST_MAKE(copyObject(lBegin), copyObject(rEnd)))
-            )
-    );
+    cond = AND_EXPRS(
+                (Node *) createOpExpr("<=", LIST_MAKE(copyObject(lBegin), copyObject(rEnd))),
+                (Node *) createOpExpr("<=", LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
+            );
+
+      // that is more efficient then what we had before
+//    cond = OR_EXPRS(
+//            AND_EXPRS(
+//                    (Node *) createOpExpr("<=", LIST_MAKE(copyObject(lBegin), copyObject(rBegin))),
+//                    (Node *) createOpExpr("<=", LIST_MAKE(copyObject(rBegin), copyObject(lEnd)))
+//            ),
+//            AND_EXPRS(
+//                    (Node *) createOpExpr("<=", LIST_MAKE(copyObject(rBegin), copyObject(lBegin))),
+//                    (Node *) createOpExpr("<=", LIST_MAKE(copyObject(lBegin), copyObject(rEnd)))
+//            )
+//    );
 
     // since we are adding a join condition this turns cross products into inner joins
     if (op->joinType == JOIN_CROSS)
@@ -1138,11 +1144,23 @@ addCoalesce (QueryOperator *input)
 
     return (QueryOperator *) top;
 }
+//TODO add normalization specialized for min/max with only two-way union and preaggregation computing min/max group by G, TSTART, TEND as input for normalization
 
 /*
- * aligns the output of "input" to temporally align with "reference"
- * this normalization has to be applied to the inputs of set difference
- * for R - S we rewrite it into A(R,S) - A(S,R)
+ *
+ */
+
+/*
+ * normalize "input" with respect to "reference" and a set of attribute G.
+ * This operation split the interval assigned to a tuple t based on the all the interval end points
+ * that exists within the same group as t (grouping on G). In the result all intervals assigned to
+ * tuples from one group are either disjunct or equal.
+ *
+ * This normalization has to be applied to the inputs of set difference
+ * for R - S we rewrite it into A(R,S) - A(S,R). Also this can be used to
+ * prepare the input of a temporal aggregation such that the aggregation
+ * can then be evaluated by using standard aggregation grouping on the original
+ * group by attributes plus the interval start and end point attributes.
  *
  *
  * -- normalize(R,S) ON X means split intervals of R such that all intervals in the result that have the same value for X are either equal or disjoint.
