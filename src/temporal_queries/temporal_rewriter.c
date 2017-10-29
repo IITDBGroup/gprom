@@ -2165,17 +2165,17 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
 
         if(T_BEtype == 0)
         {
-        	// add minimal and maximal value for the domain of the time attributes
-        	constVals = appendToTailOfList(constVals, createConstInt(INT_MINVAL));
-        	constVals = appendToTailOfList(constVals, createConstInt(INT_MAXVAL));
+            // add minimal and maximal value for the domain of the time attributes
+            constVals = appendToTailOfList(constVals, createConstInt(INT_MINVAL));
+            constVals = appendToTailOfList(constVals, createConstInt(INT_MAXVAL));
         }
         else
         {
-        	// use date format
-        	FunctionCall *dateBegin = createFunctionCall("TO_DATE", LIST_MAKE(createConstInt(1),createConstString("J")));
-        	FunctionCall *dateEnd = createFunctionCall("TO_DATE", LIST_MAKE(createConstString("9999-01-01"),createConstString("SYYYY-MM-DD")));
-        	constVals = appendToTailOfList(constVals, dateBegin);
-        	constVals = appendToTailOfList(constVals, dateEnd);
+            // use date format
+            FunctionCall *dateBegin = createFunctionCall("TO_DATE", LIST_MAKE(createConstInt(1),createConstString("J")));
+            FunctionCall *dateEnd = createFunctionCall("TO_DATE", LIST_MAKE(createConstString("9999-01-01"),createConstString("SYYYY-MM-DD")));
+            constVals = appendToTailOfList(constVals, dateBegin);
+            constVals = appendToTailOfList(constVals, dateEnd);
         }
 
         neutralCRel = createConstRelOp(constVals, NIL, aNames, NIL);
@@ -2404,16 +2404,16 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         }
         else if (streq(fName, "AVG"))
         {
-            AttributeReference *lRef, *rRef;
+            AttributeReference *countRef, *sumRef;
 
-            lRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
+            sumRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
             attrPos++;
-            rRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
+            countRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
 
-            Operator *whenOperator = createOpExpr("=", LIST_MAKE(copyObject(lRef), copyObject(c0)));
+            Operator *whenOperator = createOpExpr("=", LIST_MAKE(copyObject(countRef), copyObject(c0)));
             CaseWhen *whenT4 = createCaseWhen((Node *) whenOperator, (Node *) createConstFloat(0.0));
             //List *whenList = singleton(whenT4);
-            Operator *elseT4 = createOpExpr("/", LIST_MAKE(copyObject(rRef), copyObject(lRef)));
+            Operator *elseT4 = createOpExpr("/", LIST_MAKE(copyObject(sumRef), copyObject(countRef)));
             CaseExpr *caseExprT4 = createCaseExpr(NULL, singleton(whenT4), (Node *) elseT4);
             projExpr = (Node *) caseExprT4;
         }
