@@ -4039,13 +4039,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	{
 //    	associateDomainRule = NIL;
 //    	DLRule *newDomRule;
-
-   		List *edbAttr;
+    	List *edbAttrs;
    		char *atomRel = NULL;
+		HashMap *domainAtom = NEW_MAP(Constant,Constant);
 
     	FOREACH(DLRule,r,negedbRules)
 		{
-    		edbAttr = NIL;
     		DLRule *eachNegedbRule = r;
 //    		boolean argConst = FALSE;
 			boolean argVar = FALSE;
@@ -4054,77 +4053,74 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			{
     			if(a->negated)
     			{
-    				atomRel = a->rel;
-
-    				int atomLeng = strlen(atomRel) - 1;
-    				atomRel = substr(atomRel, 1, atomLeng);
-
-    				atomRel = replaceSubstr(atomRel, "_WON", "");
-    				atomRel = replaceSubstr(atomRel, "_nonlinked", "");
-
-    				if(strlen(atomRel) == 0)
-    				{
-    					atomRel = strdup("R");
-    				}
-
-					edbAttr = getAttributeNames(atomRel);
-	    			HashMap *analyzeAtom = NEW_MAP(Constant,List);
-
-					// check if constant exists
 					FOREACH(Node,arg,a->args)
-					{
-//						if(isA(arg,Constant))
-//							argConst = TRUE;
-
 						if(isA(arg,DLVar))
 							argVar = TRUE;
-					}
 
-					int varPosition = 0;
-					char *atomAttr = NULL;
-//					int numOfAttr = LIST_LENGTH(a->args);
-//					int bodyLeng = LIST_LENGTH(eachNegedbRule->body);
-					List *domHeadList = NIL;
-
-	    			FOREACH(Node,arg,a->args)
+					// only add domain head while variables exist
+					if (argVar)
 					{
-	    				if(argVar)
+	    				atomRel = a->rel;
+
+	    				int atomLeng = strlen(atomRel) - 1;
+	    				atomRel = substr(atomRel, 1, atomLeng);
+
+	    				atomRel = replaceSubstr(atomRel, "_WON", "");
+	    				atomRel = replaceSubstr(atomRel, "_nonlinked", "");
+
+	    				// for the case that the relation name is 'R'
+	    				if(strlen(atomRel) == 0)
+	    					atomRel = strdup("R");
+
+	    				List *domAssigned = NIL;
+
+	    				// create hashmap with domain name as values for DLVars
+		    			FOREACH(DLDomain,d,solvedProgram->doms)
 						{
-	    					if (!isA(arg,Constant))
-							{
-								atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
-
-				    			FOREACH(DLDomain,d,solvedProgram->doms)
-				    			{
-									if(strcmp(d->attr,atomAttr) == 0 && strcmp(d->rel,atomRel) == 0)
-									{
-										char *key = (char *) CONCAT_STRINGS(atomAttr,".",atomRel);
-										char *value = d->name;
-//										char *value = (char *) CONCAT_STRINGS(d->name,"(",((DLVar *) arg)->name,")");
-										ADD_TO_MAP(analyzeAtom,createStringKeyValue(key,value));
-
-										DLAtom *domAtom = makeNode(DLAtom);
-										domAtom->rel = value;
-										domAtom->args = singleton(arg);
-
-										if(!searchListNode(domHeadList, (Node *) domAtom))
-											domHeadList = appendToTailOfList(domHeadList, domAtom);
-				    				}
-				    			}
-							}
+							char *key = (char *) CONCAT_STRINGS(d->rel,".",d->attr);
+							char *value = d->name;
+							ADD_TO_MAP(domainAtom,createStringKeyValue(key,value));
+							domAssigned = appendToTailOfList(domAssigned, d->rel);
 						}
 
-	    				varPosition++;
-					}
-	    			reverseList(domHeadList);
-					for(int i = 0; i < LIST_LENGTH(domHeadList); i++)
-					{
-						DLAtom *domAtom = (DLAtom *) getNthOfListP(domHeadList,i);
-						eachNegedbRule->body = appendToHeadOfList(eachNegedbRule->body, domAtom);
+		    			// DOMAIN must be assigned for negated atom
+		    			if(!searchListString(domAssigned,atomRel))
+		    				FATAL_LOG("DOMAIN has not assigned for %s", atomRel);
+
+						int varPosition = 0;
+						char *atomAttr = NULL;
+						List *domHeadList = NIL;
+						edbAttrs = getAttributeNames(atomRel);
+
+		    			FOREACH(Node,arg,a->args)
+						{
+							if(isA(arg,DLVar))
+							{
+								// get the attr name by the position of the variable
+								atomAttr = (char *) getNthOfListP(edbAttrs,varPosition);
+
+								// create domain head atom
+								DLAtom *domAtom = makeNode(DLAtom);
+								char *dKey = (char *) CONCAT_STRINGS(atomRel,".",atomAttr);
+								domAtom->rel = STRING_VALUE(MAP_GET_STRING(domainAtom, dKey));
+								domAtom->args = singleton(arg);
+
+								if(!searchListNode(domHeadList, (Node *) domAtom))
+									domHeadList = appendToTailOfList(domHeadList, domAtom);
+							}
+
+		    				varPosition++;
+						}
+
+		    			reverseList(domHeadList);
+						for(int i = 0; i < LIST_LENGTH(domHeadList); i++)
+						{
+							DLAtom *domAtom = (DLAtom *) getNthOfListP(domHeadList,i);
+							eachNegedbRule->body = appendToHeadOfList(eachNegedbRule->body, domAtom);
+						}
 					}
     			}
 			}
-
     		r = eachNegedbRule;
 		}
 
@@ -4139,80 +4135,86 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			{
 				if(a->negated)
 				{
-					char *bodyAtomRel = a->rel;
-
-					int atomLeng = strlen(bodyAtomRel) - 1;
-					bodyAtomRel = substr(bodyAtomRel, 1, atomLeng);
-
-					bodyAtomRel = replaceSubstr(bodyAtomRel, "_WON", "");
-					bodyAtomRel = replaceSubstr(bodyAtomRel, "_nonlinked", "");
-
-	    			HashMap *analyzeAtom = NEW_MAP(Constant,List);
-
-					// check if constant exists
 					FOREACH(Node,arg,a->args)
-					{
-//						if(isA(arg,Constant))
-//							argConst = TRUE;
-
 						if(isA(arg,DLVar))
 							argVar = TRUE;
-					}
 
-					int varPosition = 0;
-					char *atomAttr = NULL;
-					List *domHeadList = NIL;
-
-					FOREACH(Node,arg,a->args)
+					// only add domain head while variables exist
+					if(argVar)
 					{
-						if(argVar)
-						{
-							FOREACH(DLRule,h,origProg)
-								if(strcmp(h->head->rel,bodyAtomRel) == 0)
-									FOREACH(DLAtom,a,h->body)
-									{
-										Node *n = (Node *) a;
+						char *bodyAtomRel = a->rel;
 
-										if(isA(n,DLAtom))
+						int atomLeng = strlen(bodyAtomRel) - 1;
+						bodyAtomRel = substr(bodyAtomRel, 1, atomLeng);
+
+						bodyAtomRel = replaceSubstr(bodyAtomRel, "_WON", "");
+						bodyAtomRel = replaceSubstr(bodyAtomRel, "_nonlinked", "");
+
+//						// create hashmap with domain name as values for DLVars
+//		    			HashMap *domainAtom = NEW_MAP(Constant,Constant);
+//
+//						FOREACH(DLDomain,d,solvedProgram->doms)
+//						{
+//							char *key = (char *) CONCAT_STRINGS(d->rel,".",d->attr);
+//							char *value = d->name;
+//							ADD_TO_MAP(domainAtom,createStringKeyValue(key,value));
+//						}
+
+						int varPosition = 0;
+						char *atomAttr = NULL;
+						List *domHeadList = NIL;
+
+						FOREACH(Node,arg,a->args)
+						{
+							if (isA(arg,DLVar))
+							{
+								// check the head predicate and variable associated with which edb predicate and variable, respectively
+								FOREACH(DLRule,or,origProg)
+								{
+									if(streq(or->head->rel,bodyAtomRel))
+									{
+										FOREACH(Node,n,or->body)
 										{
-											FOREACH(DLVar,v,h->head->args)
-												if(!isA(v,Constant) && searchListNode(a->args,(Node *) v))
-													bodyAtomRel = a->rel;
+											if(isA(n,DLAtom))
+											{
+												int i = 0;
+												DLAtom *atom = (DLAtom *) n;
+
+												FOREACH(Node,arg,atom->args)
+												{
+													if(isA(arg,DLVar) && searchListNode(or->head->args, arg))
+													{
+														bodyAtomRel = atom->rel;
+														varPosition = i;
+													}
+													i++;
+												}
+											}
 										}
 									}
-
-							if (!isA(arg,Constant))
-							{
-								atomAttr = (char *) getNthOfListP(edbAttr,varPosition);
-
-								FOREACH(DLDomain,d,solvedProgram->doms)
-								{
-									if(strcmp(d->attr,atomAttr) == 0 && strcmp(d->rel,bodyAtomRel) == 0)
-									{
-										char *key = (char *) CONCAT_STRINGS(atomAttr,".",bodyAtomRel);
-										char *value = d->name;
-//										char *value = (char *) CONCAT_STRINGS(d->name,"(",((DLVar *) arg)->name,")");
-										ADD_TO_MAP(analyzeAtom,createStringKeyValue(key,value));
-
-										DLAtom *domAtom = makeNode(DLAtom);
-										domAtom->rel = value;
-										domAtom->args = singleton(arg);
-
-										if(!searchListNode(domHeadList, (Node *) domAtom))
-											domHeadList = appendToTailOfList(domHeadList, domAtom);
-									}
 								}
+
+								// get the attr name by the position of the variable
+								edbAttrs = getAttributeNames(bodyAtomRel);
+								atomAttr = (char *) getNthOfListP(edbAttrs,varPosition);
+
+								// create domain head atom
+								DLAtom *domAtom = makeNode(DLAtom);
+								char *dKey = (char *) CONCAT_STRINGS(bodyAtomRel,".",atomAttr);
+								domAtom->rel = STRING_VALUE(MAP_GET_STRING(domainAtom, dKey));
+								domAtom->args = singleton(arg);
+
+								if(!searchListNode(domHeadList, (Node *) domAtom))
+									domHeadList = appendToTailOfList(domHeadList, domAtom);
 							}
 						}
 
-						varPosition++;
-					}
-
-					reverseList(domHeadList);
-					for(int i = 0; i < LIST_LENGTH(domHeadList); i++)
-					{
-						DLAtom *domAtom = (DLAtom *) getNthOfListP(domHeadList,i);
-						eachNegheadRule->body = appendToHeadOfList(eachNegheadRule->body, domAtom);
+						reverseList(domHeadList);
+						for(int i = 0; i < LIST_LENGTH(domHeadList); i++)
+						{
+							DLAtom *domAtom = (DLAtom *) getNthOfListP(domHeadList,i);
+							eachNegheadRule->body = appendToHeadOfList(eachNegheadRule->body, domAtom);
+						}
 					}
 				}
 			}

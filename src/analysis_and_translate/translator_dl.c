@@ -1165,7 +1165,7 @@ replaceVarWithAttrRef(Node *node, List *context)
     } while(0)
 
 
-List *edbAttr = NIL;
+//List *edbAttr = NIL;
 
 static QueryOperator *
 translateUnSafeGoal(DLAtom *r, int goalPos)
