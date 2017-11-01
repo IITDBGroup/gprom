@@ -144,12 +144,14 @@ executeOutputGP(void *sql)
         Set *nodes;
 
         char *lRawId = (char *) getNthOfListP(t,0);
+        lRawId = strtrim(lRawId);
         GPNodeType lType = getNodeType(lRawId);
         char *lId = getNodeId(lRawId);
         nodes = (Set *) MAP_GET_INT(noteTypes, lType);
         addToSet(nodes, lRawId);
 
         char *rRawId = (char *) getNthOfListP(t,1);
+        rRawId = strtrim(rRawId);
         GPNodeType rType = getNodeType(rRawId);
         char *rId = getNodeId(rRawId);
         nodes = (Set *) MAP_GET_INT(noteTypes, rType);
@@ -266,6 +268,7 @@ getNodeLabel (char *node, GPNodeType t)
     id = replaceSubstr(id, "_WON", "");
     id = replaceSubstr(id, "_LOST", "");
 
+    //TODO: check whether brackets and '|' are included in the data
     args = getMatchingSubstring(node, "[^\\(]+\(\\([^\\)]+\\))");
 
     switch(t)
@@ -327,7 +330,10 @@ getTexNodeLabel (char *node, GPNodeType t)
     id = replaceSubstr(id, "_WON", "");
     id = replaceSubstr(id, "_LOST", "");
 
+    //TODO: check whether brackets and '|' are included in the data
     args = getMatchingSubstring(node, "[^\\(]+\(\\([^\\)]+\\))");
+//    char *atomPred = getMatchingSubstring(node, "[_]([^\\(]+)");
+//    args = replaceSubstr(node, atomPred, "");
 
     switch(t)
     {

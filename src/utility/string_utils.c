@@ -205,7 +205,9 @@ strtrim (char *in)
 
     while(*in != '\0')
     {
-        if (*in != '\t' && *in != ' ' && *in != '\n')
+    	//TODO: check whether empty spaces are required to be removed
+//    	if (*in != '\t' && *in != ' ' && *in != '\n')
+        if (*in != '\t' && *in != '\r' && *in != '\n')
             appendStringInfoChar(result, *in);
         in++;
     }

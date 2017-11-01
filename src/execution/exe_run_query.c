@@ -104,6 +104,19 @@ exeRunQuery (void *code)
             FOREACH(char,a,t)
             {
                 char *out = a ? a : "NULL";
+                out = strtrim(out);
+
+//                // keep only string from the result
+//                //TODO: check whether it can be associated with the function 'strtrim' in string_utils.c
+//                StringInfo strimOut = makeStringInfo();
+//                while(*out != '\0')
+//				{
+//					if (*out != '\t' && *out != '\r' && *out != '\n')
+//						appendStringInfoChar(strimOut, *out);
+//					out++;
+//				}
+//                out = strimOut->data;
+
                 printf(" %s", out);
                 for(int j = strlen(out) + 1; j < colSizes[i]; j++)
                     printf(" ");
