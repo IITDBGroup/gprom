@@ -174,24 +174,12 @@ rewriteUncertProvComp(QueryOperator *op)
 {
     ASSERT(LIST_LENGTH(op->inputs) == 1);
     QueryOperator *top = getHeadOfListP(op->inputs);
-    List *topSchema;
 
     top = rewriteUncert(top);
 
     // make sure we do not introduce name clashes, but keep the top operator's schema intact
     Set *done = PSET();
-    topSchema = copyObject(op->schema->attrDefs);
     disambiguiteAttrNames((Node *) top, done);
-//    if (isA(top,ProjectionOperator)){
-//       // top->schema->attrDefs = topSchema;
-//        }
-//    else
-//    {
-//        QueryOperator *proj = createProjOnAllAttrs(top);
-//        addChildOperator(proj, top);
-//        switchSubtrees((QueryOperator *) top, proj);
-//        proj->schema->attrDefs = topSchema;
-//    }
 
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) op, top);
