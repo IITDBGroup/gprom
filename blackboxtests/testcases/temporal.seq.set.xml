@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Temporal Sequenced Rewrites Test Cases for Set Operations</comment>
+
+<entry key="q1.query">
+SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 1 UNION ALL SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 2);
+</entry>
+<entry key="q1.result">
+ A | T_B | T_E |
+----------------
+ 1 | 1   | 6   |
+ 1 | 6   | 10  |
+ 1 | 10  | 13  |
+ 2 | 1   | 4   |
+ 1 | 1   | 6   |
+ 1 | 6   | 10  |
+ 1 | 1   | 6   |
+</entry>
+
+
+<entry key="q2.query">
+SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 1 MINUS ALL SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 2);
+</entry>
+<entry key="q2.result">
+A | T_B | T_E |
+----------------
+ 1 | 2   | 6   |
+ 2 | 1   | 4   |
+</entry>
+
+<entry key="q3.query">
+SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 1 UNION SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 2);
+</entry>
+<entry key="q3.result">
+</entry>
+
+<entry key="q4.query">
+SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 1 INTERSECT ALL SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 2);
+</entry>
+<entry key="q4.result">
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+</properties>
+
