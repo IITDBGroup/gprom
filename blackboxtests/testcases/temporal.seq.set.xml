@@ -33,6 +33,10 @@ A | T_B | T_E |
 SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 1 UNION SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 2);
 </entry>
 <entry key="q3.result">
+ A | T_B | T_E |
+----------------
+ 1 | 1   | 13  |
+ 2 | 1   | 4   |
 </entry>
 
 <entry key="q4.query">
@@ -41,9 +45,10 @@ SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B =
 <entry key="q4.result">
 </entry>
 
-<entry key="q.query">
+<entry key="q5.query">
+SEQUENCED TEMPORAL (SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 1 INTERSECT ALL SELECT a FROM TEMP_TEST WITH TIME (T_BEGIN, T_END) WHERE B = 2);
 </entry>
-<entry key="q.result">
+<entry key="q5.result">
 </entry>
 
 <entry key="q.query">

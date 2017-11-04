@@ -121,9 +121,14 @@ SELECT * FROM (SEQUENCED TEMPORAL (SELECT max(1) AS m FROM TEMP_EMP WITH TIME (F
  (null)      | 1999-10-31 00:00:00.0 | 9999-01-01 00:00:00.0 |
 </entry>
 
-<entry key="q.query">
+<entry key="q10.query">
+SEQUENCED TEMPORAL (SELECT DISTINCT A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
 </entry>
-<entry key="q.result">
+<entry key="q10.result">
+ A | T_B | T_E |
+----------------
+ 1 | 1   | 13  |
+ 2 | 1   | 4   |
 </entry>
 
 <entry key="q.query">

@@ -28,9 +28,12 @@ static QueryOperator *temporalRewriteOperator(QueryOperator *op);
 static QueryOperator *tempRewrSelection (SelectionOperator *o);
 static QueryOperator *tempRewrProjection (ProjectionOperator *o);
 static QueryOperator *tempRewrJoin (JoinOperator *op);
+static QueryOperator *tempRewrGeneralAggregation (AggregationOperator *o);
 static QueryOperator *tempRewrAggregation (AggregationOperator *o);
 static QueryOperator *tempRewrTemporalSource (QueryOperator *o);
 static QueryOperator *tempRewrSetOperator (SetOperator *o);
+static QueryOperator *tempRewrDuplicateRemOp (DuplicateRemoval *o);
+
 
 static void setTempAttrProps(QueryOperator *o);
 static AttributeReference *getTempAttrRef (QueryOperator *o, boolean begin);
@@ -112,14 +115,8 @@ temporalRewriteOperator(QueryOperator *op)
                 break;
             case T_AggregationOperator:
             {
-                QueryOperator *child = OP_LCHILD(op);
-                boolean minmax = GET_BOOL_STRING_PROP(child,PROP_TEMP_NORMALIZE_INPUTS);
                 DEBUG_LOG("go aggregation");
-
-                if(getBoolOption(TEMPORAL_AGG_WITH_NORM) && !minmax) //TODO check that not min/max
-                    rewrittenOp = rewriteTemporalAggregationWithNormalization((AggregationOperator *) op);
-                else
-                    rewrittenOp = tempRewrAggregation ((AggregationOperator *) op);
+                rewrittenOp = tempRewrGeneralAggregation((AggregationOperator *) op);
             }
             break;
             case T_JoinOperator:
@@ -151,10 +148,10 @@ temporalRewriteOperator(QueryOperator *op)
     //            DEBUG_LOG("go const rel operator");
     //            rewrittenOp = tempRewrConstRel((ConstRelOperator *) op);
     //            break;
-//            case T_DuplicateRemoval:
-//                DEBUG_LOG("go duplicate removal operator");
-//                rewrittenOp = tempRewrDuplicateRemOp((DuplicateRemoval *) op);
-//                break;
+            case T_DuplicateRemoval:
+                DEBUG_LOG("go duplicate removal operator");
+                rewrittenOp = tempRewrDuplicateRemOp((DuplicateRemoval *) op);
+                break;
     //        case T_OrderOperator:
     //            DEBUG_LOG("go order operator");
     //            rewrittenOp = tempRewrOrderOp((OrderOperator *) op);
@@ -333,6 +330,21 @@ tempRewrJoin (JoinOperator *op)
 }
 
 static QueryOperator *
+tempRewrGeneralAggregation (AggregationOperator *o)
+{
+    QueryOperator *child = OP_LCHILD(o);
+    QueryOperator *rewrittenOp;
+    boolean minmax = GET_BOOL_STRING_PROP(child,PROP_TEMP_NORMALIZE_INPUTS);
+
+    if(getBoolOption(TEMPORAL_AGG_WITH_NORM) && !minmax)
+        rewrittenOp = rewriteTemporalAggregationWithNormalization((AggregationOperator *) o);
+    else
+        rewrittenOp = tempRewrAggregation ((AggregationOperator *) o);
+
+    return rewrittenOp;
+}
+
+static QueryOperator *
 tempRewrAggregation (AggregationOperator *o)
 {
     AttributeReference *tb, *te;
@@ -431,6 +443,29 @@ tempRewrSetOperator (SetOperator *o)
 
     setTempAttrProps((QueryOperator *) o);
     return (QueryOperator *) o;
+}
+
+static QueryOperator *
+tempRewrDuplicateRemOp (DuplicateRemoval *o)
+{
+    QueryOperator *child = OP_LCHILD(o);
+    QueryOperator *newAgg;
+    QueryOperator *rewrittenOp;
+    List *groupBy;
+    List *attrNames;
+
+    attrNames = getNormalAttrNames(child);
+    groupBy = getNormalAttrProjectionExprs(child);
+
+    newAgg = (QueryOperator *) createAggregationOp(NIL, groupBy, child, NIL, attrNames);
+    removeParentFromOps(LIST_MAKE(child), (QueryOperator *) o);
+    child->parents = appendToTailOfList(child->parents, newAgg);
+    switchSubtreeWithExisting((QueryOperator *) o, newAgg);
+    newAgg->inputs = o->op.inputs;
+
+    rewrittenOp = tempRewrGeneralAggregation((AggregationOperator *) newAgg);
+
+    return rewrittenOp;
 }
 
 static void
