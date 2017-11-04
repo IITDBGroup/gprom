@@ -79,9 +79,6 @@ static List *getFromTreeLeafs (List *from);
 static char *generateAttrNameFromExpr(SelectItem *s);
 static List *splitTableName(char *tableName);
 static void getTableSchema (char *tableName, List **attrDefs, List **attrNames, List **dts);
-static List *getQBAttrDefs(Node *qb);
-static List *getQBAttrNames (Node *qb);
-static List *getQBAttrDTs (Node *qb);
 static boolean compareAttrDefName(AttributeDef *a, AttributeDef *b);
 static boolean setViewFromTableRefAttrs(Node *node, List *views);
 static boolean schemaInfoHasTable(char *tableName);
@@ -1254,96 +1251,6 @@ getTableSchema (char *tableName, List **attrDefs, List **attrNames, List **dts)
 }
 
 static List *
-getQBAttrDefs(Node *qb)
-{
-    List *result = NIL;
-    List *attrs = getQBAttrNames(qb);
-    List *dts = getQBAttrDTs(qb);
-
-    FORBOTH_LC(nameLc, dtLc, attrs, dts)
-    {
-        result = appendToTailOfList(result,
-                createAttributeDef(LC_STRING_VAL(nameLc), LC_INT_VAL(dtLc)));
-    }
-
-    return result;
-}
-
-static List *
-getQBAttrDTs (Node *qb)
-{
-    List *DTs = NIL;
-
-    switch(qb->type)
-    {
-        case T_QueryBlock:
-        {
-            QueryBlock *subQb = (QueryBlock *) qb;
-            FOREACH(SelectItem,s,subQb->selectClause)
-            {
-                DTs = appendToTailOfListInt(DTs,
-                        (int) typeOf(s->expr));
-            }
-        }
-        break;
-        case T_SetQuery:
-        {
-            SetQuery *setQ = (SetQuery *) qb;
-            DTs = getQBAttrDTs(setQ->lChild);
-        }
-        break;
-        case T_ProvenanceStmt:
-        {
-            ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
-            DTs = pStmt->dts;
-        }
-        break;
-        default:
-            FATAL_LOG("unexpected node type as FROM clause item: %s", beatify(nodeToString(qb)));
-            break;
-    }
-
-    return DTs;
-}
-
-
-static List *
-getQBAttrNames (Node *qb)
-{
-    List *attrs = NIL;
-
-    switch(qb->type)
-    {
-        case T_QueryBlock:
-        {
-            QueryBlock *subQb = (QueryBlock *) qb;
-            FOREACH(SelectItem,s,subQb->selectClause)
-            {
-                 attrs = appendToTailOfList(attrs,
-                        s->alias);
-            }
-        }
-        break;
-        case T_SetQuery:
-        {
-            SetQuery *setQ = (SetQuery *) qb;
-            attrs = deepCopyStringList(setQ->selectClause);
-        }
-        break;
-        case T_ProvenanceStmt:
-        {
-            ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
-            attrs = deepCopyStringList(pStmt->selectClause);
-        }
-        break;
-        default:
-            break;
-    }
-
-    return attrs;
-}
-
-static List *
 analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right)
 {
     List *lList = left->from.attrNames;
@@ -1663,6 +1570,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         }
         break;
         case PROV_INPUT_QUERY:
+        case PROV_INPUT_UNCERTAIN_QUERY:
         {
             List *provAttrNames = NIL;
             List *provDts = NIL;

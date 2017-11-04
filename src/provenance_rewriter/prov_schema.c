@@ -20,8 +20,10 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
+#include "model/query_block/query_block.h"
 #include "provenance_rewriter/prov_schema.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
+#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 
 /* consts */
 #define PROV_ATTR_PREFIX "PROV_"
@@ -191,28 +193,40 @@ getRelNameCount(RelCount **relCount, char *tableName)
 void
 getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
 {
-    switch(stmt->provType)
+    if(stmt->provType == PROV_PI_CS && stmt->inputType == PROV_INPUT_QUERY)
     {
-        case PROV_PI_CS:
-            //TODO
-        default:
-        {
-            ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);
+        ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);
 
-            pSchema->provAttrs = NIL;
-            pSchema->dts = NIL;
-            findTablerefVisitor((Node *) stmt->query, pSchema);
+        pSchema->provAttrs = NIL;
+        pSchema->dts = NIL;
+        findTablerefVisitor((Node *) stmt->query, pSchema);
 
-            //semiring combiner check
-            if(isSemiringCombinerActivatedPs(stmt)){
-            		*attrNames = singleton("PROV");
-            		*dts = singletonInt(getSemiringCombinerDatatype(stmt,pSchema->dts));
-            		return;
-            }
-
-            *attrNames = pSchema->provAttrs;
-            *dts = pSchema->dts;
+        //semiring combiner check
+        if(isSemiringCombinerActivatedPs(stmt)){
+            *attrNames = singleton("PROV");
+            *dts = singletonInt(getSemiringCombinerDatatype(stmt,pSchema->dts));
             return;
+        }
+
+        *attrNames = pSchema->provAttrs;
+        *dts = pSchema->dts;
+
+        return;
+    }
+    if (stmt->inputType == PROV_INPUT_UNCERTAIN_QUERY)
+    {
+        List *qAttrName =  getQBAttrNames(stmt->query);
+
+        // add row uncertainty attribute
+        *dts = appendToTailOfListInt(*dts, DT_INT);
+        *attrNames = appendToTailOfList(*attrNames, getUncertString(UNCERTAIN_ROW_ATTR));
+
+        // add attribute uncertainty attributes
+        FOREACH(char,n,qAttrName)
+        {
+            char *uName = getUncertString(n);
+            *dts = appendToTailOfListInt(*dts, DT_INT);
+            *attrNames = appendToTailOfList(*attrNames, strdup(uName));
         }
     }
 }

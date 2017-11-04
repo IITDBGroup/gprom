@@ -22,6 +22,7 @@
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
+#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "provenance_rewriter/xml_rewrites/xml_prov_main.h"
 #include "temporal_queries/temporal_rewriter.h"
 
@@ -129,9 +130,15 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             STOP_TIMER("rewrite - restrict to updated rows");
         }
     }
+
     if (op->inputType == PROV_INPUT_TEMPORAL_QUERY)
     {
             return rewriteImplicitTemporal((QueryOperator *) op);
+    }
+
+    if (op->inputType == PROV_INPUT_UNCERTAIN_QUERY)
+    {
+        return rewriteUncert((QueryOperator *) op);
     }
 
     // turn operator graph into a tree since provenance rewrites currently expect a tree
@@ -148,8 +155,8 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     char *sc_func;
     Node *sc_expr;
     if(isCombinerActivated){
-    	sc_func = getSemiringCombinerFuncName((QueryOperator *) op);
-    	sc_expr = getSemiringCombinerExpr((QueryOperator *) op);
+        sc_func = getSemiringCombinerFuncName((QueryOperator *) op);
+        sc_expr = getSemiringCombinerExpr((QueryOperator *) op);
     }
 
     // apply provenance rewriting if required
@@ -164,10 +171,9 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
             //semiring comb operations
             if(isCombinerActivated){
-            	//INFO_LOG(sc_func);
-            	//INFO_LOG(nodeToString(sc_expr));
-            	result = addSemiringCombiner(result,sc_func,sc_expr);
-            	INFO_OP_LOG("Add semiring combiner:", result);
+                INFO_LOG("user has provied a semiring combiner: %s:\n\n%s", sc_func, beatify(nodeToString(sc_expr)));
+                result = addSemiringCombiner(result,sc_func,sc_expr);
+                INFO_OP_LOG("Add semiring combiner:", result);
             }
 
             break;

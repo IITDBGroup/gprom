@@ -10,6 +10,6 @@ libprovenance_rewriter_la_LIBADD      	= pi_cs_rewrites/libpi_cs_rewrites.la \
 										update_and_transaction/libupdate_rewrites.la \
 										game_provenance/libgp.la \
 										xml_rewrites/libxml_rewrites.la \
-										summarization_rewrites/libsummarization_rewrites.la
+										summarization_rewrites/libsummarization_rewrites.la \
 										semiring_combiner/libsc.la \
 										uncertainty_rewrites/libur.la

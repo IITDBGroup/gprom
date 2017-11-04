@@ -715,7 +715,13 @@ translateProvenanceStmt(ProvenanceStmt *prov)
             child = translateQueryOracle(prov->query);
             addChildOperator((QueryOperator *) result, child);
         }
-            break;
+        break;
+        case PROV_INPUT_UNCERTAIN_QUERY:
+        {
+            child = translateQueryOracle(prov->query);
+            addChildOperator((QueryOperator *) result, child);
+        }
+        break;
         case PROV_INPUT_REENACT:
         case PROV_INPUT_REENACT_WITH_TIMES:
         {

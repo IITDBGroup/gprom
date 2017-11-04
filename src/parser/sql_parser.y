@@ -414,7 +414,7 @@ provStmt:
         {
             RULELOG("provStmt::summaryStmt");
             Node *stmt = $6;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+	    		ProvenanceStmt *p = createProvenanceStmt(stmt);
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $2;
@@ -644,8 +644,8 @@ provOption:
 		| SEMIRING COMBINER semiringCombinerSpec
 		{
 			RULELOG("provOption::SEMIRING::COMBINER::semiringCombinerSpec");
-            $$ = (Node *)createNodeKeyValue((Node *) createConstString(PROP_PC_SEMIRING_COMBINER),
-            (Node *)$3);
+            $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SEMIRING_COMBINER), 
+            									(Node *) $3);
 		}
 	;
 
@@ -660,8 +660,7 @@ semiringCombinerSpec:
         ADD '(' expression ')'  MULT '(' expression ')'
         {
             RULELOG("semiringCombinerSpec::ADD::expression::MULT::expression");
-            List * expr = singleton($2);
-            $$ = (Node *)appendToTailOfList(expr,$4);
+            $$ = LIST_MAKE($3, $7);
         }
 ;
 

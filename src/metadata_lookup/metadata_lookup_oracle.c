@@ -1056,6 +1056,14 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
     *funcExists = TRUE;
     char *capName = strToUpper(fName);
 
+    // uncertainty dummy functions
+    if (streq(capName, "UNCERT"))
+    {
+        ASSERT(LIST_LENGTH(dataTypes) == 1);
+        DataType argType = getNthOfListInt(dataTypes,0);
+        return argType;
+    }
+
     // aggregation functions
     if (streq(capName,"SUM")
             || streq(capName, "MIN")
