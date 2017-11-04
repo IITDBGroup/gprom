@@ -217,10 +217,6 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     {
         List *qAttrName =  getQBAttrNames(stmt->query);
 
-        // add row uncertainty attribute
-        *dts = appendToTailOfListInt(*dts, DT_INT);
-        *attrNames = appendToTailOfList(*attrNames, getUncertString(UNCERTAIN_ROW_ATTR));
-
         // add attribute uncertainty attributes
         FOREACH(char,n,qAttrName)
         {
@@ -228,6 +224,10 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
             *dts = appendToTailOfListInt(*dts, DT_INT);
             *attrNames = appendToTailOfList(*attrNames, strdup(uName));
         }
+
+        // add row uncertainty attribute
+        *dts = appendToTailOfListInt(*dts, DT_INT);
+        *attrNames = appendToTailOfList(*attrNames, getUncertString(UNCERTAIN_ROW_ATTR));
     }
 }
 
