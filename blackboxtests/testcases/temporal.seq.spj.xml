@@ -4,7 +4,7 @@
 <comment>Temporal Sequenced Rewrites Test Cases for SPJ queries</comment>
 
 <entry key="q1.query">
-TEMPORAL (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1);
+SEQUENCED TEMPORAL (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1);
 </entry>
 <entry key="q1.result">
  A | B | T_B | T_E |
@@ -16,7 +16,7 @@ TEMPORAL (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 
 </entry>
 
 <entry key="q2.query">
-TEMPORAL (SELECT A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
+SEQUENCED TEMPORAL (SELECT A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
 </entry>
 <entry key="q2.result">
  A | T_B | T_E |
@@ -31,7 +31,7 @@ TEMPORAL (SELECT A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
 </entry>
 
 <entry key="q3.query">
-TEMPORAL (SELECT A + 2 AS X, B * 2 AS C FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
+SEQUENCED TEMPORAL (SELECT A + 2 AS X, B * 2 AS C FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
 </entry>
 <entry key="q3.result">
  X | C | T_B | T_E |
@@ -47,7 +47,7 @@ TEMPORAL (SELECT A + 2 AS X, B * 2 AS C FROM TEMP_TEST WITH TIME(T_BEGIN, T_END)
 </entry>
 
 <entry key="q4.query">
-TEMPORAL (SELECT A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A != B);
+SEQUENCED TEMPORAL (SELECT A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A != B);
 </entry>
 <entry key="q4.result">
  A | T_B | T_E |
@@ -59,7 +59,7 @@ TEMPORAL (SELECT A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A != B);
 </entry>
 
 <entry key="q5.query">
-TEMPORAL (SELECT A FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1) sub WHERE B = 1);
+SEQUENCED TEMPORAL (SELECT A FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1) sub WHERE B = 1);
 </entry>
 <entry key="q5.result">
  A | T_B | T_E |
@@ -71,7 +71,7 @@ TEMPORAL (SELECT A FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE
 </entry>
 
 <entry key="q6.query">
-TEMPORAL (SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
+SEQUENCED TEMPORAL (SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
 	FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L,
 		 (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 2) R
 	WHERE L.B = R.A
@@ -87,7 +87,7 @@ TEMPORAL (SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB
 
 
 <entry key="q7.query">
-TEMPORAL (SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
+SEQUENCED TEMPORAL (SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
 	FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L,
 		 (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1) R
 	WHERE L.B = R.A
@@ -109,7 +109,7 @@ TEMPORAL (SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB
 
 
 <entry key="q8.query">
-TEMPORAL (SELECT L.A AS LA
+SEQUENCED TEMPORAL (SELECT L.A AS LA
 	FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L,
 		 (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1) R
 	WHERE L.B = R.A
@@ -132,7 +132,7 @@ TEMPORAL (SELECT L.A AS LA
 </entry>
 
 <entry key="q9.query">
-TEMPORAL (SELECT 1 AS boo FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
+SEQUENCED TEMPORAL (SELECT 1 AS boo FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
 </entry>
 <entry key="q9.result">
  BOO | T_B | T_E |
@@ -150,7 +150,7 @@ TEMPORAL (SELECT 1 AS boo FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
 </entry>
 
 <entry key="q10.query">
-TEMPORAL (SELECT L.A AS LA
+SEQUENCED TEMPORAL (SELECT L.A AS LA
 	FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L JOIN
 		 (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1) R
 		ON (L.B = R.A)
@@ -173,7 +173,7 @@ LA | T_B | T_E |
 </entry>
 
 <entry key="q11.query">
-TEMPORAL (
+SEQUENCED TEMPORAL (
 	SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
 	FROM 
 		(SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L 
@@ -197,7 +197,7 @@ TEMPORAL (
 </entry>
 
 <entry key="q12.query">
-TEMPORAL (
+SEQUENCED TEMPORAL (
 	SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
 	FROM 
 		TEMP_TEST WITH TIME(T_BEGIN, T_END) L 
@@ -230,7 +230,7 @@ TEMPORAL (
 </entry>
 
 <entry key="q13.query">
-TEMPORAL (
+SEQUENCED TEMPORAL (
 	SELECT count(*) AS x
 	FROM (
 		SELECT L.A AS LA, L.B AS LB, R.A AS RA, R.B AS RB 
@@ -253,9 +253,71 @@ TEMPORAL (
  0  | 10          | 2000000000 |
 </entry>
 
-<entry key="q.query">
+<entry key="q14.query">
+SEQUENCED TEMPORAL (SELECT * FROM TEMP_DATE WITH TIME(T_BEGIN, T_END) WHERE A = 1);
 </entry>
-<entry key="q.result">
+<entry key="q14.result">
+ A | B | T_B        | T_E        |
+----------------------------------
+ 1 | 1 | 2017-01-01 | 2017-01-05 |
+ 1 | 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 1 | 2017-02-15 | 2017-04-07 |
+</entry>
+
+<entry key="q15.query">
+SEQUENCED TEMPORAL (SELECT a.A FROM TEMP_DATE WITH TIME(T_BEGIN, T_END) a, TEMP_DATE WITH TIME(T_BEGIN, T_END) b WHERE a.A = 1 AND B.A = 1);
+</entry>
+<entry key="q15.result">
+ A | T_B        | T_E        |
+------------------------------
+ 1 | 2017-01-01 | 2017-01-05 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-02-15 | 2017-04-07 |
+</entry>
+
+<entry key="q16.query">
+SEQUENCED TEMPORAL (SELECT a.A FROM TEMP_DATE WITH TIME(T_BEGIN, T_END) a JOIN TEMP_DATE WITH TIME(T_BEGIN, T_END) b ON a.A=b.A WHERE a.A = 1 AND B.A = 1);
+</entry>
+<entry key="q16.result">
+A | T_B        | T_E        |
+------------------------------
+ 1 | 2017-01-01 | 2017-01-05 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-02-15 | 2017-04-07 |
+</entry>
+
+
+<entry key="q17.query">
+SEQUENCED TEMPORAL (
+	SELECT a.A 
+	FROM 
+		TEMP_DATE WITH TIME(T_BEGIN, T_END) a 
+		JOIN
+		TEMP_DATE WITH TIME(T_BEGIN, T_END) b ON (a.A=b.A) 
+		JOIN 
+		TEMP_DATE WITH TIME(T_BEGIN, T_END) c ON (b.A=c.A) 
+	WHERE a.A = 1 AND B.A = 1);
+</entry>
+<entry key="q17.result">
+ A | T_B        | T_E        |
+------------------------------
+ 1 | 2017-01-01 | 2017-01-05 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-01-05 | 2017-02-15 |
+ 1 | 2017-02-15 | 2017-04-07 |
 </entry>
 
 <entry key="q.query">
