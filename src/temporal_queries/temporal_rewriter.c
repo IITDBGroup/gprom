@@ -49,7 +49,6 @@ static ProjectionOperator *createProjDoublingAggAttrs(QueryOperator *agg, int nu
 #define TIMEPOINT_ATTR "TS"
 #define NEXT_TS_ATTR "_next_ts"
 
-static boolean minmax = FALSE;
 static int T_BEtype = -1;
 
 QueryOperator *
@@ -119,12 +118,17 @@ temporalRewriteOperator(QueryOperator *op)
                 rewrittenOp = tempRewrProjection((ProjectionOperator *) op);
                 break;
             case T_AggregationOperator:
+            {
+                QueryOperator *child = OP_LCHILD(op);
+                boolean minmax = GET_BOOL_STRING_PROP(child,PROP_TEMP_NORMALIZE_INPUTS);
                 DEBUG_LOG("go aggregation");
+
                 if(getBoolOption(TEMPORAL_AGG_WITH_NORM) && !minmax) //TODO check that not min/max
                     rewrittenOp = rewriteTemporalAggregationWithNormalization((AggregationOperator *) op);
                 else
                     rewrittenOp = tempRewrAggregation ((AggregationOperator *) op);
-                break;
+            }
+            break;
             case T_JoinOperator:
                 DEBUG_LOG("go join");
                 rewrittenOp = tempRewrJoin((JoinOperator *) op);
@@ -505,41 +509,42 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
     	break;
         case T_AggregationOperator:
         {
-                if(isA(q, AggregationOperator))
+            boolean minmax = FALSE;
+            if(isA(q, AggregationOperator))
+            {
+                AggregationOperator *aggOp = (AggregationOperator *) q;
+                FOREACH(FunctionCall, fc, aggOp->aggrs)
+                if(streq(fc->functionname,"MIN") || streq(fc->functionname,"MAX") || streq(fc->functionname,"min") || streq(fc->functionname,"max"))
                 {
-                    AggregationOperator *aggOp = (AggregationOperator *) q;
-                    FOREACH(FunctionCall, fc, aggOp->aggrs)
-                    if(streq(fc->functionname,"MIN") || streq(fc->functionname,"MAX") || streq(fc->functionname,"min") || streq(fc->functionname,"max"))
-                    {
-                        minmax = TRUE;
-                        break;
-                    }
+                    minmax = TRUE;
+                    break;
+                }
+            }
+
+            if (!getBoolOption(TEMPORAL_AGG_WITH_NORM) || minmax) //TODO check that not min or max
+            {
+                QueryOperator* child = OP_LCHILD(q);
+                AggregationOperator *a = (AggregationOperator *) q;
+                List *attrs = NIL;
+
+                FOREACH(AttributeReference,g,a->groupBy)
+                {
+                    char *attrName = getAttrNameByPos(child, g->attrPosition);
+
+                    attrs = appendToTailOfList(attrs, createConstString(attrName));
                 }
 
-                if (!getBoolOption(TEMPORAL_AGG_WITH_NORM) || minmax) //TODO check that not min or max
-                {
-                    QueryOperator* child = OP_LCHILD(q);
-                    AggregationOperator *a = (AggregationOperator *) q;
-                    List *attrs = NIL;
+                if(attrs == NIL)
+                    attrs = appendToTailOfList(attrs, createConstString("!EMPTY!"));
 
-                    FOREACH(AttributeReference,g,a->groupBy)
-                    {
-                        char *attrName = getAttrNameByPos(child, g->attrPosition);
-
-                        attrs = appendToTailOfList(attrs, createConstString(attrName));
-                    }
-
-                    if(attrs == NIL)
-                        attrs = appendToTailOfList(attrs, createConstString("!EMPTY!"));
-
-                    SET_STRING_PROP(child,PROP_TEMP_NORMALIZE_INPUTS, attrs);
-                    DEBUG_OP_LOG("mark aggregation input for normalization", q);
-                }
-                // otherwise we need to normalize
-                else
-                {
-                    DEBUG_LOG("use combined aggregation+normalization, no separate normalization is required");
-                }
+                SET_STRING_PROP(child,PROP_TEMP_NORMALIZE_INPUTS, attrs);
+                DEBUG_OP_LOG("mark aggregation input for normalization", q);
+            }
+            // otherwise we need to normalize
+            else
+            {
+                DEBUG_LOG("use combined aggregation+normalization, no separate normalization is required");
+            }
         }
         break;
         case T_SetOperator:
@@ -965,7 +970,7 @@ addCoalesce (QueryOperator *input)
 
     QueryOperator *t5wOp = (QueryOperator *) t5w;
     AttributeDef *winf0Def = getAttrDefByName(t5wOp, t5AName);
-    winf0Def->dataType = DT_INT;
+    winf0Def->dataType = t5gbRef->attrType; // DT_INT;
 
     //Projection: SELECT  salary, diffFollowing, diffPrevious, numOpen, ts as t_b, winf_0 as t_e
 
@@ -2163,13 +2168,13 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         // add dummy value for open interval counter attributes
         constVals = appendToTailOfList(constVals, createConstInt(0));
 
-        if(T_BEtype == 0)
+        if(T_BEtype == DT_INT)
         {
             // add minimal and maximal value for the domain of the time attributes
             constVals = appendToTailOfList(constVals, createConstInt(INT_MINVAL));
             constVals = appendToTailOfList(constVals, createConstInt(INT_MAXVAL));
         }
-        else
+        else // is date
         {
             // use date format
             FunctionCall *dateBegin = createFunctionCall("TO_DATE", LIST_MAKE(createConstInt(1),createConstString("J")));

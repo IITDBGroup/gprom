@@ -61,7 +61,7 @@ Node *bisonParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS
-%token <stringVal> TEMPORAL TIME
+%token <stringVal> SEQUENCED TEMPORAL TIME
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
@@ -390,10 +390,10 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
-		| TEMPORAL '(' stmt ')'
+		| SEQUENCED TEMPORAL '(' stmt ')'
 		{
 			RULELOG("provStmt::temporal");
-			ProvenanceStmt *p = createProvenanceStmt((Node *) $3);
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $4);
 			p->inputType = PROV_INPUT_TEMPORAL_QUERY;
 			p->provType = PROV_NONE;
 			p->asOf = NULL;

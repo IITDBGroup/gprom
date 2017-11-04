@@ -4,7 +4,7 @@
 <comment>Temporal Sequenced Rewrites Test Cases for Aggregation queries</comment>
 
 <entry key="q1.query">
-TEMPORAL (
+SEQUENCED TEMPORAL (
 	SELECT * 
 	FROM 
 		(SELECT A,B, CAST (TO_CHAR(T_BEGIN, 'YYYY') AS INT) AS T_BEGIN, CAST(TO_CHAR(T_END, 'YYYY') AS INT) +1 AS T_END 
@@ -22,7 +22,7 @@ TEMPORAL (
 <entry key="q2.query">
 SELECT * 
 FROM 
-	(TEMPORAL (
+	(SEQUENCED TEMPORAL (
 		SELECT count(*) AS c 
 		FROM 
 			(SELECT count(*) AS BOO, A 
@@ -42,7 +42,7 @@ WHERE c = 0;
 <entry key="q3.query">
 SELECT * 
 FROM 
-	(TEMPORAL (
+	(SEQUENCED TEMPORAL (
 		SELECT count(*) AS c 
 		FROM 
 			(SELECT count(*) AS BOO, A 

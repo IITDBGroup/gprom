@@ -62,6 +62,7 @@ static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms);
 static boolean correctFromTableVisitor (Node *node, void *context);
+static boolean checkTemporalAttributesVisitor (Node *node, DataType **context);
 
 // analyze function calls and nested subqueries
 static void analyzeFunctionCall(QueryBlock *qb);
@@ -89,7 +90,7 @@ static List *schemaInfoGetAttributeNames (char *tableName);
 static List *schemaInfoGetAttributeDataTypes (char *tableName);
 
 
-static List *temporalAttrTypes = NIL;  //used to store the datatype of temporal data (T_BEGIN and T_END)
+//static List *temporalAttrTypes = NIL;  //used to store the datatype of temporal data (T_BEGIN and T_END)
 
 
 /* str functions */
@@ -929,8 +930,8 @@ analyzeFromTableRef(FromTableRef *f)
         if(!(f->from.dataTypes))
         {
             f->from.dataTypes = getAttributeDataTypes(f->tableId);
-            if(temporalAttrTypes == NIL)  //copy temporal attrs  T_BEGIN and T_END datatype, since it run two times, only need to time so check if temporalAttrTypes == NIL
-            	temporalAttrTypes = copyObject(f->from.dataTypes);
+//            if(temporalAttrTypes == NIL)  //copy temporal attrs  T_BEGIN and T_END datatype, since it run two times, only need to time so check if temporalAttrTypes == NIL
+//            	temporalAttrTypes = copyObject(f->from.dataTypes);
         }
     }
     if(f->from.name == NULL)
@@ -1681,18 +1682,24 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         break;
         case PROV_INPUT_TEMPORAL_QUERY:
         {
+            DataType *tempDT = NULL;
             analyzeQueryBlockStmt(q->query, parentFroms);
 
             q->selectClause = getQBAttrNames(q->query);
             q->dts = getQBAttrDTs(q->query);
             correctFromTableVisitor(q->query, NULL);
-            //TODO use better DT for temporal attributes
 
+            checkTemporalAttributesVisitor((Node *) q, &tempDT);
             //TODO check that table access has temporal attributes
 
+            if (tempDT == NULL)
+            {
+                FATAL_LOG("sequenced temporal construct requires input to specify "
+                        "time attributes for FROM clause items using WITH TIME(...)");
+            }
+
             q->selectClause = concatTwoLists(q->selectClause,LIST_MAKE(strdup(TBEGIN_NAME), strdup(TEND_NAME)));
-            //q->dts = concatTwoLists(q->dts,CONCAT_LISTS(singletonInt(TEMPORAL_DT), singletonInt(TEMPORAL_DT)));
-            q->dts = concatTwoLists(q->dts,CONCAT_LISTS(singletonInt(getTailOfListInt(temporalAttrTypes)), singletonInt(getTailOfListInt(temporalAttrTypes))));
+            q->dts = concatTwoLists(q->dts,CONCAT_LISTS(singletonInt(*tempDT), singletonInt(*tempDT)));
         }
         break;
         case PROV_INPUT_UPDATE_SEQUENCE:
@@ -1703,6 +1710,77 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 
 	analyzeProvenanceOptions(q);
 }
+
+static boolean
+checkTemporalAttributesVisitor (Node *node, DataType **context)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if(isFromItem(node))
+    {
+        FromItem *f = (FromItem *) node;
+        FromProvInfo *p = f->provInfo;
+        DataType tempD;
+
+        // temporal attributes are stores as user provenance attributes
+        if (p != NULL && p->userProvAttrs)
+        {
+            DataType leftDT;
+            DataType rightDT;
+            char *leftName;
+            char *rightName;
+
+            if (LIST_LENGTH(p->userProvAttrs) != 2)
+            {
+                FATAL_LOG("you have to specify exactly two temporal attributes "
+                        "not %u:\n\n%s", LIST_LENGTH(p->userProvAttrs),
+                        beatify(nodeToString(node)));
+            }
+
+            leftName = (char *) getNthOfListP(p->userProvAttrs, 0);
+            rightName = (char *) getNthOfListP(p->userProvAttrs, 1);
+            leftDT = getNthOfListInt(f->dataTypes, listPosString(f->attrNames, leftName));
+            rightDT = getNthOfListInt(f->dataTypes, listPosString(f->attrNames, rightName));
+            tempD = leftDT;
+
+            if (leftDT != rightDT)
+                FATAL_LOG("attributes storing the interval endpoints have to "
+                        "have the same DTs (%s:%s != %s:%s):\n\n%s",
+                        leftName, DataTypeToString(leftDT),
+                        rightName, DataTypeToString(rightDT),
+                        beatify(nodeToString(node)));
+
+            // first WITH TIME we have found so far?
+            if (*context == NULL)
+            {
+                *context = NEW(DataType);
+                **context = tempD;
+            }
+            // otherwise check that the DTs are the same
+            else
+            {
+                if (**context != tempD)
+                    FATAL_LOG("All temporal FROM items in sequenced temporal "
+                            "queries have to have the same data type for temporal"
+                            " attributes (%s != %s)",
+                            DataTypeToString(**context), DataTypeToString(tempD));
+            }
+        }
+        // table references that are not part of a subquery which specifies temporal atttribute should specify temporal attributes
+        else if (node->type == T_FromTableRef)
+        {
+            FATAL_LOG("Table references in a sequenced temporal query you have "
+                    "to specify temporal attributes with WITH TIME () unless this "
+                    "table reference is part of a subquery for which temporal "
+                    "attributes are specified:\n\n%s", beatify(nodeToString(node)));
+        }
+    }
+
+    return visit(node, checkTemporalAttributesVisitor, context);
+}
+
+
 
 static boolean
 correctFromTableVisitor (Node *node, void *context)
