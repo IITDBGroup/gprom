@@ -54,10 +54,10 @@ static int T_BEtype = -1;
 QueryOperator *
 rewriteImplicitTemporal (QueryOperator *q)
 {
-//    ProvenanceComputation *p = (ProvenanceComputation *) q;
     ASSERT(LIST_LENGTH(q->inputs) == 1);
     QueryOperator *top = getHeadOfListP(q->inputs);
     List *topSchema;
+    T_BEtype =  INT_VALUE(GET_STRING_PROP(q, PROP_TEMP_ATTR_DT));
 
     addCoalescingAndNormalization(top);
 
@@ -82,16 +82,9 @@ rewriteImplicitTemporal (QueryOperator *q)
     switchSubtrees((QueryOperator *) q, top);
     DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
 
-
-
     //top = addCoalesceForAllOp(top);
     if(getBoolOption(TEMPORAL_USE_COALSECE))
     	    top = addCoalesce(top);
-
-//    List *aggList = singleton("SALARY");
-//    List *attrList = singleton("DEPT_NO");
-//    top = addTemporalNormalizationAggregation(top, aggList, attrList);
-
 
     return top;
 }
@@ -498,26 +491,21 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
 
     switch(q->type)
     {
-
-    	case T_TableAccessOperator:
-    	{
-    		//get T_BEGIN/T_END data type
-    		QueryOperator *o = (QueryOperator *) q;
-    		AttributeDef *tad = getTailOfListP(o->schema->attrDefs);
-    		T_BEtype = tad->dataType;
-    	}
-    	break;
         case T_AggregationOperator:
         {
             boolean minmax = FALSE;
             if(isA(q, AggregationOperator))
             {
                 AggregationOperator *aggOp = (AggregationOperator *) q;
+
                 FOREACH(FunctionCall, fc, aggOp->aggrs)
-                if(streq(fc->functionname,"MIN") || streq(fc->functionname,"MAX") || streq(fc->functionname,"min") || streq(fc->functionname,"max"))
                 {
-                    minmax = TRUE;
-                    break;
+                    char *upcaseName = strToUpper(fc->functionname);
+                    if(streq(upcaseName,"MIN") || streq(upcaseName,"MAX"))
+                    {
+                        minmax = TRUE;
+                        break;
+                    }
                 }
             }
 
@@ -553,7 +541,7 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
             //if (s->setOpType == SETOP_DIFFERENCE || s->setOpType == SETOP_INTERSECTION)
             if (s->setOpType == SETOP_INTERSECTION)
             {
-            	//add all attributes
+                //add all attributes
                 List *attrs = getAttrNames(q->schema);
                 SET_STRING_PROP(q,PROP_TEMP_NORMALIZE_INPUTS, attrs);
                 DEBUG_OP_LOG("mark setop for normalization of inputs", q);
@@ -984,11 +972,11 @@ addCoalesce (QueryOperator *input)
         att = createFullAttrReference(a->attrName, 0, i++, INVALID_ATTR, a->dataType);
         t5ProjExpr = appendToTailOfList(t5ProjExpr, att);
         if(i < t5DefLen-1)
-        	t5ProjNames = appendToTailOfList(t5ProjNames, strdup(a->attrName));
+        	    t5ProjNames = appendToTailOfList(t5ProjNames, strdup(a->attrName));
         else if(i == t5DefLen-1)
-        	t5ProjNames = appendToTailOfList(t5ProjNames, TBEGIN_NAME);
+        	    t5ProjNames = appendToTailOfList(t5ProjNames, TBEGIN_NAME);
         else if(i == t5DefLen)
-        	t5ProjNames = appendToTailOfList(t5ProjNames, TEND_NAME);
+        	    t5ProjNames = appendToTailOfList(t5ProjNames, TEND_NAME);
     }
 
     ProjectionOperator *t5Proj = createProjectionOp(t5ProjExpr, t5wOp, NIL, t5ProjNames);

@@ -1766,6 +1766,7 @@ checkTemporalAttributesVisitor (Node *node, DataType **context)
                             " attributes (%s != %s)",
                             DataTypeToString(**context), DataTypeToString(tempD));
             }
+            return TRUE;
         }
         // table references that are not part of a subquery which specifies temporal atttribute should specify temporal attributes
         else if (node->type == T_FromTableRef)

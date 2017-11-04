@@ -118,6 +118,7 @@ static List *getListOfAggregFunctionCalls(List *selectClause,
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
 static boolean visitFindWindowFuncs(Node *n, List **wfs);
 static boolean replaceWithViewRefsMutator(Node *node, List *views);
+
 static char *summaryType = NULL;
 static Node *prop = NULL;
 
@@ -709,6 +710,8 @@ translateProvenanceStmt(ProvenanceStmt *prov)
         break;
         case PROV_INPUT_TEMPORAL_QUERY:
         {
+            DataType tempDT = getTailOfListInt(prov->dts);
+            SET_STRING_PROP(result, PROP_TEMP_ATTR_DT, createConstInt(tempDT));
             child = translateQueryOracle(prov->query);
             addChildOperator((QueryOperator *) result, child);
         }

@@ -31,10 +31,10 @@ SEQUENCED TEMPORAL (SELECT count(*) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, 
 </entry>
 
 <entry key="q3.query">
-SEQUENCED TEMPORAL (SELECT count(*) FROM (SELECT count(*) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A) a);
+SEQUENCED TEMPORAL (SELECT count(*) AS X FROM (SELECT count(*) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A) a);
 </entry>
 <entry key="q3.result">
- COUNT(1) | T_B | T_E |
+ X | T_B | T_E |
 -----------------------
  0        | -2000000000 | 1          |
  1        | 4   | 13  |
@@ -43,10 +43,10 @@ SEQUENCED TEMPORAL (SELECT count(*) FROM (SELECT count(*) AS BOO, A FROM TEMP_TE
 </entry>
 
 <entry key="q4.query">
-SEQUENCED TEMPORAL (SELECT count(1) FROM TEMP_DATE WITH TIME(T_BEGIN, T_END));
+SEQUENCED TEMPORAL (SELECT count(1) AS X FROM TEMP_DATE WITH TIME(T_BEGIN, T_END));
 </entry>
 <entry key="q4.result">
- COUNT(1) | T_B                   | T_E                   |
+ X | T_B                   | T_E                   |
 ----------------------------------------------------
  0        | 4712-01-01 00:00:00.0 | 2017-01-01 00:00:00.0 |
  1        | 2017-01-01 00:00:00.0 | 2017-01-05 00:00:00.0 |
@@ -78,36 +78,34 @@ SEQUENCED TEMPORAL (SELECT max(B) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_
 </entry>
 
 <entry key="q7.query">
-SEQUENCED TEMPORAL (SELECT sum(salary) FROM TEMP_EMP WITH TIME (FROM_DATE, TO_DATE));
+SEQUENCED TEMPORAL (SELECT sum(SALARY) AS SSAL FROM TEMP_EMP WITH TIME (FROM_DATE, TO_DATE));
 </entry>
 <entry key="q7.result">
- SUM(SALARY) | T_B        | T_E        |
-----------------------------------------
- (null)      | 4712-01-01 | 1988-09-05 |
- 41538       | 1988-09-05 | 1989-09-05 |
- 45131       | 1989-09-05 | 1990-09-05 |
- 45629       | 1990-09-05 | 1991-09-05 |
- 48360       | 1991-09-05 | 1992-09-04 |
- 50664       | 1992-09-04 | 1993-09-04 |
- 53060       | 1993-09-04 | 1994-09-04 |
- 56640       | 1994-09-04 | 1995-09-04 |
- (null)      | 1995-09-04 | 1998-04-11 |
- 53112       | 1998-04-11 | 1999-04-11 |
- 53164       | 1999-04-11 | 1999-10-31 |
- (null)      | 1999-10-31 | 9999-01-01 |
+ (null)      | 4712-01-01 00:00:00.0 |  1988-09-05 00:00:00.0 | 
+ 41538       | 1988-09-05 00:00:00.0 |  1989-09-05 00:00:00.0 | 
+ 45131       | 1989-09-05 00:00:00.0 |  1990-09-05 00:00:00.0 | 
+ 45629       | 1990-09-05 00:00:00.0 |  1991-09-05 00:00:00.0 | 
+ 48360       | 1991-09-05 00:00:00.0 |  1992-09-04 00:00:00.0 | 
+ 50664       | 1992-09-04 00:00:00.0 |  1993-09-04 00:00:00.0 | 
+ 53060       | 1993-09-04 00:00:00.0 |  1994-09-04 00:00:00.0 | 
+ 56640       | 1994-09-04 00:00:00.0 |  1995-09-04 00:00:00.0 | 
+ (null)      | 1995-09-04 00:00:00.0 |  1998-04-11 00:00:00.0 | 
+ 53112       | 1998-04-11 00:00:00.0 |  1999-04-11 00:00:00.0 | 
+ 53164       | 1999-04-11 00:00:00.0 |  1999-10-31 00:00:00.0 | 
+ (null)      | 1999-10-31 00:00:00.0 |  9999-01-01 00:00:00.0 | 
 </entry>
 
 <entry key="q8.query">
-SEQUENCED TEMPORAL (SELECT count(1) FROM TEMP_EMP WITH TIME (FROM_DATE, TO_DATE))
+SEQUENCED TEMPORAL (SELECT count(1) AS X FROM TEMP_EMP WITH TIME (FROM_DATE, TO_DATE));
 </entry>
 <entry key="q8.result">
- COUNT(1) | T_B        | T_E        |
+ X | T_B        | T_E        |
 -------------------------------------
- 0        | 4712-01-01 | 1988-09-05 |
- 1        | 1988-09-05 | 1995-09-04 |
- 0        | 1995-09-04 | 1998-04-11 |
- 1        | 1998-04-11 | 1999-10-31 |
- 0        | 1999-10-31 | 9999-01-01 |
+ 0        | 4712-01-01 00:00:00.0 | 1988-09-05 00:00:00.0 |
+ 1        | 1988-09-05 00:00:00.0 | 1995-09-04 00:00:00.0 |
+ 0        | 1995-09-04 00:00:00.0 | 1998-04-11 00:00:00.0 |
+ 1        | 1998-04-11 00:00:00.0 | 1999-10-31 00:00:00.0 |
+ 0        | 1999-10-31 00:00:00.0 | 9999-01-01 00:00:00.0 |
 </entry>
 
 <entry key="q9.query">
@@ -116,11 +114,11 @@ SELECT * FROM (SEQUENCED TEMPORAL (SELECT max(1) AS m FROM TEMP_EMP WITH TIME (F
 <entry key="q9.result">
  M | T_B        | T_E        |
 ------------------------------
- (null)      | 4712-01-01 | 1988-09-05 |
- 1 | 1988-09-05 | 1995-09-04 |
-  (null)      | 1995-09-04 | 1998-04-11 |
- 1 | 1998-04-11 | 1999-10-31 |
-  (null)      | 1999-10-31 | 9999-01-01 |
+ (null)      | 4712-01-01 00:00:00.0 | 1988-09-05 00:00:00.0 |
+ 1           | 1988-09-05 00:00:00.0 | 1995-09-04 00:00:00.0 |
+ (null)      | 1995-09-04 00:00:00.0 | 1998-04-11 00:00:00.0 |
+ 1           | 1998-04-11 00:00:00.0 | 1999-10-31 00:00:00.0 |
+ (null)      | 1999-10-31 00:00:00.0 | 9999-01-01 00:00:00.0 |
 </entry>
 
 <entry key="q.query">
