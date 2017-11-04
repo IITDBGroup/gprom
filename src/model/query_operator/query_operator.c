@@ -1209,6 +1209,9 @@ aggOpGetAggAttrNames(AggregationOperator *op)
 {
     List *result = getQueryOperatorAttrNames((QueryOperator *) op);
 
+    if (LIST_LENGTH(op->aggrs) == 0)
+        return NIL;
+
     return sublist(result, 0, LIST_LENGTH(op->aggrs) - 1);
 }
 

@@ -113,7 +113,7 @@ public class GProMJDBCTest {
 //		rs = st.executeQuery("SELECT a FROM r;");
 		try {
 //			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
-			rs = st.executeQuery("TEMPORAL (SELECT L.A AS LA FROM (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1 AND B = 1) L, (SELECT * FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) WHERE A = 1) R WHERE L.B = R.A);");
+			rs = st.executeQuery("TEMPORAL (SELECT max(B) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A);");
 			printResult(rs);
 		}
 		catch (NativeGProMLibException e) {

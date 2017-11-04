@@ -1331,7 +1331,6 @@ updateAggsAndGroupByAttrsOracle(Node *node, UpdateAggAndGroupByAttrState *state)
             newName = strdup(getNthOfListP(state->groupByNames, attrPos));
         }
         DEBUG_LOG("attr <%d> is <%s>", a->attrPosition, newName);
-
         a->name = newName;
     }
 

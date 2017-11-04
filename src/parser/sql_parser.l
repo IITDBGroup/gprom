@@ -130,6 +130,7 @@ strconcat		"||"
 (?i:UNION)        	TOK(UNION)
 (?i:INTERSECT)      TOK(INTERSECT)
 (?i:MINUS)        	TOK(MINUS)
+(?i:EXCEPT)        	TOK(EXCEPT)
 (?i:JOIN)        	TOK(JOIN)
 (?i:LEFT)        	TOK(LEFT)
 (?i:RIGHT)        	TOK(RIGHT)
@@ -215,11 +216,13 @@ strconcat		"||"
 (?i:ISOLATION)		TOK(ISOLATION)
 (?i:LEVEL)			TOK(LEVEL)
 (?i:OPTIONS)		TOK(OPTIONS)
+(?i:SEQUENCED)		TOK(SEQUENCED)
 (?i:TEMPORAL)		TOK(TEMPORAL)
 (?i:TIME)			TOK(TIME)
 (?i:SEMIRING)		TOK(SEMIRING)
 (?i:COMBINER)		TOK(COMBINER)
 (?i:MULT)           TOK(MULT)
+(?i:UNCERTAIN)		TOK(UNCERTAIN)
 
 	/* booleans */
 {bool}			TOK(boolConst)

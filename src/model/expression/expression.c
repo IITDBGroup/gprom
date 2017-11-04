@@ -984,7 +984,7 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
             || streq(opName,"!=")
                 )
     {
-        if (dLeft == dRight)
+        //if (dLeft == dRight)
             return DT_BOOL;
     }
 
