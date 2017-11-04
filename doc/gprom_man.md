@@ -28,6 +28,8 @@
 [Options](#toc3)
 ----------------
 
+Boolean options take a single argument, e.g., **-time\_queries** *TRUE* activates timing of queries and **-time\_queries** *FALSE* deactivates this options.
+
 ### [Help](#toc4)
 
 Options to get help on GProM usage.
@@ -36,11 +38,11 @@ Options to get help on GProM usage.
 show help message and quit
 
 **-languagehelp** ***language***   
-show help for the selected language (see section on parser plugins below for supported language)
+show help for the selected language (see section on parser plugins below for a list of supported languages)
 
 ### [Input](#toc5)
 
-These options determine whether GProM operates as an interactive shell or just processes one query. If none of the options below is set, then an interactive shell is opened.
+These options determine whether GProM operates as an interactive shell or just processes one query. If none of the options below is set, then an interactive shell is created.
 
 **-query** ***query***   
 process *query*
@@ -48,7 +50,23 @@ process *query*
 **-queryfile** ***file***   
 read query to be processed from *file*
 
-### [Logging and Debug](#toc6)
+### [Output and Timing Queries](#toc6)
+
+These options control what information GProM is printing for an executed query.
+
+**-time\_queries**   
+measure runtimes of executing rewritten queries. This option is ignored for all executor plugins except for *run*.
+
+**-time\_query\_format**   
+if *-time\_queries* is activated, then this format is used for printing query runtimes. The format is printf compatible and should contain exactly on *%f* element (additional formating such as *%12f* is ok).
+
+**-repeat\_query\_count**   
+execute each query this many times. This is mainly useful for timing queries.
+
+**-show\_result**   
+show query result (default if *true*). This option is ignored for all executor plugins except for *run*. The main use case for deactivating this is to measure query runtimes without spending time on serializing query results.
+
+### [Logging and Debug](#toc7)
 
 Set logging and debugging options.
 
@@ -73,23 +91,23 @@ Show operator parameters in graphviz scripts. Is ignored unless **-show\_graphvi
 **-aggressive\_model\_checking**   
 Aggressively check validity of generated relational algebra graphs after each processing step
 
-**-C** ***check\_option***   
+**-C***check\_option*   
 Activate *check\_option* where *check\_option* is one of *schema\_consistency*, *unique\_attr\_names*, *parent\_child\_links*, or *attr\_reference\_consistency*.
 
-### [Plugins](#toc7)
+### [Plugins](#toc8)
 
-Configure plugins. Plugins determine mosts of GProM’s behavior including selecting frontend languages and backend database backends.
+Configure plugins. Plugins determine mosts of GProM’s behavior including selecting frontend languages and database backends.
 
 **-P*plugin\_type*** ***plugin\_name***   
 Select *plugin\_name* as the active plugin for *plugin\_type*. Most components in GProM are pluggable. See the section on plugins below.
 
 **-backend** ***backend\_name***   
-Select *backend* as the active database backend. This overwrites most other plugin options. Individual plugin options take precedence over this options enabling the other plugins to be customized.
+Select *backend* as the active database backend. This overwrites most other plugin options. Individual plugin options take precedence over this options enabling plugins to be customized.
 
 **-frontend** ***frontend\_name***   
-Select the *frontend\_name* as the active frontend language. This is the language in which the user communicates with GProM. For instance, *oracle* corresponds to Oracle’s SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling the other plugins to be customized. *frontend* takes precedence over *backend*.
+Select the *frontend\_name* as the active frontend language. This is the language in which the user communicates with GProM. For instance, *oracle* corresponds to Oracle’s SQL dialect extended with provenance features. This overwrites several other plugin options. Individual plugin options take precedence over this options enabling plugins to be customized. *frontend* takes precedence over *backend*.
 
-### [Connection Options](#toc8)
+### [Connection Options](#toc9)
 
 Configure the connection to the backend database system.
 
@@ -108,7 +126,7 @@ Use password *password* for the backend DB connection.
 **-port** ***port***   
 The TPC/IP network port to use for the backend DB connection.
 
-### [Provenance Features](#toc9)
+### [Provenance Features](#toc10)
 
 GProM main purpose is to provide provenance support for relational databases by instrumenting operations for provenance capture. These options control certain aspects of provenance instrumentation.
 
@@ -130,7 +148,20 @@ If the user requests the provenance of a transaction restricted to rows that whe
 **-prov\_use\_composable**   
 Use composable version of provenance instrumentation that adds additional columns which enumerate duplicates of result rows introduced by provenance instrumentation
 
-### [Optimization](#toc10)
+### [Temporal Features](#toc11)
+
+GProM also implements a form of temporal queries called sequenced semantics over interval-timestamped data. These options control the application of normalization operations applied by the rewrites for sequenced semantics.
+
+**-temporal\_use\_coalesce**   
+If activated (the default), then GProM applies coalescing to the result of a temporal query to produce a unique interval-timestamped representation of a temporal query result.
+
+**-temporal\_use\_normalization**   
+If activated (the default), then GProM normalizes the input to temporal aggregation and set difference operators. The correctness of results depends on normalization. Thus, this option should only be deactivated for testing.
+
+**-temporal\_use\_normalization\_window**   
+GProM supports two implementations of temporal normalization one based on joins and one which uses analytical functions (window functions). If this option is activated, then GProM applies the window based implementation.
+
+### [Optimization](#toc12)
 
 GProM features a heuristic and cost-based optimizer for relational algebra and provenance instrumentation. These options control the optimizer. Additional options are described in the **OPTIMIZATION** section below.
 
@@ -143,12 +174,12 @@ Apply cost-based optimization. Default value: *FALSE*.
 **-O*optimization\_option***   
 Activate optimization option. Most options correspond to equivalence preserving relational algebra transformations. -O*optimization\_option* activates the option. To deactivate an option use -O*optimization\_option* *FALSE*. For example, **-Omerge\_ops** activates a rule that merges adjacent selections and projections in a query. See section **OPTIMIZATION** below for a full list of supported *optimization\_option* values.
 
-[Plugins](#toc11)
+[Plugins](#toc13)
 -----------------
 
 Most components in GProM are pluggable and can be replaced. The following components are realized as plugins:
 
-### [parser](#toc12)
+### [parser](#toc14)
 
 The parser plugin determines what input language is used.
 
@@ -156,7 +187,7 @@ The parser plugin determines what input language is used.
 
 **dl** - Datalog   
 
-### [executor](#toc13)
+### [executor](#toc15)
 
 GProM translates statements in an input language with provenance features into a language understood by a database backend (this process is called instrumentation). The executor plugin determines what is done with the instrumented query produced by GProM.
 
@@ -166,7 +197,7 @@ GProM translates statements in an input language with provenance features into a
 
 **dl** - Output a datalog program (only works if *dl* analyzer, translator, and parser plugins have been chosen   
 
-### [analyzer](#toc14)
+### [analyzer](#toc16)
 
 This plugin checks the output of the parser for semantic correctness.
 
@@ -174,7 +205,7 @@ This plugin checks the output of the parser for semantic correctness.
 
 **dl** - Analyses Datalog inputs   
 
-### [translator](#toc15)
+### [translator](#toc17)
 
 This plugin translates the input language into **relational algebra** which is used as an internal code representation by GProM.
 
@@ -184,7 +215,7 @@ This plugin translates the input language into **relational algebra** which is u
 
 **dummy** - Do not translate the input (this can be used to produce an output language other than SQL to circumvent the limitations of GProM’s relational algebra model, e.g., we currently do not support recursion)   
 
-### [metadatalookup](#toc16)
+### [metadatalookup](#toc18)
 
 The metadata lookup plugin handles communication with the backend database. This involves 1) running queries over the catalog of the backend to do, e.g., semantic analysis and 2) executing queries instrumented for provenance capture to compute the results of provenance requests submitted by the user. To be able to do this, the plugin manages a connection to the backend database using the C library of the backend DBMS. The type of metadata lookup plugin determines how connection parameters will be interpreted.
 
@@ -192,9 +223,11 @@ The metadata lookup plugin handles communication with the backend database. This
 
 **postgres** - This plugin manages communication with a PostgreSQL database backend. We use PostgreSQL’s *libpq* library.   
 
-**sqlite** - This plugin manages communication with a SQLite database backend. We use PostgreSQL’s *sqlite3-dev* library.   
+**sqlite** - This plugin manages communication with a SQLite database backend. We use the *sqlite3-dev* library.   
 
-### [sqlcodegen](#toc17)
+**monetdb** - This plugin manages communication with a MonetDB database backend. We use the MonetDB’s *mapi* library.   
+
+### [sqlcodegen](#toc19)
 
 This plugin translates GProM’s internal relational algebra model of queries into queries written in a backend’s SQL dialect.
 
@@ -206,7 +239,7 @@ This plugin translates GProM’s internal relational algebra model of queries in
 
 **sqlite** - Output SQL code written in SQLite’s SQL dialect   
 
-### [cbo](#toc18)
+### [cbo](#toc20)
 
 Select search strategy of the cost-based optimizer
 
@@ -216,12 +249,12 @@ Select search strategy of the cost-based optimizer
 
 **sim\_ann** - use simmulated annealing meta-heuristic   
 
-[Optimization](#toc19)
+[Optimization](#toc21)
 ----------------------
 
 As mentioned above GProM features a cost-based and heuristic optimization for relational algebra expressions. Heuristic optimization rules are mostly relational algebra equivalences. Cost-base optimization chooses between alternative options for instrumenting a query for provenance capture and controls the application of some of the algebraic equivalence rules we support.
 
-### [Relational algebra transformations](#toc20)
+### [Relational algebra transformations](#toc22)
 
 GProM currently implement the following transformation rules that are activated with **-O*rule***:
 
@@ -245,7 +278,7 @@ GProM currently implement the following transformation rules that are activated 
 
 **selection\_move\_around** - This optimization applies standard selection move-around techniques.   
 
-### [Cost-based optimization options](#toc21)
+### [Cost-based optimization options](#toc23)
 
 The following options control the behavior of GProM’s cost-based optimizer:
 
@@ -260,7 +293,7 @@ Set the cooling down rate used by simulated annealing. Value has to be between 0
 
 **-cbo\_num\_heuristic\_opt\_iterations** *num\_iter* - Apply each heuristic optimization rule *num\_iter* times.   
 
-[Examples](#toc22)
+[Examples](#toc24)
 ------------------
 
 **Example 1.** Connect to an Oracle database (*oracle*) at IP *1.1.1.1* with SID *orcl* using user *usr* and password *mypass* at port *1521* and start an interactive session:
@@ -272,7 +305,7 @@ Set the cooling down rate used by simulated annealing. Value has to be between 0
     gprom -backend oracle -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
     -Pexecutor sql
 
-**Example 3.** Using the same database as in examples 1 and 2, return an SQL Query that captures provenance of the query **SELECT a FROM r**:
+**Example 3.** Using the same database as in examples 1 and 2, return an SQL Query that captures provenance for the query **SELECT a FROM r**:
 
     gprom -backend oracle -host 1.1.1.1 -user usr -passwd mypass -port 1521 -db orcl
     -Pexecutor sql \
@@ -288,7 +321,7 @@ Set the cooling down rate used by simulated annealing. Value has to be between 0
     gprom -backend sqlite -frontend dl -db test.db \
           -query "Q(X) :- R(X,Y)."
 
-[Authors](#toc23)
+[Authors](#toc25)
 -----------------
 
 **Bahareh Arab** (*barab@hawk.iit.edu*)   
@@ -301,8 +334,15 @@ Set the cooling down rate used by simulated annealing. Value has to be between 0
 
 **Xing Niu** (*xniu7@hawk.iit.edu*)   
 
-[See Also](#toc24)
+[Bugs](#toc26)
+--------------
+
+To see a list of current bugs or to report a new bug: [*https://github.com/IITDBGroup/gprom/issues*](https://github.com/IITDBGroup/gprom/issues)   
+
+[See Also](#toc27)
 ------------------
+
+To learn more about the research behind GProM see [*http://www.cs.iit.edu/%7edbgroup/research/gprom.php*](http://www.cs.iit.edu/%7edbgroup/research/gprom.php)   
 
 ------------------------------------------------------------------------
 
@@ -318,29 +358,33 @@ Set the cooling down rate used by simulated annealing. Value has to be between 0
 
 -   [Help](#sect4)
 -   [Input](#sect5)
--   [Logging and Debug](#sect6)
--   [Plugins](#sect7)
--   [Connection Options](#sect8)
--   [Provenance Features](#sect9)
--   [Optimization](#sect10)
+-   [Output and Timing Queries](#sect6)
+-   [Logging and Debug](#sect7)
+-   [Plugins](#sect8)
+-   [Connection Options](#sect9)
+-   [Provenance Features](#sect10)
+-   [Temporal Features](#sect11)
+-   [Optimization](#sect12)
 
-[Plugins](#sect11)
+[Plugins](#sect13)
 
--   [parser](#sect12)
--   [executor](#sect13)
--   [analyzer](#sect14)
--   [translator](#sect15)
--   [metadatalookup](#sect16)
--   [sqlcodegen](#sect17)
--   [cbo](#sect18)
+-   [parser](#sect14)
+-   [executor](#sect15)
+-   [analyzer](#sect16)
+-   [translator](#sect17)
+-   [metadatalookup](#sect18)
+-   [sqlcodegen](#sect19)
+-   [cbo](#sect20)
 
-[Optimization](#sect19)
+[Optimization](#sect21)
 
--   [Relational algebra transformations](#sect20)
--   [Cost-based optimization options](#sect21)
+-   [Relational algebra transformations](#sect22)
+-   [Cost-based optimization options](#sect23)
 
-[Examples](#sect22)
+[Examples](#sect24)
 
-[Authors](#sect23)
+[Authors](#sect25)
 
-[See Also](#sect24)
+[Bugs](#sect26)
+
+[See Also](#sect27)

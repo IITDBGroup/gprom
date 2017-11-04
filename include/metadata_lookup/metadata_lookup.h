@@ -31,6 +31,7 @@ NEW_ENUM_WITH_TO_STRING(MetadataLookupPluginType,
     METADATA_LOOKUP_PLUGIN_ORACLE,
     METADATA_LOOKUP_PLUGIN_POSTGRES,
     METADATA_LOOKUP_PLUGIN_SQLITE,
+    METADATA_LOOKUP_PLUGIN_MONETDB,
     METADATA_LOOKUP_PLUGIN_EXTERNAL
 );
 
@@ -73,8 +74,8 @@ typedef struct MetadataLookupPlugin
 
     boolean (*isAgg) (char *functionName);
     boolean (*isWindowFunction) (char *functionName);
-    DataType (*getFuncReturnType) (char *fName, List *argTypes);
-    DataType (*getOpReturnType) (char *oName, List *argTypes);
+    DataType (*getFuncReturnType) (char *fName, List *argTypes, boolean *funcExists);
+    DataType (*getOpReturnType) (char *oName, List *argTypes, boolean *funcExists);
 
     char * (*getTableDefinition) (char *tableName);
     char * (*getViewDefinition) (char *viewName);
@@ -87,6 +88,7 @@ typedef struct MetadataLookupPlugin
     /* execution */
     Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
     Relation * (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
+    void (*executeQueryIgnoreResult) (char *query);
     int (*getCostEstimation)(char *query);
 
     /* cache for catalog information */
@@ -95,6 +97,7 @@ typedef struct MetadataLookupPlugin
 
 } MetadataLookupPlugin;
 
+#define INVALID_SCN -1
 
 /* store active plugin */
 extern MetadataLookupPlugin *activePlugin;
@@ -123,8 +126,8 @@ extern Node *getAttributeDefaultVal (char *schema, char *tableName, char *attrNa
 extern List *getAttributeDataTypes (char *tableName);
 extern boolean isAgg(char *functionName);
 extern boolean isWindowFunction(char *functionName);
-extern DataType getFuncReturnType (char *fName, List *argTypes);
-extern DataType getOpReturnType (char *oName, List *argTypes);
+extern DataType getFuncReturnType (char *fName, List *argTypes, boolean *funcExists);
+extern DataType getOpReturnType (char *oName, List *argTypes, boolean *opExists);
 extern char *getTableDefinition(char *tableName);
 extern char *getViewDefinition(char *viewName);
 extern List *getKeyInformation (char *tableName);
@@ -132,6 +135,7 @@ extern List *getKeyInformation (char *tableName);
 extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Relation *executeQuery (char *sql);
+extern void executeQueryIgnoreResult (char *sql);
 extern long getCommitScn (char *tableName, long maxScn, char *xid);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern int getCostEstimation(char *query);

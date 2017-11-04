@@ -1,0 +1,17 @@
+{% extends "layout.html" %}
+{% block content %}
+{% include "queryactions.html" %}
+<div class="container">
+<div class="left">
+    <h2>Help</h2>
+    <p>Please enter a Datalog query and provenance request (e.g., Q(X) :- R(X,Y). WHY(Q(1)).) or select a past query from the dropdown.</p>
+    <p>More examples can be found in our 
+	<a href="https://github.com/IITDBGroup/gprom/wiki/datalog_prov" target="_blank"><u>github (Datalog Provenance)</u></a>.
+    </p>
+</div>
+<div class="right">
+    <p> {{ indblist|safe }} </p>
+</div>
+</div>
+{% endblock %}
+

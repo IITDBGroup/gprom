@@ -40,6 +40,7 @@
 	char *result = strdup(yytext); \
 	yylval.stringVal = result; \
 	for(; *result != '\0'; (*(result) = toupper(*result)), result++); \
+	TRACE_LOG("Upcased TOKEN <%s>", yylval.stringVal); \
 	return name; \
 	}
 #define TOKSAVE(name,field,function) { \
@@ -81,7 +82,7 @@ doublequote     [\"]
 quotedIdentifier		{doublequote}[^\"]+{doublequote}
 identifiers				({identStart}{identContinue}*)
 identifierPart			({identifiers}|{quotedIdentifier})
-compositeIdentifier		({identifierPart}({identDelim}{identifierPart}))*
+compositeIdentifier		({identifierPart}({identDelim}{identifierPart})+)
 parameters		[:]({identifiers}|{integer})
 
 /* operators */
@@ -173,15 +174,15 @@ strconcat		"||"
 (?i:CURRENT)		TOK(CURRENT)
 (?i:ROW)			TOK(ROW)
 (?i:FOLLOWING)		TOK(FOLLOWING)
-(?i:JSON)               TOK(JSON)
-(?i:TRANSLATE)          TOK(TRANSLATE)
-(?i:JSON_TABLE)         TOK(JSON_TABLE)
-(?i:COLUMNS)            TOK(COLUMNS)
-(?i:PATH)               TOK(PATH)
-(?i:FORMAT)             TOK(FORMAT)
-(?i:WITHOUT)            TOK(WITHOUT)
-(?i:WRAPPER)            TOK(WRAPPER)
-(?i:NESTED)             TOK(NESTED)
+(?i:JSON)           TOK(JSON)
+(?i:TRANSLATE)      TOK(TRANSLATE)
+(?i:JSON_TABLE)     TOK(JSON_TABLE)
+(?i:COLUMNS)        TOK(COLUMNS)
+(?i:PATH)           TOK(PATH)
+(?i:FORMAT)         TOK(FORMAT)
+(?i:WITHOUT)        TOK(WITHOUT)
+(?i:WRAPPER)        TOK(WRAPPER)
+(?i:NESTED)         TOK(NESTED)
 (?i:TABLE)			TOK(TABLE)
 (?i:ONLY)			TOK(ONLY)
 (?i:UPDATED)		TOK(UPDATED)
@@ -206,6 +207,16 @@ strconcat		"||"
 (?i:COLUMN)			TOK(COLUMN)
 (?i:CREATE)			TOK(CREATE)
 (?i:REENACT)		TOK(REENACT)
+(?i:SUMMARIZED)		TOK(SUMMARIZED)
+(?i:TO)				TOK(TO)
+(?i:EXPLAIN)		TOK(EXPLAIN)
+(?i:SAMPLE)			TOK(SAMPLE)
+(?i:TOP)			TOK(TOP)
+(?i:ISOLATION)		TOK(ISOLATION)
+(?i:LEVEL)			TOK(LEVEL)
+(?i:OPTIONS)		TOK(OPTIONS)
+(?i:TEMPORAL)		TOK(TEMPORAL)
+(?i:TIME)			TOK(TIME)
 (?i:SEMIRING)		TOK(SEMIRING)
 (?i:COMBINER)		TOK(COMBINER)
 (?i:MULT)           TOK(MULT)
@@ -216,6 +227,7 @@ strconcat		"||"
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)
 {compositeIdentifier}	UPCASE_TOK(compositeIdentifier)
+
 {quotedIdentifier}   { 		
 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
@@ -251,7 +263,7 @@ strconcat		"||"
 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
 		yylval.stringVal[strlen(yytext) - 2] = '\0';
-		TRACE_LOG("Lexed TOKEN <stringConst> with VALUE <%s>", yytext);
+		TRACE_LOG("Lexed TOKEN <stringConst> (quoted) with VALUE <%s>", yytext);
 		return stringConst;
 	}
 

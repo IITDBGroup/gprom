@@ -90,8 +90,8 @@ extern boolean oracleIsAgg(char *functionName);
 extern boolean oracleIsWindowFunction(char *functionName);
 extern char *oracleGetTableDefinition(char *tableName);
 extern char *oracleGetViewDefinition(char *viewName);
-extern DataType oracleGetOpReturnType (char *oName, List *dataTypes);
-extern DataType oracleGetFuncReturnType (char *fName, List *dataTypes);
+extern DataType oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists);
+extern DataType oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists);
 extern long getBarrierScn(void);
 extern int oracleGetCostEstimation(char *query);
 extern List *oracleGetKeyInformation(char *tableName);
@@ -102,6 +102,7 @@ extern long oracleGetCommitScn (char *tableName, long maxScn, char *xid);
 
 extern Node *oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern Relation *oracleGenExecQuery (char *query);
+extern void oracleGenExecQueryIgnoreResult (char *query);
 
 /* specific methods */
 #if HAVE_ORACLE_BACKEND

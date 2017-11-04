@@ -38,8 +38,8 @@ static List *externalGetAttributeNames (char *tableName);
 extern Node *externalGetAttributeDefaultVal (char *schema, char *tableName, char *attrName);
 static boolean externalIsAgg(char *functionName);
 static boolean externalIsWindowFunction(char *functionName);
-static DataType externalGetFuncReturnType (char *fName, List *argTypes);
-static DataType externalGetOpReturnType (char *oName, List *argTypes);
+static DataType externalGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists);
+static DataType externalGetOpReturnType (char *oName, List *argTypes, boolean *opExists);
 static char *externalGetTableDefinition(char *tableName);
 static char *externalGetViewDefinition(char *viewName);
 static List *externalGetKeyInformation (char *tableName);
@@ -50,6 +50,7 @@ static void externalGetTransactionSQLAndSCNs (char *xid, List **scns, List **sql
 static Node *externalExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 static long externalGetCommitScn (char *tableName, long maxScn, char *xid);
 static Relation *externalGenExecQuery (char *query);
+static void externalGenExecQueryIgnoreQuery (char *query);
 
 #define EXTERNAL_PLUGIN GProMMetadataLookupPlugin *extP = (GProMMetadataLookupPlugin *) activePlugin->cache->cacheHook
 
@@ -82,6 +83,7 @@ assembleExternalMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
     p->executeAsTransactionAndGetXID = externalExecuteAsTransactionAndGetXID;
     p->getCommitScn = externalGetCommitScn;
     p->executeQuery = externalGenExecQuery;
+    p->executeQueryIgnoreResult = externalGenExecQueryIgnoreQuery;
 
     p->cache = createCache();
     p->cache->cacheHook = plugin;
@@ -214,7 +216,7 @@ externalIsWindowFunction(char *functionName)
 }
 
 static DataType
-externalGetFuncReturnType (char *fName, List *argTypes)
+externalGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
     EXTERNAL_PLUGIN;
     char ** args;
@@ -232,7 +234,7 @@ externalGetFuncReturnType (char *fName, List *argTypes)
 }
 
 static DataType
-externalGetOpReturnType (char *oName, List *argTypes)
+externalGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
     EXTERNAL_PLUGIN;
     char **args;
@@ -306,4 +308,10 @@ externalGenExecQuery (char *query)
 {
     //TODO
     return NULL;
+}
+
+static void
+externalGenExecQueryIgnoreQuery (char *query)
+{
+    //TODO
 }

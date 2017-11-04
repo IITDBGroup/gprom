@@ -45,14 +45,14 @@ parseOption(int const argc, char* const argv[])
 		if(isOption(value))
 		{
 			if(strcmp(value,"-help")==0)
-				return 1;
+				return OPTION_PARSER_RETURN_HELP;
 
 			if (parseOneOption(value, argv, argc, &i) != 0)
-			    return 1;
+			    return OPTION_PARSER_RETURN_ERROR;
 		}
 	}
 
-	return 0;
+	return OPTION_PARSER_RETURN_OK;
 }
 
 boolean

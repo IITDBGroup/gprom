@@ -17,6 +17,7 @@ static rc testStringSubstring(void);
 static rc testEndTok(void);
 static rc testMatchingSubstring(void);
 static rc testSplit(void);
+static rc testPrefixSuffix(void);
 
 rc
 testStringUtils(void)
@@ -25,6 +26,7 @@ testStringUtils(void)
     RUN_TEST(testEndTok(), "Test strEndTok function");
     RUN_TEST(testMatchingSubstring(), "Test getMatchingSubstring function");
     RUN_TEST(testSplit(), "Test split string");
+    RUN_TEST(testPrefixSuffix(), "Test isPrefix and isSuffix");
 
     return PASS;
 }
@@ -83,6 +85,20 @@ testSplit(void)
     input = strdup("AA  ,, b c");
     result = splitString(input, ", ");
     ASSERT_EQUALS_STRING(result,expected, "elements are AA, b, and c");
+
+    return PASS;
+}
+
+static rc
+testPrefixSuffix(void)
+{
+    char *input = "#comment";
+
+    ASSERT_TRUE(isPrefix(input,"#"), "# is prefix");
+    ASSERT_FALSE(isPrefix(input,"c"), "c is not prefix");
+
+    ASSERT_TRUE(isSuffix(input,"ent"), "ent is suffix");
+    ASSERT_FALSE(isSuffix(input,"c"), "c is not suffix");
 
     return PASS;
 }

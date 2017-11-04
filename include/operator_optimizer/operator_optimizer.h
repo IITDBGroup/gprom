@@ -12,7 +12,7 @@
 #define OPERATOR_OPTIMIZER_H_
 
 #include "model/query_operator/query_operator.h"
-#include "include/model/set/set.h"
+#include "model/set/set.h"
 
 /* apply all optimizations */
 extern Node *optimizeOperatorModel (Node *root);
@@ -58,5 +58,11 @@ extern QueryOperator *pushDownSelectionThroughJoinsOperatorOnProv(QueryOperator 
 
 /* try to implement selection move around */
 extern QueryOperator *selectionMoveAround(QueryOperator *root);
+
+/* try to implement push down group by operator through join*/
+extern QueryOperator *pushDownAggregationThroughJoin(QueryOperator *root);
+extern void switchAggregationWithJoinToLeftChild(AggregationOperator *aggOp, JoinOperator *jOp);
+extern void addAdditionalAggregationBelowJoin(AggregationOperator *aggOp, JoinOperator *jOp);
+extern void addCountAggregationBelowJoin(AggregationOperator *aggOp, JoinOperator *jOp, List *groupByAttrRefs);
 
 #endif /* OPERATOR_OPTIMIZER_H_ */

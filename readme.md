@@ -1,3 +1,4 @@
+[![analytics](http://www.google-analytics.com/collect?v=1&t=pageview&_s=1&dl=https%3A%2F%2Fgithub.com%2FIITDBGroup%2Fgprom%2Fmain&_u=MAC~&cid=123456789&tid=UA-92255635-2)]()
 [![Build Status](https://travis-ci.org/IITDBGroup/gprom.svg?branch=master)](https://travis-ci.org/IITDBGroup/gprom)
 
 # Overview
@@ -5,6 +6,10 @@
 **GProM** is a database middleware that adds provenance support to multiple database backends. Provenance is information about how data was produced by database operations. That is, for a row in the database or returned by a query we capture from which rows it was derived and by which operations. The system compiles declarative queries with provenance requests into SQL code and executes this SQL code on a backend database system. GProM supports provenance capture for SQL queries and transactions, and produces provenance graphs explaining existing and missing answers for Datalog queries. Provenance is captured on demand by using a compilation technique called *instrumentation*. Instrumentation rewrites an SQL query (or past transaction) into a query that returns rows paired with their provenance. The output of the instrumentation process is a regular SQL query that can be executed using any standard relational database. The instrumented query generated from a provenance request returns a standard relation that maps rows to their provenance. Provenance for transactions is captured retroactively using a declarative replay technique called *reenactment* that we have developed at IIT. GProM extends multiple frontend languages (e.g., SQL and Datalog) with provenance requests and can produce code for multiple backends (currently Oracle). For information about the research behind GProM have a look at the IIT DBGroup's [webpage](http://www.cs.iit.edu/%7edbgroup/research/gprom.php). 
 
 GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC driver (currently not fully functional).
+
+# Online Demos
+
+* [Online Demo for Provenance Graph Viewer](http://ec2-35-164-188-60.us-west-2.compute.amazonaws.com:5000)
 
 # Documentation
 
@@ -32,7 +37,7 @@ GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC 
 To use **gprom**, the interactive shell of GProM, you will need to have one of the supported backend databases installed. For casual use cases, you can stick to SQLite. However, to fully exploit the features of GProM, you should use Oracle. We also provide several docker containers with gprom preinstalled (see [here](https://github.com/IITDBGroup/gprom/wiki/docker)) When starting gprom, you have to specify connection parameters to the database. For example, using one of the convenience wrapper scripts that ship with GProM, you can connected to a test SQLite database included in the repository by running the following command in the main source folder after installation:
 
 ```
-./scripts/gprom-sqlite.sh -db ./examples/test.db
+gprom -backend sqlite -db ./examples/test.db
 ```
 
 will start the shell connecting to an SQLite database `./examples/test.db`. If GProM is able to connect to the database, then this will spawn a shell like this:
@@ -49,17 +54,17 @@ In this shell you can enter SQL and utility commands. The shell in turn will sho
 
 ```
 Oracle SQL - SQLite:./examples/test.db$ SELECT * FROM R;
-A|B|
-----------------------------------------
-1|1|
-2|3|
+ A | B |
+--------
+ 1 | 1 |
+ 2 | 3 |
 
 Oracle SQL - SQLite:./examples/test.db$ PROVENANCE OF (SELECT A FROM r);
 
-A|PROV_R_A|PROV_R_B|
-----------------------------------------
-1|1|1|
-2|2|3|
+ A | PROV_R_A | PROV_R_B |
+--------------------------
+ 1 | 1        | 1        |
+ 2 | 2        | 3        |
 ```
 
 As you can see, `PROVENANCE OF (q)` returns the same answer as query `q`, but adds additional *provenance* attributes. These attributes store for each result row of the query the input row(s) which where used to compute the output row. For example, the query result `(1)` was derived from row `(1,1)` in table `R`. For now let us close the current session using the `\q` utility command:
@@ -81,7 +86,7 @@ make
 sudo make install
 ```
 
-Research and Background
+# Research and Background
 
 The functionality of GProM is based on a long term research effort by the [IIT DBGroup](http://www.cs.iit.edu/~dbgroup/) studying how to capture provenance on-demand using instrumentation. Links to [publications](http://www.cs.iit.edu/~dbgroup/publications) and more research oriented descriptions of the techniques implemented in GProM can be found at [http://www.cs.iit.edu/~dbgroup/research](http://www.cs.iit.edu/~dbgroup/research).
 

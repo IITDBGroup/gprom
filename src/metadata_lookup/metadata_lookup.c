@@ -22,6 +22,13 @@
 #include "metadata_lookup/metadata_lookup_postgres.h"
 #include "metadata_lookup/metadata_lookup_external.h"
 #include "metadata_lookup/metadata_lookup_sqlite.h"
+#include "metadata_lookup/metadata_lookup_monetdb.h"
+
+#define PLUGIN_NAME_ORACLE "oracle"
+#define PLUGIN_NAME_POSTGRES "postgres"
+#define PLUGIN_NAME_SQLITE "sqlite"
+#define PLUGIN_NAME_MONETDB "monetdb"
+#define PLUGIN_NAME_EXTERNAL "external"
 
 MetadataLookupPlugin *activePlugin = NULL;
 List *availablePlugins = NIL;
@@ -45,7 +52,12 @@ initMetadataLookupPlugins (void)
 #if HAVE_SQLITE_BACKEND
     availablePlugins = appendToTailOfList(availablePlugins, assembleSqliteMetadataLookupPlugin());
 #endif
+#if HAVE_MONETDB_BACKEND
+    availablePlugins = appendToTailOfList(availablePlugins, assembleMonetdbMetadataLookupPlugin());
+#endif
     availablePlugins = appendToTailOfList(availablePlugins, assembleExternalMetadataLookupPlugin(NULL));
+
+
 
     return EXIT_SUCCESS;
 }
@@ -105,13 +117,15 @@ setMetadataLookupPlugin (MetadataLookupPlugin *p)
 static MetadataLookupPluginType
 stringToPluginType(char *type)
 {
-    if (strcmp(type, "oracle") == 0)
+    if (strcmp(type, PLUGIN_NAME_ORACLE) == 0)
         return METADATA_LOOKUP_PLUGIN_ORACLE;
-    if (strcmp(type, "postgres") == 0)
+    if (strcmp(type, PLUGIN_NAME_POSTGRES) == 0)
         return METADATA_LOOKUP_PLUGIN_POSTGRES;
-    if (strcmp(type, "sqlite") == 0)
+    if (strcmp(type, PLUGIN_NAME_SQLITE) == 0)
         return METADATA_LOOKUP_PLUGIN_SQLITE;
-    if (strcmp(type, "external") == 0)
+    if (strcmp(type, PLUGIN_NAME_MONETDB) == 0)
+        return METADATA_LOOKUP_PLUGIN_MONETDB;
+    if (strcmp(type, PLUGIN_NAME_EXTERNAL) == 0)
         return METADATA_LOOKUP_PLUGIN_EXTERNAL;
     FATAL_LOG("unkown plugin type <%s>", type);
     return METADATA_LOOKUP_PLUGIN_ORACLE;
@@ -123,13 +137,15 @@ pluginTypeToString(MetadataLookupPluginType type)
     switch(type)
     {
     case METADATA_LOOKUP_PLUGIN_ORACLE:
-        return "oracle";
+        return PLUGIN_NAME_ORACLE;
     case METADATA_LOOKUP_PLUGIN_POSTGRES:
-        return "postgres";
+        return PLUGIN_NAME_POSTGRES;
     case METADATA_LOOKUP_PLUGIN_SQLITE:
-        return "sqlite";
+        return PLUGIN_NAME_SQLITE;
+    case METADATA_LOOKUP_PLUGIN_MONETDB:
+            return PLUGIN_NAME_MONETDB;
     case METADATA_LOOKUP_PLUGIN_EXTERNAL:
-        return "external";
+        return PLUGIN_NAME_EXTERNAL;
     }
     THROW(SEVERITY_RECOVERABLE, "unkown plugin type <%u>", type);
     return NULL; //keep compiler quiet
@@ -272,21 +288,21 @@ isWindowFunction(char *functionName)
 }
 
 DataType
-getFuncReturnType (char *fName, List *argTypes)
+getFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    DataType result = activePlugin->getFuncReturnType(fName, argTypes);
+    DataType result = activePlugin->getFuncReturnType(fName, argTypes, funcExists);
     RELEASE_MEM_CONTEXT();
     return result;
 }
 
 DataType
-getOpReturnType (char *oName, List *argTypes)
+getOpReturnType (char *oName, List *argTypes, boolean *funcExists)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    DataType result = activePlugin->getOpReturnType(oName, argTypes);
+    DataType result = activePlugin->getOpReturnType(oName, argTypes, funcExists);
     RELEASE_MEM_CONTEXT();
     return result;
 }
@@ -340,6 +356,15 @@ executeQuery (char *sql)
     Relation *result = activePlugin->executeQuery(sql);
     RELEASE_MEM_CONTEXT();
     return result;
+}
+
+void
+executeQueryIgnoreResult (char *sql)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->executeQueryIgnoreResult(sql);
+    RELEASE_MEM_CONTEXT();
 }
 
 long

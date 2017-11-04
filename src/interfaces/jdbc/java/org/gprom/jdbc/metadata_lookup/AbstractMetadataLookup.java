@@ -11,12 +11,15 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin;
+import org.gprom.jdbc.jna.GProMJavaInterface.DataType;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.catalogTableExists_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.catalogViewExists_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.databaseConnectionClose_callback;
@@ -44,7 +47,60 @@ import static org.gprom.jdbc.utility.LoggerUtil.*;
  */
 public abstract class AbstractMetadataLookup {
 
-	private static Logger log = Logger.getLogger(AbstractMetadataLookup.class);
+	private static Logger log = LogManager.getLogger(AbstractMetadataLookup.class);
+
+	/**
+	 * A class to store edges of a graph where nodes represent data types
+	 * @author lord_pretzel
+	 *
+	 */
+	private static class DTEdge {
+		public final DataType s;
+		public final DataType e;
+		
+		public DTEdge (DataType s, DataType e) {
+			this.s = s;
+			this.e = e;
+		}
+	}
+	
+	/**
+	 * A class for representing the possible cast relationships among data types as a graph
+	 * @author lord_pretzel
+	 *
+	 */
+	private static class DTCastGraph {
+		
+		public DTEdge[] edges;
+		
+		public DTCastGraph (DTEdge[] edges) {
+			this.edges = edges;
+		}
+		
+		public Set<DataType> getCastTargets (DataType source) {
+			Set<DataType> result = new HashSet<DataType> ();
+			for(DTEdge e: edges) {
+				if(e.s.equals(source))
+					result.add(e.e);
+			}
+			return result;
+		}
+	}
+
+	/* cast graph */
+	public static final DTEdge[] castEdges  = new DTEdge[] { 
+	        new DTEdge ( DataType.DT_INT, DataType.DT_FLOAT ),
+	        new DTEdge ( DataType.DT_INT, DataType.DT_STRING ),
+	        new DTEdge ( DataType.DT_INT, DataType.DT_LONG ),
+	        new DTEdge ( DataType.DT_LONG, DataType.DT_FLOAT ),
+	        new DTEdge ( DataType.DT_LONG, DataType.DT_STRING ),
+	        new DTEdge ( DataType.DT_FLOAT, DataType.DT_STRING ),
+	        new DTEdge ( DataType.DT_BOOL, DataType.DT_INT ),
+	        new DTEdge ( DataType.DT_BOOL, DataType.DT_STRING )	
+	};
+	public static final DTCastGraph castGraph = new DTCastGraph (castEdges);
+	public static DataType[] typePreferences = new DataType[] { DataType.DT_BOOL, DataType.DT_INT, DataType.DT_FLOAT, DataType.DT_STRING };
+
 
 	protected GProMMetadataLookupPlugin plugin;
 	protected Connection con;
@@ -543,4 +599,24 @@ public abstract class AbstractMetadataLookup {
 		
 		return result;
 	}
+	
+	
+	public DataType lcaType (DataType l, DataType r) {
+		Set<DataType> lTypes = castGraph.getCastTargets(l);
+		Set<DataType> rTypes = castGraph.getCastTargets(r);
+		
+		if (l.equals(r))
+			return l;
+		
+		if (lTypes.contains(r))
+			return l;
+		if (rTypes.contains(l))
+			return r;
+		
+		for(DataType dt: typePreferences) {
+			if (lTypes.contains(dt) && rTypes.contains(dt))
+				return dt;
+		}
+		return DataType.DT_STRING;
+	} 
 }

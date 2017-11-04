@@ -16,11 +16,13 @@ SUBDIRS = configuration 		\
 		operator_optimizer 		\
 		execution				\
 		rpq						\
+		symbolic_eval			\
+		temporal_queries		\
 		. 						\
 		command_line			\
 		libgprom				\
 		interfaces				
-		
+
 
 noinst_LTLIBRARIES 		= libsrc.la
 libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
@@ -37,6 +39,8 @@ libsrc_la_LIBADD 		= 	configuration/libconfiguration.la \
 						instrumentation/libinstrumentation.la \
 						execution/libexecution.la \
 						utility/libutils.la \
-						rpq/librpq.la
+						rpq/librpq.la \
+						symbolic_eval/libsymboliceval.la \
+						temporal_queries/libtemporal.la 
 
 libsrc_la_SOURCES 		= rewriter.c

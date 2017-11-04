@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Temporal Sequenced Rewrites Test Cases for Aggregation queries</comment>
+
+<entry key="q1.query">
+TEMPORAL (SELECT count(*) AS BOO FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
+</entry>
+<entry key="q1.result">
+ BOO | T_B | T_E |
+------------------
+ 0   | -2000000000 | 1          
+ 4   | 1   | 4   |
+ 3   | 4   | 6   |
+ 2   | 6   | 10  |
+ 1   | 10  | 13  |
+ 0   | 13  | 2000000000 |
+</entry>
+
+
+<entry key="q2.query">
+TEMPORAL (SELECT count(*) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A);
+</entry>
+<entry key="q2.result">
+ BOO | A | T_B | T_E |
+----------------------
+ 3   | 1 | 1   | 6   |
+ 2   | 1 | 6   | 10  |
+ 1   | 1 | 10  | 13  |
+ 1   | 2 | 1   | 4   |
+</entry>
+
+<entry key="q3.query">
+TEMPORAL (SELECT count(*) FROM (SELECT count(*) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A) a);
+</entry>
+<entry key="q3.result">
+ COUNT(1) | T_B | T_E |
+-----------------------
+ 0        | -2000000000 | 1          |
+ 1        | 4   | 13  |
+ 2        | 1   | 4   |
+ 0        | 13          | 2000000000 |
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+
+</properties>
+

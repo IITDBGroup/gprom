@@ -28,4 +28,4 @@ DYLD_LIBRARY_PATH=`echo "$DYLD_LIBRARY_PATH" | /sw/bin/sed 's/::*$//'`
 export DYLD_LIBRARY_PATH
 echo "DYLD_LIBRARY_PATH ${DYLD_LIBRARY_PATH}"
 
-valgrind --log-file=./valgrind.txt --dsymutil=yes --tool=memcheck -v --track-origins=yes --leak-check=full --show-leak-kinds=all --malloc-fill=01 --free-fill=FF --leak-check=yes ./test/.libs/testmain ${CONNECTION_PARAMS} ${LOG} ${ARGS}
+valgrind --log-file=./valgrind.txt --dsymutil=yes --tool=memcheck -v --track-origins=yes --leak-check=full --show-leak-kinds=all --malloc-fill=01 --free-fill=FF --leak-check=yes ${DIR}/../../test/testmain ${CONNECTION_PARAMS} ${LOG} ${ARGS}

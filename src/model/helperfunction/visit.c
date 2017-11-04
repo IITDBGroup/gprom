@@ -119,6 +119,12 @@ visit (Node *node, boolean (*checkNode) (), void *state)
                 VISIT(expr);
             }
             break;
+        case T_CastExpr:
+            {
+                PREP_VISIT(CastExpr);
+                VISIT(expr);
+            }
+            break;
         case T_WindowBound:
             {
                 PREP_VISIT(WindowBound);
@@ -442,6 +448,12 @@ mutate (Node *node, Node *(*modifyNode) (), void *state)
                 NEWN(CaseWhen);
                 MUTATE(Node, when);
                 MUTATE(Node, then);
+            }
+            break;
+        case T_CastExpr:
+            {
+                NEWN(CastExpr);
+                MUTATE(Node, expr);
             }
             break;
         case T_IsNullExpr:
@@ -781,6 +793,12 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 VISIT_P(then);
             }
             break;
+        case T_CastExpr:
+            {
+                PREP_VISIT_P(CastExpr);
+                VISIT_P(expr);
+            }
+            break;
         case T_IsNullExpr:
             {
                 PREP_VISIT_P(IsNullExpr);
@@ -998,6 +1016,20 @@ visitWithPointers (Node *node, boolean (*userVisitor) (), void **parentLink, voi
                 PREP_VISIT_P(OrderOperator);
                 VISIT_OPERATOR_FIELDS_P();
                 VISIT_P(orderExprs);
+            }
+            break;
+        case T_ConstRelOperator:
+            {
+                PREP_VISIT_P(ConstRelOperator);
+                VISIT_OPERATOR_FIELDS_P();
+                VISIT_P(values);
+            }
+            break;
+        case T_JsonTableOperator:
+            {
+                PREP_VISIT_P(JsonTableOperator);
+                VISIT_OPERATOR_FIELDS_P();
+                VISIT_P(columns);
             }
             break;
         default:

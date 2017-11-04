@@ -58,7 +58,7 @@ static void initCache(CatalogCache *c);
         { \
             StringInfo _newmes = makeStringInfo(); \
             appendStringInfo(_newmes, _message, ##__VA_ARGS__); \
-            FATAL_LOG("error (%s)\n%s\n\n%s", strdup((char *) sqlite3_errstr(_rc)), strdup((char *) sqlite3_errmsg(plugin->conn)), _newmes->data); \
+            FATAL_LOG("error (%s)\n%u\n\n%s", strdup((char *) sqlite3_errmsg(plugin->conn)), _rc, _newmes->data); \
         } \
     } while(0)
 
@@ -91,6 +91,7 @@ assembleSqliteMetadataLookupPlugin (void)
     p->getCostEstimation = sqliteGetCostEstimation;
     p->getKeyInformation = sqliteGetKeyInformation;
     p->executeQuery = sqliteExecuteQuery;
+    p->executeQueryIgnoreResult = sqliteExecuteQueryIgnoreResults;
     p->connectionDescription = sqliteGetConnectionDescription;
 
     return p;
@@ -184,7 +185,7 @@ boolean
 sqliteCatalogTableExists (char * tableName)
 {
     sqlite3 *c = plugin->conn;
-    boolean res = (sqlite3_table_column_metadata(c,NULL,tableName,NULL,NULL,NULL,NULL,NULL, NULL) == SQLITE_OK);
+    boolean res = (sqlite3_table_column_metadata(c,NULL,tableName,strdup("rowid"),NULL,NULL,NULL,NULL, NULL) == SQLITE_OK);
 
     return res;//TODO
 }
@@ -222,6 +223,8 @@ sqliteGetAttributes (char *tableName)
 
     HANDLE_ERROR_MSG(rc, SQLITE_DONE, "error getting attributes of table <%s>", tableName);
 
+    DEBUG_NODE_LOG("columns are: ", result);
+
     return result;
 }
 
@@ -253,15 +256,46 @@ sqliteIsWindowFunction(char *functionName)
 }
 
 DataType
-sqliteGetFuncReturnType (char *fName, List *argTypes)
+sqliteGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
 {
+    *funcExists = TRUE;
     return DT_STRING; //TODO
 }
 
 DataType
-sqliteGetOpReturnType (char *oName, List *argTypes)
+sqliteGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
-    //TODO
+
+    *opExists = TRUE;
+
+    if (streq(oName, "+") || streq(oName, "*")  || streq(oName, "-") || streq(oName, "/"))
+    {
+        if (LIST_LENGTH(argTypes) == 2)
+        {
+            DataType lType = getNthOfListInt(argTypes, 0);
+            DataType rType = getNthOfListInt(argTypes, 1);
+
+            if (lType == rType)
+            {
+                if (lType == DT_INT)
+                    return DT_INT;
+                if (lType == DT_FLOAT)
+                    return DT_FLOAT;
+            }
+        }
+    }
+
+    if (streq(oName, "||"))
+    {
+        DataType lType = getNthOfListInt(argTypes, 0);
+        DataType rType = getNthOfListInt(argTypes, 1);
+
+        if (lType == rType && lType == DT_STRING)
+            return DT_STRING;
+    }
+    //TODO more operators
+    *opExists = FALSE;
+
     return DT_STRING;
 }
 
@@ -352,6 +386,21 @@ sqliteExecuteQuery(char *query)
     return r;
 }
 
+void
+sqliteExecuteQueryIgnoreResults(char *query)
+{
+    sqlite3_stmt *rs = runQuery(query);
+    int rc = SQLITE_OK;
+
+    while((rc = sqlite3_step(rs)) == SQLITE_ROW)
+        ;
+
+    HANDLE_ERROR_MSG(rc,SQLITE_DONE, "failed to execute query <%s>", query);
+
+    rc = sqlite3_finalize(rs);
+    HANDLE_ERROR_MSG(rc,SQLITE_OK, "failed to finalize query <%s>", query);
+}
+
 static sqlite3_stmt *
 runQuery (char *q)
 {
@@ -360,7 +409,7 @@ runQuery (char *q)
     int rc;
 
     DEBUG_LOG("run query:\n<%s>", q);
-    rc = sqlite3_prepare(conn, q, -1, &stmt, NULL);
+    rc = sqlite3_prepare(conn, strdup(q), -1, &stmt, NULL);
     HANDLE_ERROR_MSG(rc, SQLITE_OK, "failed to prepare query <%s>", q);
 
     return stmt;

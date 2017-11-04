@@ -100,6 +100,11 @@
 #include <math.h>
 #endif
 
+/* pwd */
+#if HAVE_PWD_H
+#include <pwd.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup
@@ -143,8 +148,13 @@
 #define HAVE_SQLITE_BACKEND 1
 #endif
 
+// monetdb
+#if HAVE_LIBMAPI && HAVE_MONETDB_MAPI_H
+#define HAVE_MONETDB_BACKEND 1
+#endif
+
 // any backend
-#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND || HAVE_LIBSQLITE3
+#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND || HAVE_SQLITE_BACKEND || HAVE_MONETDB_BACKEND
 #define HAVE_A_BACKEND 1
 #endif
 

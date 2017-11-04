@@ -25,12 +25,15 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "provenance_rewriter/prov_schema.h"
 #include "parser/parser.h"
+#include "model/query_operator/operator_property.h"
+#include "temporal_queries/temporal_rewriter.h"
 
 static void analyzeStmtList (List *l, List *parentFroms);
 static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
 static void analyzeSetQuery (SetQuery *q, List *parentFroms);
 static void analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms);
 static void analyzeProvenanceOptions (ProvenanceStmt *prov);
+static boolean reenactOptionHasTimes (List *opts);
 static void analyzeWithStmt (WithStmt *w);
 static void analyzeCreateTable (CreateTable *c);
 static void analyzeAlterTable (AlterTable *a);
@@ -39,6 +42,7 @@ static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 static void analyzeWhere (QueryBlock *qb, List *parentFroms);
 
 // search for attributes and other relevant node types
+static void analyzeFromProvInfo (FromItem *f);
 static void adaptAttrPosOffset(FromItem *f, FromItem *decendent, AttributeReference *a);
 static void adaptAttributeRefs(List* attrRefs, List* parentFroms);
 static boolean findAttrReferences (Node *node, List **state);
@@ -57,6 +61,7 @@ static void analyzeUpdate(Update *f);
 static void analyzeFromSubquery(FromSubquery *sq, List *parentFroms);
 static List *analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right);
 static void analyzeJoinCondAttrRefs(List *fromClause, List *parentFroms);
+static boolean correctFromTableVisitor (Node *node, void *context);
 
 // analyze function calls and nested subqueries
 static void analyzeFunctionCall(QueryBlock *qb);
@@ -201,6 +206,7 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
 {
     List *attrRefs = NIL;
 
+    // unfold views
     FOREACH(FromItem,f,qb->fromClause)
     {
         switch(f->type)
@@ -208,25 +214,33 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             case T_FromTableRef:
             {
                 FromTableRef *tr = (FromTableRef *)f;
-            	//check if it is a table or a view
-            	if (!catalogTableExists(tr->tableId) && catalogViewExists(tr->tableId))
-            	{
-            	    char * view = getViewDefinition(((FromTableRef *)f)->tableId);
-            	    char *newName = f->name ? f->name : tr->tableId; // if no alias then use view name
-            	    DEBUG_LOG("view: %s", view);
-            	    StringInfo s = makeStringInfo();
-            	    appendStringInfoString(s,view);
-            	    appendStringInfoString(s,";");
-            	    view = s->data;
-            	    Node * n1 = getHeadOfListP((List *) parseFromString((char *) view));
-            	    FromItem * f1 = createFromSubquery(newName,NIL,(Node *) n1);
+                boolean tableExists = catalogTableExists(tr->tableId) || schemaInfoHasTable(tr->tableId);
+                boolean viewExists = catalogViewExists(tr->tableId);
 
-            	    DUMMY_LC(f)->data.ptr_value = f1;
-            	}
+                if (f->attrNames != NIL)
+                    tableExists = TRUE; //TODO is that ok? this is proposed to be the case when this is a CTE
+
+                //check if it is a table or a view
+                if (!tableExists && viewExists)
+                {
+                    char * view = getViewDefinition(((FromTableRef *)f)->tableId);
+                    char *newName = f->name ? f->name : tr->tableId; // if no alias then use view name
+                    DEBUG_LOG("view: %s", view);
+                    StringInfo s = makeStringInfo();
+                    appendStringInfoString(s,view);
+                    appendStringInfoString(s,";");
+                    view = s->data;
+                    Node * n1 = getHeadOfListP((List *) parseFromString((char *) view));
+                    FromItem * f1 = createFromSubquery(newName,NIL,(Node *) n1);
+
+                    DUMMY_LC(f)->data.ptr_value = f1;
+                }
+                if (!tableExists && !viewExists)
+                    THROW(SEVERITY_RECOVERABLE, "table %s does not exist", tr->tableId);
             }
             break;
             default:
-            	break;
+                break;
         }
     }
 
@@ -245,41 +259,13 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
                 analyzeJoin((FromJoinExpr *) f, parentFroms);
                 break;
             case T_FromJsonTable:
-	        analyzeFromJsonTable((FromJsonTable *)f, &attrRefs);
+                analyzeFromJsonTable((FromJsonTable *)f, &attrRefs);
 	        break;
             default:
             	break;
         }
 
-        // analyze FromProvInfo if exists
-        if (f->provInfo)
-        {
-            /* if the user provides a list of attributes (that store provenance
-             * or should be duplicated as provenance attributes) then we need
-             * to make sure these attributes exist. */
-            if (f->provInfo->userProvAttrs)
-            {
-                FOREACH(char,name,f->provInfo->userProvAttrs)
-                {
-                    if(!searchListString(f->attrNames, name))
-                    {
-                        if (strcmp(name,"ROWID") == 0 || f->type == T_FromTableRef)
-                        {
-                            f->attrNames = appendToTailOfList(f->attrNames, strdup("ROWID"));
-                        }
-                        else
-                            FATAL_LOG("did not find provenance attr %s in from "
-                                "item attrs %s", name, stringListToString(f->attrNames));
-                    }
-                }
-            }
-        }
-
-        /*
-         * boolean baserel;
-    boolean intermediateProv;
-    List *userProvAttrs;
-         */
+        analyzeFromProvInfo(f);
 
         DEBUG_LOG("analyzed from item <%s>", nodeToString(f));
     }
@@ -366,6 +352,55 @@ analyzeNestedSubqueries(QueryBlock *qb, List *parentFroms)
     // analyze each subquery
     FOREACH(NestedSubquery,q,nestedSubqueries)
         analyzeQueryBlockStmt(q->query, parentFroms);
+}
+
+static void
+analyzeFromProvInfo (FromItem *f)
+{
+    // analyze FromProvInfo if exists
+    if (f->provInfo)
+    {
+        FromProvInfo *fp = f->provInfo;
+
+        /* if the user provides a list of attributes (that store provenance
+         * or should be duplicated as provenance attributes) then we need
+         * to make sure these attributes exist. */
+        if (fp->userProvAttrs)
+        {
+            FOREACH(char,name,fp->userProvAttrs)
+            {
+                if(!searchListString(f->attrNames, name))
+                {
+                    if (strcmp(name,"ROWID") == 0 || f->type == T_FromTableRef)
+                    {
+                        f->attrNames = deepCopyStringList(f->attrNames);
+                        f->dataTypes = copyObject(f->dataTypes);
+                        f->attrNames = appendToTailOfList(f->attrNames, strdup("ROWID"));
+                        f->dataTypes = appendToTailOfListInt(f->dataTypes, DT_LONG);
+                    }
+                    else
+                        FATAL_LOG("did not find provenance attr %s in from "
+                            "item attrs %s", name, stringListToString(f->attrNames));
+                }
+            }
+        }
+
+        // if user declared some attributes as provenance (HAS PROVENANCE) then these attributes are temporarily removed
+        // since they should not be referenced by query for which we are computing provenance
+        if (fp->baserel == FALSE && fp->intermediateProv == FALSE && fp->userProvAttrs != NIL)
+        {
+            INFO_LOG("from clause item HAS PROVENANCE activated - remove provenance attributes from schema for analysis");
+            FOREACH(char,provAttr,fp->userProvAttrs)
+            {
+                int pos = listPosString(f->attrNames, provAttr);
+                DEBUG_LOG("attribute %s at position %u", provAttr, pos);
+                f->attrNames = deepCopyStringList(f->attrNames);
+                f->dataTypes = copyObject(f->dataTypes);
+                f->attrNames = removeListElemAtPos(f->attrNames, pos);
+                f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+            }
+        }
+    }
 }
 
 static void
@@ -621,6 +656,7 @@ findAttrInFromItem (FromItem *fromItem, AttributeReference *attr)
         isFound = TRUE;
         foundAttr = LIST_LENGTH(fromItem->attrNames);
         fromItem->attrNames = appendToTailOfList(fromItem->attrNames, strdup("ROWID"));
+        fromItem->dataTypes = appendToTailOfListInt(fromItem->dataTypes, DT_LONG);
     }
 
     return foundAttr;
@@ -791,8 +827,11 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     switch(left->type)
     {
         case T_FromTableRef:
+        {
         	analyzeFromTableRef((FromTableRef *)left);
-            break;
+            analyzeFromProvInfo(left);
+        }
+        break;
         case T_FromJoinExpr:
             analyzeJoin((FromJoinExpr *)left, parentFroms);
             break;
@@ -809,8 +848,11 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     switch(right->type)
 	{
 		case T_FromTableRef:
-			analyzeFromTableRef((FromTableRef *)right);
-			break;
+		{
+            analyzeFromTableRef((FromTableRef *)right);
+		    analyzeFromProvInfo(right);
+		}
+        break;
 		case T_FromJoinExpr:
 			analyzeJoin((FromJoinExpr *) right, parentFroms);
 			break;
@@ -828,9 +870,9 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     {
         List *expectedAttrs = analyzeNaturalJoinRef((FromTableRef *)j->left,
                 (FromTableRef *)j->right);
-    	if (j->from.attrNames == NULL)
-    	    j->from.attrNames = expectedAttrs;
-    	ASSERT(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
+        if (j->from.attrNames == NULL)
+            j->from.attrNames = expectedAttrs;
+        ASSERT(LIST_LENGTH(j->from.attrNames) == LIST_LENGTH(expectedAttrs));
     }
     //JOIN_COND_USING
     //JOIN_COND_ON
@@ -845,7 +887,7 @@ analyzeJoin (FromJoinExpr *j, List *parentFroms)
     }
 
     j->from.dataTypes = CONCAT_LISTS((List *) copyObject(left->dataTypes),
-            (List *) copyObject(left->dataTypes));
+            (List *) copyObject(right->dataTypes));
 
     DEBUG_NODE_BEATIFY_LOG("join analysis:", j);
 }
@@ -890,24 +932,24 @@ analyzeFromTableRef(FromTableRef *f)
 static void
 recursiveAppendAttrNames(JsonColInfoItem *attr, List **attrNames, List **attrTypes)
 {
-	if (attr->nested)
-	{
-		FOREACH(JsonColInfoItem, attr1, attr->nested)
-        		{
-			if(attr1->nested)
-				recursiveAppendAttrNames(attr1, attrNames, attrTypes);
-			else
-			{
-				*attrNames = appendToTailOfList(*attrNames, attr1->attrName);
-				*attrTypes = appendToTailOfListInt(*attrTypes, 5);
-			}
-        		}
-	}
-	else
-	{
-		*attrNames = appendToTailOfList(*attrNames, attr->attrName);
-		*attrTypes = appendToTailOfListInt(*attrTypes, 5);
-	}
+    if (attr->nested)
+    {
+        FOREACH(JsonColInfoItem, attr1, attr->nested)
+        {
+            if(attr1->nested)
+                recursiveAppendAttrNames(attr1, attrNames, attrTypes);
+            else
+            {
+                *attrNames = appendToTailOfList(*attrNames, attr1->attrName);
+                *attrTypes = appendToTailOfListInt(*attrTypes, DT_VARCHAR2);
+            }
+        }
+    }
+    else
+    {
+        *attrNames = appendToTailOfList(*attrNames, attr->attrName);
+        *attrTypes = appendToTailOfListInt(*attrTypes, DT_VARCHAR2);
+    }
 }
 
 static void
@@ -920,31 +962,6 @@ analyzeFromJsonTable(FromJsonTable *f, List **state)
 	FOREACH(JsonColInfoItem, attr1, f->columns)
 	{
 		recursiveAppendAttrNames(attr1, &attrNames, &attrTypes);
-
-		//TODO Add if streq for other datatypes as well
-		/*
-        switch (attr->attrType)
-        {
-        case DT_INT:
-        	attrTypes = appendToTailOfListInt(attrTypes, 0);
-        	break;
-        case DT_LONG:
-        	attrTypes = appendToTailOfListInt(attrTypes, 1);
-        	break;
-        case DT_STRING:
-        	attrTypes = appendToTailOfListInt(attrTypes, 2);
-        	break;
-        case DT_FLOAT:
-        	attrTypes = appendToTailOfListInt(attrTypes, 3);
-        	break;
-        case DT_BOOL:
-        	attrTypes = appendToTailOfListInt(attrTypes, 4);
-        	break;
-        case DT_VARCHAR2:
-        	attrTypes = appendToTailOfListInt(attrTypes, 5);
-        	break;
-        }
-		 */
 	}
 
 	if (f->from.attrNames == NIL)
@@ -1483,9 +1500,18 @@ generateAttrNameFromExpr(SelectItem *s)
     char c;
     StringInfo str = makeStringInfo();
 
-    while((c = *name++) != '\0')
-        if (c != ' ')
-            appendStringInfoChar(str, toupper(c));
+    if (streq(getOptionAsString(OPTION_BACKEND),"oracle"))
+    {
+        while((c = *name++) != '\0')
+            if (c != ' ')
+                appendStringInfoChar(str, toupper(c));
+    }
+    else
+    {
+        while((c = *name++) != '\0')
+            if (c != ' ')
+                appendStringInfoChar(str, c);
+    }
 
     return str->data;
 }
@@ -1588,15 +1614,16 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
         break;
         case PROV_INPUT_REENACT:
         {
-            //TODO analyze each statement
             List *stmts = (List *) q->query;
-//            List *schemaInfos = NIL;
             schemaInfo = NEW_MAP(Node,Node); //maps table name to schema
+            boolean hasTimes = FALSE;
 
-            FOREACH(Node,stmt,stmts)
+            FOREACH(KeyValue,sInfo,stmts)
             {
+                Node *stmt = sInfo->key;
                 //TODO maintain and extend a schema info
                 analyzeQueryBlockStmt(stmt, NIL);
+                hasTimes |= reenactOptionHasTimes((List *) sInfo->value);
 //                schemaInfos = appendToTailOfList(schemaInfos, copyObject(schemaInfo));
             }
             // store schema infos in provenancestmt's options for translator
@@ -1605,13 +1632,20 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 //                            (Node *) createConstString("SCHEMA_INFOS"),
 //                            (Node *) schemaInfos));
 
+            if (hasTimes)
+            {
+                FOREACH(KeyValue,sInfo,stmts)
+                {
+                    if (!reenactOptionHasTimes((List *) sInfo->value))
+                    {
+                        FATAL_NODE_BEATIFY_LOG("AS OF should be specified for all statments to be reenacted or none!", q);
+                    }
+                }
+                q->inputType = PROV_INPUT_REENACT_WITH_TIMES;
+            }
+
             INFO_NODE_BEATIFY_LOG("REENACT THIS:", q);
             schemaInfo = NULL;
-        }
-        break;
-        case PROV_INPUT_REENACT_WITH_TIMES:
-        {
-
         }
         break;
         case PROV_INPUT_UPDATE:
@@ -1628,39 +1662,28 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 
             q->selectClause = getQBAttrNames(q->query);
             q->dts = getQBAttrDTs(q->query);
-//            // get attributes from left child
-//            switch(q->query->type)
-//            {
-//                case T_QueryBlock:
-//                {
-//                    QueryBlock *qb = (QueryBlock *) q->query;
-//                    FOREACH(SelectItem,s,qb->selectClause)
-//                    {
-//                        q->selectClause = appendToTailOfList(q->selectClause,
-//                                strdup(s->alias));
-//                    }
-//                }
-//                break;
-//                case T_SetQuery:
-//                    q->selectClause = deepCopyStringList(
-//                            ((SetQuery *) q->query)->selectClause);
-//                break;
-//                case T_ProvenanceStmt:
-//                    q->selectClause = deepCopyStringList(
-//                            ((ProvenanceStmt *) q->query)->selectClause);
-//                break;
-//                default:
-//                break;
-//            }
-
+            // if the user has specified provenance attributes using HAS PROVENANCE then we have temporarily removed these  attributes for
+            // semantic analysis, now we need to recover the correct schema for determining provenance attribute datatypes and translation
+            correctFromTableVisitor(q->query, NULL);
             getQBProvenanceAttrList(q,&provAttrNames,&provDts);
-            q->selectClause = concatTwoLists(q->selectClause,
-                    provAttrNames);
+
+            q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
             q->dts = concatTwoLists(q->dts,provDts);
         }
         break;
-        case PROV_INPUT_TIME_INTERVAL:
-            break;
+        case PROV_INPUT_TEMPORAL_QUERY:
+        {
+            analyzeQueryBlockStmt(q->query, parentFroms);
+
+            q->selectClause = getQBAttrNames(q->query);
+            q->dts = getQBAttrDTs(q->query);
+            q->selectClause = concatTwoLists(q->selectClause,LIST_MAKE(strdup(TBEGIN_NAME), strdup(TEND_NAME)));
+            //TODO use better DT for temporal attributes
+            q->dts = concatTwoLists(q->dts,CONCAT_LISTS(singletonInt(TEMPORAL_DT), singletonInt(TEMPORAL_DT)));
+            //TODO check that table access has temporal attributes
+            correctFromTableVisitor(q->query, NULL);
+        }
+        break;
         case PROV_INPUT_UPDATE_SEQUENCE:
             break;
         default:
@@ -1668,6 +1691,50 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
     }
 
 	analyzeProvenanceOptions(q);
+}
+
+static boolean
+correctFromTableVisitor (Node *node, void *context)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if(isFromItem(node))
+    {
+        switch (node->type)
+        {
+            case T_FromTableRef:
+            {
+                FromItem *f = (FromItem *) node;
+                f->attrNames = NIL;
+                f->dataTypes = NIL;
+                analyzeFromTableRef((FromTableRef *) node);
+            }
+            break;
+            case T_FromSubquery:
+            {
+                FromSubquery *sq = (FromSubquery *) node;
+                sq->from.attrNames = getQBAttrNames(sq->subquery);
+                sq->from.dataTypes = getQBAttrDTs(sq->subquery);
+            }
+            break;
+            default:
+                break;
+        }
+    }
+
+    return visit(node, correctFromTableVisitor, context);
+}
+
+static boolean
+reenactOptionHasTimes (List *opts)
+{
+    FOREACH(KeyValue,kv,opts)
+    {
+        if (streq(STRING_VALUE(kv->key), PROP_REENACT_ASOF))
+            return TRUE;
+    }
+    return FALSE;
 }
 
 static void
@@ -1680,12 +1747,14 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
         char *value = STRING_VALUE(kv->value);
 
         /* provenance type */
-        if (!strcmp(key, "TYPE"))
+        if (!strcmp(key, PROP_PC_PROV_TYPE))
         {
-            if (!strcmp(value, "PICS"))
+            if (streq(value, "PICS"))
                 prov->provType = PROV_PI_CS;
             else if (!strcmp(value, "TRANSFORMATION"))
                 prov->provType = PROV_TRANSFORMATION;
+            else if (!strcmp(value, "XML"))
+                prov->provType = PROV_XML;
             else
                 FATAL_LOG("Unkown provenance type: <%s>", value);
         }

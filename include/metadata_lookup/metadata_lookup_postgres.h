@@ -36,8 +36,8 @@ extern List *postgresGetAttributes (char *tableName);
 extern List *postgresGetAttributeNames (char *tableName);
 extern boolean postgresIsAgg(char *functionName);
 extern boolean postgresIsWindowFunction(char *functionName);
-extern DataType postgresGetFuncReturnType (char *fName, List *argTypes);
-extern DataType postgresGetOpReturnType (char *oName, List *argTypes);
+extern DataType postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists);
+extern DataType postgresGetOpReturnType (char *oName, List *argTypes, boolean *opExists);
 extern char *postgresGetTableDefinition(char *tableName);
 extern char *postgresGetViewDefinition(char *viewName);
 extern int postgresGetCostEstimation(char *query);
@@ -47,5 +47,6 @@ extern void postgresGetTransactionSQLAndSCNs (char *xid, List **scns, List **sql
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Node *postgresExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern Relation *postgresExecuteQuery(char *query);
+extern void postgresExecuteQueryIgnoreResult (char *query);
 
 #endif /* METADATA_LOOKUP_POSTGRES_H_ */

@@ -133,6 +133,7 @@ typedef struct SerializeClausesAPI {
 
 /* generic functions for serializing queries that call an API provided as a parameter */
 extern SerializeClausesAPI *createAPIStub (void);
+extern void genQuoteAttributeNames (Node *q);
 extern List *genSerializeQueryOperator (QueryOperator *q, StringInfo str,
         QueryOperator *parent, SerializeClausesAPI *api);
 extern List *genSerializeQueryBlock (QueryOperator *q, StringInfo str,

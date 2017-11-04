@@ -29,7 +29,8 @@
 	
 	<!-- settings -->
 	<property name="permserver.options" value="--debug_print_rewritten=off --log_error_verbosity=terse --log_min_messages=error --client_min_messages=error --log_directory=${basedir}"/>
-	<property name="TestName" value="AllTests_1" />
+	<!-- get test name if specified -->
+	<property name="JUnitTestName" value="${testname}" />
 	
 	<path id="libraries">
 		<fileset dir="${librarydir}">
@@ -107,10 +108,6 @@
 	</target>
 	
 	<target name="adaptDDLScripts">
-		<var name="testdbscript" value="${resourcedir}/testdb/tpch.sql" />
-		<antcall target="adaptTestDDLScript" />
-		<var name="testdbscript" value="${resourcedir}/testdb/wherecs.sql" />
-		<antcall target="adaptTestDDLScript" />	
 		<var name="testdbscript" value="${resourcedir}/testdb/testDB.sql" />
 		<antcall target="adaptTestDDLScript" />
 	</target>
@@ -247,29 +244,64 @@
 	</target>
 	
 	<target name="runTests" depends="compileTests">
-		<junit printsummary="withOutAndErr" haltonfailure="true" haltonerror="true" showoutput="true" enableTestListenerEvents="true" fork="true">
+		<delete dir="${basedir}/results"/>
+		<mkdir dir="${basedir}/results"/>
+		<junit printsummary="withOutAndErr" haltonfailure="false" haltonerror="false" showoutput="true" timeout="300000" enableTestListenerEvents="true" fork="true">
 			<classpath refid="runTestsClasspath"/>
-			<test name="org.gprom.jdbc.test.junit.GProMAllTests" haltonfailure="false" />
-			<test name="org.gprom.jdbc.test.autotests.${TestName}" haltonfailure="false" />
 			<formatter type="brief" usefile="false" />
+			<formatter type="xml"/>
+	        <batchtest todir="${basedir}/results">
+	            <fileset dir="${testsourcedir}">
+	                <include name="**/*_Test.java"/>
+	            </fileset>
+	        </batchtest>
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-			<sysproperty key="log4j.configuration" value="log4jtest.properties" />
+			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
 		</junit>
 	</target>
 
-	<target name="runSimpleTestsOnly">
-<!--		<pathconvert property="testtest" pathsep="    ">
-					<path refid="runTestsClasspath">
-					</path>
-		</pathconvert>
-		<echo message="${testtest}" /> -->
-		<junit printsummary="withOutAndErr" haltonfailure="false" showoutput="true" enableTestListenerEvents="true" fork="true">
-			<classpath refid="runTestsClasspath"/>
-			<test name="org.gprom.jdbc.test.junit.GProMAllTests" haltonfailure="false" />
-			<formatter type="brief" usefile="false" />
-			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-			<sysproperty key="log4j.configuration" value="log4jtest.properties" />
-		</junit>
+	<target name="runTestsOnly">
+		<!-- run all tests unless user has provided a test name -->
+        <if>
+          <not><equals arg1="${JUnitTestName}" arg2="$${testname}" /></not>
+		<!-- run user provided test -->
+    	<then>
+            <echo message="Run ${JUnitTestName}" />
+    		<delete dir="${basedir}/results"/>
+    		<mkdir dir="${basedir}/results"/>
+    		<junit printsummary="withOutAndErr" haltonfailure="true" haltonerror="true" showoutput="true" enableTestListenerEvents="true" fork="true">
+    			<classpath refid="runTestsClasspath"/>
+    	        <batchtest  todir="${basedir}/results" fork="true">
+    	            <fileset dir="${testsourcedir}">
+    	                <include name="**/${JUnitTestName}.java"/>
+    	            </fileset>
+    	        </batchtest>
+    			<formatter type="brief" usefile="false" />
+    			<formatter type="xml"/>
+    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
+    			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
+    		</junit>
+          </then>
+        	<!-- run all tests unless user has provided a test name -->
+          <else>
+            <echo message="Run all tests" />
+    		<delete dir="${basedir}/results"/>
+    		<mkdir dir="${basedir}/results"/>
+          	<junit printsummary="withOutAndErr" haltonfailure="true" haltonerror="true" showoutput="true" enableTestListenerEvents="true" fork="true">
+    			<classpath refid="runTestsClasspath"/>
+    	        <batchtest todir="${basedir}/results" fork="true">
+    	            <fileset dir="${testsourcedir}">
+    	                <include name="**/*_Test.java"/>
+    	            </fileset>
+    	        </batchtest>
+    			<formatter type="brief" usefile="false" />
+    			<formatter type="xml"/>
+    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
+    			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
+    		</junit>
+          </else>
+        </if> 
+
 	</target>
 
 	

@@ -94,6 +94,15 @@ typedef struct ProvenanceComputation
     Node *asOf;
 } ProvenanceComputation;
 
+NEW_ENUM_WITH_TO_STRING(ReenactUpdateType,
+        UPDATE_TYPE_DELETE,
+        UPDATE_TYPE_UPDATE,
+        UPDATE_TYPE_INSERT_VALUES,
+        UPDATE_TYPE_INSERT_QUERY,
+        UPDATE_TYPE_DDL,
+        UPDATE_TYPE_QUERY
+);
+
 typedef struct UpdateOperator
 {
     QueryOperator op;
@@ -148,8 +157,10 @@ typedef struct JsonTableOperator
         || isA(op,SelectionOperator)                    \
         || isA(op,AggregationOperator)                  \
         || isA(op,DuplicateRemoval)                     \
-        || isA(op,WindowOperator)                      \
-		|| isA(op,OrderOperator))
+        || isA(op,WindowOperator)                       \
+		|| isA(op,OrderOperator)                        \
+		|| isA(op,JsonTableOperator)                    \
+		)
 
 #define IS_BINARY_OP(op) (isA(op,JoinOperator)          \
         || isA(op,SetOperator)                          \
@@ -179,6 +190,7 @@ extern List *getDataTypes (Schema *schema);
 extern List *getAttrNames(Schema *schema);
 extern List *getAttrDefNames (List *defs);
 extern List *getAttrDataTypes (List *defs);
+extern List *inferOpResultDTs (QueryOperator *op);
 #define GET_OPSCHEMA(o) ((QueryOperator *) o)->schema
 
 /* create functions */
@@ -236,6 +248,7 @@ extern void removeStringProperty (QueryOperator *op, char *key);
 #define SET_BOOL_STRING_PROP(op,key) (setStringProperty((QueryOperator *) op, \
         key, (Node *) createConstBool(TRUE)))
 #define GET_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key))
+#define GET_STRING_PROP_STRING_VAL(op,key) (HAS_STRING_PROP(op,key) ? STRING_VALUE(getStringProperty((QueryOperator *) op, key)) : NULL)
 #define GET_BOOL_STRING_PROP(op,key) ((getStringProperty((QueryOperator *) op, key) != NULL) \
     && (BOOL_VALUE(getStringProperty((QueryOperator *) op, key))))
 

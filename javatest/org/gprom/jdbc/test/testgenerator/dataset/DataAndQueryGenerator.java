@@ -14,7 +14,8 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Vector;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  *
@@ -24,7 +25,7 @@ import org.apache.log4j.Logger;
  */
 public class DataAndQueryGenerator {
 
-	static Logger log = Logger.getLogger(DataAndQueryGenerator.class.getName());
+	static Logger log = LogManager.getLogger(DataAndQueryGenerator.class.getName());
 	
 	private static final String header = "<!DOCTYPE dataset SYSTEM \"dataset.dtd\">\n" +
 			"<dataset>\n" +

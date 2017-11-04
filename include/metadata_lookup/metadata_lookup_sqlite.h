@@ -32,14 +32,15 @@ extern List *sqliteGetAttributes (char *tableName);
 extern List *sqliteGetAttributeNames (char *tableName);
 extern boolean sqliteIsAgg(char *functionName);
 extern boolean sqliteIsWindowFunction(char *functionName);
-extern DataType sqliteGetFuncReturnType (char *fName, List *argTypes);
-extern DataType sqliteGetOpReturnType (char *oName, List *argTypes);
+extern DataType sqliteGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists);
+extern DataType sqliteGetOpReturnType (char *oName, List *argTypes, boolean *opExists);
 extern char *sqliteGetTableDefinition(char *tableName);
 extern char *sqliteGetViewDefinition(char *viewName);
 extern int sqliteGetCostEstimation(char *query);
 extern List *sqliteGetKeyInformation(char *tableName);
 
 extern Relation *sqliteExecuteQuery(char *query);
+extern void sqliteExecuteQueryIgnoreResults(char *query);
 extern void sqliteGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Node *sqliteExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);

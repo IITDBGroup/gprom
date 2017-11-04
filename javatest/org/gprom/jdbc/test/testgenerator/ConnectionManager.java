@@ -8,7 +8,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PSQLException;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriver;
@@ -17,7 +18,7 @@ import org.gprom.jdbc.utility.LoggerUtil;
 
 public class ConnectionManager {
 
-	static Logger log = Logger.getLogger(ConnectionManager.class);
+	static Logger log = LogManager.getLogger(ConnectionManager.class);
 	
 	static {
 		try {

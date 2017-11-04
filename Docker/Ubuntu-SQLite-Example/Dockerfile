@@ -7,7 +7,6 @@ MAINTAINER Boris Glavic <bglavic@iit.edu>
 # Create working directories
 ########################################
 WORKDIR /gprom
-WORKDIR examples
 ########################################
 # Install packages needed for building
 ########################################
@@ -35,7 +34,7 @@ RUN git clone https://github.com/IITDBGroup/gprom.git /gprom/src
 ########################################
 RUN cd /gprom/src \
 	&& make -f Makefile.maintainer \
-	&& ./configure --disable-oracle --disable-postgres --disable-java \
+	&& ./configure --disable-oracle --disable-postgres --disable-monetdb --disable-java \
 	&& make \
 	&& make install
 ########################################
@@ -45,4 +44,4 @@ ENTRYPOINT ["/usr/local/bin/gprom"]
 ########################################
 # Per default connect to the example SQLite database
 ########################################
-CMD ["-Psqlserializer", "sqlite", "-Pmetadata", "sqlite", "-db", "/gprom/src/examples/test.db"]
+CMD ["-backend", "sqlite", "-db", "/gprom/src/examples/test.db"]

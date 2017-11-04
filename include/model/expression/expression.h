@@ -19,6 +19,9 @@ typedef struct Operator {
     List *args;
 } Operator;
 
+#define OPNAME_AND "AND"
+#define OPNAME_OR "OR"
+#define OPNAME_NOT "NOT"
 
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
@@ -166,6 +169,7 @@ extern CastExpr *createCastExpr (Node *expr, DataType resultDt);
 extern Node *andExprList (List *exprs);
 extern Node *orExprList (List *exprs);
 extern Node *andExprs (Node *expr, ...);
+extern Node *orExprList (List *exprs);
 extern Node *orExprs (Node *expr, ...);
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL)
 #define OR_EXPRS(...) orExprs(__VA_ARGS__, NULL)
@@ -206,6 +210,8 @@ extern boolean isCondition(Node *expr);
 
 /* casting related */
 extern List *createCasts(Node *lExpr, Node *rExpr);
+extern Node *addCastsToExpr(Node *expr, boolean errorOnFailure);
+extern DataType lcaType (DataType l, DataType r);
 
 extern DataType SQLdataTypeToDataType (char *dt);
 
@@ -230,5 +236,6 @@ extern Node *changeListOpToAnOpNode(List *l1);
 
 /* find all nodes of a certain type */
 extern List *findAllNodes(Node *node, NodeTag type);
+
 
 #endif /* EXPRESSION_H */

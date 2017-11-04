@@ -7,7 +7,8 @@ import java.net.URL;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 
 
@@ -17,7 +18,7 @@ import org.apache.log4j.Logger;
  */
 public class OracleBackendInfo implements BackendInfo {
 
-	static Logger log = Logger.getLogger(OracleBackendInfo.class);
+	static Logger log = LogManager.getLogger(OracleBackendInfo.class);
 	
 	public static OracleBackendInfo inst = new OracleBackendInfo();
 	

@@ -134,6 +134,7 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->executeAsTransactionAndGetXID = oracleExecuteAsTransactionAndGetXID;
     plugin->getCommitScn = oracleGetCommitScn;
     plugin->executeQuery = oracleGenExecQuery;
+    plugin->executeQueryIgnoreResult = oracleGenExecQueryIgnoreResult;
     plugin->getCostEstimation = oracleGetCostEstimation;
     plugin->getKeyInformation = oracleGetKeyInformation;
 
@@ -894,7 +895,11 @@ oracleGetCommitScn (char *tableName, long maxScn, char *xid)
         while(OCI_FetchNext(rs))
             commitScn = (long) OCI_GetBigInt(rs,1);
 
-        ASSERT(commitScn != 0);
+        if(commitScn == 0)
+        {
+            FREE(statement);
+            return INVALID_SCN;
+        }
 
         DEBUG_LOG("statement %s \n\nfinished and returned commit SCN %u",
                 statement->data, maxScn);
@@ -1000,27 +1005,61 @@ oracleGetViewDefinition(char *viewName)
 }
 
 DataType
-oracleGetOpReturnType (char *oName, List *dataTypes)
+oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists)
 {
-	if(streq(oName,"*")){
-		if (LIST_LENGTH(dataTypes) != 2)
-			FATAL_LOG("multiplication should take two input parameters");
-		DataType a = (DataType)getNthOfListP(dataTypes,0);
-		DataType b = (DataType)getNthOfListP(dataTypes,1);
-		if(a!=b)
-			FATAL_LOG("multiplication should take two input parameters of the same type");
-		return a;
-	}
+    *opExists = TRUE;
+
+    if (streq(oName, "+") || streq(oName, "*")  || streq(oName, "-") || streq(oName, "/"))
+    {
+        if (LIST_LENGTH(dataTypes) == 2)
+        {
+            DataType lType = getNthOfListInt(dataTypes, 0);
+            DataType rType = getNthOfListInt(dataTypes, 1);
+
+            if (lType == rType)
+            {
+                if (lType == DT_INT || lType == DT_FLOAT || lType == DT_LONG)
+                    return lType;
+            }
+            return lcaType(lType, rType);
+        }
+    }
+
+    if (streq(oName, "||"))
+    {
+        DataType lType = getNthOfListInt(dataTypes, 0);
+        DataType rType = getNthOfListInt(dataTypes, 1);
+
+        if (lType == rType && lType == DT_STRING)
+            return DT_STRING;
+    }
+
+    oName = strToUpper(oName);
+    if (streq(oName, "LIKE"))
+    {
+//        DataType lDt = getNthOfListInt(dataTypes, 0);
+//        DataType rDt = getNthOfListInt(dataTypes, 1);
+//
+//        if(lDt == rDt && lDt == DT_STRING)
+            return DT_BOOL;
+    }
+
+    //TODO more operators
+    *opExists = FALSE;
+
     return DT_STRING;
 }
 
 DataType
-oracleGetFuncReturnType (char *fName, List *dataTypes)
+oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
 {
+    *funcExists = TRUE;
+    char *capName = strToUpper(fName);
+
     // aggregation functions
-    if (streq(fName,"sum")
-            || streq(fName, "min")
-            || streq(fName, "max")
+    if (streq(capName,"SUM")
+            || streq(capName, "MIN")
+            || streq(capName, "MAX")
         )
     {
         ASSERT(LIST_LENGTH(dataTypes) == 1);
@@ -1038,32 +1077,94 @@ oracleGetFuncReturnType (char *fName, List *dataTypes)
         }
     }
 
-    if (streq(fName,"avg"))
+    if (streq(capName,"AVG"))
     {
-        ASSERT(LIST_LENGTH(dataTypes) == 1);
-        DataType argType = getNthOfListInt(dataTypes,0);
-
-        switch(argType)
+        if(LIST_LENGTH(dataTypes) == 1)
         {
-            case DT_INT:
-            case DT_LONG:
-            case DT_FLOAT:
-                return DT_FLOAT;
-            default:
-                return DT_STRING;
+            DataType argType = getNthOfListInt(dataTypes,0);
+
+            switch(argType)
+            {
+                case DT_INT:
+                case DT_LONG:
+                case DT_FLOAT:
+                    return DT_FLOAT;
+                default:
+                    return DT_STRING;
+            }
         }
     }
 
-    if (streq(fName,"count"))
+    if (streq(capName,"COUNT"))
         return DT_LONG;
 
-    if (streq(fName,"xmlagg"))
+    if (streq(capName,"XMLAGG"))
         return DT_STRING;
 
     if (streq(fName,"ROW_NUMBER"))
         return DT_INT;
     if (streq(fName, "DENSE_RANK"))
         return DT_INT;
+
+    if (streq(capName,"CEIL"))
+    {
+        if(LIST_LENGTH(dataTypes) == 1)
+        {
+            DataType argType = getNthOfListInt(dataTypes,0);
+            switch(argType)
+            {
+                case DT_INT:
+                    return DT_INT;
+                case DT_LONG:
+                case DT_FLOAT:
+                    return DT_LONG;
+                default:
+                    ;
+            }
+        }
+    }
+
+    if (streq(capName,"ROUND"))
+    {
+        if(LIST_LENGTH(dataTypes) == 2)
+        {
+            DataType argType = getNthOfListInt(dataTypes,0);
+            DataType parType = getNthOfListInt(dataTypes,1);
+
+            if (parType == DT_INT)
+            {
+                switch(argType)
+                {
+                    case DT_INT:
+                        return DT_INT;
+                    case DT_LONG:
+                    case DT_FLOAT:
+                        return DT_LONG;
+                    default:
+                        ;
+                }
+            }
+        }
+    }
+
+    if (streq(capName, "GREATEST") || streq(capName, "LEAST")
+            || streq(capName, "COALESCE") || streq(capName, "LEAD")
+            || streq(capName, "LAG") || streq(capName, "FIRST_VALUE")
+            || streq(capName, "LAST_VALUE"))
+    {
+        DataType dt = getNthOfListInt(dataTypes, 0);
+
+        FOREACH_INT(argDT, dataTypes)
+        {
+            dt = lcaType(dt, argDT);
+        }
+
+        return dt;
+    }
+   //TODO
+
+
+    *funcExists = FALSE;
 
     return DT_STRING;
 }
@@ -1353,6 +1454,21 @@ oracleGenExecQuery (char *query)
     return r;
 }
 
+void
+oracleGenExecQueryIgnoreResult (char *query)
+{
+    OCI_Resultset *rs;
+
+    rs = executeStatement(query);
+
+    // fetch tuples
+    while(OCI_FetchNext(rs))
+        ;
+
+    // cleanup
+    OCI_ReleaseResultsets(st);
+}
+
 static OCI_Transaction *
 createTransaction(IsolationLevel isoLevel)
 {
@@ -1515,6 +1631,12 @@ oracleExecuteStatement(char *statement)
 	return NULL;
 }
 
+void
+oracleGenExecQueryIgnoreResult (char *query)
+{
+
+}
+
 Node *
 oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel)
 {
@@ -1541,13 +1663,13 @@ assembleOracleMetadataLookupPlugin (void)
 }
 
 DataType
-oracleGetOpReturnType (char *oName, List *dataTypes)
+oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists)
 {
     return DT_STRING;
 }
 
 DataType
-oracleGetFuncReturnType (char *fName, List *dataTypes)
+oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
 {
     return DT_STRING;
 }
