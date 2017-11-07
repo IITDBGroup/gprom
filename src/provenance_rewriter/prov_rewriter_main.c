@@ -133,7 +133,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
     if (op->inputType == PROV_INPUT_TEMPORAL_QUERY)
     {
-            return rewriteImplicitTemporal((QueryOperator *) op);
+        return rewriteImplicitTemporal((QueryOperator *) op);
     }
 
     if (op->inputType == PROV_INPUT_UNCERTAIN_QUERY)
@@ -152,12 +152,6 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
     //semiring comb operations
     boolean isCombinerActivated = isSemiringCombinerActivatedOp((QueryOperator *) op);
-    char *sc_func;
-    Node *sc_expr;
-    if(isCombinerActivated){
-        sc_func = getSemiringCombinerFuncName((QueryOperator *) op);
-        sc_expr = getSemiringCombinerExpr((QueryOperator *) op);
-    }
 
     // apply provenance rewriting if required
     switch(op->provType)
@@ -170,9 +164,16 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             removeParent(result, (QueryOperator *) op);
 
             //semiring comb operations
-            if(isCombinerActivated){
-                INFO_LOG("user has provied a semiring combiner: %s:\n\n%s", sc_func, beatify(nodeToString(sc_expr)));
-                result = addSemiringCombiner(result,sc_func,sc_expr);
+            if(isCombinerActivated)
+            {
+                Node *addExpr;
+                Node *multExpr;
+
+                addExpr = getSemiringCombinerAddExpr((QueryOperator *) op);
+                multExpr = getSemiringCombinerMultExpr((QueryOperator *) op);
+
+                INFO_LOG("user has provied a semiring combiner: %s:\n\n%s", beatify(nodeToString(addExpr)), beatify(nodeToString(multExpr)));
+                result = addSemiringCombiner(result,addExpr,multExpr);
                 INFO_OP_LOG("Add semiring combiner:", result);
             }
 

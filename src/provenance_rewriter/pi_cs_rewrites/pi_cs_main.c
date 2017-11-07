@@ -83,9 +83,9 @@ rewritePI_CS (ProvenanceComputation  *op)
 //    provAttrs = getQueryOperatorAttrNames((QueryOperator *) op);
 
     //check for SC aggregation optimizer
-        if(isSemiringCombinerActivatedOp((QueryOperator *) op)){
-        	SET_STRING_PROP(rewRoot, PROP_PC_SC_AGGR_OPT, (Node *)createConstString(getSemiringCombinerFuncName((QueryOperator *) op)));
-        }
+    if(isSemiringCombinerActivatedOp((QueryOperator *) op)){
+        SET_STRING_PROP(rewRoot, PROP_PC_SC_AGGR_OPT, getSemiringCombinerAddExpr((QueryOperator *) op));
+    }
 
     // rewrite subquery under provenance computation
     rewritePI_CSOperator(rewRoot);

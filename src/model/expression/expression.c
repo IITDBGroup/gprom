@@ -432,7 +432,7 @@ typeOf (Node *expr)
 {
     switch(expr->type)
     {
-    	case T_AttributeReference:
+    	    case T_AttributeReference:
         {
             AttributeReference *a = (AttributeReference *) expr;
             return a->attrType;
