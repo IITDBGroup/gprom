@@ -133,21 +133,21 @@ optimizeOneGraph (QueryOperator *root)
     	APPLY_AND_TIME_OPT("factor attributes in conditions",
     			factorAttrsInExpressions,
 				OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
-//    	APPLY_AND_TIME_OPT("selection move around",
-//    			selectionMoveAround,
-//				OPTIMIZATION_SELECTION_MOVE_AROUND);
-//    	APPLY_AND_TIME_OPT("pull up duplicate remove operators",
-//    			pullUpDuplicateRemoval,
-//				OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
-//    	APPLY_AND_TIME_OPT("remove unnecessary columns",
-//    			removeUnnecessaryColumns,
-//				OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
-//    	APPLY_AND_TIME_OPT("remove unnecessary window operators",
-//    			removeUnnecessaryWindowOperator,
-//				OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS);
-//    	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
-//    			mergeAdjacentOperators,
-//				OPTIMIZATION_MERGE_OPERATORS);
+    	APPLY_AND_TIME_OPT("selection move around",
+    			selectionMoveAround,
+				OPTIMIZATION_SELECTION_MOVE_AROUND);
+    	APPLY_AND_TIME_OPT("pull up duplicate remove operators",
+    			pullUpDuplicateRemoval,
+				OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS);
+    	APPLY_AND_TIME_OPT("remove unnecessary columns",
+    			removeUnnecessaryColumns,
+				OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS);
+    	APPLY_AND_TIME_OPT("remove unnecessary window operators",
+    			removeUnnecessaryWindowOperator,
+				OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS);
+    	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
+    			mergeAdjacentOperators,
+				OPTIMIZATION_MERGE_OPERATORS);
 //    	APPLY_AND_TIME_OPT("selection pushdown",
 //    			pushDownSelectionOperatorOnProv,
 //				OPTIMIZATION_SELECTION_PUSHING);
@@ -157,54 +157,54 @@ optimizeOneGraph (QueryOperator *root)
 //    	APPLY_AND_TIME_OPT("pushdown selections through joins",
 //    			pushDownSelectionThroughJoinsOperatorOnProv,
 //				OPTIMIZATION_SELECTION_PUSHING_THROUGH_JOINS);
-//    	APPLY_AND_TIME_OPT("factor attributes in conditions",
-//    			factorAttrsInExpressions,
-//				OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
-//    	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
-//    			mergeAdjacentOperators,
-//				OPTIMIZATION_MERGE_OPERATORS);
-//    	if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
-//    	{
-//    	    START_TIMER("PropertyInference - Keys");
-//    		computeKeyProp(rewrittenTree);
-//    		STOP_TIMER("PropertyInference - Keys");
-//
-//    		//exit(-1);
-//    		// Set TRUE for each Operator
-//    		START_TIMER("PropertyInference - Set");
-//    		initializeSetProp(rewrittenTree);
-//    		// Set FALSE for root
-//    		setStringProperty((QueryOperator *) rewrittenTree, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
-//    		computeSetProp(rewrittenTree);
-//            STOP_TIMER("PropertyInference - Set");
-//
-//    		List *icols =  getAttrNames(GET_OPSCHEMA(root));
-//    		//char *a = (char *)getHeadOfListP(icols);
-//    		Set *seticols = MAKE_STR_SET(strdup((char *)getHeadOfListP(icols)));
-//    		FOREACH(char, a, icols)
-//    		addToSet (seticols, a);
-//    	}
-//    	/*    APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
-//            removeRedundantDuplicateOperatorBySet,
-//            OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);*/
-//    	APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
-//    			removeRedundantDuplicateOperatorBySetWithInit,
-//				OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
-//    	APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by key",
-//    			removeRedundantDuplicateOperatorByKey,
-//				OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
-//    	APPLY_AND_TIME_OPT("remove redundant projection operators",
-//    			removeRedundantProjections,
-//				OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS);
-//    	APPLY_AND_TIME_OPT("pull up provenance projections",
-//    			pullingUpProvenanceProjections,
-//				OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ);
+    	APPLY_AND_TIME_OPT("factor attributes in conditions",
+    			factorAttrsInExpressions,
+				OPTIMIZATION_FACTOR_ATTR_IN_PROJ_EXPR);
     	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
     			mergeAdjacentOperators,
 				OPTIMIZATION_MERGE_OPERATORS);
-//    	APPLY_AND_TIME_OPT("materialize projections that are unsafe to be merged",
-//    			materializeProjectionSequences,
-//				OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ);
+    	if (getBoolOption(OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR))
+    	{
+    	    START_TIMER("PropertyInference - Keys");
+    		computeKeyProp(rewrittenTree);
+    		STOP_TIMER("PropertyInference - Keys");
+
+    		//exit(-1);
+    		// Set TRUE for each Operator
+    		START_TIMER("PropertyInference - Set");
+    		initializeSetProp(rewrittenTree);
+    		// Set FALSE for root
+    		setStringProperty((QueryOperator *) rewrittenTree, PROP_STORE_BOOL_SET, (Node *) createConstBool(FALSE));
+    		computeSetProp(rewrittenTree);
+            STOP_TIMER("PropertyInference - Set");
+
+    		List *icols =  getAttrNames(GET_OPSCHEMA(root));
+    		//char *a = (char *)getHeadOfListP(icols);
+    		Set *seticols = MAKE_STR_SET(strdup((char *)getHeadOfListP(icols)));
+    		FOREACH(char, a, icols)
+    		addToSet (seticols, a);
+    	}
+//    	/*    APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
+//            removeRedundantDuplicateOperatorBySet,
+//            OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);*/
+    	APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by set",
+    			removeRedundantDuplicateOperatorBySetWithInit,
+				OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
+    	APPLY_AND_TIME_OPT("remove redundant duplicate removal operators by key",
+    			removeRedundantDuplicateOperatorByKey,
+				OPTIMIZATION_REMOVE_REDUNDANT_DUPLICATE_OPERATOR);
+    	APPLY_AND_TIME_OPT("remove redundant projection operators",
+    			removeRedundantProjections,
+				OPTIMIZATION_REMOVE_REDUNDANT_PROJECTIONS);
+    	APPLY_AND_TIME_OPT("pull up provenance projections",
+    			pullingUpProvenanceProjections,
+				OPTIMIZATION_PULLING_UP_PROVENANCE_PROJ);
+    	APPLY_AND_TIME_OPT("merge adjacent projections and selections",
+    			mergeAdjacentOperators,
+				OPTIMIZATION_MERGE_OPERATORS);
+    	APPLY_AND_TIME_OPT("materialize projections that are unsafe to be merged",
+    			materializeProjectionSequences,
+				OPTIMIZATION_MATERIALIZE_MERGE_UNSAFE_PROJ);
 
     	APPLY_AND_TIME_OPT("push down aggregation through join",
     			pushDownAggregationThroughJoin,

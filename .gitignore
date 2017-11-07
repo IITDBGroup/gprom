@@ -55,3 +55,4 @@ dpkg
 .#*
 test/testexprcplex
 /Release
+/test/testuncert

@@ -12,7 +12,8 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.test.testgenerator.dataset.MemDBTable;
 import org.gprom.jdbc.test.testgenerator.dataset.Row;
 import org.junit.AfterClass;
@@ -26,7 +27,7 @@ import static org.junit.Assert.*;
  */
 public class TestTableModel {
 
-	Logger log = Logger.getLogger(TestTableModel.class);
+	Logger log = LogManager.getLogger(TestTableModel.class);
 	
 	@BeforeClass
 	public static void setup () throws SQLException, ClassNotFoundException {

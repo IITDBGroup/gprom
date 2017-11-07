@@ -15,11 +15,12 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.Vector;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class PropertyWrapper extends Properties {
 
-	static Logger log = Logger.getLogger(PropertyWrapper.class);
+	static Logger log = LogManager.getLogger(PropertyWrapper.class);
 	
 	/**
 	 * 

@@ -102,6 +102,7 @@ extern long oracleGetCommitScn (char *tableName, long maxScn, char *xid);
 
 extern Node *oracleExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern Relation *oracleGenExecQuery (char *query);
+extern void oracleGenExecQueryIgnoreResult (char *query);
 
 /* specific methods */
 #if HAVE_ORACLE_BACKEND

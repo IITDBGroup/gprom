@@ -47,6 +47,7 @@ extern void deregisterSignalHandler(void);
 extern void processException(void);
 extern void storeExceptionInfo(ExceptionSeverity s, const char *message, const char *f, int l);
 extern char *currentExceptionToString(void);
+extern void setWipeContext(char *wContext);
 
 extern sigjmp_buf *exceptionBuf;
 

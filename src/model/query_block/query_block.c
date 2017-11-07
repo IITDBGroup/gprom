@@ -14,8 +14,101 @@
 
 #include "mem_manager/mem_mgr.h"
 #include "model/query_block/query_block.h"
+#include "model/query_operator/query_operator.h"
 #include "model/node/nodetype.h"
 #include "log/logger.h"
+
+
+List *
+getQBAttrDefs(Node *qb)
+{
+    List *result = NIL;
+    List *attrs = getQBAttrNames(qb);
+    List *dts = getQBAttrDTs(qb);
+
+    FORBOTH_LC(nameLc, dtLc, attrs, dts)
+    {
+        result = appendToTailOfList(result,
+                createAttributeDef(LC_STRING_VAL(nameLc), LC_INT_VAL(dtLc)));
+    }
+
+    return result;
+}
+
+List *
+getQBAttrDTs (Node *qb)
+{
+    List *DTs = NIL;
+
+    switch(qb->type)
+    {
+        case T_QueryBlock:
+        {
+            QueryBlock *subQb = (QueryBlock *) qb;
+            FOREACH(SelectItem,s,subQb->selectClause)
+            {
+                DTs = appendToTailOfListInt(DTs,
+                        (int) typeOf(s->expr));
+            }
+        }
+        break;
+        case T_SetQuery:
+        {
+            SetQuery *setQ = (SetQuery *) qb;
+            DTs = getQBAttrDTs(setQ->lChild);
+        }
+        break;
+        case T_ProvenanceStmt:
+        {
+            ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
+            DTs = pStmt->dts;
+        }
+        break;
+        default:
+            FATAL_LOG("unexpected node type as FROM clause item: %s", beatify(nodeToString(qb)));
+            break;
+    }
+
+    return DTs;
+}
+
+
+List *
+getQBAttrNames (Node *qb)
+{
+    List *attrs = NIL;
+
+    switch(qb->type)
+    {
+        case T_QueryBlock:
+        {
+            QueryBlock *subQb = (QueryBlock *) qb;
+            FOREACH(SelectItem,s,subQb->selectClause)
+            {
+                 attrs = appendToTailOfList(attrs,
+                        s->alias);
+            }
+        }
+        break;
+        case T_SetQuery:
+        {
+            SetQuery *setQ = (SetQuery *) qb;
+            attrs = deepCopyStringList(setQ->selectClause);
+        }
+        break;
+        case T_ProvenanceStmt:
+        {
+            ProvenanceStmt *pStmt = (ProvenanceStmt *) qb;
+            attrs = deepCopyStringList(pStmt->selectClause);
+        }
+        break;
+        default:
+            break;
+    }
+
+    return attrs;
+}
+
 
 SetQuery *
 createSetQuery(char *setOp, boolean all, Node *lChild,
@@ -23,12 +116,14 @@ createSetQuery(char *setOp, boolean all, Node *lChild,
 {
     SetQuery *result = makeNode(SetQuery);
 
-    if (!strcmp(setOp, "UNION"))
+    if (streq(setOp, "UNION"))
         result->setOp = SETOP_UNION;
-    if (!strcmp(setOp, "INTERSECT"))
+    else if (streq(setOp, "INTERSECT"))
         result->setOp = SETOP_INTERSECTION;
-    if (!strcmp(setOp, "MINUS"))
+    else if (streq(setOp, "MINUS"))
         result->setOp = SETOP_DIFFERENCE;
+    else
+        FATAL_LOG("set operation has to be one of UNION, INTERSECT, MINUS and not <%s>", setOp);
 
     result->all = all;
     result->selectClause = NIL;
@@ -335,7 +430,7 @@ createAlterTableAddColumn (char *tName, char *newColName, char *newColDT)
 AlterTable *
 createAlterTableRemoveColumn (char *tName, char *colName)
 {
-    AlterTable *result = NEW(AlterTable);
+    AlterTable *result = makeNode(AlterTable);
 
     result->tableName = tName;
     result->cmdType = ALTER_TABLE_REMOVE_COLUMN;

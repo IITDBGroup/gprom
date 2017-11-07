@@ -457,7 +457,9 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
         // rewrite for summarization
         if (summaryType != NULL)
+        {
             rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree, userQuestion, sampleSize, topK);
+        }
 
 	    if(applyOptimizations)
 	    {
@@ -467,11 +469,19 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	        STOP_TIMER("OptimizeModel");
 	    }
 	    else
+	    {
 	        if (isA(rewrittenTree, List))
+	        {
 	            FOREACH(QueryOperator,o,(List *) rewrittenTree)
-	            LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
+                {
+                    LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
+                }
+	        }
 	        else
+	        {
 	            rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
+	        }
+	    }
 
 	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
 	}
@@ -494,19 +504,22 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     Node *oModel;
 
     // store summary type
-    ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
+    if (isA(parse, List) && isA(getHeadOfListP((List *) parse), ProvenanceStmt))
+    {
+        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
 
-    if (ps->userQuestion != NIL)
-    	userQuestion = ps->userQuestion;
+        if (ps->userQuestion != NIL)
+            userQuestion = ps->userQuestion;
 
-    if (ps->summaryType != NULL)
-    	summaryType = ps->summaryType;
+        if (ps->summaryType != NULL)
+            summaryType = ps->summaryType;
 
-    if (ps->sampleSize != 0)
-    	sampleSize = ps->sampleSize;
+        if (ps->sampleSize != 0)
+            sampleSize = ps->sampleSize;
 
-    if (ps->topK != 0)
-    	topK = ps->topK;
+        if (ps->topK != 0)
+            topK = ps->topK;
+    }
 
     START_TIMER("translation");
     oModel = translateParse(parse);

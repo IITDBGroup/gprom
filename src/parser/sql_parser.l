@@ -40,6 +40,7 @@
 	char *result = strdup(yytext); \
 	yylval.stringVal = result; \
 	for(; *result != '\0'; (*(result) = toupper(*result)), result++); \
+	TRACE_LOG("Upcased TOKEN <%s>", yylval.stringVal); \
 	return name; \
 	}
 #define TOKSAVE(name,field,function) { \
@@ -81,7 +82,7 @@ doublequote     [\"]
 quotedIdentifier		{doublequote}[^\"]+{doublequote}
 identifiers				({identStart}{identContinue}*)
 identifierPart			({identifiers}|{quotedIdentifier})
-compositeIdentifier		({identifierPart}({identDelim}{identifierPart}))*
+compositeIdentifier		({identifierPart}({identDelim}{identifierPart})+)
 parameters		[:]({identifiers}|{integer})
 
 /* operators */
@@ -129,6 +130,7 @@ strconcat		"||"
 (?i:UNION)        	TOK(UNION)
 (?i:INTERSECT)      TOK(INTERSECT)
 (?i:MINUS)        	TOK(MINUS)
+(?i:EXCEPT)        	TOK(EXCEPT)
 (?i:JOIN)        	TOK(JOIN)
 (?i:LEFT)        	TOK(LEFT)
 (?i:RIGHT)        	TOK(RIGHT)
@@ -211,7 +213,16 @@ strconcat		"||"
 (?i:EXPLAIN)		TOK(EXPLAIN)
 (?i:SAMPLE)			TOK(SAMPLE)
 (?i:TOP)			TOK(TOP)
-
+(?i:ISOLATION)		TOK(ISOLATION)
+(?i:LEVEL)			TOK(LEVEL)
+(?i:OPTIONS)		TOK(OPTIONS)
+(?i:SEQUENCED)		TOK(SEQUENCED)
+(?i:TEMPORAL)		TOK(TEMPORAL)
+(?i:TIME)			TOK(TIME)
+(?i:SEMIRING)		TOK(SEMIRING)
+(?i:COMBINER)		TOK(COMBINER)
+(?i:MULT)           TOK(MULT)
+(?i:UNCERTAIN)		TOK(UNCERTAIN)
 
 	/* booleans */
 {bool}			TOK(boolConst)
@@ -219,6 +230,7 @@ strconcat		"||"
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)
 {compositeIdentifier}	UPCASE_TOK(compositeIdentifier)
+
 {quotedIdentifier}   { 		
 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
@@ -254,7 +266,7 @@ strconcat		"||"
 		yylval.stringVal = MALLOC(strlen(yytext) - 1);
 		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
 		yylval.stringVal[strlen(yytext) - 2] = '\0';
-		TRACE_LOG("Lexed TOKEN <stringConst> with VALUE <%s>", yytext);
+		TRACE_LOG("Lexed TOKEN <stringConst> (quoted) with VALUE <%s>", yytext);
 		return stringConst;
 	}
 

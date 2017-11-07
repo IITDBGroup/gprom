@@ -8,6 +8,13 @@ MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
 WORKDIR /gprom
 ########################################
+# Install monetdb
+########################################
+RUN apt-get -y update && apt-get -y install apt-transport-https
+RUN echo "deb http://dev.monetdb.org/downloads/deb/ jessie monetdb" > /etc/apt/sources.list.d/monetdb.list \
+    && 	echo "deb-src http://dev.monetdb.org/downloads/deb/ jessie monetdb" >> /etc/apt/sources.list.d/monetdb.list \
+	&& wget -q --output-document=- https://www.monetdb.org/downloads/MonetDB-GPG-KEY | apt-key add -
+########################################
 # Install packages needed for building
 ########################################
 RUN apt-get -y update && apt-get install -y \
@@ -28,8 +35,15 @@ RUN apt-get -y update && apt-get install -y \
 	make \
 	man-db \
 	sqlite3 \
+	monetdb5-sql \
+	monetdb-client \
+	libmonetdb-client-dev \
 	&& rm -rf /var/lib/apt/lists/*
 ENV JAVA_HOME /usr/lib/jvm/java-7-openjdk-amd64
+########################################
+# Setup MonetDB
+########################################
+RUN usermod -a -G monetdb root
 ########################################
 # Clone OCILIB
 ########################################

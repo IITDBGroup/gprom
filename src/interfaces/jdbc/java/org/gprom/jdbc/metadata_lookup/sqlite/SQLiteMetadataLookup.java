@@ -9,7 +9,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.jna.GProMJavaInterface.DataType;
 import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
 
@@ -19,7 +20,7 @@ import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
  */
 public class SQLiteMetadataLookup extends AbstractMetadataLookup {
 
-	private static Logger log = Logger.getLogger(SQLiteMetadataLookup.class);
+	private static Logger log = LogManager.getLogger(SQLiteMetadataLookup.class);
 
 	private static Set<String> aggFuncs;
 	private static String[] aggFuncList = { "avg", "count", "group_concat", "max", "min", "sum", "total" };

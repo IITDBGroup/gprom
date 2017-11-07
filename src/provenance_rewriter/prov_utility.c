@@ -169,6 +169,31 @@ createProjOnAttrsByName(QueryOperator *op, List *attrNames)
     return createProjOnAttrs(op, attrPos);
 }
 
+AttributeReference *
+createAttrsRefByName(QueryOperator *op, char *attrNames)
+{
+	AttributeDef *ad = copyObject(getAttrDefByName(op, attrNames));
+
+	ASSERT(ad != NULL);
+
+	int defPos = getAttrPos(op, ad->attrName);
+	AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, defPos, INVALID_ATTR, ad->dataType);
+
+	return ar;
+}
+
+AttributeReference *
+createAttrRefByPos(QueryOperator *op, int pos)
+{
+    AttributeDef *ad = copyObject(getAttrDefByPos(op, pos));
+    ASSERT(ad != NULL);
+
+    AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, pos, INVALID_ATTR, ad->dataType);
+
+    return ar;
+}
+
+
 
 /*
  * Given a subtree rooted a "orig" replace this subtree with the tree rooted
@@ -196,8 +221,8 @@ switchSubtrees(QueryOperator *orig, QueryOperator *new)
         else
         {
             FOREACH(QueryOperator,pChild,parent->inputs)
-            {
-                if (equal(pChild,orig))
+            {//TODO check whether this change is correct: we want to check for pointer equality here
+                if (pChild == orig)
                     pChild_his_cell->data.ptr_value = new;
             }
         }
@@ -238,7 +263,7 @@ switchSubtreeWithExisting (QueryOperator *orig, QueryOperator *new)
         {
             FOREACH(QueryOperator,pChild,parent->inputs)
             {
-                if (equal(pChild,orig))
+                if (pChild == orig)
                     pChild_his_cell->data.ptr_value = new;
             }
         }

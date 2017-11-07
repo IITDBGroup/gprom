@@ -43,7 +43,8 @@ static const char *commandHelp = "\n"
             "\\i(nput language)\tshow help for currently selected parser\n"
             "\\o(ptions)\t\tshow current parameter settings\n"
             "\\s(et) PAR VAL\t\tset parameter PAR to value VAL\n"
-            "\\b(ackend) QUERY\tsend QUERY directly to the backend"
+            "\\b(ackend) QUERY\tsend QUERY directly to the backend\n"
+            "\\m(ultiline)\t\t\ttoggle multiline editing mode, if on, then semicolon ends a query"
         ;
 
 static char *prompt = "GProM";
@@ -51,6 +52,8 @@ static char *userhomedir = NULL;
 static char *gpromconf = NULL;
 static char *gpromhist = NULL;
 static boolean histExists = FALSE;
+static boolean multiLine = FALSE;
+static boolean multiLineDone = FALSE;
 
 #define GPROM_ENV_CONFFILE "GPROM_CONF"
 #define GPROM_ENV_HISTFILE "GPROM_HIST"
@@ -63,6 +66,9 @@ static void inputLoop(void);
 static void utility(char *command);
 static ExceptionHandler handleCLIException (const char *message, const char *file, int line, ExceptionSeverity s);
 static char *readALine(char **str);
+static char *readMultiLine (char **str);
+static boolean statementFinished(char *stmt);
+static void addToHistory(char *res);
 static void readHistory(void);
 static void persistHistory(void);
 static char *createPromptString (void);
@@ -159,43 +165,46 @@ createPromptString (void)
 static void
 inputLoop(void)
 {
-	char* sql=(char*) CALLOC(100000,1);
-	while(TRUE)
-	{
-	    char *returnVal;
+    char* sql=(char*) CALLOC(100000,1);
+    while(TRUE)
+    {
+        char *returnVal;
 
-	    returnVal = readALine(&sql);
+        if (multiLine)
+            returnVal = readMultiLine(&sql);
+        else
+            returnVal = readALine(&sql);
 
-		// deal with failure
-		if (returnVal == NULL && ferror(stdin))
-		{
-		    printf("\n\nError reading from stdin\n");
-		    exit(EXIT_FAILURE);
-		}
+        // deal with failure
+        if (returnVal == NULL && ferror(stdin))
+        {
+            printf("\n\nError reading from stdin\n");
+            exit(EXIT_FAILURE);
+        }
 
-		DEBUG_LOG("process command:\n<%s>", sql);
+        DEBUG_LOG("process command:\n<%s>", sql);
 
-		// deal with utility commands
-		if (IS_UTILITY(sql))
-		{
-		    utility(sql);
-		    continue;
-		}
+        // deal with utility commands
+        if (IS_UTILITY(sql))
+        {
+            utility(sql);
+            continue;
+        }
 
-		// process query
-		TRY
-		{
+        // process query
+        TRY
+        {
             NEW_AND_ACQUIRE_MEMCONTEXT("PROCESS_CONTEXT");
             process(sql);
             FREE_AND_RELEASE_CUR_MEM_CONTEXT();
-		}
-		ON_EXCEPTION
-		{
-		    printf("\nError occured\n");
-		}
-		END_ON_EXCEPTION
-	}
-	FREE(sql);
+        }
+        ON_EXCEPTION
+        {
+            printf("\nError occured\n");
+        }
+        END_ON_EXCEPTION
+    }
+    FREE(sql);
 }
 
 /*
@@ -258,6 +267,20 @@ utility(char *command)
             exeRunQuery(cmd);
         }
         END_TRY
+        return;
+    }
+
+    // TOGGLE MULTILINE EDITING
+    if (strStartsWith(command, "\\m"))
+    {
+        multiLine = ! multiLine;
+        if (multiLine)
+        {
+            printf("Activated multi line commands (use ; to end command)\n");
+        }
+        else
+            printf("Activated  single line commands\n");
+
         return;
     }
 
@@ -439,16 +462,70 @@ readALine(char **str)
 
     /* Get a line from the user. */
     res = readline (prompt);
-    DEBUG_LOG(res);
+    TRACE_LOG(res);
+    /* If the line has any text in it, save it to the history. */
+    addToHistory(res);
+    *str = res;
+    return *str;
+}
+
+static char *
+readMultiLine (char **str)
+{
+    multiLineDone = FALSE;
+    StringInfo result = makeStringInfo();
+    char *line;
+    int lineNum = 0;
+
+    // online show prompt for first line
+    while(!multiLineDone)
+    {
+        if (lineNum == 0)
+            line = readline(prompt);
+        else
+            line = readline("> ");
+        appendStringInfoString(result, line);
+
+        if (statementFinished(line) || IS_UTILITY(line))
+            multiLineDone = TRUE;
+
+        if (!multiLineDone)
+            appendStringInfoString(result, "\n");
+
+        lineNum++;
+    }
+
+    // add to history if the line is not empty
+    addToHistory(result->data);
+    *str = result->data;
+    return *str;
+}
+
+static boolean
+statementFinished(char *stmt)
+{
+    char *trimLine = strtrim(stmt);
+    char lastChar = trimLine[strlen(trimLine) - 1];
+    TRACE_LOG("line <%s> , trimmed <%s>, last char <%c>", stmt, trimLine, lastChar);
+    if (lastChar == ';') //TODO accept whitepsace
+        return TRUE;
+    return FALSE;
+
+}
+
+
+static void
+addToHistory(char *res)
+{
     /* If the line has any text in it, save it to the history. */
     if (res && *res)
     {
         if (!streq(res, "\\q"))
             add_history (res);
     }
-    *str = res;
-    return *str;
 }
+
+
 
 static void
 readHistory()
