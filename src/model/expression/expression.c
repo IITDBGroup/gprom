@@ -928,6 +928,7 @@ static DataType
 typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
 {
     *exists = TRUE;
+    char *upCaseOpName = strToUpper(opName);
     DataType result = DT_INT;
     DataType dLeft = DT_INT;
     DataType dRight = DT_INT;
@@ -940,8 +941,8 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
         dRight = getNthOfListInt(argDTs,1);
 
     // logical operators
-    if (streq(opName,OPNAME_OR)
-            || streq(opName,OPNAME_AND)
+    if (streq(upCaseOpName,OPNAME_OR)
+            || streq(upCaseOpName,OPNAME_AND)
             )
     {
         if (dLeft == dRight && dLeft == DT_BOOL)
@@ -977,6 +978,7 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
     if (streq(opName,"<")
             || streq(opName,">")
             || streq(opName,"<=")
+            || streq(opName,">=")
             || streq(opName,"=>")
             || streq(opName,"<>")
             || streq(opName,"^=")

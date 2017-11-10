@@ -901,7 +901,7 @@ analyzeWhere (QueryBlock *qb, List *parentFroms)
     if (returnType != DT_BOOL)
         THROW(SEVERITY_RECOVERABLE,
                 "WHERE clause result type should be DT_BOOL, but was %s:\n<%s>",
-                DataTypeToString(returnType), nodeToString(qb->whereClause));
+                DataTypeToString(returnType), beatify(nodeToString(qb->whereClause)));
 }
 
 static void
