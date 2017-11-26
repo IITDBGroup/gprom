@@ -81,6 +81,8 @@ SEQUENCED TEMPORAL (SELECT max(B) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_
 SEQUENCED TEMPORAL (SELECT sum(SALARY) AS SSAL FROM TEMP_EMP WITH TIME (FROM_DATE, TO_DATE));
 </entry>
 <entry key="q7.result">
+ SSAL  | T_B        | T_E        |
+----------------------------------
  (null)      | 4712-01-01 00:00:00.0 |  1988-09-05 00:00:00.0 | 
  41538       | 1988-09-05 00:00:00.0 |  1989-09-05 00:00:00.0 | 
  45131       | 1989-09-05 00:00:00.0 |  1990-09-05 00:00:00.0 | 

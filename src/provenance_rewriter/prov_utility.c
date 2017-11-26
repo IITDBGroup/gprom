@@ -169,29 +169,29 @@ createProjOnAttrsByName(QueryOperator *op, List *attrNames)
     return createProjOnAttrs(op, attrPos);
 }
 
-AttributeReference *
-createAttrsRefByName(QueryOperator *op, char *attrNames)
-{
-	AttributeDef *ad = copyObject(getAttrDefByName(op, attrNames));
-
-	ASSERT(ad != NULL);
-
-	int defPos = getAttrPos(op, ad->attrName);
-	AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, defPos, INVALID_ATTR, ad->dataType);
-
-	return ar;
-}
-
-AttributeReference *
-createAttrRefByPos(QueryOperator *op, int pos)
-{
-    AttributeDef *ad = copyObject(getAttrDefByPos(op, pos));
-    ASSERT(ad != NULL);
-
-    AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, pos, INVALID_ATTR, ad->dataType);
-
-    return ar;
-}
+//AttributeReference *
+//createAttrsRefByName(QueryOperator *op, char *attrNames)
+//{
+//	AttributeDef *ad = copyObject(getAttrDefByName(op, attrNames));
+//
+//	ASSERT(ad != NULL);
+//
+//	int defPos = getAttrPos(op, ad->attrName);
+//	AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, defPos, INVALID_ATTR, ad->dataType);
+//
+//	return ar;
+//}
+//
+//AttributeReference *
+//createAttrRefByPos(QueryOperator *op, int pos)
+//{
+//    AttributeDef *ad = copyObject(getAttrDefByPos(op, pos));
+//    ASSERT(ad != NULL);
+//
+//    AttributeReference *ar = createFullAttrReference(strdup(ad->attrName), 0, pos, INVALID_ATTR, ad->dataType);
+//
+//    return ar;
+//}
 
 
 
@@ -405,4 +405,17 @@ removeParentFromOps (List *operators, QueryOperator *parent)
 {
     FOREACH(QueryOperator,op,operators)
         op->parents = REMOVE_FROM_LIST_PTR(op->parents, parent);
+}
+
+void
+substOpInParents (List *parents, QueryOperator *orig, QueryOperator *newOp)
+{
+    FOREACH(QueryOperator,p,parents)
+    {
+        FOREACH(QueryOperator,pChild,p->inputs)
+        {
+            if (equal(pChild,orig))
+                pChild_his_cell->data.ptr_value = newOp;
+        }
+    }
 }

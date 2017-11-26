@@ -39,7 +39,8 @@ static void setTempAttrProps(QueryOperator *o);
 static AttributeReference *getTempAttrRef (QueryOperator *o, boolean begin);
 static void coalescingAndNormalizationVisitor (QueryOperator *q, Set *done);
 static ProjectionOperator *createProjDoublingAggAttrs(QueryOperator *agg, int numNewAggs, boolean add, boolean isGB);
-
+static List *getAttrRefsByNames (QueryOperator *op, List *attrNames);
+static void markTemporalAttrsAsProv (QueryOperator *op);
 
 #define LOG_RESULT(mes,op) DEBUG_OP_LOG(mes,op);
 
@@ -51,6 +52,15 @@ static ProjectionOperator *createProjDoublingAggAttrs(QueryOperator *agg, int nu
 #define DEC_AGG_PREFIX "DEC__"
 #define TIMEPOINT_ATTR "TS"
 #define NEXT_TS_ATTR "_next_ts"
+#define OPEN_INTER_COUNT_ATTR "OPEN_INTER_C_"
+#define WIN_PREFIX "W_"
+#define COUNT_START_ANAME "count_start"
+#define COUNT_END_ANAME "count_end"
+#define TS "TS"
+#define IS_S_NAME "IS_S"
+#define IS_E_NAME "IS_E"
+#define NUMOPEN "NUMOPEN"
+
 
 static int T_BEtype = -1;
 
@@ -70,24 +80,27 @@ rewriteImplicitTemporal (QueryOperator *q)
     Set *done = PSET();
     topSchema = copyObject(q->schema->attrDefs);
     disambiguiteAttrNames((Node *) top, done);
-    if (isA(top,ProjectionOperator)){
-       // top->schema->attrDefs = topSchema;
-    	}
-    else
+    if (!isA(top,ProjectionOperator))
     {
         QueryOperator *proj = createProjOnAllAttrs(top);
         addChildOperator(proj, top);
         switchSubtrees((QueryOperator *) top, proj);
         proj->schema->attrDefs = topSchema;
+        top = proj;
+        setTempAttrProps(top);
+    }
+
+    // add coalescing if requested
+    if(getBoolOption(TEMPORAL_USE_COALSECE))
+    {
+        SET_BOOL_STRING_PROP(top,PROP_TEMP_DO_COALESCE);
+        DEBUG_OP_LOG("mark top operator for coalescing", top);
+        top = addCoalesceForAllOp(top); // addCoalesce(top);
     }
 
     // adapt inputs of parents to remove provenance computation
     switchSubtrees((QueryOperator *) q, top);
     DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
-
-    //top = addCoalesceForAllOp(top);
-    if(getBoolOption(TEMPORAL_USE_COALSECE))
-    	    top = addCoalesce(top);
 
     return top;
 }
@@ -176,9 +189,9 @@ temporalRewriteOperator(QueryOperator *op)
         }
 
         if(getBoolOption(TEMPORAL_USE_NORMALIZATION_WINDOW))
-        	rewrittenOp = addTemporalNormalizationUsingWindow(rewrittenOp, rewrittenOp, attrs);
+        	    rewrittenOp = addTemporalNormalizationUsingWindow(rewrittenOp, rewrittenOp, attrs);
         else if(getBoolOption(TEMPORAL_USE_NORMALIZATION))
-        	rewrittenOp = addTemporalNormalization(rewrittenOp, rewrittenOp, attrs);
+        	    rewrittenOp = addTemporalNormalization(rewrittenOp, rewrittenOp, attrs);
 
     }
 
@@ -509,8 +522,6 @@ addCoalescingAndNormalization (QueryOperator *q)
 {
     Set *done = PSET();
     // mark children first
-    SET_BOOL_STRING_PROP(q,PROP_TEMP_DO_COALESCE);
-    DEBUG_OP_LOG("mark top operator for coalescing", q);
 
     coalescingAndNormalizationVisitor(q, done);
 }
@@ -594,7 +605,7 @@ coalescingAndNormalizationVisitor (QueryOperator *q, Set *done)
 QueryOperator*
 addCoalesceForAllOp(QueryOperator *op)
 {
-	QueryOperator *result = NULL;
+	QueryOperator *result = op;
 
 	if(op->inputs != NIL)
 	{
@@ -609,7 +620,202 @@ addCoalesceForAllOp(QueryOperator *op)
 }
 
 
-/* add algebra expressions to coalesce the output of an operator
+/*
+ * adds algebra expressions to coalesce the output of an operator
+ *
+ * Set coalescing is only applicable if the output of the operator does not
+ * contain any duplicates
+ */
+QueryOperator *
+addSetCoalesce (QueryOperator *input)
+{
+    QueryOperator *op = input;
+    List *parents = op->parents;
+    Constant *c0 = createConstInt(ZERO);
+    Constant *c1 = createConstInt(ONE);
+    List *norAttrnames = getNormalAttrNames(op);
+
+    //****************************************
+    // Construct T1: a union of projections on start and end points of intervals
+    // result schema: normalattrs is_start is_end timestamp
+
+    //construct projExprs (NORMAL ATTRS 1 0 T_B )
+    //construct projExprs (NORMAL ATTRS 0 1 T_E )
+    List *t1NorProjExpr1 = getNormalAttrProjectionExprs(op);
+    List *t1NorProjExpr2 = getNormalAttrProjectionExprs(op);
+
+    List *t1ProjExpr1 = t1NorProjExpr1;
+    t1ProjExpr1 = appendToTailOfList(t1ProjExpr1, copyObject(c1));
+    t1ProjExpr1 = appendToTailOfList(t1ProjExpr1, copyObject(c0));
+
+    List *t1ProjExpr2 = t1NorProjExpr2;
+    t1ProjExpr2 = appendToTailOfList(t1ProjExpr2, copyObject(c0));
+    t1ProjExpr2 = appendToTailOfList(t1ProjExpr2, copyObject(c1));
+
+    AttributeReference *t1BeginRef = getAttrRefByName(op, TBEGIN_NAME);
+    AttributeReference *t1EndRef = getAttrRefByName(op, TEND_NAME);
+
+    t1ProjExpr1 = appendToTailOfList(t1ProjExpr1, t1EndRef);
+    t1ProjExpr2 = appendToTailOfList(t1ProjExpr2, t1BeginRef);
+
+    //construct schema NORMALATTRS S E TS  for BOTH
+    List *t1AttrNames = getAttrNames(op->schema);
+    t1AttrNames = appendToTailOfList(t1AttrNames,strdup(IS_S_NAME));
+    t1AttrNames = appendToTailOfList(t1AttrNames,strdup(IS_E_NAME));
+    t1AttrNames = appendToTailOfList(t1AttrNames,strdup(TS));
+
+    ProjectionOperator *t1Proj1 = createProjectionOp(t1ProjExpr1, op, NIL, deepCopyStringList(t1AttrNames));
+    ProjectionOperator *t1Proj2 = createProjectionOp(t1ProjExpr2, op, NIL, deepCopyStringList(t1AttrNames));
+    op->parents = LIST_MAKE(t1Proj1,t1Proj2);
+
+    //construct union on top
+    QueryOperator *t1 = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(t1Proj1, t1Proj2), NIL,
+            deepCopyStringList(t1AttrNames));
+    ((QueryOperator *) t1Proj1)->parents = singleton(t1);
+    ((QueryOperator *) t1Proj2)->parents = singleton(t1);
+
+    //****************************************
+    // Construct T2: add window function to calculate number of intervals started/ended before TS
+    /*
+     * T2 AS (
+     * SELECT NORMAL_ATTRS, IS_S, IS_E, TS
+     *      SUM(IS_S) OVER (PARTITION BY A, B ORDER BY TS, IS_E ROWS UNBOUNDED PRECEDING) cS,
+     *      SUM(IS_E) OVER (PARTITION BY A, B ORDER BY TS, IS_E ROWS UNBOUNDED PRECEDING) cE,
+     *   FROM T1
+     * ),
+     */
+    //WindowDefinition OVER (PARTITION BY normal_attrs ORDER BY TS, IS_E ROWS UNBOUNDED PRECEDING)
+    WindowBound *winBoundCountOpen = createWindowBound(WINBOUND_UNBOUND_PREC,NULL);
+    WindowFrame *winFrameCountOpen = createWindowFrame(WINFRAME_ROWS,winBoundCountOpen,NULL);
+
+    // partition-by
+    List *partByCountOpen = getAttrRefsByNames(t1, norAttrnames);
+
+    // order-by
+    AttributeReference *countOpenTSRef = getAttrRefByName(t1, TS);
+    AttributeReference *countOpenIsERef = getAttrRefByName(t1, IS_E_NAME);
+    List *countOpenOrderBy = LIST_MAKE(countOpenTSRef, countOpenIsERef);
+
+    // create window operator that counts open intervals
+    AttributeReference *isSRef = getAttrRefByName(t1, IS_S_NAME);
+    FunctionCall *sumS = createFunctionCall("SUM",singleton(isSRef));
+
+    char *countOpenName = strdup(COUNT_START_ANAME);
+    WindowOperator *winCountOpen = createWindowOp((Node *) sumS,
+            partByCountOpen,
+            countOpenOrderBy,
+            winFrameCountOpen,
+            countOpenName,
+            t1,
+            NIL);
+    t1->parents = singleton(winCountOpen);
+
+    // create window operator that counts closed intervals
+    AttributeReference *countClosedIsERef = getAttrRefByName(t1, IS_E_NAME);
+    FunctionCall *sumE = createFunctionCall("SUM",singleton(countClosedIsERef));
+
+    char *countCloseName = strdup(COUNT_END_ANAME);
+    WindowOperator *winCountClosed = createWindowOp((Node *) sumE,
+            copyObject(partByCountOpen),
+            copyObject(countOpenOrderBy),
+            copyObject(winFrameCountOpen),
+            countCloseName,
+            (QueryOperator *) winCountOpen,
+            NIL);
+    winCountOpen->op.parents = singleton((QueryOperator *) winCountClosed);
+
+    QueryOperator *t2 = (QueryOperator *) winCountOpen;
+
+    //****************************************
+    // Construct T3: compute adjacent changepoints
+    /*
+     * T3 AS (
+     *  SELECT normal_attrs, cS, cE, LAG(TS, 1) OVER (ORDER BY normal_attrs, TS) AS TBEGIN, TS AS TEND
+     * FROM T2
+     * WHERE cS = cE
+     *       OR cS - IS_S = cE - IS_E
+     *  )
+     */
+    Node *cond, *startDiff, *endDiff;
+    QueryOperator *selCPs;
+
+    startDiff = (Node *) createOpExpr("-", LIST_MAKE(getAttrRefByName(t2, COUNT_START_ANAME), getAttrRefByName(t2, IS_S_NAME)));
+    endDiff = (Node *) createOpExpr("-", LIST_MAKE(getAttrRefByName(t2, COUNT_END_ANAME), getAttrRefByName(t2, IS_E_NAME)));
+    cond = OR_EXPRS(
+            (Node *) createOpExpr("=", LIST_MAKE(getAttrRefByName(t2, COUNT_START_ANAME),
+                              getAttrRefByName(t2, COUNT_END_ANAME))),
+            (Node *) createOpExpr("=", LIST_MAKE(startDiff, endDiff))
+            );
+    selCPs = (QueryOperator *) createSelectionOp(cond, t2, NIL, NIL);
+
+    // construct window operator to compute adjacent changepoint with LAG
+    // order-by
+    List *orderByCPs = getAttrRefsByNames(t2, norAttrnames);
+    AttributeReference *cpsTSRef = getAttrRefByName(t2, TS);
+    orderByCPs = appendToTailOfList(orderByCPs, cpsTSRef);
+
+    // create window operator fetches previous change point
+    FunctionCall *lagTS = createFunctionCall("LAG",
+            LIST_MAKE(getAttrRefByName(t1, TS), createConstInt(1)));
+
+    char *lagName = strdup(TBEGIN_NAME);
+    WindowOperator *winCPs = createWindowOp((Node *) lagTS,
+            NIL,
+            orderByCPs,
+            NULL,
+            lagName,
+            (QueryOperator *) selCPs,
+            NIL);
+    selCPs->parents = singleton(winCPs);
+    QueryOperator *t3 = (QueryOperator *) winCPs;
+
+    //****************************************
+    // Construct T4: project on normal attributes and interval endpoints
+    /*
+     * T3 AS (
+     *  SELECT normal_attrs, TBEGIN, TEND FROM T3 WHERE cS = cE
+     *  )
+     */
+    QueryOperator *finalSel;
+    cond = (Node *) createOpExpr("=", LIST_MAKE(getAttrRefByName(t3, COUNT_START_ANAME),
+            getAttrRefByName(t3, COUNT_END_ANAME)));
+    finalSel = (QueryOperator *) createSelectionOp(cond, t3, NIL, NIL);
+
+    // construct final projection
+    QueryOperator *finalProj;
+    List *finalNames = deepCopyStringList(norAttrnames);
+    finalNames = appendToTailOfList(finalNames, strdup(TBEGIN_NAME));
+    finalNames = appendToTailOfList(finalNames, strdup(TEND_NAME));
+
+    finalProj = createProjOnAttrsByName(finalSel, finalNames);
+    finalProj->inputs = singleton(finalSel);
+    finalSel->parents = singleton(finalProj);
+
+    // replace with original operator and mark temporal attributes
+    substOpInParents(parents, op, finalProj);
+    setTempAttrProps(finalProj);
+    markTemporalAttrsAsProv(finalProj);
+
+    return finalProj;
+}
+
+static List *
+getAttrRefsByNames (QueryOperator *op, List *attrNames)
+{
+    List *result = NIL;
+
+    FOREACH(char, c, attrNames)
+    {
+        AttributeReference *normARef = getAttrRefByName(op, c);
+        result = appendToTailOfList(result,normARef);
+    }
+
+    return result;
+}
+
+
+/*
+ * add algebra expressions to bag-coalesce the output of an operator
  *
  * T1 - union of count of starting and ending tuples with same values for each time point
  *      this computes all "change points", i.e,. interval start or end points
@@ -686,21 +892,19 @@ addCoalesce (QueryOperator *input)
     WindowFrame *wfT2W1 = createWindowFrame(WINFRAME_RANGE,wbT2W1,NULL);
 
     QueryOperator *t1Op = (QueryOperator *) t1;
-    //partationBy
+
+    // partion-by
     List *t2PartitionBy1 = NIL;
     attrPos = 0;
     FOREACH(char, c, norAttrnames)
     {
-    	 AttributeDef *t2PBDef1 = getAttrDefByName(t1Op, c);
-    	 AttributeReference *t2PBRef1 = createFullAttrReference(strdup(t2PBDef1->attrName), 0, attrPos, INVALID_ATTR, t2PBDef1->dataType);
-    	 t2PartitionBy1 = appendToTailOfList(t2PartitionBy1,t2PBRef1);
-    	 attrPos++;
+        AttributeDef *t2PBDef1 = getAttrDefByName(t1Op, c);
+        AttributeReference *t2PBRef1 = createFullAttrReference(strdup(t2PBDef1->attrName), 0, attrPos, INVALID_ATTR, t2PBDef1->dataType);
+        t2PartitionBy1 = appendToTailOfList(t2PartitionBy1,t2PBRef1);
+        attrPos++;
     }
-//    AttributeDef *t2PBDef1 = (AttributeDef *) getHeadOfListP(t1Op->schema->attrDefs);
-//    AttributeReference *t2PBRef1 = createFullAttrReference(strdup(t2PBDef1->attrName), 0, 0, INVALID_ATTR, t2PBDef1->dataType);
-//    List *t2PartitionBy1 = singleton(t2PBRef1);
 
-    //groupBy
+    // order-by
     AttributeDef *t2GBDef1 = (AttributeDef *) getTailOfListP(t1Op->schema->attrDefs);
     AttributeReference *t2GBRef1 = createFullAttrReference(strdup(t2GBDef1->attrName), 0, LIST_LENGTH(t1Op->schema->attrDefs) - 1, INVALID_ATTR, t2GBDef1->dataType);
     List *t2GroupBy1 = singleton(t2GBRef1);
@@ -727,18 +931,7 @@ addCoalesce (QueryOperator *input)
 
     QueryOperator *t2W1Op = (QueryOperator *) t2W1;
     //partationBy
-    List *t2PartitionBy2 = NIL;
-    attrPos = 0;
-    FOREACH(char, c, norAttrnames)
-    {
-    	 AttributeDef *t2PBDef2 = getAttrDefByName(t2W1Op, c);
-    	 AttributeReference *t2PBRef2 = createFullAttrReference(strdup(t2PBDef2->attrName), 0, attrPos, INVALID_ATTR, t2PBDef2->dataType);
-    	 t2PartitionBy2 = appendToTailOfList(t2PartitionBy2,t2PBRef2);
-    	 attrPos++;
-    }
-//    AttributeDef *t2PBDef2 = (AttributeDef *) getHeadOfListP(t2W1Op->schema->attrDefs);
-//    AttributeReference *t2PBRef2 = createFullAttrReference(strdup(t2PBDef2->attrName), 0, 0, INVALID_ATTR, t2PBDef2->dataType);
-//    List *t2PartitionBy2 = singleton(t2PBRef2);
+    List *t2PartitionBy2 = getAttrRefsByNames(t2W1Op, norAttrnames);
 
     //groupBy
     AttributeDef *t2GBDef2 = (AttributeDef *) getAttrDefByName(t2W1Op, TS);
@@ -747,7 +940,7 @@ addCoalesce (QueryOperator *input)
 
     WindowDef *t2WD2 = createWindowDef(t2PartitionBy2,t2GroupBy2,wfT2W2);
 
-    AttributeReference *t2W2FCRef = createAttrsRefByName(t2W1Op, TEND_NAME);
+    AttributeReference *t2W2FCRef = getAttrRefByName(t2W1Op, TEND_NAME);
     FunctionCall *t2W2FC = createFunctionCall("SUM",singleton(t2W2FCRef));
 
     WindowFunction *t2W2WF = createWindowFunction(t2W2FC,t2WD2);
@@ -763,33 +956,18 @@ addCoalesce (QueryOperator *input)
 
     //Top projection
     QueryOperator *t2W2Op = (QueryOperator *) t2W2;
-    List *t2ProjExpr = NIL;
-
-    //salary
-    attrPos = 0;
-    FOREACH(char, c, norAttrnames)
-    {
-    	 AttributeDef *t2NorDef = getAttrDefByName(t2W2Op, c);
-    	 AttributeReference *t2NorRef = createFullAttrReference(strdup(strdup(t2NorDef->attrName)), 0, attrPos, INVALID_ATTR, t2NorDef->dataType);
-    	 t2ProjExpr = appendToTailOfList(t2ProjExpr, t2NorRef);
-         attrPos++;
-    }
-//    AttributeDef *t2NorDef= (AttributeDef *) getHeadOfListP(t2W2Op->schema->attrDefs);
-//    AttributeReference *t2NorRef = createFullAttrReference(strdup(strdup(t2NorDef->attrName)), 0, 0, INVALID_ATTR, t2NorDef->dataType);
-//    t2ProjExpr = appendToTailOfList(t2ProjExpr, t2NorRef);
+    List *t2ProjExpr = getAttrRefsByNames(t2W1Op, norAttrnames);
 
     //sum(w_0) - sum(w_1)
-    AttributeReference *t2Winf0 = createAttrsRefByName(t2W2Op, "winf_0");
-    AttributeReference *t2Winf1 = createAttrsRefByName(t2W2Op, "winf_1");
+    AttributeReference *t2Winf0 = getAttrRefByName(t2W2Op, "winf_0");
+    AttributeReference *t2Winf1 = getAttrRefByName(t2W2Op, "winf_1");
     List *t2MinusExpr = LIST_MAKE(t2Winf0,t2Winf1);
     Operator *t2Minus = createOpExpr("-",t2MinusExpr);
     t2ProjExpr = appendToTailOfList(t2ProjExpr, t2Minus);
 
     //TS
-    AttributeReference *t2TS = createAttrsRefByName(t2W2Op, TS);
+    AttributeReference *t2TS = getAttrRefByName(t2W2Op, TS);
     t2ProjExpr = appendToTailOfList(t2ProjExpr, t2TS);
-
-    //List *T2AttrNames = LIST_MAKE(strdup(t2NorDef->attrName),"NUMOPEN",strdup(TS));
     List *T2AttrNames = LIST_MAKE("NUMOPEN",strdup(TS));
     T2AttrNames = concatTwoLists(deepCopyStringList(norAttrnames),T2AttrNames);
 
@@ -805,22 +983,9 @@ addCoalesce (QueryOperator *input)
     QueryOperator *t2Op = (QueryOperator *) t2;
 
     //window 1 : LEAD(numOpen) OVER (PARTITION BY salary ORDER BY ts ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING
-//    WindowBound *t3wb1 = createWindowBound(WINBOUND_EXPR_FOLLOW,(Node *)singleton(copyObject(c1)));
-//    WindowFrame *t3wf1 = createWindowFrame(WINFRAME_ROWS,t3wb1,copyObject(t3wb1));
 
     //partationBy
-    List *t3PartitionBy1 = NIL;
-    attrPos = 0;
-    FOREACH(char, c, norAttrnames)
-    {
-    	 AttributeDef *t3pbDef1 = getAttrDefByName(t2Op, c);
-    	 AttributeReference *t3pbRef1 = createFullAttrReference(strdup(t3pbDef1->attrName), 0, attrPos, INVALID_ATTR, t3pbDef1->dataType);
-    	 t3PartitionBy1 = appendToTailOfList(t3PartitionBy1,t3pbRef1);
-    	 attrPos++;
-    }
-//    AttributeDef *t3pbDef1 = (AttributeDef *) getHeadOfListP(t2Op->schema->attrDefs);
-//    AttributeReference *t3pbRef1 = createFullAttrReference(strdup(t3pbDef1->attrName), 0, 0, INVALID_ATTR, t3pbDef1->dataType);
-//    List *t3PartitionBy1 = singleton(t3pbRef1);
+    List *t3PartitionBy1 = getAttrRefsByNames(t2Op, norAttrnames);
 
     //groupBy
     AttributeDef *t3gbDef1 = (AttributeDef *) getTailOfListP(t2Op->schema->attrDefs);
@@ -829,7 +994,7 @@ addCoalesce (QueryOperator *input)
 
     WindowDef *t3wd1 = createWindowDef(t3PartitionBy1,t3GroupBy1,NULL);
 
-    AttributeReference *t3fcRef = createAttrsRefByName(t2Op, NUMOPEN);
+    AttributeReference *t3fcRef = getAttrRefByName(t2Op, NUMOPEN);
     FunctionCall *t3fc = createFunctionCall("LEAD",singleton(t3fcRef));
 
     WindowFunction *t3wf = createWindowFunction(t3fc,t3wd1);
@@ -845,31 +1010,16 @@ addCoalesce (QueryOperator *input)
     //window 2 : FIRST_VALUE(numOpen) OVER (PARTITION BY salary ORDER BY ts ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING
     QueryOperator *t3w1Op = (QueryOperator *) t3w1;
 
-//    WindowBound *t3wb2 = createWindowBound(WINBOUND_EXPR_PREC,(Node *)singleton(copyObject(c1)));
-//    WindowFrame *t3wf2 = createWindowFrame(WINFRAME_ROWS,t3wb2,copyObject(t3wb2));
-
     //partationBy
-    List *t3PartitionBy2 = NIL;
-    attrPos = 0;
-    FOREACH(char, c, norAttrnames)
-    {
-        AttributeDef *t3pbDef2 = getAttrDefByName(t3w1Op,c);
-        AttributeReference *t3pbRef2 = createFullAttrReference(strdup(t3pbDef2->attrName), 0, attrPos, INVALID_ATTR, t3pbDef2->dataType);
-        t3PartitionBy2 = appendToTailOfList(t3PartitionBy2,t3pbRef2);
-        attrPos++;
-    }
-
-//    AttributeDef *t3pbDef2 = (AttributeDef *) getHeadOfListP(t3w1Op->schema->attrDefs);
-//    AttributeReference *t3pbRef2 = createFullAttrReference(strdup(t3pbDef2->attrName), 0, 0, INVALID_ATTR, t3pbDef2->dataType);
-//    List *t3PartitionBy2 = singleton(t3pbRef2);
+    List *t3PartitionBy2 = getAttrRefsByNames(t3w1Op, norAttrnames);
 
     //groupBy
-    AttributeReference *t3gpRef2 = createAttrsRefByName(t3w1Op, TS);
+    AttributeReference *t3gpRef2 = getAttrRefByName(t3w1Op, TS);
     List *t3GroupBy2 = singleton(t3gpRef2);
 
     WindowDef *t3wd2 = createWindowDef(t3PartitionBy2,t3GroupBy2,NULL);
 
-    AttributeReference *t3fcRef2 = createAttrsRefByName(t3w1Op, NUMOPEN);
+    AttributeReference *t3fcRef2 = getAttrRefByName(t3w1Op, NUMOPEN);
     FunctionCall *t3fc2 = createFunctionCall("LAG",singleton(t3fcRef2));
 
     WindowFunction *t3wff = createWindowFunction(t3fc2,t3wd2);
@@ -886,65 +1036,37 @@ addCoalesce (QueryOperator *input)
     //(DIFFFOLLOWING DIFFPREVIOUS NUMOPEN TS SALARY)
     QueryOperator *t3w2Op = (QueryOperator *)t3w2;
     Constant *c6 = createConstInt(INT_MINVAL);
-    List *t3ProjExpr = NIL;
-
-    // regular attributes
-    attrPos = 0;
-    FOREACH(char, c, norAttrnames)
-    {
-    	 AttributeDef *t3ProjDef1 = getAttrDefByName(t3w2Op,c);
-    	 AttributeReference *t3ProjRef1 = createFullAttrReference(strdup(t3ProjDef1->attrName), 0, attrPos, INVALID_ATTR, t3ProjDef1->dataType);
-    	 t3ProjExpr = appendToTailOfList(t3ProjExpr, t3ProjRef1);
-    	 attrPos++;
-    }
-//    AttributeDef *t3ProjDef1 = (AttributeDef *) getHeadOfListP(t3w2Op->schema->attrDefs);
-//    AttributeReference *t3ProjRef1 = createFullAttrReference(strdup(t3ProjDef1->attrName), 0, 0, INVALID_ATTR, t3ProjDef1->dataType);
-//    t3ProjExpr = appendToTailOfList(t3ProjExpr, t3ProjRef1);
+    List *t3ProjExpr = getAttrRefsByNames(t3w2Op, norAttrnames);
 
     //COALESCE((NUMOPEN - winf_0),666)
-    AttributeReference *t3ProjNOpen1 = createAttrsRefByName(t3w2Op, NUMOPEN);
-    //comment out DIFFFOLLOWING attr
-//    AttributeReference *t3ProjW01 = createAttrsRefByName(t3w2Op, "winf_0");
-//    Operator *t3O1 = createOpExpr("-", LIST_MAKE(t3ProjNOpen1,t3ProjW01));
-//    FunctionCall *t3Projfc1 = createFunctionCall("COALESCE",LIST_MAKE(t3O1,copyObject(c6)));
-//    t3ProjExpr = appendToTailOfList(t3ProjExpr, t3Projfc1);
+    AttributeReference *t3ProjNOpen1 = getAttrRefByName(t3w2Op, NUMOPEN);
 
     //COALESCE((NUMOPEN - winf_1),666)
     AttributeReference *t3ProjNOpen2 = copyObject(t3ProjNOpen1);
-    AttributeReference *t3ProjW02 = createAttrsRefByName(t3w2Op, "winf_1");
+    AttributeReference *t3ProjW02 = getAttrRefByName(t3w2Op, "winf_1");
     Operator *t3O2 = createOpExpr("-", LIST_MAKE(t3ProjNOpen2,t3ProjW02));
     FunctionCall *t3Projfc2 = createFunctionCall("COALESCE",LIST_MAKE(t3O2,copyObject(c6)));
     t3ProjExpr = appendToTailOfList(t3ProjExpr, t3Projfc2);
 
     //numOpen, TS
     t3ProjExpr = appendToTailOfList(t3ProjExpr, copyObject(t3ProjNOpen1));
-    AttributeReference *t3ProjTS = createAttrsRefByName(t3w2Op, TS);
+    AttributeReference *t3ProjTS = getAttrRefByName(t3w2Op, TS);
     t3ProjExpr = appendToTailOfList(t3ProjExpr, t3ProjTS);
 
     //Proj names
-    //List *t3ProjAttrNames = LIST_MAKE("DIFFFOLLOWING", "DIFFPREVIOUS", "NUMOPEN", TIMEPOINT_ATTR);
     List *t3ProjAttrNames = LIST_MAKE("DIFFPREVIOUS", "NUMOPEN", TIMEPOINT_ATTR);
     t3ProjAttrNames = concatTwoLists(deepCopyStringList(norAttrnames),t3ProjAttrNames);
 
     ProjectionOperator *t3Proj = createProjectionOp(t3ProjExpr, t3w2Op, NIL, t3ProjAttrNames);
     t3w2Op->parents = singleton(t3Proj);
 
-//	DuplicateRemoval *t3Dr = createDuplicateRemovalOp(NIL, (QueryOperator *) t3Proj,
-//			NIL, deepCopyStringList(t3ProjAttrNames));
-//
-//	QueryOperator *t3ProjOp = (QueryOperator *)t3Proj;
-//	t3ProjOp->parents = singleton(t3Dr);
-
 	//---------------------------------------------------------------------------------------
     //Construct T4:   SELECT * FROM T3 SELECTION: WHERE diffFollowing != 0 OR diffPrevious != 0
 	QueryOperator *t3Op = (QueryOperator *) t3Proj;
 
-//	AttributeReference *t4dfRef = createAttrsRefByName(t3Op, "DIFFFOLLOWING");
-	AttributeReference *t4dpRef = createAttrsRefByName(t3Op, "DIFFPREVIOUS");
+	AttributeReference *t4dpRef = getAttrRefByName(t3Op, "DIFFPREVIOUS");
 
-//    Operator *t4O1 = createOpExpr("!=", LIST_MAKE(t4dfRef,copyObject(c0)));
     Operator *t4O2 = createOpExpr("!=", LIST_MAKE(t4dpRef,copyObject(c0)));
-//    Node *t4Cond = OR_EXPRS((Node *)t4O1,(Node *)t4O2);
 
     SelectionOperator *t4 = createSelectionOp((Node *)t4O2, t3Op, NIL, deepCopyStringList(t3ProjAttrNames));
     t3Op->parents = singleton(t4);
@@ -960,21 +1082,10 @@ addCoalesce (QueryOperator *input)
     WindowFrame *t5wf = createWindowFrame(WINFRAME_ROWS,t5wb,copyObject(t5wb));
 
     //partationBy
-    List *t5PartitionBy = NIL;
-    attrPos = 0;
-    FOREACH(char, c, norAttrnames)
-    {
-    	AttributeDef *t5pbDef = getAttrDefByName(t4Op,c);
-    	AttributeReference *t5pbRef = createFullAttrReference(strdup(t5pbDef->attrName), 0, attrPos, INVALID_ATTR, t5pbDef->dataType);
-    	t5PartitionBy = appendToTailOfList(t5PartitionBy,t5pbRef);
-    	attrPos++;
-    }
-//    AttributeDef *t5pbDef = (AttributeDef *) getHeadOfListP(t4Op->schema->attrDefs);
-//    AttributeReference *t5pbRef = createFullAttrReference(strdup(t5pbDef->attrName), 0, 0, INVALID_ATTR, t5pbDef->dataType);
-//    List *t5PartitionBy = singleton(t5pbRef);
+    List *t5PartitionBy = getAttrRefsByNames(t4Op, norAttrnames);
 
     //groupBy
-    AttributeReference *t5gbRef = createAttrsRefByName(t4Op, TS);
+    AttributeReference *t5gbRef = getAttrRefByName(t4Op, TS);
     List *t5GroupBy = singleton(t5gbRef);
 
     WindowDef *t5wd = createWindowDef(t5PartitionBy,t5GroupBy,t5wf);
@@ -1020,48 +1131,15 @@ addCoalesce (QueryOperator *input)
     //SELECTION : WHERE diffPrevious != 0 AND tend IS NOT NULL
 	QueryOperator *t5ProjOp = (QueryOperator *) t5Proj;
 
-//	AttributeReference *t5CondRef1 = createAttrsRefByName(t5ProjOp, "DIFFPREVIOUS");
-	AttributeReference *t5CondRef2 = createAttrsRefByName(t5ProjOp, TEND_NAME);
+	AttributeReference *t5CondRef2 = getAttrRefByName(t5ProjOp, TEND_NAME);
 
-//    Operator *t5O1 = createOpExpr("!=", LIST_MAKE(t5CondRef1,copyObject(c0)));
     IsNullExpr *t5O2 = createIsNullExpr((Node *) singleton(t5CondRef2));
     Operator *t5O3 = createOpExpr("NOT", singleton(t5O2));
-//    Node *t5Cond = AND_EXPRS((Node *)t5O1,(Node *)t5O3);
 
     SelectionOperator *t5 = createSelectionOp((Node *) t5O3, t5ProjOp, NIL, deepCopyStringList(t5ProjNames));
     t5ProjOp->parents = singleton(t5);
 
     QueryOperator *t5Op = (QueryOperator *)t5;
-
-//    //additional projection
-//    List *top1Refs = NIL;
-//    int top1Count = 0;
-//    List *top1Names = deepCopyStringList(getAttrNames(t5Op->schema));
-//    FOREACH(AttributeDef, ad, t5Op->schema->attrDefs)
-//    {
-//        AttributeReference *top1Ref = createFullAttrReference(strdup(ad->attrName), 0, top1Count, INVALID_ATTR, ad->dataType);
-//        top1Refs = appendToTailOfList(top1Refs,top1Ref);
-//        top1Count ++;
-//    }
-//    ProjectionOperator *top1 = createProjectionOp(top1Refs, t5Op, NIL, top1Names); //
-//    SET_BOOL_STRING_PROP(top1,PROP_MATERIALIZE);
-//    t5Op->parents = singleton(top1);
-//    QueryOperator *top1Op = (QueryOperator *) top1;
-//
-//    //additional projection
-//    List *top2Refs = NIL;
-//    int top2Count = 0;
-//    List *top2Names = deepCopyStringList(getAttrNames(top1Op->schema));
-//    FOREACH(AttributeDef, ad, top1Op->schema->attrDefs)
-//    {
-//        AttributeReference *top2Ref = createFullAttrReference(strdup(ad->attrName), 0, top2Count, INVALID_ATTR, ad->dataType);
-//        top2Refs = appendToTailOfList(top2Refs,top2Ref);
-//        top2Count ++;
-//    }
-//    ProjectionOperator *top2 = createProjectionOp(top2Refs, top1Op, NIL, top2Names);
-//    top1Op->parents = singleton(top2);
-//    QueryOperator *top2Op = (QueryOperator *) top2;
-
 
     //-----------------------------------------------------------------------------------------------------------------
     //TNTAB AS (SELECT rownum n from dual connect by level <= (SELECT max(numOpen) FROM T5))
@@ -1080,8 +1158,8 @@ addCoalesce (QueryOperator *input)
     //QueryOperator *top1Op = (QueryOperator *)t5Op;
 
     //cond
-	AttributeReference *t6CondRef1 = createAttrsRefByName(t5Op, "NUMOPEN");
-	AttributeReference *t6CondRef2 = createAttrsRefByName(TNTABOp, "N");
+	AttributeReference *t6CondRef1 = getAttrRefByName(t5Op, "NUMOPEN");
+	AttributeReference *t6CondRef2 = getAttrRefByName(TNTABOp, "N");
 	t6CondRef2->fromClauseItem = 1;
 	Operator *t6JoinCond = createOpExpr(">=", LIST_MAKE(t6CondRef1,t6CondRef2));
 
@@ -1095,21 +1173,10 @@ addCoalesce (QueryOperator *input)
     //Top projection SELECT SALARY,T_B, T_E
     QueryOperator *t6JoinOp = (QueryOperator *) t6Join;
 
-    List *t6ProjExpr = NIL;
-    attrPos = 0;
-    FOREACH(char, c, norAttrnames) //TODO Boris: why not use utility functions from provenance utility such as createProjOnAttrs
-    {
-    	AttributeDef *t6Def1 = getAttrDefByName(t6JoinOp,c);
-        AttributeReference *t6Ref1 = createFullAttrReference(strdup(t6Def1->attrName), 0, attrPos, INVALID_ATTR, t6Def1->dataType);
-        t6ProjExpr = appendToTailOfList(t6ProjExpr, t6Ref1);
-        attrPos++;
-    }
+    List *t6ProjExpr = getAttrRefsByNames(t6JoinOp, norAttrnames);
 
-//    AttributeDef *t6Def1 = (AttributeDef *) getHeadOfListP(t6JoinOp->schema->attrDefs);
-//    AttributeReference *t6Ref1 = createFullAttrReference(strdup(t6Def1->attrName), 0, 0, INVALID_ATTR, t6Def1->dataType);
-	AttributeReference *t6Ref2 = createAttrsRefByName(t6JoinOp, TBEGIN_NAME);
-	AttributeReference *t6Ref3 = createAttrsRefByName(t6JoinOp, TEND_NAME);
-//    List *t6ProjExpr = LIST_MAKE(t6Ref1,t6Ref2,t6Ref3);
+	AttributeReference *t6Ref2 = getAttrRefByName(t6JoinOp, TBEGIN_NAME);
+	AttributeReference *t6Ref3 = getAttrRefByName(t6JoinOp, TEND_NAME);
     t6ProjExpr = appendToTailOfList(t6ProjExpr, t6Ref2);
     t6ProjExpr = appendToTailOfList(t6ProjExpr, t6Ref3);
 
@@ -1119,59 +1186,23 @@ addCoalesce (QueryOperator *input)
     ProjectionOperator *top = createProjectionOp(t6ProjExpr, t6JoinOp, NIL, t6ProjNames);
     t6JoinOp->parents = singleton(top);
 
-
     QueryOperator *topOp = (QueryOperator *) top;
-  	//---------------------------------------------------------------------------------------
-    //additional projection
-//    List *top1Refs = NIL;
-//    int top1Count = 0;
-//    List *top1Names = deepCopyStringList(getAttrNames(topOp->schema));
-//    FOREACH(AttributeDef, ad, topOp->schema->attrDefs)
-//    {
-//        AttributeReference *top1Ref = createFullAttrReference(strdup(ad->attrName), 0, top1Count, INVALID_ATTR, ad->dataType);
-//        top1Refs = appendToTailOfList(top1Refs,top1Ref);
-//        top1Count ++;
-//    }
-//    ProjectionOperator *top1 = createProjectionOp(top1Refs, topOp, NIL, top1Names);
-//    topOp->parents = singleton(top1);
 
-//	//---------------------------------------------------------------------------------------
-//    //Construct Top order by:    order by salary, TSTART
-//    QueryOperator *t6Op = (QueryOperator *) t6;
-//
-//    AttributeDef *topDef1 = (AttributeDef *) getHeadOfListP(t6Op->schema->attrDefs);
-//    AttributeReference *topRef1 = createFullAttrReference(strdup(topDef1->attrName), 0, 0, INVALID_ATTR, topDef1->dataType);
-//	AttributeReference *topRef2 = createAttrsRefByName(t6Op, TBEGIN_NAME);
-//
-//    OrderOperator *top = createOrderOp(LIST_MAKE(topRef1,topRef2),t6Op, NIL);
-//    t6Op->parents = singleton(top);
-
-
-
-    if(parents != NIL)
-    {
-    	FOREACH(QueryOperator, p, parents)
-    		{
-    		FOREACH(QueryOperator,pChild,p->inputs)
-				{
-    			if (equal(pChild,op))
-    				pChild_his_cell->data.ptr_value = top;
-				}
-    		}
-    	topOp->parents = parents;
-    }
-
-    setTempAttrProps((QueryOperator *) top);
-    int pCount = 0;
-    FOREACH(AttributeDef, a, topOp->schema->attrDefs)
-    {
-    	if(streq(a->attrName, TBEGIN_NAME) || streq(a->attrName, TEND_NAME))
-    		topOp->provAttrs = appendToTailOfListInt(topOp->provAttrs, pCount);
-    	pCount ++;
-    }
+    // replace topOp for op in  original parents of op and mark temporal attrs
+    substOpInParents(parents, op, topOp);
+    setTempAttrProps(topOp);
+    markTemporalAttrsAsProv(topOp);
 
     return (QueryOperator *) top;
 }
+
+static void
+markTemporalAttrsAsProv (QueryOperator *op)
+{
+    op->provAttrs = appendToTailOfListInt(op->provAttrs, getAttrPos(op, TBEGIN_NAME));
+    op->provAttrs = appendToTailOfListInt(op->provAttrs, getAttrPos(op, TEND_NAME));
+}
+
 //TODO add normalization specialized for min/max with only two-way union and preaggregation computing min/max group by G, TSTART, TEND as input for normalization
 
 /*
@@ -1233,7 +1264,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
 
     FOREACH(char, c, attrNames)
     {
-    	AttributeReference *leftRef = createAttrsRefByName(left, c);
+    	AttributeReference *leftRef = getAttrRefByName(left, c);
     	leftProjExpr1 = appendToTailOfList(leftProjExpr1, leftRef);
     	leftProjExpr2 = appendToTailOfList(leftProjExpr2, copyObject(leftRef));
     }
@@ -1268,15 +1299,15 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     List *rightProjExpr1 = NIL;
     List *rightProjExpr2 = NIL;
 
-    AttributeReference *rightBeginRef  = createAttrsRefByName(right, TBEGIN_NAME);
+    AttributeReference *rightBeginRef  = getAttrRefByName(right, TBEGIN_NAME);
     rightProjExpr1 = appendToTailOfList(rightProjExpr1, rightBeginRef);
 
-    AttributeReference *rightEndRef  = createAttrsRefByName(right, TEND_NAME);
+    AttributeReference *rightEndRef  = getAttrRefByName(right, TEND_NAME);
     rightProjExpr2 = appendToTailOfList(rightProjExpr2, rightEndRef);
 
     FOREACH(char, c, attrNames)
     {
-    	AttributeReference *rightRef = createAttrsRefByName(right, c);
+    	AttributeReference *rightRef = getAttrRefByName(right, c);
     	rightProjExpr1 = appendToTailOfList(rightProjExpr1, rightRef);
     	rightProjExpr2 = appendToTailOfList(rightProjExpr2, copyObject(rightRef));
     }
@@ -1324,7 +1355,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
 
     FOREACH(char, c, projCPTempNames)
     {
-    	projCPExprs = appendToTailOfList(projCPExprs,createAttrsRefByName(d3Op,c));
+    	projCPExprs = appendToTailOfList(projCPExprs,getAttrRefByName(d3Op,c));
     	if(!streq(c, "T"))
     	{
     		char *cc = concatStrings(c,"_1");
@@ -1361,7 +1392,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     List *intervalExprs = NIL;
     FOREACH(char, c, intervalTempNames)
     {
-    	intervalExprs = appendToTailOfList(intervalExprs,createAttrsRefByName(intervalWOp,c));
+    	intervalExprs = appendToTailOfList(intervalExprs,getAttrRefByName(intervalWOp,c));
     	if(streq(c, intervalFuncName))
     		intervalNames = appendToTailOfList(intervalNames,"IDD");
     	else
@@ -1383,16 +1414,16 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     List *joinCPcondList = NIL;
     FORBOTH(char, cl, cr, leftList, rightList)
     {
-        AttributeReference *al = createAttrsRefByName(joinCPOp, cl);
-        AttributeReference *ar = createAttrsRefByName(joinCPOp, cr);
+        AttributeReference *al = getAttrRefByName(joinCPOp, cl);
+        AttributeReference *ar = getAttrRefByName(joinCPOp, cr);
         Operator *oJoinCP = createOpExpr("=", LIST_MAKE(al,ar));
         joinCPcondList = appendToTailOfList(joinCPcondList,oJoinCP);
     }
 
     //c.T >= l.TSTART, c.T < l.TEND
-    AttributeReference *oJoinCPT = createAttrsRefByName(joinCPOp, "T");
-    AttributeReference *oJoinCPB = createAttrsRefByName(joinCPOp, TBEGIN_NAME);
-    AttributeReference *oJoinCPE = createAttrsRefByName(joinCPOp, TEND_NAME);
+    AttributeReference *oJoinCPT = getAttrRefByName(joinCPOp, "T");
+    AttributeReference *oJoinCPB = getAttrRefByName(joinCPOp, TBEGIN_NAME);
+    AttributeReference *oJoinCPE = getAttrRefByName(joinCPOp, TEND_NAME);
 
     Operator *oJoinCP1 = createOpExpr(">=", LIST_MAKE(oJoinCPT,oJoinCPB));
     Operator *oJoinCP2 = createOpExpr("<", LIST_MAKE(copyObject(oJoinCPT),oJoinCPE));
@@ -1409,7 +1440,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     projJOINCPNames = appendToTailOfList(projJOINCPNames, "T");
     List *projJOINCPExprs = NIL;
     FOREACH(char, c, projJOINCPNames)
-    	projJOINCPExprs = appendToTailOfList(projJOINCPExprs,createAttrsRefByName(selJOINCPOp,c));
+    	projJOINCPExprs = appendToTailOfList(projJOINCPExprs,getAttrRefByName(selJOINCPOp,c));
 
     ProjectionOperator *projJOINCP = createProjectionOp(projJOINCPExprs, selJOINCPOp, NIL, projJOINCPNames);
     selJOINCPOp->parents = singleton(projJOINCP);
@@ -1418,8 +1449,8 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     //---------------------------------------------------------------------------------------
     //top
     //top window
-    AttributeReference *topT = createAttrsRefByName(projJOINCPOp,"T");
-    AttributeReference *topID = createAttrsRefByName(projJOINCPOp,"IDD");
+    AttributeReference *topT = getAttrRefByName(projJOINCPOp,"T");
+    AttributeReference *topID = getAttrRefByName(projJOINCPOp,"IDD");
 
     FunctionCall *topFunc = createFunctionCall("LEAD",singleton(copyObject(topT)));
     List *topOrderBy = singleton(copyObject(topT));
@@ -1437,8 +1468,8 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     QueryOperator *topWOp = (QueryOperator *) topW;
 
     //topProj
-    AttributeReference *topProjE = createAttrsRefByName(topWOp,TEND_NAME);
-    AttributeReference *topProjwin = createAttrsRefByName(topWOp,topFuncName);
+    AttributeReference *topProjE = getAttrRefByName(topWOp,TEND_NAME);
+    AttributeReference *topProjwin = getAttrRefByName(topWOp,topFuncName);
     FunctionCall *topProjFunc = createFunctionCall("COALESCE",LIST_MAKE(topProjwin,topProjE));
     List *topProjExprs = NIL;
     List *topProjNames = NIL;
@@ -1447,7 +1478,7 @@ addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *
     {
     	if(!streq(c,leftBeginDef->attrName) && !streq(c,leftEndDef->attrName))
     	{
-    		topProjExprs = appendToTailOfList(topProjExprs, createAttrsRefByName(topWOp,c));
+    		topProjExprs = appendToTailOfList(topProjExprs, getAttrRefByName(topWOp,c));
     		topProjNames = appendToTailOfList(topProjNames, strdup(c));
     	}
     }
@@ -1536,21 +1567,21 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     List *agg1GroupBy = NIL;
 //    FOREACH(char, c, attrNames)
 //    {
-//    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+//    	AttributeReference *a = getAttrRefByName(leftProj1Op, c);
 //    	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
 //    }
     FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
     {
     	if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName) && !streq(TBEGIN_NAME, d->attrName))
     	{
-        	AttributeReference *a = createAttrsRefByName(leftProj1Op, d->attrName);
+        	AttributeReference *a = getAttrRefByName(leftProj1Op, d->attrName);
         	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
     	}
     }
 
-    agg1GroupBy = appendToHeadOfList(agg1GroupBy, createAttrsRefByName(leftProj1Op, TBEGIN_NAME));
+    agg1GroupBy = appendToHeadOfList(agg1GroupBy, getAttrRefByName(leftProj1Op, TBEGIN_NAME));
 
-    AttributeReference *agg1Attr = createAttrsRefByName(leftProj1Op, "AGG_GB_ARG0");
+    AttributeReference *agg1Attr = getAttrRefByName(leftProj1Op, "AGG_GB_ARG0");
 	FunctionCall *agg1Func = createFunctionCall(strdup("COUNT"),
 			singleton(agg1Attr));
 	List *aggrs1 = singleton(agg1Func);
@@ -1591,21 +1622,21 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     List *agg2GroupBy = NIL;
 //    FOREACH(char, c, attrNames)
 //    {
-//    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+//    	AttributeReference *a = getAttrRefByName(leftProj1Op, c);
 //    	agg2GroupBy = appendToTailOfList(agg2GroupBy, a);
 //    }
     FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
     {
     	if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName) && !streq(TBEGIN_NAME, d->attrName))
     	{
-        	AttributeReference *a = createAttrsRefByName(leftProj1Op, d->attrName);
+        	AttributeReference *a = getAttrRefByName(leftProj1Op, d->attrName);
         	agg2GroupBy = appendToTailOfList(agg2GroupBy, a);
     	}
     }
 
-    agg2GroupBy = appendToHeadOfList(agg2GroupBy, createAttrsRefByName(leftProj1Op, TEND_NAME));
+    agg2GroupBy = appendToHeadOfList(agg2GroupBy, getAttrRefByName(leftProj1Op, TEND_NAME));
 
-    AttributeReference *agg2Attr = createAttrsRefByName(leftProj1Op, "AGG_GB_ARG0");
+    AttributeReference *agg2Attr = getAttrRefByName(leftProj1Op, "AGG_GB_ARG0");
 	FunctionCall *agg2Func = createFunctionCall(strdup("COUNT"),
 			singleton(agg2Attr));
 	List *aggrs2 = singleton(agg2Func);
@@ -1662,7 +1693,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     List *rightProj1Names = NIL;
 //    FOREACH(char, c, attrNames)
 //    {
-//    	AttributeReference *a = createAttrsRefByName(right, c);
+//    	AttributeReference *a = getAttrRefByName(right, c);
 //    	rightProj1Expr = appendToTailOfList(rightProj1Expr, a);
 //    	rightProj1Names = appendToTailOfList(rightProj1Names, strdup(c));
 //    }
@@ -1671,14 +1702,14 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     {
     	if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName) && !streq(TBEGIN_NAME, d->attrName))
     	{
-        	AttributeReference *a = createAttrsRefByName(right, d->attrName);
+        	AttributeReference *a = getAttrRefByName(right, d->attrName);
         	rightProj1Expr = appendToTailOfList(rightProj1Expr, a);
         	rightProj1Names = appendToTailOfList(rightProj1Names, strdup(d->attrName));
     	}
     }
 
 
-    rightProj1Expr = appendToTailOfList(rightProj1Expr, createAttrsRefByName(right, TBEGIN_NAME));
+    rightProj1Expr = appendToTailOfList(rightProj1Expr, getAttrRefByName(right, TBEGIN_NAME));
     rightProj1Names = appendToTailOfList(rightProj1Names, "T");
 
     rightProj1Expr = appendToTailOfList(rightProj1Expr,copyObject(c0));
@@ -1699,7 +1730,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     List *rightProj2Names = deepCopyStringList(rightProj1Names);
 //    FOREACH(char, c, attrNames)
 //    {
-//    	AttributeReference *a = createAttrsRefByName(right, c);
+//    	AttributeReference *a = getAttrRefByName(right, c);
 //    	rightProj2Expr = appendToTailOfList(rightProj2Expr, a);
 //    	//rightProj2Names = appendToTailOfList(rightProj2Names, strdup(c));
 //    }
@@ -1707,12 +1738,12 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     {
     	if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName) && !streq(TBEGIN_NAME, d->attrName))
     	{
-        	AttributeReference *a = createAttrsRefByName(right, d->attrName);
+        	AttributeReference *a = getAttrRefByName(right, d->attrName);
         	rightProj2Expr = appendToTailOfList(rightProj2Expr, a);
     	}
     }
 
-    rightProj2Expr = appendToTailOfList(rightProj2Expr, createAttrsRefByName(right, TEND_NAME));
+    rightProj2Expr = appendToTailOfList(rightProj2Expr, getAttrRefByName(right, TEND_NAME));
     //rightProj2Names = appendToTailOfList(rightProj2Names, "T");
 
     rightProj2Expr = appendToTailOfList(rightProj2Expr,copyObject(c0));
@@ -1756,7 +1787,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     attrNamesCPMerge = appendToTailOfList(attrNamesCPMerge, "E");
 	FOREACH(AttributeDef, d, u3Op->schema->attrDefs)
 	{
-		AttributeReference *a = createAttrsRefByName(u3Op, d->attrName);
+		AttributeReference *a = getAttrRefByName(u3Op, d->attrName);
 		if(!streq("S", d->attrName) && !streq("E", d->attrName))
 		{
 			groupByCPMerge = appendToTailOfList(groupByCPMerge, a);
@@ -1784,17 +1815,17 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     WindowFrame *internalsWF1 = createWindowFrame(WINFRAME_RANGE,internalsWB1,NULL);
 
     //OrderBy
-    AttributeReference *attrTW1 = createAttrsRefByName(aggCPMergeOp, "T");
+    AttributeReference *attrTW1 = getAttrRefByName(aggCPMergeOp, "T");
     List *internalsOrderBy1 = singleton(copyObject(attrTW1));
 
     //partationBy
     List *internalPartitionBy1 = NIL;
     FOREACH(char, c, attrNames)
-    	 internalPartitionBy1 = appendToTailOfList(internalPartitionBy1,createAttrsRefByName(aggCPMergeOp, c));
+    	 internalPartitionBy1 = appendToTailOfList(internalPartitionBy1,getAttrRefByName(aggCPMergeOp, c));
 
     WindowDef *internalWDef1 = createWindowDef(internalPartitionBy1,internalsOrderBy1,internalsWF1);
 
-    FunctionCall *internalFC1 = createFunctionCall("SUM",singleton(createAttrsRefByName(aggCPMergeOp, "S")));
+    FunctionCall *internalFC1 = createFunctionCall("SUM",singleton(getAttrRefByName(aggCPMergeOp, "S")));
     WindowFunction *winternalF1 = createWindowFunction(internalFC1,internalWDef1);
 
     char *internalWNames1 = "winf_0";
@@ -1814,11 +1845,11 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     //partationBy
     List *internalPartitionBy2 = NIL;
     FOREACH(char, c, attrNames)
-    	 internalPartitionBy2 = appendToTailOfList(internalPartitionBy2,createAttrsRefByName(internalW1Op, c));
+    	 internalPartitionBy2 = appendToTailOfList(internalPartitionBy2,getAttrRefByName(internalW1Op, c));
 
     WindowDef *internalWDef2 = createWindowDef(internalPartitionBy2,internalsOrderBy2,internalsWF2);
 
-    FunctionCall *internalFC2 = createFunctionCall("SUM",singleton(createAttrsRefByName(internalW1Op, "E")));
+    FunctionCall *internalFC2 = createFunctionCall("SUM",singleton(getAttrRefByName(internalW1Op, "E")));
     WindowFunction *winternalF2 = createWindowFunction(internalFC2,internalWDef2);
 
     char *internalWNames2 = "winf_1";
@@ -1838,11 +1869,11 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     //partationBy
     List *internalPartitionBy3 = NIL;
     FOREACH(char, c, attrNames)
-    	 internalPartitionBy3 = appendToTailOfList(internalPartitionBy3,createAttrsRefByName(internalW2Op, c));
+    	 internalPartitionBy3 = appendToTailOfList(internalPartitionBy3,getAttrRefByName(internalW2Op, c));
 
     WindowDef *internalWDef3 = createWindowDef(internalPartitionBy3,internalsOrderBy3,NULL);
 
-    FunctionCall *internalFC3 = createFunctionCall("LEAD",singleton(createAttrsRefByName(internalW1Op, "T")));
+    FunctionCall *internalFC3 = createFunctionCall("LEAD",singleton(getAttrRefByName(internalW1Op, "T")));
     WindowFunction *winternalF3 = createWindowFunction(internalFC3,internalWDef3);
 
     char *internalWNames3 = "winf_3";
@@ -1860,10 +1891,10 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     List *intervalsProjExpr = NIL;
     List *intervalsProjNames = NIL;
     Operator *multiplicity = createOpExpr("-",
-    		LIST_MAKE(createAttrsRefByName(internalW3Op, strdup(internalWNames1)),createAttrsRefByName(internalW3Op, strdup(internalWNames2))));
+    		LIST_MAKE(getAttrRefByName(internalW3Op, strdup(internalWNames1)),getAttrRefByName(internalW3Op, strdup(internalWNames2))));
     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, multiplicity);
-    intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, "T"));
-    intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, strdup(internalWNames3)));
+    intervalsProjExpr = appendToTailOfList(intervalsProjExpr, getAttrRefByName(internalW3Op, "T"));
+    intervalsProjExpr = appendToTailOfList(intervalsProjExpr, getAttrRefByName(internalW3Op, strdup(internalWNames3)));
 
     intervalsProjNames = appendToTailOfList(intervalsProjNames, "NUMOPEN");
     intervalsProjNames = appendToTailOfList(intervalsProjNames, TBEGIN_NAME);
@@ -1874,7 +1905,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     	if(!streq(d->attrName, "T") && !streq(d->attrName, "S") && !streq(d->attrName, "E")
     			&& !streq(d->attrName,internalWNames1) && !streq(d->attrName,internalWNames2) && !streq(d->attrName,internalWNames3))
     	{
-    		intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, strdup(d->attrName)));
+    		intervalsProjExpr = appendToTailOfList(intervalsProjExpr, getAttrRefByName(internalW3Op, strdup(d->attrName)));
     		intervalsProjNames = appendToTailOfList(intervalsProjNames, strdup(d->attrName));
     	}
     }
@@ -1895,8 +1926,8 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     QueryOperator *TNTABOp = (QueryOperator *)TNTAB;
 
     //join
-	AttributeReference *topAttrNum = createAttrsRefByName(intervalsProjOp, "NUMOPEN");
-	AttributeReference *topAttrN = createAttrsRefByName(TNTABOp, "N");
+	AttributeReference *topAttrNum = getAttrRefByName(intervalsProjOp, "NUMOPEN");
+	AttributeReference *topAttrN = getAttrRefByName(TNTABOp, "N");
 	topAttrN->fromClauseItem = 1;
 	Operator *topCond1 = createOpExpr(">", LIST_MAKE(topAttrNum,copyObject(c0)));
 	Operator *topCond2 = createOpExpr(">=", LIST_MAKE(topAttrNum,topAttrN));
@@ -1999,13 +2030,13 @@ createProjDoublingAggAttrs(QueryOperator *agg, int numNewAggs, boolean add, bool
     // add time begin or end attribute
     if (add)
     {
-        AttributeReference *timeA = createAttrsRefByName(agg,TBEGIN_NAME);    //T_B AS TS
+        AttributeReference *timeA = getAttrRefByName(agg,TBEGIN_NAME);    //T_B AS TS
         projExprs = appendToTailOfList(projExprs, timeA);
         resultAttrNames = appendToTailOfList(resultAttrNames, strdup(TIMEPOINT_ATTR));
     }
     else
     {
-        AttributeReference *timeA = createAttrsRefByName(agg,TEND_NAME);    //T_E AS TS
+        AttributeReference *timeA = getAttrRefByName(agg,TEND_NAME);    //T_E AS TS
         projExprs = appendToTailOfList(projExprs, timeA);
         resultAttrNames = appendToTailOfList(resultAttrNames, strdup(TIMEPOINT_ATTR));
     }
@@ -2030,6 +2061,7 @@ createProjDoublingAggAttrs(QueryOperator *agg, int numNewAggs, boolean add, bool
 //-- GROUP BY dept_no);
 //--
 //-- T0 is the sequenced rewriting of the aggregation input
+
 
 QueryOperator *
 rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
@@ -2078,7 +2110,6 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     tb = getTempAttrRef(c, TRUE);
     te = getTempAttrRef(c, FALSE);
 
-
     // translate aggregation into pre-aggregation
     FORBOTH(Node,agg,def,origAggs,op->schema->attrDefs)
     {
@@ -2121,8 +2152,6 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         else
             FATAL_LOG("do not know how to handle aggregation function %s", fName);
     }
-
-#define OPEN_INTER_COUNT_ATTR "OPEN_INTER_C_"
 
     // add count aggregation to be able to filter out gaps between intervals later on
     FunctionCall *openInterCount = createFunctionCall (strdup("COUNT"), singleton(createConstInt(1)));
@@ -2296,7 +2325,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     // create window definition shared by all windows
     WindowBound *b1T3 = createWindowBound(WINBOUND_UNBOUND_PREC,NULL);
     WindowFrame *f1T3 = createWindowFrame(WINFRAME_RANGE,b1T3,NULL);
-    AttributeReference *attr1T3 = createAttrsRefByName(t2Op, TIMEPOINT_ATTR);
+    AttributeReference *attr1T3 = getAttrRefByName(t2Op, TIMEPOINT_ATTR);
     List *orderBy1T3 = singleton(attr1T3);
     QueryOperator *curChild = t2Op;
 //    QueryOperator *curWindow = NULL;
@@ -2304,9 +2333,9 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     attrRefs = getNormalAttrProjectionExprs(t2Op);
 
     //partationBy
-    List *partatiionBy1T3 = NIL;
-    FOREACH(char, c, gbNames)
-    		partatiionBy1T3 = appendToTailOfList(partatiionBy1T3,createAttrsRefByName(t2Op, c));
+    List *partatiionBy1T3 = getAttrRefsByNames(t2Op, gbNames);
+//    FOREACH(char, c, gbNames)
+//    		partatiionBy1T3 = appendToTailOfList(partatiionBy1T3,getAttrRefByName(t2Op, c));
 
     WindowDef *wd1T3 = createWindowDef(partatiionBy1T3,orderBy1T3,f1T3);
 
@@ -2314,10 +2343,10 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     for(int i = 0; i < numNewAggs * 2; i++)
     {
         char *aName = strdup(getAttrDefByPos(curChild, i)->attrName);//TODO other than SUM?
-        FunctionCall *fc1T3 = createFunctionCall("SUM",singleton(createAttrsRefByName(t2Op, aName)));
+        FunctionCall *fc1T3 = createFunctionCall("SUM",singleton(getAttrRefByName(t2Op, aName)));
         WindowFunction *wf1T3 = createWindowFunction(fc1T3,wd1T3);
 
-        char *wname1T3 = CONCAT_STRINGS("W_", strdup(aName));
+        char *wname1T3 = CONCAT_STRINGS(WIN_PREFIX, strdup(aName));
         WindowOperator *winOp = createWindowOp(copyObject(wf1T3->f),
                 copyObject(wf1T3->win->partitionBy),
                 copyObject(wf1T3->win->orderBy),
@@ -2344,8 +2373,8 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     // add subtractions
     for(int i = 0 ; i < numNewAggs; i++)
     {
-        AttributeReference *addWinf = createAttrRefByPos(window4T3Op, offset + i);
-        AttributeReference *decWinf = createAttrRefByPos(window4T3Op, offset + i + numNewAggs);
+        AttributeReference *addWinf = getAttrRefByPos(window4T3Op, offset + i);
+        AttributeReference *decWinf = getAttrRefByPos(window4T3Op, offset + i + numNewAggs);
         Operator *diffWinf = createOpExpr("-", LIST_MAKE(addWinf,decWinf)); //winf_add - winf_dec
         char *attrName = strdup(addWinf->name);
 
@@ -2365,13 +2394,14 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     QueryOperator *dupT3Op = (QueryOperator *) projT3Op;
 
     // ****************************************
-    //-- create intervals based on adjacent time points and compute final aggregation results (for avg)
+    //-- create intervals based on adjacent time points and compute final aggregation results (for avg and other aggs)
     /*
      *T4 AS (
-     *  SELECT average, dept_no, tstart, tend
+     *  SELECT average, sum, dept_no, tstart, tend
      *  FROM (
      *   SELECT
-     *     CASE WHEN (c = 0) THEN 0 ELSE s / c END AS average,
+     *     CASE WHEN (c = 0) THEN NULL ELSE s / c END AS average,
+     *     CASE WHEN (c = 0) THEN NULL ELSE s END AS sum,
      *     dept_no,
      *     ts AS tstart,
      *     LAST_VALUE(ts) OVER (PARTITION BY dept_no ORDER BY ts ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING) AS tend
@@ -2385,16 +2415,13 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     WindowBound *bT4 = createWindowBound(WINBOUND_EXPR_FOLLOW,(Node *)singleton(copyObject(c1)));
     WindowFrame *fT4 = createWindowFrame(WINFRAME_ROWS,bT4,copyObject(bT4));
 
-    //partationBy
-    List *partitionByT4 = NIL;
-    FOREACH(char, c, gbNames)
-    {
-        AttributeReference *a = createAttrsRefByName(dupT3Op, c);
-        partitionByT4 = appendToTailOfList(partitionByT4,a);
-    }
+    // partition by
+    DEBUG_LOG("group-by names", stringListToString(gbNames));
+    List *partitionByT4 = getAttrRefsByNames(dupT3Op, gbNames);
+    DEBUG_NODE_BEATIFY_LOG("partition by refs", partitionByT4);
 
-    //groupBy
-    AttributeReference *tsT4 = createAttrsRefByName(dupT3Op, TS);
+    // order by
+    AttributeReference *tsT4 = getAttrRefByName(dupT3Op, TS);
     List *groupByT4 = singleton(tsT4);
 
     WindowDef *wdT4 = createWindowDef(partitionByT4,groupByT4,fT4);
@@ -2426,7 +2453,21 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
         char *fName = agg->functionname;
         Node *projExpr = NULL;
 
-        if (streq(fName,"SUM") || streq(fName,"COUNT"))
+        if (streq(fName,"SUM"))
+        {
+            AttributeReference *countRef, *sumRef;
+            char *openCname = CONCAT_STRINGS(WIN_PREFIX, ADD_AGG_PREFIX, OPEN_INTER_COUNT_ATTR);
+
+            sumRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
+            countRef = getAttrRefByName(windowT4Op, openCname);
+
+            Operator *whenOperator = createOpExpr("=", LIST_MAKE(copyObject(countRef), copyObject(c0)));
+            CaseWhen *whenT4 = createCaseWhen((Node *) whenOperator, (Node *) createNullConst(sumRef->attrType));
+            Node *elseT4 = (Node *) sumRef;
+            CaseExpr *caseExprT4 = createCaseExpr(NULL, singleton(whenT4), elseT4);
+            projExpr = (Node *) caseExprT4;
+        }
+        else if (streq(fName,"COUNT"))
         {
             projExpr = (Node *) getNthOfListP(attrRefs, attrPos);
         }
@@ -2439,8 +2480,7 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
             countRef = (AttributeReference *) getNthOfListP(attrRefs, attrPos);
 
             Operator *whenOperator = createOpExpr("=", LIST_MAKE(copyObject(countRef), copyObject(c0)));
-            CaseWhen *whenT4 = createCaseWhen((Node *) whenOperator, (Node *) createConstFloat(0.0));
-            //List *whenList = singleton(whenT4);
+            CaseWhen *whenT4 = createCaseWhen((Node *) whenOperator, (Node *) createNullConst(DT_FLOAT)); // (Node *) createConstFloat(0.0));
             Operator *elseT4 = createOpExpr("/", LIST_MAKE(copyObject(sumRef), copyObject(countRef)));
             CaseExpr *caseExprT4 = createCaseExpr(NULL, singleton(whenT4), (Node *) elseT4);
             projExpr = (Node *) caseExprT4;
@@ -2456,10 +2496,10 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     projExprT4 = CONCAT_LISTS(projExprT4, groupBy);
 
     // add interval bounds to projection
-    projExprT4 = appendToTailOfList(projExprT4, createAttrsRefByName(windowT4Op,TIMEPOINT_ATTR));
+    projExprT4 = appendToTailOfList(projExprT4, getAttrRefByName(windowT4Op,TIMEPOINT_ATTR));
     projNamesT4 = appendToTailOfList(projNamesT4, TBEGIN_NAME);
 
-    projExprT4 = appendToTailOfList(projExprT4, createAttrsRefByName(windowT4Op,NEXT_TS_ATTR));
+    projExprT4 = appendToTailOfList(projExprT4, getAttrRefByName(windowT4Op,NEXT_TS_ATTR));
     projNamesT4 = appendToTailOfList(projNamesT4, TEND_NAME);
 
     ProjectionOperator *projT4 = createProjectionOp(projExprT4, windowT4Op, NIL, projNamesT4);
@@ -2467,14 +2507,14 @@ rewriteTemporalAggregationWithNormalization(AggregationOperator *agg)
     QueryOperator *projT4Op = (QueryOperator *) projT4;
 
     // final selection that removes intervals without an upper bound (largest change point) and intervals that are gaps in the input
-    AttributeReference *tendSel = createAttrsRefByName(projT4Op,TEND_NAME);
+    AttributeReference *tendSel = getAttrRefByName(projT4Op,TEND_NAME);
     IsNullExpr *isnullExprSel =  createIsNullExpr((Node *) singleton(tendSel));
     Operator *notnullOperator = createOpExpr("NOT", singleton(isnullExprSel));
     Node *selectionCond = NULL;
     if (isGB)
     {
         // count should be larger than 0
-        Operator *nonZeroCount = createOpExpr(">", LIST_MAKE(createAttrsRefByName(projT4Op, OPEN_INTER_COUNT_ATTR), copyObject(c0)));
+        Operator *nonZeroCount = createOpExpr(">", LIST_MAKE(getAttrRefByName(projT4Op, OPEN_INTER_COUNT_ATTR), copyObject(c0)));
         selectionCond = AND_EXPRS((Node *) notnullOperator, (Node *) nonZeroCount);
     }
     else
@@ -2562,21 +2602,21 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     List *agg1GroupBy = NIL;
 //    FOREACH(char, c, attrNames)
 //    {
-//    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+//    	AttributeReference *a = getAttrRefByName(leftProj1Op, c);
 //    	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
 //    }
     FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
     {
     	if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName) && !streq(TBEGIN_NAME, d->attrName))
     	{
-        	AttributeReference *a = createAttrsRefByName(leftProj1Op, d->attrName);
+        	AttributeReference *a = getAttrRefByName(leftProj1Op, d->attrName);
         	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
     	}
     }
 
-    agg1GroupBy = appendToTailOfList(agg1GroupBy, createAttrsRefByName(leftProj1Op, TBEGIN_NAME));
+    agg1GroupBy = appendToTailOfList(agg1GroupBy, getAttrRefByName(leftProj1Op, TBEGIN_NAME));
 
-    AttributeReference *agg1Attr = createAttrsRefByName(leftProj1Op, "AGG_GB_ARG0");
+    AttributeReference *agg1Attr = getAttrRefByName(leftProj1Op, "AGG_GB_ARG0");
 	FunctionCall *agg1Func = createFunctionCall(strdup("COUNT"),
 			singleton(agg1Attr));
 	List *aggrs1 = singleton(agg1Func);
@@ -2616,21 +2656,21 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     List *agg2GroupBy = NIL;
 //    FOREACH(char, c, attrNames)
 //    {
-//    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+//    	AttributeReference *a = getAttrRefByName(leftProj1Op, c);
 //    	agg2GroupBy = appendToTailOfList(agg2GroupBy, a);
 //    }
     FOREACH(AttributeDef, d, leftProj1Op->schema->attrDefs)
     {
     	if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName) && !streq(TBEGIN_NAME, d->attrName))
     	{
-        	AttributeReference *a = createAttrsRefByName(leftProj1Op, d->attrName);
+        	AttributeReference *a = getAttrRefByName(leftProj1Op, d->attrName);
         	agg2GroupBy = appendToTailOfList(agg2GroupBy, a);
     	}
     }
 
-    agg2GroupBy = appendToTailOfList(agg2GroupBy, createAttrsRefByName(leftProj1Op, TEND_NAME));
+    agg2GroupBy = appendToTailOfList(agg2GroupBy, getAttrRefByName(leftProj1Op, TEND_NAME));
 
-    AttributeReference *agg2Attr = createAttrsRefByName(leftProj1Op, "AGG_GB_ARG0");
+    AttributeReference *agg2Attr = getAttrRefByName(leftProj1Op, "AGG_GB_ARG0");
 	FunctionCall *agg2Func = createFunctionCall(strdup("COUNT"),
 			singleton(agg2Attr));
 	List *aggrs2 = singleton(agg2Func);
@@ -2648,7 +2688,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 
 	//proj on agg 2  0 AS S, COUNT(*) AS E, T_E AS T, SALARY
 	QueryOperator *agg2CPOp = (QueryOperator *) agg2CP;
-	AttributeReference *aggr_0_ref = createAttrsRefByName(agg2CPOp, "AGGR_0");
+	AttributeReference *aggr_0_ref = getAttrRefByName(agg2CPOp, "AGGR_0");
 
 
 	List *agg2ProjExpr = NIL;
@@ -2659,7 +2699,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 	{
 		if(!streq(ad->attrName, "AGGR_0"))
 		{
-			AttributeReference *a = createAttrsRefByName(agg2CPOp, ad->attrName);
+			AttributeReference *a = getAttrRefByName(agg2CPOp, ad->attrName);
 			agg2ProjExpr = appendToTailOfList(agg2ProjExpr, a);
 
 			if(streq(ad->attrName, "T_E"))
@@ -2715,21 +2755,21 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     List *agg1GroupByRight = NIL;
 //    FOREACH(char, c, attrNames)
 //    {
-//    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+//    	AttributeReference *a = getAttrRefByName(leftProj1Op, c);
 //    	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
 //    }
     FOREACH(AttributeDef, d, rightProjOp->schema->attrDefs)
     {
     	if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName) && !streq(TBEGIN_NAME, d->attrName))
     	{
-        	AttributeReference *a = createAttrsRefByName(rightProjOp, d->attrName);
+        	AttributeReference *a = getAttrRefByName(rightProjOp, d->attrName);
         	agg1GroupByRight = appendToTailOfList(agg1GroupByRight, a);
     	}
     }
 
-    agg1GroupByRight = appendToTailOfList(agg1GroupByRight, createAttrsRefByName(rightProjOp, TBEGIN_NAME));
+    agg1GroupByRight = appendToTailOfList(agg1GroupByRight, getAttrRefByName(rightProjOp, TBEGIN_NAME));
 
-    AttributeReference *agg1AttrRight = createAttrsRefByName(rightProjOp, "AGG_GB_ARG0");
+    AttributeReference *agg1AttrRight = getAttrRefByName(rightProjOp, "AGG_GB_ARG0");
 	FunctionCall *agg1FuncRight = createFunctionCall(strdup("COUNT"),
 			singleton(agg1AttrRight));
 	List *aggrs1Right = singleton(agg1FuncRight);
@@ -2748,7 +2788,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 	QueryOperator *agg1CPRightOp = (QueryOperator *)agg1CPRight;
 
     // SELECT - COUNT(*) AS S, SALARY, TSTART AS T,  0 AS E
-    AttributeReference *aggr_0_ref_u2 = createAttrsRefByName(agg1CPRightOp, "AGGR_0");
+    AttributeReference *aggr_0_ref_u2 = getAttrRefByName(agg1CPRightOp, "AGGR_0");
     Operator *minusCount_u2 = createOpExpr("-", LIST_MAKE(copyObject(c0),aggr_0_ref_u2));
 
     //SELECT - COUNT(*) AS S, SALARY, TSTART AS T,  0 AS E
@@ -2763,7 +2803,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 	{
 		if(!streq(ad->attrName, "AGGR_0"))
 		{
-			AttributeReference *a = createAttrsRefByName(agg1CPRightOp, ad->attrName);
+			AttributeReference *a = getAttrRefByName(agg1CPRightOp, ad->attrName);
 			projExprU2 = appendToTailOfList(projExprU2, a);
 
 			if(streq(ad->attrName, "T_B"))
@@ -2799,21 +2839,21 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     List *agg2GroupByRight = NIL;
 //    FOREACH(char, c, attrNames)
 //    {
-//    	AttributeReference *a = createAttrsRefByName(leftProj1Op, c);
+//    	AttributeReference *a = getAttrRefByName(leftProj1Op, c);
 //    	agg1GroupBy = appendToTailOfList(agg1GroupBy, a);
 //    }
     FOREACH(AttributeDef, d, rightProjOp->schema->attrDefs)
     {
     	if(!streq("AGG_GB_ARG0", d->attrName) && !streq(TEND_NAME, d->attrName) && !streq(TBEGIN_NAME, d->attrName))
     	{
-        	AttributeReference *a = createAttrsRefByName(rightProjOp, d->attrName);
+        	AttributeReference *a = getAttrRefByName(rightProjOp, d->attrName);
         	agg2GroupByRight = appendToTailOfList(agg2GroupByRight, a);
     	}
     }
 
-    agg2GroupByRight = appendToTailOfList(agg2GroupByRight, createAttrsRefByName(rightProjOp, TEND_NAME));
+    agg2GroupByRight = appendToTailOfList(agg2GroupByRight, getAttrRefByName(rightProjOp, TEND_NAME));
 
-    AttributeReference *agg2AttrRight = createAttrsRefByName(rightProjOp, "AGG_GB_ARG0");
+    AttributeReference *agg2AttrRight = getAttrRefByName(rightProjOp, "AGG_GB_ARG0");
 	FunctionCall *agg2FuncRight = createFunctionCall(strdup("COUNT"),
 			singleton(agg2AttrRight));
 	List *aggrs2Right = singleton(agg2FuncRight);
@@ -2833,7 +2873,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 
 	//SELECT 0 AS S, SALARY, TEND AS T,  - COUNT(*) AS E
 
-    AttributeReference *aggr_0_ref_u3 = createAttrsRefByName(agg2CPRightOp, "AGGR_0");
+    AttributeReference *aggr_0_ref_u3 = getAttrRefByName(agg2CPRightOp, "AGGR_0");
     Operator *minusCount_u3 = createOpExpr("-", LIST_MAKE(copyObject(c0),aggr_0_ref_u3));
 
     List *projExprU3 = NIL;
@@ -2846,7 +2886,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
 	{
 		if(!streq(ad->attrName, "AGGR_0"))
 		{
-			AttributeReference *a = createAttrsRefByName(agg2CPRightOp, ad->attrName);
+			AttributeReference *a = getAttrRefByName(agg2CPRightOp, ad->attrName);
 			projExprU3 = appendToTailOfList(projExprU3, a);
 
 			if(streq(ad->attrName, "T_E"))
@@ -2887,7 +2927,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     attrNamesCPMerge = appendToTailOfList(attrNamesCPMerge, "E");
 	FOREACH(AttributeDef, d, u3Op->schema->attrDefs)
 	{
-		AttributeReference *a = createAttrsRefByName(u3Op, d->attrName);
+		AttributeReference *a = getAttrRefByName(u3Op, d->attrName);
 		if(!streq("S", d->attrName) && !streq("E", d->attrName))
 		{
 			groupByCPMerge = appendToTailOfList(groupByCPMerge, a);
@@ -2917,17 +2957,17 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      WindowFrame *internalsWF1 = createWindowFrame(WINFRAME_RANGE,internalsWB1,NULL);
 
      //OrderBy
-     AttributeReference *attrTW1 = createAttrsRefByName(aggCPMergeOp, "T");
+     AttributeReference *attrTW1 = getAttrRefByName(aggCPMergeOp, "T");
      List *internalsOrderBy1 = singleton(copyObject(attrTW1));
 
      //partationBy
      List *internalPartitionBy1 = NIL;
      FOREACH(char, c, attrNames)
-     	 internalPartitionBy1 = appendToTailOfList(internalPartitionBy1,createAttrsRefByName(aggCPMergeOp, c));
+     	 internalPartitionBy1 = appendToTailOfList(internalPartitionBy1,getAttrRefByName(aggCPMergeOp, c));
 
      WindowDef *internalWDef1 = createWindowDef(internalPartitionBy1,internalsOrderBy1,internalsWF1);
 
-     FunctionCall *internalFC1 = createFunctionCall("SUM",singleton(createAttrsRefByName(aggCPMergeOp, "S")));
+     FunctionCall *internalFC1 = createFunctionCall("SUM",singleton(getAttrRefByName(aggCPMergeOp, "S")));
      WindowFunction *winternalF1 = createWindowFunction(internalFC1,internalWDef1);
 
      char *internalWNames1 = "winf_0";
@@ -2947,11 +2987,11 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      //partationBy
      List *internalPartitionBy2 = NIL;
      FOREACH(char, c, attrNames)
-     	 internalPartitionBy2 = appendToTailOfList(internalPartitionBy2,createAttrsRefByName(internalW1Op, c));
+     	 internalPartitionBy2 = appendToTailOfList(internalPartitionBy2,getAttrRefByName(internalW1Op, c));
 
      WindowDef *internalWDef2 = createWindowDef(internalPartitionBy2,internalsOrderBy2,internalsWF2);
 
-     FunctionCall *internalFC2 = createFunctionCall("SUM",singleton(createAttrsRefByName(internalW1Op, "E")));
+     FunctionCall *internalFC2 = createFunctionCall("SUM",singleton(getAttrRefByName(internalW1Op, "E")));
      WindowFunction *winternalF2 = createWindowFunction(internalFC2,internalWDef2);
 
      char *internalWNames2 = "winf_1";
@@ -2971,11 +3011,11 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      //partationBy
      List *internalPartitionBy3 = NIL;
      FOREACH(char, c, attrNames)
-     	 internalPartitionBy3 = appendToTailOfList(internalPartitionBy3,createAttrsRefByName(internalW2Op, c));
+     	 internalPartitionBy3 = appendToTailOfList(internalPartitionBy3,getAttrRefByName(internalW2Op, c));
 
      WindowDef *internalWDef3 = createWindowDef(internalPartitionBy3,internalsOrderBy3,NULL);
 
-     FunctionCall *internalFC3 = createFunctionCall("LEAD",singleton(createAttrsRefByName(internalW1Op, "T")));
+     FunctionCall *internalFC3 = createFunctionCall("LEAD",singleton(getAttrRefByName(internalW1Op, "T")));
      WindowFunction *winternalF3 = createWindowFunction(internalFC3,internalWDef3);
 
      char *internalWNames3 = "winf_3";
@@ -2994,7 +3034,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      List *intervalsProjNames = NIL;
 
      Operator *multiplicity = createOpExpr("-",
-    	 LIST_MAKE(createAttrsRefByName(internalW3Op, strdup(internalWNames1)),createAttrsRefByName(internalW3Op, strdup(internalWNames2))));
+    	 LIST_MAKE(getAttrRefByName(internalW3Op, strdup(internalWNames1)),getAttrRefByName(internalW3Op, strdup(internalWNames2))));
      intervalsProjExpr = appendToTailOfList(intervalsProjExpr, multiplicity);
      intervalsProjNames = appendToTailOfList(intervalsProjNames, "NUMOPEN");
 
@@ -3004,13 +3044,13 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     	 if(!streq(d->attrName, "T") && !streq(d->attrName, "S") && !streq(d->attrName, "E")
     			 && !streq(d->attrName,internalWNames1) && !streq(d->attrName,internalWNames2) && !streq(d->attrName,internalWNames3))
     	 {
-    		 intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, strdup(d->attrName)));
+    		 intervalsProjExpr = appendToTailOfList(intervalsProjExpr, getAttrRefByName(internalW3Op, strdup(d->attrName)));
     		 intervalsProjNames = appendToTailOfList(intervalsProjNames, strdup(d->attrName));
     	 }
      }
 
-     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, "T"));
-     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, createAttrsRefByName(internalW3Op, strdup(internalWNames3)));
+     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, getAttrRefByName(internalW3Op, "T"));
+     intervalsProjExpr = appendToTailOfList(intervalsProjExpr, getAttrRefByName(internalW3Op, strdup(internalWNames3)));
 
      intervalsProjNames = appendToTailOfList(intervalsProjNames, TBEGIN_NAME);
      intervalsProjNames = appendToTailOfList(intervalsProjNames, TEND_NAME);
@@ -3040,8 +3080,8 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      QueryOperator *TNTABOp = (QueryOperator *)TNTAB;
 
      //join
-     AttributeReference *topAttrNum = createAttrsRefByName(intervalsProjOp, "NUMOPEN");
-     AttributeReference *topAttrN = createAttrsRefByName(TNTABOp, "N");
+     AttributeReference *topAttrNum = getAttrRefByName(intervalsProjOp, "NUMOPEN");
+     AttributeReference *topAttrN = getAttrRefByName(TNTABOp, "N");
      topAttrN->fromClauseItem = 1;
      Operator *topCond1 = createOpExpr(">", LIST_MAKE(topAttrNum,copyObject(c0)));
      Operator *topCond2 = createOpExpr(">=", LIST_MAKE(topAttrNum,topAttrN));

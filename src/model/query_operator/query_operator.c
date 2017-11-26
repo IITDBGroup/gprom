@@ -1129,6 +1129,36 @@ getAttrNameByPos(QueryOperator *op, int pos)
     return getAttrDefByPos(op, pos)->attrName;
 }
 
+AttributeReference *
+getAttrRefByPos (QueryOperator *op, int pos)
+{
+    AttributeDef *d = getAttrDefByPos(op, pos);
+
+    ASSERT(d != NULL);
+
+    AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
+                pos,
+                INVALID_ATTR,
+                d->dataType);
+
+    return res;
+}
+
+AttributeReference *
+getAttrRefByName(QueryOperator *op, char *attr)
+{
+    AttributeDef *d = getAttrDefByName(op, attr);
+
+    ASSERT(d != NULL);
+
+    AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
+            getAttrPos(op, attr),
+            INVALID_ATTR,
+            d->dataType);
+
+    return res;
+}
+
 List *
 getAttrRefsInOperator (QueryOperator *op)
 {

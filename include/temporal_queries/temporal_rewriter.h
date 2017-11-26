@@ -15,8 +15,6 @@
 
 #define TBEGIN_NAME "T_B"
 #define TEND_NAME "T_E"
-#define TS "TS"
-#define NUMOPEN "NUMOPEN"
 #define TEMPORAL_DT DT_INT
 
 extern QueryOperator *rewriteImplicitTemporal (QueryOperator *q);
