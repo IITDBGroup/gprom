@@ -19,6 +19,7 @@
 
 extern QueryOperator *rewriteImplicitTemporal (QueryOperator *q);
 extern void addCoalescingAndNormalization (QueryOperator *q);
+extern QueryOperator *addSetCoalesce (QueryOperator *input);
 extern QueryOperator *addCoalesce (QueryOperator *input);
 extern QueryOperator *addTemporalNormalization (QueryOperator *input, QueryOperator *reference, List *attrs);
 extern QueryOperator *addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *reference, List *attrs);

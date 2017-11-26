@@ -98,7 +98,7 @@ translateAlterTable(AlterTable *a)
     switch(a->cmdType)
     {
         case ALTER_TABLE_REMOVE_COLUMN:
-            p = (ProjectionOperator *) createProjOnAttrsByName((QueryOperator *) in, newAttrs);
+            p = (ProjectionOperator *) createProjOnAttrsByName((QueryOperator *) in, newAttrs, NIL);
         break;
         case ALTER_TABLE_ADD_COLUMN:
         {

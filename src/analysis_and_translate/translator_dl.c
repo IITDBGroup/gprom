@@ -1132,7 +1132,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
     		}
 
     	    // add projection
-    	    pdom = (ProjectionOperator *) createProjOnAttrsByName(sdom, varAttrNames);
+    	    pdom = (ProjectionOperator *) createProjOnAttrsByName(sdom, varAttrNames, NIL);
     	    addChildOperator((QueryOperator *) pdom, sdom);
 
     	    int numAttrs = 0;

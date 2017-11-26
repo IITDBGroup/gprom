@@ -28,7 +28,7 @@ extern List *getProvAttrProjectionExprs(QueryOperator *op);
 extern List *getNormalAttrProjectionExprs(QueryOperator *op);
 extern QueryOperator *createProjOnAllAttrs(QueryOperator *op);
 extern QueryOperator *createProjOnAttrs(QueryOperator *op, List *attrPos);
-extern QueryOperator *createProjOnAttrsByName(QueryOperator *op, List *attrNames);
+extern QueryOperator *createProjOnAttrsByName(QueryOperator *op, List *attrNames, List *newAttrNames);
 //extern AttributeReference *createAttrsRefByName(QueryOperator *op, char *attrNames);
 //extern AttributeReference *createAttrRefByPos(QueryOperator *op, int pos);
 

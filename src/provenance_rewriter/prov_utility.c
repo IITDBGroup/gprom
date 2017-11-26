@@ -158,15 +158,28 @@ createProjOnAttrs(QueryOperator *op, List *attrPos)
 }
 
 QueryOperator *
-createProjOnAttrsByName(QueryOperator *op, List *attrNames)
+createProjOnAttrsByName(QueryOperator *op, List *attrNames, List *newAttrNames)
 {
     List *attrPos = NIL;
+    QueryOperator *p;
 
     FOREACH(char,c,attrNames)
         attrPos = appendToTailOfListInt(attrPos, getAttrPos(op,c));
     DEBUG_LOG("child attr pos: %s", nodeToString(attrPos));
 
-    return createProjOnAttrs(op, attrPos);
+    p = createProjOnAttrs(op, attrPos);
+
+    if (newAttrNames != NULL)
+    {
+        FORBOTH(void,def,name,p->schema->attrDefs, newAttrNames)
+        {
+            AttributeDef *a = (AttributeDef *) def;
+            char *n = (char *) name;
+            a->attrName = n;
+        }
+    }
+
+    return p;
 }
 
 //AttributeReference *

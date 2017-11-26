@@ -1215,7 +1215,7 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
                 provPos = appendToTailOfListInt(provPos, getAttrPos(op, name));
             }
         }
-        p = (ProjectionOperator *) createProjOnAttrsByName(op, newAttrs);
+        p = (ProjectionOperator *) createProjOnAttrsByName(op, newAttrs, NIL);
         op->provAttrs = provPos;
         // mark as dummy projection so it can be excluded from rewrite
         SET_BOOL_STRING_PROP(p, PROP_DUMMY_HAS_PROV_PROJ);

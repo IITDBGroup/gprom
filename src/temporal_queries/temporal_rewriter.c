@@ -19,6 +19,7 @@
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/operator_property.h"
+#include "operator_optimizer/optimizer_prop_inference.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "temporal_queries/temporal_rewriter.h"
 #include "analysis_and_translate/translator_oracle.h"
@@ -34,7 +35,7 @@ static QueryOperator *tempRewrTemporalSource (QueryOperator *o);
 static QueryOperator *tempRewrSetOperator (SetOperator *o);
 static QueryOperator *tempRewrDuplicateRemOp (DuplicateRemoval *o);
 
-
+static boolean isSetCoalesceSufficient(QueryOperator *q);
 static void setTempAttrProps(QueryOperator *o);
 static AttributeReference *getTempAttrRef (QueryOperator *o, boolean begin);
 static void coalescingAndNormalizationVisitor (QueryOperator *q, Set *done);
@@ -70,8 +71,10 @@ rewriteImplicitTemporal (QueryOperator *q)
     ASSERT(LIST_LENGTH(q->inputs) == 1);
     QueryOperator *top = getHeadOfListP(q->inputs);
     List *topSchema;
+    boolean setCoalesce = FALSE;
     T_BEtype =  INT_VALUE(GET_STRING_PROP(q, PROP_TEMP_ATTR_DT));
 
+    setCoalesce = isSetCoalesceSufficient(OP_LCHILD(q));
     addCoalescingAndNormalization(top);
 
     top = temporalRewriteOperator (top);
@@ -93,7 +96,17 @@ rewriteImplicitTemporal (QueryOperator *q)
     // add coalescing if requested
     if(getBoolOption(TEMPORAL_USE_COALSECE))
     {
-        SET_BOOL_STRING_PROP(top,PROP_TEMP_DO_COALESCE);
+        // check whether set coalesce is sufficient
+        if (setCoalesce)
+        {
+            INFO_LOG("apply set coalesce");
+            SET_BOOL_STRING_PROP(top,PROP_TEMP_DO_SET_COALESCE);
+        }
+        else
+        {
+            INFO_LOG("apply bag coalesce");
+            SET_BOOL_STRING_PROP(top,PROP_TEMP_DO_COALESCE);
+        }
         DEBUG_OP_LOG("mark top operator for coalescing", top);
         top = addCoalesceForAllOp(top); // addCoalesce(top);
     }
@@ -103,6 +116,20 @@ rewriteImplicitTemporal (QueryOperator *q)
     DEBUG_NODE_BEATIFY_LOG("rewritten query root is:", top);
 
     return top;
+}
+
+static boolean
+isSetCoalesceSufficient(QueryOperator *q)
+{
+    List *keys;
+
+    computeKeyProp(q);
+    keys = (List *)getStringProperty(q, PROP_STORE_LIST_KEY);
+
+    if (keys != NIL)
+        return TRUE;
+
+    return FALSE;
 }
 
 static QueryOperator *
@@ -614,6 +641,8 @@ addCoalesceForAllOp(QueryOperator *op)
 
 		if(GET_STRING_PROP(op, PROP_TEMP_DO_COALESCE))
 			result = addCoalesce(op);
+		else if (GET_STRING_PROP(op, PROP_TEMP_DO_SET_COALESCE))
+		    result = addSetCoalesce(op);
 	}
 
 	return result;
@@ -659,7 +688,7 @@ addSetCoalesce (QueryOperator *input)
     t1ProjExpr2 = appendToTailOfList(t1ProjExpr2, t1BeginRef);
 
     //construct schema NORMALATTRS S E TS  for BOTH
-    List *t1AttrNames = getAttrNames(op->schema);
+    List *t1AttrNames = getNormalAttrNames(op);
     t1AttrNames = appendToTailOfList(t1AttrNames,strdup(IS_S_NAME));
     t1AttrNames = appendToTailOfList(t1AttrNames,strdup(IS_E_NAME));
     t1AttrNames = appendToTailOfList(t1AttrNames,strdup(TS));
@@ -724,7 +753,7 @@ addSetCoalesce (QueryOperator *input)
             NIL);
     winCountOpen->op.parents = singleton((QueryOperator *) winCountClosed);
 
-    QueryOperator *t2 = (QueryOperator *) winCountOpen;
+    QueryOperator *t2 = (QueryOperator *) winCountClosed;
 
     //****************************************
     // Construct T3: compute adjacent changepoints
@@ -747,6 +776,7 @@ addSetCoalesce (QueryOperator *input)
             (Node *) createOpExpr("=", LIST_MAKE(startDiff, endDiff))
             );
     selCPs = (QueryOperator *) createSelectionOp(cond, t2, NIL, NIL);
+    t2->parents = singleton(selCPs);
 
     // construct window operator to compute adjacent changepoint with LAG
     // order-by
@@ -780,14 +810,20 @@ addSetCoalesce (QueryOperator *input)
     cond = (Node *) createOpExpr("=", LIST_MAKE(getAttrRefByName(t3, COUNT_START_ANAME),
             getAttrRefByName(t3, COUNT_END_ANAME)));
     finalSel = (QueryOperator *) createSelectionOp(cond, t3, NIL, NIL);
+    t3->parents = singleton(finalSel);
 
     // construct final projection
     QueryOperator *finalProj;
     List *finalNames = deepCopyStringList(norAttrnames);
+    List *inAttrs = deepCopyStringList(norAttrnames);
+
+    inAttrs = appendToTailOfList(inAttrs, strdup(TBEGIN_NAME));
+    inAttrs = appendToTailOfList(inAttrs, strdup(TS));
+
     finalNames = appendToTailOfList(finalNames, strdup(TBEGIN_NAME));
     finalNames = appendToTailOfList(finalNames, strdup(TEND_NAME));
 
-    finalProj = createProjOnAttrsByName(finalSel, finalNames);
+    finalProj = createProjOnAttrsByName(finalSel, inAttrs, finalNames);
     finalProj->inputs = singleton(finalSel);
     finalSel->parents = singleton(finalProj);
 
@@ -1950,7 +1986,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
     		topProjNames = appendToTailOfList(topProjNames, strdup(d->attrName));
     }
 
-    QueryOperator *topProjOp = createProjOnAttrsByName(topJoinOp , topProjNames);
+    QueryOperator *topProjOp = createProjOnAttrsByName(topJoinOp , topProjNames, NIL);
     topProjOp->inputs = singleton(topJoin);
     topJoinOp->parents = singleton(topProjOp);
 
@@ -3104,7 +3140,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      		topProjNames = appendToTailOfList(topProjNames, strdup(d->attrName));
      }
 
-     QueryOperator *topProjOp = createProjOnAttrsByName(topJoinOp , topProjNames);
+     QueryOperator *topProjOp = createProjOnAttrsByName(topJoinOp , topProjNames, NIL);
      topProjOp->inputs = singleton(topJoin);
      topJoinOp->parents = singleton(topProjOp);
 
@@ -3117,7 +3153,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
     		 addProjNames = appendToTailOfList(addProjNames, strdup(c));
      }
 
-     QueryOperator *addProj = createProjOnAttrsByName(topProjOp , addProjNames);
+     QueryOperator *addProj = createProjOnAttrsByName(topProjOp , addProjNames, NIL);
      QueryOperator *addProjOp = (QueryOperator *) addProj;
      addProjOp->inputs = singleton(topProjOp);
      topProjOp->parents = singleton(addProjOp);
