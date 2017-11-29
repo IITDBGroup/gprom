@@ -34,6 +34,7 @@
 #define TOTAL_PROV_ATTR "TotalProv"
 #define ACCURACY_ATTR "Precision"
 #define COVERAGE_ATTR "Recall"
+#define FMEASURE_ATTR "Fmeasure"
 #define COVERED_ATTR "Covered"
 #define SAMP_NUM_PREFIX "SampNum"
 #define SAMP_NUM_L_ATTR SAMP_NUM_PREFIX "Left"
@@ -51,6 +52,7 @@ static Node *rewritePatternOutput (char *summaryType, Node *input);
 static Node *rewriteScanSampleOutput (Node *sampleInput, Node *patternInput);
 static Node *rewriteCandidateOutput (Node *scanSampleInput);
 static Node *rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput);
+static Node *rewritefMeasureOutput (Node *candidateInput, List *userQuestion);
 static Node *rewriteMostGenExplOutput (Node *computeFracInput, int topK);
 
 Node *
@@ -94,15 +96,8 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts)
 	}
 
 	// summarization steps
-	Node *result;
-	Node *provJoin;
-	Node *randomProv;
-	Node *randomNonProv;
-	Node *samples;
-	Node *patterns;
-	Node *scanSamples;
-	Node *candidates;
-	Node *computeFrac;
+	Node *result, *provJoin, *randomProv, *randomNonProv, *samples,
+		 *patterns, *scanSamples, *candidates, *computeFrac, *fMeasure;
 
 	if (userQuestion != NIL)
 		rewrittenTree = rewriteUserQuestion(userQuestion, rewrittenTree);
@@ -115,7 +110,8 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts)
 	scanSamples = rewriteScanSampleOutput(samples, patterns);
 	candidates = rewriteCandidateOutput(scanSamples);
 	computeFrac = rewriteComputeFracOutput(candidates, samples);
-	result = rewriteMostGenExplOutput(computeFrac, topK);
+	fMeasure = rewritefMeasureOutput(computeFrac, userQuestion);
+	result = rewriteMostGenExplOutput(fMeasure, topK);
 
 	 if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) result));
@@ -124,11 +120,10 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts)
 }
 
 static Node *
-rewriteMostGenExplOutput (Node *computeFracInput, int topK)
+rewriteMostGenExplOutput (Node *fMeasureInput, int topK)
 {
 	Node *result;
-
-	QueryOperator *computeFrac = (QueryOperator *) computeFracInput;
+	QueryOperator *fMeasure = (QueryOperator *) fMeasureInput;
 
 	// create selection for returning top most general explanation
 	Node *selCond = NULL;
@@ -138,34 +133,132 @@ rewriteMostGenExplOutput (Node *computeFracInput, int topK)
 	else
 		selCond = (Node *) createOpExpr("<=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(1))); // TODO: top1 or more?
 
-	SelectionOperator *so = createSelectionOp(selCond, computeFrac, NIL, getAttrNames(computeFrac->schema));
+	SelectionOperator *so = createSelectionOp(selCond, fMeasure, NIL, getAttrNames(fMeasure->schema));
 
-	computeFrac->parents = singleton(so);
-	computeFrac = (QueryOperator *) so;
+	fMeasure->parents = singleton(so);
+	fMeasure = (QueryOperator *) so;
 
 	// create projection operator
 	int pos = 0;
 	List *projExpr = NIL;
 	ProjectionOperator *op;
 
-	FOREACH(AttributeDef,p,computeFrac->schema->attrDefs)
+	FOREACH(AttributeDef,p,fMeasure->schema->attrDefs)
 	{
 		projExpr = appendToTailOfList(projExpr,
 				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
 		pos++;
 	}
 
-	op = createProjectionOp(projExpr, computeFrac, NIL, getAttrNames(computeFrac->schema));
-	computeFrac->parents = singleton(op);
-	computeFrac = (QueryOperator *) op;
+	op = createProjectionOp(projExpr, fMeasure, NIL, getAttrNames(fMeasure->schema));
+	fMeasure->parents = singleton(op);
+	fMeasure = (QueryOperator *) op;
 
-	result = (Node *) computeFrac;
+	result = (Node *) fMeasure;
 
 	DEBUG_NODE_BEATIFY_LOG("most general explanation from summarization:", result);
 	INFO_OP_LOG("most general explanation from summarization as overview:", result);
 
 	return result;
 }
+
+
+static Node *
+rewritefMeasureOutput (Node *computeFracInput, List *userQuestion)
+{
+	Node *result;
+	QueryOperator *computeFrac = (QueryOperator *) computeFracInput;
+
+	// where clause to filter out the pattern that only contains user question info
+	int aPos = 0;
+	int count = 1;
+	AttributeReference *lA, *rA = NULL;
+	Node *whereCond = NULL;
+
+	FOREACH(AttributeDef,a,computeFrac->schema->attrDefs)
+	{
+		if(isPrefix(a->attrName, "use"))
+		{
+			if(count % 2 != 0)
+				lA = createFullAttrReference(strdup(a->attrName), 0, aPos, 0, a->dataType);
+			else
+				rA = createFullAttrReference(strdup(a->attrName), 0, aPos, 0, a->dataType);
+
+			if(lA != NULL && rA != NULL)
+			{
+				Node *pairCond = (Node *) createOpExpr("+",LIST_MAKE(lA,rA));
+
+				if(whereCond != NULL)
+					whereCond = (Node *) createOpExpr("+",LIST_MAKE(whereCond,pairCond));
+				else
+					whereCond = copyObject(pairCond);
+
+				lA = NULL;
+				rA = NULL;
+			}
+			count++;
+		}
+		aPos++;
+	}
+
+	// add the last attr
+	if(lA != NULL && rA == NULL)
+		whereCond = (Node *) createOpExpr("+",LIST_MAKE(whereCond,lA));
+
+	int maxNum = count - LIST_LENGTH(userQuestion) - 1;
+	Node *filterCond = (Node *) createOpExpr("<",LIST_MAKE(whereCond,createConstInt(maxNum)));
+
+	SelectionOperator *so = createSelectionOp(filterCond, computeFrac, NIL, getAttrNames(computeFrac->schema));
+	computeFrac->parents = appendToTailOfList(computeFrac->parents,so);
+	computeFrac = (QueryOperator *) so;
+
+	// projection operator with a f-measure computation
+	int pos = 0;
+	List *projExpr = NIL;
+	ProjectionOperator *op;
+	AttributeReference *prec, *rec = NULL;
+
+	FOREACH(AttributeDef,p,computeFrac->schema->attrDefs)
+	{
+		if(streq(p->attrName, ACCURACY_ATTR))
+			prec = createFullAttrReference(strdup(ACCURACY_ATTR), 0, pos, 0, p->dataType);
+
+		if(streq(p->attrName, COVERAGE_ATTR))
+			rec = createFullAttrReference(strdup(COVERAGE_ATTR), 0, pos, 0, p->dataType);
+
+		projExpr = appendToTailOfList(projExpr,
+				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+		pos++;
+	}
+
+	// add f-measure computation
+	Node *times = (Node *) createOpExpr("*",LIST_MAKE(prec,rec));
+	Node *plus = (Node *) createOpExpr("+",LIST_MAKE(prec,rec));
+	Node *cal = (Node *) createOpExpr("/",LIST_MAKE(times,plus));
+	Node *fmeasure = (Node *) createOpExpr("*",LIST_MAKE(createConstInt(2),cal));
+	projExpr = appendToTailOfList(projExpr, fmeasure);
+
+	List *attrNames = CONCAT_LISTS(getAttrNames(computeFrac->schema), singleton(FMEASURE_ATTR));
+	op = createProjectionOp(projExpr, computeFrac, NIL, attrNames);
+	computeFrac->parents = singleton(op);
+	computeFrac = (QueryOperator *) op;
+
+	// create ORDER BY
+	OrderExpr *fmeasureExpr = createOrderExpr(fmeasure, SORT_DESC, SORT_NULLS_LAST);
+	OrderOperator *ord = createOrderOp(singleton(fmeasureExpr), computeFrac, NIL);
+
+	computeFrac->parents = singleton(ord);
+	computeFrac = (QueryOperator *) ord;
+
+	result = (Node *) computeFrac;
+	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
+
+	DEBUG_NODE_BEATIFY_LOG("compute f-measure for summarization:", result);
+	INFO_OP_LOG("compute f-measure for summarization as overview:", result);
+
+	return result;
+}
+
 
 static Node *
 rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
@@ -1023,7 +1116,7 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 	List *attrNames = NIL;
 	QueryOperator *prov;
 
-	if(userQuestion == NULL)
+	if(userQuestion == NIL)
 		prov = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
 	else
 		prov = (QueryOperator *) rewrittenTree;
