@@ -1317,7 +1317,7 @@ rewriteUserQuestion (List *userQuestion, Node *rewrittenTree)
 
 	FOREACH(Constant,c,userQuestion)
 	{
-		if (strcmp(strdup(c->value),"*") != 0)
+		if (!streq(strdup(c->value),"*"))
 		{
 			char *attr = getAttrNameByPos(input,attrPos);
 			AttributeDef *aDef = getAttrDefByName(input,attr);
