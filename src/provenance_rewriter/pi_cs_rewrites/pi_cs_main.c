@@ -164,7 +164,7 @@ rewritePI_CSOperator (QueryOperator *op)
             rewrittenOp = rewritePI_CSProjection((ProjectionOperator *) op);
             break;
         case T_AggregationOperator:
-        	if(combinerAggrOpt) {
+        	if(combinerAggrOpt) { //TODO use this
         		INFO_LOG("go SEMIRING COMBINER aggregation optimization!");
         	}
             DEBUG_LOG("go aggregation");
@@ -180,6 +180,7 @@ rewritePI_CSOperator (QueryOperator *op)
             break;
         case T_TableAccessOperator:
             DEBUG_LOG("go table access");
+            //TODO check whether coarse grained
             rewrittenOp = rewritePI_CSTableAccess((TableAccessOperator *) op);
             break;
         case T_ConstRelOperator:

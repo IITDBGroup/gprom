@@ -178,6 +178,11 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             }
 
             break;
+        case PROV_COARSE_GRAINED:
+            // add annotations for table access and for combiners (aggregation)
+            result = rewritePI_CS(op);
+            // write method that adds aggregation on top
+            break;
         case PROV_TRANSFORMATION:
             result =  rewriteTransformationProvenance((QueryOperator *) op);
             break;
