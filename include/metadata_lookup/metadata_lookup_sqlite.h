@@ -40,6 +40,7 @@ extern int sqliteGetCostEstimation(char *query);
 extern List *sqliteGetKeyInformation(char *tableName);
 
 extern Relation *sqliteExecuteQuery(char *query);
+extern void sqliteExecuteQueryIgnoreResults(char *query);
 extern void sqliteGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Node *sqliteExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);

@@ -1,13 +1,21 @@
-<h1>GProM Datalog Provenance Graph Generator</h1>
+<!--<h1>GProM Datalog Provenance Graph Generator</h1>-->
+<h1>PUG (Provenance Unification through Graph) Explorer</h1>
 <form method="post" action="{{ url_for('querysubmit') }}">
         <p><label>Query:</label> <textarea name="query" required>{{ query }}</textarea></p>
-        <p><button type="submit" name="gengraph">Generate Graph</button><button type="submit" name="genquery">Run Query</button></p>
+        <p>
+	    <button type="submit" name="genprovgame">Generate ProvGame</button>
+	    <button type="submit" name="genprovgraph">Generate ProvGraph</button>
+	    <button type="submit" name="gentriograph">Generate TrioGraph</button>
+	    <button type="submit" name="genlingraph">Generate LinGraph</button>
+	    <button type="submit" name="genquery">Run Query</button>
+	</p>
 </form>
 <form method="post" action="{{ url_for('queryload') }}">
-   <select name="storedQueryForm">
+   <select name="storedQueryForm" style="width:94%">
        {% for q in allQueries %}
        <option value="{{ q.id }}">{{ q.query }} was run as: {{ q.graphOrResult }}</option>
        {% endfor %}
     </select>
     <button type="submit">load query</button>
 </form>
+

@@ -8,7 +8,8 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
@@ -28,7 +29,7 @@ import org.gprom.jdbc.utility.PropertyWrapper;
  */
 public class GProMDriver implements Driver {
 	/** logger */
-	private static Logger log = Logger.getLogger(GProMDriver.class);
+	private static Logger log = LogManager.getLogger(GProMDriver.class);
 	
 	
 	protected Driver driver;
@@ -58,7 +59,7 @@ public class GProMDriver implements Driver {
 		// if the given URL could no be handled by the driver return null.
 		if (!acceptsURL(url))
 			return null;
-
+		log.info("creating GProM connection for {}\nwith options:\n{}", url, info);
 		/** should we load the backend driver or not */
 		boolean loadBackendDriver = Boolean.parseBoolean(GProMDriverProperties.getValueOrDefault(
 				GProMDriverProperties.LOAD_DRIVER, info)); 
@@ -72,13 +73,15 @@ public class GProMDriver implements Driver {
 		 * GProMConnection.
 		 */
 		try {
+			log.info("initializeof libgprom ...");
 			w.init();
-			
+			log.info("initialization of libgprom finished.");
 			BackendType backend = GProMJDBCUtil.inst.getBackendTypeFromURL(url);
 			String driverClass = GProMJDBCUtil.inst.getDriverClass(backend);
 			PropertyWrapper backendOpts = GProMJDBCUtil.inst.getOptionsForBackend(backend);
 			Connection backendConnection;
 			String backendURL = GProMJDBCUtil.inst.stripGProMPrefix(url);
+			log.debug("got backend information and properties {}", backendOpts);
 			
 			if (driverClass == null)
 				throw new Exception("did not find driver for: " +  backend);
@@ -87,7 +90,8 @@ public class GProMDriver implements Driver {
 			if (loadBackendDriver && driverClass != null) {
 				// load the driver from the classpath in the DriverMapping
 				// property
-				Class.forName(driverClass);				
+				Class.forName(driverClass);
+				log.info("loaded backend driver {}", driverClass);
 			}
 			
 			// init a new GProMConnection from the driver loaded before and
@@ -95,14 +99,14 @@ public class GProMDriver implements Driver {
 			driver = DriverManager.getDriver(backendURL);
 			if (driver == null)
 				throw new Exception("did not find class for driver: " +  driver);
-			log.info("driver class is: " + driver.getClass());
+			log.info("driver class is {}", driver.getClass());
 			
 			// create a jdbc connection to the backend.
 			log.info("trying to connect to: " + backendURL);
 			backendConnection = driver.connect(backendURL, info);
 			if (backendConnection == null)
 				throw new Exception("was unable to create connection: " + backendURL);
-			log.info("created connection object: " + backendURL);
+			log.info("created connection object for backend DB: " + backendURL);
 			
 			// extract backend connection parameters from JDBC connection
 			extractConnectionParameters(backendURL, backendOpts, backend, info);
@@ -123,6 +127,7 @@ public class GProMDriver implements Driver {
 		} catch (Throwable ex) {
 			log.error("Error loading the driver and getting a connection.");
 			LoggerUtil.logException(ex, log);
+			LogManager.shutdown();
 			System.exit(2);
 		}
 		return null;

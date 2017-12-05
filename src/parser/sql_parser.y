@@ -60,15 +60,17 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT
+%token <stringVal> SEQUENCED TEMPORAL TIME
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
 %token <stringVal> FROM
+%token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
 %token <stringVal> WHERE
 %token <stringVal> DISTINCT
 %token <stringVal> STARALL
 %token <stringVal> AND OR LIKE NOT IN ISNULL BETWEEN EXCEPT EXISTS
 %token <stringVal> AMMSC NULLVAL ROWNUM ALL ANY IS SOME
-%token <stringVal> UNION INTERSECT MINUS
+%token <stringVal> UNION INTERSECT MINUS 
 %token <stringVal> INTO VALUES HAVING GROUP ORDER BY LIMIT SET
 %token <stringVal> INT BEGIN_TRANS COMMIT_TRANS ROLLBACK_TRANS
 %token <stringVal> CASE WHEN THEN ELSE END
@@ -101,7 +103,7 @@ Node *bisonParseResult = NULL;
 %left comparisonOps
 %right NOT
 %left AND OR
-%right ISNULL
+%right IS NULLVAL
 %nonassoc  LIKE IN  BETWEEN
 
 /* Arithmetic operators : FOR TESTING */
@@ -116,15 +118,15 @@ Node *bisonParseResult = NULL;
 /*
  * Types of non-terminal symbols
  */
-%type <node> stmt provStmt dmlStmt queryStmt ddlStmt
+%type <node> stmt provStmt dmlStmt queryStmt ddlStmt reenactStmtWithOptions
 %type <node> createTableStmt alterTableStmt alterTableCommand
 %type <list> tableElemList optTableElemList attrElemList
 %type <node> tableElement attr
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
-			 optionalGroupBy optionalOrderBy setClause  stmtList //insertList 
-			 identifierList optionalAttrAlias optionalProvWith provOptionList 
+			 optionalGroupBy optionalOrderBy setClause  stmtList stmtWithReenactOptionsList //insertList 
+			 identifierList optionalAttrAlias optionalProvWith provOptionList optionalReenactOptions reenactOptionList
 			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo optionalTranslate
 //			 optInsertAttrList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
@@ -134,7 +136,7 @@ Node *bisonParseResult = NULL;
 %type <node> jsonTable jsonColInfoItem 
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
-%type <node> optionalProvAsOf provOption
+%type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -369,9 +371,9 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
-		| REENACT optionalProvAsOf optionalProvWith '(' stmtList ')'
+		| REENACT optionalProvAsOf optionalProvWith '(' stmtWithReenactOptionsList ')'
 		{
-			RULELOG("provStmt::reenactStmtlist");
+			RULELOG("provStmt::stmtWithReenactOptionsList");
 			ProvenanceStmt *p = createProvenanceStmt((Node *) $5);
 			p->inputType = PROV_INPUT_REENACT;
 			p->provType = PROV_NONE;
@@ -379,11 +381,40 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
+		| REENACT optionalProvAsOf optionalProvWith TRANSACTION stringConst
+		{
+			RULELOG("provStmt::transaction");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) createConstString($5));
+			p->inputType = PROV_INPUT_TRANSACTION;
+			p->provType = PROV_NONE;
+			p->options = $3;
+			$$ = (Node *) p;
+		}
+		| SEQUENCED TEMPORAL '(' stmt ')'
+		{
+			RULELOG("provStmt::temporal");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $4);
+			p->inputType = PROV_INPUT_TEMPORAL_QUERY;
+			p->provType = PROV_NONE;
+			p->asOf = NULL;
+			p->options = NIL;
+			$$ = (Node *) p;
+		}
+		| UNCERTAIN '(' stmt ')'
+		{
+			RULELOG("provStmt::uncertain");
+			ProvenanceStmt *p = createProvenanceStmt((Node *) $3);
+			p->inputType = PROV_INPUT_UNCERTAIN_QUERY;
+			p->provType = PROV_NONE;
+			p->asOf = NULL;
+			p->options = NIL;
+			$$ = (Node *) p;
+		}
 		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier
         {
             RULELOG("provStmt::summaryStmt");
             Node *stmt = $6;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+	    		ProvenanceStmt *p = createProvenanceStmt(stmt);
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $2;
@@ -447,21 +478,92 @@ summaryType:
 		}
 	;
 */
-  
+
+stmtWithReenactOptionsList: 
+		reenactStmtWithOptions
+		{ 
+			RULELOG("stmtWithTimeList::stmt"); 
+			$$ = singleton($1);
+		}
+		| stmtWithReenactOptionsList reenactStmtWithOptions 
+		{
+			RULELOG("stmtWithTimeList::stmtWithTimeList::stmt");
+			$$ = appendToTailOfList($1, $2);	
+		}
+	;
+
+reenactStmtWithOptions:
+		optionalReenactOptions stmt ';'
+		{
+			RULELOG("reenactStmtWithOptions");
+			KeyValue *kv = createNodeKeyValue((Node *) $2, (Node *) $1);
+			$$ = (Node *) kv;
+		}
+	;
+
+optionalReenactOptions:
+		/* empty */
+		{
+			RULELOG("optionalReenactOptions:EMPTY");
+			$$ = NIL;
+		}
+		| OPTIONS '(' reenactOptionList ')'
+		{
+			RULELOG("optionalReenactOptions:reenactOptionList");
+			$$ = $3;
+		}
+	;
+	
+reenactOptionList:
+		reenactOption 
+		{ 
+			RULELOG("reenactOptionList:option");
+			$$ = singleton($1); 
+		}
+		| reenactOptionList reenactOption
+		{
+			RULELOG("reenactOptionList:list:option");
+			$$ = CONCAT_LISTS($1, singleton($2));
+		}
+	;
+
+reenactOption:
+		provAsOf
+		{
+			RULELOG("reenactOption:provAsOf");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_REENACT_ASOF), $1);
+		}
+		| NO PROVENANCE
+		{
+			RULELOG("reenactOption:noProvenance");
+			$$ = (Node *) createNodeKeyValue(
+					(Node *) createConstString(PROP_REENACT_DO_NOT_TRACK_PROV), 
+					(Node *) createConstBool(TRUE));
+		} 
+	;
+	
 optionalProvAsOf:
 		/* empty */			{ RULELOG("optionalProvAsOf::EMPTY"); $$ = NULL; }
-		| AS OF SCN intConst
+		| provAsOf
 		{
-			RULELOG("optionalProvAsOf::SCN");
+			RULELOG("optionalProvAsOf::provAsOf");
+			$$ = $1;
+		}
+	;
+	
+provAsOf:
+		AS OF SCN intConst
+		{
+			RULELOG("provAsOf::SCN");
 			$$ = (Node *) createConstLong($4);
 		}
 		| AS OF TIMESTAMP stringConst
 		{
-			RULELOG("optionalProvAsOf::TIMESTAMP");
+			RULELOG("provAsOf::TIMESTAMP");
 			$$ = (Node *) createConstString($4);
 		}
 	;
-	
+
 optionalProvWith:
 		/* empty */			{ RULELOG("optionalProvWith::EMPTY"); $$ = NIL; }
 		| WITH provOptionList
@@ -484,12 +586,12 @@ provOption:
 		TYPE stringConst 
 		{ 
 			RULELOG("provOption::TYPE"); 
-			$$ = (Node *) createStringKeyValue("TYPE", $2); 
+			$$ = (Node *) createStringKeyValue(PROP_PC_PROV_TYPE, $2); 
 		}
 		| TABLE identifier
 		{
 			RULELOG("provOption::TABLE");
-			$$ = (Node *) createStringKeyValue("TABLE", $2);
+			$$ = (Node *) createStringKeyValue(PROP_PC_TABLE, $2);
 		}
 		| ONLY UPDATED
 		{
@@ -521,7 +623,46 @@ provOption:
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_STATEMENT_ANNOTATIONS),
 					(Node *) createConstBool(FALSE));
 		}
+		| PROVENANCE
+		{
+			RULELOG("provOption::PROVENANCE");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_GEN_PROVENANCE),
+					(Node *) createConstBool(TRUE));
+		}
+		| ISOLATION LEVEL identifier
+		{
+			RULELOG("provOption::ISOLATION::LEVEL");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_ISOLATION_LEVEL),
+					(Node *) createConstString(strdup($3)));
+		}
+		| COMMIT_TRANS SCN intConst
+		{
+			RULELOG("provOption::COMMIT::SCN");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COMMIT_SCN),
+					(Node *) createConstLong($3));
+		} 
+		| SEMIRING COMBINER semiringCombinerSpec
+		{
+			RULELOG("provOption::SEMIRING::COMBINER::semiringCombinerSpec");
+            $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_SEMIRING_COMBINER), 
+            									(Node *) $3);
+		}
 	;
+
+semiringCombinerSpec:
+   		identifier
+        {
+            //$$ = createConstString($1);
+            RULELOG("semiringCombinerSpec::identifier");
+            $$ = (Node *)createConstString($1);
+        }
+        |
+        ADD '(' expression ')'  MULT '(' expression ')'
+        {
+            RULELOG("semiringCombinerSpec::ADD::expression::MULT::expression");
+            $$ = LIST_MAKE($3, $7);
+        }
+;
 
 optionalTranslate:
                 /* empty */ { RULELOG("optionalTranslate::EMPTY"); $$ = NULL;}
@@ -529,7 +670,7 @@ optionalTranslate:
 		TRANSLATE AS optionalstringConst 
 		{
 			RULELOG("optionaltranslate::TRANSLATE::AS");
-			$$ = singleton((Node *) createStringKeyValue("TRANSLATE AS", $3));
+			$$ = singleton((Node *) createStringKeyValue(strdup("TRANSLATE AS"), $3));
 		}
         ;
 
@@ -642,15 +783,15 @@ insertContent:
  */
 
 setOperatorQuery:     // Need to look into createFunction
-        queryStmt INTERSECT queryStmt
+        queryStmt INTERSECT optionalAll queryStmt
             {
                 RULELOG("setOperatorQuery::INTERSECT");
-                $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
+                $$ = (Node *) createSetQuery($2, ($3 != NULL), $1, $4);
             }
-        | queryStmt MINUS queryStmt 
+        | queryStmt MINUS optionalAll queryStmt 
             {
                 RULELOG("setOperatorQuery::MINUS");
-                $$ = (Node *) createSetQuery($2, FALSE, $1, $3);
+                $$ = (Node *) createSetQuery($2, ($3 != NULL), $1, $4);
             }
         | queryStmt UNION optionalAll queryStmt
             {
@@ -907,6 +1048,16 @@ unaryOperatorExpression:
                 List *expr = singleton($2);
                 $$ = (Node *) createOpExpr($1, expr);
             }
+         | expression IS NULLVAL
+         {
+         	RULELOG("unaryOperatorExpression::IS NULL");
+         	$$ = (Node *) createIsNullExpr($1);
+         }
+         | expression IS NOT NULLVAL
+         {
+         	RULELOG("unaryOperatorExpression::IS NOT NULL");
+         	$$ = (Node *) createOpExpr("NOT", singleton(createIsNullExpr($1)));
+         }     
     ;
     
 /*
@@ -1368,6 +1519,14 @@ optionalFromProv:
 				p->userProvAttrs = $5;
 				$$ = (Node *) p;
 			}
+		| WITH TIME '(' identifierList ')'
+		{
+			RULELOG("optionalFromProv::userProvAttr");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			p->baserel = FALSE;
+			p->userProvAttrs = $4;				 
+			$$ = (Node *) p; 
+		}
 	;
     
 optionalAttrAlias:

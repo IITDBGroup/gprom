@@ -50,6 +50,7 @@ static void externalGetTransactionSQLAndSCNs (char *xid, List **scns, List **sql
 static Node *externalExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 static long externalGetCommitScn (char *tableName, long maxScn, char *xid);
 static Relation *externalGenExecQuery (char *query);
+static void externalGenExecQueryIgnoreQuery (char *query);
 
 #define EXTERNAL_PLUGIN GProMMetadataLookupPlugin *extP = (GProMMetadataLookupPlugin *) activePlugin->cache->cacheHook
 
@@ -82,6 +83,7 @@ assembleExternalMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
     p->executeAsTransactionAndGetXID = externalExecuteAsTransactionAndGetXID;
     p->getCommitScn = externalGetCommitScn;
     p->executeQuery = externalGenExecQuery;
+    p->executeQueryIgnoreResult = externalGenExecQueryIgnoreQuery;
 
     p->cache = createCache();
     p->cache->cacheHook = plugin;
@@ -306,4 +308,10 @@ externalGenExecQuery (char *query)
 {
     //TODO
     return NULL;
+}
+
+static void
+externalGenExecQueryIgnoreQuery (char *query)
+{
+    //TODO
 }

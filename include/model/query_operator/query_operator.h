@@ -98,7 +98,9 @@ NEW_ENUM_WITH_TO_STRING(ReenactUpdateType,
         UPDATE_TYPE_DELETE,
         UPDATE_TYPE_UPDATE,
         UPDATE_TYPE_INSERT_VALUES,
-        UPDATE_TYPE_INSERT_QUERY
+        UPDATE_TYPE_INSERT_QUERY,
+        UPDATE_TYPE_DDL,
+        UPDATE_TYPE_QUERY
 );
 
 typedef struct UpdateOperator
@@ -246,6 +248,7 @@ extern void removeStringProperty (QueryOperator *op, char *key);
 #define SET_BOOL_STRING_PROP(op,key) (setStringProperty((QueryOperator *) op, \
         key, (Node *) createConstBool(TRUE)))
 #define GET_STRING_PROP(op,key) (getStringProperty((QueryOperator *) op, key))
+#define GET_STRING_PROP_STRING_VAL(op,key) (HAS_STRING_PROP(op,key) ? STRING_VALUE(getStringProperty((QueryOperator *) op, key)) : NULL)
 #define GET_BOOL_STRING_PROP(op,key) ((getStringProperty((QueryOperator *) op, key) != NULL) \
     && (BOOL_VALUE(getStringProperty((QueryOperator *) op, key))))
 
@@ -277,6 +280,8 @@ extern int getNumAttrs(QueryOperator *op);
 extern int getAttrPos(QueryOperator *op, char *attr);
 extern AttributeDef *getAttrDefByName(QueryOperator *op, char *attr);
 extern AttributeDef *getAttrDefByPos(QueryOperator *op, int pos);
+extern AttributeReference *getAttrRefByPos (QueryOperator *op, int pos);
+extern AttributeReference *getAttrRefByName(QueryOperator *op, char *attr);
 extern char *getAttrNameByPos(QueryOperator *op, int pos);
 
 extern List *getAttrRefsInOperator (QueryOperator *op);

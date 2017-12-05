@@ -108,6 +108,7 @@ extern void free_(void *mem, const char *file, unsigned line);
         RELEASE_MEM_CONTEXT(); \
     } while(0)
 
+extern char *dumpMemContexInfo (void);
 extern MemContext *newMemContext(char *contextName, const char *file, unsigned line);
 extern void setCurMemContext(MemContext *mc, const char *file, unsigned line);
 extern MemContext *getCurMemContext(void);

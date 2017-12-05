@@ -107,6 +107,10 @@ boolean opt_timing = FALSE;
 boolean opt_memmeasure = FALSE;
 boolean opt_graphviz_output = FALSE;
 boolean opt_graphviz_detail = FALSE;
+boolean opt_show_query_runtime = FALSE;
+char *time_query_format = NULL;
+int query_repeat_count = 1;
+boolean opt_show_query_result = TRUE;
 
 // rewrite options
 boolean opt_aggressive_model_checking = FALSE;
@@ -144,13 +148,18 @@ boolean opt_optimization_pull_up_duplicate_remove_operators = FALSE;
 // optimization options for group by operator
 boolean opt_optimization_push_down_aggregation_through_join = FALSE;
 
-
 // sanity check options
 boolean opt_operator_model_unique_schema_attribues = FALSE;
 boolean opt_operator_model_parent_child_links = FALSE;
 boolean opt_operator_model_schema_consistency = FALSE;
 boolean opt_operator_model_attr_reference_consistency = FALSE;
 boolean opt_operator_model_data_structure_consistency = FALSE;
+
+// temporal database options
+boolean temporal_use_coalesce =	 TRUE;
+boolean temporal_use_normalization = TRUE;
+boolean temporal_use_normalization_window = FALSE;
+boolean temporal_agg_combine_with_norm = TRUE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -191,6 +200,16 @@ static char *defGetString(OptionDefault *def, OptionType type);
         }
 
 #define anSanityCheckOption(_name,_opt,_desc,_var,_def) \
+        { \
+            _name, \
+            _opt, \
+            _desc, \
+            OPTION_BOOL, \
+            wrapOptionBool(&_var), \
+            defOptionBool(_def) \
+        }
+
+#define anTemporaldbOption(_name,_opt,_desc,_var,_def) \
         { \
             _name, \
             _opt, \
@@ -444,6 +463,34 @@ OptionInfo opts[] =
                 "show operator parameters in graphviz scripts.",
                 opt_graphviz_detail ,
                 FALSE),
+        aRewriteOption(OPTION_TIME_QUERIES,
+                "-time_queries",
+                "measure query runtimes (only makes a difference for executor <run>).",
+                opt_show_query_runtime,
+                FALSE),
+        {
+                OPTION_TIME_QUERY_OUTPUT_FORMAT,
+                "-time_query_format",
+                "format used for printing query timing results. "
+                        "The format is printf compatible and should contain "
+                        "exactly on %f element (additional formating such as %12f is ok)",
+                OPTION_STRING,
+                wrapOptionString(&time_query_format),
+                defOptionString(NULL)
+        },
+        {
+                OPTION_REPEAT_QUERY,
+                "-repeat_query_count",
+                "execute query this many times (useful for timing).",
+                OPTION_INT,
+                wrapOptionInt(&query_repeat_count),
+                defOptionInt(1)
+        },
+        aRewriteOption(OPTION_SHOW_QUERY_RESULT,
+                "-show_result",
+                "show query result (only makes a difference for executor <run>).",
+                opt_show_query_result,
+                TRUE),
         // boolean rewrite options
         aRewriteOption(OPTION_AGGRESSIVE_MODEL_CHECKING,
                 "-aggressive_model_checking",
@@ -622,6 +669,31 @@ OptionInfo opts[] =
 				opt_optimization_push_down_aggregation_through_join,
 				TRUE
 		),
+        // temporal database options for coalesce and normalization
+        anTemporaldbOption(TEMPORAL_USE_COALSECE,
+                "-temporal_use_coalesce",
+                "Temporaldb: Activate coalesce",
+				temporal_use_coalesce,
+                TRUE
+        ),
+		anTemporaldbOption(TEMPORAL_USE_NORMALIZATION,
+                "-temporal_use_normalization",
+                "Temporaldb: Activate normalization",
+				temporal_use_normalization,
+                TRUE
+        ),
+		anTemporaldbOption(TEMPORAL_USE_NORMALIZATION_WINDOW,
+                "-temporal_use_normalization_window",
+                "Temporaldb: Activate normalization using window",
+				temporal_use_normalization_window,
+                FALSE
+        ),
+        anTemporaldbOption(TEMPORAL_AGG_WITH_NORM,
+                "-" TEMPORAL_AGG_WITH_NORM,
+                "Temporaldb: rewrite and aggregation by applying a rewrite that combines aggregation with normalization",
+                temporal_agg_combine_with_norm,
+                TRUE
+        ),
         // sanity model checking options
         anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
                 "-Cunique_attr_names",
@@ -695,6 +767,14 @@ BackendInfo backends[]  = {
             "oracle",   // analyzer
             "oracle",   // parser
             "sqlite",   // metadata
+            "sqlite",    // sqlserializer
+            "oracle"   // translator
+        },
+        {
+            "monetdb",   // name
+            "oracle",   // analyzer
+            "oracle",   // parser
+            "monetdb",   // metadata
             "sqlite",    // sqlserializer
             "oracle"   // translator
         },

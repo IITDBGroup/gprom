@@ -10,3 +10,5 @@ mysql-connector-java.jar
 ojdbc7dms_g.jar
 postgresql.jar
 stringtemplate.jar
+log4j-api.jar
+log4j-core.jar

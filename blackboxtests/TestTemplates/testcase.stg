@@ -15,7 +15,7 @@ testcaseimports() ::= <<
 ]:importPackage(); separator = "\n">
 >>
 
-numFromName(x) ::= "Query_<x>"
+numFromName(x) ::= <<Query_<x;format="pad(3)"> >>
 
 testcase(num) ::= <<
 @Test
@@ -28,6 +28,10 @@ public void test<num:numFromName()> () throws SQLException, Exception {
 testclass(name,path,basedir,file,setting,casenum) ::= <<
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class <name> extends AbstractGProMTester {
+
+	static {
+		System.setProperty("log4j.configurationFile", "blackboxtests/log4jtest.properties");
+	}
 
 	public <name> () {
 		try {

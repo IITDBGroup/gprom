@@ -4,12 +4,13 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup;
 
 public class HSQLDBCatalogLookup extends AbstractMetadataLookup {
 	
-	private static Logger log = Logger.getLogger(HSQLDBCatalogLookup.class);
+	private static Logger log = LogManager.getLogger(HSQLDBCatalogLookup.class);
 	private Connection con;
 	private DatabaseMetaData meta;
 	

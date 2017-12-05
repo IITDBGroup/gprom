@@ -216,6 +216,7 @@ extern List *removeListElementsFromAnotherList(List *l1, List *l2);
 extern List *genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value);
 extern List *removeFromTail(List *X);
 extern List *removeFromHead(List *X);
+extern List *removeListElemAtPos (List *list, int pos);
 #define REMOVE_FROM_LIST_PTR(list,ptr) genericRemoveFromList (list, ptrEqual, ptr)
 #define REMOVE_FROM_LIST_NODE(list,node) genericRemoveFromList (list, equal, node)
 

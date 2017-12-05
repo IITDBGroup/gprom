@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Temporal Sequenced Rewrites Test Cases for Aggregation queries</comment>
+
+<entry key="q1.query">
+SEQUENCED TEMPORAL (SELECT count(*) AS BOO FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
+</entry>
+<entry key="q1.result">
+ BOO | T_B | T_E |
+------------------
+ 0   | -2000000000 | 1          
+ 4   | 1   | 4   |
+ 3   | 4   | 6   |
+ 2   | 6   | 10  |
+ 1   | 10  | 13  |
+ 0   | 13  | 2000000000 |
+</entry>
+
+
+<entry key="q2.query">
+SEQUENCED TEMPORAL (SELECT count(*) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A);
+</entry>
+<entry key="q2.result">
+ BOO | A | T_B | T_E |
+----------------------
+ 3   | 1 | 1   | 6   |
+ 2   | 1 | 6   | 10  |
+ 1   | 1 | 10  | 13  |
+ 1   | 2 | 1   | 4   |
+</entry>
+
+<entry key="q3.query">
+SEQUENCED TEMPORAL (SELECT count(*) AS X FROM (SELECT count(*) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A) a);
+</entry>
+<entry key="q3.result">
+ X | T_B | T_E |
+-----------------------
+ 0        | -2000000000 | 1          |
+ 1        | 4   | 13  |
+ 2        | 1   | 4   |
+ 0        | 13          | 2000000000 |
+</entry>
+
+<entry key="q4.query">
+SEQUENCED TEMPORAL (SELECT count(1) AS X FROM TEMP_DATE WITH TIME(T_BEGIN, T_END));
+</entry>
+<entry key="q4.result">
+ X | T_B                   | T_E                   |
+----------------------------------------------------
+ 0        | 4712-01-01 00:00:00.0 | 2017-01-01 00:00:00.0 |
+ 1        | 2017-01-01 00:00:00.0 | 2017-01-05 00:00:00.0 |
+ 2        | 2017-01-05 00:00:00.0 | 2017-02-15 00:00:00.0 |
+ 1        | 2017-02-15 00:00:00.0 | 2017-04-07 00:00:00.0 |
+ 0        | 2017-04-07 00:00:00.0 | 9999-01-01 00:00:00.0 |
+</entry>
+
+
+<entry key="q5.query">
+SEQUENCED TEMPORAL (SELECT min(B) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A);
+</entry>
+<entry key="q5.result">
+ BOO | A | T_B | T_E |
+----------------------
+ 1   | 1 | 1   | 10  |
+ 2   | 1 | 10  | 13  |
+ 1   | 2 | 1   | 4   |
+</entry>
+
+<entry key="q6.query">
+SEQUENCED TEMPORAL (SELECT max(B) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A);
+</entry>
+<entry key="q6.result">
+ BOO | A | T_B | T_E |
+----------------------
+ 1   | 2 | 1   | 4   |
+ 2   | 1 | 1   | 13  |
+</entry>
+
+<entry key="q7.query">
+SEQUENCED TEMPORAL (SELECT sum(SALARY) AS SSAL FROM TEMP_EMP WITH TIME (FROM_DATE, TO_DATE));
+</entry>
+<entry key="q7.result">
+ SSAL  | T_B        | T_E        |
+----------------------------------
+ (null)      | 4712-01-01 00:00:00.0 |  1988-09-05 00:00:00.0 | 
+ 41538       | 1988-09-05 00:00:00.0 |  1989-09-05 00:00:00.0 | 
+ 45131       | 1989-09-05 00:00:00.0 |  1990-09-05 00:00:00.0 | 
+ 45629       | 1990-09-05 00:00:00.0 |  1991-09-05 00:00:00.0 | 
+ 48360       | 1991-09-05 00:00:00.0 |  1992-09-04 00:00:00.0 | 
+ 50664       | 1992-09-04 00:00:00.0 |  1993-09-04 00:00:00.0 | 
+ 53060       | 1993-09-04 00:00:00.0 |  1994-09-04 00:00:00.0 | 
+ 56640       | 1994-09-04 00:00:00.0 |  1995-09-04 00:00:00.0 | 
+ (null)      | 1995-09-04 00:00:00.0 |  1998-04-11 00:00:00.0 | 
+ 53112       | 1998-04-11 00:00:00.0 |  1999-04-11 00:00:00.0 | 
+ 53164       | 1999-04-11 00:00:00.0 |  1999-10-31 00:00:00.0 | 
+ (null)      | 1999-10-31 00:00:00.0 |  9999-01-01 00:00:00.0 | 
+</entry>
+
+<entry key="q8.query">
+SEQUENCED TEMPORAL (SELECT count(1) AS X FROM TEMP_EMP WITH TIME (FROM_DATE, TO_DATE));
+</entry>
+<entry key="q8.result">
+ X | T_B        | T_E        |
+-------------------------------------
+ 0        | 4712-01-01 00:00:00.0 | 1988-09-05 00:00:00.0 |
+ 1        | 1988-09-05 00:00:00.0 | 1995-09-04 00:00:00.0 |
+ 0        | 1995-09-04 00:00:00.0 | 1998-04-11 00:00:00.0 |
+ 1        | 1998-04-11 00:00:00.0 | 1999-10-31 00:00:00.0 |
+ 0        | 1999-10-31 00:00:00.0 | 9999-01-01 00:00:00.0 |
+</entry>
+
+<entry key="q9.query">
+SELECT * FROM (SEQUENCED TEMPORAL (SELECT max(1) AS m FROM TEMP_EMP WITH TIME (FROM_DATE, TO_DATE))) sub ORDER BY T_B, T_E;
+</entry>
+<entry key="q9.result">
+ M | T_B        | T_E        |
+------------------------------
+ (null)      | 4712-01-01 00:00:00.0 | 1988-09-05 00:00:00.0 |
+ 1           | 1988-09-05 00:00:00.0 | 1995-09-04 00:00:00.0 |
+ (null)      | 1995-09-04 00:00:00.0 | 1998-04-11 00:00:00.0 |
+ 1           | 1998-04-11 00:00:00.0 | 1999-10-31 00:00:00.0 |
+ (null)      | 1999-10-31 00:00:00.0 | 9999-01-01 00:00:00.0 |
+</entry>
+
+<entry key="q10.query">
+SEQUENCED TEMPORAL (SELECT DISTINCT A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END));
+</entry>
+<entry key="q10.result">
+ A | T_B | T_E |
+----------------
+ 1 | 1   | 13  |
+ 2 | 1   | 4   |
+</entry>
+
+<entry key="q.query">
+</entry>
+<entry key="q.result">
+</entry>
+
+</properties>
+

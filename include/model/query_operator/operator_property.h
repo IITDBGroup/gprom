@@ -19,6 +19,7 @@
 #define PROP_SHOW_INTERMEDIATE_PROV "SHOW_INTERMEDIATE_PROV" // show provenance for this intermediate subquery result
 #define PROP_USE_PROVENANCE "USE_PROVENANCE"                // duplicate user provided attributes as provenance
 #define PROP_HAS_PROVENANCE "HAS_PROVENANCE"                // indicates the subquery already has associated provenance
+#define PROP_DUMMY_HAS_PROV_PROJ "DUMMY_HAS_PROV_PROJ"      // indicates that this is a dummy projection introduced for HAS PROVENANCE
 #define PROP_USER_PROV_ATTRS "USER_PROV_ATTRS"              // list of user selected provenance attribtues
 #define PROP_PROV_REL_NAME "PROVENANCE_REL_NAME"            // in provenance attributes refer to subquery as this name
 #define PROP_PROV_ADD_REL_NAME "PROVENANCE_ADD_REL_NAME"            // in provenance attributes that are added refer to subquery as this name
@@ -28,6 +29,9 @@
 
 // reenactment
 #define PROP_REENACT_SCHEMA_INFO "REENACT_SCHEMA"           // store additional table schemas to support reenactment of DDL commands
+#define PROP_REENACT_ASOF "REENACT_AS_OF"                   // store as of when the reenactment should happen
+#define PROP_REENACT_DO_NOT_TRACK_PROV "REENACT_DO_NOT_TRACK_PROV"     // do not track provenance for the statement marked in this way
+#define PROP_REENACT_NO_TRACK_LIST "REENACTMENT_NO_PROV_TRACK_LIST"    // list that indicates for each reenacted statement whether to track provenance or not
 
 // provenance PI-CS composable
 #define PROP_RESULT_TID_ATTR "RESULT_TID_ATTR"              // result tid attribute for PI-CS composable
@@ -40,6 +44,7 @@
 
 /* Operator type specific properties */
 /* provenance computation specific properties */
+#define PROP_PC_PROV_TYPE "PROV_TYPE"                       // type of provenance to track
 #define PROP_PC_TABLE "TRACK_TABLE"                         // updated table to trace proveance of transaction for
 #define PROP_PC_UPDATE_COND "UPDATE_CONDS"                  // conditions of updates in transaction
 #define PROP_PC_ONLY_UPDATED "ONLY_UPDATED"                 // show only provenance of updated rows in transaction
@@ -47,7 +52,16 @@
 #define PROP_PC_TRANS_XID "TRANSACTION_XID"                 // stores transaction XID
 #define PROP_PC_TUPLE_VERSIONS "TUPLE_VERSIONS"             // use rowid + scn pairs as provenance
 #define PROP_PC_STATEMENT_ANNOTATIONS "STATEMENT_ANNOTATIONS" // statement annotations
+#define PROP_PC_STATEMENT_ANNOT_ATTR "ST_ATTR"              // attribute storing the statement annotion
+#define PROP_PC_PROJ_TO_REMOVE_SANNOT "PROJ_REMOVES_S_ANN"  // marks projection operator that removes statement annotations
+#define PROP_PC_VERSION_SCN_ATTR "SCN_ATTR"                 // attribute storing the version annotation
 #define PROP_PC_REENACT_METADATA "REENACT_METADATA"         // store table information for reenacting DDL commands
+#define PROP_PC_GEN_PROVENANCE "GENERATE_PROVENANCE"        // used for REENACT to indicate that provenance should be computed
+#define PROP_PC_REQUIRES_POSTFILTERING "REQUIRES_POSTFILTER"    // set to true if the output of reenactment needs to be filtered based on version annotation attributes
+#define PROP_PC_ISOLATION_LEVEL "REENACT_ISOLEVEL"          // set isolation level for reenactment
+#define PROP_PC_COMMIT_SCN "COMMIT_SCN"                     // stores commit SCN for REENACT WITH COMMIT SCN
+#define PROP_PC_SEMIRING_COMBINER "SEMIRING_COMBINER"       // use combiner in provenance computation
+#define PROP_PC_SC_AGGR_OPT "SEMIRING_COMBINER_AGGR_OPT" //use aggregation optimization in semiring combiner
 
 /* table access properties */
 #define PROP_TABLE_IS_UPDATED "UPDATED_TABLE"               // is table access for the updated table in an DML translation
@@ -84,5 +98,15 @@
 #define PROP_STORE_SET_EC_DONE_BU "STORE EC PROPERTY - DONE BOTTOM UP"
 #define PROP_STORE_SET_EC_DONE_TD "STORE EC PROPERTY - DONE TOP DOWN"
 #define PROP_STORE_DUP_MARK "STORE DUP PROPERTY"  //pull up dup op, avoid loop the same dup op two times
+
+/* properties for temporal queries */
+#define PROP_TEMP_TBEGIN_ATTR "TEMPORAL_INTERVAL_BEGIN"
+#define PROP_TEMP_TEND_ATTR "TEMPORAL_INTERVAL_END"
+#define PROP_TEMP_DO_COALESCE "TEMPORAL_DO_COALESCE"
+#define PROP_TEMP_DO_SET_COALESCE "TEMPORAL_DO_SET_COALESCE"
+#define PROP_TEMP_NORMALIZE_INPUTS "TEMPORAL_NORM_INPUTS"
+#define PROP_TEMP_TNTAB "PROP_TEMP_TNTAB"
+#define PROP_TEMP_IS_MINMAX "PROP_TEMP_IS_MINMAX"
+#define PROP_TEMP_ATTR_DT "PROP_TEMP_ATTR_DT"
 
 #endif /* OPERATOR_PROPERTY_H_ */

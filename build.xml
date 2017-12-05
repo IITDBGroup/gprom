@@ -117,7 +117,8 @@
 		</move>
 		<copy todir="${testlibrarydir}">
 			<fileset dir="${librarydir}">
-				<include name="log4j.jar"/>
+				<include name="log4j-api.jar"/>
+				<include name="log4j-core.jar"/>
 				<include name="postgresql.jar"/>
 				<include name="mysql-connector-java.jar"/>
 				<include name="junit.jar"/>
