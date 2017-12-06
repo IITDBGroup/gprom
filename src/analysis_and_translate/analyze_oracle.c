@@ -1751,11 +1751,20 @@ reenactOptionHasTimes (List *opts)
 static void
 analyzeProvenanceOptions (ProvenanceStmt *prov)
 {
+//	int s = LIST_LENGTH(prov->options);
+//	DEBUG_LOG("opt size is: %d", s);
+
     /* loop through options */
     FOREACH(KeyValue,kv,prov->options)
     {
         char *key = STRING_VALUE(kv->key);
         char *value = STRING_VALUE(kv->value);
+//        DEBUG_LOG("key is: %s", key);
+//
+//        List *l = (List *) kv->value;
+//        DEBUG_LOG("value length is: %d", l->length);
+//        KeyValue *kv = getHeadOfListP(l);
+//        DEBUG_LOG("key value: key is %s", (char *) kv->key);
 
         /* provenance type */
         if (!strcmp(key, PROP_PC_PROV_TYPE))
@@ -1775,6 +1784,8 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
         	if(strcmp(value, "JSON"))
         		FATAL_LOG("Unknown Translate Format: <%s>", value);
         }
+
+
     }
 }
 

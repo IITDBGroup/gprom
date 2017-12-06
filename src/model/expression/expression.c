@@ -200,6 +200,45 @@ createOrderExpr (Node *expr, SortOrder order, SortNullOrder nullOrder)
     return result;
 }
 
+
+
+Node *
+concatExprs (Node *expr, ...)
+{
+    Node *result = NULL;
+    Node *curArg = NULL;
+    List *argList = singleton(expr);
+
+    va_list args;
+
+    va_start(args, expr);
+
+    while((curArg = va_arg(args,Node*)))
+        argList = appendToTailOfList(argList, copyObject(curArg));
+
+    va_end(args);
+
+    if (LIST_LENGTH(argList) == 1)
+        return expr;
+
+    result = (Node *) createFunctionCall(OPNAME_CONCAT, argList);
+
+    return result;
+}
+
+Node *
+concatExprList (List *exprs)
+{
+    Node *result = popHeadOfListP(exprs);
+
+    FOREACH(Node,e,exprs)
+        result = CONCAT_EXPRS(result,e);
+
+    return result;
+}
+
+
+
 Node *
 andExprs (Node *expr, ...)
 {

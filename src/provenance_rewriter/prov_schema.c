@@ -62,6 +62,8 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
         {
             return NIL;
         }
+        case PROV_COARSE_GRAINED:
+        	return NIL;
     }
     return NIL; //keep compiler quiet
 }

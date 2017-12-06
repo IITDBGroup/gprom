@@ -21,6 +21,7 @@
 #include "log/logger.h"
 #include "model/node/nodetype.h"
 #include "provenance_rewriter/prov_schema.h"
+#include "provenance_rewriter/prov_utility.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
 #include "model/expression/expression.h"
@@ -28,6 +29,7 @@
 #include "parser/parser_jp.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
+
 
 #define LOG_RESULT(mes,op) \
     do { \
@@ -46,6 +48,7 @@ static QueryOperator *rewritePI_CSConstRel(ConstRelOperator *op);
 static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 static QueryOperator *rewritePI_CSOrderOp(OrderOperator *op);
 static QueryOperator *rewritePI_CSJsonTableOp(JsonTableOperator *op);
+static QueryOperator *rewriteCoarseGrainedTableAccess(TableAccessOperator *op);
 
 static QueryOperator *addUserProvenanceAttributes (QueryOperator *op,
         List *userProvAttrs, boolean showIntermediate, char *provRelName,
@@ -58,6 +61,7 @@ static QueryOperator *rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *use
 
 static Node *asOf;
 static RelCount *nameState;
+static Node *coarsePara;
 //static QueryOperator *provComputation;
 
 QueryOperator *
@@ -66,6 +70,11 @@ rewritePI_CS (ProvenanceComputation  *op)
 //    List *provAttrs;
 
     START_TIMER("rewrite - PI-CS rewrite");
+
+    //get coarse grained fragment parameters (e.g., COARSE_GRAINED -> {(R->[A,B,128]) (S->[C,D,64])})
+    //coarsePara = op->op.properties;
+    coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
+    //DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString(coarsePara));
 
     // unset relation name counters
     nameState = (RelCount *) NULL;
@@ -181,7 +190,10 @@ rewritePI_CSOperator (QueryOperator *op)
         case T_TableAccessOperator:
             DEBUG_LOG("go table access");
             //TODO check whether coarse grained
-            rewrittenOp = rewritePI_CSTableAccess((TableAccessOperator *) op);
+            if(HAS_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK))
+            	rewrittenOp = rewriteCoarseGrainedTableAccess((TableAccessOperator *) op);
+            else
+            	rewrittenOp = rewritePI_CSTableAccess((TableAccessOperator *) op);
             break;
         case T_ConstRelOperator:
             DEBUG_LOG("go const rel operator");
@@ -1490,4 +1502,97 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
 	addChildOperator((QueryOperator *) proj, (QueryOperator *) op);
 
 	return (QueryOperator *) proj;
+}
+
+
+
+static QueryOperator *
+rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
+{
+//    List *tableAttr;
+    List *provAttr = NIL;
+    List *projExpr = NIL;
+    char *newAttrName;
+
+    int relAccessCount = getRelNameCount(&nameState, op->tableName);
+    int cnt = 0;
+
+    DEBUG_LOG("REWRITE-COARSE GRAINED - Table Access <%s> <%u>", op->tableName, relAccessCount);
+
+    // copy any as of clause if there
+    if (asOf)
+        op->asOf = copyObject(asOf);
+
+    // Get the povenance name for each attribute
+    FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
+    {
+        provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+        cnt++;
+    }
+
+    //test coarse grained fragment parameters (e.g., COARSE_GRAINED -> {(R->[A,B,128]) (S->[C,D,64])})
+    DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString(coarsePara));
+    List *coaParaList = (List *) coarsePara;  //(R->[A,B,128] ,S->[C,D,64])
+    List *coaParaValueList = NIL;
+    FOREACH(KeyValue, kv, coaParaList)
+    {
+         Constant *key = (Constant *) kv->key;  //R
+         char *keyV = key->value;
+         if(streq(keyV,op->tableName))
+         {
+        	  coaParaValueList = (List *) kv->value;  //(A,B,128)
+              DEBUG_LOG("key %s",keyV);
+              break;
+         }
+    }
+
+    Constant *num = (Constant *) getTailOfListP(coaParaValueList);  //128
+    //int *numV = (int *) num->value;
+    coaParaValueList = removeFromTail(coaParaValueList);
+
+    newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+    provAttr = appendToTailOfList(provAttr, newAttrName);
+
+    List *l = NIL;
+    if(LIST_LENGTH(coaParaValueList) == 1) //A
+    {
+    	Constant *attr = (Constant *) getHeadOfListP(coaParaValueList);
+    	char *attrV = (char *) attr->value;
+    	l = LIST_MAKE(createAttrsRefByName((QueryOperator *)op, attrV),num);
+    }
+    else //A,B,..
+    {
+    	List *fList = NIL;
+        FOREACH(Constant,attr,coaParaValueList)
+		{
+        	char *attrV = (char *) attr->value;
+        	fList = appendToTailOfList(fList,createAttrsRefByName((QueryOperator *)op, attrV));
+		}
+        l = LIST_MAKE(concatExprList(fList),num);
+    }
+
+    FunctionCall *f = createFunctionCall ("ORA_HASH", l);
+    projExpr = appendToTailOfList(projExpr, f);
+
+    List *newProvPosList = singletonInt(cnt);
+
+    DEBUG_LOG("rewrite table access, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
+            stringListToString(provAttr),
+            nodeToString(projExpr),
+            nodeToString(newProvPosList));
+
+    // Create a new projection operator with these new attributes
+    ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
+    newpo->op.provAttrs = newProvPosList;
+    SET_BOOL_STRING_PROP((QueryOperator *)newpo, PROP_PROJ_PROV_ATTR_DUP);
+
+    // Switch the subtree with this newly created projection operator.
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+
+    // Add child to the newly created projections operator,
+    addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+
+    DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) newpo));
+    return (QueryOperator *) newpo;
 }

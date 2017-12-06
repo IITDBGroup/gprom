@@ -60,7 +60,8 @@ Node *bisonParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
-%token <stringVal> SEQUENCED TEMPORAL TIME
+%token <stringVal> SEQUENCED TEMPORAL TIME 
+%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
@@ -137,6 +138,7 @@ Node *bisonParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec
+%type <node> fragmentList identifierStrConstList
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -390,6 +392,18 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
+		| CAPTURE PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate
+        {
+            RULELOG("provStmt::stmt");
+            Node *stmt = $7;
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = PROV_COARSE_GRAINED;
+		    p->asOf = (Node *) $3;
+            // p->options = $4;
+            p->options = concatTwoLists($4, $9);
+            $$ = (Node *) p;
+        }
 		| SEQUENCED TEMPORAL '(' stmt ')'
 		{
 			RULELOG("provStmt::temporal");
@@ -593,6 +607,12 @@ provOption:
 			RULELOG("provOption::TABLE");
 			$$ = (Node *) createStringKeyValue(PROP_PC_TABLE, $2);
 		}
+		| COARSE GRAINED FRAGMENT '(' fragmentList ')'
+		{		
+			RULELOG("provOption::COARSE::FRAGMENT");
+            $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COARSE_GRAINED), 
+            									(Node *) $5);
+		}
 		| ONLY UPDATED
 		{
 			RULELOG("provOption::ONLY::UPDATED");
@@ -648,7 +668,32 @@ provOption:
             									(Node *) $3);
 		}
 	;
-
+	
+fragmentList:
+       identifier '(' identifierStrConstList ')' intConst
+       {
+            RULELOG("fragmentList::identifier::identifierList::identifier");
+            List *l = concatTwoLists($3,singleton(createConstInt($5)));    
+            KeyValue *k = createNodeKeyValue((Node *) createConstString($1), 
+            									(Node *) l);
+            $$ = singleton(k);
+       }
+       |
+       fragmentList ',' identifier '(' identifierStrConstList ')' intConst
+       {
+            RULELOG("fragmentList::fragmentList::fragmentList");
+            List *l = concatTwoLists($5,singleton(createConstInt($7))); 
+            KeyValue *k = createNodeKeyValue((Node *) createConstString($3), 
+            									(Node *) l);
+            $$ = appendToTailOfList($1, k);
+       }
+    ;
+    
+identifierStrConstList:
+		identifier { $$ = singleton(createConstString($1)); }
+		| identifierStrConstList ',' identifier { $$ = appendToTailOfList($1, createConstString($3)); }
+	;
+        
 semiringCombinerSpec:
    		identifier
         {

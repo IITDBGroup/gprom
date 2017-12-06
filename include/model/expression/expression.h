@@ -22,6 +22,7 @@ typedef struct Operator {
 #define OPNAME_AND "AND"
 #define OPNAME_OR "OR"
 #define OPNAME_NOT "NOT"
+#define OPNAME_CONCAT "CONCAT"
 
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
@@ -166,11 +167,14 @@ extern AttributeReference *createAttributeReference (char *name);
 extern AttributeReference *createFullAttrReference (char *name, int fromClause, int attrPos,
         int outerLevelsUp, DataType attrType);
 extern CastExpr *createCastExpr (Node *expr, DataType resultDt);
+extern Node *concatExprList (List *exprs);
 extern Node *andExprList (List *exprs);
 extern Node *orExprList (List *exprs);
+extern Node *concatExprs (Node *expr, ...);
 extern Node *andExprs (Node *expr, ...);
 extern Node *orExprList (List *exprs);
 extern Node *orExprs (Node *expr, ...);
+#define CONCAT_EXPRS(...) concatExprs(__VA_ARGS__, NULL)
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL)
 #define OR_EXPRS(...) orExprs(__VA_ARGS__, NULL)
 extern SQLParameter *createSQLParameter (char *name);

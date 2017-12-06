@@ -40,6 +40,7 @@
 /* function declarations */
 static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *haveSeen);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
+static void markTableAccessAndAggregation (QueryOperator *op);
 
 /* function definitions */
 Node *
@@ -180,7 +181,9 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             break;
         case PROV_COARSE_GRAINED:
             // add annotations for table access and for combiners (aggregation)
+        	markTableAccessAndAggregation((QueryOperator *) op);
             result = rewritePI_CS(op);
+            removeParent(result, (QueryOperator *) op);
             // write method that adds aggregation on top
             break;
         case PROV_TRANSFORMATION:
@@ -205,4 +208,26 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
 
     return result;
 }
+
+static void
+markTableAccessAndAggregation (QueryOperator *op)
+{
+      FOREACH(QueryOperator, o, op->inputs)
+	  {
+           if(isA(o,TableAccessOperator))
+           {
+        	   DEBUG_LOG("mark tableAccessOperator.");
+        	   SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK);
+           }
+           if(isA(o,AggregationOperator))
+           {
+        	   DEBUG_LOG("mark tableAccessOperator.");
+        	   SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
+           }
+
+           markTableAccessAndAggregation(o);
+	  }
+}
+
+
 

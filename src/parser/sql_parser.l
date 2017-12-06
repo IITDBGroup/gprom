@@ -223,6 +223,10 @@ strconcat		"||"
 (?i:COMBINER)		TOK(COMBINER)
 (?i:MULT)           TOK(MULT)
 (?i:UNCERTAIN)		TOK(UNCERTAIN)
+(?i:CAPTURE)		TOK(CAPTURE)
+(?i:COARSE)			TOK(COARSE)
+(?i:GRAINED)		TOK(GRAINED)
+(?i:FRAGMENT)		TOK(FRAGMENT)
 
 	/* booleans */
 {bool}			TOK(boolConst)
