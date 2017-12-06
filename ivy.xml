@@ -24,5 +24,8 @@
    <dependency org="org.slf4j" name="slf4j-simple" rev="1.7.21"/>
    <dependency org="org.antlr" name="stringtemplate" rev="4.0.2"/>
 <!--   <dependency org="com.oracle.jdbc" name="ojdbc7" rev="12.1.0.2"/> -->
+   <dependency org="org.spark-project.hive" name="hive-jdbc" rev="1.2.1.spark2"/>
+   <dependency org="org.apache.spark" name="spark-core_2.11" rev="2.2.0"/>
+   <dependency org="org.apache.spark" name="spark-sql_2.11" rev="2.2.0"/>
  </dependencies>
 </ivy-module>

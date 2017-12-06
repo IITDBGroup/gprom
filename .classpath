@@ -24,5 +24,12 @@
 	<classpathentry kind="lib" path="javalib/hamcrest-core.jar"/>
 	<classpathentry kind="lib" path="javalib/log4j-api.jar"/>
 	<classpathentry kind="lib" path="javalib/log4j-core.jar"/>
+	<classpathentry kind="lib" path="javalib/spark-sql_2.11.jar"/>
+	<classpathentry kind="lib" path="javalib/scala-compiler.jar"/>
+	<classpathentry kind="lib" path="javalib/scala-library.jar"/>
+	<classpathentry kind="lib" path="javalib/scala-reflect.jar"/>
+	<classpathentry kind="lib" path="javalib/scalap.jar"/>
+	<classpathentry kind="lib" path="javalib/spark-core_2.11.jar"/>
+	<classpathentry kind="lib" path="javalib/spark-catalyst_2.11.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>
