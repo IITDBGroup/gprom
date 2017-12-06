@@ -41,6 +41,7 @@
 static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *haveSeen);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
 static void markTableAccessAndAggregation (QueryOperator *op);
+static QueryOperator *addTopAggForCoarse (QueryOperator *op);
 
 /* function definitions */
 Node *
@@ -184,6 +185,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         	markTableAccessAndAggregation((QueryOperator *) op);
             result = rewritePI_CS(op);
             removeParent(result, (QueryOperator *) op);
+            result = addTopAggForCoarse(result);
             // write method that adds aggregation on top
             break;
         case PROV_TRANSFORMATION:
@@ -229,5 +231,29 @@ markTableAccessAndAggregation (QueryOperator *op)
 	  }
 }
 
+static QueryOperator *
+addTopAggForCoarse (QueryOperator *op)
+{
+    List *provAttr = getOpProvenanceAttrNames(op);
+    List *projExpr = NIL;
+    int cnt = 0;
+    List *provPosList = NIL;
 
+    FOREACH(char, c, provAttr)
+    {
+    	provPosList = appendToTailOfListInt(provPosList, cnt);
+    	AttributeReference *a = createAttrsRefByName(op, c);
+    	FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
+    	projExpr = appendToTailOfList(projExpr, f);
+    	cnt ++;
+    }
+
+    ProjectionOperator *newOp = createProjectionOp(projExpr, op, NIL, provAttr);
+    newOp->op.provAttrs = provPosList;
+
+    op->parents = singleton(newOp);
+
+
+	return (QueryOperator *) newOp;
+}
 
