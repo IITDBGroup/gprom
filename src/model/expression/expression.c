@@ -221,7 +221,7 @@ concatExprs (Node *expr, ...)
     if (LIST_LENGTH(argList) == 1)
         return expr;
 
-    result = (Node *) createFunctionCall(OPNAME_CONCAT, argList);
+    result = (Node *) createFunctionCall(FUNCNAME_CONCAT, argList);
 
     return result;
 }

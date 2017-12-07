@@ -1624,12 +1624,13 @@ rewriteCoarseGrainedAggregation (AggregationOperator *op)
 
     FOREACH(char, c, provList)
     {
-    	AttributeReference *a = createAttrsRefByName(OP_LCHILD(op), c);
-    	FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
-    	agg = appendToTailOfList(agg, f);
+        AttributeReference *a = createAttrsRefByName(OP_LCHILD(op), c);
+        FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
+        agg = appendToTailOfList(agg, f);
     }
 
     // adapt schema
+    //TODO do agg, bitagg, group_bys then it will work
     addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 
     LOG_RESULT("Rewritten Operator tree", op);

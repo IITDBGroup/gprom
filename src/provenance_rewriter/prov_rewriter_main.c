@@ -16,6 +16,7 @@
 
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "provenance_rewriter/coarse_grained/coarse_grained_rewrite.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
@@ -40,8 +41,8 @@
 /* function declarations */
 static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *haveSeen);
 static QueryOperator *rewriteProvenanceComputation (ProvenanceComputation *op);
-static void markTableAccessAndAggregation (QueryOperator *op);
-static QueryOperator *addTopAggForCoarse (QueryOperator *op);
+//static void markTableAccessAndAggregation (QueryOperator *op);
+//static QueryOperator *addTopAggForCoarse (QueryOperator *op);
 
 /* function definitions */
 Node *
@@ -211,50 +212,50 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     return result;
 }
 
-static void
-markTableAccessAndAggregation (QueryOperator *op)
-{
-      FOREACH(QueryOperator, o, op->inputs)
-	  {
-           if(isA(o,TableAccessOperator))
-           {
-        	   DEBUG_LOG("mark tableAccessOperator.");
-        	   SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK);
-           }
-           if(isA(o,AggregationOperator))
-           {
-        	   DEBUG_LOG("mark tableAccessOperator.");
-        	   SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
-        	   //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
-           }
+//static void
+//markTableAccessAndAggregation (QueryOperator *op)
+//{
+//      FOREACH(QueryOperator, o, op->inputs)
+//	  {
+//           if(isA(o,TableAccessOperator))
+//           {
+//        	   DEBUG_LOG("mark tableAccessOperator.");
+//        	   SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK);
+//           }
+//           if(isA(o,AggregationOperator))
+//           {
+//        	   DEBUG_LOG("mark tableAccessOperator.");
+//        	   SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
+//        	   //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
+//           }
+//
+//           markTableAccessAndAggregation(o);
+//	  }
+//}
 
-           markTableAccessAndAggregation(o);
-	  }
-}
-
-static QueryOperator *
-addTopAggForCoarse (QueryOperator *op)
-{
-    List *provAttr = getOpProvenanceAttrNames(op);
-    List *projExpr = NIL;
-    int cnt = 0;
-    List *provPosList = NIL;
-
-    FOREACH(char, c, provAttr)
-    {
-    	provPosList = appendToTailOfListInt(provPosList, cnt);
-    	AttributeReference *a = createAttrsRefByName(op, c);
-    	FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
-    	projExpr = appendToTailOfList(projExpr, f);
-    	cnt ++;
-    }
-
-    ProjectionOperator *newOp = createProjectionOp(projExpr, op, NIL, provAttr);
-    newOp->op.provAttrs = provPosList;
-
-    op->parents = singleton(newOp);
-
-
-	return (QueryOperator *) newOp;
-}
+//static QueryOperator *
+//addTopAggForCoarse (QueryOperator *op)
+//{
+//    List *provAttr = getOpProvenanceAttrNames(op);
+//    List *projExpr = NIL;
+//    int cnt = 0;
+//    List *provPosList = NIL;
+//
+//    FOREACH(char, c, provAttr)
+//    {
+//    	provPosList = appendToTailOfListInt(provPosList, cnt);
+//    	AttributeReference *a = createAttrsRefByName(op, c);
+//    	FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
+//    	projExpr = appendToTailOfList(projExpr, f);
+//    	cnt ++;
+//    }
+//
+//    ProjectionOperator *newOp = createProjectionOp(projExpr, op, NIL, provAttr);
+//    newOp->op.provAttrs = provPosList;
+//
+//    op->parents = singleton(newOp);
+//
+//
+//	return (QueryOperator *) newOp;
+//}
 

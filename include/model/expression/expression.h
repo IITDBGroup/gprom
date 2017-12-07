@@ -22,7 +22,7 @@ typedef struct Operator {
 #define OPNAME_AND "AND"
 #define OPNAME_OR "OR"
 #define OPNAME_NOT "NOT"
-#define OPNAME_CONCAT "CONCAT"
+#define FUNCNAME_CONCAT "CONCAT"
 
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,

@@ -647,6 +647,7 @@ AC_CONFIG_FILES([
     src/operator_optimizer/Makefile
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile
+	src/provenance_rewriter/coarse_grained/Makefile
 	src/provenance_rewriter/game_provenance/Makefile
 	src/provenance_rewriter/semiring_combiner/Makefile
 	src/provenance_rewriter/uncertainty_rewrites/Makefile
