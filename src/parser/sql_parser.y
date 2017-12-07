@@ -137,7 +137,7 @@ Node *bisonParseResult = NULL;
 %type <node> jsonTable jsonColInfoItem 
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
-%type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec
+%type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec coarseGrainedSpec
 %type <list> fragmentList
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
@@ -607,11 +607,11 @@ provOption:
 			RULELOG("provOption::TABLE");
 			$$ = (Node *) createStringKeyValue(PROP_PC_TABLE, $2);
 		}
-		| COARSE GRAINED FRAGMENT '(' fragmentList ')'
+		| COARSE GRAINED coarseGrainedSpec
 		{		
-			RULELOG("provOption::COARSE::FRAGMENT");
+			RULELOG("provOption::COARSE");
             $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COARSE_GRAINED), 
-            									(Node *) $5);
+            									(Node *) $3);
 		}
 		| ONLY UPDATED
 		{
@@ -668,7 +668,15 @@ provOption:
             									(Node *) $3);
 		}
 	;
-	
+
+coarseGrainedSpec:
+		FRAGMENT '(' fragmentList ')'
+		{
+			RULELOG("coarse_grained::fragmentlist");
+			$$ = (Node *) $3;
+		}
+	;
+
 fragmentList:
        identifier '(' identifierList ')' intConst
        {
