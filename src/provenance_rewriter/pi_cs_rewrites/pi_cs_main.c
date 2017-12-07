@@ -49,6 +49,7 @@ static QueryOperator *rewritePI_CSDuplicateRemOp(DuplicateRemoval *op);
 static QueryOperator *rewritePI_CSOrderOp(OrderOperator *op);
 static QueryOperator *rewritePI_CSJsonTableOp(JsonTableOperator *op);
 static QueryOperator *rewriteCoarseGrainedTableAccess(TableAccessOperator *op);
+static QueryOperator *rewriteCoarseGrainedAggregation (AggregationOperator *op);
 
 static QueryOperator *addUserProvenanceAttributes (QueryOperator *op,
         List *userProvAttrs, boolean showIntermediate, char *provRelName,
@@ -174,10 +175,14 @@ rewritePI_CSOperator (QueryOperator *op)
             break;
         case T_AggregationOperator:
         	if(combinerAggrOpt) { //TODO use this
+        		rewrittenOp = rewriteCoarseGrainedAggregation ((AggregationOperator *) op);
         		INFO_LOG("go SEMIRING COMBINER aggregation optimization!");
         	}
-            DEBUG_LOG("go aggregation");
-            rewrittenOp = rewritePI_CSAggregation ((AggregationOperator *) op);
+        	else
+        	{
+        		DEBUG_LOG("go aggregation");
+        		rewrittenOp = rewritePI_CSAggregation ((AggregationOperator *) op);
+        	}
             break;
         case T_JoinOperator:
             DEBUG_LOG("go join");
@@ -1595,4 +1600,74 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) newpo));
     return (QueryOperator *) newpo;
+}
+
+
+static QueryOperator *
+rewriteCoarseGrainedAggregation (AggregationOperator *op)
+{
+    ASSERT(OP_LCHILD(op));
+
+    DEBUG_LOG("REWRITE-Coarse grained - Aggregation");
+    DEBUG_LOG("Operator tree \n%s", nodeToString(op));
+
+    //add semiring options
+    addSCOptionToChild((QueryOperator *) op,OP_LCHILD(op));
+
+    // rewrite child first
+    rewritePI_CSOperator(OP_LCHILD(op));
+
+    List *agg = op->aggrs;
+
+    //AttributeReference *a = createAttrsRefByName(OP_LCHILD(op), "A");
+    List *provList = getOpProvenanceAttrNames(OP_LCHILD(op));
+
+    FOREACH(char, c, provList)
+    {
+    	AttributeReference *a = createAttrsRefByName(OP_LCHILD(op), c);
+    	FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
+    	agg = appendToTailOfList(agg, f);
+    }
+
+    // adapt schema
+    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
+
+    LOG_RESULT("Rewritten Operator tree", op);
+
+
+
+//
+//
+//    QueryOperator *child = OP_LCHILD((QueryOperator *) op);
+//
+//    //add semiring options
+//    addSCOptionToChild((QueryOperator *) op, child);
+//
+//    // rewrite child
+//    rewritePI_CSOperator(child);
+//
+//    List *agg = op->aggrs;
+//
+//    AttributeReference *a = createAttrsRefByName(child, "A");
+//    FunctionCall *f = createFunctionCall ("SUM", singleton(a));
+//    agg = appendToTailOfList(agg, f);
+//
+//    List *ad = ((QueryOperator *) op)->schema->attrDefs;
+//    FOREACH_INT(a, child->provAttrs)
+//    {
+//        AttributeDef *att = getAttrDef(child,a);
+//        DEBUG_LOG("attr: %s", nodeToString(att));
+//        ad = appendToTailOfList(ad, copyObject(att));
+//    }
+//    FOREACH(AttributeDef, d, getProvenanceAttrDefs(child))
+//    {
+//    	ad = appendToTailOfList(ad, copyObject(d));
+//    }
+
+
+
+
+    // adapt schema for final projection
+    //DEBUG_NODE_BEATIFY_LOG("Rewritten Operator tree", proj);
+    return (QueryOperator *) op;
 }

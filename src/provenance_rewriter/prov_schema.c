@@ -218,6 +218,7 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     if (stmt->provType == PROV_COARSE_GRAINED)
     {
         //TODO create list of prov attributes PROV_R, PROV_S, .... and their DTs
+
         return;
     }
     if (stmt->provType == PROV_XML)

@@ -185,8 +185,8 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         	markTableAccessAndAggregation((QueryOperator *) op);
             result = rewritePI_CS(op);
             removeParent(result, (QueryOperator *) op);
-            result = addTopAggForCoarse(result);
             // write method that adds aggregation on top
+            result = addTopAggForCoarse(result);
             break;
         case PROV_TRANSFORMATION:
             result =  rewriteTransformationProvenance((QueryOperator *) op);
@@ -224,7 +224,8 @@ markTableAccessAndAggregation (QueryOperator *op)
            if(isA(o,AggregationOperator))
            {
         	   DEBUG_LOG("mark tableAccessOperator.");
-        	   SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
+        	   SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
+        	   //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
            }
 
            markTableAccessAndAggregation(o);
