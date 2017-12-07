@@ -138,7 +138,7 @@ Node *bisonParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec
-%type <node> fragmentList identifierStrConstList
+%type <list> fragmentList
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -346,7 +346,7 @@ provStmt:
         {
             RULELOG("provStmt::stmt");
             Node *stmt = $6;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+	    		ProvenanceStmt *p = createProvenanceStmt(stmt);
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $2;
@@ -670,29 +670,29 @@ provOption:
 	;
 	
 fragmentList:
-       identifier '(' identifierStrConstList ')' intConst
+       identifier '(' identifierList ')' intConst
        {
             RULELOG("fragmentList::identifier::identifierList::identifier");
-            List *l = concatTwoLists($3,singleton(createConstInt($5)));    
+            List *l = concatTwoLists(stringListToConstList($3),singleton(createConstInt($5)));    
             KeyValue *k = createNodeKeyValue((Node *) createConstString($1), 
             									(Node *) l);
             $$ = singleton(k);
        }
        |
-       fragmentList ',' identifier '(' identifierStrConstList ')' intConst
+       fragmentList ',' identifier '(' identifierList ')' intConst
        {
             RULELOG("fragmentList::fragmentList::fragmentList");
-            List *l = concatTwoLists($5,singleton(createConstInt($7))); 
+            List *l = concatTwoLists(stringListToConstList($5),singleton(createConstInt($7))); 
             KeyValue *k = createNodeKeyValue((Node *) createConstString($3), 
             									(Node *) l);
             $$ = appendToTailOfList($1, k);
        }
     ;
     
-identifierStrConstList:
-		identifier { $$ = singleton(createConstString($1)); }
-		| identifierStrConstList ',' identifier { $$ = appendToTailOfList($1, createConstString($3)); }
-	;
+//identifierStrConstList:
+//		identifier { $$ = singleton(createConstString($1)); }
+//		| identifierStrConstList ',' identifier { $$ = appendToTailOfList($1, createConstString($3)); }
+//	;
         
 semiringCombinerSpec:
    		identifier
@@ -705,7 +705,7 @@ semiringCombinerSpec:
         ADD '(' expression ')'  MULT '(' expression ')'
         {
             RULELOG("semiringCombinerSpec::ADD::expression::MULT::expression");
-            $$ = LIST_MAKE($3, $7);
+            $$ = (Node *) LIST_MAKE($3, $7);
         }
 ;
 
