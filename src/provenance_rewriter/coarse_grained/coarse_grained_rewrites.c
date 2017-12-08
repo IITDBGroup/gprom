@@ -46,14 +46,15 @@ addTopAggForCoarse (QueryOperator *op)
 }
 
 void
-markTableAccessAndAggregation (QueryOperator *op)
+markTableAccessAndAggregation (QueryOperator *op, Node *coarsePara)
 {
+
       FOREACH(QueryOperator, o, op->inputs)
       {
            if(isA(o,TableAccessOperator))
            {
                DEBUG_LOG("mark tableAccessOperator.");
-               SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK);
+               SET_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK, coarsePara);
            }
            if(isA(o,AggregationOperator))
            {
@@ -62,6 +63,6 @@ markTableAccessAndAggregation (QueryOperator *op)
                //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
            }
 
-           markTableAccessAndAggregation(o);
+           markTableAccessAndAggregation(o,coarsePara);
       }
 }

@@ -62,7 +62,6 @@ static QueryOperator *rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *use
 
 static Node *asOf;
 static RelCount *nameState;
-static Node *coarsePara;
 //static QueryOperator *provComputation;
 
 QueryOperator *
@@ -71,11 +70,6 @@ rewritePI_CS (ProvenanceComputation  *op)
 //    List *provAttrs;
 
     START_TIMER("rewrite - PI-CS rewrite");
-
-    //get coarse grained fragment parameters (e.g., COARSE_GRAINED -> {(R->[A,B,128]) (S->[C,D,64])})
-    //coarsePara = op->op.properties;
-    coarsePara = (Node *) getStringProperty((QueryOperator *)op, PROP_PC_COARSE_GRAINED);
-    //DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString(coarsePara));
 
     // unset relation name counters
     nameState = (RelCount *) NULL;
@@ -194,7 +188,7 @@ rewritePI_CSOperator (QueryOperator *op)
             break;
         case T_TableAccessOperator:
             DEBUG_LOG("go table access");
-            //TODO check whether coarse grained
+            //check whether coarse grained
             if(HAS_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK))
             	rewrittenOp = rewriteCoarseGrainedTableAccess((TableAccessOperator *) op);
             else
@@ -1538,8 +1532,10 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     }
 
     //test coarse grained fragment parameters (e.g., COARSE_GRAINED -> {(R->[A,B,128]) (S->[C,D,64])})
-    DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString(coarsePara));
+    Node *coarsePara = GET_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK);
+    //DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString(coarsePara));
     List *coaParaList = (List *) coarsePara;  //(R->[A,B,128] ,S->[C,D,64])
+
     List *coaParaValueList = NIL;
     FOREACH(KeyValue, kv, coaParaList)
     {
