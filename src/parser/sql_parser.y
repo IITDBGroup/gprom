@@ -696,12 +696,7 @@ fragmentList:
             $$ = appendToTailOfList($1, k);
        }
     ;
-    
-//identifierStrConstList:
-//		identifier { $$ = singleton(createConstString($1)); }
-//		| identifierStrConstList ',' identifier { $$ = appendToTailOfList($1, createConstString($3)); }
-//	;
-        
+            
 semiringCombinerSpec:
    		identifier
         {

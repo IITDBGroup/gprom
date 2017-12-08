@@ -1514,6 +1514,7 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
 static QueryOperator *
 rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 {
+
 //    List *tableAttr;
     List *provAttr = NIL;
     List *projExpr = NIL;
@@ -1617,58 +1618,41 @@ rewriteCoarseGrainedAggregation (AggregationOperator *op)
     // rewrite child first
     rewritePI_CSOperator(OP_LCHILD(op));
 
+    //prepare add new aggattr
     List *agg = op->aggrs;
-
-    //AttributeReference *a = createAttrsRefByName(OP_LCHILD(op), "A");
     List *provList = getOpProvenanceAttrNames(OP_LCHILD(op));
 
+    ///addProvenanceAttrsToSchema
+    List *aggDefs = aggOpGetAggAttrDefs(op);
+    int aggDefsLen = LIST_LENGTH(aggDefs);
+
+    List *groupbyDefs = aggOpGetGroupByAttrDefs(op);
+
+    List *newProvAttrDefs = (List *) copyObject(getProvenanceAttrDefs(OP_LCHILD(op)));
+    int newProvAttrDefsLen = LIST_LENGTH(newProvAttrDefs);
+
+    List *newAttrDefs = CONCAT_LISTS(aggDefs,newProvAttrDefs,groupbyDefs);
+    ((QueryOperator *) op)->schema->attrDefs = newAttrDefs;
+
+    List *newProvAttrs = NIL;
+    for(int i=0; i< newProvAttrDefsLen; i++)
+    {
+    	newProvAttrs = appendToTailOfListInt(newProvAttrs,aggDefsLen);
+    	aggDefsLen ++;
+    }
+
+    //finish add new aggattr
     FOREACH(char, c, provList)
     {
         AttributeReference *a = createAttrsRefByName(OP_LCHILD(op), c);
         FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
         agg = appendToTailOfList(agg, f);
     }
+    //finish adapt schema (adapt provattrs)
+    ((QueryOperator *) op)->provAttrs = newProvAttrs;
 
-    // adapt schema
-    //TODO do agg, bitagg, group_bys then it will work
-    addProvenanceAttrsToSchema((QueryOperator *) op, OP_LCHILD(op));
 
     LOG_RESULT("Rewritten Operator tree", op);
 
-
-
-//
-//
-//    QueryOperator *child = OP_LCHILD((QueryOperator *) op);
-//
-//    //add semiring options
-//    addSCOptionToChild((QueryOperator *) op, child);
-//
-//    // rewrite child
-//    rewritePI_CSOperator(child);
-//
-//    List *agg = op->aggrs;
-//
-//    AttributeReference *a = createAttrsRefByName(child, "A");
-//    FunctionCall *f = createFunctionCall ("SUM", singleton(a));
-//    agg = appendToTailOfList(agg, f);
-//
-//    List *ad = ((QueryOperator *) op)->schema->attrDefs;
-//    FOREACH_INT(a, child->provAttrs)
-//    {
-//        AttributeDef *att = getAttrDef(child,a);
-//        DEBUG_LOG("attr: %s", nodeToString(att));
-//        ad = appendToTailOfList(ad, copyObject(att));
-//    }
-//    FOREACH(AttributeDef, d, getProvenanceAttrDefs(child))
-//    {
-//    	ad = appendToTailOfList(ad, copyObject(d));
-//    }
-
-
-
-
-    // adapt schema for final projection
-    //DEBUG_NODE_BEATIFY_LOG("Rewritten Operator tree", proj);
     return (QueryOperator *) op;
 }

@@ -212,50 +212,5 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
     return result;
 }
 
-//static void
-//markTableAccessAndAggregation (QueryOperator *op)
-//{
-//      FOREACH(QueryOperator, o, op->inputs)
-//	  {
-//           if(isA(o,TableAccessOperator))
-//           {
-//        	   DEBUG_LOG("mark tableAccessOperator.");
-//        	   SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_TABLEACCESS_MARK);
-//           }
-//           if(isA(o,AggregationOperator))
-//           {
-//        	   DEBUG_LOG("mark tableAccessOperator.");
-//        	   SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
-//        	   //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
-//           }
-//
-//           markTableAccessAndAggregation(o);
-//	  }
-//}
 
-//static QueryOperator *
-//addTopAggForCoarse (QueryOperator *op)
-//{
-//    List *provAttr = getOpProvenanceAttrNames(op);
-//    List *projExpr = NIL;
-//    int cnt = 0;
-//    List *provPosList = NIL;
-//
-//    FOREACH(char, c, provAttr)
-//    {
-//    	provPosList = appendToTailOfListInt(provPosList, cnt);
-//    	AttributeReference *a = createAttrsRefByName(op, c);
-//    	FunctionCall *f = createFunctionCall ("BITORAGG", singleton(a));
-//    	projExpr = appendToTailOfList(projExpr, f);
-//    	cnt ++;
-//    }
-//
-//    ProjectionOperator *newOp = createProjectionOp(projExpr, op, NIL, provAttr);
-//    newOp->op.provAttrs = provPosList;
-//
-//    op->parents = singleton(newOp);
-//
-//
-//	return (QueryOperator *) newOp;
-//}
 
