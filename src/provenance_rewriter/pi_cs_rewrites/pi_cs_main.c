@@ -1554,7 +1554,6 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     }
 
     Constant *num = (Constant *) getTailOfListP(coaParaValueList);  //128
-    //int *numV = (int *) num->value;
     coaParaValueList = removeFromTail(coaParaValueList);
 
     newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));

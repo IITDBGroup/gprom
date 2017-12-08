@@ -40,6 +40,7 @@ typedef struct ProvSchemaInfo
 static boolean findBaserelationsVisitor (Node *node, ProvSchemaInfo *status);
 static int getRelCount(ProvSchemaInfo *info, char *tableName);
 static boolean findTablerefVisitor (Node *node, ProvSchemaInfo *status);
+static boolean findTablerefVisitorForCoarse (Node *node, ProvSchemaInfo *status);
 static char *escapeUnderscore (char *str);
 
 /* definitions */
@@ -63,7 +64,10 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
             return NIL;
         }
         case PROV_COARSE_GRAINED:
-        	return NIL;
+        {
+            return NIL;
+        }
+
     }
     return NIL; //keep compiler quiet
 }
@@ -218,6 +222,22 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
     if (stmt->provType == PROV_COARSE_GRAINED)
     {
         //TODO create list of prov attributes PROV_R, PROV_S, .... and their DTs
+        ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);
+
+        pSchema->provAttrs = NIL;
+        pSchema->dts = NIL;
+        findTablerefVisitorForCoarse((Node *) stmt->query, pSchema);
+
+        //semiring combiner check
+        if(isSemiringCombinerActivatedPs(stmt)){
+            *attrNames = singleton("PROV");
+            *dts = singletonInt(getSemiringCombinerDatatype(stmt,pSchema->dts));
+            return;
+        }
+
+        *attrNames = pSchema->provAttrs;
+        *dts = pSchema->dts;
+
 
         return;
     }
@@ -322,4 +342,29 @@ findTablerefVisitor (Node *node, ProvSchemaInfo *status)
     }
 
     return visit(node, findTablerefVisitor, status);
+}
+
+
+
+static boolean
+findTablerefVisitorForCoarse (Node *node, ProvSchemaInfo *status)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isFromItem(node))
+    {
+        if (isA(node, FromTableRef))
+        {
+            FromTableRef *r = (FromTableRef *) node;
+            char *tableName = r->tableId;
+
+            status->provAttrs = appendToTailOfList(status->provAttrs,
+                		 CONCAT_STRINGS("PROV_", strdup(tableName)));
+
+            status->dts = appendToTailOfListInt(status->dts, DT_STRING);
+        }
+    }
+
+    return visit(node, findTablerefVisitorForCoarse, status);
 }
