@@ -1580,6 +1580,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
             switch(q->provType)
             {
                 case PROV_COARSE_GRAINED:
+                case USE_PROV_COARSE_GRAINED:
                     getQBProvenanceAttrList(q,&provAttrNames,&provDts);
 
                     q->selectClause = provAttrNames;

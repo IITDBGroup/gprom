@@ -50,6 +50,7 @@ static QueryOperator *rewritePI_CSOrderOp(OrderOperator *op);
 static QueryOperator *rewritePI_CSJsonTableOp(JsonTableOperator *op);
 static QueryOperator *rewriteCoarseGrainedTableAccess(TableAccessOperator *op);
 static QueryOperator *rewriteCoarseGrainedAggregation (AggregationOperator *op);
+static QueryOperator *rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op);
 
 static QueryOperator *addUserProvenanceAttributes (QueryOperator *op,
         List *userProvAttrs, boolean showIntermediate, char *provRelName,
@@ -191,6 +192,8 @@ rewritePI_CSOperator (QueryOperator *op)
             //check whether coarse grained
             if(HAS_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK))
             	rewrittenOp = rewriteCoarseGrainedTableAccess((TableAccessOperator *) op);
+            else if(HAS_STRING_PROP(op, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK))
+            	rewrittenOp = rewriteUseCoarseGrainedTableAccess((TableAccessOperator *) op);
             else
             	rewrittenOp = rewritePI_CSTableAccess((TableAccessOperator *) op);
             break;
@@ -1650,4 +1653,143 @@ rewriteCoarseGrainedAggregation (AggregationOperator *op)
     LOG_RESULT("Rewritten Operator tree", op);
 
     return (QueryOperator *) op;
+}
+
+
+
+
+static QueryOperator *
+rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
+{
+
+//    List *tableAttr;
+    List *provAttr = NIL;
+    List *projExpr = NIL;
+    char *newAttrName;
+
+    int relAccessCount = getRelNameCount(&nameState, op->tableName);
+    int cnt = 0;
+
+    DEBUG_LOG("REWRITE-USE COARSE GRAINED - Table Access <%s> <%u>", op->tableName, relAccessCount);
+
+    // copy any as of clause if there
+    if (asOf)
+        op->asOf = copyObject(asOf);
+
+    // Get the povenance name for each attribute
+    FOREACH(AttributeDef, attr, op->op.schema->attrDefs)
+    {
+        provAttr = appendToTailOfList(provAttr, strdup(attr->attrName));
+        projExpr = appendToTailOfList(projExpr, createFullAttrReference(attr->attrName, 0, cnt, 0, attr->dataType));
+        cnt++;
+    }
+
+    //test coarse grained fragment parameters (e.g., COARSE_GRAINED -> {(R->[A,B,128]) (S->[C,D,64])})
+    Node *coarsePara = GET_STRING_PROP(op, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK);
+    DEBUG_LOG("use coarse grained fragment parameters: %s",nodeToString(coarsePara));
+    List *coaParaList = (List *) coarsePara;  //(R->[A,B,128] ,S->[C,D,64])
+
+    List *coaParaValueList = NIL;
+    FOREACH(KeyValue, kv, coaParaList)
+    {
+         Constant *key = (Constant *) kv->key;  //R
+         char *keyV = key->value;
+         if(streq(keyV,op->tableName))
+         {
+        	  coaParaValueList = (List *) kv->value;  //(A,B,128,64)
+              DEBUG_LOG("key %s",keyV);
+              break;
+         }
+    }
+
+    Constant *res = (Constant *) getTailOfListP(coaParaValueList);  //64
+    int resFlagValue = INT_VALUE(res);
+    DEBUG_LOG("coarse grained result fragment value is : %d", resFlagValue);
+    coaParaValueList = removeFromTail(coaParaValueList);
+
+    Constant *num = (Constant *) getTailOfListP(coaParaValueList);  //128
+    int aggFragValue = INT_VALUE(num);
+    DEBUG_LOG("coarse grained aggregated fragment value is : %d", aggFragValue);
+    coaParaValueList = removeFromTail(coaParaValueList);
+
+    //get selection condition (prov_r = 10 or prov_r = 14)
+    List *condRightValueList = NULL;  //10,14...
+    int k;
+    int n = resFlagValue;
+    for (int c = aggFragValue-1,cntOnePos=0; c >= 0; c--,cntOnePos++)
+    {
+      k = n >> c;
+      if (k & 1)
+      {
+        condRightValueList = appendToTailOfList(condRightValueList, createConstInt(aggFragValue - cntOnePos - 1));
+        DEBUG_LOG("cnt is: %d", aggFragValue - cntOnePos - 1);
+      }
+    }
+
+    newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+    provAttr = appendToTailOfList(provAttr, newAttrName);
+
+    List *l = NIL;
+    if(LIST_LENGTH(coaParaValueList) == 1) //A
+    {
+    	Constant *attr = (Constant *) getHeadOfListP(coaParaValueList);
+    	char *attrV = (char *) attr->value;
+    	l = LIST_MAKE(createAttrsRefByName((QueryOperator *)op, attrV),num);
+    }
+    else //A,B,..
+    {
+    	List *fList = NIL;
+        FOREACH(Constant,attr,coaParaValueList)
+		{
+        	char *attrV = (char *) attr->value;
+        	fList = appendToTailOfList(fList,createAttrsRefByName((QueryOperator *)op, attrV));
+		}
+        l = LIST_MAKE(concatExprList(fList),num);
+    }
+
+    FunctionCall *f = createFunctionCall ("ORA_HASH", l);
+    projExpr = appendToTailOfList(projExpr, f);
+
+    List *newProvPosList = singletonInt(cnt);
+
+    DEBUG_LOG("rewrite table access, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
+            stringListToString(provAttr),
+            nodeToString(projExpr),
+            nodeToString(newProvPosList));
+
+    // Create a new projection operator with these new attributes
+    ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
+    newpo->op.provAttrs = newProvPosList;
+    SET_BOOL_STRING_PROP((QueryOperator *)newpo, PROP_PROJ_PROV_ATTR_DUP);
+
+    // Switch the subtree with this newly created projection operator.
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+
+    // Add child to the newly created projections operator,
+    addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+
+
+    //add selection operator
+    List* condList = NIL;
+    AttributeReference *condAttrRef = createAttrsRefByName((QueryOperator *) newpo, newAttrName);
+    FOREACH(Constant, c, condRightValueList)
+    {
+        Operator *eqExpr = createOpExpr("=", LIST_MAKE(copyObject(condAttrRef),c));
+        condList = appendToTailOfList(condList, eqExpr);
+    }
+
+    Node *orExpr = orExprList(condList);
+
+    SelectionOperator *sel = createSelectionOp (orExpr, (QueryOperator *) newpo, NIL, getQueryOperatorAttrNames((QueryOperator *) newpo));
+    sel->op.provAttrs = (List *)copyObject(newProvPosList);
+
+    // Switch the subtree with this newly created projection operator.
+    switchSubtrees((QueryOperator *) newpo, (QueryOperator *) sel);
+
+    // Add child to the newly created projections operator,
+    ((QueryOperator *) newpo)->parents = appendToTailOfList(((QueryOperator *) newpo)->parents, (QueryOperator *) sel);
+    //addChildOperator((QueryOperator *) sel, (QueryOperator *) newpo);
+
+    DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) sel));
+    return (QueryOperator *) sel;
 }

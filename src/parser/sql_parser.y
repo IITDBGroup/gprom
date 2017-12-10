@@ -137,7 +137,7 @@ Node *bisonParseResult = NULL;
 %type <node> jsonTable jsonColInfoItem 
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
-%type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec coarseGrainedSpec
+%type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec coarseGrainedSpec optionalCoarseGrainedPara
 %type <list> fragmentList
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
@@ -404,6 +404,18 @@ provStmt:
             p->options = concatTwoLists($4, $9);
             $$ = (Node *) p;
         }
+        | USE PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate
+        {
+            RULELOG("provStmt::stmt");
+            Node *stmt = $7;
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = USE_PROV_COARSE_GRAINED;
+		    p->asOf = (Node *) $3;
+            // p->options = $4;
+            p->options = concatTwoLists($4, $9);
+            $$ = (Node *) p;
+        }
 		| SEQUENCED TEMPORAL '(' stmt ')'
 		{
 			RULELOG("provStmt::temporal");
@@ -613,6 +625,12 @@ provOption:
             $$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_PC_COARSE_GRAINED), 
             									(Node *) $3);
 		}
+		| USE COARSE GRAINED coarseGrainedSpec
+		{		
+			RULELOG("provOption::COARSE");
+            $$ = (Node *) createNodeKeyValue((Node *) createConstString(USE_PROP_PC_COARSE_GRAINED), 
+            									(Node *) $4);
+		}
 		| ONLY UPDATED
 		{
 			RULELOG("provOption::ONLY::UPDATED");
@@ -678,10 +696,14 @@ coarseGrainedSpec:
 	;
 
 fragmentList:
-       identifier '(' identifierList ')' intConst
+       identifier '(' identifierList ')' intConst optionalCoarseGrainedPara
        {
             RULELOG("fragmentList::identifier::identifierList::identifier");
-            List *l = concatTwoLists(stringListToConstList($3),singleton(createConstInt($5)));    
+            List *l = NIL;
+            if($6 == NULL)
+            	l = concatTwoLists(stringListToConstList($3),singleton(createConstInt($5))); 
+            else
+                l = CONCAT_LISTS(stringListToConstList($3),singleton(createConstInt($5)), singleton($6)); 
             KeyValue *k = createNodeKeyValue((Node *) createConstString($1), 
             									(Node *) l);
             $$ = singleton(k);
@@ -696,6 +718,14 @@ fragmentList:
             $$ = appendToTailOfList($1, k);
        }
     ;
+    
+optionalCoarseGrainedPara:
+         /* empty */ { RULELOG("optionalCoarseGrainedPara::EMPTY"); $$ = NULL;}
+         |
+         intConst
+         {
+         	$$ = (Node *) createConstInt($1);
+         }
             
 semiringCombinerSpec:
    		identifier

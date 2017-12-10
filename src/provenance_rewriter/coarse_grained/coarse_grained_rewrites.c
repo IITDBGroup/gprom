@@ -58,11 +58,34 @@ markTableAccessAndAggregation (QueryOperator *op, Node *coarsePara)
            }
            if(isA(o,AggregationOperator))
            {
-               DEBUG_LOG("mark tableAccessOperator.");
+               DEBUG_LOG("mark aggregationOperator.");
                SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
                //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
            }
 
            markTableAccessAndAggregation(o,coarsePara);
+      }
+}
+
+
+void
+markUseTableAccessAndAggregation (QueryOperator *op, Node *coarsePara)
+{
+
+      FOREACH(QueryOperator, o, op->inputs)
+      {
+           if(isA(o,TableAccessOperator))
+           {
+               DEBUG_LOG("mark use tableAccessOperator.");
+               SET_STRING_PROP(o, USE_PROP_COARSE_GRAINED_TABLEACCESS_MARK, coarsePara);
+           }
+           if(isA(o,AggregationOperator))
+           {
+               DEBUG_LOG("mark aggregationOperator.");
+               SET_BOOL_STRING_PROP(o, PROP_PC_SC_AGGR_OPT);
+               //SET_BOOL_STRING_PROP(o, PROP_COARSE_GRAINED_AGGREGATION_MARK);
+           }
+
+           markUseTableAccessAndAggregation(o,coarsePara);
       }
 }

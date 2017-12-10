@@ -15,6 +15,8 @@
 
 extern QueryOperator *addTopAggForCoarse (QueryOperator *op);
 extern void markTableAccessAndAggregation (QueryOperator *op, Node *coarsePara);
+extern void markUseTableAccessAndAggregation (QueryOperator *op, Node *coarsePara);
+
 
 
 #endif /* INCLUDE_PROVENANCE_REWRITER_COARSE_GRAINED_COARSE_GRAINED_REWRITE_H_ */

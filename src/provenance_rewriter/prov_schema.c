@@ -67,6 +67,10 @@ getProvenanceAttributes(QueryOperator *q, ProvenanceType type)
         {
             return NIL;
         }
+        case USE_PROV_COARSE_GRAINED:
+        {
+            return NIL;
+        }
 
     }
     return NIL; //keep compiler quiet
@@ -219,7 +223,7 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
 
         return;
     }
-    if (stmt->provType == PROV_COARSE_GRAINED)
+    if (stmt->provType == PROV_COARSE_GRAINED || stmt->provType == USE_PROV_COARSE_GRAINED)
     {
         //TODO create list of prov attributes PROV_R, PROV_S, .... and their DTs
         ProvSchemaInfo *pSchema= NEW(ProvSchemaInfo);

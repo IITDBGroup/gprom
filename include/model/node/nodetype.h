@@ -109,6 +109,7 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceType,
     PROV_TRANSFORMATION,
     PROV_XML,
     PROV_COARSE_GRAINED,
+	USE_PROV_COARSE_GRAINED,
     PROV_NONE /* for reenactment of bag semantics only */
 );
 
