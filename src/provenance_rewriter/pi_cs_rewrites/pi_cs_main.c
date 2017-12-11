@@ -1558,12 +1558,12 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
     provAttr = appendToTailOfList(provAttr, newAttrName);
 
-    List *l = NIL;
+    List *ol = NIL;
     if(LIST_LENGTH(coaParaValueList) == 1) //A
     {
     	Constant *attr = (Constant *) getHeadOfListP(coaParaValueList);
     	char *attrV = (char *) attr->value;
-    	l = LIST_MAKE(createAttrsRefByName((QueryOperator *)op, attrV),num);
+    	ol = LIST_MAKE(createAttrsRefByName((QueryOperator *)op, attrV),num);
     }
     else //A,B,..
     {
@@ -1573,11 +1573,17 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
         	char *attrV = (char *) attr->value;
         	fList = appendToTailOfList(fList,createAttrsRefByName((QueryOperator *)op, attrV));
 		}
-        l = LIST_MAKE(concatExprList(fList),num);
+        ol = LIST_MAKE(concatExprList(fList),num);
     }
 
-    FunctionCall *f = createFunctionCall ("ORA_HASH", l);
-    projExpr = appendToTailOfList(projExpr, f);
+    FunctionCall *of = createFunctionCall ("ORA_HASH", ol);
+
+    //create power(2, ORA_HASH(A,32)) functioncall
+    Constant *tw = createConstInt(2);
+    List *pl = LIST_MAKE(tw,of);
+    FunctionCall *pf = createFunctionCall ("POWER", pl);
+
+    projExpr = appendToTailOfList(projExpr, pf);
 
     List *newProvPosList = singletonInt(cnt);
 
