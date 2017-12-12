@@ -1080,6 +1080,15 @@ optionSet(char *name)
     return TRUE;
 }
 
+#define PRINT_VERSION_STRING "gprom version %s\n"
+
+void
+printVersion(FILE *stream)
+{
+    fprintf(stream, PRINT_VERSION_STRING, PACKAGE_VERSION);
+    fflush(stream);
+}
+
 void
 printOptionsHelp(FILE *stream, char *progName, char *description, boolean showValues)
 {
@@ -1109,6 +1118,7 @@ printOptionsHelp(FILE *stream, char *progName, char *description, boolean showVa
                     v->description);
         }
     }
+    fflush(stream);
 }
 
 void

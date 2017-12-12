@@ -47,6 +47,9 @@ parseOption(int const argc, char* const argv[])
 			if(strcmp(value,"-help")==0)
 				return OPTION_PARSER_RETURN_HELP;
 
+			if(strcmp(value,"-version")==0)
+			    return OPTION_PARSER_RETURN_VERSION;
+
 			if (parseOneOption(value, argv, argc, &i) != 0)
 			    return OPTION_PARSER_RETURN_ERROR;
 		}

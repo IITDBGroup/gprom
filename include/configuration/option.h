@@ -187,6 +187,8 @@ extern boolean hasCommandOption(char *name);
 extern char *commandOptionGetOption(char *name);
 extern OptionType getOptionType(char *name);
 extern boolean optionSet(char *name);
+extern void printVersion(FILE *stream);
+
 
 extern char *getBackendPlugin(char *be, char *pluginOpt);
 extern char *getFrontendPlugin(char *fe, char *pluginOpt);

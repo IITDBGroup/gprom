@@ -74,6 +74,8 @@ static void persistHistory(void);
 static char *createPromptString (void);
 static void readConf (void);
 
+#define HELLO_MESSAGE "Welcome to the GProM " PACKAGE_VERSION " command line interface"
+
 int
 main(int argc, char* argv[])
 {
@@ -92,7 +94,7 @@ main(int argc, char* argv[])
     readConf();
 
     // read options, determine session type, and setup plugins
-    int returnVal = readOptions("gprom", "GProM command line application.", argc, argv);
+    int returnVal = readOptions("gprom", HELLO_MESSAGE, argc, argv);
 
     isInteractiveSession = !(getStringOption("languagehelp") != NULL
             || getBoolOption("help")
@@ -141,7 +143,7 @@ main(int argc, char* argv[])
     else
     {
         readHistory();
-        printf("GProM Commandline Client\n");
+        printf(HELLO_MESSAGE "\n");
         printf("Please input a SQL command, '\\q' to exit the program, or '\\h' for help\n");
         printf("======================================================================\n\n");
         inputLoop();
