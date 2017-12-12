@@ -38,6 +38,9 @@ static CastGraphEdge stopper = STOPPER;
 static CastGraphEdge castGraph[] = {
         { DT_INT, DT_FLOAT },
         { DT_INT, DT_STRING },
+        { DT_INT, DT_LONG },
+        { DT_LONG, DT_FLOAT },
+        { DT_LONG, DT_STRING },
         { DT_FLOAT, DT_STRING },
         { DT_BOOL, DT_INT },
         { DT_BOOL, DT_STRING },
@@ -914,9 +917,9 @@ static DataType
 typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
 {
     *exists = TRUE;
-    DataType result;
-    DataType dLeft;
-    DataType dRight;
+    DataType result = DT_INT;
+    DataType dLeft = DT_INT;
+    DataType dRight = DT_INT;
 
     DEBUG_LOG("check whether op <%s> exists with argument types <%s>", opName, nodeToString(argDTs));
 
@@ -943,7 +946,7 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
     {
         // if the same input data types then we can safely assume that we get the same return data type
         // otherwise we use the metadata lookup plugin to make sure we get the right type
-        if(dLeft == dRight && (dLeft == DT_INT || dLeft == DT_FLOAT))
+        if(dLeft == dRight && (dLeft == DT_INT || dLeft == DT_FLOAT || dLeft == DT_LONG))
             return dLeft;
     }
 

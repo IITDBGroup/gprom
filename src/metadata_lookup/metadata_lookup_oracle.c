@@ -894,7 +894,7 @@ oracleGetCommitScn (char *tableName, long maxScn, char *xid)
         while(OCI_FetchNext(rs))
             commitScn = (long) OCI_GetBigInt(rs,1);
 
-        if(commitScn != 0)
+        if(commitScn == 0)
         {
             FREE(statement);
             return INVALID_SCN;
@@ -1017,11 +1017,10 @@ oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists)
 
             if (lType == rType)
             {
-                if (lType == DT_INT)
-                    return DT_INT;
-                if (lType == DT_FLOAT)
-                    return DT_FLOAT;
+                if (lType == DT_INT || lType == DT_FLOAT || lType == DT_LONG)
+                    return lType;
             }
+            return lcaType(lType, rType);
         }
     }
 
@@ -1043,11 +1042,12 @@ DataType
 oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
 {
     *funcExists = TRUE;
+    char *capName = strToUpper(fName);
 
     // aggregation functions
-    if (streq(fName,"sum")
-            || streq(fName, "min")
-            || streq(fName, "max")
+    if (streq(capName,"SUM")
+            || streq(capName, "MIN")
+            || streq(capName, "MAX")
         )
     {
         ASSERT(LIST_LENGTH(dataTypes) == 1);
@@ -1065,26 +1065,28 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
         }
     }
 
-    if (streq(fName,"avg"))
+    if (streq(capName,"AVG"))
     {
-        ASSERT(LIST_LENGTH(dataTypes) == 1);
-        DataType argType = getNthOfListInt(dataTypes,0);
-
-        switch(argType)
+        if(LIST_LENGTH(dataTypes) == 1)
         {
-            case DT_INT:
-            case DT_LONG:
-            case DT_FLOAT:
-                return DT_FLOAT;
-            default:
-                return DT_STRING;
+            DataType argType = getNthOfListInt(dataTypes,0);
+
+            switch(argType)
+            {
+                case DT_INT:
+                case DT_LONG:
+                case DT_FLOAT:
+                    return DT_FLOAT;
+                default:
+                    return DT_STRING;
+            }
         }
     }
 
-    if (streq(fName,"count"))
+    if (streq(capName,"COUNT"))
         return DT_LONG;
 
-    if (streq(fName,"xmlagg"))
+    if (streq(capName,"XMLAGG"))
         return DT_STRING;
 
     if (streq(fName,"ROW_NUMBER"))
@@ -1092,6 +1094,46 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
     if (streq(fName, "DENSE_RANK"))
         return DT_INT;
 
+    if (streq(capName,"CEIL"))
+    {
+        if(LIST_LENGTH(dataTypes) == 1)
+        {
+            DataType argType = getNthOfListInt(dataTypes,0);
+            switch(argType)
+            {
+                case DT_INT:
+                    return DT_INT;
+                case DT_LONG:
+                case DT_FLOAT:
+                    return DT_LONG;
+                default:
+                    ;
+            }
+        }
+    }
+
+    if (streq(capName,"ROUND"))
+    {
+        if(LIST_LENGTH(dataTypes) == 2)
+        {
+            DataType argType = getNthOfListInt(dataTypes,0);
+            DataType parType = getNthOfListInt(dataTypes,1);
+
+            if (parType == DT_INT)
+            {
+                switch(argType)
+                {
+                    case DT_INT:
+                        return DT_INT;
+                    case DT_LONG:
+                    case DT_FLOAT:
+                        return DT_LONG;
+                    default:
+                        ;
+                }
+            }
+        }
+    }
    //TODO
 
     *funcExists = FALSE;

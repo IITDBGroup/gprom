@@ -1629,9 +1629,17 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 //            }
 
             getQBProvenanceAttrList(q,&provAttrNames,&provDts);
-            q->selectClause = concatTwoLists(q->selectClause,
-                    provAttrNames);
-            q->dts = concatTwoLists(q->dts,provDts);
+
+//            if(q->summaryType == NULL)
+//            {
+            	q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
+                q->dts = concatTwoLists(q->dts,provDts);
+//            }
+//            else
+//            {
+//            	q->selectClause = provAttrNames;
+//                q->dts = provDts;
+//            }
         }
         break;
         case PROV_INPUT_TIME_INTERVAL:
@@ -1657,10 +1665,12 @@ analyzeProvenanceOptions (ProvenanceStmt *prov)
         /* provenance type */
         if (!strcmp(key, "TYPE"))
         {
-            if (!strcmp(value, "PICS"))
+            if (streq(value, "PICS"))
                 prov->provType = PROV_PI_CS;
             else if (!strcmp(value, "TRANSFORMATION"))
                 prov->provType = PROV_TRANSFORMATION;
+            else if (!strcmp(value, "XML"))
+                prov->provType = PROV_XML;
             else
                 FATAL_LOG("Unkown provenance type: <%s>", value);
         }

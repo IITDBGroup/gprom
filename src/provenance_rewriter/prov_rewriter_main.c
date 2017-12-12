@@ -21,6 +21,7 @@
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
+#include "provenance_rewriter/xml_rewrites/xml_prov_main.h"
 
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
@@ -66,7 +67,12 @@ QueryOperator *
 provRewriteQuery (QueryOperator *input)
 {
     Set *seen = PSET();
-    return findProvenanceComputations(input, seen);
+    Node *inputProp = input->properties;
+
+    QueryOperator *result = findProvenanceComputations(input, seen);
+    result->properties = inputProp;
+
+    return result;
 }
 
 
@@ -134,6 +140,8 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
             return result;
         case PROV_TRANSFORMATION:
             return rewriteTransformationProvenance((QueryOperator *) op);
+        case PROV_XML:
+            return rewriteXML(op); //TODO
         case PROV_NONE:
             return OP_LCHILD(op);
     }

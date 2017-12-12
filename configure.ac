@@ -1,6 +1,19 @@
 ################################################################################
-################################################################################
-# DEFINTIONS OF HELPER FUNCTIONS FOR GETTING USER OPTIONS
+# DEFINTIONS OF HELPER FUNCTIONS
+# Check whether we compile 32 or 64 bit code
+AC_DEFUN([AC_MACHINE_ARCH],
+[
+	AC_CHECK_SIZEOF([void*])
+	AC_MSG_CHECKING([checking whether to use 32bit or 64bit])
+	if test "x$ac_cv_sizeof_voidp" == x4; then
+		MYARCH=32
+	else
+		MYARCH=64
+	fi
+	AC_MSG_RESULT([${MYARCH}])
+	AC_SUBST([COMPILER_OSARCH],${MYARCH})
+	AC_DEFINE_UNQUOTED([COMPILER_OSARCH],["${MYARCH}"],[32/64 bit architecture])
+])
 # OCI location
 AC_DEFUN([AC_OCI_LOCATION],
 [AC_ARG_WITH(oci, [  --with-oci], , )
@@ -91,6 +104,28 @@ else
 	AC_MSG_RESULT([not set])
 fi
 ])
+# cplex library location
+AC_DEFUN([AC_CPLEX_LOCATION],
+[
+AC_ARG_WITH(cplex, [  --with-cplex], , )
+AC_MSG_CHECKING([for user provided cplex location])
+if test "x$with_cplex" != x; then
+	if test -d "$with_cplex"; then
+		# TODO - create actual mapping from archtiecture detected by configure to cplex representation of architectures (e.g., x64-64 instead of x64_64) 
+		CPLEXSYSTEM=x86-${MYARCH}_${OSTYPE}
+		CPLEXLIBFORMAT=static_pic
+		LDFLAGS="$LDFLAGS -L$with_cplex/lib/$CPLEXSYSTEM/$CPLEXLIBFORMAT"
+    	CPPFLAGS="$CPPFLAGS -I$with_cplex/include"
+    	#CFLAGS="$CFLAGS -m64 -fPIC"
+    	AC_MSG_RESULT([yes, $with_cplex])
+	else
+    	AC_MSG_RESULT([no])
+    	AC_WARN([no cplex library found in location $with_cplex])
+	fi
+else
+	AC_MSG_RESULT([not set])
+fi
+])
 # Activate/Deactivate logging
 AC_DEFUN([AC_LOGGING_ACTIVE],
 [
@@ -128,6 +163,19 @@ AC_MSG_CHECKING([activate profiling with gprof])
 AS_IF([test "x$enable_gprof" == "xyes"], [
   AC_MSG_RESULT([yes])
   CPPFLAGS="$CPPFLAGS -pg"
+],[
+  AC_MSG_RESULT([no])
+])
+])
+# Activate cplex support
+AC_DEFUN([AC_ENABLE_CPLEX],
+[
+AC_ARG_ENABLE(cplex, AS_HELP_STRING([--enable-cplex],[activate support for cplex]))
+AC_MSG_CHECKING([activate linking against cplex])
+
+AS_IF([test "x$enable_cplex" == "xyes"], [
+  AC_MSG_RESULT([yes])
+  #CPPFLAGS="$CPPFLAGS -pg"
 ],[
   AC_MSG_RESULT([no])
 ])
@@ -270,11 +318,20 @@ AC_MSG_RESULT($GPROM_CFLAGS)
 ################################################################################
 # Init autoconf
 AC_INIT([GProM],[0.0.1],[bglavic@iit.edu])
+# CFLAGS from user or set to nothing
+AS_IF([test "x$CFLAGS" != "x"],
+[
+	userCFLAGS="$CFLAGS"
+],
+[]
+)
+: ${CFLAGS=""}
 AC_CONFIG_AUX_DIR(config)
 AM_INIT_AUTOMAKE([-Wall foreign tar-pax])
 AC_CONFIG_MACRO_DIR([m4])
 AC_SUBST([ACLOCAL_AMFLAGS],[-I m4])
 ################################################################################
+# DETERMINE OS AND ARCHITECTURE SETTINGS AND EXPOSE THEM
 AC_CANONICAL_HOST
 AS_CASE([$host_os],
    [*linux*], [OSTYPE=linux],
@@ -284,34 +341,32 @@ AS_CASE([$host_os],
 )
 AC_SUBST([OSTYPE])
 AC_SUBST([OSDETAILS],$host_os)
+AC_SUBST([OSARCH],$host_cpu)
 AC_DEFINE_UNQUOTED([OS_TYPE],["${OSTYPE}"],[type of operating system])
 AC_DEFINE_UNQUOTED([OS_DETAILS],["${host_os}"],[OS version])
+AC_DEFINE_UNQUOTED([OS_ARCH],["${OSARCH}"],[OS architecture])
+AC_MACHINE_ARCH
 ################################################################################
 # CHECK FOR C COMPILER AND FEATURES, BINUTILS, AND BISON + FLEX
-AS_IF([test "x$CFLAGS" != "x"],
-[
-	userCFLAGS="$CFLAGS"	
-],
-[]
-) 
-AC_PROG_CC
-# restore user CFLAGS
-AS_IF([test "x$userCFLAGS" == "x"],
-[
-	CFLAGS=""
-],
-[
-	CFLAGS="$userCFLAGS"
-]
-) 
+#CFLAGS="${GPROM_CFLAGS}"
 AC_PROG_CC_STDC
+# restore user CFLAGS
+#CFLAGS=""
+#AS_IF([test "x$userCFLAGS" == "x"],
+#[
+#	CFLAGS=""
+#],
+#[
+#	CFLAGS="$userCFLAGS"
+#]
+#)
 # CAN INLINE FUNCTIONS?
 AC_C_INLINE
 ################################################################################
 # SET OUTPUT VARIABLE FOR TOP SOURCE DIR
-mysrcdir="$(pushd "$(srcdir)" > /dev/null; pwd)"
+mysrcdir="$(pushd "${srcdir}" > /dev/null; pwd)"
 AC_DEFINE_UNQUOTED([GPROM_TOP_SRCDIR],["${mysrcdir}"], ["absolute path to top source dir"])
-GPROM_SRCDIR="$(pushd "$(srcdir)" > /dev/null; pwd)"
+GPROM_SRCDIR="$(pushd "${srcdir}" > /dev/null; pwd)"
 ################################################################################
 # CHECK FOR PROGRAM BINARIES
 AM_PROG_AR
@@ -375,6 +430,31 @@ AC_ENABLE_JAVA_BINDING
 # Enable readline in CLI
 AC_ENABLE_READLINE
 ################################################################################
+# check for libm
+AC_CHECK_LIB([m],[pow],[],[
+  AC_MSG_ERROR([missing libm library (searching for pow function)])
+])
+################################################################################
+# Enable cplex
+AC_ENABLE_CPLEX
+################################################################################
+# cplex library
+AS_CASE(["$enable_cplex"], 
+  [yes], [
+  AC_CHECK_LIB([pthread],[pthread_self],[],[
+    AC_MSG_ERROR([missing libpthread library (searching for pthread_self function)])
+  ])
+# check if user has provided us with non-standard locations for OCI/OCILIB libraries
+  AC_CPLEX_LOCATION  
+# check for the libraries
+  AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
+    AC_MSG_ERROR([missing cplex library - if you want to compile without cplex  support do not use --enable-cplex])
+  ])
+  ],
+  [no], [],
+  []
+)
+################################################################################
 # Oracle access libraries (OCI and OCILIB)
 AS_CASE(["$enable_oracle"], 
   [yes], [
@@ -424,6 +504,11 @@ AS_IF([test "x$enable_readline" == "xno"], [
 ])
 ])
 ################################################################################
+# CPlex
+#AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
+#  AC_MSG_ERROR([missing cplex library])
+#])
+################################################################################
 # Postgres access library (libpq)
 AS_CASE(["$enable_postgres"], 
   [yes], [
@@ -467,11 +552,6 @@ AS_CASE(["$enable_sqlite"],
 #    AC_MSG_ERROR([missing libsqlite3 library - if you want to compile without SQLite backend support use --disable-sqlite])
 #  ])
 #])
-################################################################################
-# check for libm
-AC_CHECK_LIB([m],[pow],[],[
-  AC_MSG_ERROR([missing libm library (searching for pow function)])
-])
 ################################################################################
 # enable/disable features
 AC_LOGGING_ACTIVE
@@ -521,8 +601,11 @@ AC_CONFIG_FILES([
 	src/provenance_rewriter/pi_cs_rewrites/Makefile
 	src/provenance_rewriter/transformation_rewrites/Makefile
 	src/provenance_rewriter/update_and_transaction/Makefile
+	src/provenance_rewriter/summarization_rewrites/Makefile
+	src/provenance_rewriter/xml_rewrites/Makefile
 	src/rpq/Makefile
 	src/sql_serializer/Makefile
+	src/symbolic_eval/Makefile
 	src/utility/Makefile
 	src/libgprom/Makefile
 	test/Makefile
@@ -533,12 +616,12 @@ AC_OUTPUT
 echo "
   ($PACKAGE_NAME) version $PACKAGE_VERSION
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  OS.................: $OSTYPE ($host_os)
+  OS.................: $OSTYPE-$OSARCH ($OSDETAILS) 
   Prefix.............: $prefix
   Top src dir........: $GPROM_SRCDIR
   Debug Build........: ${enable_debug:=yes}
   Profiling..........: google perftools: ${enable_link_perftools:=no}, gprof: ${enable_gprof:=no} 
-  Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes}
+  Features...........: Assertions:${enable_assert:=no} Logging:${enable_logging:=yes} Timing:${enable_timing:=yes} cplex:${enable_cplex:=no}
   Backends supported.: Oracle - ${enable_oracle:=yes}, Postgres - ${enable_postgres:=yes}, SQLite - ${enable_sqlite:=yes}
   Language bindings..: Java - ${enable_java:=yes}
   Readline support...: ${enable_readline:=yes}

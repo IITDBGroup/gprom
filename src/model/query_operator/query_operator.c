@@ -59,7 +59,7 @@ createSchemaFromLists (char *name, List *attrNames, List *dataTypes)
     result->name = strdup(name);
     result->attrDefs = NIL;
 
-    if (dataTypes == NULL)
+    if (dataTypes == NIL)
     {
         FOREACH(char,n,attrNames)
         {
@@ -775,11 +775,12 @@ createOrderOp(List *orderExprs, QueryOperator *input, List *parents)
 {
     OrderOperator *o = makeNode(OrderOperator);
     List *inputAttrs = getQueryOperatorAttrNames(input);
+    List *dts = getDataTypes(input->schema);
 
     o->orderExprs = orderExprs;
     o->op.type = T_OrderOperator;
     o->op.inputs = singleton(input);
-    o->op.schema =  createSchemaFromLists("ORDER", inputAttrs, NIL);
+    o->op.schema =  createSchemaFromLists("ORDER", inputAttrs, dts);
     o->op.parents = parents;
     o->op.provAttrs = NIL;
 
@@ -997,7 +998,7 @@ getNormalAttrNames(QueryOperator *op)
     List *result = NIL;
 
     FOREACH(AttributeDef, a, defs)
-    result = appendToTailOfList(result, strdup(a->attrName));
+    	result = appendToTailOfList(result, strdup(a->attrName));
 
     return result;
 }

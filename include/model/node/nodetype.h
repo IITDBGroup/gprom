@@ -107,6 +107,7 @@ typedef struct Node{
 NEW_ENUM_WITH_TO_STRING(ProvenanceType,
     PROV_PI_CS,
     PROV_TRANSFORMATION,
+    PROV_XML,
     PROV_NONE /* for reenactment of bag semantics only */
 );
 
@@ -202,6 +203,7 @@ extern KeyValue *createNodeKeyValue(Node *key, Node *value);
 extern char *nodeToString(void *obj);
 extern char *beatify(char *input);
 extern char *operatorToOverviewString(void *op);
+extern char *singleOperatorToOverview (void *op);
 extern char *datalogToOverviewString(void *n);
 extern char *itoa(int value);
 extern void indentString(StringInfo str, int level);

@@ -4033,6 +4033,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
     /* ************************************************************ */
     // check domain rules are assigned by the user
+
 //	List *associateDomainRule;
 
     if (!LIST_EMPTY(solvedProgram->doms))

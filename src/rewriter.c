@@ -38,10 +38,13 @@
 #include "instrumentation/memory_instrumentation.h"
 
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
+#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
+static List *summOpts = NIL;
+
 
 int
 initBasicModules (void)
@@ -475,6 +478,10 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 //	    	rewrittenTree = (Node *) inputRels;
 //	    }
 
+        // rewrite for summarization
+		if (summOpts != NIL)
+            rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts);
+
 	    if(applyOptimizations)
 	    {
 	        START_TIMER("OptimizeModel");
@@ -508,6 +515,16 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
 {
     char *rewrittenSQL = NULL;
     Node *oModel;
+
+	// summarization options for SQL input
+    if (!isA(parse,DLProgram))
+    {
+        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
+
+    	if(ps->sumOpts != NIL)
+    		FOREACH(Node,n,ps->sumOpts)
+    			summOpts = appendToTailOfList(summOpts,n);
+    }
 
     START_TIMER("translation");
     oModel = translateParse(parse);

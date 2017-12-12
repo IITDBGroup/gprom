@@ -956,6 +956,7 @@ equalProvenanceStmt(ProvenanceStmt *a, ProvenanceStmt *b, HashMap *seenOps, MemC
     COMPARE_NODE_FIELD(transInfo);
     COMPARE_NODE_FIELD(asOf);
     COMPARE_NODE_FIELD(options);
+    COMPARE_NODE_FIELD(sumOpts);
 
     return TRUE;
 }

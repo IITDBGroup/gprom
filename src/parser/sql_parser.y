@@ -74,9 +74,10 @@ Node *bisonParseResult = NULL;
 %token <stringVal> CASE WHEN THEN ELSE END
 %token <stringVal> OVER_TOK PARTITION ROWS RANGE UNBOUNDED PRECEDING CURRENT ROW FOLLOWING
 %token <stringVal> NULLS FIRST LAST ASC DESC
-%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE
+%token <stringVal> JSON_TABLE COLUMNS PATH FORMAT WRAPPER NESTED WITHOUT CONDITIONAL JSON TRANSLATE 
 %token <stringVal> CAST
-%token <stringVal> CREATE ALTER ADD REMOVE COLUMN 
+%token <stringVal> CREATE ALTER ADD REMOVE COLUMN
+%token <stringVal> SUMMARIZED TO EXPLAIN SAMPLE TOP
 
 %token <stringVal> DUMMYEXPR
 
@@ -117,8 +118,8 @@ Node *bisonParseResult = NULL;
  */
 %type <node> stmt provStmt dmlStmt queryStmt ddlStmt
 %type <node> createTableStmt alterTableStmt alterTableCommand
-%type <list> tableElemList optTableElemList
-%type <node> tableElement 
+%type <list> tableElemList optTableElemList attrElemList
+%type <node> tableElement attr
 %type <node> selectQuery deleteQuery updateQuery insertQuery subQuery setOperatorQuery
         // Its a query block model that defines the structure of query.
 %type <list> selectClause optionalFrom fromClause exprList orderList 
@@ -138,6 +139,8 @@ Node *bisonParseResult = NULL;
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
 %type <stringVal> optionalFormat optionalWrapper optionalstringConst
+%type <node> optionalTopK optionalSumType optionalToExplain optionalSumSample
+%type <list> optionalSummarization
 
 %start stmtList
 
@@ -345,8 +348,8 @@ provStmt:
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $2;
-                   // p->options = $3;
-                   p->options = concatTwoLists($3, $8);
+            // p->options = $3;
+            p->options = concatTwoLists($3, $8);
             $$ = (Node *) p;
         }
 		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmtList ')'
@@ -378,8 +381,80 @@ provStmt:
 			p->options = $3;
 			$$ = (Node *) p;
 		}
+        | optionalTopK PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate optionalSummarization
+        {
+            RULELOG("provStmt::summaryStmt");
+            Node *stmt = $7;
+	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
+		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
+		    p->provType = PROV_PI_CS;
+		    p->asOf = (Node *) $3;
+            p->options = concatTwoLists($4,$9);
+           	p->sumOpts = appendToTailOfList(p->sumOpts,$1);
+           	p->sumOpts = appendToTailOfList(p->sumOpts,(Node *) $10);
+            $$ = (Node *) p;
+        }
     ;
-    
+
+
+optionalTopK:
+//		/* empty */			{ RULELOG("optionalTopK::EMPTY"); $$ = NULL; }
+//		| 
+		TOP intConst
+		{
+			RULELOG("optionalTopK::topk");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString("topk"),(Node *) createConstInt($2));
+		}
+    ;
+
+
+optionalSummarization:
+		optionalSumType		{ RULELOG("optionalSumType::sumType"); $$ = singleton($1); }
+		| optionalSummarization optionalSumType
+        {
+        	RULELOG("optionalSummarization::sumOpts"); 
+			$$ = appendToTailOfList($1,$2); 
+        }
+        | optionalSummarization optionalToExplain
+        {
+        	RULELOG("optionalSummarization::sumOpts"); 
+			$$ = appendToTailOfList($1,$2); 
+        }
+        | optionalSummarization optionalSumSample
+        {
+        	RULELOG("optionalSummarization::sumOpts"); 
+			$$ = appendToTailOfList($1,$2); 
+        }
+	;
+
+
+optionalSumType:
+		SUMMARIZED BY identifier 
+		{
+			RULELOG("optionalSummarization::SumType");
+			$$ = (Node *) createStringKeyValue(strdup("sumtype"),strdup($3));
+		}
+	;
+	
+	
+optionalToExplain:
+		TO EXPLAIN '(' attrElemList ')'
+		{
+			RULELOG("optionalToExplain::ToExplain");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString("toexpl"),(Node *) $4);
+		}
+	;
+
+
+optionalSumSample:
+		WITH SAMPLE '(' intConst ')'
+		{
+			RULELOG("optionalSumSample::WithSample");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString("sumsamp"),(Node *) createConstInt($4));
+		}
+ 	;
+ 	
+  
 optionalProvAsOf:
 		/* empty */			{ RULELOG("optionalProvAsOf::EMPTY"); $$ = NULL; }
 		| AS OF SCN intConst
@@ -473,6 +548,7 @@ optionalstringConst:
 		}
         ;
 
+        
 /*
  * Rule to parse delete query
  */ 
@@ -1493,8 +1569,34 @@ delimIdentifier:
 			RULELOG("identifierList::list::ident"); 
 			$$ = CONCAT_STRINGS($1, ".", $3); //TODO 
 		}  
-
+	;
 	
+attrElemList:
+		attr
+            {
+                RULELOG("userQuestList::identifier");
+                $$ = singleton($1);
+            }
+        | attrElemList ',' attr
+            {
+                RULELOG("attrElemList::attrElemList::identifier");
+                $$ = appendToTailOfList($1, $3);
+            }
+    ;
+
+attr:
+ 		constant 
+ 			{ 
+ 				RULELOG("arg:constant");
+ 				$$ = $1; 
+			}
+		| '*'
+			{ 
+ 				RULELOG("arg:star");
+ 				$$ = (Node *) createConstString(strdup("*")); 
+			}
+	;
+
 %%
 
 

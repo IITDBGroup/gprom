@@ -45,6 +45,7 @@ typedef struct ReplaceGroupByState {
 
 // function declarations
 static Node *translateGeneral(Node *node);
+//static Node *translateSummary(Node *input, Node *node);
 static boolean disambiguiteAttrNames(Node *node, Set *done);
 static void adaptSchemaFromChildren(QueryOperator *o);
 
@@ -111,6 +112,8 @@ static List *getListOfAggregFunctionCalls(List *selectClause,
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
 static boolean visitFindWindowFuncs(Node *n, List **wfs);
 static boolean replaceWithViewRefsMutator(Node *node, List *views);
+static char *summaryType = NULL;
+static Node *prop = NULL;
 
 
 Node *
@@ -164,21 +167,70 @@ static Node *
 translateGeneral (Node *node)
 {
     Node *result;
+    QueryOperator *r;
 
     if (isA(node, List))
     {
         result = (Node *) copyList((List *) node);
         FOREACH(Node,stmt,(List *) result)
-            stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+        {
+
+        	ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
+
+            FOREACH(Node,n,prov->sumOpts)
+            {
+				if(isA(n,List))
+				{
+					List *sumOpts = (List *) n;
+
+					FOREACH(KeyValue,sn,sumOpts)
+						if(streq(STRING_VALUE(sn->key),"sumtype"))
+							summaryType = STRING_VALUE(sn->value);
+				}
+            }
+
+            if(summaryType == NULL)
+                stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+            else
+            {
+            	r = translateQueryOracle(stmt);
+            	r->properties = copyObject(prop);
+            	stmt_his_cell->data.ptr_value = (Node *) r;
+            }
+        }
     }
     else
-        result = (Node *) translateQueryOracle(node);
+    {
+        ProvenanceStmt *prov = (ProvenanceStmt *) node;
+
+        FOREACH(Node,n,prov->sumOpts)
+        {
+			if(isA(n,List))
+			{
+				List *sumOpts = (List *) n;
+
+				FOREACH(KeyValue,sn,sumOpts)
+					if(streq(STRING_VALUE(sn->key),"sumtype"))
+						summaryType = STRING_VALUE(sn->value);
+			}
+        }
+
+        if(summaryType == NULL)
+        	result = (Node *) translateQueryOracle(node);
+        else
+        {
+        	r = translateQueryOracle(node);
+        	r->properties = copyObject(prop);
+        	result = (Node *) r;
+        }
+    }
 
     Set *done = PSET();
     disambiguiteAttrNames(result, done);
-
+	
     return result;
 }
+
 
 static boolean
 disambiguiteAttrNames(Node *node, Set *done)
@@ -449,6 +501,9 @@ translateQueryBlock(QueryBlock *qb)
     if (orderBy != distinct)
         LOG_TRANSLATED_OP("translatedOrder is", orderBy);
 
+    if(summaryType != NULL)
+    	prop = (Node *) orderBy;
+
     return orderBy;
 }
 
@@ -456,6 +511,8 @@ static QueryOperator *
 translateProvenanceStmt(ProvenanceStmt *prov) {
     QueryOperator *child;
     ProvenanceComputation *result;
+
+    //get type from options
 
     result = createProvenanceComputOp(prov->provType, NIL, NIL,
             prov->selectClause, prov->dts, NULL);
@@ -521,13 +578,22 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 /* get table name */
                 char *tableName = NULL;
+                ReenactUpdateType updateType = UPDATE_TYPE_DELETE;
 
                 switch (node->type) {
                     case T_Insert:
-                        tableName = ((Insert *) node)->insertTableName;
-                        break;
+                    {
+                        Insert *i = (Insert *) node;
+                        if (isA(i->query,  List))
+                            updateType = UPDATE_TYPE_INSERT_VALUES;
+                        else
+                            updateType = UPDATE_TYPE_INSERT_QUERY;
+                        tableName = i->insertTableName;
+                    }
+                    break;
                     case T_Update:
                     {
+                        updateType = UPDATE_TYPE_UPDATE;
                         Update *up = (Update *) node;
 
                         tableName = up->updateTableName;
@@ -535,6 +601,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                     }
                     break;
                     case T_Delete:
+                        updateType = UPDATE_TYPE_DELETE;
                         tableName = ((Delete *) node)->deleteTableName;
                         break;
                     case T_QueryBlock:
@@ -594,7 +661,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 // mark as root of translated update
                 SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
-
+                SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(updateType));
                 DEBUG_NODE_BEATIFY_LOG("qo model transaction is", child);
 
                 addChildOperator((QueryOperator *) result, child);
@@ -606,6 +673,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
             FOREACH(char,tableName,tInfo->updateTableNames)
             {
+                DEBUG_LOG("try to get commit SCN from table <%s>", tableName);
                 commitScn = getCommitScn(tableName,
                         LONG_VALUE(getHeadOfListP(tInfo->scns)),
                         xid);
@@ -614,7 +682,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             }
 
             if (commitScn == INVALID_SCN)
-                FATAL_NODE_LOG("unable to determine commit SCN for transaction", tInfo);
+                FATAL_NODE_BEATIFY_LOG("unable to determine commit SCN for transaction", tInfo);
 
             tInfo->commitSCN = createConstLong(commitScn);
 
@@ -637,7 +705,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             tInfo->originalUpdates = copyObject(prov->query);
             tInfo->updateTableNames = NIL;
 
-            FOREACH(Node,n,(List *) prov->query) {
+            FOREACH(Node,n,(List *) prov->query)
+            {
                 char *tableName = NULL;
 
                 /* get table name */

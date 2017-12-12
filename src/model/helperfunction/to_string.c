@@ -112,7 +112,8 @@ static void outDLDomain(StringInfo str, DLDomain *node);
 
 // create overview string for an operator tree
 static int compareOpInfos (const void *l, const void *r);
-static void operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMap *map);
+static void operatorToOverviewInternal(StringInfo str, QueryOperator *op,
+        int indent, HashMap *map, boolean printChildren);
 static void datalogToStrInternal(StringInfo str, Node *n, int indent);
 
 
@@ -605,6 +606,7 @@ outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
     WRITE_NODE_FIELD(transInfo);
     WRITE_NODE_FIELD(asOf);
     WRITE_NODE_FIELD(options);
+    WRITE_NODE_FIELD(sumOpts);
 }
 
 static void
@@ -1577,7 +1579,7 @@ operatorToOverviewString(void *op)
         {
             m = NEW_MAP(Constant,List);
             MAP_ADD_STRING_KEY(m, OP_ID_STRING, createConstInt(0));
-            operatorToOverviewInternal(str,(QueryOperator *) o, 0, m);
+            operatorToOverviewInternal(str,(QueryOperator *) o, 0, m, TRUE);
 
             removeMapElem(m, (Node *) createConstString(OP_ID_STRING));
             reusedSubtrees = sortList(getEntries(m), (int (*)(const void *, const void *))compareOpInfos);
@@ -1599,7 +1601,7 @@ operatorToOverviewString(void *op)
         m = NEW_MAP(Constant,List);
         MAP_ADD_STRING_KEY(m, OP_ID_STRING, createConstInt(0));
 
-        operatorToOverviewInternal(str,(QueryOperator *) op, 0, m);
+        operatorToOverviewInternal(str,(QueryOperator *) op, 0, m, TRUE);
 
         removeMapElem(m, (Node *) createConstString(OP_ID_STRING));
         reusedSubtrees = sortList(getEntries(m), (int (*)(const void *, const void *))compareOpInfos);
@@ -1628,11 +1630,19 @@ compareOpInfos (const void *l, const void *r)
     return lOpId - rOpId;
 }
 
+char *
+singleOperatorToOverview (void *op)
+{
+    StringInfo str = makeStringInfo();
+    operatorToOverviewInternal(str,(QueryOperator *) op, 0, NULL, FALSE);
+    return str->data;
+}
+
 static void
-operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMap *map)
+operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMap *map, boolean printChildren)
 {
     // if operator has more than one parents then we outsource
-    if (LIST_LENGTH(op->parents) > 1)
+    if (printChildren && LIST_LENGTH(op->parents) > 1)
     {
         List *opInfo = (List *) MAP_GET_LONG(map, (long) op); // info is: [id, stringRep]
         int opId;
@@ -1846,8 +1856,11 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
     	appendStringInfo(str, "%p ", parent);
     appendStringInfoString(str, ")\n");
 
-    FOREACH(QueryOperator,child,op->inputs)
-        operatorToOverviewInternal(str, child, indent + 1, map);
+    if (printChildren)
+    {
+        FOREACH(QueryOperator,child,op->inputs)
+            operatorToOverviewInternal(str, child, indent + 1, map, printChildren);
+    }
 }
 
 void

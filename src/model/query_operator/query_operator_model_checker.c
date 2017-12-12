@@ -25,7 +25,8 @@ static boolean checkAttributeRefList (List *attrRefs, List *children, QueryOpera
 static boolean checkParentChildLinks (QueryOperator *op, void *context);
 static boolean checkAttributeRefConsistency (QueryOperator *op, void *context);
 static boolean checkSchemaConsistency (QueryOperator *op, void *context);
-
+static boolean checkForDatastructureReuse (QueryOperator *op, void *context);
+static boolean checkReuseVisitor (Node *node, void *context);
 
 
 boolean
@@ -60,6 +61,8 @@ checkModel (QueryOperator *op)
     if (SHOULD(CHECK_OM_ATTR_REF) && !visitQOGraph(op, TRAVERSAL_PRE, checkAttributeRefConsistency, NULL))
         FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
     if (SHOULD(CHECK_OM_SCHEMA_CONSISTENCY) && !visitQOGraph(op, TRAVERSAL_PRE, checkSchemaConsistency, NULL))
+        FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
+    if (SHOULD(CHECK_OM_DATA_STRUCTURE_CONSISTENCY) && !visitQOGraph(op, TRAVERSAL_PRE, checkForDatastructureReuse, NULL))
         FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
 
     FREE_CONTEXT_AND_RETURN_BOOL(TRUE);
@@ -383,6 +386,70 @@ checkSchemaConsistency (QueryOperator *op, void *context)
     return !SHOULD(CHECK_OM_UNIQUE_ATTR_NAMES)
             || checkUniqueAttrNames(op);
 }
+
+typedef struct ReuseDataStructureContext
+{
+    Set *pointers;
+    void *opPointer;
+} ReuseDataStructureContext;
+
+static boolean
+checkForDatastructureReuse (QueryOperator *op, void *context)
+{
+    HashMap *pointers = (HashMap *) (context ? context : NEW_MAP(Constant,Constant));
+    Set *c;
+    long opAddr = (long) op;
+
+    c =  PSET();
+    checkReuseVisitor((Node *) op, c);
+
+    FOREACH_SET(void*, p, c)
+    {
+        long pAddr = (long) p;
+        if (MAP_HAS_LONG_KEY(pointers, pAddr))
+        {
+            long otherAddr = LONG_VALUE(MAP_GET_LONG(pointers, pAddr));
+            Node *ds = (Node *) p;
+            QueryOperator *other = (QueryOperator *) otherAddr;
+
+            // found data structure shared across two operators
+            if (otherAddr != opAddr)
+            {
+                ERROR_NODE_BEATIFY_LOG("two query operators share a datastructure", ds);
+                ERROR_LOG("first op:\n%s",singleOperatorToOverview(op));
+                ERROR_LOG("second op:\n%s",singleOperatorToOverview(other));
+                DEBUG_NODE_BEATIFY_LOG("details are:", op, other);
+                return FALSE;
+            }
+        }
+        else
+        {
+            MAP_ADD_LONG_KEY(pointers, pAddr, createConstLong(opAddr));
+        }
+    }
+
+    return TRUE;
+}
+
+static boolean
+checkReuseVisitor (Node *node, void *context)
+{
+    Set *c = (Set *) context;
+
+    if (node == NULL)
+        return TRUE;
+
+    // do not traverse into query operators
+    if (isA(node, QueryOperator))
+    {
+        return TRUE;
+    }
+
+    addToSet(c, node);
+
+    return visit(node, checkReuseVisitor, context);
+}
+
 
 boolean
 checkUniqueAttrNames (QueryOperator *op)

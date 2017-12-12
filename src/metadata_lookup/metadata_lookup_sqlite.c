@@ -58,7 +58,7 @@ static void initCache(CatalogCache *c);
         { \
             StringInfo _newmes = makeStringInfo(); \
             appendStringInfo(_newmes, _message, ##__VA_ARGS__); \
-            FATAL_LOG("error (%s)\n%u\n\n%s", _rc, strdup((char *) sqlite3_errmsg(plugin->conn)), _newmes->data); \
+            FATAL_LOG("error (%s)\n%u\n\n%s", strdup((char *) sqlite3_errmsg(plugin->conn)), _rc, _newmes->data); \
         } \
     } while(0)
 
@@ -184,7 +184,7 @@ boolean
 sqliteCatalogTableExists (char * tableName)
 {
     sqlite3 *c = plugin->conn;
-    boolean res = (sqlite3_table_column_metadata(c,NULL,tableName,NULL,NULL,NULL,NULL,NULL, NULL) == SQLITE_OK);
+    boolean res = (sqlite3_table_column_metadata(c,NULL,tableName,strdup("rowid"),NULL,NULL,NULL,NULL, NULL) == SQLITE_OK);
 
     return res;//TODO
 }
@@ -393,7 +393,7 @@ runQuery (char *q)
     int rc;
 
     DEBUG_LOG("run query:\n<%s>", q);
-    rc = sqlite3_prepare(conn, q, -1, &stmt, NULL);
+    rc = sqlite3_prepare(conn, strdup(q), -1, &stmt, NULL);
     HANDLE_ERROR_MSG(rc, SQLITE_OK, "failed to prepare query <%s>", q);
 
     return stmt;

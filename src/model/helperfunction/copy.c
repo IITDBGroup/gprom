@@ -890,6 +890,7 @@ copyProvenanceStmt(ProvenanceStmt *from, OperatorMap **opMap)
     COPY_NODE_FIELD(transInfo);    
     COPY_NODE_FIELD(asOf);
     COPY_NODE_FIELD(options);
+    COPY_NODE_FIELD(sumOpts);
 
     return new;
 }

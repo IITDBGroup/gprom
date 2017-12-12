@@ -82,11 +82,15 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTIMIZATION_REMOVE_UNNECESSARY_COLUMNS "optimization.remove_unnecessary_columns"
 #define OPTIMIZATION_REMOVE_UNNECESSARY_WINDOW_OPERATORS "optimization.remove_unnecessary_window_operators"
 #define OPTIMIZATION_PULL_UP_DUPLICATE_REMOVE_OPERATORS "optimization.pull_up_deplicate_remove_operators"
+/* define optimization options for group by*/
+#define OPTIMIZATION_PUSH_DOWN_AGGREGATION_THROUGH_JOIN "optimization.push_down_aggregation_through_join"
+
 
 /* model checking options */
 #define CHECK_OM_UNIQUE_ATTR_NAMES "check.unique_attrs"
 #define CHECK_OM_PARENT_CHILD_LINKS "check.parent_child_links"
 #define CHECK_OM_SCHEMA_CONSISTENCY "check.schema_consistency"
+#define CHECK_OM_DATA_STRUCTURE_CONSISTENCY "check.data_structure_consistency"
 #define CHECK_OM_ATTR_REF "check.attr_ref_consistency"
 
 /* dl rewrite options */
@@ -148,6 +152,9 @@ extern boolean opt_optimization_remove_unnecessary_columns;
 extern boolean opt_optimization_remove_unnecessary_window_operators;
 extern boolean opt_optimization_pull_up_duplicate_remove_operators;
 extern boolean cost_based_close_option_removedp_by_set;
+
+// optimization options for group by
+extern boolean opt_optimization_push_down_group_by_operator_through_join;
 
 // new option interface
 extern char *getOptionAsString (char *name);
