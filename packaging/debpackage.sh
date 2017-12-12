@@ -31,5 +31,5 @@ rm debian/README.Debian debian/*.ex debian/*.EX
 dpkg-buildpackage -rfakeroot
 popd
 
-#mv ../*.deb ${PWD}/packaging
-#rm -r ${TMP_DIR}
+mv ${TMP_DIR}/*.deb ${BASEDIR}/
+rm -rf ${TMP_DIR}
