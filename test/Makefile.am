@@ -31,7 +31,7 @@ testparser_SOURCES = test_parser.c
 testparser_LDADD = $(top_builddir)/src/libsrc.la
 
 testuncert_SOURCES = test_uncert.c
-testuncert_LDADD = $(top_srcdir)/src/libsrc.la
+testuncert_LDADD = $(top_builddir)/src/libsrc.la
 
 testupana_SOURCES = test_update_analysis.c
 testupana_LDADD = $(top_builddir)/src/libsrc.la
