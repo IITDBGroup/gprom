@@ -194,6 +194,7 @@ equalDLProgram (DLProgram *a, DLProgram *b, HashMap *seenOps, MemContext *c)
     COMPARE_NODE_FIELD(n.properties);
     COMPARE_NODE_FIELD(comp);
     COMPARE_NODE_FIELD(func);
+    COMPARE_NODE_FIELD(sumOpts);
 
     return TRUE;
 }

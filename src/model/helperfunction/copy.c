@@ -322,6 +322,7 @@ copyDLProgram(DLProgram *from, OperatorMap **opMap)
     COPY_NODE_FIELD(n.properties);
     COPY_NODE_FIELD(comp);
     COPY_NODE_FIELD(func);
+    COPY_NODE_FIELD(sumOpts);
 
     return new;
 }

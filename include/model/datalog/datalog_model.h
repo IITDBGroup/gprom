@@ -67,6 +67,10 @@ typedef struct DLProgram
     List *doms;
     List *comp;
     List *func;
+    char *topk;
+    char *type;
+    char *samp;
+    List *sumOpts;
 } DLProgram;
 
 NEW_ENUM_WITH_TO_STRING(GPNodeType,
@@ -93,7 +97,7 @@ extern DLAtom *createDLAtom (char *rel, List *args, boolean negated);
 extern DLVar *createDLVar (char *vName, DataType vType);
 extern boolean isConstAtom (DLAtom *a);
 extern DLRule *createDLRule (DLAtom *head, List *body);
-extern DLProgram *createDLProgram (List *dlRules, List *facts, char *ans, List *doms, List *func);
+extern DLProgram *createDLProgram (List *dlRules, List *facts, char *ans, List *doms, List *func, List *sumOpts);
 extern DLComparison *createDLComparison (char *op, Node *lArg, Node *rArg);
 extern DLDomain *createDLDomain (char *rel, char *attr, char *dom);
 

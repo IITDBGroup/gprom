@@ -56,7 +56,8 @@ Node *dlParseResult = NULL;
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS
+%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS 
+%token <stringVal> TOP SUMMARIZED BY WITH SAMPLE
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -86,9 +87,9 @@ Node *dlParseResult = NULL;
 %type <node> statement program
 
 %type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement associateDomain
-%type <node> variable constant expression functionCall binaryOperatorExpression 
-%type <list> bodyAtomList argList exprList rulebody 
-%type <stringVal> optProvFormat
+%type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType
+%type <list> bodyAtomList argList exprList rulebody summarizationStatement
+%type <stringVal> optProvFormat 
 
 /* start symbol */
 %start program
@@ -99,10 +100,10 @@ Node *dlParseResult = NULL;
 %%
 
 program:
-		stmtList 
+		stmtList summarizationStatement
 			{ 
 				RULELOG("program::stmtList");
-				$$ = (Node *) createDLProgram ($1, NULL, NULL, NULL, NULL);
+				$$ = (Node *) createDLProgram ($1, NULL, NULL, NULL, NULL, $2);
 				dlParseResult = (Node *) $$;
 				DEBUG_LOG("parsed %s", nodeToString($$));
 			}
@@ -130,6 +131,7 @@ stmtList:
  * 	- answer relation declarations, e.g., ANS : Q;
  * 	- associated domain declarations, e.g., USERDOMAIN OF rel.attr IS DQ;
  * 	- provenance requests, e.g., WHY(Q(1));
+ *	- summarization, e.g., TOP k SUMMARIZED BY type WITH SAMPLE(p);
  *  - RPQ requests, e.g., RPQ('a*.b', typeOfResult, edge, result)
  */
 statement:
@@ -154,25 +156,19 @@ provStatement:
 		{
 			RULELOG("provStatement::WHY");
 			char *str = $5 ? CONCAT_STRINGS("WHY_PROV-", $5) : "WHY_PROV";
-			$$ = (Node *) createNodeKeyValue(
-					(Node *) createConstString(str), 
-					(Node *) $3);
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(str), (Node *) $3);
 		}
 		| WHYNOTPROV '(' relAtom ')' optProvFormat '.'
 		{
 			RULELOG("provStatement::WHYNOT");
 			char *str = $5 ? CONCAT_STRINGS("WHYNOT_PROV-", $5) : "WHYNOT_PROV";
-			$$ = (Node *) createNodeKeyValue(
-					(Node *) createConstString(str),
-					(Node *) $3);
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(str), (Node *) $3);
 		}
 		| GP optProvFormat '.'
 		{
 			RULELOG("provStatement::GP");
 			char *str = $2 ? CONCAT_STRINGS("FULL_GP_PROV-", $2) : "GP";
-			$$ = (Node *) createNodeKeyValue(
-					(Node *) createConstString(str),
-					NULL);
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(str), NULL);
 		}
 	;
 
@@ -185,6 +181,49 @@ optProvSummarize:
 		| SUMMARIZE name { $$ = $2; }
 	;
 */
+
+	
+summarizationStatement:
+		/* EMPTY */ { $$ = NIL; }
+		| optionalTopK optionalSumType optionalSumSample { $$ = LIST_MAKE($1,$2,$3); }
+/*
+		| FOR TOP intConst SUMMARIZED BY name WITH SAMPLE '(' intConst ')' '.'
+		{
+			RULELOG("summarizationStatement::sumOpts");
+			Node *topk = (Node *) createNodeKeyValue((Node *) createConstString("topk"),(Node *) createConstInt($3));
+			Node *type = (Node *) createStringKeyValue(strdup("sumtype"),strdup($6));
+			Node *samp = (Node *) createNodeKeyValue((Node *) createConstString("sumsamp"),(Node *) createConstInt($10));
+			$$ = LIST_MAKE(topk, type, samp);
+		}
+*/		
+	;	
+
+optionalTopK:
+		TOP intConst 
+		{ 
+			RULELOG("optionalTopK::topk");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString("topk"),(Node *) createConstInt($2));
+		}
+    ;
+
+
+optionalSumType:
+		SUMMARIZED BY name 
+		{ 
+			RULELOG("optionalSumType::sumType");
+			$$ = (Node *) createStringKeyValue(strdup("sumtype"),strdup($3));
+		} 
+	;
+	
+	
+optionalSumSample:
+		WITH SAMPLE '(' intConst ')' '.'
+		{ 
+			RULELOG("optionalSumSample::sumSamp");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString("sumsamp"),(Node *) createConstInt($4));	
+		}
+ 	;
+ 	
 
 optProvFormat:
 		/* EMPTY */ { $$ = NULL; }
