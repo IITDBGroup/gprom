@@ -4433,7 +4433,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	            datalogToOverviewString((Node *) moveRules),
 				datalogToOverviewString((Node *) domainRules));
 
-    solvedProgram->ans = "move";
 
     boolean ruleWon = TRUE;
     FOREACH(DLRule,r,solvedProgram->rules)
@@ -4442,10 +4441,31 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     	                           || DL_HAS_PROP(r,DL_UNDER_NEG_WON));
     }
 
-    if (ruleWon)
-        solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, helpRules, unLinkedRules, newRules);
-    else
-    	solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
+    /*
+     * case 1) No summarization requested. All the rewritten rules are sent for translator
+     * case 2) Summarization requested. Excluded the helpRules (e.g., rewritten rule for provenance question)
+     */
+	if (solvedProgram->sumOpts == NIL)
+	{
+		solvedProgram->ans = "move";
+
+		if (ruleWon)
+			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, helpRules, unLinkedRules, newRules);
+		else
+			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
+	}
+	else
+	{
+		FOREACH(DLRule,r,newRules)
+			if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
+				solvedProgram->ans = r->head->rel;
+
+		if (ruleWon)
+			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, unLinkedRules, newRules);
+		else
+			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, negedbRules, edbRules, unLinkedRules, unLinkedHelpRules, newRules);
+	}
+
 
     INFO_LOG("gp program is:\n%s", datalogToOverviewString((Node *) solvedProgram));
 
@@ -4681,6 +4701,7 @@ unifyProgram (DLProgram *p, DLAtom *question)
     newP->facts = p->facts;
     newP->rules = newRules;
     newP->n.properties = copyObject(p->n.properties);
+    newP->sumOpts = p->sumOpts;
 //    newP->comp = p->comp;
 
     setDLProp((DLNode *) newP, DL_MAP_RELNAME_TO_RULES, (Node *) newPredToRules);

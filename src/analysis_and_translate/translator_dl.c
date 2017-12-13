@@ -57,7 +57,7 @@ static Node *replaceVarWithAttrRef(Node *node, List *context);
 //List *dlDom = NIL;
 //List *dRules = NIL;
 //List *origProg = NIL;
-static boolean provQ = FALSE;
+//static boolean provQ = FALSE;
 HashMap *taRel;
 
 
@@ -65,11 +65,11 @@ Node *
 translateParseDL(Node *q)
 {
     Node *result = NULL;
-    char *ans = ((DLProgram *) q)->ans;
+//    char *ans = ((DLProgram *) q)->ans;
 
-    // check if ans exists
-    if(ans != NULL)
-    	provQ = TRUE;
+//    // check if ans exists
+//    if(ans != NULL)
+//    	provQ = TRUE;
 
     INFO_LOG("translate DL model:\n\n%s", datalogToOverviewString(q));
 
@@ -351,9 +351,26 @@ translateProgram(DLProgram *p)
             kv->value = (Node *) un;
         }
 
+        // exclude the edge rel before connect
+        Node *transMoveRel;
+        if (p->sumOpts != NIL)
+        {
+        	transMoveRel = MAP_GET_STRING(predToTrans, "move");
+        	removeMapStringElem(predToTrans, "move");
+        }
+
         // connect rules by replacing table access operators representing idb
         // relations with the corresponding algebra expression
         translation = connectProgramTranslation(p, predToTrans);
+
+        // generate input for the summarization
+        if (p->sumOpts != NIL)
+        {
+        	Node *ruleFire = MAP_GET_STRING(predToTrans, p->ans);
+        	List *summInputs = LIST_MAKE(ruleFire, transMoveRel);
+
+        	return (Node *) summInputs;
+        }
 
         if (p->ans == NULL)
             return (Node *) translation;
@@ -2893,7 +2910,7 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
                         operatorToOverviewString((Node *) idbImpl));
 
                 // remove after switch subtree if no provenance question exists
-                if(!provQ)
+                if(p->ans != NULL)
 					removeMapStringElem(predToTrans,r->tableName);
             }
             // is fact which is edb
