@@ -67,9 +67,6 @@ typedef struct DLProgram
     List *doms;
     List *comp;
     List *func;
-    char *topk;
-    char *type;
-    char *samp;
     List *sumOpts;
 } DLProgram;
 

@@ -521,10 +521,19 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     {
         ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
 
-    	if(ps->sumOpts != NIL)
+    	if (ps->sumOpts != NIL)
     		FOREACH(Node,n,ps->sumOpts)
     			summOpts = appendToTailOfList(summOpts,n);
     }
+//    // summarization options for DL input
+//    else
+//    {
+//    	DLProgram *p = (DLProgram *) parse;
+//
+//    	if (p->sumOpts != NIL)
+//    		FOREACH(Node,n,p->sumOpts)
+//				summOpts = appendToTailOfList(summOpts,n);
+//    }
 
     START_TIMER("translation");
     oModel = translateParse(parse);
