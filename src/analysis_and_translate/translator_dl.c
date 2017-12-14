@@ -101,7 +101,6 @@ translateParseDL(Node *q)
     }
     INFO_OP_LOG("translated DL model:\n", result);
 
-
     return result;
 }
 
@@ -117,6 +116,7 @@ static Node *
 translateProgram(DLProgram *p)
 {
     Node *answerRel;
+    char *origHeadPred = NULL;
 
     // activate option for returning input database
     if (getBoolOption(OPTION_INPUTDB))
@@ -204,6 +204,11 @@ translateProgram(DLProgram *p)
         {
             char *headPred = getHeadPredName(r);
             APPEND_TO_MAP_VALUE_LIST(predToRules,headPred,r);
+
+            // store orig head pred
+            if (!isSubstr(headPred,"_"))
+            	origHeadPred = headPred;
+
     //        // not first rule for this pred
     //        if(MAP_HAS_STRING_KEY(predToRules,headPred))
     //        {
@@ -367,6 +372,11 @@ translateProgram(DLProgram *p)
         if (p->sumOpts != NIL)
         {
         	Node *ruleFire = MAP_GET_STRING(predToTrans, p->ans);
+        	Node *origInRule = MAP_GET_STRING(predToTrans, origHeadPred);
+
+        	QueryOperator *origIntoFire = (QueryOperator *) ruleFire;
+        	origIntoFire->properties = copyObject(origInRule);
+
         	List *summInputs = LIST_MAKE(ruleFire, transMoveRel);
 
         	return (Node *) summInputs;

@@ -87,6 +87,7 @@ static DLProgram *solveProgram (DLProgram *p, DLAtom *question, boolean neg);
 //char *idbHeadPred = NULL;
 static List *programRules = NIL;
 static List *domainRules = NIL;
+static List *origDLrules = NIL;
 //static HashMap *compAtom;
 //static HashMap *compRule;
 
@@ -154,6 +155,23 @@ createWhyGPprogram (DLProgram *p, DLAtom *why)
 		INFO_DL_LOG("create new GP bottom up program for:", p);
 		DEBUG_LOG("Associated Domain:\n%s", datalogToOverviewString((Node *) domainRules));
 	}
+
+    // store original input rule for summarization process
+    if (p->sumOpts != NIL)
+    {
+    	List *newOrigHeadArgs = NIL;
+    	FOREACH(DLRule,or,p->rules)
+		{
+    		DLRule *copyOr = copyObject(or);
+
+    		FOREACH(DLAtom,ob,copyOr->body)
+        		FOREACH(DLVar,n,ob->args)
+					newOrigHeadArgs = appendToTailOfList(newOrigHeadArgs, n);
+
+    		copyOr->head->args = newOrigHeadArgs;
+    		origDLrules = appendToTailOfList(origDLrules, copyOr);
+		}
+    }
 
     enumerateRules (p);
     solvedProgram = copyObject(p);
@@ -4461,9 +4479,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				solvedProgram->ans = r->head->rel;
 
 		if (ruleWon)
-			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, unLinkedRules, newRules);
+			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, unLinkedRules, newRules, origDLrules);
 		else
-			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, negedbRules, edbRules, unLinkedRules, unLinkedHelpRules, newRules);
+			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, negedbRules, edbRules, unLinkedRules, unLinkedHelpRules, newRules, origDLrules);
 	}
 
 

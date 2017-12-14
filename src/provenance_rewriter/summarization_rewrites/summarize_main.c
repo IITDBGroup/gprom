@@ -46,6 +46,7 @@
 static List *provAttrs = NIL;
 static List *normAttrs = NIL;
 static List *userQattrs = NIL;
+static Node *moveRels = NULL;
 
 static Node *rewriteUserQuestion (List *userQuestion, Node *rewrittenTree);
 static Node *rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree);
@@ -80,6 +81,12 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts)
 
 				if(streq(STRING_VALUE(kv->key),"topk"))
 					topK = INT_VALUE(kv->value);
+
+				if(streq(STRING_VALUE(kv->key),"sumtype"))
+					summaryType = STRING_VALUE(kv->value);
+
+				if(streq(STRING_VALUE(kv->key),"sumsamp"))
+					sampleSize = INT_VALUE(kv->value);
 			}
 
 			if(isA(n,List))
@@ -100,6 +107,19 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts)
 			}
 		}
 	}
+
+//	// For dl, separate ruleFire with moveRules
+//	if (isA(rewrittenTree, HashMap))
+//	{
+//		HashMap *summInputs = (HashMap *) rewrittenTree;
+//		rewrittenTree = (Node *) MAP_GET_STRING(summInputs, "summAns");
+//	}
+
+	// store moveRules in separate
+	//TODO: not safe to check whether input comes from dl or SQL
+	List *separate = (List *) rewrittenTree;
+	if (isA(getHeadOfListP(separate), DuplicateRemoval))
+		moveRels = (Node *) getTailOfListP(separate);
 
 	// summarization steps
 	List *doms = NIL;
@@ -1437,7 +1457,8 @@ rewriteProvJoinOutput (List *userQuestion, Node *rewrittenTree)
 	List *attrNames = NIL;
 	QueryOperator *prov;
 
-	if(userQuestion == NIL)
+//	if(userQuestion == NIL)
+	if (isA(rewrittenTree, List))
 		prov = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
 	else
 		prov = (QueryOperator *) rewrittenTree;

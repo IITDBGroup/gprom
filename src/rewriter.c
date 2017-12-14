@@ -480,7 +480,29 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 
         // rewrite for summarization
 		if (summOpts != NIL)
-            rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts);
+		{
+//			if (isA(rewrittenTree, List))
+//			{
+//				// store as a hashmap to send to the summarization
+//				List *transResults = (List *) rewrittenTree;
+//				HashMap *summInputs = NEW_MAP(Constant,Node);
+//				int i = 0;
+//
+//				FOREACH(Node,n,transResults)
+//				{
+//					if (i == 0)
+//						MAP_ADD_STRING_KEY(summInputs, "summAns", n);
+//					if (i == 1)
+//						MAP_ADD_STRING_KEY(summInputs, "move", n);
+//
+//					i++;
+//				}
+//
+//				rewrittenTree = (Node *) summInputs;
+//			}
+
+			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts);
+		}
 
 	    if(applyOptimizations)
 	    {
