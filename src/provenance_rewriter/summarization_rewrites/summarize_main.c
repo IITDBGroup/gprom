@@ -142,8 +142,12 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts)
 	fMeasure = rewritefMeasureOutput(computeFrac, userQuestion);
 	result = rewriteMostGenExplOutput(fMeasure, topK);
 
-	 if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-        ASSERT(checkModel((QueryOperator *) result));
+	//TODO: integrate with edge rel for dl
+//	if (moveRels != NULL)
+
+
+	if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+		ASSERT(checkModel((QueryOperator *) result));
 
 	return result;
 }

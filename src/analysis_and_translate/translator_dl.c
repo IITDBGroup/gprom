@@ -57,7 +57,7 @@ static Node *replaceVarWithAttrRef(Node *node, List *context);
 //List *dlDom = NIL;
 //List *dRules = NIL;
 //List *origProg = NIL;
-//static boolean provQ = FALSE;
+static boolean provQ = FALSE;
 HashMap *taRel;
 
 
@@ -65,11 +65,11 @@ Node *
 translateParseDL(Node *q)
 {
     Node *result = NULL;
-//    char *ans = ((DLProgram *) q)->ans;
+    char *ans = ((DLProgram *) q)->ans;
 
-//    // check if ans exists
-//    if(ans != NULL)
-//    	provQ = TRUE;
+    // check if ans exists
+    if(ans != NULL)
+    	provQ = TRUE;
 
     INFO_LOG("translate DL model:\n\n%s", datalogToOverviewString(q));
 
@@ -2920,7 +2920,7 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
                         operatorToOverviewString((Node *) idbImpl));
 
                 // remove after switch subtree if no provenance question exists
-                if(p->ans != NULL)
+                if(!provQ)
 					removeMapStringElem(predToTrans,r->tableName);
             }
             // is fact which is edb
