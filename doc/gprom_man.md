@@ -8,11 +8,11 @@
 [Synopsis](#toc1)
 -----------------
 
-**gprom** *[connection\_options]*
+**gprom** *\[connection\_options\]*
 
-**gprom -query** *query* *[connection\_options]*
+**gprom -query** *query* *\[connection\_options\]*
 
-**gprom -queryfile** *file* *[connection\_options]*
+**gprom -queryfile** *file* *\[connection\_options\]*
 
 **gprom -help**
 
@@ -260,7 +260,7 @@ GProM currently implement the following transformation rules that are activated 
 
 **merge\_ops** - merge adjacent projection and selection operators. Selections will always be merged. However, merging projections can lead to an explosion of projection expression size. We actively check for such cases and avoid merging if this would increase the expression size dramatically. For example, consider a projection **A + A AS B** followed by a projection **B + B AS C**. Merging these two projections would result in the projection expression **A + A + A + A AS C** which has double the number of **A** references as the original projection. This optimization is important when computing transaction provenance. For a thorough explanation see the publications referenced on the GProM webpage.   
 
-**factor\_attrs** - try to factor attributes in projection expressions to reduce the number of references to attributes. We currently support addition and multiplication expressions in **CASE** constructs. For example, **CASE WHEN *cond**THEN A + 2 ELSE A END AS A***** can be refactored into **A + CASE WHEN *cond**THEN 2 ELSE 0 END AS A***** to reduce the number of references to attribute **A** from 2 to 1.   
+**factor\_attrs** - try to factor attributes in projection expressions to reduce the number of references to attributes. We currently support addition and multiplication expressions in **CASE** constructs. For example, **CASE WHEN *cond **THEN A + 2 ELSE A END AS A***** can be refactored into **A + CASE WHEN *cond **THEN 2 ELSE 0 END AS A***** to reduce the number of references to attribute **A** from 2 to 1.   
 
 **materialize\_unsafe\_proj** - Force the backend database to materialize projections that could lead to uncontrolled expression growth if they would be merged with adjacent projections (as explained above for **merge\_ops**).   
 
@@ -344,9 +344,9 @@ To see a list of current bugs or to report a new bug: [*https://github.com/IITDB
 
 To learn more about the research behind GProM see [*http://www.cs.iit.edu/%7edbgroup/research/gprom.php*](http://www.cs.iit.edu/%7edbgroup/research/gprom.php)   
 
-* * * * *
+------------------------------------------------------------------------
 
-**Table of Contents**
+[**Table of Contents**]()
 
 [Name](#sect0)
 
