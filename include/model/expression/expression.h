@@ -143,6 +143,21 @@ typedef struct OrderExpr {
     SortNullOrder nullOrder;
 } OrderExpr;
 
+
+NEW_ENUM_WITH_TO_STRING(QuantifiedExprType,
+    QUANTIFIED_EXPR_ALL,
+    QUANTIFIED_EXPR_ANY
+);
+
+typedef struct QuantifiedComparison {
+    NodeTag type;
+    Node *checkExpr;
+    QuantifiedExprType *qType;
+    List *exprList;
+    char *opName;
+};
+
+
 #define IS_EXPR(_n) (isA(_n,FunctionCall) || \
     isA(_n,Operator) || \
 	isA(_n,Constant) || \
@@ -157,7 +172,8 @@ typedef struct OrderExpr {
 	isA(_n,WindowDef) || \
 	isA(_n,WindowFunction) || \
 	isA(_n,CastExpr) || \
-	isA(_n,OrderExpr)  \
+	isA(_n,OrderExpr) || \
+	isA(_n,QuantifiedExpr) \
     )
 
 /* functions to create expression nodes */
