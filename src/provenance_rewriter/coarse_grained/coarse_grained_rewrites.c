@@ -26,6 +26,7 @@ addTopAggForCoarse (QueryOperator *op)
     List *projExpr = NIL;
     int cnt = 0;
     List *provPosList = NIL;
+//    List *opParents = op->parents;
 
     FOREACH(char, c, provAttr)
     {
@@ -39,8 +40,9 @@ addTopAggForCoarse (QueryOperator *op)
     ProjectionOperator *newOp = createProjectionOp(projExpr, op, NIL, provAttr);
     newOp->op.provAttrs = provPosList;
 
+    switchSubtrees((QueryOperator *) op, (QueryOperator *) newOp);
     op->parents = singleton(newOp);
-
+//    newOp->op.parents = opParents;
 
     return (QueryOperator *) newOp;
 }

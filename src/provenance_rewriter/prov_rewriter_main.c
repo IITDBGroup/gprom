@@ -191,7 +191,7 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         	markTableAccessAndAggregation((QueryOperator *) op, coarsePara);
 
             result = rewritePI_CS(op);
-            removeParent(result, (QueryOperator *) op);
+//            removeParent(result, (QueryOperator *) op);
             // write method that adds aggregation on top
             result = addTopAggForCoarse(result);
             break;

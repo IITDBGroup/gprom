@@ -155,7 +155,7 @@ typedef struct QuantifiedComparison {
     QuantifiedExprType *qType;
     List *exprList;
     char *opName;
-};
+} QuantifiedComparison;
 
 
 #define IS_EXPR(_n) (isA(_n,FunctionCall) || \
@@ -173,7 +173,7 @@ typedef struct QuantifiedComparison {
 	isA(_n,WindowFunction) || \
 	isA(_n,CastExpr) || \
 	isA(_n,OrderExpr) || \
-	isA(_n,QuantifiedExpr) \
+	isA(_n,QuantifiedComparison) \
     )
 
 /* functions to create expression nodes */
