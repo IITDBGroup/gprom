@@ -48,7 +48,7 @@ EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
 
 gen-libgprom-header:
 	javac -cp javalibgen/jnaerator.jar javalibgen/GenLibGProMH.java
-	java -cp javalibgen/jnaerator.jar:javalibgen/ GenLibGProMH $(top_srcdir)/
+	java -cp javalibgen/jnaerator.jar:javalibgen/ GenLibGProMH $(abs_top_builddir)
 
 # Debian packaging
 APP_NAME=gprom
