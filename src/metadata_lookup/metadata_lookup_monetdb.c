@@ -538,7 +538,7 @@ executeParamQuery (char *query, char *params, ...)
     char *cur;
     char **argv;
     int pos = 0;
-    MapiMsg resMes;
+//    MapiMsg resMes;
 
     // gather parameters
     va_start(args, params);
