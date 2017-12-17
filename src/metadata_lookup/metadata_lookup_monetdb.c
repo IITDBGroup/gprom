@@ -565,11 +565,11 @@ executeParamQuery (char *query, char *params, ...)
     result = mapi_prepare(plugin->dbConn, query);
     for(int i = 0; i < pos; i++)
     {
-        resMes = mapi_param(result, i, &(argv[i]));
+        mapi_param(result, i, &(argv[i]));
         THROW_ON_ERROR(result, query);
     }
 
-    resMes = mapi_execute(result);
+    mapi_execute(result);
     THROW_ON_ERROR(result, query);
 
     if (result == NULL || mapi_error(plugin->dbConn) != MOK)
