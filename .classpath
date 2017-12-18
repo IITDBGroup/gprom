@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry kind="src" path="javatest"/>
-	<classpathentry kind="src" path="javalibgen/src"/>
+	<classpathentry kind="src" path="javalibgen/src">
+		<attributes>
+			<attribute name="ignore_optional_problems" value="true"/>
+		</attributes>
+	</classpathentry>
 	<classpathentry kind="src" path="src/interfaces/jdbc/java"/>
 	<classpathentry kind="src" path="autotests"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
@@ -54,5 +58,6 @@
 	<classpathentry kind="lib" path="javatestlib/jna.jar"/>
 	<classpathentry kind="lib" path="javalib/android.jar"/>
 	<classpathentry kind="lib" path="javalibgen/jnaerator.jar"/>
+	<classpathentry kind="lib" path="javalibgen/lib/log4j-1.2.17.jar"/>
 	<classpathentry kind="output" path="javabin"/>
 </classpath>
