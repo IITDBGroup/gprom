@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry kind="src" path="javatest"/>
-	<classpathentry kind="src" path="javalibgen"/>
+	<classpathentry kind="src" path="javalibgen/src"/>
 	<classpathentry kind="src" path="src/interfaces/jdbc/java"/>
 	<classpathentry kind="src" path="autotests"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>

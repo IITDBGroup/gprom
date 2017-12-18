@@ -10,6 +10,9 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.apache.logging.log4j.Logger;
+
 import com.ochafik.lang.jnaerator.JNAeratorConfig.Runtime;
 import com.ochafik.lang.jnaerator.ClassOutputter;
 import com.ochafik.lang.jnaerator.JNAerator;
@@ -25,9 +28,11 @@ import java.io.StringWriter;
 
 public class GenLibGProMH {
 
+	static Logger log = Logger.getLogger(GenLibGProMH.class);
+	
 	public static void main(String[] args) {
 		if(args.length != 1){
-			System.err.println("Wrong number of args: usage: GenLibGProMH sourceRootDir");
+			log.error("Wrong number of args: usage: GenLibGProMH sourceRootDir");
 			System.exit(1);
 		}
 		String srcRoot = args[0];	
@@ -115,7 +120,7 @@ public class GenLibGProMH {
 	}
 	
 	public void generateLibGProMEntries(){
-		System.err.println("---------------------------------- generateLibGProMEntries ---------------------------------");
+		log.error("---------------------------------- generateLibGProMEntries ---------------------------------");
 		try{
 			Iterator<String> libItemReplacementsIter;
 			String itemReplacementItemStr, itemReplacementItemStrR;
@@ -148,35 +153,35 @@ public class GenLibGProMH {
 			    		destItemString = destItemString.replaceAll(itemReplacementItemStrR, GenLibGProMH.libraryNamePrefix + itemReplacementItemStr);
 			    	}
 			    	srcToJNAerate += destItemString + "\n"; 
-			    	//System.err.println(destItemString);
-			    	//System.err.println("---------------------------------");
+			    	//log.error(destItemString);
+			    	//log.error("---------------------------------");
 			    	libDstItemPattern = Pattern.compile(currentItem.getDstMatchRegex());
 			    	libDstItemMatcher = libDstItemPattern.matcher(dstFileContents);
 			    	if(libDstItemMatcher.find()) {
 			    		dstFileContents = dstFileContents.replaceFirst(currentItem.getDstMatchRegex(), destItemString);
 			    	}
 			    	else{
-			    		System.err.println("---------------------------------");
-				    	System.err.println("----Missing Dest Library Item----");
-				    	System.err.println("----------"+currentItem.getName()+"---------");
-				    	System.err.println("----------Adding As New----------");
+			    		log.error("---------------------------------");
+				    	log.error("----Missing Dest Library Item----");
+				    	log.error("----------"+currentItem.getName()+"---------");
+				    	log.error("----------Adding As New----------");
 				    	dstFileContents = dstFileContents.replace("#endif /* INCLUDE_LIBGPROM_LIBGPROM_H_ */", destItemString + "\n\n#endif /* INCLUDE_LIBGPROM_LIBGPROM_H_ */");
 			    	}	
 			    }
 			    else{
-			    	System.err.println("---------------------------------");
-			    	System.err.println("-------Missing Library Item------");
-			    	System.err.println("----------"+currentItem.getName()+"---------");
-			    	System.err.println("---------------------------------");
+			    	log.error("---------------------------------");
+			    	log.error("-------Missing Library Item------");
+			    	log.error("----------"+currentItem.getName()+"---------");
+			    	log.error("---------------------------------");
 			    }
 			}
-			//System.err.println(dstFileContents);
+			//log.error(dstFileContents);
 			writeLibGproMHeaderFile(dstFileContents);
 			jnaerateJavaFiles(srcToJNAerate.replaceAll("(\\b)char\\s*\\*\\s*", "$1String "));
 			modifyGProM_JNA();
 		}
 		catch(Exception e){
-			System.err.println(e.toString());
+			log.error(e.toString());
 		}
 	}	
 	
@@ -226,7 +231,7 @@ public class GenLibGProMH {
 		new JNAerator(config) {
             public PrintWriter getSourceWriter(final ClassOutputter outputter, final String path) throws IOException {
                try{
-            	   System.err.println("Generated Library Item: Path: "+config.sourcesOutputDir+path);
+            	   log.error("Generated Library Item: Path: "+config.sourcesOutputDir+path);
             	   File file = new File(config.sourcesOutputDir, path);
                    File parent = file.getParentFile();
                    if (!parent.exists()) {
@@ -237,10 +242,10 @@ public class GenLibGProMH {
                    
                }
             	catch(Exception e){
-            		System.err.println("---------------------------------------");
-        	    	System.err.println("----------Exception JNAerating---------");
-        	    	System.err.println("----------"+e.toString()+"---------");
-        	    	System.err.println("---------------------------------------");
+            		log.error("---------------------------------------");
+        	    	log.error("----------Exception JNAerating---------");
+        	    	log.error("----------"+e.toString()+"---------");
+        	    	log.error("---------------------------------------");
             	}
             	return null;
             }
@@ -299,10 +304,10 @@ public class GenLibGProMH {
 	    	                    	}
 	                            }
 	                        }
-	                        /*System.err.println("-----------------------------------");
-	         		    	System.err.println("-------JNAerated Replaced Library Item------");
-	         		    	System.err.println(replacedOutput);
-	         		    	System.err.println("---------------------------------");
+	                        /*log.error("-----------------------------------");
+	         		    	log.error("-------JNAerated Replaced Library Item------");
+	         		    	log.error(replacedOutput);
+	         		    	log.error("---------------------------------");
 	                        */
 	                        super.write(replacedOutput, off, replacedOutput.length());
 	                	}
@@ -312,11 +317,11 @@ public class GenLibGProMH {
 	                		for(StackTraceElement st : e.getStackTrace()){
 	                			pw.println(st.toString());
 	                		}
-	                		System.err.println("---------------------------------------");
-	            	    	System.err.println("----------Exception JNAerating---------");
-	            	    	System.err.println("----------"+e.toString()+"---------");
-	            	    	System.err.println("----------"+sw.toString()+"---------");
-	            	    	System.err.println("---------------------------------------");
+	                		log.error("---------------------------------------");
+	            	    	log.error("----------Exception JNAerating---------");
+	            	    	log.error("----------"+e.toString()+"---------");
+	            	    	log.error("----------"+sw.toString()+"---------");
+	            	    	log.error("---------------------------------------");
 	            	    	
 	                	}
                     }
@@ -347,19 +352,19 @@ public class GenLibGProMH {
 				libgpromJavaFOS.close();
 	        }
 	        else{
-	        	System.err.println("---------------------------------------");
-		    	System.err.println("----Problem Writing Java Lib File----");
-		    	System.err.println("----------"+"No Match"+"---------");
-		    	System.err.println("---------------------------------------");
+	        	log.error("---------------------------------------");
+		    	log.error("----Problem Writing Java Lib File----");
+		    	log.error("----------"+"No Match"+"---------");
+		    	log.error("---------------------------------------");
 	        }
 			File srcFileToDel = new File(GenLibGProMH.javaSrcDestinationDir + "org/gprom/jdbc/jna/OrgGpromJdbcJnaLibrary.java");
 			srcFileToDel.delete();
 		}
         catch(Exception e){
-			System.err.println("---------------------------------------");
-	    	System.err.println("----Exception Writing Java Lib File----");
-	    	System.err.println("----------"+e.toString()+"---------");
-	    	System.err.println("---------------------------------------");
+			log.error("---------------------------------------");
+	    	log.error("----Exception Writing Java Lib File----");
+	    	log.error("----------"+e.toString()+"---------");
+	    	log.error("---------------------------------------");
 		}
 	}
 	
@@ -372,10 +377,10 @@ public class GenLibGProMH {
 			libgpromhFOS.close();
 		}
 		catch(Exception e){
-			System.err.println("---------------------------------------");
-	    	System.err.println("-------Exception Writing Lib File------");
-	    	System.err.println("----------"+e.toString()+"---------");
-	    	System.err.println("---------------------------------------");
+			log.error("---------------------------------------");
+	    	log.error("-------Exception Writing Lib File------");
+	    	log.error("----------"+e.toString()+"---------");
+	    	log.error("---------------------------------------");
 		}
 	}
 }
