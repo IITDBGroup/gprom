@@ -202,12 +202,10 @@ createOrderExpr (Node *expr, SortOrder order, SortNullOrder nullOrder)
 
 QuantifiedComparison *
 createQuantifiedComparison (char *nType, Node *checkExpr, char *opName, List *exprList)
-//createQuantifiedComparison (Node *checkExpr, QuantifiedExprType qType, List *exprList, char *opName)
 {
 	QuantifiedComparison *result = makeNode(QuantifiedComparison);
 
     result->checkExpr = checkExpr;
-    //result->qType = qType;
     result->exprList = exprList;
     result->opName = strdup(opName);
 

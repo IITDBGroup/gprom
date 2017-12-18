@@ -205,7 +205,6 @@ extern WindowDef *createWindowDef (List *partitionBy, List *orderBy, WindowFrame
 extern WindowFunction *createWindowFunction (FunctionCall *f, WindowDef *win);
 
 extern OrderExpr *createOrderExpr (Node *expr, SortOrder order, SortNullOrder nullOrder);
-//extern QuantifiedComparison *createQuantifiedComparison (Node *checkExpr, QuantifiedExprType qType, List *exprList, char *opName);
 extern QuantifiedComparison *createQuantifiedComparison (char *nType, Node *checkExpr, char *opName, List *exprList);
 
 /* functions for creating constants */
