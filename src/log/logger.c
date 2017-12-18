@@ -36,6 +36,13 @@ static StringInfo buffer = NULL;
 // global loglevel
 LogLevel maxLevel = LOG_INFO;
 
+// structure that encapsulates logger state
+struct logger_state
+{
+     StringInfo buffer;
+     LogLevel maxLevel;
+};
+
 // info
 typedef void (*LoggerCallbackFunction) (const char *,const char *,int,int);
 static LoggerCallbackFunction logCallback = NULL;

@@ -32,12 +32,12 @@ public class ConnectionManager {
 	
 	private static ConnectionManager instance;
 	
-	private Connection con;
-	private GProMConnection gCon;
+	private Connection con = null;
+	private GProMConnection gCon = null;
 
 	
 	private ConnectionManager () throws Exception {
-		createConnection ();
+//		createConnection ();
 	}
 	
 	public static ConnectionManager getInstance () {
@@ -68,6 +68,7 @@ public class ConnectionManager {
 			props.setProperty("user", ConnectionOptions.getInstance().getUser());
 			props.setProperty("password", ConnectionOptions.getInstance().getPassword());
 			props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "true");
+			log.debug("trying to create new connection: " + props);
 			con = DriverManager.getConnection(constructURL(), props);
 		}
 		catch (PSQLException e) {
@@ -84,6 +85,7 @@ public class ConnectionManager {
 					props.setProperty("user", ConnectionOptions.getInstance().getUser());
 					props.setProperty("password", ConnectionOptions.getInstance().getPassword());
 					props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "true");
+					log.debug("retry to create new connection: " + props);
 					con = DriverManager.getConnection(constructURL(), props);
 				}
 				catch (Exception e2) {

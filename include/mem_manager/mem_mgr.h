@@ -64,6 +64,9 @@ typedef struct MemContext
     long freedUnusedBytes;
 } MemContext;
 
+// struct encapsulating global memory management state
+typedef struct mem_manager MemManager;
+
 /*
  * Creates default memory context and pushes it into context stack.
  */

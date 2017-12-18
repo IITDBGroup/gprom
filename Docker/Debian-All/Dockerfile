@@ -10,7 +10,7 @@ WORKDIR /gprom
 ########################################
 # Install monetdb
 ########################################
-RUN apt-get -y update && apt-get -y install apt-transport-https
+RUN apt-get -y update && apt-get -y install apt-transport-https wget
 RUN echo "deb http://dev.monetdb.org/downloads/deb/ jessie monetdb" > /etc/apt/sources.list.d/monetdb.list \
     && 	echo "deb-src http://dev.monetdb.org/downloads/deb/ jessie monetdb" >> /etc/apt/sources.list.d/monetdb.list \
 	&& wget -q --output-document=- https://www.monetdb.org/downloads/MonetDB-GPG-KEY | apt-key add -

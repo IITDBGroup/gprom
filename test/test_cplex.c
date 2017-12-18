@@ -10,7 +10,9 @@
  *-----------------------------------------------------------------------------
  */
 
+#ifdef HAVE_LIBCPLEX
 #include <ilcplex/cplex.h>
+#endif
 #include <assert.h>
 #include <math.h>
 #include <string.h>
@@ -19,13 +21,14 @@
 /* Shortcut for infinity. */
 #define INF CPX_INFBOUND
 
-static int
-populatebyrow(CPXENVptr env, CPXLPptr lp);
+#ifdef HAVE_LIBCPLEX
 
-static void
-free_and_null(char **ptr);
+static int populatebyrow(CPXENVptr env, CPXLPptr lp);
+static void free_and_null(char **ptr);
 
-int main(int argc, char *argv[]) {
+int
+main(int argc, char *argv[])
+{
     int solstat;
     double objval;
     double *x = NULL;
@@ -268,3 +271,11 @@ static int populatebyrow(CPXENVptr env, CPXLPptr lp) {
     return (status);
 
 } /* END populatebyrow */
+#else
+int
+main(int argc, char *argv[])
+{
+    return EXIT_SUCCESS;
+}
+#endif
+
