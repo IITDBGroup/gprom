@@ -72,6 +72,7 @@ static WindowDef *copyWindowDef(WindowDef *from, OperatorMap **opMap);
 static WindowFunction *copyWindowFunction(WindowFunction *from, OperatorMap **opMap);
 static RowNumExpr *copyRowNumExpr(RowNumExpr *from, OperatorMap **opMap);
 static OrderExpr *copyOrderExpr(OrderExpr *from, OperatorMap **opMap);
+static QuantifiedComparison *copyQuantifiedComparison(QuantifiedComparison *from, OperatorMap **opMap);
 static CastExpr *copyCastExpr(CastExpr *from, OperatorMap **opMap);
 
 /*schema helper functions*/
@@ -501,6 +502,21 @@ copyOrderExpr(OrderExpr *from, OperatorMap **opMap)
 
     return new;
 }
+
+
+static QuantifiedComparison *
+copyQuantifiedComparison(QuantifiedComparison *from, OperatorMap **opMap)
+{
+    COPY_INIT(QuantifiedComparison);
+
+    COPY_NODE_FIELD(checkExpr);
+    COPY_NODE_FIELD(exprList);
+    COPY_SCALAR_FIELD(qType);
+    COPY_STRING_FIELD(opName);
+
+    return new;
+}
+
 
 static CastExpr *
 copyCastExpr(CastExpr *from, OperatorMap **opMap)
@@ -1110,6 +1126,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_OrderExpr:
             retval = copyOrderExpr(from, opMap);
             break;
+        case T_QuantifiedComparison:
+        	    retval = copyQuantifiedComparison(from, opMap);
+        	    break;
         case T_CastExpr:
             retval = copyCastExpr(from, opMap);
             break;

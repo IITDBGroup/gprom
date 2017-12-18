@@ -326,6 +326,7 @@ createNestedSubquery (char *nType, Node *expr,
     return result;
 }
 
+
 Insert *
 createInsert(char *nodeName, Node *query, List *attrs)
 {

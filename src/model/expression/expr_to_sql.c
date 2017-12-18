@@ -32,6 +32,7 @@ static void caseToSQL(StringInfo str, CaseExpr *expr);
 static void winFuncToSQL(StringInfo str, WindowFunction *expr);
 static void winBoundToSQL (StringInfo str, WindowBound *b);
 static void orderExprToSQL (StringInfo str, OrderExpr *o);
+static void quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o);
 static void dataTypeToSQL (StringInfo str, DataType dt);
 
 static void functionCallToLatex (StringInfo str, FunctionCall *node);
@@ -351,6 +352,21 @@ orderExprToSQL (StringInfo str, OrderExpr *o)
 }
 
 static void
+quantifiedComparisonToSQL (StringInfo str, QuantifiedComparison *o)
+{
+    exprToSQLString(str, (Node *) o->checkExpr);
+
+    appendStringInfo(str, " %s", strdup(o->opName));
+
+    if (o->qType == QUANTIFIED_EXPR_ANY)
+        appendStringInfoString(str, " ANY ");
+    else if (o->qType == QUANTIFIED_EXPR_ALL)
+        appendStringInfoString(str, " ALL ");
+
+    exprToSQLString(str, (Node *) o->exprList);
+}
+
+static void
 sqlParamToSQL(StringInfo str, SQLParameter *p)
 {
     appendStringInfo(str, ":%s", p->name);
@@ -438,6 +454,9 @@ exprToSQLString(StringInfo str, Node *expr)
         case T_OrderExpr:
             orderExprToSQL(str, (OrderExpr *) expr);
         break;
+        case T_QuantifiedComparison:
+        		quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr);
+        break;
         case T_SQLParameter:
             sqlParamToSQL(str, (SQLParameter *) expr);
         break;
@@ -514,6 +533,9 @@ exprToLatexString(StringInfo str,  Node *expr)
         break;
         case T_OrderExpr:
             orderExprToSQL(str, (OrderExpr *) expr);
+        break;
+        case T_QuantifiedComparison:
+        		quantifiedComparisonToSQL(str, (QuantifiedComparison *) expr);
         break;
         case T_SQLParameter:
             sqlParamToSQL(str, (SQLParameter *) expr);

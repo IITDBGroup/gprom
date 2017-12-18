@@ -200,7 +200,24 @@ createOrderExpr (Node *expr, SortOrder order, SortNullOrder nullOrder)
     return result;
 }
 
+QuantifiedComparison *
+createQuantifiedComparison (char *nType, Node *checkExpr, char *opName, List *exprList)
+//createQuantifiedComparison (Node *checkExpr, QuantifiedExprType qType, List *exprList, char *opName)
+{
+	QuantifiedComparison *result = makeNode(QuantifiedComparison);
 
+    result->checkExpr = checkExpr;
+    //result->qType = qType;
+    result->exprList = exprList;
+    result->opName = strdup(opName);
+
+    if (!strcmp(nType, "ANY"))
+        result->qType = QUANTIFIED_EXPR_ANY;
+    if (!strcmp(nType, "ALL"))
+        result->qType = QUANTIFIED_EXPR_ALL;
+
+    return result;
+}
 
 Node *
 concatExprs (Node *expr, ...)
@@ -508,6 +525,8 @@ typeOf (Node *expr)
             return ((SQLParameter *) expr)->parType;
         case T_OrderExpr:
             return DT_INT;//TODO should use something else?
+        case T_QuantifiedComparison:
+            return DT_BOOL;
         case T_DLVar:
             return ((DLVar *) expr)->dt;
         case T_CastExpr:
@@ -619,6 +638,11 @@ isConstExpr (Node *expr)
             OrderExpr *o = (OrderExpr *) expr;
             return isConstExpr(o->expr);
         }
+        case T_QuantifiedComparison:
+        {
+        		QuantifiedComparison *o = (QuantifiedComparison *) expr;
+            return isConstExpr(o->checkExpr);
+        }
         case T_DLVar:
             return FALSE;
         case T_CastExpr:
@@ -703,6 +727,7 @@ addCastsMutator (Node *node, boolean errorOnFailure)
         case T_IsNullExpr:
         case T_RowNumExpr:
         case T_SQLParameter:
+        case T_QuantifiedComparison:
         case T_OrderExpr:
         {
             return node;

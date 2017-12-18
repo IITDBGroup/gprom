@@ -67,6 +67,7 @@ static uint64_t hashFunctionCall (uint64_t cur, FunctionCall *node);
 static uint64_t hashOperator (uint64_t cur, Operator *node);
 static uint64_t hashRowNumExpr (uint64_t cur, RowNumExpr *node);
 static uint64_t hashOrderExpr (uint64_t cur, OrderExpr *node);
+static uint64_t hashQuantifiedComparison (uint64_t cur, QuantifiedComparison *node);
 static uint64_t hashCastExpr (uint64_t cur, CastExpr *node);
 static uint64_t hashSetQuery (uint64_t cur, SetQuery *node);
 static uint64_t hashProvenanceStmt (uint64_t cur, ProvenanceStmt *node);
@@ -429,6 +430,16 @@ hashOrderExpr (uint64_t cur, OrderExpr *node)
     HASH_RETURN();
 }
 
+static uint64_t
+hashQuantifiedComparison (uint64_t cur, QuantifiedComparison *node)
+{
+    HASH_NODE(checkExpr);
+    HASH_NODE(exprList);
+    HASH_INT(qType);
+    HASH_STRING(opName);
+
+    HASH_RETURN();
+}
 
 static uint64_t
 hashCastExpr (uint64_t cur, CastExpr *node)
@@ -933,6 +944,8 @@ hashValueInternal(uint64_t h, void *a)
             return hashRowNumExpr(h, (RowNumExpr *) n);
         case T_OrderExpr:
             return hashOrderExpr(h, (OrderExpr *) n);
+        case T_QuantifiedComparison:
+            return hashQuantifiedComparison(h, (QuantifiedComparison *) n);
         case T_CastExpr:
             return hashCastExpr(h, (CastExpr *) n);
             /* query block nodes */
