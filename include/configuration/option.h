@@ -103,6 +103,9 @@ NEW_ENUM_WITH_TO_STRING(
 #define TEMPORAL_USE_NORMALIZATION_WINDOW "temporal_use_normalization_window"
 #define TEMPORAL_AGG_WITH_NORM "temporal_combine_agg_and_norm"
 
+// encapsulates option state
+typedef struct option_state OptionState;
+
 // declare option fields
 // show help only
 extern boolean opt_show_help;

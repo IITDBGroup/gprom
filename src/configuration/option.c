@@ -22,6 +22,9 @@
 #undef free
 #undef malloc
 
+// stopper used to indicate end of options
+#define STOPPER_STRING "STOPPER"
+
 //Options* options;
 HashMap *optionPos; // optionname -> position of option in list
 HashMap *cmdOptionPos;
@@ -160,6 +163,15 @@ boolean temporal_use_coalesce =	 TRUE;
 boolean temporal_use_normalization = TRUE;
 boolean temporal_use_normalization_window = FALSE;
 boolean temporal_agg_combine_with_norm = TRUE;
+
+// struct that encapsulates option state
+struct option_state {
+    HashMap *optionPos; // optionname -> position of option in list
+    HashMap *cmdOptionPos;
+    HashMap *backendInfo;
+    HashMap *frontendInfo;
+    OptionInfo opts[];
+};
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -735,7 +747,7 @@ OptionInfo opts[] =
         ),
         // stopper to indicate end of array
         {
-                "STOPPER",
+                STOPPER_STRING,
                 NULL,
                 NULL,
                 OPTION_STRING,
@@ -779,7 +791,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
-            "STOPPER", NULL, NULL, NULL, NULL, NULL
+            STOPPER_STRING, NULL, NULL, NULL, NULL, NULL
         }
 };
 
@@ -798,12 +810,12 @@ FrontendInfo frontends[]  = {
             "dl"   // translator
         },
         {
-            "STOPPER", NULL, NULL, NULL
+            STOPPER_STRING, NULL, NULL, NULL
         }
 };
 
 static void
-initOptions(void)
+initOptions(void)   //TODO make this threadsafe
 {
     // create hashmap option -> position in option info array for lookup
     optionPos = NEW_MAP(Constant,Constant);
@@ -812,7 +824,7 @@ initOptions(void)
     frontendInfo = NEW_MAP(Constant,HashMap);
 
     // add options to hashmap and set all options to default values
-    for(int i = 0; strcmp(opts[i].option,"STOPPER") != 0; i++)
+    for(int i = 0; strcmp(opts[i].option,STOPPER_STRING) != 0; i++)
     {
         OptionInfo *o = &(opts[i]);
         setDefault(o);
@@ -827,7 +839,7 @@ initOptions(void)
     }
 
     // create backend infos
-    for(int i = 0; strcmp(backends[i].backendName,"STOPPER") != 0; i++)
+    for(int i = 0; strcmp(backends[i].backendName,STOPPER_STRING) != 0; i++)
     {
         HashMap *newMap = NEW_MAP(Constant, Constant);
         char *name = backends[i].backendName;
@@ -844,7 +856,7 @@ initOptions(void)
     }
 
     // create frontend infos
-    for(int i = 0; strcmp(frontends[i].frontendName,"STOPPER") != 0; i++)
+    for(int i = 0; strcmp(frontends[i].frontendName,STOPPER_STRING) != 0; i++)
     {
         HashMap *newMap = NEW_MAP(Constant, Constant);
         char *name = frontends[i].frontendName;
