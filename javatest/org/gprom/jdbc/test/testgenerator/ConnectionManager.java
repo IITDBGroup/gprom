@@ -4,6 +4,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
@@ -145,43 +146,50 @@ public class ConnectionManager {
 	}
 	
     private boolean testConnection () {
-    	Statement st = null;
-    	
-    	try {
-    		st = con.createStatement();
-    		switch(gCon.getBackend()) {
-			case HSQL:
-				break;
-			case Oracle:
-			{
-				String parser = gCon.getW().getStringOption("plugin.parser");
-				if (parser.equals("oracle"))
-					st.execute("SELECT 1 from dual;");
-				else if (parser.equals("dl"))
-					st.execute("Q(X) :- dual(X).");
-			}
-				break;
-			case Postgres:
-				break;
-			default:
-				break;
-    		
-    		}
-    	}
-    	catch (Exception e){
-    		try {
-    			if (st != null)
-    				st.close();
-    		}
-			catch (SQLException e1) {
-//				LoggerUtil.logException(e1, log);
-				e1.printStackTrace();
-			}
-    		finally {
-    			
-    		}
-    		return false;
-    	}
-    	return true;
+	    	Statement st = null;
+	    	ResultSet rs = null;
+	
+	    	try {
+	    		st = con.createStatement();
+	    		switch(gCon.getBackend()) {
+	    		case HSQL:
+	    			break;
+	    		case Oracle:
+	    		{
+	    			String parser = gCon.getW().getStringOption("plugin.parser");
+	    			if (parser.equals("oracle"))
+	    				rs = st.executeQuery("SELECT 1 from dual;");
+	    			else if (parser.equals("dl"))
+	    				rs = st.executeQuery("Q(X) :- dual(X).");
+	    		}
+	    		break;
+	    		case Postgres:
+	    			break;
+	    		default:
+	    			break;	
+	    		}
+	    	}
+	    	catch (Exception e){
+	    		try {
+	    			try { 
+	    				if (rs != null)
+	    					rs.close();
+	    			} catch (Exception rsE) {
+	
+	    			}
+	
+	    			if (st != null)
+	    				st.close();
+	    		}
+	    		catch (SQLException e1) {
+	    			//				LoggerUtil.logException(e1, log);
+	    			e1.printStackTrace();
+	    		}
+	    		finally {
+	
+	    		}
+	    		return false;
+	    	}
+	    	return true;
     }
 }

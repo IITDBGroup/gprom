@@ -3,6 +3,7 @@
  */
 package org.gprom.jdbc.test;
 
+import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -53,7 +54,6 @@ public class GProMJDBCTest {
 		System.out.print("enter password: ");
 		Scanner in = new Scanner(System.in);
 		password = in.nextLine();
-		
 		// setup url
 		url = "jdbc:gprom:oracle:thin:" + username + "/" + password + 
 				"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
@@ -104,8 +104,9 @@ public class GProMJDBCTest {
 		log.error("type of connection.host: " + con.getW().typeOfOption("connection.host"));
 		log.error("type of connection.db: " + con.getW().typeOfOption("connection.db"));
 		
-		Statement st = con.createStatement();
-		
+		Connection wCon = con.getWrappedCon();
+		Statement st = wCon.createStatement();
+		Statement gSt = con.createStatement();
 		
 		log.error("statement created");
 		
@@ -113,13 +114,25 @@ public class GProMJDBCTest {
 //		rs = st.executeQuery("SELECT a FROM r;");
 		try {
 //			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
-			rs = st.executeQuery("TEMPORAL (SELECT max(B) AS BOO, A FROM TEMP_TEST WITH TIME(T_BEGIN, T_END) GROUP BY A);");
-			printResult(rs);
+			System.out.println("***************");
+			for(int i = 0; i < 100; i++) {
+				rs = gSt.executeQuery("SELECT * FROM r WHERE a < " + i + ";");
+				printResult(rs);
+				rs = st.executeQuery("SELECT   A.VALUE   "
+						+ "FROM V$SESSTAT A,     V$STATNAME B,     V$SESSION S   "
+						+ "WHERE A.STATISTIC# = B.STATISTIC#     AND S.SID        = A.SID     "
+						+ "AND B.NAME       = 'opened cursors current'     "
+						+ "AND USERNAME     = 'TESTUSER'");
+				printResult(rs);
+				Thread.sleep(3000);
+			}
 		}
 		catch (NativeGProMLibException e) {
 			log.error("###############################\n" + e.getMessage() + "\n###############################\n");
 		}
 		
+		gSt.close();
+		st.close();
 //		
 //		rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
 //		printResult(rs);
@@ -160,6 +173,7 @@ public class GProMJDBCTest {
 		System.out.println("-------------------------------------------------------------------------------");
 		System.out.println();
 		System.out.println();
+		rs.close();
 	}
 	
 }

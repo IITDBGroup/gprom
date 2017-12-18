@@ -341,6 +341,10 @@ public class GProMConnection implements GProMConnectionInterface{
 		this.w = w;
 	}
 
+	public Connection getWrappedCon () {
+		return this.con;
+	}
+	
 //	public void setBackend(BackendType backend) {
 //		this.backend = backend;
 //	}
