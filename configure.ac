@@ -662,6 +662,7 @@ AC_CONFIG_FILES([
 	src/libgprom/Makefile
 	test/Makefile
 	javatest/Makefile
+	javalibgen/Makefile
 ])
 AC_OUTPUT
 

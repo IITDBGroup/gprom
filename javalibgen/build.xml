@@ -1,0 +1,114 @@
+<project 
+	name="gpromlibgen" 
+	default="genlib" 
+	basedir="."
+	xmlns:ivy="antlib:org.apache.ivy.ant"
+	>
+
+	<!-- defs -->
+	<property name="classname" value="org.gprom.libgen.GenLibGProMH" />
+	
+	<!-- main directories -->
+	<property name="rootdir" value="${basedir}/.." />
+	<property name="abs.rootdir" location="${rootdir}"/>
+	<property name="antlibdir" value="${basedir}/lib" />
+	<property name="sourcedir" value="${basedir}/src/" />
+	<property name="binarydir" value="${basedir}/bin" />
+	<property name="librarydir" value="${basedir}/lib" />
+
+	
+	<!-- Ivy -->
+    <property name="ivy.install.version" value="2.4.0" />
+    <condition property="ivy.home" value="${env.IVY_HOME}">
+      <isset property="env.IVY_HOME" />
+    </condition>
+    <property name="ivy.jar.dir" value="${antlibdir}" />
+    <property name="ivy.jar.file" value="${ivy.jar.dir}/ivy.jar" />
+		
+	<condition property="ivy.writable">
+			<isfileselected file="${ivy.jar.dir}" >
+				<writable/>
+			</isfileselected>
+	</condition>
+	
+	<!-- TARGETS -->	
+	<!-- Ivy -->
+	<!-- download ivy if the folder is writable -->
+    <target name="download-ivy" unless="offline" if="ivy.writable">
+        <mkdir dir="${ivy.jar.dir}"/>
+        <!-- download Ivy from web site so that it can be used even without any special installation if dir writable -->
+        <get src="http://repo2.maven.org/maven2/org/apache/ivy/ivy/${ivy.install.version}/ivy-${ivy.install.version}.jar" 
+            dest="${ivy.jar.file}" 
+    		usetimestamp="true" />
+    </target>
+
+	<!-- check if ivy.jar is there -->
+    <target name="check-ivy" depends="download-ivy">
+    	<fail message="missing ivy.jar and was unable to download the jar">
+    		<condition>
+    			<not>
+    				<available file="${ivy.jar.file}" type="file"/>
+    			</not>
+    		</condition>
+       	</fail>
+    </target>
+
+	
+    <target name="init-ivy" depends="check-ivy">
+      <!-- try to load ivy here from ivy home, in case the user has not already dropped
+              it into ant's lib dir (note that the latter copy will always take precedence).
+              We will not fail as long as local lib dir exists (it may be empty) and
+              ivy is in at least one of ant's lib dir or the local lib dir. -->
+        <path id="ivy.lib.path">
+            <fileset dir="${ivy.jar.dir}" includes="*.jar"/>
+        </path>
+        <taskdef resource="org/apache/ivy/ant/antlib.xml"
+                 uri="antlib:org.apache.ivy.ant" classpathref="ivy.lib.path"/>
+    </target>
+	
+	<target name="download-dependencies" depends="init-ivy">
+<!--		 <ivy:settings file="${basedir}/ivysettings.xml"/>-->
+		 <ivy:resolve />
+		 <ivy:retrieve sync="false" type="jar" pattern="${librarydir}/[artifact]-[revision].[ext]" />
+		<!-- classpath -->
+		<path id="classpath.compile">
+			<fileset dir="${librarydir}"/>
+		</path>
+		<echo message="CP: ${classpath.compile}" />
+	</target>
+
+	<!-- check OS type -->
+	<target name="distClean">
+		<delete dir="${binarydir}" includeemptydirs="true" />
+	</target>
+
+	<target name="compile" depends="download-dependencies">
+		<javac srcdir="${sourcedir}" 
+				destdir="${binarydir}"  
+				debug="on" 
+			    fork="true" 
+			    includeantruntime="false"
+				verbose="true">
+			<classpath refid="classpath.compile"/>
+			<compilerarg value="-Xlint:unchecked" />
+		</javac>
+		<path id="classpath.run">
+			<fileset dir="${librarydir}"/>
+			<pathelement path="${binarydir}"/>
+		</path>
+	</target>
+	
+	<target name="genlib" depends="compile">
+		<java 
+			classname="${classname}"
+			classpathref="classpath.run"
+			fork="true"
+			dir="${abs.rootdir}"
+			failonerror="true"
+			>
+			<arg value="${abs.rootdir}" />
+		</java>
+	</target>
+	
+	
+</project>
