@@ -94,7 +94,7 @@ public class ConnectionManager {
 		}
 		
 		gCon = (GProMConnection) con;
-		gCon.getW().setLogLevel(1);
+		gCon.getW().setLogLevel(2);
 		OptionsManager.getInstance().resetOptions (con);
 	}
 	

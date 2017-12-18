@@ -134,8 +134,7 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 	    		 DataType argType = DataType.valueOf(stringArray[0]);
 	    		 DataType parType = DataType.valueOf(stringArray[1]);
 
-	            if (parType.equals(DataType.DT_INT))
-	            {
+	            if (parType.equals(DataType.DT_INT)) {
 	                switch(argType)
 	                {
 	                    case DT_INT:
@@ -151,18 +150,21 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 	    }
 
 	    if (fName.equals("greatest") || fName.equals("least")
-	            || fName.equals("coalesce") || fName.equals("lead")
-	            || fName.equals("lag") || fName.equals("first_value") 
+	            || fName.equals("coalesce") 
+	            || fName.equals("first_value") 
 	            || fName.equals("last_value")) {
 	    		DataType dt = DataType.valueOf(stringArray[0]);
 
-	        for(String g: stringArray)
-	        {
+	        for(String g: stringArray) {
 	        		DataType argDT = DataType.valueOf(g);
 	            dt = lcaType(dt, argDT);
 	        }
 
 	        return dt.toString();
+	    }
+	    
+	    if ( fName.equals("lag") || fName.equals("lead")) {
+	    		return DataType.valueOf(stringArray[0]).toString();
 	    }
 	    
 	    return "DT_STRING";
