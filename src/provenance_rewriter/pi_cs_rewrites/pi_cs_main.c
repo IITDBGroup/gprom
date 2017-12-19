@@ -1579,9 +1579,17 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     FunctionCall *of = createFunctionCall ("ORA_HASH", ol);
 
     //create power(2, ORA_HASH(A,32)) functioncall
-    Constant *tw = createConstInt(2);
-    List *pl = LIST_MAKE(tw,of);
-    FunctionCall *pf = createFunctionCall ("POWER", pl);
+//    Constant *tw = createConstInt(2);
+//    List *pl = LIST_MAKE(tw,of);
+//    FunctionCall *pf = createFunctionCall ("POWER", pl);
+
+    //using shift right: shright(4294967296,32-ORA_HASH(C_NATIONKEY, 32))
+    Operator *sor = createOpExpr("-", LIST_MAKE(copyObject(num),of));
+    //the power of 2 always lack 1, so here after power of 2 and then +1
+    //but has the overflow problem
+    Constant *sol = createConstLong(pow(2, INT_VALUE(num)) + 1);
+    FunctionCall *pf = createFunctionCall ("SHRIGHT", LIST_MAKE(sol,sor));
+
 
     projExpr = appendToTailOfList(projExpr, pf);
 
