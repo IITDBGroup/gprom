@@ -1744,7 +1744,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     }
     else //A,B,..
     {
-    	List *fList = NIL;
+    		List *fList = NIL;
         FOREACH(Constant,attr,coaParaValueList)
 		{
         	char *attrV = (char *) attr->value;
@@ -1776,17 +1776,22 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
 
     //add selection operator
-    List* condList = NIL;
+// comment out using A=... OR A=.... and changed to use A in (....)
+//    List* condList = NIL;
     AttributeReference *condAttrRef = createAttrsRefByName((QueryOperator *) newpo, newAttrName);
-    FOREACH(Constant, c, condRightValueList)
-    {
-        Operator *eqExpr = createOpExpr("=", LIST_MAKE(copyObject(condAttrRef),c));
-        condList = appendToTailOfList(condList, eqExpr);
-    }
+//    FOREACH(Constant, c, condRightValueList)
+//    {
+//        Operator *eqExpr = createOpExpr("=", LIST_MAKE(copyObject(condAttrRef),c));
+//        condList = appendToTailOfList(condList, eqExpr);
+//    }
+//
+//    Node *orExpr = orExprList(condList);
 
-    Node *orExpr = orExprList(condList);
+    //use in clause
+    QuantifiedComparison *qcExpr = createQuantifiedComparison ("ANY", (Node *) condAttrRef, "=",
+    												(List *) copyObject(condRightValueList));
 
-    SelectionOperator *sel = createSelectionOp (orExpr, (QueryOperator *) newpo, NIL, getQueryOperatorAttrNames((QueryOperator *) newpo));
+    SelectionOperator *sel = createSelectionOp ((Node *) qcExpr, (QueryOperator *) newpo, NIL, getQueryOperatorAttrNames((QueryOperator *) newpo));
     sel->op.provAttrs = (List *)copyObject(newProvPosList);
 
     // Switch the subtree with this newly created projection operator.
