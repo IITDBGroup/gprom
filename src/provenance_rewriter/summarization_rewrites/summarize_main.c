@@ -171,7 +171,7 @@ rewriteComputeFracOutput (Node *candidateInput, Node *sampleInput)
 	// create projection operator
 	int pos = 0;
 	List *projExpr = NIL;
-	AttributeReference *totProv, *covProv, *numProv = NULL;
+	AttributeReference *totProv = NULL, *covProv = NULL, *numProv = NULL;
 //	AttributeReference *covProv;
 //	AttributeReference *numProv;
 

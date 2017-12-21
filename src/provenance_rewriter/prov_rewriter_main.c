@@ -104,7 +104,7 @@ findProvenanceComputations (QueryOperator *op, Set *haveSeen)
 static QueryOperator *
 rewriteProvenanceComputation (ProvenanceComputation *op)
 {
-    QueryOperator *result;
+    QueryOperator *result = NULL;
     boolean requiresPostFiltering = FALSE;
 
     // for a sequence of updates of a transaction merge the sequence into a single

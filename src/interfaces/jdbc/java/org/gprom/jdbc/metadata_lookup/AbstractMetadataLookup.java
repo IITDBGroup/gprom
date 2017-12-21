@@ -339,6 +339,8 @@ public abstract class AbstractMetadataLookup {
 	    
 	    log.debug("keys for relation " + tableName + " are " + result);
 	    
+	    rs.close();
+	    
 		return result;
 	}
 
@@ -358,7 +360,7 @@ public abstract class AbstractMetadataLookup {
 		return tableExistsForTypes(tableName, new String[] {"TABLE"}) ? 1 : 0;
 	}
 	
-	public boolean tableExistsForTypes (String tableName, String[] types) {
+	protected boolean tableExistsForTypes (String tableName, String[] types) {
 		ResultSet rs;
 		boolean exists = false;
 		try {
@@ -564,9 +566,9 @@ public abstract class AbstractMetadataLookup {
 				    null, null, tableName, attrName);
 			while(rs.next()){
 			    String columnName = rs.getString("COLUMN_DEF");
+				rs.close();
 			    return columnName;
 			}
-			rs.close();
 		}
 		catch (SQLException e) {
 			logException(e,log);

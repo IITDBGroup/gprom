@@ -30,7 +30,7 @@ public class AbstractGProMTester {
 	}
 
     protected static void tearDown() throws Exception {
-    	resetOptions();
+    		resetOptions();
     }
 	
 	/**
@@ -38,20 +38,20 @@ public class AbstractGProMTester {
 	 * @throws NumberFormatException 
 	 * 
 	 */
-	protected static void resetOptions() throws NumberFormatException, Exception {
-		log.debug("SHOULD RESET GPROM JDBC OPTIONS?");
-		if (oldProps != null) {
-			GProMConnection g = ConnectionManager.getInstance().getGProMConnection();
-			
-			for(Entry<?, ?> e: oldProps.entrySet()) {
-    			String key = (String) e.getKey();
-    			String value = (String) e.getValue();
-    			log.debug("reset options: set key " + key + " to " + value);
-    			g.getW().setOption(key, value);
-    		}
-			
-			g.getW().reconfPlugins();
-		}
+    protected static void resetOptions() throws NumberFormatException, Exception {
+	    	log.debug("SHOULD RESET GPROM JDBC OPTIONS?");
+	    	if (oldProps != null) {
+	    		GProMConnection g = ConnectionManager.getInstance().getGProMConnection();
+	
+	    		for(Entry<?, ?> e: oldProps.entrySet()) {
+	    			String key = (String) e.getKey();
+	    			String value = (String) e.getValue();
+	    			log.debug("reset options: set key " + key + " to " + value);
+	    			g.getW().setOption(key, value);
+	    		}
+	
+	    		g.getW().reconfPlugins();
+	    	}
 	}
     
     /*
@@ -106,66 +106,66 @@ public class AbstractGProMTester {
     
     protected static void setGenerator (String name) throws Exception {
       	DataAndQueryGenerator generator;
-    	Properties options;
-    	
-    	System.out.println("\n********************************************");
-    	System.out.println("**   " + name);
-    	System.out.println("********************************************\n");
-    	
-    	TestInfoHolder.getInstance().setGenerator(name);
-    	generator = TestInfoHolder.getInstance().getCurrentGenerator();    	
-    	
-    	GProMConnection g = ConnectionManager.getInstance().getGProMConnection();
-    	
-    	options = TestInfoHolder.getInstance().getCurrentGenerator().getOptions();
-    	
-    	if (options != null)
-    	{
-    		oldProps = new Properties();
-    		for(Entry<?, ?> e: options.entrySet()) {
-    			String key = (String) e.getKey();
-    			String value = (String) e.getValue();
-    			oldProps.setProperty(key, g.getW().getOption(key));
-    			log.debug("set up <" + name + "> set key " + key + " to " + value);
-    			g.getW().setOption(key, value);
-    		}
-    		
-    		g.getW().reconfPlugins();
-    	}
-    	else
-    		oldProps = null;
+	    	Properties options;
+	    	
+	    	System.out.println("\n********************************************");
+	    	System.out.println("**   " + name);
+	    	System.out.println("********************************************\n");
+	    	
+	    	TestInfoHolder.getInstance().setGenerator(name);
+	    	generator = TestInfoHolder.getInstance().getCurrentGenerator();    	
+	    	
+	    	GProMConnection g = ConnectionManager.getInstance().getGProMConnection();
+	    	
+	    	options = TestInfoHolder.getInstance().getCurrentGenerator().getOptions();
+	    	
+	    	if (options != null)
+	    	{
+	    		oldProps = new Properties();
+	    		for(Entry<?, ?> e: options.entrySet()) {
+	    			String key = (String) e.getKey();
+	    			String value = (String) e.getValue();
+	    			oldProps.setProperty(key, g.getW().getOption(key));
+	    			log.debug("set up <" + name + "> set key " + key + " to " + value);
+	    			g.getW().setOption(key, value);
+	    		}
+	    		
+	    		g.getW().reconfPlugins();
+	    	}
+	    	else
+	    		oldProps = null;
     }
     
     protected void testSingleQuery (int num) throws Exception {
-    	DBTable[] expecteds;
-    	DBTable actualResult = null;
-    	String queryString;
-    	boolean markedError;
-    	boolean isOrdered;
-    	DataAndQueryGenerator generator;
-    	
-    	generator = TestInfoHolder.getInstance().getCurrentGenerator();
-    	
-    	GProMConnection g = ConnectionManager.getInstance().getGProMConnection();
-    	
-    	Properties options = TestInfoHolder.getInstance().getCurrentGenerator().getOptions();
-    	
-    	if (options != null && oldProps == null)
-    	{
-    		oldProps = new Properties();
-    		for(Entry<?, ?> e: options.entrySet()) {
-    			String key = (String) e.getKey();
-    			String value = (String) e.getValue();
-    			oldProps.setProperty(key, g.getW().getOption(key));
-    			log.debug("set key " + key + " to " + value);
-    			g.getW().setOption(key, value);
-    		}
-    		
-    		g.getW().reconfPlugins();
-    	}
+	    	DBTable[] expecteds;
+	    	DBTable actualResult = null;
+	    	String queryString;
+	    	boolean markedError;
+	    	boolean isOrdered;
+	    	DataAndQueryGenerator generator;
+	    	
+	    	generator = TestInfoHolder.getInstance().getCurrentGenerator();
+	    	
+	    	GProMConnection g = ConnectionManager.getInstance().getGProMConnection();
+	    	
+	    	Properties options = TestInfoHolder.getInstance().getCurrentGenerator().getOptions();
+	    	
+	    	if (options != null && oldProps == null)
+	    	{
+	    		oldProps = new Properties();
+	    		for(Entry<?, ?> e: options.entrySet()) {
+	    			String key = (String) e.getKey();
+	    			String value = (String) e.getValue();
+	    			oldProps.setProperty(key, g.getW().getOption(key));
+	    			log.debug("set key " + key + " to " + value);
+	    			g.getW().setOption(key, value);
+	    		}
+	    		
+	    		g.getW().reconfPlugins();
+	    	}
 
     	
-    	expecteds = generator.getExpectedResults("q" + num);
+	    	expecteds = generator.getExpectedResults("q" + num);
 		queryString = generator.getQuery("q" + num);
 		markedError = generator.isError("q" + num); 
 		isOrdered = generator.isOrdered("q" + num);
@@ -182,7 +182,7 @@ public class AbstractGProMTester {
 			if (!markedError) {
 				actualResult = DBTableFactory.inst.tableFromQuery(g, queryString);
 				actualResult.setOrdered(isOrdered);
-	    		assertTrue(TableCompartor.inst.compareTableAgainstMany(actualResult, expecteds));
+	    			assertTrue(TableCompartor.inst.compareTableAgainstMany(actualResult, expecteds));
 			}
 		}
 		catch (Exception e)

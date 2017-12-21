@@ -684,8 +684,8 @@ addSetCoalesce (QueryOperator *input)
     AttributeReference *t1BeginRef = getAttrRefByName(op, TBEGIN_NAME);
     AttributeReference *t1EndRef = getAttrRefByName(op, TEND_NAME);
 
-    t1ProjExpr1 = appendToTailOfList(t1ProjExpr1, t1EndRef);
-    t1ProjExpr2 = appendToTailOfList(t1ProjExpr2, t1BeginRef);
+    t1ProjExpr1 = appendToTailOfList(t1ProjExpr1, t1BeginRef);
+    t1ProjExpr2 = appendToTailOfList(t1ProjExpr2, t1EndRef);
 
     //construct schema NORMALATTRS S E TS  for BOTH
     List *t1AttrNames = getNormalAttrNames(op);

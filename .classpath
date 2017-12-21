@@ -3,7 +3,6 @@
 	<classpathentry kind="src" path="javatest"/>
 	<classpathentry kind="src" path="src/interfaces/jdbc/java"/>
 	<classpathentry kind="src" path="autotests"/>
-	<classpathentry kind="src" path="gprom-gui/src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="ant/one-jar-ant-task-0.97.jar"/>
 	<classpathentry kind="lib" path="javalib"/>
@@ -14,7 +13,6 @@
 	<classpathentry kind="lib" path="javalib/sqlite-jdbc.jar"/>
 	<classpathentry kind="lib" path="javalib/mysql-connector-java.jar"/>
 	<classpathentry kind="lib" path="javalib/hsqldb.jar"/>
-	<classpathentry kind="lib" path="javalib/dms.jar"/>
 	<classpathentry kind="lib" path="javalib/ojdbc7_g.jar"/>
 	<classpathentry kind="lib" path="javatestlib/junit.jar"/>
 	<classpathentry kind="lib" path="javatestlib/slf4j-api.jar"/>

@@ -90,8 +90,10 @@ public class DBTableFactory {
 	public DBTable tableFromQuery(Connection c, String q) throws SQLException {
 		MemDBTable t = new MemDBTable();
 		Statement s = c.createStatement();
+		ResultSet r = null;
+		
 		try {
-			ResultSet r = s.executeQuery(q);
+			r = s.executeQuery(q);
 			ResultSetMetaData m = r.getMetaData();
 			
 			// add columns
@@ -106,14 +108,18 @@ public class DBTableFactory {
 					values.add(r.getString(i));
 				}
 				t.addRow(new Row(values));
-			}			
+			}
+			r.close();
 		} catch (Throwable e) {
 			LoggerUtil.logDebugException(e, log);
 			System.out.println(e);
 			throw(e);
 		} finally {
-			s.close();
-			log.error("XXXXXXXXXXXXXXXXXXXXXX");
+			if (r != null)
+				r.close();
+			if (s != null)			
+				s.close();
+			log.error("closed statement and result set");
 		}
 		
 		return t;
