@@ -159,16 +159,16 @@ createWhyGPprogram (DLProgram *p, DLAtom *why)
     // store original input rule for summarization process
     if (p->sumOpts != NIL)
     {
-    	List *newOrigHeadArgs = NIL;
+//    	List *newOrigHeadArgs = NIL;
     	FOREACH(DLRule,or,p->rules)
 		{
     		DLRule *copyOr = copyObject(or);
 
-    		FOREACH(DLAtom,ob,copyOr->body)
-        		FOREACH(DLVar,n,ob->args)
-					newOrigHeadArgs = appendToTailOfList(newOrigHeadArgs, n);
+//    		FOREACH(DLAtom,ob,copyOr->body)
+//        		FOREACH(DLVar,n,ob->args)
+//					newOrigHeadArgs = appendToTailOfList(newOrigHeadArgs, n);
 
-    		copyOr->head->args = newOrigHeadArgs;
+//    		copyOr->head->args = newOrigHeadArgs;
     		origDLrules = appendToTailOfList(origDLrules, copyOr);
 		}
     }
