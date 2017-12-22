@@ -24,6 +24,11 @@ typedef enum ExceptionHandler {
 } ExceptionHandler;
 #endif
 
+/* Handle for gprom encapsulating state
+ *
+ */
+typedef struct libgprom_handle GProMHandle;
+
 // initialize system
 extern void gprom_init(void);
 extern void gprom_readOptions(int argc, char *const args[]);

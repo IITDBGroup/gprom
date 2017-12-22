@@ -85,6 +85,13 @@ readOptions (char *appName, char *appHelpText, int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
+    if (parserReturn == OPTION_PARSER_RETURN_VERSION)
+    {
+        printVersion(stdout);
+        return EXIT_FAILURE;
+    }
+
+
     // set log level from options
     setMaxLevel(getIntOption("log.level"));
 

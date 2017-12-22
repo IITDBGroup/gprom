@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
@@ -106,6 +107,7 @@ public class GProMDriver implements Driver {
 			backendConnection = driver.connect(backendURL, info);
 			if (backendConnection == null)
 				throw new Exception("was unable to create connection: " + backendURL);
+			
 			log.info("created connection object for backend DB: " + backendURL);
 			
 			// extract backend connection parameters from JDBC connection
