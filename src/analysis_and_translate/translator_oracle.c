@@ -128,7 +128,7 @@ translateParseOracle (Node *q)
 {
     Node *result;
 
-    INFO_LOG("translate QB model \n%s", nodeToString(q));
+    INFO_NODE_BEATIFY_LOG("translate QB model", q);
 
     result = translateGeneral(q);
 

@@ -1068,7 +1068,7 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                 {
                    case NESTQ_EXISTS:
                    {
-                       appendStringInfo(from, "SELECT count(*) AS %s FROM (", strdup(subAttr));
+                       appendStringInfo(from, "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS %s FROM (", strdup(subAttr));
                        serializeQueryOperator(subquery, from, (QueryOperator *) no);
                        appendStringInfoString(from, ") F0");
                    }
@@ -1083,12 +1083,25 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
                    break;
                    case NESTQ_ALL:
                    {
-
+                       char *expr = exprToSQL(no->cond);
+                       appendStringInfo(from, "SELECT MIN(CASE WHEN (%s) THEN 1 ELSE 0 END) AS %s FROM (", expr, strdup(subAttr));
+                       serializeQueryOperator(subquery, from, (QueryOperator *) no);
+                       appendStringInfoString(from, ") F0");
                    }
                    break;
                    case NESTQ_UNIQUE:
                    {
-                       //TODO
+                       List *attrs = GET_OPSCHEMA(subquery)->attrDefs;
+                       StringInfo attrRef = makeStringInfo();
+                       FOREACH(AttributeDef, a, attrs)
+                           appendStringInfo(attrRef, "%s%s", a->attrName, FOREACH_HAS_MORE(a) ? ", " : "");
+
+                       //TODO need subquery twice once to do a count(*) OVER A SELECT DISTINCT and once without select distinct and then compare
+                       appendStringInfo(from, "SELECT CASE WHEN max(multip) > 0 THEN 1 ELSE 0 END AS %s FROM ("
+                               " SELECT count(*) OVER (PARTITION BY %s) AS multip FROM (", strdup(subAttr), attrRef);
+
+                       serializeQueryOperator(subquery, from, (QueryOperator *) no);
+                       appendStringInfoString(from, ") F0) F0");
                    }
                    break;
                    case NESTQ_SCALAR:
