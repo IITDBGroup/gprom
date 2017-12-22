@@ -65,7 +65,9 @@ static Node *rewriteCandidateOutput (Node *scanSampleInput);
 static Node *scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randProv, Node *randNonProv);
 static Node *rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput);
 static Node *rewritefMeasureOutput (Node *computeFracInput, List *userQuestion);
-static Node *rewriteMostGenExplOutput (Node *fMeasureInput, int topK);
+static Node *rewriteTopkExplOutput (Node *fMeasureInput, int topK);
+static Node *integrateWithEdgeRel (Node *topkInput, Node *moveRels);
+
 
 Node *
 rewriteSummaryOutput (Node *rewrittenTree, List *summOpts)
@@ -141,11 +143,10 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts)
 	scaleUp = scaleUpOutput(doms, candidates, provJoin, randomProv, randomNonProv);
 	computeFrac = rewriteComputeFracOutput(scaleUp, samples);
 	fMeasure = rewritefMeasureOutput(computeFrac, userQuestion);
-	result = rewriteMostGenExplOutput(fMeasure, topK);
+	result = rewriteTopkExplOutput(fMeasure, topK);
 
-	//TODO: integrate with edge rel for dl
-//	if (moveRels != NULL)
-
+	if (moveRels != NULL)
+		result = integrateWithEdgeRel(result, moveRels);
 
 	if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
 		ASSERT(checkModel((QueryOperator *) result));
@@ -156,10 +157,60 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts)
 
 
 /*
+ * integrate with edge rel for dl
+ */
+static Node *
+integrateWithEdgeRel(Node * topkInput, Node *moveRels)
+{
+	Node *result;
+	QueryOperator *edgeBase = (QueryOperator *) topkInput;
+	QueryOperator *edgeRels = (QueryOperator *) moveRels;
+
+	// only prov attrs are needed (create projection operator)
+	int pos = 0;
+	List *projExpr = NIL;
+	List *attrNames = NIL;
+
+	FOREACH(AttributeDef,a,edgeBase->schema->attrDefs)
+	{
+		if(isPrefix(a->attrName,"PROV_"))
+		{
+			projExpr = appendToTailOfList(projExpr,
+					createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+
+			attrNames = appendToTailOfList(attrNames, a->attrName);
+		}
+		pos++;
+	}
+
+	ProjectionOperator *op = createProjectionOp(projExpr, edgeBase, NIL, attrNames);
+	edgeBase->parents = singleton(op);
+	edgeBase = (QueryOperator *) op;
+
+	// store table access operator for later use of dom attrs
+	List *rels = NIL;
+	findTableAccessVisitor((Node *) edgeRels,&rels);
+
+	FOREACH(TableAccessOperator,t,rels)
+	{
+		switchSubtreeWithExisting((QueryOperator *) t,edgeBase);
+		DEBUG_LOG("replaced table %s with\n:%s", t->tableName, operatorToOverviewString((Node *) edgeBase));
+	}
+
+	result = (Node *) edgeRels;
+
+	DEBUG_NODE_BEATIFY_LOG("pug top-k summarized explanation from summarization:", result);
+	INFO_OP_LOG("pug top-k summarized explanation from summarization as overview:", result);
+
+	return result;
+}
+
+
+/*
  * return top-k explanations
  */
 static Node *
-rewriteMostGenExplOutput (Node *fMeasureInput, int topK)
+rewriteTopkExplOutput (Node *fMeasureInput, int topK)
 {
 	Node *result;
 	QueryOperator *fMeasure = (QueryOperator *) fMeasureInput;
@@ -182,10 +233,10 @@ rewriteMostGenExplOutput (Node *fMeasureInput, int topK)
 	List *projExpr = NIL;
 	ProjectionOperator *op;
 
-	FOREACH(AttributeDef,p,fMeasure->schema->attrDefs)
+	FOREACH(AttributeDef,a,fMeasure->schema->attrDefs)
 	{
 		projExpr = appendToTailOfList(projExpr,
-				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
 		pos++;
 	}
 
@@ -261,16 +312,16 @@ rewritefMeasureOutput (Node *computeFracInput, List *userQuestion)
 	ProjectionOperator *op;
 	AttributeReference *prec, *rec = NULL;
 
-	FOREACH(AttributeDef,p,computeFrac->schema->attrDefs)
+	FOREACH(AttributeDef,a,computeFrac->schema->attrDefs)
 	{
-		if(streq(p->attrName, ACCURACY_ATTR))
-			prec = createFullAttrReference(strdup(ACCURACY_ATTR), 0, pos, 0, p->dataType);
+		if(streq(a->attrName, ACCURACY_ATTR))
+			prec = createFullAttrReference(strdup(ACCURACY_ATTR), 0, pos, 0, a->dataType);
 
-		if(streq(p->attrName, COVERAGE_ATTR))
-			rec = createFullAttrReference(strdup(COVERAGE_ATTR), 0, pos, 0, p->dataType);
+		if(streq(a->attrName, COVERAGE_ATTR))
+			rec = createFullAttrReference(strdup(COVERAGE_ATTR), 0, pos, 0, a->dataType);
 
 		projExpr = appendToTailOfList(projExpr,
-				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
 		pos++;
 	}
 
@@ -351,19 +402,19 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput)
 //	AttributeReference *covProv;
 //	AttributeReference *numProv;
 
-	FOREACH(AttributeDef,p,candidates->schema->attrDefs)
+	FOREACH(AttributeDef,a,candidates->schema->attrDefs)
 	{
 		if (pos == 0)
-			totProv = createFullAttrReference(strdup(TOTAL_PROV_ATTR), 0, pos, 0, p->dataType);
+			totProv = createFullAttrReference(strdup(TOTAL_PROV_ATTR), 0, pos, 0, a->dataType);
 
 		if (pos == 1)
-			covProv = createFullAttrReference(strdup(COVERED_ATTR), 0, pos, 0, p->dataType);
+			covProv = createFullAttrReference(strdup(COVERED_ATTR), 0, pos, 0, a->dataType);
 
 		if (pos == 2)
-			numProv = createFullAttrReference(strdup(NUM_PROV_ATTR), 0, pos, 0, p->dataType);
+			numProv = createFullAttrReference(strdup(NUM_PROV_ATTR), 0, pos, 0, a->dataType);
 
 		projExpr = appendToTailOfList(projExpr,
-				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
 		pos++;
 	}
 
@@ -530,27 +581,27 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
 	Node *crossDoms = NULL;
 	AttributeReference *totProv, *numProv, *numNonProv, *totProvInSamp, *totNonProvInSamp, *domL, *domR = NULL;
 
-	FOREACH(AttributeDef,p,crossPdom->schema->attrDefs)
+	FOREACH(AttributeDef,a,crossPdom->schema->attrDefs)
 	{
-		if(streq(p->attrName,TOTAL_PROV_ATTR))
-			totProv = createFullAttrReference(strdup(TOTAL_PROV_ATTR), 0, pos, 0, p->dataType);
-		else if(streq(p->attrName,NUM_PROV_ATTR))
-			numProv = createFullAttrReference(strdup(NUM_PROV_ATTR), 0, pos, 0, p->dataType);
-		else if(streq(p->attrName,NUM_NONPROV_ATTR))
-			numNonProv = createFullAttrReference(strdup(NUM_NONPROV_ATTR), 0, pos, 0, p->dataType);
-		else if(streq(p->attrName,TOTAL_PROV_SAMP_ATTR))
-			totProvInSamp = createFullAttrReference(strdup(TOTAL_PROV_SAMP_ATTR), 0, pos, 0, p->dataType);
-		else if(streq(p->attrName,TOTAL_NONPROV_SAMP_ATTR))
-			totNonProvInSamp = createFullAttrReference(strdup(TOTAL_NONPROV_SAMP_ATTR), 0, pos, 0, p->dataType);
-		else if(isPrefix(p->attrName,"cnt"))
+		if(streq(a->attrName,TOTAL_PROV_ATTR))
+			totProv = createFullAttrReference(strdup(TOTAL_PROV_ATTR), 0, pos, 0, a->dataType);
+		else if(streq(a->attrName,NUM_PROV_ATTR))
+			numProv = createFullAttrReference(strdup(NUM_PROV_ATTR), 0, pos, 0, a->dataType);
+		else if(streq(a->attrName,NUM_NONPROV_ATTR))
+			numNonProv = createFullAttrReference(strdup(NUM_NONPROV_ATTR), 0, pos, 0, a->dataType);
+		else if(streq(a->attrName,TOTAL_PROV_SAMP_ATTR))
+			totProvInSamp = createFullAttrReference(strdup(TOTAL_PROV_SAMP_ATTR), 0, pos, 0, a->dataType);
+		else if(streq(a->attrName,TOTAL_NONPROV_SAMP_ATTR))
+			totNonProvInSamp = createFullAttrReference(strdup(TOTAL_NONPROV_SAMP_ATTR), 0, pos, 0, a->dataType);
+		else if(isPrefix(a->attrName,"cnt"))
 		{
 			if(counter == 0)
 			{
-				domL = createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType);
+				domL = createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType);
 				counter++;
 			}
 			else
-				domR = createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType);
+				domR = createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType);
 
 			if(domL != NULL && domR != NULL)
 			{
@@ -562,9 +613,9 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
 		else
 		{
 			projExpr = appendToTailOfList(projExpr,
-					createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+					createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
 
-			attrs = appendToTailOfList(attrs, p);
+			attrs = appendToTailOfList(attrs, a);
 		}
 
 		pos++;
