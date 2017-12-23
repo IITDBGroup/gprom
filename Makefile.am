@@ -65,7 +65,7 @@ pkg-deb: $(TAR_PACKAGE)
 		packaging/pkgfiles/copyright $(TMP_DIR)/$(APP_NAME)-$(VERSION)/debian/
 	cd $(TMP_DIR)/$(APP_NAME)-$(VERSION)/; \
 		rm debian/README.Debian debian/*.ex debian/*.EX; \
-		./configure --disable-oracle --disable-postgres --disable-java; \
+		./configure --disable-oracle --disable-postgres --disable-monetdb --disable-java; \
 		dpkg-buildpackage -rfakeroot; \
 		mv ../*.deb $(PWD)/packaging
 	rm -r $(TMP_DIR);

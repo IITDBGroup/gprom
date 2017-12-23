@@ -13,7 +13,7 @@ if JAVABINDING
 all-local: $(GPROM_JDBC_JAR)
 
 $(GPROM_JDBC_JAR): $(JAVA_JDBC_SRC) $(GPROM_LIBRARY) 
-	ant -f $(ANT_BUILDFILE) generateDriverJar
+	ant -f $(ANT_BUILDFILE) jar
 
 # clean should also run ant's clean task
 #clean-local:
