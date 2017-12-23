@@ -53,3 +53,4 @@ lz4.jar
 ochafik-swing.jar
 org.osgi.core.jar
 rococoa-core.jar
+*.jar

@@ -11,6 +11,16 @@ AM_CFLAGS = -I$(top_srcdir)/include @GPROM_CFLAGS@
 if JAVABINDING
 SUBDIRS = include src test javatest doc
 TESTS = blackboxtests/runtests.sh
+
+ANTUTILS_MODULE=$(top_builddir)/antutils/ant-common.xml
+
+all-local: $(ANTUTILS_MODULE)
+
+$(ANTUTILS_MODULE):
+	if [ ! -f $(ANTUTILS_MODULE) ]; then \
+		git submodule init && git submodule update && git submodule status; \ 
+	fi
+
 else
 SUBDIRS = include src test doc
 endif
