@@ -33,6 +33,7 @@
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "execution/executor.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "utility/string_utils.h"
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
@@ -44,7 +45,7 @@ static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
 static List *summOpts = NIL;
-
+static char *qType = NULL;
 
 int
 initBasicModules (void)
@@ -479,30 +480,8 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 //	    }
 
         // rewrite for summarization
-		if (summOpts != NIL)
-		{
-//			if (isA(rewrittenTree, List))
-//			{
-//				// store as a hashmap to send to the summarization
-//				List *transResults = (List *) rewrittenTree;
-//				HashMap *summInputs = NEW_MAP(Constant,Node);
-//				int i = 0;
-//
-//				FOREACH(Node,n,transResults)
-//				{
-//					if (i == 0)
-//						MAP_ADD_STRING_KEY(summInputs, "summAns", n);
-//					if (i == 1)
-//						MAP_ADD_STRING_KEY(summInputs, "move", n);
-//
-//					i++;
-//				}
-//
-//				rewrittenTree = (Node *) summInputs;
-//			}
-
-			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts);
-		}
+		if (summOpts != NIL && qType != NULL)
+			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts, qType);
 
 	    if(applyOptimizations)
 	    {
@@ -546,6 +525,8 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     	if (ps->sumOpts != NIL)
     		FOREACH(Node,n,ps->sumOpts)
     			summOpts = appendToTailOfList(summOpts,n);
+
+    	qType = "WHY";
     }
     // summarization options for DL input
     else
@@ -555,6 +536,22 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     	if (p->sumOpts != NIL)
     		FOREACH(Node,n,p->sumOpts)
 				summOpts = appendToTailOfList(summOpts,n);
+
+    	// either why or why-not
+    	FOREACH(Node,n,p->rules)
+    	{
+    		if(isA(n,KeyValue))
+    		{
+    			KeyValue *kv = (KeyValue *) n;
+    			qType = STRING_VALUE(kv->key);
+
+    			if(isPrefix(qType,"WHYNOT_"))
+    				qType = "WHYNOT";
+    			else
+    				qType = "WHY";
+    		}
+    	}
+
     }
 
     START_TIMER("translation");

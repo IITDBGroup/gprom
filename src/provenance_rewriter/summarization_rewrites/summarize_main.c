@@ -70,7 +70,7 @@ static Node *integrateWithEdgeRel (Node *topkInput, Node *moveRels);
 
 
 Node *
-rewriteSummaryOutput (Node *rewrittenTree, List *summOpts)
+rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 {
 	// options for summarization
 	char *summaryType = NULL;
@@ -129,24 +129,30 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts)
 	Node *result, *provJoin, *randomProv, *randomNonProv, *samples, *patterns,
 		*scanSamples, *candidates, *scaleUp, *computeFrac, *fMeasure;
 
-	if (userQuestion != NIL)
-		rewrittenTree = rewriteUserQuestion(userQuestion, rewrittenTree);
+	if(streq(qType,"WHY"))
+	{
+		if (userQuestion != NIL)
+			rewrittenTree = rewriteUserQuestion(userQuestion, rewrittenTree);
 
-	provJoin = rewriteProvJoinOutput(rewrittenTree);
-	randomProv = rewriteRandomProvTuples(provJoin);
-	randomNonProv = rewriteRandomNonProvTuples(provJoin);
-	samples = rewriteSampleOutput(randomProv, randomNonProv, sampleSize);
-	patterns = rewritePatternOutput(summaryType, samples, randomProv); //TODO: different types of pattern generation
-	scanSamples = rewriteScanSampleOutput(samples, patterns);
-	candidates = rewriteCandidateOutput(scanSamples);
-	doms = domAttrsOutput(userQuestion, rewrittenTree);
-	scaleUp = scaleUpOutput(doms, candidates, provJoin, randomProv, randomNonProv);
-	computeFrac = rewriteComputeFracOutput(scaleUp, samples);
-	fMeasure = rewritefMeasureOutput(computeFrac, userQuestion);
-	result = rewriteTopkExplOutput(fMeasure, topK);
+		provJoin = rewriteProvJoinOutput(rewrittenTree);
+		randomProv = rewriteRandomProvTuples(provJoin);
+		randomNonProv = rewriteRandomNonProvTuples(provJoin);
+		samples = rewriteSampleOutput(randomProv, randomNonProv, sampleSize);
+		patterns = rewritePatternOutput(summaryType, samples, randomProv); //TODO: different types of pattern generation
+		scanSamples = rewriteScanSampleOutput(samples, patterns);
+		candidates = rewriteCandidateOutput(scanSamples);
+		doms = domAttrsOutput(userQuestion, rewrittenTree);
+		scaleUp = scaleUpOutput(doms, candidates, provJoin, randomProv, randomNonProv);
+		computeFrac = rewriteComputeFracOutput(scaleUp, samples);
+		fMeasure = rewritefMeasureOutput(computeFrac, userQuestion);
+		result = rewriteTopkExplOutput(fMeasure, topK);
 
-	if (moveRels != NULL)
-		result = integrateWithEdgeRel(result, moveRels);
+		if (moveRels != NULL)
+			result = integrateWithEdgeRel(result, moveRels);
+	}
+	else if(streq(qType,"WHYNOT"))
+		INFO_OP_LOG("WHYNOT summary has not implemented yet!!");
+
 
 	if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
 		ASSERT(checkModel((QueryOperator *) result));

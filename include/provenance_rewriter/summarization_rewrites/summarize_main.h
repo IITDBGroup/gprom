@@ -17,5 +17,5 @@
 
 #include "model/query_operator/query_operator.h"
 
-extern Node *rewriteSummaryOutput (Node *rewrittenTree, List *summOpts);
-//extern Node *rewriteProvJoinOutput (Node *rewrittenTree);
+extern Node *rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType);
+
