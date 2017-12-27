@@ -73,6 +73,7 @@ Node *
 rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 {
 	// options for summarization
+//	List *fPattern = NIL;
 	char *summaryType = NULL;
 	int sampleSize = 0;
 	int topK = 0;
@@ -87,6 +88,9 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 
 				if(streq(STRING_VALUE(kv->key),"topk"))
 					topK = INT_VALUE(kv->value);
+
+//				if(streq(qType,"WHYNOT") && streq(STRING_VALUE(kv->key),"fpattern"))
+//					fPattern = copyObject((List *) kv->value);
 
 				if(streq(STRING_VALUE(kv->key),"sumtype"))
 					summaryType = STRING_VALUE(kv->value);

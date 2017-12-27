@@ -57,7 +57,7 @@ Node *dlParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS 
-%token <stringVal> TOP SUMMARIZED BY WITH SAMPLE
+%token <stringVal> TOP FOR FAILURE SUMMARIZED BY WITH SAMPLE
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -88,6 +88,7 @@ Node *dlParseResult = NULL;
 
 %type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement associateDomain
 %type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType
+%type <node> optionalFPattern intConstList
 %type <list> bodyAtomList argList exprList rulebody summarizationStatement
 %type <stringVal> optProvFormat 
 
@@ -186,6 +187,7 @@ optProvSummarize:
 summarizationStatement:
 		/* EMPTY */ { $$ = NIL; }
 		| optionalTopK optionalSumType optionalSumSample { $$ = LIST_MAKE($1,$2,$3); }
+		| optionalTopK optionalFPattern optionalSumType optionalSumSample { $$ = LIST_MAKE($1,$2,$3,$4); }
 /*
 		| FOR TOP intConst SUMMARIZED BY name WITH SAMPLE '(' intConst ')' '.'
 		{
@@ -206,6 +208,29 @@ optionalTopK:
 		}
     ;
 
+
+optionalFPattern:
+		FOR FAILURE OF '(' intConstList ')' 
+		{ 
+			RULELOG("optionalFPattern::intConstList");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString("fpattern"),(Node *) $5);
+		}
+    ;
+    
+    
+intConstList:
+		intConst
+		{
+			RULELOG("intConst");
+			$$ = singleton(createConstInt($1));
+		}
+		| intConstList ',' intConst
+		{
+			RULELOG("intConstList::intConst");
+			$$ = appendToTailOfList($1,createConstInt($3));
+		}
+	;  
+    
 
 optionalSumType:
 		SUMMARIZED BY name 

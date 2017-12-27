@@ -2553,6 +2553,26 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			DL_SET_BOOL_PROP(a,DL_ORIGINAL_RULE);
 	}
 
+	// for summarization, check whether the length of failure pattern is equal to the number of rule body atom
+	FOREACH(DLRule,r,solvedProgram->rules)
+	{
+	    if(INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
+	    {
+	        if(solvedProgram->sumOpts != NIL)
+	        {
+	        	FOREACH(KeyValue, kv, solvedProgram->sumOpts)
+	    		{
+	        		if(streq(STRING_VALUE(kv->key),"fpattern"))
+	        		{
+	        			List *fPattern = (List *) kv->value;
+	        			if(LIST_LENGTH(fPattern) > LIST_LENGTH(r->body))
+	        				FATAL_LOG("the number of goals in the rule is less than "
+	        						"the failure pattern assigned for summarization");
+	        		}
+	    		}
+	        }
+	    }
+	}
 
 	/*
 	 * For whynot question, rewrite technique to create firing rule vary this point up to create firing rules for EDB.
@@ -4470,7 +4490,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 		if (ruleWon)
 			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, helpRules, unLinkedRules, newRules);
 		else
-			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, negedbRules, edbRules, helpRules, unLinkedRules, unLinkedHelpRules, newRules);
+			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, negedbRules, edbRules, helpRules, unLinkedRules,
+										unLinkedHelpRules, newRules);
 	}
 	else
 	{
@@ -4481,9 +4502,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 		if (ruleWon)
 			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, unLinkedRules, newRules, origDLrules);
 		else
-			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, negedbRules, edbRules, unLinkedRules, unLinkedHelpRules, newRules, origDLrules);
+			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, negedbRules, edbRules, helpRules, unLinkedRules,
+										unLinkedHelpRules, newRules, origDLrules);
 	}
-
 
     INFO_LOG("gp program is:\n%s", datalogToOverviewString((Node *) solvedProgram));
 
