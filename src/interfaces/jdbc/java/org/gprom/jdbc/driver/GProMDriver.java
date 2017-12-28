@@ -15,6 +15,7 @@ import org.gprom.jdbc.backends.BackendInfo;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMJavaInterface.ConnectionParam;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin;
+import org.gprom.jdbc.jna.GProMNativeLibraryLoader;
 import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.metadata_lookup.oracle.OracleMetadataLookup;
 import org.gprom.jdbc.metadata_lookup.postgres.PostgresMetadataLookup;
@@ -34,7 +35,7 @@ public class GProMDriver implements Driver {
 	
 	
 	protected Driver driver;
-	private GProMWrapper w;
+	private GProMWrapper w = null;
 	
 	/*
 	private static final int MAJOR_VERSION = 0;
@@ -43,7 +44,6 @@ public class GProMDriver implements Driver {
 	private static final int CURRENT_VERSION = 1;
 	 */
 	public GProMDriver() {
-		w = GProMWrapper.inst;
 	}
 
 	public boolean acceptsURL(String url) throws SQLException {
@@ -56,7 +56,7 @@ public class GProMDriver implements Driver {
 	}
 
 	public GProMConnectionInterface connect (String url, Properties info)
-			throws SQLException {
+			throws SQLException {		
 		// if the given URL could no be handled by the driver return null.
 		if (!acceptsURL(url))
 			return null;
@@ -68,6 +68,16 @@ public class GProMDriver implements Driver {
 		/** should we use a Java JDBC based metadata lookup plugin */		
 		boolean useJDBCMetadataLookup = Boolean.parseBoolean(GProMDriverProperties.getValueOrDefault(
 				GProMDriverProperties.JDBC_METADATA_LOOKUP, info));
+		
+		/*
+		 * load native library if we haven't done this
+		 */
+		try {
+			GProMNativeLibraryLoader.inst.loadLibrary();
+			w = GProMWrapper.inst;
+		} catch (Exception e) {
+			throw new SQLException(e);
+		}
 		
 		/*
 		 * Load the driver to connect to the database and create a new

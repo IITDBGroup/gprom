@@ -33,8 +33,7 @@ public class GProMJDBCTest {
 	static Logger log = LogManager.getLogger(GProMJDBCTest.class);
 	
 	public static void main (String[] args) throws Exception {
-		
-		//PropertyConfigurator.configureAndWatch("blackboxtests/log4jtest.properties");
+		PropertyConfigurator.configureAndWatch("blackboxtests/log4jtest.properties");
 		String driverURL = "oracle.jdbc.OracleDriver";
 //		String driverURL = "org.postgresql.Driver";
 //		String url = "jdbc:hsqldb:file:/Users/alex/db/mydb";
@@ -115,7 +114,7 @@ public class GProMJDBCTest {
 		try {
 //			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
 			System.out.println("***************");
-			for(int i = 0; i < 100; i++) {
+			for(int i = 0; i < 3; i++) {
 				rs = gSt.executeQuery("SELECT * FROM r WHERE a < " + i + ";");
 				printResult(rs);
 				rs = st.executeQuery("SELECT   A.VALUE   "

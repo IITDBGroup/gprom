@@ -48,22 +48,24 @@
 	<import file="antutils/ant-common.xml" />
 	
 	<!-- special files -->
-	<property name="conffile" value="${dir.library}/GProMDriver.properties" />
-	<property name="log4jconffile" value="${dir.library}/log4j.properties" />
+	
+	<property name="conffile.name" value="GProMDriver.properties" />
+	<property name="log4jconffile.name" value="log4j.properties" />
+	<property name="conffile" value="${dir.library}/${conffile.name}" />
+	<property name="log4jconffile" value="${dir.library}/${log4jconffile.name}" />
+	
 	<property name="ivyfile.test" value="${dir.buildresource}/ivy-test.xml" />
 	
 	<!-- GProM c-library -->
 	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.dylib" />
-	<property name="gpromlib.darwin.bin" value="${dir.bin}/darwin/libgprom.dylib" />
+	<property name="gpromlib.darwin.bin" value="${dir.bin}/darwin64/libgprom.dylib" />
 	<property name="gpromlib.darwin" value="${dir.build}/libgprom.jnilib" />	
 	
 	<property name="gpromlib.linux.src" value="${basedir}/src/libgprom/.libs/libgprom.so.0" />
-	<property name="gpromlib.linux.bin" value="${dir.bin}/unix/libgprom.so.0" />
+	<property name="gpromlib.linux.bin" value="${dir.bin}/linux64/libgprom.so.0" />
 	<property name="gpromlib.linux" value="${dir.build}/libgprom.so" />
 	
-	<property name="antlibdir" value="${basedir}/ant" />
-	<!--	<import file="${antlibdir}/one-jar-ant-task.xml"/>-->   
-		
+	<property name="antlibdir" value="${basedir}/ant" />   
 	
 	<!-- TARGETS -->	
 	<!-- download dependencies with ivy -->
@@ -87,62 +89,7 @@
 				pathname="${classpath.name.test}" 
 				pathnamejar="${classpath.name.test}.jar"/>
 	</target>
-	
-	<!--		<target name="download-dependencies-old" >
-	 <ivy:settings file="${basedir}/ivysettings.xml"/>
-		 <ivy:resolve />
-		 <ivy:retrieve sync="false" type="jar" pattern="${dir.library}/[artifact].[ext]" />
-		
-	     <move todir="${antlibdir}">
-			<fileset dir="${dir.library}">
-		      <include name="ant*.jar"/>
-		    </fileset>
-		</move>
-		
-	     <move todir="${dir.testlib}">
-			<fileset dir="${dir.library}">
-		      <include name="xerces*.jar"/>
-		      <include name="xml*.jar"/>
-		      <include name="slf4j*.jar"/>
-			  <include name="junit.jar" />
-		    </fileset>
-		</move>
-		<copy todir="${dir.testlib}">
-			<fileset dir="${dir.library}">
-				<include name="log4j-api.jar"/>
-				<include name="log4j-core.jar"/>
-				<include name="postgresql.jar"/>
-				<include name="mysql-connector-java.jar"/>
-				<include name="junit.jar"/>
-				<include name="jna.jar"/>
-				<include name="stringtemplate.jar"/>
-			</fileset>
-		</copy>
-	
-		<path id="classpath">
-			<fileset dir="${dir.library}"/>
-		</path>
-		<path id="testclasspath">
-			<fileset dir="${dir.testlib}"/>
-		</path>
-		<pathconvert property="jarClasspath" pathsep="    ">
-			<path>
-				<fileset dir="${dir.library}">
-					<exclude name="ant*.jar" />
-					<exclude name="ivy.jar" />
-				</fileset>
-			</path>
-			<mapper>
-				<chainedmapper>
-					<flattenmapper/>
-					<globmapper from="*.jar" to="lib/*.jar" casesensitive="no"/>
-				</chainedmapper>
-			</mapper>
-		</pathconvert>
-		<property name="fullJarClasspath" value="${jarClasspath}   resource/    lib/" />
-		<echo message="${fullJarClasspath}" />
-	</target>
--->
+
 	<target name="setup-additional-anttasks" 
 			depends="download-dependencies">
 		<taskdef resource="net/sf/antcontrib/antcontrib.properties"
@@ -203,19 +150,24 @@
 			<fileset dir="${dir.library}" />
 		</copy>
 		<copy file="${gpromlib}" tofile="${gpromlib.bin}" />
-		<copy file="${conffile}" tofile="${dir.bin}/GPRoMDriver.properties" />
+	<!--	<copy file="${conffile}" tofile="${dir.bin}/GPRoMDriver.properties" /> -->
 		<javac srcdir="${dir.source}" 
 				destdir="${dir.bin}"  
 				debug="on" 
 			    fork="true" 
 			    includeantruntime="false"
 				verbose="true">
-			<classpath refid="classpath"/>
+			<classpath refid="${classpath.name.bin}"/>
 			<compilerarg value="-Xlint:unchecked" />		
 		</javac>
+		
+		<fileset id="fat.jar.resources" 
+				dir="${dir.library}" 
+				includes="${conffile.name},${log4jconffile.name}">
+		</fileset>
 	</target>
 	
-	<target name="compile.tests" 
+	<target name="compile-tests" 
 			depends="compile"
 			description="compile automated GProM tests Java files">
 		
@@ -225,14 +177,64 @@
 		</javac>
 	</target>
 	
+	<!-- convenience task for compiliation without library dependency checking -->
+	<target name="jar-only" depends="mkdirs-and-setup-props">
+		<classpath-from-dir dir="${dir.buildlib}" 
+				pathname="${classpath.name.build}" 
+				pathnamejar="${classpath.name.build}.jar"/>
+		<classpath-from-dir dir="${dir.library}" 
+				pathname="${classpath.name.bin}" 
+				pathnamejar="${classpath.name.bin}.jar"/>
+		<classpath-from-dir dir="${dir.testlib}" 
+				pathname="${classpath.name.test}" 
+				pathnamejar="${classpath.name.test}.jar"/>
+		<fileset id="fat.jar.resources" 
+				dir="${dir.library}" 
+				includes="${conffile.name},${log4jconffile.name}">
+		</fileset>
+		<javac srcdir="${dir.source}" 
+				destdir="${dir.bin}"  
+				debug="on" 
+			    fork="true" 
+			    includeantruntime="false"
+				verbose="true">
+			<classpath refid="${classpath.name.bin}"/>
+			<compilerarg value="-Xlint:unchecked" />		
+		</javac>
+		<javac srcdir="${dir.testsource}" destdir="${dir.bin}" debug="on" fork="true" includeantruntime="false" verbose="true">
+			<classpath refid="${classpath.name.test}"/>
+			<compilerarg value="-Xlint:unchecked" />
+		</javac>
+		<jar destfile="${jar.bin}"  update="true">
+				<manifest>
+					<attribute name="Main-Class" value="${mainclass}" />
+					<attribute name="Created-By" value="${jarcreator}" />
+					<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" />
+				</manifest>
+				<service type="java.sql.Driver"
+			           provider="org.gprom.jdbc.driver.GProMDriver"/>
+				<fileset refid="fat.jar.resources" />
+				<fileset dir="${dir.bin}" />
+			</jar>
+	</target>
+	
 	<!-- generate a simple jar file for the jdbc driver that does not include referrenced jars and the GProM C-library -->
 	<target name="jar" 
-			depends="compile"
+			depends="compile,compile-tests"
 			description="create Jar file">
 		
 		<echo message="${classpath.bin.jar}" />
-		<create-jar 
-			classpath="${classpath.bin.jar} resource/ lib/"/>
+		<jar destfile="${jar.bin}"  update="true">
+			<manifest>
+				<attribute name="Main-Class" value="${mainclass}" />
+				<attribute name="Created-By" value="${jarcreator}" />
+				<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" />
+			</manifest>
+			<service type="java.sql.Driver"
+		           provider="org.gprom.jdbc.driver.GProMDriver"/>
+			<fileset refid="fat.jar.resources" />
+			<fileset dir="${dir.bin}" />
+		</jar>
 	</target>
 	
 	<!-- generate one combine "fat" jar file that contains all java libraries and native libaries (the GProM application) --> 
@@ -240,27 +242,54 @@
 			depends="compile"
 			description="generate a fat jar containing all deps">
 		
-		<create-onejar 
-			adddirs="${conffile},${log4jconffile}" 
-			binlib="${gpromlib}"/>
-<!--        <delete file="${gpromJar.selfContained}"/>
-        <one-jar destfile="${gpromJar.selfContained}">
+		<echo message="build jar for ${os.type} using library ${gpromlib}" />
+		
+		<print-fileset filesetid="fat.jar.resources" />
+		
+		<!-- define onejar anttask -->
+	    <define-task 
+	    		name="one-jar" 
+		    	classname="com.simontuffs.onejar.ant.OneJarTask" 
+		    	classpathref="${classpath.name.build}" />  
+		
+		<one-jar destfile="${jar.bin.fat}">
             <manifest>
-				<attribute name="Created-By" value="Illinois Institute of Technology, Department for Computer Science, DBGroup" />
-    	        		<attribute name="One-Jar-Main-Class" value="org.gprom.jdbc.test.GProMJDBCTest" />
-            		<attribute name="Class-Path" value="${fullJarClasspath}" />
+				<attribute name="Created-By" value="${jarcreator}" />
+    	        		<attribute name="One-Jar-Main-Class" value="${mainclass}" />
+            		<attribute name="Class-Path" value="${classpath.bin.jar}" />
             </manifest>
             <main>
-                <fileset dir="${dir.bin}/"/>
+            		<fileset refid="fat.jar.resources" />
+                <fileset dir="${dir.bin}"/>
             </main>
-            <lib>
+			<service type="java.sql.Driver"
+		           provider="org.gprom.jdbc.driver.GProMDriver"/>
+			<lib>
                 <fileset file="${dir.library}/*.jar" />
             </lib>
-        	<binlib>
-        		<fileset file="${gpromlib}" />
-        	</binlib>
-        	<fileset file="${conffile}" />
-        	<fileset file="${log4jconffile}" />
-        </one-jar> --> 
+	    		<binlib>
+	    			<fileset file="${gpromlib}" />
+	    		</binlib>
+		</one-jar> 
+		
+<!--		<create-onejar 
+			basedir="${dir.library}"
+			resourcefileset="fat.jar.resources" 
+			binlib="${gpromlib}"/> -->
+	</target>
+	
+	<target name="mm">
+		<fileset id="fat.jar.resources" 
+					dir="${dir.library}" 
+					includes="${conffile.name},${log4jconffile.name}">
+			</fileset>
+		   <print-fileset filesetid="fat.jar.resources" />
+
+		    <!-- Format path -->
+		    <pathconvert pathsep="${line.separator}|   |-- "
+		    		property="outpu"
+		        refid="additional.resources">
+		    </pathconvert>
+			<echo message="${outpu}" />
 	</target>
 </project>
