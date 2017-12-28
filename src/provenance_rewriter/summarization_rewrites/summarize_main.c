@@ -703,6 +703,7 @@ domAttrsOutput (List *userQuestion, Node *input)
 	int relCount = 0;
 	char *relName = NULL;
 	AggregationOperator *aggCount;
+	HashMap *existAttr = NEW_MAP(Constant,Constant);
 
 	FOREACH(TableAccessOperator, t, rels)
 	{
@@ -748,20 +749,25 @@ domAttrsOutput (List *userQuestion, Node *input)
 
 				if(!searchListNode(userQuestion, (Node *) ar))
 				{
-					// create count attr
-					AttributeReference *countAr = createFullAttrReference(strdup(ar->name), 0, ar->attrPosition - attrCount, 0, DT_INT);
-					FunctionCall *fcCount = createFunctionCall("COUNT", singleton(countAr));
-					fcCount->isAgg = TRUE;
+					int existAttrCnt = MAP_INCR_STRING_KEY(existAttr,a->attrName);
 
-					// create agg operator
-					char *domAttr = CONCAT_STRINGS("cnt",ar->name);
-					aggCount = createAggregationOp(singleton(fcCount), NIL, (QueryOperator *) t, NIL, singleton(strdup(domAttr)));
-					SET_BOOL_STRING_PROP((Node *) aggCount, PROP_MATERIALIZE);
+					if(existAttrCnt == 0)
+					{
+						// create count attr
+						AttributeReference *countAr = createFullAttrReference(strdup(ar->name), 0, ar->attrPosition - attrCount, 0, DT_INT);
+						FunctionCall *fcCount = createFunctionCall("COUNT", singleton(countAr));
+						fcCount->isAgg = TRUE;
 
-					DEBUG_NODE_BEATIFY_LOG("dom attrs for summarization:", (Node *) aggCount);
-					INFO_OP_LOG("dom attrs for summarization as overview:", (Node *) aggCount);
+						// create agg operator
+						char *domAttr = CONCAT_STRINGS("cnt",ar->name);
+						aggCount = createAggregationOp(singleton(fcCount), NIL, (QueryOperator *) t, NIL, singleton(strdup(domAttr)));
+						SET_BOOL_STRING_PROP((Node *) aggCount, PROP_MATERIALIZE);
 
-					result = appendToTailOfList(result, (Node *) aggCount);
+						DEBUG_NODE_BEATIFY_LOG("dom attrs for summarization:", (Node *) aggCount);
+						INFO_OP_LOG("dom attrs for summarization as overview:", (Node *) aggCount);
+
+						result = appendToTailOfList(result, (Node *) aggCount);
+					}
 				}
 				attrCount++;
 			}
