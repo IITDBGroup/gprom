@@ -144,6 +144,63 @@ analyzeDLProgram (DLProgram *p)
     p->facts = facts;
     p->doms = doms;
 
+    /* for summarization, check whether
+     * 1) the length of failure pattern is equal to the number of rule body atom
+     * 2) the failure pattern is assigned with why question
+     */
+    if(p->sumOpts != NIL)
+    {
+		int fpLeng = 0;
+		boolean isFpattern = FALSE;
+		HashMap *hm = p->n.properties;
+
+		// check failure pattern assigned and if so then capture the length of the pattern
+		FOREACH(KeyValue,kv,p->sumOpts)
+		{
+			if(streq(STRING_VALUE(kv->key),"fpattern"))
+			{
+				isFpattern = TRUE;
+				fpLeng = LIST_LENGTH((List *) kv->value);
+			}
+		}
+
+    	// failure pattern assigned with why question
+        if(isFpattern && hasMapStringKey(hm,"WHY_PROV"))
+        	FATAL_LOG("no failure can happen with WHY question");
+
+        // no failure pattern assigned with whynot question
+        if(!isFpattern && hasMapStringKey(hm,"WHYNOT_PROV"))
+        	FATAL_LOG("failure pattern must be assigned with WHYNOT question for summarization");
+
+        // the length of failure pattern must be equal to the number of body atoms
+        char *ansPred = NULL;
+        int bodyLeng = 0;
+
+		if(hasMapStringKey(hm,"WHYNOT_PROV") && isFpattern)
+		{
+			ansPred = (char *) getMapString(hm,"WHYNOT_PROV");
+
+	        FOREACH(Node,r,p->rules)
+	        {
+	        	if(isA(r,DLRule))
+				{
+	        		DLRule *eachR = (DLRule *) r;
+					char *headPred = getHeadPredName(eachR);
+
+					if(streq(headPred,ansPred))
+						bodyLeng = LIST_LENGTH(eachR->body);
+				}
+	        }
+
+	        if(fpLeng > bodyLeng)
+	        	FATAL_LOG("the failure pattern is longer than the rule body");
+
+	        if(fpLeng < bodyLeng)
+	        	FATAL_LOG("the failure pattern is less than the rule body");
+		}
+    }
+
+
 //    // check that answer relation exists
 //    if (p->ans)
 //    {

@@ -2553,26 +2553,31 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			DL_SET_BOOL_PROP(a,DL_ORIGINAL_RULE);
 	}
 
-	// for summarization, check whether the length of failure pattern is equal to the number of rule body atom
-	FOREACH(DLRule,r,solvedProgram->rules)
-	{
-	    if(INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
-	    {
-	        if(solvedProgram->sumOpts != NIL)
-	        {
-	        	FOREACH(KeyValue, kv, solvedProgram->sumOpts)
-	    		{
-	        		if(streq(STRING_VALUE(kv->key),"fpattern"))
-	        		{
-	        			List *fPattern = (List *) kv->value;
-	        			if(LIST_LENGTH(fPattern) > LIST_LENGTH(r->body))
-	        				FATAL_LOG("the number of goals in the rule is less than "
-	        						"the failure pattern assigned for summarization");
-	        		}
-	    		}
-	        }
-	    }
-	}
+//	// for summarization, check whether the length of failure pattern is equal to the number of rule body atom
+//	FOREACH(DLRule,r,solvedProgram->rules)
+//	{
+//		boolean ruleWon = DL_HAS_PROP(r,DL_WON)
+//							   || DL_HAS_PROP(r,DL_UNDER_NEG_WON);
+//
+//	    if(INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0 && solvedProgram->sumOpts != NIL)
+//	    {
+//			FOREACH(KeyValue,kv,solvedProgram->sumOpts)
+//			{
+//				if(streq(STRING_VALUE(kv->key),"fpattern"))
+//				{
+//					if(!ruleWon)
+//					{
+//						List *fPattern = (List *) kv->value;
+//						if(LIST_LENGTH(fPattern) > LIST_LENGTH(r->body))
+//							FATAL_LOG("the number of goals in the rule is less than "
+//									"the failure pattern assigned for summarization");
+//					}
+//					else
+//						FATAL_LOG("no failure can exist with WHY question");
+//				}
+//			}
+//		}
+//	}
 
 	/*
 	 * For whynot question, rewrite technique to create firing rule vary this point up to create firing rules for EDB.
