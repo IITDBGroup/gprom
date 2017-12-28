@@ -97,6 +97,17 @@ createBottomUpGPprogram (DLProgram *p)
 {
     DEBUG_NODE_BEATIFY_LOG("create GP bottom up program for:",p);
     INFO_DL_LOG("create GP bottom up program for:",p);
+
+    // store original input rule for summarization process
+    if (p->sumOpts != NIL)
+    {
+    	FOREACH(DLRule,or,p->rules)
+		{
+//    		DLRule *copyOr = copyObject(or);
+    		origDLrules = appendToTailOfList(origDLrules, copyObject(or));
+		}
+    }
+
     // why provenance
     if(DL_HAS_PROP(p,DL_PROV_WHY))
     {
@@ -155,23 +166,6 @@ createWhyGPprogram (DLProgram *p, DLAtom *why)
 		INFO_DL_LOG("create new GP bottom up program for:", p);
 		DEBUG_LOG("Associated Domain:\n%s", datalogToOverviewString((Node *) domainRules));
 	}
-
-    // store original input rule for summarization process
-    if (p->sumOpts != NIL)
-    {
-//    	List *newOrigHeadArgs = NIL;
-    	FOREACH(DLRule,or,p->rules)
-		{
-    		DLRule *copyOr = copyObject(or);
-
-//    		FOREACH(DLAtom,ob,copyOr->body)
-//        		FOREACH(DLVar,n,ob->args)
-//					newOrigHeadArgs = appendToTailOfList(newOrigHeadArgs, n);
-
-//    		copyOr->head->args = newOrigHeadArgs;
-    		origDLrules = appendToTailOfList(origDLrules, copyOr);
-		}
-    }
 
     enumerateRules (p);
     solvedProgram = copyObject(p);

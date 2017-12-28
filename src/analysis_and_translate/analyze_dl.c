@@ -178,7 +178,8 @@ analyzeDLProgram (DLProgram *p)
 
 		if(hasMapStringKey(hm,"WHYNOT_PROV") && isFpattern)
 		{
-			ansPred = (char *) getMapString(hm,"WHYNOT_PROV");
+			DLAtom *ansAtom = (DLAtom *) getMapString(hm,"WHYNOT_PROV");
+			ansPred = (char *) ansAtom->rel;
 
 	        FOREACH(Node,r,p->rules)
 	        {

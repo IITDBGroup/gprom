@@ -44,14 +44,7 @@
 #define SAMP_NUM_L_ATTR SAMP_NUM_PREFIX "Left"
 #define SAMP_NUM_R_ATTR SAMP_NUM_PREFIX "Right"
 
-static List *provAttrs = NIL;
-static List *normAttrs = NIL;
-static List *userQuestion = NIL;
 static List *domAttrsOutput (List *userQuestion, Node *sampleInput);
-
-static Node *moveRels = NULL;
-static boolean isDl = FALSE;
-
 //static int *computeSampleSize (int *samplePerc, Node *prov);
 
 static Node *rewriteUserQuestion (List *userQ, Node *rewrittenTree);
@@ -67,6 +60,13 @@ static Node *rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput)
 static Node *rewritefMeasureOutput (Node *computeFracInput, List *userQuestion);
 static Node *rewriteTopkExplOutput (Node *fMeasureInput, int topK);
 static Node *integrateWithEdgeRel (Node *topkInput, Node *moveRels);
+
+static List *provAttrs = NIL;
+static List *normAttrs = NIL;
+static List *userQuestion = NIL;
+static Node *moveRels = NULL;
+static boolean isDl = FALSE;
+static boolean isWhyNot = FALSE;
 
 
 Node *
@@ -89,8 +89,11 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 				if(streq(STRING_VALUE(kv->key),"topk"))
 					topK = INT_VALUE(kv->value);
 
-//				if(streq(qType,"WHYNOT") && streq(STRING_VALUE(kv->key),"fpattern"))
+				if(streq(qType,"WHYNOT") && streq(STRING_VALUE(kv->key),"fpattern"))
+				{
 //					fPattern = copyObject((List *) kv->value);
+					isWhyNot = TRUE;
+				}
 
 				if(streq(STRING_VALUE(kv->key),"sumtype"))
 					summaryType = STRING_VALUE(kv->value);
@@ -155,7 +158,11 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 			result = integrateWithEdgeRel(result, moveRels);
 	}
 	else if(streq(qType,"WHYNOT"))
-		INFO_OP_LOG("WHYNOT summary has not implemented yet!!");
+	{
+		doms = domAttrsOutput(userQuestion, rewrittenTree);
+		result = (Node *) doms;
+		INFO_OP_LOG("WHYNOT summary has not fully implemented yet!!");
+	}
 
 
 	if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
@@ -702,7 +709,6 @@ domAttrsOutput (List *userQuestion, Node *input)
 	int attrCount = 0;
 	int relCount = 0;
 	char *relName = NULL;
-	AggregationOperator *aggCount;
 	HashMap *existAttr = NEW_MAP(Constant,Constant);
 
 	FOREACH(TableAccessOperator, t, rels)
@@ -749,24 +755,34 @@ domAttrsOutput (List *userQuestion, Node *input)
 
 				if(!searchListNode(userQuestion, (Node *) ar))
 				{
+					// create attr domains only once
 					int existAttrCnt = MAP_INCR_STRING_KEY(existAttr,a->attrName);
 
 					if(existAttrCnt == 0)
 					{
-						// create count attr
-						AttributeReference *countAr = createFullAttrReference(strdup(ar->name), 0, ar->attrPosition - attrCount, 0, DT_INT);
-						FunctionCall *fcCount = createFunctionCall("COUNT", singleton(countAr));
-						fcCount->isAgg = TRUE;
+						// count for why
+						if(!isWhyNot)
+						{
+							// create count attr
+							AttributeReference *countAr = createFullAttrReference(strdup(ar->name), 0, ar->attrPosition - attrCount, 0, DT_INT);
+							FunctionCall *fcCount = createFunctionCall("COUNT", singleton(countAr));
+							fcCount->isAgg = TRUE;
 
-						// create agg operator
-						char *domAttr = CONCAT_STRINGS("cnt",ar->name);
-						aggCount = createAggregationOp(singleton(fcCount), NIL, (QueryOperator *) t, NIL, singleton(strdup(domAttr)));
-						SET_BOOL_STRING_PROP((Node *) aggCount, PROP_MATERIALIZE);
+							// create agg operator
+							char *domAttr = CONCAT_STRINGS("cnt",ar->name);
+							AggregationOperator *aggCount = createAggregationOp(singleton(fcCount), NIL, (QueryOperator *) t,
+																NIL, singleton(strdup(domAttr)));
+							SET_BOOL_STRING_PROP((Node *) aggCount, PROP_MATERIALIZE);
 
-						DEBUG_NODE_BEATIFY_LOG("dom attrs for summarization:", (Node *) aggCount);
-						INFO_OP_LOG("dom attrs for summarization as overview:", (Node *) aggCount);
-
-						result = appendToTailOfList(result, (Node *) aggCount);
+							result = appendToTailOfList(result, (Node *) aggCount);
+						}
+						// random sample from attr domain for whynot
+						else
+						{
+							ProjectionOperator *projDom = createProjectionOp(singleton(ar), (QueryOperator *) t, NIL, singleton(strdup(ar->name)));
+//							SET_BOOL_STRING_PROP((Node *) projDom, PROP_MATERIALIZE);
+							result = appendToTailOfList(result, (Node *) projDom);
+						}
 					}
 				}
 				attrCount++;
@@ -774,6 +790,9 @@ domAttrsOutput (List *userQuestion, Node *input)
 		}
 		relCount++;
 	}
+
+	DEBUG_NODE_BEATIFY_LOG("dom attrs for summarization:", (Node *) result);
+	INFO_OP_LOG("dom attrs for summarization as overview:", (Node *) result);
 
 	return result;
 }

@@ -206,7 +206,7 @@ translateProgram(DLProgram *p)
             APPEND_TO_MAP_VALUE_LIST(predToRules,headPred,r);
 
             // store orig head pred
-            if (!isSubstr(headPred,"_"))
+            if (!isSubstr(headPred,"_") && !streq(headPred,"DQ"))
             	origHeadPred = headPred;
 
     //        // not first rule for this pred
