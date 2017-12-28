@@ -74,7 +74,7 @@ public class GProMJDBCTest {
 		try{
 			log.error("made it this far");
 			Properties info = new Properties();
-			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "TRUE");
+			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP_NAME, "TRUE");
 			info.setProperty("user", username);
 			info.setProperty("password", password);
 			log.error("made it this far");

@@ -20,22 +20,22 @@
 	<property name="artifactId" value="gprom-blackbox-tests" />
 	
 	<!-- directories -->
-	<property name="dir.source" value="${projectroot}/javatest" />
-	<property name="dir.bin" value="${projectroot}/javabin" />
-	<property name="package.name" value="org.gprom.jdbc.test.autotests" />
-	<property name="dir.testsrc" value="${projectroot}/autotests" />
-	<property name="dir.testbin" value="${binarydir}/org/gprom/jdbc/test/autotests" />
-	<property name="dir.buildresource" value="${projectroot}/ant" />
-	<property name="dir.library" value="${projectroot}/javatestlib" />
-	<property name="dir.lib.main" value="${projectroot}/javalib" />
-	<property name="dir.antlib" value="${projectroot}/ant" />
 	<property name="dir.build" value="${projectroot}/build"/>
+	<property name="dir.source" value="${projectroot}/javatest" />
+	<property name="dir.bin" value="${dir.build}/javabin" />
+	<property name="dir.testsrc" value="${projectroot}/autotests" />
+	<property name="dir.testbin" value="${dir.bin}/org/gprom/jdbc/test/autotests" />
+	<property name="dir.buildresource" value="${projectroot}/ant" />
+	<property name="dir.library" value="${dir.build}/javatestlib" />
+	<property name="dir.lib.main" value="${dir.build}/javalib" />
+	<property name="dir.antlib" value="${projectroot}/ant" />
 	<property name="dir.resource" value="${projectroot}/blackboxtests"/>
 	<property name="dir.testcase" value="${dir.resource}/testcases"/>
 	<property name="jar.generator" value="${dir.library}/gprom-test-gen.jar" />
 	<property name="jar.build" value="${dir.build}/gprom-jdbc-test.jar" />
-
+	
 	<!-- Main Class and Packages-->
+	<property name="package.name" value="org.gprom.jdbc.test.autotests" />
   	<property name="mainclass" value="tresc.benchmark.iBench" />
 	<property name="jar.creator" value="Illinois Institute of Technology, Department of Computer Science, DBGroup" />
 	<property name="package" value="*" />

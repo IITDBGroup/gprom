@@ -57,8 +57,9 @@ static boolean multiLineDone = FALSE;
 
 #define GPROM_ENV_CONFFILE "GPROM_CONF"
 #define GPROM_ENV_HISTFILE "GPROM_HIST"
-
+#define BUFFER_SIZE 10000
 #define IS_UTILITY(cmd) (strStartsWith((cmd), "\\"))
+
 static boolean isInteractiveSession;
 
 static void process(char *sql);
@@ -167,7 +168,7 @@ createPromptString (void)
 static void
 inputLoop(void)
 {
-    char* sql=(char*) CALLOC(100000,1);
+    char* sql=(char*) CALLOC(BUFFER_SIZE,1);
     while(TRUE)
     {
         char *returnVal;
@@ -455,7 +456,56 @@ readConf (void)
 }
 
 
+
+/********************************************************************************/
 #ifdef HAVE_READLINE
+
+static void
+addToHistory(char *res)
+{
+    /* If the line has any text in it, save it to the history. */
+    if (res && *res)
+    {
+        if (!streq(res, "\\q"))
+            add_history (res);
+    }
+}
+
+
+
+static void
+readHistory()
+{
+    int err;
+    TRY
+    {
+        if (histExists)
+        {
+            err = read_history(gpromhist);
+            if (err != 0)
+                FATAL_LOG("error loading history");
+        }
+    }
+    END_TRY
+}
+
+static void
+persistHistory()
+{
+    TRY
+    {
+        if (gpromhist != NULL)
+        {
+            int err;
+            err = write_history(gpromhist);
+            if (err != 0)
+            {
+                FATAL_LOG("error saving history %s", strerror(err));
+            }
+        }
+    }
+    END_TRY
+}
 
 static char *
 readALine(char **str)
@@ -512,71 +562,59 @@ statementFinished(char *stmt)
     if (lastChar == ';') //TODO accept whitepsace
         return TRUE;
     return FALSE;
-
-}
-
-
-static void
-addToHistory(char *res)
-{
-    /* If the line has any text in it, save it to the history. */
-    if (res && *res)
-    {
-        if (!streq(res, "\\q"))
-            add_history (res);
-    }
-}
-
-
-
-static void
-readHistory()
-{
-    int err;
-    TRY
-    {
-        if (histExists)
-        {
-            err = read_history(gpromhist);
-            if (err != 0)
-                FATAL_LOG("error loading history");
-        }
-    }
-    END_TRY
-}
-
-static void
-persistHistory()
-{
-    TRY
-    {
-        if (gpromhist != NULL)
-        {
-            int err;
-            err = write_history(gpromhist);
-            if (err != 0)
-            {
-                FATAL_LOG("error saving history %s", strerror(err));
-            }
-        }
-    }
-    END_TRY
 }
 
 #else
+
+static char *readLine(char *buffer, size_t buflen, FILE *fp);
 
 static char *
 readALine(char **str)
 {
     printf(TB_FG_BG(WHITE,BLACK,"%s"), prompt);
     printf(" ");
-    return gets(*str);
+    addToHistory(NULL);
+    return readLine(*str, BUFFER_SIZE, stdin);
+}
+
+static char *
+readLine(char *buffer, size_t buflen, FILE *fp)
+{
+    if (fgets(buffer, buflen, fp) != 0)
+    {
+        size_t len = strlen(buffer);
+        if (len > 0 && buffer[len-1] == '\n')
+            buffer[len-1] = '\0';
+        return buffer;
+    }
+    return 0;
+}
+
+static char *
+readMultiLine (char **str)
+{
+    if (statementFinished(NULL))
+        return readALine(str);
+    multiLineDone = TRUE;
+    return NULL;
+}
+
+static void
+addToHistory(char *res)
+{
+
 }
 
 static void
 readHistory()
 {
 
+}
+
+static boolean
+statementFinished(char *stmt)
+{
+    return TRUE;
 }
 
 static void

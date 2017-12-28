@@ -33,8 +33,9 @@ endif
 # - scripts for running executables and scripts
 # - java source code and build files (ivy/ant)
 EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
-	$(top_srcdir)/ant/one-jar* \
-	$(top_srcdir)/ant/ivy.jar \
+	$(top_srcdir)/ant/dockercross/* \
+	$(top_srcdir)/ant/*.xml \
+	$(top_srcdir)/ant/*.properties \
 	$(top_srcdir)/build.xml \
 	$(top_srcdir)/ivy.xml \
 	$(top_builddir)/include \

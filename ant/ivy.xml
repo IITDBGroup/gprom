@@ -8,5 +8,6 @@
    	<dependency org="junit" name="junit" rev="4.12" />
 	<dependency org="ant-contrib" name="ant-contrib" rev="1.0b3"/>
 	<dependency org="org.apache.ant" name="ant-junit" rev="1.9.7"/>
+	<dependency org="org.apache.ant" name="ant-compress" rev="1.5"/>
  </dependencies>
 </ivy-module>

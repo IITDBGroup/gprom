@@ -7,6 +7,9 @@ import java.sql.DriverPropertyInfo;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Properties;
 
 import org.apache.logging.log4j.LogManager;
@@ -24,7 +27,7 @@ import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 /**
- * GProMDriver extends the SQL driver for adding a perm assistance
+ * GProMDriver wraps a database backends JDBC driver using libgprom to add provenance support.
  * 
  * @author lordpretzel
  * 
@@ -32,17 +35,13 @@ import org.gprom.jdbc.utility.PropertyWrapper;
 public class GProMDriver implements Driver {
 	/** logger */
 	private static Logger log = LogManager.getLogger(GProMDriver.class);
-	
-	
+
 	protected Driver driver;
 	private GProMWrapper w = null;
 	
-	/*
-	private static final int MAJOR_VERSION = 0;
-	private static final int MINOR_VERSION = 8;
-	private static final String VERSION_FLAG = "b";
-	private static final int CURRENT_VERSION = 1;
-	 */
+	private static final int MAJOR_VERSION = 1;
+	private static final int MINOR_VERSION = 0;
+	
 	public GProMDriver() {
 	}
 
@@ -56,18 +55,27 @@ public class GProMDriver implements Driver {
 	}
 
 	public GProMConnectionInterface connect (String url, Properties info)
-			throws SQLException {		
+			throws SQLException {
+		boolean loadBackendDriver;
+		boolean useJDBCMetadataLookup;
+		
 		// if the given URL could no be handled by the driver return null.
 		if (!acceptsURL(url))
 			return null;
 		log.info("creating GProM connection for {}\nwith options:\n{}", url, info);
-		/** should we load the backend driver or not */
-		boolean loadBackendDriver = Boolean.parseBoolean(GProMDriverProperties.getValueOrDefault(
-				GProMDriverProperties.LOAD_DRIVER, info)); 
-				
-		/** should we use a Java JDBC based metadata lookup plugin */		
-		boolean useJDBCMetadataLookup = Boolean.parseBoolean(GProMDriverProperties.getValueOrDefault(
-				GProMDriverProperties.JDBC_METADATA_LOOKUP, info));
+		
+		// get values of properties
+		try {
+			/** should we load the backend driver or not */
+			loadBackendDriver = GProMDriverProperties.getBoolOptionOrDefault(
+					GProMDriverProperties.LOAD_DRIVER_NAME, info); 
+					
+			/** should we use a Java JDBC based metadata lookup plugin */		
+			useJDBCMetadataLookup = GProMDriverProperties.getBoolOptionOrDefault(
+					GProMDriverProperties.JDBC_METADATA_LOOKUP_NAME, info);
+		} catch (Exception e) {
+			throw new SQLException(e);
+		}
 		
 		/*
 		 * load native library if we haven't done this
@@ -139,8 +147,8 @@ public class GProMDriver implements Driver {
 		} catch (Throwable ex) {
 			log.error("Error loading the driver and getting a connection.");
 			LoggerUtil.logException(ex, log);
-			LogManager.shutdown();
-			System.exit(2);
+//			LogManager.shutdown(); //TODO this should be dealt with be users of the driver
+//			System.exit(2);
 		}
 		return null;
 	}
@@ -148,16 +156,16 @@ public class GProMDriver implements Driver {
 	private GProMMetadataLookupPlugin getMetadataLookup (Connection con, BackendType backend) throws SQLException {
 		switch (backend)
 		{
-		case HSQL:
-			break;
-		case Oracle:
-			return new OracleMetadataLookup(con).getPlugin();
-		case Postgres:
-			return new PostgresMetadataLookup(con).getPlugin();
-		case SQLite:
-			return new SQLiteMetadataLookup(con).getPlugin();
-		default:
-			throw new SQLException("no JDBC metadata lookup for Backend " + backend.toString());
+			case HSQL:
+				break;
+			case Oracle:
+				return new OracleMetadataLookup(con).getPlugin();
+			case Postgres:
+				return new PostgresMetadataLookup(con).getPlugin();
+			case SQLite:
+				return new SQLiteMetadataLookup(con).getPlugin();
+			default:
+				throw new SQLException("no JDBC metadata lookup for Backend " + backend.toString());
 		}
 		return null;
 	}
@@ -201,32 +209,44 @@ public class GProMDriver implements Driver {
 
 	public DriverPropertyInfo[] getPropertyInfo(String url, Properties info)
 			throws SQLException {
-		if (driver == null)
-			return null;
-		return driver.getPropertyInfo(url, info);
+
+		return constructPropertyInfo(url, info);
 	}
 
+	private DriverPropertyInfo[] constructPropertyInfo(String url, Properties info) throws SQLException {
+		List<DriverPropertyInfo> infos = new ArrayList<DriverPropertyInfo> (); 
+		
+		if (driver != null) {
+			infos.addAll(Arrays.asList(driver.getPropertyInfo(url, info)));
+		}
+		infos.addAll(Arrays.asList(GProMDriverProperties.getInfos(info)));		
+		
+		return infos.toArray(new DriverPropertyInfo[0]);
+	}
+	
+	
+	
 	/**
 	 * Simply through these calls to the backend driver.
 	 * 
 	 * @return whatever the backend driver tells us
 	 */
 	public int getMajorVersion() {
-		if (driver == null)
-			return 0;
-		return driver.getMajorVersion();
+//		if (driver == null)
+			return MAJOR_VERSION;
+//		return driver.getMajorVersion();
 	}
 
 	public int getMinorVersion() {
-		if (driver == null)
-			return 0;
-		return driver.getMinorVersion();
+//		if (driver == null)
+			return MINOR_VERSION;
+//		return driver.getMinorVersion();
 	}
 
 	public boolean jdbcCompliant() {
-		if (driver == null)
+//		if (driver == null)
 			return false;
-		return driver.jdbcCompliant();
+//		return driver.jdbcCompliant();
 	}
 
 	static {
@@ -235,7 +255,6 @@ public class GProMDriver implements Driver {
 			DriverManager.registerDriver(new GProMDriver());
 		} catch (SQLException e) {
 			e.printStackTrace();
-			System.exit(-1);
 		}
 	}
 

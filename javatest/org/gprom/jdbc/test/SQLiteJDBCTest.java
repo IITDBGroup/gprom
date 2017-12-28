@@ -57,7 +57,7 @@ public class SQLiteJDBCTest {
 		try{
 			log.error("made it this far");
 			Properties info = new Properties();
-			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "TRUE");
+			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP_NAME, "TRUE");
 			log.error("made it this far");
 			con = (GProMConnection) DriverManager.getConnection(url,info);
 			log.error("made it this far");
