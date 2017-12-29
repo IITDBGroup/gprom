@@ -235,7 +235,7 @@ getUnificationString(DLAtom *a)
 
             if (entry == NULL)
             {
-                stringArg = CONCAT_STRINGS("V", itoa(curId++));
+                stringArg = CONCAT_STRINGS("V", gprom_itoa(curId++));
                 MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg));
             }
             else
@@ -322,10 +322,10 @@ makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames)
             {
                 // skip varnames that already exist
                 if (doNotOrigNames)
-                    while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", itoa((*varId)++))))
+                    while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++))))
                         ;
                 else
-                    stringArg = CONCAT_STRINGS("V", itoa((*varId)++));
+                    stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++));
 
                 MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg));
             }

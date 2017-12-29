@@ -345,7 +345,7 @@ static List*createTupleRuleTupleReducedGraphMoveRules(int getMatched, List* nege
 
         // create a list for collecting rule id
         int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-        char *newRuleId = CONCAT_STRINGS(itoa(ruleId),
+        char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
                 STRING_VALUE(createConstBool(ruleWon)));
         int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
         collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
@@ -363,7 +363,7 @@ static List*createTupleRuleTupleReducedGraphMoveRules(int getMatched, List* nege
             for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
                     checkLoop++)
             {
-                bName = CONCAT_STRINGS("BL", itoa(checkLoop));
+                bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
                 createBoolArgs = createDLVar(bName, DT_BOOL);
                 newBoolArgs = appendToTailOfList(newBoolArgs,
                         copyObject(createBoolArgs));
@@ -586,7 +586,7 @@ static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, L
 
 		// create a list for collecting rule id
 		int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-		char *newRuleId = CONCAT_STRINGS(itoa(ruleId),
+		char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
 				STRING_VALUE(createConstBool(ruleWon)));
 		int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
 		collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
@@ -604,7 +604,7 @@ static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, L
 			for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
 					checkLoop++)
 			{
-				bName = CONCAT_STRINGS("BL", itoa(checkLoop));
+				bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
 				createBoolArgs = createDLVar(bName, DT_BOOL);
 				newBoolArgs = appendToTailOfList(newBoolArgs,
 						copyObject(createBoolArgs));
@@ -904,7 +904,7 @@ static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbR
 
         // create a list for collecting rule id
         int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-        char *newRuleId = CONCAT_STRINGS(itoa(ruleId),
+        char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
                 STRING_VALUE(createConstBool(ruleWon)));
         int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
         collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
@@ -922,7 +922,7 @@ static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbR
             for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
                     checkLoop++)
             {
-                bName = CONCAT_STRINGS("BL", itoa(checkLoop));
+                bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
                 createBoolArgs = createDLVar(bName, DT_BOOL);
                 newBoolArgs = appendToTailOfList(newBoolArgs,
                         copyObject(createBoolArgs));
@@ -976,7 +976,7 @@ static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbR
 	                        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
 	                                DL_ORIG_ATOM);
 
-	                        char *goalRel = CONCAT_STRINGS(itoa(i), "_", itoa(j),
+	                        char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
 	                                ruleWon ? "_WON" : "_LOST");
 
 	                        // is goal won?
@@ -1208,7 +1208,7 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
 
         // create a list for collecting rule id
         int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-        char *newRuleId = CONCAT_STRINGS(itoa(ruleId),
+        char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
                 STRING_VALUE(createConstBool(ruleWon)));
         int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
         collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
@@ -1226,7 +1226,7 @@ static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules
             for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
                     checkLoop++)
             {
-                bName = CONCAT_STRINGS("BL", itoa(checkLoop));
+                bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
                 createBoolArgs = createDLVar(bName, DT_BOOL);
                 newBoolArgs = appendToTailOfList(newBoolArgs,
                         copyObject(createBoolArgs));
@@ -1425,7 +1425,7 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
 
         // create a list for collecting rule id
         int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-        char *newRuleId = CONCAT_STRINGS(itoa(ruleId),
+        char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
                 STRING_VALUE(createConstBool(ruleWon)));
         int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
         collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
@@ -1443,7 +1443,7 @@ createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
             for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
                     checkLoop++)
             {
-                bName = CONCAT_STRINGS("BL", itoa(checkLoop));
+                bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
                 createBoolArgs = createDLVar(bName, DT_BOOL);
                 newBoolArgs = appendToTailOfList(newBoolArgs,
                         copyObject(createBoolArgs));
@@ -1667,7 +1667,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 
         // create a list for collecting rule id
         int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-        char *newRuleId = CONCAT_STRINGS(itoa(ruleId),
+        char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
                 STRING_VALUE(createConstBool(ruleWon)));
         int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
         collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
@@ -1685,7 +1685,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
             for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
                     checkLoop++)
             {
-                bName = CONCAT_STRINGS("BL", itoa(checkLoop));
+                bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
                 createBoolArgs = createDLVar(bName, DT_BOOL);
                 newBoolArgs = appendToTailOfList(newBoolArgs,
                         copyObject(createBoolArgs));
@@ -1739,7 +1739,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
                             DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
                                     DL_ORIG_ATOM);
 
-                            char *goalRel = CONCAT_STRINGS(itoa(i), "_", itoa(j),
+                            char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
                                     ruleWon ? "_WON" : "_LOST");
 
                             // is goal won?
@@ -2095,7 +2095,7 @@ createGPMoveRules(int getMatched, List* negedbRules,
 
         // create a list for collecting rule id
         int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-        char *newRuleId = CONCAT_STRINGS(itoa(ruleId),
+        char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
                 STRING_VALUE(createConstBool(ruleWon)));
         int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
         collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
@@ -2113,7 +2113,7 @@ createGPMoveRules(int getMatched, List* negedbRules,
             for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
                     checkLoop++)
             {
-                bName = CONCAT_STRINGS("BL", itoa(checkLoop));
+                bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
                 createBoolArgs = createDLVar(bName, DT_BOOL);
                 newBoolArgs = appendToTailOfList(newBoolArgs,
                         copyObject(createBoolArgs));
@@ -2167,7 +2167,7 @@ createGPMoveRules(int getMatched, List* negedbRules,
 							DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
 									DL_ORIG_ATOM);
 
-							char *goalRel = CONCAT_STRINGS(itoa(i), "_", itoa(j),
+							char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
 									ruleWon ? "_WON" : "_LOST");
 							char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
 									ruleWon ? "_WON" : "_LOST");
@@ -2412,7 +2412,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
                 ruleNeg ? "-" : "+");
                 */
         char *adRuleName = CONCAT_STRINGS("r",
-                itoa(INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))), "_",
+                gprom_itoa(INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))), "_",
 				ruleWon ? "WON" : "WL");
 //				ruleWon ? "WON" : "LOST");
 
@@ -2451,7 +2451,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	{
         	    if (isA(n,DLAtom))
         	    {
-        	        vName = CONCAT_STRINGS("BL", itoa(j++));
+        	        vName = CONCAT_STRINGS("BL", gprom_itoa(j++));
                     createArgs = createDLVar(vName, DT_BOOL);
 
                     numGoals++; // For calculation of length of only new args
@@ -2791,7 +2791,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
         		//create unlinked rules
 				ruleRule = copyObject(r);
-        		char *adNegRuleName = CONCAT_STRINGS("r", itoa(INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))), "_WL");
+        		char *adNegRuleName = CONCAT_STRINGS("r", gprom_itoa(INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))), "_WL");
 
 				if (!searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
 					ruleRule->head->rel = CONCAT_STRINGS(adNegRuleName, NON_LINKED_POSTFIX_CHKPOS);

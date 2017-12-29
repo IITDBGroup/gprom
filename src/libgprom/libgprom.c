@@ -23,12 +23,20 @@
 #define LIBARY_REWRITE_CONTEXT "LIBGRPROM_QUERY_CONTEXT"
 
 #define LOCK_NAME gprom_lib_globallock
+
+#ifdef HAVE_LIBPTHREAD
 #define LOCK_MUTEX() pthread_mutex_lock(&LOCK_NAME); printf("\nMUTEX\n%s:%u\n", __FILE__, __LINE__); fflush(stdout);
 #define UNLOCK_MUTEX() printf("\nUNLOCK\n%s:%u\n", __FILE__, __LINE__); fflush(stdout); pthread_mutex_unlock(&LOCK_NAME);
-#define CREATE_MUTEX() static pthread_mutex_t LOCK_NAME = PTHREAD_MUTEX_INITIALIZER;
+#define CREATE_MUTEX static pthread_mutex_t LOCK_NAME = PTHREAD_MUTEX_INITIALIZER;
 #define DESTROY_MUTEX()
+#else
+#define LOCK_MUTEX() do {} while(0)
+#define UNLOCK_MUTEX() do {} while(0)
+#define CREATE_MUTEX
+#define DESTROY_MUTEX() do {} while(0)
+#endif
 
-CREATE_MUTEX();
+CREATE_MUTEX
 
 void
 gprom_init(void)

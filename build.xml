@@ -1,262 +1,446 @@
 <project 
 	name="GProMJDBC" 
-	default="generateDriverJar" 
+	default="jar" 
 	basedir="."
 	xmlns:ivy="antlib:org.apache.ivy.ant"
+	xmlns:artifact="antlib:org.apache.maven.artifact.ant"
+	xmlns:if="ant:if"
+    xmlns:unless="ant:unless"
 	>
-
-	<!-- task defs -->
-	<property name="antlibdir" value="${basedir}/ant" />
-	<import file="${antlibdir}/one-jar-ant-task.xml"/>   
 	
-	<!-- Ivy -->
-    <property name="ivy.install.version" value="2.4.0" />
-    <condition property="ivy.home" value="${env.IVY_HOME}">
-      <isset property="env.IVY_HOME" />
-    </condition>
-    <property name="ivy.jar.dir" value="${antlibdir}" />
-    <property name="ivy.jar.file" value="${ivy.jar.dir}/ivy.jar" />
+	<description>
+		GProM is a provenance middleware for databases.
+	</description>
 	
 	<!-- do not add ant classpath to javac classpath -->
 <!--	<presetdef name="javac">
 		<javac includeantruntime="false" />
 	</presetdef> -->
 	
+	<!-- Main Class and Packages-->
+  	<property name="mainclass" value="org.gprom.jdbc.test.SQLiteJDBCTest" />
+	<property name="jar.creator" value="Illinois Institute of Technology, Department of Computer Science, DBGroup" />
+	<property name="package" value="*" />
+	<property name="mvn.description" value="GProM is a provenance database middleware." />
+	<property name="mvn.url" value="https://github.com/IITDBGroup/gprom" />
+	
+	<!-- define artifacts' name, which follows the convention of Maven -->
+	<property name="artifactId" value="gprom-jdbc" />
+	
+	<!-- ClassPath Setup -->
+	<property name="classpath.name.bin" value="classpath.bin" />
+	<property name="classpath.name.build" value="classpath.build" />
+	<property name="classpath.name.test" value="classpath.test" />
+	
 	<!-- main directories -->
-	<property name="sourcedir" value="${basedir}/src/interfaces/jdbc/java" />
-	<property name="testsourcedir" value="${basedir}/javatest" />
-	<property name="binarydir" value="${basedir}/javabin" />
-	<property name="builddir" value="${basedir}/jdbcbuild" />
-	<property name="librarydir" value="${basedir}/javalib" />
-	<property name="testlibrarydir" value="${basedir}/javatestlib" />
-	<property name="gpromJar.simple" value="${builddir}/gprom-jdbc.jar" />
-	<property name="gpromJar.selfContained" value="${builddir}/gprom-jdbc-all.jar" />
+	<property name="dir.source" value="${basedir}/src/interfaces/jdbc/java" />
+	<property name="dir.testsource" value="${basedir}/javatest" />
+	<property name="dir.build" value="${basedir}/build" />
+	<property name="dir.bin" value="${dir.build}/javabin" />
+	<property name="dir.library" value="${dir.build}/javalib" />
+	<property name="dir.testlib" value="${dir.build}/javatestlib" />
+	<property name="dir.depcache" value="${dir.build}/depcache" />
+	<property name="dir.buildresource" value="${basedir}/ant" />
+	
+	<property name="jar.bin" value="${dir.build}/gprom-jdbc.jar" />
+	<property name="jar.bin.fat" value="${dir.build}/gprom-jdbc-all.jar" />
 
+	<!-- Import macro definitions and common stuff -->
+	<import file="antutils/ant-common.xml" />
+	
 	<!-- special files -->
-	<property name="conffile" value="${librarydir}/GProMDriver.properties" />
-	<property name="log4jconffile" value="${librarydir}/log4j.properties" />
+	<property name="conffile.name" value="GProMDriver.properties" />
+	<property name="log4jconffile.name" value="log4j.properties" />
+	
+	<property name="conffile" value="${dir.buildresource}/${conffile.name}" />
+	<property name="log4jconffile" value="${dir.buildresource}/${log4jconffile.name}" />
+	<property name="ivyfile" value="${basedir}/ivy.xml" />
+	<property name="ivyfile.test" value="${dir.buildresource}/ivy-test.xml" />
 	
 	<!-- GProM c-library -->
 	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.dylib" />
-	<property name="gpromlib.darwin.bin" value="${binarydir}/darwin/libgprom.dylib" />
-	<property name="gpromlib.darwin" value="${builddir}/libgprom.jnilib" />	
+	<property name="gpromlib.darwin.bin" value="${dir.bin}/darwin_x64/libgprom.dylib" />
+	<property name="gpromlib.darwin" value="${dir.build}/libgprom.jnilib" />	
 	
 	<property name="gpromlib.linux.src" value="${basedir}/src/libgprom/.libs/libgprom.so.0" />
-	<property name="gpromlib.linux.bin" value="${binarydir}/unix/libgprom.so.0" />
-	<property name="gpromlib.linux" value="${builddir}/libgprom.jnilib" />
-	
-	<!-- detect OS -->
-	<condition property="isWindows">
-		<os family="windows" />
-	</condition>
-	<condition property="isLinux">
-		<os family="unix" />
-	</condition>
-	<condition property="isMac">
-		<os family="mac" />
-	</condition>
-	<condition property="ivy.writable">
-			<isfileselected file="${ivy.jar.dir}" >
-				<writable/>
-			</isfileselected>
-	</condition>
+	<property name="gpromlib.linux.bin" value="${dir.bin}/linu_x64/libgprom.so" />
+	<property name="gpromlib.linux" value="${dir.build}/libgprom.so" />   
 	
 	<!-- TARGETS -->	
-	<!-- Ivy -->
-	<!-- download ivy if the folder is writable -->
-    <target name="download-ivy" unless="offline" if="ivy.writable">
-        <mkdir dir="${ivy.jar.dir}"/>
-        <!-- download Ivy from web site so that it can be used even without any special installation if dir writable -->
-        <get src="http://repo2.maven.org/maven2/org/apache/ivy/ivy/${ivy.install.version}/ivy-${ivy.install.version}.jar" 
-            dest="${ivy.jar.file}" 
-    		usetimestamp="true" />
-    </target>
-
-	<!-- check if ivy.jar is there -->
-    <target name="check-ivy" depends="download-ivy">
-    	<fail message="missing ivy.jar and was unable to download the jar">
-    		<condition>
-    			<not>
-    				<available file="${ivy.jar.file}" type="file"/>
-    			</not>
-    		</condition>
-       	</fail>
-    </target>
-
-	
-    <target name="init-ivy" depends="check-ivy">
-      <!-- try to load ivy here from ivy home, in case the user has not already dropped
-              it into ant's lib dir (note that the latter copy will always take precedence).
-              We will not fail as long as local lib dir exists (it may be empty) and
-              ivy is in at least one of ant's lib dir or the local lib dir. -->
-        <path id="ivy.lib.path">
-            <fileset dir="${ivy.jar.dir}" includes="*.jar"/>
-        </path>
-        <taskdef resource="org/apache/ivy/ant/antlib.xml"
-                 uri="antlib:org.apache.ivy.ant" classpathref="ivy.lib.path"/>
-    </target>
-	
-	<target name="download-dependencies" depends="init-ivy">
-<!--		 <ivy:settings file="${basedir}/ivysettings.xml"/>-->
-		 <ivy:resolve />
-		 <ivy:retrieve sync="false" type="jar" pattern="${librarydir}/[artifact].[ext]" />
-		 <!-- move to ant dir -->
-	     <move todir="${antlibdir}">
-			<fileset dir="${librarydir}">
-		      <include name="ant*.jar"/>
-		    </fileset>
-		</move>
-		<!-- move and copy to test library dir -->
-	     <move todir="${testlibrarydir}">
-			<fileset dir="${librarydir}">
-		      <include name="xerces*.jar"/>
-		      <include name="xml*.jar"/>
-		      <include name="slf4j*.jar"/>
-			  <include name="junit.jar" />
-		    </fileset>
-		</move>
-		<copy todir="${testlibrarydir}">
-			<fileset dir="${librarydir}">
-				<include name="log4j-api.jar"/>
-				<include name="log4j-core.jar"/>
-				<include name="postgresql.jar"/>
-				<include name="mysql-connector-java.jar"/>
-				<include name="junit.jar"/>
-				<include name="jna.jar"/>
-				<include name="stringtemplate.jar"/>
-			</fileset>
-		</copy>
-		<!-- classpath -->
-		<path id="classpath">
-			<fileset dir="${librarydir}"/>
-		</path>
-		<path id="testclasspath">
-			<fileset dir="${testlibrarydir}"/>
-		</path>
-		<pathconvert property="jarClasspath" pathsep="    ">
-			<path>
-				<fileset dir="${librarydir}">
-					<exclude name="ant*.jar" />
-					<exclude name="ivy.jar" />
-				</fileset>
-			</path>
-			<mapper>
-				<chainedmapper>
-					<flattenmapper/>
-					<globmapper from="*.jar" to="lib/*.jar" casesensitive="no"/>
-				</chainedmapper>
-			</mapper>
-		</pathconvert>
-		<property name="fullJarClasspath" value="${jarClasspath}   resource/    lib/" />
-		<echo message="${fullJarClasspath}" />
+	<!-- download dependencies with ivy -->
+	<target name="download-dependencies" 
+			depends="mkdirs-and-setup-props" 
+			description="use ivy to download dependencies">
+		
+		<ivy-download-deps
+			ivyfile="${ivyfile.test}"
+			libsdir="${dir.testlib}"
+			buildivyfile=""
+			/>
+		<ivy-download-deps/>
+		<classpath-from-dir dir="${dir.buildlib}" 
+				pathname="${classpath.name.build}" 
+				pathnamejar="${classpath.name.build}.jar"/>
+		<classpath-from-dir dir="${dir.library}" 
+				pathname="${classpath.name.bin}" 
+				pathnamejar="${classpath.name.bin}.jar"/>
+		<classpath-from-dir dir="${dir.testlib}" 
+				pathname="${classpath.name.test}" 
+				pathnamejar="${classpath.name.test}.jar"/>
 	</target>
 
-	<target name="setup-additional-anttasks" depends="download-dependencies">
-		<taskdef resource="net/sf/antcontrib/antcontrib.properties">
-		  <classpath>
-		    <pathelement location="${antlibdir}/ant-contrib.jar"/>
-		  </classpath>
+	<target name="setup-additional-anttasks" 
+			depends="download-dependencies">
+		<taskdef resource="net/sf/antcontrib/antcontrib.properties"
+			classpathref="${classpath.name.build}">
 		</taskdef>
 	</target>
 	
 	<!-- check OS type -->
-	<target name="handleOS" depends="setup-additional-anttasks">
+	<target name="handle-os" 
+			depends="setup-additional-anttasks">
+		<detect-os />
 		<if>
-	        <equals arg1="${isMac}" arg2="true" />
+	        <equals arg1="${os.type}" arg2="mac" />
 	        <then>
 	            <echo message="Mac system" />
-	        	<property name="gpromlib.src" value="${gpromlib.darwin.src}" />
-	        	<property name="gpromlib.bin" value="${gpromlib.darwin.bin}" />
-	        	<property name="gpromlib" value="${gpromlib.darwin}" />
+		        	<property name="gpromlib.src" value="${gpromlib.darwin.src}" />
+		        	<property name="gpromlib.bin" value="${gpromlib.darwin.bin}" />
+		        	<property name="gpromlib" value="${gpromlib.darwin}" />
 	        </then>
 		</if>
 		<if>
-	        <equals arg1="${isLinux}" arg2="true" />
+	        <equals arg1="${os.type}" arg2="unix" />
 	        <then>
 	            <echo message="Linux system" />
-	        	<property name="gpromlib.src" value="${gpromlib.linux.src}" />
-	        	<property name="gpromlib.bin" value="${gpromlib.linux.bin}" />
-	        	<property name="gpromlib" value="${gpromlib.linux}" />
+		        	<property name="gpromlib.src" value="${gpromlib.linux.src}" />
+		        	<property name="gpromlib.bin" value="${gpromlib.linux.bin}" />
+		        	<property name="gpromlib" value="${gpromlib.linux}" />
 	        </then>
 		</if>
     </target>
 	
 	<!-- build targets -->
-	<target name="clean" depends="handleOS">
-		<mkdir dir="${binarydir}" />
-		<mkdir dir="${binarydir}/darwin" />
-		<mkdir dir="${builddir}" />
-		<depend srcdir="${sourcedir}"
-		        destdir="${binarydir}"
+	<target name="clean" 
+			depends="handle-os"
+			description="clean up">
+		
+		<copy todir="${dir.library}">
+			<fileset dir="${dir.buildresource}" includes="${conffile.name},${log4jconffile.name}" /> 
+		</copy>
+		<depend srcdir="${dir.source}"
+		        destdir="${dir.bin}"
 		        cache="depcache"
 		        closure="yes"/>
 	</target>
 	
-	<target name="distClean">
-		<delete dir="${binarydir}" includeemptydirs="true" />
-		<delete dir="${builddir}" includeemptydirs="true" />
+	<target name="clean-all"
+		description="clean all">
+		
+		<delete dir="${dir.bin}" includeemptydirs="true" />
+		<delete dir="${dir.build}" includeemptydirs="true" />
 	</target>
 
-	<target name="compile" depends="clean">
+	<target name="compile" 
+		depends="clean"
+		description="compile JDBC Java files">
+		
 		<copy file="${gpromlib.src}" tofile="${gpromlib}" overwrite="true" />
-		<copy todir="${builddir}/lib">
-			<fileset dir="${librarydir}" />
+		<copy todir="${dir.build}/lib">
+			<fileset dir="${dir.library}" />
 		</copy>
 		<copy file="${gpromlib}" tofile="${gpromlib.bin}" />
-		<copy file="${conffile}" tofile="${binarydir}/GPRoMDriver.properties" />
-		<javac srcdir="${sourcedir}" 
-				destdir="${binarydir}"  
+	<!--	<copy file="${conffile}" tofile="${dir.bin}/GPRoMDriver.properties" /> -->
+		<javac srcdir="${dir.source}" 
+				destdir="${dir.bin}"  
 				debug="on" 
 			    fork="true" 
 			    includeantruntime="false"
 				verbose="true">
-			<classpath refid="classpath"/>
+			<classpath refid="${classpath.name.bin}"/>
 			<compilerarg value="-Xlint:unchecked" />		
 		</javac>
+		
+		<fileset id="fat.jar.resources" 
+				dir="${dir.library}" 
+				includes="${conffile.name},${log4jconffile.name}">
+		</fileset>
 	</target>
 	
-	<target name="compileTests" depends="compile">
-		<javac srcdir="${testsourcedir}" destdir="${binarydir}" debug="on" fork="true" includeantruntime="false" verbose="true">
-			<classpath refid="testclasspath"/>
+	<target name="compile-tests" 
+			depends="compile"
+			description="compile automated GProM tests Java files">
+		
+		<javac srcdir="${dir.testsource}" destdir="${dir.bin}" debug="on" fork="true" includeantruntime="false" verbose="true">
+			<classpath refid="${classpath.name.test}"/>
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
 	
+	<!-- convenience task for compiliation without library dependency checking -->
+	<target name="jar-only" depends="mkdirs-and-setup-props">
+		<classpath-from-dir dir="${dir.buildlib}" 
+				pathname="${classpath.name.build}" 
+				pathnamejar="${classpath.name.build}.jar"/>
+		<classpath-from-dir dir="${dir.library}" 
+				pathname="${classpath.name.bin}" 
+				pathnamejar="${classpath.name.bin}.jar"/>
+		<classpath-from-dir dir="${dir.testlib}" 
+				pathname="${classpath.name.test}" 
+				pathnamejar="${classpath.name.test}.jar"/>
+		<fileset id="fat.jar.resources" 
+				dir="${dir.library}" 
+				includes="${conffile.name},${log4jconffile.name}">
+		</fileset>
+		<javac srcdir="${dir.source}" 
+				destdir="${dir.bin}"  
+				debug="on" 
+			    fork="true" 
+			    includeantruntime="false"
+				verbose="true">
+			<classpath refid="${classpath.name.bin}"/>
+			<compilerarg value="-Xlint:unchecked" />		
+		</javac>
+		<javac srcdir="${dir.testsource}" destdir="${dir.bin}" debug="on" fork="true" includeantruntime="false" verbose="true">
+			<classpath refid="${classpath.name.test}"/>
+			<compilerarg value="-Xlint:unchecked" />
+		</javac>
+		<jar destfile="${jar.bin}"  update="true">
+				<manifest>
+					<attribute name="Main-Class" value="${mainclass}" />
+					<attribute name="Created-By" value="${jar.creator}" />
+					<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" />
+				</manifest>
+				<service type="java.sql.Driver"
+			           provider="org.gprom.jdbc.driver.GProMDriver"/>
+				<fileset refid="fat.jar.resources" />
+				<fileset dir="${dir.bin}" />
+			</jar>
+	</target>
+	
 	<!-- generate a simple jar file for the jdbc driver that does not include referrenced jars and the GProM C-library -->
-	<target name="generateDriverJar" depends="compile">
-		<mkdir dir="${builddir}" />
-		<jar destfile="${gpromJar.simple}" basedir="${binarydir}">
-		 	<manifest>
-				<attribute name="Created-By" value="Illinois Institute of Technology, Department for Computer Science, DBGroup" />
-				<attribute name="Class-Path" value="${fullJarClasspath}" />
+	<target name="jar" 
+			depends="compile,compile-tests"
+			description="create Jar file">
+		
+		<echo message="${classpath.bin.jar}" />
+		<jar destfile="${jar.bin}"  update="true">
+			<manifest>
+				<attribute name="Main-Class" value="${mainclass}" />
+				<attribute name="Created-By" value="${jar.creator}" />
+				<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" />
 			</manifest>
+			<service type="java.sql.Driver"
+		           provider="org.gprom.jdbc.driver.GProMDriver"/>
+			<fileset refid="fat.jar.resources" />
+			<fileset dir="${dir.bin}" />
 		</jar>
 	</target>
 	
 	<!-- generate one combine "fat" jar file that contains all java libraries and native libaries (the GProM application) --> 
-	<target name="generateCombinedJar" depends="compile">
-        <delete file="${gpromJar.selfContained}"/>
-        <one-jar destfile="${gpromJar.selfContained}">
-            <manifest>
-				<attribute name="Created-By" value="Illinois Institute of Technology, Department for Computer Science, DBGroup" />
-            	<!-- <attribute name="One-Jar-Expand" value=""/>
-                <attribute name="One-Jar-Expand-Dir" value="./.expand"/>
-                <attribute name="One-Jar-Show-Expand" value="true"/> -->
-            	<attribute name="One-Jar-Main-Class" value="org.gprom.jdbc.test.GProMJDBCTest" />
-            	<attribute name="Class-Path" value="${fullJarClasspath}" />
-            </manifest>
-            <main>
-                <fileset dir="${binarydir}/"/>
-            </main>
-            <lib>
-                <fileset file="${librarydir}/*.jar" />
-            </lib>
-        	<binlib>
-        		<fileset file="${gpromlib}" />
-        	</binlib>
-        	<!-- conf files -->
-        	<fileset file="${conffile}" />
-        	<fileset file="${log4jconffile}" />
-        </one-jar> 
+	<target name="jar-fat" 
+			depends="compile,compile-tests,cross-compile-libgprom"
+			description="generate a fat jar containing all deps">
+		
+		<echo message="build jar for ${os.type} using library ${gpromlib}" />
+		
+		<print-fileset filesetid="fat.jar.resources" />
+		
+		<property name="dir.tmpjar" value="${dir.build}/tmpjar" />
+		<path id="jarclasspath">
+			<fileset dir="${dir.library}" includes="*.jar" />
+		</path>
+		<delete dir="${dir.tmpjar}"/> 
+		<unjar dest="${dir.tmpjar}">
+			<patternset>
+				<exclude name="**/*.RSA"/>
+				<exclude name="**/*.SF"/>
+				<exclude name="**/*.DSA"/>
+			</patternset>
+			<path refid="jarclasspath" />
+		</unjar>
+		<jar destfile="${jar.bin.fat}" zip64Mode="as-needed">
+			<manifest>
+				<attribute name="Main-Class" value="${mainclass}" />
+				<attribute name="Created-By" value="${jar.creator}" />
+				<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" />
+			</manifest>
+			<zipfileset dir="${dir.tmpjar}" includes="**/*" />
+			<service type="java.sql.Driver"
+		           provider="org.gprom.jdbc.driver.GProMDriver"/>
+			<fileset refid="fat.jar.resources" />
+			<fileset dir="${dir.bin}" />
+		</jar>
+		<delete dir="${dir.tmpjar}"/>
 	</target>
+	
+	<!-- cross compile libgprom for inclusion in all-native jar -->
+	<target name="cross-compile-libgprom"
+			description="create architecture specific versions of libgprom using cross-compilation"
+			depends="compile,compile-tests">
+		<!-- get version from ivy file -->
+		<ivy:info file="${ivyfile}" />
+
+		<!-- define compress anttasks -->
+		<taskdef resource="org/apache/ant/compress/antlib.xml" 
+			classpathref="${classpath.name.build}"/>
+		
+		<property name="dir.dockercross" value="${dir.buildresource}/dockercross" />
+		<property name="srctar" value="gprom-${ivy.revision}.tar" />
+		<property name="srctarball" value="${srctar}.gz" />
+		<property name="srctardir" value="${basedir}" />
+		<property name="configure.options" value="--disable-postgres --disable-oracle --disable-sqlite --disable-monetdb --disable-readline --disable-java" />
+		<property name="make.options" value="-j 4" />
+		<property name="libgpromdir" value="src/libgprom/.libs" />
+
+		<propertyregex property="gprom.major.version"
+		               input="1=${ivy.revision}"
+		               regexp="1=([0-9]+)[.][0-9]+[.][0-9]+"
+		               select="\1"
+		               casesensitive="false" />
+		<echo message="gprom major version is ${gprom.major.version}" />
+
+		<build-native-library 
+			crossscript="${dir.dockercross}/dockcross-linux-x64" 
+			outfolder="linux_x64" 
+			libpath="${libgpromdir}/libgprom.so.${ivy.revision}"
+			libname="libgprom.so"/>
+		<build-native-library 
+			crossscript="${dir.dockercross}/dockcross-linux-x86" 
+			outfolder="linux_x32" 
+			libpath="${libgpromdir}/libgprom.so.${ivy.revision}"
+			libname="libgprom.so"
+			addargs="--build=x86_64-pc-linux-gnu --host=x86-pc-linux-gnu" />
+		<build-native-library 
+			crossscript="${dir.dockercross}/dockcross-windows-x86" 
+			outfolder="windows_x32" 
+			libpath="${libgpromdir}/libgprom-${gprom.major.version}.dll" 
+			libpath2="${libgpromdir}/libgprom.lai"
+			libname="libgprom.dll"
+			addargs="--build=x86_64-pc-linux-gnu --host=i686-pc-mingw32"/>
+		<build-native-library 
+			crossscript="${dir.dockercross}/dockcross-windows-x64" 
+			outfolder="windows_x64" 
+			libpath="${libgpromdir}/libgprom-${gprom.major.version}.dll" 
+			libpath2="${libgpromdir}/libgprom.lai"
+			libname="libgprom.dll"
+			addargs="--build=x86_64-pc-linux-gnu --host=x86_64-pc-mingw64"/>
+	</target>
+	
+	<!-- build one native library -->
+	<macrodef name="build-native-library"
+			description="build libgprom native library for one architecture using dockercross">
+		
+		<attribute name="outfolder" default="" />
+		<attribute name="binarydir" default="${dir.bin}" />
+		<attribute name="builddir" default="${dir.build}" />
+		<attribute name="crossscript" default="" />
+		<attribute name="untardir" default="gprom-${ivy.revision}" />
+		<attribute name="srctarball" default="${srctarball}" />
+		<attribute name="srctar" default="${srctar}" />
+		<attribute name="tardir" default="${srctardir}" />
+		<attribute name="libpath" default="" />
+		<attribute name="libpath2" default="" />
+		<attribute name="libname" default="" />
+		<attribute name="addargs" default="" />
+		
+		<sequential>
+			<local name="tarpath" /> 
+			<local name="targzpath" />
+			<local name="dir.cross.build" />
+			<local name="dir.cross.dest" />
+			<local name="crossscript.name" />
+			<local name="expanddir" />	
+			<local name="library.exists" />
+			<local name="expanddir.exists" />
+			<local name="have.libpath2" />
+			
+			<!-- check for parameters and check that srctarball exists -->
+			<fail-if-empty arg="@{libname}" />
+			<fail-if-empty arg="@{outfolder}" />
+			<fail-if-empty arg="@{builddir}" />
+			<fail-if-empty arg="@{crossscript}" />
+			<fail-if-empty arg="@{srctarball}" />
+			<fail-if-empty arg="@{srctar}" />
+			<fail-if-empty arg="@{tardir}" />
+			<fail-if-empty arg="@{libname}" />
+			
+			<fail-if-bin-not-exists bin="docker" 
+				message="Need docker to cross-compile libgprom" />
+					
+			<property name="targzpath" value="@{tardir}/@{srctarball}" />
+			<property name="tarpath" value="@{tardir}/@{srctar}" />
+			
+			<fail-not-exists arg="@{crossscript}" type="file"/>
+			<fail-not-exists arg="${targzpath}" type="file"/>
+			
+			<basename property="crossscript.name" file="@{crossscript}"/>
+			
+			<echo message="**********************************************************"/>
+			<echo message="*  BUILD @{outfolder} NATIVE LIBRARY USING @{crossscript} "/>
+			<echo message="**********************************************************"/>
+
+			<property name="dir.cross.build" value="@{builddir}/@{outfolder}" />
+			<property name="dir.cross.dest" value="@{binarydir}/@{outfolder}" />
+			
+			<mkdir dir="${dir.cross.build}" />
+			<mkdir dir="${dir.cross.dest}" />
+			
+			<!-- uncompress tarball and copy dockercross script -->
+			<property name="expanddir" value="${dir.cross.build}/@{untardir}" />
+			<condition property="expanddir.exists">
+				<available file="${expanddir}" type="dir"/>
+			</condition>
+			
+			<sequential unless:set="expanddir.exists">
+				<gunzip src="${targzpath}" />
+				<untar src="${tarpath}" dest="${dir.cross.build}"/>
+				<copy file="@{crossscript}" todir="${expanddir}" />
+				
+				<!-- repair permissions -->
+				<chmod perm="755" file="${expanddir}/${crossscript.name}" />
+				
+				<chmod perm="755">
+					<fileset dir="${expanddir}" includes="configure" />
+				</chmod>
+			</sequential>
+			
+
+			<!-- run compilation -->
+			<condition property="library.exists">
+				<available file="${expanddir}/@{libpath}" type="file"/>
+			</condition>
+		
+			<sequential unless:set="library.exists">
+				<exec executable="${expanddir}/${crossscript.name}" 
+					dir="${expanddir}">
+					<arg value="--" />
+					<arg value="./configure" />
+					<arg value="--disable-postgres" />
+					<arg value="--disable-oracle" />
+					<arg value="--disable-sqlite" />
+					<arg value="--disable-monetdb" />
+					<arg value="--disable-readline" />
+					<arg value="--disable-java" />
+					<arg line="@{addargs}" />
+				</exec>
+				
+				<exec executable="${expanddir}/${crossscript.name}"
+					dir="${expanddir}">
+					<arg value="make" />
+					<arg value="-j" />
+					<arg value="8" />
+				</exec>
+			</sequential>
+			<!-- copy to destination -->
+			<copy file="${expanddir}/@{libpath}" tofile="${dir.cross.dest}/@{libname}" />
+			
+			<set-prop-if-not-empty arg="@{libpath2}" propname="have.libpath2" />
+			<sequential if:set="have.libpath2">
+				<copy file="${expanddir}/@{libpath2}" todir="${dir.cross.dest}" />
+			</sequential>
+			
+		</sequential>
+	</macrodef>
+	
 </project>

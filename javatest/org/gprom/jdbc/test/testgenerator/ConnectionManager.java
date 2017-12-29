@@ -68,7 +68,7 @@ public class ConnectionManager {
 			Properties props = new Properties();
 			props.setProperty("user", ConnectionOptions.getInstance().getUser());
 			props.setProperty("password", ConnectionOptions.getInstance().getPassword());
-			props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "true");
+			props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP_NAME, "true");
 			log.debug("trying to create new connection: " + props);
 			con = DriverManager.getConnection(constructURL(), props);
 		}
@@ -85,7 +85,7 @@ public class ConnectionManager {
 					Properties props = new Properties();
 					props.setProperty("user", ConnectionOptions.getInstance().getUser());
 					props.setProperty("password", ConnectionOptions.getInstance().getPassword());
-					props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "true");
+					props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP_NAME, "true");
 					log.debug("retry to create new connection: " + props);
 					con = DriverManager.getConnection(constructURL(), props);
 				}

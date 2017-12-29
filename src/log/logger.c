@@ -53,8 +53,10 @@ static inline FILE *getOutput(LogLevel level);
 static boolean vAppendBuf(StringInfo str, const char *format, va_list args);
 
 // use normal versions of free and malloc instead of memory manager ones
+#ifndef MALLOC_REDEFINED
 #undef free
 #undef malloc
+#endif
 
 void
 registerLogCallback (LoggerCallbackFunction callback)

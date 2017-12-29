@@ -19,8 +19,10 @@
 #include "exception/exception.h"
 
 // we have to use actual free here
+#ifndef MALLOC_REDEFINED
 #undef free
 #undef malloc
+#endif
 
 // stopper used to indicate end of options
 #define STOPPER_STRING "STOPPER"
@@ -1203,7 +1205,7 @@ valGetString(OptionValue *def, OptionType type)
     switch(type)
     {
         case OPTION_INT:
-            return itoa(*(def->i));
+            return gprom_itoa(*(def->i));
         case OPTION_STRING:
             return *def->string ? *def->string : "NULL";
         case OPTION_BOOL:
@@ -1226,7 +1228,7 @@ defGetString(OptionDefault *def, OptionType type)
     switch(type)
     {
         case OPTION_INT:
-            return itoa(def->i);
+            return gprom_itoa(def->i);
         case OPTION_STRING:
             return def->string ? def->string : "NULL";
         case OPTION_BOOL:

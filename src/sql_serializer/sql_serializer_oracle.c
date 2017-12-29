@@ -167,7 +167,7 @@ shortenAttributeNames(QueryOperator *q, void *context)
 static inline char*
 getShortAttr(char *newName, int id, boolean quoted)
 {
-    char *idStr = itoa(id);
+    char *idStr = gprom_itoa(id);
     int idLen = strlen(idStr) + 1;
     int offset = ORACLE_IDENT_LIMIT  - idLen + (quoted ? 2 : 0);
     memcpy(newName + offset, idStr, idLen - 1);
@@ -1301,7 +1301,7 @@ updateAttributeNamesOracle(Node *node, List *fromAttrs)
         }
         attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
         newName = getNthOfListP(outer, attrPos);
-        a->name = CONCAT_STRINGS("F", itoa(fromItem), ".", newName);
+        a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);
     }
 
     return visit(node, updateAttributeNamesOracle, fromAttrs);
@@ -1582,7 +1582,7 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
         FOREACH(List, attrs, fromAttrs)
         {
             FOREACH(char,name,attrs)
-                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", itoa(fromItem), ".", name));
+                 inAttrs = appendToTailOfList(inAttrs, CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", name));
             fromItem++;
         }
 

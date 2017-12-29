@@ -34,6 +34,14 @@
 #define exit(retVal) return;
 #endif
 
+/* <stdint.h> convenience integer types */
+#if HAVE_STDINT_H
+#include <stdint.h>
+typedef intptr_t gprom_long_t;
+#else /* use pointer type as fallback? */
+typedef (void *) gprom_long_t;
+#endif
+
 /* <stddef.h> */
 #if HAVE_STDDEF_H
 #include <stddef.h>
@@ -88,6 +96,9 @@
 /* pthread */
 #if HAVE_PTHREAD_H
 #include <pthread.h>
+#elif OS_WINDOWS
+#include <windows.h>
+#include <process.h>
 #endif
 
 /* unistd handler */
@@ -105,6 +116,11 @@
 #include <pwd.h>
 #endif
 
+/* regex */
+#if HAVE_REGEX_H
+#include <regex.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup
@@ -112,6 +128,14 @@
 #else
 #define strdup(input) contextStringDup(input)
 #endif
+
+/* sigsetjmp function is called setjmp on windows */
+#ifndef HAVE_SIGJMP_BUF
+#define sigjmp_buf jmp_buf
+#define sigsetjmp(x,y) setjmp(x)
+#define siglongjmp longjmp
+#endif
+
 
 /* streq function */
 #if HAVE_STRCMP
@@ -188,8 +212,12 @@
 #endif
 
 // override free to make sure nobody is using free directly
+#ifndef malloc
 #define free(_p) "DO NOT USE free DIRECTLY USE \"FREE\" FROM THE MEMORY MANAGER"; @
 #define malloc(_p) "DO NOT USE malloc DIRECTLY USE \"MALLOC\" FROM THE MEMORY MANAGER"; @
+#else
+#define MALLOC_REDEFINED
+#endif
 
 // provide ASSERT macro if not deactivated by user
 // use exception system instead

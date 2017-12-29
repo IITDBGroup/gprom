@@ -1220,13 +1220,13 @@ addForOrdinality(JsonTableOperator **op, JsonColInfoItem **attr, int *countFOD, 
 		StringInfo forOrdinality = makeStringInfo ();
 		char *prefixFOD = "prov_for_ord_";
 		appendStringInfoString(forOrdinality, prefixFOD);
-		appendStringInfoString(forOrdinality, itoa(*countFOD));
+		appendStringInfoString(forOrdinality, gprom_itoa(*countFOD));
         (*attr)->forOrdinality = forOrdinality->data;
 
 		StringInfo renameFOD = makeStringInfo ();
 		char *prefixRFOD = "prov_path_";
 		appendStringInfoString(renameFOD, prefixRFOD);
-		appendStringInfoString(renameFOD, itoa(*countFOD));
+		appendStringInfoString(renameFOD, gprom_itoa(*countFOD));
 		(*countFOD) ++;
 
 		AttributeDef *projAttr = createAttributeDef(renameFOD->data, DT_STRING);
@@ -1433,13 +1433,13 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
 		StringInfo forOrdinality = makeStringInfo ();
 		char *prefixFOD = "prov_for_ord_";
 		appendStringInfoString(forOrdinality, prefixFOD);
-		appendStringInfoString(forOrdinality, itoa(countFOD));
+		appendStringInfoString(forOrdinality, gprom_itoa(countFOD));
         op->forOrdinality = forOrdinality->data;
 
 		StringInfo renameFOD = makeStringInfo ();
 		char *prefixRFOD = "prov_path_";
 		appendStringInfoString(renameFOD, prefixRFOD);
-		appendStringInfoString(renameFOD, itoa(countFOD));
+		appendStringInfoString(renameFOD, gprom_itoa(countFOD));
 		countFOD ++;
 
 		AttributeDef *projAttr = createAttributeDef(renameFOD->data, DT_STRING);

@@ -30,8 +30,10 @@
 #define uthash_free(ptr,sz) free(ptr)
 
 // use actual malloc and free functions
+#ifndef MALLOC_REDEFINED
 #undef free
 #undef malloc
+#endif
 
 // helper macros
 #define EXIT_WITH_ERROR(mes) \

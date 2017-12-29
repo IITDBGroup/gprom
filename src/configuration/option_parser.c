@@ -18,7 +18,9 @@
 #include "exception/exception.h"
 
 // use standard malloc to circumvent the memory manager
+#ifndef MALLOC_REDEFINED
 #undef malloc
+#endif
 
 // error message
 char *errorMessage = NULL;
