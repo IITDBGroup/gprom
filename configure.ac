@@ -427,6 +427,7 @@ AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
 AC_CHECK_TYPES([ptrdiff_t])
+AC_CHECK_TYPES([sigjmp_buf])
 ################################################################################
 # HEADERS
 AC_CHECK_HEADERS([stddef.h])
@@ -458,7 +459,7 @@ AC_CHECK_FUNCS([realloc])
 AC_CHECK_FUNCS([memset])
 AC_CHECK_FUNCS([strdup])
 AC_CHECK_FUNCS([strcmp])
-AC_CHECK_FUNCS([sigsetjmp])
+#AC_CHECK_FUNCS([sigsetjmp])
 AC_CHECK_FUNCS([strsep])
 ################################################################################
 # Check which backends should be supported

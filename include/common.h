@@ -130,7 +130,7 @@ typedef (void *) gprom_long_t;
 #endif
 
 /* sigsetjmp function is called setjmp on windows */
-#ifndef HAVE_SIGSETJMP
+#ifndef HAVE_SIGJMP_BUF
 #define sigjmp_buf jmp_buf
 #define sigsetjmp(x,y) setjmp(x)
 #define siglongjmp longjmp
