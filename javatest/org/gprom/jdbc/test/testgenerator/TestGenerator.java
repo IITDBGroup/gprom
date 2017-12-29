@@ -221,6 +221,8 @@ public class TestGenerator {
 			result = result + "." + parts[i];
 		}
 		
+		result += "_Test";
+		
 		return result;
 	}
 	
@@ -246,6 +248,9 @@ public class TestGenerator {
 			}
 			else {
 				curName = curName + "." + parts[i];
+			}
+			if (i == parts.length -1) {
+				curName += "_Test";
 			}
 			if (suites.containsKey(curName)) {
 				curSuite = suites.get(curName);

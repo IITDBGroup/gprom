@@ -45,10 +45,11 @@ typedef struct ReplaceGroupByState {
     int attrOffset;
 } ReplaceGroupByState;
 
+#define PROP_PROJ_RENAMED_ATTRS "RenamedProjAttrs"
+
 // function declarations
 static Node *translateGeneral(Node *node);
 //static Node *translateSummary(Node *input, Node *node);
-static boolean disambiguiteAttrNames(Node *node, Set *done);
 static void adaptSchemaFromChildren(QueryOperator *o);
 
 /* Three branches of translating a Query */
@@ -72,7 +73,7 @@ static inline QueryOperator *createTableAccessOpFromFromTableRef(
 static QueryOperator *translateFromJoinExpr(FromJoinExpr *fje);
 static QueryOperator *translateFromSubquery(FromSubquery *fsq);
 static QueryOperator *translateFromJsonTable(FromJsonTable *fjt);
-static void translateFromProvInfo(QueryOperator *op, FromItem *f);
+static QueryOperator *translateFromProvInfo(QueryOperator *op, FromItem *f);
 
 /* Functions of translating nested subquery in a QueryBlock */
 static QueryOperator *translateNestedSubquery(QueryBlock *qb,
@@ -117,6 +118,7 @@ static List *getListOfAggregFunctionCalls(List *selectClause,
 static boolean visitAggregFunctionCall(Node *n, List **aggregs);
 static boolean visitFindWindowFuncs(Node *n, List **wfs);
 static boolean replaceWithViewRefsMutator(Node *node, List *views);
+
 static char *summaryType = NULL;
 static Node *prop = NULL;
 
@@ -126,7 +128,7 @@ translateParseOracle (Node *q)
 {
     Node *result;
 
-    INFO_LOG("translate QB model \n%s", nodeToString(q));
+    INFO_NODE_BEATIFY_LOG("translate QB model", q);
 
     result = translateGeneral(q);
 
@@ -179,31 +181,45 @@ translateGeneral (Node *node)
         result = (Node *) copyList((List *) node);
         FOREACH(Node,stmt,(List *) result)
         {
-            ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
+            if (isA(stmt, ProvenanceStmt))
+            {
+                ProvenanceStmt *prov = (ProvenanceStmt *) stmt;
 
-            if(prov->summaryType == NULL)
-                stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+                if(prov->summaryType == NULL)
+                    stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
+                else
+                {
+                    summaryType = prov->summaryType;
+                    r = translateQueryOracle(stmt);
+                    r->properties = copyObject(prop);
+                    stmt_his_cell->data.ptr_value = (Node *) r;
+                }
+            }
             else
             {
-            	summaryType = prov->summaryType;
-            	r = translateQueryOracle(stmt);
-            	r->properties = copyObject(prop);
-            	stmt_his_cell->data.ptr_value = (Node *) r;
+                stmt_his_cell->data.ptr_value = (Node *) translateQueryOracle(stmt);
             }
         }
     }
     else
     {
-        ProvenanceStmt *prov = (ProvenanceStmt *) node;
+        if (isA(node, ProvenanceStmt))
+        {
+            ProvenanceStmt *prov = (ProvenanceStmt *) node;
 
-        if(prov->summaryType == NULL)
-        	result = (Node *) translateQueryOracle(node);
+            if(prov->summaryType == NULL)
+                result = (Node *) translateQueryOracle(node);
+            else
+            {
+                summaryType = prov->summaryType;
+                r = translateQueryOracle(node);
+                r->properties = copyObject(prop);
+                result = (Node *) r;
+            }
+        }
         else
         {
-        	summaryType = prov->summaryType;
-        	r = translateQueryOracle(node);
-        	r->properties = copyObject(prop);
-        	result = (Node *) r;
+            result = (Node *) translateQueryOracle(node);
         }
     }
 
@@ -214,7 +230,7 @@ translateGeneral (Node *node)
 }
 
 
-static boolean
+boolean
 disambiguiteAttrNames(Node *node, Set *done)
 {
     QueryOperator *op;
@@ -245,6 +261,29 @@ disambiguiteAttrNames(Node *node, Set *done)
         DEBUG_OP_LOG("child operator's schema has changed", op);
         // first adapt attribute references
         List *attrRefs = getAttrRefsInOperator(op);
+        //TODO keep track of what attributes are renamed by a projection and store this to not override renaming
+        if (isA(op, ProjectionOperator))
+        {
+            ProjectionOperator *p = (ProjectionOperator *) op;
+            Set *renamedAttrs = STRSET();
+
+            // find renamed attributes
+            FORBOTH(Node,projExpr,attr,p->projExprs, op->schema->attrDefs)
+            {
+                AttributeReference *aRef;
+                AttributeDef *aDef = (AttributeDef *) attr;
+
+                // only consider the case A AS B
+                if(isA(projExpr, AttributeReference))
+                {
+                    aRef = (AttributeReference *) projExpr;
+                    if (!streq(aRef->name, aDef->attrName))
+                       addToSet(renamedAttrs, strdup(aDef->attrName));
+                }
+            }
+            SET_STRING_PROP(op, PROP_PROJ_RENAMED_ATTRS, renamedAttrs);
+        }
+
         FOREACH(AttributeReference,a,attrRefs)
         {
             QueryOperator *child;
@@ -291,16 +330,18 @@ adaptSchemaFromChildren(QueryOperator *o)
             o->schema->attrDefs = copyObject(OP_LCHILD(o)->schema->attrDefs);
         }
         break;
-        case T_ProjectionOperator:
+        case T_ProjectionOperator: //TODO do not rename attribute if this is already a rename
         {
             ProjectionOperator *p = (ProjectionOperator *) o;
+            Set *renamedAttrs = (Set *) GET_STRING_PROP(o, PROP_PROJ_RENAMED_ATTRS);
+
             FORBOTH(Node,proj,a,p->projExprs,o->schema->attrDefs)
             {
                 AttributeDef *aDef = (AttributeDef *) a;
                 if (isA(proj,AttributeReference))
                 {
                     AttributeReference *ref = (AttributeReference *) proj;
-                    if (!strpeq(aDef->attrName, ref->name))
+                    if (!strpeq(aDef->attrName, ref->name) && !hasSetElem(renamedAttrs, aDef->attrName))
                     {
                         aDef->attrName = strdup(ref->name);
                     }
@@ -490,7 +531,8 @@ translateQueryBlock(QueryBlock *qb)
 }
 
 static QueryOperator *
-translateProvenanceStmt(ProvenanceStmt *prov) {
+translateProvenanceStmt(ProvenanceStmt *prov)
+{
     QueryOperator *child;
     ProvenanceComputation *result;
 
@@ -514,6 +556,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             Constant *commitSCN = createConstLong(-1L);
             boolean showIntermediate = HAS_STRING_PROP(result,PROP_PC_SHOW_INTERMEDIATE);
             boolean useRowidScn = HAS_STRING_PROP(result,PROP_PC_TUPLE_VERSIONS);
+            List *noProv = NIL;
+            int i = 0;
 
             DEBUG_LOG("Provenance for transaction");
 
@@ -533,7 +577,6 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             tInfo->transIsolation = isoLevel;
             tInfo->originalUpdates = NIL;
 
-            int i = 0;
             // call parser and analyser and translate nodes
             FOREACH(char,sql,sqls)
             {
@@ -586,7 +629,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 {
                     SET_BOOL_STRING_PROP(child, PROP_SHOW_INTERMEDIATE_PROV);
                     SET_STRING_PROP(child, PROP_PROV_REL_NAME, createConstString(
-                            CONCAT_STRINGS("U", itoa(i + 1), "_", strdup(tableName))));
+                            CONCAT_STRINGS("U", gprom_itoa(i + 1), "_", strdup(tableName))));
                 }
 
                 // use ROWID + SCN as provenance, set provenance attributes for each table
@@ -599,6 +642,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
                 SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(updateType));
                 DEBUG_NODE_BEATIFY_LOG("qo model of update for transaction is\n", child);
+
+                noProv = appendToTailOfList(noProv, createConstBool(FALSE));
 
                 addChildOperator((QueryOperator *) result, child);
                 i++;
@@ -623,7 +668,9 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             tInfo->commitSCN = createConstLong(commitScn);
 
             DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
-            setStringProperty((QueryOperator *) result, PROP_PC_UPDATE_COND, (Node *) updateConds);
+            DEBUG_LOG("no prov: %s", nodeToString(noProv));
+            SET_STRING_PROP(result, PROP_PC_UPDATE_COND, updateConds);
+            SET_STRING_PROP(result, PROP_REENACT_NO_TRACK_LIST, noProv);
 
             DEBUG_LOG("constructed translated provenance computation for PROVENANCE OF TRANSACTION");
         }
@@ -661,9 +708,20 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             addChildOperator((QueryOperator *) result, child);
         }
         break;
-        case PROV_INPUT_TIME_INTERVAL:
-            //TODO
-            break;
+        case PROV_INPUT_TEMPORAL_QUERY:
+        {
+            DataType tempDT = getTailOfListInt(prov->dts);
+            SET_STRING_PROP(result, PROP_TEMP_ATTR_DT, createConstInt(tempDT));
+            child = translateQueryOracle(prov->query);
+            addChildOperator((QueryOperator *) result, child);
+        }
+        break;
+        case PROV_INPUT_UNCERTAIN_QUERY:
+        {
+            child = translateQueryOracle(prov->query);
+            addChildOperator((QueryOperator *) result, child);
+        }
+        break;
         case PROV_INPUT_REENACT:
         case PROV_INPUT_REENACT_WITH_TIMES:
         {
@@ -675,7 +733,8 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             boolean hasIsolevel = HAS_STRING_PROP(result,PROP_PC_ISOLATION_LEVEL);
             boolean hasCommitSCN = HAS_STRING_PROP(result,PROP_PC_COMMIT_SCN);
             List *updateConds = NIL;
-            int i = 0;
+            List *noProv = NIL;
+            int i = 0, j = 0;
 
             // user has asked for provenance?
             if (HAS_STRING_PROP(result, PROP_PC_GEN_PROVENANCE))
@@ -712,16 +771,24 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             tInfo->updateTableNames = NIL;
             tInfo->scns = NIL;
 
-            FOREACH(Node,stmt,(List *) prov->query)
+            FOREACH(KeyValue,stmtWithOpts,(List *) prov->query)
             {
                 char *tableName = NULL;
-                Node *n;
-                KeyValue *withT = (isWithTimes) ? ((KeyValue *) stmt) : NULL;
+                Node *n = stmtWithOpts->key;
+                List *opts = (List *) stmtWithOpts->value;
+                HashMap *optMap = NEW_MAP(Constant,Node);
+                boolean isNoProv;
+
+                // convert options into hashmap
+                FOREACH(KeyValue,opt,opts)
+                {
+                    addToMap(optMap, opt->key, opt->value);
+                }
+                isNoProv = MAP_HAS_STRING_KEY(optMap, PROP_REENACT_DO_NOT_TRACK_PROV);
+                noProv = appendToTailOfList(noProv, createConstBool(isNoProv));
+
                 ReenactUpdateType stmtType;
                 Node *cond = NULL;
-
-                // get statement
-                n = (isWithTimes) ? withT->key : stmt;
 
                 /* get table name and other info */
                 getAffectedTableAndOperationType(n, &stmtType, &tableName, &cond);
@@ -732,11 +799,10 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 if (isWithTimes)
                 {
-                    tInfo->scns = appendToTailOfList(tInfo->scns, withT->value);
+                    tInfo->scns = appendToTailOfList(tInfo->scns, MAP_GET_STRING(optMap, PROP_REENACT_ASOF));
                 }
 
-//                if (cond != NULL)
-                    updateConds = appendToTailOfList(updateConds, copyObject(cond));
+                updateConds = appendToTailOfList(updateConds, copyObject(cond));
 
                 tInfo->originalUpdates = appendToTailOfList(tInfo->originalUpdates, n);
 
@@ -747,11 +813,12 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 addChildOperator((QueryOperator *) result, child);
 
                 // mark for showing intermediate results
-                if (showIntermediate)
+                if (showIntermediate && !isNoProv)
                 {
                     SET_BOOL_STRING_PROP(child, PROP_SHOW_INTERMEDIATE_PROV);
                     SET_STRING_PROP(child, PROP_PROV_REL_NAME, createConstString(
-                            CONCAT_STRINGS("U", itoa(i + 1), "_", strdup(tableName))));
+                            CONCAT_STRINGS("U", gprom_itoa(j + 1), "_", strdup(tableName))));
+                    j++;
                 }
 
                 // use ROWID + SCN as provenance, set provenance attributes for each table
@@ -762,16 +829,20 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
 
                 // mark as root of translated update
                 SET_BOOL_STRING_PROP(child, PROP_PROV_IS_UPDATE_ROOT);
+                if (isNoProv)
+                    SET_BOOL_STRING_PROP(child, PROP_REENACT_DO_NOT_TRACK_PROV);
                 SET_STRING_PROP(child, PROP_PROV_ORIG_UPDATE_TYPE, createConstInt(stmtType));
                 DEBUG_NODE_BEATIFY_LOG("qo model of update for transaction is\n", child);
 
                 i++;
+
                 //TODO
             }
-
+            //TODO check that no prov statements are a prefix of all the statements updating a table
             DEBUG_LOG("ONLY UPDATED conditions: %s", nodeToString(updateConds));
-            setStringProperty((QueryOperator *) result, PROP_PC_UPDATE_COND, (Node *) updateConds);
-
+            DEBUG_LOG("no prov: %s", nodeToString(noProv));
+            SET_STRING_PROP(result, PROP_PC_UPDATE_COND, updateConds);
+            SET_STRING_PROP(result, PROP_REENACT_NO_TRACK_LIST, noProv);
             break;
         }
     }
@@ -993,8 +1064,8 @@ buildJoinTreeFromOperatorList(List *opList)
             List *lAttrs = getAttrNames(oldRoot->schema);
             List *rAttrs = getAttrNames(op->schema);
 
-//            addPrefixToAttrNames(lAttrs, itoa(pos));
-//            addPrefixToAttrNames(rAttrs, itoa(pos + 1));
+//            addPrefixToAttrNames(lAttrs, gprom_itoa(pos));
+//            addPrefixToAttrNames(rAttrs, gprom_itoa(pos + 1));
             // contact children's attribute names as the node's attribute
             // names
             List *attrNames = concatTwoLists(lAttrs, rAttrs);
@@ -1030,11 +1101,22 @@ getAttrsOffsets(List *fromClause)
 //    int len = getListLength(fromClause);
     List *offsets = NIL;
     int curOffset = 0;
+    FromProvInfo *fp;
 
     FOREACH(FromItem, from, fromClause)
     {
+       int numAttrs;
        offsets = appendToTailOfListInt(offsets, curOffset);
-       curOffset += getListLength(from->attrNames);
+       numAttrs = getListLength(from->attrNames);
+       if (from->provInfo != NULL)
+       {
+           fp = from->provInfo;
+           if(!fp->intermediateProv && !fp->baserel && fp->userProvAttrs)
+           {
+               numAttrs -= LIST_LENGTH(fp->userProvAttrs);
+           }
+       }
+       curOffset += numAttrs;
     }
 
     DEBUG_LOG("attribute offsets for from clause items are %s",
@@ -1072,23 +1154,25 @@ translateFromClauseToOperatorList(List *fromClause)
                 break;
         }
 
-        translateFromProvInfo(op, from);
+        op = translateFromProvInfo(op, from);
 
         ASSERT(op);
         opList = appendToTailOfList(opList, op);
     }
 
     ASSERT(opList);
-    DEBUG_LOG("translated from clause into list of operator trees is \n%s", nodeToString(opList));
+    DEBUG_LOG("translated from clause into list of operator trees is \n%s", beatify(nodeToString(opList)));
     return opList;
 }
 
-static void
+static QueryOperator *
 translateFromProvInfo(QueryOperator *op, FromItem *f)
 {
     FromProvInfo *from = f->provInfo;
+    boolean hasProv = FALSE;
+
     if (from == NULL)
-        return;
+        return op;
 
     /* treat as base relation or show intermediate provenance? */
     if (from->intermediateProv)
@@ -1096,7 +1180,10 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
     else if (from->baserel)
         SET_BOOL_STRING_PROP(op,PROP_USE_PROVENANCE);
     else
+    {
         SET_BOOL_STRING_PROP(op,PROP_HAS_PROVENANCE);
+        hasProv = TRUE;
+    }
 
     /* user provided provenance attributes or all attributes of subquery? */
     if (from->userProvAttrs != NIL)
@@ -1106,6 +1193,37 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 
     /* set name for op */
     setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
+
+    if (hasProv)
+    {
+        ProjectionOperator *p;
+        List *attrs, *newAttrs;
+        List *provAttrs = from->userProvAttrs;
+        List *provPos = NIL;
+
+        attrs = getQueryOperatorAttrNames(op);
+        newAttrs = NIL;
+
+        FOREACH(char,name,attrs)
+        {
+            if(!searchListString(provAttrs, name))
+            {
+                newAttrs = appendToTailOfList(newAttrs, strdup(name));
+            }
+            else
+            {
+                provPos = appendToTailOfListInt(provPos, getAttrPos(op, name));
+            }
+        }
+        p = (ProjectionOperator *) createProjOnAttrsByName(op, newAttrs, NIL);
+        op->provAttrs = provPos;
+        // mark as dummy projection so it can be excluded from rewrite
+        SET_BOOL_STRING_PROP(p, PROP_DUMMY_HAS_PROV_PROJ);
+        addChildOperator((QueryOperator *) p,op);
+        return (QueryOperator *) p;
+    }
+
+    return op;
 }
 
 static inline QueryOperator *
@@ -1143,6 +1261,7 @@ translateFromJoinExpr(FromJoinExpr *fje)
             FATAL_LOG("did not expect node <%s> in from list", nodeToString(input1));
             break;
     }
+    input1 = translateFromProvInfo(input1, fje->left);
     switch (fje->right->type)
     {
         case T_FromTableRef:
@@ -1159,7 +1278,7 @@ translateFromJoinExpr(FromJoinExpr *fje)
             FATAL_LOG("did not expect node <%s> in from list", nodeToString(input2));
             break;
     }
-
+    input2 = translateFromProvInfo(input2, fje->right);
     ASSERT(input1 && input2);
 
     // set children of the join operator node
@@ -1346,7 +1465,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
         List *dts = getDataTypes(lChild->schema);
 
         // add an auxiliary attribute, which stores the result of evaluating the nested subquery expr
-        char *attrName = CONCAT_STRINGS("nesting_eval_", itoa(i++));
+        char *attrName = CONCAT_STRINGS("nesting_eval_", gprom_itoa(i++));
         addToMap(subqueryToAttribute, (Node *) nsq,
                 (Node *) createNodeKeyValue((Node *) createConstString(attrName),
                                             (Node *)createConstInt(LIST_LENGTH(attrNames))));
@@ -1600,10 +1719,10 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
     // create fake attribute names for aggregation output schema
     for (i = 0; i < LIST_LENGTH(aggrs); i++)
         attrNames = appendToTailOfList(attrNames,
-                CONCAT_STRINGS("AGGR_", itoa(i)));
+                CONCAT_STRINGS("AGGR_", gprom_itoa(i)));
     for (i = 0; i < LIST_LENGTH(groupByClause); i++)
         attrNames = appendToTailOfList(attrNames,
-                CONCAT_STRINGS("GROUP_", itoa(i)));
+                CONCAT_STRINGS("GROUP_", gprom_itoa(i)));
 
     // copy aggregation function calls and groupBy expressions
     // and create aggregation operator
@@ -1653,7 +1772,7 @@ translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
     // create window operator for each window function call
     FOREACH(WindowFunction,f,wfuncs)
     {
-        char *aName = CONCAT_STRINGS("winf_", itoa(cur++));
+        char *aName = CONCAT_STRINGS("winf_", gprom_itoa(cur++));
 
         child = wOp;
         wOp = (QueryOperator *) createWindowOp(copyObject(f->f),
@@ -1727,7 +1846,7 @@ createProjectionOverNonAttrRefExprs(List **selectClause, Node **havingClause,
         for(i = 0; i < LIST_LENGTH(projExprs); i++)
         {
             attrNames = appendToTailOfList(attrNames,
-                    CONCAT_STRINGS("AGG_GB_ARG", itoa(i)));
+                    CONCAT_STRINGS("AGG_GB_ARG", gprom_itoa(i)));
         }
 
         ASSERT(LIST_LENGTH(projExprs) == LIST_LENGTH(attrNames));

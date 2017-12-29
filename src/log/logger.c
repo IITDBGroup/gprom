@@ -38,6 +38,13 @@ static StringInfo buffer = NULL;
 // global loglevel
 LogLevel maxLevel = LOG_INFO;
 
+// structure that encapsulates logger state
+struct logger_state
+{
+     StringInfo buffer;
+     LogLevel maxLevel;
+};
+
 // info
 typedef void (*LoggerCallbackFunction) (const char *,const char *,int,int);
 static LoggerCallbackFunction logCallback = NULL;
@@ -48,8 +55,10 @@ static inline FILE *getOutput(LogLevel level);
 static boolean vAppendBuf(StringInfo str, const char *format, va_list args);
 
 // use normal versions of free and malloc instead of memory manager ones
+#ifndef MALLOC_REDEFINED
 #undef free
 #undef malloc
+#endif
 
 void
 registerLogCallback (LoggerCallbackFunction callback)

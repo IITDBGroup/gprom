@@ -78,6 +78,9 @@ public class GProMWrapper implements GProMJavaInterface {
 	public synchronized String gpromRewriteQuery(String query) throws SQLException {
 		log.debug("WILL REWRITE:\n\n{}", query);
 		
+		if (!query.trim().endsWith(";"))
+			query += ";";
+		
 		Pointer p =  GProM_JNA.INSTANCE.gprom_rewriteQuery(query);
 		String result = p.getString(0);
 		

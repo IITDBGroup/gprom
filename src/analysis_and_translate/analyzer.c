@@ -35,7 +35,6 @@ Node *
 analyzeParseModel (Node *parseModel)
 {
     ASSERT(plugin);
-
     return plugin->analyzeParserModel(parseModel);
 }
 

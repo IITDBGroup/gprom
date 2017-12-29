@@ -1,0 +1,43 @@
+pipeline {
+    agent {
+		  dockerfile {
+		  		 dir 'jenkins/Docker/AllBackends'
+				 reuseNode true
+				 args '--user root'
+		  }
+	}
+    stages {
+		stage('build') {
+		    steps {
+				sh 'make -f Makefile.maintainer'
+				sh './configure --with-oci-headers=/opt/oracle/instantclient/sdk/include/ --with-oci-lib=/opt/oracle/instantclient'
+				sh 'make'
+				sh 'make install'
+				sh 'echo "/usr/local/lib/" > /etc/ld.so.conf.d/usrlocal.conf && ldconfig'
+			}
+		}
+		stage('dist-and-distcheck') {
+			steps {
+				sh 'make dist'
+				sh 'make distcheck'
+			}
+		}
+		stage('c-tests') {
+			steps {
+				sh 'cd test && make check'
+			}
+		}
+		stage('junit-regression-tests') {
+			steps {
+				sh 'cp /opt/oracle/instantclient/ojdbc7.jar javalib/ojdbc7.jar'
+				sh 'cp blackboxtests/testcases/default_options.txt blackboxtests/testcases/options.txt'
+				sh 'cd blackboxtests && ant runTests'
+			}
+		}
+    }
+	post {
+        always {
+            junit 'blackboxtests/results/**/*.xml'
+        }
+    }
+}

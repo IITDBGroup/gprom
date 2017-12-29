@@ -500,7 +500,7 @@ nextKey (int *id)
 {
     int res = *id;
     (*id)++;
-    return CONCAT_STRINGS("opNode", itoa(res));
+    return CONCAT_STRINGS("opNode", gprom_itoa(res));
 }
 
 static void

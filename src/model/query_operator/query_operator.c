@@ -692,6 +692,9 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
 {
     DuplicateRemoval *dr = makeNode(DuplicateRemoval);
 
+    if (attrNames == NIL)
+        attrNames = getQueryOperatorAttrNames(input);
+
     dr->attrs = attrs;
     dr->op.inputs = singleton(input);
     dr->op.schema = createSchemaFromLists("DUPREM", attrNames, getDataTypes(input->schema));
@@ -723,6 +726,15 @@ createConstRelOp(List *values, List *parents, List *attrNames, List *dataTypes)
     co->values=values;
     co->op.type=T_ConstRelOperator;
     co->op.inputs=NULL;
+
+    if (dataTypes == NIL)
+    {
+        FOREACH(Node,v, values)
+        {
+            dataTypes = appendToTailOfListInt(dataTypes, typeOf(v));
+        }
+    }
+
     co->op.schema= createSchemaFromLists("ConstRel", attrNames, dataTypes);
     co->op.parents=parents;
     co->op.provAttrs=NIL;
@@ -790,6 +802,11 @@ createOrderOp(List *orderExprs, QueryOperator *input, List *parents)
 void
 setProperty (QueryOperator *op, Node *key, Node *value)
 {
+    if (op->properties == NULL)
+    {
+        op->properties = (Node *) NEW_MAP(Node,Node);
+    }
+
     KeyValue *val = getProp(op, key);
 
     if (val)
@@ -799,8 +816,6 @@ setProperty (QueryOperator *op, Node *key, Node *value)
     }
 
     addToMap((HashMap *) op->properties, key, value);
-//    val = createNodeKeyValue(key, value);
-//    op->properties =  (Node *) appendToTailOfList((List *) op->properties, val);
 }
 
 Node *
@@ -1092,10 +1107,10 @@ AttributeDef *
 getAttrDefByName(QueryOperator *op, char *attr)
 {
     FOREACH(AttributeDef,a,op->schema->attrDefs)
-            {
+    {
         if (strcmp(a->attrName, attr) == 0)
             return a;
-            }
+    }
 
     return NULL;
 }
@@ -1112,6 +1127,36 @@ char *
 getAttrNameByPos(QueryOperator *op, int pos)
 {
     return getAttrDefByPos(op, pos)->attrName;
+}
+
+AttributeReference *
+getAttrRefByPos (QueryOperator *op, int pos)
+{
+    AttributeDef *d = getAttrDefByPos(op, pos);
+
+    ASSERT(d != NULL);
+
+    AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
+                pos,
+                INVALID_ATTR,
+                d->dataType);
+
+    return res;
+}
+
+AttributeReference *
+getAttrRefByName(QueryOperator *op, char *attr)
+{
+    AttributeDef *d = getAttrDefByName(op, attr);
+
+    ASSERT(d != NULL);
+
+    AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
+            getAttrPos(op, attr),
+            INVALID_ATTR,
+            d->dataType);
+
+    return res;
 }
 
 List *
@@ -1193,6 +1238,9 @@ List *
 aggOpGetAggAttrNames(AggregationOperator *op)
 {
     List *result = getQueryOperatorAttrNames((QueryOperator *) op);
+
+    if (LIST_LENGTH(op->aggrs) == 0)
+        return NIL;
 
     return sublist(result, 0, LIST_LENGTH(op->aggrs) - 1);
 }

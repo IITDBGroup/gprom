@@ -348,7 +348,7 @@ AC_MSG_RESULT($GPROM_CFLAGS)
 ])
 ################################################################################
 # Init autoconf
-AC_INIT([GProM],[0.0.1],[bglavic@iit.edu])
+AC_INIT([GProM],[1.0.0],[bglavic@iit.edu])
 # CFLAGS from user or set to nothing
 AS_IF([test "x$CFLAGS" != "x"],
 [
@@ -367,9 +367,14 @@ AC_CANONICAL_HOST
 AS_CASE([$host_os],
    [*linux*], [OSTYPE=linux],
    [*darwin*], [OSTYPE=osx],
-   [*windows*],[OSTYPE=windows],
+   [*windows*], [OSTYPE=windows],
+   [*mingw*], [OSTYPE=windows],
    [OSTYPE=unknown]
 )
+AS_IF([test "x$OSTYPE" == "xwindows"], [
+  AC_DEFINE([OS_WINDOWS],[],[Compiling for windows])
+  AC_DEFINE([GPROM_BUILD_DLL],[],[Compiling for windows, build dll])
+], [])
 AC_SUBST([OSTYPE])
 AC_SUBST([OSDETAILS],$host_os)
 AC_SUBST([OSARCH],$host_cpu)
@@ -410,7 +415,7 @@ AM_CONDITIONAL([HAVE_PROG_PANDOC], [test "x$pandoc" = xyes])
 AC_CHECK_PROG([rman],[rman],[yes])
 AM_CONDITIONAL([HAVE_PROG_RMAN], [test "x$rman" = xyes])
 # INIT LIBTOOL
-LT_INIT
+LT_INIT([win32-dll])
 ################################################################################
 # DATA TYPES
 AC_TYPE_SIZE_T
@@ -421,7 +426,6 @@ AC_TYPE_UINT8_T
 AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
-AC_CHECK_TYPES([ptrdiff_t])
 ################################################################################
 # HEADERS
 AC_CHECK_HEADERS([stddef.h])
@@ -440,15 +444,28 @@ AC_CHECK_HEADERS([pwd.h])
 #AC_CHECK_HEADERS([readline/history.h])
 AC_HEADER_ASSERT
 ################################################################################
+# CHECK FOR ADDITIONAL TYPES IN DISCOVERED HEADERS
+AC_CHECK_TYPES([ptrdiff_t])
+AC_CHECK_TYPES([sigjmp_buf], [], [], [
+AC_INCLUDES_DEFAULT
+#include <setjmp.h>
+])
+################################################################################
 # MEMORY ALLOCATION STUFF
 AC_CHECK_HEADERS([malloc.h])
-AC_FUNC_ALLOCA
-AC_FUNC_MALLOC
-AC_FUNC_REALLOC
+AC_CHECK_FUNCS([malloc])
+AC_CHECK_FUNCS([alloca])
+AC_CHECK_FUNCS([realloc]) 
+# removed, because they cause trouble with cross-compilation
+#AC_FUNC_ALLOCA
+#AC_FUNC_MALLOC
+#AC_FUNC_REALLOC
 # CHECK FOR STD C FUNCS
 AC_CHECK_FUNCS([memset])
 AC_CHECK_FUNCS([strdup])
 AC_CHECK_FUNCS([strcmp])
+#AC_CHECK_FUNCS([sigsetjmp])
+AC_CHECK_FUNCS([strsep])
 ################################################################################
 # Check which backends should be supported
 AC_ENABLE_ORACLE
@@ -467,20 +484,22 @@ AC_CHECK_LIB([m],[pow],[],[
   AC_MSG_ERROR([missing libm library (searching for pow function)])
 ])
 ################################################################################
+# check for libpthread
+AC_CHECK_LIB([pthread],[pthread_mutex_lock],[],[
+  AC_MSG_ERROR([missing libpthread library (searching for pthread_mutex_lock function)])
+])
+################################################################################
 # Enable cplex
 AC_ENABLE_CPLEX
 ################################################################################
 # cplex library
 AS_CASE(["$enable_cplex"], 
   [yes], [
-  AC_CHECK_LIB([pthread],[pthread_self],[],[
-    AC_MSG_ERROR([missing libpthread library (searching for pthread_self function)])
-  ])
-# check if user has provided us with non-standard locations for OCI/OCILIB libraries
+# check if user has provided us with non-standard locations for CPLEX libraries
   AC_CPLEX_LOCATION  
 # check for the libraries
   AC_CHECK_LIB([cplex],[CPXopenCPLEX],[],[
-    AC_MSG_ERROR([missing cplex library - if you want to compile without cplex  support do not use --enable-cplex])
+    AC_MSG_ERROR([missing cplex library - if you want to compile without cplex support do not use --enable-cplex])
   ])
   ],
   [no], [],
@@ -658,6 +677,7 @@ AC_CONFIG_FILES([
 	src/rpq/Makefile
 	src/sql_serializer/Makefile
 	src/symbolic_eval/Makefile
+	src/temporal_queries/Makefile
 	src/utility/Makefile
 	src/libgprom/Makefile
 	test/Makefile

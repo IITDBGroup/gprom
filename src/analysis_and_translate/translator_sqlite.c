@@ -427,7 +427,7 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 {
                     SET_BOOL_STRING_PROP(child, PROP_SHOW_INTERMEDIATE_PROV);
                     SET_STRING_PROP(child, PROP_PROV_REL_NAME, createConstString(
-                            CONCAT_STRINGS("U", itoa(i + 1), "_", strdup(tableName))));
+                            CONCAT_STRINGS("U", gprom_itoa(i + 1), "_", strdup(tableName))));
                 }
 
                 // use ROWID + SCN as provenance, set provenance attribute for each table
@@ -531,9 +531,6 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
             addChildOperator((QueryOperator *) result, child);
         }
         break;
-        case PROV_INPUT_TIME_INTERVAL:
-            //TODO
-            break;
         case PROV_INPUT_REENACT:
         case PROV_INPUT_REENACT_WITH_TIMES:
         {
@@ -585,6 +582,9 @@ translateProvenanceStmt(ProvenanceStmt *prov) {
                 addChildOperator((QueryOperator *) result, child);
                 //TODO
             }
+            break;
+        default:
+            FATAL_LOG("provenance type not supported yet for SQLite translator %s", ProvenanceInputTypeToString(prov->inputType));
             break;
         }
     }
@@ -1054,7 +1054,7 @@ translateNestedSubquery(QueryBlock *qb, QueryOperator *joinTreeRoot, List *attrs
         List *dts = getDataTypes(lChild->schema);
 
         // add an auxiliary attribute, which stores the result of evaluating the nested subquery expr
-        char *attrName = CONCAT_STRINGS("nesting_eval_", itoa(i++));
+        char *attrName = CONCAT_STRINGS("nesting_eval_", gprom_itoa(i++));
         addToMap(subqueryToAttribute, (Node *) nsq,
                 (Node *) createNodeKeyValue((Node *) createConstString(attrName),
                                             (Node *)createConstInt(LIST_LENGTH(attrNames))));
@@ -1308,10 +1308,10 @@ translateAggregation(QueryBlock *qb, QueryOperator *input, List *attrsOffsets)
     // create fake attribute names for aggregation output schema
     for (i = 0; i < LIST_LENGTH(aggrs); i++)
         attrNames = appendToTailOfList(attrNames,
-                CONCAT_STRINGS("AGGR_", itoa(i)));
+                CONCAT_STRINGS("AGGR_", gprom_itoa(i)));
     for (i = 0; i < LIST_LENGTH(groupByClause); i++)
         attrNames = appendToTailOfList(attrNames,
-                CONCAT_STRINGS("GROUP_", itoa(i)));
+                CONCAT_STRINGS("GROUP_", gprom_itoa(i)));
 
     // copy aggregation function calls and groupBy expressions
     // and create aggregation operator
@@ -1361,7 +1361,7 @@ translateWindowFuncs(QueryBlock *qb, QueryOperator *input,
     // create window operator for each window function call
     FOREACH(WindowFunction,f,wfuncs)
     {
-        char *aName = CONCAT_STRINGS("winf_", itoa(cur++));
+        char *aName = CONCAT_STRINGS("winf_", gprom_itoa(cur++));
 
         child = wOp;
         wOp = (QueryOperator *) createWindowOp(copyObject(f->f),
@@ -1435,7 +1435,7 @@ createProjectionOverNonAttrRefExprs(List **selectClause, Node **havingClause,
         for(i = 0; i < LIST_LENGTH(projExprs); i++)
         {
             attrNames = appendToTailOfList(attrNames,
-                    CONCAT_STRINGS("AGG_GB_ARG", itoa(i)));
+                    CONCAT_STRINGS("AGG_GB_ARG", gprom_itoa(i)));
         }
 
         ASSERT(LIST_LENGTH(projExprs) == LIST_LENGTH(attrNames));

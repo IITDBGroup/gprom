@@ -19,8 +19,13 @@
 #include "exception/exception.h"
 
 // we have to use actual free here
+#ifndef MALLOC_REDEFINED
 #undef free
 #undef malloc
+#endif
+
+// stopper used to indicate end of options
+#define STOPPER_STRING "STOPPER"
 
 //Options* options;
 HashMap *optionPos; // optionname -> position of option in list
@@ -107,6 +112,10 @@ boolean opt_timing = FALSE;
 boolean opt_memmeasure = FALSE;
 boolean opt_graphviz_output = FALSE;
 boolean opt_graphviz_detail = FALSE;
+boolean opt_show_query_runtime = FALSE;
+char *time_query_format = NULL;
+int query_repeat_count = 1;
+boolean opt_show_query_result = TRUE;
 
 // rewrite options
 boolean opt_aggressive_model_checking = FALSE;
@@ -144,13 +153,27 @@ boolean opt_optimization_pull_up_duplicate_remove_operators = FALSE;
 // optimization options for group by operator
 boolean opt_optimization_push_down_aggregation_through_join = FALSE;
 
-
 // sanity check options
 boolean opt_operator_model_unique_schema_attribues = FALSE;
 boolean opt_operator_model_parent_child_links = FALSE;
 boolean opt_operator_model_schema_consistency = FALSE;
 boolean opt_operator_model_attr_reference_consistency = FALSE;
 boolean opt_operator_model_data_structure_consistency = FALSE;
+
+// temporal database options
+boolean temporal_use_coalesce =	 TRUE;
+boolean temporal_use_normalization = TRUE;
+boolean temporal_use_normalization_window = FALSE;
+boolean temporal_agg_combine_with_norm = TRUE;
+
+// struct that encapsulates option state
+struct option_state {
+    HashMap *optionPos; // optionname -> position of option in list
+    HashMap *cmdOptionPos;
+    HashMap *backendInfo;
+    HashMap *frontendInfo;
+    OptionInfo opts[];
+};
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -191,6 +214,16 @@ static char *defGetString(OptionDefault *def, OptionType type);
         }
 
 #define anSanityCheckOption(_name,_opt,_desc,_var,_def) \
+        { \
+            _name, \
+            _opt, \
+            _desc, \
+            OPTION_BOOL, \
+            wrapOptionBool(&_var), \
+            defOptionBool(_def) \
+        }
+
+#define anTemporaldbOption(_name,_opt,_desc,_var,_def) \
         { \
             _name, \
             _opt, \
@@ -444,6 +477,34 @@ OptionInfo opts[] =
                 "show operator parameters in graphviz scripts.",
                 opt_graphviz_detail ,
                 FALSE),
+        aRewriteOption(OPTION_TIME_QUERIES,
+                "-time_queries",
+                "measure query runtimes (only makes a difference for executor <run>).",
+                opt_show_query_runtime,
+                FALSE),
+        {
+                OPTION_TIME_QUERY_OUTPUT_FORMAT,
+                "-time_query_format",
+                "format used for printing query timing results. "
+                        "The format is printf compatible and should contain "
+                        "exactly on %f element (additional formating such as %12f is ok)",
+                OPTION_STRING,
+                wrapOptionString(&time_query_format),
+                defOptionString(NULL)
+        },
+        {
+                OPTION_REPEAT_QUERY,
+                "-repeat_query_count",
+                "execute query this many times (useful for timing).",
+                OPTION_INT,
+                wrapOptionInt(&query_repeat_count),
+                defOptionInt(1)
+        },
+        aRewriteOption(OPTION_SHOW_QUERY_RESULT,
+                "-show_result",
+                "show query result (only makes a difference for executor <run>).",
+                opt_show_query_result,
+                TRUE),
         // boolean rewrite options
         aRewriteOption(OPTION_AGGRESSIVE_MODEL_CHECKING,
                 "-aggressive_model_checking",
@@ -622,6 +683,31 @@ OptionInfo opts[] =
 				opt_optimization_push_down_aggregation_through_join,
 				TRUE
 		),
+        // temporal database options for coalesce and normalization
+        anTemporaldbOption(TEMPORAL_USE_COALSECE,
+                "-temporal_use_coalesce",
+                "Temporaldb: Activate coalesce",
+				temporal_use_coalesce,
+                TRUE
+        ),
+		anTemporaldbOption(TEMPORAL_USE_NORMALIZATION,
+                "-temporal_use_normalization",
+                "Temporaldb: Activate normalization",
+				temporal_use_normalization,
+                TRUE
+        ),
+		anTemporaldbOption(TEMPORAL_USE_NORMALIZATION_WINDOW,
+                "-temporal_use_normalization_window",
+                "Temporaldb: Activate normalization using window",
+				temporal_use_normalization_window,
+                FALSE
+        ),
+        anTemporaldbOption(TEMPORAL_AGG_WITH_NORM,
+                "-" TEMPORAL_AGG_WITH_NORM,
+                "Temporaldb: rewrite and aggregation by applying a rewrite that combines aggregation with normalization",
+                temporal_agg_combine_with_norm,
+                TRUE
+        ),
         // sanity model checking options
         anSanityCheckOption(CHECK_OM_UNIQUE_ATTR_NAMES,
                 "-Cunique_attr_names",
@@ -663,7 +749,7 @@ OptionInfo opts[] =
         ),
         // stopper to indicate end of array
         {
-                "STOPPER",
+                STOPPER_STRING,
                 NULL,
                 NULL,
                 OPTION_STRING,
@@ -707,7 +793,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
-            "STOPPER", NULL, NULL, NULL, NULL, NULL
+            STOPPER_STRING, NULL, NULL, NULL, NULL, NULL
         }
 };
 
@@ -726,12 +812,12 @@ FrontendInfo frontends[]  = {
             "dl"   // translator
         },
         {
-            "STOPPER", NULL, NULL, NULL
+            STOPPER_STRING, NULL, NULL, NULL
         }
 };
 
 static void
-initOptions(void)
+initOptions(void)   //TODO make this threadsafe
 {
     // create hashmap option -> position in option info array for lookup
     optionPos = NEW_MAP(Constant,Constant);
@@ -740,7 +826,7 @@ initOptions(void)
     frontendInfo = NEW_MAP(Constant,HashMap);
 
     // add options to hashmap and set all options to default values
-    for(int i = 0; strcmp(opts[i].option,"STOPPER") != 0; i++)
+    for(int i = 0; strcmp(opts[i].option,STOPPER_STRING) != 0; i++)
     {
         OptionInfo *o = &(opts[i]);
         setDefault(o);
@@ -755,7 +841,7 @@ initOptions(void)
     }
 
     // create backend infos
-    for(int i = 0; strcmp(backends[i].backendName,"STOPPER") != 0; i++)
+    for(int i = 0; strcmp(backends[i].backendName,STOPPER_STRING) != 0; i++)
     {
         HashMap *newMap = NEW_MAP(Constant, Constant);
         char *name = backends[i].backendName;
@@ -772,7 +858,7 @@ initOptions(void)
     }
 
     // create frontend infos
-    for(int i = 0; strcmp(frontends[i].frontendName,"STOPPER") != 0; i++)
+    for(int i = 0; strcmp(frontends[i].frontendName,STOPPER_STRING) != 0; i++)
     {
         HashMap *newMap = NEW_MAP(Constant, Constant);
         char *name = frontends[i].frontendName;
@@ -1008,6 +1094,15 @@ optionSet(char *name)
     return TRUE;
 }
 
+#define PRINT_VERSION_STRING "gprom version %s\n"
+
+void
+printVersion(FILE *stream)
+{
+    fprintf(stream, PRINT_VERSION_STRING, PACKAGE_VERSION);
+    fflush(stream);
+}
+
 void
 printOptionsHelp(FILE *stream, char *progName, char *description, boolean showValues)
 {
@@ -1037,6 +1132,7 @@ printOptionsHelp(FILE *stream, char *progName, char *description, boolean showVa
                     v->description);
         }
     }
+    fflush(stream);
 }
 
 void
@@ -1109,7 +1205,7 @@ valGetString(OptionValue *def, OptionType type)
     switch(type)
     {
         case OPTION_INT:
-            return itoa(*(def->i));
+            return gprom_itoa(*(def->i));
         case OPTION_STRING:
             return *def->string ? *def->string : "NULL";
         case OPTION_BOOL:
@@ -1132,7 +1228,7 @@ defGetString(OptionDefault *def, OptionType type)
     switch(type)
     {
         case OPTION_INT:
-            return itoa(def->i);
+            return gprom_itoa(def->i);
         case OPTION_STRING:
             return def->string ? def->string : "NULL";
         case OPTION_BOOL:

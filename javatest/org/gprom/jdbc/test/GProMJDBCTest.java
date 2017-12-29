@@ -3,6 +3,7 @@
  */
 package org.gprom.jdbc.test;
 
+import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -32,12 +33,12 @@ public class GProMJDBCTest {
 	static Logger log = LogManager.getLogger(GProMJDBCTest.class);
 	
 	public static void main (String[] args) throws Exception {
-		
-		//PropertyConfigurator.configureAndWatch("blackboxtests/log4jtest.properties");
+		PropertyConfigurator.configureAndWatch("blackboxtests/log4jtest.properties");
 		String driverURL = "oracle.jdbc.OracleDriver";
 //		String driverURL = "org.postgresql.Driver";
 //		String url = "jdbc:hsqldb:file:/Users/alex/db/mydb";
-		String username = "fga_user";
+//		String username = "fga_user";
+		String username = "testuser";
 		String password; // = "XXX";
 //		String username = "postgres";
 //		String password = "";
@@ -52,7 +53,6 @@ public class GProMJDBCTest {
 		System.out.print("enter password: ");
 		Scanner in = new Scanner(System.in);
 		password = in.nextLine();
-		
 		// setup url
 		url = "jdbc:gprom:oracle:thin:" + username + "/" + password + 
 				"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
@@ -74,7 +74,7 @@ public class GProMJDBCTest {
 		try{
 			log.error("made it this far");
 			Properties info = new Properties();
-			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "TRUE");
+			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP_NAME, "TRUE");
 			info.setProperty("user", username);
 			info.setProperty("password", password);
 			log.error("made it this far");
@@ -103,21 +103,35 @@ public class GProMJDBCTest {
 		log.error("type of connection.host: " + con.getW().typeOfOption("connection.host"));
 		log.error("type of connection.db: " + con.getW().typeOfOption("connection.db"));
 		
-		Statement st = con.createStatement();
-		
+		Connection wCon = con.getWrappedCon();
+		Statement st = wCon.createStatement();
+		Statement gSt = con.createStatement();
 		
 		log.error("statement created");
 		
 		ResultSet rs;
-		rs = st.executeQuery("SELECT a FROM r;");
+//		rs = st.executeQuery("SELECT a FROM r;");
 		try {
-			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
-			printResult(rs);
+//			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
+			System.out.println("***************");
+			for(int i = 0; i < 3; i++) {
+				rs = gSt.executeQuery("SELECT * FROM r WHERE a < " + i + ";");
+				printResult(rs);
+				rs = st.executeQuery("SELECT   A.VALUE   "
+						+ "FROM V$SESSTAT A,     V$STATNAME B,     V$SESSION S   "
+						+ "WHERE A.STATISTIC# = B.STATISTIC#     AND S.SID        = A.SID     "
+						+ "AND B.NAME       = 'opened cursors current'     "
+						+ "AND USERNAME     = 'TESTUSER'");
+				printResult(rs);
+				Thread.sleep(3000);
+			}
 		}
 		catch (NativeGProMLibException e) {
 			log.error("###############################\n" + e.getMessage() + "\n###############################\n");
 		}
 		
+		gSt.close();
+		st.close();
 //		
 //		rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
 //		printResult(rs);
@@ -158,6 +172,7 @@ public class GProMJDBCTest {
 		System.out.println("-------------------------------------------------------------------------------");
 		System.out.println();
 		System.out.println();
+		rs.close();
 	}
 	
 }

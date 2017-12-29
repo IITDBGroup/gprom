@@ -75,18 +75,9 @@ mergeUpdateSequence(ProvenanceComputation *op)
     }
     SET_STRING_PROP(op, PROP_PROV_ORIG_UPDATE_TYPE, updateTypes);
 
-    // merge based on type of request
-//    if (op->inputType == PROV_INPUT_TRANSACTION)
-//    {
-//        mergeForTransactionProvenance(op);
-//        return;
-//    }
     if (op->inputType == PROV_INPUT_TRANSACTION || op->inputType == PROV_INPUT_REENACT
                 || op->inputType == PROV_INPUT_REENACT_WITH_TIMES)
     {
-//        if (op->transactionInfo->transIsolation == ISOLATION_SERIALIZABLE)
-//            mergeForReenactOnly(op);
-//        if (op->transactionInfo->transIsolation == ISOLATION_READ_COMMITTED)
             mergeForTransactionProvenance(op);
 
         return;
@@ -103,23 +94,9 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     List *tabNames = op->transactionInfo->updateTableNames;
     List *updateTypes = (List *) GET_STRING_PROP(op, PROP_PROV_ORIG_UPDATE_TYPE);
     char *reenactTargetTable = GET_STRING_PROP_STRING_VAL(op, PROP_PC_TABLE);
+    List *isNoProvs = (List *) GET_STRING_PROP(op, PROP_REENACT_NO_TRACK_LIST);
     boolean addAnnotAttrs = needAnnotAttributes(op);
     int i;
-
-//    // if we only want tuple affected by the transaction then in some cases the first insert should avoid the union with the table
-//    if (HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
-//    {
-//         removeInputTablesWithOnlyInserts(op);
-//    }
-//
-//    // annotation attributes if requested
-//    if (addAnnotAttrs)
-//    {
-//        addUpdateAnnotationAttrs (op);
-//        removeUpdateAnnotAttr(op);
-//
-//        INFO_LOG("after adding annotation attributes:\n%s", operatorToOverviewString((Node *) op));
-//    }
 
     // updates to process
     updates = copyList(op->op.inputs);
@@ -127,6 +104,44 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
     // cut links to parent
     removeParentFromOps(op->op.inputs, (QueryOperator *) op);
     op->op.inputs = NIL;
+
+    // mark statements for which no provenance should be tracked as BASERELATION
+    if (op->provType != PROV_NONE)
+    {
+        HashMap *lastNoProvPerTable = NEW_MAP(Constant,Node);
+        i = 0;
+
+        DEBUG_NODE_BEATIFY_LOG("mark statements to be ignored for provenance tracking", isNoProvs);
+
+        FORBOTH(Node,stmt,isNoProv, updates, isNoProvs)
+        {
+            QueryOperator *o = (QueryOperator *) stmt;
+            boolean noP = BOOL_VALUE(isNoProv);
+            char *tableName = (char *) getNthOfListP(tabNames, i);
+
+            DEBUG_LOG("statement %u on table %s is provenance: %s", i, tableName, noP ? "yes" : "no");
+
+            if (noP)
+            {
+                MAP_ADD_STRING_KEY(lastNoProvPerTable, tableName, o);
+            }
+            i++;
+        }
+
+        DEBUG_NODE_BEATIFY_LOG("the following statements will be marked to be "
+                "ignored for provenance tracking", lastNoProvPerTable);
+
+        FOREACH_HASH_ENTRY(kv,lastNoProvPerTable)
+        {
+            QueryOperator *o = (QueryOperator *) kv->value;
+            char *tableName = STRING_VALUE(kv->key);
+
+            SET_BOOL_STRING_PROP(o,PROP_USE_PROVENANCE);
+            SET_STRING_PROP(o, PROP_USER_PROV_ATTRS,
+                    (Node *) stringListToConstList(getQueryOperatorAttrNames(o)));
+            SET_STRING_PROP(o, PROP_PROV_REL_NAME, (Node *) createConstString(tableName));
+        }
+    }
 
     // loop through statement replacing ops where necessary
     DEBUG_NODE_BEATIFY_LOG("reenacted statements to merge are:", updates);
@@ -204,7 +219,6 @@ mergeSerializebleTransaction(ProvenanceComputation *op)
             t->asOf = copyObject(op->asOf);
         }
     }
-
 
     if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
         ASSERT(checkModel((QueryOperator *) op));
@@ -316,118 +330,121 @@ removeUpdateAnnotAttr (ProvenanceComputation *op)
 static void
 addUpdateAnnotationAttrs (ProvenanceComputation *op)
 {
-    int i = 0;
+    int i = 0, j = 0;
+    List *noProv = (List *) GET_STRING_PROP(op, PROP_REENACT_NO_TRACK_LIST);
 
     // add projection for each update to create the update attribute
     FORBOTH_LC(uLc, trLc, op->transactionInfo->originalUpdates, op->op.inputs)
     {
         QueryOperator *q = (QueryOperator *) LC_P_VAL(trLc);
         Node *u = (Node *) LC_P_VAL(uLc);
-//        Node *annotAttr;
         char *annotName = NULL;
+        boolean noP = BOOL_VALUE(getNthOfListP(noProv, i));
 
-        switch (u->type) {
-            case T_Insert:
-                annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_INSERT);
-                break;
-            case T_Update:
-                annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_UPDATE);
-                break;
-            case T_Delete:
-                annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_DELETE);
-                break;
-            default:
-                FATAL_LOG("expected insert, update, or delete");
-        }
+        if (!noP)
+        {
+            switch (u->type) {
+                case T_Insert:
+                    annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_INSERT);
+                    break;
+                case T_Update:
+                    annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_UPDATE);
+                    break;
+                case T_Delete:
+                    annotName = strdup(STATEMENT_ANNOTATION_SUFFIX_DELETE);
+                    break;
+                default:
+                    FATAL_LOG("expected insert, update, or delete");
+            }
 
-        // mark update annotation attribute as provenance
-        SET_STRING_PROP(q, PROP_ADD_PROVENANCE, LIST_MAKE(createConstString(annotName)));
-        SET_STRING_PROP(q, PROP_PROV_IGNORE_ATTRS, MAKE_STR_SET(strdup(annotName)));
-        SET_STRING_PROP(q, PROP_PROV_ADD_REL_NAME, createConstString(CONCAT_STRINGS("U", itoa(i + 1))));
-        SET_STRING_PROP(q, PROP_PC_VERSION_SCN_ATTR, createConstString(annotName));
+            // mark update annotation attribute as provenance
+            SET_STRING_PROP(q, PROP_ADD_PROVENANCE, LIST_MAKE(createConstString(annotName)));
+            SET_STRING_PROP(q, PROP_PROV_IGNORE_ATTRS, MAKE_STR_SET(strdup(annotName)));
+            SET_STRING_PROP(q, PROP_PROV_ADD_REL_NAME, createConstString(CONCAT_STRINGS("U", gprom_itoa(j + 1))));
+            SET_STRING_PROP(q, PROP_PC_VERSION_SCN_ATTR, createConstString(annotName));
 
-        // use original update to figure out type of each update (UPDATE/DELETE/INSERT)
-        // switch
-        switch (u->type) {
-            case T_Insert:
-            {
-                if (isA(q, SetOperator))
-                    addAnnotConstToUnion(q, FALSE, annotName);
-                else
+            // use original update to figure out type of each update (UPDATE/DELETE/INSERT)
+            // switch
+            switch (u->type) {
+                case T_Insert:
+                {
+                    if (isA(q, SetOperator))
+                        addAnnotConstToUnion(q, FALSE, annotName);
+                    else
+                    {
+                        ProjectionOperator *p;
+
+                        p = (ProjectionOperator *) createProjOnAllAttrs(q);
+                        switchSubtrees(q, (QueryOperator *) p);
+                        addChildOperator((QueryOperator *) p,q);
+                        //TODO ok to move properties to parent?
+                        p->op.properties = q->properties;
+                        q->properties = (Node *) NEW_MAP(Node,Node);
+
+                        p->projExprs = appendToTailOfList(p->projExprs, (Node *) createConstBool(TRUE));
+
+                        // add attribute name for annotation attribute to schema
+                        p->op.schema->attrDefs =
+                                appendToTailOfList(p->op.schema->attrDefs,
+                                        createAttributeDef(strdup(annotName), DT_BOOL));
+                    }
+                }
+                break;
+                case T_Update:
+                {
+                    // if update CASE translation was used
+                    if (isA(q,ProjectionOperator))
+                    {
+                        Node *annotAttr;
+                        ProjectionOperator *p = (ProjectionOperator *) q;
+                        Node *cond = getNthOfListP(
+                                (List *) GET_STRING_PROP(op, PROP_PC_UPDATE_COND), i);
+
+                        // update has no condition
+                        if (cond == NULL)
+                        {
+                            annotAttr = (Node *) createConstBool(TRUE);
+                        }
+                        else
+                        {
+                            // add proj expr CASE WHEN C THEN TRUE ELSE FALSE END
+                            annotAttr = (Node *) createCaseExpr(NULL,
+                                    LIST_MAKE(createCaseWhen(cond,
+                                            (Node *) createConstBool(TRUE))),
+                                            (Node *) createConstBool(FALSE));
+                        }
+
+                        p->projExprs = appendToTailOfList(p->projExprs, annotAttr);
+
+                        // add attribute name for annotation attribute to schema
+                        p->op.schema->attrDefs =
+                                appendToTailOfList(p->op.schema->attrDefs,
+                                        createAttributeDef(strdup(annotName), DT_BOOL));
+                    }
+                    // else union was used
+                    else
+                        addAnnotConstToUnion(q, TRUE, annotName);
+                }
+                break;
+                case T_Delete:
                 {
                     ProjectionOperator *p;
 
                     p = (ProjectionOperator *) createProjOnAllAttrs(q);
                     switchSubtrees(q, (QueryOperator *) p);
-                    addChildOperator((QueryOperator *) p,q);
-                    //TODO ok to move properties to parent?
-                    p->op.properties = q->properties;
-                    q->properties = (Node *) NEW_MAP(Node,Node);
 
-                    p->projExprs = appendToTailOfList(p->projExprs, (Node *) createConstBool(TRUE));
+                    p->projExprs = appendToTailOfList(p->projExprs, (Node *) createConstBool(FALSE));
 
                     // add attribute name for annotation attribute to schema
                     p->op.schema->attrDefs =
                             appendToTailOfList(p->op.schema->attrDefs,
                                     createAttributeDef(strdup(annotName), DT_BOOL));
                 }
+                break;
+                default:
+                    FATAL_LOG("expected insert, update, or delete");
             }
-            break;
-            case T_Update:
-            {
-//                Update *up = (Update *) u;
-
-                // if update CASE translation was used
-                if (isA(q,ProjectionOperator))
-                {
-                    Node *annotAttr;
-                    ProjectionOperator *p = (ProjectionOperator *) q;
-                    Node *cond = getNthOfListP(
-                            (List *) GET_STRING_PROP(op, PROP_PC_UPDATE_COND), i);
-
-                    // update has no condition
-                    if (cond == NULL)
-                    {
-                        annotAttr = (Node *) createConstBool(TRUE);
-                    }
-                    else
-                    {
-                        // add proj expr CASE WHEN C THEN TRUE ELSE FALSE END
-                        annotAttr = (Node *) createCaseExpr(NULL,
-                                LIST_MAKE(createCaseWhen(cond,
-                                        (Node *) createConstBool(TRUE))),
-                                        (Node *) createConstBool(FALSE));
-                    }
-
-                    p->projExprs = appendToTailOfList(p->projExprs, annotAttr);
-
-                    // add attribute name for annotation attribute to schema
-                    p->op.schema->attrDefs =
-                            appendToTailOfList(p->op.schema->attrDefs,
-                                    createAttributeDef(strdup(annotName), DT_BOOL));
-                }
-                // else union was used
-                else
-                    addAnnotConstToUnion(q, TRUE, annotName);
-            }
-            break;
-            case T_Delete:
-            {
-                ProjectionOperator *p;
-
-                p = (ProjectionOperator *) createProjOnAllAttrs(q);
-                switchSubtrees(q, (QueryOperator *) p);
-
-                p->projExprs = appendToTailOfList(p->projExprs, (Node *) createConstBool(FALSE));
-
-                // add attribute name for annotation attribute to schema
-                p->op.schema->attrDefs =
-                        appendToTailOfList(p->op.schema->attrDefs,
-                                createAttributeDef(strdup(annotName), DT_BOOL));
-            }
-            break;
-            default:
-                FATAL_LOG("expected insert, update, or delete");
+            j++;
         }
 
         i++;
@@ -478,87 +495,6 @@ addAnnotConstToUnion (QueryOperator *un, boolean leftIsTrue, char *annotName)
             appendToTailOfList(un->schema->attrDefs, createAttributeDef(strdup(annotName), DT_BOOL));
 }
 
-//static void
-//mergeSerializebleTransaction(ProvenanceComputation *op)
-//{
-//    List *updates = copyList(op->op.inputs);
-//    int i = 0;
-//    boolean addAnnotAttrs = needAnnotAttributes(op);
-//    List *updateTypes = (List *) GET_STRING_PROP(op, PROP_PROV_ORIG_UPDATE_TYPE);
-//
-//    // cut links to parent
-//    removeParentFromOps(op->op.inputs, (QueryOperator *) op);
-//    op->op.inputs = NIL;
-//
-//    // reverse list
-//    reverseList(updates);
-//    reverseList(op->transactionInfo->updateTableNames);
-//
-//    DEBUG_NODE_BEATIFY_LOG("Updates to merge are:", updates);
-//    INFO_OP_LOG("Updates to merge overview are:", updates);
-//    /*
-//     * Merge the individual queries for all updates into one
-//     */
-//    FOREACH(QueryOperator, u, updates)
-//    {
-//         List *children = NULL;
-//         ReenactUpdateType typ = getNthOfListInt(updateTypes, i);
-//
-//         // find all table access operators
-//         findTableAccessVisitor((Node *) u, &children);
-//         INFO_OP_LOG("Replace table access operators in", u);
-//
-//         FOREACH(TableAccessOperator, t, children)
-//         {
-//             INFO_OP_LOG("\tTable Access", t);
-//             QueryOperator *up = getUpdateForPreviousTableVersion(op,
-//                     t->tableName, i, updates);
-//
-//             if (typ == UPDATE_TYPE_INSERT_QUERY && addAnnotAttrs)
-//                 up = createProjToRemoveAnnot(up);
-//
-//             INFO_OP_LOG("\tUpdate is", up);
-//             // previous table version was created by transaction
-//             if (up != NULL)
-//                 switchSubtreeWithExisting((QueryOperator *) t, up);
-//             // previous table version is the one at transaction begin
-//             else
-//             {
-//                 Constant *startScn = copyObject((Constant *) getHeadOfListP(op->transactionInfo->scns));
-//
-//                 // if user provenance attribute
-//                 if (HAS_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION))
-//                 {
-//                     t->asOf = (Node *) LIST_MAKE(startScn, copyObject(startScn));
-//                 }
-//                 else
-//                     t->asOf = (Node *) startScn;
-//             }
-//
-//             INFO_LOG("Table after merge %s", operatorToOverviewString((Node *) u));
-//         }
-//         i++;
-//    }
-//    DEBUG_NODE_BEATIFY_LOG("Merged updates are:", updates);
-//
-//    // replace updates sequence with root of the whole merged update query
-//
-//    //TODO check if user asks for specific table
-//
-//    // if not then do normal stuff
-//    addChildOperator((QueryOperator *) op, (QueryOperator *) getHeadOfListP(updates));
-//
-//    // else find last update to that table
-//    //getUpdateForPreviousTableVersion(op,THE_TABLE_NAME, 0, updates);
-//    // if NULL then user has asked for non-existing table
-//    // FATAL_LOG("table); - exit
-//    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-//        ASSERT(checkModel((QueryOperator *) op));
-//
-//    DEBUG_NODE_BEATIFY_LOG("Provenance computation for updates that will be passed "
-//            "to rewriter:", op);
-//}
-
 static void
 mergeReadCommittedTransaction(ProvenanceComputation *op)
 {
@@ -569,6 +505,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
     boolean addAnnotAttrs = needAnnotAttributes(op);
     Set *tableUpdatedBefore = STRSET();
     char *reenactTargetTable = GET_STRING_PROP_STRING_VAL(op, PROP_PC_TABLE);
+    List *isNoProvs = (List *) GET_STRING_PROP(op, PROP_REENACT_NO_TRACK_LIST);
 
     // Loop through update translations and add version_startscn condition + attribute
 	FORBOTH_LC(uLc, trLc, op->transactionInfo->originalUpdates, op->op.inputs)
@@ -576,6 +513,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	    QueryOperator *q = (QueryOperator *) LC_P_VAL(trLc);
 	    Node *u = (Node *) LC_P_VAL(uLc);
 	    char *tableName = NULL;
+	    boolean prevIsNoProv = (i == 0) ? FALSE : BOOL_VALUE(getNthOfListP(isNoProvs, i-1));
 
 		// use original update to figure out type of each update (UPDATE/DELETE/INSERT)
 		// switch
@@ -635,7 +573,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
                 // determine attribute position in child
                 attrPos = getNumAttrs(OP_LCHILD(lC));
-                if (hasSetElem(tableUpdatedBefore, tableName) && addAnnotAttrs)
+                if (hasSetElem(tableUpdatedBefore, tableName) && addAnnotAttrs && !prevIsNoProv)
                     attrPos++;
 
                 lC->op.schema->attrDefs = appendToTailOfList(lC->op.schema->attrDefs,
@@ -755,21 +693,6 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 				    proj = (ProjectionOperator *) OP_LCHILD(proj);
 				}
 				projExprs = proj->projExprs;
-				// just modify schema of outer projection
-//				if (addAnnotAttrs)
-//				{
-//	                proj->projExprs = appendToTailOfList(projExprs,
-//	                        (Node *) createFullAttrReference(VERSIONS_STARTSCN_ATTR,
-//	                                0,
-//	                                getNumAttrs(OP_LCHILD(q)),
-//	                                0,
-//	                                DT_LONG));
-//	                q->schema->attrDefs = appendToTailOfList(q->schema->attrDefs,
-//	                        createAttributeDef(VERSIONS_STARTSCN_ATTR, DT_LONG));
-//
-//	                proj = (ProjectionOperator *) OP_LCHILD(proj);
-//	                projExprs = proj->projExprs;
-//				}
 
 				// attribute position of STARTSCN attribute in the child
 				// if this is the first update then it will be the last attribute
@@ -777,7 +700,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 				// and annotation attributes are added then we have to add another
 				// +1
 				attrPos = getNumAttrs(OP_LCHILD(proj));
-				if (hasSetElem(tableUpdatedBefore, tableName) && addAnnotAttrs)
+				if (hasSetElem(tableUpdatedBefore, tableName) && addAnnotAttrs && !prevIsNoProv)
 				    attrPos++;
 
 				//Add SCN foreach CaseEpr
@@ -944,7 +867,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 	if (reenactTargetTable != NULL)
 	{
 	    mergeRoot = getUpdateForPreviousTableVersion(op,
-	            reenactTargetTable, 0, updates);
+	            reenactTargetTable, -1, updates);
 
         if (mergeRoot == NULL)
             FATAL_LOG("cannot track provenance of table %s that is not affected by the transaction:", reenactTargetTable);
@@ -970,6 +893,9 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 
 	INFO_OP_LOG("Merged updates are:", finalProj);
 	DEBUG_NODE_BEATIFY_LOG("Merged updates are:", finalProj);
+
+	// reverse tableNames again to avoid problems with adding conditions for ONLY UPDATED
+	reverseList(op->transactionInfo->updateTableNames);
 
 	// replace updates sequence with root of the whole merged update query
 	addChildOperator((QueryOperator *) op, finalProj);
@@ -1075,14 +1001,14 @@ restrictToUpdatedRows (ProvenanceComputation *op)
     // if is simple and CBO is activated then make a choice between prefiltering and history join
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
     {
-    	int res;
+        int res;
 
-    	res = callback(2);
+        res = callback(2);
 
-    	if (res == 1)
-    		addConditionsToBaseTables(op);
-   		else
-   			extractUpdatedFromTemporalHistory(op);
+        if (res == 1)
+            addConditionsToBaseTables(op);
+        else
+            extractUpdatedFromTemporalHistory(op);
     }
     // else check which option is checked
     else

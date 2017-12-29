@@ -4,6 +4,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
@@ -32,12 +33,12 @@ public class ConnectionManager {
 	
 	private static ConnectionManager instance;
 	
-	private Connection con;
-	private GProMConnection gCon;
+	private Connection con = null;
+	private GProMConnection gCon = null;
 
 	
 	private ConnectionManager () throws Exception {
-		createConnection ();
+//		createConnection ();
 	}
 	
 	public static ConnectionManager getInstance () {
@@ -67,7 +68,8 @@ public class ConnectionManager {
 			Properties props = new Properties();
 			props.setProperty("user", ConnectionOptions.getInstance().getUser());
 			props.setProperty("password", ConnectionOptions.getInstance().getPassword());
-			props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "true");
+			props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP_NAME, "true");
+			log.debug("trying to create new connection: " + props);
 			con = DriverManager.getConnection(constructURL(), props);
 		}
 		catch (PSQLException e) {
@@ -83,7 +85,8 @@ public class ConnectionManager {
 					Properties props = new Properties();
 					props.setProperty("user", ConnectionOptions.getInstance().getUser());
 					props.setProperty("password", ConnectionOptions.getInstance().getPassword());
-					props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "true");
+					props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP_NAME, "true");
+					log.debug("retry to create new connection: " + props);
 					con = DriverManager.getConnection(constructURL(), props);
 				}
 				catch (Exception e2) {
@@ -94,7 +97,7 @@ public class ConnectionManager {
 		}
 		
 		gCon = (GProMConnection) con;
-		gCon.getW().setLogLevel(1);
+		gCon.getW().setLogLevel(2);
 		OptionsManager.getInstance().resetOptions (con);
 	}
 	
@@ -143,43 +146,50 @@ public class ConnectionManager {
 	}
 	
     private boolean testConnection () {
-    	Statement st = null;
-    	
-    	try {
-    		st = con.createStatement();
-    		switch(gCon.getBackend()) {
-			case HSQL:
-				break;
-			case Oracle:
-			{
-				String parser = gCon.getW().getStringOption("plugin.parser");
-				if (parser.equals("oracle"))
-					st.execute("SELECT 1 from dual;");
-				else if (parser.equals("dl"))
-					st.execute("Q(X) :- dual(X).");
-			}
-				break;
-			case Postgres:
-				break;
-			default:
-				break;
-    		
-    		}
-    	}
-    	catch (Exception e){
-    		try {
-    			if (st != null)
-    				st.close();
-    		}
-			catch (SQLException e1) {
-//				LoggerUtil.logException(e1, log);
-				e1.printStackTrace();
-			}
-    		finally {
-    			
-    		}
-    		return false;
-    	}
-    	return true;
+	    	Statement st = null;
+	    	ResultSet rs = null;
+	
+	    	try {
+	    		st = con.createStatement();
+	    		switch(gCon.getBackend()) {
+	    		case HSQL:
+	    			break;
+	    		case Oracle:
+	    		{
+	    			String parser = gCon.getW().getStringOption("plugin.parser");
+	    			if (parser.equals("oracle"))
+	    				rs = st.executeQuery("SELECT 1 from dual;");
+	    			else if (parser.equals("dl"))
+	    				rs = st.executeQuery("Q(X) :- dual(X).");
+	    		}
+	    		break;
+	    		case Postgres:
+	    			break;
+	    		default:
+	    			break;	
+	    		}
+	    	}
+	    	catch (Exception e){
+	    		try {
+	    			try { 
+	    				if (rs != null)
+	    					rs.close();
+	    			} catch (Exception rsE) {
+	
+	    			}
+	
+	    			if (st != null)
+	    				st.close();
+	    		}
+	    		catch (SQLException e1) {
+	    			//				LoggerUtil.logException(e1, log);
+	    			e1.printStackTrace();
+	    		}
+	    		finally {
+	
+	    		}
+	    		return false;
+	    	}
+	    	return true;
     }
 }

@@ -438,60 +438,62 @@ public interface GProM_JNA extends Library {
 		/** <i>native declaration : line 423</i> */
 		public static final int GProM_PROV_INPUT_TRANSACTION = 5;
 		/** <i>native declaration : line 424</i> */
-		public static final int GProM_PROV_INPUT_TIME_INTERVAL = 6;
+		public static final int GProM_PROV_INPUT_TEMPORAL_QUERY = 6;
+		/** <i>native declaration : line 425</i> */
+		public static final int GProM_PROV_INPUT_UNCERTAIN_QUERY = 7;
 	};
 
 	public static interface GProMIsolationLevel {
-		/** <i>native declaration : line 428</i> */
-		public static final int GProM_ISOLATION_SERIALIZABLE = 0;
 		/** <i>native declaration : line 429</i> */
-		public static final int GProM_ISOLATION_READ_COMMITTED = 1;
+		public static final int GProM_ISOLATION_SERIALIZABLE = 0;
 		/** <i>native declaration : line 430</i> */
+		public static final int GProM_ISOLATION_READ_COMMITTED = 1;
+		/** <i>native declaration : line 431</i> */
 		public static final int GProM_ISOLATION_READ_ONLY = 2;
 	};
 
 	public static interface GProMNestingExprType {
-		/** <i>native declaration : line 434</i> */
-		public static final int GProM_NESTQ_EXISTS = 0;
 		/** <i>native declaration : line 435</i> */
-		public static final int GProM_NESTQ_ANY = 1;
+		public static final int GProM_NESTQ_EXISTS = 0;
 		/** <i>native declaration : line 436</i> */
-		public static final int GProM_NESTQ_ALL = 2;
+		public static final int GProM_NESTQ_ANY = 1;
 		/** <i>native declaration : line 437</i> */
-		public static final int GProM_NESTQ_UNIQUE = 3;
+		public static final int GProM_NESTQ_ALL = 2;
 		/** <i>native declaration : line 438</i> */
+		public static final int GProM_NESTQ_UNIQUE = 3;
+		/** <i>native declaration : line 439</i> */
 		public static final int GProM_NESTQ_SCALAR = 4;
 	};
 
 	public static interface GProMWindowBoundType {
-		/** <i>native declaration : line 442</i> */
-		public static final int GProM_WINBOUND_UNBOUND_PREC = 0;
 		/** <i>native declaration : line 443</i> */
-		public static final int GProM_WINBOUND_CURRENT_ROW = 1;
+		public static final int GProM_WINBOUND_UNBOUND_PREC = 0;
 		/** <i>native declaration : line 444</i> */
-		public static final int GProM_WINBOUND_EXPR_PREC = 2;
+		public static final int GProM_WINBOUND_CURRENT_ROW = 1;
 		/** <i>native declaration : line 445</i> */
+		public static final int GProM_WINBOUND_EXPR_PREC = 2;
+		/** <i>native declaration : line 446</i> */
 		public static final int GProM_WINBOUND_EXPR_FOLLOW = 3;
 	};
 
 	public static interface GProMWinFrameType {
-		/** <i>native declaration : line 449</i> */
-		public static final int GProM_WINFRAME_ROWS = 0;
 		/** <i>native declaration : line 450</i> */
+		public static final int GProM_WINFRAME_ROWS = 0;
+		/** <i>native declaration : line 451</i> */
 		public static final int GProM_WINFRAME_RANGE = 1;
 	};
 
 	public static interface GProMSortOrder {
-		/** <i>native declaration : line 454</i> */
-		public static final int GProM_SORT_ASC = 0;
 		/** <i>native declaration : line 455</i> */
+		public static final int GProM_SORT_ASC = 0;
+		/** <i>native declaration : line 456</i> */
 		public static final int GProM_SORT_DESC = 1;
 	};
 
 	public static interface GProMSortNullOrder {
-		/** <i>native declaration : line 459</i> */
-		public static final int GProM_SORT_NULLS_FIRST = 0;
 		/** <i>native declaration : line 460</i> */
+		public static final int GProM_SORT_NULLS_FIRST = 0;
+		/** <i>native declaration : line 461</i> */
 		public static final int GProM_SORT_NULLS_LAST = 1;
 	};
 	

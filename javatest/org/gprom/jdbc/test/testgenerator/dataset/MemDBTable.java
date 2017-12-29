@@ -9,12 +9,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+
+
 /**
  * @author lord_pretzel
  *
  */
 public class MemDBTable implements DBTable {
 
+	static Logger log = LogManager.getLogger(MemDBTable.class);
+	
 	private List<String> columnNames;
 	private Set<Row> rows;
 	private boolean isOrdered = false;
@@ -116,17 +123,25 @@ public class MemDBTable implements DBTable {
 			return false;
 		
 		DBTable t2 = (DBTable) o;
-		if (!Arrays.equals(getColumnNames(),t2.getColumnNames()))
+		if (!Arrays.equals(getColumnNames(),t2.getColumnNames())) {
+			log.debug("colums differ " + getColumnNames() + "\n" + t2.getColumnNames());
 			return false;
-		if (isOrdered != t2.isOrdered())
+		}
+		if (isOrdered != t2.isOrdered()) {
+			log.debug("one of the tables is not ordered: " + isOrdered + "\n" + t2.isOrdered());
 			return false;
+		}
 		if (isOrdered) {
-			if (!getRowList().equals(t2.getRowList()))
+			if (!getRowList().equals(t2.getRowList())) {
+				log.debug("rows differ: " + getRowList() + "\n" + t2.getRowList());
 				return false;
+			}
 		}
 		else {
-			if (!getRows().equals(t2.getRows()))
+			if (!getRows().equals(t2.getRows())) {
+				log.debug("rows differ: " + getRows() + "\n" + t2.getRows());
 				return false;
+			}
 		}
 		return true;
 	}

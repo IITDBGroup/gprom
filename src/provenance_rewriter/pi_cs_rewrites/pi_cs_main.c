@@ -83,9 +83,9 @@ rewritePI_CS (ProvenanceComputation  *op)
 //    provAttrs = getQueryOperatorAttrNames((QueryOperator *) op);
 
     //check for SC aggregation optimizer
-        if(isSemiringCombinerActivatedOp((QueryOperator *) op)){
-        	SET_STRING_PROP(rewRoot, PROP_PC_SC_AGGR_OPT, (Node *)createConstString(getSemiringCombinerFuncName((QueryOperator *) op)));
-        }
+    if(isSemiringCombinerActivatedOp((QueryOperator *) op)){
+        SET_STRING_PROP(rewRoot, PROP_PC_SC_AGGR_OPT, getSemiringCombinerAddExpr((QueryOperator *) op));
+    }
 
     // rewrite subquery under provenance computation
     rewritePI_CSOperator(rewRoot);
@@ -115,6 +115,7 @@ rewritePI_CSOperator (QueryOperator *op)
     boolean showIntermediate = HAS_STRING_PROP(op,  PROP_SHOW_INTERMEDIATE_PROV);
     boolean noRewriteUseProv = HAS_STRING_PROP(op, PROP_USE_PROVENANCE);
     boolean noRewriteHasProv = HAS_STRING_PROP(op, PROP_HAS_PROVENANCE);
+    boolean isDummyHasProvProj = HAS_STRING_PROP(op, PROP_DUMMY_HAS_PROV_PROJ);
     boolean rewriteAddProv = HAS_STRING_PROP(op, PROP_ADD_PROVENANCE);
     List *userProvAttrs = (List *) getStringProperty(op, PROP_USER_PROV_ATTRS);
     List *addProvAttrs = NIL;
@@ -143,8 +144,11 @@ rewritePI_CSOperator (QueryOperator *op)
 
     if (noRewriteUseProv)
         return rewritePI_CSAddProvNoRewrite(op, userProvAttrs);
-    if (noRewriteHasProv)
+    if (isDummyHasProvProj)
+    {
+        userProvAttrs = (List *) getStringProperty(OP_LCHILD(op), PROP_USER_PROV_ATTRS);
         return rewritePI_CSUseProvNoRewrite(op, userProvAttrs);
+    }
 
     if(combinerAggrOpt) {
     	INFO_OP_LOG("go SEMIRING COMBINER aggregation optimization:",op);
@@ -468,103 +472,113 @@ rewritePI_CSAddProvNoRewrite (QueryOperator *op, List *userProvAttrs)
 static QueryOperator *
 rewritePI_CSUseProvNoRewrite (QueryOperator *op, List *userProvAttrs)
 {
-    List *provAttrs = op->provAttrs;
     int relAccessCount;
+    int curPos;
     char *tableName; // = "USER";
-    boolean isTableAccess = isA(op,TableAccessOperator);
+    QueryOperator *c = OP_LCHILD(op);
+//    List *provAttrs = c->provAttrs;
+    ProjectionOperator *p = (ProjectionOperator *) op;
+    boolean isTableAccess = isA(c,TableAccessOperator);
 
     if (isTableAccess)
-        tableName = ((TableAccessOperator *) op)->tableName;
+        tableName = ((TableAccessOperator *) c)->tableName;
     else
-        tableName = STRING_VALUE(getStringProperty(op, PROP_PROV_REL_NAME));
+        tableName = STRING_VALUE(getStringProperty(c, PROP_PROV_REL_NAME));
 
     DEBUG_LOG("Use existing provenance attributes %s for %s",
             beatify(nodeToString(userProvAttrs)), tableName);
 
     relAccessCount = getRelNameCount(&nameState, tableName);
-
+    curPos = getNumAttrs(op);
     // for table access operations we need to add a projection that renames the attributes
-    if (isTableAccess)
-    {
-        QueryOperator *proj;
+//    if (isTableAccess)
+//    {
 
-        proj = createProjOnAllAttrs(op);
+//        proj = createProjOnAllAttrs(op);
 
         // Switch the subtree with this newly created projection operator
-        switchSubtrees(op, proj);
+//        switchSubtrees(op, proj);
 
         // Add child to the newly created projection operator
-        addChildOperator(proj, op);
+//        addChildOperator(proj, op);
 
         FOREACH(Constant,a,userProvAttrs)
         {
             char *name = STRING_VALUE(a);
-            int pos = getAttrPos(proj, name);
-            AttributeDef *attr;
+            char *newName;
+            int pos = getAttrPos(c, name);
+            AttributeDef *attr, *origAttr;
+            AttributeReference *aRef;
 
-            attr = getNthOfListP(proj->schema->attrDefs, pos);
-            name = getProvenanceAttrName(tableName, name, relAccessCount);
-            attr->attrName = name;
-            provAttrs = appendToTailOfListInt(provAttrs, pos);
+            origAttr = getAttrDefByPos(c, pos);
+            newName = getProvenanceAttrName(tableName, name, relAccessCount);
 
-            // in parent operators adapt attribute references to use new name
-            FOREACH(QueryOperator,p,proj->parents)
-            {
-                List *aRefs = findOperatorAttrRefs(p);
-                int childPos = getChildPosInParent(p,proj);
+            op->provAttrs = appendToTailOfListInt(op->provAttrs, curPos++);
 
-                FOREACH(AttributeReference,a,aRefs)
-                {
-                    if (a->fromClauseItem == childPos && a->attrPosition == pos)
-                        a->name = strdup(name);
-                }
-            }
-        }
+            attr = createAttributeDef(newName, origAttr->dataType);
+            op->schema->attrDefs = appendToTailOfList(op->schema->attrDefs, attr);
 
-        proj->provAttrs = provAttrs;
-
-        if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-            ASSERT(checkModel(proj));
-
-        return proj;
-    }
-    // for non-tableaccess operators simply change the attribute names and mark the attributes as provenance attributes
-    else
-    {
-        FOREACH(Constant,a,userProvAttrs)
-        {
-            char *name = STRING_VALUE(a);
-            int pos = getAttrPos(op, name);
-//            char *oldName;
-            AttributeDef *attr;
-
-            attr = getNthOfListP(op->schema->attrDefs, pos);
-            name = getProvenanceAttrName(tableName, name, relAccessCount);
-//            oldName = attr->attrName;
-            attr->attrName = name;
-            provAttrs = appendToTailOfListInt(provAttrs, pos);
+            aRef = createFullAttrReference(name,0,pos,INVALID_ATTR, origAttr->dataType);
+            p->projExprs = appendToTailOfList(p->projExprs, aRef);
 
             // in parent operators adapt attribute references to use new name
-            FOREACH(QueryOperator,p,op->parents)
-            {
-                List *aRefs = findOperatorAttrRefs(p);
-                int childPos = getChildPosInParent(p,op);
-
-                FOREACH(AttributeReference,a,aRefs)
-                {
-                    if (a->fromClauseItem == childPos && a->attrPosition == pos)
-                        a->name = strdup(name);
-                }
-            }
+//            FOREACH(QueryOperator,p,proj->parents)
+//            {
+//                List *aRefs = findOperatorAttrRefs(p);
+//                int childPos = getChildPosInParent(p,proj);
+//
+//                FOREACH(AttributeReference,a,aRefs)
+//                {
+//                    if (a->fromClauseItem == childPos && a->attrPosition == pos)
+//                        a->name = strdup(name);
+//                }
+//            }
         }
 
-        op->provAttrs = provAttrs;
+//        List *provProj = getProvAttrProjectionExprs(op);
 
         if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
             ASSERT(checkModel(op));
 
         return op;
-    }
+//    }
+//    // for non-tableaccess operators simply change the attribute names and mark the attributes as provenance attributes
+//    else
+//    {
+//        FOREACH(Constant,a,userProvAttrs)
+//        {
+//            char *name = STRING_VALUE(a);
+//            int pos = getAttrPos(op, name);
+////            char *oldName;
+//            AttributeDef *attr;
+//
+//            attr = getNthOfListP(op->schema->attrDefs, pos);
+//            name = getProvenanceAttrName(tableName, name, relAccessCount);
+////            oldName = attr->attrName;
+//            attr->attrName = name;
+//            provAttrs = appendToTailOfListInt(provAttrs, pos);
+//
+//            // in parent operators adapt attribute references to use new name
+//            FOREACH(QueryOperator,p,op->parents)
+//            {
+//                List *aRefs = findOperatorAttrRefs(p);
+//                int childPos = getChildPosInParent(p,op);
+//
+//                FOREACH(AttributeReference,a,aRefs)
+//                {
+//                    if (a->fromClauseItem == childPos && a->attrPosition == pos)
+//                        a->name = strdup(name);
+//                }
+//            }
+//        }
+//
+//        op->provAttrs = provAttrs;
+//
+//        if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+//            ASSERT(checkModel(op));
+//
+//        return op;
+//    }
 }
 
 static QueryOperator *
@@ -1190,13 +1204,13 @@ addForOrdinality(JsonTableOperator **op, JsonColInfoItem **attr, int *countFOD, 
 		StringInfo forOrdinality = makeStringInfo ();
 		char *prefixFOD = "prov_for_ord_";
 		appendStringInfoString(forOrdinality, prefixFOD);
-		appendStringInfoString(forOrdinality, itoa(*countFOD));
+		appendStringInfoString(forOrdinality, gprom_itoa(*countFOD));
         (*attr)->forOrdinality = forOrdinality->data;
 
 		StringInfo renameFOD = makeStringInfo ();
 		char *prefixRFOD = "prov_path_";
 		appendStringInfoString(renameFOD, prefixRFOD);
-		appendStringInfoString(renameFOD, itoa(*countFOD));
+		appendStringInfoString(renameFOD, gprom_itoa(*countFOD));
 		(*countFOD) ++;
 
 		AttributeDef *projAttr = createAttributeDef(renameFOD->data, DT_STRING);
@@ -1403,13 +1417,13 @@ rewritePI_CSJsonTableOp(JsonTableOperator *op)
 		StringInfo forOrdinality = makeStringInfo ();
 		char *prefixFOD = "prov_for_ord_";
 		appendStringInfoString(forOrdinality, prefixFOD);
-		appendStringInfoString(forOrdinality, itoa(countFOD));
+		appendStringInfoString(forOrdinality, gprom_itoa(countFOD));
         op->forOrdinality = forOrdinality->data;
 
 		StringInfo renameFOD = makeStringInfo ();
 		char *prefixRFOD = "prov_path_";
 		appendStringInfoString(renameFOD, prefixRFOD);
-		appendStringInfoString(renameFOD, itoa(countFOD));
+		appendStringInfoString(renameFOD, gprom_itoa(countFOD));
 		countFOD ++;
 
 		AttributeDef *projAttr = createAttributeDef(renameFOD->data, DT_STRING);

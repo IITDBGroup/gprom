@@ -10,7 +10,6 @@
  *-----------------------------------------------------------------------------
  */
 
-//#include <pthread.h>
 #include "common.h"
 #include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
@@ -28,13 +27,22 @@
 #include "metadata_lookup/metadata_lookup_external.h"
 
 #define LIBARY_REWRITE_CONTEXT "LIBGRPROM_QUERY_CONTEXT"
-//#define printf(...) 0
-//pthread_mutex_t mlock;
-#define LOCK_MUTEX() //pthread_mutex_lock(&mlock); printf("\nMUTEX\n%s:%u", __FILE__, __LINE__)
-#define UNLOCK_MUTEX() //pthread_mutex_unlock(&mlock); printf("\nUNLOCK\n%s:%u", __FILE__, __LINE__)
-#define CREATE_MUTEX() //pthread_mutex_init(&mlock, NULL)
-#define DESTROY_MUTEX() //pthread_mutex_destroy(&mlock)
 
+#define LOCK_NAME gprom_lib_globallock
+
+#ifdef HAVE_LIBPTHREAD
+#define LOCK_MUTEX() pthread_mutex_lock(&LOCK_NAME); printf("\nMUTEX\n%s:%u\n", __FILE__, __LINE__); fflush(stdout);
+#define UNLOCK_MUTEX() printf("\nUNLOCK\n%s:%u\n", __FILE__, __LINE__); fflush(stdout); pthread_mutex_unlock(&LOCK_NAME);
+#define CREATE_MUTEX static pthread_mutex_t LOCK_NAME = PTHREAD_MUTEX_INITIALIZER;
+#define DESTROY_MUTEX()
+#else
+#define LOCK_MUTEX() do {} while(0)
+#define UNLOCK_MUTEX() do {} while(0)
+#define CREATE_MUTEX
+#define DESTROY_MUTEX() do {} while(0)
+#endif
+
+CREATE_MUTEX
 #define PRINT_TRY(counter) //printf("\ntry: line: %u counter: %u", __LINE__, counter)
 #define PRINT_EXCEPT(counter) printf("\nexcept: [libgprom.c] line: %u counter: %u\n", __LINE__, counter)
 
@@ -48,13 +56,12 @@ rebootFunc(void)
 void
 gprom_init(void)
 {
-	CREATE_MUTEX();
-    initMemManager();
     LOCK_MUTEX();
-    setWipeContext(LIBARY_REWRITE_CONTEXT);
+    initMemManager();
     mallocOptions();
     initLogger();
     registerSignalHandler();
+    setWipeContext(LIBARY_REWRITE_CONTEXT);
     UNLOCK_MUTEX();
 }
 
@@ -80,13 +87,17 @@ gprom_readOptionAndInit(int argc, char *const args[])
 void
 gprom_configFromOptions(void)
 {
+    LOCK_MUTEX();
     setupPluginsFromOptions();
+    UNLOCK_MUTEX();
 }
 
 void
 gprom_reconfPlugins(void)
 {
+    LOCK_MUTEX();
     resetupPluginsFromOptions();
+    UNLOCK_MUTEX();
 }
 
 void gprom_shutdown(void)
@@ -95,139 +106,166 @@ void gprom_shutdown(void)
     deregisterSignalHandler();
     shutdownApplication();
     UNLOCK_MUTEX();
-    DESTROY_MUTEX();
+//    DESTROY_MUTEX();
 }
 
 const char *
 gprom_rewriteQuery(const char *query)
 {
     LOCK_MUTEX();
-    //NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
+    NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
     char *result = "";
-    //char *returnResult = NULL;
-    int counter = 0;
+    char *returnResult = NULL;
     TRY
-	{
-    	TRY
     {
-    	PRINT_TRY(counter);
-		if(counter++ == 0){
-			result = rewriteQueryWithRethrow((char *) query);
-			UNLOCK_MUTEX();
-			//RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
-			return result;
-        }
+        result = rewriteQueryWithRethrow((char *) query);
+        RELEASE_MEM_CONTEXT_AND_CREATE_STRING_COPY(result,returnResult);
     }
     ON_EXCEPTION
     {
-    	PRINT_EXCEPT(counter);
-    	NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT)
+        ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+        UNLOCK_MUTEX();
+        return NULL;
     }
     END_ON_EXCEPTION
-}
-		    END_TRY
-
     UNLOCK_MUTEX();
-    return result;//returnResult;
+    return returnResult;
 }
 
 
 void
 gprom_registerLoggerCallbackFunction (GProMLoggerCallbackFunction callback)
 {
+    LOCK_MUTEX();
     registerLogCallback(callback);
+    UNLOCK_MUTEX();
 }
 
 void
 gprom_registerExceptionCallbackFunction (GProMExceptionCallbackFunction callback)
 {
+LOCK_MUTEX();
     registerExceptionCallback((GProMExceptionCallbackFunctionInternal) callback);
+    UNLOCK_MUTEX();
 }
 
 void
 gprom_setMaxLogLevel (int maxLevel)
 {
+LOCK_MUTEX();
     setMaxLevel((LogLevel) maxLevel);
+    UNLOCK_MUTEX();
 }
 
 
 const char *
 gprom_getStringOption (const char *name)
 {
-    return getStringOption((char *) name);
+    LOCK_MUTEX();
+    const char *result = getStringOption((char *) name);
+    UNLOCK_MUTEX();
+    return result;
 }
 
 int
 gprom_getIntOption (const char *name)
 {
-    return getIntOption((char *) name);
+    LOCK_MUTEX();
+    int result = getIntOption((char *) name);
+    UNLOCK_MUTEX();
+    return result;
 }
 
 boolean
 gprom_getBoolOption (const char *name)
 {
-    return getBoolOption((char *) name);
+    LOCK_MUTEX();
+    boolean result = getBoolOption((char *) name);
+    UNLOCK_MUTEX();
+    return result;
 }
 
 double
 gprom_getFloatOption (const char *name)
 {
-    return getFloatOption((char *) name);
+    LOCK_MUTEX();
+    float result = getFloatOption((char *) name);
+    UNLOCK_MUTEX();
+    return result;
 }
 
 const char *
 gprom_getOptionType(const char *name)
 {
+    LOCK_MUTEX();
     ASSERT(hasOption((char *) name));
-    return OptionTypeToString(getOptionType((char *) name));
+    char *result = OptionTypeToString(getOptionType((char *) name));
+    UNLOCK_MUTEX();
+    return result;
 }
 
 boolean
 gprom_optionExists(const char *name)
 {
-    return hasOption((char *) name);
+    LOCK_MUTEX();
+    boolean result = hasOption((char *) name);
+    UNLOCK_MUTEX();
+    return result;
 }
 
 void
 gprom_setOptionsFromMap()
 {
-
+LOCK_MUTEX();
+UNLOCK_MUTEX();
 }
 
 void
 gprom_setOption(const char *name, const char *value)
 {
-    return setOption((char *) name, strdup((char *) value));
+    LOCK_MUTEX();
+    setOption((char *) name, strdup((char *) value));
+    UNLOCK_MUTEX();
 }
 
 void
 gprom_setStringOption (const char *name, const char *value)
 {
-    return setStringOption((char *) name, strdup((char *) value));
+    LOCK_MUTEX();
+    setStringOption((char *) name, strdup((char *) value));
+    UNLOCK_MUTEX();
 }
 
 void
 gprom_setIntOption(const char *name, int value)
 {
-    return setIntOption((char *) name, value);
+    LOCK_MUTEX();
+    setIntOption((char *) name, value);
+    UNLOCK_MUTEX();
 }
 
 void
 gprom_setBoolOption(const char *name, boolean value)
 {
-    return setBoolOption((char *) name,value);
+    LOCK_MUTEX();
+    setBoolOption((char *) name,value);
+    UNLOCK_MUTEX();
 }
 
 void
 gprom_setFloatOption(const char *name, double value)
 {
-    return setFloatOption((char *) name,value);
+    LOCK_MUTEX();
+    setFloatOption((char *) name,value);
+    UNLOCK_MUTEX();
 }
 
 void
 gprom_registerMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
 {
+	LOCK_MUTEX();
     setMetadataLookupPlugin(assembleExternalMetadataLookupPlugin(plugin));
+	UNLOCK_MUTEX();
 }
 
 GProMNode *

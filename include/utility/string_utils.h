@@ -15,6 +15,7 @@
 
 extern char *getMatchingSubstring(const char *string, const char *pattern);
 extern char *getFullMatchingSubstring(const char *string, const char *pattern);
+extern boolean regExMatch (const char *reg, const char *str);
 extern List *splitString(char *string, const char *delim);
 extern char *strEndTok(char *string, char *delim);
 extern char *replaceSubstr(char *str, char *pattern, char *repl);

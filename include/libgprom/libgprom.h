@@ -11,6 +11,10 @@
 #ifndef INCLUDE_LIBGPROM_LIBGPROM_H_
 #define INCLUDE_LIBGPROM_LIBGPROM_H_
 
+#ifdef HAVE_CONFIG_H
+#include "common.h"
+#endif
+
 // define boolean type and ExceptionHandler if not already defined
 #ifndef COMMON_H
 typedef int boolean;
@@ -24,16 +28,34 @@ typedef enum ExceptionHandler {
 } ExceptionHandler;
 #endif
 
+// define library export macro for windows
+#ifndef GPROM_LIB_EXPORT
+#if defined(OS_WINDOWS) || defined(WIN32) || defined(__CYGWIN__)
+#ifdef GPROM_BUILD_DLL
+#define GPROM_LIB_EXPORT __declspec ( dllexport )
+#else
+#define GPROM_LIB_EXPORT __declspec ( dllimport )
+#endif
+#else
+#define GPROM_LIB_EXPORT
+#endif
+#endif
+
+/* Handle for gprom encapsulating state
+ *
+ */
+typedef struct libgprom_handle GProMHandle;
+
 // initialize system
-extern void gprom_init(void);
-extern void gprom_readOptions(int argc, char *const args[]);
-extern void gprom_readOptionAndInit(int argc, char *const args[]);
-extern void gprom_configFromOptions(void);
-extern void gprom_reconfPlugins(void);
-extern void gprom_shutdown(void);
+extern GPROM_LIB_EXPORT void gprom_init(void);
+extern GPROM_LIB_EXPORT void gprom_readOptions(int argc, char *const args[]);
+extern GPROM_LIB_EXPORT void gprom_readOptionAndInit(int argc, char *const args[]);
+extern GPROM_LIB_EXPORT void gprom_configFromOptions(void);
+extern GPROM_LIB_EXPORT void gprom_reconfPlugins(void);
+extern GPROM_LIB_EXPORT void gprom_shutdown(void);
 
 // process an input query
-extern const char *gprom_rewriteQuery(const char *query);
+extern GPROM_LIB_EXPORT const char *gprom_rewriteQuery(const char *query);
 
 // callback interface for logger (application can process log messages)
 // takes message, c-file, line, loglevel
@@ -45,23 +67,23 @@ typedef void (*GProMLoggerCallbackFunction) (const char *,const char *,int,int);
 typedef ExceptionHandler (*GProMExceptionCallbackFunction) (const char *, const char *, int, int);
 
 // register handlers and set log level
-extern void gprom_registerLoggerCallbackFunction (GProMLoggerCallbackFunction callback);
-extern void gprom_registerExceptionCallbackFunction (GProMExceptionCallbackFunction callback);
-extern void gprom_setMaxLogLevel (int maxLevel);
+extern GPROM_LIB_EXPORT void gprom_registerLoggerCallbackFunction (GProMLoggerCallbackFunction callback);
+extern GPROM_LIB_EXPORT void gprom_registerExceptionCallbackFunction (GProMExceptionCallbackFunction callback);
+extern GPROM_LIB_EXPORT void gprom_setMaxLogLevel (int maxLevel);
 
 // interface to configuration
-extern const char *gprom_getStringOption (const char *name);
-extern int gprom_getIntOption (const char *name);
-extern boolean gprom_getBoolOption (const char *name);
-extern double gprom_getFloatOption (const char *name);
-extern const char *gprom_getOptionType(const char *name);
-extern boolean gprom_optionExists(const char *name);
+extern GPROM_LIB_EXPORT const char *gprom_getStringOption (const char *name);
+extern GPROM_LIB_EXPORT int gprom_getIntOption (const char *name);
+extern GPROM_LIB_EXPORT boolean gprom_getBoolOption (const char *name);
+extern GPROM_LIB_EXPORT double gprom_getFloatOption (const char *name);
+extern GPROM_LIB_EXPORT const char *gprom_getOptionType(const char *name);
+extern GPROM_LIB_EXPORT boolean gprom_optionExists(const char *name);
 
-extern void gprom_setOption(const char *name, const char *value);
-extern void gprom_setStringOption (const char *name, const char *value);
-extern void gprom_setIntOption(const char *name, int value);
-extern void gprom_setBoolOption(const char *name, boolean value);
-extern void gprom_setFloatOption(const char *name, double value);
+extern GPROM_LIB_EXPORT void gprom_setOption(const char *name, const char *value);
+extern GPROM_LIB_EXPORT void gprom_setStringOption (const char *name, const char *value);
+extern GPROM_LIB_EXPORT void gprom_setIntOption(const char *name, int value);
+extern GPROM_LIB_EXPORT void gprom_setBoolOption(const char *name, boolean value);
+extern GPROM_LIB_EXPORT void gprom_setFloatOption(const char *name, double value);
 
 /* plugin definition */
 typedef struct GProMMetadataLookupPlugin
@@ -100,7 +122,7 @@ typedef struct GProMMetadataLookupPlugin
 //    char *** (*executeQuery) (char *query);       // returns a list of stringlist (tuples)
 } GProMMetadataLookupPlugin;
 
-extern void gprom_registerMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin);
+extern GPROM_LIB_EXPORT void gprom_registerMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin);
 
 typedef enum GProMNodeTag{
 

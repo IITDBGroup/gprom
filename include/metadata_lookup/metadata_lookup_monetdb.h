@@ -43,5 +43,6 @@ extern void monetdbGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Node *monetdbExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern Relation *monetdbExecuteQuery(char *query);
+extern void monetdbExecuteQueryIgnoreResults(char *query);
 
 #endif /* METADATA_LOOKUP_MONETDB_H_ */

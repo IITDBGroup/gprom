@@ -309,7 +309,7 @@ outVector(StringInfo str, Vector *node)
             int j = 0;
             FOREACH_VEC_INT(i,node)
             {
-                appendStringInfo(str, "%s", itoa(*i));
+                appendStringInfo(str, "%s", gprom_itoa(*i));
                 appendStringInfo(str, "%s", VEC_LENGTH(node) > ++j ? ", " : "");
             }
         }
@@ -1503,7 +1503,7 @@ jsonify(char *input)
 
 
 char *
-itoa(int value)
+gprom_itoa(int value)
 {
     StringInfo str = makeStringInfo();
     char *result;

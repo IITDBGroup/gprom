@@ -93,6 +93,7 @@ assembleMonetdbMetadataLookupPlugin (void)
     p->getCostEstimation = monetdbGetCostEstimation;
     p->getKeyInformation = monetdbGetKeyInformation;
     p->executeQuery = monetdbExecuteQuery;
+    p->executeQueryIgnoreResult = monetdbExecuteQueryIgnoreResults;
     p->connectionDescription = monetdbGetConnectionDescription;
 
     plugin->dbConn = NULL;
@@ -502,6 +503,24 @@ monetdbExecuteQuery(char *query)
     return r;
 }
 
+void
+monetdbExecuteQueryIgnoreResults(char *query)
+{
+    MapiHdl result;
+
+    result = executeQueryInternal(query);
+
+    THROW_ON_ERROR(result, query);
+
+    // read rows
+    while(mapi_fetch_row(result)) //TODO deal with errors during fetch
+        ;
+
+    THROW_ON_ERROR(result, query);
+
+    mapi_close_handle(result);
+}
+
 static MapiHdl
 executeQueryInternal (char *query)
 {
@@ -519,6 +538,7 @@ executeParamQuery (char *query, char *params, ...)
     char *cur;
     char **argv;
     int pos = 0;
+//    MapiMsg resMes;
 
     // gather parameters
     va_start(args, params);
@@ -532,15 +552,25 @@ executeParamQuery (char *query, char *params, ...)
             stringListToString(parameters));
 
     // construct char ** array for monet db
-    argv = MALLOC(sizeof(char *) * (LIST_LENGTH(parameters) + 1));
+    argv = MALLOC(sizeof(char *) * (LIST_LENGTH(parameters)));
     FOREACH(char,a, parameters)
     {
         argv[pos++] = strdup(a);
     }
-    argv[pos] = NULL; // monetdb expects null termination of argv array
+    //argv[pos] = NULL; // monetdb expects null termination of argv array
 
     // create query and check that no error was raised
-    result =  mapi_query_array(plugin->dbConn, query, argv);
+    // new mapi api uses prepare and
+    //result =  mapi_query_array(plugin->dbConn, query, argv);
+    result = mapi_prepare(plugin->dbConn, query);
+    for(int i = 0; i < pos; i++)
+    {
+        mapi_param(result, i, &(argv[i]));
+        THROW_ON_ERROR(result, query);
+    }
+
+    mapi_execute(result);
+    THROW_ON_ERROR(result, query);
 
     if (result == NULL || mapi_error(plugin->dbConn) != MOK)
         handleResultSetError(result, query, parameters);

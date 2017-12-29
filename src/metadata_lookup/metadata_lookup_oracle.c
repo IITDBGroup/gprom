@@ -134,6 +134,7 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->executeAsTransactionAndGetXID = oracleExecuteAsTransactionAndGetXID;
     plugin->getCommitScn = oracleGetCommitScn;
     plugin->executeQuery = oracleGenExecQuery;
+    plugin->executeQueryIgnoreResult = oracleGenExecQueryIgnoreResult;
     plugin->getCostEstimation = oracleGetCostEstimation;
     plugin->getKeyInformation = oracleGetKeyInformation;
 
@@ -1032,6 +1033,17 @@ oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists)
         if (lType == rType && lType == DT_STRING)
             return DT_STRING;
     }
+
+    oName = strToUpper(oName);
+    if (streq(oName, "LIKE"))
+    {
+//        DataType lDt = getNthOfListInt(dataTypes, 0);
+//        DataType rDt = getNthOfListInt(dataTypes, 1);
+//
+//        if(lDt == rDt && lDt == DT_STRING)
+            return DT_BOOL;
+    }
+
     //TODO more operators
     *opExists = FALSE;
 
@@ -1043,6 +1055,14 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
 {
     *funcExists = TRUE;
     char *capName = strToUpper(fName);
+
+    // uncertainty dummy functions
+    if (streq(capName, "UNCERT"))
+    {
+        ASSERT(LIST_LENGTH(dataTypes) == 1);
+        DataType argType = getNthOfListInt(dataTypes,0);
+        return argType;
+    }
 
     // aggregation functions
     if (streq(capName,"SUM")
@@ -1134,7 +1154,23 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
             }
         }
     }
+
+    if (streq(capName, "GREATEST") || streq(capName, "LEAST")
+            || streq(capName, "COALESCE") || streq(capName, "LEAD")
+            || streq(capName, "LAG") || streq(capName, "FIRST_VALUE")
+            || streq(capName, "LAST_VALUE"))
+    {
+        DataType dt = getNthOfListInt(dataTypes, 0);
+
+        FOREACH_INT(argDT, dataTypes)
+        {
+            dt = lcaType(dt, argDT);
+        }
+
+        return dt;
+    }
    //TODO
+
 
     *funcExists = FALSE;
 
@@ -1426,6 +1462,21 @@ oracleGenExecQuery (char *query)
     return r;
 }
 
+void
+oracleGenExecQueryIgnoreResult (char *query)
+{
+    OCI_Resultset *rs;
+
+    rs = executeStatement(query);
+
+    // fetch tuples
+    while(OCI_FetchNext(rs))
+        ;
+
+    // cleanup
+    OCI_ReleaseResultsets(st);
+}
+
 static OCI_Transaction *
 createTransaction(IsolationLevel isoLevel)
 {
@@ -1586,6 +1637,12 @@ char *
 oracleExecuteStatement(char *statement)
 {
 	return NULL;
+}
+
+void
+oracleGenExecQueryIgnoreResult (char *query)
+{
+
 }
 
 Node *

@@ -288,6 +288,10 @@ typedef struct DDLStatement
     DDLStmtType ddlType;
 } DDLStatement;
 
+/* get attributes from query block nodes */
+extern List *getQBAttrDefs(Node *qb);
+extern List *getQBAttrNames (Node *qb);
+extern List *getQBAttrDTs (Node *qb);
 
 /* functions for creating query block nodes */
 /*extern SetQuery *createSetQuery(List *selectClause, SetOp *root);*/

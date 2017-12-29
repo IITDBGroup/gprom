@@ -280,6 +280,8 @@ extern int getNumAttrs(QueryOperator *op);
 extern int getAttrPos(QueryOperator *op, char *attr);
 extern AttributeDef *getAttrDefByName(QueryOperator *op, char *attr);
 extern AttributeDef *getAttrDefByPos(QueryOperator *op, int pos);
+extern AttributeReference *getAttrRefByPos (QueryOperator *op, int pos);
+extern AttributeReference *getAttrRefByName(QueryOperator *op, char *attr);
 extern char *getAttrNameByPos(QueryOperator *op, int pos);
 
 extern List *getAttrRefsInOperator (QueryOperator *op);

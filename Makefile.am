@@ -11,6 +11,16 @@ AM_CFLAGS = -I$(top_srcdir)/include @GPROM_CFLAGS@
 if JAVABINDING
 SUBDIRS = include javalibgen src test javatest doc
 TESTS = blackboxtests/runtests.sh
+
+ANTUTILS_MODULE=$(top_builddir)/antutils/ant-common.xml
+
+all-local: $(ANTUTILS_MODULE)
+
+$(ANTUTILS_MODULE):
+	if [ ! -f $(ANTUTILS_MODULE) ]; then \
+		git submodule init && git submodule update && git submodule status; \ 
+	fi
+
 else
 SUBDIRS = include src test doc
 endif
@@ -23,8 +33,9 @@ endif
 # - scripts for running executables and scripts
 # - java source code and build files (ivy/ant)
 EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
-	$(top_srcdir)/ant/one-jar* \
-	$(top_srcdir)/ant/ivy.jar \
+	$(top_srcdir)/ant/dockercross/* \
+	$(top_srcdir)/ant/*.xml \
+	$(top_srcdir)/ant/*.properties \
 	$(top_srcdir)/build.xml \
 	$(top_srcdir)/ivy.xml \
 	$(top_builddir)/include \
@@ -69,7 +80,7 @@ pkg-deb: $(TAR_PACKAGE)
 		packaging/pkgfiles/copyright $(TMP_DIR)/$(APP_NAME)-$(VERSION)/debian/
 	cd $(TMP_DIR)/$(APP_NAME)-$(VERSION)/; \
 		rm debian/README.Debian debian/*.ex debian/*.EX; \
-		./configure --disable-oracle --disable-postgres --disable-java; \
+		./configure --disable-oracle --disable-postgres --disable-monetdb --disable-java; \
 		dpkg-buildpackage -rfakeroot; \
 		mv ../*.deb $(PWD)/packaging
 	rm -r $(TMP_DIR);

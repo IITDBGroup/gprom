@@ -26,6 +26,8 @@
 #include "common.h"
 #include "exception/exception.h"
 
+typedef struct logger_state LoggerState;
+
 typedef enum LogLevel
 {
     LOG_FATAL = 0,

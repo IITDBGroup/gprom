@@ -30,8 +30,10 @@
 #define uthash_free(ptr,sz) free(ptr)
 
 // use actual malloc and free functions
+#ifndef MALLOC_REDEFINED
 #undef free
 #undef malloc
+#endif
 
 // helper macros
 #define EXIT_WITH_ERROR(mes) \
@@ -66,6 +68,16 @@ static MemContextNode *topContextNode = NULL;
 static int contextStackSize = 0;
 static boolean destroyed = FALSE;
 static boolean initialized = FALSE;
+
+struct mem_manager
+{
+    MemContext *curMemContext;
+    MemContext *defaultContext;
+    MemContextNode *topContextNode;
+    int contextStackSize;
+    boolean destroyed;
+    boolean initialized;
+};
 
 /*
  * Creates default memory context and pushes it into context stack.

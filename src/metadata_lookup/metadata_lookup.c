@@ -358,6 +358,15 @@ executeQuery (char *sql)
     return result;
 }
 
+void
+executeQueryIgnoreResult (char *sql)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    activePlugin->executeQueryIgnoreResult(sql);
+    RELEASE_MEM_CONTEXT();
+}
+
 long
 getCommitScn (char *tableName, long maxScn, char *xid)
 {

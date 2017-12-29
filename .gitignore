@@ -49,10 +49,12 @@ test/testmain.log
 test/testmain.trs
 test/testrpq
 gprom-*.tar.gz
-/test/testuncert
+gprom-*.tar
+gprom*.deb
 test-suite.log
 dpkg
 #*
 .#*
 test/testexprcplex
 /Release
+/test/testuncert
