@@ -38,6 +38,8 @@
 #if HAVE_STDINT_H
 #include <stdint.h>
 typedef intptr_t gprom_long_t;
+#elif HAVE_LONG_LONG_INT
+typedef long long int gprom_long_t;
 #else /* use pointer type as fallback? */
 typedef (void *) gprom_long_t;
 #endif
