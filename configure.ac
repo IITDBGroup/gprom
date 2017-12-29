@@ -426,8 +426,6 @@ AC_TYPE_UINT8_T
 AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
-AC_CHECK_TYPES([ptrdiff_t])
-AC_CHECK_TYPES([sigjmp_buf])
 ################################################################################
 # HEADERS
 AC_CHECK_HEADERS([stddef.h])
@@ -445,6 +443,13 @@ AC_CHECK_HEADERS([pwd.h])
 #AC_CHECK_HEADERS([readline/readline.h])
 #AC_CHECK_HEADERS([readline/history.h])
 AC_HEADER_ASSERT
+################################################################################
+# CHECK FOR ADDITIONAL TYPES IN DISCOVERED HEADERS
+AC_CHECK_TYPES([ptrdiff_t])
+AC_CHECK_TYPES([sigjmp_buf], [], [], [
+AC_INCLUDES_DEFAULT
+#include <setjmp.h>
+])
 ################################################################################
 # MEMORY ALLOCATION STUFF
 AC_CHECK_HEADERS([malloc.h])

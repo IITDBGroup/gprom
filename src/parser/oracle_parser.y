@@ -1,6 +1,6 @@
 /*
  * Sql_Parser.y
- *     This is a bison file which contains grammar rules to parse SQLs
+ *     This is a bison file which contains grammar rules to parse Oracle-ish SQL
  */
 
 
@@ -13,20 +13,22 @@
 #include "model/node/nodetype.h"
 #include "model/query_block/query_block.h"
 #include "model/query_operator/query_operator.h"
-#include "parser/parse_internal.h"
+#include "parser/parse_internal_oracle.h"
 #include "log/logger.h"
 #include "model/query_operator/operator_property.h"
 
 #define RULELOG(grule) \
     { \
-        TRACE_LOG("Parsing grammer rule <%s> at line %d", #grule, yylineno); \
+        TRACE_LOG("Parsing grammer rule <%s> at line %d", #grule, oraclelineno); \
     }
     
 #undef free
 #undef malloc
 
-Node *bisonParseResult = NULL;
+Node *oracleParseResult = NULL;
 %}
+
+%name-prefix "oracle"
 
 %error-verbose
 
@@ -152,13 +154,13 @@ stmtList:
 			{ 
 				RULELOG("stmtList::stmt"); 
 				$$ = singleton($1);
-				bisonParseResult = (Node *) $$;	 
+				oracleParseResult = (Node *) $$;	 
 			}
 		| stmtList stmt ';' 
 			{
 				RULELOG("stmtlist::stmtList::stmt");
 				$$ = appendToTailOfList($1, $2);	
-				bisonParseResult = (Node *) $$; 
+				oracleParseResult = (Node *) $$; 
 			}
 	;
 
@@ -660,7 +662,7 @@ semiringCombinerSpec:
         ADD '(' expression ')'  MULT '(' expression ')'
         {
             RULELOG("semiringCombinerSpec::ADD::expression::MULT::expression");
-            $$ = LIST_MAKE($3, $7);
+            $$ = (Node *) LIST_MAKE($3, $7);
         }
 ;
 

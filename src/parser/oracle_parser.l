@@ -1,6 +1,8 @@
+%option prefix="oracle" 
+%option outfile="oracle_parser.lex.c"
+
 /*
  * SQL lexer file for lex/flex defining basic tokens used in the oracle parser
- *
  */
 
 
@@ -19,33 +21,33 @@
 #include "model/expression/expression.h"
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
-#include "parser/parse_internal.h"
-#include "sql_parser.tab.h"
+#include "parser/parse_internal_oracle.h"
+#include "oracle_parser.tab.h"
 
 #undef free
 #undef malloc
 
 #define TOKSELF() { \
-	TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", yytext[0], yytext[0]); \
-	yylval.stringVal = strdup(yytext); \
-	return yytext[0]; \
+	TRACE_LOG("Lexed TOKENSELF <%c> with VALUE <%c>", oracletext[0], oracletext[0]); \
+	oraclelval.stringVal = strdup(oracletext); \
+	return oracletext[0]; \
 	}
 #define TOK(name) { \
-	TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, yytext); \
- 	yylval.stringVal = strdup(yytext); \
+	TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, oracletext); \
+ 	oraclelval.stringVal = strdup(oracletext); \
  	return name; \
  	}
 #define UPCASE_TOK(name) { \
-	TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, yytext); \
-	char *result = strdup(yytext); \
-	yylval.stringVal = result; \
+	TRACE_LOG("Lexed TOKEN <%s> with VALUE <%s>", #name, oracletext); \
+	char *result = strdup(oracletext); \
+	oraclelval.stringVal = result; \
 	for(; *result != '\0'; (*(result) = toupper(*result)), result++); \
-	TRACE_LOG("Upcased TOKEN <%s>", yylval.stringVal); \
+	TRACE_LOG("Upcased TOKEN <%s>", oraclelval.stringVal); \
 	return name; \
 	}
 #define TOKSAVE(name,field,function) { \
 	TRACE_LOG("Lexed TOKEN <%s> of TYPE <%s>",  #name, #field); \
-	yylval.field = function(yytext); \
+	oraclelval.field = function(oracletext); \
 	return name; \
 	}
 %}
@@ -98,7 +100,7 @@ strconcat		"||"
 %%
 
 	/* ignore all whitespace */
-{whitespace}	 { TRACE_LOG("Lexed whitespace <%s>", yytext); /* ignore it */ }
+{whitespace}	 { TRACE_LOG("Lexed whitespace <%s>", oracletext); /* ignore it */ }
 
 	/* literal keyword tokens */
 (?i:SELECT)       	TOK(SELECT)
@@ -232,18 +234,18 @@ strconcat		"||"
 {compositeIdentifier}	UPCASE_TOK(compositeIdentifier)
 
 {quotedIdentifier}   { 		
-		yylval.stringVal = MALLOC(strlen(yytext) - 1);
-		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
-		yylval.stringVal[strlen(yytext) - 2] = '\0';
-		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", yytext);
+		oraclelval.stringVal = MALLOC(strlen(oracletext) - 1);
+		memcpy(oraclelval.stringVal, oracletext + 1, strlen(oracletext) - 2);
+		oraclelval.stringVal[strlen(oracletext) - 2] = '\0';
+		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", oracletext);
 		return identifier;
 	}	
 
 {parameters} {
-		yylval.stringVal = MALLOC(strlen(yytext));
-		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 1);
-		yylval.stringVal[strlen(yytext) - 1] = '\0';
-		TRACE_LOG("Lexed TOKEN <parameter> with VALUE <:%s>", yytext);
+		oraclelval.stringVal = MALLOC(strlen(oracletext));
+		memcpy(oraclelval.stringVal, oracletext + 1, strlen(oracletext) - 1);
+		oraclelval.stringVal[strlen(oracletext) - 1] = '\0';
+		TRACE_LOG("Lexed TOKEN <parameter> with VALUE <:%s>", oracletext);
 		return parameter;
 	}
 
@@ -263,18 +265,18 @@ strconcat		"||"
 
 	/* strings */
 '[^'\n]*'	{
-		yylval.stringVal = MALLOC(strlen(yytext) - 1);
-		memcpy(yylval.stringVal, yytext + 1, strlen(yytext) - 2);
-		yylval.stringVal[strlen(yytext) - 2] = '\0';
-		TRACE_LOG("Lexed TOKEN <stringConst> (quoted) with VALUE <%s>", yytext);
+		oraclelval.stringVal = MALLOC(strlen(oracletext) - 1);
+		memcpy(oraclelval.stringVal, oracletext + 1, strlen(oracletext) - 2);
+		oraclelval.stringVal[strlen(oracletext) - 2] = '\0';
+		TRACE_LOG("Lexed TOKEN <stringConst> (quoted) with VALUE <%s>", oracletext);
 		return stringConst;
 	}
 
 		
-'[^'\n]*$	{yyerror("Unterminated string"); }
+'[^'\n]*$	{ oracleerror("Unterminated string"); }
 
 	/* failure - no token matched */
-.		{ yyerror("Unknown symbol"); }	/* random non-SQL text */
+.		{ oracleerror("Unknown symbol"); }	/* random non-SQL text */
 
 %%
 
@@ -283,12 +285,12 @@ strconcat		"||"
  ******************************************************************************/
 
 /* use logging framework in the future */
-void yyerror(char *s)
+void oracleerror(char *s)
 {
-	FATAL_LOG("%s at %s\n", s, yytext);
+	FATAL_LOG("%s at %s\n", (char *) s, oracletext);
 }
 
-void setupStringInput(char *input)
+void oracleSetupStringInput(char *input)
 {
-	yy_scan_string(input);
+	oracle_scan_string(input);
 }
