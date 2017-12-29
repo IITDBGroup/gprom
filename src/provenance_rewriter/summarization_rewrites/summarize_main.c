@@ -44,7 +44,7 @@
 #define SAMP_NUM_L_ATTR SAMP_NUM_PREFIX "Left"
 #define SAMP_NUM_R_ATTR SAMP_NUM_PREFIX "Right"
 
-static List *domAttrsOutput (List *userQuestion, Node *sampleInput);
+static List *domAttrsOutput (List *userQuestion, Node *sampleInput, int sampleSize);
 //static int *computeSampleSize (int *samplePerc, Node *prov);
 
 static Node *rewriteUserQuestion (List *userQ, Node *rewrittenTree);
@@ -56,6 +56,7 @@ static Node *rewritePatternOutput (char *summaryType, Node *unionSample, Node *r
 static Node *rewriteScanSampleOutput (Node *sampleInput, Node *patternInput);
 static Node *rewriteCandidateOutput (Node *scanSampleInput);
 static Node *scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randProv, Node *randNonProv);
+static Node *joinOnSeqOutput (List *doms);
 static Node *rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput);
 static Node *rewritefMeasureOutput (Node *computeFracInput, List *userQuestion);
 static Node *rewriteTopkExplOutput (Node *fMeasureInput, int topK);
@@ -148,7 +149,7 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		patterns = rewritePatternOutput(summaryType, samples, randomProv); //TODO: different types of pattern generation
 		scanSamples = rewriteScanSampleOutput(samples, patterns);
 		candidates = rewriteCandidateOutput(scanSamples);
-		doms = domAttrsOutput(userQuestion, rewrittenTree);
+		doms = domAttrsOutput(userQuestion, rewrittenTree, sampleSize);
 		scaleUp = scaleUpOutput(doms, candidates, provJoin, randomProv, randomNonProv);
 		computeFrac = rewriteComputeFracOutput(scaleUp, samples);
 		fMeasure = rewritefMeasureOutput(computeFrac, userQuestion);
@@ -159,9 +160,9 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	}
 	else if(streq(qType,"WHYNOT"))
 	{
-		doms = domAttrsOutput(userQuestion, rewrittenTree);
-		result = (Node *) doms;
-		INFO_OP_LOG("WHYNOT summary has not fully implemented yet!!");
+		doms = domAttrsOutput(userQuestion, rewrittenTree, sampleSize);
+		result = joinOnSeqOutput(doms);
+		INFO_OP_LOG("WHYNOT summary is currently on the implementation process!!");
 	}
 
 
@@ -480,7 +481,80 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput)
 
 
 /*
- * scale up the measure values to real one
+ * for WHYNOT, join on seq
+ */
+static Node *
+joinOnSeqOutput (List *doms)
+{
+	Node *result;
+	QueryOperator *sampDom;
+	List *inputs = NIL;
+	List *attrNames = NIL;
+
+	inputs = appendToTailOfList(inputs, (Node *) getNthOfListP(doms,0));
+	QueryOperator *firstOp = (QueryOperator *) getNthOfListP(doms,0);
+	FOREACH(AttributeDef,a,firstOp->schema->attrDefs)
+//		if(!streq(a->attrName,"SEQ"))
+			attrNames = appendToTailOfList(attrNames, a->attrName);
+
+	for(int i = 1; i < LIST_LENGTH(doms); i++)
+	{
+		Node *n = (Node *) getNthOfListP(doms,i);
+
+		if(i == 1)
+			inputs = appendToTailOfList(inputs,n);
+		else
+			inputs = LIST_MAKE(sampDom, n);
+
+		QueryOperator *oDom = (QueryOperator *) n;
+		FOREACH(AttributeDef,oa,oDom->schema->attrDefs)
+//			if(!streq(oa->attrName,"SEQ"))
+				attrNames = appendToTailOfList(attrNames, oa->attrName);
+
+		// create join on "seq"
+//		AttributeReference *lA = createFullAttrReference(strdup("SEQ"),0,0,0,DT_INT);
+//		AttributeReference *rA = createFullAttrReference(strdup("SEQ"),1,0,0,DT_INT);
+		Constant *seq = createConstString(strdup("SEQ"));
+		Node *cond = (Node *) createOpExpr("=",LIST_MAKE(seq,seq));
+		sampDom = (QueryOperator *) createJoinOp(JOIN_INNER, cond, inputs, NIL, attrNames);
+
+		if(i == 1)
+			firstOp->parents = singleton(sampDom);
+		else
+			OP_LCHILD(sampDom)->parents = singleton(sampDom);
+
+		oDom->parents = singleton(sampDom);
+	}
+
+	// add projection operator to remove seq attr
+	List *projExpr = NIL;
+	attrNames = NIL;
+	int pos = 0;
+
+	FOREACH(AttributeDef,a,sampDom->schema->attrDefs)
+	{
+		if(!streq(a->attrName,"SEQ"))
+		{
+			projExpr = appendToTailOfList(projExpr,createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+			attrNames = appendToTailOfList(attrNames, a->attrName);
+		}
+
+		pos++;
+	}
+	ProjectionOperator *p = createProjectionOp(projExpr,sampDom,NIL,attrNames);
+	sampDom->parents = singleton(p);
+	sampDom = (QueryOperator *) p;
+
+	result = (Node *) sampDom;
+	DEBUG_NODE_BEATIFY_LOG("sample domain based on the seq:", result);
+	INFO_OP_LOG("sample domain based on the seq:", result);
+
+	return result;
+}
+
+
+/*
+ * for WHY, scale up the measure values to real one
  */
 static Node *
 scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node *randNonSamp)
@@ -670,7 +744,7 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
  * generate domain attrs for later use of scale up of the measure values to the real values
  */
 static List *
-domAttrsOutput (List *userQuestion, Node *input)
+domAttrsOutput (List *userQuestion, Node *input, int sampleSize)
 {
 	List *result = NIL;
 
@@ -779,7 +853,21 @@ domAttrsOutput (List *userQuestion, Node *input)
 						// random sample from attr domain for whynot
 						else
 						{
-							ProjectionOperator *projDom = createProjectionOp(singleton(ar), (QueryOperator *) t, NIL, singleton(strdup(ar->name)));
+							// TODO: compute percentile for random sample based on the sample size
+							int perc = 0;
+							if(sampleSize >= 100 && sampleSize < 1000)
+								perc = 25;
+							else if(sampleSize >= 1000)
+								perc = 21;
+
+							// TODO: SAMPLE clause must not be part of the table name
+							t->tableName = CONCAT_STRINGS(relName," ","SAMPLE(",itoa(perc),")");
+
+							// rownum as a sequence
+							Node *rowNum = (Node *) makeNode(RowNumExpr);
+							List *projExpr = LIST_MAKE(rowNum, ar);
+							ProjectionOperator *projDom = createProjectionOp(projExpr, (QueryOperator *) t, NIL,
+														LIST_MAKE(strdup("SEQ"),strdup(ar->name)));
 //							SET_BOOL_STRING_PROP((Node *) projDom, PROP_MATERIALIZE);
 							result = appendToTailOfList(result, (Node *) projDom);
 						}
