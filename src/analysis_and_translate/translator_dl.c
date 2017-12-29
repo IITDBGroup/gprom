@@ -502,7 +502,7 @@ translateFact(DLAtom *f)
     FOREACH(Node,arg,f->args)
     {
         dts = appendToTailOfListInt(dts, typeOf(arg));
-        attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("c", itoa(pos++)));
+        attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("c", gprom_itoa(pos++)));
     }
 
     result = (QueryOperator *) createConstRelOp(copyObject(f->args), NIL, attrNames, dts);
@@ -588,7 +588,7 @@ translateUnSafeRule(DLRule *r)
 
 //    FOREACH(Node,p,projExprs)
     for (; i < LIST_LENGTH(projExprs); i++)
-        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", itoa(i)));
+        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", gprom_itoa(i)));
 //
 //    List *headVars = getVarNames(getHeadVars(r));
 //    List *headArgs = r->head->args;
@@ -712,7 +712,7 @@ translateSafeRule(DLRule *r)
 
 //    FOREACH(Node,p,projExprs)
     for (; i < LIST_LENGTH(projExprs); i++)
-        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", itoa(i)));
+        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", gprom_itoa(i)));
 //
 //    List *headVars = getVarNames(getHeadVars(r));
 //    List *headArgs = r->head->args;
@@ -1052,7 +1052,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
     if (isIDB || (isFact && !isEDB))
     {
 		for(int i = 0; i < LIST_LENGTH(r->args); i++)
-			attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));
+			attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", gprom_itoa(i)));
     }
     // is edb, get information from db
     else
@@ -1298,7 +1298,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //
 //					for(int i = 1; i < LIST_LENGTH(transList); i++)
 //					{
-//						char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+//						char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
 //						QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
 //						QueryOperator *oldD = dom;
 //
@@ -1352,7 +1352,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 ////
 ////							for(int i = 1; i < LIST_LENGTH(transList); i++)
 ////							{
-////								char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+////								char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
 ////								QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
 ////								QueryOperator *oldD = dom;
 ////
@@ -1375,7 +1375,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 ////
 ////								for(int i = 0; i < LIST_LENGTH(transList); i++)
 ////								{
-////									char *aDomAttrName = CONCAT_STRINGS("D", itoa(i+1));
+////									char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i+1));
 ////									QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
 ////									QueryOperator *oldD = dom;
 ////
@@ -1392,7 +1392,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 ////							{
 ////								for(int i = 1; i < addAttr; i++)
 ////								{
-////									char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+////									char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
 ////									QueryOperator *aDom = dom;
 ////									QueryOperator *oldD = dom;
 ////
@@ -1410,7 +1410,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 ////
 ////								for(int i = 0; i < LIST_LENGTH(transList); i++)
 ////								{
-////									char *aDomAttrName = CONCAT_STRINGS("D", itoa(i+2));
+////									char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i+2));
 ////									QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
 ////									QueryOperator *oldD = dom;
 ////
@@ -1431,7 +1431,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 ////						// then return (Domain X Domain X ... X Domain) - R
 ////						for(int i = 1; i < numAttrs; i++)
 ////						{
-////							char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+////							char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
 ////							QueryOperator *aDom = dom;
 ////							QueryOperator *oldD = dom;
 ////
@@ -1456,7 +1456,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 
                 for(int i = 1; i < numAttrs; i++)
                 {
-                    char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+                    char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
                     QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
                             "_DOMAIN", NULL, "DummyDom", NIL,
                             LIST_MAKE("D"), singletonInt(DT_STRING));
@@ -1505,7 +1505,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
     //		{
     //			if (!isA(arg,Constant))
     //			{
-    //				newAttrNames = appendToTailOfList(newAttrNames, CONCAT_STRINGS("A", itoa(posAttr)));
+    //				newAttrNames = appendToTailOfList(newAttrNames, CONCAT_STRINGS("A", gprom_itoa(posAttr)));
     //			}
     //			posAttr++;
     //		}
@@ -1708,7 +1708,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //
 //						for(int i = 1; i < LIST_LENGTH(transList); i++)
 //						{
-//							char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+//							char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
 //							QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
 //							QueryOperator *oldD = dom;
 //
@@ -1933,7 +1933,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 ////
 ////					for(int i = 1; i < LIST_LENGTH(transList); i++)
 ////					{
-////						char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+////						char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
 ////						QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
 ////						QueryOperator *oldD = dom;
 ////
@@ -1987,7 +1987,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //////
 //////							for(int i = 1; i < LIST_LENGTH(transList); i++)
 //////							{
-//////								char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+//////								char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
 //////								QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
 //////								QueryOperator *oldD = dom;
 //////
@@ -2010,7 +2010,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //////
 //////								for(int i = 0; i < LIST_LENGTH(transList); i++)
 //////								{
-//////									char *aDomAttrName = CONCAT_STRINGS("D", itoa(i+1));
+//////									char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i+1));
 //////									QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
 //////									QueryOperator *oldD = dom;
 //////
@@ -2027,7 +2027,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //////							{
 //////								for(int i = 1; i < addAttr; i++)
 //////								{
-//////									char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+//////									char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
 //////									QueryOperator *aDom = dom;
 //////									QueryOperator *oldD = dom;
 //////
@@ -2045,7 +2045,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //////
 //////								for(int i = 0; i < LIST_LENGTH(transList); i++)
 //////								{
-//////									char *aDomAttrName = CONCAT_STRINGS("D", itoa(i+2));
+//////									char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i+2));
 //////									QueryOperator *aDom = (QueryOperator *) getNthOfListP(transList,i);
 //////									QueryOperator *oldD = dom;
 //////
@@ -2066,7 +2066,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //////						// then return (Domain X Domain X ... X Domain) - R
 //////						for(int i = 1; i < numAttrs; i++)
 //////						{
-//////							char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+//////							char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
 //////							QueryOperator *aDom = dom;
 //////							QueryOperator *oldD = dom;
 //////
@@ -2091,7 +2091,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 //
 //			   for(int i = 1; i < numAttrs; i++)
 //			   {
-//				   char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+//				   char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
 //				   QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
 //						   "_DOMAIN", NULL, "DummyDom", NIL,
 //						   LIST_MAKE("D"), singletonInt(DT_STRING));
@@ -2112,7 +2112,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
         		List *constAttrs = singleton("D");
         		for(int i = 1; i < numAttrs; i++)
         		{
-        			char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+        			char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
         			constAttrs = appendToTailOfList(deepCopyStringList(constAttrs),aDomAttrName);
         		}
 
@@ -2128,7 +2128,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 
 			   for(int i = 1; i < numAttrs; i++)
 			   {
-				   char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
+				   char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i));
 				   QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
 						   "_DOMAIN", NULL, "DummyDom", NIL,
 						   LIST_MAKE("D"), singletonInt(DT_STRING));
@@ -2153,7 +2153,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
     //		{
     //			if (!isA(arg,Constant))
     //			{
-    //				newAttrNames = appendToTailOfList(newAttrNames, CONCAT_STRINGS("A", itoa(posAttr)));
+    //				newAttrNames = appendToTailOfList(newAttrNames, CONCAT_STRINGS("A", gprom_itoa(posAttr)));
     //			}
     //			posAttr++;
     //		}
@@ -2289,7 +2289,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
             }
             else if (isA(var, Constant))
             {
-                n = CONCAT_STRINGS("C_", itoa(goalPos), "_", itoa(argPos++));
+                n = CONCAT_STRINGS("C_", gprom_itoa(goalPos), "_", gprom_itoa(argPos++));
                 d->attrName = strdup(n);
             }
             else
@@ -2331,7 +2331,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
             }
             else if (isA(var, Constant))
             {
-                n = CONCAT_STRINGS("C_", itoa(goalPos), "_", itoa(argPos++));
+                n = CONCAT_STRINGS("C_", gprom_itoa(goalPos), "_", gprom_itoa(argPos++));
                 d->attrName = strdup(n);
             }
             else
@@ -2388,7 +2388,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     if (isIDB || (isFact && !isEDB))
     {
         for(int i = 0; i < LIST_LENGTH(r->args); i++)
-        	attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", itoa(i)));
+        	attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A", gprom_itoa(i)));
     }
     // is edb, get information from db
     else
@@ -2418,7 +2418,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
 //
 //        for(int i = 1; i < numAttrs; i++)
 //        {
-//        	char *aDomAttrName = CONCAT_STRINGS("D", itoa(i++));
+//        	char *aDomAttrName = CONCAT_STRINGS("D", gprom_itoa(i++));
 //            QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
 //                    "_DOMAIN", NULL, "DummyDom", NIL,
 //					LIST_MAKE("D"), singletonInt(DT_STRING));
@@ -2454,14 +2454,14 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
                 	projNames = appendToTailOfList(projNames, strdup(name));
                 else
                 {
-                	char *newProjName = CONCAT_STRINGS(name, itoa(attrPos));
+                	char *newProjName = CONCAT_STRINGS(name, gprom_itoa(attrPos));
                 	projNames = appendToTailOfList(projNames, strdup(newProjName));
                 }
             }
             else
             {
                 projArgs = appendToTailOfList(projArgs, copyObject(n));
-                projNames = appendToTailOfList(projNames, CONCAT_STRINGS("C_", itoa(attrPos)));
+                projNames = appendToTailOfList(projNames, CONCAT_STRINGS("C_", gprom_itoa(attrPos)));
             }
             attrPos++;
         }
@@ -2694,7 +2694,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
         }
         else if (isA(var, Constant))
         {
-            n = CONCAT_STRINGS("C_", itoa(goalPos), "_", itoa(argPos++));
+            n = CONCAT_STRINGS("C_", gprom_itoa(goalPos), "_", gprom_itoa(argPos++));
             d->attrName = strdup(n);
         }
         else

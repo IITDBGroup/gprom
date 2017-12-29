@@ -514,7 +514,7 @@ updateAttributeNames(Node *node, List *fromAttrs)
         }
         attrPos = a->attrPosition - attrPos + LIST_LENGTH(outer);
         newName = getNthOfListP(outer, attrPos);
-        a->name = CONCAT_STRINGS("F", itoa(fromItem), ".", newName);;
+        a->name = CONCAT_STRINGS("F", gprom_itoa(fromItem), ".", newName);;
     }
 
     return visit(node, updateAttributeNames, fromAttrs);

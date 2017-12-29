@@ -27,6 +27,7 @@
 #include "parser/parser.h"
 #include "model/query_operator/operator_property.h"
 #include "temporal_queries/temporal_rewriter.h"
+#include "utility/string_utils.h"
 
 static void analyzeStmtList (List *l, List *parentFroms);
 static void analyzeQueryBlock (QueryBlock *qb, List *parentFroms);
@@ -91,15 +92,15 @@ static List *schemaInfoGetAttributeDataTypes (char *tableName);
 
 
 /* str functions */
-static inline char *
-strToUpper(char *in)
-{
-    char *result = strdup(in);
-    char *pos;
-    for(pos = result; *++pos != '\0'; *pos = toupper(*pos));
-
-    return result;
-}
+//static inline char *
+//strToUpper(char *in)
+//{
+//    char *result = strdup(in);
+//    char *pos;
+//    for(pos = result; *++pos != '\0'; *pos = toupper(*pos));
+//
+//    return result;
+//}
 
 /* holder for schema information when analyzing reenactment with potential DDL */
 static HashMap *schemaInfo = NULL;
@@ -1277,14 +1278,16 @@ static List *
 splitAttrOnDot (char *dotName)
 {
 //    int start = 0, pos = 0;
-    char *token, *string = strdup(dotName);
+//    char *token, *string = strdup(dotName);
     List *result = NIL;
 
-    while(string != NULL)
-    {
-        token = strsep(&string, ".");
-        result = appendToTailOfList(result, strdup(token));
-    }
+//    while(string != NULL)
+//    {
+//        token = strsep(&string, ".");
+//        result = appendToTailOfList(result, strdup(token));
+//    }
+
+    result = splitString(strdup(dotName), ".");
 
     TRACE_LOG("Split attribute reference <%s> into <%s>", dotName, stringListToString(result));
 

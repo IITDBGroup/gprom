@@ -206,7 +206,7 @@ extern char *beatify(char *input);
 extern char *operatorToOverviewString(void *op);
 extern char *singleOperatorToOverview (void *op);
 extern char *datalogToOverviewString(void *n);
-extern char *itoa(int value);
+extern char *gprom_itoa(int value);
 extern void indentString(StringInfo str, int level);
 
 /* get a dot script for a query operator graph or query block tree */

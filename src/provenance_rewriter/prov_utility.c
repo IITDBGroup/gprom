@@ -397,12 +397,12 @@ makeNamesUnique (List *names, Set *allNames)
         if (count != 0)
         {
             // create a new unique name
-            newName = CONCAT_STRINGS(oldName, itoa(count));
+            newName = CONCAT_STRINGS(oldName, gprom_itoa(count));
             while(hasSetElem(allNames, newName))
-                newName = CONCAT_STRINGS(oldName, itoa(++count));
+                newName = CONCAT_STRINGS(oldName, gprom_itoa(++count));
 
             if(searchListString(names, newName))
-            	newName = CONCAT_STRINGS(oldName, itoa(++count));
+            	newName = CONCAT_STRINGS(oldName, gprom_itoa(++count));
         }
 
         LC_P_VAL(lc) = newName;
