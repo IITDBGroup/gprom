@@ -8,12 +8,21 @@ services:
 ####################
 # install packages
 before_install:
-  - ./travis/install-deps.sh
+  - docker pull iitdbgroup/gprom_travis:latest
 
 ####################
 # build script
 script:
-  - export PATH=.:${PATH} && ./travis/build.sh
+  - docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest make -f Makefile.maintainer
+  - docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest ./configure --with-oci-headers=/usr/local/oracle/include/oracle/12.2/client64/
+  - docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest make
+  - docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest make check
+  - docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest make dist
+  - ant jar-fat
+  - ant jar
+  - ./travis/runjavatests.sh
+# --with-oci-lib=/opt/oracle/instantclient
+#./travis/build.sh
 # && ./travis/autogen.sh && ./travis/configure.sh && make && make install && make check && ./travis/distcheck.sh
 
 ####################
