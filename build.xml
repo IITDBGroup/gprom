@@ -285,14 +285,12 @@
 		<!-- define compress anttasks -->
 		<taskdef resource="org/apache/ant/compress/antlib.xml" 
 			classpathref="${classpath.name.build}"/>
-		
-		<property name="dir.dockercross" value="${dir.buildresource}/dockercross" />
+
+		<!-- setup basic properties -->
 		<property name="srctar" value="gprom-${ivy.revision}.tar" />
 		<property name="srctarball" value="${srctar}.gz" />
-		<property name="srctardir" value="${basedir}" />
 		<property name="configure.options" value="--disable-postgres --disable-oracle --disable-sqlite --disable-monetdb --disable-readline --disable-java" />
 		<property name="make.options" value="-j 4" />
-		<property name="libgpromdir" value="src/libgprom/.libs" />
 
 		<propertyregex property="gprom.major.version"
 		               input="1=${ivy.revision}"
@@ -301,31 +299,54 @@
 		               casesensitive="false" />
 		<echo message="gprom major version is ${gprom.major.version}" />
 
+		<!-- get GPROM_HOST_DIR from environment, this should be set if ant is run from within container -->
+		<property environment="env"/>
+		<property name="env.GPROM_HOST_DIR" value="${basedir}" />
+		<echo message="GPROM_HOST_DIR is set to = ${env.GPROM_HOST_DIR}" />
+		<property name="gprombase" value="${env.GPROM_HOST_DIR}" />
+
+		<echo message="base dir for docker: ${gprombase}" />
+		
+		<!-- dirs that should be relative to mount point in docker container -->
+		<!-- have to set from GPROM_HOST_DIR if called from within contained -->
+		<property name="srctardir" value="${basedir}" />
+		<property name="dir.dockercross" value="${dir.buildresource}/dockercross" />
+		<property name="libgpromdir" value="src/libgprom/.libs" />
+
+		
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-linux-x64" 
+			dockerimage="dockcross/linux-x64"
 			outfolder="linux_x64" 
 			libpath="${libgpromdir}/libgprom.so.${ivy.revision}"
-			libname="libgprom.so"/>
+			libname="libgprom.so"
+			mountdir="${gprombase}"/>
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-linux-x86" 
+			dockerimage="dockcross/linux-x32"
 			outfolder="linux_x32" 
 			libpath="${libgpromdir}/libgprom.so.${ivy.revision}"
 			libname="libgprom.so"
-			addargs="--build=x86_64-pc-linux-gnu --host=x86-pc-linux-gnu" />
+			addargs="--build=x86_64-pc-linux-gnu --host=x86-pc-linux-gnu" 
+			mountdir="${gprombase}" />
 		<build-native-library 
-			crossscript="${dir.dockercross}/dockcross-windows-x86" 
+			crossscript="${dir.dockercross}/dockcross-windows-x86"
+			dockerimage="dockcross/windows-x32" 
 			outfolder="windows_x32" 
 			libpath="${libgpromdir}/libgprom-${gprom.major.version}.dll" 
 			libpath2="${libgpromdir}/libgprom.lai"
 			libname="libgprom.dll"
-			addargs="--build=x86_64-pc-linux-gnu --host=i686-pc-mingw32"/>
+			addargs="--build=x86_64-pc-linux-gnu --host=i686-pc-mingw32"
+			mountdir="${gprombase}"/>
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-windows-x64" 
+			dockerimage="dockcross/windows-x64" 
 			outfolder="windows_x64" 
 			libpath="${libgpromdir}/libgprom-${gprom.major.version}.dll" 
 			libpath2="${libgpromdir}/libgprom.lai"
 			libname="libgprom.dll"
-			addargs="--build=x86_64-pc-linux-gnu --host=x86_64-pc-mingw64"/>
+			addargs="--build=x86_64-pc-linux-gnu --host=x86_64-pc-mingw64"
+			mountdir="${gprombase}"/>
 	</target>
 	
 	<!-- build one native library -->
@@ -336,6 +357,7 @@
 		<attribute name="binarydir" default="${dir.bin}" />
 		<attribute name="builddir" default="${dir.build}" />
 		<attribute name="crossscript" default="" />
+		<attribute name="dockerimage" default="" />
 		<attribute name="untardir" default="gprom-${ivy.revision}" />
 		<attribute name="srctarball" default="${srctarball}" />
 		<attribute name="srctar" default="${srctar}" />
@@ -344,6 +366,7 @@
 		<attribute name="libpath2" default="" />
 		<attribute name="libname" default="" />
 		<attribute name="addargs" default="" />
+		<attribute name="mountdir" default="" />
 		
 		<sequential>
 			<local name="tarpath" /> 
@@ -355,16 +378,19 @@
 			<local name="library.exists" />
 			<local name="expanddir.exists" />
 			<local name="have.libpath2" />
+			<local name="dir.cross.mount" />
 			
 			<!-- check for parameters and check that srctarball exists -->
 			<fail-if-empty arg="@{libname}" />
 			<fail-if-empty arg="@{outfolder}" />
 			<fail-if-empty arg="@{builddir}" />
-			<fail-if-empty arg="@{crossscript}" />
+			<!-- <fail-if-empty arg="@{crossscript}" /> -->
 			<fail-if-empty arg="@{srctarball}" />
 			<fail-if-empty arg="@{srctar}" />
 			<fail-if-empty arg="@{tardir}" />
 			<fail-if-empty arg="@{libname}" />
+			<fail-if-empty arg="@{mountdir}" />
+			<fail-if-empty arg="@{dockerimage}" />
 			
 			<fail-if-bin-not-exists bin="docker" 
 				message="Need docker to cross-compile libgprom" />
@@ -375,7 +401,7 @@
 			<fail-not-exists arg="@{crossscript}" type="file"/>
 			<fail-not-exists arg="${targzpath}" type="file"/>
 			
-			<basename property="crossscript.name" file="@{crossscript}"/>
+<!--			<basename property="crossscript.name" file="@{crossscript}"/> -->
 			
 			<echo message="**********************************************************"/>
 			<echo message="*  BUILD @{outfolder} NATIVE LIBRARY USING @{crossscript} "/>
@@ -383,6 +409,7 @@
 
 			<property name="dir.cross.build" value="@{builddir}/@{outfolder}" />
 			<property name="dir.cross.dest" value="@{binarydir}/${nativebindir.name}/@{outfolder}" />
+			<property name="dir.cross.mount" value="@{mountdir}/build/@{outfolder}/@{untardir}" />
 			
 			<mkdir dir="${dir.cross.build}" />
 			<mkdir dir="${dir.cross.dest}" />
@@ -396,11 +423,11 @@
 			<sequential unless:set="expanddir.exists">
 				<gunzip src="${targzpath}" />
 				<untar src="${tarpath}" dest="${dir.cross.build}"/>
-				<copy file="@{crossscript}" todir="${expanddir}" />
+<!--				USE DOCKER DIRECTLY TO MAKE THIS WORK INSIDE CONTAINER <copy file="@{crossscript}" todir="${expanddir}" />
 				
-				<!-- repair permissions -->
+				<!- repair permissions ->
 				<chmod perm="755" file="${expanddir}/${crossscript.name}" />
-				
+-->			
 				<chmod perm="755">
 					<fileset dir="${expanddir}" includes="configure" />
 				</chmod>
@@ -413,9 +440,12 @@
 			</condition>
 		
 			<sequential unless:set="library.exists">
-				<exec executable="${expanddir}/${crossscript.name}" 
-					dir="${expanddir}">
-					<arg value="--" />
+				<exec executable="docker"
+					dir="${expanddir}"
+				>
+					<!-- args for docker -->
+					<arg line=" run --rm  -v &quot;${dir.cross.mount}&quot;:/work @{dockerimage}" />
+					<!-- args for command running in image: -->
 					<arg value="./configure" />
 					<arg value="--disable-postgres" />
 					<arg value="--disable-oracle" />
@@ -426,13 +456,28 @@
 					<arg line="@{addargs}" />
 				</exec>
 				
+				
+<!--				<exec executable="${expanddir}/${crossscript.name}" 
+					dir="${expanddir}">
+					<arg value="./configure" />
+					<arg value="-disable-postgres" />
+					<arg value="-disable-oracle" />
+					<arg value="-disable-sqlite" />
+					<arg value="-disable-monetdb" />
+					<arg value="-disable-readline" />
+					<arg value="-disable-java" />
+					<arg line="@{addargs}" />
+				</exec>
+				
 				<exec executable="${expanddir}/${crossscript.name}"
 					dir="${expanddir}">
 					<arg value="make" />
 					<arg value="-j" />
 					<arg value="8" />
 				</exec>
+				-->
 			</sequential>
+			
 			<!-- copy to destination -->
 			<copy file="${expanddir}/@{libpath}" tofile="${dir.cross.dest}/@{libname}" />
 			

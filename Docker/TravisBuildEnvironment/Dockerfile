@@ -31,29 +31,30 @@ ENV JAVA_HOME /usr/lib/jvm/java-8-oracle
 ########################################
 RUN apt-get -y update && apt-get install -y \
 	ant \
-	autotools-dev \
 	autoconf \
 	automake \
+	autotools-dev \
 	bison \
+	curl \
 	flex \
 	git \
 	graphviz \
+	libmonetdb-client-dev \
+	libpq-dev \
 	libreadline6 \
 	libreadline6-dev \
 	libsqlite3-dev \
 	libtool \
 	make \
 	man-db \
-	sqlite3 \
-	postgresql \
-	libpq-dev \
-	rman \
-	pandoc \
-	vim \
-	unzip \
 	monetdb5-sql \
 	monetdb-client \
-	libmonetdb-client-dev \
+	pandoc \
+	postgresql \
+	rman \
+	sqlite3 \
+	unzip \
+	vim \
 	&& rm -rf /var/lib/apt/lists/*
 ########################################
 # Setup MonetDB
@@ -73,3 +74,11 @@ RUN cd /ocilib/src \
 	&& make install \
 	&& echo "/usr/local/bin/" > /etc/ld.so.conf.d/ocilib.conf \
 	&& /sbin/ldconfig
+########################################
+# Install docker client
+########################################
+RUN mkdir -p /tmp/download && \
+ 	curl -L https://get.docker.com/builds/Linux/x86_64/docker-1.13.1.tgz | tar -xz -C /tmp/download && \
+	rm -rf /tmp/download/docker/dockerd && \
+	mv /tmp/download/docker/docker* /usr/local/bin/ && \
+	rm -rf /tmp/download

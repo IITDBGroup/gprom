@@ -19,8 +19,6 @@ script:
 # - docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest make
 # - docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest make check
 # - docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest make dist
-  - ant jar-fat
-  - ant jar
   - export PATH=.:${PATH} && ./travis/runjavatests.sh
 # --with-oci-lib=/opt/oracle/instantclient
 #./travis/build.sh
