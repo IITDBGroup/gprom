@@ -17,6 +17,7 @@ RUN echo "deb http://http.debian.net/debian jessie-backports main" >> /etc/apt/s
 	&& apt-get -y update \
     && apt-get -y install -t jessie-backports openjdk-8-jdk \
 	&& update-java-alternatives -s java-1.8.0-openjdk-amd64
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64
 ########################################
 # Install monetdb repository
 ########################################
@@ -46,8 +47,9 @@ RUN apt-get -y update && apt-get install -y \
 	monetdb5-sql \
 	monetdb-client \
 	libmonetdb-client-dev \
+	man-db \
+	pandoc \
 	&& rm -rf /var/lib/apt/lists/*
-ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64
 ########################################
 # Setup MonetDB
 ########################################
@@ -67,7 +69,7 @@ RUN cd /ocilib/src \
 	&& echo "/usr/local/bin/" >> /etc/ld.so.conf \
 	&& echo "/opt/oracle/instantclient/" >> /etc/ld.so.conf \
 	&& /sbin/ldconfig
-########################################
-# Per default run bash
-########################################
-ENTRYPOINT ["/bin/bash"]
+#
+RUN apt-get -y update && apt-get install -y \
+	rman \
+	&& rm -rf /var/lib/apt/lists/*
