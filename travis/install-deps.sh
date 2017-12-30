@@ -28,6 +28,7 @@ else
 	sudo apt-get install -y ant autotools-dev autoconf bison flex git libsqlite3-dev libtool libreadline6 libreadline6-dev sqlite3 gnuplot pandoc rman
 	wget --no-check-certificate https://www.apache.org/dist/ant/binaries/apache-ant-1.10.1-bin.tar.gz
     tar -xzvf apache-ant-1.10.1-bin.tar.gz
+	echo $(java -version)
     export PATH=`pwd`/apache-ant-1.10.1/bin:$PATH
     echo $(ant -version)
 fi
