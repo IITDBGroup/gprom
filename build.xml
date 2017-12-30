@@ -63,7 +63,7 @@
 	<property name="gpromlib.darwin.bin" value="${dir.bin}/${nativebindir.name}/darwin_x64/libgprom.dylib" />
 	<property name="gpromlib.darwin" value="${dir.build}/libgprom.jnilib" />	
 	
-	<property name="gpromlib.linux.src" value="${basedir}/src/libgprom/.libs/libgprom.so.0" />
+	<property name="gpromlib.linux.src" value="${basedir}/src/libgprom/.libs/libgprom.so" />
 	<property name="gpromlib.linux.bin" value="${dir.bin}/${nativebindir.name}/linux_x64/libgprom.so" />
 	<property name="gpromlib.linux" value="${dir.build}/libgprom.so" />   
 	
