@@ -2,15 +2,19 @@
 # set up languages
 language: c
 
+services:
+  - docker
+
 ####################
 # install packages
 before_install:
-  - travis/install-deps.sh
+  - ./travis/install-deps.sh
 
 ####################
 # build script
 script:
-  - export PATH=.:${PATH} && ./travis/autogen.sh && ./travis/configure.sh && make && make install && make check && ./travis/distcheck.sh
+  - export PATH=.:${PATH} && ./travis/build.sh
+# && ./travis/autogen.sh && ./travis/configure.sh && make && make install && make check && ./travis/distcheck.sh
 
 ####################
 # branch configuration
@@ -27,6 +31,7 @@ osx_image: xcode7.3
 # deploy
 after_success:
   - ./travis/deploy.sh
+
 ####################
 # build matrix
 matrix:

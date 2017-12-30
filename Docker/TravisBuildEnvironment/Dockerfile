@@ -8,9 +8,18 @@ MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
 WORKDIR /gprom
 ########################################
-# Install monetdb
+# Install Java 8
 ########################################
-RUN apt-get -y update && apt-get -y install apt-transport-https wget
+RUN apt-get -y update && apt-get -y install \
+	apt-transport-https \
+	wget
+RUN echo "deb http://http.debian.net/debian jessie-backports main" >> /etc/apt/sources.list.d/jessie-backports.list \
+	&& apt-get -y update \
+    && apt-get -y install -t jessie-backports openjdk-8-jdk \
+	&& update-java-alternatives -s java-1.8.0-openjdk-amd64
+########################################
+# Install monetdb repository
+########################################
 RUN echo "deb http://dev.monetdb.org/downloads/deb/ jessie monetdb" > /etc/apt/sources.list.d/monetdb.list \
     && 	echo "deb-src http://dev.monetdb.org/downloads/deb/ jessie monetdb" >> /etc/apt/sources.list.d/monetdb.list \
 	&& wget -q --output-document=- https://www.monetdb.org/downloads/MonetDB-GPG-KEY | apt-key add -
@@ -26,7 +35,6 @@ RUN apt-get -y update && apt-get install -y \
 	flex \
 	git \
 	graphviz \
-	default-jdk \
 	libpq-dev \
 	libreadline6 \
 	libreadline6-dev \
@@ -60,22 +68,6 @@ RUN cd /ocilib/src \
 	&& echo "/opt/oracle/instantclient/" >> /etc/ld.so.conf \
 	&& /sbin/ldconfig
 ########################################
-# Clone GProM github repository
+# Per default run bash
 ########################################
-RUN git clone https://github.com/IITDBGroup/gprom.git /gprom/src
-########################################
-# Build GProM
-########################################
-RUN cd /gprom/src \
-	&& make -f Makefile.maintainer \
-	&& ./configure --with-oci-headers=/opt/oracle/instantclient/sdk/include/ --with-oci-lib=/opt/oracle/instantclient \
-	&& make \
-	&& make install
-########################################
-# Per default start the gprom command line interface
-########################################
-ENTRYPOINT ["/usr/local/bin/gprom"]
-########################################
-# Per default connect to the example SQLite database
-########################################
-CMD ["-help"]
+ENTRYPOINT ["/bin/bash"]
