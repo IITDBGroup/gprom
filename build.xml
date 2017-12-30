@@ -441,8 +441,8 @@
 		
 			<sequential unless:set="library.exists">
 				<exec executable="docker"
-					dir="${expanddir}"
-				>
+					dir="${expanddir}">
+					
 					<!-- args for docker -->
 					<arg line=" run --rm  -v &quot;${dir.cross.mount}&quot;:/work @{dockerimage}" />
 					<!-- args for command running in image: -->
@@ -455,27 +455,18 @@
 					<arg value="--disable-java" />
 					<arg line="@{addargs}" />
 				</exec>
-				
-				
-<!--				<exec executable="${expanddir}/${crossscript.name}" 
-					dir="${expanddir}">
-					<arg value="./configure" />
-					<arg value="-disable-postgres" />
-					<arg value="-disable-oracle" />
-					<arg value="-disable-sqlite" />
-					<arg value="-disable-monetdb" />
-					<arg value="-disable-readline" />
-					<arg value="-disable-java" />
-					<arg line="@{addargs}" />
-				</exec>
-				
-				<exec executable="${expanddir}/${crossscript.name}"
-					dir="${expanddir}">
+
+				<exec executable="docker"
+					dir="${expanddir}" >
+					
+					<!-- args for docker -->
+					<arg line=" run --rm  -v &quot;${dir.cross.mount}&quot;:/work @{dockerimage}" />
+					<!-- args for command running in image: -->
 					<arg value="make" />
 					<arg value="-j" />
 					<arg value="8" />
 				</exec>
-				-->
+
 			</sequential>
 			
 			<!-- copy to destination -->
