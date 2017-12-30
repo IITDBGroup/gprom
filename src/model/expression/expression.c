@@ -350,10 +350,10 @@ createConstInt (int value)
 }
 
 Constant *
-createConstLong (long value)
+createConstLong (gprom_long_t value)
 {
     Constant *result = makeNode(Constant);
-    long *v = NEW(long);
+    gprom_long_t *v = NEW(gprom_long_t);
 
     *v = value;
     result->constType  = DT_LONG;

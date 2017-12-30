@@ -367,12 +367,12 @@ executeQueryIgnoreResult (char *sql)
     RELEASE_MEM_CONTEXT();
 }
 
-long
-getCommitScn (char *tableName, long maxScn, char *xid)
+gprom_long_t
+getCommitScn (char *tableName, gprom_long_t maxScn, char *xid)
 {
     ASSERT(activePlugin && activePlugin->isInitialized());
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
-    long result = activePlugin->getCommitScn(tableName, maxScn, xid);
+    gprom_long_t result = activePlugin->getCommitScn(tableName, maxScn, xid);
     RELEASE_MEM_CONTEXT();
     return result;
 }

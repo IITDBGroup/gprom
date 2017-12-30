@@ -485,9 +485,15 @@ AC_CHECK_LIB([m],[pow],[],[
   AC_MSG_ERROR([missing libm library (searching for pow function)])
 ])
 ################################################################################
-# check for libpthread
+# check for libpthread if target is not windows
+AS_IF([test "x$OSTYPE" == "xwindows"], 
+[
+  AC_MSG_WARN([compiling for windows target do not attempt to link against libpthread])
+], 
+[
 AC_CHECK_LIB([pthread],[pthread_mutex_lock],[],[
   AC_MSG_ERROR([missing libpthread library (searching for pthread_mutex_lock function)])
+])
 ])
 ################################################################################
 # Enable cplex

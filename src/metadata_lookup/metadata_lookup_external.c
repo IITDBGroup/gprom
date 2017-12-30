@@ -48,7 +48,7 @@ static List *externalGetKeyInformation (char *tableName);
 static void externalGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 static Node *externalExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
-static long externalGetCommitScn (char *tableName, long maxScn, char *xid);
+static gprom_long_t externalGetCommitScn (char *tableName, gprom_long_t maxScn, char *xid);
 static Relation *externalGenExecQuery (char *query);
 static void externalGenExecQueryIgnoreQuery (char *query);
 
@@ -299,8 +299,8 @@ externalExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel
     return NULL;
 }
 
-static long
-externalGetCommitScn (char *tableName, long maxScn, char *xid)
+static gprom_long_t
+externalGetCommitScn (char *tableName, gprom_long_t maxScn, char *xid)
 {
     //TODO
     return 0;

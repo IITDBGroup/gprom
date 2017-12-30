@@ -43,12 +43,12 @@ public class GProMNativeLibraryLoader {
 		libextensions.put(OSArchType.Windows32, "dll");
 		libextensions.put(OSArchType.Windows64, "dll");
 		
-		folderName.put(OSArchType.Mac32,  "darwin32");
-		folderName.put(OSArchType.Mac64,  "darwin64");
-		folderName.put(OSArchType.Linux32,  "linux32");
-		folderName.put(OSArchType.Linux64,  "linux64");
-		folderName.put(OSArchType.Windows32,  "windows32");
-		folderName.put(OSArchType.Windows64,  "windows64");
+		folderName.put(OSArchType.Mac32,  "libgpromnative/darwin_x32");
+		folderName.put(OSArchType.Mac64,  "libgpromnative/darwin_x64");
+		folderName.put(OSArchType.Linux32,  "libgpromnative/linux_x32");
+		folderName.put(OSArchType.Linux64,  "libgpromnative/linux_x64");
+		folderName.put(OSArchType.Windows32,  "libgpromnative/windows_x32");
+		folderName.put(OSArchType.Windows64,  "libgpromnative/windows_x64");
 	}
 	
 	

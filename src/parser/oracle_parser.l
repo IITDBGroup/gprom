@@ -287,7 +287,7 @@ strconcat		"||"
 /* use logging framework in the future */
 void oracleerror(char *s)
 {
-	FATAL_LOG("%s at %s\n", (char *) s, oracletext);
+	FATAL_LOG("%s at %s\n", s, oracletext);
 }
 
 void oracleSetupStringInput(char *input)

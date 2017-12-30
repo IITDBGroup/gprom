@@ -72,7 +72,7 @@ hasMapIntKey (HashMap *map, int key)
 }
 
 boolean
-hasMapLongKey (HashMap *map, long key)
+hasMapLongKey (HashMap *map, gprom_long_t key)
 {
     return (getMapLong(map, key) != NULL);
 }
@@ -127,10 +127,10 @@ getMapInt (HashMap *map, int key)
 }
 
 Node *
-getMapLong (HashMap *map, long key)
+getMapLong (HashMap *map, gprom_long_t key)
 {
     static Constant *longDummy = NULL;
-    long *v;
+    gprom_long_t *v;
     if (longDummy == NULL)
     {
         if (hashContext == NULL)
@@ -140,7 +140,7 @@ getMapLong (HashMap *map, long key)
         RELEASE_MEM_CONTEXT();
     }
 
-    v = (long *) longDummy->value;
+    v = (gprom_long_t *) longDummy->value;
     *v = key;
     return getMap(map, (Node *) longDummy);
 }

@@ -37,7 +37,7 @@
 
 // hash functions for simple types
 static inline uint64_t hashInt(uint64_t cur, int value);
-static inline uint64_t hashLong(uint64_t cur, long value);
+static inline uint64_t hashLong(uint64_t cur, gprom_long_t value);
 static inline uint64_t hashFloat(uint64_t cur, float value);
 static inline uint64_t hashString(uint64_t cur, char *value);
 static inline uint64_t hashBool(uint64_t cur, boolean value);
@@ -137,9 +137,9 @@ hashBool(uint64_t cur, boolean value)
 }
 
 static inline uint64_t
-hashLong(uint64_t cur, long value)
+hashLong(uint64_t cur, gprom_long_t value)
 {
-    return hashMemory(cur, &value, sizeof(long));
+    return hashMemory(cur, &value, sizeof(gprom_long_t));
 }
 
 static inline uint64_t
@@ -216,7 +216,7 @@ hashSet (uint64_t cur, Set *node)
             break;
         case SET_TYPE_POINTER:
             FOREACH_SET(void,p,node)
-                hashLong(cur, (long) p);
+                hashLong(cur, (gprom_long_t) p);
             break;
     }
 
@@ -673,7 +673,7 @@ hashQueryOperator (uint64_t cur, QueryOperator *node)
 
     // want to hash parents, but cannot traverse because it may result infinite loops
     FOREACH(void,p,node->parents)
-        hashLong(cur, (long) p);
+        hashLong(cur, (gprom_long_t) p);
 
     HASH_RETURN();
 }

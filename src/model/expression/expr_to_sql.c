@@ -66,7 +66,7 @@ constantToSQL (StringInfo str, Constant *node)
             appendStringInfo(str, "%f", *((double *) node->value));
             break;
         case DT_LONG:
-            appendStringInfo(str, "%ld", *((long *) node->value));
+            appendStringInfo(str, "%ld", *((gprom_long_t *) node->value));
             break;
         case DT_STRING:
             appendStringInfo(str, "'%s'", (char *) node->value);
@@ -636,7 +636,7 @@ constantToLatex (StringInfo str, Constant *node)
             appendStringInfo(str, "%f", *((double *) node->value));
             break;
         case DT_LONG:
-            appendStringInfo(str, "%ld", *((long *) node->value));
+            appendStringInfo(str, "%ld", *((gprom_long_t *) node->value));
             break;
         case DT_STRING:
             appendStringInfo(str, "\\texttt{\\textcolor{blue}{%s}}", latexEscapeString((char *) node->value));

@@ -58,12 +58,13 @@
 	<property name="ivyfile.test" value="${dir.buildresource}/ivy-test.xml" />
 	
 	<!-- GProM c-library -->
+	<property name="nativebindir.name" value="libgpromnative" />
 	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.dylib" />
-	<property name="gpromlib.darwin.bin" value="${dir.bin}/darwin_x64/libgprom.dylib" />
+	<property name="gpromlib.darwin.bin" value="${dir.bin}/${nativebindir.name}/darwin_x64/libgprom.dylib" />
 	<property name="gpromlib.darwin" value="${dir.build}/libgprom.jnilib" />	
 	
 	<property name="gpromlib.linux.src" value="${basedir}/src/libgprom/.libs/libgprom.so.0" />
-	<property name="gpromlib.linux.bin" value="${dir.bin}/linu_x64/libgprom.so" />
+	<property name="gpromlib.linux.bin" value="${dir.bin}/${nativebindir.name}/linux_x64/libgprom.so" />
 	<property name="gpromlib.linux" value="${dir.build}/libgprom.so" />   
 	
 	<!-- TARGETS -->	
@@ -381,7 +382,7 @@
 			<echo message="**********************************************************"/>
 
 			<property name="dir.cross.build" value="@{builddir}/@{outfolder}" />
-			<property name="dir.cross.dest" value="@{binarydir}/@{outfolder}" />
+			<property name="dir.cross.dest" value="@{binarydir}/${nativebindir.name}/@{outfolder}" />
 			
 			<mkdir dir="${dir.cross.build}" />
 			<mkdir dir="${dir.cross.dest}" />

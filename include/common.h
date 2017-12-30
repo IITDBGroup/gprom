@@ -10,7 +10,11 @@
  * Portability
  */
 //#if HAVE_CONFIG_H
+#ifndef IMPORTED_CONFIG_H
+#define IMPORTED_CONFIG_H
 #include <config.h>
+#endif
+
 //#endif /* HAVE_CONFIG_H */
 
 /* <inttypes.h> integer type definitions */

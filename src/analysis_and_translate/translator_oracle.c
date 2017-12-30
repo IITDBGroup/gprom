@@ -650,7 +650,7 @@ translateProvenanceStmt(ProvenanceStmt *prov)
             }
 
             // get commit scn, some tables that were targeted by statements might not have been modified
-            long commitScn = INVALID_SCN;
+            gprom_long_t commitScn = INVALID_SCN;
 
             FOREACH(char,tableName,tInfo->updateTableNames)
             {
