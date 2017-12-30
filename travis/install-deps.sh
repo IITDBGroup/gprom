@@ -1,5 +1,8 @@
 #!/bin/bash
 
+docker pull iitdbgroup/gprom_travis
+exit 0
+
 # MAC OS X
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
 	# Directory this script resides in
