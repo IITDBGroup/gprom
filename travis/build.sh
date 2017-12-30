@@ -41,11 +41,11 @@ docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:late
 testexit
 
 echo "************************* RUN LIBGPROM CROSS-COMPILATION"
-docker run --rm --name dockbuild -v /var/run/docker.sock:/var/run/docker.sock -e GPROM_HOST_DIR="$(pwd)" -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest ant jar-fat
+docker run --rm --name dockbuild -v /var/run/docker.sock:/var/run/docker.sock -e GPROM_HOST_DIR="$(pwd)" -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest ant -Dskipivy=true jar-fat
 testexit
 
 echo "************************* RUN REBUILD JAR WITH ALL NATIVE LIBRARIES"
-docker run --rm --name dockbuild -v /var/run/docker.sock:/var/run/docker.sock -e GPROM_HOST_DIR="$(pwd)" -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest ant jar
+docker run --rm --name dockbuild -v /var/run/docker.sock:/var/run/docker.sock -e GPROM_HOST_DIR="$(pwd)" -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest ant -Dskipivy=true jar
 testexit
 
 popd > /dev/null
