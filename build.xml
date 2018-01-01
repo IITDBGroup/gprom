@@ -327,7 +327,7 @@
 			mountdir="${gprombase}"/>
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-linux-x86" 
-			dockerimage="dockcross/linux-x32"
+			dockerimage="dockcross/linux-x86"
 			outfolder="linux_x32" 
 			libpath="${libgpromdir}/libgprom.so.${ivy.revision}"
 			libname="libgprom.so"
@@ -335,7 +335,7 @@
 			mountdir="${gprombase}" />
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-windows-x86"
-			dockerimage="dockcross/windows-x32" 
+			dockerimage="dockcross/windows-x86" 
 			outfolder="windows_x32" 
 			libpath="${libgpromdir}/libgprom-${gprom.major.version}.dll" 
 			libpath2="${libgpromdir}/libgprom.lai"
