@@ -57,7 +57,7 @@ gprom_init(void)
     initMemManager();
     mallocOptions();
     initLogger();
-    registerSignalHandler();
+//    registerSignalHandler();
     setWipeContext(LIBARY_REWRITE_CONTEXT);
     UNLOCK_MUTEX();
 }
@@ -100,8 +100,8 @@ gprom_reconfPlugins(void)
 void gprom_shutdown(void)
 {
     LOCK_MUTEX();
-    deregisterSignalHandler();
     shutdownApplication();
+//    deregisterSignalHandler();
     UNLOCK_MUTEX();
 //    DESTROY_MUTEX();
 }
@@ -122,7 +122,7 @@ gprom_rewriteQuery(const char *query)
     {
         ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
         UNLOCK_MUTEX();
-        return NULL;
+        returnResult = NULL;
     }
     END_ON_EXCEPTION
     UNLOCK_MUTEX();

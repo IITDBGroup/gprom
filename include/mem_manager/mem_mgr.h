@@ -75,7 +75,7 @@ extern void initMemManager(void);
  * Free all contexts in the context stack and clear the stack.
  */
 extern void destroyMemManager(void);
-
+extern boolean memManagerUsable(void);
 extern void *malloc_(size_t bytes, const char *file, unsigned line);
 extern void *calloc_(size_t bytes, unsigned count, const char *file, unsigned line);
 extern void free_(void *mem, const char *file, unsigned line);

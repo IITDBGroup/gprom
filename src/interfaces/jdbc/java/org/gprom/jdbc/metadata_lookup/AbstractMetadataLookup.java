@@ -37,6 +37,7 @@ import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.isInitialized_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.isWindowFunction_callback;
 import org.gprom.jdbc.utility.LoggerUtil;
 
+import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
 import static org.gprom.jdbc.utility.LoggerUtil.*;
@@ -159,6 +160,10 @@ public abstract class AbstractMetadataLookup {
 		this.con = con;
 		createPlugin(this);
 	}
+
+	public AbstractMetadataLookup () {
+		
+	}
 	
 	public GProMMetadataLookupPlugin getPlugin() {
 		return plugin;
@@ -167,7 +172,7 @@ public abstract class AbstractMetadataLookup {
 	/**
 	 * Creates a plugin. The plugin structure is fixed and all methods are deligated to the methods defined in this class. 
 	 */
-	private void createPlugin(final AbstractMetadataLookup t) {
+	protected void createPlugin(final AbstractMetadataLookup t) {
 		plugin = new GProMMetadataLookupPlugin ();
 		plugin.isInitialized = new isInitialized_callback() {
 
@@ -196,8 +201,15 @@ public abstract class AbstractMetadataLookup {
 		plugin.catalogTableExists = new catalogTableExists_callback() {
 
 			@Override
-			public int apply(String tableName) {
-				return tableExists(tableName);
+			public int apply(Pointer tableNameP) {
+				int result = 0;
+				try {
+					result = tableExists(pointerToString(tableNameP));
+				} catch (Throwable e) {
+					log.fatal("Exception during execution of method");
+					LoggerUtil.logException(e, log);
+				}
+				return result;
 			}
 			
 		};
@@ -317,6 +329,14 @@ public abstract class AbstractMetadataLookup {
 		};
 	}
 
+	private String pointerToString(Pointer p) {
+		log.debug("about to translate pointer");
+		log.debug("value of first char {}", p.dump(0, 1));
+		String val =  p.getString(0);
+		log.debug("value is {}", val);
+		return val;
+	}
+	
 	/**
 	 * @param tableName
 	 * @return

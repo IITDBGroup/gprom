@@ -55,6 +55,7 @@ public class GProMNativeLibraryLoader {
 	private boolean isLoaded = false;
 	private OSArchType os;
 	private String tempDir;
+	private File tempLibDir;
 	private String libWithSuffix;
 	private File libDir;
 	private File libraryFile;
@@ -128,8 +129,8 @@ public class GProMNativeLibraryLoader {
 				LoggerUtil.logException(e, log);
 				if (libraryFile != null)
 					libraryFile.delete();
-				if (libDir != null)
-					libDir.delete();
+				if (tempLibDir != null)
+					tempLibDir.delete();
 				throw(e);
 			}
 			finally {
@@ -146,10 +147,10 @@ public class GProMNativeLibraryLoader {
 	 * 
 	 */
 	private void createTmpDirForLib() throws IOException {
-		libDir = new File(tempDir, UUID.randomUUID().toString());
-		if (!libDir.mkdir())
-			throw new IOException("was not able to create directory for library: " + libDir.toString());
-		libDir.deleteOnExit();
+		tempLibDir = new File(tempDir, UUID.randomUUID().toString());
+		if (!tempLibDir.mkdir())
+			throw new IOException("was not able to create directory for library: " + tempLibDir.toString());
+		tempLibDir.deleteOnExit();
 	}
 
 	/**

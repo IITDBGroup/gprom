@@ -66,7 +66,7 @@ public class GProMMetadataLookupPlugin extends Structure {
 		int apply();
 	};
 	public interface catalogTableExists_callback extends Callback {
-		int apply(String tableName);
+		int apply(Pointer tableName);
 	};
 	public interface catalogViewExists_callback extends Callback {
 		int apply(String viewName);

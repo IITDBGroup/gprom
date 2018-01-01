@@ -72,7 +72,8 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 	 * @throws SQLException
 	 */
 	public OracleMetadataLookup(Connection con) throws SQLException {
-		super(con);
+		this.con = con;
+		createPlugin(this);
 		setupStmts();
 	}
 	
@@ -190,7 +191,9 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 	 * @return
 	 */
 	public int viewExists(String viewName) {
-		return tableExistsForTypes(viewName, false) ? 1 : 0;
+		boolean result = tableExistsForTypes(viewName, false);
+		log.debug("table {} exists {}", viewName, result);	
+		return result ? 1 : 0;
 	}
 	
 	/**
@@ -198,12 +201,17 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 	 * @return
 	 */
 	public int tableExists(String tableName) {
-		return tableExistsForTypes(tableName, true) ? 1 : 0;
+		return 1;
+//		boolean result = tableExistsForTypes(tableName, true); 
+//		log.debug("table {} exists {}", tableName, result);
+//		return result ? 1 : 0;
 	}
 	
 	public boolean tableExistsForTypes (String tableName, boolean isTable) {
 		int result = -1;
 		ResultSet rs = null;
+		
+		log.debug("check for tablename {} is table? {}", tableName, isTable);
 		
 		try {
 			if (isTable)
@@ -215,6 +223,8 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 			}
 		    rs.close();
 			
+		    log.debug("table {} exists: {}", tableName, result);
+		    
 			return result == 1;
 		}
 		catch (SQLException e) {

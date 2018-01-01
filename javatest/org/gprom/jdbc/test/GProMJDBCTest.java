@@ -50,15 +50,16 @@ public class GProMJDBCTest {
 //		String url = "jdbc:gprom:postgresql://127.0.0.1:5432/testdb";
 		
 		//get password
-		System.out.print("enter password: ");
-		Scanner in = new Scanner(System.in);
-		password = in.nextLine();
+//		System.out.print("enter password: ");
+//		Scanner in = new Scanner(System.in);
+//		password = in.nextLine();
+		password = "testuser_man";
 		// setup url
 		url = "jdbc:gprom:oracle:thin:" + username + "/" + password + 
 				"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
 		
 		GProMConnection con = null;
-		Native.setProtected(true);
+//		Native.setProtected(true);
 		log.debug("XXXXXXXXXXXX");
 		log.error(url);
 		try{
@@ -87,7 +88,7 @@ public class GProMJDBCTest {
 		}
 		System.out.println("Connection was successfully");
 
-		con.getW().setLogLevel(4);
+		con.getW().setLogLevel(5);
 		con.getW().setBoolOption("pi_cs_use_composable", false);
 		con.getW().setBoolOption("optimize_operator_model", false);
 		con.getW().setBoolOption("aggressive_model_checking", true);
@@ -115,7 +116,8 @@ public class GProMJDBCTest {
 //			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
 			System.out.println("***************");
 			for(int i = 0; i < 3; i++) {
-				rs = gSt.executeQuery("SELECT * FROM r WHERE a < " + i + ";");
+//				rs = gSt.executeQuery("SELECT * FROM r WHERE a < " + i); //  + ";");
+				rs = gSt.executeQuery("SELECT * FROM r"); //  + ";");
 				printResult(rs);
 				rs = st.executeQuery("SELECT   A.VALUE   "
 						+ "FROM V$SESSTAT A,     V$STATNAME B,     V$SESSION S   "

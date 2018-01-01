@@ -3,18 +3,10 @@ Backend=Oracle
 
 # general connection options
 Host=127.0.0.1
-#Host=ligeti.cs.iit.edu
 Port=1521
 DBName=testuser
 User=testuser
-Password=testuser_man
+Password=XXX
 Schema=public
 
-# Oracle specific configuration
-Oracle.SID=orcl
 
-# Postgres specific configuration
-Postgres.AdminDBName=template1
-Postgres.Prefix=/Users/lord_pretzel/systems/aggperm/install
-Postgres.Cluster=/Users/lord_pretzel/systems/aggperm/data
-Postgres.Source=/Users/lord_pretzel/Documents/workspace/AggPerm/

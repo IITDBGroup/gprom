@@ -126,12 +126,16 @@
 			depends="handle-os"
 			description="clean up">
 		
-		<copy todir="${dir.library}">
+		<copy todir="${dir.bin}">
 			<fileset dir="${dir.buildresource}" includes="${conffile.name},${log4jconffile.name}" /> 
 		</copy>
 		<depend srcdir="${dir.source}"
 		        destdir="${dir.bin}"
-		        cache="depcache"
+		        cache="${dir.build}/depcache"
+		        closure="yes"/>
+		<depend srcdir="${dir.testlib}"
+		        destdir="${dir.bin}"
+		        cache="${dir.build}/testdepcache"
 		        closure="yes"/>
 	</target>
 	

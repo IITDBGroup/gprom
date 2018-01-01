@@ -7,6 +7,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -76,6 +77,9 @@ public class GProMWrapper implements GProMJavaInterface {
 		if (!query.trim().endsWith(";"))
 			query += ";";
 		
+//		Scanner in = new Scanner(System.in);
+//		String password = in.nextLine();
+//		
 		Pointer p =  GProM_JNA.INSTANCE.gprom_rewriteQuery(query);
 		
 		// check whether exception has occured

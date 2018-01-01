@@ -66,6 +66,10 @@ public class GProMStatement implements GProMStatementInterface {
 		}
 		return executeQuery(sqlQuery);
 	}
+	
+	public ResultSet executeBackendQuery(String sqlQuery) throws SQLException {
+		return  stat.executeQuery(sqlQuery);
+	}
 
 	public void addBatch(String sql) throws SQLException {
 		stat.addBatch(sql);

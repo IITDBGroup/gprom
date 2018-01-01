@@ -9,12 +9,14 @@
 
 	<description>GProM automatically generated junit blackbox tests.</description>
 	
-	<property name="projectroot" value="${basedir}/.." />
+	<dirname property="dir.antfile" file="${ant.file}"/>
+	<property name="projectroot" value="${dir.antfile}/.." />
 		
 	<!-- ClassPath Setup -->
 	<property name="classpath.name.bin" value="classpath.bin" />
 	<property name="classpath.name.build" value="classpath.build" />
 	<property name="classpath.name.run" value="classpath.run" />
+	<property name="classpath.name.thejar" value="classpath.thejar" />
 	
 	<!-- define artifacts' name, which follows the convention of Maven -->
 	<property name="artifactId" value="gprom-blackbox-tests" />
@@ -24,15 +26,19 @@
 	<property name="dir.source" value="${projectroot}/javatest" />
 	<property name="dir.bin" value="${dir.build}/javabin" />
 	<property name="dir.testsrc" value="${projectroot}/autotests" />
-	<property name="dir.testbin" value="${dir.bin}/org/gprom/jdbc/test/autotests" />
+	<property name="dir.testbin" value="${dir.build}/javabin" /> <!-- /org/gprom/jdbc/test/autotests" />-->
 	<property name="dir.buildresource" value="${projectroot}/ant" />
 	<property name="dir.library" value="${dir.build}/javatestlib" />
 	<property name="dir.lib.main" value="${dir.build}/javalib" />
 	<property name="dir.antlib" value="${projectroot}/ant" />
 	<property name="dir.resource" value="${projectroot}/blackboxtests"/>
 	<property name="dir.testcase" value="${dir.resource}/testcases"/>
-	<property name="jar.generator" value="${dir.library}/gprom-test-gen.jar" />
-	<property name="jar.build" value="${dir.build}/gprom-jdbc-test.jar" />
+	<property name="jar.test" value="${dir.build}/gprom-jdbc-test.jar" />
+	<property name="jar.bin" value="${dir.build}/gprom-jdbc.jar" />
+	
+	<!-- resources -->
+	<property name="conffile.name" value="GProMDriver.properties" />
+	<property name="log4jconffile.name" value="log4j.properties" />
 	
 	<!-- Main Class and Packages-->
 	<property name="package.name" value="org.gprom.jdbc.test.autotests" />
@@ -51,62 +57,33 @@
 	<!-- settings -->
 	<!-- get test name if specified -->
 	<property name="junit.testname" value="${testname}" />
-	
-	<path id="libraries">
-		<fileset dir="${dir.library}">
-			<include name="**/*.jar" />
-		</fileset>
-		<fileset dir="${dir.lib.main}">
-			<include name="**/*.jar" />
-		</fileset>
-		<fileset dir="${dir.antlib}" />
-		<fileset dir="${ant.library.dir}">
-			<include name="**/*.jar" />
-		</fileset>
-	</path>
 
-	<path id="createTestsClasspath">
-		<path refid="libraries" />
-		<pathelement path="${dir.resource}" />
-		<fileset dir="${dir.lib.main}" />
-		<fileset dir="${dir.antlib}" />
-		<pathelement path="${dir.bin}" />
-		<fileset dir="${ant.library.dir}">
-			<include name="**/*.jar" />
-		</fileset>
-	</path>
-	
-	<path id="runTestsClasspath">
-		<fileset dir="${dir.library}">
-			<include name="**/*.jar" />
-		</fileset>
-		<fileset dir="${dir.lib.main}">
-			<include name="**/*.jar" />
-		</fileset>
-		<pathelement path="${dir.lib.main}" />
-		<pathelement path="${dir.resource}" />
-		<pathelement path="${dir.bin}"/>
-	</path>
-
+	<!-- targets -->
 	<target name="download-dependencies" 
 			depends="mkdirs-and-setup-props" 
 			description="use ivy to download dependencies">
-			
+				
 		<ivy-download-deps ivyfile="${ivy.file.test}"/>
+		<fileset id="fat.jar.resources" 
+				dir="${dir.lib.main}" 
+				includes="${conffile.name},${log4jconffile.name}" />
 		<classpath-from-dir dir="${dir.buildlib}" 
 				pathname="${classpath.name.build}" 
 				pathnamejar="${classpath.name.build}.jar"/>
 		<classpath-from-dir dir="${dir.lib.main}" 
 				pathname="${classpath.name.bin}" 
 				pathnamejar="${classpath.name.bin}.jar"/>
-		<classpath-from-dir dir="${dir.library}" 
-				pathname="${classpath.name.run}" 
-				pathnamejar="${classpath.name.run}.jar"/>
+		<path id="classpath.thejar">
+			<fileset file="${jar.test}" />
+			<path refid="${classpath.name.bin}" />
+		</path>
+		<print-path pathid="${classpath.name.thejar}" />
 	</target>
 
 	
 	<target name="setup-additional-anttasks" 
 			depends="download-dependencies">
+		<echo message="building from ${basedir} with ant file located in ${dir.antfile}" />
 		<taskdef resource="net/sf/antcontrib/antcontrib.properties"
 			classpathref="${classpath.name.build}">
 		</taskdef>
@@ -143,6 +120,9 @@
 			depends="adapt-ddl-scripts"
 			description="clean">
 		<mkdir dir="${dir.testsrc}" />
+		<copy todir="${dir.bin}">
+			<fileset dir="${dir.buildresource}" includes="${conffile.name},${log4jconffile.name}" /> 
+		</copy>
 	</target>
 	
 	<target name="compile" 
@@ -150,7 +130,7 @@
 			description="compile the test generator java files">
 		<depend srcdir="${dir.source}"
 		        destdir="${dir.bin}"
-		        cache="depcache"
+		        cache="${dir.build}/testdepcache"
 		        closure="yes"/>
 		<javac srcdir="${dir.source}" 
 				destdir="${dir.bin}" 
@@ -163,23 +143,30 @@
 	</target>
 	
 	<target name="jar-generator" 
-			depends="jar"
+			depends="compile"
 			description="create a jar file for the test generator">
-<!--		<jar destfile="${jar.generator}" basedir="${dir.bin}">
-			<manifest>
-				<attribute name="Created-By" value="Illinois Institute of Technology, Department for Computer Science, DBGroup" />
-			</manifest>
-		</jar> -->
-		<copy file="${jar.generator}" tofile="${jar.build}" />
+		<create-jar>
+			<additional-resources>
+				<fileset refid="fat.jar.resources" />
+			</additional-resources>
+		</create-jar>
 	</target>
 	
 	<target name="gen-tests" 
 			depends="jar-generator"
 			description="generate JUnit blackbox tests from xml files">
-		
+		<classpath-from-dir dir="${dir.library}" 
+				pathname="${classpath.name.run}" 
+				pathnamejar="${classpath.name.run}.jar">
+			<path-elements>
+				<pathelement path="${dir.resource}" />
+				<fileset file="${jar.bin}" />
+			</path-elements>
+		</classpath-from-dir>
+
 		<java 
 			classname="org.gprom.jdbc.test.testgenerator.TestGenerator" 
-			classpathref="createTestsClasspath"
+			classpathref="${classpath.name.run}"
 			fork="true" 
 			dir="${basedir}"
 		>
@@ -196,17 +183,41 @@
 			depends="gen-tests"
 			description="compile the generated JUnit tests">
 		
+		<mkdir dir="${dir.testbin}" />
 		<depend srcdir="${dir.testsrc}"
-		        destdir="${dir.bin}"
-		        cache="depcache"
+		        destdir="${dir.testbin}"
+		        cache="${dir.build}/blackboxdepcache"
 		        closure="yes"/>
-		<javac srcdir="${dir.testsrc}" destdir="${dir.bin}" classpathref="${classpath.name.run}" 
+		<javac srcdir="${dir.testsrc}" destdir="${dir.testbin}" classpathref="${classpath.name.run}" 
 			debug="on" fork="true" includeantruntime="false">
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 	</target>
 	
-	<target name="load-properties">
+	<target name="jar-tests" 
+			depends="compile-tests"
+			description="create a jar file for the generated test cases that includes libgprom">
+		<create-jar 
+			jar="${jar.test}"
+			classpath="${classpath.run.jar}"
+			bindir="${dir.testbin}"
+			>
+			<additional-resources>
+				<fileset refid="fat.jar.resources" />
+			</additional-resources>
+		</create-jar>
+<!--		<jar destfile="${jar.test}">
+			<manifest>
+				<attribute name="Main-Class" value="${mainclass}" />
+				<attribute name="Created-By" value="${jar.creator}" />
+				<attribute name="Class-Path" value="${classpath.run.jar}" />
+			</manifest>
+			<fileset dir="${dir.bin}" />
+			<fileset dir="${dir.testbin}" />
+		</jar> -->
+	</target>
+	
+<!--	<target name="load-properties">
 		
 		<property file="${dir.resource}/options.txt" prefix="Options."/>
 		<fail message="Not all necessary options set in file ${dir.resource}/options.txt: DBName, User, Password, Schema, Path, PermPrefix">
@@ -227,9 +238,9 @@
 		    </condition>
 		</fail>
 	</target>
-		
+	-->	
 	<target name="run-tests" 
-			depends="compile-tests"
+			depends="jar-tests"
 			description="run all generated junit tests">
 		
 		<delete dir="${basedir}/results"/>
@@ -241,7 +252,7 @@
 				timeout="300000" 
 				enableTestListenerEvents="true" 
 				fork="true">
-			<classpath refid="${classpath.name.run}"/>
+			<classpath refid="${classpath.name.thejar}"/>
 			<formatter type="brief" usefile="false" />
 			<formatter type="xml"/>
 	        <batchtest todir="${basedir}/results">
@@ -255,56 +266,58 @@
 	</target>
 
 	<target name="run-test-only"
-			description="run junit tests, requires tests to be compiled upfront">
+			description="run junit tests, requires tests to be compiled upfront"
+			depends="setup-additional-anttasks">
 		<!-- run all tests unless user has provided a test name -->
         <if>
-          <not><equals arg1="${junit.testname}" arg2="$${testname}" /></not>
-		<!-- run user provided test -->
-    		<then>
-            <echo message="Run ${junit.testname}" />
-    			<delete dir="${basedir}/results"/>
-	    		<mkdir dir="${basedir}/results"/>
-	    		<junit printsummary="withOutAndErr" 
-	    				haltonfailure="true" 
-	    				haltonerror="true" 
-	    				showoutput="true" 
-	    				enableTestListenerEvents="true" 
-	    				fork="true">
-	    			<classpath refid="${classpath.name.run}"/>
-	    	        <batchtest  todir="${basedir}/results" fork="true">
-	    	            <fileset dir="${dir.testsrc}">
-	    	                <include name="**/${junit.testname}.java"/>
-	    	            </fileset>
-	    	        </batchtest>
-	    			<formatter type="brief" usefile="false" />
-	    			<formatter type="xml"/>
-	    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-	    			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
-	    		</junit>
-		</then>
-        	<!-- run all tests unless user has provided a test name -->
-        <else>
-            <echo message="Run all tests" />
-	    		<delete dir="${basedir}/results"/>
-	    		<mkdir dir="${basedir}/results"/>
-	          	<junit printsummary="withOutAndErr" 
-	          			haltonfailure="true" 
-	          			haltonerror="true" 
-	          			showoutput="true" 
-	          			enableTestListenerEvents="true" 
-	          			fork="true">
-	    			<classpath refid="${classpath.name.run}"/>
-	    	        <batchtest todir="${basedir}/results" fork="true">
-	    	            <fileset dir="${dir.testsrc}">
-	    	                <include name="**/*_Test.java"/>
-	    	            </fileset>
-	    	        </batchtest>
-	    			<formatter type="brief" usefile="false" />
-	    			<formatter type="xml"/>
-	    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-	    			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
-	    		</junit>
-		</else>
+			<not><equals arg1="${junit.testname}" arg2="$${testname}" /></not>
+			<!-- run user provided test -->
+	    		<then>
+	            <echo message="Run ${junit.testname}" />
+	    			<delete dir="${basedir}/results"/>
+		    		<mkdir dir="${basedir}/results"/>
+		    		<junit printsummary="withOutAndErr" 
+		    				haltonfailure="true" 
+		    				haltonerror="true" 
+		    				showoutput="true" 
+		    				enableTestListenerEvents="true" 
+		    				fork="true">
+		    			<classpath refid="${classpath.name.thejar}"/>
+		    	        <batchtest  todir="${basedir}/results" fork="true">
+		    	            <fileset dir="${dir.testsrc}">
+		    	                <include name="**/${junit.testname}.java"/>
+		    	            </fileset>
+		    	        </batchtest>
+		    			<formatter type="brief" usefile="false" />
+		    			<formatter type="xml"/>
+		    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
+		    			<!--		    			<sysproperty key="log4j2.configurationFile" value="log4jtest.properties" />
+		    			<sysproperty key="log4j2.level" value="DEBUG" /> -->
+		    		</junit>
+			</then>
+	        	<!-- run all tests unless user has provided a test name -->
+	        <else>
+	            <echo message="Run all tests" />
+		    		<delete dir="${basedir}/results"/>
+		    		<mkdir dir="${basedir}/results"/>
+		          	<junit printsummary="withOutAndErr" 
+		          			haltonfailure="true" 
+		          			haltonerror="true" 
+		          			showoutput="true" 
+		          			enableTestListenerEvents="true" 
+		          			fork="true">
+		    			<classpath refid="${classpath.name.thejar}"/>
+		    	        <batchtest todir="${basedir}/results" fork="true">
+		    	            <fileset dir="${dir.testsrc}">
+		    	                <include name="**/*_Test.java"/>
+		    	            </fileset>
+		    	        </batchtest>
+		    			<formatter type="brief" usefile="false" />
+		    			<formatter type="xml"/>
+		    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
+		    			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
+		    		</junit>
+			</else>
         </if> 
 	</target>
 

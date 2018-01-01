@@ -291,7 +291,14 @@ formatMes(const char *template, ...)
         va_end(args);
     }
 
-    return strdup(buffer->data);
+    if (memManagerUsable())
+        return strdup(buffer->data);
+    else
+    {
+        char *returnValue = malloc(buffer->len); // change after we have REALLOC
+        memcpy(returnValue, buffer->data, buffer->len + 1);
+        return returnValue;
+    }
 }
 
 static boolean
