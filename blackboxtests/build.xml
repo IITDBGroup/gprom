@@ -42,7 +42,7 @@
 	
 	<!-- Main Class and Packages-->
 	<property name="package.name" value="org.gprom.jdbc.test.autotests" />
-  	<property name="mainclass" value="tresc.benchmark.iBench" />
+  	<property name="mainclass" value="org.gprom.jdbc.test.SQLiteJDBCTest" />
 	<property name="jar.creator" value="Illinois Institute of Technology, Department of Computer Science, DBGroup" />
 	<property name="package" value="*" />
 	<property name="mvn.description" value="This jar file contains automated tests for GProM" />
@@ -87,6 +87,14 @@
 		<taskdef resource="net/sf/antcontrib/antcontrib.properties"
 			classpathref="${classpath.name.build}">
 		</taskdef>
+		
+		<!-- set properties to empty if not set by user -->
+		<property name="Host" value="" />
+		<property name="Port" value="" />
+		<property name="DBName" value="" />
+		<property name="User" value="" />
+		<property name="Password" value="" />
+		<property name="TestcasePath" value="${basedir}/testcases" />
 	</target>
 	
 	<target name="adapt-ddl-scripts"
@@ -274,15 +282,24 @@
 		    				enableTestListenerEvents="true" 
 		    				fork="true">
 		    			<classpath refid="${classpath.name.thejar}"/>
-		    	        <batchtest  todir="${basedir}/results" fork="true">
+		    	        
+		    			<batchtest  todir="${basedir}/results" fork="true">
 		    	            <fileset dir="${dir.testsrc}">
 		    	                <include name="**/${junit.testname}.java"/>
 		    	            </fileset>
 		    	        </batchtest>
+
 		    			<formatter type="brief" usefile="false" />
 		    			<formatter type="xml"/>
+
+		    			<sysproperty key="Host" value="${Host}" />
+		    			<sysproperty key="Port" value="${Port}" />
+	    				<sysproperty key="DBName" value="${DBName}" />
+	    				<sysproperty key="User" value="${User}" />
+	    				<sysproperty key="Password" value="${Password}" />
+		    			<sysproperty key="TestcasePath" value="${TestcasePath}" />
+					<sysproperty key="log4j2.configurationFile" value="${basedir}/log4jtest.properties" />		    			
 		    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-		    			<!--		    			<sysproperty key="log4j2.configurationFile" value="log4jtest.properties" />
 		    			<sysproperty key="log4j2.level" value="DEBUG" /> -->
 		    		</junit>
 			</then>
@@ -291,12 +308,12 @@
 	            <echo message="Run all tests" />
 		    		<delete dir="${basedir}/results"/>
 		    		<mkdir dir="${basedir}/results"/>
-		          	<junit printsummary="withOutAndErr" 
-		          			haltonfailure="true" 
-		          			haltonerror="true" 
-		          			showoutput="true" 
-		          			enableTestListenerEvents="true" 
-		          			fork="true">
+	          	<junit printsummary="withOutAndErr" 
+	          			haltonfailure="true" 
+	          			haltonerror="true" 
+	          			showoutput="true" 
+	          			enableTestListenerEvents="true" 
+	          			fork="true">
 		    			<classpath refid="${classpath.name.thejar}"/>
 		    	        <batchtest todir="${basedir}/results" fork="true">
 		    	            <fileset dir="${dir.testsrc}">
@@ -305,8 +322,16 @@
 		    	        </batchtest>
 		    			<formatter type="brief" usefile="false" />
 		    			<formatter type="xml"/>
-		    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-		    			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
+
+		    			<sysproperty key="Host" value="${Host}" />
+		    			<sysproperty key="Port" value="${Port}" />
+	    				<sysproperty key="DBName" value="${DBName}" />
+	    				<sysproperty key="User" value="${User}" />
+	    				<sysproperty key="Password" value="${Password}" />
+		    			<sysproperty key="TestcasePath" value="${TestcasePath}" />
+		          		
+	          		<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
+		    			<sysproperty key="log4j2.configurationFile" value="log4jtest.properties" />
 		    		</junit>
 			</else>
         </if> 

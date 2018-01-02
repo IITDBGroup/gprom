@@ -40,7 +40,7 @@ public class TestInfoHolder {
 		return generator;
 	}
 	
-	public void setGenerator (String name) throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
+	public void setGenerator (String name) throws Exception {
 		generator = new DataAndQueryGenerator (ConnectionOptions.getInstance().getPath() + "/" + name + ".xml");
 		genName = name;
 	}

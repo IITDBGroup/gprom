@@ -13,6 +13,7 @@ import java.util.Locale;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org. gprom.jdbc.test.testgenerator.dataset.DataAndQueryGenerator;
+import org.gprom.jdbc.utility.SystemOptionReader;
 import org.stringtemplate.v4.NumberRenderer;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.STGroup;
@@ -50,16 +51,16 @@ public class TestGenerator {
 	    }
 	}
 	
-	public TestGenerator (File testDir, String packageName) throws IOException {
+	public TestGenerator (File testDir, String packageName) throws Exception {
 
 		this.testDir = testDir;
 		ConnectionOptions.getInstance().setPath(testDir.getPath());
 		OptionsManager.getInstance().reloadOptions();
 		File dir;
-		
+		String sourcedir = SystemOptionReader.inst.getEnvOrProperty("", "generator.sourcedir");
 		this.packageName = packageName; 
 		
-		packageDir = System.getProperty("generator.sourcedir") + "/" + packageName.replaceAll("\\.", "/");
+		packageDir = sourcedir + "/" + packageName.replaceAll("\\.", "/");
 		dir = new File(packageDir);
 		if (!dir.isDirectory())
 			dir.mkdirs();
@@ -67,21 +68,21 @@ public class TestGenerator {
 		g = new STGroupFile(resourceDir + "/TestTemplates/testcase.stg");
 	}
 	
-	public static void main (String[] args) throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
+	public static void main (String[] args) throws Exception {
 		TestGenerator gen;
 		File dir;
-		PACKAGE_NAME = System.getProperty("generator.package");
-		packageDir = System.getProperty("generator.sourcedir");
+		PACKAGE_NAME = SystemOptionReader.inst.getEnvOrProperty("", "generator.package");
+		packageDir = SystemOptionReader.inst.getEnvOrProperty("", "generator.sourcedir");
 		packageDir += "/" + PACKAGE_NAME.replace('.', '/');
-		resourceDir = System.getProperty("generator.resourcedir");
-		testcaseDir = System.getProperty("generator.testcasedir");
+		resourceDir = SystemOptionReader.inst.getEnvOrProperty("", "generator.resourcedir");
+		testcaseDir = SystemOptionReader.inst.getEnvOrProperty("", "generator.testcasedir");
 		dir = new File (testcaseDir);
 		gen = new TestGenerator (dir, PACKAGE_NAME);
 		gen.generateTests();
 		gen.generateOptionsSuites();
 	}
 	
-	public void generateTests () throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
+	public void generateTests () throws Exception {
 		for (int i = 0; i < OptionsManager.getInstance().getNumSettings(); i++) {
 			settingNum = i + 1;
 			
@@ -118,7 +119,7 @@ public class TestGenerator {
 		finalizeSuites ();
 	}
 	
-	public void generateOptionsSuites () throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
+	public void generateOptionsSuites () throws Exception {
 		GProMSuite optionSuite;
 		
 		optionSuite = new GProMSuite ("AllTestsOptions");
