@@ -7,8 +7,8 @@ popd > /dev/null
 pushd ${DIR}/..
 
 # for now skip this
-echo "SKIP TESTS UNTIL WE HAVE IMPLEMENTED CREDENTIAL PASSING FROM TRAVIS"
-exit 0
+#echo "SKIP TESTS UNTIL WE HAVE IMPLEMENTED CREDENTIAL PASSING FROM TRAVIS"
+#exit 0
 
 # copy oracle jdbc driver from container
 docker run --rm -d --name dockerbuild iitdbgroup/gprom_travis:latest sleep 50000
