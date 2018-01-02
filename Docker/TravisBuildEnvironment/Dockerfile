@@ -52,6 +52,7 @@ RUN apt-get -y update && apt-get install -y \
 	pandoc \
 	postgresql \
 	rman \
+	sshpass \
 	sqlite3 \
 	unzip \
 	vim \

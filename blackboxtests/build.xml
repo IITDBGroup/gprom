@@ -206,15 +206,6 @@
 				<fileset refid="fat.jar.resources" />
 			</additional-resources>
 		</create-jar>
-<!--		<jar destfile="${jar.test}">
-			<manifest>
-				<attribute name="Main-Class" value="${mainclass}" />
-				<attribute name="Created-By" value="${jar.creator}" />
-				<attribute name="Class-Path" value="${classpath.run.jar}" />
-			</manifest>
-			<fileset dir="${dir.bin}" />
-			<fileset dir="${dir.testbin}" />
-		</jar> -->
 	</target>
 	
 <!--	<target name="load-properties">
