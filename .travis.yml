@@ -8,7 +8,7 @@ services:
 ####################
 # install packages
 before_install:
-  - docker pull iitdbgroup/gprom_travis:latest
+  - travis_wait docker pull iitdbgroup/gprom_travis:latest
 
 ####################
 # build script
