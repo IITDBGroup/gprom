@@ -152,8 +152,8 @@ log_(LogLevel level, const char *file, unsigned line, const char *template, ...)
 
         if (logCallback != NULL)
         {
-            printf("\nCALL LOGGER ********************************************\n");
-            fflush(stdout);
+            //printf("\nCALL LOGGER ********************************************\n");
+            //fflush(stdout);
             logCallback(buffer->data, file, line, level);
             return;
         }

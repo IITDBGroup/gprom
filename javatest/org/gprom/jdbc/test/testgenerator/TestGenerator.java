@@ -13,6 +13,8 @@ import java.util.Locale;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org. gprom.jdbc.test.testgenerator.dataset.DataAndQueryGenerator;
+import org.gprom.jdbc.utility.ExceptionUtil;
+import org.gprom.jdbc.utility.PropertyConfigurator;
 import org.gprom.jdbc.utility.SystemOptionReader;
 import org.stringtemplate.v4.NumberRenderer;
 import org.stringtemplate.v4.ST;
@@ -52,8 +54,10 @@ public class TestGenerator {
 	}
 	
 	public TestGenerator (File testDir, String packageName) throws Exception {
-
+		log.debug("test generator for {} using package name {}", testDir, packageName);
 		this.testDir = testDir;
+		if (!testDir.exists())
+			throw ExceptionUtil.formatMessageException("did not find directory %s", testDir);
 		ConnectionOptions.getInstance().setPath(testDir.getPath());
 		OptionsManager.getInstance().reloadOptions();
 		File dir;
@@ -69,6 +73,7 @@ public class TestGenerator {
 	}
 	
 	public static void main (String[] args) throws Exception {
+		PropertyConfigurator.configureHonoringProperties("blackboxtests/log4jtest.properties");
 		TestGenerator gen;
 		File dir;
 		PACKAGE_NAME = SystemOptionReader.inst.getEnvOrProperty("", "generator.package");
@@ -110,7 +115,7 @@ public class TestGenerator {
 				
 				generateSuitesFromFileName (name);
 				
-				System.out.println("create Generator for " + name);
+				log.info("create Generator for {}", name);
 				generator = new DataAndQueryGenerator (files[i].getAbsolutePath());
 				generateTest (generator, name);	
 			}
@@ -195,8 +200,8 @@ public class TestGenerator {
 		ST testclassfile = g.getInstanceOf("testclassfile");
 		testclassfile.add("package", packageName);
 		testclassfile.add("class", testcl.render());
-		log.error(testclassfile.render());
-		
+		log.info(testclassfile.render());
+		log.error("generated testcase file {}", suite.getClassName());
 		writeFile(suite.getClassName(), testclassfile.render());
 	}
 	
@@ -233,7 +238,7 @@ public class TestGenerator {
 		GProMSuite curSuite;
 		GProMSuite oldSuite;
 		
-		System.out.println("create Suites for " + fileName + " " + settingNum);
+		log.error("create Suites for {} {}", fileName, settingNum);
 		
 		parts = fileName.split("\\.");
 		curName = "";
@@ -271,7 +276,7 @@ public class TestGenerator {
 		FileWriter writer;
 		
 		outFile = new File (packageDir + "/" + name + ".java");
-		System.out.println(outFile.getAbsolutePath());
+		log.info("write file {}", outFile.getAbsolutePath());
 		outFile.createNewFile();
 		
 		writer = new FileWriter (outFile);

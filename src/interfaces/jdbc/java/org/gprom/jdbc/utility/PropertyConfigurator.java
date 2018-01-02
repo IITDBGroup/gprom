@@ -33,8 +33,8 @@ public class PropertyConfigurator {
 	public static final String PROP_LOG_LEVEL = "log4j2.level";
 	
 	public static void configureHonoringProperties (String xmlFile) {
-		String setConfFile = System.getProperty(PROP_LOG_CONFIG_FILE);
-		String logLevel = System.getProperty(PROP_LOG_LEVEL);
+		String setConfFile = SystemOptionReader.inst.getEnvOrProperty("", PROP_LOG_CONFIG_FILE);
+		String logLevel = SystemOptionReader.inst.getEnvOrProperty("", PROP_LOG_LEVEL);
 				
 		if (setConfFile != null) {
 			LogManager.getRootLogger().error("keep configuration from {}", setConfFile);
@@ -45,6 +45,7 @@ public class PropertyConfigurator {
 			Level userLevel = Level.valueOf(logLevel);
 			configureDefaultConsoleLogger(userLevel);
 			LogManager.getRootLogger().error("use default logger with log level {}",  userLevel);
+			return;
 		}
 		try {
 			configureAndWatch(xmlFile);

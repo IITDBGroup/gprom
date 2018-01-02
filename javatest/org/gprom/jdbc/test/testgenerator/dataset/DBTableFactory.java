@@ -119,7 +119,7 @@ public class DBTableFactory {
 				r.close();
 			if (s != null)			
 				s.close();
-			log.error("closed statement and result set");
+			log.debug("closed statement and result set");
 		}
 		
 		return t;

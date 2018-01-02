@@ -57,7 +57,8 @@
 	<!-- settings -->
 	<!-- get test name if specified -->
 	<property name="junit.testname" value="${testname}" />
-
+	<property name="test.loglevel" value="error" />
+	
 	<!-- targets -->
 	<target name="download-dependencies" 
 			depends="mkdirs-and-setup-props" 
@@ -176,6 +177,7 @@
 			classname="org.gprom.jdbc.test.testgenerator.TestGenerator" 
 			classpathref="${classpath.name.run}"
 			fork="true" 
+			failonerror="true"
 			dir="${basedir}"
 		>
 			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" 
@@ -184,6 +186,7 @@
 			<sysproperty key="generator.testcasedir" value="${dir.testcase}" />
 			<sysproperty key="generator.sourcedir" value="${dir.testsrc}" />
 			<sysproperty key="generator.package" value="${package.name}" />
+			<sysproperty key="log4j2.level" value="${test.loglevel}" />
 		</java>
 	</target>
 	
@@ -216,28 +219,6 @@
 		</create-jar>
 	</target>
 	
-<!--	<target name="load-properties">
-		
-		<property file="${dir.resource}/options.txt" prefix="Options."/>
-		<fail message="Not all necessary options set in file ${dir.resource}/options.txt: DBName, User, Password, Schema, Path, PermPrefix">
-		    <condition>
-		        <not>
-		            <and>
-			            	<isset property="Options.DBName" />
-			            	<isset property="Options.AdminDBName" />
-			            	<isset property="Options.User" />
-			            	<isset property="Options.Password" />
-			            	<isset property="Options.Schema" />
-			            	<isset property="Options.Path" />
-			            	<isset property="Options.PermPrefix" />
-			            	<isset property="Options.PermCluster" />
-			            	<isset property="Options.PermSource" />
-		            </and>
-		        </not>
-		    </condition>
-		</fail>
-	</target>
-	-->	
 	<target name="run-tests" 
 			depends="jar-tests"
 			description="run all generated junit tests">
@@ -252,15 +233,24 @@
 				enableTestListenerEvents="true" 
 				fork="true">
 			<classpath refid="${classpath.name.thejar}"/>
+			
 			<formatter type="brief" usefile="false" />
 			<formatter type="xml"/>
-	        <batchtest todir="${basedir}/results">
+
+			<batchtest todir="${basedir}/results">
 	            <fileset dir="${dir.testsrc}">
 	                <include name="**/*_Test.java"/>
 	            </fileset>
 	        </batchtest>
-			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-			<sysproperty key="log4j.configurationFile" value="log4jtest.properties" />
+
+			<sysproperty key="Host" value="${Host}" />
+    			<sysproperty key="Port" value="${Port}" />
+			<sysproperty key="DBName" value="${DBName}" />
+			<sysproperty key="User" value="${User}" />
+			<sysproperty key="Password" value="${Password}" />
+    			<sysproperty key="TestcasePath" value="${TestcasePath}" />	    			
+    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
+    			<sysproperty key="log4j2.level" value="${test.loglevel}" /> 
 		</junit>
 	</target>
 
@@ -297,10 +287,9 @@
 	    				<sysproperty key="DBName" value="${DBName}" />
 	    				<sysproperty key="User" value="${User}" />
 	    				<sysproperty key="Password" value="${Password}" />
-		    			<sysproperty key="TestcasePath" value="${TestcasePath}" />
-					<sysproperty key="log4j2.configurationFile" value="${basedir}/log4jtest.properties" />		    			
+		    			<sysproperty key="TestcasePath" value="${TestcasePath}" />	    			
 		    			<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-		    			<sysproperty key="log4j2.level" value="DEBUG" /> -->
+		    			<sysproperty key="log4j2.level" value="${test.loglevel}" /> 
 		    		</junit>
 			</then>
 	        	<!-- run all tests unless user has provided a test name -->
@@ -329,9 +318,8 @@
 	    				<sysproperty key="User" value="${User}" />
 	    				<sysproperty key="Password" value="${Password}" />
 		    			<sysproperty key="TestcasePath" value="${TestcasePath}" />
-		          		
 	          		<sysproperty key="javax.xml.parsers.DocumentBuilderFactory" value="org.apache.xerces.jaxp.DocumentBuilderFactoryImpl" />
-		    			<sysproperty key="log4j2.configurationFile" value="log4jtest.properties" />
+		    			<sysproperty key="log4j2.level" value="${test.loglevel}" /> 
 		    		</junit>
 			</else>
         </if> 

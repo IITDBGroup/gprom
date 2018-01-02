@@ -24,9 +24,12 @@
 
 #define LOCK_NAME gprom_lib_globallock
 
+//printf("\nMUTEX\n%s:%u\n", __FILE__, __LINE__);
+//printf("\nUNLOCK\n%s:%u\n", __FILE__, __LINE__);
+
 #if defined(HAVE_LIBPTHREAD) && ! defined(OS_WINDOWS)
-#define LOCK_MUTEX() pthread_mutex_lock(&LOCK_NAME); printf("\nMUTEX\n%s:%u\n", __FILE__, __LINE__); fflush(stdout)
-#define UNLOCK_MUTEX() printf("\nUNLOCK\n%s:%u\n", __FILE__, __LINE__); fflush(stdout); pthread_mutex_unlock(&LOCK_NAME)
+#define LOCK_MUTEX() pthread_mutex_lock(&LOCK_NAME); fflush(stdout)
+#define UNLOCK_MUTEX()  fflush(stdout); pthread_mutex_unlock(&LOCK_NAME)
 #define CREATE_MUTEX static pthread_mutex_t LOCK_NAME = PTHREAD_MUTEX_INITIALIZER;
 #define INIT_MUTEX()
 #define DESTROY_MUTEX()

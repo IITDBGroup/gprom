@@ -35,7 +35,6 @@ public class ConnectionOptions {
 	public static enum OptionKeys  {
 		Host("Host"),
 		Port("Port", "1521"),
-		DBName("DBName"),
 		User("User", "testuser"),
 		Password("Password"),
 		Backend("Backend", "Oracle"),
@@ -57,6 +56,7 @@ public class ConnectionOptions {
 	
 	public static enum BackendOptionKeys {
 		OracleSID("SID", "Oracle", "orcl"),
+		SQLiteDBName("DBName", "SQLite"),
 		;
 		
 		public final String name;
@@ -65,11 +65,11 @@ public class ConnectionOptions {
 		public final boolean optional;
 				
 		private BackendOptionKeys(String name, String backend) {
-			this(name, backend, null);
+			this(name, backend, null, false);
 		}
 		
 		private BackendOptionKeys(String name, String backend, String defValue) {
-			this(name, backend, null, true);
+			this(name, backend, defValue, true);
 		}
 		
 		private BackendOptionKeys(String name, String backend, String defValue, boolean optional) {
@@ -114,7 +114,11 @@ public class ConnectionOptions {
 	public void init (String dir) throws Exception {
 		props = new Properties ();
 		
-		readConfigFile(dir);
+		try {
+			readConfigFile(dir);
+		} catch (Exception e) {
+			
+		}
 		readEnvAndSystemProperties();
 	}
 	
@@ -243,6 +247,7 @@ public class ConnectionOptions {
 	}
 	
 	public void setPath (String path) throws Exception {
+		boolean init= this.initialized;
 		File dir = new File(path);
 		if (dir.exists()) {
 			log.info("switching test case path to {}", path);
@@ -255,10 +260,11 @@ public class ConnectionOptions {
 				log.info("user passed options path {}, use this to initialize", dirEnv);
 			init(dirEnv);
 		}
-		if (! props.containsKey(OptionKeys.TestcasePath.toString())) {
+		if (! props.containsKey(OptionKeys.TestcasePath.name) || props.getProperty(OptionKeys.TestcasePath.name).isEmpty()) {
 			log.info("TestcasePath has not been set yet, set it to {}" , path);
 			props.setProperty(OptionKeys.TestcasePath.toString(), path);
 		}
-		log.error("options are: {}", props);
+		if (!init)
+			log.info("options are: {}", props);
 	}
 }
