@@ -4266,6 +4266,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     	{
         	/*
         	 * no associate domain exits. Create a DL rule for domain based on the EDB atoms.
+        	 * TODO: create only one domain rule for join attr
         	 */
         	List *edbRels = NIL;
 

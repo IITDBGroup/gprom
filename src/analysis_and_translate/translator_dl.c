@@ -362,6 +362,9 @@ translateProgram(DLProgram *p)
         {
         	transMoveRel = MAP_GET_STRING(predToTrans, "move");
         	removeMapStringElem(predToTrans, "move");
+
+        	// remove domain query translated for WHYNOT
+        	removeMapStringElem(predToTrans, "DQ");
         }
 
         // connect rules by replacing table access operators representing idb
@@ -2909,7 +2912,10 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
 
             DEBUG_LOG("check Table %s that is %s%s%s", r->tableName, isIDB ? " idb": "",
                     isEDB ? " edb": "", isFact ? " fact": "");
-            ASSERT(!isIDB || MAP_HAS_STRING_KEY(predToTrans,r->tableName));
+
+            // exception on DQ due to the replacement in the summarization step
+            if(p->sumOpts == NIL && !streq(r->tableName,"DQ"))
+            	ASSERT(!isIDB || MAP_HAS_STRING_KEY(predToTrans,r->tableName));
 
             // is idb or fact (which is not edb)
             if((isIDB || (isFact && !isEDB)) && MAP_HAS_STRING_KEY(predToTrans,r->tableName))
@@ -2940,7 +2946,9 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
                         operatorToOverviewString((Node *) un));
             }
             else if (isIDB || isFact)
-                FATAL_LOG("Do not find entry for %s", r->tableName);
+            	// exception on DQ due to the replacement in the summarization step
+            	if(p->sumOpts == NIL && !streq(r->tableName,"DQ"))
+            		FATAL_LOG("Do not find entry for %s", r->tableName);
         }
 
         qoRoots = appendToTailOfList(qoRoots, root);
