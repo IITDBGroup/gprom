@@ -381,7 +381,7 @@
 		<attribute name="libname" default="" />
 		<attribute name="addargs" default="" />
 		<attribute name="mountdir" default="" />
-		<attribute name="workdir" default="work" />
+		<attribute name="containerworkdir" default="work" />
 		<attribute name="dockerargs" default="" />
 		
 		<sequential>
@@ -460,7 +460,7 @@
 					dir="${expanddir}">
 					
 					<!-- args for docker -->
-					<arg line=" run --rm  -v &quot;${dir.cross.mount}&quot;:/work @{dockerimage}" />
+					<arg line=" run --rm  -v &quot;${dir.cross.mount}&quot;:/${containerworkdir} @{dockerimage}" />
 					<arg line="@{dockerargs}" />
 					<!-- args for command running in image: -->
 					<arg value="./configure" />
@@ -477,7 +477,7 @@
 					dir="${expanddir}" >
 					
 					<!-- args for docker -->
-					<arg line=" run --rm  -v &quot;${dir.cross.mount}&quot;:/work @{dockerimage}" />
+					<arg line=" run --rm  -v &quot;${dir.cross.mount}&quot;:/${containerworkdir} @{dockerimage}" />
 					<arg line="@{dockerargs}" />
 					<!-- args for command running in image: -->
 					<arg value="make" />
