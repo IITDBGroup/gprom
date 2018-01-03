@@ -351,6 +351,16 @@
 			libname="libgprom.dll"
 			addargs="--build=x86_64-pc-linux-gnu --host=x86_64-pc-mingw64"
 			mountdir="${gprombase}"/>
+		<build-native-library 
+			crossscript="${dir.dockercross}/dockcross-linux-x64" 
+			dockerimage="multiarch/crossbuild"
+			outfolder="darwin_x64" 
+			libpath="${libgpromdir}/libgprom--${gprom.major.version}.dylib"
+			libname="libgprom.dylib"
+			addargs="--build=x86_64-pc-linux-gnu --host=x86_64-apple-darwin"
+			dockerargs="-e CROSS_TRIPLE=x86_64-apple-darwin"
+			containerworkdir="workdir"
+			mountdir="${gprombase}"/>
 	</target>
 	
 	<!-- build one native library -->
@@ -371,6 +381,8 @@
 		<attribute name="libname" default="" />
 		<attribute name="addargs" default="" />
 		<attribute name="mountdir" default="" />
+		<attribute name="workdir" default="work" />
+		<attribute name="dockerargs" default="" />
 		
 		<sequential>
 			<local name="tarpath" /> 
@@ -449,6 +461,7 @@
 					
 					<!-- args for docker -->
 					<arg line=" run --rm  -v &quot;${dir.cross.mount}&quot;:/work @{dockerimage}" />
+					<arg line="@{dockerargs}" />
 					<!-- args for command running in image: -->
 					<arg value="./configure" />
 					<arg value="--disable-postgres" />
@@ -465,6 +478,7 @@
 					
 					<!-- args for docker -->
 					<arg line=" run --rm  -v &quot;${dir.cross.mount}&quot;:/work @{dockerimage}" />
+					<arg line="@{dockerargs}" />
 					<!-- args for command running in image: -->
 					<arg value="make" />
 					<arg value="-j" />
