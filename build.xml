@@ -355,11 +355,11 @@
 			crossscript="${dir.dockercross}/dockcross-linux-x64" 
 			dockerimage="multiarch/crossbuild"
 			outfolder="darwin_x64" 
-			libpath="${libgpromdir}/libgprom--${gprom.major.version}.dylib"
+			libpath="${libgpromdir}/libgprom.${gprom.major.version}.dylib"
 			libname="libgprom.dylib"
 			addargs="--build=x86_64-pc-linux-gnu --host=x86_64-apple-darwin"
-			dockerargs="-e CROSS_TRIPLE=x86_64-apple-darwin"
-			containerworkdir="workdir"
+			dockerargs="-w /workdir -e CC=/usr/x86_64-apple-darwin14/bin/cc -e PATH=/usr/x86_64h-apple-darwin14/bin/:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -e LD_LIBRARY_PATH=/usr/x86_64-linux-gnu/x86_64-apple-darwin14/lib/"
+			containerworkdir="/workdir"
 			mountdir="${gprombase}"/>
 	</target>
 	
@@ -381,7 +381,7 @@
 		<attribute name="libname" default="" />
 		<attribute name="addargs" default="" />
 		<attribute name="mountdir" default="" />
-		<attribute name="containerworkdir" default="work" />
+		<attribute name="containerworkdir" default="/work" />
 		<attribute name="dockerargs" default="" />
 		
 		<sequential>
@@ -456,35 +456,38 @@
 			</condition>
 		
 			<sequential unless:set="library.exists">
-				<exec executable="docker"
-					dir="${expanddir}">
-					
-					<!-- args for docker -->
-					<arg line=" run --rm  -v &quot;${dir.cross.mount}&quot;:/${containerworkdir} @{dockerimage}" />
-					<arg line="@{dockerargs}" />
-					<!-- args for command running in image: -->
-					<arg value="./configure" />
-					<arg value="--disable-postgres" />
-					<arg value="--disable-oracle" />
-					<arg value="--disable-sqlite" />
-					<arg value="--disable-monetdb" />
-					<arg value="--disable-readline" />
-					<arg value="--disable-java" />
-					<arg line="@{addargs}" />
-				</exec>
 
-				<exec executable="docker"
-					dir="${expanddir}" >
-					
-					<!-- args for docker -->
-					<arg line=" run --rm  -v &quot;${dir.cross.mount}&quot;:/${containerworkdir} @{dockerimage}" />
-					<arg line="@{dockerargs}" />
-					<!-- args for command running in image: -->
-					<arg value="make" />
-					<arg value="-j" />
-					<arg value="8" />
-				</exec>
+			  <exec executable="docker"
+				dir="${expanddir}">
 
+			    <!-- args for docker -->
+			    <arg line=" run --entrypoint @{containerworkdir}/configure  --rm  -v &quot;${dir.cross.mount}&quot;:/@{containerworkdir}" />
+			    <arg line="@{dockerargs}" />
+			    <arg value="@{dockerimage}" />
+			    <!-- args for command running in image: -->
+<!--			    <arg value="./configure" />-->
+			    <arg value="--disable-postgres" />
+			    <arg value="--disable-oracle" />
+			    <arg value="--disable-sqlite" />
+			    <arg value="--disable-monetdb" />
+			    <arg value="--disable-readline" />
+			    <arg value="--disable-java" />
+			    <arg line="@{addargs}" />
+			  </exec>
+
+			  <exec executable="docker"
+				dir="${expanddir}" >
+
+			    <!-- args for docker -->
+			    <arg line=" run --rm --entrypoint /usr/bin/make  -v &quot;${dir.cross.mount}&quot;:/@{containerworkdir}" />
+			    <arg line="@{dockerargs}" />
+			    <arg value="@{dockerimage}" />
+			    <!-- args for command running in image: -->
+<!--			    <arg value="make" /> -->
+			    <arg value="-j" />
+			    <arg value="8" />
+			  </exec>
+			  
 			</sequential>
 			
 			<!-- copy to destination -->
