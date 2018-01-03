@@ -822,11 +822,29 @@ domAttrsOutput (List *userQ, Node *input, int sampleSize, char *qType)
 						else if(streq(qType,"WHYNOT"))
 						{
 							// TODO: compute percentile for random sample based on the sample size
-							int perc = 0;
+							char *numInTableName = strstr(t->tableName,itoa(1));
+
+							// replace thousand and million in char to number
+							if(isSubstr(numInTableName,"K") || isSubstr(numInTableName,"k")
+									|| isSubstr(numInTableName,"M") || isSubstr(numInTableName,"m"))
+							{
+								numInTableName = replaceSubstr(numInTableName,"K",itoa(000));
+								numInTableName = replaceSubstr(numInTableName,"k",itoa(000));
+								numInTableName = replaceSubstr(numInTableName,"M",itoa(000000));
+								numInTableName = replaceSubstr(numInTableName,"m",itoa(000000));
+							}
+
+							int dataSize = atoi(numInTableName);
+							int perc = sampleSize / dataSize;
+
+							/*
+							 *  re-compute percentile for sampling to guarantee that over 99% of over sampling
+							 *  which guarantees 99% of having minimum number of failure pattern (from user) in the sample
+							 */
 							if(sampleSize >= 100 && sampleSize < 1000)
-								perc = 25;
+								perc = perc + (perc / 10 * 5);
 							else if(sampleSize >= 1000)
-								perc = 21;
+								perc = perc + (perc / 10);
 
 							// sample perc for adding SAMPLE clause in the serializer
 							t->sampClause = (Node *) createConstInt(perc);
