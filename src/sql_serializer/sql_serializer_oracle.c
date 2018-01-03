@@ -815,10 +815,17 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
                         exprToSQL(begin), " AND ", exprToSQL(end));
             }
         }
+
+        // add SAMPLE clause
+        char* samp = NULL;
+        if (t->sampClause)
+        	samp = CONCAT_STRINGS(" SAMPLE(", exprToSQL(t->sampClause), ")");
+
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
         *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-        appendStringInfo(from, "(%s%s F%u)",
+        appendStringInfo(from, "(%s%s%s F%u)",
                 quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
+           		samp ? samp : "",
                 (*curFromItem)++);
     }
 }

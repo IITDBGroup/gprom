@@ -666,6 +666,7 @@ equalTableAccessOperator(TableAccessOperator *a, TableAccessOperator *b, HashMap
     COMPARE_QUERY_OP();
     COMPARE_STRING_FIELD(tableName);
     COMPARE_NODE_FIELD(asOf);
+    COMPARE_NODE_FIELD(sampClause);
 
     return TRUE;
 }

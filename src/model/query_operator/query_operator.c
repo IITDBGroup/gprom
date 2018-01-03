@@ -533,7 +533,7 @@ inferOpResultDTs (QueryOperator *op)
 
 TableAccessOperator *
 createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
-        List *attrNames, List *dataTypes)
+        List *attrNames, List *dataTypes, Node *sampClause)
 {
     TableAccessOperator *ta = makeNode(TableAccessOperator);
 
@@ -543,6 +543,7 @@ createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
     ta->op.schema = createSchemaFromLists(alias, attrNames, dataTypes);
     ta->op.parents = parents;
     ta->op.provAttrs = NIL;
+    ta->sampClause = sampClause;
 
     return ta;
 }

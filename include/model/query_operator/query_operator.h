@@ -45,6 +45,7 @@ typedef struct TableAccessOperator
     QueryOperator op;
     char *tableName;
     Node *asOf;
+    Node *sampClause;
 } TableAccessOperator;
 
 typedef struct SelectionOperator
@@ -193,7 +194,7 @@ extern List *inferOpResultDTs (QueryOperator *op);
 
 /* create functions */
 extern TableAccessOperator *createTableAccessOp(char *tableName, Node *asOf,
-        char *alias, List *parents, List *attrNames, List *dataTypes);
+        char *alias, List *parents, List *attrNames, List *dataTypes, Node *sampClause);
 extern JsonTableOperator *createJsonTableOperator(FromJsonTable *fjt);
 extern SelectionOperator *createSelectionOp (Node *cond, QueryOperator *input,
         List *parents, List *attrNames);

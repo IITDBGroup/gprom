@@ -925,6 +925,7 @@ outTableAccessOperator(StringInfo str, TableAccessOperator *node)
     WRITE_QUERY_OPERATOR();
 
     WRITE_NODE_FIELD(asOf);
+    WRITE_NODE_FIELD(sampClause);
     WRITE_STRING_FIELD(tableName);
 }
 

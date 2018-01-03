@@ -828,8 +828,8 @@ domAttrsOutput (List *userQ, Node *input, int sampleSize, char *qType)
 							else if(sampleSize >= 1000)
 								perc = 21;
 
-							// TODO: SAMPLE clause must not be part of the table name
-							t->tableName = CONCAT_STRINGS(relName," ","SAMPLE(",itoa(perc),")");
+							// sample perc for adding SAMPLE clause in the serializer
+							t->sampClause = (Node *) createConstInt(perc);
 
 							// rownum as a sequence
 							Node *rowNum = (Node *) makeNode(RowNumExpr);
