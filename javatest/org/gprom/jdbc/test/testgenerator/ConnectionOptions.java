@@ -185,7 +185,10 @@ public class ConnectionOptions {
 	private void checkBackendProperties () throws Exception {
 		for(BackendOptionKeys k: BackendOptionKeys.getBackendKeys(getBackend())) {
 			String key = k.key();
-					
+
+			if(!props.containsKey(key) && k.defValue != null)
+			    props.setProperty(key, k.defValue);
+			
 			if (!k.optional) {
 				if (!props.containsKey(key))
 					throw formatMessageException("backend %s need option %s", getBackend(), key);  
