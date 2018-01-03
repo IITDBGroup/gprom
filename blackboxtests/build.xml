@@ -187,6 +187,12 @@
 			<sysproperty key="generator.sourcedir" value="${dir.testsrc}" />
 			<sysproperty key="generator.package" value="${package.name}" />
 			<sysproperty key="log4j2.level" value="${test.loglevel}" />
+			<sysproperty key="Host" value="${Host}" />
+    			<sysproperty key="Port" value="${Port}" />
+			<sysproperty key="DBName" value="${DBName}" />
+			<sysproperty key="User" value="${User}" />
+			<sysproperty key="Password" value="${Password}" />
+    			<sysproperty key="TestcasePath" value="${TestcasePath}" />	    			
 		</java>
 	</target>
 	
@@ -222,7 +228,9 @@
 	<target name="run-tests" 
 			depends="jar-tests"
 			description="run all generated junit tests">
-		
+
+	  <echo message="host: ${Host}" />
+	  
 		<delete dir="${basedir}/results"/>
 		<mkdir dir="${basedir}/results"/>
 		<junit printsummary="withOutAndErr" 
