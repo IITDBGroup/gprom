@@ -11,10 +11,13 @@ pushd ${DIR}/..
 #exit 0
 
 # copy oracle jdbc driver from container
-docker run --rm -d --name dockerbuild iitdbgroup/gprom_travis:latest sleep 50000
-docker cp dockerbuild:/usr/local/oracle/lib/oracle/12.2/client64/lib/ojdbc8.jar ./build/javalib
-docker stop dockerbuild
-docker rm dockerbuild
+#docker run --rm -d --name dockerbuild iitdbgroup/gprom_travis:latest sleep 50000
+#docker cp dockerbuild:/usr/local/oracle/lib/oracle/12.2/client64/lib/ojdbc8.jar ./build/javalib
+#docker stop dockerbuild
+#docker rm dockerbuild
+
+docker run --rm --name dockerbuild iitdbgroup/gprom_travis:latest \
+	   cp /usr/local/oracle/lib/oracle/12.2/client64/lib/ojdbc8.jar /gprom/build/javalib
 
 # run tests
 docker run --rm --name dockerbuild \
