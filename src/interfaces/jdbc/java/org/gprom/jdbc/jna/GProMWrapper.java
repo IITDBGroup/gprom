@@ -12,6 +12,7 @@ import java.util.Scanner;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 import com.sun.jna.Pointer;
@@ -74,8 +75,16 @@ public class GProMWrapper implements GProMJavaInterface {
 	public String gpromRewriteQuery(String query) throws SQLException {
 		log.debug("WILL REWRITE:\n\n{}", query);
 		
-		if (!query.trim().endsWith(";"))
-			query += ";";
+		try {
+			String parserPlugin = getOption("plugin.parser");
+			if (!parserPlugin.equals("dl")) {
+				if (!query.trim().endsWith(";"))
+					query += ";";
+			}
+		}
+		catch (Exception e) {
+			LoggerUtil.logException(e, log);
+		}
 		
 //		Scanner in = new Scanner(System.in);
 //		String password = in.nextLine();
