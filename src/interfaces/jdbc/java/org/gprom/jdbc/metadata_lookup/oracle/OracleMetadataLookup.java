@@ -201,10 +201,10 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 	 * @return
 	 */
 	public int tableExists(String tableName) {
-		return 1;
-//		boolean result = tableExistsForTypes(tableName, true); 
-//		log.debug("table {} exists {}", tableName, result);
-//		return result ? 1 : 0;
+//		return 1;
+		boolean result = tableExistsForTypes(tableName, true); 
+		log.debug("table {} exists {}", tableName, result);
+		return result ? 1 : 0;
 	}
 	
 	public boolean tableExistsForTypes (String tableName, boolean isTable) {
