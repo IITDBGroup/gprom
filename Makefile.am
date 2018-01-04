@@ -64,19 +64,4 @@ TAR_PACKAGE=$(APP_NAME)-$(VERSION).tar.gz
 
 # Create a deb package
 pkg-deb: $(TAR_PACKAGE)
-	rm -rf $(TMP_DIR)
-	mkdir -p $(TMP_DIR)
-	cp $(TAR_PACKAGE) $(TMP_DIR)/
-	tar --directory $(TMP_DIR)/ \
-		-xzf $(TMP_DIR)/$(TAR_PACKAGE)
-	cd $(TMP_DIR)/$(APP_NAME)-$(VERSION)/; \
-		echo | dh_make --single --copyright gpl -e bglavic@iit.edu -f \
-			../$(TAR_PACKAGE)
-	cp packaging/pkgfiles/changelog packaging/pkgfiles/control \
-		packaging/pkgfiles/copyright $(TMP_DIR)/$(APP_NAME)-$(VERSION)/debian/
-	cd $(TMP_DIR)/$(APP_NAME)-$(VERSION)/; \
-		rm debian/README.Debian debian/*.ex debian/*.EX; \
-		./configure --disable-oracle --disable-postgres --disable-monetdb --disable-java; \
-		dpkg-buildpackage -rfakeroot; \
-		mv ../*.deb $(PWD)/packaging
-	rm -r $(TMP_DIR);
+	./packaging/debpackage.sh

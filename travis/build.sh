@@ -40,6 +40,10 @@ echo "************************* RUN MAKE DISTCHECK"
 docker run --rm --name dockbuild -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest make distcheck
 testexit
 
+echo "************************* RUN MAKE PKG-DEB"
+docker run --rm --name dockbuild -e USER=root -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest make pkg-deb
+testexit
+
 echo "************************* RUN LIBGPROM CROSS-COMPILATION"
 docker run --rm --name dockbuild -v /var/run/docker.sock:/var/run/docker.sock -e GPROM_HOST_DIR="$(pwd)" -v "$(pwd)":/gprom iitdbgroup/gprom_travis:latest ant -Dskipivy=true jar-fat
 testexit
