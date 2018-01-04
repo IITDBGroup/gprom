@@ -18,9 +18,10 @@ script:
 
 ####################
 # branch configuration
-branches:
-  only:
-  - master
+#branches:
+#  only:
+#  - master
+
 
 ####################
 # os environments
@@ -60,7 +61,6 @@ deploy:
     - "${RELEASE_JDBC_JAR_FILE}"
   skip-cleanup: true
   on:
-    branch: master
     repo: IITDBGroup/gprom
     tags: true
     condition: $TRAVIS_OS_NAME = linux
