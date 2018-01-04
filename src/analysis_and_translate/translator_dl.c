@@ -142,7 +142,7 @@ translateProgram(DLProgram *p)
                     attrNames = getAttributeNames(a->rel);
                     dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
 
-                    TableAccessOperator *rel = createTableAccessOp(a->rel, NULL, a->rel, NIL, attrNames, dts, NULL);
+                    TableAccessOperator *rel = createTableAccessOp(a->rel, NULL, a->rel, NIL, attrNames, dts);
 
                     //        			Node *cond = (Node *) createOpExpr("<",LIST_MAKE(makeNode(RowNumExpr),createConstInt(10)));
                     //        			SelectionOperator *sel = createSelectionOp(cond, (QueryOperator *) rel, NIL, NULL);
@@ -1229,7 +1229,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
     dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
 
 	// create table access op
-	rel = createTableAccessOp(r->rel, NULL, "REL", NIL, attrNames, dts, NULL);
+	rel = createTableAccessOp(r->rel, NULL, "REL", NIL, attrNames, dts);
 	COPY_PROPS_TO_TABLEACCESS(rel,r);
 
 //    char *atomRel = NULL;
@@ -1619,7 +1619,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
         	    // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
                 // then return (Domain X Domain X ... X Domain) - R
                 dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
-                        "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING), NULL);
+                        "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
                 List *domainAttrs = singleton("D");
 
                 for(int i = 1; i < numAttrs; i++)
@@ -1627,7 +1627,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
                     char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
                     QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
                             "_DOMAIN", NULL, "DummyDom", NIL,
-                            LIST_MAKE("D"), singletonInt(DT_STRING), NULL);
+                            LIST_MAKE("D"), singletonInt(DT_STRING));
 
                     QueryOperator *oldD = dom;
                     domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
@@ -2291,7 +2291,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 			   // compute Domain X Domain X ... X Domain number of attributes of goal relation R times
 			   // then return (Domain X Domain X ... X Domain) - R
 			   dom = (QueryOperator *) createTableAccessOp("_DOMAIN", NULL,
-					   "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING), NULL);
+					   "DummyDom", NIL, LIST_MAKE("D"), singletonInt(DT_STRING));
 			   List *domainAttrs = singleton("D");
 
 			   for(int i = 1; i < numAttrs; i++)
@@ -2299,7 +2299,7 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
 				   char *aDomAttrName = CONCAT_STRINGS("D", itoa(i));
 				   QueryOperator *aDom = (QueryOperator *) createTableAccessOp(
 						   "_DOMAIN", NULL, "DummyDom", NIL,
-						   LIST_MAKE("D"), singletonInt(DT_STRING), NULL);
+						   LIST_MAKE("D"), singletonInt(DT_STRING));
 
 				   QueryOperator *oldD = dom;
 				   domainAttrs = appendToTailOfList(deepCopyStringList(domainAttrs),aDomAttrName);
@@ -2565,7 +2565,7 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
 
     // create table access op
-    rel = createTableAccessOp(r->rel, NULL, "REL", NIL, attrNames, dts, NULL);
+    rel = createTableAccessOp(r->rel, NULL, "REL", NIL, attrNames, dts);
     COPY_PROPS_TO_TABLEACCESS(rel,r);
 
     // is negated goal?

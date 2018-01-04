@@ -81,6 +81,7 @@ static Schema *copySchema(Schema *from, OperatorMap **opMap);
 /*functions to copy query_operator*/
 static QueryOperator *copyQueryOperator(QueryOperator *from, QueryOperator *new, OperatorMap **opMap);
 static TableAccessOperator *copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap);
+static SampleClauseOperator *copySampleClauseOperator(SampleClauseOperator *from, OperatorMap **opMap);
 static JsonTableOperator *copyJsonTableOperator(JsonTableOperator *from, OperatorMap **opMap);
 static JsonPath *copyJsonPath(JsonPath *from, OperatorMap **opMap);
 static SelectionOperator *copySelectionOperator(SelectionOperator *from, OperatorMap **opMap);
@@ -578,9 +579,19 @@ copyTableAccessOperator(TableAccessOperator *from, OperatorMap **opMap)
     COPY_OPERATOR();
     COPY_STRING_FIELD(tableName);
     COPY_NODE_FIELD(asOf);
-    COPY_NODE_FIELD(sampClause);
+//    COPY_NODE_FIELD(sampClause);
 
     return new;
+}
+
+static SampleClauseOperator *
+copySampleClauseOperator(SampleClauseOperator *from, OperatorMap **opMap)
+{
+	COPY_INIT(SampleClauseOperator);
+	COPY_OPERATOR();
+	COPY_NODE_FIELD(sampPerc);
+
+	return new;
 }
 
 static JsonTableOperator *
@@ -1193,6 +1204,9 @@ copyInternal(void *from, OperatorMap **opMap)
         case T_TableAccessOperator:
             retval = copyTableAccessOperator(from, opMap);
             break;
+        case T_SampleClauseOperator:
+        	retval = copySampleClauseOperator(from, opMap);
+        	break;
         case T_SetOperator:
             retval = copySetOperator(from, opMap);
             break;

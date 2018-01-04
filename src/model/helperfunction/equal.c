@@ -59,6 +59,7 @@ static boolean equalSchema(Schema *a, Schema *b, HashMap *seenOps, MemContext *c
 static boolean equalAttributeDef(AttributeDef *a, AttributeDef *b, HashMap *seenOps, MemContext *c);
 static boolean equalQueryOperator(QueryOperator *a, QueryOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalTableAccessOperator(TableAccessOperator *a, TableAccessOperator *b, HashMap *seenOps, MemContext *c);
+static boolean equalSampleClauseOperator(SampleClauseOperator *a, SampleClauseOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalSelectionOperator(SelectionOperator *a, SelectionOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalProjectionOperator(ProjectionOperator *a, ProjectionOperator *b, HashMap *seenOps, MemContext *c);
 static boolean equalJoinOperator(JoinOperator *a, JoinOperator *b, HashMap *seenOps, MemContext *c);
@@ -666,9 +667,18 @@ equalTableAccessOperator(TableAccessOperator *a, TableAccessOperator *b, HashMap
     COMPARE_QUERY_OP();
     COMPARE_STRING_FIELD(tableName);
     COMPARE_NODE_FIELD(asOf);
-    COMPARE_NODE_FIELD(sampClause);
+//    COMPARE_NODE_FIELD(sampClause);
 
     return TRUE;
+}
+
+static boolean
+equalSampleClauseOperator(SampleClauseOperator *a, SampleClauseOperator *b, HashMap *seenOps, MemContext *c)
+{
+    COMPARE_QUERY_OP();
+	COMPARE_NODE_FIELD(sampPerc);
+
+	return TRUE;
 }
 
 static boolean 
@@ -1173,6 +1183,9 @@ equalInternal(void *a, void *b, HashMap *seenOps, MemContext *c)
         case T_TableAccessOperator:
             retval = equalTableAccessOperator(a,b, seenOps, c);
             break;
+        case T_SampleClauseOperator:
+        	retval = equalSampleClauseOperator(a,b, seenOps, c);
+			break;
         case T_SelectionOperator:
             retval = equalSelectionOperator(a,b, seenOps, c);
             break;

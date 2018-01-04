@@ -237,8 +237,8 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels, List *fPattern)
 
 	result = (Node *) edgeRels;
 
-	DEBUG_NODE_BEATIFY_LOG("pug top-k summarized explanation from summarization:", result);
-	INFO_OP_LOG("pug top-k summarized explanation from summarization as overview:", result);
+	DEBUG_NODE_BEATIFY_LOG("integrate top-k summaries with edge relation:", result);
+	INFO_OP_LOG("integrate top-k summaries with edge relation as overview:", result);
 
 	return result;
 }
@@ -847,12 +847,16 @@ domAttrsOutput (List *userQ, Node *input, int sampleSize, char *qType)
 								perc = perc + (perc / 10);
 
 							// sample perc for adding SAMPLE clause in the serializer
-							t->sampClause = (Node *) createConstInt(perc);
+//							t->sampClause = (Node *) createConstInt(perc);
+							SampleClauseOperator *scOp = createSampleClauseOp((QueryOperator *) t,
+															(Node *) createConstInt(perc),
+															getAttrNames(t->op.schema),
+															getAttrDataTypes(t->op.schema->attrDefs));
 
 							// rownum as a sequence
 							Node *rowNum = (Node *) makeNode(RowNumExpr);
 							List *projExpr = LIST_MAKE(rowNum, ar);
-							ProjectionOperator *projDom = createProjectionOp(projExpr, (QueryOperator *) t, NIL,
+							ProjectionOperator *projDom = createProjectionOp(projExpr, (QueryOperator *) scOp, NIL,
 														LIST_MAKE(strdup("SEQ"),strdup(ar->name)));
 							SET_BOOL_STRING_PROP((Node *) projDom, PROP_MATERIALIZE);
 							result = appendToTailOfList(result, (Node *) projDom);

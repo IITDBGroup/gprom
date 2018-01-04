@@ -94,7 +94,7 @@ translateAlterTable(AlterTable *a)
 
     //TODO how to deal with other alter tables
     in = createTableAccessOp(strdup(a->tableName), NULL, strdup(a->tableName), NIL,
-            attrNames, dataTypes, NULL);
+            attrNames, dataTypes);
     switch(a->cmdType)
     {
         case ALTER_TABLE_REMOVE_COLUMN:
@@ -127,7 +127,7 @@ translateInsert(Insert *insert)
 	QueryOperator *insertQuery;
 
 	TableAccessOperator *to;
-	to = createTableAccessOp(insert->insertTableName, NULL, NULL, NIL, deepCopyStringList(attr), dts, NULL);
+	to = createTableAccessOp(insert->insertTableName, NULL, NULL, NIL, deepCopyStringList(attr), dts);
 	SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	if (isA(insert->query,  List))
@@ -163,7 +163,7 @@ translateDelete(Delete *delete)
     List *dts = getAttrDataTypes(delete->schema);
 
 	TableAccessOperator *to;
-	to = createTableAccessOp(strdup(delete->deleteTableName), NULL, NULL, NIL, deepCopyStringList(attr), dts, NULL);
+	to = createTableAccessOp(strdup(delete->deleteTableName), NULL, NULL, NIL, deepCopyStringList(attr), dts);
 	SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	SelectionOperator *so;
@@ -188,7 +188,7 @@ translateUpdateUnion(Update *update)
 
     // create table access operator
 	TableAccessOperator *to;
-	to = createTableAccessOp(strdup(update->updateTableName), NULL, NULL, NIL, deepCopyStringList(attrs), dts, NULL);
+	to = createTableAccessOp(strdup(update->updateTableName), NULL, NULL, NIL, deepCopyStringList(attrs), dts);
 	SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	// CREATE PROJECTION EXPRESSIONS
@@ -289,7 +289,7 @@ translateUpdateWithCase(Update *update)
 	// create table access operator
 	TableAccessOperator *to;
 	to = createTableAccessOp(strdup(update->updateTableName), NULL, NULL, NIL,
-			deepCopyStringList(attrs), dts, NULL);
+			deepCopyStringList(attrs), dts);
     SET_BOOL_STRING_PROP(to,PROP_TABLE_IS_UPDATED);
 
 	// CREATE PROJECTION EXPRESSIONS

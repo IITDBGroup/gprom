@@ -533,7 +533,7 @@ inferOpResultDTs (QueryOperator *op)
 
 TableAccessOperator *
 createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
-        List *attrNames, List *dataTypes, Node *sampClause)
+        List *attrNames, List *dataTypes)
 {
     TableAccessOperator *ta = makeNode(TableAccessOperator);
 
@@ -543,9 +543,21 @@ createTableAccessOp(char *tableName, Node *asOf, char *alias, List *parents,
     ta->op.schema = createSchemaFromLists(alias, attrNames, dataTypes);
     ta->op.parents = parents;
     ta->op.provAttrs = NIL;
-    ta->sampClause = sampClause;
+//    ta->sampClause = sampClause;
 
     return ta;
+}
+
+SampleClauseOperator *
+createSampleClauseOp(QueryOperator *input, Node *sampPerc, List *attrNames, List *dataTypes)
+{
+	SampleClauseOperator *sc = makeNode(SampleClauseOperator);
+
+	sc->sampPerc = sampPerc;
+	sc->op.inputs = singleton(input);
+	sc->op.schema = createSchemaFromLists(strdup("SAMPLE"), attrNames, dataTypes);
+
+	return sc;
 }
 
 JsonTableOperator *

@@ -45,7 +45,7 @@ typedef struct TableAccessOperator
     QueryOperator op;
     char *tableName;
     Node *asOf;
-    Node *sampClause;
+//    Node *sampClause;
 } TableAccessOperator;
 
 typedef struct SelectionOperator
@@ -148,9 +148,16 @@ typedef struct JsonTableOperator
     char *forOrdinality;
 } JsonTableOperator;
 
+typedef struct SampleClauseOperator
+{
+	QueryOperator op;
+	Node *sampPerc;
+} SampleClauseOperator;
+
 /* type of operator macros */
 #define IS_NULLARY_OP(op) (isA(op, TableAccessOperator) \
-                        || isA(op, ConstRelOperator))
+                        || isA(op, ConstRelOperator) \
+						|| isA(op, SampleClauseOperator))
 
 #define IS_UNARY_OP(op) (isA(op,ProjectionOperator)     \
         || isA(op,SelectionOperator)                    \
@@ -194,7 +201,8 @@ extern List *inferOpResultDTs (QueryOperator *op);
 
 /* create functions */
 extern TableAccessOperator *createTableAccessOp(char *tableName, Node *asOf,
-        char *alias, List *parents, List *attrNames, List *dataTypes, Node *sampClause);
+        char *alias, List *parents, List *attrNames, List *dataTypes);
+extern SampleClauseOperator *createSampleClauseOp(QueryOperator *input, Node *sampPerc, List *attrNames, List *dataTypes);
 extern JsonTableOperator *createJsonTableOperator(FromJsonTable *fjt);
 extern SelectionOperator *createSelectionOp (Node *cond, QueryOperator *input,
         List *parents, List *attrNames);

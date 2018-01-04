@@ -60,6 +60,7 @@ static void serializeTableAccess(StringInfo from, TableAccessOperator* t, int* c
         List** fromAttrs, int* attrOffset);
 static void serializeConstRel(StringInfo from, ConstRelOperator* t, List** fromAttrs,
         int* curFromItem);
+static void serializeSampleClause(StringInfo from, SampleClauseOperator* s, int* curFromItem, List** fromAttrs);
 
 static void serializeOrder (OrderOperator *q, StringInfo order, List *fromAttrs);
 static void serializeWhere (SelectionOperator *q, StringInfo where, List *fromAttrs);
@@ -403,6 +404,7 @@ serializeQueryBlock (QueryOperator *q, StringInfo str)
         {
             case T_JoinOperator:
             case T_TableAccessOperator:
+            case T_SampleClauseOperator:
             case T_ConstRelOperator :
             case T_SetOperator:
             case T_JsonTableOperator:
@@ -816,18 +818,36 @@ serializeTableAccess(StringInfo from, TableAccessOperator* t, int* curFromItem,
             }
         }
 
-        // add SAMPLE clause
-        char* samp = NULL;
-        if (t->sampClause)
-        	samp = CONCAT_STRINGS(" SAMPLE(", exprToSQL(t->sampClause), ")");
+//        // add SAMPLE clause
+//        char* samp = NULL;
+//        if (t->sampClause)
+//        	samp = CONCAT_STRINGS(" SAMPLE(", exprToSQL(t->sampClause), ")");
 
         List* attrNames = getAttrNames(((QueryOperator*) t)->schema);
         *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
-        appendStringInfo(from, "(%s%s%s F%u)",
+        appendStringInfo(from, "(%s%s F%u)",
                 quoteIdentifierOracle(t->tableName), asOf ? asOf : "",
-           		samp ? samp : "",
+//           		samp ? samp : "",
                 (*curFromItem)++);
     }
+}
+
+void
+serializeSampleClause(StringInfo from, SampleClauseOperator* s, int* curFromItem, List** fromAttrs)
+{
+	char* samp = NULL;
+	if (s->sampPerc)
+		samp = CONCAT_STRINGS(" ", s->op.schema->name, "(", exprToSQL(s->sampPerc), ")");
+
+	List* attrNames = getAttrNames(((QueryOperator*) s)->schema);
+    *fromAttrs = appendToTailOfList(*fromAttrs, attrNames);
+
+    TableAccessOperator *t = (TableAccessOperator *) getHeadOfListP(s->op.inputs);
+    char *tableName = t->tableName;
+
+    appendStringInfo(from, "(%s%s F%u)",
+            quoteIdentifierOracle(tableName), samp ? samp : "",
+            (*curFromItem)++);
 }
 
 void
@@ -1088,6 +1108,13 @@ serializeFromItem (QueryOperator *fromRoot, QueryOperator *q, StringInfo from, i
             	TableAccessOperator *t = (TableAccessOperator *) q;
                 serializeTableAccess(from, t, curFromItem, fromAttrs,
                         attrOffset);
+            }
+            break;
+            // Sample Clause
+            case T_SampleClauseOperator:
+            {
+            	SampleClauseOperator *s = (SampleClauseOperator *) q;
+            	serializeSampleClause(from, s, curFromItem, fromAttrs);
             }
             break;
             // A constant relation, turn into (SELECT ... FROM dual) subquery
