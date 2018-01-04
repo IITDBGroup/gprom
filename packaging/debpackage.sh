@@ -1,11 +1,11 @@
 #!/bin/bash
 
-APP_NAME=gprom
-VERSION=`../configure --version | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+'`
-
 pushd $(dirname "${0}") > /dev/null
 BASEDIR=$(pwd -L)
 popd > /dev/null
+
+APP_NAME=gprom
+VERSION=`${BASEDIR}/../configure --version | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+'`
 
 TMP_DIR=${BASEDIR}/../dpkg
 PACKAGE_FILES=${BASEDIR}/debfiles
@@ -24,6 +24,7 @@ pushd ${TMP_DIR}/${APP_NAME}-${VERSION}/
 dh_make --single --copyright gpl -e bglavic@iit.edu -f ../${TAR_NAME} -y
 popd
 cp ${PACKAGE_FILES}/changelog ${PACKAGE_FILES}/control ${PACKAGE_FILES}/copyright ${PACKAGE_FILES}/rules ${TMP_DIR}/${APP_NAME}-${VERSION}/debian/
+sed -i -e 's/VERSION/${VERSION}/g' ${TMP_DIR}/${APP_NAME}-${VERSION}/debian/control
 
 echo "---------- BUILD PACKAGE"
 pushd ${TMP_DIR}/${APP_NAME}-${VERSION}/

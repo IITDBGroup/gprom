@@ -36,6 +36,7 @@ RUN apt-get -y update && apt-get install -y \
 	autotools-dev \
 	bison \
 	curl \
+	dh-make \
 	flex \
 	git \
 	graphviz \
