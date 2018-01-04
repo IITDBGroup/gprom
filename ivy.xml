@@ -6,7 +6,7 @@
 	 	organisation="iit.edu" 
 	 	module="GProMJDBC" 
 	 	status="integration"
-		revision="1.0.0">
+		revision="1.0.1">
 	 </info>
 	 <dependencies>
 	   <dependency org="org.apache.logging.log4j" name="log4j-api" rev="2.8.2" />
