@@ -21,7 +21,7 @@ script:
 #branches:
 #  only:
 #  - master
-
+#  - /^v\.\d+.\d+.*$/
 
 ####################
 # os environments
@@ -59,10 +59,9 @@ deploy:
   file:
     - "${RELEASE_TARBALL_FILE}"
     - "${RELEASE_JDBC_JAR_FILE}"
+    - "${RELEASE_DEB_FILE}"
   skip-cleanup: true
   on:
     repo: IITDBGroup/gprom
     tags: true
-    condition: $TRAVIS_OS_NAME = linux
-
-# add as deploy file once deb creation is part of build    - "${RELEASE_DEB_FILE}"
+    condition: $TRAVIS_OS_NAME = linux    
