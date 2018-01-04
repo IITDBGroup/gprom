@@ -46,9 +46,9 @@ matrix:
 # deploy to github releases if this is a tagged commit
 before_deploy:
   - export RELEASE_TARBALL_FILE=$(ls gprom-*.tar.gz)
-  - export RELEASE_DEB_FILE=$(ls *gprom*.deb)
+  - export RELEASE_DEB_FILE=$(ls packaging/gprom_*.deb)
   - export RELEASE_JDBC_JAR_FILE=build/gprom-jdbc.jar
-  - echo "deploying ${RELEASE_TARBALL_FILE} and ${RELEASE_DEB_FILE} to GitHub releases: ${TRAVIS_TAG}"
+  - echo "deploying ${RELEASE_TARBALL_FILE} and ${RELEASE_DEB_FILE} and ${RELEASE_JDBC_JAR_FILE} to GitHub releases: ${TRAVIS_TAG}"
 # do deploy
 deploy:
   provider: releases
