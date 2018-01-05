@@ -104,7 +104,7 @@ public class GProMNativeLibraryLoader {
 				log.debug("open input stream to {}/{}", folder, libWithSuffix);
 				in = GProMNativeLibraryLoader.class.getResourceAsStream(resource);
 				
-				libraryFile = new File(libDir, libWithSuffix);
+				libraryFile = new File(tempLibDir, libWithSuffix);
 				
 				// set permissions
 				libraryFile.setReadable(true);
