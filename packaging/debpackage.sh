@@ -52,7 +52,7 @@ pushd ${TMP_DIR}/${APP_NAME}-${VERSION}/
 pwd
 rm ./debian/README.Debian debian/*.ex debian/*.EX > log.debpackage >&1
 testexit log.debpackage
-dpkg-buildpackage -rfakeroot > log.debpackage >&1
+dpkg-buildpackage -b -rfakeroot > log.debpackage >&1
 testexit log.debpackage
 popd
 
