@@ -301,7 +301,12 @@
 		               regexp="1=([0-9]+)[.][0-9]+[.][0-9]+"
 		               select="\1"
 		               casesensitive="false" />
-		<echo message="gprom major version is ${gprom.major.version}" />
+		<propertyregex property="gprom.libtool.version"
+			       input="1=${ivy.revision}"
+			       regexp="1=([0-9]+[.][0-9]+)[.][0-9]+"
+		               select="\1.0"
+		               casesensitive="false" />
+		<echo message="gprom major version is ${gprom.major.version} and libtool version is ${gprom.libtool.version}" />
 
 		<!-- get GPROM_HOST_DIR from environment, this should be set if ant is run from within container -->
 		<property environment="env"/>
@@ -322,14 +327,14 @@
 			crossscript="${dir.dockercross}/dockcross-linux-x64" 
 			dockerimage="dockcross/linux-x64"
 			outfolder="linux_x64" 
-			libpath="${libgpromdir}/libgprom.so.${ivy.revision}"
+			libpath="${libgpromdir}/libgprom.so.${gprom.libtool.version}"
 			libname="libgprom.so"
 			mountdir="${gprombase}"/>
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-linux-x86" 
 			dockerimage="dockcross/linux-x86"
 			outfolder="linux_x32" 
-			libpath="${libgpromdir}/libgprom.so.${ivy.revision}"
+			libpath="${libgpromdir}/libgprom.so.${gprom.libtool.version}"
 			libname="libgprom.so"
 			addargs="--build=x86_64-pc-linux-gnu --host=x86-pc-linux-gnu" 
 			mountdir="${gprombase}" />

@@ -58,4 +58,4 @@ dpkg
 test/testexprcplex
 /Release
 /test/testuncert
-log.*
+log_*.log
