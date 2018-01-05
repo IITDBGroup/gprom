@@ -4,6 +4,9 @@ pushd $(dirname "${0}") > /dev/null
 BASEDIR=$(pwd -L)
 popd > /dev/null
 
+echo "${BASEDIR}"
+
+
 APP_NAME=gprom
 VERSION=`${BASEDIR}/../configure --version | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+'`
 
@@ -21,16 +24,19 @@ tar --directory ${TMP_DIR}/ -xzf ${TMP_DIR}/${TAR_NAME}
 
 echo "---------- PREPARE"
 pushd ${TMP_DIR}/${APP_NAME}-${VERSION}/
-dh_make --single --copyright gpl -e bglavic@iit.edu -f ../${TAR_NAME} -y
+echo "dh_make --single --copyright gpl -e bglavic@iit.edu -f ${BASEDIR}/../${TAR_NAME} -y"
+dh_make --single --copyright gpl -e bglavic@iit.edu -f ${BASEDIR}/../${TAR_NAME} -y
 popd
 cp ${PACKAGE_FILES}/changelog ${PACKAGE_FILES}/control ${PACKAGE_FILES}/copyright ${PACKAGE_FILES}/rules ${TMP_DIR}/${APP_NAME}-${VERSION}/debian/
-sed -i -e 's/VERSION/${VERSION}/g' ${TMP_DIR}/${APP_NAME}-${VERSION}/debian/control
+
+#exit 0
 
 echo "---------- BUILD PACKAGE"
 pushd ${TMP_DIR}/${APP_NAME}-${VERSION}/
-rm debian/README.Debian debian/*.ex debian/*.EX
+pwd
+rm ./debian/README.Debian debian/*.ex debian/*.EX
 dpkg-buildpackage -rfakeroot
 popd
 
-mv ${TMP_DIR}/*.deb ${BASEDIR}/
-rm -rf ${TMP_DIR}
+#mv ${TMP_DIR}/*.deb ${BASEDIR}/
+#rm -rf ${TMP_DIR}
