@@ -1,5 +1,18 @@
 #!/bin/bash
 
+# function to test exist status
+testexit()
+{
+	LOG_FILE="$1"
+	EXIT_STATUS=$?
+	if [ "x${EXIT_STATUS}" != "x0" ]; then
+		echo "COMMAND EXITED WITH STATUS ${EXIT_STATUS}"
+		echo "LOG OUTPUT:"
+		cat ${LOG_FILE}
+		exit ${EXIT_STATUS}
+	fi
+}
+
 pushd $(dirname "${0}") > /dev/null
 BASEDIR=$(pwd -L)
 popd > /dev/null
@@ -21,13 +34,16 @@ mkdir -p ${TMP_DIR}
 cp ${TAR_PACKAGE} ${TMP_DIR}/
 echo "---------- UNTAR"
 tar --directory ${TMP_DIR}/ -xzf ${TMP_DIR}/${TAR_NAME}
+testexit
 
 echo "---------- PREPARE"
 pushd ${TMP_DIR}/${APP_NAME}-${VERSION}/
 echo "dh_make --single --copyright gpl -e bglavic@iit.edu -f ${BASEDIR}/../${TAR_NAME} -y"
 dh_make --single --copyright gpl -e bglavic@iit.edu -f ${BASEDIR}/../${TAR_NAME} -y
+testexit
 popd
 cp ${PACKAGE_FILES}/changelog ${PACKAGE_FILES}/control ${PACKAGE_FILES}/copyright ${PACKAGE_FILES}/rules ${TMP_DIR}/${APP_NAME}-${VERSION}/debian/
+testexit
 
 #exit 0
 
@@ -35,8 +51,11 @@ echo "---------- BUILD PACKAGE"
 pushd ${TMP_DIR}/${APP_NAME}-${VERSION}/
 pwd
 rm ./debian/README.Debian debian/*.ex debian/*.EX
+testexit
 dpkg-buildpackage -rfakeroot
+testexit
 popd
 
-#mv ${TMP_DIR}/*.deb ${BASEDIR}/
-#rm -rf ${TMP_DIR}
+mv ${TMP_DIR}/*.deb ${BASEDIR}/
+testexit
+rm -rf ${TMP_DIR}
