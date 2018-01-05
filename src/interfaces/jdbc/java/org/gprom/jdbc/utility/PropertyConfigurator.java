@@ -101,7 +101,6 @@ public class PropertyConfigurator {
         LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         InputStream inputStream = new FileInputStream(f);
         ConfigurationSource configurationSource = new ConfigurationSource(inputStream);
-
         ctx.start(configFactory.getConfiguration(ctx, configurationSource));
         LogManager.getRootLogger().error("recofigured from config file {}", f);
 	}

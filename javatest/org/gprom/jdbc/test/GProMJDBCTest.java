@@ -34,7 +34,7 @@ public class GProMJDBCTest {
 		if (args.length == 1)
 			log4jFile = args[0];
 				
-		PropertyConfigurator.configureHonoringProperties(log4jFile, "blackboxtests/log4j2.xml", "log4j2.xml");
+		//	PropertyConfigurator.configureHonoringProperties(log4jFile, "blackboxtests/log4j2.xml", "log4j2.xml");
 		String driverURL = "oracle.jdbc.OracleDriver";
 //		String driverURL = "org.postgresql.Driver";
 //		String url = "jdbc:hsqldb:file:/Users/alex/db/mydb";
@@ -49,6 +49,8 @@ public class GProMJDBCTest {
 		String sid = "orcl";
 		String url;
 //		String url = "jdbc:gprom:postgresql://127.0.0.1:5432/testdb";
+
+		System.out.println("am here!!!!!!!!!");
 		
 		//get password
 //		System.out.print("enter password: ");
@@ -126,7 +128,7 @@ public class GProMJDBCTest {
 						+ "AND B.NAME       = 'opened cursors current'     "
 						+ "AND USERNAME     = 'TESTUSER'");
 				printResult(rs);
-				Thread.sleep(3000);
+				Thread.sleep(30);
 			}
 		}
 		catch (NativeGProMLibException e) {

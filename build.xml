@@ -61,11 +61,11 @@
 	<property name="nativebindir.name" value="libgpromnative" />
 	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.dylib" />
 	<property name="gpromlib.darwin.bin" value="${dir.bin}/${nativebindir.name}/darwin_x64/libgprom.dylib" />
-	<property name="gpromlib.darwin" value="${dir.build}/libgprom.jnilib" />	
+<!--	<property name="gpromlib.darwin" value="${dir.build}/libgprom.jnilib" />	-->
 	
 	<property name="gpromlib.linux.src" value="${basedir}/src/libgprom/.libs/libgprom.so" />
 	<property name="gpromlib.linux.bin" value="${dir.bin}/${nativebindir.name}/linux_x64/libgprom.so" />
-	<property name="gpromlib.linux" value="${dir.build}/libgprom.so" />   
+<!--	<property name="gpromlib.linux" value="${dir.build}/libgprom.so" />   -->
 	
 	<!-- TARGETS -->	
 	<!-- download dependencies with ivy -->
@@ -107,7 +107,7 @@
 	            <echo message="Mac system" />
 		        	<property name="gpromlib.src" value="${gpromlib.darwin.src}" />
 		        	<property name="gpromlib.bin" value="${gpromlib.darwin.bin}" />
-		        	<property name="gpromlib" value="${gpromlib.darwin}" />
+		        <!--	<property name="gpromlib" value="${gpromlib.darwin}" /> -->
 	        </then>
 		</if>
 		<if>
@@ -116,7 +116,7 @@
 	            <echo message="Linux system" />
 		        	<property name="gpromlib.src" value="${gpromlib.linux.src}" />
 		        	<property name="gpromlib.bin" value="${gpromlib.linux.bin}" />
-		        	<property name="gpromlib" value="${gpromlib.linux}" />
+		        <!--	<property name="gpromlib" value="${gpromlib.linux}" /> -->
 	        </then>
 		</if>
     </target>
@@ -126,7 +126,7 @@
 			depends="handle-os"
 			description="clean up">
 		
-		<copy todir="${dir.bin}">
+		<copy todir="${dir.bin}" overwrite="true">
 			<fileset dir="${dir.buildresource}" includes="${conffile.name},${log4jconffile.name}" /> 
 		</copy>
 		<depend srcdir="${dir.source}"
@@ -149,12 +149,13 @@
 	<target name="compile" 
 		depends="clean"
 		description="compile JDBC Java files">
-		
-		<copy file="${gpromlib.src}" tofile="${gpromlib}" overwrite="true" />
+
+	        <!-- do not overwrite the library if it is there (to make sure crosscompiled libs are not overwritten)) -->
+	<!--	<copy file="${gpromlib.src}" tofile="${gpromlib}" overwrite="false" /> -->
 		<copy todir="${dir.build}/lib">
 			<fileset dir="${dir.library}" />
 		</copy>
-		<copy file="${gpromlib}" tofile="${gpromlib.bin}" />
+		<copy file="${gpromlib.src}" tofile="${gpromlib.bin}" overwrite="false" />
 	<!--	<copy file="${conffile}" tofile="${dir.bin}/GPRoMDriver.properties" /> -->
 		<javac srcdir="${dir.source}" 
 				destdir="${dir.bin}"  
@@ -233,7 +234,7 @@
 			<manifest>
 				<attribute name="Main-Class" value="${mainclass}" />
 				<attribute name="Created-By" value="${jar.creator}" />
-				<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" />
+				<attribute name="Class-Path" value="${classpath.bin.jar}" />
 			</manifest>
 			<service type="java.sql.Driver"
 		           provider="org.gprom.jdbc.driver.GProMDriver"/>
@@ -247,7 +248,7 @@
 			depends="compile,compile-tests,cross-compile-libgprom"
 			description="generate a fat jar containing all deps">
 		
-		<echo message="build jar for ${os.type} using library ${gpromlib}" />
+		<echo message="build jar for ${os.type} using library ${gpromlib.src}" />
 		
 		<print-fileset filesetid="fat.jar.resources" />
 		
@@ -264,11 +265,11 @@
 			</patternset>
 			<path refid="jarclasspath" />
 		</unjar>
-		<jar destfile="${jar.bin.fat}" zip64Mode="as-needed">
+		<jar destfile="${jar.bin.fat}" zip64Mode="as-needed" update="false">
 			<manifest>
 				<attribute name="Main-Class" value="${mainclass}" />
 				<attribute name="Created-By" value="${jar.creator}" />
-				<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" />
+<!--				<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" /> -->
 			</manifest>
 			<zipfileset dir="${dir.tmpjar}" includes="**/*" />
 			<service type="java.sql.Driver"
@@ -495,8 +496,8 @@
 			  
 			</sequential>
 			
-			<!-- copy to destination -->
-			<copy file="${expanddir}/@{libpath}" tofile="${dir.cross.dest}/@{libname}" />
+			<!-- copy to destination overwrite even if it is there to make sure we include the crosscompiled version that are not linked against any DB C-library -->
+			<copy file="${expanddir}/@{libpath}" tofile="${dir.cross.dest}/@{libname}" overwrite="true" />
 			
 			<set-prop-if-not-empty arg="@{libpath2}" propname="have.libpath2" />
 			<sequential if:set="have.libpath2">

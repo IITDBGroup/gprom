@@ -31,7 +31,8 @@ public class GProMNativeLibraryLoader {
 	
 	public static final GProMNativeLibraryLoader inst = new GProMNativeLibraryLoader();
 	private static final String libraryName = "gprom";
-	private static final Map<OSArchType,String> libextensions = new HashMap<OSArchType,String> ();
+        private static final String jnaPathProp = "jna.library.path";
+        private static final Map<OSArchType,String> libextensions = new HashMap<OSArchType,String> ();
 	private static final Map<OSArchType,String> folderName = new HashMap<OSArchType,String> ();
 	private static final String relativeOffset = "";
 	
@@ -64,7 +65,21 @@ public class GProMNativeLibraryLoader {
 	public GProMNativeLibraryLoader () {
 		
 	}
-	
+
+        private void setJNALibPath(String dir) {
+	    String previousPath = System.getProperty(jnaPathProp);
+	    String newPath;
+	    
+	    if (previousPath == null || previousPath.trim().equals("")) {
+		newPath = dir;
+	    }
+	    else {
+		newPath = previousPath + ":" + dir;		
+	    }
+	    System.setProperty(jnaPathProp, newPath);
+	    log.debug("have set {} to {}", jnaPathProp, newPath);
+        }
+    
 	public synchronized boolean loadLibrary () throws IOException {
 		if (!isLoaded) {
 			detectOSAndTempDir();
@@ -84,6 +99,7 @@ public class GProMNativeLibraryLoader {
 						System.load(libraryFile.getAbsolutePath());
 						log.info("successfully loaded library from {}", libraryFile.getAbsolutePath());
 						isLoaded = true;
+						setJNALibPath(dir);
 						return true;
 					}
 					else
@@ -122,6 +138,7 @@ public class GProMNativeLibraryLoader {
 				System.load(libraryFile.getAbsolutePath());
 				log.info("loaded library {} successfully", libWithSuffix);
 				
+				setJNALibPath(tempLibDir.getAbsolutePath());
 				isLoaded = true;
 			}
 			catch (Exception e) {
