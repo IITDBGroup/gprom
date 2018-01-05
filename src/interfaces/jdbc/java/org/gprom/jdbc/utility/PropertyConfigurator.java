@@ -69,11 +69,9 @@ public class PropertyConfigurator {
 	public static void configureAndWatch(String propFile) throws Exception {
 		// try to load from classpath first
 		String path = "/" + propFile;
-		System.out.println(path);
 		InputStream in = PropertyConfigurator.class.getResourceAsStream(path);
 		
 		if (in != null) {
-			System.out.println("found stream " + path);
 			configureFromURL(in, path);
 			return;
 		}
