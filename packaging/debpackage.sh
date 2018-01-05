@@ -3,8 +3,8 @@
 # function to test exist status
 testexit()
 {
-	LOG_FILE="$1"
 	EXIT_STATUS=$?
+	LOG_FILE="$1"
 	if [ "x${EXIT_STATUS}" != "x0" ]; then
 	        echo "COMMAND EXITED WITH STATUS ${EXIT_STATUS}"
 		echo "LOG OUTPUT:"
