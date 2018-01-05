@@ -36,7 +36,7 @@ GIT_TAG="v${VERSION_NUMBER}"
 echo "check whether git version has tag ${GIT_TAG}"
 HAS_TAG=`git show-ref --tags | grep -c "${GIT_TAG}"`
 
-if [ "X${HAS_VERSION}" == "X0" ]; then
+if [ "X${HAS_TAG}" == "X0" ]; then
     echo "tag not present, create it"
     git commit -am 'commit updating reference to version in files to ${GIT_TAG}'
     git --tag -am 'GProM version ${GIT_TAG}' ${GIT_TAG}
