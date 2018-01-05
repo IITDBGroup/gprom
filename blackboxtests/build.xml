@@ -38,7 +38,7 @@
 	
 	<!-- resources -->
 	<property name="conffile.name" value="GProMDriver.properties" />
-	<property name="log4jconffile.name" value="log4j.properties" />
+	<property name="log4jconffile.name" value="log4j2.xml" />
 	
 	<!-- Main Class and Packages-->
 	<property name="package.name" value="org.gprom.jdbc.test.autotests" />

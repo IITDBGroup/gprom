@@ -73,7 +73,7 @@ public class TestGenerator {
 	}
 	
 	public static void main (String[] args) throws Exception {
-		PropertyConfigurator.configureHonoringProperties("blackboxtests/log4jtest.properties");
+		PropertyConfigurator.configureHonoringProperties("blackboxtests/log4j2-test.xml", "log4j2-test.xml", "blackboxtests/log4j2.xml", "log4j2.xml");
 		TestGenerator gen;
 		File dir;
 		PACKAGE_NAME = SystemOptionReader.inst.getEnvOrProperty("", "generator.package");

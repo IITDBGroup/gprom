@@ -30,16 +30,12 @@ public class SQLiteJDBCTest {
 	static Logger log; 
 	
 	public static void main (String[] args) throws Exception {
-		String log4jFile = "blackboxtests/log4jtest.properties";
-		
+		String log4jFile = "log4j2-test.xml";
 		
 		if (args.length == 1)
 			log4jFile = args[0];
-		
-		
-		
-		PropertyConfigurator.configureDefaultConsoleLogger(Level.DEBUG);
-//		PropertyConfigurator.configureWithDefaultAsFallback(log4jFile);
+				
+		PropertyConfigurator.configureHonoringProperties(log4jFile, "blackboxtests/log4j2.xml", "log4j2.xml");
 	
 		log = LogManager.getLogger(SQLiteJDBCTest.class);
 

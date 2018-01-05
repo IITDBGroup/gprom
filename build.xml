@@ -50,7 +50,7 @@
 	
 	<!-- special files -->
 	<property name="conffile.name" value="GProMDriver.properties" />
-	<property name="log4jconffile.name" value="log4j.properties" />
+	<property name="log4jconffile.name" value="log4j2.xml" />
 	
 	<property name="conffile" value="${dir.buildresource}/${conffile.name}" />
 	<property name="log4jconffile" value="${dir.buildresource}/${log4jconffile.name}" />
@@ -72,7 +72,7 @@
 	<target name="download-dependencies" 
 			depends="mkdirs-and-setup-props" 
 			description="use ivy to download dependencies">
-		
+		<echo>${log4jconffile.name}</echo>
 		<ivy-download-deps
 			ivyfile="${ivyfile.test}"
 			libsdir="${dir.testlib}"
@@ -229,7 +229,7 @@
 			description="create Jar file">
 		
 		<echo message="${classpath.bin.jar}" />
-		<jar destfile="${jar.bin}"  update="true">
+		<jar destfile="${jar.bin}"  update="false">
 			<manifest>
 				<attribute name="Main-Class" value="${mainclass}" />
 				<attribute name="Created-By" value="${jar.creator}" />

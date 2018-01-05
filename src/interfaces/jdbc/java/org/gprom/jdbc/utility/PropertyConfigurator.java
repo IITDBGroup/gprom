@@ -7,6 +7,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URL;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -21,6 +23,7 @@ import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilder;
 import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory;
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.logging.log4j.core.config.xml.XmlConfigurationFactory;
+import org.gprom.jdbc.jna.GProMNativeLibraryLoader;
 
 
 /**
@@ -32,10 +35,11 @@ public class PropertyConfigurator {
 	public static final String PROP_LOG_CONFIG_FILE = "log4j2.configurationFile";
 	public static final String PROP_LOG_LEVEL = "log4j2.level";
 	
-	public static void configureHonoringProperties (String xmlFile) {
+	public static void configureHonoringProperties (String ...xmlFiles) {
 		String setConfFile = SystemOptionReader.inst.getEnvOrProperty("", PROP_LOG_CONFIG_FILE);
 		String logLevel = SystemOptionReader.inst.getEnvOrProperty("", PROP_LOG_LEVEL);
-				
+		boolean foundFile = false;
+		
 		if (setConfFile != null) {
 			LogManager.getRootLogger().error("keep configuration from {}", setConfFile);
 			return;
@@ -47,20 +51,50 @@ public class PropertyConfigurator {
 			LogManager.getRootLogger().error("use default logger with log level {}",  userLevel);
 			return;
 		}
-		try {
-			configureAndWatch(xmlFile);
-		} catch (Exception e) {
-			configureDefaultConsoleLogger(Level.DEBUG);
+		for(String xmlFile: xmlFiles)
+		{	
+			if(!foundFile) {
+				try {
+					configureAndWatch(xmlFile);
+					foundFile=true;
+				} catch (Exception e) {
+				}
+			}
 		}
+		// fallback is to configure default logger with debug log level to expose problems
+		if (!foundFile)
+			configureDefaultConsoleLogger(Level.DEBUG);
 	}
 	
 	public static void configureAndWatch(String propFile) throws Exception {
+		// try to load from classpath first
+		String path = "/" + propFile;
+		System.out.println(path);
+		InputStream in = PropertyConfigurator.class.getResourceAsStream(path);
+		
+		if (in != null) {
+			System.out.println("found stream " + path);
+			configureFromURL(in, path);
+			return;
+		}
+		
+		// else try to load from file
 		File file = new File(propFile);
 		
 		if (!file.exists())
 			throw new Exception("can not find logger configuration file " + propFile);
 		 
 		configureFromFile(file);
+	}
+	
+	private static void configureFromURL (InputStream in, String path) throws IOException {
+		ConfigurationFactory configFactory = XmlConfigurationFactory.getInstance();
+        ConfigurationFactory.setConfigurationFactory(configFactory);
+        LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        ConfigurationSource configurationSource = new ConfigurationSource(in);
+
+        ctx.start(configFactory.getConfiguration(ctx, configurationSource));
+        LogManager.getRootLogger().error("recofigured from resource {}", path);
 	}
 	
 	private static void configureFromFile(File f) throws IOException {
@@ -102,29 +136,8 @@ public class PropertyConfigurator {
         LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         System.setProperty(PROP_LOG_LEVEL, logLevel.name());
         ctx.start(configFactory.getConfiguration(ctx, ConfigurationSource.NULL_SOURCE));
-//        Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.DEBUG);
-        
-//		ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
-//		builder.setStatusLevel(Level.ERROR);
-//		builder.setConfigurationName("BuilderTest");
-//		builder.add(builder.newFilter("ThresholdFilter", Filter.Result.ACCEPT, Filter.Result.NEUTRAL)
-//		    .addAttribute("level", Level.DEBUG));
-//		AppenderComponentBuilder appenderBuilder = builder.newAppender("Stdout", "CONSOLE").addAttribute("target",
-//		    ConsoleAppender.Target.SYSTEM_OUT);
-//		appenderBuilder.add(builder.newLayout("PatternLayout")
-//		    .addAttribute("pattern", "%d [%t] %-5level: %msg%n%throwable"));
-//		appenderBuilder.add(builder.newFilter("MarkerFilter", Filter.Result.DENY, Filter.Result.NEUTRAL)
-//		    .addAttribute("marker", "FLOW"));
-//		builder.add(appenderBuilder);
-//		builder.add(builder.newLogger("org.apache.logging.log4j", Level.DEBUG)
-//		    .add(builder.newAppenderRef("Stdout")).addAttribute("additivity", false));
-//		builder.add(builder.newRootLogger(Level.DEBUG).add(builder.newAppenderRef("Stdout")));
-//		LoggerContext ctx = Configurator.initialize(builder.build());
-//		ctx.reconfigure();
-//		ctx.updateLoggers();
-//		Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.DEBUG);
-////		final LoggerContext globalctx = (LoggerContext) LogManager.getContext(false);
-////		ctx.reconfigure();
+
+        LogManager.getRootLogger().error("cofigured to log to standard ourput with loglevel {}", logLevel);
 	}
 	
 }

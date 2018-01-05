@@ -26,14 +26,15 @@ import com.sun.jna.Native;
  */
 public class GProMJDBCTest {
 
-	static {
-		System.setProperty("log4j.configurationFile", "blackboxtests/log4jtest.properties");
-	}
-	
 	static Logger log = LogManager.getLogger(GProMJDBCTest.class);
 	
 	public static void main (String[] args) throws Exception {
-		PropertyConfigurator.configureAndWatch("blackboxtests/log4jtest.properties");
+		String log4jFile = "log4j2-test.xml";
+		
+		if (args.length == 1)
+			log4jFile = args[0];
+				
+		PropertyConfigurator.configureHonoringProperties(log4jFile, "blackboxtests/log4j2.xml", "log4j2.xml");
 		String driverURL = "oracle.jdbc.OracleDriver";
 //		String driverURL = "org.postgresql.Driver";
 //		String url = "jdbc:hsqldb:file:/Users/alex/db/mydb";
