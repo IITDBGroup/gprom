@@ -174,7 +174,7 @@ setupPluginsFromOptions(void)
     pluginName = getStringOption("plugin.metadata");
     if (strpeq(pluginName,"external"))
     {
-        printf("\nPLUGIN******************************************\n\n");
+        //printf("\nPLUGIN******************************************\n\n");
     }
     else
     {

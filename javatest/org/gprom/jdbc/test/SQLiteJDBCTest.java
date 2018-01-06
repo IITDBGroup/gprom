@@ -35,7 +35,7 @@ public class SQLiteJDBCTest {
 		if (args.length == 1)
 			log4jFile = args[0];
 				
-		//PropertyConfigurator.configureHonoringProperties(log4jFile, "blackboxtests/log4j2.xml", "log4j2.xml");
+		PropertyConfigurator.configureHonoringProperties(log4jFile, "blackboxtests/log4j2.xml", "log4j2.xml");
 	
 		log = LogManager.getLogger(SQLiteJDBCTest.class);
 

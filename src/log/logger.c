@@ -264,7 +264,7 @@ logNodes_(LogLevel level, const char *file, unsigned line, boolean beat, char * 
 
             va_end(args);
 
-            printf("\nCALL LOGGER ********************************************\n");
+            //printf("\nCALL LOGGER ********************************************\n");
             fflush(stdout);
             logCallback(out->data, file, line, level);
         }

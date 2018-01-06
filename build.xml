@@ -183,58 +183,18 @@
 		</javac>
 	</target>
 	
-	<!-- convenience task for compiliation without library dependency checking -->
-	<target name="jar-only" depends="mkdirs-and-setup-props">
-		<classpath-from-dir dir="${dir.buildlib}" 
-				pathname="${classpath.name.build}" 
-				pathnamejar="${classpath.name.build}.jar"/>
-		<classpath-from-dir dir="${dir.library}" 
-				pathname="${classpath.name.bin}" 
-				pathnamejar="${classpath.name.bin}.jar"/>
-		<classpath-from-dir dir="${dir.testlib}" 
-				pathname="${classpath.name.test}" 
-				pathnamejar="${classpath.name.test}.jar"/>
-		<fileset id="fat.jar.resources" 
-				dir="${dir.library}" 
-				includes="${conffile.name},${log4jconffile.name}">
-		</fileset>
-		<javac srcdir="${dir.source}" 
-				destdir="${dir.bin}"  
-				debug="on" 
-			    fork="true" 
-			    includeantruntime="false"
-				verbose="true">
-			<classpath refid="${classpath.name.bin}"/>
-			<compilerarg value="-Xlint:unchecked" />		
-		</javac>
-		<javac srcdir="${dir.testsource}" destdir="${dir.bin}" debug="on" fork="true" includeantruntime="false" verbose="true">
-			<classpath refid="${classpath.name.test}"/>
-			<compilerarg value="-Xlint:unchecked" />
-		</javac>
-		<jar destfile="${jar.bin}"  update="true">
-				<manifest>
-					<attribute name="Main-Class" value="${mainclass}" />
-					<attribute name="Created-By" value="${jar.creator}" />
-					<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" />
-				</manifest>
-				<service type="java.sql.Driver"
-			           provider="org.gprom.jdbc.driver.GProMDriver"/>
-				<fileset refid="fat.jar.resources" />
-				<fileset dir="${dir.bin}" />
-			</jar>
-	</target>
-	
 	<!-- generate a simple jar file for the jdbc driver that does not include referrenced jars and the GProM C-library -->
 	<target name="jar" 
 			depends="compile,compile-tests"
 			description="create Jar file">
 		
 		<echo message="${classpath.bin.jar}" />
+		<delete file="${jar.bin}" />
 		<jar destfile="${jar.bin}"  update="false">
 			<manifest>
 				<attribute name="Main-Class" value="${mainclass}" />
 				<attribute name="Created-By" value="${jar.creator}" />
-				<attribute name="Class-Path" value="${classpath.bin.jar}" />
+				<attribute name="Class-Path" value="${classpath.bin.jar} ." />
 			</manifest>
 			<service type="java.sql.Driver"
 		           provider="org.gprom.jdbc.driver.GProMDriver"/>
@@ -265,6 +225,8 @@
 			</patternset>
 			<path refid="jarclasspath" />
 		</unjar>
+
+		<delete file="${jar.bin.fat}" />
 		<jar destfile="${jar.bin.fat}" zip64Mode="as-needed" update="false">
 			<manifest>
 				<attribute name="Main-Class" value="${mainclass}" />

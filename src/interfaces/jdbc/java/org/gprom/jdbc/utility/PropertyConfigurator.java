@@ -41,6 +41,12 @@ public class PropertyConfigurator {
 		boolean foundFile = false;
 		
 		if (setConfFile != null) {
+			try {
+				configureAndWatch(setConfFile);
+			}
+			catch (Exception e) {
+				configureDefaultConsoleLogger(Level.DEBUG);
+			}
 			LogManager.getRootLogger().error("keep configuration from {}", setConfFile);
 			return;
 		}
