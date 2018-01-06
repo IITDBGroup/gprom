@@ -63,7 +63,7 @@ Node *oracleParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME 
-%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT
+%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
@@ -140,7 +140,7 @@ Node *oracleParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec coarseGrainedSpec optionalCoarseGrainedPara
-%type <list> fragmentList
+%type <list> fragmentList pageList
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -695,7 +695,37 @@ coarseGrainedSpec:
 			RULELOG("coarse_grained::fragmentlist");
 			$$ = (Node *) $3;
 		}
+		|
+		PAGE '(' pageList ')'
+		{
+			RULELOG("coarse_grained::pagelist");
+			$$ = (Node *) $3;
+		}
 	;
+	
+pageList:
+       identifier intConst optionalCoarseGrainedPara
+       {
+            RULELOG("pageList::identifier::identifier");
+            List *l = NIL;
+            if($3 == NULL)
+            		l = singleton(createConstInt($2)); 
+            else
+                l = CONCAT_LISTS(singleton(createConstInt($2)), singleton($3)); 
+            KeyValue *k = createNodeKeyValue((Node *) createConstString($1), 
+            									(Node *) l);
+            $$ = singleton(k);
+       }
+       |
+       pageList ',' identifier intConst
+       {
+            RULELOG("pageList::pageList::pageList");
+            List *l = singleton(createConstInt($4)); 
+            KeyValue *k = createNodeKeyValue((Node *) createConstString($3), 
+            									(Node *) l);
+            $$ = appendToTailOfList($1, k);
+       }
+    ;
 
 fragmentList:
        identifier '(' identifierList ')' intConst optionalCoarseGrainedPara

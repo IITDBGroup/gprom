@@ -1552,6 +1552,60 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
          }
     }
 
+    DEBUG_LOG("list length is %d", coaParaValueList->length);
+    Constant *flagValue = (Constant *) getHeadOfListP(coaParaValueList);
+
+    //two cases: fragment or page
+    ProjectionOperator *newpo = NULL;
+    FunctionCall *of = NULL;
+    if(flagValue->constType == DT_INT)  //if the first element is INT (e.g., 32 in (R 32), list value is {32}), this is page
+    {
+    	DEBUG_LOG("deal with page");
+    	DEBUG_LOG("value is %d", INT_VALUE(flagValue));
+    	Constant *orhashValue = createConstInt(INT_VALUE(flagValue));
+
+    	//add ROWID attr into tableAccess operator
+    	AttributeDef *rid = createAttributeDef("ROWID", DT_LONG);
+    	QueryOperator *opTable = (QueryOperator *) op;
+
+    	//List *projExpr = copyObject(opTable->schema->attrDefs); //old table access operator defs
+    	opTable->schema->attrDefs = appendToTailOfList(opTable->schema->attrDefs, rid);
+
+    	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+    	provAttr = appendToTailOfList(provAttr, newAttrName);
+
+    	//functioncall substr(ROWID,7,3)
+    	AttributeReference *ridAttr = createAttrsRefByName(opTable,"ROWID");
+    	Constant *pagePos = createConstInt(7);
+    	Constant *pageLong = createConstInt(3);
+    	FunctionCall *substr = createFunctionCall ("SUBSTR", LIST_MAKE(ridAttr, pagePos, pageLong));
+
+    of = createFunctionCall ("ORA_HASH", LIST_MAKE(substr, orhashValue));
+
+//    	//create power(2, ORA_HASH(A,32)) functioncall
+//    	Constant *tw = createConstInt(2);
+//    	List *pl = LIST_MAKE(tw,of);
+//    	FunctionCall *pf = createFunctionCall ("POWER", pl);
+//
+//    	projExpr = appendToTailOfList(projExpr, pf);
+//    	List *newProvPosList = singletonInt(cnt);
+//    	// Create a new projection operator with these new attributes
+//    	newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
+//    	newpo->op.provAttrs = newProvPosList;
+//    	SET_BOOL_STRING_PROP((QueryOperator *)newpo, PROP_PROJ_PROV_ATTR_DUP);
+//
+//    	// Switch the subtree with this newly created projection operator.
+//    	switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
+//
+//    	// Add child to the newly created projections operator,
+//    	addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
+
+    }
+    else  //if the first element is STRING (e.g., A in (R(A) 32), list value is {A,32}), this is fragment
+    {
+
+    	DEBUG_LOG("deal with fragment");
+
     Constant *num = (Constant *) getTailOfListP(coaParaValueList);  //128
     coaParaValueList = removeFromTail(coaParaValueList);
 
@@ -1576,20 +1630,20 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
         ol = LIST_MAKE(concatExprList(fList),num);
     }
 
-    FunctionCall *of = createFunctionCall ("ORA_HASH", ol);
+    of = createFunctionCall ("ORA_HASH", ol);
+    }
 
     //create power(2, ORA_HASH(A,32)) functioncall
-//    Constant *tw = createConstInt(2);
-//    List *pl = LIST_MAKE(tw,of);
-//    FunctionCall *pf = createFunctionCall ("POWER", pl);
+    Constant *tw = createConstInt(2);
+    List *pl = LIST_MAKE(tw,of);
+    FunctionCall *pf = createFunctionCall ("POWER", pl);
 
-    //using shift right: shright(4294967296,32-ORA_HASH(C_NATIONKEY, 32))
-    Operator *sor = createOpExpr("-", LIST_MAKE(copyObject(num),of));
-    //the power of 2 always lack 1, so here after power of 2 and then +1
-    //but has the overflow problem
-    Constant *sol = createConstLong(pow(2, INT_VALUE(num)) + 1);
-    FunctionCall *pf = createFunctionCall ("SHRIGHT", LIST_MAKE(sol,sor));
-
+//    //using shift right: shright(4294967296,32-ORA_HASH(C_NATIONKEY, 32))
+//    Operator *sor = createOpExpr("-", LIST_MAKE(copyObject(num),of));
+//    //the power of 2 always lack 1, so here after power of 2 and then +1
+//    //but has the overflow problem
+//    Constant *sol = createConstLong(pow(2, INT_VALUE(num)) + 1);
+//    FunctionCall *pf = createFunctionCall ("SHRIGHT", LIST_MAKE(sol,sor));
 
     projExpr = appendToTailOfList(projExpr, pf);
 
@@ -1601,7 +1655,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
             nodeToString(newProvPosList));
 
     // Create a new projection operator with these new attributes
-    ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
+    newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
     newpo->op.provAttrs = newProvPosList;
     SET_BOOL_STRING_PROP((QueryOperator *)newpo, PROP_PROJ_PROV_ATTR_DUP);
 
@@ -1614,6 +1668,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     DEBUG_LOG("rewrite table access: %s", operatorToOverviewString((Node *) newpo));
     return (QueryOperator *) newpo;
 }
+
 
 
 static QueryOperator *
