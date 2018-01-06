@@ -18,7 +18,7 @@
 	</presetdef> -->
 	
 	<!-- Main Class and Packages-->
-  	<property name="mainclass" value="org.gprom.jdbc.test.SQLiteJDBCTest" />
+  	<property name="mainclass" value="sqlline.SQLLineCommandLine" />
 	<property name="jar.creator" value="Illinois Institute of Technology, Department of Computer Science, DBGroup" />
 	<property name="package" value="*" />
 	<property name="mvn.description" value="GProM is a provenance database middleware." />
@@ -59,13 +59,35 @@
 	
 	<!-- GProM c-library -->
 	<property name="nativebindir.name" value="libgpromnative" />
+	<property name="nativesrcdir.name" value="src/libgprom/.libs" />
+	
 	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.dylib" />
 	<property name="gpromlib.darwin.bin" value="${dir.bin}/${nativebindir.name}/darwin_x64/libgprom.dylib" />
-<!--	<property name="gpromlib.darwin" value="${dir.build}/libgprom.jnilib" />	-->
 	
 	<property name="gpromlib.linux.src" value="${basedir}/src/libgprom/.libs/libgprom.so" />
 	<property name="gpromlib.linux.bin" value="${dir.bin}/${nativebindir.name}/linux_x64/libgprom.so" />
-<!--	<property name="gpromlib.linux" value="${dir.build}/libgprom.so" />   -->
+
+	<!-- settings for cross compilation and native library versions -->
+	<property name="gpromlib.linux32.name" value="libgprom.so" />
+	<property name="gpromlib.linux32.folder" value="linux_x32" />
+	
+	<property name="gpromlib.linux64.name" value="libgprom.so" />
+	<property name="gpromlib.linux64.folder" value="linux_x64" />
+	<property name="gpromlib.linux64.path" value="${dir.bin}/${nativebindir.name}/${gpromlib.linux64.folder}/${gpromlib.linux64.name}" />
+
+	<property name="gpromlib.darwin64.name" value="libgprom.dylib" />
+	<property name="gpromlib.darwin64.folder" value="darwin_x64" />
+	<property name="gpromlib.darwin64.path" value="${dir.bin}/${nativebindir.name}/${gpromlib.darwin64.folder}/${gpromlib.darwin64.name}" />
+
+	<property name="gpromlib.windows32.name" value="libgprom.dll" />
+	<property name="gpromlib.windows32.folder" value="windows_x32" />
+	<property name="gpromlib.windows32.path" value="${dir.bin}/${nativebindir.name}/${gpromlib.windows32.folder}/${gpromlib.windows32.name}" />
+	
+	<property name="gpromlib.windows64.name" value="libgprom.dll" />
+	<property name="gpromlib.windows64.folder" value="windows_x64" />
+	<property name="gpromlib.windows64.path" value="${dir.bin}/${nativebindir.name}/${gpromlib.windows64.folder}/${gpromlib.windows64.name}" />
+	
+	
 	
 	<!-- TARGETS -->	
 	<!-- download dependencies with ivy -->
@@ -97,17 +119,39 @@
 		</taskdef>
 	</target>
 	
+	<!-- download sources for dependencies -->
+	<target name="download-deps-src"
+		description="download source code of java dependencies using ivy"
+		depends="download-dependencies">
+		<ivy:retrieve sync="false" 
+			type="source" 
+			pattern="${dir.library}/[artifact]-[revision]-src.[ext]" />
+	</target>
+	
 	<!-- check OS type -->
 	<target name="handle-os" 
 			depends="setup-additional-anttasks">
+		
 		<detect-os />
+		<file-contains-string 
+			file="${basedir}/config.h" 
+			substring="COMPILER_OSARCH &quot;64&quot;"
+			propname="configure.os.arch.is64"
+			/>
+		<sequential if:set="configure.os.arch.is64" >
+			<property name="configure.os.arch" value="64" />
+		</sequential>
+		<sequential unless:set="configure.os.arch.is64" >
+			<property name="configure.os.arch" value="32" />
+		</sequential>	
+		
 		<if>
 	        <equals arg1="${os.type}" arg2="mac" />
 	        <then>
-	            <echo message="Mac system" />
 		        	<property name="gpromlib.src" value="${gpromlib.darwin.src}" />
 		        	<property name="gpromlib.bin" value="${gpromlib.darwin.bin}" />
-		        <!--	<property name="gpromlib" value="${gpromlib.darwin}" /> -->
+	        		<property name="gpromlib.dir" value="${gpromlib.darwin64.folder}" />
+	        		<property name="gpromlib.libname" value="${gpromlib.darwin64.name}" />
 	        </then>
 		</if>
 		<if>
@@ -116,10 +160,26 @@
 	            <echo message="Linux system" />
 		        	<property name="gpromlib.src" value="${gpromlib.linux.src}" />
 		        	<property name="gpromlib.bin" value="${gpromlib.linux.bin}" />
-		        <!--	<property name="gpromlib" value="${gpromlib.linux}" /> -->
+	        		<if>
+	        			<equals arg1="${configure.os.arch}" arg2="32" />
+	        			<then>
+		    	        		<property name="gpromlib.dir" value="${gpromlib.linux32.folder}" />
+		    	        		<property name="gpromlib.libname" value="${gpromlib.linux32.name}" />
+	        			</then>
+	        			<else>
+		    	        		<property name="gpromlib.dir" value="${gpromlib.linux64.folder}" />
+		    	        		<property name="gpromlib.libname" value="${gpromlib.linux64.name}" />
+	        			</else>
+	    			</if>
 	        </then>
 		</if>
-    </target>
+		
+		<property name="native.untar.dir" value="gprom-${ivy.revision}" />		
+		<property name="gpromlib.cross" value="${dir.build}/${gpromlib.dir}/${native.untar.dir}/${nativesrcdir.name}/${gpromlib.libname}" />
+
+		
+        <echo message="${os.type} (${configure.os.arch} bit) system: library location: ${gpromlib.src} place in ${gpromlib.bin} and cross compiled version in ${gpromlib.cross}" />
+	</target>
 	
 	<!-- build targets -->
 	<target name="clean" 
@@ -150,13 +210,26 @@
 		depends="clean"
 		description="compile JDBC Java files">
 
-	        <!-- do not overwrite the library if it is there (to make sure crosscompiled libs are not overwritten)) -->
-	<!--	<copy file="${gpromlib.src}" tofile="${gpromlib}" overwrite="false" /> -->
 		<copy todir="${dir.build}/lib">
 			<fileset dir="${dir.library}" />
 		</copy>
-		<copy file="${gpromlib.src}" tofile="${gpromlib.bin}" overwrite="false" />
-	<!--	<copy file="${conffile}" tofile="${dir.bin}/GPRoMDriver.properties" /> -->
+		
+		<!-- copy native library into right directory --> 
+		<!-- if a crosscompiled version is available then use this, because it is guaranteed to not have any dependencies on OCI and such -->
+		<set-prop-if-exists 
+			file="${gpromlib.cross}" 
+			type="file"
+			propname="have.crosscompiled.native"
+			message="have crosscompiled version of host libprom native library use this: ${gpromlib.cross}"
+			failmessage="only have host compiled version of libprom native library: ${gpromlib.src}" />
+		
+		<sequential if:set="have.crosscompiled.native">
+			<copy file="${gpromlib.cross}" tofile="${gpromlib.bin}" overwrite="true" />
+		</sequential>
+		<sequential unless:set="have.crosscompiled.native">
+			<copy file="${gpromlib.src}" tofile="${gpromlib.bin}" overwrite="true" />
+		</sequential>
+	
 		<javac srcdir="${dir.source}" 
 				destdir="${dir.bin}"  
 				debug="on" 
@@ -231,7 +304,7 @@
 			<manifest>
 				<attribute name="Main-Class" value="${mainclass}" />
 				<attribute name="Created-By" value="${jar.creator}" />
-<!--				<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" /> -->
+				<attribute name="Class-Path" value="." />
 			</manifest>
 			<zipfileset dir="${dir.tmpjar}" includes="**/*" />
 			<service type="java.sql.Driver"
@@ -289,42 +362,42 @@
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-linux-x64" 
 			dockerimage="dockcross/linux-x64"
-			outfolder="linux_x64" 
+			outfolder="${gpromlib.linux64.folder}" 
 			libpath="${libgpromdir}/libgprom.so.${gprom.libtool.version}"
-			libname="libgprom.so"
+			libname="${gpromlib.linux64.name}"
 			mountdir="${gprombase}"/>
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-linux-x86" 
 			dockerimage="dockcross/linux-x86"
-			outfolder="linux_x32" 
+			outfolder="${gpromlib.linux32.folder}" 
 			libpath="${libgpromdir}/libgprom.so.${gprom.libtool.version}"
-			libname="libgprom.so"
+			libname="${gpromlib.linux32.name}"
 			addargs="--build=x86_64-pc-linux-gnu --host=x86-pc-linux-gnu" 
 			mountdir="${gprombase}" />
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-windows-x86"
 			dockerimage="dockcross/windows-x86" 
-			outfolder="windows_x32" 
+			outfolder="${gpromlib.windows32.folder}" 
 			libpath="${libgpromdir}/libgprom-${gprom.major.version}.dll" 
 			libpath2="${libgpromdir}/libgprom.lai"
-			libname="libgprom.dll"
+			libname="${gpromlib.windows32.name}"
 			addargs="--build=x86_64-pc-linux-gnu --host=i686-pc-mingw32"
 			mountdir="${gprombase}"/>
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-windows-x64" 
 			dockerimage="dockcross/windows-x64" 
-			outfolder="windows_x64" 
+			outfolder="${gpromlib.windows64.folder}" 
 			libpath="${libgpromdir}/libgprom-${gprom.major.version}.dll" 
 			libpath2="${libgpromdir}/libgprom.lai"
-			libname="libgprom.dll"
+			libname="${gpromlib.windows64.name}"
 			addargs="--build=x86_64-pc-linux-gnu --host=x86_64-pc-mingw64"
 			mountdir="${gprombase}"/>
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-linux-x64" 
 			dockerimage="multiarch/crossbuild"
-			outfolder="darwin_x64" 
+			outfolder="${gpromlib.darwin64.folder}" 
 			libpath="${libgpromdir}/libgprom.${gprom.major.version}.dylib"
-			libname="libgprom.dylib"
+			libname="${gpromlib.darwin64.name}"
 			addargs="--build=x86_64-pc-linux-gnu --host=x86_64-apple-darwin"
 			dockerargs="-w /workdir -e CC=/usr/x86_64-apple-darwin14/bin/cc -e PATH=/usr/x86_64h-apple-darwin14/bin/:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -e LD_LIBRARY_PATH=/usr/x86_64-linux-gnu/x86_64-apple-darwin14/lib/"
 			containerworkdir="/workdir"

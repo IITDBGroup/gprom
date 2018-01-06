@@ -86,6 +86,7 @@ assembleExternalMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
     p->getCommitScn = externalGetCommitScn;
     p->executeQuery = externalGenExecQuery;
     p->executeQueryIgnoreResult = externalGenExecQueryIgnoreQuery;
+    p->getCostEstimation = externalGetCostEstimation;
 
     p->cache = createCache();
     p->cache->cacheHook = plugin;
@@ -335,4 +336,11 @@ static void
 externalGenExecQueryIgnoreQuery (char *query)
 {
     //TODO
+}
+
+static int
+externalGetCostEstimation (char *query)
+{
+    EXTERNAL_PLUGIN;
+    return extP->getCostEstimation(query);
 }

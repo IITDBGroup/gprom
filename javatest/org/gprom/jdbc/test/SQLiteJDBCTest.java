@@ -66,7 +66,7 @@ public class SQLiteJDBCTest {
 			System.err.println("Something went wrong while connecting to the database.");
 			System.exit(-1);
 		}
-		System.out.println("Connection was successfully");
+		System.out.println("Connection was successful");
 
 		con.getW().setLogLevel(4);
 		con.getW().setBoolOption("pi_cs_use_composable", false);
@@ -102,8 +102,9 @@ public class SQLiteJDBCTest {
 		rs = st.executeQuery("SELECT sum(a) AS X FROM R;");
 		printResult(rs);
 		
-//		rs = st.executeQuery("SELECT sum(a) AS x FROM R;");
-//		printResult(rs);
+		rs = st.executeQuery("REENACT WITH PROVENANCE  (UPDATE R SET A = a + 10; INSERT INTO R VALUES ('1','4'); UPDATE R SET B = 6 WHERE a =12;);");
+		//rs = st.getResultSet();
+		printResult(rs);
 //
 //		rs = st.executeQuery("PROVENANCE OF (SELECT sum(a) AS x FROM R);");
 //		printResult(rs);
@@ -128,7 +129,8 @@ public class SQLiteJDBCTest {
 	}
 
 	private static void printResult(ResultSet rs) throws SQLException {
-		/********************************************************************************/
+		System.out.println("********************************************************************************");
+		
 		System.out.println();
 		System.out.println("-------------------------------------------------------------------------------");
 		for(int i = 1; i <= rs.getMetaData().getColumnCount(); i++)

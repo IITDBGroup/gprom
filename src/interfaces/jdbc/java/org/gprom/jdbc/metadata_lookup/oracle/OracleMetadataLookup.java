@@ -7,7 +7,9 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Formatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +58,10 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 			+ "WHERE TABLE_NAME = ? AND OWNER = ?";
 	private static final String SQLviewExists = "SELECT count(*) FROM dba_views "
 			+ "WHERE VIEW_NAME = ? AND OWNER = ?";
-			
+	private static final String SQLExplainPlan = "EXPLAIN PLAN FOR %s;";
+	private static final String SQLGetCost = "SELECT MAX(COST) FROM PLAN_TABLE;";
+	private static final String SQLCleanPlanTable = "DELETE FROM PLAN_TABLE;";
+	
 	private enum StmtTypes {
 		getAttr,
 		getAttrDef,
@@ -102,6 +107,14 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 			p.setString(i++, par);
 		}
 		rs = p.executeQuery();
+		
+		return rs;
+	}
+	
+	private ResultSet runQuery (Statement s, String query) throws SQLException {
+		ResultSet rs = null;
+		
+		rs =  s.executeQuery(query);
 		
 		return rs;
 	}
@@ -488,6 +501,38 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 		}
 	}
 	
+	@Override
+	public int getCostEstimation (String query) {
+		Statement s; 
+		String oneLineQ = query.replace("\n", " ");
+		StringBuilder explain = new StringBuilder();
+		ResultSet rs = null;
+		int cost = -1;
+		Formatter f = new Formatter(explain);
+		
+		try {
+			s = con.createStatement();
+			f.format(SQLExplainPlan, oneLineQ);
+			rs = runQuery(s, explain.toString());
+			safeClose(rs);
+			
+			rs = runQuery(s, SQLGetCost);
+			if (rs.next()) {
+				cost = rs.getInt(1);
+			}
+			safeClose(rs);
+			
+			s.execute(SQLCleanPlanTable);
+			s.close();
+		}
+		catch (SQLException e) {
+			LoggerUtil.logException(e, log);
+		}
+		finally {
+			f.close();
+		}
+		return cost;
+	}
 	
 	
 }

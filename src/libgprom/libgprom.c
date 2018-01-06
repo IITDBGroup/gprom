@@ -124,7 +124,6 @@ gprom_rewriteQuery(const char *query)
     ON_EXCEPTION
     {
         ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
-        UNLOCK_MUTEX();
         returnResult = NULL;
     }
     END_ON_EXCEPTION
@@ -132,6 +131,24 @@ gprom_rewriteQuery(const char *query)
     return returnResult;
 }
 
+const gprom_long_t
+gprom_costQuery(const char *query)
+{
+    gprom_long_t result = -1;
+    LOCK_MUTEX();
+    TRY
+    {
+        char *qCopy = strdup((char *) query);
+        result = (gprom_long_t) costQuery(qCopy);
+    }
+    ON_EXCEPTION
+    {
+        ERROR_LOG("\nLIBGPROM Error occured\n%s", currentExceptionToString());
+    }
+    END_ON_EXCEPTION
+    UNLOCK_MUTEX();
+    return result;
+}
 
 void
 gprom_registerLoggerCallbackFunction (GProMLoggerCallbackFunction callback)

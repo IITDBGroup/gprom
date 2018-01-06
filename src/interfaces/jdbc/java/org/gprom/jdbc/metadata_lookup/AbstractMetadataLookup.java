@@ -26,6 +26,7 @@ import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.databaseConnectionClose_call
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.databaseConnectionOpen_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getAttributeDefaultVal_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getAttributeNames_callback;
+import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getCostEstimation_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getDataTypes_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getFuncReturnType_callback;
 import org.gprom.jdbc.jna.GProMMetadataLookupPlugin.getKeyInformation_callback;
@@ -327,6 +328,21 @@ public abstract class AbstractMetadataLookup {
 			}
 			
 		};
+		plugin.getCostEstimation = new getCostEstimation_callback() {
+			
+			@Override
+			public int apply(String query) {
+				return getCostEstimation(query);
+			}
+		};
+	}
+
+	/**
+	 * @param query
+	 * @return
+	 */
+	public int getCostEstimation(String query) {
+		return 0;
 	}
 
 	private String pointerToString(Pointer p) {

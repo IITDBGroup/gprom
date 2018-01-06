@@ -43,7 +43,6 @@ public class GProMJDBCTest {
 		String password; // = "XXX";
 //		String username = "postgres";
 //		String password = "";
-//		String host = "ligeti.cs.iit.edu";
 		String host = "127.0.0.1";
 		String port = "1521";
 		String sid = "orcl";
@@ -53,10 +52,10 @@ public class GProMJDBCTest {
 		System.out.println("am here!!!!!!!!!");
 		
 		//get password
-//		System.out.print("enter password: ");
-//		Scanner in = new Scanner(System.in);
-//		password = in.nextLine();
-		password = "testuser_man";
+		System.out.print("enter password: ");
+		Scanner in = new Scanner(System.in);
+		password = in.nextLine();
+
 		// setup url
 		url = "jdbc:gprom:oracle:thin:" + username + "/" + password + 
 				"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";

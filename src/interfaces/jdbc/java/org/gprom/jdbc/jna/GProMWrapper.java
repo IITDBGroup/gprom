@@ -56,6 +56,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	private GProM_JNA.GProMExceptionCallbackFunction exceptionCallback;
 	private List<ExceptionInfo> exceptions;
 	private GProMMetadataLookupPlugin p;
+	private boolean initialized;
 	
 	// singleton instance	
 	public static GProMWrapper inst = new GProMWrapper ();
@@ -65,6 +66,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	}
 
 	private GProMWrapper () {
+		initialized = false;
 		exceptions = new ArrayList<ExceptionInfo> ();
 	}
 
@@ -112,6 +114,9 @@ public class GProMWrapper implements GProMJavaInterface {
 	}
 
 	public void init () {
+		if (initialized)
+			return;
+		
 		loggerCallback = new GProM_JNA.GProMLoggerCallbackFunction () {
 			public void invoke(String message, String file, int line, int level) {
 				logCallbackFunction(message, file, line, level);
@@ -131,6 +136,8 @@ public class GProMWrapper implements GProMJavaInterface {
 		GProM_JNA.INSTANCE.gprom_registerExceptionCallbackFunction(exceptionCallback);
 		GProM_JNA.INSTANCE.gprom_init();
 		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(4);
+		
+		initialized = true;
 	}
 
 	public void setLogLevel (int level)

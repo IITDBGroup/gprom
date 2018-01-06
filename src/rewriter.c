@@ -385,6 +385,12 @@ rewriteQueryWithRethrow(char *input)
     return rewriteQueryInternal(input, TRUE);
 }
 
+int
+costQuery (char *input)
+{
+    return getCostEstimation(input);
+}
+
 char *
 rewriteQueryFromStream (FILE *stream) {
     Node *parse;
