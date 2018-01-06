@@ -1561,14 +1561,13 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     if(flagValue->constType == DT_INT)  //if the first element is INT (e.g., 32 in (R 32), list value is {32}), this is page
     {
     	DEBUG_LOG("deal with page");
-    	DEBUG_LOG("value is %d", INT_VALUE(flagValue));
+    	DEBUG_LOG("hash value is %d", INT_VALUE(flagValue));
     	Constant *orhashValue = createConstInt(INT_VALUE(flagValue));
 
     	//add ROWID attr into tableAccess operator
     	AttributeDef *rid = createAttributeDef("ROWID", DT_LONG);
     	QueryOperator *opTable = (QueryOperator *) op;
 
-    	//List *projExpr = copyObject(opTable->schema->attrDefs); //old table access operator defs
     	opTable->schema->attrDefs = appendToTailOfList(opTable->schema->attrDefs, rid);
 
     	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
@@ -1581,24 +1580,6 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     	FunctionCall *substr = createFunctionCall ("SUBSTR", LIST_MAKE(ridAttr, pagePos, pageLong));
 
     of = createFunctionCall ("ORA_HASH", LIST_MAKE(substr, orhashValue));
-
-//    	//create power(2, ORA_HASH(A,32)) functioncall
-//    	Constant *tw = createConstInt(2);
-//    	List *pl = LIST_MAKE(tw,of);
-//    	FunctionCall *pf = createFunctionCall ("POWER", pl);
-//
-//    	projExpr = appendToTailOfList(projExpr, pf);
-//    	List *newProvPosList = singletonInt(cnt);
-//    	// Create a new projection operator with these new attributes
-//    	newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
-//    	newpo->op.provAttrs = newProvPosList;
-//    	SET_BOOL_STRING_PROP((QueryOperator *)newpo, PROP_PROJ_PROV_ATTR_DUP);
-//
-//    	// Switch the subtree with this newly created projection operator.
-//    	switchSubtrees((QueryOperator *) op, (QueryOperator *) newpo);
-//
-//    	// Add child to the newly created projections operator,
-//    	addChildOperator((QueryOperator *) newpo, (QueryOperator *) op);
 
     }
     else  //if the first element is STRING (e.g., A in (R(A) 32), list value is {A,32}), this is fragment
