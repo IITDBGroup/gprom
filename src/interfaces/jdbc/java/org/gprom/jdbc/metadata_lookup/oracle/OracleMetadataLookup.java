@@ -7,7 +7,9 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Formatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +58,10 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 			+ "WHERE TABLE_NAME = ? AND OWNER = ?";
 	private static final String SQLviewExists = "SELECT count(*) FROM dba_views "
 			+ "WHERE VIEW_NAME = ? AND OWNER = ?";
-			
+	private static final String SQLExplainPlan = "EXPLAIN PLAN FOR %s;";
+	private static final String SQLGetCost = "SELECT MAX(COST) FROM PLAN_TABLE;";
+	private static final String SQLCleanPlanTable = "DELETE FROM PLAN_TABLE;";
+	
 	private enum StmtTypes {
 		getAttr,
 		getAttrDef,
@@ -72,7 +77,8 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 	 * @throws SQLException
 	 */
 	public OracleMetadataLookup(Connection con) throws SQLException {
-		super(con);
+		this.con = con;
+		createPlugin(this);
 		setupStmts();
 	}
 	
@@ -101,6 +107,14 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 			p.setString(i++, par);
 		}
 		rs = p.executeQuery();
+		
+		return rs;
+	}
+	
+	private ResultSet runQuery (Statement s, String query) throws SQLException {
+		ResultSet rs = null;
+		
+		rs =  s.executeQuery(query);
 		
 		return rs;
 	}
@@ -190,7 +204,9 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 	 * @return
 	 */
 	public int viewExists(String viewName) {
-		return tableExistsForTypes(viewName, false) ? 1 : 0;
+		boolean result = tableExistsForTypes(viewName, false);
+		log.debug("table {} exists {}", viewName, result);	
+		return result ? 1 : 0;
 	}
 	
 	/**
@@ -198,12 +214,17 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 	 * @return
 	 */
 	public int tableExists(String tableName) {
-		return tableExistsForTypes(tableName, true) ? 1 : 0;
+//		return 1;
+		boolean result = tableExistsForTypes(tableName, true); 
+		log.debug("table {} exists {}", tableName, result);
+		return result ? 1 : 0;
 	}
 	
 	public boolean tableExistsForTypes (String tableName, boolean isTable) {
 		int result = -1;
 		ResultSet rs = null;
+		
+		log.debug("check for tablename {} is table? {}", tableName, isTable);
 		
 		try {
 			if (isTable)
@@ -215,6 +236,8 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 			}
 		    rs.close();
 			
+		    log.debug("table {} exists: {}", tableName, result);
+		    
 			return result == 1;
 		}
 		catch (SQLException e) {
@@ -478,6 +501,38 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 		}
 	}
 	
+	@Override
+	public int getCostEstimation (String query) {
+		Statement s; 
+		String oneLineQ = query.replace("\n", " ");
+		StringBuilder explain = new StringBuilder();
+		ResultSet rs = null;
+		int cost = -1;
+		Formatter f = new Formatter(explain);
+		
+		try {
+			s = con.createStatement();
+			f.format(SQLExplainPlan, oneLineQ);
+			rs = runQuery(s, explain.toString());
+			safeClose(rs);
+			
+			rs = runQuery(s, SQLGetCost);
+			if (rs.next()) {
+				cost = rs.getInt(1);
+			}
+			safeClose(rs);
+			
+			s.execute(SQLCleanPlanTable);
+			s.close();
+		}
+		catch (SQLException e) {
+			LoggerUtil.logException(e, log);
+		}
+		finally {
+			f.close();
+		}
+		return cost;
+	}
 	
 	
 }

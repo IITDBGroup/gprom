@@ -31,7 +31,8 @@ public class GProMNativeLibraryLoader {
 	
 	public static final GProMNativeLibraryLoader inst = new GProMNativeLibraryLoader();
 	private static final String libraryName = "gprom";
-	private static final Map<OSArchType,String> libextensions = new HashMap<OSArchType,String> ();
+        private static final String jnaPathProp = "jna.library.path";
+        private static final Map<OSArchType,String> libextensions = new HashMap<OSArchType,String> ();
 	private static final Map<OSArchType,String> folderName = new HashMap<OSArchType,String> ();
 	private static final String relativeOffset = "";
 	
@@ -43,18 +44,19 @@ public class GProMNativeLibraryLoader {
 		libextensions.put(OSArchType.Windows32, "dll");
 		libextensions.put(OSArchType.Windows64, "dll");
 		
-		folderName.put(OSArchType.Mac32,  "darwin32");
-		folderName.put(OSArchType.Mac64,  "darwin64");
-		folderName.put(OSArchType.Linux32,  "linux32");
-		folderName.put(OSArchType.Linux64,  "linux64");
-		folderName.put(OSArchType.Windows32,  "windows32");
-		folderName.put(OSArchType.Windows64,  "windows64");
+		folderName.put(OSArchType.Mac32,  "libgpromnative/darwin_x32");
+		folderName.put(OSArchType.Mac64,  "libgpromnative/darwin_x64");
+		folderName.put(OSArchType.Linux32,  "libgpromnative/linux_x32");
+		folderName.put(OSArchType.Linux64,  "libgpromnative/linux_x64");
+		folderName.put(OSArchType.Windows32,  "libgpromnative/windows_x32");
+		folderName.put(OSArchType.Windows64,  "libgpromnative/windows_x64");
 	}
 	
 	
 	private boolean isLoaded = false;
 	private OSArchType os;
 	private String tempDir;
+	private File tempLibDir;
 	private String libWithSuffix;
 	private File libDir;
 	private File libraryFile;
@@ -63,7 +65,21 @@ public class GProMNativeLibraryLoader {
 	public GProMNativeLibraryLoader () {
 		
 	}
-	
+
+        private void setJNALibPath(String dir) {
+	    String previousPath = System.getProperty(jnaPathProp);
+	    String newPath;
+	    
+	    if (previousPath == null || previousPath.trim().equals("")) {
+		newPath = dir;
+	    }
+	    else {
+		newPath = previousPath + ":" + dir;		
+	    }
+	    System.setProperty(jnaPathProp, newPath);
+	    log.debug("have set {} to {}", jnaPathProp, newPath);
+        }
+    
 	public synchronized boolean loadLibrary () throws IOException {
 		if (!isLoaded) {
 			detectOSAndTempDir();
@@ -83,6 +99,7 @@ public class GProMNativeLibraryLoader {
 						System.load(libraryFile.getAbsolutePath());
 						log.info("successfully loaded library from {}", libraryFile.getAbsolutePath());
 						isLoaded = true;
+						setJNALibPath(dir);
 						return true;
 					}
 					else
@@ -103,7 +120,7 @@ public class GProMNativeLibraryLoader {
 				log.debug("open input stream to {}/{}", folder, libWithSuffix);
 				in = GProMNativeLibraryLoader.class.getResourceAsStream(resource);
 				
-				libraryFile = new File(libDir, libWithSuffix);
+				libraryFile = new File(tempLibDir, libWithSuffix);
 				
 				// set permissions
 				libraryFile.setReadable(true);
@@ -121,6 +138,7 @@ public class GProMNativeLibraryLoader {
 				System.load(libraryFile.getAbsolutePath());
 				log.info("loaded library {} successfully", libWithSuffix);
 				
+				setJNALibPath(tempLibDir.getAbsolutePath());
 				isLoaded = true;
 			}
 			catch (Exception e) {
@@ -128,8 +146,8 @@ public class GProMNativeLibraryLoader {
 				LoggerUtil.logException(e, log);
 				if (libraryFile != null)
 					libraryFile.delete();
-				if (libDir != null)
-					libDir.delete();
+				if (tempLibDir != null)
+					tempLibDir.delete();
 				throw(e);
 			}
 			finally {
@@ -146,10 +164,10 @@ public class GProMNativeLibraryLoader {
 	 * 
 	 */
 	private void createTmpDirForLib() throws IOException {
-		libDir = new File(tempDir, UUID.randomUUID().toString());
-		if (!libDir.mkdir())
-			throw new IOException("was not able to create directory for library: " + libDir.toString());
-		libDir.deleteOnExit();
+		tempLibDir = new File(tempDir, UUID.randomUUID().toString());
+		if (!tempLibDir.mkdir())
+			throw new IOException("was not able to create directory for library: " + tempLibDir.toString());
+		tempLibDir.deleteOnExit();
 	}
 
 	/**

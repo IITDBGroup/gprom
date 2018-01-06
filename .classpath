@@ -44,5 +44,8 @@
 	<classpathentry kind="lib" path="build/javalib/xerces.xercesImpl.xercesImpl-2.11.0.jar"/>
 	<classpathentry kind="lib" path="build/javalib/xml-apis.xml-apis.xml-apis-1.4.01.jar"/>
 	<classpathentry kind="lib" path="build/javalib/xml-resolver.xml-resolver.xml-resolver-1.2.jar"/>
+	<classpathentry kind="lib" path="build/javalib/ojdbc8.jar"/>
+	<classpathentry kind="lib" path="build/javalib/jline.jline.jline-2.14.3.jar"/>
+	<classpathentry kind="lib" path="build/javalib/sqlline.sqlline.sqlline-1.3.0.jar" sourcepath="build/javalib/sqlline-1.3.0-src.jar"/>
 	<classpathentry kind="output" path="build/javabin"/>
 </classpath>

@@ -209,7 +209,7 @@ extern QuantifiedComparison *createQuantifiedComparison (char *nType, Node *chec
 
 /* functions for creating constants */
 extern Constant *createConstInt (int value);
-extern Constant *createConstLong (long value);
+extern Constant *createConstLong (gprom_long_t value);
 extern Constant *createConstString (char *value);
 extern Constant *createConstFloat (double value);
 extern Constant *createConstBoolFromString (char *v);
@@ -217,7 +217,7 @@ extern Constant *createConstBool (boolean value);
 extern Constant *createNullConst (DataType dt);
 #define INT_VALUE(_c) *((int *) ((Constant *) _c)->value)
 #define FLOAT_VALUE(_c) *((double *) ((Constant *) _c)->value)
-#define LONG_VALUE(_c) *((long *) ((Constant *) _c)->value)
+#define LONG_VALUE(_c) *((gprom_long_t *) ((Constant *) _c)->value)
 #define BOOL_VALUE(_c) *((boolean *) ((Constant *) _c)->value)
 #define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
 #define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)

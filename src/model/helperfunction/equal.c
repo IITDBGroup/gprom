@@ -510,13 +510,13 @@ equalSet (Set *a, Set *b, HashMap *seenOps, MemContext *c)
 
     if (a->setType == SET_TYPE_LONG)
     {
-        FOREACH_SET(long,i,a)
+        FOREACH_SET(gprom_long_t,i,a)
         {
             if (!hasSetLongElem(b,*i))
                 return FALSE;
         }
 
-        FOREACH_SET(long,i,b)
+        FOREACH_SET(gprom_long_t,i,b)
         {
             if (!hasSetLongElem(a,*i))
                 return FALSE;
@@ -644,8 +644,8 @@ equalAttributeDef(AttributeDef *a, AttributeDef *b, HashMap *seenOps, MemContext
 static boolean
 equalQueryOperator(QueryOperator *a, QueryOperator *b, HashMap *seenOps, MemContext *c)
 {
-    long aAddr = (long) a;
-    long bAddr = (long) b;
+    gprom_long_t aAddr = (gprom_long_t) a;
+    gprom_long_t bAddr = (gprom_long_t) b;
 
     if (c == NULL)
     {

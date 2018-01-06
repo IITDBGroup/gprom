@@ -46,7 +46,7 @@ typedef enum ExceptionHandler {
  */
 typedef struct libgprom_handle GProMHandle;
 
-// initialize system
+// initialize system and option handling
 extern GPROM_LIB_EXPORT void gprom_init(void);
 extern GPROM_LIB_EXPORT void gprom_readOptions(int argc, char *const args[]);
 extern GPROM_LIB_EXPORT void gprom_readOptionAndInit(int argc, char *const args[]);
@@ -56,6 +56,7 @@ extern GPROM_LIB_EXPORT void gprom_shutdown(void);
 
 // process an input query
 extern GPROM_LIB_EXPORT const char *gprom_rewriteQuery(const char *query);
+extern GPROM_LIB_EXPORT const gprom_long_t gprom_costQuery(const char *query);
 
 // callback interface for logger (application can process log messages)
 // takes message, c-file, line, loglevel
@@ -111,6 +112,7 @@ typedef struct GProMMetadataLookupPlugin
     char * (*getTableDefinition) (char *tableName);
     char * (*getViewDefinition) (char *viewName);
 
+    int (*getCostEstimation) (char *query);
     /* audit log access */
 //    void (*getTransactionSQLAndSCNs) (char *xid, List **scns, List **sqls,
 //            List **sqlBinds, IsolationLevel *iso, Constant *commitScn);

@@ -18,7 +18,7 @@
 	</presetdef> -->
 	
 	<!-- Main Class and Packages-->
-  	<property name="mainclass" value="org.gprom.jdbc.test.SQLiteJDBCTest" />
+  	<property name="mainclass" value="sqlline.SQLLineCommandLine" />
 	<property name="jar.creator" value="Illinois Institute of Technology, Department of Computer Science, DBGroup" />
 	<property name="package" value="*" />
 	<property name="mvn.description" value="GProM is a provenance database middleware." />
@@ -50,7 +50,7 @@
 	
 	<!-- special files -->
 	<property name="conffile.name" value="GProMDriver.properties" />
-	<property name="log4jconffile.name" value="log4j.properties" />
+	<property name="log4jconffile.name" value="log4j2.xml" />
 	
 	<property name="conffile" value="${dir.buildresource}/${conffile.name}" />
 	<property name="log4jconffile" value="${dir.buildresource}/${log4jconffile.name}" />
@@ -58,20 +58,43 @@
 	<property name="ivyfile.test" value="${dir.buildresource}/ivy-test.xml" />
 	
 	<!-- GProM c-library -->
-	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.dylib" />
-	<property name="gpromlib.darwin.bin" value="${dir.bin}/darwin_x64/libgprom.dylib" />
-	<property name="gpromlib.darwin" value="${dir.build}/libgprom.jnilib" />	
+	<property name="nativebindir.name" value="libgpromnative" />
+	<property name="nativesrcdir.name" value="src/libgprom/.libs" />
 	
-	<property name="gpromlib.linux.src" value="${basedir}/src/libgprom/.libs/libgprom.so.0" />
-	<property name="gpromlib.linux.bin" value="${dir.bin}/linu_x64/libgprom.so" />
-	<property name="gpromlib.linux" value="${dir.build}/libgprom.so" />   
+	<property name="gpromlib.darwin.src" value="${basedir}/src/libgprom/.libs/libgprom.dylib" />
+	<property name="gpromlib.darwin.bin" value="${dir.bin}/${nativebindir.name}/darwin_x64/libgprom.dylib" />
+	
+	<property name="gpromlib.linux.src" value="${basedir}/src/libgprom/.libs/libgprom.so" />
+	<property name="gpromlib.linux.bin" value="${dir.bin}/${nativebindir.name}/linux_x64/libgprom.so" />
+
+	<!-- settings for cross compilation and native library versions -->
+	<property name="gpromlib.linux32.name" value="libgprom.so" />
+	<property name="gpromlib.linux32.folder" value="linux_x32" />
+	
+	<property name="gpromlib.linux64.name" value="libgprom.so" />
+	<property name="gpromlib.linux64.folder" value="linux_x64" />
+	<property name="gpromlib.linux64.path" value="${dir.bin}/${nativebindir.name}/${gpromlib.linux64.folder}/${gpromlib.linux64.name}" />
+
+	<property name="gpromlib.darwin64.name" value="libgprom.dylib" />
+	<property name="gpromlib.darwin64.folder" value="darwin_x64" />
+	<property name="gpromlib.darwin64.path" value="${dir.bin}/${nativebindir.name}/${gpromlib.darwin64.folder}/${gpromlib.darwin64.name}" />
+
+	<property name="gpromlib.windows32.name" value="libgprom.dll" />
+	<property name="gpromlib.windows32.folder" value="windows_x32" />
+	<property name="gpromlib.windows32.path" value="${dir.bin}/${nativebindir.name}/${gpromlib.windows32.folder}/${gpromlib.windows32.name}" />
+	
+	<property name="gpromlib.windows64.name" value="libgprom.dll" />
+	<property name="gpromlib.windows64.folder" value="windows_x64" />
+	<property name="gpromlib.windows64.path" value="${dir.bin}/${nativebindir.name}/${gpromlib.windows64.folder}/${gpromlib.windows64.name}" />
+	
+	
 	
 	<!-- TARGETS -->	
 	<!-- download dependencies with ivy -->
 	<target name="download-dependencies" 
 			depends="mkdirs-and-setup-props" 
 			description="use ivy to download dependencies">
-		
+		<echo>${log4jconffile.name}</echo>
 		<ivy-download-deps
 			ivyfile="${ivyfile.test}"
 			libsdir="${dir.testlib}"
@@ -96,17 +119,39 @@
 		</taskdef>
 	</target>
 	
+	<!-- download sources for dependencies -->
+	<target name="download-deps-src"
+		description="download source code of java dependencies using ivy"
+		depends="download-dependencies">
+		<ivy:retrieve sync="false" 
+			type="source" 
+			pattern="${dir.library}/[artifact]-[revision]-src.[ext]" />
+	</target>
+	
 	<!-- check OS type -->
 	<target name="handle-os" 
 			depends="setup-additional-anttasks">
+		
 		<detect-os />
+		<file-contains-string 
+			file="${basedir}/config.h" 
+			substring="COMPILER_OSARCH &quot;64&quot;"
+			propname="configure.os.arch.is64"
+			/>
+		<sequential if:set="configure.os.arch.is64" >
+			<property name="configure.os.arch" value="64" />
+		</sequential>
+		<sequential unless:set="configure.os.arch.is64" >
+			<property name="configure.os.arch" value="32" />
+		</sequential>	
+		
 		<if>
 	        <equals arg1="${os.type}" arg2="mac" />
 	        <then>
-	            <echo message="Mac system" />
 		        	<property name="gpromlib.src" value="${gpromlib.darwin.src}" />
 		        	<property name="gpromlib.bin" value="${gpromlib.darwin.bin}" />
-		        	<property name="gpromlib" value="${gpromlib.darwin}" />
+	        		<property name="gpromlib.dir" value="${gpromlib.darwin64.folder}" />
+	        		<property name="gpromlib.libname" value="${gpromlib.darwin64.name}" />
 	        </then>
 		</if>
 		<if>
@@ -115,22 +160,42 @@
 	            <echo message="Linux system" />
 		        	<property name="gpromlib.src" value="${gpromlib.linux.src}" />
 		        	<property name="gpromlib.bin" value="${gpromlib.linux.bin}" />
-		        	<property name="gpromlib" value="${gpromlib.linux}" />
+	        		<if>
+	        			<equals arg1="${configure.os.arch}" arg2="32" />
+	        			<then>
+		    	        		<property name="gpromlib.dir" value="${gpromlib.linux32.folder}" />
+		    	        		<property name="gpromlib.libname" value="${gpromlib.linux32.name}" />
+	        			</then>
+	        			<else>
+		    	        		<property name="gpromlib.dir" value="${gpromlib.linux64.folder}" />
+		    	        		<property name="gpromlib.libname" value="${gpromlib.linux64.name}" />
+	        			</else>
+	    			</if>
 	        </then>
 		</if>
-    </target>
+		
+		<property name="native.untar.dir" value="gprom-${ivy.revision}" />		
+		<property name="gpromlib.cross" value="${dir.build}/${gpromlib.dir}/${native.untar.dir}/${nativesrcdir.name}/${gpromlib.libname}" />
+
+		
+        <echo message="${os.type} (${configure.os.arch} bit) system: library location: ${gpromlib.src} place in ${gpromlib.bin} and cross compiled version in ${gpromlib.cross}" />
+	</target>
 	
 	<!-- build targets -->
 	<target name="clean" 
 			depends="handle-os"
 			description="clean up">
 		
-		<copy todir="${dir.library}">
+		<copy todir="${dir.bin}" overwrite="true">
 			<fileset dir="${dir.buildresource}" includes="${conffile.name},${log4jconffile.name}" /> 
 		</copy>
 		<depend srcdir="${dir.source}"
 		        destdir="${dir.bin}"
-		        cache="depcache"
+		        cache="${dir.build}/depcache"
+		        closure="yes"/>
+		<depend srcdir="${dir.testlib}"
+		        destdir="${dir.bin}"
+		        cache="${dir.build}/testdepcache"
 		        closure="yes"/>
 	</target>
 	
@@ -144,13 +209,27 @@
 	<target name="compile" 
 		depends="clean"
 		description="compile JDBC Java files">
-		
-		<copy file="${gpromlib.src}" tofile="${gpromlib}" overwrite="true" />
+
 		<copy todir="${dir.build}/lib">
 			<fileset dir="${dir.library}" />
 		</copy>
-		<copy file="${gpromlib}" tofile="${gpromlib.bin}" />
-	<!--	<copy file="${conffile}" tofile="${dir.bin}/GPRoMDriver.properties" /> -->
+		
+		<!-- copy native library into right directory --> 
+		<!-- if a crosscompiled version is available then use this, because it is guaranteed to not have any dependencies on OCI and such -->
+		<set-prop-if-exists 
+			file="${gpromlib.cross}" 
+			type="file"
+			propname="have.crosscompiled.native"
+			message="have crosscompiled version of host libprom native library use this: ${gpromlib.cross}"
+			failmessage="only have host compiled version of libprom native library: ${gpromlib.src}" />
+		
+		<sequential if:set="have.crosscompiled.native">
+			<copy file="${gpromlib.cross}" tofile="${gpromlib.bin}" overwrite="true" />
+		</sequential>
+		<sequential unless:set="have.crosscompiled.native">
+			<copy file="${gpromlib.src}" tofile="${gpromlib.bin}" overwrite="true" />
+		</sequential>
+	
 		<javac srcdir="${dir.source}" 
 				destdir="${dir.bin}"  
 				debug="on" 
@@ -177,58 +256,18 @@
 		</javac>
 	</target>
 	
-	<!-- convenience task for compiliation without library dependency checking -->
-	<target name="jar-only" depends="mkdirs-and-setup-props">
-		<classpath-from-dir dir="${dir.buildlib}" 
-				pathname="${classpath.name.build}" 
-				pathnamejar="${classpath.name.build}.jar"/>
-		<classpath-from-dir dir="${dir.library}" 
-				pathname="${classpath.name.bin}" 
-				pathnamejar="${classpath.name.bin}.jar"/>
-		<classpath-from-dir dir="${dir.testlib}" 
-				pathname="${classpath.name.test}" 
-				pathnamejar="${classpath.name.test}.jar"/>
-		<fileset id="fat.jar.resources" 
-				dir="${dir.library}" 
-				includes="${conffile.name},${log4jconffile.name}">
-		</fileset>
-		<javac srcdir="${dir.source}" 
-				destdir="${dir.bin}"  
-				debug="on" 
-			    fork="true" 
-			    includeantruntime="false"
-				verbose="true">
-			<classpath refid="${classpath.name.bin}"/>
-			<compilerarg value="-Xlint:unchecked" />		
-		</javac>
-		<javac srcdir="${dir.testsource}" destdir="${dir.bin}" debug="on" fork="true" includeantruntime="false" verbose="true">
-			<classpath refid="${classpath.name.test}"/>
-			<compilerarg value="-Xlint:unchecked" />
-		</javac>
-		<jar destfile="${jar.bin}"  update="true">
-				<manifest>
-					<attribute name="Main-Class" value="${mainclass}" />
-					<attribute name="Created-By" value="${jar.creator}" />
-					<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" />
-				</manifest>
-				<service type="java.sql.Driver"
-			           provider="org.gprom.jdbc.driver.GProMDriver"/>
-				<fileset refid="fat.jar.resources" />
-				<fileset dir="${dir.bin}" />
-			</jar>
-	</target>
-	
 	<!-- generate a simple jar file for the jdbc driver that does not include referrenced jars and the GProM C-library -->
 	<target name="jar" 
 			depends="compile,compile-tests"
 			description="create Jar file">
 		
 		<echo message="${classpath.bin.jar}" />
-		<jar destfile="${jar.bin}"  update="true">
+		<delete file="${jar.bin}" />
+		<jar destfile="${jar.bin}"  update="false">
 			<manifest>
 				<attribute name="Main-Class" value="${mainclass}" />
 				<attribute name="Created-By" value="${jar.creator}" />
-				<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" />
+				<attribute name="Class-Path" value="${classpath.bin.jar} ." />
 			</manifest>
 			<service type="java.sql.Driver"
 		           provider="org.gprom.jdbc.driver.GProMDriver"/>
@@ -242,7 +281,7 @@
 			depends="compile,compile-tests,cross-compile-libgprom"
 			description="generate a fat jar containing all deps">
 		
-		<echo message="build jar for ${os.type} using library ${gpromlib}" />
+		<echo message="build jar for ${os.type} using library ${gpromlib.src}" />
 		
 		<print-fileset filesetid="fat.jar.resources" />
 		
@@ -259,11 +298,13 @@
 			</patternset>
 			<path refid="jarclasspath" />
 		</unjar>
-		<jar destfile="${jar.bin.fat}" zip64Mode="as-needed">
+
+		<delete file="${jar.bin.fat}" />
+		<jar destfile="${jar.bin.fat}" zip64Mode="as-needed" update="false">
 			<manifest>
 				<attribute name="Main-Class" value="${mainclass}" />
 				<attribute name="Created-By" value="${jar.creator}" />
-				<attribute name="Class-Path" value="${classpath.bin.jar} resource/ lib/" />
+				<attribute name="Class-Path" value="." />
 			</manifest>
 			<zipfileset dir="${dir.tmpjar}" includes="**/*" />
 			<service type="java.sql.Driver"
@@ -284,47 +325,83 @@
 		<!-- define compress anttasks -->
 		<taskdef resource="org/apache/ant/compress/antlib.xml" 
 			classpathref="${classpath.name.build}"/>
-		
-		<property name="dir.dockercross" value="${dir.buildresource}/dockercross" />
+
+		<!-- setup basic properties -->
 		<property name="srctar" value="gprom-${ivy.revision}.tar" />
 		<property name="srctarball" value="${srctar}.gz" />
-		<property name="srctardir" value="${basedir}" />
 		<property name="configure.options" value="--disable-postgres --disable-oracle --disable-sqlite --disable-monetdb --disable-readline --disable-java" />
 		<property name="make.options" value="-j 4" />
-		<property name="libgpromdir" value="src/libgprom/.libs" />
 
 		<propertyregex property="gprom.major.version"
 		               input="1=${ivy.revision}"
 		               regexp="1=([0-9]+)[.][0-9]+[.][0-9]+"
 		               select="\1"
 		               casesensitive="false" />
-		<echo message="gprom major version is ${gprom.major.version}" />
+		<propertyregex property="gprom.libtool.version"
+			       input="1=${ivy.revision}"
+			       regexp="1=([0-9]+[.][0-9]+)[.][0-9]+"
+		               select="\1.0"
+		               casesensitive="false" />
+		<echo message="gprom major version is ${gprom.major.version} and libtool version is ${gprom.libtool.version}" />
 
+		<!-- get GPROM_HOST_DIR from environment, this should be set if ant is run from within container -->
+		<property environment="env"/>
+		<property name="env.GPROM_HOST_DIR" value="${basedir}" />
+		<echo message="GPROM_HOST_DIR is set to = ${env.GPROM_HOST_DIR}" />
+		<property name="gprombase" value="${env.GPROM_HOST_DIR}" />
+
+		<echo message="base dir for docker: ${gprombase}" />
+		
+		<!-- dirs that should be relative to mount point in docker container -->
+		<!-- have to set from GPROM_HOST_DIR if called from within contained -->
+		<property name="srctardir" value="${basedir}" />
+		<property name="dir.dockercross" value="${dir.buildresource}/dockercross" />
+		<property name="libgpromdir" value="src/libgprom/.libs" />
+
+		
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-linux-x64" 
-			outfolder="linux_x64" 
-			libpath="${libgpromdir}/libgprom.so.${ivy.revision}"
-			libname="libgprom.so"/>
+			dockerimage="dockcross/linux-x64"
+			outfolder="${gpromlib.linux64.folder}" 
+			libpath="${libgpromdir}/libgprom.so.${gprom.libtool.version}"
+			libname="${gpromlib.linux64.name}"
+			mountdir="${gprombase}"/>
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-linux-x86" 
-			outfolder="linux_x32" 
-			libpath="${libgpromdir}/libgprom.so.${ivy.revision}"
-			libname="libgprom.so"
-			addargs="--build=x86_64-pc-linux-gnu --host=x86-pc-linux-gnu" />
+			dockerimage="dockcross/linux-x86"
+			outfolder="${gpromlib.linux32.folder}" 
+			libpath="${libgpromdir}/libgprom.so.${gprom.libtool.version}"
+			libname="${gpromlib.linux32.name}"
+			addargs="--build=x86_64-pc-linux-gnu --host=x86-pc-linux-gnu" 
+			mountdir="${gprombase}" />
 		<build-native-library 
-			crossscript="${dir.dockercross}/dockcross-windows-x86" 
-			outfolder="windows_x32" 
+			crossscript="${dir.dockercross}/dockcross-windows-x86"
+			dockerimage="dockcross/windows-x86" 
+			outfolder="${gpromlib.windows32.folder}" 
 			libpath="${libgpromdir}/libgprom-${gprom.major.version}.dll" 
 			libpath2="${libgpromdir}/libgprom.lai"
-			libname="libgprom.dll"
-			addargs="--build=x86_64-pc-linux-gnu --host=i686-pc-mingw32"/>
+			libname="${gpromlib.windows32.name}"
+			addargs="--build=x86_64-pc-linux-gnu --host=i686-pc-mingw32"
+			mountdir="${gprombase}"/>
 		<build-native-library 
 			crossscript="${dir.dockercross}/dockcross-windows-x64" 
-			outfolder="windows_x64" 
+			dockerimage="dockcross/windows-x64" 
+			outfolder="${gpromlib.windows64.folder}" 
 			libpath="${libgpromdir}/libgprom-${gprom.major.version}.dll" 
 			libpath2="${libgpromdir}/libgprom.lai"
-			libname="libgprom.dll"
-			addargs="--build=x86_64-pc-linux-gnu --host=x86_64-pc-mingw64"/>
+			libname="${gpromlib.windows64.name}"
+			addargs="--build=x86_64-pc-linux-gnu --host=x86_64-pc-mingw64"
+			mountdir="${gprombase}"/>
+		<build-native-library 
+			crossscript="${dir.dockercross}/dockcross-linux-x64" 
+			dockerimage="multiarch/crossbuild"
+			outfolder="${gpromlib.darwin64.folder}" 
+			libpath="${libgpromdir}/libgprom.${gprom.major.version}.dylib"
+			libname="${gpromlib.darwin64.name}"
+			addargs="--build=x86_64-pc-linux-gnu --host=x86_64-apple-darwin"
+			dockerargs="-w /workdir -e CC=/usr/x86_64-apple-darwin14/bin/cc -e PATH=/usr/x86_64h-apple-darwin14/bin/:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -e LD_LIBRARY_PATH=/usr/x86_64-linux-gnu/x86_64-apple-darwin14/lib/"
+			containerworkdir="/workdir"
+			mountdir="${gprombase}"/>
 	</target>
 	
 	<!-- build one native library -->
@@ -335,6 +412,7 @@
 		<attribute name="binarydir" default="${dir.bin}" />
 		<attribute name="builddir" default="${dir.build}" />
 		<attribute name="crossscript" default="" />
+		<attribute name="dockerimage" default="" />
 		<attribute name="untardir" default="gprom-${ivy.revision}" />
 		<attribute name="srctarball" default="${srctarball}" />
 		<attribute name="srctar" default="${srctar}" />
@@ -343,6 +421,9 @@
 		<attribute name="libpath2" default="" />
 		<attribute name="libname" default="" />
 		<attribute name="addargs" default="" />
+		<attribute name="mountdir" default="" />
+		<attribute name="containerworkdir" default="/work" />
+		<attribute name="dockerargs" default="" />
 		
 		<sequential>
 			<local name="tarpath" /> 
@@ -354,16 +435,19 @@
 			<local name="library.exists" />
 			<local name="expanddir.exists" />
 			<local name="have.libpath2" />
+			<local name="dir.cross.mount" />
 			
 			<!-- check for parameters and check that srctarball exists -->
 			<fail-if-empty arg="@{libname}" />
 			<fail-if-empty arg="@{outfolder}" />
 			<fail-if-empty arg="@{builddir}" />
-			<fail-if-empty arg="@{crossscript}" />
+			<!-- <fail-if-empty arg="@{crossscript}" /> -->
 			<fail-if-empty arg="@{srctarball}" />
 			<fail-if-empty arg="@{srctar}" />
 			<fail-if-empty arg="@{tardir}" />
 			<fail-if-empty arg="@{libname}" />
+			<fail-if-empty arg="@{mountdir}" />
+			<fail-if-empty arg="@{dockerimage}" />
 			
 			<fail-if-bin-not-exists bin="docker" 
 				message="Need docker to cross-compile libgprom" />
@@ -374,14 +458,15 @@
 			<fail-not-exists arg="@{crossscript}" type="file"/>
 			<fail-not-exists arg="${targzpath}" type="file"/>
 			
-			<basename property="crossscript.name" file="@{crossscript}"/>
+<!--			<basename property="crossscript.name" file="@{crossscript}"/> -->
 			
 			<echo message="**********************************************************"/>
 			<echo message="*  BUILD @{outfolder} NATIVE LIBRARY USING @{crossscript} "/>
 			<echo message="**********************************************************"/>
 
 			<property name="dir.cross.build" value="@{builddir}/@{outfolder}" />
-			<property name="dir.cross.dest" value="@{binarydir}/@{outfolder}" />
+			<property name="dir.cross.dest" value="@{binarydir}/${nativebindir.name}/@{outfolder}" />
+			<property name="dir.cross.mount" value="@{mountdir}/build/@{outfolder}/@{untardir}" />
 			
 			<mkdir dir="${dir.cross.build}" />
 			<mkdir dir="${dir.cross.dest}" />
@@ -395,11 +480,11 @@
 			<sequential unless:set="expanddir.exists">
 				<gunzip src="${targzpath}" />
 				<untar src="${tarpath}" dest="${dir.cross.build}"/>
-				<copy file="@{crossscript}" todir="${expanddir}" />
+<!--				USE DOCKER DIRECTLY TO MAKE THIS WORK INSIDE CONTAINER <copy file="@{crossscript}" todir="${expanddir}" />
 				
-				<!-- repair permissions -->
+				<!- repair permissions ->
 				<chmod perm="755" file="${expanddir}/${crossscript.name}" />
-				
+-->			
 				<chmod perm="755">
 					<fileset dir="${expanddir}" includes="configure" />
 				</chmod>
@@ -412,28 +497,42 @@
 			</condition>
 		
 			<sequential unless:set="library.exists">
-				<exec executable="${expanddir}/${crossscript.name}" 
-					dir="${expanddir}">
-					<arg value="--" />
-					<arg value="./configure" />
-					<arg value="--disable-postgres" />
-					<arg value="--disable-oracle" />
-					<arg value="--disable-sqlite" />
-					<arg value="--disable-monetdb" />
-					<arg value="--disable-readline" />
-					<arg value="--disable-java" />
-					<arg line="@{addargs}" />
-				</exec>
-				
-				<exec executable="${expanddir}/${crossscript.name}"
-					dir="${expanddir}">
-					<arg value="make" />
-					<arg value="-j" />
-					<arg value="8" />
-				</exec>
+
+			  <exec executable="docker"
+				dir="${expanddir}">
+
+			    <!-- args for docker -->
+			    <arg line=" run --entrypoint @{containerworkdir}/configure  --rm  -v &quot;${dir.cross.mount}&quot;:/@{containerworkdir}" />
+			    <arg line="@{dockerargs}" />
+			    <arg value="@{dockerimage}" />
+			    <!-- args for command running in image: -->
+<!--			    <arg value="./configure" />-->
+			    <arg value="--disable-postgres" />
+			    <arg value="--disable-oracle" />
+			    <arg value="--disable-sqlite" />
+			    <arg value="--disable-monetdb" />
+			    <arg value="--disable-readline" />
+			    <arg value="--disable-java" />
+			    <arg line="@{addargs}" />
+			  </exec>
+
+			  <exec executable="docker"
+				dir="${expanddir}" >
+
+			    <!-- args for docker -->
+			    <arg line=" run --rm --entrypoint /usr/bin/make  -v &quot;${dir.cross.mount}&quot;:/@{containerworkdir}" />
+			    <arg line="@{dockerargs}" />
+			    <arg value="@{dockerimage}" />
+			    <!-- args for command running in image: -->
+<!--			    <arg value="make" /> -->
+			    <arg value="-j" />
+			    <arg value="8" />
+			  </exec>
+			  
 			</sequential>
-			<!-- copy to destination -->
-			<copy file="${expanddir}/@{libpath}" tofile="${dir.cross.dest}/@{libname}" />
+			
+			<!-- copy to destination overwrite even if it is there to make sure we include the crosscompiled version that are not linked against any DB C-library -->
+			<copy file="${expanddir}/@{libpath}" tofile="${dir.cross.dest}/@{libname}" overwrite="true" />
 			
 			<set-prop-if-not-empty arg="@{libpath2}" propname="have.libpath2" />
 			<sequential if:set="have.libpath2">

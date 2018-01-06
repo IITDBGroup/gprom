@@ -41,12 +41,3 @@ echo "${API_JSON}"
 curl --data "$API_JSON" https://api.github.com/repos/iitdbgroup/gprom/releases?access_token="${GH_OAUTH}"
 
 
-
-# deploy:
-  # provider: releases
-  # api_key:
-  # file: perm-0.1-src.tar.gz
-  # on:
-  #   repo: IITDBGroup/perm
-
-

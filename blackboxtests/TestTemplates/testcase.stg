@@ -11,7 +11,8 @@ testcaseimports() ::= <<
 "org.junit.FixMethodOrder",
 "org.gprom.jdbc.test.testgenerator.AbstractGProMTester",
 "org.gprom.jdbc.test.testgenerator.ConnectionOptions",
-"org.gprom.jdbc.test.testgenerator.OptionsManager"
+"org.gprom.jdbc.test.testgenerator.OptionsManager",
+"org.gprom.jdbc.test.testgenerator.TestInfoHolder"
 ]:importPackage(); separator = "\n">
 >>
 
@@ -29,10 +30,6 @@ testclass(name,path,basedir,file,setting,casenum) ::= <<
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class <name> extends AbstractGProMTester {
 
-	static {
-		System.setProperty("log4j.configurationFile", "blackboxtests/log4jtest.properties");
-	}
-
 	public <name> () {
 		try {
 			path = "<path>";
@@ -44,6 +41,7 @@ public class <name> extends AbstractGProMTester {
 
 	@BeforeClass
 	public static void setUp () throws Exception {
+		TestInfoHolder.getInstance().configureLogger("blackboxtests/log4jtest.properties");
 		path = "<basedir>";
 		ConnectionOptions.getInstance().setPath("<path>");
 		AbstractGProMTester.setUp();

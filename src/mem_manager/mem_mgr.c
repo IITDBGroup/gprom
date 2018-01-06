@@ -36,12 +36,20 @@
 #endif
 
 // helper macros
+#define ADD_NEWLINE(mes) ( mes "\n" )
 #define EXIT_WITH_ERROR(mes) \
     do { \
-    	fprintf(stderr,(mes)); \
+    	    fprintf(stderr,(ADD_NEWLINE(mes))); \
         fflush(stderr); \
         exit(1); \
     } while(0)
+
+#define PRINT_ERROR(mes, ...) \
+    do { \
+        fprintf(stderr, ADD_NEWLINE(mes), __VA_ARGS__); \
+        fflush(stderr); \
+    } while(0)
+
 
 typedef struct MemContextNode
 {
@@ -136,8 +144,16 @@ destroyMemManager(void)
     // free default context
     internalFreeMemContext(defaultMemContext, __FILE__, __LINE__);
     free(topContextNode); // free default context node
-    DEBUG_LOG("Freed memory context '%s'.", DEFAULT_MEM_CONTEXT_NAME);
+//    DEBUG_LOG("Freed memory context '%s'.", DEFAULT_MEM_CONTEXT_NAME);
     destroyed = TRUE;
+}
+
+boolean
+memManagerUsable(void)
+{
+    if (destroyed || !initialized)
+        return FALSE;
+    return TRUE;
 }
 
 /*
@@ -579,10 +595,12 @@ malloc_(size_t bytes, const char *file, unsigned line)
 
     if (!initialized)
     {
+        PRINT_ERROR("trying to allocate %u at %s:%u", (unsigned int) bytes, file, line);
         EXIT_WITH_ERROR("trying to allocate memory before mem manager has been initialized");
     }
     if (destroyed)
     {
+        PRINT_ERROR("trying to allocate %u at %s:%u", (unsigned int) bytes, file, line);
         EXIT_WITH_ERROR("trying to allocate memory after mem manager has been destroyed");
     }
 

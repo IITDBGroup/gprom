@@ -398,17 +398,17 @@ checkForDatastructureReuse (QueryOperator *op, void *context)
 {
     HashMap *pointers = (HashMap *) context;
     Set *c;
-    long opAddr = (long) op;
+    gprom_long_t opAddr = (gprom_long_t) op;
 
     c =  PSET();
     checkReuseVisitor((Node *) op, c);
 
     FOREACH_SET(void*, p, c)
     {
-        long pAddr = (long) p;
+        gprom_long_t pAddr = (gprom_long_t) p;
         if (MAP_HAS_LONG_KEY(pointers, pAddr))
         {
-            long otherAddr = LONG_VALUE(MAP_GET_LONG(pointers, pAddr));
+            gprom_long_t otherAddr = LONG_VALUE(MAP_GET_LONG(pointers, pAddr));
             Node *ds = (Node *) p;
             QueryOperator *other = (QueryOperator *) otherAddr;
 

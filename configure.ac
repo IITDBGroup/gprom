@@ -348,7 +348,7 @@ AC_MSG_RESULT($GPROM_CFLAGS)
 ])
 ################################################################################
 # Init autoconf
-AC_INIT([GProM],[1.0.0],[bglavic@iit.edu])
+AC_INIT([GProM],[1.0.1],[bglavic@iit.edu])
 # CFLAGS from user or set to nothing
 AS_IF([test "x$CFLAGS" != "x"],
 [
@@ -426,6 +426,7 @@ AC_TYPE_UINT8_T
 AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
+AC_TYPE_LONG_LONG_INT
 ################################################################################
 # HEADERS
 AC_CHECK_HEADERS([stddef.h])
@@ -484,9 +485,15 @@ AC_CHECK_LIB([m],[pow],[],[
   AC_MSG_ERROR([missing libm library (searching for pow function)])
 ])
 ################################################################################
-# check for libpthread
+# check for libpthread if target is not windows
+AS_IF([test "x$OSTYPE" == "xwindows"], 
+[
+  AC_MSG_WARN([compiling for windows target do not attempt to link against libpthread])
+], 
+[
 AC_CHECK_LIB([pthread],[pthread_mutex_lock],[],[
   AC_MSG_ERROR([missing libpthread library (searching for pthread_mutex_lock function)])
+])
 ])
 ################################################################################
 # Enable cplex

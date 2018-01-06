@@ -1182,8 +1182,8 @@ addCoalesce (QueryOperator *input)
 	TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
 
 	//set boolean prop (when translate to SQL, translate to above SQL not this table)
-	//SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) top1));
-	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) t5));
+	//SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((gprom_long_t) top1));
+	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((gprom_long_t) t5));
 	// ensure that t5 is treated as a common table expression
 	SET_BOOL_STRING_PROP(t5, PROP_MATERIALIZE);
 	//---------------------------------------------------------------------------------------
@@ -1954,7 +1954,7 @@ addTemporalNormalizationUsingWindow (QueryOperator *input, QueryOperator *refere
 	TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
 
 	//set boolean prop (when translate to SQL, translate to above SQL not this table)
-	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) intervalsProj));
+	SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((gprom_long_t) intervalsProj));
 
 	//---------------------------------------------------------------------------------------
     //Construct Top
@@ -3108,7 +3108,7 @@ rewriteTemporalSetDiffWithNormalization(SetOperator *diff)
      TableAccessOperator *TNTAB = createTableAccessOp("TNTAB_EMPHIST_100K", NULL, "TNTAB", NIL, singleton("N"), singletonInt(DT_INT));
 
      //set boolean prop (when translate to SQL, translate to above SQL not this table)
-     SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((long) intervalsProj));
+     SET_STRING_PROP(TNTAB, PROP_TEMP_TNTAB, createConstLong((gprom_long_t) intervalsProj));
 
      //---------------------------------------------------------------------------------------
      //Construct Top

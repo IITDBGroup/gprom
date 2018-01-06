@@ -26,7 +26,7 @@ RUN apt-get -y update && apt-get install -y \
 	flex \
 	git \
 	graphviz \
-	openjdk-7-jdk \
+	default-jdk \
 	libpq-dev \
 	libreadline6 \
 	libreadline6-dev \
@@ -39,7 +39,7 @@ RUN apt-get -y update && apt-get install -y \
 	monetdb-client \
 	libmonetdb-client-dev \
 	&& rm -rf /var/lib/apt/lists/*
-ENV JAVA_HOME /usr/lib/jvm/java-7-openjdk-amd64
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64
 ########################################
 # Setup MonetDB
 ########################################

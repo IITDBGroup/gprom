@@ -50,6 +50,9 @@ public class GProMMetadataLookupPlugin extends Structure {
 	public GProMMetadataLookupPlugin.getTableDefinition_callback getTableDefinition;
 	/** C type : getViewDefinition_callback* */
 	public GProMMetadataLookupPlugin.getViewDefinition_callback getViewDefinition;
+	/** C type : getCostEstimation_callback* */
+	public GProMMetadataLookupPlugin.getCostEstimation_callback getCostEstimation;
+	
 	public interface isInitialized_callback extends Callback {
 		int apply();
 	};
@@ -66,7 +69,7 @@ public class GProMMetadataLookupPlugin extends Structure {
 		int apply();
 	};
 	public interface catalogTableExists_callback extends Callback {
-		int apply(String tableName);
+		int apply(Pointer tableName);
 	};
 	public interface catalogViewExists_callback extends Callback {
 		int apply(String viewName);
@@ -101,11 +104,32 @@ public class GProMMetadataLookupPlugin extends Structure {
 	public interface getViewDefinition_callback extends Callback {
 		String apply(String viewName);
 	};
+	public interface getCostEstimation_callback extends Callback {
+		int apply(String query);
+	}
+	
 	public GProMMetadataLookupPlugin() {
 		super();
 	}
 	protected List<? > getFieldOrder() {
-		return Arrays.asList("isInitialized", "initMetadataLookupPlugin", "databaseConnectionOpen", "databaseConnectionClose", "shutdownMetadataLookupPlugin", "catalogTableExists", "catalogViewExists", "getKeyInformation", "getDataTypes", "getAttributeNames", "getAttributeDefaultVal", "isAgg", "isWindowFunction", "getFuncReturnType", "getOpReturnType", "getTableDefinition", "getViewDefinition");
+		return Arrays.asList("isInitialized", 
+				"initMetadataLookupPlugin", 
+				"databaseConnectionOpen", 
+				"databaseConnectionClose", 
+				"shutdownMetadataLookupPlugin", 
+				"catalogTableExists", 
+				"catalogViewExists", 
+				"getKeyInformation", 
+				"getDataTypes", 
+				"getAttributeNames", 
+				"getAttributeDefaultVal", 
+				"isAgg", 
+				"isWindowFunction", 
+				"getFuncReturnType", 
+				"getOpReturnType", 
+				"getTableDefinition", 
+				"getViewDefinition",
+				"getCostEstimation");
 	}
 	public GProMMetadataLookupPlugin(Pointer peer) {
 		super(peer);

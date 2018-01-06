@@ -83,7 +83,7 @@ typedef struct MetadataLookupPlugin
     /* audit log access */
     void (*getTransactionSQLAndSCNs) (char *xid, List **scns, List **sqls,
             List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
-    long (*getCommitScn) (char *tableName, long maxScn, char *xid);
+    gprom_long_t (*getCommitScn) (char *tableName, gprom_long_t maxScn, char *xid);
 
     /* execution */
     Node * (*executeAsTransactionAndGetXID) (List *statements, IsolationLevel isoLevel);
@@ -136,7 +136,7 @@ extern void getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 extern Relation *executeQuery (char *sql);
 extern void executeQueryIgnoreResult (char *sql);
-extern long getCommitScn (char *tableName, long maxScn, char *xid);
+extern gprom_long_t getCommitScn (char *tableName, gprom_long_t maxScn, char *xid);
 extern Node *executeAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
 extern int getCostEstimation(char *query);
 

@@ -494,7 +494,7 @@ monetdbExecuteQuery(char *query)
     r->schema = NIL;
     for(int i = 0; i < numFields; i++)
     {
-        const char *name = CONCAT_STRINGS("F", itoa(i));
+        const char *name = CONCAT_STRINGS("F", gprom_itoa(i));
         r->schema = appendToTailOfList(r->schema, strdup((char *) name));
     }
 

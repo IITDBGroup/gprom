@@ -60,7 +60,8 @@ public class GProMConnection implements GProMConnectionInterface{
 
 	public void close() throws SQLException {
 		con.close();
-		w.shutdown();
+//		w.shutdown();
+		//TODO this should only be done once we have handles
 	}
 
 	public void commit() throws SQLException {
