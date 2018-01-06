@@ -1556,7 +1556,6 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     Constant *flagValue = (Constant *) getHeadOfListP(coaParaValueList);
 
     //two cases: fragment or page
-    ProjectionOperator *newpo = NULL;
     FunctionCall *of = NULL;
     if(flagValue->constType == DT_INT)  //if the first element is INT (e.g., 32 in (R 32), list value is {32}), this is page
     {
@@ -1636,7 +1635,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
             nodeToString(newProvPosList));
 
     // Create a new projection operator with these new attributes
-    newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
+    ProjectionOperator *newpo = createProjectionOp(projExpr, NULL, NIL, provAttr);
     newpo->op.provAttrs = newProvPosList;
     SET_BOOL_STRING_PROP((QueryOperator *)newpo, PROP_PROJ_PROV_ATTR_DUP);
 
@@ -1752,6 +1751,9 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
          }
     }
 
+    //check first element is A or 32
+    Constant *flagValue = (Constant *) getHeadOfListP(coaParaValueList);
+
     Constant *res = (Constant *) getTailOfListP(coaParaValueList);  //64
     int resFlagValue = INT_VALUE(res);
     DEBUG_LOG("coarse grained result fragment value is : %d", resFlagValue);
@@ -1779,6 +1781,34 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
     provAttr = appendToTailOfList(provAttr, newAttrName);
 
+    //two cases: fragment or page
+    FunctionCall *f = NULL;
+    if(flagValue->constType == DT_INT)  //if the first element is INT (e.g., 32 in (R 32), list value is {32}), this is page
+    {
+       	DEBUG_LOG("deal with page");
+        	DEBUG_LOG("hash value is %d", INT_VALUE(flagValue));
+        	Constant *orhashValue = createConstInt(INT_VALUE(flagValue));
+
+        	//add ROWID attr into tableAccess operator
+        	AttributeDef *rid = createAttributeDef("ROWID", DT_LONG);
+        	QueryOperator *opTable = (QueryOperator *) op;
+
+        	opTable->schema->attrDefs = appendToTailOfList(opTable->schema->attrDefs, rid);
+
+        	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+        	provAttr = appendToTailOfList(provAttr, newAttrName);
+
+        	//functioncall substr(ROWID,7,3)
+        	AttributeReference *ridAttr = createAttrsRefByName(opTable,"ROWID");
+        	Constant *pagePos = createConstInt(7);
+        	Constant *pageLong = createConstInt(3);
+        	FunctionCall *substr = createFunctionCall ("SUBSTR", LIST_MAKE(ridAttr, pagePos, pageLong));
+
+        f = createFunctionCall ("ORA_HASH", LIST_MAKE(substr, orhashValue));
+    }
+    else
+    {
+
     List *l = NIL;
     if(LIST_LENGTH(coaParaValueList) == 1) //A
     {
@@ -1797,9 +1827,9 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         l = LIST_MAKE(concatExprList(fList),num);
     }
 
-    FunctionCall *f = createFunctionCall ("ORA_HASH", l);
+    f = createFunctionCall ("ORA_HASH", l);
+    }
     projExpr = appendToTailOfList(projExpr, f);
-
     List *newProvPosList = singletonInt(cnt);
 
     DEBUG_LOG("rewrite table access, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
