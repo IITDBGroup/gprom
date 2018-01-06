@@ -13,7 +13,7 @@ before_install:
 ####################
 # build script
 script:
-  - export PATH=.:${PATH} && travis_wait 20 ./travis/build.sh
+  - export PATH=.:${PATH} && travis_wait 40 ./travis/build.sh
   - export PATH=.:${PATH} && travis_wait 20 ./travis/runjavatest.sh
 
 ####################
