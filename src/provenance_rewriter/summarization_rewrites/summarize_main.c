@@ -20,6 +20,7 @@
 #include "model/expression/expression.h"
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
+#include "model/query_operator/query_operator_dt_inference.h"
 #include "provenance_rewriter/prov_rewriter.h"
 #include "sql_serializer/sql_serializer.h"
 #include "operator_optimizer/operator_optimizer.h"
@@ -175,6 +176,22 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	if (moveRels != NULL)
 		result = integrateWithEdgeRel(result, moveRels, fPattern);
 
+    // apply casts where necessary
+    if (isA(result, List))
+    {
+        List *translation = (List *) result;
+        FOREACH(QueryOperator,c,translation)
+        {
+            introduceCastsWhereNecessary(c);
+//            ASSERT(checkModel(c));
+        }
+    }
+    else if (IS_OP(result))
+    {
+        introduceCastsWhereNecessary((QueryOperator *) result);
+//        ASSERT(checkModel((QueryOperator *) result));
+    }
+
 	if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
 		ASSERT(checkModel((QueryOperator *) result));
 
@@ -257,9 +274,9 @@ rewriteTopkExplOutput (Node *fMeasureInput, int topK)
 	Node *selCond = NULL;
 
 	if (topK != 0)
-		selCond = (Node *) createOpExpr("<=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(topK)));
+		selCond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(topK)));
 	else
-		selCond = (Node *) createOpExpr("<=",LIST_MAKE(singleton(makeNode(RowNumExpr)),createConstInt(1))); // TODO: top1 or more?
+		selCond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(1))); // TODO: top1 or more?
 
 	SelectionOperator *so = createSelectionOp(selCond, fMeasure, NIL, getAttrNames(fMeasure->schema));
 

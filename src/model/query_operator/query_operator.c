@@ -483,6 +483,11 @@ inferOpResultDTs (QueryOperator *op)
             resultDTs = getDataTypes(GET_OPSCHEMA(op));
         }
         break;
+        case T_SampleClauseOperator:
+        {
+            resultDTs = getDataTypes(GET_OPSCHEMA(op));
+        }
+        break;
         case T_ProvenanceComputation:
         {
             resultDTs = getDataTypes(GET_OPSCHEMA(op));//TODO

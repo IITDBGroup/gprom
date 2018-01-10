@@ -110,6 +110,8 @@ addCastsToExpressions(QueryOperator *q)
     {
         case T_TableAccessOperator:
             break;
+        case T_SampleClauseOperator:
+        	break;
         case T_ProjectionOperator:
         {
             ProjectionOperator *p = (ProjectionOperator *) q;
