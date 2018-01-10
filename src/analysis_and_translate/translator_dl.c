@@ -3,7 +3,7 @@
  * translator_dl.c
  *			  
  *		
- *		AUTHOR: lord_pretzel
+ *		AUTHOR: lord_pretzel & seokki
  *
  *		
  *
@@ -58,7 +58,7 @@ static Node *replaceVarWithAttrRef(Node *node, List *context);
 //List *dRules = NIL;
 //List *origProg = NIL;
 static boolean provQ = FALSE;
-HashMap *taRel;
+//HashMap *taRel;
 
 
 Node *
@@ -118,51 +118,54 @@ translateProgram(DLProgram *p)
     Node *answerRel;
     char *origHeadPred = NULL;
 
-    // activate option for returning input database
-    if (getBoolOption(OPTION_INPUTDB))
-    {
-        List *inputRels = NIL;
-        HashMap *taOp = NEW_MAP(Constant,List);
-
-        // store relation names
-        int key = 0;
-        taRel = NEW_MAP(Constant,List);
-
-        FOREACH(DLRule,r,p->rules)
-        {
-            FOREACH(DLAtom,a,r->body)
-			        {
-                if(DL_HAS_PROP(a,DL_IS_EDB_REL))
-                {
-                    MAP_ADD_STRING_KEY(taRel,itoa(key),a->rel);
-
-                    List *attrNames = NIL;
-                    List *dts = NIL;
-
-                    attrNames = getAttributeNames(a->rel);
-                    dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
-
-                    TableAccessOperator *rel = createTableAccessOp(a->rel, NULL, a->rel, NIL, attrNames, dts);
-
-                    //        			Node *cond = (Node *) createOpExpr("<",LIST_MAKE(makeNode(RowNumExpr),createConstInt(10)));
-                    //        			SelectionOperator *sel = createSelectionOp(cond, (QueryOperator *) rel, NIL, NULL);
-
-                    ProjectionOperator *proj = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) rel);
-                    addChildOperator((QueryOperator *) proj, (QueryOperator *) rel);
-
-                    MAP_ADD_STRING_KEY(taOp,a->rel,proj);
-                    key++;
-                }
-			        }
-        }
-
-        FOREACH_HASH(QueryOperator,value,taOp)
-        inputRels = appendToTailOfList(inputRels,value);
-
-        answerRel = (Node *) inputRels;
-    }
-    else
-    {
+//    // activate option for returning input database
+//    if (getBoolOption(OPTION_INPUTDB))
+//    {
+//        List *inputRels = NIL;
+//        HashMap *taOp = NEW_MAP(Constant,List);
+//
+//        // store relation names
+//        int key = 0;
+//        taRel = NEW_MAP(Constant,List);
+//
+//        FOREACH(DLRule,r,p->rules)
+//        {
+//            FOREACH(DLAtom,a,r->body)
+//			        {
+//                if(DL_HAS_PROP(a,DL_IS_EDB_REL))
+//                {
+//                    MAP_ADD_STRING_KEY(taRel,itoa(key),a->rel);
+//
+//                    List *attrNames = NIL;
+//                    List *dts = NIL;
+//
+//                    attrNames = getAttributeNames(a->rel);
+//                    dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
+//
+//                    TableAccessOperator *rel = createTableAccessOp(a->rel, NULL, a->rel, NIL, attrNames, dts);
+//                    QueryOperator *op = (QueryOperator *) rel;
+//
+//        			Node *cond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(5)));
+//        			SelectionOperator *sel = createSelectionOp(cond, (QueryOperator *) rel, NIL, NULL);
+//        			op->parents = singleton(sel);
+//        			op = (QueryOperator *) sel;
+//
+//                    ProjectionOperator *proj = (ProjectionOperator *) createProjOnAllAttrs(op);
+//                    addChildOperator((QueryOperator *) proj, op);
+//
+//                    MAP_ADD_STRING_KEY(taOp,a->rel,proj);
+//                    key++;
+//                }
+//			        }
+//        }
+//
+//        FOREACH_HASH(QueryOperator,value,taOp)
+//        inputRels = appendToTailOfList(inputRels,value);
+//
+//        answerRel = (Node *) inputRels;
+//    }
+//    else
+//    {
         List *translation = NIL; // list of sinks of a relational algebra graph
     //    List *singleRuleTrans = NIL;
         HashMap *predToTrans = NEW_MAP(Constant,List);
@@ -400,7 +403,7 @@ translateProgram(DLProgram *p)
             introduceCastsWhereNecessary((QueryOperator *) answerRel);
             //ASSERT(checkModel((QueryOperator *) answerRel));
         }
-    }
+//    }
 
     return answerRel;
 }

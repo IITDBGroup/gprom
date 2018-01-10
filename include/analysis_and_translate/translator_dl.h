@@ -36,6 +36,6 @@
 extern Node *translateParseDL(Node *q);
 extern QueryOperator *translateQueryDL(Node *node);
 extern void analyzeProgramDTs (DLProgram *p, HashMap *predToRules);
-extern HashMap *taRel;
+//extern HashMap *taRel;
 
 #endif /* INCLUDE_ANALYSIS_AND_TRANSLATE_TRANSLATOR_DL_H_ */

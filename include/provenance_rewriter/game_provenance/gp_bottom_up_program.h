@@ -14,5 +14,6 @@
 #include "model/datalog/datalog_model.h"
 
 extern DLProgram *createBottomUpGPprogram (DLProgram *p);
+extern HashMap *edbRels;
 
 #endif /* INCLUDE_PROVENANCE_REWRITER_GAME_PROVENANCE_GP_BOTTOM_UP_PROGRAM_H_ */

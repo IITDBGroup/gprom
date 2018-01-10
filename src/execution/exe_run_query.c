@@ -16,7 +16,8 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "execution/exe_run_query.h"
 #include "utility/string_utils.h"
-#include "analysis_and_translate/translator_dl.h"
+//#include "analysis_and_translate/translator_dl.h"
+#include "provenance_rewriter/game_provenance/gp_bottom_up_program.h"
 #include "configuration/option.h"
 
 void
@@ -52,7 +53,7 @@ exeRunQuery (void *code)
     	if (getBoolOption(OPTION_INPUTDB))
     	{
 //    		FOREACH_HASH(char,r,taRel)
-    		char *r = (char *) MAP_GET_STRING(taRel,itoa(s));
+    		char *r = (char *) MAP_GET_STRING(edbRels,itoa(s+1));
    			printf("%s", r);
     		printf("\n");
     	}
