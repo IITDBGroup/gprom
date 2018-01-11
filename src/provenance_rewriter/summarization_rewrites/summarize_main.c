@@ -67,6 +67,7 @@ static Node *integrateWithEdgeRel (Node *topkInput, Node *moveRels, List *fPatte
 static List *provAttrs = NIL;
 static List *normAttrs = NIL;
 static List *userQuestion = NIL;
+static List *origDataTypes = NIL;
 static boolean isDl = FALSE;
 
 
@@ -236,9 +237,45 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels, List *fPattern)
 			attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A",itoa(pos)));
 			pos++;
 		}
+
+		List *userQdt = NIL;
+		FOREACH(AttributeDef,a,userQuestion)
+			userQdt = appendToTailOfListInt(userQdt, a->dataType);
+
+		origDataTypes = CONCAT_LISTS(userQdt, origDataTypes);
 	}
 
-	ProjectionOperator *op = createProjectionOp(projExpr, newEdgeBase, NIL, attrNames);
+	// case when attr is null then * else attr value
+	List *caseExprs = NIL;
+	pos = 0;
+
+	FOREACH(Node,n,projExpr)
+	{
+		// if the attr is number or constant, then make it char
+		FunctionCall *toChar;
+		AttributeReference *a = (AttributeReference *) n;
+		char *attrAs = CONCAT_STRINGS("*", strdup(a->name));
+
+		if(isA(n,Constant) || ((DataType *) getNthOfListP(origDataTypes,pos)) == DT_INT)
+		{
+			if(isA(n,Constant))
+				attrAs = "*";
+
+			toChar = createFunctionCall("TO_CHAR", singleton(n));
+			n = (Node *) toChar;
+		}
+
+		Node *cond = (Node *) createIsNullExpr((Node *) n);
+		Node *then = (Node *) createConstString(attrAs);
+
+		CaseWhen *caseWhen = createCaseWhen(cond, then);
+		CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), n);
+		caseExprs = appendToTailOfList(caseExprs, (List *) caseExpr);
+
+		pos++;
+	}
+
+	ProjectionOperator *op = createProjectionOp(caseExprs, newEdgeBase, NIL, attrNames);
 	newEdgeBase->parents = singleton(op);
 	newEdgeBase = (QueryOperator *) op;
 
@@ -268,7 +305,7 @@ static Node *
 rewriteTopkExplOutput (Node *fMeasureInput, int topK)
 {
 	Node *result;
-	QueryOperator *fMeasure = (QueryOperator *) fMeasureInput;
+	QueryOperator *topkOp = (QueryOperator *) fMeasureInput;
 
 	// create selection for returning top most general explanation
 	Node *selCond = NULL;
@@ -278,28 +315,28 @@ rewriteTopkExplOutput (Node *fMeasureInput, int topK)
 	else
 		selCond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(1))); // TODO: top1 or more?
 
-	SelectionOperator *so = createSelectionOp(selCond, fMeasure, NIL, getAttrNames(fMeasure->schema));
+	SelectionOperator *so = createSelectionOp(selCond, topkOp, NIL, getAttrNames(topkOp->schema));
 
-	fMeasure->parents = singleton(so);
-	fMeasure = (QueryOperator *) so;
+	topkOp->parents = singleton(so);
+	topkOp = (QueryOperator *) so;
 
 	// create projection operator
 	int pos = 0;
 	List *projExpr = NIL;
 	ProjectionOperator *op;
 
-	FOREACH(AttributeDef,a,fMeasure->schema->attrDefs)
+	FOREACH(AttributeDef,a,topkOp->schema->attrDefs)
 	{
 		projExpr = appendToTailOfList(projExpr,
 				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
 		pos++;
 	}
 
-	op = createProjectionOp(projExpr, fMeasure, NIL, getAttrNames(fMeasure->schema));
-	fMeasure->parents = singleton(op);
-	fMeasure = (QueryOperator *) op;
+	op = createProjectionOp(projExpr, topkOp, NIL, getAttrNames(topkOp->schema));
+	topkOp->parents = singleton(op);
+	topkOp = (QueryOperator *) op;
 
-	result = (Node *) fMeasure;
+	result = (Node *) topkOp;
 
 	DEBUG_NODE_BEATIFY_LOG("top-k summarized explanation from summarization:", result);
 	INFO_OP_LOG("top-k summarized explanation from summarization as overview:", result);
@@ -316,7 +353,7 @@ static Node *
 rewritefMeasureOutput (Node *computeFracInput, List *userQuestion)
 {
 	Node *result;
-	QueryOperator *computeFrac = (QueryOperator *) computeFracInput;
+	QueryOperator *fMeasure = (QueryOperator *) computeFracInput;
 
 	// where clause to filter out the pattern that only contains user question info
 	int aPos = 0;
@@ -324,7 +361,7 @@ rewritefMeasureOutput (Node *computeFracInput, List *userQuestion)
 	AttributeReference *lA, *rA = NULL;
 	Node *whereCond = NULL;
 
-	FOREACH(AttributeDef,a,computeFrac->schema->attrDefs)
+	FOREACH(AttributeDef,a,fMeasure->schema->attrDefs)
 	{
 		if(isPrefix(a->attrName, "use"))
 		{
@@ -357,9 +394,9 @@ rewritefMeasureOutput (Node *computeFracInput, List *userQuestion)
 	int maxNum = count - LIST_LENGTH(userQuestion) - 1;
 	Node *filterCond = (Node *) createOpExpr("<",LIST_MAKE(whereCond,createConstInt(maxNum)));
 
-	SelectionOperator *so = createSelectionOp(filterCond, computeFrac, NIL, getAttrNames(computeFrac->schema));
-	computeFrac->parents = appendToTailOfList(computeFrac->parents,so);
-	computeFrac = (QueryOperator *) so;
+	SelectionOperator *so = createSelectionOp(filterCond, fMeasure, NIL, getAttrNames(fMeasure->schema));
+	fMeasure->parents = appendToTailOfList(fMeasure->parents,so);
+	fMeasure = (QueryOperator *) so;
 
 	// projection operator with a f-measure computation
 	int pos = 0;
@@ -367,7 +404,7 @@ rewritefMeasureOutput (Node *computeFracInput, List *userQuestion)
 	ProjectionOperator *op;
 	AttributeReference *prec, *rec = NULL;
 
-	FOREACH(AttributeDef,a,computeFrac->schema->attrDefs)
+	FOREACH(AttributeDef,a,fMeasure->schema->attrDefs)
 	{
 		if(streq(a->attrName, ACCURACY_ATTR))
 			prec = createFullAttrReference(strdup(ACCURACY_ATTR), 0, pos, 0, a->dataType);
@@ -387,19 +424,19 @@ rewritefMeasureOutput (Node *computeFracInput, List *userQuestion)
 	Node *fmeasure = (Node *) createOpExpr("*",LIST_MAKE(createConstInt(2),cal));
 	projExpr = appendToTailOfList(projExpr, fmeasure);
 
-	List *attrNames = CONCAT_LISTS(getAttrNames(computeFrac->schema), singleton(FMEASURE_ATTR));
-	op = createProjectionOp(projExpr, computeFrac, NIL, attrNames);
-	computeFrac->parents = singleton(op);
-	computeFrac = (QueryOperator *) op;
+	List *attrNames = CONCAT_LISTS(getAttrNames(fMeasure->schema), singleton(FMEASURE_ATTR));
+	op = createProjectionOp(projExpr, fMeasure, NIL, attrNames);
+	fMeasure->parents = singleton(op);
+	fMeasure = (QueryOperator *) op;
 
 	// create ORDER BY
 	OrderExpr *fmeasureExpr = createOrderExpr(fmeasure, SORT_DESC, SORT_NULLS_LAST);
-	OrderOperator *ord = createOrderOp(singleton(fmeasureExpr), computeFrac, NIL);
+	OrderOperator *ord = createOrderOp(singleton(fmeasureExpr), fMeasure, NIL);
 
-	computeFrac->parents = singleton(ord);
-	computeFrac = (QueryOperator *) ord;
+	fMeasure->parents = singleton(ord);
+	fMeasure = (QueryOperator *) ord;
 
-	result = (Node *) computeFrac;
+	result = (Node *) fMeasure;
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("compute f-measure for summarization:", result);
@@ -416,7 +453,7 @@ static Node *
 rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType)
 {
 	Node *result;
-	QueryOperator *candidates = (QueryOperator *) scaledCandInput;
+	QueryOperator *computeFrac = (QueryOperator *) scaledCandInput;
 
 	if(streq(qType,"WHYNOT"))
 	{
@@ -432,12 +469,12 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType)
 		provSample = (QueryOperator *) projOp;
 
 		// create cross product
-		List *inputs = LIST_MAKE(provSample, candidates);
-		List *attrNames = CONCAT_LISTS(getAttrNames(provSample->schema), getAttrNames(candidates->schema));
+		List *inputs = LIST_MAKE(provSample, computeFrac);
+		List *attrNames = CONCAT_LISTS(getAttrNames(provSample->schema), getAttrNames(computeFrac->schema));
 
 		QueryOperator *cp = (QueryOperator *) createJoinOp(JOIN_CROSS, NULL, inputs, NIL, attrNames);
 		OP_LCHILD(cp)->parents = OP_RCHILD(cp)->parents = singleton(cp);
-		candidates = cp;
+		computeFrac = cp;
 	}
 
 //	// get total count for prov from samples
@@ -477,7 +514,7 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType)
 //	AttributeReference *covProv;
 //	AttributeReference *numProv;
 
-	FOREACH(AttributeDef,a,candidates->schema->attrDefs)
+	FOREACH(AttributeDef,a,computeFrac->schema->attrDefs)
 	{
 		if (pos == 0)
 			totProv = createFullAttrReference(strdup(TOTAL_PROV_ATTR), 0, pos, 0, a->dataType);
@@ -510,10 +547,10 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType)
 	projExpr = appendToTailOfList(projExpr, rdupCr);
 
 	List *attrNames = NIL;
-	attrNames = CONCAT_LISTS(getAttrNames(candidates->schema), singleton(ACCURACY_ATTR), singleton(COVERAGE_ATTR));
-	ProjectionOperator *op = createProjectionOp(projExpr, candidates, NIL, attrNames);
-	candidates->parents = singleton(op);
-	candidates = (QueryOperator *) op;
+	attrNames = CONCAT_LISTS(getAttrNames(computeFrac->schema), singleton(ACCURACY_ATTR), singleton(COVERAGE_ATTR));
+	ProjectionOperator *op = createProjectionOp(projExpr, computeFrac, NIL, attrNames);
+	computeFrac->parents = singleton(op);
+	computeFrac = (QueryOperator *) op;
 
 //	// create ORDER BY
 //	// TODO: probably put another projection for order by operation
@@ -527,7 +564,7 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType)
 //	computeFrac->parents = singleton(ord);
 //	computeFrac = (QueryOperator *) ord;
 
-	result = (Node *) candidates;
+	result = (Node *) computeFrac;
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
 	DEBUG_NODE_BEATIFY_LOG("compute fraction for summarization:", result);
@@ -1818,6 +1855,9 @@ replaceDomWithSampleDom (Node *sampleDom, Node *input)
 	QueryOperator *sDom = (QueryOperator *) sampleDom;
 	int numOfAttrs = LIST_LENGTH(sDom->schema->attrDefs);
 
+	// store original datatypes
+	origDataTypes = getDataTypes(sDom->schema);
+
 	List *rels = NIL;
 	findTableAccessVisitor((Node *) whyNotRuleFire,&rels);
 
@@ -1970,6 +2010,9 @@ rewriteProvJoinOutput (Node *rewrittenTree)
 
 		FOREACH(AttributeDef,a,prov->schema->attrDefs)
 			a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
+
+		// store orig data types
+		origDataTypes = getDataTypes(prov->schema);
 	}
 
 	// take the input query out for use with join operator later
