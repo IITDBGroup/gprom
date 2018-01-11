@@ -121,6 +121,8 @@ void
 storeExceptionInfo(ExceptionSeverity s, const char *message, const char *f, int l)
 {
     severity = s;
+    file = f;
+    line = l;
     // copy the message into the default memory context if the memory manager is usable
     if (memManagerUsable())
     {
@@ -137,8 +139,6 @@ storeExceptionInfo(ExceptionSeverity s, const char *message, const char *f, int 
         strncpy(fallbackBuffer, message, MAX_FALLBACKSTRING);
         fprintf(stderr, "exeception was thrown: %s\n", fallbackBuffer);
     }
-    file = f;
-    line = l;
 }
 
 char *
