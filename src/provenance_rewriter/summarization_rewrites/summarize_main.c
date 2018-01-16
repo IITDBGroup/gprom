@@ -958,7 +958,7 @@ rewriteCandidateOutput (Node *scanSampleInput, char *qType)
 	}
 
 	List *aggrs = NIL;
-	FunctionCall *fcShnp;
+	FunctionCall *fcShnp = NULL; // keep compiler quiet
 	List *attrNames = NIL;
 
 	if(streq(qType,"WHY"))
