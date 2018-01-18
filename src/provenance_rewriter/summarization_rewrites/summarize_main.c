@@ -38,6 +38,7 @@
 #define TOTAL_NONPROV_SAMP_ATTR "TotalNonProvInSamp"
 #define ACCURACY_ATTR "Precision"
 #define COVERAGE_ATTR "Recall"
+#define INFORMATIVE_ATTR "informativeness"
 #define FMEASURE_ATTR "Fmeasure"
 #define COVERED_ATTR "Covered"
 #define SAMP_NUM_PREFIX "SampNum"
@@ -45,7 +46,7 @@
 #define SAMP_NUM_L_ATTR SAMP_NUM_PREFIX "Left"
 #define SAMP_NUM_R_ATTR SAMP_NUM_PREFIX "Right"
 
-static List *domAttrsOutput (List *userQ, Node *sampleInput, int sampleSize, char *qType);
+static List *domAttrsOutput (Node *sampleInput, int sampleSize, char *qType);
 //static int *computeSampleSize (int *samplePerc, Node *prov);
 
 static Node *rewriteUserQuestion (List *userQ, Node *rewrittenTree);
@@ -60,7 +61,7 @@ static Node *scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *r
 static Node *joinOnSeqOutput (List *doms);
 static Node *replaceDomWithSampleDom (Node *sampleDom, Node *input);
 static Node *rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType);
-static Node *rewritefMeasureOutput (Node *computeFracInput, List *userQuestion);
+static Node *rewritefMeasureOutput (Node *computeFracInput);
 static Node *rewriteTopkExplOutput (Node *fMeasureInput, int topK);
 static Node *integrateWithEdgeRel (Node *topkInput, Node *moveRels, List *fPattern);
 
@@ -149,15 +150,15 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		patterns = rewritePatternOutput(summaryType, samples, randomProv); //TODO: different types of pattern generation
 		scanSamples = rewriteScanSampleOutput(samples, patterns);
 		candidates = rewriteCandidateOutput(scanSamples, qType);
-		doms = domAttrsOutput(userQuestion, rewrittenTree, sampleSize, qType);
+		doms = domAttrsOutput(rewrittenTree, sampleSize, qType);
 		scaleUp = scaleUpOutput(doms, candidates, provJoin, randomProv, randomNonProv);
 		computeFrac = rewriteComputeFracOutput(scaleUp, randomProv, qType);
-		fMeasure = rewritefMeasureOutput(computeFrac, userQuestion);
+		fMeasure = rewritefMeasureOutput(computeFrac);
 		result = rewriteTopkExplOutput(fMeasure, topK);
 	}
 	else if(streq(qType,"WHYNOT"))
 	{
-		doms = domAttrsOutput(userQuestion, rewrittenTree, sampleSize, qType);
+		doms = domAttrsOutput(rewrittenTree, sampleSize, qType);
 		sampleDom = joinOnSeqOutput(doms);
 		whynotExpl = replaceDomWithSampleDom(sampleDom, rewrittenTree);
 		randomProv = rewriteRandomProvTuples(whynotExpl,qType, fPattern);
@@ -167,7 +168,7 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		scanSamples = rewriteScanSampleOutput(samples, patterns);
 		candidates = rewriteCandidateOutput(scanSamples, qType);
 		computeFrac = rewriteComputeFracOutput(candidates, randomProv, qType);
-		fMeasure = rewritefMeasureOutput(computeFrac, userQuestion);
+		fMeasure = rewritefMeasureOutput(computeFrac);
 		result = rewriteTopkExplOutput(fMeasure, topK);
 
 //		INFO_OP_LOG("WHYNOT summary is currently on the implementation process!!");
@@ -254,7 +255,11 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels, List *fPattern)
 		// if the attr is number or constant, then make it char
 		FunctionCall *toChar;
 		AttributeReference *a = (AttributeReference *) n;
-		char *attrAs = CONCAT_STRINGS("*", strdup(a->name));
+//		char *attrAs = CONCAT_STRINGS("*", strdup(a->name));
+
+		// use attr names for placeholders
+		// TODO: need to bring the original name back on
+		char *attrAs = strdup(a->name);
 
 		if(isA(n,Constant) || ((DataType *) getNthOfListP(origDataTypes,pos)) == DT_INT)
 		{
@@ -350,59 +355,59 @@ rewriteTopkExplOutput (Node *fMeasureInput, int topK)
  * compute f-measure based on precision and recall
  */
 static Node *
-rewritefMeasureOutput (Node *computeFracInput, List *userQuestion)
+rewritefMeasureOutput (Node *computeFracInput)
 {
 	Node *result;
 	QueryOperator *fMeasure = (QueryOperator *) computeFracInput;
 
-	// where clause to filter out the pattern that only contains user question info
-	int aPos = 0;
-	int count = 1;
-	AttributeReference *lA, *rA = NULL;
-	Node *whereCond = NULL;
-
-	FOREACH(AttributeDef,a,fMeasure->schema->attrDefs)
-	{
-		if(isPrefix(a->attrName, "use"))
-		{
-			if(count % 2 != 0)
-				lA = createFullAttrReference(strdup(a->attrName), 0, aPos, 0, a->dataType);
-			else
-				rA = createFullAttrReference(strdup(a->attrName), 0, aPos, 0, a->dataType);
-
-			if(lA != NULL && rA != NULL)
-			{
-				Node *pairCond = (Node *) createOpExpr("+",LIST_MAKE(lA,rA));
-
-				if(whereCond != NULL)
-					whereCond = (Node *) createOpExpr("+",LIST_MAKE(whereCond,pairCond));
-				else
-					whereCond = copyObject(pairCond);
-
-				lA = NULL;
-				rA = NULL;
-			}
-			count++;
-		}
-		aPos++;
-	}
-
-	// add the last attr
-	if(lA != NULL && rA == NULL)
-		whereCond = (Node *) createOpExpr("+",LIST_MAKE(whereCond,lA));
-
-	int maxNum = count - LIST_LENGTH(userQuestion) - 1;
-	Node *filterCond = (Node *) createOpExpr("<",LIST_MAKE(whereCond,createConstInt(maxNum)));
-
-	SelectionOperator *so = createSelectionOp(filterCond, fMeasure, NIL, getAttrNames(fMeasure->schema));
-	fMeasure->parents = appendToTailOfList(fMeasure->parents,so);
-	fMeasure = (QueryOperator *) so;
+//	// where clause to filter out the pattern that only contains user question info
+//	int aPos = 0;
+//	int count = 1;
+//	AttributeReference *lA, *rA = NULL;
+//	Node *whereCond = NULL;
+//
+//	FOREACH(AttributeDef,a,fMeasure->schema->attrDefs)
+//	{
+//		if(isPrefix(a->attrName, "use"))
+//		{
+//			if(count % 2 != 0)
+//				lA = createFullAttrReference(strdup(a->attrName), 0, aPos, 0, a->dataType);
+//			else
+//				rA = createFullAttrReference(strdup(a->attrName), 0, aPos, 0, a->dataType);
+//
+//			if(lA != NULL && rA != NULL)
+//			{
+//				Node *pairCond = (Node *) createOpExpr("+",LIST_MAKE(lA,rA));
+//
+//				if(whereCond != NULL)
+//					whereCond = (Node *) createOpExpr("+",LIST_MAKE(whereCond,pairCond));
+//				else
+//					whereCond = copyObject(pairCond);
+//
+//				lA = NULL;
+//				rA = NULL;
+//			}
+//			count++;
+//		}
+//		aPos++;
+//	}
+//
+//	// add the last attr
+//	if(lA != NULL && rA == NULL)
+//		whereCond = (Node *) createOpExpr("+",LIST_MAKE(whereCond,lA));
+//
+//	int maxNum = count - LIST_LENGTH(userQuestion) - 1;
+//	Node *filterCond = (Node *) createOpExpr("<",LIST_MAKE(whereCond,createConstInt(maxNum)));
+//
+//	SelectionOperator *so = createSelectionOp(filterCond, fMeasure, NIL, getAttrNames(fMeasure->schema));
+//	fMeasure->parents = appendToTailOfList(fMeasure->parents,so);
+//	fMeasure = (QueryOperator *) so;
 
 	// projection operator with a f-measure computation
 	int pos = 0;
 	List *projExpr = NIL;
 	ProjectionOperator *op;
-	AttributeReference *prec, *rec = NULL;
+	AttributeReference *prec, *rec, *info = NULL;
 
 	FOREACH(AttributeDef,a,fMeasure->schema->attrDefs)
 	{
@@ -412,19 +417,47 @@ rewritefMeasureOutput (Node *computeFracInput, List *userQuestion)
 		if(streq(a->attrName, COVERAGE_ATTR))
 			rec = createFullAttrReference(strdup(COVERAGE_ATTR), 0, pos, 0, a->dataType);
 
+		if(streq(a->attrName, INFORMATIVE_ATTR))
+			info = createFullAttrReference(strdup(INFORMATIVE_ATTR), 0, pos, 0, a->dataType);
+
 		projExpr = appendToTailOfList(projExpr,
 				createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
 		pos++;
 	}
 
-	// add f-measure computation
+	// add 2 measures into the computation
 	Node *times = (Node *) createOpExpr("*",LIST_MAKE(prec,rec));
 	Node *plus = (Node *) createOpExpr("+",LIST_MAKE(prec,rec));
-	Node *cal = (Node *) createOpExpr("/",LIST_MAKE(times,plus));
-	Node *fmeasure = (Node *) createOpExpr("*",LIST_MAKE(createConstInt(2),cal));
+
+	// add third measure into the computation
+	Node *newtimes = (Node *) createOpExpr("*",LIST_MAKE(times,info));
+	Node *newplus = (Node *) createOpExpr("+",LIST_MAKE(plus,info));
+
+	// compute f-measure
+	Node *cal = (Node *) createOpExpr("/",LIST_MAKE(newtimes,newplus));
+	Node *fmeasure = (Node *) createOpExpr("*",LIST_MAKE(createConstInt(3),cal));
 	projExpr = appendToTailOfList(projExpr, fmeasure);
 
 	List *attrNames = CONCAT_LISTS(getAttrNames(fMeasure->schema), singleton(FMEASURE_ATTR));
+	op = createProjectionOp(projExpr, fMeasure, NIL, attrNames);
+	fMeasure->parents = singleton(op);
+	fMeasure = (QueryOperator *) op;
+
+	// add projection for ORDER BY
+	pos = 0;
+	projExpr = NIL;
+
+	FOREACH(AttributeDef,a,fMeasure->schema->attrDefs)
+	{
+		AttributeReference *ar = createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType);
+
+		if(streq(a->attrName,FMEASURE_ATTR))
+			fmeasure = (Node *) ar;
+
+		projExpr = appendToTailOfList(projExpr, ar);
+		pos++;
+	}
+
 	op = createProjectionOp(projExpr, fMeasure, NIL, attrNames);
 	fMeasure->parents = singleton(op);
 	fMeasure = (QueryOperator *) op;
@@ -511,8 +544,6 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType)
 	int pos = 0;
 	List *projExpr = NIL;
 	AttributeReference *totProv, *covProv, *numProv = NULL;
-//	AttributeReference *covProv;
-//	AttributeReference *numProv;
 
 	FOREACH(AttributeDef,a,computeFrac->schema->attrDefs)
 	{
@@ -531,7 +562,7 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType)
 	}
 
 	// round up after second decimal number
-	Node *rdup = (Node *) createConstInt(atoi("2"));
+	Node *rdup = (Node *) createConstInt(atoi("5"));
 
 	// add attribute for accuracy
 //	AttributeReference *numProv = createFullAttrReference(strdup(NUM_PROV_ATTR), 0, 2, 0, DT_INT);
@@ -546,8 +577,51 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType)
 	FunctionCall *rdupCr = createFunctionCall("ROUND", LIST_MAKE(recRate, rdup));
 	projExpr = appendToTailOfList(projExpr, rdupCr);
 
+	// add attribute for informativeness
+	int sumInfo = 0;
+	int userQLen = LIST_LENGTH(userQuestion);
+	Node *infoSum = NULL;
+	AttributeReference *lA = NULL;
+	AttributeReference *rA = NULL;
+
+	FOREACH(AttributeReference,a,projExpr)
+	{
+		// after user question attributes, sum of the values of attributes to compute informativeness
+		if (isPrefix(a->name,"use"))
+		{
+			if (sumInfo >= userQLen)
+			{
+				if(lA == NULL)
+					lA = copyObject(a);
+				else
+					rA = copyObject(a);
+
+				if(lA != NULL && rA != NULL)
+				{
+					Node *pairCond = (Node *) createOpExpr("+",LIST_MAKE(lA,rA));
+
+//					if(infoSum != NULL)
+//						infoSum = (Node *) createOpExpr("+",LIST_MAKE(infoSum,pairCond));
+//					else
+						infoSum = copyObject(pairCond);
+
+					lA = (AttributeReference *) infoSum;
+					rA = NULL;
+				}
+			}
+
+			sumInfo++;
+		}
+	}
+
+	// compute the fraction of informativeness
+	Node *infoRate = (Node *) createOpExpr("/",LIST_MAKE(infoSum,createConstInt(sumInfo-userQLen)));
+	FunctionCall *rdupInfo = createFunctionCall("ROUND", LIST_MAKE(infoRate, rdup));
+	projExpr = appendToTailOfList(projExpr, rdupInfo);
+
 	List *attrNames = NIL;
-	attrNames = CONCAT_LISTS(getAttrNames(computeFrac->schema), singleton(ACCURACY_ATTR), singleton(COVERAGE_ATTR));
+	attrNames = CONCAT_LISTS(getAttrNames(computeFrac->schema), singleton(ACCURACY_ATTR),
+			singleton(COVERAGE_ATTR), singleton(INFORMATIVE_ATTR));
 	ProjectionOperator *op = createProjectionOp(projExpr, computeFrac, NIL, attrNames);
 	computeFrac->parents = singleton(op);
 	computeFrac = (QueryOperator *) op;
@@ -766,7 +840,7 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
  * generate domain attrs for later use of scale up of the measure values to the real values
  */
 static List *
-domAttrsOutput (List *userQ, Node *input, int sampleSize, char *qType)
+domAttrsOutput (Node *input, int sampleSize, char *qType)
 {
 	List *result = NIL;
 
@@ -875,19 +949,39 @@ domAttrsOutput (List *userQ, Node *input, int sampleSize, char *qType)
 						// random sample from attr domain for whynot
 						else if(streq(qType,"WHYNOT"))
 						{
-							// TODO: compute percentile for random sample based on the sample size
-							char *numInTableName = strstr(t->tableName,itoa(1));
+							/*
+							 *  TODO: compute percentile for random sample based on the sample size
+							 *  e.g., how to capture table size. Currently, size captured by the table name
+							 */
+
+							char *numInTableName = NULL;
+
+							if(isSubstr(t->tableName,itoa(6)))
+								numInTableName = strstr(t->tableName,itoa(6));
+
+							if(isSubstr(t->tableName,itoa(1)))
+								numInTableName = strstr(t->tableName,itoa(1));
 
 							// replace thousand and million in char to number
-							if(isSubstr(numInTableName,"K") || isSubstr(numInTableName,"k")
-									|| isSubstr(numInTableName,"M") || isSubstr(numInTableName,"m"))
-							{
+							if(isSubstr(numInTableName,"K"))
 								numInTableName = replaceSubstr(numInTableName,"K",itoa(000));
+
+							if(isSubstr(numInTableName,"k"))
 								numInTableName = replaceSubstr(numInTableName,"k",itoa(000));
-								numInTableName = replaceSubstr(numInTableName,"M",itoa(000000));
-								numInTableName = replaceSubstr(numInTableName,"m",itoa(000000));
+
+							if(isSubstr(numInTableName,"M"))
+							{
+								numInTableName = replaceSubstr(numInTableName,"M",itoa(000));
+								numInTableName = CONCAT_STRINGS(numInTableName, itoa(000));
 							}
 
+							if(isSubstr(numInTableName,"m"))
+							{
+								numInTableName = replaceSubstr(numInTableName,"m",itoa(000));
+								numInTableName = CONCAT_STRINGS(numInTableName, itoa(000));
+							}
+
+							// calculate percentile for sampling
 							int dataSize = atoi(numInTableName);
 							int perc = sampleSize / dataSize;
 
@@ -1022,8 +1116,8 @@ rewriteCandidateOutput (Node *scanSampleInput, char *qType)
 		if (isPrefix(n->attrName,"PROV_"))
 		{
 			Node *cond = (Node *) createIsNullExpr((Node *) n);
-			Node *then = (Node *) createConstInt(1);
-			Node *els = (Node *) createConstInt(0);
+			Node *then = (Node *) createConstInt(0);
+			Node *els = (Node *) createConstInt(1);
 
 			CaseWhen *caseWhen = createCaseWhen(cond, then);
 			CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
