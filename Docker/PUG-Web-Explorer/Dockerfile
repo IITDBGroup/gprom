@@ -1,7 +1,7 @@
 ########################################
 # Derived from ubuntu distribution
 ########################################
-FROM iitdbgroup/gprom-debian-all-backends:latest
+FROM iitdbgroup/gprom-ubuntu-all-backends:latest
 MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
 # Install python
@@ -15,6 +15,7 @@ RUN apt-get -y update && apt-get install -y \
 ########################################
 RUN mv /gprom/src/clients/pythonweb /web
 COPY connsettings.py /web/provgraph_web/
+COPY provgraph_web.db /web/provgraph_web/
 ########################################
 # install python packages
 ########################################
