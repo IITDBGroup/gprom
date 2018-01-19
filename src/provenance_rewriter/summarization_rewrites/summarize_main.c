@@ -738,7 +738,7 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
 	((QueryOperator *) totalNonProvInSamp)->parents = singleton(crossPtotalNonProvInSamp);
 
 	// add cross product for doms
-	QueryOperator *crossPdom;
+	QueryOperator *crossPdom = NULL;
 
 	for(int i = 0; i < LIST_LENGTH(doms); i++)
 	{
