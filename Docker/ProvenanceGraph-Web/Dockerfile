@@ -1,15 +1,8 @@
 ########################################
-# Derived from ubuntu distribution
+# Derived gprom image with support for all backends
 ########################################
-FROM iitdbgroup/gprom-debian-all-backends:latest
+FROM iitdbgroup/gprom-debian-all-backends:pug
 MAINTAINER Boris Glavic <bglavic@iit.edu>
-########################################
-# Make Oracle libraries available
-########################################
-# Should not be needed anymore
-#RUN echo "/usr/local/bin/" >> /etc/ld.so.conf \
-#	&& echo "/opt/oracle/instantclient/" >> /etc/ld.so.conf \
-#	&& /sbin/ldconfig
 ########################################
 # Install python
 ########################################
@@ -22,6 +15,7 @@ RUN apt-get -y update && apt-get install -y \
 ########################################
 RUN mv /gprom/src/clients/pythonweb /web
 COPY connsettings.py /web/provgraph_web/
+RUN cp /gprom/src/clients/pythonweb/provgraph_web_blank.db /web/provgraph_web/provgraph_web.db
 ########################################
 # install python packages
 ########################################
