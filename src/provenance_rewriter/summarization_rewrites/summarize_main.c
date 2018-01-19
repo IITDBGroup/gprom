@@ -407,7 +407,7 @@ rewritefMeasureOutput (Node *computeFracInput)
 	int pos = 0;
 	List *projExpr = NIL;
 	ProjectionOperator *op;
-	AttributeReference *prec, *rec, *info = NULL;
+	AttributeReference *prec = NULL, *rec = NULL, *info = NULL;
 
 	FOREACH(AttributeDef,a,fMeasure->schema->attrDefs)
 	{
@@ -543,7 +543,7 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType)
 	// create projection operator
 	int pos = 0;
 	List *projExpr = NIL;
-	AttributeReference *totProv, *covProv, *numProv = NULL;
+	AttributeReference *totProv = NULL, *covProv = NULL, *numProv = NULL;
 
 	FOREACH(AttributeDef,a,computeFrac->schema->attrDefs)
 	{
@@ -562,7 +562,7 @@ rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType)
 	}
 
 	// round up after second decimal number
-	Node *rdup = (Node *) createConstInt(atoi("5"));
+	Node *rdup = (Node *) createConstInt(5); // ???? why was that used: atoi("5"));
 
 	// add attribute for accuracy
 //	AttributeReference *numProv = createFullAttrReference(strdup(NUM_PROV_ATTR), 0, 2, 0, DT_INT);
@@ -766,7 +766,13 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
 	List *projExpr = NIL;
 	List *attrs = NIL;
 	Node *crossDoms = NULL;
-	AttributeReference *totProv, *numProv, *numNonProv, *totProvInSamp, *totNonProvInSamp, *domL, *domR = NULL;
+	AttributeReference *totProv = NULL,
+	                    *numProv = NULL,
+	                    *numNonProv = NULL,
+	                    *totProvInSamp = NULL,
+	                    *totNonProvInSamp = NULL,
+	                    *domL = NULL,
+	                    *domR = NULL;
 
 	FOREACH(AttributeDef,a,crossPdom->schema->attrDefs)
 	{
@@ -1992,7 +1998,7 @@ static Node *
 joinOnSeqOutput (List *doms)
 {
 	Node *result;
-	QueryOperator *sampDom;
+	QueryOperator *sampDom = NULL;
 	List *inputs = NIL;
 	List *attrNames = NIL;
 	int lApos = 0;
