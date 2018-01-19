@@ -4,6 +4,13 @@
 FROM iitdbgroup/gprom-debian-all-backends:latest
 MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
+# Make Oracle libraries available
+########################################
+# Should not be needed anymore
+#RUN echo "/usr/local/bin/" >> /etc/ld.so.conf \
+#	&& echo "/opt/oracle/instantclient/" >> /etc/ld.so.conf \
+#	&& /sbin/ldconfig
+########################################
 # Install python
 ########################################
 RUN apt-get -y update && apt-get install -y \
@@ -31,6 +38,3 @@ ENTRYPOINT ["/web/manage.py"]
 # Per start the webserver
 ########################################
 CMD ["startserver"]
-RUN echo "/usr/local/bin/" >> /etc/ld.so.conf \
-	&& echo "/opt/oracle/instantclient/" >> /etc/ld.so.conf \
-	&& /sbin/ldconfig
