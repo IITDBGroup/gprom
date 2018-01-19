@@ -135,8 +135,19 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	List *doms = NIL;
 //	int *sampleSize = computeSampleSize(samplePerc,rewrittenTree);
 
-	Node *result, *provJoin, *randomProv, *randomNonProv, *samples, *patterns,
-		*sampleDom, *whynotExpl, *scanSamples, *candidates, *scaleUp, *computeFrac, *fMeasure;
+	Node *result=NULL,
+        *provJoin=NULL,
+        *randomProv=NULL,
+        *randomNonProv=NULL,
+        *samples=NULL,
+        *patterns=NULL,
+        *sampleDom=NULL,
+        *whynotExpl=NULL,
+        *scanSamples=NULL,
+        *candidates=NULL,
+        *scaleUp=NULL,
+        *computeFrac=NULL,
+        *fMeasure = NULL;
 
 	if(streq(qType,"WHY"))
 	{
