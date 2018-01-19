@@ -235,7 +235,7 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels, List *fPattern)
 		FOREACH(Node,n,fPattern)
 		{
 			projExpr = appendToTailOfList(projExpr, n);
-			attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A",itoa(pos)));
+			attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A",gprom_itoa(pos)));
 			pos++;
 		}
 
@@ -956,29 +956,29 @@ domAttrsOutput (Node *input, int sampleSize, char *qType)
 
 							char *numInTableName = NULL;
 
-							if(isSubstr(t->tableName,itoa(6)))
-								numInTableName = strstr(t->tableName,itoa(6));
+							if(isSubstr(t->tableName,gprom_itoa(6)))
+								numInTableName = strstr(t->tableName,gprom_itoa(6));
 
-							if(isSubstr(t->tableName,itoa(1)))
-								numInTableName = strstr(t->tableName,itoa(1));
+							if(isSubstr(t->tableName,gprom_itoa(1)))
+								numInTableName = strstr(t->tableName,gprom_itoa(1));
 
 							// replace thousand and million in char to number
 							if(isSubstr(numInTableName,"K"))
-								numInTableName = replaceSubstr(numInTableName,"K",itoa(000));
+								numInTableName = replaceSubstr(numInTableName,"K",gprom_itoa(000));
 
 							if(isSubstr(numInTableName,"k"))
-								numInTableName = replaceSubstr(numInTableName,"k",itoa(000));
+								numInTableName = replaceSubstr(numInTableName,"k",gprom_itoa(000));
 
 							if(isSubstr(numInTableName,"M"))
 							{
-								numInTableName = replaceSubstr(numInTableName,"M",itoa(000));
-								numInTableName = CONCAT_STRINGS(numInTableName, itoa(000));
+								numInTableName = replaceSubstr(numInTableName,"M",gprom_itoa(000));
+								numInTableName = CONCAT_STRINGS(numInTableName, gprom_itoa(000));
 							}
 
 							if(isSubstr(numInTableName,"m"))
 							{
-								numInTableName = replaceSubstr(numInTableName,"m",itoa(000));
-								numInTableName = CONCAT_STRINGS(numInTableName, itoa(000));
+								numInTableName = replaceSubstr(numInTableName,"m",gprom_itoa(000));
+								numInTableName = CONCAT_STRINGS(numInTableName, gprom_itoa(000));
 							}
 
 							// calculate percentile for sampling
@@ -2118,7 +2118,7 @@ rewriteProvJoinOutput (Node *rewrittenTree)
 		if(isDl)
 		{
 //			FOREACH(AttributeDef,a,prov->schema->attrDefs)
-//				provAttrs = appendToTailOfList(provAttrs, CONCAT_STRINGS("i",itoa(getAttrPos(prov, a->attrName))));
+//				provAttrs = appendToTailOfList(provAttrs, CONCAT_STRINGS("i",gprom_itoa(getAttrPos(prov, a->attrName))));
 			ProjectionOperator *p = (ProjectionOperator *) getHeadOfListP((List *) transInput->inputs);
 			normAttrs = copyObject(p->projExprs);
 

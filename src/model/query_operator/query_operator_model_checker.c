@@ -62,7 +62,7 @@ checkModel (QueryOperator *op)
         FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
     if (SHOULD(CHECK_OM_SCHEMA_CONSISTENCY) && !visitQOGraph(op, TRAVERSAL_PRE, checkSchemaConsistency, NULL))
         FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
-    if (SHOULD(CHECK_OM_DATA_STRUCTURE_CONSISTENCY) && !visitQOGraph(op, TRAVERSAL_PRE, checkForDatastructureReuse, NULL))
+    if (SHOULD(CHECK_OM_DATA_STRUCTURE_CONSISTENCY) && !visitQOGraph(op, TRAVERSAL_POST, checkForDatastructureReuse, NEW_MAP(Constant, Constant)))
         FREE_CONTEXT_AND_RETURN_BOOL(FALSE);
 
     FREE_CONTEXT_AND_RETURN_BOOL(TRUE);
@@ -179,7 +179,7 @@ checkAttributeRefList (List *attrRefs, List *children, QueryOperator *parent)
         if (strcmp(childA->attrName, a->name) != 0)
         {
             ERROR_LOG("attribute ref name and child attrdef names are not the "
-                    "same:", childA->attrName, a->name);
+                    "same: <%s> and <%s>", childA->attrName, a->name);
             ERROR_OP_LOG("parent is",parent);
             DEBUG_NODE_BEATIFY_LOG("details are:", a, childA, parent);
             return FALSE;
@@ -396,19 +396,19 @@ typedef struct ReuseDataStructureContext
 static boolean
 checkForDatastructureReuse (QueryOperator *op, void *context)
 {
-    HashMap *pointers = (HashMap *) (context ? context : NEW_MAP(Constant,Constant));
+    HashMap *pointers = (HashMap *) context;
     Set *c;
-    long opAddr = (long) op;
+    gprom_long_t opAddr = (gprom_long_t) op;
 
     c =  PSET();
     checkReuseVisitor((Node *) op, c);
 
     FOREACH_SET(void*, p, c)
     {
-        long pAddr = (long) p;
+        gprom_long_t pAddr = (gprom_long_t) p;
         if (MAP_HAS_LONG_KEY(pointers, pAddr))
         {
-            long otherAddr = LONG_VALUE(MAP_GET_LONG(pointers, pAddr));
+            gprom_long_t otherAddr = LONG_VALUE(MAP_GET_LONG(pointers, pAddr));
             Node *ds = (Node *) p;
             QueryOperator *other = (QueryOperator *) otherAddr;
 
@@ -440,7 +440,7 @@ checkReuseVisitor (Node *node, void *context)
         return TRUE;
 
     // do not traverse into query operators
-    if (isA(node, QueryOperator))
+    if (IS_OP(node))
     {
         return TRUE;
     }

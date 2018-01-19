@@ -134,6 +134,7 @@ assembleOracleMetadataLookupPlugin (void)
     plugin->executeAsTransactionAndGetXID = oracleExecuteAsTransactionAndGetXID;
     plugin->getCommitScn = oracleGetCommitScn;
     plugin->executeQuery = oracleGenExecQuery;
+    plugin->executeQueryIgnoreResult = oracleGenExecQueryIgnoreResult;
     plugin->getCostEstimation = oracleGetCostEstimation;
     plugin->getKeyInformation = oracleGetKeyInformation;
 
@@ -731,7 +732,7 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
                 START_TIMER("module - metadata lookup - fetch transaction info");
 
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch SCN");
-                long scn = (long) OCI_GetBigInt(rs,1); // SCN
+                gprom_long_t scn = (gprom_long_t) OCI_GetBigInt(rs,1); // SCN
                 STOP_TIMER("module - metadata lookup - fetch transaction info - fetch SCN");
 
                 START_TIMER("module - metadata lookup - fetch transaction info - fetch SQL");
@@ -824,7 +825,7 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
             // loop through
             while(OCI_FetchNext(rs))
             {
-                long isoA = (long) OCI_GetBigInt(rs,1); // ISOLEVEL
+                gprom_long_t isoA = (gprom_long_t) OCI_GetBigInt(rs,1); // ISOLEVEL
 
                 switch(isoA)
                 {
@@ -854,19 +855,19 @@ oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls, List **sqlB
         }
 
         // get COMMIT SCN
-        long commitS = -1; // getCommitScn("",
+        gprom_long_t commitS = -1; // getCommitScn("",
 //                LONG_VALUE(getTailOfListP(*scns)),
 //                xid); // LONG_VALUE(getTailOfListP(*scns)) + 1;
-        (*((long *) commitScn->value)) = commitS; //TODO write query to get real COMMIT SCN
+        (*((gprom_long_t *) commitScn->value)) = commitS; //TODO write query to get real COMMIT SCN
     }
     STOP_TIMER("module - metadata lookup");
 }
 
-long
-oracleGetCommitScn (char *tableName, long maxScn, char *xid)
+gprom_long_t
+oracleGetCommitScn (char *tableName, gprom_long_t maxScn, char *xid)
 {
     StringInfo statement = makeStringInfo();
-    long commitScn = 0;
+    gprom_long_t commitScn = 0;
     const char *histTable = NULL;
 
     START_TIMER("module - metadata lookup");
@@ -892,7 +893,7 @@ oracleGetCommitScn (char *tableName, long maxScn, char *xid)
 
         // loop through
         while(OCI_FetchNext(rs))
-            commitScn = (long) OCI_GetBigInt(rs,1);
+            commitScn = (gprom_long_t) OCI_GetBigInt(rs,1);
 
         if(commitScn == 0)
         {
@@ -1032,6 +1033,17 @@ oracleGetOpReturnType (char *oName, List *dataTypes, boolean *opExists)
         if (lType == rType && lType == DT_STRING)
             return DT_STRING;
     }
+
+    oName = strToUpper(oName);
+    if (streq(oName, "LIKE"))
+    {
+//        DataType lDt = getNthOfListInt(dataTypes, 0);
+//        DataType rDt = getNthOfListInt(dataTypes, 1);
+//
+//        if(lDt == rDt && lDt == DT_STRING)
+            return DT_BOOL;
+    }
+
     //TODO more operators
     *opExists = FALSE;
 
@@ -1043,6 +1055,14 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
 {
     *funcExists = TRUE;
     char *capName = strToUpper(fName);
+
+    // uncertainty dummy functions
+    if (streq(capName, "UNCERT"))
+    {
+        ASSERT(LIST_LENGTH(dataTypes) == 1);
+        DataType argType = getNthOfListInt(dataTypes,0);
+        return argType;
+    }
 
     // aggregation functions
     if (streq(capName,"SUM")
@@ -1134,7 +1154,23 @@ oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *funcExists)
             }
         }
     }
+
+    if (streq(capName, "GREATEST") || streq(capName, "LEAST")
+            || streq(capName, "COALESCE") || streq(capName, "LEAD")
+            || streq(capName, "LAG") || streq(capName, "FIRST_VALUE")
+            || streq(capName, "LAST_VALUE"))
+    {
+        DataType dt = getNthOfListInt(dataTypes, 0);
+
+        FOREACH_INT(argDT, dataTypes)
+        {
+            dt = lcaType(dt, argDT);
+        }
+
+        return dt;
+    }
    //TODO
+
 
     *funcExists = FALSE;
 
@@ -1426,6 +1462,21 @@ oracleGenExecQuery (char *query)
     return r;
 }
 
+void
+oracleGenExecQueryIgnoreResult (char *query)
+{
+    OCI_Resultset *rs;
+
+    rs = executeStatement(query);
+
+    // fetch tuples
+    while(OCI_FetchNext(rs))
+        ;
+
+    // cleanup
+    OCI_ReleaseResultsets(st);
+}
+
 static OCI_Transaction *
 createTransaction(IsolationLevel isoLevel)
 {
@@ -1586,6 +1637,12 @@ char *
 oracleExecuteStatement(char *statement)
 {
 	return NULL;
+}
+
+void
+oracleGenExecQueryIgnoreResult (char *query)
+{
+
 }
 
 Node *

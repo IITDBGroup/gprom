@@ -119,7 +119,7 @@ makeSetInt(int elem, ...)
 }
 
 Set *
-makeSetLong(long elem, ...)
+makeSetLong(gprom_long_t elem, ...)
 {
     Set *result = LONGSET();
     va_list args;
@@ -129,7 +129,7 @@ makeSetLong(long elem, ...)
 
     va_start(args, elem);
 
-    for(arg = elem; arg >= 0; arg = va_arg(args,long))
+    for(arg = elem; arg >= 0; arg = va_arg(args,gprom_long_t))
     {
         TRACE_LOG("add int %d to set", arg);
         addLongToSet(result, arg);
@@ -205,14 +205,14 @@ hasSetIntElem (Set *set, int _el)
 }
 
 boolean
-hasSetLongElem (Set *set, long _el)
+hasSetLongElem (Set *set, gprom_long_t _el)
 {
     SetElem *result = NULL, *s;
 
-    HASH_FIND(hh,set->elem, &_el, sizeof(long), result);
+    HASH_FIND(hh,set->elem, &_el, sizeof(gprom_long_t), result);
 
     for(s=set->elem; s != NULL; s=s->hh.next) {
-        TRACE_LOG("key and value %d with hv %u keyptr %d", *((long *) s->data), s->hh.hashv, *((long *) s->hh.key));
+        TRACE_LOG("key and value %d with hv %u keyptr %d", *((gprom_long_t *) s->data), s->hh.hashv, *((gprom_long_t *) s->hh.key));
     }
 
     return result != NULL;
@@ -261,7 +261,7 @@ addIntToSet (Set *set, int elem)
 }
 
 boolean
-addLongToSet (Set *set, long elem)
+addLongToSet (Set *set, gprom_long_t elem)
 {
     SetElem *setEl;
 
@@ -269,10 +269,10 @@ addLongToSet (Set *set, long elem)
         return FALSE;
 
     setEl = NEW(SetElem);
-    setEl->data = NEW(long);
-    *((long *) setEl->data) = elem;
+    setEl->data = NEW(gprom_long_t);
+    *((gprom_long_t *) setEl->data) = elem;
 
-    HASH_ADD_KEYPTR(hh, set->elem, setEl->data, sizeof(long), setEl);
+    HASH_ADD_KEYPTR(hh, set->elem, setEl->data, sizeof(gprom_long_t), setEl);
 
     return TRUE;
 }
@@ -329,11 +329,11 @@ removeSetIntElem (Set *set, int elem)
 }
 
 void
-removeSetLongElem (Set *set, long elem)
+removeSetLongElem (Set *set, gprom_long_t elem)
 {
     SetElem *e;
 
-    HASH_FIND(hh, set->elem, &elem, sizeof(long), e);
+    HASH_FIND(hh, set->elem, &elem, sizeof(gprom_long_t), e);
     if (e != NULL)
     {
         HASH_DEL(set->elem, e);
@@ -510,8 +510,8 @@ intCpy (void *a)
 static boolean
 longCmp (void *a, void *b)
 {
-    long c = *((long *) a);
-    long d = *((long *) b);
+    gprom_long_t c = *((gprom_long_t *) a);
+    gprom_long_t d = *((gprom_long_t *) b);
 
     return c == d;
 }
@@ -519,8 +519,8 @@ longCmp (void *a, void *b)
 static void *
 longCpy (void *a)
 {
-    long *result = NEW(long);
-    *result = *((long *) a);
+    gprom_long_t *result = NEW(gprom_long_t);
+    *result = *((gprom_long_t *) a);
 
     return (void *) result;
 }

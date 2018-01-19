@@ -19,7 +19,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.driver.GProMJDBCUtil.BackendType;
 import org.gprom.jdbc.jna.GProMWrapper;
 import org.gprom.jdbc.utility.LoggerUtil;
@@ -29,7 +30,7 @@ public class GProMConnection implements GProMConnectionInterface{
 	/** the wrapped connection */
 	protected Connection con;
 	// Variable
-	private static Logger log = Logger.getLogger(GProMConnection.class);
+	private static Logger log = LogManager.getLogger(GProMConnection.class);
 	private Properties gpromConf;
 	private BackendType backend;
 	private GProMWrapper w;
@@ -59,7 +60,8 @@ public class GProMConnection implements GProMConnectionInterface{
 
 	public void close() throws SQLException {
 		con.close();
-		w.shutdown();
+//		w.shutdown();
+		//TODO this should only be done once we have handles
 	}
 
 	public void commit() throws SQLException {
@@ -340,6 +342,10 @@ public class GProMConnection implements GProMConnectionInterface{
 		this.w = w;
 	}
 
+	public Connection getWrappedCon () {
+		return this.con;
+	}
+	
 //	public void setBackend(BackendType backend) {
 //		this.backend = backend;
 //	}

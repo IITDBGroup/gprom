@@ -125,7 +125,7 @@ pathstep:
 
                 | '[' intConst ']'
                 {
-                 RULELOG("pathstep::[*]"); $$ = itoa($2);
+                 RULELOG("pathstep::[*]"); $$ = gprom_itoa($2);
                 }
                 ;
                 

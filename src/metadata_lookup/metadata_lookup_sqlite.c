@@ -91,6 +91,7 @@ assembleSqliteMetadataLookupPlugin (void)
     p->getCostEstimation = sqliteGetCostEstimation;
     p->getKeyInformation = sqliteGetKeyInformation;
     p->executeQuery = sqliteExecuteQuery;
+    p->executeQueryIgnoreResult = sqliteExecuteQueryIgnoreResults;
     p->connectionDescription = sqliteGetConnectionDescription;
 
     return p;
@@ -222,6 +223,8 @@ sqliteGetAttributes (char *tableName)
 
     HANDLE_ERROR_MSG(rc, SQLITE_DONE, "error getting attributes of table <%s>", tableName);
 
+    DEBUG_NODE_LOG("columns are: ", result);
+
     return result;
 }
 
@@ -292,8 +295,6 @@ sqliteGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
     }
     //TODO more operators
     *opExists = FALSE;
-
-    return DT_STRING;
 
     return DT_STRING;
 }
@@ -383,6 +384,21 @@ sqliteExecuteQuery(char *query)
     HANDLE_ERROR_MSG(rc,SQLITE_OK, "failed to finalize query <%s>", query);
 
     return r;
+}
+
+void
+sqliteExecuteQueryIgnoreResults(char *query)
+{
+    sqlite3_stmt *rs = runQuery(query);
+    int rc = SQLITE_OK;
+
+    while((rc = sqlite3_step(rs)) == SQLITE_ROW)
+        ;
+
+    HANDLE_ERROR_MSG(rc,SQLITE_DONE, "failed to execute query <%s>", query);
+
+    rc = sqlite3_finalize(rs);
+    HANDLE_ERROR_MSG(rc,SQLITE_OK, "failed to finalize query <%s>", query);
 }
 
 static sqlite3_stmt *

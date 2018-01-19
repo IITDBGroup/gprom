@@ -11,7 +11,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.utility.LoggerUtil;
 
 import java.sql.ResultSetMetaData;
@@ -24,7 +25,7 @@ import java.sql.ResultSetMetaData;
  */
 public class DBTableFactory {
 
-	Logger log = Logger.getLogger(DBTableFactory.class);
+	Logger log = LogManager.getLogger(DBTableFactory.class);
 	
 	public static DBTableFactory inst = new DBTableFactory();
 	
@@ -89,8 +90,10 @@ public class DBTableFactory {
 	public DBTable tableFromQuery(Connection c, String q) throws SQLException {
 		MemDBTable t = new MemDBTable();
 		Statement s = c.createStatement();
+		ResultSet r = null;
+		
 		try {
-			ResultSet r = s.executeQuery(q);
+			r = s.executeQuery(q);
 			ResultSetMetaData m = r.getMetaData();
 			
 			// add columns
@@ -105,14 +108,18 @@ public class DBTableFactory {
 					values.add(r.getString(i));
 				}
 				t.addRow(new Row(values));
-			}			
+			}
+			r.close();
 		} catch (Throwable e) {
 			LoggerUtil.logDebugException(e, log);
 			System.out.println(e);
 			throw(e);
 		} finally {
-			s.close();
-			log.error("XXXXXXXXXXXXXXXXXXXXXX");
+			if (r != null)
+				r.close();
+			if (s != null)			
+				s.close();
+			log.debug("closed statement and result set");
 		}
 		
 		return t;

@@ -11,11 +11,12 @@ testcaseimports() ::= <<
 "org.junit.FixMethodOrder",
 "org.gprom.jdbc.test.testgenerator.AbstractGProMTester",
 "org.gprom.jdbc.test.testgenerator.ConnectionOptions",
-"org.gprom.jdbc.test.testgenerator.OptionsManager"
+"org.gprom.jdbc.test.testgenerator.OptionsManager",
+"org.gprom.jdbc.test.testgenerator.TestInfoHolder"
 ]:importPackage(); separator = "\n">
 >>
 
-numFromName(x) ::= "Query_<x>"
+numFromName(x) ::= <<Query_<x;format="pad(3)"> >>
 
 testcase(num) ::= <<
 @Test
@@ -40,6 +41,7 @@ public class <name> extends AbstractGProMTester {
 
 	@BeforeClass
 	public static void setUp () throws Exception {
+		TestInfoHolder.getInstance().configureLogger("blackboxtests/log4jtest.properties");
 		path = "<basedir>";
 		ConnectionOptions.getInstance().setPath("<path>");
 		AbstractGProMTester.setUp();

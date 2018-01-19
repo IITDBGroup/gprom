@@ -4,20 +4,23 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PSQLException;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriver;
 import org.gprom.jdbc.driver.GProMDriverProperties;
+import org.gprom.jdbc.test.testgenerator.ConnectionOptions.BackendOptionKeys;
 import org.gprom.jdbc.utility.LoggerUtil;
 
 public class ConnectionManager {
 
-	static Logger log = Logger.getLogger(ConnectionManager.class);
+	static Logger log = LogManager.getLogger(ConnectionManager.class);
 	
 	static {
 		try {
@@ -31,12 +34,11 @@ public class ConnectionManager {
 	
 	private static ConnectionManager instance;
 	
-	private Connection con;
-	private GProMConnection gCon;
+	private Connection con = null;
+	private GProMConnection gCon = null;
 
 	
 	private ConnectionManager () throws Exception {
-		createConnection ();
 	}
 	
 	public static ConnectionManager getInstance () {
@@ -66,7 +68,8 @@ public class ConnectionManager {
 			Properties props = new Properties();
 			props.setProperty("user", ConnectionOptions.getInstance().getUser());
 			props.setProperty("password", ConnectionOptions.getInstance().getPassword());
-			props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "true");
+			props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP_NAME, "true");
+			log.debug("trying to create new connection: " + props);
 			con = DriverManager.getConnection(constructURL(), props);
 		}
 		catch (PSQLException e) {
@@ -82,7 +85,8 @@ public class ConnectionManager {
 					Properties props = new Properties();
 					props.setProperty("user", ConnectionOptions.getInstance().getUser());
 					props.setProperty("password", ConnectionOptions.getInstance().getPassword());
-					props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "true");
+					props.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP_NAME, "true");
+					log.debug("retry to create new connection: " + props);
 					con = DriverManager.getConnection(constructURL(), props);
 				}
 				catch (Exception e2) {
@@ -93,28 +97,27 @@ public class ConnectionManager {
 		}
 		
 		gCon = (GProMConnection) con;
-		gCon.getW().setLogLevel(1);
+		gCon.getW().setLogLevel(2);
 		OptionsManager.getInstance().resetOptions (con);
 	}
 	
 	/**
-	 * @throws ClassNotFoundException 
-	 * @throws IOException 
-	 * @throws FileNotFoundException 
+	 * @throws Exception 
 	 * 
 	 */
-	private void loadBackendDriver() throws ClassNotFoundException, FileNotFoundException, IOException {
+	private void loadBackendDriver() throws Exception {
 		String backend = ConnectionOptions.getInstance().getBackend();
 		
 		if (backend.equals("Oracle"))
 			Class.forName("oracle.jdbc.OracleDriver");
+		//TODO load other drivers
 	}
 
 	public String constructURL () throws Exception {
 		if (ConnectionOptions.getInstance().getBackend().equals("Oracle"))
 		{
 			String host =ConnectionOptions.getInstance().getHost();
-			String sid = ConnectionOptions.getInstance().getBackendOption("SID");
+			String sid = ConnectionOptions.getInstance().getBackendOption(BackendOptionKeys.OracleSID);
 			int port = ConnectionOptions.getInstance().getPort();
 			String user = ConnectionOptions.getInstance().getUser();
 			String passwd = ConnectionOptions.getInstance().getPassword();
@@ -123,7 +126,6 @@ public class ConnectionManager {
 			String url = "jdbc:gprom:oracle:thin:"  + user + "/" + passwd + 
 					"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
 
-			
 			return url;
 		}
 		if (ConnectionOptions.getInstance().getBackend().equals("SQLite"))
@@ -142,43 +144,50 @@ public class ConnectionManager {
 	}
 	
     private boolean testConnection () {
-    	Statement st = null;
-    	
-    	try {
-    		st = con.createStatement();
-    		switch(gCon.getBackend()) {
-			case HSQL:
-				break;
-			case Oracle:
-			{
-				String parser = gCon.getW().getStringOption("plugin.parser");
-				if (parser.equals("oracle"))
-					st.execute("SELECT 1 from dual;");
-				else if (parser.equals("dl"))
-					st.execute("Q(X) :- dual(X).");
-			}
-				break;
-			case Postgres:
-				break;
-			default:
-				break;
-    		
-    		}
-    	}
-    	catch (Exception e){
-    		try {
-    			if (st != null)
-    				st.close();
-    		}
-			catch (SQLException e1) {
-//				LoggerUtil.logException(e1, log);
-				e1.printStackTrace();
-			}
-    		finally {
-    			
-    		}
-    		return false;
-    	}
-    	return true;
+	    	Statement st = null;
+	    	ResultSet rs = null;
+	
+	    	try {
+	    		st = con.createStatement();
+	    		switch(gCon.getBackend()) {
+	    		case HSQL:
+	    			break;
+	    		case Oracle:
+	    		{
+	    			String parser = gCon.getW().getStringOption("plugin.parser");
+	    			if (parser.equals("oracle"))
+	    				rs = st.executeQuery("SELECT 1 from dual;");
+	    			else if (parser.equals("dl"))
+	    				rs = st.executeQuery("Q(X) :- dual(X).");
+	    		}
+	    		break;
+	    		case Postgres:
+	    			break;
+	    		default:
+	    			break;	
+	    		}
+	    	}
+	    	catch (Exception e){
+	    		try {
+	    			try { 
+	    				if (rs != null)
+	    					rs.close();
+	    			} catch (Exception rsE) {
+	    				LoggerUtil.logException(rsE, log);
+	    			}
+	
+	    			if (st != null)
+	    				st.close();
+	    		}
+	    		catch (SQLException e1) {
+	    			LoggerUtil.logException(e1, log);
+	    			e1.printStackTrace();
+	    		}
+	    		finally {
+	
+	    		}
+	    		return false;
+	    	}
+	    	return true;
     }
 }

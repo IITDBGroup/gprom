@@ -17,11 +17,14 @@
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
+#include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
 #include "provenance_rewriter/update_and_transaction/prov_update_and_transaction.h"
 #include "provenance_rewriter/transformation_rewrites/transformation_prov_main.h"
+#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 #include "provenance_rewriter/xml_rewrites/xml_prov_main.h"
+#include "temporal_queries/temporal_rewriter.h"
 
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
@@ -31,6 +34,8 @@
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/set/set.h"
+
+#include "utility/string_utils.h"
 
 /* function declarations */
 static QueryOperator *findProvenanceComputations (QueryOperator *op, Set *haveSeen);
@@ -99,6 +104,9 @@ findProvenanceComputations (QueryOperator *op, Set *haveSeen)
 static QueryOperator *
 rewriteProvenanceComputation (ProvenanceComputation *op)
 {
+    QueryOperator *result = NULL;
+    boolean requiresPostFiltering = FALSE;
+
     // for a sequence of updates of a transaction merge the sequence into a single
     // query before rewrite.
     if (op->inputType == PROV_INPUT_UPDATE_SEQUENCE
@@ -111,15 +119,29 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         STOP_TIMER("rewrite - merge update reenactments");
 
         // need to restrict to updated rows?
-        if (op->inputType == PROV_INPUT_TRANSACTION
+        if ((op->inputType == PROV_INPUT_TRANSACTION
+                || op->inputType == PROV_INPUT_REENACT_WITH_TIMES
+                || op->inputType == PROV_INPUT_REENACT)
                 && HAS_STRING_PROP(op,PROP_PC_ONLY_UPDATED))
         {
             START_TIMER("rewrite - restrict to updated rows");
             restrictToUpdatedRows(op);
+            requiresPostFiltering = HAS_STRING_PROP(op,PROP_PC_REQUIRES_POSTFILTERING);
             STOP_TIMER("rewrite - restrict to updated rows");
         }
     }
 
+    if (op->inputType == PROV_INPUT_TEMPORAL_QUERY)
+    {
+        return rewriteImplicitTemporal((QueryOperator *) op);
+    }
+
+    if (op->inputType == PROV_INPUT_UNCERTAIN_QUERY)
+    {
+        return rewriteUncert((QueryOperator *) op);
+    }
+
+    // turn operator graph into a tree since provenance rewrites currently expect a tree
     if (isRewriteOptionActivated(OPTION_TREEIFY_OPERATOR_MODEL))
     {
         treeify((QueryOperator *) op);
@@ -128,23 +150,54 @@ rewriteProvenanceComputation (ProvenanceComputation *op)
         ASSERT(isTree((QueryOperator *) op));
     }
 
+    //semiring comb operations
+    boolean isCombinerActivated = isSemiringCombinerActivatedOp((QueryOperator *) op);
+
+    // apply provenance rewriting if required
     switch(op->provType)
     {
-        QueryOperator *result;
         case PROV_PI_CS:
             if (isRewriteOptionActivated(OPTION_PI_CS_USE_COMPOSABLE))
                 result =  rewritePI_CSComposable(op);
             else
                 result = rewritePI_CS(op);
             removeParent(result, (QueryOperator *) op);
-            return result;
+
+            //semiring comb operations
+            if(isCombinerActivated)
+            {
+                Node *addExpr;
+                Node *multExpr;
+
+                addExpr = getSemiringCombinerAddExpr((QueryOperator *) op);
+                multExpr = getSemiringCombinerMultExpr((QueryOperator *) op);
+
+                INFO_LOG("user has provied a semiring combiner: %s:\n\n%s", beatify(nodeToString(addExpr)), beatify(nodeToString(multExpr)));
+                result = addSemiringCombiner(result,addExpr,multExpr);
+                INFO_OP_LOG("Add semiring combiner:", result);
+            }
+
+            break;
         case PROV_TRANSFORMATION:
-            return rewriteTransformationProvenance((QueryOperator *) op);
+            result =  rewriteTransformationProvenance((QueryOperator *) op);
+            break;
         case PROV_XML:
-            return rewriteXML(op); //TODO
+            result = rewriteXML(op); //TODO
+            break;
         case PROV_NONE:
-            return OP_LCHILD(op);
+            result = OP_LCHILD(op);
+            break;
     }
-    return NULL;
+
+    // for reenactment we may have to postfilter results if only rows affected by the transaction should be shown
+    if (requiresPostFiltering)
+    {
+        START_TIMER("rewrite - restrict to updated rows by postfiltering");
+        result = filterUpdatedInFinalResult(op, result);
+        STOP_TIMER("rewrite - restrict to updated rows by postfiltering");
+        INFO_OP_LOG("after adding selection for postfiltering", result);
+    }
+
+    return result;
 }
 

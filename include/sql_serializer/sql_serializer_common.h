@@ -91,9 +91,9 @@ typedef struct JoinAttrRenameState {
     List *fromAttrs;
 } JoinAttrRenameState;
 
-#define MAP_HAS_POINTER(map,p) MAP_HAS_LONG_KEY(map, (long) p)
-#define MAP_GET_POINTER(map,p) MAP_GET_LONG(map,(long) p)
-#define MAP_ADD_POINTER(map,p,val) MAP_ADD_LONG_KEY(map, (long) p, val)
+#define MAP_HAS_POINTER(map,p) MAP_HAS_LONG_KEY(map, (gprom_long_t) p)
+#define MAP_GET_POINTER(map,p) MAP_GET_LONG(map,(gprom_long_t) p)
+#define MAP_ADD_POINTER(map,p,val) MAP_ADD_LONG_KEY(map, (gprom_long_t) p, val)
 
 #define TVIEW_NAME_FIELD "ViewName"
 #define TVIEW_ATTRNAMES_FIELD "AttrNames"
@@ -133,6 +133,7 @@ typedef struct SerializeClausesAPI {
 
 /* generic functions for serializing queries that call an API provided as a parameter */
 extern SerializeClausesAPI *createAPIStub (void);
+extern void genQuoteAttributeNames (Node *q);
 extern List *genSerializeQueryOperator (QueryOperator *q, StringInfo str,
         QueryOperator *parent, SerializeClausesAPI *api);
 extern List *genSerializeQueryBlock (QueryOperator *q, StringInfo str,

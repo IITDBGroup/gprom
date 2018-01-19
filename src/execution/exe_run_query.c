@@ -16,118 +16,162 @@
 #include "metadata_lookup/metadata_lookup.h"
 #include "execution/exe_run_query.h"
 #include "utility/string_utils.h"
-//#include "analysis_and_translate/translator_dl.h"
-#include "provenance_rewriter/game_provenance/gp_bottom_up_program.h"
 #include "configuration/option.h"
+#include "provenance_rewriter/game_provenance/gp_bottom_up_program.h"
+
+static void outputResult(Relation *res);
+static void printDBsample(List *stmts);
+
 
 void
 exeRunQuery (void *code)
 {
-    Relation *res;
-    int i = 0;
-    int l = 0;
+    Relation *res = NULL;
     char *adaptedQuery;
-    int *colSizes;
-    int numCol;
-//    int numRows;
-    int totalSize;
+    boolean showResult = getBoolOption(OPTION_SHOW_QUERY_RESULT);
+    boolean showTime = getBoolOption(OPTION_TIME_QUERIES);
+    struct timeval st;
+    struct timeval et;
+    char *format = getStringOption(OPTION_TIME_QUERY_OUTPUT_FORMAT);
+    int repeats = getIntOption(OPTION_REPEAT_QUERY);
 
-    // list of statement
-    List *stmtList = splitString(code, ";");
-
-//    // remove semicolon
-//    adaptedQuery = replaceSubstr(code, ";", ""); //TODO not safe if ; in strings
-
-    for(int s = 0; s < LIST_LENGTH(stmtList)-1; s++)
-    {
-    	totalSize = 0;
-//        res = executeQuery((char *) adaptedQuery);
-    	adaptedQuery = (char *) getNthOfListP(stmtList,s);
-
-    	// execute query
-        INFO_LOG("run query:\n%s", (char *) adaptedQuery);
-
-    	res = executeQuery((char *) adaptedQuery);
-
-        // output table name for the input database
     	if (getBoolOption(OPTION_INPUTDB))
     	{
-//    		FOREACH_HASH(char,r,taRel)
-    		char *r = (char *) MAP_GET_STRING(edbRels,itoa(s+1));
-   			printf("%s", r);
-    		printf("\n");
+    	    List *codes = splitString(code, ";");
+    	    printDBsample(codes);
+    	    return;
     	}
+	
+    // remove semicolon
+    adaptedQuery = replaceSubstr(code, ";", ""); //TODO not safe if ; in strings
 
-        numCol = LIST_LENGTH(res->schema);
-    //    numRows = LIST_LENGTH(res->tuples);
-        colSizes = MALLOC(numCol * sizeof(int));
+    // execute query
+    INFO_LOG("run query (show results: %s, time query: %s):\n%s", showResult ? "yes" : "no", showTime ? "yes" : "no", (char *) adaptedQuery);
 
-        // determine column sizes
-        i = 0;
-        FOREACH(char,a,res->schema)
+    for (int i = 0; i < repeats; i++)
+    {
+        if (showTime)
         {
-            colSizes[i++] = strlen(a) + 2;
+            gettimeofday(&st, NULL);
         }
 
-        FOREACH(List,t,res->tuples)
+        if (showResult)
+            res = executeQuery((char *) adaptedQuery);
+        else
+            executeQueryIgnoreResult((char *) adaptedQuery);
+
+        if (showTime)
         {
-            i = 0;
-            FOREACH(char,a,t)
-            {
-                int len = a ? strlen(a) : 4;
-                colSizes[i] = colSizes[i] < len + 2 ? len + 2 : colSizes[i];
-                i++;
-            }
+            gettimeofday(&et, NULL);
         }
 
-        for (i = 0; i < numCol; i++)
-            totalSize += colSizes[i] + 1;
-
-        // output columns
-        i = 0;
-        FOREACH(char,a,res->schema)
+        if (showResult == TRUE)
         {
-            printf(" %s", a);
-            for(int j = strlen(a) + 1; j < colSizes[i]; j++)
+            outputResult(res);
+        }
+
+        if (showTime)
+        {
+            long usecDiff;
+            long secDiff;
+            double msecs;
+
+            secDiff = et.tv_sec - st.tv_sec;
+            usecDiff = et.tv_usec - st.tv_usec;
+
+            msecs = secDiff * 1000 + (((double) usecDiff) / 1000.0);
+            if (showResult)
+                printf("\n");
+
+            if (format != NULL)
+                printf(format, msecs);
+            else
+                printf("query took %12f msec\n", msecs);
+            fflush(stdout);
+        }
+    }
+}
+
+static void
+printDBsample(List *stmts)
+{
+    int s = 0;
+    Relation *res = NULL;
+
+    FOREACH(char,c, stmts)
+    {
+        char *r = (char *) MAP_GET_STRING(edbRels,gprom_itoa(++s));
+        printf("%s", r);
+        printf("\n");
+        res = executeQuery((char *) c);
+        outputResult(res);
+    }
+}
+
+
+static void
+outputResult(Relation *res)
+{
+    int *colSizes;
+    int numCol;
+    int totalSize = 0;
+    int i = 0;
+    int l = 0;
+    numCol = LIST_LENGTH(res->schema);
+    colSizes = MALLOC(numCol * sizeof(int));
+
+    // determine column sizes
+    i = 0;
+    FOREACH(char,a,res->schema)
+    {
+        colSizes[i++] = strlen(a) + 2;
+    }
+
+    FOREACH(List,t,res->tuples)
+    {
+        i = 0;
+        FOREACH(char,a,t)
+        {
+            int len = a ? strlen(a) : 4;
+            colSizes[i] = colSizes[i] < len + 2 ? len + 2 : colSizes[i];
+            i++;
+        }
+    }
+
+    for (i = 0; i < numCol; i++)
+        totalSize += colSizes[i] + 1;
+
+    // output columns
+    i = 0;
+    FOREACH(char,a,res->schema)
+    {
+        printf(" %s", a);
+        for(int j = strlen(a) + 1; j < colSizes[i]; j++)
+            printf(" ");
+        printf("|");
+        i++;
+    }
+    printf("\n");
+    for (int j = 0; j < totalSize; j++)
+        printf("-");
+    printf("\n");
+
+    // output results
+    FOREACH(List,t,res->tuples)
+    {
+        i = 0;
+        FOREACH(char,a,t)
+        {
+            char *out = a ? a : "NULL";
+            printf(" %s", out);
+            for(int j = strlen(out) + 1; j < colSizes[i]; j++)
                 printf(" ");
             printf("|");
             i++;
         }
         printf("\n");
-        for (int j = 0; j < totalSize; j++)
-            printf("-");
-        printf("\n");
 
-        // output results
-        FOREACH(List,t,res->tuples)
-        {
-            i = 0;
-            FOREACH(char,a,t)
-            {
-                char *out = a ? a : "NULL";
-                out = strtrim(out);
-
-//                // keep only string from the result
-//                //TODO: check whether it can be associated with the function 'strtrim' in string_utils.c
-//                StringInfo strimOut = makeStringInfo();
-//                while(*out != '\0')
-//				{
-//					if (*out != '\t' && *out != '\r' && *out != '\n')
-//						appendStringInfoChar(strimOut, *out);
-//					out++;
-//				}
-//                out = strimOut->data;
-
-                printf(" %s", out);
-                for(int j = strlen(out) + 1; j < colSizes[i]; j++)
-                    printf(" ");
-                printf("|");
-                i++;
-            }
-            printf("\n");
-
-            if ((l++ % 1000) == 0)
-                fflush(stdout);
-        }
+        if ((l++ % 1000) == 0)
+            fflush(stdout);
     }
 }

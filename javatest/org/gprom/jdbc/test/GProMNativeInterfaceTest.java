@@ -1,12 +1,13 @@
 package org.gprom.jdbc.test;
 
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.jna.GProMWrapper;
+import org.gprom.jdbc.utility.PropertyConfigurator;
 
 public class GProMNativeInterfaceTest {
 	// Variable
-	private static Logger log = Logger.getLogger(GProMNativeInterfaceTest.class);
+	private static Logger log = LogManager.getLogger(GProMNativeInterfaceTest.class);
 
 	static {
 		System.setProperty("jna.library.path","/Users/lord_pretzel/Documents/workspace/GProM/src/libgprom/.libs/");
@@ -18,7 +19,7 @@ public class GProMNativeInterfaceTest {
 	 * @throws Exception 
 	 */
 	public static void main(String[] args) throws Exception {
-		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
+		PropertyConfigurator.configureAndWatch("blackboxtests/log4jtest.properties");
 		String driverURL = "org.gprom.jdbc.driver.GProMDriver";
 		GProMWrapper w = GProMWrapper.inst;
 		

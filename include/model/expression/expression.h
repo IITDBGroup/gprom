@@ -19,6 +19,9 @@ typedef struct Operator {
     List *args;
 } Operator;
 
+#define OPNAME_AND "AND"
+#define OPNAME_OR "OR"
+#define OPNAME_NOT "NOT"
 
 NEW_ENUM_WITH_TO_STRING(DataType,
     DT_INT,
@@ -164,7 +167,9 @@ extern AttributeReference *createFullAttrReference (char *name, int fromClause, 
         int outerLevelsUp, DataType attrType);
 extern CastExpr *createCastExpr (Node *expr, DataType resultDt);
 extern Node *andExprList (List *exprs);
+extern Node *orExprList (List *exprs);
 extern Node *andExprs (Node *expr, ...);
+extern Node *orExprList (List *exprs);
 extern Node *orExprs (Node *expr, ...);
 #define AND_EXPRS(...) andExprs(__VA_ARGS__, NULL)
 #define OR_EXPRS(...) orExprs(__VA_ARGS__, NULL)
@@ -183,7 +188,7 @@ extern OrderExpr *createOrderExpr (Node *expr, SortOrder order, SortNullOrder nu
 
 /* functions for creating constants */
 extern Constant *createConstInt (int value);
-extern Constant *createConstLong (long value);
+extern Constant *createConstLong (gprom_long_t value);
 extern Constant *createConstString (char *value);
 extern Constant *createConstFloat (double value);
 extern Constant *createConstBoolFromString (char *v);
@@ -191,7 +196,7 @@ extern Constant *createConstBool (boolean value);
 extern Constant *createNullConst (DataType dt);
 #define INT_VALUE(_c) *((int *) ((Constant *) _c)->value)
 #define FLOAT_VALUE(_c) *((double *) ((Constant *) _c)->value)
-#define LONG_VALUE(_c) *((long *) ((Constant *) _c)->value)
+#define LONG_VALUE(_c) *((gprom_long_t *) ((Constant *) _c)->value)
 #define BOOL_VALUE(_c) *((boolean *) ((Constant *) _c)->value)
 #define STRING_VALUE(_c) ((char *) ((Constant *) _c)->value)
 #define CONST_IS_NULL(_c) (((Constant *) _c)->isNull)

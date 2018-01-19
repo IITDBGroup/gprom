@@ -52,8 +52,12 @@ NEW_ENUM_WITH_TO_STRING(
 #define OPTION_GRAPHVIZ "graphviz"
 #define OPTION_GRAPHVIZ_DETAILS "graphviz_details"
 #define OPTION_AGGRESSIVE_MODEL_CHECKING "aggressive_model_checking"
+#define OPTION_TIME_QUERIES "time_queries"
+#define OPTION_TIME_QUERY_OUTPUT_FORMAT "time_query_format"
+#define OPTION_REPEAT_QUERY "repeat_query_count"
+#define OPTION_SHOW_QUERY_RESULT "show_query_result"
 
-/* provenance and some optimization options */
+/* provennace and some optimization options */
 #define OPTION_UPDATE_ONLY_USE_CONDS "only_updated_use_conditions"
 #define OPTION_UPDATE_ONLY_USE_HISTORY_JOIN "only_updated_use_history"
 #define OPTION_TREEIFY_OPERATOR_MODEL "treefiy_prov_rewrite_input"
@@ -92,6 +96,15 @@ NEW_ENUM_WITH_TO_STRING(
 #define CHECK_OM_SCHEMA_CONSISTENCY "check.schema_consistency"
 #define CHECK_OM_DATA_STRUCTURE_CONSISTENCY "check.data_structure_consistency"
 #define CHECK_OM_ATTR_REF "check.attr_ref_consistency"
+
+/* temporal database options */
+#define TEMPORAL_USE_COALSECE "temporal_use_coalesce"
+#define TEMPORAL_USE_NORMALIZATION "temporal_use_normalization"
+#define TEMPORAL_USE_NORMALIZATION_WINDOW "temporal_use_normalization_window"
+#define TEMPORAL_AGG_WITH_NORM "temporal_combine_agg_and_norm"
+
+// encapsulates option state
+typedef struct option_state OptionState;
 
 /* dl rewrite options */
 #define OPTION_WHYNOT_ADV "whynot_adv"
@@ -153,6 +166,11 @@ extern boolean opt_optimization_remove_unnecessary_window_operators;
 extern boolean opt_optimization_pull_up_duplicate_remove_operators;
 extern boolean cost_based_close_option_removedp_by_set;
 
+// temporal database options
+extern boolean temporal_use_coalesce;
+extern boolean temporal_use_normalization;
+extern boolean temporal_use_normalization_window;
+
 // optimization options for group by
 extern boolean opt_optimization_push_down_group_by_operator_through_join;
 
@@ -175,6 +193,8 @@ extern boolean hasCommandOption(char *name);
 extern char *commandOptionGetOption(char *name);
 extern OptionType getOptionType(char *name);
 extern boolean optionSet(char *name);
+extern void printVersion(FILE *stream);
+
 
 extern char *getBackendPlugin(char *be, char *pluginOpt);
 extern char *getFrontendPlugin(char *fe, char *pluginOpt);

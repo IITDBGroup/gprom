@@ -272,7 +272,7 @@ outSet(StringInfo str, Set *node)
                 appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
             break;
         case SET_TYPE_LONG:
-            FOREACH_SET(long,i,node)
+            FOREACH_SET(gprom_long_t,i,node)
                 appendStringInfo(str, "%d%s", *i, i_his_el->hh.next ? ", " : "");
             break;
         case SET_TYPE_STRING:
@@ -310,7 +310,7 @@ outVector(StringInfo str, Vector *node)
             int j = 0;
             FOREACH_VEC_INT(i,node)
             {
-                appendStringInfo(str, "%s", itoa(*i));
+                appendStringInfo(str, "%s", gprom_itoa(*i));
                 appendStringInfo(str, "%s", VEC_LENGTH(node) > ++j ? ", " : "");
             }
         }
@@ -563,7 +563,7 @@ outConstant (StringInfo str, Constant *node)
                 appendStringInfo(str, "%s", *((boolean *) node->value) == TRUE ? "TRUE" : "FALSE");
                 break;
             case DT_LONG:
-                appendStringInfo(str, "%ld", *((long *) node->value));
+                appendStringInfo(str, "%ld", *((gprom_long_t *) node->value));
                 break;
             case DT_VARCHAR2:
 	        appendStringInfo(str, "'%s'", (char *) node->value);
@@ -1404,7 +1404,7 @@ beatify(char *input)
 }
 
 char *
-itoa(int value)
+gprom_itoa(int value)
 {
     StringInfo str = makeStringInfo();
     char *result;
@@ -1659,7 +1659,7 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
     // if operator has more than one parents then we outsource
     if (printChildren && LIST_LENGTH(op->parents) > 1)
     {
-        List *opInfo = (List *) MAP_GET_LONG(map, (long) op); // info is: [id, stringRep]
+        List *opInfo = (List *) MAP_GET_LONG(map, (gprom_long_t) op); // info is: [id, stringRep]
         int opId;
 
         indentString(str, indent);
@@ -1672,8 +1672,8 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             int *idVal = (int *) curId->value;
             (*idVal)++;
             opStr = makeStringInfo();
-            opInfo = LIST_MAKE(createConstInt(opId), createConstLong((long) opStr));
-            MAP_ADD_LONG_KEY(map, (long) op, opInfo);
+            opInfo = LIST_MAKE(createConstInt(opId), createConstLong((gprom_long_t) opStr));
+            MAP_ADD_LONG_KEY(map, (gprom_long_t) op, opInfo);
 
             // append link
             appendStringInfo(str, "@%u\n", opId);

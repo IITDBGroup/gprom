@@ -1,7 +1,7 @@
 ACLOCAL_AMFLAGS = -I m4
 
 # configure for distcheck (need to disable Java since Java build requires writing files and distcheck runs everything read-only 
-AM_DISTCHECK_CONFIGURE_FLAGS=--disable-oracle --disable-java
+AM_DISTCHECK_CONFIGURE_FLAGS=--disable-oracle --disable-monetdb --disable-java
 
 # add include dir to C compile flags
 AM_CPPFLAGS = -I$(top_srcdir)/include
@@ -11,6 +11,16 @@ AM_CFLAGS = -I$(top_srcdir)/include @GPROM_CFLAGS@
 if JAVABINDING
 SUBDIRS = include src test javatest doc
 TESTS = blackboxtests/runtests.sh
+
+ANTUTILS_MODULE=$(top_builddir)/antutils/ant-common.xml
+
+BUILT_SOURCES = $(ANTUTILS_MODULE)
+
+$(ANTUTILS_MODULE):
+	if [ ! -f $(ANTUTILS_MODULE) ]; then \
+		git submodule init && git submodule update && git submodule status; \
+	fi
+
 else
 SUBDIRS = include src test doc
 endif
@@ -23,8 +33,9 @@ endif
 # - scripts for running executables and scripts
 # - java source code and build files (ivy/ant)
 EXTRA_DIST = $(top_srcdir)/Makefile.maintainer \
-	$(top_srcdir)/ant/one-jar* \
-	$(top_srcdir)/ant/ivy.jar \
+	$(top_srcdir)/ant/dockercross/* \
+	$(top_srcdir)/ant/*.xml \
+	$(top_srcdir)/ant/*.properties \
 	$(top_srcdir)/build.xml \
 	$(top_srcdir)/ivy.xml \
 	$(top_builddir)/include \
@@ -53,19 +64,4 @@ TAR_PACKAGE=$(APP_NAME)-$(VERSION).tar.gz
 
 # Create a deb package
 pkg-deb: $(TAR_PACKAGE)
-	rm -rf $(TMP_DIR)
-	mkdir -p $(TMP_DIR)
-	cp $(TAR_PACKAGE) $(TMP_DIR)/
-	tar --directory $(TMP_DIR)/ \
-		-xzf $(TMP_DIR)/$(TAR_PACKAGE)
-	cd $(TMP_DIR)/$(APP_NAME)-$(VERSION)/; \
-		echo | dh_make --single --copyright gpl -e bglavic@iit.edu -f \
-			../$(TAR_PACKAGE)
-	cp packaging/pkgfiles/changelog packaging/pkgfiles/control \
-		packaging/pkgfiles/copyright $(TMP_DIR)/$(APP_NAME)-$(VERSION)/debian/
-	cd $(TMP_DIR)/$(APP_NAME)-$(VERSION)/; \
-		rm debian/README.Debian debian/*.ex debian/*.EX; \
-		./configure --disable-oracle --disable-postgres --disable-java; \
-		dpkg-buildpackage -rfakeroot; \
-		mv ../*.deb $(PWD)/packaging
-	rm -r $(TMP_DIR);
+	./packaging/debpackage.sh

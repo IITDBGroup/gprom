@@ -9,11 +9,15 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.appender.ConsoleAppender;
+import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriverProperties;
 import org.gprom.jdbc.jna.NativeGProMLibException;
+import org.gprom.jdbc.utility.PropertyConfigurator;
 
 import com.sun.jna.Native;
 
@@ -23,10 +27,18 @@ import com.sun.jna.Native;
  */
 public class SQLiteJDBCTest {
 
-	static Logger log = Logger.getLogger(SQLiteJDBCTest.class);
+	static Logger log; 
 	
 	public static void main (String[] args) throws Exception {
-		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
+		String log4jFile = "log4j2-test.xml";
+		
+		if (args.length == 1)
+			log4jFile = args[0];
+				
+		PropertyConfigurator.configureHonoringProperties(log4jFile, "blackboxtests/log4j2.xml", "log4j2.xml");
+	
+		log = LogManager.getLogger(SQLiteJDBCTest.class);
+
 		String driverURL = "org.sqlite.JDBC";
 		String url = "jdbc:gprom:sqlite:examples/test.db";
 		GProMConnection con = null;
@@ -45,7 +57,7 @@ public class SQLiteJDBCTest {
 		try{
 			log.error("made it this far");
 			Properties info = new Properties();
-			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "TRUE");
+			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP_NAME, "TRUE");
 			log.error("made it this far");
 			con = (GProMConnection) DriverManager.getConnection(url,info);
 			log.error("made it this far");
@@ -54,7 +66,7 @@ public class SQLiteJDBCTest {
 			System.err.println("Something went wrong while connecting to the database.");
 			System.exit(-1);
 		}
-		System.out.println("Connection was successfully");
+		System.out.println("Connection was successful");
 
 		con.getW().setLogLevel(4);
 		con.getW().setBoolOption("pi_cs_use_composable", false);
@@ -87,8 +99,15 @@ public class SQLiteJDBCTest {
 		}
 		
 //		
-		rs = st.executeQuery("PROVENANCE OF (SELECT sum(a) FROM R);");
+		rs = st.executeQuery("SELECT sum(a) AS X FROM R;");
 		printResult(rs);
+		
+		rs = st.executeQuery("REENACT WITH PROVENANCE  (UPDATE R SET A = a + 10; INSERT INTO R VALUES ('1','4'); UPDATE R SET B = 6 WHERE a =12;);");
+		//rs = st.getResultSet();
+		printResult(rs);
+//
+//		rs = st.executeQuery("PROVENANCE OF (SELECT sum(a) AS x FROM R);");
+//		printResult(rs);
 		
 //		rs = st.executeQuery("SELECT \"a\" FROM \"o\";");
 //		printResult(rs);
@@ -110,7 +129,8 @@ public class SQLiteJDBCTest {
 	}
 
 	private static void printResult(ResultSet rs) throws SQLException {
-		/********************************************************************************/
+		System.out.println("********************************************************************************");
+		
 		System.out.println();
 		System.out.println("-------------------------------------------------------------------------------");
 		for(int i = 1; i <= rs.getMetaData().getColumnCount(); i++)

@@ -3,17 +3,20 @@
  */
 package org.gprom.jdbc.test;
 
+import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
+import java.util.Scanner;
 
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriverProperties;
 import org.gprom.jdbc.jna.NativeGProMLibException;
+import org.gprom.jdbc.utility.PropertyConfigurator;
 
 import com.sun.jna.Native;
 
@@ -23,26 +26,43 @@ import com.sun.jna.Native;
  */
 public class GProMJDBCTest {
 
-	static Logger log = Logger.getLogger(GProMJDBCTest.class);
+	static Logger log = LogManager.getLogger(GProMJDBCTest.class);
 	
 	public static void main (String[] args) throws Exception {
+		String log4jFile = "log4j2-test.xml";
 		
-		PropertyConfigurator.configureAndWatch("javalib/log4j.properties");
+		if (args.length == 1)
+			log4jFile = args[0];
+				
+		//	PropertyConfigurator.configureHonoringProperties(log4jFile, "blackboxtests/log4j2.xml", "log4j2.xml");
 		String driverURL = "oracle.jdbc.OracleDriver";
 //		String driverURL = "org.postgresql.Driver";
 //		String url = "jdbc:hsqldb:file:/Users/alex/db/mydb";
-		String username = "fga_user";
-		String password = "fga";
+//		String username = "fga_user";
+		String username = "testuser";
+		String password; // = "XXX";
 //		String username = "postgres";
 //		String password = "";
-		String host = "ligeti.cs.iit.edu";
+		String host = "127.0.0.1";
 		String port = "1521";
 		String sid = "orcl";
-		String url = "jdbc:gprom:oracle:thin:" + username + "/" + password + 
-				"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
+		String url;
 //		String url = "jdbc:gprom:postgresql://127.0.0.1:5432/testdb";
+
+		System.out.println("am here!!!!!!!!!");
+		
+		//get password
+		System.out.print("enter password: ");
+		Scanner in = new Scanner(System.in);
+		password = in.nextLine();
+
+		// setup url
+		url = "jdbc:gprom:oracle:thin:" + username + "/" + password + 
+				"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
+		
 		GProMConnection con = null;
-		Native.setProtected(true);
+//		Native.setProtected(true);
+		log.debug("XXXXXXXXXXXX");
 		log.error(url);
 		try{
 			log.error("made it this far");
@@ -57,7 +77,7 @@ public class GProMJDBCTest {
 		try{
 			log.error("made it this far");
 			Properties info = new Properties();
-			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP, "TRUE");
+			info.setProperty(GProMDriverProperties.JDBC_METADATA_LOOKUP_NAME, "TRUE");
 			info.setProperty("user", username);
 			info.setProperty("password", password);
 			log.error("made it this far");
@@ -70,7 +90,7 @@ public class GProMJDBCTest {
 		}
 		System.out.println("Connection was successfully");
 
-		con.getW().setLogLevel(4);
+		con.getW().setLogLevel(5);
 		con.getW().setBoolOption("pi_cs_use_composable", false);
 		con.getW().setBoolOption("optimize_operator_model", false);
 		con.getW().setBoolOption("aggressive_model_checking", true);
@@ -86,21 +106,36 @@ public class GProMJDBCTest {
 		log.error("type of connection.host: " + con.getW().typeOfOption("connection.host"));
 		log.error("type of connection.db: " + con.getW().typeOfOption("connection.db"));
 		
-		Statement st = con.createStatement();
-		
+		Connection wCon = con.getWrappedCon();
+		Statement st = wCon.createStatement();
+		Statement gSt = con.createStatement();
 		
 		log.error("statement created");
 		
 		ResultSet rs;
-		rs = st.executeQuery("SELECT a FROM r;");
+//		rs = st.executeQuery("SELECT a FROM r;");
 		try {
-			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
-			printResult(rs);
+//			rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
+			System.out.println("***************");
+			for(int i = 0; i < 3; i++) {
+//				rs = gSt.executeQuery("SELECT * FROM r WHERE a < " + i); //  + ";");
+				rs = gSt.executeQuery("SELECT * FROM r"); //  + ";");
+				printResult(rs);
+				rs = st.executeQuery("SELECT   A.VALUE   "
+						+ "FROM V$SESSTAT A,     V$STATNAME B,     V$SESSION S   "
+						+ "WHERE A.STATISTIC# = B.STATISTIC#     AND S.SID        = A.SID     "
+						+ "AND B.NAME       = 'opened cursors current'     "
+						+ "AND USERNAME     = 'TESTUSER'");
+				printResult(rs);
+				Thread.sleep(30);
+			}
 		}
 		catch (NativeGProMLibException e) {
 			log.error("###############################\n" + e.getMessage() + "\n###############################\n");
 		}
 		
+		gSt.close();
+		st.close();
 //		
 //		rs = st.executeQuery("PROVENANCE OF (SELECT a FROM R);");
 //		printResult(rs);
@@ -141,6 +176,7 @@ public class GProMJDBCTest {
 		System.out.println("-------------------------------------------------------------------------------");
 		System.out.println();
 		System.out.println();
+		rs.close();
 	}
 	
 }

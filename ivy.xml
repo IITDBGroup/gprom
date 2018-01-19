@@ -2,25 +2,29 @@
 <ivy-module version="2.0"
  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
  xsi:noNamespaceSchemaLocation="http://ant.apache.org/ivy/schemas/ivy.xsd">
- <info organisation="iit.edu" module="GProMJDBC" status="integration">
- </info>
- <dependencies>
-   <dependency org="log4j" name="log4j" rev="1.2.17">
-            <artifact name="log4j" type="jar" />
-   </dependency>
-   <dependency org="junit" name="junit" rev="4.12" />
-   <dependency org="postgresql" name="postgresql" rev="9.1-901-1.jdbc4"/>
-   <dependency org="net.java.dev.jna" name="jna-platform" rev="4.2.2" />
-   <dependency org="mysql" name="mysql-connector-java" rev="6.0.5"/>
-   <dependency org="org.xerial" name="sqlite-jdbc" rev="3.15.1" />
-   <dependency org="ant-contrib" name="ant-contrib" rev="1.0b3"/>
-   <dependency org="org.hsqldb" name="hsqldb" rev="2.3.4"/>
-   <dependency org="com.nativelibs4java" name="jnaerator-runtime" rev="0.12"/>
-   <dependency org="org.apache.ant" name="ant-junit" rev="1.9.7"/>
-   <dependency org="xerces" name="xercesImpl" rev="2.11.0"/>
-   <dependency org="org.slf4j" name="slf4j-api" rev="1.7.21"/>
-   <dependency org="org.slf4j" name="slf4j-simple" rev="1.7.21"/>
-   <dependency org="org.antlr" name="stringtemplate" rev="4.0.2"/>
-<!--   <dependency org="com.oracle.jdbc" name="ojdbc7" rev="12.1.0.2"/> -->
- </dependencies>
+	 <info 
+	 	organisation="iit.edu" 
+	 	module="GProMJDBC" 
+	 	status="integration"
+		revision="1.0.1">
+	 </info>
+	 <dependencies>
+	   <dependency org="org.apache.logging.log4j" name="log4j-api" rev="2.8.2" />
+	   <dependency org="org.apache.logging.log4j" name="log4j-core" rev="2.8.2" />
+	   <dependency org="junit" name="junit" rev="4.12" />
+	   <dependency org="postgresql" name="postgresql" rev="9.1-901-1.jdbc4"/>
+	   <dependency org="net.java.dev.jna" name="jna-platform" rev="4.2.2" />
+	   <dependency org="mysql" name="mysql-connector-java" rev="6.0.5"/>
+	   <dependency org="org.xerial" name="sqlite-jdbc" rev="3.15.1" />
+	   <dependency org="ant-contrib" name="ant-contrib" rev="1.0b3"/>
+	   <dependency org="org.hsqldb" name="hsqldb" rev="2.3.4"/>
+	   <dependency org="com.nativelibs4java" name="jnaerator-runtime" rev="0.12"/>
+	   <dependency org="org.apache.ant" name="ant-junit" rev="1.9.7"/>
+	   <dependency org="xerces" name="xercesImpl" rev="2.11.0"/>
+	   <dependency org="org.slf4j" name="slf4j-api" rev="1.7.21"/>
+	   <dependency org="org.slf4j" name="slf4j-simple" rev="1.7.21"/>
+	   <dependency org="org.antlr" name="stringtemplate" rev="4.0.2"/>
+	   <dependency org="sqlline" name="sqlline" rev="1.3.0"/>
+	<!--   <dependency org="com.oracle.jdbc" name="ojdbc7" rev="12.1.0.2"/> -->
+	 </dependencies>
 </ivy-module>

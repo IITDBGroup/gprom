@@ -8,16 +8,23 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.InvalidPropertiesFormatException;
+import java.util.Locale;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org. gprom.jdbc.test.testgenerator.dataset.DataAndQueryGenerator;
+import org.gprom.jdbc.utility.ExceptionUtil;
+import org.gprom.jdbc.utility.PropertyConfigurator;
+import org.gprom.jdbc.utility.SystemOptionReader;
+import org.stringtemplate.v4.NumberRenderer;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.STGroup;
 import org.stringtemplate.v4.STGroupFile;
+import org.stringtemplate.v4.StringRenderer;
 
 public class TestGenerator {
 
-	Logger log = Logger.getLogger(TestGenerator.class);
+	Logger log = LogManager.getLogger(TestGenerator.class);
 	
 	public static int settingNum;
 	
@@ -32,16 +39,32 @@ public class TestGenerator {
 	private GProMSuite allTests;
 	private STGroup g;
 	
-	public TestGenerator (File testDir, String packageName) throws IOException {
-
+	public class MyIntRenderer extends NumberRenderer {
+	    @Override
+	    public String toString(Object o, String formatString, Locale locale) {
+	        if (formatString == null || !formatString.startsWith("pad"))
+	            return super.toString(o, formatString, locale);
+	       // pad integer from left with 0's
+	        int padLen = Integer.parseInt(formatString.substring(4, formatString.length() - 1));
+	        String thing = o.toString();
+	        while(thing.length() < padLen)
+	        	thing = "0" + thing;
+	        return thing;
+	    }
+	}
+	
+	public TestGenerator (File testDir, String packageName) throws Exception {
+		log.debug("test generator for {} using package name {}", testDir, packageName);
 		this.testDir = testDir;
+		if (!testDir.exists())
+			throw ExceptionUtil.formatMessageException("did not find directory %s", testDir);
 		ConnectionOptions.getInstance().setPath(testDir.getPath());
 		OptionsManager.getInstance().reloadOptions();
 		File dir;
-		
+		String sourcedir = SystemOptionReader.inst.getEnvOrProperty("", "generator.sourcedir");
 		this.packageName = packageName; 
 		
-		packageDir = System.getProperty("generator.sourcedir") + "/" + packageName.replaceAll("\\.", "/");
+		packageDir = sourcedir + "/" + packageName.replaceAll("\\.", "/");
 		dir = new File(packageDir);
 		if (!dir.isDirectory())
 			dir.mkdirs();
@@ -49,21 +72,22 @@ public class TestGenerator {
 		g = new STGroupFile(resourceDir + "/TestTemplates/testcase.stg");
 	}
 	
-	public static void main (String[] args) throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
+	public static void main (String[] args) throws Exception {
+		PropertyConfigurator.configureHonoringProperties("blackboxtests/log4j2-test.xml", "log4j2-test.xml", "blackboxtests/log4j2.xml", "log4j2.xml");
 		TestGenerator gen;
 		File dir;
-		PACKAGE_NAME = System.getProperty("generator.package");
-		packageDir = System.getProperty("generator.sourcedir");
+		PACKAGE_NAME = SystemOptionReader.inst.getEnvOrProperty("", "generator.package");
+		packageDir = SystemOptionReader.inst.getEnvOrProperty("", "generator.sourcedir");
 		packageDir += "/" + PACKAGE_NAME.replace('.', '/');
-		resourceDir = System.getProperty("generator.resourcedir");
-		testcaseDir = System.getProperty("generator.testcasedir");
+		resourceDir = SystemOptionReader.inst.getEnvOrProperty("", "generator.resourcedir");
+		testcaseDir = SystemOptionReader.inst.getEnvOrProperty("", "generator.testcasedir");
 		dir = new File (testcaseDir);
 		gen = new TestGenerator (dir, PACKAGE_NAME);
 		gen.generateTests();
 		gen.generateOptionsSuites();
 	}
 	
-	public void generateTests () throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
+	public void generateTests () throws Exception {
 		for (int i = 0; i < OptionsManager.getInstance().getNumSettings(); i++) {
 			settingNum = i + 1;
 			
@@ -91,7 +115,7 @@ public class TestGenerator {
 				
 				generateSuitesFromFileName (name);
 				
-				System.out.println("create Generator for " + name);
+				log.info("create Generator for {}", name);
 				generator = new DataAndQueryGenerator (files[i].getAbsolutePath());
 				generateTest (generator, name);	
 			}
@@ -100,7 +124,7 @@ public class TestGenerator {
 		finalizeSuites ();
 	}
 	
-	public void generateOptionsSuites () throws InvalidPropertiesFormatException, FileNotFoundException, IOException {
+	public void generateOptionsSuites () throws Exception {
 		GProMSuite optionSuite;
 		
 		optionSuite = new GProMSuite ("AllTestsOptions");
@@ -160,6 +184,7 @@ public class TestGenerator {
 		suite = suites.get(runName);
 		
 		STGroup g = new STGroupFile(resourceDir + "/TestTemplates/testcase.stg");
+		g.registerRenderer(Integer.class, new MyIntRenderer());
 		ST testcl = g.getInstanceOf("testclass");
 		testcl.add("name", suite.getClassName());
 		testcl.add("file", suite.getFileName());
@@ -175,9 +200,16 @@ public class TestGenerator {
 		ST testclassfile = g.getInstanceOf("testclassfile");
 		testclassfile.add("package", packageName);
 		testclassfile.add("class", testcl.render());
-		log.error(testclassfile.render());
-		
+		log.info(testclassfile.render());
+		log.error("generated testcase file {}", suite.getClassName());
 		writeFile(suite.getClassName(), testclassfile.render());
+	}
+	
+	private String padInt (int in, int len) {
+		String res = Integer.toString(in);
+		while(res.length() < len)
+			res = "0" + res;
+		return res;
 	}
 	
 	private String generateName (String name) {
@@ -195,6 +227,8 @@ public class TestGenerator {
 			result = result + "." + parts[i];
 		}
 		
+		result += "_Test";
+		
 		return result;
 	}
 	
@@ -204,7 +238,7 @@ public class TestGenerator {
 		GProMSuite curSuite;
 		GProMSuite oldSuite;
 		
-		System.out.println("create Suites for " + fileName + " " + settingNum);
+		log.error("create Suites for {} {}", fileName, settingNum);
 		
 		parts = fileName.split("\\.");
 		curName = "";
@@ -220,6 +254,9 @@ public class TestGenerator {
 			}
 			else {
 				curName = curName + "." + parts[i];
+			}
+			if (i == parts.length -1) {
+				curName += "_Test";
 			}
 			if (suites.containsKey(curName)) {
 				curSuite = suites.get(curName);
@@ -239,7 +276,7 @@ public class TestGenerator {
 		FileWriter writer;
 		
 		outFile = new File (packageDir + "/" + name + ".java");
-		System.out.println(outFile.getAbsolutePath());
+		log.info("write file {}", outFile.getAbsolutePath());
 		outFile.createNewFile();
 		
 		writer = new FileWriter (outFile);

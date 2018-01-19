@@ -120,7 +120,8 @@ NEW_ENUM_WITH_TO_STRING(ProvenanceInputType,
     PROV_INPUT_REENACT,
     PROV_INPUT_REENACT_WITH_TIMES,
     PROV_INPUT_TRANSACTION,
-    PROV_INPUT_TIME_INTERVAL
+    PROV_INPUT_TEMPORAL_QUERY,
+    PROV_INPUT_UNCERTAIN_QUERY
 );
 
 /* stringinfo provides the string data type*/
@@ -206,7 +207,7 @@ extern char *beatify(char *input);
 extern char *operatorToOverviewString(void *op);
 extern char *singleOperatorToOverview (void *op);
 extern char *datalogToOverviewString(void *n);
-extern char *itoa(int value);
+extern char *gprom_itoa(int value);
 extern void indentString(StringInfo str, int level);
 
 /* get a dot script for a query operator graph or query block tree */

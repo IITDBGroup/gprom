@@ -1,0 +1,3 @@
+[submodule "antutils"]
+	path = antutils
+	url = https://github.com/IITDBGroup/java-ant-utils.git

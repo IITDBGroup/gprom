@@ -6,7 +6,7 @@ package org.gprom.jdbc.jna;
 import java.sql.SQLException;
 import java.util.Properties;
 
-import org.apache.log4j.Level;
+import org.apache.logging.log4j.Level;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 /**
@@ -19,7 +19,9 @@ public interface GProMJavaInterface {
 		DT_STRING,
 		DT_INT,
 		DT_LONG,
-		DT_FLOAT
+		DT_FLOAT,
+		DT_BOOL,
+		DT_VARCHAR2
 	}
 	
 	public enum OptionType {

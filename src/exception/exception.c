@@ -26,7 +26,10 @@ static const char *exceptionMessage = NULL;
 static const char *file = NULL;
 static int line = -1;
 static void sigsegv_handler(int signo);
-
+static char *wipeContext = QUERY_MEM_CONTEXT;
+#define FALLBACK_BUFFER_SIZE 4096
+#define MAX_FALLBACKSTRING (FALLBACK_BUFFER_SIZE - 1)
+static char fallbackBuffer[FALLBACK_BUFFER_SIZE];
 
 // macros
 #define SEVER_TO_STRING(s) ((s == SEVERITY_PANIC) ? TB("PANIC") : ((s == SEVERITY_RECOVERABLE) ? TB("RECOVERABLE") : TB("SIGSEGV")))
@@ -64,9 +67,16 @@ processException(void)
     {
         ExceptionHandler e = exceptionCallback(exceptionMessage, file, line, severity);
 
-        ACQUIRE_MEM_CONTEXT(getDefaultMemContext());
-        DEBUG_LOG("exception handler tells us to %s", ExceptionHandlerToString(e));
-        RELEASE_MEM_CONTEXT();
+        if (memManagerUsable())
+        {
+            ACQUIRE_MEM_CONTEXT(getDefaultMemContext());
+            DEBUG_LOG("exception handler tells us to %s", ExceptionHandlerToString(e));
+            RELEASE_MEM_CONTEXT();
+        }
+        else
+        {
+            fprintf(stderr, "exception handler tells us to %s", ExceptionHandlerToString(e));
+        }
 
         // the handler determines how to deal with the exception
         switch(e)
@@ -80,7 +90,8 @@ processException(void)
                 break;
             // abort current query and wipe per query memory context
             case EXCEPTION_ABORT:
-                freeMemContextAndChildren(QUERY_MEM_CONTEXT);
+                fprintf(stderr, "ABORT BASED ON EXCEPTION wipe <%s>\n", wipeContext);
+                freeMemContextAndChildren(wipeContext);
                 break;
             // abort current query and wipe all but the top memory context
             // afterwards all components have to be reinitialized
@@ -110,12 +121,24 @@ void
 storeExceptionInfo(ExceptionSeverity s, const char *message, const char *f, int l)
 {
     severity = s;
-    // copy the message into the default memory context
-    ACQUIRE_MEM_CONTEXT(getDefaultMemContext());
-    exceptionMessage = strdup((char *) message);
-    RELEASE_MEM_CONTEXT();
     file = f;
     line = l;
+    // copy the message into the default memory context if the memory manager is usable
+    if (memManagerUsable())
+    {
+        ACQUIRE_MEM_CONTEXT(getDefaultMemContext());
+        exceptionMessage = strdup((char *) message);
+        RELEASE_MEM_CONTEXT();
+        ERROR_LOG("exception was thrown %s\n", currentExceptionToString());
+    }
+    // use fallback buffer to not loose message otherwise
+    else {
+        exceptionMessage = fallbackBuffer;
+        // make sure that fallbackBuffer is a valid string
+        fallbackBuffer[MAX_FALLBACKSTRING] = '\0';
+        strncpy(fallbackBuffer, message, MAX_FALLBACKSTRING);
+        fprintf(stderr, "exeception was thrown: %s\n", fallbackBuffer);
+    }
 }
 
 char *
@@ -128,17 +151,24 @@ currentExceptionToString(void)
     return result->data;
 }
 
+void
+setWipeContext(char *wContext)
+{
+    wipeContext = wContext;
+}
+
 static void
 sigsegv_handler(int signo)
 {
   if (signo == SIGSEGV)
   {
 //      ERROR_LOG("segmentation fault in process %u", getpid());
+      fprintf(stderr, "segmentation fault in process %u\n", getpid());
       THROW(SEVERITY_SIGSEGV, "segmentation fault in process %u", getpid());
   }
   if (signo == SIGILL)
   {
-      ERROR_LOG("illegal instruction in process %u", getpid());
+      fprintf(stderr, "segmentation fault in process %u\n", getpid());
       THROW(SEVERITY_PANIC, "illegal instruction in process %u", getpid());
   }
 //  signal(signo, SIG_DFL);

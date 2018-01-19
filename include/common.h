@@ -10,7 +10,11 @@
  * Portability
  */
 //#if HAVE_CONFIG_H
+#ifndef IMPORTED_CONFIG_H
+#define IMPORTED_CONFIG_H
 #include <config.h>
+#endif
+
 //#endif /* HAVE_CONFIG_H */
 
 /* <inttypes.h> integer type definitions */
@@ -32,6 +36,16 @@
 #include <stdlib.h>
 #else
 #define exit(retVal) return;
+#endif
+
+/* <stdint.h> convenience integer types */
+#if HAVE_STDINT_H
+#include <stdint.h>
+typedef intptr_t gprom_long_t;
+#elif HAVE_LONG_LONG_INT
+typedef long long int gprom_long_t;
+#else /* use pointer type as fallback? */
+typedef (void *) gprom_long_t;
 #endif
 
 /* <stddef.h> */
@@ -88,6 +102,9 @@
 /* pthread */
 #if HAVE_PTHREAD_H
 #include <pthread.h>
+#elif OS_WINDOWS
+#include <windows.h>
+#include <process.h>
 #endif
 
 /* unistd handler */
@@ -105,6 +122,11 @@
 #include <pwd.h>
 #endif
 
+/* regex */
+#if HAVE_REGEX_H
+#include <regex.h>
+#endif
+
 /* strdup function */
 #if HAVE_STRDUP
 #undef strdup
@@ -112,6 +134,14 @@
 #else
 #define strdup(input) contextStringDup(input)
 #endif
+
+/* sigsetjmp function is called setjmp on windows */
+#ifndef HAVE_SIGJMP_BUF
+#define sigjmp_buf jmp_buf
+#define sigsetjmp(x,y) setjmp(x)
+#define siglongjmp longjmp
+#endif
+
 
 /* streq function */
 #if HAVE_STRCMP
@@ -148,8 +178,13 @@
 #define HAVE_SQLITE_BACKEND 1
 #endif
 
+// monetdb
+#if HAVE_LIBMAPI && HAVE_MONETDB_MAPI_H
+#define HAVE_MONETDB_BACKEND 1
+#endif
+
 // any backend
-#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND || HAVE_LIBSQLITE3
+#if HAVE_POSTGRES_BACKEND || HAVE_ORACLE_BACKEND || HAVE_SQLITE_BACKEND || HAVE_MONETDB_BACKEND
 #define HAVE_A_BACKEND 1
 #endif
 
@@ -183,8 +218,12 @@
 #endif
 
 // override free to make sure nobody is using free directly
+#ifndef malloc
 #define free(_p) "DO NOT USE free DIRECTLY USE \"FREE\" FROM THE MEMORY MANAGER"; @
 #define malloc(_p) "DO NOT USE malloc DIRECTLY USE \"MALLOC\" FROM THE MEMORY MANAGER"; @
+#else
+#define MALLOC_REDEFINED
+#endif
 
 // provide ASSERT macro if not deactivated by user
 // use exception system instead

@@ -710,6 +710,9 @@ createDuplicateRemovalOp(List *attrs, QueryOperator *input, List *parents,
 {
     DuplicateRemoval *dr = makeNode(DuplicateRemoval);
 
+    if (attrNames == NIL)
+        attrNames = getQueryOperatorAttrNames(input);
+
     dr->attrs = attrs;
     dr->op.inputs = singleton(input);
     dr->op.schema = createSchemaFromLists("DUPREM", attrNames, getDataTypes(input->schema));
@@ -741,6 +744,15 @@ createConstRelOp(List *values, List *parents, List *attrNames, List *dataTypes)
     co->values=values;
     co->op.type=T_ConstRelOperator;
     co->op.inputs=NULL;
+
+    if (dataTypes == NIL)
+    {
+        FOREACH(Node,v, values)
+        {
+            dataTypes = appendToTailOfListInt(dataTypes, typeOf(v));
+        }
+    }
+
     co->op.schema= createSchemaFromLists("ConstRel", attrNames, dataTypes);
     co->op.parents=parents;
     co->op.provAttrs=NIL;
@@ -808,6 +820,11 @@ createOrderOp(List *orderExprs, QueryOperator *input, List *parents)
 void
 setProperty (QueryOperator *op, Node *key, Node *value)
 {
+    if (op->properties == NULL)
+    {
+        op->properties = (Node *) NEW_MAP(Node,Node);
+    }
+
     KeyValue *val = getProp(op, key);
 
     if (val)
@@ -817,8 +834,6 @@ setProperty (QueryOperator *op, Node *key, Node *value)
     }
 
     addToMap((HashMap *) op->properties, key, value);
-//    val = createNodeKeyValue(key, value);
-//    op->properties =  (Node *) appendToTailOfList((List *) op->properties, val);
 }
 
 Node *
@@ -841,32 +856,13 @@ getStringProperty (QueryOperator *op, char *key)
     if (op->properties == NULL)
         op->properties = (Node *) NEW_MAP(Node,Node);
     return getMapString((HashMap *) op->properties, key);
-//    KeyValue *kv = getProp(op, (Node *) createConstString(key));
-//
-//    return kv ? kv->value : NULL;
 }
 
 void
 removeStringProperty (QueryOperator *op, char *key)
 {
     removeMapStringElem((HashMap *) op->properties, key);
-//    List *props = (List *) op->properties;
-//    op->properties = (Node *) genericRemoveFromList(props, KeyValueKeyEqString, key);
 }
-
-//static boolean
-//KeyValueKeyEqString (void *kv, void *str)
-//{
-//    ASSERT(isA(kv, KeyValue));
-//    KeyValue *kVal = (KeyValue *) kv;
-//    ASSERT(isA(kVal->key, Constant));
-//    char *keyStr = STRING_VALUE(kVal->key);
-//
-//    if (strpeq(keyStr, str))
-//        return TRUE;
-//
-//    return FALSE;
-//}
 
 static KeyValue *
 getProp (QueryOperator *op, Node *key)
@@ -1129,10 +1125,10 @@ AttributeDef *
 getAttrDefByName(QueryOperator *op, char *attr)
 {
     FOREACH(AttributeDef,a,op->schema->attrDefs)
-            {
+    {
         if (strcmp(a->attrName, attr) == 0)
             return a;
-            }
+    }
 
     return NULL;
 }
@@ -1149,6 +1145,36 @@ char *
 getAttrNameByPos(QueryOperator *op, int pos)
 {
     return getAttrDefByPos(op, pos)->attrName;
+}
+
+AttributeReference *
+getAttrRefByPos (QueryOperator *op, int pos)
+{
+    AttributeDef *d = getAttrDefByPos(op, pos);
+
+    ASSERT(d != NULL);
+
+    AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
+                pos,
+                INVALID_ATTR,
+                d->dataType);
+
+    return res;
+}
+
+AttributeReference *
+getAttrRefByName(QueryOperator *op, char *attr)
+{
+    AttributeDef *d = getAttrDefByName(op, attr);
+
+    ASSERT(d != NULL);
+
+    AttributeReference *res = createFullAttrReference(strdup(d->attrName), 0,
+            getAttrPos(op, attr),
+            INVALID_ATTR,
+            d->dataType);
+
+    return res;
 }
 
 List *
@@ -1230,6 +1256,9 @@ List *
 aggOpGetAggAttrNames(AggregationOperator *op)
 {
     List *result = getQueryOperatorAttrNames((QueryOperator *) op);
+
+    if (LIST_LENGTH(op->aggrs) == 0)
+        return NIL;
 
     return sublist(result, 0, LIST_LENGTH(op->aggrs) - 1);
 }
@@ -1360,20 +1389,3 @@ numOpsInTreeInternal (QueryOperator *q, unsigned int *count)
     SET_STRING_PROP(q, PROP_CHILD_COUNT, createConstInt(opC));
     return opC;
 }
-
-
-//static Schema *
-//mergeSchemas (List *inputs)
-//{
-//    Schema *result = NULL;
-//
-//    FOREACH(QueryOperator,O,inputs)
-//    {
-//        if (result == NULL)
-//            result = (Schema *) copyObject(O->schema);
-//        else
-//            result->attrDefs = concatTwoLists(result->attrDefs, copyObject(O->schema->attrDefs));
-//    }
-//
-//    return result;
-//}

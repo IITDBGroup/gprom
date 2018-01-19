@@ -39,6 +39,8 @@ static void operatorToLatex (StringInfo str, Operator *node);
 static void constantToLatex (StringInfo str, Constant *node);
 static void attributeReferenceToLatex (StringInfo str, AttributeReference *node);
 
+//xmlelement first arg
+static void xmlConstantToSQL (StringInfo str, Node *node);
 
 static void
 attributeReferenceToSQL (StringInfo str, AttributeReference *node)
@@ -64,7 +66,7 @@ constantToSQL (StringInfo str, Constant *node)
             appendStringInfo(str, "%f", *((double *) node->value));
             break;
         case DT_LONG:
-            appendStringInfo(str, "%ld", *((long *) node->value));
+            appendStringInfo(str, "%ld", *((gprom_long_t *) node->value));
             break;
         case DT_STRING:
             appendStringInfo(str, "'%s'", (char *) node->value);
@@ -77,6 +79,25 @@ constantToSQL (StringInfo str, Constant *node)
             break;
     }
 }
+
+static void
+xmlConstantToSQL (StringInfo str, Node *node)
+{
+	if(node->type == T_Constant)
+	{
+		Constant *n = (Constant *) node;
+
+		if (n->isNull)
+		{
+			appendStringInfoString(str, "NULL");
+			return;
+		}
+
+		if(n->constType == DT_STRING)
+			appendStringInfo(str, "%s", (char *) n->value);
+	}
+}
+
 
 static void
 functionCallToSQL (StringInfo str, FunctionCall *node)
@@ -106,11 +127,16 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
 
     int i = 0;
     //Node *entity;
+    int xmlCnt = 0; //used to get the first element of xmlelement like Constant 'tuple', then I want to remove ''
     FOREACH(Node,arg,node->args)
     {
         appendStringInfoString(str, ((i++ == 0) ? "" : ", "));
-        exprToSQLString(str, arg);
+        if (streq(node->functionname, "XMLELEMENT") && xmlCnt == 0)
+        	xmlConstantToSQL(str, arg);
+        else
+        	exprToSQLString(str, arg);
         //entity = arg;
+        xmlCnt ++;
     }
 
     if (flag == 1)
@@ -610,7 +636,7 @@ constantToLatex (StringInfo str, Constant *node)
             appendStringInfo(str, "%f", *((double *) node->value));
             break;
         case DT_LONG:
-            appendStringInfo(str, "%ld", *((long *) node->value));
+            appendStringInfo(str, "%ld", *((gprom_long_t *) node->value));
             break;
         case DT_STRING:
             appendStringInfo(str, "\\texttt{\\textcolor{blue}{%s}}", latexEscapeString((char *) node->value));

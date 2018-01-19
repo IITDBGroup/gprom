@@ -479,6 +479,9 @@ stringListToConstList(List *list)
 List *
 concatTwoLists(List *lista, List*listb)
 {
+    if (lista == listb)
+        listb = copyList(listb);
+
 	if (lista == NIL)
 		return  listb;
 	if (listb == NIL)
@@ -693,7 +696,7 @@ genericRemoveFromList (List *list, boolean (*eq) (void *, void *), void *value)
 List *
 removeFromTail(List *X)
 {
-	DEBUG_LOG("remove from list %s", nodeToString(X));
+	//DEBUG_LOG("remove from list %s", nodeToString(X));
 	List *result = NIL;
 	ListCell *el;
 	int l = LIST_LENGTH(X);
@@ -731,14 +734,38 @@ removeFromHead(List *X)
     result->head = head->next;
     result->length--;
 
-//    FOREACH_INT(lc, X)
-//    {
-//        if(c != 0)
-//           result = appendToTailOfListInt(result, lc);
-//
-//        c++;
-//    }
     return result;
+}
+
+List *
+removeListElemAtPos (List *list, int pos)
+{
+    ListCell *lc, *prev;
+    ASSERT(LIST_LENGTH(list) > pos && pos >= 0);
+
+    if (LIST_LENGTH(list) == 1)
+        return NIL;
+
+    for(lc = list->head, prev = NULL; lc != NULL; prev = lc, lc = lc->next)
+    {
+        if (pos-- <= 0)
+        {
+            if (lc == list->head)
+            {
+                list->head = lc->next;
+            }
+            else
+            {
+                prev->next = lc->next;
+            }
+            list->length--;
+            if (lc == list->tail)
+                list->tail = prev;
+            break;
+        }
+    }
+
+    return list;
 }
 
 //remove all the elements of list l1 from list l2, l1 is a sublist of l2

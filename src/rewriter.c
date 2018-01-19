@@ -47,6 +47,11 @@ static void setupPlugin(const char *pluginType);
 static List *summOpts = NIL;
 static char *qType = NULL;
 
+List *userQuestion = NIL;
+char *summaryType = NULL;
+int sampleSize = 0;
+int topK = 0;
+
 int
 initBasicModules (void)
 {
@@ -82,6 +87,13 @@ readOptions (char *appName, char *appHelpText, int argc, char* argv[])
         printOptionsHelp(stdout, appName, appHelpText, FALSE);
         return EXIT_FAILURE;
     }
+
+    if (parserReturn == OPTION_PARSER_RETURN_VERSION)
+    {
+        printVersion(stdout);
+        return EXIT_FAILURE;
+    }
+
 
     // set log level from options
     setMaxLevel(getIntOption("log.level"));
@@ -165,7 +177,7 @@ setupPluginsFromOptions(void)
     pluginName = getStringOption("plugin.metadata");
     if (strpeq(pluginName,"external"))
     {
-        printf("\nPLUGIN******************************************\n\n");
+        //printf("\nPLUGIN******************************************\n\n");
     }
     else
     {
@@ -376,6 +388,12 @@ rewriteQueryWithRethrow(char *input)
     return rewriteQueryInternal(input, TRUE);
 }
 
+int
+costQuery (char *input)
+{
+    return getCostEstimation(input);
+}
+
 char *
 rewriteQueryFromStream (FILE *stream) {
     Node *parse;
@@ -453,32 +471,6 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	                TIME_ASSERT(checkModel((QueryOperator *) rewrittenTree));
 	    )
 
-//	    if (getBoolOption(OPTION_INPUTDB))
-//	    {
-//	    	List *rels = NIL;
-//	    	List *inputRels = NIL;
-//	    	HashMap *taOp = NEW_MAP(Constant,List);
-//
-//	    	findTableAccessVisitor((Node *) rewrittenTree, &rels);
-//
-//	    	FOREACH(TableAccessOperator,r,rels)
-//			{
-//	    		boolean isEDB = HAS_STRING_PROP(r,DL_IS_EDB_REL);
-//
-//	    		if(isEDB)
-//	    		{
-//	    			ProjectionOperator *proj = (ProjectionOperator *) createProjOnAllAttrs((QueryOperator *) r);
-//	    			addChildOperator((QueryOperator *) proj, (QueryOperator *) r);
-//	    			MAP_ADD_STRING_KEY(taOp,r->tableName,proj);
-//	    		}
-//			}
-//
-//	    	FOREACH_HASH(QueryOperator,value,taOp)
-//	    		inputRels = appendToTailOfList(inputRels,value);
-//
-//	    	rewrittenTree = (Node *) inputRels;
-//	    }
-
         // rewrite for summarization
 		if (summOpts != NIL && qType != NULL)
 			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts, qType);
@@ -491,11 +483,19 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	        STOP_TIMER("OptimizeModel");
 	    }
 	    else
+	    {
 	        if (isA(rewrittenTree, List))
+	        {
 	            FOREACH(QueryOperator,o,(List *) rewrittenTree)
-	            LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
+                {
+                    LC_P_VAL(o_his_cell) = materializeProjectionSequences (o);
+                }
+	        }
 	        else
+	        {
 	            rewrittenTree = (Node *) materializeProjectionSequences((QueryOperator *) rewrittenTree);
+	        }
+	    }
 
 	    DOT_TO_CONSOLE_WITH_MESSAGE("AFTER OPTIMIZATIONS", rewrittenTree);
 	}
@@ -517,8 +517,8 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     char *rewrittenSQL = NULL;
     Node *oModel;
 
-	// summarization options for SQL input
-    if (!isA(parse,DLProgram))
+    // store summary type
+    if (isA(parse, List) && isA(getHeadOfListP((List *) parse), ProvenanceStmt))
     {
         ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
 

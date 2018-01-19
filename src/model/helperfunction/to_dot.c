@@ -64,8 +64,8 @@
 #define GET_OP_ID(result,map,op) \
 		do { \
 		    result = STRING_VALUE(GET_STRING_PROP(op, NODE_ID_PROP)); \
-			if (!hasSetLongElem(map, (long) op)) \
-			    addLongToSet(map, (long) op); \
+			if (!hasSetLongElem(map, (gprom_long_t) op)) \
+			    addLongToSet(map, (gprom_long_t) op); \
 		} while(0)
 
 #define GET_EXIST_OP_ID(op) STRING_VALUE((GET_STRING_PROP(op, NODE_ID_PROP)))
@@ -104,7 +104,7 @@ static void
 outputOpDefs(StringInfo str, QueryOperator *op, Set *nodeDone)
 {
     // do not output same operator twice
-    if (hasSetLongElem(nodeDone, (long) op))
+    if (hasSetLongElem(nodeDone, (gprom_long_t) op))
         return;
 
     opToDot(str, op, nodeDone);
@@ -386,11 +386,11 @@ outputEdges(StringInfo str, QueryOperator *op, Set *nodeDone)
     char *opId;
     char *cId;
 
-    if (hasSetLongElem(nodeDone, (long) op))
+    if (hasSetLongElem(nodeDone, (gprom_long_t) op))
         return;
 
     // mark operator as processed to avoid outputting the same edges more than once
-    addLongToSet(nodeDone, (long) op);
+    addLongToSet(nodeDone, (gprom_long_t) op);
     opId = STRING_VALUE(GET_STRING_PROP(op, NODE_ID_PROP));
 
     FOREACH(QueryOperator,c,op->inputs)
@@ -423,10 +423,10 @@ leafsToDot (StringInfo str, QueryOperator *op)
     // output leaf nodes
     FOREACH(QueryOperator,o,leafs)
     {
-        if (!hasSetLongElem(nodeDone, (long) o))
+        if (!hasSetLongElem(nodeDone, (gprom_long_t) o))
         {
             char *nodeId = STRING_VALUE(GET_STRING_PROP(o, NODE_ID_PROP));
-            addLongToSet(nodeDone, (long) o);
+            addLongToSet(nodeDone, (gprom_long_t) o);
             if (o->type == T_TableAccessOperator)
             {
                 TableAccessOperator *t = (TableAccessOperator *) o;
@@ -460,15 +460,15 @@ leafsToDot (StringInfo str, QueryOperator *op)
 
     FOREACH(QueryOperator,o,leafs)
     {
-        if (!hasSetLongElem(nodeDone, (long) o))
+        if (!hasSetLongElem(nodeDone, (gprom_long_t) o))
         {
-            addLongToSet(nodeDone, (long) o);
+            addLongToSet(nodeDone, (gprom_long_t) o);
             QueryOperator *next = (QueryOperator *) (o_his_cell->next ?
                     LC_P_VAL(o_his_cell->next) : NULL);
 
             if (next)
             {
-                if (!hasSetLongElem(nodeDone, (long) next))
+                if (!hasSetLongElem(nodeDone, (gprom_long_t) next))
                     appendStringInfo(str, "%s -> %s;\n",
                             GET_EXIST_OP_ID(o),
                             GET_EXIST_OP_ID(next));
@@ -482,9 +482,9 @@ leafsToDot (StringInfo str, QueryOperator *op)
 
     FOREACH(QueryOperator,l,leafs)
     {
-        if (!hasSetLongElem(nodeDone, (long) l))
+        if (!hasSetLongElem(nodeDone, (gprom_long_t) l))
        {
-            addLongToSet(nodeDone, (long) l);
+            addLongToSet(nodeDone, (gprom_long_t) l);
             char *nodeId = GET_EXIST_OP_ID(l);
             FOREACH(QueryOperator,p,l->parents)
             {
@@ -500,7 +500,7 @@ nextKey (int *id)
 {
     int res = *id;
     (*id)++;
-    return CONCAT_STRINGS("opNode", itoa(res));
+    return CONCAT_STRINGS("opNode", gprom_itoa(res));
 }
 
 static void

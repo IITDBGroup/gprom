@@ -88,8 +88,8 @@ Node *dlParseResult = NULL;
 
 %type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement associateDomain
 %type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType
-%type <node> optionalFPattern intConstList
-%type <list> bodyAtomList argList exprList rulebody summarizationStatement
+%type <node> optionalFPattern 
+%type <list> bodyAtomList argList exprList rulebody summarizationStatement intConstList
 %type <stringVal> optProvFormat 
 
 /* start symbol */
