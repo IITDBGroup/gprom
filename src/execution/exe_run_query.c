@@ -100,11 +100,14 @@ printDBsample(List *stmts)
 
     FOREACH(char,c, stmts)
     {
-        char *r = (char *) MAP_GET_STRING(edbRels,gprom_itoa(++s));
-        printf("%s", r);
-        printf("\n");
-        res = executeQuery((char *) c);
-        outputResult(res);
+        if (FOREACH_HAS_MORE(c))
+        {
+            char *r = (char *) STRING_VALUE(MAP_GET_STRING(edbRels,gprom_itoa(++s)));
+            printf("%s", r);
+            printf("\n");
+            res = executeQuery((char *) c);
+            outputResult(res);
+        }
     }
 }
 

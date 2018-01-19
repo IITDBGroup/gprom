@@ -331,7 +331,7 @@ createInputDBprogram (DLProgram *p, DLAtom *question)
         		if (DL_HAS_PROP(a,DL_IS_EDB_REL))
         		{
         			a->negated = FALSE;
-        			MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),a->rel);
+        			MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),createConstString(a->rel));
 
         			DLRule *dlR = makeNode(DLRule);
 
@@ -376,7 +376,7 @@ createInputDBprogram (DLProgram *p, DLAtom *question)
 							hasVar = TRUE;
 
 					a->negated = FALSE;
-					MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),a->rel);
+					MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),createConstString(a->rel));
 
 					DLRule *dlR = makeNode(DLRule);
 					dlR->head = copyObject(r->head);
