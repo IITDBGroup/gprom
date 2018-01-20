@@ -375,7 +375,7 @@ translateProgram(DLProgram *p)
         }
 
         // exclude the edge rel before connect
-        Node *transMoveRel;
+        Node *transMoveRel = NULL;
         if (p->sumOpts != NIL)
         {
         	transMoveRel = MAP_GET_STRING(predToTrans, "move");
