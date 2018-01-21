@@ -48,7 +48,7 @@ Node *dlParseResult = NULL;
  * Functions and operators 
  */ 
 %token <stringVal> AMMSC
-%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' ')' '('
+%token <stringVal> '+' '-' '*' '/' '%' '^' '&' '|' '!' ')' '(' ':'
 %token <stringVal> STRCONCAT 
 
 /*
@@ -57,7 +57,7 @@ Node *dlParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS 
-%token <stringVal> TOP FOR FAILURE SUMMARIZED BY WITH SAMPLE
+%token <stringVal> SCORE AS THRESHOLDS TOP FOR FAILURE SUMMARIZED BY WITH SAMPLE PRECISION RECALL INFORMATIVENESS
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -89,7 +89,7 @@ Node *dlParseResult = NULL;
 %type <node> rule fact rulehead headatom relAtom bodyAtom arg comparison ansrelation provStatement rpqStatement associateDomain
 %type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType
 %type <node> optionalFPattern 
-%type <list> bodyAtomList argList exprList rulebody summarizationStatement intConstList
+%type <list> bodyAtomList argList exprList rulebody summarizationStatement intConstList optionalScore optionalThresholds
 %type <stringVal> optProvFormat 
 
 /* start symbol */
@@ -188,6 +188,14 @@ summarizationStatement:
 		/* EMPTY */ { $$ = NIL; }
 		| optionalTopK optionalSumType optionalSumSample { $$ = LIST_MAKE($1,$2,$3); }
 		| optionalTopK optionalFPattern optionalSumType optionalSumSample { $$ = LIST_MAKE($1,$2,$3,$4); }
+		| optionalScore optionalThresholds optionalTopK optionalSumType optionalSumSample
+		{ 
+			$$ = CONCAT_LISTS($1,$2,LIST_MAKE($3,$4,$5)); 
+		}
+		| optionalScore optionalThresholds optionalTopK optionalFPattern optionalSumType optionalSumSample 
+		{ 
+			$$ = CONCAT_LISTS($1,$2,LIST_MAKE($3,$4,$5,$6)); 
+		}
 /*
 		| FOR TOP intConst SUMMARIZED BY name WITH SAMPLE '(' intConst ')' '.'
 		{
@@ -199,6 +207,73 @@ summarizationStatement:
 		}
 */		
 	;	
+
+
+optionalScore:
+		SCORE AS '(' floatConst '*' RECALL '+' floatConst '*' INFORMATIVENESS ')' 
+		{ 
+			RULELOG("optionalScore::score");
+			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("srecall"),(Node *) createConstFloat($4));
+			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("sinformativeness"),(Node *) createConstFloat($8));
+			$$ = LIST_MAKE(recall,info);
+		}
+		| SCORE AS '(' floatConst '*' PRECISION '+' floatConst '*' RECALL ')' 
+		{ 
+			RULELOG("optionalScore::score");
+			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("sprecision"),(Node *) createConstFloat($4));
+			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("srecall"),(Node *) createConstFloat($8));
+			$$ = LIST_MAKE(precision,recall);
+		}
+		| SCORE AS '(' floatConst '*' PRECISION '+' floatConst '*' INFORMATIVENESS ')' 
+		{ 
+			RULELOG("optionalScore::score");
+			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("sprecision"),(Node *) createConstFloat($4));
+			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("sinformativeness"),(Node *) createConstFloat($8));
+			$$ = LIST_MAKE(precision,info);
+		}
+		| SCORE AS '(' floatConst '*' PRECISION '+' floatConst '*' RECALL '+' floatConst '*' INFORMATIVENESS ')' 
+		{ 
+			RULELOG("optionalScore::score");
+			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("sprecision"),(Node *) createConstFloat($4));
+			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("srecall"),(Node *) createConstFloat($8));
+			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("sinformativeness"),(Node *) createConstFloat($12));
+			$$ = LIST_MAKE(precision,recall,info);
+		}
+    ;
+
+
+optionalThresholds:
+		THRESHOLDS '(' RECALL ':' floatConst ',' INFORMATIVENESS ':' floatConst ')' 
+		{ 
+			RULELOG("optionalScore::score");
+			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("trecall"),(Node *) createConstFloat($5));
+			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("tinformativeness"),(Node *) createConstFloat($9));
+			$$ = LIST_MAKE(recall,info);
+		}
+		| THRESHOLDS '(' PRECISION '=' floatConst ',' RECALL '=' floatConst ')' 
+		{ 
+			RULELOG("optionalScore::score");
+			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("tprecision"),(Node *) createConstFloat($5));
+			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("trecall"),(Node *) createConstFloat($9));
+			$$ = LIST_MAKE(precision,recall);
+		}
+		| THRESHOLDS '(' PRECISION '=' floatConst ',' INFORMATIVENESS '=' floatConst ')' 
+		{ 
+			RULELOG("optionalScore::score");
+			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("tprecision"),(Node *) createConstFloat($5));
+			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("tinformativeness"),(Node *) createConstFloat($9));
+			$$ = LIST_MAKE(precision,info);
+		}
+		| THRESHOLDS '(' PRECISION '=' floatConst ',' RECALL '=' floatConst ',' INFORMATIVENESS '=' floatConst ')'  
+		{ 
+			RULELOG("optionalScore::score");
+			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("tprecision"),(Node *) createConstFloat($5));
+			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("trecall"),(Node *) createConstFloat($9));
+			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("tinformativeness"),(Node *) createConstFloat($13));
+			$$ = LIST_MAKE(precision,recall,info);
+		}
+    ;
+
 
 optionalTopK:
 		TOP intConst 
