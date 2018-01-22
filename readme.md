@@ -6,93 +6,39 @@
 **PUG** is a provenance middleware that generates (summarized) explanations for why and why-not provenance questions. PUG is implemented as an extension of 
 [GProM](https://github.com/IITDBGroup/gprom), a database middleware that adds provenance support to multiple database backends. 
 
+PUGS currently supports the following client interfaces: GProM's interactive shell `gprom`, a C library `libgprom`, a JDBC driver, and a python-based web viewer for provenance graphs.
 
 
-
-Provenance is information about how data was produced by database operations. That is, for a row in the database or returned by a query we capture from which rows it was derived and by which operations. The system compiles declarative queries with provenance requests into SQL code and executes this SQL code on a backend database system. GProM supports provenance capture for SQL queries and transactions, and produces provenance graphs explaining existing and missing answers for Datalog queries. Provenance is captured on demand by using a compilation technique called *instrumentation*. Instrumentation rewrites an SQL query (or past transaction) into a query that returns rows paired with their provenance. The output of the instrumentation process is a regular SQL query that can be executed using any standard relational database. The instrumented query generated from a provenance request returns a standard relation that maps rows to their provenance. Provenance for transactions is captured retroactively using a declarative replay technique called *reenactment* that we have developed at IIT. GProM extends multiple frontend languages (e.g., SQL and Datalog) with provenance requests and can produce code for multiple backends (currently Oracle). For information about the research behind GProM have a look at the IIT DBGroup's [webpage](http://www.cs.iit.edu/%7edbgroup/research/gprom.php). 
-
-GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC driver (currently not fully functional).
-
-# Online Demos
+# Online Demo
 
 * [Online Demo for PUGs Provenance Graph Explorer](http://ec2-35-164-188-60.us-west-2.compute.amazonaws.com:5000)
 
 # Documentation
 
 * [PUG Tutorial (with pictures!)](https://github.com/IITDBGroup/gprom/wiki/datalog_prov)
-* Provenance Language Features
-  * [Datalog](https://github.com/IITDBGroup/gprom/wiki/lang_datalog)
+* [PUG's Web Explorer Usage and Installation](https://github.com/IITDBGroup/gprom/wiki/pgview)
+* [PUG's Datalog Dialect](https://github.com/IITDBGroup/gprom/wiki/lang_datalog)
 * [Docker containers](https://github.com/IITDBGroup/gprom/wiki/docker)
 * [Installation Instructions](https://github.com/IITDBGroup/gprom/wiki/installation)
-* [Tutorial](https://github.com/IITDBGroup/gprom/wiki/tutorial)
-* [GProM Commandline Shell Manual](https://github.com/IITDBGroup/gprom/blob/master/doc/gprom_man.md)
+* [GProM CLI Manual](https://github.com/IITDBGroup/gprom/blob/master/doc/gprom_man.md)
 
 # Features
 
-+ Flexible on-demand provenance capture and querying for SQL queries using language-level instrumentation, i.e., by running SQL queries.
-+ Retroactive provenance capture for transactions using reenactment. Notably, our approach requires no changes to the transactional workload and underlying DBMS
-+ Produce provenance graphs for Datalog queries that explain why (provenance) or why-not (missing answers) a tuple is in the result of a Datalog query
-+ Heuristic and cost-based optimization for queries instrumented for provenance capture
-+ Export of database provenance into the WWW PROV standard format
++ Creates provenance graphs that explain missing and existing answers of queries
++ Automatically generates concise summaries of provenance graphs
 
 # Usage #
 
 PUG currently provides two client interface, **gprom**, the interactive shell of GProM, and a python-based webfront end. 
 
-
-For casual use cases, you can stick to SQLite. However, to fully exploit the features of GProM, you should use Oracle. We also provide several docker containers with gprom preinstalled (see [here](https://github.com/IITDBGroup/gprom/wiki/docker)) When starting gprom, you have to specify connection parameters to the database. For example, using one of the convenience wrapper scripts that ship with GProM, you can connected to a test SQLite database included in the repository by running the following command in the main source folder after installation:
-
-```
-gprom -backend sqlite -db ./examples/test.db
-```
-
-will start the shell connecting to an SQLite database `./examples/test.db`. If GProM is able to connect to the database, then this will spawn a shell like this:
-
-```
-GProM Commandline Client
-Please input a SQL command, '\q' to exit the program, or '\h' for help
-======================================================================
-
-Oracle SQL - SQLite:./examples/test.db$
-```
-
-In this shell you can enter SQL and utility commands. The shell in turn will show you query results (just like your favorite DB shell). However, the main use of GProM is on-demand capture of provenance for database operations. You can access this functionality through several new SQL language constructs supported by GProM. Importantly, these language constructs behave like queries and, thus, can be used as part of more complex queries. Assume you have a table `R(A,B)`, let us ask our first provenance query.
-
-```
-Oracle SQL - SQLite:./examples/test.db$ SELECT * FROM R;
- A | B |
---------
- 1 | 1 |
- 2 | 3 |
-
-Oracle SQL - SQLite:./examples/test.db$ PROVENANCE OF (SELECT A FROM r);
-
- A | PROV_R_A | PROV_R_B |
---------------------------
- 1 | 1        | 1        |
- 2 | 2        | 3        |
-```
-
-As you can see, `PROVENANCE OF (q)` returns the same answer as query `q`, but adds additional *provenance* attributes. These attributes store for each result row of the query the input row(s) which where used to compute the output row. For example, the query result `(1)` was derived from row `(1,1)` in table `R`. For now let us close the current session using the `\q` utility command:
-
-```
-Oracle SQL - SQLite:./examples/test.db$ \q
-```
-
-Provenance for SQL queries is only one of the features supported by GProM. A full list of SQL language extensions supported by GProM can be found in the [wiki](https://github.com/IITDBGroup/gprom/wiki/). See the [man page](https://github.com/IITDBGroup/gprom/blob/master/doc/gprom_man.md) of gprom for further information how to use the CLI of the system. 
-
-# Installation
-
-The [wiki](https://github.com/IITDBGroup/gprom/wiki/installation) has detailed installation instructions. In a nutshell, GProM can be compiled with support for different database backends and is linked against the C client libraries of these database backends. The installation follows the standard procedure using GNU build tools. Checkout the git repository, install all dependencies and run:
-
-```
-./autogen.sh
-./configure
-make
-sudo make install
-```
-
 # Research and Background
 
-The functionality of PUG and GProM are based on long term research efforts by the [IIT DBGroup](http://www.cs.iit.edu/~dbgroup/) studying how to capture provenance on-demand using instrumentation, how to unify why and why-not provenance, and how to efficiently summarize provenance information. Links to [publications](http://www.cs.iit.edu/~dbgroup/publications) and more research oriented descriptions of the techniques implemented in PUG and GProM can be found at [http://www.cs.iit.edu/~dbgroup/research](http://www.cs.iit.edu/~dbgroup/research).
+The functionality of PUG and GProM are based on long term research efforts by the [IIT DBGroup](http://www.cs.iit.edu/~dbgroup/) studying how to capture provenance on-demand using instrumentation, how to unify why and why-not provenance, and how to efficiently summarize provenance information. Links to [publications](http://www.cs.iit.edu/~dbgroup/publications) and more research oriented descriptions of the techniques implemented in PUG and GProM can be found at [http://www.cs.iit.edu/~dbgroup/research](http://www.cs.iit.edu/~dbgroup/research) or on the project pages for [PUGS](http://www.cs.iit.edu/%7edbgroup/research/pug.php) and [GProM](http://www.cs.iit.edu/%7edbgroup/research/gprom.php). 
 
+Provenance for relational queries records how results of a query depend on the query’s inputs. This type of information can be used to explain why (and how) a result is derived by a query over a given database. Recently, approaches have been developed that use provenance-like techniques to explain why a tuple (or a set of tuples described declaratively by a pattern) is missing from the query result. However, the two problems of computing provenance and explaining missing answers have been treated mostly in isolation.
+
+With **PUG** (**Provenance Unification through Graphs**), we have developed a unified approach for efficiently computing provenance (why) and missing answers (why-not). This approach is based on the observation that in provenance model for queries with unsafe negation, why-not questions can be translated into why questions and vice versa. Typically only a part of the provenance, which we call explanation, is actually relevant for answering the user's provenance question about the existence or absence of a result. We have developed an approach that tries to restrict provenance capture to what is relevant to explain the outcome of interest specified by the user. 
+
+While explanations are useful for reducing the size of provenance, the result may still overwhelm users with too much information and waste computational resources. In particular for why-not, where the provenance explains all failed ways of how a result could have been derived using the rules of a query, provenance graphs may be too large to compute even for small datasets. We address the computational and usability challenges of large provenance graphs by creating summaries based on structural commonalities that exist in the provenance. Importantly, our approach computes summaries based on a sample of the provenance only and, thus, avoids the computationally infeasible step of generating the full why-not provenance for a user question. We have implemented these techniques in our **PUGS** (**Provenance Unification through Graphs with Summarization**) extension of PUG. 
+
+Being based on GProM, PUG and PUGS compile Datalog queries with provenance requests into SQL code and then executes this SQL code on a backend database system and produces a provenance graph explaining the existing and missing answers of interest. Provenance is captured on demand by using a compilation technique called *instrumentation*. Instrumentation rewrites a declarative frontend language with provenance semantics into SQL code. The output of the instrumentation process is a regular SQL query that can be executed using any standard relational database. In the case of PUG, the instrumented query generated from a provenance request returns a the edge relation of a provenance graph. 
