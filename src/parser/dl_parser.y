@@ -57,7 +57,7 @@ Node *dlParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS 
-%token <stringVal> SCORE AS THRESHOLDS TOP FOR FAILURE SUMMARIZED BY WITH SAMPLE PRECISION RECALL INFORMATIVENESS
+%token <stringVal> SCORE AS THRESHOLDS TOP FOR FAILURE SUMMARIZED BY WITH SAMPLE
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -210,11 +210,42 @@ summarizationStatement:
 
 
 optionalScore:
+		SCORE AS '(' floatConst '*' name ')'
+		{
+			RULELOG("optionalScore::score");
+			Node *score = (Node *) createOpExpr($5, LIST_MAKE(createConstFloat($4),createConstString($6)));
+			char *key = CONCAT_STRINGS("score_",$6);
+			Node *kv = (Node *) createNodeKeyValue((Node *) createConstString(key), score);
+			$$ = singleton(kv);
+		}
+		| SCORE AS '(' floatConst '*' name '+' floatConst '*' name ')'
+		{
+			RULELOG("optionalScore::score");
+			Node *measure1 = (Node *) createOpExpr($5, LIST_MAKE(createConstFloat($4),createConstString($6)));
+			Node *measure2 = (Node *) createOpExpr($9, LIST_MAKE(createConstFloat($8),createConstString($10)));
+			Node *score = (Node *) createOpExpr($7, LIST_MAKE(measure1, measure2));
+			char *key = CONCAT_STRINGS("score_",$6,"_",$10);
+			Node *kv = (Node *) createNodeKeyValue((Node *) createConstString(key), score);
+			$$ = singleton(kv);
+		}
+		| SCORE AS '(' floatConst '*' name '+' floatConst '*' name '+' floatConst '*' name ')'
+		{
+			RULELOG("optionalScore::score");
+			Node *measure1 = (Node *) createOpExpr($5, LIST_MAKE(createConstFloat($4),createConstString($6)));
+			Node *measure2 = (Node *) createOpExpr($9, LIST_MAKE(createConstFloat($8),createConstString($10)));
+			Node *partScore = (Node *) createOpExpr($7, LIST_MAKE(measure1, measure2));
+			Node *measure3 = (Node *) createOpExpr($13, LIST_MAKE(createConstFloat($12),createConstString($13)));
+			Node *score = (Node *) createOpExpr($11, LIST_MAKE(partScore, measure3));
+			char *key = CONCAT_STRINGS("score_",$6,"_",$10,"_",$13);
+			Node *kv = (Node *) createNodeKeyValue((Node *) createConstString(key), score);
+			$$ = singleton(kv);
+		}
+/*
 		SCORE AS '(' floatConst '*' RECALL '+' floatConst '*' INFORMATIVENESS ')' 
 		{ 
 			RULELOG("optionalScore::score");
 			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("srecall"),(Node *) createConstFloat($4));
-			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("sinformativeness"),(Node *) createConstFloat($8));
+			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("sinfo"),(Node *) createConstFloat($8));
 			$$ = LIST_MAKE(recall,info);
 		}
 		| SCORE AS '(' floatConst '*' PRECISION '+' floatConst '*' RECALL ')' 
@@ -228,7 +259,7 @@ optionalScore:
 		{ 
 			RULELOG("optionalScore::score");
 			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("sprecision"),(Node *) createConstFloat($4));
-			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("sinformativeness"),(Node *) createConstFloat($8));
+			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("sinfo"),(Node *) createConstFloat($8));
 			$$ = LIST_MAKE(precision,info);
 		}
 		| SCORE AS '(' floatConst '*' PRECISION '+' floatConst '*' RECALL '+' floatConst '*' INFORMATIVENESS ')' 
@@ -236,42 +267,41 @@ optionalScore:
 			RULELOG("optionalScore::score");
 			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("sprecision"),(Node *) createConstFloat($4));
 			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("srecall"),(Node *) createConstFloat($8));
-			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("sinformativeness"),(Node *) createConstFloat($12));
+			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("sinfo"),(Node *) createConstFloat($12));
 			$$ = LIST_MAKE(precision,recall,info);
 		}
+ */
     ;
 
 
 optionalThresholds:
-		THRESHOLDS '(' RECALL ':' floatConst ',' INFORMATIVENESS ':' floatConst ')' 
+		THRESHOLDS '(' name ':' floatConst ')' 
 		{ 
-			RULELOG("optionalScore::score");
-			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("trecall"),(Node *) createConstFloat($5));
-			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("tinformativeness"),(Node *) createConstFloat($9));
-			$$ = LIST_MAKE(recall,info);
+			RULELOG("optionalScore::thresholds");
+			char *key = CONCAT_STRINGS("th_",$3);
+			Node *threshold = (Node *) createNodeKeyValue((Node *) createConstString(key),(Node *) createConstFloat($5));
+			$$ = singleton(threshold);
 		}
-		| THRESHOLDS '(' PRECISION '=' floatConst ',' RECALL '=' floatConst ')' 
+		| THRESHOLDS '(' name ':' floatConst ',' name ':' floatConst ')' 
 		{ 
-			RULELOG("optionalScore::score");
-			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("tprecision"),(Node *) createConstFloat($5));
-			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("trecall"),(Node *) createConstFloat($9));
-			$$ = LIST_MAKE(precision,recall);
+			RULELOG("optionalScore::thresholds");
+			char *key1 = CONCAT_STRINGS("th_",$3);
+			char *key2 = CONCAT_STRINGS("th_",$7);
+			Node *thresh1 = (Node *) createNodeKeyValue((Node *) createConstString(key1),(Node *) createConstFloat($5));
+			Node *thresh2 = (Node *) createNodeKeyValue((Node *) createConstString(key2),(Node *) createConstFloat($9));
+			$$ = LIST_MAKE(thresh1,thresh2);
 		}
-		| THRESHOLDS '(' PRECISION '=' floatConst ',' INFORMATIVENESS '=' floatConst ')' 
+		| THRESHOLDS '(' name ':' floatConst ',' name ':' floatConst ',' name ':' floatConst ')'  
 		{ 
-			RULELOG("optionalScore::score");
-			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("tprecision"),(Node *) createConstFloat($5));
-			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("tinformativeness"),(Node *) createConstFloat($9));
-			$$ = LIST_MAKE(precision,info);
-		}
-		| THRESHOLDS '(' PRECISION '=' floatConst ',' RECALL '=' floatConst ',' INFORMATIVENESS '=' floatConst ')'  
-		{ 
-			RULELOG("optionalScore::score");
-			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("tprecision"),(Node *) createConstFloat($5));
-			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("trecall"),(Node *) createConstFloat($9));
-			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("tinformativeness"),(Node *) createConstFloat($13));
-			$$ = LIST_MAKE(precision,recall,info);
-		}
+			RULELOG("optionalScore::thresholds");
+			char *key1 = CONCAT_STRINGS("th_",$3);
+			char *key2 = CONCAT_STRINGS("th_",$7);
+			char *key3 = CONCAT_STRINGS("th_",$11);
+			Node *thresh1 = (Node *) createNodeKeyValue((Node *) createConstString(key1),(Node *) createConstFloat($5));
+			Node *thresh2 = (Node *) createNodeKeyValue((Node *) createConstString(key2),(Node *) createConstFloat($9));
+			Node *thresh3 = (Node *) createNodeKeyValue((Node *) createConstString(key3),(Node *) createConstFloat($13));
+			$$ = LIST_MAKE(thresh1,thresh2,thresh3);
+		}	
     ;
 
 
