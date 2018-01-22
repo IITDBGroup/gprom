@@ -166,23 +166,49 @@ analyzeDLProgram (DLProgram *p)
 				fpLeng = LIST_LENGTH((List *) kv->value);
 			}
 
-			if(isSubstr(key,"score"))
-			{
-				char *measureElem = (char *) MALLOC(strlen(key) + 1);
-				strcpy(measureElem,key);
-				measureElem = replaceSubstr(measureElem,"score_","");
+			// currenlty support 3 elements for measure: precision, recall, and informativeness
+			char *measureElem = NULL;
 
-				measureElemList = splitString(measureElem,"_");
-				FOREACH(char,c,measureElemList)
-					if(!(streq(c,"PRECISION") || streq(c,"RECALL") || streq(c,"INFORMATIVENESS")))
-						FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+			if(isPrefix(key,"sc_"))
+			{
+				measureElem = (char *) MALLOC(strlen(key) + 1);
+				strcpy(measureElem,key);
+
+				measureElem = strEndTok(measureElem,"_");
+				measureElemList = appendToTailOfList(measureElemList,measureElem);
+
+				if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
+					FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
 			}
 
+//			if(isSubstr(key,"score"))
+//			{
+//				measureElem = replaceSubstr(measureElem,"score_","");
+//				measureElemList = splitString(measureElem,"_");
+//
+//				FOREACH(char,c,measureElemList)
+//					if(!(streq(c,"PRECISION") || streq(c,"RECALL") || streq(c,"INFORMATIVENESS")))
+//						FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+//			}
+
+			// the elements in the thresholds must be same as in the score
 			if(isPrefix(key,"th_"))
 			{
-				char *measureElem = strEndTok(key,"_");
-				if(!searchListString(measureElemList, measureElem))
-					FATAL_LOG("the element for thresholds must be consistent with those in the defined score");
+				measureElem = (char *) MALLOC(strlen(key) + 1);
+				strcpy(measureElem,key);
+
+				measureElem = strEndTok(measureElem,"_");
+
+//				if(measureElemList != NIL)
+//				{
+//					if(!searchListString(measureElemList, measureElem))
+//						FATAL_LOG("the element for thresholds must be consistent with those in the defined score");
+//				}
+//				else
+//				{
+					if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
+						FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+//				}
 			}
 		}
 
