@@ -153,14 +153,36 @@ analyzeDLProgram (DLProgram *p)
 		int fpLeng = 0;
 		boolean isFpattern = FALSE;
 		HashMap *hm = p->n.properties;
+		List *measureElemList = NIL;
 
 		// check failure pattern assigned and if so then capture the length of the pattern
 		FOREACH(KeyValue,kv,p->sumOpts)
 		{
-			if(streq(STRING_VALUE(kv->key),"fpattern"))
+			char *key = STRING_VALUE(kv->key);
+
+			if(streq(key,"fpattern"))
 			{
 				isFpattern = TRUE;
 				fpLeng = LIST_LENGTH((List *) kv->value);
+			}
+
+			if(isSubstr(key,"score"))
+			{
+				char *measureElem = (char *) MALLOC(strlen(key) + 1);
+				strcpy(measureElem,key);
+				measureElem = replaceSubstr(measureElem,"score_","");
+
+				measureElemList = splitString(measureElem,"_");
+				FOREACH(char,c,measureElemList)
+					if(!(streq(c,"PRECISION") || streq(c,"RECALL") || streq(c,"INFORMATIVENESS")))
+						FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+			}
+
+			if(isPrefix(key,"th_"))
+			{
+				char *measureElem = strEndTok(key,"_");
+				if(!searchListString(measureElemList, measureElem))
+					FATAL_LOG("the element for thresholds must be consistent with those in the defined score");
 			}
 		}
 
@@ -199,6 +221,9 @@ analyzeDLProgram (DLProgram *p)
 	        if(fpLeng < bodyLeng)
 	        	FATAL_LOG("the failure pattern is less than the rule body");
 		}
+
+		// user defined precision, recall, and informativenss
+
     }
 
 
