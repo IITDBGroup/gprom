@@ -46,7 +46,7 @@
 #define SAMP_NUM_L_ATTR SAMP_NUM_PREFIX "Left"
 #define SAMP_NUM_R_ATTR SAMP_NUM_PREFIX "Right"
 
-static List *domAttrsOutput (Node *sampleInput, int sampleSize, char *qType);
+static List *domAttrsOutput (Node *sampleInput, int sampleSize, char *qType, HashMap *vrPair);
 //static int *computeSampleSize (int *samplePerc, Node *prov);
 
 static Node *rewriteUserQuestion (List *userQ, Node *rewrittenTree);
@@ -89,6 +89,8 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	float thPrecision = 0;
 	float thRecall = 0;
 	float thInfo = 0;
+
+	HashMap *varRelPair = NULL;
 
 	if (summOpts != NIL)
 	{
@@ -133,6 +135,9 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 				if(streq(key,"th_INFORMATIVENESS"))
 					thInfo = FLOAT_VALUE(kv->value);
 			}
+
+			if(isA(n,HashMap))
+				varRelPair = (HashMap *) n;
 
 			if(isA(n,List))
 			{
@@ -215,7 +220,7 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		patterns = rewritePatternOutput(summaryType, samples, randomProv); //TODO: different types of pattern generation
 		scanSamples = rewriteScanSampleOutput(samples, patterns);
 		candidates = rewriteCandidateOutput(scanSamples, qType);
-		doms = domAttrsOutput(rewrittenTree, sampleSize, qType);
+		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair);
 		scaleUp = scaleUpOutput(doms, candidates, provJoin, randomProv, randomNonProv);
 		computeFrac = rewriteComputeFracOutput(scaleUp, randomProv, qType);
 		fMeasure = rewritefMeasureOutput(computeFrac, sPrecision, sRecall, sInfo, thPrecision, thRecall, thInfo);
@@ -223,7 +228,7 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	}
 	else if(streq(qType,"WHYNOT"))
 	{
-		doms = domAttrsOutput(rewrittenTree, sampleSize, qType);
+		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair);
 		sampleDom = joinOnSeqOutput(doms);
 		whynotExpl = replaceDomWithSampleDom(sampleDom, rewrittenTree);
 		randomProv = rewriteRandomProvTuples(whynotExpl,qType, fPattern);
@@ -992,7 +997,7 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
  * generate domain attrs for later use of scale up of the measure values to the real values
  */
 static List *
-domAttrsOutput (Node *input, int sampleSize, char *qType)
+domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair)
 {
 	List *result = NIL;
 
@@ -1028,27 +1033,46 @@ domAttrsOutput (Node *input, int sampleSize, char *qType)
 	List *rels = NIL;
 	findTableAccessVisitor((Node *) transInput,&rels);
 
+	if(isDl)
+	{
+		// remove duplicate tableaccessOp
+		List *removeDupTa = NIL;
+		FOREACH(TableAccessOperator,t,rels)
+			if(!searchList(removeDupTa,t))
+				removeDupTa = appendToTailOfList(removeDupTa,t);
+
+		// replace attr names in user question with full names
+		FOREACH(AttributeReference,ar,userQuestion)
+		{
+			int relCnt = 0;
+			int prevAttrCnt = 0;
+			int pos = ar->attrPosition;
+			char *rel = (char *) MAP_GET_STRING(vrPair,ar->name);
+
+			FOREACH(TableAccessOperator,t,removeDupTa)
+			{
+				if(streq(rel,t->tableName))
+				{
+					if(relCnt > 0)
+						pos = pos - prevAttrCnt;
+
+					ar->outerLevelsUp = 0; // TODO: force to be '0' or keep it
+					ar->name = STRING_VALUE(getNthOfListP(t->op.schema->attrDefs,pos));
+				}
+
+				prevAttrCnt += LIST_LENGTH(t->op.schema->attrDefs);
+				relCnt++;
+			}
+		}
+	}
+
 	int attrCount = 0;
 	int relCount = 0;
 	char *relName = NULL;
 	HashMap *existAttr = NEW_MAP(Constant,Constant);
 
-	FOREACH(TableAccessOperator, t, rels)
+	FOREACH(TableAccessOperator,t,rels)
 	{
-		// replace attr names in user question with full names
-		if(isDl)
-		{
-			FOREACH(AttributeReference,ar,userQuestion)
-			{
-				if(ar->fromClauseItem == relCount)
-				{
-					ar->outerLevelsUp = 0; // TODO: force to be '0' or keep it
-					int pos = ar->attrPosition;
-					ar->name = STRING_VALUE(getNthOfListP(t->op.schema->attrDefs,pos));
-				}
-			}
-		}
-
 		// if the input query is not self-joined, then reset everything
 		if(relName != NULL)
 		{

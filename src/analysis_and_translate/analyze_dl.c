@@ -166,6 +166,7 @@ analyzeDLProgram (DLProgram *p)
 				fpLeng = LIST_LENGTH((List *) kv->value);
 			}
 
+			// for user defined score,
 			// currenlty support 3 elements for measure: precision, recall, and informativeness
 			char *measureElem = NULL;
 
@@ -247,11 +248,7 @@ analyzeDLProgram (DLProgram *p)
 	        if(fpLeng < bodyLeng)
 	        	FATAL_LOG("the failure pattern is less than the rule body");
 		}
-
-		// user defined precision, recall, and informativenss
-
     }
-
 
 //    // check that answer relation exists
 //    if (p->ans)
