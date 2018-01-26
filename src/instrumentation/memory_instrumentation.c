@@ -39,7 +39,7 @@ static inline HashMap *getInfoHash(char *name);
 void
 setupMemInstrumentation(void)
 {
-    ctx = NEW_MEM_CONTEXT(MEMDEBUG_CONTEXT_NAME);
+    ctx = NEW_LONGLIVED_MEMCONTEXT(MEMDEBUG_CONTEXT_NAME);
     ACQUIRE_MEM_CONTEXT(ctx);
 
     ctxInfo = NEW_MAP(Constant,HashMap);

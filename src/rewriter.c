@@ -338,8 +338,60 @@ shutdownApplication(void)
 void
 processInput(char *input)
 {
-    char *result = rewriteQueryInternal(input, TRUE);
-    execute(result);
+   // char *result = rewriteQueryInternal(input, TRUE);
+
+//    do { \
+//        MemContext *_newcontext_ = newMemContext(("QUERY_CONTEXT"), "/Users/lord_pretzel/Documents/workspace/GProM/src/rewriter.c", 343); \
+//        setCurMemContext((_newcontext_), "/Users/lord_pretzel/Documents/workspace/GProM/src/rewriter.c", 343); \
+//    } while (0);;
+//    do { \
+//        sigjmp_buf *save_previous_jmpbuf = exceptionBuf; \
+//        sigjmp_buf _exceptionBuf; \
+//        if(!setjmp(_exceptionBuf)) { \
+//            exceptionBuf = &_exceptionBuf;
+//            {
+//                //   printf("%s", result);
+//                //FATAL_LOG("test"); //
+//                execute("SELECT ROWD FROM r;");
+//                do { \
+//                    freeCurMemContext("/Users/lord_pretzel/Documents/workspace/GProM/src/rewriter.c", 349); \
+//                    releaseCurMemContext("/Users/lord_pretzel/Documents/workspace/GProM/src/rewriter.c", 349); \
+//                } while(0);
+//            }
+//        } else { \
+//            exceptionBuf = save_previous_jmpbuf;
+//            {
+//                do { \
+//                    longjmp(*exceptionBuf, 1); \
+//                } while(0);
+//                do { \
+//                    if (maxLevel >= LOG_DEBUG) \
+//                    log_(LOG_DEBUG, "/Users/lord_pretzel/Documents/workspace/GProM/src/rewriter.c", 354, ("allocated in memory context: %s"),  getCurMemContext()->contextName); \
+//                } while (0);
+//            }
+//            processException(); \
+//            exceptionBuf = save_previous_jmpbuf; \
+//        } \
+//        exceptionBuf = save_previous_jmpbuf; \
+//    } while (0);
+
+    char *q = NULL;
+    Node *parse;
+
+    TRY
+    {
+        NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
+        parse = parseFromString(input);
+        q = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
+        execute(q);
+        FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+    }
+    ON_EXCEPTION
+    {
+        DEBUG_LOG("allocated in memory context: %s", getCurMemContext()->contextName);
+        RETHROW();
+    }
+    END_ON_EXCEPTION
 }
 
 static char *
@@ -358,7 +410,7 @@ rewriteQueryInternal (char *input, boolean rethrowExceptions)
 
         result = rewriteParserOutput(parse, isRewriteOptionActivated(OPTION_OPTIMIZE_OPERATOR_MODEL));
         INFO_LOG("Rewritten SQL text from <%s>\n\n is <%s>", input, result);
-        RELEASE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
+        FREE_MEM_CONTEXT_AND_RETURN_STRING_COPY(result);
     }
     ON_EXCEPTION
     {
@@ -367,7 +419,7 @@ rewriteQueryInternal (char *input, boolean rethrowExceptions)
         // if an exception is thrown then the query memory context has been
         // destroyed and we can directly create an empty string in the callers
         // context
-        DEBUG_LOG("allocated in memory context: %s", getCurMemContext()->contextName);
+        DEBUG_LOG("curContext is: %s", getCurMemContext()->contextName);
     }
     END_ON_EXCEPTION
     return strdup("");

@@ -156,11 +156,9 @@ pluginTypeToString(MetadataLookupPluginType type)
 int
 initMetadataLookupPlugin (void)
 {
-    //MetadataLookupPlugin *myPlugin;
     ASSERT(activePlugin);
 
-    //activePlugin->metadataLookupContext = CREATE_MEM_CONTEXT("METADATA_LOOKUP_PLUGIN_CONTEXT");
-	activePlugin->metadataLookupContext = NEW_MEM_CONTEXT("METADATA_LOOKUP_PLUGIN_CONTEXT");
+	activePlugin->metadataLookupContext = NEW_LONGLIVED_MEMCONTEXT("METADATA_LOOKUP_PLUGIN_CONTEXT");
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
     int returnVal = activePlugin->initMetadataLookupPlugin();
     RELEASE_MEM_CONTEXT();
@@ -351,7 +349,7 @@ getTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
 Relation *
 executeQuery (char *sql)
 {
-    ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
+    //ASSERT(activePlugin && activePlugin->isInitialized() && activePlugin->executeQuery);
     ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
     Relation *result = activePlugin->executeQuery(sql);
     RELEASE_MEM_CONTEXT();

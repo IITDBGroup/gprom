@@ -62,6 +62,7 @@ typedef struct MemContext
     char *curAllocPos;
     long unusedBytes;
     long freedUnusedBytes;
+    boolean longLived;
 } MemContext;
 
 // struct encapsulating global memory management state
@@ -112,10 +113,11 @@ extern void free_(void *mem, const char *file, unsigned line);
     } while(0)
 
 extern char *dumpMemContexInfo (void);
-extern MemContext *newMemContext(char *contextName, const char *file, unsigned line);
+extern MemContext *newMemContext(char *contextName, const char *file, unsigned line, boolean longLived);
 extern void setCurMemContext(MemContext *mc, const char *file, unsigned line);
 extern MemContext *getCurMemContext(void);
 extern void clearCurMemContext(const char *file, unsigned line);
+void clearAMemContext(MemContext *c, const char *file, unsigned line);
 extern MemContext *releaseCurMemContext(const char *file, unsigned line);
 extern void freeCurMemContext(const char *file, unsigned line);
 extern char *contextStringDup(char *input);
@@ -137,14 +139,24 @@ extern Allocation *findAlloc(const MemContext *mc, const void *addr);
  */
 #define ACQUIRE_MEM_CONTEXT(context) setCurMemContext((context), __FILE__, __LINE__)
 /*
- * Creates a memory context. The second version also aquires the new context.
+ * Creates a memory context. The second version also acquires the new context.
  */
-#define NEW_MEM_CONTEXT(name) newMemContext((name), __FILE__, __LINE__)
+#define NEW_MEM_CONTEXT(name) newMemContext((name), __FILE__, __LINE__, FALSE)
 #define NEW_AND_ACQUIRE_MEMCONTEXT(name) \
     do { \
         MemContext *_newcontext_ = NEW_MEM_CONTEXT(name); \
         ACQUIRE_MEM_CONTEXT(_newcontext_); \
     } while (0);
+/*
+ *
+ */
+#define NEW_LONGLIVED_MEMCONTEXT(name) newMemContext((name), __FILE__, __LINE__, TRUE)
+#define NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(name) \
+    do { \
+        MemContext *_newcontext_ = NEW_LONGLIVED_MEMCONTEXT(name); \
+        ACQUIRE_MEM_CONTEXT(_newcontext_); \
+    } while (0);
+
 /*
  * Removes all the memory allocation records from the current context
  * and free those memories. Will not destroy the memory context itself.

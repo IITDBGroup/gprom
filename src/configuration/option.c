@@ -74,6 +74,7 @@ typedef struct BackendInfo {
 
 // show help only
 boolean opt_show_help = FALSE;
+char *opt_test = NULL;
 char *opt_language_help = NULL;
 
 // connection options
@@ -247,6 +248,15 @@ OptionInfo opts[] =
                 OPTION_BOOL,
                 wrapOptionString(&opt_show_help),
                 defOptionBool(FALSE)
+        },
+        // choose test
+        {
+                "test",
+                "-test",
+                "choose the test to run (ignored by all binaries except test_main)",
+                OPTION_STRING,
+                wrapOptionString(&opt_test),
+                defOptionString(NULL)
         },
         // show help only and quit
         {
