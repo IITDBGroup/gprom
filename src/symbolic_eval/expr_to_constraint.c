@@ -1268,7 +1268,10 @@ List *symbolicExe(List *exprs) {
 	int i = 1;
 	DEBUG_LOG("symbolic execution for update %d.\n", i);
 	exprToSymbol(i, up, env, lp);
-	condToSt(i, up, env, lp);
+	if (up->type == T_Update)
+		status = condToSt(i, ((Update *) up)->cond, env, lp);
+	else if (up->type == T_Delete)
+		status = condToSt(i, ((Delete *) up)->cond, env, lp);
 	depUps = appendToTailOfList(depUps, up);
 	i++;
 
