@@ -31,11 +31,13 @@
 #include "model/query_operator/query_operator.h"
 
 static List *cond = NIL; // global pointer to the list of conditions
+//static List *exprList = NIL; // global pointer to the list of conditions
 static List *tables = NIL; // global pointer to the list of tables
 
 static void initWhatif(Node *update, Node *wUpdate);
 static List *addTBToList(List *list, Node *n);
 static char *getTBName(Node *n);
+static List *SymbolicExe(List *exprs);
 
 //initialize whatif algo and set the original update and the whatifquery
 static void initWhatif(Node *update, Node *wUpdate) {
@@ -101,4 +103,46 @@ List *dependAlgo(List *exprs) {
 		}
 	}
 	return cond;
+}
+
+static List *SymbolicExe(List *exprs) {
+	List *updates = NIL;
+	Node *up = popHeadOfListP(exprs);
+	char *tbName = getTBName(up);
+	char *tempName = NULL;
+	updates = appendToTailOfList(updates, up);
+
+	FOREACH(Node,e,exprs)
+	{
+		tempName = getTBName(e);
+		if (strcmp(tempName, tbName) == 0) {
+			updates = appendToTailOfList(updates, e);
+
+		}
+	}
+
+	return symbolicExe(updates);
+}
+
+List *SymbolicExeAlgo(List *updates) {
+	List *dep1 = NIL, *dep2 = NIL;
+	List *exprs = copyList(updates);
+	Node *originalUp;
+	originalUp = popHeadOfListP(exprs);
+	dep1 = SymbolicExe(exprs);
+	DEBUG_LOG("finished symbolic execution for the main update.\n");
+	popHeadOfListP(exprs);
+	exprs = appendToHeadOfList(exprs, originalUp);
+	DEBUG_LOG("create the list for the what-if update.\n");
+	dep2 = SymbolicExe(exprs);
+	DEBUG_LOG("finished symbolic execution for the what-if update.\n");
+	freeList(exprs);
+
+	FOREACH(Node,e,updates)
+	{
+		if (!searchListNode(dep1, e) && !searchListNode(dep2, e))
+			exprs = appendToHeadOfList(exprs, e);
+	}
+	updates = removeListElementsFromAnotherList(updates, exprs);
+	return updates;
 }

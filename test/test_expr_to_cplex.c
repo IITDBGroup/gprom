@@ -63,12 +63,13 @@ int main(int argc, char* argv[]) {
 
 			//ERROR_LOG("Result of CPLEX IS: %d \n", checkCplex((List *) result));
 
-			List *updates = dependAlgo(result);
+			//List *updates = dependAlgo(result);
+			List *updates = SymbolicExeAlgo(result);
 
 			ERROR_LOG("total Number of updates: %d \n",
-					result->length - 1);
+					getListLength(result) - 1);
 			ERROR_LOG("Number of dependent statements: %d \n",
-					updates->length - 2);
+					getListLength(updates) - 2);
 			//DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(updates));
 			//DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(updates)));
 

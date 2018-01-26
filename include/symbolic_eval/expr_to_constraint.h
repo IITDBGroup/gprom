@@ -20,7 +20,8 @@
 #include "model/node/nodetype.h"
 #include "symbolic_eval/expr_to_constraint.h"
 #include "model/set/hashmap.h"
-
+#include "model/set/set.h"
+/*
 #define DEFAULT_NUM_COLS 10
 #define DEFAULT_COLNAME_SIZE 20
 
@@ -32,7 +33,8 @@ typedef struct CplexObjects {
 	double ub[DEFAULT_NUM_COLS];
 	char *colname[DEFAULT_NUM_COLS];
 } CplexObjects;
+*/
 
 extern boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2);
-
+extern List *symbolicExe(List *exprs);
 #endif /* INCLUDE_SYMBOLIC_EVAL_EXPR_TO_CONSTRAINT_H_ */

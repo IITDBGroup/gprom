@@ -15,5 +15,6 @@
 
 extern List *dependAlgo(List *exprs);
 extern boolean checkCplex(List *exprs);
+extern List *SymbolicExeAlgo(List *exprs);
 
 #endif /* WHATIF_ALGORITHM_H_ */
