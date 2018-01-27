@@ -210,6 +210,7 @@ summarizationStatement:
 
 
 optionalScore:
+/*
 		SCORE AS '(' floatConst '*' name ')'
 		{
 			RULELOG("optionalScore::score");
@@ -240,38 +241,35 @@ optionalScore:
 			Node *kv = (Node *) createNodeKeyValue((Node *) createConstString(key), score);
 			$$ = singleton(kv);
 		}
-/*
-		SCORE AS '(' floatConst '*' RECALL '+' floatConst '*' INFORMATIVENESS ')' 
-		{ 
-			RULELOG("optionalScore::score");
-			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("srecall"),(Node *) createConstFloat($4));
-			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("sinfo"),(Node *) createConstFloat($8));
-			$$ = LIST_MAKE(recall,info);
-		}
-		| SCORE AS '(' floatConst '*' PRECISION '+' floatConst '*' RECALL ')' 
-		{ 
-			RULELOG("optionalScore::score");
-			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("sprecision"),(Node *) createConstFloat($4));
-			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("srecall"),(Node *) createConstFloat($8));
-			$$ = LIST_MAKE(precision,recall);
-		}
-		| SCORE AS '(' floatConst '*' PRECISION '+' floatConst '*' INFORMATIVENESS ')' 
-		{ 
-			RULELOG("optionalScore::score");
-			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("sprecision"),(Node *) createConstFloat($4));
-			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("sinfo"),(Node *) createConstFloat($8));
-			$$ = LIST_MAKE(precision,info);
-		}
-		| SCORE AS '(' floatConst '*' PRECISION '+' floatConst '*' RECALL '+' floatConst '*' INFORMATIVENESS ')' 
-		{ 
-			RULELOG("optionalScore::score");
-			Node *precision = (Node *) createNodeKeyValue((Node *) createConstString("sprecision"),(Node *) createConstFloat($4));
-			Node *recall = (Node *) createNodeKeyValue((Node *) createConstString("srecall"),(Node *) createConstFloat($8));
-			Node *info = (Node *) createNodeKeyValue((Node *) createConstString("sinfo"),(Node *) createConstFloat($12));
-			$$ = LIST_MAKE(precision,recall,info);
-		}
  */
-    ;
+		SCORE AS '(' floatConst '*' name ')' 
+		{ 
+			RULELOG("optionalScore::score");
+			char *key = CONCAT_STRINGS("sc_",$6);
+			Node *score = (Node *) createNodeKeyValue((Node *) createConstString(key), (Node *) createConstFloat($4));
+			$$ = singleton(score);
+		}
+		| SCORE AS '(' floatConst '*' name '+' floatConst '*' name ')' 
+		{ 
+			RULELOG("optionalScore::score");
+			char *key1 = CONCAT_STRINGS("sc_",$6);
+			char *key2 = CONCAT_STRINGS("sc_",$10);
+			Node *score1 = (Node *) createNodeKeyValue((Node *) createConstString(key1), (Node *) createConstFloat($4));
+			Node *score2 = (Node *) createNodeKeyValue((Node *) createConstString(key2), (Node *) createConstFloat($8));
+			$$ = LIST_MAKE(score1,score2);
+		}
+		| SCORE AS '(' floatConst '*' name '+' floatConst '*' name '+' floatConst '*' name ')'  
+		{ 
+			RULELOG("optionalScore::score");
+			char *key1 = CONCAT_STRINGS("sc_",$6);
+			char *key2 = CONCAT_STRINGS("sc_",$10);
+			char *key3 = CONCAT_STRINGS("sc_",$14);
+			Node *score1 = (Node *) createNodeKeyValue((Node *) createConstString(key1), (Node *) createConstFloat($4));
+			Node *score2 = (Node *) createNodeKeyValue((Node *) createConstString(key2), (Node *) createConstFloat($8));
+			Node *score3 = (Node *) createNodeKeyValue((Node *) createConstString(key3), (Node *) createConstFloat($12));
+			$$ = LIST_MAKE(score1,score2,score3);
+		}	
+	;
 
 
 optionalThresholds:

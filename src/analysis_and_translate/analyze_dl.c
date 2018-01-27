@@ -153,14 +153,63 @@ analyzeDLProgram (DLProgram *p)
 		int fpLeng = 0;
 		boolean isFpattern = FALSE;
 		HashMap *hm = p->n.properties;
+		List *measureElemList = NIL;
 
 		// check failure pattern assigned and if so then capture the length of the pattern
 		FOREACH(KeyValue,kv,p->sumOpts)
 		{
-			if(streq(STRING_VALUE(kv->key),"fpattern"))
+			char *key = STRING_VALUE(kv->key);
+
+			if(streq(key,"fpattern"))
 			{
 				isFpattern = TRUE;
 				fpLeng = LIST_LENGTH((List *) kv->value);
+			}
+
+			// for user defined score,
+			// currenlty support 3 elements for measure: precision, recall, and informativeness
+			char *measureElem = NULL;
+
+			if(isPrefix(key,"sc_"))
+			{
+				measureElem = (char *) MALLOC(strlen(key) + 1);
+				strcpy(measureElem,key);
+
+				measureElem = strEndTok(measureElem,"_");
+				measureElemList = appendToTailOfList(measureElemList,measureElem);
+
+				if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
+					FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+			}
+
+//			if(isSubstr(key,"score"))
+//			{
+//				measureElem = replaceSubstr(measureElem,"score_","");
+//				measureElemList = splitString(measureElem,"_");
+//
+//				FOREACH(char,c,measureElemList)
+//					if(!(streq(c,"PRECISION") || streq(c,"RECALL") || streq(c,"INFORMATIVENESS")))
+//						FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+//			}
+
+			// the elements in the thresholds must be same as in the score
+			if(isPrefix(key,"th_"))
+			{
+				measureElem = (char *) MALLOC(strlen(key) + 1);
+				strcpy(measureElem,key);
+
+				measureElem = strEndTok(measureElem,"_");
+
+//				if(measureElemList != NIL)
+//				{
+//					if(!searchListString(measureElemList, measureElem))
+//						FATAL_LOG("the element for thresholds must be consistent with those in the defined score");
+//				}
+//				else
+//				{
+					if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
+						FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+//				}
 			}
 		}
 
@@ -200,7 +249,6 @@ analyzeDLProgram (DLProgram *p)
 	        	FATAL_LOG("the failure pattern is less than the rule body");
 		}
     }
-
 
 //    // check that answer relation exists
 //    if (p->ans)

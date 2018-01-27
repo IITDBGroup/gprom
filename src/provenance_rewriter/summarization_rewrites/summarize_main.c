@@ -38,7 +38,7 @@
 #define TOTAL_NONPROV_SAMP_ATTR "TotalNonProvInSamp"
 #define ACCURACY_ATTR "Precision"
 #define COVERAGE_ATTR "Recall"
-#define INFORMATIVE_ATTR "informativeness"
+#define INFORMATIVE_ATTR "Informativeness"
 #define FMEASURE_ATTR "Fmeasure"
 #define COVERED_ATTR "Covered"
 #define SAMP_NUM_PREFIX "SampNum"
@@ -46,7 +46,7 @@
 #define SAMP_NUM_L_ATTR SAMP_NUM_PREFIX "Left"
 #define SAMP_NUM_R_ATTR SAMP_NUM_PREFIX "Right"
 
-static List *domAttrsOutput (Node *sampleInput, int sampleSize, char *qType);
+static List *domAttrsOutput (Node *sampleInput, int sampleSize, char *qType, HashMap *vrPair);
 //static int *computeSampleSize (int *samplePerc, Node *prov);
 
 static Node *rewriteUserQuestion (List *userQ, Node *rewrittenTree);
@@ -61,7 +61,7 @@ static Node *scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *r
 static Node *joinOnSeqOutput (List *doms);
 static Node *replaceDomWithSampleDom (Node *sampleDom, Node *input);
 static Node *rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType);
-static Node *rewritefMeasureOutput (Node *computeFracInput);
+static Node *rewritefMeasureOutput (Node *computeFracInput, float sPrec, float sRec, float sInfo, float thPrec, float thRec, float thInfo);
 static Node *rewriteTopkExplOutput (Node *fMeasureInput, int topK);
 static Node *integrateWithEdgeRel (Node *topkInput, Node *moveRels, List *fPattern);
 
@@ -81,6 +81,17 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	int sampleSize = 0;
 	int topK = 0;
 
+//	Node *score = NULL;
+	float sPrecision = 0;
+	float sRecall = 0;
+	float sInfo = 0;
+
+	float thPrecision = 0;
+	float thRecall = 0;
+	float thInfo = 0;
+
+	HashMap *varRelPair = NULL;
+
 	if (summOpts != NIL)
 	{
 		FOREACH(Node,n,summOpts)
@@ -88,20 +99,45 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 			if(isA(n,KeyValue))
 			{
 				KeyValue *kv = (KeyValue *) n;
+				char *key = STRING_VALUE(kv->key);
 
-				if(streq(STRING_VALUE(kv->key),"topk"))
+				if(streq(key,"topk"))
 					topK = INT_VALUE(kv->value);
 
 				// whynot only for PUG (not implemented for SQL yet)
-				if(streq(qType,"WHYNOT") && streq(STRING_VALUE(kv->key),"fpattern"))
+				if(streq(qType,"WHYNOT") && streq(key,"fpattern"))
 					fPattern = copyObject((List *) kv->value);
 
-				if(streq(STRING_VALUE(kv->key),"sumtype"))
+				if(streq(key,"sumtype"))
 					summaryType = STRING_VALUE(kv->value);
 
-				if(streq(STRING_VALUE(kv->key),"sumsamp"))
+				if(streq(key,"sumsamp"))
 					sampleSize = INT_VALUE(kv->value);
+
+//				if(isPrefix(key,"score_"))
+//					score = (Node *) kv->value;
+
+				if(streq(key,"sc_PRECISION"))
+					sPrecision = FLOAT_VALUE(kv->value);
+
+				if(streq(key,"sc_RECALL"))
+					sRecall = FLOAT_VALUE(kv->value);
+
+				if(streq(key,"sc_INFORMATIVENESS"))
+					sInfo = FLOAT_VALUE(kv->value);
+
+				if(streq(key,"th_PRECISION"))
+					thPrecision = FLOAT_VALUE(kv->value);
+
+				if(streq(key,"th_RECALL"))
+					thRecall = FLOAT_VALUE(kv->value);
+
+				if(streq(key,"th_INFORMATIVENESS"))
+					thInfo = FLOAT_VALUE(kv->value);
 			}
+
+			if(isA(n,HashMap))
+				varRelPair = (HashMap *) n;
 
 			if(isA(n,List))
 			{
@@ -109,14 +145,37 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 
 				FOREACH(KeyValue,kv,explSamp)
 				{
-					if(streq(STRING_VALUE(kv->key),"sumtype"))
+					char *key = STRING_VALUE(kv->key);
+
+					if(streq(key,"sumtype"))
 						summaryType = STRING_VALUE(kv->value);
 
-					if(streq(STRING_VALUE(kv->key),"toexpl"))
+					if(streq(key,"toexpl"))
 						userQuestion = (List *) kv->value;
 
-					if(streq(STRING_VALUE(kv->key),"sumsamp"))
+					if(streq(key,"sumsamp"))
 						sampleSize = INT_VALUE(kv->value);
+
+//					if(isPrefix(key,"score_"))
+//						score = (Node *) kv->value;
+
+					if(streq(key,"sc_PRECISION"))
+						sPrecision = FLOAT_VALUE(kv->value);
+
+					if(streq(key,"sc_RECALL"))
+						sRecall = FLOAT_VALUE(kv->value);
+
+					if(streq(key,"sc_INFORMATIVENESS"))
+						sInfo = FLOAT_VALUE(kv->value);
+
+					if(streq(key,"th_PRECISION"))
+						thPrecision = FLOAT_VALUE(kv->value);
+
+					if(streq(key,"th_RECALL"))
+						thRecall = FLOAT_VALUE(kv->value);
+
+					if(streq(key,"th_INFORMATIVENESS"))
+						thInfo = FLOAT_VALUE(kv->value);
 				}
 			}
 		}
@@ -161,15 +220,15 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		patterns = rewritePatternOutput(summaryType, samples, randomProv); //TODO: different types of pattern generation
 		scanSamples = rewriteScanSampleOutput(samples, patterns);
 		candidates = rewriteCandidateOutput(scanSamples, qType);
-		doms = domAttrsOutput(rewrittenTree, sampleSize, qType);
+		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair);
 		scaleUp = scaleUpOutput(doms, candidates, provJoin, randomProv, randomNonProv);
 		computeFrac = rewriteComputeFracOutput(scaleUp, randomProv, qType);
-		fMeasure = rewritefMeasureOutput(computeFrac);
+		fMeasure = rewritefMeasureOutput(computeFrac, sPrecision, sRecall, sInfo, thPrecision, thRecall, thInfo);
 		result = rewriteTopkExplOutput(fMeasure, topK);
 	}
 	else if(streq(qType,"WHYNOT"))
 	{
-		doms = domAttrsOutput(rewrittenTree, sampleSize, qType);
+		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair);
 		sampleDom = joinOnSeqOutput(doms);
 		whynotExpl = replaceDomWithSampleDom(sampleDom, rewrittenTree);
 		randomProv = rewriteRandomProvTuples(whynotExpl,qType, fPattern);
@@ -179,7 +238,7 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		scanSamples = rewriteScanSampleOutput(samples, patterns);
 		candidates = rewriteCandidateOutput(scanSamples, qType);
 		computeFrac = rewriteComputeFracOutput(candidates, randomProv, qType);
-		fMeasure = rewritefMeasureOutput(computeFrac);
+		fMeasure = rewritefMeasureOutput(computeFrac, sPrecision, sRecall, sInfo, thPrecision, thRecall, thInfo);
 		result = rewriteTopkExplOutput(fMeasure, topK);
 
 //		INFO_OP_LOG("WHYNOT summary is currently on the implementation process!!");
@@ -366,7 +425,7 @@ rewriteTopkExplOutput (Node *fMeasureInput, int topK)
  * compute f-measure based on precision and recall
  */
 static Node *
-rewritefMeasureOutput (Node *computeFracInput)
+rewritefMeasureOutput (Node *computeFracInput, float sPrec, float sRec, float sInfo, float thPrec, float thRec, float thInfo)
 {
 	Node *result;
 	QueryOperator *fMeasure = (QueryOperator *) computeFracInput;
@@ -436,23 +495,104 @@ rewritefMeasureOutput (Node *computeFracInput)
 		pos++;
 	}
 
-	// add 2 measures into the computation
-	Node *times = (Node *) createOpExpr("*",LIST_MAKE(prec,rec));
-	Node *plus = (Node *) createOpExpr("+",LIST_MAKE(prec,rec));
+	// use given score function, otherwise f-measure is default
+	Node *fmeasure = NULL;
+	List *attrNames = NIL;
 
-	// add third measure into the computation
-	Node *newtimes = (Node *) createOpExpr("*",LIST_MAKE(times,info));
-	Node *newplus = (Node *) createOpExpr("+",LIST_MAKE(plus,info));
+	if(sPrec == 0 && sRec == 0 && sInfo == 0)
+	{
+		// add 2 measures into the computation
+		Node *times = (Node *) createOpExpr("*",LIST_MAKE(prec,rec));
+		Node *plus = (Node *) createOpExpr("+",LIST_MAKE(prec,rec));
 
-	// compute f-measure
-	Node *cal = (Node *) createOpExpr("/",LIST_MAKE(newtimes,newplus));
-	Node *fmeasure = (Node *) createOpExpr("*",LIST_MAKE(createConstInt(3),cal));
+		// add third measure into the computation
+		Node *newtimes = (Node *) createOpExpr("*",LIST_MAKE(times,info));
+		Node *newplus = (Node *) createOpExpr("+",LIST_MAKE(plus,info));
+
+		// compute f-measure
+		Node *cal = (Node *) createOpExpr("/",LIST_MAKE(newtimes,newplus));
+		fmeasure = (Node *) createOpExpr("*",LIST_MAKE(createConstInt(3),cal));
+	}
+	else
+	{
+		Node *precCond = NULL;
+		Node *recCond = NULL;
+		Node *infoCond = NULL;
+
+		if(sPrec != 0)
+		{
+			precCond = (Node *) createOpExpr("*",LIST_MAKE(prec,createConstFloat(sPrec)));
+			if(fmeasure != NULL)
+				fmeasure = (Node *) createOpExpr("+",LIST_MAKE(fmeasure,precCond));
+			else
+				fmeasure = precCond;
+		}
+
+		if(sRec != 0)
+		{
+			recCond = (Node *) createOpExpr("*",LIST_MAKE(rec,createConstFloat(sRec)));
+			if(fmeasure != NULL)
+				fmeasure = (Node *) createOpExpr("+",LIST_MAKE(fmeasure,recCond));
+			else
+				fmeasure = recCond;
+		}
+
+		if(sInfo != 0)
+		{
+			infoCond = (Node *) createOpExpr("*",LIST_MAKE(info,createConstFloat(sInfo)));
+			if(fmeasure != NULL)
+				fmeasure = (Node *) createOpExpr("+",LIST_MAKE(fmeasure,infoCond));
+			else
+				fmeasure = infoCond;
+		}
+	}
+
 	projExpr = appendToTailOfList(projExpr, fmeasure);
-
-	List *attrNames = CONCAT_LISTS(getAttrNames(fMeasure->schema), singleton(FMEASURE_ATTR));
+	attrNames = CONCAT_LISTS(getAttrNames(fMeasure->schema), singleton(FMEASURE_ATTR));
 	op = createProjectionOp(projExpr, fMeasure, NIL, attrNames);
+
 	fMeasure->parents = singleton(op);
 	fMeasure = (QueryOperator *) op;
+
+	// add selection if thresholds are given
+	if(thPrec != 0 || thRec != 0 || thInfo != 0)
+	{
+		Node *precCond = NULL;
+		Node *recCond = NULL;
+		Node *infoCond = NULL;
+		Node *cond = NULL;
+
+		if(thPrec != 0)
+		{
+			precCond = (Node *) createOpExpr(">=",LIST_MAKE(prec,createConstFloat(thPrec)));
+			if(cond != NULL)
+				cond = AND_EXPRS(cond,precCond);
+			else
+				cond = precCond;
+		}
+
+		if(thRec != 0)
+		{
+			recCond = (Node *) createOpExpr(">=",LIST_MAKE(rec,createConstFloat(thRec)));
+			if(cond != NULL)
+				cond = AND_EXPRS(cond,recCond);
+			else
+				cond = recCond;
+		}
+
+		if(thInfo!= 0)
+		{
+			infoCond = (Node *) createOpExpr(">=",LIST_MAKE(info,createConstFloat(thInfo)));
+			if(cond != NULL)
+				cond = AND_EXPRS(cond,infoCond);
+			else
+				cond = infoCond;
+		}
+
+		SelectionOperator *so = createSelectionOp(cond, fMeasure, NIL, getAttrNames(fMeasure->schema));
+		fMeasure->parents = singleton(so);
+		fMeasure = (QueryOperator *) so;
+	}
 
 	// add projection for ORDER BY
 	pos = 0;
@@ -857,7 +997,7 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
  * generate domain attrs for later use of scale up of the measure values to the real values
  */
 static List *
-domAttrsOutput (Node *input, int sampleSize, char *qType)
+domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair)
 {
 	List *result = NIL;
 
@@ -893,27 +1033,46 @@ domAttrsOutput (Node *input, int sampleSize, char *qType)
 	List *rels = NIL;
 	findTableAccessVisitor((Node *) transInput,&rels);
 
+	if(isDl)
+	{
+		// remove duplicate tableaccessOp
+		List *removeDupTa = NIL;
+		FOREACH(TableAccessOperator,t,rels)
+			if(!searchList(removeDupTa,t))
+				removeDupTa = appendToTailOfList(removeDupTa,t);
+
+		// replace attr names in user question with full names
+		FOREACH(AttributeReference,ar,userQuestion)
+		{
+			int relCnt = 0;
+			int prevAttrCnt = 0;
+			int pos = ar->attrPosition;
+			char *rel = (char *) MAP_GET_STRING(vrPair,ar->name);
+
+			FOREACH(TableAccessOperator,t,removeDupTa)
+			{
+				if(streq(rel,t->tableName))
+				{
+					if(relCnt > 0)
+						pos = pos - prevAttrCnt;
+
+					ar->outerLevelsUp = 0; // TODO: force to be '0' or keep it
+					ar->name = STRING_VALUE(getNthOfListP(t->op.schema->attrDefs,pos));
+				}
+
+				prevAttrCnt += LIST_LENGTH(t->op.schema->attrDefs);
+				relCnt++;
+			}
+		}
+	}
+
 	int attrCount = 0;
 	int relCount = 0;
 	char *relName = NULL;
 	HashMap *existAttr = NEW_MAP(Constant,Constant);
 
-	FOREACH(TableAccessOperator, t, rels)
+	FOREACH(TableAccessOperator,t,rels)
 	{
-		// replace attr names in user question with full names
-		if(isDl)
-		{
-			FOREACH(AttributeReference,ar,userQuestion)
-			{
-				if(ar->fromClauseItem == relCount)
-				{
-					ar->outerLevelsUp = 0; // TODO: force to be '0' or keep it
-					int pos = ar->attrPosition;
-					ar->name = STRING_VALUE(getNthOfListP(t->op.schema->attrDefs,pos));
-				}
-			}
-		}
-
 		// if the input query is not self-joined, then reset everything
 		if(relName != NULL)
 		{
