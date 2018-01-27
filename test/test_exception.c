@@ -54,8 +54,8 @@ handleWipe (const char *message, const char *file, int line, ExceptionSeverity s
 static rc
 testCatching(void)
 {
-    MemContext *cur = getCurMemContext();
-    MemContext *after;
+    volatile MemContext * volatile cur = getCurMemContext();
+    volatile MemContext * volatile after;
 
     registerExceptionCallback(handleE);
 
@@ -93,7 +93,7 @@ testCatching(void)
 
     // test ON_EXCEPTION
     NEW_AND_ACQUIRE_MEMCONTEXT(QUERY_MEM_CONTEXT);
-    int i = 0;
+    volatile int i = 0;
 
     TRY
     {
@@ -113,7 +113,7 @@ testCatching(void)
     hitCallback = 0;
 
     // try query with parse error
-    char *result = rewriteQuery("SELECT * FRO R;");
+    volatile char * volatile result = rewriteQuery("SELECT * FRO R;");
     after = getCurMemContext();
 
     ASSERT_EQUALS_INT(1,hitCallback, "exception handler was called once");
@@ -286,9 +286,9 @@ static rc
 testCatchingWipe(void)
 {
     MemContext *originalContext = getCurMemContext();
-    MemContext *cur;
-    MemContext *after;
-    int i = 0;
+    volatile MemContext * volatile cur;
+    volatile MemContext * volatile after;
+    volatile int i = 0;
 
     registerExceptionCallback(handleWipe);
 
@@ -384,8 +384,8 @@ testCatchingWipe(void)
 static rc
 testSignalHandling (void)
 {
-    MemContext *cur = getCurMemContext();
-    MemContext *after;
+    MemContext * volatile cur = getCurMemContext();
+    MemContext * volatile after;
 
     registerSignalHandler();
     registerExceptionCallback(handleE);
