@@ -338,43 +338,6 @@ shutdownApplication(void)
 void
 processInput(char *input)
 {
-   // char *result = rewriteQueryInternal(input, TRUE);
-
-//    do { \
-//        MemContext *_newcontext_ = newMemContext(("QUERY_CONTEXT"), "/Users/lord_pretzel/Documents/workspace/GProM/src/rewriter.c", 343); \
-//        setCurMemContext((_newcontext_), "/Users/lord_pretzel/Documents/workspace/GProM/src/rewriter.c", 343); \
-//    } while (0);;
-//    do { \
-//        sigjmp_buf *save_previous_jmpbuf = exceptionBuf; \
-//        sigjmp_buf _exceptionBuf; \
-//        if(!setjmp(_exceptionBuf)) { \
-//            exceptionBuf = &_exceptionBuf;
-//            {
-//                //   printf("%s", result);
-//                //FATAL_LOG("test"); //
-//                execute("SELECT ROWD FROM r;");
-//                do { \
-//                    freeCurMemContext("/Users/lord_pretzel/Documents/workspace/GProM/src/rewriter.c", 349); \
-//                    releaseCurMemContext("/Users/lord_pretzel/Documents/workspace/GProM/src/rewriter.c", 349); \
-//                } while(0);
-//            }
-//        } else { \
-//            exceptionBuf = save_previous_jmpbuf;
-//            {
-//                do { \
-//                    longjmp(*exceptionBuf, 1); \
-//                } while(0);
-//                do { \
-//                    if (maxLevel >= LOG_DEBUG) \
-//                    log_(LOG_DEBUG, "/Users/lord_pretzel/Documents/workspace/GProM/src/rewriter.c", 354, ("allocated in memory context: %s"),  getCurMemContext()->contextName); \
-//                } while (0);
-//            }
-//            processException(); \
-//            exceptionBuf = save_previous_jmpbuf; \
-//        } \
-//        exceptionBuf = save_previous_jmpbuf; \
-//    } while (0);
-
     char *q = NULL;
     Node *parse;
 
