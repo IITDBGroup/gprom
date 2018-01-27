@@ -36,5 +36,5 @@ typedef struct CplexObjects {
 */
 
 extern boolean exprToSat(Node *expr1, boolean inv1, Node *expr2, boolean inv2);
-extern List *symbolicExe(List *exprs);
+extern List *symbolicHistoryExe(List *exprs);
 #endif /* INCLUDE_SYMBOLIC_EVAL_EXPR_TO_CONSTRAINT_H_ */

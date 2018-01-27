@@ -121,28 +121,35 @@ static List *SymbolicExe(List *exprs) {
 		}
 	}
 
-	return symbolicExe(updates);
+	return symbolicHistoryExe(updates);
 }
 
 List *SymbolicExeAlgo(List *updates) {
 	List *dep1 = NIL, *dep2 = NIL;
 	List *exprs = copyList(updates);
 	Node *originalUp;
-	originalUp = popHeadOfListP(exprs);
+	originalUp = (Node *) popHeadOfListP(exprs);
 	dep1 = SymbolicExe(exprs);
-	DEBUG_LOG("finished symbolic execution for the main update.\n");
-	popHeadOfListP(exprs);
+	DEBUG_LOG(
+			"finished symbolic execution for the main update and there is %d dependent updates.\n",
+			getListLength(dep1));
+	//we don't need to pop the first node as symbolicHistoryExe removed it in the previous round
+	//popHeadOfListP(exprs);
 	exprs = appendToHeadOfList(exprs, originalUp);
-	DEBUG_LOG("create the list for the what-if update.\n");
 	dep2 = SymbolicExe(exprs);
-	DEBUG_LOG("finished symbolic execution for the what-if update.\n");
+	DEBUG_LOG(
+			"finished symbolic execution for the what-if update and there is %d dependent updates.\n",
+			getListLength(dep2));
 	freeList(exprs);
-
+	exprs= NIL;
 	FOREACH(Node,e,updates)
 	{
 		if (!searchListNode(dep1, e) && !searchListNode(dep2, e))
 			exprs = appendToHeadOfList(exprs, e);
 	}
-	updates = removeListElementsFromAnotherList(updates, exprs);
+	DEBUG_LOG("removing %d updates from %d reenactment.\n",
+			getListLength(exprs), getListLength(updates));
+	updates = removeListElementsFromAnotherList(exprs, updates);
+	DEBUG_LOG("sending %d updates for reenactment.\n", getListLength(updates));
 	return updates;
 }

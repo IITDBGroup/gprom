@@ -72,6 +72,7 @@ static int invertCondToConstr(Node *cond, List *selectClause, CPXENVptr env,
 		CPXLPptr lp);
 static int exprToEval(Node *expr, boolean invert, CPXENVptr env, CPXLPptr lp);
 static void setSymbolicObjects(Node *expr, int numUp);
+static void deleteCplexObjects();
 static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp);
 static int createV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp);
 static int setAttUV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp);
@@ -80,6 +81,7 @@ static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp);
 static int exprToSymbol(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp);
 
 static void setCplexObjects(Node *expr) {
+	totalObjects = 0;
 	char *tbName = NULL;
 	switch (expr->type) {
 	case T_Update:
@@ -627,6 +629,7 @@ static void setSymbolicObjects(Node *expr, int numUp) {
 	 cplexObjects = NEW(CplexObjects);
 	 attrIndex = NEW_MAP(Constant, Constant);
 	 */
+	totalObjects = 0;
 	attrIndex = NEW_MAP(Constant, Constant);
 	DEBUG_LOG("working setCplexObjects for %d updates.\n", numUp);
 
@@ -701,16 +704,20 @@ static void setSymbolicObjects(Node *expr, int numUp) {
 		totalObjects++;
 	}
 
-	DEBUG_LOG("number of symbolic cplex columns %d.\n", totalObjects);
+	DEBUG_LOG(
+			"number of symbolic cplex map size %d and totalObj %d, default_num_cols %d, number of updates %d.\n",
+			mapSize(attrIndex), totalObjects, default_num_cols, numUp);
+}
+
+static void deleteCplexObjects() {
+	FOREACH_HASH_ENTRY(elm,attrIndex)
+	{
+		removeAndFreeMapElem(attrIndex, elm->key);
+	}
+	FREE(attrIndex);
 }
 
 static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
-
-	/*
-	 List *selAttr = NIL;
-	 Operator *selOpt = createOpExpr("sel", selectClause);
-	 selAttr = getAttrNameFromOpExpList(selAttr, selOpt);
-	 */
 	int status = 0;
 	int numRows = 3; //setSize(attrSet);
 	int numZ = 7;
@@ -727,7 +734,7 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 	char *selectAttName;
 	int neg = 1;
 
-//create first constraints for u: u.Aj<= mod(t).Aj
+    //create first constraints for u: u.Aj<= mod(t).Aj
 	rmatbeg[j] = i;
 	sense[j] = 'L';
 	left = getHeadOfListP((List *) s->expr);
@@ -794,9 +801,10 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 	rmatind[i] = uIndex;
 	rmatval[i] = 1.0;
 	i++;
+	if (!isA(right, Constant)) {
 	rmatind[i] = aIndex;
 	rmatval[i] = -1;
-	i++;
+	i++;}
 // xIndex
 	rmatind[i] = xIndex;
 	rmatval[i] = -1.0 * default_ub;
@@ -873,8 +881,6 @@ static int createV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 	rmatind[i] = xIndex;
 	rmatval[i] = 1.0 * default_ub;
 	rhs[j] = 0;
-//i++;
-//j++;
 
 	DEBUG_LOG("Processed v for update %d.\n", upNum);
 
@@ -977,54 +983,7 @@ static int setNexSt(int upNum, Set *aSet, CPXENVptr env, CPXLPptr lp) {
 
 	return status;
 }
-/*
- static int setInsSt(int upNum, Node *query, CPXENVptr env, CPXLPptr lp) {
- int status = 0;
 
- if (isA(query, List)) {
-
- int numCols = 0;
- FOREACH(Constant,c,(List *)query)
- {
- if (c->constType == DT_INT || c->constType == DT_FLOAT
- || c->constType == DT_LONG) {
- numCols++;
- }
- }
-
- int numRows = numCols;
- int numZ = numCols;
- int rmatbeg[numRows];
- double rhs[numRows];
- char sense[numRows];
- char *rowname[numRows];
- int rmatind[numZ];
- double rmatval[numZ];
-
- int i = 0, j = 0;
- int numAttr = setSize(attrSet);
-
- FOREACH(Constant,c,(List *)query)
- {
- if (c->constType == DT_INT || c->constType == DT_FLOAT
- || c->constType == DT_LONG) {
- rmatbeg[i] = i;
- rowname[i] = "insRow";
- rmatind[i] = upNum * numAttr + j;
- rmatval[i] = 1.0;
- sense[i] = 'E';
- rhs[i] = constrToDouble((Constant *) c);
- i++;
- }
- j++;
- }
-
- status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg,
- rmatind, rmatval, NULL, rowname);
- }
- return status;
- }
- */
 static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp) {
 	DEBUG_LOG("Start Processing condition for update %d.\n", upNum);
 	int status = 0;
@@ -1034,10 +993,8 @@ static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp) {
 	if (cond == NULL) {
 		ERROR_LOG("cond is NULL.\n");
 	}
-	DEBUG_LOG("condition type is %s.\n", cond->type);
+
 	char *opName = ((Operator *) cond)->name;
-	DEBUG_LOG("Start Processing condition for update with operation %s.\n",
-			*opName);
 	if (strcmp(opName, "AND") == 0) {
 		DEBUG_LOG("we have AND Operator");
 		condToSt(upNum, (Node *) getHeadOfListP(((Operator *) cond)->args), env,
@@ -1046,7 +1003,6 @@ static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				lp);
 	} else {
 
-		DEBUG_LOG("Start Processing condition for update in else %d.\n", upNum);
 
 		List *result = NIL;
 		result = getAttrNameFromOpExpList(result, (Operator *) cond);
@@ -1117,11 +1073,9 @@ static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp) {
 }
 
 static int exprToSymbol(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
-
 	int status = 0;
 	Node *left = NULL;
 	char *selectAttName;
-//Set *newAttrSet = MAKE_STR_SET();
 	Set *newAttrSet = STRSET();
 	Set *tempSet = STRSET();
 	List *sClause = NIL;
@@ -1132,20 +1086,14 @@ static int exprToSymbol(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 		FOREACH(SelectItem, s, sClause )
 		{
 			status = createU(upNum, s, env, lp);
-			//if (!status) {
 			left = getHeadOfListP((List *) s->expr);
 			selectAttName = ((AttributeReference *) left)->name;
 			status = createV(upNum, selectAttName, env, lp);
 			addToSet(newAttrSet, selectAttName);
-			//}
-			//if (!status) {
 			status = setAttUV(upNum, selectAttName, env, lp);
-			//}
 		}
-		//if (!status) {
 		tempSet = setDifference(attrSet, newAttrSet);
 		status = setNexSt(upNum, tempSet, env, lp);
-		//}
 		break;
 		/*
 		 case T_Delete:
@@ -1161,10 +1109,9 @@ static int exprToSymbol(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 	return status;
 }
 
-List *symbolicExe(List *exprs) {
+List *symbolicHistoryExe(List *exprs) {
 	List *depUps = NIL;
 	int status = 0;
-	//int temp_status=0;
 	//boolean result = FALSE;
 	int solstat;
 	double objval;
@@ -1176,12 +1123,10 @@ List *symbolicExe(List *exprs) {
 
 	CPXENVptr env = NULL;
 	CPXLPptr lp = NULL;
-	//CPXENVptr temp_env = NULL;
 	CPXLPptr temp_lp = NULL;
 
 	/* Initialize the CPLEX environment */
 	env = CPXopenCPLEX(&status);
-	//temp_env = CPXopenCPLEX(&temp_status);
 
 	if (env == NULL) {
 		char errmsg[CPXMESSAGEBUFSIZE];
@@ -1189,13 +1134,7 @@ List *symbolicExe(List *exprs) {
 		ERROR_LOG("Could not open CPLEX environment.\n%s", errmsg);
 	}
 
-	/*
-	 if (temp_env == NULL) {
-	 char errmsg[CPXMESSAGEBUFSIZE];
-	 CPXgeterrorstring(temp_env, temp_status, errmsg);
-	 ERROR_LOG("Could not open CPLEX environment.\n%s", errmsg);
-	 }
-	 */
+
 	/* Turn on output to the screen */
 
 	status = CPXsetintparam(env, CPXPARAM_ScreenOutput, CPX_ON);
@@ -1203,13 +1142,6 @@ List *symbolicExe(List *exprs) {
 		ERROR_LOG("Failure to turn on screen indicator, error %d.\n", status);
 	}
 
-	/*
-	 temp_status = CPXsetintparam(temp_env, CPXPARAM_ScreenOutput, CPX_ON);
-	 if (temp_status) {
-	 ERROR_LOG("Failure to turn on screen indicator, error %d.\n",
-	 temp_status);
-	 }
-	 */
 	/* Turn on data checking */
 
 	status = CPXsetintparam(env, CPXPARAM_Read_DataCheck, CPX_DATACHECK_WARN);
@@ -1217,17 +1149,9 @@ List *symbolicExe(List *exprs) {
 		ERROR_LOG("Failure to turn on data checking, error %d.\n", status);
 	}
 
-	/*
-	 temp_status = CPXsetintparam(temp_env, CPXPARAM_Read_DataCheck,
-	 CPX_DATACHECK_WARN);
-	 if (temp_status) {
-	 ERROR_LOG("Failure to turn on data checking, error %d.\n", temp_status);
-	 }
-	 */
 	/* Create the problem. */
 
 	lp = CPXcreateprob(env, &status, "lpex1");
-	//temp_lp = CPXcreateprob(temp_env, &temp_status, "temp_lpex1");
 
 	/* A returned pointer of NULL may mean that not enough memory
 	 was available or there was some other problem.  In the case of
@@ -1254,14 +1178,6 @@ List *symbolicExe(List *exprs) {
 		ERROR_LOG("Failure to create cplex columns %d.\n", status);
 	}
 
-	/*
-	 temp_status = CPXnewcols(temp_env, temp_lp, totalObjects, obj,
-	 lb, ub, NULL, colname);
-	 if (temp_status) {
-	 ERROR_LOG("Failure to create cplex columns %d.\n", temp_status);
-	 }
-	 */
-
 	/* Now populate the problem with the data.  For building large
 	 problems, consider setting the row, column and nonzero growth
 	 parameters before performing this task. */
@@ -1279,19 +1195,7 @@ List *symbolicExe(List *exprs) {
 	{
 		DEBUG_LOG("symbolic execution for update %d.\n", i);
 		exprToSymbol(i, ex, env, lp);
-		//temp_env = env;
-		//temp_lp = lp;
-		//temp_status = status;
-		//temp_lp = CPXcreateprob(temp_env, &temp_status, "temp_lpex1");
 
-		/*
-		 temp_status = CPXnewcols(temp_env, temp_lp, totalObjects, obj, lb, ub,
-		 NULL, colname);
-		 if (temp_status) {
-		 ERROR_LOG("Failure to create cplex columns %d.\n", temp_status);
-		 }
-		 */
-		//temp_status = condToSt(i, ex, temp_env, temp_lp);
 		if (ex->type == T_Update || ex->type == T_Delete) {
 			temp_lp = CPXcloneprob(env, lp, &status);
 			DEBUG_LOG("copied the main problem for the symbolic execution.\n");
@@ -1314,20 +1218,6 @@ List *symbolicExe(List *exprs) {
 				ERROR_LOG("Failed to optimize LP.\n");
 			}
 
-			/*
-			 if (temp_status) {
-			 ERROR_LOG(
-			 "Failed to populate problem for the condition of expression.\n");
-			 }
-
-			 temp_status = CPXlpopt(temp_env, temp_lp);
-			 if (temp_status) {
-			 ERROR_LOG("Failed to optimize LP.\n");
-			 }
-
-			 cur_numrows = CPXgetnumrows(temp_env, temp_lp);
-			 cur_numcols = CPXgetnumcols(temp_env, temp_lp);
-			 */
 			cur_numrows = CPXgetnumrows(env, temp_lp);
 			cur_numcols = CPXgetnumcols(env, temp_lp);
 
@@ -1339,13 +1229,6 @@ List *symbolicExe(List *exprs) {
 			if (x == NULL || slack == NULL || dj == NULL || pi == NULL) {
 				ERROR_LOG("Could not allocate memory for solution.\n");
 			}
-			/*
-			 temp_status = CPXsolution(temp_env, temp_lp, &solstat, &objval, x, pi,
-			 slack, dj);
-			 if (temp_status) {
-			 DEBUG_LOG("False: Failed to obtain solution.\n");
-			 //result = FALSE;
-			 */
 
 			status = CPXsolution(env, temp_lp, &solstat, &objval, x, pi, slack,
 					dj);
@@ -1367,74 +1250,13 @@ List *symbolicExe(List *exprs) {
 				}
 			}
 		}
-		/*
-		 if (temp_lp != NULL) {
-		 temp_status = CPXfreeprob(temp_env, &temp_lp);
-		 if (temp_status) {
-		 DEBUG_LOG("CPXfreeprob failed, error code %d.\n", temp_status);
-		 }
-		 }
-		 */
+
 		i++;
 	}
 
 	DEBUG_LOG("End of symbolic execution for finding dependent updates .\n");
-	/*
-	 status = exprToEval(expr1, inv1, env, lp);
 
-	 if (status) {
-	 ERROR_LOG("Failed to populate problem for the first expression.\n");
-	 }
-	 */
-
-	/* Optimize the problem and obtain solution. */
-	/*
-	 status = CPXlpopt(env, lp);
-	 if (status) {
-	 ERROR_LOG("Failed to optimize LP.\n");
-	 }
-	 */
-
-	/* The size of the problem should be obtained by asking CPLEX what
-	 the actual size is, rather than using sizes from when the problem
-	 was built.  cur_numrows and cur_numcols store the current number
-	 of rows and columns, respectively.  */
-	/*
-	 cur_numrows = CPXgetnumrows(env, lp);
-	 cur_numcols = CPXgetnumcols(env, lp);
-
-	 x = (double *) MALLOC(cur_numcols * sizeof(double));
-	 slack = (double *) MALLOC(cur_numrows * sizeof(double));
-	 dj = (double *) MALLOC(cur_numcols * sizeof(double));
-	 pi = (double *) MALLOC(cur_numrows * sizeof(double));
-
-	 if (x == NULL || slack == NULL || dj == NULL || pi == NULL) {
-	 ERROR_LOG("Could not allocate memory for solution.\n");
-	 }
-
-	 status = CPXsolution(env, lp, &solstat, &objval, x, pi, slack, dj);
-	 if (status) {
-	 DEBUG_LOG("False: Failed to obtain solution.\n");
-	 result = FALSE;
-
-	 } else {
-	 DEBUG_LOG("True: Obtained solution.\n");
-	 result = TRUE;
-	 }
-
-	 //check solution result
-
-	 DEBUG_LOG("\nSolution status = %d\n", solstat);
-	 DEBUG_LOG("Solution value  = %f\n\n", objval);
-
-	 int j;
-	 for (j = 0; j < cur_numcols; j++) {
-	 DEBUG_LOG("Column %d:  Value =  %10f  Reduced cost = %10f\n", j, x[j],
-	 dj[j]);
-	 }
-	 */
-
-//TERMINATE:
+    //TERMINATE:
 	/* Free up the problem as allocated by CPXcreateprob, if necessary */
 
 	if (lp != NULL) {
@@ -1453,17 +1275,7 @@ List *symbolicExe(List *exprs) {
 		}
 	}
 	DEBUG_LOG("free tempCPXfreeprob.\n");
-	/*
-	 if (temp_env != NULL) {
-	 temp_status = CPXcloseCPLEX(&temp_env);
 
-	 if (temp_status) {
-	 DEBUG_LOG("Could not close CPLEX environment.\n");
-	 }
-	 }
-
-	 DEBUG_LOG("free tempCPXcloseCPLEX.\n");
-	 */
 	/* Free up the CPLEX environment, if necessary */
 
 	if (env != NULL) {
@@ -1479,6 +1291,9 @@ List *symbolicExe(List *exprs) {
 		}
 	}
 	DEBUG_LOG("free CPXcloseCPLEX.\n");
+
+	deleteCplexObjects();
+	DEBUG_LOG("deleteCplexObjects.\n");
 
 	DEBUG_LOG("Returning dependent updates.\n");
 	return depUps;

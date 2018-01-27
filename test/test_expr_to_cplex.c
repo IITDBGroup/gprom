@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
 
 			//Compute Reenactment for dependent updates
 			Node *originalUp;
-			originalUp = popHeadOfListP(updates);
+			originalUp = (Node *) popHeadOfListP(updates);
 
 			ProvenanceStmt *provStat;
 			char *sql;
@@ -129,7 +129,7 @@ int main(int argc, char* argv[]) {
 						 ProvenanceStmt *provStat;
 						 char *sql;
 						 Node *qoModel;
-						 originalUp = popHeadOfListP(result);
+						 originalUp = (Node *) popHeadOfListP(result);
 
 						 provStat = createProvenanceStmt((Node *) result);
 						 provStat->provType = PROV_NONE;
