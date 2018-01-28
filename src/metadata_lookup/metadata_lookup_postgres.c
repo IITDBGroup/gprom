@@ -227,7 +227,7 @@ postgresInitMetadataLookupPlugin (void)
         return EXIT_SUCCESS;
     }
 
-    NEW_AND_ACQUIRE_MEMCONTEXT(CONTEXT_NAME);
+    NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
     memContext = getCurMemContext();
 
     // create cache

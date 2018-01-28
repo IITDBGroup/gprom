@@ -13,8 +13,8 @@ before_install:
 ####################
 # build script
 script:
-  - export PATH=.:${PATH} && ./travis/build.sh
-  - export PATH=.:${PATH} && ./travis/runjavatest.sh
+  - export PATH=.:${PATH} && travis_wait 40 ./travis/build.sh
+  - export PATH=.:${PATH} && travis_wait 20 ./travis/runjavatest.sh
 
 ####################
 # branch configuration
@@ -60,6 +60,7 @@ deploy:
     - "${RELEASE_TARBALL_FILE}"
     - "${RELEASE_JDBC_JAR_FILE}"
     - "${RELEASE_DEB_FILE}"
+  name: GProM 
   skip-cleanup: true
   on:
     repo: IITDBGroup/gprom

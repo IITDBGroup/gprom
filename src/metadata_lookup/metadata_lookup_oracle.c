@@ -364,7 +364,7 @@ oracleInitMetadataLookupPlugin (void)
         return EXIT_SUCCESS;
     }
 
-    NEW_AND_ACQUIRE_MEMCONTEXT("metadataContext");
+    NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT("metadataContext");
     context=getCurMemContext();
 
     if(!OCI_Initialize(handleError, NULL, OCI_ENV_DEFAULT))

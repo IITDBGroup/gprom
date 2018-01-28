@@ -51,6 +51,8 @@ static Node *externalExecuteAsTransactionAndGetXID (List *statements, IsolationL
 static gprom_long_t externalGetCommitScn (char *tableName, gprom_long_t maxScn, char *xid);
 static Relation *externalGenExecQuery (char *query);
 static void externalGenExecQueryIgnoreQuery (char *query);
+static int externalGetCostEstimation (char *query);
+
 
 #define EXTERNAL_PLUGIN GProMMetadataLookupPlugin *extP = (GProMMetadataLookupPlugin *) activePlugin->cache->cacheHook
 #define COPY_STRING(name) char *name ## Copy = strdup(name)

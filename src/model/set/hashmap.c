@@ -21,6 +21,8 @@
 
 #include "model/set/hashmap.h"
 
+#define HASHMAP_MEM_CONTEXT_NAME "HASHMAP-CONTEXT"
+
 // memory context to allocate static variables used for lookup
 static MemContext *hashContext = NULL;
 // static variables to speed up lookup for string and int keys and avoid the memory consumption of creating a new Constant node for each lookup
@@ -98,7 +100,7 @@ getMapString (HashMap *map, char *key)
     if (stringDummy == NULL)
     {
         if (hashContext == NULL)
-            hashContext = NEW_MEM_CONTEXT("HASHMAP-CONTEXT");
+            hashContext = NEW_MEM_CONTEXT(HASHMAP_MEM_CONTEXT_NAME);
         ACQUIRE_MEM_CONTEXT(hashContext);
         stringDummy = createConstString("");
         RELEASE_MEM_CONTEXT();
@@ -115,7 +117,7 @@ getMapInt (HashMap *map, int key)
     if (intDummy == NULL)
     {
         if (hashContext == NULL)
-            hashContext = NEW_MEM_CONTEXT("HASHMAP-CONTEXT");
+            hashContext = NEW_MEM_CONTEXT(HASHMAP_MEM_CONTEXT_NAME);
         ACQUIRE_MEM_CONTEXT(hashContext);
         intDummy = createConstInt(0);
         RELEASE_MEM_CONTEXT();
@@ -134,7 +136,7 @@ getMapLong (HashMap *map, gprom_long_t key)
     if (longDummy == NULL)
     {
         if (hashContext == NULL)
-            hashContext = NEW_MEM_CONTEXT("HASHMAP-CONTEXT");
+            hashContext = NEW_MEM_CONTEXT(HASHMAP_MEM_CONTEXT_NAME);
         ACQUIRE_MEM_CONTEXT(hashContext);
         longDummy = createConstLong(0);
         RELEASE_MEM_CONTEXT();
@@ -229,7 +231,7 @@ mapIncrString(HashMap *map, char *key)
     if (stringDummy == NULL)
     {
         if (hashContext == NULL)
-            hashContext = NEW_MEM_CONTEXT("HASHMAP-CONTEXT");
+            hashContext = NEW_MEM_CONTEXT(HASHMAP_MEM_CONTEXT_NAME);
         ACQUIRE_MEM_CONTEXT(hashContext);
         stringDummy = createConstString("");
         RELEASE_MEM_CONTEXT();
@@ -273,7 +275,7 @@ removeMapStringElem (HashMap *map, char *key)
     if (stringDummy == NULL)
     {
         if (hashContext == NULL)
-            hashContext = NEW_MEM_CONTEXT("HASHMAP-CONTEXT");
+            hashContext = NEW_MEM_CONTEXT(HASHMAP_MEM_CONTEXT_NAME);
         ACQUIRE_MEM_CONTEXT(hashContext);
         stringDummy = createConstString("");
         RELEASE_MEM_CONTEXT();
