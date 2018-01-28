@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>${ivy.pom.groupId}</groupId>
+  	<artifactId>${ivy.pom.artifactId}</artifactId>
+  	<packaging>${ivy.pom.packaging}</packaging>
+	<version>${ivy.pom.version}</version>
+  	<name>${ivy.pom.name}</name>
+  	<description>${ivy.pom.description}</description>
+  	<url>${ivy.pom.url}</url>
+	
+	<!--  licenses -->
+	<licenses>
+		<license>
+      		<name>The Apache Software License, Version 2.0</name>
+      		<url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+    		</license>
+	</licenses>
+	
+	<!--  developers -->
+	 <developers>
+		<developer>
+			<name>Boris Glavic</name>
+			<email>bglavic@iit.edu</email>
+			<organization>IIT DBGroup</organization>
+			<organizationUrl>http://cs.iit.edu/~dbgroup</organizationUrl>
+		</developer>
+		<developer>
+			<name>Bahareh Arab</name>
+			<email>barab@hawk.iit.edu</email>
+			<organization>IIT DBGroup</organization>
+			<organizationUrl>http://cs.iit.edu/~dbgroup</organizationUrl>
+		</developer>
+		<developer>
+			<name>Su Feng</name>
+			<email>sfeng@hawk.iit.edu</email>
+			<organization>IIT DBGroup</organization>
+			<organizationUrl>http://cs.iit.edu/~dbgroup</organizationUrl>
+		</developer>
+		<developer>
+			<name>Seokki Lee</name>
+			<email>slee195@hawk.iit.edu</email>
+			<organization>IIT DBGroup</organization>
+			<organizationUrl>http://cs.iit.edu/~dbgroup</organizationUrl>
+		</developer>
+		<developer>
+			<name>Xing Niu</name>
+			<email>xniu7@hawk.iit.edu</email>
+			<organization>IIT DBGroup</organization>
+			<organizationUrl>http://cs.iit.edu/~dbgroup</organizationUrl>
+		</developer>
+	</developers>
+	
+	<!--  SCM -->
+	<scm>
+	    <connection>scm:git:git://github.com/IITDBGroup/gprom.git</connection>
+	    <developerConnection>scm:git:ssh://github.com:IITDBGroup/gprom.git</developerConnection>
+    		<url>http://github.com/IITDBGroup/gprom/tree/master</url>
+	</scm>
+</project>

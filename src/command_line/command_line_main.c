@@ -36,6 +36,7 @@
 #include "rewriter.h"
 #include "utility/string_utils.h"
 
+#define PROCESS_CONTEXT_NAME "PROCESS_CONTEXT"
 static const char *commandHelp = "\n"
             "\\q(uit)\t\t\texit CLI\n"
             "\\h(elp)\t\t\tshow this helptext\n"
@@ -121,9 +122,9 @@ main(int argc, char* argv[])
     }
     else if (getStringOption("input.sql") != NULL)
     {
-        result = rewriteQuery(getStringOption("input.sql"));
-        // call executor
-        execute(result);
+        process(getStringOption("input.sql"));
+//        // call executor
+//        execute(result);
     }
     else if (getStringOption("input.sqlFile") != NULL)
     {
@@ -194,17 +195,7 @@ inputLoop(void)
         }
 
         // process query
-        TRY
-        {
-            NEW_AND_ACQUIRE_MEMCONTEXT("PROCESS_CONTEXT");
-            process(sql);
-            FREE_AND_RELEASE_CUR_MEM_CONTEXT();
-        }
-        ON_EXCEPTION
-        {
-            printf("\nError occured\n");
-        }
-        END_ON_EXCEPTION
+        process(sql);
     }
     FREE(sql);
 }
@@ -215,7 +206,19 @@ inputLoop(void)
 static void
 process(char *sql)
 {
-    processInput(sql);
+    // process query
+    TRY
+    {
+        NEW_AND_ACQUIRE_MEMCONTEXT(PROCESS_CONTEXT_NAME);
+        processInput(sql);
+    }
+    ON_EXCEPTION
+    {
+        printf("\nError occured\n");
+        fflush(stdout);
+    }
+    END_ON_EXCEPTION
+    FREE_AND_RELEASE_CUR_MEM_CONTEXT();
 }
 
 /*
@@ -340,10 +343,11 @@ handleCLIException (const char *message, const char *file, int line, ExceptionSe
     else
         printf(TCOL(RED,"(%s:%u) ") "\n%s\n",
                 file, line, message);
+    fflush(stdout);
 
     // throw error if in non-interactive mode, otherwise try to recover by wiping memcontext
     if (isInteractiveSession)
-        return EXCEPTION_WIPE;
+        return EXCEPTION_ABORT;
     else
         return EXCEPTION_DIE;
 }

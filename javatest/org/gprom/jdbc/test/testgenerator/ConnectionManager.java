@@ -15,6 +15,7 @@ import org.postgresql.util.PSQLException;
 import org.gprom.jdbc.driver.GProMConnection;
 import org.gprom.jdbc.driver.GProMDriver;
 import org.gprom.jdbc.driver.GProMDriverProperties;
+import org.gprom.jdbc.test.testgenerator.ConnectionOptions.BackendOptionKeys;
 import org.gprom.jdbc.utility.LoggerUtil;
 
 public class ConnectionManager {
@@ -38,7 +39,6 @@ public class ConnectionManager {
 
 	
 	private ConnectionManager () throws Exception {
-//		createConnection ();
 	}
 	
 	public static ConnectionManager getInstance () {
@@ -102,23 +102,22 @@ public class ConnectionManager {
 	}
 	
 	/**
-	 * @throws ClassNotFoundException 
-	 * @throws IOException 
-	 * @throws FileNotFoundException 
+	 * @throws Exception 
 	 * 
 	 */
-	private void loadBackendDriver() throws ClassNotFoundException, FileNotFoundException, IOException {
+	private void loadBackendDriver() throws Exception {
 		String backend = ConnectionOptions.getInstance().getBackend();
 		
 		if (backend.equals("Oracle"))
 			Class.forName("oracle.jdbc.OracleDriver");
+		//TODO load other drivers
 	}
 
 	public String constructURL () throws Exception {
 		if (ConnectionOptions.getInstance().getBackend().equals("Oracle"))
 		{
 			String host =ConnectionOptions.getInstance().getHost();
-			String sid = ConnectionOptions.getInstance().getBackendOption("SID");
+			String sid = ConnectionOptions.getInstance().getBackendOption(BackendOptionKeys.OracleSID);
 			int port = ConnectionOptions.getInstance().getPort();
 			String user = ConnectionOptions.getInstance().getUser();
 			String passwd = ConnectionOptions.getInstance().getPassword();
@@ -127,7 +126,6 @@ public class ConnectionManager {
 			String url = "jdbc:gprom:oracle:thin:"  + user + "/" + passwd + 
 					"@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=" + host + ")(PORT=" + port + ")))(CONNECT_DATA=(SID=" + sid +")))";
 
-			
 			return url;
 		}
 		if (ConnectionOptions.getInstance().getBackend().equals("SQLite"))
@@ -175,14 +173,14 @@ public class ConnectionManager {
 	    				if (rs != null)
 	    					rs.close();
 	    			} catch (Exception rsE) {
-	
+	    				LoggerUtil.logException(rsE, log);
 	    			}
 	
 	    			if (st != null)
 	    				st.close();
 	    		}
 	    		catch (SQLException e1) {
-	    			//				LoggerUtil.logException(e1, log);
+	    			LoggerUtil.logException(e1, log);
 	    			e1.printStackTrace();
 	    		}
 	    		finally {

@@ -65,7 +65,7 @@ static int compareTimerName (const void *a, const void *b);
 #define CREATE_OR_USE_MEMCONTEXT() \
     do { \
     	if (context == NULL)    \
-            context = NEW_MEM_CONTEXT("TimerContext");  \
+            context = NEW_LONGLIVED_MEMCONTEXT("TimerContext");  \
         ACQUIRE_MEM_CONTEXT(context); \
     } while (0)
 

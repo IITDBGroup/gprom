@@ -1,5 +1,0 @@
-DBName=tpch_1
-User=postgres
-Password=
-Schema=public
-Path=resource/tpchValidation

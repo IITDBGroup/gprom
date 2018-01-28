@@ -48,11 +48,15 @@ static List *externalGetKeyInformation (char *tableName);
 static void externalGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);
 static Node *externalExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel);
-static long externalGetCommitScn (char *tableName, long maxScn, char *xid);
+static gprom_long_t externalGetCommitScn (char *tableName, gprom_long_t maxScn, char *xid);
 static Relation *externalGenExecQuery (char *query);
 static void externalGenExecQueryIgnoreQuery (char *query);
+static int externalGetCostEstimation (char *query);
+
 
 #define EXTERNAL_PLUGIN GProMMetadataLookupPlugin *extP = (GProMMetadataLookupPlugin *) activePlugin->cache->cacheHook
+#define COPY_STRING(name) char *name ## Copy = strdup(name)
+#define ARG(name) name ## Copy
 
 // create a plugin
 MetadataLookupPlugin *
@@ -84,6 +88,7 @@ assembleExternalMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
     p->getCommitScn = externalGetCommitScn;
     p->executeQuery = externalGenExecQuery;
     p->executeQueryIgnoreResult = externalGenExecQueryIgnoreQuery;
+    p->getCostEstimation = externalGetCostEstimation;
 
     p->cache = createCache();
     p->cache->cacheHook = plugin;
@@ -139,10 +144,13 @@ externalIsInitialized (void)
 }
 
 static boolean
-externalCatalogTableExists (char * tableName)
+externalCatalogTableExists (char *tableName)
 {
     EXTERNAL_PLUGIN;
-    return extP->catalogTableExists(tableName);
+    COPY_STRING(tableName);
+    boolean result = extP->catalogTableExists(ARG(tableName));
+//    DEBUG_LOG("return value of table exists: %u", result);
+    return result;
 }
 
 static boolean
@@ -156,13 +164,14 @@ static List *
 externalGetAttributes (char *tableName)
 {
     EXTERNAL_PLUGIN;
+    COPY_STRING(tableName);
     List *result = NULL;
     List *attrNames = NIL;
     List *dts = NIL;
     char *dtString;
 
-    attrNames = externalGetAttributeNames(tableName);
-    dtString = extP->getDataTypes(tableName);
+    attrNames = externalGetAttributeNames(ARG(tableName));
+    dtString = extP->getDataTypes(ARG(tableName));
     dts = splitString(dtString,",");
 
     FORBOTH(char,a,dt,attrNames,dts)
@@ -179,10 +188,11 @@ static List *
 externalGetAttributeNames (char *tableName)
 {
     EXTERNAL_PLUGIN;
+    COPY_STRING(tableName);
     List *result = NULL;
     char *attList;
 
-    attList = extP->getAttributeNames(tableName);
+    attList = extP->getAttributeNames(ARG(tableName));
     result = splitString(attList,",");
 
     return result;
@@ -193,7 +203,11 @@ externalGetAttributeDefaultVal (char *schema, char *tableName, char *attrName)
 {
     EXTERNAL_PLUGIN;
     Node *result = NULL;
-    char *expr = extP->getAttributeDefaultVal(schema, tableName, attrName);
+    COPY_STRING(schema);
+    COPY_STRING(tableName);
+    COPY_STRING(attrName);
+
+    char *expr = extP->getAttributeDefaultVal(ARG(schema), ARG(tableName), ARG(attrName));
     // parse expression
     if (expr != NULL)
         result = parseFromString(expr);
@@ -205,14 +219,16 @@ static boolean
 externalIsAgg(char *functionName)
 {
     EXTERNAL_PLUGIN;
-    return extP->isAgg(functionName);
+    COPY_STRING(functionName);
+    return extP->isAgg(ARG(functionName));
 }
 
 static boolean
 externalIsWindowFunction(char *functionName)
 {
     EXTERNAL_PLUGIN;
-    return extP->isWindowFunction(functionName);
+    COPY_STRING(functionName);
+    return extP->isWindowFunction(ARG(functionName));
 }
 
 static DataType
@@ -221,7 +237,8 @@ externalGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
     EXTERNAL_PLUGIN;
     //char ** args;
     int numArgs;
-    //int i;
+//    int i;
+    COPY_STRING(fName);
 
     numArgs = LIST_LENGTH(argTypes);
     /*args = MALLOC(sizeof(char *) * numArgs);
@@ -230,41 +247,44 @@ externalGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
     FOREACH_INT(d,argTypes)
         args[i++] = DataTypeToString(d);*/
 
-    return stringToDataType(extP->getFuncReturnType(fName, argTypes, numArgs));
+    return stringToDataType(extP->getFuncReturnType(ARG(fName), argTypes, numArgs));
 }
 
 static DataType
 externalGetOpReturnType (char *oName, List *argTypes, boolean *opExists)
 {
     EXTERNAL_PLUGIN;
-    //char **args;
+//    char **args;
     int numArgs;
-    //int i;
+//    int i;
+    COPY_STRING(oName);
 
     numArgs = LIST_LENGTH(argTypes);
-    /*args = MALLOC(sizeof(char *) * numArgs);
-
-    i = 0;
-    FOREACH_INT(d,argTypes)
-        args[i++] = DataTypeToString(d);*/
+//    args = MALLOC(sizeof(char *) * numArgs);
+//
+//    i = 0;
+//    FOREACH_INT(d,argTypes)
+//        args[i++] = DataTypeToString(d);
 //TODO leaking
-    return stringToDataType(extP->getFuncReturnType(oName, argTypes, numArgs));
+    return stringToDataType(extP->getFuncReturnType(ARG(oName), argTypes, numArgs));
 }
 
 static char *
 externalGetTableDefinition(char *tableName)
 {
     EXTERNAL_PLUGIN;
+    COPY_STRING(tableName);
 
-    return extP->getTableDefinition(tableName);
+    return extP->getTableDefinition(ARG(tableName));
 }
 
 static char *
 externalGetViewDefinition(char *viewName)
 {
     EXTERNAL_PLUGIN;
+    COPY_STRING(viewName);
 
-    return extP->getViewDefinition(viewName);
+    return extP->getViewDefinition(ARG(viewName));
 }
 
 static List *
@@ -274,8 +294,9 @@ externalGetKeyInformation (char *tableName)
     List *result = NIL;
     char *exResult = NULL;
     List *atts;
+    COPY_STRING(tableName);
 
-    exResult = extP->getKeyInformation(tableName);
+    exResult = extP->getKeyInformation(ARG(tableName));
     DEBUG_LOG("keys from external are: %s", exResult);
     atts = splitString(exResult, ",");
     if (LIST_LENGTH(atts) > 0)
@@ -299,8 +320,8 @@ externalExecuteAsTransactionAndGetXID (List *statements, IsolationLevel isoLevel
     return NULL;
 }
 
-static long
-externalGetCommitScn (char *tableName, long maxScn, char *xid)
+static gprom_long_t
+externalGetCommitScn (char *tableName, gprom_long_t maxScn, char *xid)
 {
     //TODO
     return 0;
@@ -317,4 +338,11 @@ static void
 externalGenExecQueryIgnoreQuery (char *query)
 {
     //TODO
+}
+
+static int
+externalGetCostEstimation (char *query)
+{
+    EXTERNAL_PLUGIN;
+    return extP->getCostEstimation(query);
 }

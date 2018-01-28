@@ -227,7 +227,7 @@ postgresInitMetadataLookupPlugin (void)
         return EXIT_SUCCESS;
     }
 
-    NEW_AND_ACQUIRE_MEMCONTEXT(CONTEXT_NAME);
+    NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
     memContext = getCurMemContext();
 
     // create cache
@@ -422,7 +422,7 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
     //TODO cache function information
     res = execPrepared(NAME_GET_FUNC_DEFS,
             LIST_MAKE(createConstString(fName),
-                    createConstString(itoa(LIST_LENGTH(argTypes)))));
+                    createConstString(gprom_itoa(LIST_LENGTH(argTypes)))));
 
     for(int i = 0; i < PQntuples(res); i++)
     {

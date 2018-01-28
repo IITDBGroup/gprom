@@ -19,8 +19,13 @@ public class GProMStatement implements GProMStatementInterface {
 	// static fields
 	static Logger log = LogManager.getLogger(GProMStatement.class);
 
-	private static final String[] gpromKeywords = { "PROVENANCE", "BASERELATION",
-			"TRANSSQL" };
+	private static final String[] gpromKeywords = { "PROVENANCE", 
+			"BASERELATION",
+			"SEQUENCED",
+			"TEMPORAL",
+			"REENACT",
+			"UNCERTAIN"
+			};
 	private static final String[] utilityKeywords = { "DROP"};
 	private static final Set<String> keywordSet;
 	private static final Set<String> utilityKeywordSet;
@@ -65,6 +70,10 @@ public class GProMStatement implements GProMStatementInterface {
 			sqlQuery = w.gpromRewriteQuery(sqlQuery);
 		}
 		return executeQuery(sqlQuery);
+	}
+	
+	public ResultSet executeBackendQuery(String sqlQuery) throws SQLException {
+		return  stat.executeQuery(sqlQuery);
 	}
 
 	public void addBatch(String sql) throws SQLException {

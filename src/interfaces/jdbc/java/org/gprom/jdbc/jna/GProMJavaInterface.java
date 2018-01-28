@@ -26,6 +26,13 @@ public interface GProMJavaInterface {
 		DT_VARCHAR2
 	}
 	
+	public static String DT_STRING = "DT_STRING";
+	public static String DT_INT = "DT_INT";
+	public static String DT_LONG = "DT_LONG";
+	public static String DT_FLOAT = "DT_FLOAT";
+	public static String DT_BOOL = "DT_BOOL";
+	
+	
 	public enum OptionType {
 		String,
 		Boolean,

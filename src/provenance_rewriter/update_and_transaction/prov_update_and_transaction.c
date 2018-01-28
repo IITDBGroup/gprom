@@ -837,7 +837,7 @@ mergeReadCommittedTransaction(ProvenanceComputation *op)
 			{
 //			    Node *scn = (Node *) getTailOfListP(op->transactionInfo->scns);
 			    Constant *scnC = (Constant *) copyObject(op->transactionInfo->commitSCN);
-			    *((long *) scnC->value) = *((long *) scnC->value) - 1; //getCommit SCN - 1
+			    *((gprom_long_t *) scnC->value) = *((gprom_long_t *) scnC->value) - 1; //getCommit SCN - 1
 
 			    if (!HAS_STRING_PROP(t,PROP_TABLE_USE_ROWID_VERSION))
 			    {

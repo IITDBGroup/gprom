@@ -10,7 +10,11 @@
  * Portability
  */
 //#if HAVE_CONFIG_H
+#ifndef IMPORTED_CONFIG_H
+#define IMPORTED_CONFIG_H
 #include <config.h>
+#endif
+
 //#endif /* HAVE_CONFIG_H */
 
 /* <inttypes.h> integer type definitions */
@@ -38,6 +42,8 @@
 #if HAVE_STDINT_H
 #include <stdint.h>
 typedef intptr_t gprom_long_t;
+#elif HAVE_LONG_LONG_INT
+typedef long long int gprom_long_t;
 #else /* use pointer type as fallback? */
 typedef (void *) gprom_long_t;
 #endif

@@ -58,7 +58,9 @@ static void initCache(CatalogCache *c);
         { \
             StringInfo _newmes = makeStringInfo(); \
             appendStringInfo(_newmes, _message, ##__VA_ARGS__); \
-            FATAL_LOG("error (%s)\n%u\n\n%s", strdup((char *) sqlite3_errmsg(plugin->conn)), _rc, _newmes->data); \
+            StringInfo _errMes = makeStringInfo(); \
+            appendStringInfo(_errMes, strdup((char *) sqlite3_errmsg(plugin->conn))); \
+            FATAL_LOG("error (%s)\n%u\n\n%s", _errMes, _rc, _newmes->data); \
         } \
     } while(0)
 
@@ -410,7 +412,16 @@ runQuery (char *q)
 
     DEBUG_LOG("run query:\n<%s>", q);
     rc = sqlite3_prepare(conn, strdup(q), -1, &stmt, NULL);
-    HANDLE_ERROR_MSG(rc, SQLITE_OK, "failed to prepare query <%s>", q);
+//    HANDLE_ERROR_MSG(rc, SQLITE_OK, "failed to prepare query <%s>", q);
+
+   if (rc != SQLITE_OK)
+   {
+       StringInfo _newmes = makeStringInfo();
+       appendStringInfo(_newmes, "failed to prepare query <%s>", q);
+       StringInfo _errMes = makeStringInfo();
+       appendStringInfo(_errMes, strdup((char *) sqlite3_errmsg(plugin->conn)));
+       FATAL_LOG("error (%s)\n%u\n\n%s", _errMes->data, rc, _newmes->data);
+   }
 
     return stmt;
 }

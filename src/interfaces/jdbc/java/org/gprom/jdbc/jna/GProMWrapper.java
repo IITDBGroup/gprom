@@ -7,10 +7,12 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.gprom.jdbc.utility.LoggerUtil;
 import org.gprom.jdbc.utility.PropertyWrapper;
 
 import com.sun.jna.Pointer;
@@ -54,6 +56,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	private GProM_JNA.GProMExceptionCallbackFunction exceptionCallback;
 	private List<ExceptionInfo> exceptions;
 	private GProMMetadataLookupPlugin p;
+	private boolean initialized;
 	
 	// singleton instance	
 	public static GProMWrapper inst = new GProMWrapper ();
@@ -68,6 +71,7 @@ public class GProMWrapper implements GProMJavaInterface {
 	}
 	
 	private GProMWrapper () {
+		initialized = false;
 		exceptions = new ArrayList<ExceptionInfo> ();
 	}
 
@@ -75,21 +79,31 @@ public class GProMWrapper implements GProMJavaInterface {
 	 * @see org.gprom.jdbc.jna.GProMJavaInterface#gpromRewriteQuery(java.lang.String)
 	 */
 	@Override
-	public synchronized String gpromRewriteQuery(String query) throws SQLException {
+	public String gpromRewriteQuery(String query) throws SQLException {
 		log.debug("WILL REWRITE:\n\n{}", query);
 		
-		if (!query.trim().endsWith(";"))
-			query += ";";
+		try {
+			String parserPlugin = getOption("plugin.parser");
+			if (!parserPlugin.equals("dl")) {
+				if (!query.trim().endsWith(";"))
+					query += ";";
+			}
+		}
+		catch (Exception e) {
+			LoggerUtil.logException(e, log);
+		}
 		
+//		Scanner in = new Scanner(System.in);
+//		String password = in.nextLine();
+//		
 		Pointer p =  GProM_JNA.INSTANCE.gprom_rewriteQuery(query);
-		String result = p.getString(0);
 		
 		// check whether exception has occured
 		if (exceptions.size() > 0) {
 			StringBuilder mes = new StringBuilder();
 			for(ExceptionInfo i: exceptions)
 			{
-				mes.append("ERROR (" + i + ")");
+				mes.append("ERROR (" + i + ")\n");
 				mes.append(i.toString());
 				mes.append("\n\n");
 			}
@@ -98,6 +112,7 @@ public class GProMWrapper implements GProMJavaInterface {
 			throw new NativeGProMLibException("Error during rewrite:\n" + mes.toString());
 		}
 		//TODO use string builder to avoid creation of two large strings
+		String result = p.getString(0);
 		result = result.replaceFirst(";\\s+\\z", "");
 		log.info("HAVE REWRITTEN:\n\n" + query + "\n\ninto:\n\n" + result);
 		return result;
@@ -382,7 +397,8 @@ public class GProMWrapper implements GProMJavaInterface {
 		
 		return result;
 	}
-	
+
+
 	public GProMStructure castGProMNode(GProMNode node){
 		int nodeType = node.type;
 		
@@ -532,6 +548,9 @@ public class GProMWrapper implements GProMJavaInterface {
 	}
 
 	public void init () {
+		if (initialized)
+			return;
+		
 		loggerCallback = new GProM_JNA.GProMLoggerCallbackFunction () {
 			public void invoke(String message, String file, int line, int level) {
 				logCallbackFunction(message, file, line, level);
@@ -551,6 +570,7 @@ public class GProMWrapper implements GProMJavaInterface {
 		GProM_JNA.INSTANCE.gprom_registerExceptionCallbackFunction(exceptionCallback);
 		GProM_JNA.INSTANCE.gprom_init();
 		GProM_JNA.INSTANCE.gprom_setMaxLogLevel(this.initialLogLevel);
+		initialized = true;
 	}
 
 	public void setLogLevel (int level)
@@ -601,8 +621,9 @@ public class GProMWrapper implements GProMJavaInterface {
 
 	private void logCallbackFunction (String message, String file, int line, int level) {
 		String printMes = file + " at " + line + ": " + message;
+
 		libLog.log(intToLogLevel(level), printMes);
-		System.out.println(intToLogLevel(level) +": " + printMes);
+//		System.out.println(intToLogLevel(level) +": " + printMes);
 	}
 
 	private int exceptionCallbackFunction(String message, String file,

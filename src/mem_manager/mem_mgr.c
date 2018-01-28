@@ -36,12 +36,20 @@
 #endif
 
 // helper macros
+#define ADD_NEWLINE(mes) ( mes "\n" )
 #define EXIT_WITH_ERROR(mes) \
     do { \
-    	fprintf(stderr,(mes)); \
+    	    fprintf(stderr,(ADD_NEWLINE(mes))); \
         fflush(stderr); \
         exit(1); \
     } while(0)
+
+#define PRINT_ERROR(mes, ...) \
+    do { \
+        fprintf(stderr, ADD_NEWLINE(mes), __VA_ARGS__); \
+        fflush(stderr); \
+    } while(0)
+
 
 typedef struct MemContextNode
 {
@@ -59,7 +67,10 @@ static inline void createFirstChunk(MemContext *mc);
 //        const char *file, unsigned line);
 static inline void createChunk (MemContext *mc, size_t size, const char *file,
         unsigned line);
-static char *memContextToString(MemContext *m);
+//static void errPrintMemContextStack (void);
+//static void printMemContextStack(FILE *o);
+static char *contextStackToString(void);
+static char *memContextToString(MemContext *m, boolean overviewOnly);
 static void internalFreeMemContext (MemContext *m, const char *file, unsigned line);
 
 static MemContext *curMemContext = NULL; // global pointer to current memory context
@@ -136,8 +147,16 @@ destroyMemManager(void)
     // free default context
     internalFreeMemContext(defaultMemContext, __FILE__, __LINE__);
     free(topContextNode); // free default context node
-    DEBUG_LOG("Freed memory context '%s'.", DEFAULT_MEM_CONTEXT_NAME);
+//    DEBUG_LOG("Freed memory context '%s'.", DEFAULT_MEM_CONTEXT_NAME);
     destroyed = TRUE;
+}
+
+boolean
+memManagerUsable(void)
+{
+    if (destroyed || !initialized)
+        return FALSE;
+    return TRUE;
 }
 
 /*
@@ -148,6 +167,22 @@ setCurMemContext(MemContext *mc, const char *file, unsigned line)
 {
     if (topContextNode != NULL && mc == topContextNode->mc)
         return;
+
+    // check that context is not already on the stack which may lead to unrecoverable errors
+    MemContextNode *el = topContextNode;
+
+    while(el != NULL)
+    {
+        if (el->mc == mc)
+        {
+            MemContext *tempContext = NEW_MEM_CONTEXT("TEMP_MEM_MGR_UTIL_CONTEXT");
+            curMemContext=tempContext;
+            ERROR_LOG("mem context already on stack %s\\n\\n%s", mc->contextName, contextStackToString());
+//            THROW(SEVERITY_PANIC, "memory context %s is already on the stack", mc->contextName);
+            internalFreeMemContext(tempContext, __FILE__, __LINE__);
+        }
+        el = el->next;
+    }
 
     if (mc)
     {
@@ -293,28 +328,69 @@ dumpMemContexInfo (void)
     StringInfo result = makeStringInfo();
     MemContextNode *cur = topContextNode;
 
-    appendStringInfo(result, "DEFAULT CONTEXT - %s\n", memContextToString(defaultMemContext));
+    appendStringInfo(result, "DEFAULT CONTEXT - %s\n", memContextToString(defaultMemContext, TRUE));
 
     // search for memcontext with the given name
     for(;cur != NULL; cur = cur->next)
     {
-        appendStringInfoString(result, memContextToString(cur->mc));
+        appendStringInfoString(result, memContextToString(cur->mc, TRUE));
     }
 
     return result->data;
 }
 
+//static void
+//errPrintMemContextStack (void)
+//{
+//    printMemContextStack(stderr);
+//}
+//
+//static void
+//printMemContextStack(FILE *o)
+//{
+//    MemContextNode *c = topContextNode;
+//    int i = 0;
+//
+//    for(;c != NULL; c = c->next)
+//    {
+//        fprintf(o, "%u - %s", i++, memContextToString(c->mc, TRUE));
+//    }
+//    fflush(o);
+//}
+
 static char *
-memContextToString(MemContext *m)
+contextStackToString(void)
+{
+    StringInfo str = makeStringInfo();
+    char *result;
+    MemContextNode *c = topContextNode;
+    int i = 0;
+
+    for(;c != NULL; c = c->next)
+    {
+        appendStringInfo(str, "[%u] - %s", i++, memContextToString(c->mc, FALSE));
+    }
+
+    result = str->data;
+    return result;
+}
+
+static char *
+memContextToString(MemContext *m, boolean overviewOnly)
 {
     StringInfo result = makeStringInfo();
 
-    appendStringInfo (result, "Context[%s %p] - numChunks: %u - BytesInCurChunk: %u\n", m->contextName, m, m->numChunks, m->memLeftInChunk);
-    for(int i = 0; i < m->numChunks; i++)
+    appendStringInfo (result, "Context[%s %p] - numChunks: %u - BytesInCurChunk: %u - LongLived: %u\n",
+            m->contextName, m, m->numChunks, m->memLeftInChunk, m->longLived);
+
+    if (!overviewOnly)
     {
-        appendStringInfo(result, "[%u] ", m->chunkSizes[i]);
+        for(int i = 0; i < m->numChunks; i++)
+        {
+            appendStringInfo(result, "[%u] ", m->chunkSizes[i]);
+        }
+        appendStringInfoString(result, "\n");
     }
-    appendStringInfoString(result, "\n");
     return result->data;
 }
 
@@ -322,7 +398,7 @@ memContextToString(MemContext *m)
  * Creates a memory context.
  */
 MemContext *
-newMemContext(char *contextName, const char *file, unsigned line)
+newMemContext(char *contextName, const char *file, unsigned line, boolean longLived)
 {
     MemContext *mc = (MemContext *) malloc(sizeof(MemContext));
     mc->contextName = contextName;
@@ -333,6 +409,7 @@ newMemContext(char *contextName, const char *file, unsigned line)
     mc->numChunks = 1;
     mc->unusedBytes = 0;
     mc->freedUnusedBytes = 0;
+    mc->longLived = longLived;
 
     /* create first chunk */
     createFirstChunk(mc);
@@ -396,13 +473,22 @@ findAlloc(const MemContext *mc, const void *addr)
 
 /*
  * Removes all the memory allocation records from the current context
- * and free those memories. Will not destroy the memory context itself.
+ * and free those memory chunks. Will not destroy the memory context itself.
  */
 void
 clearCurMemContext(const char *file, unsigned line)
 {
+    clearAMemContext(curMemContext, file, line);
+}
+
+/*
+ * Removes all the memory allocation records from the current context
+ * and free those memory chunks. Will not destroy the memory context itself.
+ */
+void
+clearAMemContext(MemContext *c, const char *file, unsigned line)
+{
     Allocation *curAlloc, *tmp;
-    MemContext *c = curMemContext;
     HASH_ITER(hh, c->hashAlloc, curAlloc, tmp)
     {
         free_(curAlloc->address, file, line);
@@ -438,7 +524,7 @@ internalFreeMemContext (MemContext *m, const char *file, unsigned line)
     int size = memContextSize(m);
     char *name = m->contextName;
     if (size > 0)
-        clearCurMemContext(file, line);
+        clearAMemContext(m, file, line);
     free(m->chunks);
     free(m->chunkSizes);
     free(m);
@@ -448,7 +534,8 @@ internalFreeMemContext (MemContext *m, const char *file, unsigned line)
 
 /*
  * Free a memory context and its children. The context has to be on the stack.
- * Returns and aquires the parent of the memory context.
+ * Children that are long lived contexts are not free'd.
+ * Returns and acquires the parent of the memory context.
  */
 MemContext *
 freeMemContextAndChildren(char *contextName)
@@ -484,18 +571,32 @@ freeMemContextAndChildren(char *contextName)
     // free all children and requested memory context
     do
     {
-        // cannot use memory manager MALLOC here
-        if (curName)
-            free(curName);
-        curName = malloc(strlen(curMemContext->contextName) + 1);
-        strcpy(curName,curMemContext->contextName);
-        FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+        // do not free long lived contexts like the metadatalook one which hold information that should survive a wipe
+        if (curMemContext->longLived)
+        {
+            if (curName)
+                free(curName);
+            curName = malloc(strlen(curMemContext->contextName) + 1);
+            strcpy(curName,curMemContext->contextName);
+            RELEASE_MEM_CONTEXT();
+        }
+        else
+        {
+            // cannot use memory manager MALLOC here
+            if (curName)
+                free(curName);
+            curName = malloc(strlen(curMemContext->contextName) + 1);
+            strcpy(curName,curMemContext->contextName);
+            FREE_AND_RELEASE_CUR_MEM_CONTEXT();
+        }
         cur = topContextNode;
     } while(!streq(curName,contextName));
     if (curName)
         free(curName);
 
-    INFO_LOG("now in context %s", curMemContext->contextName);
+    INFO_LOG("now in context %s with stack:\n\n%s",
+            curMemContext->contextName, contextStackToString());
+//    printMemContextStack(stderr);
 
     return cur->mc;
 }
@@ -579,10 +680,12 @@ malloc_(size_t bytes, const char *file, unsigned line)
 
     if (!initialized)
     {
+        PRINT_ERROR("trying to allocate %u at %s:%u", (unsigned int) bytes, file, line);
         EXIT_WITH_ERROR("trying to allocate memory before mem manager has been initialized");
     }
     if (destroyed)
     {
+        PRINT_ERROR("trying to allocate %u at %s:%u", (unsigned int) bytes, file, line);
         EXIT_WITH_ERROR("trying to allocate memory after mem manager has been destroyed");
     }
 
