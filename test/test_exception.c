@@ -285,7 +285,7 @@ throwsExceptionNested(void)
 static rc
 testCatchingWipe(void)
 {
-    MemContext *originalContext = getCurMemContext();
+    volatile MemContext *originalContext = getCurMemContext();
     volatile MemContext * volatile cur;
     volatile MemContext * volatile after;
     volatile int i = 0;
@@ -384,8 +384,8 @@ testCatchingWipe(void)
 static rc
 testSignalHandling (void)
 {
-    MemContext * volatile cur = getCurMemContext();
-    MemContext * volatile after;
+    volatile MemContext * volatile cur = getCurMemContext();
+    volatile MemContext * volatile after;
 
     registerSignalHandler();
     registerExceptionCallback(handleE);
