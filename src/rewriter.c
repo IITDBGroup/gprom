@@ -534,8 +534,37 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     	DLProgram *p = (DLProgram *) parse;
 
     	if (p->sumOpts != NIL)
+    	{
     		FOREACH(Node,n,p->sumOpts)
 				summOpts = appendToTailOfList(summOpts,n);
+
+    		// store (var,rel) to keep track
+    		HashMap *varRelPair = NEW_MAP(Constant,Constant);
+
+    		FOREACH(Node,n,p->rules)
+    		{
+    			if(isA(n,DLRule))
+    			{
+    				DLRule *r = (DLRule *) n;
+    				FOREACH(Node,b,r->body)
+    				{
+    					if(isA(b,DLAtom))
+    					{
+    						DLAtom *a = (DLAtom *) b;
+    						FOREACH(Node,n,a->args)
+    						{
+    							if(isA(n,DLVar))
+    							{
+    								DLVar *v = (DLVar *) n;
+    								MAP_ADD_STRING_KEY(varRelPair,v->name,a->rel);
+    							}
+    						}
+    					}
+    				}
+    			}
+    		}
+    		summOpts = appendToTailOfList(summOpts, (Node *) varRelPair);
+    	}
 
     	// either why or why-not
     	FOREACH(Node,n,p->rules)
@@ -551,33 +580,6 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     				qType = "WHY";
     		}
     	}
-
-	    // store (var,rel) to keep track
-		HashMap *varRelPair = NEW_MAP(Constant,Constant);
-
-		FOREACH(Node,n,p->rules)
-		{
-			if(isA(n,DLRule))
-			{
-				DLRule *r = (DLRule *) n;
-				FOREACH(Node,b,r->body)
-				{
-					if(isA(b,DLAtom))
-					{
-						DLAtom *a = (DLAtom *) b;
-						FOREACH(Node,n,a->args)
-						{
-							if(isA(n,DLVar))
-							{
-								DLVar *v = (DLVar *) n;
-								MAP_ADD_STRING_KEY(varRelPair,v->name,a->rel);
-							}
-						}
-					}
-				}
-			}
-		}
-		summOpts = appendToTailOfList(summOpts, (Node *) varRelPair);
     }
 
     START_TIMER("translation");
