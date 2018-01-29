@@ -1555,10 +1555,20 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     DEBUG_LOG("list length is %d", coaParaValueList->length);
     Constant *flagValue = (Constant *) getHeadOfListP(coaParaValueList);
 
-    //two cases: fragment or page
+    //used to check if it is a range partation
+    int lenCoaList = LIST_LENGTH(coaParaValueList);
+    Constant *rangeFlag = NULL;
+    if(lenCoaList > 1)
+    		rangeFlag = (Constant *) getNthOfListP(coaParaValueList, 1);
+
+    //three cases: fragment or range or page
+    int flagFRP = 0;
     FunctionCall *of = NULL;
+    CaseExpr *caseExpr = NULL;
+
     if(flagValue->constType == DT_INT)  //if the first element is INT (e.g., 32 in (R 32), list value is {32}), this is page
     {
+    	flagFRP = 1;
     	DEBUG_LOG("deal with page");
     	DEBUG_LOG("hash value is %d", INT_VALUE(flagValue));
     	Constant *orhashValue = createConstInt(INT_VALUE(flagValue));
@@ -1579,11 +1589,51 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     	FunctionCall *substr = createFunctionCall ("SUBSTR", LIST_MAKE(ridAttr, pagePos, pageLong));
 
     of = createFunctionCall ("ORA_HASH", LIST_MAKE(substr, orhashValue));
-
     }
+    else if(lenCoaList == 4 && rangeFlag->constType == DT_INT) //if the first element is STRING (e.g., A in (R(A 0 100) 4), list value is {A,0,100,4}), this is range 0~100 partation by 4
+	{
+    	flagFRP = 2;
+    	DEBUG_LOG("deal with range");
+
+    	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+    	provAttr = appendToTailOfList(provAttr, newAttrName);
+
+    int lowValue = INT_VALUE((Constant *) getNthOfListP(coaParaValueList, 1));
+    int highValue = INT_VALUE((Constant *) getNthOfListP(coaParaValueList, 2));
+    int pValue = INT_VALUE((Constant *) getNthOfListP(coaParaValueList, 3));
+    int intervalValue = (highValue - lowValue) / pValue;
+    char *pAttrName = STRING_VALUE((Constant *) getNthOfListP(coaParaValueList, 0));
+    AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, pAttrName);
+
+    DEBUG_LOG("low: %d, high: %d, p: %d, interval: %d, attr: %s.", lowValue, highValue, pValue, intervalValue, pAttrName);
+
+    int tempCount = lowValue;
+    List *whenList = NIL;
+    for(int i=0; i<pValue; i++)
+    {
+    		Operator *leftOperator = NULL;
+    	    if(i == 0)
+    	    		leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+    	    else
+    	    		leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+        tempCount = tempCount + intervalValue;
+        Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+        Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
+        int power = 0;
+        if(i<2)
+           power = pow(2,i);
+        else
+        	   power = pow(2,i) + 1;
+    		CaseWhen *when = createCaseWhen(cond, (Node *) createConstInt(power));
+    		whenList = appendToTailOfList(whenList, when);
+    }
+
+    caseExpr = createCaseExpr(NULL, whenList, NULL);
+
+	}
     else  //if the first element is STRING (e.g., A in (R(A) 32), list value is {A,32}), this is fragment
     {
-
+    	flagFRP = 1;
     	DEBUG_LOG("deal with fragment");
 
     Constant *num = (Constant *) getTailOfListP(coaParaValueList);  //128
@@ -1613,20 +1663,28 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     of = createFunctionCall ("ORA_HASH", ol);
     }
 
-    //create power(2, ORA_HASH(A,32)) functioncall
-    Constant *tw = createConstInt(2);
-    List *pl = LIST_MAKE(tw,of);
-    FunctionCall *pf = createFunctionCall ("POWER", pl);
+    if(flagFRP == 1)
+    {
+    	//create power(2, ORA_HASH(A,32)) functioncall
+    	Constant *tw = createConstInt(2);
+    	List *pl = LIST_MAKE(tw,of);
+    	FunctionCall *pf = createFunctionCall ("POWER", pl);
 
-//    //using shift right: shright(4294967296,32-ORA_HASH(C_NATIONKEY, 32))
-//    Operator *sor = createOpExpr("-", LIST_MAKE(copyObject(num),of));
-//    //the power of 2 always lack 1, so here after power of 2 and then +1
-//    //but has the overflow problem
-//    Constant *sol = createConstLong(pow(2, INT_VALUE(num)) + 1);
-//    FunctionCall *pf = createFunctionCall ("SHRIGHT", LIST_MAKE(sol,sor));
+    	/*
+    	 * using shift right: shright(4294967296,32-ORA_HASH(C_NATIONKEY, 32))
+    	 */
+    	//    Operator *sor = createOpExpr("-", LIST_MAKE(copyObject(num),of));
+    	//    //the power of 2 always lack 1, so here after power of 2 and then +1
+    	//    //but has the overflow problem
+    	//    Constant *sol = createConstLong(pow(2, INT_VALUE(num)) + 1);
+    	//    FunctionCall *pf = createFunctionCall ("SHRIGHT", LIST_MAKE(sol,sor));
 
-    projExpr = appendToTailOfList(projExpr, pf);
-
+    	projExpr = appendToTailOfList(projExpr, pf);
+    }
+    else if(flagFRP == 2)
+    {
+    	projExpr = appendToTailOfList(projExpr, caseExpr);
+    }
     List *newProvPosList = singletonInt(cnt);
 
     DEBUG_LOG("rewrite table access, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",

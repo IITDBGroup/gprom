@@ -63,7 +63,7 @@ Node *oracleParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME 
-%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE
+%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGES
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
@@ -140,7 +140,7 @@ Node *oracleParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec coarseGrainedSpec optionalCoarseGrainedPara
-%type <list> fragmentList pageList
+%type <list> fragmentList pageList rangeList
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -701,7 +701,34 @@ coarseGrainedSpec:
 			RULELOG("coarse_grained::pagelist");
 			$$ = (Node *) $3;
 		}
+		|
+		RANGES '(' rangeList ')'
+		{
+			RULELOG("coarse_grained::rangelist");
+			$$ = (Node *) $3;
+		}
 	;
+
+
+rangeList:
+       identifier '(' identifier intConst intConst ')' intConst 
+       {
+            RULELOG("rangeList::identifier::intConst::intConst");
+			List *l = LIST_MAKE(createConstString($3),createConstInt($4), createConstInt($5), createConstInt($7)); 
+            KeyValue *k = createNodeKeyValue((Node *) createConstString($1), 
+            									(Node *) l);
+            $$ = singleton(k);
+       }
+       |
+       rangeList ',' identifier '(' identifier intConst intConst ')' intConst
+       {
+            RULELOG("rangeList::rangeList::rangeList ");
+            List *l = LIST_MAKE(createConstString($5),createConstInt($6), createConstInt($7), createConstInt($9));        
+            KeyValue *k = createNodeKeyValue((Node *) createConstString($3), 
+            									(Node *) l);
+            $$ = appendToTailOfList($1, k);
+       }
+    ;	
 	
 pageList:
        identifier intConst optionalCoarseGrainedPara
