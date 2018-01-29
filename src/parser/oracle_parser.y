@@ -711,10 +711,14 @@ coarseGrainedSpec:
 
 
 rangeList:
-       identifier '(' identifier intConst intConst ')' intConst 
+       identifier '(' identifier intConst intConst ')' intConst optionalCoarseGrainedPara
        {
             RULELOG("rangeList::identifier::intConst::intConst");
-			List *l = LIST_MAKE(createConstString($3),createConstInt($4), createConstInt($5), createConstInt($7)); 
+            List *l = NIL;
+            if($8 == NULL)
+				l = LIST_MAKE(createConstString($3),createConstInt($4), createConstInt($5), createConstInt($7));
+		    else
+		        l = LIST_MAKE(createConstString($3),createConstInt($4), createConstInt($5), createConstInt($7), $8);
             KeyValue *k = createNodeKeyValue((Node *) createConstString($1), 
             									(Node *) l);
             $$ = singleton(k);

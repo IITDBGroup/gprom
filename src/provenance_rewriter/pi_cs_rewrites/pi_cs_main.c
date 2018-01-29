@@ -1809,6 +1809,12 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
          }
     }
 
+    //used to check if it is a range partation
+    int lenCoaList = LIST_LENGTH(coaParaValueList);
+    Constant *rangeFlag = NULL;
+    if(lenCoaList > 1)
+    		rangeFlag = (Constant *) getNthOfListP(coaParaValueList, 1);
+
     //check first element is A or 32
     Constant *flagValue = (Constant *) getHeadOfListP(coaParaValueList);
 
@@ -1839,10 +1845,13 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
     provAttr = appendToTailOfList(provAttr, newAttrName);
 
-    //two cases: fragment or page
+    //three cases: fragment or range or page
+    int flagFRP = 0;
     FunctionCall *f = NULL;
+    CaseExpr *caseExpr = NULL;
     if(flagValue->constType == DT_INT)  //if the first element is INT (e.g., 32 in (R 32), list value is {32}), this is page
     {
+    		flagFRP = 1;
        	DEBUG_LOG("deal with page");
         	DEBUG_LOG("hash value is %d", INT_VALUE(flagValue));
         	Constant *orhashValue = createConstInt(INT_VALUE(flagValue));
@@ -1864,8 +1873,51 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
         f = createFunctionCall ("ORA_HASH", LIST_MAKE(substr, orhashValue));
     }
+    else if(lenCoaList == 5 && rangeFlag->constType == DT_INT) //if the first element is STRING (e.g., A in (R(A 0 100) 4), list value is {A,0,100,4}), this is range 0~100 partation by 4
+    	{
+        	flagFRP = 2;
+        	DEBUG_LOG("deal with range");
+
+        	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+        	provAttr = appendToTailOfList(provAttr, newAttrName);
+
+        int lowValue = INT_VALUE((Constant *) getNthOfListP(coaParaValueList, 1));
+        int highValue = INT_VALUE((Constant *) getNthOfListP(coaParaValueList, 2));
+        //int pValue = INT_VALUE((Constant *) getNthOfListP(coaParaValueList, 3));
+        int pValue = aggFragValue;
+        int intervalValue = (highValue - lowValue) / pValue;
+        char *pAttrName = STRING_VALUE((Constant *) getNthOfListP(coaParaValueList, 0));
+        AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, pAttrName);
+
+        DEBUG_LOG("low: %d, high: %d, p: %d, interval: %d, attr: %s.", lowValue, highValue, pValue, intervalValue, pAttrName);
+
+        int tempCount = lowValue;
+        List *whenList = NIL;
+        for(int i=0; i<pValue; i++)
+        {
+        		Operator *leftOperator = NULL;
+        	    if(i == 0)
+        	    		leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+        	    else
+        	    		leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+            tempCount = tempCount + intervalValue;
+            Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+            Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
+            int power = 0;
+            if(i<2)
+               power = pow(2,i);
+            else
+            	   power = pow(2,i) + 1;
+        		CaseWhen *when = createCaseWhen(cond, (Node *) createConstInt(power));
+        		whenList = appendToTailOfList(whenList, when);
+        }
+
+        caseExpr = createCaseExpr(NULL, whenList, NULL);
+
+    	}
     else
     {
+    	flagFRP = 1;
 
     List *l = NIL;
     if(LIST_LENGTH(coaParaValueList) == 1) //A
@@ -1887,7 +1939,12 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
     f = createFunctionCall ("ORA_HASH", l);
     }
-    projExpr = appendToTailOfList(projExpr, f);
+
+    if(flagFRP == 1)
+    		projExpr = appendToTailOfList(projExpr, f);
+    else if(flagFRP == 2)
+    		projExpr = appendToTailOfList(projExpr, caseExpr);
+
     List *newProvPosList = singletonInt(cnt);
 
     DEBUG_LOG("rewrite table access, \n\nattrs <%s> and \n\nprojExprs <%s> and \n\nprovAttrs <%s>",
