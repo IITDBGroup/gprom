@@ -63,7 +63,7 @@ static Node *replaceDomWithSampleDom (Node *sampleDom, Node *input);
 static Node *rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType);
 static Node *rewritefMeasureOutput (Node *computeFracInput, float sPrec, float sRec, float sInfo, float thPrec, float thRec, float thInfo);
 static Node *rewriteTopkExplOutput (Node *fMeasureInput, int topK);
-static Node *integrateWithEdgeRel (Node *topkInput, Node *moveRels, List *fPattern);
+static Node *integrateWithEdgeRel (Node *topkInput, Node *moveRels);
 
 static List *provAttrs = NIL;
 static List *normAttrs = NIL;
@@ -75,7 +75,10 @@ static boolean isDl = FALSE;
 Node *
 rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 {
-	// options for summarization
+	/*
+	 * collect options for summarization
+	 * e.g., top-k, type computing patterns, sample size, and so on
+	 */
 	List *fPattern = NIL;
 	char *summaryType = NULL;
 	int sampleSize = 0;
@@ -181,8 +184,10 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		}
 	}
 
-	// store moveRules in separate
-	//TODO: not safe to check whether input comes from dl or SQL
+	/*
+	 * store edge relation in separate
+	 * TODO: not safe to check whether input comes from dl or SQL
+	 */
 	Node *moveRels = NULL;
 	if (isA(getHeadOfListP((List *) rewrittenTree), DuplicateRemoval))
 	{
@@ -190,7 +195,9 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		moveRels = (Node *) getTailOfListP((List *) rewrittenTree);
 	}
 
-	// summarization steps
+	/*
+	 * summarization steps begin
+	 */
 	List *doms = NIL;
 //	int *sampleSize = computeSampleSize(samplePerc,rewrittenTree);
 
@@ -216,16 +223,31 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		if(streq(t->tableName,"DQ"))
 			isDomSampNecessary = TRUE;
 
+	/*
+	 * Note that regardless of type of questions (why or why-not) if the domain is needed,
+	 * then generate sample domain queries at the very first stage,
+	 * e.g., idb negated atoms in the why question or positive atoms in the why-not
+	 */
 	if(isDomSampNecessary)
 	{
 		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair, isDomSampNecessary);
 		sampleDom = joinOnSeqOutput(doms);
 	}
 
-	// make the non-prov set involve as optional
-	// TODO: connect to the parser if needed
+	/* make the non-prov set involve as optional
+	 * TODO: connect to the parser if needed
+	 */
 	boolean nonProvOpt = FALSE;
 
+	/*
+	 * for why questions,
+	 * 1) take the prov result as an input
+	 * 2) sample prov from the result
+	 * 3) compute patterns over sample
+	 * 4) scale up to compute approximate real recall
+	 * 5) rank the patterns based on the computed fraction (e.g., recall and informativeness)
+	 * 6) return the explanation based on the top-k patterns
+	 */
 	if(streq(qType,"WHY"))
 	{
 		if(isDomSampNecessary)
@@ -260,6 +282,13 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		fMeasure = rewritefMeasureOutput(computeFrac, sPrecision, sRecall, sInfo, thPrecision, thRecall, thInfo);
 		result = rewriteTopkExplOutput(fMeasure, topK);
 	}
+	/*
+	 * for why-not questions,
+	 * 1) replace the domain part with the domain created over sampling
+	 * 2) compute patterns over sample
+	 * 3) rank the patterns based on the computed fraction (e.g., recall and informativeness)
+	 * 4) return the explanation based on the top-k patterns
+	 */
 	else if(streq(qType,"WHYNOT"))
 	{
 //		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair);
@@ -285,12 +314,11 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 //		INFO_OP_LOG("WHYNOT summary is currently on the implementation process!!");
 	}
 
-//	fMeasure = rewritefMeasureOutput(computeFrac, sPrecision, sRecall, sInfo, thPrecision, thRecall, thInfo);
-//	result = rewriteTopkExplOutput(fMeasure, topK);
-
-	// integrate with edge relation
+	/*
+	 * integrate with the edge relation
+	 */
 	if (moveRels != NULL)
-		result = integrateWithEdgeRel(result, moveRels, fPattern);
+		result = integrateWithEdgeRel(result, moveRels);
 
     // apply casts where necessary
     if (isA(result, List))
@@ -320,7 +348,7 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
  * integrate with edge rel for dl
  */
 static Node *
-integrateWithEdgeRel(Node * topkInput, Node *moveRels, List *fPattern)
+integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 {
 	Node *result;
 	QueryOperator *newEdgeBase = (QueryOperator *) topkInput;
