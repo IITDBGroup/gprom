@@ -44,13 +44,10 @@
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
+static void summarizationPlan(Node *parse);
 static List *summOpts = NIL;
 static char *qType = NULL;
 
-List *userQuestion = NIL;
-char *summaryType = NULL;
-int sampleSize = 0;
-int topK = 0;
 
 int
 initBasicModules (void)
@@ -517,70 +514,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     char *rewrittenSQL = NULL;
     Node *oModel;
 
-    // store summary type
-    if (isA(parse, List) && isA(getHeadOfListP((List *) parse), ProvenanceStmt))
-    {
-        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
-
-    	if (ps->sumOpts != NIL)
-    		FOREACH(Node,n,ps->sumOpts)
-    			summOpts = appendToTailOfList(summOpts,n);
-
-    	qType = "WHY";
-    }
-    // summarization options for DL input
-    else
-    {
-    	DLProgram *p = (DLProgram *) parse;
-
-    	if (p->sumOpts != NIL)
-    	{
-    		FOREACH(Node,n,p->sumOpts)
-				summOpts = appendToTailOfList(summOpts,n);
-
-    		// store (var,rel) to keep track
-    		HashMap *varRelPair = NEW_MAP(Constant,Constant);
-
-    		FOREACH(Node,n,p->rules)
-    		{
-    			if(isA(n,DLRule))
-    			{
-    				DLRule *r = (DLRule *) n;
-    				FOREACH(Node,b,r->body)
-    				{
-    					if(isA(b,DLAtom))
-    					{
-    						DLAtom *a = (DLAtom *) b;
-    						FOREACH(Node,n,a->args)
-    						{
-    							if(isA(n,DLVar))
-    							{
-    								DLVar *v = (DLVar *) n;
-    								MAP_ADD_STRING_KEY(varRelPair,v->name,a->rel);
-    							}
-    						}
-    					}
-    				}
-    			}
-    		}
-    		summOpts = appendToTailOfList(summOpts, (Node *) varRelPair);
-    	}
-
-    	// either why or why-not
-    	FOREACH(Node,n,p->rules)
-    	{
-    		if(isA(n,KeyValue))
-    		{
-    			KeyValue *kv = (KeyValue *) n;
-    			qType = STRING_VALUE(kv->key);
-
-    			if(isPrefix(qType,"WHYNOT_"))
-    				qType = "WHYNOT";
-    			else
-    				qType = "WHY";
-    		}
-    	}
-    }
+    summarizationPlan(parse);
 
     START_TIMER("translation");
     oModel = translateParse(parse);
@@ -613,4 +547,107 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     	rewrittenSQL = generatePlan(oModel, applyOptimizations);
 
     return rewrittenSQL;
+}
+
+static void
+summarizationPlan (Node *parse)
+{
+    // store options for the summarization and question type
+    if (isA(parse, List) && isA(getHeadOfListP((List *) parse), ProvenanceStmt))
+    {
+        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
+
+    	if (ps->sumOpts != NIL)
+    		FOREACH(Node,n,ps->sumOpts)
+    			summOpts = appendToTailOfList(summOpts,n);
+
+    	qType = "WHY";
+    }
+    else // summarization options for DL input
+    {
+    	DLProgram *p = (DLProgram *) parse;
+
+    	// either why or why-not
+    	FOREACH(Node,n,p->rules)
+    	{
+    		if(isA(n,KeyValue))
+    		{
+    			KeyValue *kv = (KeyValue *) n;
+    			qType = STRING_VALUE(kv->key);
+
+    			if(isPrefix(qType,"WHYNOT_"))
+    				qType = "WHYNOT";
+    			else
+    				qType = "WHY";
+    		}
+    	}
+
+    	if (p->sumOpts != NIL)
+    	{
+    		FOREACH(Node,n,p->sumOpts)
+				summOpts = appendToTailOfList(summOpts,n);
+
+    		// store (var,rel) to keep track
+    		HashMap *varRelPair = NEW_MAP(Constant,Constant);
+    		HashMap *headEdbPair = NEW_MAP(Constant,List);
+    		List *negIdbs = NIL;
+
+    		FOREACH(Node,n,p->rules)
+    		{
+    			if(isA(n,DLRule))
+    			{
+    				DLRule *r = (DLRule *) n;
+            		List *edbList = NIL;
+
+    				FOREACH(Node,b,r->body)
+    				{
+    					if(isA(b,DLAtom))
+    					{
+    						DLAtom *a = (DLAtom *) b;
+
+    						if(a->negated)
+    							negIdbs = appendToTailOfList(negIdbs,a->rel);
+    						else
+           						edbList = appendToTailOfList(edbList,a->rel);
+
+    						FOREACH(Node,n,a->args)
+    						{
+    							if(isA(n,DLVar))
+    							{
+    								DLVar *v = (DLVar *) n;
+    								MAP_ADD_STRING_KEY(varRelPair,v->name,a->rel);
+    							}
+    						}
+    					}
+    				}
+
+        			char *headPred = getHeadPredName(r);
+    				MAP_ADD_STRING_KEY(headEdbPair,headPred,edbList);
+    			}
+    		}
+
+    		FOREACH(char,c,negIdbs)
+    		{
+    			if(streq(qType,"WHY"))
+    			{
+        			if(MAP_HAS_STRING_KEY(headEdbPair,c))
+        			{
+        				List *edbs = (List *) MAP_GET_STRING(headEdbPair,c);
+
+        				FOREACH(char,e,edbs)
+        					MAP_ADD_STRING_KEY(varRelPair,e,e);
+        			}
+    			}
+    			else
+    			{
+    				FOREACH_HASH(List,edbs,headEdbPair)
+    					FOREACH(char,e,edbs)
+							MAP_ADD_STRING_KEY(varRelPair,e,e);
+    			}
+    		}
+
+    		// store into the list of the summarization options
+    		summOpts = appendToTailOfList(summOpts, (Node *) varRelPair);
+    	}
+    }
 }

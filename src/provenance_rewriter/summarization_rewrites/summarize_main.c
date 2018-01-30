@@ -46,7 +46,7 @@
 #define SAMP_NUM_L_ATTR SAMP_NUM_PREFIX "Left"
 #define SAMP_NUM_R_ATTR SAMP_NUM_PREFIX "Right"
 
-static List *domAttrsOutput (Node *sampleInput, int sampleSize, char *qType, HashMap *vrPair);
+static List *domAttrsOutput (Node *sampleInput, int sampleSize, char *qType, HashMap *vrPair, boolean isDomSampNecessary);
 //static int *computeSampleSize (int *samplePerc, Node *prov);
 
 static Node *rewriteUserQuestion (List *userQ, Node *rewrittenTree);
@@ -211,8 +211,25 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
         *computeFrac=NULL,
         *fMeasure = NULL;
 
+	// if DQ exists, then replace, e.g., even for why question which contains negated IDB atoms
+	boolean isDomSampNecessary = FALSE;
+	findTableAccessVisitor((Node *) getHeadOfListP((List *) rewrittenTree),&doms);
+
+	FOREACH(TableAccessOperator,t,doms)
+		if(streq(t->tableName,"DQ"))
+			isDomSampNecessary = TRUE;
+
+	if(isDomSampNecessary)
+	{
+		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair, isDomSampNecessary);
+		sampleDom = joinOnSeqOutput(doms);
+	}
+
 	if(streq(qType,"WHY"))
 	{
+		if(isDomSampNecessary)
+			rewrittenTree = replaceDomWithSampleDom(sampleDom, rewrittenTree);
+
 		if (userQuestion != NIL)
 			rewrittenTree = rewriteUserQuestion(userQuestion, rewrittenTree);
 
@@ -232,7 +249,10 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		candidates = rewriteCandidateOutput(scanSamples, qType);
 
 		if(nonProvOpt)
-			doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair);
+		{
+			isDomSampNecessary = FALSE;
+			doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair, isDomSampNecessary);
+		}
 
 		scaleUp = scaleUpOutput(doms, candidates, provJoin, randomProv, randomNonProv);
 		computeFrac = rewriteComputeFracOutput(scaleUp, randomProv, qType);
@@ -241,8 +261,8 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	}
 	else if(streq(qType,"WHYNOT"))
 	{
-		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair);
-		sampleDom = joinOnSeqOutput(doms);
+//		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair);
+//		sampleDom = joinOnSeqOutput(doms);
 		whynotExpl = replaceDomWithSampleDom(sampleDom, rewrittenTree);
 		randomProv = rewriteRandomProvTuples(whynotExpl, sampleSize, qType, fPattern, nonProvOpt);
 		randomNonProv = rewriteRandomNonProvTuples(whynotExpl, qType, fPattern);
@@ -1026,12 +1046,13 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
  * generate domain attrs for later use of scale up of the measure values to the real values
  */
 static List *
-domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair)
+domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, boolean isDomSampNecessary)
 {
 	List *result = NIL;
 
 	// translated input algebra to use the table acess operators
-	QueryOperator *prov;
+	QueryOperator *prov = NULL;
+
 	if(isA(input, List))
 		prov = (QueryOperator *) getHeadOfListP((List *) input);
 	else
@@ -1059,13 +1080,13 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair)
 //	}
 
 	// store table access operator for later use of dom attrs
+	List *removeDupTa = NIL;
 	List *rels = NIL;
 	findTableAccessVisitor((Node *) transInput,&rels);
 
 	if(isDl)
 	{
 		// remove duplicate tableaccessOp
-		List *removeDupTa = NIL;
 		FOREACH(TableAccessOperator,t,rels)
 			if(!searchList(removeDupTa,t))
 				removeDupTa = appendToTailOfList(removeDupTa,t);
@@ -1100,7 +1121,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair)
 	char *relName = NULL;
 	HashMap *existAttr = NEW_MAP(Constant,Constant);
 
-	FOREACH(TableAccessOperator,t,rels)
+	FOREACH(TableAccessOperator,t,removeDupTa)
 	{
 		// if the input query is not self-joined, then reset everything
 		if(relName != NULL)
@@ -1117,7 +1138,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair)
 
 		// collect the attrs not in the prov question and create dom for those
 		// TODO: condition is temporary (e.g., to filter out the case that for self-join, dom attrs are generated based on only left)
-		if(relName == NULL)
+		if(relName == NULL && MAP_HAS_STRING_KEY(vrPair,t->tableName))
 		{
 			relName = strdup(t->tableName);
 
@@ -1136,7 +1157,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair)
 					if(existAttrCnt == 0)
 					{
 						// count for why
-						if(streq(qType,"WHY"))
+						if(streq(qType,"WHY") && !isDomSampNecessary)
 						{
 							// create count attr
 							AttributeReference *countAr = createFullAttrReference(strdup(ar->name), 0, ar->attrPosition - attrCount, 0, DT_INT);
@@ -1152,7 +1173,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair)
 							result = appendToTailOfList(result, (Node *) aggCount);
 						}
 						// random sample from attr domain for whynot
-						else if(streq(qType,"WHYNOT"))
+						else if(streq(qType,"WHYNOT") || (streq(qType,"WHY") && isDomSampNecessary))
 						{
 							/*
 							 *  TODO: compute percentile for random sample based on the sample size
@@ -2621,8 +2642,13 @@ static Node *
 rewriteUserQuestion (List *userQ, Node *rewrittenTree)
 {
 	Node *result;
+	QueryOperator *input = NULL;
 
-	QueryOperator *input = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
+	if(isA(rewrittenTree,List))
+		input = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
+	else
+		input = (QueryOperator *) rewrittenTree;
+
 	Node *prop = input->properties;
 
 	if (provAttrs == NIL || normAttrs == NIL)
@@ -2632,7 +2658,16 @@ rewriteUserQuestion (List *userQ, Node *rewrittenTree)
 	}
 
 	// get attrRefs for the input
-	List *inputAttrRefs = ((ProjectionOperator *) input)->projExprs;
+//	List *inputAttrRefs = ((ProjectionOperator *) input)->projExprs;
+	List *inputAttrRefs = NIL;
+	QueryOperator *inOp = (QueryOperator *) input;
+	int pos = 0;
+
+	FOREACH(AttributeDef,a,inOp->schema->attrDefs)
+	{
+		inputAttrRefs = appendToTailOfList(inputAttrRefs,
+				createFullAttrReference(strdup(a->attrName), 0, pos, -1, a->dataType));
+	}
 
 	// check the list for constant value to create sel condition
 	int chkPos = 0;
@@ -2672,7 +2707,7 @@ rewriteUserQuestion (List *userQ, Node *rewrittenTree)
 	input = (QueryOperator *) so;
 
 	// create projection operator
-	int pos = 0;
+	pos = 0;
 //	List *attrs = NIL;
 	List *projExpr = NIL;
 	ProjectionOperator *op;
