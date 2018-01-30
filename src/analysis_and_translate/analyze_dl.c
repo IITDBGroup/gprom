@@ -214,18 +214,18 @@ analyzeDLProgram (DLProgram *p)
 		}
 
     	// failure pattern assigned with why question
-        if(isFpattern && hasMapStringKey(hm,"WHY_PROV"))
+        if(isFpattern && MAP_HAS_STRING_KEY(hm,"WHY_PROV"))
         	FATAL_LOG("no failure can happen with WHY question");
 
-        // no failure pattern assigned with whynot question
-        if(!isFpattern && hasMapStringKey(hm,"WHYNOT_PROV"))
-        	FATAL_LOG("failure pattern must be assigned with WHYNOT question for summarization");
+//        // no failure pattern assigned with whynot question
+//        if(!isFpattern && MAP_HAS_STRING_KEY(hm,"WHYNOT_PROV"))
+//        	FATAL_LOG("failure pattern must be assigned with WHYNOT question for summarization");
 
         // the length of failure pattern must be equal to the number of body atoms
         char *ansPred = NULL;
         int bodyLeng = 0;
 
-		if(hasMapStringKey(hm,"WHYNOT_PROV") && isFpattern)
+		if(MAP_HAS_STRING_KEY(hm,"WHYNOT_PROV") && isFpattern)
 		{
 			DLAtom *ansAtom = (DLAtom *) getMapString(hm,"WHYNOT_PROV");
 			ansPred = (char *) ansAtom->rel;

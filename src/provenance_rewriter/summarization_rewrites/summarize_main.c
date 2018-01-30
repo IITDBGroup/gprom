@@ -91,9 +91,6 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	float thInfo = 0;
 
 	HashMap *varRelPair = NULL;
-	// make the non-prov set involve as optional
-	// TODO: connect to the parser if needed
-	boolean nonProvOpt = FALSE;
 
 	if (summOpts != NIL)
 	{
@@ -225,6 +222,10 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		sampleDom = joinOnSeqOutput(doms);
 	}
 
+	// make the non-prov set involve as optional
+	// TODO: connect to the parser if needed
+	boolean nonProvOpt = FALSE;
+
 	if(streq(qType,"WHY"))
 	{
 		if(isDomSampNecessary)
@@ -265,8 +266,15 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 //		sampleDom = joinOnSeqOutput(doms);
 		whynotExpl = replaceDomWithSampleDom(sampleDom, rewrittenTree);
 		randomProv = rewriteRandomProvTuples(whynotExpl, sampleSize, qType, fPattern, nonProvOpt);
-		randomNonProv = rewriteRandomNonProvTuples(whynotExpl, qType, fPattern);
-		samples = rewriteSampleOutput(randomProv, randomNonProv, sampleSize, qType);
+
+		if(nonProvOpt)
+		{
+			randomNonProv = rewriteRandomNonProvTuples(whynotExpl, qType, fPattern);
+			samples = rewriteSampleOutput(randomProv, randomNonProv, sampleSize, qType);
+		}
+		else
+			samples = randomProv;
+
 		patterns = rewritePatternOutput(summaryType, samples, randomProv); //TODO: different types of pattern generation
 		scanSamples = rewriteScanSampleOutput(samples, patterns);
 		candidates = rewriteCandidateOutput(scanSamples, qType);
@@ -276,6 +284,9 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 
 //		INFO_OP_LOG("WHYNOT summary is currently on the implementation process!!");
 	}
+
+//	fMeasure = rewritefMeasureOutput(computeFrac, sPrecision, sRecall, sInfo, thPrecision, thRecall, thInfo);
+//	result = rewriteTopkExplOutput(fMeasure, topK);
 
 	// integrate with edge relation
 	if (moveRels != NULL)
@@ -322,7 +333,7 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels, List *fPattern)
 
 	FOREACH(AttributeDef,a,newEdgeBase->schema->attrDefs)
 	{
-		if(isPrefix(a->attrName,"PROV_"))
+		if(isPrefix(a->attrName,"PROV_") || a->dataType == DT_BOOL)
 		{
 			projExpr = appendToTailOfList(projExpr,
 					createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
@@ -332,22 +343,22 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels, List *fPattern)
 		pos++;
 	}
 
-	// bring the failure pattern back before merge with edge rel for WHYNOT
-	if(fPattern != NIL)
-	{
-		FOREACH(Node,n,fPattern)
-		{
-			projExpr = appendToTailOfList(projExpr, n);
-			attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A",gprom_itoa(pos)));
-			pos++;
-		}
-
-		List *userQdt = NIL;
-		FOREACH(AttributeDef,a,userQuestion)
-			userQdt = appendToTailOfListInt(userQdt, a->dataType);
-
-		origDataTypes = CONCAT_LISTS(userQdt, origDataTypes);
-	}
+//	// bring the failure pattern back before merge with edge rel for WHYNOT
+//	if(!LIST_EMPTY(fPattern))
+//	{
+//		FOREACH(Node,n,fPattern)
+//		{
+//			projExpr = appendToTailOfList(projExpr, n);
+//			attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A",gprom_itoa(pos)));
+//			pos++;
+//		}
+//
+//		List *userQdt = NIL;
+//		FOREACH(AttributeDef,a,userQuestion)
+//			userQdt = appendToTailOfListInt(userQdt, a->dataType);
+//
+//		origDataTypes = CONCAT_LISTS(userQdt, origDataTypes);
+//	}
 
 	// case when attr is null then * else attr value
 	List *caseExprs = NIL;
@@ -364,7 +375,8 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels, List *fPattern)
 		// TODO: need to bring the original name back on
 		char *attrAs = strdup(a->name);
 
-		if(isA(n,Constant) || ((DataType *) getNthOfListP(origDataTypes,pos)) == DT_INT)
+//		if(isA(n,Constant) || ((DataType *) getNthOfListP(origDataTypes,pos)) == DT_INT)
+		if(isA(n,Constant) || ((DataType *) n) == DT_INT)
 		{
 			if(isA(n,Constant))
 				attrAs = "*";
@@ -1426,6 +1438,8 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 	int hasPos = 0;
 	List *projExpr = NIL;
 	List *hasExpr = NIL;
+	List *failExpr = NIL;
+	attrNames = NIL;
 	ProjectionOperator *op;
 
 	FOREACH(AttributeDef,p,scanSample->schema->attrDefs)
@@ -1442,18 +1456,24 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 				projExpr = appendToTailOfList(projExpr,
 						createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
 		}
+		else if (p->dataType == DT_BOOL)
+		{
+			failExpr = appendToTailOfList(failExpr,
+					createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+
+			attrNames = appendToTailOfList(attrNames,p->attrName);
+		}
 		pos++;
 	}
 
-	AttributeReference *hp = (AttributeReference *) getHeadOfListP(hasExpr);
-	projExpr = appendToTailOfList(projExpr, hp);
+	projExpr = CONCAT_LISTS(projExpr, failExpr, hasExpr);
 
 	List *subAttrs = NIL;
 	FOREACH(char,a,getAttrNames(patterns->schema))
 		if (isPrefix(a,"PROV_"))
 			subAttrs = appendToTailOfList(subAttrs,a);
 
-	attrNames = concatTwoLists(subAttrs,singleton(hp->name));
+	attrNames = CONCAT_LISTS(subAttrs, attrNames, singleton(HAS_PROV_ATTR));
 	op = createProjectionOp(projExpr, scanSample, NIL, attrNames);
 
 	scanSample->parents = singleton(op);
@@ -1876,10 +1896,10 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize, char *qT
 	}
 	else if(streq(qType,"WHYNOT"))
 	{
-		// make attr name with "PROV_"
-		FOREACH(AttributeDef,a,randomProv->schema->attrDefs)
-			if(!streq(a->attrName,HAS_PROV_ATTR))
-				a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
+//		// make attr name with "PROV_"
+//		FOREACH(AttributeDef,a,randomProv->schema->attrDefs)
+//			if(!streq(a->attrName,HAS_PROV_ATTR))
+//				a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
 
 		FOREACH(AttributeDef,a,((QueryOperator *) randNonProv)->schema->attrDefs)
 			if(!streq(a->attrName,HAS_PROV_ATTR))
@@ -2113,50 +2133,53 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, char *qType, List *fPat
 	else if(streq(qType,"WHYNOT"))
 	{
 		int numAttrInput = LIST_LENGTH(randomProv->schema->attrDefs);
-		int lenOfPattern = LIST_LENGTH(fPattern);
-		int patternPos = numAttrInput - lenOfPattern;
-		int pos = 0;
+		int lenOfPattern, patternPos, pos = 0;
 
-		// create selection condition
-		Node *curCond = NULL;
-
-		while(patternPos < numAttrInput)
+		if(!LIST_EMPTY(fPattern))
 		{
-			Node *attrCond = NULL;
-			AttributeDef *a = (AttributeDef *) getNthOfListP(randomProv->schema->attrDefs, patternPos);
+			lenOfPattern = LIST_LENGTH(fPattern);
+			patternPos = numAttrInput - lenOfPattern;
 
-			AttributeReference *lA = createFullAttrReference(strdup(a->attrName),0,patternPos,0,a->dataType);
-			Node *rA = (Node *) createConstInt(INT_VALUE(getNthOfListP(fPattern,pos)));
+			// create selection condition
+			Node *curCond = NULL;
 
-			attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+			while(patternPos < numAttrInput)
+			{
+				Node *attrCond = NULL;
+				AttributeDef *a = (AttributeDef *) getNthOfListP(randomProv->schema->attrDefs, patternPos);
 
-			if(pos == 0)
-				curCond = attrCond;
-			else if(pos > 0)
-				curCond = AND_EXPRS(curCond,attrCond);
+				AttributeReference *lA = createFullAttrReference(strdup(a->attrName),0,patternPos,0,a->dataType);
+				Node *rA = (Node *) createConstInt(INT_VALUE(getNthOfListP(fPattern,pos)));
 
-			patternPos++;
-			pos++;
+				attrCond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+
+				if(pos == 0)
+					curCond = attrCond;
+				else if(pos > 0)
+					curCond = AND_EXPRS(curCond,attrCond);
+
+				patternPos++;
+				pos++;
+			}
+
+			SelectionOperator *selCond = createSelectionOp(curCond, randomProv, NIL, NIL);
+			randomProv->parents = singleton(selCond);
+			randomProv = (QueryOperator *) selCond;
 		}
-
-		SelectionOperator *selCond = createSelectionOp(curCond, randomProv, NIL, NIL);
-		randomProv->parents = singleton(selCond);
-		randomProv = (QueryOperator *) selCond;
 
 		// create projection operator
 		List *projExpr = NIL;
 		List *attrNames = NIL;
-		patternPos = numAttrInput - lenOfPattern;
 		pos = 0;
 
 		FOREACH(AttributeDef,a,randomProv->schema->attrDefs)
 		{
-			if(pos < patternPos)
-			{
+//			if(a->dataType != DT_BOOL)
+//			{
 				attrNames = appendToTailOfList(attrNames, strdup(a->attrName));
 				projExpr = appendToTailOfList(projExpr,
 								createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
-			}
+//			}
 			pos++;
 		}
 
@@ -2168,6 +2191,11 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, char *qType, List *fPat
 		ProjectionOperator *projOp = createProjectionOp(projExpr, randomProv, NIL, attrNames);
 		randomProv->parents = singleton(projOp);
 		randomProv = (QueryOperator *) projOp;
+
+		// make attr name with "PROV_"
+		FOREACH(AttributeDef,a,randomProv->schema->attrDefs)
+			if(!streq(a->attrName,HAS_PROV_ATTR) && a->dataType != DT_BOOL)
+				a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
 	}
 
 	result = (Node *) randomProv;
