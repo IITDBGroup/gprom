@@ -1248,21 +1248,29 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, boole
 
 							// calculate percentile for sampling
 							int dataSize = atoi(numInTableName);
-							int perc = sampleSize / dataSize;
+							float perc = 100;
 
-							/*
-							 *  re-compute percentile for sampling to guarantee that over 99% of over sampling
-							 *  which guarantees 99% of having minimum number of failure pattern (from user) in the sample
-							 */
-							if(sampleSize >= 100 && sampleSize < 1000)
-								perc = perc + (perc / 10 * 5);
-							else if(sampleSize >= 1000)
-								perc = perc + (perc / 10);
+							if(sampleSize < dataSize)
+							{
+								perc = sampleSize / dataSize;
+
+								/*
+								 *  re-compute percentile for sampling to guarantee that over 99% of over sampling
+								 *  which guarantees 99% of having minimum number of failure pattern (from user) in the sample
+								 */
+								if(sampleSize >= 100 && sampleSize < 1000)
+									perc = perc + (perc / 10 * 5);
+								else if(sampleSize >= 1000)
+									perc = perc + (perc / 10);
+							}
+
+							if(perc == 0)
+								perc = 0.000001;
 
 							// sample perc for adding SAMPLE clause in the serializer
 //							t->sampClause = (Node *) createConstInt(perc);
 							SampleClauseOperator *scOp = createSampleClauseOp((QueryOperator *) t,
-															(Node *) createConstInt(perc),
+															(Node *) createConstFloat(perc),
 															getAttrNames(t->op.schema),
 															getAttrDataTypes(t->op.schema->attrDefs));
 
