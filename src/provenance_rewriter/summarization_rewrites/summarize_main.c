@@ -404,14 +404,13 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 		char *attrAs = strdup(a->name);
 
 //		if(isA(n,Constant) || ((DataType *) getNthOfListP(origDataTypes,pos)) == DT_INT)
-		if(isA(n,Constant) || ((DataType *) n) == DT_INT)
-		{
+//		{
 			if(isA(n,Constant))
 				attrAs = "*";
 
 			toChar = createFunctionCall("TO_CHAR", singleton(n));
 			n = (Node *) toChar;
-		}
+//		}
 
 		Node *cond = (Node *) createIsNullExpr((Node *) n);
 		Node *then = (Node *) createConstString(attrAs);
