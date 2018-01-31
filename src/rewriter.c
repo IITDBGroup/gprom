@@ -587,7 +587,7 @@ summarizationPlan (Node *parse)
     		FOREACH(Node,n,p->sumOpts)
 				summOpts = appendToTailOfList(summOpts,n);
 
-    		// store (var,rel) to keep track
+    		// keep track of (var,rel) and (negidb,edb)
     		HashMap *varRelPair = NEW_MAP(Constant,Constant);
     		HashMap *headEdbPair = NEW_MAP(Constant,List);
     		List *negIdbs = NIL;

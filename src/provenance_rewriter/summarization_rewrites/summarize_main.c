@@ -1342,7 +1342,8 @@ rewriteCandidateOutput (Node *scanSampleInput, char *qType)
 	aggrs = appendToTailOfList(aggrs,fcShnp);
 	aggrs = appendToTailOfList(aggrs,fc);
 
-	List *attrs = getAttrDefNames(removeFromTail(scanSamples->schema->attrDefs));
+//	List *attrs = getAttrDefNames(removeFromTail(scanSamples->schema->attrDefs));
+	List *attrs = getAttrDefNames(scanSamples->schema->attrDefs);
 	attrNames = concatTwoLists(attrNames, attrs);
 
 	AggregationOperator *gb = createAggregationOp(aggrs, groupBy, scanSamples, NIL, attrNames);
@@ -1434,7 +1435,7 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 
 		FOREACH(AttributeDef,al,samples->schema->attrDefs)
 		{
-			if(isSubstr(ar->attrName,al->attrName))
+			if(isSubstr(ar->attrName,al->attrName) && isPrefix(al->attrName,"PROV_"))
 			{
 				int alPos = LIST_LENGTH(normAttrs) + aPos;
 				lA = createFullAttrReference(strdup(al->attrName), 0, alPos, 0, al->dataType);
@@ -1494,14 +1495,22 @@ rewriteScanSampleOutput (Node *sampleInput, Node *patternInput)
 		pos++;
 	}
 
-	projExpr = CONCAT_LISTS(projExpr, failExpr, hasExpr);
-
 	List *subAttrs = NIL;
 	FOREACH(char,a,getAttrNames(patterns->schema))
 		if (isPrefix(a,"PROV_"))
 			subAttrs = appendToTailOfList(subAttrs,a);
 
-	attrNames = CONCAT_LISTS(subAttrs, attrNames, singleton(HAS_PROV_ATTR));
+	if(LIST_EMPTY(failExpr))
+	{
+		projExpr = CONCAT_LISTS(projExpr, hasExpr);
+		attrNames = CONCAT_LISTS(subAttrs, singleton(HAS_PROV_ATTR));
+	}
+	else
+	{
+		projExpr = CONCAT_LISTS(projExpr, failExpr, hasExpr);
+		attrNames = CONCAT_LISTS(subAttrs, attrNames, singleton(HAS_PROV_ATTR));
+	}
+
 	op = createProjectionOp(projExpr, scanSample, NIL, attrNames);
 
 	scanSample->parents = singleton(op);

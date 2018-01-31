@@ -4646,8 +4646,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	else
 	{
 		FOREACH(DLRule,r,newRules)
-			if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
-				solvedProgram->ans = r->head->rel;
+//			if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
+			FOREACH(Node,n,r->head->args)
+				if(isA(n,Constant))
+					solvedProgram->ans = r->head->rel;
 
 		if (ruleWon)
 			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, unLinkedRules, newRules, origDLrules);
