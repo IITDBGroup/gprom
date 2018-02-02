@@ -33,7 +33,7 @@ class GProMWrapper:
       self.options = options
    
    def constructCommand(self,query,loglevel=0,plugins={},frontend='',options=''):
-       gprom_cmd=['/home/shek21/eclipse/workspace/Project/GProM/src/command_line/gprom','-loglevel',loglevel,'-backend',self.backend]
+       gprom_cmd=['gprom','-loglevel',loglevel,'-backend',self.backend]
        # set frontend
        if (frontend != ''):
           gprom_cmd+=['-frontend',frontend]
