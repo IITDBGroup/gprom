@@ -4,13 +4,14 @@
 <div class="container">
 <div class="left">
     <h2>Help</h2>
-    <p>Please enter a Datalog query and provenance request (e.g., Q(X) :- R(X,Y). WHY(Q(1)).) or select a past query from the dropdown.</p>
-    <p>More examples can be found in our 
-	<a href="https://github.com/IITDBGroup/gprom/wiki/datalog_prov" target="_blank"><u>github (Datalog Provenance)</u></a>.
-    </p>
+    <p>* Please follow one of the options below to start PUG:</p> 
+    <p style="margin-left: 10px">1) Enter a Datalog query (e.g, Q(X) :- R(X,Y)) and provenance request (e.g., WHY(Q(1))).</p>
+    <p style="margin-left: 10px">2) Select a past query from the dropdown.</p>
+    <p>* The PUG tutorials can be found <a href="https://github.com/IITDBGroup/gprom/wiki/datalog_prov" target="_blank"><u>here</u></a>.</p>
 </div>
 <div class="right">
-    <p> {{ indblist|safe }} </p>
+	<h2>Database Overview</h2>
+    <p> {{ queryResult|safe }} </p>
 </div>
 </div>
 {% endblock %}

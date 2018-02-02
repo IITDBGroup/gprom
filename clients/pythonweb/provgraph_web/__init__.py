@@ -30,8 +30,34 @@ from models import *
 @app.route('/')
 def home():
     allQueries = db.session.query(ProvQuery).all()
-    return render_template('index.html',allQueries=allQueries)
-#    # enumerate table lists in the database
+    # query="""SELECT * FROM all_tables WHERE owner = 'FGA_USER' AND tablespace_name = 'USERS' ORDER BY table_name;"""
+    #query="""SELECT table_name FROM user_tables ORDER BY table_name;"""
+    query="""SELECT * FROM tabcollist 
+             WHERE table_name LIKE 'AC%' OR table_name LIKE 'AR%' 
+                    OR table_name LIKE 'BANK%' OR table_name LIKE 'CHICRIMES%'
+                    OR table_name LIKE 'EMPHIST%' OR table_name LIKE 'MOVIES%'
+                    OR table_name LIKE 'ratings%' OR table_name LIKE 're%'
+                    OR table_name LIKE 'SANEP%';"""
+    returncode, gpromlog = w.runQuery(query)
+    queryResult = gpromlog
+    gpromlog = conv.convert(gpromlog,full=False)
+    lines=[]
+    if(returncode == 0):
+        lines=queryResult.split('\n')
+        numAttr=lines[0].count('|')
+        lines=[ l for l in lines if not(not l or l.isspace()) ]
+        lines=map(lambda x: '| ' + x + 'X', lines)
+        if len(lines) > 1:
+            lines[1] = '|' + (' -- | ' * numAttr)
+        else:
+            lines += ['|' + (' -- | ' * numAttr)]
+        queryResult='\n'.join(lines)
+        md = markdown.Markdown(extensions=['tables'])
+        queryResult = md.convert(queryResult)
+
+    return render_template('index.html',allQueries=allQueries,returncode=returncode, queryResult=queryResult)
+   # enumerate table lists in the database
+
 #    query="""SELECT table_name FROM user_tables"""
 #    query+=""" WHERE tablespace_name = 'USERS'"""
 #    query+=""" AND num_rows < 30 AND avg_row_len < 30"""
@@ -82,6 +108,8 @@ def querysubmit():
 	session['action'] = 'provgame'
     elif request.form.has_key('genprovgraph'):
         session['action'] = 'provgraph'
+    elif request.form.has_key('genprovpolygraph'):
+        session['action'] = 'provpolygraph'
     elif request.form.has_key('gentriograph'):
         session['action'] = 'triograph'
     elif request.form.has_key('genlingraph'):
@@ -110,13 +138,16 @@ def showgraph():
     # generate a graph
     provQuest = query.find('WHY')
     lines=[]
-    if action == 'provgame' or action == 'provgraph' or action == 'triograph' or action == 'lingraph':
+    if action == 'provgame' or action == 'provgraph' or action == 'provpolygraph' or action == 'triograph' or action == 'lingraph':
 	if provQuest > 0:
             if action == 'provgraph':
 		query = query[:query.find('))')] + ')) FORMAT REDUCED_GP.'
 #		graphFormat = query.find('FORMAT')
 #		if graphFormat < 1:
 #		    query = query[:-1] + ' FORMAT REDUCED_GP.'
+        #     if action == 'provpolygraph':
+        # query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_GOAL_TUPLE.'
+        # # 
             if action == 'triograph':
 		query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB.'
 #		graphFormat = query.find('FORMAT')

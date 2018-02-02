@@ -21,7 +21,7 @@ class GProMWrapper:
    'Wrapper around the gprom commandline'
 
    # stores connection parameters and other gprom options
-   def __init__(self, user, passwd, host, port='1521', db='orcl', frontend='dl', backend='oracle', plugins={ 'executor' : 'run' }, options={}):
+   def __init__(self, user, passwd, host, port='1521', db='orcl', frontend='', backend='oracle', plugins={ 'executor' : 'run' }, options={}):
       self.user = user
       self.passwd = passwd
       self.host = host
@@ -32,8 +32,11 @@ class GProMWrapper:
       self.plugins = plugins
       self.options = options
    
-   def constructCommand(self,query,loglevel=0,plugins={},options=''):
-       gprom_cmd=['gprom','-loglevel',loglevel,'-backend',self.backend,'-frontend',self.frontend]
+   def constructCommand(self,query,loglevel=0,plugins={},frontend='',options=''):
+       gprom_cmd=['/home/shek21/eclipse/workspace/Project/GProM/src/command_line/gprom','-loglevel',loglevel,'-backend',self.backend]
+       # set frontend
+       if (frontend != ''):
+          gprom_cmd+=['-frontend',frontend]
        # set connection options
        gprom_cmd+=['-user',self.user,'-passwd',self.passwd,'-host',self.host,'-port',self.port,'-db',self.db]
        # setup plugins
@@ -53,13 +56,14 @@ class GProMWrapper:
        print gprom_cmd
        return gprom_cmd
 
-   def executeAndCollectErrors(self,query,errorloglevel=3,mode='run',inputdb=''):
+   def executeAndCollectErrors(self,query,errorloglevel=3,mode='run',frontend='',inputdb=''):
        runPlugins={'executor':mode}
+       runFrontend=frontend
        runOptions=inputdb
-       orig_cmd=self.constructCommand(query,plugins=runPlugins,options=runOptions)
+       orig_cmd=self.constructCommand(query,plugins=runPlugins,frontend=runFrontend,options=runOptions)
        err, std, errcode = run_command(orig_cmd)
        if errcode != 0:
-           debug_cmd=self.constructCommand(query,errorloglevel,plugins=runPlugins,options=runOptions)
+           debug_cmd=self.constructCommand(query,errorloglevel,plugins=runPlugins,frontend=runFrontend,options=runOptions)
            err, std, errcode = run_command(debug_cmd)
            return errcode, std + '\n' + err
        return 0, std
@@ -86,12 +90,16 @@ class GProMWrapper:
            dot_return, dot_log = 0, ''
        return (gprom_return + dot_return), gprom_log, dot_log
 
-   def runDLQuery (self,query,mode='run'):
-       errcode, output = self.executeAndCollectErrors(query,mode=mode)
+   def runDLQuery (self,query,mode='run',frontend='dl'):
+       errcode, output = self.executeAndCollectErrors(query,mode=mode,frontend=frontend)
        return errcode, output
 
-   def runInputDB (self,query,mode='run',inputdb='-inputdb'):
-       errcode, output = self.executeAndCollectErrors(query,mode=mode,inputdb=inputdb)
+   def runInputDB (self,query,mode='run',frontend='dl',inputdb='-inputdb'):
+       errcode, output = self.executeAndCollectErrors(query,mode=mode,frontend=frontend,inputdb=inputdb)
+       return errcode, output
+
+   def runQuery (self,query,mode='run',frontend=''):
+       errcode, output = self.executeAndCollectErrors(query,mode=mode,frontend=frontend)
        return errcode, output
 
    def printHelp (self):

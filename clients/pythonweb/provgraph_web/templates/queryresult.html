@@ -1,13 +1,24 @@
 {% extends "layout.html" %}
 {% block content %}
 {% include "queryactions.html" %}
-{%- if returnedError == False and (action == 'provgame' or action == 'provgraph' or action == 'triograph' or action == 'lingraph') -%}
+{%- if returnedError == False and (action == 'provgame' or action == 'provpolygraph' or action == 'provgraph' or action == 'triograph' or action == 'lingraph') -%}
 <div class="container">
 <div class="left">
 {%- if action == 'provgame' -%}
 <h1><p>Provenance Game</p></h1>
 {%- else -%}
-<h1><p>Provenance Graph</p></h1>
+{%- if action == 'provgraph' -%}
+	<h1><p>Provenance Graph</p></h1>
+{% endif %}
+{%- if action == 'provpolygraph'-%}
+	<h1><p>Provenance Polynomial Type Graph</p></h1>
+{% endif %}	
+{%- if action == 'triograph'-%}
+	<h1><p>Trio Type Graph</p></h1>
+{% endif %}
+{%- if action == 'lingraph'-%}
+	<h1><p>Lineage Type Graph</p></h1>
+{% endif %}
 {% endif %}
 
 {%- if imagefile == '' -%}

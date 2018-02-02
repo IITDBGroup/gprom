@@ -3,7 +3,7 @@ from gprom_wrapper import GProMWrapper
 from hashlib import md5
 from ansi2html import Ansi2HTMLConverter
 import markdown
-#import cx_Oracle
+# import cx_Oracle
 
 @app.route('/')
 def home():
@@ -18,6 +18,8 @@ def querysubmit():
 	session['action'] = 'provgame'
     elif request.form.has_key('genprovgraph'):
         session['action'] = 'provgraph'
+    elif request.form.has_key('genprovpolygraph'):
+        session['action'] = 'provpolygraph'
     elif request.form.has_key('gentriograph'):
         session['action'] = 'triograph'
     elif request.form.has_key('genlingraph'):
@@ -35,13 +37,16 @@ def showgraph():
     # generate a graph
     provQuest = query.find('WHY')
     lines=[]
-    if action == 'provgame' or action == 'provgraph' or action == 'triograph' or action == 'lingraph':
+    if action == 'provgame' or action == 'provgraph' or action == 'provpolygraph' or action == 'triograph' or action == 'lingraph':
 	if provQuest > 0:
             if action == 'provgraph':
 		query = query[:query.find('))')] + ')) FORMAT REDUCED_GP.'
 #		graphFormat = query.find('FORMAT')
 #		if graphFormat < 1:
 #		    query = query[:-1] + ' FORMAT REDUCED_GP.'
+        #     if action == 'provpolygraph':
+        # query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_GOAL_TUPLE.'
+        # # 
             if action == 'triograph':
 		query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB.'
 #		graphFormat = query.find('FORMAT')
