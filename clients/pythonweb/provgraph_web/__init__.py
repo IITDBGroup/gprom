@@ -205,7 +205,7 @@ def showgraph():
 	# collect relation names
 	for eachel in lines:
 	    if eachel.count('|') < 1 and eachel.count('-') < 1 and len(eachel) > 0:
-		rels += [eachel]
+		  rels += [eachel]
 #	# output relations
 #	relpoint = 0
 #	spoint = len(rels)

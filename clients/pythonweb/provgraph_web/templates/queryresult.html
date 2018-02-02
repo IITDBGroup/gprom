@@ -39,31 +39,31 @@
 <!-- show input relations -->
 <p>
 {% for relDB in rels %}
-    <h1>{{ relDB|safe }}</h1>
+    <h1>{{ relDB[0:relDB|length-1] }}</h1>
     {% if rels.index(relDB) < (rels|length)-1 %}
-	<table border=0>
-	<!-- attributes (table head) -->
-	{% for insDB in lines[lines.index(relDB)+1:lines.index(relDB)+2] %}
-		<tr>		
-		{% for attr in insDB.split('|') %}
-		    {% if attr != "" %}
-			<th> {{ attr|safe }} </th>
+		<table border=0>
+		<!-- attributes (table head) -->
+		{% for insDB in lines[lines.index(relDB)+1:lines.index(relDB)+2] %}
+			<tr>		
+			{% for attr in insDB.split('|') %}
+			    {% if attr != "" %}
+				<th> {{ attr|safe }} </th>
+			    {% endif %}
+		 	{% endfor %}
+			</tr>
+		{% endfor %}
+		<!-- tuples -->
+		{% for insDB in lines[lines.index(relDB)+2:lines.index(rels[rels.index(relDB)+1])] %}
+		    {% if '-' not in insDB and insDB != "" %}
+			<tr>		
+			{% for attr in insDB.split('|') %}
+			    {% if attr != "" %}
+				<td> {{ attr|safe }} </td>
+			    {% endif %}
+		 	{% endfor %}
+			</tr>
 		    {% endif %}
-	 	{% endfor %}
-		</tr>
-	{% endfor %}
-	<!-- tuples -->
-	{% for insDB in lines[lines.index(relDB)+2:lines.index(rels[rels.index(relDB)+1])] %}
-	    {% if '-' not in insDB and insDB != "" %}
-		<tr>		
-		{% for attr in insDB.split('|') %}
-		    {% if attr != "" %}
-			<td> {{ attr|safe }} </td>
-		    {% endif %}
-	 	{% endfor %}
-		</tr>
-	    {% endif %}
-	{% endfor %}
+		{% endfor %}
 	</table>
     {% else %}
 	<!-- for the last relation -->
@@ -110,7 +110,7 @@
 <!-- show input relations -->
 <p>
 {% for relDB in rels %}
-    <h1>{{ relDB|safe }}</h1>
+    <h1>{{ relDB[0:relDB|length-1] }}</h1>
     {% if rels.index(relDB) < (rels|length)-1 %}
 	<table border=0>
 	<!-- attributes (table head) -->
