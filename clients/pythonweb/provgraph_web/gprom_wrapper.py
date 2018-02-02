@@ -69,7 +69,7 @@ class GProMWrapper:
        return 0, std
    
    def createDotFile (self,query,dotfile):
-       errcode, output = self.executeAndCollectErrors(query,mode='gp')
+       errcode, output = self.executeAndCollectErrors(query,mode='gp',frontend='dl',inputdb='')
        if errcode != 0:
            return errcode, output
        writer = open(dotfile, 'w')

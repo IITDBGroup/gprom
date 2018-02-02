@@ -133,37 +133,42 @@ def queryload():
 def showgraph():
     if not 'query' in session:
         return abort(403)
+    
     query = session['query']
     action = session['action']
     # generate a graph
     provQuest = query.find('WHY')
     lines=[]
+    queryResult = ''
+    gpromlog, dotlog, imagefile='','',''
+
     if action == 'provgame' or action == 'provgraph' or action == 'provpolygraph' or action == 'triograph' or action == 'lingraph':
-	if provQuest > 0:
+	   if provQuest > 0:
             if action == 'provgraph':
-		query = query[:query.find('))')] + ')) FORMAT REDUCED_GP.'
+		      query = query[:query.find('))')] + ')) FORMAT REDUCED_GP.'
 #		graphFormat = query.find('FORMAT')
 #		if graphFormat < 1:
 #		    query = query[:-1] + ' FORMAT REDUCED_GP.'
-        #     if action == 'provpolygraph':
-        # query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_GOAL_TUPLE.'
+            if action == 'provpolygraph':
+              query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_GOAL_TUPLE.'
         # # 
             if action == 'triograph':
-		query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB.'
+		      query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB.'
 #		graphFormat = query.find('FORMAT')
 #		if graphFormat < 1:
 #		    query = query[:-1] + ' FORMAT TUPLE_RULE_TUPLE.'
             if action == 'lingraph':
-		query = query[:query.find('))')] + ')) FORMAT TUPLE_ONLY.'
+		      query = query[:query.find('))')] + ')) FORMAT TUPLE_ONLY.'
 #		graphFormat = query.find('FORMAT')
 #		if graphFormat < 1:
 #		    query = query[:-1] + ' FORMAT TUPLE_ONLY.'
     	    if action == 'provgame':
-	        query = query[:query.find('))')] + ')).'
-            queryResult=''
+	           query = query[:query.find('))')] + ')).'
+
             queryhash = md5(query).hexdigest()
             imagefile = queryhash + '.svg'
             absImagepath = os.path.join(APP_STATIC, imagefile)
+            
             if not(os.path.exists(absImagepath)):
                 dotpath = os.path.join(APP_ROOT, 'tmp/pg.dot')
                 returncode, gpromlog, dotlog = w.generateProvGraph(query, absImagepath, dotpath)
@@ -172,9 +177,6 @@ def showgraph():
             else:
                 gpromlog, dotlog = '',''
                 returncode = 0
-	else:
-            queryResult = ''
-	    gpromlog, dotlog, imagefile='','',''
     # output query results (translate into html table)
     else:
         returncode, gpromlog = w.runDLQuery(query)
