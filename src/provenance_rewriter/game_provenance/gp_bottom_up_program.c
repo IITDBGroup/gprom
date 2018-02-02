@@ -306,115 +306,143 @@ createInputDBprogram (DLProgram *p, DLAtom *question)
 
 	enumerateRules (p);
     solvedProgram = copyObject(p);
-    solvedProgram = unifyProgram(solvedProgram, question);
+//    solvedProgram = unifyProgram(solvedProgram, question);
 
     DL_DEL_PROP(solvedProgram,DL_PROV_WHY);
     DL_DEL_PROP(solvedProgram,DL_PROV_WHYNOT);
 
-    // create new rules to return the relevant input data
-    HashMap *joinInfo = NEW_MAP(Constant,List);
     edbRels = NEW_MAP(Constant,Constant);
-
-    DLAtom *edbAtom = NULL;
+    List *edbAtoms = NIL;
     List *newRules = NIL;
     int i = 1;
 
     FOREACH(DLRule,r,solvedProgram->rules)
     {
-    	boolean hasVar = FALSE;
-
-        if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
-        {
-        	// create new rule from edb atom(s) if the rule contains ans atom
-        	FOREACH(DLAtom,a,r->body)
+    	FOREACH(DLAtom,a,r->body)
+		{
+			if (DL_HAS_PROP(a,DL_IS_EDB_REL))
 			{
-        		if (DL_HAS_PROP(a,DL_IS_EDB_REL))
-        		{
-        			a->negated = FALSE;
-        			MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),createConstString(a->rel));
-
-        			DLRule *dlR = makeNode(DLRule);
-
-        			// store edb atom to use later
-        			if(i == 1 || streq(strdup(edbAtom->rel), strdup(a->rel)))
-        			{
-        				edbAtom = copyObject(a);
-        				dlR->body = copyObject(singleton(a));
-
-        			}
-        			else
-        			{
-        				FOREACH(Node,n,a->args)
-							if(!isA(n,Constant))
-								hasVar = TRUE;
-
-        				if(hasVar)
-        					dlR->body = copyObject(LIST_MAKE(a, edbAtom));
-        			}
-
-					dlR->head = copyObject(a);
-					dlR->head->rel = CONCAT_STRINGS(strdup("inputdb"),gprom_itoa(i));
-
-					newRules = appendToTailOfList(newRules,dlR);
-					i++;
-        		}
-			}
-
-        	// store the info which idb atoms need which edb atoms
-        	FOREACH(DLAtom,a,r->body)
-        		if (DL_HAS_PROP(a,DL_IS_IDB_REL))
-        			MAP_ADD_STRING_KEY(joinInfo,a->rel,LIST_MAKE(edbAtom, (Node *) a->args));
-        }
-        else
-        {
-			FOREACH(DLAtom,a,r->body)
-			{
-				if (DL_HAS_PROP(a,DL_IS_EDB_REL))
+				if(!searchListString(edbAtoms,a->rel))
 				{
-					FOREACH(Node,n,a->args)
-						if(!isA(n,Constant))
-							hasVar = TRUE;
-
-					a->negated = FALSE;
+					edbAtoms = appendToTailOfList(edbAtoms, a->rel);
 					MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),createConstString(a->rel));
 
 					DLRule *dlR = makeNode(DLRule);
-					dlR->head = copyObject(r->head);
-
-					// if edb atom to join exists then add it into the body
-					if(hasVar && MAP_HAS_STRING_KEY(joinInfo,r->head->rel) &&
-							!streq(strdup(edbAtom->rel), strdup(a->rel)))
-					{
-						List *values = (List *) MAP_GET_STRING(joinInfo, r->head->rel);
-						dlR->body = copyObject(LIST_MAKE(a, (DLAtom *) getHeadOfListP(values)));
-
-						FORBOTH(Node,ln,rn,r->head->args,(List *) getTailOfListP(values))
-						{
-							DLComparison *dlC = makeNode(DLComparison);
-							dlC->opExpr = createOpExpr("=",LIST_MAKE(ln,rn));
-							dlR->body = appendToTailOfList(dlR->body,dlC);
-						}
-					}
-					else
-						dlR->body = copyObject(singleton(a));
-
+					dlR->head = copyObject(a);
 					dlR->head->rel = CONCAT_STRINGS(strdup("inputdb"),gprom_itoa(i));
+					dlR->body = copyObject(singleton(a));
+
 					newRules = appendToTailOfList(newRules,dlR);
 					i++;
 				}
-
-				if (DL_HAS_PROP(a,DL_IS_IDB_REL))
-				{
-					if(hasVar && MAP_HAS_STRING_KEY(joinInfo,r->head->rel))
-					{
-						List *values = (List *) MAP_GET_STRING(joinInfo, r->head->rel);
-						char *key = a->rel;
-						MAP_ADD_STRING_KEY(joinInfo, key, values);
-					}
-				}
 			}
-        }
+		}
     }
+//
+//    // create new rules to return the relevant input data
+//    HashMap *joinInfo = NEW_MAP(Constant,List);
+//    edbRels = NEW_MAP(Constant,Constant);
+//
+//    DLAtom *edbAtom = NULL;
+//    List *newRules = NIL;
+//    int i = 1;
+//
+//    FOREACH(DLRule,r,solvedProgram->rules)
+//    {
+//    	boolean hasVar = FALSE;
+//
+//        if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
+//        {
+//        	// create new rule from edb atom(s) if the rule contains ans atom
+//        	FOREACH(DLAtom,a,r->body)
+//			{
+//        		if (DL_HAS_PROP(a,DL_IS_EDB_REL))
+//        		{
+//        			a->negated = FALSE;
+//        			MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),createConstString(a->rel));
+//
+//        			DLRule *dlR = makeNode(DLRule);
+//
+//        			// store edb atom to use later
+//        			if(i == 1 || streq(strdup(edbAtom->rel), strdup(a->rel)))
+//        			{
+//        				edbAtom = copyObject(a);
+//        				dlR->body = copyObject(singleton(a));
+//
+//        			}
+//        			else
+//        			{
+//        				FOREACH(Node,n,a->args)
+//							if(!isA(n,Constant))
+//								hasVar = TRUE;
+//
+//        				if(hasVar)
+//        					dlR->body = copyObject(LIST_MAKE(a, edbAtom));
+//        			}
+//
+//					dlR->head = copyObject(a);
+//					dlR->head->rel = CONCAT_STRINGS(strdup("inputdb"),gprom_itoa(i));
+//
+//					newRules = appendToTailOfList(newRules,dlR);
+//					i++;
+//        		}
+//			}
+//
+//        	// store the info which idb atoms need which edb atoms
+//        	FOREACH(DLAtom,a,r->body)
+//        		if (DL_HAS_PROP(a,DL_IS_IDB_REL))
+//        			MAP_ADD_STRING_KEY(joinInfo,a->rel,LIST_MAKE(edbAtom, (Node *) a->args));
+//        }
+//        else
+//        {
+//			FOREACH(DLAtom,a,r->body)
+//			{
+//				if (DL_HAS_PROP(a,DL_IS_EDB_REL))
+//				{
+//					FOREACH(Node,n,a->args)
+//						if(!isA(n,Constant))
+//							hasVar = TRUE;
+//
+//					a->negated = FALSE;
+//					MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),createConstString(a->rel));
+//
+//					DLRule *dlR = makeNode(DLRule);
+//					dlR->head = copyObject(r->head);
+//
+//					// if edb atom to join exists then add it into the body
+//					if(hasVar && MAP_HAS_STRING_KEY(joinInfo,r->head->rel) &&
+//							!streq(strdup(edbAtom->rel), strdup(a->rel)))
+//					{
+//						List *values = (List *) MAP_GET_STRING(joinInfo, r->head->rel);
+//						dlR->body = copyObject(LIST_MAKE(a, (DLAtom *) getHeadOfListP(values)));
+//
+//						FORBOTH(Node,ln,rn,r->head->args,(List *) getTailOfListP(values))
+//						{
+//							DLComparison *dlC = makeNode(DLComparison);
+//							dlC->opExpr = createOpExpr("=",LIST_MAKE(ln,rn));
+//							dlR->body = appendToTailOfList(dlR->body,dlC);
+//						}
+//					}
+//					else
+//						dlR->body = copyObject(singleton(a));
+//
+//					dlR->head->rel = CONCAT_STRINGS(strdup("inputdb"),gprom_itoa(i));
+//					newRules = appendToTailOfList(newRules,dlR);
+//					i++;
+//				}
+//
+//				if (DL_HAS_PROP(a,DL_IS_IDB_REL))
+//				{
+//					if(hasVar && MAP_HAS_STRING_KEY(joinInfo,r->head->rel))
+//					{
+//						List *values = (List *) MAP_GET_STRING(joinInfo, r->head->rel);
+//						char *key = a->rel;
+//						MAP_ADD_STRING_KEY(joinInfo, key, values);
+//					}
+//				}
+//			}
+//        }
+//    }
 
     solvedProgram->rules = newRules;
 	return solvedProgram;

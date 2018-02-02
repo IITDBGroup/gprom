@@ -39,7 +39,8 @@
 <!-- show input relations -->
 <p>
 {% for relDB in rels %}
-    <h1>{{ relDB[0:relDB|length-1] }}</h1>
+    <!-- <h1>{{ relDB[0:relDB|length-1] }}</h1> -->
+    <h1>{{ relDB|safe }}</h1>
     {% if rels.index(relDB) < (rels|length)-1 %}
 		<table border=0>
 		<!-- attributes (table head) -->
@@ -110,7 +111,8 @@
 <!-- show input relations -->
 <p>
 {% for relDB in rels %}
-    <h1>{{ relDB[0:relDB|length-1] }}</h1>
+    <!-- <h1>{{ relDB[0:relDB|length-1] }}</h1> -->
+    <h1>{{ relDB|safe }}</h1>
     {% if rels.index(relDB) < (rels|length)-1 %}
 	<table border=0>
 	<!-- attributes (table head) -->

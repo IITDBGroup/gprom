@@ -103,6 +103,7 @@ printDBsample(List *stmts)
         if (FOREACH_HAS_MORE(c))
         {
             char *r = (char *) STRING_VALUE(MAP_GET_STRING(edbRels,gprom_itoa(++s)));
+//            printf("%s", CONCAT_STRINGS(r,gprom_itoa(s)));
             printf("%s", r);
             printf("\n");
             res = executeQuery((char *) c);
