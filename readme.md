@@ -9,7 +9,7 @@ GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC 
 
 # Online Demos
 
-* [Online Demo for Provenance Graph Viewer](http://ec2-18-218-236-30.us-east-2.compute.amazonaws.com:5000/)
+* [Online Demo for PUG Provenance Graph Explorer](http://ec2-18-218-236-30.us-east-2.compute.amazonaws.com:5000/)
 
 # Documentation (Wiki Links)
 
