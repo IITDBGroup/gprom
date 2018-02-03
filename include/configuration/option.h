@@ -200,6 +200,7 @@ extern void printOptionsHelp(FILE *stream, char *progName, char *description,
         boolean showValues);
 extern void printCurrentOptions(FILE *stream);
 extern char *optionsToStringOnePerLine(void);
+extern char *internalOptionsToString(boolean showValues);
 extern HashMap *optionsToHashMap(void);
 
 extern void mallocOptions();

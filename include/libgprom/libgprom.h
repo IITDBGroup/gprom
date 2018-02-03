@@ -80,6 +80,7 @@ extern GPROM_LIB_EXPORT double gprom_getFloatOption (const char *name);
 extern GPROM_LIB_EXPORT const char *gprom_getOptionType(const char *name);
 extern GPROM_LIB_EXPORT boolean gprom_optionExists(const char *name);
 
+extern GPROM_LIB_EXPORT char *gprom_getOptionHelp(void);
 extern GPROM_LIB_EXPORT void gprom_setOption(const char *name, const char *value);
 extern GPROM_LIB_EXPORT void gprom_setStringOption (const char *name, const char *value);
 extern GPROM_LIB_EXPORT void gprom_setIntOption(const char *name, int value);

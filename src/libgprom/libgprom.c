@@ -277,6 +277,16 @@ gprom_setFloatOption(const char *name, double value)
     UNLOCK_MUTEX();
 }
 
+char *
+gprom_getOptionHelp(void)
+{
+    char *result = NULL;
+    LOCK_MUTEX();
+    result = internalOptionsToString(TRUE);
+    UNLOCK_MUTEX();
+    return result;
+}
+
 void
 gprom_registerMetadataLookupPlugin (GProMMetadataLookupPlugin *plugin)
 {

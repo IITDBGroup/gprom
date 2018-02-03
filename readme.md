@@ -5,13 +5,13 @@
 
 **GProM** is a database middleware that adds provenance support to multiple database backends. Provenance is information about how data was produced by database operations. That is, for a row in the database or returned by a query we capture from which rows it was derived and by which operations. The system compiles declarative queries with provenance requests into SQL code and executes this SQL code on a backend database system. GProM supports provenance capture for SQL queries and transactions, and produces provenance graphs explaining existing and missing answers for Datalog queries. Provenance is captured on demand by using a compilation technique called *instrumentation*. Instrumentation rewrites an SQL query (or past transaction) into a query that returns rows paired with their provenance. The output of the instrumentation process is a regular SQL query that can be executed using any standard relational database. The instrumented query generated from a provenance request returns a standard relation that maps rows to their provenance. Provenance for transactions is captured retroactively using a declarative replay technique called *reenactment* that we have developed at IIT. GProM extends multiple frontend languages (e.g., SQL and Datalog) with provenance requests and can produce code for multiple backends (currently Oracle). For information about the research behind GProM have a look at the IIT DBGroup's [webpage](http://www.cs.iit.edu/%7edbgroup/research/gprom.php). 
 
-GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC driver (currently not fully functional).
+GProM provides an interactive shell `gprom`, a C library `libgprom`, and a JDBC driver.
 
 # Online Demos
 
-* [Online Demo for Provenance Graph Viewer](http://ec2-35-164-188-60.us-west-2.compute.amazonaws.com:5000)
+* [Online Demo for Provenance Graph Viewer](http://ec2-18-218-236-30.us-east-2.compute.amazonaws.com:5000/)
 
-# Documentation
+# Documentation (Wiki Links)
 
 * [Installation Instructions](https://github.com/IITDBGroup/gprom/wiki/installation)
 * [Tutorial](https://github.com/IITDBGroup/gprom/wiki/tutorial)

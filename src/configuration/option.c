@@ -1159,6 +1159,38 @@ printCurrentOptions(FILE *stream)
 }
 
 char *
+internalOptionsToString(boolean showValues)
+{
+    StringInfo result = makeStringInfo();
+    char *str;
+
+    FOREACH_HASH_KEY(Constant,k,optionPos)
+      {
+          char *name = STRING_VALUE(k);
+          OptionInfo *v = getInfo(name);
+
+          if (showValues)
+          {
+              appendStringInfo(result, "%s=%s DEFAULT VALUE: %s\n\t%s\n\n",
+                      v->option,
+                      valGetString(&v->value, v->valueType),
+                      defGetString(&v->def, v->valueType),
+                      v->description);
+          }
+          else
+          {
+              appendStringInfo(result, "%s\tDEFAULT VALUE: %s\n\t%s\n",
+                      v->option,
+                      defGetString(&v->def, v->valueType),
+                      v->description);
+          }
+      }
+
+    str = result->data;
+    return str;
+}
+
+char *
 optionsToStringOnePerLine(void)
 {
     StringInfo result = makeStringInfo();

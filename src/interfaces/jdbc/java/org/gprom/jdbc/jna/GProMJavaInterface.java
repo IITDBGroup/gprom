@@ -78,6 +78,8 @@ public interface GProMJavaInterface {
     public boolean optionExists (String name);
     public OptionType typeOfOption (String name) throws Exception;   
     
+    public String optionsHelp();
+    
     /* logging */
 	public Level intToLogLevel (int in);	
 }
