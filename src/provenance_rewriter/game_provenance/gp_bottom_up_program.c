@@ -4243,6 +4243,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 								DLAtom *domHead = makeNode(DLAtom);
 								domHead->rel = domRel;
 								domHead->args = singleton((DLVar *) n);
+								DL_SET_BOOL_PROP(domHead,DL_IS_DOMAIN_REL);
 
 								addDomHead = appendToTailOfList(addDomHead,domHead);
 							}
@@ -4308,6 +4309,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 										DLAtom *domHead = makeNode(DLAtom);
 										domHead->rel = domHeadPred;
 										domHead->args = singleton((DLVar *) n);
+										DL_SET_BOOL_PROP(domHead,DL_IS_DOMAIN_REL);
 
 										addDomHead = appendToTailOfList(addDomHead, domHead);
 									}
@@ -4369,6 +4371,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 								domRule->head->rel = STRING_VALUE(MAP_GET_STRING(relDomPair,a->rel));
 								domRule->head->args = singleton(domVar);
+								DL_SET_BOOL_PROP(domRule,DL_DOMAIN_RULE);
 								domainRules = appendToTailOfList(domainRules, domRule);
 							}
 						}

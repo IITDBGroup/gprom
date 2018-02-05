@@ -141,6 +141,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_IS_IDB_REL "IS_IDB_REL"
 #define DL_IS_EDB_REL "IS_EDB_REL"
 #define DL_IS_FACT_REL "IS_FACT_REL"
+#define DL_IS_DOMAIN_REL "IS_DOMAIN_REL"
 
 #define DL_PROV_WHY "WHY_PROV"
 #define DL_PROV_WHYNOT "WHYNOT_PROV"
@@ -174,6 +175,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_NORM_ATOM "NORMALIZED_ATOM"
 #define DL_ORIG_ATOM "ORIG_ATOM"
 #define DL_RULE_ID "RULE_ID"
+#define DL_DOMAIN_RULE "DOMAIN_RULE"
 
 // property keys for DT information
 #define DL_PRED_DTS "PREDICATE_DATATYPES"
