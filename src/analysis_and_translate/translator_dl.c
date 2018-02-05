@@ -376,7 +376,7 @@ translateProgram(DLProgram *p)
 
         // exclude the edge rel before connect
         Node *transMoveRel = NULL;
-        if (p->sumOpts != NIL)
+        if (p->sumOpts != NIL && p->ans != NULL)
         {
         	transMoveRel = MAP_GET_STRING(predToTrans, "move");
         	removeMapStringElem(predToTrans, "move");
@@ -390,7 +390,7 @@ translateProgram(DLProgram *p)
         translation = connectProgramTranslation(p, predToTrans);
 
         // generate input for the summarization
-        if (p->sumOpts != NIL)
+        if (p->sumOpts != NIL && p->ans != NULL)
         {
         	Node *ruleFire = MAP_GET_STRING(predToTrans, p->ans);
         	Node *origInRule = MAP_GET_STRING(predToTrans, origHeadPred);

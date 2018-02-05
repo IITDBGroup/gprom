@@ -1146,6 +1146,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, boole
 						pos = pos - prevAttrCnt;
 
 					ar->outerLevelsUp = 0; // TODO: force to be '0' or keep it
+					ar->attrPosition = pos;
 					ar->name = STRING_VALUE(getNthOfListP(t->op.schema->attrDefs,pos));
 				}
 
@@ -1219,50 +1220,58 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, boole
 							 *  e.g., how to capture table size. Currently, size captured by the table name
 							 */
 
+							// capture the very first position of the number in a string
+							char *numInChar = NULL;
+							char string[strlen(t->tableName)];
+							strcpy(string,t->tableName);
+
+							for(int i = 0; string[i]!='\0'; i++)
+							{
+								if(isdigit(string[i]))
+								{
+									numInChar = &string[i];
+									break;
+								}
+							}
+
+							// capture the size of data from the string
 							char *numInTableName = NULL;
 
-							if(isSubstr(t->tableName,gprom_itoa(6)))
-								numInTableName = strstr(t->tableName,gprom_itoa(6));
+							if(isSubstr(t->tableName,numInChar))
+								numInTableName = strstr(t->tableName,numInChar);
 
-							if(isSubstr(t->tableName,gprom_itoa(1)))
-								numInTableName = strstr(t->tableName,gprom_itoa(1));
-
-							// replace thousand and million in char to number
+							// replace the string[i] that represent the number (e.g., M/m = million)
 							if(isSubstr(numInTableName,"K"))
-								numInTableName = replaceSubstr(numInTableName,"K",gprom_itoa(000));
+								numInTableName = replaceSubstr(numInTableName,"K","000");
 
 							if(isSubstr(numInTableName,"k"))
-								numInTableName = replaceSubstr(numInTableName,"k",gprom_itoa(000));
+								numInTableName = replaceSubstr(numInTableName,"k","000");
 
 							if(isSubstr(numInTableName,"M"))
-							{
-								numInTableName = replaceSubstr(numInTableName,"M",gprom_itoa(000));
-								numInTableName = CONCAT_STRINGS(numInTableName, gprom_itoa(000));
-							}
+								numInTableName = replaceSubstr(numInTableName,"M","000000");
 
 							if(isSubstr(numInTableName,"m"))
-							{
-								numInTableName = replaceSubstr(numInTableName,"m",gprom_itoa(000));
-								numInTableName = CONCAT_STRINGS(numInTableName, gprom_itoa(000));
-							}
+								numInTableName = replaceSubstr(numInTableName,"m","000000");
 
 							// calculate percentile for sampling
-							int dataSize = atoi(numInTableName);
-							float perc = 100;
+							float dataSize = atof(numInTableName);
+							float perc = 0;
 
 							if(sampleSize < dataSize)
 							{
-								perc = sampleSize / dataSize;
+								float s = ((float) sampleSize) / dataSize;
 
 								/*
 								 *  re-compute percentile for sampling to guarantee that over 99% of over sampling
 								 *  which guarantees 99% of having minimum number of failure pattern (from user) in the sample
 								 */
 								if(sampleSize >= 100 && sampleSize < 1000)
-									perc = perc + (perc / 10 * 5);
+									perc = s + (s / 10 * 5);
 								else if(sampleSize >= 1000)
-									perc = perc + (perc / 10);
+									perc = s + (s / 10);
 							}
+							else
+								perc = 100;
 
 							if(perc == 0)
 								perc = 0.000001;
