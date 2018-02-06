@@ -1270,9 +1270,9 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 								 *  which guarantees 99% of having minimum number of failure pattern (from user) in the sample
 								 */
 								if(sampleSize >= 100 && sampleSize < 1000)
-									perc = s + (s / 10 * 5);
+									perc = (s + (s / 10 * 5)) * 100;
 								else if(sampleSize >= 1000)
-									perc = s + (s / 10);
+									perc = (s + (s / 10)) * 100;
 							}
 							else
 								perc = 100;
@@ -2425,7 +2425,7 @@ joinOnSeqOutput (List *doms)
 
 			AttributeDef *a = (AttributeDef *) getHeadOfListP(firstOp->schema->attrDefs);
 			lA = createFullAttrReference(strdup(a->attrName),0,0,0,a->dataType);
-			attrNames = singleton(strdup(a->attrName));
+			attrNames = getAttrNames(firstOp->schema);
 			rA = NULL;
 		}
 	}
