@@ -618,7 +618,7 @@ summarizationPlan (Node *parse)
     							if(isA(n,DLVar))
     							{
     								DLVar *v = (DLVar *) n;
-    								MAP_ADD_STRING_KEY(varRelPair,v->name,a->rel);
+    								MAP_ADD_STRING_KEY_AND_VAL(varRelPair,v->name,a->rel);
     							}
     						}
     					}
@@ -635,13 +635,13 @@ summarizationPlan (Node *parse)
         		FOREACH(char,c,negAtoms)
         		{
         			if(!MAP_HAS_STRING_KEY(headEdbPair,c))
-        				MAP_ADD_STRING_KEY(varRelPair,c,c);
+        				MAP_ADD_STRING_KEY_AND_VAL(varRelPair,c,c);
         			else
         			{
         				List *edbs = (List *) MAP_GET_STRING(headEdbPair,c);
 
         				FOREACH(char,e,edbs)
-        					MAP_ADD_STRING_KEY(varRelPair,e,e);
+        				MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
         			}
         		}
     		}
@@ -649,7 +649,7 @@ summarizationPlan (Node *parse)
     		{
 				FOREACH_HASH(List,edbs,headEdbPair)
 					FOREACH(char,e,edbs)
-						MAP_ADD_STRING_KEY(varRelPair,e,e);
+					MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
     		}
 
     		// store into the list of the summarization options
