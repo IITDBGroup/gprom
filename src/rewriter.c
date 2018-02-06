@@ -641,15 +641,16 @@ summarizationPlan (Node *parse)
         				List *edbs = (List *) MAP_GET_STRING(headEdbPair,c);
 
         				FOREACH(char,e,edbs)
-        				MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
+        					MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
         			}
         		}
     		}
-    		else if(LIST_EMPTY(negAtoms) && streq(qType,"WHYNOT"))
+
+    		if(LIST_EMPTY(negAtoms) || streq(qType,"WHYNOT"))
     		{
 				FOREACH_HASH(List,edbs,headEdbPair)
 					FOREACH(char,e,edbs)
-					MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
+						MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
     		}
 
     		// store into the list of the summarization options

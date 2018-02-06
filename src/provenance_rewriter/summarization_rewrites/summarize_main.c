@@ -1163,7 +1163,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 	int attrCount = 0;
 	int relCount = 0;
 	char *relName = NULL;
-	HashMap *existAttr = NEW_MAP(Constant,Constant);
+//	HashMap *existAttr = NEW_MAP(Constant,Constant);
 
 	FOREACH(TableAccessOperator,t,removeDupTa)
 	{
@@ -1195,11 +1195,11 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 
 				if(!searchListNode(userQuestion, (Node *) ar))
 				{
-					// create attr domains only once
-					int existAttrCnt = MAP_INCR_STRING_KEY(existAttr,a->attrName);
-
-					if(existAttrCnt == 0)
-					{
+//					// create attr domains only once
+//					int existAttrCnt = MAP_INCR_STRING_KEY(existAttr,a->attrName);
+//
+//					if(existAttrCnt == 0)
+//					{
 						// count for why
 						if(streq(qType,"WHY") && LIST_EMPTY(domRels))
 						{
@@ -1295,7 +1295,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 							SET_BOOL_STRING_PROP((Node *) projDom, PROP_MATERIALIZE);
 							result = appendToTailOfList(result, (Node *) projDom);
 						}
-					}
+//					}
 				}
 				attrCount++;
 			}
@@ -2286,21 +2286,36 @@ replaceDomWithSampleDom (List *sampleDoms, List *domRels, Node *input)
 	{
 		if(HAS_STRING_PROP(t,DL_IS_DOMAIN_REL))
 		{
+			QueryOperator *tBase = (QueryOperator *) t;
+
 			// find the corresponding domain RA by the position
 			int qoPos = listPosString(domRels,t->tableName);
 			QueryOperator *sampleDom = (QueryOperator *) getNthOfListP(sampleDoms,qoPos);
 
-			// use the count to capture sub-rooted RA for domain
-			QueryOperator *tBase = (QueryOperator *) t;
+			/*
+			 *  replace the query block with joined sampled domain
+			 *  1) for cross products:
+			 *     the grand parent is a binary operator (e.g., cross product) and the grand parent has more
+			 *     than one parent (indicator for another binary operator), replace the grand parent query block
+			 *  2) no cross products:
+			 *     the direct parent of the domain table has more than one parent, then find the direct grand parent
+			 *     if it is unary operator with only one direct parent, then replace the direct
+			 *  TODO: the query block is checked by the type of operator and the size of the direct parent
+			 */
+			QueryOperator *parent = (QueryOperator *) getHeadOfListP(tBase->parents);
+			QueryOperator *grandparent = (QueryOperator *) getHeadOfListP(parent->parents);
 
-//			while(numOfAttrs > 0)
-//			{
-//				tBase = (QueryOperator *) getHeadOfListP(tBase->parents);
-//				numOfAttrs--;
-//			}
+			if(IS_BINARY_OP(grandparent) && LIST_LENGTH(grandparent->parents) > 1)
+				switchSubtreeWithExisting(grandparent, sampleDom);
 
-			// replace the sub-rooted RA for domain with sample domain
-			switchSubtreeWithExisting((QueryOperator *) tBase, (QueryOperator *) sampleDom);
+			if(LIST_LENGTH(parent->parents) > 1)
+			{
+				grandparent = (QueryOperator *) getTailOfListP(parent->parents);
+
+				if(IS_UNARY_OP(grandparent) && LIST_LENGTH(grandparent->parents) == 1)
+					switchSubtreeWithExisting(parent, sampleDom);
+			}
+
 			DEBUG_LOG("replaced domain %s with\n:%s", operatorToOverviewString((Node *) tBase),
 					operatorToOverviewString((Node *) sampleDom));
 		}
@@ -2328,7 +2343,8 @@ joinOnSeqOutput (List *doms)
 	List * outputs = NIL;
 
 	QueryOperator *sampDom = NULL;
-	AttributeReference *lA = NULL;
+	AttributeReference *lA = NULL,
+					   *rA = NULL;
 
 	int lApos = 0;
 
@@ -2368,7 +2384,7 @@ joinOnSeqOutput (List *doms)
 
 		if(streq(strRel,followedRel))
 		{
-			AttributeReference *rA = NULL;
+			rA = NULL;
 			int rApos = 0;
 
 			FOREACH(AttributeDef,oa,oDom->schema->attrDefs)
@@ -2410,9 +2426,13 @@ joinOnSeqOutput (List *doms)
 			AttributeDef *a = (AttributeDef *) getHeadOfListP(firstOp->schema->attrDefs);
 			lA = createFullAttrReference(strdup(a->attrName),0,0,0,a->dataType);
 			attrNames = singleton(strdup(a->attrName));
+			rA = NULL;
 		}
 	}
 	// add the last domain generated based on join
+	if(rA == NULL)
+		sampDom = firstOp;
+
 	outputs = appendToTailOfList(outputs, sampDom);
 
 	// add projection operator to remove seq attr
