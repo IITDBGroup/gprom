@@ -1534,44 +1534,104 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
         cnt++;
     }
 
-    //test coarse grained fragment parameters (e.g., COARSE_GRAINED -> {(R->[A,B,128]) (S->[C,D,64])})
     Node *coarsePara = GET_STRING_PROP(op, PROP_COARSE_GRAINED_TABLEACCESS_MARK);
     //DEBUG_LOG("coarse grained fragment parameters: %s",nodeToString(coarsePara));
     List *coaParaList = (List *) coarsePara;  //(R->[A,B,128] ,S->[C,D,64])
 
     List *coaParaValueList = NIL;
+    char *ptype = "";
+    List *pattrs = NIL;
+    Constant* hvalue = NULL;
+    int lowValue = 0;
+    int highValue = 0;
+    /*
+    		structure: R-> {"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32}
+    		structure: R-> {"PTYPE"->"PAGE", "ATTRS"-> null, "HVALUE"->32}
+    		structure: R-> {"PTYPE"->"RANGE", "ATTRS"->{A,B}, "HVALUE"->4 (this is num of partation)}
+     */
     FOREACH(KeyValue, kv, coaParaList)
     {
          Constant *key = (Constant *) kv->key;  //R
          char *keyV = key->value;
          if(streq(keyV,op->tableName))
          {
-        	  coaParaValueList = (List *) kv->value;  //(A,B,128)
-              DEBUG_LOG("key %s",keyV);
+        	  	  coaParaValueList = (List *) kv->value;  //{"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32}
+        	  	  DEBUG_LOG("key %s",keyV);
               break;
          }
     }
 
     DEBUG_LOG("list length is %d", coaParaValueList->length);
-    Constant *flagValue = (Constant *) getHeadOfListP(coaParaValueList);
-
-    //used to check if it is a range partation
-    int lenCoaList = LIST_LENGTH(coaParaValueList);
-    Constant *rangeFlag = NULL;
-    if(lenCoaList > 1)
-    		rangeFlag = (Constant *) getNthOfListP(coaParaValueList, 1);
+    //{"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32}
+    FOREACH(KeyValue, kv, coaParaValueList)
+    {
+         Constant *key = (Constant *) kv->key;
+         char *keyV = key->value;
+         if(streq(keyV,"PTYPE"))
+         {
+        	 	  ptype = STRING_VALUE((Constant *) kv->value);  //"PTYPE"->"FRAGMENT"
+        	  	  DEBUG_LOG("%s -> %s", keyV, ptype);
+         }
+         else if(streq(keyV,"ATTRS")) // "ATTRS"->{A,B}
+         {
+        	 	  pattrs = (List *) kv->value;
+        	 	  DEBUG_LOG("%s -> ", keyV);
+        	 	  FOREACH(Constant, c, pattrs)
+        	 	  {
+            	 	  DEBUG_LOG("%s", STRING_VALUE(c));
+        	 	  }
+         }
+         else if(streq(keyV,"HVALUE")) // "HVALUE"->32
+         {
+        	 	 hvalue = (Constant *) kv->value;
+        	 	 DEBUG_LOG("%s -> %d", keyV, INT_VALUE(hvalue));
+         }
+         else if(streq(keyV,"BEGIN"))
+         {
+        	 	 lowValue = INT_VALUE((Constant *) kv->value);
+        	 	 DEBUG_LOG("%s -> %d", keyV, lowValue);
+         }
+         else if(streq(keyV,"END"))
+         {
+        	 	 highValue = INT_VALUE((Constant *) kv->value);
+        	 	 DEBUG_LOG("%s -> %d", keyV, highValue);
+         }
+    }
 
     //three cases: fragment or range or page
-    int flagFRP = 0;
     FunctionCall *of = NULL;
     CaseExpr *caseExpr = NULL;
 
-    if(flagValue->constType == DT_INT)  //if the first element is INT (e.g., 32 in (R 32), list value is {32}), this is page
+    if(streq(ptype, "FRAGMENT"))
     {
-    	flagFRP = 1;
-    	DEBUG_LOG("deal with page");
-    	DEBUG_LOG("hash value is %d", INT_VALUE(flagValue));
-    	Constant *orhashValue = createConstInt(INT_VALUE(flagValue));
+    	DEBUG_LOG("Partition by fragment");
+
+    	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+    	provAttr = appendToTailOfList(provAttr, newAttrName);
+
+    	List *ol = NIL;
+    	if(LIST_LENGTH(pattrs) == 1) //A
+    	{
+    		Constant *attr = (Constant *) getHeadOfListP(pattrs);
+    		char *attrV = (char *) attr->value;
+    		ol = LIST_MAKE(createAttrsRefByName((QueryOperator *)op, attrV),hvalue);
+    	}
+    	else //A,B,..
+    	{
+    		List *fList = NIL;
+    		FOREACH(Constant,attr,pattrs)
+    		{
+    			char *attrV = (char *) attr->value;
+    			fList = appendToTailOfList(fList,createAttrsRefByName((QueryOperator *)op, attrV));
+    		}
+    		ol = LIST_MAKE(concatExprList(fList),hvalue);
+    	}
+
+    	of = createFunctionCall ("ORA_HASH", ol);
+    }
+    else if(streq(ptype, "PAGE"))
+    {
+    	DEBUG_LOG("Partition by page");
 
     	//add ROWID attr into tableAccess operator
     	AttributeDef *rid = createAttributeDef("ROWID", DT_LONG);
@@ -1588,82 +1648,47 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     	Constant *pageLong = createConstInt(3);
     	FunctionCall *substr = createFunctionCall ("SUBSTR", LIST_MAKE(ridAttr, pagePos, pageLong));
 
-    of = createFunctionCall ("ORA_HASH", LIST_MAKE(substr, orhashValue));
+    	of = createFunctionCall ("ORA_HASH", LIST_MAKE(substr, hvalue));
     }
-    else if(lenCoaList == 4 && rangeFlag->constType == DT_INT) //if the first element is STRING (e.g., A in (R(A 0 100) 4), list value is {A,0,100,4}), this is range 0~100 partation by 4
-	{
-    	flagFRP = 2;
-    	DEBUG_LOG("deal with range");
+    else if(streq(ptype, "RANGE"))
+    {
+    	DEBUG_LOG("Partition by range");
 
     	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
     	provAttr = appendToTailOfList(provAttr, newAttrName);
 
-    int lowValue = INT_VALUE((Constant *) getNthOfListP(coaParaValueList, 1));
-    int highValue = INT_VALUE((Constant *) getNthOfListP(coaParaValueList, 2));
-    int pValue = INT_VALUE((Constant *) getNthOfListP(coaParaValueList, 3));
-    int intervalValue = (highValue - lowValue) / pValue;
-    char *pAttrName = STRING_VALUE((Constant *) getNthOfListP(coaParaValueList, 0));
-    AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, pAttrName);
+    	int pValue = INT_VALUE(hvalue);
+    	int intervalValue = (highValue - lowValue) / pValue;
+    	char *pAttrName = STRING_VALUE((Constant *) getNthOfListP(pattrs, 0)); //TODO: deal with more attrs
+    	AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, pAttrName);
 
-    DEBUG_LOG("low: %d, high: %d, p: %d, interval: %d, attr: %s.", lowValue, highValue, pValue, intervalValue, pAttrName);
+    	DEBUG_LOG("low: %d, high: %d, p: %d, interval: %d, attr: %s.", lowValue, highValue, pValue, intervalValue, pAttrName);
 
-    int tempCount = lowValue;
-    List *whenList = NIL;
-    for(int i=0; i<pValue; i++)
-    {
+    	int tempCount = lowValue;
+    	List *whenList = NIL;
+    	for(int i=0; i<pValue; i++)
+    	{
     		Operator *leftOperator = NULL;
-    	    if(i == 0)
-    	    		leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
-    	    else
-    	    		leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
-        tempCount = tempCount + intervalValue;
-        Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
-        Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
-        int power = 0;
-        if(i<2)
-           power = pow(2,i);
-        else
-        	   power = pow(2,i) + 1;
+    		if(i == 0)
+    			leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+    		else
+    			leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+    		tempCount = tempCount + intervalValue;
+    		Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+    		Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
+    		int power = 0;
+    		if(i<2)
+    			power = pow(2,i);
+    		else
+    			power = pow(2,i) + 1;
     		CaseWhen *when = createCaseWhen(cond, (Node *) createConstInt(power));
     		whenList = appendToTailOfList(whenList, when);
+    	}
+
+    	caseExpr = createCaseExpr(NULL, whenList, NULL);
     }
 
-    caseExpr = createCaseExpr(NULL, whenList, NULL);
-
-	}
-    else  //if the first element is STRING (e.g., A in (R(A) 32), list value is {A,32}), this is fragment
-    {
-    	flagFRP = 1;
-    	DEBUG_LOG("deal with fragment");
-
-    Constant *num = (Constant *) getTailOfListP(coaParaValueList);  //128
-    coaParaValueList = removeFromTail(coaParaValueList);
-
-    newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
-    provAttr = appendToTailOfList(provAttr, newAttrName);
-
-    List *ol = NIL;
-    if(LIST_LENGTH(coaParaValueList) == 1) //A
-    {
-    	Constant *attr = (Constant *) getHeadOfListP(coaParaValueList);
-    	char *attrV = (char *) attr->value;
-    	ol = LIST_MAKE(createAttrsRefByName((QueryOperator *)op, attrV),num);
-    }
-    else //A,B,..
-    {
-    	List *fList = NIL;
-        FOREACH(Constant,attr,coaParaValueList)
-		{
-        	char *attrV = (char *) attr->value;
-        	fList = appendToTailOfList(fList,createAttrsRefByName((QueryOperator *)op, attrV));
-		}
-        ol = LIST_MAKE(concatExprList(fList),num);
-    }
-
-    of = createFunctionCall ("ORA_HASH", ol);
-    }
-
-    if(flagFRP == 1)
+    if(streq(ptype, "FRAGMENT") || streq(ptype, "PAGE"))
     {
     	//create power(2, ORA_HASH(A,32)) functioncall
     	Constant *tw = createConstInt(2);
@@ -1681,7 +1706,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     	projExpr = appendToTailOfList(projExpr, pf);
     }
-    else if(flagFRP == 2)
+    else if(streq(ptype, "RANGE"))
     {
     	projExpr = appendToTailOfList(projExpr, caseExpr);
     }
@@ -1797,48 +1822,88 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     List *coaParaList = (List *) coarsePara;  //(R->[A,B,128] ,S->[C,D,64])
 
     List *coaParaValueList = NIL;
+    char *ptype = "";
+    List *pattrs = NIL;
+    Constant* hvalue = NULL;
+    Constant* uhvalue = NULL;
+    int lowValue = 0;
+    int highValue = 0;
+    /*
+    		structure: R-> {"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32, "UHVALUE"->32}
+    		structure: R-> {"PTYPE"->"PAGE", "ATTRS"-> null, "HVALUE"->32, "UHVALUE"->32}
+    		structure: R-> {"PTYPE"->"RANGE", "ATTRS"->{A,B}, "HVALUE"->4 (this is num of partation), "UHVALUE"->32}
+     */
+
     FOREACH(KeyValue, kv, coaParaList)
     {
          Constant *key = (Constant *) kv->key;  //R
          char *keyV = key->value;
          if(streq(keyV,op->tableName))
          {
-        	  coaParaValueList = (List *) kv->value;  //(A,B,128,64)
+        	  coaParaValueList = (List *) kv->value;  //e.g., {"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32, "UHVALUE"->32}
               DEBUG_LOG("key %s",keyV);
               break;
          }
     }
 
-    //used to check if it is a range partation
-    int lenCoaList = LIST_LENGTH(coaParaValueList);
-    Constant *rangeFlag = NULL;
-    if(lenCoaList > 1)
-    		rangeFlag = (Constant *) getNthOfListP(coaParaValueList, 1);
+    DEBUG_LOG("list length is %d", coaParaValueList->length);
+    //{"PTYPE"->"FRAGMENT", "ATTRS"->{A,B}, "HVALUE"->32, "UHVALUE"->32}
+    FOREACH(KeyValue, kv, coaParaValueList)
+    {
+         Constant *key = (Constant *) kv->key;
+         char *keyV = key->value;
+         if(streq(keyV,"PTYPE"))
+         {
+        	 	  ptype = STRING_VALUE((Constant *) kv->value);  //"PTYPE"->"FRAGMENT"
+        	  	  DEBUG_LOG("%s -> %s", keyV, ptype);
+         }
+         else if(streq(keyV,"ATTRS")) // "ATTRS"->{A,B}
+         {
+        	 	  pattrs = (List *) kv->value;
+        	 	  DEBUG_LOG("%s -> ", keyV);
+        	 	  FOREACH(Constant, c, pattrs)
+        	 	  {
+            	 	  DEBUG_LOG("%s", STRING_VALUE(c));
+        	 	  }
+         }
+         else if(streq(keyV,"HVALUE")) // "HVALUE"->32
+         {
+        	 	 hvalue = (Constant *) kv->value;
+        	 	 DEBUG_LOG("%s -> %d", keyV, INT_VALUE(hvalue));
+         }
+         else if(streq(keyV,"UHVALUE")) // "HVALUE"->32
+         {
+        	 	 uhvalue = (Constant *) kv->value;
+        	 	 DEBUG_LOG("%s -> %d", keyV, INT_VALUE(uhvalue));
+         }
+         else if(streq(keyV,"BEGIN"))
+         {
+        	 	 lowValue = INT_VALUE((Constant *) kv->value);
+        	 	 DEBUG_LOG("%s -> %d", keyV, lowValue);
+         }
+         else if(streq(keyV,"END"))
+         {
+        	 	 highValue = INT_VALUE((Constant *) kv->value);
+        	 	 DEBUG_LOG("%s -> %d", keyV, highValue);
+         }
+    }
 
-    //check first element is A or 32
-    Constant *flagValue = (Constant *) getHeadOfListP(coaParaValueList);
-
-    Constant *res = (Constant *) getTailOfListP(coaParaValueList);  //64
-    int resFlagValue = INT_VALUE(res);
-    DEBUG_LOG("coarse grained result fragment value is : %d", resFlagValue);
-    coaParaValueList = removeFromTail(coaParaValueList);
-
-    Constant *num = (Constant *) getTailOfListP(coaParaValueList);  //128
-    int aggFragValue = INT_VALUE(num);
-    DEBUG_LOG("coarse grained aggregated fragment value is : %d", aggFragValue);
-    coaParaValueList = removeFromTail(coaParaValueList);
+    int hIntValue = INT_VALUE(hvalue);
+    int uhIntValue = INT_VALUE(uhvalue);
+    DEBUG_LOG("coarse grained hash value is : %d", hIntValue);
+    DEBUG_LOG("coarse grained bitoragg value is : %d", uhIntValue);
 
     //get selection condition (prov_r = 10 or prov_r = 14)
     List *condRightValueList = NULL;  //10,14...
     int k;
-    int n = resFlagValue;
-    for (int c = aggFragValue-1,cntOnePos=0; c >= 0; c--,cntOnePos++)
+    int n = uhIntValue;
+    for (int c = hIntValue-1,cntOnePos=0; c >= 0; c--,cntOnePos++)
     {
       k = n >> c;
       if (k & 1)
       {
-        condRightValueList = appendToTailOfList(condRightValueList, createConstInt(aggFragValue - cntOnePos - 1));
-        DEBUG_LOG("cnt is: %d", aggFragValue - cntOnePos - 1);
+        condRightValueList = appendToTailOfList(condRightValueList, createConstInt(hIntValue - cntOnePos - 1));
+        DEBUG_LOG("cnt is: %d", hIntValue - cntOnePos - 1);
       }
     }
 
@@ -1846,15 +1911,12 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     provAttr = appendToTailOfList(provAttr, newAttrName);
 
     //three cases: fragment or range or page
-    int flagFRP = 0;
+    //int flagFRP = 0;
     FunctionCall *f = NULL;
     CaseExpr *caseExpr = NULL;
-    if(flagValue->constType == DT_INT)  //if the first element is INT (e.g., 32 in (R 32), list value is {32}), this is page
+    if(streq(ptype, "PAGE"))
     {
-    		flagFRP = 1;
-       	DEBUG_LOG("deal with page");
-        	DEBUG_LOG("hash value is %d", INT_VALUE(flagValue));
-        	Constant *orhashValue = createConstInt(INT_VALUE(flagValue));
+       	DEBUG_LOG("deal with page paratation");
 
         	//add ROWID attr into tableAccess operator
         	AttributeDef *rid = createAttributeDef("ROWID", DT_LONG);
@@ -1871,24 +1933,19 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         	Constant *pageLong = createConstInt(3);
         	FunctionCall *substr = createFunctionCall ("SUBSTR", LIST_MAKE(ridAttr, pagePos, pageLong));
 
-        f = createFunctionCall ("ORA_HASH", LIST_MAKE(substr, orhashValue));
+        f = createFunctionCall ("ORA_HASH", LIST_MAKE(substr, hvalue));
     }
-    else if(lenCoaList == 5 && rangeFlag->constType == DT_INT) //if the first element is STRING (e.g., A in (R(A 0 100) 4), list value is {A,0,100,4}), this is range 0~100 partation by 4
-    	{
-        	flagFRP = 2;
-        	DEBUG_LOG("deal with range");
+    else if(streq(ptype, "RANGE"))
+    {
+        	DEBUG_LOG("deal with range paratation");
 
         	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
         	provAttr = appendToTailOfList(provAttr, newAttrName);
 
-        int lowValue = INT_VALUE((Constant *) getNthOfListP(coaParaValueList, 1));
-        int highValue = INT_VALUE((Constant *) getNthOfListP(coaParaValueList, 2));
-        //int pValue = INT_VALUE((Constant *) getNthOfListP(coaParaValueList, 3));
-        int pValue = aggFragValue;
-        int intervalValue = (highValue - lowValue) / pValue;
-        char *pAttrName = STRING_VALUE((Constant *) getNthOfListP(coaParaValueList, 0));
+        	int pValue = INT_VALUE(hvalue);
+        	int intervalValue = (highValue - lowValue) / pValue;
+        	char *pAttrName = STRING_VALUE((Constant *) getNthOfListP(pattrs, 0)); //TODO: deal with more attrs
         AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, pAttrName);
-
         DEBUG_LOG("low: %d, high: %d, p: %d, interval: %d, attr: %s.", lowValue, highValue, pValue, intervalValue, pAttrName);
 
         int tempCount = lowValue;
@@ -1911,38 +1968,34 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         		CaseWhen *when = createCaseWhen(cond, (Node *) createConstInt(power));
         		whenList = appendToTailOfList(whenList, when);
         }
-
         caseExpr = createCaseExpr(NULL, whenList, NULL);
-
     	}
-    else
+    else if(streq(ptype, "FRAGMENT"))
     {
-    	flagFRP = 1;
-
-    List *l = NIL;
-    if(LIST_LENGTH(coaParaValueList) == 1) //A
-    {
-    	Constant *attr = (Constant *) getHeadOfListP(coaParaValueList);
-    	char *attrV = (char *) attr->value;
-    	l = LIST_MAKE(createAttrsRefByName((QueryOperator *)op, attrV),num);
-    }
-    else //A,B,..
-    {
+    	List *l = NIL;
+    	if(LIST_LENGTH(pattrs) == 1) //A
+    	{
+    		Constant *attr = (Constant *) getHeadOfListP(pattrs);
+    		char *attrV = (char *) attr->value;
+    		l = LIST_MAKE(createAttrsRefByName((QueryOperator *)op, attrV),copyObject(hvalue));
+    	}
+    	else //A,B,..
+    	{
     		List *fList = NIL;
-        FOREACH(Constant,attr,coaParaValueList)
-		{
-        	char *attrV = (char *) attr->value;
-        	fList = appendToTailOfList(fList,createAttrsRefByName((QueryOperator *)op, attrV));
-		}
-        l = LIST_MAKE(concatExprList(fList),num);
+    		FOREACH(Constant,attr,pattrs)
+    		{
+    			char *attrV = (char *) attr->value;
+    			fList = appendToTailOfList(fList,createAttrsRefByName((QueryOperator *)op, attrV));
+    		}
+    		l = LIST_MAKE(concatExprList(fList),copyObject(hvalue));
+    	}
+
+    	f = createFunctionCall ("ORA_HASH", l);
     }
 
-    f = createFunctionCall ("ORA_HASH", l);
-    }
-
-    if(flagFRP == 1)
+    if(streq(ptype, "FRAGMENT") || streq(ptype, "PAGE"))
     		projExpr = appendToTailOfList(projExpr, f);
-    else if(flagFRP == 2)
+    else if(streq(ptype, "RANGE"))
     		projExpr = appendToTailOfList(projExpr, caseExpr);
 
     List *newProvPosList = singletonInt(cnt);
