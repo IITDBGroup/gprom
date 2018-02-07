@@ -63,7 +63,7 @@ Node *oracleParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME 
-%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGES
+%token <stringVal> CAPTURE COARSE GRAINED FRAGMENT PAGE RANGESA RANGESB
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
@@ -140,7 +140,7 @@ Node *oracleParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec coarseGrainedSpec optionalCoarseGrainedPara
-%type <list> fragmentList pageList rangeList
+%type <list> fragmentList pageList rangeAList rangeBList intConstList
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -702,21 +702,28 @@ coarseGrainedSpec:
 			$$ = (Node *) $3;
 		}
 		|
-		RANGES '(' rangeList ')'
+		RANGESA '(' rangeAList ')'
 		{
 			RULELOG("coarse_grained::rangelist");
 			$$ = (Node *) $3;
 		}
+		|
+		RANGESB '(' rangeBList ')'
+		{
+			RULELOG("coarse_grained::rangelist");
+			$$ = (Node *) $3;
+		}
+		
 	;
 
 
-rangeList:
+rangeAList:
        identifier '(' identifierList intConst intConst ')' intConst optionalCoarseGrainedPara
        {
             RULELOG("rangeList::identifier::intConst::intConst");
             List *l = NIL;
             KeyValue *k1 = createNodeKeyValue((Node *) createConstString("PTYPE"), 
-            									(Node *) createConstString("RANGE"));
+            									(Node *) createConstString("RANGEA"));
             KeyValue *k2 = createNodeKeyValue((Node *) createConstString("ATTRS"), 
             									(Node *) stringListToConstList($3));		
             KeyValue *k3 = createNodeKeyValue((Node *) createConstString("BEGIN"), 
@@ -742,12 +749,12 @@ rangeList:
             $$ = singleton(k);
        }
        |
-       rangeList ',' identifier '(' identifierList intConst intConst ')' intConst optionalCoarseGrainedPara
+       rangeAList ',' identifier '(' identifierList intConst intConst ')' intConst optionalCoarseGrainedPara
        {
             RULELOG("rangeList::rangeList::rangeList ");
             List *l = NIL;
             KeyValue *k1 = createNodeKeyValue((Node *) createConstString("PTYPE"), 
-            									(Node *) createConstString("RANGE"));
+            									(Node *) createConstString("RANGEA"));
             KeyValue *k2 = createNodeKeyValue((Node *) createConstString("ATTRS"), 
             									(Node *) stringListToConstList($5));		
             KeyValue *k3 = createNodeKeyValue((Node *) createConstString("BEGIN"), 
@@ -763,6 +770,67 @@ rangeList:
 		        KeyValue *k6 = createNodeKeyValue((Node *) createConstString("UHVALUE"), 
             									(Node *) $10);
 				l = LIST_MAKE(k1,k2,k3,k4,k5,k6);	
+		        //l = LIST_MAKE(createConstString($3),createConstInt($4), createConstInt($5), createConstInt($7), $8);
+		    }									
+            									
+            //List *l = LIST_MAKE(createConstString($5),createConstInt($6), createConstInt($7), createConstInt($9));        
+            KeyValue *k = createNodeKeyValue((Node *) createConstString($3), 
+            									(Node *) l);
+            $$ = appendToTailOfList($1, k);
+       }
+    ;	
+   
+
+intConstList:
+		intConst { $$ = singleton((Node *) createConstInt($1)); }
+		| intConstList ',' intConst { $$ = appendToTailOfList($1, (Node *) createConstInt($3)); }
+	; 
+
+rangeBList:
+       identifier '(' identifierList intConstList ')' optionalCoarseGrainedPara
+       {
+            RULELOG("rangeList::identifierList::intConstList");
+            List *l = NIL;
+            KeyValue *k1 = createNodeKeyValue((Node *) createConstString("PTYPE"), 
+            									(Node *) createConstString("RANGEB"));
+            KeyValue *k2 = createNodeKeyValue((Node *) createConstString("ATTRS"), 
+            									(Node *) stringListToConstList($3));		
+            KeyValue *k3 = createNodeKeyValue((Node *) createConstString("RANGES"), 
+            									(Node *) $4);           								
+            if($6 == NULL)
+            {
+                l = LIST_MAKE(k1,k2,k3);
+				//l = LIST_MAKE(createConstString($3),createConstInt($4), createConstInt($5), createConstInt($7));
+			}
+		    else
+		    {
+		        KeyValue *k4 = createNodeKeyValue((Node *) createConstString("UHVALUE"), 
+            									(Node *) $6);
+				l = LIST_MAKE(k1,k2,k3,k4);	
+		        //l = LIST_MAKE(createConstString($3),createConstInt($4), createConstInt($5), createConstInt($7), $8);
+		    }
+            KeyValue *k = createNodeKeyValue((Node *) createConstString($1), 
+            									(Node *) l);
+            $$ = singleton(k);
+       }
+       |
+       rangeBList ',' identifier '(' identifierList intConstList ')' optionalCoarseGrainedPara
+       {
+            RULELOG("rangeList::rangeList::rangeList ");
+            List *l = NIL;
+            KeyValue *k1 = createNodeKeyValue((Node *) createConstString("PTYPE"), 
+            									(Node *) createConstString("RANGEB"));
+            KeyValue *k2 = createNodeKeyValue((Node *) createConstString("ATTRS"), 
+            									(Node *) stringListToConstList($5));		
+            KeyValue *k3 = createNodeKeyValue((Node *) createConstString("RANGES"), 
+            									(Node *) $6);          								
+            if($8 == NULL)
+                l = LIST_MAKE(k1,k2,k3);
+		    else
+		    {
+		        KeyValue *k4 = createNodeKeyValue((Node *) createConstString("UHVALUE"), 
+            									(Node *) $8);
+				l = LIST_MAKE(k1,k2,k3,k4);	
 		        //l = LIST_MAKE(createConstString($3),createConstInt($4), createConstInt($5), createConstInt($7), $8);
 		    }									
             									

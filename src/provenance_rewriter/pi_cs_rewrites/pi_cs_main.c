@@ -1539,6 +1539,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     List *coaParaList = (List *) coarsePara;  //(R->[A,B,128] ,S->[C,D,64])
 
     List *coaParaValueList = NIL;
+    List *rangeList = NIL;
     char *ptype = "";
     List *pattrs = NIL;
     Constant* hvalue = NULL;
@@ -1596,6 +1597,15 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
         	 	 highValue = INT_VALUE((Constant *) kv->value);
         	 	 DEBUG_LOG("%s -> %d", keyV, highValue);
          }
+         else if(streq(keyV,"RANGES"))
+         {
+        	 	 rangeList = (List *) kv->value;
+        	 	 DEBUG_LOG("%s ->", keyV);
+        	 	 FOREACH(Constant, c, rangeList)
+        	 	 {
+        	 		 DEBUG_LOG("%d", INT_VALUE(c));
+        	 	 }
+         }
     }
 
     //three cases: fragment or range or page
@@ -1650,9 +1660,9 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     	of = createFunctionCall ("ORA_HASH", LIST_MAKE(substr, hvalue));
     }
-    else if(streq(ptype, "RANGE"))
+    else if(streq(ptype, "RANGEA"))
     {
-    	DEBUG_LOG("Partition by range");
+    	DEBUG_LOG("Partition by range type A");
 
     	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
     	provAttr = appendToTailOfList(provAttr, newAttrName);
@@ -1687,6 +1697,44 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     	caseExpr = createCaseExpr(NULL, whenList, NULL);
     }
+    else if(streq(ptype, "RANGEB"))
+    {
+    	DEBUG_LOG("Partition by range type B");
+
+    	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+    	provAttr = appendToTailOfList(provAttr, newAttrName);
+
+    	char *pAttrName = STRING_VALUE((Constant *) getNthOfListP(pattrs, 0)); //TODO: deal with more attrs
+    	AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, pAttrName);
+
+    	DEBUG_LOG("num ranges: %d, attr: %s.", LIST_LENGTH(rangeList), pAttrName);
+    	FOREACH(Constant, c, rangeList)
+    	{
+    		DEBUG_LOG("Range value: %d", INT_VALUE(c));
+    	}
+
+    	List *whenList = NIL;
+    	for(int i=0; i<LIST_LENGTH(rangeList)-1; i++)
+    	{
+    		Operator *leftOperator = NULL;
+    		if(i == 0)
+    			leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+    		else
+    			leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+
+    		Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
+    		Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
+    		int power = 0;
+    		if(i<2)
+    			power = pow(2,i);
+    		else
+    			power = pow(2,i) + 1;
+    		CaseWhen *when = createCaseWhen(cond, (Node *) createConstInt(power));
+    		whenList = appendToTailOfList(whenList, when);
+    	}
+
+    	caseExpr = createCaseExpr(NULL, whenList, NULL);
+    }
 
     if(streq(ptype, "FRAGMENT") || streq(ptype, "PAGE"))
     {
@@ -1706,7 +1754,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
 
     	projExpr = appendToTailOfList(projExpr, pf);
     }
-    else if(streq(ptype, "RANGE"))
+    else if(streq(ptype, "RANGEA") || streq(ptype, "RANGEB"))
     {
     	projExpr = appendToTailOfList(projExpr, caseExpr);
     }
@@ -1822,6 +1870,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     List *coaParaList = (List *) coarsePara;  //(R->[A,B,128] ,S->[C,D,64])
 
     List *coaParaValueList = NIL;
+    List *rangeList = NIL;
     char *ptype = "";
     List *pattrs = NIL;
     Constant* hvalue = NULL;
@@ -1886,10 +1935,24 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         	 	 highValue = INT_VALUE((Constant *) kv->value);
         	 	 DEBUG_LOG("%s -> %d", keyV, highValue);
          }
+         else if(streq(keyV,"RANGES"))
+         {
+        	 	 rangeList = (List *) kv->value;
+        	 	 DEBUG_LOG("%s ->", keyV);
+        	 	 FOREACH(Constant, c, rangeList)
+        	 	 {
+        	 		 DEBUG_LOG("%d", INT_VALUE(c));
+        	 	 }
+         }
     }
 
-    int hIntValue = INT_VALUE(hvalue);
+    int hIntValue = 0;
     int uhIntValue = INT_VALUE(uhvalue);
+    if(streq(ptype, "RANGEB"))
+    		hIntValue = LIST_LENGTH(rangeList) - 1;
+    else
+    		hIntValue = INT_VALUE(hvalue);
+
     DEBUG_LOG("coarse grained hash value is : %d", hIntValue);
     DEBUG_LOG("coarse grained bitoragg value is : %d", uhIntValue);
 
@@ -1935,9 +1998,9 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
         f = createFunctionCall ("ORA_HASH", LIST_MAKE(substr, hvalue));
     }
-    else if(streq(ptype, "RANGE"))
+    else if(streq(ptype, "RANGEA"))
     {
-        	DEBUG_LOG("deal with range paratation");
+        	DEBUG_LOG("deal with range paratation type A");
 
         	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
         	provAttr = appendToTailOfList(provAttr, newAttrName);
@@ -1959,6 +2022,42 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         	    		leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
             tempCount = tempCount + intervalValue;
             Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
+            Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
+            int power = 0;
+            if(i<2)
+               power = pow(2,i);
+            else
+            	   power = pow(2,i) + 1;
+        		CaseWhen *when = createCaseWhen(cond, (Node *) createConstInt(power));
+        		whenList = appendToTailOfList(whenList, when);
+        }
+        caseExpr = createCaseExpr(NULL, whenList, NULL);
+    	}
+    else if(streq(ptype, "RANGEB"))
+    {
+        	DEBUG_LOG("deal with range paratation type B");
+
+        	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
+        	provAttr = appendToTailOfList(provAttr, newAttrName);
+
+        	char *pAttrName = STRING_VALUE((Constant *) getNthOfListP(pattrs, 0)); //TODO: deal with more attrs
+        AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, pAttrName);
+        DEBUG_LOG("num ranges: %d, attr: %s.", LIST_LENGTH(rangeList), pAttrName);
+        FOREACH(Constant, c, rangeList)
+        {
+        	DEBUG_LOG("Range value: %d", INT_VALUE(c));
+        }
+
+        List *whenList = NIL;
+        for(int i=0; i<LIST_LENGTH(rangeList)-1; i++)
+        {
+        		Operator *leftOperator = NULL;
+        	    if(i == 0)
+        	    		leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+        	    else
+        	    		leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+
+            Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
             Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
             int power = 0;
             if(i<2)
@@ -1995,7 +2094,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
 
     if(streq(ptype, "FRAGMENT") || streq(ptype, "PAGE"))
     		projExpr = appendToTailOfList(projExpr, f);
-    else if(streq(ptype, "RANGE"))
+    else if(streq(ptype, "RANGEA") || streq(ptype, "RANGEB"))
     		projExpr = appendToTailOfList(projExpr, caseExpr);
 
     List *newProvPosList = singletonInt(cnt);

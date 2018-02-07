@@ -230,7 +230,8 @@ strconcat		"||"
 (?i:GRAINED)		TOK(GRAINED)
 (?i:FRAGMENT)		TOK(FRAGMENT)
 (?i:PAGE)		TOK(PAGE)
-(?i:RANGES)		TOK(RANGES)
+(?i:RANGESA)		TOK(RANGESA)
+(?i:RANGESB)		TOK(RANGESB)
 
 	/* booleans */
 {bool}			TOK(boolConst)
