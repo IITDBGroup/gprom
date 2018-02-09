@@ -9,9 +9,9 @@
 PUGS currently supports the following client interfaces: GProM's interactive shell `gprom`, a C library `libgprom`, a JDBC driver, and a python-based web viewer for provenance graphs.
 
 
-# Online Demo
+# PUG Online Demo
 
-* [Online Demo for PUGs Provenance Graph Explorer](http://ec2-35-164-188-60.us-west-2.compute.amazonaws.com:5000)
+* [Online Demo](http://ec2-18-218-236-30.us-east-2.compute.amazonaws.com:5000/)
 
 # Documentation
 
