@@ -12,6 +12,13 @@ def home():
 @app.route('/querysubmit', methods=['POST'])
 def querysubmit():
     session['query'] = request.form['query']
+
+    if request.form['topk'] is not None:
+        session['topk'] = request.form['topk']
+
+    if request.form['sSize'] is not None:
+        session['sSize'] = request.form['sSize']
+    
     if request.form.has_key('genquery'):
         session['action'] = 'run'
     elif request.form.has_key('genprovgame'):
@@ -33,6 +40,14 @@ def showgraph():
     w = GProMWrapper()
     query = session['query']
     action = session['action']
+    
+    topk,sSize = '',''
+    if not 'topk' in session: pass
+    else: topk = session['topk']
+
+    if not 'sSize' in session: pass
+    else: sSize = session['sSize']
+
     conv = Ansi2HTMLConverter()
     # generate a graph
     provQuest = query.find('WHY')
@@ -42,26 +57,36 @@ def showgraph():
 
     if action == 'provgame' or action == 'provgraph' or action == 'provpolygraph' or action == 'triograph' or action == 'lingraph':
 	   if provQuest > 0:
-            if action == 'provgraph':
-		      query = query[:query.find('))')] + ')) FORMAT REDUCED_GP.'
-#		graphFormat = query.find('FORMAT')
-#		if graphFormat < 1:
-#		    query = query[:-1] + ' FORMAT REDUCED_GP.'
-            if action == 'provpolygraph':
+            if action == 'provgraph' and topk != '' and sSize != '':
+              query = query[:query.find('))')] + ')) FORMAT REDUCED_GP. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            else:                
+              query = query[:query.find('))')] + ')) FORMAT REDUCED_GP.'
+#       graphFormat = query.find('FORMAT')
+#       if graphFormat < 1:
+#           query = query[:-1] + ' FORMAT REDUCED_GP.'
+            if action == 'provpolygraph' and topk != '' and sSize != '':
+              query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_GOAL_TUPLE. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            else:
               query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_GOAL_TUPLE.'
         # # 
-            if action == 'triograph':
-		      query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB.'
-#		graphFormat = query.find('FORMAT')
-#		if graphFormat < 1:
-#		    query = query[:-1] + ' FORMAT TUPLE_RULE_TUPLE.'
-            if action == 'lingraph':
-		      query = query[:query.find('))')] + ')) FORMAT TUPLE_ONLY.'
-#		graphFormat = query.find('FORMAT')
-#		if graphFormat < 1:
-#		    query = query[:-1] + ' FORMAT TUPLE_ONLY.'
-            if action == 'provgame':
-	           query = query[:query.find('))')] + ')).'
+            if action == 'triograph' and topk != '' and sSize != '':
+              query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            else:
+              query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB.'
+#       graphFormat = query.find('FORMAT')
+#       if graphFormat < 1:
+#           query = query[:-1] + ' FORMAT TUPLE_RULE_TUPLE.'
+            if action == 'lingraph' and topk != '' and sSize != '':
+              query = query[:query.find('))')] + ')) FORMAT TUPLE_ONLY. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            else:
+              query = query[:query.find('))')] + ')) FORMAT TUPLE_ONLY.'
+#       graphFormat = query.find('FORMAT')
+#       if graphFormat < 1:
+#           query = query[:-1] + ' FORMAT TUPLE_ONLY.'
+            if action == 'provgame' and topk != '' and sSize != '':
+               query = query[:query.find('))')] + ')). TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            else:
+               query = query[:query.find('))')] + ')).'
 
             queryhash = md5(query).hexdigest()
             imagefile = queryhash + '.svg'
@@ -140,7 +165,7 @@ def showgraph():
 ##            insDB='\n'.join(insline)
 ##            md = markdown.Markdown(extensions=['tables'])
 ##            insDB = md.convert(insDB)
-    return render_template('queryresult.html', query=session['query'], gpromlog=gpromlog, dotlog=dotlog, imagefile=imagefile, returnedError=(returncode != 0), action=action, queryResult=queryResult, lines=lines, rels=rels)
+    return render_template('queryresult.html', query=session['query'], gpromlog=gpromlog, dotlog=dotlog, imagefile=imagefile, returnedError=(returncode != 0), action=action, queryResult=queryResult, lines=lines, rels=rels, topk=topk, sSize=sSize)
 
 if __name__ == '__main__':
     app.run()

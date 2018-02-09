@@ -514,7 +514,8 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     char *rewrittenSQL = NULL;
     Node *oModel;
 
-    summarizationPlan(parse);
+    if(!getBoolOption(OPTION_INPUTDB))
+    	summarizationPlan(parse);
 
     START_TIMER("translation");
     oModel = translateParse(parse);
@@ -590,7 +591,7 @@ summarizationPlan (Node *parse)
     		// keep track of (var,rel) and (negidb,edb)
     		HashMap *varRelPair = NEW_MAP(Constant,Constant);
     		HashMap *headEdbPair = NEW_MAP(Constant,List);
-    		List *negIdbs = NIL;
+    		List *negAtoms = NIL;
 
     		FOREACH(Node,n,p->rules)
     		{
@@ -605,17 +606,19 @@ summarizationPlan (Node *parse)
     					{
     						DLAtom *a = (DLAtom *) b;
 
+    						// keep track of which negated atom needs domains from which edb atom
     						if(a->negated)
-    							negIdbs = appendToTailOfList(negIdbs,a->rel);
+    							negAtoms = appendToTailOfList(negAtoms,a->rel);
     						else
            						edbList = appendToTailOfList(edbList,a->rel);
 
+    						// keep track of which variable belongs to which edb
     						FOREACH(Node,n,a->args)
     						{
     							if(isA(n,DLVar))
     							{
     								DLVar *v = (DLVar *) n;
-    								MAP_ADD_STRING_KEY(varRelPair,v->name,a->rel);
+    								MAP_ADD_STRING_KEY_AND_VAL(varRelPair,v->name,a->rel);
     							}
     						}
     					}
@@ -626,24 +629,28 @@ summarizationPlan (Node *parse)
     			}
     		}
 
-    		FOREACH(char,c,negIdbs)
+    		// store edb information for negated atoms and why-not questions
+    		if(!LIST_EMPTY(negAtoms))
     		{
-    			if(streq(qType,"WHY"))
-    			{
-        			if(MAP_HAS_STRING_KEY(headEdbPair,c))
+        		FOREACH(char,c,negAtoms)
+        		{
+        			if(!MAP_HAS_STRING_KEY(headEdbPair,c))
+        				MAP_ADD_STRING_KEY_AND_VAL(varRelPair,c,c);
+        			else
         			{
         				List *edbs = (List *) MAP_GET_STRING(headEdbPair,c);
 
         				FOREACH(char,e,edbs)
-        					MAP_ADD_STRING_KEY(varRelPair,e,e);
+        					MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
         			}
-    			}
-    			else
-    			{
-    				FOREACH_HASH(List,edbs,headEdbPair)
-    					FOREACH(char,e,edbs)
-							MAP_ADD_STRING_KEY(varRelPair,e,e);
-    			}
+        		}
+    		}
+
+    		if(LIST_EMPTY(negAtoms) || streq(qType,"WHYNOT"))
+    		{
+				FOREACH_HASH(List,edbs,headEdbPair)
+					FOREACH(char,e,edbs)
+						MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
     		}
 
     		// store into the list of the summarization options

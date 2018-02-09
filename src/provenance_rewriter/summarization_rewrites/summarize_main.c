@@ -11,22 +11,23 @@
  */
 
 #include "common.h"
-#include "instrumentation/timing_instrumentation.h"
-#include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
+#include "mem_manager/mem_mgr.h"
 #include "configuration/option.h"
+#include "instrumentation/timing_instrumentation.h"
 
 #include "model/node/nodetype.h"
-#include "model/expression/expression.h"
-#include "model/query_operator/query_operator.h"
-#include "model/query_operator/query_operator_model_checker.h"
-#include "model/query_operator/query_operator_dt_inference.h"
-#include "provenance_rewriter/prov_rewriter.h"
-#include "sql_serializer/sql_serializer.h"
-#include "operator_optimizer/operator_optimizer.h"
-#include "provenance_rewriter/prov_utility.h"
 #include "utility/string_utils.h"
+#include "model/datalog/datalog_model.h"
+#include "model/expression/expression.h"
+#include "sql_serializer/sql_serializer.h"
+#include "provenance_rewriter/prov_utility.h"
+#include "provenance_rewriter/prov_rewriter.h"
+#include "model/query_operator/query_operator.h"
+#include "operator_optimizer/operator_optimizer.h"
 #include "model/query_operator/operator_property.h"
+#include "model/query_operator/query_operator_dt_inference.h"
+#include "model/query_operator/query_operator_model_checker.h"
 
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 
@@ -46,7 +47,8 @@
 #define SAMP_NUM_L_ATTR SAMP_NUM_PREFIX "Left"
 #define SAMP_NUM_R_ATTR SAMP_NUM_PREFIX "Right"
 
-static List *domAttrsOutput (Node *sampleInput, int sampleSize, char *qType, HashMap *vrPair, boolean isDomSampNecessary);
+static List *domAttrsOutput (Node *sampleInput, int sampleSize, char *qType, HashMap *vrPair, List *domRels);
+static List *joinOnSeqOutput (List *doms);
 //static int *computeSampleSize (int *samplePerc, Node *prov);
 
 static Node *rewriteUserQuestion (List *userQ, Node *rewrittenTree);
@@ -58,8 +60,7 @@ static Node *rewritePatternOutput (char *summaryType, Node *unionSample, Node *r
 static Node *rewriteScanSampleOutput (Node *sampleInput, Node *patternInput);
 static Node *rewriteCandidateOutput (Node *scanSampleInput, char *qType);
 static Node *scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randProv, Node *randNonProv);
-static Node *joinOnSeqOutput (List *doms);
-static Node *replaceDomWithSampleDom (Node *sampleDom, Node *input);
+static Node *replaceDomWithSampleDom (List *sampleDoms, List *domRels, Node *input);
 static Node *rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType);
 static Node *rewritefMeasureOutput (Node *computeFracInput, float sPrec, float sRec, float sInfo, float thPrec, float thRec, float thInfo);
 static Node *rewriteTopkExplOutput (Node *fMeasureInput, int topK);
@@ -198,7 +199,8 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	/*
 	 * summarization steps begin
 	 */
-	List *doms = NIL;
+	List *doms = NIL,
+		 *sampleDoms = NIL;
 //	int *sampleSize = computeSampleSize(samplePerc,rewrittenTree);
 
 	Node *result=NULL,
@@ -207,7 +209,7 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
         *randomNonProv=NULL,
         *samples=NULL,
         *patterns=NULL,
-        *sampleDom=NULL,
+//        *sampleDom=NULL,
         *whynotExpl=NULL,
         *scanSamples=NULL,
         *candidates=NULL,
@@ -216,22 +218,24 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
         *fMeasure = NULL;
 
 	// if DQ exists, then replace, e.g., even for why question which contains negated IDB atoms
-	boolean isDomSampNecessary = FALSE;
+//	boolean isDomSampNecessary = FALSE;
 	findTableAccessVisitor((Node *) getHeadOfListP((List *) rewrittenTree),&doms);
 
+	List *domRels = NIL;
 	FOREACH(TableAccessOperator,t,doms)
-		if(streq(t->tableName,"DQ"))
-			isDomSampNecessary = TRUE;
+		if(HAS_STRING_PROP(t,DL_IS_DOMAIN_REL) && !searchListString(domRels,t->tableName))
+			domRels = appendToTailOfList(domRels, t->tableName);
+//			isDomSampNecessary = TRUE;
 
 	/*
 	 * Note that regardless of type of questions (why or why-not) if the domain is needed,
 	 * then generate sample domain queries at the very first stage,
 	 * e.g., idb negated atoms in the why question or positive atoms in the why-not
 	 */
-	if(isDomSampNecessary)
+	if(!LIST_EMPTY(domRels))
 	{
-		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair, isDomSampNecessary);
-		sampleDom = joinOnSeqOutput(doms);
+		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair, domRels);
+		sampleDoms = joinOnSeqOutput(doms);
 	}
 
 	/* make the non-prov set involve as optional
@@ -250,8 +254,8 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	 */
 	if(streq(qType,"WHY"))
 	{
-		if(isDomSampNecessary)
-			rewrittenTree = replaceDomWithSampleDom(sampleDom, rewrittenTree);
+		if(!LIST_EMPTY(domRels))
+			rewrittenTree = replaceDomWithSampleDom(sampleDoms, domRels, rewrittenTree);
 
 		if (userQuestion != NIL)
 			rewrittenTree = rewriteUserQuestion(userQuestion, rewrittenTree);
@@ -273,8 +277,8 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 
 		if(nonProvOpt)
 		{
-			isDomSampNecessary = FALSE;
-			doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair, isDomSampNecessary);
+//			isDomSampNecessary = FALSE;
+			doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair, domRels);
 		}
 
 		scaleUp = scaleUpOutput(doms, candidates, provJoin, randomProv, randomNonProv);
@@ -293,7 +297,7 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	{
 //		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair);
 //		sampleDom = joinOnSeqOutput(doms);
-		whynotExpl = replaceDomWithSampleDom(sampleDom, rewrittenTree);
+		whynotExpl = replaceDomWithSampleDom(sampleDoms, domRels, rewrittenTree);
 		randomProv = rewriteRandomProvTuples(whynotExpl, sampleSize, qType, fPattern, nonProvOpt);
 
 		if(nonProvOpt)
@@ -1085,7 +1089,7 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
  * generate domain attrs for later use of scale up of the measure values to the real values
  */
 static List *
-domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, boolean isDomSampNecessary)
+domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List *domRels)
 {
 	List *result = NIL;
 
@@ -1123,13 +1127,13 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, boole
 	List *rels = NIL;
 	findTableAccessVisitor((Node *) transInput,&rels);
 
+	// remove duplicate tableaccessOp
+	FOREACH(TableAccessOperator,t,rels)
+		if(!searchList(removeDupTa,t))
+			removeDupTa = appendToTailOfList(removeDupTa,t);
+
 	if(isDl)
 	{
-		// remove duplicate tableaccessOp
-		FOREACH(TableAccessOperator,t,rels)
-			if(!searchList(removeDupTa,t))
-				removeDupTa = appendToTailOfList(removeDupTa,t);
-
 		// replace attr names in user question with full names
 		FOREACH(AttributeReference,ar,userQuestion)
 		{
@@ -1146,6 +1150,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, boole
 						pos = pos - prevAttrCnt;
 
 					ar->outerLevelsUp = 0; // TODO: force to be '0' or keep it
+					ar->attrPosition = pos;
 					ar->name = STRING_VALUE(getNthOfListP(t->op.schema->attrDefs,pos));
 				}
 
@@ -1158,7 +1163,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, boole
 	int attrCount = 0;
 	int relCount = 0;
 	char *relName = NULL;
-	HashMap *existAttr = NEW_MAP(Constant,Constant);
+//	HashMap *existAttr = NEW_MAP(Constant,Constant);
 
 	FOREACH(TableAccessOperator,t,removeDupTa)
 	{
@@ -1190,13 +1195,13 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, boole
 
 				if(!searchListNode(userQuestion, (Node *) ar))
 				{
-					// create attr domains only once
-					int existAttrCnt = MAP_INCR_STRING_KEY(existAttr,a->attrName);
-
-					if(existAttrCnt == 0)
-					{
+//					// create attr domains only once
+//					int existAttrCnt = MAP_INCR_STRING_KEY(existAttr,a->attrName);
+//
+//					if(existAttrCnt == 0)
+//					{
 						// count for why
-						if(streq(qType,"WHY") && !isDomSampNecessary)
+						if(streq(qType,"WHY") && LIST_EMPTY(domRels))
 						{
 							// create count attr
 							AttributeReference *countAr = createFullAttrReference(strdup(ar->name), 0, ar->attrPosition - attrCount, 0, DT_INT);
@@ -1212,57 +1217,65 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, boole
 							result = appendToTailOfList(result, (Node *) aggCount);
 						}
 						// random sample from attr domain for whynot
-						else if(streq(qType,"WHYNOT") || (streq(qType,"WHY") && isDomSampNecessary))
+						else if(streq(qType,"WHYNOT") || (streq(qType,"WHY") && !LIST_EMPTY(domRels)))
 						{
 							/*
 							 *  TODO: compute percentile for random sample based on the sample size
 							 *  e.g., how to capture table size. Currently, size captured by the table name
 							 */
 
+							// capture the very first position of the number in a string
+							char *numInChar = NULL;
+							char string[strlen(t->tableName)];
+							strcpy(string,t->tableName);
+
+							for(int i = 0; string[i]!='\0'; i++)
+							{
+								if(isdigit(string[i]))
+								{
+									numInChar = &string[i];
+									break;
+								}
+							}
+
+							// capture the size of data from the string
 							char *numInTableName = NULL;
 
-							if(isSubstr(t->tableName,gprom_itoa(6)))
-								numInTableName = strstr(t->tableName,gprom_itoa(6));
+							if(isSubstr(t->tableName,numInChar))
+								numInTableName = strstr(t->tableName,numInChar);
 
-							if(isSubstr(t->tableName,gprom_itoa(1)))
-								numInTableName = strstr(t->tableName,gprom_itoa(1));
-
-							// replace thousand and million in char to number
+							// replace the string[i] that represent the number (e.g., M/m = million)
 							if(isSubstr(numInTableName,"K"))
-								numInTableName = replaceSubstr(numInTableName,"K",gprom_itoa(000));
+								numInTableName = replaceSubstr(numInTableName,"K","000");
 
 							if(isSubstr(numInTableName,"k"))
-								numInTableName = replaceSubstr(numInTableName,"k",gprom_itoa(000));
+								numInTableName = replaceSubstr(numInTableName,"k","000");
 
 							if(isSubstr(numInTableName,"M"))
-							{
-								numInTableName = replaceSubstr(numInTableName,"M",gprom_itoa(000));
-								numInTableName = CONCAT_STRINGS(numInTableName, gprom_itoa(000));
-							}
+								numInTableName = replaceSubstr(numInTableName,"M","000000");
 
 							if(isSubstr(numInTableName,"m"))
-							{
-								numInTableName = replaceSubstr(numInTableName,"m",gprom_itoa(000));
-								numInTableName = CONCAT_STRINGS(numInTableName, gprom_itoa(000));
-							}
+								numInTableName = replaceSubstr(numInTableName,"m","000000");
 
 							// calculate percentile for sampling
-							int dataSize = atoi(numInTableName);
-							float perc = 100;
+							float dataSize = atof(numInTableName);
+							float perc = 0;
 
 							if(sampleSize < dataSize)
 							{
-								perc = sampleSize / dataSize;
+								float s = ((float) sampleSize) / dataSize;
 
 								/*
 								 *  re-compute percentile for sampling to guarantee that over 99% of over sampling
 								 *  which guarantees 99% of having minimum number of failure pattern (from user) in the sample
 								 */
 								if(sampleSize >= 100 && sampleSize < 1000)
-									perc = perc + (perc / 10 * 5);
+									perc = (s + (s / 10 * 5)) * 100;
 								else if(sampleSize >= 1000)
-									perc = perc + (perc / 10);
+									perc = (s + (s / 10)) * 100;
 							}
+							else
+								perc = 100;
 
 							if(perc == 0)
 								perc = 0.000001;
@@ -1282,7 +1295,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, boole
 							SET_BOOL_STRING_PROP((Node *) projDom, PROP_MATERIALIZE);
 							result = appendToTailOfList(result, (Node *) projDom);
 						}
-					}
+//					}
 				}
 				attrCount++;
 			}
@@ -2256,37 +2269,53 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, char *qType, List *fPat
  * replace cross product with sample domain generated
  */
 static Node *
-replaceDomWithSampleDom (Node *sampleDom, Node *input)
+replaceDomWithSampleDom (List *sampleDoms, List *domRels, Node *input)
 {
 	Node *result;
 	Node *whyNotRuleFire = (Node *) getHeadOfListP((List *) input);
 
-	// TODO: function for capturing sub-rooted RA for domain
-	// count number of attrs in sample domain
-	QueryOperator *sDom = (QueryOperator *) sampleDom;
-	int numOfAttrs = LIST_LENGTH(sDom->schema->attrDefs);
-
-	// store original datatypes
-	origDataTypes = getDataTypes(sDom->schema);
+//	// TODO: function for capturing sub-rooted RA for domain
+//	// count number of attrs in sample domain
+//	QueryOperator *sDom = (QueryOperator *) sampleDom;
+//	int numOfAttrs = LIST_LENGTH(sDom->schema->attrDefs);
 
 	List *rels = NIL;
 	findTableAccessVisitor((Node *) whyNotRuleFire,&rels);
 
 	FOREACH(TableAccessOperator,t,rels)
 	{
-		if(streq(t->tableName,"DQ"))
+		if(HAS_STRING_PROP(t,DL_IS_DOMAIN_REL))
 		{
-			// use the count to capture sub-rooted RA for domain
 			QueryOperator *tBase = (QueryOperator *) t;
 
-			while(numOfAttrs > 0)
+			// find the corresponding domain RA by the position
+			int qoPos = listPosString(domRels,t->tableName);
+			QueryOperator *sampleDom = (QueryOperator *) getNthOfListP(sampleDoms,qoPos);
+
+			/*
+			 *  replace the query block with joined sampled domain
+			 *  1) for cross products:
+			 *     the grand parent is a binary operator (e.g., cross product) and the grand parent has more
+			 *     than one parent (indicator for another binary operator), replace the grand parent query block
+			 *  2) no cross products:
+			 *     the direct parent of the domain table has more than one parent, then find the direct grand parent
+			 *     if it is unary operator with only one direct parent, then replace the direct
+			 *  TODO: the query block is checked by the type of operator and the size of the direct parent
+			 */
+			QueryOperator *parent = (QueryOperator *) getHeadOfListP(tBase->parents);
+			QueryOperator *grandparent = (QueryOperator *) getHeadOfListP(parent->parents);
+
+			if(IS_BINARY_OP(grandparent) && LIST_LENGTH(grandparent->parents) > 1)
+				switchSubtreeWithExisting(grandparent, sampleDom);
+
+			if(LIST_LENGTH(parent->parents) > 1)
 			{
-				tBase = (QueryOperator *) getHeadOfListP(tBase->parents);
-				numOfAttrs--;
+				grandparent = (QueryOperator *) getTailOfListP(parent->parents);
+
+				if(IS_UNARY_OP(grandparent) && LIST_LENGTH(grandparent->parents) == 1)
+					switchSubtreeWithExisting(parent, sampleDom);
 			}
 
-			// replace the sub-rooted RA for domain with sample domain
-			switchSubtreeWithExisting((QueryOperator *) tBase, (QueryOperator *) sampleDom);
 			DEBUG_LOG("replaced domain %s with\n:%s", operatorToOverviewString((Node *) tBase),
 					operatorToOverviewString((Node *) sampleDom));
 		}
@@ -2305,18 +2334,28 @@ replaceDomWithSampleDom (Node *sampleDom, Node *input)
 /*
  * for WHYNOT, join on seq
  */
-static Node *
+static List *
 joinOnSeqOutput (List *doms)
 {
-	Node *result;
-	QueryOperator *sampDom = NULL;
+	List *result = NIL;
 	List *inputs = NIL;
 	List *attrNames = NIL;
+	List * outputs = NIL;
+
+	QueryOperator *sampDom = NULL;
+	AttributeReference *lA = NULL,
+					   *rA = NULL;
+
 	int lApos = 0;
-	AttributeReference *lA = NULL;
 
 	inputs = appendToTailOfList(inputs, (Node *) getNthOfListP(doms,0));
 	QueryOperator *firstOp = (QueryOperator *) getNthOfListP(doms,0);
+
+	List *rels = NIL;
+	findTableAccessVisitor((Node *) firstOp,&rels);
+	TableAccessOperator *firstOpTo = (TableAccessOperator *) getHeadOfListP(rels);
+	char *strRel = firstOpTo->tableName;
+
 	FOREACH(AttributeDef,a,firstOp->schema->attrDefs)
 	{
 		if(streq(a->attrName,"SEQ"))
@@ -2330,60 +2369,97 @@ joinOnSeqOutput (List *doms)
 	{
 		Node *n = (Node *) getNthOfListP(doms,i);
 
-		if(i == 1)
+		if(i == 1 || sampDom == NULL)
 			inputs = appendToTailOfList(inputs,n);
 		else
 			inputs = LIST_MAKE(sampDom, n);
 
+		// capture table name
+		rels = NIL;
+		findTableAccessVisitor(n,&rels);
+		TableAccessOperator *followedTo = (TableAccessOperator *) getHeadOfListP(rels);
+		char *followedRel = followedTo->tableName;
+
 		QueryOperator *oDom = (QueryOperator *) n;
-		AttributeReference *rA = NULL;
-		int rApos = 0;
 
-		FOREACH(AttributeDef,oa,oDom->schema->attrDefs)
+		if(streq(strRel,followedRel))
 		{
-			if(streq(oa->attrName,"SEQ"))
-				rA = createFullAttrReference(strdup(oa->attrName),1,rApos,0,oa->dataType);
+			rA = NULL;
+			int rApos = 0;
 
-			attrNames = appendToTailOfList(attrNames, oa->attrName);
-			rApos++;
+			FOREACH(AttributeDef,oa,oDom->schema->attrDefs)
+			{
+				if(streq(oa->attrName,"SEQ"))
+					rA = createFullAttrReference(strdup(oa->attrName),1,rApos,0,oa->dataType);
+
+				attrNames = appendToTailOfList(attrNames, oa->attrName);
+				rApos++;
+			}
+
+			// create join on "seq"
+			if(lA != NULL && rA != NULL)
+			{
+				Node *cond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
+				sampDom = (QueryOperator *) createJoinOp(JOIN_INNER, cond, inputs, NIL, attrNames);
+			}
+
+			if(i == 1 || sampDom == NULL)
+				firstOp->parents = singleton(sampDom);
+			else
+				OP_LCHILD(sampDom)->parents = singleton(sampDom);
+
+			oDom->parents = singleton(sampDom);
 		}
-
-		// create join on "seq"
-		if(lA != NULL && rA != NULL)
-		{
-			Node *cond = (Node *) createOpExpr("=",LIST_MAKE(lA,rA));
-			sampDom = (QueryOperator *) createJoinOp(JOIN_INNER, cond, inputs, NIL, attrNames);
-		}
-
-		if(i == 1)
-			firstOp->parents = singleton(sampDom);
 		else
-			OP_LCHILD(sampDom)->parents = singleton(sampDom);
+		{
+			// store the previous sample domain generated
+			outputs = appendToTailOfList(outputs, sampDom);
+			sampDom = NULL;
+			firstOp = (QueryOperator *) n;
+			inputs = singleton(n);
 
-		oDom->parents = singleton(sampDom);
+			rels = NIL;
+			findTableAccessVisitor((Node *) firstOp,&rels);
+			firstOpTo = (TableAccessOperator *) getHeadOfListP(rels);
+			strRel = firstOpTo->tableName;
+
+			AttributeDef *a = (AttributeDef *) getHeadOfListP(firstOp->schema->attrDefs);
+			lA = createFullAttrReference(strdup(a->attrName),0,0,0,a->dataType);
+			attrNames = getAttrNames(firstOp->schema);
+			rA = NULL;
+		}
 	}
+	// add the last domain generated based on join
+	if(rA == NULL)
+		sampDom = firstOp;
+
+	outputs = appendToTailOfList(outputs, sampDom);
 
 	// add projection operator to remove seq attr
-	List *projExpr = NIL;
-	attrNames = NIL;
-	int pos = 0;
-
-	FOREACH(AttributeDef,a,sampDom->schema->attrDefs)
+	FOREACH(QueryOperator,o,outputs)
 	{
-		if(!streq(a->attrName,"SEQ"))
+		List *projExpr = NIL;
+		attrNames = NIL;
+		int pos = 0;
+
+		FOREACH(AttributeDef,a,o->schema->attrDefs)
 		{
-			projExpr = appendToTailOfList(projExpr,createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
-			attrNames = appendToTailOfList(attrNames, a->attrName);
+			if(!streq(a->attrName,"SEQ"))
+			{
+				projExpr = appendToTailOfList(projExpr,createFullAttrReference(strdup(a->attrName),0,pos,0,a->dataType));
+				attrNames = appendToTailOfList(attrNames, a->attrName);
+			}
+			pos++;
 		}
 
-		pos++;
-	}
-	ProjectionOperator *p = createProjectionOp(projExpr,sampDom,NIL,attrNames);
-	sampDom->parents = singleton(p);
-	sampDom = (QueryOperator *) p;
+		ProjectionOperator *p = createProjectionOp(projExpr,o,NIL,attrNames);
+		o->parents = singleton(p);
+		o = (QueryOperator *) p;
 
-	result = (Node *) sampDom;
-	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
+		// add the projection operator to the result
+		SET_BOOL_STRING_PROP(o, PROP_MATERIALIZE);
+		result = appendToTailOfList(result,o);
+	}
 
 	DEBUG_NODE_BEATIFY_LOG("sample domain based on the seq:", result);
 	INFO_OP_LOG("sample domain based on the seq:", result);

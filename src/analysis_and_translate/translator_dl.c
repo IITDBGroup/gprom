@@ -374,15 +374,22 @@ translateProgram(DLProgram *p)
             kv->value = (Node *) un;
         }
 
-        // exclude the edge rel before connect
+        // exclude the edge rel and domain rules before connect
         Node *transMoveRel = NULL;
-        if (p->sumOpts != NIL)
+    	List *domHeadPreds = NIL;
+
+        if (p->sumOpts != NIL && p->ans != NULL)
         {
         	transMoveRel = MAP_GET_STRING(predToTrans, "move");
         	removeMapStringElem(predToTrans, "move");
 
         	// remove domain query translated for WHYNOT
-        	removeMapStringElem(predToTrans, "DQ");
+        	FOREACH(DLRule,r,p->rules)
+        		if(DL_HAS_PROP(r,DL_DOMAIN_RULE))
+        			domHeadPreds = appendToTailOfList(domHeadPreds,r->head->rel);
+
+        	FOREACH(char,c,domHeadPreds)
+        		removeMapStringElem(predToTrans, c);
         }
 
         // connect rules by replacing table access operators representing idb
@@ -390,7 +397,7 @@ translateProgram(DLProgram *p)
         translation = connectProgramTranslation(p, predToTrans);
 
         // generate input for the summarization
-        if (p->sumOpts != NIL)
+        if (p->sumOpts != NIL && p->ans != NULL)
         {
         	Node *ruleFire = MAP_GET_STRING(predToTrans, p->ans);
         	Node *origInRule = MAP_GET_STRING(predToTrans, origHeadPred);
@@ -399,7 +406,6 @@ translateProgram(DLProgram *p)
         	origIntoFire->properties = copyObject(origInRule);
 
         	List *summInputs = LIST_MAKE(ruleFire, transMoveRel);
-
         	return (Node *) summInputs;
         }
 
@@ -1205,11 +1211,14 @@ replaceVarWithAttrRef(Node *node, List *context)
             SET_BOOL_STRING_PROP(table, DL_IS_EDB_REL); \
         if (DL_HAS_PROP(dl,DL_IS_FACT_REL)) \
             SET_BOOL_STRING_PROP(table, DL_IS_FACT_REL); \
-        DEBUG_LOG("create table for goal %s(%s)%s%s%s", table->tableName, \
+		if (DL_HAS_PROP(dl,DL_IS_DOMAIN_REL)) \
+			SET_BOOL_STRING_PROP(table, DL_IS_DOMAIN_REL); \
+        DEBUG_LOG("create table for goal %s(%s)%s%s%s%s", table->tableName, \
                 stringListToString(getQueryOperatorAttrNames((QueryOperator *) table)), \
                 DL_HAS_PROP(dl,DL_IS_IDB_REL) ? " IDB " : "", \
                 DL_HAS_PROP(dl,DL_IS_FACT_REL) ? " FACT " : "", \
-                DL_HAS_PROP(dl,DL_IS_EDB_REL) ? " EDB " : ""); \
+           		DL_HAS_PROP(dl,DL_IS_FACT_REL) ? " EDB " : "", \
+                DL_HAS_PROP(dl,DL_IS_DOMAIN_REL) ? " DOMAIN " : ""); \
     } while(0)
 
 
@@ -1226,13 +1235,15 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
     boolean isIDB = DL_HAS_PROP(r,DL_IS_IDB_REL);
     boolean isEDB = DL_HAS_PROP(r,DL_IS_EDB_REL);
     boolean isFact = DL_HAS_PROP(r,DL_IS_FACT_REL);
+    boolean isDom = DL_HAS_PROP(r,DL_IS_DOMAIN_REL);
 	boolean typeTransConst = FALSE;
 	boolean typeTransVar = FALSE;
 
-    DEBUG_LOG("goal is marked as %s%s%s",
+    DEBUG_LOG("goal is marked as %s%s%s%s",
             isIDB ? " IDB " : "",
             isFact ? " FACT " : "",
-            isEDB ? "EDB" : "");
+       		isEDB ? " EDB " : "",
+            isDom ? "DOMAIN" : "");
 
     // for idb rels just fake attributes (and for now DTs)
     if (isIDB || (isFact && !isEDB))
@@ -2564,11 +2575,13 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     boolean isIDB = DL_HAS_PROP(r,DL_IS_IDB_REL);
     boolean isEDB = DL_HAS_PROP(r,DL_IS_EDB_REL);
     boolean isFact = DL_HAS_PROP(r,DL_IS_FACT_REL);
+    boolean isDom = DL_HAS_PROP(r,DL_IS_DOMAIN_REL);
 
     DEBUG_LOG("goal is marked as %s%s%s",
             isIDB ? " IDB " : "",
             isFact ? " FACT " : "",
-            isEDB ? "EDB" : "");
+            isEDB ? " EDB " : "",
+            isDom ? "DOMAIN" : "");
 
     // for idb rels just fake attributes (and for now DTs)
     if (isIDB || (isFact && !isEDB))
@@ -2927,12 +2940,13 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
             boolean isIDB = HAS_STRING_PROP(r,DL_IS_IDB_REL);
             boolean isEDB = HAS_STRING_PROP(r,DL_IS_EDB_REL);
             boolean isFact = HAS_STRING_PROP(r,DL_IS_FACT_REL);
+            boolean isDom = HAS_STRING_PROP(r,DL_IS_DOMAIN_REL);
 
             DEBUG_LOG("check Table %s that is %s%s%s", r->tableName, isIDB ? " idb": "",
                     isEDB ? " edb": "", isFact ? " fact": "");
 
-            // exception on DQ due to the replacement in the summarization step
-            if(!streq(r->tableName,"DQ"))
+            // exception on DOMAIN due to the replacement in the summarization step
+            if(!isDom)
             	ASSERT(!isIDB || MAP_HAS_STRING_KEY(predToTrans,r->tableName));
 
             // is idb or fact (which is not edb)
@@ -2964,8 +2978,8 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
                         operatorToOverviewString((Node *) un));
             }
             else if (isIDB || isFact)
-            	// exception on DQ due to the replacement in the summarization step
-            	if(!streq(r->tableName,"DQ"))
+            	// exception on DOMAIN due to the replacement in the summarization step
+            	if(!isDom)
             		FATAL_LOG("Do not find entry for %s", r->tableName);
         }
 
