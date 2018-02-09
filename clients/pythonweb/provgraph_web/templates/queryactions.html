@@ -16,6 +16,8 @@
 	    <button type="submit" name="gentriograph">TrioGraph</button>
 	    <button type="submit" name="genlingraph">LinGraph</button>
 	    <button type="submit" name="genquery">Run Query</button>
+      Top-k Patterns: <input type="text" name="topk" style="width: 50px;"/> &nbsp;
+      Sample Size: <input type="text" name="sSize" style="width: 50px;"/> &nbsp;
 	</p>
 </form>
 <form method="post" action="{{ url_for('queryload') }}">

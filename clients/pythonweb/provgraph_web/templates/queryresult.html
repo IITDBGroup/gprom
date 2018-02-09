@@ -5,20 +5,44 @@
 <div class="container">
 <div class="left">
 {%- if action == 'provgame' -%}
-<h1><p>Provenance Game</p></h1>
-{%- else -%}
+	{%- if topk == '' or sSize == '' -%}
+		<h1><p>Provenance Game</p></h1>
+	{% endif %}
+	{%- if topk != '' or sSize != '' -%}
+		<h1><p>Provenance Game Summary</p></h1>
+	{% endif %}
+{%- endif -%}
 {%- if action == 'provgraph' -%}
-	<h1><p>Provenance Graph</p></h1>
+	{%- if topk == '' or sSize == '' -%}
+		<h1><p>Provenance Graph</p></h1>
+	{% endif %}
+	{%- if topk != '' or sSize != '' -%}
+		<h1><p>Provenance Graph Summary</p></h1>
+	{% endif %}
 {% endif %}
 {%- if action == 'provpolygraph'-%}
-	<h1><p>Provenance Polynomial Type Graph</p></h1>
+	{%- if topk == '' or sSize == '' -%}
+		<h1><p>Provenance Polynomial Type Graph</p></h1>
+	{% endif %}
+	{%- if topk != '' or sSize != '' -%}
+		<h1><p>Provenance Polynomial Type Graph Summary</p></h1>
+	{% endif %}
 {% endif %}	
 {%- if action == 'triograph'-%}
-	<h1><p>Trio Type Graph</p></h1>
+	{%- if topk == '' or sSize == '' -%}
+		<h1><p>Trio Type Graph</p></h1>
+	{% endif %}
+	{%- if topk != '' or sSize != '' -%}
+		<h1><p>Trio Type Graph Summary</p></h1>	
+	{% endif %}
 {% endif %}
 {%- if action == 'lingraph'-%}
-	<h1><p>Lineage Type Graph</p></h1>
-{% endif %}
+	{%- if topk == '' or sSize == '' -%}
+		<h1><p>Lineage Type Graph</p></h1>
+	{% endif %}
+	{%- if topk != '' or sSize != '' -%}
+		<h1><p>Lineage Type Graph Summary</p></h1>
+	{% endif %}
 {% endif %}
 
 {%- if imagefile == '' -%}
