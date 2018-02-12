@@ -70,7 +70,7 @@ static List *provAttrs = NIL;
 static List *normAttrs = NIL;
 static List *userQuestion = NIL;
 static List *origDataTypes = NIL;
-static boolean isDl = FALSE;
+static boolean isDL = FALSE;
 
 
 Node *
@@ -190,17 +190,28 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	 * TODO: not safe to check whether input comes from dl or SQL
 	 */
 	Node *moveRels = NULL;
-	if (isA(getHeadOfListP((List *) rewrittenTree), DuplicateRemoval))
+
+	if(isA(rewrittenTree,List))
 	{
-		isDl = TRUE;
-		moveRels = (Node *) getTailOfListP((List *) rewrittenTree);
+		if(isA(getHeadOfListP((List *) rewrittenTree), DuplicateRemoval))
+		{
+			isDL = TRUE;
+			moveRels = (Node *) getTailOfListP((List *) rewrittenTree);
+
+			// remove move rels from the input
+			List *withTail = (List *) copyObject(rewrittenTree);
+			List *noTail = removeFromTail(withTail);
+			rewrittenTree = (Node *) noTail;
+		}
 	}
 
 	/*
 	 * summarization steps begin
 	 */
-	List *doms = NIL,
-		 *sampleDoms = NIL;
+	List *sampleDoms = NIL,
+//		 *doms = NIL,
+//		 *domRels = NIL,
+		 *eachResults = NIL;
 //	int *sampleSize = computeSampleSize(samplePerc,rewrittenTree);
 
 	Node *result=NULL,
@@ -217,26 +228,23 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
         *computeFrac=NULL,
         *fMeasure = NULL;
 
-	// if DQ exists, then replace, e.g., even for why question which contains negated IDB atoms
-//	boolean isDomSampNecessary = FALSE;
-	findTableAccessVisitor((Node *) getHeadOfListP((List *) rewrittenTree),&doms);
-
-	List *domRels = NIL;
-	FOREACH(TableAccessOperator,t,doms)
-		if(HAS_STRING_PROP(t,DL_IS_DOMAIN_REL) && !searchListString(domRels,t->tableName))
-			domRels = appendToTailOfList(domRels, t->tableName);
-//			isDomSampNecessary = TRUE;
-
-	/*
-	 * Note that regardless of type of questions (why or why-not) if the domain is needed,
-	 * then generate sample domain queries at the very first stage,
-	 * e.g., idb negated atoms in the why question or positive atoms in the why-not
-	 */
-	if(!LIST_EMPTY(domRels))
-	{
-		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair, domRels);
-		sampleDoms = joinOnSeqOutput(doms);
-	}
+//	// if domain exists, then replace, e.g., even for why question which contains negated IDB atoms
+//	if(isDL)
+//	{
+//	//	boolean isDomSampNecessary = FALSE;
+//		List *inputs = (List *) rewrittenTree;
+//
+//		if(LIST_LENGTH(inputs) > 2)
+//			for(int i = 0; i < LIST_LENGTH(inputs)-1; i++)
+//				findTableAccessVisitor((Node *) getNthOfListP(inputs,i),&doms);
+//		else
+//			findTableAccessVisitor((Node *) getHeadOfListP(inputs),&doms);
+//
+//		FOREACH(TableAccessOperator,t,doms)
+//			if(HAS_STRING_PROP(t,DL_IS_DOMAIN_REL) && !searchListString(domRels,t->tableName))
+//				domRels = appendToTailOfList(domRels, t->tableName);
+//	//			isDomSampNecessary = TRUE;
+//	}
 
 	/* make the non-prov set involve as optional
 	 * TODO: connect to the parser if needed
@@ -244,79 +252,143 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 	boolean nonProvOpt = FALSE;
 
 	/*
-	 * for why questions,
-	 * 1) take the prov result as an input
-	 * 2) sample prov from the result
-	 * 3) compute patterns over sample
-	 * 4) scale up to compute approximate real recall
-	 * 5) rank the patterns based on the computed fraction (e.g., recall and informativeness)
-	 * 6) return the explanation based on the top-k patterns
+	 *  compute summary for each rewritten input
 	 */
-	if(streq(qType,"WHY"))
-	{
-		if(!LIST_EMPTY(domRels))
-			rewrittenTree = replaceDomWithSampleDom(sampleDoms, domRels, rewrittenTree);
+	int rewrittenSize = 0;
 
-		if (userQuestion != NIL)
-			rewrittenTree = rewriteUserQuestion(userQuestion, rewrittenTree);
+	// check the size of the rewritten inputs
+	if(isA(rewrittenTree,List))
+		rewrittenSize = LIST_LENGTH((List *) rewrittenTree);
+	else
+		rewrittenSize = 1;
 
-		provJoin = rewriteProvJoinOutput(rewrittenTree, nonProvOpt);
-		randomProv = rewriteRandomProvTuples(provJoin, sampleSize, qType, fPattern, nonProvOpt);
-
-		if(nonProvOpt)
-		{
-			randomNonProv = rewriteRandomNonProvTuples(provJoin, qType, fPattern);
-			samples = rewriteSampleOutput(randomProv, randomNonProv, sampleSize, qType);
-		}
-		else
-			samples = randomProv;
-
-		patterns = rewritePatternOutput(summaryType, samples, randomProv); //TODO: different types of pattern generation
-		scanSamples = rewriteScanSampleOutput(samples, patterns);
-		candidates = rewriteCandidateOutput(scanSamples, qType);
-
-		if(nonProvOpt)
-		{
-//			isDomSampNecessary = FALSE;
-			doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair, domRels);
-		}
-
-		scaleUp = scaleUpOutput(doms, candidates, provJoin, randomProv, randomNonProv);
-		computeFrac = rewriteComputeFracOutput(scaleUp, randomProv, qType);
-		fMeasure = rewritefMeasureOutput(computeFrac, sPrecision, sRecall, sInfo, thPrecision, thRecall, thInfo);
-		result = rewriteTopkExplOutput(fMeasure, topK);
-	}
 	/*
-	 * for why-not questions,
-	 * 1) replace the domain part with the domain created over sampling
-	 * 2) compute patterns over sample
-	 * 3) rank the patterns based on the computed fraction (e.g., recall and informativeness)
-	 * 4) return the explanation based on the top-k patterns
+	 * compute summary for each input
+	 * for example, Q(X) :- R(X,A,B), Q1(X). Q1(X) :- S(X,C,D). WHY(Q(1)).
+	 * 1) first compute the summary of Q(X) (e.g., top 1 pattern is R(1,A,'a'))
+	 * 2) then compute the summary of Q1(X) based on the top-k pattern(s) from Q(X)
+	 * 	  i.e., propagate the condition B = 'a' while computing the summary of Q1(X)
+	 * 	  e.g., top 1 pattern might look like S(1,C,2010), R(1,A,'a')
 	 */
-	else if(streq(qType,"WHYNOT"))
+	for(int i = 0; i < rewrittenSize; i++)
 	{
-//		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair);
-//		sampleDom = joinOnSeqOutput(doms);
-		whynotExpl = replaceDomWithSampleDom(sampleDoms, domRels, rewrittenTree);
-		randomProv = rewriteRandomProvTuples(whynotExpl, sampleSize, qType, fPattern, nonProvOpt);
+		Node *eachRewrittenTree = NULL;
 
-		if(nonProvOpt)
-		{
-			randomNonProv = rewriteRandomNonProvTuples(whynotExpl, qType, fPattern);
-			samples = rewriteSampleOutput(randomProv, randomNonProv, sampleSize, qType);
-		}
+		if(!isA(rewrittenTree,List))
+			eachRewrittenTree = copyObject(rewrittenTree);
 		else
-			samples = randomProv;
+			eachRewrittenTree = (Node *) getNthOfListP((List *) rewrittenTree,i);
 
-		patterns = rewritePatternOutput(summaryType, samples, randomProv); //TODO: different types of pattern generation
-		scanSamples = rewriteScanSampleOutput(samples, patterns);
-		candidates = rewriteCandidateOutput(scanSamples, qType);
-		computeFrac = rewriteComputeFracOutput(candidates, randomProv, qType);
-		fMeasure = rewritefMeasureOutput(computeFrac, sPrecision, sRecall, sInfo, thPrecision, thRecall, thInfo);
-		result = rewriteTopkExplOutput(fMeasure, topK);
 
-//		INFO_OP_LOG("WHYNOT summary is currently on the implementation process!!");
+		// check domain exists in each rewritten RA
+		List *domRels = NIL, *doms = NIL;
+		findTableAccessVisitor(eachRewrittenTree,&doms);
+
+		FOREACH(TableAccessOperator,t,doms)
+			if(HAS_STRING_PROP(t,DL_IS_DOMAIN_REL) && !searchListString(domRels,t->tableName))
+				domRels = appendToTailOfList(domRels, t->tableName);
+
+		/*
+		 * Note that regardless of type of questions (why or why-not) if the domain is needed,
+		 * then generate sample domain queries at the very first stage,
+		 * e.g., idb negated atoms in the why question or positive atoms in the why-not
+		 */
+		if(!LIST_EMPTY(domRels))
+		{
+			doms = domAttrsOutput(eachRewrittenTree, sampleSize, qType, varRelPair, domRels);
+
+			if(LIST_EMPTY(sampleDoms))
+				sampleDoms = joinOnSeqOutput(doms);
+			else
+				FOREACH(QueryOperator,qo,joinOnSeqOutput(doms))
+					if(!searchListNode(sampleDoms,(Node *) qo))
+						sampleDoms = appendToTailOfList(sampleDoms, qo);
+		}
+
+		/*
+		 * for why questions,
+		 * 1) take the prov result as an input
+		 * 2) sample prov from the result
+		 * 3) compute patterns over sample
+		 * 4) scale up to compute approximate real recall
+		 * 5) rank the patterns based on the computed fraction (e.g., recall and informativeness)
+		 * 6) return the explanation based on the top-k patterns
+		 */
+		if(streq(qType,"WHY"))
+		{
+			if(!LIST_EMPTY(domRels))
+				eachRewrittenTree = replaceDomWithSampleDom(sampleDoms, domRels, eachRewrittenTree);
+
+			if (!LIST_EMPTY(userQuestion) && !isDL)
+				eachRewrittenTree = rewriteUserQuestion(userQuestion, eachRewrittenTree);
+
+			provJoin = rewriteProvJoinOutput(eachRewrittenTree, nonProvOpt);
+			randomProv = rewriteRandomProvTuples(provJoin, sampleSize, qType, fPattern, nonProvOpt);
+
+			if(nonProvOpt)
+			{
+				randomNonProv = rewriteRandomNonProvTuples(provJoin, qType, fPattern);
+				samples = rewriteSampleOutput(randomProv, randomNonProv, sampleSize, qType);
+			}
+			else
+				samples = randomProv;
+
+			patterns = rewritePatternOutput(summaryType, samples, randomProv); //TODO: different types of pattern generation
+			scanSamples = rewriteScanSampleOutput(samples, patterns);
+			candidates = rewriteCandidateOutput(scanSamples, qType);
+
+			if(nonProvOpt)
+			{
+	//			isDomSampNecessary = FALSE;
+				doms = domAttrsOutput(eachRewrittenTree, sampleSize, qType, varRelPair, domRels);
+			}
+
+			scaleUp = scaleUpOutput(doms, candidates, provJoin, randomProv, randomNonProv);
+			computeFrac = rewriteComputeFracOutput(scaleUp, randomProv, qType);
+			fMeasure = rewritefMeasureOutput(computeFrac, sPrecision, sRecall, sInfo, thPrecision, thRecall, thInfo);
+			result = rewriteTopkExplOutput(fMeasure, topK);
+		}
+		/*
+		 * for why-not questions,
+		 * 1) replace the domain part with the domain created over sampling
+		 * 2) compute patterns over sample
+		 * 3) rank the patterns based on the computed fraction (e.g., recall and informativeness)
+		 * 4) return the explanation based on the top-k patterns
+		 */
+		else if(streq(qType,"WHYNOT"))
+		{
+	//		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair);
+	//		sampleDom = joinOnSeqOutput(doms);
+			whynotExpl = replaceDomWithSampleDom(sampleDoms, domRels, eachRewrittenTree);
+			randomProv = rewriteRandomProvTuples(whynotExpl, sampleSize, qType, fPattern, nonProvOpt);
+
+			if(nonProvOpt)
+			{
+				randomNonProv = rewriteRandomNonProvTuples(whynotExpl, qType, fPattern);
+				samples = rewriteSampleOutput(randomProv, randomNonProv, sampleSize, qType);
+			}
+			else
+				samples = randomProv;
+
+			patterns = rewritePatternOutput(summaryType, samples, randomProv); //TODO: different types of pattern generation
+			scanSamples = rewriteScanSampleOutput(samples, patterns);
+			candidates = rewriteCandidateOutput(scanSamples, qType);
+			computeFrac = rewriteComputeFracOutput(candidates, randomProv, qType);
+			fMeasure = rewritefMeasureOutput(computeFrac, sPrecision, sRecall, sInfo, thPrecision, thRecall, thInfo);
+			result = rewriteTopkExplOutput(fMeasure, topK);
+		}
+
+		eachResults = appendToTailOfList(eachResults, result);
+
+		// swith the question type by the existence of domain
+		if(streq(qType,"WHY") && !LIST_EMPTY(domRels))
+			qType = "WHYNOT";
+//		else if(streq(qType,"WHYNOT") && !LIST_EMPTY(domRels))
+//			qType = "WHY";
 	}
+
+	// make the collected each result as a whole final result
+	result = (Node *) eachResults;
 
 	/*
 	 * integrate with the edge relation
@@ -355,89 +427,106 @@ static Node *
 integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 {
 	Node *result;
-	QueryOperator *newEdgeBase = (QueryOperator *) topkInput;
 	QueryOperator *edgeRels = (QueryOperator *) moveRels;
-
-	// only prov attrs are needed (create projection operator)
-	int pos = 0;
-	List *projExpr = NIL;
-	List *attrNames = NIL;
-
-	FOREACH(AttributeDef,a,newEdgeBase->schema->attrDefs)
-	{
-		if(isPrefix(a->attrName,"PROV_") || a->dataType == DT_BOOL)
-		{
-			projExpr = appendToTailOfList(projExpr,
-					createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
-
-			attrNames = appendToTailOfList(attrNames, a->attrName);
-		}
-		pos++;
-	}
-
-//	// bring the failure pattern back before merge with edge rel for WHYNOT
-//	if(!LIST_EMPTY(fPattern))
-//	{
-//		FOREACH(Node,n,fPattern)
-//		{
-//			projExpr = appendToTailOfList(projExpr, n);
-//			attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A",gprom_itoa(pos)));
-//			pos++;
-//		}
-//
-//		List *userQdt = NIL;
-//		FOREACH(AttributeDef,a,userQuestion)
-//			userQdt = appendToTailOfListInt(userQdt, a->dataType);
-//
-//		origDataTypes = CONCAT_LISTS(userQdt, origDataTypes);
-//	}
-
-	// case when attr is null then * else attr value
-	List *caseExprs = NIL;
-	pos = 0;
-
-	FOREACH(Node,n,projExpr)
-	{
-		// if the attr is number or constant, then make it char
-		FunctionCall *toChar;
-		AttributeReference *a = (AttributeReference *) n;
-//		char *attrAs = CONCAT_STRINGS("*", strdup(a->name));
-
-		// use attr names for placeholders
-		// TODO: need to bring the original name back on
-		char *attrAs = strdup(a->name);
-
-//		if(isA(n,Constant) || ((DataType *) getNthOfListP(origDataTypes,pos)) == DT_INT)
-//		{
-			if(isA(n,Constant))
-				attrAs = "*";
-
-			toChar = createFunctionCall("TO_CHAR", singleton(n));
-			n = (Node *) toChar;
-//		}
-
-		Node *cond = (Node *) createIsNullExpr((Node *) n);
-		Node *then = (Node *) createConstString(attrAs);
-
-		CaseWhen *caseWhen = createCaseWhen(cond, then);
-		CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), n);
-		caseExprs = appendToTailOfList(caseExprs, (List *) caseExpr);
-
-		pos++;
-	}
-
-	ProjectionOperator *op = createProjectionOp(caseExprs, newEdgeBase, NIL, attrNames);
-	newEdgeBase->parents = singleton(op);
-	newEdgeBase = (QueryOperator *) op;
 
 	// store table access operator for later use of dom attrs
 	List *rels = NIL;
 	findTableAccessVisitor((Node *) edgeRels,&rels);
 
+	List *distinctRels = NIL;
+	FOREACH(TableAccessOperator,t,rels)
+		if(!searchListNode(distinctRels,(Node *) createConstString(t->tableName)))
+			distinctRels = appendToTailOfList(distinctRels,createConstString(t->tableName));
+
+	// only prov attrs are needed (create projection operator)
+	int newBasePos = 0;
+	HashMap *relToNewbase = NEW_MAP(Constant,Node);
+
+	FOREACH(QueryOperator,newEdgeBase,(List *) topkInput)
+	{
+		int pos = 0;
+		List *projExpr = NIL;
+		List *attrNames = NIL;
+
+		FOREACH(AttributeDef,a,newEdgeBase->schema->attrDefs)
+		{
+			if(isPrefix(a->attrName,"PROV_") || a->dataType == DT_BOOL)
+			{
+				projExpr = appendToTailOfList(projExpr,
+						createFullAttrReference(strdup(a->attrName), 0, pos, 0, a->dataType));
+
+				attrNames = appendToTailOfList(attrNames, a->attrName);
+			}
+			pos++;
+		}
+
+	//	// bring the failure pattern back before merge with edge rel for WHYNOT
+	//	if(!LIST_EMPTY(fPattern))
+	//	{
+	//		FOREACH(Node,n,fPattern)
+	//		{
+	//			projExpr = appendToTailOfList(projExpr, n);
+	//			attrNames = appendToTailOfList(attrNames, CONCAT_STRINGS("A",gprom_itoa(pos)));
+	//			pos++;
+	//		}
+	//
+	//		List *userQdt = NIL;
+	//		FOREACH(AttributeDef,a,userQuestion)
+	//			userQdt = appendToTailOfListInt(userQdt, a->dataType);
+	//
+	//		origDataTypes = CONCAT_LISTS(userQdt, origDataTypes);
+	//	}
+
+		// case when attr is null then * else attr value
+		List *caseExprs = NIL;
+		pos = 0;
+
+		FOREACH(Node,n,projExpr)
+		{
+			// if the attr is number or constant, then make it char
+			FunctionCall *toChar;
+			AttributeReference *a = (AttributeReference *) n;
+	//		char *attrAs = CONCAT_STRINGS("*", strdup(a->name));
+
+			// use attr names for placeholders
+			// TODO: need to bring the original name back on
+			char *attrAs = strdup(a->name);
+
+	//		if(isA(n,Constant) || ((DataType *) getNthOfListP(origDataTypes,pos)) == DT_INT)
+	//		{
+				if(isA(n,Constant))
+					attrAs = "*";
+
+				toChar = createFunctionCall("TO_CHAR", singleton(n));
+				n = (Node *) toChar;
+	//		}
+
+			Node *cond = (Node *) createIsNullExpr((Node *) n);
+			Node *then = (Node *) createConstString(attrAs);
+
+			CaseWhen *caseWhen = createCaseWhen(cond, then);
+			CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), n);
+			caseExprs = appendToTailOfList(caseExprs, (List *) caseExpr);
+
+			pos++;
+		}
+
+		ProjectionOperator *op = createProjectionOp(caseExprs, newEdgeBase, NIL, attrNames);
+		newEdgeBase->parents = singleton(op);
+		newEdgeBase = (QueryOperator *) op;
+
+		MAP_ADD_STRING_KEY(relToNewbase,STRING_VALUE(getNthOfListP(distinctRels,newBasePos)),newEdgeBase);
+		newBasePos++;
+	}
+
 	FOREACH(TableAccessOperator,t,rels)
 	{
-		switchSubtreeWithExisting((QueryOperator *) t,newEdgeBase);
-		DEBUG_LOG("replaced table %s with\n:%s", t->tableName, operatorToOverviewString((Node *) newEdgeBase));
+		if(MAP_HAS_STRING_KEY(relToNewbase,t->tableName))
+		{
+			Node *value = MAP_GET_STRING(relToNewbase,t->tableName);
+			switchSubtreeWithExisting((QueryOperator *) t,(QueryOperator *) value);
+			DEBUG_LOG("replaced table %s with\n:%s", t->tableName, operatorToOverviewString(value));
+		}
 	}
 
 	result = (Node *) edgeRels;
@@ -1096,14 +1185,14 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 	// translated input algebra to use the table acess operators
 	QueryOperator *prov = NULL;
 
-	if(isA(input, List))
-		prov = (QueryOperator *) getHeadOfListP((List *) input);
-	else
+//	if(isA(input, List))
+//		prov = (QueryOperator *) getHeadOfListP((List *) input);
+//	else
 		prov = (QueryOperator *) input;
 
 	QueryOperator *transInput = (QueryOperator *) prov->properties;
 
-	if(isDl)
+	if(isDL)
 	{
 		QueryOperator *dup = (QueryOperator *) transInput;
 		ProjectionOperator *fromInputQ = (ProjectionOperator *) getHeadOfListP(dup->inputs);
@@ -1132,7 +1221,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 		if(!searchList(removeDupTa,t))
 			removeDupTa = appendToTailOfList(removeDupTa,t);
 
-	if(isDl)
+	if(isDL)
 	{
 		// replace attr names in user question with full names
 		FOREACH(AttributeReference,ar,userQuestion)
@@ -1268,6 +1357,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 								/*
 								 *  re-compute percentile for sampling to guarantee that over 99% of over sampling
 								 *  which guarantees 99% of having minimum number of failure pattern (from user) in the sample
+								 *  TODO: exact percentile can be calculated over the binomial computation
 								 */
 								if(sampleSize >= 100 && sampleSize < 1000)
 									perc = (s + (s / 10 * 5)) * 100;
@@ -1275,10 +1365,10 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 									perc = (s + (s / 10)) * 100;
 							}
 							else
-								perc = 100;
+								perc = 99.99999;
 
 							if(perc == 0)
-								perc = 0.000001;
+								perc = 0.000002;
 
 							// sample perc for adding SAMPLE clause in the serializer
 //							t->sampClause = (Node *) createConstInt(perc);
@@ -2126,6 +2216,7 @@ static Node *
 rewriteRandomProvTuples (Node *provExpl, int sampleSize, char *qType, List *fPattern, boolean nonProvOpt)
 {
 	Node *result;
+	SelectionOperator *so;
 	QueryOperator *randomProv = (QueryOperator *) provExpl;
 
 	if(streq(qType,"WHY"))
@@ -2140,7 +2231,7 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, char *qType, List *fPat
 		AttributeReference *lC = createFullAttrReference(strdup(HAS_PROV_ATTR), 0, aPos, 0, DT_INT);
 
 		Node *whereClause = (Node *) createOpExpr("=",LIST_MAKE(lC,createConstInt(1)));
-		SelectionOperator *so = createSelectionOp(whereClause, randomProv, NIL, attrNames);
+		so = createSelectionOp(whereClause, randomProv, NIL, attrNames);
 
 		randomProv->parents = singleton(so);
 		randomProv = (QueryOperator *) so;
@@ -2148,43 +2239,26 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, char *qType, List *fPat
 
 		// create projection for adding HAS_PROV_ATTR attribute
 		int pos = 0;
+		attrNames = NIL;
 		List *projExpr = NIL;
 		ProjectionOperator *op;
 
 		FOREACH(AttributeDef,p,randomProv->schema->attrDefs)
 		{
+//			// make the boolean type attribute not a provenance attr if exists
+//			if(p->dataType == DT_BOOL)
+//				p->attrName = replaceSubstr(p->attrName,"PROV_","");
+
 			projExpr = appendToTailOfList(projExpr,
 					createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+
+			attrNames = appendToTailOfList(attrNames,p->attrName);
 			pos++;
 		}
 
 		op = createProjectionOp(projExpr, randomProv, NIL, attrNames);
 		randomProv->parents = singleton(op);
 		randomProv = (QueryOperator *) op;
-		randomProv->provAttrs = copyObject(provAttrs);
-
-		// create order by operator
-		Node *ordCond = (Node *) createConstString("DBMS_RANDOM.RANDOM");
-		OrderExpr *ordExpr = createOrderExpr(ordCond, SORT_ASC, SORT_NULLS_LAST);
-
-		OrderOperator *ord = createOrderOp(singleton(ordExpr), randomProv, NIL);
-		randomProv->parents = singleton(ord);
-		randomProv = (QueryOperator *) ord;
-
-		//
-		int provSize = sampleSize;
-
-		if(nonProvOpt)
-			provSize = sampleSize / 2;
-
-		/* sampling from prov */
-		// create selection clause
-		Node *selCond = NULL;
-		selCond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(provSize)));
-		so = createSelectionOp(selCond, randomProv, NIL, getAttrNames(randomProv->schema));
-
-		randomProv->parents = singleton(so);
-		randomProv = (QueryOperator *) so;
 		randomProv->provAttrs = copyObject(provAttrs);
 	}
 	else if(streq(qType,"WHYNOT"))
@@ -2255,6 +2329,30 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, char *qType, List *fPat
 				a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
 	}
 
+	// create order by operator
+	Node *ordCond = (Node *) createConstString("DBMS_RANDOM.RANDOM");
+	OrderExpr *ordExpr = createOrderExpr(ordCond, SORT_ASC, SORT_NULLS_LAST);
+
+	OrderOperator *ord = createOrderOp(singleton(ordExpr), randomProv, NIL);
+	randomProv->parents = singleton(ord);
+	randomProv = (QueryOperator *) ord;
+
+	//
+	int provSize = sampleSize;
+
+	if(nonProvOpt)
+		provSize = sampleSize / 2;
+
+	/* sampling from prov */
+	// create selection clause
+	Node *selCond = NULL;
+	selCond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(provSize)));
+	so = createSelectionOp(selCond, randomProv, NIL, getAttrNames(randomProv->schema));
+
+	randomProv->parents = singleton(so);
+	randomProv = (QueryOperator *) so;
+	randomProv->provAttrs = copyObject(provAttrs);
+
 	result = (Node *) randomProv;
 	SET_BOOL_STRING_PROP(result, PROP_MATERIALIZE);
 
@@ -2272,7 +2370,8 @@ static Node *
 replaceDomWithSampleDom (List *sampleDoms, List *domRels, Node *input)
 {
 	Node *result;
-	Node *whyNotRuleFire = (Node *) getHeadOfListP((List *) input);
+//	Node *whyNotRuleFire = (Node *) getHeadOfListP((List *) input);
+	Node *whyNotRuleFire = copyObject(input);
 
 //	// TODO: function for capturing sub-rooted RA for domain
 //	// count number of attrs in sample domain
@@ -2482,13 +2581,13 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 	QueryOperator *prov;
 
 //	if(userQuestion == NIL)
-	if(isA(rewrittenTree, List))
-		prov = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
-	else
+//	if(isA(rewrittenTree, List))
+//		prov = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
+//	else
 		prov = (QueryOperator *) rewrittenTree;
 
 	// For dl, make attr names starting with "PROV"
-	if(isDl)
+	if(isDL)
 	{
 		// replace the attr names starting with "PROV_"
 		FOREACH(QueryOperator,q,prov->inputs)
@@ -2496,7 +2595,8 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 				a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
 
 		FOREACH(AttributeDef,a,prov->schema->attrDefs)
-			a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
+//			if (a->dataType != DT_BOOL)
+				a->attrName = CONCAT_STRINGS("PROV_",a->attrName);
 
 		// store orig data types
 		origDataTypes = getDataTypes(prov->schema);
@@ -2508,7 +2608,7 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 	// store normal and provenance attributes for later use
 	if(provAttrs == NIL || normAttrs == NIL)
 	{
-		if(isDl)
+		if(isDL)
 		{
 //			FOREACH(AttributeDef,a,prov->schema->attrDefs)
 //				provAttrs = appendToTailOfList(provAttrs, CONCAT_STRINGS("i",gprom_itoa(getAttrPos(prov, a->attrName))));
@@ -2568,7 +2668,7 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 		List *attrNames = NIL;
 
 		// add user question attrs
-		if(isDl)
+		if(isDL)
 		{
 			for(int i = 0; i < LIST_LENGTH(transInput->schema->attrDefs); i++)
 			{
@@ -2675,7 +2775,7 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 				attrPos++;
 			}
 
-			if(isDl)
+			if(isDL)
 			{
 				// attrs from input query
 				QueryOperator *dup = (QueryOperator *) transInput;
@@ -2792,9 +2892,9 @@ rewriteUserQuestion (List *userQ, Node *rewrittenTree)
 	Node *result;
 	QueryOperator *input = NULL;
 
-	if(isA(rewrittenTree,List))
-		input = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
-	else
+//	if(isA(rewrittenTree,List))
+//		input = (QueryOperator *) getHeadOfListP((List *) rewrittenTree);
+//	else
 		input = (QueryOperator *) rewrittenTree;
 
 	Node *prop = input->properties;

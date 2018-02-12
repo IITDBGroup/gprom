@@ -469,7 +469,7 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    )
 
         // rewrite for summarization
-		if (summOpts != NIL && qType != NULL)
+		if (!LIST_EMPTY(summOpts) && qType != NULL)
 			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts, qType);
 
 	    if(applyOptimizations)
@@ -558,7 +558,7 @@ summarizationPlan (Node *parse)
     {
         ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
 
-    	if (ps->sumOpts != NIL)
+    	if (!LIST_EMPTY(ps->sumOpts))
     		FOREACH(Node,n,ps->sumOpts)
     			summOpts = appendToTailOfList(summOpts,n);
 

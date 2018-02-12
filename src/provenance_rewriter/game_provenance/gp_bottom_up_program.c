@@ -110,6 +110,9 @@ createBottomUpGPprogram (DLProgram *p)
 		}
 //    }
 
+    FOREACH(DLRule,r,origDLrules)
+    	DL_SET_BOOL_PROP(r,DL_ORIGINAL_RULE);
+
     // why provenance
     if(DL_HAS_PROP(p,DL_PROV_WHY))
     {
@@ -4362,6 +4365,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				{
 					if (DL_HAS_PROP(a,DL_IS_EDB_REL) && MAP_HAS_STRING_KEY(relDomPair,a->rel))
 					{
+		        		DL_DEL_PROP(a,DL_LOST);
 						FOREACH(Node,n,a->args)
 						{
 							if(isA(n,DLVar))
@@ -4371,7 +4375,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 								domRule->head->rel = STRING_VALUE(MAP_GET_STRING(relDomPair,a->rel));
 								domRule->head->args = singleton(domVar);
+
+				        		DL_DEL_PROP(domRule->head,DL_LOST);
 								DL_SET_BOOL_PROP(domRule,DL_DOMAIN_RULE);
+
 								domainRules = appendToTailOfList(domainRules, domRule);
 							}
 						}
@@ -4481,12 +4488,28 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	}
 	else
 	{
-		FOREACH(DLRule,r,newRules)
-//			if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
-			FOREACH(Node,n,r->head->args)
-				if(isA(n,Constant))
-					solvedProgram->ans = r->head->rel;
+		// re-order linked rules
+		Node *tailOfLinkedRule = (Node *) getTailOfListP(newRules);
+		newRules = removeFromTail(newRules);
+		newRules = appendToHeadOfList(newRules, tailOfLinkedRule);
 
+		// collect the ans rels
+		char *collectAns = NULL;
+		int order = 0;
+
+		FOREACH(DLRule,r,newRules)
+		{
+			if(order == 0)
+				collectAns = r->head->rel;
+			else
+				if(!isSubstr(collectAns,r->head->rel))
+					collectAns = CONCAT_STRINGS(collectAns,"-",r->head->rel);
+
+			order++;
+		}
+		solvedProgram->ans = collectAns;
+
+		// send the solved program to translator_dl
 		if (ruleWon)
 			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, unLinkedRules, newRules, origDLrules);
 		else
