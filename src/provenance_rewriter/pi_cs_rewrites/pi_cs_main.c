@@ -1539,7 +1539,8 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     List *coaParaList = (List *) coarsePara;  //(R->[A,B,128] ,S->[C,D,64])
 
     List *coaParaValueList = NIL;
-    List *rangeList = NIL;
+    List *attrRangeList = NIL;
+    int rangeLen = 0;
     char *ptype = "";
     List *pattrs = NIL;
     Constant* hvalue = NULL;
@@ -1597,13 +1598,16 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
         	 	 highValue = INT_VALUE((Constant *) kv->value);
         	 	 DEBUG_LOG("%s -> %d", keyV, highValue);
          }
-         else if(streq(keyV,"RANGES"))
+         else if(streq(keyV,"ATTRSRANGES"))
          {
-        	 	 rangeList = (List *) kv->value;
-        	 	 DEBUG_LOG("%s ->", keyV);
-        	 	 FOREACH(Constant, c, rangeList)
+        	 	 attrRangeList = (List *) kv->value;
+        	 	 FOREACH(KeyValue, k, attrRangeList)
         	 	 {
-        	 		 DEBUG_LOG("%d", INT_VALUE(c));
+        	 		 DEBUG_LOG("attr %s", STRING_VALUE(k));
+        	 		 List *subList = (List *) k->value;
+        	 		 rangeLen = LIST_LENGTH(subList);
+        	 		 FOREACH(Constant, c, subList)
+        	 		 	 DEBUG_LOG("%d", INT_VALUE(c));
         	 	 }
          }
     }
@@ -1704,34 +1708,45 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
     	provAttr = appendToTailOfList(provAttr, newAttrName);
 
-    	char *pAttrName = STRING_VALUE((Constant *) getNthOfListP(pattrs, 0)); //TODO: deal with more attrs
-    	AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, pAttrName);
-
-    	DEBUG_LOG("num ranges: %d, attr: %s.", LIST_LENGTH(rangeList), pAttrName);
-    	FOREACH(Constant, c, rangeList)
-    	{
-    		DEBUG_LOG("Range value: %d", INT_VALUE(c));
-    	}
-
     	List *whenList = NIL;
-    	for(int i=0; i<LIST_LENGTH(rangeList)-1; i++)
-    	{
-    		Operator *leftOperator = NULL;
-    		if(i == 0)
-    			leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
-    		else
-    			leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+    for(int i=0; i<rangeLen-1; i++)
+    {
+        Node *cond = NULL;
+        for(int j=0; j<LIST_LENGTH(attrRangeList); j++)
+        {
+        	    KeyValue *k = (KeyValue *) getNthOfListP(attrRangeList, j);
+        	    char *pAttrName = STRING_VALUE((Constant *) k->key);
+        	    AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, strdup(pAttrName));
 
-    		Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
-    		Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
-    		int power = 0;
-    		if(i<2)
-    			power = pow(2,i);
-    		else
-    			power = pow(2,i) + 1;
-    		CaseWhen *when = createCaseWhen(cond, (Node *) createConstInt(power));
-    		whenList = appendToTailOfList(whenList, when);
-    	}
+        	    List *rangeList = (List *) k->value;
+        		Operator *leftOperator = NULL;
+
+        		if(i == 0)
+        			leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+        		else
+        			leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+
+        		if(j == 0)
+        		{
+            		Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
+            		cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
+        		}
+        		else
+        		{
+            		Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
+            		Node *tcond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
+            		cond = AND_EXPRS(cond, tcond);
+        		}
+        }
+
+		int power = 0;
+		if(i<2)
+			power = pow(2,i);
+		else
+			power = pow(2,i) + 1;
+		CaseWhen *when = createCaseWhen(cond, (Node *) createConstInt(power));
+		whenList = appendToTailOfList(whenList, when);
+    }
 
     	caseExpr = createCaseExpr(NULL, whenList, NULL);
     }
@@ -1870,7 +1885,8 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     List *coaParaList = (List *) coarsePara;  //(R->[A,B,128] ,S->[C,D,64])
 
     List *coaParaValueList = NIL;
-    List *rangeList = NIL;
+    List *attrRangeList = NIL;
+    int rangeLen = 0;
     char *ptype = "";
     List *pattrs = NIL;
     Constant* hvalue = NULL;
@@ -1935,13 +1951,16 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         	 	 highValue = INT_VALUE((Constant *) kv->value);
         	 	 DEBUG_LOG("%s -> %d", keyV, highValue);
          }
-         else if(streq(keyV,"RANGES"))
+         else if(streq(keyV,"ATTRSRANGES"))
          {
-        	 	 rangeList = (List *) kv->value;
-        	 	 DEBUG_LOG("%s ->", keyV);
-        	 	 FOREACH(Constant, c, rangeList)
+        	 	 attrRangeList = (List *) kv->value;
+        	 	 FOREACH(KeyValue, k, attrRangeList)
         	 	 {
-        	 		 DEBUG_LOG("%d", INT_VALUE(c));
+        	 		 DEBUG_LOG("attr %s", STRING_VALUE(k));
+        	 		 List *subList = (List *) k->value;
+        	 		 rangeLen = LIST_LENGTH(subList);
+        	 		 FOREACH(Constant, c, subList)
+        	 		 	 DEBUG_LOG("%d", INT_VALUE(c));
         	 	 }
          }
     }
@@ -1949,7 +1968,7 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
     int hIntValue = 0;
     int uhIntValue = INT_VALUE(uhvalue);
     if(streq(ptype, "RANGEB"))
-    		hIntValue = LIST_LENGTH(rangeList) - 1;
+    		hIntValue = rangeLen - 1;
     else
     		hIntValue = INT_VALUE(hvalue);
 
@@ -2040,33 +2059,45 @@ rewriteUseCoarseGrainedTableAccess(TableAccessOperator *op)
         	newAttrName = CONCAT_STRINGS("PROV_", strdup(op->tableName));
         	provAttr = appendToTailOfList(provAttr, newAttrName);
 
-        	char *pAttrName = STRING_VALUE((Constant *) getNthOfListP(pattrs, 0)); //TODO: deal with more attrs
-        AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, pAttrName);
-        DEBUG_LOG("num ranges: %d, attr: %s.", LIST_LENGTH(rangeList), pAttrName);
-        FOREACH(Constant, c, rangeList)
-        {
-        	DEBUG_LOG("Range value: %d", INT_VALUE(c));
-        }
+        	List *whenList = NIL;
+        	for(int i=0; i<rangeLen-1; i++)
+        	{
+        		Node *cond = NULL;
+        		for(int j=0; j<LIST_LENGTH(attrRangeList); j++)
+        		{
+        			KeyValue *k = (KeyValue *) getNthOfListP(attrRangeList, j);
+        			char *pAttrName = STRING_VALUE((Constant *) k->key);
+        			AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, strdup(pAttrName));
 
-        List *whenList = NIL;
-        for(int i=0; i<LIST_LENGTH(rangeList)-1; i++)
-        {
-        		Operator *leftOperator = NULL;
-        	    if(i == 0)
-        	    		leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
-        	    else
-        	    		leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+        			List *rangeList = (List *) k->value;
+        			Operator *leftOperator = NULL;
 
-            Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
-            Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
-            int power = 0;
-            if(i<2)
-               power = pow(2,i);
-            else
-            	   power = pow(2,i) + 1;
+        			if(i == 0)
+        				leftOperator = createOpExpr(">=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+        			else
+        				leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i)) ));
+
+        			if(j == 0)
+        			{
+        				Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
+        				cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
+        			}
+        			else
+        			{
+        				Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), copyObject(getNthOfListP(rangeList, i+1)) ));
+        				Node *tcond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
+        				cond = AND_EXPRS(cond, tcond);
+        			}
+        		}
+
+        		int power = 0;
+        		if(i<2)
+        			power = pow(2,i);
+        		else
+        			power = pow(2,i) + 1;
         		CaseWhen *when = createCaseWhen(cond, (Node *) createConstInt(power));
         		whenList = appendToTailOfList(whenList, when);
-        }
+        	}
         caseExpr = createCaseExpr(NULL, whenList, NULL);
     	}
     else if(streq(ptype, "FRAGMENT"))

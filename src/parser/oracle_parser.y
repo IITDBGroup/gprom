@@ -140,7 +140,7 @@ Node *oracleParseResult = NULL;
 %type <node> binaryOperatorExpression unaryOperatorExpression
 %type <node> joinCond
 %type <node> optionalProvAsOf provAsOf provOption reenactOption semiringCombinerSpec coarseGrainedSpec optionalCoarseGrainedPara
-%type <list> fragmentList pageList rangeAList rangeBList intConstList
+%type <list> fragmentList pageList rangeAList rangeBList intConstList attrRangeList
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
@@ -786,27 +786,44 @@ intConstList:
 		| intConstList ',' intConst { $$ = appendToTailOfList($1, (Node *) createConstInt($3)); }
 	; 
 
+
+
+attrRangeList:
+         '(' delimIdentifier intConstList ')'
+         {
+         	KeyValue *k = createNodeKeyValue((Node *) createConstString($2), 
+            									(Node *) $3);	
+            $$ = singleton(k);
+         }
+         | attrRangeList '(' delimIdentifier intConstList ')'
+         {
+         	KeyValue *k = createNodeKeyValue((Node *) createConstString($3), 
+            									(Node *) $4);	
+            $$ = appendToTailOfList($1, k);
+         }
+	;
+	
 rangeBList:
-       identifier '(' identifierList intConstList ')' optionalCoarseGrainedPara
+       identifier '(' attrRangeList ')' optionalCoarseGrainedPara
        {
             RULELOG("rangeList::identifierList::intConstList");
             List *l = NIL;
             KeyValue *k1 = createNodeKeyValue((Node *) createConstString("PTYPE"), 
             									(Node *) createConstString("RANGEB"));
-            KeyValue *k2 = createNodeKeyValue((Node *) createConstString("ATTRS"), 
-            									(Node *) stringListToConstList($3));		
-            KeyValue *k3 = createNodeKeyValue((Node *) createConstString("RANGES"), 
-            									(Node *) $4);           								
-            if($6 == NULL)
+            KeyValue *k2 = createNodeKeyValue((Node *) createConstString("ATTRSRANGES"), 
+            									(Node *) $3);		
+            //KeyValue *k3 = createNodeKeyValue((Node *) createConstString("RANGES"), 
+            	//								(Node *) $4);           								
+            if($5 == NULL)
             {
-                l = LIST_MAKE(k1,k2,k3);
+                l = LIST_MAKE(k1,k2);
 				//l = LIST_MAKE(createConstString($3),createConstInt($4), createConstInt($5), createConstInt($7));
 			}
 		    else
 		    {
-		        KeyValue *k4 = createNodeKeyValue((Node *) createConstString("UHVALUE"), 
-            									(Node *) $6);
-				l = LIST_MAKE(k1,k2,k3,k4);	
+		        KeyValue *k3 = createNodeKeyValue((Node *) createConstString("UHVALUE"), 
+            									(Node *) $5);
+				l = LIST_MAKE(k1,k2,k3);	
 		        //l = LIST_MAKE(createConstString($3),createConstInt($4), createConstInt($5), createConstInt($7), $8);
 		    }
             KeyValue *k = createNodeKeyValue((Node *) createConstString($1), 
@@ -814,23 +831,23 @@ rangeBList:
             $$ = singleton(k);
        }
        |
-       rangeBList ',' identifier '(' identifierList intConstList ')' optionalCoarseGrainedPara
+       rangeBList ',' identifier '(' attrRangeList ')' optionalCoarseGrainedPara
        {
             RULELOG("rangeList::rangeList::rangeList ");
             List *l = NIL;
             KeyValue *k1 = createNodeKeyValue((Node *) createConstString("PTYPE"), 
             									(Node *) createConstString("RANGEB"));
-            KeyValue *k2 = createNodeKeyValue((Node *) createConstString("ATTRS"), 
-            									(Node *) stringListToConstList($5));		
-            KeyValue *k3 = createNodeKeyValue((Node *) createConstString("RANGES"), 
-            									(Node *) $6);          								
-            if($8 == NULL)
-                l = LIST_MAKE(k1,k2,k3);
+            KeyValue *k2 = createNodeKeyValue((Node *) createConstString("ATTRSRANGES"), 
+            									(Node *) $5);		
+            //KeyValue *k3 = createNodeKeyValue((Node *) createConstString("RANGES"), 
+            	//								(Node *) $6);          								
+            if($7 == NULL)
+                l = LIST_MAKE(k1,k2);
 		    else
 		    {
-		        KeyValue *k4 = createNodeKeyValue((Node *) createConstString("UHVALUE"), 
-            									(Node *) $8);
-				l = LIST_MAKE(k1,k2,k3,k4);	
+		        KeyValue *k3 = createNodeKeyValue((Node *) createConstString("UHVALUE"), 
+            									(Node *) $7);
+				l = LIST_MAKE(k1,k2,k3);	
 		        //l = LIST_MAKE(createConstString($3),createConstInt($4), createConstInt($5), createConstInt($7), $8);
 		    }									
             									
@@ -840,6 +857,9 @@ rangeBList:
             $$ = appendToTailOfList($1, k);
        }
     ;	
+    
+    
+    
 	
 pageList:
        identifier intConst optionalCoarseGrainedPara
