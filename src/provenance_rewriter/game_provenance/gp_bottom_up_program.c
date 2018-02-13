@@ -4271,10 +4271,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				{
 					FOREACH(DLAtom,a,or->body)
 					{
-						if(searchListNode(a->args,(Node *) v))
+						if(!isA((Node *) a,DLComparison))
 						{
-							char *key = CONCAT_STRINGS(or->head->rel,gprom_itoa(headVarPos));
-							MAP_ADD_STRING_KEY_AND_VAL(headVarRelPair,key,a->rel);
+							if(searchListNode(a->args,(Node *) v))
+							{
+								char *key = CONCAT_STRINGS(or->head->rel,gprom_itoa(headVarPos));
+								MAP_ADD_STRING_KEY_AND_VAL(headVarRelPair,key,a->rel);
+							}
 						}
 					}
 					headVarPos++;

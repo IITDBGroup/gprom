@@ -131,7 +131,7 @@ static Node *
 translateProgram(DLProgram *p)
 {
     Node *answerRel;
-    char *origHeadPred = NULL;
+    List *origHeadPred = NIL;
 
 //    // activate option for returning input database
 //    if (getBoolOption(OPTION_INPUTDB))
@@ -224,8 +224,9 @@ translateProgram(DLProgram *p)
             APPEND_TO_MAP_VALUE_LIST(predToRules,headPred,r);
 
             // store orig head pred
-            if (!isSubstr(headPred,"_") && !streq(headPred,"DQ"))
-            	origHeadPred = headPred;
+//            if (!isSubstr(headPred,"_") && !DL_HAS_PROP(r,DL_DOMAIN_RULE))
+            if(DL_HAS_PROP(r,DL_ORIGINAL_RULE))
+            	origHeadPred = appendToTailOfList(origHeadPred, createConstString(headPred));
 
     //        // not first rule for this pred
     //        if(MAP_HAS_STRING_KEY(predToRules,headPred))
@@ -378,7 +379,7 @@ translateProgram(DLProgram *p)
         Node *transMoveRel = NULL;
     	List *domHeadPreds = NIL;
 
-        if (p->sumOpts != NIL && p->ans != NULL)
+        if (!LIST_EMPTY(p->sumOpts) && p->ans != NULL)
         {
         	transMoveRel = MAP_GET_STRING(predToTrans, "move");
         	removeMapStringElem(predToTrans, "move");
@@ -397,15 +398,38 @@ translateProgram(DLProgram *p)
         translation = connectProgramTranslation(p, predToTrans);
 
         // generate input for the summarization
-        if (p->sumOpts != NIL && p->ans != NULL)
+        if (!LIST_EMPTY(p->sumOpts) && p->ans != NULL)
         {
-        	Node *ruleFire = MAP_GET_STRING(predToTrans, p->ans);
-        	Node *origInRule = MAP_GET_STRING(predToTrans, origHeadPred);
+        	Node *origInRule = NULL;
+        	Node *ruleFire = NULL;
+        	List *summInputs = NIL;
 
-        	QueryOperator *origIntoFire = (QueryOperator *) ruleFire;
-        	origIntoFire->properties = copyObject(origInRule);
+        	// check whether the ans rel is sinlge or multiple
+        	if(!isSubstr(p->ans,"-"))
+        	{
+        		ruleFire = MAP_GET_STRING(predToTrans, p->ans);
+        		origInRule = MAP_GET_STRING(predToTrans, STRING_VALUE(getHeadOfListP(origHeadPred)));
+            	QueryOperator *origIntoFire = (QueryOperator *) ruleFire;
+            	origIntoFire->properties = copyObject(origInRule);
+            	summInputs = singleton(origIntoFire);
+        	}
+        	else
+        	{
+        		List *ansRels = splitString(p->ans,"-");
+        		int i = 0;
 
-        	List *summInputs = LIST_MAKE(ruleFire, transMoveRel);
+        		FOREACH(char,c,ansRels)
+        		{
+            		ruleFire = MAP_GET_STRING(predToTrans, c);
+            		origInRule = MAP_GET_STRING(predToTrans, STRING_VALUE(getNthOfListP(origHeadPred,i)));
+                	QueryOperator *origIntoFire = (QueryOperator *) ruleFire;
+                	origIntoFire->properties = copyObject(origInRule);
+        			summInputs = appendToTailOfList(summInputs, origIntoFire);
+        			i++;
+        		}
+        	}
+
+        	summInputs = appendToTailOfList(summInputs, transMoveRel);
         	return (Node *) summInputs;
         }
 
@@ -2776,6 +2800,13 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
                     LIST_MAKE(createFullAttrReference(strdup(a->attrName),
                             0, i, INVALID_ATTR, a->dataType),
                     copyObject(arg)));
+
+            /*
+             *  make DT_INT DT_FLOAT
+             *  TODO: in the metadata lookup, distinguish int and float
+             */
+            if(((Constant *) arg)->constType == DT_FLOAT && a->dataType == DT_INT)
+            	a->dataType = DT_FLOAT;
 
             ASSERT(a->dataType == ((Constant *) arg)->constType);
 
