@@ -1229,7 +1229,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 			int relCnt = 0;
 			int prevAttrCnt = 0;
 			int pos = ar->attrPosition;
-			char *rel = (char *) MAP_GET_STRING(vrPair,ar->name);
+			char *rel = STRING_VALUE(MAP_GET_STRING(vrPair,ar->name));
 
 			FOREACH(TableAccessOperator,t,removeDupTa)
 			{

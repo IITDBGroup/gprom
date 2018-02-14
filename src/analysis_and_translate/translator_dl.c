@@ -2801,14 +2801,8 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
                             0, i, INVALID_ATTR, a->dataType),
                     copyObject(arg)));
 
-            /*
-             *  make DT_INT DT_FLOAT
-             *  TODO: in the metadata lookup, distinguish int and float
-             */
-            if(((Constant *) arg)->constType == DT_FLOAT && a->dataType == DT_INT)
-            	a->dataType = DT_FLOAT;
-
-            ASSERT(a->dataType == ((Constant *) arg)->constType);
+            // commented out as CAST later handles the data types
+//            ASSERT(a->dataType == ((Constant *) arg)->constType);
 
             selExpr = appendToTailOfList(selExpr, comp);
         }
