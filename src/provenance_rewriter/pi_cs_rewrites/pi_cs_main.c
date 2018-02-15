@@ -1672,7 +1672,7 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     	provAttr = appendToTailOfList(provAttr, newAttrName);
 
     	int pValue = INT_VALUE(hvalue);
-    	int intervalValue = (highValue - lowValue) / pValue;
+    	int intervalValue =  (highValue - lowValue) /  pValue;
     	char *pAttrName = STRING_VALUE((Constant *) getNthOfListP(pattrs, 0)); //TODO: deal with more attrs
     	AttributeReference *pAttr = createAttrsRefByName((QueryOperator *)op, pAttrName);
 
@@ -1688,6 +1688,8 @@ rewriteCoarseGrainedTableAccess(TableAccessOperator *op)
     		else
     			leftOperator = createOpExpr(">", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
     		tempCount = tempCount + intervalValue;
+    		if(i == pValue - 1)  //used to handle the last one is unequal to the highValue (the right bound)
+    			tempCount = highValue;
     		Operator *rightOperator = createOpExpr("<=", LIST_MAKE(copyObject(pAttr), createConstInt(tempCount)));
     		Node *cond = AND_EXPRS((Node *) leftOperator, (Node *) rightOperator);
     		int power = 0;
