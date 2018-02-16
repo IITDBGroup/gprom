@@ -2512,6 +2512,9 @@ joinOnSeqOutput (List *doms)
 		else
 		{
 			// store the previous sample domain generated
+			if(rA == NULL)
+				sampDom = firstOp;
+
 			outputs = appendToTailOfList(outputs, sampDom);
 			sampDom = NULL;
 			firstOp = (QueryOperator *) n;
