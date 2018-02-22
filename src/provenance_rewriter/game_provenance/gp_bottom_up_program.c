@@ -4216,6 +4216,50 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	 * TODO: create only one domain rule for join attr
         	 */
 
+    		HashMap *varInPosToRel = NEW_MAP(Constant,Constant);
+
+    		FOREACH(DLRule,r,origDLrules)
+			{
+    			FOREACH(DLAtom,a,r->body)
+				{
+        			if(!a->negated)
+        			{
+        				FOREACH(DLVar,v,a->args)
+    					{
+        					if(!MAP_HAS_STRING_KEY(varInPosToRel,v->name))
+        					{
+                				MAP_ADD_STRING_KEY_AND_VAL(varInPosToRel,v->name,a->rel);
+        					}
+    					}
+        			}
+				}
+			}
+
+
+    		HashMap *varInNegToRel = NEW_MAP(Constant,Constant);
+
+    		FOREACH(DLRule,r,origDLrules)
+    		{
+    			FOREACH(DLAtom,a,r->body)
+				{
+        			if(a->negated)
+        			{
+        				int varPos = 0;
+
+        				FOREACH(DLVar,v,a->args)
+        				{
+        					if(MAP_HAS_STRING_KEY(varInPosToRel,v->name))
+        					{
+        						char *key = CONCAT_STRINGS(a->rel,gprom_itoa(varPos));
+        						char *value = STRING_VALUE(MAP_GET_STRING(varInPosToRel,v->name));
+        						MAP_ADD_STRING_KEY_AND_VAL(varInNegToRel,key,value);
+        						varPos++;
+        					}
+        				}
+        			}
+				}
+    		}
+
 			// add DOM head to the neg atom for edb help rules
 //    		List *edbForDoms = NIL;
     		int domNum = 1;
@@ -4236,27 +4280,74 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						edbRel = replaceSubstr(edbRel, "_WON", "");
 						edbRel = replaceSubstr(edbRel, "_nonlinked", "");
 
-//						edbForDoms = appendToTailOfList(edbForDoms,edbRel);
-						char *domRel = CONCAT_STRINGS("DQ",gprom_itoa(domNum));
+						char *key = CONCAT_STRINGS(edbRel,gprom_itoa(0));
 
-						FOREACH(Node,n,eachAtom->args)
+						if(!MAP_HAS_STRING_KEY(varInNegToRel,key))
 						{
-							if (isA(n,DLVar))
+	//						edbForDoms = appendToTailOfList(edbForDoms,edbRel);
+							char *domRel = CONCAT_STRINGS("DQ",gprom_itoa(domNum));
+
+							FOREACH(Node,n,eachAtom->args)
 							{
-								DLAtom *domHead = makeNode(DLAtom);
-								domHead->rel = domRel;
-								domHead->args = singleton((DLVar *) n);
-								DL_SET_BOOL_PROP(domHead,DL_IS_DOMAIN_REL);
+								if (isA(n,DLVar))
+								{
+									DLAtom *domHead = makeNode(DLAtom);
+									domHead->rel = domRel;
+									domHead->args = singleton((DLVar *) n);
+									DL_SET_BOOL_PROP(domHead,DL_IS_DOMAIN_REL);
 
-								addDomHead = appendToTailOfList(addDomHead,domHead);
+									addDomHead = appendToTailOfList(addDomHead,domHead);
+								}
 							}
-						}
 
-						MAP_ADD_STRING_KEY_AND_VAL(relDomPair,edbRel,domRel);
-						domNum++;
+							MAP_ADD_STRING_KEY_AND_VAL(relDomPair,edbRel,domRel);
+							domNum++;
+						}
 					}
 				}
+				eachRule->body = CONCAT_LISTS(addDomHead, eachRule->body);
+			}
 
+
+			FOREACH(DLRule,eachRule,negedbRules)
+			{
+				List *addDomHead = NIL;
+
+				FOREACH(DLAtom,eachAtom,eachRule->body)
+				{
+					if(eachAtom->negated)
+					{
+						char *edbRel = eachAtom->rel;
+						int relLeng = strlen(edbRel) - 1;
+
+						edbRel = substr(edbRel, 1, relLeng);
+						edbRel = replaceSubstr(edbRel, "_WON", "");
+						edbRel = replaceSubstr(edbRel, "_nonlinked", "");
+
+						int varPos = 0;
+						char *key = CONCAT_STRINGS(edbRel,gprom_itoa(varPos));
+
+						if(MAP_HAS_STRING_KEY(varInNegToRel,key))
+						{
+							FOREACH(Node,n,eachAtom->args)
+							{
+								if(isA(n,DLVar))
+								{
+									char *value = STRING_VALUE(MAP_GET_STRING(varInNegToRel,key));
+									char *domForRel = STRING_VALUE(MAP_GET_STRING(relDomPair,value));
+
+									DLAtom *domHead = makeNode(DLAtom);
+									domHead->rel = domForRel;
+									domHead->args = singleton((DLVar *) n);
+									DL_SET_BOOL_PROP(domHead,DL_IS_DOMAIN_REL);
+
+									addDomHead = appendToTailOfList(addDomHead,domHead);
+									varPos++;
+								}
+							}
+						}
+					}
+				}
 				eachRule->body = CONCAT_LISTS(addDomHead, eachRule->body);
 			}
 
