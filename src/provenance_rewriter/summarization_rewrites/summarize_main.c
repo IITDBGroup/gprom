@@ -1362,7 +1362,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 								if(sampleSize >= 100 && sampleSize < 1000)
 									perc = (s + (s / 10 * 5)) * 100;
 								else if(sampleSize >= 1000)
-									perc = (s + (s / 10)) * 100;
+									perc = (s + (s / 10) + (s / 100 * 5)) * 100;
 							}
 							else
 								perc = 99.99999;
