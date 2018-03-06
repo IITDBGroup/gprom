@@ -449,23 +449,18 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 	// only prov attrs are needed (create projection operator)
 	int newBasePos = 0;
 	HashMap *relToNewbase = NEW_MAP(Constant,Node);
-
-	List *projExpr;
-	List *attrNames;
-	List *measures;
-	List *mAttrDefs;
-	List *measureAttrs;
-	ProjectionOperator *op;
+	List *projExpr = NIL;
+	List *mAttrDefs = NIL;
 
 	FOREACH(QueryOperator,newEdgeBase,(List *) topkInput)
 	{
 		int pos = 0;
 		projExpr = NIL;
-		attrNames = NIL;
-
-		measures = NIL;
 		mAttrDefs = NIL;
-		measureAttrs = NIL;
+
+		List *attrNames = NIL;
+		List *measures = NIL;
+		List *measureAttrs = NIL;
 
 		FOREACH(AttributeDef,a,newEdgeBase->schema->attrDefs)
 		{
@@ -546,7 +541,7 @@ integrateWithEdgeRel(Node * topkInput, Node *moveRels)
 			pos++;
 		}
 
-		op = createProjectionOp(caseExprs, newEdgeBase, NIL, attrNames);
+		ProjectionOperator *op = createProjectionOp(caseExprs, newEdgeBase, NIL, attrNames);
 		newEdgeBase->parents = singleton(op);
 		newEdgeBase = (QueryOperator *) op;
 
@@ -1341,7 +1336,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 		if(isDL)
 		{
 			QueryOperator *tBase = (QueryOperator *) t;
-			QueryOperator *parent;
+			QueryOperator *parent = NULL;
 
 			if(!LIST_EMPTY(tBase->parents))
 				parent = (QueryOperator *) getHeadOfListP(tBase->parents);
@@ -2856,7 +2851,7 @@ rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt)
 			FOREACH(TableAccessOperator,t,rels)
 			{
 				QueryOperator *tBase = (QueryOperator *) t;
-				QueryOperator *parent;
+				QueryOperator *parent = NULL;
 
 				if(!LIST_EMPTY(tBase->parents))
 					parent = (QueryOperator *) getHeadOfListP(tBase->parents);
