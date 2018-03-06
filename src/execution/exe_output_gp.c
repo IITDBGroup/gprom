@@ -141,6 +141,9 @@ executeOutputGP(void *sql)
 
     // loop through query result creating edges and caching nodes
     // add loop
+	int i = 0;
+	List *existingNodes = NIL;
+
     FOREACH(List,t,queryRes)
     {
         Set *nodes;
@@ -156,6 +159,16 @@ executeOutputGP(void *sql)
         rRawId = strtrim(rRawId);
         GPNodeType rType = getNodeType(rRawId);
         char *rId = getNodeId(rRawId);
+
+        if(rType == GP_NODE_NUMPROVRECALL)
+        {
+        	if(searchListString(existingNodes,rRawId))
+        		rRawId = CONCAT_STRINGS(rRawId,"_",gprom_itoa(i));
+
+       		existingNodes = appendToTailOfList(existingNodes,rRawId);
+       		i++;
+        }
+
         nodes = (Set *) MAP_GET_INT(noteTypes, rType);
         addToSet(nodes, rRawId);
 
@@ -215,7 +228,11 @@ executeOutputGP(void *sql)
 
                 if(t == GP_NODE_RULE_WON || t == GP_NODE_RULE_LOST)
                 {
-                	char *xLabel = STRING_VALUE(MAP_GET_STRING(numProvRecall,gprom_itoa(rank)));
+                	char *xLabel = NULL;
+                	if(MAP_HAS_STRING_KEY(numProvRecall,gprom_itoa(rank)))
+                		xLabel = STRING_VALUE(MAP_GET_STRING(numProvRecall,gprom_itoa(rank)));
+                	else
+                		xLabel = "";
                 	appendStringInfo(script,template,id,label,texLabel,xLabel);
                 	rank++;
                 }

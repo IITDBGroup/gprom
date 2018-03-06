@@ -18,6 +18,15 @@ def querysubmit():
 
     if request.form['sSize'] is not None:
         session['sSize'] = request.form['sSize']
+
+    if request.form['fPattern'] is not None:
+        session['fPattern'] = request.form['fPattern']
+
+    if request.form['recall'] is not None:
+        session['recall'] = request.form['recall']
+
+    if request.form['info'] is not None:
+        session['info'] = request.form['info']
     
     if request.form.has_key('genquery'):
         session['action'] = 'run'
@@ -48,6 +57,15 @@ def showgraph():
     if not 'sSize' in session: pass
     else: sSize = session['sSize']
 
+    if not 'fPattern' in session: pass
+    else: fPattern = session['fPattern']
+
+    if not 'recall' in session: pass
+    else: recall = session['recall']
+
+    if not 'info' in session: pass
+    else: info = session['info']
+
     conv = Ansi2HTMLConverter()
     # generate a graph
     provQuest = query.find('WHY')
@@ -57,36 +75,50 @@ def showgraph():
 
     if action == 'provgame' or action == 'provgraph' or action == 'provpolygraph' or action == 'triograph' or action == 'lingraph':
 	   if provQuest > 0:
-            if action == 'provgraph' and topk != '' and sSize != '':
-              query = query[:query.find('))')] + ')) FORMAT REDUCED_GP. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
-            else:                
+            # if action == 'provgraph' and topk != '' and sSize != '':
+            #   query = query[:query.find('))')] + ')) FORMAT REDUCED_GP. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            if action == 'provgraph': #and topk == '' and sSize == '':
               query = query[:query.find('))')] + ')) FORMAT REDUCED_GP.'
 #       graphFormat = query.find('FORMAT')
 #       if graphFormat < 1:
 #           query = query[:-1] + ' FORMAT REDUCED_GP.'
-            if action == 'provpolygraph' and topk != '' and sSize != '':
-              query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_GOAL_TUPLE. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
-            else:
+            # if action == 'provpolygraph' and topk != '' and sSize != '':
+            #   query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_GOAL_TUPLE. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            if action == 'provpolygraph': #and topk == '' and sSize == '':
               query = query[:query.find('))')] + ')) FORMAT TUPLE_RULE_GOAL_TUPLE.'
         # # 
-            if action == 'triograph' and topk != '' and sSize != '':
-              query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
-            else:
+            # if action == 'triograph' and topk != '' and sSize != '':
+            #   query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            if action == 'triograph': #and topk == '' and sSize == '':
               query = query[:query.find('))')] + ')) FORMAT HEAD_RULE_EDB.'
 #       graphFormat = query.find('FORMAT')
 #       if graphFormat < 1:
 #           query = query[:-1] + ' FORMAT TUPLE_RULE_TUPLE.'
-            if action == 'lingraph' and topk != '' and sSize != '':
-              query = query[:query.find('))')] + ')) FORMAT TUPLE_ONLY. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
-            else:
+            # if action == 'lingraph' and topk != '' and sSize != '':
+            #   query = query[:query.find('))')] + ')) FORMAT TUPLE_ONLY. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            if action == 'lingraph': #and topk == '' and sSize == '':
               query = query[:query.find('))')] + ')) FORMAT TUPLE_ONLY.'
 #       graphFormat = query.find('FORMAT')
 #       if graphFormat < 1:
 #           query = query[:-1] + ' FORMAT TUPLE_ONLY.'
-            if action == 'provgame' and topk != '' and sSize != '':
-               query = query[:query.find('))')] + ')). TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
-            else:
+            # if action == 'provgame' and topk != '' and sSize != '':
+            #    query = query[:query.find('))')] + ')). TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            if action == 'provgame': #and topk == '' and sSize == '':
                query = query[:query.find('))')] + ')).'
+
+            if recall != '' and info == '':
+               query += ' SCORE AS (' + recall + ' * recall)'
+            elif recall == '' and info != '':
+               query += ' SCORE AS (' + info + ' * informativeness)'
+            elif recall != '' and info != '':
+               query += ' SCORE AS (' + recall + ' * recall + ' + info + ' * informativeness)'
+            #
+            if topk != '':
+               query += ' TOP ' + topk
+            if fPattern != '':
+               query += ' FOR FAILURE OF (' + fPattern + ')'
+            if sSize != '':
+               query += ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
 
             queryhash = md5(query).hexdigest()
             imagefile = queryhash + '.svg'
@@ -113,7 +145,8 @@ def showgraph():
             queryResult = md.convert(queryResult)
         dotlog, imagefile='',''
     # input db results
-    returncode, dblog = w.runInputDB(query)        
+    # returncode, dblog = w.runInputDB(query)        
+    dblog = ''
     inputDB = dblog
     dblog = conv.convert(dblog,full=False)
     rels = []
@@ -165,7 +198,7 @@ def showgraph():
 ##            insDB='\n'.join(insline)
 ##            md = markdown.Markdown(extensions=['tables'])
 ##            insDB = md.convert(insDB)
-    return render_template('queryresult.html', query=session['query'], gpromlog=gpromlog, dotlog=dotlog, imagefile=imagefile, returnedError=(returncode != 0), action=action, queryResult=queryResult, lines=lines, rels=rels, topk=topk, sSize=sSize)
+    return render_template('queryresult.html', query=session['query'], gpromlog=gpromlog, dotlog=dotlog, imagefile=imagefile, returnedError=(returncode != 0), action=action, queryResult=queryResult, lines=lines, rels=rels, topk=topk, sSize=sSize, fPattern=fPattern, recall=recall, info=info)
 
 if __name__ == '__main__':
     app.run()

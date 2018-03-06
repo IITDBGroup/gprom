@@ -16,8 +16,11 @@
 	    <button type="submit" name="gentriograph">TrioGraph</button>
 	    <button type="submit" name="genlingraph">LinGraph</button>
 	    <button type="submit" name="genquery">Run Query</button>
-      Top-k Patterns: <input type="text" name="topk" style="width: 50px;"/> &nbsp;
-      Sample Size: <input type="text" name="sSize" style="width: 50px;"/> &nbsp;
+      Top-k Patterns: <input type="text" name="topk" style="width: 50px;" value="{{ topk }}" />
+      Sample Size: <input type="text" name="sSize" style="width: 50px;" value="{{ sSize }}" />
+      Failure Pattern: <input type="text" name="fPattern" style="width: 70px;" value="{{ fPattern }}" />
+      Weight for Recall: <input type="text" name="recall" style="width: 50px;" value="{{ recall }}" />
+      Weight for Informativeness: <input type="text" name="info" style="width: 50px;" value="{{ info }}" />
 	</p>
 </form>
 <form method="post" action="{{ url_for('queryload') }}">
