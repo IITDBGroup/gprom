@@ -280,6 +280,7 @@ createInputDBprogram (DLProgram *p, DLAtom *question)
 			{
 				if(!searchListString(edbAtoms,a->rel))
 				{
+					a->negated = FALSE;
 					edbAtoms = appendToTailOfList(edbAtoms, a->rel);
 					MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),createConstString(a->rel));
 
@@ -4207,7 +4208,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			h = eachNegheadRule;
 		}
 	}
-    else
+    else if(LIST_EMPTY(solvedProgram->doms) && !LIST_EMPTY(negedbRules))
     {
 //    	if(DL_HAS_PROP(solvedProgram,DL_PROV_WHYNOT))
 //    	{
@@ -4216,54 +4217,82 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
         	 * TODO: create only one domain rule for join attr
         	 */
 
+    		// store the pair of each variable in positive goals and positive relation names
     		HashMap *varInPosToRel = NEW_MAP(Constant,Constant);
+    		HashMap *relDomPair = NEW_MAP(Constant,Constant);
+    		int domNum = 1;
 
     		FOREACH(DLRule,r,origDLrules)
 			{
-    			FOREACH(DLAtom,a,r->body)
+    			FOREACH(Node,rn,r->body)
 				{
-        			if(!a->negated)
-        			{
-        				FOREACH(DLVar,v,a->args)
-    					{
-        					if(!MAP_HAS_STRING_KEY(varInPosToRel,v->name))
+    				if(isA(rn,DLAtom))
+    				{
+    					DLAtom *a = (DLAtom *) rn;
+
+            			if(!a->negated)
+            			{
+    						char *domRel = CONCAT_STRINGS("DQ",gprom_itoa(domNum));
+    						MAP_ADD_STRING_KEY_AND_VAL(relDomPair,a->rel,domRel);
+
+            				FOREACH(Node,n,a->args)
         					{
-                				MAP_ADD_STRING_KEY_AND_VAL(varInPosToRel,v->name,a->rel);
+            					if(isA(n,DLVar))
+            					{
+            						DLVar *v = (DLVar *) n;
+
+                					if(!MAP_HAS_STRING_KEY(varInPosToRel,v->name))
+                					{
+                        				MAP_ADD_STRING_KEY_AND_VAL(varInPosToRel,v->name,a->rel);
+                					}
+            					}
         					}
-    					}
-        			}
+
+            				domNum++;
+            			}
+    				}
 				}
 			}
 
-
+    		// store the pair of each variable in the negated goals and relation names
     		HashMap *varInNegToRel = NEW_MAP(Constant,Constant);
 
     		FOREACH(DLRule,r,origDLrules)
     		{
-    			FOREACH(DLAtom,a,r->body)
+    			FOREACH(Node,rn,r->body)
 				{
-        			if(a->negated)
-        			{
-        				int varPos = 0;
+    				if(isA(rn,DLAtom))
+    				{
+    					DLAtom *a = (DLAtom *) rn;
 
-        				FOREACH(DLVar,v,a->args)
-        				{
-        					if(MAP_HAS_STRING_KEY(varInPosToRel,v->name))
-        					{
-        						char *key = CONCAT_STRINGS(a->rel,gprom_itoa(varPos));
-        						char *value = STRING_VALUE(MAP_GET_STRING(varInPosToRel,v->name));
-        						MAP_ADD_STRING_KEY_AND_VAL(varInNegToRel,key,value);
-        						varPos++;
-        					}
-        				}
-        			}
+            			if(a->negated)
+            			{
+            				int varPos = 0;
+
+            				FOREACH(Node,n,a->args)
+            				{
+            					if(isA(n,DLVar))
+            					{
+            						DLVar *v = (DLVar *) n;
+
+                					if(MAP_HAS_STRING_KEY(varInPosToRel,v->name))
+                					{
+                						char *key = CONCAT_STRINGS(a->rel,gprom_itoa(varPos));
+                						char *value = STRING_VALUE(MAP_GET_STRING(varInPosToRel,v->name));
+                						MAP_ADD_STRING_KEY_AND_VAL(varInNegToRel,key,value);
+                						varPos++;
+                					}
+            					}
+            				}
+            			}
+    				}
 				}
     		}
 
 			// add DOM head to the neg atom for edb help rules
 //    		List *edbForDoms = NIL;
-    		int domNum = 1;
-    		HashMap *relDomPair = NEW_MAP(Constant,Constant);
+//    		int domNum = 1;
+//    		HashMap *relDomPair = NEW_MAP(Constant,Constant);
 
 			FOREACH(DLRule,eachRule,negedbRules)
 			{
@@ -4280,19 +4309,20 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						edbRel = replaceSubstr(edbRel, "_WON", "");
 						edbRel = replaceSubstr(edbRel, "_nonlinked", "");
 
-						char *key = CONCAT_STRINGS(edbRel,gprom_itoa(0));
+//						char *key = CONCAT_STRINGS(edbRel,gprom_itoa(0));
 
-						if(!MAP_HAS_STRING_KEY(varInNegToRel,key))
+//						if(!MAP_HAS_STRING_KEY(varInNegToRel,key))
+						if(MAP_HAS_STRING_KEY(relDomPair,edbRel))
 						{
 	//						edbForDoms = appendToTailOfList(edbForDoms,edbRel);
-							char *domRel = CONCAT_STRINGS("DQ",gprom_itoa(domNum));
+//							char *domRel = CONCAT_STRINGS("DQ",gprom_itoa(domNum));
 
 							FOREACH(Node,n,eachAtom->args)
 							{
 								if (isA(n,DLVar))
 								{
 									DLAtom *domHead = makeNode(DLAtom);
-									domHead->rel = domRel;
+									domHead->rel = STRING_VALUE(MAP_GET_STRING(relDomPair,edbRel));
 									domHead->args = singleton((DLVar *) n);
 									DL_SET_BOOL_PROP(domHead,DL_IS_DOMAIN_REL);
 
@@ -4300,29 +4330,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 								}
 							}
 
-							MAP_ADD_STRING_KEY_AND_VAL(relDomPair,edbRel,domRel);
+//							MAP_ADD_STRING_KEY_AND_VAL(relDomPair,edbRel,domRel);
 							domNum++;
 						}
-					}
-				}
-				eachRule->body = CONCAT_LISTS(addDomHead, eachRule->body);
-			}
-
-
-			FOREACH(DLRule,eachRule,negedbRules)
-			{
-				List *addDomHead = NIL;
-
-				FOREACH(DLAtom,eachAtom,eachRule->body)
-				{
-					if(eachAtom->negated)
-					{
-						char *edbRel = eachAtom->rel;
-						int relLeng = strlen(edbRel) - 1;
-
-						edbRel = substr(edbRel, 1, relLeng);
-						edbRel = replaceSubstr(edbRel, "_WON", "");
-						edbRel = replaceSubstr(edbRel, "_nonlinked", "");
 
 						int varPos = 0;
 						char *key = CONCAT_STRINGS(edbRel,gprom_itoa(varPos));
@@ -4343,6 +4353,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 									addDomHead = appendToTailOfList(addDomHead,domHead);
 									varPos++;
+									key = CONCAT_STRINGS(edbRel,gprom_itoa(varPos));
 								}
 							}
 						}
@@ -4350,6 +4361,51 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				}
 				eachRule->body = CONCAT_LISTS(addDomHead, eachRule->body);
 			}
+
+//
+//			// replace the domain head for the join attributes
+//			FOREACH(DLRule,eachRule,negedbRules)
+//			{
+//				List *addDomHead = NIL;
+//
+//				FOREACH(DLAtom,eachAtom,eachRule->body)
+//				{
+//					if(eachAtom->negated)
+//					{
+//						char *edbRel = eachAtom->rel;
+//						int relLeng = strlen(edbRel) - 1;
+//
+//						edbRel = substr(edbRel, 1, relLeng);
+//						edbRel = replaceSubstr(edbRel, "_WON", "");
+//						edbRel = replaceSubstr(edbRel, "_nonlinked", "");
+//
+//						int varPos = 0;
+//						char *key = CONCAT_STRINGS(edbRel,gprom_itoa(varPos));
+//
+//						if(MAP_HAS_STRING_KEY(varInNegToRel,key))
+//						{
+//							FOREACH(Node,n,eachAtom->args)
+//							{
+//								if(isA(n,DLVar))
+//								{
+//									char *value = STRING_VALUE(MAP_GET_STRING(varInNegToRel,key));
+//									char *domForRel = STRING_VALUE(MAP_GET_STRING(relDomPair,value));
+//
+//									DLAtom *domHead = makeNode(DLAtom);
+//									domHead->rel = domForRel;
+//									domHead->args = singleton((DLVar *) n);
+//									DL_SET_BOOL_PROP(domHead,DL_IS_DOMAIN_REL);
+//
+//									addDomHead = appendToTailOfList(addDomHead,domHead);
+//									varPos++;
+//									key = CONCAT_STRINGS(edbRel,gprom_itoa(varPos));
+//								}
+//							}
+//						}
+//					}
+//				}
+//				eachRule->body = CONCAT_LISTS(addDomHead, eachRule->body);
+//			}
 
 
 			HashMap *headVarRelPair = NEW_MAP(Constant,Constant);
@@ -4702,7 +4758,7 @@ static Node *
 createSkolemExpr (GPNodeType type, char *id, List *args)
 {
     Node *result;
-    int i = 0;
+    int i = 1;
     List *concatArgs = NIL;
 
     // start with type id, id, '('
@@ -4750,7 +4806,7 @@ createSkolemExpr (GPNodeType type, char *id, List *args)
     // add args
     FOREACH(Node,arg,args)
     {
-        if (i++ != 0)
+        if (i++ != 1)
             concatArgs = appendToTailOfList(concatArgs,
                             createConstString(","));
         concatArgs = appendToTailOfList(concatArgs, copyObject(arg));
@@ -4775,7 +4831,7 @@ createSkolemExpr (GPNodeType type, char *id, List *args)
 static void
 enumerateRules (DLProgram *p)
 {
-    int i = 0;
+    int i = 1;
 
    	FOREACH(DLRule,r,p->rules)
     	setDLProp((DLNode *) r, DL_RULE_ID, (Node *) createConstInt(i++));

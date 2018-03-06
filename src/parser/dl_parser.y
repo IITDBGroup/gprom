@@ -188,6 +188,22 @@ summarizationStatement:
 		/* EMPTY */ { $$ = NIL; }
 		| optionalTopK optionalSumType optionalSumSample { $$ = LIST_MAKE($1,$2,$3); }
 		| optionalTopK optionalFPattern optionalSumType optionalSumSample { $$ = LIST_MAKE($1,$2,$3,$4); }
+		| optionalScore optionalTopK optionalSumType optionalSumSample
+		{ 
+			$$ = CONCAT_LISTS($1,LIST_MAKE($2,$3,$4)); 
+		}
+		| optionalScore optionalTopK optionalFPattern optionalSumType optionalSumSample
+		{ 
+			$$ = CONCAT_LISTS($1,LIST_MAKE($2,$3,$4,$5)); 
+		}
+		| optionalThresholds optionalTopK optionalSumType optionalSumSample
+		{ 
+			$$ = CONCAT_LISTS($1,LIST_MAKE($2,$3,$4)); 
+		}
+		| optionalThresholds optionalTopK optionalFPattern optionalSumType optionalSumSample
+		{ 
+			$$ = CONCAT_LISTS($1,LIST_MAKE($2,$3,$4,$5)); 
+		}
 		| optionalScore optionalThresholds optionalTopK optionalSumType optionalSumSample
 		{ 
 			$$ = CONCAT_LISTS($1,$2,LIST_MAKE($3,$4,$5)); 
@@ -196,6 +212,7 @@ summarizationStatement:
 		{ 
 			$$ = CONCAT_LISTS($1,$2,LIST_MAKE($3,$4,$5,$6)); 
 		}
+		
 /*
 		| FOR TOP intConst SUMMARIZED BY name WITH SAMPLE '(' intConst ')' '.'
 		{
@@ -325,12 +342,12 @@ intConstList:
 		intConst
 		{
 			RULELOG("intConst");
-			$$ = singleton(createConstInt($1));
+			$$ = singleton(createConstBool($1));
 		}
 		| intConstList ',' intConst
 		{
 			RULELOG("intConstList::intConst");
-			$$ = appendToTailOfList($1,createConstInt($3));
+			$$ = appendToTailOfList($1,createConstBool($3));
 		}
 	;  
     
