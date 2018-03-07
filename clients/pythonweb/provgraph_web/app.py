@@ -31,7 +31,7 @@ def querysubmit():
     if request.form.has_key('genquery'):
         session['action'] = 'run'
     elif request.form.has_key('genprovgame'):
-	session['action'] = 'provgame'
+	    session['action'] = 'provgame'
     elif request.form.has_key('genprovgraph'):
         session['action'] = 'provgraph'
     elif request.form.has_key('genprovpolygraph'):
@@ -57,6 +57,7 @@ def showgraph():
     if not 'sSize' in session: pass
     else: sSize = session['sSize']
 
+    fPattern,recall,info = '','',''
     if not 'fPattern' in session: pass
     else: fPattern = session['fPattern']
 
@@ -69,12 +70,36 @@ def showgraph():
     conv = Ansi2HTMLConverter()
     # generate a graph
     provQuest = query.find('WHY')
+    summRequest = query.find('SUMMARIZED')
     lines=[]
     queryResult = ''
     gpromlog, dotlog, imagefile='','',''
 
     if action == 'provgame' or action == 'provgraph' or action == 'provpolygraph' or action == 'triograph' or action == 'lingraph':
 	   if provQuest > 0:
+            summQuery = ''
+            if summRequest < 0:
+                if recall != '' and info == '':
+                   summQuery += ' SCORE AS (' + recall + ' * recall)'
+                elif recall == '' and info != '':
+                   summQuery += ' SCORE AS (' + info + ' * informativeness)'
+                elif recall != '' and info != '':
+                   summQuery += ' SCORE AS (' + recall + ' * recall + ' + info + ' * informativeness)'
+                #
+                if topk != '':
+                   summQuery += ' TOP ' + topk
+                if fPattern != '':
+                   summQuery += ' FOR FAILURE OF (' + fPattern + ')'
+                if sSize != '':
+                   summQuery += ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
+            else:
+                score = query.find('SCORE')
+                if score > 0:
+                    summQuery += ' ' + query[query.find('SCORE'):]
+                else:
+                    top = query.find('TOP')
+                    if top > 0:
+                        summQuery += ' ' + query[query.find('TOP'):]
             # if action == 'provgraph' and topk != '' and sSize != '':
             #   query = query[:query.find('))')] + ')) FORMAT REDUCED_GP. TOP ' + topk + ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
             if action == 'provgraph': #and topk == '' and sSize == '':
@@ -106,20 +131,7 @@ def showgraph():
             if action == 'provgame': #and topk == '' and sSize == '':
                query = query[:query.find('))')] + ')).'
 
-            if recall != '' and info == '':
-               query += ' SCORE AS (' + recall + ' * recall)'
-            elif recall == '' and info != '':
-               query += ' SCORE AS (' + info + ' * informativeness)'
-            elif recall != '' and info != '':
-               query += ' SCORE AS (' + recall + ' * recall + ' + info + ' * informativeness)'
-            #
-            if topk != '':
-               query += ' TOP ' + topk
-            if fPattern != '':
-               query += ' FOR FAILURE OF (' + fPattern + ')'
-            if sSize != '':
-               query += ' SUMMARIZED BY LCA WITH SAMPLE(' + sSize + ').'
-
+            query += summQuery
             queryhash = md5(query).hexdigest()
             imagefile = queryhash + '.svg'
             absImagepath = 'static/' + imagefile
