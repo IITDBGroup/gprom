@@ -103,6 +103,16 @@ NEW_ENUM_WITH_TO_STRING(
 #define TEMPORAL_USE_NORMALIZATION_WINDOW "temporal_use_normalization_window"
 #define TEMPORAL_AGG_WITH_NORM "temporal_combine_agg_and_norm"
 
+// backend types
+NEW_ENUM_WITH_TO_STRING(
+    BackendType,
+    BACKEND_ORACLE,
+    BACKEND_POSTGRES,
+    BACKEND_SQLITE,
+    BACKEND_MONETDB
+);
+
+
 // encapsulates option state
 typedef struct option_state OptionState;
 

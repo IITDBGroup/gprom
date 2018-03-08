@@ -14,6 +14,7 @@
 #include "mem_manager/mem_mgr.h"
 #include "log/logger.h"
 #include "metadata_lookup/metadata_lookup.h"
+#include "sql_serializer/sql_serializer.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
 #include "model/expression/expression.h"
@@ -320,19 +321,38 @@ createIsNullExpr (Node *expr)
 Node *
 createIsNotDistinctExpr (Node *lArg, Node *rArg)
 {
-    Operator *eq; //, *nullTest;
+    Node *eq; //, *nullTest;
+    SqlserializerPluginType backend = getActiveSqlserializerPlugin();
 
-    eq = createOpExpr("=", LIST_MAKE(
-            createFunctionCall("sys_op_map_nonnull", singleton(copyObject(lArg))),
-            createFunctionCall("sys_op_map_nonnull", singleton(copyObject(rArg)))));
+    switch(backend)
+    {
+        case SQLSERIALIZER_PLUGIN_ORACLE:
+        {
+            eq = (Node *) createOpExpr("=", LIST_MAKE(
+                    createFunctionCall("sys_op_map_nonnull", singleton(copyObject(lArg))),
+                    createFunctionCall("sys_op_map_nonnull", singleton(copyObject(rArg)))));
+        }
+        break;
+        case SQLSERIALIZER_PLUGIN_POSTGRES:
+        {
+            eq = (Node *) createOpExpr("IS NOT DISTINCT FROM",
+                    LIST_MAKE(copyObject(lArg), copyObject(rArg)));
+        }
+        break;
+        default:
+        {
+            Node *nullTest, *eqTest;
+
+            eqTest = (Node *) createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
+            nullTest = (Node *) createOpExpr(OPNAME_AND, LIST_MAKE(
+                    createIsNullExpr(copyObject(lArg)),
+                    createIsNullExpr(copyObject(rArg))));
+
+            eq = (Node *) createOpExpr(OPNAME_OR, LIST_MAKE(eqTest, nullTest));
+        }
+    }
     return (Node *) eq;
 
-//    eq = createOpExpr("=", LIST_MAKE(copyObject(lArg), copyObject(rArg)));
-//    nullTest = createOpExpr(OPNAME_AND, LIST_MAKE(
-//            createIsNullExpr(copyObject(lArg)),
-//            createIsNullExpr(copyObject(rArg))));
-//
-//    return (Node *) createOpExpr(OPNAME_OR, LIST_MAKE(eq, nullTest));
 }
 
 Constant *
