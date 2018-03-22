@@ -19,7 +19,9 @@
 #include "model/list/list.h"
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
+#include "configuration/option.h"
 #include "utility/string_utils.h"
+#include "provenance_rewriter/uncertainty_rewrites/uncert_rewriter.h"
 
 typedef struct FindNotesContext
 {
@@ -633,6 +635,37 @@ isCondition(Node *expr)
     return FALSE;
 }
 
+char *
+backendifyIdentifier(char *name)
+{
+    char *result;
+
+    // remove quotes of quoted identifier
+    if (strlen(name) > 0 && name[0] == '"')
+    {
+        result = substr(name, 1, strlen(name) - 2);
+    }
+    // non quoted part upcase or downcase based on database system
+    else
+    {
+        switch(getBackend())
+        {
+            case BACKEND_ORACLE:
+                result = strToUpper(name);
+                break;
+            case BACKEND_POSTGRES:
+                result = strToLower(name);
+                break;
+            default:
+                result = strToUpper(name);
+                break;
+        }
+    }
+
+    return result;
+}
+
+
 List *
 createCasts(Node *lExpr, Node *rExpr)
 {
@@ -894,7 +927,7 @@ SQLdataTypeToDataType (char *dt)
         return DT_INT; //TODO may also be float
     if (isPrefix(dt, "VARCHAR"))
         return DT_STRING;
-    FATAL_LOG("unkown SQL datatype %s", dt);
+    FATAL_LOG("unknown SQL datatype %s", dt);
     return DT_INT;
 }
 
@@ -1044,10 +1077,15 @@ typeOfFunc (FunctionCall *f)
     boolean fExists = FALSE;
     DataType result;
 
+    if (strieq(f->functionname, UNCERTAIN_MAKER_FUNC_NAME))
+    {
+        return getNthOfListInt(typeOfArgs(f->args), 0);
+    }
+
     argDTs = typeOfArgs(f->args);
     result = getFuncReturnType(f->functionname, argDTs, &fExists);
     if (!fExists)
-        DEBUG_NODE_BEATIFY_LOG("Function does not exist: %s", f);
+        DEBUG_NODE_BEATIFY_LOG("Function does not exist: ", f);
     return result;
 }
 
@@ -1055,6 +1093,12 @@ static boolean
 funcExists (char *fName, List *argDTs)
 {
     boolean fExists = FALSE;
+
+    // uncertainty dummy functions
+    if (strieq(fName, UNCERTAIN_MAKER_FUNC_NAME))
+    {
+        return TRUE;
+    }
 
     getFuncReturnType(fName, argDTs, &fExists);
 

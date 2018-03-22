@@ -202,7 +202,7 @@ extern OptionType getOptionType(char *name);
 extern boolean optionSet(char *name);
 extern void printVersion(FILE *stream);
 
-
+extern BackendType getBackend(void);
 extern char *getBackendPlugin(char *be, char *pluginOpt);
 extern char *getFrontendPlugin(char *fe, char *pluginOpt);
 

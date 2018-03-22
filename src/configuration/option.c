@@ -64,6 +64,7 @@ typedef struct FrontendInfo {
 } FrontendInfo;
 
 typedef struct BackendInfo {
+    BackendType typ;
     char *backendName;
     char *analyzer;
     char *parser;
@@ -771,6 +772,7 @@ OptionInfo opts[] =
 // backend plugins information
 BackendInfo backends[]  = {
         {
+            BACKEND_ORACLE,
             "oracle",   // name
             "oracle",   // analyzer
             "oracle",   // parser
@@ -779,6 +781,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
+            BACKEND_POSTGRES,
             "postgres",   // name
             "oracle",   // analyzer
             "oracle",   // parser
@@ -787,6 +790,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
+            BACKEND_SQLITE,
             "sqlite",   // name
             "oracle",   // analyzer
             "oracle",   // parser
@@ -795,6 +799,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
+            BACKEND_MONETDB,
             "monetdb",   // name
             "oracle",   // analyzer
             "oracle",   // parser
@@ -803,7 +808,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
-            STOPPER_STRING, NULL, NULL, NULL, NULL, NULL
+            BACKEND_ORACLE, STOPPER_STRING, NULL, NULL, NULL, NULL, NULL
         }
 };
 
@@ -1231,6 +1236,20 @@ getBackendPlugin(char *be, char *pluginOpt)
     HashMap *bInfo = (HashMap *) MAP_GET_STRING(backendInfo, be);
 
     return STRING_VALUE(MAP_GET_STRING(bInfo, pluginOpt));
+}
+
+BackendType
+getBackend(void)
+{
+    if (backend == NULL)
+        return BACKEND_ORACLE;
+    for(int i = 0; strcmp(backends[i].backendName,STOPPER_STRING) != 0; i++)
+    {
+        if (streq(backends[i].backendName, backend))
+            return backends[i].typ;
+    }
+
+    return BACKEND_ORACLE;
 }
 
 char *

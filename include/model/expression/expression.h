@@ -208,6 +208,9 @@ extern DataType typeOfInOpModel (Node *expr, List *inputOperators);
 extern boolean isConstExpr (Node *expr);
 extern boolean isCondition(Node *expr);
 
+/* backend specific */
+extern char *backendifyIdentifier(char *name);
+
 /* casting related */
 extern List *createCasts(Node *lExpr, Node *rExpr);
 extern Node *addCastsToExpr(Node *expr, boolean errorOnFailure);

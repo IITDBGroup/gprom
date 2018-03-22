@@ -16,4 +16,5 @@ public interface BackendInfo {
 	public String getUser(String url) throws Exception;
 	public String getPassword(String url) throws Exception;
 	public String getDatabase(String url) throws Exception;
+	
 }
