@@ -225,7 +225,7 @@ replaceSubstr(char *str, char *pattern, char *repl)
 char *
 substr(char *str, int from, int to)
 {
-    ASSERT(from >= 0 && from < to && to < strlen(str));
+    ASSERT(from >= 0 && from <= to && to < strlen(str));
     int len = to - from  + 1;
     char *result = MALLOC(len + 1);
     memcpy(result, str + from, len);

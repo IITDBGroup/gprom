@@ -935,16 +935,17 @@ constant:
 attributeRef: 
         identifier         
         { 
-        	RULELOG("attributeRef::IDENTIFIER"); 
-        	$$ = (Node *) createAttributeReference($1); 
+	        	RULELOG("attributeRef::IDENTIFIER"); 
+    	       	$$ = (Node *) createAttributeReference($1); 
         }
         | compositeIdentifier  
         { 
-        	RULELOG("attributeRef::COMPOSITEIDENT"); 
-        	$$ = (Node *) createAttributeReference($1); 
+        		RULELOG("attributeRef::COMPOSITEIDENT"); 
+        		$$ = (Node *) createAttributeReference($1); 
         }
 	;
-	
+
+
 /*
  * SQL parameter
  */

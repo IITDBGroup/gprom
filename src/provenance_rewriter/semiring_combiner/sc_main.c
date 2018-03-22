@@ -128,7 +128,7 @@ getSemiringCombinerDatatype(ProvenanceStmt *stmt, List *dts)
     {
 		if(streq(STRING_VALUE(kv->key),PROP_PC_SEMIRING_COMBINER))
 		{
-			INFO_NODE_BEATIFY_LOG("get datatypes for semiring combiner expressions:%s",kv->value);
+			INFO_NODE_BEATIFY_LOG("get datatypes for semiring combiner expressions:",kv->value);
 			Node *addExpr;
 			Node *multExpr;
 
@@ -140,7 +140,7 @@ getSemiringCombinerDatatype(ProvenanceStmt *stmt, List *dts)
 			        char *funcn = "sum";
 			        boolean exists = FALSE;
 			        DataType dtLeftFuncIn = getNthOfListInt(dts, 0);
-			        DataType dtRightFuncIn = getNthOfListInt(dts, 1);
+			        DataType dtRightFuncIn = LIST_LENGTH(dts) == 1 ? dtLeftFuncIn : getNthOfListInt(dts, 1);
 
 			        multType = getOpReturnType(scop,CONCAT_LISTS(singletonInt(dtLeftFuncIn), singletonInt(dtRightFuncIn)), &exists);
 			        addType = getFuncReturnType(funcn,singletonInt(multType), NULL);
@@ -178,7 +178,7 @@ getSemiringCombinerDatatype(ProvenanceStmt *stmt, List *dts)
 			multActualLeft = copyObject(multLeftAttr);
 			multActualLeft->attrType = getNthOfListInt(dts, 0);
 			multActualRight = copyObject(multRightAttr);
-			multActualRight->attrType = getNthOfListInt(dts, 1);
+			multActualRight->attrType = LIST_LENGTH(dts) == 1 ? multActualLeft->attrType : getNthOfListInt(dts, 1);
 
 			multExpr = copyObject(multExpr);
 			multType = typeOf(multExpr);

@@ -231,7 +231,7 @@ strconcat		"||"
 
 	/* names */
 {identifiers}	UPCASE_TOK(identifier)
-{compositeIdentifier}	UPCASE_TOK(compositeIdentifier)
+{compositeIdentifier}	TOK(compositeIdentifier)
 
 {quotedIdentifier}   { 		
 		oraclelval.stringVal = MALLOC(strlen(oracletext) - 1);

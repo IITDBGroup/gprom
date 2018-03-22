@@ -1288,6 +1288,16 @@ splitAttrOnDot (char *dotName)
 //    }
 
     result = splitString(strdup(dotName), ".");
+    FOREACH(char,part,result)
+    {
+        ListCell *lc = FOREACH_GET_LC(part);
+        if (strlen(part) > 0 && part[0] == '"')
+        {
+            char *newName;
+            newName = substr(part, 1, strlen(part) - 2);
+            lc->data.ptr_value = newName;
+        }
+    }
 
     TRACE_LOG("Split attribute reference <%s> into <%s>", dotName, stringListToString(result));
 
