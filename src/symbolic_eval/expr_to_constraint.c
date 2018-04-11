@@ -79,6 +79,7 @@ static int setAttUV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp);
 static int setNexSt(int upNum, Set *aSet, CPXENVptr env, CPXLPptr lp);
 static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp);
 static int exprToSymbol(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp);
+static int firstUpExe(Node *expr, CPXENVptr env, CPXLPptr lp);
 
 static void setCplexObjects(Node *expr) {
 	totalObjects = 0;
@@ -652,11 +653,11 @@ static void setSymbolicObjects(Node *expr, int numUp) {
 	//tableName = tbName;
 	List *schema = NIL;
 	schema = getAttributeNames(tbName);
-	int numAttr = getListLength(schema);
+	totalAttr = getListLength(schema);
 	attrSet = makeStrSetFromList(schema);
 
 	//for each update, we need new states ai for each update, u,v for each attribute and update and x for each update
-	default_num_cols = ((1 + numUp) * numAttr) + (2 * numUp * numAttr) + numUp;
+	default_num_cols = ((1 + numUp) * totalAttr) + (2 * numUp * totalAttr) + numUp;
 	attrIndex = NEW_MAP(Constant, Constant);
 	obj = (double *) MALLOC(sizeof(double) * default_num_cols);
 	lb = (double *) MALLOC(sizeof(double) * default_num_cols);
@@ -734,7 +735,7 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 	char *selectAttName;
 	int neg = 1;
 
-    //create first constraints for u: u.Aj<= mod(t).Aj
+	//create first constraints for u: u.Aj<= mod(t).Aj
 	rmatbeg[j] = i;
 	sense[j] = 'L';
 	left = getHeadOfListP((List *) s->expr);
@@ -802,9 +803,10 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 	rmatval[i] = 1.0;
 	i++;
 	if (!isA(right, Constant)) {
-	rmatind[i] = aIndex;
-	rmatval[i] = -1;
-	i++;}
+		rmatind[i] = aIndex;
+		rmatval[i] = -1;
+		i++;
+	}
 // xIndex
 	rmatind[i] = xIndex;
 	rmatval[i] = -1.0 * default_ub;
@@ -1003,7 +1005,6 @@ static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp) {
 				lp);
 	} else {
 
-
 		List *result = NIL;
 		result = getAttrNameFromOpExpList(result, (Operator *) cond);
 
@@ -1095,16 +1096,152 @@ static int exprToSymbol(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 		tempSet = setDifference(attrSet, newAttrSet);
 		status = setNexSt(upNum, tempSet, env, lp);
 		break;
-		/*
-		 case T_Delete:
-		 status = deleteToSymbol((Delete *) expr, env, lp);
-		 break;
-		 case T_Insert:
-		 status = insertToConstr((Insert *) expr, env, lp);
-		 break;
-		 */
+	case T_Delete:
+		status = setNexSt(upNum, attrSet, env, lp);
+		break;
+	case T_Insert:
+		status = setNexSt(upNum, attrSet, env, lp);
+		break;
+
 	default:
 		break;
+	}
+	return status;
+}
+
+static int firstUpExe(Node *expr, CPXENVptr env, CPXLPptr lp) {
+	int upNum = 1;
+	int status = 0;
+
+	Set *newAttrSet = STRSET();
+	Set *tempSet = STRSET();
+	List *sClause = NIL;
+
+	sClause = ((Update *) expr)->selectClause;
+	FOREACH(SelectItem, s, sClause )
+	{
+		int numRows = 1;
+		int numZ = 2;
+		int rmatbeg[numRows];
+		double rhs[numRows];
+		char sense[numRows];
+		char *rowname[numRows];
+		int rmatind[numZ];
+		double rmatval[numZ];
+
+		Node *left = NULL, *right = NULL, *l = NULL, *r = NULL;
+		int i = 0, aIndex = 0, uIndex = 0;
+		char *op;
+		char *selectAttName;
+		int neg = 1;
+
+		//create first constraints for u: A1= mod(t).A0
+		rmatbeg[0] = i;
+		sense[0] = 'E';
+		left = getHeadOfListP((List *) s->expr);
+		selectAttName = ((AttributeReference *) left)->name;
+		uIndex = getObjectIndex(
+				CONCAT_STRINGS(selectAttName, "_", itoa(upNum)));
+		rowname[0] = CONCAT_STRINGS(selectAttName, itoa(upNum));
+		rmatind[i] = uIndex;
+		rmatval[i] = 1.0;
+		i++;
+		right = (Node *) getTailOfListP((List *) s->expr);
+		// ex. if A=10
+		if (isA(right, Constant)) {
+			rhs[0] = constrToDouble((Constant *) right);
+		} else {
+			// ex. if A= A +2 which means A1= A0 +2 => u1<= A0 +2 => u1 - A0 <= 2
+			neg = 1;
+			l = (Node *) getHeadOfListP(((Operator *) right)->args);
+			r = (Node *) getTailOfListP(((Operator *) right)->args);
+			op = ((Operator *) right)->name;
+			if (strcmp(op, "-") == 0) {
+				neg = -1;
+			}
+
+			if (isA(r, AttributeReference) && isA(l, Constant)) {
+				aIndex = getObjectIndex(
+						CONCAT_STRINGS(((AttributeReference * ) r)->name, "_",
+								itoa(upNum - 1)));
+				rmatind[i] = aIndex;
+				rmatval[i] = -1;
+				rhs[0] = constrToDouble((Constant *) l) * neg;
+
+			} else if (isA(l, AttributeReference) && isA(r, Constant)) {
+				aIndex = getObjectIndex(
+						CONCAT_STRINGS(((AttributeReference * ) l)->name, "_",
+								itoa(upNum - 1)));
+				rmatind[i] = aIndex;
+				rmatval[i] = -1;
+				rhs[0] = constrToDouble((Constant *) r) * neg;
+			}
+		}
+
+		status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg,
+				rmatind, rmatval, NULL, rowname);
+
+		if (status) {
+			ERROR_LOG(
+					"Failure to convert update and add a row to cplex problem %d.\n",
+					status);
+		}
+		//left = getHeadOfListP((List *) s->expr);
+		//selectAttName = ((AttributeReference *) left)->name;
+		//status = createV(upNum, selectAttName, env, lp);
+		addToSet(newAttrSet, selectAttName);
+		//status = setAttUV(upNum, selectAttName, env, lp);
+	}
+	tempSet = setDifference(attrSet, newAttrSet);
+	status = setNexSt(upNum, tempSet, env, lp);
+	return status;
+}
+
+static int firstInsExe(Node *expr, CPXENVptr env, CPXLPptr lp) {
+	int upNum = 1;
+	int status = 0;
+	if (isA(expr, List)) {
+
+		int numCols = 0;
+		FOREACH(Constant,c,(List *)expr)
+		{
+			if (c->constType == DT_INT || c->constType == DT_FLOAT
+					|| c->constType == DT_LONG) {
+				numCols++;
+			}
+		}
+
+		int numRows = numCols;
+		int numZ = numCols;
+		int rmatbeg[numRows];
+		double rhs[numRows];
+		char sense[numRows];
+		char *rowname[numRows];
+		int rmatind[numZ];
+		double rmatval[numZ];
+
+		int i = 0;
+
+		FOREACH(Constant,c,(List *)expr)
+		{
+			if (c->constType == DT_INT || c->constType == DT_FLOAT
+					|| c->constType == DT_LONG) {
+				rmatbeg[i] = i;
+				rowname[i] = "row";
+				uIndex = getObjectIndex(
+								CONCAT_STRINGS(selectAttName, "_", itoa(upNum)));
+						rowname[0] = CONCAT_STRINGS(selectAttName, itoa(upNum));
+						rmatind[i] = uIndex;
+				rmatind[i] = j;
+				rmatval[i] = 1.0;
+				sense[i] = 'E';
+				rhs[i] = constrToDouble((Constant *) c);
+				i++;
+			}
+		}
+
+		status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg,
+				rmatind, rmatval, NULL, rowname);
 	}
 	return status;
 }
@@ -1112,7 +1249,7 @@ static int exprToSymbol(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 List *symbolicHistoryExe(List *exprs) {
 	List *depUps = NIL;
 	int status = 0;
-	//boolean result = FALSE;
+//boolean result = FALSE;
 	int solstat;
 	double objval;
 	double *x = NULL;
@@ -1133,7 +1270,6 @@ List *symbolicHistoryExe(List *exprs) {
 		CPXgeterrorstring(env, status, errmsg);
 		ERROR_LOG("Could not open CPLEX environment.\n%s", errmsg);
 	}
-
 
 	/* Turn on output to the screen */
 
@@ -1183,11 +1319,16 @@ List *symbolicHistoryExe(List *exprs) {
 	 parameters before performing this task. */
 	int i = 1;
 	DEBUG_LOG("symbolic execution for update %d.\n", i);
-	exprToSymbol(i, up, env, lp);
-	if (up->type == T_Update)
+
+	if (up->type == T_Update) {
 		status = condToSt(i, ((Update *) up)->cond, env, lp);
-	else if (up->type == T_Delete)
+		status = firstUpExe(up, env, lp);
+	} else if (up->type == T_Delete) {
 		status = condToSt(i, ((Delete *) up)->cond, env, lp);
+		status = exprToSymbol(i, up, env, lp);
+	} else if (up->type == T_Insert) {
+		status = exprToSymbol(i, up, env, lp);
+	}
 	depUps = appendToTailOfList(depUps, up);
 	i++;
 
@@ -1256,7 +1397,7 @@ List *symbolicHistoryExe(List *exprs) {
 
 	DEBUG_LOG("End of symbolic execution for finding dependent updates .\n");
 
-    //TERMINATE:
+//TERMINATE:
 	/* Free up the problem as allocated by CPXcreateprob, if necessary */
 
 	if (lp != NULL) {
