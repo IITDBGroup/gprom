@@ -115,7 +115,7 @@ gprom_rewriteQuery(const char *query)
     LOCK_MUTEX();
     NEW_AND_ACQUIRE_MEMCONTEXT(LIBARY_REWRITE_CONTEXT);
     char *result = "";
-    char *returnResult = NULL;
+    char * volatile  returnResult = NULL;
     TRY
     {
         result = rewriteQueryWithRethrow((char *) query);
@@ -134,7 +134,7 @@ gprom_rewriteQuery(const char *query)
 const gprom_long_t
 gprom_costQuery(const char *query)
 {
-    gprom_long_t result = -1;
+    volatile gprom_long_t result = -1;
     LOCK_MUTEX();
     TRY
     {
@@ -275,6 +275,16 @@ gprom_setFloatOption(const char *name, double value)
     LOCK_MUTEX();
     setFloatOption((char *) name,value);
     UNLOCK_MUTEX();
+}
+
+char *
+gprom_getOptionHelp(void)
+{
+    char *result = NULL;
+    LOCK_MUTEX();
+    result = internalOptionsToString(TRUE);
+    UNLOCK_MUTEX();
+    return result;
 }
 
 void

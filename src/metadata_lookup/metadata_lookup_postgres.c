@@ -227,7 +227,7 @@ postgresInitMetadataLookupPlugin (void)
         return EXIT_SUCCESS;
     }
 
-    NEW_AND_ACQUIRE_MEMCONTEXT(CONTEXT_NAME);
+    NEW_AND_ACQUIRE_LONGLIVED_MEMCONTEXT(CONTEXT_NAME);
     memContext = getCurMemContext();
 
     // create cache
@@ -416,6 +416,20 @@ postgresGetFuncReturnType (char *fName, List *argTypes, boolean *funcExists)
     PGresult *res = NULL;
     DataType resType = DT_STRING;
     *funcExists = TRUE;
+
+    // handle non function expressions that are treated as functions by GProM
+    if (streq(fName, "greatest") || streq(fName, "least"))
+    {
+        if(LIST_LENGTH(argTypes)  >= 2)
+        {
+            return lcaType(getNthOfListInt(argTypes, 0), getNthOfListInt(argTypes, 1));
+        }
+        else if (LIST_LENGTH(argTypes) == 1)
+        {
+            return getNthOfListInt(argTypes, 0);
+        }
+        return DT_INT;
+    }
 
     ACQUIRE_MEM_CONTEXT(memContext);
 

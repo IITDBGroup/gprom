@@ -231,16 +231,10 @@ strconcat		"||"
 {bool}			TOK(boolConst)
 
 	/* names */
-{identifiers}	UPCASE_TOK(identifier)
-{compositeIdentifier}	UPCASE_TOK(compositeIdentifier)
+{identifiers}			TOK(identifier)
+{compositeIdentifier}	TOK(compositeIdentifier)
 
-{quotedIdentifier}   { 		
-		oraclelval.stringVal = MALLOC(strlen(oracletext) - 1);
-		memcpy(oraclelval.stringVal, oracletext + 1, strlen(oracletext) - 2);
-		oraclelval.stringVal[strlen(oracletext) - 2] = '\0';
-		TRACE_LOG("Lexed TOKEN <quotedIdentifier> with VALUE <%s>", oracletext);
-		return identifier;
-	}	
+{quotedIdentifier}  		TOK(identifier)
 
 {parameters} {
 		oraclelval.stringVal = MALLOC(strlen(oracletext));

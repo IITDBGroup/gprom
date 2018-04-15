@@ -403,5 +403,13 @@ public class GProMWrapper implements GProMJavaInterface {
 	public void setP(GProMMetadataLookupPlugin p) {
 		this.p = p;
 	}
+
+	/* (non-Javadoc)
+	 * @see org.gprom.jdbc.jna.GProMJavaInterface#optionsHelp()
+	 */
+	@Override
+	public String optionsHelp() {
+		return GProM_JNA.INSTANCE.gprom_getOptionHelp();
+	}
 	
 }

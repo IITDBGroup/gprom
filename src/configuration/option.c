@@ -64,6 +64,7 @@ typedef struct FrontendInfo {
 } FrontendInfo;
 
 typedef struct BackendInfo {
+    BackendType typ;
     char *backendName;
     char *analyzer;
     char *parser;
@@ -74,6 +75,7 @@ typedef struct BackendInfo {
 
 // show help only
 boolean opt_show_help = FALSE;
+char *opt_test = NULL;
 char *opt_language_help = NULL;
 
 // connection options
@@ -247,6 +249,15 @@ OptionInfo opts[] =
                 OPTION_BOOL,
                 wrapOptionString(&opt_show_help),
                 defOptionBool(FALSE)
+        },
+        // choose test
+        {
+                "test",
+                "-test",
+                "choose the test to run (ignored by all binaries except test_main)",
+                OPTION_STRING,
+                wrapOptionString(&opt_test),
+                defOptionString(NULL)
         },
         // show help only and quit
         {
@@ -761,6 +772,7 @@ OptionInfo opts[] =
 // backend plugins information
 BackendInfo backends[]  = {
         {
+            BACKEND_ORACLE,
             "oracle",   // name
             "oracle",   // analyzer
             "oracle",   // parser
@@ -769,6 +781,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
+            BACKEND_POSTGRES,
             "postgres",   // name
             "oracle",   // analyzer
             "oracle",   // parser
@@ -777,6 +790,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
+            BACKEND_SQLITE,
             "sqlite",   // name
             "oracle",   // analyzer
             "oracle",   // parser
@@ -785,6 +799,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
+            BACKEND_MONETDB,
             "monetdb",   // name
             "oracle",   // analyzer
             "oracle",   // parser
@@ -793,7 +808,7 @@ BackendInfo backends[]  = {
             "oracle"   // translator
         },
         {
-            STOPPER_STRING, NULL, NULL, NULL, NULL, NULL
+            BACKEND_ORACLE, STOPPER_STRING, NULL, NULL, NULL, NULL, NULL
         }
 };
 
@@ -1149,6 +1164,38 @@ printCurrentOptions(FILE *stream)
 }
 
 char *
+internalOptionsToString(boolean showValues)
+{
+    StringInfo result = makeStringInfo();
+    char *str;
+
+    FOREACH_HASH_KEY(Constant,k,optionPos)
+      {
+          char *name = STRING_VALUE(k);
+          OptionInfo *v = getInfo(name);
+
+          if (showValues)
+          {
+              appendStringInfo(result, "%s=%s DEFAULT VALUE: %s\n\t%s\n\n",
+                      v->option,
+                      valGetString(&v->value, v->valueType),
+                      defGetString(&v->def, v->valueType),
+                      v->description);
+          }
+          else
+          {
+              appendStringInfo(result, "%s\tDEFAULT VALUE: %s\n\t%s\n",
+                      v->option,
+                      defGetString(&v->def, v->valueType),
+                      v->description);
+          }
+      }
+
+    str = result->data;
+    return str;
+}
+
+char *
 optionsToStringOnePerLine(void)
 {
     StringInfo result = makeStringInfo();
@@ -1189,6 +1236,20 @@ getBackendPlugin(char *be, char *pluginOpt)
     HashMap *bInfo = (HashMap *) MAP_GET_STRING(backendInfo, be);
 
     return STRING_VALUE(MAP_GET_STRING(bInfo, pluginOpt));
+}
+
+BackendType
+getBackend(void)
+{
+    if (backend == NULL)
+        return BACKEND_ORACLE;
+    for(int i = 0; strcmp(backends[i].backendName,STOPPER_STRING) != 0; i++)
+    {
+        if (streq(backends[i].backendName, backend))
+            return backends[i].typ;
+    }
+
+    return BACKEND_ORACLE;
 }
 
 char *

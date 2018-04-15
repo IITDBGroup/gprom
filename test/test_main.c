@@ -13,6 +13,9 @@
 #include "common.h"
 #include "utility/string_utils.h"
 #include "mem_manager/mem_mgr.h"
+#include "model/node/nodetype.h"
+#include "model/expression/expression.h"
+#include "model/set/hashmap.h"
 #include "test_main.h"
 #include "log/termcolor.h"
 #include "configuration/option.h"
@@ -20,15 +23,49 @@
 #include "rewriter.h"
 
 static char *getDBPath (int argc, char* argv[]);
+static void setupTestMap(void);
+static void printTests (void);
+static void runOneTest (char *testName);
+
+
+typedef struct TestNameToFunc {
+    char *name;
+    rc (*f) (void);
+} TestNameToFunc;
+
+static TestNameToFunc testFuncs [] = {
+        { "logger", testLogger },
+        { "mem_mgr", testMemManager },
+        { "exception", testException },
+        { "list", testList },
+        { "set", testSet },
+        { "vector", testVector },
+        { "hashmap", testHashMap },
+        { "expr", testExpr },
+        { "copy", testCopy },
+        { "equal", testEqual },
+        { "stringutils", testStringUtils },
+        { "tostring", testToString },
+        { "dynstring", testString },
+        { "parse", testParse },
+        { "metadatalookup", testMetadataLookup },
+        { "metadatalookup_postgres", testMetadataLookupPostgres },
+        { "parameter", testParameter },
+        { "datalog_model", testDatalogModel },
+        { "rpq", testRPQ },
+        { "autocast", testAutocast },
+        { NULL, NULL }
+};
 
 char *_testStringBuf;
+static HashMap *testMap;
 
 void
 testSuites(void)
 {
     RUN_TEST(testLogger(), "Logger test");
     RUN_TEST(testMemManager(), "Memory manager test");
-//    RUN_TEST(testException(), "Exception handling");
+    RUN_TEST(testException(), "Exception handling");
     RUN_TEST(testList(), "List model");
     RUN_TEST(testSet(), "Set");
     RUN_TEST(testVector(), "Vector");
@@ -53,13 +90,32 @@ testSuites(void)
             "Total %d Test(s) Passed\n\n", test_count);
 }
 
+static void
+setupTestMap(void)
+{
+    TestNameToFunc *test;
+
+    testMap = NEW_MAP(Constant, Constant);
+
+    test = testFuncs;
+
+    while((test)->name != NULL)
+    {
+        MAP_ADD_STRING_KEY(testMap, strdup(test->name),
+                createConstLong((gprom_long_t) test->f));
+        test++;
+    }
+}
+
 int
 main(int argc, char* argv[])
 {
     READ_OPTIONS_AND_BASIC_INIT("testmain", "Regression test suite. Runs a bunch of whitebox tests on components of the system.");
+    setupTestMap();
 
     // get directory where testmain resides to determine location of the test database
     char *path = getDBPath(argc,argv);
+    char *test = getStringOption("test");
     printf("dbPath: %s\n", path);
 
     // print options
@@ -83,7 +139,12 @@ main(int argc, char* argv[])
     printCurrentOptions(stdout);
 
     _testStringBuf = (char *) malloc(STRING_BUFFER_SIZE);
-    testSuites();
+
+    if (test == NULL)
+        testSuites();
+    else
+        runOneTest(test);
+
     free(_testStringBuf);
 
     shutdownApplication();
@@ -91,6 +152,36 @@ main(int argc, char* argv[])
     return EXIT_SUCCESS;
 }
 
+static void
+runOneTest (char *testName)
+{
+    if(!MAP_HAS_STRING_KEY(testMap,testName))
+    {
+        printf("No test named %s exists!\n\n", testName);
+        printTests();
+        exit(1);
+    }
+    else
+    {
+        rc (*test) (void) = (rc (*)(void)) LONG_VALUE(MAP_GET_STRING(testMap, testName));
+        StringInfo s = makeStringInfo();
+        appendStringInfo(s, "run test: %s", testName);
+        RUN_TEST(test(), s->data);
+    }
+}
+
+static void
+printTests (void)
+{
+    printf("Available tests:\n\n");
+    FOREACH_HASH_KEY(Constant,t,testMap)
+    {
+        char *tName = STRING_VALUE(t);
+        printf("\t%s\n", tName);
+    }
+    printf("\n\n");
+    fflush(stdout);
+}
 
 static char *
 getDBPath (int argc, char* argv[])

@@ -42,6 +42,10 @@ static void analyzeAlterTable (AlterTable *a);
 static void analyzeJoin (FromJoinExpr *j, List *parentFroms);
 static void analyzeWhere (QueryBlock *qb, List *parentFroms);
 
+// adapt identifiers and quoted identifiers based on backend
+static void adaptIdentifiers (Node *stmt);
+static boolean visitAdaptIdents(Node *node, Set *context);
+
 // search for attributes and other relevant node types
 static void analyzeFromProvInfo (FromItem *f);
 static void adaptAttrPosOffset(FromItem *f, FromItem *decendent, AttributeReference *a);
@@ -75,6 +79,7 @@ static void analyzeFromJsonTable(FromJsonTable *f, List **state);
 // real attribute name fetching
 static List *expandStarExpression (SelectItem *s, List *fromClause);
 static List *splitAttrOnDot (char *dotName);
+
 //static char *getAttrNameFromNameWithBlank(char *blankName);
 static List *getFromTreeLeafs (List *from);
 static char *generateAttrNameFromExpr(SelectItem *s);
@@ -87,31 +92,52 @@ static List *schemaInfoGetSchema(char *tableName);
 static List *schemaInfoGetAttributeNames (char *tableName);
 static List *schemaInfoGetAttributeDataTypes (char *tableName);
 
-
-//static List *temporalAttrTypes = NIL;  //used to store the datatype of temporal data (T_BEGIN and T_END)
-
-
-/* str functions */
-//static inline char *
-//strToUpper(char *in)
-//{
-//    char *result = strdup(in);
-//    char *pos;
-//    for(pos = result; *++pos != '\0'; *pos = toupper(*pos));
-//
-//    return result;
-//}
-
 /* holder for schema information when analyzing reenactment with potential DDL */
 static HashMap *schemaInfo = NULL;
 
 Node *
 analyzeOracleModel (Node *stmt)
 {
+    adaptIdentifiers(stmt);
     analyzeQueryBlockStmt(stmt, NULL);
 
     return stmt;
 }
+
+static void
+adaptIdentifiers (Node *stmt)
+{
+    Set *haveSeen = PSET();
+
+    visit(stmt, visitAdaptIdents, haveSeen);
+}
+
+/*
+ * traverse the query tree and adapt identifiers. Keep track of which identifiers have been
+ * handled already. This method deals with:
+ *
+ * - names of functions FunctionCall nodes
+ *
+ */
+static boolean
+visitAdaptIdents(Node *node, Set *context)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if(!hasSetElem(context, node))
+    {
+        if(isA(node,FunctionCall))
+        {
+            FunctionCall *f = (FunctionCall *) node;
+            f->functionname = backendifyIdentifier(f->functionname);
+            addToSet(context, node);
+        }
+    }
+
+    return visit(node, visitAdaptIdents, context);
+}
+
 
 void
 analyzeQueryBlockStmt (Node *stmt, List *parentFroms)
@@ -191,9 +217,14 @@ adaptAttributeRefs(List* attrRefs, List* parentFroms)
         DEBUG_LOG("attr split: %s", stringListToString(nameParts));
 
         if (LIST_LENGTH(nameParts) == 1)
+        {
+            a->name = getNthOfListP(nameParts, 0);
             isFound = findAttrRefInFrom(a, parentFroms);
+        }
         else if (LIST_LENGTH(nameParts) == 2)
+        {
             isFound = findQualifiedAttrRefInFrom(nameParts, a, parentFroms);
+        }
         else
             FATAL_LOG(
                     "right now attribute names should have at most two parts");
@@ -211,11 +242,16 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
     // unfold views
     FOREACH(FromItem,f,qb->fromClause)
     {
+        // deal with identifiers
+        if (f->name != NULL)
+            f->name = backendifyIdentifier(f->name);
+
         switch(f->type)
         {
             case T_FromTableRef:
             {
-                FromTableRef *tr = (FromTableRef *)f;
+                FromTableRef *tr = (FromTableRef *) f;
+                tr->tableId = backendifyIdentifier(tr->tableId);
                 boolean tableExists = catalogTableExists(tr->tableId) || schemaInfoHasTable(tr->tableId);
                 boolean viewExists = catalogViewExists(tr->tableId);
 
@@ -252,10 +288,10 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
         switch(f->type)
         {
             case T_FromTableRef:
-            	analyzeFromTableRef((FromTableRef *) f);
+                analyzeFromTableRef((FromTableRef *) f);
                 break;           
             case T_FromSubquery:
-            	analyzeFromSubquery((FromSubquery *) f, parentFroms);
+            	    analyzeFromSubquery((FromSubquery *) f, parentFroms);
             	break;
             case T_FromJoinExpr:
                 analyzeJoin((FromJoinExpr *) f, parentFroms);
@@ -317,6 +353,10 @@ analyzeQueryBlock (QueryBlock *qb, List *parentFroms)
             char *newAlias = generateAttrNameFromExpr(s);
             s->alias = strdup(newAlias);
         }
+        else
+        {
+            s->alias = backendifyIdentifier(s->alias);
+        }
     }
 
     // adapt function call (isAgg)
@@ -363,6 +403,16 @@ analyzeFromProvInfo (FromItem *f)
     if (f->provInfo)
     {
         FromProvInfo *fp = f->provInfo;
+
+        if (fp->userProvAttrs)
+        {
+            /* handle case of attribute names and quoted identifiers here */
+            FOREACH(char,name,fp->userProvAttrs)
+            {
+                ListCell *lc = FOREACH_GET_LC(name);
+                lc->data.ptr_value = backendifyIdentifier(name);
+            }
+        }
 
         /* if the user provides a list of attributes (that store provenance
          * or should be duplicated as provenance attributes) then we need
@@ -1287,22 +1337,21 @@ analyzeNaturalJoinRef(FromTableRef *left, FromTableRef *right)
 static List *
 splitAttrOnDot (char *dotName)
 {
-//    int start = 0, pos = 0;
-//    char *token, *string = strdup(dotName);
     List *result = NIL;
 
-//    while(string != NULL)
-//    {
-//        token = strsep(&string, ".");
-//        result = appendToTailOfList(result, strdup(token));
-//    }
-
     result = splitString(strdup(dotName), ".");
+    FOREACH(char,part,result)
+    {
+        ListCell *lc = FOREACH_GET_LC(part);
+        char *newName = backendifyIdentifier(part);
+        lc->data.ptr_value = newName;
+    }
 
     TRACE_LOG("Split attribute reference <%s> into <%s>", dotName, stringListToString(result));
 
     return result;
 }
+
 
 static List *
 expandStarExpression (SelectItem *s, List *fromClause)

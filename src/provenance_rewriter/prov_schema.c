@@ -201,6 +201,11 @@ getQBProvenanceAttrList (ProvenanceStmt *stmt, List **attrNames, List **dts)
         pSchema->dts = NIL;
         findTablerefVisitor((Node *) stmt->query, pSchema);
 
+        if (LIST_LENGTH(pSchema->dts) == 0)
+        {
+            THROW(SEVERITY_RECOVERABLE, "%s", "cannot apply semiring combiner to query that has no provenance attributes.");
+        }
+
         //semiring combiner check
         if(isSemiringCombinerActivatedPs(stmt)){
             *attrNames = singleton("PROV");
