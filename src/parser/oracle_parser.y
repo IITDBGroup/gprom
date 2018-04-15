@@ -63,7 +63,7 @@ Node *oracleParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN TIP
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
@@ -131,7 +131,7 @@ Node *oracleParseResult = NULL;
 			 identifierList optionalAttrAlias optionalProvWith provOptionList optionalReenactOptions reenactOptionList
 			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo optionalTranslate
 //			 optInsertAttrList
-%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
+%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalFromProb optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
 %type <node> overClause windowSpec optWindowFrame windowBound
@@ -1336,13 +1336,13 @@ fromClause:
 
 
 fromClauseItem:
-        identifier optionalFromProv
+		identifier optionalFromProv
             {
                 RULELOG("fromClauseItem");
 				FromItem *f = createFromTableRef(NULL, NIL, $1, NIL);
 				f->provInfo = (FromProvInfo *) $2;
                 $$ = (Node *) f;
-            }
+            }	
         | identifier optionalAlias
             {
                 RULELOG("fromClauseItem");
@@ -1479,9 +1479,19 @@ optionalAlias:
 				$$ = (Node *) f;
 			}
     ;
-    
+
+optionalFromProb:
+		HAS TIP '(' identifier ')'
+		{
+			RULELOG("optionalFromProb");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			p->userTIPAttr = $4;	
+			$$ = (Node *) p;
+		}
+;
 optionalFromProv:
-		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; }
+		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; } 
+		| optionalFromProb {  $$ = $1; }
 		| BASERELATION 
 			{
 				RULELOG("optionalFromProv::BASERELATION");

@@ -104,6 +104,7 @@ typedef struct FromProvInfo
     boolean baserel;
     boolean intermediateProv;
     List *userProvAttrs;
+    char *userTIPAttr;
 } FromProvInfo;
 
 typedef struct FromItem

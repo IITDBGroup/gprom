@@ -386,6 +386,16 @@ analyzeFromProvInfo (FromItem *f)
                 }
             }
         }
+        //Checking if the user has declared TIP, to remove the attributes
+        if (fp->userTIPAttr)
+        {
+        	int pos = listPosString(f->attrNames, fp->userTIPAttr);
+            DEBUG_LOG("TIP attribute %s at position %u", fp->userTIPAttr, pos);
+        	f->attrNames = deepCopyStringList(f->attrNames);
+            f->dataTypes 	= copyObject(f->dataTypes);
+            f->attrNames = removeListElemAtPos(f->attrNames, pos);
+            f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+        }
 
         // if user declared some attributes as provenance (HAS PROVENANCE) then these attributes are temporarily removed
         // since they should not be referenced by query for which we are computing provenance
@@ -1589,6 +1599,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 
             q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
             q->dts = concatTwoLists(q->dts,provDts);
+            INFO_NODE_BEATIFY_LOG("UNCERTAIN:", q);
         }
         break;
         case PROV_INPUT_TEMPORAL_QUERY:

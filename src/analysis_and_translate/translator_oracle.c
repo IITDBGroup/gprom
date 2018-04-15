@@ -12,31 +12,26 @@
 
 #include "analysis_and_translate/translator_oracle.h"
 
-#include "common.h"
-#include "instrumentation/timing_instrumentation.h"
-#include "mem_manager/mem_mgr.h"
+#include <ocilib.h>
+#include <string.h>
 
-#include "log/logger.h"
-
-#include "model/node/nodetype.h"
-#include "model/list/list.h"
-#include "model/expression/expression.h"
-#include "model/query_block/query_block.h"
-#include "model/query_operator/query_operator.h"
-#include "model/query_operator/operator_property.h"
-#include "model/query_operator/query_operator_model_checker.h"
-
-#include "analysis_and_translate/analyzer.h"
-//#include "analysis_and_translate/translator.h"
-#include "analysis_and_translate/translate_update.h"
-#include "analysis_and_translate/parameter.h"
-
-#include "metadata_lookup/metadata_lookup.h"
-#include "parser/parser.h"
-
-#include "provenance_rewriter/prov_utility.h"
-
-#include "utility/string_utils.h"
+#include "../../include/analysis_and_translate/analyzer.h"
+#include "../../include/analysis_and_translate/parameter.h"
+#include "../../include/analysis_and_translate/translate_update.h"
+#include "../../include/common.h"
+#include "../../include/instrumentation/timing_instrumentation.h"
+#include "../../include/log/logger.h"
+#include "../../include/mem_manager/mem_mgr.h"
+#include "../../include/metadata_lookup/metadata_lookup.h"
+#include "../../include/model/expression/expression.h"
+#include "../../include/model/list/list.h"
+#include "../../include/model/query_block/query_block.h"
+#include "../../include/model/query_operator/operator_property.h"
+#include "../../include/model/query_operator/query_operator_model_checker.h"
+#include "../../include/model/set/hashmap.h"
+#include "../../include/parser/parser.h"
+#include "../../include/provenance_rewriter/prov_utility.h"
+#include "../../include/utility/string_utils.h"
 
 // data types
 typedef struct ReplaceGroupByState {
@@ -1174,6 +1169,7 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
     if (from == NULL)
         return op;
 
+
     /* treat as base relation or show intermediate provenance? */
     if (from->intermediateProv)
         SET_BOOL_STRING_PROP(op,PROP_SHOW_INTERMEDIATE_PROV);
@@ -1193,6 +1189,14 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 
     /* set name for op */
     setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
+
+    if (from->userTIPAttr != NULL)
+        {
+        	setStringProperty(op, PROP_USER_TIP_ATTR, (Node *) createConstString(from->userTIPAttr));
+        	hasProv = TRUE;
+        	from->userProvAttrs = singleton(strdup(from->userTIPAttr));
+        }
+
 
     if (hasProv)
     {
