@@ -1204,11 +1204,7 @@ static int firstUpExe(Node *expr, CPXENVptr env, CPXLPptr lp) {
 					"Failure to convert update and add a row to cplex problem %d.\n",
 					status);
 		}
-		//left = getHeadOfListP((List *) s->expr);
-		//selectAttName = ((AttributeReference *) left)->name;
-		//status = createV(upNum, selectAttName, env, lp);
 		addToSet(newAttrSet, selectAttName);
-		//status = setAttUV(upNum, selectAttName, env, lp);
 	}
 	tempSet = setDifference(attrSet, newAttrSet);
 	status = setNexSt(upNum, tempSet, env, lp);
@@ -1218,7 +1214,9 @@ static int firstUpExe(Node *expr, CPXENVptr env, CPXLPptr lp) {
 static int firstInsExe(Node *up, CPXENVptr env, CPXLPptr lp) {
 	int status = 0;
 	int uIndex;
-	List *query = (List *)((Insert *) up)->query;
+	Set *newAttrSet = STRSET();
+	Set *tempSet = STRSET();
+	List *query = (List *) ((Insert *) up)->query;
 	List *attrList = ((Insert *) up)->attrList;
 
 	int numRows = totalAttr;
@@ -1238,9 +1236,9 @@ static int firstInsExe(Node *up, CPXENVptr env, CPXLPptr lp) {
 
 		rmatbeg[i] = i;
 		rowname[i] = "row";
-		attr= popHeadOfListP(attrList);
-		uIndex = getObjectIndex(
-				CONCAT_STRINGS(attr, "_", itoa(1)));
+		attr = popHeadOfListP(attrList);
+		addToSet(newAttrSet, attr);
+		uIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(1)));
 		rowname[i] = CONCAT_STRINGS("ins", itoa(i));
 		rmatind[i] = uIndex;
 		rmatind[i] = i;
@@ -1254,6 +1252,8 @@ static int firstInsExe(Node *up, CPXENVptr env, CPXLPptr lp) {
 	status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg, rmatind,
 			rmatval, NULL, rowname);
 
+	tempSet = setDifference(attrSet, newAttrSet);
+	status = setNexSt(1, tempSet, env, lp);
 	return status;
 }
 

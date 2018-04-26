@@ -98,57 +98,7 @@ int main(int argc, char* argv[]) {
 						whatIfResultMin(orgList, result);
 						deepFreeList(result);
 						deepFreeList(orgList);
-						/*
-						 Node *originalUp;
 
-						 ProvenanceStmt *provStat;
-						 char *sql;
-						 Node *qoModel;
-						 originalUp = (Node *) popHeadOfListP(result);
-
-						 provStat = createProvenanceStmt((Node *) result);
-						 provStat->provType = PROV_NONE;
-						 provStat->inputType = PROV_INPUT_REENACT;
-						 DEBUG_NODE_BEATIFY_LOG("prov:\n", provStat);
-						 provStat = (ProvenanceStmt *) analyzeParseModel(
-						 (Node *) provStat);
-						 DEBUG_NODE_BEATIFY_LOG("analysis:\n", provStat);
-						 qoModel = translateParseOracle((Node *) provStat);
-						 DEBUG_NODE_BEATIFY_LOG("qo model:\n", provStat);
-						 qoModel = provRewriteQBModel(qoModel);
-						 DEBUG_NODE_BEATIFY_LOG("after prov rewrite:\n",
-						 provStat);
-						 //qoModel = translateParse((Node *) provStat);
-						 qoModel = optimizeOperatorModel(qoModel);
-						 DEBUG_NODE_BEATIFY_LOG("after opt:\n", provStat);
-						 sql = serializeOperatorModel(qoModel);
-						 ERROR_LOG(
-						 "All SERIALIZED SQL Reenactment For Whatif Query:\n%s",
-						 sql);
-
-						 //replace new update with original updates and create reenactment again
-						 popHeadOfListP(result);
-						 result = appendToHeadOfList(result, originalUp);
-						 provStat = createProvenanceStmt((Node *) result);
-						 provStat->provType = PROV_NONE;
-						 provStat->inputType = PROV_INPUT_REENACT;
-						 DEBUG_NODE_BEATIFY_LOG("prov:\n", provStat);
-						 provStat = (ProvenanceStmt *) analyzeParseModel(
-						 (Node *) provStat);
-						 DEBUG_NODE_BEATIFY_LOG("analysis:\n", provStat);
-						 qoModel = translateParseOracle((Node *) provStat);
-						 DEBUG_NODE_BEATIFY_LOG("qo model:\n", provStat);
-						 qoModel = provRewriteQBModel(qoModel);
-						 DEBUG_NODE_BEATIFY_LOG("after prov rewrite:\n",
-						 provStat);
-						 qoModel = optimizeOperatorModel(qoModel);
-						 DEBUG_NODE_BEATIFY_LOG("after opt:\n", provStat);
-						 sql = serializeOperatorModel(qoModel);
-						 ERROR_LOG(
-						 "All SERIALIZED SQL Reenactment For Original update:\n%s",
-						 sql);
-						 */
-						////////////////////////////
 					}ON_EXCEPTION
 					{
 						// if an exception is thrown then the query memory context has been
