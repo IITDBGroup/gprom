@@ -80,6 +80,7 @@ static int setNexSt(int upNum, Set *aSet, CPXENVptr env, CPXLPptr lp);
 static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp);
 static int exprToSymbol(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp);
 static int firstUpExe(Node *expr, CPXENVptr env, CPXLPptr lp);
+static int firstInsExe(Node *expr, CPXENVptr env, CPXLPptr lp);
 
 static void setCplexObjects(Node *expr) {
 	totalObjects = 0;
@@ -256,17 +257,25 @@ static int condToConstr(Node *cond, CPXENVptr env, CPXLPptr lp) {
 		rmatbeg[0] = 0;
 		rowname[0] = "row";
 
+		int notEq = 0;
+
 		if (strcmp(opName, "=") == 0) {
 			sense[0] = 'E';
-		} else if (strcmp(opName, ">") == 0 || strcmp(opName, ">=") == 0) {
+		} else if (strcmp(opName, ">=") == 0) {
 			sense[0] = 'G';
-		} else if (strcmp(opName, "<") == 0 || strcmp(opName, "<=") == 0) {
+		} else if (strcmp(opName, ">") == 0) {
+			sense[0] = 'G';
+			notEq = 1;
+		} else if (strcmp(opName, "<=") == 0) {
 			sense[0] = 'L';
+		} else if (strcmp(opName, "<") == 0) {
+			sense[0] = 'L';
+			notEq = -1;
 		}
 
 		Node *left = (Node *) getHeadOfListP(((Operator *) cond)->args);
 		Node *right = (Node *) getTailOfListP(((Operator *) cond)->args);
-		rhs[0] = constrToDouble((Constant *) right);
+		rhs[0] = constrToDouble((Constant *) right) + notEq;
 		DEBUG_LOG("Processing Value =  %10f \n", rhs[0]);
 		//if the condition likes c>10
 		if (isA(left, AttributeReference)) {
@@ -657,7 +666,8 @@ static void setSymbolicObjects(Node *expr, int numUp) {
 	attrSet = makeStrSetFromList(schema);
 
 	//for each update, we need new states ai for each update, u,v for each attribute and update and x for each update
-	default_num_cols = ((1 + numUp) * totalAttr) + (2 * numUp * totalAttr) + numUp;
+	default_num_cols = ((1 + numUp) * totalAttr) + (2 * numUp * totalAttr)
+			+ numUp;
 	attrIndex = NEW_MAP(Constant, Constant);
 	obj = (double *) MALLOC(sizeof(double) * default_num_cols);
 	lb = (double *) MALLOC(sizeof(double) * default_num_cols);
@@ -1022,12 +1032,20 @@ static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		rmatbeg[0] = 0;
 		rowname[0] = "crow";
 
+		int notEq = 0;
+
 		if (strcmp(opName, "=") == 0) {
 			sense[0] = 'E';
-		} else if (strcmp(opName, ">") == 0 || strcmp(opName, ">=") == 0) {
+		} else if (strcmp(opName, ">=") == 0) {
 			sense[0] = 'G';
-		} else if (strcmp(opName, "<") == 0 || strcmp(opName, "<=") == 0) {
+		} else if (strcmp(opName, ">") == 0) {
+			sense[0] = 'G';
+			notEq = 1;
+		} else if (strcmp(opName, "<=") == 0) {
 			sense[0] = 'L';
+		} else if (strcmp(opName, "<") == 0) {
+			sense[0] = 'L';
+			notEq = -1;
 		}
 
 		Node *left = (Node *) getHeadOfListP(((Operator *) cond)->args);
@@ -1045,7 +1063,7 @@ static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp) {
 		//if the condition likes c>10
 		if (isA(right, Constant)) {
 			//we have just one attribute
-			rhs[0] = constrToDouble((Constant *) right);
+			rhs[0] = constrToDouble((Constant *) right) + notEq;
 			DEBUG_LOG("Processed condition for update with value %d.\n",
 					rhs[0]);
 		}
@@ -1056,7 +1074,7 @@ static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp) {
 							itoa(upNum - 1)));
 			rmatind[1] = index;
 			rmatval[1] = -1.0;
-			rhs[0] = 0;
+			rhs[0] = 0 + notEq;
 		}
 
 		status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg,
@@ -1197,52 +1215,45 @@ static int firstUpExe(Node *expr, CPXENVptr env, CPXLPptr lp) {
 	return status;
 }
 
-static int firstInsExe(Node *expr, CPXENVptr env, CPXLPptr lp) {
-	int upNum = 1;
+static int firstInsExe(Node *up, CPXENVptr env, CPXLPptr lp) {
 	int status = 0;
-	if (isA(expr, List)) {
+	int uIndex;
+	List *query = (List *)((Insert *) up)->query;
+	List *attrList = ((Insert *) up)->attrList;
 
-		int numCols = 0;
-		FOREACH(Constant,c,(List *)expr)
-		{
-			if (c->constType == DT_INT || c->constType == DT_FLOAT
-					|| c->constType == DT_LONG) {
-				numCols++;
-			}
-		}
+	int numRows = totalAttr;
+	int numZ = totalAttr;
+	int rmatbeg[numRows];
+	double rhs[numRows];
+	char sense[numRows];
+	char *rowname[numRows];
+	int rmatind[numZ];
+	double rmatval[numZ];
 
-		int numRows = numCols;
-		int numZ = numCols;
-		int rmatbeg[numRows];
-		double rhs[numRows];
-		char sense[numRows];
-		char *rowname[numRows];
-		int rmatind[numZ];
-		double rmatval[numZ];
+	int i = 0;
+	char *attr;
 
-		int i = 0;
+	FOREACH(Constant,c,(List *)query)
+	{
 
-		FOREACH(Constant,c,(List *)expr)
-		{
-			if (c->constType == DT_INT || c->constType == DT_FLOAT
-					|| c->constType == DT_LONG) {
-				rmatbeg[i] = i;
-				rowname[i] = "row";
-				uIndex = getObjectIndex(
-								CONCAT_STRINGS(selectAttName, "_", itoa(upNum)));
-						rowname[0] = CONCAT_STRINGS(selectAttName, itoa(upNum));
-						rmatind[i] = uIndex;
-				rmatind[i] = j;
-				rmatval[i] = 1.0;
-				sense[i] = 'E';
-				rhs[i] = constrToDouble((Constant *) c);
-				i++;
-			}
-		}
+		rmatbeg[i] = i;
+		rowname[i] = "row";
+		attr= popHeadOfListP(attrList);
+		uIndex = getObjectIndex(
+				CONCAT_STRINGS(attr, "_", itoa(1)));
+		rowname[i] = CONCAT_STRINGS("ins", itoa(i));
+		rmatind[i] = uIndex;
+		rmatind[i] = i;
+		rmatval[i] = 1.0;
+		sense[i] = 'E';
+		rhs[i] = constrToDouble((Constant *) c);
+		i++;
 
-		status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg,
-				rmatind, rmatval, NULL, rowname);
 	}
+
+	status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg, rmatind,
+			rmatval, NULL, rowname);
+
 	return status;
 }
 
@@ -1327,7 +1338,7 @@ List *symbolicHistoryExe(List *exprs) {
 		status = condToSt(i, ((Delete *) up)->cond, env, lp);
 		status = exprToSymbol(i, up, env, lp);
 	} else if (up->type == T_Insert) {
-		status = exprToSymbol(i, up, env, lp);
+		status = firstInsExe(up, env, lp);
 	}
 	depUps = appendToTailOfList(depUps, up);
 	i++;
