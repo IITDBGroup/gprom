@@ -1219,8 +1219,8 @@ static int firstInsExe(Node *up, CPXENVptr env, CPXLPptr lp) {
 	List *query = (List *) ((Insert *) up)->query;
 	List *attrList = ((Insert *) up)->attrList;
 
-	int numRows = totalAttr;
-	int numZ = totalAttr;
+	int numRows = getListLength(attrList);
+	int numZ = numRows;
 	int rmatbeg[numRows];
 	double rhs[numRows];
 	char sense[numRows];
@@ -1238,20 +1238,21 @@ static int firstInsExe(Node *up, CPXENVptr env, CPXLPptr lp) {
 		rowname[i] = "row";
 		attr = popHeadOfListP(attrList);
 		addToSet(newAttrSet, attr);
+		DEBUG_LOG("setting %s for insert operation.\n", attr);
 		uIndex = getObjectIndex(CONCAT_STRINGS(attr, "_", itoa(1)));
+		DEBUG_LOG("index %d for insert operation.\n", uIndex);
 		rowname[i] = CONCAT_STRINGS("ins", itoa(i));
 		rmatind[i] = uIndex;
-		rmatind[i] = i;
 		rmatval[i] = 1.0;
 		sense[i] = 'E';
 		rhs[i] = constrToDouble((Constant *) c);
 		i++;
 
 	}
-
+	DEBUG_LOG("develop rows for insert operation.\n");
 	status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg, rmatind,
 			rmatval, NULL, rowname);
-
+	DEBUG_LOG("set next state for insert operation.\n");
 	tempSet = setDifference(attrSet, newAttrSet);
 	status = setNexSt(1, tempSet, env, lp);
 	return status;
