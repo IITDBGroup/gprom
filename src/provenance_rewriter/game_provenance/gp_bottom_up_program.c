@@ -1871,9 +1871,6 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 	        ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
 	        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
 
-//	        if(DL_HAS_PROP(r->head,DL_LOST))
-//	        	ruleWon = BOOL_VALUE(DL_GET_PROP(r->head, DL_LOST));
-
 	        // Collecting all the original variables for later use
 	        int argPos = -1;
 	        List *ruleArgs = NIL;
@@ -2176,7 +2173,8 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 	            checkPos++;
 	        }
 
-	        if(!searchListNode(boolArgs,(Node *) createConstBool(FALSE)))
+	        // create edges of subgraphs for double negation
+	        if(!ruleWon && !searchListNode(boolArgs,(Node *) createConstBool(FALSE)))
             {
 	        	int g = 0;
 	        	FOREACH(Node,n,r->body)
@@ -3466,6 +3464,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					ruleRule->head->args = newRuleArg;
 					setDLProp((DLNode *) ruleRule->head, DL_ORIG_ATOM, (Node *) copyObject(r->head));
 
+					// copy rule head for checking double negation
+					DLAtom *copiedHead = copyObject(r->head);
+					copiedHead->n.properties = NULL;
+
 					// adapt goal nodes
 					int listPos = 0;
 					int getPos = 0;
@@ -3475,11 +3477,16 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						// check double negation for IDB atom exists
 						if(!ruleWon && a->negated && DL_HAS_PROP(a, DL_IS_IDB_REL))
 						{
-//							DLAtom *negNegAt = copyObject(a);
-//							negNegAt->negated = FALSE;
+//							if(!searchListString(doubleNeg, a->rel))
+//								doubleNeg = appendToTailOfList(doubleNeg,a->rel);
 
-							if(!searchListString(doubleNeg, a->rel))
-								doubleNeg = appendToTailOfList(doubleNeg,a->rel);
+							DLAtom *copiedA = copyObject(a);
+							copiedA->negated = FALSE;
+							copiedA->n.properties = NULL;
+							copiedA = getNormalizedAtom(copiedA);
+
+							if(!searchListNode(doubleNeg, (Node *) copiedA))
+								doubleNeg = appendToTailOfList(doubleNeg, copiedA);
 						}
 
 						Node *atom = (Node *) a;
@@ -3500,16 +3507,15 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 							}
 
 							// check the args to make TRUE -> WON and FALSE -> LOST
-							char *adBodyName = NULL;
+//							char *adBodyName = NULL;
 							boolean goalChk = BOOL_VALUE(getNthOfListP(newRuleArg, getPos));
-
-		//					adBodyName = CONCAT_STRINGS("R", a->rel, "_", (getNthOfListInt(searchBoolArgs, listPos) == 1) ? "WON" : "LOST", NON_LINKED_POSTFIX);
-							adBodyName = CONCAT_STRINGS("R", a->rel, "_", goalChk ? "WON" : "LOST", NON_LINKED_POSTFIX);
+							char *adBodyName = CONCAT_STRINGS("R", a->rel, "_", goalChk ? "WON" : "LOST", NON_LINKED_POSTFIX);
 
 							listPos++;
 
+
 							if (searchListNode(newRuleArg, (Node *) createConstBool(FALSE)) ||
-									searchListString(doubleNeg,r->head->rel))
+									searchListNode(doubleNeg, (Node *) copiedHead))
 								setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(a));
 
 							a->rel = adBodyName;
@@ -3518,7 +3524,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 					// for the rule of double negated IDB atom, we consider both successful and failed derivations
 					// i.e., keep the firing rules for both capturing successful and failed derivations
-					if (searchListString(doubleNeg,r->head->rel))
+					if (searchListNode(doubleNeg,(Node *) copiedHead))
 					{
 						unLinkedRules = appendToTailOfList(unLinkedRules, ruleRule);
 					}
@@ -4539,6 +4545,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //    			}
 //    		}
 
+			List *domFromAttr = NIL;
+
 			// create domain rules
 			FOREACH(DLRule,r,edbRules)
 			{
@@ -4547,66 +4555,92 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					if (DL_HAS_PROP(a,DL_IS_EDB_REL) && MAP_HAS_STRING_KEY(relDomPair,a->rel))
 					{
 		        		DL_DEL_PROP(a,DL_LOST);
+		        		int varPos = 0;
+
 						FOREACH(Node,n,a->args)
 						{
 							if(isA(n,DLVar))
 							{
-								DLRule *domRule = copyObject(r);
 								DLVar *domVar = copyObject((DLVar *) n);
+								char *key = CONCAT_STRINGS(a->rel,domVar->name,gprom_itoa(varPos));
 
-								domRule->head->rel = STRING_VALUE(MAP_GET_STRING(relDomPair,a->rel));
-								domRule->head->args = singleton(domVar);
+								if(!searchListString(domFromAttr,key))
+								{
+									// replace var name for domain
+									domVar->name = "DV";
 
-				        		DL_DEL_PROP(domRule->head,DL_LOST);
-								DL_SET_BOOL_PROP(domRule,DL_DOMAIN_RULE);
+									// create domain rule
+									DLRule *domRule = copyObject(r);
 
-								domainRules = appendToTailOfList(domainRules, domRule);
+									// replace var name in domain rule body
+									DLAtom *domBody = (DLAtom *) getHeadOfListP(domRule->body);
+									DLVar *domVar = (DLVar *) getNthOfListP(domBody->args,varPos);
+									domVar->name = "DV";
+
+									// replace head atom for domain rule
+									domRule->head->rel = STRING_VALUE(MAP_GET_STRING(relDomPair,a->rel));
+									domRule->head->args = singleton(domVar);
+
+					        		DL_DEL_PROP(domRule->head,DL_LOST);
+									DL_SET_BOOL_PROP(domRule,DL_DOMAIN_RULE);
+
+									// collect domain rule
+									domainRules = appendToTailOfList(domainRules, domRule);
+
+									// collect which attribute is used for creating domain
+									domFromAttr = appendToTailOfList(domFromAttr,key);
+								}
 							}
+
+							varPos++;
 						}
 					}
 				}
 			}
 
-        	// make the domain rules union for each relation
-        	FOREACH(DLRule,dr,domainRules)
-        	{
-        		// replace var name in the body of the rule
-            	HashMap *domVarToAtom = NEW_MAP(DLVar,DLVar);
-            	DLVar *v = (DLVar *) getNthOfListP(dr->head->args,0);
-       			DLVar *nv = createDLVar(strdup("DV"), DT_STRING);
-        		ADD_TO_MAP(domVarToAtom, createNodeKeyValue((Node *) v, (Node *) nv));
 
-        		List *newVars = NIL;
-        		FOREACH(DLAtom,a,dr->body)
-        		{
-        			FOREACH(Node,n,a->args)
-    				{
-        				newVars = appendToTailOfList(newVars,
-        								hasMapKey(domVarToAtom,n) ? getMap(domVarToAtom,n) : n);
-    				}
-        			a->args = newVars;
-        		}
-        	}
-
+//        	// make the domain rules union for each relation
+//        	FOREACH(DLRule,dr,domainRules)
+//        	{
+//        		// replace var name in the body of the rule
+//            	HashMap *domVarToAtom = NEW_MAP(DLVar,DLVar);
+//            	DLVar *v = (DLVar *) getNthOfListP(dr->head->args,0);
+//       			DLVar *nv = createDLVar(strdup("DV"), DT_STRING);
+//        		ADD_TO_MAP(domVarToAtom, createNodeKeyValue((Node *) v, (Node *) nv));
+//
+//        		List *newVars = NIL;
+//        		FOREACH(DLAtom,a,dr->body)
+//        		{
+//        			FOREACH(Node,n,a->args)
+//    				{
+//        				newVars = appendToTailOfList(newVars,
+//        								hasMapKey(domVarToAtom,n) ? getMap(domVarToAtom,n) : n);
+//    				}
+//        			a->args = newVars;
+//        		}
+//        	}
+//
     		// replace DOM head var name and constant to variable
     		FOREACH(DLRule,dr,domainRules)
     		{
-    			DLVar *v;
-    			Node *n = (Node *) getNthOfListP(dr->head->args,0);
+//    			// replacee head variable
+//    			DLVar *v;
+//    			Node *n = (Node *) getNthOfListP(dr->head->args,0);
+//
+//    			if (isA(n,DLVar))
+//    			{
+//    				v = (DLVar *) n;
+//    				v->name = strdup("DV");
+//    			}
+//
+//    			if (isA(n,Constant))
+//    			{
+//    				v = createDLVar(strdup("DV"), DT_STRING);
+//    				dr->head->args = singleton(v);
+//    			}
+//
 
-    			if (isA(n,DLVar))
-    			{
-    				v = (DLVar *) n;
-    				v->name = strdup("DV");
-    			}
-
-    			if (isA(n,Constant))
-    			{
-    				v = createDLVar(strdup("DV"), DT_STRING);
-    				dr->head->args = singleton(v);
-    			}
-
-
+    			// replace body variables
     			List *newDomBodyArgs = NIL;
 
     			FOREACH(DLAtom,ba,dr->body)
@@ -4626,21 +4660,22 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     				ba->args = copyObject(newDomBodyArgs);
     			}
     		}
-
-    		// remove duplicate rule
-    		List *domRuleString = NIL;
-    		List *distDomainRules = NIL;
-
-    		FOREACH(DLRule,dr,domainRules)
-    		{
-    			if(!searchListString(domRuleString,datalogToOverviewString((Node *) dr)))
-    			{
-        			domRuleString = appendToTailOfList(domRuleString,datalogToOverviewString((Node *) dr));
-    				distDomainRules = appendToTailOfList(distDomainRules,dr);
-    			}
-    		}
-
-    		domainRules = distDomainRules;
+//
+//    		// remove duplicate rule
+//    		List *domRuleString = NIL;
+//    		List *distDomainRules = NIL;
+//
+//    		FOREACH(DLRule,dr,domainRules)
+//    		{
+//    			// remove same rule
+//    			if(!searchListString(domRuleString,datalogToOverviewString((Node *) dr)))
+//    			{
+//        			domRuleString = appendToTailOfList(domRuleString,datalogToOverviewString((Node *) dr));
+//    				distDomainRules = appendToTailOfList(distDomainRules,dr);
+//    			}
+//    		}
+//
+//    		domainRules = distDomainRules;
 //    	}
     }
 
