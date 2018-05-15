@@ -33,6 +33,7 @@
 #include "operator_optimizer/cost_based_optimizer.h"
 #include "execution/executor.h"
 #include "provenance_rewriter/prov_utility.h"
+#include "utility/string_utils.h"
 
 #include "instrumentation/timing_instrumentation.h"
 #include "instrumentation/memory_instrumentation.h"
@@ -43,11 +44,10 @@
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
+static void summarizationPlan(Node *parse);
+static List *summOpts = NIL;
+static char *qType = NULL;
 
-List *userQuestion = NIL;
-char *summaryType = NULL;
-int sampleSize = 0;
-int topK = 0;
 
 int
 initBasicModules (void)
@@ -484,10 +484,8 @@ generatePlan(Node *oModel, boolean applyOptimizations)
 	    )
 
         // rewrite for summarization
-        if (summaryType != NULL)
-        {
-            rewrittenTree = rewriteSummaryOutput(summaryType, rewrittenTree, userQuestion, sampleSize, topK);
-        }
+		if (!LIST_EMPTY(summOpts) && qType != NULL)
+			rewrittenTree = rewriteSummaryOutput(rewrittenTree, summOpts, qType);
 
 	    if(applyOptimizations)
 	    {
@@ -531,23 +529,8 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     char *rewrittenSQL = NULL;
     Node *oModel;
 
-    // store summary type
-    if (isA(parse, List) && isA(getHeadOfListP((List *) parse), ProvenanceStmt))
-    {
-        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
-
-        if (ps->userQuestion != NIL)
-            userQuestion = ps->userQuestion;
-
-        if (ps->summaryType != NULL)
-            summaryType = ps->summaryType;
-
-        if (ps->sampleSize != 0)
-            sampleSize = ps->sampleSize;
-
-        if (ps->topK != 0)
-            topK = ps->topK;
-    }
+    if(!getBoolOption(OPTION_INPUTDB))
+    	summarizationPlan(parse);
 
     START_TIMER("translation");
     oModel = translateParse(parse);
@@ -580,4 +563,113 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     	rewrittenSQL = generatePlan(oModel, applyOptimizations);
 
     return rewrittenSQL;
+}
+
+static void
+summarizationPlan (Node *parse)
+{
+    // store options for the summarization and question type
+    if (isA(parse, List) && isA(getHeadOfListP((List *) parse), ProvenanceStmt))
+    {
+        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
+
+    	if (!LIST_EMPTY(ps->sumOpts))
+    		FOREACH(Node,n,ps->sumOpts)
+    			summOpts = appendToTailOfList(summOpts,n);
+
+    	qType = "WHY";
+    }
+    else // summarization options for DL input
+    {
+    	DLProgram *p = (DLProgram *) parse;
+
+    	// either why or why-not
+    	FOREACH(Node,n,p->rules)
+    	{
+    		if(isA(n,KeyValue))
+    		{
+    			KeyValue *kv = (KeyValue *) n;
+    			qType = STRING_VALUE(kv->key);
+
+    			if(isPrefix(qType,"WHYNOT_"))
+    				qType = "WHYNOT";
+    			else
+    				qType = "WHY";
+    		}
+    	}
+
+    	if (p->sumOpts != NIL)
+    	{
+    		FOREACH(Node,n,p->sumOpts)
+				summOpts = appendToTailOfList(summOpts,n);
+
+    		// keep track of (var,rel) and (negidb,edb)
+    		HashMap *varRelPair = NEW_MAP(Constant,Constant);
+    		HashMap *headEdbPair = NEW_MAP(Constant,List);
+    		List *negAtoms = NIL;
+
+    		FOREACH(Node,n,p->rules)
+    		{
+    			if(isA(n,DLRule))
+    			{
+    				DLRule *r = (DLRule *) n;
+            		List *edbList = NIL;
+
+    				FOREACH(Node,b,r->body)
+    				{
+    					if(isA(b,DLAtom))
+    					{
+    						DLAtom *a = (DLAtom *) b;
+
+    						// keep track of which negated atom needs domains from which edb atom
+    						if(a->negated)
+    							negAtoms = appendToTailOfList(negAtoms,a->rel);
+    						else
+           						edbList = appendToTailOfList(edbList,a->rel);
+
+    						// keep track of which variable belongs to which edb
+    						FOREACH(Node,n,a->args)
+    						{
+    							if(isA(n,DLVar))
+    							{
+    								DLVar *v = (DLVar *) n;
+    								MAP_ADD_STRING_KEY_AND_VAL(varRelPair,v->name,a->rel);
+    							}
+    						}
+    					}
+    				}
+
+        			char *headPred = getHeadPredName(r);
+    				MAP_ADD_STRING_KEY(headEdbPair,headPred,edbList);
+    			}
+    		}
+
+    		// store edb information for negated atoms and why-not questions
+    		if(!LIST_EMPTY(negAtoms))
+    		{
+        		FOREACH(char,c,negAtoms)
+        		{
+        			if(!MAP_HAS_STRING_KEY(headEdbPair,c))
+        				MAP_ADD_STRING_KEY_AND_VAL(varRelPair,c,c);
+        			else
+        			{
+        				List *edbs = (List *) MAP_GET_STRING(headEdbPair,c);
+
+        				FOREACH(char,e,edbs)
+        					MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
+        			}
+        		}
+    		}
+
+    		if(LIST_EMPTY(negAtoms) || streq(qType,"WHYNOT"))
+    		{
+				FOREACH_HASH(List,edbs,headEdbPair)
+					FOREACH(char,e,edbs)
+						MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
+    		}
+
+    		// store into the list of the summarization options
+    		summOpts = appendToTailOfList(summOpts, (Node *) varRelPair);
+    	}
+    }
 }

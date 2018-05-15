@@ -85,6 +85,7 @@ static void outJoinOperator(StringInfo str, JoinOperator *node);
 static void outAggregationOperator(StringInfo str, AggregationOperator *node);
 static void outProvenanceComputation(StringInfo str, ProvenanceComputation *node);
 static void outTableAccessOperator(StringInfo str, TableAccessOperator *node);
+static void outSampleClauseOperator(StringInfo str, SampleClauseOperator *node);
 static void outSetOperator(StringInfo str, SetOperator *node);
 static void outDuplicateRemoval(StringInfo str, DuplicateRemoval *node);
 static void outConstRelOperator(StringInfo str, ConstRelOperator *node);
@@ -404,6 +405,8 @@ outDLProgram(StringInfo str, DLProgram *node)
     WRITE_NODE_FIELD(doms);
     WRITE_NODE_FIELD(n.properties);
     WRITE_NODE_FIELD(comp);
+    WRITE_NODE_FIELD(func);
+    WRITE_NODE_FIELD(sumOpts);
 }
 
 static void
@@ -605,10 +608,7 @@ outProvenanceStmt (StringInfo str, ProvenanceStmt *node)
     WRITE_NODE_FIELD(transInfo);
     WRITE_NODE_FIELD(asOf);
     WRITE_NODE_FIELD(options);
-    WRITE_STRING_FIELD(summaryType);
-    WRITE_NODE_FIELD(userQuestion);
-    WRITE_INT_FIELD(sampleSize);
-    WRITE_INT_FIELD(topK);
+    WRITE_NODE_FIELD(sumOpts);
 }
 
 static void
@@ -926,7 +926,17 @@ outTableAccessOperator(StringInfo str, TableAccessOperator *node)
     WRITE_QUERY_OPERATOR();
 
     WRITE_NODE_FIELD(asOf);
+//    WRITE_NODE_FIELD(sampClause);
     WRITE_STRING_FIELD(tableName);
+}
+
+static void
+outSampleClauseOperator(StringInfo str, SampleClauseOperator *node)
+{
+	WRITE_NODE_TYPE(SAMPLE_CLAUSE_OPERATOR);
+	WRITE_QUERY_OPERATOR();
+
+	WRITE_NODE_FIELD(sampPerc);
 }
 
 static void
@@ -1188,6 +1198,9 @@ outNode(StringInfo str, void *obj)
             case T_TableAccessOperator:
                 outTableAccessOperator(str, (TableAccessOperator *) obj);
                 break;
+            case T_SampleClauseOperator:
+				outSampleClauseOperator(str, (SampleClauseOperator *) obj);
+				break;
             case T_SetOperator:
                 outSetOperator(str, (SetOperator *) obj);
                 break;
@@ -1748,6 +1761,12 @@ operatorToOverviewInternal(StringInfo str, QueryOperator *op, int indent, HashMa
             appendStringInfoString(str, ((TableAccessOperator *) op)->tableName);
             appendStringInfoChar(str, ']');
             break;
+        case T_SampleClauseOperator:
+        	WRITE_NODE_TYPE(SampleClause);
+        	appendStringInfoString(str, " [");
+			appendStringInfoString(str, exprToSQL(((SampleClauseOperator *) op)->sampPerc));
+			appendStringInfoChar(str, ']');
+			break;
         case T_SetOperator:
         {
             SetOperator *o = (SetOperator *) op;

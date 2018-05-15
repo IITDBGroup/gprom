@@ -128,7 +128,7 @@ handleConnectionError (void)
 {
     if(plugin->dbConn != NULL)
     {
-        char *error = mapi_error_str(plugin->dbConn);
+        const char *error = mapi_error_str(plugin->dbConn);
         ERROR_LOG("mapi error:\n%s", error);
         mapi_destroy(plugin->dbConn);
     }
@@ -149,7 +149,7 @@ handleResultSetError (MapiHdl handle, char *query, List *parameters)
         {
             mapi_explain_query(handle, stderr);
             do {
-                char *e = mapi_result_error(handle);
+                const char *e = mapi_result_error(handle);
                 if (e != NULL)
                     ERROR_LOG("mapi query error:\n%s", e);
             } while (mapi_next_result(handle) == 1);
@@ -169,7 +169,7 @@ handleResultSetErrorNoQuery (MapiHdl handle)
         {
             mapi_explain_query(handle, stderr);
             do {
-                char *e = mapi_result_error(handle);
+                const char *e = mapi_result_error(handle);
                 if (e != NULL)
                     ERROR_LOG("mapi query error:\n%s", e);
             } while (mapi_next_result(handle) == 1);

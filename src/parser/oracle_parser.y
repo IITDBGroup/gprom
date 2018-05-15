@@ -142,7 +142,9 @@ Node *oracleParseResult = NULL;
 %type <node> withView withQuery
 %type <stringVal> optionalAll nestedSubQueryOperator optionalNot fromString optionalSortOrder optionalNullOrder
 %type <stringVal> joinType transactionIdentifier delimIdentifier
-%type <stringVal> optionalFormat optionalWrapper optionalstringConst 
+%type <stringVal> optionalFormat optionalWrapper optionalstringConst
+%type <node> optionalTopK optionalSumType optionalToExplain optionalSumSample
+%type <list> optionalSummarization
 
 %start stmtList
 
@@ -412,74 +414,51 @@ provStmt:
 			p->options = NIL;
 			$$ = (Node *) p;
 		}
-		| PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier
+        | optionalTopK PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate optionalSummarization
         {
             RULELOG("provStmt::summaryStmt");
-            Node *stmt = $6;
-	    		ProvenanceStmt *p = createProvenanceStmt(stmt);
-		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $2;
-            p->options = concatTwoLists($3, $8);
-            p->summaryType = $11;  
-            $$ = (Node *) p;
-        }
-        | PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')'
-        {
-            RULELOG("provStmt::summaryStmt");
-            Node *stmt = $6;
+            Node *stmt = $7;
 	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $2;
-            p->options = concatTwoLists($3, $8);
-            p->summaryType = $11;
-            p->userQuestion = $15;
-            p->sampleSize = 10;
-            p->topK = 1;  
-            $$ = (Node *) p;
-        }
-        | PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')' WITH SAMPLE '(' intConst ')'
-        {
-            RULELOG("provStmt::summaryStmt");
-            Node *stmt = $6;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
-		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $2;
-            p->options = concatTwoLists($3, $8);
-            p->summaryType = $11;
-            p->userQuestion = $15;
-            p->sampleSize = $20;
-            p->topK = 1;  
-            $$ = (Node *) p;
-        }
-        | TOP intConst PROVENANCE optionalProvAsOf optionalProvWith OF '(' stmt ')' optionalTranslate SUMMARIZED BY identifier TO EXPLAIN '(' attrElemList ')' WITH SAMPLE '(' intConst ')'
-        {
-            RULELOG("provStmt::summaryStmt");
-            Node *stmt = $8;
-	    	ProvenanceStmt *p = createProvenanceStmt(stmt);
-		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
-		    p->provType = PROV_PI_CS;
-		    p->asOf = (Node *) $4;
-            p->options = concatTwoLists($5, $10);
-            p->summaryType = $13;
-            p->userQuestion = $17;
-            p->sampleSize = $22;
-            p->topK = $2;  
+		    p->asOf = (Node *) $3;
+            p->options = concatTwoLists($4,$9);
+           	p->sumOpts = appendToTailOfList(p->sumOpts,$1);
+           	p->sumOpts = appendToTailOfList(p->sumOpts,(Node *) $10);
             $$ = (Node *) p;
         }
     ;
 
-/*
-summaryType:
-		identifier 
-		{ 
-			RULELOG("summaryType::ident");
-			$$ = (Node *) createConstString($1); 
+
+optionalTopK:
+//		/* empty */			{ RULELOG("optionalTopK::EMPTY"); $$ = NULL; }
+//		| 
+		TOP intConst
+		{
+			RULELOG("optionalTopK::topk");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString("topk"),(Node *) createConstInt($2));
 		}
+    ;
+
+
+optionalSummarization:
+		optionalSumType		{ RULELOG("optionalSumType::sumType"); $$ = singleton($1); }
+		| optionalSummarization optionalSumType
+        {
+        	RULELOG("optionalSummarization::sumOpts"); 
+			$$ = appendToTailOfList($1,$2); 
+        }
+        | optionalSummarization optionalToExplain
+        {
+        	RULELOG("optionalSummarization::sumOpts"); 
+			$$ = appendToTailOfList($1,$2); 
+        }
+        | optionalSummarization optionalSumSample
+        {
+        	RULELOG("optionalSummarization::sumOpts"); 
+			$$ = appendToTailOfList($1,$2); 
+        }
 	;
-*/
 
 stmtWithReenactOptionsList: 
 		reenactStmtWithOptions
@@ -544,6 +523,35 @@ reenactOption:
 		} 
 	;
 	
+
+
+optionalSumType:
+		SUMMARIZED BY identifier 
+		{
+			RULELOG("optionalSummarization::SumType");
+			$$ = (Node *) createStringKeyValue(strdup("sumtype"),strdup($3));
+		}
+	;
+	
+	
+optionalToExplain:
+		TO EXPLAIN '(' attrElemList ')'
+		{
+			RULELOG("optionalToExplain::ToExplain");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString("toexpl"),(Node *) $4);
+		}
+	;
+
+
+optionalSumSample:
+		WITH SAMPLE '(' intConst ')'
+		{
+			RULELOG("optionalSumSample::WithSample");
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString("sumsamp"),(Node *) createConstInt($4));
+		}
+ 	;
+ 	
+  
 optionalProvAsOf:
 		/* empty */			{ RULELOG("optionalProvAsOf::EMPTY"); $$ = NULL; }
 		| provAsOf

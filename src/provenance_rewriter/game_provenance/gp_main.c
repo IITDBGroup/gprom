@@ -33,6 +33,7 @@ rewriteForGP(Node *input)
         }
         INFO_LOG("program for compute GP is:\n%s",
                 datalogToOverviewString((Node *) p));
+        DEBUG_NODE_BEATIFY_LOG("program details:", p);
         return (Node *) p;
     }
     else

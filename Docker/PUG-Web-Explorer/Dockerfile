@@ -1,7 +1,7 @@
 ########################################
 # Derived from ubuntu distribution
 ########################################
-FROM iitdbgroup/gprom-ubuntu-all-backends:latest
+FROM iitdbgroup/gprom-ubuntu-all-backends:pug
 MAINTAINER Boris Glavic <bglavic@iit.edu>
 ########################################
 # Install python
@@ -32,6 +32,3 @@ ENTRYPOINT ["/web/manage.py"]
 # Per start the webserver
 ########################################
 CMD ["startserver"]
-RUN echo "/usr/local/bin/" >> /etc/ld.so.conf \
-	&& echo "/opt/oracle/instantclient/" >> /etc/ld.so.conf \
-	&& /sbin/ldconfig

@@ -3,7 +3,7 @@
  * translator_dl.c
  *			  
  *		
- *		AUTHOR: lord_pretzel
+ *		AUTHOR: lord_pretzel & seokki
  *
  *		
  *
@@ -15,6 +15,7 @@
 #include "configuration/option.h"
 #include "log/logger.h"
 
+#include "analysis_and_translate/translator_dl.h"
 #include "metadata_lookup/metadata_lookup.h"
 #include "model/node/nodetype.h"
 #include "model/list/list.h"
@@ -36,7 +37,7 @@ static QueryOperator *translateSafeRule(DLRule *r);
 static QueryOperator *translateUnSafeRule(DLRule *r);
 static QueryOperator *translateUnSafeGoal(DLAtom *r, int goalPos);
 static QueryOperator *translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart);
-static void analyzeProgramDTs (DLProgram *p, HashMap *predToRules);
+//static void analyzeProgramDTs (DLProgram *p, HashMap *predToRules);
 static void analyzeFactDTs (DLAtom *f, HashMap *predToDTs);
 static void analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules);
 static void setVarDTs (Node *expr, HashMap *varToDT);
@@ -66,6 +67,7 @@ translateParseDL(Node *q)
     Node *result = NULL;
     char *ans = ((DLProgram *) q)->ans;
 
+    // check if ans exists
     if(ans != NULL)
     	provQ = TRUE;
 
@@ -99,7 +101,6 @@ translateParseDL(Node *q)
     }
     INFO_OP_LOG("translated DL model:\n", result);
 
-
     return result;
 }
 
@@ -129,218 +130,330 @@ translateQueryDL(Node *node)
 static Node *
 translateProgram(DLProgram *p)
 {
-    List *translation = NIL; // list of sinks of a relational algebra graph
-//    List *singleRuleTrans = NIL;
-    HashMap *predToTrans = NEW_MAP(Constant,List);
-    HashMap *predToRules = NEW_MAP(Constant,List);
     Node *answerRel;
-//    Set *edbRels, idbRels, factRels;
+    List *origHeadPred = NIL;
 
-    // get names of EDB, IDB and fact predicates
-//    idbRels = (Set *) DL_GET_PROP(p, DL_IDB_RELS);
-//    edbRels = (Set *) DL_GET_PROP(p, DL_EDB_RELS);
-//    factRels = (Set *) DL_GET_PROP(p, DL_FACT_RELS);
-
-    // if we want to compute the provenance then construct program
-    // for creating the provenance and translate this one
-    if (IS_GP_PROV(p))
-    {
-        DEBUG_LOG("user asked for provenance computation for:\n%s",
-                        datalogToOverviewString((Node *) p));
-
-//        // check type of question (e.g., WHY or WHYNOT question)
-//        if(DL_HAS_PROP(p,DL_PROV_WHY))
-//        	typeOfQuestion = TRUE;
-//        else if(DL_HAS_PROP(p,DL_PROV_WHYNOT))
-//        	typeOfQuestion = FALSE;
-
-//        DEBUG_LOG("type of question: %d", typeOfQuestion);
-
-        Node *gpComp = rewriteForGP((Node *) p);
-
-        ASSERT(!IS_GP_PROV(gpComp));
-
-        checkDLModel(gpComp);
-        gpComp = translateParseDL(gpComp);
-
-        return gpComp;
-    }
-
-    // determine pred -> rules
-    FOREACH(DLRule,r,p->rules)
-    {
-        char *headPred = getHeadPredName(r);
-        APPEND_TO_MAP_VALUE_LIST(predToRules,headPred,r);
-//        // not first rule for this pred
-//        if(MAP_HAS_STRING_KEY(predToRules,headPred))
-//        {
-//            KeyValue *kv = MAP_GET_STRING_ENTRY(predToRules,headPred);
-//            List *pRules = (List *) kv->value;
-//            pRules = appendToTailOfList(pRules, r);
-//            kv->value = (Node *) pRules;
-//        }
-//        // first rule for this pred
-//        else
-//        {
-//            List *pRules = singleton(r);
-//            MAP_ADD_STRING_KEY(predToRules,headPred,pRules);
-//        }
-    }
-    FOREACH(DLAtom,f,p->facts)
-    {
-        char *relName = f->rel;
-        APPEND_TO_MAP_VALUE_LIST(predToRules,relName,f);
-//        // not first rule for this pred
-//        if(MAP_HAS_STRING_KEY(predToRules,relName))
-//        {
-//            KeyValue *kv = MAP_GET_STRING_ENTRY(predToRules,relName);
-//            List *pRules = (List *) kv->value;
-//            pRules = appendToTailOfList(pRules, f);
-//            kv->value = (Node *) pRules;
-//        }
-//        // first rule for this pred
-//        else
-//        {
-//            List *pRules = singleton(f);
-//            MAP_ADD_STRING_KEY(predToRules,relName,pRules);
-//        }
-    }
-
-    // analyze rules to determine data types
-    analyzeProgramDTs(p, predToRules);
-
-    // translate facts
-    FOREACH(DLAtom,f,p->facts)
-    {
-        QueryOperator *tFact = translateFact(f);
-        char *predName = f->rel;
-
-        DEBUG_LOG("translate fact: %s", datalogToOverviewString((Node *) f));
-        APPEND_TO_MAP_VALUE_LIST(predToTrans,predName,tFact);
-//        if(MAP_HAS_STRING_KEY(predToTrans,predName))
-//        {
-//            KeyValue *kv = MAP_GET_STRING_ENTRY(predToTrans,predName);
-//            List *ruleTrans = (List *) kv->value;
-//            ruleTrans = appendToTailOfList(ruleTrans, tFact);
-//            kv->value = (Node *) ruleTrans;
-//        }
-//        // first rule for this pred
-//        else
-//        {
-//            List *ruleTrans = singleton(tFact);
-//            MAP_ADD_STRING_KEY(predToTrans,predName,ruleTrans);
-//        }
-    }
-
-//    // check associate domain
-//    List *domName = NIL;
-//    if (LIST_LENGTH(p->doms) != 0)
+//    // activate option for returning input database
+//    if (getBoolOption(OPTION_INPUTDB))
 //    {
-//    	associateDomain = TRUE;
-//    	dlDom = p->doms;
+//        List *inputRels = NIL;
+//        HashMap *taOp = NEW_MAP(Constant,List);
 //
-//    	FOREACH(DLDomain,d,p->doms)
-//    	domName = appendToTailOfList(domName,d->name);
+//        // store relation names
+//        int key = 0;
+//        taRel = NEW_MAP(Constant,List);
+//
+//        FOREACH(DLRule,r,p->rules)
+//        {
+//            FOREACH(DLAtom,a,r->body)
+//			        {
+//                if(DL_HAS_PROP(a,DL_IS_EDB_REL))
+//                {
+//                    MAP_ADD_STRING_KEY(taRel,gprom_itoa(key),a->rel);
+//
+//                    List *attrNames = NIL;
+//                    List *dts = NIL;
+//
+//                    attrNames = getAttributeNames(a->rel);
+//                    dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
+//
+//                    TableAccessOperator *rel = createTableAccessOp(a->rel, NULL, a->rel, NIL, attrNames, dts);
+//                    QueryOperator *op = (QueryOperator *) rel;
+//
+//        			Node *cond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(5)));
+//        			SelectionOperator *sel = createSelectionOp(cond, (QueryOperator *) rel, NIL, NULL);
+//        			op->parents = singleton(sel);
+//        			op = (QueryOperator *) sel;
+//
+//                    ProjectionOperator *proj = (ProjectionOperator *) createProjOnAllAttrs(op);
+//                    addChildOperator((QueryOperator *) proj, op);
+//
+//                    MAP_ADD_STRING_KEY(taOp,a->rel,proj);
+//                    key++;
+//                }
+//			        }
+//        }
+//
+//        FOREACH_HASH(QueryOperator,value,taOp)
+//        inputRels = appendToTailOfList(inputRels,value);
+//
+//        answerRel = (Node *) inputRels;
 //    }
+//    else
+//    {
+        List *translation = NIL; // list of sinks of a relational algebra graph
+    //    List *singleRuleTrans = NIL;
+        HashMap *predToTrans = NEW_MAP(Constant,List);
+        HashMap *predToRules = NEW_MAP(Constant,List);
+    //    Set *edbRels, idbRels, factRels;
 
-    // translate rules
-    FOREACH(DLRule,r,p->rules)
-    {
-//    	castChecker = FALSE; // initialize cast checker
+        // get names of EDB, IDB and fact predicates
+    //    idbRels = (Set *) DL_GET_PROP(p, DL_IDB_RELS);
+    //    edbRels = (Set *) DL_GET_PROP(p, DL_EDB_RELS);
+    //    factRels = (Set *) DL_GET_PROP(p, DL_FACT_RELS);
 
-//    	// TODO: find the better way to filter out original program
-//    	if(associateDomain && DL_HAS_PROP(r,DL_ORIGINAL_RULE) && LIST_LENGTH(dRules) == 0)
-//    		origProg = appendToTailOfList(origProg,(List *) r);
-//    	// not translate rules for associate domain
-//    	else if (associateDomain && searchListString(domName,r->head->rel))
-//        	dRules = appendToTailOfList(dRules, (List *) r);
-//    	else
-//    	{
-//    		// copy associate domain rules
-//    		if (associateDomain && searchListString(domName,r->head->rel))
-//    			dRules = appendToTailOfList(dRules, (List *) r);
+        // if we want to compute the provenance then construct program
+        // for creating the provenance and translate this one
+        if (IS_GP_PROV(p))
+        {
+            DEBUG_LOG("user asked for provenance computation for:\n%s",
+                            datalogToOverviewString((Node *) p));
 
-    		QueryOperator *tRule = translateRule(r);
+    //        // check type of question (e.g., WHY or WHYNOT question)
+    //        if(DL_HAS_PROP(p,DL_PROV_WHY))
+    //        	typeOfQuestion = TRUE;
+    //        else if(DL_HAS_PROP(p,DL_PROV_WHYNOT))
+    //        	typeOfQuestion = FALSE;
+
+    //        DEBUG_LOG("type of question: %d", typeOfQuestion);
+
+            Node *gpComp = rewriteForGP((Node *) p);
+
+            ASSERT(!IS_GP_PROV(gpComp));
+
+            checkDLModel(gpComp);
+            gpComp = translateParseDL(gpComp);
+
+            return gpComp;
+        }
+
+        // determine pred -> rules
+        FOREACH(DLRule,r,p->rules)
+        {
             char *headPred = getHeadPredName(r);
+            APPEND_TO_MAP_VALUE_LIST(predToRules,headPred,r);
 
-            DEBUG_LOG("translate rule: %s", datalogToOverviewString((Node *) r));
+            // store orig head pred
+//            if (!isSubstr(headPred,"_") && !DL_HAS_PROP(r,DL_DOMAIN_RULE))
+            if(DL_HAS_PROP(r,DL_ORIGINAL_RULE))
+            	origHeadPred = appendToTailOfList(origHeadPred, createConstString(headPred));
 
-            if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-            {
-                introduceCastsWhereNecessary((QueryOperator *) tRule);
-                ASSERT(checkModel((QueryOperator *) tRule));
-            }
-            APPEND_TO_MAP_VALUE_LIST(predToTrans,headPred,tRule);
     //        // not first rule for this pred
-    //        if(MAP_HAS_STRING_KEY(predToTrans,headPred))
+    //        if(MAP_HAS_STRING_KEY(predToRules,headPred))
     //        {
-    //            KeyValue *kv = MAP_GET_STRING_ENTRY(predToTrans,headPred);
+    //            KeyValue *kv = MAP_GET_STRING_ENTRY(predToRules,headPred);
+    //            List *pRules = (List *) kv->value;
+    //            pRules = appendToTailOfList(pRules, r);
+    //            kv->value = (Node *) pRules;
+    //        }
+    //        // first rule for this pred
+    //        else
+    //        {
+    //            List *pRules = singleton(r);
+    //            MAP_ADD_STRING_KEY(predToRules,headPred,pRules);
+    //        }
+        }
+        FOREACH(DLAtom,f,p->facts)
+        {
+            char *relName = f->rel;
+            APPEND_TO_MAP_VALUE_LIST(predToRules,relName,f);
+    //        // not first rule for this pred
+    //        if(MAP_HAS_STRING_KEY(predToRules,relName))
+    //        {
+    //            KeyValue *kv = MAP_GET_STRING_ENTRY(predToRules,relName);
+    //            List *pRules = (List *) kv->value;
+    //            pRules = appendToTailOfList(pRules, f);
+    //            kv->value = (Node *) pRules;
+    //        }
+    //        // first rule for this pred
+    //        else
+    //        {
+    //            List *pRules = singleton(f);
+    //            MAP_ADD_STRING_KEY(predToRules,relName,pRules);
+    //        }
+        }
+
+        // analyze rules to determine data types
+        analyzeProgramDTs(p, predToRules);
+
+        // translate facts
+        FOREACH(DLAtom,f,p->facts)
+        {
+            QueryOperator *tFact = translateFact(f);
+            char *predName = f->rel;
+
+            DEBUG_LOG("translate fact: %s", datalogToOverviewString((Node *) f));
+            APPEND_TO_MAP_VALUE_LIST(predToTrans,predName,tFact);
+    //        if(MAP_HAS_STRING_KEY(predToTrans,predName))
+    //        {
+    //            KeyValue *kv = MAP_GET_STRING_ENTRY(predToTrans,predName);
     //            List *ruleTrans = (List *) kv->value;
-    //            ruleTrans = appendToTailOfList(ruleTrans, tRule);
+    //            ruleTrans = appendToTailOfList(ruleTrans, tFact);
     //            kv->value = (Node *) ruleTrans;
     //        }
     //        // first rule for this pred
     //        else
     //        {
-    //            List *ruleTrans = singleton(tRule);
-    //            MAP_ADD_STRING_KEY(predToTrans,headPred,ruleTrans);
+    //            List *ruleTrans = singleton(tFact);
+    //            MAP_ADD_STRING_KEY(predToTrans,predName,ruleTrans);
     //        }
-    //        singleRuleTrans = appendToTailOfList(singleRuleTrans,
-    //                tRule);
-//    	}
-    }
-
-    // for each predicate create a union between all translated rules
-    // replace the lists with a reference to the top-most union op
-    FOREACH_HASH_ENTRY(kv,predToTrans)
-    {
-        List *rTs = (List *) kv->value;
-        QueryOperator *un = (QueryOperator *) popHeadOfListP(rTs);
-
-        FOREACH(QueryOperator,o,rTs)
-        {
-            QueryOperator *prev = un;
-            un = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(prev,o), NIL,
-                    getQueryOperatorAttrNames(un));
-            addParent(prev, un);
-            addParent(o, un);
         }
 
-        // if union is used, then add duplicate removal
-        if (LIST_LENGTH(rTs) >= 1)
+    //    // check associate domain
+    //    List *domName = NIL;
+    //    if (LIST_LENGTH(p->doms) != 0)
+    //    {
+    //    	associateDomain = TRUE;
+    //    	dlDom = p->doms;
+    //
+    //    	FOREACH(DLDomain,d,p->doms)
+    //    	domName = appendToTailOfList(domName,d->name);
+    //    }
+
+        // translate rules
+        FOREACH(DLRule,r,p->rules)
         {
-            QueryOperator *old = un;
-            un = (QueryOperator *) createDuplicateRemovalOp(NULL, (QueryOperator *) un, NIL,
-                    getQueryOperatorAttrNames((QueryOperator *) un));
-            addParent(old, un);
+    //    	castChecker = FALSE; // initialize cast checker
+
+    //    	// TODO: find the better way to filter out original program
+    //    	if(associateDomain && DL_HAS_PROP(r,DL_ORIGINAL_RULE) && LIST_LENGTH(dRules) == 0)
+    //    		origProg = appendToTailOfList(origProg,(List *) r);
+    //    	// not translate rules for associate domain
+    //    	else if (associateDomain && searchListString(domName,r->head->rel))
+    //        	dRules = appendToTailOfList(dRules, (List *) r);
+    //    	else
+    //    	{
+    //    		// copy associate domain rules
+    //    		if (associateDomain && searchListString(domName,r->head->rel))
+    //    			dRules = appendToTailOfList(dRules, (List *) r);
+
+        		QueryOperator *tRule = translateRule(r);
+                char *headPred = getHeadPredName(r);
+
+                DEBUG_LOG("translate rule: %s", datalogToOverviewString((Node *) r));
+
+                if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+                {
+                    introduceCastsWhereNecessary((QueryOperator *) tRule);
+                    ASSERT(checkModel((QueryOperator *) tRule));
+                }
+                APPEND_TO_MAP_VALUE_LIST(predToTrans,headPred,tRule);
+        //        // not first rule for this pred
+        //        if(MAP_HAS_STRING_KEY(predToTrans,headPred))
+        //        {
+        //            KeyValue *kv = MAP_GET_STRING_ENTRY(predToTrans,headPred);
+        //            List *ruleTrans = (List *) kv->value;
+        //            ruleTrans = appendToTailOfList(ruleTrans, tRule);
+        //            kv->value = (Node *) ruleTrans;
+        //        }
+        //        // first rule for this pred
+        //        else
+        //        {
+        //            List *ruleTrans = singleton(tRule);
+        //            MAP_ADD_STRING_KEY(predToTrans,headPred,ruleTrans);
+        //        }
+        //        singleRuleTrans = appendToTailOfList(singleRuleTrans,
+        //                tRule);
+    //    	}
         }
 
-        kv->value = (Node *) un;
-    }
+        // for each predicate create a union between all translated rules
+        // replace the lists with a reference to the top-most union op
+        FOREACH_HASH_ENTRY(kv,predToTrans)
+        {
+            List *rTs = (List *) kv->value;
+            QueryOperator *un = (QueryOperator *) popHeadOfListP(rTs);
 
-    // connect rules by replacing table access operators representing idb
-    // relations with the corresponding algebra expression
-    translation = connectProgramTranslation(p, predToTrans);
+            FOREACH(QueryOperator,o,rTs)
+            {
+                QueryOperator *prev = un;
+                un = (QueryOperator *) createSetOperator(SETOP_UNION, LIST_MAKE(prev,o), NIL,
+                        getQueryOperatorAttrNames(un));
+                addParent(prev, un);
+                addParent(o, un);
+            }
 
-    if (p->ans == NULL)
-        return (Node *) translation;
+            // if union is used, then add duplicate removal
+            if (LIST_LENGTH(rTs) >= 1)
+            {
+                QueryOperator *old = un;
+                un = (QueryOperator *) createDuplicateRemovalOp(NULL, (QueryOperator *) un, NIL,
+                        getQueryOperatorAttrNames((QueryOperator *) un));
+                addParent(old, un);
+            }
 
-    if (!MAP_HAS_STRING_KEY(predToTrans, p->ans))
-    {
-        FATAL_LOG("answer relation %s does not exist in program:\n\n%s",
-                p->ans, datalogToOverviewString((Node *) p));
-    }
+            kv->value = (Node *) un;
+        }
 
-    answerRel = MAP_GET_STRING(predToTrans, p->ans);
-    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
-    {
-        introduceCastsWhereNecessary((QueryOperator *) answerRel);
-        //ASSERT(checkModel((QueryOperator *) answerRel));
-    }
+        // exclude the edge rel and domain rules before connect
+        Node *transMoveRel = NULL;
+    	List *domHeadPreds = NIL;
+
+        if (!LIST_EMPTY(p->sumOpts) && p->ans != NULL)
+        {
+        	transMoveRel = MAP_GET_STRING(predToTrans, "move");
+        	removeMapStringElem(predToTrans, "move");
+
+        	// remove domain query translated for WHYNOT
+        	FOREACH(DLRule,r,p->rules)
+        		if(DL_HAS_PROP(r,DL_DOMAIN_RULE))
+        			domHeadPreds = appendToTailOfList(domHeadPreds,r->head->rel);
+
+        	FOREACH(char,c,domHeadPreds)
+        		removeMapStringElem(predToTrans, c);
+        }
+
+        // connect rules by replacing table access operators representing idb
+        // relations with the corresponding algebra expression
+        translation = connectProgramTranslation(p, predToTrans);
+
+        // generate input for the summarization
+        if (!LIST_EMPTY(p->sumOpts) && p->ans != NULL)
+        {
+        	Node *origInRule = NULL;
+        	Node *ruleFire = NULL;
+        	List *summInputs = NIL;
+
+        	// check whether the ans rel is sinlge or multiple
+        	if(!isSubstr(p->ans,"-"))
+        	{
+        		ruleFire = MAP_GET_STRING(predToTrans, p->ans);
+        		origInRule = MAP_GET_STRING(predToTrans, STRING_VALUE(getHeadOfListP(origHeadPred)));
+            	QueryOperator *origIntoFire = (QueryOperator *) ruleFire;
+            	origIntoFire->properties = copyObject(origInRule);
+            	summInputs = singleton(origIntoFire);
+        	}
+        	else
+        	{
+        		List *ansRels = splitString(p->ans,"-");
+        		int i = 0;
+
+        		FOREACH(char,c,ansRels)
+        		{
+            		ruleFire = MAP_GET_STRING(predToTrans, c);
+            		origInRule = MAP_GET_STRING(predToTrans, STRING_VALUE(getNthOfListP(origHeadPred,i)));
+                	QueryOperator *origIntoFire = (QueryOperator *) ruleFire;
+                	origIntoFire->properties = copyObject(origInRule);
+        			summInputs = appendToTailOfList(summInputs, origIntoFire);
+        			i++;
+        		}
+        	}
+
+        	summInputs = appendToTailOfList(summInputs, transMoveRel);
+        	return (Node *) summInputs;
+        }
+
+        if (p->ans == NULL)
+            return (Node *) translation;
+
+        if (!MAP_HAS_STRING_KEY(predToTrans, p->ans))
+        {
+            FATAL_LOG("answer relation %s does not exist in program:\n\n%s",
+                    p->ans, datalogToOverviewString((Node *) p));
+        }
+
+        answerRel = MAP_GET_STRING(predToTrans, p->ans);
+        if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+        {
+            introduceCastsWhereNecessary((QueryOperator *) answerRel);
+            //ASSERT(checkModel((QueryOperator *) answerRel));
+        }
+//    }
+
     return answerRel;
 }
 
-static void
+void
 analyzeProgramDTs (DLProgram *p, HashMap *predToRules)
 {
     HashMap *predToDTs = NEW_MAP(Constant,List);
@@ -488,7 +601,7 @@ setVarDTs (Node *expr, HashMap *varToDT)
     List *vars = getDLVarsIgnoreProps (expr);
 //    List *vars = getDLVars (expr);
     FOREACH(DLVar,v,vars)
-        v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
+    	v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
 }
 
 static QueryOperator *
@@ -710,9 +823,9 @@ translateSafeRule(DLRule *r)
     projExprs = getHeadProjectionExprs(r->head, joinedGoals, getBodyArgs(r));
     int i = 0;
 
-//    FOREACH(Node,p,projExprs)
-    for (; i < LIST_LENGTH(projExprs); i++)
-        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", gprom_itoa(i)));
+////    FOREACH(Node,p,projExprs)
+//    for (; i < LIST_LENGTH(projExprs); i++)
+//        headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", gprom_itoa(i)));
 //
 //    List *headVars = getVarNames(getHeadVars(r));
 //    List *headArgs = r->head->args;
@@ -727,13 +840,107 @@ translateSafeRule(DLRule *r)
 //        projExprs = appendToTailOfList(projExprs, a);
 //    }
 
-    headP = createProjectionOp(projExprs,
+    // check whether agg functions exist
+    AggregationOperator *ao;
+    List *newProjExprs = NIL;
+    boolean hasAgg = FALSE;
+
+    // check if there exist aggr functions
+    FOREACH(Node,a,r->head->args)
+    	if(isA(a,FunctionCall))
+    		hasAgg = TRUE;
+
+    // translate agg functions
+    if(hasAgg)
+    {
+    	List *groupByClause = NIL;
+        List *attrNames = NIL;
+        List *groupbyNames = NIL;
+        List *funcNames = NIL;
+        List *aggrFuncs = NIL;
+
+        int aggri = -1;
+        int groupbyi = -1;
+
+        // gather group by expressions
+        FOREACH(Node,e,projExprs)
+        {
+        	if(!isA(e,FunctionCall))
+        	{
+        		groupByClause = appendToTailOfList(groupByClause, copyObject(e));
+
+        		char *groupbyName = CONCAT_STRINGS("GROUP_", gprom_itoa(groupbyi + 1));
+        		groupbyNames = appendToTailOfList(groupbyNames, groupbyName);
+        	}
+        }
+
+        // gather aggr function expressions
+    	FOREACH(Node,e,projExprs)
+        {
+        	if(isA(e,FunctionCall))
+        	{
+        		FunctionCall *f = (FunctionCall *) e;
+
+        		if(f->isAgg)
+        		{
+        			aggrFuncs = appendToTailOfList(aggrFuncs, copyObject(f));
+
+        			char *aggrName = CONCAT_STRINGS("AGGR_", gprom_itoa(aggri + 1));
+        			funcNames = appendToTailOfList(funcNames, aggrName);
+        		}
+        	}
+        }
+
+    	// create aggregation operator
+    	attrNames = CONCAT_LISTS(copyList(funcNames), copyList(groupbyNames));
+		ao = createAggregationOp(aggrFuncs, groupByClause, joinedGoals, NIL, attrNames);
+		OP_LCHILD(ao)->parents = singleton(ao);
+//		addParent(joinedGoals, (QueryOperator *) ao);
+
+		// create new projExprs for projection operator
+		AttributeReference *a;
+		groupbyi = 0;
+		aggri = 0;
+
+		// To re-order the attributes, create expressions with group by first
+		FOREACH(AttributeDef,n,ao->op.schema->attrDefs)
+		{
+			if(isPrefix(n->attrName,"GROUP_"))
+			{
+				a = createFullAttrReference(strdup(n->attrName), 0, groupbyi, -1, n->dataType);
+				newProjExprs = appendToTailOfList(newProjExprs, a);
+			}
+			groupbyi++;
+		}
+
+		// Then, create aggr function expressions
+		FOREACH(AttributeDef,n,ao->op.schema->attrDefs)
+		{
+			if(isPrefix(n->attrName,"AGGR_"))
+			{
+				a = createFullAttrReference(strdup(n->attrName), 0, aggri, -1, n->dataType);
+				newProjExprs = appendToTailOfList(newProjExprs, a);
+			}
+			aggri++;
+		}
+
+		// Re-order attribute names according to the expressions
+		headNames = CONCAT_LISTS(copyList(groupbyNames),copyList(funcNames));
+    }
+    else
+    {
+        // FOREACH(Node,p,projExprs)
+		for (; i < LIST_LENGTH(projExprs); i++)
+			headNames = appendToTailOfList(headNames,CONCAT_STRINGS("A", gprom_itoa(i)));
+    }
+
+    headP = createProjectionOp(hasAgg ? newProjExprs : projExprs,
 //            sel ? (QueryOperator *) sel : joinedGoals,
-    		joinedGoals,
+    		hasAgg ? (QueryOperator *) ao : joinedGoals,
             NIL,
             headNames);
 //    addParent(sel ? (QueryOperator *) sel : joinedGoals, (QueryOperator *) headP);
-    addParent(joinedGoals, (QueryOperator *) headP);
+    addParent(hasAgg ? (QueryOperator *) ao : joinedGoals, (QueryOperator *) headP);
 
     // add duplicate removal operator
     dupRem = createDuplicateRemovalOp(NULL, (QueryOperator *) headP, NIL,
@@ -764,10 +971,14 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
             {
                 DLVar *v = (DLVar *) bA;
                 AttributeDef *d = (AttributeDef *) a;
-                MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
-                                    createConstString(d->attrName),
-                                    createConstInt(pos),
-                                    createConstInt(d->dataType)));
+
+                if(streq(v->name,d->attrName))
+                {
+					MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
+										createConstString(d->attrName),
+										createConstInt(pos),
+										createConstInt(d->dataType)));
+                }
             }
 
             pos++;
@@ -848,6 +1059,11 @@ joinGoalTranslations (DLRule *r, List *goalTrans)
         List *attrNames = CONCAT_LISTS(getQueryOperatorAttrNames(result),
                 getQueryOperatorAttrNames(g));
         makeNamesUnique(attrNames, allNames);
+
+        // TODO: if many variables(attrs) exist in the rule,
+        //		 then creating unique var name by adding another digit of number with incremental is not enough
+        if (LIST_LENGTH(attrNames) > 10)
+        	makeNamesUnique(attrNames, allNames);
 
         cond = createJoinCondOnCommonAttrs(result,g, origAttrs);
 
@@ -1019,15 +1235,18 @@ replaceVarWithAttrRef(Node *node, List *context)
             SET_BOOL_STRING_PROP(table, DL_IS_EDB_REL); \
         if (DL_HAS_PROP(dl,DL_IS_FACT_REL)) \
             SET_BOOL_STRING_PROP(table, DL_IS_FACT_REL); \
-        DEBUG_LOG("create table for goal %s(%s)%s%s%s", table->tableName, \
+		if (DL_HAS_PROP(dl,DL_IS_DOMAIN_REL)) \
+			SET_BOOL_STRING_PROP(table, DL_IS_DOMAIN_REL); \
+        DEBUG_LOG("create table for goal %s(%s)%s%s%s%s", table->tableName, \
                 stringListToString(getQueryOperatorAttrNames((QueryOperator *) table)), \
                 DL_HAS_PROP(dl,DL_IS_IDB_REL) ? " IDB " : "", \
                 DL_HAS_PROP(dl,DL_IS_FACT_REL) ? " FACT " : "", \
-                DL_HAS_PROP(dl,DL_IS_EDB_REL) ? " EDB " : ""); \
+           		DL_HAS_PROP(dl,DL_IS_FACT_REL) ? " EDB " : "", \
+                DL_HAS_PROP(dl,DL_IS_DOMAIN_REL) ? " DOMAIN " : ""); \
     } while(0)
 
 
-List *edbAttr = NIL;
+//List *edbAttr = NIL;
 
 static QueryOperator *
 translateUnSafeGoal(DLAtom *r, int goalPos)
@@ -1040,13 +1259,15 @@ translateUnSafeGoal(DLAtom *r, int goalPos)
     boolean isIDB = DL_HAS_PROP(r,DL_IS_IDB_REL);
     boolean isEDB = DL_HAS_PROP(r,DL_IS_EDB_REL);
     boolean isFact = DL_HAS_PROP(r,DL_IS_FACT_REL);
+    boolean isDom = DL_HAS_PROP(r,DL_IS_DOMAIN_REL);
 	boolean typeTransConst = FALSE;
 	boolean typeTransVar = FALSE;
 
-    DEBUG_LOG("goal is marked as %s%s%s",
+    DEBUG_LOG("goal is marked as %s%s%s%s",
             isIDB ? " IDB " : "",
             isFact ? " FACT " : "",
-            isEDB ? "EDB" : "");
+       		isEDB ? " EDB " : "",
+            isDom ? "DOMAIN" : "");
 
     // for idb rels just fake attributes (and for now DTs)
     if (isIDB || (isFact && !isEDB))
@@ -2378,11 +2599,13 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
     boolean isIDB = DL_HAS_PROP(r,DL_IS_IDB_REL);
     boolean isEDB = DL_HAS_PROP(r,DL_IS_EDB_REL);
     boolean isFact = DL_HAS_PROP(r,DL_IS_FACT_REL);
+    boolean isDom = DL_HAS_PROP(r,DL_IS_DOMAIN_REL);
 
     DEBUG_LOG("goal is marked as %s%s%s",
             isIDB ? " IDB " : "",
             isFact ? " FACT " : "",
-            isEDB ? "EDB" : "");
+            isEDB ? " EDB " : "",
+            isDom ? "DOMAIN" : "");
 
     // for idb rels just fake attributes (and for now DTs)
     if (isIDB || (isFact && !isEDB))
@@ -2578,7 +2801,8 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
                             0, i, INVALID_ATTR, a->dataType),
                     copyObject(arg)));
 
-            ASSERT(a->dataType == ((Constant *) arg)->constType);
+            // commented out as CAST later handles the data types
+//            ASSERT(a->dataType == ((Constant *) arg)->constType);
 
             selExpr = appendToTailOfList(selExpr, comp);
         }
@@ -2741,10 +2965,14 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
             boolean isIDB = HAS_STRING_PROP(r,DL_IS_IDB_REL);
             boolean isEDB = HAS_STRING_PROP(r,DL_IS_EDB_REL);
             boolean isFact = HAS_STRING_PROP(r,DL_IS_FACT_REL);
+            boolean isDom = HAS_STRING_PROP(r,DL_IS_DOMAIN_REL);
 
             DEBUG_LOG("check Table %s that is %s%s%s", r->tableName, isIDB ? " idb": "",
                     isEDB ? " edb": "", isFact ? " fact": "");
-            ASSERT(!isIDB || MAP_HAS_STRING_KEY(predToTrans,r->tableName));
+
+            // exception on DOMAIN due to the replacement in the summarization step
+            if(!isDom)
+            	ASSERT(!isIDB || MAP_HAS_STRING_KEY(predToTrans,r->tableName));
 
             // is idb or fact (which is not edb)
             if((isIDB || (isFact && !isEDB)) && MAP_HAS_STRING_KEY(predToTrans,r->tableName))
@@ -2775,7 +3003,9 @@ connectProgramTranslation(DLProgram *p, HashMap *predToTrans)
                         operatorToOverviewString((Node *) un));
             }
             else if (isIDB || isFact)
-                FATAL_LOG("Do not find entry for %s", r->tableName);
+            	// exception on DOMAIN due to the replacement in the summarization step
+            	if(!isDom)
+            		FATAL_LOG("Do not find entry for %s", r->tableName);
         }
 
         qoRoots = appendToTailOfList(qoRoots, root);

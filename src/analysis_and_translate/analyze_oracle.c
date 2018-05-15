@@ -1342,6 +1342,7 @@ splitAttrOnDot (char *dotName)
     return result;
 }
 
+#define DUMMY_FROM_IDENT_PREFIX backendifyIdentifier("dummyFrom")
 
 static List *
 expandStarExpression (SelectItem *s, List *fromClause)
@@ -1364,7 +1365,7 @@ expandStarExpression (SelectItem *s, List *fromClause)
             {
                 StringInfo s = makeStringInfo();
                 appendStringInfo(s,"%u", fromAliasCount++);
-                f->name = CONCAT_STRINGS("dummyFrom", s->data);
+                f->name = CONCAT_STRINGS(DUMMY_FROM_IDENT_PREFIX, s->data);
                 FREE(s);
             }
 

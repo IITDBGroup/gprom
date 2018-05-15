@@ -22,6 +22,7 @@
 #include "model/datalog/datalog_model.h"
 
 static List *makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames);
+static boolean findVarsVisitor (Node *node, List **context);
 static List *getAtomVars(DLAtom *a);
 static List *getAtomArgs(DLAtom *a);
 static List *getComparisonVars(DLComparison *a);
@@ -75,7 +76,7 @@ createDLRule (DLAtom *head, List *body)
 
 
 DLProgram *
-createDLProgram (List *dlRules, List *facts, char *ans, List *doms)
+createDLProgram (List *dlRules, List *facts, char *ans, List *doms, List *func, List *sumOpts)
 {
     DLProgram *result = makeNode(DLProgram);
 
@@ -83,6 +84,8 @@ createDLProgram (List *dlRules, List *facts, char *ans, List *doms)
     result->facts = facts;
     result->ans = ans;
     result->doms = doms;
+    result->func = func;
+    result->sumOpts = sumOpts;
 
     return result;
 }
@@ -421,6 +424,42 @@ static List *
 getAtomArgs(DLAtom *a)
 {
     return copyObject(a->args);
+}
+
+List *
+getHeadExprVars (DLRule *r)
+{
+    return getAtomExprVars(r->head);
+}
+
+List *
+getAtomExprVars (DLAtom *a)
+{
+    return getExprVars((Node *) a);
+}
+
+List *
+getExprVars(Node *expr)
+{
+    List *result = NIL;
+
+    findVarsVisitor(expr, &result);
+
+    return result;
+}
+
+static boolean
+findVarsVisitor (Node *node, List **context)
+{
+    if (node == NULL)
+        return TRUE;
+
+    if (isA(node, DLVar))
+    {
+        *context = appendToTailOfList(*context, node);
+    }
+
+    return visit(node, findVarsVisitor, context);
 }
 
 static List *

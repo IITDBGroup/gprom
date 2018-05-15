@@ -44,7 +44,8 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
         GP_NODE_TUPLE_WON,
         GP_NODE_TUPLE_LOST,
 		GP_NODE_HYPEREDGE,
-		GP_NODE_GOALHYPEREDGE
+		GP_NODE_GOALHYPEREDGE,
+		GP_NODE_NUMPROVRECALL
 );
 
 static char *nodeTypeLabel[] = {
@@ -61,7 +62,8 @@ static char *nodeTypeLabel[] = {
 		"TUPLEWON",
 		"TUPLELOST",
 		"RULEHYPEREDGE",
-		"GOALHYPEREDGE"
+		"GOALHYPEREDGE",
+		"NUMPROVRECALL"
 };
 
 #define WON_COLOR "#CBFFCB"
@@ -95,8 +97,8 @@ static char *nodeTypeCode[] = {
 
 
 static char *nodeTypeNodeCode[] = {
-        "%s [label=\"%s\", texlbl=\"%s\"]\n",
-        "%s [label=\"%s\", texlbl=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\", xlabel=\"%s\"]\n",
+        "%s [label=\"%s\", texlbl=\"%s\", xlabel=\"%s\"]\n",
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
         "%s [label=\"%s\", texlbl=\"%s\"]\n",
@@ -139,19 +141,34 @@ executeOutputGP(void *sql)
 
     // loop through query result creating edges and caching nodes
     // add loop
+	int i = 0;
+	List *existingNodes = NIL;
+
     FOREACH(List,t,queryRes)
     {
         Set *nodes;
 
         char *lRawId = (char *) getNthOfListP(t,0);
+        lRawId = strtrim(lRawId);
         GPNodeType lType = getNodeType(lRawId);
         char *lId = getNodeId(lRawId);
         nodes = (Set *) MAP_GET_INT(noteTypes, lType);
         addToSet(nodes, lRawId);
 
         char *rRawId = (char *) getNthOfListP(t,1);
+        rRawId = strtrim(rRawId);
         GPNodeType rType = getNodeType(rRawId);
         char *rId = getNodeId(rRawId);
+
+        if(rType == GP_NODE_NUMPROVRECALL)
+        {
+        	if(searchListString(existingNodes,rRawId))
+        		rRawId = CONCAT_STRINGS(rRawId,"_",gprom_itoa(i));
+
+       		existingNodes = appendToTailOfList(existingNodes,rRawId);
+       		i++;
+        }
+
         nodes = (Set *) MAP_GET_INT(noteTypes, rType);
         addToSet(nodes, rRawId);
 
@@ -161,27 +178,67 @@ executeOutputGP(void *sql)
         // create edge
         if (rType == GP_NODE_HYPEREDGE || rType == GP_NODE_GOALHYPEREDGE)
             appendStringInfo(edges, DOT_UNDIR_EDGE_TEMP, lId, rId);
-        else
+        else if(rType != GP_NODE_NUMPROVRECALL)
             appendStringInfo(edges, DOT_EDGE_TEMP, lId, rId);
     }
 
+
+    // store the num prov + recall
+    HashMap *numProvRecall = NEW_MAP(Constant,Constant);
+    int rank = 0;
+
+    FOREACH_HASH_ENTRY(e,noteTypes)
+    {
+    	GPNodeType t  = (GPNodeType) INT_VALUE(e->key);
+
+    	if(t == GP_NODE_NUMPROVRECALL)
+    	{
+        	Set *nodes = (Set *) e->value;
+
+        	FOREACH_SET(char,n,nodes)
+        	{
+        		char *xLabel = getTexNodeLabel(n,t);
+        		MAP_ADD_STRING_KEY_AND_VAL(numProvRecall,gprom_itoa(rank),xLabel);
+        		rank++;
+        	}
+    	}
+    }
+
+
     // for each node type add code to create nodes to script
+	rank = 0;
     FOREACH_HASH_ENTRY(e,noteTypes)
     {
         GPNodeType t  = (GPNodeType) INT_VALUE(e->key);
-        char *template = nodeTypeNodeCode[t];
-        Set *nodes = (Set *) e->value;
 
-        // add node type settings to script
-        appendStringInfoString(script,nodeTypeCode[t]);
-
-        FOREACH_SET(char,n,nodes)
+        if(t != GP_NODE_NUMPROVRECALL)
         {
-            char *label = getNodeLabel(n,t);
-            char *id = getNodeId(n);
-            char *texLabel = getTexNodeLabel(n,t);
-            DEBUG_LOG("label and id for node: <%s> and <%s>", label, id);
-            appendStringInfo(script,template,id,label,texLabel);
+            char *template = nodeTypeNodeCode[t];
+            Set *nodes = (Set *) e->value;
+
+            // add node type settings to script
+            appendStringInfoString(script,nodeTypeCode[t]);
+
+            FOREACH_SET(char,n,nodes)
+            {
+                char *label = getNodeLabel(n,t);
+                char *id = getNodeId(n);
+                char *texLabel = getTexNodeLabel(n,t);
+                DEBUG_LOG("label and id for node: <%s> and <%s>", label, id);
+
+                if(t == GP_NODE_RULE_WON || t == GP_NODE_RULE_LOST)
+                {
+                	char *xLabel = NULL;
+                	if(MAP_HAS_STRING_KEY(numProvRecall,gprom_itoa(rank)))
+                		xLabel = STRING_VALUE(MAP_GET_STRING(numProvRecall,gprom_itoa(rank)));
+                	else
+                		xLabel = "";
+                	appendStringInfo(script,template,id,label,texLabel,xLabel);
+                	rank++;
+                }
+                else
+                	appendStringInfo(script,template,id,label,texLabel);
+            }
         }
     }
     // append post fix
@@ -266,6 +323,7 @@ getNodeLabel (char *node, GPNodeType t)
     id = replaceSubstr(id, "_WON", "");
     id = replaceSubstr(id, "_LOST", "");
 
+    //TODO: check whether brackets and '|' are included in the data
     args = getMatchingSubstring(node, "[^\\(]+\(\\([^\\)]+\\))");
 
     switch(t)
@@ -310,6 +368,10 @@ getNodeLabel (char *node, GPNodeType t)
 		{
 			return CONCAT_STRINGS(id, args);
 		}
+        case GP_NODE_NUMPROVRECALL:
+        {
+        	return args;
+        }
         break;
     }
 
@@ -327,7 +389,10 @@ getTexNodeLabel (char *node, GPNodeType t)
     id = replaceSubstr(id, "_WON", "");
     id = replaceSubstr(id, "_LOST", "");
 
+    //TODO: check whether brackets and '|' are included in the data
     args = getMatchingSubstring(node, "[^\\(]+\(\\([^\\)]+\\))");
+//    char *atomPred = getMatchingSubstring(node, "[_]([^\\(]+)");
+//    args = replaceSubstr(node, atomPred, "");
 
     switch(t)
     {
@@ -371,6 +436,10 @@ getTexNodeLabel (char *node, GPNodeType t)
 		{
 			return CONCAT_STRINGS(id, args);
 		}
+        case GP_NODE_NUMPROVRECALL:
+        {
+        	return args;
+        }
         break;
     }
 

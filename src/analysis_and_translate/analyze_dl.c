@@ -144,6 +144,112 @@ analyzeDLProgram (DLProgram *p)
     p->facts = facts;
     p->doms = doms;
 
+    /* for summarization, check whether
+     * 1) the length of failure pattern is equal to the number of rule body atom
+     * 2) the failure pattern is assigned with why question
+     */
+    if(p->sumOpts != NIL)
+    {
+		int fpLeng = 0;
+		boolean isFpattern = FALSE;
+		HashMap *hm = p->n.properties;
+		List *measureElemList = NIL;
+
+		// check failure pattern assigned and if so then capture the length of the pattern
+		FOREACH(KeyValue,kv,p->sumOpts)
+		{
+			char *key = STRING_VALUE(kv->key);
+
+			if(streq(key,"fpattern"))
+			{
+				isFpattern = TRUE;
+				fpLeng = LIST_LENGTH((List *) kv->value);
+			}
+
+			// for user defined score,
+			// currenlty support 3 elements for measure: precision, recall, and informativeness
+			char *measureElem = NULL;
+
+			if(isPrefix(key,"sc_"))
+			{
+				measureElem = (char *) MALLOC(strlen(key) + 1);
+				strcpy(measureElem,key);
+
+				measureElem = strEndTok(measureElem,"_");
+				measureElemList = appendToTailOfList(measureElemList,measureElem);
+
+				if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
+					FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+			}
+
+//			if(isSubstr(key,"score"))
+//			{
+//				measureElem = replaceSubstr(measureElem,"score_","");
+//				measureElemList = splitString(measureElem,"_");
+//
+//				FOREACH(char,c,measureElemList)
+//					if(!(streq(c,"PRECISION") || streq(c,"RECALL") || streq(c,"INFORMATIVENESS")))
+//						FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+//			}
+
+			// the elements in the thresholds must be same as in the score
+			if(isPrefix(key,"th_"))
+			{
+				measureElem = (char *) MALLOC(strlen(key) + 1);
+				strcpy(measureElem,key);
+
+				measureElem = strEndTok(measureElem,"_");
+
+//				if(measureElemList != NIL)
+//				{
+//					if(!searchListString(measureElemList, measureElem))
+//						FATAL_LOG("the element for thresholds must be consistent with those in the defined score");
+//				}
+//				else
+//				{
+					if(!(streq(measureElem,"PRECISION") || streq(measureElem,"RECALL") || streq(measureElem,"INFORMATIVENESS")))
+						FATAL_LOG("incorrect element for the measure! must be one of three: precision, recall, and informativeness!");
+//				}
+			}
+		}
+
+    	// failure pattern assigned with why question
+        if(isFpattern && MAP_HAS_STRING_KEY(hm,"WHY_PROV"))
+        	FATAL_LOG("no failure can happen with WHY question");
+
+//        // no failure pattern assigned with whynot question
+//        if(!isFpattern && MAP_HAS_STRING_KEY(hm,"WHYNOT_PROV"))
+//        	FATAL_LOG("failure pattern must be assigned with WHYNOT question for summarization");
+
+        // the length of failure pattern must be equal to the number of body atoms
+        char *ansPred = NULL;
+        int bodyLeng = 0;
+
+		if(MAP_HAS_STRING_KEY(hm,"WHYNOT_PROV") && isFpattern)
+		{
+			DLAtom *ansAtom = (DLAtom *) getMapString(hm,"WHYNOT_PROV");
+			ansPred = (char *) ansAtom->rel;
+
+	        FOREACH(Node,r,p->rules)
+	        {
+	        	if(isA(r,DLRule))
+				{
+	        		DLRule *eachR = (DLRule *) r;
+					char *headPred = getHeadPredName(eachR);
+
+					if(streq(headPred,ansPred))
+						bodyLeng = LIST_LENGTH(eachR->body);
+				}
+	        }
+
+	        if(fpLeng > bodyLeng)
+	        	FATAL_LOG("the failure pattern is longer than the rule body");
+
+	        if(fpLeng < bodyLeng)
+	        	FATAL_LOG("the failure pattern is less than the rule body");
+		}
+    }
+
 //    // check that answer relation exists
 //    if (p->ans)
 //    {
@@ -203,6 +309,10 @@ analyzeProv (DLProgram *p, KeyValue *kv)
         {
             DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE);
         }
+        else if (isSuffix(type, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE_REDUCED))
+        {
+            DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE_REDUCED);
+        }
         else if (isSuffix(type, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED))
 		{
 			DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED);
@@ -261,21 +371,10 @@ analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *fact
         }
     }
 
-//    // seperate comparison from the rule
-//    List *ruleBody = NIL;
-//
-//    if (p->comp != NULL)
-//    {
-//        FOREACH(Node,a,r->body)
-//		{
-//        	if (!isA(a,DLComparison))
-//        	{
-//        		ruleBody = appendToTailOfList(ruleBody, a);
-//        	}
-//		}
-//
-//        r->body = ruleBody;
-//    }
+    // check head if agg functions exist
+    FOREACH(Node,ha,r->head->args)
+    	if (isA(ha,FunctionCall))
+    		p->func = appendToTailOfList(p->func, ha);
 }
 
 /*
