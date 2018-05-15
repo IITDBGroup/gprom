@@ -4446,6 +4446,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 
 			HashMap *headVarRelPair = NEW_MAP(Constant,Constant);
+			HashMap *idbVarRelPair = NEW_MAP(Constant,Constant);
 
 			FOREACH(DLRule,or,origDLrules)
 			{
@@ -4460,13 +4461,40 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 							if(searchListNode(a->args,(Node *) v))
 							{
 								char *key = CONCAT_STRINGS(or->head->rel,gprom_itoa(headVarPos));
-								MAP_ADD_STRING_KEY_AND_VAL(headVarRelPair,key,a->rel);
+
+								if(DL_HAS_PROP((Node *) a, DL_IS_EDB_REL))
+								{
+									MAP_ADD_STRING_KEY_AND_VAL(headVarRelPair,key,a->rel);
+								}
+								else if(DL_HAS_PROP((Node *) a, DL_IS_IDB_REL))
+								{
+									int idbPos = 0;
+									for(int i=0; i < LIST_LENGTH(a->args); i++)
+									{
+										DLVar *dv = (DLVar *) getNthOfListP(a->args,i);
+
+										if(equal(dv,v))
+											idbPos = i;
+									}
+
+									char *value = CONCAT_STRINGS(a->rel,gprom_itoa(idbPos));
+									MAP_ADD_STRING_KEY_AND_VAL(idbVarRelPair,key,value);
+								}
 							}
 						}
 					}
 					headVarPos++;
 				}
 			}
+
+			FOREACH_HASH_KEY(Constant,c,idbVarRelPair)
+			{
+				char *key = STRING_VALUE(c);
+				char *valueAsKeyForDomRel = STRING_VALUE(MAP_GET_STRING(idbVarRelPair,key));
+				char *domRelValue = STRING_VALUE(MAP_GET_STRING(headVarRelPair, valueAsKeyForDomRel));
+				MAP_ADD_STRING_KEY_AND_VAL(headVarRelPair,key,domRelValue);
+			}
+
 
 			FOREACH(DLRule,eachRule,helpRules)
 			{
