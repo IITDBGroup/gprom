@@ -1191,11 +1191,11 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
     setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
 
     if (from->userTIPAttr != NULL)
-        {
-        	setStringProperty(op, PROP_USER_TIP_ATTR, (Node *) createConstString(from->userTIPAttr));
-        	hasProv = TRUE;
-        	from->userProvAttrs = singleton(strdup(from->userTIPAttr));
-        }
+	{
+		setStringProperty(op, PROP_USER_TIP_ATTR, (Node *) createConstString(from->userTIPAttr));
+		hasProv = TRUE;
+		from->userProvAttrs = singleton(strdup(from->userTIPAttr));
+	}
 
 
     if (hasProv)

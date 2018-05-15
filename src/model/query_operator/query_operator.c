@@ -818,6 +818,27 @@ setProperty (QueryOperator *op, Node *key, Node *value)
     addToMap((HashMap *) op->properties, key, value);
 }
 
+/* fromProvInfo setProvProperty*/
+void
+setProvProperty (FromProvInfo *from, Node *key, Node *value)
+{
+	if (from->provProperties == NULL)
+	{
+		from->provProperties = (Node *) NEW_MAP(Node,Node);
+	}
+
+	/*
+	KeyValue *val = getProp(op, key);
+	if (val)
+	{
+		val->value = value;
+		return;
+	}
+	*/
+
+	addToMap((HashMap *) from->provProperties, key, value);
+}
+
 Node *
 getProperty (QueryOperator *op, Node *key)
 {

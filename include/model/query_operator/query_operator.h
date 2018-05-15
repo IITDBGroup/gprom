@@ -236,6 +236,7 @@ extern OrderOperator *createOrderOp(List *orderExprs, QueryOperator *input,
 
 /* deal with properties */
 extern void setProperty (QueryOperator *op, Node *key, Node *value);
+extern void setProvProperty (FromProvInfo *from, Node *key, Node *value);
 extern Node *getProperty (QueryOperator *op, Node *key);
 extern void setStringProperty (QueryOperator *op, char *key, Node *value);
 extern Node *getStringProperty (QueryOperator *op, char *key);

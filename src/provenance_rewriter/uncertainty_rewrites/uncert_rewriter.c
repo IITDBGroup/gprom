@@ -49,7 +49,6 @@ rewriteUncert(QueryOperator * op)
 	QueryOperator *rewrittenOp;
 	if(HAS_STRING_PROP(op,PROP_USER_TIP_ATTR)){
 		rewrittenOp = rewriteUncertTIP(op);
-
 		return rewrittenOp;
 	}
 	switch(op->type)

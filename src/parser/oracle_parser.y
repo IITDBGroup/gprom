@@ -63,7 +63,7 @@ Node *oracleParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN TIP
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN TIP INCOMPLETE
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
@@ -131,7 +131,7 @@ Node *oracleParseResult = NULL;
 			 identifierList optionalAttrAlias optionalProvWith provOptionList optionalReenactOptions reenactOptionList
 			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo optionalTranslate
 //			 optInsertAttrList
-%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalFromProb optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
+%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalFromProb optionalFromIncompleteTable optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
 %type <node> overClause windowSpec optWindowFrame windowBound
@@ -1490,9 +1490,21 @@ optionalFromProb:
 			$$ = (Node *) p;
 		}
 ;
+
+optionalFromIncompleteTable:
+		IS INCOMPLETE 
+		{
+			RULELOG("optionalFromIncompleteTable");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			setProvProperty(p->provProperties, (Node *) createConstString(PROV_PROP_INCOMPLETE_TABLE), (Node *) createConstString("TRUE"));	
+			$$ = (Node *) p;
+		}
+;
+
 optionalFromProv:
 		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; } 
 		| optionalFromProb {  $$ = $1; }
+		| optionalFromIncompleteTable { $$ = $1; }
 		| BASERELATION 
 			{
 				RULELOG("optionalFromProv::BASERELATION");

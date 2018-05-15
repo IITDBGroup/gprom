@@ -21,7 +21,6 @@
 #define PROP_HAS_PROVENANCE "HAS_PROVENANCE"                // indicates the subquery already has associated provenance
 #define PROP_DUMMY_HAS_PROV_PROJ "DUMMY_HAS_PROV_PROJ"      // indicates that this is a dummy projection introduced for HAS PROVENANCE
 #define PROP_USER_PROV_ATTRS "USER_PROV_ATTRS"              // list of user selected provenance attribtues
-#define PROP_USER_TIP_ATTR "USER_TIP_ATTR"
 #define PROP_PROV_REL_NAME "PROVENANCE_REL_NAME"            // in provenance attributes refer to subquery as this name
 #define PROP_PROV_ADD_REL_NAME "PROVENANCE_ADD_REL_NAME"            // in provenance attributes that are added refer to subquery as this name
 #define PROP_ADD_PROVENANCE "ADD_PROVENANCE"                // add the following attribtues to as provenance attributes (but still rewrite and add normal provenance attrs too)
@@ -109,5 +108,9 @@
 #define PROP_TEMP_TNTAB "PROP_TEMP_TNTAB"
 #define PROP_TEMP_IS_MINMAX "PROP_TEMP_IS_MINMAX"
 #define PROP_TEMP_ATTR_DT "PROP_TEMP_ATTR_DT"
+
+/* fromProvInfo provProperties */
+#define PROP_USER_TIP_ATTR "USER_TIP_ATTR"
+#define PROV_PROP_INCOMPLETE_TABLE "INCOMPLETE_TABLE"
 
 #endif /* OPERATOR_PROPERTY_H_ */

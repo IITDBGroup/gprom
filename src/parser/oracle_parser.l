@@ -226,6 +226,7 @@ strconcat		"||"
 (?i:MULT)           TOK(MULT)
 (?i:UNCERTAIN)		TOK(UNCERTAIN)
 (?i:TIP)			TOK(TIP)
+(?i:INCOMPLETE)		TOK(INCOMPLETE)
 
 	/* booleans */
 {bool}			TOK(boolConst)
