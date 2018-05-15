@@ -1879,6 +1879,12 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
             DLAtom *copiedOrig = copyObject(origAtom);
             copiedOrig->n.properties = NULL;
 
+            boolean onlyConst = TRUE;
+
+            FOREACH(Node,n,copiedOrig->args)
+            	if(isA(n,DLVar))
+            		onlyConst = FALSE;
+
 	        // Collecting all the original variables for later use
 	        int argPos = -1;
 	        int rNumGoals = LIST_LENGTH(r->body);
@@ -1974,7 +1980,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 	                            getNthOfListP(replaceBoolArgs, k));
 
 	                // do not generate move rules for failure if it is negated in the body of another rule
-	                if(!searchListNode(negIdbs,(Node *) copiedOrig))
+	                if(!searchListNode(negIdbs,(Node *) copiedOrig) || onlyConst)
 	                {
 		                Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
 		                        copyObject(origAtom->args));
@@ -2077,7 +2083,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 	                            if (a->negated)
 	                            {
 	                                if ((!goalWon && !searchListNode(negIdbs,(Node *) copiedOrig))
-	                                		|| ruleWon)
+	                                		|| onlyConst || ruleWon)
 	                                {
 	                                    Node *lExpr = createSkolemExpr(GP_NODE_RULE,
 	                                            ruleRel,
@@ -2128,7 +2134,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 	                            else
 	                            {
 	                                if ((!goalWon && !searchListNode(negIdbs,(Node *) copiedOrig))
-	                                		|| ruleWon)
+	                                		|| onlyConst || ruleWon)
 	                                {
 	                                    Node *lExpr;
 	                                    if (!ruleWon)
