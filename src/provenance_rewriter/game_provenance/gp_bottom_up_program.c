@@ -3931,9 +3931,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				getFirstGoal++;
 			}
 
+			// remove (FALSE,TRUE) from the connectivity
+			// TODO: whether loose information
 			if (searchListNode(nRuleBodyArgs, (Node *) createConstBool(FALSE))
 					|| searchListNode(nRuleBodyArgs, (Node *) createConstBool(TRUE)))
-//			if(!searchListNode(nRuleBodyArgs, (Node *) createConstBool(FALSE)))
 				if (INT_VALUE(getDLProp((DLNode *) nRule,DL_RULE_ID)) != getMatched && BOOL_VALUE(getTailOfListP(nRuleBodyArgs)))
 					removeRules = appendToTailOfList(removeRules,nRule);
 		}
