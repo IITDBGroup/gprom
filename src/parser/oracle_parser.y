@@ -1496,7 +1496,7 @@ optionalFromIncompleteTable:
 		{
 			RULELOG("optionalFromIncompleteTable");
 			FromProvInfo *p = makeNode(FromProvInfo);
-			setProvProperty(p->provProperties, (Node *) createConstString(PROV_PROP_INCOMPLETE_TABLE), (Node *) createConstString("TRUE"));	
+			setStringProvProperty(p, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstString("TRUE"));	
 			$$ = (Node *) p;
 		}
 ;

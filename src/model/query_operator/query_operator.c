@@ -24,6 +24,7 @@
 
 static Schema *schemaFromExpressions (char *name, List *attributeNames, List *exprs, List *inputs);
 static KeyValue *getProp (QueryOperator *op, Node *key);
+static KeyValue *getProvProp (FromProvInfo *from, Node *key);
 static unsigned numOpsInTreeInternal (QueryOperator *q, unsigned int *count);
 static boolean countUniqueOpsVisitor(QueryOperator *op, void *context);
 static boolean internalVisitQOGraph (QueryOperator *q, TraversalOrder tOrder,
@@ -818,7 +819,7 @@ setProperty (QueryOperator *op, Node *key, Node *value)
     addToMap((HashMap *) op->properties, key, value);
 }
 
-/* fromProvInfo setProvProperty*/
+/* fromProvInfo's setProvProperty*/
 void
 setProvProperty (FromProvInfo *from, Node *key, Node *value)
 {
@@ -847,10 +848,26 @@ getProperty (QueryOperator *op, Node *key)
     return kv ? kv->value : NULL;
 }
 
+/* fromProvInfo's getProvProperty*/
+Node *
+getProvProperty (FromProvInfo *from, Node *key)
+{
+	KeyValue *kv = getProvProp(from, key);
+
+	return kv ? kv->value : NULL;
+}
+
 void
 setStringProperty (QueryOperator *op, char *key, Node *value)
 {
     setProperty(op, (Node *) createConstString(key), value);
+}
+
+/* fromProvInfo's setStringProvProperty*/
+void
+setStringProvProperty (FromProvInfo *from, char *key, Node *value)
+{
+	setProvProperty(from, (Node *) createConstString(key), value);
 }
 
 Node *
@@ -859,6 +876,15 @@ getStringProperty (QueryOperator *op, char *key)
     if (op->properties == NULL)
         op->properties = (Node *) NEW_MAP(Node,Node);
     return getMapString((HashMap *) op->properties, key);
+}
+
+/* fromProvInfo's getStringProvProperty*/
+Node *
+getStringProvProperty (FromProvInfo *from, char *key)
+{
+	if (from->provProperties == NULL)
+		from->provProperties = (Node *) NEW_MAP(Node,Node);
+	return getMapString((HashMap *) from->provProperties, key);
 }
 
 void
@@ -885,6 +911,17 @@ getProp (QueryOperator *op, Node *key)
 //    }
 
 //    return NULL;
+}
+
+/* FromProvInfo's getProvProp*/
+static KeyValue *
+getProvProp (FromProvInfo *from, Node *key)
+{
+	if (from->provProperties == NULL)
+	{
+		from->provProperties = (Node *) NEW_MAP(Node, Node);
+	}
+	return getMapEntry((HashMap *) from->provProperties, key);
 }
 
 void

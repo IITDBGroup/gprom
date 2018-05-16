@@ -236,7 +236,6 @@ extern OrderOperator *createOrderOp(List *orderExprs, QueryOperator *input,
 
 /* deal with properties */
 extern void setProperty (QueryOperator *op, Node *key, Node *value);
-extern void setProvProperty (FromProvInfo *from, Node *key, Node *value);
 extern Node *getProperty (QueryOperator *op, Node *key);
 extern void setStringProperty (QueryOperator *op, char *key, Node *value);
 extern Node *getStringProperty (QueryOperator *op, char *key);
@@ -252,6 +251,12 @@ extern void removeStringProperty (QueryOperator *op, char *key);
 #define GET_STRING_PROP_STRING_VAL(op,key) (HAS_STRING_PROP(op,key) ? STRING_VALUE(getStringProperty((QueryOperator *) op, key)) : NULL)
 #define GET_BOOL_STRING_PROP(op,key) ((getStringProperty((QueryOperator *) op, key) != NULL) \
     && (BOOL_VALUE(getStringProperty((QueryOperator *) op, key))))
+
+/* deal with provProperties*/
+extern void setProvProperty (FromProvInfo *from, Node *key, Node *value);
+extern Node *getProvProperty (FromProvInfo *from, Node *key);
+extern void setStringProvProperty (FromProvInfo *from, char *key, Node *value);
+extern Node *getStringProvProperty (FromProvInfo *from, char *key);
 
 /* children and parents */
 extern void addChildOperator (QueryOperator *parent, QueryOperator *child);

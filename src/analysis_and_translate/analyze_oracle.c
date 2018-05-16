@@ -447,6 +447,14 @@ analyzeFromProvInfo (FromItem *f)
             f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
         }
 
+        if (fp->provProperties)
+        {
+        	if (getStringProvProperty(fp, PROV_PROP_INCOMPLETE_TABLE))
+        	{
+        		DEBUG_LOG("INCOMPLETE TABLE");
+        	}
+        }
+
         // if user declared some attributes as provenance (HAS PROVENANCE) then these attributes are temporarily removed
         // since they should not be referenced by query for which we are computing provenance
         if (fp->baserel == FALSE && fp->intermediateProv == FALSE && fp->userProvAttrs != NIL)

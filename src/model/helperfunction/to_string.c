@@ -766,6 +766,7 @@ outFromProvInfo (StringInfo str, FromProvInfo *node)
     WRITE_BOOL_FIELD(intermediateProv);
     WRITE_STRING_LIST_FIELD(userProvAttrs);
     WRITE_STRING_FIELD(userTIPAttr);
+    WRITE_NODE_FIELD(provProperties);
 }
 
 static void

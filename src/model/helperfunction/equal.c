@@ -916,6 +916,7 @@ equalFromProvInfo (FromProvInfo *a, FromProvInfo *b, HashMap *seenOps, MemContex
     COMPARE_SCALAR_FIELD(intermediateProv);
     COMPARE_STRING_LIST_FIELD(userProvAttrs);
     COMPARE_STRING_FIELD(userTIPAttr);
+    COMPARE_NODE_FIELD(provProperties);
     return TRUE;
 }
 
