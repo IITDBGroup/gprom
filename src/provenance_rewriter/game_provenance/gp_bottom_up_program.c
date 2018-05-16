@@ -4821,9 +4821,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 			if(!LIST_EMPTY(unLinkedHelpRules))
 				solvedProgram->rules = CONCAT_LISTS(solvedProgram->rules, unLinkedHelpRules);
-
-			solvedProgram->rules = CONCAT_LISTS(solvedProgram->rules, origDLrules);
 		}
+
+		solvedProgram->rules = CONCAT_LISTS(solvedProgram->rules, origDLrules);
 
 //		if (ruleWon)
 //			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, unLinkedRules, newRules, origDLrules);
