@@ -842,6 +842,7 @@ postgresGetCostEstimation(char *query)
     {
         cost = atoi(PQgetvalue(res,i,0));
     }
+    RELEASE_MEM_CONTEXT();
 
     return cost;
 }
@@ -851,20 +852,24 @@ postgresGetKeyInformation(char *tableName)
 {
     List *result = NIL;
     PGresult *res = NULL;
+    Set *keySet;
 
     // do query
     ACQUIRE_MEM_CONTEXT(memContext);
+    keySet = STRSET();
+
     res = execPrepared(NAME_GET_PK, singleton(createConstString(tableName)));
 
     // loop through results
     for(int i = 0; i < PQntuples(res); i++)
-        result = appendToTailOfList(result, strdup(PQgetvalue(res,i,0)));
+        addToSet(keySet, strdup(PQgetvalue(res,i,0)));
+
+    result = singleton(keySet);
 
     // cleanup
     PQclear(res);
-    RELEASE_MEM_CONTEXT();
 
-    return result;
+    RELEASE_MEM_CONTEXT_AND_RETURN_COPY(List,result);
 }
 
 DataType
