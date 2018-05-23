@@ -1349,6 +1349,9 @@ oracleBackendDatatypeToSQL (DataType dt)
             return "NUMBER(1)";
             break;
     }
+
+    // keep compiler quiet
+    return "VARCHAR2(2000)";
 }
 
 

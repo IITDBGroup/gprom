@@ -373,6 +373,9 @@ sqliteBackendDatatypeToSQL (DataType dt)
             return "BOOLEAN";
             break;
     }
+
+    // keep compiler quiet
+    return "TEXT";
 }
 
 void

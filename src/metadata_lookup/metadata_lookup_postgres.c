@@ -893,6 +893,9 @@ postgresBackendDatatypeToSQL (DataType dt)
             return "bool";
             break;
     }
+
+    // keep compiler quiet
+    return "text";
 }
 
 

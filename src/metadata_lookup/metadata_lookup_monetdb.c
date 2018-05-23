@@ -494,6 +494,9 @@ monetdbBackendDatatypeToSQL (DataType dt)
             return "BOOL";
             break;
     }
+
+    // keep compiler quiet
+    return "TEXT";
 }
 
 
