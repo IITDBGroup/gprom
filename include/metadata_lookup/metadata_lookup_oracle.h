@@ -83,6 +83,7 @@ extern boolean oracleIsInitialized (void);
 
 extern boolean oracleCatalogTableExists (char * tableName);
 extern boolean oracleCatalogViewExists (char * viewName);
+
 extern List *oracleGetAttributes (char *tableName);
 extern List *oracleGetAttributeNames (char *tableName);
 extern Node *oracleGetAttributeDefaultVal (char *schema, char *tableName, char *attrName);
@@ -95,6 +96,9 @@ extern DataType oracleGetFuncReturnType (char *fName, List *dataTypes, boolean *
 extern gprom_long_t getBarrierScn(void);
 extern int oracleGetCostEstimation(char *query);
 extern List *oracleGetKeyInformation(char *tableName);
+extern DataType oracleBackendSQLTypeToDT (char *sqlType);
+extern char * oracleBackendDatatypeToSQL (DataType dt);
+
 
 extern void oracleGetTransactionSQLAndSCNs (char *xid, List **scns, List **sqls,
         List **sqlBinds, IsolationLevel *iso, Constant *commitScn);

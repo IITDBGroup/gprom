@@ -935,6 +935,7 @@ constant:
         | floatConst        { RULELOG("constant::FLOAT"); $$ = (Node *) createConstFloat($1); }
         | stringConst       { RULELOG("constant::STRING"); $$ = (Node *) createConstString($1); }
         | boolConst			{ RULELOG("constant::BOOL"); $$ = (Node *) createConstBoolFromString($1); }
+		| NULLVAL           { RULELOG("constant::NULL"); $$ = (Node *) createNullConst(DT_STRING); }
     ;
             
 /*

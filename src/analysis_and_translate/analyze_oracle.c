@@ -1375,7 +1375,7 @@ expandStarExpression (SelectItem *s, List *fromClause)
                 if (!(f->type == T_FromTableRef && strcmp(attr,"ROWID") == 0))
                 {
                     AttributeReference *newA = createAttributeReference(
-                              CONCAT_STRINGS(f->name,".",attr));
+                              CONCAT_STRINGS("\"", f->name,"\".",attr));
 
                     newSelectItems = appendToTailOfList(newSelectItems,
                             createSelectItem(

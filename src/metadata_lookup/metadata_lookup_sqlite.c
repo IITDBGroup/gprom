@@ -23,7 +23,7 @@
 #include "model/list/list.h"
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
-
+#include "utility/string_utils.h"
 
 // Mem context
 #define CONTEXT_NAME "SQLiteMemContext"
@@ -95,6 +95,8 @@ assembleSqliteMetadataLookupPlugin (void)
     p->executeQuery = sqliteExecuteQuery;
     p->executeQueryIgnoreResult = sqliteExecuteQueryIgnoreResults;
     p->connectionDescription = sqliteGetConnectionDescription;
+    p->sqlTypeToDT = sqliteBackendSQLTypeToDT;
+    p->dataTypeToSQL = sqliteBackendDatatypeToSQL;
 
     return p;
 }
@@ -325,6 +327,52 @@ sqliteGetKeyInformation(char *tableName)
 {
     THROW(SEVERITY_RECOVERABLE,"%s","not supported yet");
     return NIL;
+}
+
+DataType
+sqliteBackendSQLTypeToDT (char *sqlType)
+{
+    if (regExMatch("INT", sqlType))
+    {
+        return DT_INT;
+    }
+    if (regExMatch("NUMERIC", sqlType)
+            || regExMatch("REAL", sqlType)
+            || regExMatch("FLOA", sqlType)
+            || regExMatch("DOUB", sqlType))
+    {
+        return DT_FLOAT;
+    }
+    if (regExMatch("CHAR", sqlType)
+            || regExMatch("CLOB", sqlType)
+            || regExMatch("TEXT", sqlType))
+    {
+        return DT_STRING;
+    }
+
+    return DT_FLOAT;
+}
+
+char *
+sqliteBackendDatatypeToSQL (DataType dt)
+{
+    switch(dt)
+    {
+        case DT_INT:
+        case DT_LONG:
+            return "INT";
+            break;
+        case DT_FLOAT:
+            return "DOUBLE";
+            break;
+        case DT_STRING:
+        case DT_VARCHAR2:
+            return "TEXT";
+            break;
+        case DT_BOOL:
+            return "BOOLEAN";
+            break;
+    }
 }
 
 void

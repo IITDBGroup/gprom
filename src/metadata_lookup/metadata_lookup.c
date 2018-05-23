@@ -305,6 +305,27 @@ getOpReturnType (char *oName, List *argTypes, boolean *funcExists)
     return result;
 }
 
+DataType
+backendSQLTypeToDT (char *sqlType)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    DataType result = activePlugin->sqlTypeToDT(sqlType);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+char *
+backendDatatypeToSQL (DataType dt)
+{
+    ASSERT(activePlugin && activePlugin->isInitialized());
+    ACQUIRE_MEM_CONTEXT(activePlugin->metadataLookupContext);
+    char *result = activePlugin->dataTypeToSQL(dt);
+    RELEASE_MEM_CONTEXT();
+    return result;
+}
+
+
 char *
 getTableDefinition(char *tableName)
 {
