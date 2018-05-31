@@ -38,7 +38,7 @@
 #include "utility/string_utils.h"
 
 static char *createReenactment(List *updates);
-static void whatIfResultMin(List *updates1, List *updates2);
+static void createWhatIfMin(List *updates);
 static ExceptionHandler handleCLIException(const char *message,
 		const char *file, int line, ExceptionSeverity s);
 
@@ -61,44 +61,25 @@ int main(int argc, char* argv[]) {
 						result = (List *) parseFromString(
 								getStringOption("input.query"));
 
-						//DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(result));
-						//DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(result)));
-
 						//ERROR_LOG("Result of CPLEX IS: %d \n", checkCplex((List *) result));
 
 						//List *updates = dependAlgo(result);
 						List *updates = SymbolicExeAlgo(result);
+						int depcount = getListLength(updates) - 2;
 
 						ERROR_LOG("total Number of updates: %d \n",
 								getListLength(result) - 1);
 						ERROR_LOG("Number of dependent statements: %d \n",
-								getListLength(updates) - 2);
-						//DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", nodeToString(updates));
-						//DEBUG_LOG("PARSE RESULT FROM STRING IS:\n%s", beatify(nodeToString(updates)));
+								depcount);
 
-						Node *originalUp;
-						//Compute what-if for dependent updates
-						originalUp = (Node *) popHeadOfListP(updates);
-						List *orList = copyList(updates);
-						popHeadOfListP(updates);
-						updates = appendToHeadOfList(updates, originalUp);
-						DEBUG_LOG(
-								"What-if Result for dependent update using minus:\n");
-						whatIfResultMin(orList, updates);
-						deepFreeList(updates);
-						deepFreeList(orList);
-
-						//Compute what-if for all updates
-						originalUp = (Node *) popHeadOfListP(result);
-						List *orgList = copyList(result);
-						popHeadOfListP(result);
-						result = appendToHeadOfList(result, originalUp);
-						DEBUG_LOG(
-								"What-if Result for dependent update using minus:\n");
-						whatIfResultMin(orgList, result);
-						deepFreeList(result);
-						deepFreeList(orgList);
-
+						if (depcount > 0) {
+							//Compute what-if for dependent updates
+							createWhatIfMin(updates);
+							/*
+							 //Compute what-if for all updates
+							 createWhatIfMin(result);
+							 */
+						}
 					}ON_EXCEPTION
 					{
 						// if an exception is thrown then the query memory context has been
@@ -137,15 +118,24 @@ static char *createReenactment(List *updates) {
 	return sql;
 }
 
-static void whatIfResultMin(List *updates1, List *updates2) {
-	char *reen1 = createReenactment(updates1);
+static void createWhatIfMin(List *updates) {
+	Node *originalUp;
+	originalUp = (Node *) popHeadOfListP(updates);
+	List *orList = copyList(updates);
+	popHeadOfListP(updates);
+	updates = appendToHeadOfList(updates, originalUp);
+	ERROR_LOG("What-if Result using minus for %d updates :\n",
+			getListLength(updates));
+	char *reen1 = createReenactment(orList);
 	int length = strlen(reen1) - 2;
 	reen1 = substr(reen1, 0, length);
-	char *reen2 = createReenactment(updates2);
+	char *reen2 = createReenactment(updates);
 	length = strlen(reen2) - 2;
 	reen2 = substr(reen2, 0, length);
-	ERROR_LOG("(%s\nMINUS \n%s)\nUNION ALL\n(%s\nMINUS \n%s);", reen1,
-			reen2, reen2, reen1);
+	ERROR_LOG("(%s\nMINUS \n%s)\nUNION ALL\n(%s\nMINUS \n%s);", reen1, reen2,
+			reen2, reen1);
+	deepFreeList(updates);
+	deepFreeList(orList);
 }
 /*
  * Function that handles exceptions

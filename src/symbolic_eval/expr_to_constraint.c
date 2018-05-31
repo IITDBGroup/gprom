@@ -34,11 +34,9 @@
 static int totalObjects = 0;
 static int totalAttr = 0;
 static Set *attrSet = NULL;
-static double default_lb = 0;
-static double default_ub = CPX_INFBOUND;
-//static const int default_num_cols=100;
-//#define default_num_cols 100
-//enum {default_num_cols = 100 };
+static double default_lb = 0.0;
+//static double default_ub = CPX_INFBOUND;
+static double default_ub = 1000000.0;
 static int default_num_cols = 100;
 
 //#ifdef HAVE_LIBCPLEX
@@ -61,6 +59,7 @@ static double *obj;
 static double *lb;
 static double *ub;
 static char **colname;
+static char *ctype;
 
 static void setCplexObjects(Node *expr);
 static int getObjectIndex(char *attrName);
@@ -77,9 +76,10 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp);
 static int createV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp);
 static int setAttUV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp);
 static int setNexSt(int upNum, Set *aSet, CPXENVptr env, CPXLPptr lp);
+static int setX(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp);
 static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp);
 static int exprToSymbol(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp);
-static int firstUpExe(Node *expr, CPXENVptr env, CPXLPptr lp);
+static int firstUpExe(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp);
 static int firstInsExe(Node *expr, CPXENVptr env, CPXLPptr lp);
 
 static void setCplexObjects(Node *expr) {
@@ -666,13 +666,15 @@ static void setSymbolicObjects(Node *expr, int numUp) {
 	attrSet = makeStrSetFromList(schema);
 
 	//for each update, we need new states ai for each update, u,v for each attribute and update and x for each update
-	default_num_cols = ((1 + numUp) * totalAttr) + (2 * numUp * totalAttr)
-			+ numUp;
+	default_num_cols = ((1 + numUp) * totalAttr) + (2 * (numUp - 1) * totalAttr)
+			+ numUp - 1;
 	attrIndex = NEW_MAP(Constant, Constant);
 	obj = (double *) MALLOC(sizeof(double) * default_num_cols);
 	lb = (double *) MALLOC(sizeof(double) * default_num_cols);
 	ub = (double *) MALLOC(sizeof(double) * default_num_cols);
 	colname = (char **) MALLOC(sizeof(char *) * default_num_cols);
+	ctype = (char *) MALLOC(sizeof(char) * default_num_cols);
+
 	for (int i = 0; i <= numUp; i++) {
 		FOREACH(char,a,schema)
 		{
@@ -681,12 +683,13 @@ static void setSymbolicObjects(Node *expr, int numUp) {
 			colname[totalObjects] = cName;
 			lb[totalObjects] = default_lb;
 			ub[totalObjects] = default_ub;
-			obj[totalObjects] = 1;
+			obj[totalObjects] = 0;
+			ctype[totalObjects] = 'C';
 			totalObjects++;
 		}
 	}
 
-	for (int i = 1; i <= numUp; i++) {
+	for (int i = 2; i <= numUp; i++) {
 		FOREACH(char,a,schema)
 		{
 			cName = CONCAT_STRINGS("u_", a, "_", itoa(i));
@@ -694,7 +697,8 @@ static void setSymbolicObjects(Node *expr, int numUp) {
 			colname[totalObjects] = cName;
 			lb[totalObjects] = default_lb;
 			ub[totalObjects] = default_ub;
-			obj[totalObjects] = 1;
+			obj[totalObjects] = 0;
+			ctype[totalObjects] = 'C';
 			totalObjects++;
 
 			cName = CONCAT_STRINGS("v_", a, "_", itoa(i));
@@ -702,7 +706,8 @@ static void setSymbolicObjects(Node *expr, int numUp) {
 			colname[totalObjects] = cName;
 			lb[totalObjects] = default_lb;
 			ub[totalObjects] = default_ub;
-			obj[totalObjects] = 1;
+			obj[totalObjects] = 0;
+			ctype[totalObjects] = 'C';
 			totalObjects++;
 		}
 
@@ -712,6 +717,7 @@ static void setSymbolicObjects(Node *expr, int numUp) {
 		lb[totalObjects] = 0;
 		ub[totalObjects] = 1;
 		obj[totalObjects] = 1;
+		ctype[totalObjects] = 'I';
 		totalObjects++;
 	}
 
@@ -731,7 +737,10 @@ static void deleteCplexObjects() {
 static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 	int status = 0;
 	int numRows = 3; //setSize(attrSet);
-	int numZ = 7;
+	List *result = NIL;
+	result = getAttrNameFromOpExpList(result, (Operator *) s);
+	int numCols = getListLength(result);
+	int numZ = 2 * numCols + 3;
 	int rmatbeg[numRows];
 	double rhs[numRows];
 	char sense[numRows];
@@ -760,6 +769,9 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 	// ex. if A=10 removed this type of update for simplification
 	if (isA(right, Constant)) {
 		rhs[j] = constrToDouble((Constant *) right);
+		DEBUG_LOG(
+				"Processed u for update %d to set %s attribute constant value %10f.\n",
+				upNum, selectAttName, rhs[j]);
 	} else {
 // ex. if A= A +2 which means A1= A0 +2 => u1<= A0 +2 => u1 - A0 <= 2
 		neg = 1;
@@ -788,7 +800,10 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 		}
 		i++;
 	}
+	DEBUG_LOG("Processed %s for update %d for %s attribute value %10f.\n",
+			colname[uIndex], upNum, colname[aIndex], rhs[j]);
 	j++;
+
 //create second constraints for u: u.Aj<= x*M => u.Aj- x*M <= 0
 	rmatbeg[j] = i;
 	rowname[j] = CONCAT_STRINGS("u2_", selectAttName, "_", itoa(upNum));
@@ -799,31 +814,40 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 // xIndex
 	xIndex = getObjectIndex(CONCAT_STRINGS("x_", itoa(upNum)));
 	rmatind[i] = xIndex;
-	rmatval[i] = -1.0 * default_ub;
+	rmatval[i] = -default_ub;
 	i++;
 	rhs[j] = 0;
 	j++;
 
 //create third constraints for u: u.Aj>= mod(t).Aj -(1- x) *M => u.Aj- mod(t).Aj- x*M >=-M
-// for A1= A0 +2 : i did not consider +2 as it doesn't have an effect on -M
+
 	rmatbeg[j] = i;
 	rowname[j] = CONCAT_STRINGS("u3_", selectAttName, "_", itoa(upNum));
 	sense[j] = 'G';
 	rmatind[i] = uIndex;
 	rmatval[i] = 1.0;
 	i++;
-	if (!isA(right, Constant)) {
-		rmatind[i] = aIndex;
-		rmatval[i] = -1;
+	if (isA(right, Constant)) {
+		rhs[j] = constrToDouble((Constant *) right) - default_ub;
+	} else {
+		// ex. if A= A +2 which means A1= A0 +2 => u1>= A0 +2 => u1 - A0 >= 2
+		if (isA(r, AttributeReference) && isA(l, Constant)) {
+			rmatind[i] = aIndex;
+			rmatval[i] = -1;
+			rhs[j] = (constrToDouble((Constant *) l) * neg) - default_ub;
+
+		} else if (isA(l, AttributeReference) && isA(r, Constant)) {
+			rmatind[i] = aIndex;
+			rmatval[i] = -1;
+			rhs[j] = (constrToDouble((Constant *) r) * neg) - default_ub;
+		}
 		i++;
 	}
-// xIndex
+	DEBUG_LOG("Processed %s for update %d for %s attribute value %10f.\n",
+			colname[uIndex], upNum, colname[aIndex], rhs[j]);
+	// xIndex
 	rmatind[i] = xIndex;
-	rmatval[i] = -1.0 * default_ub;
-	i++;
-	rhs[j] = -1.0 * default_ub;
-
-	DEBUG_LOG("Processed u for update %d.\n", upNum);
+	rmatval[i] = -default_ub;
 
 	status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg, rmatind,
 			rmatval, NULL, rowname);
@@ -833,7 +857,8 @@ static int createU(int upNum, SelectItem *s, CPXENVptr env, CPXLPptr lp) {
 				"Failure to convert and invert update and did not add a row to cplex problem %d.\n",
 				status);
 	}
-
+	DEBUG_LOG("Processed %s for update %d for %s attribute and %s.\n",
+			colname[uIndex], upNum, colname[aIndex], colname[xIndex]);
 	return status;
 }
 
@@ -874,11 +899,10 @@ static int createV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 // xIndex
 	xIndex = getObjectIndex(CONCAT_STRINGS("x_", itoa(upNum)));
 	rmatind[i] = xIndex;
-	rmatval[i] = 1.0 * default_ub;
+	rmatval[i] = default_ub;
 	i++;
 	rhs[j] = default_ub;
 	j++;
-
 //create third constraints for v: v.Aj>= Aj - x*M => v.Aj- Aj+ x*M >=0
 	rmatbeg[j] = i;
 	rowname[j] = CONCAT_STRINGS("v3_", attr, "_", itoa(upNum));
@@ -891,10 +915,8 @@ static int createV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 	i++;
 // xIndex
 	rmatind[i] = xIndex;
-	rmatval[i] = 1.0 * default_ub;
+	rmatval[i] = default_ub;
 	rhs[j] = 0;
-
-	DEBUG_LOG("Processed v for update %d.\n", upNum);
 
 	status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg, rmatind,
 			rmatval, NULL, rowname);
@@ -905,6 +927,8 @@ static int createV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 				status);
 	}
 
+	DEBUG_LOG("Processed %s for update %d to set %s attribute and %s.\n",
+			colname[vIndex], upNum, colname[aIndex], colname[xIndex]);
 	return status;
 }
 
@@ -919,7 +943,7 @@ static int setAttUV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 	int rmatind[numZ];
 	double rmatval[numZ];
 
-	int i = 0, uIndex;
+	int i = 0, uIndex, vIndex;
 
 //create first constraints for Aj: Aj= U + V => Aj-U-V = 0
 	rmatbeg[0] = 0;
@@ -933,11 +957,12 @@ static int setAttUV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 	rmatval[i] = -1.0;
 	i++;
 //vIndex
-	rmatind[i] = uIndex + 1;
+	vIndex = getObjectIndex(CONCAT_STRINGS("v_", attr, "_", itoa(upNum)));
+	rmatind[i] = vIndex;
 	rmatval[i] = -1.0;
 	rhs[0] = 0;
 
-	DEBUG_LOG("Processed uv for update %d.\n", upNum);
+	DEBUG_LOG("Processed uv for update %d to set %s attribute.\n", upNum, attr);
 
 	status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg, rmatind,
 			rmatval, NULL, rowname);
@@ -950,8 +975,8 @@ static int setAttUV(int upNum, char *attr, CPXENVptr env, CPXLPptr lp) {
 
 	return status;
 }
-static int setNexSt(int upNum, Set *aSet, CPXENVptr env, CPXLPptr lp) {
 
+static int setNexSt(int upNum, Set *aSet, CPXENVptr env, CPXLPptr lp) {
 	int status = 0;
 	int numRows = setSize(aSet);
 	int numZ = numRows * 2;
@@ -992,6 +1017,273 @@ static int setNexSt(int upNum, Set *aSet, CPXENVptr env, CPXLPptr lp) {
 				"Failure to convert and invert update and did not add a row to cplex problem %d.\n",
 				status);
 	}
+
+	return status;
+}
+
+static int setX(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp) {
+	DEBUG_LOG("Start Processing x for update %d.\n", upNum);
+	int status = 0;
+
+	if (lp == NULL) {
+		ERROR_LOG("temp_lp is NULL.\n");
+	}
+	if (cond == NULL) {
+		ERROR_LOG("cond is NULL.\n");
+	}
+
+	char *opName = ((Operator *) cond)->name;
+	if (strcmp(opName, "AND") == 0) {
+		DEBUG_LOG("we have AND Operator");
+		setX(upNum, (Node *) getHeadOfListP(((Operator *) cond)->args), env,
+				lp);
+		setX(upNum, (Node *) getTailOfListP(((Operator *) cond)->args), env,
+				lp);
+	} else {
+
+		List *result = NIL;
+		result = getAttrNameFromOpExpList(result, (Operator *) cond);
+
+		int numCols = getListLength(result) + 1;
+		int v1index = 0, v2index = 0, xindex = 0;
+		int numRows = 2;
+
+		if (strcmp(opName, "=") == 0) {
+			numRows = 4;
+		}
+		int numZ = numRows * numCols;
+		int rmatbeg[numRows];
+		double rhs[numRows];
+		char sense[numRows];
+		char *rowname[numRows];
+		int rmatind[numZ];
+		double rmatval[numZ];
+		int i = 0, j = 0;
+		int notEq = 0;
+		int less = 1;
+
+		Node *left = (Node *) getHeadOfListP(((Operator *) cond)->args);
+		Node *right = (Node *) getTailOfListP(((Operator *) cond)->args);
+
+		xindex = getObjectIndex(CONCAT_STRINGS("x_", itoa(upNum)));
+
+		if (isA(left, AttributeReference)) {
+			v1index = getObjectIndex(
+					CONCAT_STRINGS(((AttributeReference * ) left)->name, "_",
+							itoa(upNum - 1)));
+			DEBUG_LOG("Processed condition for update and attribute %s.\n",
+					((AttributeReference * ) left)->name);
+		} else {
+			DEBUG_LOG(
+					"The condition for update %d does not start with an attribute and it is invalid.\n",
+					upNum);
+		}
+
+		if (strcmp(opName, "=") != 0) {
+
+			if (strcmp(opName, ">=") == 0) {
+				less = -1;
+			} else if (strcmp(opName, ">") == 0) {
+				notEq = 1;
+				less = -1;
+			} else if (strcmp(opName, "<=") == 0) {
+			} else if (strcmp(opName, "<") == 0) {
+				notEq = 1;
+			}
+
+			//if the condition likes c>10
+			if (isA(right, Constant)) {
+				//we have just one attribute
+				double cons = constrToDouble((Constant *) right);
+				rmatbeg[j] = i;
+				rowname[j] = CONCAT_STRINGS("x1_", itoa(upNum));
+				rmatind[i] = v1index;
+				rmatval[i] = 1.0 * less;
+				i++;
+				rmatind[i] = xindex;
+				rmatval[i] = default_ub;
+				i++;
+				sense[j] = 'G';
+				rhs[j] = cons + 1 - notEq;
+				j++;
+
+				rmatbeg[j] = i;
+				rowname[j] = CONCAT_STRINGS("x2_", itoa(upNum));
+				rmatind[i] = v1index;
+				rmatval[i] = -1.0 * less;
+				i++;
+				rmatind[i] = xindex;
+				rmatval[i] = -default_ub;
+				i++;
+				sense[j] = 'G';
+				rhs[j] = -cons - default_ub + notEq;
+				j++;
+			}
+			//if the condition likes c>b
+			else if (isA(right, AttributeReference)) {
+				v2index = getObjectIndex(
+						CONCAT_STRINGS(((AttributeReference * ) right)->name,
+								"_", itoa(upNum - 1)));
+				rmatbeg[j] = i;
+				rowname[j] = CONCAT_STRINGS("x3_", itoa(upNum));
+				rmatind[i] = v1index;
+				rmatval[i] = 1.0 * less;
+				i++;
+				rmatind[i] = v2index;
+				rmatval[i] = -1.0 * less;
+				i++;
+				rmatind[i] = xindex;
+				rmatval[i] = default_ub;
+				i++;
+				sense[j] = 'G';
+				rhs[j] = 1 - notEq;
+				j++;
+
+				rmatbeg[j] = i;
+				rowname[j] = "x2row";
+				rmatind[i] = v2index;
+				rmatval[i] = 1.0 * less;
+				i++;
+				rmatind[i] = v1index;
+				rmatval[i] = -1.0 * less;
+				i++;
+				rmatind[i] = xindex;
+				rmatval[i] = -default_ub;
+				i++;
+				sense[j] = 'G';
+				rhs[j] = -default_ub + notEq;
+				j++;
+			}
+		} else if (strcmp(opName, "=") == 0) {
+			//if the condition likes c>10
+			if (isA(right, Constant)) {
+				//we have just one attribute
+				double cons = constrToDouble((Constant *) right);
+				rmatbeg[j] = i;
+				rowname[j] = CONCAT_STRINGS("x1_", itoa(upNum));
+				rmatind[i] = v1index;
+				rmatval[i] = 1.0;
+				i++;
+				rmatind[i] = xindex;
+				rmatval[i] = default_ub;
+				i++;
+				sense[j] = 'G';
+				rhs[j] = cons + 1;
+				j++;
+
+				rmatbeg[j] = i;
+				rowname[j] = CONCAT_STRINGS("x2_", itoa(upNum));
+				rmatind[i] = v1index;
+				rmatval[i] = -1.0;
+				i++;
+				rmatind[i] = xindex;
+				rmatval[i] = -default_ub;
+				i++;
+				sense[j] = 'G';
+				rhs[j] = -cons - default_ub;
+				j++;
+
+				rmatbeg[j] = i;
+				rowname[j] = CONCAT_STRINGS("x3_", itoa(upNum));
+				rmatind[i] = v1index;
+				rmatval[i] = -1.0;
+				i++;
+				rmatind[i] = xindex;
+				rmatval[i] = default_ub;
+				i++;
+				sense[j] = 'G';
+				rhs[j] = -cons + 1;
+				j++;
+
+				rmatbeg[j] = i;
+				rowname[j] = CONCAT_STRINGS("x4_", itoa(upNum));
+				rmatind[i] = v1index;
+				rmatval[i] = 1.0;
+				i++;
+				rmatind[i] = xindex;
+				rmatval[i] = -default_ub;
+				i++;
+				sense[j] = 'G';
+				rhs[j] = cons - default_ub;
+				j++;
+			}
+			//if the condition likes c>b
+			else if (isA(right, AttributeReference)) {
+				v2index = getObjectIndex(
+						CONCAT_STRINGS(((AttributeReference * ) right)->name,
+								"_", itoa(upNum - 1)));
+				rmatbeg[j] = i;
+				rowname[j] = CONCAT_STRINGS("x1_", itoa(upNum));
+				rmatind[i] = v1index;
+				rmatval[i] = 1.0 * less;
+				i++;
+				rmatind[i] = v2index;
+				rmatval[i] = -1.0 * less;
+				i++;
+				rmatind[i] = xindex;
+				rmatval[i] = default_ub;
+				i++;
+				sense[j] = 'G';
+				rhs[j] = 1;
+				j++;
+
+				rmatbeg[j] = i;
+				rowname[j] = CONCAT_STRINGS("x2_", itoa(upNum));
+				rmatind[i] = v2index;
+				rmatval[i] = 1.0 * less;
+				i++;
+				rmatind[i] = v1index;
+				rmatval[i] = -1.0 * less;
+				i++;
+				rmatind[i] = xindex;
+				rmatval[i] = -default_ub;
+				i++;
+				sense[j] = 'G';
+				rhs[j] = -1 * default_ub;
+				j++;
+
+				rmatbeg[j] = i;
+				rowname[j] = CONCAT_STRINGS("x3_", itoa(upNum));
+				rmatind[i] = v1index;
+				rmatval[i] = -1.0;
+				i++;
+				rmatind[i] = v2index;
+				rmatval[i] = 1.0;
+				i++;
+				rmatind[i] = xindex;
+				rmatval[i] = default_ub;
+				i++;
+				sense[j] = 'G';
+				rhs[j] = 1;
+				j++;
+
+				rmatbeg[j] = i;
+				rowname[j] = CONCAT_STRINGS("x4_", itoa(upNum));
+				rmatind[i] = v2index;
+				rmatval[i] = -1.0;
+				i++;
+				rmatind[i] = v1index;
+				rmatval[i] = 1.0;
+				i++;
+				rmatind[i] = xindex;
+				rmatval[i] = -default_ub;
+				i++;
+				sense[j] = 'G';
+				rhs[j] = -default_ub;
+				j++;
+			}
+		}
+
+		status = CPXaddrows(env, lp, 0, numRows, numZ, rhs, sense, rmatbeg,
+				rmatind, rmatval, NULL, rowname);
+
+		if (status) {
+			ERROR_LOG(
+					"Failure to convert update and add a row to cplex problem %d.\n",
+					status);
+		}
+	}
+	DEBUG_LOG("Finished Processing condition for update %d.\n", upNum);
 
 	return status;
 }
@@ -1058,13 +1350,13 @@ static int condToSt(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp) {
 			rmatind[0] = index;
 			rmatval[0] = 1.0;
 			DEBUG_LOG("Processed condition for update and attribute %s.\n",
-					((AttributeReference * ) left)->name);
+					colname[index]);
 		}
 		//if the condition likes c>10
 		if (isA(right, Constant)) {
 			//we have just one attribute
 			rhs[0] = constrToDouble((Constant *) right) + notEq;
-			DEBUG_LOG("Processed condition for update with value %d.\n",
+			DEBUG_LOG("Processed condition for update with value %10f.\n",
 					rhs[0]);
 		}
 		//if the condition likes c>b => c-b>0
@@ -1108,11 +1400,12 @@ static int exprToSymbol(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 			left = getHeadOfListP((List *) s->expr);
 			selectAttName = ((AttributeReference *) left)->name;
 			status = createV(upNum, selectAttName, env, lp);
-			addToSet(newAttrSet, selectAttName);
 			status = setAttUV(upNum, selectAttName, env, lp);
+			addToSet(newAttrSet, selectAttName);
 		}
 		tempSet = setDifference(attrSet, newAttrSet);
 		status = setNexSt(upNum, tempSet, env, lp);
+		status = setX(upNum, ((Update *) expr)->cond, env, lp);
 		break;
 	case T_Delete:
 		status = setNexSt(upNum, attrSet, env, lp);
@@ -1122,13 +1415,14 @@ static int exprToSymbol(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
 		break;
 
 	default:
+		//status = setX(upNum, ((Update *) expr)->cond, env, lp);
 		break;
 	}
 	return status;
 }
 
-static int firstUpExe(Node *expr, CPXENVptr env, CPXLPptr lp) {
-	int upNum = 1;
+static int firstUpExe(int upNum, Node *expr, CPXENVptr env, CPXLPptr lp) {
+	//int upNum = 1;
 	int status = 0;
 
 	Set *newAttrSet = STRSET();
@@ -1139,7 +1433,9 @@ static int firstUpExe(Node *expr, CPXENVptr env, CPXLPptr lp) {
 	FOREACH(SelectItem, s, sClause )
 	{
 		int numRows = 1;
-		int numZ = 2;
+		List *result = NIL;
+		result = getAttrNameFromOpExpList(result, (Operator *) s);
+		int numZ = getListLength(result);
 		int rmatbeg[numRows];
 		double rhs[numRows];
 		char sense[numRows];
@@ -1168,6 +1464,9 @@ static int firstUpExe(Node *expr, CPXENVptr env, CPXLPptr lp) {
 		// ex. if A=10
 		if (isA(right, Constant)) {
 			rhs[0] = constrToDouble((Constant *) right);
+			DEBUG_LOG(
+					"Processed u for update %d to set %s attribute constant value %10f.\n",
+					upNum, selectAttName, rhs[0]);
 		} else {
 			// ex. if A= A +2 which means A1= A0 +2 => u1<= A0 +2 => u1 - A0 <= 2
 			neg = 1;
@@ -1261,9 +1560,8 @@ static int firstInsExe(Node *up, CPXENVptr env, CPXLPptr lp) {
 List *symbolicHistoryExe(List *exprs) {
 	List *depUps = NIL;
 	int status = 0;
-//boolean result = FALSE;
-	int solstat;
-	double objval;
+	//int solstat;
+	//double objval;
 	double *x = NULL;
 	double *pi = NULL;
 	double *slack = NULL;
@@ -1272,6 +1570,7 @@ List *symbolicHistoryExe(List *exprs) {
 
 	CPXENVptr env = NULL;
 	CPXLPptr lp = NULL;
+	//CPXENVptr temp_env = NULL;
 	CPXLPptr temp_lp = NULL;
 
 	/* Initialize the CPLEX environment */
@@ -1312,6 +1611,9 @@ List *symbolicHistoryExe(List *exprs) {
 		ERROR_LOG("Failed to create LP.\n");
 	}
 
+	status = CPXchgobjsen(env, lp, CPX_MAX); /* Problem is maximization */
+	//status = CPXchgobjsen(env, lp, CPX_MIN);
+
 	int numUp = getListLength(exprs);
 	Node *up = popHeadOfListP(exprs);
 
@@ -1321,7 +1623,7 @@ List *symbolicHistoryExe(List *exprs) {
 	 problems, consider setting the row, column and nonzero growth
 	 parameters before performing this task. */
 
-	status = CPXnewcols(env, lp, totalObjects, obj, lb, ub, NULL, colname);
+	status = CPXnewcols(env, lp, totalObjects, obj, lb, ub, ctype, colname);
 	if (status) {
 		ERROR_LOG("Failure to create cplex columns %d.\n", status);
 	}
@@ -1333,11 +1635,12 @@ List *symbolicHistoryExe(List *exprs) {
 	DEBUG_LOG("symbolic execution for update %d.\n", i);
 
 	if (up->type == T_Update) {
+		status = firstUpExe(1, up, env, lp);
+		//status = exprToSymbol(i, up, env, lp);
 		status = condToSt(i, ((Update *) up)->cond, env, lp);
-		status = firstUpExe(up, env, lp);
 	} else if (up->type == T_Delete) {
-		status = condToSt(i, ((Delete *) up)->cond, env, lp);
 		status = exprToSymbol(i, up, env, lp);
+		status = condToSt(i, ((Delete *) up)->cond, env, lp);
 	} else if (up->type == T_Insert) {
 		status = firstInsExe(up, env, lp);
 	}
@@ -1346,12 +1649,18 @@ List *symbolicHistoryExe(List *exprs) {
 
 	FOREACH(Node,ex,exprs)
 	{
+		status = 0;
 		DEBUG_LOG("symbolic execution for update %d.\n", i);
-		exprToSymbol(i, ex, env, lp);
-
+		status = exprToSymbol(i, ex, env, lp);
+		//status = firstUpExe(i, ex, env, lp);
 		if (ex->type == T_Update || ex->type == T_Delete) {
 			temp_lp = CPXcloneprob(env, lp, &status);
-			DEBUG_LOG("copied the main problem for the symbolic execution.\n");
+			if (status) {
+				DEBUG_LOG("Failed to clone problem.\n");
+
+			} else
+				DEBUG_LOG(
+						"copied the main problem for the symbolic execution.\n");
 
 			if (temp_lp == NULL) {
 				ERROR_LOG("Failed to create temp_lp.\n");
@@ -1366,7 +1675,8 @@ List *symbolicHistoryExe(List *exprs) {
 						"Failed to populate new temp problem for the condition of expression.\n");
 			}
 
-			status = CPXlpopt(env, temp_lp);
+			//status = CPXlpopt(env, temp_lp);
+			status = CPXmipopt(env, temp_lp);
 			if (status) {
 				ERROR_LOG("Failed to optimize LP.\n");
 			}
@@ -1383,19 +1693,52 @@ List *symbolicHistoryExe(List *exprs) {
 				ERROR_LOG("Could not allocate memory for solution.\n");
 			}
 
-			status = CPXsolution(env, temp_lp, &solstat, &objval, x, pi, slack,
-					dj);
+			status = CPXgetstat(env, temp_lp);
+			//status = CPXsolution(env, temp_lp, &solstat, &objval, x, pi, slack,dj);
+
+			status = CPXgetx(env, temp_lp, x, 0, cur_numcols - 1);
 			if (status) {
 				DEBUG_LOG("False: Failed to obtain solution for update %d.\n",
 						i);
 				//result = FALSE;
 
 			} else {
-				DEBUG_LOG("True: Obtained solution for update %d.\n", i);
+				DEBUG_LOG(
+						"True: Obtained solution for update %d with templp.\n",
+						i);
 				//result = TRUE;
 				depUps = appendToTailOfList(depUps, ex);
 			}
 
+			//DEBUG_LOG("\nSolution status = %d\n", solstat);
+			//printf("Solution value  = %f\n\n", objval);
+			int j;
+			/*
+			 for (j = 0; j < cur_numrows; j++) {
+			 printf ("Row %d:  Slack = %10f  Pi = %10f\n", j, slack[j], pi[j]);
+			 }
+			 */
+			for (j = 0; j < cur_numcols; j++) {
+				DEBUG_LOG("Column %s:  Value = %10f \n", colname[j], x[j]);
+			}
+
+			//}
+			if (x != NULL) {
+				FREE(x);
+				x = NULL;
+			}
+			if (slack != NULL) {
+				FREE(slack);
+				slack = NULL;
+			}
+			if (dj != NULL) {
+				FREE(dj);
+				dj = NULL;
+			}
+			if (pi != NULL) {
+				FREE(pi);
+				pi = NULL;
+			}
 			if (temp_lp != NULL) {
 				status = CPXfreeprob(env, &temp_lp);
 				if (status) {
