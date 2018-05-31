@@ -820,25 +820,25 @@ translateSafeRule(DLRule *r)
     List *projExprs = NIL;
     List *headNames = NIL;
 
-    if (getBoolOption(OPTION_WHYNOT_ADV))
-    {
-        // gather body args from positive goals first, then negated
-        List *bodyArgs = NIL;
-
-        FOREACH(DLAtom,a,r->body)
-        	if(!a->negated)
-        		bodyArgs = CONCAT_LISTS(bodyArgs,copyObject(a->args));
-
-        FOREACH(DLAtom,a,r->body)
-    		if(a->negated)
-    			bodyArgs = CONCAT_LISTS(bodyArgs,copyObject(a->args));
-
-        projExprs = getHeadProjectionExprs(r->head, joinedGoals, bodyArgs);
-    }
-    else
-    {
+//    if (getBoolOption(OPTION_WHYNOT_ADV))
+//    {
+//        // gather body args from positive goals first, then negated
+//        List *bodyArgs = NIL;
+//
+//        FOREACH(DLAtom,a,r->body)
+//        	if(!a->negated)
+//        		bodyArgs = CONCAT_LISTS(bodyArgs,copyObject(a->args));
+//
+//        FOREACH(DLAtom,a,r->body)
+//    		if(a->negated)
+//    			bodyArgs = CONCAT_LISTS(bodyArgs,copyObject(a->args));
+//
+//        projExprs = getHeadProjectionExprs(r->head, joinedGoals, bodyArgs);
+//    }
+//    else
+//    {
         projExprs = getHeadProjectionExprs(r->head, joinedGoals, getBodyArgs(r));
-    }
+//    }
 
     int i = 0;
 

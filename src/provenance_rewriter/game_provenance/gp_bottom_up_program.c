@@ -2800,6 +2800,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	        	    {
 	        	        vName = CONCAT_STRINGS("TF", gprom_itoa(j++));
 	                    createArgs = createDLVar(vName, DT_BOOL);
+	                    if(((DLAtom *) n)->negated)
+	                    	createArgs->name = CONCAT_STRINGS("not(",createArgs->name,")");
 
 	                    numGoals++; // For calculation of length of only new args
 	                    newRuleArg = appendToTailOfList(newRuleArg, copyObject(createArgs));
@@ -2842,7 +2844,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 					// add boolean variables into corresponding goal atom
 					if(!ruleWon)
+					{
 						a->args = appendToTailOfList(a->args,getNthOfListP(newRuleArg,goalPos));
+						a->negated = FALSE;
+					}
 
 					goalPos++;
 				}

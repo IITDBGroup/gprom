@@ -271,7 +271,7 @@ checkDLRuleSafety (DLRule *r)
                 if(isA(n,DLVar))
                 {
                     DLVar *v = (DLVar *) n;
-                    if(!hasSetElem(posVars, v->name) && v->dt != DT_BOOL)
+                    if(!hasSetElem(posVars, v->name))
                     {
                         ERROR_LOG("Unsafe rule. Variable %s is only used in "
                                 "negated subgoal in rule:\n%s",
@@ -312,7 +312,7 @@ checkDLRuleSafety (DLRule *r)
         List *vars = getDLVarsIgnoreProps(n);
         FOREACH(DLVar,v,vars)
         {
-            if(!hasSetElem(posVars, v->name) && v->dt != DT_BOOL)
+            if(!hasSetElem(posVars, v->name))
             {
                 ERROR_LOG("Unsafe rule. Variable %s is used in head atom "
                         "but not in positive subgoal in rule:\n%s",
