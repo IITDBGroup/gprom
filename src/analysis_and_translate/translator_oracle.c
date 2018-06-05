@@ -1187,15 +1187,25 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
     else
         setStringProperty(op, PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(getQueryOperatorAttrNames(op)));
 
-    /* set name for op */
-    setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
+    /* table selected as incomplete */
+    if (from->provProperties)
+	{
+		if (getStringProvProperty(from, PROV_PROP_INCOMPLETE_TABLE))
+		{
+			setStringProperty(op, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstString("TRUE"));
+		}
+	}
 
+    /* user TIP attribute selected */
     if (from->userTIPAttr != NULL)
 	{
 		setStringProperty(op, PROP_USER_TIP_ATTR, (Node *) createConstString(from->userTIPAttr));
 		hasProv = TRUE;
 		from->userProvAttrs = singleton(strdup(from->userTIPAttr));
 	}
+
+    /* set name for op */
+    setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));
 
 
     if (hasProv)

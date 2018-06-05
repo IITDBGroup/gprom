@@ -28,8 +28,9 @@ static Node *createCaseOperator(Node *expr);
 static Node *createReverseCaseOperator(Node *expr);
 static Node *getOutputExprFromInput(Node *expr, int offset);
 
-static QueryOperator *rewriteUncertTIP(QueryOperator *op);
 static QueryOperator *rewriteUncertProvComp(QueryOperator *op);
+static QueryOperator *rewrite_UncertTIP(QueryOperator *op);
+static QueryOperator *rewrite_UncertIncompleteTable(QueryOperator *op);
 static QueryOperator *rewrite_UncertSelection(QueryOperator *op);
 static QueryOperator *rewrite_UncertProjection(QueryOperator *op);
 static QueryOperator *rewrite_UncertTableAccess(QueryOperator *op);
@@ -48,9 +49,15 @@ rewriteUncert(QueryOperator * op)
 {
 	QueryOperator *rewrittenOp;
 	if(HAS_STRING_PROP(op,PROP_USER_TIP_ATTR)){
-		rewrittenOp = rewriteUncertTIP(op);
+		rewrittenOp = rewrite_UncertTIP(op);
 		return rewrittenOp;
 	}
+
+	if(HAS_STRING_PROP(op,PROV_PROP_INCOMPLETE_TABLE)){
+		rewrittenOp = rewrite_UncertIncompleteTable(op);
+		return rewrittenOp;
+	}
+
 	switch(op->type)
 	{
 	    case T_ProvenanceComputation:
@@ -180,14 +187,15 @@ getUncertString(char *in)
 }
 
 static QueryOperator *
-rewriteUncertTIP(QueryOperator *op){
+rewrite_UncertTIP(QueryOperator *op)
+{
 	DEBUG_LOG("rewriteUncertTIP");
 	//prints the op->provAttr = singletonint
 	//get TIP attribute name using PROP_USER_TIP_ATTR as the key
 	char * TIPName = STRING_VALUE(GET_STRING_PROP(op,PROP_USER_TIP_ATTR));
 
 	//get TIP attribute position
-//	int TIPPos = getAttrPos(op,TIPName);
+	//	int TIPPos = getAttrPos(op,TIPName);
 
 	//Create operator expression
 	//Create full attribute reference -> datatype -> cast? -> opschema?
@@ -241,6 +249,12 @@ rewriteUncertTIP(QueryOperator *op){
 	return proj;
 }
 
+static QueryOperator *
+rewrite_UncertIncompleteTable(QueryOperator *op)
+{
+	DEBUG_LOG("rewriteIncompleteTable");
+	return op;
+}
 
 static QueryOperator *
 rewriteUncertProvComp(QueryOperator *op)

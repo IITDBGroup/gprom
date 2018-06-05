@@ -436,6 +436,16 @@ analyzeFromProvInfo (FromItem *f)
                 }
             }
         }
+
+        //Indicating an incomplete table has been called?
+        if (fp->provProperties)
+		{
+			if (getStringProvProperty(fp, PROV_PROP_INCOMPLETE_TABLE))
+			{
+				DEBUG_LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>INCOMPLETE TABLE<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+			}
+		}
+
         //Checking if the user has declared TIP, to remove the attributes
         if (fp->userTIPAttr)
         {
@@ -447,13 +457,7 @@ analyzeFromProvInfo (FromItem *f)
             f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
         }
 
-        if (fp->provProperties)
-        {
-        	if (getStringProvProperty(fp, PROV_PROP_INCOMPLETE_TABLE))
-        	{
-        		DEBUG_LOG("INCOMPLETE TABLE");
-        	}
-        }
+
 
         // if user declared some attributes as provenance (HAS PROVENANCE) then these attributes are temporarily removed
         // since they should not be referenced by query for which we are computing provenance
