@@ -189,7 +189,7 @@ getUncertString(char *in)
 static QueryOperator *
 rewrite_UncertTIP(QueryOperator *op)
 {
-	DEBUG_LOG("rewriteUncertTIP");
+	DEBUG_LOG("rewriteUncertTIP\n");
 	//prints the op->provAttr = singletonint
 	//get TIP attribute name using PROP_USER_TIP_ATTR as the key
 	char * TIPName = STRING_VALUE(GET_STRING_PROP(op,PROP_USER_TIP_ATTR));
@@ -204,15 +204,13 @@ rewrite_UncertTIP(QueryOperator *op)
 	//create select op with the condition
 	QueryOperator *selec = (QueryOperator *)createSelectionOp((Node *)ltequal, op, NIL, getAttrNames(op->schema));
 
-	//TODO
-	//mark tip attr as prov
-	//selec->provAttrs = singletonInt(TIPPos);
-
 	//Uncert attributes Hashmap
 	HashMap * hmp = NEW_MAP(Node, Node);
 
 	//create proj operator on the selection operator results
 	QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(selec), selec, NIL, getNormalAttrNames(selec));
+
+	//switching subtrees
 	switchSubtrees(op, proj);
 
 	//parent pointers for select operator
@@ -233,12 +231,9 @@ rewrite_UncertTIP(QueryOperator *op)
 	//Create operator expression when P==1
 	Node *TIPIsOne = (Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(op,TIPName)));
 
-	//create case when TIPisOne is true
-	createCaseOperator(TIPIsOne);
-
 	//Add U_R to the schema with data type int
 	addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
-	//Set the values of U_R //TODO
+	//Set the values of U_R using a CASE WHEN TIPisOne is true
 	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(TIPIsOne));
 
 	//Update string property
@@ -252,8 +247,41 @@ rewrite_UncertTIP(QueryOperator *op)
 static QueryOperator *
 rewrite_UncertIncompleteTable(QueryOperator *op)
 {
-	DEBUG_LOG("rewriteIncompleteTable");
-	return op;
+	DEBUG_LOG("rewriteIncompleteTable\n");
+	//SELECT A, B, U_A CASE WHEN  , U_B 1, U_R 1
+
+	//Uncert attributes Hashmap
+	HashMap * hmp = NEW_MAP(Node, Node);
+
+	//create proj operator on the op
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(op), op, NIL, getNormalAttrNames(op));
+
+	//switching subtrees
+	switchSubtrees(op, proj);
+	op->parents = singleton(proj);
+
+	//Create operator expression when an entry is NULL
+	//Node *entryIsNull = (Node *)createOpExpr("is",LIST_MAKE(getNormalAttrNames(op), (Node *) createConstString("NULL")));
+
+	//Final projection? U_A.... U_R
+	List *attrExpr = getNormalAttrProjectionExprs(op);
+	FOREACH(Node, nd, attrExpr){
+		//Add U_nd->name to the schema, with data type int
+		addUncertAttrToSchema(hmp, proj, nd);
+		//Set the values of U_nd->name to CASE WHEN entryIsNull
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs,
+				createCaseExpr(NULL,singleton(createCaseWhen((Node *)createIsNullExpr(nd),
+				(Node *)createConstInt(-1))),(Node *)createConstInt(1)));
+	}
+
+	//Add U_R to the schema with data type int
+	addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
+	//Set the values of U_R to 1
+	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+
+	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+
+	return proj;
 }
 
 static QueryOperator *

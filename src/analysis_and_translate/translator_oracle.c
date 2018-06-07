@@ -1192,7 +1192,7 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
 	{
 		if (getStringProvProperty(from, PROV_PROP_INCOMPLETE_TABLE))
 		{
-			setStringProperty(op, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstString("TRUE"));
+			setStringProperty(op, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstString("TRANSLATORTRUE"));
 		}
 	}
 
