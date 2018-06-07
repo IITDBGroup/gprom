@@ -1021,7 +1021,9 @@ static int setNexSt(int upNum, Set *aSet, CPXENVptr env, CPXLPptr lp) {
 	return status;
 }
 
-static int setX(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp) {
+int
+setX(int upNum, Node *cond, CPXENVptr env, CPXLPptr lp)
+{
 	DEBUG_LOG("Start Processing x for update %d.\n", upNum);
 	int status = 0;
 
