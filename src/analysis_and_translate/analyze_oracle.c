@@ -437,21 +437,20 @@ analyzeFromProvInfo (FromItem *f)
             }
         }
 
-        //Remove the probability attribute if specified through the TIP flag
-        if (fp->userTIPAttr)
-        {
-        	int pos = listPosString(f->attrNames, fp->userTIPAttr);
-            DEBUG_LOG("TIP attribute %s at position %u", fp->userTIPAttr, pos);
-        	f->attrNames = deepCopyStringList(f->attrNames);
-            f->dataTypes 	= copyObject(f->dataTypes);
-            f->attrNames = removeListElemAtPos(f->attrNames, pos);
-            f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
-        }
-
-
         //Checking if a provProperty was declared
         if (fp->provProperties)
 		{
+        	//Remove the probability attribute if specified through the TIP flag
+        	if (getStringProvProperty(fp, PROV_PROP_TIP_ATTR))
+        	{
+        		int pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)));
+				DEBUG_LOG("TIP attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)), pos);
+				f->attrNames = deepCopyStringList(f->attrNames);
+				f->dataTypes 	= copyObject(f->dataTypes);
+				f->attrNames = removeListElemAtPos(f->attrNames, pos);
+				f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+        	}
+
         	//Indicating an incomplete table has been called
 			if (getStringProvProperty(fp, PROV_PROP_INCOMPLETE_TABLE))
 			{

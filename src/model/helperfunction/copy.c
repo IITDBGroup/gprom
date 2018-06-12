@@ -824,7 +824,6 @@ copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(baserel);
     COPY_SCALAR_FIELD(intermediateProv);
     COPY_STRING_LIST_FIELD(userProvAttrs);
-    COPY_STRING_FIELD(userTIPAttr);
     COPY_NODE_FIELD(provProperties);
     return new;
 }

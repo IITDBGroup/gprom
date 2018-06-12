@@ -1488,7 +1488,7 @@ optionalFromTIP:
 		{
 			RULELOG("optionalFromTIP");
 			FromProvInfo *p = makeNode(FromProvInfo);
-			p->userTIPAttr = $4;	
+			setStringProvProperty(p, PROV_PROP_TIP_ATTR, (Node *) createConstString($4));
 			$$ = (Node *) p;
 		}
 ;

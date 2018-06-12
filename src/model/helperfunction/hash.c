@@ -513,7 +513,6 @@ hashFromProvInfo (uint64_t cur, FromProvInfo *node)
     HASH_BOOLEAN(baserel);
     HASH_BOOLEAN(intermediateProv);
     HASH_NODE(userProvAttrs);
-    HASH_STRING(userTIPAttr);
     HASH_NODE(provProperties);
     HASH_RETURN();
 }

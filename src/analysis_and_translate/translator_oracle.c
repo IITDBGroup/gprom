@@ -1188,11 +1188,11 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
         setStringProperty(op, PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(getQueryOperatorAttrNames(op)));
 
     /* user TIP attribute selected */
-	if (from->userTIPAttr != NULL)
+	if (getStringProvProperty(from, PROV_PROP_TIP_ATTR) != NULL)
 	{
-		setStringProperty(op, PROP_TIP_ATTR, (Node *) createConstString(from->userTIPAttr));
+		setStringProperty(op, PROP_TIP_ATTR, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
 		hasProv = TRUE;
-		from->userProvAttrs = singleton(strdup(from->userTIPAttr));
+		from->userProvAttrs = singleton(strdup(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
 	}
 
     /* table selected as incomplete */
