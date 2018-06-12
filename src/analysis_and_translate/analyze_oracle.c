@@ -437,16 +437,7 @@ analyzeFromProvInfo (FromItem *f)
             }
         }
 
-        //Indicating an incomplete table has been called?
-        if (fp->provProperties)
-		{
-			if (getStringProvProperty(fp, PROV_PROP_INCOMPLETE_TABLE))
-			{
-				DEBUG_LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>INCOMPLETE TABLE<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
-			}
-		}
-
-        //Checking if the user has declared TIP, to remove the attributes
+        //Remove the probability attribute if specified through the TIP flag
         if (fp->userTIPAttr)
         {
         	int pos = listPosString(f->attrNames, fp->userTIPAttr);
@@ -458,6 +449,26 @@ analyzeFromProvInfo (FromItem *f)
         }
 
 
+        //Checking if a provProperty was declared
+        if (fp->provProperties)
+		{
+        	//Indicating an incomplete table has been called
+			if (getStringProvProperty(fp, PROV_PROP_INCOMPLETE_TABLE))
+			{
+				DEBUG_LOG("INCOMPLETE TABLE");
+			}
+
+			//Removing the probability attribute if specified through the VTABLE flag
+			if (getStringProvProperty(fp, PROV_PROP_V_TABLE))
+			{
+				int pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_V_TABLE)));
+				DEBUG_LOG("VTABLE attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_V_TABLE)), pos);
+				f->attrNames = deepCopyStringList(f->attrNames);
+				f->dataTypes 	= copyObject(f->dataTypes);
+				f->attrNames = removeListElemAtPos(f->attrNames, pos);
+				f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+			}
+		}
 
         // if user declared some attributes as provenance (HAS PROVENANCE) then these attributes are temporarily removed
         // since they should not be referenced by query for which we are computing provenance

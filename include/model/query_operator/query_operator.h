@@ -252,12 +252,6 @@ extern void removeStringProperty (QueryOperator *op, char *key);
 #define GET_BOOL_STRING_PROP(op,key) ((getStringProperty((QueryOperator *) op, key) != NULL) \
     && (BOOL_VALUE(getStringProperty((QueryOperator *) op, key))))
 
-/* deal with provProperties*/
-extern void setProvProperty (FromProvInfo *from, Node *key, Node *value);
-extern Node *getProvProperty (FromProvInfo *from, Node *key);
-extern void setStringProvProperty (FromProvInfo *from, char *key, Node *value);
-extern Node *getStringProvProperty (FromProvInfo *from, char *key);
-
 /* children and parents */
 extern void addChildOperator (QueryOperator *parent, QueryOperator *child);
 extern void addParent (QueryOperator *child, QueryOperator *parent);

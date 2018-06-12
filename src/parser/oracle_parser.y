@@ -63,7 +63,8 @@ Node *oracleParseResult = NULL;
  */
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
-%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN TIP INCOMPLETE
+%token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
+%token <stringVal> TIP INCOMPLETE VTABLE
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
@@ -131,8 +132,9 @@ Node *oracleParseResult = NULL;
 			 identifierList optionalAttrAlias optionalProvWith provOptionList optionalReenactOptions reenactOptionList
 			 caseWhenList windowBoundaries optWindowPart withViewList jsonColInfo optionalTranslate
 //			 optInsertAttrList
-%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalFromProb optionalFromIncompleteTable optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
+%type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
+%type <node> optionalFromTIP optionalFromIncompleteTable optionalFromVTable
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
 %type <node> overClause windowSpec optWindowFrame windowBound
 %type <node> jsonTable jsonColInfoItem 
@@ -1481,10 +1483,10 @@ optionalAlias:
 			}
     ;
 
-optionalFromProb:
-		HAS TIP '(' identifier ')'
+optionalFromTIP:
+		IS TIP '(' identifier ')'
 		{
-			RULELOG("optionalFromProb");
+			RULELOG("optionalFromTIP");
 			FromProvInfo *p = makeNode(FromProvInfo);
 			p->userTIPAttr = $4;	
 			$$ = (Node *) p;
@@ -1496,15 +1498,26 @@ optionalFromIncompleteTable:
 		{
 			RULELOG("optionalFromIncompleteTable");
 			FromProvInfo *p = makeNode(FromProvInfo);
-			setStringProvProperty(p, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstString("TRUE"));	
+			setStringProvProperty(p, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstBool(1));	
+			$$ = (Node *) p;
+		}
+;
+
+optionalFromVTable:
+		IS VTABLE '(' identifier ')' 
+		{
+			RULELOG("optionalFromVTable");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			setStringProvProperty(p, PROV_PROP_V_TABLE, (Node *) createConstString($4));
 			$$ = (Node *) p;
 		}
 ;
 
 optionalFromProv:
 		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; } 
-		| optionalFromProb {  $$ = $1; }
+		| optionalFromTIP {  $$ = $1; }
 		| optionalFromIncompleteTable { $$ = $1; }
+		| optionalFromVTable { $$ = $1; }
 		| BASERELATION 
 			{
 				RULELOG("optionalFromProv::BASERELATION");

@@ -48,7 +48,7 @@ QueryOperator *
 rewriteUncert(QueryOperator * op)
 {
 	QueryOperator *rewrittenOp;
-	if(HAS_STRING_PROP(op,PROP_USER_TIP_ATTR)){
+	if(HAS_STRING_PROP(op,PROP_TIP_ATTR)){
 		rewrittenOp = rewrite_UncertTIP(op);
 		return rewrittenOp;
 	}
@@ -192,7 +192,7 @@ rewrite_UncertTIP(QueryOperator *op)
 	DEBUG_LOG("rewriteUncertTIP\n");
 	//prints the op->provAttr = singletonint
 	//get TIP attribute name using PROP_USER_TIP_ATTR as the key
-	char * TIPName = STRING_VALUE(GET_STRING_PROP(op,PROP_USER_TIP_ATTR));
+	char * TIPName = STRING_VALUE(GET_STRING_PROP(op,PROP_TIP_ATTR));
 
 	//get TIP attribute position
 	//	int TIPPos = getAttrPos(op,TIPName);
