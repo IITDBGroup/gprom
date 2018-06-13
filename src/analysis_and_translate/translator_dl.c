@@ -572,12 +572,21 @@ analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules)
             int i = 0;
             FOREACH(Node,arg,a->args)
             {
-                if (isA(arg, DLVar))
+                if(isA(arg, DLVar))
                 {
                     DLVar *v = (DLVar *) arg;
                     MAP_ADD_STRING_KEY(varToDT, v->name,
                             createConstInt(getNthOfListInt(dts, i)));
                 }
+
+                if(isA(arg, Operator))
+                {
+                	Operator *o = (Operator *) arg;
+                	DLVar *v = (DLVar *) getHeadOfListP(o->args);
+                    MAP_ADD_STRING_KEY(varToDT, v->name,
+                            createConstInt(getNthOfListInt(dts, i)));
+                }
+
                 i++;
             }
         }
@@ -588,11 +597,24 @@ analyzeRuleDTs (DLRule *r, HashMap *predToDTs, HashMap *predToRules)
 //    setVarDTs((Node *) r->head->args, varToDT);
     setVarDTs((Node *) r, varToDT);
 
+    // deal with negated boolean arg for dts
+    List *headArgs = NIL;
     FOREACH(Node,arg,r->head->args)
+    {
+    	if(isA(arg, Operator))
+    	{
+    		Operator *o = (Operator *) arg;
+    		headArgs = appendToTailOfList(headArgs, (Node *) getHeadOfListP(o->args));
+    	}
+    	else
+    		headArgs = appendToTailOfList(headArgs, arg);
+    }
+
+    FOREACH(Node,arg,headArgs)
         headDTs = appendToTailOfListInt(headDTs, typeOf(arg));
 
     setDLProp((DLNode *) r->head, DL_PRED_DTS, (Node *) headDTs);
-    MAP_ADD_STRING_KEY(predToDTs, r->head->rel, headDTs );
+    MAP_ADD_STRING_KEY(predToDTs, r->head->rel, headDTs);
 }
 
 static void
@@ -600,8 +622,30 @@ setVarDTs (Node *expr, HashMap *varToDT)
 {
     List *vars = getDLVarsIgnoreProps (expr);
 //    List *vars = getDLVars (expr);
-    FOREACH(DLVar,v,vars)
-    	v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
+
+//	if (getBoolOption(OPTION_WHYNOT_ADV))
+//	{
+//		FOREACH(Node,n,vars)
+//		{
+//			DLVar *v;
+//
+//			if(isA(n,DLVar))
+//				v = (DLVar *) n;
+//
+//			if(isA(n,Operator))
+//			{
+//				Operator *o = (Operator *) n;
+//				v = (DLVar *) getHeadOfListP(o->args);
+//			}
+//
+//	    	v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
+//		}
+//	}
+//	else
+//	{
+	    FOREACH(DLVar,v,vars)
+	    	v->dt = INT_VALUE(MAP_GET_STRING(varToDT,v->name));
+//	}
 }
 
 static QueryOperator *
@@ -986,9 +1030,22 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
     {
         FORBOTH(Node,bA,a,bodyArgs,joinedGoals->schema->attrDefs)
         {
-            if (isA(bA, DLVar))
+            if (isA(bA, DLVar) || isA(bA, Operator))
             {
-                DLVar *v = (DLVar *) bA;
+                DLVar *v;
+
+                if(isA(bA, DLVar))
+                	v = (DLVar *) bA;
+
+                if(isA(bA, Operator))
+                {
+                	Operator *o = (Operator *) bA;
+                	Node *n = (Node *) getHeadOfListP(o->args);
+
+                	if(isA(n, DLVar))
+                		v = (DLVar *) n;
+                }
+
                 AttributeDef *d = (AttributeDef *) a;
 
                 if(streq(v->name,d->attrName))
@@ -1043,17 +1100,33 @@ replaceDLVarMutator (Node *node, HashMap *vToA)
     if (node == NULL)
         return node;
 
-    if (isA(node, DLVar))
+    if (isA(node, DLVar) || isA(node, Operator))
     {
         AttributeReference *a;
-        char *hV = ((DLVar *) node)->name;
-        List *l = (List *) MAP_GET_STRING(vToA, hV);
-        char *name = STRING_VALUE(getNthOfListP(l,0));
-        int pos = INT_VALUE(getNthOfListP(l,1));
-        DataType dt = (DataType) INT_VALUE(getNthOfListP(l,2));
+        char *hV = NULL;
 
-        a = createFullAttrReference(name,0,pos,INVALID_ATTR, dt);
-        return (Node *) a;
+        if(isA(node, DLVar))
+        	hV = ((DLVar *) node)->name;
+
+        if(isA(node, Operator))
+        {
+        	Operator *o = (Operator *) node;
+			Node *n = (Node *) getHeadOfListP(o->args);
+
+			if(isA(n, DLVar))
+				hV = ((DLVar *) n)->name;
+        }
+
+        if(hV != NULL)
+        {
+            List *l = (List *) MAP_GET_STRING(vToA, hV);
+            char *name = STRING_VALUE(getNthOfListP(l,0));
+            int pos = INT_VALUE(getNthOfListP(l,1));
+            DataType dt = (DataType) INT_VALUE(getNthOfListP(l,2));
+
+            a = createFullAttrReference(name,0,pos,INVALID_ATTR, dt);
+            return (Node *) a;
+        }
     }
 
     return mutate(node, replaceDLVarMutator, vToA);
@@ -2939,6 +3012,13 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
         {
             n = CONCAT_STRINGS("C_", gprom_itoa(goalPos), "_", gprom_itoa(argPos++));
             d->attrName = strdup(n);
+        }
+        else if (isA(var, Operator))
+        {
+        	Operator *o = (Operator *) var;
+        	DLVar *v = (DLVar *) getHeadOfListP(o->args);
+        	n = v->name;
+        	d->attrName = strdup(n);
         }
         else
             FATAL_LOG("we should not end up here");

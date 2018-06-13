@@ -392,7 +392,9 @@ applyVarMapAsLists(Node *input, List *vars, List *replacements)
         if (isA(l, DLVar))
         {
             DLVar *v = (DLVar *) l;
-            MAP_ADD_STRING_KEY(h,v->name,r);
+
+            if(v->dt != DT_BOOL)
+            	MAP_ADD_STRING_KEY(h,v->name,r);
         }
     }
 
