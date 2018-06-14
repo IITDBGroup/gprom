@@ -3836,6 +3836,35 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				AD_NORM_COPY(lookup,a);
 				DL_DEL_PROP(at,DL_IS_IDB_REL);
 				List *goalRules = (List *) getMap(idbAdToRules, (Node *) lookup);
+
+//				FOREACH(Node,n,lookup->args)
+//				{
+//					if(isA(n,Operator))
+//					{
+//						FOREACH(DLRule,gr,goalRules)
+//						{
+//							int boolPos = 0;
+//							int argPos = 0;
+//
+//							FOREACH(Node,n,gr->head->args)
+//							{
+//								if(isA(n,Constant))
+//								{
+//									Constant *c = (Constant *) n;
+//
+//									if(c->constType == DT_BOOL)
+//										boolPos = argPos;
+//								}
+//
+//								argPos++;
+//							}
+//
+//							gr->head->args = replaceNode(gr->head->args,
+//									getNthOfListP(gr->head->args,boolPos), createConstBool(TRUE));
+//						}
+//					}
+//				}
+
 				DEBUG_LOG("create link rules between %s and rule %s\nusing rules:\n%s",
 						datalogToOverviewString((Node *) lookup),
 						datalogToOverviewString((Node *) unRule),

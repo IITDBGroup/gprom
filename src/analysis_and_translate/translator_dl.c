@@ -2711,6 +2711,44 @@ translateSafeGoal(DLAtom *r, int goalPos, QueryOperator *posPart)
 
     dts = (List *) getDLProp((DLNode *) r, DL_PRED_DTS);
 
+    /*
+     * compare dts with actual dataType from the relation
+     * if different, then use the correct one
+     * TODO: check from the parser, i.e., while we parse, the dataType is set to DT_STRING for all
+     */
+    List *correctDts = NIL;
+    FOREACH(Node,n,r->args)
+    {
+    	correctDts = appendToTailOfListInt(correctDts,typeOf(n));
+//    	if(isA(n,DLVar))
+//    	{
+//    		DLVar *v = (DLVar *) n;
+//    		correctDts = appendToTailOfList(correctDts,v->dt);
+//    	}
+//
+//    	if(isA(n,Operator))
+//    	{
+//    		Operator *o = (Operator *) n;
+//    		DLVar *v = (DLVar *) getHeadOfListP(o->args);
+//			correctDts = appendToTailOfList(correctDts,v->dt);
+//    	}
+//
+//    	if(isA(n,Constant))
+//    	{
+//    		Constant *c = (Constant *) n;
+//			correctDts = appendToTailOfList(correctDts,c->constType);
+//    	}
+    }
+
+    FORBOTH(Node,d,cd,dts,correctDts)
+    {
+    	if(d != cd)
+    	{
+    		dts = (List *) correctDts;
+    		break;
+    	}
+    }
+
     // create table access op
     rel = createTableAccessOp(r->rel, NULL, "REL", NIL, attrNames, dts);
     COPY_PROPS_TO_TABLEACCESS(rel,r);
