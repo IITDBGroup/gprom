@@ -1758,13 +1758,14 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 						ruleArgs = appendToTailOfList(ruleArgs, n);
 					else
 					{
-						DLVar *v;
-
 						if(isA(n, DLVar))
+						{
+	                        DLVar *v;
 							v = (DLVar *) n;
 
-						if(v->dt != DT_BOOL)
-							ruleArgs = appendToTailOfList(ruleArgs, v);
+                            if(v->dt != DT_BOOL)
+                                ruleArgs = appendToTailOfList(ruleArgs, v);
+						}
 					}
 //				}
 			}
