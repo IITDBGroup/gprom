@@ -124,6 +124,10 @@ functionCallToSQL (StringInfo str, FunctionCall *node)
         appendStringInfoString(str, node->functionname);
 
     appendStringInfoString(str, "(");
+    if (node->isDistinct)
+    {
+        appendStringInfoString(str, "DISTINCT ");
+    }
 
     int i = 0;
     //Node *entity;

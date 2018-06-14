@@ -11,6 +11,7 @@ typedef struct FunctionCall {
     char *functionname;
     List *args;
     boolean isAgg;
+    boolean isDistinct;
 } FunctionCall;
 
 typedef struct Operator {
