@@ -432,7 +432,7 @@ typeOf (Node *expr)
 {
     switch(expr->type)
     {
-    	    case T_AttributeReference:
+    	case T_AttributeReference:
         {
             AttributeReference *a = (AttributeReference *) expr;
             return a->attrType;
@@ -949,7 +949,8 @@ typeOfOpSplit (char *opName, List *argDTs, boolean *exists)
             return DT_BOOL;
     }
 
-    if (streq(opName,OPNAME_NOT))
+    // TODO: operator name is "NOT" or "not"
+    if (streq(opName,OPNAME_NOT) || streq(opName,OPNAME_not))
     {
         if (dLeft == DT_BOOL)
             return DT_BOOL;

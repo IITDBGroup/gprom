@@ -1542,9 +1542,41 @@ serializeProjectionAndAggregation (QueryBlockMatch *m, StringInfo select,
 
         DEBUG_LOG("outer projection");
 
+        // translate the neg-bool attributes to CASE WHEN
+        List *newProjExprs = NIL;
+        CaseExpr *caseExpr = NULL;
+
+        FOREACH(Node,n,p->projExprs)
+        {
+            if(isA(n,Operator))
+        	{
+            	Operator *o = (Operator *) n;
+            	Node *dv = (Node *) getHeadOfListP(o->args);
+
+            	// instead of having DLVar here, check the operator for neg-bool by length
+            	if(LIST_LENGTH(o->args) == 1)
+            	{
+        			Node *cond = (Node *) createConstInt(0);
+        			Node *then = (Node *) createConstInt(1);
+        			Node *els = (Node *) createConstInt(0);
+
+        			CaseWhen *caseWhen = createCaseWhen(cond, then);
+        			caseExpr = createCaseExpr(dv, singleton(caseWhen), els);
+            	}
+        	}
+            else
+            	newProjExprs = appendToTailOfList(newProjExprs,n);
+        }
+
+        if(caseExpr != NULL)
+        {
+        	newProjExprs = appendToTailOfList(newProjExprs,caseExpr);
+        	p->projExprs = newProjExprs;
+        }
+
         FOREACH(Node,a,p->projExprs)
         {
-            char *attrName = (char *) getNthOfListP(attrNames, pos);
+        	char *attrName = (char *) getNthOfListP(attrNames, pos);
             if (pos++ != 0)
                 appendStringInfoString(select, ", ");
 

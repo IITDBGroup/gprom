@@ -1760,8 +1760,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 					{
 						if(isA(n, DLVar))
 						{
-	                        DLVar *v;
-							v = (DLVar *) n;
+	                        DLVar *v = (DLVar *) n;
 
                             if(v->dt != DT_BOOL)
                                 ruleArgs = appendToTailOfList(ruleArgs, v);
@@ -1837,12 +1836,10 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 				FOREACH(Node,n,a->args)
 				{
 					if(isA(n, Constant))
-					{
 						woBoolArgs = appendToTailOfList(woBoolArgs,n);
-					}
 					else
 					{
-						DLVar *v;
+						DLVar *v = NULL;
 
 						if(isA(n, DLVar))
 							v = (DLVar *) n;
@@ -1853,10 +1850,13 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 							v = (DLVar *) getHeadOfListP(o->args);
 						}
 
-						if (v->dt != DT_BOOL)
-							woBoolArgs = appendToTailOfList(woBoolArgs,v);
-						else
-							boolArgs = appendToTailOfList(boolArgs,v);
+						if(v != NULL)
+						{
+							if (v->dt != DT_BOOL)
+								woBoolArgs = appendToTailOfList(woBoolArgs,v);
+							else
+								boolArgs = appendToTailOfList(boolArgs,v);
+						}
 					}
 				}
 
@@ -1878,11 +1878,14 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 
 					if (!ruleWon)
 					{
-						Node *n = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+//						Node *n = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+//						argsForMoves = replaceNode(argsForMoves,
+//												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
+//												   isA(n,Operator) ? createConstBool(TRUE): createConstBool(FALSE));
+
 						argsForMoves = replaceNode(argsForMoves,
 												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
-												   isA(n,Operator) ? createConstBool(TRUE) : createConstBool(FALSE));
-
+												   createConstBool(FALSE));
 					}
 
 					// rule -> goal
@@ -2772,6 +2775,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     DLVar *createArgs;
     DLRule *ruleRule;
 	char *vName = NULL;
+//	List *negAtoms = NIL;
 
     // collect rules and adornedheads we are interested in
 
@@ -2894,7 +2898,20 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					// add boolean variables into corresponding goal atom
 					if(!ruleWon)
 					{
-						a->args = appendToTailOfList(a->args,getNthOfListP(newRuleArg,goalPos));
+						Node *n = (Node *) getNthOfListP(newRuleArg,goalPos);
+
+						if(isA(n,Operator))
+						{
+							Operator *o = (Operator *) n;
+							DLVar *v = (DLVar *) getHeadOfListP(o->args);
+							n = (Node *) v;
+						}
+
+						a->args = appendToTailOfList(a->args,n);
+
+//						if(a->negated)
+//							negAtoms = appendToTailOfList(negAtoms, a);
+
 						a->negated = FALSE;
 					}
 
@@ -3806,7 +3823,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 		{
 			if(isA(n,DLVar) || isA(n,Operator))
 			{
-				DLVar *v;
+				DLVar *v = NULL;
 
 				if(isA(n,DLVar))
 					v = (DLVar *) n;
@@ -3817,7 +3834,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					v = (DLVar *) getHeadOfListP(o->args);
 				}
 
-				if(v->dt == DT_BOOL)
+				if(v != NULL && v->dt == DT_BOOL)
 					boolArgs = appendToTailOfList(boolArgs,n);
 			}
 		}
@@ -3837,35 +3854,30 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				AD_NORM_COPY(lookup,a);
 				DL_DEL_PROP(at,DL_IS_IDB_REL);
 				List *goalRules = (List *) getMap(idbAdToRules, (Node *) lookup);
-
-//				FOREACH(Node,n,lookup->args)
+//
+//				if(searchListNode(negAtoms,(Node *) a))
 //				{
-//					if(isA(n,Operator))
+//					FOREACH(DLRule,gr,goalRules)
 //					{
-//						FOREACH(DLRule,gr,goalRules)
+//						int boolPos = 0;
+//						int argPos = 0;
+//
+//						FOREACH(Node,n,gr->head->args)
 //						{
-//							int boolPos = 0;
-//							int argPos = 0;
-//
-//							FOREACH(Node,n,gr->head->args)
+//							if(isA(n,Constant))
 //							{
-//								if(isA(n,Constant))
-//								{
-//									Constant *c = (Constant *) n;
-//
-//									if(c->constType == DT_BOOL)
-//										boolPos = argPos;
-//								}
-//
-//								argPos++;
+//								Constant *c = (Constant *) n;
+//								if(c->constType == DT_BOOL)
+//									boolPos = argPos;
 //							}
 //
-//							gr->head->args = replaceNode(gr->head->args,
-//									getNthOfListP(gr->head->args,boolPos), createConstBool(TRUE));
+//							argPos++;
 //						}
+//
+//						gr->head->args = replaceNode(gr->head->args, getNthOfListP(gr->head->args,boolPos), createConstBool(TRUE));
 //					}
 //				}
-
+//
 				DEBUG_LOG("create link rules between %s and rule %s\nusing rules:\n%s",
 						datalogToOverviewString((Node *) lookup),
 						datalogToOverviewString((Node *) unRule),
