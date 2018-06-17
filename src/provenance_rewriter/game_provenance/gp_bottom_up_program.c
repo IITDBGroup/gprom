@@ -4558,7 +4558,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 									domHead->args = singleton((DLVar *) n);
 									DL_SET_BOOL_PROP(domHead,DL_IS_DOMAIN_REL);
 
-									addDomHead = appendToTailOfList(addDomHead,domHead);
+									if(!searchListNode(addDomHead, (Node *) domHead))
+										addDomHead = appendToTailOfList(addDomHead,domHead);
+
 									varPos++;
 									key = CONCAT_STRINGS(edbRel,gprom_itoa(varPos));
 								}
@@ -4744,6 +4746,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //    		}
 
 			List *domFromAttr = NIL;
+			HashMap *domRuleCnt = NEW_MAP(Constant,Constant);
 
 			// create domain rules
 			FOREACH(DLRule,r,edbRules)
@@ -4757,7 +4760,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 						FOREACH(Node,n,a->args)
 						{
-							if(isA(n,DLVar))
+							int numDomRules = 0;
+
+							if(mapSize(domRuleCnt) > 0)
+								numDomRules = INT_VALUE(MAP_GET_STRING(domRuleCnt,a->rel));
+
+							if(isA(n,DLVar) && LIST_LENGTH(a->args)-1 > numDomRules)
 							{
 								DLVar *domVar = copyObject((DLVar *) n);
 								char *key = CONCAT_STRINGS(a->rel,domVar->name,gprom_itoa(varPos));
@@ -4787,6 +4795,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 									// collect which attribute is used for creating domain
 									domFromAttr = appendToTailOfList(domFromAttr,key);
+
+									/*
+									 *  keep track of number of domain rules are matching with number domain needed
+									 *  e.g., not RHOP_WON('c',Y) only need two domain rules, e.g., DQ(X) :- HOP(X,Y) and DQ(X) :- HOP(Y,X)
+									 */
+									MAP_INCR_STRING_KEY(domRuleCnt,a->rel);
 								}
 							}
 
