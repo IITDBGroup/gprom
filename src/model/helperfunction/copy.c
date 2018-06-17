@@ -373,6 +373,7 @@ copyFunctionCall(FunctionCall *from, OperatorMap **opMap)
     COPY_STRING_FIELD(functionname);
     COPY_NODE_FIELD(args);
     COPY_SCALAR_FIELD(isAgg);
+    COPY_SCALAR_FIELD(isDistinct);
 
     return new;
 }
@@ -838,7 +839,7 @@ copyFromProvInfo(FromProvInfo *from, OperatorMap **opMap)
     COPY_SCALAR_FIELD(baserel);
     COPY_SCALAR_FIELD(intermediateProv);
     COPY_STRING_LIST_FIELD(userProvAttrs);
-
+    COPY_NODE_FIELD(provProperties);
     return new;
 }
 

@@ -405,6 +405,7 @@ equalFunctionCall(FunctionCall *a, FunctionCall *b, HashMap *seenOps, MemContext
     COMPARE_STRING_FIELD(functionname);
     COMPARE_NODE_FIELD(args);
     COMPARE_SCALAR_FIELD(isAgg);
+    COMPARE_SCALAR_FIELD(isDistinct);
 
     return TRUE;
 }
@@ -928,7 +929,7 @@ equalFromProvInfo (FromProvInfo *a, FromProvInfo *b, HashMap *seenOps, MemContex
     COMPARE_SCALAR_FIELD(baserel);
     COMPARE_SCALAR_FIELD(intermediateProv);
     COMPARE_STRING_LIST_FIELD(userProvAttrs);
-
+    COMPARE_NODE_FIELD(provProperties);
     return TRUE;
 }
 

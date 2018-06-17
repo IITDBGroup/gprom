@@ -288,6 +288,7 @@ createFunctionCall(char *fName, List *args)
 
     result->args = args; //should we copy?
     result->isAgg = FALSE;
+    result->isDistinct = FALSE;
 
     return result; 
 }

@@ -16,6 +16,7 @@
 #include "parser/parse_internal_oracle.h"
 #include "log/logger.h"
 #include "model/query_operator/operator_property.h"
+#include "utility/string_utils.h"
 
 #define RULELOG(grule) \
     { \
@@ -64,6 +65,7 @@ Node *oracleParseResult = NULL;
 %token <stringVal> SELECT INSERT UPDATE DELETE
 %token <stringVal> SEQUENCED TEMPORAL TIME
 %token <stringVal> PROVENANCE OF BASERELATION SCN TIMESTAMP HAS TABLE ONLY UPDATED SHOW INTERMEDIATE USE TUPLE VERSIONS STATEMENT ANNOTATIONS NO REENACT OPTIONS SEMIRING COMBINER MULT UNCERTAIN
+%token <stringVal> TIP INCOMPLETE VTABLE
 %token <stringVal> FROM
 %token <stringVal> ISOLATION LEVEL
 %token <stringVal> AS
@@ -133,6 +135,7 @@ Node *oracleParseResult = NULL;
 //			 optInsertAttrList
 %type <node> selectItem fromClauseItem fromJoinItem optionalFromProv optionalAlias optionalDistinct optionalWhere optionalLimit optionalHaving orderExpr insertContent
              //optionalReruning optionalGroupBy optionalOrderBy optionalLimit 
+%type <node> optionalFromTIP optionalFromIncompleteTable optionalFromVTable
 %type <node> expression constant attributeRef sqlParameter sqlFunctionCall whereExpression setExpression caseExpression caseWhen optionalCaseElse castExpression
 %type <node> overClause windowSpec optWindowFrame windowBound
 %type <node> jsonTable jsonColInfoItem 
@@ -145,6 +148,7 @@ Node *oracleParseResult = NULL;
 %type <stringVal> optionalFormat optionalWrapper optionalstringConst
 %type <node> optionalTopK optionalSumType optionalToExplain optionalSumSample
 %type <list> optionalSummarization
+%type <intVal>	optionalCountDistinct
 
 %start stmtList
 
@@ -1085,12 +1089,16 @@ sqlFunctionCall:
 				else  
                 	$$ = (Node *) f; 
             }
-		| AMMSC '(' exprList ')' overClause          
+		| AMMSC '(' optionalCountDistinct exprList ')' overClause          
             {
                 RULELOG("sqlFunctionCall::AMMSC::exprList");
-				FunctionCall *f = createFunctionCall($1, $3);
-				if ($5 != NULL)
-					$$ = (Node *) createWindowFunction(f, (WindowDef *) $5);
+				FunctionCall *f = createFunctionCall($1, $4);
+				if ($3 == 1)
+				{
+					f->isDistinct = TRUE;
+				}
+				if ($6 != NULL)
+					$$ = (Node *) createWindowFunction(f, (WindowDef *) $6);
 				else  
                 	$$ = (Node *) f; 
             }
@@ -1105,6 +1113,12 @@ sqlFunctionCall:
 				else  
                 	$$ = (Node *) f; 
             }
+    ;
+
+// optional distinct in count (distinct ...)
+optionalCountDistinct:
+	   /*  EMPTY */ { RULELOG("optionalDistinct::EMPTY"); $$ = 0; }
+	   | DISTINCT { RULELOG("optionalDistinct::DISTINCT"); $$ = 1; }
     ;
 
 /*
@@ -1346,13 +1360,13 @@ fromClause:
 
 
 fromClauseItem:
-        identifier optionalFromProv
+		identifier optionalFromProv
             {
                 RULELOG("fromClauseItem");
 				FromItem *f = createFromTableRef(NULL, NIL, $1, NIL);
 				f->provInfo = (FromProvInfo *) $2;
                 $$ = (Node *) f;
-            }
+            }	
         | identifier optionalAlias
             {
                 RULELOG("fromClauseItem");
@@ -1489,9 +1503,42 @@ optionalAlias:
 				$$ = (Node *) f;
 			}
     ;
-    
+
+optionalFromTIP:
+		IS TIP '(' identifier ')'
+		{
+			RULELOG("optionalFromTIP");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			setStringProvProperty(p, PROV_PROP_TIP_ATTR, (Node *) createConstString($4));
+			$$ = (Node *) p;
+		}
+;
+
+optionalFromIncompleteTable:
+		IS INCOMPLETE 
+		{
+			RULELOG("optionalFromIncompleteTable");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			setStringProvProperty(p, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstBool(1));	
+			$$ = (Node *) p;
+		}
+;
+
+optionalFromVTable:
+		IS VTABLE '(' identifier ')' 
+		{
+			RULELOG("optionalFromVTable");
+			FromProvInfo *p = makeNode(FromProvInfo);
+			setStringProvProperty(p, PROV_PROP_V_TABLE, (Node *) createConstString($4));
+			$$ = (Node *) p;
+		}
+;
+
 optionalFromProv:
-		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; }
+		/* empty */ { RULELOG("optionalFromProv::empty"); $$ = NULL; } 
+		| optionalFromTIP {  $$ = $1; }
+		| optionalFromIncompleteTable { $$ = $1; }
+		| optionalFromVTable { $$ = $1; }
 		| BASERELATION 
 			{
 				RULELOG("optionalFromProv::BASERELATION");

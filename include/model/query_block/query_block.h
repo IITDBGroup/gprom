@@ -105,6 +105,7 @@ typedef struct FromProvInfo
     boolean baserel;
     boolean intermediateProv;
     List *userProvAttrs;
+    Node *provProperties;
 } FromProvInfo;
 
 typedef struct FromItem
@@ -326,5 +327,11 @@ extern CreateTable *createCreateTable (char *tName, List *tableElem);
 extern CreateTable *createCreateTableQuery (char *tName, Node *q);
 extern AlterTable *createAlterTableAddColumn (char *tName, char *newColName, char *newColDT);
 extern AlterTable *createAlterTableRemoveColumn (char *tName, char *colName);
+
+/* deal with provProperties*/
+extern void setProvProperty (FromProvInfo *from, Node *key, Node *value);
+extern Node *getProvProperty (FromProvInfo *from, Node *key);
+extern void setStringProvProperty (FromProvInfo *from, char *key, Node *value);
+extern Node *getStringProvProperty (FromProvInfo *from, char *key);
 
 #endif /* QUERY_BLOCK_H */

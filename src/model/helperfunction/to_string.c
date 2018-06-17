@@ -581,6 +581,7 @@ outFunctionCall (StringInfo str, FunctionCall *node)
     WRITE_STRING_FIELD(functionname);
     WRITE_NODE_FIELD(args);
     WRITE_BOOL_FIELD(isAgg);
+    WRITE_BOOL_FIELD(isDistinct);
 }
 
 static void
@@ -765,6 +766,7 @@ outFromProvInfo (StringInfo str, FromProvInfo *node)
     WRITE_BOOL_FIELD(baserel);
     WRITE_BOOL_FIELD(intermediateProv);
     WRITE_STRING_LIST_FIELD(userProvAttrs);
+    WRITE_NODE_FIELD(provProperties);
 }
 
 static void

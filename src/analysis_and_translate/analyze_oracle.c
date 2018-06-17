@@ -437,6 +437,38 @@ analyzeFromProvInfo (FromItem *f)
             }
         }
 
+        //Checking if a provProperty was declared
+        if (fp->provProperties)
+		{
+        	//Remove the probability attribute if specified through the TIP flag
+        	if (getStringProvProperty(fp, PROV_PROP_TIP_ATTR))
+        	{
+        		int pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)));
+				DEBUG_LOG("TIP attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_TIP_ATTR)), pos);
+				f->attrNames = deepCopyStringList(f->attrNames);
+				f->dataTypes 	= copyObject(f->dataTypes);
+				f->attrNames = removeListElemAtPos(f->attrNames, pos);
+				f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+        	}
+
+        	//Indicating an incomplete table has been called
+			if (getStringProvProperty(fp, PROV_PROP_INCOMPLETE_TABLE))
+			{
+				DEBUG_LOG("INCOMPLETE TABLE");
+			}
+
+			//Removing the probability attribute if specified through the VTABLE flag
+			if (getStringProvProperty(fp, PROV_PROP_V_TABLE))
+			{
+				int pos = listPosString(f->attrNames, STRING_VALUE(getStringProvProperty(fp, PROV_PROP_V_TABLE)));
+				DEBUG_LOG("VTABLE attribute %s at position %u", STRING_VALUE(getStringProvProperty(fp, PROV_PROP_V_TABLE)), pos);
+				f->attrNames = deepCopyStringList(f->attrNames);
+				f->dataTypes 	= copyObject(f->dataTypes);
+				f->attrNames = removeListElemAtPos(f->attrNames, pos);
+				f->dataTypes = removeListElemAtPos(f->dataTypes, pos);
+			}
+		}
+
         // if user declared some attributes as provenance (HAS PROVENANCE) then these attributes are temporarily removed
         // since they should not be referenced by query for which we are computing provenance
         if (fp->baserel == FALSE && fp->intermediateProv == FALSE && fp->userProvAttrs != NIL)
@@ -1639,6 +1671,7 @@ analyzeProvenanceStmt (ProvenanceStmt *q, List *parentFroms)
 
             q->selectClause = concatTwoLists(q->selectClause,provAttrNames);
             q->dts = concatTwoLists(q->dts,provDts);
+            INFO_NODE_BEATIFY_LOG("UNCERTAIN:", q);
         }
         break;
         case PROV_INPUT_TEMPORAL_QUERY:

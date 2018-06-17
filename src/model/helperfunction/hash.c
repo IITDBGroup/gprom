@@ -397,6 +397,7 @@ hashFunctionCall (uint64_t cur, FunctionCall *node)
     HASH_STRING(functionname);
     HASH_NODE(args);
     HASH_BOOLEAN(isAgg);
+    HASH_BOOLEAN(isDistinct);
 
     HASH_RETURN();
 }
@@ -513,7 +514,7 @@ hashFromProvInfo (uint64_t cur, FromProvInfo *node)
     HASH_BOOLEAN(baserel);
     HASH_BOOLEAN(intermediateProv);
     HASH_NODE(userProvAttrs);
-
+    HASH_NODE(provProperties);
     HASH_RETURN();
 }
 

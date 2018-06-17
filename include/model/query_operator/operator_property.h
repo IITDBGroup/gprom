@@ -26,6 +26,7 @@
 #define PROP_ADD_PROVENANCE "ADD_PROVENANCE"                // add the following attribtues to as provenance attributes (but still rewrite and add normal provenance attrs too)
 #define PROP_PROV_IGNORE_ATTRS "IGNORE_PROV_ATTRS"          // these attributes should be ignored during rewrite
 #define PROP_TRANSLATE_AS "TRANSLATE AS"
+#define PROP_TIP_ATTR "TIP_ATTR"							// indicates TIP attribute
 
 // reenactment
 #define PROP_REENACT_SCHEMA_INFO "REENACT_SCHEMA"           // store additional table schemas to support reenactment of DDL commands
@@ -108,5 +109,10 @@
 #define PROP_TEMP_TNTAB "PROP_TEMP_TNTAB"
 #define PROP_TEMP_IS_MINMAX "PROP_TEMP_IS_MINMAX"
 #define PROP_TEMP_ATTR_DT "PROP_TEMP_ATTR_DT"
+
+/* fromProvInfo provProperties */
+#define PROV_PROP_TIP_ATTR "TIP_ATTR"
+#define PROV_PROP_INCOMPLETE_TABLE "INCOMPLETE_TABLE"
+#define PROV_PROP_V_TABLE "V_TABLE"
 
 #endif /* OPERATOR_PROPERTY_H_ */
