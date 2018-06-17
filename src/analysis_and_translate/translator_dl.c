@@ -1033,7 +1033,7 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
         {
             if (isA(bA, DLVar) || isA(bA, Operator))
             {
-                DLVar *v;
+                DLVar *v = NULL;
 
                 if(isA(bA, DLVar))
                 	v = (DLVar *) bA;
@@ -1047,14 +1047,17 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
                 		v = (DLVar *) n;
                 }
 
-                AttributeDef *d = (AttributeDef *) a;
-
-                if(streq(v->name,d->attrName))
+                if(v != NULL)
                 {
-					MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
-										createConstString(d->attrName),
-										createConstInt(pos),
-										createConstInt(d->dataType)));
+                    AttributeDef *d = (AttributeDef *) a;
+
+                    if(streq(v->name,d->attrName))
+                    {
+    					MAP_ADD_STRING_KEY(vToA, v->name,(Node *) LIST_MAKE(
+    										createConstString(d->attrName),
+    										createConstInt(pos),
+    										createConstInt(d->dataType)));
+                    }
                 }
             }
 
