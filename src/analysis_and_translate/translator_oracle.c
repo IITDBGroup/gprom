@@ -10,28 +10,24 @@
  *-----------------------------------------------------------------------------
  */
 
+#include "common.h"
+#include "log/logger.h"
+#include "mem_manager/mem_mgr.h"
 #include "analysis_and_translate/translator_oracle.h"
-
-#include <ocilib.h>
-#include <string.h>
-
-#include "../../include/analysis_and_translate/analyzer.h"
-#include "../../include/analysis_and_translate/parameter.h"
-#include "../../include/analysis_and_translate/translate_update.h"
-#include "../../include/common.h"
-#include "../../include/instrumentation/timing_instrumentation.h"
-#include "../../include/log/logger.h"
-#include "../../include/mem_manager/mem_mgr.h"
-#include "../../include/metadata_lookup/metadata_lookup.h"
-#include "../../include/model/expression/expression.h"
-#include "../../include/model/list/list.h"
-#include "../../include/model/query_block/query_block.h"
-#include "../../include/model/query_operator/operator_property.h"
-#include "../../include/model/query_operator/query_operator_model_checker.h"
-#include "../../include/model/set/hashmap.h"
-#include "../../include/parser/parser.h"
-#include "../../include/provenance_rewriter/prov_utility.h"
-#include "../../include/utility/string_utils.h"
+#include "analysis_and_translate/analyzer.h"
+#include "analysis_and_translate/parameter.h"
+#include "analysis_and_translate/translate_update.h"
+#include "instrumentation/timing_instrumentation.h"
+#include "metadata_lookup/metadata_lookup.h"
+#include "model/expression/expression.h"
+#include "model/list/list.h"
+#include "model/query_block/query_block.h"
+#include "model/query_operator/operator_property.h"
+#include "model/query_operator/query_operator_model_checker.h"
+#include "model/set/hashmap.h"
+#include "parser/parser.h"
+#include "provenance_rewriter/prov_utility.h"
+#include "utility/string_utils.h"
 
 // data types
 typedef struct ReplaceGroupByState {
