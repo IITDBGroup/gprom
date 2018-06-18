@@ -1833,34 +1833,37 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 				List *argsForMoves = NIL;
 				List *boolArgs = NIL;
 
-				FOREACH(Node,n,a->args)
+				Node *atom = (Node *) a;
+
+				if(isA(atom,DLAtom))
 				{
-					if(isA(n, Constant))
-						woBoolArgs = appendToTailOfList(woBoolArgs,n);
-					else
+					FOREACH(Node,n,a->args)
 					{
-						DLVar *v = NULL;
-
-						if(isA(n, DLVar))
-							v = (DLVar *) n;
-
-						if(isA(n,Operator))
+						if(isA(n, Constant))
+							woBoolArgs = appendToTailOfList(woBoolArgs,n);
+						else
 						{
-							Operator *o = (Operator *) n;
-							v = (DLVar *) getHeadOfListP(o->args);
-						}
+							DLVar *v = NULL;
 
-						if(v != NULL)
-						{
-							if (v->dt != DT_BOOL)
-								woBoolArgs = appendToTailOfList(woBoolArgs,v);
-							else
-								boolArgs = appendToTailOfList(boolArgs,v);
+							if(isA(n, DLVar))
+								v = (DLVar *) n;
+
+							if(isA(n,Operator))
+							{
+								Operator *o = (Operator *) n;
+								v = (DLVar *) getHeadOfListP(o->args);
+							}
+
+							if(v != NULL)
+							{
+								if (v->dt != DT_BOOL)
+									woBoolArgs = appendToTailOfList(woBoolArgs,v);
+								else
+									boolArgs = appendToTailOfList(boolArgs,v);
+							}
 						}
 					}
 				}
-
-				Node *atom = (Node *) a;
 
 				if(isA(atom,DLAtom) && !LIST_EMPTY(boolArgs))
 				{
@@ -3024,20 +3027,24 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	            rulePosRule->head = copyObject(ruleAtom);
 
 	            // adapt goal nodesrulePosRule
-				FOREACH(DLAtom,a,rulePosRule->body)
+				FOREACH(Node,n,rulePosRule->body)
 				{
-					char *adGoalName = CONCAT_STRINGS("R", a->rel, "_",
-											"WON", NON_LINKED_POSTFIX);
+					if(isA(n,DLAtom))
+					{
+						DLAtom *a = (DLAtom *) n;
+						char *adGoalName = CONCAT_STRINGS("R", a->rel, "_",
+												"WON", NON_LINKED_POSTFIX);
 
-					a->rel = adGoalName;
+						a->rel = adGoalName;
 
-	//				if (a->negated)
-	//				{
-	//					a->negated = FALSE;
-	//					a->rel = replaceSubstr(a->rel,"WON","LOST");
-	//				}
+		//				if (a->negated)
+		//				{
+		//					a->negated = FALSE;
+		//					a->rel = replaceSubstr(a->rel,"WON","LOST");
+		//				}
 
-					setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(a));
+						setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(a));
+					}
 				}
 
 	            unLinkedHelpRules = appendToTailOfList(unLinkedHelpRules, rulePosRule);
@@ -3064,48 +3071,53 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	            // adapt goal nodes
 	//        	FOREACH(DLRule,ur,unLinkedRules)
 	//        	{
-	           		FOREACH(DLAtom,a,ruleRule->body)
+	           		FOREACH(Node,n,ruleRule->body)
 	           		{
-	           			// if an edb atom
-	           			if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
+	           			if(isA(n,DLAtom))
 	           			{
-	           				DLAtom *at;
-	           				AD_NORM_COPY(at,a);
-	          				addToSet(adornedEDBHelpAtoms,at);
+	           				DLAtom *a = (DLAtom *) n;
 
-	          				// create negative rule for EDB help rules
-	    					DLAtom *negHelpHead = copyObject(a);
-	    					DLRule *negHelpRule = makeNode(DLRule);
-	    					negHelpRule->head = copyObject(negHelpHead);
+		           			// if an edb atom
+		           			if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
+		           			{
+		           				DLAtom *at;
+		           				AD_NORM_COPY(at,a);
+		          				addToSet(adornedEDBHelpAtoms,at);
 
-	    					if (negHelpHead->negated)
-	    					{
-	    						negHelpRule->head->negated = FALSE;
-	    						negHelpRule->head->args = CONCAT_LISTS(removeFromTail(negHelpRule->head->args),
-	    													singleton(createConstBool(TRUE)));
-	    					}
-	    					else
-	    						negHelpRule->head->args = CONCAT_LISTS(removeFromTail(negHelpRule->head->args),
-	    							singleton(createConstBool(FALSE)));
+		          				// create negative rule for EDB help rules
+		    					DLAtom *negHelpHead = copyObject(a);
+		    					DLRule *negHelpRule = makeNode(DLRule);
+		    					negHelpRule->head = copyObject(negHelpHead);
 
-	    					DL_DEL_PROP(negHelpRule->head,DL_IS_IDB_REL);
-	    					setDLProp((DLNode *) negHelpRule->head, DL_ORIG_ATOM, (Node *) copyObject(negHelpHead));
+		    					if (negHelpHead->negated)
+		    					{
+		    						negHelpRule->head->negated = FALSE;
+		    						negHelpRule->head->args = CONCAT_LISTS(removeFromTail(negHelpRule->head->args),
+		    													singleton(createConstBool(TRUE)));
+		    					}
+		    					else
+		    						negHelpRule->head->args = CONCAT_LISTS(removeFromTail(negHelpRule->head->args),
+		    							singleton(createConstBool(FALSE)));
 
-	    					negHelpRule->body = singleton(copyObject(negHelpHead));
-	//    					negHelpRule->body = singleton(copyObject(a));
-	    					FOREACH(DLAtom,b,negHelpRule->body)
-	    					{
-	    						b->rel = replaceSubstr(b->rel,"WL","LOST");
-	    						b->args = removeFromTail(b->args);
-	//    						b->args = CONCAT_LISTS(removeFromTail(negHelpHead->args), singleton(createConstBool(FALSE)));
-	    					}
+		    					DL_DEL_PROP(negHelpRule->head,DL_IS_IDB_REL);
+		    					setDLProp((DLNode *) negHelpRule->head, DL_ORIG_ATOM, (Node *) copyObject(negHelpHead));
 
-	    					AD_NORM_COPY(lookupAtom,negHelpHead);
-	    					CONCAT_MAP_LIST(idbAdToRules,(Node *) lookupAtom, singleton(negHelpRule));
+		    					negHelpRule->body = singleton(copyObject(negHelpHead));
+		//    					negHelpRule->body = singleton(copyObject(a));
+		    					FOREACH(DLAtom,b,negHelpRule->body)
+		    					{
+		    						b->rel = replaceSubstr(b->rel,"WL","LOST");
+		    						b->args = removeFromTail(b->args);
+		//    						b->args = CONCAT_LISTS(removeFromTail(negHelpHead->args), singleton(createConstBool(FALSE)));
+		    					}
+
+		    					AD_NORM_COPY(lookupAtom,negHelpHead);
+		    					CONCAT_MAP_LIST(idbAdToRules,(Node *) lookupAtom, singleton(negHelpRule));
+		           			}
+		           			else
+		           				if (idbAtoms == NIL)
+		           					idbAtoms = appendToTailOfList(idbAtoms,a);
 	           			}
-	           			else
-	           				if (idbAtoms == NIL)
-	           					idbAtoms = appendToTailOfList(idbAtoms,a);
 	           		}
 	//        	}
 	        }
@@ -4755,17 +4767,17 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				{
 					if (DL_HAS_PROP(a,DL_IS_EDB_REL) && MAP_HAS_STRING_KEY(relDomPair,a->rel))
 					{
+						if(!MAP_HAS_STRING_KEY(domRuleCnt,a->rel))
+							MAP_INCR_STRING_KEY(domRuleCnt,a->rel);
+
 		        		DL_DEL_PROP(a,DL_LOST);
 		        		int varPos = 0;
 
 						FOREACH(Node,n,a->args)
 						{
-							int numDomRules = 0;
+							int numDomRules = INT_VALUE(MAP_GET_STRING(domRuleCnt,a->rel));
 
-							if(mapSize(domRuleCnt) > 0)
-								numDomRules = INT_VALUE(MAP_GET_STRING(domRuleCnt,a->rel));
-
-							if(isA(n,DLVar) && LIST_LENGTH(a->args)-1 > numDomRules)
+							if(isA(n,DLVar) && LIST_LENGTH(a->args) > numDomRules)
 							{
 								DLVar *domVar = copyObject((DLVar *) n);
 								char *key = CONCAT_STRINGS(a->rel,domVar->name,gprom_itoa(varPos));
@@ -4897,14 +4909,14 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	FOREACH(DLRule,r,helpRules)
 		setIDBBody(r);
 
-	// make all the goals in the body of rule firing rule positive
-	if (getBoolOption(OPTION_WHYNOT_ADV))
-	{
-		FOREACH(DLRule,r,unLinkedRules)
-			FOREACH(DLAtom,a,r->body)
-				if(a->negated)
-					a->negated = FALSE;
-	}
+//	// make all the goals in the body of rule firing rule positive
+//	if (getBoolOption(OPTION_WHYNOT_ADV))
+//	{
+//		FOREACH(DLRule,r,unLinkedRules)
+//			FOREACH(DLAtom,a,r->body)
+//				if(a->negated && isA((Node *) a,DLAtom))
+//					a->negated = FALSE;
+//	}
 
 	DEBUG_LOG("------------- STEP 5 ---------------\ncreated unlinked rules:\n%s\nand unlinked help rules:\n%s\nand linked rules:\n%s\nand help rules:\n%s\nand EDB help rules:\n%s\nand EDB rules:\n%s\nand move rules:\n%s\nand domain rules:\n%s",
 	            datalogToOverviewString((Node *) unLinkedRules),
