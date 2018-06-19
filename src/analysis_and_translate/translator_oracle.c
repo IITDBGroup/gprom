@@ -1187,22 +1187,38 @@ translateFromProvInfo(QueryOperator *op, FromItem *f)
     else
         setStringProperty(op, PROP_USER_PROV_ATTRS, (Node *) stringListToConstList(getQueryOperatorAttrNames(op)));
 
-    /* user TIP attribute selected */
-	if (getStringProvProperty(from, PROV_PROP_TIP_ATTR) != NULL)
-	{
-		setStringProperty(op, PROP_TIP_ATTR, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
-		hasProv = TRUE;
-		from->userProvAttrs = singleton(strdup(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
-	}
-
-    /* table selected as incomplete */
+    /* table has a provProperty*/
     if (from->provProperties)
-	{
+    {
+    	/* user TIP attribute selected */
+		if (getStringProvProperty(from, PROV_PROP_TIP_ATTR))
+		{
+			setStringProperty(op, PROP_TIP_ATTR, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR))));
+			hasProv = TRUE;
+			//removed strdup
+			from->userProvAttrs = singleton(STRING_VALUE(getStringProvProperty(from, PROV_PROP_TIP_ATTR)));
+		}
+
+		/* table selected as INCOMPLETE */
 		if (getStringProvProperty(from, PROV_PROP_INCOMPLETE_TABLE))
 		{
-			setStringProperty(op, PROV_PROP_INCOMPLETE_TABLE, (Node *) createConstBool(1));
+			setStringProperty(op, PROP_INCOMPLETE_TABLE, (Node *) createConstBool(1));
 		}
-	}
+
+		/* table selected as VTABLE*/
+		if (getStringProvProperty(from, PROV_PROP_VTABLE_GROUPID))
+		{
+			if (getStringProvProperty(from, PROV_PROP_VTABLE_PROB))
+			{
+				setStringProperty(op, PROP_VTABLE_GROUPID, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_VTABLE_GROUPID))));
+				setStringProperty(op, PROP_VTABLE_PROB, (Node *) createConstString(STRING_VALUE(getStringProvProperty(from, PROV_PROP_VTABLE_PROB))));
+				hasProv = TRUE;
+				from->userProvAttrs = LIST_MAKE(STRING_VALUE(getStringProvProperty(from, PROV_PROP_VTABLE_GROUPID)), STRING_VALUE(getStringProvProperty(from, PROV_PROP_VTABLE_PROB)));
+			}
+		}
+    }
+
+
 
     /* set name for op */
     setStringProperty(op, PROP_PROV_REL_NAME, (Node *) createConstString(f->name));

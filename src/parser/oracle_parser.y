@@ -1504,11 +1504,12 @@ optionalFromIncompleteTable:
 ;
 
 optionalFromVTable:
-		IS VTABLE '(' identifier ')' 
+		IS VTABLE '(' identifier  ',' identifier ')' 
 		{
 			RULELOG("optionalFromVTable");
 			FromProvInfo *p = makeNode(FromProvInfo);
-			setStringProvProperty(p, PROV_PROP_V_TABLE, (Node *) createConstString($4));
+			setStringProvProperty(p, PROV_PROP_VTABLE_GROUPID, (Node *) createConstString($4));
+			setStringProvProperty(p, PROV_PROP_VTABLE_PROB, (Node *) createConstString($6));
 			$$ = (Node *) p;
 		}
 ;

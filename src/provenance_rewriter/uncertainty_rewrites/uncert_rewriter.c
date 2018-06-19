@@ -31,6 +31,7 @@ static Node *getOutputExprFromInput(Node *expr, int offset);
 static QueryOperator *rewriteUncertProvComp(QueryOperator *op);
 static QueryOperator *rewrite_UncertTIP(QueryOperator *op);
 static QueryOperator *rewrite_UncertIncompleteTable(QueryOperator *op);
+static QueryOperator *rewrite_UncertVTable(QueryOperator *op);
 static QueryOperator *rewrite_UncertSelection(QueryOperator *op);
 static QueryOperator *rewrite_UncertProjection(QueryOperator *op);
 static QueryOperator *rewrite_UncertTableAccess(QueryOperator *op);
@@ -48,14 +49,25 @@ QueryOperator *
 rewriteUncert(QueryOperator * op)
 {
 	QueryOperator *rewrittenOp;
-	if(HAS_STRING_PROP(op,PROP_TIP_ATTR)){
+	if(HAS_STRING_PROP(op,PROP_TIP_ATTR))
+	{
 		rewrittenOp = rewrite_UncertTIP(op);
 		return rewrittenOp;
 	}
 
-	if(HAS_STRING_PROP(op,PROV_PROP_INCOMPLETE_TABLE)){
+	if(HAS_STRING_PROP(op,PROV_PROP_INCOMPLETE_TABLE))
+	{
 		rewrittenOp = rewrite_UncertIncompleteTable(op);
 		return rewrittenOp;
+	}
+
+	if(HAS_STRING_PROP(op,PROP_VTABLE_GROUPID))
+	{
+		if(HAS_STRING_PROP(op,PROP_VTABLE_PROB))
+		{
+			rewrittenOp = rewrite_UncertVTable(op);
+			return rewrittenOp;
+		}
 	}
 
 	switch(op->type)
@@ -248,7 +260,6 @@ static QueryOperator *
 rewrite_UncertIncompleteTable(QueryOperator *op)
 {
 	DEBUG_LOG("rewriteIncompleteTable\n");
-	//SELECT A, B, U_A CASE WHEN  , U_B 1, U_R 1
 
 	//Uncert attributes Hashmap
 	HashMap * hmp = NEW_MAP(Node, Node);
@@ -282,6 +293,22 @@ rewrite_UncertIncompleteTable(QueryOperator *op)
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
 
 	return proj;
+}
+
+static  QueryOperator *
+rewrite_UncertVTable(QueryOperator *op)
+{
+	DEBUG_LOG("rewriteVTable\n");
+
+	//Uncert attributes Hashmap
+	HashMap * hmp = NEW_MAP(Node, Node);
+
+
+
+
+
+
+	return op;
 }
 
 static QueryOperator *
