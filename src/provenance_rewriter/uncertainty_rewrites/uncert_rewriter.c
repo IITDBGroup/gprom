@@ -366,11 +366,12 @@ rewrite_UncertVTable(QueryOperator *op)
 	QueryOperator *wOp4 = (QueryOperator *) createWindowOp((Node *)rowIdFC, partByGroupId, orderBy, NULL, rowIdName, selec1, NIL);
 	selec1->parents = singleton(wOp4);
 
+	/* Selection 2 */
 	Operator *countEqualsOne = createOpExpr("=",LIST_MAKE(createConstInt(1),getAttrRefByName(wOp4, rowIdName)));
 	QueryOperator *selec2 = (QueryOperator *)createSelectionOp((Node *)countEqualsOne, wOp4, NIL, getAttrNames(wOp4->schema));
 	wOp4->parents = singleton(selec2);
 
-	//Projecton
+	/* Final Projection */
 	QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(op), selec2, NIL, getNormalAttrNames(op));
 	selec2->parents = singleton(proj);
 
@@ -380,13 +381,15 @@ rewrite_UncertVTable(QueryOperator *op)
 		//Add U_nd->name to the schema, with data type int
 		addUncertAttrToSchema(hmp, proj, nd);
 		//Set the values of U_nd->name to CASE WHEN entryIsNull
-		appendToTailOfList(((ProjectionOperator *)proj)->projExprs,createConstInt(1));
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs,
+							createCaseOperator((Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selec2,maxProbName)))));
 	}
 
+	//Condition for U_R
+	Node *sumProbIsOne = (Node *)createOpExpr("=",LIST_MAKE(createConstFloat(1),getAttrRefByName(selec2,sumProbName)));
 	//Add U_R to the schema with data type int
 	addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
-	//Set the values of U_R to 1
-	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createCaseOperator(sumProbIsOne));
 
 	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
 
