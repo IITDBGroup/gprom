@@ -578,6 +578,7 @@ outFunctionCall (StringInfo str, FunctionCall *node)
     WRITE_STRING_FIELD(functionname);
     WRITE_NODE_FIELD(args);
     WRITE_BOOL_FIELD(isAgg);
+    WRITE_BOOL_FIELD(isDistinct);
 }
 
 static void

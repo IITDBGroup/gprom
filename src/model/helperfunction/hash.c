@@ -397,7 +397,7 @@ hashFunctionCall (uint64_t cur, FunctionCall *node)
     HASH_STRING(functionname);
     HASH_NODE(args);
     HASH_BOOLEAN(isAgg);
-
+    HASH_BOOLEAN(isDistinct);
     HASH_RETURN();
 }
 

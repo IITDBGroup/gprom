@@ -304,11 +304,97 @@ rewrite_UncertVTable(QueryOperator *op)
 	HashMap * hmp = NEW_MAP(Node, Node);
 
 
+	//get Group Id attribute name using PROP_PROP_VTABLE_GROUPID as the key
+	char *groupId = STRING_VALUE(GET_STRING_PROP(op,PROP_VTABLE_GROUPID));
+	//get Probability attribute name using PROP_VTABLE_PROB as the key
+	char *prob = STRING_VALUE(GET_STRING_PROP(op,PROP_VTABLE_PROB));
+
+	//Get attribute reference for Group ID
+	AttributeReference *groupIdRef = getAttrRefByName(op, groupId);
+	//Get attribute reference for Probability
+	AttributeReference *probRef = getAttrRefByName(op, prob);
+
+	//Make partition by;
+	List *partByGroupId = singleton(groupIdRef);
+
+	//WindowBound *winBoundCountOpen = createWindowBound(WINBOUND_UNBOUND_PREC,NULL);
+	//WindowFrame *winFrameCountOpen = createWindowFrame(WINFRAME_ROWS,winBoundCountOpen,NULL);
+
+	/* Window function 1 */
+	//Make max(prob) function call
+	FunctionCall *maxProbFC = createFunctionCall("MAX",singleton(probRef));
+	char *maxProbName = "MAX_PROB";
+	QueryOperator *wOp1 = (QueryOperator *) createWindowOp((Node *)maxProbFC, partByGroupId, NIL, NULL, maxProbName, op, NIL);
+
+	/* Window function 2 */
+	//Make sum(prob) function call
+	FunctionCall *sumProbFC = createFunctionCall("SUM",singleton(probRef));
+	char *sumProbName = "SUM_PROB";
+	QueryOperator *wOp2 = (QueryOperator *) createWindowOp((Node *)sumProbFC, partByGroupId, NIL, NULL, sumProbName, wOp1, NIL);
+	wOp1->parents = singleton(wOp2);
+
+	/* Window function 3+*/ //How to put distinct?
+	QueryOperator *prevWOp = wOp2;
+	List *attrExpr1 = getNormalAttrProjectionExprs(op);
+	FOREACH(Node, nd, attrExpr1)
+	{
+		char *countAttrName = CONCAT_STRINGS("COUNT_",((AttributeReference *)nd)->name);
+		//Make count(nd) function call
+		FunctionCall *countNdFC = createFunctionCall("COUNT",singleton(nd));
+		QueryOperator *wOpNd = (QueryOperator *) createWindowOp((Node *)countNdFC, partByGroupId, NIL, NULL, countAttrName, prevWOp, NIL);
+		prevWOp->parents = singleton(wOpNd);
+		prevWOp = wOpNd;
+	}
+
+	Operator *oneMinusSum = createOpExpr("-",LIST_MAKE(createConstInt(1),getAttrRefByName(prevWOp, sumProbName)));
+	Operator *firstParam = createOpExpr(">",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName),oneMinusSum));
+
+	Operator *secondParam = createOpExpr("=",LIST_MAKE(getAttrRefByName(prevWOp, maxProbName), probRef));
+	Operator *selec1Cond = createOpExpr("AND", LIST_MAKE(firstParam,secondParam));
+
+	/* Selection 1  */
+	QueryOperator *selec1 = (QueryOperator *)createSelectionOp((Node *)selec1Cond, prevWOp, NIL, getAttrNames(prevWOp->schema));
+	prevWOp->parents = singleton(selec1);
+
+	/* Window function 4 */
+	//Make sum(prob) function call
+	FunctionCall *rowIdFC = createFunctionCall("ROW_NUMBER", NIL);
+	char *rowIdName = "ROW_ID";
+	List *orderBy = NIL;
+	orderBy = appendToTailOfList(orderBy, copyObject(probRef));
+
+	QueryOperator *wOp4 = (QueryOperator *) createWindowOp((Node *)rowIdFC, partByGroupId, orderBy, NULL, rowIdName, selec1, NIL);
+	selec1->parents = singleton(wOp4);
+
+	Operator *countEqualsOne = createOpExpr("=",LIST_MAKE(createConstInt(1),getAttrRefByName(wOp4, rowIdName)));
+	QueryOperator *selec2 = (QueryOperator *)createSelectionOp((Node *)countEqualsOne, wOp4, NIL, getAttrNames(wOp4->schema));
+	wOp4->parents = singleton(selec2);
+
+	//Projecton
+	QueryOperator *proj = (QueryOperator *)createProjectionOp(getNormalAttrProjectionExprs(op), selec2, NIL, getNormalAttrNames(op));
+	selec2->parents = singleton(proj);
+
+	List *attrExpr2 = getNormalAttrProjectionExprs(op);
+	FOREACH(Node, nd, attrExpr2)
+	{
+		//Add U_nd->name to the schema, with data type int
+		addUncertAttrToSchema(hmp, proj, nd);
+		//Set the values of U_nd->name to CASE WHEN entryIsNull
+		appendToTailOfList(((ProjectionOperator *)proj)->projExprs,createConstInt(1));
+	}
+
+	//Add U_R to the schema with data type int
+	addUncertAttrToSchema(hmp, proj, (Node *)createAttributeReference(UNCERTAIN_ROW_ATTR));
+	//Set the values of U_R to 1
+	appendToTailOfList(((ProjectionOperator *)proj)->projExprs, createConstInt(1));
+
+	setStringProperty(proj, "UNCERT_MAPPING", (Node *)hmp);
+
+	switchSubtrees(op, proj);
+	op->parents = singleton(wOp1);
 
 
-
-
-	return op;
+	return proj;
 }
 
 static QueryOperator *

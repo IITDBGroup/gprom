@@ -402,7 +402,7 @@ equalFunctionCall(FunctionCall *a, FunctionCall *b, HashMap *seenOps, MemContext
     COMPARE_STRING_FIELD(functionname);
     COMPARE_NODE_FIELD(args);
     COMPARE_SCALAR_FIELD(isAgg);
-
+    COMPARE_SCALAR_FIELD(isDistinct);
     return TRUE;
 }
 

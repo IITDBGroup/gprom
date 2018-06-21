@@ -370,7 +370,7 @@ copyFunctionCall(FunctionCall *from, OperatorMap **opMap)
     COPY_STRING_FIELD(functionname);
     COPY_NODE_FIELD(args);
     COPY_SCALAR_FIELD(isAgg);
-
+    COPY_SCALAR_FIELD(isDistinct);
     return new;
 }
 
