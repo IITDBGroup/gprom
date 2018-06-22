@@ -44,9 +44,9 @@
 static char *rewriteParserOutput (Node *parse, boolean applyOptimizations);
 static char *rewriteQueryInternal (char *input, boolean rethrowExceptions);
 static void setupPlugin(const char *pluginType);
-static void summarizationPlan(Node *parse);
-static List *summOpts = NIL;
-static char *qType = NULL;
+//static void summarizationPlan(Node *parse);
+//static List *summOpts = NIL;
+//static char *qType = NULL;
 
 
 int
@@ -550,111 +550,3 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     return rewrittenSQL;
 }
 
-static void
-summarizationPlan (Node *parse)
-{
-    // store options for the summarization and question type
-    if (isA(parse, List) && isA(getHeadOfListP((List *) parse), ProvenanceStmt))
-    {
-        ProvenanceStmt *ps = (ProvenanceStmt *) getHeadOfListP((List *) parse);
-
-    	if (!LIST_EMPTY(ps->sumOpts))
-    		FOREACH(Node,n,ps->sumOpts)
-    			summOpts = appendToTailOfList(summOpts,n);
-
-    	qType = "WHY";
-    }
-    else // summarization options for DL input
-    {
-    	DLProgram *p = (DLProgram *) parse;
-
-    	// either why or why-not
-    	FOREACH(Node,n,p->rules)
-    	{
-    		if(isA(n,KeyValue))
-    		{
-    			KeyValue *kv = (KeyValue *) n;
-    			qType = STRING_VALUE(kv->key);
-
-    			if(isPrefix(qType,"WHYNOT_"))
-    				qType = "WHYNOT";
-    			else
-    				qType = "WHY";
-    		}
-    	}
-
-    	if (p->sumOpts != NIL)
-    	{
-    		FOREACH(Node,n,p->sumOpts)
-				summOpts = appendToTailOfList(summOpts,n);
-
-    		// keep track of (var,rel) and (negidb,edb)
-    		HashMap *varRelPair = NEW_MAP(Constant,Constant);
-    		HashMap *headEdbPair = NEW_MAP(Constant,List);
-    		List *negAtoms = NIL;
-
-    		FOREACH(Node,n,p->rules)
-    		{
-    			if(isA(n,DLRule))
-    			{
-    				DLRule *r = (DLRule *) n;
-            		List *edbList = NIL;
-
-    				FOREACH(Node,b,r->body)
-    				{
-    					if(isA(b,DLAtom))
-    					{
-    						DLAtom *a = (DLAtom *) b;
-
-    						// keep track of which negated atom needs domains from which edb atom
-    						if(a->negated)
-    							negAtoms = appendToTailOfList(negAtoms,a->rel);
-    						else
-           						edbList = appendToTailOfList(edbList,a->rel);
-
-    						// keep track of which variable belongs to which edb
-    						FOREACH(Node,n,a->args)
-    						{
-    							if(isA(n,DLVar))
-    							{
-    								DLVar *v = (DLVar *) n;
-    								MAP_ADD_STRING_KEY_AND_VAL(varRelPair,v->name,a->rel);
-    							}
-    						}
-    					}
-    				}
-
-        			char *headPred = getHeadPredName(r);
-    				MAP_ADD_STRING_KEY(headEdbPair,headPred,edbList);
-    			}
-    		}
-
-    		// store edb information for negated atoms and why-not questions
-    		if(!LIST_EMPTY(negAtoms))
-    		{
-        		FOREACH(char,c,negAtoms)
-        		{
-        			if(!MAP_HAS_STRING_KEY(headEdbPair,c))
-        				MAP_ADD_STRING_KEY_AND_VAL(varRelPair,c,c);
-        			else
-        			{
-        				List *edbs = (List *) MAP_GET_STRING(headEdbPair,c);
-
-        				FOREACH(char,e,edbs)
-        					MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
-        			}
-        		}
-    		}
-
-    		if(LIST_EMPTY(negAtoms) || streq(qType,"WHYNOT"))
-    		{
-				FOREACH_HASH(List,edbs,headEdbPair)
-					FOREACH(char,e,edbs)
-						MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
-    		}
-
-    		// store into the list of the summarization options
-    		summOpts = appendToTailOfList(summOpts, (Node *) varRelPair);
-    	}
-    }
-}
