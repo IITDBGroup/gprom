@@ -534,5 +534,25 @@ public class OracleMetadataLookup extends AbstractMetadataLookup {
 		return cost;
 	}
 	
+	/**
+	 * 
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#dataTypeToSQL(org.gprom.jdbc.jna.GProMJavaInterface.DataType)
+	 */
+	@Override
+	public String dataTypeToSQL (DataType dt) {
+	    switch(dt) {
+	        case DT_INT:
+	        case DT_LONG:
+	            return "NUMBER";
+	        case DT_FLOAT:
+	            return "BINARY_FLOAT";
+	        case DT_STRING:
+	        case DT_VARCHAR2:
+	            return "VARCHAR2(2000)";
+	        case DT_BOOL:
+	            return "NUMBER(1)";
+	    }
+		return "VARCHAR2(2000)";
+	}
 	
 }

@@ -426,9 +426,11 @@ provStmt:
 		    p->inputType = isQBUpdate(stmt) ? PROV_INPUT_UPDATE : PROV_INPUT_QUERY;
 		    p->provType = PROV_PI_CS;
 		    p->asOf = (Node *) $3;
-            p->options = concatTwoLists($4,$9);
-           	p->sumOpts = appendToTailOfList(p->sumOpts,$1);
-           	p->sumOpts = appendToTailOfList(p->sumOpts,(Node *) $10);
+            p->options = CONCAT_LISTS(singleton($1),$4,$9,$10,
+									  singleton(createNodeKeyValue(createConstString(PROP_SUMMARIZATION_DOSUM),
+															   createConstBool(TRUE))));
+           	/* p->sumOpts = appendToTailOfList(p->sumOpts,$1); */
+           	/* p->sumOpts = appendToTailOfList(p->sumOpts,(Node *) $10); */
             $$ = (Node *) p;
         }
     ;
@@ -440,7 +442,7 @@ optionalTopK:
 		TOP intConst
 		{
 			RULELOG("optionalTopK::topk");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString("topk"),(Node *) createConstInt($2));
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_SUMMARIZATION_TOPK),(Node *) createConstInt($2));
 		}
     ;
 
@@ -533,7 +535,7 @@ optionalSumType:
 		SUMMARIZED BY identifier 
 		{
 			RULELOG("optionalSummarization::SumType");
-			$$ = (Node *) createStringKeyValue(strdup("sumtype"),strdup($3));
+			$$ = (Node *) createStringKeyValue(strdup(PROP_SUMMARIZATION_TYPE),strdup($3));
 		}
 	;
 	
@@ -542,7 +544,7 @@ optionalToExplain:
 		TO EXPLAIN '(' attrElemList ')'
 		{
 			RULELOG("optionalToExplain::ToExplain");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString("toexpl"),(Node *) $4);
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_SUMMARIZATION_TO_EXPLAIN),(Node *) $4);
 		}
 	;
 
@@ -551,7 +553,7 @@ optionalSumSample:
 		WITH SAMPLE '(' intConst ')'
 		{
 			RULELOG("optionalSumSample::WithSample");
-			$$ = (Node *) createNodeKeyValue((Node *) createConstString("sumsamp"),(Node *) createConstInt($4));
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(PROP_SUMMARIZATION_SAMPLE),(Node *) createConstInt($4));
 		}
  	;
  	

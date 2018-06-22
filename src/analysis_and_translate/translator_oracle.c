@@ -556,7 +556,8 @@ translateProvenanceStmt(ProvenanceStmt *prov)
     result->asOf = copyObject(prov->asOf);
     translateProperties(((QueryOperator *) result), prov->options);
 
-    switch (prov->inputType) {
+    switch (prov->inputType)
+    {
         case PROV_INPUT_TRANSACTION:
         {
             //XID ?

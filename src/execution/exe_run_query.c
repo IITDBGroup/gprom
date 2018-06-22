@@ -32,15 +32,18 @@ exeRunQuery (void *code)
     boolean showTime = getBoolOption(OPTION_TIME_QUERIES);
     struct timeval st;
     struct timeval et;
-    char *format = getStringOption(OPTION_TIME_QUERY_OUTPUT_FORMAT);
+    char *format = getStringOption(OPTION_TIME_QUERY_OUTPUT_FORMAT);	
     int repeats = getIntOption(OPTION_REPEAT_QUERY);
 
-    	if (getBoolOption(OPTION_INPUTDB))
-    	{
-    	    List *codes = splitString(code, ";");
-    	    printDBsample(codes);
-    	    return;
-    	}
+	// replace \n with new line in format string
+	format = replaceSubstr(format, "\\n", "\n");
+
+	if (getBoolOption(OPTION_INPUTDB))
+	{
+		List *codes = splitString(code, ";");
+		printDBsample(codes);
+		return;
+	}
 	
     // remove semicolon
     adaptedQuery = replaceSubstr(code, ";", ""); //TODO not safe if ; in strings

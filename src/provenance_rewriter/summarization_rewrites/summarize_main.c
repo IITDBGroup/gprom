@@ -47,21 +47,21 @@
 #define SAMP_NUM_L_ATTR SAMP_NUM_PREFIX "Left"
 #define SAMP_NUM_R_ATTR SAMP_NUM_PREFIX "Right"
 
-static List *domAttrsOutput (Node *sampleInput, int sampleSize, char *qType, HashMap *vrPair, List *domRels, List *fPattern);
+static List *domAttrsOutput (Node *sampleInput, int sampleSize, ProvQuestion qType, HashMap *vrPair, List *domRels, List *fPattern);
 static List *joinOnSeqOutput (List *doms);
 //static int *computeSampleSize (int *samplePerc, Node *prov);
 
 static Node *rewriteUserQuestion (List *userQ, Node *rewrittenTree);
 static Node *rewriteProvJoinOutput (Node *rewrittenTree, boolean nonProvOpt);
-static Node *rewriteRandomProvTuples (Node *provExpl, int sampleSize, char *qType, List *fPattern, boolean nonProvOpt);
-static Node *rewriteRandomNonProvTuples (Node *provExpl, char *qType, List *fPattern);
-static Node *rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize, char *qType);
+static Node *rewriteRandomProvTuples (Node *provExpl, int sampleSize, ProvQuestion qType, List *fPattern, boolean nonProvOpt);
+static Node *rewriteRandomNonProvTuples (Node *provExpl, ProvQuestion qType, List *fPattern);
+static Node *rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize, ProvQuestion qType);
 static Node *rewritePatternOutput (char *summaryType, Node *unionSample, Node *randProv);
 static Node *rewriteScanSampleOutput (Node *sampleInput, Node *patternInput);
-static Node *rewriteCandidateOutput (Node *scanSampleInput, char *qType, List *fPattern, boolean nonProvOpt);
+static Node *rewriteCandidateOutput (Node *scanSampleInput, ProvQuestion qType, List *fPattern, boolean nonProvOpt);
 static Node *scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randProv, Node *randNonProv);
 static Node *replaceDomWithSampleDom (List *sampleDoms, List *domRels, Node *input);
-static Node *rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType);
+static Node *rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, ProvQuestion qType);
 static Node *rewritefMeasureOutput (Node *computeFracInput, float sPrec, float sRec, float sInfo, float thPrec, float thRec, float thInfo);
 static Node *rewriteTopkExplOutput (Node *fMeasureInput, int topK);
 static Node *integrateWithEdgeRel (Node *topkInput, Node *moveRels);
@@ -76,7 +76,7 @@ static boolean isDL = FALSE;
 
 
 Node *
-rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
+rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 {
 	/*
 	 * collect options for summarization
@@ -98,89 +98,86 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 
 	HashMap *varRelPair = NULL;
 
-	if (summOpts != NIL)
+	if (summOpts != NULL)
 	{
-		FOREACH(Node,n,summOpts)
+	    FOREACH_HASH_ENTRY(n,summOpts)
 		{
-			if(isA(n,KeyValue))
+	        KeyValue *kv = (KeyValue *) n;
+	        char *key = STRING_VALUE(kv->key);
+
+	        if(streq(key,PROP_SUMMARIZATION_TOPK))
+	            topK = INT_VALUE(kv->value);
+
+	        // whynot only for PUG (not implemented for SQL yet)
+	        if(qType == PROV_Q_WHYNOT && streq(key,PROP_SUMMARIZATION_FPATTERN))
+	            fPattern = copyObject((List *) kv->value);
+
+	        if(streq(key,PROP_SUMMARIZATION_TYPE))
+	            summaryType = STRING_VALUE(kv->value);
+
+	        if(streq(key,PROP_SUMMARIZATION_SAMPLE))
+	            sampleSize = INT_VALUE(kv->value);
+
+	        //				if(isPrefix(key,"score_"))
+	        //					score = (Node *) kv->value;
+
+            if(streq(key,PROP_SUMMARIZATION_SC_PRECISION))
+                sPrecision = FLOAT_VALUE(kv->value);
+
+            if(streq(key,PROP_SUMMARIZATION_SC_RECALL))
+                sRecall = FLOAT_VALUE(kv->value);
+
+            if(streq(key,PROP_SUMMARIZATION_SC_INFORMATIVENESS))
+                sInfo = FLOAT_VALUE(kv->value);
+
+            if(streq(key,PROP_SUMMARIZATION_TH_PRECISION))
+                thPrecision = FLOAT_VALUE(kv->value);
+
+            if(streq(key,PROP_SUMMARIZATION_TH_RECALL))
+                thRecall = FLOAT_VALUE(kv->value);
+
+            if(streq(key,PROP_SUMMARIZATION_TH_INFORMATIVENESS))
+                thInfo = FLOAT_VALUE(kv->value);
+
+			if(streq(key,PROP_SUMMARIZATION_VARREL))
+				varRelPair = (HashMap *) n->value;
+
+			if(streq(key,PROP_SUMMARIZATION_SAMPLE_PROPS))
 			{
-				KeyValue *kv = (KeyValue *) n;
-				char *key = STRING_VALUE(kv->key);
-
-				if(streq(key,"topk"))
-					topK = INT_VALUE(kv->value);
-
-				// whynot only for PUG (not implemented for SQL yet)
-				if(streq(qType,"WHYNOT") && streq(key,"fpattern"))
-					fPattern = copyObject((List *) kv->value);
-
-				if(streq(key,"sumtype"))
-					summaryType = STRING_VALUE(kv->value);
-
-				if(streq(key,"sumsamp"))
-					sampleSize = INT_VALUE(kv->value);
-
-//				if(isPrefix(key,"score_"))
-//					score = (Node *) kv->value;
-
-				if(streq(key,"sc_PRECISION"))
-					sPrecision = FLOAT_VALUE(kv->value);
-
-				if(streq(key,"sc_RECALL"))
-					sRecall = FLOAT_VALUE(kv->value);
-
-				if(streq(key,"sc_INFORMATIVENESS"))
-					sInfo = FLOAT_VALUE(kv->value);
-
-				if(streq(key,"th_PRECISION"))
-					thPrecision = FLOAT_VALUE(kv->value);
-
-				if(streq(key,"th_RECALL"))
-					thRecall = FLOAT_VALUE(kv->value);
-
-				if(streq(key,"th_INFORMATIVENESS"))
-					thInfo = FLOAT_VALUE(kv->value);
-			}
-
-			if(isA(n,HashMap))
-				varRelPair = (HashMap *) n;
-
-			if(isA(n,List))
-			{
-				List *explSamp = (List *) n;
+				List *explSamp = (List *) n->value;
 
 				FOREACH(KeyValue,kv,explSamp)
 				{
 					char *key = STRING_VALUE(kv->key);
 
-					if(streq(key,"sumtype"))
+					if(streq(key,PROP_SUMMARIZATION_TYPE))
 						summaryType = STRING_VALUE(kv->value);
 
-					if(streq(key,"toexpl"))
+					if(streq(key,PROP_SUMMARIZATION_TO_EXPLAIN))
 						userQuestion = (List *) kv->value;
 
-					if(streq(key,"sumsamp"))
+					if(streq(key,PROP_SUMMARIZATION_SAMPLE))
 						sampleSize = INT_VALUE(kv->value);
 
 //					if(isPrefix(key,"score_"))
 //						score = (Node *) kv->value;
 
-					if(streq(key,"sc_PRECISION"))
+					if(streq(key,PROP_SUMMARIZATION_SC_PRECISION))
 						sPrecision = FLOAT_VALUE(kv->value);
 
-					if(streq(key,"sc_RECALL"))
+					if(streq(key,PROP_SUMMARIZATION_SC_RECALL))
 						sRecall = FLOAT_VALUE(kv->value);
 
-					if(streq(key,"sc_INFORMATIVENESS"))
+					if(streq(key,PROP_SUMMARIZATION_SC_INFORMATIVENESS))
 						sInfo = FLOAT_VALUE(kv->value);
 
-					if(streq(key,"th_PRECISION"))
+					if(streq(key,PROP_SUMMARIZATION_TH_PRECISION))
 						thPrecision = FLOAT_VALUE(kv->value);
 
-					if(streq(key,"th_RECALL"))
+					if(streq(key,PROP_SUMMARIZATION_TH_RECALL))
 						thRecall = FLOAT_VALUE(kv->value);
 
-					if(streq(key,"th_INFORMATIVENESS"))
+					if(streq(key,PROP_SUMMARIZATION_TH_INFORMATIVENESS))
 						thInfo = FLOAT_VALUE(kv->value);
 				}
 			}
@@ -316,7 +313,7 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		 * 5) rank the patterns based on the computed fraction (e.g., recall and informativeness)
 		 * 6) return the explanation based on the top-k patterns
 		 */
-		if(streq(qType,"WHY"))
+		if(qType == PROV_Q_WHY)
 		{
 			if(!LIST_EMPTY(domRels))
 				eachRewrittenTree = replaceDomWithSampleDom(sampleDoms, domRels, eachRewrittenTree);
@@ -357,7 +354,7 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		 * 3) rank the patterns based on the computed fraction (e.g., recall and informativeness)
 		 * 4) return the explanation based on the top-k patterns
 		 */
-		else if(streq(qType,"WHYNOT"))
+		else if(qType == PROV_Q_WHYNOT)
 		{
 	//		doms = domAttrsOutput(rewrittenTree, sampleSize, qType, varRelPair);
 	//		sampleDom = joinOnSeqOutput(doms);
@@ -383,8 +380,8 @@ rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType)
 		eachResults = appendToTailOfList(eachResults, result);
 
 		// swith the question type by the existence of domain
-		if(streq(qType,"WHY") && !LIST_EMPTY(domRels))
-			qType = "WHYNOT";
+		if(qType == PROV_Q_WHY && !LIST_EMPTY(domRels))
+			qType = PROV_Q_WHYNOT;
 //		else if(streq(qType,"WHYNOT") && !LIST_EMPTY(domRels))
 //			qType = "WHY";
 	}
@@ -887,12 +884,12 @@ rewritefMeasureOutput (Node *computeFracInput, float sPrec, float sRec, float sI
  * compute precision and recall
  */
 static Node *
-rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, char *qType)
+rewriteComputeFracOutput (Node *scaledCandInput, Node *sampleInput, ProvQuestion qType)
 {
 	Node *result;
 	QueryOperator *computeFrac = (QueryOperator *) scaledCandInput;
 
-	if(streq(qType,"WHYNOT"))
+	if(qType == PROV_Q_WHYNOT)
 	{
 		QueryOperator *provSample = (QueryOperator *) sampleInput;
 
@@ -1285,7 +1282,7 @@ scaleUpOutput (List *doms, Node *candInput, Node *provJoin, Node *randSamp, Node
  * generate domain attrs for later use of scale up of the measure values to the real values
  */
 static List *
-domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List *domRels, List *fPattern)
+domAttrsOutput (Node *input, int sampleSize, ProvQuestion qType, HashMap *vrPair, List *domRels, List *fPattern)
 {
 	List *result = NIL;
 
@@ -1472,7 +1469,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 //					if(existAttrCnt == 0)
 //					{
 						// count for why
-						if(streq(qType,"WHY") && LIST_EMPTY(domRels))
+						if(qType == PROV_Q_WHY && LIST_EMPTY(domRels))
 						{
 							// create count attr
 							AttributeReference *countAr = createFullAttrReference(strdup(ar->name), 0, ar->attrPosition - attrCount, 0, DT_INT);
@@ -1488,7 +1485,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
 							result = appendToTailOfList(result, (Node *) aggCount);
 						}
 						// random sample from attr domain for whynot
-						else if(streq(qType,"WHYNOT") || (streq(qType,"WHY") && !LIST_EMPTY(domRels)))
+						else if(qType == PROV_Q_WHYNOT || (qType == PROV_Q_WHY && !LIST_EMPTY(domRels)))
 						{
 							/*
 							 *  TODO: compute percentile for random sample based on the sample size
@@ -1602,7 +1599,7 @@ domAttrsOutput (Node *input, int sampleSize, char *qType, HashMap *vrPair, List 
  * coverage: how many prov or non-prov are covered by the pattern
  */
 static Node *
-rewriteCandidateOutput (Node *scanSampleInput, char *qType, List *fPattern, boolean nonProvOpt)
+rewriteCandidateOutput (Node *scanSampleInput, ProvQuestion qType, List *fPattern, boolean nonProvOpt)
 {
 	Node *result;
 
@@ -1634,13 +1631,13 @@ rewriteCandidateOutput (Node *scanSampleInput, char *qType, List *fPattern, bool
 	FunctionCall *fcShnp = NULL; // keep compiler quiet
 	List *attrNames = NIL;
 
-	if(streq(qType,"WHY"))
+	if(qType == PROV_Q_WHY)
 	{
 		Constant *sumHasNonProv = createConstInt(0);
 		fcShnp = createFunctionCall("SUM", singleton(sumHasNonProv));
 		attrNames = concatTwoLists(singleton(NUM_NONPROV_ATTR), singleton(NUM_PROV_ATTR));
 	}
-	else if(streq(qType,"WHYNOT"))
+	else if(qType == PROV_Q_WHYNOT)
 	{
 		Constant *countProv = createConstInt(1);
 		fcShnp = createFunctionCall("COUNT", singleton(countProv));
@@ -2002,13 +1999,13 @@ rewritePatternOutput (char *summaryType, Node *unionSample, Node *randProv)
  * Full sample of prov and non-prov
  */
 static Node *
-rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize, char *qType)
+rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize, ProvQuestion qType)
 {
 	Node *result;
 	List *allInput = NIL;
 	QueryOperator *randomProv = (QueryOperator *) randProv;
 
-	if(streq(qType,"WHY"))
+	if(qType == PROV_Q_WHY)
 	{
 		Node *selCond = NULL;
 		SelectionOperator *so;
@@ -2263,7 +2260,7 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize, char *qT
 
 		allInput = LIST_MAKE(randomProv,randomNonProvJoin);
 	}
-	else if(streq(qType,"WHYNOT"))
+	else if(qType == PROV_Q_WHYNOT)
 	{
 //		// make attr name with "PROV_"
 //		FOREACH(AttributeDef,a,randomProv->schema->attrDefs)
@@ -2311,12 +2308,12 @@ rewriteSampleOutput (Node *randProv, Node *randNonProv, int sampleSize, char *qT
  * random sampling for non-prov tuples
  */
 static Node *
-rewriteRandomNonProvTuples (Node *provExpl, char *qType, List *fPattern)
+rewriteRandomNonProvTuples (Node *provExpl, ProvQuestion qType, List *fPattern)
 {
 	Node *result;
 	QueryOperator *randomNonProv = (QueryOperator *) provExpl;
 
-	if(streq(qType,"WHY"))
+	if(qType == PROV_Q_WHY)
 	{
 		List *attrNames = NIL;
 		// random sampling from hasProv = 0
@@ -2359,7 +2356,7 @@ rewriteRandomNonProvTuples (Node *provExpl, char *qType, List *fPattern)
 		randomNonProv = (QueryOperator *) ord;
 		randomNonProv->provAttrs = copyObject(provAttrs);
 	}
-	else if(streq(qType,"WHYNOT"))
+	else if(qType == PROV_Q_WHYNOT)
 	{
 		int numAttrInput = LIST_LENGTH(randomNonProv->schema->attrDefs);
 		int lenOfPattern = LIST_LENGTH(fPattern);
@@ -2435,13 +2432,13 @@ rewriteRandomNonProvTuples (Node *provExpl, char *qType, List *fPattern)
  * random sampling for prov tuples
  */
 static Node *
-rewriteRandomProvTuples (Node *provExpl, int sampleSize, char *qType, List *fPattern, boolean nonProvOpt)
+rewriteRandomProvTuples (Node *provExpl, int sampleSize, ProvQuestion qType, List *fPattern, boolean nonProvOpt)
 {
 	Node *result;
 	SelectionOperator *so;
 	QueryOperator *randomProv = (QueryOperator *) provExpl;
 
-	if(streq(qType,"WHY"))
+	if(qType == PROV_Q_WHY)
 	{
 		List *attrNames = NIL;
 		// random sampling from hasProv = 1
@@ -2483,7 +2480,7 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, char *qType, List *fPat
 		randomProv = (QueryOperator *) op;
 		randomProv->provAttrs = copyObject(provAttrs);
 	}
-	else if(streq(qType,"WHYNOT"))
+	else if (qType == PROV_Q_WHYNOT)
 	{
 		int numAttrInput = LIST_LENGTH(randomProv->schema->attrDefs);
 		int lenOfPattern, patternPos, pos = 0;

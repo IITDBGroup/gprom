@@ -21,11 +21,14 @@
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
 #include "model/datalog/datalog_model_checker.h"
+#include "model/query_operator/operator_property.h"
+#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "model/rpq/rpq_model.h"
 #include "rpq/rpq_to_datalog.h"
 #include "utility/string_utils.h"
 
 static void analyzeDLProgram (DLProgram *p);
+static void analyzeSummerization (DLProgram *p);
 static void analyzeRule (DLRule *r, Set *idbRels, DLProgram *p); // , Set *edbRels, Set *factRels);
 static void analyzeProv (DLProgram *p, KeyValue *kv);
 static List *analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules);
@@ -82,6 +85,9 @@ analyzeDLProgram (DLProgram *p)
     List *facts = NIL;
     List *rpqRules = NIL;
     List *doms = NIL;
+
+    // extract summarization options
+    analyzeSummerization(p);
 
     // expand RPQ queries
     FOREACH(Node,r,p->rules)
@@ -258,6 +264,115 @@ analyzeDLProgram (DLProgram *p)
 //                    " %s in program:\n\n%s",
 //                    p->ans, datalogToOverviewString((Node *) p));
 //    }
+}
+
+static void
+analyzeSummerization (DLProgram *p)
+{
+    ProvQuestion qType = PROV_Q_WHY;
+
+    // only continue if summarization was requested
+    if (p->sumOpts == NIL)
+        return;
+
+    // either why or why-not
+    FOREACH(Node,n,p->rules)
+    {
+        if(isA(n,KeyValue))
+        {
+            KeyValue *kv = (KeyValue *) n;
+            char *qTypeStr = STRING_VALUE(kv->key);
+
+            if(isPrefix(qTypeStr,"WHYNOT_"))
+                qType = PROV_Q_WHYNOT;
+            else
+                qType = PROV_Q_WHY;
+        }
+    }
+
+	// set the summarization type
+    DL_SET_PROP(p, PROP_SUMMARIZATION_TYPE, createConstInt(qType));
+
+    // mark as summarization
+    DL_SET_BOOL_PROP(p, PROP_SUMMARIZATION_DOSUM);
+
+    // turn summarization options into properties
+    FOREACH(Node,n,p->sumOpts)
+    {
+        ASSERT(isA(n,KeyValue));
+        KeyValue *kv = (KeyValue *) n;
+        ASSERT(isA(kv->key, Constant));
+        Constant *key = (Constant *) kv->key;
+        DL_SET_PROP(p, STRING_VALUE(key), kv->value);
+    }
+
+    // keep track of (var,rel) and (negidb,edb)
+    HashMap *varRelPair = NEW_MAP(Constant,Constant);
+    HashMap *headEdbPair = NEW_MAP(Constant,List);
+    List *negAtoms = NIL;
+
+    FOREACH(Node,n,p->rules)
+    {
+        if(isA(n,DLRule))
+        {
+            DLRule *r = (DLRule *) n;
+            List *edbList = NIL;
+
+            FOREACH(Node,b,r->body)
+            {
+                if(isA(b,DLAtom))
+                {
+                    DLAtom *a = (DLAtom *) b;
+
+                    // keep track of which negated atom needs domains from which edb atom
+                    if(a->negated)
+                        negAtoms = appendToTailOfList(negAtoms,a->rel);
+                    else
+                        edbList = appendToTailOfList(edbList,a->rel);
+
+                    // keep track of which variable belongs to which edb
+                    FOREACH(Node,n,a->args)
+                    {
+                        if(isA(n,DLVar))
+                        {
+                            DLVar *v = (DLVar *) n;
+                            MAP_ADD_STRING_KEY_AND_VAL(varRelPair,v->name,a->rel);
+                        }
+                    }
+                }
+            }
+
+            char *headPred = getHeadPredName(r);
+            MAP_ADD_STRING_KEY(headEdbPair,headPred,edbList);
+        }
+    }
+
+    // store edb information for negated atoms and why-not questions
+    if(!LIST_EMPTY(negAtoms))
+    {
+        FOREACH(char,c,negAtoms)
+        {
+            if(!MAP_HAS_STRING_KEY(headEdbPair,c))
+                MAP_ADD_STRING_KEY_AND_VAL(varRelPair,c,c);
+            else
+            {
+                List *edbs = (List *) MAP_GET_STRING(headEdbPair,c);
+
+                FOREACH(char,e,edbs)
+                MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
+            }
+        }
+    }
+
+    if(LIST_EMPTY(negAtoms) || qType == PROV_Q_WHYNOT)
+    {
+        FOREACH_HASH(List,edbs,headEdbPair)
+            FOREACH(char,e,edbs)
+                MAP_ADD_STRING_KEY_AND_VAL(varRelPair,e,e);
+    }
+
+    // store into the list of the summarization options
+    DL_SET_PROP(p, PROP_SUMMARIZATION_VARREL, varRelPair);
 }
 
 static void

@@ -303,6 +303,26 @@ public class PostgresMetadataLookup extends AbstractMetadataLookup {
 		return 0;
 	}
 
+	/**
+	 * 
+	 * @see org.gprom.jdbc.metadata_lookup.AbstractMetadataLookup#dataTypeToSQL(org.gprom.jdbc.jna.GProMJavaInterface.DataType)
+	 */
+	public String dataTypeToSQL (DataType dt) {
+		switch(dt) {
+			case DT_STRING:
+			case DT_VARCHAR2:
+				return "text";
+			case DT_FLOAT:
+				return "float8";
+			case DT_INT:
+			case DT_LONG:
+				return "int8";
+			case DT_BOOL:
+				return "bool";
+		}
+		return "VARCHAR";
+	}
+	
 	private DataType oidToDT (String oid) {
 		return postgresTypenameToDT(oidToTypeName(oid));
 	}

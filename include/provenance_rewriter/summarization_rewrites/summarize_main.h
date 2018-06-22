@@ -11,11 +11,15 @@
  */
 
 #include "common.h"
-#include "instrumentation/timing_instrumentation.h"
-#include "mem_manager/mem_mgr.h"
-#include "log/logger.h"
 
+#include "model/node/nodetype.h"
 #include "model/query_operator/query_operator.h"
+#include "model/set/hashmap.h"
 
-extern Node *rewriteSummaryOutput (Node *rewrittenTree, List *summOpts, char *qType);
+NEW_ENUM_WITH_TO_STRING(ProvQuestion,
+        PROV_Q_WHY,
+        PROV_Q_WHYNOT
+);
+
+extern Node *rewriteSummaryOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType);
 

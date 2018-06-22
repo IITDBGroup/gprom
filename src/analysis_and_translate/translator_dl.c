@@ -24,10 +24,12 @@
 #include "model/query_operator/query_operator.h"
 #include "model/query_operator/query_operator_model_checker.h"
 #include "model/query_operator/query_operator_dt_inference.h"
+#include "model/query_operator/operator_property.h"
 #include "model/datalog/datalog_model.h"
 #include "model/datalog/datalog_model_checker.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
+#include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "utility/string_utils.h"
 
 static Node *translateProgram(DLProgram *p);
@@ -65,7 +67,9 @@ Node *
 translateParseDL(Node *q)
 {
     Node *result = NULL;
-    char *ans = ((DLProgram *) q)->ans;
+    DLProgram *p = (DLProgram *) q;
+    char *ans = p->ans;
+    boolean doSumm = DL_HAS_PROP(p, PROP_SUMMARIZATION_DOSUM);
 
     // check if ans exists
     if(ans != NULL)
@@ -97,6 +101,12 @@ translateParseDL(Node *q)
     else if (IS_OP(result))
     {
         introduceCastsWhereNecessary((QueryOperator *) result);
+        if (doSumm)
+        {
+            ProvQuestion qType = (ProvQuestion) INT_VALUE(DL_GET_PROP(p, PROP_SUMMARIZATION_TYPE));
+
+            result = rewriteSummaryOutput(result, p->n.properties, qType);
+        }
         ASSERT(checkModel((QueryOperator *) result));
     }
     INFO_OP_LOG("translated DL model:\n", result);

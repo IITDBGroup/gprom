@@ -149,6 +149,8 @@ createProvenanceStmt(Node *query)
     ProvenanceStmt *result = makeNode(ProvenanceStmt);
 
     result->query = query;
+    result->options = NIL;
+    result->sumOpts = NIL;
 
     return result;
 }
